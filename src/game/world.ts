@@ -1,17 +1,19 @@
 import * as THREE from "three";
-import { Track, ROAD_HALF_WIDTH } from "./track";
+import { Track, ROAD_HALF_WIDTH, COAST_U } from "./track";
 
-// Night-time Kuwait: sand, sea, sodium streetlights, and the skyline —
-// Kuwait Towers by the water, Liberation Tower, Al Hamra, the striped
-// mushroom water towers, palms along the corniche and a mosque inland.
+// Night-time Gulf Road: the corniche leg runs right along the water —
+// beach, palms, Green Island, the Salmiya marina, the Scientific Center
+// and the Ras Al-Ard light — with the city skyline and water towers on
+// the inland return leg.
 
+// Districts in lap order: down the coast, around the point, back inland.
 export const AREAS = [
-  { name: "Kuwait City", arabic: "مدينة الكويت" },
   { name: "Sharq", arabic: "شرق" },
+  { name: "Bneid Al-Gar", arabic: "بنيد القار" },
   { name: "Salmiya", arabic: "السالمية" },
+  { name: "Ras Al-Ard", arabic: "رأس الأرض" },
   { name: "Hawally", arabic: "حولي" },
-  { name: "Fahaheel", arabic: "الفحيحيل" },
-  { name: "Jahra", arabic: "الجهراء" },
+  { name: "Kuwait City", arabic: "مدينة الكويت" },
 ];
 
 export function areaAt(track: Track, s: number) {
@@ -19,16 +21,26 @@ export function areaAt(track: Track, s: number) {
   return AREAS[Math.min(AREAS.length - 1, Math.floor(u * AREAS.length))];
 }
 
-/** Flat ribbon following the track between lateral offsets a..b at height y. */
-function buildRibbon(track: Track, a: number, b: number, y: number, step = 8): THREE.BufferGeometry {
-  const n = Math.ceil(track.length / step);
+/** Flat ribbon following the track between lateral offsets a..b at height y,
+ *  optionally only over the lap fraction u0..u1. */
+function buildRibbon(
+  track: Track,
+  a: number,
+  b: number,
+  y: number,
+  step = 8,
+  u0 = 0,
+  u1 = 1
+): THREE.BufferGeometry {
+  const span = (u1 - u0) * track.length;
+  const n = Math.ceil(span / step);
   const positions = new Float32Array((n + 1) * 2 * 3);
   const indices: number[] = [];
   const p = new THREE.Vector3();
   const side = new THREE.Vector3();
 
   for (let i = 0; i <= n; i++) {
-    const s = (i / n) * track.length;
+    const s = u0 * track.length + (i / n) * span;
     track.pointAt(s, p);
     track.sideAt(s, side);
     const o = i * 6;
@@ -284,6 +296,103 @@ function mosque(): THREE.Group {
   return g;
 }
 
+function greenIsland(): THREE.Group {
+  const g = new THREE.Group();
+  const sand = new THREE.Mesh(
+    new THREE.CylinderGeometry(95, 100, 1.2, 24),
+    new THREE.MeshStandardMaterial({ color: 0x8a7a55, roughness: 1 })
+  );
+  sand.position.y = 0.3;
+  g.add(sand);
+  const lawn = new THREE.Mesh(
+    new THREE.CylinderGeometry(78, 82, 1.4, 24),
+    new THREE.MeshStandardMaterial({ color: 0x1e4d22, roughness: 1 })
+  );
+  lawn.position.y = 0.7;
+  g.add(lawn);
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a4327, roughness: 1 });
+  const crownMat = new THREE.MeshStandardMaterial({ color: 0x2c5e2e, roughness: 1 });
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const r = 25 + (i % 3) * 18;
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.32, 6, 6), trunkMat);
+    trunk.position.set(Math.cos(a) * r, 4.4, Math.sin(a) * r);
+    g.add(trunk);
+    const crown = new THREE.Mesh(new THREE.ConeGeometry(2.2, 1.7, 7), crownMat);
+    crown.position.set(Math.cos(a) * r, 7.8, Math.sin(a) * r);
+    g.add(crown);
+  }
+  // Observation tower at the centre
+  const tower = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.6, 2.2, 16, 8),
+    new THREE.MeshStandardMaterial({ color: 0xc9b48a, roughness: 0.8, emissive: 0x3a2e16, emissiveIntensity: 0.4 })
+  );
+  tower.position.y = 8.7;
+  g.add(tower);
+  return g;
+}
+
+function marinaBoats(): THREE.Group {
+  const g = new THREE.Group();
+  const hullMat = new THREE.MeshStandardMaterial({ color: 0xe8eaee, roughness: 0.5 });
+  const cabinMat = new THREE.MeshStandardMaterial({ color: 0x9fb4c8, roughness: 0.4 });
+  for (let i = 0; i < 6; i++) {
+    const boat = new THREE.Group();
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.1, 7 + (i % 3) * 2), hullMat);
+    hull.position.y = 0.55;
+    boat.add(hull);
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1, 2.4), cabinMat);
+    cabin.position.set(0, 1.5, -0.8);
+    boat.add(cabin);
+    boat.position.set((i % 2) * 9 - 4, 0, Math.floor(i / 2) * 12 - 12);
+    boat.rotation.y = (i * 0.9) % (Math.PI * 2);
+    g.add(boat);
+  }
+  return g;
+}
+
+function scientificCenter(): THREE.Group {
+  // The sail-shaped aquarium on the Salmiya waterfront, stylized as a
+  // glassy pyramid wedge.
+  const g = new THREE.Group();
+  const sailMat = new THREE.MeshStandardMaterial({
+    color: 0x9fc4d8,
+    roughness: 0.25,
+    metalness: 0.5,
+    emissive: 0x14323f,
+    emissiveIntensity: 0.6,
+  });
+  const sail = new THREE.Mesh(new THREE.CylinderGeometry(0, 24, 34, 4), sailMat);
+  sail.position.y = 17;
+  sail.rotation.y = Math.PI / 4;
+  sail.scale.z = 0.45;
+  g.add(sail);
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(50, 7, 26),
+    new THREE.MeshStandardMaterial({ color: 0xc9b48a, roughness: 0.8, emissive: 0x3a2e16, emissiveIntensity: 0.3 })
+  );
+  base.position.y = 3.5;
+  g.add(base);
+  return g;
+}
+
+function lighthouse(): THREE.Group {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.4, 2.1, 17, 10),
+    new THREE.MeshStandardMaterial({ color: 0xe8eaee, roughness: 0.6 })
+  );
+  body.position.y = 8.5;
+  g.add(body);
+  const lamp = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.1, 1.1, 2.2, 8),
+    new THREE.MeshStandardMaterial({ color: 0xff5544, emissive: 0xff3322, emissiveIntensity: 2.5, fog: false })
+  );
+  lamp.position.y = 18.1;
+  g.add(lamp);
+  return g;
+}
+
 /** Place an object beside the track: distance s along, `offset` metres right (+) or left (-). */
 function placeBeside(track: Track, obj: THREE.Object3D, s: number, offset: number) {
   const p = new THREE.Vector3();
@@ -311,10 +420,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): void {
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2;
       const e = Math.random() * Math.PI * 0.45 + 0.08;
-      const r = 2600;
-      pos[i * 3] = Math.cos(a) * Math.cos(e) * r + 550;
+      const r = 3000;
+      pos[i * 3] = Math.cos(a) * Math.cos(e) * r + 1200;
       pos[i * 3 + 1] = Math.sin(e) * r * 0.5;
-      pos[i * 3 + 2] = Math.sin(a) * Math.cos(e) * r - 600;
+      pos[i * 3 + 2] = Math.sin(a) * Math.cos(e) * r - 1400;
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
@@ -325,17 +434,19 @@ export function buildWorld(scene: THREE.Scene, track: Track): void {
     scene.add(stars);
   }
 
-  // Desert floor and the Gulf
+  // City floor inland of the corniche
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(7000, 7000),
+    new THREE.PlaneGeometry(8000, 8000),
     new THREE.MeshStandardMaterial({ color: 0x241d12, roughness: 1 })
   );
   ground.rotation.x = -Math.PI / 2;
-  ground.position.set(550, -0.08, -600);
+  ground.position.set(2700, -0.08, -1400);
   scene.add(ground);
 
+  // The Gulf — runs along the whole coastal leg (road x ≈ 760–850,
+  // water everywhere west of it down to the horizon)
   const sea = new THREE.Mesh(
-    new THREE.PlaneGeometry(2200, 3200),
+    new THREE.PlaneGeometry(3300, 5800),
     new THREE.MeshStandardMaterial({
       color: 0x0a2236,
       roughness: 0.25,
@@ -345,8 +456,22 @@ export function buildWorld(scene: THREE.Scene, track: Track): void {
     })
   );
   sea.rotation.x = -Math.PI / 2;
-  sea.position.set(2480, -0.04, -600);
+  // Eastern edge at x ≈ 770 so the water always reaches under the beach
+  sea.position.set(-880, -0.04, -1400);
   scene.add(sea);
+
+  // Corniche: paved walkway then beach sand between the road and the water
+  const walkway = new THREE.Mesh(
+    buildRibbon(track, -(ROAD_HALF_WIDTH + 0.8), -(ROAD_HALF_WIDTH + 4.5), 0.06, 10, COAST_U.from, COAST_U.to),
+    new THREE.MeshStandardMaterial({ color: 0x4a4438, roughness: 0.95 })
+  );
+  scene.add(walkway);
+
+  const beach = new THREE.Mesh(
+    buildRibbon(track, -(ROAD_HALF_WIDTH + 4.5), -(ROAD_HALF_WIDTH + 48), 0.0, 10, COAST_U.from, COAST_U.to),
+    new THREE.MeshStandardMaterial({ color: 0x6e6044, roughness: 1 })
+  );
+  scene.add(beach);
 
   // Road surface, edge lines, lane dashes
   const road = new THREE.Mesh(
@@ -456,12 +581,15 @@ export function buildWorld(scene: THREE.Scene, track: Track): void {
     for (let i = 0; i < count; i++) {
       const s = Math.random() * L;
       const u = track.wrap(s) / L;
-      // Leave the seaside straight (first sixth) sparse — that's the corniche.
-      const sideSign = u < 1 / 6 ? -1 : Math.random() < 0.5 ? 1 : -1;
+      // Never on the sea side of the corniche; both sides inland.
+      const onCoast = u >= COAST_U.from && u <= COAST_U.to;
+      const sideSign = onCoast ? 1 : Math.random() < 0.5 ? 1 : -1;
       const dist = 32 + Math.random() * 110;
       track.pose(s, sideSign * dist, p, tmp);
       q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.random() * Math.PI);
-      const h = 10 + Math.random() * Math.random() * 55;
+      // Taller skyline near the city at the top of the lap
+      const cityBoost = u > 0.88 || u < 0.06 ? 2.1 : 1;
+      const h = (10 + Math.random() * Math.random() * 55) * cityBoost;
       scale.set(12 + Math.random() * 20, h, 12 + Math.random() * 20);
       m.compose(p, q, scale);
       blocks.setMatrixAt(i, m);
@@ -470,9 +598,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): void {
     scene.add(blocks);
   }
 
-  // Palms along the corniche (seaside stretch) median-free roadside
+  // Palm rows lining the corniche walkway, the whole length of the coast
   {
-    const count = 110;
+    const coastLen = (COAST_U.to - COAST_U.from) * L;
+    const count = Math.floor(coastLen / 26);
     const trunkGeo = new THREE.CylinderGeometry(0.18, 0.3, 6, 6);
     trunkGeo.translate(0, 3, 0);
     const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a4327, roughness: 1 });
@@ -485,9 +614,13 @@ export function buildWorld(scene: THREE.Scene, track: Track): void {
     const p = new THREE.Vector3();
     const tmp = new THREE.Vector3();
     for (let i = 0; i < count; i++) {
-      const s = (i / count) * L * 0.35 + L * 0.0;
-      const sideSign = i % 2 === 0 ? 1 : -1;
-      track.pose(s + Math.random() * 8, sideSign * (ROAD_HALF_WIDTH + 4 + Math.random() * 5), p, tmp);
+      const s = COAST_U.from * L + (i / count) * coastLen;
+      // Sea-side walkway edge, with the occasional inland palm
+      const lateral =
+        i % 5 === 4
+          ? ROAD_HALF_WIDTH + 3 + Math.random() * 4
+          : -(ROAD_HALF_WIDTH + 2.6);
+      track.pose(s + Math.random() * 6, lateral, p, tmp);
       m.makeTranslation(p.x, 0, p.z);
       trunks.setMatrixAt(i, m);
       crowns.setMatrixAt(i, m);
@@ -497,31 +630,54 @@ export function buildWorld(scene: THREE.Scene, track: Track): void {
     scene.add(trunks, crowns);
   }
 
-  // Landmarks
+  // Landmarks, in real Gulf Road order heading south down the coast
   const towers = kuwaitTowers();
-  placeBeside(track, towers, L * 0.06, 70);
+  placeBeside(track, towers, L * 0.016, -52); // Ras Ajouza promontory, ahead of the spawn
   scene.add(towers);
+  const towersPad = new THREE.Mesh(
+    new THREE.CylinderGeometry(70, 75, 0.8, 20),
+    new THREE.MeshStandardMaterial({ color: 0x8a7a55, roughness: 1 })
+  );
+  towersPad.position.copy(towers.position).setY(0.1);
+  scene.add(towersPad);
+
+  const grandMosque = mosque();
+  placeBeside(track, grandMosque, L * 0.02, 55); // opposite Souq Sharq
+  grandMosque.rotation.y = Math.PI / 5;
+  scene.add(grandMosque);
+
+  const island = greenIsland();
+  placeBeside(track, island, L * 0.1, -200); // Green Island, out in the water
+  scene.add(island);
+
+  const marina = marinaBoats();
+  placeBeside(track, marina, L * 0.27, -38); // Salmiya marina bay
+  scene.add(marina);
+
+  const sciCenter = scientificCenter();
+  placeBeside(track, sciCenter, L * 0.385, -48); // the sail on the waterfront
+  scene.add(sciCenter);
+
+  const rasLight = lighthouse();
+  placeBeside(track, rasLight, L * 0.465, -28); // Ras Al-Ard point
+  scene.add(rasLight);
 
   const wt = waterTowers(stripeTexture("#7ec8e3", "#ffffff"));
-  placeBeside(track, wt, L * 0.3, -60);
+  placeBeside(track, wt, L * 0.62, 65); // inland leg, Hawally side
   scene.add(wt);
 
+  const m2 = mosque();
+  placeBeside(track, m2, L * 0.75, -60);
+  m2.rotation.y = Math.PI / 3;
+  scene.add(m2);
+
   const lib = liberationTower(windows);
-  placeBeside(track, lib, L * 0.93, -120);
+  placeBeside(track, lib, L * 0.9, 130); // city centre, inland of the top curve
   scene.add(lib);
 
   const hamra = alHamra(windows);
-  placeBeside(track, hamra, L * 0.97, 90);
+  placeBeside(track, hamra, L * 0.96, 80); // Sharq skyline by the start
   scene.add(hamra);
-
-  const m1 = mosque();
-  placeBeside(track, m1, L * 0.55, -55);
-  m1.rotation.y = Math.PI / 3;
-  scene.add(m1);
-
-  const m2 = mosque();
-  placeBeside(track, m2, L * 0.78, 60);
-  scene.add(m2);
 
   // Kuwait flag at the start line
   {

@@ -6,7 +6,7 @@ A modern place-discovery app for Kuwait: curated landmarks, food, beaches, shopp
 
 ## 🏁 Gulf Road Nights — ليالي شارع الخليج
 
-A built-in **Kuwait Xtreme Racer** game at [`/race`](http://localhost:3000/race): Tokyo-Xtreme-Racer-style midnight highway battles on a 4.3 km Gulf Road loop past the Kuwait Towers, Al Hamra, Liberation Tower, and the striped water towers.
+A built-in **Kuwait Xtreme Racer** game at [`/race`](http://localhost:3000/race): Tokyo-Xtreme-Racer-style midnight highway battles on a 7.3 km lap of the real **Gulf Road** — south along the corniche from the Kuwait Towers past Green Island, the Salmiya marina, and the Scientific Center to Ras Al-Ard, then back north through Hawally and the city skyline (Al Hamra, Liberation Tower, the striped water towers).
 
 - **Drive**: `W/↑` accelerate, `S/↓` brake, `A`/`D` steer, `M` mute
 - **Battle**: catch a rival and press `F` to flash your headlights — the trailing car bleeds SP (Spirit Points); empty the rival's bar to win

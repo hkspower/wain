@@ -200,7 +200,7 @@ export default function RaceClient() {
         </div>
 
         {/* Speedometer */}
-        <div className="absolute bottom-5 left-5 select-none">
+        <div className="absolute bottom-5 left-16 select-none">
           <span ref={speedRef} className="text-6xl font-black italic tabular-nums drop-shadow-lg">
             0
           </span>
@@ -235,8 +235,9 @@ export default function RaceClient() {
             ليالي شارع الخليج
           </div>
           <p className="mt-6 max-w-xl text-sm leading-6 text-white/60">
-            Midnight on the corniche. Six street legends rule the loop from Kuwait City to Jahra.
-            Hunt them down, flash your headlights, and drain their spirit — TXR style. وين الحدود؟
+            Midnight on the real Gulf Road — 7 km from the Kuwait Towers down the corniche to Ras
+            Al-Ard and back through the city. Six street legends rule it. Hunt them down, flash
+            your headlights, and drain their spirit — TXR style. وين الحدود؟
           </p>
           <div className="mt-8 grid grid-cols-2 gap-x-10 gap-y-1 text-left text-xs text-white/55 sm:grid-cols-3">
             {RIVALS.map((r, i) => (

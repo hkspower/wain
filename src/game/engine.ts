@@ -75,8 +75,8 @@ export class GameEngine {
   private keys = new Set<string>();
   private events: EngineEvents;
 
-  // Player
-  private player = { s: 0, lat: LANES[1], speed: 0, sp: 100 };
+  // Player — spawns just past the start-line gantry
+  private player = { s: 40, lat: LANES[1], speed: 0, sp: 100 };
   private playerMesh: THREE.Group;
   private carBody: THREE.Group;
   private headlight: THREE.SpotLight;
@@ -91,6 +91,7 @@ export class GameEngine {
   private scrapeCooldown = 0;
   private steerVel = 0;
   private fovCurrent = 62;
+  private camInit = false;
 
   // Minimap
   private mapBounds = { minX: 0, maxX: 1, minZ: 0, maxZ: 1 };
@@ -128,7 +129,7 @@ export class GameEngine {
     this.headlight.target.position.set(0, 0, 40);
     this.playerMesh.add(this.headlight, this.headlight.target);
 
-    this.spawnTraffic(16);
+    this.spawnTraffic(22);
 
     this.rivalIndex = this.loadProgress();
     this.spawnRival();
@@ -572,7 +573,12 @@ export class GameEngine {
       .copy(this.v1)
       .addScaledVector(this.v3, -9.5)
       .add(this.v2.set(0, 3.4 + p.speed * 0.012, 0));
-    this.camera.position.lerp(this.v4, Math.min(1, dt * 5.5));
+    if (!this.camInit) {
+      this.camInit = true;
+      this.camera.position.copy(this.v4);
+    } else {
+      this.camera.position.lerp(this.v4, Math.min(1, dt * 5.5));
+    }
 
     this.v4.copy(this.v1).addScaledVector(this.v3, 14);
     this.v4.y += 1.4;

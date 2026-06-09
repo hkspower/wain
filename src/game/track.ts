@@ -1,27 +1,38 @@
 import * as THREE from "three";
 
-// One unit = one metre. The circuit is a closed night-highway loop
-// (Gulf Road flavour): a long seaside straight on the east, sweepers
-// inland through the city, and a fast desert kink in the north-west.
+// One unit = one metre. The circuit traces the real Gulf Road (شارع
+// الخليج العربي): southbound along the corniche from Kuwait Towers at
+// Ras Ajouza past Salmiya to the Ras Al-Ard point, then back north on
+// the inland expressway. The sea hugs the entire coastal leg.
 
 export const ROAD_HALF_WIDTH = 7; // 4 lanes, 3.5 m each
 export const LANES = [-5.25, -1.75, 1.75, 5.25];
 
+/** Fraction of the lap that runs along the coast (sea on the left). */
+export const COAST_U = { from: 0.0, to: 0.46 };
+
 const CONTROL_POINTS: Array<[number, number, number]> = [
-  [0, 0, 0],
-  [320, 0, -40],
-  [640, 0, -30],
-  [950, 0, -140],
-  [1180, 0, -380],
-  [1260, 0, -700],
-  [1180, 0, -1000],
-  [920, 0, -1180],
-  [580, 0, -1230],
-  [240, 0, -1140],
-  [-20, 0, -960],
-  [-180, 0, -660],
-  [-160, 0, -320],
-  [-80, 0, -110],
+  // Coastal leg — southbound, sea to the left (lower x), bays and points
+  [800, 0, 0], // start: Ras Ajouza, Kuwait Towers
+  [770, 0, -350], // Dasman curve
+  [820, 0, -700], // Bneid Al-Gar
+  [760, 0, -1100],
+  [830, 0, -1500], // Salmiya marina bay
+  [760, 0, -1950],
+  [800, 0, -2350], // Scientific Center
+  [850, 0, -2700],
+  // Ras Al-Ard point — sweep east, away from the water
+  [1050, 0, -2950],
+  [1400, 0, -2900],
+  // Inland return leg, northbound
+  [1650, 0, -2500],
+  [1700, 0, -2000],
+  [1620, 0, -1400],
+  [1700, 0, -800],
+  [1650, 0, -300],
+  // Top curve through the city back to the towers
+  [1400, 0, 150],
+  [1050, 0, 200],
 ];
 
 const UP = new THREE.Vector3(0, 1, 0);
