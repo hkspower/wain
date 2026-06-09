@@ -40,6 +40,18 @@ export interface EngineEvents {
   onBump(): void;
   onDefeat(rival: RivalDef): void;
   onChampion(): void;
+  /** Fired when a full lap is completed, with the lap time in ms. */
+  onLap?(ms: number): void;
+}
+
+interface RemotePlayer {
+  mesh: THREE.Group;
+  s: number;
+  lat: number;
+  snapS: number;
+  snapLat: number;
+  snapSpeed: number;
+  snapAt: number;
 }
 
 interface TrafficCar {
@@ -61,6 +73,31 @@ interface Rival {
 }
 
 const TRAFFIC_COLORS = [0x8a96a3, 0x5d6770, 0xb0a890, 0x6e7f8d, 0x4a5560, 0x9c8f7a];
+
+/** Floating name banner above an online player's car. */
+function makeNameTag(name: string): THREE.Sprite {
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 64;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  ctx.beginPath();
+  ctx.roundRect(8, 10, 240, 44, 12);
+  ctx.fill();
+  ctx.fillStyle = "#7ee8ff";
+  ctx.font = "bold 28px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(name.slice(0, 16), 128, 33);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false })
+  );
+  sprite.scale.set(5, 1.25, 1);
+  sprite.position.y = 3;
+  return sprite;
+}
 
 export class GameEngine {
   private renderer: THREE.WebGLRenderer;
@@ -86,6 +123,13 @@ export class GameEngine {
   private rivalIndex = 0;
   private inBattle = false;
   private locked = false; // input locked after defeat / championship
+
+  // Online cruise
+  private remotes = new Map<number, RemotePlayer>();
+
+  // Lap timing
+  private lapStartAt = 0;
+  private lapDistance = 0;
 
   private bumpCooldown = 0;
   private scrapeCooldown = 0;
@@ -143,6 +187,7 @@ export class GameEngine {
   start(): void {
     this.initAudio();
     this.clock.getDelta();
+    this.lapStartAt = performance.now();
     const loop = () => {
       if (this.disposed) return;
       this.raf = requestAnimationFrame(loop);
@@ -201,6 +246,51 @@ export class GameEngine {
     this.locked = false;
     this.inBattle = false;
     this.spawnRival();
+  }
+
+  // ------------------------------------------------------------- online
+
+  /** Add (or re-style) another player's car in the shared cruise. */
+  upsertRemote(id: number, name: string, color: string): void {
+    this.removeRemote(id);
+    const mesh = createCar({ body: new THREE.Color(color).getHex() });
+    mesh.add(makeNameTag(name));
+    mesh.visible = false; // until the first state snapshot lands
+    this.scene.add(mesh);
+    this.remotes.set(id, {
+      mesh,
+      s: 0,
+      lat: 0,
+      snapS: 0,
+      snapLat: 0,
+      snapSpeed: 0,
+      snapAt: 0,
+    });
+  }
+
+  updateRemoteState(id: number, s: number, lat: number, speed: number): void {
+    const r = this.remotes.get(id);
+    if (!r) return;
+    if (!r.mesh.visible) {
+      r.mesh.visible = true;
+      r.s = s;
+      r.lat = lat;
+    }
+    r.snapS = s;
+    r.snapLat = lat;
+    r.snapSpeed = speed;
+    r.snapAt = performance.now();
+  }
+
+  removeRemote(id: number): void {
+    const r = this.remotes.get(id);
+    if (!r) return;
+    this.scene.remove(r.mesh);
+    this.remotes.delete(id);
+  }
+
+  getLocalState(): { s: number; lat: number; speed: number } {
+    return { s: this.player.s, lat: this.player.lat, speed: this.player.speed };
   }
 
   getMapPath(): Array<[number, number]> {
@@ -400,6 +490,7 @@ export class GameEngine {
     this.updatePlayer(dt);
     this.updateTraffic(dt);
     this.updateRival(dt);
+    this.updateRemotes(dt);
     if (this.inBattle) this.updateBattle(dt);
     this.updateCamera(dt);
     this.updateAudio();
@@ -433,7 +524,19 @@ export class GameEngine {
       }
     }
 
-    p.s = this.track.wrap(p.s + p.speed * dt);
+    // Lap timing: a lap counts when the start line is crossed after
+    // covering (almost) the full circuit since the previous crossing.
+    this.lapDistance += p.speed * dt;
+    const unwrapped = p.s + p.speed * dt;
+    if (unwrapped >= this.track.length) {
+      const now = performance.now();
+      if (this.lapDistance >= this.track.length * 0.995) {
+        this.events.onLap?.(now - this.lapStartAt);
+      }
+      this.lapStartAt = now;
+      this.lapDistance = 0;
+    }
+    p.s = this.track.wrap(unwrapped);
 
     this.track.pose(p.s, p.lat, this.v1, this.v2);
     this.track.tangentAt(p.s, this.v3);
@@ -545,6 +648,26 @@ export class GameEngine {
     r.mesh.lookAt(this.v4);
   }
 
+  private updateRemotes(dt: number): void {
+    if (this.remotes.size === 0) return;
+    const now = performance.now();
+    for (const r of this.remotes.values()) {
+      if (!r.mesh.visible) continue;
+      // Dead-reckon from the last snapshot, then ease the shown car onto it.
+      const age = Math.min((now - r.snapAt) / 1000, 1.5);
+      const predicted = this.track.wrap(r.snapS + r.snapSpeed * age);
+      const blend = Math.min(1, dt * 8);
+      r.s = this.track.wrap(r.s + this.track.deltaAhead(r.s, predicted) * blend);
+      r.lat += (r.snapLat - r.lat) * blend;
+
+      this.track.pose(r.s, r.lat, this.v1, this.v2);
+      this.track.tangentAt(r.s, this.v3);
+      r.mesh.position.copy(this.v1);
+      this.v4.copy(this.v1).add(this.v3);
+      r.mesh.lookAt(this.v4);
+    }
+  }
+
   private updateBattle(dt: number): void {
     const r = this.rival!;
     const gap = this.track.deltaAhead(this.player.s, r.s); // >0 → rival ahead
@@ -638,6 +761,9 @@ export class GameEngine {
       inBattle: this.inBattle,
       locked: this.locked,
       trafficAhead: nearest,
+      remotes: this.remotes.size,
+      lapDistance: this.lapDistance,
+      s: this.player.s,
     };
 
     let rivalDist: number | null = null;

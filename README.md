@@ -13,6 +13,18 @@ A built-in **Kuwait Xtreme Racer** game at [`/race`](http://localhost:3000/race)
 - **Roster**: six street legends from Salmiya to Jahra, ending with the boss, *Shabah Al-Khaleej* (شبح الخليج)
 - Progress is saved locally; beat all six to become **King of Gulf Road** 👑
 
+### Online Hub — تجمع شارع الخليج
+
+A shared multiplayer cruise at [`/hub`](http://localhost:3000/hub): pick a driver name and car colour, see who's online, chat in the diwaniya, and check the session's best-lap leaderboard — then **Enter the Cruise** to drive the same midnight Gulf Road with everyone else (other drivers appear live in-world with name tags).
+
+The hub is backed by a tiny self-hostable WebSocket server:
+
+```bash
+npm run hub          # starts the hub server on ws://localhost:8787
+```
+
+Point clients elsewhere with `NEXT_PUBLIC_HUB_WS=wss://your-server:8787` at build time (and `HUB_PORT` for the server). State is in-memory — restarting clears the leaderboard. Battles stay single-player; the cruise, chat, and lap times are shared.
+
 Want it as a desktop / Steam PC build? See [`desktop/README.md`](desktop/README.md) for the Electron + Steamworks packaging guide.
 
 ## Tech stack

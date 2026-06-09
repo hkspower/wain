@@ -3,8 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GameEngine, HudData } from "@/game/engine";
 import { RIVALS, RivalDef } from "@/game/rivals";
+import { HubClient, loadProfile, formatLap } from "@/game/net";
 
 type Phase = "menu" | "playing" | "defeated" | "champion";
+
+interface FeedMsg {
+  name: string;
+  text: string;
+  key: number;
+}
 
 export default function RaceClient() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -26,6 +33,13 @@ export default function RaceClient() {
   const [message, setMessage] = useState<{ title: string; sub?: string } | null>(null);
   const [beatenBy, setBeatenBy] = useState<RivalDef | null>(null);
   const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Online cruise
+  const hubRef = useRef<HubClient | null>(null);
+  const sendTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const feedKey = useRef(0);
+  const [onlineCount, setOnlineCount] = useState<number | null>(null);
+  const [feed, setFeed] = useState<FeedMsg[]>([]);
 
   const drawMap = useCallback((d: HudData) => {
     const canvas = mapRef.current;
@@ -115,12 +129,60 @@ export default function RaceClient() {
         setPhase("defeated");
       },
       onChampion: () => setPhase("champion"),
+      onLap: (ms) => {
+        showMessage(`LAP — ${formatLap(ms)}`);
+        hubRef.current?.sendLap(ms);
+      },
     });
     engineRef.current = engine;
     mapPathRef.current = engine.getMapPath();
     engine.resize();
     engine.start();
     setPhase("playing");
+
+    // Online cruise: connect to the hub and mirror the other drivers.
+    if (new URLSearchParams(window.location.search).has("online")) {
+      const profile = loadProfile();
+      const hub = new HubClient(
+        {
+          onWelcome: (selfId, roster) => {
+            setOnlineCount(roster.length);
+            for (const p of roster) {
+              if (p.id !== selfId) engine.upsertRemote(p.id, p.name, p.color);
+            }
+          },
+          onJoined: (p) => {
+            engine.upsertRemote(p.id, p.name, p.color);
+            setOnlineCount((n) => (n === null ? n : n + 1));
+            showMessage(`${p.name} joined the cruise`);
+          },
+          onLeft: (id) => {
+            engine.removeRemote(id);
+            setOnlineCount((n) => (n === null ? n : Math.max(1, n - 1)));
+          },
+          onStates: (states) => {
+            for (const [id, s, lat, speed] of states) {
+              if (id !== hub.selfId) engine.updateRemoteState(id, s, lat, speed);
+            }
+          },
+          onChat: (name, text) =>
+            setFeed((prev) => [...prev.slice(-3), { name, text, key: feedKey.current++ }]),
+          onClose: () => {
+            setOnlineCount(null);
+            showMessage("Hub disconnected", "Cruising solo — the road is still yours");
+          },
+        },
+        profile.name || "racer",
+        profile.color
+      );
+      hubRef.current = hub;
+      sendTimer.current = setInterval(() => {
+        if (hub.connected) {
+          const st = engine.getLocalState();
+          hub.sendState(st.s, st.lat, st.speed);
+        }
+      }, 100);
+    }
   }, [onHud, showMessage]);
 
   useEffect(() => {
@@ -131,6 +193,9 @@ export default function RaceClient() {
       engineRef.current?.dispose();
       engineRef.current = null;
       if (msgTimer.current) clearTimeout(msgTimer.current);
+      if (sendTimer.current) clearInterval(sendTimer.current);
+      hubRef.current?.close();
+      hubRef.current = null;
     };
   }, []);
 
@@ -160,7 +225,24 @@ export default function RaceClient() {
         <div className="absolute left-4 top-4">
           <div ref={areaRef} className="text-lg font-bold drop-shadow" />
           <div ref={progressRef} className="text-xs text-white/70" />
+          {onlineCount !== null && (
+            <div className="mt-1 text-xs font-bold text-cyan-300">
+              ● {onlineCount} cruising online
+            </div>
+          )}
         </div>
+
+        {/* Hub chat feed */}
+        {feed.length > 0 && (
+          <div className="absolute bottom-16 right-5 max-w-xs space-y-0.5 text-right text-xs">
+            {feed.map((m) => (
+              <p key={m.key} className="leading-4 drop-shadow">
+                <span className="font-bold text-cyan-300">{m.name}:</span>{" "}
+                <span className="text-white/85">{m.text}</span>
+              </p>
+            ))}
+          </div>
+        )}
 
         {/* Minimap */}
         <canvas
@@ -253,6 +335,12 @@ export default function RaceClient() {
             START ENGINE — يلا 🏁
           </button>
           <div className="mt-3 text-xs text-white/40">or press Enter</div>
+          <a
+            href="/hub"
+            className="mt-5 text-sm font-semibold text-cyan-300 underline-offset-4 transition hover:underline"
+          >
+            Cruise with friends in the Online Hub →
+          </a>
         </div>
       )}
 
