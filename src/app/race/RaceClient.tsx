@@ -73,7 +73,9 @@ export default function RaceClient() {
           rivalInfoRef.current.style.opacity = "0";
         }
       }
-      if (flashRef.current) flashRef.current.style.opacity = d.canFlash ? "1" : "0";
+      // visibility, not opacity: animate-pulse animates opacity and would
+      // override an inline opacity toggle
+      if (flashRef.current) flashRef.current.style.visibility = d.canFlash ? "visible" : "hidden";
 
       if (battleRef.current) {
         battleRef.current.style.opacity = d.battle ? "1" : "0";
@@ -191,7 +193,7 @@ export default function RaceClient() {
           <div ref={rivalInfoRef} className="text-sm font-semibold text-amber-300 drop-shadow" />
           <div
             ref={flashRef}
-            className="mt-1 animate-pulse text-base font-extrabold text-cyan-300 opacity-0 drop-shadow"
+            className="invisible mt-1 animate-pulse text-base font-extrabold text-cyan-300 drop-shadow"
           >
             PRESS F TO FLASH ⚡ اضغط F
           </div>

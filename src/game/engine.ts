@@ -156,6 +156,12 @@ export class GameEngine {
         `Find ${r.def.name} — ${r.def.arabicName}`,
         `${r.def.crew} · close in and press F to flash`
       );
+    } else if (this.rivalIndex >= RIVALS.length) {
+      // Reloaded as a reigning champion — straight to the crown screen.
+      // Deferred: the caller sets its "playing" state right after start().
+      setTimeout(() => {
+        if (!this.disposed) this.events.onChampion();
+      }, 0);
     }
   }
 
@@ -376,8 +382,9 @@ export class GameEngine {
 
   private loadProgress(): number {
     try {
+      // RIVALS.length (one past the roster) is a persisted championship.
       const v = parseInt(localStorage.getItem(SAVE_KEY) ?? "0", 10);
-      return Number.isFinite(v) ? Math.min(Math.max(v, 0), RIVALS.length - 1) : 0;
+      return Number.isFinite(v) ? Math.min(Math.max(v, 0), RIVALS.length) : 0;
     } catch {
       return 0;
     }
@@ -401,10 +408,12 @@ export class GameEngine {
   private updatePlayer(dt: number): void {
     const p = this.player;
 
-    const accel = this.throttle * Math.max(0, 17 * (1 - p.speed / PLAYER_TOP_SPEED));
+    // Accel/drag equilibrium sits at ~92 m/s (≈330 km/h) — keep it above
+    // every rival's chase speed or late battles become unwinnable.
+    const accel = this.throttle * Math.max(0, 19 * (1 - p.speed / 115));
     const braking = this.brake * 26;
     const drag = 0.0012 * p.speed * p.speed + 1.2;
-    p.speed = Math.max(0, p.speed + (accel - braking - drag * (this.throttle ? 0.4 : 1)) * dt);
+    p.speed = Math.max(0, p.speed + (accel - braking - drag * (this.throttle ? 0.35 : 1)) * dt);
 
     const steerSpeed = Math.min(3.5 + p.speed * 0.09, 11);
     const target = this.steer * steerSpeed * (p.speed > 1 ? 1 : 0);
@@ -439,7 +448,10 @@ export class GameEngine {
         const ds = this.track.deltaAhead(p.s, t.s);
         if (Math.abs(ds) < 4.2 && Math.abs(t.lat - p.lat) < 2.0) {
           this.bumpCooldown = 1;
-          p.speed = Math.min(p.speed * 0.5, t.speed);
+          p.speed = Math.min(p.speed * 0.55, t.speed * 0.9);
+          // Knock the player out of the hitbox, or the cooldown re-bumps
+          // forever and glues them to the traffic car's tail.
+          if (ds >= 0) p.s = this.track.wrap(t.s - 4.5);
           this.events.onBump();
           if (this.inBattle) p.sp = Math.max(0, p.sp - 8);
           break;
@@ -484,7 +496,9 @@ export class GameEngine {
         // Rival leads: let the player claw back unless they're slow.
         targetSpeed = top * (gap > 120 ? 0.86 : 0.97);
       } else {
-        targetSpeed = top * 1.05;
+        // Chasing — capped below the player's ~92 m/s ceiling so a clean
+        // driver can hold a lead against every rival, boss included.
+        targetSpeed = Math.min(top * 1.05, 90);
       }
     } else {
       targetSpeed = Math.max(0, r.speed - 8 * dt); // defeated: pull over
@@ -602,6 +616,23 @@ export class GameEngine {
   private emitHud(): void {
     const area = areaAt(this.track, this.player.s);
     const r = this.rival;
+
+    // Dev/tuning handle — inspect live state from the console.
+    let nearest: { ds: number; lat: number } | null = null;
+    for (const t of this.traffic) {
+      const ds = this.track.deltaAhead(this.player.s, t.s);
+      if (ds > 0 && ds < 90 && (!nearest || ds < nearest.ds)) nearest = { ds, lat: t.lat };
+    }
+    (window as unknown as { __grnDebug: object }).__grnDebug = {
+      playerSpeed: this.player.speed,
+      playerLat: this.player.lat,
+      rivalSpeed: r?.speed,
+      rivalState: r?.state,
+      gap: r ? this.track.deltaAhead(this.player.s, r.s) : null,
+      inBattle: this.inBattle,
+      locked: this.locked,
+      trafficAhead: nearest,
+    };
 
     let rivalDist: number | null = null;
     let canFlash = false;
