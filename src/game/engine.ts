@@ -1,6 +1,10 @@
 import * as THREE from "three";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { Track, ROAD_HALF_WIDTH, LANES } from "./track";
-import { buildWorld, areaAt } from "./world";
+import { buildWorld, areaAt, WorldHandle } from "./world";
 import { createCar } from "./cars";
 import { RIVALS, RivalDef } from "./rivals";
 
@@ -137,6 +141,14 @@ export class GameEngine {
   private fovCurrent = 62;
   private camInit = false;
 
+  // Rendering quality
+  private world: WorldHandle;
+  private composer: EffectComposer;
+  private bloomPass: UnrealBloomPass;
+  private fpsEma = 60;
+  private qualityLocked = false; // user took manual control with G
+  private startedAt = 0;
+
   // Minimap
   private mapBounds = { minX: 0, maxX: 1, minZ: 0, maxZ: 1 };
 
@@ -157,10 +169,26 @@ export class GameEngine {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.15;
     this.camera = new THREE.PerspectiveCamera(62, canvas.clientWidth / canvas.clientHeight, 0.5, 4000);
 
-    buildWorld(this.scene, this.track);
+    this.buildEnvironment();
+    this.world = buildWorld(this.scene, this.track);
     this.computeMapBounds();
+
+    // Bloom makes the night work: lamps, taillights, cat-eyes and the
+    // tower spheres all halo. Auto-disabled on weak machines (see loop).
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(canvas.clientWidth, canvas.clientHeight),
+      0.5,
+      0.45,
+      0.8
+    );
+    this.composer.addPass(this.bloomPass);
+    this.composer.addPass(new OutputPass());
 
     // Player car — Kuwait flag colours: white body, green stripe
     this.carBody = createCar({ body: 0xf2f4f7, accent: 0x007a3d });
@@ -182,18 +210,56 @@ export class GameEngine {
     window.addEventListener("keyup", this.onKeyUp);
   }
 
+  /** A tiny HDR night scene baked into reflections: moonlight on car
+   *  paint and a sodium-orange skyline streak on the damp asphalt. */
+  private buildEnvironment(): void {
+    const env = new THREE.Scene();
+    env.add(
+      new THREE.Mesh(
+        new THREE.SphereGeometry(50, 16, 8),
+        new THREE.MeshBasicMaterial({
+          color: new THREE.Color().setRGB(0.04, 0.06, 0.13),
+          side: THREE.BackSide,
+        })
+      )
+    );
+    const moon = new THREE.Mesh(
+      new THREE.SphereGeometry(4, 8, 8),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(6, 5.6, 4.4) })
+    );
+    moon.position.set(-30, 26, -10);
+    env.add(moon);
+    const skyline = new THREE.Mesh(
+      new THREE.CylinderGeometry(40, 40, 3, 24, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: new THREE.Color().setRGB(1.1, 0.65, 0.22),
+        side: THREE.BackSide,
+      })
+    );
+    skyline.position.y = 3;
+    env.add(skyline);
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.scene.environment = pmrem.fromScene(env, 0.05).texture;
+    pmrem.dispose();
+  }
+
   // ---------------------------------------------------------------- public
 
   start(): void {
     this.initAudio();
     this.clock.getDelta();
     this.lapStartAt = performance.now();
+    this.startedAt = performance.now();
     const loop = () => {
       if (this.disposed) return;
       this.raf = requestAnimationFrame(loop);
-      const dt = Math.min(this.clock.getDelta(), 0.05);
+      const raw = this.clock.getDelta();
+      if (raw > 0) this.fpsEma = this.fpsEma * 0.95 + (1 / raw) * 0.05;
+      this.autoQuality();
+      const dt = Math.min(raw, 0.05);
       if (!this.paused) this.update(dt);
-      this.renderer.render(this.scene, this.camera);
+      // One pipeline for both quality modes keeps colour grading identical
+      this.composer.render();
     };
     loop();
     const r = this.rival;
@@ -224,8 +290,24 @@ export class GameEngine {
     const h = c.clientHeight;
     if (w === 0 || h === 0) return;
     this.renderer.setSize(w, h, false);
+    this.composer.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+  }
+
+  /** Drop the expensive effects once it's clear the machine can't keep up. */
+  private autoQuality(): void {
+    if (this.qualityLocked || performance.now() - this.startedAt < 6000) return;
+    this.qualityLocked = true;
+    if (this.fpsEma < 32) {
+      this.bloomPass.enabled = false;
+      if (this.fpsEma < 18) {
+        this.renderer.setPixelRatio(1);
+        this.composer.setPixelRatio(1);
+        this.resize();
+      }
+      this.events.onMessage("Performance mode", "Glow effects off — press G to toggle them back");
+    }
   }
 
   /** After a defeat: refill SP and rematch the same rival. */
@@ -309,6 +391,7 @@ export class GameEngine {
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
     this.audioCtx?.close().catch(() => {});
+    this.composer.dispose();
     this.renderer.dispose();
   }
 
@@ -320,6 +403,11 @@ export class GameEngine {
     this.keys.add(k);
     if (k === "f") this.tryFlash();
     if (k === "m") this.toggleMute();
+    if (k === "g") {
+      this.qualityLocked = true;
+      this.bloomPass.enabled = !this.bloomPass.enabled;
+      this.events.onMessage(this.bloomPass.enabled ? "Glow effects on ✨" : "Glow effects off");
+    }
   };
 
   private onKeyUp = (e: KeyboardEvent) => {
@@ -494,6 +582,7 @@ export class GameEngine {
     if (this.inBattle) this.updateBattle(dt);
     this.updateCamera(dt);
     this.updateAudio();
+    this.world.tick(dt);
     this.emitHud();
   }
 

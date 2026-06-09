@@ -35,6 +35,7 @@ function buildRibbon(
   const span = (u1 - u0) * track.length;
   const n = Math.ceil(span / step);
   const positions = new Float32Array((n + 1) * 2 * 3);
+  const uvs = new Float32Array((n + 1) * 2 * 2);
   const indices: number[] = [];
   const p = new THREE.Vector3();
   const side = new THREE.Vector3();
@@ -50,6 +51,11 @@ function buildRibbon(
     positions[o + 3] = p.x + side.x * b;
     positions[o + 4] = y;
     positions[o + 5] = p.z + side.z * b;
+    const ou = i * 4;
+    uvs[ou] = 0;
+    uvs[ou + 1] = s / 14; // one texture tile per ~14 m of road
+    uvs[ou + 2] = 1;
+    uvs[ou + 3] = s / 14;
     if (i < n) {
       const v = i * 2;
       indices.push(v, v + 1, v + 2, v + 1, v + 3, v + 2);
@@ -58,6 +64,7 @@ function buildRibbon(
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
   geo.setIndex(indices);
   geo.computeVertexNormals();
   return geo;
@@ -92,6 +99,103 @@ function buildWall(track: Track, lateral: number, y0: number, y1: number, step =
   geo.setIndex(indices);
   geo.computeVertexNormals();
   return geo;
+}
+
+function asphaltTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 256;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#1d1f24";
+  ctx.fillRect(0, 0, 256, 256);
+  // Aggregate speckle
+  for (let i = 0; i < 5200; i++) {
+    const g = 24 + Math.random() * 36;
+    ctx.fillStyle = `rgba(${g},${g},${g + 4},${0.25 + Math.random() * 0.5})`;
+    ctx.fillRect(Math.random() * 256, Math.random() * 256, 1.4, 1.4);
+  }
+  // Tire-polished wear bands where the wheels run in each lane
+  ctx.fillStyle = "rgba(12,13,16,0.5)";
+  for (const u of [0.125, 0.375, 0.625, 0.875]) {
+    for (const off of [-0.045, 0.045]) {
+      ctx.fillRect((u + off) * 256 - 5, 0, 10, 256);
+    }
+  }
+  // Cracks and patches
+  ctx.strokeStyle = "rgba(10,10,12,0.55)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 7; i++) {
+    ctx.beginPath();
+    let x = Math.random() * 256;
+    let y = Math.random() * 256;
+    ctx.moveTo(x, y);
+    for (let j = 0; j < 6; j++) {
+      x += (Math.random() - 0.5) * 40;
+      y += Math.random() * 30;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+function seaTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 256;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#0a2236";
+  ctx.fillRect(0, 0, 256, 256);
+  // Wave crests catching the moon
+  for (let i = 0; i < 420; i++) {
+    const a = 0.04 + Math.random() * 0.12;
+    ctx.strokeStyle = `rgba(${140 + Math.random() * 60},${190 + Math.random() * 40},${
+      215 + Math.random() * 40
+    },${a})`;
+    ctx.lineWidth = 0.8 + Math.random() * 1.4;
+    const x = Math.random() * 256;
+    const y = Math.random() * 256;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + 14, y + (Math.random() - 0.5) * 5, x + 22 + Math.random() * 22, y);
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function lightPoolTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 128;
+  c.height = 128;
+  const ctx = c.getContext("2d")!;
+  const g = ctx.createRadialGradient(64, 64, 4, 64, 64, 64);
+  g.addColorStop(0, "rgba(255,190,110,0.5)");
+  g.addColorStop(0.5, "rgba(255,165,80,0.18)");
+  g.addColorStop(1, "rgba(255,150,60,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+
+function glowTexture(r: number, g: number, b: number): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 128;
+  c.height = 128;
+  const ctx = c.getContext("2d")!;
+  const grad = ctx.createRadialGradient(64, 64, 2, 64, 64, 64);
+  grad.addColorStop(0, `rgba(${r},${g},${b},0.85)`);
+  grad.addColorStop(0.35, `rgba(${r},${g},${b},0.25)`);
+  grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
 }
 
 function windowTexture(): THREE.CanvasTexture {
@@ -402,16 +506,73 @@ function placeBeside(track: Track, obj: THREE.Object3D, s: number, offset: numbe
   obj.position.set(p.x + side.x * offset, 0, p.z + side.z * offset);
 }
 
-export function buildWorld(scene: THREE.Scene, track: Track): void {
+export interface WorldHandle {
+  /** Advance animated scenery (sea shimmer). */
+  tick(dt: number): void;
+}
+
+export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   const L = track.length;
 
-  // Sky, fog, light
-  scene.background = new THREE.Color(0x05070f);
+  // Fog and light
   scene.fog = new THREE.FogExp2(0x05070f, 0.0021);
-  scene.add(new THREE.HemisphereLight(0x3a4a6b, 0x1a140c, 0.55));
-  const moon = new THREE.DirectionalLight(0xbfd0ff, 0.5);
-  moon.position.set(-300, 500, 200);
-  scene.add(moon);
+  scene.add(new THREE.HemisphereLight(0x3a4a6b, 0x1a140c, 0.65));
+  const moonLight = new THREE.DirectionalLight(0xbfd0ff, 0.55);
+  moonLight.position.set(-300, 500, 200);
+  scene.add(moonLight);
+
+  // Gradient night-sky dome with city glow at the horizon
+  {
+    const skyMat = new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      depthWrite: false,
+      uniforms: {},
+      vertexShader: `
+        varying vec3 vPos;
+        void main() {
+          vPos = position;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: `
+        varying vec3 vPos;
+        void main() {
+          float h = clamp(vPos.y / 600.0, 0.0, 1.0);
+          vec3 top = vec3(0.012, 0.018, 0.05);
+          vec3 horizon = vec3(0.07, 0.09, 0.16);
+          vec3 col = mix(horizon, top, smoothstep(0.0, 0.6, h));
+          // sodium light pollution hugging the skyline
+          col += vec3(0.10, 0.055, 0.012) * (1.0 - smoothstep(0.0, 0.18, h));
+          gl_FragColor = vec4(col, 1.0);
+        }`,
+    });
+    const sky = new THREE.Mesh(new THREE.SphereGeometry(3400, 24, 12), skyMat);
+    sky.position.set(1200, 0, -1400);
+    sky.renderOrder = -2;
+    scene.add(sky);
+
+    // The moon over the Gulf, with a soft halo
+    const moonDisc = new THREE.Mesh(
+      new THREE.CircleGeometry(70, 32),
+      new THREE.MeshBasicMaterial({ color: 0xfdf3d3, fog: false })
+    );
+    moonDisc.position.set(-1450, 950, -300);
+    moonDisc.lookAt(1200, 100, -1400);
+    moonDisc.renderOrder = -1;
+    scene.add(moonDisc);
+    const halo = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: glowTexture(225, 220, 195),
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        fog: false,
+        opacity: 0.5,
+      })
+    );
+    halo.scale.set(700, 700, 1);
+    halo.position.copy(moonDisc.position);
+    scene.add(halo);
+  }
 
   // Stars
   {
@@ -445,14 +606,17 @@ export function buildWorld(scene: THREE.Scene, track: Track): void {
 
   // The Gulf — runs along the whole coastal leg (road x ≈ 760–850,
   // water everywhere west of it down to the horizon)
+  const seaMap = seaTexture();
+  seaMap.repeat.set(36, 64);
   const sea = new THREE.Mesh(
     new THREE.PlaneGeometry(3300, 5800),
     new THREE.MeshStandardMaterial({
-      color: 0x0a2236,
-      roughness: 0.25,
-      metalness: 0.4,
+      map: seaMap,
+      color: 0xb8c4cc,
+      roughness: 0.18,
+      metalness: 0.55,
       emissive: 0x06283f,
-      emissiveIntensity: 0.4,
+      emissiveIntensity: 0.5,
     })
   );
   sea.rotation.x = -Math.PI / 2;
@@ -473,10 +637,17 @@ export function buildWorld(scene: THREE.Scene, track: Track): void {
   );
   scene.add(beach);
 
-  // Road surface, edge lines, lane dashes
+  // Road surface — textured asphalt with a faintly damp sheen so the
+  // streetlights and skyline catch on it
   const road = new THREE.Mesh(
-    buildRibbon(track, -ROAD_HALF_WIDTH, ROAD_HALF_WIDTH, 0.02),
-    new THREE.MeshStandardMaterial({ color: 0x1b1d22, roughness: 0.95 })
+    buildRibbon(track, -ROAD_HALF_WIDTH, ROAD_HALF_WIDTH, 0.02, 6),
+    new THREE.MeshStandardMaterial({
+      map: asphaltTexture(),
+      color: 0xffffff,
+      roughness: 0.55,
+      metalness: 0.25,
+      envMapIntensity: 0.9,
+    })
   );
   scene.add(road);
 
@@ -547,6 +718,17 @@ export function buildWorld(scene: THREE.Scene, track: Track): void {
       fog: false,
     });
     const lamps = new THREE.InstancedMesh(lampGeo, lampMat, count);
+    // Warm pool of lamplight thrown onto the asphalt below each lamp
+    const poolGeo = new THREE.CircleGeometry(8.5, 20);
+    poolGeo.rotateX(-Math.PI / 2);
+    const poolMat = new THREE.MeshBasicMaterial({
+      map: lightPoolTexture(),
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+    });
+    const pools = new THREE.InstancedMesh(poolGeo, poolMat, count);
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();
     const tmp = new THREE.Vector3();
@@ -559,10 +741,42 @@ export function buildWorld(scene: THREE.Scene, track: Track): void {
       track.pose(s, sideSign * (ROAD_HALF_WIDTH + 0.6), p, tmp);
       m.makeTranslation(p.x, 8.3, p.z);
       lamps.setMatrixAt(i, m);
+      track.pose(s, sideSign * (ROAD_HALF_WIDTH - 2.5), p, tmp);
+      m.makeTranslation(p.x, 0.045, p.z);
+      pools.setMatrixAt(i, m);
     }
     poles.instanceMatrix.needsUpdate = true;
     lamps.instanceMatrix.needsUpdate = true;
-    scene.add(poles, lamps);
+    pools.instanceMatrix.needsUpdate = true;
+    scene.add(poles, lamps, pools);
+  }
+
+  // Cat-eye road studs along both edge lines — they sparkle into the
+  // distance under the headlights
+  {
+    const spacing = 18;
+    const count = Math.floor(L / spacing) * 2;
+    const studGeo = new THREE.SphereGeometry(0.07, 6, 4);
+    const studMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: 0xfff2c0,
+      emissiveIntensity: 1.6,
+    });
+    const studs = new THREE.InstancedMesh(studGeo, studMat, count);
+    const m = new THREE.Matrix4();
+    const p = new THREE.Vector3();
+    const tmp = new THREE.Vector3();
+    let idx = 0;
+    for (let i = 0; i < count / 2; i++) {
+      const s = i * spacing;
+      for (const sideSign of [-1, 1]) {
+        track.pose(s, sideSign * (ROAD_HALF_WIDTH - 0.25), p, tmp);
+        m.makeTranslation(p.x, 0.06, p.z);
+        studs.setMatrixAt(idx++, m);
+      }
+    }
+    studs.instanceMatrix.needsUpdate = true;
+    scene.add(studs);
   }
 
   // City blocks with lit windows
@@ -737,4 +951,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): void {
     g.lookAt(p.clone().sub(tan));
     scene.add(g);
   });
+
+  return {
+    tick(dt: number) {
+      // Slow drift of the wave crests across the bay
+      seaMap.offset.x += dt * 0.008;
+      seaMap.offset.y -= dt * 0.013;
+    },
+  };
 }
