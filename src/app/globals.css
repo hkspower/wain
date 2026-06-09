@@ -38,3 +38,16 @@ body {
 ::selection {
   @apply bg-brand-200 text-brand-900;
 }
+
+/* Gulf Road Nights — collision feedback shake */
+@keyframes race-bump {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-6px, 3px); }
+  50% { transform: translate(5px, -3px); }
+  75% { transform: translate(-3px, 2px); }
+  100% { transform: translate(0, 0); }
+}
+
+.race-bump {
+  animation: race-bump 0.25s ease-out;
+}

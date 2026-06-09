@@ -30,3 +30,9 @@ next-env.d.ts
 
 # vercel
 .vercel
+
+# electron desktop shell
+/desktop/node_modules
+/desktop/out
+/desktop/dist
+/desktop/steam_appid.txt

@@ -4,6 +4,17 @@
 
 A modern place-discovery app for Kuwait: curated landmarks, food, beaches, shopping, culture, and family spots — each with highlights, the best time to visit, and a price level.
 
+## 🏁 Gulf Road Nights — ليالي شارع الخليج
+
+A built-in **Kuwait Xtreme Racer** game at [`/race`](http://localhost:3000/race): Tokyo-Xtreme-Racer-style midnight highway battles on a 4.3 km Gulf Road loop past the Kuwait Towers, Al Hamra, Liberation Tower, and the striped water towers.
+
+- **Drive**: `W/↑` accelerate, `S/↓` brake, `A`/`D` steer, `M` mute
+- **Battle**: catch a rival and press `F` to flash your headlights — the trailing car bleeds SP (Spirit Points); empty the rival's bar to win
+- **Roster**: six street legends from Salmiya to Jahra, ending with the boss, *Shabah Al-Khaleej* (شبح الخليج)
+- Progress is saved locally; beat all six to become **King of Gulf Road** 👑
+
+Want it as a desktop / Steam PC build? See [`desktop/README.md`](desktop/README.md) for the Electron + Steamworks packaging guide.
+
 ## Tech stack
 
 - [Next.js 15](https://nextjs.org) (App Router, React 19, TypeScript)
