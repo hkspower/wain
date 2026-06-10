@@ -83,6 +83,7 @@ function buildWall(
   const span = (u1 - u0) * track.length;
   const n = Math.ceil(span / step);
   const positions = new Float32Array((n + 1) * 2 * 3);
+  const uvs = new Float32Array((n + 1) * 2 * 2);
   const indices: number[] = [];
   const p = new THREE.Vector3();
   const tmp = new THREE.Vector3();
@@ -97,6 +98,11 @@ function buildWall(
     positions[o + 3] = p.x;
     positions[o + 4] = y1;
     positions[o + 5] = p.z;
+    const ou = i * 4;
+    uvs[ou] = 0;
+    uvs[ou + 1] = s / 14;
+    uvs[ou + 2] = 1;
+    uvs[ou + 3] = s / 14;
     if (i < n) {
       const v = i * 2;
       indices.push(v, v + 1, v + 2, v + 1, v + 3, v + 2);
@@ -105,6 +111,7 @@ function buildWall(
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
   geo.setIndex(indices);
   geo.computeVertexNormals();
   return geo;
@@ -207,6 +214,172 @@ function glowTexture(r: number, g: number, b: number): THREE.CanvasTexture {
   return new THREE.CanvasTexture(c);
 }
 
+/** Sobel-filter a grayscale canvas into a tangent-space normal map. */
+function normalMapFrom(c: HTMLCanvasElement, strength = 2.2): THREE.CanvasTexture {
+  const w = c.width;
+  const h = c.height;
+  const src = c.getContext("2d")!.getImageData(0, 0, w, h).data;
+  const out = document.createElement("canvas");
+  out.width = w;
+  out.height = h;
+  const ctx = out.getContext("2d")!;
+  const img = ctx.createImageData(w, h);
+  const lum = (x: number, y: number) =>
+    src[(((y + h) % h) * w + ((x + w) % w)) * 4] / 255;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const dx =
+        lum(x + 1, y - 1) + 2 * lum(x + 1, y) + lum(x + 1, y + 1) -
+        (lum(x - 1, y - 1) + 2 * lum(x - 1, y) + lum(x - 1, y + 1));
+      const dy =
+        lum(x - 1, y + 1) + 2 * lum(x, y + 1) + lum(x + 1, y + 1) -
+        (lum(x - 1, y - 1) + 2 * lum(x, y - 1) + lum(x + 1, y - 1));
+      const n = new THREE.Vector3(-dx * strength, -dy * strength, 1).normalize();
+      const o = (y * w + x) * 4;
+      img.data[o] = (n.x * 0.5 + 0.5) * 255;
+      img.data[o + 1] = (n.y * 0.5 + 0.5) * 255;
+      img.data[o + 2] = (n.z * 0.5 + 0.5) * 255;
+      img.data[o + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(out);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+/** Grayscale height canvas for the asphalt normal map: blurred undulations
+ *  with a whisper of fine grain — raw noise would Sobel into glitter. */
+function asphaltHeightCanvas(): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 256;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#808080";
+  ctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 1400; i++) {
+    const g = 96 + Math.random() * 70;
+    ctx.fillStyle = `rgb(${g},${g},${g})`;
+    ctx.globalAlpha = 0.35 + Math.random() * 0.4;
+    ctx.fillRect(Math.random() * 256, Math.random() * 256, 2 + Math.random() * 4, 2 + Math.random() * 4);
+  }
+  ctx.globalAlpha = 1;
+  // Box-blur via downscale/upscale round trips
+  const small = document.createElement("canvas");
+  small.width = 64;
+  small.height = 64;
+  const sctx = small.getContext("2d")!;
+  sctx.imageSmoothingEnabled = true;
+  sctx.drawImage(c, 0, 0, 64, 64);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(small, 0, 0, 256, 256);
+  // Faint fine grain back on top
+  for (let i = 0; i < 1800; i++) {
+    const g = 100 + Math.random() * 60;
+    ctx.fillStyle = `rgb(${g},${g},${g})`;
+    ctx.globalAlpha = 0.1;
+    ctx.fillRect(Math.random() * 256, Math.random() * 256, 1.4, 1.4);
+  }
+  ctx.globalAlpha = 1;
+  return c;
+}
+
+function concreteTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 256;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#73767c";
+  ctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 5000; i++) {
+    const g = 96 + Math.random() * 50;
+    ctx.fillStyle = `rgba(${g},${g + 2},${g + 6},${0.2 + Math.random() * 0.4})`;
+    ctx.fillRect(Math.random() * 256, Math.random() * 256, 1.5, 1.5);
+  }
+  // Streaky weathering
+  for (let i = 0; i < 22; i++) {
+    ctx.fillStyle = `rgba(40,42,46,${0.05 + Math.random() * 0.1})`;
+    const x = Math.random() * 256;
+    ctx.fillRect(x, 0, 2 + Math.random() * 7, 256);
+  }
+  // Panel seams
+  ctx.strokeStyle = "rgba(30,32,36,0.7)";
+  ctx.lineWidth = 2;
+  for (const x of [0, 128]) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, 256);
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.moveTo(0, 128);
+  ctx.lineTo(256, 128);
+  ctx.stroke();
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function paverTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 128;
+  c.height = 128;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#5a544a";
+  ctx.fillRect(0, 0, 128, 128);
+  // Offset brick courses
+  ctx.strokeStyle = "rgba(20,18,15,0.8)";
+  ctx.lineWidth = 2;
+  for (let row = 0; row < 4; row++) {
+    const y = row * 32;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(128, y);
+    ctx.stroke();
+    const off = row % 2 === 0 ? 0 : 32;
+    for (let x = off; x <= 128; x += 64) {
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x, y + 32);
+      ctx.stroke();
+    }
+  }
+  for (let i = 0; i < 900; i++) {
+    const g = 70 + Math.random() * 40;
+    ctx.fillStyle = `rgba(${g},${g - 6},${g - 14},0.35)`;
+    ctx.fillRect(Math.random() * 128, Math.random() * 128, 1.5, 1.5);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function sandTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 128;
+  const ctx = c.getContext("2d")!;
+  // Darker, wet-packed sand toward the waterline (u=1 side)
+  const grad = ctx.createLinearGradient(0, 0, 256, 0);
+  grad.addColorStop(0, "#7a6b4c");
+  grad.addColorStop(0.7, "#6e6044");
+  grad.addColorStop(1, "#4e452f");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 256, 128);
+  for (let i = 0; i < 6000; i++) {
+    const g = 90 + Math.random() * 70;
+    ctx.fillStyle = `rgba(${g},${g - 14},${g - 38},${0.15 + Math.random() * 0.3})`;
+    ctx.fillRect(Math.random() * 256, Math.random() * 128, 1, 1);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = THREE.ClampToEdgeWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function adTexture(line1: string, line2: string, bg: string, fg: string, accent: string): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = 512;
@@ -270,25 +443,62 @@ function billboard(track: Track, s: number, offset: number, tex: THREE.CanvasTex
   return g;
 }
 
+/** Soft additive glow billboards around point light sources (lamp coronas). */
+function coronaPoints(positions: THREE.Vector3[], color: number, size: number): THREE.Points {
+  const geo = new THREE.BufferGeometry();
+  const arr = new Float32Array(positions.length * 3);
+  positions.forEach((p, i) => {
+    arr[i * 3] = p.x;
+    arr[i * 3 + 1] = p.y;
+    arr[i * 3 + 2] = p.z;
+  });
+  geo.setAttribute("position", new THREE.BufferAttribute(arr, 3));
+  const pts = new THREE.Points(
+    geo,
+    new THREE.PointsMaterial({
+      map: glowTexture(255, 255, 255),
+      color,
+      size,
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      sizeAttenuation: true,
+    })
+  );
+  pts.frustumCulled = false;
+  return pts;
+}
+
 function windowTexture(): THREE.CanvasTexture {
   const c = document.createElement("canvas");
-  c.width = 64;
-  c.height = 128;
+  c.width = 128;
+  c.height = 256;
   const ctx = c.getContext("2d")!;
   ctx.fillStyle = "#0a0d13";
-  ctx.fillRect(0, 0, 64, 128);
-  for (let y = 4; y < 124; y += 8) {
-    for (let x = 4; x < 60; x += 8) {
-      if (Math.random() < 0.42) {
-        ctx.fillStyle = Math.random() < 0.75 ? "#ffd27f" : "#9ad1ff";
-        ctx.globalAlpha = 0.55 + Math.random() * 0.45;
-        ctx.fillRect(x, y, 5, 4);
+  ctx.fillRect(0, 0, 128, 256);
+  // Per-floor life: dark floors, sleepy floors, the odd lit-up office
+  for (let y = 6; y < 250; y += 10) {
+    const floorVibe = Math.random();
+    const litChance = floorVibe < 0.18 ? 0.85 : floorVibe < 0.5 ? 0.12 : 0.38;
+    const warm = Math.random() < 0.7;
+    for (let x = 5; x < 122; x += 9) {
+      if (Math.random() < litChance) {
+        ctx.fillStyle = warm || Math.random() < 0.6 ? "#ffd27f" : "#9ad1ff";
+        ctx.globalAlpha = 0.45 + Math.random() * 0.55;
+        ctx.fillRect(x, y, 6, 5);
+        // Curtain-glow spill on bright windows
+        if (Math.random() < 0.25) {
+          ctx.globalAlpha = 0.12;
+          ctx.fillRect(x - 1, y - 1, 8, 7);
+        }
       }
     }
   }
   ctx.globalAlpha = 1;
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
   return tex;
 }
 
@@ -716,15 +926,19 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   scene.add(sea);
 
   // Corniche: paved walkway then beach sand between the road and the water
+  const paver = paverTexture();
+  paver.repeat.set(2.5, 9);
   const walkway = new THREE.Mesh(
     buildRibbon(track, -(ROAD_HALF_WIDTH + 0.8), -(ROAD_HALF_WIDTH + 4.5), 0.06, 10, COAST_U.from, COAST_U.to),
-    new THREE.MeshStandardMaterial({ color: 0x4a4438, roughness: 0.95 })
+    new THREE.MeshStandardMaterial({ map: paver, roughness: 0.95 })
   );
   scene.add(walkway);
 
+  const sand = sandTexture();
+  sand.repeat.set(1, 0.7);
   const beach = new THREE.Mesh(
     buildRibbon(track, -(ROAD_HALF_WIDTH + 4.5), -(ROAD_HALF_WIDTH + 48), 0.0, 10, COAST_U.from, COAST_U.to),
-    new THREE.MeshStandardMaterial({ color: 0x6e6044, roughness: 1 })
+    new THREE.MeshStandardMaterial({ map: sand, roughness: 1 })
   );
   beach.receiveShadow = true;
   scene.add(beach);
@@ -733,11 +947,14 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // streetlights and skyline catch on it; darker (tire-polished) areas
   // read as smoother via the roughness map
   const asphalt = asphaltTexture();
+  const asphaltNormals = normalMapFrom(asphaltHeightCanvas(), 1.1);
   const road = new THREE.Mesh(
     buildRibbon(track, -ROAD_HALF_WIDTH, ROAD_HALF_WIDTH, 0.02, 6),
     new THREE.MeshStandardMaterial({
       map: asphalt,
       roughnessMap: asphalt,
+      normalMap: asphaltNormals,
+      normalScale: new THREE.Vector2(0.3, 0.3),
       color: 0xffffff,
       roughness: 0.8,
       metalness: 0.25,
@@ -829,6 +1046,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const p = new THREE.Vector3();
     const tmp = new THREE.Vector3();
     const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
+    const lampPositions: THREE.Vector3[] = [];
     for (let i = 0; i < count; i++) {
       const s = i * spacing;
       const u = s / L;
@@ -846,6 +1064,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       track.pose(s, sideSign * (ROAD_HALF_WIDTH + 0.6), p, tmp);
       m.makeTranslation(p.x, 8.3, p.z);
       lamps.setMatrixAt(i, m);
+      lampPositions.push(new THREE.Vector3(p.x, 8.3, p.z));
       track.pose(s, sideSign * (ROAD_HALF_WIDTH - 2.5), p, tmp);
       m.makeTranslation(p.x, 0.045, p.z);
       pools.setMatrixAt(i, m);
@@ -855,6 +1074,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     pools.instanceMatrix.needsUpdate = true;
     poles.castShadow = true;
     scene.add(poles, lamps, pools);
+    // Sodium coronas around every lamp head
+    scene.add(coronaPoints(lampPositions, 0xffb15c, 5.5));
   }
 
   // Cat-eye road studs along both edge lines — they sparkle into the
@@ -960,8 +1181,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
 
   // Hawally tunnel: concrete walls + ceiling, sodium strip lights inside
   {
+    const concreteMap = concreteTexture();
+    concreteMap.repeat.set(1, 2);
     const concrete = new THREE.MeshStandardMaterial({
-      color: 0x686b70,
+      map: concreteMap,
       roughness: 0.95,
       side: THREE.DoubleSide,
     });
@@ -1025,6 +1248,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();
     const tmp = new THREE.Vector3();
+    const stripPositions: THREE.Vector3[] = [];
     let idx = 0;
     for (let i = 0; i < stripCount; i++) {
       const s = (TUNNEL_U.from + 0.002) * L + i * 12;
@@ -1032,6 +1256,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         track.pose(s, lat, p, tmp);
         m.makeTranslation(p.x, 5.32, p.z);
         strips.setMatrixAt(idx, m);
+        stripPositions.push(new THREE.Vector3(p.x, 5.25, p.z));
         m.makeTranslation(p.x, 0.05, p.z);
         tpools.setMatrixAt(idx, m);
         idx++;
@@ -1040,6 +1265,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     strips.instanceMatrix.needsUpdate = true;
     tpools.instanceMatrix.needsUpdate = true;
     scene.add(strips, tpools);
+    scene.add(coronaPoints(stripPositions, 0xffdba6, 2.6));
   }
 
   // Illuminated billboards — the TXR night-expressway signature,
