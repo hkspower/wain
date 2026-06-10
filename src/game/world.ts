@@ -70,16 +70,25 @@ function buildRibbon(
   return geo;
 }
 
-/** Vertical band (guardrail face) following the track at lateral offset. */
-function buildWall(track: Track, lateral: number, y0: number, y1: number, step = 8): THREE.BufferGeometry {
-  const n = Math.ceil(track.length / step);
+/** Vertical band (guardrail/tunnel wall) following the track at lateral offset. */
+function buildWall(
+  track: Track,
+  lateral: number,
+  y0: number,
+  y1: number,
+  step = 8,
+  u0 = 0,
+  u1 = 1
+): THREE.BufferGeometry {
+  const span = (u1 - u0) * track.length;
+  const n = Math.ceil(span / step);
   const positions = new Float32Array((n + 1) * 2 * 3);
   const indices: number[] = [];
   const p = new THREE.Vector3();
   const tmp = new THREE.Vector3();
 
   for (let i = 0; i <= n; i++) {
-    const s = (i / n) * track.length;
+    const s = u0 * track.length + (i / n) * span;
     track.pose(s, lateral, p, tmp);
     const o = i * 6;
     positions[o] = p.x;
@@ -196,6 +205,69 @@ function glowTexture(r: number, g: number, b: number): THREE.CanvasTexture {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 128, 128);
   return new THREE.CanvasTexture(c);
+}
+
+function adTexture(line1: string, line2: string, bg: string, fg: string, accent: string): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 512;
+  c.height = 224;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, 512, 224);
+  // diagonal accent slash, TXR-billboard style
+  ctx.fillStyle = accent;
+  ctx.beginPath();
+  ctx.moveTo(380, 0);
+  ctx.lineTo(512, 0);
+  ctx.lineTo(512, 224);
+  ctx.lineTo(440, 224);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = fg;
+  ctx.lineWidth = 8;
+  ctx.strokeRect(6, 6, 500, 212);
+  ctx.fillStyle = fg;
+  ctx.textAlign = "left";
+  ctx.font = "bold 64px sans-serif";
+  ctx.fillText(line1, 28, 100);
+  ctx.font = "bold 34px sans-serif";
+  ctx.globalAlpha = 0.9;
+  ctx.fillText(line2, 28, 165);
+  ctx.globalAlpha = 1;
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** Illuminated roadside billboard on twin posts, facing oncoming traffic. */
+function billboard(track: Track, s: number, offset: number, tex: THREE.CanvasTexture): THREE.Group {
+  const g = new THREE.Group();
+  const postMat = new THREE.MeshStandardMaterial({ color: 0x3c4148, roughness: 0.7 });
+  for (const px of [-4, 4]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 7, 8), postMat);
+    post.position.set(px, 3.5, 0);
+    g.add(post);
+  }
+  const board = new THREE.Mesh(
+    new THREE.PlaneGeometry(13, 5.6),
+    new THREE.MeshStandardMaterial({
+      map: tex,
+      emissive: 0xffffff,
+      emissiveMap: tex,
+      emissiveIntensity: 0.85,
+      roughness: 0.6,
+      side: THREE.DoubleSide,
+    })
+  );
+  board.position.y = 9.4;
+  g.add(board);
+  const p = new THREE.Vector3();
+  const side = new THREE.Vector3();
+  track.pointAt(s, p);
+  track.sideAt(s, side);
+  g.position.set(p.x + side.x * offset, 0, p.z + side.z * offset);
+  g.lookAt(p.x, 9.4, p.z);
+  return g;
 }
 
 function windowTexture(): THREE.CanvasTexture {
@@ -525,6 +597,9 @@ function makeBeacon(beacons: THREE.MeshStandardMaterial[]): THREE.Mesh {
   return new THREE.Mesh(new THREE.SphereGeometry(0.9, 8, 6), mat);
 }
 
+// Hawally tunnel on the inland leg — TXR-style underpass
+const TUNNEL_U = { from: 0.615, to: 0.655 };
+
 export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   const L = track.length;
   const beacons: THREE.MeshStandardMaterial[] = [];
@@ -753,8 +828,17 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();
     const tmp = new THREE.Vector3();
+    const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
     for (let i = 0; i < count; i++) {
       const s = i * spacing;
+      const u = s / L;
+      if (u > TUNNEL_U.from - 0.004 && u < TUNNEL_U.to + 0.004) {
+        // No street poles inside the tunnel
+        poles.setMatrixAt(i, hidden);
+        lamps.setMatrixAt(i, hidden);
+        pools.setMatrixAt(i, hidden);
+        continue;
+      }
       const sideSign = i % 2 === 0 ? 1 : -1;
       track.pose(s, sideSign * (ROAD_HALF_WIDTH + 1.6), p, tmp);
       m.makeTranslation(p.x, 4.2, p.z);
@@ -872,6 +956,112 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     trunks.instanceMatrix.needsUpdate = true;
     crowns.instanceMatrix.needsUpdate = true;
     scene.add(trunks, crowns);
+  }
+
+  // Hawally tunnel: concrete walls + ceiling, sodium strip lights inside
+  {
+    const concrete = new THREE.MeshStandardMaterial({
+      color: 0x686b70,
+      roughness: 0.95,
+      side: THREE.DoubleSide,
+    });
+    const wallL = new THREE.Mesh(
+      buildWall(track, -(ROAD_HALF_WIDTH + 1.6), 0, 5.4, 6, TUNNEL_U.from, TUNNEL_U.to),
+      concrete
+    );
+    const wallR = new THREE.Mesh(
+      buildWall(track, ROAD_HALF_WIDTH + 1.6, 0, 5.4, 6, TUNNEL_U.from, TUNNEL_U.to),
+      concrete
+    );
+    const ceiling = new THREE.Mesh(
+      buildRibbon(track, -(ROAD_HALF_WIDTH + 1.6), ROAD_HALF_WIDTH + 1.6, 5.4, 6, TUNNEL_U.from, TUNNEL_U.to),
+      concrete
+    );
+    wallL.receiveShadow = wallR.receiveShadow = ceiling.receiveShadow = true;
+    scene.add(wallL, wallR, ceiling);
+
+    // Portal frames at each mouth
+    const portalMat = new THREE.MeshStandardMaterial({ color: 0x55585e, roughness: 0.9 });
+    for (const u of [TUNNEL_U.from, TUNNEL_U.to]) {
+      const frame = new THREE.Group();
+      const top = new THREE.Mesh(new THREE.BoxGeometry((ROAD_HALF_WIDTH + 2.6) * 2, 1.6, 1.2), portalMat);
+      top.position.y = 6.0;
+      frame.add(top);
+      for (const sideSign of [-1, 1]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(1.2, 6.2, 1.2), portalMat);
+        leg.position.set(sideSign * (ROAD_HALF_WIDTH + 2.0), 3.1, 0);
+        frame.add(leg);
+      }
+      const p = new THREE.Vector3();
+      const tan = new THREE.Vector3();
+      track.pointAt(u * L, p);
+      track.tangentAt(u * L, tan);
+      frame.position.copy(p);
+      frame.lookAt(p.clone().add(tan));
+      scene.add(frame);
+    }
+
+    // Ceiling strip lights + their glow on the road
+    const stripCount = Math.floor(((TUNNEL_U.to - TUNNEL_U.from) * L) / 12);
+    const stripGeo = new THREE.BoxGeometry(0.5, 0.12, 2.6);
+    const stripMat = new THREE.MeshStandardMaterial({
+      color: 0xfff1cf,
+      emissive: 0xffd9a0,
+      emissiveIntensity: 3.0,
+      fog: false,
+    });
+    const strips = new THREE.InstancedMesh(stripGeo, stripMat, stripCount * 2);
+    const poolGeo = new THREE.CircleGeometry(7, 16);
+    poolGeo.rotateX(-Math.PI / 2);
+    const poolMat = new THREE.MeshBasicMaterial({
+      map: lightPoolTexture(),
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+      opacity: 0.8,
+    });
+    const tpools = new THREE.InstancedMesh(poolGeo, poolMat, stripCount * 2);
+    const m = new THREE.Matrix4();
+    const p = new THREE.Vector3();
+    const tmp = new THREE.Vector3();
+    let idx = 0;
+    for (let i = 0; i < stripCount; i++) {
+      const s = (TUNNEL_U.from + 0.002) * L + i * 12;
+      for (const lat of [-3.5, 3.5]) {
+        track.pose(s, lat, p, tmp);
+        m.makeTranslation(p.x, 5.32, p.z);
+        strips.setMatrixAt(idx, m);
+        m.makeTranslation(p.x, 0.05, p.z);
+        tpools.setMatrixAt(idx, m);
+        idx++;
+      }
+    }
+    strips.instanceMatrix.needsUpdate = true;
+    tpools.instanceMatrix.needsUpdate = true;
+    scene.add(strips, tpools);
+  }
+
+  // Illuminated billboards — the TXR night-expressway signature,
+  // with distinctly Kuwaiti advertisers
+  {
+    const ads: Array<[string, string, string, string, string, number, number]> = [
+      // line1, line2, bg, fg, accent, u, side offset
+      ["وين؟ WAIN", "wain nrooh? — يلا", "#0f4f4a", "#eafff9", "#2e978e", 0.035, 24],
+      ["بو مجبوس", "BU MACHBOOS · best machboos on the Gulf", "#7a2d08", "#ffe9d4", "#e8641b", 0.09, 26],
+      ["SAQER ⚡ صقر", "ENERGY — hunt the night", "#1a0a0a", "#ffd2c2", "#c1121f", 0.155, 24],
+      ["AL-DABOOS", "كراج الدبوس · TUNING & DYNO", "#1c1c10", "#ffe9a3", "#f5c211", 0.225, 26],
+      ["بنك الديرة", "BANK AL-DEERA · drive now, pay later", "#0a2a52", "#dcebff", "#3b82d4", 0.3, 25],
+      ["ليالي السالمية", "SALMIYA NIGHTS — open till fajer", "#2a0a3a", "#f3dcff", "#b84dd6", 0.36, 24],
+      ["قهوة GAHWA", "first cup free for racers ☕", "#3a2510", "#ffeeda", "#c98a3d", 0.43, 22],
+      ["دروازة مول", "DARWAZA MALL · 200 shops", "#0d3a1e", "#dcffe9", "#16a34a", 0.56, 28],
+      ["GULF ROAD", "NIGHTS · ليالي شارع الخليج 🏁", "#101728", "#dceaff", "#38e8ff", 0.7, 26],
+      ["حولي موترز", "HAWALLY MOTORS · JDM imports", "#252525", "#f2f2f2", "#888888", 0.78, 25],
+    ];
+    for (const [l1, l2, bg, fg, accent, u, off] of ads) {
+      const sideSign = u < 0.46 ? 1 : Math.random() < 0.5 ? 1 : -1; // never in the sea
+      scene.add(billboard(track, u * L, sideSign * off, adTexture(l1, l2, bg, fg, accent)));
+    }
   }
 
   // Landmarks, in real Gulf Road order heading south down the coast

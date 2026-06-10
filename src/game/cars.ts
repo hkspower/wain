@@ -11,6 +11,25 @@ import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 export interface CarColors {
   body: number;
   accent?: number;
+  /** Neon underglow colour — TXR rival style. */
+  underglow?: number;
+}
+
+let glowTexShared: THREE.CanvasTexture | null = null;
+function underglowTexture(): THREE.CanvasTexture {
+  if (glowTexShared) return glowTexShared;
+  const c = document.createElement("canvas");
+  c.width = 128;
+  c.height = 128;
+  const ctx = c.getContext("2d")!;
+  const g = ctx.createRadialGradient(64, 64, 6, 64, 64, 64);
+  g.addColorStop(0, "rgba(255,255,255,0.85)");
+  g.addColorStop(0.55, "rgba(255,255,255,0.3)");
+  g.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  glowTexShared = new THREE.CanvasTexture(c);
+  return glowTexShared;
 }
 
 /** Extrude a side profile (x = length, y = height) across the car's width. */
@@ -259,6 +278,25 @@ export function createCar(colors: CarColors): THREE.Group {
   group.traverse((o) => {
     if (o instanceof THREE.Mesh) o.castShadow = true;
   });
+
+  if (colors.underglow !== undefined) {
+    const glow = new THREE.Mesh(
+      new THREE.PlaneGeometry(4, 5.6),
+      new THREE.MeshBasicMaterial({
+        map: underglowTexture(),
+        color: colors.underglow,
+        transparent: true,
+        opacity: 0.6,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        fog: false,
+      })
+    );
+    glow.rotation.x = -Math.PI / 2;
+    glow.position.y = 0.06;
+    glow.castShadow = false;
+    group.add(glow);
+  }
 
   return group;
 }

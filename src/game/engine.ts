@@ -47,6 +47,8 @@ export interface EngineEvents {
   onChampion(): void;
   /** Fired when a full lap is completed, with the lap time in ms. */
   onLap?(ms: number): void;
+  /** Fired the moment a battle begins — drives the VS splash. */
+  onBattleStart?(rival: RivalDef): void;
 }
 
 interface RemotePlayer {
@@ -223,8 +225,11 @@ export class GameEngine {
   private v3 = new THREE.Vector3();
   private v4 = new THREE.Vector3();
 
-  constructor(canvas: HTMLCanvasElement, events: EngineEvents) {
+  constructor(canvas: HTMLCanvasElement, events: EngineEvents, opts?: { startS?: number }) {
     this.events = events;
+    if (opts?.startS !== undefined && Number.isFinite(opts.startS)) {
+      this.player.s = Math.max(0, opts.startS);
+    }
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
@@ -468,7 +473,8 @@ export class GameEngine {
   /** Add (or re-style) another player's car in the shared cruise. */
   upsertRemote(id: number, name: string, color: string): void {
     this.removeRemote(id);
-    const mesh = createCar({ body: new THREE.Color(color).getHex() });
+    const hex = new THREE.Color(color).getHex();
+    const mesh = createCar({ body: hex, underglow: hex });
     mesh.add(makeNameTag(name));
     mesh.visible = false; // until the first state snapshot lands
     this.scene.add(mesh);
@@ -613,7 +619,11 @@ export class GameEngine {
     }
     if (this.rivalIndex >= RIVALS.length) return;
     const def = RIVALS[this.rivalIndex];
-    const mesh = createCar({ body: def.bodyColor, accent: def.accentColor });
+    const mesh = createCar({
+      body: def.bodyColor,
+      accent: def.accentColor,
+      underglow: def.accentColor,
+    });
     this.scene.add(mesh);
     this.rival = {
       def,
@@ -640,7 +650,8 @@ export class GameEngine {
     this.player.sp = 100;
     r.sp = 100;
     this.flashHeadlights();
-    this.events.onMessage(`⚡ BATTLE — ${r.def.name} ${r.def.arabicName}`, `"${r.def.taunt}"`);
+    if (this.events.onBattleStart) this.events.onBattleStart(r.def);
+    else this.events.onMessage(`⚡ BATTLE — ${r.def.name} ${r.def.arabicName}`, `"${r.def.taunt}"`);
   }
 
   private flashHeadlights(): void {

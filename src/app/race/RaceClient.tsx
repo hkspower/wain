@@ -13,6 +13,9 @@ interface FeedMsg {
   key: number;
 }
 
+// Fake gearbox for the HUD tach — shift points picked to feel right
+const GEARS = [0, 55, 95, 145, 200, 260, 320];
+
 export default function RaceClient() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mapRef = useRef<HTMLCanvasElement>(null);
@@ -20,6 +23,8 @@ export default function RaceClient() {
   const mapPathRef = useRef<Array<[number, number]>>([]);
 
   const speedRef = useRef<HTMLSpanElement>(null);
+  const gearRef = useRef<HTMLDivElement>(null);
+  const rpmRef = useRef<HTMLDivElement>(null);
   const areaRef = useRef<HTMLDivElement>(null);
   const rivalInfoRef = useRef<HTMLDivElement>(null);
   const battleRef = useRef<HTMLDivElement>(null);
@@ -32,7 +37,9 @@ export default function RaceClient() {
   const [phase, setPhase] = useState<Phase>("menu");
   const [message, setMessage] = useState<{ title: string; sub?: string } | null>(null);
   const [beatenBy, setBeatenBy] = useState<RivalDef | null>(null);
+  const [vsRival, setVsRival] = useState<RivalDef | null>(null);
   const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const vsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Online cruise
   const hubRef = useRef<HubClient | null>(null);
@@ -73,6 +80,12 @@ export default function RaceClient() {
   const onHud = useCallback(
     (d: HudData) => {
       if (speedRef.current) speedRef.current.textContent = String(Math.round(d.speedKmh));
+      // Gear + in-gear RPM fraction
+      let g = 0;
+      while (g < GEARS.length - 2 && d.speedKmh >= GEARS[g + 1]) g++;
+      const rpm = Math.min(1, Math.max(0.12, (d.speedKmh - GEARS[g]) / (GEARS[g + 1] - GEARS[g])));
+      if (gearRef.current) gearRef.current.textContent = d.speedKmh < 2 ? "N" : String(g + 1);
+      if (rpmRef.current) rpmRef.current.style.width = `${Math.round(rpm * 100)}%`;
       if (areaRef.current) areaRef.current.textContent = `${d.areaName} · ${d.areaArabic}`;
       if (progressRef.current)
         progressRef.current.textContent = `Rivals beaten: ${d.defeated} / ${d.total}`;
@@ -114,6 +127,8 @@ export default function RaceClient() {
   const startGame = useCallback(async () => {
     if (engineRef.current || !canvasRef.current) return;
     const { GameEngine } = await import("@/game/engine");
+    // Dev helper: ?start=<metres> spawns further along the lap
+    const startS = parseFloat(new URLSearchParams(window.location.search).get("start") ?? "");
     const engine = new GameEngine(canvasRef.current, {
       onHud,
       onMessage: showMessage,
@@ -133,7 +148,12 @@ export default function RaceClient() {
         showMessage(`LAP — ${formatLap(ms)}`);
         hubRef.current?.sendLap(ms);
       },
-    });
+      onBattleStart: (rival) => {
+        setVsRival(rival);
+        if (vsTimer.current) clearTimeout(vsTimer.current);
+        vsTimer.current = setTimeout(() => setVsRival(null), 2400);
+      },
+    }, Number.isFinite(startS) ? { startS } : undefined);
     engineRef.current = engine;
     mapPathRef.current = engine.getMapPath();
     engine.resize();
@@ -193,6 +213,7 @@ export default function RaceClient() {
       engineRef.current?.dispose();
       engineRef.current = null;
       if (msgTimer.current) clearTimeout(msgTimer.current);
+      if (vsTimer.current) clearTimeout(vsTimer.current);
       if (sendTimer.current) clearInterval(sendTimer.current);
       hubRef.current?.close();
       hubRef.current = null;
@@ -223,10 +244,12 @@ export default function RaceClient() {
       >
         {/* Area + progress */}
         <div className="absolute left-4 top-4">
-          <div ref={areaRef} className="text-lg font-bold drop-shadow" />
-          <div ref={progressRef} className="text-xs text-white/70" />
+          <div className="-skew-x-6 border-l-4 border-amber-400 bg-black/45 px-3 py-1.5 backdrop-blur-sm">
+            <div ref={areaRef} className="text-lg font-bold tracking-wide drop-shadow" />
+            <div ref={progressRef} className="text-[11px] tracking-widest text-white/70" />
+          </div>
           {onlineCount !== null && (
-            <div className="mt-1 text-xs font-bold text-cyan-300">
+            <div className="mt-1.5 -skew-x-6 bg-black/40 px-3 py-0.5 text-xs font-bold text-cyan-300">
               ● {onlineCount} cruising online
             </div>
           )}
@@ -257,17 +280,25 @@ export default function RaceClient() {
           ref={battleRef}
           className="absolute left-1/2 top-4 w-[min(560px,90vw)] -translate-x-1/2 opacity-0 transition-opacity"
         >
-          <div className="mb-1 flex justify-between text-[11px] font-bold tracking-widest">
-            <span className="text-emerald-300">YOU — أنت</span>
-            <span className="text-red-300">RIVAL</span>
+          <div className="mb-1 flex justify-between text-[11px] font-black tracking-[0.25em]">
+            <span className="text-emerald-300 drop-shadow-[0_0_6px_rgba(52,211,153,0.9)]">SP — أنت</span>
+            <span className="text-red-300 drop-shadow-[0_0_6px_rgba(248,113,113,0.9)]">RIVAL SP</span>
           </div>
-          <div className="h-3 overflow-hidden rounded-full bg-white/15">
-            <div ref={playerBarRef} className="h-full rounded-full bg-emerald-400 transition-[width]" />
+          <div className="relative h-4 -skew-x-12 overflow-hidden rounded-sm bg-black/50 ring-1 ring-white/25">
+            <div
+              ref={playerBarRef}
+              className="h-full bg-gradient-to-r from-emerald-600 via-emerald-400 to-emerald-200 shadow-[0_0_16px_rgba(52,211,153,0.9)] transition-[width]"
+            />
+            <div className="absolute inset-0 [background:repeating-linear-gradient(90deg,transparent_0,transparent_14px,rgba(0,0,0,0.55)_14px,rgba(0,0,0,0.55)_16px)]" />
           </div>
-          <div className="mt-1.5 h-3 overflow-hidden rounded-full bg-white/15">
-            <div ref={rivalBarRef} className="h-full rounded-full bg-red-500 transition-[width]" />
+          <div className="relative mt-1.5 h-4 -skew-x-12 overflow-hidden rounded-sm bg-black/50 ring-1 ring-white/25">
+            <div
+              ref={rivalBarRef}
+              className="h-full bg-gradient-to-r from-red-700 via-red-500 to-orange-300 shadow-[0_0_16px_rgba(239,68,68,0.9)] transition-[width]"
+            />
+            <div className="absolute inset-0 [background:repeating-linear-gradient(90deg,transparent_0,transparent_14px,rgba(0,0,0,0.55)_14px,rgba(0,0,0,0.55)_16px)]" />
           </div>
-          <div ref={battleNameRef} className="mt-1 text-center text-xs font-semibold text-white/85" />
+          <div ref={battleNameRef} className="mt-1 text-center text-xs font-bold tracking-wider text-white/90 drop-shadow" />
         </div>
 
         {/* Rival distance + flash prompt */}
@@ -281,12 +312,32 @@ export default function RaceClient() {
           </div>
         </div>
 
-        {/* Speedometer */}
+        {/* Speed cluster: digital speed, gear, tach bar */}
         <div className="absolute bottom-5 left-16 select-none">
-          <span ref={speedRef} className="text-6xl font-black italic tabular-nums drop-shadow-lg">
-            0
-          </span>
-          <span className="ml-2 text-lg font-bold text-white/70">km/h</span>
+          <div className="flex items-end gap-3">
+            <span
+              ref={speedRef}
+              className="text-7xl font-black italic leading-none tabular-nums drop-shadow-[0_0_14px_rgba(56,232,255,0.45)]"
+            >
+              0
+            </span>
+            <div className="pb-0.5">
+              <div className="text-[10px] font-bold tracking-widest text-white/60">km/h</div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-[10px] font-bold tracking-widest text-white/60">GEAR</span>
+                <span ref={gearRef} className="text-2xl font-black italic text-amber-400">
+                  N
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="mt-1.5 h-2 w-64 -skew-x-12 overflow-hidden rounded-sm bg-black/50 ring-1 ring-white/20">
+            <div
+              ref={rpmRef}
+              className="h-full bg-gradient-to-r from-cyan-400 via-amber-400 to-red-500"
+              style={{ width: "0%" }}
+            />
+          </div>
         </div>
 
         {/* Controls hint */}
@@ -295,6 +346,33 @@ export default function RaceClient() {
           <br />F flash headlights · M mute · G glow fx
         </div>
       </div>
+
+      {/* TXR-style VS splash on battle start */}
+      {vsRival && phase === "playing" && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center overflow-hidden bg-black/55">
+          <div className="vs-slide-left w-[38%] text-right">
+            <div className="text-5xl font-black italic text-emerald-300 drop-shadow-[0_0_18px_rgba(52,211,153,0.8)] sm:text-6xl">
+              YOU
+            </div>
+            <div className="mt-1 text-xl font-bold text-white/80" dir="rtl">
+              أنت
+            </div>
+          </div>
+          <div className="vs-pop mx-8 text-7xl font-black italic text-amber-400 drop-shadow-[0_0_24px_rgba(251,191,36,0.9)] sm:text-8xl">
+            VS
+          </div>
+          <div className="vs-slide-right w-[38%]">
+            <div className="text-4xl font-black italic text-red-400 drop-shadow-[0_0_18px_rgba(248,113,113,0.8)] sm:text-5xl">
+              {vsRival.name}
+            </div>
+            <div className="mt-1 text-xl font-bold text-white/85">{vsRival.arabicName}</div>
+            <div className="mt-1 text-sm font-bold tracking-widest text-white/60">
+              {vsRival.crew.toUpperCase()}
+            </div>
+            <div className="mt-2 text-sm italic text-white/70">&quot;{vsRival.taunt}&quot;</div>
+          </div>
+        </div>
+      )}
 
       {/* Center message toast */}
       {message && phase === "playing" && (
