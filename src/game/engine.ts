@@ -104,6 +104,17 @@ const VignetteGrainShader = {
     }`,
 };
 
+/** Spin a car's wheels with road speed; fronts also take a steer angle. */
+function spinWheels(car: THREE.Object3D, speed: number, dt: number, steer = 0): void {
+  const wheels = car.userData.wheels as THREE.Group[] | undefined;
+  if (!wheels) return;
+  const dRot = (speed / 0.36) * dt; // tire radius 0.36 m
+  for (let i = 0; i < wheels.length; i++) {
+    wheels[i].rotation.x += dRot;
+    if (i < 2) wheels[i].rotation.y = steer;
+  }
+}
+
 /** Soft white radial texture for the headlight splash on the asphalt. */
 function headlightPoolTexture(): THREE.CanvasTexture {
   const c = document.createElement("canvas");
@@ -761,6 +772,10 @@ export class GameEngine {
     this.playerMesh.lookAt(this.v4);
     this.carBody.rotation.y = -this.steerVel * 0.022;
     this.carBody.rotation.z = this.steerVel * 0.012;
+    spinWheels(this.carBody, p.speed, dt, -this.steerVel * 0.03);
+    (this.carBody.userData.tailMat as THREE.MeshStandardMaterial).emissiveIntensity = this.brake
+      ? 7
+      : 2;
 
     // Traffic collisions
     if (this.bumpCooldown <= 0) {
@@ -797,6 +812,7 @@ export class GameEngine {
       t.mesh.position.copy(this.v1);
       this.v4.copy(this.v1).add(this.v3);
       t.mesh.lookAt(this.v4);
+      spinWheels(t.mesh, t.speed, dt);
     }
   }
 
@@ -863,6 +879,7 @@ export class GameEngine {
     r.mesh.position.copy(this.v1);
     this.v4.copy(this.v1).add(this.v3);
     r.mesh.lookAt(this.v4);
+    spinWheels(r.mesh, r.speed, dt);
   }
 
   private updateRemotes(dt: number): void {
@@ -882,6 +899,7 @@ export class GameEngine {
       r.mesh.position.copy(this.v1);
       this.v4.copy(this.v1).add(this.v3);
       r.mesh.lookAt(this.v4);
+      spinWheels(r.mesh, r.snapSpeed, dt);
     }
   }
 
