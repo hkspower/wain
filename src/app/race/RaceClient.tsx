@@ -343,7 +343,7 @@ export default function RaceClient() {
         {/* Controls hint */}
         <div className="absolute bottom-5 right-5 text-right text-[11px] leading-5 text-white/50">
           W/↑ accelerate · S/↓ brake · A D steer
-          <br />F flash headlights · M mute · G glow fx
+          <br />F flash headlights · M mute · V voices · G glow fx
         </div>
       </div>
 

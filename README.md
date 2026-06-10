@@ -8,7 +8,8 @@ A modern place-discovery app for Kuwait: curated landmarks, food, beaches, shopp
 
 A built-in **Kuwait Xtreme Racer** game at [`/race`](http://localhost:3000/race): Tokyo-Xtreme-Racer-style midnight highway battles on a 7.3 km lap of the real **Gulf Road** — south along the corniche from the Kuwait Towers past Green Island, the Salmiya marina, and the Scientific Center to Ras Al-Ard, then back north through Hawally and the city skyline (Al Hamra, Liberation Tower, the striped water towers).
 
-- **Drive**: `W/↑` accelerate, `S/↓` brake, `A`/`D` steer, `M` mute
+- **Drive**: `W/↑` accelerate, `S/↓` brake, `A`/`D` steer, `M` mute, `V` voices, `G` glow fx
+- **Voices**: rivals speak Kuwaiti dialect lines (battle intros, gloats, concessions) through the browser's Arabic speech voices — each character has their own pitch and pace, from Abu Shanab's cheerful jab to the ghost's slow rasp
 - **Battle**: catch a rival and press `F` to flash your headlights — the trailing car bleeds SP (Spirit Points); empty the rival's bar to win
 - **Roster**: six street legends from Salmiya to Jahra, ending with the boss, *Shabah Al-Khaleej* (شبح الخليج)
 - Progress is saved locally; beat all six to become **King of Gulf Road** 👑

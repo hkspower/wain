@@ -8,6 +8,7 @@ import { Track, ROAD_HALF_WIDTH, LANES } from "./track";
 import { buildWorld, areaAt, WorldHandle } from "./world";
 import { createCar } from "./cars";
 import { RIVALS, RivalDef } from "./rivals";
+import { VoiceBox } from "./voice";
 
 // Tokyo-Xtreme-Racer-style rules, Kuwait edition: cruise the loop, find the
 // rival, flash your headlights (F) to start a battle. Both drivers have SP
@@ -218,6 +219,7 @@ export class GameEngine {
   private engineOsc: OscillatorNode | null = null;
   private engineGain: GainNode | null = null;
   private muted = false;
+  private voice = new VoiceBox();
 
   // scratch
   private v1 = new THREE.Vector3();
@@ -405,6 +407,7 @@ export class GameEngine {
         `Find ${r.def.name} — ${r.def.arabicName}`,
         `${r.def.crew} · close in and press F to flash`
       );
+      this.voice.speak("يلا! دور على خصمك"); // announcer: go find your rival
     } else if (this.rivalIndex >= RIVALS.length) {
       // Reloaded as a reigning champion — straight to the crown screen.
       // Deferred: the caller sets its "playing" state right after start().
@@ -530,6 +533,7 @@ export class GameEngine {
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
     this.audioCtx?.close().catch(() => {});
+    this.voice.dispose();
     this.composer.dispose();
     this.renderer.dispose();
   }
@@ -542,6 +546,11 @@ export class GameEngine {
     this.keys.add(k);
     if (k === "f") this.tryFlash();
     if (k === "m") this.toggleMute();
+    if (k === "v") {
+      const on = this.voice.toggle();
+      this.events.onMessage(on ? "Voices on — الأصوات شغالة 🗣️" : "Voices off");
+      if (on) this.voice.speak("الأصوات شغالة");
+    }
     if (k === "g") {
       this.qualityLocked = true;
       this.bloomPass.enabled = !this.bloomPass.enabled;
@@ -650,6 +659,7 @@ export class GameEngine {
     this.player.sp = 100;
     r.sp = 100;
     this.flashHeadlights();
+    this.voice.speak(r.def.lines.intro, r.def.voice);
     if (this.events.onBattleStart) this.events.onBattleStart(r.def);
     else this.events.onMessage(`⚡ BATTLE — ${r.def.name} ${r.def.arabicName}`, `"${r.def.taunt}"`);
   }
@@ -672,9 +682,12 @@ export class GameEngine {
     this.inBattle = false;
     this.rivalIndex++;
     this.saveProgress();
+    this.voice.speak(r.def.lines.lose, r.def.voice);
     if (this.rivalIndex >= RIVALS.length) {
       this.events.onMessage("👑 KING OF GULF ROAD", "كل الشوارع لك — every street is yours");
       this.locked = false;
+      // Let the ghost concede before the announcer crowns you
+      setTimeout(() => this.voice.speak("مبروك! إنت ملك شارع الخليج"), 3200);
       setTimeout(() => this.events.onChampion(), 1800);
     } else {
       this.events.onMessage(`VICTORY — ${r.def.name} defeated`, `${r.def.crew} bows out`);
@@ -697,6 +710,7 @@ export class GameEngine {
     r.state = "cruise";
     this.inBattle = false;
     this.locked = true;
+    this.voice.speak(r.def.lines.win, r.def.voice);
     this.events.onDefeat(r.def);
   }
 

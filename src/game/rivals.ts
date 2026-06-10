@@ -12,6 +12,10 @@ export interface RivalDef {
   accentColor: number;
   topSpeedKmh: number;
   taunt: string;
+  /** Spoken Kuwaiti lines (browser speech synthesis, Arabic voice). */
+  lines: { intro: string; win: string; lose: string };
+  /** Voice signature so each character sounds distinct. */
+  voice: { pitch: number; rate: number; female?: boolean };
 }
 
 export const RIVALS: RivalDef[] = [
@@ -25,6 +29,12 @@ export const RIVALS: RivalDef[] = [
     accentColor: 0x16a34a,
     topSpeedKmh: 232,
     taunt: "Yalla, let's see what you've got!",
+    lines: {
+      intro: "هلا والله! يلا ورني شنو عندك يا بطل",
+      win: "هاهاها! روح تعلم السواقة وبعدين تعال",
+      lose: "ما شاء الله عليك... خذت الليلة مني",
+    },
+    voice: { pitch: 1.05, rate: 1.05 },
   },
   {
     id: "bint-aldeera",
@@ -36,6 +46,12 @@ export const RIVALS: RivalDef[] = [
     accentColor: 0xffffff,
     topSpeedKmh: 246,
     taunt: "You drive like you're going to Friday Market.",
+    lines: {
+      intro: "تبي تتحداني؟ يلا نشوف شطارتك",
+      win: "قلت لك، شارع الخليج لي أنا",
+      lose: "زين لعبت... بس هالمرة وبس",
+    },
+    voice: { pitch: 1.3, rate: 1.1, female: true },
   },
   {
     id: "al-daboos",
@@ -47,6 +63,12 @@ export const RIVALS: RivalDef[] = [
     accentColor: 0x111111,
     topSpeedKmh: 261,
     taunt: "I've eaten faster cars for futoor.",
+    lines: {
+      intro: "أنا الدبوس! محد يعديني في حولي",
+      win: "ولا يهمك، تدرب زين وتعال مرة ثانية",
+      lose: "عيل صدق إنك سريع... احترمتك",
+    },
+    voice: { pitch: 0.9, rate: 1.15 },
   },
   {
     id: "bu-machboos",
@@ -58,6 +80,12 @@ export const RIVALS: RivalDef[] = [
     accentColor: 0xffffff,
     topSpeedKmh: 277,
     taunt: "When I win, the machboos is on you.",
+    lines: {
+      intro: "اللي يخسر يعزم على المجبوس... اتفقنا؟",
+      win: "يلا! المجبوس عليك الليلة، هاهاها",
+      lose: "خذ فوزك... بس مجبوسي أطيب، صدقني",
+    },
+    voice: { pitch: 0.8, rate: 0.95 },
   },
   {
     id: "al-saqer",
@@ -69,6 +97,12 @@ export const RIVALS: RivalDef[] = [
     accentColor: 0x111111,
     topSpeedKmh: 293,
     taunt: "The falcon hunts at midnight.",
+    lines: {
+      intro: "الصقر يصيد في الليل... انتبه لنفسك",
+      win: "الصقر ما يطيح مرتين",
+      lose: "صدت الصقر... لك كل الاحترام",
+    },
+    voice: { pitch: 0.75, rate: 0.9 },
   },
   {
     id: "shabah-alkhaleej",
@@ -80,5 +114,11 @@ export const RIVALS: RivalDef[] = [
     accentColor: 0x38e8ff,
     topSpeedKmh: 318,
     taunt: "...",
+    lines: {
+      intro: "وصلت للنهاية... بس الشبح ما ينهزم",
+      win: "ارجع لما تكون جاهز",
+      lose: "الشارع لك... يا ملك الخليج",
+    },
+    voice: { pitch: 0.5, rate: 0.8 },
   },
 ];
