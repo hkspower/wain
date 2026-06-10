@@ -507,17 +507,32 @@ function placeBeside(track: Track, obj: THREE.Object3D, s: number, offset: numbe
 }
 
 export interface WorldHandle {
-  /** Advance animated scenery (sea shimmer). */
+  /** Advance animated scenery (sea shimmer, tower beacons). */
   tick(dt: number): void;
+  /** The moon — the engine drives its shadow frustum along with the player. */
+  moonLight: THREE.DirectionalLight;
+}
+
+/** Pulsing red aircraft-warning beacon for tower tops. */
+function makeBeacon(beacons: THREE.MeshStandardMaterial[]): THREE.Mesh {
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x330000,
+    emissive: 0xff1a1a,
+    emissiveIntensity: 2.5,
+    fog: false,
+  });
+  beacons.push(mat);
+  return new THREE.Mesh(new THREE.SphereGeometry(0.9, 8, 6), mat);
 }
 
 export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   const L = track.length;
+  const beacons: THREE.MeshStandardMaterial[] = [];
 
   // Fog and light
   scene.fog = new THREE.FogExp2(0x05070f, 0.0021);
   scene.add(new THREE.HemisphereLight(0x3a4a6b, 0x1a140c, 0.65));
-  const moonLight = new THREE.DirectionalLight(0xbfd0ff, 0.55);
+  const moonLight = new THREE.DirectionalLight(0xbfd0ff, 0.8);
   moonLight.position.set(-300, 500, 200);
   scene.add(moonLight);
 
@@ -602,6 +617,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   );
   ground.rotation.x = -Math.PI / 2;
   ground.position.set(2700, -0.08, -1400);
+  ground.receiveShadow = true;
   scene.add(ground);
 
   // The Gulf — runs along the whole coastal leg (road x ≈ 760–850,
@@ -635,20 +651,25 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     buildRibbon(track, -(ROAD_HALF_WIDTH + 4.5), -(ROAD_HALF_WIDTH + 48), 0.0, 10, COAST_U.from, COAST_U.to),
     new THREE.MeshStandardMaterial({ color: 0x6e6044, roughness: 1 })
   );
+  beach.receiveShadow = true;
   scene.add(beach);
 
   // Road surface — textured asphalt with a faintly damp sheen so the
-  // streetlights and skyline catch on it
+  // streetlights and skyline catch on it; darker (tire-polished) areas
+  // read as smoother via the roughness map
+  const asphalt = asphaltTexture();
   const road = new THREE.Mesh(
     buildRibbon(track, -ROAD_HALF_WIDTH, ROAD_HALF_WIDTH, 0.02, 6),
     new THREE.MeshStandardMaterial({
-      map: asphaltTexture(),
+      map: asphalt,
+      roughnessMap: asphalt,
       color: 0xffffff,
-      roughness: 0.55,
+      roughness: 0.8,
       metalness: 0.25,
       envMapIntensity: 0.9,
     })
   );
+  road.receiveShadow = true;
   scene.add(road);
 
   const lineMat = new THREE.MeshStandardMaterial({
@@ -748,6 +769,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     poles.instanceMatrix.needsUpdate = true;
     lamps.instanceMatrix.needsUpdate = true;
     pools.instanceMatrix.needsUpdate = true;
+    poles.castShadow = true;
     scene.add(poles, lamps, pools);
   }
 
@@ -785,13 +807,16 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const count = 230;
     const geo = new THREE.BoxGeometry(1, 1, 1);
     geo.translate(0, 0.5, 0);
-    const mat = new THREE.MeshStandardMaterial({ map: windows, color: 0x8a8f99, roughness: 0.8 });
+    const mat = new THREE.MeshStandardMaterial({ map: windows, color: 0xffffff, roughness: 0.8 });
     const blocks = new THREE.InstancedMesh(geo, mat, count);
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();
     const tmp = new THREE.Vector3();
     const q = new THREE.Quaternion();
     const scale = new THREE.Vector3();
+    const tint = new THREE.Color();
+    // Facade variety: concrete grey to warm beige to blue glass
+    const palette = [0x8a8f99, 0x9c937e, 0x7c828e, 0x6e7686, 0xa39a85];
     for (let i = 0; i < count; i++) {
       const s = Math.random() * L;
       const u = track.wrap(s) / L;
@@ -807,8 +832,13 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       scale.set(12 + Math.random() * 20, h, 12 + Math.random() * 20);
       m.compose(p, q, scale);
       blocks.setMatrixAt(i, m);
+      tint.setHex(palette[i % palette.length]).multiplyScalar(0.85 + Math.random() * 0.3);
+      blocks.setColorAt(i, tint);
     }
     blocks.instanceMatrix.needsUpdate = true;
+    if (blocks.instanceColor) blocks.instanceColor.needsUpdate = true;
+    blocks.castShadow = true;
+    blocks.receiveShadow = true;
     scene.add(blocks);
   }
 
@@ -847,6 +877,9 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // Landmarks, in real Gulf Road order heading south down the coast
   const towers = kuwaitTowers();
   placeBeside(track, towers, L * 0.016, -52); // Ras Ajouza promontory, ahead of the spawn
+  const towersBeacon = makeBeacon(beacons);
+  towersBeacon.position.y = 114;
+  towers.add(towersBeacon);
   scene.add(towers);
   const towersPad = new THREE.Mesh(
     new THREE.CylinderGeometry(70, 75, 0.8, 20),
@@ -887,10 +920,16 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
 
   const lib = liberationTower(windows);
   placeBeside(track, lib, L * 0.9, 130); // city centre, inland of the top curve
+  const libBeacon = makeBeacon(beacons);
+  libBeacon.position.y = 134;
+  lib.add(libBeacon);
   scene.add(lib);
 
   const hamra = alHamra(windows);
   placeBeside(track, hamra, L * 0.96, 80); // Sharq skyline by the start
+  const hamraBeacon = makeBeacon(beacons);
+  hamraBeacon.position.y = 60; // local to the 118 m box, centred at 59
+  hamra.add(hamraBeacon);
   scene.add(hamra);
 
   // Kuwait flag at the start line
@@ -952,11 +991,18 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     scene.add(g);
   });
 
+  let time = 0;
   return {
+    moonLight,
     tick(dt: number) {
+      time += dt;
       // Slow drift of the wave crests across the bay
       seaMap.offset.x += dt * 0.008;
       seaMap.offset.y -= dt * 0.013;
+      // Aircraft-warning beacons pulse out of phase
+      beacons.forEach((b, i) => {
+        b.emissiveIntensity = 0.25 + 2.75 * Math.max(0, Math.sin(time * 1.8 + i * 2.1));
+      });
     },
   };
 }

@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { Track, ROAD_HALF_WIDTH, LANES } from "./track";
 import { buildWorld, areaAt, WorldHandle } from "./world";
@@ -78,6 +79,46 @@ interface Rival {
 
 const TRAFFIC_COLORS = [0x8a96a3, 0x5d6770, 0xb0a890, 0x6e7f8d, 0x4a5560, 0x9c8f7a];
 
+// Subtle film vignette + animated grain, applied in linear space before output.
+const VignetteGrainShader = {
+  uniforms: { tDiffuse: { value: null as THREE.Texture | null }, uTime: { value: 0 } },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float uTime;
+    varying vec2 vUv;
+    float hash(vec2 p) {
+      return fract(sin(dot(p, vec2(127.1, 311.7)) + uTime * 13.0) * 43758.5453);
+    }
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      float d = distance(vUv, vec2(0.5));
+      c.rgb *= 1.0 - 0.38 * smoothstep(0.38, 0.85, d);
+      c.rgb += (hash(vUv * vec2(1920.0, 1080.0)) - 0.5) * 0.025;
+      gl_FragColor = c;
+    }`,
+};
+
+/** Soft white radial texture for the headlight splash on the asphalt. */
+function headlightPoolTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 128;
+  c.height = 128;
+  const ctx = c.getContext("2d")!;
+  const g = ctx.createRadialGradient(64, 64, 4, 64, 64, 64);
+  g.addColorStop(0, "rgba(255,246,215,0.55)");
+  g.addColorStop(0.5, "rgba(255,240,200,0.2)");
+  g.addColorStop(1, "rgba(255,235,190,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+
 /** Floating name banner above an online player's car. */
 function makeNameTag(name: string): THREE.Sprite {
   const c = document.createElement("canvas");
@@ -145,9 +186,16 @@ export class GameEngine {
   private world: WorldHandle;
   private composer: EffectComposer;
   private bloomPass: UnrealBloomPass;
+  private grainPass: ShaderPass;
   private fpsEma = 60;
   private qualityLocked = false; // user took manual control with G
   private startedAt = 0;
+  private moonDir = new THREE.Vector3(-300, 500, 200).normalize();
+
+  // Scrape/bump sparks
+  private sparks: THREE.Points;
+  private sparkVel = new Float32Array(60 * 3);
+  private sparkLife = 0;
 
   // Minimap
   private mapBounds = { minX: 0, maxX: 1, minZ: 0, maxZ: 1 };
@@ -171,11 +219,28 @@ export class GameEngine {
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.camera = new THREE.PerspectiveCamera(62, canvas.clientWidth / canvas.clientHeight, 0.5, 4000);
 
     this.buildEnvironment();
     this.world = buildWorld(this.scene, this.track);
     this.computeMapBounds();
+
+    // Moonlight shadows: a compact ortho frustum that the loop keeps
+    // centred on the player, so nearby cars, rails, and poles all throw
+    // long moon shadows across the asphalt.
+    const moon = this.world.moonLight;
+    moon.castShadow = true;
+    moon.shadow.mapSize.set(2048, 2048);
+    moon.shadow.camera.left = -80;
+    moon.shadow.camera.right = 80;
+    moon.shadow.camera.top = 80;
+    moon.shadow.camera.bottom = -80;
+    moon.shadow.camera.near = 50;
+    moon.shadow.camera.far = 900;
+    moon.shadow.bias = -0.0006;
+    this.scene.add(moon.target);
 
     // Bloom makes the night work: lamps, taillights, cat-eyes and the
     // tower spheres all halo. Auto-disabled on weak machines (see loop).
@@ -188,7 +253,29 @@ export class GameEngine {
       0.8
     );
     this.composer.addPass(this.bloomPass);
+    this.grainPass = new ShaderPass(VignetteGrainShader);
+    this.composer.addPass(this.grainPass);
     this.composer.addPass(new OutputPass());
+
+    // Spark pool for scrapes and shunts
+    {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(60 * 3), 3));
+      this.sparks = new THREE.Points(
+        geo,
+        new THREE.PointsMaterial({
+          color: 0xffc46a,
+          size: 0.14,
+          transparent: true,
+          opacity: 0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        })
+      );
+      this.sparks.visible = false;
+      this.sparks.frustumCulled = false;
+      this.scene.add(this.sparks);
+    }
 
     // Player car — Kuwait flag colours: white body, green stripe
     this.carBody = createCar({ body: 0xf2f4f7, accent: 0x007a3d });
@@ -200,6 +287,40 @@ export class GameEngine {
     this.headlight.position.set(0, 1.1, 1.8);
     this.headlight.target.position.set(0, 0, 40);
     this.playerMesh.add(this.headlight, this.headlight.target);
+
+    // Visible beam cones + a splash of light on the road ahead
+    {
+      const beamGeo = new THREE.ConeGeometry(1.5, 13, 12, 1, true);
+      beamGeo.rotateX(-Math.PI / 2); // apex toward the car, opening forward
+      const beamMat = new THREE.MeshBasicMaterial({
+        color: 0xfff3cf,
+        transparent: true,
+        opacity: 0.045,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        fog: false,
+      });
+      for (const sx of [-0.7, 0.7]) {
+        const beam = new THREE.Mesh(beamGeo, beamMat);
+        beam.position.set(sx, 0.8, 8.7);
+        this.playerMesh.add(beam);
+      }
+      const pool = new THREE.Mesh(
+        new THREE.PlaneGeometry(8, 17),
+        new THREE.MeshBasicMaterial({
+          map: headlightPoolTexture(),
+          transparent: true,
+          opacity: 0.5,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          fog: false,
+        })
+      );
+      pool.rotation.x = -Math.PI / 2;
+      pool.position.set(0, 0.07, 10.5);
+      this.playerMesh.add(pool);
+    }
 
     this.spawnTraffic(22);
 
@@ -301,12 +422,13 @@ export class GameEngine {
     this.qualityLocked = true;
     if (this.fpsEma < 32) {
       this.bloomPass.enabled = false;
+      this.world.moonLight.castShadow = false;
       if (this.fpsEma < 18) {
         this.renderer.setPixelRatio(1);
         this.composer.setPixelRatio(1);
         this.resize();
       }
-      this.events.onMessage("Performance mode", "Glow effects off — press G to toggle them back");
+      this.events.onMessage("Performance mode", "Glow & shadows off — press G to toggle them back");
     }
   }
 
@@ -406,7 +528,10 @@ export class GameEngine {
     if (k === "g") {
       this.qualityLocked = true;
       this.bloomPass.enabled = !this.bloomPass.enabled;
-      this.events.onMessage(this.bloomPass.enabled ? "Glow effects on ✨" : "Glow effects off");
+      this.world.moonLight.castShadow = this.bloomPass.enabled;
+      this.events.onMessage(
+        this.bloomPass.enabled ? "Glow & shadows on ✨" : "Glow & shadows off"
+      );
     }
   };
 
@@ -583,6 +708,7 @@ export class GameEngine {
     this.updateCamera(dt);
     this.updateAudio();
     this.world.tick(dt);
+    this.updateEffects(dt);
     this.emitHud();
   }
 
@@ -609,6 +735,7 @@ export class GameEngine {
       if (this.scrapeCooldown <= 0) {
         this.scrapeCooldown = 0.5;
         this.events.onBump();
+        this.spawnSparks();
         if (this.inBattle) p.sp = Math.max(0, p.sp - 4);
       }
     }
@@ -646,6 +773,7 @@ export class GameEngine {
           // forever and glues them to the traffic car's tail.
           if (ds >= 0) p.s = this.track.wrap(t.s - 4.5);
           this.events.onBump();
+          this.spawnSparks();
           if (this.inBattle) p.sp = Math.max(0, p.sp - 8);
           break;
         }
@@ -800,6 +928,50 @@ export class GameEngine {
     this.fovCurrent += (targetFov - this.fovCurrent) * Math.min(1, dt * 3);
     this.camera.fov = this.fovCurrent;
     this.camera.updateProjectionMatrix();
+  }
+
+  private updateEffects(dt: number): void {
+    // Keep the moon's shadow frustum centred on the player
+    const moon = this.world.moonLight;
+    moon.position.copy(this.playerMesh.position).addScaledVector(this.moonDir, 400);
+    moon.target.position.copy(this.playerMesh.position);
+
+    this.grainPass.uniforms.uTime.value = (performance.now() / 1000) % 100;
+
+    if (this.sparkLife > 0) {
+      this.sparkLife = Math.max(0, this.sparkLife - dt);
+      const pos = this.sparks.geometry.getAttribute("position") as THREE.BufferAttribute;
+      for (let i = 0; i < pos.count; i++) {
+        pos.setXYZ(
+          i,
+          pos.getX(i) + this.sparkVel[i * 3] * dt,
+          Math.max(0.02, pos.getY(i) + this.sparkVel[i * 3 + 1] * dt),
+          pos.getZ(i) + this.sparkVel[i * 3 + 2] * dt
+        );
+        this.sparkVel[i * 3 + 1] -= 18 * dt;
+      }
+      pos.needsUpdate = true;
+      (this.sparks.material as THREE.PointsMaterial).opacity = this.sparkLife / 0.6;
+      this.sparks.visible = true;
+    } else {
+      this.sparks.visible = false;
+    }
+  }
+
+  /** Burst of sparks at the car — wall scrapes and traffic shunts. */
+  private spawnSparks(): void {
+    this.sparkLife = 0.6;
+    const pos = this.sparks.geometry.getAttribute("position") as THREE.BufferAttribute;
+    const p = this.playerMesh.position;
+    this.track.tangentAt(this.player.s, this.v3);
+    for (let i = 0; i < pos.count; i++) {
+      pos.setXYZ(i, p.x + (Math.random() - 0.5), 0.3 + Math.random() * 0.4, p.z + (Math.random() - 0.5));
+      const back = -(6 + Math.random() * 10);
+      this.sparkVel[i * 3] = this.v3.x * back + (Math.random() - 0.5) * 6;
+      this.sparkVel[i * 3 + 1] = 2 + Math.random() * 5;
+      this.sparkVel[i * 3 + 2] = this.v3.z * back + (Math.random() - 0.5) * 6;
+    }
+    pos.needsUpdate = true;
   }
 
   private updateAudio(): void {

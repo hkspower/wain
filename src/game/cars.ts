@@ -101,5 +101,9 @@ export function createCar(colors: CarColors): THREE.Group {
     group.add(rim);
   }
 
+  group.traverse((o) => {
+    if (o instanceof THREE.Mesh) o.castShadow = true;
+  });
+
   return group;
 }
