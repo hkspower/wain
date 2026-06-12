@@ -192,7 +192,12 @@ export class GameEngine {
 
   private bumpCooldown = 0;
   private scrapeCooldown = 0;
-  private steerVel = 0;
+  // Handling model: heading relative to the track tangent, smoothed
+  // steering input, centrifugal slip in curves, weight-transfer pitch
+  private heading = 0;
+  private steerSmooth = 0;
+  private slipVel = 0;
+  private pitch = 0;
   private fovCurrent = 62;
   private camInit = false;
 
@@ -758,15 +763,33 @@ export class GameEngine {
     const drag = 0.0012 * p.speed * p.speed + 1.2;
     p.speed = Math.max(0, p.speed + (accel - braking - drag * (this.throttle ? 0.35 : 1)) * dt);
 
-    const steerSpeed = Math.min(3.5 + p.speed * 0.09, 11);
-    const target = this.steer * steerSpeed * (p.speed > 1 ? 1 : 0);
-    this.steerVel += (target - this.steerVel) * Math.min(1, dt * 9);
-    p.lat += this.steerVel * dt;
+    // --- Steering: the car carries a heading relative to the lane.
+    // Yaw authority is grip-limited, so it shrinks as speed rises.
+    this.steerSmooth += (this.steer - this.steerSmooth) * Math.min(1, dt * 7);
+    const yawRateMax = Math.min(1.6, 12 / Math.max(p.speed, 2)); // a_lat ≈ 12 m/s²
+    this.heading += this.steerSmooth * yawRateMax * dt;
+    // Caster self-centering when the wheel is released
+    if (Math.abs(this.steer) < 0.1) {
+      this.heading -= this.heading * Math.min(1, dt * 2.4);
+    }
+    this.heading = THREE.MathUtils.clamp(this.heading, -0.45, 0.45);
+
+    // --- Centrifugal push: sweepers shove the car toward the outside,
+    // demanding counter-steer at speed.
+    this.track.tangentAt(p.s, this.v1);
+    this.track.tangentAt(p.s + 8, this.v2);
+    const crossY = this.v1.z * this.v2.x - this.v1.x * this.v2.z;
+    const curvature = -Math.asin(THREE.MathUtils.clamp(crossY, -1, 1)) / 8;
+    const pushAccel = THREE.MathUtils.clamp(curvature * p.speed * p.speed * 0.22, -8, 8);
+    this.slipVel += (pushAccel - this.slipVel * 2.5) * dt;
+
+    p.lat += (Math.sin(this.heading) * p.speed + this.slipVel) * dt;
 
     const maxLat = ROAD_HALF_WIDTH - 1.1;
     if (Math.abs(p.lat) > maxLat) {
       p.lat = THREE.MathUtils.clamp(p.lat, -maxLat, maxLat);
-      this.steerVel *= 0.3;
+      this.heading *= 0.15;
+      this.slipVel *= 0.2;
       p.speed *= 1 - 0.9 * dt;
       if (this.scrapeCooldown <= 0) {
         this.scrapeCooldown = 0.5;
@@ -795,9 +818,14 @@ export class GameEngine {
     this.playerMesh.position.copy(this.v1);
     this.v4.copy(this.v1).add(this.v3);
     this.playerMesh.lookAt(this.v4);
-    this.carBody.rotation.y = -this.steerVel * 0.022;
-    this.carBody.rotation.z = this.steerVel * 0.012;
-    spinWheels(this.carBody, p.speed, dt, -this.steerVel * 0.03);
+    // Body language: nose follows the heading, weight transfer pitches
+    // under braking/throttle, body rolls in the turn
+    this.carBody.rotation.y = -this.heading * 0.85;
+    this.carBody.rotation.z = this.heading * 0.06;
+    const pitchTarget = this.brake * 0.035 * Math.min(1, p.speed / 20) - this.throttle * 0.014;
+    this.pitch += (pitchTarget - this.pitch) * Math.min(1, dt * 6);
+    this.carBody.rotation.x = this.pitch;
+    spinWheels(this.carBody, p.speed, dt, -this.steerSmooth * 0.3);
     (this.carBody.userData.tailMat as THREE.MeshStandardMaterial).emissiveIntensity = this.brake
       ? 7
       : 2;
@@ -1068,6 +1096,8 @@ export class GameEngine {
       remotes: this.remotes.size,
       lapDistance: this.lapDistance,
       s: this.player.s,
+      heading: this.heading,
+      slipVel: this.slipVel,
     };
 
     let rivalDist: number | null = null;
