@@ -41,7 +41,7 @@ export default function AboutPage() {
           { emoji: "🗣️", title: "Bilingual", text: "English and Arabic, side by side." },
         ].map((item) => (
           <div key={item.title} className="rounded-2xl border border-slate-100 bg-slate-50/50 p-5">
-            <span className="text-2xl">{item.emoji}</span>
+            <span className="text-2xl" aria-hidden="true">{item.emoji}</span>
             <h2 className="mt-2 font-bold text-slate-900">{item.title}</h2>
             <p className="mt-1 text-sm text-slate-500">{item.text}</p>
           </div>

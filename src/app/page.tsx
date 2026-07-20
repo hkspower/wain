@@ -42,12 +42,12 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="mt-14 flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-sm text-slate-400">
+          <div className="mt-14 flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-sm text-slate-500">
             <span>
               <strong className="text-slate-700">{places.length}</strong> curated places
             </span>
             <span>
-              <strong className="text-slate-700">6</strong> categories
+              <strong className="text-slate-700">{categories.length}</strong> categories
             </span>
             <span>
               <strong className="text-slate-700">100%</strong> local picks
@@ -73,9 +73,11 @@ export default function HomePage() {
               href={`/explore?category=${encodeURIComponent(cat.name)}`}
               className="group rounded-2xl border border-slate-100 bg-white p-5 text-center shadow-sm transition hover:-translate-y-1 hover:border-brand-200 hover:shadow-md"
             >
-              <span className="text-3xl transition group-hover:scale-110">{cat.emoji}</span>
+              <span aria-hidden="true" className="text-3xl transition group-hover:scale-110">
+                {cat.emoji}
+              </span>
               <h3 className="mt-3 text-sm font-bold text-slate-900">{cat.name}</h3>
-              <p className="mt-1 text-xs text-slate-400">{cat.blurb}</p>
+              <p className="mt-1 text-xs text-slate-500">{cat.blurb}</p>
             </Link>
           ))}
         </div>
@@ -136,7 +138,9 @@ export default function HomePage() {
               <span className="absolute -top-4 left-6 grid size-8 place-items-center rounded-full bg-brand-600 text-sm font-bold text-white">
                 {item.step}
               </span>
-              <span className="text-3xl">{item.emoji}</span>
+              <span aria-hidden="true" className="text-3xl">
+                {item.emoji}
+              </span>
               <h3 className="mt-3 font-bold text-slate-900">{item.title}</h3>
               <p className="mt-1 text-sm text-slate-500">{item.text}</p>
             </div>

@@ -8,15 +8,21 @@ const links = [
 export default function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-slate-100 bg-white/80 backdrop-blur-md">
-      <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-2">
-          <span className="grid size-9 place-items-center rounded-xl bg-brand-600 text-lg text-white shadow-sm">
+      <nav
+        className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6"
+        aria-label="Primary"
+      >
+        <Link href="/" className="flex items-center gap-2" aria-label="Wain — home">
+          <span
+            aria-hidden="true"
+            className="grid size-9 place-items-center rounded-xl bg-brand-600 text-lg text-white shadow-sm"
+          >
             📍
           </span>
           <span className="text-xl font-extrabold tracking-tight text-slate-900">
             Wain<span className="text-brand-600">?</span>
           </span>
-          <span className="hidden text-sm font-medium text-slate-400 sm:inline" dir="rtl">
+          <span className="hidden text-sm font-medium text-slate-500 sm:inline" dir="rtl">
             وين؟
           </span>
         </Link>

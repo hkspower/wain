@@ -34,21 +34,26 @@ export default async function PlacePage({ params }: Props) {
   return (
     <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
       {/* Breadcrumb */}
-      <nav className="mb-6 text-sm text-slate-400">
+      <nav className="mb-6 text-sm text-slate-500" aria-label="Breadcrumb">
         <Link href="/explore" className="transition hover:text-brand-700">
           Explore
         </Link>
-        <span className="mx-2">/</span>
-        <span className="text-slate-600">{place.name}</span>
+        <span className="mx-2" aria-hidden="true">/</span>
+        <span className="text-slate-700" aria-current="page">{place.name}</span>
       </nav>
 
       {/* Hero banner */}
       <div
         className={`relative flex h-64 items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br ${place.gradient} shadow-lg`}
       >
-        <span className="text-8xl drop-shadow-lg">{place.emoji}</span>
-        <span className="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1.5 text-sm font-bold text-slate-800 backdrop-blur">
-          ⭐ {place.rating.toFixed(1)}
+        <span aria-hidden="true" className="text-8xl drop-shadow-lg">
+          {place.emoji}
+        </span>
+        <span
+          className="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1.5 text-sm font-bold text-slate-800 backdrop-blur"
+          aria-label={`Rated ${place.rating.toFixed(1)} out of 5`}
+        >
+          <span aria-hidden="true">⭐</span> {place.rating.toFixed(1)}
         </span>
       </div>
 
@@ -58,7 +63,7 @@ export default async function PlacePage({ params }: Props) {
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
             {place.name}
           </h1>
-          <p className="mt-1 text-xl text-slate-400" dir="rtl">
+          <p className="mt-1 text-xl text-slate-500" dir="rtl">
             {place.nameAr}
           </p>
         </div>
@@ -66,33 +71,44 @@ export default async function PlacePage({ params }: Props) {
           <span className="rounded-full bg-brand-50 px-3 py-1.5 text-sm font-semibold text-brand-700">
             {place.category}
           </span>
-          <span className="rounded-full bg-sand-50 px-3 py-1.5 text-sm font-semibold text-sand-700">
-            KD {"•".repeat(place.priceLevel)}
+          <span
+            className="rounded-full bg-sand-50 px-3 py-1.5 text-sm font-semibold text-sand-700"
+            aria-label={`Price level ${place.priceLevel} of 3`}
+          >
+            KD <span aria-hidden="true">{"•".repeat(place.priceLevel)}</span>
           </span>
         </div>
       </div>
 
-      <p className="mt-2 flex items-center gap-1.5 text-slate-500">📍 {place.area}, Kuwait</p>
+      <p className="mt-2 flex items-center gap-1.5 text-slate-500">
+        <span aria-hidden="true">📍</span> {place.area}, Kuwait
+      </p>
 
       <p className="mt-6 text-lg leading-relaxed text-slate-600">{place.description}</p>
 
       {/* Info grid */}
       <div className="mt-10 grid gap-6 sm:grid-cols-2">
         <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6">
-          <h2 className="font-bold text-slate-900">✨ Highlights</h2>
+          <h2 className="font-bold text-slate-900">
+            <span aria-hidden="true">✨</span> Highlights
+          </h2>
           <ul className="mt-3 space-y-2">
             {place.highlights.map((h) => (
               <li key={h} className="flex items-start gap-2 text-sm text-slate-600">
-                <span className="mt-0.5 text-brand-500">✓</span>
+                <span aria-hidden="true" className="mt-0.5 text-brand-500">✓</span>
                 {h}
               </li>
             ))}
           </ul>
         </div>
         <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6">
-          <h2 className="font-bold text-slate-900">🕐 Best time to visit</h2>
+          <h2 className="font-bold text-slate-900">
+            <span aria-hidden="true">🕐</span> Best time to visit
+          </h2>
           <p className="mt-3 text-sm text-slate-600">{place.bestTime}</p>
-          <h2 className="mt-6 font-bold text-slate-900">💰 Price level</h2>
+          <h2 className="mt-6 font-bold text-slate-900">
+            <span aria-hidden="true">💰</span> Price level
+          </h2>
           <p className="mt-3 text-sm text-slate-600">
             {["Budget-friendly", "Moderate", "Treat yourself"][place.priceLevel - 1]}
           </p>
