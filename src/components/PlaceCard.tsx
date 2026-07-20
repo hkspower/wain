@@ -10,11 +10,17 @@ export default function PlaceCard({ place }: { place: Place }) {
       <div
         className={`relative flex h-40 items-center justify-center bg-gradient-to-br ${place.gradient}`}
       >
-        <span className="text-6xl drop-shadow-md transition group-hover:scale-110">
+        <span
+          aria-hidden="true"
+          className="text-6xl drop-shadow-md transition group-hover:scale-110"
+        >
           {place.emoji}
         </span>
-        <span className="absolute right-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-xs font-semibold text-slate-700 backdrop-blur">
-          ⭐ {place.rating.toFixed(1)}
+        <span
+          className="absolute right-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-xs font-semibold text-slate-700 backdrop-blur"
+          aria-label={`Rated ${place.rating.toFixed(1)} out of 5`}
+        >
+          <span aria-hidden="true">⭐</span> {place.rating.toFixed(1)}
         </span>
       </div>
 
@@ -24,23 +30,27 @@ export default function PlaceCard({ place }: { place: Place }) {
             <h3 className="font-bold text-slate-900 group-hover:text-brand-700">
               {place.name}
             </h3>
-            <p className="text-sm text-slate-400" dir="rtl">
+            <p className="text-sm text-slate-500" dir="rtl">
               {place.nameAr}
             </p>
           </div>
-          <span className="shrink-0 text-sm font-medium text-sand-600">
-            {"KD".padEnd(2)}
-            {"•".repeat(place.priceLevel)}
+          <span
+            className="shrink-0 text-sm font-medium text-sand-600"
+            aria-label={`Price level ${place.priceLevel} of 3`}
+          >
+            KD <span aria-hidden="true">{"•".repeat(place.priceLevel)}</span>
           </span>
         </div>
 
         <p className="mt-2 line-clamp-2 text-sm text-slate-500">{place.tagline}</p>
 
-        <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
+        <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
           <span className="rounded-full bg-brand-50 px-2.5 py-1 font-medium text-brand-700">
             {place.category}
           </span>
-          <span>📍 {place.area}</span>
+          <span>
+            <span aria-hidden="true">📍</span> {place.area}
+          </span>
         </div>
       </div>
     </Link>
