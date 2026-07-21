@@ -10,7 +10,8 @@
     "ios": {
       "icon": "./assets/expo.icon",
       "supportsTablet": true,
-      "bundleIdentifier": "com.wain.app"
+      "bundleIdentifier": "com.wain.app",
+      "associatedDomains": ["applinks:sporta.com.kw", "applinks:www.sporta.com.kw"]
     },
     "android": {
       "adaptiveIcon": {
@@ -20,7 +21,18 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.wain.app"
+      "package": "com.wain.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            { "scheme": "https", "host": "sporta.com.kw" },
+            { "scheme": "https", "host": "www.sporta.com.kw" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "output": "static",
@@ -40,6 +52,11 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {
+        "origin": "https://sporta.com.kw"
+      }
     }
   }
 }

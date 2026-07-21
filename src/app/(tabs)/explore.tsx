@@ -1,4 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
+import Head from 'expo-router/head';
 import { useMemo, useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -38,6 +39,9 @@ export default function ExploreScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <Head>
+        <title>Explore Kuwait — Wain?</title>
+      </Head>
       <FlatList
         data={filtered}
         keyExtractor={(place) => place.slug}

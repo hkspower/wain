@@ -81,6 +81,27 @@ npx eas build --platform ios
 npx eas build --platform android
 ```
 
+## Web deployment (sporta.com.kw)
+
+The web app is configured for the **sporta.com.kw** domain:
+
+- **Origin** — `expo.extra.router.origin` in `app.json` sets canonical URLs and the sitemap to `https://sporta.com.kw`.
+- **Metadata** — `src/app/+html.tsx` injects site-wide `<head>` tags (description, theme color, Open Graph, canonical); each screen sets its own `<title>` via `expo-router/head`.
+- **Deep links** — `ios.associatedDomains` and `android.intentFilters` are set for `sporta.com.kw`, so `https://sporta.com.kw/...` links open the native app (universal links / App Links).
+
+Build the static site and deploy the `dist/` folder to your host:
+
+```bash
+npx expo export --platform web   # outputs ./dist
+```
+
+> **Server-side files needed for deep links:** universal links require an
+> [Apple App Site Association](https://developer.apple.com/documentation/xcode/supporting-associated-domains)
+> file at `https://sporta.com.kw/.well-known/apple-app-site-association` and an
+> [assetlinks.json](https://developer.android.com/training/app-links/verify-android-applinks)
+> at `https://sporta.com.kw/.well-known/assetlinks.json`. These live on the web
+> host, not in this repo.
+
 ---
 
 Made with ❤️ in Kuwait 🇰🇼

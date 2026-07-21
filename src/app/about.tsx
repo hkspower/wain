@@ -1,4 +1,5 @@
 import { Link } from 'expo-router';
+import Head from 'expo-router/head';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -17,6 +18,9 @@ export default function AboutScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <Head>
+        <title>About — Wain?</title>
+      </Head>
       <View style={styles.content}>
         <ThemedText type="subtitle" style={styles.title}>
           What is Wain?

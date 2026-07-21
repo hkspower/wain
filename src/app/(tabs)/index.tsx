@@ -1,4 +1,5 @@
 import { Link, useRouter } from 'expo-router';
+import Head from 'expo-router/head';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -18,6 +19,9 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <Head>
+        <title>Wain? — where shall we go in Kuwait?</title>
+      </Head>
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingBottom: BottomTabInset + Spacing.five }]}
         showsVerticalScrollIndicator={false}>
