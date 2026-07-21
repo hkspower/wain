@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "basic-ftp": "^5.3.1",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -37,7 +38,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "build:web": "expo export --platform web",
+    "deploy": "expo export --platform web && node ./scripts/deploy.mjs"
   },
   "private": true
 }

@@ -95,6 +95,34 @@ Build the static site and deploy the `dist/` folder to your host:
 npx expo export --platform web   # outputs ./dist
 ```
 
+### Deploy to Hostinger (FTP)
+
+`npm run deploy` builds the web export and uploads `dist/` to Hostinger over
+FTPS. It is incremental — only files whose contents changed are uploaded
+(tracked with a `.deploy-manifest.json` on the server) and files removed
+locally are pruned remotely.
+
+Set the FTP credentials (keep them out of git — use a gitignored `.env` or your
+shell), then run:
+
+```bash
+export HOSTINGER_FTP_HOST='ftp.sporta.com.kw'
+export HOSTINGER_FTP_USER='your-ftp-user'
+export HOSTINGER_FTP_PASSWORD='your-ftp-password'
+export HOSTINGER_FTP_REMOTE_DIR='/domains/sporta.com.kw/public_html'
+
+npm run deploy -- --force --verify=hash
+```
+
+| Flag | Effect |
+| --- | --- |
+| `--force` | Upload every file, ignoring the remote manifest / hashes. |
+| `--verify=hash` | After each upload, re-download the file and compare its sha256 to guarantee an intact transfer. |
+| `--dry-run` | Print what would change without touching the server. |
+
+Optional env: `HOSTINGER_FTP_PORT` (default `21`), `HOSTINGER_FTP_SECURE`
+(`true` = explicit FTPS, the default; set `false` for plain FTP).
+
 > **Server-side files needed for deep links:** universal links require an
 > [Apple App Site Association](https://developer.apple.com/documentation/xcode/supporting-associated-domains)
 > file at `https://sporta.com.kw/.well-known/apple-app-site-association` and an
