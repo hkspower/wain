@@ -9,6 +9,10 @@ import { buildWorld, areaAt, WorldHandle } from "./world";
 import { createCar } from "./cars";
 import { RIVALS, RivalDef } from "./rivals";
 import { VoiceBox } from "./voice";
+import { SoundEngine } from "./sound";
+
+// Shared with the HUD's gear readout — shift points by speed (km/h)
+const GEARS = [0, 55, 95, 145, 200, 260, 320];
 
 // Tokyo-Xtreme-Racer-style rules, Kuwait edition: cruise the loop, find the
 // rival, flash your headlights (F) to start a battle. Both drivers have SP
@@ -220,11 +224,15 @@ export class GameEngine {
   private mapBounds = { minX: 0, maxX: 1, minZ: 0, maxZ: 1 };
 
   // Audio
-  private audioCtx: AudioContext | null = null;
-  private engineOsc: OscillatorNode | null = null;
-  private engineGain: GainNode | null = null;
-  private muted = false;
+  private sound: SoundEngine | null = null;
   private voice = new VoiceBox();
+
+  // Camera motion
+  private shake = 0; // impact jolt energy, decays
+  private camRoll = 0;
+  private curvature = 0; // signed, from the handling model
+  private streaks!: THREE.LineSegments;
+  private streakData: Array<{ s: number; lat: number; y: number; len: number }> = [];
 
   // scratch
   private v1 = new THREE.Vector3();
@@ -298,6 +306,26 @@ export class GameEngine {
       this.sparks.visible = false;
       this.sparks.frustumCulled = false;
       this.scene.add(this.sparks);
+    }
+
+    // Wind streaks — motion lines that fade in past ~220 km/h
+    {
+      const N = 40;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(N * 2 * 3), 3));
+      this.streaks = new THREE.LineSegments(
+        geo,
+        new THREE.LineBasicMaterial({
+          color: 0xcfe8ff,
+          transparent: true,
+          opacity: 0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        })
+      );
+      this.streaks.frustumCulled = false;
+      this.scene.add(this.streaks);
+      for (let i = 0; i < N; i++) this.streakData.push(this.newStreak(this.player.s));
     }
 
     // Player car — Kuwait flag colours: white body, green stripe
@@ -390,7 +418,12 @@ export class GameEngine {
   // ---------------------------------------------------------------- public
 
   start(): void {
-    this.initAudio();
+    try {
+      this.sound = new SoundEngine();
+      this.sound.revStart();
+    } catch {
+      this.sound = null;
+    }
     this.clock.getDelta();
     this.lapStartAt = performance.now();
     this.startedAt = performance.now();
@@ -424,9 +457,7 @@ export class GameEngine {
 
   setPaused(p: boolean): void {
     this.paused = p;
-    if (this.engineGain) {
-      this.engineGain.gain.value = p || this.muted ? 0 : 0.035;
-    }
+    this.sound?.setPaused(p);
   }
 
   resize(): void {
@@ -537,7 +568,7 @@ export class GameEngine {
     cancelAnimationFrame(this.raf);
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
-    this.audioCtx?.close().catch(() => {});
+    this.sound?.dispose();
     this.voice.dispose();
     this.composer.dispose();
     this.renderer.dispose();
@@ -550,7 +581,11 @@ export class GameEngine {
     if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) e.preventDefault();
     this.keys.add(k);
     if (k === "f") this.tryFlash();
-    if (k === "m") this.toggleMute();
+    if (k === "m" && !e.repeat && this.sound) {
+      const muted = this.sound.toggleMute();
+      this.events.onMessage(muted ? "Sound off 🔇" : "Sound on 🔊");
+    }
+    if (k === "h" && !e.repeat) this.sound?.hornOn();
     if (k === "v") {
       const on = this.voice.toggle();
       this.events.onMessage(on ? "Voices on — الأصوات شغالة 🗣️" : "Voices off");
@@ -567,7 +602,9 @@ export class GameEngine {
   };
 
   private onKeyUp = (e: KeyboardEvent) => {
-    this.keys.delete(e.key.toLowerCase());
+    const k = e.key.toLowerCase();
+    this.keys.delete(k);
+    if (k === "h") this.sound?.hornOff();
   };
 
   private get throttle(): number {
@@ -584,31 +621,6 @@ export class GameEngine {
     if (this.keys.has("arrowleft") || this.keys.has("a")) s -= 1;
     if (this.keys.has("arrowright") || this.keys.has("d")) s += 1;
     return s;
-  }
-
-  // ---------------------------------------------------------------- audio
-
-  private initAudio(): void {
-    if (this.audioCtx) return;
-    try {
-      this.audioCtx = new AudioContext();
-      this.engineOsc = this.audioCtx.createOscillator();
-      this.engineOsc.type = "sawtooth";
-      const filter = this.audioCtx.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.value = 420;
-      this.engineGain = this.audioCtx.createGain();
-      this.engineGain.gain.value = 0.035;
-      this.engineOsc.connect(filter).connect(this.engineGain).connect(this.audioCtx.destination);
-      this.engineOsc.start();
-    } catch {
-      this.audioCtx = null;
-    }
-  }
-
-  private toggleMute(): void {
-    this.muted = !this.muted;
-    if (this.engineGain) this.engineGain.gain.value = this.muted ? 0 : 0.035;
   }
 
   // ---------------------------------------------------------------- spawning
@@ -664,6 +676,8 @@ export class GameEngine {
     this.player.sp = 100;
     r.sp = 100;
     this.flashHeadlights();
+    this.sound?.flashClick();
+    this.sound?.battleSting();
     this.voice.speak(r.def.lines.intro, r.def.voice);
     if (this.events.onBattleStart) this.events.onBattleStart(r.def);
     else this.events.onMessage(`⚡ BATTLE — ${r.def.name} ${r.def.arabicName}`, `"${r.def.taunt}"`);
@@ -690,11 +704,13 @@ export class GameEngine {
     this.voice.speak(r.def.lines.lose, r.def.voice);
     if (this.rivalIndex >= RIVALS.length) {
       this.events.onMessage("👑 KING OF GULF ROAD", "كل الشوارع لك — every street is yours");
+      this.sound?.championFanfare();
       this.locked = false;
       // Let the ghost concede before the announcer crowns you
       setTimeout(() => this.voice.speak("مبروك! إنت ملك شارع الخليج"), 3200);
       setTimeout(() => this.events.onChampion(), 1800);
     } else {
+      this.sound?.winSting();
       this.events.onMessage(`VICTORY — ${r.def.name} defeated`, `${r.def.crew} bows out`);
       setTimeout(() => {
         if (this.disposed) return;
@@ -715,6 +731,7 @@ export class GameEngine {
     r.state = "cruise";
     this.inBattle = false;
     this.locked = true;
+    this.sound?.loseSting();
     this.voice.speak(r.def.lines.win, r.def.voice);
     this.events.onDefeat(r.def);
   }
@@ -747,6 +764,7 @@ export class GameEngine {
     this.updateRemotes(dt);
     if (this.inBattle) this.updateBattle(dt);
     this.updateCamera(dt);
+    this.updateStreaks();
     this.updateAudio();
     this.world.tick(dt);
     this.updateEffects(dt);
@@ -782,6 +800,7 @@ export class GameEngine {
     const curvature = -Math.asin(THREE.MathUtils.clamp(crossY, -1, 1)) / 8;
     const pushAccel = THREE.MathUtils.clamp(curvature * p.speed * p.speed * 0.22, -8, 8);
     this.slipVel += (pushAccel - this.slipVel * 2.5) * dt;
+    this.curvature = curvature;
 
     p.lat += (Math.sin(this.heading) * p.speed + this.slipVel) * dt;
 
@@ -795,6 +814,8 @@ export class GameEngine {
         this.scrapeCooldown = 0.5;
         this.events.onBump();
         this.spawnSparks();
+        this.sound?.scrape();
+        this.shake = Math.max(this.shake, 0.55);
         if (this.inBattle) p.sp = Math.max(0, p.sp - 4);
       }
     }
@@ -842,6 +863,8 @@ export class GameEngine {
           if (ds >= 0) p.s = this.track.wrap(t.s - 4.5);
           this.events.onBump();
           this.spawnSparks();
+          this.sound?.bump();
+          this.shake = 1;
           if (this.inBattle) p.sp = Math.max(0, p.sp - 8);
           break;
         }
@@ -980,10 +1003,12 @@ export class GameEngine {
     this.track.pose(p.s, p.lat, this.v1, this.v2);
     this.track.tangentAt(p.s, this.v3);
 
+    // Chase position pulls back and rises with speed
+    const dist = 9.5 + p.speed * 0.02;
     this.v4
       .copy(this.v1)
-      .addScaledVector(this.v3, -9.5)
-      .add(this.v2.set(0, 3.4 + p.speed * 0.012, 0));
+      .addScaledVector(this.v3, -dist)
+      .add(this.v2.set(0, 3.4 + p.speed * 0.014, 0));
     if (!this.camInit) {
       this.camInit = true;
       this.camera.position.copy(this.v4);
@@ -991,14 +1016,66 @@ export class GameEngine {
       this.camera.position.lerp(this.v4, Math.min(1, dt * 5.5));
     }
 
-    this.v4.copy(this.v1).addScaledVector(this.v3, 14);
+    // Impact jolt + speed rumble, as smooth pseudo-noise
+    this.shake = Math.max(0, this.shake - this.shake * 3.5 * dt);
+    const t = performance.now() / 1000;
+    const amp = Math.pow(p.speed / PLAYER_TOP_SPEED, 3) * 0.055 + this.shake * 0.32;
+    this.camera.position.x += (Math.sin(t * 31.7) + Math.sin(t * 17.3)) * 0.5 * amp;
+    this.camera.position.y += (Math.sin(t * 27.1) + Math.sin(t * 13.9)) * 0.5 * amp;
+
+    // Look ahead into the curve so sweepers read like sweepers
+    const lookAside = THREE.MathUtils.clamp(this.curvature * p.speed * p.speed * 0.045, -4, 4);
+    this.track.sideAt(p.s, this.v2);
+    this.v4.copy(this.v1).addScaledVector(this.v3, 14).addScaledVector(this.v2, lookAside);
     this.v4.y += 1.4;
     this.camera.lookAt(this.v4);
 
-    const targetFov = 62 + (p.speed / PLAYER_TOP_SPEED) * 18;
+    // Lateral-G camera roll
+    const rollTarget =
+      THREE.MathUtils.clamp(this.heading * (p.speed / PLAYER_TOP_SPEED), -0.5, 0.5) * 0.14 +
+      THREE.MathUtils.clamp(this.slipVel * 0.012, -0.03, 0.03);
+    this.camRoll += (rollTarget - this.camRoll) * Math.min(1, dt * 4);
+    this.camera.rotateZ(this.camRoll + Math.sin(t * 23.7) * this.shake * 0.02);
+
+    // FOV: speed stretch + a launch kick under throttle from low speed
+    const launchKick = this.throttle * THREE.MathUtils.clamp(1 - p.speed / 40, 0, 1) * 5;
+    const targetFov = 62 + (p.speed / PLAYER_TOP_SPEED) * 18 + launchKick;
     this.fovCurrent += (targetFov - this.fovCurrent) * Math.min(1, dt * 3);
     this.camera.fov = this.fovCurrent;
     this.camera.updateProjectionMatrix();
+  }
+
+  // ------------------------------------------------------------ streaks
+
+  private newStreak(baseS: number): { s: number; lat: number; y: number; len: number } {
+    const side = Math.random() < 0.5 ? -1 : 1;
+    return {
+      s: this.track.wrap(baseS + 25 + Math.random() * 75),
+      lat: side * (2.5 + Math.random() * 13),
+      y: 1 + Math.random() * 5.5,
+      len: 2.5 + Math.random() * 2,
+    };
+  }
+
+  private updateStreaks(): void {
+    const speedKmh = this.player.speed * 3.6;
+    const mat = this.streaks.material as THREE.LineBasicMaterial;
+    mat.opacity = THREE.MathUtils.clamp((speedKmh - 190) / 110, 0, 1) * 0.4;
+    if (mat.opacity <= 0) return;
+
+    const pos = this.streaks.geometry.getAttribute("position") as THREE.BufferAttribute;
+    const len = 2 + this.player.speed * 0.06;
+    for (let i = 0; i < this.streakData.length; i++) {
+      let st = this.streakData[i];
+      if (this.track.deltaAhead(this.player.s, st.s) < -15) {
+        st = this.streakData[i] = this.newStreak(this.player.s);
+      }
+      this.track.pose(st.s, st.lat, this.v1, this.v2);
+      this.track.tangentAt(st.s, this.v3);
+      pos.setXYZ(i * 2, this.v1.x, st.y, this.v1.z);
+      pos.setXYZ(i * 2 + 1, this.v1.x + this.v3.x * len, st.y, this.v1.z + this.v3.z * len);
+    }
+    pos.needsUpdate = true;
   }
 
   private updateEffects(dt: number): void {
@@ -1046,9 +1123,26 @@ export class GameEngine {
   }
 
   private updateAudio(): void {
-    if (!this.engineOsc || !this.audioCtx) return;
-    const f = 65 + this.player.speed * 2.1 + this.throttle * 18;
-    this.engineOsc.frequency.setTargetAtTime(f, this.audioCtx.currentTime, 0.05);
+    if (!this.sound) return;
+    const speedKmh = this.player.speed * 3.6;
+    let gear = 0;
+    while (gear < GEARS.length - 2 && speedKmh >= GEARS[gear + 1]) gear++;
+    const rpmFrac = Math.min(
+      1,
+      Math.max(0.12, (speedKmh - GEARS[gear]) / (GEARS[gear + 1] - GEARS[gear]))
+    );
+    // Tires complain when the heading fights the lane at speed
+    const skid = Math.max(
+      0,
+      Math.abs(this.heading) * (speedKmh / 140) + Math.abs(this.slipVel) * 0.12 - 0.22
+    );
+    this.sound.update({
+      speedKmh,
+      throttle: this.throttle,
+      rpmFrac,
+      gear: speedKmh < 2 ? 0 : gear + 1,
+      skid,
+    });
   }
 
   // ---------------------------------------------------------------- hud
@@ -1098,6 +1192,9 @@ export class GameEngine {
       s: this.player.s,
       heading: this.heading,
       slipVel: this.slipVel,
+      shake: this.shake,
+      streakOpacity: (this.streaks.material as THREE.LineBasicMaterial).opacity,
+      sound: this.sound?.debugState() ?? null,
     };
 
     let rivalDist: number | null = null;
