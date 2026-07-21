@@ -51,6 +51,7 @@ export class SoundEngine {
   private hornGain: GainNode | null = null;
   private lastGear = 0;
   private revUntil = 0;
+  private paused = false;
 
   constructor() {
     this.ctx = new AudioContext();
@@ -117,6 +118,16 @@ export class SoundEngine {
     this.skidGain = this.ctx.createGain();
     this.skidGain.gain.value = 0;
     this.loopNoise().connect(skidFilter).connect(this.skidGain).connect(this.master);
+
+    // Autoplay-policy recovery: contexts created outside a gesture call
+    // stack (we start after an async chunk import) can come up suspended,
+    // especially on Safari. Try now, and again on the next real gesture.
+    if (this.ctx.state !== "running") this.resume();
+  }
+
+  /** Safe to call from any user-gesture handler; no-op when running. */
+  resume(): void {
+    if (this.ctx.state === "suspended") void this.ctx.resume().catch(() => {});
   }
 
   private loopNoise(): AudioBufferSourceNode {
@@ -129,6 +140,9 @@ export class SoundEngine {
 
   /** Per-frame follow of the car state (smoothed inside WebAudio). */
   update(f: SoundFrame): void {
+    // A suspended context never prunes automation timelines — scheduling
+    // against its frozen clock would grow memory without bound.
+    if (this.ctx.state !== "running") return;
     const t = this.ctx.currentTime;
     const revving = t < this.revUntil;
     const rpm = revving ? 0.85 : f.rpmFrac;
@@ -280,27 +294,39 @@ export class SoundEngine {
     }, 200);
   }
 
+  // Direct set (not a scheduled ramp): must apply even when the audio
+  // clock is throttled, e.g. in background tabs. Muted and paused are
+  // independent flags; silence wins whenever either is set. Nothing else
+  // ever schedules on master gain, so no cancelScheduledValues needed.
+  private applyMaster(): void {
+    this.master.gain.value = this.muted || this.paused ? 0 : 0.75;
+  }
+
   toggleMute(): boolean {
     this.muted = !this.muted;
-    // Direct set (not a scheduled ramp): must apply even when the audio
-    // clock is throttled, e.g. in background tabs
-    this.master.gain.cancelScheduledValues(this.ctx.currentTime);
-    this.master.gain.value = this.muted ? 0 : 0.75;
+    this.applyMaster();
     return this.muted;
   }
 
   setPaused(paused: boolean): void {
-    if (this.muted) return;
-    this.master.gain.cancelScheduledValues(this.ctx.currentTime);
-    this.master.gain.value = paused ? 0 : 0.75;
+    this.paused = paused;
+    this.applyMaster();
   }
 
   /** For headless verification. */
-  debugState(): { ctx: string; engineFreq: number; masterGain: number } {
+  debugState(): {
+    ctx: string;
+    engineFreq: number;
+    masterGain: number;
+    muted: boolean;
+    paused: boolean;
+  } {
     return {
       ctx: this.ctx.state,
       engineFreq: this.engOscs[0].frequency.value,
       masterGain: this.master.gain.value,
+      muted: this.muted,
+      paused: this.paused,
     };
   }
 

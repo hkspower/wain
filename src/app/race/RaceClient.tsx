@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GameEngine, HudData } from "@/game/engine";
+import { GEARS } from "@/game/gears";
 import { RIVALS, RivalDef } from "@/game/rivals";
 import { HubClient, loadProfile, formatLap } from "@/game/net";
 
@@ -12,9 +13,6 @@ interface FeedMsg {
   text: string;
   key: number;
 }
-
-// Fake gearbox for the HUD tach — shift points picked to feel right
-const GEARS = [0, 55, 95, 145, 200, 260, 320];
 
 export default function RaceClient() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -124,8 +122,13 @@ export default function RaceClient() {
     msgTimer.current = setTimeout(() => setMessage(null), 3500);
   }, []);
 
+  const startingRef = useRef(false);
+
   const startGame = useCallback(async () => {
-    if (engineRef.current || !canvasRef.current) return;
+    // startingRef guards the async import window — without it a double
+    // Enter/click builds two engines on the same canvas
+    if (engineRef.current || startingRef.current || !canvasRef.current) return;
+    startingRef.current = true;
     const { GameEngine } = await import("@/game/engine");
     // Dev helper: ?start=<metres> spawns further along the lap
     const startS = parseFloat(new URLSearchParams(window.location.search).get("start") ?? "");
@@ -212,6 +215,7 @@ export default function RaceClient() {
       window.removeEventListener("resize", onResize);
       engineRef.current?.dispose();
       engineRef.current = null;
+      startingRef.current = false;
       if (msgTimer.current) clearTimeout(msgTimer.current);
       if (vsTimer.current) clearTimeout(vsTimer.current);
       if (sendTimer.current) clearInterval(sendTimer.current);
@@ -222,7 +226,7 @@ export default function RaceClient() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (phase === "menu" && e.key === "Enter") startGame();
+      if (phase === "menu" && e.key === "Enter" && !e.repeat) startGame();
       if (phase === "defeated" && e.key.toLowerCase() === "r") {
         engineRef.current?.retryBattle();
         setPhase("playing");

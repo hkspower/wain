@@ -13,6 +13,8 @@ export interface CarColors {
   accent?: number;
   /** Neon underglow colour — TXR rival style. */
   underglow?: number;
+  /** Skip the fine detailing (seams, trim, interior) — used for traffic. */
+  simple?: boolean;
 }
 
 let glowTexShared: THREE.CanvasTexture | null = null;
@@ -130,7 +132,23 @@ const glassMat = new THREE.MeshPhysicalMaterial({
   roughness: 0.06,
   metalness: 0.9,
   envMapIntensity: 1.6,
+  transparent: true,
+  opacity: 0.8, // just enough to silhouette the interior
 });
+
+const seamMat = new THREE.MeshStandardMaterial({ color: 0x0a0b0d, roughness: 0.85 });
+const interiorMat = new THREE.MeshStandardMaterial({ color: 0x14161a, roughness: 0.95 });
+const indicatorMat = new THREE.MeshStandardMaterial({
+  color: 0xffa020,
+  emissive: 0xff8c1a,
+  emissiveIntensity: 0.8,
+});
+const reverseMat = new THREE.MeshStandardMaterial({
+  color: 0xd8d8d8,
+  emissive: 0xbbbbbb,
+  emissiveIntensity: 0.3,
+});
+const caliperMat = new THREE.MeshStandardMaterial({ color: 0xb01818, roughness: 0.5 });
 
 const headlightMat = new THREE.MeshStandardMaterial({
   color: 0xffffff,
@@ -270,6 +288,81 @@ export function createCar(colors: CarColors): THREE.Group {
     arch.rotation.y = Math.PI / 2;
     arch.position.set(wx, 0.4, wz);
     group.add(arch);
+  }
+
+  // ---- Fine detailing (skipped for traffic to keep draw calls down)
+  if (!colors.simple) {
+    // Door seams + beltline chrome + handles + side skirts
+    for (const sx of [-0.925, 0.925]) {
+      for (const sz of [0.62, -0.72]) {
+        const seam = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.46, 0.016), seamMat);
+        seam.position.set(sx, 0.58, sz);
+        group.add(seam);
+      }
+      const belt = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.02, 2.7), chromeMat);
+      belt.position.set(sx, 0.94, -0.15);
+      group.add(belt);
+      for (const hz of [0.28, -1.02]) {
+        const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.035, 0.14), chromeMat);
+        handle.position.set(sx, 0.8, hz);
+        group.add(handle);
+      }
+      const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 2.7), seamMat);
+      skirt.position.set(sx * 0.97, 0.25, -0.1);
+      group.add(skirt);
+    }
+
+    // Front splitter, rear diffuser fins, shark-fin antenna, grille badge
+    const splitter = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.05, 0.3), seamMat);
+    splitter.position.set(0, 0.22, 2.26);
+    group.add(splitter);
+    for (const fx of [-0.45, 0, 0.45]) {
+      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.11, 0.28), seamMat);
+      fin.position.set(fx, 0.23, -2.24);
+      group.add(fin);
+    }
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.11, 0.24), bodyMat);
+    fin.position.set(0, 1.5, -0.72);
+    fin.rotation.x = -0.25;
+    group.add(fin);
+    const badge = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.02, 12), chromeMat);
+    badge.rotation.x = Math.PI / 2;
+    badge.position.set(0, 0.7, 2.26);
+    group.add(badge);
+
+    // Indicators + reverse lights
+    for (const sx of [-0.86, 0.86]) {
+      const ind = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.08, 0.05), indicatorMat);
+      ind.position.set(sx, 0.58, 2.22);
+      group.add(ind);
+    }
+    for (const sx of [-0.55, 0.55]) {
+      const rev = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.06, 0.04), reverseMat);
+      rev.position.set(sx, 0.66, -2.25);
+      group.add(rev);
+    }
+
+    // Interior silhouettes behind the glass: dashboard + headrests
+    const dash = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.13, 0.34), interiorMat);
+    dash.position.set(0, 1.0, 0.5);
+    group.add(dash);
+    for (const sx of [-0.38, 0.38]) {
+      const headrest = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.22, 0.12), interiorMat);
+      headrest.position.set(sx, 1.14, -0.05);
+      group.add(headrest);
+    }
+
+    // Brake calipers peeking through the spokes
+    for (const [wx, wz] of [
+      [-0.84, 1.42],
+      [0.84, 1.42],
+      [-0.84, -1.42],
+      [0.84, -1.42],
+    ]) {
+      const caliper = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.17, 0.11), caliperMat);
+      caliper.position.set(wx * 0.93, 0.42, wz + 0.11);
+      group.add(caliper);
+    }
   }
 
   group.userData.wheels = wheels;

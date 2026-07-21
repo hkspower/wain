@@ -10,9 +10,7 @@ import { createCar } from "./cars";
 import { RIVALS, RivalDef } from "./rivals";
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
-
-// Shared with the HUD's gear readout — shift points by speed (km/h)
-const GEARS = [0, 55, 95, 145, 200, 260, 320];
+import { GEARS } from "./gears";
 
 // Tokyo-Xtreme-Racer-style rules, Kuwait edition: cruise the loop, find the
 // rival, flash your headlights (F) to start a battle. Both drivers have SP
@@ -86,9 +84,14 @@ interface Rival {
 
 const TRAFFIC_COLORS = [0x8a96a3, 0x5d6770, 0xb0a890, 0x6e7f8d, 0x4a5560, 0x9c8f7a];
 
-// Subtle film vignette + animated grain, applied in linear space before output.
+// Unsharp-mask crispening + film vignette + animated grain, in linear
+// space before output.
 const VignetteGrainShader = {
-  uniforms: { tDiffuse: { value: null as THREE.Texture | null }, uTime: { value: 0 } },
+  uniforms: {
+    tDiffuse: { value: null as THREE.Texture | null },
+    uTime: { value: 0 },
+    uTexel: { value: new THREE.Vector2(1 / 1280, 1 / 720) },
+  },
   vertexShader: `
     varying vec2 vUv;
     void main() {
@@ -98,12 +101,20 @@ const VignetteGrainShader = {
   fragmentShader: `
     uniform sampler2D tDiffuse;
     uniform float uTime;
+    uniform vec2 uTexel;
     varying vec2 vUv;
     float hash(vec2 p) {
       return fract(sin(dot(p, vec2(127.1, 311.7)) + uTime * 13.0) * 43758.5453);
     }
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
+      // Unsharp mask against a 4-tap cross blur
+      vec3 blur = 0.25 * (
+        texture2D(tDiffuse, vUv + vec2(uTexel.x, 0.0)).rgb +
+        texture2D(tDiffuse, vUv - vec2(uTexel.x, 0.0)).rgb +
+        texture2D(tDiffuse, vUv + vec2(0.0, uTexel.y)).rgb +
+        texture2D(tDiffuse, vUv - vec2(0.0, uTexel.y)).rgb);
+      c.rgb += (c.rgb - blur) * 0.4;
       float d = distance(vUv, vec2(0.5));
       c.rgb *= 1.0 - 0.38 * smoothstep(0.38, 0.85, d);
       c.rgb += (hash(vUv * vec2(1920.0, 1080.0)) - 0.5) * 0.025;
@@ -229,6 +240,7 @@ export class GameEngine {
 
   // Camera motion
   private shake = 0; // impact jolt energy, decays
+  private camBase = new THREE.Vector3(); // lerped chase position, pre-shake
   private camRoll = 0;
   private curvature = 0; // signed, from the handling model
   private streaks!: THREE.LineSegments;
@@ -275,7 +287,16 @@ export class GameEngine {
 
     // Bloom makes the night work: lamps, taillights, cat-eyes and the
     // tower spheres all halo. Auto-disabled on weak machines (see loop).
-    this.composer = new EffectComposer(this.renderer);
+    // MSAA render target: the renderer's antialias flag doesn't apply to
+    // post-processing buffers, so without this every edge shimmers
+    const bufSize = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    this.composer = new EffectComposer(
+      this.renderer,
+      new THREE.WebGLRenderTarget(bufSize.x, bufSize.y, {
+        samples: 4,
+        type: THREE.HalfFloatType,
+      })
+    );
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     this.bloomPass = new UnrealBloomPass(
       new THREE.Vector2(canvas.clientWidth, canvas.clientHeight),
@@ -380,6 +401,7 @@ export class GameEngine {
 
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
+    window.addEventListener("blur", this.onBlur);
   }
 
   /** A tiny HDR night scene baked into reflections: moonlight on car
@@ -467,8 +489,20 @@ export class GameEngine {
     if (w === 0 || h === 0) return;
     this.renderer.setSize(w, h, false);
     this.composer.setSize(w, h);
+    const buf = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    (this.grainPass.uniforms.uTexel.value as THREE.Vector2).set(1 / buf.x, 1 / buf.y);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+  }
+
+  /** Re-target the composer's multisample count (0 disables MSAA). */
+  private setMsaa(samples: number): void {
+    for (const rt of [this.composer.renderTarget1, this.composer.renderTarget2]) {
+      if (rt.samples !== samples) {
+        rt.samples = samples;
+        rt.dispose(); // lazily recreated with the new sample count
+      }
+    }
   }
 
   /** Drop the expensive effects once it's clear the machine can't keep up. */
@@ -478,6 +512,7 @@ export class GameEngine {
     if (this.fpsEma < 32) {
       this.bloomPass.enabled = false;
       this.world.moonLight.castShadow = false;
+      this.setMsaa(0);
       if (this.fpsEma < 18) {
         this.renderer.setPixelRatio(1);
         this.composer.setPixelRatio(1);
@@ -568,6 +603,7 @@ export class GameEngine {
     cancelAnimationFrame(this.raf);
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
+    window.removeEventListener("blur", this.onBlur);
     this.sound?.dispose();
     this.voice.dispose();
     this.composer.dispose();
@@ -577,6 +613,8 @@ export class GameEngine {
   // ---------------------------------------------------------------- input
 
   private onKeyDown = (e: KeyboardEvent) => {
+    // Any trusted gesture may be our only chance to un-suspend audio
+    this.sound?.resume();
     const k = e.key.toLowerCase();
     if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) e.preventDefault();
     this.keys.add(k);
@@ -586,15 +624,16 @@ export class GameEngine {
       this.events.onMessage(muted ? "Sound off 🔇" : "Sound on 🔊");
     }
     if (k === "h" && !e.repeat) this.sound?.hornOn();
-    if (k === "v") {
+    if (k === "v" && !e.repeat) {
       const on = this.voice.toggle();
       this.events.onMessage(on ? "Voices on — الأصوات شغالة 🗣️" : "Voices off");
       if (on) this.voice.speak("الأصوات شغالة");
     }
-    if (k === "g") {
+    if (k === "g" && !e.repeat) {
       this.qualityLocked = true;
       this.bloomPass.enabled = !this.bloomPass.enabled;
       this.world.moonLight.castShadow = this.bloomPass.enabled;
+      this.setMsaa(this.bloomPass.enabled ? 4 : 0);
       this.events.onMessage(
         this.bloomPass.enabled ? "Glow & shadows on ✨" : "Glow & shadows off"
       );
@@ -605,6 +644,13 @@ export class GameEngine {
     const k = e.key.toLowerCase();
     this.keys.delete(k);
     if (k === "h") this.sound?.hornOff();
+  };
+
+  /** Focus loss eats keyup events — release everything or the throttle
+   *  sticks and the horn drones forever. */
+  private onBlur = () => {
+    this.keys.clear();
+    this.sound?.hornOff();
   };
 
   private get throttle(): number {
@@ -627,7 +673,7 @@ export class GameEngine {
 
   private spawnTraffic(count: number): void {
     for (let i = 0; i < count; i++) {
-      const mesh = createCar({ body: TRAFFIC_COLORS[i % TRAFFIC_COLORS.length] });
+      const mesh = createCar({ body: TRAFFIC_COLORS[i % TRAFFIC_COLORS.length], simple: true });
       this.scene.add(mesh);
       this.traffic.push({
         mesh,
@@ -1011,15 +1057,17 @@ export class GameEngine {
       .add(this.v2.set(0, 3.4 + p.speed * 0.014, 0));
     if (!this.camInit) {
       this.camInit = true;
-      this.camera.position.copy(this.v4);
+      this.camBase.copy(this.v4);
     } else {
-      this.camera.position.lerp(this.v4, Math.min(1, dt * 5.5));
+      this.camBase.lerp(this.v4, Math.min(1, dt * 5.5));
     }
 
-    // Impact jolt + speed rumble, as smooth pseudo-noise
+    // Impact jolt + speed rumble as smooth pseudo-noise, applied on top of
+    // the lerped base — never fed back into it, or it compounds
     this.shake = Math.max(0, this.shake - this.shake * 3.5 * dt);
     const t = performance.now() / 1000;
     const amp = Math.pow(p.speed / PLAYER_TOP_SPEED, 3) * 0.055 + this.shake * 0.32;
+    this.camera.position.copy(this.camBase);
     this.camera.position.x += (Math.sin(t * 31.7) + Math.sin(t * 17.3)) * 0.5 * amp;
     this.camera.position.y += (Math.sin(t * 27.1) + Math.sin(t * 13.9)) * 0.5 * amp;
 
@@ -1061,7 +1109,9 @@ export class GameEngine {
     const speedKmh = this.player.speed * 3.6;
     const mat = this.streaks.material as THREE.LineBasicMaterial;
     mat.opacity = THREE.MathUtils.clamp((speedKmh - 190) / 110, 0, 1) * 0.4;
-    if (mat.opacity <= 0) return;
+    // Skip the draw call entirely below the fade-in speed
+    this.streaks.visible = mat.opacity > 0;
+    if (!this.streaks.visible) return;
 
     const pos = this.streaks.geometry.getAttribute("position") as THREE.BufferAttribute;
     const len = 2 + this.player.speed * 0.06;
@@ -1070,10 +1120,13 @@ export class GameEngine {
       if (this.track.deltaAhead(this.player.s, st.s) < -15) {
         st = this.streakData[i] = this.newStreak(this.player.s);
       }
-      this.track.pose(st.s, st.lat, this.v1, this.v2);
+      // One point + one tangent eval per streak; right vector = (-Tz, 0, Tx)
+      this.track.pointAt(st.s, this.v1);
       this.track.tangentAt(st.s, this.v3);
-      pos.setXYZ(i * 2, this.v1.x, st.y, this.v1.z);
-      pos.setXYZ(i * 2 + 1, this.v1.x + this.v3.x * len, st.y, this.v1.z + this.v3.z * len);
+      const px = this.v1.x - this.v3.z * st.lat;
+      const pz = this.v1.z + this.v3.x * st.lat;
+      pos.setXYZ(i * 2, px, st.y, pz);
+      pos.setXYZ(i * 2 + 1, px + this.v3.x * len, st.y, pz + this.v3.z * len);
     }
     pos.needsUpdate = true;
   }
