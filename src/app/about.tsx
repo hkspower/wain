@@ -1,4 +1,5 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Link } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -61,6 +62,18 @@ export default function AboutScreen() {
           ))}
         </View>
 
+        <Link href="/admin/lock" asChild>
+          <Pressable
+            style={({ pressed }) => [
+              styles.adminButton,
+              { borderColor: theme.border, opacity: pressed ? 0.85 : 1 },
+            ]}>
+            <ThemedText type="small" themeColor="textSecondary">
+              🔐 Admin panel
+            </ThemedText>
+          </Pressable>
+        </Link>
+
         <ThemedText type="small" themeColor="textSecondary" style={styles.footer}>
           Made with ❤️ in Kuwait 🇰🇼
         </ThemedText>
@@ -111,8 +124,16 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: Spacing.half,
   },
+  adminButton: {
+    marginTop: Spacing.five,
+    alignSelf: 'center',
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.two,
+  },
   footer: {
     textAlign: 'center',
-    marginTop: Spacing.five,
+    marginTop: Spacing.three,
   },
 });

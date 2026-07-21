@@ -49,7 +49,28 @@ src/
 
 ## Adding a place
 
-Add an entry to the `places` array in `src/lib/places.ts` — the explore list, category filters, and the detail screen at `/place/<slug>` all pick it up automatically.
+Two ways:
+
+- **In the app** — open the **Admin panel** (see below) and tap **Add a place**. Changes are saved on the device.
+- **In code** — add an entry to the `seedPlaces` array in `src/lib/places.ts`. This is the built-in dataset that seeds on-device storage on first launch and is restored by the admin **Reset to defaults** action.
+
+## Admin panel
+
+A PIN-gated admin section lets you manage places without touching code. Open it from the **About** screen → **🔐 Admin panel**.
+
+- **Default PIN:** `1379` (change it under **Settings → Change PIN**)
+- Add, edit, delete, and feature/unfeature places
+- Reset everything back to the built-in dataset
+
+Places are stored on-device with [AsyncStorage](https://react-native-async-storage.github.io/async-storage/) — no backend, fully offline. Edits flow straight into Home, Explore, and the detail screens. The unlock state resets each time the app restarts.
+
+Key files:
+
+```
+src/lib/places-store.tsx   # Reactive, AsyncStorage-backed places store (CRUD)
+src/lib/admin-auth.tsx     # PIN storage + in-memory unlock state
+src/app/admin/             # Lock screen, dashboard, and create/edit form
+```
 
 ## Building for the stores
 

@@ -6,6 +6,8 @@ export type Category =
   | 'Culture'
   | 'Family';
 
+export type PriceLevel = 1 | 2 | 3;
+
 export interface Place {
   slug: string;
   name: string;
@@ -13,9 +15,9 @@ export interface Place {
   category: Category;
   area: string;
   rating: number;
-  priceLevel: 1 | 2 | 3;
+  priceLevel: PriceLevel;
   emoji: string;
-  /** Banner colors for [light, dark] backgrounds. */
+  /** Banner background color. */
   color: string;
   tagline: string;
   description: string;
@@ -33,7 +35,31 @@ export const categories: { name: Category; emoji: string; blurb: string }[] = [
   { name: 'Family', emoji: '🎡', blurb: 'Fun for every age' },
 ];
 
-export const places: Place[] = [
+export const categoryNames: Category[] = categories.map((c) => c.name);
+
+export const priceLabels = ['Budget-friendly', 'Moderate', 'Treat yourself'] as const;
+
+/** A palette admins can pick from for a place banner. */
+export const bannerColors = [
+  '#0e7490',
+  '#217972',
+  '#0d9488',
+  '#15803d',
+  '#059669',
+  '#0284c7',
+  '#4f46e5',
+  '#7c3aed',
+  '#b45309',
+  '#92400e',
+  '#334155',
+  '#475569',
+];
+
+/**
+ * The built-in dataset. Used to seed on-device storage the first time the app
+ * runs and to restore defaults from the admin panel.
+ */
+export const seedPlaces: Place[] = [
   {
     slug: 'kuwait-towers',
     name: 'Kuwait Towers',
@@ -232,16 +258,57 @@ export const places: Place[] = [
   },
 ];
 
-export function getPlace(slug: string): Place | undefined {
-  return places.find((p) => p.slug === slug);
+/** Pure helpers — operate on whatever list of places is passed in. */
+export function findPlace(list: Place[], slug: string): Place | undefined {
+  return list.find((p) => p.slug === slug);
 }
 
-export function getFeaturedPlaces(): Place[] {
-  return places.filter((p) => p.featured);
+export function featuredFrom(list: Place[]): Place[] {
+  return list.filter((p) => p.featured);
 }
 
-export function getPlacesByCategory(category: Category): Place[] {
-  return places.filter((p) => p.category === category);
+export function byCategory(list: Place[], category: Category): Place[] {
+  return list.filter((p) => p.category === category);
 }
 
-export const priceLabels = ['Budget-friendly', 'Moderate', 'Treat yourself'] as const;
+/** Turn a name into a URL-safe slug. */
+export function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/** Ensure a slug is unique within the list (appends -2, -3, … if needed). */
+export function uniqueSlug(list: Place[], base: string, ignoreSlug?: string): string {
+  const root = slugify(base) || 'place';
+  let candidate = root;
+  let n = 2;
+  const taken = (s: string) => list.some((p) => p.slug === s && p.slug !== ignoreSlug);
+  while (taken(candidate)) {
+    candidate = `${root}-${n++}`;
+  }
+  return candidate;
+}
+
+/** A blank place with sensible defaults, for the admin create form. */
+export function emptyPlace(): Place {
+  return {
+    slug: '',
+    name: '',
+    nameAr: '',
+    category: 'Landmarks',
+    area: '',
+    rating: 4.5,
+    priceLevel: 2,
+    emoji: '📍',
+    color: bannerColors[1],
+    tagline: '',
+    description: '',
+    highlights: [],
+    bestTime: '',
+    featured: false,
+  };
+}

@@ -8,10 +8,12 @@ import { PlaceCard } from '@/components/place-card';
 import { ThemedText } from '@/components/themed-text';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { categories, places, type Category } from '@/lib/places';
+import { categories, type Category } from '@/lib/places';
+import { usePlaces } from '@/lib/places-store';
 
 export default function ExploreScreen() {
   const theme = useTheme();
+  const { places } = usePlaces();
   const params = useLocalSearchParams<{ category?: string }>();
   const initialCategory = categories.some((c) => c.name === params.category)
     ? (params.category as Category)
@@ -32,7 +34,7 @@ export default function ExploreScreen() {
         place.tagline.toLowerCase().includes(q);
       return matchesCategory && matchesQuery;
     });
-  }, [query, category]);
+  }, [places, query, category]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>

@@ -7,12 +7,14 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { categories, getFeaturedPlaces } from '@/lib/places';
+import { categories } from '@/lib/places';
+import { usePlaces } from '@/lib/places-store';
 
 export default function HomeScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const featured = getFeaturedPlaces();
+  const { getFeatured } = usePlaces();
+  const featured = getFeatured();
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>

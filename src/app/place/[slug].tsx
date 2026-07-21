@@ -6,10 +6,12 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { getPlace, getPlacesByCategory, priceLabels } from '@/lib/places';
+import { priceLabels } from '@/lib/places';
+import { usePlaces } from '@/lib/places-store';
 
 export default function PlaceScreen() {
   const theme = useTheme();
+  const { getPlace, getByCategory } = usePlaces();
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const place = getPlace(slug);
 
@@ -25,7 +27,7 @@ export default function PlaceScreen() {
     );
   }
 
-  const related = getPlacesByCategory(place.category)
+  const related = getByCategory(place.category)
     .filter((p) => p.slug !== place.slug)
     .slice(0, 2);
 
