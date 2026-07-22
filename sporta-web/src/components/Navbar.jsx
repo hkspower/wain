@@ -1,12 +1,14 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
+import { useCart } from '../lib/cart'
 
 export default function Navbar() {
   const { t, lang, toggle } = useLang()
+  const { count } = useCart()
   const links = [
     { to: '/', label: t.nav.home },
+    { to: '/shop', label: t.nav.shop },
     { to: '/about', label: t.nav.about },
-    { to: '/services', label: t.nav.services },
     { to: '/contact', label: t.nav.contact },
   ]
 
@@ -23,9 +25,7 @@ export default function Navbar() {
                 to={l.to}
                 end={l.to === '/'}
                 className={({ isActive }) =>
-                  `text-sm font-semibold transition hover:text-brand ${
-                    isActive ? 'text-brand' : 'text-slate-600'
-                  }`
+                  `text-sm font-semibold transition hover:text-brand ${isActive ? 'text-brand' : 'text-slate-600'}`
                 }
               >
                 {l.label}
@@ -33,12 +33,22 @@ export default function Navbar() {
             </li>
           ))}
         </ul>
-        <button
-          onClick={toggle}
-          className="rounded-full border border-brand px-3 py-1 text-sm font-semibold text-brand transition hover:bg-brand hover:text-white"
-        >
-          {lang === 'en' ? 'العربية' : 'English'}
-        </button>
+        <div className="flex items-center gap-3">
+          <Link to="/cart" className="relative rounded-full p-2 text-slate-600 hover:text-brand" aria-label={t.nav.cart}>
+            <span className="text-xl">🛒</span>
+            {count > 0 && (
+              <span className="absolute -end-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1 text-xs font-bold text-white">
+                {count}
+              </span>
+            )}
+          </Link>
+          <button
+            onClick={toggle}
+            className="rounded-full border border-brand px-3 py-1 text-sm font-semibold text-brand transition hover:bg-brand hover:text-white"
+          >
+            {lang === 'en' ? 'العربية' : 'English'}
+          </button>
+        </div>
       </nav>
     </header>
   )

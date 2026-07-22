@@ -5,9 +5,12 @@ import Footer from './components/Footer'
 import Home from './pages/Home'
 
 // Route-level code splitting: the public site ships only Home + chrome up front.
-// About/Services/Contact and the whole admin (incl. Supabase) load on demand.
+const Shop = lazy(() => import('./pages/Shop'))
+const ProductDetail = lazy(() => import('./pages/ProductDetail'))
+const Cart = lazy(() => import('./pages/Cart'))
+const Checkout = lazy(() => import('./pages/Checkout'))
+const PaymentResult = lazy(() => import('./pages/PaymentResult'))
 const About = lazy(() => import('./pages/About'))
-const Services = lazy(() => import('./pages/Services'))
 const Contact = lazy(() => import('./pages/Contact'))
 const AdminApp = lazy(() => import('./admin/AdminApp'))
 
@@ -21,7 +24,7 @@ export default function App() {
       <Routes>
         {/* Admin panel — standalone, no marketing chrome, lazy-loaded */}
         <Route path="/admin/*" element={<AdminApp />} />
-        {/* Public marketing site */}
+        {/* Public storefront */}
         <Route path="/*" element={<PublicSite />} />
       </Routes>
     </Suspense>
@@ -35,8 +38,12 @@ function PublicSite() {
       <main className="flex-1">
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/shop" element={<Shop />} />
+          <Route path="/product/:slug" element={<ProductDetail />} />
+          <Route path="/cart" element={<Cart />} />
+          <Route path="/checkout" element={<Checkout />} />
+          <Route path="/payment/result" element={<PaymentResult />} />
           <Route path="/about" element={<About />} />
-          <Route path="/services" element={<Services />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="*" element={<Home />} />
         </Routes>

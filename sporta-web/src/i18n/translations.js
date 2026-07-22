@@ -3,7 +3,30 @@
 export const translations = {
   en: {
     dir: 'ltr',
-    nav: { home: 'Home', about: 'About', services: 'Services', contact: 'Contact' },
+    nav: { home: 'Home', shop: 'Shop', about: 'About', services: 'Services', contact: 'Contact', cart: 'Cart' },
+    shop: {
+      add: 'Add',
+      buyNow: 'Buy now',
+      notFound: 'Product not found.',
+      backToShop: 'Back to shop',
+      featured: 'Featured products',
+      viewAll: 'View all',
+    },
+    cart: { title: 'Your cart', empty: 'Your cart is empty.', total: 'Total', checkout: 'Checkout' },
+    checkout: {
+      summary: 'Order summary',
+      payNow: 'Pay with KNET / CBK',
+      redirecting: 'Redirecting to payment…',
+      securedBy: 'Secured by CBK Payment Gateway',
+    },
+    result: {
+      home: 'Back to home',
+      retry: 'Try again',
+      success: { title: 'Payment successful', msg: 'Your order is confirmed. Thank you!' },
+      failed: { title: 'Payment failed', msg: 'You have not been charged. Please try again.' },
+      cancelled: { title: 'Payment cancelled', msg: 'The payment was cancelled or expired.' },
+      error: { title: 'Something went wrong', msg: 'If you were charged, contact support.' },
+    },
     hero: {
       title: 'Sporta',
       subtitle: 'Your destination for sport in Kuwait',
@@ -31,7 +54,30 @@ export const translations = {
   },
   ar: {
     dir: 'rtl',
-    nav: { home: 'الرئيسية', about: 'من نحن', services: 'خدماتنا', contact: 'اتصل بنا' },
+    nav: { home: 'الرئيسية', shop: 'المتجر', about: 'من نحن', services: 'خدماتنا', contact: 'اتصل بنا', cart: 'السلة' },
+    shop: {
+      add: 'أضف',
+      buyNow: 'اشترِ الآن',
+      notFound: 'المنتج غير موجود.',
+      backToShop: 'العودة للمتجر',
+      featured: 'منتجات مميزة',
+      viewAll: 'عرض الكل',
+    },
+    cart: { title: 'سلة التسوق', empty: 'سلتك فارغة.', total: 'الإجمالي', checkout: 'إتمام الشراء' },
+    checkout: {
+      summary: 'ملخص الطلب',
+      payNow: 'ادفع عبر كي نت / CBK',
+      redirecting: 'جارٍ التحويل للدفع…',
+      securedBy: 'مؤمَّن عبر بوابة دفع بنك الكويت التجاري',
+    },
+    result: {
+      home: 'العودة للرئيسية',
+      retry: 'حاول مجددًا',
+      success: { title: 'تم الدفع بنجاح', msg: 'تم تأكيد طلبك. شكرًا لك!' },
+      failed: { title: 'فشل الدفع', msg: 'لم يتم خصم أي مبلغ. حاول مرة أخرى.' },
+      cancelled: { title: 'تم إلغاء الدفع', msg: 'تم إلغاء العملية أو انتهت صلاحيتها.' },
+      error: { title: 'حدث خطأ ما', msg: 'إذا تم خصم مبلغ، تواصل مع الدعم.' },
+    },
     hero: {
       title: 'سبورتا',
       subtitle: 'وجهتك للرياضة في الكويت',
