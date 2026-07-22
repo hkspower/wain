@@ -1,0 +1,8 @@
+# Protect config and library files from direct web access.
+# Place this folder as /public_html/pay/ so endpoints are:
+#   https://www.sporta.com.kw/pay/pay.php
+#   https://www.sporta.com.kw/pay/callback.php
+
+<FilesMatch "^(config\.php|config\.example\.php|knet\.php)$">
+  Require all denied
+</FilesMatch>
