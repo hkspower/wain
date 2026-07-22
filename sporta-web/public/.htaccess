@@ -1,5 +1,6 @@
-# Hostinger (Apache) SPA routing: send all non-file requests to index.html
-# so React Router can handle /about, /services, /contact on refresh.
+# Sporta — Hostinger (Apache) production config: SPA routing + compression + caching.
+
+# ---- SPA routing: send non-file requests to index.html ----
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
@@ -7,4 +8,35 @@
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule . /index.html [L]
+</IfModule>
+
+# ---- Compression (Brotli if available, else gzip) ----
+<IfModule mod_brotli.c>
+  AddOutputFilterByType BROTLI_COMPRESS text/html text/plain text/css application/json application/javascript text/javascript image/svg+xml application/xml
+</IfModule>
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css application/json application/javascript text/javascript image/svg+xml application/xml
+</IfModule>
+
+# ---- Caching ----
+<IfModule mod_expires.c>
+  ExpiresActive On
+
+  # Hashed build assets (index-AbC123.js/css) never change → cache 1 year.
+  <FilesMatch "\.(js|css|woff2?|ttf|eot|svg|png|jpe?g|gif|webp|avif|ico)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # HTML must always revalidate so users get new deploys immediately.
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache, must-revalidate"
+    ExpiresByType text/html "access plus 0 seconds"
+  </FilesMatch>
+</IfModule>
+
+# ---- Basic security headers ----
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-Frame-Options "SAMEORIGIN"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
 </IfModule>
