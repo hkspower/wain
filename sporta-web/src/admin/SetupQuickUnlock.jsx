@@ -6,7 +6,7 @@ import { setDevicePasscode } from '../lib/supabase'
 // Enrollment card for the admin Settings page. Visible only to a logged-in
 // admin (the parent renders it inside an authenticated route). Prompts for a
 // 6-digit code twice, then calls set_device_passcode.
-export default function SetupQuickUnlock({ defaultLabel = '' }) {
+export default function SetupQuickUnlock({ defaultLabel = '', onEnrolled }) {
   const [step, setStep] = useState(isEnrolledLocally() ? 'done' : 'idle') // idle | first | confirm | done
   const [first, setFirst] = useState('')
   const [code, setCode] = useState('')
@@ -27,6 +27,7 @@ export default function SetupQuickUnlock({ defaultLabel = '' }) {
     try {
       await setDevicePasscode(getDeviceId(), confirmCode, label || 'This device')
       markEnrolled()
+      onEnrolled?.()
       setStep('done')
     } catch (e) {
       setError(e?.message || 'Could not save passcode.')

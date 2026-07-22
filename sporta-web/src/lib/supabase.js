@@ -32,3 +32,14 @@ export async function verifyDevicePasscode(deviceId, passcode) {
   if (error) throw error
   return data
 }
+
+// Server-authoritative enrollment check (see supabase/has_device_passcode.sql).
+// Returns true/false. Throws if the RPC is missing so callers can fall back
+// to the local hint.
+export async function hasDevicePasscode(deviceId) {
+  const { data, error } = await supabase.rpc('has_device_passcode', {
+    p_device_id: deviceId,
+  })
+  if (error) throw error
+  return data === true
+}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
-import { isEnrolledLocally, clearEnrolled } from '../lib/deviceId'
+import { supabase, hasDevicePasscode } from '../lib/supabase'
+import { getDeviceId, isEnrolledLocally, markEnrolled, clearEnrolled } from '../lib/deviceId'
 import { useIdleLock } from './useIdleLock'
 import AdminLogin from './AdminLogin'
 import LockScreen from './LockScreen'
@@ -12,29 +12,52 @@ import SetupQuickUnlock from './SetupQuickUnlock'
 //   session + unlocked     -> Dashboard
 export default function AdminApp() {
   const [session, setSession] = useState(undefined) // undefined = loading
-  const [locked, setLocked] = useState(true)
+  const [enrolled, setEnrolled] = useState(isEnrolledLocally()) // server-reconciled below
+  const [locked, setLocked] = useState(isEnrolledLocally())
+
+  // Ask the server whether this device is enrolled; reconcile the local hint.
+  // Falls back to the local flag if the RPC is unavailable.
+  const refreshEnrollment = useCallback(async (hasSession) => {
+    if (!hasSession) {
+      setEnrolled(false)
+      return false
+    }
+    try {
+      const yes = await hasDevicePasscode(getDeviceId())
+      setEnrolled(yes)
+      if (yes) markEnrolled()
+      else clearEnrolled()
+      return yes
+    } catch {
+      const fallback = isEnrolledLocally()
+      setEnrolled(fallback)
+      return fallback
+    }
+  }, [])
 
   useEffect(() => {
     if (!supabase) {
       setSession(null)
       return
     }
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       setSession(data.session)
+      const yes = await refreshEnrollment(!!data.session)
       // Lock immediately on load if a passcode is enrolled on this device.
-      setLocked(!!data.session && isEnrolledLocally())
+      setLocked(!!data.session && yes)
     })
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_e, s) => {
       setSession(s)
-      setLocked(!!s && isEnrolledLocally())
+      const yes = await refreshEnrollment(!!s)
+      setLocked(!!s && yes)
     })
     return () => sub.subscription.unsubscribe()
-  }, [])
+  }, [refreshEnrollment])
 
   // Re-lock after 15 minutes of inactivity (only when enrolled + signed in).
   const relock = useCallback(() => {
-    if (session && isEnrolledLocally()) setLocked(true)
-  }, [session])
+    if (session && enrolled) setLocked(true)
+  }, [session, enrolled])
   useIdleLock(relock)
 
   async function usePasswordInstead() {
@@ -56,16 +79,16 @@ export default function AdminApp() {
 
   if (!session) return <AdminLogin />
 
-  if (locked && isEnrolledLocally()) {
+  if (locked && enrolled) {
     return <LockScreen onUnlock={() => setLocked(false)} onUsePassword={usePasswordInstead} />
   }
 
-  return <Dashboard onSignOut={() => supabase.auth.signOut()} />
+  return <Dashboard onSignOut={() => supabase.auth.signOut()} onEnrollChange={() => refreshEnrollment(!!session)} />
 }
 
 // Placeholder dashboard — replace with the real Sporta admin screens.
 // Settings hosts the "Set up quick unlock" enrollment card.
-function Dashboard({ onSignOut }) {
+function Dashboard({ onSignOut, onEnrollChange }) {
   const [tab, setTab] = useState('overview')
   return (
     <div className="min-h-screen bg-slate-50">
@@ -96,7 +119,7 @@ function Dashboard({ onSignOut }) {
         ) : (
           <div className="space-y-6">
             <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
-            <SetupQuickUnlock />
+            <SetupQuickUnlock onEnrolled={onEnrollChange} />
           </div>
         )}
       </main>
