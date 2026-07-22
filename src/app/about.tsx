@@ -66,17 +66,19 @@ export default function AboutScreen() {
           ))}
         </View>
 
-        <Link href="/admin/lock" asChild>
-          <Pressable
-            style={({ pressed }) => [
-              styles.adminButton,
-              { borderColor: theme.border, opacity: pressed ? 0.85 : 1 },
-            ]}>
-            <ThemedText type="small" themeColor="textSecondary">
-              🔐 Admin panel
-            </ThemedText>
-          </Pressable>
-        </Link>
+        <View style={styles.adminWrap}>
+          <Link href="/admin/lock" asChild>
+            <Pressable style={({ pressed }) => pressed && styles.adminPressed}>
+              <ThemedView
+                type="backgroundElement"
+                style={[styles.adminButton, { borderColor: theme.border }]}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  🔐 Admin panel
+                </ThemedText>
+              </ThemedView>
+            </Pressable>
+          </Link>
+        </View>
 
         <ThemedText type="small" themeColor="textSecondary" style={styles.footer}>
           Made with ❤️ in Kuwait 🇰🇼
@@ -128,13 +130,18 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: Spacing.half,
   },
-  adminButton: {
+  adminWrap: {
     marginTop: Spacing.five,
-    alignSelf: 'center',
+    alignItems: 'center',
+  },
+  adminButton: {
     borderRadius: 999,
     borderWidth: 1,
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.two,
+  },
+  adminPressed: {
+    opacity: 0.7,
   },
   footer: {
     textAlign: 'center',
