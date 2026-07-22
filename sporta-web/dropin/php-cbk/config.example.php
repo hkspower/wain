@@ -1,33 +1,44 @@
 <?php
-// CBK T-Pay configuration. Copy to config.php and fill with the values CBK
-// sends you after merchant activation. Keep config.php OUT of public access
-// (see .htaccess) and never commit real credentials.
+// CBK Hosted KNET & T-Pay — configuration.
+// Copy to config.php and fill with the values CBK sends after activation.
+// Keep config.php OUT of public web access (see .htaccess). Never commit it.
+//
+// NOTE: CBK T-Pay does NOT require you to AES-encrypt anything. ENCRP_KEY and
+// the AccessToken are already-encrypted tokens issued by the bank/gateway —
+// you pass them through as-is.
 
 return [
-    // --- From CBK merchant onboarding (the PDF / bank email) ---
-    'tranportal_id'       => 'YOUR_MERCHANT_ID',        // Merchant / Tranportal ID
-    'tranportal_password' => 'YOUR_TRANPORTAL_PASSWORD',
-    'resource_key'        => 'YOUR_TERMINAL_RESOURCE_KEY', // AES key (secret)
+    // --- Environment: 'test' or 'production' ---
+    'env' => 'test',
 
-    // Gateway URL — CBK gives sandbox and production. Set the active one here.
-    // Sandbox (test) and Production are DIFFERENT hosts; swap when going live.
-    'gateway_url'         => 'https://PROVIDED_BY_CBK/kpg/PaymentHTTP.htm',
+    // Base URLs from CBK (the {TestPG} / {ProductionPG} placeholders in the
+    // manual). CBK gives you the real hosts on activation.
+    'test_base'       => 'https://PROVIDED_BY_CBK_TEST',        // {TestPG}
+    'production_base' => 'https://PROVIDED_BY_CBK_PRODUCTION',  // {ProductionPG}
 
-    // --- Your URLs (must be registered with CBK) ---
-    'response_url'        => 'https://www.sporta.com.kw/pay/callback.php',
-    'error_url'           => 'https://www.sporta.com.kw/pay/callback.php',
-    // Where the customer finally lands (your React result page):
-    'return_url'          => 'https://www.sporta.com.kw/payment/result',
+    // --- Merchant API credentials (server-side only, never to the browser) ---
+    'client_id'     => 'YOUR_CLIENT_ID',      // ClientId  (Merchant API ID)
+    'client_secret' => 'YOUR_CLIENT_SECRET',  // ClientSecret (Merchant API Password)
+    'encrp_key'     => 'YOUR_ENCRP_KEY',      // ENCRP_KEY (Merchant Encrypted account key)
 
-    // KWD = currency code 414, purchase action = 1, language EN.
-    'currency_code'       => '414',
-    'action'              => '1',
-    'language'            => 'EN',
+    // --- Your URLs ---
+    // Where CBK sends the customer back (this callback), with ?encrp=...
+    'return_url'      => 'https://www.sporta.com.kw/pay/callback.php',
+    // Final page in your React app the customer lands on after we verify:
+    'result_page_url' => 'https://www.sporta.com.kw/payment/result',
 
-    // --- Optional: push the paid status into your Supabase "orders" table ---
-    // Leave blank to skip and handle order updates yourself.
-    'supabase_url'        => '',   // e.g. https://xxxx.supabase.co
-    'supabase_service_key'=> '',   // service role key (server-side only!)
-    'orders_table'        => 'orders',
-    'orders_match_column' => 'track_id',
+    // Default language for the hosted page: 'en' or 'ar'
+    'lang' => 'en',
+
+    // Payment mode: '' = let customer choose, '1' = KNET only, '2' = T-Pay QR only
+    'pay_type' => '',
+
+    // Where to cache the AccessToken (must be writable, NOT web-accessible).
+    'token_cache_file' => __DIR__ . '/.cbk_token.json',
+
+    // --- Optional: update your Supabase "orders" table on success ---
+    'supabase_url'         => '',
+    'supabase_service_key' => '',
+    'orders_table'         => 'orders',
+    'orders_match_column'  => 'track_id',
 ];

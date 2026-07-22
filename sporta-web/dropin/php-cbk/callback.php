@@ -1,65 +1,73 @@
 <?php
-// CBK T-Pay response handler. CBK posts the encrypted result here.
-// Decrypts, verifies, optionally updates the order, then redirects the
-// customer to your React result page.
-//
-// Register THIS URL with CBK as your responseURL/errorURL.
+// CBK return URL. The gateway redirects the customer here with ?encrp=...
+// We verify the transaction via the API, record it, then redirect the
+// customer to the React result page.
 
 declare(strict_types=1);
-require __DIR__ . '/knet.php';
+require __DIR__ . '/cbk.php';
 $cfg = require __DIR__ . '/config.php';
 
-$trandata = (string)($_REQUEST['trandata'] ?? '');
-$return   = $cfg['return_url'];
+$return = $cfg['result_page_url'];
+$encrp  = (string)($_REQUEST['encrp'] ?? '');
 
-if ($trandata === '') {
-    header('Location: ' . $return . '?status=error&reason=missing_data', true, 302);
+if ($encrp === '') {
+    header('Location: ' . $return . '?status=error&reason=missing_encrp', true, 302);
     exit;
 }
 
 try {
-    $plain  = knet_decrypt($trandata, $cfg['resource_key']);
-    $fields = knet_parse_response($plain);
+    $token = cbk_get_access_token($cfg);
+    $res   = cbk_get_transaction($cfg, $encrp, $token);
 } catch (Throwable $e) {
-    header('Location: ' . $return . '?status=error&reason=decrypt_failed', true, 302);
+    header('Location: ' . $return . '?status=error&reason=verify_failed', true, 302);
     exit;
 }
 
-$result    = strtoupper((string)($fields['result'] ?? ''));
-$paid      = ($result === 'CAPTURED' || $result === 'APPROVED');
-$trackid   = (string)($fields['trackid'] ?? '');
-$paymentid = (string)($fields['paymentid'] ?? '');
-$ref       = (string)($fields['ref'] ?? '');
-
-// Optional: update the order in Supabase (best-effort, never blocks redirect).
-if ($paid && $trackid !== '' && $cfg['supabase_url'] !== '' && $cfg['supabase_service_key'] !== '') {
-    update_supabase_order($cfg, $trackid, $result, $fields);
+if (!is_array($res)) {
+    header('Location: ' . $return . '?status=error&reason=no_result', true, 302);
+    exit;
 }
 
-$status = $paid ? 'success' : 'failed';
+// Payment Result Status Code: 1=Success, 2=Failed, 3=Expired/Cancelled, 0/-1=Invalid
+$statusCode = (string)($res['Status'] ?? '');
+$paid       = $statusCode === '1';
+$trackid    = (string)($res['TrackId'] ?? ($res['PayId'] ?? ''));
+$paymentId  = (string)($res['PaymentId'] ?? '');
+$ref        = (string)($res['ReferenceId'] ?? '');
+
+// Persist the full result (the manual requires merchants to save it).
+if ($cfg['supabase_url'] !== '' && $cfg['supabase_service_key'] !== '' && $trackid !== '') {
+    cbk_update_supabase($cfg, $trackid, $paid, $res);
+}
+
+$status = $paid ? 'success' : ($statusCode === '3' ? 'cancelled' : 'failed');
 $q = http_build_query([
     'status'  => $status,
     'trackid' => $trackid,
-    'payid'   => $paymentid,
+    'payid'   => $paymentId,
     'ref'     => $ref,
 ]);
 header('Location: ' . $return . '?' . $q, true, 302);
 exit;
 
-function update_supabase_order(array $cfg, string $trackid, string $result, array $fields): void
+function cbk_update_supabase(array $cfg, string $trackid, bool $paid, array $res): void
 {
-    $url = rtrim($cfg['supabase_url'], '/')
-        . '/rest/v1/' . rawurlencode($cfg['orders_table'])
+    $url = rtrim($cfg['supabase_url'], '/') . '/rest/v1/'
+        . rawurlencode($cfg['orders_table'])
         . '?' . $cfg['orders_match_column'] . '=eq.' . rawurlencode($trackid);
 
     $payload = json_encode([
-        'payment_status' => 'paid',
-        'knet_result'    => $result,
-        'knet_paymentid' => (string)($fields['paymentid'] ?? ''),
-        'knet_tranid'    => (string)($fields['tranid'] ?? ''),
-        'knet_ref'       => (string)($fields['ref'] ?? ''),
-        'knet_auth'      => (string)($fields['auth'] ?? ''),
-        'paid_at'        => gmdate('c'),
+        'payment_status'  => $paid ? 'paid' : 'failed',
+        'cbk_status'      => (string)($res['Status'] ?? ''),
+        'cbk_message'     => (string)($res['Message'] ?? ''),
+        'cbk_paymentid'   => (string)($res['PaymentId'] ?? ''),
+        'cbk_transaction' => (string)($res['TransactionId'] ?? ''),
+        'cbk_authcode'    => (string)($res['AuthCode'] ?? ''),
+        'cbk_reference'   => (string)($res['ReferenceId'] ?? ''),
+        'cbk_receipt'     => (string)($res['ReceiptNo'] ?? ''),
+        'cbk_paytype'     => (string)($res['PayType'] ?? ''),
+        'amount'          => (string)($res['Amount'] ?? ''),
+        'paid_at'         => $paid ? gmdate('c') : null,
     ]);
 
     $ch = curl_init($url);
