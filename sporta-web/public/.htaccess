@@ -1,0 +1,10 @@
+# Hostinger (Apache) SPA routing: send all non-file requests to index.html
+# so React Router can handle /about, /services, /contact on refresh.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>
