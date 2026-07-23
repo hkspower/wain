@@ -1,0 +1,83 @@
+# Terminal runbook — do all paused Sporta tasks
+
+Hand this to Claude Code running in your terminal (`claude` inside the project).
+Say: **"Read TERMINAL-TASKS.md, CLAUDE.md and HANDOFF.md, then do the tasks in
+order, stopping to ask me only for the values marked ⚠️."**
+
+Work top to bottom. Build after each code change.
+
+---
+
+## 0. Sanity
+```bash
+cd sporta-web
+npm install
+npm run build      # must pass before continuing
+npm run dev        # click through: shop → cart → checkout → result
+```
+
+## 1. Environment (⚠️ needs your values)
+Create `sporta-web/.env`:
+```
+VITE_SUPABASE_URL=⚠️ your project url
+VITE_SUPABASE_ANON_KEY=⚠️ your anon key
+VITE_PAY_BASE_URL=https://www.sporta.com.kw/pay
+```
+
+## 2. Database — server-side pricing + RLS
+Run `sporta-web/supabase/schema.sql` in the Supabase SQL editor (or
+`supabase db push`). It creates products/orders/order_items, the price triggers,
+RLS, and `get_order_status`. Then confirm the admin passcode RPCs exist by also
+running `sporta-web/supabase/has_device_passcode.sql`.
+
+## 3. Real products (⚠️ your catalog)
+Insert real rows into `products` (slug, name_en, name_ar, price, category, image,
+active). Either SQL inserts, or the admin once product-management is built. Remove
+the placeholder list in `src/lib/products.js` once Supabase is the source (the
+loader already prefers Supabase and falls back to static).
+
+## 4. CBK payment endpoints (⚠️ CBK values)
+- Upload `sporta-web/dropin/php-cbk/` to `public_html/pay/` on Hostinger.
+- `cp config.example.php config.php`; fill `test_base`/`production_base`,
+  `client_id`, `client_secret`, `encrp_key`, and the Supabase url + service key.
+- Keep `env: 'test'` first. Register `…/pay/callback.php` with CBK; give them your
+  server static IP if they IP-filter.
+
+## 5. Deploy to Hostinger
+```bash
+mkdir -p scripts && cp dropin/scripts/deploy.mjs scripts/deploy.mjs
+cp dropin/scripts/.env.deploy.example .env.deploy   # ⚠️ set HOSTINGER_SSH_PASSWORD
+npm run build && node scripts/deploy.mjs
+```
+Back up `public_html` first. Verify https://www.sporta.com.kw and run a 0.100 KWD
+KNET test → order should flip to `paid`.
+
+## 6. Integrate admin quick-unlock into the REAL admin
+Copy the drop-ins into the real project's `src/` (see `dropin/README.md`):
+`lib/deviceId.ts`, `lib/quickUnlock.ts`, `hooks/useIdleLock.ts`,
+`components/quick-unlock/*`. Wrap the authed admin in `<QuickUnlockGate>`, add
+`<SetupQuickUnlock/>` to Settings, add the `shake` keyframe. Fix the Supabase
+import path if it isn't `@/integrations/supabase/client`.
+
+## 7. Accessibility — white-text-on-orange (real project only)
+This scaffold has none, but the real project does. Run:
+```bash
+grep -rnE "text-white[^\"']*bg-primary|bg-primary[^\"']*text-white" src
+```
+For each hit: change `text-white` → `text-primary-foreground`. For orange
+text/links (`text-primary` used as text on light, or hard-coded orange), switch
+to the `.link-accent` / `.price` classes or `color: hsl(var(--accent-text))`.
+Wire the CSS: import `theme.css`, `admin.css`, `admin-mobile.css` after the
+Tailwind layers in `index.css`, and delete duplicate `:root`/`.admin-shell`
+token blocks so `theme.css` is the single source of truth.
+
+## 8. Final checks
+- `npm run build` passes; click through storefront + admin on mobile width.
+- SSL Labs grade A; cert covers apex + www.
+- RLS: confirm anon cannot UPDATE orders or read others' orders.
+- Rotate any credential pasted into chat/email.
+```
+git add -A && git commit -m "Terminal: env, DB, products, payments, deploy, a11y" && git push
+```
+```
+```
