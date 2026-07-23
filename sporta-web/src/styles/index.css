@@ -1,11 +1,8 @@
-/* Admin mobile layout. (This scaffold has no separate admin.css — admin base
- * styling is Tailwind. In the real project, import admin-mobile.css AFTER
- * admin.css.) @import must precede other statements. */
+/* Tailwind v4 entry. @config loads our legacy JS config (brand colors, font).
+ * admin-mobile.css imported after Tailwind so its mobile rules win. */
+@import 'tailwindcss';
 @import './admin-mobile.css';
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@config '../../tailwind.config.js';
 
 :root {
   --brand: #0e7a5f;
