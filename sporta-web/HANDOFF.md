@@ -21,8 +21,7 @@ Hostinger; no GitHub workflow required).
   `supabase/functions/` and `supabase/has_device_passcode.sql`.
 - **Performance:** route splitting, `react-vendor` chunk, Hostinger `.htaccess`
   (Brotli/gzip + immutable caching). See `PERFORMANCE.md`.
-- **Deploy:** `dropin/scripts/deploy.mjs` (config-driven, SFTP) and
-  `dropin/scripts/deploy-hostinger.mjs` (simpler). Env in `.env.deploy`.
+- **Deploy:** `dropin/scripts/deploy.mjs` (config-driven, SFTP). Env in `.env.deploy`.
 
 ## Next tasks (in order)
 
