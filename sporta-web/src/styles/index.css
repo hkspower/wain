@@ -1,3 +1,8 @@
+/* Admin mobile layout. (This scaffold has no separate admin.css — admin base
+ * styling is Tailwind. In the real project, import admin-mobile.css AFTER
+ * admin.css.) @import must precede other statements. */
+@import './admin-mobile.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
