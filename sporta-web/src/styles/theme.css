@@ -1,0 +1,34 @@
+/* theme.css — single source of truth for design tokens.
+ * HSL triplets so they work with hsl(var(--token)) and Tailwind color slots.
+ * (In the real shadcn project these mirror --primary/--accent etc.) */
+:root {
+  /* Brand */
+  --brand: #0e7a5f;
+
+  /* Primary — brand green. White foreground has strong contrast on it. */
+  --primary: 162 79% 27%;
+  --primary-foreground: 0 0% 100%;
+
+  /* Accent — indigo (admin). */
+  --accent: 243 75% 59%;
+  --accent-foreground: 0 0% 100%;
+
+  /* Accent text — a readable colour for links/prices on LIGHT backgrounds.
+   * Use this instead of putting brand/orange as text on white (low contrast). */
+  --accent-text: 162 79% 22%;
+}
+
+/* Reusable patterns for coloured text — never white-on-light. */
+.link-accent {
+  color: hsl(var(--accent-text));
+  font-weight: 600;
+}
+.link-accent:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.price {
+  color: hsl(var(--accent-text));
+  font-weight: 700;
+}

@@ -106,7 +106,7 @@ function Dashboard({ onSignOut, onEnrollChange }) {
   const [tab, setTab] = useState('overview')
 
   return (
-    <div className="min-h-screen bg-slate-50 md:flex">
+    <div className="admin-shell min-h-screen bg-slate-50 md:flex">
       {/* Desktop sidebar — hidden on mobile via .admin-sidebar */}
       <aside className="admin-sidebar w-60 shrink-0 border-e border-slate-200 bg-white p-4 md:min-h-screen">
         <div className="mb-6 flex items-center gap-3 px-2">

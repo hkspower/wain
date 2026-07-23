@@ -1,12 +1,12 @@
 /* Tailwind v4 entry. @config loads our legacy JS config (brand colors, font).
- * admin-mobile.css imported after Tailwind so its mobile rules win. */
+ * Token/admin styles imported after Tailwind so their rules win.
+ * (Paths are relative to this file at src/styles/. In the real project where
+ * index.css sits at src/, use "./styles/theme.css" etc.) */
 @import 'tailwindcss';
+@import './theme.css';
+@import './admin.css';
 @import './admin-mobile.css';
 @config '../../tailwind.config.js';
-
-:root {
-  --brand: #0e7a5f;
-}
 
 html {
   scroll-behavior: smooth;

@@ -1,0 +1,22 @@
+/* admin.css — admin-panel base styling and its own accent tokens.
+ * Scoped to .admin-shell so admin theming never leaks into the storefront. */
+.admin-shell {
+  /* Admin uses the indigo accent. */
+  --admin-accent: 243 75% 59%;
+  --admin-accent-foreground: 0 0% 100%;
+}
+
+/* Coloured admin text/links use the accent as TEXT on light surfaces
+ * (readable), not white-on-accent. */
+.admin-shell .link-accent {
+  color: hsl(var(--admin-accent));
+}
+
+/* Desktop sidebar + table wrappers (mobile overrides live in admin-mobile.css). */
+.admin-sidebar {
+  background: #fff;
+}
+.admin-table th,
+.admin-table td {
+  text-align: start;
+}
