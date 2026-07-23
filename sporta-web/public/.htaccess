@@ -1,5 +1,14 @@
 # Sporta — Hostinger (Apache) production config: SPA routing + compression + caching.
 
+# ---- Force HTTPS (every visitor uses SSL) ----
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Redirect any http:// request to https:// (handles Hostinger's proxy header too).
+  RewriteCond %{HTTPS} !=on [OR]
+  RewriteCond %{HTTP:X-Forwarded-Proto} =http
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
 # ---- SPA routing: send non-file requests to index.html ----
 <IfModule mod_rewrite.c>
   RewriteEngine On
@@ -8,6 +17,11 @@
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule . /index.html [L]
+</IfModule>
+
+# ---- HSTS: tell browsers to always use HTTPS for this domain ----
+<IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
 </IfModule>
 
 # ---- Compression (Brotli if available, else gzip) ----
