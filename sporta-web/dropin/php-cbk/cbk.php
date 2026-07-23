@@ -5,6 +5,21 @@
 
 declare(strict_types=1);
 
+// Reject any non-HTTPS request outright. Honors Hostinger's proxy header
+// (X-Forwarded-Proto) as well as the standard HTTPS server var.
+function cbk_require_https(): void
+{
+    $https = (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
+        || (($_SERVER['SERVER_PORT'] ?? '') === '443')
+        || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https');
+
+    if (!$https) {
+        http_response_code(403);
+        header('Content-Type: text/plain; charset=utf-8');
+        exit('Secure connection (HTTPS) required.');
+    }
+}
+
 function cbk_base(array $cfg): string
 {
     return rtrim($cfg['env'] === 'production' ? $cfg['production_base'] : $cfg['test_base'], '/');

@@ -5,6 +5,7 @@
 
 declare(strict_types=1);
 require __DIR__ . '/cbk.php';
+cbk_require_https(); // reject non-HTTPS callbacks
 $cfg = require __DIR__ . '/config.php';
 
 $return = $cfg['result_page_url'];

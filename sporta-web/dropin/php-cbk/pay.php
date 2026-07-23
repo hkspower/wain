@@ -5,6 +5,7 @@
 
 declare(strict_types=1);
 require __DIR__ . '/cbk.php';
+cbk_require_https(); // payments must never run over plain HTTP
 $cfg = require __DIR__ . '/config.php';
 
 $amount  = trim((string)($_REQUEST['amount']  ?? ''));

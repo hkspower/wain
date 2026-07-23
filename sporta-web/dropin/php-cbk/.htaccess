@@ -1,8 +1,22 @@
-# Protect config, library, and token cache from direct web access.
+# CBK payment endpoints — HTTPS-only + protect config/lib.
 # Place this folder as /public_html/pay/ so endpoints are:
 #   https://www.sporta.com.kw/pay/pay.php
 #   https://www.sporta.com.kw/pay/callback.php
 
+# ---- Force HTTPS on all payment requests ----
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on [OR]
+  RewriteCond %{HTTP:X-Forwarded-Proto} =http
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# ---- HSTS on the payment path ----
+<IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+</IfModule>
+
+# ---- Block direct web access to config, library, and token cache ----
 <FilesMatch "^(config\.php|config\.example\.php|cbk\.php|\.cbk_token\.json)$">
   Require all denied
 </FilesMatch>
