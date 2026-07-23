@@ -27,6 +27,8 @@ const HOST =
   'https://id-preview--c5bf1be6-60af-4efe-96ec-ae6da15af2eb.lovable.app'
 const ASSETS_DIR = 'src/assets'
 const SRC_DIR = 'src'
+// --dry-run: show what would happen, download/write/delete NOTHING.
+const DRY = process.argv.includes('--dry-run')
 
 function walk(dir) {
   const out = []
@@ -60,6 +62,11 @@ for (const stub of stubs) {
     const meta = JSON.parse(readFileSync(stub, 'utf8'))
     if (!meta.url) throw new Error('stub has no "url" field')
     const url = HOST + meta.url
+
+    if (DRY) {
+      console.log(`· would download ${url}\n    -> ${relative('.', target)} (~${meta.size ?? '?'} bytes, ${meta.type ?? '?'})`)
+      continue
+    }
 
     // 2) download (curl -f fails on HTTP errors)
     execFileSync('curl', ['-f', '-s', '-S', '-o', target, url], { stdio: 'pipe' })
@@ -96,9 +103,9 @@ for (const f of walk(SRC_DIR)) {
   const before = readFileSync(f, 'utf8')
   const after = before.replace(/\.asset\.json(['"`)])/g, '$1')
   if (after !== before) {
-    writeFileSync(f, after)
+    if (!DRY) writeFileSync(f, after)
     fixedImports++
-    console.log(`↻ fixed import(s) in ${relative('.', f)}`)
+    console.log(`${DRY ? '· would fix' : '↻ fixed'} import(s) in ${relative('.', f)}`)
   }
 }
 
