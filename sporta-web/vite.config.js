@@ -1,11 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// base: './' makes asset paths relative so the build works when the
-// contents of dist/ are uploaded straight into Hostinger's public_html.
+// base: '/' — the site is served at the domain root (public_html). Absolute
+// asset paths are required so deep routes (/product/:slug) and refreshes on
+// any route still load /assets/* correctly. ('./' breaks 2-segment routes.)
 export default defineConfig({
   plugins: [react()],
-  base: './',
+  base: '/',
   build: {
     // Modern browsers only → smaller, faster output (no legacy transpile).
     target: 'es2020',
