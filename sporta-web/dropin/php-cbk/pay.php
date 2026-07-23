@@ -25,11 +25,18 @@ if (!preg_match('/^[A-Za-z0-9]{1,30}$/', $trackid)) {
     exit('Invalid track id.');
 }
 
-// SECURITY — amount authority: this amount is supplied by the caller. For a
-// tamper-proof flow, the price MUST be authoritative on the server. Either:
-//   (a) look the order up in your DB by $trackid here and use ITS amount, or
-//   (b) verify the paid amount in callback.php against the order (see below).
-// Do NOT trust a client-sent amount as the final source of truth.
+// SECURITY — server-side price authority. When Supabase is configured, ignore
+// the client-sent amount and charge the order's stored amount (computed by the
+// DB trigger from product prices, see supabase/schema.sql). This makes price
+// tampering impossible. Falls back to the validated client amount only if no DB.
+$serverAmount = cbk_order_amount($cfg, $trackid);
+if ($serverAmount !== null) {
+    if ((float) $serverAmount <= 0) {
+        http_response_code(400);
+        exit('Order has no payable amount.');
+    }
+    $amount = number_format((float) $serverAmount, 3, '.', '');
+}
 
 try {
     $token = cbk_get_access_token($cfg);

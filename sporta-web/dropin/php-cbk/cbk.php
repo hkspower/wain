@@ -25,6 +25,34 @@ function cbk_base(array $cfg): string
     return rtrim($cfg['env'] === 'production' ? $cfg['production_base'] : $cfg['test_base'], '/');
 }
 
+// Read an order's server-authoritative amount from Supabase by track id.
+// Returns the amount string, or null if not found / DB not configured.
+function cbk_order_amount(array $cfg, string $trackid): ?string
+{
+    if (($cfg['supabase_url'] ?? '') === '' || ($cfg['supabase_service_key'] ?? '') === '') {
+        return null;
+    }
+    $url = rtrim($cfg['supabase_url'], '/') . '/rest/v1/'
+        . rawurlencode($cfg['orders_table'])
+        . '?select=amount&' . $cfg['orders_match_column'] . '=eq.' . rawurlencode($trackid);
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_HTTPHEADER     => [
+            'apikey: ' . $cfg['supabase_service_key'],
+            'Authorization: Bearer ' . $cfg['supabase_service_key'],
+        ],
+    ]);
+    $body = curl_exec($ch);
+    curl_close($ch);
+    if ($body === false) {
+        return null;
+    }
+    $rows = json_decode((string) $body, true);
+    return isset($rows[0]['amount']) ? (string) $rows[0]['amount'] : null;
+}
+
 // Basic auth header value: base64("ClientId:ClientSecret").
 function cbk_basic_auth(array $cfg): string
 {

@@ -30,14 +30,16 @@ real price. Fixes applied:
    CBK actually charged. On mismatch the order is **NOT** marked paid
    (`amount_mismatch`).
 
-### 🟠 Server-side price authority (ACTION REQUIRED — you)
-The order's recorded amount still originates from the browser (`checkout.js`
-inserts it). Verification above only catches tampering *between* order creation
-and payment. For full protection, make the price authoritative on the server:
-- Store product prices in a Supabase `products` table (source of truth), and
-- Compute the order total server-side — e.g. a Supabase **Edge Function** or a DB
-  **trigger** that recomputes `orders.amount` from the line items, so the client
-  can never set the price it pays.
+### 🟢 Server-side price authority (IMPLEMENTED)
+Prices are now authoritative on the server (`supabase/schema.sql`):
+- `products.price` is the single source of truth.
+- A DB trigger copies each item's price from `products` and recomputes
+  `orders.amount` from the line items — the client cannot set the price.
+- `checkout.js` inserts the order + line items (no client amount); `pay.php`
+  charges the order's server-computed amount (via `cbk_order_amount`), and
+  `callback.php` verifies the charged amount again.
+
+**Remaining for you:** run `supabase/schema.sql` and seed real products.
 
 ### 🟠 Supabase RLS (ACTION REQUIRED — you)
 `checkout.js` inserts orders with the browser (anon) key. Add Row Level Security:

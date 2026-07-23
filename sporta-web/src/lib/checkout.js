@@ -14,21 +14,36 @@ export async function startCheckout({ items, total, lang = 'en', ref = 'Sporta o
   const trackId = makeTrackId()
   const amount = amountForGateway(total)
 
-  // Record a pending order in Supabase if configured (non-blocking).
+  // Create a pending order + line items in Supabase if configured. The DB
+  // trigger computes the authoritative amount from product prices — the client
+  // never sets the price it pays (see supabase/schema.sql). Non-blocking.
   try {
     const { supabase } = await import('./supabase')
     if (supabase) {
-      await supabase.from('orders').insert({
-        track_id: trackId,
-        amount,
-        payment_status: 'pending',
-        items: items?.map((i) => ({ slug: i.slug, qty: i.qty, price: i.price })) ?? null,
-      })
+      const { data: order, error } = await supabase
+        .from('orders')
+        .insert({ track_id: trackId }) // amount defaults 0, computed by trigger
+        .select('id')
+        .single()
+      if (!error && order && items?.length) {
+        // Map cart slugs -> product ids so items reference real products.
+        const { data: prods } = await supabase
+          .from('products')
+          .select('id, slug')
+          .in('slug', items.map((i) => i.slug))
+        const idBySlug = Object.fromEntries((prods ?? []).map((p) => [p.slug, p.id]))
+        const rows = items
+          .filter((i) => idBySlug[i.slug])
+          .map((i) => ({ order_id: order.id, product_id: idBySlug[i.slug], qty: i.qty }))
+        if (rows.length) await supabase.from('order_items').insert(rows)
+      }
     }
   } catch {
     /* proceed to payment even if the pre-record fails */
   }
 
+  // pay.php uses the order's server-computed amount when the DB is configured;
+  // the client amount is only a fallback for the no-DB (static) case.
   const params = new URLSearchParams({ amount, trackid: trackId, ref, lang })
   window.location.href = `${PAY_BASE}/pay.php?${params.toString()}`
 }

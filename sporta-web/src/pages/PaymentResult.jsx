@@ -23,12 +23,10 @@ export default function PaymentResult() {
       try {
         const { supabase } = await import('../lib/supabase')
         if (supabase) {
-          const { data } = await supabase
-            .from('orders')
-            .select('payment_status')
-            .eq('track_id', trackid)
-            .maybeSingle()
-          if (alive) setConfirmed(data?.payment_status ?? null)
+          // Read status via the security-definer RPC (orders has no client SELECT).
+          const { data } = await supabase.rpc('get_order_status', { p_track_id: trackid })
+          const row = Array.isArray(data) ? data[0] : data
+          if (alive) setConfirmed(row?.payment_status ?? null)
         }
       } catch {
         /* ignore */
