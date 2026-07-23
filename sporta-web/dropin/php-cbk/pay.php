@@ -12,11 +12,24 @@ $amount  = trim((string)($_REQUEST['amount']  ?? ''));
 $trackid = trim((string)($_REQUEST['trackid'] ?? ''));
 $lang    = trim((string)($_REQUEST['lang'] ?? $cfg['lang'])) === 'ar' ? 'ar' : 'en';
 $payType = (string)($_REQUEST['paytype'] ?? $cfg['pay_type']); // '', '1'=KNET, '2'=QR
+$payType = in_array($payType, ['', '1', '2'], true) ? $payType : '';
 
-if ($amount === '' || $trackid === '') {
+// Strict input validation (also blocks NVP/param injection).
+// CBK: amount numeric, max 10 digits incl. 3 decimals; track id alphanumeric <= 30.
+if (!preg_match('/^\d{1,7}(\.\d{1,3})?$/', $amount) || (float) $amount <= 0) {
     http_response_code(400);
-    exit('amount and trackid are required');
+    exit('Invalid amount.');
 }
+if (!preg_match('/^[A-Za-z0-9]{1,30}$/', $trackid)) {
+    http_response_code(400);
+    exit('Invalid track id.');
+}
+
+// SECURITY — amount authority: this amount is supplied by the caller. For a
+// tamper-proof flow, the price MUST be authoritative on the server. Either:
+//   (a) look the order up in your DB by $trackid here and use ITS amount, or
+//   (b) verify the paid amount in callback.php against the order (see below).
+// Do NOT trust a client-sent amount as the final source of truth.
 
 try {
     $token = cbk_get_access_token($cfg);

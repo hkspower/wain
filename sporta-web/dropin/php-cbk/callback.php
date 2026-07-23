@@ -35,9 +35,23 @@ $paid       = $statusCode === '1';
 $trackid    = (string)($res['TrackId'] ?? ($res['PayId'] ?? ''));
 $paymentId  = (string)($res['PaymentId'] ?? '');
 $ref        = (string)($res['ReferenceId'] ?? '');
+$paidAmount = (string)($res['Amount'] ?? '');
 
-// Persist the full result (the manual requires merchants to save it).
-if ($cfg['supabase_url'] !== '' && $cfg['supabase_service_key'] !== '' && $trackid !== '') {
+$haveDb = $cfg['supabase_url'] !== '' && $cfg['supabase_service_key'] !== '' && $trackid !== '';
+
+// SECURITY — amount verification. Confirm the amount CBK actually charged
+// matches the amount recorded for this order. If they differ, the amount was
+// tampered with: refuse to mark the order paid.
+if ($paid && $haveDb) {
+    $expected = cbk_order_expected_amount($cfg, $trackid);
+    if ($expected !== null && !amounts_equal($expected, $paidAmount)) {
+        $paid = false;
+        $statusCode = 'amount_mismatch';
+    }
+}
+
+// Persist the result (the manual requires merchants to save it).
+if ($haveDb) {
     cbk_update_supabase($cfg, $trackid, $paid, $res);
 }
 
@@ -50,6 +64,38 @@ $q = http_build_query([
 ]);
 header('Location: ' . $return . '?' . $q, true, 302);
 exit;
+
+// Compare two KWD amounts robustly (3-decimal tolerance).
+function amounts_equal(string $a, string $b): bool
+{
+    return abs((float) $a - (float) $b) < 0.001;
+}
+
+// Fetch the expected amount for this order from Supabase. Returns null if the
+// order isn't found (so we don't wrongly reject when the DB is unavailable).
+function cbk_order_expected_amount(array $cfg, string $trackid): ?string
+{
+    $url = rtrim($cfg['supabase_url'], '/') . '/rest/v1/'
+        . rawurlencode($cfg['orders_table'])
+        . '?select=amount&' . $cfg['orders_match_column'] . '=eq.' . rawurlencode($trackid);
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_HTTPHEADER     => [
+            'apikey: ' . $cfg['supabase_service_key'],
+            'Authorization: Bearer ' . $cfg['supabase_service_key'],
+        ],
+    ]);
+    $body = curl_exec($ch);
+    curl_close($ch);
+    if ($body === false) {
+        return null;
+    }
+    $rows = json_decode((string) $body, true);
+    return isset($rows[0]['amount']) ? (string) $rows[0]['amount'] : null;
+}
 
 function cbk_update_supabase(array $cfg, string $trackid, bool $paid, array $res): void
 {
