@@ -71,6 +71,29 @@ Wire the CSS: import `theme.css`, `admin.css`, `admin-mobile.css` after the
 Tailwind layers in `index.css`, and delete duplicate `:root`/`.admin-shell`
 token blocks so `theme.css` is the single source of truth.
 
+## 7b. Import stranded Lovable asset stubs (real repo only)
+The Lovable repo may commit `src/assets/**/*.asset.json` placeholders instead of
+the real binaries. Import them all:
+```bash
+LOVABLE_PREVIEW_URL=https://id-preview--c5bf1be6-60af-4efe-96ec-ae6da15af2eb.lovable.app \
+  node scripts/import-lovable-assets.mjs   # from dropin/scripts/
+```
+It downloads each `url`, verifies size/type, deletes the stub, and fixes any
+import that referenced `.asset.json`. Then:
+```bash
+npm run build
+grep -r "__l5e" dist/ && echo "STILL HAS STUBS" || echo "clean"
+# .env must contain ONLY public VITE_ values:
+grep -v '^VITE_' .env | grep -v '^#' | grep '=' && echo "NON-VITE SECRET IN .env!" || echo ".env clean"
+```
+Deploy + prove live:
+```bash
+HOSTINGER_FTP_REMOTE_DIR='/domains/sporta.com.kw/public_html' npm run deploy -- --force --verify=hash
+curl -s -o /dev/null -w '%{http_code} %{content_type}\n' \
+  "https://www.sporta.com.kw/assets/$(ls dist/assets | grep hero-flame | head -1)"
+# expect: 200 image/png
+```
+
 ## 8. Final checks
 - `npm run build` passes; click through storefront + admin on mobile width.
 - SSL Labs grade A; cert covers apex + www.
