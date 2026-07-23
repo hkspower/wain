@@ -18,6 +18,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="place/[slug]" options={{ title: '' }} />
         <Stack.Screen name="about" options={{ title: 'About Wain' }} />
+        <Stack.Screen name="almuhalla" options={{ title: 'Almuhalla — Code Editor' }} />
       </Stack>
     </ThemeProvider>
   );

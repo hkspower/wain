@@ -93,6 +93,24 @@ export default function HomeScreen() {
             ))}
           </View>
 
+          {/* Almuhalla code editor link */}
+          <Link href="/almuhalla" asChild>
+            <Pressable style={({ pressed }) => [styles.stackedCard, pressed && styles.pressed]}>
+              <ThemedView
+                type="backgroundElement"
+                style={[styles.aboutCard, { borderColor: theme.border }]}>
+                <Text style={styles.aboutEmoji}>💻</Text>
+                <View style={styles.aboutTextWrap}>
+                  <ThemedText type="smallBold">Almuhalla — Code Editor</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    A little scratchpad to write and edit code, right in the app.
+                  </ThemedText>
+                </View>
+                <ThemedText themeColor="tint">→</ThemedText>
+              </ThemedView>
+            </Pressable>
+          </Link>
+
           {/* About link */}
           <Link href="/about" asChild>
             <Pressable style={({ pressed }) => pressed && styles.pressed}>
@@ -186,6 +204,9 @@ const styles = StyleSheet.create({
   featuredList: {
     gap: Spacing.three,
     marginBottom: Spacing.five,
+  },
+  stackedCard: {
+    marginBottom: Spacing.three,
   },
   aboutCard: {
     flexDirection: 'row',
