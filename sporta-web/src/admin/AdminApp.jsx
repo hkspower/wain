@@ -5,6 +5,7 @@ import { useIdleLock } from './useIdleLock'
 import AdminLogin from './AdminLogin'
 import LockScreen from './LockScreen'
 import SetupQuickUnlock from './SetupQuickUnlock'
+import Products from './Products'
 
 // Orchestrates the admin session:
 //   no session            -> AdminLogin
@@ -91,6 +92,7 @@ export default function AdminApp() {
 // as .admin-table on desktop and .m-list/.m-row card rows on mobile.
 const ADMIN_TABS = [
   { id: 'overview', label: 'Overview', icon: '📊' },
+  { id: 'products', label: 'Products', icon: '📦' },
   { id: 'orders', label: 'Orders', icon: '🧾' },
   { id: 'settings', label: 'Settings', icon: '⚙️' },
 ]
@@ -146,6 +148,8 @@ function Dashboard({ onSignOut, onEnrollChange }) {
             <p className="mt-2 text-slate-500">Your admin content goes here.</p>
           </div>
         )}
+
+        {tab === 'products' && <Products />}
 
         {tab === 'orders' && <OrdersView orders={SAMPLE_ORDERS} />}
 

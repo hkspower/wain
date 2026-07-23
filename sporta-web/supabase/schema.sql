@@ -85,10 +85,20 @@ alter table public.products    enable row level security;
 alter table public.orders      enable row level security;
 alter table public.order_items enable row level security;
 
--- Products: anyone may read active products; no client writes.
+-- Products: anyone may read active products.
 drop policy if exists products_read on public.products;
 create policy products_read on public.products
   for select using (active = true);
+
+-- Authenticated admins may read ALL products and manage them (add/edit/delete).
+-- (Admin routes are behind Supabase Auth; tighten to a role/claim if you add one.)
+drop policy if exists products_admin_read on public.products;
+create policy products_admin_read on public.products
+  for select to authenticated using (true);
+
+drop policy if exists products_admin_write on public.products;
+create policy products_admin_write on public.products
+  for all to authenticated using (true) with check (true);
 
 -- Orders: clients may CREATE a pending order (amount is forced to 0 here and
 -- computed by the trigger). Clients may NOT update/delete/select directly —
