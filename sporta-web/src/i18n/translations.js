@@ -29,8 +29,8 @@ export const translations = {
     },
     hero: {
       title: 'Sporta',
-      subtitle: 'Your destination for sport in Kuwait',
-      cta: 'Get started',
+      subtitle: 'Sportswear & accessories in Kuwait — fast delivery, free returns',
+      cta: 'Shop now',
     },
     about: {
       title: 'About Sporta',
@@ -80,8 +80,8 @@ export const translations = {
     },
     hero: {
       title: 'سبورتا',
-      subtitle: 'وجهتك للرياضة في الكويت',
-      cta: 'ابدأ الآن',
+      subtitle: 'ملابس وأكسسوارات رياضية في الكويت — توصيل سريع واسترجاع مجاني',
+      cta: 'تسوّق الآن',
     },
     about: {
       title: 'عن سبورتا',

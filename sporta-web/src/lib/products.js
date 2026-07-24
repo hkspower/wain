@@ -4,9 +4,9 @@
 // Each product: slug, name{en,ar}, desc{en,ar}, price, category, image, badge?
 export const CATEGORIES = [
   { id: 'all', name: { en: 'All', ar: 'الكل' } },
-  { id: 'football', name: { en: 'Football', ar: 'كرة القدم' } },
-  { id: 'fitness', name: { en: 'Fitness', ar: 'اللياقة' } },
-  { id: 'running', name: { en: 'Running', ar: 'الجري' } },
+  { id: 'women', name: { en: 'Women', ar: 'نساء' } },
+  { id: 'men', name: { en: 'Men', ar: 'رجال' } },
+  { id: 'outerwear', name: { en: 'Hoodies & Jackets', ar: 'هوديز وجواكيت' } },
   { id: 'accessories', name: { en: 'Accessories', ar: 'إكسسوارات' } },
 ]
 
@@ -17,57 +17,55 @@ const ph = (label, c1, c2) =>
     `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><rect width="600" height="600" fill="url(#g)"/><text x="50%" y="52%" font-family="Arial" font-size="42" font-weight="bold" fill="white" text-anchor="middle">${label}</text></svg>`,
   )
 
+// Placeholder sportswear catalog matching the real Sporta range (activewear,
+// gym clothing, outerwear, accessories). Replace with real products/prices via
+// the admin or Supabase.
 export const PRODUCTS = [
   {
-    slug: 'pro-match-ball',
-    name: { en: 'Pro Match Football', ar: 'كرة قدم احترافية' },
-    desc: { en: 'FIFA-quality match ball, hand-stitched.', ar: 'كرة مباريات بجودة الفيفا، مخيطة يدويًا.' },
-    price: 18.5, category: 'football', image: ph('Football', '#0e7a5f', '#0a5c47'),
+    slug: 'rheo-seamless-set',
+    name: { en: 'RHEO Seamless Set', ar: 'طقم ريو سيملس' },
+    desc: { en: 'Women’s seamless leggings + top set.', ar: 'طقم ليقنز وتوب حريمي سيملس.' },
+    price: 24.0, category: 'women', image: ph('RHEO Set', '#7c2d12', '#431407'),
     badge: { en: 'Bestseller', ar: 'الأكثر مبيعًا' },
   },
   {
-    slug: 'training-cones-set',
-    name: { en: 'Training Cones (Set of 20)', ar: 'أقماع تدريب (20 قطعة)' },
-    desc: { en: 'Durable agility cones for drills.', ar: 'أقماع رشاقة متينة للتمارين.' },
-    price: 6.25, category: 'football', image: ph('Cones', '#4f46e5', '#3730a3'),
+    slug: 'rheo-zip-top',
+    name: { en: 'RHEO Zip Top', ar: 'توب ريو بسحاب' },
+    desc: { en: 'Long-sleeve zip training top.', ar: 'توب تدريب بأكمام طويلة وسحاب.' },
+    price: 14.5, category: 'women', image: ph('Zip Top', '#F26522', '#C24E12'),
   },
   {
-    slug: 'adjustable-dumbbell',
-    name: { en: 'Adjustable Dumbbell 24kg', ar: 'دمبل قابل للتعديل ٢٤ كجم' },
-    desc: { en: 'Space-saving, 5–24 kg per side.', ar: 'موفّر للمساحة، ٥–٢٤ كجم لكل جهة.' },
-    price: 42.0, category: 'fitness', image: ph('Dumbbell', '#0e7a5f', '#064e3b'),
+    slug: 'sporta-compression-tee',
+    name: { en: 'SPORTA Compression Tee', ar: 'تيشيرت سبورتا ضاغط' },
+    desc: { en: 'Men’s performance compression tee.', ar: 'تيشيرت رجالي ضاغط للأداء.' },
+    price: 11.0, category: 'men', image: ph('SPORTA Tee', '#0d0d0d', '#1a1a1a'),
     badge: { en: 'New', ar: 'جديد' },
   },
   {
-    slug: 'yoga-mat-pro',
-    name: { en: 'Pro Yoga Mat', ar: 'سجادة يوغا احترافية' },
-    desc: { en: 'Non-slip, extra-thick 6 mm.', ar: 'غير قابلة للانزلاق، سماكة ٦ مم.' },
-    price: 9.75, category: 'fitness', image: ph('Yoga Mat', '#6366f1', '#4338ca'),
-  },
+    slug: 'vanquish-tank',
+    name: { en: 'Vanquish Training Tank', ar: 'فانكويش تانك' },
+    desc: { en: 'Breathable sleeveless training tank.', ar: 'تانك تدريب خفيف وقابل للتهوية.' },
+    price: 9.5, category: 'men', image: ph('Tank', '#1e3a5f', '#0f2038') },
   {
-    slug: 'running-shoes-air',
-    name: { en: 'Air Running Shoes', ar: 'حذاء جري إير' },
-    desc: { en: 'Lightweight cushioned trainers.', ar: 'حذاء رياضي خفيف ومبطّن.' },
-    price: 27.9, category: 'running', image: ph('Shoes', '#0e7a5f', '#0a5c47'),
-  },
+    slug: 'ate-felpa-hoodie',
+    name: { en: 'ATE Felpa Hoodie — Navy', ar: 'هودي ATE فيلبا — كحلي' },
+    desc: { en: 'Heavyweight cotton-blend hoodie.', ar: 'هودي قطني ثقيل عالي الجودة.' },
+    price: 19.0, category: 'outerwear', image: ph('Hoodie', '#1e293b', '#0f172a') },
   {
-    slug: 'hydration-bottle',
-    name: { en: 'Hydration Bottle 1L', ar: 'زجاجة ماء ١ لتر' },
-    desc: { en: 'BPA-free, insulated.', ar: 'خالية من BPA، معزولة حراريًا.' },
-    price: 3.5, category: 'accessories', image: ph('Bottle', '#4f46e5', '#3730a3'),
-  },
+    slug: 'ate-smart-jacket',
+    name: { en: 'ATE Smart Jacket', ar: 'جاكيت ATE سمارت' },
+    desc: { en: 'Lightweight zip training jacket.', ar: 'جاكيت تدريب خفيف بسحاب.' },
+    price: 22.0, category: 'outerwear', image: ph('Jacket', '#0d0d0d', '#262626') },
   {
-    slug: 'gym-gloves',
-    name: { en: 'Training Gloves', ar: 'قفازات تدريب' },
-    desc: { en: 'Padded grip, breathable.', ar: 'قبضة مبطّنة، قابلة للتهوية.' },
-    price: 5.0, category: 'accessories', image: ph('Gloves', '#0e7a5f', '#064e3b'),
-  },
+    slug: 'nba-cap',
+    name: { en: 'NBA Team Cap', ar: 'كاب NBA' },
+    desc: { en: 'Official-style team snapback cap.', ar: 'كاب فريق بتصميم رسمي.' },
+    price: 8.0, category: 'accessories', image: ph('Cap', '#1e3a8a', '#172554') },
   {
-    slug: 'resistance-bands',
-    name: { en: 'Resistance Bands Set', ar: 'أشرطة مقاومة' },
-    desc: { en: '5 levels, with door anchor.', ar: '٥ مستويات، مع مثبّت باب.' },
-    price: 7.8, category: 'fitness', image: ph('Bands', '#6366f1', '#4338ca'),
-  },
+    slug: 'gymshark-phone-strap',
+    name: { en: 'Gymshark Phone Strap', ar: 'حزام جوال جيمشارك' },
+    desc: { en: 'Running arm phone strap.', ar: 'حزام ذراع للجوال أثناء الجري.' },
+    price: 5.5, category: 'accessories', image: ph('Phone Strap', '#F26522', '#C24E12') },
 ]
 
 export const getProduct = (slug) => PRODUCTS.find((p) => p.slug === slug)

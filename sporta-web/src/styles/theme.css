@@ -2,20 +2,20 @@
  * HSL triplets so they work with hsl(var(--token)) and Tailwind color slots.
  * (In the real shadcn project these mirror --primary/--accent etc.) */
 :root {
-  /* Brand */
-  --brand: #0e7a5f;
+  /* Sporta brand — orange on black (from @sporta.kw) */
+  --brand: #f26522;
 
-  /* Primary — brand green. White foreground has strong contrast on it. */
-  --primary: 162 79% 27%;
+  /* Primary — Sporta orange. White foreground for buttons. */
+  --primary: 20 89% 54%;
   --primary-foreground: 0 0% 100%;
 
-  /* Accent — indigo (admin). */
+  /* Accent — indigo (admin only). */
   --accent: 243 75% 59%;
   --accent-foreground: 0 0% 100%;
 
-  /* Accent text — a readable colour for links/prices on LIGHT backgrounds.
-   * Use this instead of putting brand/orange as text on white (low contrast). */
-  --accent-text: 162 79% 22%;
+  /* Accent text — darker orange, readable for links/prices on LIGHT
+   * backgrounds (never white-on-orange). */
+  --accent-text: 20 85% 38%;
 }
 
 /* Reusable patterns for coloured text — never white-on-light. */

@@ -1,17 +1,23 @@
 # Sporta
 
-> Sporta (سبورتا) is a Kuwait-based online store for sports and fitness
-> equipment. It sells football gear, fitness and gym equipment, running shoes,
-> and sports accessories, with a bilingual Arabic/English storefront and KNET
-> (Kuwait debit) checkout. Prices are in Kuwaiti Dinar (KWD).
+> Sporta (سبورتا) is a Kuwait sportswear store selling activewear, gym
+> clothing, hoodies and jackets, caps, and sports accessories — including
+> brands like Gymshark, RHEO, Vanquish, ATE and its own SPORTA label.
+> Bilingual Arabic/English, fast delivery, free exchange/return, and KNET
+> (Kuwait debit) checkout. Prices in Kuwaiti Dinar (KWD).
 
 ## About
 - Name: Sporta (Arabic: سبورتا)
+- Type: Sportswear & sports accessories store
 - Country: Kuwait
 - Website: https://www.sporta.com.kw
+- Instagram: https://www.instagram.com/sporta.kw
+- WhatsApp / Phone: +965 22091914
 - Contact: cs@sporta.com.kw
+- Commercial licence: 30199/2023
 - Languages: Arabic, English
 - Payment: KNET, Visa, Mastercard (KWD)
+- Service: fast delivery, free exchange & return
 
 ## Pages
 - [Home](https://www.sporta.com.kw/): brand intro and featured products

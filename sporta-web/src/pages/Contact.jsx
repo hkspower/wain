@@ -13,7 +13,9 @@ export default function Contact() {
         </p>
         <p>
           <span className="font-semibold text-brand">{t.contact.phone}: </span>
-          <span dir="ltr">+965 0000 0000</span>
+          <a href="https://wa.me/96522091914" target="_blank" rel="noopener noreferrer" className="underline" dir="ltr">
+            +965 2209 1914 (WhatsApp)
+          </a>
         </p>
       </div>
     </section>
