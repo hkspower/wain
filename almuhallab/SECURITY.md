@@ -1,4 +1,4 @@
-# Security — Almuhallab / النوخذة
+# Security — Almuhallab / Nokha1 (النوخذة)
 
 This document describes the security measures in the static prototype and the
 boundaries that only a real backend can provide.
@@ -18,7 +18,7 @@ boundaries that only a real backend can provide.
 - **Input constraints**: `maxlength`, `pattern`, numeric `min`/`step` on all
   fields, plus JS-side validation and clamping (never trust HTML validation alone).
 
-## Authentication (nokhatha.html)
+## Authentication (nokha1.html)
 
 - Passwords are hashed with **PBKDF2-SHA256, 310,000 iterations, 16-byte random
   per-user salt** via the Web Crypto API. No plaintext or reversible form is stored.
