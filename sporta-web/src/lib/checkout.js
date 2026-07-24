@@ -1,7 +1,8 @@
 import { amountForGateway } from './format'
 
-// Base URL of the PHP payment endpoints on Hostinger (public_html/pay/).
-const PAY_BASE = import.meta.env.VITE_PAY_BASE_URL || 'https://www.sporta.com.kw/pay'
+// Base URL of the PHP payment endpoints on Hostinger. Classic KNET (KPG) lives
+// in public_html/knet/. (For the CBK REST-JSON T-Pay model it would be /pay.)
+const PAY_BASE = import.meta.env.VITE_PAY_BASE_URL || 'https://www.sporta.com.kw/knet'
 
 // Unique, CBK-safe track id (alphanumeric, <= 30 chars).
 export function makeTrackId(prefix = 'SP') {
