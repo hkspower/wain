@@ -7,8 +7,9 @@ export default {
         // Sporta live-site palette (sporta.com.kw): burnt orange on charcoal,
         // warm beige content sections.
         brand: {
-          DEFAULT: '#FF7B17', // official logo orange
-          dark: '#C25A00',
+          DEFAULT: '#E0561C', // live-site UI orange (sporta.com.kw surfaces)
+          bright: '#FF7B17', // official logo orange (accents/gradients)
+          dark: '#B8430F',
           light: '#F7E9DF',
         },
         ink: {

@@ -21,10 +21,12 @@
 - **Official logo:** orange "S" swoosh + "SPORTA / SPORTS WEAR" wordmark.
   Files: `sporta-web/public/logo.png` (black text, light backgrounds),
   `logo-white.png` (white text, dark backgrounds), `favicon.png` (the S mark).
-- **Color theme: ORANGE + BLACK.** Exact brand orange sampled from the logo:
-  **#FF7B17** (hover #E26A08, text-on-light #C25A00); charcoal black #171A1E,
-  warm beige #E2DBCE as the light canvas. Buttons: black text on orange
-  (white-on-#FF7B17 fails WCAG contrast).
+- **Color theme: ORANGE + BLACK — two-tone orange system (matches
+  www.sporta.com.kw):** UI surfaces/buttons use burnt orange **#E0561C**
+  (hover #B8430F) as on the live site; the logo's bright orange **#FF7B17**
+  is `brand.bright` for the mark, gradients and accents. Charcoal black
+  #171A1E, warm beige #E2DBCE canvas. Buttons: near-black text on orange
+  (white on these oranges fails WCAG AA at button sizes).
 - Voice: premium sportswear, Arabic-first bilingual (سبورتا).
 
 ## Project facts
