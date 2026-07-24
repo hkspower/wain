@@ -36,7 +36,7 @@ export default function Home() {
           <p className="max-w-md text-lg text-white/85">{t.hero.subtitle}</p>
           <Link
             to="/shop"
-            className="rounded-full bg-white px-8 py-3 font-bold text-ink shadow-lg transition hover:bg-brand hover:text-white"
+            className="btn btn-light"
           >
             {t.hero.cta} →
           </Link>
@@ -44,10 +44,10 @@ export default function Home() {
       </section>
 
       {/* Summer offers banner */}
-      <section className="mx-auto max-w-7xl px-4 py-8">
+      <section className="mx-auto max-w-7xl px-4 pt-10 pb-4 md:px-6 md:pt-14 md:pb-6">
         <Link
           to="/shop"
-          className="flex flex-col items-center justify-between gap-3 rounded-3xl bg-gradient-to-br from-brand to-brand-dark p-8 text-white md:flex-row"
+          className="flex flex-col items-center justify-between gap-3 rounded-3xl bg-gradient-to-br from-brand to-brand-dark p-8 text-white transition hover:shadow-2xl md:flex-row md:p-10"
         >
           <div className="text-center md:text-start">
             <p className="text-xs font-semibold uppercase tracking-wide text-white/80">{t.offer.badge}</p>
@@ -58,13 +58,13 @@ export default function Home() {
       </section>
 
       {/* Category tiles */}
-      <section className="mx-auto max-w-7xl px-4 py-6">
-        <div className="grid gap-4">
+      <section className="mx-auto max-w-7xl px-4 py-4 md:px-6 md:py-6">
+        <div className="grid gap-4 md:gap-5">
           {cats.map((c) => (
             <Link
               key={c.id}
               to={c.to}
-              className="group relative flex h-40 items-center overflow-hidden rounded-3xl p-6 text-white md:h-48"
+              className="group relative flex h-40 items-center overflow-hidden rounded-3xl p-6 text-white md:h-48 md:p-8"
               style={{ background: `linear-gradient(90deg, ${c.from}, ${c.via})` }}
             >
               <span className="absolute bottom-4 start-4 flex h-10 w-10 items-center justify-center rounded-full bg-brand text-white transition group-hover:scale-110">
@@ -79,7 +79,7 @@ export default function Home() {
           {/* Outlet — discount tile */}
           <Link
             to="/shop"
-            className="group relative flex h-40 items-center overflow-hidden rounded-3xl bg-ink-soft p-6 text-white md:h-48"
+            className="group relative flex h-40 items-center overflow-hidden rounded-3xl bg-ink-soft p-6 text-white md:h-48 md:p-8"
           >
             <span className="absolute bottom-4 start-4 flex h-10 w-10 items-center justify-center rounded-full bg-brand transition group-hover:scale-110">↗</span>
             <div className="ms-auto text-end">
@@ -91,10 +91,10 @@ export default function Home() {
       </section>
 
       {/* Services row */}
-      <section className="mx-auto max-w-7xl px-4 py-8">
-        <div className="grid gap-4 sm:grid-cols-2">
+      <section className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-10">
+        <div className="grid gap-4 sm:grid-cols-2 md:gap-5">
           {[t.services.returns, t.services.delivery].map((s, i) => (
-            <div key={i} className="flex flex-col items-center gap-2 rounded-2xl border border-black/10 bg-sand-light p-6 text-center">
+            <div key={i} className="flex flex-col items-center gap-2 rounded-3xl border border-black/10 bg-sand-light p-6 text-center md:p-8">
               <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand/15 text-xl text-brand">
                 {i === 0 ? '↺' : '🚚'}
               </span>
@@ -106,8 +106,8 @@ export default function Home() {
       </section>
 
       {/* Essentials */}
-      <section className="mx-auto max-w-7xl px-4 py-10">
-        <div className="mb-6 text-center">
+      <section className="mx-auto max-w-7xl px-4 py-10 md:px-6 md:py-14">
+        <div className="mb-8 text-center">
           <p className="text-xs font-semibold uppercase tracking-widest text-brand">{t.ess.kicker}</p>
           <h2 className="text-3xl font-extrabold text-slate-900">{t.ess.title}</h2>
         </div>

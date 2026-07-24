@@ -23,7 +23,8 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['Cairo', 'system-ui', 'sans-serif'],
+        sans: ['IBM Plex Sans Arabic', 'system-ui', 'sans-serif'],
+        display: ['Changa', 'IBM Plex Sans Arabic', 'sans-serif'],
       },
     },
   },
