@@ -7,27 +7,109 @@ export default function Home() {
   const { t } = useLang()
   const featured = PRODUCTS.slice(0, 4)
 
+  const cats = [
+    { id: 'men', to: '/shop', ...t.cats.men, from: '#E0561C', via: '#171A1E' },
+    { id: 'women', to: '/shop', ...t.cats.women, from: '#E0561C', via: '#20252C' },
+    { id: 'acc', to: '/shop', ...t.cats.acc, from: '#171A1E', via: '#E0561C' },
+  ]
+
   return (
     <>
-      <section className="bg-brand-light">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-4 py-24 text-center">
-          <h1 className="text-5xl font-extrabold text-brand-dark md:text-6xl">{t.hero.title}</h1>
-          <p className="max-w-xl text-lg text-slate-600">{t.hero.subtitle}</p>
+      {/* Hero — dramatic charcoal + fire-orange */}
+      <section className="relative overflow-hidden bg-ink text-white">
+        <div
+          className="absolute inset-0 opacity-90"
+          style={{
+            background:
+              'radial-gradient(1200px 500px at 50% 120%, #E0561C 0%, #B8430F 30%, #171A1E 70%)',
+          }}
+        />
+        <div className="relative mx-auto flex max-w-6xl flex-col items-center gap-6 px-4 py-28 text-center">
+          <span className="rounded-full bg-brand px-4 py-1 text-xs font-bold uppercase tracking-wide">
+            {t.hero.kicker}
+          </span>
+          <h1 className="text-6xl font-extrabold leading-none drop-shadow md:text-8xl">
+            {t.hero.line1}
+            <br />
+            {t.hero.line2}
+          </h1>
+          <p className="max-w-md text-lg text-white/85">{t.hero.subtitle}</p>
           <Link
             to="/shop"
-            className="rounded-full bg-brand px-8 py-3 font-semibold text-white shadow-lg transition hover:bg-brand-dark"
+            className="rounded-full bg-white px-8 py-3 font-bold text-ink shadow-lg transition hover:bg-brand hover:text-white"
           >
-            {t.hero.cta}
+            {t.hero.cta} →
           </Link>
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-4 py-16">
-        <div className="mb-8 flex items-center justify-between">
-          <h2 className="text-2xl font-extrabold text-brand-dark">{t.shop.featured}</h2>
-          <Link to="/shop" className="text-sm font-semibold text-brand hover:underline">
-            {t.shop.viewAll} →
+      {/* Summer offers banner */}
+      <section className="mx-auto max-w-6xl px-4 py-8">
+        <Link
+          to="/shop"
+          className="flex flex-col items-center justify-between gap-3 rounded-3xl bg-gradient-to-br from-brand to-brand-dark p-8 text-white md:flex-row"
+        >
+          <div className="text-center md:text-start">
+            <p className="text-xs font-semibold uppercase tracking-wide text-white/80">{t.offer.badge}</p>
+            <h2 className="mt-1 text-3xl font-extrabold md:text-4xl">{t.offer.title}</h2>
+          </div>
+          <span className="font-bold underline underline-offset-4">{t.offer.cta} →</span>
+        </Link>
+      </section>
+
+      {/* Category tiles */}
+      <section className="mx-auto max-w-6xl px-4 py-6">
+        <div className="grid gap-4">
+          {cats.map((c) => (
+            <Link
+              key={c.id}
+              to={c.to}
+              className="group relative flex h-40 items-center overflow-hidden rounded-3xl p-6 text-white md:h-48"
+              style={{ background: `linear-gradient(90deg, ${c.from}, ${c.via})` }}
+            >
+              <span className="absolute bottom-4 start-4 flex h-10 w-10 items-center justify-center rounded-full bg-brand text-white transition group-hover:scale-110">
+                ↗
+              </span>
+              <div className="ms-auto text-end">
+                <p className="text-sm tracking-widest text-white/70">{c.k}</p>
+                <h3 className="text-4xl font-extrabold md:text-5xl">{c.t}</h3>
+              </div>
+            </Link>
+          ))}
+          {/* Outlet — discount tile */}
+          <Link
+            to="/shop"
+            className="group relative flex h-40 items-center overflow-hidden rounded-3xl bg-ink-soft p-6 text-white md:h-48"
+          >
+            <span className="absolute bottom-4 start-4 flex h-10 w-10 items-center justify-center rounded-full bg-brand transition group-hover:scale-110">↗</span>
+            <div className="ms-auto text-end">
+              <span className="inline-block rounded-full bg-brand px-3 py-1 text-xs font-bold">{t.cats.discount}</span>
+              <h3 className="mt-2 text-4xl font-extrabold md:text-5xl">{t.cats.outlet.t}</h3>
+            </div>
           </Link>
+        </div>
+      </section>
+
+      {/* Services row */}
+      <section className="mx-auto max-w-6xl px-4 py-8">
+        <div className="grid gap-4 sm:grid-cols-2">
+          {[t.services.returns, t.services.delivery].map((s, i) => (
+            <div key={i} className="flex flex-col items-center gap-2 rounded-2xl border border-black/10 bg-sand-light p-6 text-center">
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand/15 text-xl text-brand">
+                {i === 0 ? '↺' : '🚚'}
+              </span>
+              <p className="font-bold text-slate-900">{s.t}</p>
+              <p className="text-sm text-slate-500">{s.s}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Essentials */}
+      <section className="mx-auto max-w-6xl px-4 py-10">
+        <div className="mb-6 text-center">
+          <p className="text-xs font-semibold uppercase tracking-widest text-brand">{t.ess.kicker}</p>
+          <h2 className="text-3xl font-extrabold text-slate-900">{t.ess.title}</h2>
         </div>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           {featured.map((p) => (

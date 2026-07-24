@@ -2,11 +2,11 @@
  * HSL triplets so they work with hsl(var(--token)) and Tailwind color slots.
  * (In the real shadcn project these mirror --primary/--accent etc.) */
 :root {
-  /* Sporta brand — orange on black (from @sporta.kw) */
-  --brand: #f26522;
+  /* Sporta live-site palette — burnt orange on charcoal + warm beige */
+  --brand: #e0561c;
 
-  /* Primary — Sporta orange. White foreground for buttons. */
-  --primary: 20 89% 54%;
+  /* Primary — Sporta burnt orange. White foreground for buttons. */
+  --primary: 18 78% 49%;
   --primary-foreground: 0 0% 100%;
 
   /* Accent — indigo (admin only). */

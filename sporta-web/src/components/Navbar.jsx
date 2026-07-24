@@ -13,19 +13,46 @@ export default function Navbar() {
   ]
 
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-100 bg-white/90 backdrop-blur">
+    <header className="sticky top-0 z-30 border-b border-white/10 bg-ink/95 text-white backdrop-blur">
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        <NavLink to="/" className="text-2xl font-extrabold text-brand">
-          {t.hero.title}
+        {/* language toggle (left) */}
+        <button
+          onClick={toggle}
+          className="flex items-center gap-1 rounded-full border border-white/20 px-3 py-1 text-xs font-semibold text-white/90 hover:border-brand hover:text-brand"
+        >
+          🌐 {lang === 'en' ? 'AR' : 'EN'}
+        </button>
+
+        {/* logo (center) */}
+        <NavLink to="/" className="text-2xl font-extrabold tracking-tight">
+          <span className="text-brand">.</span>SPORTA
         </NavLink>
-        <ul className="hidden gap-6 md:flex">
+
+        {/* actions (right) */}
+        <div className="flex items-center gap-4">
+          <Link to="/cart" className="relative" aria-label={t.nav.cart}>
+            <span className="text-xl">🛍️</span>
+            {count > 0 && (
+              <span className="absolute -end-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-white">
+                {count}
+              </span>
+            )}
+          </Link>
+          <span className="hidden text-xl sm:inline" aria-hidden>🤍</span>
+          <span className="text-xl" aria-hidden>🔍</span>
+        </div>
+      </nav>
+
+      {/* secondary nav row */}
+      <div className="border-t border-white/5">
+        <ul className="mx-auto flex max-w-6xl items-center justify-center gap-6 px-4 py-2 text-sm font-semibold">
           {links.map((l) => (
             <li key={l.to}>
               <NavLink
                 to={l.to}
                 end={l.to === '/'}
                 className={({ isActive }) =>
-                  `text-sm font-semibold transition hover:text-brand ${isActive ? 'text-brand' : 'text-slate-600'}`
+                  `transition hover:text-brand ${isActive ? 'text-brand' : 'text-white/80'}`
                 }
               >
                 {l.label}
@@ -33,23 +60,7 @@ export default function Navbar() {
             </li>
           ))}
         </ul>
-        <div className="flex items-center gap-3">
-          <Link to="/cart" className="relative rounded-full p-2 text-slate-600 hover:text-brand" aria-label={t.nav.cart}>
-            <span className="text-xl">🛒</span>
-            {count > 0 && (
-              <span className="absolute -end-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1 text-xs font-bold text-white">
-                {count}
-              </span>
-            )}
-          </Link>
-          <button
-            onClick={toggle}
-            className="rounded-full border border-brand px-3 py-1 text-sm font-semibold text-brand transition hover:bg-brand hover:text-white"
-          >
-            {lang === 'en' ? 'العربية' : 'English'}
-          </button>
-        </div>
-      </nav>
+      </div>
     </header>
   )
 }

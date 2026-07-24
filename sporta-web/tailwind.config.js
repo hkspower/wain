@@ -4,15 +4,21 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Sporta brand — orange on black (from @sporta.kw).
+        // Sporta live-site palette (sporta.com.kw): burnt orange on charcoal,
+        // warm beige content sections.
         brand: {
-          DEFAULT: '#F26522', // Sporta orange
-          dark: '#C24E12',
-          light: '#FFF1E8',
+          DEFAULT: '#E0561C', // burnt orange
+          dark: '#B8430F',
+          light: '#F7E9DF',
         },
         ink: {
-          DEFAULT: '#0d0d0d', // near-black brand base
-          soft: '#1a1a1a',
+          DEFAULT: '#171A1E', // charcoal
+          soft: '#20252C',
+          card: '#1B2026',
+        },
+        sand: {
+          DEFAULT: '#E2DBCE', // warm beige
+          light: '#ECE6DB',
         },
       },
       fontFamily: {

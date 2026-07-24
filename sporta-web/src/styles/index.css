@@ -13,7 +13,8 @@ html {
 }
 
 body {
-  @apply bg-white text-slate-800 antialiased;
+  /* Warm beige canvas like the live site; dark header/hero/footer sections. */
+  @apply bg-sand text-slate-900 antialiased;
 }
 
 /* Small RTL niceties */
