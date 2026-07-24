@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>النوخذة — Al-Nokhatha | Almuhallab Unified MCP System</title>
-  <meta name="description" content="النوخذة — نظام موحد يجمع كل أدوات MCP في مكان واحد، مع تسجيل واشتراك شهري لعملاء المهلب." />
+  <meta name="description" content="النوخذة — نظام موحد يجمع صافي (SAFI) وتقارير XBRL ونظام التوصيل في مكان واحد، مع تسجيل واشتراك شهري لعملاء المهلب." />
   <style>
     :root {
       --bg: #0b1220;
@@ -152,10 +152,11 @@
     <section class="page" id="page-home">
       <div class="hero">
         <span class="kicker">⚓ نظام واحد… كل الأدوات</span>
-        <h1>النوخذة يقود كل أدواتك<br /><span class="en">One captain. Every MCP. One system.</span></h1>
+        <h1>النوخذة يقود كل خدماتك<br /><span class="en">One captain. Every service. One system.</span></h1>
         <p>
-          نظام النوخذة من المهلب يجمع كل خوادم MCP — GitHub، Figma، n8n، Lovable، QuickBooks
-          وغيرها — في وحدة واحدة موحدة. سجّل حسابك، اختر باقتك الشهرية، وابدأ.
+          نظام النوخذة من المهلب يجمع خدماتك في وحدة واحدة — صافي (SAFI) لمتابعة المحافظ،
+          تقارير XBRL المالية، ونظام التوصيل — بنظام واحد واشتراك شهري واحد.
+          سجّل حسابك، اختر باقتك، وابدأ.
         </p>
         <div class="actions">
           <a class="btn primary" href="#/register">أنشئ حسابك مجاناً</a>
@@ -164,8 +165,8 @@
         </div>
       </div>
 
-      <h2 class="section">الأدوات المتصلة — MCP Fleet</h2>
-      <p class="sub">كل خادم MCP يظهر كوحدة واحدة داخل النظام. الباقة تحدد ما يُفتح لك.</p>
+      <h2 class="section">الخدمات المتصلة — Service Fleet</h2>
+      <p class="sub">كل خدمة تظهر كوحدة واحدة داخل النظام. الباقة تحدد ما يُفتح لك.</p>
       <div class="grid" id="mcp-grid-home"></div>
     </section>
 
@@ -221,12 +222,12 @@
         <a class="btn outline" href="#/pricing" style="margin-inline-start:auto">ترقية الباقة</a>
       </div>
       <div class="stat-row">
-        <div class="stat"><div class="n" id="stat-total">0</div><div class="l">إجمالي أدوات MCP</div></div>
+        <div class="stat"><div class="n" id="stat-total">0</div><div class="l">إجمالي الخدمات</div></div>
         <div class="stat"><div class="n" id="stat-open">0</div><div class="l">مفتوحة لباقتك</div></div>
         <div class="stat"><div class="n" id="stat-renew">—</div><div class="l">تاريخ التجديد</div></div>
       </div>
-      <h2 class="section">وحدة النوخذة — MCP Units</h2>
-      <p class="sub">كل الخوادم في نظام واحد. الأدوات المقفلة تفتح بترقية الاشتراك.</p>
+      <h2 class="section">وحدات النوخذة — Service Units</h2>
+      <p class="sub">كل الخدمات في نظام واحد. الوحدات المقفلة تفتح بترقية الاشتراك.</p>
       <div class="grid" id="mcp-grid-dash"></div>
     </section>
   </main>
@@ -234,7 +235,7 @@
   <div class="toast" id="toast"></div>
 
   <footer>
-    النوخذة — نظام المهلب الموحد لأدوات MCP · Almuhallab Al-Nokhatha Unified MCP System<br />
+    النوخذة — نظام المهلب الموحد للخدمات · Almuhallab Al-Nokhatha Unified Services System<br />
     صُنع في الكويت 🇰🇼
   </footer>
 
@@ -245,20 +246,18 @@
       var USERS_KEY = "nokhatha-users-v1";
       var SESSION_KEY = "nokhatha-session-v1";
 
-      // The MCP fleet — one unified unit. minPlan gates access per subscription tier.
+      // The service fleet — one unified unit. minPlan gates access per subscription tier.
       var MCPS = [
-        { id: "github",     icon: "🐙", name: "GitHub MCP",     desc: "المستودعات، الفروع، طلبات الدمج، والـ CI — كلها من مكان واحد.", minPlan: 0 },
-        { id: "editor",     icon: "💻", name: "Almuhallab Editor", desc: "محرر الأكواد بالمتصفح مع معاينة مباشرة HTML/CSS/JS.", minPlan: 0 },
-        { id: "n8n",        icon: "🔁", name: "n8n MCP",        desc: "أتمتة سير العمل: بناء وتشغيل ونشر الـ workflows.", minPlan: 1 },
-        { id: "figma",      icon: "🎨", name: "Figma MCP",      desc: "من التصميم إلى الكود وبالعكس — ملفات فيقما مباشرة.", minPlan: 1 },
-        { id: "lovable",    icon: "🧡", name: "Lovable MCP",    desc: "بناء تطبيقات كاملة بالذكاء الاصطناعي مع معاينة حية.", minPlan: 2 },
-        { id: "quickbooks", icon: "📒", name: "QuickBooks MCP", desc: "الفواتير، العملاء، الرواتب، والتقارير المالية.", minPlan: 2 }
+        { id: "safi",     icon: "📊", name: "صافي — SAFI",          desc: "متابعة المحافظ والأرصدة وكشوفات المساهمين — ربط مباشر بحسابك في نظام صافي.", minPlan: 0 },
+        { id: "delivery", icon: "🛵", name: "التوصيل — Delivery",    desc: "نظام توصيل متكامل: إنشاء الطلبات، تتبّع المندوبين مباشرة، وإشعارات للعميل.", minPlan: 0 },
+        { id: "xbrl",     icon: "🧾", name: "XBRL — التقارير المالية", desc: "إعداد وتدقيق وتقديم القوائم المالية بصيغة XBRL وفق متطلبات هيئة أسواق المال.", minPlan: 1 },
+        { id: "editor",   icon: "💻", name: "Almuhallab Editor",     desc: "محرر الأكواد بالمتصفح مع معاينة مباشرة HTML/CSS/JS.", minPlan: 1 }
       ];
 
       var PLANS = [
-        { id: 0, name: "بحّار — Free",    price: "0",  features: ["أداتا MCP أساسيتان", "محرر الأكواد", "مستخدم واحد"] },
-        { id: 1, name: "قبطان — Pro",     price: "9",  features: ["٤ أدوات MCP", "أتمتة n8n + فيقما", "دعم بالبريد"], featured: true },
-        { id: 2, name: "نوخذة — Fleet",   price: "19", features: ["كل أدوات MCP (٦)", "Lovable + QuickBooks", "دعم أولوية"] }
+        { id: 0, name: "بحّار — Basic",  price: "0",  features: ["صافي: متابعة المحفظة", "التوصيل: ٥٠ طلب شهرياً", "مستخدم واحد"] },
+        { id: 1, name: "قبطان — Pro",    price: "15", features: ["كل خدمات النظام", "XBRL: إيداع ربع سنوي", "توصيل غير محدود", "دعم بالبريد"], featured: true },
+        { id: 2, name: "نوخذة — Fleet",  price: "39", features: ["كل خدمات النظام", "XBRL: إيداعات غير محدودة + تدقيق", "فروع ومناديب متعددون", "دعم أولوية"] }
       ];
 
       /* ---------- storage ---------- */
