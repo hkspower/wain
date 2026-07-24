@@ -20,7 +20,7 @@ export default function Shop() {
   )
 
   return (
-    <section className="mx-auto max-w-6xl px-4 py-12">
+    <section className="mx-auto max-w-7xl px-4 py-12">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-900">{t.nav.shop}</h1>

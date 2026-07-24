@@ -24,11 +24,11 @@ export default function Home() {
               'radial-gradient(1200px 500px at 50% 120%, #E0561C 0%, #B8430F 30%, #171A1E 70%)',
           }}
         />
-        <div className="relative mx-auto flex max-w-6xl flex-col items-center gap-6 px-4 py-28 text-center">
+        <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-6 px-4 py-28 2xl:py-40 text-center">
           <span className="rounded-full bg-brand px-4 py-1 text-xs font-bold uppercase tracking-wide">
             {t.hero.kicker}
           </span>
-          <h1 className="text-6xl font-extrabold leading-none drop-shadow md:text-8xl">
+          <h1 className="text-6xl font-extrabold leading-none drop-shadow md:text-8xl 2xl:text-9xl">
             {t.hero.line1}
             <br />
             {t.hero.line2}
@@ -44,7 +44,7 @@ export default function Home() {
       </section>
 
       {/* Summer offers banner */}
-      <section className="mx-auto max-w-6xl px-4 py-8">
+      <section className="mx-auto max-w-7xl px-4 py-8">
         <Link
           to="/shop"
           className="flex flex-col items-center justify-between gap-3 rounded-3xl bg-gradient-to-br from-brand to-brand-dark p-8 text-white md:flex-row"
@@ -58,7 +58,7 @@ export default function Home() {
       </section>
 
       {/* Category tiles */}
-      <section className="mx-auto max-w-6xl px-4 py-6">
+      <section className="mx-auto max-w-7xl px-4 py-6">
         <div className="grid gap-4">
           {cats.map((c) => (
             <Link
@@ -91,7 +91,7 @@ export default function Home() {
       </section>
 
       {/* Services row */}
-      <section className="mx-auto max-w-6xl px-4 py-8">
+      <section className="mx-auto max-w-7xl px-4 py-8">
         <div className="grid gap-4 sm:grid-cols-2">
           {[t.services.returns, t.services.delivery].map((s, i) => (
             <div key={i} className="flex flex-col items-center gap-2 rounded-2xl border border-black/10 bg-sand-light p-6 text-center">
@@ -106,7 +106,7 @@ export default function Home() {
       </section>
 
       {/* Essentials */}
-      <section className="mx-auto max-w-6xl px-4 py-10">
+      <section className="mx-auto max-w-7xl px-4 py-10">
         <div className="mb-6 text-center">
           <p className="text-xs font-semibold uppercase tracking-widest text-brand">{t.ess.kicker}</p>
           <h2 className="text-3xl font-extrabold text-slate-900">{t.ess.title}</h2>

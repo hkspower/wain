@@ -6,7 +6,7 @@ export default function Footer() {
   const L = t.footer.links
   return (
     <footer className="mt-16 bg-ink text-slate-300">
-      <div className="mx-auto max-w-6xl px-6 py-14">
+      <div className="mx-auto max-w-7xl px-6 py-14">
         {/* Brand + tagline + socials */}
         <div className="flex flex-col items-center gap-5 text-center">
           <img src="/logo-white.png" alt="Sporta Sports Wear" width="200" height="62" loading="lazy" className="h-12 w-auto" />

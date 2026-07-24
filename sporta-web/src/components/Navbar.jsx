@@ -21,7 +21,7 @@ export default function Navbar() {
       <p className="bg-brand px-4 py-1.5 text-center text-xs font-semibold text-white">
         {t.ann}
       </p>
-      <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+      <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
         {/* language toggle (left) */}
         <button
           onClick={toggle}
@@ -59,7 +59,7 @@ export default function Navbar() {
 
       {/* secondary nav row */}
       <div className="border-t border-white/5">
-        <ul className="mx-auto flex max-w-6xl items-center justify-center gap-6 px-4 py-2 text-sm font-semibold">
+        <ul className="mx-auto flex max-w-7xl items-center justify-center gap-6 px-4 py-2 text-sm font-semibold">
           {links.map((l) => (
             <li key={l.to}>
               <NavLink
