@@ -36,12 +36,15 @@ active). Either SQL inserts, or the admin once product-management is built. Remo
 the placeholder list in `src/lib/products.js` once Supabase is the source (the
 loader already prefers Supabase and falls back to static).
 
-## 4. CBK payment endpoints (⚠️ CBK values)
-- Upload `sporta-web/dropin/php-cbk/` to `public_html/pay/` on Hostinger.
-- `cp config.example.php config.php`; fill `test_base`/`production_base`,
-  `client_id`, `client_secret`, `encrp_key`, and the Supabase url + service key.
-- Keep `env: 'test'` first. Register `…/pay/callback.php` with CBK; give them your
-  server static IP if they IP-filter.
+## 4. KNET payment endpoints (⚠️ Tranportal values)
+You have Tranportal credentials → use the classic KNET (KPG) module.
+- Upload `sporta-web/dropin/php-knet/` to `public_html/knet/` on Hostinger.
+- `cp config.example.php config.php`; fill `tranportal_id`, `tranportal_password`,
+  `resource_key`, and the Supabase url + service key. Keep `env: 'test'`
+  (uses kpaytest.com.kw) first.
+- Register `…/knet/callback.php` with your bank as the response/error URL.
+- Set `VITE_PAY_BASE_URL=https://www.sporta.com.kw/knet` in `.env`.
+- (The `php-cbk/` REST-JSON module does NOT apply to you — ignore or delete it.)
 
 ## 5. Deploy to Hostinger
 ```bash
