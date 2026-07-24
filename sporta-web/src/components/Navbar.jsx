@@ -30,9 +30,9 @@ export default function Navbar() {
           🌐 {lang === 'en' ? 'AR' : 'EN'}
         </button>
 
-        {/* logo (center) */}
-        <NavLink to="/" className="text-2xl font-extrabold tracking-tight">
-          <span className="text-brand">.</span>SPORTA
+        {/* logo (center) — official mark, white variant for dark header */}
+        <NavLink to="/" aria-label="Sporta — home">
+          <img src="/logo-white.png" alt="Sporta Sports Wear" width="132" height="41" className="h-8 w-auto md:h-9" />
         </NavLink>
 
         {/* actions (right) */}

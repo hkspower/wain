@@ -68,10 +68,11 @@ body {
 .btn-primary {
   background: hsl(var(--primary));
   color: hsl(var(--primary-foreground));
+  font-weight: 800;
   box-shadow: 0 8px 20px -8px hsl(var(--primary) / 0.6);
 }
 .btn-primary:hover {
-  background: #b8430f;
+  background: #e26a08;
   box-shadow: 0 12px 26px -8px hsl(var(--primary) / 0.7);
 }
 .btn-light {

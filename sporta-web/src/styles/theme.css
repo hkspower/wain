@@ -3,11 +3,13 @@
  * (In the real shadcn project these mirror --primary/--accent etc.) */
 :root {
   /* Sporta live-site palette — burnt orange on charcoal + warm beige */
-  --brand: #e0561c;
+  --brand: #ff7b17;
 
-  /* Primary — Sporta burnt orange. White foreground for buttons. */
-  --primary: 18 78% 49%;
-  --primary-foreground: 0 0% 100%;
+  /* Primary — official Sporta orange (#FF7B17). Foreground is near-black:
+   * white fails contrast on this bright orange; black-on-orange also matches
+   * the logo's own identity. */
+  --primary: 26 100% 55%;
+  --primary-foreground: 210 13% 10%;
 
   /* Accent — indigo (admin only). */
   --accent: 243 75% 59%;
