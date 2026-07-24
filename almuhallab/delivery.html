@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>التوصيل — Delivery | النوخذة</title>
+  <style>
+    :root {
+      --bg:#0b1220; --panel:#111a2b; --panel-2:#0e1626; --border:#223049;
+      --text:#e6edf6; --muted:#8aa0bd; --tint:#4db3a8; --tint-strong:#217972;
+      --sand:#e3a556; --danger:#e5686f; --good:#5fc98e; --blue:#6ea8f7;
+      --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Kufi Arabic",sans-serif;
+      --mono:ui-monospace,Menlo,Consolas,monospace;
+    }
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh}
+    a{color:var(--tint);text-decoration:none}
+    header{display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+    .brand{font-weight:800;display:flex;align-items:center;gap:10px}
+    .logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--sand),var(--tint-strong));display:grid;place-items:center}
+    header a.back{margin-inline-start:auto;font-size:13px;font-weight:600}
+    main{max-width:1040px;margin:0 auto;padding:26px 18px 60px}
+    h2{font-size:19px;margin:26px 0 12px}
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+    .stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:13px 15px}
+    .stat .n{font-size:23px;font-weight:800;font-variant-numeric:tabular-nums}
+    .stat .l{font-size:12px;color:var(--muted);font-weight:600}
+    form{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:end}
+    label{font-size:12px;font-weight:700;color:var(--muted);display:flex;flex-direction:column;gap:5px}
+    input,select{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px 11px;font-size:14px;font-family:var(--sans);outline:none;width:100%}
+    input:focus,select:focus{border-color:var(--tint)}
+    .btn{font-size:13.5px;font-weight:700;border-radius:9px;padding:10px 16px;cursor:pointer;border:1px solid var(--border);background:var(--panel-2);color:var(--text);font-family:var(--sans)}
+    .btn.primary{background:var(--tint-strong);border-color:transparent;color:#fff}
+    .btn.small{padding:5px 10px;font-size:12px}
+    .btn.danger{color:var(--danger)}
+    .btn:hover{opacity:.88}
+    .filters{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+    .filters .btn.active{border-color:var(--tint);color:var(--tint)}
+    .orders{display:flex;flex-direction:column;gap:12px}
+    .order{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+    .order .id{font-family:var(--mono);font-size:12px;color:var(--muted)}
+    .order .who{flex:1;min-width:180px}
+    .order .who b{display:block;font-size:15px}
+    .order .who span{font-size:12.5px;color:var(--muted)}
+    .order .amount{font-weight:800;font-variant-numeric:tabular-nums}
+    .status{font-size:12px;font-weight:800;border-radius:999px;padding:4px 12px;border:1px solid}
+    .st-0{color:var(--sand);border-color:var(--sand)}
+    .st-1{color:var(--blue);border-color:var(--blue)}
+    .st-2{color:var(--tint);border-color:var(--tint)}
+    .st-3{color:var(--good);border-color:var(--good)}
+    .st-4{color:var(--danger);border-color:var(--danger)}
+    .empty{padding:26px;text-align:center;color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:14px}
+    .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--tint-strong);color:#fff;padding:9px 18px;border-radius:999px;font-size:13.5px;font-weight:700;opacity:0;pointer-events:none;transition:.2s;z-index:99}
+    .toast.show{opacity:1}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="logo">🛵</span> التوصيل — Delivery</div>
+    <a class="back" href="nokhatha.html#/dashboard">⚓ العودة للنوخذة</a>
+  </header>
+
+  <main>
+    <div class="stats">
+      <div class="stat"><div class="n" id="s-total">0</div><div class="l">إجمالي الطلبات</div></div>
+      <div class="stat"><div class="n" id="s-active">0</div><div class="l">قيد التنفيذ</div></div>
+      <div class="stat"><div class="n" id="s-done">0</div><div class="l">تم التسليم</div></div>
+      <div class="stat"><div class="n" id="s-revenue">0.000</div><div class="l">قيمة الطلبات المسلّمة (د.ك)</div></div>
+    </div>
+
+    <h2>طلب جديد</h2>
+    <form id="form">
+      <label>اسم العميل <input name="customer" required placeholder="أم محمد" /></label>
+      <label>الهاتف <input name="phone" required inputmode="tel" placeholder="9XXXXXXX" /></label>
+      <label>العنوان <input name="address" required placeholder="السالمية، قطعة ٢، شارع ٣" /></label>
+      <label>الطلب <input name="items" required placeholder="مجبوس دجاج ×٢" /></label>
+      <label>المبلغ (د.ك) <input name="amount" type="number" min="0" step="0.050" required placeholder="5.500" /></label>
+      <label>المندوب
+        <select name="courier" id="courier-select"><option value="">— بدون —</option></select>
+      </label>
+      <button class="btn primary" type="submit">إضافة الطلب</button>
+    </form>
+
+    <h2>المناديب</h2>
+    <form id="form-courier" style="grid-template-columns:2fr 1fr auto">
+      <label>اسم المندوب <input name="cname" required placeholder="سالم" /></label>
+      <label>الهاتف <input name="cphone" required inputmode="tel" placeholder="9XXXXXXX" /></label>
+      <button class="btn" type="submit">إضافة مندوب</button>
+    </form>
+    <div id="couriers" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
+
+    <h2>الطلبات</h2>
+    <div class="filters" id="filters"></div>
+    <div class="orders" id="orders"></div>
+    <div class="empty" id="empty">لا توجد طلبات بعد — أضف أول طلب من النموذج أعلاه.</div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    (function () {
+      "use strict";
+      var OK = "nokhatha-delivery-orders-v1", CK = "nokhatha-delivery-couriers-v1";
+      var STATUSES = ["جديد", "قيد التحضير", "في الطريق", "تم التسليم", "ملغي"];
+
+      function read(k){ try { return JSON.parse(localStorage.getItem(k)) || []; } catch (e) { return []; } }
+      function write(k,d){ try { localStorage.setItem(k, JSON.stringify(d)); } catch (e) {} }
+
+      var toastEl = document.getElementById("toast"), tt;
+      function toast(m){ toastEl.textContent=m; toastEl.classList.add("show"); clearTimeout(tt); tt=setTimeout(function(){toastEl.classList.remove("show");},1700); }
+
+      var filter = -1; // -1 = all
+
+      function nextId(orders) {
+        var max = 0;
+        orders.forEach(function (o) { var n = Number(o.id.slice(4)); if (n > max) max = n; });
+        return "ORD-" + String(max + 1).padStart(4, "0");
+      }
+
+      function esc(s){ var d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
+
+      function renderCouriers() {
+        var couriers = read(CK);
+        var sel = document.getElementById("courier-select");
+        var keep = sel.value;
+        sel.innerHTML = '<option value="">— بدون —</option>' + couriers.map(function (c) {
+          return '<option value="' + esc(c.name) + '">' + esc(c.name) + '</option>';
+        }).join("");
+        sel.value = keep;
+        document.getElementById("couriers").innerHTML = couriers.length
+          ? couriers.map(function (c, i) {
+              return '<span class="status st-2">🛵 ' + esc(c.name) + " · " + esc(c.phone) +
+                ' <button class="btn small danger" data-delc="' + i + '" style="margin-inline-start:6px">×</button></span>';
+            }).join("")
+          : '<span style="font-size:13px;color:var(--muted)">لا يوجد مناديب مسجّلون.</span>';
+      }
+
+      function renderOrders() {
+        var orders = read(OK);
+        var shown = filter < 0 ? orders : orders.filter(function (o) { return o.status === filter; });
+        var wrap = document.getElementById("orders");
+        wrap.innerHTML = shown.slice().reverse().map(function (o) {
+          var idx = orders.indexOf(o);
+          var advance = o.status < 3
+            ? '<button class="btn small primary" data-next="' + idx + '">→ ' + STATUSES[o.status + 1] + "</button>" : "";
+          var cancel = o.status < 3 && o.status !== 4
+            ? '<button class="btn small danger" data-cancel="' + idx + '">إلغاء</button>' : "";
+          return '<div class="order">' +
+            '<div class="who"><b>' + esc(o.customer) + ' <span class="id">' + o.id + "</span></b>" +
+            "<span>📞 " + esc(o.phone) + " · 📍 " + esc(o.address) + "</span>" +
+            "<span>🍽 " + esc(o.items) + (o.courier ? " · 🛵 " + esc(o.courier) : "") + "</span></div>" +
+            '<div class="amount">' + Number(o.amount).toFixed(3) + " د.ك</div>" +
+            '<span class="status st-' + o.status + '">' + STATUSES[o.status] + "</span>" +
+            advance + cancel +
+            "</div>";
+        }).join("");
+        document.getElementById("empty").style.display = shown.length ? "none" : "block";
+
+        var active = orders.filter(function (o) { return o.status > 0 && o.status < 3; }).length +
+                     orders.filter(function (o) { return o.status === 0; }).length;
+        var done = orders.filter(function (o) { return o.status === 3; });
+        document.getElementById("s-total").textContent = orders.length;
+        document.getElementById("s-active").textContent = active;
+        document.getElementById("s-done").textContent = done.length;
+        document.getElementById("s-revenue").textContent =
+          done.reduce(function (s, o) { return s + Number(o.amount); }, 0).toFixed(3);
+      }
+
+      function renderFilters() {
+        var el = document.getElementById("filters");
+        var buttons = ['<button class="btn small' + (filter === -1 ? " active" : "") + '" data-filter="-1">الكل</button>'];
+        STATUSES.forEach(function (s, i) {
+          buttons.push('<button class="btn small' + (filter === i ? " active" : "") + '" data-filter="' + i + '">' + s + "</button>");
+        });
+        el.innerHTML = buttons.join("");
+      }
+
+      function renderAll(){ renderCouriers(); renderFilters(); renderOrders(); }
+
+      document.getElementById("form").addEventListener("submit", function (e) {
+        e.preventDefault();
+        var f = e.target;
+        var orders = read(OK);
+        orders.push({
+          id: nextId(orders),
+          customer: f.customer.value.trim(), phone: f.phone.value.trim(),
+          address: f.address.value.trim(), items: f.items.value.trim(),
+          amount: Number(f.amount.value), courier: f.courier.value,
+          status: 0, createdAt: new Date().toISOString()
+        });
+        write(OK, orders); f.reset(); renderOrders();
+        toast("تمت إضافة الطلب ✔");
+      });
+
+      document.getElementById("form-courier").addEventListener("submit", function (e) {
+        e.preventDefault();
+        var f = e.target;
+        var couriers = read(CK);
+        couriers.push({ name: f.cname.value.trim(), phone: f.cphone.value.trim() });
+        write(CK, couriers); f.reset(); renderCouriers();
+        toast("تمت إضافة المندوب");
+      });
+
+      document.getElementById("couriers").addEventListener("click", function (e) {
+        var btn = e.target.closest("button[data-delc]");
+        if (!btn) return;
+        var couriers = read(CK);
+        couriers.splice(Number(btn.getAttribute("data-delc")), 1);
+        write(CK, couriers); renderCouriers();
+      });
+
+      document.getElementById("filters").addEventListener("click", function (e) {
+        var btn = e.target.closest("button[data-filter]");
+        if (!btn) return;
+        filter = Number(btn.getAttribute("data-filter"));
+        renderFilters(); renderOrders();
+      });
+
+      document.getElementById("orders").addEventListener("click", function (e) {
+        var next = e.target.closest("button[data-next]");
+        var cancel = e.target.closest("button[data-cancel]");
+        if (!next && !cancel) return;
+        var orders = read(OK);
+        if (next) {
+          var o = orders[Number(next.getAttribute("data-next"))];
+          o.status += 1;
+          toast(o.id + " → " + STATUSES[o.status]);
+        } else {
+          orders[Number(cancel.getAttribute("data-cancel"))].status = 4;
+          toast("تم إلغاء الطلب");
+        }
+        write(OK, orders); renderOrders();
+      });
+
+      renderAll();
+    })();
+  </script>
+</body>
+</html>

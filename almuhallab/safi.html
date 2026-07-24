@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>صافي — SAFI | النوخذة</title>
+  <style>
+    :root {
+      --bg:#0b1220; --panel:#111a2b; --panel-2:#0e1626; --border:#223049;
+      --text:#e6edf6; --muted:#8aa0bd; --tint:#4db3a8; --tint-strong:#217972;
+      --sand:#e3a556; --danger:#e5686f; --good:#5fc98e;
+      --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Kufi Arabic",sans-serif;
+      --mono:ui-monospace,Menlo,Consolas,monospace;
+    }
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh}
+    a{color:var(--tint);text-decoration:none}
+    header{display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+    .brand{font-weight:800;display:flex;align-items:center;gap:10px}
+    .logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--tint),var(--tint-strong));display:grid;place-items:center}
+    header a.back{margin-inline-start:auto;font-size:13px;font-weight:600}
+    main{max-width:1000px;margin:0 auto;padding:26px 18px 60px}
+    h2{font-size:20px;margin:26px 0 12px}
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+    .stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+    .stat .n{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums}
+    .stat .l{font-size:12px;color:var(--muted);font-weight:600}
+    .n.up{color:var(--good)} .n.down{color:var(--danger)}
+    form{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;align-items:end}
+    label{font-size:12px;font-weight:700;color:var(--muted);display:flex;flex-direction:column;gap:5px}
+    input{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px 11px;font-size:14px;font-family:var(--sans);outline:none;width:100%}
+    input:focus{border-color:var(--tint)}
+    .btn{font-size:13.5px;font-weight:700;border-radius:9px;padding:10px 16px;cursor:pointer;border:1px solid var(--border);background:var(--panel-2);color:var(--text);font-family:var(--sans)}
+    .btn.primary{background:var(--tint-strong);border-color:transparent;color:#fff}
+    .btn.small{padding:5px 10px;font-size:12px}
+    .btn.danger{color:var(--danger)}
+    .btn:hover{opacity:.88}
+    .table-wrap{overflow-x:auto;background:var(--panel);border:1px solid var(--border);border-radius:14px}
+    table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:640px}
+    th,td{padding:11px 14px;text-align:right;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
+    th{color:var(--muted);font-size:12px;background:var(--panel-2)}
+    tr:last-child td{border-bottom:0}
+    td.up{color:var(--good)} td.down{color:var(--danger)}
+    .empty{padding:28px;text-align:center;color:var(--muted);font-size:14px}
+    .actions-row{display:flex;gap:8px;margin:14px 0;flex-wrap:wrap}
+    .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--tint-strong);color:#fff;padding:9px 18px;border-radius:999px;font-size:13.5px;font-weight:700;opacity:0;pointer-events:none;transition:.2s;z-index:99}
+    .toast.show{opacity:1}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="logo">📊</span> صافي — SAFI <span style="font-size:12px;color:var(--muted);font-weight:600">متابعة المحفظة</span></div>
+    <a class="back" href="nokhatha.html#/dashboard">⚓ العودة للنوخذة</a>
+  </header>
+
+  <main>
+    <div class="stats">
+      <div class="stat"><div class="n" id="s-cost">0.000</div><div class="l">إجمالي التكلفة (د.ك)</div></div>
+      <div class="stat"><div class="n" id="s-value">0.000</div><div class="l">القيمة السوقية (د.ك)</div></div>
+      <div class="stat"><div class="n" id="s-pl">0.000</div><div class="l">الربح / الخسارة (د.ك)</div></div>
+      <div class="stat"><div class="n" id="s-count">0</div><div class="l">عدد الأسهم في المحفظة</div></div>
+    </div>
+
+    <h2>إضافة / تحديث سهم</h2>
+    <form id="form">
+      <label>رمز السهم <input name="ticker" required placeholder="مثال: NBK" style="font-family:var(--mono);text-transform:uppercase" /></label>
+      <label>اسم الشركة <input name="name" required placeholder="بنك الكويت الوطني" /></label>
+      <label>الكمية <input name="qty" type="number" min="1" step="1" required placeholder="1000" /></label>
+      <label>متوسط التكلفة (فلس) <input name="cost" type="number" min="0" step="0.1" required placeholder="850" /></label>
+      <label>السعر الحالي (فلس) <input name="price" type="number" min="0" step="0.1" required placeholder="900" /></label>
+      <button class="btn primary" type="submit">حفظ</button>
+    </form>
+
+    <h2>المحفظة</h2>
+    <div class="actions-row">
+      <button class="btn" id="export">⬇ تصدير كشف CSV</button>
+      <button class="btn" id="print">🖨 طباعة كشف</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>الرمز</th><th>الشركة</th><th>الكمية</th><th>التكلفة (فلس)</th>
+          <th>السعر (فلس)</th><th>القيمة (د.ك)</th><th>الربح/الخسارة (د.ك)</th><th>%</th><th></th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="empty" id="empty">المحفظة فارغة — أضف أول سهم من النموذج أعلاه.</div>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    (function () {
+      "use strict";
+      var KEY = "nokhatha-safi-v1";
+      function read() { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; } }
+      function write(d) { try { localStorage.setItem(KEY, JSON.stringify(d)); } catch (e) {} }
+
+      var toastEl = document.getElementById("toast"), tt;
+      function toast(m){ toastEl.textContent=m; toastEl.classList.add("show"); clearTimeout(tt); tt=setTimeout(function(){toastEl.classList.remove("show");},1700); }
+
+      // Prices are entered in fils; values reported in KWD (1 KWD = 1000 fils).
+      function kwd(fils){ return fils / 1000; }
+      function fmt(n){ return n.toLocaleString("en-US",{minimumFractionDigits:3,maximumFractionDigits:3}); }
+
+      function render() {
+        var data = read();
+        var rows = document.getElementById("rows");
+        var totalCost = 0, totalValue = 0;
+        rows.innerHTML = data.map(function (h, i) {
+          var cost = kwd(h.qty * h.cost), value = kwd(h.qty * h.price), pl = value - cost;
+          totalCost += cost; totalValue += value;
+          var pct = cost > 0 ? (pl / cost * 100) : 0;
+          var cls = pl > 0 ? "up" : (pl < 0 ? "down" : "");
+          return "<tr>" +
+            '<td style="font-family:var(--mono)">' + h.ticker + "</td>" +
+            "<td>" + h.name + "</td>" +
+            "<td>" + h.qty.toLocaleString() + "</td>" +
+            "<td>" + h.cost + "</td>" +
+            "<td>" + h.price + "</td>" +
+            "<td>" + fmt(value) + "</td>" +
+            '<td class="' + cls + '">' + fmt(pl) + "</td>" +
+            '<td class="' + cls + '">' + pct.toFixed(1) + "%</td>" +
+            '<td><button class="btn small danger" data-del="' + i + '">حذف</button></td>' +
+            "</tr>";
+        }).join("");
+        document.getElementById("empty").style.display = data.length ? "none" : "block";
+        var pl = totalValue - totalCost;
+        document.getElementById("s-cost").textContent = fmt(totalCost);
+        document.getElementById("s-value").textContent = fmt(totalValue);
+        var plEl = document.getElementById("s-pl");
+        plEl.textContent = fmt(pl);
+        plEl.className = "n " + (pl > 0 ? "up" : pl < 0 ? "down" : "");
+        document.getElementById("s-count").textContent = data.length;
+      }
+
+      document.getElementById("form").addEventListener("submit", function (e) {
+        e.preventDefault();
+        var f = e.target;
+        var ticker = f.ticker.value.trim().toUpperCase();
+        var data = read();
+        var existing = data.findIndex(function (h) { return h.ticker === ticker; });
+        var entry = {
+          ticker: ticker, name: f.name.value.trim(),
+          qty: Number(f.qty.value), cost: Number(f.cost.value), price: Number(f.price.value)
+        };
+        if (existing >= 0) { data[existing] = entry; toast("تم تحديث " + ticker); }
+        else { data.push(entry); toast("تمت إضافة " + ticker); }
+        write(data); f.reset(); render();
+      });
+
+      document.getElementById("rows").addEventListener("click", function (e) {
+        var btn = e.target.closest("button[data-del]");
+        if (!btn) return;
+        var data = read();
+        var removed = data.splice(Number(btn.getAttribute("data-del")), 1);
+        write(data); render();
+        toast("تم حذف " + (removed[0] ? removed[0].ticker : ""));
+      });
+
+      document.getElementById("export").addEventListener("click", function () {
+        var data = read();
+        var lines = ["Ticker,Company,Qty,AvgCostFils,PriceFils,ValueKWD,PLKWD"];
+        data.forEach(function (h) {
+          var value = kwd(h.qty * h.price), pl = value - kwd(h.qty * h.cost);
+          lines.push([h.ticker, '"' + h.name.replace(/"/g, '""') + '"', h.qty, h.cost, h.price, value.toFixed(3), pl.toFixed(3)].join(","));
+        });
+        var blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob); a.download = "safi-statement.csv";
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+        toast("تم تصدير الكشف");
+      });
+
+      document.getElementById("print").addEventListener("click", function () { window.print(); });
+
+      render();
+    })();
+  </script>
+</body>
+</html>
