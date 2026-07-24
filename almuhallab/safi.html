@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'" />
+  <meta name="referrer" content="no-referrer" />
   <title>صافي — SAFI | النوخذة</title>
   <style>
     :root {
@@ -62,8 +64,8 @@
 
     <h2>إضافة / تحديث سهم</h2>
     <form id="form">
-      <label>رمز السهم <input name="ticker" required placeholder="مثال: NBK" style="font-family:var(--mono);text-transform:uppercase" /></label>
-      <label>اسم الشركة <input name="name" required placeholder="بنك الكويت الوطني" /></label>
+      <label>رمز السهم <input name="ticker" required maxlength="12" placeholder="مثال: NBK" style="font-family:var(--mono);text-transform:uppercase" /></label>
+      <label>اسم الشركة <input name="name" required maxlength="80" placeholder="بنك الكويت الوطني" /></label>
       <label>الكمية <input name="qty" type="number" min="1" step="1" required placeholder="1000" /></label>
       <label>متوسط التكلفة (فلس) <input name="cost" type="number" min="0" step="0.1" required placeholder="850" /></label>
       <label>السعر الحالي (فلس) <input name="price" type="number" min="0" step="0.1" required placeholder="900" /></label>
@@ -99,6 +101,11 @@
       var toastEl = document.getElementById("toast"), tt;
       function toast(m){ toastEl.textContent=m; toastEl.classList.add("show"); clearTimeout(tt); tt=setTimeout(function(){toastEl.classList.remove("show");},1700); }
 
+      function esc(s){ var d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
+      // Ticker: uppercase letters/digits/dot only, max 12 chars. Prevents markup smuggling.
+      function cleanTicker(s){ return String(s).toUpperCase().replace(/[^A-Z0-9.]/g,"").slice(0,12); }
+      function cleanNum(v, max){ var n=Number(v); return (isFinite(n)&&n>=0) ? Math.min(n,max) : 0; }
+
       // Prices are entered in fils; values reported in KWD (1 KWD = 1000 fils).
       function kwd(fils){ return fils / 1000; }
       function fmt(n){ return n.toLocaleString("en-US",{minimumFractionDigits:3,maximumFractionDigits:3}); }
@@ -108,13 +115,15 @@
         var rows = document.getElementById("rows");
         var totalCost = 0, totalValue = 0;
         rows.innerHTML = data.map(function (h, i) {
+          // Re-coerce on read: localStorage is user-writable, so treat it as untrusted input.
+          h.qty = Math.floor(cleanNum(h.qty, 1e9)); h.cost = cleanNum(h.cost, 1e7); h.price = cleanNum(h.price, 1e7);
           var cost = kwd(h.qty * h.cost), value = kwd(h.qty * h.price), pl = value - cost;
           totalCost += cost; totalValue += value;
           var pct = cost > 0 ? (pl / cost * 100) : 0;
           var cls = pl > 0 ? "up" : (pl < 0 ? "down" : "");
           return "<tr>" +
-            '<td style="font-family:var(--mono)">' + h.ticker + "</td>" +
-            "<td>" + h.name + "</td>" +
+            '<td style="font-family:var(--mono)">' + esc(h.ticker) + "</td>" +
+            "<td>" + esc(h.name) + "</td>" +
             "<td>" + h.qty.toLocaleString() + "</td>" +
             "<td>" + h.cost + "</td>" +
             "<td>" + h.price + "</td>" +
@@ -137,13 +146,16 @@
       document.getElementById("form").addEventListener("submit", function (e) {
         e.preventDefault();
         var f = e.target;
-        var ticker = f.ticker.value.trim().toUpperCase();
+        var ticker = cleanTicker(f.ticker.value);
+        if (!ticker) { toast("رمز السهم غير صالح — أحرف إنجليزية وأرقام فقط"); return; }
         var data = read();
         var existing = data.findIndex(function (h) { return h.ticker === ticker; });
         var entry = {
-          ticker: ticker, name: f.name.value.trim(),
-          qty: Number(f.qty.value), cost: Number(f.cost.value), price: Number(f.price.value)
+          ticker: ticker, name: f.name.value.trim().slice(0, 80),
+          qty: Math.floor(cleanNum(f.qty.value, 1e9)),
+          cost: cleanNum(f.cost.value, 1e7), price: cleanNum(f.price.value, 1e7)
         };
+        if (entry.qty < 1) { toast("الكمية يجب أن تكون ١ على الأقل"); return; }
         if (existing >= 0) { data[existing] = entry; toast("تم تحديث " + ticker); }
         else { data.push(entry); toast("تمت إضافة " + ticker); }
         write(data); f.reset(); render();
@@ -163,7 +175,9 @@
         var lines = ["Ticker,Company,Qty,AvgCostFils,PriceFils,ValueKWD,PLKWD"];
         data.forEach(function (h) {
           var value = kwd(h.qty * h.price), pl = value - kwd(h.qty * h.cost);
-          lines.push([h.ticker, '"' + h.name.replace(/"/g, '""') + '"', h.qty, h.cost, h.price, value.toFixed(3), pl.toFixed(3)].join(","));
+          // Guard against CSV formula injection: neutralize leading =,+,-,@ in text cells.
+          var name = String(h.name); if (/^[=+\-@]/.test(name)) name = "'" + name;
+          lines.push([cleanTicker(h.ticker), '"' + name.replace(/"/g, '""') + '"', h.qty, h.cost, h.price, value.toFixed(3), pl.toFixed(3)].join(","));
         });
         var blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
         var a = document.createElement("a");

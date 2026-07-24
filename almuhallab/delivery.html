@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'" />
+  <meta name="referrer" content="no-referrer" />
   <title>التوصيل — Delivery | النوخذة</title>
   <style>
     :root {
@@ -69,10 +71,10 @@
 
     <h2>طلب جديد</h2>
     <form id="form">
-      <label>اسم العميل <input name="customer" required placeholder="أم محمد" /></label>
-      <label>الهاتف <input name="phone" required inputmode="tel" placeholder="9XXXXXXX" /></label>
-      <label>العنوان <input name="address" required placeholder="السالمية، قطعة ٢، شارع ٣" /></label>
-      <label>الطلب <input name="items" required placeholder="مجبوس دجاج ×٢" /></label>
+      <label>اسم العميل <input name="customer" required maxlength="80" placeholder="أم محمد" /></label>
+      <label>الهاتف <input name="phone" required maxlength="15" pattern="[0-9+ ]{7,15}" inputmode="tel" placeholder="9XXXXXXX" /></label>
+      <label>العنوان <input name="address" required maxlength="160" placeholder="السالمية، قطعة ٢، شارع ٣" /></label>
+      <label>الطلب <input name="items" required maxlength="160" placeholder="مجبوس دجاج ×٢" /></label>
       <label>المبلغ (د.ك) <input name="amount" type="number" min="0" step="0.050" required placeholder="5.500" /></label>
       <label>المندوب
         <select name="courier" id="courier-select"><option value="">— بدون —</option></select>
@@ -82,8 +84,8 @@
 
     <h2>المناديب</h2>
     <form id="form-courier" style="grid-template-columns:2fr 1fr auto">
-      <label>اسم المندوب <input name="cname" required placeholder="سالم" /></label>
-      <label>الهاتف <input name="cphone" required inputmode="tel" placeholder="9XXXXXXX" /></label>
+      <label>اسم المندوب <input name="cname" required maxlength="80" placeholder="سالم" /></label>
+      <label>الهاتف <input name="cphone" required maxlength="15" pattern="[0-9+ ]{7,15}" inputmode="tel" placeholder="9XXXXXXX" /></label>
       <button class="btn" type="submit">إضافة مندوب</button>
     </form>
     <div id="couriers" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
@@ -184,7 +186,8 @@
           id: nextId(orders),
           customer: f.customer.value.trim(), phone: f.phone.value.trim(),
           address: f.address.value.trim(), items: f.items.value.trim(),
-          amount: Number(f.amount.value), courier: f.courier.value,
+          amount: (function(n){ return (isFinite(n) && n >= 0) ? Math.min(n, 1e6) : 0; })(Number(f.amount.value)),
+          courier: f.courier.value,
           status: 0, createdAt: new Date().toISOString()
         });
         write(OK, orders); f.reset(); renderOrders();

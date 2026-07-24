@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'" />
+  <meta name="referrer" content="no-referrer" />
   <title>XBRL — التقارير المالية | النوخذة</title>
   <style>
     :root {
@@ -55,8 +57,8 @@
       <h2>بيانات المنشأة والفترة</h2>
       <fieldset>
         <legend>المنشأة</legend>
-        <label>اسم الشركة <input name="entity" required placeholder="شركة المهلب القابضة ش.م.ك.ع" /></label>
-        <label>الرقم التعريفي (LEI / سجل تجاري) <input name="lei" required placeholder="مثال: 254900XXXXXXXXXXXX00" style="font-family:var(--mono)" /></label>
+        <label>اسم الشركة <input name="entity" required maxlength="120" placeholder="شركة المهلب القابضة ش.م.ك.ع" /></label>
+        <label>الرقم التعريفي (LEI / سجل تجاري) <input name="lei" required maxlength="40" pattern="[A-Za-z0-9]{4,40}" placeholder="مثال: 254900XXXXXXXXXXXX00" style="font-family:var(--mono)" /></label>
         <label>الفترة المالية
           <select name="period">
             <option value="Q1">الربع الأول (Q1)</option>
@@ -200,7 +202,7 @@
         var xml = buildXbrl();
         var blob = new Blob([xml], { type: "application/xml" });
         var a = document.createElement("a");
-        var name = (form.entity.value.trim() || "report").replace(/\s+/g, "-");
+        var name = (form.entity.value.trim() || "report").replace(/[^\w\u0600-\u06FF-]+/g, "-").slice(0, 60) || "report";
         a.href = URL.createObjectURL(blob);
         a.download = "xbrl-" + name + "-" + form.period.value + "-" + form.periodEnd.value + ".xml";
         document.body.appendChild(a); a.click(); document.body.removeChild(a);

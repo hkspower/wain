@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'" />
+  <meta name="referrer" content="no-referrer" />
   <title>النوخذة — Al-Nokhatha | Almuhallab Unified MCP System</title>
   <meta name="description" content="النوخذة — نظام موحد يجمع صافي (SAFI) وتقارير XBRL ونظام التوصيل في مكان واحد، مع تسجيل واشتراك شهري لعملاء المهلب." />
   <style>
@@ -185,9 +187,9 @@
     <section class="page" id="page-register">
       <h2 class="section" style="text-align:center">إنشاء حساب جديد</h2>
       <form class="auth" id="form-register">
-        <label>الاسم الكامل <input name="name" required autocomplete="name" placeholder="مثال: محمد العلي" /></label>
-        <label>البريد الإلكتروني <input name="email" type="email" required autocomplete="email" placeholder="you@example.com" /></label>
-        <label>كلمة المرور <input name="password" type="password" required minlength="6" autocomplete="new-password" placeholder="٦ أحرف على الأقل" /></label>
+        <label>الاسم الكامل <input name="name" required maxlength="80" autocomplete="name" placeholder="مثال: محمد العلي" /></label>
+        <label>البريد الإلكتروني <input name="email" type="email" required maxlength="254" autocomplete="email" placeholder="you@example.com" /></label>
+        <label>كلمة المرور <input name="password" type="password" required minlength="8" maxlength="128" autocomplete="new-password" placeholder="٨ أحرف على الأقل" /></label>
         <p class="error" id="register-error"></p>
         <button class="btn primary" type="submit">إنشاء الحساب</button>
         <p class="form-note">لديك حساب؟ <a href="#/login">سجّل الدخول</a> — تُحفظ الحسابات في متصفحك فقط (نسخة تجريبية).</p>
@@ -198,8 +200,8 @@
     <section class="page" id="page-login">
       <h2 class="section" style="text-align:center">تسجيل الدخول</h2>
       <form class="auth" id="form-login">
-        <label>البريد الإلكتروني <input name="email" type="email" required autocomplete="email" /></label>
-        <label>كلمة المرور <input name="password" type="password" required autocomplete="current-password" /></label>
+        <label>البريد الإلكتروني <input name="email" type="email" required maxlength="254" autocomplete="email" /></label>
+        <label>كلمة المرور <input name="password" type="password" required maxlength="128" autocomplete="current-password" /></label>
         <p class="error" id="login-error"></p>
         <button class="btn primary" type="submit">دخول</button>
         <p class="form-note">ما عندك حساب؟ <a href="#/register">سجّل الآن</a></p>
@@ -264,9 +266,16 @@
       /* ---------- storage ---------- */
       function readUsers() { try { return JSON.parse(localStorage.getItem(USERS_KEY)) || {}; } catch (e) { return {}; } }
       function writeUsers(u) { try { localStorage.setItem(USERS_KEY, JSON.stringify(u)); } catch (e) {} }
-      function session() { try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch (e) { return null; } }
+      var SESSION_TTL = 24 * 60 * 60 * 1000; // sessions expire after 24h
+      function session() {
+        try {
+          var s = JSON.parse(localStorage.getItem(SESSION_KEY));
+          if (!s || !s.exp || Date.now() > s.exp) { localStorage.removeItem(SESSION_KEY); return null; }
+          return s;
+        } catch (e) { return null; }
+      }
       function setSession(email) {
-        if (email) localStorage.setItem(SESSION_KEY, JSON.stringify({ email: email }));
+        if (email) localStorage.setItem(SESSION_KEY, JSON.stringify({ email: email, exp: Date.now() + SESSION_TTL }));
         else localStorage.removeItem(SESSION_KEY);
       }
       function currentUser() {
@@ -274,13 +283,66 @@
         if (!s) return null;
         return readUsers()[s.email] || null;
       }
-      // Demo only — NOT real password security. A production system must hash
-      // server-side (bcrypt/argon2); this exists so the prototype has no plaintext.
-      function obscure(pw) {
+
+      /* ---- password hashing: PBKDF2-SHA256 via Web Crypto, per-user random salt.
+         Client-side only (this is a local prototype); production must also hash
+         server-side (bcrypt/argon2) over TLS. ---- */
+      var PBKDF2_ITER = 310000;
+      function bufToHex(buf) {
+        return Array.prototype.map.call(new Uint8Array(buf), function (b) {
+          return ("0" + b.toString(16)).slice(-2);
+        }).join("");
+      }
+      function hashPassword(password, saltHex) {
+        var salt = new Uint8Array(saltHex.match(/.{2}/g).map(function (h) { return parseInt(h, 16); }));
+        return crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"])
+          .then(function (key) {
+            return crypto.subtle.deriveBits(
+              { name: "PBKDF2", salt: salt, iterations: PBKDF2_ITER, hash: "SHA-256" }, key, 256);
+          })
+          .then(bufToHex);
+      }
+      function newSalt() {
+        var s = new Uint8Array(16);
+        crypto.getRandomValues(s);
+        return bufToHex(s.buffer);
+      }
+      // Constant-time-ish comparison (avoids early-exit timing differences).
+      function safeEqual(a, b) {
+        if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+        var diff = 0;
+        for (var i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+        return diff === 0;
+      }
+      // Legacy weak hash from the first prototype — kept ONLY to verify+upgrade old accounts.
+      function legacyObscure(pw) {
         var h = 0;
         for (var i = 0; i < pw.length; i++) { h = ((h << 5) - h + pw.charCodeAt(i)) | 0; }
         return "d" + h;
       }
+
+      /* ---- login throttling: 5 failures locks the account for 5 minutes ---- */
+      var LOCK_KEY = "nokhatha-lock-v1", LOCK_MAX = 5, LOCK_MS = 5 * 60 * 1000;
+      function readLocks() { try { return JSON.parse(localStorage.getItem(LOCK_KEY)) || {}; } catch (e) { return {}; } }
+      function writeLocks(l) { try { localStorage.setItem(LOCK_KEY, JSON.stringify(l)); } catch (e) {} }
+      function lockCheck(email) {
+        var l = readLocks()[email];
+        if (l && l.until && Date.now() < l.until) return Math.ceil((l.until - Date.now()) / 60000);
+        return 0;
+      }
+      function lockFail(email) {
+        var locks = readLocks();
+        var l = locks[email] || { n: 0, until: 0 };
+        l.n += 1;
+        if (l.n >= LOCK_MAX) { l.until = Date.now() + LOCK_MS; l.n = 0; }
+        locks[email] = l; writeLocks(locks);
+      }
+      function lockClear(email) {
+        var locks = readLocks();
+        delete locks[email]; writeLocks(locks);
+      }
+
+      var EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
 
       /* ---------- ui helpers ---------- */
       var toastEl = document.getElementById("toast"), toastTimer;
@@ -373,29 +435,70 @@
         e.preventDefault();
         var f = e.target, err = document.getElementById("register-error");
         var email = f.email.value.trim().toLowerCase();
+        var password = f.password.value;
+        if (!EMAIL_RE.test(email)) { err.textContent = "صيغة البريد الإلكتروني غير صحيحة."; return; }
+        if (password.length < 8) { err.textContent = "كلمة المرور يجب أن تكون ٨ أحرف على الأقل."; return; }
         var users = readUsers();
         if (users[email]) { err.textContent = "هذا البريد مسجّل من قبل — سجّل الدخول."; return; }
-        users[email] = {
-          name: f.name.value.trim(), email: email,
-          pw: obscure(f.password.value), plan: 0, renewAt: null,
-          createdAt: new Date().toISOString()
-        };
-        writeUsers(users); setSession(email); f.reset(); err.textContent = "";
-        toast("أهلاً بك في النوخذة ⚓");
-        location.hash = "#/dashboard";
+        var salt = newSalt();
+        var name = f.name.value.trim().slice(0, 80);
+        var btn = f.querySelector("button[type=submit]");
+        btn.disabled = true;
+        hashPassword(password, salt).then(function (hash) {
+          users[email] = {
+            name: name, email: email,
+            salt: salt, hash: hash, iter: PBKDF2_ITER,
+            plan: 0, renewAt: null, createdAt: new Date().toISOString()
+          };
+          writeUsers(users); setSession(email); f.reset(); err.textContent = "";
+          toast("أهلاً بك في النوخذة ⚓");
+          location.hash = "#/dashboard";
+        }).catch(function () {
+          err.textContent = "تعذّر إنشاء الحساب — المتصفح لا يدعم التشفير المطلوب.";
+        }).then(function () { btn.disabled = false; });
       });
 
       document.getElementById("form-login").addEventListener("submit", function (e) {
         e.preventDefault();
         var f = e.target, err = document.getElementById("login-error");
         var email = f.email.value.trim().toLowerCase();
-        var user = readUsers()[email];
-        if (!user || user.pw !== obscure(f.password.value)) {
-          err.textContent = "البريد أو كلمة المرور غير صحيحة."; return;
+        var password = f.password.value;
+        var lockedFor = lockCheck(email);
+        if (lockedFor) { err.textContent = "تم إيقاف المحاولات مؤقتاً — حاول بعد " + lockedFor + " دقيقة."; return; }
+        var users = readUsers();
+        var user = users[email];
+        function fail() {
+          lockFail(email);
+          err.textContent = "البريد أو كلمة المرور غير صحيحة.";
         }
-        setSession(email); f.reset(); err.textContent = "";
-        toast("تم تسجيل الدخول");
-        location.hash = "#/dashboard";
+        function succeed() {
+          lockClear(email);
+          setSession(email); f.reset(); err.textContent = "";
+          toast("تم تسجيل الدخول");
+          location.hash = "#/dashboard";
+        }
+        if (!user) { fail(); return; }
+        var btn = f.querySelector("button[type=submit]");
+        btn.disabled = true;
+        var check;
+        if (user.salt && user.hash) {
+          check = hashPassword(password, user.salt).then(function (hash) {
+            return safeEqual(hash, user.hash);
+          });
+        } else if (user.pw) {
+          // Legacy prototype account: verify old hash, then upgrade to PBKDF2 in place.
+          var ok = safeEqual(legacyObscure(password), String(user.pw));
+          check = !ok ? Promise.resolve(false) : hashPassword(password, (user.salt = newSalt())).then(function (hash) {
+            user.hash = hash; user.iter = PBKDF2_ITER; delete user.pw;
+            users[email] = user; writeUsers(users);
+            return true;
+          });
+        } else {
+          check = Promise.resolve(false);
+        }
+        check.then(function (ok) { if (ok) succeed(); else fail(); })
+          .catch(function () { err.textContent = "تعذّر التحقق — المتصفح لا يدعم التشفير المطلوب."; })
+          .then(function () { btn.disabled = false; });
       });
 
       document.getElementById("nav-logout").addEventListener("click", function () {
