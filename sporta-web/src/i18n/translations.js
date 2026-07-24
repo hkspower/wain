@@ -13,6 +13,8 @@ export const translations = {
       returns: 'Free 14-day returns',
     },
     news: { title: 'Join the Sporta club', sub: 'Offers and new drops — straight to WhatsApp.', cta: 'Message us' },
+    cross: { title: 'Complete the look' },
+    nf: { title: 'Page not found', sub: 'The page you are looking for does not exist.', cta: 'Back to home' },
     hero: {
       title: 'Sporta',
       kicker: 'Pro performance',
@@ -104,6 +106,8 @@ export const translations = {
       returns: 'إرجاع مجاني خلال ١٤ يوم',
     },
     news: { title: 'انضم لنادي سبورتا', sub: 'العروض والإصدارات الجديدة — مباشرة على واتساب.', cta: 'راسلنا' },
+    cross: { title: 'أكمل إطلالتك' },
+    nf: { title: 'الصفحة غير موجودة', sub: 'الصفحة التي تبحث عنها غير متوفرة.', cta: 'العودة للرئيسية' },
     hero: {
       title: 'سبورتا',
       kicker: 'أداءُ المحترفين',

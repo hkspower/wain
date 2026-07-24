@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
-import { getProduct } from '../lib/products'
+import { getProduct, PRODUCTS } from '../lib/products'
 import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
 import { usePageMeta, productJsonLd } from '../lib/seo'
+import ProductCard from '../components/ProductCard'
 
 export default function ProductDetail() {
   const { slug } = useParams()
@@ -79,6 +80,16 @@ export default function ProductDetail() {
             <li className="flex items-center gap-3">🔒 {t.trust.pay}</li>
             <li className="flex items-center gap-3">↺ {t.trust.returns}</li>
           </ul>
+        </div>
+      </div>
+
+      {/* Cross-sell — complete the look */}
+      <div className="mt-16">
+        <h2 className="mb-6 text-2xl font-extrabold text-slate-900">{t.cross.title}</h2>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          {PRODUCTS.filter((p) => p.slug !== product.slug).slice(0, 4).map((p) => (
+            <ProductCard key={p.slug} product={p} />
+          ))}
         </div>
       </div>
 

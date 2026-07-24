@@ -40,7 +40,7 @@ export default function ProductCard({ product }) {
         <button
           type="button"
           onClick={(e) => e.preventDefault()}
-          aria-label="Add to wishlist"
+          aria-label="Save to wishlist"
           className="absolute end-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-slate-500 opacity-0 shadow-sm backdrop-blur transition group-hover:opacity-100 hover:text-brand"
         >
           ♡

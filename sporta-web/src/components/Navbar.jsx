@@ -3,11 +3,13 @@ import { NavLink, Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { useCart } from '../lib/cart'
 import SearchOverlay from './SearchOverlay'
+import CartDrawer from './CartDrawer'
 
 export default function Navbar() {
   const { t, lang, toggle } = useLang()
   const { count } = useCart()
   const [searchOpen, setSearchOpen] = useState(false)
+  const [cartOpen, setCartOpen] = useState(false)
   const links = [
     { to: '/', label: t.nav.home },
     { to: '/shop', label: t.nav.shop },
@@ -37,14 +39,14 @@ export default function Navbar() {
 
         {/* actions (right) */}
         <div className="flex items-center gap-4">
-          <Link to="/cart" className="relative" aria-label={t.nav.cart}>
+          <button onClick={() => setCartOpen(true)} className="relative" aria-label={t.nav.cart}>
             <span className="text-xl">🛍️</span>
             {count > 0 && (
               <span className="absolute -end-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-white">
                 {count}
               </span>
             )}
-          </Link>
+          </button>
           <span className="hidden text-xl sm:inline" aria-hidden>🤍</span>
           <button
             onClick={() => setSearchOpen(true)}
@@ -56,6 +58,7 @@ export default function Navbar() {
         </div>
       </nav>
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
 
       {/* secondary nav row */}
       <div className="border-t border-white/5">

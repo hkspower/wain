@@ -13,9 +13,25 @@ const PaymentResult = lazy(() => import('./pages/PaymentResult'))
 const About = lazy(() => import('./pages/About'))
 const Contact = lazy(() => import('./pages/Contact'))
 const AdminApp = lazy(() => import('./admin/AdminApp'))
+const NotFound = lazy(() => import('./pages/NotFound'))
 
 function Loading() {
-  return <div className="flex min-h-[40vh] items-center justify-center text-slate-400">…</div>
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-16" role="status" aria-live="polite" aria-label="Loading">
+      <div className="skeleton mb-6 h-8 w-48 rounded-xl" />
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="card overflow-hidden">
+            <div className="skeleton aspect-square w-full" />
+            <div className="space-y-2 p-4">
+              <div className="skeleton h-4 w-3/4 rounded" />
+              <div className="skeleton h-3 w-1/2 rounded" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export default function App() {
@@ -45,7 +61,7 @@ function PublicSite() {
           <Route path="/payment/result" element={<PaymentResult />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
-          <Route path="*" element={<Home />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
       <Footer />
