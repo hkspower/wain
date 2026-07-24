@@ -4,6 +4,7 @@ import { useLang } from '../i18n/LanguageContext'
 import { getProduct } from '../lib/products'
 import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
+import { usePageMeta, productJsonLd } from '../lib/seo'
 
 export default function ProductDetail() {
   const { slug } = useParams()
@@ -12,6 +13,17 @@ export default function ProductDetail() {
   const navigate = useNavigate()
   const [qty, setQty] = useState(1)
   const product = getProduct(slug)
+
+  usePageMeta(
+    product
+      ? {
+          title: product.name[lang],
+          description: product.desc[lang],
+          path: `/product/${product.slug}`,
+          jsonLd: productJsonLd(product, lang),
+        }
+      : { title: t.shop.notFound, path: '/shop' },
+  )
 
   if (!product) {
     return (

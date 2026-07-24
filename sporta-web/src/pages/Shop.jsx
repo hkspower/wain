@@ -2,10 +2,16 @@ import { useState } from 'react'
 import { useLang } from '../i18n/LanguageContext'
 import { CATEGORIES, byCategory } from '../lib/products'
 import ProductCard from '../components/ProductCard'
+import { usePageMeta } from '../lib/seo'
 
 export default function Shop() {
   const { lang, t } = useLang()
   const [cat, setCat] = useState('all')
+  usePageMeta({
+    title: t.nav.shop,
+    description: 'Shop sports and fitness gear in Kuwait — football, fitness, running, and accessories. Prices in KWD with KNET checkout.',
+    path: '/shop',
+  })
   const products = byCategory(cat)
 
   return (
