@@ -4,6 +4,15 @@ export const translations = {
   en: {
     dir: 'ltr',
     nav: { home: 'Home', shop: 'Shop', about: 'About', contact: 'Contact', cart: 'Bag' },
+    ann: 'Same-day delivery in Kuwait · KNET & cards accepted',
+    search: { placeholder: 'Search products…', empty: 'No products found.', title: 'Search' },
+    sort: { label: 'Sort', newest: 'Newest', priceAsc: 'Price: low → high', priceDesc: 'Price: high → low' },
+    trust: {
+      delivery: 'Same-day delivery in Kuwait',
+      pay: 'Secure checkout — KNET, Visa, Mastercard',
+      returns: 'Free 14-day returns',
+    },
+    news: { title: 'Join the Sporta club', sub: 'Offers and new drops — straight to WhatsApp.', cta: 'Message us' },
     hero: {
       title: 'Sporta',
       kicker: 'Pro performance',
@@ -86,6 +95,15 @@ export const translations = {
   ar: {
     dir: 'rtl',
     nav: { home: 'الرئيسية', shop: 'المتجر', about: 'من نحن', contact: 'اتصل بنا', cart: 'الحقيبة' },
+    ann: 'توصيل في نفس اليوم داخل الكويت · كي نت وجميع البطاقات',
+    search: { placeholder: 'ابحث عن المنتجات…', empty: 'لا توجد منتجات.', title: 'بحث' },
+    sort: { label: 'ترتيب', newest: 'الأحدث', priceAsc: 'السعر: من الأقل', priceDesc: 'السعر: من الأعلى' },
+    trust: {
+      delivery: 'توصيل في نفس اليوم داخل الكويت',
+      pay: 'دفع آمن — كي نت، فيزا، ماستركارد',
+      returns: 'إرجاع مجاني خلال ١٤ يوم',
+    },
+    news: { title: 'انضم لنادي سبورتا', sub: 'العروض والإصدارات الجديدة — مباشرة على واتساب.', cta: 'راسلنا' },
     hero: {
       title: 'سبورتا',
       kicker: 'أداءُ المحترفين',

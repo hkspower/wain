@@ -1,10 +1,13 @@
+import { useState } from 'react'
 import { NavLink, Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { useCart } from '../lib/cart'
+import SearchOverlay from './SearchOverlay'
 
 export default function Navbar() {
   const { t, lang, toggle } = useLang()
   const { count } = useCart()
+  const [searchOpen, setSearchOpen] = useState(false)
   const links = [
     { to: '/', label: t.nav.home },
     { to: '/shop', label: t.nav.shop },
@@ -14,6 +17,10 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-ink/95 text-white backdrop-blur">
+      {/* Announcement bar */}
+      <p className="bg-brand px-4 py-1.5 text-center text-xs font-semibold text-white">
+        {t.ann}
+      </p>
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
         {/* language toggle (left) */}
         <button
@@ -39,9 +46,16 @@ export default function Navbar() {
             )}
           </Link>
           <span className="hidden text-xl sm:inline" aria-hidden>🤍</span>
-          <span className="text-xl" aria-hidden>🔍</span>
+          <button
+            onClick={() => setSearchOpen(true)}
+            aria-label={t.search.title}
+            className="text-xl transition hover:scale-110"
+          >
+            🔍
+          </button>
         </div>
       </nav>
+      <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
 
       {/* secondary nav row */}
       <div className="border-t border-white/5">

@@ -53,30 +53,49 @@ export default function ProductDetail() {
           <p className="mt-3 text-lg text-slate-600">{product.desc[lang]}</p>
           <p className="mt-6 text-2xl font-bold text-brand">{formatKWD(product.price, lang)}</p>
 
-          <div className="mt-6 flex items-center gap-4">
-            <div className="flex items-center rounded-full border border-slate-200">
-              <button className="px-4 py-2 text-lg" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
-              <span className="w-10 text-center font-semibold">{qty}</span>
-              <button className="px-4 py-2 text-lg" onClick={() => setQty((q) => q + 1)}>+</button>
+          <div className="mt-6 flex flex-wrap items-center gap-4">
+            <div className="flex items-center rounded-full border border-slate-300 bg-white">
+              <button className="px-4 py-2 text-lg" aria-label="−" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
+              <span className="w-10 text-center font-semibold" aria-live="polite">{qty}</span>
+              <button className="px-4 py-2 text-lg" aria-label="+" onClick={() => setQty((q) => q + 1)}>+</button>
             </div>
-            <button
-              onClick={() => add(product, qty)}
-              className="rounded-full bg-brand px-6 py-2.5 font-semibold text-white transition hover:bg-brand-dark"
-            >
+            <button onClick={() => add(product, qty)} className="btn btn-primary">
               {t.shop.add}
             </button>
             <button
               onClick={() => {
                 add(product, qty)
-                navigate('/cart')
+                navigate('/checkout')
               }}
-              className="rounded-full border border-brand px-6 py-2.5 font-semibold text-brand transition hover:bg-brand-light"
+              className="btn btn-ghost text-brand"
             >
               {t.shop.buyNow}
             </button>
           </div>
+
+          {/* Trust signals */}
+          <ul className="mt-8 space-y-2 rounded-2xl bg-white p-5 text-sm text-slate-600">
+            <li className="flex items-center gap-3">🚚 {t.trust.delivery}</li>
+            <li className="flex items-center gap-3">🔒 {t.trust.pay}</li>
+            <li className="flex items-center gap-3">↺ {t.trust.returns}</li>
+          </ul>
         </div>
       </div>
+
+      {/* Sticky mobile buy bar */}
+      <div className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 border-t border-black/10 bg-white/95 px-4 py-3 backdrop-blur md:hidden">
+        <span className="text-lg font-extrabold text-brand-dark">{formatKWD(product.price * qty, lang)}</span>
+        <button
+          onClick={() => {
+            add(product, qty)
+            navigate('/checkout')
+          }}
+          className="btn btn-primary flex-1"
+        >
+          {t.shop.buyNow}
+        </button>
+      </div>
+      <div className="h-16 md:hidden" aria-hidden />
     </section>
   )
 }

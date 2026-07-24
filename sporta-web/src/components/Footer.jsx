@@ -55,7 +55,35 @@ export default function Footer() {
           </div>
         </div>
 
-        <p className="mt-12 text-center text-xs text-slate-500">
+        {/* Club / newsletter CTA */}
+        <div className="mt-12 flex flex-col items-center justify-between gap-4 rounded-3xl bg-ink-soft p-8 text-center md:flex-row md:text-start">
+          <div>
+            <h4 className="text-xl font-extrabold text-white">{t.news.title}</h4>
+            <p className="mt-1 text-sm text-slate-400">{t.news.sub}</p>
+          </div>
+          <a
+            href="https://wa.me/96522091914"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary"
+          >
+            {t.news.cta}
+          </a>
+        </div>
+
+        {/* Payment methods */}
+        <div className="mt-8 flex items-center justify-center gap-2">
+          {['KNET', 'VISA', 'Mastercard'].map((p) => (
+            <span
+              key={p}
+              className="rounded-md border border-white/15 px-2.5 py-1 text-[11px] font-bold tracking-wide text-slate-300"
+            >
+              {p}
+            </span>
+          ))}
+        </div>
+
+        <p className="mt-8 text-center text-xs text-slate-500">
           © {new Date().getFullYear()} Sporta — {t.footer.rights} · 30199/2023
         </p>
       </div>

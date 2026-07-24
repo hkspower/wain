@@ -7,24 +7,47 @@ import { usePageMeta } from '../lib/seo'
 export default function Shop() {
   const { lang, t } = useLang()
   const [cat, setCat] = useState('all')
+  const [sort, setSort] = useState('newest')
   usePageMeta({
     title: t.nav.shop,
-    description: 'Shop sports and fitness gear in Kuwait — football, fitness, running, and accessories. Prices in KWD with KNET checkout.',
+    description: 'Shop premium sportswear in Kuwait — activewear, hoodies, caps and accessories. Prices in KWD with KNET checkout.',
     path: '/shop',
   })
   const products = byCategory(cat)
 
+  const sorted = [...products].sort((a, b) =>
+    sort === 'priceAsc' ? a.price - b.price : sort === 'priceDesc' ? b.price - a.price : 0,
+  )
+
   return (
     <section className="mx-auto max-w-6xl px-4 py-12">
-      <h1 className="mb-6 text-3xl font-extrabold text-brand-dark">{t.nav.shop}</h1>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold text-slate-900">{t.nav.shop}</h1>
+          <p className="mt-1 text-sm text-slate-500">{sorted.length} · KWD</p>
+        </div>
+        <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+          {t.sort.label}
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value)}
+            className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-brand"
+          >
+            <option value="newest">{t.sort.newest}</option>
+            <option value="priceAsc">{t.sort.priceAsc}</option>
+            <option value="priceDesc">{t.sort.priceDesc}</option>
+          </select>
+        </label>
+      </div>
 
       <div className="mb-8 flex flex-wrap gap-2">
         {CATEGORIES.map((c) => (
           <button
             key={c.id}
             onClick={() => setCat(c.id)}
+            aria-pressed={cat === c.id}
             className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
-              cat === c.id ? 'bg-brand text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              cat === c.id ? 'bg-brand text-white shadow' : 'bg-white text-slate-600 hover:bg-slate-100'
             }`}
           >
             {c.name[lang]}
@@ -33,7 +56,7 @@ export default function Shop() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-        {products.map((p) => (
+        {sorted.map((p) => (
           <ProductCard key={p.slug} product={p} />
         ))}
       </div>
