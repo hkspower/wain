@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>النوخذة — Al-Nokhatha | Almuhallab Unified MCP System</title>
+  <meta name="description" content="النوخذة — نظام موحد يجمع كل أدوات MCP في مكان واحد، مع تسجيل واشتراك شهري لعملاء المهلب." />
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #111a2b;
+      --panel-2: #0e1626;
+      --border: #223049;
+      --text: #e6edf6;
+      --muted: #8aa0bd;
+      --tint: #4db3a8;
+      --tint-strong: #217972;
+      --sand: #e3a556;
+      --danger: #e5686f;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Kufi Arabic", "Noto Sans Arabic", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      background: var(--bg); color: var(--text);
+      font-family: var(--sans);
+    }
+    a { color: var(--tint); text-decoration: none; }
+
+    header {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 10;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; }
+    .brand .logo {
+      width: 34px; height: 34px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--sand), var(--tint-strong));
+      display: grid; place-items: center; font-size: 17px;
+    }
+    .brand small { display: block; font-weight: 500; color: var(--muted); font-size: 11px; }
+    nav { display: flex; gap: 4px; margin-inline-start: auto; flex-wrap: wrap; }
+    nav a, .btn {
+      font-size: 13.5px; font-weight: 600; color: var(--text);
+      padding: 8px 14px; border-radius: 9px; border: 1px solid transparent;
+      cursor: pointer; background: transparent; font-family: var(--sans);
+    }
+    nav a:hover { background: var(--panel-2); }
+    nav a.active { background: var(--panel-2); border-color: var(--border); color: var(--tint); }
+    .btn.primary { background: var(--tint-strong); color: #fff; }
+    .btn.outline { border-color: var(--border); background: var(--panel-2); }
+    .btn.danger { color: var(--danger); }
+    .btn:hover { opacity: .88; }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+    main { max-width: 1060px; margin: 0 auto; padding: 32px 20px 64px; }
+    .page { display: none; }
+    .page.visible { display: block; }
+
+    /* Hero */
+    .hero { text-align: center; padding: 40px 0 8px; }
+    .hero .kicker {
+      display: inline-block; background: var(--panel-2); border: 1px solid var(--border);
+      color: var(--sand); border-radius: 999px; padding: 6px 16px; font-size: 13px; font-weight: 700;
+    }
+    .hero h1 { font-size: clamp(30px, 6vw, 52px); margin: 18px 0 8px; line-height: 1.2; text-wrap: balance; }
+    .hero h1 .en { color: var(--tint); }
+    .hero p { color: var(--muted); max-width: 620px; margin: 0 auto 24px; font-size: 16px; line-height: 1.8; }
+    .hero .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; margin-top: 28px; }
+    .card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .card h3 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+    .card p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.7; }
+    .chip {
+      font-size: 11px; font-weight: 700; border-radius: 999px; padding: 3px 10px;
+      background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
+      align-self: flex-start;
+    }
+    .chip.on { color: var(--tint); border-color: var(--tint-strong); }
+    .chip.locked { color: var(--sand); }
+
+    h2.section { font-size: 24px; margin: 8px 0 4px; }
+    .sub { color: var(--muted); margin: 0 0 18px; line-height: 1.8; }
+
+    /* Pricing */
+    .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 24px; }
+    .plan { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+    .plan.featured { border-color: var(--tint-strong); box-shadow: 0 0 0 1px var(--tint-strong); }
+    .plan .name { font-weight: 800; font-size: 17px; }
+    .plan .price { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .plan .price small { font-size: 13px; color: var(--muted); font-weight: 600; }
+    .plan ul { margin: 0; padding: 0 18px 0 0; color: var(--muted); font-size: 13.5px; line-height: 2; }
+    html[dir="rtl"] .plan ul { padding: 0 18px 0 0; }
+    .plan .btn { margin-top: auto; text-align: center; }
+
+    /* Forms */
+    form.auth { max-width: 420px; margin: 24px auto 0; background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 26px; display: flex; flex-direction: column; gap: 14px; }
+    label { font-size: 13px; font-weight: 700; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+    input, select {
+      background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px;
+      color: var(--text); padding: 10px 12px; font-size: 14px; font-family: var(--sans); outline: none;
+    }
+    input:focus, select:focus { border-color: var(--tint); }
+    .form-note { font-size: 12.5px; color: var(--muted); line-height: 1.7; margin: 0; }
+    .error { color: var(--danger); font-size: 13px; font-weight: 600; min-height: 18px; margin: 0; }
+
+    /* Dashboard */
+    .dash-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+    .avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, var(--tint), var(--sand)); display: grid; place-items: center; font-weight: 800; color: #0b1220; font-size: 18px; }
+    .plan-badge { background: var(--panel-2); border: 1px solid var(--tint-strong); color: var(--tint); border-radius: 999px; padding: 4px 14px; font-size: 12.5px; font-weight: 700; }
+    .plan-badge.free { border-color: var(--border); color: var(--muted); }
+    .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 18px 0; }
+    .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+    .stat .n { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .stat .l { font-size: 12px; color: var(--muted); font-weight: 600; }
+    .demo-banner {
+      background: #33241222; border: 1px solid var(--sand); color: var(--sand);
+      border-radius: 12px; padding: 12px 16px; font-size: 13.5px; line-height: 1.8; margin-bottom: 20px;
+    }
+    .toast {
+      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--tint-strong); color: #fff; padding: 9px 18px; border-radius: 999px;
+      font-size: 13.5px; font-weight: 700; opacity: 0; pointer-events: none; transition: .2s; z-index: 99;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 24px; border-top: 1px solid var(--border); line-height: 1.9; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="logo">⚓</span>
+      <div>النوخذة <small>Al-Nokhatha — Almuhallab Unified MCP System</small></div>
+    </div>
+    <nav id="nav">
+      <a href="#/" data-route="/">الرئيسية</a>
+      <a href="#/pricing" data-route="/pricing">الاشتراكات</a>
+      <a href="#/dashboard" data-route="/dashboard" id="nav-dash" hidden>لوحة التحكم</a>
+      <a href="#/login" data-route="/login" id="nav-login">تسجيل الدخول</a>
+      <a href="#/register" data-route="/register" id="nav-register" class="btn primary">سجّل الآن</a>
+      <button class="btn danger" id="nav-logout" hidden>خروج</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Home -->
+    <section class="page" id="page-home">
+      <div class="hero">
+        <span class="kicker">⚓ نظام واحد… كل الأدوات</span>
+        <h1>النوخذة يقود كل أدواتك<br /><span class="en">One captain. Every MCP. One system.</span></h1>
+        <p>
+          نظام النوخذة من المهلب يجمع كل خوادم MCP — GitHub، Figma، n8n، Lovable، QuickBooks
+          وغيرها — في وحدة واحدة موحدة. سجّل حسابك، اختر باقتك الشهرية، وابدأ.
+        </p>
+        <div class="actions">
+          <a class="btn primary" href="#/register">أنشئ حسابك مجاناً</a>
+          <a class="btn outline" href="#/pricing">شاهد الباقات</a>
+          <a class="btn outline" href="index.html">محرر الأكواد ↗</a>
+        </div>
+      </div>
+
+      <h2 class="section">الأدوات المتصلة — MCP Fleet</h2>
+      <p class="sub">كل خادم MCP يظهر كوحدة واحدة داخل النظام. الباقة تحدد ما يُفتح لك.</p>
+      <div class="grid" id="mcp-grid-home"></div>
+    </section>
+
+    <!-- Pricing -->
+    <section class="page" id="page-pricing">
+      <h2 class="section">الاشتراك الشهري</h2>
+      <p class="sub">أسعار شهرية بالدينار الكويتي. يمكن الترقية أو الإلغاء في أي وقت.</p>
+      <div class="plans" id="plans"></div>
+      <p class="form-note" style="margin-top:18px">
+        * هذه نسخة تجريبية (Prototype): الدفع الفعلي يتطلب ربط بوابة دفع مثل
+        MyFatoorah أو Tap أو Stripe مع خادم خلفي — انظر ملف README.
+      </p>
+    </section>
+
+    <!-- Register -->
+    <section class="page" id="page-register">
+      <h2 class="section" style="text-align:center">إنشاء حساب جديد</h2>
+      <form class="auth" id="form-register">
+        <label>الاسم الكامل <input name="name" required autocomplete="name" placeholder="مثال: محمد العلي" /></label>
+        <label>البريد الإلكتروني <input name="email" type="email" required autocomplete="email" placeholder="you@example.com" /></label>
+        <label>كلمة المرور <input name="password" type="password" required minlength="6" autocomplete="new-password" placeholder="٦ أحرف على الأقل" /></label>
+        <p class="error" id="register-error"></p>
+        <button class="btn primary" type="submit">إنشاء الحساب</button>
+        <p class="form-note">لديك حساب؟ <a href="#/login">سجّل الدخول</a> — تُحفظ الحسابات في متصفحك فقط (نسخة تجريبية).</p>
+      </form>
+    </section>
+
+    <!-- Login -->
+    <section class="page" id="page-login">
+      <h2 class="section" style="text-align:center">تسجيل الدخول</h2>
+      <form class="auth" id="form-login">
+        <label>البريد الإلكتروني <input name="email" type="email" required autocomplete="email" /></label>
+        <label>كلمة المرور <input name="password" type="password" required autocomplete="current-password" /></label>
+        <p class="error" id="login-error"></p>
+        <button class="btn primary" type="submit">دخول</button>
+        <p class="form-note">ما عندك حساب؟ <a href="#/register">سجّل الآن</a></p>
+      </form>
+    </section>
+
+    <!-- Dashboard -->
+    <section class="page" id="page-dashboard">
+      <div class="demo-banner">
+        ⚠️ <b>نسخة تجريبية:</b> الحسابات والاشتراكات محفوظة في متصفحك فقط. للتشغيل الفعلي
+        (دفع حقيقي + حسابات مشتركة + بوابة MCP)، يلزم خادم خلفي — التفاصيل في README.
+      </div>
+      <div class="dash-head">
+        <div class="avatar" id="dash-avatar">؟</div>
+        <div>
+          <div style="font-weight:800" id="dash-name">—</div>
+          <div style="font-size:12.5px;color:var(--muted)" id="dash-email">—</div>
+        </div>
+        <span class="plan-badge" id="dash-plan">—</span>
+        <a class="btn outline" href="#/pricing" style="margin-inline-start:auto">ترقية الباقة</a>
+      </div>
+      <div class="stat-row">
+        <div class="stat"><div class="n" id="stat-total">0</div><div class="l">إجمالي أدوات MCP</div></div>
+        <div class="stat"><div class="n" id="stat-open">0</div><div class="l">مفتوحة لباقتك</div></div>
+        <div class="stat"><div class="n" id="stat-renew">—</div><div class="l">تاريخ التجديد</div></div>
+      </div>
+      <h2 class="section">وحدة النوخذة — MCP Units</h2>
+      <p class="sub">كل الخوادم في نظام واحد. الأدوات المقفلة تفتح بترقية الاشتراك.</p>
+      <div class="grid" id="mcp-grid-dash"></div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <footer>
+    النوخذة — نظام المهلب الموحد لأدوات MCP · Almuhallab Al-Nokhatha Unified MCP System<br />
+    صُنع في الكويت 🇰🇼
+  </footer>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var USERS_KEY = "nokhatha-users-v1";
+      var SESSION_KEY = "nokhatha-session-v1";
+
+      // The MCP fleet — one unified unit. minPlan gates access per subscription tier.
+      var MCPS = [
+        { id: "github",     icon: "🐙", name: "GitHub MCP",     desc: "المستودعات، الفروع، طلبات الدمج، والـ CI — كلها من مكان واحد.", minPlan: 0 },
+        { id: "editor",     icon: "💻", name: "Almuhallab Editor", desc: "محرر الأكواد بالمتصفح مع معاينة مباشرة HTML/CSS/JS.", minPlan: 0 },
+        { id: "n8n",        icon: "🔁", name: "n8n MCP",        desc: "أتمتة سير العمل: بناء وتشغيل ونشر الـ workflows.", minPlan: 1 },
+        { id: "figma",      icon: "🎨", name: "Figma MCP",      desc: "من التصميم إلى الكود وبالعكس — ملفات فيقما مباشرة.", minPlan: 1 },
+        { id: "lovable",    icon: "🧡", name: "Lovable MCP",    desc: "بناء تطبيقات كاملة بالذكاء الاصطناعي مع معاينة حية.", minPlan: 2 },
+        { id: "quickbooks", icon: "📒", name: "QuickBooks MCP", desc: "الفواتير، العملاء، الرواتب، والتقارير المالية.", minPlan: 2 }
+      ];
+
+      var PLANS = [
+        { id: 0, name: "بحّار — Free",    price: "0",  features: ["أداتا MCP أساسيتان", "محرر الأكواد", "مستخدم واحد"] },
+        { id: 1, name: "قبطان — Pro",     price: "9",  features: ["٤ أدوات MCP", "أتمتة n8n + فيقما", "دعم بالبريد"], featured: true },
+        { id: 2, name: "نوخذة — Fleet",   price: "19", features: ["كل أدوات MCP (٦)", "Lovable + QuickBooks", "دعم أولوية"] }
+      ];
+
+      /* ---------- storage ---------- */
+      function readUsers() { try { return JSON.parse(localStorage.getItem(USERS_KEY)) || {}; } catch (e) { return {}; } }
+      function writeUsers(u) { try { localStorage.setItem(USERS_KEY, JSON.stringify(u)); } catch (e) {} }
+      function session() { try { return JSON.parse(localStorage.getItem(SESSION_KEY)); } catch (e) { return null; } }
+      function setSession(email) {
+        if (email) localStorage.setItem(SESSION_KEY, JSON.stringify({ email: email }));
+        else localStorage.removeItem(SESSION_KEY);
+      }
+      function currentUser() {
+        var s = session();
+        if (!s) return null;
+        return readUsers()[s.email] || null;
+      }
+      // Demo only — NOT real password security. A production system must hash
+      // server-side (bcrypt/argon2); this exists so the prototype has no plaintext.
+      function obscure(pw) {
+        var h = 0;
+        for (var i = 0; i < pw.length; i++) { h = ((h << 5) - h + pw.charCodeAt(i)) | 0; }
+        return "d" + h;
+      }
+
+      /* ---------- ui helpers ---------- */
+      var toastEl = document.getElementById("toast"), toastTimer;
+      function toast(msg) {
+        toastEl.textContent = msg; toastEl.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () { toastEl.classList.remove("show"); }, 1800);
+      }
+
+      function mcpCard(mcp, userPlan, showLock) {
+        var open = userPlan >= mcp.minPlan;
+        var chip = showLock
+          ? (open ? '<span class="chip on">✔ مفعّلة</span>'
+                  : '<span class="chip locked">🔒 تتطلب ' + PLANS[mcp.minPlan].name + '</span>')
+          : '<span class="chip">' + PLANS[mcp.minPlan].name + '+</span>';
+        return '<div class="card"><h3>' + mcp.icon + ' ' + mcp.name + '</h3><p>' + mcp.desc + '</p>' + chip + '</div>';
+      }
+
+      function renderGrids() {
+        var user = currentUser();
+        var plan = user ? user.plan : -1;
+        document.getElementById("mcp-grid-home").innerHTML =
+          MCPS.map(function (m) { return mcpCard(m, plan, false); }).join("");
+        document.getElementById("mcp-grid-dash").innerHTML =
+          MCPS.map(function (m) { return mcpCard(m, plan, true); }).join("");
+      }
+
+      function renderPlans() {
+        var user = currentUser();
+        document.getElementById("plans").innerHTML = PLANS.map(function (p) {
+          var isCurrent = user && user.plan === p.id;
+          var btn = isCurrent
+            ? '<button class="btn outline" disabled>باقتك الحالية</button>'
+            : '<button class="btn primary" data-plan="' + p.id + '">' + (p.id === 0 ? "ابدأ مجاناً" : "اشترك شهرياً") + '</button>';
+          return '<div class="plan' + (p.featured ? " featured" : "") + '">' +
+            '<div class="name">' + p.name + '</div>' +
+            '<div class="price">' + p.price + ' <small>د.ك / شهرياً</small></div>' +
+            '<ul>' + p.features.map(function (f) { return "<li>" + f + "</li>"; }).join("") + '</ul>' +
+            btn + '</div>';
+        }).join("");
+      }
+
+      function renderDashboard() {
+        var user = currentUser();
+        if (!user) return;
+        document.getElementById("dash-name").textContent = user.name;
+        document.getElementById("dash-email").textContent = user.email;
+        document.getElementById("dash-avatar").textContent = (user.name || "؟").trim().charAt(0);
+        var badge = document.getElementById("dash-plan");
+        badge.textContent = PLANS[user.plan].name;
+        badge.classList.toggle("free", user.plan === 0);
+        var openCount = MCPS.filter(function (m) { return user.plan >= m.minPlan; }).length;
+        document.getElementById("stat-total").textContent = MCPS.length;
+        document.getElementById("stat-open").textContent = openCount;
+        document.getElementById("stat-renew").textContent = user.plan > 0 && user.renewAt
+          ? new Date(user.renewAt).toLocaleDateString("ar-KW") : "—";
+      }
+
+      function renderNav() {
+        var logged = !!currentUser();
+        document.getElementById("nav-dash").hidden = !logged;
+        document.getElementById("nav-login").hidden = logged;
+        document.getElementById("nav-register").hidden = logged;
+        document.getElementById("nav-logout").hidden = !logged;
+      }
+
+      /* ---------- router ---------- */
+      var pages = { "/": "page-home", "/pricing": "page-pricing", "/register": "page-register", "/login": "page-login", "/dashboard": "page-dashboard" };
+      function route() {
+        var path = (location.hash || "#/").slice(1);
+        if (!pages[path]) path = "/";
+        if (path === "/dashboard" && !currentUser()) { location.hash = "#/login"; return; }
+        Object.keys(pages).forEach(function (p) {
+          document.getElementById(pages[p]).classList.toggle("visible", p === path);
+        });
+        var links = document.querySelectorAll("nav a[data-route]");
+        for (var i = 0; i < links.length; i++) {
+          links[i].classList.toggle("active", links[i].getAttribute("data-route") === path);
+        }
+        renderNav(); renderGrids(); renderPlans();
+        if (path === "/dashboard") renderDashboard();
+        window.scrollTo(0, 0);
+      }
+      window.addEventListener("hashchange", route);
+
+      /* ---------- auth ---------- */
+      document.getElementById("form-register").addEventListener("submit", function (e) {
+        e.preventDefault();
+        var f = e.target, err = document.getElementById("register-error");
+        var email = f.email.value.trim().toLowerCase();
+        var users = readUsers();
+        if (users[email]) { err.textContent = "هذا البريد مسجّل من قبل — سجّل الدخول."; return; }
+        users[email] = {
+          name: f.name.value.trim(), email: email,
+          pw: obscure(f.password.value), plan: 0, renewAt: null,
+          createdAt: new Date().toISOString()
+        };
+        writeUsers(users); setSession(email); f.reset(); err.textContent = "";
+        toast("أهلاً بك في النوخذة ⚓");
+        location.hash = "#/dashboard";
+      });
+
+      document.getElementById("form-login").addEventListener("submit", function (e) {
+        e.preventDefault();
+        var f = e.target, err = document.getElementById("login-error");
+        var email = f.email.value.trim().toLowerCase();
+        var user = readUsers()[email];
+        if (!user || user.pw !== obscure(f.password.value)) {
+          err.textContent = "البريد أو كلمة المرور غير صحيحة."; return;
+        }
+        setSession(email); f.reset(); err.textContent = "";
+        toast("تم تسجيل الدخول");
+        location.hash = "#/dashboard";
+      });
+
+      document.getElementById("nav-logout").addEventListener("click", function () {
+        setSession(null); toast("تم تسجيل الخروج"); location.hash = "#/";
+      });
+
+      /* ---------- subscribe ---------- */
+      document.getElementById("plans").addEventListener("click", function (e) {
+        var btn = e.target.closest("button[data-plan]");
+        if (!btn) return;
+        var user = currentUser();
+        if (!user) { toast("سجّل حسابك أولاً"); location.hash = "#/register"; return; }
+        var planId = Number(btn.getAttribute("data-plan"));
+        var users = readUsers();
+        var renew = new Date(); renew.setMonth(renew.getMonth() + 1);
+        users[user.email].plan = planId;
+        users[user.email].renewAt = planId > 0 ? renew.toISOString() : null;
+        writeUsers(users);
+        toast(planId > 0 ? "تم الاشتراك في " + PLANS[planId].name + " ✔ (تجريبي)" : "تم التحويل للباقة المجانية");
+        location.hash = "#/dashboard"; route();
+      });
+
+      route();
+    })();
+  </script>
+</body>
+</html>
