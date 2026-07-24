@@ -1,0 +1,19 @@
+# Classic KNET endpoints — HTTPS-only + protect config/lib.
+# Place as /public_html/knet/ so endpoints are:
+#   https://www.sporta.com.kw/knet/pay.php
+#   https://www.sporta.com.kw/knet/callback.php
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} !=on [OR]
+  RewriteCond %{HTTP:X-Forwarded-Proto} =http
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+</IfModule>
+
+<FilesMatch "^(config\.php|config\.example\.php|knet\.php)$">
+  Require all denied
+</FilesMatch>
