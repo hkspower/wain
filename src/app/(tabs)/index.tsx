@@ -93,6 +93,24 @@ export default function HomeScreen() {
             ))}
           </View>
 
+          {/* Nokha1 link */}
+          <Link href="/nokha1" asChild>
+            <Pressable style={({ pressed }) => [styles.stackedCard, pressed && styles.pressed]}>
+              <ThemedView
+                type="backgroundElement"
+                style={[styles.aboutCard, { borderColor: theme.border }]}>
+                <Text style={styles.aboutEmoji}>⚓</Text>
+                <View style={styles.aboutTextWrap}>
+                  <ThemedText type="smallBold">Nokha1 — النوخذة</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    صافي، XBRL، والتوصيل — نظام المهلب الموحد للخدمات.
+                  </ThemedText>
+                </View>
+                <ThemedText themeColor="tint">→</ThemedText>
+              </ThemedView>
+            </Pressable>
+          </Link>
+
           {/* Almuhalla code editor link */}
           <Link href="/almuhalla" asChild>
             <Pressable style={({ pressed }) => [styles.stackedCard, pressed && styles.pressed]}>

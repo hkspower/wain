@@ -19,6 +19,10 @@ export default function RootLayout() {
         <Stack.Screen name="place/[slug]" options={{ title: '' }} />
         <Stack.Screen name="about" options={{ title: 'About Wain' }} />
         <Stack.Screen name="almuhalla" options={{ title: 'Almuhalla — Code Editor' }} />
+        <Stack.Screen name="nokha1/index" options={{ title: 'Nokha1 — النوخذة' }} />
+        <Stack.Screen name="nokha1/safi" options={{ title: 'صافي — SAFI' }} />
+        <Stack.Screen name="nokha1/xbrl" options={{ title: 'XBRL — التقارير المالية' }} />
+        <Stack.Screen name="nokha1/delivery" options={{ title: 'التوصيل — Delivery' }} />
       </Stack>
     </ThemeProvider>
   );
