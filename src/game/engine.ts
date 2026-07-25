@@ -4,6 +4,7 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { Track, ROAD_HALF_WIDTH, LANES } from "./track";
 import { buildWorld, areaAt, WorldHandle } from "./world";
 import { createCar } from "./cars";
@@ -221,10 +222,13 @@ export class GameEngine {
   private composer: EffectComposer;
   private bloomPass: UnrealBloomPass;
   private grainPass: ShaderPass;
+  private fxaaPass: ShaderPass;
   private fpsEma = 60;
   private qualityLocked = false; // user took manual control with G
   private startedAt = 0;
   private moonDir = new THREE.Vector3(-300, 500, 200).normalize();
+  private lightRight = new THREE.Vector3();
+  private lightUp = new THREE.Vector3();
 
   // Scrape/bump sparks
   private sparks: THREE.Points;
@@ -276,27 +280,28 @@ export class GameEngine {
     const moon = this.world.moonLight;
     moon.castShadow = true;
     moon.shadow.mapSize.set(2048, 2048);
-    moon.shadow.camera.left = -80;
-    moon.shadow.camera.right = 80;
-    moon.shadow.camera.top = 80;
-    moon.shadow.camera.bottom = -80;
+    moon.shadow.camera.left = -90;
+    moon.shadow.camera.right = 90;
+    moon.shadow.camera.top = 90;
+    moon.shadow.camera.bottom = -90;
     moon.shadow.camera.near = 50;
-    moon.shadow.camera.far = 900;
-    moon.shadow.bias = -0.0006;
+    moon.shadow.camera.far = 1000;
+    // Acne vs peter-panning: lean on normalBias (surface-slope aware)
+    // rather than a large constant depth bias
+    moon.shadow.bias = -0.0003;
+    moon.shadow.normalBias = 0.05;
     this.scene.add(moon.target);
+    // Basis for texel-snapping the shadow frustum as it follows the car
+    this.lightRight.crossVectors(this.moonDir, new THREE.Vector3(0, 1, 0)).normalize();
+    this.lightUp.crossVectors(this.lightRight, this.moonDir).normalize();
 
     // Bloom makes the night work: lamps, taillights, cat-eyes and the
     // tower spheres all halo. Auto-disabled on weak machines (see loop).
-    // MSAA render target: the renderer's antialias flag doesn't apply to
-    // post-processing buffers, so without this every edge shimmers
-    const bufSize = this.renderer.getDrawingBufferSize(new THREE.Vector2());
-    this.composer = new EffectComposer(
-      this.renderer,
-      new THREE.WebGLRenderTarget(bufSize.x, bufSize.y, {
-        samples: 4,
-        type: THREE.HalfFloatType,
-      })
-    );
+    // NOTE: no multisampled render target here — an MSAA composer buffer
+    // silently breaks the shadow-map pass on some GL stacks (shadows
+    // vanish entirely). Edge smoothing comes from a final FXAA pass,
+    // which leaves shadows alone.
+    this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     this.bloomPass = new UnrealBloomPass(
       new THREE.Vector2(canvas.clientWidth, canvas.clientHeight),
@@ -308,6 +313,9 @@ export class GameEngine {
     this.grainPass = new ShaderPass(VignetteGrainShader);
     this.composer.addPass(this.grainPass);
     this.composer.addPass(new OutputPass());
+    this.fxaaPass = new ShaderPass(FXAAShader);
+    this.composer.addPass(this.fxaaPass);
+    this.updateFxaaResolution();
 
     // Spark pool for scrapes and shunts
     {
@@ -491,18 +499,15 @@ export class GameEngine {
     this.composer.setSize(w, h);
     const buf = this.renderer.getDrawingBufferSize(new THREE.Vector2());
     (this.grainPass.uniforms.uTexel.value as THREE.Vector2).set(1 / buf.x, 1 / buf.y);
+    this.updateFxaaResolution();
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
   }
 
-  /** Re-target the composer's multisample count (0 disables MSAA). */
-  private setMsaa(samples: number): void {
-    for (const rt of [this.composer.renderTarget1, this.composer.renderTarget2]) {
-      if (rt.samples !== samples) {
-        rt.samples = samples;
-        rt.dispose(); // lazily recreated with the new sample count
-      }
-    }
+  private updateFxaaResolution(): void {
+    const buf = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    const res = this.fxaaPass.material.uniforms["resolution"].value as THREE.Vector2;
+    res.set(1 / buf.x, 1 / buf.y);
   }
 
   /** Drop the expensive effects once it's clear the machine can't keep up. */
@@ -512,7 +517,7 @@ export class GameEngine {
     if (this.fpsEma < 32) {
       this.bloomPass.enabled = false;
       this.world.moonLight.castShadow = false;
-      this.setMsaa(0);
+      this.fxaaPass.enabled = false;
       if (this.fpsEma < 18) {
         this.renderer.setPixelRatio(1);
         this.composer.setPixelRatio(1);
@@ -633,7 +638,7 @@ export class GameEngine {
       this.qualityLocked = true;
       this.bloomPass.enabled = !this.bloomPass.enabled;
       this.world.moonLight.castShadow = this.bloomPass.enabled;
-      this.setMsaa(this.bloomPass.enabled ? 4 : 0);
+      this.fxaaPass.enabled = this.bloomPass.enabled;
       this.events.onMessage(
         this.bloomPass.enabled ? "Glow & shadows on ✨" : "Glow & shadows off"
       );
@@ -1132,10 +1137,20 @@ export class GameEngine {
   }
 
   private updateEffects(dt: number): void {
-    // Keep the moon's shadow frustum centred on the player
+    // Keep the moon's shadow frustum centred on the player, snapped to
+    // shadow-map texels — a continuously sliding ortho frustum makes
+    // every shadow edge crawl and flicker at speed
     const moon = this.world.moonLight;
-    moon.position.copy(this.playerMesh.position).addScaledVector(this.moonDir, 400);
-    moon.target.position.copy(this.playerMesh.position);
+    const texel = 180 / 2048; // ortho width / map size
+    const p = this.playerMesh.position;
+    const u = p.dot(this.lightRight);
+    const v = p.dot(this.lightUp);
+    this.v1
+      .copy(p)
+      .addScaledVector(this.lightRight, Math.round(u / texel) * texel - u)
+      .addScaledVector(this.lightUp, Math.round(v / texel) * texel - v);
+    moon.position.copy(this.v1).addScaledVector(this.moonDir, 400);
+    moon.target.position.copy(this.v1);
 
     this.grainPass.uniforms.uTime.value = (performance.now() / 1000) % 100;
 
