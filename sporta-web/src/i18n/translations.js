@@ -14,6 +14,8 @@ export const translations = {
     },
     news: { title: 'Join the Sporta club', sub: 'Offers and new drops — straight to WhatsApp.', cta: 'Message us' },
     cross: { title: 'Complete the look' },
+    size: { label: 'Size', pick: 'Please choose a size', guide: 'Size guide' },
+    wish: { title: 'Wishlist', empty: 'No saved items yet.' },
     nf: { title: 'Page not found', sub: 'The page you are looking for does not exist.', cta: 'Back to home' },
     hero: {
       title: 'Sporta',
@@ -107,6 +109,8 @@ export const translations = {
     },
     news: { title: 'انضم لنادي سبورتا', sub: 'العروض والإصدارات الجديدة — مباشرة على واتساب.', cta: 'راسلنا' },
     cross: { title: 'أكمل إطلالتك' },
+    size: { label: 'المقاس', pick: 'الرجاء اختيار المقاس', guide: 'دليل المقاسات' },
+    wish: { title: 'المفضلة', empty: 'لا توجد منتجات محفوظة بعد.' },
     nf: { title: 'الصفحة غير موجودة', sub: 'الصفحة التي تبحث عنها غير متوفرة.', cta: 'العودة للرئيسية' },
     hero: {
       title: 'سبورتا',

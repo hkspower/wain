@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
-import { getProduct, PRODUCTS } from '../lib/products'
+import { getProduct, PRODUCTS, SIZES_FOR } from '../lib/products'
 import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
 import { usePageMeta, productJsonLd } from '../lib/seo'
@@ -13,7 +13,20 @@ export default function ProductDetail() {
   const { add } = useCart()
   const navigate = useNavigate()
   const [qty, setQty] = useState(1)
+  const [size, setSize] = useState(null)
+  const [sizeErr, setSizeErr] = useState(false)
   const product = getProduct(slug)
+
+  const sizes = product ? SIZES_FOR(product.category) : null
+
+  function handleAdd() {
+    if (sizes && !size) {
+      setSizeErr(true)
+      return false
+    }
+    add(product, qty, size)
+    return true
+  }
 
   usePageMeta(
     product
@@ -54,20 +67,44 @@ export default function ProductDetail() {
           <p className="mt-3 text-lg text-slate-600">{product.desc[lang]}</p>
           <p className="mt-6 text-2xl font-bold text-brand">{formatKWD(product.price, lang)}</p>
 
+          {/* Size selector — required for apparel */}
+          {sizes && (
+            <div className="mt-6">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-sm font-bold text-slate-900">{t.size.label}</span>
+                <span className="text-xs text-slate-400">{t.size.guide}</span>
+              </div>
+              <div className="flex flex-wrap gap-2" role="group" aria-label={t.size.label}>
+                {sizes.map((sz) => (
+                  <button
+                    key={sz}
+                    onClick={() => { setSize(sz); setSizeErr(false) }}
+                    aria-pressed={size === sz}
+                    className={`h-11 min-w-11 rounded-xl border px-4 font-bold transition ${
+                      size === sz
+                        ? 'border-brand bg-brand text-white'
+                        : 'border-black/15 bg-white text-slate-700 hover:border-brand'
+                    }`}
+                  >
+                    {sz}
+                  </button>
+                ))}
+              </div>
+              {sizeErr && <p className="mt-2 text-sm font-semibold text-rose-600">{t.size.pick}</p>}
+            </div>
+          )}
+
           <div className="mt-6 flex flex-wrap items-center gap-4">
             <div className="flex items-center rounded-full border border-slate-300 bg-white">
               <button className="px-4 py-2 text-lg" aria-label="−" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
               <span className="w-10 text-center font-semibold" aria-live="polite">{qty}</span>
               <button className="px-4 py-2 text-lg" aria-label="+" onClick={() => setQty((q) => q + 1)}>+</button>
             </div>
-            <button onClick={() => add(product, qty)} className="btn btn-primary">
+            <button onClick={handleAdd} className="btn btn-primary">
               {t.shop.add}
             </button>
             <button
-              onClick={() => {
-                add(product, qty)
-                navigate('/checkout')
-              }}
+              onClick={() => handleAdd() && navigate('/checkout')}
               className="btn btn-ghost text-brand"
             >
               {t.shop.buyNow}
@@ -97,10 +134,7 @@ export default function ProductDetail() {
       <div className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 border-t border-black/10 bg-white/95 px-4 py-3 backdrop-blur md:hidden">
         <span className="text-lg font-extrabold text-brand-dark">{formatKWD(product.price * qty, lang)}</span>
         <button
-          onClick={() => {
-            add(product, qty)
-            navigate('/checkout')
-          }}
+          onClick={() => handleAdd() && navigate('/checkout')}
           className="btn btn-primary flex-1"
         >
           {t.shop.buyNow}

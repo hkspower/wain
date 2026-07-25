@@ -2,11 +2,13 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { useCart } from '../lib/cart'
+import { useWishlist } from '../lib/wishlist'
 import { formatKWD } from '../lib/format'
 
 export default function ProductCard({ product }) {
   const { lang, t } = useLang()
   const { add } = useCart()
+  const { has, toggle } = useWishlist()
   const [added, setAdded] = useState(false)
 
   function quickAdd(e) {
@@ -39,11 +41,14 @@ export default function ProductCard({ product }) {
         {/* Wishlist */}
         <button
           type="button"
-          onClick={(e) => e.preventDefault()}
+          onClick={(e) => { e.preventDefault(); toggle(product.slug) }}
           aria-label="Save to wishlist"
-          className="absolute end-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-slate-500 opacity-0 shadow-sm backdrop-blur transition group-hover:opacity-100 hover:text-brand"
+          aria-pressed={has(product.slug)}
+          className={`absolute end-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow-sm backdrop-blur transition hover:text-brand ${
+            has(product.slug) ? 'text-brand opacity-100' : 'text-slate-500 opacity-0 group-hover:opacity-100'
+          }`}
         >
-          ♡
+          {has(product.slug) ? '♥' : '♡'}
         </button>
       </Link>
 

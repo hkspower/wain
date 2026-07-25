@@ -4,17 +4,20 @@ import { useLang } from '../i18n/LanguageContext'
 import { useCart } from '../lib/cart'
 import SearchOverlay from './SearchOverlay'
 import CartDrawer from './CartDrawer'
+import { useWishlist } from '../lib/wishlist'
 
 export default function Navbar() {
   const { t, lang, toggle } = useLang()
   const { count } = useCart()
+  const { count: wishCount } = useWishlist()
   const [searchOpen, setSearchOpen] = useState(false)
   const [cartOpen, setCartOpen] = useState(false)
+  // Prefetch route chunks on hover so the next click renders instantly.
   const links = [
     { to: '/', label: t.nav.home },
-    { to: '/shop', label: t.nav.shop },
-    { to: '/about', label: t.nav.about },
-    { to: '/contact', label: t.nav.contact },
+    { to: '/shop', label: t.nav.shop, prefetch: () => import('../pages/Shop') },
+    { to: '/about', label: t.nav.about, prefetch: () => import('../pages/About') },
+    { to: '/contact', label: t.nav.contact, prefetch: () => import('../pages/Contact') },
   ]
 
   return (
@@ -47,7 +50,14 @@ export default function Navbar() {
               </span>
             )}
           </button>
-          <span className="hidden text-xl sm:inline" aria-hidden>🤍</span>
+          <Link to="/wishlist" className="relative hidden text-xl sm:inline" aria-label="Wishlist">
+            🤍
+            {wishCount > 0 && (
+              <span className="absolute -end-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-white">
+                {wishCount}
+              </span>
+            )}
+          </Link>
           <button
             onClick={() => setSearchOpen(true)}
             aria-label={t.search.title}
@@ -68,6 +78,7 @@ export default function Navbar() {
               <NavLink
                 to={l.to}
                 end={l.to === '/'}
+                onMouseEnter={l.prefetch}
                 className={({ isActive }) =>
                   `transition hover:text-brand ${isActive ? 'text-brand' : 'text-white/80'}`
                 }

@@ -60,18 +60,18 @@ export default function CartDrawer({ open, onClose }) {
           <>
             <ul className="flex-1 divide-y divide-black/5 overflow-y-auto px-6">
               {items.map((i) => (
-                <li key={i.slug} className="flex gap-4 py-4">
+                <li key={i.key} className="flex gap-4 py-4">
                   <img src={i.image} alt="" width="72" height="72" className="h-18 w-18 rounded-xl object-cover" />
                   <div className="flex-1">
                     <p className="font-bold text-slate-900">{i.name[lang]}</p>
-                    <p className="mt-0.5 text-sm text-slate-500 tabular-nums">{formatKWD(i.price, lang)}</p>
+                    <p className="mt-0.5 text-sm text-slate-500 tabular-nums">{formatKWD(i.price, lang)}{i.size ? ` · ${i.size}` : ''}</p>
                     <div className="mt-2 flex items-center gap-3">
                       <div className="flex items-center rounded-full border border-black/15 text-slate-900">
-                        <button className="px-3 py-1 text-base font-bold leading-none text-slate-700 hover:text-brand" aria-label="Decrease quantity" onClick={() => setQty(i.slug, i.qty - 1)}>&minus;</button>
+                        <button className="px-3 py-1 text-base font-bold leading-none text-slate-700 hover:text-brand" aria-label="Decrease quantity" onClick={() => setQty(i.key, i.qty - 1)}>&minus;</button>
                         <span className="w-7 text-center text-sm font-bold tabular-nums text-slate-900">{i.qty}</span>
-                        <button className="px-3 py-1 text-base font-bold leading-none text-slate-700 hover:text-brand" aria-label="Increase quantity" onClick={() => setQty(i.slug, i.qty + 1)}>+</button>
+                        <button className="px-3 py-1 text-base font-bold leading-none text-slate-700 hover:text-brand" aria-label="Increase quantity" onClick={() => setQty(i.key, i.qty + 1)}>+</button>
                       </div>
-                      <button onClick={() => remove(i.slug)} className="text-xs font-semibold text-slate-400 hover:text-rose-600">
+                      <button onClick={() => remove(i.key)} className="text-xs font-semibold text-slate-400 hover:text-rose-600">
                         ✕
                       </button>
                     </div>

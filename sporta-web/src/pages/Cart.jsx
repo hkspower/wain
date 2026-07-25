@@ -24,19 +24,19 @@ export default function Cart() {
 
       <div className="space-y-4">
         {items.map((i) => (
-          <div key={i.slug} className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4">
+          <div key={i.key} className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4">
             <img src={i.image} alt={i.name[lang]} width="80" height="80" className="h-20 w-20 rounded-lg object-cover" />
             <div className="flex-1">
               <h3 className="font-bold text-slate-800">{i.name[lang]}</h3>
               <p className="text-sm text-slate-500">{formatKWD(i.price, lang)}</p>
             </div>
             <div className="flex items-center rounded-full border border-slate-200">
-              <button className="px-3 py-1.5" onClick={() => setQty(i.slug, i.qty - 1)}>−</button>
+              <button className="px-3 py-1.5" onClick={() => setQty(i.key, i.qty - 1)}>−</button>
               <span className="w-8 text-center font-semibold">{i.qty}</span>
-              <button className="px-3 py-1.5" onClick={() => setQty(i.slug, i.qty + 1)}>+</button>
+              <button className="px-3 py-1.5" onClick={() => setQty(i.key, i.qty + 1)}>+</button>
             </div>
             <div className="w-24 text-end font-bold text-brand-dark">{formatKWD(i.price * i.qty, lang)}</div>
-            <button onClick={() => remove(i.slug)} className="text-slate-400 hover:text-rose-500" aria-label="Remove">✕</button>
+            <button onClick={() => remove(i.key)} className="text-slate-400 hover:text-rose-500" aria-label="Remove">✕</button>
           </div>
         ))}
       </div>

@@ -68,6 +68,10 @@ export const PRODUCTS = [
     price: 5.5, category: 'accessories', image: ph('Phone Strap', '#F26522', '#C24E12') },
 ]
 
+// Sizes per category — apparel needs a size, accessories don't.
+export const SIZES_FOR = (category) =>
+  ['women', 'men', 'outerwear'].includes(category) ? ['S', 'M', 'L', 'XL'] : null
+
 export const getProduct = (slug) => PRODUCTS.find((p) => p.slug === slug)
 export const byCategory = (cat) =>
   cat === 'all' ? PRODUCTS : PRODUCTS.filter((p) => p.category === cat)
