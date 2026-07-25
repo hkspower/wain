@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { PRODUCTS } from '../lib/products'
 import { formatKWD } from '../lib/format'
+import { IconSearch, IconClose } from './icons'
 
 // Instant product search overlay. Bilingual (matches en + ar names),
 // keyboard accessible: autofocus, Esc to close.
@@ -47,7 +48,7 @@ export default function SearchOverlay({ open, onClose }) {
     >
       <div className="card w-full max-w-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
-          <span aria-hidden>🔍</span>
+          <IconSearch size={20} className="text-slate-400" />
           <input
             ref={inputRef}
             value={q}
@@ -57,7 +58,7 @@ export default function SearchOverlay({ open, onClose }) {
             aria-label={t.search.placeholder}
           />
           <button onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-700">
-            ✕
+            <IconClose size={20} />
           </button>
         </div>
 

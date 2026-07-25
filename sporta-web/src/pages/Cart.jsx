@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
+import { IconPlus, IconMinus, IconClose } from '../components/icons'
 
 export default function Cart() {
   const { lang, t } = useLang()
@@ -31,12 +32,12 @@ export default function Cart() {
               <p className="text-sm text-slate-500">{formatKWD(i.price, lang)}</p>
             </div>
             <div className="flex items-center rounded-full border border-slate-200">
-              <button className="px-3 py-1.5" onClick={() => setQty(i.key, i.qty - 1)}>−</button>
+              <button className="px-3 py-2 text-slate-700 hover:text-brand" aria-label="Decrease quantity" onClick={() => setQty(i.key, i.qty - 1)}><IconMinus size={15} /></button>
               <span className="w-8 text-center font-semibold">{i.qty}</span>
-              <button className="px-3 py-1.5" onClick={() => setQty(i.key, i.qty + 1)}>+</button>
+              <button className="px-3 py-2 text-slate-700 hover:text-brand" aria-label="Increase quantity" onClick={() => setQty(i.key, i.qty + 1)}><IconPlus size={15} /></button>
             </div>
             <div className="w-24 text-end font-bold text-brand-dark">{formatKWD(i.price * i.qty, lang)}</div>
-            <button onClick={() => remove(i.key)} className="text-slate-400 hover:text-rose-500" aria-label="Remove">✕</button>
+            <button onClick={() => remove(i.key)} className="text-slate-400 hover:text-rose-500" aria-label="Remove"><IconClose size={16} /></button>
           </div>
         ))}
       </div>

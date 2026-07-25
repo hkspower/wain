@@ -4,6 +4,7 @@ import { useWishlist } from '../lib/wishlist'
 import { PRODUCTS } from '../lib/products'
 import ProductCard from '../components/ProductCard'
 import { usePageMeta } from '../lib/seo'
+import { IconHeart } from '../components/icons'
 
 export default function Wishlist() {
   const { t } = useLang()
@@ -16,7 +17,7 @@ export default function Wishlist() {
       <h1 className="mb-8 text-3xl font-extrabold text-slate-900">{t.wish.title}</h1>
       {items.length === 0 ? (
         <div className="flex flex-col items-center gap-4 py-20 text-center">
-          <span className="text-5xl" aria-hidden>♡</span>
+          <IconHeart size={56} stroke={1.25} className="text-slate-300" />
           <p className="text-slate-500">{t.wish.empty}</p>
           <Link to="/shop" className="btn btn-primary">{t.shop.backToShop}</Link>
         </div>

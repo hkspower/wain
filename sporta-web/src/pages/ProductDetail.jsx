@@ -7,6 +7,7 @@ import { formatKWD } from '../lib/format'
 import { usePageMeta, productJsonLd } from '../lib/seo'
 import ProductCard from '../components/ProductCard'
 import SizeGuide from '../components/SizeGuide'
+import { IconTruck, IconLock, IconReturn, IconPlus, IconMinus } from '../components/icons'
 
 export default function ProductDetail() {
   const { slug } = useParams()
@@ -98,9 +99,9 @@ export default function ProductDetail() {
 
           <div className="mt-6 flex flex-wrap items-center gap-4">
             <div className="flex items-center rounded-full border border-slate-300 bg-white">
-              <button className="px-4 py-2 text-lg" aria-label="−" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
+              <button className="px-4 py-2.5 text-slate-700 hover:text-brand" aria-label="Decrease quantity" onClick={() => setQty((q) => Math.max(1, q - 1))}><IconMinus size={16} /></button>
               <span className="w-10 text-center font-semibold" aria-live="polite">{qty}</span>
-              <button className="px-4 py-2 text-lg" aria-label="+" onClick={() => setQty((q) => q + 1)}>+</button>
+              <button className="px-4 py-2.5 text-slate-700 hover:text-brand" aria-label="Increase quantity" onClick={() => setQty((q) => q + 1)}><IconPlus size={16} /></button>
             </div>
             <button onClick={handleAdd} className="btn btn-primary">
               {t.shop.add}
@@ -115,9 +116,9 @@ export default function ProductDetail() {
 
           {/* Trust signals */}
           <ul className="mt-8 space-y-2 rounded-2xl bg-white p-5 text-sm text-slate-600">
-            <li className="flex items-center gap-3">🚚 {t.trust.delivery}</li>
-            <li className="flex items-center gap-3">🔒 {t.trust.pay}</li>
-            <li className="flex items-center gap-3">↺ {t.trust.returns}</li>
+            <li className="flex items-center gap-3"><IconTruck size={18} className="text-brand" /> {t.trust.delivery}</li>
+            <li className="flex items-center gap-3"><IconLock size={18} className="text-brand" /> {t.trust.pay}</li>
+            <li className="flex items-center gap-3"><IconReturn size={18} className="text-brand" /> {t.trust.returns}</li>
           </ul>
         </div>
       </div>

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
+import { IconClose, IconPlus, IconMinus, IconBag, IconLock } from './icons'
 
 // Slide-in bag. Lets shoppers review/edit and reach checkout without leaving
 // the page they're browsing — removes a full navigation from the funnel.
@@ -42,15 +43,15 @@ export default function CartDrawer({ open, onClose }) {
       >
         <header className="flex items-center justify-between border-b border-black/10 px-6 py-5">
           <h2 className="text-xl font-extrabold text-slate-900">{t.cart.title}</h2>
-          <button onClick={onClose} aria-label="Close" className="text-2xl leading-none text-slate-400 hover:text-slate-700">
-            ✕
+          <button onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-700">
+            <IconClose size={22} />
           </button>
         </header>
 
         {items.length === 0 ? (
           /* Empty state */
           <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
-            <span className="text-5xl" aria-hidden>🛍️</span>
+            <IconBag size={56} stroke={1.25} className="text-slate-300" />
             <p className="text-slate-500">{t.cart.empty}</p>
             <Link to="/shop" onClick={onClose} className="btn btn-primary">
               {t.shop.backToShop}
@@ -67,12 +68,12 @@ export default function CartDrawer({ open, onClose }) {
                     <p className="mt-0.5 text-sm text-slate-500 tabular-nums">{formatKWD(i.price, lang)}{i.size ? ` · ${i.size}` : ''}</p>
                     <div className="mt-2 flex items-center gap-3">
                       <div className="flex items-center rounded-full border border-black/15 text-slate-900">
-                        <button className="px-3 py-1 text-base font-bold leading-none text-slate-700 hover:text-brand" aria-label="Decrease quantity" onClick={() => setQty(i.key, i.qty - 1)}>&minus;</button>
+                        <button className="px-3 py-1 text-base font-bold leading-none text-slate-700 hover:text-brand" aria-label="Decrease quantity" onClick={() => setQty(i.key, i.qty - 1)}><IconMinus size={15} /></button>
                         <span className="w-7 text-center text-sm font-bold tabular-nums text-slate-900">{i.qty}</span>
-                        <button className="px-3 py-1 text-base font-bold leading-none text-slate-700 hover:text-brand" aria-label="Increase quantity" onClick={() => setQty(i.key, i.qty + 1)}>+</button>
+                        <button className="px-3 py-1 text-base font-bold leading-none text-slate-700 hover:text-brand" aria-label="Increase quantity" onClick={() => setQty(i.key, i.qty + 1)}><IconPlus size={15} /></button>
                       </div>
-                      <button onClick={() => remove(i.key)} className="text-xs font-semibold text-slate-400 hover:text-rose-600">
-                        ✕
+                      <button onClick={() => remove(i.key)} aria-label="Remove" className="text-slate-400 hover:text-rose-600">
+                        <IconClose size={15} />
                       </button>
                     </div>
                   </div>
@@ -86,7 +87,7 @@ export default function CartDrawer({ open, onClose }) {
                 <span>{t.cart.total}</span>
                 <span className="text-brand-dark tabular-nums">{formatKWD(total, lang)}</span>
               </div>
-              <p className="mt-1 text-xs text-slate-500">{t.trust.pay}</p>
+              <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500"><IconLock size={13} /> {t.trust.pay}</p>
               <Link to="/checkout" onClick={onClose} className="btn btn-primary mt-4 w-full">
                 {t.cart.checkout}
               </Link>

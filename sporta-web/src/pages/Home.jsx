@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { PRODUCTS } from '../lib/products'
 import ProductCard from '../components/ProductCard'
+import { IconTruck, IconReturn, IconArrowUpRight, IconArrowRight } from '../components/icons'
 
 export default function Home() {
   const { t } = useLang()
@@ -38,7 +39,7 @@ export default function Home() {
             to="/shop"
             className="btn btn-light"
           >
-            {t.hero.cta} →
+            {t.hero.cta} <IconArrowRight size={16} />
           </Link>
         </div>
       </section>
@@ -53,7 +54,7 @@ export default function Home() {
             <p className="text-xs font-semibold uppercase tracking-wide text-white/80">{t.offer.badge}</p>
             <h2 className="mt-1 text-3xl font-extrabold md:text-4xl">{t.offer.title}</h2>
           </div>
-          <span className="font-bold underline underline-offset-4">{t.offer.cta} →</span>
+          <span className="flex items-center gap-1.5 font-bold underline underline-offset-4">{t.offer.cta} <IconArrowRight size={16} /></span>
         </Link>
       </section>
 
@@ -68,7 +69,7 @@ export default function Home() {
               style={{ background: `linear-gradient(90deg, ${c.from}, ${c.via})` }}
             >
               <span className="absolute bottom-4 start-4 flex h-10 w-10 items-center justify-center rounded-full bg-brand text-white transition group-hover:scale-110">
-                ↗
+                <IconArrowUpRight size={18} />
               </span>
               <div className="ms-auto text-end">
                 <p className="text-sm tracking-widest text-white/70">{c.k}</p>
@@ -81,7 +82,7 @@ export default function Home() {
             to="/shop"
             className="group relative flex h-40 items-center overflow-hidden rounded-3xl bg-ink-soft p-6 text-white md:h-48 md:p-8"
           >
-            <span className="absolute bottom-4 start-4 flex h-10 w-10 items-center justify-center rounded-full bg-brand transition group-hover:scale-110">↗</span>
+            <span className="absolute bottom-4 start-4 flex h-10 w-10 items-center justify-center rounded-full bg-brand text-white transition group-hover:scale-110"><IconArrowUpRight size={18} /></span>
             <div className="ms-auto text-end">
               <span className="inline-block rounded-full bg-brand px-3 py-1 text-xs font-bold">{t.cats.discount}</span>
               <h3 className="mt-2 text-4xl font-extrabold md:text-5xl">{t.cats.outlet.t}</h3>
@@ -96,7 +97,7 @@ export default function Home() {
           {[t.services.returns, t.services.delivery].map((s, i) => (
             <div key={i} className="flex flex-col items-center gap-2 rounded-3xl border border-black/10 bg-sand-light p-6 text-center md:p-8">
               <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand/15 text-xl text-brand">
-                {i === 0 ? '↺' : '🚚'}
+                {i === 0 ? <IconReturn size={22} /> : <IconTruck size={22} />}
               </span>
               <p className="font-bold text-slate-900">{s.t}</p>
               <p className="text-sm text-slate-500">{s.s}</p>

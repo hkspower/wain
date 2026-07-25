@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useLang } from '../i18n/LanguageContext'
+import { IconClose } from './icons'
 
 // Size guide — sizing doubt is a top cause of hesitation and returns in
 // apparel. Measurements in cm (standard for the Kuwait market).
@@ -37,8 +38,8 @@ export default function SizeGuide({ open, onClose }) {
       <div className="card w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-extrabold text-slate-900">{t.size.guide}</h2>
-          <button onClick={onClose} aria-label="Close" className="text-2xl leading-none text-slate-400 hover:text-slate-700">
-            ✕
+          <button onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-700">
+            <IconClose size={22} />
           </button>
         </div>
         <p className="mb-4 text-sm text-slate-500">{t.size.note}</p>

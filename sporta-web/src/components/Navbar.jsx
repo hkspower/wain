@@ -6,6 +6,7 @@ import SearchOverlay from './SearchOverlay'
 import CartDrawer from './CartDrawer'
 import { useWishlist } from '../lib/wishlist'
 import { useTheme } from '../lib/theme'
+import { IconBag, IconHeart, IconSearch, IconSun, IconMoon, IconGlobe } from './icons'
 
 export default function Navbar() {
   const { t, lang, toggle } = useLang()
@@ -34,7 +35,7 @@ export default function Navbar() {
           onClick={toggle}
           className="flex items-center gap-1 rounded-full border border-white/20 px-3 py-1 text-xs font-semibold text-white/90 hover:border-brand hover:text-brand"
         >
-          🌐 {lang === 'en' ? 'AR' : 'EN'}
+          <IconGlobe size={14} /> {lang === 'en' ? 'AR' : 'EN'}
         </button>
 
         {/* logo (center) — official mark, white variant for dark header */}
@@ -45,15 +46,15 @@ export default function Navbar() {
         {/* actions (right) */}
         <div className="flex items-center gap-4">
           <button onClick={() => setCartOpen(true)} className="relative" aria-label={t.nav.cart}>
-            <span className="text-xl">🛍️</span>
+            <IconBag size={22} />
             {count > 0 && (
               <span className="absolute -end-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-white">
                 {count}
               </span>
             )}
           </button>
-          <Link to="/wishlist" className="relative hidden text-xl sm:inline" aria-label="Wishlist">
-            🤍
+          <Link to="/wishlist" className="relative hidden sm:inline-flex" aria-label="Wishlist">
+            <IconHeart size={22} filled={wishCount > 0} />
             {wishCount > 0 && (
               <span className="absolute -end-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-white">
                 {wishCount}
@@ -63,16 +64,16 @@ export default function Navbar() {
           <button
             onClick={toggleTheme}
             aria-label={theme === 'dark' ? t.theme.light : t.theme.dark}
-            className="text-lg transition hover:scale-110"
+            className="transition hover:scale-110"
           >
-            {theme === 'dark' ? '☀️' : '🌙'}
+            {theme === 'dark' ? <IconSun size={20} /> : <IconMoon size={20} />}
           </button>
           <button
             onClick={() => setSearchOpen(true)}
             aria-label={t.search.title}
-            className="text-xl transition hover:scale-110"
+            className="transition hover:scale-110"
           >
-            🔍
+            <IconSearch size={22} />
           </button>
         </div>
       </nav>

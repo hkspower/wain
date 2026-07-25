@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
+import { IconInstagram, IconTikTok, IconWhatsApp } from './icons'
 
 export default function Footer() {
   const { t } = useLang()
@@ -13,9 +14,9 @@ export default function Footer() {
           <p className="max-w-md text-sm text-slate-400">{t.footer.tagline}</p>
           <div className="flex items-center gap-3">
             {[
-              { href: 'https://www.instagram.com/sporta.kw', label: 'Instagram', icon: '📷' },
-              { href: 'https://www.tiktok.com/@sporta.kw', label: 'TikTok', icon: '🎵' },
-              { href: 'https://wa.me/96522091914', label: 'WhatsApp', icon: '💬' },
+              { href: 'https://www.instagram.com/sporta.kw', label: 'Instagram', Icon: IconInstagram },
+              { href: 'https://www.tiktok.com/@sporta.kw', label: 'TikTok', Icon: IconTikTok },
+              { href: 'https://wa.me/96522091914', label: 'WhatsApp', Icon: IconWhatsApp },
             ].map((s) => (
               <a
                 key={s.label}
@@ -25,7 +26,7 @@ export default function Footer() {
                 aria-label={s.label}
                 className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 transition hover:border-brand hover:text-brand"
               >
-                {s.icon}
+                <s.Icon size={18} />
               </a>
             ))}
           </div>
