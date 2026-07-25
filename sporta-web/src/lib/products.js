@@ -62,6 +62,68 @@ export const PRODUCTS = [
     desc: { en: 'Official-style team snapback cap.', ar: 'كاب فريق بتصميم رسمي.' },
     price: 8.0, category: 'accessories', image: ph('Cap', '#1e3a8a', '#172554') },
   {
+    slug: 'rheo-flex-leggings',
+    name: { en: 'RHEO Flex Leggings', ar: 'ليقنز ريو فليكس' },
+    desc: { en: 'High-waist squat-proof leggings.', ar: 'ليقنز بخصر عالٍ غير شفاف.' },
+    price: 16.0, category: 'women', image: ph('Flex Leggings', '#3f2d1e', '#1a1109') },
+  {
+    slug: 'rheo-sports-bra',
+    name: { en: 'RHEO Sports Bra', ar: 'حمالة رياضية ريو' },
+    desc: { en: 'Medium-support training bra.', ar: 'حمالة تدريب بدعم متوسط.' },
+    price: 10.5, category: 'women', image: ph('Sports Bra', '#7f1d1d', '#450a0a') },
+  {
+    slug: 'rheo-crop-tee',
+    name: { en: 'RHEO Crop Tee', ar: 'تيشيرت كروب ريو' },
+    desc: { en: 'Soft cropped training tee.', ar: 'تيشيرت تدريب قصير وناعم.' },
+    price: 8.5, category: 'women', image: ph('Crop Tee', '#4d7c0f', '#1a2e05') },
+  {
+    slug: 'eyesport-shorts',
+    name: { en: 'Eyesportwear Training Shorts', ar: 'شورت تدريب آي سبورت' },
+    desc: { en: 'Quick-dry 7" training shorts.', ar: 'شورت تدريب سريع الجفاف.' },
+    price: 9.0, category: 'men', image: ph('Shorts', '#171a1e', '#000000') },
+  {
+    slug: 'sporta-joggers',
+    name: { en: 'SPORTA Joggers', ar: 'بنطلون سبورتا جوجر' },
+    desc: { en: 'Tapered fleece joggers.', ar: 'بنطلون رياضي بقصة مضيّقة.' },
+    price: 15.0, category: 'men', image: ph('Joggers', '#1f2937', '#0b1220'),
+    badge: { en: 'New', ar: 'جديد' } },
+  {
+    slug: 'vanquish-long-sleeve',
+    name: { en: 'Vanquish Long Sleeve', ar: 'فانكويش أكمام طويلة' },
+    desc: { en: 'Fitted long-sleeve training top.', ar: 'توب تدريب ضيق بأكمام طويلة.' },
+    price: 13.0, category: 'men', image: ph('Long Sleeve', '#0f172a', '#020617') },
+  {
+    slug: 'sporta-zip-hoodie',
+    name: { en: 'SPORTA Zip Hoodie', ar: 'هودي سبورتا بسحاب' },
+    desc: { en: 'Full-zip brushed-back hoodie.', ar: 'هودي بسحاب كامل ومبطن.' },
+    price: 21.0, category: 'outerwear', image: ph('Zip Hoodie', '#E0561C', '#7c2d12') },
+  {
+    slug: 'ate-windbreaker',
+    name: { en: 'ATE Windbreaker', ar: 'جاكيت ATE ويندبريكر' },
+    desc: { en: 'Water-resistant packable shell.', ar: 'جاكيت خفيف مقاوم للماء.' },
+    price: 24.0, category: 'outerwear', image: ph('Windbreaker', '#334155', '#0f172a') },
+  {
+    slug: 'sporta-gym-bag',
+    name: { en: 'SPORTA Gym Bag', ar: 'حقيبة سبورتا الرياضية' },
+    desc: { en: 'Duffel with shoe compartment.', ar: 'حقيبة رياضية بجيب للأحذية.' },
+    price: 12.0, category: 'accessories', image: ph('Gym Bag', '#0d0d0d', '#3f3f46'),
+    badge: { en: 'Bestseller', ar: 'الأكثر مبيعًا' } },
+  {
+    slug: 'shaker-bottle',
+    name: { en: 'Protein Shaker 700ml', ar: 'شيكر بروتين ٧٠٠ مل' },
+    desc: { en: 'Leak-proof shaker with mixer.', ar: 'شيكر محكم الإغلاق مع خلاط.' },
+    price: 3.5, category: 'accessories', image: ph('Shaker', '#E0561C', '#B8430F') },
+  {
+    slug: 'lifting-straps',
+    name: { en: 'Lifting Straps', ar: 'أحزمة رفع الأثقال' },
+    desc: { en: 'Padded cotton lifting straps.', ar: 'أحزمة رفع قطنية مبطّنة.' },
+    price: 4.5, category: 'accessories', image: ph('Straps', '#292524', '#0c0a09') },
+  {
+    slug: 'sporta-socks-3pack',
+    name: { en: 'SPORTA Socks (3 pack)', ar: 'جوارب سبورتا (٣ أزواج)' },
+    desc: { en: 'Cushioned crew training socks.', ar: 'جوارب تدريب مبطّنة.' },
+    price: 5.0, category: 'accessories', image: ph('Socks', '#1e3a8a', '#0f172a') },
+  {
     slug: 'gymshark-phone-strap',
     name: { en: 'Gymshark Phone Strap', ar: 'حزام جوال جيمشارك' },
     desc: { en: 'Running arm phone strap.', ar: 'حزام ذراع للجوال أثناء الجري.' },
