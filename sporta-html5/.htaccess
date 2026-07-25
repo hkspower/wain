@@ -1,0 +1,41 @@
+# Sporta — Hostinger (Apache) production config: SPA routing + compression + caching.
+
+# ---- Force HTTPS (every visitor uses SSL) ----
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Redirect any http:// request to https:// (handles Hostinger's proxy header too).
+  RewriteCond %{HTTPS} !=on [OR]
+  RewriteCond %{HTTP:X-Forwarded-Proto} =http
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# ---- Compression (Brotli if available, else gzip) ----
+<IfModule mod_brotli.c>
+  AddOutputFilterByType BROTLI_COMPRESS text/html text/plain text/css application/json application/javascript text/javascript image/svg+xml application/xml
+</IfModule>
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css application/json application/javascript text/javascript image/svg+xml application/xml
+</IfModule>
+
+# ---- Caching ----
+<IfModule mod_expires.c>
+  ExpiresActive On
+
+  # Hashed build assets (index-AbC123.js/css) never change → cache 1 year.
+  <FilesMatch "\.(js|css|woff2?|ttf|eot|svg|png|jpe?g|gif|webp|avif|ico)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # HTML must always revalidate so users get new deploys immediately.
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache, must-revalidate"
+    ExpiresByType text/html "access plus 0 seconds"
+  </FilesMatch>
+</IfModule>
+
+# ---- Basic security headers ----
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-Frame-Options "SAMEORIGIN"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
