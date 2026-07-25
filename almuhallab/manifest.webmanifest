@@ -9,16 +9,63 @@
   "orientation": "portrait-primary",
   "dir": "rtl",
   "lang": "ar",
-  "categories": ["business", "finance", "productivity"],
-  "background_color": "#0b1220",
-  "theme_color": "#0b1220",
+  "categories": [
+    "business",
+    "finance",
+    "productivity"
+  ],
+  "background_color": "#f7f3eb",
+  "theme_color": "#f7f3eb",
   "icons": [
-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
   ],
   "shortcuts": [
-    { "name": "صافي — SAFI", "short_name": "صافي", "url": "safi.html", "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }] },
-    { "name": "XBRL — التقارير المالية", "short_name": "XBRL", "url": "xbrl.html", "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }] },
-    { "name": "التوصيل — Delivery", "short_name": "التوصيل", "url": "delivery.html", "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }] }
+    {
+      "name": "صافي — SAFI",
+      "short_name": "صافي",
+      "url": "safi.html",
+      "icons": [
+        {
+          "src": "icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "XBRL — التقارير المالية",
+      "short_name": "XBRL",
+      "url": "xbrl.html",
+      "icons": [
+        {
+          "src": "icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "التوصيل — Delivery",
+      "short_name": "التوصيل",
+      "url": "delivery.html",
+      "icons": [
+        {
+          "src": "icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
   ]
 }

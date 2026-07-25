@@ -6,7 +6,8 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src * 'self' data: blob:; frame-src about: data: blob:; manifest-src 'self'; worker-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'" />
   <meta name="referrer" content="no-referrer" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <meta name="theme-color" content="#0b1220" />
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f7f3eb" />
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b1220" />
   <link rel="icon" type="image/svg+xml" href="icon.svg" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -15,19 +16,43 @@
   <meta name="description" content="Almuhallab Code — a fast, offline, in-browser code editor with live preview for HTML, CSS, and JavaScript." />
   <style>
     :root {
-      --bg: #0b1220;
-      --panel: #1c2b44;
-      --panel-2: #0e1626;
-      --border: #354765; --info: #6ea8f7; --good: #3ddc84; --border-input: #516587; --panel-3: #2b3d5b;
-      --text: #e6edf6;
-      --muted: #93a9c6;
-      --tint: #4db3a8;
-      --tint-strong: #24847a;
-      --sand: #e3a556;
-      --danger: #ff6b74;
+      --bg: #f7f3eb;
+      --panel: #ffffff;
+      --panel-2: #f1ece1;
+      --border: #e3d5bc; --dot-js: #a8891a; --code-dim: #6b7a90; --warn-bg: #fbf0dc; --info: #1860c6; --good: #02733b; --border-input: #92856f; --panel-3: #e9e3d5;
+      --text: #1b2430;
+      --muted: #54657c;
+      --tint: #0d7066;
+      --tint-strong: #0f8075;
+      --sand: #985203; --sand-vivid: #e3a556;
+      --danger: #c51823;
       --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
       --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     }
+    /* Devices set to dark keep the original ink scheme. */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --sand-vivid: #e3a556;
+        --bg: #0b1220;
+        --panel: #1c2b44;
+        --panel-2: #0e1626;
+        --panel-3: #24334b;
+        --border: #354765;
+        --border-input: #516587;
+        --text: #e6edf6;
+        --muted: #93a9c6;
+        --tint: #4db3a8;
+        --tint-strong: #24847a;
+        --sand: #e3a556;
+        --good: #3ddc84;
+        --danger: #ff6b74;
+        --info: #6ea8f7;
+        --warn-bg: #2a1f12;
+        --code-dim: #4a5d78;
+        --dot-js: #d9c34a;
+      }
+    }
+
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; }
     body {
@@ -95,7 +120,7 @@
     .dot { width: 9px; height: 9px; border-radius: 50%; }
     .dot.html { background: var(--sand); }
     .dot.css { background: var(--tint); }
-    .dot.js { background: #d9c34a; }
+    .dot.js { background: var(--dot-js); }
     .pane-head .count { margin-left: auto; font-size: 11px; }
 
     .code-scroll { position: relative; flex: 1; min-height: 0; overflow: auto; background: var(--panel-2); }
@@ -107,7 +132,7 @@
       font-family: var(--mono);
       font-size: 12.5px;
       line-height: 20px;
-      color: #4a5d78;
+      color: var(--code-dim);
       background: var(--panel-2);
       border-right: 1px solid var(--border);
       white-space: pre;
@@ -127,7 +152,7 @@
       overflow: hidden;
       tab-size: 2;
     }
-    textarea::placeholder { color: #4a5d78; }
+    textarea::placeholder { color: var(--code-dim); }
 
     .preview-head {
       display: flex; align-items: center; gap: 8px;
