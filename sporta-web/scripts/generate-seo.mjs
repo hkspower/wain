@@ -13,6 +13,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { sha, hashFiles, resolveLastmod, buildUrlset, buildIndex } from './lib/sitemap.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const html5 = join(root, 'sporta-html5')
@@ -29,60 +30,92 @@ const PRODUCTS = sandbox.window.SPORTA_PRODUCTS
 const CATEGORIES = sandbox.window.SPORTA_CATEGORIES.filter((c) => c.id !== 'all')
 if (!PRODUCTS?.length) throw new Error('catalog not found')
 
-// ---------- sitemap ----------
-const ALTS = (loc) => `
-    <xhtml:link rel="alternate" hreflang="en" href="${loc}" />
-    <xhtml:link rel="alternate" hreflang="ar" href="${loc}" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="${loc}" />`
+// ---------- sitemaps ----------
+// A sitemap index with one child per url class, honest per-url <lastmod>, and
+// nothing Google ignores. See scripts/lib/sitemap.mjs for why priority,
+// changefreq and hreflang are all deliberately absent.
+const NOW = new Date().toISOString()
 
-function urlEntry(loc, { priority, changefreq }) {
-  return `  <url>
-    <loc>${loc}</loc>
-    <lastmod>${TODAY}</lastmod>
-    <changefreq>${changefreq}</changefreq>
-    <priority>${priority}</priority>${ALTS(loc)}
-  </url>`
+// lastmod is only useful if it is accurate, which means it has to survive
+// across runs. This manifest maps url -> {content hash, timestamp}; it is
+// committed so a rebuild on any machine reproduces the same dates.
+const manifestPath = join(web, 'seo-lastmod.json')
+const manifest = existsSync(manifestPath)
+  ? JSON.parse(readFileSync(manifestPath, 'utf8'))
+  : {}
+
+// The catalog file is the source of truth for every product url, so a change
+// to a product's own entry is what should move its lastmod.
+const productHash = (p) => sha(JSON.stringify(p))
+
+// Only urls Googlebot can fetch belong in <image:loc>. The built-in artwork is
+// a data: URI embedded in the page, so today this correctly emits nothing —
+// and starts working by itself once real photo urls land in the catalog.
+const productImages = (p, lang) =>
+  /^https?:\/\//.test(p.image ?? '') ? [{ loc: p.image, title: p.name[lang] }] : []
+
+// Both codebases publish "/" under the same origin, so manifest keys are
+// namespaced by which site produced them — otherwise the two runs would fight
+// over one entry and reset each other's date on every build.
+function pageEntries(site, pages) {
+  return pages.map(([path, sources]) => {
+    const loc = SITE + path
+    return { loc, lastmod: resolveLastmod(manifest, `${site} ${loc}`, hashFiles(sources), NOW) }
+  })
 }
 
-function sitemap(pages, productUrl) {
-  const entries = [
-    ...pages.map(([path, opts]) => urlEntry(SITE + path, opts)),
-    ...PRODUCTS.map((p) =>
-      urlEntry(productUrl(p.slug), { priority: '0.8', changefreq: 'weekly' }),
-    ),
-  ]
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-        xmlns:xhtml="http://www.w3.org/1999/xhtml">
-${entries.join('\n')}
-</urlset>
-`
+function productEntries(site, productUrl, lang) {
+  return PRODUCTS.map((p) => {
+    const loc = productUrl(p.slug)
+    return {
+      loc,
+      lastmod: resolveLastmod(manifest, `${site} ${loc}`, productHash(p), NOW),
+      images: productImages(p, lang),
+    }
+  })
 }
 
+function writeSitemapSet(site, dir, pages, productUrl, lang) {
+  const pageSet = pageEntries(site, pages)
+  const productSet = productEntries(site, productUrl, lang)
+  const newest = (set) => set.reduce((t, e) => (e.lastmod > t ? e.lastmod : t), set[0].lastmod)
+
+  writeFileSync(join(dir, 'sitemap-pages.xml'), buildUrlset(pageSet))
+  writeFileSync(join(dir, 'sitemap-products.xml'), buildUrlset(productSet))
+  writeFileSync(
+    join(dir, 'sitemap.xml'),
+    buildIndex([
+      { loc: `${SITE}/sitemap-pages.xml`, lastmod: newest(pageSet) },
+      { loc: `${SITE}/sitemap-products.xml`, lastmod: newest(productSet) },
+    ]),
+  )
+}
+
+// Each route is hashed from the files that actually decide what it renders,
+// so editing About.jsx moves /about and nothing else.
+const p = (...f) => join(web, 'src', ...f)
+const I18N = p('i18n', 'translations.js')
 const reactPages = [
-  ['/', { priority: '1.0', changefreq: 'daily' }],
-  ['/shop', { priority: '0.9', changefreq: 'daily' }],
-  ['/about', { priority: '0.5', changefreq: 'monthly' }],
-  ['/contact', { priority: '0.5', changefreq: 'monthly' }],
-  ['/track', { priority: '0.4', changefreq: 'monthly' }],
-  ['/returns', { priority: '0.5', changefreq: 'monthly' }],
+  ['/', [p('pages', 'Home.jsx'), I18N]],
+  ['/shop', [p('pages', 'Shop.jsx'), I18N]],
+  ['/about', [p('pages', 'About.jsx'), I18N]],
+  ['/contact', [p('pages', 'Contact.jsx'), I18N]],
+  ['/track', [p('pages', 'TrackOrder.jsx'), I18N]],
+  ['/returns', [p('pages', 'Returns.jsx'), I18N]],
 ]
+const h = (f) => [join(html5, f)]
 const staticPages = [
-  ['/', { priority: '1.0', changefreq: 'daily' }],
-  ['/shop.html', { priority: '0.9', changefreq: 'daily' }],
-  ['/about.html', { priority: '0.5', changefreq: 'monthly' }],
-  ['/contact.html', { priority: '0.5', changefreq: 'monthly' }],
-  ['/returns.html', { priority: '0.5', changefreq: 'monthly' }],
+  ['/', h('index.html')],
+  ['/shop.html', h('shop.html')],
+  ['/about.html', h('about.html')],
+  ['/contact.html', h('contact.html')],
+  ['/returns.html', h('returns.html')],
 ]
 
-writeFileSync(
-  join(web, 'public', 'sitemap.xml'),
-  sitemap(reactPages, (slug) => `${SITE}/product/${slug}`),
-)
-writeFileSync(
-  join(html5, 'sitemap.xml'),
-  sitemap(staticPages, (slug) => `${SITE}/product.html?p=${slug}`),
-)
+writeSitemapSet('web', join(web, 'public'), reactPages, (slug) => `${SITE}/product/${slug}`, 'en')
+writeSitemapSet('html5', html5, staticPages, (slug) => `${SITE}/product.html?p=${slug}`, 'en')
+
+writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
 
 // ---------- llms.txt (GEO — AI answer engines) ----------
 const kwd = (n) => `KWD ${Number(n).toFixed(3)}`

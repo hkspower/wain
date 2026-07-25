@@ -38,6 +38,8 @@
       ".htaccess",
       "robots.txt",
       "sitemap.xml",
+      "sitemap-pages.xml",
+      "sitemap-products.xml",
       "llms.txt"
     ],
     "htaccess": {
