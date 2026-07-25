@@ -30,6 +30,7 @@ const T = {
       aboutH1: 'About Sporta \u2014 sportswear in Kuwait',
       contactH1: 'Contact Sporta Kuwait',
       contactIntro: 'Questions about sizes, delivery in Kuwait or an order? Message us on WhatsApp \u2014 we answer in Arabic and English.',
+      payError: 'We could not start the payment. Please try again, or message us on WhatsApp.',
       add: 'Add', cart: 'Your bag', empty: 'Your bag is empty.', total: 'Total',
       checkout: 'Checkout', back: 'Back to shop', shop: 'Shop', size: 'Size',
       trust: { d: 'Same-day delivery in Kuwait', p: 'Secure checkout — KNET, Visa, Mastercard', r: 'Free 14-day returns' },
@@ -61,6 +62,7 @@ const T = {
       aboutH1: 'عن سبورتا \u2014 ملابس رياضية في الكويت',
       contactH1: 'تواصل مع سبورتا الكويت',
       contactIntro: 'عندك سؤال عن المقاسات أو التوصيل داخل الكويت أو طلبك؟ راسلنا على واتساب \u2014 نرد بالعربي والإنجليزي.',
+      payError: 'تعذّر بدء عملية الدفع. حاول مرة أخرى أو راسلنا على واتساب.',
       add: 'أضف', cart: 'حقيبتك', empty: 'حقيبتك فارغة.', total: 'الإجمالي',
       checkout: 'إتمام الشراء', back: 'العودة للمتجر', shop: 'المتجر', size: 'المقاس',
       trust: { d: 'توصيل في نفس اليوم داخل الكويت', p: 'دفع آمن — كي نت، فيزا، ماستركارد', r: 'إرجاع مجاني خلال ١٤ يومًا' },
@@ -93,7 +95,9 @@ const money = (n) => {
       maximumFractionDigits: 3, numberingSystem: 'latn' }))
   return nf.get(S.lang).format(Number(n) || 0)
 }
-const PAY_BASE = 'https://www.sporta.com.kw/knet'
+// Relative so the same build works on the live domain and any preview host.
+const PAY_BASE = '/knet'
+const API_BASE = '/knet/api/'
 
   // ---------- icons (inline SVG, currentColor) ----------
 const I = {
@@ -229,12 +233,39 @@ document.addEventListener('click', (e) => {
 window.SPORTA = {
   state: S, render, icon, money, t,
   addToCart, setQty, count, total, productCard, PAY_BASE,
-  checkout() {
-    // Cryptographically random track id (Math.random is not suitable for ids).
-    const track = `SP${[...crypto.getRandomValues(new Uint8Array(4))]
-      .map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase()}`
-    location.href =
-      `${PAY_BASE}/pay.php?amount=${total().toFixed(3)}&trackid=${track}&lang=${S.lang}`
+  // Create the order on the SERVER first, then pay it.
+  //
+  // The browser must never decide the amount. The API prices the cart from the
+  // database and returns a track id; pay.php then charges that stored total and
+  // refuses any track id it cannot price. The old flow posted the cart total
+  // straight to pay.php, so the price was whatever the page said it was.
+  async checkout() {
+    if (!S.cart.length) return
+    const err = document.getElementById('payError')
+    const btn = document.querySelector('[data-checkout]')
+    const say = (msg) => {
+      if (err) { err.textContent = msg; err.hidden = false }
+      else alert(msg)
+    }
+    if (err) err.hidden = true
+    if (btn) { btn.disabled = true; btn.dataset.busy = '1' }
+    try {
+      const res = await fetch(API_BASE + '?r=order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: S.cart.map((i) => ({ slug: i.slug, qty: i.qty, size: i.size })),
+          lang: S.lang,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.track_id) throw new Error(data.error || 'order_failed')
+      location.href = data.pay_url ||
+        `${PAY_BASE}/pay.php?trackid=${encodeURIComponent(data.track_id)}&lang=${S.lang}`
+    } catch {
+      say(t().payError)
+      if (btn) { btn.disabled = false; delete btn.dataset.busy }
+    }
   },
 }
 

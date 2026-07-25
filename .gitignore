@@ -45,3 +45,4 @@ example
 # deploy credentials — never commit
 .env.deploy
 SPORTA-GO-LIVE.zip
+sporta-html5/dist

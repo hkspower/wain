@@ -119,7 +119,8 @@ window.SPORTA_PAGE = (S, H) => {
   el.innerHTML = `${S.cart.map(line).join('')}
     <div class="totals"><span>${H.t().total}</span><span class="price">${H.money(window.SPORTA.total())}</span></div>
     <p class="secure-note">${H.icon('lock', 14)}${H.t().trust.p}</p>
-    <button class="btn btn-primary btn-block" data-checkout>${H.t().checkout}</button>`
+    <button class="btn btn-primary btn-block" data-checkout>${H.t().checkout}</button>
+    <p id="payError" class="field-error rx-note" hidden></p>`
   el.querySelector('[data-checkout]').addEventListener('click', () => window.SPORTA.checkout())
 }
 </script>

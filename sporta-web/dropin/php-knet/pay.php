@@ -15,13 +15,18 @@ $amount  = trim((string)($in['amount']  ?? ''));
 $trackid = trim((string)($in['trackid'] ?? ''));
 
 // Strict validation (also blocks injection into the trandata string).
-if (!preg_match('/^\d{1,7}(\.\d{1,3})?$/', $amount) || (float) $amount <= 0) {
-    http_response_code(400);
-    exit('Invalid amount.');
-}
 if (!preg_match('/^[A-Za-z0-9]{1,30}$/', $trackid)) {
     http_response_code(400);
     exit('Invalid track id.');
+}
+// `amount` is OPTIONAL. The correct flow — api/?r=order and the Flutter app —
+// links to pay.php?trackid=... with no amount at all, because the price comes
+// from the order. Requiring it here rejected exactly the flow that is safe.
+// It is still validated when present, and it is only ever USED when there is
+// no orders database to price the order from.
+if ($amount !== '' && (!preg_match('/^\d{1,7}(\.\d{1,3})?$/', $amount) || (float) $amount <= 0)) {
+    http_response_code(400);
+    exit('Invalid amount.');
 }
 
 // ---------------------------------------------------------------------------
@@ -58,8 +63,15 @@ if ($lookup['state'] === 'found') {
     }
     $amount = number_format((float) $lookup['amount'], 3, '.', '');
 }
-// state 'off' => no orders database at all; the client amount is the only
-// source available. See README: do not run a live storefront this way.
+if ($lookup['state'] === 'off') {
+    // No orders database: the browser's amount is the only figure available,
+    // so it must at least be present and well formed. See config.example.php —
+    // running a live storefront in this mode means the browser sets the price.
+    if ($amount === '') {
+        http_response_code(400);
+        exit('Invalid amount.');
+    }
+}
 
 $trandata = knet_build_trandata([
     'id'           => $cfg['tranportal_id'],

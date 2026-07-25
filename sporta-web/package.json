@@ -10,7 +10,8 @@
     "seo": "node scripts/generate-seo.mjs",
     "bundle:php": "node scripts/bundle-php.mjs",
     "release": "npm run seo && npm run build && npm run bundle:php",
-    "deploy": "node dropin/scripts/deploy.mjs"
+    "deploy": "node dropin/scripts/deploy.mjs",
+    "build:html5": "node scripts/generate-seo.mjs && node scripts/build-html5.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",
