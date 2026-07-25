@@ -40,8 +40,42 @@
   drop-ins) backed by Supabase RPCs set_/verify_/has_device_passcode.
 - **Language:** site is bilingual Arabic/English (RTL/LTR).
 
+## Going live (saved by user request — apply always)
+
+- **The live website is `https://www.sporta.com.kw`** — canonical host is
+  **`www`** over **HTTPS**. Every URL the codebases emit (canonical tags,
+  hreflang, sitemaps, JSON-LD, `llms.txt`) uses exactly that origin, and both
+  `.htaccess` files 301 any other spelling (bare domain, server IP, plain
+  HTTP) to it in a **single hop**. Never introduce a second spelling.
+- **What goes live:** `sporta-web` (React/Vite). Its `dist/` is the site root
+  (`/public_html`), and `npm run release` also bundles the KNET PHP endpoints
+  into `dist/knet/`. `sporta-html5` is a no-build fallback, not the live site.
+- **Two publish routes**, both documented in `GO-LIVE.md`:
+  1. `cd sporta-web && npm run deploy` — SEO regen → build → PHP bundle →
+     SFTP upload → verify. Config in `deploy.config.json`; credentials in
+     `.env.deploy` (git-ignored, never commit).
+  2. `SPORTA-GO-LIVE.zip` — drag `public_html/` into Hostinger File Manager.
+- **`.htaccess` is hidden** — it is the single most common thing to miss on a
+  manual upload. Without it: no HTTPS redirect, no security headers, and deep
+  routes like `/shop` 404. Always call this out when telling the user to
+  upload.
+- **`knet/config.php` lives ONLY on the server** (real Tranportal
+  credentials). It is never committed, never in the zip, never uploaded, and
+  is protected from deletion by `upload.keep` + the mirror keep-list. Deploy
+  `mirror` stays **false** unless there is a reason to change it.
+- **After any deploy:** run `./scan-server-response.sh` (checks HTTPS,
+  single-hop redirects, security headers, caching, real 404s, exposed files).
+- Outstanding before/after launch: real product photos (biggest gap), and the
+  SPF/DKIM/DMARC records in `DNS-EMAIL-RECORDS.txt`.
+
 ## Working notes
 
-- Claude's environment cannot reach the user's FTP/SFTP or databases directly;
-  the user runs deploys / SQL on their side, or via files Claude provides.
+- Claude's environment cannot reach the user's FTP/SFTP, the live site, or
+  databases — SSH `46.202.158.211:65002` and `https://www.sporta.com.kw` are
+  both blocked by the sandbox egress policy. Claude therefore **cannot deploy
+  or fetch the live site**; it ships verified artifacts and the user uploads.
+  Say this plainly rather than implying a deploy happened.
+- Adding a route to `sporta-web/src/App.jsx` also requires adding it to the
+  known-route list in `sporta-web/public/.htaccess`, or it will 404 in
+  production.
 - Keep the indigo accent for admin UI.

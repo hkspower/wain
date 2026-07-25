@@ -17,7 +17,7 @@
 //   HOSTINGER_SSH_KEY_PATH=~/.ssh/id_ed25519
 //   HOSTINGER_SSH_PASSPHRASE=...      (optional, for an encrypted key)
 //
-// Deps (already in package.json): ssh2-sftp-client, dotenv.
+// Deps: ssh2-sftp-client, dotenv (both in package.json devDependencies).
 
 import { config as loadEnv } from 'dotenv'
 import { execSync } from 'node:child_process'
@@ -160,8 +160,17 @@ try {
   // 2. upload
   step('Uploading')
   if (mirror && (await sftp.exists(remoteDir))) {
+    // Mirror deletes remote files that no longer exist locally. Anything the
+    // SERVER owns must be kept or the deploy destroys it — most importantly
+    // knet/config.php, which holds the live Tranportal credentials and is
+    // deliberately never uploaded. (This used to delete the whole of
+    // public_html unconditionally, payment endpoints included.)
+    const keep = ['.well-known', 'knet', '.env', ...(cfg.upload?.keep || [])]
     for (const item of await sftp.list(remoteDir)) {
-      // Keep .env and dotfiles the server may rely on; mirror only site output.
+      if (keep.includes(item.name) || item.name.startsWith('.')) {
+        log(`  · kept    ${item.name}`)
+        continue
+      }
       const p = posix.join(remoteDir, item.name)
       if (item.type === 'd') await sftp.rmdir(p, true).catch(() => {})
       else await sftp.delete(p).catch(() => {})

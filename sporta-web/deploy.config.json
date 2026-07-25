@@ -1,0 +1,53 @@
+{
+  "_comment": [
+    "Hostinger deploy for www.sporta.com.kw. Run from sporta-web/ on YOUR machine:",
+    "    npm run deploy",
+    "Credentials never live here \u2014 put them in .env.deploy (git-ignored).",
+    "Verify ssh.user and ssh.port in hPanel -> Advanced -> SSH Access.",
+    "mirror is false so nothing on the server is deleted. If you enable it later, upload.keep + knet/ + dotfiles are preserved."
+  ],
+  "ssh": {
+    "host": "46.202.158.211",
+    "port": 65002,
+    "user": "u130124229",
+    "remoteDir": "/public_html"
+  },
+  "build": {
+    "command": "npm run release",
+    "outputDir": "dist"
+  },
+  "upload": {
+    "mirror": false,
+    "include": [
+      "**/*"
+    ],
+    "exclude": [
+      "**/.DS_Store",
+      "**/*.map",
+      "knet/config.php"
+    ],
+    "filePermissions": "644",
+    "dirPermissions": "755",
+    "keep": [
+      "knet/config.php"
+    ]
+  },
+  "verify": {
+    "criticalFiles": [
+      "index.html",
+      ".htaccess",
+      "robots.txt",
+      "sitemap.xml",
+      "llms.txt"
+    ],
+    "htaccess": {
+      "local": "public/.htaccess",
+      "remote": "/public_html/.htaccess",
+      "expectedPermissions": "644"
+    },
+    "healthcheck": {
+      "url": "https://www.sporta.com.kw/",
+      "expectStatus": 200
+    }
+  }
+}
