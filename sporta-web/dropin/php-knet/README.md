@@ -1,5 +1,8 @@
 # Classic KNET (KPG) — native PHP integration
 
+> **Full architecture, money path, guarantees and roadmap: [`/KNET.md`](../../../KNET.md).**
+> This file is the short install note; that one is the reference.
+
 The "KNET from KNET Co" model: AES-encrypted `trandata` posted to KNET's hosted
 page (`kpay.com.kw`). Use this if your bank issued **Tranportal** credentials
 (ID + password + resource key). If instead you got CBK's REST-JSON T-Pay API

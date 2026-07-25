@@ -1,0 +1,226 @@
+# KNET payments — full structure and plan
+
+Everything about how Sporta takes money, in one place: what each piece does,
+what the money path actually is, where the money-safety guarantees come from,
+what is verified, and what is left to do.
+
+Sporta uses **classic KNET (KPG)** — the AES-`trandata` model, native PHP on
+Hostinger. Credentials come from the acquiring bank (CBK) as a **Tranportal**
+set, not from KNET Co directly. The alternative CBK REST-JSON T-Pay model lives
+in `sporta-web/dropin/php-cbk/` and is **not** what is deployed.
+
+---
+
+## 1. Structure
+
+### 1.1 Where the code lives
+
+| Path | Ships to | Role |
+|---|---|---|
+| `sporta-web/dropin/php-knet/knet.php` | `public_html/knet/` | Crypto + helpers. AES-128-CBC, HTTPS guard, order lookup, audit log. Never served (denied in `.htaccess`). |
+| `sporta-web/dropin/php-knet/pay.php` | `public_html/knet/` | Starts a payment. Prices the order server-side, builds encrypted `trandata`, redirects to KNET. |
+| `sporta-web/dropin/php-knet/callback.php` | `public_html/knet/` | Receives KNET's result. Decrypts, verifies, writes the order, redirects the customer. |
+| `sporta-web/dropin/php-knet/api/index.php` | `public_html/knet/api/` | JSON API for the Flutter app. Delegates order creation to `create_order`. |
+| `sporta-web/dropin/php-knet/config.example.php` | — | Template. |
+| `config.php` | **server only** | Real credentials. Never committed, never in the zip, never uploaded, protected by the deploy keep-list. |
+| `sporta-web/dropin/php-knet/setup-config.php` | `public_html/knet/` | CLI-only generator for `config.php`. **Delete after install.** |
+| `sporta-web/dropin/php-knet/selftest.php` | `public_html/knet/` | Readiness check. **Delete after install.** |
+| `sporta-web/dropin/php-knet/.htaccess` | `public_html/knet/` | HTTPS + canonical host, `no-store`, `noindex`, denies `config.php`/`knet.php`/`setup-config.php`/`*.log`. |
+| `sporta-web/src/lib/checkout.js` | `dist/` | Browser side: calls `create_order`, then sends the customer to `pay.php`. |
+| `sporta-web/src/pages/PaymentResult.jsx` | `dist/` | The page KNET's callback finally lands the customer on. |
+| `sporta-web/supabase/schema.sql` + `checkout-migration.sql` | Supabase | Order tables, server-side pricing triggers, `create_order`. |
+
+`npm run release` bundles `dropin/php-knet/` into `dist/knet/`, excluding
+`config.php`, so one deploy ships the site and the endpoints together.
+
+### 1.2 The money path
+
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant DB as Supabase
+    participant P as knet/pay.php
+    participant K as KNET (kpay.com.kw)
+    participant C as knet/callback.php
+
+    B->>DB: create_order(track_id, items[slug,qty], customer)
+    Note over DB: validates address, resolves slugs,<br/>triggers compute the amount
+    DB-->>B: {order_id, track_id, amount}
+    B->>P: GET pay.php?trackid=…   (no amount)
+    P->>DB: look up order by track_id
+    DB-->>P: amount, payment_status
+    Note over P: FAIL CLOSED<br/>404 unknown · 503 unreachable<br/>409 already paid · 400 zero
+    P->>P: AES-128-CBC encrypt trandata
+    P-->>B: 302 to KNET hosted page
+    B->>K: card entry (never touches Sporta)
+    K->>C: POST trandata (encrypted result)
+    C->>C: decrypt = proof of authenticity
+    C->>DB: look up expected amount
+    Note over C: FAIL CLOSED<br/>mismatch → failed<br/>unverifiable → review
+    C->>DB: PATCH order (paid/failed/review + cbk_*)
+    C-->>B: 302 /payment/result?status=…
+    B->>DB: get_order_status(track_id)
+```
+
+### 1.3 Price authority — the core guarantee
+
+**The browser never states a price, at any point.**
+
+1. `create_order` takes only slugs and quantities. `trg_set_item_price` copies
+   the price from `products`; `trg_recompute_amount` sets `orders.amount`.
+2. `pay.php` is called with **no `amount` parameter**. It reads the figure from
+   the order it looks up.
+3. `callback.php` re-reads the stored amount and compares it to what KNET says
+   was captured.
+
+Proven by decrypting real `trandata`: a browser asking for 0.100 produced a
+KNET request for 24.000.
+
+### 1.4 Fail-closed rules
+
+| Where | Condition | Outcome |
+|---|---|---|
+| `pay.php` | order not found | **404**, no payment started |
+| `pay.php` | database unreachable | **503** |
+| `pay.php` | already paid | **409** (blocks double payment) |
+| `pay.php` | amount ≤ 0 | **400** |
+| `callback.php` | `trandata` missing / undecryptable | `?status=error`, nothing written |
+| `callback.php` | captured amount ≠ stored amount | `failed` + `AMOUNT_MISMATCH` |
+| `callback.php` | amount unverifiable (DB down, order gone, no `amt`) | **`review`** — never silently paid |
+| `callback.php` | DB write fails after 1 retry | logged as `callback.db_write_failed` |
+| `create_order` | unknown/inactive slug | `unavailable_<slug>` |
+
+The `neq.paid` guard on the failure path means a replayed or late failure
+callback can never un-pay a captured order.
+
+### 1.5 Authenticity
+
+Classic KPG has no HMAC header. Authenticity comes from the fact that
+`trandata` is AES-128-CBC encrypted with the **Terminal Resource Key**, which
+only the bank and the server hold. A payload that decrypts to well-formed
+fields could only have been produced by someone holding that key. A callback
+forged with any other key fails `knet_decrypt` and is rejected before anything
+is read — verified in the test suite.
+
+### 1.6 Order states
+
+| `payment_status` | Set by | Meaning |
+|---|---|---|
+| `pending` | `create_order` | Created, not paid. Normal at redirect time. |
+| `paid` | `callback.php` | Captured **and** amount verified. Only state that ships. |
+| `failed` | `callback.php` | Declined, cancelled, or amount mismatch. |
+| `review` | `callback.php` | Bank may have captured; the server could not verify. **Needs a human.** |
+
+`fulfilment_status` (`unfulfilled → packed → shipped → delivered / cancelled`)
+is separate and admin-driven.
+
+### 1.7 Crypto specifics
+
+- AES-128-CBC, PKCS7, key = Terminal Resource Key (**exactly 16 bytes** —
+  `knet_assert_key` refuses anything else, because PHP would otherwise pad
+  silently and KNET would reject every transaction with no useful error).
+- Fixed IV `PGKEYENCDECIVSPC`.
+- `trandata` hex-encoded, uppercase.
+- Fields: `id`, `password`, `action=1`, `langid`, `currencycode=414` (KWD),
+  `amt`, `responseURL`, `errorURL`, `trackid`, `udf1..5`.
+- Success = `result` is `CAPTURED` or `APPROVED`.
+- Test `kpaytest.com.kw` → production `kpay.com.kw`, `/kpg/PaymentHTTP.htm`.
+
+### 1.8 Audit log
+
+`knet_log()` writes append-only JSONL, `chmod 600` on creation, **outside**
+`public_html`. Events: `pay.init`, `pay.reject`, `pay.error`,
+`callback.received`, `callback.unverified`, `callback.amount_mismatch`,
+`callback.db_write_failed`. No secrets, no card data.
+
+---
+
+## 2. What is verified
+
+| Suite | Covers |
+|---|---|
+| `scripts/knet-callback-test.mjs` (8/8) | Real `callback.php` under real PHP against real PostgreSQL with `schema.sql`. Capture recorded as paid with `paid_at`; underpayment refused; unknown order held for review; late failure cannot un-pay; replay idempotent; wrong-key forgery rejected; plain HTTP refused. |
+| `scripts/e2e-checkout.mjs` (12/12) | Browser → `create_order` → redirect. No `amount` on the wire, price tampering ignored, zero orphan rows. |
+| `php -l` | All endpoints parse. |
+
+Run them with PostgreSQL on `:5433` carrying `schema.sql` +
+`admin-migration.sql` + `checkout-migration.sql`.
+
+---
+
+## 3. Plan
+
+### P0 — before any live payment
+
+1. **Run the migrations** (Supabase SQL editor, in order): `schema.sql`,
+   `admin-migration.sql`, `checkout-migration.sql`.
+2. **Admin → Catalogue → Push products.** Orders price from that table; empty
+   means every checkout is refused.
+3. **Create `config.php`**: `cd public_html/knet && php setup-config.php`.
+4. **Register `https://www.sporta.com.kw/knet/callback.php`** with the bank as
+   both `responseURL` and `errorURL`.
+5. **Test transaction** on `env: 'test'` against `kpaytest.com.kw` — a real
+   0.100 KWD payment returning `CAPTURED`. Confirm the order flips to `paid`
+   in the admin, not just that the browser showed a tick.
+6. **Switch `env` to `production`** with production credentials, repeat once.
+7. **Delete `setup-config.php` and `selftest.php`** from the server.
+
+> Item 5 is the one that matters. A green result page proves the redirect
+> worked; only the admin row proves the money was recorded. That distinction is
+> exactly what the column-name bug hid.
+
+### P1 — the remaining money-safety gap
+
+**Abandoned callbacks.** Classic KPG is redirect-only: there is no
+server-to-server webhook. If the customer closes the browser after the bank
+captures but before the redirect fires, `callback.php` never runs, and the
+order stays `pending` while the money is gone. Nothing in the current design
+detects this.
+
+Recommended, in order:
+
+1. **Stale-pending alert in the admin** — surface orders `pending` for more
+   than ~30 minutes. Cheap, and it turns a silent loss into a visible queue.
+2. **Daily reconciliation** — compare the KNET settlement report against
+   `orders`, flagging captured-but-not-`paid` and `paid`-but-not-settled.
+3. **Payment inquiry** — if the bank enables KPG's inquiry endpoint, a small
+   job can resolve stale `pending` orders automatically.
+
+Also P1:
+
+4. **Alert on `callback.db_write_failed`.** Today it only reaches a log file
+   nobody watches; it means money was taken and not recorded.
+5. **Work the `review` queue.** The status exists and the admin counts it;
+   there is no defined procedure for clearing one.
+
+### P2 — completeness
+
+6. **Order confirmation** to the customer on `paid` (email/WhatsApp). Nothing
+   is sent today. Needs the SPF/DKIM/DMARC records in `DNS-EMAIL-RECORDS.txt`
+   first, or it lands in spam.
+7. **Refunds / voids.** Not implemented at all — `action=2` (refund) and void
+   are unbuilt. Refunds are currently a manual bank-side operation with no
+   record in `orders`.
+8. **Log rotation** for the JSONL audit file.
+9. **Receipt** — `cbk_receipt` and `cbk_paytype` are now captured but unused.
+
+### Explicitly not planned
+
+- **Storing card data.** Card entry stays on the bank's hosted page. This is
+  what keeps Sporta out of PCI-DSS scope. Do not add an on-site card form.
+- **`php-cbk/` (T-Pay REST-JSON).** A second, unused integration path. Keep it
+  dormant unless the bank migrates the account.
+
+---
+
+## 4. Failure runbook
+
+| Symptom | Cause | Action |
+|---|---|---|
+| `404 Unknown order` at Pay | `checkout-migration.sql` not run, or `create_order` failed | Run the migrations |
+| `Order has no payable amount` | `products` table empty | Admin → Catalogue → Push products |
+| KNET rejects every transaction | `resource_key` not exactly 16 bytes | Re-run `setup-config.php` |
+| Checkout fails for everyone, orders never appear | anon key pasted where the **service** key belongs | Re-run `setup-config.php` |
+| Customer sees success, order stays `pending` | `callback.db_write_failed` in the log | Check the log; fixed for the column-mismatch cause |
+| Order stuck at `review` | Amount could not be verified | Compare against the bank statement by `cbk_paymentid`, then set manually |
+| `503` at Pay | Supabase unreachable | Correct — no payment starts. Check the project is not paused |

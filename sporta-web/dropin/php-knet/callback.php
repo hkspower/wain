@@ -97,14 +97,26 @@ function knet_update_order(array $cfg, string $trackid, bool $paid, string $resu
         $url .= '&payment_status=neq.paid';
     }
 
+    // Column names must match supabase/schema.sql exactly. They are cbk_* —
+    // the acquirer is CBK, KNET is the scheme. This block used to write
+    // knet_result / knet_paymentid / knet_tranid / knet_ref / knet_auth, none
+    // of which exist, so PostgREST rejected the whole PATCH with PGRST204 and
+    // NOTHING was written: not payment_status, not paid_at, nothing. The bank
+    // captured the money, the customer was redirected to ?status=success, and
+    // the order sat at 'pending' forever with no record for the admin to ship
+    // from. Verified against a real PostgreSQL loaded with schema.sql:
+    // "column knet_result of relation orders does not exist".
     $payload = json_encode([
-        'payment_status' => $paid ? 'paid' : ($review ? 'review' : 'failed'),
-        'knet_result'    => $result,
-        'knet_paymentid' => (string)($fields['paymentid'] ?? ''),
-        'knet_tranid'    => (string)($fields['tranid'] ?? ''),
-        'knet_ref'       => (string)($fields['ref'] ?? ''),
-        'knet_auth'      => (string)($fields['auth'] ?? ''),
-        'paid_at'        => $paid ? gmdate('c') : null,
+        'payment_status'  => $paid ? 'paid' : ($review ? 'review' : 'failed'),
+        'cbk_status'      => $result,
+        'cbk_message'     => (string)($fields['result'] ?? ''),
+        'cbk_paymentid'   => (string)($fields['paymentid'] ?? ''),
+        'cbk_transaction' => (string)($fields['tranid'] ?? ''),
+        'cbk_reference'   => (string)($fields['ref'] ?? ''),
+        'cbk_authcode'    => (string)($fields['auth'] ?? ''),
+        'cbk_receipt'     => (string)($fields['receipt'] ?? ''),
+        'cbk_paytype'     => (string)($fields['paytype'] ?? ''),
+        'paid_at'         => $paid ? gmdate('c') : null,
     ]);
 
     $ch = curl_init($url);
