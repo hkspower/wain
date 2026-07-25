@@ -28,7 +28,7 @@ in `sporta-web/dropin/php-cbk/` and is **not** what is deployed.
 | `sporta-web/dropin/php-knet/.htaccess` | `public_html/knet/` | HTTPS + canonical host, `no-store`, `noindex`, denies `config.php`/`knet.php`/`setup-config.php`/`*.log`. |
 | `sporta-web/src/lib/checkout.js` | `dist/` | Browser side: calls `create_order`, then sends the customer to `pay.php`. |
 | `sporta-web/src/pages/PaymentResult.jsx` | `dist/` | The page KNET's callback finally lands the customer on. |
-| `sporta-web/supabase/schema.sql` + `checkout-migration.sql` | Supabase | Order tables, server-side pricing triggers, `create_order`. |
+| `sporta-web/supabase/*.sql` | Supabase | Order tables, server-side pricing triggers, `create_order`, admin passcode, catalogue seed. Run order in §3; `scripts/db-rebuild.sh` is the executable copy of it. |
 
 `npm run release` bundles `dropin/php-knet/` into `dist/knet/`, excluding
 `config.php`, so one deploy ships the site and the endpoints together.
@@ -141,10 +141,13 @@ is separate and admin-driven.
 |---|---|
 | `scripts/knet-callback-test.mjs` (8/8) | Real `callback.php` under real PHP against real PostgreSQL with `schema.sql`. Capture recorded as paid with `paid_at`; underpayment refused; unknown order held for review; late failure cannot un-pay; replay idempotent; wrong-key forgery rejected; plain HTTP refused. |
 | `scripts/e2e-checkout.mjs` (12/12) | Browser → `create_order` → redirect. No `amount` on the wire, price tampering ignored, zero orphan rows. |
+| `scripts/db-contract-audit.mjs` | Every table, column and function the code references exists in a database built from `supabase/*.sql` alone. This is the check that would have caught the `knet_*` column bug. |
 | `php -l` | All endpoints parse. |
 
-Run them with PostgreSQL on `:5433` carrying `schema.sql` +
-`admin-migration.sql` + `checkout-migration.sql`.
+Run them against a database built by `scripts/db-rebuild.sh`, which applies
+`supabase/*.sql` in the required order and seeds the catalogue. Every suite
+runs against that result, so the documented run order is executable and
+verified rather than a note that can rot.
 
 ---
 
@@ -153,9 +156,13 @@ Run them with PostgreSQL on `:5433` carrying `schema.sql` +
 ### P0 — before any live payment
 
 1. **Run the migrations** (Supabase SQL editor, in order): `schema.sql`,
-   `admin-migration.sql`, `checkout-migration.sql`.
-2. **Admin → Catalogue → Push products.** Orders price from that table; empty
-   means every checkout is refused.
+   `admin-migration.sql`, `checkout-migration.sql`, `passcode-migration.sql`,
+   `seed-products.sql`. `scripts/db-rebuild.sh` runs exactly this order against
+   a throwaway database, and every test suite runs against the result — so the
+   order is verified, not just documented.
+2. **Confirm the catalogue loaded.** `seed-products.sql` does it; Admin →
+   Catalogue → Push products is the browser equivalent. Orders price from that
+   table, and empty means every checkout is refused.
 3. **Create `config.php`**: `cd public_html/knet && php setup-config.php`.
 4. **Register `https://www.sporta.com.kw/knet/callback.php`** with the bank as
    both `responseURL` and `errorURL`.

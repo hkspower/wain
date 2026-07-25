@@ -31,7 +31,7 @@ export async function verifyDevicePasscode(passcode: string): Promise<VerifyResu
 }
 
 // Server-authoritative enrollment check. Requires the has_device_passcode
-// RPC (see supabase/has_device_passcode.sql). Throws if missing so callers
+// RPC (see supabase/passcode-migration.sql). Throws if missing so callers
 // can fall back to the local hint.
 export async function hasDevicePasscode(): Promise<boolean> {
   const { data, error } = await supabase.rpc("has_device_passcode", {

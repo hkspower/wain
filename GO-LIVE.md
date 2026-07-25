@@ -112,6 +112,8 @@ In the Supabase SQL editor, run these in order (each is safe to re-run):
 supabase/schema.sql
 supabase/admin-migration.sql
 supabase/checkout-migration.sql
+supabase/passcode-migration.sql
+supabase/seed-products.sql
 ```
 
 `checkout-migration.sql` is the one that makes checkout work at all. It adds
@@ -120,9 +122,18 @@ the delivery address, and prices the cart from the products table. Until it is
 run, the browser cannot create an order and every shopper hits
 **404 Unknown order** at the moment they press Pay.
 
-Then open **Admin → Catalogue** and press **Push products**. Orders are priced
-from the `products` table, so an empty table means every checkout is refused
-with "this item is currently unavailable".
+`passcode-migration.sql` creates the admin quick-unlock table and its three
+RPCs. Without it the admin's passcode screen cannot work.
+
+`seed-products.sql` loads all 20 products with their current prices. Orders are
+priced from that table, so until it is loaded every checkout is refused with
+"this item is currently unavailable". It matches on slug, so re-running it
+updates prices in place and never duplicates — and it never overwrites a real
+product photo URL you have added. (**Admin → Catalogue → Push products** does
+the same thing from the browser if you prefer.)
+
+To verify all five landed, the admin Catalogue screen should report every
+product "in sync".
 
 ### 3. Confirm the site is live and correctly configured
 
@@ -175,10 +186,14 @@ File Manager في هوستنجر، ثم ارفع كل ما بداخل مجلد `
    ويتحقق منها ويكتب الملف بالصلاحيات الصحيحة. احذف `setup-config.php` و
    `selftest.php` بعد الانتهاء.
 2. **مهم جداً:** شغّل ملفات قاعدة البيانات في Supabase بالترتيب:
-   `schema.sql` ثم `admin-migration.sql` ثم `checkout-migration.sql`.
-   بدون الملف الأخير لن يعمل الشراء إطلاقاً — ستظهر للعميل صفحة
-   «404 Unknown order» عند الضغط على الدفع. بعدها افتح لوحة التحكم →
-   الكتالوج واضغط «Push products».
+   `schema.sql` ثم `admin-migration.sql` ثم `checkout-migration.sql`
+   ثم `passcode-migration.sql` ثم `seed-products.sql`.
+   بدون `checkout-migration.sql` لن يعمل الشراء إطلاقاً — ستظهر للعميل
+   صفحة «404 Unknown order» عند الضغط على الدفع.
+   و`seed-products.sql` يحمّل المنتجات العشرين بأسعارها الحالية، والسعر
+   يُحتسب من قاعدة البيانات وليس من المتصفح — فبدونه يُرفض كل طلب.
+   يمكن إعادة تشغيل كل الملفات بأمان: التطابق على `slug` فيُحدّث السعر
+   ولا يكرّر المنتج، ولا يمسح روابط الصور الحقيقية التي أضفتها.
 3. شغّل `./scan-server-response.sh` للتأكد أن إعدادات الخادم سليمة.
 4. أضف الموقع في Google Search Console وأرسل `sitemap.xml`.
 
