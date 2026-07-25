@@ -1,0 +1,57 @@
+# Nokha1 — Apache / LiteSpeed config (Hostinger and most shared hosts).
+# GitHub Pages ignores this file, so it is safe to ship everywhere.
+
+# ---- Correct MIME types (a wrong type silently breaks PWA install) ----
+AddType application/manifest+json .webmanifest
+AddType image/svg+xml            .svg
+AddType text/javascript          .js
+
+<IfModule mod_headers.c>
+  # ---- Security headers ----
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "no-referrer"
+  Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(), interest-cohort=()"
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" env=HTTPS
+
+  # ---- The service worker must never be cached, or updates never reach users ----
+  <FilesMatch "^sw\.js$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Service-Worker-Allowed "/"
+  </FilesMatch>
+
+  # HTML is revalidated every time; the service worker handles offline speed.
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+
+  <FilesMatch "\.(svg|webmanifest)$">
+    Header set Cache-Control "public, max-age=86400"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # ---- Force HTTPS (service workers require it) ----
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
+
+  # ---- Canonical host: send the bare domain to www ----
+  RewriteCond %{HTTP_HOST} ^almuhallab-code\.com$ [NC]
+  RewriteRule ^(.*)$ https://www.almuhallab-code.com/$1 [R=301,L]
+</IfModule>
+
+# ---- Friendly 404 that returns visitors to the portal ----
+ErrorDocument 404 /404.html
+
+# ---- Compression ----
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript application/manifest+json image/svg+xml
+</IfModule>
+
+# ---- Don't serve repo docs from the web root ----
+<FilesMatch "\.(md|yml)$">
+  Require all denied
+</FilesMatch>
