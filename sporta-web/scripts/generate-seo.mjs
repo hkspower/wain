@@ -65,12 +65,14 @@ const reactPages = [
   ['/about', { priority: '0.5', changefreq: 'monthly' }],
   ['/contact', { priority: '0.5', changefreq: 'monthly' }],
   ['/track', { priority: '0.4', changefreq: 'monthly' }],
+  ['/returns', { priority: '0.5', changefreq: 'monthly' }],
 ]
 const staticPages = [
   ['/', { priority: '1.0', changefreq: 'daily' }],
   ['/shop.html', { priority: '0.9', changefreq: 'daily' }],
   ['/about.html', { priority: '0.5', changefreq: 'monthly' }],
   ['/contact.html', { priority: '0.5', changefreq: 'monthly' }],
+  ['/returns.html', { priority: '0.5', changefreq: 'monthly' }],
 ]
 
 writeFileSync(
@@ -125,6 +127,7 @@ function llms(productUrl, shopUrl) {
 - Currency: KWD (Kuwaiti Dinar, 3 decimal places)
 - Payment: KNET, Visa, Mastercard
 - Delivery: same-day inside Kuwait · free exchange & return
+- Returns & exchange requests: ${SITE}${shopUrl.includes('.html') ? '/returns.html' : '/returns'} (select items, sent via WhatsApp)
 
 ## Categories
 - Women (نسائي): seamless sets, leggings, sports bras, crop tees, zip tops

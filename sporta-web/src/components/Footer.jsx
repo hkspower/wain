@@ -48,7 +48,7 @@ export default function Footer() {
             <ul className="space-y-2 text-sm">
               <li><Link to="/contact" className="hover:text-brand">{L.contact}</Link></li>
               <li><Link to="/shop" className="hover:text-brand">{L.shipping}</Link></li>
-              <li><Link to="/shop" className="hover:text-brand">{L.returns}</Link></li>
+              <li><Link to="/returns" className="hover:text-brand">{L.returns}</Link></li>
               <li><Link to="/track" className="hover:text-brand">{L.track}</Link></li>
             </ul>
           </div>

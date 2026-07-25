@@ -24,6 +24,7 @@
 - Currency: KWD (Kuwaiti Dinar, 3 decimal places)
 - Payment: KNET, Visa, Mastercard
 - Delivery: same-day inside Kuwait · free exchange & return
+- Returns & exchange requests: https://www.sporta.com.kw/returns (select items, sent via WhatsApp)
 
 ## Categories
 - Women (نسائي): seamless sets, leggings, sports bras, crop tees, zip tops

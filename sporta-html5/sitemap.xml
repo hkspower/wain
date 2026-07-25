@@ -38,6 +38,15 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/contact.html" />
   </url>
   <url>
+    <loc>https://www.sporta.com.kw/returns.html</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/returns.html" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/returns.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/returns.html" />
+  </url>
+  <url>
     <loc>https://www.sporta.com.kw/product.html?p=rheo-seamless-set</loc>
     <lastmod>2026-07-25</lastmod>
     <changefreq>weekly</changefreq>

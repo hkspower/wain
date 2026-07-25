@@ -16,6 +16,7 @@ const AdminApp = lazy(() => import('./admin/AdminApp'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 const Wishlist = lazy(() => import('./pages/Wishlist'))
 const TrackOrder = lazy(() => import('./pages/TrackOrder'))
+const Returns = lazy(() => import('./pages/Returns'))
 
 function Loading() {
   return (
@@ -65,6 +66,7 @@ function PublicSite() {
           <Route path="/contact" element={<Contact />} />
           <Route path="/wishlist" element={<Wishlist />} />
           <Route path="/track" element={<TrackOrder />} />
+          <Route path="/returns" element={<Returns />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
