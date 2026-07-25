@@ -7,6 +7,19 @@ AddType image/svg+xml            .svg
 AddType text/javascript          .js
 
 <IfModule mod_headers.c>
+  # ---- HTTP/3 (QUIC) ----
+  # The protocol is negotiated by the SERVER, not by these files. This header is
+  # the advertisement: it tells a browser that arrived over HTTP/1.1 or HTTP/2
+  # that the same origin is reachable over HTTP/3 on UDP/443, so the next request
+  # races a QUIC connection. LiteSpeed (Hostinger) and Cloudflare emit this
+  # themselves once QUIC is enabled; setting it here covers hosts that don't.
+  #
+  # Only keep this if the host actually serves HTTP/3 — advertising h3 on a
+  # server without it makes browsers attempt a QUIC handshake that must time out
+  # before falling back. Verify with design/check-http3.sh, and delete this block
+  # if the check reports no h3.
+  Header always set Alt-Svc "h3=\":443\"; ma=86400"
+
   # ---- Security headers ----
   Header always set X-Content-Type-Options "nosniff"
   Header always set X-Frame-Options "SAMEORIGIN"

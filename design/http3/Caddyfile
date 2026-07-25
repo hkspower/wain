@@ -1,0 +1,39 @@
+# Nokha1 over HTTP/3 — Caddy speaks h3 by default, with automatic HTTPS.
+# Run:  caddy run --config Caddyfile
+# This is the shortest path to a real HTTP/3 deployment.
+
+www.almuhallab-code.com {
+	root * /var/www/nokha1
+	encode zstd gzip
+	file_server
+
+	# Caddy serves HTTP/1.1, HTTP/2 and HTTP/3 concurrently and emits Alt-Svc
+	# itself, so no manual advertisement is needed here.
+
+	header {
+		X-Content-Type-Options   nosniff
+		X-Frame-Options          SAMEORIGIN
+		Referrer-Policy          no-referrer
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+
+	# The service worker must never be cached, or updates never reach users.
+	@sw path /sw.js
+	header @sw Cache-Control "no-cache, no-store, must-revalidate"
+
+	@html path *.html
+	header @html Cache-Control "no-cache"
+
+	@static path *.svg *.webmanifest
+	header @static Cache-Control "public, max-age=86400"
+
+	handle_errors {
+		@404 expression {err.status_code} == 404
+		rewrite @404 /404.html
+		file_server
+	}
+}
+
+almuhallab-code.com {
+	redir https://www.almuhallab-code.com{uri} permanent
+}

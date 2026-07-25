@@ -93,6 +93,35 @@ push to `main`. Enable it once in the repo: **Settings → Pages → Source:
 Cloudflare Pages, or your own server) works the same way — just serve this
 folder.
 
+## HTTP/3
+
+HTTP/3 (QUIC over UDP/443) is negotiated by the **server** — the pages
+themselves are protocol-agnostic and need no change to be served over it. What
+this repo provides:
+
+- `.htaccess` sets `Alt-Svc: h3=":443"` so clients that arrive over HTTP/1.1 or
+  HTTP/2 learn the origin is also reachable over HTTP/3. **Only keep it if the
+  host really speaks h3** — advertising it otherwise makes browsers wait on a
+  QUIC handshake that has to time out first.
+- `design/check-http3.sh` reports what your domain actually negotiates, whether
+  h3 is advertised, and whether UDP/443 is reachable at all. Run it from your
+  own machine: `bash design/check-http3.sh`
+- `design/http3/Caddyfile` and `design/http3/nginx-http3.conf` are complete
+  server configs for a machine you control.
+
+Turning it on, easiest first:
+
+| Host | How |
+|------|-----|
+| **Cloudflare** (free, in front of any host) | Speed → Optimization → enable HTTP/3 (with QUIC) |
+| **Hostinger** (LiteSpeed) | hPanel → Advanced → enable QUIC / HTTP/3 |
+| **Own server** | use the Caddy or nginx config in `design/http3/` |
+| **GitHub Pages** | not available — Pages terminates at HTTP/2 |
+
+The site already meets HTTP/3's prerequisites: HTTPS is forced, HSTS is set, and
+the service worker precaches every page, so after the first visit the transport
+matters little anyway.
+
 ## ⚠️ Status — what's real and what isn't
 
 Everything above works today, entirely in the browser. Accounts, portfolios,
