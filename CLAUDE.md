@@ -41,6 +41,15 @@
 - **Admin quick-unlock:** device passcode feature in `sporta-web/dropin/` (TS/shadcn
   drop-ins) backed by Supabase RPCs set_/verify_/has_device_passcode.
 - **Language:** site is bilingual Arabic/English (RTL/LTR).
+- **Configuration:** the site reads Supabase settings at runtime from
+  `public/config.js` (`window.SPORTA_CONFIG`), falling back to build-time
+  `VITE_*` in `.env`. That is what lets the store be configured by editing a
+  file in Hostinger File Manager, with no Node and no rebuild — the user's
+  server account has no shell (`/sbin/nologin`). `config.js` is in the deploy
+  keep-list, so a deploy never overwrites the live values.
+- **Packaging:** `node sporta-web/scripts/make-package.mjs` regenerates
+  `SPORTA-GO-LIVE.zip`. Never hand-assemble it — the previous hand-made zip
+  went stale and carried the payment-losing callback bug for weeks.
 
 ## Going live (saved by user request — apply always)
 

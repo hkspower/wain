@@ -122,6 +122,12 @@
     }
     </script>
 
+    <!-- Site configuration, editable on the server without a rebuild.
+         In <head> and classic (not a module) so it has definitely run before
+         the app bundle: classic scripts execute at parse time, module scripts
+         only after parsing finishes. -->
+    <script src="/config.js"></script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

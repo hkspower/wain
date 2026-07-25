@@ -1,12 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
+import { configValue, warnUnconfigured } from './runtimeConfig'
 
-// Configure these in sporta-web/.env (see .env.example).
-const url = import.meta.env.VITE_SUPABASE_URL
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+// /config.js on the server wins; .env is the fallback. See runtimeConfig.js —
+// this is what lets the site be configured without a rebuild.
+const url = configValue('supabaseUrl', import.meta.env.VITE_SUPABASE_URL)
+const anonKey = configValue('supabaseAnonKey', import.meta.env.VITE_SUPABASE_ANON_KEY)
 
 if (!url || !anonKey) {
-  // Non-fatal so the marketing site still builds/runs without admin env vars.
-  console.warn('[supabase] VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY not set — admin features disabled.')
+  // Non-fatal: the storefront still renders. Checkout fails closed rather than
+  // taking money for an order it cannot record.
+  warnUnconfigured('Supabase')
 }
 
 export const supabase = url && anonKey ? createClient(url, anonKey) : null

@@ -56,11 +56,22 @@ live Tranportal credentials and is never uploaded.
 
 ---
 
-## Route B — upload the zip (no tools)
+## Route B — upload the zip (no tools, no terminal)
 
-1. Download **`SPORTA-GO-LIVE.zip`**.
+Use this if you have no shell on the server (`/sbin/nologin` on login) or no
+project folder on your Mac. Nothing is installed and nothing is rebuilt.
+
+1. Download **`SPORTA-GO-LIVE.zip`** and read `README-FIRST.txt` inside it.
 2. Hostinger hPanel → **File Manager** → open `public_html`.
 3. Upload everything inside the zip's `public_html/` folder.
+4. **Edit `public_html/config.js`** — paste your Supabase Project URL and
+   *anon* key. This is the whole configuration step; the site cannot sell
+   anything until it is done, and checkout will say "Online ordering is
+   temporarily unavailable" until it is.
+5. Run the five files in the zip's `supabase-sql/` folder, in order, in the
+   Supabase SQL Editor.
+
+Regenerate the zip any time with `node sporta-web/scripts/make-package.mjs`.
 
 > ⚠️ **`.htaccess` is a hidden file.** Turn on "show hidden files" in File
 > Manager (or your FTP app) and confirm it arrived. Without it you get no HTTPS

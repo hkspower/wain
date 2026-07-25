@@ -24,12 +24,14 @@
     "exclude": [
       "**/.DS_Store",
       "**/*.map",
-      "knet/config.php"
+      "knet/config.php",
+      "config.js"
     ],
     "filePermissions": "644",
     "dirPermissions": "755",
     "keep": [
-      "knet/config.php"
+      "knet/config.php",
+      "config.js"
     ]
   },
   "verify": {
@@ -41,7 +43,8 @@
       "sitemap-pages.xml",
       "sitemap-products.xml",
       "site.webmanifest",
-      "llms.txt"
+      "llms.txt",
+      "config.js"
     ],
     "htaccess": {
       "local": "public/.htaccess",

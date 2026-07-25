@@ -108,6 +108,13 @@ ErrorDocument 404 /index.html
     Header set Cache-Control "public, max-age=2592000"
   </FilesMatch>
 
+  # config.js carries the site's settings and is edited in place on the
+  # server. If it were cached, changing a Supabase URL would appear to do
+  # nothing for as long as the cache lasted.
+  <Files "config.js">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </Files>
+
   # HTML must always revalidate so users get new deploys immediately.
   <FilesMatch "\.html$">
     Header set Cache-Control "no-cache, must-revalidate"
