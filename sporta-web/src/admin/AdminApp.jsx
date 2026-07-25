@@ -5,7 +5,10 @@ import { useIdleLock } from './useIdleLock'
 import AdminLogin from './AdminLogin'
 import LockScreen from './LockScreen'
 import SetupQuickUnlock from './SetupQuickUnlock'
-import Products from './Products'
+import Overview from './Overview'
+import Orders from './Orders'
+import Catalog from './Catalog'
+import { IconBag, IconTruck, IconStar, IconLock } from '../components/icons'
 
 // Orchestrates the admin session:
 //   no session            -> AdminLogin
@@ -84,28 +87,35 @@ export default function AdminApp() {
     return <LockScreen onUnlock={() => setLocked(false)} onUsePassword={usePasswordInstead} />
   }
 
-  return <Dashboard onSignOut={() => supabase.auth.signOut()} onEnrollChange={() => refreshEnrollment(!!session)} />
+  return (
+    <Dashboard
+      email={session.user?.email}
+      onSignOut={() => supabase.auth.signOut()}
+      onEnrollChange={() => refreshEnrollment(!!session)}
+    />
+  )
 }
 
 // Responsive admin: desktop sidebar (hidden < 768px) + mobile sticky header and
 // bottom tab bar (.m-header / .m-tabbar from admin-mobile.css). Data tables show
 // as .admin-table on desktop and .m-list/.m-row card rows on mobile.
+// Emoji were replaced with the site's own SVG set: they render differently on
+// every OS and cannot take the accent colour.
 const ADMIN_TABS = [
-  { id: 'overview', label: 'Overview', icon: '📊' },
-  { id: 'products', label: 'Products', icon: '📦' },
-  { id: 'orders', label: 'Orders', icon: '🧾' },
-  { id: 'settings', label: 'Settings', icon: '⚙️' },
+  { id: 'overview', label: 'Overview', Icon: IconStar },
+  { id: 'orders',   label: 'Orders',   Icon: IconBag },
+  { id: 'catalog',  label: 'Catalogue', Icon: IconTruck },
+  { id: 'settings', label: 'Settings', Icon: IconLock },
 ]
 
-// Sample rows so the table→card behaviour is visible. Replace with real data.
-const SAMPLE_ORDERS = [
-  { track: 'SP1A2B', customer: 'Ahmad', amount: '18.500', status: 'paid' },
-  { track: 'SP3C4D', customer: 'Sara', amount: '9.750', status: 'pending' },
-  { track: 'SP5E6F', customer: 'Yousef', amount: '42.000', status: 'failed' },
-]
-
-function Dashboard({ onSignOut, onEnrollChange }) {
+function Dashboard({ email, onSignOut, onEnrollChange }) {
   const [tab, setTab] = useState('overview')
+  // Lets the Overview alerts deep-link into a filtered Orders view.
+  const [orderFilter, setOrderFilter] = useState('all')
+  const goto = (id, filter) => {
+    if (filter) setOrderFilter(filter)
+    setTab(id)
+  }
 
   return (
     <div className="admin-shell min-h-screen bg-slate-50 md:flex">
@@ -124,14 +134,19 @@ function Dashboard({ onSignOut, onEnrollChange }) {
                 tab === tb.id ? 'bg-indigo-50 text-indigo-600' : 'text-slate-600 hover:bg-slate-50'
               }`}
             >
-              <span className="me-2">{tb.icon}</span>
-              {tb.label}
+              <span className="flex items-center gap-2.5">
+                <tb.Icon size={17} />
+                {tb.label}
+              </span>
             </button>
           ))}
-          <button onClick={onSignOut} className="mt-2 rounded-lg px-3 py-2 text-start text-sm font-semibold text-slate-400 hover:text-rose-600">
+        </nav>
+        <div className="mt-6 border-t border-slate-100 pt-4">
+          {email && <p className="truncate px-3 text-xs text-slate-400" title={email}>{email}</p>}
+          <button onClick={onSignOut} className="mt-1 rounded-lg px-3 py-2 text-start text-sm font-semibold text-slate-400 hover:text-rose-600">
             Sign out
           </button>
-        </nav>
+        </div>
       </aside>
 
       {/* Mobile sticky header */}
@@ -142,16 +157,11 @@ function Dashboard({ onSignOut, onEnrollChange }) {
       </header>
 
       <main className="admin-content flex-1 px-4 py-6 md:px-8 md:py-10">
-        {tab === 'overview' && (
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
-            <p className="mt-2 text-slate-500">Your admin content goes here.</p>
-          </div>
-        )}
+          {tab === 'overview' && <Overview onGoto={goto} />}
 
-        {tab === 'products' && <Products />}
+        {tab === 'orders' && <Orders key={orderFilter} initialPayment={orderFilter} />}
 
-        {tab === 'orders' && <OrdersView orders={SAMPLE_ORDERS} />}
+        {tab === 'catalog' && <Catalog />}
 
         {tab === 'settings' && (
           <div className="space-y-6">
@@ -170,57 +180,11 @@ function Dashboard({ onSignOut, onEnrollChange }) {
             aria-current={tab === tb.id}
             onClick={() => setTab(tb.id)}
           >
-            <span className="m-tabbar__icon">{tb.icon}</span>
+            <span className="m-tabbar__icon"><tb.Icon size={20} /></span>
             {tb.label}
           </button>
         ))}
       </nav>
-    </div>
-  )
-}
-
-// Orders: real <table> on desktop (.admin-table), card rows on mobile (.m-list).
-function OrdersView({ orders }) {
-  return (
-    <div>
-      <h1 className="mb-6 text-2xl font-bold text-slate-800">Orders</h1>
-
-      <table className="admin-table w-full border-collapse text-sm">
-        <thead>
-          <tr className="border-b border-slate-200 text-start text-slate-500">
-            <th className="py-2 text-start font-semibold">Track ID</th>
-            <th className="py-2 text-start font-semibold">Customer</th>
-            <th className="py-2 text-start font-semibold">Amount</th>
-            <th className="py-2 text-start font-semibold">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {orders.map((o) => (
-            <tr key={o.track} className="border-b border-slate-100">
-              <td className="py-3 font-mono">{o.track}</td>
-              <td className="py-3">{o.customer}</td>
-              <td className="py-3">{o.amount} KWD</td>
-              <td className="py-3">
-                <span className={`m-row__badge m-row__badge--${o.status}`}>{o.status}</span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <div className="m-list">
-        {orders.map((o) => (
-          <div key={o.track} className="m-row">
-            <div className="m-row__top">
-              <span className="m-row__title">{o.customer}</span>
-              <span className={`m-row__badge m-row__badge--${o.status}`}>{o.status}</span>
-            </div>
-            <div className="m-row__meta">
-              <span className="font-mono">{o.track}</span> · {o.amount} KWD
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   )
 }
