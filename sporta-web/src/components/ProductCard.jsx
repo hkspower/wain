@@ -3,9 +3,14 @@ import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { useCart } from '../lib/cart'
 import { useWishlist } from '../lib/wishlist'
-import { IconHeart, IconCheck, IconStar } from './icons'
+import { IconHeart, IconCheck, IconPlus } from './icons'
 import { formatKWD } from '../lib/format'
 
+// Modern retail grid card (Gymshark-style): the photo IS the card — portrait
+// 4:5, no border, no shadow, no white box. Everything interactive lives as an
+// overlay on the image; below it just name, description and price on the page
+// canvas. Ratings are deliberately gone from the grid: they were a hardcoded
+// 4.8 on every product, and a grid that praises itself 20 times reads as fake.
 export default function ProductCard({ product }) {
   const { lang, t } = useLang()
   const { add } = useCart()
@@ -20,10 +25,10 @@ export default function ProductCard({ product }) {
   }
 
   return (
-    <article className="card card-hover group flex flex-col overflow-hidden">
+    <article className="group flex flex-col">
       <Link
         to={`/product/${product.slug}`}
-        className="relative block aspect-square overflow-hidden bg-slate-100"
+        className="relative block aspect-[4/5] overflow-hidden rounded-xl bg-slate-100"
         aria-label={product.name[lang]}
       >
         <img
@@ -32,50 +37,55 @@ export default function ProductCard({ product }) {
           loading="lazy"
           width="600"
           height="600"
-          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+          className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.06]"
         />
+
         {product.badge && (
-          <span className="absolute start-3 top-3 rounded-full bg-brand px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow">
+          <span className="absolute start-2.5 top-2.5 rounded-md bg-brand px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
             {product.badge[lang]}
           </span>
         )}
-        {/* Wishlist */}
+
+        {/* Wishlist — hover-reveal on pointer screens, always visible where
+            there is no hover to reveal it. */}
         <button
           type="button"
           onClick={(e) => { e.preventDefault(); toggle(product.slug) }}
           aria-label={t.a11y.saveWishlist}
           aria-pressed={has(product.slug)}
-          className={`absolute end-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow-sm backdrop-blur transition hover:text-brand ${
-            has(product.slug) ? 'text-brand opacity-100' : 'text-slate-500 opacity-0 group-hover:opacity-100'
+          className={`absolute end-2.5 top-2.5 flex h-9 w-9 items-center justify-center rounded-full bg-white/95 shadow-sm backdrop-blur transition hover:text-brand focus-visible:opacity-100 ${
+            has(product.slug)
+              ? 'text-brand opacity-100'
+              : 'text-slate-600 lg:opacity-0 lg:group-hover:opacity-100'
           }`}
         >
-          <IconHeart size={18} filled={has(product.slug)} />
+          <IconHeart size={17} filled={has(product.slug)} />
+        </button>
+
+        {/* Quick add — the circular "+" every modern sports-retail grid uses.
+            Sits on the photo so the text block below stays quiet. */}
+        <button
+          type="button"
+          onClick={quickAdd}
+          aria-label={`${t.shop.add} — ${product.name[lang]}`}
+          className={`absolute bottom-2.5 end-2.5 flex h-10 w-10 items-center justify-center rounded-full shadow-md transition focus-visible:opacity-100 ${
+            added
+              ? 'bg-emerald-500 text-white opacity-100'
+              : 'bg-white/95 text-ink backdrop-blur hover:bg-brand hover:text-white lg:translate-y-1 lg:opacity-0 lg:group-hover:translate-y-0 lg:group-hover:opacity-100'
+          }`}
+        >
+          {added ? <IconCheck size={18} /> : <IconPlus size={18} />}
         </button>
       </Link>
 
-      <div className="flex flex-1 flex-col p-4">
-        <Link to={`/product/${product.slug}`}>
-          <h3 className="line-clamp-1 font-bold text-slate-900 transition group-hover:text-brand">
-            {product.name[lang]}
-          </h3>
+      <div className="flex flex-col gap-0.5 pt-3">
+        <Link to={`/product/${product.slug}`} className="transition group-hover:text-brand">
+          <h3 className="line-clamp-1 text-sm font-semibold text-slate-900">{product.name[lang]}</h3>
         </Link>
-        <p className="mt-1 line-clamp-1 text-sm text-slate-500">{product.desc[lang]}</p>
-
-        <div className="mt-1.5 flex items-center gap-0.5 text-amber-500" aria-label={t.a11y.rated}>
-          {Array.from({ length: 5 }).map((_, i) => <IconStar key={i} size={13} />)}
-          <span className="ms-1 text-xs text-slate-400">(4.8)</span>
-        </div>
-
-        <div className="mt-3 flex items-center justify-between">
-          <span className="text-lg font-extrabold text-brand-dark">{formatKWD(product.price, lang)}</span>
-          <button
-            onClick={quickAdd}
-            className={`btn btn-sm ${added ? 'btn-ghost text-emerald-600' : 'btn-primary'}`}
-            aria-label={`${t.shop.add} — ${product.name[lang]}`}
-          >
-            {added ? <IconCheck size={16} /> : t.shop.add}
-          </button>
-        </div>
+        <p className="line-clamp-1 text-xs text-slate-500">{product.desc[lang]}</p>
+        <span className="price-card pt-0.5 text-sm font-bold tabular-nums">
+          {formatKWD(product.price, lang)}
+        </span>
       </div>
     </article>
   )

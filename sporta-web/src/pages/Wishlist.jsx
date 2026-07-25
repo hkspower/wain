@@ -22,7 +22,7 @@ export default function Wishlist() {
           <Link to="/shop" className="btn btn-primary">{t.shop.backToShop}</Link>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-8 md:grid-cols-4 md:gap-x-4">
           {items.map((p) => <ProductCard key={p.slug} product={p} />)}
         </div>
       )}

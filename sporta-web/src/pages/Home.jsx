@@ -108,7 +108,7 @@ export default function Home() {
           <p className="text-xs font-semibold uppercase tracking-widest text-brand">{t.ess.kicker}</p>
           <h2 className="text-3xl font-extrabold text-slate-900">{t.ess.title}</h2>
         </div>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-8 md:grid-cols-4 md:gap-x-4">
           {featured.map((p) => (
             <ProductCard key={p.slug} product={p} />
           ))}

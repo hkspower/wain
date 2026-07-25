@@ -203,6 +203,16 @@ h1, h2, h3, .font-display {
   background: #232830;
 }
 
+/* Grid-card price. Sits directly on the page canvas (the card has no white
+   box), so it needs its own pair: dark burnt orange on the beige canvas,
+   lighter orange on charcoal where #b8430f would drop below 3:1. */
+.price-card {
+  color: #b8430f;
+}
+[data-theme='dark'] .price-card {
+  color: #ff9a52;
+}
+
 /* Cart drawer height. `inset-y-0` now resolves against the viewport (the
    drawer is portalled out of the blurred header — see CartDrawer.jsx), so this
    only exists for dvh: on mobile browsers whose toolbars shrink the visible

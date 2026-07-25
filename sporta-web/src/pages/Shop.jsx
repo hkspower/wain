@@ -82,7 +82,7 @@ export default function Shop() {
       </div>
 
       <h2 className="sr-only">{t.shop.gridHeading}</h2>
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-8 md:grid-cols-3 md:gap-x-4 lg:grid-cols-4">
         {sorted.map((p) => (
           <ProductCard key={p.slug} product={p} />
         ))}
