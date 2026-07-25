@@ -31,6 +31,8 @@
 
 ## Project facts
 
+- **Toolchain:** Node **24 LTS (Krypton)** — pinned in `sporta-web/.nvmrc`
+  and `engines` (>=22.12). Vite 8 will not run on older Node.
 - **Frontend:** React 18 + TypeScript + Vite + Tailwind + shadcn/ui, react-router v7.
 - **Backend:** Supabase (Postgres, Auth, Edge Functions).
 - **Payments:** CBK Hosted KNET & T-Pay (REST-JSON + NVP), native PHP on Hostinger

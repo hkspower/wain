@@ -12,6 +12,16 @@ below. Route A is one command; Route B needs no tools at all.
 
 ## Route A — one command (recommended)
 
+**Node 24 LTS ("Krypton") is what this project is built and tested with.**
+Node 22.12+ also works; older versions will fail because Vite 8 needs modern
+ESM support. `nvm use` picks the right one automatically — the version is
+pinned in `.nvmrc`.
+
+```bash
+node -v          # expect v24.x
+nvm use          # if you use nvm; installs from .nvmrc
+```
+
 From your Mac, once:
 
 ```bash
@@ -19,6 +29,12 @@ cd sporta-web
 npm install                      # installs deploy deps too
 cp .env.deploy.example .env.deploy
 ```
+
+> `npm install` may print a warning that an install script for `ssh2` was
+> blocked — npm 11 blocks them by default. **This is expected and safe to
+> ignore.** That script only builds an optional native CPU-feature addon;
+> ssh2 falls back to its JavaScript implementation and the deploy works
+> normally. It was verified on Node 24 with the script left blocked.
 
 Open `.env.deploy` and put in your Hostinger SSH password (hPanel → Advanced →
 SSH Access). Then, every time you want to publish:

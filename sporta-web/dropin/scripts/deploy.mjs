@@ -26,7 +26,9 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, posix, relative, resolve } from 'node:path'
 
-loadEnv({ path: '.env.deploy' })
+// quiet: dotenv v17 otherwise prints a promo banner and "injected env (0)" on
+// every run, which reads like a failure in the middle of a deploy log.
+loadEnv({ path: '.env.deploy', quiet: true })
 
 // --- args ------------------------------------------------------------------
 
