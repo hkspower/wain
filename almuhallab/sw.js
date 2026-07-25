@@ -1,7 +1,7 @@
 /* Nokha1 service worker — precache the app shell, serve cache-first, refresh in background. */
 "use strict";
 
-var CACHE = "nokha1-v2";
+var CACHE = "nokha1-v3";
 var ASSETS = [
   "./",
   "index.html",
@@ -9,6 +9,7 @@ var ASSETS = [
   "xbrl.html",
   "delivery.html",
   "editor.html",
+  "admin.html",
   "nokha1.html",
   "manifest.webmanifest",
   "icon.svg"

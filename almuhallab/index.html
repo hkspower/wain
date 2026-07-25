@@ -278,7 +278,7 @@
 
   <footer>
     Nokha1 (النوخذة) — نظام المهلب الموحد للخدمات · Almuhallab Nokha1 Unified Services System<br />
-    صُنع في الكويت 🇰🇼
+    صُنع في الكويت 🇰🇼 · <a href="admin.html" style="color:var(--muted)">لوحة الإدارة</a>
   </footer>
 
   <script>
@@ -512,6 +512,10 @@
           err.textContent = "البريد أو كلمة المرور غير صحيحة.";
         }
         function succeed() {
+          if (user.status === "suspended") {
+            err.textContent = "هذا الحساب موقوف — تواصل مع الدعم.";
+            return;
+          }
           lockClear(email);
           setSession(email); f.reset(); err.textContent = "";
           toast("تم تسجيل الدخول");

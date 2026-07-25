@@ -13,6 +13,7 @@ to a phone's home screen and run it offline.
 | `xbrl.html` | **XBRL** — financial statement builder + XBRL file generator |
 | `delivery.html` | **التوصيل** — delivery orders, couriers, status pipeline |
 | `editor.html` | **Almuhallab Code** — in-browser HTML/CSS/JS editor |
+| `admin.html` | **Admin console** — customers, operations, finance, settings |
 | `nokha1.html` | redirect to `index.html` (keeps old links working) |
 | `404.html` | not-found page that returns visitors to the portal |
 | `manifest.webmanifest`, `sw.js`, `icon.svg` | PWA app manifest, offline service worker, ⚓ icon |
@@ -41,6 +42,26 @@ Arabic-first (RTL) and presented as **one system**:
   manage couriers, filter by status, and track delivered revenue.
 - **Almuhallab Code**: three-pane editor with line numbers, sandboxed live
   preview, autosave, copy/download, Tab-indent, and Ctrl/Cmd+S to run.
+
+## Admin console
+
+`admin.html` is the operator view, behind its own PBKDF2 passphrase (separate
+from customer accounts, 30-minute sessions, 5-try lockout):
+
+- **Overview** — six KPIs and four charts: signups over eight weeks, plan
+  distribution, the order pipeline, and portfolio profit/loss
+- **Customers** — search, filter by plan or status, sort any column, change a
+  plan, suspend or activate, delete, and bulk actions. A suspended account is
+  refused at the portal login, so the action has real effect
+- **Operations** — every order with filters, plus per-courier performance
+- **Finance** — portfolio aggregate with charts, and the XBRL filing history
+- **Settings** — plan/revenue table, full JSON backup export and import, a
+  guarded wipe, passphrase change, and an audit log of every admin action
+
+Charts are inline SVG with a hover layer — no chart library, so the strict CSP
+holds. Colour follows the encoding: ordinal ramps where order carries meaning
+(plan tiers, pipeline stages) and a diverging pair for profit/loss, where the
+sign is shown by bar direction and a signed label as well as hue.
 
 ## Install as an app
 

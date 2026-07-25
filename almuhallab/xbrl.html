@@ -231,6 +231,21 @@
         e.preventDefault();
         if (!validate(false)) { toast("صحّح التوازن أولاً — الأصول لا تساوي الالتزامات وحقوق الملكية"); return; }
         var xml = buildXbrl();
+        try {
+          var hist = JSON.parse(localStorage.getItem("nokhatha-xbrl-reports-v1")) || [];
+          hist.push({
+            entity: form.entity.value.trim().slice(0, 120),
+            lei: form.lei.value.trim().slice(0, 40),
+            period: form.period.value,
+            periodEnd: form.periodEnd.value,
+            assets: num("currentAssets") + num("nonCurrentAssets"),
+            equity: num("equity"),
+            revenue: num("revenue"),
+            profit: num("revenue") - num("expenses"),
+            filedAt: new Date().toISOString()
+          });
+          localStorage.setItem("nokhatha-xbrl-reports-v1", JSON.stringify(hist.slice(-200)));
+        } catch (e) { /* storage unavailable */ }
         var blob = new Blob([xml], { type: "application/xml" });
         var a = document.createElement("a");
         var name = (form.entity.value.trim() || "report").replace(/[^\w\u0600-\u06FF-]+/g, "-").slice(0, 60) || "report";

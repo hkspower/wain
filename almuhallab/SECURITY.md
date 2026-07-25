@@ -32,6 +32,21 @@ boundaries that only a real backend can provide.
 - **Sessions expire** after 24 hours.
 - Minimum password length is 8; email format is validated.
 
+## Admin console (admin.html)
+
+- Its own PBKDF2-SHA256 passphrase (310,000 iterations, random salt), stored
+  separately from customer records; minimum 10 characters.
+- Sessions expire after **30 minutes** (shorter than the customer session).
+- 5 failed attempts lock the console for 10 minutes.
+- Every mutating action is written to an append-only audit log.
+- Destructive actions (delete, bulk, wipe) require confirmation; wipe requires two.
+- All customer-supplied text is escaped before rendering — the admin views data
+  that customers typed, so it is treated as untrusted.
+- **Limit:** like everything else here, this gate is device-local. It keeps a
+  casual visitor out of the console on a shared machine; it is not server-side
+  authorization, and anyone with devtools can read the same localStorage
+  directly. Real operator access control needs the backend below.
+
 ## Module-specific
 
 - **Editor (editor.html)**: user code runs in an `<iframe sandbox="allow-scripts allow-modals">`

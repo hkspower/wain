@@ -1,0 +1,965 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; manifest-src 'self'; worker-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'" />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f7f3eb" />
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b1220" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <title>لوحة الإدارة — Nokha1 Admin</title>
+  <style>
+    :root {
+      --bg: #f7f3eb; --panel: #ffffff; --panel-2: #f1ece1; --panel-3: #e9e3d5;
+      --border: #e3d5bc; --border-input: #92856f;
+      --text: #1b2430; --muted: #54657c;
+      --tint: #0d7066; --tint-strong: #0f8075;
+      --sand: #985203; --sand-vivid: #e3a556;
+      --good: #02733b; --danger: #c51823; --info: #1860c6; --warn-bg: #fbf0dc;
+      /* ordinal ramp — one hue, monotone lightness, every step >= 2:1 on the card */
+      --ord-1: #4ac3b7; --ord-2: #3ea49a; --ord-3: #348880; --ord-4: #2a6f68; --ord-5: #215752;
+      /* diverging — two poles + a neutral midpoint; sign is also carried by direction + label */
+      --viz-pos: #02733b; --viz-neg: #c51823; --viz-zero: #b9b3a6;
+      --viz-grid: #eae3d4;
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Kufi Arabic", sans-serif;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1220; --panel: #1c2b44; --panel-2: #0e1626; --panel-3: #24334b;
+        --border: #354765; --border-input: #516587;
+        --text: #e6edf6; --muted: #93a9c6;
+        --tint: #4db3a8; --tint-strong: #24847a;
+        --sand: #e3a556; --sand-vivid: #e3a556;
+        --good: #3ddc84; --danger: #ff6b74; --info: #6ea8f7; --warn-bg: #2a1f12;
+        --ord-1: #276761; --ord-2: #307f77; --ord-3: #3b9a90; --ord-4: #46b8ad; --ord-5: #52d9cc;
+        --viz-pos: #3ddc84; --viz-neg: #ff6b74; --viz-zero: #55637a;
+        --viz-grid: #2a3a55;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--text); font-family: var(--sans); }
+    a { color: var(--tint); text-decoration: none; }
+    button { font-family: var(--sans); cursor: pointer; }
+
+    /* ---------- gate ---------- */
+    .gate { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+    .gate form {
+      width: 100%; max-width: 420px; background: var(--panel); border: 1px solid var(--border);
+      border-radius: 16px; padding: 28px; display: flex; flex-direction: column; gap: 14px;
+    }
+    .gate .mark { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center;
+      background: linear-gradient(135deg, var(--sand-vivid), var(--tint-strong)); font-size: 22px; }
+
+    label { font-size: 13px; font-weight: 700; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+    input, select {
+      background: var(--panel-2); border: 1px solid var(--border-input); border-radius: 9px;
+      color: var(--text); padding: 10px 12px; font-size: 14px; font-family: var(--sans); outline: none; width: 100%;
+    }
+    input:focus, select:focus { border-color: var(--tint); }
+    .err { color: var(--danger); font-size: 13px; font-weight: 600; min-height: 18px; margin: 0; }
+    .note { font-size: 12.5px; color: var(--muted); line-height: 1.75; margin: 0; }
+
+    .btn {
+      font-size: 13.5px; font-weight: 700; border-radius: 9px; padding: 9px 15px;
+      border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
+    }
+    .btn.primary { background: var(--tint-strong); border-color: transparent; color: #fff; }
+    .btn.danger { color: var(--danger); }
+    .btn.sm { padding: 5px 10px; font-size: 12px; }
+    .btn:hover { opacity: .88; }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+
+    /* ---------- shell ---------- */
+    .shell { display: none; }
+    .shell.on { display: block; }
+    header {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 20px;
+      background: var(--panel); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; }
+    .brand .logo { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center;
+      background: linear-gradient(135deg, var(--sand-vivid), var(--tint-strong)); }
+    .brand small { display: block; font-weight: 500; font-size: 11px; color: var(--muted); }
+    header .spacer { flex: 1; }
+
+    nav.tabs { display: flex; gap: 4px; padding: 0 20px; background: var(--panel);
+      border-bottom: 1px solid var(--border); overflow-x: auto; position: sticky; top: 57px; z-index: 19; }
+    nav.tabs button {
+      background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--muted);
+      font-size: 14px; font-weight: 700; padding: 12px 14px; white-space: nowrap;
+    }
+    nav.tabs button.on { color: var(--tint); border-bottom-color: var(--tint); }
+
+    main { max-width: 1240px; margin: 0 auto; padding: 22px 20px 70px; }
+    .tab { display: none; } .tab.on { display: block; }
+    h2 { font-size: 18px; margin: 26px 0 12px; }
+    h2:first-child { margin-top: 4px; }
+
+    .banner { background: var(--warn-bg); border: 1px solid var(--sand); color: var(--sand);
+      border-radius: 12px; padding: 11px 15px; font-size: 13px; line-height: 1.75; margin-bottom: 18px; }
+
+    /* ---------- tiles ---------- */
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(186px, 1fr)); gap: 12px; }
+    .tile { background: var(--panel); border: 1px solid var(--border); border-radius: 13px; padding: 14px 16px; }
+    .tile .n { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.3; white-space: nowrap; }
+    .tile .n small { font-size: 13px; font-weight: 700; color: var(--muted); margin-inline-start: 3px; }
+    .tile .l { font-size: 12px; color: var(--muted); font-weight: 600; margin-top: 2px; }
+    .tile .sub { font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+
+    /* ---------- charts ---------- */
+    .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(430px, 1fr)); gap: 14px; }
+    .fig { background: var(--panel); border: 1px solid var(--border); border-radius: 13px; padding: 16px 18px 12px; }
+    .fig h3 { margin: 0; font-size: 14.5px; font-weight: 700; }
+    .fig .cap { margin: 3px 0 12px; font-size: 12px; color: var(--muted); }
+    .fig .plot { direction: ltr; }
+    .fig svg { width: 100%; height: auto; display: block; overflow: visible; }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--muted); }
+    .legend i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; margin-inline-end: 6px; vertical-align: -1px; }
+    .empty-fig { padding: 26px 0; text-align: center; color: var(--muted); font-size: 13px; }
+
+    #tip {
+      position: fixed; pointer-events: none; opacity: 0; transition: opacity .12s;
+      background: var(--panel); border: 1px solid var(--border-input); border-radius: 9px;
+      padding: 7px 11px; font-size: 12.5px; font-weight: 600; z-index: 60;
+      box-shadow: 0 6px 20px rgba(0,0,0,.18); white-space: nowrap;
+    }
+    #tip.on { opacity: 1; }
+    #tip b { font-variant-numeric: tabular-nums; }
+
+    /* ---------- tables ---------- */
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+    .toolbar input, .toolbar select { width: auto; min-width: 150px; }
+    .table-wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 13px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 720px; }
+    th, td { padding: 10px 13px; text-align: right; border-bottom: 1px solid var(--border); }
+    th { background: var(--panel-2); color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
+    th.sortable { cursor: pointer; user-select: none; }
+    th.sortable:hover { color: var(--tint); }
+    tbody tr:hover { background: var(--panel-3); }
+    tr:last-child td { border-bottom: 0; }
+    td.num { font-variant-numeric: tabular-nums; }
+    .pill { display: inline-block; font-size: 11px; font-weight: 800; border-radius: 999px;
+      padding: 3px 10px; border: 1px solid currentColor; }
+    .pos { color: var(--good); } .neg { color: var(--danger); } .dim { color: var(--muted); }
+    .empty { padding: 26px; text-align: center; color: var(--muted); font-size: 13.5px; }
+    .rowacts { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 13px; padding: 16px 18px; }
+    .card h3 { margin: 0 0 10px; font-size: 14.5px; }
+    .kv { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0;
+      border-bottom: 1px solid var(--border); font-size: 13px; }
+    .kv:last-child { border-bottom: 0; }
+    .kv span:last-child { font-variant-numeric: tabular-nums; font-weight: 700; }
+
+    .audit { max-height: 340px; overflow-y: auto; font-size: 12.5px; }
+    .audit div { padding: 7px 0; border-bottom: 1px solid var(--border); display: flex; gap: 10px; }
+    .audit time { color: var(--muted); font-family: var(--mono); font-size: 11.5px; white-space: nowrap; }
+
+    #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(16px);
+      background: var(--tint-strong); color: #fff; padding: 9px 18px; border-radius: 999px;
+      font-size: 13.5px; font-weight: 700; opacity: 0; pointer-events: none; transition: .2s; z-index: 80; }
+    #toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+<!-- ============================ GATE ============================ -->
+<section class="gate" id="gate">
+  <form id="gate-form" autocomplete="off">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="mark">⚓</span>
+      <div>
+        <div style="font-weight:800;font-size:17px">لوحة الإدارة</div>
+        <div style="font-size:12px;color:var(--muted)">Nokha1 Admin Console</div>
+      </div>
+    </div>
+    <p class="note" id="gate-lead"></p>
+    <label id="lbl-pass">كلمة مرور المشرف
+      <input name="pass" type="password" required minlength="10" maxlength="128" autocomplete="current-password" />
+    </label>
+    <label id="lbl-confirm" hidden>تأكيد كلمة المرور
+      <input name="confirm" type="password" maxlength="128" autocomplete="new-password" />
+    </label>
+    <p class="err" id="gate-err"></p>
+    <button class="btn primary" type="submit" id="gate-btn">دخول</button>
+    <p class="note">
+      ⚠️ هذه اللوحة تدير البيانات المحفوظة على <b>هذا الجهاز</b> فقط. الحماية هنا
+      محلية وليست تحققاً من خادم — راجع SECURITY.md.
+    </p>
+    <p class="note"><a href="index.html">← العودة إلى Nokha1</a></p>
+  </form>
+</section>
+
+<!-- ============================ SHELL ============================ -->
+<div class="shell" id="shell">
+  <header>
+    <div class="brand">
+      <span class="logo">⚓</span>
+      <div>لوحة الإدارة <small>Nokha1 Admin</small></div>
+    </div>
+    <span class="spacer"></span>
+    <a class="btn" href="index.html">الموقع ↗</a>
+    <button class="btn" id="btn-refresh">↻ تحديث</button>
+    <button class="btn danger" id="btn-logout">خروج</button>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="overview" class="on">نظرة عامة</button>
+    <button data-tab="customers">العملاء</button>
+    <button data-tab="ops">العمليات</button>
+    <button data-tab="finance">المالية</button>
+    <button data-tab="settings">الإعدادات</button>
+  </nav>
+
+  <main>
+    <div class="banner">
+      البيانات أدناه مقروءة من تخزين هذا المتصفح. حسابات العملاء مشتركة عبر صفحات
+      الموقع، أما بيانات الخدمات (المحفظة، الطلبات، التقارير) فهي بيانات هذا الجهاز.
+    </div>
+
+    <!-- ---------------- OVERVIEW ---------------- -->
+    <section class="tab on" id="tab-overview">
+      <div class="tiles" id="kpis"></div>
+      <h2>الاتجاهات</h2>
+      <div class="charts" id="charts"></div>
+    </section>
+
+    <!-- ---------------- CUSTOMERS ---------------- -->
+    <section class="tab" id="tab-customers">
+      <h2>العملاء</h2>
+      <div class="toolbar">
+        <input id="cust-q" placeholder="بحث بالاسم أو البريد…" maxlength="80" />
+        <select id="cust-plan"><option value="">كل الباقات</option></select>
+        <select id="cust-status">
+          <option value="">كل الحالات</option>
+          <option value="active">نشط</option>
+          <option value="suspended">موقوف</option>
+        </select>
+        <span class="spacer" style="flex:1"></span>
+        <button class="btn" id="bulk-suspend" disabled>إيقاف المحدد</button>
+        <button class="btn" id="bulk-activate" disabled>تفعيل المحدد</button>
+        <button class="btn danger" id="bulk-delete" disabled>حذف المحدد</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th style="width:34px"><input type="checkbox" id="cust-all" style="width:auto" /></th>
+            <th class="sortable" data-sort="name">الاسم</th>
+            <th class="sortable" data-sort="email">البريد</th>
+            <th class="sortable" data-sort="plan">الباقة</th>
+            <th class="sortable" data-sort="status">الحالة</th>
+            <th class="sortable" data-sort="createdAt">التسجيل</th>
+            <th>التجديد</th>
+            <th>إجراءات</th>
+          </tr></thead>
+          <tbody id="cust-rows"></tbody>
+        </table>
+        <div class="empty" id="cust-empty" hidden>لا يوجد عملاء مطابقون.</div>
+      </div>
+    </section>
+
+    <!-- ---------------- OPERATIONS ---------------- -->
+    <section class="tab" id="tab-ops">
+      <h2>الطلبات</h2>
+      <div class="toolbar">
+        <input id="ops-q" placeholder="بحث بالعميل أو رقم الطلب…" maxlength="80" />
+        <select id="ops-status"><option value="">كل الحالات</option></select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th class="sortable" data-sort="id">الرقم</th>
+            <th class="sortable" data-sort="customer">العميل</th>
+            <th>العنوان</th>
+            <th>الطلب</th>
+            <th class="sortable" data-sort="courier">المندوب</th>
+            <th class="sortable" data-sort="amount">المبلغ (د.ك)</th>
+            <th class="sortable" data-sort="status">الحالة</th>
+          </tr></thead>
+          <tbody id="ops-rows"></tbody>
+        </table>
+        <div class="empty" id="ops-empty" hidden>لا توجد طلبات.</div>
+      </div>
+      <h2>أداء المناديب</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>المندوب</th><th>الطلبات</th><th>تم التسليم</th><th>قيد التنفيذ</th><th>الإيراد (د.ك)</th></tr></thead>
+          <tbody id="courier-rows"></tbody>
+        </table>
+        <div class="empty" id="courier-empty" hidden>لا يوجد مناديب.</div>
+      </div>
+    </section>
+
+    <!-- ---------------- FINANCE ---------------- -->
+    <section class="tab" id="tab-finance">
+      <h2>المحفظة — صافي</h2>
+      <div class="tiles" id="safi-kpis"></div>
+      <div class="charts" style="margin-top:14px" id="safi-charts"></div>
+      <h2>تقارير XBRL</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>المنشأة</th><th>الفترة</th><th>نهاية الفترة</th><th>الأصول</th><th>حقوق الملكية</th><th>الإيرادات</th><th>صافي الربح</th></tr></thead>
+          <tbody id="xbrl-rows"></tbody>
+        </table>
+        <div class="empty" id="xbrl-empty" hidden>لا توجد تقارير محفوظة — وَلِّد تقريراً من صفحة XBRL.</div>
+      </div>
+    </section>
+
+    <!-- ---------------- SETTINGS ---------------- -->
+    <section class="tab" id="tab-settings">
+      <h2>الباقات</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>الباقة</th><th>السعر (د.ك/شهر)</th><th>عدد العملاء</th><th>الإيراد الشهري المتوقع</th></tr></thead>
+          <tbody id="plan-rows"></tbody>
+        </table>
+      </div>
+      <p class="note" style="margin-top:10px">الأسعار معروضة فقط — الدفع لم يُفعَّل بعد.</p>
+
+      <div class="grid2" style="margin-top:22px">
+        <div class="card">
+          <h3>البيانات</h3>
+          <p class="note" style="margin-bottom:12px">نسخة احتياطية كاملة لكل بيانات Nokha1 على هذا الجهاز.</p>
+          <div class="rowacts">
+            <button class="btn" id="btn-export">⬇ تصدير نسخة احتياطية</button>
+            <button class="btn" id="btn-import">⬆ استيراد</button>
+            <button class="btn danger" id="btn-wipe">مسح كل البيانات</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>كلمة مرور المشرف</h3>
+          <form id="pw-form" autocomplete="off" style="display:flex;flex-direction:column;gap:10px">
+            <label>الحالية <input name="cur" type="password" required maxlength="128" /></label>
+            <label>الجديدة (١٠ أحرف على الأقل) <input name="nw" type="password" required minlength="10" maxlength="128" /></label>
+            <p class="err" id="pw-err"></p>
+            <button class="btn primary" type="submit">تغيير</button>
+          </form>
+        </div>
+      </div>
+
+      <h2>سجل الإجراءات</h2>
+      <div class="card audit" id="audit"></div>
+    </section>
+  </main>
+</div>
+
+<div id="tip"></div>
+<div id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ============================ storage ============================ */
+  var K = {
+    users:    "nokhatha-users-v1",
+    safi:     "nokhatha-safi-v1",
+    orders:   "nokhatha-delivery-orders-v1",
+    couriers: "nokhatha-delivery-couriers-v1",
+    xbrl:     "nokhatha-xbrl-reports-v1",
+    admin:    "nokha1-admin-v1",
+    adminSes: "nokha1-admin-session-v1",
+    adminLock:"nokha1-admin-lock-v1",
+    audit:    "nokha1-admin-audit-v1"
+  };
+  function rd(k, dflt) { try { var v = JSON.parse(localStorage.getItem(k)); return v === null ? dflt : v; } catch (e) { return dflt; } }
+  function wr(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+
+  var PLANS = [
+    { id: 0, name: "بحّار — Basic", price: 0 },
+    { id: 1, name: "قبطان — Pro",   price: 15 },
+    { id: 2, name: "نوخذة — Fleet", price: 39 }
+  ];
+  var STATUSES = ["جديد", "قيد التحضير", "في الطريق", "تم التسليم", "ملغي"];
+
+  /* ============================ helpers ============================ */
+  function esc(s) { var d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
+  function num(v, max) { var n = Number(v); return (isFinite(n) && n >= 0) ? Math.min(n, max) : 0; }
+  function kwd(n) { return Number(n).toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }); }
+  function d2(iso) { if (!iso) return "—"; var d = new Date(iso); return isNaN(d) ? "—" : d.toISOString().slice(0, 10); }
+  function el(id) { return document.getElementById(id); }
+
+  function tiles(rows) {                       // [label, value, unit, sub]
+    return rows.map(function (t) {
+      return '<div class="tile"><div class="n">' + esc(t[1]) +
+             (t[2] ? '<small>' + esc(t[2]) + '</small>' : "") +
+             '</div><div class="l">' + esc(t[0]) + '</div>' +
+             (t[3] ? '<div class="sub">' + esc(t[3]) + '</div>' : "") + '</div>';
+    }).join("");
+  }
+
+  var toastT;
+  function toast(m) {
+    var t = el("toast"); t.textContent = m; t.classList.add("on");
+    clearTimeout(toastT); toastT = setTimeout(function () { t.classList.remove("on"); }, 1900);
+  }
+
+  function audit(action, detail) {
+    var log = rd(K.audit, []);
+    log.push({ ts: new Date().toISOString(), action: action, detail: detail || "" });
+    wr(K.audit, log.slice(-500));
+  }
+
+  /* ============================ crypto ============================ */
+  var ITER = 310000;
+  function hex(buf) {
+    return Array.prototype.map.call(new Uint8Array(buf), function (b) { return ("0" + b.toString(16)).slice(-2); }).join("");
+  }
+  function salt() { var s = new Uint8Array(16); crypto.getRandomValues(s); return hex(s.buffer); }
+  function derive(pw, saltHex) {
+    var s = new Uint8Array(saltHex.match(/.{2}/g).map(function (h) { return parseInt(h, 16); }));
+    return crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveBits"])
+      .then(function (k) {
+        return crypto.subtle.deriveBits({ name: "PBKDF2", salt: s, iterations: ITER, hash: "SHA-256" }, k, 256);
+      }).then(hex);
+  }
+  function eq(a, b) {
+    if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+    var d = 0; for (var i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    return d === 0;
+  }
+
+  var SES_TTL = 30 * 60 * 1000;                       // admin sessions are short
+  function sesOk() { var s = rd(K.adminSes, null); return !!(s && s.exp && Date.now() < s.exp); }
+  function sesSet(on) { on ? wr(K.adminSes, { exp: Date.now() + SES_TTL }) : localStorage.removeItem(K.adminSes); }
+
+  var LOCK_MAX = 5, LOCK_MS = 10 * 60 * 1000;
+  function lockLeft() { var l = rd(K.adminLock, null); return (l && l.until > Date.now()) ? Math.ceil((l.until - Date.now()) / 60000) : 0; }
+  function lockFail() {
+    var l = rd(K.adminLock, { n: 0, until: 0 }); l.n++;
+    if (l.n >= LOCK_MAX) { l.until = Date.now() + LOCK_MS; l.n = 0; }
+    wr(K.adminLock, l);
+  }
+
+  /* ============================ charts ============================
+     Ordinal ramps and a diverging pair, per the palette block above.
+     Every mark carries a data-tip; a single delegated handler shows it. */
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+  function fig(title, cap, inner, legend) {
+    return '<figure class="fig"><h3>' + esc(title) + '</h3><p class="cap">' + esc(cap) + '</p>' +
+           '<div class="plot">' + inner + '</div>' + (legend || "") + '</figure>';
+  }
+  function noData(msg) { return '<div class="empty-fig">' + esc(msg) + '</div>'; }
+
+  /* area + line, one series (no legend — the title names it) */
+  function areaChart(pts, fmt) {
+    if (pts.length < 2) return noData("لا توجد بيانات كافية بعد.");
+    var W = 560, H = 190, P = { t: 12, r: 14, b: 26, l: 40 };
+    var max = Math.max.apply(null, pts.map(function (p) { return p.v; })) || 1;
+    var nice = Math.ceil(max * 1.15) || 1;
+    var x = function (i) { return P.l + i * (W - P.l - P.r) / (pts.length - 1); };
+    var y = function (v) { return P.t + (1 - v / nice) * (H - P.t - P.b); };
+    var line = pts.map(function (p, i) { return (i ? "L" : "M") + x(i).toFixed(1) + " " + y(p.v).toFixed(1); }).join(" ");
+    var area = line + " L" + x(pts.length - 1).toFixed(1) + " " + y(0) + " L" + x(0).toFixed(1) + " " + y(0) + " Z";
+    var g = "";
+    for (var k = 0; k <= 2; k++) {                                   // recessive grid, 3 lines only
+      var gv = nice * k / 2;
+      g += '<line x1="' + P.l + '" y1="' + y(gv).toFixed(1) + '" x2="' + (W - P.r) + '" y2="' + y(gv).toFixed(1) +
+           '" stroke="var(--viz-grid)" stroke-width="1"/>' +
+           '<text x="' + (P.l - 7) + '" y="' + (y(gv) + 3.5).toFixed(1) + '" text-anchor="end" font-size="10" fill="var(--muted)">' + gv + '</text>';
+    }
+    var dots = pts.map(function (p, i) {
+      return '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(p.v).toFixed(1) + '" r="9" fill="transparent" ' +
+             'data-tip="' + esc(p.k + " — " + fmt(p.v)) + '"/>' +
+             (p.v > 0 ? '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(p.v).toFixed(1) +
+              '" r="3" fill="var(--ord-5)" stroke="var(--panel)" stroke-width="2"/>' : "");
+    }).join("");
+    var ticks = pts.map(function (p, i) {
+      return (i % Math.ceil(pts.length / 6) === 0 || i === pts.length - 1)
+        ? '<text x="' + x(i).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="10" fill="var(--muted)">' + esc(p.k) + '</text>' : "";
+    }).join("");
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img">' + g +
+      '<path d="' + area + '" fill="var(--ord-1)" opacity=".28"/>' +
+      '<path d="' + line + '" fill="none" stroke="var(--ord-5)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+      dots + ticks + '</svg>';
+  }
+
+  /* ordinal horizontal bars — order carries meaning, so one hue with lightness steps */
+  function ordinalBars(rows, fmt) {
+    if (!rows.length) return noData("لا توجد بيانات.");
+    var W = 560, rowH = 38, P = { t: 6, r: 14, b: 6, l: 132 };
+    var H = P.t + rows.length * rowH + P.b;
+    var max = Math.max.apply(null, rows.map(function (r) { return r.v; })) || 1;
+    var bw = W - P.l - P.r;
+    var body = rows.map(function (r, i) {
+      var y = P.t + i * rowH + 8, h = 18;
+      var w = Math.max(r.v > 0 ? 3 : 0, (r.v / max) * (bw - 62));
+      var col = r.color || ("var(--ord-" + Math.min(5, i + 1) + ")");
+      return '<text x="' + (P.l - 10) + '" y="' + (y + 13) + '" text-anchor="end" font-size="12" fill="var(--text)">' + esc(r.k) + '</text>' +
+             '<rect x="' + P.l + '" y="' + y + '" width="' + w.toFixed(1) + '" height="' + h + '" rx="4" fill="' + col + '" ' +
+             'data-tip="' + esc(r.k + " — " + fmt(r.v)) + '"/>' +
+             '<text x="' + (P.l + w + 8).toFixed(1) + '" y="' + (y + 13) + '" font-size="11.5" fill="var(--muted)" font-weight="700">' + esc(fmt(r.v)) + '</text>';
+    }).join("");
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img">' + body + '</svg>';
+  }
+
+  /* diverging — sign is carried by direction AND a signed label, not colour alone
+     (the validator put this pair in the CVD floor band, so secondary encoding is required) */
+  function divergingBars(rows, fmt) {
+    if (!rows.length) return noData("لا توجد بيانات.");
+    var W = 560, rowH = 34, P = { t: 8, r: 16, b: 6, l: 96 };
+    var H = P.t + rows.length * rowH + P.b;
+    var span = Math.max.apply(null, rows.map(function (r) { return Math.abs(r.v); })) || 1;
+    var mid = P.l + (W - P.l - P.r) / 2;
+    var half = (W - P.l - P.r) / 2 - 52;
+    var body = rows.map(function (r, i) {
+      var y = P.t + i * rowH + 7, h = 17;
+      var w = Math.max(Math.abs(r.v) > 0 ? 3 : 0, Math.abs(r.v) / span * half);
+      var pos = r.v >= 0;
+      var x = pos ? mid : mid - w;
+      var sign = (pos ? "+" : "−") + fmt(Math.abs(r.v));
+      return '<text x="' + (P.l - 10) + '" y="' + (y + 12.5) + '" text-anchor="end" font-size="12" fill="var(--text)">' + esc(r.k) + '</text>' +
+             '<rect x="' + x.toFixed(1) + '" y="' + y + '" width="' + w.toFixed(1) + '" height="' + h + '" rx="4" ' +
+             'fill="' + (pos ? "var(--viz-pos)" : "var(--viz-neg)") + '" data-tip="' + esc(r.k + " — " + sign) + '"/>' +
+             '<text x="' + (pos ? mid + w + 7 : mid - w - 7).toFixed(1) + '" y="' + (y + 12.5) + '" font-size="11.5" font-weight="700" ' +
+             'text-anchor="' + (pos ? "start" : "end") + '" fill="var(--muted)">' + esc(sign) + '</text>';
+    }).join("");
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img">' +
+      '<line x1="' + mid + '" y1="' + P.t + '" x2="' + mid + '" y2="' + (H - P.b) + '" stroke="var(--viz-zero)" stroke-width="1.5"/>' +
+      body + '</svg>';
+  }
+
+  /* one delegated hover layer for every chart */
+  var tip = el("tip");
+  document.addEventListener("mousemove", function (e) {
+    var t = e.target.closest ? e.target.closest("[data-tip]") : null;
+    if (!t) { tip.classList.remove("on"); return; }
+    tip.textContent = t.getAttribute("data-tip");
+    tip.style.left = Math.min(window.innerWidth - tip.offsetWidth - 12, e.clientX + 14) + "px";
+    tip.style.top = (e.clientY - 34) + "px";
+    tip.classList.add("on");
+  });
+
+  /* ============================ data ============================ */
+  function usersArr() {
+    var o = rd(K.users, {}), out = [];
+    Object.keys(o).forEach(function (email) {
+      var u = o[email] || {};
+      out.push({
+        email: String(email).slice(0, 254),
+        name: String(u.name || "—").slice(0, 80),
+        plan: Math.min(2, Math.max(0, Math.floor(Number(u.plan) || 0))),
+        status: u.status === "suspended" ? "suspended" : "active",
+        createdAt: u.createdAt || "", renewAt: u.renewAt || null
+      });
+    });
+    return out;
+  }
+  function ordersArr() {
+    return rd(K.orders, []).map(function (o) {
+      return {
+        id: String(o.id || "").slice(0, 12), customer: String(o.customer || "").slice(0, 80),
+        address: String(o.address || "").slice(0, 160), items: String(o.items || "").slice(0, 160),
+        courier: String(o.courier || ""), amount: num(o.amount, 1e6),
+        status: Math.min(4, Math.max(0, Math.floor(Number(o.status) || 0)))
+      };
+    });
+  }
+  function holdingsArr() {
+    return rd(K.safi, []).map(function (h) {
+      var qty = Math.floor(num(h.qty, 1e9)), cost = num(h.cost, 1e7), price = num(h.price, 1e7);
+      return { ticker: String(h.ticker || "").slice(0, 12), name: String(h.name || "").slice(0, 80),
+               qty: qty, cost: qty * cost / 1000, value: qty * price / 1000 };
+    });
+  }
+
+  /* ============================ render ============================ */
+  function renderOverview() {
+    var u = usersArr(), o = ordersArr(), h = holdingsArr();
+    var active = u.filter(function (a) { return a.status === "active"; });
+    var paid = u.filter(function (a) { return a.plan > 0; });
+    var mrr = paid.reduce(function (s, a) { return s + PLANS[a.plan].price; }, 0);
+    var delivered = o.filter(function (a) { return a.status === 3; });
+    var rev = delivered.reduce(function (s, a) { return s + a.amount; }, 0);
+    var aum = h.reduce(function (s, a) { return s + a.value; }, 0);
+    var pl = aum - h.reduce(function (s, a) { return s + a.cost; }, 0);
+
+    el("kpis").innerHTML = tiles([
+      ["العملاء", u.length, "", active.length + " نشط"],
+      ["اشتراكات مدفوعة", paid.length, "", u.length ? Math.round(paid.length / u.length * 100) + "% من العملاء" : "—"],
+      ["الإيراد الشهري المتوقع (د.ك)", kwd(mrr), "", "الدفع غير مفعّل"],
+      ["الطلبات", o.length, "", delivered.length + " تم التسليم"],
+      ["إيراد التوصيل (د.ك)", kwd(rev), "", "من الطلبات المسلّمة"],
+      ["قيمة المحفظة (د.ك)", kwd(aum), "", (pl >= 0 ? "+" : "−") + kwd(Math.abs(pl)) + " د.ك"]
+    ]);
+
+    /* signups over the last 8 weeks */
+    var weeks = [], now = new Date();
+    for (var i = 7; i >= 0; i--) {
+      var d = new Date(now); d.setDate(d.getDate() - i * 7);
+      weeks.push({ k: d.toISOString().slice(5, 10), t: d.getTime(), v: 0 });
+    }
+    u.forEach(function (a) {
+      var t = new Date(a.createdAt).getTime();
+      if (!isFinite(t)) return;
+      for (var i = weeks.length - 1; i >= 0; i--) if (t >= weeks[i].t) { weeks[i].v++; break; }
+    });
+
+    var planRows = PLANS.map(function (p) { return { k: p.name, v: u.filter(function (a) { return a.plan === p.id; }).length }; });
+    var pipe = [0, 1, 2, 3].map(function (s) { return { k: STATUSES[s], v: o.filter(function (a) { return a.status === s; }).length }; });
+    var cancelled = o.filter(function (a) { return a.status === 4; }).length;
+    if (cancelled) pipe.push({ k: "⃠ " + STATUSES[4], v: cancelled, color: "var(--viz-neg)" });
+
+    el("charts").innerHTML =
+      fig("تسجيل العملاء", "عدد الحسابات الجديدة في كل أسبوع، آخر ٨ أسابيع.",
+          areaChart(weeks, function (v) { return v + " حساب"; })) +
+      fig("توزيع الباقات", "الباقات مرتّبة تصاعدياً — التدرّج اللوني يعكس الترتيب.",
+          ordinalBars(planRows, function (v) { return v + " عميل"; })) +
+      fig("مسار الطلبات", "المراحل بالترتيب؛ الملغاة معلّمة برمز ولون منفصل.",
+          ordinalBars(pipe, function (v) { return v + " طلب"; }),
+          cancelled ? '<div class="legend"><span><i style="background:var(--ord-3)"></i>مراحل التنفيذ</span>' +
+                      '<span><i style="background:var(--viz-neg)"></i>⃠ ملغي</span></div>' : "") +
+      fig("ربح/خسارة المحفظة", "لكل سهم، بالدينار — الاتجاه والإشارة يوضحان النوع دون الاعتماد على اللون.",
+          divergingBars(h.slice(0, 8).map(function (a) { return { k: a.ticker, v: a.value - a.cost }; }), kwd),
+          '<div class="legend"><span><i style="background:var(--viz-pos)"></i>+ ربح</span>' +
+          '<span><i style="background:var(--viz-neg)"></i>− خسارة</span></div>');
+  }
+
+  /* ---------- customers ---------- */
+  var custSort = { key: "createdAt", dir: -1 }, selected = {};
+  function custList() {
+    var q = el("cust-q").value.trim().toLowerCase();
+    var fp = el("cust-plan").value, fs = el("cust-status").value;
+    var list = usersArr().filter(function (u) {
+      if (fp !== "" && String(u.plan) !== fp) return false;
+      if (fs !== "" && u.status !== fs) return false;
+      if (q && (u.name + " " + u.email).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+    list.sort(function (a, b) {
+      var x = a[custSort.key], y = b[custSort.key];
+      if (typeof x === "number") return (x - y) * custSort.dir;
+      return String(x).localeCompare(String(y), "ar") * custSort.dir;
+    });
+    return list;
+  }
+  function renderCustomers() {
+    var list = custList();
+    el("cust-rows").innerHTML = list.map(function (u) {
+      var badge = u.status === "active"
+        ? '<span class="pill pos">نشط</span>' : '<span class="pill neg">موقوف</span>';
+      return '<tr>' +
+        '<td><input type="checkbox" class="sel" data-email="' + esc(u.email) + '" style="width:auto"' + (selected[u.email] ? " checked" : "") + '/></td>' +
+        '<td>' + esc(u.name) + '</td><td>' + esc(u.email) + '</td>' +
+        '<td>' + esc(PLANS[u.plan].name) + '</td><td>' + badge + '</td>' +
+        '<td class="num">' + esc(d2(u.createdAt)) + '</td><td class="num">' + esc(d2(u.renewAt)) + '</td>' +
+        '<td><div class="rowacts">' +
+          '<button class="btn sm" data-act="plan" data-email="' + esc(u.email) + '">الباقة</button>' +
+          '<button class="btn sm" data-act="toggle" data-email="' + esc(u.email) + '">' + (u.status === "active" ? "إيقاف" : "تفعيل") + '</button>' +
+          '<button class="btn sm danger" data-act="del" data-email="' + esc(u.email) + '">حذف</button>' +
+        '</div></td></tr>';
+    }).join("");
+    el("cust-empty").hidden = list.length > 0;
+    var n = Object.keys(selected).filter(function (k) { return selected[k]; }).length;
+    ["bulk-suspend", "bulk-activate", "bulk-delete"].forEach(function (id) { el(id).disabled = n === 0; });
+  }
+  function mutate(email, fn, action) {
+    var all = rd(K.users, {});
+    if (!all[email]) return;
+    fn(all[email]);
+    wr(K.users, all); audit(action, email); renderAll();
+  }
+
+  /* ---------- operations ---------- */
+  var opsSort = { key: "id", dir: -1 };
+  function renderOps() {
+    var q = el("ops-q").value.trim().toLowerCase(), fs = el("ops-status").value;
+    var list = ordersArr().filter(function (o) {
+      if (fs !== "" && String(o.status) !== fs) return false;
+      if (q && (o.customer + " " + o.id).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+    list.sort(function (a, b) {
+      var x = a[opsSort.key], y = b[opsSort.key];
+      if (typeof x === "number") return (x - y) * opsSort.dir;
+      return String(x).localeCompare(String(y)) * opsSort.dir;
+    });
+    el("ops-rows").innerHTML = list.map(function (o) {
+      var cls = o.status === 3 ? "pos" : (o.status === 4 ? "neg" : "dim");
+      return '<tr><td class="num">' + esc(o.id) + '</td><td>' + esc(o.customer) + '</td>' +
+        '<td>' + esc(o.address) + '</td><td>' + esc(o.items) + '</td><td>' + esc(o.courier || "—") + '</td>' +
+        '<td class="num">' + esc(kwd(o.amount)) + '</td>' +
+        '<td><span class="pill ' + cls + '">' + esc(STATUSES[o.status]) + '</span></td></tr>';
+    }).join("");
+    el("ops-empty").hidden = list.length > 0;
+
+    var byC = {};
+    ordersArr().forEach(function (o) {
+      var c = o.courier || "— بدون —";
+      byC[c] = byC[c] || { n: 0, done: 0, live: 0, rev: 0 };
+      byC[c].n++;
+      if (o.status === 3) { byC[c].done++; byC[c].rev += o.amount; }
+      else if (o.status < 3) byC[c].live++;
+    });
+    var keys = Object.keys(byC);
+    el("courier-rows").innerHTML = keys.map(function (c) {
+      var v = byC[c];
+      return '<tr><td>' + esc(c) + '</td><td class="num">' + v.n + '</td><td class="num">' + v.done +
+             '</td><td class="num">' + v.live + '</td><td class="num">' + esc(kwd(v.rev)) + '</td></tr>';
+    }).join("");
+    el("courier-empty").hidden = keys.length > 0;
+  }
+
+  /* ---------- finance ---------- */
+  function renderFinance() {
+    var h = holdingsArr();
+    var cost = h.reduce(function (s, a) { return s + a.cost; }, 0);
+    var val = h.reduce(function (s, a) { return s + a.value; }, 0);
+    el("safi-kpis").innerHTML = tiles([
+      ["عدد الأسهم", h.length, "", ""],
+      ["التكلفة (د.ك)", kwd(cost), "", ""],
+      ["القيمة السوقية (د.ك)", kwd(val), "", ""],
+      ["الربح/الخسارة (د.ك)", ((val - cost) >= 0 ? "+" : "−") + kwd(Math.abs(val - cost)), "",
+       cost ? ((val - cost) / cost * 100).toFixed(1) + "%" : ""],
+      ["تقارير XBRL", rd(K.xbrl, []).length, "", "محفوظة على الجهاز"]
+    ]);
+
+    el("safi-charts").innerHTML =
+      fig("القيمة السوقية لكل سهم", "مرتّبة تنازلياً بالقيمة.",
+          ordinalBars(h.slice().sort(function (a, b) { return b.value - a.value; }).slice(0, 8)
+            .map(function (a) { return { k: a.ticker, v: a.value }; }), kwd)) +
+      fig("الربح والخسارة", "الاتجاه يميناً ربح، يساراً خسارة — مع الإشارة والقيمة.",
+          divergingBars(h.map(function (a) { return { k: a.ticker, v: a.value - a.cost }; }), kwd),
+          '<div class="legend"><span><i style="background:var(--viz-pos)"></i>+ ربح</span>' +
+          '<span><i style="background:var(--viz-neg)"></i>− خسارة</span></div>');
+
+    var reps = rd(K.xbrl, []);
+    el("xbrl-rows").innerHTML = reps.slice().reverse().map(function (r) {
+      return '<tr><td>' + esc(r.entity) + '</td><td>' + esc(r.period) + '</td><td class="num">' + esc(r.periodEnd) +
+        '</td><td class="num">' + esc(kwd(num(r.assets, 1e12))) + '</td><td class="num">' + esc(kwd(num(r.equity, 1e12))) +
+        '</td><td class="num">' + esc(kwd(num(r.revenue, 1e12))) + '</td><td class="num ' + (Number(r.profit) >= 0 ? "pos" : "neg") +
+        '">' + esc((Number(r.profit) >= 0 ? "+" : "−") + kwd(Math.abs(Number(r.profit) || 0))) + '</td></tr>';
+    }).join("");
+    el("xbrl-empty").hidden = reps.length > 0;
+  }
+
+  /* ---------- settings ---------- */
+  function renderSettings() {
+    var u = usersArr();
+    el("plan-rows").innerHTML = PLANS.map(function (p) {
+      var n = u.filter(function (a) { return a.plan === p.id; }).length;
+      return '<tr><td>' + esc(p.name) + '</td><td class="num">' + esc(p.price ? kwd(p.price) : "مجاناً") +
+             '</td><td class="num">' + n + '</td><td class="num">' + esc(kwd(n * p.price)) + '</td></tr>';
+    }).join("");
+    var log = rd(K.audit, []).slice().reverse();
+    el("audit").innerHTML = log.length
+      ? log.map(function (a) {
+          return '<div><time>' + esc(a.ts.slice(0, 19).replace("T", " ")) + '</time><span>' +
+                 esc(a.action) + (a.detail ? " — " + esc(a.detail) : "") + '</span></div>';
+        }).join("")
+      : '<p class="note">لا توجد إجراءات مسجّلة بعد.</p>';
+  }
+
+  function renderAll() {
+    ["cust-plan"].forEach(function (id) {
+      var s = el(id);
+      if (s.options.length <= 1) PLANS.forEach(function (p) {
+        var o = document.createElement("option"); o.value = p.id; o.textContent = p.name; s.appendChild(o);
+      });
+    });
+    var os = el("ops-status");
+    if (os.options.length <= 1) STATUSES.forEach(function (t, i) {
+      var o = document.createElement("option"); o.value = i; o.textContent = t; os.appendChild(o);
+    });
+    renderOverview(); renderCustomers(); renderOps(); renderFinance(); renderSettings();
+  }
+
+  /* ============================ events ============================ */
+  el("tabs").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-tab]"); if (!b) return;
+    [].forEach.call(el("tabs").children, function (x) { x.classList.toggle("on", x === b); });
+    ["overview", "customers", "ops", "finance", "settings"].forEach(function (t) {
+      el("tab-" + t).classList.toggle("on", t === b.getAttribute("data-tab"));
+    });
+  });
+
+  ["cust-q", "cust-plan", "cust-status"].forEach(function (id) {
+    el(id).addEventListener("input", renderCustomers);
+  });
+  ["ops-q", "ops-status"].forEach(function (id) { el(id).addEventListener("input", renderOps); });
+
+  document.querySelectorAll("th.sortable").forEach(function (th) {
+    th.addEventListener("click", function () {
+      var key = th.getAttribute("data-sort");
+      var inOps = th.closest("#tab-ops");
+      var st = inOps ? opsSort : custSort;
+      st.dir = st.key === key ? -st.dir : 1; st.key = key;
+      inOps ? renderOps() : renderCustomers();
+    });
+  });
+
+  el("cust-all").addEventListener("change", function (e) {
+    custList().forEach(function (u) { selected[u.email] = e.target.checked; });
+    renderCustomers();
+  });
+  el("cust-rows").addEventListener("change", function (e) {
+    var c = e.target.closest("input.sel"); if (!c) return;
+    selected[c.getAttribute("data-email")] = c.checked; renderCustomers();
+  });
+  el("cust-rows").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-act]"); if (!b) return;
+    var email = b.getAttribute("data-email"), act = b.getAttribute("data-act");
+    if (act === "toggle") {
+      mutate(email, function (u) { u.status = u.status === "suspended" ? "active" : "suspended"; },
+             "تغيير حالة العميل");
+      toast("تم تحديث الحالة");
+    } else if (act === "del") {
+      if (!confirm("حذف الحساب " + email + " نهائياً؟")) return;
+      var all = rd(K.users, {}); delete all[email]; wr(K.users, all);
+      delete selected[email]; audit("حذف عميل", email); toast("تم الحذف"); renderAll();
+    } else if (act === "plan") {
+      var cur = (rd(K.users, {})[email] || {}).plan || 0;
+      var v = prompt("رقم الباقة (0 = بحّار، 1 = قبطان، 2 = نوخذة)", String(cur));
+      if (v === null) return;
+      var p = Math.min(2, Math.max(0, parseInt(v, 10) || 0));
+      mutate(email, function (u) {
+        u.plan = p;
+        if (p > 0) { var r = new Date(); r.setMonth(r.getMonth() + 1); u.renewAt = r.toISOString(); }
+        else u.renewAt = null;
+      }, "تغيير باقة العميل إلى " + PLANS[p].name);
+      toast("تم تغيير الباقة");
+    }
+  });
+
+  function bulk(fn, action, needConfirm) {
+    var emails = Object.keys(selected).filter(function (k) { return selected[k]; });
+    if (!emails.length) return;
+    if (needConfirm && !confirm("تطبيق على " + emails.length + " حساب؟")) return;
+    var all = rd(K.users, {});
+    emails.forEach(function (e) { if (all[e]) fn(all, e); });
+    wr(K.users, all); audit(action, emails.length + " حساب");
+    selected = {}; toast("تم التنفيذ"); renderAll();
+  }
+  el("bulk-suspend").addEventListener("click", function () {
+    bulk(function (all, e) { all[e].status = "suspended"; }, "إيقاف جماعي", true);
+  });
+  el("bulk-activate").addEventListener("click", function () {
+    bulk(function (all, e) { all[e].status = "active"; }, "تفعيل جماعي", true);
+  });
+  el("bulk-delete").addEventListener("click", function () {
+    bulk(function (all, e) { delete all[e]; }, "حذف جماعي", true);
+  });
+
+  el("btn-refresh").addEventListener("click", function () { renderAll(); toast("تم التحديث"); });
+  el("btn-logout").addEventListener("click", function () {
+    sesSet(false); audit("خروج المشرف"); location.reload();
+  });
+
+  /* data tools */
+  el("btn-export").addEventListener("click", function () {
+    var dump = { exportedAt: new Date().toISOString(), data: {} };
+    [K.users, K.safi, K.orders, K.couriers, K.xbrl, K.audit].forEach(function (k) {
+      dump.data[k] = rd(k, null);
+    });
+    var blob = new Blob([JSON.stringify(dump, null, 1)], { type: "application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "nokha1-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(a.href); audit("تصدير نسخة احتياطية"); toast("تم التصدير");
+  });
+  el("btn-import").addEventListener("click", function () {
+    var inp = document.createElement("input"); inp.type = "file"; inp.accept = "application/json";
+    inp.addEventListener("change", function () {
+      var f = inp.files && inp.files[0]; if (!f) return;
+      var rdr = new FileReader();
+      rdr.onload = function () {
+        try {
+          var d = JSON.parse(rdr.result);
+          if (!d || !d.data) throw new Error("bad");
+          if (!confirm("استبدال البيانات الحالية بالنسخة المستوردة؟")) return;
+          Object.keys(d.data).forEach(function (k) { if (d.data[k] !== null) wr(k, d.data[k]); });
+          audit("استيراد نسخة احتياطية"); toast("تم الاستيراد"); renderAll();
+        } catch (e) { toast("ملف غير صالح"); }
+      };
+      rdr.readAsText(f);
+    });
+    inp.click();
+  });
+  el("btn-wipe").addEventListener("click", function () {
+    if (!confirm("مسح كل بيانات Nokha1 على هذا الجهاز؟ لا يمكن التراجع.")) return;
+    if (!confirm("تأكيد أخير — سيتم حذف الحسابات والطلبات والمحفظة والتقارير.")) return;
+    [K.users, K.safi, K.orders, K.couriers, K.xbrl].forEach(function (k) { localStorage.removeItem(k); });
+    audit("مسح كل البيانات"); toast("تم المسح"); renderAll();
+  });
+
+  el("pw-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var f = e.target, err = el("pw-err"), rec = rd(K.admin, null);
+    if (!rec) return;
+    derive(f.cur.value, rec.salt).then(function (h) {
+      if (!eq(h, rec.hash)) { err.textContent = "كلمة المرور الحالية غير صحيحة."; return; }
+      if (f.nw.value.length < 10) { err.textContent = "الجديدة قصيرة جداً."; return; }
+      var s = salt();
+      return derive(f.nw.value, s).then(function (nh) {
+        wr(K.admin, { salt: s, hash: nh, iter: ITER, createdAt: rec.createdAt });
+        err.textContent = ""; f.reset(); audit("تغيير كلمة مرور المشرف"); toast("تم التغيير"); renderSettings();
+      });
+    }).catch(function () { err.textContent = "تعذّر التحقق."; });
+  });
+
+  /* ============================ gate ============================ */
+  var setupMode = !rd(K.admin, null);
+  function paintGate() {
+    el("gate-lead").textContent = setupMode
+      ? "لم تُضبط كلمة مرور للمشرف بعد. اختر واحدة الآن (١٠ أحرف على الأقل)."
+      : "أدخل كلمة مرور المشرف للمتابعة.";
+    el("lbl-confirm").hidden = !setupMode;
+    el("gate-btn").textContent = setupMode ? "ضبط كلمة المرور" : "دخول";
+  }
+  paintGate();
+
+  el("gate-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var f = e.target, err = el("gate-err"), pw = f.pass.value;
+    var left = lockLeft();
+    if (left) { err.textContent = "محاولات كثيرة — حاول بعد " + left + " دقيقة."; return; }
+    f.querySelector("button").disabled = true;
+
+    if (setupMode) {
+      if (pw.length < 10) { err.textContent = "١٠ أحرف على الأقل."; f.querySelector("button").disabled = false; return; }
+      if (pw !== f.confirm.value) { err.textContent = "التأكيد لا يطابق."; f.querySelector("button").disabled = false; return; }
+      var s = salt();
+      derive(pw, s).then(function (h) {
+        wr(K.admin, { salt: s, hash: h, iter: ITER, createdAt: new Date().toISOString() });
+        audit("ضبط كلمة مرور المشرف"); sesSet(true); open_();
+      }).catch(function () { err.textContent = "تعذّر التشفير في هذا المتصفح."; })
+        .then(function () { f.querySelector("button").disabled = false; });
+      return;
+    }
+
+    var rec = rd(K.admin, null);
+    derive(pw, rec.salt).then(function (h) {
+      if (eq(h, rec.hash)) {
+        localStorage.removeItem(K.adminLock); sesSet(true); audit("دخول المشرف"); open_();
+      } else { lockFail(); err.textContent = "كلمة المرور غير صحيحة."; }
+    }).catch(function () { err.textContent = "تعذّر التحقق."; })
+      .then(function () { f.querySelector("button").disabled = false; });
+  });
+
+  function open_() {
+    el("gate").style.display = "none";
+    el("shell").classList.add("on");
+    renderAll();
+  }
+  if (sesOk() && !setupMode) open_();
+})();
+</script>
+
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+  }
+</script>
+</body>
+</html>
