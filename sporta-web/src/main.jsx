@@ -5,11 +5,13 @@ import App from './App.jsx'
 import { LanguageProvider } from './i18n/LanguageContext.jsx'
 import { CartProvider } from './lib/cart.jsx'
 import { WishlistProvider } from './lib/wishlist.jsx'
+import { ThemeProvider } from './lib/theme.jsx'
 import './styles/index.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
+      <ThemeProvider>
       <LanguageProvider>
         <CartProvider>
           <WishlistProvider>
@@ -17,6 +19,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           </WishlistProvider>
         </CartProvider>
       </LanguageProvider>
+      </ThemeProvider>
     </BrowserRouter>
   </React.StrictMode>,
 )

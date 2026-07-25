@@ -48,7 +48,7 @@ export default function Footer() {
               <li><Link to="/contact" className="hover:text-brand">{L.contact}</Link></li>
               <li><Link to="/shop" className="hover:text-brand">{L.shipping}</Link></li>
               <li><Link to="/shop" className="hover:text-brand">{L.returns}</Link></li>
-              <li><a href="https://wa.me/96522091914" className="hover:text-brand">{L.track}</a></li>
+              <li><Link to="/track" className="hover:text-brand">{L.track}</Link></li>
             </ul>
           </div>
         </div>

@@ -160,3 +160,45 @@ h1, h2, h3, .font-display {
 .animate-shake {
   animation: shake 0.4s ease-in-out;
 }
+
+/* ---- Dark mode ----
+ * The palette is surface-driven: we remap the few surface/text utilities the
+ * app uses rather than duplicating every component. Brand orange is unchanged
+ * (it already meets contrast on both canvases). */
+[data-theme='dark'] body {
+  background-color: #171a1e;
+  color: #e8eaed;
+}
+[data-theme='dark'] .bg-sand,
+[data-theme='dark'] .bg-sand-light {
+  background-color: #171a1e !important;
+}
+[data-theme='dark'] .bg-white,
+[data-theme='dark'] .card {
+  background-color: #1b2026 !important;
+  color: #e8eaed;
+}
+[data-theme='dark'] .text-slate-900,
+[data-theme='dark'] .text-slate-800,
+[data-theme='dark'] .text-slate-700 {
+  color: #e8eaed !important;
+}
+[data-theme='dark'] .text-slate-600,
+[data-theme='dark'] .text-slate-500,
+[data-theme='dark'] .text-slate-400 {
+  color: #9aa3ae !important;
+}
+[data-theme='dark'] .border-black\/10,
+[data-theme='dark'] .border-black\/15,
+[data-theme='dark'] .border-slate-100,
+[data-theme='dark'] .border-slate-200,
+[data-theme='dark'] .border-slate-300 {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+[data-theme='dark'] .btn-light {
+  background: #e8eaed;
+  color: #171a1e;
+}
+[data-theme='dark'] .skeleton {
+  background: #232830;
+}

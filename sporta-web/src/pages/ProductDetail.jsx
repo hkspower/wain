@@ -6,6 +6,7 @@ import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
 import { usePageMeta, productJsonLd } from '../lib/seo'
 import ProductCard from '../components/ProductCard'
+import SizeGuide from '../components/SizeGuide'
 
 export default function ProductDetail() {
   const { slug } = useParams()
@@ -15,6 +16,7 @@ export default function ProductDetail() {
   const [qty, setQty] = useState(1)
   const [size, setSize] = useState(null)
   const [sizeErr, setSizeErr] = useState(false)
+  const [guideOpen, setGuideOpen] = useState(false)
   const product = getProduct(slug)
 
   const sizes = product ? SIZES_FOR(product.category) : null
@@ -72,7 +74,7 @@ export default function ProductDetail() {
             <div className="mt-6">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-sm font-bold text-slate-900">{t.size.label}</span>
-                <span className="text-xs text-slate-400">{t.size.guide}</span>
+                <button type="button" onClick={() => setGuideOpen(true)} className="text-xs font-semibold text-brand underline underline-offset-2">{t.size.guide}</button>
               </div>
               <div className="flex flex-wrap gap-2" role="group" aria-label={t.size.label}>
                 {sizes.map((sz) => (
@@ -141,6 +143,7 @@ export default function ProductDetail() {
         </button>
       </div>
       <div className="h-16 md:hidden" aria-hidden />
+      <SizeGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
     </section>
   )
 }

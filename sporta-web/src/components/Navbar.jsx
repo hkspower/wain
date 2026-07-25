@@ -5,11 +5,13 @@ import { useCart } from '../lib/cart'
 import SearchOverlay from './SearchOverlay'
 import CartDrawer from './CartDrawer'
 import { useWishlist } from '../lib/wishlist'
+import { useTheme } from '../lib/theme'
 
 export default function Navbar() {
   const { t, lang, toggle } = useLang()
   const { count } = useCart()
   const { count: wishCount } = useWishlist()
+  const { theme, toggle: toggleTheme } = useTheme()
   const [searchOpen, setSearchOpen] = useState(false)
   const [cartOpen, setCartOpen] = useState(false)
   // Prefetch route chunks on hover so the next click renders instantly.
@@ -58,6 +60,13 @@ export default function Navbar() {
               </span>
             )}
           </Link>
+          <button
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? t.theme.light : t.theme.dark}
+            className="text-lg transition hover:scale-110"
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
           <button
             onClick={() => setSearchOpen(true)}
             aria-label={t.search.title}
