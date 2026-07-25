@@ -1,12 +1,26 @@
 # Sporta — Hostinger (Apache) production config: SPA routing + compression + caching.
 
-# ---- Force HTTPS (every visitor uses SSL) ----
+# ---- Canonicalise host + scheme in a SINGLE 301 (never chain redirects) ----
+# Everything on the site declares https://www.sporta.com.kw as canonical, so any
+# other spelling of the URL jumps straight there in one hop. Rule 1 fixes host
+# AND scheme together, so http://sporta.com.kw/x is ONE redirect, not two.
 <IfModule mod_rewrite.c>
   RewriteEngine On
-  # Redirect any http:// request to https:// (handles Hostinger's proxy header too).
-  RewriteCond %{HTTPS} !=on [OR]
-  RewriteCond %{HTTP:X-Forwarded-Proto} =http
-  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # 1) Wrong host (bare domain, old alias, IP) -> canonical host over HTTPS.
+  # (:port tolerated — Host carries a port on non-default ports / odd proxies.)
+  RewriteCond %{HTTP_HOST} !^www\.sporta\.com\.kw(:[0-9]+)?$ [NC]
+  RewriteRule ^ https://www.sporta.com.kw%{REQUEST_URI} [R=301,L]
+
+  # 2) Right host, plain HTTP -> HTTPS. Hostinger terminates SSL at a proxy, so
+  #    Apache often sees plain HTTP even for real HTTPS hits. Redirect ONLY when
+  #    every signal says insecure — if one is missing we serve the page instead
+  #    of risking an infinite http->https->http loop.
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  RewriteCond %{HTTP:X-Forwarded-SSL} !=on
+  RewriteCond %{SERVER_PORT} !=443
+  RewriteRule ^ https://www.sporta.com.kw%{REQUEST_URI} [R=301,L]
 </IfModule>
 
 # ---- Compression (Brotli if available, else gzip) ----
@@ -34,6 +48,12 @@
 </IfModule>
 
 # ---- Basic security headers ----
+# ---- HSTS: after the first visit browsers go straight to HTTPS, so the
+# http -> https redirect above stops being issued at all. ----
+<IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+</IfModule>
+
 <IfModule mod_headers.c>
   Header set X-Content-Type-Options "nosniff"
   Header set X-Frame-Options "SAMEORIGIN"
