@@ -28,28 +28,33 @@ export default function Cart() {
 
       <div className="space-y-4">
         {items.map((i) => (
-          <div key={i.key} className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4">
+          // One row on a desktop, two on a phone. As a single flex line this
+          // needed 488px — every phone in the range scrolled sideways, and the
+          // price and remove button sat off the edge of the screen.
+          <div key={i.key} className="grid grid-cols-[5rem_1fr] gap-x-4 gap-y-3 rounded-2xl border border-slate-100 bg-white p-4 sm:flex sm:items-center">
             <img src={i.image} alt={i.name[lang]} width="80" height="80" className="h-20 w-20 rounded-lg object-cover" />
-            <div className="flex-1">
+            <div className="min-w-0 self-center sm:flex-1">
               <h3 className="font-bold text-slate-800">{i.name[lang]}</h3>
               <p className="text-sm text-slate-500">{formatKWD(i.price, lang)}</p>
             </div>
-            <div className="flex items-center rounded-full border border-slate-200">
-              <button className="px-3 py-2 text-slate-700 hover:text-brand" aria-label={t.a11y.decrease} onClick={() => setQty(i.key, i.qty - 1)}><IconMinus size={15} /></button>
-              <span className="w-8 text-center font-semibold">{i.qty}</span>
-              <button className="px-3 py-2 text-slate-700 hover:text-brand" aria-label={t.a11y.increase} onClick={() => setQty(i.key, i.qty + 1)}><IconPlus size={15} /></button>
+            <div className="col-span-2 flex items-center justify-between gap-3 sm:col-span-1 sm:contents">
+              <div className="flex items-center rounded-full border border-slate-200">
+                <button className="tap flex items-center justify-center px-3 text-slate-700 hover:text-brand" aria-label={t.a11y.decrease} onClick={() => setQty(i.key, i.qty - 1)}><IconMinus size={15} /></button>
+                <span className="w-8 text-center font-semibold tabular-nums">{i.qty}</span>
+                <button className="tap flex items-center justify-center px-3 text-slate-700 hover:text-brand" aria-label={t.a11y.increase} onClick={() => setQty(i.key, i.qty + 1)}><IconPlus size={15} /></button>
+              </div>
+              <div className="whitespace-nowrap font-bold text-brand-dark sm:w-24 sm:text-end">{formatKWD(i.price * i.qty, lang)}</div>
+              <button onClick={() => remove(i.key)} className="tap flex items-center justify-center text-slate-400 hover:text-rose-500" aria-label={t.a11y.remove}><IconClose size={16} /></button>
             </div>
-            <div className="w-24 text-end font-bold text-brand-dark">{formatKWD(i.price * i.qty, lang)}</div>
-            <button onClick={() => remove(i.key)} className="text-slate-400 hover:text-rose-500" aria-label={t.a11y.remove}><IconClose size={16} /></button>
           </div>
         ))}
       </div>
 
-      <div className="mt-8 flex flex-col items-end gap-4">
-        <div className="text-xl font-bold text-slate-800">
+      <div className="mt-8 flex flex-col items-stretch gap-4 sm:items-end">
+        <div className="text-end text-xl font-bold text-slate-800">
           {t.cart.total}: <span className="text-brand">{formatKWD(total, lang)}</span>
         </div>
-        <Link to="/checkout" className="rounded-full bg-brand px-8 py-3 font-semibold text-white transition hover:bg-brand-dark">
+        <Link to="/checkout" className="btn btn-primary w-full sm:w-auto sm:px-8">
           {t.cart.checkout}
         </Link>
       </div>

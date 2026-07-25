@@ -54,9 +54,9 @@ export default function CartDrawer({ open, onClose }) {
           open ? 'translate-x-0' : 'pointer-events-none translate-x-full rtl:-translate-x-full'
         }`}
       >
-        <header className="flex items-center justify-between border-b border-black/10 px-6 py-5">
+        <header className="flex items-center justify-between border-b border-black/10 px-6 py-5 pt-[calc(1.25rem+var(--sa-top))]">
           <h2 className="text-xl font-extrabold text-slate-900">{t.cart.title}</h2>
-          <button onClick={onClose} aria-label={t.a11y.close} className="text-slate-400 hover:text-slate-700">
+          <button onClick={onClose} aria-label={t.a11y.close} className="tap flex items-center justify-center text-slate-400 hover:text-slate-700">
             <IconClose size={22} />
           </button>
         </header>
@@ -95,7 +95,7 @@ export default function CartDrawer({ open, onClose }) {
               ))}
             </ul>
 
-            <footer className="border-t border-black/10 px-6 py-5">
+            <footer className="pb-[calc(1rem+var(--sa-bottom))] border-t border-black/10 px-6 py-5">
               <div className="flex items-center justify-between text-lg font-extrabold">
                 <span>{t.cart.total}</span>
                 <span className="text-brand-dark tabular-nums">{formatKWD(total, lang)}</span>

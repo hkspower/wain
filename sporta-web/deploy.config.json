@@ -40,6 +40,7 @@
       "sitemap.xml",
       "sitemap-pages.xml",
       "sitemap-products.xml",
+      "site.webmanifest",
       "llms.txt"
     ],
     "htaccess": {

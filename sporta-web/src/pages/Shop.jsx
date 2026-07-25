@@ -57,7 +57,7 @@ export default function Shop() {
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value)}
-            className="rounded-full border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-brand"
+            className="min-h-11 rounded-full border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-brand"
           >
             <option value="newest">{t.sort.newest}</option>
             <option value="priceAsc">{t.sort.priceAsc}</option>
@@ -72,7 +72,7 @@ export default function Shop() {
             key={c.id}
             onClick={() => setCat(c.id)}
             aria-pressed={cat === c.id}
-            className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+            className={`flex min-h-11 items-center rounded-full px-4 text-sm font-semibold transition ${
               cat === c.id ? 'bg-brand text-white shadow' : 'bg-white text-slate-600 hover:bg-slate-100'
             }`}
           >

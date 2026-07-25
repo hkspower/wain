@@ -67,83 +67,91 @@ h1, h2, h3, .font-display {
   }
 }
 
-/* ---- Premium design-system primitives ---- */
-/* Buttons — 8px-grid padding, smooth press, accessible focus */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  height: 3rem;
-  padding: 0 1.5rem;
-  border-radius: 9999px;
-  font-weight: 700;
-  font-size: 0.95rem;
-  line-height: 1;
-  transition: transform 0.15s ease, background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.btn:active {
-  transform: translateY(1px) scale(0.99);
-}
-.btn-primary {
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-  font-weight: 800;
-  box-shadow: 0 8px 20px -8px hsl(var(--primary) / 0.6);
-}
-.btn-primary:hover {
-  background: #b8430f;
-  box-shadow: 0 12px 26px -8px hsl(var(--primary) / 0.7);
-}
-.btn-light {
-  background: #fff;
-  color: #171a1e;
-  box-shadow: 0 8px 20px -10px rgba(0, 0, 0, 0.4);
-}
-.btn-light:hover {
-  background: hsl(var(--primary));
-  color: #fff;
-}
-.btn-ghost {
-  background: transparent;
-  border: 1.5px solid currentColor;
-}
-.btn-sm {
-  height: 2.25rem;
-  padding: 0 1rem;
-  font-size: 0.85rem;
-}
+/* ---- Premium design-system primitives ----
+ * In @layer components on purpose. As plain CSS these sat AFTER Tailwind in
+ * source order, so `.btn { display: inline-flex }` beat the `hidden` utility
+ * at equal specificity — `class="btn hidden lg:inline-flex"` stayed visible,
+ * which put two live Pay buttons on the checkout page on every phone.
+ * Inside the components layer, utilities win, which is the whole point of
+ * having layers. */
+@layer components {
+  /* Buttons — 8px-grid padding, smooth press, accessible focus */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: 3rem;
+    padding: 0 1.5rem;
+    border-radius: 9999px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    line-height: 1;
+    transition: transform 0.15s ease, background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn:active {
+    transform: translateY(1px) scale(0.99);
+  }
+  .btn-primary {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    font-weight: 800;
+    box-shadow: 0 8px 20px -8px hsl(var(--primary) / 0.6);
+  }
+  .btn-primary:hover {
+    background: #b8430f;
+    box-shadow: 0 12px 26px -8px hsl(var(--primary) / 0.7);
+  }
+  .btn-light {
+    background: #fff;
+    color: #171a1e;
+    box-shadow: 0 8px 20px -10px rgba(0, 0, 0, 0.4);
+  }
+  .btn-light:hover {
+    background: hsl(var(--primary));
+    color: #fff;
+  }
+  .btn-ghost {
+    background: transparent;
+    border: 1.5px solid currentColor;
+  }
+  .btn-sm {
+    height: 2.25rem;
+    padding: 0 1rem;
+    font-size: 0.85rem;
+  }
 
-/* Cards — consistent radius + layered premium shadow */
-.card {
-  background: #fff;
-  border-radius: 1.5rem;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px -12px rgba(16, 24, 40, 0.12);
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
-}
-.card-hover:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 2px 4px rgba(16, 24, 40, 0.06), 0 24px 48px -16px rgba(16, 24, 40, 0.22);
-}
+  /* Cards — consistent radius + layered premium shadow */
+  .card {
+    background: #fff;
+    border-radius: 1.5rem;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px -12px rgba(16, 24, 40, 0.12);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+  .card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 2px 4px rgba(16, 24, 40, 0.06), 0 24px 48px -16px rgba(16, 24, 40, 0.22);
+  }
 
-/* Skeleton shimmer for loading states */
-@keyframes shimmer {
-  100% { transform: translateX(100%); }
-}
-.skeleton {
-  position: relative;
-  overflow: hidden;
-  background: #e7e1d5;
-}
-.skeleton::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
-  animation: shimmer 1.4s infinite;
+  /* Skeleton shimmer for loading states */
+  @keyframes shimmer {
+    100% { transform: translateX(100%); }
+  }
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background: #e7e1d5;
+  }
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+    animation: shimmer 1.4s infinite;
+  }
 }
 
 /* Small RTL niceties */
@@ -229,3 +237,121 @@ h1, h2, h3, .font-display {
 .tile-men   { background: linear-gradient(90deg, #e0561c, #171a1e); }
 .tile-women { background: linear-gradient(90deg, #e0561c, #20252c); }
 .tile-acc   { background: linear-gradient(90deg, #171a1e, #e0561c); }
+
+/* ==========================================================================
+   Modern phones
+   --------------------------------------------------------------------------
+   The viewport meta now carries viewport-fit=cover, so the page paints edge to
+   edge — under the Dynamic Island / punch-hole at the top and under the
+   home-indicator bar at the bottom. Everything that touches an edge has to
+   pull itself back out with env(safe-area-inset-*), or it sits under hardware.
+
+   `pointer: coarse` rather than a width breakpoint: what matters for hit
+   targets and iOS focus-zoom is that the input device is a finger, not that
+   the screen is narrow. A 344px folded Fold and a 440px Pro Max both qualify.
+   ========================================================================== */
+
+/* Routed through custom properties rather than calling env() at each use.
+   It keeps the values in one place, and it makes them overridable — the
+   mobile test suite sets --sa-top/--sa-bottom to real iPhone inset values to
+   prove the layout actually moves, which cannot be done with a bare env(). */
+:root {
+  --sa-top: env(safe-area-inset-top, 0px);
+  --sa-right: env(safe-area-inset-right, 0px);
+  --sa-bottom: env(safe-area-inset-bottom, 0px);
+  --sa-left: env(safe-area-inset-left, 0px);
+}
+
+/* The sticky header runs up under the status bar; pad it back down. */
+.app-header {
+  padding-top: var(--sa-top);
+}
+
+/* Landscape: the notch moves to a side, so horizontal insets become non-zero
+   and full-bleed rows would otherwise run under it. */
+.app-header > *,
+.app-footer > * {
+  padding-inline: var(--sa-left) var(--sa-right);
+}
+
+.app-footer {
+  padding-bottom: var(--sa-bottom);
+}
+
+/* Anything pinned to the bottom of the viewport clears the home indicator. */
+.safe-bottom {
+  padding-bottom: calc(0.75rem + var(--sa-bottom));
+}
+
+@media (pointer: coarse) {
+  /* iOS Safari zooms the whole page when a focused field's text is under 16px,
+     and never zooms back out. Every field on this site was 14px, so tapping
+     into checkout threw the layout sideways on every iPhone. !important is
+     deliberate: it has to beat Tailwind's text-sm on the elements themselves. */
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* Apple HIG and WCAG 2.5.5 both want ~44px of finger. Form controls were
+     landing at 40–42px, and the qty steppers at 35px. */
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea,
+  .btn,
+  .tap {
+    min-height: 44px;
+  }
+
+  .tap {
+    min-width: 44px;
+  }
+
+  /* A checkbox cannot grow much without looking wrong, so the label around it
+     becomes the target instead. */
+  .tap-row {
+    min-height: 44px;
+    align-items: center;
+  }
+}
+
+/* Scrolling inside the cart drawer must not chain to the page behind it —
+   otherwise reaching the end of the drawer starts scrolling the page, and on
+   Android it can trigger pull-to-refresh mid-checkout. */
+.cart-drawer {
+  overscroll-behavior: contain;
+}
+
+/* Sticky mobile action bar (product page, checkout). Frosted so the content
+   scrolling beneath it stays legible. */
+.action-bar {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 30;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+[data-theme='dark'] .action-bar {
+  background: rgba(23, 26, 30, 0.92);
+  border-top-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Auto-hiding header — phones and tablets only. On a desktop there is plenty
+   of vertical room and a moving header is just noise. */
+@media (max-width: 1023px) {
+  .app-header {
+    transition: transform 0.3s ease;
+    will-change: transform;
+  }
+  .app-header.is-hidden {
+    transform: translateY(-100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-header {
+    transition: none !important;
+  }
+}

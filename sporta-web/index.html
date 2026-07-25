@@ -4,7 +4,11 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover lets the page paint under the Dynamic Island and the
+         home-indicator bar on modern phones; the layout then pulls itself back
+         out of those zones with env(safe-area-inset-*). Without cover, the
+         insets all report 0 and none of that CSS does anything. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
     <!-- Primary meta -->
     <title>Sporta — Sports &amp; Fitness Store in Kuwait | سبورتا</title>
@@ -15,7 +19,18 @@
     <meta name="keywords" content="Sporta, سبورتا, sportswear Kuwait, activewear Kuwait, gym clothes Kuwait, fitness apparel, hoodies Kuwait, gym accessories, Gymshark Kuwait, RHEO, Vanquish, sportswear GCC, activewear Middle East, ملابس رياضية الكويت, ملابس جيم, ملابس رياضية نسائية, ملابس رياضية رجالية, هوديز, إكسسوارات رياضية, تسوق اونلاين الكويت, كي نت, ملابس رياضية الخليج, KNET, الكويت" />
     <meta name="author" content="Sporta" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-    <meta name="theme-color" content="#FF7B17" />
+    <!-- Colours the phone's status/URL bar. It has to match the sticky header
+         (charcoal), not the brand orange — with viewport-fit=cover the header
+         now runs right up under the status bar, and an orange strip above a
+         charcoal header is a visible seam. -->
+    <meta name="theme-color" content="#171A1E" />
+
+    <!-- Add to Home Screen -->
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Sporta" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="canonical" href="https://www.sporta.com.kw/" />
 
     <!-- Geo targeting — Kuwait -->

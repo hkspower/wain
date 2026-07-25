@@ -38,7 +38,7 @@ export default function TrackOrder() {
       <h1 className="text-3xl font-extrabold text-slate-900">{t.track.title}</h1>
       <p className="mt-2 text-slate-500">{t.track.sub}</p>
 
-      <form onSubmit={submit} className="mt-6 flex gap-3">
+      <form onSubmit={submit} className="mt-6 flex flex-col gap-3 sm:flex-row">
         <input
           value={id}
           onChange={(e) => setId(e.target.value)}
@@ -46,7 +46,7 @@ export default function TrackOrder() {
           aria-label={t.track.placeholder}
           className="flex-1 rounded-full border border-black/15 bg-white px-5 py-3 outline-none focus:border-brand"
         />
-        <button className="btn btn-primary">{t.track.cta}</button>
+        <button className="btn btn-primary w-full sm:w-auto">{t.track.cta}</button>
       </form>
 
       <div className="mt-8">

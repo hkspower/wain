@@ -89,7 +89,7 @@ export default function ProductDetail() {
             <div className="mt-6">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-sm font-bold text-slate-900">{t.size.label}</span>
-                <button type="button" onClick={() => setGuideOpen(true)} className="text-xs font-semibold text-brand underline underline-offset-2">{t.size.guide}</button>
+                <button type="button" onClick={() => setGuideOpen(true)} className="-my-2 py-2 text-xs font-semibold text-brand underline underline-offset-2">{t.size.guide}</button>
               </div>
               <div className="flex flex-wrap gap-2" role="group" aria-label={t.size.label}>
                 {sizes.map((sz) => (
@@ -113,9 +113,9 @@ export default function ProductDetail() {
 
           <div className="mt-6 flex flex-wrap items-center gap-4">
             <div className="flex items-center rounded-full border border-slate-300 bg-white">
-              <button className="px-4 py-2.5 text-slate-700 hover:text-brand" aria-label={t.a11y.decrease} onClick={() => setQty((q) => Math.max(1, q - 1))}><IconMinus size={16} /></button>
+              <button className="tap flex items-center justify-center px-4 text-slate-700 hover:text-brand" aria-label={t.a11y.decrease} onClick={() => setQty((q) => Math.max(1, q - 1))}><IconMinus size={16} /></button>
               <span className="w-10 text-center font-semibold" aria-live="polite">{qty}</span>
-              <button className="px-4 py-2.5 text-slate-700 hover:text-brand" aria-label={t.a11y.increase} onClick={() => setQty((q) => q + 1)}><IconPlus size={16} /></button>
+              <button className="tap flex items-center justify-center px-4 text-slate-700 hover:text-brand" aria-label={t.a11y.increase} onClick={() => setQty((q) => q + 1)}><IconPlus size={16} /></button>
             </div>
             <button onClick={handleAdd} className="btn btn-primary">
               {t.shop.add}
@@ -148,7 +148,10 @@ export default function ProductDetail() {
       </div>
 
       {/* Sticky mobile buy bar */}
-      <div className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 border-t border-black/10 bg-white/95 px-4 py-3 backdrop-blur md:hidden">
+      {/* Sticky buy bar. safe-bottom keeps it clear of the home-indicator
+          gesture bar — without it the button sat under the swipe strip on every
+          modern iPhone and Android. */}
+      <div className="action-bar safe-bottom flex items-center justify-between gap-3 px-4 pt-3 md:hidden">
         <span className="text-lg font-extrabold text-brand-dark">{formatKWD(product.price * qty, lang)}</span>
         <button
           onClick={() => handleAdd() && navigate('/checkout')}
@@ -157,7 +160,8 @@ export default function ProductDetail() {
           {t.shop.buyNow}
         </button>
       </div>
-      <div className="h-16 md:hidden" aria-hidden />
+      {/* Spacer so the bar never covers the last of the page. */}
+      <div className="h-[calc(4.75rem+var(--sa-bottom))] md:hidden" aria-hidden />
       <SizeGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
     </section>
   )

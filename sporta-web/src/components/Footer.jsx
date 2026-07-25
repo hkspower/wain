@@ -6,7 +6,7 @@ export default function Footer() {
   const { t } = useLang()
   const L = t.footer.links
   return (
-    <footer className="mt-16 bg-ink text-slate-300">
+    <footer className="app-footer mt-16 bg-ink text-slate-300">
       <div className="mx-auto max-w-7xl px-6 py-12 md:py-16">
         {/* Brand + tagline + socials */}
         <div className="flex flex-col items-center gap-5 text-center">
@@ -24,7 +24,7 @@ export default function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={s.label}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 transition hover:border-brand hover:text-brand"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 transition hover:border-brand hover:text-brand"
               >
                 <s.Icon size={18} />
               </a>
@@ -37,19 +37,19 @@ export default function Footer() {
           <div>
             <h2 className="mb-3 text-sm font-bold text-brand">{t.footer.infoTitle}</h2>
             <ul className="space-y-2 text-sm">
-              <li><Link to="/about" className="hover:text-brand">{L.about}</Link></li>
-              <li><Link to="/about" className="hover:text-brand">{L.why}</Link></li>
-              <li><Link to="/about" className="hover:text-brand">{L.terms}</Link></li>
-              <li><Link to="/about" className="hover:text-brand">{L.privacy}</Link></li>
+              <li><Link to="/about" className="inline-flex min-h-6 items-center hover:text-brand">{L.about}</Link></li>
+              <li><Link to="/about" className="inline-flex min-h-6 items-center hover:text-brand">{L.why}</Link></li>
+              <li><Link to="/about" className="inline-flex min-h-6 items-center hover:text-brand">{L.terms}</Link></li>
+              <li><Link to="/about" className="inline-flex min-h-6 items-center hover:text-brand">{L.privacy}</Link></li>
             </ul>
           </div>
           <div>
             <h2 className="mb-3 text-sm font-bold text-brand">{t.footer.navTitle}</h2>
             <ul className="space-y-2 text-sm">
-              <li><Link to="/contact" className="hover:text-brand">{L.contact}</Link></li>
-              <li><Link to="/shop" className="hover:text-brand">{L.shipping}</Link></li>
-              <li><Link to="/returns" className="hover:text-brand">{L.returns}</Link></li>
-              <li><Link to="/track" className="hover:text-brand">{L.track}</Link></li>
+              <li><Link to="/contact" className="inline-flex min-h-6 items-center hover:text-brand">{L.contact}</Link></li>
+              <li><Link to="/shop" className="inline-flex min-h-6 items-center hover:text-brand">{L.shipping}</Link></li>
+              <li><Link to="/returns" className="inline-flex min-h-6 items-center hover:text-brand">{L.returns}</Link></li>
+              <li><Link to="/track" className="inline-flex min-h-6 items-center hover:text-brand">{L.track}</Link></li>
             </ul>
           </div>
         </div>

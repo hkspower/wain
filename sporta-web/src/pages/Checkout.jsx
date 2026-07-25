@@ -261,11 +261,13 @@ export default function Checkout() {
               </Field>
             </div>
 
-            <label className="mt-4 flex items-center gap-2.5 text-sm text-slate-600">
+            {/* tap-row: a checkbox cannot grow to 44px without looking wrong,
+                so the label around it carries the touch target instead. */}
+            <label className="tap-row mt-4 flex cursor-pointer gap-2.5 text-sm text-slate-600">
               <input
                 type="checkbox" checked={remember}
                 onChange={(e) => setRemember(e.target.checked)}
-                className="h-4 w-4 accent-brand"
+                className="h-5 w-5 shrink-0 accent-brand"
               />
               {t.checkout.remember}
             </label>
@@ -295,12 +297,27 @@ export default function Checkout() {
               <span className="text-brand">{formatKWD(total, lang)}</span>
             </div>
 
-            <button type="submit" disabled={busy} className="btn btn-primary mt-5 w-full">
+            {/* On a phone the summary sits below a long form, so the real Pay
+                button is the sticky bar below; showing both would be two live
+                submit buttons a thumb-scroll apart. */}
+            <button type="submit" disabled={busy} className="btn btn-primary mt-5 hidden w-full lg:inline-flex">
               {busy ? t.checkout.redirecting : t.checkout.payNow}
             </button>
-            <p className="mt-3 text-center text-xs text-slate-400">{t.checkout.securedBy}</p>
+            <p className="mt-3 hidden text-center text-xs text-slate-400 lg:block">{t.checkout.securedBy}</p>
           </div>
         </aside>
+
+        {/* Sticky pay bar — phones only. */}
+        <div className="action-bar safe-bottom flex items-center justify-between gap-3 px-4 pt-3 lg:hidden">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t.cart.total}</p>
+            <p className="truncate text-lg font-extrabold text-brand">{formatKWD(total, lang)}</p>
+          </div>
+          <button type="submit" disabled={busy} className="btn btn-primary flex-1">
+            {busy ? t.checkout.redirecting : t.checkout.payNow}
+          </button>
+        </div>
+        <div className="h-[calc(5.25rem+var(--sa-bottom))] lg:hidden" aria-hidden />
       </form>
     </section>
   )

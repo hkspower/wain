@@ -153,3 +153,7 @@ ErrorDocument 404 /index.html
 
 # Keep the server version out of generated error pages.
 ServerSignature Off
+
+<IfModule mod_mime.c>
+  AddType application/manifest+json .webmanifest
+</IfModule>

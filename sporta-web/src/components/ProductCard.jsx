@@ -53,7 +53,7 @@ export default function ProductCard({ product }) {
           onClick={(e) => { e.preventDefault(); toggle(product.slug) }}
           aria-label={t.a11y.saveWishlist}
           aria-pressed={has(product.slug)}
-          className={`absolute end-2.5 top-2.5 flex h-9 w-9 items-center justify-center rounded-full bg-white/95 shadow-sm backdrop-blur transition hover:text-brand focus-visible:opacity-100 ${
+          className={`absolute end-2 top-2 flex h-11 w-11 items-center justify-center rounded-full bg-white/95 shadow-sm backdrop-blur transition hover:text-brand focus-visible:opacity-100 ${
             has(product.slug)
               ? 'text-brand opacity-100'
               : 'text-slate-600 lg:opacity-0 lg:group-hover:opacity-100'
@@ -68,7 +68,7 @@ export default function ProductCard({ product }) {
           type="button"
           onClick={quickAdd}
           aria-label={`${t.shop.add} — ${product.name[lang]}`}
-          className={`absolute bottom-2.5 end-2.5 flex h-10 w-10 items-center justify-center rounded-full shadow-md transition focus-visible:opacity-100 ${
+          className={`absolute bottom-2 end-2 flex h-11 w-11 items-center justify-center rounded-full shadow-md transition focus-visible:opacity-100 ${
             added
               ? 'bg-emerald-500 text-white opacity-100'
               : 'bg-white/95 text-ink backdrop-blur hover:bg-brand hover:text-white lg:translate-y-1 lg:opacity-0 lg:group-hover:translate-y-0 lg:group-hover:opacity-100'
@@ -79,7 +79,7 @@ export default function ProductCard({ product }) {
       </Link>
 
       <div className="flex flex-col gap-0.5 pt-3">
-        <Link to={`/product/${product.slug}`} className="transition group-hover:text-brand">
+        <Link to={`/product/${product.slug}`} className="-my-1.5 py-1.5 transition group-hover:text-brand">
           <h3 className="line-clamp-1 text-sm font-semibold text-slate-900">{product.name[lang]}</h3>
         </Link>
         <p className="line-clamp-1 text-xs text-slate-500">{product.desc[lang]}</p>
