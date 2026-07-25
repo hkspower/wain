@@ -2,6 +2,16 @@ import { useEffect } from 'react'
 
 const SITE = 'https://www.sporta.com.kw'
 const BASE_TITLE = 'Sporta — Sports & Fitness Store in Kuwait'
+const BASE_DESC =
+  'Sporta (سبورتا) is a Kuwait sportswear store — activewear, gym clothing, hoodies, caps, and sports accessories from brands like Gymshark, RHEO & more. Fast delivery, free returns, KNET checkout. Arabic & English.'
+const OG_IMAGE = `${SITE}/og-image.png`
+
+// Third-party brands carried by the store; anything else is the house label.
+const KNOWN_BRANDS = ['RHEO', 'Vanquish', 'ATE', 'Gymshark', 'Eyesportwear', 'NBA']
+function brandOf(product) {
+  const en = product.name?.en || ''
+  return KNOWN_BRANDS.find((b) => en.toLowerCase().includes(b.toLowerCase())) || 'SPORTA'
+}
 
 function setTag(selector, attrs) {
   let el = document.head.querySelector(selector)
@@ -22,18 +32,26 @@ export function usePageMeta({ title, description, path = '', jsonLd, robots } = 
   useEffect(() => {
     document.title = title ? `${title} — Sporta` : BASE_TITLE
 
-    if (description) {
-      setTag('meta[name="description"]', { tag: 'meta', name: 'description', content: description })
-      setTag('meta[property="og:description"]', { tag: 'meta', property: 'og:description', content: description })
-    }
+    // Always reset the description so a product page's copy never leaks onto
+    // the next route (routes that pass none get the site default back).
+    const desc = description || BASE_DESC
+    setTag('meta[name="description"]', { tag: 'meta', name: 'description', content: desc })
+    setTag('meta[property="og:description"]', { tag: 'meta', property: 'og:description', content: desc })
     const url = SITE + (path || '/')
-    setTag('link[rel="canonical"]', { tag: 'link', rel: 'canonical', href: url })
     setTag('meta[property="og:url"]', { tag: 'meta', property: 'og:url', content: url })
     setTag('meta[property="og:title"]', { tag: 'meta', property: 'og:title', content: title || BASE_TITLE })
-    // The site is bilingual on the same URL (client-side toggle), so every
-    // route lists en + ar + x-default alternates pointing at itself.
-    for (const hl of ['en', 'ar', 'x-default']) {
-      setTag(`link[rel="alternate"][hreflang="${hl}"]`, { tag: 'link', rel: 'alternate', hreflang: hl, href: url })
+    const noindex = Boolean(robots?.includes('noindex'))
+    if (noindex) {
+      // A noindex page should not advertise a canonical or alternates.
+      document.head.querySelector('link[rel="canonical"]')?.remove()
+      document.head.querySelectorAll('link[rel="alternate"][hreflang]').forEach((el) => el.remove())
+    } else {
+      setTag('link[rel="canonical"]', { tag: 'link', rel: 'canonical', href: url })
+      // The site is bilingual on the same URL (client-side toggle), so every
+      // route lists en + ar + x-default alternates pointing at itself.
+      for (const hl of ['en', 'ar', 'x-default']) {
+        setTag(`link[rel="alternate"][hreflang="${hl}"]`, { tag: 'link', rel: 'alternate', hreflang: hl, href: url })
+      }
     }
     // Cart/checkout/result pages pass robots: 'noindex, follow'.
     setTag('meta[name="robots"]', {
@@ -64,9 +82,11 @@ export function productJsonLd(product, lang = 'en') {
     name: product.name?.[lang] || product.name?.en,
     alternateName: lang === 'ar' ? product.name?.en : product.name?.ar,
     description: product.desc?.[lang] || product.desc?.en,
-    image: product.image?.startsWith('http') ? product.image : undefined,
+    // Real product photos are still pending; fall back to the brand image so
+    // the required Product.image property is never missing.
+    image: product.image?.startsWith('http') ? product.image : OG_IMAGE,
     category: product.category,
-    brand: { '@type': 'Brand', name: 'Sporta' },
+    brand: { '@type': 'Brand', name: brandOf(product) },
     offers: {
       '@type': 'Offer',
       price: Number(product.price).toFixed(3),
@@ -108,7 +128,8 @@ export function itemListJsonLd(products, lang = 'en') {
         '@type': 'Product',
         name: p.name?.[lang] || p.name?.en,
         url: `${SITE}/product/${p.slug}`,
-        brand: { '@type': 'Brand', name: 'Sporta' },
+        image: p.image?.startsWith('http') ? p.image : OG_IMAGE,
+        brand: { '@type': 'Brand', name: brandOf(p) },
         offers: {
           '@type': 'Offer',
           price: Number(p.price).toFixed(3),

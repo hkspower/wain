@@ -115,8 +115,8 @@ export const PRODUCTS = [
     price: 3.5, category: 'accessories', image: ph('Shaker', '#E0561C', '#B8430F') },
   {
     slug: 'lifting-straps',
-    name: { en: 'Lifting Straps', ar: 'أحزمة رفع الأثقال' },
-    desc: { en: 'Padded cotton lifting straps.', ar: 'أحزمة رفع قطنية مبطّنة.' },
+    name: { en: 'Lifting Straps', ar: 'أربطة رفع الأثقال' },
+    desc: { en: 'Padded cotton lifting straps.', ar: 'أربطة رفع قطنية مبطّنة.' },
     price: 4.5, category: 'accessories', image: ph('Straps', '#292524', '#0c0a09') },
   {
     slug: 'sporta-socks-3pack',
@@ -125,7 +125,7 @@ export const PRODUCTS = [
     price: 5.0, category: 'accessories', image: ph('Socks', '#1e3a8a', '#0f172a') },
   {
     slug: 'gymshark-phone-strap',
-    name: { en: 'Gymshark Phone Strap', ar: 'حزام جوال جيمشارك' },
+    name: { en: 'Gymshark Phone Strap', ar: 'علاقة جوال جيمشارك' },
     desc: { en: 'Running arm phone strap.', ar: 'حزام ذراع للجوال أثناء الجري.' },
     price: 5.5, category: 'accessories', image: ph('Phone Strap', '#F26522', '#C24E12') },
 ]

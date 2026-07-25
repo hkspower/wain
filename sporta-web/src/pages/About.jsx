@@ -23,7 +23,7 @@ const FAQ = [
     q: { en: 'Can I exchange or return an item?', ar: 'هل يمكن الاستبدال أو الإرجاع؟' },
     a: {
       en: 'Yes — exchange and return are free. Contact us on WhatsApp +965 2209 1914 to arrange it.',
-      ar: 'نعم — الاستبدال والإرجاع مجاني. تواصل معنا عبر واتساب ٢٢٠٩١٩١٤ ٩٦٥+ لترتيب ذلك.',
+      ar: 'نعم — الاستبدال والإرجاع مجانيان. تواصل معنا عبر واتساب \u200E+965 2209 1914 لترتيب ذلك.',
     },
   },
   {

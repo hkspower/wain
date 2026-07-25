@@ -25,7 +25,7 @@ export default function Contact() {
     title: t.contact.title,
     description:
       lang === 'ar'
-        ? 'تواصل مع سبورتا عبر واتساب ٢٢٠٩١٩١٤ ٩٦٥+ أو البريد cs@sporta.com.kw — نرد بالعربي والإنجليزي.'
+        ? 'تواصل مع سبورتا عبر واتساب \u200E+965 2209 1914 أو البريد cs@sporta.com.kw — نرد بالعربي والإنجليزي.'
         : 'Contact Sporta on WhatsApp +965 2209 1914 or cs@sporta.com.kw — we answer in Arabic and English.',
     path: '/contact',
     jsonLd,

@@ -259,11 +259,11 @@ window.SPORTA_PRODUCTS = [
   "slug": "lifting-straps",
   "name": {
    "en": "Lifting Straps",
-   "ar": "أحزمة رفع الأثقال"
+   "ar": "أربطة رفع الأثقال"
   },
   "desc": {
    "en": "Padded cotton lifting straps.",
-   "ar": "أحزمة رفع قطنية مبطّنة."
+   "ar": "أربطة رفع قطنية مبطّنة."
   },
   "price": 4.5,
   "category": "accessories",
@@ -287,7 +287,7 @@ window.SPORTA_PRODUCTS = [
   "slug": "gymshark-phone-strap",
   "name": {
    "en": "Gymshark Phone Strap",
-   "ar": "حزام جوال جيمشارك"
+   "ar": "علاقة جوال جيمشارك"
   },
   "desc": {
    "en": "Running arm phone strap.",

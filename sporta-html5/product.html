@@ -24,8 +24,8 @@
 <meta property="og:description" content="Sporta product details, sizes and KNET checkout. Same-day delivery in Kuwait. تفاصيل المنتج والمقاسات والدفع عبر كي نت — توصيل نفس اليوم في الكويت.">
 <meta property="og:image" content="https://www.sporta.com.kw/assets/og-image.png">
 <meta property="og:url" content="https://www.sporta.com.kw/product.html">
-<meta property="og:locale" content="en_KW">
-<meta property="og:locale:alternate" content="ar_KW">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="ar_AR">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://www.sporta.com.kw/assets/og-image.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -107,6 +107,9 @@ window.SPORTA_PAGE = (S, H) => {
   const p = window.SPORTA_PRODUCTS.find((x) => x.slug === slug)
   const d = document.getElementById('detail')
   if (!p) {
+    document.querySelector('meta[name="robots"]')?.setAttribute('content', 'noindex, follow')
+    document.querySelector('link[rel="canonical"]')?.remove()
+    document.querySelectorAll('link[rel="alternate"][hreflang]').forEach((el) => el.remove())
     d.innerHTML = '<p style="text-align:center;padding:4rem 0">Product not found. <a href="shop.html" style="color:var(--brand)">Shop</a></p>'
     return
   }
@@ -118,6 +121,7 @@ window.SPORTA_PAGE = (S, H) => {
   document.querySelector('link[rel="canonical"]')?.setAttribute('href', pageUrl)
   document.querySelector('meta[property="og:url"]')?.setAttribute('content', pageUrl)
   document.querySelector('meta[property="og:title"]')?.setAttribute('content', `${p.name.en} — Sporta`)
+  document.querySelectorAll('link[rel="alternate"][hreflang]').forEach((el) => el.setAttribute('href', pageUrl))
   document.getElementById('pjsonld')?.remove()
   const ld = document.createElement('script')
   ld.type = 'application/ld+json'
@@ -130,8 +134,15 @@ window.SPORTA_PAGE = (S, H) => {
         name: p.name.en,
         alternateName: p.name.ar,
         description: p.desc?.en,
+        // Placeholder until real product photos exist — Product.image is
+        // required by Google.
+        image: 'https://www.sporta.com.kw/assets/og-image.png',
         category: p.category,
-        brand: { '@type': 'Brand', name: 'Sporta' },
+        brand: {
+          '@type': 'Brand',
+          name: ['RHEO', 'Vanquish', 'ATE', 'Gymshark', 'Eyesportwear', 'NBA']
+            .find((b) => p.name.en.toLowerCase().includes(b.toLowerCase())) ?? 'SPORTA',
+        },
         offers: {
           '@type': 'Offer',
           price: p.price.toFixed(3),

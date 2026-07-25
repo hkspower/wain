@@ -84,6 +84,10 @@ writeFileSync(
 
 // ---------- llms.txt (GEO — AI answer engines) ----------
 const kwd = (n) => `KWD ${Number(n).toFixed(3)}`
+// Third-party brands carried by the store; anything else is the house label.
+const KNOWN_BRANDS = ['RHEO', 'Vanquish', 'ATE', 'Gymshark', 'Eyesportwear', 'NBA']
+const brandOf = (p) =>
+  KNOWN_BRANDS.find((b) => p.name.en.toLowerCase().includes(b.toLowerCase())) ?? 'SPORTA'
 const catName = { women: 'Women', men: 'Men', outerwear: 'Hoodies & Jackets', accessories: 'Accessories' }
 const catNameAr = { women: 'نسائي', men: 'رجالي', outerwear: 'هوديز وجاكيتات', accessories: 'إكسسوارات' }
 
@@ -175,7 +179,8 @@ if (existsSync(shopPath)) {
             name: p.name.en,
             alternateName: p.name.ar,
             url: `${SITE}/product.html?p=${p.slug}`,
-            brand: { '@type': 'Brand', name: 'Sporta' },
+            image: `${SITE}/assets/og-image.png`,
+            brand: { '@type': 'Brand', name: brandOf(p) },
             offers: {
               '@type': 'Offer',
               price: Number(p.price).toFixed(3),

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { CATEGORIES, PRODUCTS, byCategory } from '../lib/products'
 import ProductCard from '../components/ProductCard'
@@ -8,6 +9,10 @@ export default function Shop() {
   const { lang, t } = useLang()
   const [cat, setCat] = useState('all')
   const [sort, setSort] = useState('newest')
+  // /shop?q=... — the search target advertised by the WebSite SearchAction
+  // schema, so it must really filter.
+  const [params] = useSearchParams()
+  const q = (params.get('q') || '').trim().toLowerCase()
   const jsonLd = useMemo(
     () =>
       graph(
@@ -26,7 +31,14 @@ export default function Shop() {
     path: '/shop',
     jsonLd,
   })
-  const products = byCategory(cat)
+  const products = byCategory(cat).filter(
+    (p) =>
+      !q ||
+      p.name.en.toLowerCase().includes(q) ||
+      p.name.ar.includes(q) ||
+      p.desc?.en?.toLowerCase().includes(q) ||
+      p.desc?.ar?.includes(q),
+  )
 
   const sorted = [...products].sort((a, b) =>
     sort === 'priceAsc' ? a.price - b.price : sort === 'priceDesc' ? b.price - a.price : 0,
