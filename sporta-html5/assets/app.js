@@ -1,7 +1,9 @@
 /* Sporta — static site logic: i18n (AR/EN + RTL), theme, cart, wishlist,
-   product rendering. Modern ES2022 module: const/let, arrow functions,
-   template literals, optional chaining, logical assignment, Intl, classes.
-   Loaded with <script type="module"> (strict mode + deferred by default). */
+   product rendering. Modern ES2022: const/let, arrow functions, template
+   literals, optional chaining, logical assignment, Intl.
+   Loaded as a classic script (no import/export) so the pages also open
+   straight from disk over file:// — modules would be blocked by CORS. */
+'use strict'
 
   // ---------- i18n ----------
 const T = {
