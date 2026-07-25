@@ -1,0 +1,21 @@
+{
+  "name": "Nokha1 — النوخذة",
+  "short_name": "Nokha1",
+  "description": "نظام المهلب الموحد: صافي، XBRL، والتوصيل — يعمل بدون إنترنت.",
+  "id": "nokha1",
+  "start_url": "nokha1.html",
+  "scope": "./",
+  "display": "standalone",
+  "dir": "rtl",
+  "lang": "ar",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "صافي — SAFI", "url": "safi.html", "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }] },
+    { "name": "XBRL", "url": "xbrl.html", "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }] },
+    { "name": "التوصيل", "url": "delivery.html", "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }] }
+  ]
+}

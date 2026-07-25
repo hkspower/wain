@@ -39,13 +39,32 @@ Arabic-first (RTL) portal presenting all services as **one system**:
   line numbers, sandboxed live preview, autosave, copy/download, Tab-indent,
   and Ctrl/Cmd+S to run.
 
+## HTML5 app (PWA) — installable & offline
+
+Nokha1 is a full **HTML5 Progressive Web App**:
+
+- `manifest.webmanifest` — app name, ⚓ icon (`icon.svg`), RTL/Arabic,
+  standalone display, and home-screen shortcuts to صافي / XBRL / التوصيل
+- `sw.js` — service worker that precaches all pages and serves them
+  **offline** (stale-while-revalidate: instant load, silent background update)
+- Every page registers the service worker and carries theme-color and
+  Apple touch-icon metadata
+
+On a phone, open the site and choose **Add to Home Screen** — it installs
+and runs like a native app, works with no internet, and keeps all data
+on the device.
+
 ## Run it
 
-Open any page directly in a browser, or serve the folder:
+Service workers need HTTP(S), so serve the folder (any static host works —
+GitHub Pages, Netlify, Cloudflare Pages, or your own server):
 
 ```bash
 npx serve almuhallab
 ```
+
+Opening files directly (`file://`) still works for everything except the
+offline install.
 
 ## ⚠️ Prototype status — what's real and what isn't
 
