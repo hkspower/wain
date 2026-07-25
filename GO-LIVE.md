@@ -98,8 +98,17 @@ It finishes by checking that your `products` and `orders` tables are reachable,
 and warns you if `products` is still empty — checkout cannot work until it has
 rows, because the amount is priced from that table and never from the browser.
 
-No SSH? Copy `config.example.php` to `config.php` in File Manager, fill in the
-same five values by hand, and set permissions to `600`.
+**No shell?** Hostinger accounts whose login shell is `/sbin/nologin` can use
+SFTP and `npm run deploy` but cannot open a terminal, so `setup-config.php`
+cannot run. Copy `config.example.php` to `config.php` in File Manager, fill in
+the same five values by hand, and set permissions to `600` — then open
+`https://www.sporta.com.kw/knet/selftest.php`, which now performs the same two
+critical checks (16-byte resource key, service key not the anon key) against
+the file you just wrote. Delete `selftest.php` afterwards.
+
+To get a shell instead: hPanel → **Advanced → SSH Access**, turn SSH on. Some
+plans also offer a **Browser Terminal** there, which works without any local
+setup.
 
 Delete `setup-config.php` and `selftest.php` from the server once you are done
 — both reveal configuration state.
