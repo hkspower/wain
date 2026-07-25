@@ -5,6 +5,7 @@ import {
 } from './api'
 import { Notice } from './Overview'
 import { formatKWD } from '../lib/format'
+import { formatAddress } from '../lib/kuwait'
 import { IconClose, IconSearch } from '../components/icons'
 
 const kwd = (n) => formatKWD(Number(n ?? 0), 'en')
@@ -189,12 +190,20 @@ function OrderDrawer({ order, onClose, onChanged }) {
   const [items, setItems] = useState(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const [cust, setCust] = useState({
-    customer_name: order.customer_name ?? '',
-    customer_phone: order.customer_phone ?? '',
-    customer_area: order.customer_area ?? '',
-    customer_note: order.customer_note ?? '',
-  })
+  const CUSTOMER_FIELDS = [
+    ['customer_name', 'Name'],
+    ['customer_phone', 'Phone'],
+    ['customer_area', 'Area'],
+    ['customer_block', 'Block'],
+    ['customer_street', 'Street'],
+    ['customer_building', 'House / Building'],
+    ['customer_floor', 'Floor'],
+    ['customer_flat', 'Flat'],
+    ['customer_note', 'Note'],
+  ]
+  const [cust, setCust] = useState(
+    Object.fromEntries(CUSTOMER_FIELDS.map(([k]) => [k, order[k] ?? ''])),
+  )
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
@@ -289,13 +298,16 @@ function OrderDrawer({ order, onClose, onChanged }) {
 
           <section>
             <h3 className="mb-2 text-sm font-bold text-slate-700">Customer</h3>
+            {/* The one line the courier actually needs, in the order a Kuwaiti
+                address is read out. Selectable so it can be pasted into a
+                delivery app or a WhatsApp message. */}
+            {formatAddress(order) && (
+              <p className="mb-3 select-all rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                {formatAddress(order)}
+              </p>
+            )}
             <div className="grid gap-2">
-              {[
-                ['customer_name', 'Name'],
-                ['customer_phone', 'Phone'],
-                ['customer_area', 'Area / address'],
-                ['customer_note', 'Note'],
-              ].map(([k, label]) => (
+              {CUSTOMER_FIELDS.map(([k, label]) => (
                 <label key={k} className="grid gap-1">
                   <span className="text-xs font-semibold text-slate-500">{label}</span>
                   <input
@@ -327,7 +339,7 @@ function OrderDrawer({ order, onClose, onChanged }) {
               {saved && <span className="text-sm font-semibold text-emerald-600">Saved</span>}
             </div>
             <p className="mt-2 text-xs text-slate-400">
-              Checkout does not ask for these yet, so they are blank until you fill them in.
+              Captured at checkout. Blank on orders placed before checkout started asking.
             </p>
           </section>
 

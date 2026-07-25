@@ -67,30 +67,36 @@ if ($r === 'order') {
     $items = $in['items'] ?? [];
     if (!is_array($items) || !$items) out(['error' => 'empty_cart'], 400);
 
+    // Delegates to the create_order function — the same single, guarded door
+    // the website uses. It validates the delivery details, resolves slugs, and
+    // creates the order and its items in one transaction.
+    //
+    // The old code here did the work inline and silently `continue`d past any
+    // slug it could not resolve, which produced an order totalling zero and a
+    // dead end at the payment step. create_order raises 'unavailable_<slug>'
+    // instead, so the app can name the item.
     $trackId = 'SP' . strtoupper(bin2hex(random_bytes(4)));
-    $order = sb($cfg, 'POST', 'orders', [['track_id' => $trackId]]);
-    if (!is_array($order) || !isset($order[0]['id'])) out(['error' => 'order_failed'], 500);
-    $orderId = $order[0]['id'];
+    $res = sb($cfg, 'POST', 'rpc/create_order', [
+        'p_track_id' => $trackId,
+        'p_items'    => array_map(fn($i) => [
+            'slug' => (string)($i['slug'] ?? ''),
+            'qty'  => max(1, (int)($i['qty'] ?? 1)),
+        ], array_values($items)),
+        'p_customer' => (array)($in['customer'] ?? []),
+    ]);
 
-    // Resolve slugs -> product ids; the DB trigger copies the authoritative
-    // price and recomputes orders.amount (client prices are never trusted).
-    $slugs = array_map(fn($i) => $i['slug'], $items);
-    $prods = sb($cfg, 'GET', 'products?select=id,slug&slug=in.(' . implode(',', array_map('rawurlencode', $slugs)) . ')');
-    $idBySlug = [];
-    foreach ((array)$prods as $p) $idBySlug[$p['slug']] = $p['id'];
-
-    $rows = [];
-    foreach ($items as $i) {
-        if (!isset($idBySlug[$i['slug']])) continue;
-        $rows[] = ['order_id' => $orderId, 'product_id' => $idBySlug[$i['slug']], 'qty' => max(1, (int)($i['qty'] ?? 1))];
+    // PostgREST returns {message: 'invalid_phone', ...} for a raised exception.
+    if (!is_array($res) || !isset($res['track_id'])) {
+        $token = is_array($res) ? (string)($res['message'] ?? 'order_failed') : 'order_failed';
+        out(['error' => $token], preg_match('/^(invalid_|missing_|too_long_|empty_|unavailable_|cart_too_large)/', $token) ? 400 : 500);
     }
-    if ($rows) sb($cfg, 'POST', 'order_items', $rows);
 
     $lang = ($in['lang'] ?? 'en') === 'ar' ? 'ar' : 'en';
     out([
-        'track_id' => $trackId,
+        'track_id' => $res['track_id'],
+        'amount'   => $res['amount'],
         'pay_url' => rtrim($cfg['result_page_url'] ? dirname($cfg['response_url']) : '', '/')
-            . '/pay.php?trackid=' . rawurlencode($trackId) . '&lang=' . $lang,
+            . '/pay.php?trackid=' . rawurlencode($res['track_id']) . '&lang=' . $lang,
     ]);
 }
 

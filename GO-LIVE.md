@@ -71,7 +71,7 @@ JavaScript build step. You do not need it; it is a fallback.
 
 ---
 
-## After uploading — 3 required steps
+## After uploading — 4 required steps
 
 ### 1. Create the payment config on the server
 
@@ -104,7 +104,27 @@ same five values by hand, and set permissions to `600`.
 Delete `setup-config.php` and `selftest.php` from the server once you are done
 — both reveal configuration state.
 
-### 2. Confirm the site is live and correctly configured
+### 2. Run the database migrations — checkout does not work without them
+
+In the Supabase SQL editor, run these in order (each is safe to re-run):
+
+```
+supabase/schema.sql
+supabase/admin-migration.sql
+supabase/checkout-migration.sql
+```
+
+`checkout-migration.sql` is the one that makes checkout work at all. It adds
+`create_order`, the single guarded function that creates an order, validates
+the delivery address, and prices the cart from the products table. Until it is
+run, the browser cannot create an order and every shopper hits
+**404 Unknown order** at the moment they press Pay.
+
+Then open **Admin → Catalogue** and press **Push products**. Orders are priced
+from the `products` table, so an empty table means every checkout is refused
+with "this item is currently unavailable".
+
+### 3. Confirm the site is live and correctly configured
 
 ```bash
 ./scan-server-response.sh
@@ -114,7 +134,7 @@ Everything should be green. It checks HTTPS, single-hop redirects, all security
 headers, compression, caching, real 404s, and that `.git`/`.env`/`config.php`
 are not exposed.
 
-### 3. Tell Google about it
+### 4. Tell Google about it
 
 - [Google Search Console](https://search.google.com/search-console) → add
   `www.sporta.com.kw` → **Sitemaps** → submit `sitemap.xml`
@@ -154,8 +174,13 @@ File Manager في هوستنجر، ثم ارفع كل ما بداخل مجلد `
    سيطلب منك خمس قيم فقط (بيانات Tranportal من البنك، ورابط ومفتاح Supabase)،
    ويتحقق منها ويكتب الملف بالصلاحيات الصحيحة. احذف `setup-config.php` و
    `selftest.php` بعد الانتهاء.
-2. شغّل `./scan-server-response.sh` للتأكد أن إعدادات الخادم سليمة.
-3. أضف الموقع في Google Search Console وأرسل `sitemap.xml`.
+2. **مهم جداً:** شغّل ملفات قاعدة البيانات في Supabase بالترتيب:
+   `schema.sql` ثم `admin-migration.sql` ثم `checkout-migration.sql`.
+   بدون الملف الأخير لن يعمل الشراء إطلاقاً — ستظهر للعميل صفحة
+   «404 Unknown order» عند الضغط على الدفع. بعدها افتح لوحة التحكم →
+   الكتالوج واضغط «Push products».
+3. شغّل `./scan-server-response.sh` للتأكد أن إعدادات الخادم سليمة.
+4. أضف الموقع في Google Search Console وأرسل `sitemap.xml`.
 
 **مهم أيضاً:** أضف سجلات SPF/DKIM/DMARC الموجودة في `DNS-EMAIL-RECORDS.txt`
 حتى لا تذهب رسائل تأكيد الطلبات إلى البريد المزعج. والصور الحقيقية للمنتجات

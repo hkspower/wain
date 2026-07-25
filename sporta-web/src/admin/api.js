@@ -54,6 +54,8 @@ export async function fetchOrders({ payment = 'all', fulfilment = 'all', search 
     .select(
       'id, track_id, amount, payment_status, fulfilment_status, paid_at, created_at,' +
         ' customer_name, customer_phone, customer_area, customer_note,' +
+        ' customer_governorate, customer_block, customer_street, customer_building,' +
+        ' customer_floor, customer_flat,' +
         ' cbk_paymentid, cbk_reference, cbk_status',
     )
     .order('created_at', { ascending: false })
@@ -160,9 +162,13 @@ export async function syncCatalog() {
 // ---------------------------------------------------------------------------
 
 export function toCsv(orders) {
+  // Ordered so the sheet reads left to right as order → money → who → where,
+  // which is how it gets handed to a courier.
   const cols = [
     'track_id', 'created_at', 'paid_at', 'amount', 'payment_status',
-    'fulfilment_status', 'customer_name', 'customer_phone', 'customer_area',
+    'fulfilment_status', 'customer_name', 'customer_phone',
+    'customer_governorate', 'customer_area', 'customer_block', 'customer_street',
+    'customer_building', 'customer_floor', 'customer_flat', 'customer_note',
     'cbk_paymentid', 'cbk_reference',
   ]
   const esc = (v) => {
