@@ -16,15 +16,15 @@
   <style>
     :root {
       --bg: #0b1220;
-      --panel: #111a2b;
+      --panel: #1c2b44;
       --panel-2: #0e1626;
-      --border: #223049;
+      --border: #354765; --info: #6ea8f7; --good: #3ddc84; --border-input: #516587; --panel-3: #2b3d5b;
       --text: #e6edf6;
-      --muted: #8aa0bd;
+      --muted: #93a9c6;
       --tint: #4db3a8;
-      --tint-strong: #217972;
+      --tint-strong: #24847a;
       --sand: #e3a556;
-      --danger: #e5686f;
+      --danger: #ff6b74;
       --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
       --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Kufi Arabic", "Noto Sans Arabic", sans-serif;
     }
@@ -110,7 +110,7 @@
     form.auth { max-width: 420px; margin: 24px auto 0; background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 26px; display: flex; flex-direction: column; gap: 14px; }
     label { font-size: 13px; font-weight: 700; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
     input, select {
-      background: var(--panel-2); border: 1px solid var(--border); border-radius: 9px;
+      background: var(--panel-2); border: 1px solid var(--border-input); border-radius: 9px;
       color: var(--text); padding: 10px 12px; font-size: 14px; font-family: var(--sans); outline: none;
     }
     input:focus, select:focus { border-color: var(--tint); }

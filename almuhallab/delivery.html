@@ -14,9 +14,9 @@
   <title>التوصيل — Delivery | Nokha1</title>
   <style>
     :root {
-      --bg:#0b1220; --panel:#111a2b; --panel-2:#0e1626; --border:#223049;
-      --text:#e6edf6; --muted:#8aa0bd; --tint:#4db3a8; --tint-strong:#217972;
-      --sand:#e3a556; --danger:#e5686f; --good:#5fc98e; --blue:#6ea8f7;
+      --bg:#0b1220; --panel: #1c2b44; --panel-2:#0e1626; --border: #354765; --info: #6ea8f7; --border-input: #516587; --panel-3: #2b3d5b;
+      --text:#e6edf6; --muted: #93a9c6; --tint:#4db3a8; --tint-strong: #24847a;
+      --sand:#e3a556; --danger: #ff6b74; --good: #3ddc84;
       --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Kufi Arabic",sans-serif;
       --mono:ui-monospace,Menlo,Consolas,monospace;
     }
@@ -34,7 +34,7 @@
     .stat .l{font-size:12px;color:var(--muted);font-weight:600}
     form{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:end}
     label{font-size:12px;font-weight:700;color:var(--muted);display:flex;flex-direction:column;gap:5px}
-    input,select{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px 11px;font-size:14px;font-family:var(--sans);outline:none;width:100%}
+    input,select{background:var(--panel-2);border: 1px solid var(--border-input);border-radius:8px;color:var(--text);padding:9px 11px;font-size:14px;font-family:var(--sans);outline:none;width:100%}
     input:focus,select:focus{border-color:var(--tint)}
     .btn{font-size:13.5px;font-weight:700;border-radius:9px;padding:10px 16px;cursor:pointer;border:1px solid var(--border);background:var(--panel-2);color:var(--text);font-family:var(--sans)}
     .btn.primary{background:var(--tint-strong);border-color:transparent;color:#fff}
@@ -52,7 +52,7 @@
     .order .amount{font-weight:800;font-variant-numeric:tabular-nums}
     .status{font-size:12px;font-weight:800;border-radius:999px;padding:4px 12px;border:1px solid}
     .st-0{color:var(--sand);border-color:var(--sand)}
-    .st-1{color:var(--blue);border-color:var(--blue)}
+    .st-1{color:var(--info);border-color:var(--info)}
     .st-2{color:var(--tint);border-color:var(--tint)}
     .st-3{color:var(--good);border-color:var(--good)}
     .st-4{color:var(--danger);border-color:var(--danger)}
