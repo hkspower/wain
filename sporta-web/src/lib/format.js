@@ -1,12 +1,32 @@
-// KWD money formatting. Kuwait Dinar has 3 decimal places.
-export function formatKWD(amount, lang = 'en') {
-  const n = typeof amount === 'string' ? parseFloat(amount) : amount
-  const value = Number.isFinite(n) ? n.toFixed(3) : '0.000'
-  return lang === 'ar' ? `${value} د.ك` : `${value} KWD`
+// KWD money formatting via the Intl API — correct digits, grouping and
+// currency placement per locale, instead of hand-built strings.
+// Kuwaiti Dinar uses 3 decimal places.
+const formatters = new Map()
+
+function formatter(lang) {
+  let f = formatters.get(lang)
+  if (!f) {
+    f = new Intl.NumberFormat(lang === 'ar' ? 'ar-KW' : 'en-KW', {
+      style: 'currency',
+      currency: 'KWD',
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3,
+      // Keep Latin digits in Arabic so prices stay scannable next to the
+      // Latin brand names used across the catalogue.
+      numberingSystem: 'latn',
+    })
+    formatters.set(lang, f)
+  }
+  return f
 }
 
-// CBK expects the amount as a plain number string with up to 3 decimals.
+export function formatKWD(amount, lang = 'en') {
+  const n = typeof amount === 'string' ? Number.parseFloat(amount) : amount
+  return formatter(lang).format(Number.isFinite(n) ? n : 0)
+}
+
+// CBK/KNET expects a plain number string with up to 3 decimals.
 export function amountForGateway(amount) {
-  const n = typeof amount === 'string' ? parseFloat(amount) : amount
-  return Number.isFinite(n) ? n.toFixed(3) : '0.000'
+  const n = typeof amount === 'string' ? Number.parseFloat(amount) : amount
+  return (Number.isFinite(n) ? n : 0).toFixed(3)
 }

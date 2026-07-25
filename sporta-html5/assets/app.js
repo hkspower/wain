@@ -1,10 +1,10 @@
 /* Sporta — static site logic: i18n (AR/EN + RTL), theme, cart, wishlist,
-   product rendering, search. No framework, no build step. */
-(function () {
-  'use strict'
+   product rendering. Modern ES2022 module: const/let, arrow functions,
+   template literals, optional chaining, logical assignment, Intl, classes.
+   Loaded with <script type="module"> (strict mode + deferred by default). */
 
   // ---------- i18n ----------
-  var T = {
+const T = {
     en: {
       dir: 'ltr', ann: 'Same-day delivery in Kuwait · KNET & cards accepted',
       nav: { home: 'Home', shop: 'Shop', about: 'About', contact: 'Contact' },
@@ -43,21 +43,32 @@
     }
   }
 
-  var S = {
-    lang: localStorage.getItem('lang') || 'en',
-    theme: localStorage.getItem('sporta_theme') ||
-      (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
-    cart: JSON.parse(localStorage.getItem('sporta_cart') || '[]'),
-    wish: JSON.parse(localStorage.getItem('sporta_wishlist') || '[]')
-  }
-  var t = function () { return T[S.lang] }
-  var money = function (n) {
-    return Number(n).toFixed(3) + (S.lang === 'ar' ? ' د.ك' : ' KWD')
-  }
-  var PAY_BASE = 'https://www.sporta.com.kw/knet'
+const read = (key, fallback) => {
+  try { return JSON.parse(localStorage.getItem(key) ?? '') ?? fallback } catch { return fallback }
+}
+
+const S = {
+  lang: localStorage.getItem('lang') ?? 'en',
+  theme: localStorage.getItem('sporta_theme') ??
+    (matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
+  cart: read('sporta_cart', []),
+  wish: read('sporta_wishlist', []),
+}
+const t = () => T[S.lang]
+
+// Locale-aware currency via Intl (correct digits + placement per language).
+const nf = new Map()
+const money = (n) => {
+  nf.get(S.lang) ?? nf.set(S.lang, new Intl.NumberFormat(
+    S.lang === 'ar' ? 'ar-KW' : 'en-KW',
+    { style: 'currency', currency: 'KWD', minimumFractionDigits: 3,
+      maximumFractionDigits: 3, numberingSystem: 'latn' }))
+  return nf.get(S.lang).format(Number(n) || 0)
+}
+const PAY_BASE = 'https://www.sporta.com.kw/knet'
 
   // ---------- icons (inline SVG, currentColor) ----------
-  var I = {
+const I = {
     bag: 'M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z M3 6h18 M16 10a4 4 0 0 1-8 0',
     heart: 'M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z',
     search: 'M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16Z M21 21l-4.3-4.3',
@@ -74,111 +85,122 @@
     tiktok: 'M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5',
     wa: 'M7.9 20A9 9 0 1 0 4 16.1L2 22Z'
   }
-  function icon(name, size, fill) {
-    var paths = I[name].split(' M').map(function (d, i) { return i ? 'M' + d : d })
-    return '<svg width="' + (size || 20) + '" height="' + (size || 20) + '" viewBox="0 0 24 24" fill="' +
-      (fill ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" ' +
-      'stroke-linejoin="round" aria-hidden="true">' +
-      paths.map(function (d) { return '<path d="' + d + '"/>' }).join('') + '</svg>'
-  }
+const icon = (name, size = 20, fill = false) => {
+  const paths = I[name].split(' M').map((d, i) => (i ? `M${d}` : d))
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${
+    fill ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.75" `
+    + `stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">`
+    + paths.map((d) => `<path d="${d}"/>`).join('') + '</svg>'
+}
 
   // ---------- persistence ----------
-  function save() {
-    localStorage.setItem('sporta_cart', JSON.stringify(S.cart))
-    localStorage.setItem('sporta_wishlist', JSON.stringify(S.wish))
-    localStorage.setItem('lang', S.lang)
-    localStorage.setItem('sporta_theme', S.theme)
-  }
-  function applyShell() {
-    document.documentElement.lang = S.lang
-    document.documentElement.dir = t().dir
-    document.documentElement.dataset.theme = S.theme
-  }
-  var count = function () { return S.cart.reduce(function (n, i) { return n + i.qty }, 0) }
-  var total = function () { return S.cart.reduce(function (s, i) { return s + i.price * i.qty }, 0) }
+const save = () => {
+  localStorage.setItem('sporta_cart', JSON.stringify(S.cart))
+  localStorage.setItem('sporta_wishlist', JSON.stringify(S.wish))
+  localStorage.setItem('lang', S.lang)
+  localStorage.setItem('sporta_theme', S.theme)
+}
+const applyShell = () => {
+  const { documentElement: el } = document
+  el.lang = S.lang
+  el.dir = t().dir
+  el.dataset.theme = S.theme
+}
+const count = () => S.cart.reduce((n, i) => n + i.qty, 0)
+const total = () => S.cart.reduce((s, i) => s + i.price * i.qty, 0)
 
   // ---------- cart ----------
-  function addToCart(slug, size, qty) {
-    var p = window.SPORTA_PRODUCTS.find(function (x) { return x.slug === slug })
-    if (!p) return
-    var key = slug + '__' + (size || '-')
-    var found = S.cart.find(function (i) { return i.key === key })
-    if (found) found.qty += qty || 1
-    else S.cart.push({ key: key, slug: slug, size: size || null, name: p.name, price: p.price, image: p.image, qty: qty || 1 })
-    save(); render()
-  }
-  function setQty(key, q) {
-    S.cart = S.cart.flatMap(function (i) { return i.key === key ? (q <= 0 ? [] : [Object.assign(i, { qty: q })]) : [i] })
-    save(); render()
-  }
-  function toggleWish(slug) {
-    var i = S.wish.indexOf(slug)
-    if (i > -1) S.wish.splice(i, 1); else S.wish.push(slug)
-    save(); render()
-  }
+const addToCart = (slug, size = null, qty = 1) => {
+  const p = window.SPORTA_PRODUCTS.find((x) => x.slug === slug)
+  if (!p) return
+  const key = `${slug}__${size ?? '-'}`
+  const found = S.cart.find((i) => i.key === key)
+  if (found) found.qty += qty
+  else S.cart.push({ key, slug, size, name: p.name, price: p.price, image: p.image, qty })
+  save(); render()
+}
+const setQty = (key, q) => {
+  S.cart = S.cart.flatMap((i) => (i.key === key ? (q <= 0 ? [] : [{ ...i, qty: q }]) : [i]))
+  save(); render()
+}
+const toggleWish = (slug) => {
+  const i = S.wish.indexOf(slug)
+  i > -1 ? S.wish.splice(i, 1) : S.wish.push(slug)
+  save(); render()
+}
 
   // ---------- rendering ----------
-  function productCard(p) {
-    var fav = S.wish.indexOf(p.slug) > -1
-    return '<article class="card">' +
-      '<a class="media" href="product.html?p=' + p.slug + '">' +
-      '<img src="' + p.image + '" alt="' + p.name[S.lang] + '" loading="lazy" width="600" height="600">' +
-      (p.badge ? '<span class="pill u-track">' + p.badge[S.lang] + '</span>' : '') +
-      '</a>' +
-      '<button class="fav" data-wish="' + p.slug + '" aria-pressed="' + fav + '" aria-label="Save to wishlist">' +
-      icon('heart', 18, fav) + '</button>' +
-      '<div class="body">' +
-      '<h3><a href="product.html?p=' + p.slug + '">' + p.name[S.lang] + '</a></h3>' +
-      '<p class="desc">' + p.desc[S.lang] + '</p>' +
-      '<div class="stars" aria-label="Rated 4.8 out of 5">' +
-      icon('star', 13, true) + icon('star', 13, true) + icon('star', 13, true) +
-      icon('star', 13, true) + icon('star', 13, true) + '<small>(4.8)</small></div>' +
-      '<div class="row"><span class="price">' + money(p.price) + '</span>' +
-      '<button class="btn btn-sm btn-primary" data-add="' + p.slug + '">' + t().add + '</button></div>' +
-      '</div></article>'
-  }
+const productCard = (p) => {
+  const fav = S.wish.includes(p.slug)
+  const stars = Array.from({ length: 5 }, () => icon('star', 13, true)).join('')
+  return `<article class="card">
+    <a class="media" href="product.html?p=${p.slug}">
+      <img src="${p.image}" alt="${p.name[S.lang]}" loading="lazy" width="600" height="600">
+      ${p.badge ? `<span class="pill u-track">${p.badge[S.lang]}</span>` : ''}
+    </a>
+    <button class="fav" data-wish="${p.slug}" aria-pressed="${fav}" aria-label="Save to wishlist">
+      ${icon('heart', 18, fav)}</button>
+    <div class="body">
+      <h3><a href="product.html?p=${p.slug}">${p.name[S.lang]}</a></h3>
+      <p class="desc">${p.desc[S.lang]}</p>
+      <div class="stars" aria-label="Rated 4.8 out of 5">${stars}<small>(4.8)</small></div>
+      <div class="row"><span class="price">${money(p.price)}</span>
+        <button class="btn btn-sm btn-primary" data-add="${p.slug}">${t().add}</button></div>
+    </div></article>`
+}
 
-  function render() {
-    applyShell()
-    var d = t()
-    // text slots
-    document.querySelectorAll('[data-i18n]').forEach(function (el) {
-      var path = el.getAttribute('data-i18n').split('.')
-      var v = d; path.forEach(function (k) { v = v && v[k] })
-      if (typeof v === 'string') el.textContent = v
-    })
-    // badges
-    var cb = document.querySelector('[data-cart-count]')
-    if (cb) { cb.textContent = count(); cb.style.display = count() ? '' : 'none' }
-    var wb = document.querySelector('[data-wish-count]')
-    if (wb) { wb.textContent = S.wish.length; wb.style.display = S.wish.length ? '' : 'none' }
-    // theme icon
-    var ti = document.querySelector('[data-theme-toggle]')
-    if (ti) ti.innerHTML = icon(S.theme === 'dark' ? 'sun' : 'moon', 20)
-    var li = document.querySelector('[data-lang-toggle]')
-    if (li) li.innerHTML = icon('globe', 14) + '<span>' + (S.lang === 'en' ? 'AR' : 'EN') + '</span>'
-
-    if (window.SPORTA_PAGE) window.SPORTA_PAGE(S, { productCard: productCard, money: money, t: t, icon: icon })
+const render = () => {
+  applyShell()
+  const d = t()
+  for (const el of document.querySelectorAll('[data-i18n]')) {
+    const v = el.dataset.i18n.split('.').reduce((o, k) => o?.[k], d)
+    if (typeof v === 'string') el.textContent = v
   }
+  const cb = document.querySelector('[data-cart-count]')
+  if (cb) { cb.textContent = count(); cb.style.display = count() ? '' : 'none' }
+  const wb = document.querySelector('[data-wish-count]')
+  if (wb) { wb.textContent = S.wish.length; wb.style.display = S.wish.length ? '' : 'none' }
+  document.querySelector('[data-theme-toggle]')?.replaceChildren()
+  const ti = document.querySelector('[data-theme-toggle]')
+  if (ti) ti.innerHTML = icon(S.theme === 'dark' ? 'sun' : 'moon', 20)
+  const li = document.querySelector('[data-lang-toggle]')
+  if (li) li.innerHTML = `${icon('globe', 14)}<span>${S.lang === 'en' ? 'AR' : 'EN'}</span>`
+
+  window.SPORTA_PAGE?.(S, { productCard, money, t, icon })
+}
 
   // ---------- events ----------
-  document.addEventListener('click', function (e) {
-    var a = e.target.closest('[data-add]'); if (a) { addToCart(a.dataset.add, a.dataset.size || null, 1); return }
-    var w = e.target.closest('[data-wish]'); if (w) { e.preventDefault(); toggleWish(w.dataset.wish); return }
-    var q = e.target.closest('[data-qty]')
-    if (q) { var p = q.dataset.qty.split(':'); setQty(p[0], parseInt(p[1], 10)); return }
-    if (e.target.closest('[data-theme-toggle]')) { S.theme = S.theme === 'dark' ? 'light' : 'dark'; save(); render(); return }
-    if (e.target.closest('[data-lang-toggle]')) { S.lang = S.lang === 'en' ? 'ar' : 'en'; save(); render(); return }
-  })
+document.addEventListener('click', (e) => {
+  const add = e.target.closest('[data-add]')
+  if (add) return addToCart(add.dataset.add, add.dataset.size ?? null, 1)
 
-  window.SPORTA = {
-    state: S, render: render, icon: icon, money: money, t: t,
-    addToCart: addToCart, setQty: setQty, count: count, total: total,
-    productCard: productCard, PAY_BASE: PAY_BASE,
-    checkout: function () {
-      var track = 'SP' + Math.random().toString(36).slice(2, 10).toUpperCase()
-      location.href = PAY_BASE + '/pay.php?amount=' + total().toFixed(3) + '&trackid=' + track + '&lang=' + S.lang
-    }
+  const wish = e.target.closest('[data-wish]')
+  if (wish) { e.preventDefault(); return toggleWish(wish.dataset.wish) }
+
+  const qty = e.target.closest('[data-qty]')
+  if (qty) { const [key, n] = qty.dataset.qty.split(':'); return setQty(key, Number.parseInt(n, 10)) }
+
+  if (e.target.closest('[data-theme-toggle]')) {
+    S.theme = S.theme === 'dark' ? 'light' : 'dark'; save(); return render()
   }
-  document.addEventListener('DOMContentLoaded', render)
-})()
+  if (e.target.closest('[data-lang-toggle]')) {
+    S.lang = S.lang === 'en' ? 'ar' : 'en'; save(); return render()
+  }
+})
+
+window.SPORTA = {
+  state: S, render, icon, money, t,
+  addToCart, setQty, count, total, productCard, PAY_BASE,
+  checkout() {
+    // Cryptographically random track id (Math.random is not suitable for ids).
+    const track = `SP${[...crypto.getRandomValues(new Uint8Array(4))]
+      .map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase()}`
+    location.href =
+      `${PAY_BASE}/pay.php?amount=${total().toFixed(3)}&trackid=${track}&lang=${S.lang}`
+  },
+}
+
+// Modules are deferred, so the DOM is ready — but guard for safety.
+document.readyState === 'loading'
+  ? document.addEventListener('DOMContentLoaded', render)
+  : render()

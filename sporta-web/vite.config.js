@@ -8,8 +8,9 @@ export default defineConfig({
   plugins: [react()],
   base: '/',
   build: {
-    // Modern browsers only → smaller, faster output (no legacy transpile).
-    target: 'es2020',
+    // Latest broadly-supported ES: class fields, top-level await, .at(),
+    // logical assignment — less downleveling, smaller output.
+    target: 'es2022',
     cssCodeSplit: true,
     // Warn later; our chunks are intentionally split below.
     chunkSizeWarningLimit: 700,

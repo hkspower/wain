@@ -86,19 +86,23 @@
   </div>
 </footer>
 <script src="assets/products.js"></script>
-<script src="assets/app.js"></script>
+<script type="module" src="assets/app.js"></script>
 <script>
-var cat="all";
-window.SPORTA_PAGE=function(S,H){
-  var cats=window.SPORTA_CATEGORIES, ps=window.SPORTA_PRODUCTS;
-  document.getElementById("filters").innerHTML=cats.map(function(c){
-    return '<button class="chip" data-cat="'+c.id+'" aria-pressed="'+(cat===c.id)+'">'+c.name[S.lang]+'</button>'}).join("");
-  var list=cat==="all"?ps:ps.filter(function(p){return p.category===cat});
-  document.getElementById("grid").innerHTML=list.map(H.productCard).join("");
-  document.getElementById("count").textContent=list.length;
-};
-document.addEventListener("click",function(e){var b=e.target.closest("[data-cat]");
-  if(b){cat=b.dataset.cat;window.SPORTA.render()}});
+let cat = 'all'
+window.SPORTA_PAGE = (S, H) => {
+  const cats = window.SPORTA_CATEGORIES
+  const ps = window.SPORTA_PRODUCTS
+  document.getElementById('filters').innerHTML = cats
+    .map((c) => `<button class="chip" data-cat="${c.id}" aria-pressed="${cat === c.id}">${c.name[S.lang]}</button>`)
+    .join('')
+  const list = cat === 'all' ? ps : ps.filter((p) => p.category === cat)
+  document.getElementById('grid').innerHTML = list.map(H.productCard).join('')
+  document.getElementById('count').textContent = list.length
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-cat]')
+  if (b) { cat = b.dataset.cat; window.SPORTA.render() }
+})
 </script>
 </body>
 </html>

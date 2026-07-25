@@ -87,39 +87,58 @@
   </div>
 </footer>
 <script src="assets/products.js"></script>
-<script src="assets/app.js"></script>
+<script type="module" src="assets/app.js"></script>
 <script>
-var sel=null;
-window.SPORTA_PAGE=function(S,H){
-  var slug=new URLSearchParams(location.search).get("p");
-  var p=window.SPORTA_PRODUCTS.find(function(x){return x.slug===slug});
-  var d=document.getElementById("detail");
-  if(!p){d.innerHTML='<p style="text-align:center;padding:4rem 0">Product not found. <a href="shop.html" style="color:var(--brand)">Shop</a></p>';return}
-  document.title=p.name[S.lang]+" — Sporta";
-  var sizes=["women","men","outerwear"].indexOf(p.category)>-1?["S","M","L","XL"]:null;
-  d.innerHTML='<div style="display:grid;gap:2rem;grid-template-columns:1fr" class="pd">'+
-   '<img src="'+p.image+'" alt="'+p.name[S.lang]+'" width="600" height="600" style="border-radius:1.5rem">'+
-   '<div><h1 style="font-size:2rem;color:var(--brand-dark)">'+p.name[S.lang]+'</h1>'+
-   '<p style="color:var(--muted)">'+p.desc[S.lang]+'</p>'+
-   '<p class="price" style="font-size:1.5rem">'+H.money(p.price)+'</p>'+
-   (sizes?'<div style="margin:1rem 0"><b>'+H.t().size+'</b><div style="display:flex;gap:.5rem;margin-top:.5rem" id="sizes">'+
-     sizes.map(function(s){return '<button class="chip" data-size="'+s+'" aria-pressed="'+(sel===s)+'" style="min-width:3rem">'+s+'</button>'}).join("")+
-     '</div><p id="sizeErr" style="color:#e11d48;font-size:.85rem;display:none">'+
-     (S.lang==="ar"?"الرجاء اختيار المقاس":"Please choose a size")+'</p></div>':'')+
-   '<button class="btn btn-primary" id="addBtn">'+H.t().add+'</button>'+
-   '<div class="trust" style="margin-top:1.5rem">'+
-   '<div>'+H.icon("truck",18)+'<span>'+H.t().trust.d+'</span></div>'+
-   '<div>'+H.icon("lock",18)+'<span>'+H.t().trust.p+'</span></div>'+
-   '<div>'+H.icon("ret",18)+'<span>'+H.t().trust.r+'</span></div></div>'+
-   '</div></div>';
-  document.getElementById("crossTitle").textContent=S.lang==="ar"?"أكمل إطلالتك":"Complete the look";
-  document.getElementById("cross").innerHTML=window.SPORTA_PRODUCTS.filter(function(x){return x.slug!==slug}).slice(0,4).map(H.productCard).join("");
-  var add=document.getElementById("addBtn");
-  add.onclick=function(){ if(sizes&&!sel){document.getElementById("sizeErr").style.display="block";return}
-    window.SPORTA.addToCart(slug,sel,1); location.href="cart.html" };
-};
-document.addEventListener("click",function(e){var b=e.target.closest("[data-size]");
-  if(b){sel=b.dataset.size;window.SPORTA.render()}});
+let sel = null
+const SIZED = new Set(['women', 'men', 'outerwear'])
+window.SPORTA_PAGE = (S, H) => {
+  const slug = new URLSearchParams(location.search).get('p')
+  const p = window.SPORTA_PRODUCTS.find((x) => x.slug === slug)
+  const d = document.getElementById('detail')
+  if (!p) {
+    d.innerHTML = '<p style="text-align:center;padding:4rem 0">Product not found. <a href="shop.html" style="color:var(--brand)">Shop</a></p>'
+    return
+  }
+  document.title = `${p.name[S.lang]} — Sporta`
+  const sizes = SIZED.has(p.category) ? ['S', 'M', 'L', 'XL'] : null
+  const sizeBlock = sizes
+    ? `<div style="margin:1rem 0"><b>${H.t().size}</b>
+        <div style="display:flex;gap:.5rem;margin-top:.5rem" id="sizes">${sizes
+          .map((s) => `<button class="chip" data-size="${s}" aria-pressed="${sel === s}" style="min-width:3rem">${s}</button>`)
+          .join('')}</div>
+        <p id="sizeErr" style="color:#e11d48;font-size:.85rem;display:none">${
+          S.lang === 'ar' ? 'الرجاء اختيار المقاس' : 'Please choose a size'
+        }</p></div>`
+    : ''
+  d.innerHTML = `<div style="display:grid;gap:2rem;grid-template-columns:1fr" class="pd">
+    <img src="${p.image}" alt="${p.name[S.lang]}" width="600" height="600" style="border-radius:1.5rem">
+    <div><h1 style="font-size:2rem;color:var(--brand-dark)">${p.name[S.lang]}</h1>
+      <p style="color:var(--muted)">${p.desc[S.lang]}</p>
+      <p class="price" style="font-size:1.5rem">${H.money(p.price)}</p>
+      ${sizeBlock}
+      <button class="btn btn-primary" id="addBtn">${H.t().add}</button>
+      <div class="trust" style="margin-top:1.5rem">
+        <div>${H.icon('truck', 18)}<span>${H.t().trust.d}</span></div>
+        <div>${H.icon('lock', 18)}<span>${H.t().trust.p}</span></div>
+        <div>${H.icon('ret', 18)}<span>${H.t().trust.r}</span></div>
+      </div>
+    </div></div>`
+  document.getElementById('crossTitle').textContent = S.lang === 'ar' ? 'أكمل إطلالتك' : 'Complete the look'
+  document.getElementById('cross').innerHTML = window.SPORTA_PRODUCTS
+    .filter((x) => x.slug !== slug).slice(0, 4).map(H.productCard).join('')
+  document.getElementById('addBtn').addEventListener('click', () => {
+    if (sizes && !sel) {
+      document.getElementById('sizeErr').style.display = 'block'
+      return
+    }
+    window.SPORTA.addToCart(slug, sel, 1)
+    location.href = 'cart.html'
+  })
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-size]')
+  if (b) { sel = b.dataset.size; window.SPORTA.render() }
+})
 </script>
 <style>@media(min-width:768px){.pd{grid-template-columns:1fr 1fr!important}}</style>
 </body>

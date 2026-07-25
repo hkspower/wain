@@ -114,7 +114,12 @@
   </div>
 </footer>
 <script src="assets/products.js"></script>
-<script src="assets/app.js"></script>
-<script>window.SPORTA_PAGE=function(S,H){document.getElementById("featured").innerHTML=window.SPORTA_PRODUCTS.slice(0,8).map(H.productCard).join("")}</script>
+<script type="module" src="assets/app.js"></script>
+<script>
+window.SPORTA_PAGE = (S, H) => {
+  document.getElementById('featured').innerHTML =
+    window.SPORTA_PRODUCTS.slice(0, 8).map(H.productCard).join('')
+}
+</script>
 </body>
 </html>

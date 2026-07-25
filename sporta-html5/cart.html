@@ -84,26 +84,33 @@
   </div>
 </footer>
 <script src="assets/products.js"></script>
-<script src="assets/app.js"></script>
+<script type="module" src="assets/app.js"></script>
 <script>
-window.SPORTA_PAGE=function(S,H){
-  var el=document.getElementById("lines");
-  if(!S.cart.length){el.innerHTML='<div class="empty">'+H.icon("bag",56)+'<p>'+H.t().empty+
-    '</p><a class="btn btn-primary" href="shop.html">'+H.t().back+'</a></div>';return}
-  el.innerHTML=S.cart.map(function(i){return '<div class="line">'+
-    '<img src="'+i.image+'" alt="">'+
-    '<div style="flex:1"><b>'+i.name[S.lang]+'</b><p style="margin:.15rem 0;color:var(--muted);font-size:.85rem">'+
-    H.money(i.price)+(i.size?" · "+i.size:"")+'</p>'+
-    '<div class="stepper" style="width:max-content"><button data-qty="'+i.key+':'+(i.qty-1)+'" aria-label="Decrease">'+H.icon("minus",15)+
-    '</button><span>'+i.qty+'</span><button data-qty="'+i.key+':'+(i.qty+1)+'" aria-label="Increase">'+H.icon("plus",15)+'</button></div></div>'+
-    '<span class="price">'+H.money(i.price*i.qty)+'</span>'+
-    '<button data-qty="'+i.key+':0" aria-label="Remove" style="background:none;border:0;color:var(--muted);cursor:pointer">'+H.icon("close",16)+'</button>'+
-    '</div>'}).join("")+
-    '<div class="totals"><span>'+H.t().total+'</span><span class="price">'+H.money(window.SPORTA.total())+'</span></div>'+
-    '<p style="display:flex;gap:.5rem;align-items:center;color:var(--muted);font-size:.8rem;margin-top:.5rem">'+
-    H.icon("lock",14)+H.t().trust.p+'</p>'+
-    '<button class="btn btn-primary" style="width:100%;margin-top:1rem" onclick="window.SPORTA.checkout()">'+H.t().checkout+'</button>';
-};
+window.SPORTA_PAGE = (S, H) => {
+  const el = document.getElementById('lines')
+  if (!S.cart.length) {
+    el.innerHTML = `<div class="empty">${H.icon('bag', 56)}<p>${H.t().empty}</p>
+      <a class="btn btn-primary" href="shop.html">${H.t().back}</a></div>`
+    return
+  }
+  const line = (i) => `<div class="line">
+    <img src="${i.image}" alt="">
+    <div style="flex:1"><b>${i.name[S.lang]}</b>
+      <p style="margin:.15rem 0;color:var(--muted);font-size:.85rem">${H.money(i.price)}${i.size ? ` · ${i.size}` : ''}</p>
+      <div class="stepper" style="width:max-content">
+        <button data-qty="${i.key}:${i.qty - 1}" aria-label="Decrease">${H.icon('minus', 15)}</button>
+        <span>${i.qty}</span>
+        <button data-qty="${i.key}:${i.qty + 1}" aria-label="Increase">${H.icon('plus', 15)}</button>
+      </div></div>
+    <span class="price">${H.money(i.price * i.qty)}</span>
+    <button data-qty="${i.key}:0" aria-label="Remove" style="background:none;border:0;color:var(--muted);cursor:pointer">${H.icon('close', 16)}</button>
+  </div>`
+  el.innerHTML = `${S.cart.map(line).join('')}
+    <div class="totals"><span>${H.t().total}</span><span class="price">${H.money(window.SPORTA.total())}</span></div>
+    <p style="display:flex;gap:.5rem;align-items:center;color:var(--muted);font-size:.8rem;margin-top:.5rem">${H.icon('lock', 14)}${H.t().trust.p}</p>
+    <button class="btn btn-primary" style="width:100%;margin-top:1rem" data-checkout>${H.t().checkout}</button>`
+  el.querySelector('[data-checkout]').addEventListener('click', () => window.SPORTA.checkout())
+}
 </script>
 </body>
 </html>
