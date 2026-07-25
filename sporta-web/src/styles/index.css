@@ -203,12 +203,11 @@ h1, h2, h3, .font-display {
   background: #232830;
 }
 
-/* Cart drawer — spans the full viewport height. Tailwind's inset-y-0 alone did
-   not stretch the flex column here (it collapsed to content height, ~125px),
-   so the height is set explicitly. dvh keeps it correct on mobile browsers
-   whose toolbars change the visible height. */
+/* Cart drawer height. `inset-y-0` now resolves against the viewport (the
+   drawer is portalled out of the blurred header — see CartDrawer.jsx), so this
+   only exists for dvh: on mobile browsers whose toolbars shrink the visible
+   area, dvh tracks it and vh does not. */
 .cart-drawer {
-  height: 100vh;
   height: 100dvh;
 }
 

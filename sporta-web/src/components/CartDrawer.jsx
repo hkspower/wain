@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { useCart } from '../lib/cart'
@@ -22,7 +23,20 @@ export default function CartDrawer({ open, onClose }) {
     }
   }, [open, onClose])
 
-  return (
+  // Rendered into <body>, not in place.
+  //
+  // CartDrawer is mounted inside <header>, and the header carries a
+  // backdrop-blur. A backdrop-filter makes an element the containing block for
+  // its position:fixed descendants, so "fixed inset-y-0" resolved against the
+  // 127px-tall header instead of the viewport. Two bugs followed:
+  //   - the drawer collapsed to header height (the `height:100dvh` rule in
+  //     index.css was a patch over this symptom);
+  //   - closed, it sat one width outside the header's box and counted as page
+  //     overflow. In RTL that is the left side, which pushed the entire Arabic
+  //     page 448px right and left a beige band down every page.
+  // A portal moves it out from under the blur, where `fixed` means what it
+  // says and an off-canvas element contributes no document overflow.
+  return createPortal(
     <>
       {/* Backdrop */}
       <div
@@ -101,6 +115,7 @@ export default function CartDrawer({ open, onClose }) {
           </>
         )}
       </aside>
-    </>
+    </>,
+    document.body,
   )
 }

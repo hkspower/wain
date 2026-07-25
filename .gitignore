@@ -46,3 +46,6 @@ example
 .env.deploy
 SPORTA-GO-LIVE.zip
 sporta-html5/dist
+
+# Generated site PDF — 21MB build artifact, regenerate with sporta-web/scripts/site-pdf*.
+SPORTA-WEBSITE.pdf
