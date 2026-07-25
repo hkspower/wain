@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Sporta — go-live check</title>
+<script src="/config.js"></script>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.5 system-ui, -apple-system, sans-serif; margin: 0; padding: 24px 16px 64px;
+         background: #E2DBCE; color: #171A1E; }
+  main { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  .sub { color: #6b6257; margin: 0 0 24px; }
+  .verdict { border-radius: 14px; padding: 16px 18px; font-weight: 700; margin-bottom: 22px; }
+  .verdict.live { background: #d9f5e3; color: #0f5132; }
+  .verdict.no   { background: #fde2e2; color: #8a1c1c; }
+  .verdict.busy { background: #fff3cd; color: #6b5300; }
+  .row { background: #fff; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
+         display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; }
+  .row b { display: block; }
+  .row small { color: #6b6257; display: block; margin-top: 2px; }
+  .fix { background: #fff8e6; border-inline-start: 3px solid #E0561C; padding: 8px 10px;
+         margin-top: 8px; border-radius: 6px; font-size: 14px; }
+  code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; font-size: .92em; }
+  .mark { font-size: 19px; line-height: 1.2; }
+  footer { margin-top: 26px; color: #6b6257; font-size: 13px; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #171A1E; color: #e8eaed; }
+    .row { background: #1b2026; } .sub, .row small, footer { color: #9aa3ae; }
+    code { background: rgba(255,255,255,.1); } .fix { background: #241d12; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Sporta — go-live check</h1>
+  <p class="sub"><span dir="rtl">فحص الجاهزية — كل خطوة تُختبر فعلياً، لا مجرد افتراض.</span><br>
+     Every check below actually calls the thing it names.</p>
+
+  <div id="verdict" class="verdict busy">Checking…</div>
+  <div id="rows"></div>
+
+  <footer>
+    This page reveals configuration state. <b>Delete <code>go-live.html</code></b> from the
+    server once every line is green.<br>
+    <span dir="rtl">احذف هذا الملف بعد أن تصبح كل النتائج خضراء.</span>
+  </footer>
+</main>
+
+<script>
+// Self-contained on purpose: this must work on a server where nothing else has
+// been verified yet, so it has no build step, no imports and no dependencies.
+const cfg = window.SPORTA_CONFIG || {}
+const rows = document.getElementById('rows')
+const PLACEHOLDER = /YOUR-PROJECT|your-anon-public-key/
+
+let failures = 0
+function report(okState, title, detail, fix) {
+  if (!okState) failures++
+  const el = document.createElement('div')
+  el.className = 'row'
+  el.innerHTML =
+    `<span class="mark">${okState ? '✅' : '❌'}</span>` +
+    `<span><b>${title}</b><small>${detail}</small>` +
+    `${!okState && fix ? `<div class="fix">${fix}</div>` : ''}</span>`
+  rows.appendChild(el)
+}
+
+// Supabase REST needs the anon key in two headers; that key is public by design.
+const sb = (path, init = {}) =>
+  fetch(cfg.supabaseUrl.replace(/\/$/, '') + '/rest/v1/' + path, {
+    ...init,
+    headers: { apikey: cfg.supabaseAnonKey, Authorization: 'Bearer ' + cfg.supabaseAnonKey,
+               'Content-Type': 'application/json', ...(init.headers || {}) },
+  })
+
+// Each check is isolated: a thrown error becomes a failed line, not a blank
+// page. A checker that stops early is worse than no checker, because it looks
+// like the remaining steps passed.
+async function step(fn) {
+  try { await fn() } catch (e) { report(false, 'Check failed to run', String(e && e.message || e), '') }
+}
+
+async function run() {
+  // ---- 1. config.js -------------------------------------------------------
+  const configured =
+    cfg.supabaseUrl && cfg.supabaseAnonKey &&
+    !PLACEHOLDER.test(cfg.supabaseUrl) && !PLACEHOLDER.test(cfg.supabaseAnonKey)
+  report(configured, 'Site configuration (config.js)',
+    configured ? cfg.supabaseUrl : 'Still holding the placeholder values.',
+    'Open <code>public_html/config.js</code> in File Manager and paste your Supabase ' +
+    '<b>Project URL</b> and <b>anon</b> key (Supabase → Project Settings → API). ' +
+    'Nothing else on this page can pass until this does.')
+  if (!configured) return finish()
+
+  // Pasting the service key here would expose it to every visitor.
+  // Padded properly and guarded: an unparseable key must not stop the page.
+  // ('==' appended unconditionally makes a correctly-sized payload invalid, and
+  // atob then throws — which aborted every check below it.)
+  const jwtRole = (key) => {
+    try {
+      const b64 = (key.split('.')[1] || '').replace(/-/g, '+').replace(/_/g, '/')
+      const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4)
+      return JSON.parse(atob(padded)).role || ''
+    } catch { return '' }
+  }
+  const looksService = jwtRole(cfg.supabaseAnonKey) === 'service_role' ||
+                       cfg.supabaseAnonKey.startsWith('sb_secret_')
+  report(!looksService, 'Correct key type',
+    looksService ? 'That is the SERVICE key — it must never be in config.js.' : 'anon / public key.',
+    'Replace it with the <b>anon</b> key immediately, then rotate the service key in ' +
+    'Supabase — it has been published to everyone who loaded this site.')
+
+  await step(async () => {
+  // ---- 2. database --------------------------------------------------------
+  let productCount = null
+  try {
+    const r = await sb('products?select=slug', { headers: { Prefer: 'count=exact' } })
+    if (r.status === 200) {
+      productCount = Number((r.headers.get('content-range') || '').split('/')[1]) || (await r.json()).length
+      report(true, 'Supabase reachable', 'Answered over the anon key.')
+    } else {
+      report(false, 'Supabase reachable', 'HTTP ' + r.status + ' from the products table.',
+        r.status === 401 || r.status === 403
+          ? 'The key is wrong, or <code>schema.sql</code> has not been run (it creates the read policy).'
+          : 'Check the Project URL in <code>config.js</code>.')
+    }
+  } catch (e) {
+    report(false, 'Supabase reachable', 'Could not connect: ' + e.message,
+      'The Project URL in <code>config.js</code> is wrong, or the project is paused.')
+  }
+
+  if (productCount !== null) {
+    report(productCount > 0, 'Products loaded',
+      productCount + ' product(s) in the database.',
+      'Run <code>5-seed-products.sql</code> in the Supabase SQL Editor. Orders are priced ' +
+      'from this table, so while it is empty <b>every checkout is refused</b>.')
+  }
+
+  // create_order: an empty cart must be rejected BY the function. A 404 or
+  // PGRST202 means the function does not exist at all.
+  try {
+    const r = await sb('rpc/create_order', {
+      method: 'POST',
+      body: JSON.stringify({ p_track_id: 'GOLIVECHK', p_items: [], p_customer: {} }),
+    })
+    const body = await r.json().catch(() => ({}))
+    const exists = !(r.status === 404 || body.code === 'PGRST202')
+    report(exists, 'Checkout function (create_order)',
+      exists ? 'Present — it rejected an empty cart, as it should.' : 'Not found.',
+      'Run <code>3-checkout-migration.sql</code>. Without it the browser cannot create an ' +
+      'order and every shopper hits <b>404 Unknown order</b> when they press Pay.')
+  } catch (e) { report(false, 'Checkout function (create_order)', e.message, 'Run <code>3-checkout-migration.sql</code>.') }
+
+  // Admin passcode RPCs. Unauthenticated they return 401/403 — that still
+  // proves they exist, which is all this checks.
+  try {
+    const r = await sb('rpc/has_device_passcode', { method: 'POST', body: JSON.stringify({ p_device_id: 'go-live-check' }) })
+    const body = await r.json().catch(() => ({}))
+    const exists = !(r.status === 404 || body.code === 'PGRST202')
+    report(exists, 'Admin quick-unlock', exists ? 'Installed.' : 'Not found.',
+      'Run <code>4-passcode-migration.sql</code>. The admin passcode screen cannot work without it.')
+  } catch (e) { report(false, 'Admin quick-unlock', e.message, 'Run <code>4-passcode-migration.sql</code>.') }
+
+  })
+
+  await step(async () => {
+  // ---- 3. server ----------------------------------------------------------
+  // A deep route returning HTML proves .htaccess is present and rewriting.
+  try {
+    const r = await fetch('/shop', { headers: { Accept: 'text/html' } })
+    const html = await r.text()
+    const good = r.status === 200 && html.includes('<div id="root">')
+    report(good, 'Deep routes work (.htaccess)', good ? '/shop served the app.' : 'HTTP ' + r.status,
+      '<code>.htaccess</code> is missing from <code>public_html/</code>. It is a <b>hidden</b> file — ' +
+      'turn on "show hidden files" in File Manager and upload it. Without it there is no HTTPS ' +
+      'redirect, no security headers, and /shop shows 404.')
+  } catch (e) { report(false, 'Deep routes work (.htaccess)', e.message, 'Upload the hidden <code>.htaccess</code> file.') }
+
+  // The single most informative check: asking pay.php for an order that cannot
+  // exist. A 404 proves PHP runs, config.php parses, the service key works and
+  // the fail-closed lookup is doing its job — all at once.
+  try {
+    const r = await fetch('/knet/pay.php?trackid=GOLIVECHECK000', { redirect: 'manual' })
+    const text = await r.text().catch(() => '')
+    let title = 'Payment endpoint', detail, ok = false, fix = ''
+    // A missing knet/ folder ALSO returns 404 — and read as a pass, that is the
+    // exact class of silent failure this page exists to catch. pay.php answers
+    // with the words "Unknown order."; Apache's own 404 does not.
+    if (r.status === 404 && /unknown order/i.test(text)) {
+      ok = true; detail = 'pay.php refused an unknown order (404) — exactly right.'
+    } else if (r.status === 404) {
+      detail = 'Nothing is answering at /knet/pay.php.'
+      fix = 'The <code>knet/</code> folder was not uploaded. Upload it from the package, then ' +
+            'create <code>knet/config.php</code> from <code>config.example.php</code>.'
+    } else if (/<\/html>/i.test(text) && r.status === 200) {
+      detail = 'PHP is not executing — the file was served as text.'
+      fix = 'PHP is disabled for this folder, or the file was uploaded with the wrong extension. ' +
+            'Check the PHP version setting in hPanel.'
+    }
+    else if (r.status === 503) { detail = 'Cannot reach the orders database (503).'; fix = 'Check <code>supabase_url</code> and the <b>service</b> key in <code>knet/config.php</code>.' }
+    else if (r.status === 500) { detail = 'Server error (500).'; fix = 'Usually a resource key that is not exactly 16 bytes. Open <code>/knet/selftest.php</code> — it names the problem.' }
+    else if (r.status === 0 || r.type === 'opaqueredirect') { detail = 'Redirected to the bank for an order that does not exist.'; fix = '<b>Serious:</b> the orders database is not configured in <code>knet/config.php</code>, so the browser could set its own price. Fill in <code>supabase_url</code> and the service key.' }
+    else { detail = 'Unexpected HTTP ' + r.status + '.'; fix = 'Open <code>/knet/selftest.php</code> for detail.' }
+    report(ok, title, detail, fix)
+  } catch (e) {
+    report(false, 'Payment endpoint', 'Not reachable: ' + e.message,
+      'Upload the <code>knet/</code> folder, then create <code>knet/config.php</code> from ' +
+      '<code>config.example.php</code> and set its permissions to 600.')
+  }
+
+  })
+
+  await step(async () => {
+  // ---- 4. discoverability -------------------------------------------------
+  for (const [file, label] of [['/sitemap.xml', 'Sitemap'], ['/robots.txt', 'robots.txt'], ['/site.webmanifest', 'Web app manifest']]) {
+    try {
+      const r = await fetch(file)
+      report(r.ok, label, r.ok ? file + ' served.' : 'HTTP ' + r.status, 'Re-upload <code>' + file + '</code>.')
+    } catch { report(false, label, 'not reachable', 'Re-upload <code>' + file + '</code>.') }
+  }
+
+  })
+
+  finish()
+}
+
+function finish() {
+  const v = document.getElementById('verdict')
+  if (failures === 0) {
+    v.className = 'verdict live'
+    v.innerHTML = '🎉 Sporta is live and can take orders.<br>' +
+      '<span dir="rtl" style="font-weight:600;display:block">سبورتا جاهز لاستقبال الطلبات.</span>' +
+      '<span style="font-weight:400">Do a real 0.100 KWD test payment, then confirm the order shows as ' +
+      '<b>paid</b> in the admin — not just that the browser showed a tick. Then delete this file, ' +
+      '<code>knet/selftest.php</code> and <code>knet/setup-config.php</code>.</span>'
+  } else {
+    v.className = 'verdict no'
+    v.textContent = failures + ' thing' + (failures === 1 ? '' : 's') +
+      ' still to fix — see below. The store cannot take orders until they are green.'
+  }
+}
+
+run()
+</script>
+</body>
+</html>

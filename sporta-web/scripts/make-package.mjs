@@ -109,12 +109,24 @@ When every line reads OK, DELETE these two files from the server:
     public_html/knet/setup-config.php
 
 --------------------------------------------------------------------------------
-5. CHECK
+5. CHECK — open this in a browser
 --------------------------------------------------------------------------------
-  - open the site, add something to the bag, go to checkout
-  - if checkout says "Online ordering is temporarily unavailable", step 2 is
-    not done or config.js still has the placeholders
-  - admin at /admin -> Catalogue should report all 20 products "in sync"
+
+    https://www.sporta.com.kw/go-live.html
+
+It tests every step above for real: config.js, Supabase, the products table,
+the checkout function, the admin passcode, .htaccess, the payment endpoint,
+sitemap and manifest. Each failure names the exact file to fix.
+
+When it says "Sporta is live and can take orders", make one real 0.100 KWD
+test payment, then confirm that order shows as PAID in the admin -- a green
+result page only proves the redirect worked; only the order row proves the
+money was recorded.
+
+Then delete these three files from the server:
+    public_html/go-live.html
+    public_html/knet/selftest.php
+    public_html/knet/setup-config.php
 
 --------------------------------------------------------------------------------
 ALTERNATIVE-static-site/  is a no-JavaScript-build fallback copy of the store.

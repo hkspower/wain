@@ -52,6 +52,16 @@ createServer((req, res) => {
       }
     }
 
+    // go-live.html probes these.
+    if (u.pathname === '/rest/v1/products') {
+      const out = await asAnon(`select coalesce(json_agg(t),'[]') from (select slug from public.products) t`)
+      const n = JSON.parse(out).length
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Range': `0-${n - 1}/${n}`,
+        'Access-Control-Allow-Origin': '*', 'Access-Control-Expose-Headers': 'content-range' })
+      return res.end(out)
+    }
+    if (u.pathname === '/rest/v1/rpc/has_device_passcode') return json(res, 401, { message: 'permission denied' })
+
     if (u.pathname === '/rest/v1/rpc/get_order_status') {
       const out = await asAnon(
         `select coalesce(json_agg(t),'[]') from (select * from public.get_order_status(${lit(body.p_track_id)})) t`,
