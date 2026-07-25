@@ -4,24 +4,50 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>About — Sporta Kuwait</title>
-<meta name="description" content="About Sporta — premium sportswear in Kuwait.">
+<meta name="description" content="About Sporta — Kuwaiti sportswear store: same-day delivery, KNET payment, free exchange & return. سبورتا — متجر ملابس رياضية كويتي: توصيل نفس اليوم ودفع كي نت واستبدال مجاني.">
+<meta name="keywords" content="Sporta, سبورتا, sportswear Kuwait, activewear Kuwait, gym clothes Kuwait, fitness apparel, hoodies Kuwait, gym accessories, Gymshark Kuwait, RHEO, Vanquish, sportswear GCC, activewear Middle East, ملابس رياضية الكويت, ملابس جيم, ملابس رياضية نسائية, ملابس رياضية رجالية, هوديز, إكسسوارات رياضية, تسوق اونلاين الكويت, كي نت, ملابس رياضية الخليج, KNET, الكويت">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+<meta name="geo.region" content="KW">
+<meta name="geo.placename" content="Kuwait City">
+<meta name="geo.position" content="29.3759;47.9774">
+<meta name="ICBM" content="29.3759, 47.9774">
 <meta name="theme-color" content="#E0561C">
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="canonical" href="https://www.sporta.com.kw/about.html">
 <link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/about.html">
 <link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/about.html">
+<link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/about.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Sporta">
 <meta property="og:title" content="About — Sporta Kuwait">
-<meta property="og:description" content="About Sporta — premium sportswear in Kuwait.">
+<meta property="og:description" content="About Sporta — Kuwaiti sportswear store: same-day delivery, KNET payment, free exchange & return. سبورتا — متجر ملابس رياضية كويتي: توصيل نفس اليوم ودفع كي نت واستبدال مجاني.">
 <meta property="og:image" content="https://www.sporta.com.kw/assets/og-image.png">
+<meta property="og:url" content="https://www.sporta.com.kw/about.html">
+<meta property="og:locale" content="en_KW">
+<meta property="og:locale:alternate" content="ar_KW">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://www.sporta.com.kw/assets/og-image.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Changa:wght@600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/style.css">
 
+<script type="application/ld+json">
+{"@context":"https://schema.org","@graph":[
+{"@type":"AboutPage","name":"About Sporta","url":"https://www.sporta.com.kw/about.html",
+"about":{"@id":"https://www.sporta.com.kw/#store"},"inLanguage":["en","ar"]},
+{"@type":"BreadcrumbList","itemListElement":[
+{"@type":"ListItem","position":1,"name":"Home","item":"https://www.sporta.com.kw/"},
+{"@type":"ListItem","position":2,"name":"About","item":"https://www.sporta.com.kw/about.html"}]},
+{"@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"Do you deliver same-day in Kuwait?","acceptedAnswer":{"@type":"Answer","text":"Yes — orders inside Kuwait are delivered the same day. Delivery updates are sent on WhatsApp."}},
+{"@type":"Question","name":"What payment methods do you accept?","acceptedAnswer":{"@type":"Answer","text":"KNET (Kuwait debit), Visa and Mastercard. All prices are in Kuwaiti Dinar (KWD)."}},
+{"@type":"Question","name":"Can I exchange or return an item?","acceptedAnswer":{"@type":"Answer","text":"Yes — exchange and return are free. Contact us on WhatsApp +965 2209 1914 to arrange it."}},
+{"@type":"Question","name":"Do you ship outside Kuwait (GCC / Middle East)?","acceptedAnswer":{"@type":"Answer","text":"Online checkout covers Kuwait. For GCC and Middle East orders, message us on WhatsApp and we will arrange it."}},
+{"@type":"Question","name":"Which brands do you carry?","acceptedAnswer":{"@type":"Answer","text":"RHEO, Vanquish, ATE, Gymshark, Eyesportwear and our own SPORTA label — activewear, hoodies and gym accessories."}}]}
+]}
+</script>
 </head>
 <body>
 <p class="ann" data-i18n="ann">Same-day delivery in Kuwait</p>
@@ -47,7 +73,9 @@
 </header>
 <main class="wrap" style="max-width:48rem;padding:3rem 1rem">
  <h1 style="font-size:1.9rem;color:var(--brand-dark)" data-i18n="nav.about"></h1>
- <p style="color:var(--muted);font-size:1.05rem" data-i18n="tagline"></p></main><footer class="site">
+ <p style="color:var(--muted);font-size:1.05rem" data-i18n="tagline"></p>
+ <h2 id="faqTitle" style="font-size:1.5rem;margin:2.5rem 0 .5rem;color:var(--brand-dark)">Frequently asked questions</h2>
+ <div id="faq"></div></main><footer class="site">
   <div class="wrap">
     <div class="brand">
       <img src="assets/logo-white.png" alt="Sporta Sports Wear" width="200" height="62" loading="lazy">
@@ -84,6 +112,36 @@
 </footer>
 <script src="assets/products.js"></script>
 <script src="assets/app.js"></script>
+<script>
+// FAQ — bilingual; the FAQPage JSON-LD in <head> mirrors the English strings.
+const FAQ = [
+  { q: { en: 'Do you deliver same-day in Kuwait?', ar: 'هل توصلون في نفس اليوم داخل الكويت؟' },
+    a: { en: 'Yes — orders inside Kuwait are delivered the same day. Delivery updates are sent on WhatsApp.',
+         ar: 'نعم — الطلبات داخل الكويت تُوصَّل في نفس اليوم، وتصلك تحديثات التوصيل عبر واتساب.' } },
+  { q: { en: 'What payment methods do you accept?', ar: 'ما طرق الدفع المتوفرة؟' },
+    a: { en: 'KNET (Kuwait debit), Visa and Mastercard. All prices are in Kuwaiti Dinar (KWD).',
+         ar: 'كي نت وفيزا وماستركارد، وجميع الأسعار بالدينار الكويتي.' } },
+  { q: { en: 'Can I exchange or return an item?', ar: 'هل يمكن الاستبدال أو الإرجاع؟' },
+    a: { en: 'Yes — exchange and return are free. Contact us on WhatsApp +965 2209 1914 to arrange it.',
+         ar: 'نعم — الاستبدال والإرجاع مجاني. تواصل معنا عبر واتساب ٢٢٠٩١٩١٤ ٩٦٥+ لترتيب ذلك.' } },
+  { q: { en: 'Do you ship outside Kuwait (GCC / Middle East)?', ar: 'هل تشحنون خارج الكويت (الخليج / الشرق الأوسط)؟' },
+    a: { en: 'Online checkout covers Kuwait. For GCC and Middle East orders, message us on WhatsApp and we will arrange it.',
+         ar: 'الدفع عبر الموقع متاح داخل الكويت. لطلبات دول الخليج والشرق الأوسط راسلنا على واتساب وسنرتب الشحن.' } },
+  { q: { en: 'Which brands do you carry?', ar: 'ما الماركات المتوفرة لديكم؟' },
+    a: { en: 'RHEO, Vanquish, ATE, Gymshark, Eyesportwear and our own SPORTA label — activewear, hoodies and gym accessories.',
+         ar: 'ريو، فانكويش، ATE، جيمشارك، آي سبورت وماركتنا الخاصة سبورتا — ملابس رياضية وهوديز وإكسسوارات جيم.' } },
+]
+window.SPORTA_PAGE = (S) => {
+  document.getElementById('faqTitle').textContent =
+    S.lang === 'ar' ? 'الأسئلة الشائعة' : 'Frequently asked questions'
+  document.getElementById('faq').innerHTML = FAQ.map(
+    (f) => `<details style="padding:1rem 0;border-bottom:1px solid var(--line,#e2e8f0)">
+      <summary style="cursor:pointer;font-weight:600">${f.q[S.lang]}</summary>
+      <p style="margin:.5rem 0 0;color:var(--muted)">${f.a[S.lang]}</p>
+    </details>`,
+  ).join('')
+}
+</script>
 
 </body>
 </html>

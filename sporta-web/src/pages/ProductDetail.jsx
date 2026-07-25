@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { getProduct, PRODUCTS, SIZES_FOR } from '../lib/products'
 import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
-import { usePageMeta, productJsonLd } from '../lib/seo'
+import { usePageMeta, productJsonLd, breadcrumbJsonLd, graph } from '../lib/seo'
 import ProductCard from '../components/ProductCard'
 import SizeGuide from '../components/SizeGuide'
 import { IconTruck, IconLock, IconReturn, IconPlus, IconMinus } from '../components/icons'
@@ -31,15 +31,29 @@ export default function ProductDetail() {
     return true
   }
 
+  const jsonLd = useMemo(
+    () =>
+      product
+        ? graph(
+            productJsonLd(product, lang),
+            breadcrumbJsonLd([
+              [t.nav.home, '/'],
+              [t.nav.shop, '/shop'],
+              [product.name[lang], `/product/${product.slug}`],
+            ]),
+          )
+        : null,
+    [product, lang, t],
+  )
   usePageMeta(
     product
       ? {
           title: product.name[lang],
           description: product.desc[lang],
           path: `/product/${product.slug}`,
-          jsonLd: productJsonLd(product, lang),
+          jsonLd,
         }
-      : { title: t.shop.notFound, path: '/shop' },
+      : { title: t.shop.notFound, path: '/shop', robots: 'noindex, follow' },
   )
 
   if (!product) {

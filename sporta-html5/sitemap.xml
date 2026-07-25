@@ -3,24 +3,218 @@
         xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://www.sporta.com.kw/</loc>
+    <lastmod>2026-07-25</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
     <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/" />
     <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/" />
   </url>
   <url>
-    <loc>https://www.sporta.com.kw/shop</loc>
+    <loc>https://www.sporta.com.kw/shop.html</loc>
+    <lastmod>2026-07-25</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/shop.html" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/shop.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/shop.html" />
   </url>
   <url>
-    <loc>https://www.sporta.com.kw/about</loc>
+    <loc>https://www.sporta.com.kw/about.html</loc>
+    <lastmod>2026-07-25</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/about.html" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/about.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/about.html" />
   </url>
   <url>
-    <loc>https://www.sporta.com.kw/contact</loc>
+    <loc>https://www.sporta.com.kw/contact.html</loc>
+    <lastmod>2026-07-25</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/contact.html" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/contact.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/contact.html" />
+  </url>
+  <url>
+    <loc>https://www.sporta.com.kw/product.html?p=rheo-seamless-set</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/product.html?p=rheo-seamless-set" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/product.html?p=rheo-seamless-set" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/product.html?p=rheo-seamless-set" />
+  </url>
+  <url>
+    <loc>https://www.sporta.com.kw/product.html?p=rheo-zip-top</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/product.html?p=rheo-zip-top" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/product.html?p=rheo-zip-top" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/product.html?p=rheo-zip-top" />
+  </url>
+  <url>
+    <loc>https://www.sporta.com.kw/product.html?p=sporta-compression-tee</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/product.html?p=sporta-compression-tee" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/product.html?p=sporta-compression-tee" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/product.html?p=sporta-compression-tee" />
+  </url>
+  <url>
+    <loc>https://www.sporta.com.kw/product.html?p=vanquish-tank</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/product.html?p=vanquish-tank" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/product.html?p=vanquish-tank" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/product.html?p=vanquish-tank" />
+  </url>
+  <url>
+    <loc>https://www.sporta.com.kw/product.html?p=ate-felpa-hoodie</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/product.html?p=ate-felpa-hoodie" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/product.html?p=ate-felpa-hoodie" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/product.html?p=ate-felpa-hoodie" />
+  </url>
+  <url>
+    <loc>https://www.sporta.com.kw/product.html?p=ate-smart-jacket</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/product.html?p=ate-smart-jacket" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/product.html?p=ate-smart-jacket" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/product.html?p=ate-smart-jacket" />
+  </url>
+  <url>
+    <loc>https://www.sporta.com.kw/product.html?p=nba-cap</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/product.html?p=nba-cap" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/product.html?p=nba-cap" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/product.html?p=nba-cap" />
+  </url>
+  <url>
+    <loc>https://www.sporta.com.kw/product.html?p=rheo-flex-leggings</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/product.html?p=rheo-flex-leggings" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/product.html?p=rheo-flex-leggings" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/product.html?p=rheo-flex-leggings" />
+  </url>
+  <url>
+    <loc>https://www.sporta.com.kw/product.html?p=rheo-sports-bra</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/product.html?p=rheo-sports-bra" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/product.html?p=rheo-sports-bra" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/product.html?p=rheo-sports-bra" />
+  </url>
+  <url>
+    <loc>https://www.sporta.com.kw/product.html?p=rheo-crop-tee</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/product.html?p=rheo-crop-tee" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/product.html?p=rheo-crop-tee" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/product.html?p=rheo-crop-tee" />
+  </url>
+  <url>
+    <loc>https://www.sporta.com.kw/product.html?p=eyesport-shorts</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/product.html?p=eyesport-shorts" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/product.html?p=eyesport-shorts" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/product.html?p=eyesport-shorts" />
+  </url>
+  <url>
+    <loc>https://www.sporta.com.kw/product.html?p=sporta-joggers</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/product.html?p=sporta-joggers" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/product.html?p=sporta-joggers" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/product.html?p=sporta-joggers" />
+  </url>
+  <url>
+    <loc>https://www.sporta.com.kw/product.html?p=vanquish-long-sleeve</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/product.html?p=vanquish-long-sleeve" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/product.html?p=vanquish-long-sleeve" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/product.html?p=vanquish-long-sleeve" />
+  </url>
+  <url>
+    <loc>https://www.sporta.com.kw/product.html?p=sporta-zip-hoodie</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/product.html?p=sporta-zip-hoodie" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/product.html?p=sporta-zip-hoodie" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/product.html?p=sporta-zip-hoodie" />
+  </url>
+  <url>
+    <loc>https://www.sporta.com.kw/product.html?p=ate-windbreaker</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/product.html?p=ate-windbreaker" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/product.html?p=ate-windbreaker" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/product.html?p=ate-windbreaker" />
+  </url>
+  <url>
+    <loc>https://www.sporta.com.kw/product.html?p=sporta-gym-bag</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/product.html?p=sporta-gym-bag" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/product.html?p=sporta-gym-bag" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/product.html?p=sporta-gym-bag" />
+  </url>
+  <url>
+    <loc>https://www.sporta.com.kw/product.html?p=shaker-bottle</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/product.html?p=shaker-bottle" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/product.html?p=shaker-bottle" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/product.html?p=shaker-bottle" />
+  </url>
+  <url>
+    <loc>https://www.sporta.com.kw/product.html?p=lifting-straps</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/product.html?p=lifting-straps" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/product.html?p=lifting-straps" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/product.html?p=lifting-straps" />
+  </url>
+  <url>
+    <loc>https://www.sporta.com.kw/product.html?p=sporta-socks-3pack</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/product.html?p=sporta-socks-3pack" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/product.html?p=sporta-socks-3pack" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/product.html?p=sporta-socks-3pack" />
+  </url>
+  <url>
+    <loc>https://www.sporta.com.kw/product.html?p=gymshark-phone-strap</loc>
+    <lastmod>2026-07-25</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/product.html?p=gymshark-phone-strap" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/product.html?p=gymshark-phone-strap" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/product.html?p=gymshark-phone-strap" />
   </url>
 </urlset>

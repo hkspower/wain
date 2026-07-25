@@ -1,17 +1,30 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useLang } from '../i18n/LanguageContext'
-import { CATEGORIES, byCategory } from '../lib/products'
+import { CATEGORIES, PRODUCTS, byCategory } from '../lib/products'
 import ProductCard from '../components/ProductCard'
-import { usePageMeta } from '../lib/seo'
+import { usePageMeta, itemListJsonLd, breadcrumbJsonLd, graph } from '../lib/seo'
 
 export default function Shop() {
   const { lang, t } = useLang()
   const [cat, setCat] = useState('all')
   const [sort, setSort] = useState('newest')
+  const jsonLd = useMemo(
+    () =>
+      graph(
+        itemListJsonLd(PRODUCTS, lang),
+        breadcrumbJsonLd([
+          [t.nav.home, '/'],
+          [t.nav.shop, '/shop'],
+        ]),
+      ),
+    [lang, t],
+  )
   usePageMeta({
     title: t.nav.shop,
-    description: 'Shop premium sportswear in Kuwait — activewear, hoodies, caps and accessories. Prices in KWD with KNET checkout.',
+    description:
+      'Shop premium sportswear in Kuwait — activewear, hoodies, caps and accessories. Prices in KWD with KNET checkout. تسوق ملابس سبورتا الرياضية في الكويت.',
     path: '/shop',
+    jsonLd,
   })
   const products = byCategory(cat)
 

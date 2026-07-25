@@ -3,10 +3,12 @@ import { useLang } from '../i18n/LanguageContext'
 import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
 import { IconPlus, IconMinus, IconClose } from '../components/icons'
+import { usePageMeta } from '../lib/seo'
 
 export default function Cart() {
   const { lang, t } = useLang()
   const { items, setQty, remove, total } = useCart()
+  usePageMeta({ title: t.nav.cart, path: '/cart', robots: 'noindex, follow' })
 
   if (!items.length) {
     return (

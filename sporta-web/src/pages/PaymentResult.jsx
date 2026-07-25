@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { useCart } from '../lib/cart'
+import { usePageMeta } from '../lib/seo'
 
 // Customer lands here after CBK:
 //   /payment/result?status=success|failed|cancelled|error&trackid=...&payid=...
@@ -10,6 +11,7 @@ export default function PaymentResult() {
   const { t } = useLang()
   const { clear } = useCart()
   const status = params.get('status') || 'error'
+  usePageMeta({ path: '/payment/result', robots: 'noindex, follow' })
   const trackid = params.get('trackid') || ''
   const [confirmed, setConfirmed] = useState(null)
   const [loading, setLoading] = useState(true)

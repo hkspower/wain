@@ -4,10 +4,12 @@ import { useLang } from '../i18n/LanguageContext'
 import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
 import { startCheckout } from '../lib/checkout'
+import { usePageMeta } from '../lib/seo'
 
 export default function Checkout() {
   const { lang, t } = useLang()
   const { items, total } = useCart()
+  usePageMeta({ path: '/checkout', robots: 'noindex, follow' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 

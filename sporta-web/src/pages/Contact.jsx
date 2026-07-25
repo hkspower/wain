@@ -1,7 +1,35 @@
+import { useMemo } from 'react'
 import { useLang } from '../i18n/LanguageContext'
+import { usePageMeta, breadcrumbJsonLd, graph } from '../lib/seo'
 
 export default function Contact() {
-  const { t } = useLang()
+  const { lang, t } = useLang()
+  const jsonLd = useMemo(
+    () =>
+      graph(
+        {
+          '@type': 'ContactPage',
+          name: lang === 'ar' ? 'اتصل بنا — سبورتا' : 'Contact Sporta',
+          url: 'https://www.sporta.com.kw/contact',
+          about: { '@id': 'https://www.sporta.com.kw/#store' },
+          inLanguage: lang,
+        },
+        breadcrumbJsonLd([
+          [t.nav.home, '/'],
+          [t.nav.contact, '/contact'],
+        ]),
+      ),
+    [lang, t],
+  )
+  usePageMeta({
+    title: t.contact.title,
+    description:
+      lang === 'ar'
+        ? 'تواصل مع سبورتا عبر واتساب ٢٢٠٩١٩١٤ ٩٦٥+ أو البريد cs@sporta.com.kw — نرد بالعربي والإنجليزي.'
+        : 'Contact Sporta on WhatsApp +965 2209 1914 or cs@sporta.com.kw — we answer in Arabic and English.',
+    path: '/contact',
+    jsonLd,
+  })
   return (
     <section className="mx-auto max-w-3xl px-4 py-16">
       <h1 className="mb-6 text-3xl font-extrabold text-brand-dark">{t.contact.title}</h1>

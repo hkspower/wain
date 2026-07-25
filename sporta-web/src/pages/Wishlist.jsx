@@ -9,7 +9,7 @@ import { IconHeart } from '../components/icons'
 export default function Wishlist() {
   const { t } = useLang()
   const { slugs } = useWishlist()
-  usePageMeta({ title: t.wish.title, path: '/wishlist' })
+  usePageMeta({ title: t.wish.title, path: '/wishlist', robots: 'noindex, follow' })
   const items = PRODUCTS.filter((p) => slugs.includes(p.slug))
 
   return (

@@ -4,7 +4,7 @@ import { usePageMeta } from '../lib/seo'
 
 export default function NotFound() {
   const { t } = useLang()
-  usePageMeta({ title: t.nf.title, description: t.nf.sub, path: '/404' })
+  usePageMeta({ title: t.nf.title, description: t.nf.sub, path: '/404', robots: 'noindex, follow' })
 
   return (
     <section className="mx-auto flex max-w-xl flex-col items-center gap-5 px-6 py-28 text-center">

@@ -3,9 +3,12 @@ import { useLang } from '../i18n/LanguageContext'
 import { PRODUCTS } from '../lib/products'
 import ProductCard from '../components/ProductCard'
 import { IconTruck, IconReturn, IconArrowUpRight, IconArrowRight } from '../components/icons'
+import { usePageMeta } from '../lib/seo'
 
 export default function Home() {
   const { t } = useLang()
+  // Reset canonical/title/robots after client-side navigation back home.
+  usePageMeta({ path: '/' })
   const featured = PRODUCTS.slice(0, 4)
 
   const cats = [
