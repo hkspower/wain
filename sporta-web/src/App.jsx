@@ -1,4 +1,5 @@
 import { Routes, Route } from 'react-router-dom'
+import { useLang } from './i18n/LanguageContext'
 import { lazy, Suspense } from 'react'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
@@ -19,8 +20,9 @@ const TrackOrder = lazy(() => import('./pages/TrackOrder'))
 const Returns = lazy(() => import('./pages/Returns'))
 
 function Loading() {
+  const { t } = useLang()
   return (
-    <div className="mx-auto max-w-7xl px-4 py-16" role="status" aria-live="polite" aria-label="Loading">
+    <div className="mx-auto max-w-7xl px-4 py-16" role="status" aria-live="polite" aria-label={t.a11y.loading}>
       <div className="skeleton mb-6 h-8 w-48 rounded-xl" />
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (

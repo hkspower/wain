@@ -113,9 +113,9 @@ export default function ProductDetail() {
 
           <div className="mt-6 flex flex-wrap items-center gap-4">
             <div className="flex items-center rounded-full border border-slate-300 bg-white">
-              <button className="px-4 py-2.5 text-slate-700 hover:text-brand" aria-label="Decrease quantity" onClick={() => setQty((q) => Math.max(1, q - 1))}><IconMinus size={16} /></button>
+              <button className="px-4 py-2.5 text-slate-700 hover:text-brand" aria-label={t.a11y.decrease} onClick={() => setQty((q) => Math.max(1, q - 1))}><IconMinus size={16} /></button>
               <span className="w-10 text-center font-semibold" aria-live="polite">{qty}</span>
-              <button className="px-4 py-2.5 text-slate-700 hover:text-brand" aria-label="Increase quantity" onClick={() => setQty((q) => q + 1)}><IconPlus size={16} /></button>
+              <button className="px-4 py-2.5 text-slate-700 hover:text-brand" aria-label={t.a11y.increase} onClick={() => setQty((q) => q + 1)}><IconPlus size={16} /></button>
             </div>
             <button onClick={handleAdd} className="btn btn-primary">
               {t.shop.add}

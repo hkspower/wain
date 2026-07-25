@@ -42,7 +42,7 @@ export default function CartDrawer({ open, onClose }) {
       >
         <header className="flex items-center justify-between border-b border-black/10 px-6 py-5">
           <h2 className="text-xl font-extrabold text-slate-900">{t.cart.title}</h2>
-          <button onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-700">
+          <button onClick={onClose} aria-label={t.a11y.close} className="text-slate-400 hover:text-slate-700">
             <IconClose size={22} />
           </button>
         </header>
@@ -67,11 +67,11 @@ export default function CartDrawer({ open, onClose }) {
                     <p className="mt-0.5 text-sm text-slate-500 tabular-nums">{formatKWD(i.price, lang)}{i.size ? ` · ${i.size}` : ''}</p>
                     <div className="mt-2 flex items-center gap-3">
                       <div className="flex items-center rounded-full border border-black/15 text-slate-900">
-                        <button className="px-3 py-1 text-base font-bold leading-none text-slate-700 hover:text-brand" aria-label="Decrease quantity" onClick={() => setQty(i.key, i.qty - 1)}><IconMinus size={15} /></button>
+                        <button className="px-3 py-1 text-base font-bold leading-none text-slate-700 hover:text-brand" aria-label={t.a11y.decrease} onClick={() => setQty(i.key, i.qty - 1)}><IconMinus size={15} /></button>
                         <span className="w-7 text-center text-sm font-bold tabular-nums text-slate-900">{i.qty}</span>
-                        <button className="px-3 py-1 text-base font-bold leading-none text-slate-700 hover:text-brand" aria-label="Increase quantity" onClick={() => setQty(i.key, i.qty + 1)}><IconPlus size={15} /></button>
+                        <button className="px-3 py-1 text-base font-bold leading-none text-slate-700 hover:text-brand" aria-label={t.a11y.increase} onClick={() => setQty(i.key, i.qty + 1)}><IconPlus size={15} /></button>
                       </div>
-                      <button onClick={() => remove(i.key)} aria-label="Remove" className="text-slate-400 hover:text-rose-600">
+                      <button onClick={() => remove(i.key)} aria-label={t.a11y.remove} className="text-slate-400 hover:text-rose-600">
                         <IconClose size={15} />
                       </button>
                     </div>

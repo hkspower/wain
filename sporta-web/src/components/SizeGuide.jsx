@@ -38,7 +38,7 @@ export default function SizeGuide({ open, onClose }) {
       <div className="card w-full max-w-lg p-6" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-extrabold text-slate-900">{t.size.guide}</h2>
-          <button onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-700">
+          <button onClick={onClose} aria-label={t.a11y.close} className="text-slate-400 hover:text-slate-700">
             <IconClose size={22} />
           </button>
         </div>

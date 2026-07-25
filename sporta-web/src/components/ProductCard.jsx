@@ -43,7 +43,7 @@ export default function ProductCard({ product }) {
         <button
           type="button"
           onClick={(e) => { e.preventDefault(); toggle(product.slug) }}
-          aria-label="Save to wishlist"
+          aria-label={t.a11y.saveWishlist}
           aria-pressed={has(product.slug)}
           className={`absolute end-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 shadow-sm backdrop-blur transition hover:text-brand ${
             has(product.slug) ? 'text-brand opacity-100' : 'text-slate-500 opacity-0 group-hover:opacity-100'
@@ -61,7 +61,7 @@ export default function ProductCard({ product }) {
         </Link>
         <p className="mt-1 line-clamp-1 text-sm text-slate-500">{product.desc[lang]}</p>
 
-        <div className="mt-1.5 flex items-center gap-0.5 text-amber-500" aria-label="Rated 4.8 out of 5">
+        <div className="mt-1.5 flex items-center gap-0.5 text-amber-500" aria-label={t.a11y.rated}>
           {Array.from({ length: 5 }).map((_, i) => <IconStar key={i} size={13} />)}
           <span className="ms-1 text-xs text-slate-400">(4.8)</span>
         </div>

@@ -39,7 +39,7 @@ export default function Navbar() {
         </button>
 
         {/* logo (center) — official mark, white variant for dark header */}
-        <NavLink to="/" aria-label="Sporta — home">
+        <NavLink to="/" aria-label={t.a11y.homeLink}>
           <img src="/logo-white.png" alt="Sporta Sports Wear" width="132" height="41" className="h-8 w-auto md:h-9" />
         </NavLink>
 
@@ -53,7 +53,7 @@ export default function Navbar() {
               </span>
             )}
           </button>
-          <Link to="/wishlist" className="relative hidden sm:inline-flex" aria-label="Wishlist">
+          <Link to="/wishlist" className="relative hidden sm:inline-flex" aria-label={t.a11y.wishlist}>
             <IconHeart size={22} filled={wishCount > 0} />
             {wishCount > 0 && (
               <span className="absolute -end-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-white">

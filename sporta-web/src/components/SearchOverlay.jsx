@@ -57,7 +57,7 @@ export default function SearchOverlay({ open, onClose }) {
             className="w-full bg-transparent text-lg outline-none placeholder:text-slate-400"
             aria-label={t.search.placeholder}
           />
-          <button onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-700">
+          <button onClick={onClose} aria-label={t.a11y.close} className="text-slate-400 hover:text-slate-700">
             <IconClose size={20} />
           </button>
         </div>

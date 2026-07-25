@@ -14,12 +14,12 @@ export default function Footer() {
           <p className="max-w-md text-sm text-slate-400">{t.footer.tagline}</p>
           <div className="flex items-center gap-3">
             {[
-              { href: 'https://www.instagram.com/sporta.kw', label: 'Instagram', Icon: IconInstagram },
-              { href: 'https://www.tiktok.com/@sporta.kw', label: 'TikTok', Icon: IconTikTok },
-              { href: 'https://wa.me/96522091914', label: 'WhatsApp', Icon: IconWhatsApp },
+              { href: 'https://www.instagram.com/sporta.kw', key: 'instagram', label: t.a11y.instagram, Icon: IconInstagram },
+              { href: 'https://www.tiktok.com/@sporta.kw', key: 'tiktok', label: t.a11y.tiktok, Icon: IconTikTok },
+              { href: 'https://wa.me/96522091914', key: 'whatsapp', label: t.a11y.whatsapp, Icon: IconWhatsApp },
             ].map((s) => (
               <a
-                key={s.label}
+                key={s.key}
                 href={s.href}
                 target="_blank"
                 rel="noopener noreferrer"

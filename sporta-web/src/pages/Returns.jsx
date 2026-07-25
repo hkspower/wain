@@ -264,7 +264,7 @@ export default function Returns() {
                   </div>
                   <button
                     onClick={() => removeItem(i.slug)}
-                    aria-label={c.remove}
+                    aria-label={t.a11y.remove}
                     className="text-slate-400 hover:text-red-600"
                   >
                     <IconClose size={18} />
@@ -285,7 +285,7 @@ export default function Returns() {
                   <div className="flex items-center gap-1 rounded-full border border-slate-300">
                     <button
                       className="px-2.5 py-1 text-slate-600"
-                      aria-label="-"
+                      aria-label={t.a11y.decrease}
                       onClick={() => patch(i.slug, { qty: Math.max(1, i.qty - 1) })}
                     >
                       <IconMinus size={14} />
@@ -293,7 +293,7 @@ export default function Returns() {
                     <span className="min-w-6 text-center text-sm font-bold tabular-nums">{i.qty}</span>
                     <button
                       className="px-2.5 py-1 text-slate-600"
-                      aria-label="+"
+                      aria-label={t.a11y.increase}
                       onClick={() => patch(i.slug, { qty: i.qty + 1 })}
                     >
                       <IconPlus size={14} />

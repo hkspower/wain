@@ -17,6 +17,14 @@ const T = {
         acc: ['Essential gear', 'Accessories'], outlet: ['Up to 60% off', 'Sporta Outlet'] },
       ess: { k: 'Trending now', t: 'Shop the essentials' },
       svc: { ret: ['Easy returns', 'Return within 14 days'], del: ['Fast delivery', 'Within 24–48 hours'] },
+      aria: {
+        close: 'Close', remove: 'Remove', decrease: 'Decrease quantity',
+        increase: 'Increase quantity', saveWishlist: 'Save to wishlist',
+        rated: 'Rated 4.8 out of 5', homeLink: 'Sporta — home', wishlist: 'Wishlist',
+        bag: 'Bag', search: 'Search', toggleTheme: 'Toggle theme',
+        switchLang: 'Switch language', mainNav: 'Main',
+        instagram: 'Instagram', tiktok: 'TikTok', whatsapp: 'WhatsApp',
+      },
       shopH1: 'Shop sportswear in Kuwait',
       shopIntro: 'Women\u2019s and men\u2019s activewear, hoodies and gym accessories \u2014 delivered same day across Kuwait, with KNET checkout in Kuwaiti Dinar.',
       aboutH1: 'About Sporta \u2014 sportswear in Kuwait',
@@ -39,7 +47,15 @@ const T = {
       cats: { men: ['معدات الأداء', 'رجالي'], women: ['تحركي بثقة', 'نسائي'],
         acc: ['معدات أساسية', 'إكسسوارات'], outlet: ['خصومات تصل إلى ٦٠٪', 'سبورتا أوتلت'] },
       ess: { k: 'الأكثر رواجاً', t: 'تسوق الأساسيات' },
-      svc: { ret: ['إرجاع سهل', 'إرجاع خلال ١٤ يوم'], del: ['توصيل سريع', 'خلال ٢٤-٤٨ ساعة'] },
+      svc: { ret: ['إرجاع سهل', 'إرجاع خلال ١٤ يومًا'], del: ['توصيل سريع', 'خلال ٢٤-٤٨ ساعة'] },
+      aria: {
+        close: 'إغلاق', remove: 'إزالة', decrease: 'إنقاص الكمية',
+        increase: 'زيادة الكمية', saveWishlist: 'أضف إلى المفضلة',
+        rated: 'التقييم ٤٫٨ من ٥', homeLink: 'سبورتا — الرئيسية', wishlist: 'المفضلة',
+        bag: 'الحقيبة', search: 'بحث', toggleTheme: 'تبديل الوضع الليلي',
+        switchLang: 'تغيير اللغة', mainNav: 'التنقل الرئيسي',
+        instagram: 'إنستغرام', tiktok: 'تيك توك', whatsapp: 'واتساب',
+      },
       shopH1: 'تسوق الملابس الرياضية في الكويت',
       shopIntro: 'ملابس رياضية نسائية ورجالية وهوديز وإكسسوارات جيم \u2014 توصيل في نفس اليوم داخل الكويت والدفع عبر كي نت بالدينار الكويتي.',
       aboutH1: 'عن سبورتا \u2014 ملابس رياضية في الكويت',
@@ -47,7 +63,7 @@ const T = {
       contactIntro: 'عندك سؤال عن المقاسات أو التوصيل داخل الكويت أو طلبك؟ راسلنا على واتساب \u2014 نرد بالعربي والإنجليزي.',
       add: 'أضف', cart: 'حقيبتك', empty: 'حقيبتك فارغة.', total: 'الإجمالي',
       checkout: 'إتمام الشراء', back: 'العودة للمتجر', shop: 'المتجر', size: 'المقاس',
-      trust: { d: 'توصيل في نفس اليوم داخل الكويت', p: 'دفع آمن — كي نت، فيزا، ماستركارد', r: 'إرجاع مجاني خلال ١٤ يوم' },
+      trust: { d: 'توصيل في نفس اليوم داخل الكويت', p: 'دفع آمن — كي نت، فيزا، ماستركارد', r: 'إرجاع مجاني خلال ١٤ يومًا' },
       tagline: 'موطن الرياضة الفاخرة في الكويت. معدات أداء من أبرز ماركات الرياضة عالميًا.',
       info: 'معلومات', navT: 'التنقل', rights: 'جميع الحقوق محفوظة.',
       links: { about: 'من نحن', why: 'لماذا سبورتا؟', terms: 'الشروط', privacy: 'الخصوصية',
@@ -150,12 +166,12 @@ const productCard = (p) => {
       <img src="${p.image}" alt="${p.name[S.lang]}" loading="lazy" width="600" height="600">
       ${p.badge ? `<span class="pill u-track">${p.badge[S.lang]}</span>` : ''}
     </a>
-    <button class="fav" data-wish="${p.slug}" aria-pressed="${fav}" aria-label="Save to wishlist">
+    <button class="fav" data-wish="${p.slug}" aria-pressed="${fav}" aria-label="${t().aria.saveWishlist}">
       ${icon('heart', 18, fav)}</button>
     <div class="body">
       <h3><a href="product.html?p=${p.slug}">${p.name[S.lang]}</a></h3>
       <p class="desc">${p.desc[S.lang]}</p>
-      <div class="stars" aria-label="Rated 4.8 out of 5">${stars}<small>(4.8)</small></div>
+      <div class="stars" aria-label="${t().aria.rated}">${stars}<small>(4.8)</small></div>
       <div class="row"><span class="price">${money(p.price)}</span>
         <button class="btn btn-sm btn-primary" data-add="${p.slug}">${t().add}</button></div>
     </div></article>`
@@ -167,6 +183,12 @@ const render = () => {
   for (const el of document.querySelectorAll('[data-i18n]')) {
     const v = el.dataset.i18n.split('.').reduce((o, k) => o?.[k], d)
     if (typeof v === 'string') el.textContent = v
+  }
+  // aria-labels are content too — they must follow the language toggle,
+  // otherwise Arabic screen-reader users hear English.
+  for (const el of document.querySelectorAll('[data-i18n-aria]')) {
+    const v = el.dataset.i18nAria.split('.').reduce((o, k) => o?.[k], d)
+    if (typeof v === 'string') el.setAttribute('aria-label', v)
   }
   // `hidden` instead of an inline style keeps presentation out of the markup.
   const cb = document.querySelector('[data-cart-count]')
