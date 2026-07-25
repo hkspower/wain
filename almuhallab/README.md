@@ -93,6 +93,18 @@ push to `main`. Enable it once in the repo: **Settings → Pages → Source:
 Cloudflare Pages, or your own server) works the same way — just serve this
 folder.
 
+## Tests
+
+```bash
+python3 design/test_suite.py     # 83 checks, exits non-zero on failure
+```
+
+Covers token consistency and contrast in both themes, SAFI/XBRL/delivery
+arithmetic against hand-computed expectations, XBRL well-formedness and fact
+values, authentication (hashing, lockout, suspension, session expiry), XSS and
+CSV/XML injection, resilience to tampered `localStorage`, service-worker
+precaching and genuine offline loading, and layout overflow at three widths.
+
 ## HTTP/3
 
 HTTP/3 (QUIC over UDP/443) is negotiated by the **server** — the pages

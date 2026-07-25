@@ -175,11 +175,14 @@
 
       function buildXbrl() {
         var end = form.periodEnd.value;
-        var endDate = new Date(end + "T00:00:00");
-        var start = new Date(endDate);
-        if (form.period.value === "FY") start.setFullYear(start.getFullYear() - 1);
-        else start.setMonth(start.getMonth() - 3);
-        start.setDate(start.getDate() + 1);
+        // UTC throughout: parsing as local midnight and serialising as UTC
+        // shifts the date a day in any timezone east of Greenwich.
+        var parts = end.split("-").map(Number);
+        var months = form.period.value === "FY" ? 12 : 3;
+        // A fiscal period opens on the first of its opening month, so anchor
+        // there rather than subtracting months from a day-of-month that may not
+        // exist in the target month (31 May minus 3 months is not "31 February").
+        var start = new Date(Date.UTC(parts[0], parts[1] - 1 - (months - 1), 1));
         var startStr = start.toISOString().slice(0, 10);
         var lei = form.lei.value.trim();
 

@@ -105,11 +105,12 @@ const escXml = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export function buildXbrl(x: XbrlInput): string {
-  const endDate = new Date(x.periodEnd + 'T00:00:00');
-  const start = new Date(endDate);
-  if (x.period === 'FY') start.setFullYear(start.getFullYear() - 1);
-  else start.setMonth(start.getMonth() - 3);
-  start.setDate(start.getDate() + 1);
+  // UTC throughout, anchored to the first of the opening month: subtracting
+  // months from a day-of-month that the target month lacks (31 May minus three
+  // months) overflows, and local-midnight parsing shifts the date east of UTC.
+  const [y, m] = x.periodEnd.split('-').map(Number);
+  const months = x.period === 'FY' ? 12 : 3;
+  const start = new Date(Date.UTC(y, m - 1 - (months - 1), 1));
   const startStr = start.toISOString().slice(0, 10);
   const lei = x.lei.replace(/[^A-Za-z0-9]/g, '').slice(0, 40);
 
