@@ -88,5 +88,5 @@ shared database and no payment yet**. Production needs a backend:
    and shared multi-branch order data for Delivery — all behind a server that
    checks each customer's plan.
 
-The plan/unit gating logic (`MCPS`, `PLANS`, `minPlan`) in `index.html` is the
+The plan/unit gating logic (`UNITS`, `PLANS`, `minPlan`) in `index.html` is the
 single source of truth to port to that backend.

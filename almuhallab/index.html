@@ -73,7 +73,7 @@
       color: var(--sand); border-radius: 999px; padding: 6px 16px; font-size: 13px; font-weight: 700;
     }
     .hero h1 { font-size: clamp(30px, 6vw, 52px); margin: 18px 0 8px; line-height: 1.2; text-wrap: balance; }
-    .hero h1 .en { color: var(--tint); }
+    .hero h1 .en { color: var(--tint); direction: ltr; display: inline-block; unicode-bidi: isolate; }
     .hero p { color: var(--muted); max-width: 620px; margin: 0 auto 24px; font-size: 16px; line-height: 1.8; }
     .hero .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 
@@ -227,7 +227,7 @@
     <section class="page" id="page-dashboard">
       <div class="demo-banner">
         ⚠️ <b>نسخة تجريبية:</b> الحسابات والاشتراكات محفوظة في متصفحك فقط. للتشغيل الفعلي
-        (دفع حقيقي + حسابات مشتركة + بوابة MCP)، يلزم خادم خلفي — التفاصيل في README.
+        (دفع حقيقي + حسابات مشتركة + ربط الخدمات)، يلزم خادم خلفي — التفاصيل في README.
       </div>
       <div class="dash-head">
         <div class="avatar" id="dash-avatar">؟</div>
@@ -263,9 +263,9 @@
       var USERS_KEY = "nokhatha-users-v1";
       var SESSION_KEY = "nokhatha-session-v1";
 
-      // The service fleet — one unified unit. minPlan gates access per subscription tier.
+      // The service fleet — one unified system. minPlan gates access per subscription tier.
       // All units unlocked while the system is being built — pricing gates come later.
-      var MCPS = [
+      var UNITS = [
         { id: "safi",     icon: "📊", name: "صافي — SAFI",          desc: "متابعة المحافظ والأرصدة وكشوفات المساهمين — ربح/خسارة وتصدير الكشوفات.", minPlan: 0, url: "safi.html" },
         { id: "delivery", icon: "🛵", name: "التوصيل — Delivery",    desc: "نظام توصيل متكامل: إنشاء الطلبات، تتبّع الحالة، وإدارة المناديب.", minPlan: 0, url: "delivery.html" },
         { id: "xbrl",     icon: "🧾", name: "XBRL — التقارير المالية", desc: "إعداد القوائم المالية والتحقق من توازنها وتوليد ملف XBRL جاهز للإيداع.", minPlan: 0, url: "xbrl.html" },
@@ -367,7 +367,7 @@
         toastTimer = setTimeout(function () { toastEl.classList.remove("show"); }, 1800);
       }
 
-      function mcpCard(mcp, userPlan, showLock) {
+      function unitCard(mcp, userPlan, showLock) {
         var open = userPlan >= mcp.minPlan;
         var chip = showLock
           ? (open ? '<span class="chip on">✔ مفعّلة</span>'
@@ -382,9 +382,9 @@
         var user = currentUser();
         var plan = user ? user.plan : -1;
         document.getElementById("mcp-grid-home").innerHTML =
-          MCPS.map(function (m) { return mcpCard(m, plan, false); }).join("");
+          UNITS.map(function (m) { return unitCard(m, plan, false); }).join("");
         document.getElementById("mcp-grid-dash").innerHTML =
-          MCPS.map(function (m) { return mcpCard(m, plan, true); }).join("");
+          UNITS.map(function (m) { return unitCard(m, plan, true); }).join("");
       }
 
       function renderPlans() {
@@ -411,8 +411,8 @@
         var badge = document.getElementById("dash-plan");
         badge.textContent = PLANS[user.plan].name;
         badge.classList.toggle("free", user.plan === 0);
-        var openCount = MCPS.filter(function (m) { return user.plan >= m.minPlan; }).length;
-        document.getElementById("stat-total").textContent = MCPS.length;
+        var openCount = UNITS.filter(function (m) { return user.plan >= m.minPlan; }).length;
+        document.getElementById("stat-total").textContent = UNITS.length;
         document.getElementById("stat-open").textContent = openCount;
         document.getElementById("stat-renew").textContent = user.plan > 0 && user.renewAt
           ? new Date(user.renewAt).toLocaleDateString("ar-KW") : "—";
