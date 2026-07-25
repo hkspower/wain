@@ -35,9 +35,18 @@
 <IfModule mod_expires.c>
   ExpiresActive On
 
-  # Hashed build assets (index-AbC123.js/css) never change → cache 1 year.
-  <FilesMatch "\.(js|css|woff2?|ttf|eot|svg|png|jpe?g|gif|webp|avif|ico)$">
-    Header set Cache-Control "public, max-age=31536000, immutable"
+  # This site has NO build step, so app.js / style.css / products.js keep the
+  # same filename forever. Marking them immutable would pin a whole year of
+  # stale JS, CSS and PRICES into returning visitors' browsers after a deploy.
+  # They revalidate instead — the ETag makes that a cheap 304.
+  <FilesMatch "\.(js|css)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+
+  # Images and fonts are also fixed-name, so cache them for a month but never
+  # immutable — a replaced logo then propagates without renaming the file.
+  <FilesMatch "\.(woff2?|ttf|eot|svg|png|jpe?g|gif|webp|avif|ico)$">
+    Header set Cache-Control "public, max-age=2592000"
   </FilesMatch>
 
   # HTML must always revalidate so users get new deploys immediately.
@@ -58,4 +67,28 @@
   Header set X-Content-Type-Options "nosniff"
   Header set X-Frame-Options "SAMEORIGIN"
   Header set Referrer-Policy "strict-origin-when-cross-origin"
+  Header set Cross-Origin-Opener-Policy "same-origin"
+  Header set X-Permitted-Cross-Domain-Policies "none"
+  Header always unset X-Powered-By
+  Header set Permissions-Policy "accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), usb=(), xr-spatial-tracking=()"
+
+  # 'unsafe-inline' in script-src is unavoidable here: every page carries an
+  # inline <script> block (page logic + JSON-LD) and there is no build step to
+  # hash or nonce them. The policy still blocks third-party script hosts,
+  # <object>/<embed>, <base> hijacking and cross-origin framing.
+  Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests"
 </IfModule>
+
+# ---- Branded, bilingual 404 instead of Apache's default error page ----
+ErrorDocument 404 /404.html
+
+# ---- Never serve VCS metadata, env files, manifests or backups ----
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule "(?i)(^|/)\.(?!well-known)" - [F,L]
+</IfModule>
+<FilesMatch "(?i)^(composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|pnpm-lock\.yaml|.*\.(bak|old|orig|save|swp|sql|log|sh|env))$">
+  Require all denied
+</FilesMatch>
+
+ServerSignature Off

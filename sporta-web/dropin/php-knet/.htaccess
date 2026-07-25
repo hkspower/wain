@@ -3,15 +3,35 @@
 #   https://www.sporta.com.kw/knet/pay.php
 #   https://www.sporta.com.kw/knet/callback.php
 
+# Canonical host + HTTPS in a SINGLE 301, matching the storefront config.
+# (The old rule kept %{HTTP_HOST}, so a bare-domain hit stayed on the wrong
+# host, and it redirected whenever %{HTTPS} != on, which loops behind a proxy
+# that reports TLS another way.)
 <IfModule mod_rewrite.c>
   RewriteEngine On
-  RewriteCond %{HTTPS} !=on [OR]
-  RewriteCond %{HTTP:X-Forwarded-Proto} =http
-  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+  RewriteCond %{HTTP_HOST} !^www\.sporta\.com\.kw(:[0-9]+)?$ [NC]
+  RewriteRule ^ https://www.sporta.com.kw%{REQUEST_URI} [R=301,L]
+
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  RewriteCond %{HTTP:X-Forwarded-SSL} !=on
+  RewriteCond %{SERVER_PORT} !=443
+  RewriteRule ^ https://www.sporta.com.kw%{REQUEST_URI} [R=301,L]
+
+  # No dotfiles here either (.env, .git, editor droppings).
+  RewriteRule "(?i)(^|/)\.(?!well-known)" - [F,L]
 </IfModule>
 
 <IfModule mod_headers.c>
   Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  Header always unset X-Powered-By
+  Header set X-Content-Type-Options "nosniff"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+
+  # Payment responses carry order state — never store them in any cache, and
+  # keep the endpoints out of search results.
+  Header always set Cache-Control "no-store, no-cache, must-revalidate, private"
+  Header always set X-Robots-Tag "noindex, nofollow"
 </IfModule>
 
 <FilesMatch "^(config\.php|config\.example\.php|knet\.php)$">

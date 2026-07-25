@@ -44,17 +44,39 @@
   RewriteRule ^(.+?)/+$ https://www.sporta.com.kw/$1 [R=301,L]
 </IfModule>
 
-# ---- SPA routing: send non-file requests to index.html ----
-# This is an INTERNAL rewrite (no R flag): the browser keeps /shop in the URL
-# bar and no redirect is issued, so deep links cost zero hops.
+# ---- SPA routing: only KNOWN routes become 200 ----
+# Internal rewrites (no R flag), so deep links cost zero redirect hops and the
+# browser keeps /shop in the address bar.
+#
+# A catch-all ". -> /index.html" would answer 200 for EVERY made-up URL, which
+# Google treats as a soft 404: crawl budget burnt on junk and the URL is
+# eligible for indexing. So each real route is listed, and anything unmatched
+# falls through to the ErrorDocument below, which serves the same SPA shell
+# with a genuine 404 status.
+#
+# ►► ADDING A ROUTE TO App.jsx? ADD IT HERE TOO, or it will 404. ◄◄
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
   RewriteRule ^index\.html$ - [L]
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule . /index.html [L]
+
+  # Real files and directories always win (assets, sitemap.xml, robots.txt…).
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  RewriteRule ^(shop|cart|checkout|about|contact|wishlist|track|returns)/?$ /index.html [L]
+  RewriteRule ^product/[^/]+/?$        /index.html [L]
+  RewriteRule ^payment/result/?$       /index.html [L]
+  RewriteRule ^admin(/.*)?$            /index.html [L]
 </IfModule>
+
+# Unknown URL -> SPA shell rendered with a real 404 status (not a soft 404).
+# React Router still sees the original path and renders the NotFound page.
+ErrorDocument 404 /index.html
+
+# Unknown product slugs stay 200 by design: the server cannot know the
+# catalogue, and ProductDetail already sends robots "noindex, follow" for them.
 
 # ---- HSTS: tell browsers to always use HTTPS for this domain ----
 <IfModule mod_headers.c>
@@ -73,9 +95,17 @@
 <IfModule mod_expires.c>
   ExpiresActive On
 
-  # Hashed build assets (index-AbC123.js/css) never change → cache 1 year.
-  <FilesMatch "\.(js|css|woff2?|ttf|eot|svg|png|jpe?g|gif|webp|avif|ico)$">
+  # ONLY content-hashed Vite output (index-CuCZhORW.js, About-sNx2ecy0.css)
+  # may be immutable: the filename changes whenever the bytes change.
+  <FilesMatch "-[A-Za-z0-9_-]{8,}\.(js|css)$">
     Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # Fixed-name files (favicon.png, logo.png, og-image.png, fonts) keep their
+  # name across deploys, so they must NOT be immutable — a replaced logo would
+  # be stuck in browser caches for a year. 30 days + revalidation instead.
+  <FilesMatch "\.(woff2?|ttf|eot|svg|png|jpe?g|gif|webp|avif|ico)$">
+    Header set Cache-Control "public, max-age=2592000"
   </FilesMatch>
 
   # HTML must always revalidate so users get new deploys immediately.
@@ -85,9 +115,41 @@
   </FilesMatch>
 </IfModule>
 
-# ---- Basic security headers ----
+# ---- Security headers ----
 <IfModule mod_headers.c>
   Header set X-Content-Type-Options "nosniff"
   Header set X-Frame-Options "SAMEORIGIN"
   Header set Referrer-Policy "strict-origin-when-cross-origin"
+  Header set Cross-Origin-Opener-Policy "same-origin"
+  Header set X-Permitted-Cross-Domain-Policies "none"
+
+  # Don't advertise the PHP version to attackers.
+  Header always unset X-Powered-By
+
+  # Turn off browser features the storefront never uses.
+  Header set Permissions-Policy "accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), usb=(), xr-spatial-tracking=()"
+
+  # Content-Security-Policy.
+  # 'unsafe-inline' is required for script-src because index.html carries
+  # inline JSON-LD (and the static build of this site carries inline page
+  # scripts). Even so the policy still blocks third-party script hosts,
+  # <object>/<embed>, <base> hijacking and cross-origin framing.
+  # connect-src covers Supabase (admin panel); fonts.* cover Google Fonts;
+  # form-action lists the KNET gateway in case pay.php ever posts a form.
+  Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests"
 </IfModule>
+
+# ---- Never serve VCS metadata, env files, manifests or backups ----
+# Defence in depth: these should not be in public_html at all, but an SFTP
+# upload of the wrong folder must not leak credentials or source.
+# .well-known is exempt so SSL/ACME renewal keeps working.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule "(?i)(^|/)\.(?!well-known)" - [F,L]
+</IfModule>
+<FilesMatch "(?i)^(composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|pnpm-lock\.yaml|vite\.config\.[cm]?[jt]s|(ts|js)config\.json|Dockerfile|docker-compose\.ya?ml|.*\.(bak|old|orig|save|swp|sql|log|sh|env))$">
+  Require all denied
+</FilesMatch>
+
+# Keep the server version out of generated error pages.
+ServerSignature Off
