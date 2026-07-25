@@ -74,11 +74,11 @@
     </ul>
   </nav>
 </header>
-<main class="wrap" style="max-width:48rem;padding:3rem 1rem">
- <h1 style="font-size:1.9rem;color:var(--brand-dark)" data-i18n="nav.about"></h1>
- <p style="color:var(--muted);font-size:1.05rem" data-i18n="tagline"></p>
- <h2 id="faqTitle" style="font-size:1.5rem;margin:2.5rem 0 .5rem;color:var(--brand-dark)">Frequently asked questions</h2>
- <div id="faq"></div></main><footer class="site">
+<main class="wrap page page-narrow">
+ <h1 class="page-title" data-i18n="aboutH1"></h1>
+ <p class="page-sub" data-i18n="tagline"></p>
+ <h2 id="faqTitle" class="faq-title">Frequently asked questions</h2>
+ <div id="faq" class="faq"></div></main><footer class="site">
   <div class="wrap">
     <div class="brand">
       <img src="assets/logo-white.png" alt="Sporta Sports Wear" width="200" height="62" loading="lazy">
@@ -91,7 +91,7 @@
     </div>
     <div class="fcols">
       <div>
-        <h4 data-i18n="info">Information</h4>
+        <h2 class="fcol-h" data-i18n="info">Information</h2>
         <ul>
           <li><a href="about.html" data-i18n="links.about"></a></li>
           <li><a href="about.html" data-i18n="links.why"></a></li>
@@ -100,7 +100,7 @@
         </ul>
       </div>
       <div>
-        <h4 data-i18n="navT">Navigate</h4>
+        <h2 class="fcol-h" data-i18n="navT">Navigate</h2>
         <ul>
           <li><a href="contact.html" data-i18n="links.contact"></a></li>
           <li><a href="shop.html" data-i18n="links.shipping"></a></li>
@@ -138,9 +138,9 @@ window.SPORTA_PAGE = (S) => {
   document.getElementById('faqTitle').textContent =
     S.lang === 'ar' ? 'الأسئلة الشائعة' : 'Frequently asked questions'
   document.getElementById('faq').innerHTML = FAQ.map(
-    (f) => `<details style="padding:1rem 0;border-bottom:1px solid var(--line,#e2e8f0)">
-      <summary style="cursor:pointer;font-weight:600">${f.q[S.lang]}</summary>
-      <p style="margin:.5rem 0 0;color:var(--muted)">${f.a[S.lang]}</p>
+    (f) => `<details>
+      <summary>${f.q[S.lang]}</summary>
+      <p>${f.a[S.lang]}</p>
     </details>`,
   ).join('')
 }

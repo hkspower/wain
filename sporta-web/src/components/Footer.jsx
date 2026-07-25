@@ -35,7 +35,7 @@ export default function Footer() {
         {/* Link columns */}
         <div className="mt-12 grid grid-cols-2 gap-8 text-center sm:text-start">
           <div>
-            <h4 className="mb-3 text-sm font-bold text-brand">{t.footer.infoTitle}</h4>
+            <h2 className="mb-3 text-sm font-bold text-brand">{t.footer.infoTitle}</h2>
             <ul className="space-y-2 text-sm">
               <li><Link to="/about" className="hover:text-brand">{L.about}</Link></li>
               <li><Link to="/about" className="hover:text-brand">{L.why}</Link></li>
@@ -44,7 +44,7 @@ export default function Footer() {
             </ul>
           </div>
           <div>
-            <h4 className="mb-3 text-sm font-bold text-brand">{t.footer.navTitle}</h4>
+            <h2 className="mb-3 text-sm font-bold text-brand">{t.footer.navTitle}</h2>
             <ul className="space-y-2 text-sm">
               <li><Link to="/contact" className="hover:text-brand">{L.contact}</Link></li>
               <li><Link to="/shop" className="hover:text-brand">{L.shipping}</Link></li>
@@ -57,7 +57,7 @@ export default function Footer() {
         {/* Club / newsletter CTA */}
         <div className="mt-12 flex flex-col items-center justify-between gap-4 rounded-3xl bg-ink-soft p-8 text-center md:flex-row md:text-start">
           <div>
-            <h4 className="text-xl font-extrabold text-white">{t.news.title}</h4>
+            <h2 className="text-xl font-extrabold text-white">{t.news.title}</h2>
             <p className="mt-1 text-sm text-slate-400">{t.news.sub}</p>
           </div>
           <a

@@ -73,7 +73,7 @@ export default function SearchOverlay({ open, onClose }) {
                 onClick={onClose}
                 className="flex items-center gap-4 rounded-xl px-3 py-2.5 transition hover:bg-sand-light"
               >
-                <img src={p.image} alt="" width="48" height="48" className="h-12 w-12 rounded-lg object-cover" />
+                <img src={p.image} alt={p.name[lang]} width="48" height="48" className="h-12 w-12 rounded-lg object-cover" />
                 <div className="flex-1">
                   <p className="font-semibold text-slate-900">{p.name[lang]}</p>
                   <p className="text-xs text-slate-500">{p.desc[lang]}</p>

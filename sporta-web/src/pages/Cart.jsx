@@ -13,6 +13,7 @@ export default function Cart() {
   if (!items.length) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-20 text-center">
+        <h1 className="mb-3 text-3xl font-extrabold text-brand-dark">{t.cart.title}</h1>
         <p className="text-lg text-slate-500">{t.cart.empty}</p>
         <Link to="/shop" className="mt-4 inline-block rounded-full bg-brand px-6 py-2.5 font-semibold text-white">
           {t.shop.backToShop}

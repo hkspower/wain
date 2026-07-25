@@ -12,22 +12,16 @@ export default function Home() {
   const featured = PRODUCTS.slice(0, 4)
 
   const cats = [
-    { id: 'men', to: '/shop', ...t.cats.men, from: '#E0561C', via: '#171A1E' },
-    { id: 'women', to: '/shop', ...t.cats.women, from: '#E0561C', via: '#20252C' },
-    { id: 'acc', to: '/shop', ...t.cats.acc, from: '#171A1E', via: '#E0561C' },
+    { id: 'men', to: '/shop', ...t.cats.men, tile: 'tile-men' },
+    { id: 'women', to: '/shop', ...t.cats.women, tile: 'tile-women' },
+    { id: 'acc', to: '/shop', ...t.cats.acc, tile: 'tile-acc' },
   ]
 
   return (
     <>
       {/* Hero — dramatic charcoal + fire-orange */}
       <section className="relative overflow-hidden bg-ink text-white">
-        <div
-          className="absolute inset-0 opacity-90"
-          style={{
-            background:
-              'radial-gradient(1200px 500px at 50% 120%, #E0561C 0%, #B8430F 30%, #171A1E 70%)',
-          }}
-        />
+        <div className="hero-glow absolute inset-0 opacity-90" />
         <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-6 px-4 py-28 2xl:py-40 text-center">
           <span className="rounded-full bg-brand px-4 py-1 text-xs font-bold uppercase tracking-wide">
             {t.hero.kicker}
@@ -68,8 +62,7 @@ export default function Home() {
             <Link
               key={c.id}
               to={c.to}
-              className="group relative flex h-40 items-center overflow-hidden rounded-3xl p-6 text-white md:h-48 md:p-8"
-              style={{ background: `linear-gradient(90deg, ${c.from}, ${c.via})` }}
+              className={`${c.tile} group relative flex h-40 items-center overflow-hidden rounded-3xl p-6 text-white md:h-48 md:p-8`}
             >
               <span className="absolute bottom-4 start-4 flex h-10 w-10 items-center justify-center rounded-full bg-brand text-white transition group-hover:scale-110">
                 <IconArrowUpRight size={18} />

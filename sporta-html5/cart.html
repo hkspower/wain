@@ -56,8 +56,8 @@
     </ul>
   </nav>
 </header>
-<main class="wrap" style="padding:2.5rem 1rem;max-width:56rem">
-  <h1 data-i18n="cart" style="font-size:1.9rem;margin-bottom:1.5rem"></h1>
+<main class="wrap page-mid">
+  <h1 class="cart-title" data-i18n="cart"></h1>
   <div id="lines"></div>
 </main><footer class="site">
   <div class="wrap">
@@ -72,7 +72,7 @@
     </div>
     <div class="fcols">
       <div>
-        <h4 data-i18n="info">Information</h4>
+        <h2 class="fcol-h" data-i18n="info">Information</h2>
         <ul>
           <li><a href="about.html" data-i18n="links.about"></a></li>
           <li><a href="about.html" data-i18n="links.why"></a></li>
@@ -81,7 +81,7 @@
         </ul>
       </div>
       <div>
-        <h4 data-i18n="navT">Navigate</h4>
+        <h2 class="fcol-h" data-i18n="navT">Navigate</h2>
         <ul>
           <li><a href="contact.html" data-i18n="links.contact"></a></li>
           <li><a href="shop.html" data-i18n="links.shipping"></a></li>
@@ -105,21 +105,21 @@ window.SPORTA_PAGE = (S, H) => {
     return
   }
   const line = (i) => `<div class="line">
-    <img src="${i.image}" alt="">
-    <div style="flex:1"><b>${i.name[S.lang]}</b>
-      <p style="margin:.15rem 0;color:var(--muted);font-size:.85rem">${H.money(i.price)}${i.size ? ` · ${i.size}` : ''}</p>
-      <div class="stepper" style="width:max-content">
+    <img src="${i.image}" alt="${i.name[S.lang]}" width="72" height="72" loading="lazy">
+    <div class="line-body"><b>${i.name[S.lang]}</b>
+      <p class="line-meta">${H.money(i.price)}${i.size ? ` · ${i.size}` : ''}</p>
+      <div class="stepper line-stepper">
         <button data-qty="${i.key}:${i.qty - 1}" aria-label="Decrease">${H.icon('minus', 15)}</button>
         <span>${i.qty}</span>
         <button data-qty="${i.key}:${i.qty + 1}" aria-label="Increase">${H.icon('plus', 15)}</button>
       </div></div>
     <span class="price">${H.money(i.price * i.qty)}</span>
-    <button data-qty="${i.key}:0" aria-label="Remove" style="background:none;border:0;color:var(--muted);cursor:pointer">${H.icon('close', 16)}</button>
+    <button data-qty="${i.key}:0" aria-label="Remove" class="line-remove">${H.icon('close', 16)}</button>
   </div>`
   el.innerHTML = `${S.cart.map(line).join('')}
     <div class="totals"><span>${H.t().total}</span><span class="price">${H.money(window.SPORTA.total())}</span></div>
-    <p style="display:flex;gap:.5rem;align-items:center;color:var(--muted);font-size:.8rem;margin-top:.5rem">${H.icon('lock', 14)}${H.t().trust.p}</p>
-    <button class="btn btn-primary" style="width:100%;margin-top:1rem" data-checkout>${H.t().checkout}</button>`
+    <p class="secure-note">${H.icon('lock', 14)}${H.t().trust.p}</p>
+    <button class="btn btn-primary btn-block" data-checkout>${H.t().checkout}</button>`
   el.querySelector('[data-checkout]').addEventListener('click', () => window.SPORTA.checkout())
 }
 </script>

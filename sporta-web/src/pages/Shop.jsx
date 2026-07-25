@@ -48,8 +48,9 @@ export default function Shop() {
     <section className="mx-auto max-w-7xl px-4 py-12">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900">{t.nav.shop}</h1>
+          <h1 className="text-3xl font-extrabold text-slate-900">{t.shop.h1}</h1>
           <p className="mt-1 text-sm text-slate-500">{sorted.length} · KWD</p>
+          <p className="mt-2 max-w-2xl text-slate-600">{t.shop.intro}</p>
         </div>
         <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
           {t.sort.label}
@@ -80,6 +81,7 @@ export default function Shop() {
         ))}
       </div>
 
+      <h2 className="sr-only">{t.shop.gridHeading}</h2>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
         {sorted.map((p) => (
           <ProductCard key={p.slug} product={p} />

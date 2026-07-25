@@ -36,10 +36,9 @@ export default function CartDrawer({ open, onClose }) {
         role="dialog"
         aria-modal="true"
         aria-label={t.cart.title}
-        className={`fixed inset-y-0 end-0 z-50 flex w-full max-w-md flex-col bg-white shadow-2xl transition-transform duration-300 ease-out ${
+        className={`cart-drawer fixed inset-y-0 end-0 z-50 flex w-full max-w-md flex-col bg-white shadow-2xl transition-transform duration-300 ease-out ${
           open ? 'translate-x-0' : 'pointer-events-none translate-x-full rtl:-translate-x-full'
         }`}
-        style={{ backgroundColor: '#fff', height: '100vh' }}
       >
         <header className="flex items-center justify-between border-b border-black/10 px-6 py-5">
           <h2 className="text-xl font-extrabold text-slate-900">{t.cart.title}</h2>
@@ -62,7 +61,7 @@ export default function CartDrawer({ open, onClose }) {
             <ul className="flex-1 divide-y divide-black/5 overflow-y-auto px-6">
               {items.map((i) => (
                 <li key={i.key} className="flex gap-4 py-4">
-                  <img src={i.image} alt="" width="72" height="72" className="h-18 w-18 rounded-xl object-cover" />
+                  <img src={i.image} alt={i.name[lang]} width="72" height="72" className="h-18 w-18 rounded-xl object-cover" />
                   <div className="flex-1">
                     <p className="font-bold text-slate-900">{i.name[lang]}</p>
                     <p className="mt-0.5 text-sm text-slate-500 tabular-nums">{formatKWD(i.price, lang)}{i.size ? ` · ${i.size}` : ''}</p>

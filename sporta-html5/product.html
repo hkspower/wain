@@ -56,10 +56,10 @@
     </ul>
   </nav>
 </header>
-<main class="wrap" style="padding:2rem 1rem">
+<main class="wrap page-wide">
   <div id="detail"></div>
-  <section style="margin-top:3rem">
-    <h2 style="font-size:1.5rem;margin-bottom:1rem" id="crossTitle"></h2>
+  <section class="stack-lg">
+    <h2 class="section-title" id="crossTitle"></h2>
     <div class="grid" id="cross"></div>
   </section>
 </main><footer class="site">
@@ -75,7 +75,7 @@
     </div>
     <div class="fcols">
       <div>
-        <h4 data-i18n="info">Information</h4>
+        <h2 class="fcol-h" data-i18n="info">Information</h2>
         <ul>
           <li><a href="about.html" data-i18n="links.about"></a></li>
           <li><a href="about.html" data-i18n="links.why"></a></li>
@@ -84,7 +84,7 @@
         </ul>
       </div>
       <div>
-        <h4 data-i18n="navT">Navigate</h4>
+        <h2 class="fcol-h" data-i18n="navT">Navigate</h2>
         <ul>
           <li><a href="contact.html" data-i18n="links.contact"></a></li>
           <li><a href="shop.html" data-i18n="links.shipping"></a></li>
@@ -110,7 +110,7 @@ window.SPORTA_PAGE = (S, H) => {
     document.querySelector('meta[name="robots"]')?.setAttribute('content', 'noindex, follow')
     document.querySelector('link[rel="canonical"]')?.remove()
     document.querySelectorAll('link[rel="alternate"][hreflang]').forEach((el) => el.remove())
-    d.innerHTML = '<p style="text-align:center;padding:4rem 0">Product not found. <a href="shop.html" style="color:var(--brand)">Shop</a></p>'
+    d.innerHTML = '<p class="note">Product not found. <a href="shop.html" class="link-brand">Shop</a></p>'
     return
   }
   document.title = `${p.name[S.lang]} — Sporta`
@@ -166,22 +166,22 @@ window.SPORTA_PAGE = (S, H) => {
 
   const sizes = SIZED.has(p.category) ? ['S', 'M', 'L', 'XL'] : null
   const sizeBlock = sizes
-    ? `<div style="margin:1rem 0"><b>${H.t().size}</b>
-        <div style="display:flex;gap:.5rem;margin-top:.5rem" id="sizes">${sizes
-          .map((s) => `<button class="chip" data-size="${s}" aria-pressed="${sel === s}" style="min-width:3rem">${s}</button>`)
+    ? `<div class="pd-sizes"><b>${H.t().size}</b>
+        <div class="chips" id="sizes">${sizes
+          .map((s) => `<button class="chip chip-size" data-size="${s}" aria-pressed="${sel === s}">${s}</button>`)
           .join('')}</div>
-        <p id="sizeErr" style="color:#e11d48;font-size:.85rem;display:none">${
+        <p id="sizeErr" class="field-error" hidden>${
           S.lang === 'ar' ? 'الرجاء اختيار المقاس' : 'Please choose a size'
         }</p></div>`
     : ''
-  d.innerHTML = `<div style="display:grid;gap:2rem;grid-template-columns:1fr" class="pd">
-    <img src="${p.image}" alt="${p.name[S.lang]}" width="600" height="600" style="border-radius:1.5rem">
-    <div><h1 style="font-size:2rem;color:var(--brand-dark)">${p.name[S.lang]}</h1>
-      <p style="color:var(--muted)">${p.desc[S.lang]}</p>
-      <p class="price" style="font-size:1.5rem">${H.money(p.price)}</p>
+  d.innerHTML = `<div class="pd">
+    <img src="${p.image}" alt="${p.name[S.lang]}" width="600" height="600" class="pd-img">
+    <div><h1 class="pd-title">${p.name[S.lang]}</h1>
+      <p class="muted">${p.desc[S.lang]}</p>
+      <p class="price pd-price">${H.money(p.price)}</p>
       ${sizeBlock}
       <button class="btn btn-primary" id="addBtn">${H.t().add}</button>
-      <div class="trust" style="margin-top:1.5rem">
+      <div class="trust contact-list">
         <div>${H.icon('truck', 18)}<span>${H.t().trust.d}</span></div>
         <div>${H.icon('lock', 18)}<span>${H.t().trust.p}</span></div>
         <div>${H.icon('ret', 18)}<span>${H.t().trust.r}</span></div>
@@ -192,7 +192,7 @@ window.SPORTA_PAGE = (S, H) => {
     .filter((x) => x.slug !== slug).slice(0, 4).map(H.productCard).join('')
   document.getElementById('addBtn').addEventListener('click', () => {
     if (sizes && !sel) {
-      document.getElementById('sizeErr').style.display = 'block'
+      document.getElementById('sizeErr').hidden = false
       return
     }
     window.SPORTA.addToCart(slug, sel, 1)
@@ -204,6 +204,5 @@ document.addEventListener('click', (e) => {
   if (b) { sel = b.dataset.size; window.SPORTA.render() }
 })
 </script>
-<style>@media(min-width:768px){.pd{grid-template-columns:1fr 1fr!important}}</style>
 </body>
 </html>

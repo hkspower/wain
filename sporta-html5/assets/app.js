@@ -17,6 +17,11 @@ const T = {
         acc: ['Essential gear', 'Accessories'], outlet: ['Up to 60% off', 'Sporta Outlet'] },
       ess: { k: 'Trending now', t: 'Shop the essentials' },
       svc: { ret: ['Easy returns', 'Return within 14 days'], del: ['Fast delivery', 'Within 24–48 hours'] },
+      shopH1: 'Shop sportswear in Kuwait',
+      shopIntro: 'Women\u2019s and men\u2019s activewear, hoodies and gym accessories \u2014 delivered same day across Kuwait, with KNET checkout in Kuwaiti Dinar.',
+      aboutH1: 'About Sporta \u2014 sportswear in Kuwait',
+      contactH1: 'Contact Sporta Kuwait',
+      contactIntro: 'Questions about sizes, delivery in Kuwait or an order? Message us on WhatsApp \u2014 we answer in Arabic and English.',
       add: 'Add', cart: 'Your bag', empty: 'Your bag is empty.', total: 'Total',
       checkout: 'Checkout', back: 'Back to shop', shop: 'Shop', size: 'Size',
       trust: { d: 'Same-day delivery in Kuwait', p: 'Secure checkout — KNET, Visa, Mastercard', r: 'Free 14-day returns' },
@@ -35,6 +40,11 @@ const T = {
         acc: ['معدات أساسية', 'إكسسوارات'], outlet: ['خصومات تصل إلى ٦٠٪', 'سبورتا أوتلت'] },
       ess: { k: 'الأكثر رواجاً', t: 'تسوق الأساسيات' },
       svc: { ret: ['إرجاع سهل', 'إرجاع خلال ١٤ يوم'], del: ['توصيل سريع', 'خلال ٢٤-٤٨ ساعة'] },
+      shopH1: 'تسوق الملابس الرياضية في الكويت',
+      shopIntro: 'ملابس رياضية نسائية ورجالية وهوديز وإكسسوارات جيم \u2014 توصيل في نفس اليوم داخل الكويت والدفع عبر كي نت بالدينار الكويتي.',
+      aboutH1: 'عن سبورتا \u2014 ملابس رياضية في الكويت',
+      contactH1: 'تواصل مع سبورتا الكويت',
+      contactIntro: 'عندك سؤال عن المقاسات أو التوصيل داخل الكويت أو طلبك؟ راسلنا على واتساب \u2014 نرد بالعربي والإنجليزي.',
       add: 'أضف', cart: 'حقيبتك', empty: 'حقيبتك فارغة.', total: 'الإجمالي',
       checkout: 'إتمام الشراء', back: 'العودة للمتجر', shop: 'المتجر', size: 'المقاس',
       trust: { d: 'توصيل في نفس اليوم داخل الكويت', p: 'دفع آمن — كي نت، فيزا، ماستركارد', r: 'إرجاع مجاني خلال ١٤ يوم' },
@@ -158,15 +168,19 @@ const render = () => {
     const v = el.dataset.i18n.split('.').reduce((o, k) => o?.[k], d)
     if (typeof v === 'string') el.textContent = v
   }
+  // `hidden` instead of an inline style keeps presentation out of the markup.
   const cb = document.querySelector('[data-cart-count]')
-  if (cb) { cb.textContent = count(); cb.style.display = count() ? '' : 'none' }
+  if (cb) { cb.textContent = count(); cb.hidden = !count() }
   const wb = document.querySelector('[data-wish-count]')
-  if (wb) { wb.textContent = S.wish.length; wb.style.display = S.wish.length ? '' : 'none' }
+  if (wb) { wb.textContent = S.wish.length; wb.hidden = !S.wish.length }
   document.querySelector('[data-theme-toggle]')?.replaceChildren()
   const ti = document.querySelector('[data-theme-toggle]')
   if (ti) ti.innerHTML = icon(S.theme === 'dark' ? 'sun' : 'moon', 20)
   const li = document.querySelector('[data-lang-toggle]')
   if (li) li.innerHTML = `${icon('globe', 14)}<span>${S.lang === 'en' ? 'AR' : 'EN'}</span>`
+
+  const gh = document.getElementById('gridHeading')
+  if (gh) gh.textContent = S.lang === 'ar' ? 'جميع المنتجات' : 'All products'
 
   window.SPORTA_PAGE?.(S, { productCard, money, t, icon })
 }

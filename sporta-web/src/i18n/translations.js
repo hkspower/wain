@@ -51,6 +51,10 @@ export const translations = {
       returns: { t: 'Easy returns', s: 'Return within 14 days' },
     },
     shop: {
+      h1: 'Shop sportswear in Kuwait',
+      gridHeading: 'All products',
+      intro:
+        'Women\u2019s and men\u2019s activewear, hoodies and gym accessories \u2014 delivered same day across Kuwait, with KNET checkout in Kuwaiti Dinar.',
       add: 'Add',
       buyNow: 'Buy now',
       notFound: 'Product not found.',
@@ -74,11 +78,11 @@ export const translations = {
       error: { title: 'Something went wrong', msg: 'If you were charged, contact support.' },
     },
     about: {
-      title: 'About Sporta',
+      title: 'About Sporta — sportswear in Kuwait',
       body: 'The home of premium sport in Kuwait. Performance gear from the world’s leading sports brands — Ahed, Vanquish, Eyesportwear and our own SPORTA label.',
     },
     contact: {
-      title: 'Contact us',
+      title: 'Contact Sporta Kuwait',
       body: 'Our team is ready to help — orders, sizes, delivery and returns.',
       email: 'Email',
       phone: 'WhatsApp',
@@ -153,6 +157,10 @@ export const translations = {
       returns: { t: 'إرجاع سهل', s: 'إرجاع خلال ١٤ يوم' },
     },
     shop: {
+      h1: 'تسوق الملابس الرياضية في الكويت',
+      gridHeading: 'جميع المنتجات',
+      intro:
+        'ملابس رياضية نسائية ورجالية وهوديز وإكسسوارات جيم \u2014 توصيل في نفس اليوم داخل الكويت والدفع عبر كي نت بالدينار الكويتي.',
       add: 'أضف',
       buyNow: 'اشترِ الآن',
       notFound: 'المنتج غير موجود.',
@@ -176,11 +184,11 @@ export const translations = {
       error: { title: 'حدث خطأ ما', msg: 'إذا تم خصم مبلغ، تواصل مع الدعم.' },
     },
     about: {
-      title: 'عن سبورتا',
+      title: 'عن سبورتا — ملابس رياضية في الكويت',
       body: 'موطن الرياضة الفاخرة في الكويت. معدات أداء من أبرز ماركات الرياضة عالميًا — أهد، فانكويش، آي سبورت وير وعلامتنا الخاصة سبورتا.',
     },
     contact: {
-      title: 'اتصل بنا',
+      title: 'تواصل مع سبورتا الكويت',
       body: 'فريقنا جاهز لمساعدتك — الطلبات، المقاسات، التوصيل والإرجاع.',
       email: 'البريد الإلكتروني',
       phone: 'واتساب',

@@ -156,9 +156,84 @@ footer.site .tagline { max-width: 28rem; font-size: .875rem; color: #94a3b8; mar
 .socials a { width: 2.5rem; height: 2.5rem; border: 1px solid rgba(255,255,255,.15); border-radius: 999px; display: grid; place-items: center; }
 .socials a:hover { border-color: var(--brand); color: var(--brand-bright); }
 .fcols { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 3rem; }
-.fcols h4 { color: var(--brand-bright); font-size: .85rem; margin: 0 0 .75rem; }
+.fcols .fcol-h { color: var(--brand-bright); font-size: .85rem; margin: 0 0 .75rem; font-weight: 700; }
 .fcols ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; font-size: .875rem; }
 .fcols a:hover { color: var(--brand-bright); }
 .pays { display: flex; justify-content: center; gap: .5rem; margin-top: 2rem; }
 .pays span { border: 1px solid rgba(255,255,255,.15); border-radius: .4rem; padding: .2rem .6rem; font-size: .68rem; font-weight: 700; color: #cbd5e1; }
 .copy { text-align: center; font-size: .75rem; color: #64748b; margin-top: 2rem; }
+
+/* ==========================================================================
+   Page layout & content utilities
+   Replaces the inline style="" attributes that used to sit on page markup —
+   keeps presentation in the stylesheet (cacheable, themable, CSP-friendly)
+   instead of repeating it in every HTML file and JS template.
+   ========================================================================== */
+
+/* Page shells */
+.page        { padding: 3rem 1rem; }
+.page-narrow { max-width: 48rem; }
+.page-mid    { max-width: 56rem; padding: 2.5rem 1rem; }
+.page-wide   { padding: 2rem 1rem; }
+
+/* Page headings */
+.page-title { font-size: 1.9rem; color: var(--brand-dark); }
+[data-theme='dark'] .page-title { color: var(--brand-bright); }
+.page-sub   { color: var(--muted); font-size: 1.05rem; }
+.page-meta  { color: var(--muted); margin: .25rem 0 1.5rem; }
+.section-title { font-size: 1.5rem; margin-bottom: 1rem; }
+.stack-lg   { margin-top: 3rem; }
+
+/* Links & small text */
+.link-brand { color: var(--brand); }
+.muted      { color: var(--muted); }
+.note       { text-align: center; padding: 4rem 0; }
+
+/* Offer band */
+.offer-badge { margin: 0; font-size: .75rem; font-weight: 600; opacity: .85; }
+.offer-cta   { display: flex; gap: .5rem; align-items: center; font-weight: 700; text-decoration: underline; }
+
+/* Category tiles — gradients as modifier classes */
+.tile-men   { background: linear-gradient(90deg, #e0561c, #171a1e); }
+.tile-women { background: linear-gradient(90deg, #e0561c, #20252c); }
+.tile-acc   { background: linear-gradient(90deg, #171a1e, #e0561c); }
+.tile-outlet{ background: #20252c; }
+
+/* Product detail */
+.pd { display: grid; gap: 2rem; grid-template-columns: 1fr; }
+@media (min-width: 768px) { .pd { grid-template-columns: 1fr 1fr; } }
+.pd-img    { border-radius: var(--radius); width: 100%; height: auto; }
+.pd-title  { font-size: 2rem; color: var(--brand-dark); }
+[data-theme='dark'] .pd-title { color: var(--brand-bright); }
+.pd-price  { font-size: 1.5rem; }
+.pd-sizes  { margin: 1rem 0; }
+.pd-sizes .chips { display: flex; gap: .5rem; margin-top: .5rem; }
+.chip-size { min-width: 3rem; }
+.field-error { color: #e11d48; font-size: .85rem; }
+[hidden] { display: none !important; }
+
+/* Cart */
+.cart-title   { font-size: 1.9rem; margin-bottom: 1.5rem; }
+.line-body    { flex: 1; }
+.line-meta    { margin: .15rem 0; color: var(--muted); font-size: .85rem; }
+.line-stepper { width: max-content; }
+.line-remove  { background: none; border: 0; color: var(--muted); cursor: pointer; }
+.secure-note  { display: flex; gap: .5rem; align-items: center; color: var(--muted); font-size: .8rem; margin-top: .5rem; }
+.btn-block    { width: 100%; margin-top: 1rem; }
+
+/* FAQ */
+.faq-title { font-size: 1.5rem; margin: 2.5rem 0 .5rem; color: var(--brand-dark); }
+[data-theme='dark'] .faq-title { color: var(--brand-bright); }
+.faq details { padding: 1rem 0; border-bottom: 1px solid var(--line); }
+.faq summary { cursor: pointer; font-weight: 600; }
+.faq p       { margin: .5rem 0 0; color: var(--muted); }
+
+/* Contact list */
+.contact-list { margin-top: 1.5rem; }
+
+/* Screen-reader-only: keeps a heading in the document outline (so heading
+   levels never skip) without changing the visual design. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}

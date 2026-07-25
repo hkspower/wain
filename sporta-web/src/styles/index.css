@@ -202,3 +202,21 @@ h1, h2, h3, .font-display {
 [data-theme='dark'] .skeleton {
   background: #232830;
 }
+
+/* Cart drawer — spans the full viewport height. Tailwind's inset-y-0 alone did
+   not stretch the flex column here (it collapsed to content height, ~125px),
+   so the height is set explicitly. dvh keeps it correct on mobile browsers
+   whose toolbars change the visible height. */
+.cart-drawer {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Home hero glow + category tile gradients. These are fixed brand gradients,
+   so they live here rather than in style={{}} on the JSX. */
+.hero-glow {
+  background: radial-gradient(1200px 500px at 50% 120%, #e0561c 0%, #b8430f 30%, #171a1e 70%);
+}
+.tile-men   { background: linear-gradient(90deg, #e0561c, #171a1e); }
+.tile-women { background: linear-gradient(90deg, #e0561c, #20252c); }
+.tile-acc   { background: linear-gradient(90deg, #171a1e, #e0561c); }
