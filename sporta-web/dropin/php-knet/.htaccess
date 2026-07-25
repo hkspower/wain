@@ -34,7 +34,7 @@
   Header always set X-Robots-Tag "noindex, nofollow"
 </IfModule>
 
-<FilesMatch "^(config\.php|config\.example\.php|knet\.php)$">
+<FilesMatch "^(config\.php|config\.example\.php|knet\.php|setup-config\.php)$">
   Require all denied
 </FilesMatch>
 

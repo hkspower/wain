@@ -60,22 +60,33 @@ JavaScript build step. You do not need it; it is a fallback.
 ### 1. Create the payment config on the server
 
 `config.php` is deliberately **not** in the package, because it holds live
-credentials. On the server:
+credentials. Over SSH, run the setup script — it asks only for the five
+secrets, validates them, and writes the file with the right permissions:
 
 ```bash
 cd public_html/knet
-cp config.example.php config.php
+php setup-config.php
 ```
 
-Edit `config.php` and fill in the Tranportal **ID**, **password** and
-**resource key** CBK issued you. Then set it to owner-read-only:
+It refuses to run over HTTP, and it catches the two mistakes that fail
+silently and cost you money:
 
-```bash
-chmod 600 config.php
-```
+- **a resource key that is not exactly 16 bytes** — AES-128 needs 16, and one
+  trailing space from a copy/paste makes KNET reject every transaction with no
+  useful error message;
+- **the Supabase _anon_ key pasted where the _service_ key belongs** —
+  row-level security then blocks order creation, so checkout fails for every
+  customer.
 
-Test the endpoint: `https://www.sporta.com.kw/knet/selftest.php`
-Delete `selftest.php` once it passes.
+It finishes by checking that your `products` and `orders` tables are reachable,
+and warns you if `products` is still empty — checkout cannot work until it has
+rows, because the amount is priced from that table and never from the browser.
+
+No SSH? Copy `config.example.php` to `config.php` in File Manager, fill in the
+same five values by hand, and set permissions to `600`.
+
+Delete `setup-config.php` and `selftest.php` from the server once you are done
+— both reveal configuration state.
 
 ### 2. Confirm the site is live and correctly configured
 
@@ -122,9 +133,11 @@ File Manager في هوستنجر، ثم ارفع كل ما بداخل مجلد `
 
 **بعد الرفع:**
 
-1. أنشئ ملف الدفع على الخادم: انسخ `knet/config.example.php` إلى
-   `knet/config.php` وضع بيانات Tranportal (المعرّف وكلمة المرور ومفتاح
-   المورد) من بنك الكويت المركزي، ثم `chmod 600 config.php`.
+1. أنشئ ملف الدفع على الخادم عبر SSH:
+   `cd public_html/knet && php setup-config.php`
+   سيطلب منك خمس قيم فقط (بيانات Tranportal من البنك، ورابط ومفتاح Supabase)،
+   ويتحقق منها ويكتب الملف بالصلاحيات الصحيحة. احذف `setup-config.php` و
+   `selftest.php` بعد الانتهاء.
 2. شغّل `./scan-server-response.sh` للتأكد أن إعدادات الخادم سليمة.
 3. أضف الموقع في Google Search Console وأرسل `sitemap.xml`.
 
