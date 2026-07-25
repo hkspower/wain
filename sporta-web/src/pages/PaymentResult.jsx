@@ -5,7 +5,9 @@ import { useCart } from '../lib/cart'
 import { usePageMeta } from '../lib/seo'
 
 // Customer lands here after CBK:
-//   /payment/result?status=success|failed|cancelled|error&trackid=...&payid=...
+//   /payment/result?status=success|review|failed|cancelled|error&trackid=...&payid=...
+// 'review' = the bank may have captured the payment but the server could not
+// verify the amount/order. Never tell the customer to pay again in that case.
 export default function PaymentResult() {
   const [params] = useSearchParams()
   const { t } = useLang()

@@ -95,6 +95,10 @@ export const translations = {
       failed: { title: 'Payment failed', msg: 'You have not been charged. Please try again.' },
       cancelled: { title: 'Payment cancelled', msg: 'The payment was cancelled or expired.' },
       error: { title: 'Something went wrong', msg: 'If you were charged, contact support.' },
+      review: {
+        title: 'Payment received — being confirmed',
+        msg: 'We could not confirm your order automatically. Do not pay again — our team is checking it and will contact you on WhatsApp shortly.',
+      },
     },
     about: {
       title: 'About Sporta — sportswear in Kuwait',
@@ -220,6 +224,10 @@ export const translations = {
       failed: { title: 'فشل الدفع', msg: 'لم يتم خصم أي مبلغ. حاول مرة أخرى.' },
       cancelled: { title: 'تم إلغاء الدفع', msg: 'تم إلغاء العملية أو انتهت صلاحيتها.' },
       error: { title: 'حدث خطأ ما', msg: 'إذا تم خصم مبلغ، تواصل مع الدعم.' },
+      review: {
+        title: 'تم استلام الدفع — قيد التأكيد',
+        msg: 'لم نتمكن من تأكيد طلبك تلقائياً. لا تدفع مرة أخرى — فريقنا يراجع العملية وسيتواصل معك عبر واتساب قريباً.',
+      },
     },
     about: {
       title: 'عن سبورتا — ملابس رياضية في الكويت',

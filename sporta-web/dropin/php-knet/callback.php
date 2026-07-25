@@ -11,7 +11,8 @@ knet_require_https();
 $cfg = require __DIR__ . '/config.php';
 
 $return   = $cfg['result_page_url'];
-$trandata = (string)($_REQUEST['trandata'] ?? '');
+$in       = $_POST + $_GET;
+$trandata = (string)($in['trandata'] ?? '');
 
 if ($trandata === '') {
     header('Location: ' . $return . '?status=error&reason=missing_data', true, 302);
@@ -32,34 +33,72 @@ $paymentid = (string)($fields['paymentid'] ?? '');
 $ref       = (string)($fields['ref'] ?? '');
 $paidAmt   = (string)($fields['amt'] ?? ($fields['Amt'] ?? ''));
 
-$haveDb = $cfg['supabase_url'] !== '' && $cfg['supabase_service_key'] !== '' && $trackid !== '';
+$haveDb = knet_db_configured($cfg) && $trackid !== '';
 
-// Amount verification: the amount KNET charged must match the order.
+knet_log($cfg, 'callback.received', [
+    'trackid' => $trackid, 'result' => $result, 'amt' => $paidAmt, 'payid' => $paymentid,
+]);
+
+// ---------------------------------------------------------------------------
+// Amount verification — FAIL CLOSED.
+//
+// Previously an unverifiable amount (database down, order missing, or KNET not
+// echoing 'amt') skipped the comparison entirely and the order was still
+// marked PAID. Now anything we cannot positively verify is held for review
+// instead of being trusted.
+// ---------------------------------------------------------------------------
+$review = false;
 if ($paid && $haveDb) {
-    $expected = knet_order_amount($cfg, $trackid);
-    if ($expected !== null && $paidAmt !== '' && abs((float) $expected - (float) $paidAmt) >= 0.001) {
+    $lookup = knet_order_lookup($cfg, $trackid);
+    if ($lookup['state'] !== 'found' || $paidAmt === '') {
+        $paid = false;
+        $review = true;
+        $result = 'UNVERIFIED_' . strtoupper($lookup['state']);
+        knet_log($cfg, 'callback.unverified', ['trackid' => $trackid, 'state' => $lookup['state']]);
+    } elseif (abs((float) $lookup['amount'] - (float) $paidAmt) >= 0.001) {
         $paid = false;
         $result = 'AMOUNT_MISMATCH';
+        knet_log($cfg, 'callback.amount_mismatch', [
+            'trackid' => $trackid, 'expected' => $lookup['amount'], 'paid' => $paidAmt,
+        ]);
     }
 }
 
 if ($haveDb) {
-    knet_update_order($cfg, $trackid, $paid, $result, $fields);
+    $ok = knet_update_order($cfg, $trackid, $paid, $result, $fields, $review);
+    if (!$ok) {
+        // The bank may well have taken the money; if we cannot record it the
+        // order must never be lost silently.
+        knet_log($cfg, 'callback.db_write_failed', [
+            'trackid' => $trackid, 'result' => $result, 'paid' => $paid, 'payid' => $paymentid,
+        ]);
+    }
 }
 
-$status = $paid ? 'success' : ($result === 'CANCELED' || $result === 'CANCELLED' ? 'cancelled' : 'failed');
+$status = $paid
+    ? 'success'
+    : ($review ? 'review' : (($result === 'CANCELED' || $result === 'CANCELLED') ? 'cancelled' : 'failed'));
 $q = http_build_query(['status' => $status, 'trackid' => $trackid, 'payid' => $paymentid, 'ref' => $ref]);
 header('Location: ' . $return . '?' . $q, true, 302);
 exit;
 
-function knet_update_order(array $cfg, string $trackid, bool $paid, string $result, array $fields): void
+// Returns true only if the order row was actually updated. The old version
+// discarded the curl result entirely, so a failed write left the customer on a
+// "success" page with no paid order recorded anywhere.
+function knet_update_order(array $cfg, string $trackid, bool $paid, string $result, array $fields, bool $review = false): bool
 {
     $url = rtrim($cfg['supabase_url'], '/') . '/rest/v1/'
         . rawurlencode($cfg['orders_table'])
-        . '?' . $cfg['orders_match_column'] . '=eq.' . rawurlencode($trackid);
+        . '?' . rawurlencode($cfg['orders_match_column']) . '=eq.' . rawurlencode($trackid);
+
+    // Never downgrade an already-paid order: a replayed or late failure
+    // callback must not flip a captured payment back to failed.
+    if (!$paid) {
+        $url .= '&payment_status=neq.paid';
+    }
 
     $payload = json_encode([
-        'payment_status' => $paid ? 'paid' : 'failed',
+        'payment_status' => $paid ? 'paid' : ($review ? 'review' : 'failed'),
         'knet_result'    => $result,
         'knet_paymentid' => (string)($fields['paymentid'] ?? ''),
         'knet_tranid'    => (string)($fields['tranid'] ?? ''),
@@ -81,6 +120,19 @@ function knet_update_order(array $cfg, string $trackid, bool $paid, string $resu
             'Prefer: return=minimal',
         ],
     ]);
-    curl_exec($ch);
+    // One retry: a transient network blip must not lose a captured payment.
+    $ok = false;
+    for ($attempt = 1; $attempt <= 2; $attempt++) {
+        $res  = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        if ($res !== false && $code >= 200 && $code < 300) {
+            $ok = true;
+            break;
+        }
+        if ($attempt === 1) {
+            sleep(1);
+        }
+    }
     curl_close($ch);
+    return $ok;
 }

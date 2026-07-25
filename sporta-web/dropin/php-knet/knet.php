@@ -28,8 +28,18 @@ function knet_gateway_url(array $cfg): string
     return $cfg['env'] === 'production' ? $cfg['production_url'] : $cfg['test_url'];
 }
 
+// AES-128 needs a 16-byte key. PHP would otherwise pad/truncate silently and
+// KNET would reject the trandata with no explanation.
+function knet_assert_key(string $resourceKey): void
+{
+    if (strlen($resourceKey) !== 16) {
+        throw new RuntimeException('resource_key must be exactly 16 bytes for AES-128 (got ' . strlen($resourceKey) . ')');
+    }
+}
+
 function knet_encrypt(string $plain, string $resourceKey): string
 {
+    knet_assert_key($resourceKey);
     $enc = openssl_encrypt($plain, 'AES-128-CBC', $resourceKey, OPENSSL_RAW_DATA, KNET_IV);
     if ($enc === false) {
         throw new RuntimeException('KNET encrypt failed');
@@ -39,6 +49,7 @@ function knet_encrypt(string $plain, string $resourceKey): string
 
 function knet_decrypt(string $hex, string $resourceKey): string
 {
+    knet_assert_key($resourceKey);
     $raw = @hex2bin($hex);
     if ($raw === false) {
         throw new RuntimeException('KNET response is not valid hex');
@@ -72,16 +83,52 @@ function knet_parse_response(string $qs): array
     return $out;
 }
 
-// Read an order's server-authoritative amount from Supabase by track id.
-// Returns the amount string, or null if not found / DB not configured.
-function knet_order_amount(array $cfg, string $trackid): ?string
+// Append-only audit log. Payments must leave a trail: without one, disputes,
+// reconciliation and debugging are impossible. Secrets are never logged.
+function knet_log(array $cfg, string $event, array $data = []): void
 {
-    if (($cfg['supabase_url'] ?? '') === '' || ($cfg['supabase_service_key'] ?? '') === '') {
-        return null;
+    $path = (string) ($cfg['log_file'] ?? '');
+    if ($path === '') {
+        return;
+    }
+    $line = json_encode([
+        'ts'    => gmdate('c'),
+        'event' => $event,
+        'ip'    => $_SERVER['REMOTE_ADDR'] ?? '',
+    ] + $data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $new = !file_exists($path);
+    if (@file_put_contents($path, $line . "\n", FILE_APPEND | LOCK_EX) !== false && $new) {
+        @chmod($path, 0600);
+    }
+}
+
+function knet_db_configured(array $cfg): bool
+{
+    return ($cfg['supabase_url'] ?? '') !== '' && ($cfg['supabase_service_key'] ?? '') !== '';
+}
+
+// Look an order up by track id.
+//
+// Returns ['state' => ..., 'amount' => ?string, 'status' => ?string] where state is:
+//   'off'      DB not configured at all
+//   'found'    row returned
+//   'missing'  DB answered, but there is no such order
+//   'error'    DB unreachable / rejected the request
+//
+// Callers MUST treat 'missing' and 'error' as failures. The previous version
+// collapsed all three into null, so a DB outage — or simply an unknown track
+// id — silently fell back to the client-supplied amount, letting anyone pay an
+// arbitrary price for any order.
+function knet_order_lookup(array $cfg, string $trackid): array
+{
+    if (!knet_db_configured($cfg)) {
+        return ['state' => 'off', 'amount' => null, 'status' => null];
     }
     $url = rtrim($cfg['supabase_url'], '/') . '/rest/v1/'
         . rawurlencode($cfg['orders_table'])
-        . '?select=amount&' . $cfg['orders_match_column'] . '=eq.' . rawurlencode($trackid);
+        . '?select=amount,payment_status&'
+        . rawurlencode($cfg['orders_match_column']) . '=eq.' . rawurlencode($trackid);
+
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
@@ -92,10 +139,19 @@ function knet_order_amount(array $cfg, string $trackid): ?string
         ],
     ]);
     $body = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    if ($body === false) {
-        return null;
+
+    if ($body === false || $code < 200 || $code >= 300) {
+        return ['state' => 'error', 'amount' => null, 'status' => null];
     }
     $rows = json_decode((string) $body, true);
-    return isset($rows[0]['amount']) ? (string) $rows[0]['amount'] : null;
+    if (!is_array($rows) || !isset($rows[0]['amount'])) {
+        return ['state' => 'missing', 'amount' => null, 'status' => null];
+    }
+    return [
+        'state'  => 'found',
+        'amount' => (string) $rows[0]['amount'],
+        'status' => isset($rows[0]['payment_status']) ? (string) $rows[0]['payment_status'] : null,
+    ];
 }

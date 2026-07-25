@@ -37,3 +37,9 @@
 <FilesMatch "^(config\.php|config\.example\.php|knet\.php)$">
   Require all denied
 </FilesMatch>
+
+# The payment log belongs outside public_html, but deny it here too in case it
+# is ever written inside the web root.
+<FilesMatch "\.(log|jsonl)$">
+  Require all denied
+</FilesMatch>

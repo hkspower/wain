@@ -34,6 +34,14 @@ if (!is_file($cfgPath)) {
     exit;
 }
 $cfg = require $cfgPath;
+
+// This page reveals which credentials are set and which gateway is in use.
+// Once the store is live it must not be reachable at all.
+if (($cfg['env'] ?? '') === 'production') {
+    echo "config.php  : env is PRODUCTION — self-test disabled.\n";
+    echo ">>> DELETE knet/selftest.php from the server now.\n";
+    exit;
+}
 $set = fn ($v, $ph) => ($v && $v !== $ph) ? 'set  OK' : 'NOT set — fill it';
 
 echo "config.php  : present\n";
