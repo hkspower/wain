@@ -1,77 +1,82 @@
-# Almuhallab — Nokha1 (النوخذة)
+# Nokha1 — النوخذة
 
-A suite of static pages — no build step, no dependencies. **Nokha1** is the
-short brand name of the النوخذة unified services system.
+The Almuhallab unified services website: an **HTML5 Progressive Web App**
+with no build step and no dependencies. Open it in a browser, or install it
+to a phone's home screen and run it offline.
 
-| Page | What it is |
-|------|-----------|
-| `nokha1.html` | **Nokha1 portal** — registration, login, dashboard, plans |
+## Site map
+
+| File | Page |
+|------|------|
+| `index.html` | **Nokha1 portal** — landing, registration, login, dashboard, plans |
 | `safi.html` | **صافي (SAFI)** — portfolio manager with P/L and CSV export |
 | `xbrl.html` | **XBRL** — financial statement builder + XBRL file generator |
 | `delivery.html` | **التوصيل** — delivery orders, couriers, status pipeline |
-| `index.html` | **Almuhallab Code** — in-browser HTML/CSS/JS editor |
-| `SECURITY.md` | Security measures and their limits |
+| `editor.html` | **Almuhallab Code** — in-browser HTML/CSS/JS editor |
+| `nokha1.html` | redirect to `index.html` (keeps old links working) |
+| `404.html` | not-found page that returns visitors to the portal |
+| `manifest.webmanifest`, `sw.js`, `icon.svg` | PWA app manifest, offline service worker, ⚓ icon |
+| `SECURITY.md` | security measures and their limits |
 
-## Nokha1 — the unified services portal
+## The portal
 
-Arabic-first (RTL) portal presenting all services as **one system**:
+Arabic-first (RTL) and presented as **one system**:
 
-- **Customer registration & login** — PBKDF2-hashed passwords (Web Crypto),
-  login throttling, 24-hour sessions (see `SECURITY.md`)
+- **Registration & login** — PBKDF2-hashed passwords (Web Crypto), login
+  throttling, 24-hour sessions (see `SECURITY.md`)
 - **Dashboard** with stats and one-click access to every service unit
-- **Monthly subscription plans** in KWD (بحّار / قبطان / نوخذة) — currently
-  marked *coming soon*: all units are unlocked for every registered account
-  until pricing and payments are switched on
+- **Plans** (بحّار / قبطان / نوخذة) marked *قريباً* — pricing and payment come
+  later; every service is unlocked for every registered account in the meantime
 
 ## The service units
 
-- **صافي — SAFI** (`safi.html`): add holdings (ticker, quantity, avg cost and
-  current price in fils), get market value and profit/loss per stock and for
-  the whole portfolio in KWD, export the statement as CSV or print it.
-- **XBRL** (`xbrl.html`): enter entity info and balance-sheet/income-statement
-  figures in KWD, validate that assets = liabilities + equity, then generate
-  and download an IFRS-tagged XBRL instance document (with preview).
-- **التوصيل — Delivery** (`delivery.html`): create orders with auto IDs
-  (`ORD-0001`), advance them through جديد → قيد التحضير → في الطريق →
-  تم التسليم (or cancel), manage couriers, filter by status, and track
-  delivered revenue.
-- **Almuhallab Code** (`index.html`): three-pane editor (HTML/CSS/JS) with
-  line numbers, sandboxed live preview, autosave, copy/download, Tab-indent,
-  and Ctrl/Cmd+S to run.
+- **صافي — SAFI**: add holdings (ticker, quantity, average cost and current
+  price in fils), see market value and profit/loss per stock and for the whole
+  portfolio in KWD, export the statement as CSV or print it.
+- **XBRL**: enter entity info and balance-sheet/income-statement figures in
+  KWD, validate that assets = liabilities + equity, then generate and download
+  an IFRS-tagged XBRL instance document (with preview).
+- **التوصيل — Delivery**: create orders with auto IDs (`ORD-0001`), advance
+  them through جديد → قيد التحضير → في الطريق → تم التسليم (or cancel),
+  manage couriers, filter by status, and track delivered revenue.
+- **Almuhallab Code**: three-pane editor with line numbers, sandboxed live
+  preview, autosave, copy/download, Tab-indent, and Ctrl/Cmd+S to run.
 
-## HTML5 app (PWA) — installable & offline
+## Install as an app
 
-Nokha1 is a full **HTML5 Progressive Web App**:
+The site is a full PWA: an app manifest, an ⚓ icon, home-screen shortcuts
+straight to صافي / XBRL / التوصيل, and a service worker that precaches every
+page so the whole system **works with no internet**. Pages load instantly from
+cache and refresh silently in the background. An **⬇ تثبيت التطبيق** button
+appears in the header when the browser offers installation, and a banner shows
+when you go offline.
 
-- `manifest.webmanifest` — app name, ⚓ icon (`icon.svg`), RTL/Arabic,
-  standalone display, and home-screen shortcuts to صافي / XBRL / التوصيل
-- `sw.js` — service worker that precaches all pages and serves them
-  **offline** (stale-while-revalidate: instant load, silent background update)
-- Every page registers the service worker and carries theme-color and
-  Apple touch-icon metadata
+On a phone: open the site → **Add to Home Screen**.
 
-On a phone, open the site and choose **Add to Home Screen** — it installs
-and runs like a native app, works with no internet, and keeps all data
-on the device.
+## Run it locally
 
-## Run it
-
-Service workers need HTTP(S), so serve the folder (any static host works —
-GitHub Pages, Netlify, Cloudflare Pages, or your own server):
+Service workers require HTTP(S), so serve the folder:
 
 ```bash
 npx serve almuhallab
 ```
 
-Opening files directly (`file://`) still works for everything except the
-offline install.
+Opening files directly (`file://`) works for everything except offline install.
 
-## ⚠️ Prototype status — what's real and what isn't
+## Publish it live
 
-Everything above works today, entirely in the browser. Accounts, sessions,
-portfolios, reports, and orders are stored in each visitor's own
-`localStorage` — there is **no shared database and no real payment yet**.
-Going to production needs a backend:
+`.github/workflows/pages.yml` deploys this folder to **GitHub Pages** on every
+push to `main`. Enable it once in the repo: **Settings → Pages → Source:
+"GitHub Actions"**. The site then serves at
+`https://<owner>.github.io/<repo>/`. Any other static host (Netlify,
+Cloudflare Pages, or your own server) works the same way — just serve this
+folder.
+
+## ⚠️ Status — what's real and what isn't
+
+Everything above works today, entirely in the browser. Accounts, portfolios,
+reports, and orders are stored in each visitor's own browser — there is **no
+shared database and no payment yet**. Production needs a backend:
 
 1. **Payment gateway** (Kuwait-friendly): [MyFatoorah](https://myfatoorah.com),
    [Tap Payments](https://tap.company), or Stripe — recurring-subscription
@@ -80,8 +85,8 @@ Going to production needs a backend:
    Replace the `localStorage` calls with API calls; hash passwords
    server-side (bcrypt/argon2) in addition to the client-side PBKDF2.
 3. **Service backends**: live market prices for SAFI, an XBRL filing channel,
-   and shared multi-branch order data with courier apps for Delivery — all
-   behind a server that checks each customer's active plan.
+   and shared multi-branch order data for Delivery — all behind a server that
+   checks each customer's plan.
 
-The plan/unit gating logic (`MCPS`, `PLANS`, `minPlan`) in `nokha1.html` is
-the single source of truth to port to that backend.
+The plan/unit gating logic (`MCPS`, `PLANS`, `minPlan`) in `index.html` is the
+single source of truth to port to that backend.

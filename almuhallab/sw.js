@@ -1,13 +1,15 @@
 /* Nokha1 service worker — precache the app shell, serve cache-first, refresh in background. */
 "use strict";
 
-var CACHE = "nokha1-v1";
+var CACHE = "nokha1-v2";
 var ASSETS = [
-  "nokha1.html",
+  "./",
+  "index.html",
   "safi.html",
   "xbrl.html",
   "delivery.html",
-  "index.html",
+  "editor.html",
+  "nokha1.html",
   "manifest.webmanifest",
   "icon.svg"
 ];
@@ -49,7 +51,11 @@ self.addEventListener("fetch", function (event) {
           caches.open(CACHE).then(function (cache) { cache.put(req, copy); });
         }
         return res;
-      }).catch(function () { return cached; });
+      }).catch(function () {
+        // Offline and uncached: fall back to the app shell for page navigations.
+        if (req.mode === "navigate") return caches.match("index.html");
+        return cached;
+      });
       return cached || refresh;
     })
   );

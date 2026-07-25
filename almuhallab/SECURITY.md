@@ -5,6 +5,9 @@ boundaries that only a real backend can provide.
 
 ## Measures implemented (all pages)
 
+- **Service worker scope**: the worker (`sw.js`) only intercepts same-origin
+  GET requests and never caches cross-origin responses.
+
 - **Content Security Policy** (`<meta http-equiv="Content-Security-Policy">`):
   `default-src 'none'`, no external scripts/styles/connections, `base-uri 'none'`,
   `form-action 'none'` (forms are JS-handled only — a broken script can never
@@ -18,7 +21,7 @@ boundaries that only a real backend can provide.
 - **Input constraints**: `maxlength`, `pattern`, numeric `min`/`step` on all
   fields, plus JS-side validation and clamping (never trust HTML validation alone).
 
-## Authentication (nokha1.html)
+## Authentication (index.html — the Nokha1 portal)
 
 - Passwords are hashed with **PBKDF2-SHA256, 310,000 iterations, 16-byte random
   per-user salt** via the Web Crypto API. No plaintext or reversible form is stored.
@@ -31,7 +34,7 @@ boundaries that only a real backend can provide.
 
 ## Module-specific
 
-- **Editor (index.html)**: user code runs in an `<iframe sandbox="allow-scripts allow-modals">`
+- **Editor (editor.html)**: user code runs in an `<iframe sandbox="allow-scripts allow-modals">`
   — no `allow-same-origin`, so preview code cannot touch the parent page,
   its localStorage, or cookies.
 - **SAFI (safi.html)**: tickers are whitelisted to `[A-Z0-9.]{1,12}`; CSV export
