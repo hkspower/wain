@@ -75,14 +75,51 @@ for (const d of DEVICES) {
           }
         }
 
-        // touch targets: interactive elements smaller than 44x44
+        // Touch targets. The bar is WCAG 2.5.8 (AA, 24px), not the 44px of
+        // Apple's HIG — 44px is 2.5.5, which is AAA and not what this site is
+        // held to. And 2.5.8 has an "equivalent control" exception that has to
+        // be honoured or the check is worthless: if the same destination is
+        // reachable from a bigger control on the same page, the small one is
+        // not a barrier.
+        //
+        // Without that exception this reported 210 findings, every one of them
+        // a 175x28 product title sitting directly beneath a 175x218 image link
+        // to the identical product page. Nothing was wrong; a finger cannot
+        // miss a 218px target. 210 false positives train you to ignore the
+        // whole report, which is how a real one gets missed.
         const interactive = el.matches('a[href], button, input:not([type=hidden]), select, textarea, [role=button]') && !el.closest('.cart-drawer, [role=dialog]')
         if (interactive && b.height > 0) {
           const label = (el.getAttribute('aria-label') || el.textContent || el.tagName).trim().slice(0, 34)
-          const inFooter = !!el.closest('footer')
-          const min = inFooter ? 24 : 44
-          if (b.height < min || (!inFooter && b.width < min)) {
-            out.small.push({ label, w: Math.round(b.width), h: Math.round(b.height), min })
+          const MIN = 24
+          const tooSmall = b.height < MIN || b.width < MIN
+          // Is there a larger control that does the same thing?
+          let equivalent = false
+          // (a) another link to the same href.
+          const href = el.getAttribute('href')
+          if (href) {
+            for (const other of document.querySelectorAll(`a[href="${CSS.escape(href)}"]`)) {
+              if (other === el) continue
+              const o = other.getBoundingClientRect()
+              if (o.height >= MIN && o.width >= MIN) { equivalent = true; break }
+            }
+          }
+          // (b) the label of a form control. A checkbox cannot be grown to 44px
+          // without looking wrong, so the pattern here is to let the label carry
+          // the target — and clicking a label really does operate its control,
+          // so the label IS the touch target. Measuring the 20x20 box and
+          // ignoring the 319x44 label around it reported a defect where the
+          // correct technique had been used. Verified by tapping the label text
+          // 140px from the box: the checkbox toggles.
+          if (!equivalent) {
+            const lab = el.closest('label') ||
+              (el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`) : null)
+            if (lab) {
+              const o = lab.getBoundingClientRect()
+              if (o.height >= MIN && o.width >= MIN) equivalent = true
+            }
+          }
+          if (tooSmall && !equivalent) {
+            out.small.push({ label, w: Math.round(b.width), h: Math.round(b.height), min: MIN })
           }
         }
 
