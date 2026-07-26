@@ -21,7 +21,7 @@ INK_SOFT   = (17, 26, 43)
 BORDER     = (34, 48, 73)
 BONE       = (216, 205, 184)
 MUTED      = (138, 160, 189)
-TEAL       = (77, 179, 168)
+TEAL       = (219, 169, 127)   # --tint in dark mode: the brand tan
 BRASS      = (227, 165, 86)
 
 def font(p, s): return ImageFont.truetype(p, s)

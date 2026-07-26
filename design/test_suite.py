@@ -219,10 +219,20 @@ def home_checks(pg):
     S = "home"
     pg.goto(f"{BASE}/index.html", wait_until="networkidle")
     pg.wait_for_timeout(300)
-    for heading in ("ما هو Nokha1؟", "خدماتنا", "من أعمالنا", "كيف نعمل", "تواصل معنا"):
+    for heading in ("ما هو Nokha1؟", "خدماتنا", "من أعمالنا", "كيف نعمل",
+                    "لماذا المهلب كود", "تواصل معنا"):
         check(S, f"the page still carries: {heading}", heading in pg.inner_text("main"))
     cards = pg.eval_on_selector_all(".card", "n=>n.length")
-    check(S, "every section is rendered as cards in the shared grid", cards == 17, f"{cards} cards")
+    check(S, "every section is rendered as cards in the shared grid", cards == 20, f"{cards} cards")
+    # emoji render as a different typeface, weight and colour on every platform;
+    # the drawn set must have replaced them everywhere on the public page
+    check(S, "the page carries no emoji icons",
+          not pg.evaluate(r"/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(document.querySelector('main').innerText)"))
+    icons = pg.eval_on_selector_all("main use", "n=>n.length")
+    check(S, "the drawn icon set is used throughout", icons >= 14, f"{icons} icons")
+    check(S, "every icon reference resolves to a symbol",
+          pg.evaluate("[...document.querySelectorAll('use')].every(u =>"
+                      " !!document.querySelector(u.getAttribute('href')))"))
     check(S, "the contact address survived",
           "info@almuhallab-code.com" in pg.inner_text("main"))
     check(S, "Nokha1 and the editor both open from their cards",

@@ -19,7 +19,7 @@ inside it, entered at `/nokha1` — not the front door.
 | `editor.html` | **Almuhallab Code** — in-browser HTML/CSS/JS editor |
 | `admin.html` | **Admin console** — customers, operations, finance, settings |
 | `404.html` | not-found page that returns visitors to the portal |
-| `manifest.webmanifest`, `sw.js`, `icon.svg` | PWA app manifest, offline service worker, ⚓ icon |
+| `manifest.webmanifest`, `sw.js`, `icon.svg`, `logo.svg` | PWA app manifest, offline service worker, ⚓ Nokha1 icon, and the Almuhallab Code company mark |
 | `SECURITY.md` | security measures and their limits |
 
 ## Nokha1 — the portal (`/nokha1`)
@@ -137,7 +137,7 @@ visitor's OS happens to have installed.
 ## Tests
 
 ```bash
-python3 design/test_suite.py     # 116 checks, exits non-zero on failure
+python3 design/test_suite.py     # 120 checks, exits non-zero on failure
 ```
 
 Covers the company/product split (the root is the company site and carries no
