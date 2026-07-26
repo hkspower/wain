@@ -127,6 +127,45 @@ def static_checks():
     check(S, "manifest has the required fields",
           all(k in mf for k in ("name", "start_url", "display", "icons")))
 
+# ═══════════════════════════════════════════ 1b. IDENTITY — pinned, do not relax
+def identity_checks():
+    """The Almuhallab identity is the company's own and is final. These values
+    are pinned deliberately: if a change makes them fail, fix the change."""
+    S = "identity"
+    home = (ROOT / "index.html").read_text()
+    logo = (ROOT / "logo.svg").read_text()
+
+    check(S, "the mark is the dhow sail, in logo.svg and in the page sprite",
+          'id="i-sail"' in home and "M20.9 2.7" in home and "M20.9 2.7" in logo)
+    check(S, "the header carries the mark, not an emoji or a letter",
+          '<use href="#i-sail"/>' in home)
+    check(S, "the wordmark is المهلب", '<span class="name">المهلب</span>' in home)
+    check(S, "Almuhallab Code sits on the line beneath", "Almuhallab Code —" in home)
+
+    def tok(src, name, dark=False):
+        import re
+        pat = (r"prefers-color-scheme: dark\)\s*\{\s*:root\s*\{(.*?)\}" if dark
+               else r":root\s*\{(.*?)\}")
+        block = re.search(pat, src, re.S).group(1)
+        return re.search(rf"--{name}:\s*(#[0-9a-fA-F]{{6}})", block).group(1)
+
+    PINNED = {("tint", False): "#7a4418", ("tint-strong", False): "#6f3f1c",
+              ("tint", True): "#dba97f", ("tint-strong", True): "#8a5122"}
+    for (name, dark), want in PINNED.items():
+        got = tok(home, name, dark)
+        check(S, f"{'dark' if dark else 'light'} --{name} is {want}", got == want, got)
+
+    check(S, "the page and its cards stay white",
+          tok(home, "bg") == "#ffffff" and tok(home, "panel") == "#ffffff")
+
+    for want in ("+965 6589 4110", "@almuhallab.code", "hello@almuhallab-code.com"):
+        check(S, f"contact channel kept: {want}", want in home)
+    check(S, "no invented contact address", "info@almuhallab-code.com" not in home)
+
+    check(S, "the first version's components are still the layout",
+          'class="product lead"' in home and "<ol class=\"steps\">" in home
+          and 'class="channels"' in home)
+
 # ═══════════════════════════════════════════ browser sections
 XSS = '<img src=x onerror="window.__pwned=1">'
 
@@ -656,6 +695,7 @@ def font_checks(pg):
 
 # ═══════════════════════════════════════════ run
 static_checks()
+identity_checks()
 browser_checks()
 
 print()

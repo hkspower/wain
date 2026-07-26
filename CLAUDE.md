@@ -13,6 +13,28 @@
 
 ## Almuhallab Code — `almuhallab/`
 
+### 🔒 THE ALMUHALLAB STYLE IS FINAL — NEVER CHANGE IT
+
+This identity is the company's own, taken from the live site. It is **not** open
+to redesign, refresh, "improvement", or substitution — not by me, not on my own
+initiative, not as a side effect of another task. Change it **only** when the
+user asks for that change in so many words, and change only what they name.
+
+Locked, exactly as they are:
+
+| | Locked value |
+|---|---|
+| Mark | the dhow's lateen sail over the water — `logo.svg` and `#i-sail` |
+| Wordmark | **المهلب** in brand brown, `Almuhallab Code` on the line beneath |
+| Brand ink | `--tint` `#7a4418` light / `#dba97f` dark · `--tint-strong` `#6f3f1c` / `#8a5122` |
+| Surfaces | white page, white cards, cool near-neutral greys — brown is ink, never paper |
+| Icons | the drawn `<symbol>` sprite — no emoji anywhere on the public page |
+| Layout | hero · card grids · wide `.product` rows · `ol.steps` · contact channels |
+| Contact | واتساب `+965 6589 4110` · انستغرام `@almuhallab.code` · `hello@almuhallab-code.com` |
+
+`design/test_suite.py` pins every one of these (section `identity`). If a change
+makes those checks fail, the change is wrong — fix the change, never the test.
+
 **Almuhallab Code (المهلب كود) is a software company.** `www.almuhallab-code.com`
 is the *company* website. **Nokha1 (النوخذة) is one system the company built and
 runs — a product inside the site, never the site itself.** Do not put Nokha1's
@@ -67,7 +89,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 130 checks covering
+- `python3 design/test_suite.py` is the full system test — 144 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, and layout. Run it
   after any change to `almuhallab/`; it exits non-zero on failure.
