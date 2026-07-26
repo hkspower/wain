@@ -104,52 +104,63 @@ if [ "$code" = "200" ]; then
   fi
 fi
 
-# ------------------------------------------------------------------- ssh
-hdr "SSH to Hostinger ($HOST:$PORT)"
+# ------------------------------------------------------------------- ftps
+# SSH is off permanently, by the owner's choice, so this no longer probes it —
+# a check that always fails teaches you to ignore the report. FTP is a separate
+# Hostinger service and is what `npm run publish` actually uses.
+# Resolve a hostname using whatever this machine actually has. The first version
+# called host and nslookup and treated "command not found" as "no such
+# hostname" — so on a box without them it confidently reported a perfectly good
+# server as non-existent. If nothing can resolve, say so rather than guess.
+#   0 = resolves    1 = no such name    2 = nothing here can tell
+resolves() {
+  if command -v dscacheutil >/dev/null 2>&1; then          # macOS, always present
+    dscacheutil -q host -a name "$1" 2>/dev/null | grep -q ip_address
+    return $?
+  fi
+  if command -v host     >/dev/null 2>&1; then host "$1"     >/dev/null 2>&1; return $?; fi
+  if command -v dig      >/dev/null 2>&1; then [ -n "$(dig +short "$1" 2>/dev/null)" ]; return $?; fi
+  if command -v nslookup >/dev/null 2>&1; then nslookup "$1" >/dev/null 2>&1; return $?; fi
+  # getent exits 2 for "key not found", which would be read below as "cannot
+  # check" and hide a genuinely wrong hostname. Collapse it to a plain 1.
+  if command -v getent >/dev/null 2>&1; then
+    getent hosts "$1" >/dev/null 2>&1 && return 0 || return 1
+  fi
+  return 2
+}
+
 port_open() {
   nc -z -G 5 "$1" "$2" >/dev/null 2>&1 && return 0
   nc -z -w 5 "$1" "$2" >/dev/null 2>&1 && return 0
   return 1
 }
-if port_open "$HOST" "$PORT"; then
-  ok "port $PORT reachable" "the server is listening"
 
-  # BatchMode: never prompts, so this cannot add to the failed-password count.
-  out=$(ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new \
-            -p "$PORT" "$USER_@$HOST" 'echo SHELL_OK; echo "$SHELL"' 2>&1)
-  if printf '%s' "$out" | grep -q SHELL_OK; then
-    ok "SSH key login" "works"
-    if printf '%s' "$out" | grep -q nologin; then
-      bad "interactive shell" "/sbin/nologin"
-      note "Turn SSH on in hPanel -> Advanced -> SSH Access."
-    else
-      ok "interactive shell" "$(printf '%s' "$out" | tail -1)"
-    fi
-  elif printf '%s' "$out" | grep -qi 'permission denied'; then
-    ok "SSH service answering" "auth required (no key installed yet)"
-    note "Expected if you log in with a password. To stop typing it:"
-    note "  ssh-keygen -t ed25519 && ssh-copy-id -p $PORT $USER_@$HOST"
-    note "NOT run here on purpose — a wrong password adds to the failed-login count."
-  else
-    bad "SSH" "$(printf '%s' "$out" | head -1)"
-  fi
+# SSH is off permanently, by the owner's choice, so this no longer probes it —
+# a check that always fails teaches you to ignore the whole report. FTP is a
+# separate Hostinger service and is what `npm run publish` actually uses.
+hdr "FTPS upload path"
+ftp_host="${FTP_HOST:-}"
+ftp_port="${FTP_PORT:-21}"
+if [ -z "$ftp_host" ]; then
+  skip "FTP host" "not set"
+  note "Read it from hPanel -> Files -> FTP Accounts, then:"
+  note "  cd sporta-web && npm run ftp:doctor -- --write"
+  note "Do NOT guess it: ftp.sporta.com.kw has no DNS record."
 else
-  skip "SSH ($PORT)" "not answering — off in hPanel, or blocked"
-  note "Nothing here needs it. Consequences, so they are not a surprise later:"
-  note "  - 'npm run deploy' cannot run: it uploads over SFTP, which rides on SSH."
-  note "  - Upload through hPanel File Manager instead, or an FTP client (below)."
-  note "  - It also means nobody on the internet can brute-force this account."
-fi
-
-# FTP is a separate service from SSH, so it can still be available. For a whole
-# public_html/ tree an FTP client is far quicker than clicking through File
-# Manager, and it is the natural replacement once SFTP is gone.
-if port_open "$HOST" 21; then
-  ok "FTP (21)" "available — usable for bulk upload"
-  note "FileZilla or Cyberduck. Credentials: hPanel -> Files -> FTP Accounts."
-else
-  skip "FTP (21)" "not answering"
-  note "Use hPanel -> File Manager to upload."
+  resolves "$ftp_host"
+  case $? in
+    2) skip "DNS for $ftp_host" "nothing on this machine can resolve names — cannot check" ;;
+    1) bad  "$ftp_host" "no DNS record — wrong hostname"
+       note "Copy the hostname from hPanel exactly; do not guess it." ;;
+    0) ok "$ftp_host" "resolves"
+       if port_open "$ftp_host" "$ftp_port"; then
+         ok "FTP port $ftp_port" "reachable — npm run publish can upload"
+       else
+         bad "FTP port $ftp_port on $ftp_host" "not answering"
+         note "If every host you try is refused, your own network may block outbound FTP."
+         note "A phone hotspot is the quickest way to tell."
+       fi ;;
+  esac
 fi
 
 # ---------------------------------------------------------------- verdict
