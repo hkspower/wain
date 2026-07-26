@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase, hasDevicePasscode } from '../lib/supabase'
 import { getDeviceId, isEnrolledLocally, markEnrolled, clearEnrolled } from '../lib/deviceId'
 import { useIdleLock } from './useIdleLock'
+import { useAdminMeta } from './useAdminMeta'
 import AdminLogin from './AdminLogin'
 import LockScreen from './LockScreen'
 import SetupQuickUnlock from './SetupQuickUnlock'
@@ -15,6 +16,7 @@ import { IconBag, IconTruck, IconStar, IconLock } from '../components/icons'
 //   session + enrolled     -> LockScreen until unlocked (also re-locks on idle)
 //   session + unlocked     -> Dashboard
 export default function AdminApp() {
+  useAdminMeta()
   const [session, setSession] = useState(undefined) // undefined = loading
   const [enrolled, setEnrolled] = useState(isEnrolledLocally()) // server-reconciled below
   const [locked, setLocked] = useState(isEnrolledLocally())
@@ -69,10 +71,24 @@ export default function AdminApp() {
     setLocked(false)
   }
 
+  // This told the owner to set VITE_ variables in .env and rebuild — which is
+  // not how this site is configured and, on a host with no shell, not something
+  // they can do. The supported path is editing public_html/config.js in File
+  // Manager, so that is what the message has to say.
   if (!supabase) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-8 text-center text-slate-500">
-        Admin is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
+        <div className="max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center">
+          <h1 className="text-lg font-bold text-slate-800">Admin is not configured yet</h1>
+          <p className="mt-3 text-sm leading-relaxed text-slate-600">
+            Open <code className="rounded bg-slate-100 px-1.5 py-0.5">public_html/config.js</code> in
+            Hostinger File Manager and paste your Supabase <b>Project URL</b> and{' '}
+            <b>anon</b> key. Save, then reload this page — nothing needs rebuilding.
+          </p>
+          <p className="mt-3 text-xs text-slate-400">
+            Supabase → Project Settings → API. Use the <b>anon</b> key, never the service key.
+          </p>
+        </div>
       </div>
     )
   }

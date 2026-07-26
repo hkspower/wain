@@ -85,7 +85,9 @@ export default function Products() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold text-slate-800">Products</h1>
+      {/* h2, not h1: Catalog renders this beneath its own "Catalogue" h1,
+          and two h1s on one screen leaves screen-reader users with no top level. */}
+      <h2 className="mb-6 text-xl font-bold text-slate-800">Products</h2>
 
       {error && <p className="mb-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
 

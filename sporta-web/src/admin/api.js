@@ -8,7 +8,8 @@ import { PRODUCTS } from '../lib/products'
 // queries return an empty set rather than an error, so each helper reports
 // `needsMigration` and the UI can say what to do instead of showing "no orders".
 
-const NOT_CONFIGURED = 'Supabase is not configured — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
+const NOT_CONFIGURED =
+  'Supabase is not configured — add your Project URL and anon key to public_html/config.js.'
 
 export const PAYMENT_STATES = ['paid', 'pending', 'review', 'failed']
 export const FULFILMENT_STATES = ['unfulfilled', 'packed', 'shipped', 'delivered', 'cancelled']
