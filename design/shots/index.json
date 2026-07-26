@@ -22,20 +22,25 @@
  {
   "file": "/home/user/wain/design/shots/05-safi.png",
   "title": "صافي — SAFI portfolio",
-  "url": "/safi.html"
+  "url": "/nizam.html#/safi"
  },
  {
   "file": "/home/user/wain/design/shots/06-xbrl.png",
   "title": "XBRL — Financial reporting",
-  "url": "/xbrl.html"
+  "url": "/nizam.html#/xbrl"
  },
  {
   "file": "/home/user/wain/design/shots/07-delivery.png",
   "title": "التوصيل — Delivery operations",
-  "url": "/delivery.html"
+  "url": "/nizam.html#/delivery"
  },
  {
-  "file": "/home/user/wain/design/shots/08-editor.png",
+  "file": "/home/user/wain/design/shots/08-position.png",
+  "title": "المركز المالي — Unified position",
+  "url": "/nizam.html#/position"
+ },
+ {
+  "file": "/home/user/wain/design/shots/09-editor.png",
   "title": "Almuhallab Code — Editor",
   "url": "/editor.html"
  }

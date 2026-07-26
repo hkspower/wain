@@ -58,7 +58,7 @@ with sync_playwright() as p:
     snap(page, "04-dashboard", "لوحة التحكم — Customer dashboard", "/#/dashboard")
 
     # ---------------------------------------------------------- SAFI
-    page.goto(f"{BASE}/safi.html", wait_until="networkidle")
+    page.goto(f"{BASE}/nizam.html#/safi", wait_until="networkidle")
     holdings = [
         ("NBK",  "بنك الكويت الوطني",       12000, 850,  921),
         ("ZAIN", "شركة زين للاتصالات",       8500,  452,  438),
@@ -72,13 +72,13 @@ with sync_playwright() as p:
         page.fill('input[name="qty"]', str(q))
         page.fill('input[name="cost"]', str(c))
         page.fill('input[name="price"]', str(pr))
-        page.click('#form button[type="submit"]')
+        page.click('#safi-form button[type="submit"]')
         page.wait_for_timeout(180)
     page.wait_for_timeout(500)
-    snap(page, "05-safi", "صافي — SAFI portfolio", "/safi.html")
+    snap(page, "05-safi", "صافي — SAFI portfolio", "/nizam.html#/safi")
 
     # ---------------------------------------------------------- XBRL
-    page.goto(f"{BASE}/xbrl.html", wait_until="networkidle")
+    page.goto(f"{BASE}/nizam.html#/xbrl", wait_until="networkidle")
     page.fill('input[name="entity"]', "شركة المهلب القابضة ش.م.ك.ع")
     page.fill('input[name="lei"]', "254900MHLLB2026KW01")
     page.select_option('select[name="period"]', "FY")
@@ -88,18 +88,18 @@ with sync_playwright() as p:
             "equity": 8719.500, "revenue": 9640.000, "expenses": 6215.375}
     for k, v in vals.items():
         page.fill(f'input[name="{k}"]', f"{v:.3f}")
-    page.click("#validate")
+    page.click("#xbrl-validate")
     page.wait_for_timeout(300)
-    page.click("#preview")
+    page.click("#xbrl-preview")
     page.wait_for_timeout(700)
-    snap(page, "06-xbrl", "XBRL — Financial reporting", "/xbrl.html")
+    snap(page, "06-xbrl", "XBRL — Financial reporting", "/nizam.html#/xbrl")
 
     # ---------------------------------------------------------- Delivery
-    page.goto(f"{BASE}/delivery.html", wait_until="networkidle")
+    page.goto(f"{BASE}/nizam.html#/delivery", wait_until="networkidle")
     for cn, cp in [("سالم", "99012345"), ("يوسف", "97788221"), ("عبدالله", "66554120")]:
-        page.fill('#form-courier input[name="cname"]', cn)
-        page.fill('#form-courier input[name="cphone"]', cp)
-        page.click('#form-courier button[type="submit"]')
+        page.fill('#del-courier-form input[name="cname"]', cn)
+        page.fill('#del-courier-form input[name="cphone"]', cp)
+        page.click('#del-courier-form button[type="submit"]')
         page.wait_for_timeout(150)
     orders = [
         ("أم محمد",  "99887766", "السالمية، قطعة ٢، شارع ٣",  "مجبوس دجاج ×٢",      7.500,  "سالم"),
@@ -109,13 +109,13 @@ with sync_playwright() as p:
         ("دلال",     "94556677", "بيان، قطعة ٨، شارع ١",       "كبسة دجاج ×٢",        9.500,  "يوسف"),
     ]
     for cu, ph, ad, it, am, co in orders:
-        page.fill('#form input[name="customer"]', cu)
-        page.fill('#form input[name="phone"]', ph)
-        page.fill('#form input[name="address"]', ad)
-        page.fill('#form input[name="items"]', it)
-        page.fill('#form input[name="amount"]', str(am))
-        page.select_option('#form select[name="courier"]', co)
-        page.click('#form button[type="submit"]')
+        page.fill('#del-form input[name="customer"]', cu)
+        page.fill('#del-form input[name="phone"]', ph)
+        page.fill('#del-form input[name="address"]', ad)
+        page.fill('#del-form input[name="items"]', it)
+        page.fill('#del-form input[name="amount"]', str(am))
+        page.select_option('#del-form select[name="courier"]', co)
+        page.click('#del-form button[type="submit"]')
         page.wait_for_timeout(180)
     # advance the pipeline so every status is represented
     for _ in range(3):
@@ -125,12 +125,19 @@ with sync_playwright() as p:
     page.click('button[data-next="2"]'); page.wait_for_timeout(150)
     page.click('button[data-cancel="4"]'); page.wait_for_timeout(300)
     page.wait_for_timeout(400)
-    snap(page, "07-delivery", "التوصيل — Delivery operations", "/delivery.html")
+    snap(page, "07-delivery", "التوصيل — Delivery operations", "/nizam.html#/delivery")
+
+    # ------------------------------------------------ unified financial position
+    # captured last, so the portfolio and the delivered orders above are both in
+    # place and the derived figures on this tab are real
+    page.goto(f"{BASE}/nizam.html#/position", wait_until="networkidle")
+    page.wait_for_timeout(600)
+    snap(page, "08-position", "المركز المالي — Unified position", "/nizam.html#/position")
 
     # ---------------------------------------------------------- editor
     page.goto(f"{BASE}/editor.html", wait_until="networkidle")
     page.wait_for_timeout(1200)
-    snap(page, "08-editor", "Almuhallab Code — Editor", "/editor.html", full=False)
+    snap(page, "09-editor", "Almuhallab Code — Editor", "/editor.html", full=False)
 
     # ---------------------------------------------------------- mobile
     m = browser.new_context(viewport={"width": 402, "height": 874},
@@ -151,9 +158,9 @@ with sync_playwright() as p:
         "localStorage.setItem('nokhatha-delivery-couriers-v1', %s);"
         % (json.dumps(seed_safi), json.dumps(seed_orders), json.dumps(seed_couriers)))
     mp = m.new_page()
-    for nm, url, title in [("09-m-landing", "index.html", "Landing — mobile"),
-                           ("10-m-safi", "safi.html", "SAFI — mobile"),
-                           ("11-m-delivery", "delivery.html", "Delivery — mobile")]:
+    for nm, url, title in [("10-m-landing", "index.html", "Landing — mobile"),
+                           ("11-m-safi", "nizam.html#/safi", "SAFI — mobile"),
+                           ("12-m-position", "nizam.html#/position", "Position — mobile")]:
         mp.goto(f"{BASE}/{url}", wait_until="networkidle")
         mp.wait_for_timeout(700)
         mp.screenshot(path=str(OUT / f"{nm}.png"), full_page=False)

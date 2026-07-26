@@ -32,9 +32,21 @@
   ],
   "shortcuts": [
     {
+      "name": "النظام الموحد",
+      "short_name": "النظام",
+      "url": "nizam.html",
+      "icons": [
+        {
+          "src": "icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
       "name": "صافي — SAFI",
       "short_name": "صافي",
-      "url": "safi.html",
+      "url": "nizam.html#/safi",
       "icons": [
         {
           "src": "icon.svg",
@@ -46,7 +58,7 @@
     {
       "name": "XBRL — التقارير المالية",
       "short_name": "XBRL",
-      "url": "xbrl.html",
+      "url": "nizam.html#/xbrl",
       "icons": [
         {
           "src": "icon.svg",
@@ -58,7 +70,7 @@
     {
       "name": "التوصيل — Delivery",
       "short_name": "التوصيل",
-      "url": "delivery.html",
+      "url": "nizam.html#/delivery",
       "icons": [
         {
           "src": "icon.svg",

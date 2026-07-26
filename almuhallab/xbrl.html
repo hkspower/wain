@@ -3,17 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; worker-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'" />
-  <meta name="referrer" content="no-referrer" />
-  <link rel="manifest" href="manifest.webmanifest" />
-  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
-  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b1220" />
-  <link rel="preload" as="font" type="font/woff2" href="fonts/plex-arabic-400.woff2" crossorigin />
-  <link rel="icon" type="image/svg+xml" href="icon.svg" />
-  <link rel="apple-touch-icon" href="icon.svg" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>XBRL — التقارير المالية | Nokha1</title>
+  <meta http-equiv="refresh" content="0; url=nizam.html#/xbrl" />
+  <link rel="canonical" href="nizam.html#/xbrl" />
+  <meta name="robots" content="noindex" />
+  <title>XBRL — التقارير المالية — Nokha1</title>
   <style>
     /* IBM Plex Sans Arabic — bundled, not fetched from a CDN: the strict CSP
        forbids external origins, and a self-hosted face renders identically on
@@ -32,260 +25,18 @@
       font-display: swap; src: url("fonts/plex-arabic-700.woff2") format("woff2");
     }
 
-    :root {
-      --bg: #ffffff; --panel: #ffffff; --panel-2: #f1f4f8; --border: #d0d7e1; --dot-js: #836407; --code-dim: #5e6979; --warn-bg: #ffffff; --info: #1964ce; --border-input: #858d99; --panel-3: #e6ebf1;
-      --text: #1b2430; --muted: #586981; --tint: #0e756b; --tint-strong: #0f8075;
-      --sand: #9e5603; --sand-vivid: #e3a556; --danger: #ce1925; --good: #02783d;
-      --sans:"Plex Arabic", system-ui,-apple-system,"Segoe UI",Roboto,"Noto Kufi Arabic",sans-serif;
-      --mono:ui-monospace,Menlo,Consolas,monospace;
+    body {
+      margin: 0; min-height: 100vh; display: grid; place-items: center;
+      background: #0b1220; color: #e6edf6; text-align: center;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Kufi Arabic", sans-serif;
     }
-    /* Devices set to dark keep the original ink scheme. */
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --sand-vivid: #e3a556;
-        --bg: #0b1220;
-        --panel: #1c2b44;
-        --panel-2: #0e1626;
-        --panel-3: #24334b;
-        --border: #354765;
-        --border-input: #516587;
-        --text: #e6edf6;
-        --muted: #93a9c6;
-        --tint: #4db3a8;
-        --tint-strong: #24847a;
-        --sand: #e3a556;
-        --good: #3ddc84;
-        --danger: #ff6b74;
-        --info: #6ea8f7;
-        --warn-bg: #2a1f12;
-        --code-dim: #4a5d78;
-        --dot-js: #d9c34a;
-      }
-    }
-
-    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh}
-    a{color:var(--tint);text-decoration:none}
-    header{display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5;flex-wrap:wrap}
-    .brand{font-weight:800;display:flex;align-items:center;gap:10px}
-    .logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--sand-vivid),var(--tint-strong));display:grid;place-items:center}
-    header a.back{margin-inline-start:auto;font-size:13px;font-weight:600}
-    main{max-width:860px;margin:0 auto;padding:26px 18px 60px}
-    h2{font-size:19px;margin:26px 0 12px}
-    fieldset{border:1px solid var(--border);border-radius:14px;background:var(--panel);padding:16px;margin:0 0 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
-    legend{font-size:13px;font-weight:800;color:var(--sand);padding:0 8px}
-    label{font-size:12px;font-weight:700;color:var(--muted);display:flex;flex-direction:column;gap:5px}
-    input,select{background:var(--panel-2);border: 1px solid var(--border-input);border-radius:8px;color:var(--text);padding:9px 11px;font-size:14px;font-family:var(--sans);outline:none;width:100%}
-    input:focus,select:focus{border-color:var(--tint)}
-    input[type=number]{font-variant-numeric:tabular-nums}
-    .btn{font-size:13.5px;font-weight:700;border-radius:9px;padding:10px 16px;cursor:pointer;border:1px solid var(--border);background:var(--panel-2);color:var(--text);font-family:var(--sans)}
-    .btn.primary{background:var(--tint-strong);border-color:transparent;color:#fff}
-    .btn:hover{opacity:.88}
-    .check{border:1px solid var(--border);border-radius:12px;padding:14px 16px;font-size:13.5px;line-height:1.9;margin:16px 0;background:var(--panel)}
-    .check.ok{border-color:var(--good);color:var(--good)}
-    .check.bad{border-color:var(--danger);color:var(--danger)}
-    .actions{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}
-    pre{background:var(--panel-2);border:1px solid var(--border);border-radius:12px;padding:14px;overflow-x:auto;font-family:var(--mono);font-size:12px;line-height:1.7;direction:ltr;text-align:left;max-height:420px}
-    .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--tint-strong);color:#fff;padding:9px 18px;border-radius:999px;font-size:13.5px;font-weight:700;opacity:0;pointer-events:none;transition:.2s;z-index:99}
-    .toast.show{opacity:1}
-    .hint{font-size:12.5px;color:var(--muted);line-height:1.8;margin:6px 0 0}
+    a { color: #4db3a8; font-weight: 700; }
   </style>
 </head>
 <body>
-  <header>
-    <div class="brand"><span class="logo">🧾</span> XBRL — التقارير المالية</div>
-    <a class="back" href="index.html#/dashboard">⚓ العودة إلى Nokha1</a>
-  </header>
-
-  <main>
-    <p class="hint">
-      أدخل بيانات المنشأة والقوائم المالية (بالدينار الكويتي)، تحقق من توازنها، ثم
-      وَلِّد ملف XBRL (بمعيار IFRS) جاهزاً للتنزيل.
-    </p>
-
-    <form id="form">
-      <h2>بيانات المنشأة والفترة</h2>
-      <fieldset>
-        <legend>المنشأة</legend>
-        <label>اسم الشركة <input name="entity" required maxlength="120" placeholder="شركة المهلب القابضة ش.م.ك.ع" /></label>
-        <label>الرقم التعريفي (LEI / سجل تجاري) <input name="lei" required maxlength="40" pattern="[A-Za-z0-9]{4,40}" placeholder="مثال: 254900XXXXXXXXXXXX00" style="font-family:var(--mono)" /></label>
-        <label>الفترة المالية
-          <select name="period">
-            <option value="Q1">الربع الأول (Q1)</option>
-            <option value="Q2">الربع الثاني (Q2)</option>
-            <option value="Q3">الربع الثالث (Q3)</option>
-            <option value="FY">سنوي (FY)</option>
-          </select>
-        </label>
-        <label>نهاية الفترة <input name="periodEnd" type="date" required /></label>
-      </fieldset>
-
-      <h2>قائمة المركز المالي (د.ك)</h2>
-      <fieldset>
-        <legend>الأصول</legend>
-        <label>الأصول المتداولة <input name="currentAssets" type="number" step="0.001" required value="0" /></label>
-        <label>الأصول غير المتداولة <input name="nonCurrentAssets" type="number" step="0.001" required value="0" /></label>
-      </fieldset>
-      <fieldset>
-        <legend>الالتزامات وحقوق الملكية</legend>
-        <label>الالتزامات المتداولة <input name="currentLiabilities" type="number" step="0.001" required value="0" /></label>
-        <label>الالتزامات غير المتداولة <input name="nonCurrentLiabilities" type="number" step="0.001" required value="0" /></label>
-        <label>حقوق الملكية <input name="equity" type="number" step="0.001" required value="0" /></label>
-      </fieldset>
-
-      <h2>قائمة الدخل (د.ك)</h2>
-      <fieldset>
-        <legend>الأداء</legend>
-        <label>الإيرادات <input name="revenue" type="number" step="0.001" required value="0" /></label>
-        <label>المصروفات <input name="expenses" type="number" step="0.001" required value="0" /></label>
-        <label>صافي الربح (يُحسب تلقائياً) <input name="netIncome" type="number" step="0.001" readonly style="opacity:.7" /></label>
-      </fieldset>
-
-      <div class="check" id="check">أدخل الأرقام ثم اضغط «تحقق من التوازن».</div>
-
-      <div class="actions">
-        <button class="btn" type="button" id="validate">✔ تحقق من التوازن</button>
-        <button class="btn primary" type="submit">⬇ توليد وتنزيل ملف XBRL</button>
-        <button class="btn" type="button" id="preview">👁 معاينة الملف</button>
-      </div>
-    </form>
-
-    <pre id="output" hidden></pre>
-  </main>
-
-  <div class="toast" id="toast"></div>
-
-  <script>
-    (function () {
-      "use strict";
-      var toastEl = document.getElementById("toast"), tt;
-      function toast(m){ toastEl.textContent=m; toastEl.classList.add("show"); clearTimeout(tt); tt=setTimeout(function(){toastEl.classList.remove("show");},1700); }
-
-      var form = document.getElementById("form");
-      function num(name){ return Number(form[name].value) || 0; }
-
-      function computeNet() {
-        form.netIncome.value = (num("revenue") - num("expenses")).toFixed(3);
-      }
-      form.addEventListener("input", computeNet);
-
-      function validate(showOk) {
-        computeNet();
-        var assets = num("currentAssets") + num("nonCurrentAssets");
-        var liabEq = num("currentLiabilities") + num("nonCurrentLiabilities") + num("equity");
-        var diff = assets - liabEq;
-        var check = document.getElementById("check");
-        var balanced = Math.abs(diff) < 0.0005;
-        if (balanced) {
-          check.className = "check ok";
-          check.textContent = "✔ القائمة متوازنة: الأصول (" + assets.toFixed(3) +
-            " د.ك) = الالتزامات + حقوق الملكية (" + liabEq.toFixed(3) + " د.ك)";
-          if (showOk) toast("القائمة متوازنة ✔");
-        } else {
-          check.className = "check bad";
-          check.textContent = "✘ غير متوازنة: الأصول " + assets.toFixed(3) +
-            " د.ك مقابل " + liabEq.toFixed(3) + " د.ك — الفرق " + diff.toFixed(3) + " د.ك";
-        }
-        return balanced;
-      }
-      document.getElementById("validate").addEventListener("click", function(){ validate(true); });
-
-      function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
-
-      function buildXbrl() {
-        var end = form.periodEnd.value;
-        // UTC throughout: parsing as local midnight and serialising as UTC
-        // shifts the date a day in any timezone east of Greenwich.
-        var parts = end.split("-").map(Number);
-        var months = form.period.value === "FY" ? 12 : 3;
-        // A fiscal period opens on the first of its opening month, so anchor
-        // there rather than subtracting months from a day-of-month that may not
-        // exist in the target month (31 May minus 3 months is not "31 February").
-        var start = new Date(Date.UTC(parts[0], parts[1] - 1 - (months - 1), 1));
-        var startStr = start.toISOString().slice(0, 10);
-        var lei = form.lei.value.trim();
-
-        function fact(tag, ctx, val) {
-          return '  <ifrs-full:' + tag + ' contextRef="' + ctx + '" unitRef="KWD" decimals="3">' +
-            Number(val).toFixed(3) + '</ifrs-full:' + tag + '>';
-        }
-
-        return [
-          '<?xml version="1.0" encoding="UTF-8"?>',
-          '<xbrl xmlns="http://www.xbrl.org/2003/instance"',
-          '      xmlns:xbrli="http://www.xbrl.org/2003/instance"',
-          '      xmlns:ifrs-full="https://xbrl.ifrs.org/taxonomy/2024-03-27/ifrs-full"',
-          '      xmlns:iso4217="http://www.xbrl.org/2003/iso4217">',
-          '  <context id="AsOf">',
-          '    <entity><identifier scheme="http://standards.iso.org/iso/17442">' + esc(lei) + '</identifier></entity>',
-          '    <period><instant>' + end + '</instant></period>',
-          '  </context>',
-          '  <context id="Duration">',
-          '    <entity><identifier scheme="http://standards.iso.org/iso/17442">' + esc(lei) + '</identifier></entity>',
-          '    <period><startDate>' + startStr + '</startDate><endDate>' + end + '</endDate></period>',
-          '  </context>',
-          '  <unit id="KWD"><measure>iso4217:KWD</measure></unit>',
-          '  <!-- ' + esc(form.entity.value) + ' — ' + form.period.value + ' ending ' + end + ' -->',
-          fact("CurrentAssets", "AsOf", num("currentAssets")),
-          fact("NoncurrentAssets", "AsOf", num("nonCurrentAssets")),
-          fact("Assets", "AsOf", num("currentAssets") + num("nonCurrentAssets")),
-          fact("CurrentLiabilities", "AsOf", num("currentLiabilities")),
-          fact("NoncurrentLiabilities", "AsOf", num("nonCurrentLiabilities")),
-          fact("Liabilities", "AsOf", num("currentLiabilities") + num("nonCurrentLiabilities")),
-          fact("Equity", "AsOf", num("equity")),
-          fact("EquityAndLiabilities", "AsOf", num("currentLiabilities") + num("nonCurrentLiabilities") + num("equity")),
-          fact("Revenue", "Duration", num("revenue")),
-          fact("ExpensesByNature", "Duration", num("expenses")),
-          fact("ProfitLoss", "Duration", num("revenue") - num("expenses")),
-          '</xbrl>'
-        ].join("\n");
-      }
-
-      document.getElementById("preview").addEventListener("click", function () {
-        if (!form.reportValidity()) return;
-        var out = document.getElementById("output");
-        out.textContent = buildXbrl();
-        out.hidden = false;
-        out.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      });
-
-      form.addEventListener("submit", function (e) {
-        e.preventDefault();
-        if (!validate(false)) { toast("صحّح التوازن أولاً — الأصول لا تساوي الالتزامات وحقوق الملكية"); return; }
-        var xml = buildXbrl();
-        try {
-          var hist = JSON.parse(localStorage.getItem("nokhatha-xbrl-reports-v1")) || [];
-          hist.push({
-            entity: form.entity.value.trim().slice(0, 120),
-            lei: form.lei.value.trim().slice(0, 40),
-            period: form.period.value,
-            periodEnd: form.periodEnd.value,
-            assets: num("currentAssets") + num("nonCurrentAssets"),
-            equity: num("equity"),
-            revenue: num("revenue"),
-            profit: num("revenue") - num("expenses"),
-            filedAt: new Date().toISOString()
-          });
-          localStorage.setItem("nokhatha-xbrl-reports-v1", JSON.stringify(hist.slice(-200)));
-        } catch (e) { /* storage unavailable */ }
-        var blob = new Blob([xml], { type: "application/xml" });
-        var a = document.createElement("a");
-        var name = (form.entity.value.trim() || "report").replace(/[^\w\u0600-\u06FF-]+/g, "-").slice(0, 60) || "report";
-        a.href = URL.createObjectURL(blob);
-        a.download = "xbrl-" + name + "-" + form.period.value + "-" + form.periodEnd.value + ".xml";
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        URL.revokeObjectURL(a.href);
-        toast("تم توليد ملف XBRL وتنزيله ✔");
-      });
-
-      computeNet();
-    })();
-  </script>
-  <script>
-    if ("serviceWorker" in navigator) {
-      window.addEventListener("load", function () {
-        navigator.serviceWorker.register("sw.js").catch(function () { /* offline install unavailable */ });
-      });
-    }
-  </script>
+  <!-- XBRL — التقارير المالية is now a tab of the unified system (nizam.html). One implementation,
+       one data core; this stub keeps old links and bookmarks working. -->
+  <p>⚓ جارٍ التحويل إلى النظام الموحد…<br /><a href="nizam.html#/xbrl">اضغط هنا إذا لم يتم التحويل</a></p>
+  <script>location.replace("nizam.html#/xbrl");</script>
 </body>
 </html>

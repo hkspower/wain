@@ -14,8 +14,14 @@
 The Almuhallab unified services website: a static HTML5 PWA, Arabic-first (RTL),
 no build step and no dependencies.
 
-- `index.html` portal · `safi.html` · `xbrl.html` · `delivery.html` ·
-  `editor.html` · `admin.html` · `sw.js` · `manifest.webmanifest`
+- `index.html` portal · `nizam.html` (the unified system: المركز المالي · صافي ·
+  XBRL · التوصيل in four tabs over one data core) · `editor.html` ·
+  `admin.html` · `sw.js` · `manifest.webmanifest`
+- `safi.html`, `xbrl.html`, `delivery.html` are **redirect stubs** to
+  `nizam.html#/<tab>`. There is one implementation of each unit — do not
+  reintroduce standalone copies.
+- The units are linked, not merely co-located: portfolio market value feeds XBRL
+  non-current assets, delivered-order totals feed XBRL revenue.
 - Every colour is a CSS custom property in `:root`, with a
   `@media (prefers-color-scheme: dark)` override. **All pages must carry the
   identical token set** — divergence between pages has been a real bug before.
@@ -38,7 +44,7 @@ no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 83 checks covering
+- `python3 design/test_suite.py` is the full system test — 100 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, and layout. Run it
   after any change to `almuhallab/`; it exits non-zero on failure.

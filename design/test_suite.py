@@ -13,7 +13,11 @@ ROOT = pathlib.Path("/home/user/wain/almuhallab")
 CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
 PORT = 8751
 BASE = f"http://127.0.0.1:{PORT}"
-PAGES = ["index.html", "safi.html", "xbrl.html", "delivery.html", "editor.html", "admin.html"]
+# The three service units are tabs of one page now (nizam.html); the old
+# filenames survive as redirect stubs so existing links keep working.
+PAGES = ["index.html", "nizam.html", "editor.html", "admin.html"]
+STUBS = {"safi.html": "nizam.html#/safi", "xbrl.html": "nizam.html#/xbrl",
+         "delivery.html": "nizam.html#/delivery", "nokha1.html": "index.html"}
 
 results = []
 def check(section, name, ok, detail=""):
@@ -97,8 +101,14 @@ def static_checks():
     check(S, "every internal link and precache entry resolves", not broken, str(broken[:4]))
 
     # every page must be precached, or it breaks offline
-    missing = [p for p in PAGES if f'"{p}"' not in sw]
+    missing = [p for p in list(PAGES) + list(STUBS) if f'"{p}"' not in sw]
     check(S, "service worker precaches every page", not missing, str(missing))
+
+    # each retired page must still send visitors to its tab
+    for stub, dest in STUBS.items():
+        t = (ROOT / stub).read_text()
+        check(S, f"{stub} redirects to {dest}",
+              f'url={dest}' in t and f'location.replace("{dest}")' in t)
 
     mf = json.loads((ROOT / "manifest.webmanifest").read_text())
     check(S, "manifest has the required fields",
@@ -124,6 +134,7 @@ def browser_checks():
         pg.on("pageerror", lambda e: errs.append(str(e)))
 
         safi_checks(pg)
+        integration_checks(pg)
         xbrl_checks(pg)
         delivery_checks(pg)
         timezone_checks(br)
@@ -140,7 +151,7 @@ def browser_checks():
 # ───────────────────────────── SAFI: arithmetic, export, injection
 def safi_checks(pg):
     S = "safi"
-    pg.goto(f"{BASE}/safi.html", wait_until="networkidle")
+    pg.goto(f"{BASE}/nizam.html#/safi", wait_until="networkidle")
     pg.evaluate("localStorage.clear()")
     pg.reload(wait_until="networkidle")
 
@@ -148,7 +159,7 @@ def safi_checks(pg):
         pg.fill('input[name="ticker"]', t); pg.fill('input[name="name"]', n)
         pg.fill('input[name="qty"]', str(q)); pg.fill('input[name="cost"]', str(c))
         pg.fill('input[name="price"]', str(p))
-        pg.click('#form button[type="submit"]'); pg.wait_for_timeout(140)
+        pg.click('#safi-form button[type="submit"]'); pg.wait_for_timeout(140)
 
     add("NBK", "بنك الكويت الوطني", 12000, 850, 921)   # +852.000
     add("ZAIN", "زين", 8500, 452, 438)                  # -119.000
@@ -165,12 +176,12 @@ def safi_checks(pg):
     check(S, "profit/loss is exact", abs(float(got_pl) - (val - cost)) < .001,
           f"{got_pl} vs {val-cost:.3f}")
     check(S, "a losing position is marked as a loss",
-          "down" in (pg.get_attribute("#rows tr:nth-child(2) td:nth-child(7)", "class") or ""))
+          "down" in (pg.get_attribute("#safi-rows tr:nth-child(2) td:nth-child(7)", "class") or ""))
 
     # updating an existing ticker replaces it rather than duplicating
     add("NBK", "بنك الكويت الوطني", 1000, 800, 900)
     check(S, "re-adding a ticker updates in place",
-          pg.eval_on_selector_all("#rows tr", "n=>n.length") == 2)
+          pg.eval_on_selector_all("#safi-rows tr", "n=>n.length") == 2)
 
     # hostile company name must render as text, and must not become a formula
     add("EVIL", XSS + ",=1+1", 10, 100, 100)
@@ -178,19 +189,84 @@ def safi_checks(pg):
     check(S, "XSS payload does not execute",
           pg.evaluate("window.__pwned === undefined"))
     check(S, "XSS payload is rendered as visible text",
-          XSS in pg.inner_text("#rows"))
+          XSS in pg.inner_text("#safi-rows"))
     with pg.expect_download() as dl:
-        pg.click("#export")
+        pg.click("#safi-export")
     csv = pathlib.Path(dl.value.path()).read_text()
     formula_rows = [l for l in csv.splitlines()[1:] if re.match(r'^[^,]*,"?[=+\-@]', l)]
     check(S, "CSV export neutralises spreadsheet formulas", not formula_rows, str(formula_rows[:1]))
     check(S, "CSV contains a row per holding", len(csv.strip().splitlines()) == 4,
           f"{len(csv.strip().splitlines())} lines")
 
+# ───────────── the integration: one data core feeding the statements
+def integration_checks(pg):
+    """SAFI and Delivery must actually reach XBRL — that is the whole point of
+    the unified system. Runs right after safi_checks, whose holdings it reuses."""
+    S = "integration"
+    pg.goto(f"{BASE}/nizam.html#/delivery", wait_until="networkidle")
+    pg.evaluate("localStorage.removeItem('nokhatha-delivery-orders-v1')")
+    pg.reload(wait_until="networkidle")
+
+    def order(amount):
+        pg.fill('#del-form input[name="customer"]', "عميل")
+        pg.fill('#del-form input[name="phone"]', "99887766")
+        pg.fill('#del-form input[name="address"]', "السالمية")
+        pg.fill('#del-form input[name="items"]', "طلب")
+        pg.fill('#del-form input[name="amount"]', f"{amount:.3f}")
+        pg.click('#del-form button[type="submit"]'); pg.wait_for_timeout(160)
+
+    order(7.5); order(12.25)
+    for _ in range(3):                                   # deliver the first only
+        pg.click('button[data-next="0"]'); pg.wait_for_timeout(150)
+
+    holdings = pg.evaluate("JSON.parse(localStorage.getItem('nokhatha-safi-v1'))")
+    market = sum(h["qty"] * h["price"] / 1000 for h in holdings)
+
+    # the position tab states the combined figures
+    pg.goto(f"{BASE}/nizam.html#/position", wait_until="networkidle")
+    pg.wait_for_timeout(250)
+    got_val = float(pg.inner_text("#p-value").replace(",", ""))
+    got_rev = float(pg.inner_text("#p-revenue").replace(",", ""))
+    got_net = float(pg.inner_text("#p-net").replace(",", ""))
+    check(S, "position shows the portfolio market value", abs(got_val - market) < .001,
+          f"{got_val} vs {market:.3f}")
+    check(S, "position shows delivered revenue only", abs(got_rev - 7.5) < .001, str(got_rev))
+    check(S, "combined resources are the sum of both units",
+          abs(got_net - (market + 7.5)) < .001, f"{got_net} vs {market + 7.5:.3f}")
+    check(S, "the linkage is stated on screen, not just implied",
+          "الأصول غير المتداولة" in pg.inner_text("#flow")
+          and "الإيرادات" in pg.inner_text("#flow"))
+
+    # and the derive button pushes them into the financial statements
+    pg.goto(f"{BASE}/nizam.html#/xbrl", wait_until="networkidle")
+    pg.fill('input[name="nonCurrentAssets"]', "0"); pg.fill('input[name="revenue"]', "0")
+    pg.click("#xbrl-derive"); pg.wait_for_timeout(250)
+    nca = float(pg.input_value('input[name="nonCurrentAssets"]'))
+    rev = float(pg.input_value('input[name="revenue"]'))
+    check(S, "SAFI market value becomes non-current assets", abs(nca - market) < .001,
+          f"{nca} vs {market:.3f}")
+    check(S, "delivered orders become revenue", abs(rev - 7.5) < .001, str(rev))
+    check(S, "net income follows the derived revenue",
+          abs(float(pg.input_value('input[name="netIncome"]')) - 7.5) < .001)
+    check(S, "derived fields are marked as derived",
+          "derived" in (pg.get_attribute('input[name="revenue"]', "class") or ""))
+
+    # a derived figure stays editable — the derivation is a starting point
+    pg.fill('input[name="revenue"]', "99.000"); pg.wait_for_timeout(150)
+    check(S, "editing a derived field clears the marker",
+          "derived" not in (pg.get_attribute('input[name="revenue"]', "class") or ""))
+
+    # all four modules share one page, so one storage clear resets everything
+    pg.goto(f"{BASE}/nizam.html#/position", wait_until="networkidle")
+    keys = pg.evaluate("Object.keys(localStorage).filter(k=>k.startsWith('nokhatha-'))")
+    check(S, "the unified page uses the established storage keys",
+          "nokhatha-safi-v1" in keys and "nokhatha-delivery-orders-v1" in keys, str(keys))
+
+
 # ───────────────────────────── XBRL: validation, XML, date arithmetic
 def xbrl_checks(pg):
     S = "xbrl"
-    pg.goto(f"{BASE}/xbrl.html", wait_until="networkidle")
+    pg.goto(f"{BASE}/nizam.html#/xbrl", wait_until="networkidle")
 
     def fill(period, end, ca, nca, cl, ncl, eq, rev, exp):
         pg.fill('input[name="entity"]', "شركة المهلب القابضة")
@@ -205,10 +281,10 @@ def xbrl_checks(pg):
 
     # unbalanced must be rejected
     fill("FY", "2026-12-31", 100, 100, 50, 50, 50, 10, 5)     # assets 200 vs 150
-    pg.click("#validate"); pg.wait_for_timeout(200)
+    pg.click("#xbrl-validate"); pg.wait_for_timeout(200)
     check(S, "an unbalanced sheet is reported as unbalanced",
-          "غير متوازنة" in pg.inner_text("#check"))
-    check(S, "the imbalance amount is stated", "50.000" in pg.inner_text("#check"))
+          "غير متوازنة" in pg.inner_text("#xbrl-check"))
+    check(S, "the imbalance amount is stated", "50.000" in pg.inner_text("#xbrl-check"))
 
     # net income is derived, not typed
     check(S, "net income is computed as revenue - expenses",
@@ -216,12 +292,12 @@ def xbrl_checks(pg):
 
     # balanced: assets == liabilities + equity
     fill("FY", "2026-12-31", 4820.5, 11350, 2310.25, 5140.75, 8719.5, 9640, 6215.375)
-    pg.click("#validate"); pg.wait_for_timeout(200)
-    check(S, "a balanced sheet passes", "متوازنة" in pg.inner_text("#check")
-          and "غير" not in pg.inner_text("#check"))
+    pg.click("#xbrl-validate"); pg.wait_for_timeout(200)
+    check(S, "a balanced sheet passes", "متوازنة" in pg.inner_text("#xbrl-check")
+          and "غير" not in pg.inner_text("#xbrl-check"))
 
-    pg.click("#preview"); pg.wait_for_timeout(400)
-    xml = pg.inner_text("#output")
+    pg.click("#xbrl-preview"); pg.wait_for_timeout(400)
+    xml = pg.inner_text("#xbrl-out")
     try:
         ET.fromstring(xml); wf = True; err = ""
     except Exception as e:
@@ -249,8 +325,8 @@ def xbrl_checks(pg):
 
     # quarter ending on a 31st — month arithmetic must not overflow into the wrong month
     fill("Q2", "2026-05-31", 100, 0, 40, 0, 60, 10, 4)
-    pg.click("#preview"); pg.wait_for_timeout(400)
-    xml2 = pg.inner_text("#output")
+    pg.click("#xbrl-preview"); pg.wait_for_timeout(400)
+    xml2 = pg.inner_text("#xbrl-out")
     m = re.search(r"<startDate>([\d-]+)</startDate>", xml2)
     start2 = m.group(1) if m else "?"
     check(S, "quarter ending 31 May starts 1 March (no month overflow)",
@@ -258,8 +334,8 @@ def xbrl_checks(pg):
 
     # entity name is XML-escaped
     pg.fill('input[name="entity"]', 'A & B <script>"x"')
-    pg.click("#preview"); pg.wait_for_timeout(300)
-    out = pg.inner_text("#output")
+    pg.click("#xbrl-preview"); pg.wait_for_timeout(300)
+    out = pg.inner_text("#xbrl-out")
     check(S, "entity name is XML-escaped", "&amp;" in out and "<script>" not in out)
 
 def timezone_checks(br):
@@ -269,15 +345,15 @@ def timezone_checks(br):
     for tz in ("UTC", "Asia/Kuwait", "Pacific/Kiritimati", "Pacific/Honolulu"):
         c = br.new_context(timezone_id=tz, locale="ar-KW")
         p = c.new_page()
-        p.goto(f"{BASE}/xbrl.html", wait_until="networkidle")
+        p.goto(f"{BASE}/nizam.html#/xbrl", wait_until="networkidle")
         p.fill('input[name="entity"]', "س"); p.fill('input[name="lei"]', "ABCD1234")
         p.select_option('select[name="period"]', "FY")
         p.fill('input[name="periodEnd"]', "2026-12-31")
         for k in ("currentAssets", "nonCurrentAssets", "currentLiabilities",
                   "nonCurrentLiabilities", "equity", "revenue", "expenses"):
             p.fill(f'input[name="{k}"]', "0.000")
-        p.click("#preview"); p.wait_for_timeout(350)
-        m = re.search(r"<startDate>([\d-]+)</startDate>", p.inner_text("#output"))
+        p.click("#xbrl-preview"); p.wait_for_timeout(350)
+        m = re.search(r"<startDate>([\d-]+)</startDate>", p.inner_text("#xbrl-out"))
         got[tz] = m.group(1) if m else "?"
         c.close()
     check(S, "the period start is identical in every timezone",
@@ -286,33 +362,33 @@ def timezone_checks(br):
 # ───────────────────────────── Delivery: ids, pipeline, stats
 def delivery_checks(pg):
     S = "delivery"
-    pg.goto(f"{BASE}/delivery.html", wait_until="networkidle")
+    pg.goto(f"{BASE}/nizam.html#/delivery", wait_until="networkidle")
     pg.evaluate("localStorage.removeItem('nokhatha-delivery-orders-v1');"
                 "localStorage.removeItem('nokhatha-delivery-couriers-v1')")
     pg.reload(wait_until="networkidle")
 
-    pg.fill('#form-courier input[name="cname"]', "سالم")
-    pg.fill('#form-courier input[name="cphone"]', "99012345")
-    pg.click('#form-courier button[type="submit"]'); pg.wait_for_timeout(160)
+    pg.fill('#del-courier-form input[name="cname"]', "سالم")
+    pg.fill('#del-courier-form input[name="cphone"]', "99012345")
+    pg.click('#del-courier-form button[type="submit"]'); pg.wait_for_timeout(160)
 
     def order(cust, amount):
-        pg.fill('#form input[name="customer"]', cust)
-        pg.fill('#form input[name="phone"]', "99887766")
-        pg.fill('#form input[name="address"]', "السالمية")
-        pg.fill('#form input[name="items"]', "طلب")
-        pg.fill('#form input[name="amount"]', str(amount))
-        pg.click('#form button[type="submit"]'); pg.wait_for_timeout(160)
+        pg.fill('#del-form input[name="customer"]', cust)
+        pg.fill('#del-form input[name="phone"]', "99887766")
+        pg.fill('#del-form input[name="address"]', "السالمية")
+        pg.fill('#del-form input[name="items"]', "طلب")
+        pg.fill('#del-form input[name="amount"]', str(amount))
+        pg.click('#del-form button[type="submit"]'); pg.wait_for_timeout(160)
 
     order("عميل ١", 7.5); order("عميل ٢", 12.25); order(XSS, 3.0)
     ids = pg.evaluate("JSON.parse(localStorage.getItem('nokhatha-delivery-orders-v1')).map(o=>o.id)")
     check(S, "order ids are sequential and zero-padded", ids == ["ORD-0001", "ORD-0002", "ORD-0003"], str(ids))
     check(S, "hostile customer name does not execute", pg.evaluate("window.__pwned === undefined"))
-    check(S, "hostile customer name renders as text", XSS in pg.inner_text("#orders"))
+    check(S, "hostile customer name renders as text", XSS in pg.inner_text("#del-orders"))
 
     # advance the first order to delivered; revenue counts only delivered
     for _ in range(3):
         pg.click('button[data-next="0"]'); pg.wait_for_timeout(160)
-    check(S, "status advances to delivered", "تم التسليم" in pg.inner_text("#orders"))
+    check(S, "status advances to delivered", "تم التسليم" in pg.inner_text("#del-orders"))
     check(S, "revenue counts only delivered orders",
           pg.inner_text("#s-revenue").replace(",", "") == "7.500",
           pg.inner_text("#s-revenue"))
@@ -414,8 +490,9 @@ def tamper_checks(pg):
         "nokhatha-users-v1": '{"a@b.c":{"name":null,"plan":77,"createdAt":"nonsense"}}',
         "nokhatha-xbrl-reports-v1": '[{"entity":null,"assets":"x","profit":null}]',
     }
-    for page, keys in (("safi.html", ["nokhatha-safi-v1"]),
-                       ("delivery.html", ["nokhatha-delivery-orders-v1"]),
+    for page, keys in (("nizam.html#/safi", ["nokhatha-safi-v1"]),
+                       ("nizam.html#/delivery", ["nokhatha-delivery-orders-v1"]),
+                       ("nizam.html#/xbrl", ["nokhatha-xbrl-reports-v1"]),
                        ("index.html", ["nokhatha-users-v1"])):
         pg.goto(f"{BASE}/{page}", wait_until="networkidle")
         for k in keys:
@@ -428,7 +505,7 @@ def tamper_checks(pg):
               (errs[0] if errs else "page rendered empty") if (errs or not rendered) else "")
 
     # corrupt JSON entirely
-    pg.goto(f"{BASE}/safi.html", wait_until="networkidle")
+    pg.goto(f"{BASE}/nizam.html#/safi", wait_until="networkidle")
     pg.evaluate("localStorage.setItem('nokhatha-safi-v1','{not json at all')")
     errs = []
     pg.once("pageerror", lambda e: errs.append(str(e)))
@@ -448,12 +525,12 @@ def offline_checks(ctx, br):
     cached = pg.evaluate("""caches.keys().then(ks => ks.length
         ? caches.open(ks[0]).then(c => c.keys().then(rs => rs.map(r => new URL(r.url).pathname)))
         : [])""")
-    for want in ("/index.html", "/safi.html", "/delivery.html", "/admin.html"):
+    for want in ("/index.html", "/nizam.html", "/safi.html", "/delivery.html", "/admin.html"):
         check(S, f"precached {want}", any(p.endswith(want) for p in cached))
 
     ctx.set_offline(True)
     ok = True; detail = ""
-    for p in ("index.html", "safi.html", "delivery.html"):
+    for p in ("index.html", "nizam.html", "nizam.html#/xbrl"):
         try:
             r = pg.goto(f"{BASE}/{p}", wait_until="domcontentloaded", timeout=8000)
             body = pg.evaluate("document.body.innerText.length")
@@ -471,7 +548,8 @@ def layout_checks(br):
         c = br.new_context(viewport={"width": w, "height": h}, locale="ar-KW")
         p = c.new_page()
         overflow = []
-        for page in ("index.html", "safi.html", "xbrl.html", "delivery.html", "admin.html"):
+        for page in ("index.html", "nizam.html", "nizam.html#/safi", "nizam.html#/xbrl",
+                     "nizam.html#/delivery", "admin.html"):
             p.goto(f"{BASE}/{page}", wait_until="networkidle"); p.wait_for_timeout(300)
             sw_ = p.evaluate("document.documentElement.scrollWidth")
             cw = p.evaluate("document.documentElement.clientWidth")

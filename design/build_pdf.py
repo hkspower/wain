@@ -124,10 +124,11 @@ plates = [
     ("02-pricing",  "02", "Plans", "الاشتراكات", "index.html#/pricing"),
     ("03-register", "03", "Registration", "إنشاء حساب", "index.html#/register"),
     ("04-dashboard","04", "Dashboard", "لوحة التحكم", "index.html#/dashboard"),
-    ("05-safi",     "05", "SAFI — Portfolio", "صافي", "safi.html"),
-    ("06-xbrl",     "06", "XBRL — Reporting", "التقارير المالية", "xbrl.html"),
-    ("07-delivery", "07", "Delivery", "التوصيل", "delivery.html"),
-    ("08-editor",   "08", "Code Editor", "المحرر", "editor.html"),
+    ("05-safi",     "05", "SAFI — Portfolio", "صافي", "nizam.html#/safi"),
+    ("06-xbrl",     "06", "XBRL — Reporting", "التقارير المالية", "nizam.html#/xbrl"),
+    ("07-delivery", "07", "Delivery", "التوصيل", "nizam.html#/delivery"),
+    ("08-position", "08", "Unified Position", "المركز المالي", "nizam.html#/position"),
+    ("09-editor",   "09", "Code Editor", "المحرر", "editor.html"),
 ]
 fnum_s, fttl, far_s, furl = font(F_MONO, 40), font(F_MED, 64), font(F_TECH, 54), font(F_MONO, 34)
 

@@ -9,9 +9,8 @@ to a phone's home screen and run it offline.
 | File | Page |
 |------|------|
 | `index.html` | **Nokha1 portal** — landing, registration, login, dashboard, plans |
-| `safi.html` | **صافي (SAFI)** — portfolio manager with P/L and CSV export |
-| `xbrl.html` | **XBRL** — financial statement builder + XBRL file generator |
-| `delivery.html` | **التوصيل** — delivery orders, couriers, status pipeline |
+| `nizam.html` | **النظام الموحد** — one page, four tabs: المركز المالي · صافي · XBRL · التوصيل |
+| `safi.html`, `xbrl.html`, `delivery.html` | redirects to the matching tab (keeps old links working) |
 | `editor.html` | **Almuhallab Code** — in-browser HTML/CSS/JS editor |
 | `admin.html` | **Admin console** — customers, operations, finance, settings |
 | `nokha1.html` | redirect to `index.html` (keeps old links working) |
@@ -28,6 +27,29 @@ Arabic-first (RTL) and presented as **one system**:
 - **Dashboard** with stats and one-click access to every service unit
 - **Plans** (بحّار / قبطان / نوخذة) marked *قريباً* — pricing and payment come
   later; every service is unlocked for every registered account in the meantime
+
+## One system, not three
+
+The three service units used to be three separate pages with three separate
+data stores and nothing flowing between them — the revenue you typed into XBRL
+had no relationship to the orders you had actually delivered. They are now four
+tabs of `nizam.html` over **one shared data core**, so the numbers are derived
+rather than retyped:
+
+| Source | Feeds |
+|--------|-------|
+| صافي — portfolio market value | XBRL **non-current assets** |
+| التوصيل — delivered orders | XBRL **revenue** |
+
+The **المركز المالي** tab states that linkage on screen and shows the combined
+position (portfolio value, portfolio P/L, delivery revenue, orders in progress,
+total resources). In the XBRL tab, **⟳ احسب من النظام** pulls both figures in and
+marks the fields as derived; editing a field clears the marker, so the
+derivation is a starting point and never a cage.
+
+Storage keys are unchanged (`nokhatha-safi-v1`, `nokhatha-delivery-orders-v1`,
+`nokhatha-delivery-couriers-v1`, `nokhatha-xbrl-reports-v1`), so existing data
+and the admin console keep working.
 
 ## The service units
 
@@ -111,11 +133,12 @@ visitor's OS happens to have installed.
 ## Tests
 
 ```bash
-python3 design/test_suite.py     # 83 checks, exits non-zero on failure
+python3 design/test_suite.py     # 100 checks, exits non-zero on failure
 ```
 
 Covers token consistency and contrast in both themes, SAFI/XBRL/delivery
-arithmetic against hand-computed expectations, XBRL well-formedness and fact
+arithmetic against hand-computed expectations, the cross-module derivation
+(portfolio value → non-current assets, delivered orders → revenue), XBRL well-formedness and fact
 values, authentication (hashing, lockout, suspension, session expiry), XSS and
 CSV/XML injection, resilience to tampered `localStorage`, service-worker
 precaching and genuine offline loading, and layout overflow at three widths.
