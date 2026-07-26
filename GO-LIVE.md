@@ -89,9 +89,6 @@ Regenerate the zip any time with `node sporta-web/scripts/make-package.mjs`.
 > Manager (or your FTP app) and confirm it arrived. Without it you get no HTTPS
 > redirect, no security headers, and `/shop` will show "404 Not Found".
 
-The zip also contains `ALTERNATIVE-static-site/` — the same store built with no
-JavaScript build step. You do not need it; it is a fallback.
-
 ---
 
 ## After uploading — 4 required steps

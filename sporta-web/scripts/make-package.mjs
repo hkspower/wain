@@ -51,8 +51,11 @@ ORDER.forEach((name, i) => {
 // not two.
 cpSync(join(web, 'scripts', 'mac-check.sh'), join(stage, 'sporta-mac-check.sh'))
 
-// ---- 4. the no-build fallback store ------------------------------------------
-cpSync(join(root, 'sporta-html5'), join(stage, 'ALTERNATIVE-static-site'), { recursive: true })
+// The sporta-html5 fallback is deliberately NOT packaged. It is a second copy
+// of the store that nobody is meant to upload, it carried its own build output
+// as well as its source (1.1 MB of the package for something the README told
+// you to ignore), and a folder full of .html files sitting next to the real
+// site is an invitation to upload the wrong one. It still lives in the repo.
 
 // ---- 5. instructions ---------------------------------------------------------
 writeFileSync(join(stage, 'README-FIRST.txt'), `SPORTA — go live
@@ -136,10 +139,6 @@ Then delete these three files from the server:
 sporta-mac-check.sh  tests your own Mac and this server from Terminal:
     bash sporta-mac-check.sh
 Optional. It never asks for a password and changes nothing.
-
---------------------------------------------------------------------------------
-ALTERNATIVE-static-site/  is a no-JavaScript-build fallback copy of the store.
-You do not need it. Ignore it unless the main site cannot be used.
 ================================================================================
 `)
 
