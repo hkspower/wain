@@ -3,8 +3,15 @@ import { configValue } from './runtimeConfig'
 // Base URL of the PHP payment endpoints on Hostinger. Classic KNET (KPG) lives
 // in public_html/knet/. (For the CBK REST-JSON T-Pay model it would be /pay.)
 // Settable from /config.js so the endpoints can move without a rebuild.
+// Two gateways, two folders. They are separate integrations with separate
+// credentials, not two names for one thing:
+//   /knet  classic KNET — Tranportal id + resource key, AES trandata
+//   /pay   CBK hosted   — ClientId + ClientSecret + ENCRP_KEY, and the only
+//                         one that can do T-Pay QR (tij_MerchPayType = 2)
 const PAY_BASE =
   configValue('payBaseUrl', import.meta.env.VITE_PAY_BASE_URL) || 'https://www.sporta.com.kw/knet'
+const CBK_BASE =
+  configValue('cbkBaseUrl', import.meta.env.VITE_CBK_BASE_URL) || 'https://www.sporta.com.kw/pay'
 
 // Unique, CBK-safe track id (alphanumeric, <= 30 chars).
 export function makeTrackId(prefix = 'SP') {
@@ -67,6 +74,15 @@ export async function startCheckout({ items, lang = 'en', customer, paymentMetho
   // ask them to pay twice.
   if (paymentMethod === 'cod') {
     window.location.href = `/payment/result?status=cod&trackid=${encodeURIComponent(data.track_id)}`
+    return data
+  }
+
+  // T-Pay is the CBK hosted page with the QR payment type selected. No amount
+  // is sent here either — pay.php reads the order's stored amount, so the
+  // browser cannot influence what is charged on either gateway.
+  if (paymentMethod === 'tpay') {
+    const p = new URLSearchParams({ trackid: data.track_id, lang, paytype: '2' })
+    window.location.href = `${CBK_BASE}/pay.php?${p.toString()}`
     return data
   }
 

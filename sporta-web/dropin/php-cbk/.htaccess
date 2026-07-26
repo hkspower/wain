@@ -1,22 +1,49 @@
-# CBK payment endpoints — HTTPS-only + protect config/lib.
+# CBK hosted gateway endpoints — HTTPS-only + protect config/lib/token.
 # Place this folder as /public_html/pay/ so endpoints are:
 #   https://www.sporta.com.kw/pay/pay.php
 #   https://www.sporta.com.kw/pay/callback.php
 
-# ---- Force HTTPS on all payment requests ----
+# Canonical host + HTTPS in a SINGLE 301, matching the storefront and knet/.
+#
+# This file previously redirected to %{HTTP_HOST}, which is the bug knet/
+# already had fixed: a hit on the bare domain stayed on the bare domain, so the
+# payment path answered on a second spelling of the origin — the one thing
+# CLAUDE.md says must never exist. It also redirected whenever %{HTTPS} != on,
+# which loops behind a proxy that reports TLS another way, and Hostinger is one.
 <IfModule mod_rewrite.c>
   RewriteEngine On
-  RewriteCond %{HTTPS} !=on [OR]
-  RewriteCond %{HTTP:X-Forwarded-Proto} =http
-  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+  RewriteCond %{HTTP_HOST} !^www\.sporta\.com\.kw(:[0-9]+)?$ [NC]
+  RewriteRule ^ https://www.sporta.com.kw%{REQUEST_URI} [R=301,L]
+
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  RewriteCond %{HTTP:X-Forwarded-SSL} !=on
+  RewriteCond %{SERVER_PORT} !=443
+  RewriteRule ^ https://www.sporta.com.kw%{REQUEST_URI} [R=301,L]
+
+  # No dotfiles. .cbk_token.json is one, and it holds a live AccessToken.
+  RewriteRule "(?i)(^|/)\.(?!well-known)" - [F,L]
 </IfModule>
 
-# ---- HSTS on the payment path ----
 <IfModule mod_headers.c>
   Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  Header always unset X-Powered-By
+  Header set X-Content-Type-Options "nosniff"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+
+  # Payment responses carry order state — never cache them, and keep the
+  # endpoints out of search results.
+  Header always set Cache-Control "no-store, no-cache, must-revalidate, private"
+  Header always set X-Robots-Tag "noindex, nofollow"
 </IfModule>
 
-# ---- Block direct web access to config, library, and token cache ----
+# Only pay.php and callback.php are entry points. config.php holds the merchant
+# secrets, cbk.php is the library, and the token cache is a bearer credential.
 <FilesMatch "^(config\.php|config\.example\.php|cbk\.php|\.cbk_token\.json)$">
+  Require all denied
+</FilesMatch>
+
+# Any log or cache file, wherever it lands.
+<FilesMatch "(?i)\.(json|log|jsonl)$">
   Require all denied
 </FilesMatch>

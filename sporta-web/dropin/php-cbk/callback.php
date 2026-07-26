@@ -104,7 +104,11 @@ function cbk_update_supabase(array $cfg, string $trackid, bool $paid, array $res
         . '?' . $cfg['orders_match_column'] . '=eq.' . rawurlencode($trackid);
 
     $payload = json_encode([
-        'payment_status'  => $paid ? 'paid' : 'failed',
+        // 'review', not 'failed', when the bank said yes but the amount did
+        // not match: the money may well have left the customer's account, and
+        // filing that as a plain failure is how a real payment gets ignored.
+        'payment_status'  => $paid ? 'paid'
+            : ((string)($res['Status'] ?? '') === '1' ? 'review' : 'failed'),
         'cbk_status'      => (string)($res['Status'] ?? ''),
         'cbk_message'     => (string)($res['Message'] ?? ''),
         'cbk_paymentid'   => (string)($res['PaymentId'] ?? ''),
@@ -113,7 +117,11 @@ function cbk_update_supabase(array $cfg, string $trackid, bool $paid, array $res
         'cbk_reference'   => (string)($res['ReferenceId'] ?? ''),
         'cbk_receipt'     => (string)($res['ReceiptNo'] ?? ''),
         'cbk_paytype'     => (string)($res['PayType'] ?? ''),
-        'amount'          => (string)($res['Amount'] ?? ''),
+        // NOT 'amount'. That column is computed by a database trigger from the
+        // stored product prices and is the figure this order is owed. Writing
+        // the gateway's number over it would let a failed or tampered payment
+        // rewrite what the customer owes — and this runs on the failure path
+        // too, so it would have done exactly that.
         'paid_at'         => $paid ? gmdate('c') : null,
     ]);
 

@@ -28,7 +28,12 @@ const roleOf = (req) => {
   try {
     const b64 = (tok.split('.')[1] || '').replace(/-/g, '+').replace(/_/g, '/')
     const claims = JSON.parse(Buffer.from(b64 + '='.repeat((4 - (b64.length % 4)) % 4), 'base64').toString())
-    return claims.role === 'authenticated' ? 'authenticated' : 'anon'
+    // service_role must map through too. Mapping only 'authenticated' meant a
+    // server-side call presenting the service key ran as anon, RLS hid the row,
+    // and pay.php reported "Unknown order" for an order that plainly existed.
+    if (claims.role === 'service_role') return 'service_role'
+    if (claims.role === 'authenticated') return 'authenticated'
+    return 'anon'
   } catch { return 'anon' }
 }
 
@@ -104,10 +109,20 @@ createServer((req, res) => {
     if (table === 'orders' || table === 'order_items') {
       if (req.method === 'PATCH') {
         const sets = Object.entries(body).map(([k, v]) => `${k} = ${v === null ? 'null' : lit(v)}`).join(', ')
-        const idEq = (u.searchParams.get('id') || '').replace(/^eq\./, '')
+        // Honour whichever column the caller filtered on, not just id. It only
+        // understood id=eq.…, so the payment callback — which matches on
+        // track_id — produced `where id = ''` and an "invalid input syntax for
+        // type uuid" that never reached the callback's error handling. The
+        // order simply stayed pending, and the test read that as the callback
+        // being broken.
+        const filter = [...u.searchParams.entries()]
+          .find(([k, v]) => !['select', 'order', 'limit', 'offset'].includes(k) && v.startsWith('eq.'))
+        if (!filter) return json(res, 400, { message: 'shim: PATCH needs a col=eq.value filter' })
+        const [col, raw] = filter
+        if (!/^[a-z_]+$/.test(col)) return json(res, 400, { message: `shim: bad filter column ${col}` })
         try {
           const out = await asRole(role,
-            `with u as (update public.${table} set ${sets} where id = ${lit(idEq)} returning *)
+            `with u as (update public.${table} set ${sets} where ${col} = ${lit(raw.replace(/^eq\./, ''))} returning *)
              select coalesce(json_agg(u),'[]') from u`)
           return json(res, 200, JSON.parse(out))
         } catch (e) {

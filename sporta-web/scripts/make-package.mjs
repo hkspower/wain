@@ -144,6 +144,26 @@ When every line reads OK, DELETE these two files from the server:
     public_html/knet/setup-config.php
 
 --------------------------------------------------------------------------------
+4b. T-PAY  (optional — only if you want the QR payment method)
+--------------------------------------------------------------------------------
+T-Pay runs on a DIFFERENT CBK product from the KNET endpoints above, with
+DIFFERENT credentials. It cannot work through knet/.
+
+  1. Copy  public_html/pay/config.example.php  to  public_html/pay/config.php
+  2. Fill in what CBK sends on activation:
+       test_base / production_base  (the gateway hosts)
+       client_id, client_secret, encrp_key
+       supabase_url + supabase SERVICE key   (same pair as knet/config.php)
+  3. Set its permissions to 600
+  4. Tell CBK your return URL:  https://www.sporta.com.kw/pay/callback.php
+     and give them your server IP if they filter by it (max 2)
+  5. Leave 'env' => 'test' until a test payment works, then switch to production
+
+Until that file exists, choosing T-Pay at checkout records the order and then
+fails at the gateway. If you are not using T-Pay, nothing to do — KNET and cash
+work without it.
+
+--------------------------------------------------------------------------------
 5. CHECK — open this in a browser
 --------------------------------------------------------------------------------
 

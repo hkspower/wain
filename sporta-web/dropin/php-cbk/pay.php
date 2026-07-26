@@ -14,21 +14,21 @@ $lang    = trim((string)($_REQUEST['lang'] ?? $cfg['lang'])) === 'ar' ? 'ar' : '
 $payType = (string)($_REQUEST['paytype'] ?? $cfg['pay_type']); // '', '1'=KNET, '2'=QR
 $payType = in_array($payType, ['', '1', '2'], true) ? $payType : '';
 
-// Strict input validation (also blocks NVP/param injection).
-// CBK: amount numeric, max 10 digits incl. 3 decimals; track id alphanumeric <= 30.
-if (!preg_match('/^\d{1,7}(\.\d{1,3})?$/', $amount) || (float) $amount <= 0) {
-    http_response_code(400);
-    exit('Invalid amount.');
-}
 if (!preg_match('/^[A-Za-z0-9]{1,30}$/', $trackid)) {
     http_response_code(400);
     exit('Invalid track id.');
 }
 
-// SECURITY — server-side price authority. When Supabase is configured, ignore
-// the client-sent amount and charge the order's stored amount (computed by the
-// DB trigger from product prices, see supabase/schema.sql). This makes price
-// tampering impossible. Falls back to the validated client amount only if no DB.
+// SECURITY — server-side price authority.
+//
+// The amount is looked up FIRST and the request carries none. This used to
+// demand an `amount` parameter, validate it, and only then override it from the
+// database — so the browser still had to be trusted to name a figure, and a
+// request without one was rejected before the real amount was ever read. The
+// storefront now sends only a track id, exactly as /knet does.
+//
+// The stored amount is computed by a database trigger from product prices
+// (supabase/schema.sql), so it cannot be influenced from the browser at all.
 $serverAmount = cbk_order_amount($cfg, $trackid);
 if ($serverAmount !== null) {
     if ((float) $serverAmount <= 0) {
@@ -36,6 +36,18 @@ if ($serverAmount !== null) {
         exit('Order has no payable amount.');
     }
     $amount = number_format((float) $serverAmount, 3, '.', '');
+} elseif ($amount === '') {
+    // No database configured AND no amount given: there is nothing to charge.
+    // Failing here beats sending the customer to the bank for 0.000 KWD.
+    http_response_code(400);
+    exit('Unknown order.');
+}
+
+// Whatever the source, the figure must satisfy CBK's format: numeric, at most
+// 10 digits including 3 decimals. Also blocks NVP/parameter injection.
+if (!preg_match('/^\d{1,7}(\.\d{1,3})?$/', $amount) || (float) $amount <= 0) {
+    http_response_code(400);
+    exit('Invalid amount.');
 }
 
 try {

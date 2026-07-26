@@ -138,6 +138,7 @@ for (const p of onDisk) {
   if (referenced.has(p) || mentioned.has(p) || CONVENTION.test(p)) continue
   if (p.startsWith('/assets/')) continue          // hashed, referenced from the bundle graph
   if (p.startsWith('/knet/')) continue            // endpoints, called by URL not by link
+  if (p.startsWith('/pay/')) continue             // ditto — the CBK hosted gateway
   add('LOW', `never referenced by anything shipped: ${p}`, '')
 }
 
@@ -166,9 +167,15 @@ for (const f of files.filter((f) => f.endsWith('.php'))) {
 // ---------------------------------------------- 8. structural must-haves
 const REQUIRED = ['/index.html', '/.htaccess', '/knet/.htaccess', '/config.js',
                   '/robots.txt', '/sitemap.xml', '/site.webmanifest',
-                  '/knet/pay.php', '/knet/callback.php', '/knet/knet.php', '/knet/config.example.php']
+                  '/knet/pay.php', '/knet/callback.php', '/knet/knet.php', '/knet/config.example.php',
+                  // The CBK hosted gateway — the only one that can do T-Pay.
+                  '/pay/.htaccess', '/pay/pay.php', '/pay/callback.php', '/pay/cbk.php',
+                  '/pay/config.example.php']
 for (const r of REQUIRED) if (!onDisk.has(r)) add('HIGH', `required file absent: ${r}`, '')
-const FORBIDDEN = ['/knet/config.php', '/.env', '/.env.deploy']
+// /pay/config.php holds the CBK ClientSecret and ENCRP_KEY; .cbk_token.json is
+// a live AccessToken. Neither may ever be in the package.
+const FORBIDDEN = ['/knet/config.php', '/pay/config.php', '/pay/.cbk_token.json',
+                   '/.env', '/.env.deploy']
 for (const r of FORBIDDEN) if (onDisk.has(r)) add('HIGH', `must never ship: ${r}`, '')
 
 // ------------------------------------------------------------------ report

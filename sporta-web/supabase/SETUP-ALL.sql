@@ -713,7 +713,7 @@ grant execute on function public.has_device_passcode(text)             to authen
 -- payment-method-migration.sql — Cash on delivery alongside KNET
 -- ==========================================================================
 
--- Sporta — cash on delivery alongside KNET.
+-- Sporta — payment methods: KNET, CBK T-Pay, and cash on delivery.
 --
 -- Safe to re-run.
 --
@@ -727,6 +727,7 @@ grant execute on function public.has_device_passcode(text)             to authen
 --
 -- What the admin now sees, and why it matters:
 --   pending + knet  an abandoned or unverified card payment. Chase the bank.
+--   pending + tpay  an abandoned or unverified T-Pay QR payment. Chase the bank.
 --   pending + cod   a real order waiting to be delivered. Chase the driver.
 -- Those need opposite responses, which is exactly why they cannot share a row
 -- shape with no way to tell them apart.
@@ -738,11 +739,12 @@ alter table public.orders
 do $$ begin
   alter table public.orders drop constraint if exists orders_payment_method_check;
   alter table public.orders add constraint orders_payment_method_check
-    check (payment_method in ('knet', 'cod'));
+    check (payment_method in ('knet', 'tpay', 'cod'));
 end $$;
 
 comment on column public.orders.payment_method is
-  'knet = paid through the CBK gateway. cod = cash collected on delivery.';
+  'knet = classic KNET (Tranportal, /knet). tpay = CBK hosted T-Pay QR (/pay). '
+  'cod  = cash collected on delivery.';
 
 -- ============ 2. create_order accepts it ============
 --
@@ -774,7 +776,7 @@ begin
   end if;
 
   v_method := lower(btrim(coalesce(p_payment_method, 'knet')));
-  if v_method not in ('knet', 'cod') then
+  if v_method not in ('knet', 'tpay', 'cod') then
     raise exception 'invalid_payment_method' using errcode = 'P0001';
   end if;
 
@@ -881,6 +883,7 @@ comment on table public.orders is
 
 select
   count(*) filter (where payment_method = 'knet') as knet_orders,
+  count(*) filter (where payment_method = 'tpay') as tpay_orders,
   count(*) filter (where payment_method = 'cod')  as cash_orders
 from public.orders;
 

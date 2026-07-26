@@ -24,4 +24,10 @@ window.SPORTA_CONFIG = {
   // (A concrete value here wins over everything, including a build-time
   // VITE_PAY_BASE_URL, which is why the default is empty rather than the URL.)
   payBaseUrl: '',
+
+  // Where the CBK hosted gateway lives — the one that does T-Pay QR. Leave
+  // EMPTY unless you moved it; empty means https://www.sporta.com.kw/pay.
+  // This is a DIFFERENT integration from payBaseUrl above, with different
+  // credentials from the bank. T-Pay cannot work through /knet.
+  cbkBaseUrl: '',
 }

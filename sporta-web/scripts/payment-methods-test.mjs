@@ -41,7 +41,7 @@ async function checkout(method, lang = 'en') {
   for (const [k, v] of Object.entries({ block: '4', street: 'Amman', building: '12' })) {
     await p.locator(`#f-${k}`).fill(v)
   }
-  if (method === 'cod') await p.locator('input[name=paymethod][value=cod]').check()
+  if (method !== 'knet') await p.locator(`input[name=paymethod][value=${method}]`).check()
   await p.locator('button[type=submit]:visible').first().click()
   return { ctx, p }
 }
@@ -82,7 +82,23 @@ async function checkout(method, lang = 'en') {
   await ctx.close()
 }
 
-// ---- 3. Arabic ---------------------------------------------------------------
+// ---- 3. T-Pay goes to the CBK gateway, not the KNET one ---------------------
+// The two are separate integrations with separate credentials. Sending a T-Pay
+// customer to /knet would fail at the bank with nothing useful to show them.
+{
+  const { ctx, p } = await checkout('tpay')
+  await p.waitForURL(/pay\.php/, { timeout: 15000 })
+  const u = new URL(p.url())
+  const track = u.searchParams.get('trackid')
+  ok('T-Pay goes to the CBK gateway', u.pathname.startsWith('/pay/'), u.pathname)
+  ok('...and asks for the QR payment type', u.searchParams.get('paytype') === '2')
+  ok('...and still sends no amount', !u.searchParams.has('amount'))
+  ok('T-Pay order is recorded as tpay/pending',
+     q(`select payment_method||'/'||payment_status from orders where track_id='${track}'`) === 'tpay/pending')
+  await ctx.close()
+}
+
+// ---- 4. Arabic ---------------------------------------------------------------
 {
   const { ctx, p } = await checkout('cod', 'ar')
   await p.waitForURL(/payment\/result/, { timeout: 15000 })

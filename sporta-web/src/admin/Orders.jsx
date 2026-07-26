@@ -153,7 +153,7 @@ export default function Orders({ initialPayment = 'all' }) {
                   <td className="py-3 text-end font-semibold tabular-nums">{kwd(o.amount)}</td>
                   <td className="py-3"><Badge tone={PAY_TONE[o.payment_status]}>{o.payment_status}</Badge></td>
                   <td className="py-3 text-xs font-semibold text-slate-500">
-                    {o.payment_method === 'cod' ? 'Cash' : 'KNET'}
+                    {{ cod: 'Cash', tpay: 'T-Pay', knet: 'KNET' }[o.payment_method] ?? o.payment_method}
                   </td>
                   <td className="py-3"><Badge tone={FUL_TONE[o.fulfilment_status]}>{o.fulfilment_status}</Badge></td>
                 </tr>
@@ -168,7 +168,7 @@ export default function Orders({ initialPayment = 'all' }) {
                   <span className="m-row__title">{o.customer_name || o.track_id}</span>
                   <Badge tone={PAY_TONE[o.payment_status]}>{o.payment_status}</Badge>
                   <span className="text-xs font-semibold text-slate-500">
-                    {o.payment_method === 'cod' ? 'Cash' : 'KNET'}
+                    {{ cod: 'Cash', tpay: 'T-Pay', knet: 'KNET' }[o.payment_method] ?? o.payment_method}
                   </span>
                 </div>
                 <div className="m-row__meta">
@@ -275,7 +275,7 @@ function OrderDrawer({ order, onClose, onChanged }) {
             <Field label="Amount" value={kwd(order.amount)} strong />
             <Field label="Paid at" value={when(order.paid_at)} />
             <Field label="Payment" value={order.payment_status} />
-            <Field label="Method" value={order.payment_method === 'cod' ? 'Cash on delivery' : 'KNET / card'} />
+            <Field label="Method" value={{ cod: 'Cash on delivery', tpay: 'CBK T-Pay QR', knet: 'KNET / card' }[order.payment_method] ?? order.payment_method} />
             <Field label="Fulfilment" value={order.fulfilment_status} />
             <Field label="KNET payment ID" value={order.cbk_paymentid || '—'} mono />
             <Field label="KNET reference" value={order.cbk_reference || '—'} mono />

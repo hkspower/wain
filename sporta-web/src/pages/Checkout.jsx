@@ -308,6 +308,7 @@ export default function Checkout() {
               <div className="space-y-2">
                 {[
                   ['knet', t.checkout.methodKnet, t.checkout.methodKnetHint],
+                  ['tpay', t.checkout.methodTpay, t.checkout.methodTpayHint],
                   ['cod', t.checkout.methodCod, t.checkout.methodCodHint],
                 ].map(([id, label, hint]) => (
                   <label
@@ -339,7 +340,7 @@ export default function Checkout() {
             <button type="submit" disabled={busy} className="btn btn-primary mt-5 hidden w-full lg:inline-flex">
               {busy ? t.checkout.redirecting : method === 'cod' ? t.checkout.placeOrder : t.checkout.payNow}
             </button>
-            {method === 'knet' && (
+            {method !== 'cod' && (
               <p className="mt-3 hidden text-center text-xs text-slate-400 lg:block">{t.checkout.securedBy}</p>
             )}
             {method === 'cod' && (
