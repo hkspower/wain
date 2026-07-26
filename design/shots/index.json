@@ -1,46 +1,51 @@
 [
  {
-  "file": "/home/user/wain/design/shots/01-landing.png",
-  "title": "الرئيسية — Landing",
+  "file": "/home/user/wain/design/shots/01-company.png",
+  "title": "المهلب كود — Almuhallab Code",
   "url": "/"
  },
  {
-  "file": "/home/user/wain/design/shots/02-pricing.png",
+  "file": "/home/user/wain/design/shots/02-landing.png",
+  "title": "Nokha1 — النوخذة",
+  "url": "/nokha1.html"
+ },
+ {
+  "file": "/home/user/wain/design/shots/03-pricing.png",
   "title": "الاشتراكات — Plans",
-  "url": "/#/pricing"
+  "url": "/nokha1.html#/pricing"
  },
  {
-  "file": "/home/user/wain/design/shots/03-register.png",
+  "file": "/home/user/wain/design/shots/04-register.png",
   "title": "إنشاء حساب — Registration",
-  "url": "/#/register"
+  "url": "/nokha1.html#/register"
  },
  {
-  "file": "/home/user/wain/design/shots/04-dashboard.png",
+  "file": "/home/user/wain/design/shots/05-dashboard.png",
   "title": "لوحة التحكم — Customer dashboard",
-  "url": "/#/dashboard"
+  "url": "/nokha1.html#/dashboard"
  },
  {
-  "file": "/home/user/wain/design/shots/05-safi.png",
+  "file": "/home/user/wain/design/shots/06-safi.png",
   "title": "صافي — SAFI portfolio",
   "url": "/nizam.html#/safi"
  },
  {
-  "file": "/home/user/wain/design/shots/06-xbrl.png",
+  "file": "/home/user/wain/design/shots/07-xbrl.png",
   "title": "XBRL — Financial reporting",
   "url": "/nizam.html#/xbrl"
  },
  {
-  "file": "/home/user/wain/design/shots/07-delivery.png",
+  "file": "/home/user/wain/design/shots/08-delivery.png",
   "title": "التوصيل — Delivery operations",
   "url": "/nizam.html#/delivery"
  },
  {
-  "file": "/home/user/wain/design/shots/08-position.png",
+  "file": "/home/user/wain/design/shots/09-position.png",
   "title": "المركز المالي — Unified position",
   "url": "/nizam.html#/position"
  },
  {
-  "file": "/home/user/wain/design/shots/09-editor.png",
+  "file": "/home/user/wain/design/shots/10-editor.png",
   "title": "Almuhallab Code — Editor",
   "url": "/editor.html"
  }

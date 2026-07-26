@@ -9,14 +9,21 @@
   The brand amber (`--sand-vivid`, used in the ⚓ logo gradient and for warning
   accents) is a deliberate accent and is not affected by this rule.
 
-## Nokha1 (النوخذة) — `almuhallab/`
+## Almuhallab Code — `almuhallab/`
 
-The Almuhallab unified services website: a static HTML5 PWA, Arabic-first (RTL),
-no build step and no dependencies.
+**Almuhallab Code (المهلب كود) is a software company.** `www.almuhallab-code.com`
+is the *company* website. **Nokha1 (النوخذة) is one system the company built and
+runs — a product inside the site, never the site itself.** Do not put Nokha1's
+portal, registration, plans or dashboard on the root page.
 
-- `index.html` portal · `nizam.html` (the unified system: المركز المالي · صافي ·
+Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
+
+- `index.html` — the company site: services, work, how we work, contact. Links
+  into the products; carries no account UI.
+- `nokha1.html` — the Nokha1 portal · `nizam.html` (the unified system: المركز المالي · صافي ·
   XBRL · التوصيل in four tabs over one data core) · `editor.html` ·
-  `admin.html` · `sw.js` · `manifest.webmanifest`
+  `admin.html` · `sw.js` · `manifest.webmanifest` (its `start_url` is
+  `nokha1.html` — the installable app is Nokha1, not the company brochure)
 - `safi.html`, `xbrl.html`, `delivery.html` are **redirect stubs** to
   `nizam.html#/<tab>`. There is one implementation of each unit — do not
   reintroduce standalone copies.
@@ -44,7 +51,7 @@ no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 100 checks covering
+- `python3 design/test_suite.py` is the full system test — 108 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, and layout. Run it
   after any change to `almuhallab/`; it exits non-zero on failure.

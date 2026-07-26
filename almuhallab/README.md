@@ -1,24 +1,28 @@
-# Nokha1 — النوخذة
+# Almuhallab Code — المهلب كود
 
-The Almuhallab unified services website: an **HTML5 Progressive Web App**
-with no build step and no dependencies. Open it in a browser, or install it
-to a phone's home screen and run it offline.
+The website of **Almuhallab Code**, a software company in Kuwait, plus the
+systems it runs. An **HTML5 Progressive Web App** with no build step and no
+dependencies: open it in a browser, or install Nokha1 to a phone's home screen
+and run it offline.
+
+The root of the site is the **company**. **Nokha1 (النوخذة)** is a product
+inside it, entered at `/nokha1` — not the front door.
 
 ## Site map
 
 | File | Page |
 |------|------|
-| `index.html` | **Nokha1 portal** — landing, registration, login, dashboard, plans |
+| `index.html` | **Almuhallab Code** — the company site: services, work, contact |
+| `nokha1.html` | **Nokha1 portal** — landing, registration, login, dashboard, plans |
 | `nizam.html` | **النظام الموحد** — one page, four tabs: المركز المالي · صافي · XBRL · التوصيل |
 | `safi.html`, `xbrl.html`, `delivery.html` | redirects to the matching tab (keeps old links working) |
 | `editor.html` | **Almuhallab Code** — in-browser HTML/CSS/JS editor |
 | `admin.html` | **Admin console** — customers, operations, finance, settings |
-| `nokha1.html` | redirect to `index.html` (keeps old links working) |
 | `404.html` | not-found page that returns visitors to the portal |
 | `manifest.webmanifest`, `sw.js`, `icon.svg` | PWA app manifest, offline service worker, ⚓ icon |
 | `SECURITY.md` | security measures and their limits |
 
-## The portal
+## Nokha1 — the portal (`/nokha1`)
 
 Arabic-first (RTL) and presented as **one system**:
 
@@ -133,10 +137,11 @@ visitor's OS happens to have installed.
 ## Tests
 
 ```bash
-python3 design/test_suite.py     # 100 checks, exits non-zero on failure
+python3 design/test_suite.py     # 108 checks, exits non-zero on failure
 ```
 
-Covers token consistency and contrast in both themes, SAFI/XBRL/delivery
+Covers the company/product split (the root is the company site and carries no
+account UI), token consistency and contrast in both themes, SAFI/XBRL/delivery
 arithmetic against hand-computed expectations, the cross-module derivation
 (portfolio value → non-current assets, delivered orders → revenue), XBRL well-formedness and fact
 values, authentication (hashing, lockout, suspension, session expiry), XSS and

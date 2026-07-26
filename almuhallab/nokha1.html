@@ -3,10 +3,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta http-equiv="refresh" content="0; url=index.html" />
-  <link rel="canonical" href="index.html" />
-  <meta name="robots" content="noindex" />
-  <title>Nokha1 — النوخذة</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; worker-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'" />
+  <meta name="referrer" content="no-referrer" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b1220" />
+  <link rel="preload" as="font" type="font/woff2" href="fonts/plex-arabic-400.woff2" crossorigin />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Nokha1 — النوخذة | نظام موحّد من المهلب كود</title>
+  <meta name="description" content="النوخذة — نظام موحد يجمع صافي (SAFI) وتقارير XBRL ونظام التوصيل في مكان واحد، مع تسجيل واشتراك شهري لعملاء المهلب." />
   <style>
     /* IBM Plex Sans Arabic — bundled, not fetched from a CDN: the strict CSP
        forbids external origins, and a self-hosted face renders identically on
@@ -25,17 +33,598 @@
       font-display: swap; src: url("fonts/plex-arabic-700.woff2") format("woff2");
     }
 
-    body {
-      margin: 0; min-height: 100vh; display: grid; place-items: center;
-      background: #0b1220; color: #e6edf6; text-align: center;
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Kufi Arabic", sans-serif;
+    :root {
+      --bg: #ffffff;
+      --panel: #ffffff;
+      --panel-2: #f1f4f8;
+      --border: #d0d7e1; --dot-js: #836407; --code-dim: #5e6979; --warn-bg: #ffffff; --info: #1964ce; --good: #02783d; --border-input: #858d99; --panel-3: #e6ebf1;
+      --text: #1b2430;
+      --muted: #586981;
+      --tint: #0e756b;
+      --tint-strong: #0f8075;
+      --sand: #9e5603; --sand-vivid: #e3a556;
+      --danger: #ce1925;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      --sans: "Plex Arabic", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Kufi Arabic", "Noto Sans Arabic", sans-serif;
     }
-    a { color: #4db3a8; font-weight: 700; }
+    /* Devices set to dark keep the original ink scheme. */
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --sand-vivid: #e3a556;
+        --bg: #0b1220;
+        --panel: #1c2b44;
+        --panel-2: #0e1626;
+        --panel-3: #24334b;
+        --border: #354765;
+        --border-input: #516587;
+        --text: #e6edf6;
+        --muted: #93a9c6;
+        --tint: #4db3a8;
+        --tint-strong: #24847a;
+        --sand: #e3a556;
+        --good: #3ddc84;
+        --danger: #ff6b74;
+        --info: #6ea8f7;
+        --warn-bg: #2a1f12;
+        --code-dim: #4a5d78;
+        --dot-js: #d9c34a;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      background: var(--bg); color: var(--text);
+      font-family: var(--sans);
+    }
+    a { color: var(--tint); text-decoration: none; }
+
+    header {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 10;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; }
+    .brand .logo {
+      width: 34px; height: 34px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--sand-vivid), var(--tint-strong));
+      display: grid; place-items: center; font-size: 17px;
+    }
+    .brand small { display: block; font-weight: 500; color: var(--muted); font-size: 11px; }
+    nav { display: flex; gap: 4px; margin-inline-start: auto; flex-wrap: wrap; }
+    nav a, .btn {
+      font-size: 13.5px; font-weight: 600; color: var(--text);
+      padding: 8px 14px; border-radius: 9px; border: 1px solid transparent;
+      cursor: pointer; background: transparent; font-family: var(--sans);
+    }
+    nav a:hover { background: var(--panel-2); }
+    nav a.active { background: var(--panel-2); border-color: var(--border); color: var(--tint); }
+    .btn.primary { background: var(--tint-strong); color: #fff; }
+    .btn.outline { border-color: var(--border); background: var(--panel-2); }
+    .btn.danger { color: var(--danger); }
+    .btn:hover { opacity: .88; }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+    main { max-width: 1060px; margin: 0 auto; padding: 32px 20px 64px; }
+    .page { display: none; }
+    .page.visible { display: block; }
+
+    /* Hero */
+    .hero { text-align: center; padding: 40px 0 8px; }
+    .hero .kicker {
+      display: inline-block; background: var(--panel-2); border: 1px solid var(--border);
+      color: var(--sand); border-radius: 999px; padding: 6px 16px; font-size: 13px; font-weight: 700;
+    }
+    .hero h1 { font-size: clamp(30px, 6vw, 52px); margin: 18px 0 8px; line-height: 1.2; text-wrap: balance; }
+    .hero h1 .en { color: var(--tint); direction: ltr; display: inline-block; unicode-bidi: isolate; }
+    .hero p { color: var(--muted); max-width: 620px; margin: 0 auto 24px; font-size: 16px; line-height: 1.8; }
+    .hero .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; margin-top: 28px; }
+    .card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .card h3 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+    .card p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.7; }
+    .chip {
+      font-size: 11px; font-weight: 700; border-radius: 999px; padding: 3px 10px;
+      background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
+      align-self: flex-start;
+    }
+    .chip.on { color: var(--tint); border-color: var(--tint-strong); }
+    .chip.locked { color: var(--sand); }
+
+    h2.section { font-size: 24px; margin: 8px 0 4px; }
+    .sub { color: var(--muted); margin: 0 0 18px; line-height: 1.8; }
+
+    /* Pricing */
+    .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 24px; }
+    .plan { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+    .plan.featured { border-color: var(--tint-strong); box-shadow: 0 0 0 1px var(--tint-strong); }
+    .plan .name { font-weight: 800; font-size: 17px; }
+    .plan .price { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .plan .price small { font-size: 13px; color: var(--muted); font-weight: 600; }
+    .plan ul { margin: 0; padding: 0 18px 0 0; color: var(--muted); font-size: 13.5px; line-height: 2; }
+    html[dir="rtl"] .plan ul { padding: 0 18px 0 0; }
+    .plan .btn { margin-top: auto; text-align: center; }
+
+    /* Forms */
+    form.auth { max-width: 420px; margin: 24px auto 0; background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 26px; display: flex; flex-direction: column; gap: 14px; }
+    label { font-size: 13px; font-weight: 700; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+    input, select {
+      background: var(--panel-2); border: 1px solid var(--border-input); border-radius: 9px;
+      color: var(--text); padding: 10px 12px; font-size: 14px; font-family: var(--sans); outline: none;
+    }
+    input:focus, select:focus { border-color: var(--tint); }
+    .form-note { font-size: 12.5px; color: var(--muted); line-height: 1.7; margin: 0; }
+    .error { color: var(--danger); font-size: 13px; font-weight: 600; min-height: 18px; margin: 0; }
+
+    /* Dashboard */
+    .dash-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+    .avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, var(--tint), var(--sand-vivid)); display: grid; place-items: center; font-weight: 800; color: #0b1220; font-size: 18px; }
+    .plan-badge { background: var(--panel-2); border: 1px solid var(--tint-strong); color: var(--tint); border-radius: 999px; padding: 4px 14px; font-size: 12.5px; font-weight: 700; }
+    .plan-badge.free { border-color: var(--border); color: var(--muted); }
+    .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 18px 0; }
+    .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+    .stat .n { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .stat .l { font-size: 12px; color: var(--muted); font-weight: 600; }
+    .demo-banner {
+      background: var(--warn-bg); border: 1px solid var(--sand); color: var(--sand);
+      border-radius: 12px; padding: 12px 16px; font-size: 13.5px; line-height: 1.8; margin-bottom: 20px;
+    }
+    .toast {
+      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--tint-strong); color: #fff; padding: 9px 18px; border-radius: 999px;
+      font-size: 13.5px; font-weight: 700; opacity: 0; pointer-events: none; transition: .2s; z-index: 99;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .offline-banner {
+      background: var(--warn-bg); border-bottom: 1px solid var(--sand); color: var(--sand);
+      padding: 10px 20px; font-size: 13px; font-weight: 600; text-align: center; line-height: 1.7;
+    }
+    footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 24px; border-top: 1px solid var(--border); line-height: 1.9; }
   </style>
 </head>
 <body>
-  <!-- Nokha1 now lives at the site root. This stub keeps old links and bookmarks working. -->
-  <p>⚓ جارٍ التحويل إلى Nokha1…<br /><a href="index.html">اضغط هنا إذا لم يتم التحويل</a></p>
-  <script>location.replace("index.html");</script>
+  <header>
+    <div class="brand">
+      <span class="logo">⚓</span>
+      <div>Nokha1 <small>نظام موحّد من المهلب كود — Almuhallab Code</small></div>
+    </div>
+    <nav id="nav">
+      <a href="index.html">← المهلب كود</a>
+      <a href="#/" data-route="/">الرئيسية</a>
+      <a href="#/pricing" data-route="/pricing">الاشتراكات</a>
+      <a href="#/dashboard" data-route="/dashboard" id="nav-dash" hidden>لوحة التحكم</a>
+      <a href="#/login" data-route="/login" id="nav-login">تسجيل الدخول</a>
+      <a href="#/register" data-route="/register" id="nav-register" class="btn primary">سجّل الآن</a>
+      <button class="btn outline" id="install" hidden>⬇ تثبيت التطبيق</button>
+      <button class="btn danger" id="nav-logout" hidden>خروج</button>
+    </nav>
+  </header>
+
+  <div class="offline-banner" id="offline" hidden>
+    ⚠️ أنت غير متصل بالإنترنت — Nokha1 يعمل بالكامل بدون اتصال، وبياناتك محفوظة على جهازك.
+  </div>
+
+  <main>
+    <!-- Home -->
+    <section class="page" id="page-home">
+      <div class="hero">
+        <span class="kicker">⚓ نظام واحد… كل الأدوات</span>
+        <h1>Nokha1 يقود كل خدماتك<br /><span class="en">One captain. Every service. One system.</span></h1>
+        <p>
+          نظام Nokha1 (النوخذة) من المهلب يجمع خدماتك في وحدة واحدة — صافي (SAFI) لمتابعة المحافظ،
+          تقارير XBRL المالية، ونظام التوصيل — بنظام واحد واشتراك شهري واحد.
+          سجّل حسابك، اختر باقتك، وابدأ.
+        </p>
+        <div class="actions">
+          <a class="btn primary" href="#/register">أنشئ حسابك مجاناً</a>
+          <a class="btn outline" href="#/pricing">شاهد الباقات</a>
+          <a class="btn outline" href="editor.html">محرر الأكواد ↗</a>
+        </div>
+      </div>
+
+      <h2 class="section">الخدمات المتصلة — Service Fleet</h2>
+      <p class="sub">كل خدمة تظهر كوحدة واحدة داخل النظام. الباقة تحدد ما يُفتح لك.</p>
+      <div class="grid" id="mcp-grid-home"></div>
+    </section>
+
+    <!-- Pricing -->
+    <section class="page" id="page-pricing">
+      <h2 class="section">الاشتراك الشهري — قريباً</h2>
+      <p class="sub">الأسعار والدفع سيُفعّلان لاحقاً. حالياً كل الخدمات متاحة لكل حساب مسجّل. الأرقام أدناه مبدئية للعرض فقط.</p>
+      <div class="plans" id="plans"></div>
+      <p class="form-note" style="margin-top:18px">
+        * هذه نسخة تجريبية (Prototype): الدفع الفعلي يتطلب ربط بوابة دفع مثل
+        MyFatoorah أو Tap أو Stripe مع خادم خلفي — انظر ملف README.
+      </p>
+    </section>
+
+    <!-- Register -->
+    <section class="page" id="page-register">
+      <h2 class="section" style="text-align:center">إنشاء حساب جديد</h2>
+      <form class="auth" id="form-register">
+        <label>الاسم الكامل <input name="name" required maxlength="80" autocomplete="name" placeholder="مثال: محمد العلي" /></label>
+        <label>البريد الإلكتروني <input name="email" type="email" required maxlength="254" autocomplete="email" placeholder="you@example.com" /></label>
+        <label>كلمة المرور <input name="password" type="password" required minlength="8" maxlength="128" autocomplete="new-password" placeholder="٨ أحرف على الأقل" /></label>
+        <p class="error" id="register-error"></p>
+        <button class="btn primary" type="submit">إنشاء الحساب</button>
+        <p class="form-note">لديك حساب؟ <a href="#/login">سجّل الدخول</a> — تُحفظ الحسابات في متصفحك فقط (نسخة تجريبية).</p>
+      </form>
+    </section>
+
+    <!-- Login -->
+    <section class="page" id="page-login">
+      <h2 class="section" style="text-align:center">تسجيل الدخول</h2>
+      <form class="auth" id="form-login">
+        <label>البريد الإلكتروني <input name="email" type="email" required maxlength="254" autocomplete="email" /></label>
+        <label>كلمة المرور <input name="password" type="password" required maxlength="128" autocomplete="current-password" /></label>
+        <p class="error" id="login-error"></p>
+        <button class="btn primary" type="submit">دخول</button>
+        <p class="form-note">ما عندك حساب؟ <a href="#/register">سجّل الآن</a></p>
+      </form>
+    </section>
+
+    <!-- Dashboard -->
+    <section class="page" id="page-dashboard">
+      <div class="demo-banner">
+        ⚠️ <b>نسخة تجريبية:</b> الحسابات والاشتراكات محفوظة في متصفحك فقط. للتشغيل الفعلي
+        (دفع حقيقي + حسابات مشتركة + ربط الخدمات)، يلزم خادم خلفي — التفاصيل في README.
+      </div>
+      <div class="dash-head">
+        <div class="avatar" id="dash-avatar">؟</div>
+        <div>
+          <div style="font-weight:800" id="dash-name">—</div>
+          <div style="font-size:12.5px;color:var(--muted)" id="dash-email">—</div>
+        </div>
+        <span class="plan-badge" id="dash-plan">—</span>
+        <a class="btn outline" href="#/pricing" style="margin-inline-start:auto">ترقية الباقة</a>
+      </div>
+      <div class="stat-row">
+        <div class="stat"><div class="n" id="stat-total">0</div><div class="l">إجمالي الخدمات</div></div>
+        <div class="stat"><div class="n" id="stat-open">0</div><div class="l">مفتوحة لباقتك</div></div>
+        <div class="stat"><div class="n" id="stat-renew">—</div><div class="l">تاريخ التجديد</div></div>
+      </div>
+      <h2 class="section">وحدات Nokha1 — Service Units</h2>
+      <p class="sub">كل الخدمات في نظام واحد. الوحدات المقفلة تفتح بترقية الاشتراك.</p>
+      <div class="grid" id="mcp-grid-dash"></div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <footer>
+    Nokha1 (النوخذة) — النظام الموحد · أحد أنظمة <a href="index.html">المهلب كود — Almuhallab Code</a><br />
+    صُنع في الكويت 🇰🇼 · <a href="admin.html" style="color:var(--muted)">لوحة الإدارة</a>
+  </footer>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var USERS_KEY = "nokhatha-users-v1";
+      var SESSION_KEY = "nokhatha-session-v1";
+
+      // The service fleet — one unified system. minPlan gates access per subscription tier.
+      // All units unlocked while the system is being built — pricing gates come later.
+      var UNITS = [
+        { id: "safi",     icon: "📊", name: "صافي — SAFI",          desc: "متابعة المحافظ والأرصدة وكشوفات المساهمين — ربح/خسارة وتصدير الكشوفات.", minPlan: 0, url: "nizam.html#/safi" },
+        { id: "delivery", icon: "🛵", name: "التوصيل — Delivery",    desc: "نظام توصيل متكامل: إنشاء الطلبات، تتبّع الحالة، وإدارة المناديب.", minPlan: 0, url: "nizam.html#/delivery" },
+        { id: "xbrl",     icon: "🧾", name: "XBRL — التقارير المالية", desc: "إعداد القوائم المالية والتحقق من توازنها وتوليد ملف XBRL جاهز للإيداع.", minPlan: 0, url: "nizam.html#/xbrl" },
+        { id: "editor",   icon: "💻", name: "Almuhallab Editor",     desc: "محرر الأكواد بالمتصفح مع معاينة مباشرة HTML/CSS/JS.", minPlan: 0, url: "editor.html" }
+      ];
+
+      var PLANS = [
+        { id: 0, name: "بحّار — Basic",  price: "0",  features: ["صافي: متابعة المحفظة", "التوصيل: ٥٠ طلب شهرياً", "مستخدم واحد"] },
+        { id: 1, name: "قبطان — Pro",    price: "15", features: ["كل خدمات النظام", "XBRL: إيداع ربع سنوي", "توصيل غير محدود", "دعم بالبريد"], featured: true },
+        { id: 2, name: "نوخذة — Fleet",  price: "39", features: ["كل خدمات النظام", "XBRL: إيداعات غير محدودة + تدقيق", "فروع ومناديب متعددون", "دعم أولوية"] }
+      ];
+
+      /* ---------- storage ---------- */
+      function readUsers() { try { return JSON.parse(localStorage.getItem(USERS_KEY)) || {}; } catch (e) { return {}; } }
+      function writeUsers(u) { try { localStorage.setItem(USERS_KEY, JSON.stringify(u)); } catch (e) {} }
+      var SESSION_TTL = 24 * 60 * 60 * 1000; // sessions expire after 24h
+      function session() {
+        try {
+          var s = JSON.parse(localStorage.getItem(SESSION_KEY));
+          if (!s || !s.exp || Date.now() > s.exp) { localStorage.removeItem(SESSION_KEY); return null; }
+          return s;
+        } catch (e) { return null; }
+      }
+      function setSession(email) {
+        if (email) localStorage.setItem(SESSION_KEY, JSON.stringify({ email: email, exp: Date.now() + SESSION_TTL }));
+        else localStorage.removeItem(SESSION_KEY);
+      }
+      function currentUser() {
+        var s = session();
+        if (!s) return null;
+        return readUsers()[s.email] || null;
+      }
+
+      /* ---- password hashing: PBKDF2-SHA256 via Web Crypto, per-user random salt.
+         Client-side only (this is a local prototype); production must also hash
+         server-side (bcrypt/argon2) over TLS. ---- */
+      var PBKDF2_ITER = 310000;
+      function bufToHex(buf) {
+        return Array.prototype.map.call(new Uint8Array(buf), function (b) {
+          return ("0" + b.toString(16)).slice(-2);
+        }).join("");
+      }
+      function hashPassword(password, saltHex) {
+        var salt = new Uint8Array(saltHex.match(/.{2}/g).map(function (h) { return parseInt(h, 16); }));
+        return crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"])
+          .then(function (key) {
+            return crypto.subtle.deriveBits(
+              { name: "PBKDF2", salt: salt, iterations: PBKDF2_ITER, hash: "SHA-256" }, key, 256);
+          })
+          .then(bufToHex);
+      }
+      function newSalt() {
+        var s = new Uint8Array(16);
+        crypto.getRandomValues(s);
+        return bufToHex(s.buffer);
+      }
+      // Constant-time-ish comparison (avoids early-exit timing differences).
+      function safeEqual(a, b) {
+        if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+        var diff = 0;
+        for (var i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+        return diff === 0;
+      }
+      // Legacy weak hash from the first prototype — kept ONLY to verify+upgrade old accounts.
+      function legacyObscure(pw) {
+        var h = 0;
+        for (var i = 0; i < pw.length; i++) { h = ((h << 5) - h + pw.charCodeAt(i)) | 0; }
+        return "d" + h;
+      }
+
+      /* ---- login throttling: 5 failures locks the account for 5 minutes ---- */
+      var LOCK_KEY = "nokhatha-lock-v1", LOCK_MAX = 5, LOCK_MS = 5 * 60 * 1000;
+      function readLocks() { try { return JSON.parse(localStorage.getItem(LOCK_KEY)) || {}; } catch (e) { return {}; } }
+      function writeLocks(l) { try { localStorage.setItem(LOCK_KEY, JSON.stringify(l)); } catch (e) {} }
+      function lockCheck(email) {
+        var l = readLocks()[email];
+        if (l && l.until && Date.now() < l.until) return Math.ceil((l.until - Date.now()) / 60000);
+        return 0;
+      }
+      function lockFail(email) {
+        var locks = readLocks();
+        var l = locks[email] || { n: 0, until: 0 };
+        l.n += 1;
+        if (l.n >= LOCK_MAX) { l.until = Date.now() + LOCK_MS; l.n = 0; }
+        locks[email] = l; writeLocks(locks);
+      }
+      function lockClear(email) {
+        var locks = readLocks();
+        delete locks[email]; writeLocks(locks);
+      }
+
+      var EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
+
+      /* ---------- ui helpers ---------- */
+      var toastEl = document.getElementById("toast"), toastTimer;
+      function toast(msg) {
+        toastEl.textContent = msg; toastEl.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () { toastEl.classList.remove("show"); }, 1800);
+      }
+
+      function unitCard(mcp, userPlan, showLock) {
+        var open = userPlan >= mcp.minPlan;
+        var chip = showLock
+          ? (open ? '<span class="chip on">✔ مفعّلة</span>'
+                  : '<span class="chip locked">🔒 تتطلب ' + PLANS[mcp.minPlan].name + '</span>')
+          : '<span class="chip on">✔ متاحة</span>';
+        var openBtn = (showLock && open && mcp.url)
+          ? '<a class="btn primary" style="text-align:center;margin-top:4px" href="' + mcp.url + '">فتح الخدمة ↗</a>' : '';
+        return '<div class="card"><h3>' + mcp.icon + ' ' + mcp.name + '</h3><p>' + mcp.desc + '</p>' + chip + openBtn + '</div>';
+      }
+
+      function renderGrids() {
+        var user = currentUser();
+        var plan = user ? user.plan : -1;
+        document.getElementById("mcp-grid-home").innerHTML =
+          UNITS.map(function (m) { return unitCard(m, plan, false); }).join("");
+        document.getElementById("mcp-grid-dash").innerHTML =
+          UNITS.map(function (m) { return unitCard(m, plan, true); }).join("");
+      }
+
+      function renderPlans() {
+        var user = currentUser();
+        document.getElementById("plans").innerHTML = PLANS.map(function (p) {
+          var isCurrent = user && user.plan === p.id;
+          var btn = isCurrent
+            ? '<button class="btn outline" disabled>باقتك الحالية</button>'
+            : '<button class="btn primary" data-plan="' + p.id + '">' + (p.id === 0 ? "ابدأ مجاناً" : "اشترك شهرياً") + '</button>';
+          return '<div class="plan' + (p.featured ? " featured" : "") + '">' +
+            '<div class="name">' + p.name + '</div>' +
+            '<div class="price">' + p.price + ' <small>د.ك / شهرياً</small></div>' +
+            '<ul>' + p.features.map(function (f) { return "<li>" + f + "</li>"; }).join("") + '</ul>' +
+            btn + '</div>';
+        }).join("");
+      }
+
+      function renderDashboard() {
+        var user = currentUser();
+        if (!user) return;
+        document.getElementById("dash-name").textContent = user.name;
+        document.getElementById("dash-email").textContent = user.email;
+        document.getElementById("dash-avatar").textContent = (user.name || "؟").trim().charAt(0);
+        var badge = document.getElementById("dash-plan");
+        badge.textContent = PLANS[user.plan].name;
+        badge.classList.toggle("free", user.plan === 0);
+        var openCount = UNITS.filter(function (m) { return user.plan >= m.minPlan; }).length;
+        document.getElementById("stat-total").textContent = UNITS.length;
+        document.getElementById("stat-open").textContent = openCount;
+        document.getElementById("stat-renew").textContent = user.plan > 0 && user.renewAt
+          ? new Date(user.renewAt).toLocaleDateString("ar-KW") : "—";
+      }
+
+      function renderNav() {
+        var logged = !!currentUser();
+        document.getElementById("nav-dash").hidden = !logged;
+        document.getElementById("nav-login").hidden = logged;
+        document.getElementById("nav-register").hidden = logged;
+        document.getElementById("nav-logout").hidden = !logged;
+      }
+
+      /* ---------- router ---------- */
+      var pages = { "/": "page-home", "/pricing": "page-pricing", "/register": "page-register", "/login": "page-login", "/dashboard": "page-dashboard" };
+      function route() {
+        var path = (location.hash || "#/").slice(1);
+        if (!pages[path]) path = "/";
+        if (path === "/dashboard" && !currentUser()) { location.hash = "#/login"; return; }
+        Object.keys(pages).forEach(function (p) {
+          document.getElementById(pages[p]).classList.toggle("visible", p === path);
+        });
+        var links = document.querySelectorAll("nav a[data-route]");
+        for (var i = 0; i < links.length; i++) {
+          links[i].classList.toggle("active", links[i].getAttribute("data-route") === path);
+        }
+        renderNav(); renderGrids(); renderPlans();
+        if (path === "/dashboard") renderDashboard();
+        window.scrollTo(0, 0);
+      }
+      window.addEventListener("hashchange", route);
+
+      /* ---------- auth ---------- */
+      document.getElementById("form-register").addEventListener("submit", function (e) {
+        e.preventDefault();
+        var f = e.target, err = document.getElementById("register-error");
+        var email = f.email.value.trim().toLowerCase();
+        var password = f.password.value;
+        if (!EMAIL_RE.test(email)) { err.textContent = "صيغة البريد الإلكتروني غير صحيحة."; return; }
+        if (password.length < 8) { err.textContent = "كلمة المرور يجب أن تكون ٨ أحرف على الأقل."; return; }
+        var users = readUsers();
+        if (users[email]) { err.textContent = "هذا البريد مسجّل من قبل — سجّل الدخول."; return; }
+        var salt = newSalt();
+        var name = f.name.value.trim().slice(0, 80);
+        var btn = f.querySelector("button[type=submit]");
+        btn.disabled = true;
+        hashPassword(password, salt).then(function (hash) {
+          users[email] = {
+            name: name, email: email,
+            salt: salt, hash: hash, iter: PBKDF2_ITER,
+            plan: 0, renewAt: null, createdAt: new Date().toISOString()
+          };
+          writeUsers(users); setSession(email); f.reset(); err.textContent = "";
+          toast("أهلاً بك في Nokha1 ⚓");
+          location.hash = "#/dashboard";
+        }).catch(function () {
+          err.textContent = "تعذّر إنشاء الحساب — المتصفح لا يدعم التشفير المطلوب.";
+        }).then(function () { btn.disabled = false; });
+      });
+
+      document.getElementById("form-login").addEventListener("submit", function (e) {
+        e.preventDefault();
+        var f = e.target, err = document.getElementById("login-error");
+        var email = f.email.value.trim().toLowerCase();
+        var password = f.password.value;
+        var lockedFor = lockCheck(email);
+        if (lockedFor) { err.textContent = "تم إيقاف المحاولات مؤقتاً — حاول بعد " + lockedFor + " دقيقة."; return; }
+        var users = readUsers();
+        var user = users[email];
+        function fail() {
+          lockFail(email);
+          err.textContent = "البريد أو كلمة المرور غير صحيحة.";
+        }
+        function succeed() {
+          if (user.status === "suspended") {
+            err.textContent = "هذا الحساب موقوف — تواصل مع الدعم.";
+            return;
+          }
+          lockClear(email);
+          setSession(email); f.reset(); err.textContent = "";
+          toast("تم تسجيل الدخول");
+          location.hash = "#/dashboard";
+        }
+        if (!user) { fail(); return; }
+        var btn = f.querySelector("button[type=submit]");
+        btn.disabled = true;
+        var check;
+        if (user.salt && user.hash) {
+          check = hashPassword(password, user.salt).then(function (hash) {
+            return safeEqual(hash, user.hash);
+          });
+        } else if (user.pw) {
+          // Legacy prototype account: verify old hash, then upgrade to PBKDF2 in place.
+          var ok = safeEqual(legacyObscure(password), String(user.pw));
+          check = !ok ? Promise.resolve(false) : hashPassword(password, (user.salt = newSalt())).then(function (hash) {
+            user.hash = hash; user.iter = PBKDF2_ITER; delete user.pw;
+            users[email] = user; writeUsers(users);
+            return true;
+          });
+        } else {
+          check = Promise.resolve(false);
+        }
+        check.then(function (ok) { if (ok) succeed(); else fail(); })
+          .catch(function () { err.textContent = "تعذّر التحقق — المتصفح لا يدعم التشفير المطلوب."; })
+          .then(function () { btn.disabled = false; });
+      });
+
+      document.getElementById("nav-logout").addEventListener("click", function () {
+        setSession(null); toast("تم تسجيل الخروج"); location.hash = "#/";
+      });
+
+      /* ---------- subscribe ---------- */
+      document.getElementById("plans").addEventListener("click", function (e) {
+        var btn = e.target.closest("button[data-plan]");
+        if (!btn) return;
+        var user = currentUser();
+        if (!user) { toast("سجّل حسابك أولاً"); location.hash = "#/register"; return; }
+        var planId = Number(btn.getAttribute("data-plan"));
+        var users = readUsers();
+        var renew = new Date(); renew.setMonth(renew.getMonth() + 1);
+        users[user.email].plan = planId;
+        users[user.email].renewAt = planId > 0 ? renew.toISOString() : null;
+        writeUsers(users);
+        toast(planId > 0 ? "تم الاشتراك في " + PLANS[planId].name + " ✔ (تجريبي)" : "تم التحويل للباقة المجانية");
+        location.hash = "#/dashboard"; route();
+      });
+
+      route();
+    })();
+  </script>
+  <script>
+    (function () {
+      "use strict";
+
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", function () {
+          navigator.serviceWorker.register("sw.js").catch(function () { /* offline install unavailable */ });
+        });
+      }
+
+      /* Install prompt — the button only appears when the browser offers installation. */
+      var installBtn = document.getElementById("install");
+      var deferred = null;
+      window.addEventListener("beforeinstallprompt", function (e) {
+        e.preventDefault();
+        deferred = e;
+        installBtn.hidden = false;
+      });
+      installBtn.addEventListener("click", function () {
+        if (!deferred) return;
+        deferred.prompt();
+        deferred.userChoice.then(function () {
+          deferred = null;
+          installBtn.hidden = true;
+        });
+      });
+      window.addEventListener("appinstalled", function () {
+        deferred = null;
+        installBtn.hidden = true;
+      });
+
+      /* Connection status */
+      var offlineEl = document.getElementById("offline");
+      function syncOnline() { offlineEl.hidden = navigator.onLine; }
+      window.addEventListener("online", syncOnline);
+      window.addEventListener("offline", syncOnline);
+      syncOnline();
+    })();
+  </script>
 </body>
 </html>

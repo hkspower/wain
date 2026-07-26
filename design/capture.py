@@ -1,5 +1,6 @@
 """
-Capture every page of the Nokha1 site from a real browser.
+Capture every page of the Almuhallab Code site — the company pages and the
+Nokha1 system inside it — from a real browser.
 The site is driven end-to-end first (register, add holdings, orders, a report)
 so the screenshots show a working system rather than empty forms.
 """
@@ -34,28 +35,33 @@ with sync_playwright() as p:
                               device_scale_factor=2, locale="ar-KW")
     page = ctx.new_page()
 
-    # ---------------------------------------------------------- landing
+    # -------------------------------------------------- company site (the root)
     page.goto(f"{BASE}/index.html", wait_until="networkidle")
     page.wait_for_timeout(500)
-    snap(page, "01-landing", "الرئيسية — Landing", "/")
+    snap(page, "01-company", "المهلب كود — Almuhallab Code", "/")
+
+    # -------------------------------------------------- Nokha1 portal (a product)
+    page.goto(f"{BASE}/nokha1.html", wait_until="networkidle")
+    page.wait_for_timeout(500)
+    snap(page, "02-landing", "Nokha1 — النوخذة", "/nokha1.html")
 
     # ---------------------------------------------------------- pricing
-    page.goto(f"{BASE}/index.html#/pricing", wait_until="networkidle")
+    page.goto(f"{BASE}/nokha1.html#/pricing", wait_until="networkidle")
     page.wait_for_timeout(400)
-    snap(page, "02-pricing", "الاشتراكات — Plans", "/#/pricing")
+    snap(page, "03-pricing", "الاشتراكات — Plans", "/nokha1.html#/pricing")
 
     # ---------------------------------------------------------- register
-    page.goto(f"{BASE}/index.html#/register", wait_until="networkidle")
+    page.goto(f"{BASE}/nokha1.html#/register", wait_until="networkidle")
     page.fill('#form-register input[name="name"]', "محمد العلي")
     page.fill('#form-register input[name="email"]', "demo@almuhallab-code.com")
     page.fill('#form-register input[name="password"]', "nokha1-demo-2026")
     page.wait_for_timeout(300)
-    snap(page, "03-register", "إنشاء حساب — Registration", "/#/register")
+    snap(page, "04-register", "إنشاء حساب — Registration", "/nokha1.html#/register")
 
     # submit -> real PBKDF2 hash, real session, lands on dashboard
     page.click('#form-register button[type="submit"]')
     page.wait_for_timeout(2500)
-    snap(page, "04-dashboard", "لوحة التحكم — Customer dashboard", "/#/dashboard")
+    snap(page, "05-dashboard", "لوحة التحكم — Customer dashboard", "/nokha1.html#/dashboard")
 
     # ---------------------------------------------------------- SAFI
     page.goto(f"{BASE}/nizam.html#/safi", wait_until="networkidle")
@@ -75,7 +81,7 @@ with sync_playwright() as p:
         page.click('#safi-form button[type="submit"]')
         page.wait_for_timeout(180)
     page.wait_for_timeout(500)
-    snap(page, "05-safi", "صافي — SAFI portfolio", "/nizam.html#/safi")
+    snap(page, "06-safi", "صافي — SAFI portfolio", "/nizam.html#/safi")
 
     # ---------------------------------------------------------- XBRL
     page.goto(f"{BASE}/nizam.html#/xbrl", wait_until="networkidle")
@@ -92,7 +98,7 @@ with sync_playwright() as p:
     page.wait_for_timeout(300)
     page.click("#xbrl-preview")
     page.wait_for_timeout(700)
-    snap(page, "06-xbrl", "XBRL — Financial reporting", "/nizam.html#/xbrl")
+    snap(page, "07-xbrl", "XBRL — Financial reporting", "/nizam.html#/xbrl")
 
     # ---------------------------------------------------------- Delivery
     page.goto(f"{BASE}/nizam.html#/delivery", wait_until="networkidle")
@@ -125,19 +131,19 @@ with sync_playwright() as p:
     page.click('button[data-next="2"]'); page.wait_for_timeout(150)
     page.click('button[data-cancel="4"]'); page.wait_for_timeout(300)
     page.wait_for_timeout(400)
-    snap(page, "07-delivery", "التوصيل — Delivery operations", "/nizam.html#/delivery")
+    snap(page, "08-delivery", "التوصيل — Delivery operations", "/nizam.html#/delivery")
 
     # ------------------------------------------------ unified financial position
     # captured last, so the portfolio and the delivered orders above are both in
     # place and the derived figures on this tab are real
     page.goto(f"{BASE}/nizam.html#/position", wait_until="networkidle")
     page.wait_for_timeout(600)
-    snap(page, "08-position", "المركز المالي — Unified position", "/nizam.html#/position")
+    snap(page, "09-position", "المركز المالي — Unified position", "/nizam.html#/position")
 
     # ---------------------------------------------------------- editor
     page.goto(f"{BASE}/editor.html", wait_until="networkidle")
     page.wait_for_timeout(1200)
-    snap(page, "09-editor", "Almuhallab Code — Editor", "/editor.html", full=False)
+    snap(page, "10-editor", "Almuhallab Code — Editor", "/editor.html", full=False)
 
     # ---------------------------------------------------------- mobile
     m = browser.new_context(viewport={"width": 402, "height": 874},
@@ -158,9 +164,9 @@ with sync_playwright() as p:
         "localStorage.setItem('nokhatha-delivery-couriers-v1', %s);"
         % (json.dumps(seed_safi), json.dumps(seed_orders), json.dumps(seed_couriers)))
     mp = m.new_page()
-    for nm, url, title in [("10-m-landing", "index.html", "Landing — mobile"),
-                           ("11-m-safi", "nizam.html#/safi", "SAFI — mobile"),
-                           ("12-m-position", "nizam.html#/position", "Position — mobile")]:
+    for nm, url, title in [("11-m-company", "index.html", "Company — mobile"),
+                           ("12-m-safi", "nizam.html#/safi", "SAFI — mobile"),
+                           ("13-m-position", "nizam.html#/position", "Position — mobile")]:
         mp.goto(f"{BASE}/{url}", wait_until="networkidle")
         mp.wait_for_timeout(700)
         mp.screenshot(path=str(OUT / f"{nm}.png"), full_page=False)

@@ -13,11 +13,12 @@ ROOT = pathlib.Path("/home/user/wain/almuhallab")
 CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
 PORT = 8751
 BASE = f"http://127.0.0.1:{PORT}"
-# The three service units are tabs of one page now (nizam.html); the old
-# filenames survive as redirect stubs so existing links keep working.
-PAGES = ["index.html", "nizam.html", "editor.html", "admin.html"]
+# index.html is the Almuhallab Code company site; Nokha1 is a product inside it,
+# entered at nokha1.html. The three service units are tabs of nizam.html, and the
+# old unit filenames survive as redirect stubs so existing links keep working.
+PAGES = ["index.html", "nokha1.html", "nizam.html", "editor.html", "admin.html"]
 STUBS = {"safi.html": "nizam.html#/safi", "xbrl.html": "nizam.html#/xbrl",
-         "delivery.html": "nizam.html#/delivery", "nokha1.html": "index.html"}
+         "delivery.html": "nizam.html#/delivery"}
 
 results = []
 def check(section, name, ok, detail=""):
@@ -110,7 +111,19 @@ def static_checks():
         check(S, f"{stub} redirects to {dest}",
               f'url={dest}' in t and f'location.replace("{dest}")' in t)
 
+    # the root is the company, not the product
+    home, portal = texts["index.html"], texts["nokha1.html"]
+    check(S, "the root page is the Almuhallab Code company site",
+          "Almuhallab Code" in home and "شركة برمجة" in home)
+    check(S, "the root page carries no Nokha1 account UI",
+          'id="form-register"' not in home and 'id="form-login"' not in home)
+    check(S, "the root page leads into Nokha1", 'href="nokha1.html"' in home)
+    check(S, "Nokha1 is entered at nokha1.html", 'id="form-register"' in portal)
+    check(S, "Nokha1 links back out to the company site", 'href="index.html"' in portal)
+
     mf = json.loads((ROOT / "manifest.webmanifest").read_text())
+    check(S, "the installable app starts at Nokha1", mf["start_url"] == "nokha1.html",
+          mf["start_url"])
     check(S, "manifest has the required fields",
           all(k in mf for k in ("name", "start_url", "display", "icons")))
 
@@ -414,11 +427,11 @@ def delivery_checks(pg):
 # ───────────────────────────── portal auth
 def auth_checks(pg, ctx):
     S = "auth"
-    pg.goto(f"{BASE}/index.html#/register", wait_until="networkidle")
+    pg.goto(f"{BASE}/nokha1.html#/register", wait_until="networkidle")
     pg.evaluate("localStorage.removeItem('nokhatha-users-v1');"
                 "localStorage.removeItem('nokhatha-session-v1');"
                 "localStorage.removeItem('nokhatha-lock-v1')")
-    pg.goto(f"{BASE}/index.html#/register", wait_until="networkidle")
+    pg.goto(f"{BASE}/nokha1.html#/register", wait_until="networkidle")
 
     pg.fill('#form-register input[name="name"]', "محمد العلي")
     pg.fill('#form-register input[name="email"]', "t@example.com")
@@ -442,7 +455,7 @@ def auth_checks(pg, ctx):
           and rec.get("iter") == 310000, str({k: rec.get(k) for k in ("iter",)}))
 
     pg.click("#nav-logout"); pg.wait_for_timeout(600)
-    pg.goto(f"{BASE}/index.html#/login", wait_until="networkidle")
+    pg.goto(f"{BASE}/nokha1.html#/login", wait_until="networkidle")
     pg.fill('#form-login input[name="email"]', "t@example.com")
     pg.fill('#form-login input[name="password"]', "wrong-password")
     pg.click('#form-login button[type="submit"]'); pg.wait_for_timeout(2600)
@@ -463,7 +476,7 @@ def auth_checks(pg, ctx):
                 "u['t@example.com'].status='suspended';"
                 "localStorage.setItem('nokhatha-users-v1', JSON.stringify(u))")
     pg.reload(wait_until="networkidle")
-    pg.goto(f"{BASE}/index.html#/login", wait_until="networkidle")
+    pg.goto(f"{BASE}/nokha1.html#/login", wait_until="networkidle")
     pg.fill('#form-login input[name="email"]', "t@example.com")
     pg.fill('#form-login input[name="password"]', "correct-horse-2026")
     pg.click('#form-login button[type="submit"]'); pg.wait_for_timeout(2600)
@@ -477,7 +490,7 @@ def auth_checks(pg, ctx):
                 "localStorage.setItem('nokhatha-users-v1', JSON.stringify(u));"
                 "localStorage.setItem('nokhatha-session-v1',"
                 " JSON.stringify({email:'t@example.com', exp: Date.now()-1000}))")
-    pg.goto(f"{BASE}/index.html#/dashboard", wait_until="networkidle")
+    pg.goto(f"{BASE}/nokha1.html#/dashboard", wait_until="networkidle")
     pg.wait_for_timeout(400)
     check(S, "an expired session is not accepted", "/dashboard" not in pg.url, pg.url)
 
@@ -493,7 +506,7 @@ def tamper_checks(pg):
     for page, keys in (("nizam.html#/safi", ["nokhatha-safi-v1"]),
                        ("nizam.html#/delivery", ["nokhatha-delivery-orders-v1"]),
                        ("nizam.html#/xbrl", ["nokhatha-xbrl-reports-v1"]),
-                       ("index.html", ["nokhatha-users-v1"])):
+                       ("nokha1.html", ["nokhatha-users-v1"])):
         pg.goto(f"{BASE}/{page}", wait_until="networkidle")
         for k in keys:
             pg.evaluate(f"localStorage.setItem({json.dumps(k)}, {json.dumps(hostile[k])})")
@@ -525,12 +538,12 @@ def offline_checks(ctx, br):
     cached = pg.evaluate("""caches.keys().then(ks => ks.length
         ? caches.open(ks[0]).then(c => c.keys().then(rs => rs.map(r => new URL(r.url).pathname)))
         : [])""")
-    for want in ("/index.html", "/nizam.html", "/safi.html", "/delivery.html", "/admin.html"):
+    for want in ("/index.html", "/nokha1.html", "/nizam.html", "/safi.html", "/delivery.html", "/admin.html"):
         check(S, f"precached {want}", any(p.endswith(want) for p in cached))
 
     ctx.set_offline(True)
     ok = True; detail = ""
-    for p in ("index.html", "nizam.html", "nizam.html#/xbrl"):
+    for p in ("index.html", "nokha1.html", "nizam.html", "nizam.html#/xbrl"):
         try:
             r = pg.goto(f"{BASE}/{p}", wait_until="domcontentloaded", timeout=8000)
             body = pg.evaluate("document.body.innerText.length")
@@ -548,8 +561,8 @@ def layout_checks(br):
         c = br.new_context(viewport={"width": w, "height": h}, locale="ar-KW")
         p = c.new_page()
         overflow = []
-        for page in ("index.html", "nizam.html", "nizam.html#/safi", "nizam.html#/xbrl",
-                     "nizam.html#/delivery", "admin.html"):
+        for page in ("index.html", "nokha1.html", "nizam.html", "nizam.html#/safi",
+                     "nizam.html#/xbrl", "nizam.html#/delivery", "admin.html"):
             p.goto(f"{BASE}/{page}", wait_until="networkidle"); p.wait_for_timeout(300)
             sw_ = p.evaluate("document.documentElement.scrollWidth")
             cw = p.evaluate("document.documentElement.clientWidth")

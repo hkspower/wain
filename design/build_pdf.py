@@ -69,26 +69,17 @@ for i in range(H):                                   # slow vertical lift
     c = tuple(int(INK[k] + (INK_SOFT[k] - INK[k]) * (1 - t) ** 2) for k in range(3))
     dr.line([0, i, W, i], fill=c)
 anchor_mark(dr, W // 2, 700, 150, BRASS, 7)
-f_word = font(F_DISP, 236)
-cap_h = f_word.getbbox("N")[3] - f_word.getbbox("N")[1]
-f_one = font(F_MED, 190)
-one_h = f_one.getbbox("1")[3] - f_one.getbbox("1")[1]
-f_one = font(F_MED, int(190 * cap_h / one_h))
-w_word = sum(dr.textlength(c, font=f_word) for c in "NOKHA") + 44 * 4
-w_one = dr.textlength("1", font=f_one)
-gap = 46
-x0 = W // 2 - (w_word + gap + w_one) / 2
-ls_text(dr, x0, 980, "NOKHA", f_word, BONE, 44)
-dr.text((x0 + w_word + gap, 980 + (f_word.getbbox("N")[1] - f_one.getbbox("1")[1])),
-        "1", font=f_one, fill=BRASS)
+# The company is the cover; Nokha1 is the system inside, named in the strip below.
+ls_text(dr, W // 2, 930, "ALMUHALLAB", font(F_DISP, 168), BONE, 30, "ct")
+ls_text(dr, W // 2, 1130, "CODE", font(F_MED, 132), BRASS, 40, "ct")
 dr.line([W // 2 - 430, 1310, W // 2 + 430, 1310], fill=BORDER, width=3)
-ls_text(dr, W // 2, 1372, "ALMUHALLAB  UNIFIED  SERVICES", font(F_TECH, 54), MUTED, 15, "ct")
+ls_text(dr, W // 2, 1372, "SOFTWARE  AND  SYSTEMS  —  KUWAIT", font(F_TECH, 54), MUTED, 15, "ct")
 ls_text(dr, W // 2, 1520, "WEBSITE SAMPLE", font(F_MED, 62), TEAL, 22, "ct")
 ls_text(dr, W // 2, 1660, "www.almuhallab-code.com", font(F_MONO, 46), BONE, 4, "ct")
-ls_text(dr, W // 2, 1790, "SAFI  ·  XBRL  ·  DELIVERY  ·  CODE", font(F_TECH, 40), MUTED, 14, "ct")
+ls_text(dr, W // 2, 1790, "NOKHA1  ·  SAFI  ·  XBRL  ·  DELIVERY  ·  EDITOR", font(F_TECH, 38), MUTED, 12, "ct")
 dr.line([260, 2270, W - 260, 2270], fill=BORDER, width=2)
 ls_text(dr, 260, 2320, "PROGRESSIVE WEB APP — OFFLINE CAPABLE", font(F_MONO, 32), MUTED, 2)
-ls_text(dr, W - 260, 2320, "11 SCREENS", font(F_MONO, 32), BRASS, 2, "rt")
+ls_text(dr, W - 260, 2320, "13 SCREENS", font(F_MONO, 32), BRASS, 2, "rt")
 pages.append(im)
 
 # ------------------------------------------------------------------ CONTENTS
@@ -96,16 +87,18 @@ im, dr = new_page()
 ls_text(dr, 260, 240, "CONTENTS", font(F_DISP, 132), BONE, 22)
 dr.line([260, 470, W - 260, 470], fill=BORDER, width=3)
 rows = [
-    ("01", "Landing", "الرئيسية", "Hero, service fleet, install prompt"),
-    ("02", "Plans", "الاشتراكات", "Three tiers — pricing deferred, all units open"),
-    ("03", "Registration", "إنشاء حساب", "PBKDF2-hashed credentials, validated"),
-    ("04", "Dashboard", "لوحة التحكم", "Account, plan badge, unit access"),
-    ("05", "SAFI", "صافي", "Portfolio, market value, profit and loss"),
-    ("06", "XBRL", "التقارير المالية", "Statements, balance check, IFRS instance"),
-    ("07", "Delivery", "التوصيل", "Orders, couriers, status pipeline"),
-    ("08", "Code Editor", "المحرر", "Sandboxed live preview"),
-    ("09", "Mobile", "الجوال", "Installed app, three screens"),
-    ("10", "Specification", "المواصفات", "Stack, security, deployment"),
+    ("01", "Almuhallab Code", "المهلب كود", "The company — services, work, contact"),
+    ("02", "Nokha1 — Portal", "النوخذة", "The system inside: hero, units, install"),
+    ("03", "Plans", "الاشتراكات", "Three tiers — pricing deferred, all units open"),
+    ("04", "Registration", "إنشاء حساب", "PBKDF2-hashed credentials, validated"),
+    ("05", "Dashboard", "لوحة التحكم", "Account, plan badge, unit access"),
+    ("06", "SAFI", "صافي", "Portfolio, market value, profit and loss"),
+    ("07", "XBRL", "التقارير المالية", "Statements, balance check, IFRS instance"),
+    ("08", "Delivery", "التوصيل", "Orders, couriers, status pipeline"),
+    ("09", "Unified Position", "المركز المالي", "One core — portfolio and orders feed the filing"),
+    ("10", "Code Editor", "المحرر", "Sandboxed live preview"),
+    ("11", "Mobile", "الجوال", "Installed app, three screens"),
+    ("12", "Specification", "المواصفات", "Stack, security, deployment"),
 ]
 y = 590
 fnum, fen, far, fd = font(F_MONO, 46), font(F_MED, 60), font(F_TECH, 52), font(F_TECH, 40)
@@ -120,15 +113,16 @@ pages.append(im)
 
 # ------------------------------------------------------------------ PLATES
 plates = [
-    ("01-landing",  "01", "Landing", "الرئيسية", "index.html"),
-    ("02-pricing",  "02", "Plans", "الاشتراكات", "index.html#/pricing"),
-    ("03-register", "03", "Registration", "إنشاء حساب", "index.html#/register"),
-    ("04-dashboard","04", "Dashboard", "لوحة التحكم", "index.html#/dashboard"),
-    ("05-safi",     "05", "SAFI — Portfolio", "صافي", "nizam.html#/safi"),
-    ("06-xbrl",     "06", "XBRL — Reporting", "التقارير المالية", "nizam.html#/xbrl"),
-    ("07-delivery", "07", "Delivery", "التوصيل", "nizam.html#/delivery"),
-    ("08-position", "08", "Unified Position", "المركز المالي", "nizam.html#/position"),
-    ("09-editor",   "09", "Code Editor", "المحرر", "editor.html"),
+    ("01-company",  "01", "Almuhallab Code", "المهلب كود", "/"),
+    ("02-landing",  "02", "Nokha1 — Portal", "النوخذة", "/nokha1"),
+    ("03-pricing",  "03", "Plans", "الاشتراكات", "/nokha1#/pricing"),
+    ("04-register", "04", "Registration", "إنشاء حساب", "/nokha1#/register"),
+    ("05-dashboard","05", "Dashboard", "لوحة التحكم", "/nokha1#/dashboard"),
+    ("06-safi",     "06", "SAFI — Portfolio", "صافي", "/nizam#/safi"),
+    ("07-xbrl",     "07", "XBRL — Reporting", "التقارير المالية", "/nizam#/xbrl"),
+    ("08-delivery", "08", "Delivery", "التوصيل", "/nizam#/delivery"),
+    ("09-position", "09", "Unified Position", "المركز المالي", "/nizam#/position"),
+    ("10-editor",   "10", "Code Editor", "المحرر", "/editor"),
 ]
 fnum_s, fttl, far_s, furl = font(F_MONO, 40), font(F_MED, 64), font(F_TECH, 54), font(F_MONO, 34)
 
@@ -160,7 +154,7 @@ ls_text(dr, 360, 138, "Installed on device", fttl, BONE, 5)
 ar_text(dr, W - 250, 138, "الجوال", 62, TEAL, "rt")
 dr.line([250, 268, W - 250, 268], fill=BORDER, width=3)
 
-mobiles = [("09-m-landing", "الرئيسية"), ("10-m-safi", "صافي"), ("11-m-delivery", "التوصيل")]
+mobiles = [("11-m-company", "المهلب كود"), ("12-m-safi", "صافي"), ("13-m-position", "المركز المالي")]
 avail_h = H - 268 - 300
 fcap = font(F_TECH, 46)
 for i, (fn, cap) in enumerate(mobiles):

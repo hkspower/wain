@@ -3,7 +3,7 @@
   "short_name": "Nokha1",
   "description": "نظام المهلب الموحد: صافي، XBRL، والتوصيل — يعمل بدون إنترنت.",
   "id": "nokha1",
-  "start_url": "./",
+  "start_url": "nokha1.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",

@@ -56,6 +56,13 @@ AddType font/woff2               .woff2
   RewriteCond %{HTTP:X-Forwarded-Proto} !https
   RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
 
+  # ---- Extensionless URLs for the products living inside the company site ----
+  # /nokha1 -> nokha1.html, /nizam -> nizam.html, /editor -> editor.html.
+  # Rewritten, not redirected, so the address bar keeps the clean form.
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^(nokha1|nizam|editor|admin|safi|xbrl|delivery)/?$ $1.html [L]
+
   # ---- Canonical host: send the bare domain to www ----
   RewriteCond %{HTTP_HOST} ^almuhallab-code\.com$ [NC]
   RewriteRule ^(.*)$ https://www.almuhallab-code.com/$1 [R=301,L]
