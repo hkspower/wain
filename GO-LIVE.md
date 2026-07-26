@@ -113,8 +113,9 @@ project folder on your Mac. Nothing is installed and nothing is rebuilt.
    *anon* key. This is the whole configuration step; the site cannot sell
    anything until it is done, and checkout will say "Online ordering is
    temporarily unavailable" until it is.
-5. Run the five files in the zip's `supabase-sql/` folder, in order, in the
-   Supabase SQL Editor.
+5. Paste all of the zip's `supabase-sql/SETUP-ALL.sql` into the Supabase SQL
+   Editor and press Run. Read the report it prints at the end — see step 2
+   below for what each number means.
 
 Regenerate the zip any time with `node sporta-web/scripts/make-package.mjs`.
 
@@ -165,36 +166,34 @@ It refuses to run over HTTP. Note it cannot run if the account's login shell is
 
 </details>
 
-### 2. Run the database migrations — checkout does not work without them
+### 2. Set up the database — one file
 
-In the Supabase SQL editor, run these in order (each is safe to re-run):
+In the Supabase SQL editor, paste **all** of `supabase/SETUP-ALL.sql` and press
+Run. That is the whole database step.
 
-```
-supabase/schema.sql
-supabase/admin-migration.sql
-supabase/checkout-migration.sql
-supabase/passcode-migration.sql
-supabase/seed-products.sql
-```
+It is one file on purpose. The five migrations must run in a specific order —
+`create_order` needs the tables from `schema.sql`, and the products need the
+table to exist — and running them out of order fails *silently*: the storefront
+still renders, and every checkout is refused. Safe to re-run at any time.
 
-`checkout-migration.sql` is the one that makes checkout work at all. It adds
-`create_order`, the single guarded function that creates an order, validates
-the delivery address, and prices the cart from the products table. Until it is
-run, the browser cannot create an order and every shopper hits
-**404 Unknown order** at the moment they press Pay.
+It ends by printing a report. Read it rather than assuming:
 
-`passcode-migration.sql` creates the admin quick-unlock table and its three
-RPCs. Without it the admin's passcode screen cannot work.
+| Column | Should say | If it says 0 |
+|---|---|---|
+| `products_on_sale` | 46 | the catalogue did not load; checkout refuses everything |
+| `products_retired` | 0+ | old products hidden, not deleted — 0 on a new project |
+| `checkout_function` | 1 | every shopper hits **404 Unknown order** at Pay |
+| `passcode_function` | 1 | the admin quick-unlock screen cannot work |
+| `admin_users` | 1 or more | **nobody can sign in to /admin** |
 
-`seed-products.sql` loads all 20 products with their current prices. Orders are
-priced from that table, so until it is loaded every checkout is refused with
-"this item is currently unavailable". It matches on slug, so re-running it
-updates prices in place and never duplicates — and it never overwrites a real
-product photo URL you have added. (**Admin → Catalogue → Push products** does
-the same thing from the browser if you prefer.)
+**If `admin_users` is 0**, create one: Supabase → **Authentication → Users →
+Add user**. Any email works — it does not need a real inbox, and it is not
+where order mail goes. That email and password are what you type at
+`https://www.sporta.com.kw/admin`.
 
-To verify all five landed, the admin Catalogue screen should report every
-product "in sync".
+The five migrations are still there individually (`supabase/schema.sql` and so
+on) if you would rather run them one at a time, but they must go in the order
+they are numbered.
 
 ### 3. Confirm the site is live and correctly configured
 

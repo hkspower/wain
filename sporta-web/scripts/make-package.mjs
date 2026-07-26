@@ -42,6 +42,11 @@ for (const forbidden of ['knet/config.php', '.env', '.env.deploy']) {
 
 // ---- 3. the SQL, so the database can be set up without the repo -------------
 mkdirSync(join(stage, 'supabase-sql'), { recursive: true })
+// SETUP-ALL.sql first, because running the five separately in the wrong order
+// is the most common way this setup fails — and it fails quietly, leaving a
+// storefront that renders and a checkout that refuses everything.
+execFileSync('node', [join(web, 'scripts', 'generate-setup-sql.mjs')], { stdio: 'inherit' })
+cpSync(join(web, 'supabase', 'SETUP-ALL.sql'), join(stage, 'supabase-sql', 'SETUP-ALL.sql'))
 const ORDER = ['schema', 'admin-migration', 'checkout-migration', 'passcode-migration', 'seed-products']
 ORDER.forEach((name, i) => {
   cpSync(join(web, 'supabase', `${name}.sql`), join(stage, 'supabase-sql', `${i + 1}-${name}.sql`))
@@ -102,16 +107,24 @@ Save. Reload the site. That is the whole configuration step.
 --------------------------------------------------------------------------------
 3. DATABASE  (Supabase -> SQL Editor)
 --------------------------------------------------------------------------------
-Open the  supabase-sql/  folder in this zip and run the five files IN ORDER,
-pasting each into the Supabase SQL Editor:
+Open  supabase-sql/SETUP-ALL.sql  , paste ALL of it into the Supabase SQL
+Editor, and press Run. That is the whole database step.
 
-    1-schema.sql
-    2-admin-migration.sql
-    3-checkout-migration.sql
-    4-passcode-migration.sql
-    5-seed-products.sql
+It ends by printing a report. Read it:
 
-All five are safe to re-run. Until 3 and 5 have run, every checkout is refused.
+    products_on_sale    46    the catalogue
+    checkout_function    1    0 means every checkout fails
+    passcode_function    1    0 means admin quick-unlock cannot work
+    admin_users          1+   0 means NOBODY CAN SIGN IN to /admin
+
+If admin_users is 0, go to Authentication -> Users -> Add user. Any email
+works; it does not need to be a real inbox. That is the account you use at
+https://www.sporta.com.kw/admin
+
+Safe to run again whenever the catalogue changes.
+
+(The same five migrations are also in that folder numbered 1-5, if you would
+rather run them one at a time. They MUST go in that order.)
 
 --------------------------------------------------------------------------------
 4. PAYMENT CREDENTIALS  (server-side only — never in config.js)
