@@ -146,7 +146,7 @@ def browser_checks():
         pg = ctx.new_page()
         pg.on("pageerror", lambda e: errs.append(str(e)))
 
-        intro_checks(pg)
+        home_checks(pg)
         safi_checks(pg)
         integration_checks(pg)
         xbrl_checks(pg)
@@ -212,32 +212,22 @@ def safi_checks(pg):
     check(S, "CSV contains a row per holding", len(csv.strip().splitlines()) == 4,
           f"{len(csv.strip().splitlines())} lines")
 
-# ───────────── the animated Nokha1 intro on the company page
-def intro_checks(pg):
-    """The demo must actually play: sources count up, the XBRL tiles receive
-    the same figures, and reduced-motion visitors get the final frame."""
-    S = "intro"
+# ───────────── the company page keeps its content in the shared vocabulary
+def home_checks(pg):
+    """The root page is built from the site's own card grid — no bespoke
+    components — and still carries every section it is meant to carry."""
+    S = "home"
     pg.goto(f"{BASE}/index.html", wait_until="networkidle")
-    pg.eval_on_selector("#demo", "e=>e.scrollIntoView({block:'center'})")
-    pg.wait_for_timeout(5200)                      # one pass: count → fly → feed
-    safi = pg.inner_text("#d-safi").replace(",", "")
-    nca = pg.inner_text("#d-nca").replace(",", "")
-    check(S, "the source figure counts up to its value", safi == "30481.400", safi)
-    check(S, "the XBRL tile receives the same figure", nca == safi, f"{nca} vs {safi}")
-    check(S, "the receiving tiles are marked as fed",
-          pg.eval_on_selector("#d-nca-t", "e=>e.classList.contains('fed')")
-          and pg.eval_on_selector("#d-rev-t", "e=>e.classList.contains('fed')"))
-    check(S, "the narration reaches the derive step",
-          pg.eval_on_selector_all("#intro-steps li.lit", "n=>n.length") == 1)
-
-    # reduced motion: no animation, but the story's final frame is shown
-    c = pg.context.browser.new_context(reduced_motion="reduce", locale="ar-KW")
-    rp = c.new_page()
-    rp.goto(f"{BASE}/index.html", wait_until="networkidle"); rp.wait_for_timeout(400)
-    check(S, "reduced motion shows the final frame instead",
-          rp.inner_text("#d-nca").replace(",", "") == "30481.400"
-          and rp.eval_on_selector("#d-nca-t", "e=>e.classList.contains('fed')"))
-    c.close()
+    pg.wait_for_timeout(300)
+    for heading in ("ما هو Nokha1؟", "خدماتنا", "من أعمالنا", "كيف نعمل", "تواصل معنا"):
+        check(S, f"the page still carries: {heading}", heading in pg.inner_text("main"))
+    cards = pg.eval_on_selector_all(".card", "n=>n.length")
+    check(S, "every section is rendered as cards in the shared grid", cards == 17, f"{cards} cards")
+    check(S, "the contact address survived",
+          "info@almuhallab-code.com" in pg.inner_text("main"))
+    check(S, "Nokha1 and the editor both open from their cards",
+          pg.eval_on_selector_all('.card a[href="nokha1.html"]', "n=>n.length") == 1
+          and pg.eval_on_selector_all('.card a[href="editor.html"]', "n=>n.length") == 1)
 
 # ───────────── the integration: one data core feeding the statements
 def integration_checks(pg):

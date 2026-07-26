@@ -12,7 +12,7 @@ inside it, entered at `/nokha1` — not the front door.
 
 | File | Page |
 |------|------|
-| `index.html` | **Almuhallab Code** — the company site: services, work, contact, and an animated Nokha1 intro that plays the data flow |
+| `index.html` | **Almuhallab Code** — the company site: what Nokha1 is, services, work, how we work, contact |
 | `nokha1.html` | **Nokha1 portal** — landing, registration, login, dashboard, plans |
 | `nizam.html` | **النظام الموحد** — one page, four tabs: المركز المالي · صافي · XBRL · التوصيل |
 | `safi.html`, `xbrl.html`, `delivery.html` | redirects to the matching tab (keeps old links working) |
@@ -137,7 +137,7 @@ visitor's OS happens to have installed.
 ## Tests
 
 ```bash
-python3 design/test_suite.py     # 113 checks, exits non-zero on failure
+python3 design/test_suite.py     # 116 checks, exits non-zero on failure
 ```
 
 Covers the company/product split (the root is the company site and carries no

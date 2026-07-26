@@ -19,7 +19,9 @@ portal, registration, plans or dashboard on the root page.
 Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 
 - `index.html` — the company site: services, work, how we work, contact. Links
-  into the products; carries no account UI.
+  into the products; carries no account UI. Built from **one shared vocabulary**
+  — hero, `h2.section` + `.sub`, then a `.grid` of uniform `.card`s with `.chip`s.
+  Don't invent per-section components for it.
 - `nokha1.html` — the Nokha1 portal · `nizam.html` (the unified system: المركز المالي · صافي ·
   XBRL · التوصيل in four tabs over one data core) · `editor.html` ·
   `admin.html` · `sw.js` · `manifest.webmanifest` (its `start_url` is
@@ -51,7 +53,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 113 checks covering
+- `python3 design/test_suite.py` is the full system test — 116 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, and layout. Run it
   after any change to `almuhallab/`; it exits non-zero on failure.

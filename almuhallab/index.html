@@ -113,108 +113,23 @@
     h2.section { font-size: 24px; margin: 44px 0 4px; }
     .sub { color: var(--muted); margin: 0 0 18px; line-height: 1.8; }
 
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; margin-top: 18px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin-top: 28px; }
     .card {
       background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px;
       display: flex; flex-direction: column; gap: 8px;
     }
     .card h3 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; }
     .card p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.7; }
-
-    /* The flagship product gets a wide card of its own — Nokha1 is a system we
-       built and run, not one service tile among six. */
-    .product {
-      background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
-      padding: 24px; display: grid; grid-template-columns: 1fr auto; gap: 18px;
-      align-items: center; margin-top: 18px;
-    }
-    .product.lead { border-color: var(--tint-strong); box-shadow: 0 0 0 1px var(--tint-strong); }
-    .product h3 { margin: 0 0 6px; font-size: 20px; }
-    .product p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.8; }
-    .product .units { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 12px; }
     .chip {
-      font-size: 11.5px; font-weight: 700; border-radius: 999px; padding: 4px 11px;
+      font-size: 11px; font-weight: 700; border-radius: 999px; padding: 3px 10px;
       background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
+      align-self: flex-start;
     }
     .chip.on { color: var(--tint); border-color: var(--tint-strong); }
-    .product .go { align-self: center; white-space: nowrap; }
-    @media (max-width: 620px) {
-      .product { grid-template-columns: 1fr; }
-      .product .go { justify-self: stretch; text-align: center; }
-    }
-
-    ol.steps { counter-reset: s; list-style: none; margin: 18px 0 0; padding: 0;
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
-    ol.steps li { counter-increment: s; background: var(--panel); border: 1px solid var(--border);
-      border-radius: 14px; padding: 16px 18px; color: var(--muted); font-size: 13.5px; line-height: 1.75; }
-    ol.steps li b { display: block; color: var(--text); font-size: 15px; margin-bottom: 6px; }
-    ol.steps li b::before { content: counter(s) "."; color: var(--tint); margin-inline-end: 7px; }
-
-    .contact { background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
-      padding: 24px; margin-top: 18px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
-    .contact .who { flex: 1; min-width: 220px; }
-    .contact .who b { display: block; font-size: 16px; margin-bottom: 6px; }
-    .contact .who span { color: var(--muted); font-size: 13.5px; line-height: 1.8; }
 
     footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 24px;
       border-top: 1px solid var(--border); line-height: 1.9; }
 
-    /* ═══════ Nokha1 intro — a live miniature of the system ═══════
-       Not a video and not a screenshot: a small animated mockup that acts out
-       the one idea worth explaining — numbers flow from صافي and التوصيل into
-       the XBRL statement instead of being retyped. Animation is transform and
-       opacity only, starts when the section scrolls into view, and collapses
-       to its final still frame under prefers-reduced-motion. */
-    .intro { background: var(--panel); border: 1px solid var(--tint-strong);
-      box-shadow: 0 0 0 1px var(--tint-strong); border-radius: 16px;
-      padding: 26px 24px; margin-top: 26px; overflow: hidden; }
-    .intro-grid { display: grid; grid-template-columns: 1.05fr 1fr; gap: 26px; align-items: center; }
-    @media (max-width: 760px) { .intro-grid { grid-template-columns: 1fr; } }
-    .intro h3 { margin: 0 0 10px; font-size: 22px; }
-    .intro .lead-p { color: var(--muted); font-size: 14.5px; line-height: 1.9; margin: 0 0 14px; }
-
-    /* the steps narrate what the demo is doing, one lighting up at a time */
-    .intro-steps { list-style: none; margin: 0 0 18px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-    .intro-steps li { display: flex; gap: 10px; align-items: baseline; font-size: 13.5px;
-      color: var(--muted); border-inline-start: 2px solid var(--border);
-      padding: 6px 12px 6px 0; transition: color .4s, border-color .4s; }
-    .intro-steps li .n { font-weight: 800; color: var(--border-input); font-variant-numeric: tabular-nums; }
-    .intro-steps li.lit { color: var(--text); border-inline-start-color: var(--tint); }
-    .intro-steps li.lit .n { color: var(--tint); }
-
-    /* ---- the demo card: a miniature of nizam.html ---- */
-    .demo { background: var(--bg); border: 1px solid var(--border); border-radius: 13px;
-      padding: 0 0 14px; font-size: 12px; }
-    .demo-bar { display: flex; gap: 3px; padding: 8px 12px 0; border-bottom: 1px solid var(--border); }
-    .demo-bar span { padding: 7px 10px; font-weight: 700; color: var(--muted);
-      border-bottom: 2px solid transparent; white-space: nowrap; font-size: 11.5px; }
-    .demo-bar span.on { color: var(--tint); border-bottom-color: var(--tint); }
-    .demo-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px 12px 0; }
-    .demo-tile { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
-    .demo-tile .v { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .demo-tile .k { color: var(--muted); font-weight: 600; font-size: 10.5px; margin-top: 2px; }
-    .demo-tile.dst { transition: border-color .5s, background .5s; }
-    .demo-tile.dst.fed { border-color: var(--tint); background: var(--panel-2); }
-    .demo-note { color: var(--muted); font-size: 11px; padding: 10px 14px 0; line-height: 1.8; }
-    .demo-note b { color: var(--good); }
-
-    /* the moving figure: a chip that slides from source tile to destination */
-    .demo-stage { position: relative; }
-    .fly { position: absolute; z-index: 3; background: var(--tint-strong); color: #fff;
-      font-weight: 800; font-size: 11px; padding: 4px 10px; border-radius: 999px;
-      font-variant-numeric: tabular-nums; opacity: 0; pointer-events: none;
-      inset-inline-start: 18%; top: 56px; }
-    .fly.go { animation: fly-down 1.6s cubic-bezier(.45,0,.25,1) forwards; }
-    @keyframes fly-down {
-      0%   { opacity: 0; transform: translateY(0) scale(.85); }
-      12%  { opacity: 1; transform: translateY(0) scale(1); }
-      82%  { opacity: 1; transform: translateY(74px) scale(1); }
-      100% { opacity: 0; transform: translateY(74px) scale(.85); }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .fly { display: none; }
-      .intro-steps li, .demo-tile.dst { transition: none; }
-    }
   </style>
 </head>
 <body>
@@ -246,62 +161,34 @@
       </div>
     </section>
 
-    <!-- ═══════ Nokha1 intro: a live miniature acting out the one idea ═══════ -->
+    <!-- Every section below is the site's original card vocabulary: a section
+         heading, a one-line lead, then a grid of uniform cards. -->
     <h2 class="section" id="nokha1">ما هو Nokha1؟</h2>
-    <p class="sub">نظامنا الموحد — شاهد فكرته تعمل أمامك قبل أن تدخله.</p>
-    <div class="intro">
-      <div class="intro-grid">
-        <div>
-          <h3>⚓ رقم واحد، يُكتب مرة واحدة</h3>
-          <p class="lead-p">
-            في الأنظمة المنفصلة تكتب قيمة محفظتك في نظام، وإيراد توصيلك في نظام،
-            ثم تعيد كتابتهما يدوياً في القوائم المالية — وكل نسخة تشيخ وحدها.
-            Nokha1 يجمع صافي و XBRL والتوصيل فوق نواة بيانات واحدة، فالرقم يسير
-            بنفسه من مصدره إلى القائمة المالية.
-          </p>
-          <ol class="intro-steps" id="intro-steps">
-            <li><span class="n">١</span> تدير محفظتك في صافي — القيمة السوقية تُحسب لحظياً</li>
-            <li><span class="n">٢</span> تسلّم الطلبات في التوصيل — الإيراد يتجمّع من المسلّم فقط</li>
-            <li><span class="n">٣</span> تضغط «احسب من النظام» في XBRL — الرقمان يصلان بنفسيهما</li>
-            <li><span class="n">٤</span> تولّد ملف XBRL بمعيار IFRS جاهزاً للإيداع</li>
-          </ol>
-          <div class="actions" style="display:flex;gap:10px;flex-wrap:wrap">
-            <a class="btn primary" href="nokha1.html">جرّب النظام الحقيقي ←</a>
-            <a class="btn outline" href="nizam.html#/position">المركز المالي مباشرة</a>
-          </div>
-        </div>
-
-        <!-- the demo: a miniature nizam.html that plays the flow on loop -->
-        <div class="demo" id="demo" aria-label="عرض متحرك: الأرقام تنتقل من صافي والتوصيل إلى قائمة XBRL">
-          <div class="demo-bar">
-            <span class="on">المركز المالي</span><span>📊 صافي</span><span>🧾 XBRL</span><span>🛵 التوصيل</span>
-          </div>
-          <div class="demo-stage">
-            <div class="demo-row">
-              <div class="demo-tile">
-                <div class="v" id="d-safi">0.000</div>
-                <div class="k">صافي — القيمة السوقية (د.ك)</div>
-              </div>
-              <div class="demo-tile">
-                <div class="v" id="d-del">0.000</div>
-                <div class="k">التوصيل — إيراد الطلبات المسلّمة (د.ك)</div>
-              </div>
-            </div>
-            <div class="demo-row">
-              <div class="demo-tile dst" id="d-nca-t">
-                <div class="v" id="d-nca">—</div>
-                <div class="k">XBRL — الأصول غير المتداولة</div>
-              </div>
-              <div class="demo-tile dst" id="d-rev-t">
-                <div class="v" id="d-rev">—</div>
-                <div class="k">XBRL — الإيرادات</div>
-              </div>
-            </div>
-            <span class="fly" id="fly-1">30,481.400</span>
-            <span class="fly" id="fly-2" style="inset-inline-start:auto;inset-inline-end:18%">7.500</span>
-          </div>
-          <p class="demo-note" id="demo-note">أرقام تجريبية — النظام الحقيقي يحسبها من بياناتك.</p>
-        </div>
+    <p class="sub">
+      في الأنظمة المنفصلة تكتب قيمة محفظتك في نظام، وإيراد توصيلك في نظام، ثم تعيد
+      كتابتهما يدوياً في القوائم المالية — وكل نسخة تشيخ وحدها. Nokha1 يجمع صافي و XBRL
+      والتوصيل فوق نواة بيانات واحدة، فالرقم يُكتب مرة واحدة ويسير بنفسه إلى القائمة المالية.
+    </p>
+    <div class="grid">
+      <div class="card">
+        <h3>📊 صافي — المحفظة</h3>
+        <p>تدير أسهمك وكمياتها وأسعارها، فتُحسب القيمة السوقية والربح/الخسارة لحظياً.</p>
+        <span class="chip on">المصدر الأول</span>
+      </div>
+      <div class="card">
+        <h3>🛵 التوصيل — الطلبات</h3>
+        <p>تنشئ الطلبات وتتبّع حالتها حتى التسليم، فيتجمّع الإيراد من المسلَّم فقط.</p>
+        <span class="chip on">المصدر الثاني</span>
+      </div>
+      <div class="card">
+        <h3>🧾 XBRL — القوائم المالية</h3>
+        <p>زر «احسب من النظام» يجلب القيمة السوقية إلى الأصول غير المتداولة، وإيراد التوصيل إلى الإيرادات.</p>
+        <span class="chip on">الوجهة</span>
+      </div>
+      <div class="card">
+        <h3>⚓ المركز المالي الموحد</h3>
+        <p>تبويب واحد يجمع الأرقام كلها ويكتب الترابط صراحةً، ثم تولّد ملف XBRL بمعيار IFRS.</p>
+        <span class="chip on">النتيجة</span>
       </div>
     </div>
 
@@ -336,56 +223,58 @@
 
     <h2 class="section" id="products">من أعمالنا</h2>
     <p class="sub">أنظمة بنيناها بالكامل — تعمل اليوم، ويمكنك تجربتها الآن.</p>
-
-    <!-- Nokha1 lives inside the company site; it is a product, not the front door. -->
-    <div class="product lead">
-      <div>
+    <div class="grid">
+      <div class="card">
         <h3>⚓ Nokha1 — النوخذة</h3>
         <p>
-          نظام موحّد واحد يجمع ثلاث وحدات فوق نواة بيانات واحدة، فتسير الأرقام بينها تلقائياً:
-          القيمة السوقية للمحفظة تُغذّي الأصول غير المتداولة، والطلبات المسلّمة تُغذّي الإيرادات.
-          يعمل بدون إنترنت ويُثبَّت على الجوال.
+          النظام الموحد: صافي و XBRL والتوصيل فوق نواة بيانات واحدة، مع تبويب للمركز
+          المالي. يعمل بدون إنترنت ويُثبَّت على الجوال.
         </p>
-        <div class="units">
-          <span class="chip on">📊 صافي — المحافظ</span>
-          <span class="chip on">🧾 XBRL — التقارير المالية</span>
-          <span class="chip on">🛵 التوصيل</span>
-          <span class="chip">المركز المالي الموحد</span>
-        </div>
+        <span class="chip on">✔ متاح</span>
+        <a class="btn primary" style="text-align:center;margin-top:4px" href="nokha1.html">ادخل النظام ↗</a>
       </div>
-      <a class="btn primary go" href="nokha1.html">ادخل النظام ←</a>
-    </div>
-
-    <div class="product">
-      <div>
-        <h3>💻 محرر الأكواد — Almuhallab Code Editor</h3>
+      <div class="card">
+        <h3>💻 محرر الأكواد</h3>
         <p>
           محرر HTML/CSS/JS في المتصفح بمعاينة حيّة داخل إطار معزول، مع حفظ تلقائي
           وتنزيل الملف — أداة نستخدمها داخلياً وأتحناها للجميع.
         </p>
+        <span class="chip on">✔ متاح</span>
+        <a class="btn outline" style="text-align:center;margin-top:4px" href="editor.html">افتح المحرر ↗</a>
       </div>
-      <a class="btn outline go" href="editor.html">افتح المحرر ←</a>
     </div>
 
     <h2 class="section">كيف نعمل</h2>
-    <ol class="steps">
-      <li><b>نفهم العملية</b> نجلس معك ونرسم كيف يسير العمل فعلياً اليوم، لا كيف يُفترض أن يسير.</li>
-      <li><b>نبني نواة واحدة</b> نموذج بيانات واحد تشترك فيه كل الوحدات، فلا تتكرّر الأرقام ولا تتناقض.</li>
-      <li><b>نختبر بالأرقام</b> اختبارات آلية على الحساب والأمن والعرض قبل كل إصدار، لا مراجعة بالعين.</li>
-      <li><b>نسلّم ونشغّل</b> ننشر على نطاقك، ونبقى معك في التشغيل والتطوير.</li>
-    </ol>
+    <p class="sub">أربع خطوات، من أول جلسة حتى التشغيل.</p>
+    <div class="grid">
+      <div class="card">
+        <h3>١ نفهم العملية</h3>
+        <p>نجلس معك ونرسم كيف يسير العمل فعلياً اليوم، لا كيف يُفترض أن يسير.</p>
+      </div>
+      <div class="card">
+        <h3>٢ نبني نواة واحدة</h3>
+        <p>نموذج بيانات واحد تشترك فيه كل الوحدات، فلا تتكرّر الأرقام ولا تتناقض.</p>
+      </div>
+      <div class="card">
+        <h3>٣ نختبر بالأرقام</h3>
+        <p>اختبارات آلية على الحساب والأمن والعرض قبل كل إصدار، لا مراجعة بالعين.</p>
+      </div>
+      <div class="card">
+        <h3>٤ نسلّم ونشغّل</h3>
+        <p>ننشر على نطاقك، ونبقى معك في التشغيل والتطوير.</p>
+      </div>
+    </div>
 
     <h2 class="section" id="contact">تواصل معنا</h2>
-    <div class="contact">
-      <div class="who">
-        <b>المهلب كود — Almuhallab Code</b>
-        <span>
-          الكويت 🇰🇼 · تطوير أنظمة وتطبيقات ويب<br />
-          احكِ لنا عن مشروعك، ونرجع لك بخطة وتقدير زمني.
-        </span>
+    <p class="sub">احكِ لنا عن مشروعك، ونرجع لك بخطة وتقدير زمني.</p>
+    <div class="grid">
+      <div class="card">
+        <h3>✉ المهلب كود — Almuhallab Code</h3>
+        <p>الكويت 🇰🇼 · تطوير أنظمة وتطبيقات ويب.</p>
+        <a class="btn primary" style="text-align:center;margin-top:4px" href="mailto:info@almuhallab-code.com">info@almuhallab-code.com</a>
       </div>
-      <a class="btn primary" href="mailto:info@almuhallab-code.com">✉ info@almuhallab-code.com</a>
     </div>
+
   </main>
 
   <footer>
@@ -394,74 +283,6 @@
     <a href="admin.html" style="color:var(--muted)">لوحة الإدارة</a>
   </footer>
 
-  <script>
-    /* The Nokha1 intro demo: count the source figures up, fly them into the
-       XBRL tiles, light the matching narration step — then loop. Runs only
-       while visible, and renders the final still frame when the visitor asks
-       for reduced motion. */
-    (function () {
-      "use strict";
-      var SAFI = 30481.4, DEL = 7.5;
-      var $ = function (id) { return document.getElementById(id); };
-      var kwd = function (n) {
-        return n.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-      };
-      var steps = $("intro-steps").children;
-      var timers = [];
-      var later = function (fn, ms) { timers.push(setTimeout(fn, ms)); };
-
-      function light(i) {
-        for (var k = 0; k < steps.length; k++) steps[k].classList.toggle("lit", k === i);
-      }
-      function count(id, target, ms) {
-        var t0 = performance.now();
-        (function tick(now) {
-          var p = Math.min((now - t0) / ms, 1);
-          $(id).textContent = kwd(target * (1 - Math.pow(1 - p, 3)));   // ease-out cubic
-          if (p < 1) requestAnimationFrame(tick);
-        })(t0);
-      }
-      function finalFrame() {
-        $("d-safi").textContent = kwd(SAFI); $("d-del").textContent = kwd(DEL);
-        $("d-nca").textContent = kwd(SAFI); $("d-rev").textContent = kwd(DEL);
-        $("d-nca-t").classList.add("fed"); $("d-rev-t").classList.add("fed");
-        light(2);
-      }
-
-      var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      if (reduced) { finalFrame(); return; }
-
-      function play() {
-        timers.forEach(clearTimeout); timers = [];
-        $("d-nca").textContent = "—"; $("d-rev").textContent = "—";
-        $("d-nca-t").classList.remove("fed"); $("d-rev-t").classList.remove("fed");
-        $("fly-1").classList.remove("go"); $("fly-2").classList.remove("go");
-
-        light(0); count("d-safi", SAFI, 1400);
-        later(function () { light(1); count("d-del", DEL, 1000); }, 1600);
-        later(function () {
-          light(2);
-          void $("fly-1").offsetWidth;                    // restart the CSS animation
-          $("fly-1").classList.add("go"); $("fly-2").classList.add("go");
-        }, 2900);
-        later(function () {
-          $("d-nca-t").classList.add("fed"); $("d-rev-t").classList.add("fed");
-          count("d-nca", SAFI, 700); count("d-rev", DEL, 700);
-        }, 4200);
-        later(function () { light(3); }, 5300);
-        later(play, 7600);                                // loop
-      }
-
-      var demo = $("demo"), running = false;
-      if ("IntersectionObserver" in window) {
-        new IntersectionObserver(function (entries) {
-          var vis = entries[0].isIntersecting;
-          if (vis && !running) { running = true; play(); }
-          if (!vis && running) { running = false; timers.forEach(clearTimeout); timers = []; }
-        }, { threshold: 0.35 }).observe(demo);
-      } else { play(); }
-    })();
-  </script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
