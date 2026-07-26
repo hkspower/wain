@@ -46,10 +46,9 @@ def static_checks():
         m = re.search(pat, src, re.S)
         return dict(re.findall(r"--([\w-]+)\s*:\s*(#[0-9a-fA-F]{3,8})", m.group(1))) if m else {}
     light = {p: tokens(t) for p, t in texts.items()}
-    dark = {p: tokens(t, True) for p, t in texts.items()}
     CORE = ["bg", "panel", "panel-2", "panel-3", "border", "border-input",
             "text", "muted", "tint", "tint-strong", "sand", "good", "danger", "info"]
-    for label, sets in (("light", light), ("dark", dark)):
+    for label, sets in (("light", light),):
         keys = sorted({k for d in sets.values() for k in d})
         # a token defined on two pages must hold the same value on both
         conflict = [k for k in keys if len({d[k] for d in sets.values() if k in d}) > 1]
@@ -75,8 +74,13 @@ def static_checks():
             warm.append(f"{tok}={L[tok]}")
     check(S, "light surfaces are not beige (no warm cast)", not warm, ", ".join(warm))
 
+    # the site is white on every device — a dark preference must not repaint it
+    for p, t in texts.items():
+        check(S, f"{p}: carries no dark-theme override", "prefers-color-scheme: dark" not in t)
+        check(S, f"{p}: declares color-scheme: light", "color-scheme: light" in t)
+
     # contrast, both themes
-    for label, P in (("light", light["index.html"]), ("dark", dark["index.html"])):
+    for label, P in (("light", light["index.html"]),):
         bad = []
         for ink in ("text", "muted", "tint", "sand", "good", "danger", "info"):
             for surf in ("panel", "bg", "panel-2", "panel-3"):
@@ -149,11 +153,10 @@ def identity_checks():
         block = re.search(pat, src, re.S).group(1)
         return re.search(rf"--{name}:\s*(#[0-9a-fA-F]{{6}})", block).group(1)
 
-    PINNED = {("tint", False): "#7a4418", ("tint-strong", False): "#6f3f1c",
-              ("tint", True): "#dba97f", ("tint-strong", True): "#8a5122"}
-    for (name, dark), want in PINNED.items():
-        got = tok(home, name, dark)
-        check(S, f"{'dark' if dark else 'light'} --{name} is {want}", got == want, got)
+    PINNED = {"tint": "#7a4418", "tint-strong": "#6f3f1c"}
+    for name, want in PINNED.items():
+        got = tok(home, name)
+        check(S, f"--{name} is {want}", got == want, got)
 
     check(S, "the page and its cards stay white",
           tok(home, "bg") == "#ffffff" and tok(home, "panel") == "#ffffff")
@@ -746,14 +749,22 @@ def layout_checks(br):
         check(S, f"{wname}: no horizontal overflow", not overflow, ", ".join(overflow))
         c.close()
 
+    # a device set to dark must still get the white site — this is the whole
+    # point of dropping the navy theme
     for scheme in ("light", "dark"):
         c = br.new_context(viewport={"width": 1280, "height": 860},
                            color_scheme=scheme, locale="ar-KW")
         p = c.new_page()
-        p.goto(f"{BASE}/index.html", wait_until="networkidle"); p.wait_for_timeout(400)
-        bg = p.evaluate("getComputedStyle(document.body).backgroundColor")
-        want_light = bg.startswith("rgb(255, 255, 255")
-        check(S, f"{scheme} theme applies", want_light if scheme == "light" else not want_light, bg)
+        for page in ("index.html", "nokhatha.html", "nizam.html"):
+            p.goto(f"{BASE}/{page}", wait_until="networkidle"); p.wait_for_timeout(300)
+            bg = p.evaluate("getComputedStyle(document.body).backgroundColor")
+            card = p.evaluate("""(() => {
+              const el = document.querySelector('.card, .tile, .product, form');
+              return el ? getComputedStyle(el).backgroundColor : 'rgb(255, 255, 255)';
+            })()""")
+            check(S, f"{scheme} preference: {page} stays white",
+                  bg.startswith("rgb(255, 255, 255") and card.startswith("rgb(255, 255, 255"),
+                  f"body={bg} card={card}")
         c.close()
 
 def mobile_checks(br):
@@ -814,13 +825,13 @@ def font_checks(pg):
     S = "typography"
     pg.goto(f"{BASE}/index.html", wait_until="networkidle")
     pg.wait_for_timeout(900)
-    loaded = pg.evaluate("document.fonts.check('400 16px \"Plex Arabic\"')")
+    loaded = pg.evaluate("document.fonts.check('400 16px \"Tajawal\"')")
     check(S, "the bundled Arabic face loads", loaded)
     fam = pg.evaluate("getComputedStyle(document.querySelector('h1')).fontFamily")
     check(S, "Arabic text resolves to the bundled face first",
-          fam.strip().startswith('"Plex Arabic"') or fam.strip().startswith("Plex Arabic"), fam)
-    faces = pg.evaluate("[...document.fonts].filter(f=>f.family==='Plex Arabic').length")
-    check(S, "all three weights are declared", faces == 3, f"{faces} faces")
+          fam.strip().startswith('"Tajawal"') or fam.strip().startswith("Tajawal"), fam)
+    faces = pg.evaluate("[...document.fonts].filter(f=>f.family==='Tajawal').length")
+    check(S, "every declared weight is present", faces == 5, f"{faces} faces")
     # the CSP must permit the font, or it silently never paints
     csp = pg.evaluate("document.querySelector('meta[http-equiv=\"Content-Security-Policy\"]').content")
     check(S, "CSP allows self-hosted fonts", "font-src 'self'" in csp)
@@ -829,7 +840,7 @@ def font_checks(pg):
         ? caches.open(ks[0]).then(c => c.keys().then(rs => rs.map(r => new URL(r.url).pathname)))
         : [])""")
     check(S, "fonts are precached for offline use",
-          sum(1 for p in cached if p.endswith(".woff2")) == 3,
+          sum(1 for p in cached if p.endswith(".woff2")) == 4,
           f"{sum(1 for p in cached if p.endswith('.woff2'))} cached")
 
 # ═══════════════════════════════════════════ run

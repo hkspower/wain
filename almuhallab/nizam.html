@@ -6,23 +6,29 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; worker-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'" />
   <meta name="referrer" content="no-referrer" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
-  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b1220" />
-  <link rel="preload" as="font" type="font/woff2" href="fonts/plex-arabic-400.woff2" crossorigin />
+  <meta name="theme-color" content="#ffffff" />
+  <link rel="preload" as="font" type="font/woff2" href="fonts/tajawal-400.woff2" crossorigin />
   <link rel="icon" type="image/svg+xml" href="icon.svg" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>النظام الموحد — النوخذة</title>
   <style>
-    /* IBM Plex Sans Arabic — bundled, not fetched from a CDN. */
-    @font-face { font-family:"Plex Arabic"; font-style:normal; font-weight:400;
-      font-display:swap; src:url("fonts/plex-arabic-400.woff2") format("woff2"); }
-    @font-face { font-family:"Plex Arabic"; font-style:normal; font-weight:600;
-      font-display:swap; src:url("fonts/plex-arabic-600.woff2") format("woff2"); }
-    @font-face { font-family:"Plex Arabic"; font-style:normal; font-weight:700;
-      font-display:swap; src:url("fonts/plex-arabic-700.woff2") format("woff2"); }
-
+    /* Tajawal (SIL OFL) — bundled, never fetched from a CDN: the strict CSP
+       forbids external origins, and a self-hosted face renders identically on
+       every device instead of depending on what the OS happens to have.
+       Arabic subset only; Latin and digits stay on the system face. */
+    @font-face { font-family:"Tajawal"; font-style:normal; font-weight:400;
+      font-display:swap; src:url("fonts/tajawal-400.woff2") format("woff2"); }
+    @font-face { font-family:"Tajawal"; font-style:normal; font-weight:500;
+      font-display:swap; src:url("fonts/tajawal-500.woff2") format("woff2"); }
+    @font-face { font-family:"Tajawal"; font-style:normal; font-weight:600;
+      font-display:swap; src:url("fonts/tajawal-500.woff2") format("woff2"); }
+    @font-face { font-family:"Tajawal"; font-style:normal; font-weight:700;
+      font-display:swap; src:url("fonts/tajawal-700.woff2") format("woff2"); }
+    @font-face { font-family:"Tajawal"; font-style:normal; font-weight:800;
+      font-display:swap; src:url("fonts/tajawal-800.woff2") format("woff2"); }
     :root {
+      color-scheme: light;   /* the site is white on every device, dark preference included */
       --bg: #ffffff; --panel: #ffffff; --panel-2: #f1f4f8; --panel-3: #e6ebf1;
       --border: #d0d7e1; --border-input: #858d99;
       --text: #1b2430; --muted: #586981;
@@ -32,21 +38,8 @@
       --code-dim: #5e6979; --dot-js: #836407;
       --ord-1: #c08552; --ord-2: #a86f42; --ord-3: #8f5a33; --ord-4: #763f22; --ord-5: #5e3218;
       --viz-pos: #02783d; --viz-neg: #ce1925; --viz-zero: #acb4bf; --viz-grid: #dee4ec;
-      --sans: "Plex Arabic", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --sans: "Tajawal", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
       --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #0b1220; --panel: #1c2b44; --panel-2: #0e1626; --panel-3: #24334b;
-        --border: #354765; --border-input: #516587;
-        --text: #e6edf6; --muted: #93a9c6;
-        --tint: #dba97f; --tint-strong: #8a5122;
-        --sand: #e3a556; --sand-vivid: #e3a556;
-        --good: #3ddc84; --danger: #ff6b74; --info: #6ea8f7; --warn-bg: #2a1f12;
-        --code-dim: #4a5d78; --dot-js: #d9c34a;
-        --ord-1: #7d5430; --ord-2: #96683c; --ord-3: #ae7c49; --ord-4: #c69157; --ord-5: #dfa96b;
-        --viz-pos: #3ddc84; --viz-neg: #ff6b74; --viz-zero: #55637a; --viz-grid: #2a3a55;
-      }
     }
 
     * { box-sizing: border-box; }

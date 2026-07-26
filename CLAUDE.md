@@ -36,8 +36,8 @@ Locked, exactly as they are:
 |---|---|
 | Mark | the dhow's lateen sail over the water — `logo.svg` and `#i-sail` |
 | Wordmark | **المهلب** in brand brown, `Almuhallab Code` on the line beneath |
-| Brand ink | `--tint` `#7a4418` light / `#dba97f` dark · `--tint-strong` `#6f3f1c` / `#8a5122` |
-| Surfaces | white page, white cards, cool near-neutral greys — brown is ink, never paper |
+| Brand ink | `--tint` `#7a4418` · `--tint-strong` `#6f3f1c` |
+| Surfaces | **white on every device** — no dark theme; white page, white cards, cool near-neutral greys. Brown is ink, never paper |
 | Icons | the drawn `<symbol>` sprite — no emoji anywhere on the public page |
 | Layout | hero · card grids · wide `.product` rows · `ol.steps` · contact channels |
 | Contact | واتساب `+965 6589 4110` · انستغرام `@almuhallab.code` · `hello@almuhallab-code.com` |
@@ -88,10 +88,16 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Contact channels are the real ones and must not be replaced with placeholders:
   واتساب `+965 6589 4110` · انستغرام `@almuhallab.code` · البريد
   `hello@almuhallab-code.com`.
-- Arabic is set in bundled **IBM Plex Sans Arabic** (`almuhallab/fonts/`,
-  Arabic subset, weights 400/600/700). Never link a webfont CDN — the CSP blocks
-  it. Any new page must declare the three `@font-face` rules, carry
-  `font-src 'self'`, and be added to the service-worker precache.
+- Arabic is set in bundled **Tajawal** (SIL OFL, `almuhallab/fonts/`, Arabic
+  subset, weights 400/500/700/800 — 500 also serves the 600 slot). Never link a
+  webfont CDN — the CSP blocks it. Any new page must declare the five
+  `@font-face` rules, carry `font-src 'self'`, and be precached. Arabic set in
+  Tajawal needs `line-height` ≥ 1.35 on display sizes, or a damma collides with
+  the line above.
+- **There is no dark theme.** The site is white whatever the device prefers:
+  no `prefers-color-scheme: dark` block anywhere, `color-scheme: light` on
+  `:root`, and one white `theme-color`. The suite fails if a dark override
+  reappears.
 - Icons on the public site are a **drawn inline-SVG set** (`<symbol>` + `<use>`),
   not emoji: emoji are a different typeface, weight and colour on every platform.
   النوخذة's own screens still use emoji in tab labels.
@@ -107,7 +113,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 180 checks covering
+- `python3 design/test_suite.py` is the full system test — 187 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it

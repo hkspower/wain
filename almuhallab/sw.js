@@ -1,7 +1,7 @@
 /* النوخذة service worker — precache the app shell, serve cache-first, refresh in background. */
 "use strict";
 
-var CACHE = "nokhatha-v10";
+var CACHE = "nokhatha-v11";
 var ASSETS = [
   "./",
   "index.html",
@@ -16,9 +16,10 @@ var ASSETS = [
   "manifest.webmanifest",
   "icon.svg",
   "logo.svg",
-  "fonts/plex-arabic-400.woff2",
-  "fonts/plex-arabic-600.woff2",
-  "fonts/plex-arabic-700.woff2"
+  "fonts/tajawal-400.woff2",
+  "fonts/tajawal-500.woff2",
+  "fonts/tajawal-700.woff2",
+  "fonts/tajawal-800.woff2",
 ];
 
 self.addEventListener("install", function (event) {
