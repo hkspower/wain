@@ -7,6 +7,19 @@
 // Dynamic Island, 34px for the home-indicator bar) and then assert that the
 // things which touch a screen edge moved out of the way.
 import { chromium } from 'playwright'
+// The catalogue is not fixed — importing the real OpenCart export replaced every
+// placeholder slug. Naming one here made this test fail with "Cannot read
+// properties of null" on a product page that had 404'd, which reads like a
+// layout bug rather than a stale fixture. So the fixture comes from the
+// catalogue itself.
+import { readFileSync as _rf } from 'node:fs'
+const _cat = (() => {
+  const box = { window: {} }
+  new Function('window', _rf(new URL('../../sporta-html5/assets/products.js', import.meta.url), 'utf8'))(box.window)
+  return box.window.SPORTA_PRODUCTS
+})()
+const SAMPLE = _cat[0]
+const CART_ITEM = { slug: SAMPLE.slug, qty: 1, price: SAMPLE.price, name: SAMPLE.name, image: '' }
 
 const TOP = 59
 const BOTTOM = 34
@@ -25,9 +38,9 @@ async function page(route, { insets = true, cart = true } = {}) {
     viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true,
   })
   if (cart) {
-    await ctx.addInitScript(() => localStorage.setItem('sporta_cart', JSON.stringify([
-      { slug: 'rheo-seamless-set', qty: 1, price: 24, name: { en: 'RHEO Seamless Set', ar: 'طقم ريو سيملس' }, image: '' },
-    ])))
+    // The item is passed IN: addInitScript runs inside the browser, where the
+    // Node-side CART_ITEM does not exist.
+    await ctx.addInitScript((item) => localStorage.setItem('sporta_cart', JSON.stringify([item])), CART_ITEM)
   }
   const p = await ctx.newPage()
   await p.goto('http://www.sporta.com.kw' + route, { waitUntil: 'networkidle' })
@@ -49,7 +62,7 @@ async function page(route, { insets = true, cart = true } = {}) {
 
 // ---- product buy bar clears the home indicator ----
 {
-  const { ctx, p } = await page('/product/rheo-seamless-set')
+  const { ctx, p } = await page(`/product/${SAMPLE.slug}`)
   const r = await p.evaluate(() => {
     const bar = document.querySelector('.action-bar')
     const btn = bar.querySelector('button')

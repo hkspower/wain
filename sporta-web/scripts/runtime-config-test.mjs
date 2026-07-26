@@ -11,6 +11,19 @@
 // fail for the wrong reason), the PostgREST shim on :8130, a stub bank on
 // :8131, and PostgreSQL on :5433 built by scripts/db-rebuild.sh.
 import { chromium } from 'playwright'
+// The catalogue is not fixed — importing the real OpenCart export replaced every
+// placeholder slug. Naming one here made this test fail with "Cannot read
+// properties of null" on a product page that had 404'd, which reads like a
+// layout bug rather than a stale fixture. So the fixture comes from the
+// catalogue itself.
+import { readFileSync as _rf } from 'node:fs'
+const _cat = (() => {
+  const box = { window: {} }
+  new Function('window', _rf(new URL('../../sporta-html5/assets/products.js', import.meta.url), 'utf8'))(box.window)
+  return box.window.SPORTA_PRODUCTS
+})()
+const SAMPLE = _cat[0]
+const CART_ITEM = { slug: SAMPLE.slug, qty: 1, price: SAMPLE.price, name: SAMPLE.name, image: '' }
 import { readFileSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 
@@ -20,6 +33,7 @@ const CONFIG = `${ROOT}/config.js`
 // previous (possibly crashed) run left on disk. Trusting the file made the
 // "unedited config refuses the order" case silently test a configured site.
 const SHIPPED = readFileSync(new URL('../public/config.js', import.meta.url), 'utf8')
+const REAL_HTACCESS = new URL('../public/.htaccess', import.meta.url)
 
 // Serve the REAL public/.htaccess, minus exactly two directives that make it
 // impossible to drive over plain HTTP:
@@ -29,16 +43,31 @@ const SHIPPED = readFileSync(new URL('../public/config.js', import.meta.url), 'u
 //     server that has no TLS
 // Everything else — including the config.js cache rule this file asserts on —
 // is the production text, so the assertion cannot pass against a stale copy.
-const REAL_HTACCESS = new URL('../public/.htaccess', import.meta.url)
+// The route alternation is READ from the real public/.htaccess rather than
+// copied. It had been copied, and it went stale the moment /terms and /privacy
+// were added: this file rewrites the test server's .htaccess and leaves its own
+// version in place, so the NEXT suite to run — site-audit — reported /terms and
+// /privacy as 404 internal links. Fourteen high findings, none of them the
+// site's fault.
+// EVERY SPA rewrite is read from the real public/.htaccess, not copied. Copying
+// went stale twice in one sitting: first when /terms and /privacy were added,
+// then again on /payment/result, which the hand-written subset had never had.
+// This file rewrites the test server's .htaccess and leaves its own version
+// behind, so the next suite to run — site-audit — inherited the gaps and
+// reported them as the site's 404s. They were this file's.
+const SPA_RULES = (readFileSync(REAL_HTACCESS, 'utf8').match(/^\s*RewriteRule \S+\s+\/index\.html \[L\]$/gm) ?? [])
+  .map((l) => l.trim())
+if (SPA_RULES.length < 4) {
+  throw new Error(`only found ${SPA_RULES.length} SPA rewrite rules in public/.htaccess — refusing to test a partial route table`)
+}
+
 const SPA_ONLY = `<IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
-  RewriteRule ^(shop|cart|checkout|about|contact|wishlist|track|returns)/?$ /index.html [L]
-  RewriteRule ^product/[^/]+/?$ /index.html [L]
-  RewriteRule ^admin(/.*)?$ /index.html [L]
+  ${SPA_RULES.join('\n  ')}
 </IfModule>
 ErrorDocument 404 /index.html
 `
@@ -78,9 +107,8 @@ async function shop(seedCart = true) {
     extraHTTPHeaders: HTTPS_PROXY_HEADER,
   })
   if (seedCart) {
-    await ctx.addInitScript(() => localStorage.setItem('sporta_cart', JSON.stringify([
-      { slug: 'nba-cap', qty: 1, price: 8, name: { en: 'NBA Team Cap', ar: 'كاب' }, image: '' },
-    ])))
+    // Passed in: addInitScript runs in the browser, not in Node.
+    await ctx.addInitScript((item) => localStorage.setItem('sporta_cart', JSON.stringify([item])), CART_ITEM)
   }
   const p = await ctx.newPage()
   return { ctx, p }

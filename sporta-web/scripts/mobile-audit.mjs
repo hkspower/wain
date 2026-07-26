@@ -15,6 +15,19 @@
 
 // Audits the built site on the viewports modern phones actually report.
 import { chromium } from 'playwright'
+// The catalogue is not fixed — importing the real OpenCart export replaced every
+// placeholder slug. Naming one here made this test fail with "Cannot read
+// properties of null" on a product page that had 404'd, which reads like a
+// layout bug rather than a stale fixture. So the fixture comes from the
+// catalogue itself.
+import { readFileSync as _rf } from 'node:fs'
+const _cat = (() => {
+  const box = { window: {} }
+  new Function('window', _rf(new URL('../../sporta-html5/assets/products.js', import.meta.url), 'utf8'))(box.window)
+  return box.window.SPORTA_PRODUCTS
+})()
+const SAMPLE = _cat[0]
+const CART_ITEM = { slug: SAMPLE.slug, qty: 1, price: SAMPLE.price, name: SAMPLE.name, image: '' }
 
 const DEVICES = [
   { name: 'iPhone 16 Pro',      w: 402, h: 874, dpr: 3, safeTop: 59, safeBottom: 34 },
@@ -25,7 +38,7 @@ const DEVICES = [
   { name: 'Galaxy S24',         w: 360, h: 780, dpr: 3, safeTop: 24, safeBottom: 24 },
   { name: 'Z Fold 5 (folded)',  w: 344, h: 882, dpr: 2.6, safeTop: 24, safeBottom: 24 },
 ]
-const ROUTES = ['/', '/shop', '/product/rheo-seamless-set', '/cart', '/checkout', '/returns', '/track']
+const ROUTES = ['/', '/shop', `/product/${SAMPLE.slug}`, '/cart', '/checkout', '/returns', '/track']
 
 const browser = await chromium.launch({
   executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
@@ -44,10 +57,9 @@ for (const d of DEVICES) {
       hasTouch: true,
     })
     // Seed a cart so /cart and /checkout render their real content.
-    await ctx.addInitScript(() =>
-      localStorage.setItem('sporta_cart', JSON.stringify([
-        { slug: 'rheo-seamless-set', qty: 1, price: 24, name: { en: 'RHEO Seamless Set', ar: 'طقم ريو سيملس' }, image: '' },
-      ])))
+    // Passed in: addInitScript runs in the browser, not in Node.
+    await ctx.addInitScript((item) =>
+      localStorage.setItem('sporta_cart', JSON.stringify([item])), CART_ITEM)
     const p = await ctx.newPage()
     await p.goto('http://www.sporta.com.kw' + route, { waitUntil: 'networkidle' })
     await p.waitForTimeout(150)

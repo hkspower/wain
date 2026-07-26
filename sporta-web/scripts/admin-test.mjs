@@ -12,6 +12,33 @@
 // :8130, PostgreSQL on :5433 from scripts/db-rebuild.sh, and config.js pointing
 // at the shim.
 import { chromium } from 'playwright'
+import { execFileSync } from 'node:child_process'
+
+// Seed the orders this test asserts on. They used to be inserted by hand, so
+// the test passed only if someone had remembered to do it — and silently failed
+// the moment db-rebuild.sh dropped the database. A test that depends on
+// invisible setup is a test that will lie to you eventually.
+const PSQL = ['-h', '/tmp', '-p', '5433', '-U', 'postgres', '-d', 'sporta', '-q']
+const ORDERS = [
+  ['SPADM0001', 24, 'paid', 'Fatima Al-Ali', '99887766', 'hawalli', 'Salmiya'],
+  ['SPADM0002', 8, 'pending', 'Ahmad Nasser', '55443322', 'capital', 'Sharq'],
+  ['SPADM0003', 15, 'review', 'Noura Khaled', '66778899', 'farwaniya', 'Jleeb'],
+]
+// Read the real total from the database rather than assuming this test's own
+// rows are the only paid orders. They are not: knet-callback-test leaves a
+// captured payment behind, so pinning the figure to 24 made the admin look
+// broken whenever the suites ran in a different order.
+const paidTotal = () => Number(execFileSync('psql', [...PSQL, '-tAc',
+  "select coalesce(sum(amount),0) from orders where payment_status = 'paid'"]).toString().trim())
+execFileSync('psql', [...PSQL, '-c', `
+  delete from order_items where order_id in (select id from orders where track_id like 'SPADM%');
+  delete from orders where track_id like 'SPADM%';
+  insert into orders (track_id, amount, payment_status, fulfilment_status, customer_name,
+                      customer_phone, customer_governorate, customer_area, customer_block,
+                      customer_street, customer_building, paid_at) values
+  ${ORDERS.map(([t, a, s, n, ph, g, ar]) =>
+    `('${t}', ${a}, '${s}', 'unfulfilled', '${n}', '${ph}', '${g}', '${ar}', '1', 'X', '1',
+      ${s === 'paid' ? 'now()' : 'null'})`).join(',\n  ')};`])
 
 const EMAIL = 'admin@sporta.com.kw'
 const PASSWORD = 'correct-horse'   // the only pair the shim accepts
@@ -61,10 +88,13 @@ ok('signed-in email is shown', (await p.locator('aside p[title]').textContent())
 // Wait for the figure rather than reading straight after the sidebar appears:
 // the stats RPC is still in flight at that moment, so the first version of this
 // assertion failed on an empty card and blamed the page.
-await p.getByText(/KWD\s*24/).first().waitFor({ timeout: 15000 })
+const expected = paidTotal()
+const revenueRe = new RegExp(`KWD\\s*${expected.toFixed(3).replace('.', '\\.')}`)
+await p.getByText(revenueRe).first().waitFor({ timeout: 15000 })
 const overviewText = await p.locator('main').innerText()
-ok('Overview shows the paid revenue read from the database', /KWD\s*24/.test(overviewText),
-   (overviewText.match(/REVENUE \(PAID\)[\s\S]{0,40}/) ?? [''])[0].replace(/\s+/g, ' '))
+ok('Overview revenue matches the database exactly', revenueRe.test(overviewText),
+   `expected KWD ${expected.toFixed(3)} — ` +
+   (overviewText.match(/REVENUE \(PAID\)[\s\S]{0,30}/) ?? [''])[0].replace(/\s+/g, ' '))
 
 for (const [tab, heading] of [['Orders', 'Orders'], ['Catalogue', 'Catalogue'], ['Settings', 'Settings']]) {
   await p.locator(`button:has-text("${tab}")`).first().click()
@@ -77,7 +107,7 @@ for (const [tab, heading] of [['Orders', 'Orders'], ['Catalogue', 'Catalogue'], 
 await p.locator('button:has-text("Orders")').first().click()
 await p.waitForTimeout(1800)
 const ordersText = await p.locator('main').innerText()
-for (const track of ['SPADM0001', 'SPADM0002', 'SPADM0003']) {
+for (const [track] of ORDERS) {
   ok(`Orders lists ${track}`, ordersText.includes(track))
 }
 ok('Orders shows the customer name', /Fatima/.test(ordersText))
@@ -86,8 +116,13 @@ ok('Orders shows the customer name', /Fatima/.test(ordersText))
 await p.locator('button:has-text("Catalogue")').first().click()
 await p.waitForTimeout(2500)
 const catText = await p.locator('main').innerText()
-ok('Catalogue reports the seeded prices as in sync', /20 in sync/.test(catText) && !/differ from the site/.test(catText),
-   (catText.match(/\d+ in sync[^\n]*/) ?? ['(not found)'])[0])
+// Derived, not pinned to 20: the catalogue changed size when the OpenCart
+// export was imported and a hard-coded count turned a healthy sync into a
+// failure. What matters is that nothing differs and nothing is missing.
+const sync = catText.match(/(\d+) in sync · (\d+) differ · (\d+) missing/)
+ok('Catalogue reports every product as in sync',
+   !!sync && Number(sync[1]) > 0 && sync[2] === '0' && sync[3] === '0',
+   sync ? sync[0] : '(sync line not found)')
 
 // ---- device passcode: enrol, then it must actually lock the panel ----
 // The flow is three steps — name the device, type six digits, type them again —
