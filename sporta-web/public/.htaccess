@@ -185,9 +185,25 @@ ErrorDocument 404 /index.html
 # file is normally safe because PHP executes it, but that protection vanishes
 # the moment PHP is misconfigured or the module is disabled during an upgrade,
 # which is exactly when the credentials would be served as plain text.
-<FilesMatch "(?i)^(composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|pnpm-lock\.yaml|vite\.config\.[cm]?[jt]s|(ts|js)config\.json|Dockerfile|docker-compose\.ya?ml|deploy\.config\.json|deployhostinger\.mjs|config-dist\.php|knet-config\.php|.*\.(bak|old|orig|save|swp|sql|log|jsonl|sh|env))$">
+<FilesMatch "(?i)^(composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|pnpm-lock\.yaml|vite\.config\.[cm]?[jt]s|(ts|js)config\.json|Dockerfile|docker-compose\.ya?ml|deploy\.config\.json|config-dist\.php|knet-config\.php|sporta-deploy\.php|sporta-deploy-config\.php|.*\.(bak|old|orig|save|swp|sql|log|jsonl|sh|env|zip|tar|gz|mjs|ts|md))$">
   Require all denied
 </FilesMatch>
+
+# The extension list above ends in zip|tar|gz|mjs|ts|md, and none of those is an
+# oversight — the site ships no file of any of those types, so denying the whole
+# class is free, and each one is on the live server right now:
+#   sporta-dist.zip        the entire built site, downloadable by anyone
+#   smoke-cbk.mjs          payment smoke test
+#   verify-deploy-assets.mjs
+#   sporta-mac-check.sh    (already covered by sh)
+#   vite.config.ts         build configuration
+#   README-knet.md         describes the payment integration in detail
+#
+# sporta-deploy.php is named individually and is the reason this block matters
+# more than the rest of the file: it is a deploy endpoint sitting in the web
+# root, answering to anyone who requests it. Denying it here is a stopgap.
+# DELETE IT — a deploy endpoint has no business being reachable from the
+# internet at all, and no .htaccess rule is a substitute for its absence.
 
 # Keep the server version out of generated error pages.
 ServerSignature Off

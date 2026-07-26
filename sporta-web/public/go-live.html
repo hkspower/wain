@@ -188,7 +188,9 @@ async function run() {
     const SECRET = ['/.env', '/.DS_Store', '/.deploy-manifest.json', '/.git/config',
                     '/deploy.config.json', '/deployhostinger.mjs', '/package.json',
                     '/knet.log', '/config-dist.php', '/knet-config.php',
-                    '/knet/config.php', '/config.php']
+                    '/knet/config.php', '/config.php', '/sporta-deploy.php',
+                    '/sporta-deploy-config.php', '/sporta-dist.zip', '/vite.config.ts',
+                    '/README-knet.md', '/smoke-cbk.mjs']
     const exposed = []
     for (const path of SECRET) {
       const r = await fetch(path, { headers: { Accept: 'text/plain' } }).catch(() => null)
