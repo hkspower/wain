@@ -60,9 +60,18 @@ and the admin console keep working.
 - **صافي — SAFI**: add holdings (ticker, quantity, average cost and current
   price in fils), see market value and profit/loss per stock and for the whole
   portfolio in KWD, export the statement as CSV or print it.
-- **XBRL**: enter entity info and balance-sheet/income-statement figures in
-  KWD, validate that assets = liabilities + equity, then generate and download
-  an IFRS-tagged XBRL instance document (with preview).
+- **XBRL — الميزانية السنوية**: the annual balance-sheet filing for companies in
+  Kuwait, aligned with the Ministry of Commerce and Industry's electronic
+  filing framework (IFRS). Line items go in (cash, receivables, inventory,
+  PP&E, borrowings, end-of-service provision, capital, reserves…); every
+  subtotal is computed, never typed. An audit pass then reports **errors**
+  (unbalanced sheet, zero capital, negative equity — these block filing),
+  **legal warnings** (accumulated losses at half the capital, quarterly period
+  for an annual filing, liquidity), and **suggestions with the amount worked
+  out** (statutory-reserve transfer, end-of-service provision, zakat for closed
+  shareholding companies, labour-support tax + KFAS for listed ones). A clean
+  sheet generates an IFRS-tagged XBRL instance identified by the commercial
+  registration number. Final submission goes through the Ministry's portal.
 - **التوصيل — Delivery**: create orders with auto IDs (`ORD-0001`), advance
   them through جديد → قيد التحضير → في الطريق → تم التسليم (or cancel),
   manage couriers, filter by status, and track delivered revenue.
@@ -137,7 +146,7 @@ visitor's OS happens to have installed.
 ## Tests
 
 ```bash
-python3 design/test_suite.py     # 160 checks, exits non-zero on failure
+python3 design/test_suite.py     # 180 checks, exits non-zero on failure
 ```
 
 Covers the **pinned Almuhallab identity** (the sail mark, the المهلب wordmark,

@@ -64,8 +64,16 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - `safi.html`, `xbrl.html`, `delivery.html` are **redirect stubs** to
   `nizam.html#/<tab>`. There is one implementation of each unit — do not
   reintroduce standalone copies.
-- The units are linked, not merely co-located: portfolio market value feeds XBRL
-  non-current assets, delivered-order totals feed XBRL revenue.
+- The units are linked, not merely co-located: portfolio market value feeds the
+  XBRL investments line (rolling into non-current assets), delivered-order
+  totals feed XBRL revenue.
+- The XBRL unit is the **Kuwaiti annual filing**: subtotals are computed from
+  line items (never typed), and an audit pass reports errors that block filing,
+  companies-law warnings, and suggestions with amounts (statutory reserve 10%,
+  zakat 1% for KSCC, labour support 2.5% + KFAS 1% for listed). The entity is
+  identified by its commercial-registration number. Final submission is via the
+  Ministry of Commerce portal — say so, never imply the file itself is the
+  submission.
 - Every colour is a CSS custom property in `:root`, with a
   `@media (prefers-color-scheme: dark)` override. **All pages must carry the
   identical token set** — divergence between pages has been a real bug before.
@@ -99,7 +107,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 160 checks covering
+- `python3 design/test_suite.py` is the full system test — 180 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it

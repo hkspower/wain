@@ -254,54 +254,101 @@
       </div>
     </section>
 
-    <!-- ═══════════ XBRL ═══════════ -->
+    <!-- ═══════════ XBRL — الميزانية السنوية ═══════════ -->
     <section class="tab" id="tab-xbrl">
-      <h2>القوائم المالية</h2>
+      <h2>الميزانية السنوية — الإيداع الإلكتروني</h2>
+      <p class="note" style="margin:0 0 12px">
+        إعداد الميزانية السنوية للشركات في دولة الكويت وفق الإطار المعتمد لدى
+        وزارة التجارة والصناعة (معايير IFRS): تُدخل البنود التفصيلية، والمجاميع
+        تُحسب تلقائياً، ثم يفحص النظام الميزانية ويقترح التصحيحات قبل توليد ملف
+        XBRL. الاعتماد النهائي يتم عبر بوابة الوزارة.
+      </p>
       <div class="row">
         <button class="btn primary" id="xbrl-derive">⟳ احسب من النظام</button>
         <span class="note" style="align-self:center">
-          يملأ الأصول غير المتداولة من صافي، والإيرادات من الطلبات المسلّمة.
+          يملأ الاستثمارات المالية من صافي، والإيرادات من الطلبات المسلّمة.
         </span>
       </div>
 
       <form id="xbrl-form" style="display:block;background:none;border:0;padding:0">
         <fieldset>
           <legend>المنشأة والفترة</legend>
-          <label>اسم الشركة <input name="entity" required maxlength="120" placeholder="شركة المهلب القابضة ش.م.ك.ع" /></label>
-          <label>الرقم التعريفي <input name="lei" required maxlength="40" pattern="[A-Za-z0-9]{4,40}"
-            placeholder="254900XXXXXXXXXXXX00" style="font-family:var(--mono)" /></label>
-          <label>الفترة
-            <select name="period">
-              <option value="Q1">الربع الأول (Q1)</option>
-              <option value="Q2">الربع الثاني (Q2)</option>
-              <option value="Q3">الربع الثالث (Q3)</option>
-              <option value="FY">سنوي (FY)</option>
+          <label>اسم الشركة كما في السجل <input name="entity" required maxlength="120" placeholder="شركة المهلب القابضة" /></label>
+          <label>رقم السجل التجاري <input name="crn" required maxlength="10" pattern="[0-9]{3,10}"
+            inputmode="numeric" placeholder="123456" style="font-family:var(--mono)" /></label>
+          <label>الكيان القانوني
+            <select name="legal">
+              <option value="wll">ذات مسؤولية محدودة (ذ.م.م)</option>
+              <option value="spc">شركة الشخص الواحد</option>
+              <option value="kscc">مساهمة مقفلة (ش.م.ك.م)</option>
+              <option value="kscp">مساهمة عامة مدرجة (ش.م.ك.ع)</option>
             </select>
           </label>
-          <label>نهاية الفترة <input name="periodEnd" type="date" required /></label>
+          <label>الفترة
+            <select name="period">
+              <option value="FY" selected>سنوية (الإيداع الرسمي)</option>
+              <option value="Q1">ربع أول — داخلي</option>
+              <option value="Q2">ربع ثانٍ — داخلي</option>
+              <option value="Q3">ربع ثالث — داخلي</option>
+            </select>
+          </label>
+          <label>نهاية السنة المالية <input name="periodEnd" type="date" required /></label>
         </fieldset>
 
         <fieldset>
-          <legend>الأصول (د.ك)</legend>
-          <label>الأصول المتداولة <input name="currentAssets" type="number" step="0.001" required value="0" /></label>
-          <label>الأصول غير المتداولة <input name="nonCurrentAssets" type="number" step="0.001" required value="0" /></label>
+          <legend>الأصول المتداولة (د.ك)</legend>
+          <label>النقد وما في حكمه <input name="cash" type="number" min="0" step="0.001" value="0" /></label>
+          <label>ذمم مدينة تجارية <input name="receivables" type="number" min="0" step="0.001" value="0" /></label>
+          <label>المخزون <input name="inventory" type="number" min="0" step="0.001" value="0" /></label>
+          <label>أصول متداولة أخرى <input name="otherCA" type="number" min="0" step="0.001" value="0" /></label>
+          <label>إجمالي الأصول المتداولة <input name="currentAssets" type="number" step="0.001" readonly /></label>
         </fieldset>
+
         <fieldset>
-          <legend>الالتزامات وحقوق الملكية (د.ك)</legend>
-          <label>الالتزامات المتداولة <input name="currentLiabilities" type="number" step="0.001" required value="0" /></label>
-          <label>الالتزامات غير المتداولة <input name="nonCurrentLiabilities" type="number" step="0.001" required value="0" /></label>
-          <label>حقوق الملكية <input name="equity" type="number" step="0.001" required value="0" /></label>
+          <legend>الأصول غير المتداولة (د.ك)</legend>
+          <label>ممتلكات ومعدات (صافي) <input name="ppe" type="number" min="0" step="0.001" value="0" /></label>
+          <label>استثمارات مالية <input name="investments" type="number" min="0" step="0.001" value="0" /></label>
+          <label>أصول غير متداولة أخرى <input name="otherNCA" type="number" min="0" step="0.001" value="0" /></label>
+          <label>إجمالي غير المتداولة <input name="nonCurrentAssets" type="number" step="0.001" readonly /></label>
+          <label>إجمالي الأصول <input name="totalAssets" type="number" step="0.001" readonly /></label>
         </fieldset>
+
         <fieldset>
-          <legend>الأداء (د.ك)</legend>
-          <label>الإيرادات <input name="revenue" type="number" step="0.001" required value="0" /></label>
-          <label>المصروفات <input name="expenses" type="number" step="0.001" required value="0" /></label>
+          <legend>الالتزامات (د.ك)</legend>
+          <label>دائنون وذمم دائنة <input name="payables" type="number" min="0" step="0.001" value="0" /></label>
+          <label>قروض قصيرة الأجل <input name="stBorrow" type="number" min="0" step="0.001" value="0" /></label>
+          <label>التزامات متداولة أخرى <input name="otherCL" type="number" min="0" step="0.001" value="0" /></label>
+          <label>إجمالي المتداولة <input name="currentLiabilities" type="number" step="0.001" readonly /></label>
+          <label>قروض طويلة الأجل <input name="ltBorrow" type="number" min="0" step="0.001" value="0" /></label>
+          <label>مخصص مكافأة نهاية الخدمة <input name="eosb" type="number" min="0" step="0.001" value="0" /></label>
+          <label>التزامات غير متداولة أخرى <input name="otherNCL" type="number" min="0" step="0.001" value="0" /></label>
+          <label>إجمالي غير المتداولة <input name="nonCurrentLiabilities" type="number" step="0.001" readonly /></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>حقوق الملكية (د.ك)</legend>
+          <label>رأس المال المدفوع <input name="capital" type="number" min="0" step="0.001" value="0" /></label>
+          <label>الاحتياطي القانوني <input name="statRes" type="number" min="0" step="0.001" value="0" /></label>
+          <label>الاحتياطي الاختياري <input name="volRes" type="number" min="0" step="0.001" value="0" /></label>
+          <label>أرباح (خسائر) مرحّلة <input name="retained" type="number" step="0.001" value="0" /></label>
+          <label>نتيجة السنة (تلقائي) <input name="yearResult" type="number" step="0.001" readonly /></label>
+          <label>إجمالي حقوق الملكية <input name="equity" type="number" step="0.001" readonly /></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>قائمة الدخل (د.ك)</legend>
+          <label>الإيرادات <input name="revenue" type="number" min="0" step="0.001" value="0" /></label>
+          <label>تكلفة الإيرادات <input name="cogs" type="number" min="0" step="0.001" value="0" /></label>
+          <label>مصاريف إدارية وعمومية <input name="adminExp" type="number" min="0" step="0.001" value="0" /></label>
+          <label>مصاريف أخرى <input name="otherExp" type="number" min="0" step="0.001" value="0" /></label>
+          <label>إيرادات أخرى <input name="otherInc" type="number" min="0" step="0.001" value="0" /></label>
           <label>صافي الربح (تلقائي) <input name="netIncome" type="number" step="0.001" readonly /></label>
         </fieldset>
 
-        <div class="check" id="xbrl-check">أدخل الأرقام ثم اضغط «تحقق من التوازن».</div>
+        <div class="check" id="xbrl-check">أدخل البنود ثم اضغط «افحص الميزانية».</div>
+        <div id="xbrl-audit"></div>
         <div class="row">
-          <button class="btn" type="button" id="xbrl-validate">✔ تحقق من التوازن</button>
+          <button class="btn" type="button" id="xbrl-validate">🔎 افحص الميزانية</button>
           <button class="btn primary" type="submit">⬇ توليد وتنزيل XBRL</button>
           <button class="btn" type="button" id="xbrl-preview">👁 معاينة</button>
         </div>
@@ -311,7 +358,7 @@
       <h2>التقارير المحفوظة</h2>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>المنشأة</th><th>الفترة</th><th>النهاية</th><th>الأصول</th><th>الإيرادات</th><th>صافي الربح</th></tr></thead>
+          <thead><tr><th>المنشأة</th><th>السجل</th><th>النهاية</th><th>الأصول</th><th>الإيرادات</th><th>صافي الربح</th></tr></thead>
           <tbody id="xbrl-rows"></tbody>
         </table>
         <div class="empty" id="xbrl-empty">لا توجد تقارير محفوظة بعد.</div>
@@ -528,38 +575,114 @@
   });
   el("safi-print").addEventListener("click", function () { window.print(); });
 
-  /* ════════════════════ XBRL ════════════════════ */
+  /* ════════════════════ XBRL — الميزانية السنوية ════════════════════
+     Kuwaiti annual filing: line items in, subtotals computed, then an audit
+     pass that reports errors (block filing), legal warnings, and suggestions
+     with the amount worked out — before an IFRS-tagged instance is built. */
   var xf = el("xbrl-form");
   function xnum(n) { return Number(xf[n].value) || 0; }
-  function xnet() { xf.netIncome.value = (xnum("revenue") - xnum("expenses")).toFixed(3); }
+
+  /* every total on the statement is computed, never typed */
+  function recalc() {
+    var ca  = xnum("cash") + xnum("receivables") + xnum("inventory") + xnum("otherCA");
+    var nca = xnum("ppe") + xnum("investments") + xnum("otherNCA");
+    var cl  = xnum("payables") + xnum("stBorrow") + xnum("otherCL");
+    var ncl = xnum("ltBorrow") + xnum("eosb") + xnum("otherNCL");
+    var net = xnum("revenue") - xnum("cogs") - xnum("adminExp") - xnum("otherExp") + xnum("otherInc");
+    var eq  = xnum("capital") + xnum("statRes") + xnum("volRes") + xnum("retained") + net;
+    xf.currentAssets.value = ca.toFixed(3);
+    xf.nonCurrentAssets.value = nca.toFixed(3);
+    xf.totalAssets.value = (ca + nca).toFixed(3);
+    xf.currentLiabilities.value = cl.toFixed(3);
+    xf.nonCurrentLiabilities.value = ncl.toFixed(3);
+    xf.netIncome.value = net.toFixed(3);
+    xf.yearResult.value = net.toFixed(3);
+    xf.equity.value = eq.toFixed(3);
+    return { ca: ca, nca: nca, assets: ca + nca, cl: cl, ncl: ncl,
+             liab: cl + ncl, net: net, eq: eq };
+  }
   xf.addEventListener("input", function (e) {
-    xnet();
+    recalc();
     if (e.target.classList) e.target.classList.remove("derived");   // an edited field is no longer derived
   });
 
   el("xbrl-derive").addEventListener("click", function () {
     var p = position();
-    xf.nonCurrentAssets.value = p.nonCurrentAssets.toFixed(3);
+    xf.investments.value = p.nonCurrentAssets.toFixed(3);
     xf.revenue.value = p.revenue.toFixed(3);
-    xf.nonCurrentAssets.classList.add("derived");
+    xf.investments.classList.add("derived");
     xf.revenue.classList.add("derived");
-    xnet(); xvalidate(false);
+    recalc(); xvalidate(false);
     toast("تم الحساب من صافي والتوصيل");
   });
 
+  /* ---- the audit engine: each rule reports what is wrong AND how to fix it ---- */
+  function audit() {
+    var t = recalc(), out = [];
+    var diff = t.assets - (t.liab + t.eq);
+    var accumulated = xnum("retained") + t.net;              // carried + this year
+    var capital = xnum("capital");
+
+    if (Math.abs(diff) >= 0.0005)
+      out.push({ lvl: "err", msg: "الميزانية غير متوازنة: الفرق " + kwd(diff) + " د.ك.",
+                 fix: "راجع الأرباح المرحّلة أولاً — فرق التوازن يقع هناك غالباً، ثم تأكد أن كل أصل والتزام مُدرج مرة واحدة." });
+    if (capital <= 0)
+      out.push({ lvl: "err", msg: "رأس المال المدفوع صفر أو سالب.",
+                 fix: "أدخل رأس المال كما في السجل التجاري — لا تُقبل ميزانية بلا رأس مال." });
+    if (t.eq <= 0 && capital > 0)
+      out.push({ lvl: "err", msg: "حقوق الملكية سالبة أو معدومة (" + kwd(t.eq) + " د.ك).",
+                 fix: "الخسائر استنفدت رأس المال — يلزم قرار من الشركاء بالتغطية أو تخفيض رأس المال أو الحل." });
+    if (capital > 0 && accumulated < 0 && Math.abs(accumulated) >= capital / 2)
+      out.push({ lvl: "warn", msg: "الخسائر المتراكمة (" + kwd(Math.abs(accumulated)) +
+                 " د.ك) بلغت نصف رأس المال أو أكثر.",
+                 fix: "قانون الشركات الكويتي يوجب عرض الأمر على الجمعية العامة لتقرر الاستمرار أو التخفيض أو الحل — وثّق القرار قبل الإيداع." });
+    if (xnum("cogs") > xnum("revenue") && xnum("revenue") > 0)
+      out.push({ lvl: "warn", msg: "تكلفة الإيرادات أكبر من الإيرادات (مجمل خسارة).",
+                 fix: "تأكد أن التكلفة لا تتضمن مصاريف إدارية أُدرجت مرتين، أو وثّق سبب مجمل الخسارة للمدقق." });
+    if (t.cl > t.ca && t.assets > 0)
+      out.push({ lvl: "warn", msg: "الالتزامات المتداولة (" + kwd(t.cl) + ") تتجاوز الأصول المتداولة (" + kwd(t.ca) +
+                 ") — نسبة التداول " + (t.cl > 0 ? (t.ca / t.cl).toFixed(2) : "—") + ".",
+                 fix: "خطر سيولة يلفت نظر المدقق والوزارة — جدوِل القروض القصيرة أو ادعم النقد قبل نهاية السنة." });
+    if (xf.period.value !== "FY")
+      out.push({ lvl: "warn", msg: "الفترة المختارة ربع سنوية.",
+                 fix: "إيداع الوزارة سنوي — اختر «سنوية» وتاريخ نهاية السنة المالية كما في عقد التأسيس." });
+    if (t.net > 0 && xnum("statRes") < capital / 2)
+      out.push({ lvl: "sug", msg: "الاحتياطي القانوني (" + kwd(xnum("statRes")) + " د.ك) لم يبلغ نصف رأس المال.",
+                 fix: "حوّل ما لا يقل عن 10% من صافي الربح = " + kwd(t.net * 0.10) + " د.ك إلى الاحتياطي القانوني قبل التوزيع." });
+    if (xnum("eosb") === 0 && (xnum("adminExp") > 0 || xnum("cogs") > 0))
+      out.push({ lvl: "sug", msg: "مخصص مكافأة نهاية الخدمة صفر مع وجود مصاريف تشغيل.",
+                 fix: "إن كان لديك موظفون فقانون العمل يوجب احتساب المخصص — قدّره واعرضه ضمن الالتزامات غير المتداولة." });
+    var legal = xf.legal.value;
+    if (t.net > 0 && legal === "kscc")
+      out.push({ lvl: "sug", msg: "شركة مساهمة مقفلة رابحة: تخضع للزكاة (قانون 46/2006).",
+                 fix: "احتسب زكاة 1% من صافي الربح ≈ " + kwd(t.net * 0.01) + " د.ك ضمن المخصصات." });
+    if (t.net > 0 && legal === "kscp")
+      out.push({ lvl: "sug", msg: "شركة مساهمة مدرجة رابحة: تخضع لضريبة دعم العمالة و«كفاس».",
+                 fix: "احتسب ≈ 2.5% دعم عمالة (" + kwd(t.net * 0.025) + " د.ك) و1% كفاس (" + kwd(t.net * 0.01) + " د.ك) من صافي الربح." });
+    return { totals: t, findings: out };
+  }
+
   function xvalidate(announce) {
-    xnet();
-    var assets = xnum("currentAssets") + xnum("nonCurrentAssets");
-    var liabEq = xnum("currentLiabilities") + xnum("nonCurrentLiabilities") + xnum("equity");
-    var diff = assets - liabEq, ok = Math.abs(diff) < 0.0005;
+    var r = audit(), t = r.totals;
+    var diff = t.assets - (t.liab + t.eq), ok = Math.abs(diff) < 0.0005;
     var c = el("xbrl-check");
     c.className = "check " + (ok ? "ok" : "bad");
     c.textContent = ok
-      ? "✔ القائمة متوازنة: الأصول (" + assets.toFixed(3) + " د.ك) = الالتزامات + حقوق الملكية (" + liabEq.toFixed(3) + " د.ك)"
-      : "✘ غير متوازنة: الأصول " + assets.toFixed(3) + " د.ك مقابل " + liabEq.toFixed(3) +
+      ? "✔ القائمة متوازنة: الأصول (" + t.assets.toFixed(3) + " د.ك) = الالتزامات + حقوق الملكية (" + (t.liab + t.eq).toFixed(3) + " د.ك)"
+      : "✘ غير متوازنة: الأصول " + t.assets.toFixed(3) + " د.ك مقابل " + (t.liab + t.eq).toFixed(3) +
         " د.ك — الفرق " + diff.toFixed(3) + " د.ك";
-    if (ok && announce) toast("القائمة متوازنة ✔");
-    return ok;
+
+    var TITLES = { err: "خطأ", warn: "تنبيه", sug: "اقتراح" };
+    var COLORS = { err: "var(--danger)", warn: "var(--sand)", sug: "var(--tint)" };
+    el("xbrl-audit").innerHTML = r.findings.length
+      ? r.findings.map(function (f) {
+          return '<div class="check" style="border-color:' + COLORS[f.lvl] + ';margin:8px 0">' +
+            '<b style="color:' + COLORS[f.lvl] + '">' + TITLES[f.lvl] + ":</b> " + esc(f.msg) +
+            '<br /><span class="note">↳ ' + esc(f.fix) + "</span></div>";
+        }).join("")
+      : (announce ? '<div class="check ok" style="margin:8px 0">لا ملاحظات — الميزانية جاهزة للتوليد والإيداع.</div>' : "");
+    if (ok && announce && !r.findings.length) toast("الميزانية سليمة ✔");
+    return { ok: ok, errs: r.findings.filter(function (f) { return f.lvl === "err"; }).length };
   }
   el("xbrl-validate").addEventListener("click", function () { xvalidate(true); });
 
@@ -568,6 +691,7 @@
                     .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
   function buildXbrl() {
+    var t = recalc();
     var end = xf.periodEnd.value;
     // UTC throughout, anchored to the first of the opening month: local-midnight
     // parsing shifts the date east of Greenwich, and subtracting months from a
@@ -575,10 +699,14 @@
     var parts = end.split("-").map(Number);
     var months = xf.period.value === "FY" ? 12 : 3;
     var startStr = new Date(Date.UTC(parts[0], parts[1] - 1 - (months - 1), 1)).toISOString().slice(0, 10);
-    var lei = xf.lei.value.trim().replace(/[^A-Za-z0-9]/g, "").slice(0, 40);
+    var crn = xf.crn.value.trim().replace(/[^0-9]/g, "").slice(0, 10);
     function fact(tag, ctx, v) {
       return '  <ifrs-full:' + tag + ' contextRef="' + ctx + '" unitRef="KWD" decimals="3">' +
              Number(v).toFixed(3) + "</ifrs-full:" + tag + ">";
+    }
+    function ent() {
+      return '    <entity><identifier scheme="http://moci.gov.kw/commercial-registration">' +
+             escXml(crn) + "</identifier></entity>";
     }
     return [
       '<?xml version="1.0" encoding="UTF-8"?>',
@@ -586,27 +714,43 @@
       '      xmlns:xbrli="http://www.xbrl.org/2003/instance"',
       '      xmlns:ifrs-full="https://xbrl.ifrs.org/taxonomy/2024-03-27/ifrs-full"',
       '      xmlns:iso4217="http://www.xbrl.org/2003/iso4217">',
-      '  <context id="AsOf">',
-      '    <entity><identifier scheme="http://standards.iso.org/iso/17442">' + escXml(lei) + "</identifier></entity>",
+      '  <context id="AsOf">', ent(),
       "    <period><instant>" + end + "</instant></period>",
       "  </context>",
-      '  <context id="Duration">',
-      '    <entity><identifier scheme="http://standards.iso.org/iso/17442">' + escXml(lei) + "</identifier></entity>",
+      '  <context id="Duration">', ent(),
       "    <period><startDate>" + startStr + "</startDate><endDate>" + end + "</endDate></period>",
       "  </context>",
       '  <unit id="KWD"><measure>iso4217:KWD</measure></unit>',
-      "  <!-- " + escXml(xf.entity.value) + " — " + xf.period.value + " ending " + end + " -->",
-      fact("CurrentAssets", "AsOf", xnum("currentAssets")),
-      fact("NoncurrentAssets", "AsOf", xnum("nonCurrentAssets")),
-      fact("Assets", "AsOf", xnum("currentAssets") + xnum("nonCurrentAssets")),
-      fact("CurrentLiabilities", "AsOf", xnum("currentLiabilities")),
-      fact("NoncurrentLiabilities", "AsOf", xnum("nonCurrentLiabilities")),
-      fact("Liabilities", "AsOf", xnum("currentLiabilities") + xnum("nonCurrentLiabilities")),
-      fact("Equity", "AsOf", xnum("equity")),
-      fact("EquityAndLiabilities", "AsOf", xnum("currentLiabilities") + xnum("nonCurrentLiabilities") + xnum("equity")),
+      "  <!-- " + escXml(xf.entity.value) + " — CR " + escXml(crn) + " — " + xf.period.value + " ending " + end + " -->",
+      fact("CashAndCashEquivalents", "AsOf", xnum("cash")),
+      fact("TradeAndOtherCurrentReceivables", "AsOf", xnum("receivables")),
+      fact("Inventories", "AsOf", xnum("inventory")),
+      fact("OtherCurrentAssets", "AsOf", xnum("otherCA")),
+      fact("CurrentAssets", "AsOf", t.ca),
+      fact("PropertyPlantAndEquipment", "AsOf", xnum("ppe")),
+      fact("OtherNoncurrentFinancialAssets", "AsOf", xnum("investments")),
+      fact("OtherNoncurrentAssets", "AsOf", xnum("otherNCA")),
+      fact("NoncurrentAssets", "AsOf", t.nca),
+      fact("Assets", "AsOf", t.assets),
+      fact("TradeAndOtherCurrentPayables", "AsOf", xnum("payables")),
+      fact("ShorttermBorrowings", "AsOf", xnum("stBorrow")),
+      fact("OtherCurrentLiabilities", "AsOf", xnum("otherCL")),
+      fact("CurrentLiabilities", "AsOf", t.cl),
+      fact("LongtermBorrowings", "AsOf", xnum("ltBorrow")),
+      fact("NoncurrentProvisionsForEmployeeBenefits", "AsOf", xnum("eosb")),
+      fact("OtherNoncurrentLiabilities", "AsOf", xnum("otherNCL")),
+      fact("NoncurrentLiabilities", "AsOf", t.ncl),
+      fact("Liabilities", "AsOf", t.liab),
+      fact("IssuedCapital", "AsOf", xnum("capital")),
+      fact("OtherReserves", "AsOf", xnum("statRes") + xnum("volRes")),
+      fact("RetainedEarnings", "AsOf", xnum("retained") + t.net),
+      fact("Equity", "AsOf", t.eq),
+      fact("EquityAndLiabilities", "AsOf", t.liab + t.eq),
       fact("Revenue", "Duration", xnum("revenue")),
-      fact("ExpensesByNature", "Duration", xnum("expenses")),
-      fact("ProfitLoss", "Duration", xnum("revenue") - xnum("expenses")),
+      fact("CostOfSales", "Duration", xnum("cogs")),
+      fact("GrossProfit", "Duration", xnum("revenue") - xnum("cogs")),
+      fact("ExpensesByNature", "Duration", xnum("cogs") + xnum("adminExp") + xnum("otherExp")),
+      fact("ProfitLoss", "Duration", t.net),
       "</xbrl>"
     ].join("\n");
   }
@@ -616,13 +760,15 @@
   });
   xf.addEventListener("submit", function (e) {
     e.preventDefault();
-    if (!xvalidate(false)) { toast("صحّح التوازن أولاً"); return; }
+    var v = xvalidate(true);
+    if (v.errs) { toast("صحّح الأخطاء قبل التوليد — " + v.errs + " خطأ"); return; }
+    var t = recalc();
     var xml = buildXbrl();
     var hist = rd(K.reports, []); if (!Array.isArray(hist)) hist = [];
-    hist.push({ entity: xf.entity.value.trim().slice(0, 120), lei: xf.lei.value.trim().slice(0, 40),
-                period: xf.period.value, periodEnd: xf.periodEnd.value,
-                assets: xnum("currentAssets") + xnum("nonCurrentAssets"), equity: xnum("equity"),
-                revenue: xnum("revenue"), profit: xnum("revenue") - xnum("expenses"),
+    hist.push({ entity: xf.entity.value.trim().slice(0, 120), crn: xf.crn.value.trim().slice(0, 10),
+                legal: xf.legal.value, period: xf.period.value, periodEnd: xf.periodEnd.value,
+                assets: t.assets, equity: t.eq,
+                revenue: xnum("revenue"), profit: t.net,
                 filedAt: new Date().toISOString() });
     wr(K.reports, hist.slice(-200));
     var a = document.createElement("a");
@@ -637,7 +783,7 @@
     var reps = rd(K.reports, []); if (!Array.isArray(reps)) reps = [];
     el("xbrl-rows").innerHTML = reps.slice().reverse().map(function (r) {
       var profit = Number(r && r.profit) || 0;
-      return "<tr><td>" + esc((r && r.entity) || "—") + "</td><td>" + esc((r && r.period) || "—") +
+      return "<tr><td>" + esc((r && r.entity) || "—") + "</td><td>" + esc((r && r.crn) || (r && r.period) || "—") +
         "</td><td>" + esc((r && r.periodEnd) || "—") + "</td><td>" + kwd(clamp(r && r.assets, 1e12)) +
         "</td><td>" + kwd(clamp(r && r.revenue, 1e12)) + '</td><td class="' + (profit >= 0 ? "up" : "down") +
         '">' + (profit >= 0 ? "+" : "−") + kwd(Math.abs(profit)) + "</td></tr>";
@@ -748,7 +894,7 @@
   window.addEventListener("hashchange", route);
 
   function renderAll() { renderPosition(); renderSafi(); renderDelivery(); renderXbrlHistory(); }
-  renderAll(); xnet(); route();
+  renderAll(); recalc(); route();
 })();
 </script>
 <script>

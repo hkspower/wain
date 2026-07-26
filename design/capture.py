@@ -85,20 +85,25 @@ with sync_playwright() as p:
 
     # ---------------------------------------------------------- XBRL
     page.goto(f"{BASE}/nizam.html#/xbrl", wait_until="networkidle")
-    page.fill('input[name="entity"]', "شركة المهلب القابضة ش.م.ك.ع")
-    page.fill('input[name="lei"]', "254900MHLLB2026KW01")
+    page.fill('input[name="entity"]', "شركة المهلب القابضة")
+    page.fill('input[name="crn"]', "123456")
     page.select_option('select[name="period"]', "FY")
     page.fill('input[name="periodEnd"]', "2026-12-31")
-    vals = {"currentAssets": 4820.500, "nonCurrentAssets": 11350.000,
-            "currentLiabilities": 2310.250, "nonCurrentLiabilities": 5140.750,
-            "equity": 8719.500, "revenue": 9640.000, "expenses": 6215.375}
+    # the hand-balanced Kuwaiti WLL case from the test suite
+    vals = {"cash": 3200.500, "receivables": 5100.250, "inventory": 2400.000, "otherCA": 299.250,
+            "ppe": 8400.000, "investments": 11350.000, "otherNCA": 250.000,
+            "payables": 3100.750, "stBorrow": 1500.000, "otherCL": 399.250,
+            "ltBorrow": 6000.000, "eosb": 950.000, "otherNCL": 50.000,
+            "capital": 12000.000, "statRes": 1600.000, "volRes": 800.000, "retained": 1465.000,
+            "revenue": 9640.000, "cogs": 5215.375, "adminExp": 1200.000,
+            "otherExp": 150.000, "otherInc": 60.375}
     for k, v in vals.items():
         page.fill(f'input[name="{k}"]', f"{v:.3f}")
     page.click("#xbrl-validate")
     page.wait_for_timeout(300)
     page.click("#xbrl-preview")
     page.wait_for_timeout(700)
-    snap(page, "07-xbrl", "XBRL — Financial reporting", "/nizam.html#/xbrl")
+    snap(page, "07-xbrl", "XBRL — الميزانية السنوية", "/nizam.html#/xbrl")
 
     # ---------------------------------------------------------- Delivery
     page.goto(f"{BASE}/nizam.html#/delivery", wait_until="networkidle")

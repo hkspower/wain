@@ -365,17 +365,21 @@ def integration_checks(pg):
 
     # and the derive button pushes them into the financial statements
     pg.goto(f"{BASE}/nizam.html#/xbrl", wait_until="networkidle")
-    pg.fill('input[name="nonCurrentAssets"]', "0"); pg.fill('input[name="revenue"]', "0")
+    pg.fill('input[name="revenue"]', "0")
     pg.click("#xbrl-derive"); pg.wait_for_timeout(250)
+    inv = float(pg.input_value('input[name="investments"]'))
     nca = float(pg.input_value('input[name="nonCurrentAssets"]'))
     rev = float(pg.input_value('input[name="revenue"]'))
-    check(S, "SAFI market value becomes non-current assets", abs(nca - market) < .001,
+    check(S, "SAFI market value becomes the financial investments line", abs(inv - market) < .001,
+          f"{inv} vs {market:.3f}")
+    check(S, "the non-current subtotal carries it", abs(nca - market) < .001,
           f"{nca} vs {market:.3f}")
     check(S, "delivered orders become revenue", abs(rev - 7.5) < .001, str(rev))
     check(S, "net income follows the derived revenue",
           abs(float(pg.input_value('input[name="netIncome"]')) - 7.5) < .001)
     check(S, "derived fields are marked as derived",
-          "derived" in (pg.get_attribute('input[name="revenue"]', "class") or ""))
+          "derived" in (pg.get_attribute('input[name="revenue"]', "class") or "")
+          and "derived" in (pg.get_attribute('input[name="investments"]', "class") or ""))
 
     # a derived figure stays editable — the derivation is a starting point
     pg.fill('input[name="revenue"]', "99.000"); pg.wait_for_timeout(150)
@@ -389,38 +393,51 @@ def integration_checks(pg):
           "nokhatha-safi-v1" in keys and "nokhatha-delivery-orders-v1" in keys, str(keys))
 
 
-# ───────────────────────────── XBRL: validation, XML, date arithmetic
+# ───────────────────────────── XBRL: الميزانية السنوية — حساب، فحص، ملف
 def xbrl_checks(pg):
     S = "xbrl"
     pg.goto(f"{BASE}/nizam.html#/xbrl", wait_until="networkidle")
 
-    def fill(period, end, ca, nca, cl, ncl, eq, rev, exp):
+    def fill(fields):
         pg.fill('input[name="entity"]', "شركة المهلب القابضة")
-        pg.fill('input[name="lei"]', "254900MHLLB2026KW01")
-        pg.select_option('select[name="period"]', period)
-        pg.fill('input[name="periodEnd"]', end)
-        for k, v in [("currentAssets", ca), ("nonCurrentAssets", nca),
-                     ("currentLiabilities", cl), ("nonCurrentLiabilities", ncl),
-                     ("equity", eq), ("revenue", rev), ("expenses", exp)]:
-            pg.fill(f'input[name="{k}"]', f"{v:.3f}")
-        pg.wait_for_timeout(120)
+        pg.fill('input[name="crn"]', "123456")
+        for k, v in fields.items():
+            if k in ("period", "legal"): pg.select_option(f'select[name="{k}"]', v)
+            elif k == "periodEnd": pg.fill('input[name="periodEnd"]', v)
+            else: pg.fill(f'input[name="{k}"]', f"{v:.3f}")
+        pg.wait_for_timeout(150)
 
-    # unbalanced must be rejected
-    fill("FY", "2026-12-31", 100, 100, 50, 50, 50, 10, 5)     # assets 200 vs 150
-    pg.click("#xbrl-validate"); pg.wait_for_timeout(200)
-    check(S, "an unbalanced sheet is reported as unbalanced",
-          "غير متوازنة" in pg.inner_text("#xbrl-check"))
-    check(S, "the imbalance amount is stated", "50.000" in pg.inner_text("#xbrl-check"))
+    def clear():
+        pg.reload(wait_until="networkidle"); pg.wait_for_timeout(200)
 
-    # net income is derived, not typed
-    check(S, "net income is computed as revenue - expenses",
-          abs(float(pg.input_value('input[name="netIncome"]')) - 5.0) < .001)
+    # ── a hand-computed annual balance sheet for a Kuwaiti WLL ──
+    # CA = 3200.500+5100.250+2400+299.250        = 11000.000
+    # NCA = 8400+11350+250                        = 20000.000  → assets 31000.000
+    # CL = 3100.750+1500+399.250                  =  5000.000
+    # NCL = 6000+950+50                           =  7000.000  → liab   12000.000
+    # net = 9640 − 5215.375 − 1200 − 150 + 60.375 =  3135.000
+    # eq  = 12000+1600+800+1465+3135              = 19000.000  → liab+eq 31000.000 ✔
+    CASE = dict(period="FY", periodEnd="2026-12-31", legal="wll",
+                cash=3200.500, receivables=5100.250, inventory=2400.000, otherCA=299.250,
+                ppe=8400.000, investments=11350.000, otherNCA=250.000,
+                payables=3100.750, stBorrow=1500.000, otherCL=399.250,
+                ltBorrow=6000.000, eosb=950.000, otherNCL=50.000,
+                capital=12000.000, statRes=1600.000, volRes=800.000, retained=1465.000,
+                revenue=9640.000, cogs=5215.375, adminExp=1200.000,
+                otherExp=150.000, otherInc=60.375)
+    fill(CASE)
+    for name, want in (("currentAssets", "11000.000"), ("nonCurrentAssets", "20000.000"),
+                       ("totalAssets", "31000.000"), ("currentLiabilities", "5000.000"),
+                       ("nonCurrentLiabilities", "7000.000"), ("netIncome", "3135.000"),
+                       ("equity", "19000.000")):
+        got = pg.input_value(f'input[name="{name}"]')
+        check(S, f"computed {name} matches the hand total", got == want, f"{got} vs {want}")
 
-    # balanced: assets == liabilities + equity
-    fill("FY", "2026-12-31", 4820.5, 11350, 2310.25, 5140.75, 8719.5, 9640, 6215.375)
-    pg.click("#xbrl-validate"); pg.wait_for_timeout(200)
-    check(S, "a balanced sheet passes", "متوازنة" in pg.inner_text("#xbrl-check")
-          and "غير" not in pg.inner_text("#xbrl-check"))
+    pg.click("#xbrl-validate"); pg.wait_for_timeout(250)
+    check(S, "the hand-balanced sheet passes", "✔" in pg.inner_text("#xbrl-check"))
+    check(S, "a balanced WLL below the reserve cap gets the 10% suggestion",
+          "الاحتياطي القانوني" in pg.inner_text("#xbrl-audit")
+          and "313.500" in pg.inner_text("#xbrl-audit"))     # 10% of 3135.000
 
     pg.click("#xbrl-preview"); pg.wait_for_timeout(400)
     xml = pg.inner_text("#xbrl-out")
@@ -429,40 +446,89 @@ def xbrl_checks(pg):
     except Exception as e:
         wf = False; err = str(e)
     check(S, "generated XBRL is well-formed XML", wf, err)
-
-    ns = {"i": "https://xbrl.ifrs.org/taxonomy/2024-03-27/ifrs-full"}
     if wf:
         root = ET.fromstring(xml)
+        ns = {"i": "https://xbrl.ifrs.org/taxonomy/2024-03-27/ifrs-full"}
         def fact(tag):
-            el = root.find(f"i:{tag}", ns); return float(el.text) if el is not None else None
-        check(S, "Assets fact equals the sum of its parts", fact("Assets") == 16170.5, str(fact("Assets")))
-        check(S, "EquityAndLiabilities equals Assets",
-              fact("EquityAndLiabilities") == fact("Assets"),
-              f"{fact('EquityAndLiabilities')} vs {fact('Assets')}")
-        check(S, "ProfitLoss fact is correct", abs(fact("ProfitLoss") - 3424.625) < .001,
-              str(fact("ProfitLoss")))
+            e2 = root.find(f"i:{tag}", ns); return float(e2.text) if e2 is not None else None
+        check(S, "Assets fact equals the computed total", fact("Assets") == 31000.0, str(fact("Assets")))
+        check(S, "EquityAndLiabilities equals Assets", fact("EquityAndLiabilities") == fact("Assets"))
+        check(S, "cash, receivables and inventory are itemised",
+              fact("CashAndCashEquivalents") == 3200.5 and fact("Inventories") == 2400.0
+              and fact("TradeAndOtherCurrentReceivables") == 5100.25)
+        check(S, "retained earnings roll the year result in",
+              fact("RetainedEarnings") == 1465.0 + 3135.0, str(fact("RetainedEarnings")))
+        check(S, "gross profit is revenue minus cost of sales",
+              abs(fact("GrossProfit") - (9640.0 - 5215.375)) < .001)
+        check(S, "ProfitLoss fact is the computed net", abs(fact("ProfitLoss") - 3135.0) < .001)
         check(S, "amounts are stated in KWD",
               root.find(".//{http://www.xbrl.org/2003/instance}measure").text == "iso4217:KWD")
+        check(S, "the entity is identified by its commercial registration",
+              "moci.gov.kw/commercial-registration" in xml and ">123456<" in xml)
         dur = [c for c in root.findall("{http://www.xbrl.org/2003/instance}context")
                if c.get("id") == "Duration"][0]
         start = dur.find(".//{http://www.xbrl.org/2003/instance}startDate").text
-        check(S, "annual period starts the day after the prior year end",
+        check(S, "the annual period starts the day after the prior year end",
               start == "2026-01-01", f"start={start}")
 
-    # quarter ending on a 31st — month arithmetic must not overflow into the wrong month
-    fill("Q2", "2026-05-31", 100, 0, 40, 0, 60, 10, 4)
+    # ── the audit engine: every rule fires with its suggested fix ──
+    clear(); fill(dict(CASE, retained=1000.000))              # break the balance by 465
+    pg.click("#xbrl-validate"); pg.wait_for_timeout(250)
+    check(S, "an unbalanced sheet is refused with the difference stated",
+          "غير متوازنة" in pg.inner_text("#xbrl-check")
+          and "465.000" in pg.inner_text("#xbrl-check"))
+    check(S, "the imbalance carries a fix suggestion",
+          "الأرباح المرحّلة" in pg.inner_text("#xbrl-audit"))
+    pg.click('#xbrl-form button[type="submit"]'); pg.wait_for_timeout(300)
+    hist = pg.evaluate("JSON.parse(localStorage.getItem('nokhatha-xbrl-reports-v1')||'[]').length")
+    check(S, "a sheet with errors cannot be filed", hist == 0, f"{hist} filed")
+
+    clear(); fill(dict(period="FY", periodEnd="2026-12-31", capital=1000.000,
+                       retained=-1900.000, otherInc=100.000, cash=0.0))
+    # eq = 1000 −1900 +100 = −800 ; assets 0 vs liab+eq −800 → also unbalanced
+    pg.click("#xbrl-validate"); pg.wait_for_timeout(250)
+    audit = pg.inner_text("#xbrl-audit")
+    check(S, "negative equity is reported as an error", "حقوق الملكية سالبة" in audit)
+    check(S, "losses at half the capital trigger the companies-law warning",
+          "الجمعية العامة" in audit)
+
+    clear(); fill(dict(period="Q2", periodEnd="2026-05-31", capital=5000.000,
+                       cash=5000.000, revenue=100.000, cogs=250.000))
+    pg.click("#xbrl-validate"); pg.wait_for_timeout(250)
+    audit = pg.inner_text("#xbrl-audit")
+    check(S, "a quarterly period warns that the official filing is annual",
+          "سنوي" in audit)
+    check(S, "a gross loss is flagged", "مجمل" in audit)
+
+    clear(); fill(dict(period="FY", periodEnd="2026-12-31", legal="kscc", capital=100000.000,
+                       cash=100000.000, statRes=50000.000, revenue=8000.000))
+    pg.click("#xbrl-validate"); pg.wait_for_timeout(250)
+    audit = pg.inner_text("#xbrl-audit")
+    check(S, "a profitable closed shareholding company gets the zakat estimate",
+          "زكاة" in audit and "80.000" in audit)             # 1% of 8000
+    check(S, "a reserve at half the capital stops the 10% suggestion",
+          "الاحتياطي القانوني" not in audit)
+
+    clear(); fill(dict(period="FY", periodEnd="2026-12-31", legal="kscp", capital=100000.000,
+                       cash=100000.000, statRes=50000.000, revenue=8000.000))
+    pg.click("#xbrl-validate"); pg.wait_for_timeout(250)
+    check(S, "a listed company gets labour-support and KFAS estimates",
+          "دعم" in pg.inner_text("#xbrl-audit") and "200.000" in pg.inner_text("#xbrl-audit"))
+
+    # quarter ending on a 31st — month arithmetic must not overflow
+    clear(); fill(dict(period="Q2", periodEnd="2026-05-31", capital=100.000, cash=100.000))
     pg.click("#xbrl-preview"); pg.wait_for_timeout(400)
-    xml2 = pg.inner_text("#xbrl-out")
-    m = re.search(r"<startDate>([\d-]+)</startDate>", xml2)
+    m = re.search(r"<startDate>([\d-]+)</startDate>", pg.inner_text("#xbrl-out"))
     start2 = m.group(1) if m else "?"
     check(S, "quarter ending 31 May starts 1 March (no month overflow)",
-          start2 == "2026-03-01", f"start={start2} (expected 2026-03-01)")
+          start2 == "2026-03-01", f"start={start2}")
 
     # entity name is XML-escaped
     pg.fill('input[name="entity"]', 'A & B <script>"x"')
     pg.click("#xbrl-preview"); pg.wait_for_timeout(300)
     out = pg.inner_text("#xbrl-out")
     check(S, "entity name is XML-escaped", "&amp;" in out and "<script>" not in out)
+    pg.evaluate("localStorage.removeItem('nokhatha-xbrl-reports-v1')")
 
 def timezone_checks(br):
     """A filing date must be the same in Kuwait as in Honolulu."""
@@ -472,12 +538,9 @@ def timezone_checks(br):
         c = br.new_context(timezone_id=tz, locale="ar-KW")
         p = c.new_page()
         p.goto(f"{BASE}/nizam.html#/xbrl", wait_until="networkidle")
-        p.fill('input[name="entity"]', "س"); p.fill('input[name="lei"]', "ABCD1234")
+        p.fill('input[name="entity"]', "س"); p.fill('input[name="crn"]', "1234")
         p.select_option('select[name="period"]', "FY")
         p.fill('input[name="periodEnd"]', "2026-12-31")
-        for k in ("currentAssets", "nonCurrentAssets", "currentLiabilities",
-                  "nonCurrentLiabilities", "equity", "revenue", "expenses"):
-            p.fill(f'input[name="{k}"]', "0.000")
         p.click("#xbrl-preview"); p.wait_for_timeout(350)
         m = re.search(r"<startDate>([\d-]+)</startDate>", p.inner_text("#xbrl-out"))
         got[tz] = m.group(1) if m else "?"
