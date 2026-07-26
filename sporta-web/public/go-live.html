@@ -184,8 +184,11 @@ async function run() {
   // directly for the files that must never be served. This is not theoretical:
   // .env and .DS_Store were both sitting in public_html from an earlier deploy.
   try {
+    // Every path here was photographed in the live public_html.
     const SECRET = ['/.env', '/.DS_Store', '/.deploy-manifest.json', '/.git/config',
-                    '/knet/config.php', '/config-dist.php']
+                    '/deploy.config.json', '/deployhostinger.mjs', '/package.json',
+                    '/knet.log', '/config-dist.php', '/knet-config.php',
+                    '/knet/config.php', '/config.php']
     const exposed = []
     for (const path of SECRET) {
       const r = await fetch(path, { headers: { Accept: 'text/plain' } }).catch(() => null)

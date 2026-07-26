@@ -13,6 +13,18 @@
   RewriteRule "(?i)(^|/)\.(?!well-known)" - [F,L]
 </IfModule>
 
+# ---- index.html is the homepage, never index.php ----
+# The live server still has an index.php from the previous PHP site sitting
+# beside index.html. Hostinger's default DirectoryIndex lists index.php first,
+# so "/" would serve the OLD site while every deep route served the new one —
+# and nothing about that looks broken enough to notice. Stating the order here
+# removes the dependence on the host's default entirely.
+DirectoryIndex index.html
+
+# Directory listings must never be generated. public_html has folders from the
+# old site (images/, fonts/, private/) with no index file of their own.
+Options -Indexes
+
 # ---- Canonicalise host + scheme in a SINGLE 301 (never chain redirects) ----
 # Everything on the site declares https://www.sporta.com.kw as canonical, so any
 # other spelling of the URL jumps straight there in one hop. Rule 1 fixes host
@@ -166,7 +178,14 @@ ErrorDocument 404 /index.html
 # disk — the only kind that can leak — never reached the deny. Verified under
 # Apache: .DS_Store, .deploy-manifest.json and .git/config were all served 200.
 # What remains here is name-based and needs no rewrite ordering.
-<FilesMatch "(?i)^(composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|pnpm-lock\.yaml|vite\.config\.[cm]?[jt]s|(ts|js)config\.json|Dockerfile|docker-compose\.ya?ml|.*\.(bak|old|orig|save|swp|sql|log|sh|env))$">
+# The named files are not hypothetical — every one of them was photographed in
+# the live public_html. deploy.config.json and deployhostinger.mjs describe how
+# to reach the server; knet.log is the payment log; config-dist.php and
+# knet-config.php are payment-credential files from the previous site. A .php
+# file is normally safe because PHP executes it, but that protection vanishes
+# the moment PHP is misconfigured or the module is disabled during an upgrade,
+# which is exactly when the credentials would be served as plain text.
+<FilesMatch "(?i)^(composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|pnpm-lock\.yaml|vite\.config\.[cm]?[jt]s|(ts|js)config\.json|Dockerfile|docker-compose\.ya?ml|deploy\.config\.json|deployhostinger\.mjs|config-dist\.php|knet-config\.php|.*\.(bak|old|orig|save|swp|sql|log|jsonl|sh|env))$">
   Require all denied
 </FilesMatch>
 
