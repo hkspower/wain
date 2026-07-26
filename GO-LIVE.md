@@ -250,3 +250,27 @@ and driven in a real browser:
 | CSP violations | **0** |
 | JavaScript errors | **0** |
 | PHP endpoints (`pay`, `callback`, `knet`, `selftest`, `api`) | lint clean |
+
+Then every file in the package was audited on its own terms
+(`npm run audit:files`) — 43 files, 0.94 MB, **0 problems**. That audit now runs
+inside `make-package.mjs` and refuses to write the zip if anything fails, so a
+broken package cannot be produced by accident. It checks the things that go
+wrong specifically on this route — Mac → browser file manager → Linux:
+
+- a reference whose **case** does not match the file on disk (fine on macOS,
+  a 404 on the server);
+- a **byte-order mark before `<?php`**, which sends bytes before any `header()`
+  and so stops `pay.php` redirecting to KNET — the payment dies at the last step;
+- zero-byte files, editor droppings, `._` resource forks from zipping on a Mac,
+  shipped source maps, CRLF in server-side scripts, invalid UTF-8 (half the site
+  is Arabic), duplicate and orphaned files;
+- `knet/config.php`, `.env` and `.env.deploy` present — must never ship;
+- `index.html`, both `.htaccess` files, `config.js`, `robots.txt`, `sitemap.xml`,
+  `site.webmanifest` and the four KNET endpoints absent — must always ship.
+
+The audit was verified by fault injection rather than by passing: each of those
+faults was deliberately introduced into a copy of the package and each was
+caught. Two blind spots surfaced that way and were fixed — `site.webmanifest`
+was being truncated to a phantom `/site.webma`, and the only reference to
+`logo.png` on the whole site is a JSON-LD `"logo"` key, so renaming it produced
+no warning at all.

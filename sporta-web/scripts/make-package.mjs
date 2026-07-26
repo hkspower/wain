@@ -142,7 +142,19 @@ Optional. It never asks for a password and changes nothing.
 ================================================================================
 `)
 
-// ---- 6. zip ------------------------------------------------------------------
+// ---- 6. audit the staged tree, and refuse to zip a broken one ----------------
+// The zip IS the deliverable — the user drags it into File Manager and that is
+// the site. Auditing after packaging would be too late, so it happens here,
+// against the exact bytes about to be sealed in.
+try {
+  execFileSync('node', [new URL('file-audit.mjs', import.meta.url).pathname,
+                        join(stage, 'public_html')], { stdio: 'inherit' })
+} catch {
+  console.error('\nfile audit failed — package NOT written')
+  process.exit(1)
+}
+
+// ---- 7. zip ------------------------------------------------------------------
 rmSync(out, { force: true })
 execFileSync('zip', ['-qr', out, '.'], { cwd: stage })
 rmSync(stage, { recursive: true, force: true })

@@ -47,9 +47,16 @@
   file in Hostinger File Manager, with no Node and no rebuild — the user's
   server account has no shell (`/sbin/nologin`). `config.js` is in the deploy
   keep-list, so a deploy never overwrites the live values.
-- **Packaging:** `node sporta-web/scripts/make-package.mjs` regenerates
-  `SPORTA-GO-LIVE.zip`. Never hand-assemble it — the previous hand-made zip
-  went stale and carried the payment-losing callback bug for weeks.
+- **Packaging:** `node sporta-web/scripts/make-package.mjs` (or `npm run
+  package`) regenerates `SPORTA-GO-LIVE.zip`. Never hand-assemble it — the
+  previous hand-made zip went stale and carried the payment-losing callback bug
+  for weeks. It now runs `scripts/file-audit.mjs` over the staged tree and
+  **refuses to write the zip** if anything fails, so the artifact cannot ship
+  with a case-mismatched asset reference, a BOM before `<?php`, a stray
+  `config.php`/`.env`, or a missing required file.
+- **Brand masters live in `/brand/`, never in `sporta-web/public/`.** Anything
+  in `public/` ships. `logo-original.png` sat there unreferenced for weeks and
+  was 522 kB — a third of the entire uploadable package.
 
 ## Going live (saved by user request — apply always)
 

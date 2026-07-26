@@ -15,7 +15,9 @@
     "bundle:php": "node scripts/bundle-php.mjs",
     "release": "npm run seo && npm run build && npm run bundle:php",
     "deploy": "node dropin/scripts/deploy.mjs",
-    "build:html5": "node scripts/generate-seo.mjs && node scripts/build-html5.mjs"
+    "build:html5": "node scripts/generate-seo.mjs && node scripts/build-html5.mjs",
+    "audit:files": "node scripts/file-audit.mjs",
+    "package": "node scripts/make-package.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",
