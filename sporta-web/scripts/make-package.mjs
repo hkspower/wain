@@ -47,6 +47,10 @@ ORDER.forEach((name, i) => {
   cpSync(join(web, 'supabase', `${name}.sql`), join(stage, 'supabase-sql', `${i + 1}-${name}.sql`))
 })
 
+// The Mac-side checker travels with the package so there is one thing to keep,
+// not two.
+cpSync(join(web, 'scripts', 'mac-check.sh'), join(stage, 'sporta-mac-check.sh'))
+
 // ---- 4. the no-build fallback store ------------------------------------------
 cpSync(join(root, 'sporta-html5'), join(stage, 'ALTERNATIVE-static-site'), { recursive: true })
 
@@ -127,6 +131,11 @@ Then delete these three files from the server:
     public_html/go-live.html
     public_html/knet/selftest.php
     public_html/knet/setup-config.php
+
+--------------------------------------------------------------------------------
+sporta-mac-check.sh  tests your own Mac and this server from Terminal:
+    bash sporta-mac-check.sh
+Optional. It never asks for a password and changes nothing.
 
 --------------------------------------------------------------------------------
 ALTERNATIVE-static-site/  is a no-JavaScript-build fallback copy of the store.
