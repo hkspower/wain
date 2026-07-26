@@ -6,7 +6,7 @@ import LegalPage from '../components/LegalPage'
 // drift away from what the shop actually does. Nothing was invented to fill a
 // heading: where a fact is not already published (company registration number,
 // a registered address), the section simply does not claim one.
-const UPDATED = '2026-07-26'
+const UPDATED = '2026-07-26'  // payment section updated when cash on delivery was added
 
 const INTRO = {
   en: 'These terms cover buying from sporta.com.kw. Placing an order means you accept them.',
@@ -34,11 +34,11 @@ const SECTIONS = [
   {
     h: { en: '3. Payment', ar: '٣. الدفع' },
     p: [{
-      en: 'We accept KNET, Visa and Mastercard. Payment is processed by the Commercial Bank of Kuwait’s payment gateway. Your card and KNET details are entered on the bank’s own page and are never seen, handled or stored by Sporta.',
-      ar: 'نقبل كي نت وفيزا وماستركارد. تتم معالجة الدفع عبر بوابة الدفع لدى البنك التجاري الكويتي، وتُدخل بيانات بطاقتك أو كي نت في صفحة البنك نفسه، ولا تطّلع عليها سبورتا ولا تخزّنها إطلاقاً.',
+      en: 'You can pay online with KNET, Visa or Mastercard, or in cash to the driver when your order arrives. Online payment is processed by the Commercial Bank of Kuwait’s payment gateway: your card and KNET details are entered on the bank’s own page and are never seen, handled or stored by Sporta.',
+      ar: 'يمكنك الدفع إلكترونياً بكي نت أو فيزا أو ماستركارد، أو نقداً للمندوب عند وصول طلبك. وتتم معالجة الدفع الإلكتروني عبر بوابة الدفع لدى البنك التجاري الكويتي، فتُدخل بيانات بطاقتك أو كي نت في صفحة البنك نفسه، ولا تطّلع عليها سبورتا ولا تخزّنها إطلاقاً.',
     }, {
-      en: 'If your payment is taken but your order does not appear, contact us with your tracking number and we will resolve it.',
-      ar: 'إذا خُصم المبلغ ولم يظهر طلبك، تواصل معنا مع رقم التتبّع وسنعالج الأمر.',
+      en: 'Cash on delivery is for orders inside Kuwait. Please have the amount ready — drivers do not always carry change. If your payment is taken but your order does not appear, contact us with your tracking number and we will resolve it.',
+      ar: 'الدفع عند الاستلام متاح للطلبات داخل الكويت، ويُفضّل تجهيز المبلغ لأن المندوب قد لا يحمل فكة. وإذا خُصم المبلغ ولم يظهر طلبك، تواصل معنا مع رقم التتبّع وسنعالج الأمر.',
     }],
   },
   {

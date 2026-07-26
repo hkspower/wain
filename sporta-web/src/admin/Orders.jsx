@@ -136,6 +136,7 @@ export default function Orders({ initialPayment = 'all' }) {
                 <th className="py-2 text-start font-semibold">Customer</th>
                 <th className="py-2 text-end font-semibold">Amount</th>
                 <th className="py-2 text-start font-semibold">Payment</th>
+                <th className="py-2 text-start font-semibold">Method</th>
                 <th className="py-2 text-start font-semibold">Fulfilment</th>
               </tr>
             </thead>
@@ -151,6 +152,9 @@ export default function Orders({ initialPayment = 'all' }) {
                   <td className="py-3">{o.customer_name || <span className="text-slate-400">—</span>}</td>
                   <td className="py-3 text-end font-semibold tabular-nums">{kwd(o.amount)}</td>
                   <td className="py-3"><Badge tone={PAY_TONE[o.payment_status]}>{o.payment_status}</Badge></td>
+                  <td className="py-3 text-xs font-semibold text-slate-500">
+                    {o.payment_method === 'cod' ? 'Cash' : 'KNET'}
+                  </td>
                   <td className="py-3"><Badge tone={FUL_TONE[o.fulfilment_status]}>{o.fulfilment_status}</Badge></td>
                 </tr>
               ))}
@@ -163,6 +167,9 @@ export default function Orders({ initialPayment = 'all' }) {
                 <div className="m-row__top">
                   <span className="m-row__title">{o.customer_name || o.track_id}</span>
                   <Badge tone={PAY_TONE[o.payment_status]}>{o.payment_status}</Badge>
+                  <span className="text-xs font-semibold text-slate-500">
+                    {o.payment_method === 'cod' ? 'Cash' : 'KNET'}
+                  </span>
                 </div>
                 <div className="m-row__meta">
                   <span className="font-mono">{o.track_id}</span> · {kwd(o.amount)} · {o.fulfilment_status}
@@ -268,6 +275,7 @@ function OrderDrawer({ order, onClose, onChanged }) {
             <Field label="Amount" value={kwd(order.amount)} strong />
             <Field label="Paid at" value={when(order.paid_at)} />
             <Field label="Payment" value={order.payment_status} />
+            <Field label="Method" value={order.payment_method === 'cod' ? 'Cash on delivery' : 'KNET / card'} />
             <Field label="Fulfilment" value={order.fulfilment_status} />
             <Field label="KNET payment ID" value={order.cbk_paymentid || '—'} mono />
             <Field label="KNET reference" value={order.cbk_reference || '—'} mono />
@@ -357,7 +365,13 @@ function OrderDrawer({ order, onClose, onChanged }) {
                 </button>
               ))}
             </div>
-            {order.payment_status !== 'paid' && (
+            {order.payment_status !== 'paid' && order.payment_method === 'cod' && (
+              <p className="mt-2 text-xs text-slate-500">
+                Cash on delivery — the driver collects {kwd(order.amount)} at the door.
+                Mark it paid once the cash is in.
+              </p>
+            )}
+            {order.payment_status !== 'paid' && order.payment_method !== 'cod' && (
               <p className="mt-2 text-xs text-amber-700">
                 This order is not marked paid — confirm the payment before shipping.
               </p>

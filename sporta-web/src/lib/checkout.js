@@ -28,7 +28,7 @@ export class CheckoutError extends Error {
 // failure rather than leaking a Postgres message to a shopper.
 function tokenFor(error) {
   const m = String(error?.message ?? '').match(
-    /\b(invalid_track_id|order_not_pending|empty_cart|cart_too_large|invalid_phone|invalid_governorate|invalid_qty|zero_amount|missing_[a-z]+|too_long_[a-z]+|unavailable_[\w-]+)\b/,
+    /\b(invalid_track_id|order_not_pending|empty_cart|cart_too_large|invalid_phone|invalid_governorate|invalid_qty|zero_amount|missing_[a-z]+|too_long_[a-z]+|unavailable_[\w-]+|invalid_payment_method)\b/,
   )
   return m ? m[1] : 'failed'
 }
@@ -43,7 +43,7 @@ function tokenFor(error) {
 // No price is sent from here, and pay.php is called with no `amount`
 // parameter at all — it reads the figure from the order it looks up. That is
 // what makes the amount untamperable end to end.
-export async function startCheckout({ items, lang = 'en', customer }) {
+export async function startCheckout({ items, lang = 'en', customer, paymentMethod = 'knet' }) {
   const { supabase } = await import('./supabase')
 
   // Fail closed. With no database there is nowhere to record the order or the
@@ -57,9 +57,18 @@ export async function startCheckout({ items, lang = 'en', customer }) {
     p_track_id: trackId,
     p_items: items.map((i) => ({ slug: i.slug, qty: i.qty })),
     p_customer: customer,
+    p_payment_method: paymentMethod,
   })
   if (error) throw new CheckoutError(tokenFor(error), error.message)
   if (!data?.track_id) throw new CheckoutError('failed')
+
+  // Cash on delivery never touches the bank. The order is recorded and the
+  // shopper goes straight to the result page — sending them to pay.php would
+  // ask them to pay twice.
+  if (paymentMethod === 'cod') {
+    window.location.href = `/payment/result?status=cod&trackid=${encodeURIComponent(data.track_id)}`
+    return data
+  }
 
   const params = new URLSearchParams({ trackid: data.track_id, lang })
   window.location.href = `${PAY_BASE}/pay.php?${params.toString()}`

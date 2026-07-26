@@ -15,8 +15,8 @@ const FAQ = [
   {
     q: { en: 'What payment methods do you accept?', ar: 'ما طرق الدفع المتوفرة؟' },
     a: {
-      en: 'KNET (Kuwait debit), Visa and Mastercard. All prices are in Kuwaiti Dinar (KWD).',
-      ar: 'كي نت وفيزا وماستركارد، وجميع الأسعار بالدينار الكويتي.',
+      en: 'KNET (Kuwait debit), Visa and Mastercard, or cash to the driver on delivery. All prices are in Kuwaiti Dinar (KWD).',
+      ar: 'كي نت وفيزا وماستركارد، أو نقداً للمندوب عند الاستلام. وجميع الأسعار بالدينار الكويتي.',
     },
   },
   {

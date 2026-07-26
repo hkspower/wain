@@ -53,7 +53,7 @@ export async function fetchOrders({ payment = 'all', fulfilment = 'all', search 
   let q = supabase
     .from('orders')
     .select(
-      'id, track_id, amount, payment_status, fulfilment_status, paid_at, created_at,' +
+      'id, track_id, amount, payment_status, payment_method, fulfilment_status, paid_at, created_at,' +
         ' customer_name, customer_phone, customer_area, customer_note,' +
         ' customer_governorate, customer_block, customer_street, customer_building,' +
         ' customer_floor, customer_flat,' +

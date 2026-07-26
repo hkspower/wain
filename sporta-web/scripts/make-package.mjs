@@ -47,7 +47,8 @@ mkdirSync(join(stage, 'supabase-sql'), { recursive: true })
 // storefront that renders and a checkout that refuses everything.
 execFileSync('node', [join(web, 'scripts', 'generate-setup-sql.mjs')], { stdio: 'inherit' })
 cpSync(join(web, 'supabase', 'SETUP-ALL.sql'), join(stage, 'supabase-sql', 'SETUP-ALL.sql'))
-const ORDER = ['schema', 'admin-migration', 'checkout-migration', 'passcode-migration', 'seed-products']
+const ORDER = ['schema', 'admin-migration', 'checkout-migration', 'passcode-migration',
+               'payment-method-migration', 'seed-products']
 ORDER.forEach((name, i) => {
   cpSync(join(web, 'supabase', `${name}.sql`), join(stage, 'supabase-sql', `${i + 1}-${name}.sql`))
 })

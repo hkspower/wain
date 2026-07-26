@@ -149,7 +149,7 @@ createServer((req, res) => {
     if (u.pathname === '/rest/v1/rpc/create_order') {
       const sql = `select public.create_order(${lit(body.p_track_id)}, ${lit(
         JSON.stringify(body.p_items),
-      )}::jsonb, ${lit(JSON.stringify(body.p_customer))}::jsonb)`
+      )}::jsonb, ${lit(JSON.stringify(body.p_customer))}::jsonb, ${lit(body.p_payment_method ?? 'knet')})`
       try {
         const out = await asAnon(sql)
         console.log('  create_order OK ->', out)

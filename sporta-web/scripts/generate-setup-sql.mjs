@@ -24,6 +24,7 @@ const PARTS = [
   ['admin-migration.sql',   'Admin reads, order stats and the fulfilment fields'],
   ['checkout-migration.sql','create_order — without this every checkout fails'],
   ['passcode-migration.sql','Admin device quick-unlock'],
+  ['payment-method-migration.sql','Cash on delivery alongside KNET'],
   ['seed-products.sql',     'The 46 products, and retirement of anything older'],
 ]
 
@@ -64,6 +65,8 @@ select
   (select count(*) from public.products where not active)          as products_retired,
   (select count(*) from pg_proc where proname = 'create_order')    as checkout_function,
   (select count(*) from pg_proc where proname = 'verify_device_passcode') as passcode_function,
+  (select count(*) from information_schema.columns
+    where table_name = 'orders' and column_name = 'payment_method')       as cash_on_delivery,
   (select count(*) from auth.users)                                as admin_users;
 
 -- What those numbers should say:
@@ -72,6 +75,8 @@ select
 --   products_retired     0+     old products hidden, not deleted. 0 on a new project.
 --   checkout_function    1      0 means checkout will fail with "404 Unknown order".
 --   passcode_function    1      0 means the admin quick-unlock screen cannot work.
+--   cash_on_delivery     1      0 means only KNET is offered; cash orders cannot
+--                               be placed.
 --   admin_users          1+     0 means NOBODY CAN SIGN IN to /admin yet.
 --                               Fix: Authentication -> Users -> Add user.
 --                               Any email works; it does not need a real inbox.
