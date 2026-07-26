@@ -1,8 +1,9 @@
 // Publish to Hostinger over FTPS — the bridge that works with SSH switched off.
 //
-//   node scripts/publish-ftps.mjs            # build, then upload
-//   node scripts/publish-ftps.mjs --dry-run  # list what would change, upload nothing
-//   node scripts/publish-ftps.mjs --no-build # upload the existing dist/
+//   node scripts/publish-ftps.mjs                 # build, then upload
+//   node scripts/publish-ftps.mjs --dry-run       # list what would change, upload nothing
+//   node scripts/publish-ftps.mjs --no-build      # upload the existing dist/
+//   node scripts/publish-ftps.mjs --setup-tools   # also send go-live.html + selftest.php
 //
 // WHY FTPS AND NOT A DEPLOY ENDPOINT
 // The obvious "bridge" is a PHP script on the server that accepts an upload.
@@ -13,17 +14,12 @@
 // FTPS adds no attack surface at all: Hostinger already runs the server, it
 // already authenticates, and it is not SSH, so it keeps working with SSH off.
 // The credentials are Hostinger's own FTP account, revocable in hPanel.
-//
-// WHAT IT WILL NOT TOUCH
-// config.js and knet/config.php live only on the server and hold the live
-// Supabase and Tranportal credentials. They are never uploaded and never
-// deleted, whatever the include patterns say. That is enforced here rather than
-// left to configuration, because getting it wrong costs real money.
 import { Client } from 'basic-ftp'
 import { readFileSync, readdirSync, statSync, existsSync, createReadStream } from 'node:fs'
 import { join, relative, dirname, resolve } from 'node:path'
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
+import { Writable } from 'node:stream'
 import { config as loadEnv } from 'dotenv'
 
 const web = resolve(new URL('..', import.meta.url).pathname)
@@ -32,12 +28,38 @@ loadEnv({ path: join(web, '.env.deploy') })
 const argv = process.argv.slice(2)
 const DRY = argv.includes('--dry-run')
 const NO_BUILD = argv.includes('--no-build')
+const SETUP_TOOLS = argv.includes('--setup-tools')
 
 const cfg = JSON.parse(readFileSync(join(web, 'deploy.config.json'), 'utf8'))
-const REMOTE = cfg.ftp?.remoteDir ?? '/public_html'
+const REMOTE = (cfg.ftp?.remoteDir ?? '/public_html').replace(/\/$/, '')
 
-// Never uploaded, never deleted. Not configurable on purpose.
-const NEVER_TOUCH = ['config.js', 'knet/config.php', '.env', '.env.deploy']
+// ---------------------------------------------------------------------------
+// Files whose server copy always wins. Hard-coded, not configuration: these
+// hold the live Supabase and Tranportal credentials and exist only on the
+// server, and a configuration mistake that overwrote them would cost real money.
+const NEVER_OVERWRITE = ['config.js', 'knet/config.php']
+// Never sent under any circumstance.
+const NEVER_SEND = ['.env', '.env.deploy', '.DS_Store']
+// GO-LIVE tells the owner to DELETE these once the site is set up, because each
+// one reveals configuration state. Re-uploading them on every publish would
+// silently undo that cleanup — so they are excluded by default and only sent
+// when asked for explicitly.
+const SETUP_ONLY = ['go-live.html', 'knet/selftest.php', 'knet/setup-config.php']
+// Must arrive, and must be verified afterwards. Listing them is not enough: the
+// verify step used to check only files that happened to be in the upload set,
+// so if one had been filtered out it would have been skipped in silence and the
+// run would still have reported success.
+const MUST_VERIFY = ['.htaccess', 'knet/.htaccess', 'index.html']
+// Left over from the previous site. Each is either a way in or a way to serve
+// the old site by accident. Reported after publishing, since publish never
+// deletes anything.
+const DANGEROUS_LEFTOVERS = [
+  'index.php', 'sporta-deploy.php', 'sporta-deploy-config.php', 'sporta-dist.zip',
+  '.env', 'config.php', 'config-dist.php', 'knet-config.php', 'knet-lib.php',
+  'knet-pay.php', 'knet-response.php', 'knet.log', 'deploy.config.json',
+  'deployhostinger.mjs', 'package.json', 'vite.config.ts', 'README-knet.md',
+  '_headers', 'sitemap-static.xml', 'push-sw.js', '.deploy-manifest.json',
+]
 
 const c = (n, s) => `\x1b[${n}m${s}\x1b[0m`
 const log = (s = '') => console.log(s)
@@ -47,36 +69,70 @@ const host = process.env.FTP_HOST || cfg.ftp?.host
 const port = Number(process.env.FTP_PORT || cfg.ftp?.port || 21)
 const user = process.env.FTP_USER || cfg.ftp?.user
 const password = process.env.FTP_PASSWORD
-if (!host || !user) fail('Set FTP_HOST and FTP_USER in .env.deploy (hPanel → Files → FTP Accounts).')
+if (!host || !user) {
+  fail('Set FTP_HOST and FTP_USER in .env.deploy — copy them from hPanel → Files → FTP Accounts.\n' +
+       '  Do not guess the host: ftp.sporta.com.kw has no DNS record.')
+}
 if (!password && !DRY) fail('Set FTP_PASSWORD in .env.deploy. It is git-ignored; never commit it.')
 
 // ---------------------------------------------------------------- 1. build
 const outputDir = join(web, cfg.build?.outputDir ?? 'dist')
 if (!NO_BUILD) {
   log(c(36, '▸ Building'))
-  execFileSync('npm', ['run', 'release'], { cwd: web, stdio: 'inherit' })
+  // The VITE_ variables are emptied, exactly as make-package.mjs does it. This
+  // is not tidiness: whatever is in the developer's .env would otherwise be
+  // baked into the bundle as a fallback, so a missing config.js on the server
+  // would quietly fall back to those values instead of failing closed — and a
+  // dev or staging Supabase project could end up compiled into production. It
+  // also keeps what publish sends identical to what the audited zip contains.
+  execFileSync('npm', ['run', 'release'], {
+    cwd: web,
+    stdio: 'inherit',
+    env: { ...process.env, VITE_SUPABASE_URL: '', VITE_SUPABASE_ANON_KEY: '', VITE_PAY_BASE_URL: '' },
+  })
 }
 if (!existsSync(outputDir)) fail(`No build output at ${outputDir}. Run without --no-build.`)
 
 // ---------------------------------------------------------------- 2. inventory
-const files = []
+const found = []
 ;(function walk(dir) {
   for (const e of readdirSync(dir)) {
     const p = join(dir, e)
-    statSync(p).isDirectory() ? walk(p) : files.push(p)
+    statSync(p).isDirectory() ? walk(p) : found.push(p)
   }
 })(outputDir)
 
 const rel = (p) => relative(outputDir, p).split('\\').join('/')
-const SKIP = /(^|\/)(\.DS_Store|.*\.map)$/
-const upload = files
-  .map((p) => ({ abs: p, rel: rel(p) }))
-  .filter((f) => !SKIP.test(f.rel) && !NEVER_TOUCH.includes(f.rel))
+const all = found.map((p) => ({ abs: p, rel: rel(p) })).filter((f) => !/\.map$/.test(f.rel))
 
-const held = files.map((p) => rel(p)).filter((r) => NEVER_TOUCH.includes(r))
-if (held.length) log(c(33, `  holding back (server copy wins): ${held.join(', ')}`))
+const skipped = { held: [], setup: [], never: [] }
+const upload = all.filter((f) => {
+  if (NEVER_SEND.includes(f.rel)) { skipped.never.push(f.rel); return false }
+  if (NEVER_OVERWRITE.includes(f.rel)) { skipped.held.push(f.rel); return false }
+  if (!SETUP_TOOLS && SETUP_ONLY.includes(f.rel)) { skipped.setup.push(f.rel); return false }
+  return true
+})
 
-// The audit is the same one that gates the zip; publishing must not be a way
+// Order is deliberate: index.html LAST. It names the hashed asset files, so if a
+// run dies part-way through, an old index.html pointing at assets that are all
+// present is a working site, while a new index.html pointing at assets that have
+// not arrived yet is a white screen.
+upload.sort((a, b) => (a.rel === 'index.html') - (b.rel === 'index.html') || a.rel.localeCompare(b.rel))
+
+// Refuse to proceed if anything that must be verified is not being sent.
+const missingCritical = MUST_VERIFY.filter((r) => !upload.some((f) => f.rel === r))
+if (missingCritical.length) {
+  fail(`These must be uploaded and are not in the set: ${missingCritical.join(', ')}\n` +
+       '  Refusing to publish a partial site rather than skip the check quietly.')
+}
+
+if (skipped.held.length) log(c(33, `  server copy wins, not sent: ${skipped.held.join(', ')}`))
+if (skipped.setup.length) {
+  log(c(33, `  setup tools NOT sent: ${skipped.setup.join(', ')}`))
+  log(c(90, '    (GO-LIVE says delete these once set up. Pass --setup-tools if you still need them.)'))
+}
+
+// The audit that gates the zip runs here too, so publishing cannot become a way
 // around it.
 log(c(36, '▸ Auditing the build'))
 try {
@@ -88,13 +144,13 @@ try {
 const sha = (p) => createHash('sha256').update(readFileSync(p)).digest('hex')
 
 log()
-log(c(36, '▸ Publishing to ') + `${user}@${host}${REMOTE}`)
+log(c(36, '▸ Publishing to ') + `${user}@${host}:${port}${REMOTE}`)
 log(`  ${upload.length} file(s)${DRY ? c(33, '   [DRY RUN — nothing will be written]') : ''}`)
 
 if (DRY) {
-  for (const f of upload.slice(0, 40)) log(`    ${f.rel}`)
-  if (upload.length > 40) log(`    … and ${upload.length - 40} more`)
-  log(c(33, '\nDry run only. Re-run without --dry-run to publish.'))
+  for (const f of upload) log(`    ${f.rel}`)
+  log(c(33, '\nDry run only — no connection was opened, so this cannot confirm the host'))
+  log(c(33, 'or the credentials are right. Re-run without --dry-run to publish.'))
   process.exit(0)
 }
 
@@ -106,8 +162,7 @@ let sent = 0
 try {
   // secure:true is explicit FTPS (AUTH TLS). Plain FTP would put the password
   // and every byte of the site on the wire in clear text.
-  // SNI must not be set to a bare IP — RFC 6066 forbids it and Node warns.
-  // Hostinger is reached by hostname, so this only matters when testing.
+  // SNI must not be a bare IP — RFC 6066 forbids it and Node warns.
   const isIp = /^\d+\.\d+\.\d+\.\d+$/.test(host)
   await client.access({
     host, port, user, password, secure: true,
@@ -117,49 +172,68 @@ try {
     },
   })
   await client.ensureDir(REMOTE)
-  await client.cd(REMOTE)
 
-  // Deepest paths last so parent directories exist first.
+  // Parents before children — a lexical sort gives that for free.
   const dirs = [...new Set(upload.map((f) => dirname(f.rel)).filter((d) => d !== '.'))].sort()
-  for (const d of dirs) await client.ensureDir(`${REMOTE}/${d}`).then(() => client.cd(REMOTE))
+  for (const d of dirs) await client.ensureDir(`${REMOTE}/${d}`)
 
   for (const f of upload) {
-    if (NEVER_TOUCH.includes(f.rel)) continue // belt and braces
     await client.uploadFrom(createReadStream(f.abs), `${REMOTE}/${f.rel}`)
     sent++
-    process.stdout.write(`\r  uploaded ${sent}/${upload.length}  ${f.rel.slice(0, 46).padEnd(46)}`)
+    process.stdout.write(`\r  uploaded ${sent}/${upload.length}  ${f.rel.slice(0, 44).padEnd(44)}`)
   }
   process.stdout.write('\n')
 
   // ------------------------------------------------------------- 4. verify
-  // Uploading without checking is how a truncated .htaccess goes unnoticed for
-  // a week. Both .htaccess files are re-downloaded and compared byte for byte,
-  // because they are hidden, easy to miss, and the ones that break routing and
-  // every security header when wrong.
   log(c(36, '▸ Verifying'))
-  const mustMatch = ['.htaccess', 'knet/.htaccess', 'index.html'].filter((r) =>
-    upload.some((f) => f.rel === r))
-  for (const r of mustMatch) {
-    const local = sha(join(outputDir, r))
+  const download = async (remotePath) => {
     const chunks = []
-    await client.downloadTo(
-      new (await import('node:stream')).Writable({
-        write(ch, _e, cb) { chunks.push(ch); cb() },
-      }),
-      `${REMOTE}/${r}`,
-    )
-    const remote = createHash('sha256').update(Buffer.concat(chunks)).digest('hex')
-    if (local !== remote) fail(`${r} does not match after upload — the server copy is wrong`)
-    log(c(32, `  ✓ ${r} matches`))
+    await client.downloadTo(new Writable({ write(ch, _e, cb) { chunks.push(ch); cb() } }), remotePath)
+    return Buffer.concat(chunks)
+  }
+  for (const r of MUST_VERIFY) {
+    const remote = createHash('sha256').update(await download(`${REMOTE}/${r}`)).digest('hex')
+    if (sha(join(outputDir, r)) !== remote) fail(`${r} does not match after upload — the server copy is wrong`)
+    log(c(32, `  ✓ ${r} matches byte for byte`))
   }
 
-  // And confirm the untouchables are still there.
-  const listing = await client.list(REMOTE)
-  const names = listing.map((i) => i.name)
-  for (const keep of ['config.js']) {
-    log(names.includes(keep)
-      ? c(32, `  ✓ ${keep} preserved on the server`)
-      : c(33, `  ! ${keep} is not on the server — the site cannot reach Supabase until you create it`))
+  // --------------------------------------- 5. config.js: create, never clobber
+  const root = await client.list(REMOTE)
+  const rootNames = root.map((i) => i.name)
+  if (rootNames.includes('config.js')) {
+    log(c(32, '  ✓ config.js left untouched on the server'))
+  } else {
+    // A first publish to a fresh server would otherwise leave no config.js at
+    // all, and the storefront would render while refusing every order.
+    await client.uploadFrom(createReadStream(join(outputDir, 'config.js')), `${REMOTE}/config.js`)
+    log(c(33, '  ! config.js was missing — uploaded the blank template.'))
+    log(c(33, '    Edit it in File Manager and paste your Supabase URL + anon key.'))
+  }
+  const knetNames = (await client.list(`${REMOTE}/knet`).catch(() => [])).map((i) => i.name)
+  log(knetNames.includes('config.php')
+    ? c(32, '  ✓ knet/config.php left untouched on the server')
+    : c(33, '  ! knet/config.php is not on the server — payments cannot work until you create it\n' +
+            '    (copy knet/config.example.php to knet/config.php and fill in five values)'))
+
+  // --------------------- 6. what is on the server that should not be
+  // Publish never deletes, so leftovers from the previous site survive forever
+  // unless someone is told about them.
+  const present = new Set([...rootNames, ...knetNames.map((n) => `knet/${n}`)])
+  const leftovers = DANGEROUS_LEFTOVERS.filter((n) => present.has(n))
+  const staleSetup = SETUP_ONLY.filter((n) => present.has(n) && !SETUP_TOOLS)
+  if (leftovers.length || staleSetup.length) {
+    log()
+    log(c(33, '▸ Still on the server, and not part of this site — delete in File Manager:'))
+    for (const n of leftovers) log(c(33, `    ${n}`))
+    for (const n of staleSetup) log(c(33, `    ${n}   (reveals configuration state)`))
+    if (leftovers.includes('index.php')) {
+      log(c(31, '\n  index.php is the serious one: if .htaccess is ever lost, Hostinger'))
+      log(c(31, '  serves it instead of the React app and the OLD site comes back.'))
+    }
+    if (leftovers.includes('sporta-deploy.php')) {
+      log(c(31, '\n  sporta-deploy.php is a deploy endpoint reachable from the internet.'))
+      log(c(31, '  Delete it — this bridge replaces it and needs nothing on the server.'))
+    }
   }
 
   log(c(32, `\n✔ Published ${sent} file(s) to ${host}${REMOTE}\n`))

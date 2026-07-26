@@ -52,10 +52,23 @@ npm run publish:dry    # show exactly what would change. Uploads nothing.
 npm run publish        # do it
 ```
 
-What it does, in order: regenerate the SEO files → production build → bundle the
-KNET PHP endpoints → **run the file audit and refuse to upload if it fails** →
-upload over explicit TLS → re-download `.htaccess`, `knet/.htaccess` and
-`index.html` and compare them byte for byte against what it just sent.
+What it does, in order: regenerate the SEO files → production build **with the
+`VITE_` variables emptied**, so nothing from your local `.env` is baked in and
+the output matches the audited zip → bundle the KNET PHP endpoints → **run the
+file audit and refuse to upload if it fails** → upload over explicit TLS, with
+`index.html` sent **last** so a half-finished run leaves a working site rather
+than a white screen → re-download `.htaccess`, `knet/.htaccess` and `index.html`
+and compare them byte for byte. If any of those three is missing from the build
+it refuses to publish at all, rather than skipping the check quietly.
+
+It then tells you what is on the server that should not be — `index.php`,
+`sporta-deploy.php` and the rest of the old site — because publishing never
+deletes anything.
+
+**`go-live.html`, `knet/selftest.php` and `knet/setup-config.php` are not sent.**
+GO-LIVE tells you to delete them once the site is set up, and re-uploading them
+every time would silently undo that. Pass `--setup-tools` on a first deploy when
+you still need them.
 
 **`config.js` and `knet/config.php` are never uploaded and never deleted.** They
 hold your live Supabase and Tranportal credentials and exist only on the server.
