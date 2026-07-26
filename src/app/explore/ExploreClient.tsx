@@ -31,7 +31,7 @@ export default function ExploreClient() {
   }, [query, category]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+    <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
           Explore Kuwait

@@ -24,8 +24,8 @@ export default function PlaceCard({ place }: { place: Place }) {
         </span>
       </div>
 
-      <div className="p-5">
-        <div className="flex items-start justify-between gap-3">
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-2">
           <div>
             <h3 className="font-bold text-slate-900 group-hover:text-brand-700">
               {place.name}
@@ -35,7 +35,7 @@ export default function PlaceCard({ place }: { place: Place }) {
             </p>
           </div>
           <span
-            className="shrink-0 pt-0.5 text-sm font-medium text-sand-600"
+            className="shrink-0 text-sm font-medium text-sand-600"
             aria-label={`Price level ${place.priceLevel} of 3`}
           >
             KD <span aria-hidden="true">{"•".repeat(place.priceLevel)}</span>
