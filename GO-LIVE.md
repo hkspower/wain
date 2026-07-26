@@ -10,7 +10,18 @@ below. Route A is one command; Route B needs no tools at all.
 
 ---
 
-## Route A — one command (recommended)
+## Which route
+
+**Route A needs SSH enabled** in hPanel — `npm run deploy` uploads over SFTP,
+which rides on SSH. With SSH switched off, Route A cannot run at all; that is
+not a fault, it just means Route B is your path.
+
+**Route B needs nothing** — a browser, and the zip. No Node, no npm, no
+terminal, no SSH. It is the whole go-live.
+
+---
+
+## Route A — one command (needs SSH enabled)
 
 **Node 24 LTS ("Krypton") is what this project is built and tested with.**
 Node 22.12+ also works; older versions will fail because Vite 8 needs modern
@@ -37,7 +48,8 @@ cp .env.deploy.example .env.deploy
 > normally. It was verified on Node 24 with the script left blocked.
 
 Open `.env.deploy` and put in your Hostinger SSH password (hPanel → Advanced →
-SSH Access). Then, every time you want to publish:
+SSH Access — the same page where SSH is switched on). Then, every time you want
+to publish:
 
 ```bash
 npm run deploy
@@ -87,16 +99,16 @@ JavaScript build step. You do not need it; it is a fallback.
 ### 1. Create the payment config on the server
 
 `config.php` is deliberately **not** in the package, because it holds live
-credentials. Over SSH, run the setup script — it asks only for the five
-secrets, validates them, and writes the file with the right permissions:
+credentials. With SSH off, create it in **File Manager**:
 
-```bash
-cd public_html/knet
-php setup-config.php
-```
+1. Copy `public_html/knet/config.example.php` to `public_html/knet/config.php`
+2. Fill in the five values (Tranportal ID, password and resource key from your
+   bank; your Supabase URL and **service** key)
+3. Set its permissions to **600**
+4. Open `https://www.sporta.com.kw/knet/selftest.php`
 
-It refuses to run over HTTP, and it catches the two mistakes that fail
-silently and cost you money:
+That last step matters. It catches the two mistakes that fail silently and cost
+you money:
 
 - **a resource key that is not exactly 16 bytes** — AES-128 needs 16, and one
   trailing space from a copy/paste makes KNET reject every transaction with no
@@ -105,24 +117,23 @@ silently and cost you money:
   row-level security then blocks order creation, so checkout fails for every
   customer.
 
-It finishes by checking that your `products` and `orders` tables are reachable,
-and warns you if `products` is still empty — checkout cannot work until it has
-rows, because the amount is priced from that table and never from the browser.
+Delete `setup-config.php` and `selftest.php` from the server once every line
+reads OK — both reveal configuration state.
 
-**No shell?** Hostinger accounts whose login shell is `/sbin/nologin` can use
-SFTP and `npm run deploy` but cannot open a terminal, so `setup-config.php`
-cannot run. Copy `config.example.php` to `config.php` in File Manager, fill in
-the same five values by hand, and set permissions to `600` — then open
-`https://www.sporta.com.kw/knet/selftest.php`, which now performs the same two
-critical checks (16-byte resource key, service key not the anon key) against
-the file you just wrote. Delete `selftest.php` afterwards.
+<details>
+<summary>If you re-enable SSH, there is a guided script instead</summary>
 
-To get a shell instead: hPanel → **Advanced → SSH Access**, turn SSH on. Some
-plans also offer a **Browser Terminal** there, which works without any local
-setup.
+```bash
+cd public_html/knet
+php setup-config.php
+```
 
-Delete `setup-config.php` and `selftest.php` from the server once you are done
-— both reveal configuration state.
+It asks for the five secrets, validates them, writes the file with the right
+permissions, and checks that your `products` and `orders` tables are reachable.
+It refuses to run over HTTP. Note it cannot run if the account's login shell is
+`/sbin/nologin`, even with SSH enabled.
+
+</details>
 
 ### 2. Run the database migrations — checkout does not work without them
 
@@ -190,6 +201,9 @@ are not exposed.
 **الطريقة الأولى (أمر واحد):** من جهازك، داخل مجلد `sporta-web`، انسخ
 `.env.deploy.example` إلى `.env.deploy` وضع فيه كلمة مرور SSH من هوستنجر، ثم
 نفّذ `npm run deploy`. سيقوم بالبناء والرفع والتحقق تلقائياً.
+
+> الطريقة الأولى تتطلب تفعيل SSH في هوستنجر، لأن الرفع يتم عبر SFTP.
+> إذا كان SSH مغلقاً فاستخدم الطريقة الثانية — وهي لا تحتاج أي أدوات.
 
 **الطريقة الثانية (بدون أدوات):** حمّل ملف `SPORTA-GO-LIVE.zip`، وافتح
 File Manager في هوستنجر، ثم ارفع كل ما بداخل مجلد `public_html` إلى مجلد

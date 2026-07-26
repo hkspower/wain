@@ -81,6 +81,14 @@
 
 ## Working notes
 
+- **SSH is disabled on the Hostinger account** (owner's choice, after 24
+  brute-force attempts were logged against it — and the account's shell was
+  `/sbin/nologin` anyway, so it bought nothing). Consequences: `npm run deploy`
+  cannot run, because it uploads over SFTP which rides on SSH. Deploys go
+  through hPanel File Manager with `SPORTA-GO-LIVE.zip`, and configuration is
+  edited on the server in `public_html/config.js`. Do not propose SSH-based
+  steps unless the owner says they have re-enabled it.
+
 - Claude's environment cannot reach the user's FTP/SFTP, the live site, or
   databases — SSH `46.202.158.211:65002` and `https://www.sporta.com.kw` are
   both blocked by the sandbox egress policy. Claude therefore **cannot deploy

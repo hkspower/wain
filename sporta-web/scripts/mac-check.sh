@@ -22,9 +22,13 @@ SITE=https://www.sporta.com.kw
 
 bold=$(printf '\033[1m'); dim=$(printf '\033[2m'); off=$(printf '\033[0m')
 grn=$(printf '\033[32m'); red=$(printf '\033[31m'); yel=$(printf '\033[33m')
-pass=0; fail=0
+cyn=$(printf '\033[36m')
+pass=0; fail=0; offby=0
 ok()   { printf "  ${grn}OK${off}    %-34s %s\n" "$1" "${2:-}"; pass=$((pass+1)); }
 bad()  { printf "  ${red}FAIL${off}  %-34s %s\n" "$1" "${2:-}"; fail=$((fail+1)); }
+# Deliberately switched off is not broken. Counting it as a failure would push
+# someone to re-enable something they turned off for a good reason.
+skip() { printf "  ${cyn}OFF${off}   %-34s %s\n" "$1" "${2:-}"; offby=$((offby+1)); }
 note() { printf "        ${dim}%s${off}\n" "$1"; }
 hdr()  { printf "\n${bold}%s${off}\n" "$1"; }
 
@@ -130,17 +134,35 @@ if port_open "$HOST" "$PORT"; then
     bad "SSH" "$(printf '%s' "$out" | head -1)"
   fi
 else
-  bad "port $PORT" "unreachable"
-  note "Your network may block it, or SSH is off in hPanel. SFTP uses the same port."
+  skip "SSH ($PORT)" "not answering — off in hPanel, or blocked"
+  note "Nothing here needs it. Consequences, so they are not a surprise later:"
+  note "  - 'npm run deploy' cannot run: it uploads over SFTP, which rides on SSH."
+  note "  - Upload through hPanel File Manager instead, or an FTP client (below)."
+  note "  - It also means nobody on the internet can brute-force this account."
+fi
+
+# FTP is a separate service from SSH, so it can still be available. For a whole
+# public_html/ tree an FTP client is far quicker than clicking through File
+# Manager, and it is the natural replacement once SFTP is gone.
+if port_open "$HOST" 21; then
+  ok "FTP (21)" "available — usable for bulk upload"
+  note "FileZilla or Cyberduck. Credentials: hPanel -> Files -> FTP Accounts."
+else
+  skip "FTP (21)" "not answering"
+  note "Use hPanel -> File Manager to upload."
 fi
 
 # ---------------------------------------------------------------- verdict
 hdr "Summary"
-printf "  %d passed, %d failed\n\n" "$pass" "$fail"
+printf "  %d passed, %d failed, %d off by choice\n\n" "$pass" "$fail" "$offby"
 if [ "$fail" -eq 0 ]; then
-  printf "  ${grn}Everything checked out.${off}\n"
+  printf "  ${grn}Nothing is broken.${off}\n\n"
 else
-  printf "  ${yel}Nothing above blocks going live by the zip route.${off}\n"
-  printf "  Upload public_html/, edit config.js, run the 5 SQL files,\n"
-  printf "  then open %s/go-live.html\n" "$SITE"
+  printf "  ${yel}%d item(s) above need attention.${off}\n\n" "$fail"
 fi
+printf "  Going live needs no terminal and no SSH:\n"
+printf "    1. upload public_html/ in File Manager\n"
+printf "    2. edit config.js  (Supabase URL + anon key)\n"
+printf "    3. run the 5 SQL files in the Supabase SQL Editor\n"
+printf "    4. create knet/config.php from config.example.php\n"
+printf "    5. open %s/go-live.html\n" "$SITE"
