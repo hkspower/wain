@@ -26,6 +26,8 @@ const ROUTES = [
   { path: '/about', name: 'About' },
   { path: '/contact', name: 'Contact' },
   { path: '/returns', name: 'Returns' },
+  { path: '/terms', name: 'Terms' },
+  { path: '/privacy', name: 'Privacy' },
   { path: '/track', name: 'Track order' },
   { path: '/cart', name: 'Cart' },
   { path: '/checkout', name: 'Checkout' },

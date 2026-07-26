@@ -38,16 +38,16 @@ export default function Footer() {
             <h2 className="mb-3 text-sm font-bold text-brand">{t.footer.infoTitle}</h2>
             <ul className="space-y-2 text-sm">
               <li><Link to="/about" className="inline-flex min-h-6 items-center hover:text-brand">{L.about}</Link></li>
-              <li><Link to="/about" className="inline-flex min-h-6 items-center hover:text-brand">{L.why}</Link></li>
-              <li><Link to="/about" className="inline-flex min-h-6 items-center hover:text-brand">{L.terms}</Link></li>
-              <li><Link to="/about" className="inline-flex min-h-6 items-center hover:text-brand">{L.privacy}</Link></li>
+              <li><Link to="/about#why" className="inline-flex min-h-6 items-center hover:text-brand">{L.why}</Link></li>
+              <li><Link to="/terms" className="inline-flex min-h-6 items-center hover:text-brand">{L.terms}</Link></li>
+              <li><Link to="/privacy" className="inline-flex min-h-6 items-center hover:text-brand">{L.privacy}</Link></li>
             </ul>
           </div>
           <div>
             <h2 className="mb-3 text-sm font-bold text-brand">{t.footer.navTitle}</h2>
             <ul className="space-y-2 text-sm">
               <li><Link to="/contact" className="inline-flex min-h-6 items-center hover:text-brand">{L.contact}</Link></li>
-              <li><Link to="/shop" className="inline-flex min-h-6 items-center hover:text-brand">{L.shipping}</Link></li>
+              <li><Link to="/terms#delivery" className="inline-flex min-h-6 items-center hover:text-brand">{L.shipping}</Link></li>
               <li><Link to="/returns" className="inline-flex min-h-6 items-center hover:text-brand">{L.returns}</Link></li>
               <li><Link to="/track" className="inline-flex min-h-6 items-center hover:text-brand">{L.track}</Link></li>
             </ul>

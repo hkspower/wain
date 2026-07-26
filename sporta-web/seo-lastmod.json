@@ -8,8 +8,8 @@
     "t": "2026-07-25T21:38:20.476Z"
   },
   "web https://www.sporta.com.kw/about": {
-    "h": "f03dee6cc56005b2",
-    "t": "2026-07-25T21:38:20.476Z"
+    "h": "56100bce2f0a63a9",
+    "t": "2026-07-26T13:44:27.781Z"
   },
   "web https://www.sporta.com.kw/contact": {
     "h": "df6626656eca1b86",
@@ -202,5 +202,13 @@
   "html5 https://www.sporta.com.kw/product.html?p=gymshark-phone-strap": {
     "h": "3caf50eb5c50c9fb",
     "t": "2026-07-25T14:59:09.531Z"
+  },
+  "web https://www.sporta.com.kw/terms": {
+    "h": "02a4e71cde3ec391",
+    "t": "2026-07-26T13:44:27.781Z"
+  },
+  "web https://www.sporta.com.kw/privacy": {
+    "h": "f05045e6e67440a4",
+    "t": "2026-07-26T13:44:27.781Z"
   }
 }

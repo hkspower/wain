@@ -102,6 +102,8 @@ const reactPages = [
   ['/contact', [p('pages', 'Contact.jsx'), I18N]],
   ['/track', [p('pages', 'TrackOrder.jsx'), I18N]],
   ['/returns', [p('pages', 'Returns.jsx'), I18N]],
+  ['/terms', [p('pages', 'Terms.jsx'), I18N]],
+  ['/privacy', [p('pages', 'Privacy.jsx'), I18N]],
 ]
 const h = (f) => [join(html5, f)]
 const staticPages = [

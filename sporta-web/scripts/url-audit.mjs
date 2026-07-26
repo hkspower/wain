@@ -50,9 +50,18 @@ const byHost = new Map()      // host -> Set(file)
 const selfSpellings = new Map() // exact spelling -> Set(file)
 
 function record(file, url) {
+  // A template literal is not a second spelling of the origin. The URL pattern
+  // cannot match "{", so `https://www.sporta.com.kw${path}` arrives here as
+  // `https://www.sporta.com.kw$` — the canonical origin with a stray "$" glued
+  // on, reported as a defect in every file that composes a URL that way.
+  //
+  // The trailing "$" is therefore trimmed, NOT treated as a reason to skip the
+  // URL. Skipping was the first attempt and it was worse than the bug: it also
+  // silenced `http://www.sporta.com.kw${path}`, a genuinely wrong scheme, which
+  // a fault-injection check then proved was going unreported.
   // Trailing quotes, commas and brackets get swept up by the pattern and turn
   // a perfectly canonical URL into a phantom second spelling.
-  url = url.replace(/['"`,;)\]}>]+$/, '')
+  url = url.replace(/['"`,;)\]}>]+$/, '').replace(/\$+$/, '')
   let host
   try { host = new URL(url.startsWith('//') ? 'https:' + url : url).host } catch { return }
   if (!byHost.has(host)) byHost.set(host, new Set())

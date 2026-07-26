@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom'
 import { useLang } from './i18n/LanguageContext'
 import { lazy, Suspense } from 'react'
 import Navbar from './components/Navbar'
+import ScrollManager from './components/ScrollManager'
 import Footer from './components/Footer'
 import Home from './pages/Home'
 
@@ -18,6 +19,8 @@ const NotFound = lazy(() => import('./pages/NotFound'))
 const Wishlist = lazy(() => import('./pages/Wishlist'))
 const TrackOrder = lazy(() => import('./pages/TrackOrder'))
 const Returns = lazy(() => import('./pages/Returns'))
+const Terms = lazy(() => import('./pages/Terms'))
+const Privacy = lazy(() => import('./pages/Privacy'))
 
 function Loading() {
   const { t } = useLang()
@@ -55,6 +58,7 @@ export default function App() {
 function PublicSite() {
   return (
     <div className="flex min-h-screen flex-col">
+      <ScrollManager />
       <Navbar />
       <main className="flex-1">
         <Routes>
@@ -69,6 +73,8 @@ function PublicSite() {
           <Route path="/wishlist" element={<Wishlist />} />
           <Route path="/track" element={<TrackOrder />} />
           <Route path="/returns" element={<Returns />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<Privacy />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>

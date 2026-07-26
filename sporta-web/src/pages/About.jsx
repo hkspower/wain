@@ -42,6 +42,34 @@ const FAQ = [
   },
 ]
 
+// "Why Sporta?" in the footer used to point at /about with nothing to land on.
+// These four are the promises the site already makes elsewhere — same-day
+// delivery and the brand list here in the FAQ, free 14-day exchange on
+// /returns, KNET on the checkout — gathered into one place rather than newly
+// claimed.
+const WHY = [
+  {
+    t: { en: 'Same-day delivery in Kuwait', ar: 'توصيل في نفس اليوم داخل الكويت' },
+    d: { en: 'Order today, wear it today. Delivery updates come to you on WhatsApp.',
+         ar: 'اطلب اليوم والبسه اليوم، وتصلك تحديثات التوصيل على واتساب.' },
+  },
+  {
+    t: { en: 'Free exchange and return', ar: 'استبدال وإرجاع مجاناً' },
+    d: { en: 'Fourteen days to change your mind, at no cost. Sizes are easy to get wrong online.',
+         ar: 'أربعة عشر يوماً لتغيير رأيك دون أي تكلفة، فالمقاسات صعبة التقدير عبر الإنترنت.' },
+  },
+  {
+    t: { en: 'Pay the way Kuwait pays', ar: 'ادفع بالطريقة المعتادة في الكويت' },
+    d: { en: 'KNET, Visa and Mastercard, in Kuwaiti Dinar. Card details go to the bank, never to us.',
+         ar: 'كي نت وفيزا وماستركارد بالدينار الكويتي، وبيانات البطاقة تذهب للبنك لا إلينا.' },
+  },
+  {
+    t: { en: 'Brands worth training in', ar: 'ماركات تستحق التمرين بها' },
+    d: { en: 'RHEO, Vanquish, ATE, Gymshark, Eyesportwear and our own SPORTA label.',
+         ar: 'ريو وفانكويش وATE وجيمشارك وآي سبورت وماركتنا الخاصة سبورتا.' },
+  },
+]
+
 export default function About() {
   const { lang, t } = useLang()
   const faqItems = FAQ.map((f) => ({ q: f.q[lang], a: f.a[lang] }))
@@ -77,6 +105,18 @@ export default function About() {
     <section className="mx-auto max-w-3xl px-4 py-16">
       <h1 className="mb-6 text-3xl font-extrabold text-brand-dark">{t.about.title}</h1>
       <p className="text-lg leading-relaxed text-slate-600">{t.about.body}</p>
+
+      <h2 id="why" className="mb-6 mt-12 scroll-mt-28 text-2xl font-extrabold text-brand-dark">
+        {lang === 'ar' ? 'لماذا سبورتا؟' : 'Why Sporta?'}
+      </h2>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {WHY.map((w) => (
+          <div key={w.t.en} className="rounded-2xl border border-slate-100 bg-white p-5">
+            <h3 className="font-bold text-slate-900">{w.t[lang]}</h3>
+            <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{w.d[lang]}</p>
+          </div>
+        ))}
+      </div>
 
       <h2 className="mb-4 mt-12 text-2xl font-extrabold text-brand-dark">
         {lang === 'ar' ? 'الأسئلة الشائعة' : 'Frequently asked questions'}

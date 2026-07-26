@@ -90,7 +90,7 @@ Options -Indexes
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  RewriteRule ^(shop|cart|checkout|about|contact|wishlist|track|returns)/?$ /index.html [L]
+  RewriteRule ^(shop|cart|checkout|about|contact|wishlist|track|returns|terms|privacy)/?$ /index.html [L]
   RewriteRule ^product/[^/]+/?$        /index.html [L]
   RewriteRule ^payment/result/?$       /index.html [L]
   RewriteRule ^admin(/.*)?$            /index.html [L]

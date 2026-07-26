@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-const SITE = 'https://www.sporta.com.kw'
+export const SITE = 'https://www.sporta.com.kw'
 const BASE_TITLE = 'Sporta — Sports & Fitness Store in Kuwait'
 const BASE_DESC =
   'Sporta (سبورتا) is a Kuwait sportswear store — activewear, gym clothing, hoodies, caps, and sports accessories from brands like Gymshark, RHEO & more. Fast delivery, free returns, KNET checkout. Arabic & English.'
