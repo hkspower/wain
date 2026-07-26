@@ -71,7 +71,25 @@ on conflict (slug) do update set
   -- has artwork, re-running the seed leaves it alone.
   image    = coalesce(public.products.image, excluded.image);
 
+-- Retire anything the catalogue no longer contains.
+--
+-- Without this the seed only ever ADDS. Replacing the 20 placeholder products
+-- with the 46 real ones would have left 66 active in the database — and the
+-- shop lists from the database, not from the bundle, so twenty items that do
+-- not exist would have stayed on sale.
+--
+-- Deactivated, never deleted: order_items.product_id references products(id),
+-- so deleting a product would take the order history with it. Inactive
+-- products are invisible to the shop and refused by create_order, which is
+-- exactly what is wanted, and the rows stay for past orders to point at.
+update public.products
+   set active = false
+ where active
+   and slug not in ('cagliari-calcio-backpack', 'cagliari-calcio-backpack-navy', 'cagliari-calcio-sweatshirt-navy', 'cheetahs-rugby-t-shirt', 'cloudsoft-jacket-army-green', 'cloudsoft-jacket-cherry-red', 'cloudsoft-jacket-coffee-brown', 'cloudsoft-leggings-army-green', 'cloudsoft-leggings-cherry-red', 'cloudsoft-leggings-coffee-brown', 'cloudsoft-leggings-grey', 'cloudsoft-leggings-navy', 'cloudsoft-leggings-onyx-black', 'cloudsoft-top-grey', 'cloudsoft-top-navy', 'cloudsoft-top-onyx-black', 'define-jacket-iris-purple', 'define-jacket-onyx-black', 'define-jacket-steel-grey', 'denver-nuggets-cap-navy', 'energy-t-shirt-red-white', 'flash-shorts-green', 'flash-shorts-red', 'gymshark-phone-strap', 'naples-leggings-black', 'naples-sports-bra-pink', 'sculpt-jacket-black', 'sculpt-jacket-grey', 'sculpt-jacket-navy', 'sculpt-jacket-taupe-brown', 'sculpt-leggings-black', 'sculpt-leggings-grey', 'sculpt-leggings-navy', 'sculpt-leggings-taupe-brown', 'sculpt-top-black', 'sculpt-top-grey', 'sculpt-top-navy', 'sculpt-top-taupe-brown', 'sgomma-t-shirt-navy', 'street-pants-navy', 'tekno-shorts-black', 'tekno-shorts-royal', 'vanquish-stringer-vest-white', 'vanquish-t-shirt-navy-blue', 'vanquish-t-shirt-white', 'vanquish-tank-navy');
+
 -- What the catalogue now looks like to checkout.
-select count(*) filter (where active) as active_products,
-       min(price) as cheapest, max(price) as dearest
+select count(*) filter (where active)     as active_products,
+       count(*) filter (where not active) as retired_products,
+       min(price) filter (where active)   as cheapest,
+       max(price) filter (where active)   as dearest
 from public.products;

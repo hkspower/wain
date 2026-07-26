@@ -56,9 +56,27 @@ on conflict (slug) do update set
   -- has artwork, re-running the seed leaves it alone.
   image    = coalesce(public.products.image, excluded.image);
 
+-- Retire anything the catalogue no longer contains.
+--
+-- Without this the seed only ever ADDS. Replacing the 20 placeholder products
+-- with the 46 real ones would have left 66 active in the database — and the
+-- shop lists from the database, not from the bundle, so twenty items that do
+-- not exist would have stayed on sale.
+--
+-- Deactivated, never deleted: order_items.product_id references products(id),
+-- so deleting a product would take the order history with it. Inactive
+-- products are invisible to the shop and refused by create_order, which is
+-- exactly what is wanted, and the rows stay for past orders to point at.
+update public.products
+   set active = false
+ where active
+   and slug not in (${PRODUCTS.map((p) => q(p.slug)).join(', ')});
+
 -- What the catalogue now looks like to checkout.
-select count(*) filter (where active) as active_products,
-       min(price) as cheapest, max(price) as dearest
+select count(*) filter (where active)     as active_products,
+       count(*) filter (where not active) as retired_products,
+       min(price) filter (where active)   as cheapest,
+       max(price) filter (where active)   as dearest
 from public.products;
 `
 
