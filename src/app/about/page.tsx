@@ -1,59 +1,65 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { places, toArabicDigits } from "@/lib/places";
 
 export const metadata: Metadata = {
-  title: "About",
-  description: "Why Wain exists, and how it answers Kuwait's favourite question.",
+  title: "عن وين",
+  description: "ليش صار فيه وين، وكيف يجاوب على سؤال الطلعة اليومي في الكويت.",
 };
 
 export default function AboutPage() {
   return (
-    <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
-      <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
-        What is Wain?
+    <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6 sm:py-16">
+      <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink-900 sm:text-4xl">
+        وين؟ شنو هذا
       </h1>
 
-      <div className="mt-8 space-y-6 text-lg leading-relaxed text-slate-600">
+      <div className="mt-7 space-y-5 text-lg leading-relaxed text-ink-600">
         <p>
-          <strong className="text-slate-900">Wain</strong>{" "}
-          (<span dir="rtl">وين</span>) means <em>&ldquo;where?&rdquo;</em> in Kuwaiti
-          Arabic — as in the question asked in every family WhatsApp group, every
-          Thursday night, since the dawn of time:{" "}
-          <strong className="text-brand-700">wain nrooh? — where shall we go?</strong>
+          <strong className="text-ink-900">وين</strong> كلمة نقولها كل يوم — في جروب
+          العايلة، في جروب الربع، كل خميس من زمان:{" "}
+          <strong className="text-coral-700">وين الطلعة اليوم؟</strong>
         </p>
         <p>
-          Wain answers that question. It&apos;s a curated guide to the best of
-          Kuwait — the iconic landmarks, the souqs that smell like cardamom and
-          saffron, the beaches, the museums, the malls, and the spots only locals
-          know about.
+          وين يجاوب على هذا السؤال. دليل مختار لأحلى ما في الكويت — المعالم، الأسواق
+          اللي ريحتها هيل وزعفران، البحر، المتاحف، المولات، والأماكن اللي ما يعرفها إلا
+          أهل الديرة.
         </p>
         <p>
-          Every place on Wain comes with honest highlights, the best time to
-          visit, and what it&apos;ll cost — so the only thing left to argue about
-          in the group chat is who&apos;s driving.
+          كل مكان عندنا فيه أبرز ما يميّزه، وأحسن وقت تروح فيه، وكم بيكلّفك — عشان آخر
+          شي يتناقشون فيه بالجروب يكون منو بيسوق.
         </p>
       </div>
 
-      <div className="mt-12 grid gap-4 sm:grid-cols-3">
+      <div className="mt-10 grid gap-4 sm:grid-cols-3">
         {[
-          { emoji: "🇰🇼", title: "Local first", text: "Curated by people who actually live here." },
-          { emoji: "✨", title: "Quality over quantity", text: "Every place earns its spot." },
-          { emoji: "🗣️", title: "Bilingual", text: "English and Arabic, side by side." },
+          { emoji: "🇰🇼", title: "من أهل الديرة", text: "مختارة من ناس عايشين هني فعلاً." },
+          { emoji: "✨", title: "كيف مو كم", text: "كل مكان يستاهل مكانه بالقائمة." },
+          { emoji: "📍", title: "قريب منك", text: "نرتّب الأماكن حسب قربها من موقعك." },
         ].map((item) => (
-          <div key={item.title} className="rounded-2xl border border-slate-100 bg-slate-50/50 p-5">
-            <span className="text-2xl" aria-hidden="true">{item.emoji}</span>
-            <h2 className="mt-2 font-bold text-slate-900">{item.title}</h2>
-            <p className="mt-1 text-sm text-slate-500">{item.text}</p>
+          <div key={item.title} className="rounded-3xl border border-sand-200 bg-white p-5 shadow-sm">
+            <span className="text-2xl" aria-hidden="true">
+              {item.emoji}
+            </span>
+            <h2 className="mt-2 font-display text-lg font-bold text-ink-900">{item.title}</h2>
+            <p className="mt-1 text-sm leading-relaxed text-ink-500">{item.text}</p>
           </div>
         ))}
       </div>
 
-      <div className="mt-12">
+      <div className="mt-10 rounded-3xl bg-sea-500 p-6 text-center text-white shadow-md">
+        <p className="font-display text-2xl font-bold">
+          {toArabicDigits(places.length)} مكان جاهز لك
+        </p>
+        <p className="mt-1 text-sm text-sea-50">من أبراج الكويت لين مقاهي المباركية.</p>
+      </div>
+
+      <div className="mt-10 text-center">
         <Link
           href="/explore"
-          className="inline-block rounded-xl bg-brand-600 px-6 py-3 font-semibold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700"
+          className="inline-block rounded-2xl bg-ink-900 px-6 py-3 font-display text-lg font-bold text-white shadow-md transition hover:bg-ink-800"
         >
-          Start exploring →
+          يالله نبدأ ↗
         </Link>
       </div>
     </div>

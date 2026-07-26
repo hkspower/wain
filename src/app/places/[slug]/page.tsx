@@ -2,139 +2,185 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import PlaceCard from "@/components/PlaceCard";
-import { getPlace, getPlacesByCategory, places } from "@/lib/places";
-
-interface Props {
-  params: Promise<{ slug: string }>;
-}
+import { getCategory, getPlace, places, toArabicDigits } from "@/lib/places";
 
 export function generateStaticParams() {
   return places.map((place) => ({ slug: place.slug }));
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
   const { slug } = await params;
   const place = getPlace(slug);
-  if (!place) return { title: "Place not found" };
+  if (!place) return { title: "المكان غير موجود" };
   return {
-    title: place.name,
-    description: place.tagline,
+    title: place.nameAr,
+    description: place.taglineAr,
   };
 }
 
-export default async function PlacePage({ params }: Props) {
+const priceLabel = ["", "اقتصادي", "متوسط", "راقي"];
+
+export default async function PlacePage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
   const { slug } = await params;
   const place = getPlace(slug);
   if (!place) notFound();
 
-  const related = getPlacesByCategory(place.category)
-    .filter((p) => p.slug !== place.slug)
+  const category = getCategory(place.category);
+  const related = places
+    .filter((p) => p.category === place.category && p.slug !== place.slug)
     .slice(0, 3);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
+    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
       {/* Breadcrumb */}
-      <nav className="mb-6 text-sm text-slate-500" aria-label="Breadcrumb">
-        <Link href="/explore" className="transition hover:text-brand-700">
-          Explore
+      <nav className="mb-5 text-sm text-ink-500" aria-label="مسار التنقّل">
+        <Link href="/explore" className="transition hover:text-coral-700">
+          استكشف
         </Link>
-        <span className="mx-2" aria-hidden="true">/</span>
-        <span className="text-slate-700" aria-current="page">{place.name}</span>
+        <span className="mx-2" aria-hidden="true">
+          /
+        </span>
+        <span className="text-ink-700" aria-current="page">
+          {place.nameAr}
+        </span>
       </nav>
 
-      {/* Hero banner */}
+      {/* Hero */}
       <div
-        className={`relative flex h-64 items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br ${place.gradient} shadow-lg`}
+        className={`relative flex h-56 items-center justify-center overflow-hidden rounded-[2rem] bg-gradient-to-br shadow-lg sm:h-64 ${place.gradient}`}
       >
-        <span aria-hidden="true" className="text-8xl drop-shadow-lg">
+        <span aria-hidden="true" className="text-7xl drop-shadow-lg sm:text-8xl">
           {place.emoji}
         </span>
         <span
-          className="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1.5 text-sm font-bold text-slate-800 backdrop-blur"
-          aria-label={`Rated ${place.rating.toFixed(1)} out of 5`}
+          className="absolute start-4 top-4 flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-sm font-bold text-ink-800 shadow-sm backdrop-blur"
+          aria-label={`التقييم ${place.rating} من ٥`}
         >
-          <span aria-hidden="true">⭐</span> {place.rating.toFixed(1)}
+          <svg viewBox="0 0 24 24" className="size-4 text-sun-500" fill="currentColor" aria-hidden="true">
+            <path d="m12 2 2.9 6.1 6.6.9-4.8 4.7 1.2 6.7L12 17.2 6.1 20.4l1.2-6.7L2.5 9l6.6-.9L12 2Z" />
+          </svg>
+          {toArabicDigits(place.rating.toFixed(1))}
         </span>
       </div>
 
       {/* Header */}
-      <div className="mt-8 flex flex-wrap items-start justify-between gap-4">
+      <div className="mt-7 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
-            {place.name}
-          </h1>
-          <p className="mt-1 text-left text-xl text-slate-500" dir="rtl">
+          <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink-900 sm:text-4xl">
             {place.nameAr}
+          </h1>
+          <p className="mt-1 text-lg text-ink-500" dir="ltr" style={{ textAlign: "right" }}>
+            {place.name}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="rounded-full bg-brand-50 px-3 py-1.5 text-sm font-semibold text-brand-700">
-            {place.category}
-          </span>
+        <div className="flex flex-wrap items-center gap-2">
+          {category && (
+            <span className="rounded-full bg-sea-50 px-3 py-1.5 text-sm font-bold text-sea-700">
+              {category.ar}
+            </span>
+          )}
           <span
-            className="rounded-full bg-sand-50 px-3 py-1.5 text-sm font-semibold text-sand-700"
-            aria-label={`Price level ${place.priceLevel} of 3`}
+            className="flex items-center gap-1.5 rounded-full bg-sand-100 px-3 py-1.5 text-sm font-bold text-sand-800"
+            aria-label={`مستوى السعر ${place.priceLevel} من ٣`}
           >
-            KD <span aria-hidden="true">{"•".repeat(place.priceLevel)}</span>
+            <span className="flex gap-0.5" aria-hidden="true">
+              {[1, 2, 3].map((i) => (
+                <span
+                  key={i}
+                  className={`size-1.5 rounded-full ${
+                    i <= place.priceLevel ? "bg-sand-700" : "bg-sand-300"
+                  }`}
+                />
+              ))}
+            </span>
+            د.ك
           </span>
         </div>
       </div>
 
-      <p className="mt-2 flex items-center gap-1.5 text-slate-500">
-        <span aria-hidden="true">📍</span> {place.area}, Kuwait
+      <p className="mt-3 flex items-center gap-1.5 text-ink-500">
+        <svg viewBox="0 0 24 24" className="size-4 text-coral-600" fill="currentColor" aria-hidden="true">
+          <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" />
+        </svg>
+        {place.areaAr}، الكويت
       </p>
 
-      <p className="mt-6 text-lg leading-relaxed text-slate-600">{place.description}</p>
+      <p className="mt-6 text-lg leading-relaxed text-ink-600">{place.descriptionAr}</p>
 
-      {/* Info grid */}
-      <div className="mt-10 grid gap-6 sm:grid-cols-2">
-        <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6">
-          <h2 className="font-bold text-slate-900">
-            <span aria-hidden="true">✨</span> Highlights
-          </h2>
-          <ul className="mt-3 space-y-2">
-            {place.highlights.map((h) => (
-              <li key={h} className="flex items-start gap-2 text-sm text-slate-600">
-                <span aria-hidden="true" className="mt-0.5 text-brand-500">✓</span>
+      {/* Details */}
+      <div className="mt-9 grid gap-4 sm:grid-cols-2">
+        <div className="rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
+          <h2 className="font-display text-lg font-bold text-ink-900">أبرز ما فيه</h2>
+          <ul className="mt-3 space-y-2.5">
+            {place.highlightsAr.map((h) => (
+              <li key={h} className="flex items-start gap-2 text-sm text-ink-600">
+                <svg
+                  viewBox="0 0 24 24"
+                  className="mt-0.5 size-4 shrink-0 text-palm-500"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m5 13 4 4L19 7" />
+                </svg>
                 {h}
               </li>
             ))}
           </ul>
         </div>
-        <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-6">
-          <h2 className="font-bold text-slate-900">
-            <span aria-hidden="true">🕐</span> Best time to visit
-          </h2>
-          <p className="mt-3 text-sm text-slate-600">{place.bestTime}</p>
-          <h2 className="mt-6 font-bold text-slate-900">
-            <span aria-hidden="true">💰</span> Price level
-          </h2>
-          <p className="mt-3 text-sm text-slate-600">
-            {["Budget-friendly", "Moderate", "Treat yourself"][place.priceLevel - 1]}
-          </p>
+
+        <div className="rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
+          <h2 className="font-display text-lg font-bold text-ink-900">أحسن وقت للزيارة</h2>
+          <p className="mt-2.5 text-sm text-ink-600">{place.bestTimeAr}</p>
+
+          <h2 className="mt-6 font-display text-lg font-bold text-ink-900">مستوى الأسعار</h2>
+          <p className="mt-2.5 text-sm text-ink-600">{priceLabel[place.priceLevel]}</p>
+
+          <a
+            href={`https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-sea-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-sea-700"
+          >
+            <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden="true">
+              <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" />
+            </svg>
+            افتح في الخرائط
+          </a>
         </div>
       </div>
 
       {/* Related */}
       {related.length > 0 && (
-        <div className="mt-14">
-          <h2 className="text-2xl font-bold text-slate-900">
-            More {place.category.toLowerCase()}
+        <section className="mt-12">
+          <h2 className="mb-5 font-display text-2xl font-bold text-ink-900">
+            أماكن مشابهة
           </h2>
-          <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {related.map((p) => (
               <PlaceCard key={p.slug} place={p} />
             ))}
           </div>
-        </div>
+        </section>
       )}
 
       <div className="mt-12 text-center">
         <Link
           href="/explore"
-          className="inline-block rounded-xl border border-slate-200 px-6 py-3 font-semibold text-slate-700 transition hover:border-brand-300 hover:text-brand-700"
+          className="inline-block rounded-xl border border-sand-300 bg-white px-6 py-3 font-bold text-ink-700 shadow-sm transition hover:border-sea-300 hover:text-sea-700"
         >
-          ← Back to explore
+          ← رجوع للاستكشاف
         </Link>
       </div>
     </div>

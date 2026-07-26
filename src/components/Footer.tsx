@@ -1,37 +1,68 @@
 import Link from "next/link";
+import { categories } from "@/lib/places";
 
 export default function Footer() {
   return (
-    <footer className="border-t border-slate-100 bg-slate-50">
-      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-        <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
-          <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-            <span
-              aria-hidden="true"
-              className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-600 text-base text-white"
-            >
-              📍
-            </span>
-            <span className="font-bold text-slate-900">
-              Wain<span className="text-brand-600">?</span>
-            </span>
-            <span className="text-center text-sm text-slate-500">
-              — wain nrooh? where shall we go?
-            </span>
+    <footer className="mt-auto border-t border-sand-200 bg-sand-100">
+      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+        <div className="grid gap-8 sm:grid-cols-3">
+          {/* Brand */}
+          <div>
+            <div className="flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className="grid size-8 place-items-center rounded-xl bg-coral-600 text-white"
+              >
+                <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden="true">
+                  <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" />
+                </svg>
+              </span>
+              <span className="font-display text-xl font-extrabold text-ink-900">
+                وين<span className="text-coral-600">؟</span>
+              </span>
+            </div>
+            <p className="mt-3 max-w-xs text-sm leading-relaxed text-ink-500">
+              دليلك لأماكن الكويت — وين الطلعة اليوم؟ إحنا نجاوب.
+            </p>
           </div>
 
-          <div className="flex items-center gap-6 text-sm text-slate-500">
-            <Link href="/explore" className="transition hover:text-brand-700">
-              Explore
-            </Link>
-            <Link href="/about" className="transition hover:text-brand-700">
-              About
-            </Link>
-          </div>
+          {/* Categories */}
+          <nav aria-label="التصنيفات">
+            <h2 className="text-sm font-bold text-ink-800">التصنيفات</h2>
+            <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2">
+              {categories.slice(0, 6).map((cat) => (
+                <li key={cat.id}>
+                  <Link
+                    href={`/explore?category=${cat.id}`}
+                    className="text-sm text-ink-500 transition hover:text-coral-700"
+                  >
+                    {cat.ar}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
+          {/* Links */}
+          <nav aria-label="روابط">
+            <h2 className="text-sm font-bold text-ink-800">روابط</h2>
+            <ul className="mt-3 space-y-2">
+              <li>
+                <Link href="/explore" className="text-sm text-ink-500 transition hover:text-coral-700">
+                  استكشف كل الأماكن
+                </Link>
+              </li>
+              <li>
+                <Link href="/about" className="text-sm text-ink-500 transition hover:text-coral-700">
+                  عن وين
+                </Link>
+              </li>
+            </ul>
+          </nav>
         </div>
 
-        <p className="mt-8 text-center text-xs text-slate-400">
-          © {new Date().getFullYear()} Wain. Made with ❤️ in Kuwait 🇰🇼
+        <p className="mt-10 border-t border-sand-200 pt-6 text-center text-xs text-ink-500">
+          © {new Date().getFullYear()} وين. صُنع بحب في الكويت 🇰🇼
         </p>
       </div>
     </footer>

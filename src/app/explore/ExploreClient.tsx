@@ -2,116 +2,135 @@
 
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import CategoryIcon from "@/components/CategoryIcon";
 import PlaceCard from "@/components/PlaceCard";
-import { categories, places, type Category } from "@/lib/places";
+import { categories, places, toArabicDigits, type CategoryId } from "@/lib/places";
+
+/** Strip Arabic diacritics and normalise alef/ya/ta-marbuta so search is forgiving. */
+function normalise(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[ً-ْٰ]/g, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/ـ/g, "")
+    .trim();
+}
 
 export default function ExploreClient() {
   const searchParams = useSearchParams();
-  const initialCategory = searchParams.get("category");
+  const initial = searchParams.get("category");
 
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<Category | "All">(
-    categories.some((c) => c.name === initialCategory)
-      ? (initialCategory as Category)
-      : "All"
+  const [category, setCategory] = useState<CategoryId | "all">(
+    categories.some((c) => c.id === initial) ? (initial as CategoryId) : "all"
   );
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = normalise(query);
     return places.filter((place) => {
-      const matchesCategory = category === "All" || place.category === category;
-      const matchesQuery =
-        q === "" ||
-        place.name.toLowerCase().includes(q) ||
-        place.nameAr.includes(q) ||
-        place.area.toLowerCase().includes(q) ||
-        place.tagline.toLowerCase().includes(q);
-      return matchesCategory && matchesQuery;
+      const matchesCategory = category === "all" || place.category === category;
+      const haystack = normalise(
+        `${place.nameAr} ${place.name} ${place.areaAr} ${place.area} ${place.taglineAr}`
+      );
+      return matchesCategory && (q === "" || haystack.includes(q));
     });
   }, [query, category]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
-          Explore Kuwait
+    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+      <header className="mb-7">
+        <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink-900 sm:text-4xl">
+          استكشف الكويت
         </h1>
-        <p className="mt-2 text-slate-500">
-          {places.length} places, zero &ldquo;I don&apos;t know, you choose&rdquo;.
+        <p className="mt-2 text-ink-500">
+          {toArabicDigits(places.length)} مكان، وما عاد فيه «ما أدري، اختر أنت».
         </p>
-      </div>
+      </header>
 
       {/* Search */}
-      <div className="relative mb-6">
+      <div className="relative mb-5">
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+          className="pointer-events-none absolute inset-y-0 start-4 flex items-center text-ink-500"
         >
-          🔎
+          <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" strokeLinecap="round" />
+          </svg>
         </span>
         <input
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          aria-label="Search places, areas, or vibes, in English or Arabic"
-          placeholder="Search places, areas, or vibes…"
-          className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-12 pr-4 text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
+          aria-label="ابحث عن مكان أو منطقة"
+          placeholder="دوّر على مكان أو منطقة…"
+          className="w-full rounded-2xl border border-sand-200 bg-white py-3.5 pe-4 ps-12 text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/70 focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
         />
       </div>
 
-      {/* Category pills */}
-      <div className="mb-10 flex flex-wrap gap-2" role="group" aria-label="Filter by category">
+      {/* Category rail */}
+      <div className="mb-8 flex flex-wrap gap-2" role="group" aria-label="تصفية حسب التصنيف">
         <button
           type="button"
-          onClick={() => setCategory("All")}
-          aria-pressed={category === "All"}
-          className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-            category === "All"
-              ? "bg-brand-600 text-white shadow-sm"
-              : "border border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-700"
+          onClick={() => setCategory("all")}
+          aria-pressed={category === "all"}
+          className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition ${
+            category === "all"
+              ? "bg-ink-900 text-white shadow-sm"
+              : "border border-sand-200 bg-white text-ink-600 hover:border-sea-300 hover:text-sea-700"
           }`}
         >
-          All
+          <CategoryIcon name="all" className="size-4" />
+          الكل
         </button>
         {categories.map((cat) => (
           <button
-            key={cat.name}
+            key={cat.id}
             type="button"
-            onClick={() => setCategory(cat.name)}
-            aria-pressed={category === cat.name}
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-              category === cat.name
-                ? "bg-brand-600 text-white shadow-sm"
-                : "border border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-700"
+            onClick={() => setCategory(cat.id)}
+            aria-pressed={category === cat.id}
+            className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition ${
+              category === cat.id
+                ? "bg-ink-900 text-white shadow-sm"
+                : "border border-sand-200 bg-white text-ink-600 hover:border-sea-300 hover:text-sea-700"
             }`}
           >
-            <span aria-hidden="true">{cat.emoji}</span> {cat.name}
+            <CategoryIcon name={cat.icon} className="size-4" />
+            {cat.ar}
           </button>
         ))}
       </div>
 
       {/* Results */}
       {filtered.length > 0 ? (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((place) => (
-            <PlaceCard key={place.slug} place={place} />
-          ))}
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-dashed border-slate-200 py-20 text-center">
-          <p className="text-4xl" aria-hidden="true">🤷</p>
-          <h2 className="mt-4 text-lg font-bold text-slate-900">No places found</h2>
-          <p className="mt-1 text-slate-500">
-            Try a different search or category — Kuwait has more to offer!
+        <>
+          <p className="mb-4 text-sm font-medium text-ink-500">
+            {toArabicDigits(filtered.length)} نتيجة
           </p>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {filtered.map((place) => (
+              <PlaceCard key={place.slug} place={place} />
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="rounded-3xl border border-dashed border-sand-300 bg-white/60 py-20 text-center">
+          <p className="text-4xl" aria-hidden="true">
+            🤷
+          </p>
+          <h2 className="mt-4 font-display text-xl font-bold text-ink-900">ما لقينا شي</h2>
+          <p className="mt-1 text-ink-500">جرّب بحث ثاني أو تصنيف ثاني — الكويت فيها وايد.</p>
           <button
+            type="button"
             onClick={() => {
               setQuery("");
-              setCategory("All");
+              setCategory("all");
             }}
-            className="mt-6 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700"
+            className="mt-6 rounded-xl bg-ink-900 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-ink-800"
           >
-            Clear filters
+            امسح الفلاتر
           </button>
         </div>
       )}

@@ -1,30 +1,71 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-50: #effaf8;
-  --color-brand-100: #d7f2ec;
-  --color-brand-200: #b3e4db;
-  --color-brand-300: #80cfc4;
-  --color-brand-400: #4db3a8;
-  --color-brand-500: #2e978e;
-  --color-brand-600: #217972;
-  --color-brand-700: #1e615d;
-  --color-brand-800: #1c4e4c;
-  --color-brand-900: #1b4140;
-  --color-brand-950: #0a2625;
+  /* Warm desert paper — the base canvas of the whole site */
+  --color-sand-50: #fdfaf3;
+  --color-sand-100: #faf4e6;
+  --color-sand-200: #f4e9d0;
+  --color-sand-300: #ead9b2;
+  --color-sand-400: #dcc287;
+  --color-sand-500: #c9a55f;
+  --color-sand-600: #ad8544;
+  --color-sand-700: #8b6836;
+  --color-sand-800: #6d5230;
+  --color-sand-900: #57422a;
 
-  --color-sand-50: #fdf9f0;
-  --color-sand-100: #faf0db;
-  --color-sand-200: #f4ddb6;
-  --color-sand-300: #ecc587;
-  --color-sand-400: #e3a556;
-  --color-sand-500: #dc8c35;
-  --color-sand-600: #ce742a;
-  --color-sand-700: #ab5a25;
-  --color-sand-800: #894825;
-  --color-sand-900: #6f3d21;
+  /* Gulf water — the blue "وش تدوّر؟" band */
+  --color-sea-50: #eff8fd;
+  --color-sea-100: #daeefa;
+  --color-sea-200: #bce0f5;
+  --color-sea-300: #8dccee;
+  --color-sea-400: #57b0e3;
+  --color-sea-500: #3194d1;
+  --color-sea-600: #2277b4;
+  --color-sea-700: #1e6092;
+  --color-sea-800: #1d5179;
+  --color-sea-900: #1c4565;
+  --color-sea-950: #132c42;
 
-  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  /* Desert sun — the search dial */
+  --color-sun-50: #fffaeb;
+  --color-sun-100: #fef0c7;
+  --color-sun-200: #fde08a;
+  --color-sun-300: #fccb4d;
+  --color-sun-400: #fbb724;
+  --color-sun-500: #f5960b;
+  --color-sun-600: #d97006;
+  --color-sun-700: #b44e09;
+  --color-sun-800: #923c0e;
+  --color-sun-900: #78320f;
+
+  /* Kuwaiti red — accents and the tagline */
+  --color-coral-50: #fef3f2;
+  --color-coral-100: #fee4e2;
+  --color-coral-200: #fecdca;
+  --color-coral-300: #fdaaa4;
+  --color-coral-400: #f97970;
+  --color-coral-500: #ef4d43;
+  --color-coral-600: #dc2f25;
+  --color-coral-700: #b9241b;
+  --color-coral-800: #99221b;
+  --color-coral-900: #7f231d;
+
+  /* Palm green — flag and foliage */
+  --color-palm-400: #4ba368;
+  --color-palm-500: #2f8a4e;
+  --color-palm-600: #1f6f3d;
+  --color-palm-700: #1b5832;
+  --color-palm-800: #17462a;
+
+  /* Ink — warm near-black for Arabic text */
+  --color-ink-500: #6b6357;
+  --color-ink-600: #4e483f;
+  --color-ink-700: #35302a;
+  --color-ink-800: #221f1b;
+  --color-ink-900: #14120f;
+
+  --font-display: var(--font-display), system-ui, sans-serif;
+  --font-sans: var(--font-arabic), system-ui, sans-serif;
 }
 
 html {
@@ -32,19 +73,23 @@ html {
 }
 
 body {
-  @apply bg-white text-slate-800 antialiased;
+  @apply bg-sand-50 text-ink-700 antialiased;
 }
 
 ::selection {
-  @apply bg-brand-200 text-brand-900;
+  @apply bg-sun-200 text-ink-900;
 }
 
 /* Visible keyboard focus for all interactive elements */
 :where(a, button, input, select, textarea):focus-visible {
-  @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-white;
+  @apply outline-none ring-2 ring-sea-600 ring-offset-2 ring-offset-sand-50;
 }
 
-/* Respect users who prefer reduced motion */
+/* Arabic numerals inside a latin-leaning font still need the tabular feel */
+.nums {
+  font-feature-settings: "tnum";
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -58,4 +103,37 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Slow drift for the clouds in the skyline scene */
+@keyframes drift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-24px);
+  }
+}
+
+.animate-drift {
+  animation: drift 14s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.7;
+  }
+  70% {
+    transform: scale(1.12);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.12);
+    opacity: 0;
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }

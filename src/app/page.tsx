@@ -1,106 +1,116 @@
 import Link from "next/link";
+import KuwaitSkyline from "@/components/KuwaitSkyline";
+import CategoryIcon from "@/components/CategoryIcon";
+import NearbyDial from "@/components/NearbyDial";
 import PlaceCard from "@/components/PlaceCard";
-import { categories, getFeaturedPlaces, places } from "@/lib/places";
+import { categories, countByCategory, getFeaturedPlaces, places, toArabicDigits } from "@/lib/places";
 
 export default function HomePage() {
   const featured = getFeaturedPlaces();
 
   return (
     <>
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-brand-50 via-white to-white">
-        <div className="pointer-events-none absolute -top-24 left-1/2 size-[600px] -translate-x-1/2 rounded-full bg-brand-100/60 blur-3xl" />
-        <div className="relative mx-auto max-w-6xl px-4 py-20 text-center sm:px-6 sm:py-28">
-          <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white px-4 py-1.5 text-sm font-medium text-brand-700 shadow-sm">
-            🇰🇼 Your guide to Kuwait
-          </p>
-          <h1 className="mx-auto max-w-3xl text-4xl font-extrabold tracking-tight text-slate-900 sm:text-6xl">
-            Wain nrooh?{" "}
-            <span className="bg-gradient-to-r from-brand-600 to-sand-500 bg-clip-text text-transparent">
-              We know where.
+      {/* ---------- Hero ---------- */}
+      <section className="relative overflow-hidden bg-sand-50">
+        <KuwaitSkyline className="pointer-events-none absolute inset-x-0 bottom-0 h-auto min-h-[210px] w-full" />
+
+        <div className="relative mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6 sm:pb-24 sm:pt-14">
+          {/* Wordmark */}
+          <div className="text-center">
+            <span className="relative inline-block">
+              <h1 className="font-display text-7xl font-extrabold leading-none tracking-tight text-ink-900 sm:text-8xl">
+                وين
+              </h1>
+              <span
+                aria-hidden="true"
+                className="absolute -right-6 -top-3 text-coral-600 sm:-right-8 sm:-top-4"
+              >
+                <svg viewBox="0 0 24 24" className="size-9 sm:size-12" fill="currentColor">
+                  <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" />
+                </svg>
+              </span>
             </span>
-          </h1>
-          <p className="mx-auto mt-6 max-w-xl text-lg text-slate-500">
-            <span dir="rtl" className="font-semibold text-slate-700">
-              وين نروح؟
-            </span>{" "}
-            — the question every group chat asks. Wain answers it with the best
-            landmarks, food, beaches, and hidden gems across Kuwait.
-          </p>
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+            <p className="mt-3 font-display text-2xl font-bold text-coral-600 sm:text-3xl">
+              وين الطلعة اليوم؟
+            </p>
+          </div>
+
+          {/* Search dial */}
+          <div className="mt-10 sm:mt-12">
+            <NearbyDial />
+          </div>
+        </div>
+      </section>
+
+      {/* ---------- Categories ---------- */}
+      <section className="relative bg-sea-500">
+        <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 font-display text-2xl font-bold text-white sm:text-3xl">
+              <svg viewBox="0 0 24 24" className="size-6 text-coral-300" fill="currentColor" aria-hidden="true">
+                <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" />
+              </svg>
+              وش تدوّر؟
+            </h2>
             <Link
               href="/explore"
-              className="rounded-xl bg-brand-600 px-6 py-3 font-semibold text-white shadow-md shadow-brand-600/20 transition hover:bg-brand-700"
+              className="rounded-full bg-white/95 px-4 py-2 text-sm font-bold text-sea-800 shadow-sm transition hover:bg-white"
             >
-              Start exploring →
-            </Link>
-            <Link
-              href="/about"
-              className="rounded-xl border border-slate-200 bg-white px-6 py-3 font-semibold text-slate-700 shadow-sm transition hover:border-brand-300 hover:text-brand-700"
-            >
-              What is Wain?
+              شوف الكل ↗
             </Link>
           </div>
 
-          <div className="mt-14 flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-sm text-slate-500">
-            <span>
-              <strong className="text-slate-700">{places.length}</strong> curated places
-            </span>
-            <span>
-              <strong className="text-slate-700">{categories.length}</strong> categories
-            </span>
-            <span>
-              <strong className="text-slate-700">100%</strong> local picks
-            </span>
-          </div>
+          {/* Scroll rail on small screens, even grid from lg up */}
+          <ul className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:mx-0 sm:px-0 lg:grid lg:grid-cols-9 lg:overflow-visible lg:pb-0">
+            <li className="w-28 shrink-0 snap-start sm:w-32 lg:w-auto">
+              <Link
+                href="/explore"
+                className="flex h-full flex-col items-center justify-center gap-2 rounded-2xl bg-sun-300 p-4 text-center text-ink-900 shadow-sm transition hover:-translate-y-0.5 hover:bg-sun-200"
+              >
+                <CategoryIcon name="all" />
+                <span className="text-sm font-bold">الكل</span>
+                <span className="text-[11px] font-medium text-sun-900/70">
+                  {toArabicDigits(places.length)} مكان
+                </span>
+              </Link>
+            </li>
+            {categories.map((cat) => (
+              <li key={cat.id} className="w-28 shrink-0 snap-start sm:w-32 lg:w-auto">
+                <Link
+                  href={`/explore?category=${cat.id}`}
+                  className="flex h-full flex-col items-center justify-center gap-2 rounded-2xl bg-white/12 p-4 text-center text-white ring-1 ring-white/20 backdrop-blur-sm transition hover:-translate-y-0.5 hover:bg-white/20"
+                >
+                  <CategoryIcon name={cat.icon} />
+                  <span className="text-sm font-bold leading-tight">{cat.ar}</span>
+                  <span className="text-[11px] font-medium text-white/70">
+                    {toArabicDigits(countByCategory(cat.id))} مكان
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
-      {/* Categories */}
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-        <div className="mb-8 flex items-end justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-              Browse by mood
-            </h2>
-            <p className="mt-1 text-slate-500">Whatever the plan, there&apos;s a place.</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          {categories.map((cat) => (
-            <Link
-              key={cat.name}
-              href={`/explore?category=${encodeURIComponent(cat.name)}`}
-              className="group rounded-2xl border border-slate-100 bg-white p-5 text-center shadow-sm transition hover:-translate-y-1 hover:border-brand-200 hover:shadow-md"
-            >
-              <span aria-hidden="true" className="text-3xl transition group-hover:scale-110">
-                {cat.emoji}
-              </span>
-              <h3 className="mt-3 text-sm font-bold text-slate-900">{cat.name}</h3>
-              <p className="mt-1 text-xs text-slate-500">{cat.blurb}</p>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {/* Featured */}
-      <section className="bg-slate-50/70">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-          <div className="mb-8 flex items-end justify-between">
+      {/* ---------- Featured ---------- */}
+      <section className="bg-sand-50">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-16">
+          <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-                Featured this week
+              <h2 className="font-display text-2xl font-bold text-ink-900 sm:text-3xl">
+                وين شنو فيه؟ 🇰🇼
               </h2>
-              <p className="mt-1 text-slate-500">The places everyone&apos;s talking about.</p>
+              <p className="mt-1 text-ink-500">أماكن ما تنقال عنها لا.</p>
             </div>
             <Link
               href="/explore"
-              className="hidden text-sm font-semibold text-brand-700 hover:text-brand-800 sm:block"
+              className="text-sm font-bold text-coral-700 transition hover:text-coral-800"
             >
-              View all →
+              شوف الكل ↗
             </Link>
           </div>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {featured.map((place) => (
               <PlaceCard key={place.slug} place={place} />
             ))}
@@ -108,63 +118,70 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* How it works */}
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-        <h2 className="text-center text-2xl font-bold text-slate-900 sm:text-3xl">
-          How Wain works
-        </h2>
-        <div className="mt-10 grid gap-8 sm:grid-cols-3">
-          {[
-            {
-              step: "1",
-              emoji: "🔎",
-              title: "Search or browse",
-              text: "Filter by category, area, or vibe — beaches, souqs, museums, malls.",
-            },
-            {
-              step: "2",
-              emoji: "📖",
-              title: "Get the local story",
-              text: "Every place comes with highlights, the best time to go, and honest tips.",
-            },
-            {
-              step: "3",
-              emoji: "🚗",
-              title: "Go!",
-              text: "Settle the group chat debate once and for all. Yalla, let's go.",
-            },
-          ].map((item) => (
-            <div key={item.step} className="relative rounded-2xl border border-slate-100 p-6">
-              <span className="absolute -top-4 left-6 grid size-8 place-items-center rounded-full bg-brand-600 text-sm font-bold text-white">
-                {item.step}
-              </span>
-              <span aria-hidden="true" className="text-3xl">
-                {item.emoji}
-              </span>
-              <h3 className="mt-3 font-bold text-slate-900">{item.title}</h3>
-              <p className="mt-1 text-sm text-slate-500">{item.text}</p>
-            </div>
-          ))}
+      {/* ---------- How it works ---------- */}
+      <section className="bg-sand-100">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-16">
+          <h2 className="text-center font-display text-2xl font-bold text-ink-900 sm:text-3xl">
+            كيف يشتغل وين؟
+          </h2>
+          <div className="mt-10 grid gap-6 sm:grid-cols-3">
+            {[
+              {
+                n: "١",
+                title: "حدّد موقعك",
+                text: "اضغط على «إلى وين؟» ونجيب لك أقرب الأماكن حواليك.",
+              },
+              {
+                n: "٢",
+                title: "اختر الجو",
+                text: "معالم، مطاعم، قهوة، بحر أو أسواق — كل وحدة ولها وقتها.",
+              },
+              {
+                n: "٣",
+                title: "يالله نروح",
+                text: "تعرف وين تروح ومتى تروح، وتخلص من نقاش الجروب.",
+              },
+            ].map((step) => (
+              <div
+                key={step.n}
+                className="relative rounded-3xl border border-sand-200 bg-white p-6 shadow-sm"
+              >
+                <span className="absolute -top-4 start-6 grid size-9 place-items-center rounded-full bg-coral-600 font-display text-base font-bold text-white shadow-sm">
+                  {step.n}
+                </span>
+                <h3 className="mt-2 font-display text-lg font-bold text-ink-900">{step.title}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-ink-500">{step.text}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-brand-700 to-brand-500 px-6 py-14 text-center shadow-xl">
-          <div className="pointer-events-none absolute -right-10 -top-10 size-48 rounded-full bg-white/10 blur-2xl" />
-          <div className="pointer-events-none absolute -bottom-12 -left-10 size-56 rounded-full bg-sand-400/20 blur-2xl" />
-          <h2 className="text-3xl font-extrabold text-white sm:text-4xl">
-            Still asking &ldquo;wain nrooh?&rdquo;
-          </h2>
-          <p className="mx-auto mt-3 max-w-md text-brand-100">
-            Stop scrolling the group chat. Find tonight&apos;s plan in under a minute.
-          </p>
-          <Link
-            href="/explore"
-            className="mt-8 inline-block rounded-xl bg-white px-7 py-3 font-bold text-brand-700 shadow-md transition hover:bg-brand-50"
-          >
-            Explore places →
-          </Link>
+      {/* ---------- CTA ---------- */}
+      <section className="bg-sand-50">
+        <div className="mx-auto max-w-6xl px-4 pb-16 sm:px-6 sm:pb-20">
+          <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-l from-sea-700 to-sea-500 px-6 py-14 text-center shadow-xl">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -end-10 -top-10 size-48 rounded-full bg-white/10 blur-2xl"
+            />
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -bottom-12 -start-10 size-56 rounded-full bg-sun-300/20 blur-2xl"
+            />
+            <h2 className="font-display text-3xl font-extrabold text-white sm:text-4xl">
+              بعدك تسأل «وين نروح»؟
+            </h2>
+            <p className="mx-auto mt-3 max-w-md text-sea-50">
+              خلّ الجروب يرتاح — لقِ طلعة الليلة في أقل من دقيقة.
+            </p>
+            <Link
+              href="/explore"
+              className="mt-8 inline-block rounded-2xl bg-sun-300 px-7 py-3 font-display text-lg font-bold text-ink-900 shadow-lg transition hover:bg-sun-200"
+            >
+              استكشف الأماكن ↗
+            </Link>
+          </div>
         </div>
       </section>
     </>

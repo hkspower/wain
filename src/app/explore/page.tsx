@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import ExploreClient from "./ExploreClient";
 
 export const metadata: Metadata = {
-  title: "Explore",
-  description: "Search and filter the best places to visit across Kuwait.",
+  title: "استكشف",
+  description: "دوّر وفلتر أحلى الأماكن في الكويت — معالم، مطاعم، قهوة، شواطئ وأسواق.",
 };
 
 export default function ExplorePage() {
