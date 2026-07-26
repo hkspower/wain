@@ -179,6 +179,9 @@
       .tile .n { font-size: 21px; }
       main { padding-top: 14px; }
       h2 { margin-top: 20px; }
+      /* when the flow line wraps, the amount takes its own full row at the
+         reading start instead of hanging at the line-box's far edge */
+      .flow .val { margin-inline-start: 0; flex-basis: 100%; }
     }
   </style>
 </head>
@@ -196,7 +199,7 @@
     </header>
 
     <nav class="tabs" id="tabs">
-    <button data-tab="position" class="on">المركز المالي</button>
+    <button data-tab="position" class="on">⚓ المركز المالي</button>
     <button data-tab="safi">📊 صافي</button>
     <button data-tab="xbrl">🧾 XBRL</button>
     <button data-tab="delivery">🛵 التوصيل</button>

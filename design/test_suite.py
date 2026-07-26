@@ -136,7 +136,7 @@ def identity_checks():
     logo = (ROOT / "logo.svg").read_text()
 
     check(S, "the mark is the dhow sail, in logo.svg and in the page sprite",
-          'id="i-sail"' in home and "M20.9 2.7" in home and "M20.9 2.7" in logo)
+          'id="i-sail"' in home and "M20.6 2.3" in home and "M20.6 2.3" in logo)
     check(S, "the header carries the mark, not an emoji or a letter",
           '<use href="#i-sail"/>' in home)
     check(S, "the wordmark is المهلب", '<span class="name">المهلب</span>' in home)
@@ -298,14 +298,24 @@ def home_checks(pg):
           "info@almuhallab-code.com" not in (ROOT / "index.html").read_text())
     # emoji render as a different typeface, weight and colour on every platform;
     # the drawn set must have replaced them everywhere on the public page
-    check(S, "the page carries no emoji icons",
-          not pg.evaluate(r"/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(document.querySelector('main').innerText)"))
+    check(S, "the page carries no emoji icons (footer and flags included)",
+          not pg.evaluate(r"/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F1E6}-\u{1F1FF}]/u.test(document.body.innerText)"))
     icons = pg.eval_on_selector_all("main use", "n=>n.length")
     check(S, "the drawn icon set is used throughout", icons >= 14, f"{icons} icons")
     check(S, "the header carries the Almuhallab mark",
           pg.eval_on_selector("header .logo use", "e=>e.getAttribute('href')") == "#i-sail")
     check(S, "the wordmark reads المهلب",
           pg.inner_text("header .name").strip() == "المهلب")
+    centred = pg.evaluate("""(() => {
+      const mid = document.querySelector('header').getBoundingClientRect();
+      const logo = document.querySelector('header .logo').getBoundingClientRect();
+      const name = document.querySelector('header .name').getBoundingClientRect();
+      const cx = mid.left + mid.width / 2;
+      return Math.abs((logo.left + logo.width / 2) - cx) < 2
+          && Math.abs((name.left + name.width / 2) - cx) < 2
+          && name.top >= logo.bottom - 1;
+    })()""")
+    check(S, "the masthead is centred: mark above wordmark on one axis", centred)
     check(S, "every icon reference resolves to a symbol",
           pg.evaluate("[...document.querySelectorAll('use')].every(u =>"
                       " !!document.querySelector(u.getAttribute('href')))"))
