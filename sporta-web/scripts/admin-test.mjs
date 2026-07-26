@@ -124,6 +124,19 @@ ok('Catalogue reports every product as in sync',
    !!sync && Number(sync[1]) > 0 && sync[2] === '0' && sync[3] === '0',
    sync ? sync[0] : '(sync line not found)')
 
+// The sync line alone was not enough. Below it sits the editable Products
+// table, and it was rendering 46 rows of blank names and "NaN KWD" while every
+// assertion above passed — because nothing had ever looked at it. A screenshot
+// found what 21 assertions did not.
+const productRows = await p.locator('main table').last().locator('tbody tr').count()
+const catBody = await p.locator('main table').last().innerText()
+ok('the Products table renders real rows, not NaN',
+   productRows > 0 && !/NaN/.test(catBody),
+   `${productRows} row(s)` + (/NaN/.test(catBody) ? ' — contains NaN' : ''))
+ok('the Products table shows names and prices',
+   /[A-Za-z]{3}/.test(catBody) && /\d+\.\d{3}/.test(catBody),
+   catBody.split('\n').slice(1, 2).join(' ').slice(0, 70))
+
 // ---- device passcode: enrol, then it must actually lock the panel ----
 // The flow is three steps — name the device, type six digits, type them again —
 // and it starts at "idle". An earlier version of this test filled the one input

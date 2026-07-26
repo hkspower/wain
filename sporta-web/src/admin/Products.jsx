@@ -16,7 +16,9 @@ export default function Products() {
     setLoading(true)
     setError('')
     if (!supabase) {
-      setError('Supabase not configured (.env).')
+      // Not .env: there is no shell on the host and the site is configured at
+      // runtime. public_html/config.js is the file the owner can actually edit.
+      setError('Supabase is not configured — add your Project URL and anon key to public_html/config.js.')
       setLoading(false)
       return
     }

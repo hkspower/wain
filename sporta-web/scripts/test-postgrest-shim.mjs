@@ -169,8 +169,14 @@ createServer((req, res) => {
       // `select slug` made the admin Catalogue compare every price against
       // `undefined`, so all 20 products read as "price differs from the site" —
       // a scary, entirely fictional finding produced by the test rig.
-      const cols = (u.searchParams.get('select') || 'slug')
-        .split(',').map((c) => c.trim()).filter((c) => /^[a-z_]+$/.test(c)).join(', ') || 'slug'
+      // "*" is what supabase-js sends for .select('*'), and the sanitiser
+      // rejected it as not-a-column-name, silently falling back to slug alone.
+      // The admin Products table then rendered 46 rows of blank names and
+      // "NaN KWD" — a convincing-looking bug that was entirely this shim's.
+      const raw = u.searchParams.get('select') || '*'
+      const cols = raw.trim() === '*'
+        ? '*'
+        : raw.split(',').map((c) => c.trim()).filter((c) => /^[a-z_]+$/.test(c)).join(', ') || 'slug'
       const out = await asAnon(`select coalesce(json_agg(t),'[]') from (select ${cols} from public.products) t`)
       const n = JSON.parse(out).length
       res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Range': `0-${n - 1}/${n}`,
