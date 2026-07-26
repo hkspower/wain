@@ -232,18 +232,32 @@ def home_checks(pg):
           pg.eval_on_selector_all(".product.lead", "n=>n.length") == 1)
     check(S, "how-we-work is the numbered steps list",
           pg.eval_on_selector_all("ol.steps li", "n=>n.length") == 4)
-    check(S, "contact is the wide bar", pg.eval_on_selector_all(".contact", "n=>n.length") == 1)
+    # the real contact channels, with the numbers the company actually publishes
+    chans = pg.eval_on_selector_all(".channel", "n=>n.length")
+    check(S, "all three contact channels are offered", chans == 3, f"{chans} channels")
+    for want in ("+965 6589 4110", "@almuhallab.code", "hello@almuhallab-code.com"):
+        check(S, f"contact shows {want}", want in pg.inner_text("main"))
+    hrefs = pg.eval_on_selector_all(".channel", "n=>n.map(a=>a.getAttribute('href'))")
+    check(S, "each channel actually opens",
+          hrefs == ["https://wa.me/96565894110",
+                    "https://instagram.com/almuhallab.code",
+                    "mailto:hello@almuhallab-code.com"], str(hrefs))
+    check(S, "the placeholder address is gone",
+          "info@almuhallab-code.com" not in (ROOT / "index.html").read_text())
     # emoji render as a different typeface, weight and colour on every platform;
     # the drawn set must have replaced them everywhere on the public page
     check(S, "the page carries no emoji icons",
           not pg.evaluate(r"/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(document.querySelector('main').innerText)"))
     icons = pg.eval_on_selector_all("main use", "n=>n.length")
     check(S, "the drawn icon set is used throughout", icons >= 14, f"{icons} icons")
+    check(S, "the header carries the Almuhallab mark",
+          pg.eval_on_selector("header .logo use", "e=>e.getAttribute('href')") == "#i-sail")
+    check(S, "the wordmark reads المهلب",
+          pg.inner_text("header .name").strip() == "المهلب")
     check(S, "every icon reference resolves to a symbol",
           pg.evaluate("[...document.querySelectorAll('use')].every(u =>"
                       " !!document.querySelector(u.getAttribute('href')))"))
-    check(S, "the contact address survived",
-          "info@almuhallab-code.com" in pg.inner_text("main"))
+
     check(S, "Nokha1 and the editor both open from their rows",
           pg.eval_on_selector_all('.product a[href="nokha1.html"]', "n=>n.length") == 1
           and pg.eval_on_selector_all('.product a[href="editor.html"]', "n=>n.length") == 1)

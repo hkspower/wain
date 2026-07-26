@@ -40,9 +40,14 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Colour values are **solved numerically against WCAG targets**, never picked by
   eye. Text ≥ 4.5:1 (body ≥ 7:1) against the *darkest* surface it can land on;
   essential UI boundaries ≥ 3:1; chart marks ≥ 2:1.
-- The company mark is `logo.svg` — an Arabic mīm (م) between code brackets on an
-  amber→brown gradient. Nokha1 keeps the ⚓ anchor (`icon.svg`); the company
-  brochure and the product are marked differently on purpose.
+- **The company's real identity, from the live site**: the mark is a dhow's
+  lateen sail over the water (`logo.svg`, and `#i-sail` in the page sprite), the
+  wordmark is **المهلب** in brand brown, and the palette is brown on white.
+  Nokha1 keeps the ⚓ anchor (`icon.svg`) — the company and the product are
+  marked differently on purpose.
+- Contact channels are the real ones and must not be replaced with placeholders:
+  واتساب `+965 6589 4110` · انستغرام `@almuhallab.code` · البريد
+  `hello@almuhallab-code.com`.
 - Arabic is set in bundled **IBM Plex Sans Arabic** (`almuhallab/fonts/`,
   Arabic subset, weights 400/600/700). Never link a webfont CDN — the CSP blocks
   it. Any new page must declare the three `@font-face` rules, carry
@@ -62,7 +67,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 124 checks covering
+- `python3 design/test_suite.py` is the full system test — 130 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, and layout. Run it
   after any change to `almuhallab/`; it exits non-zero on failure.

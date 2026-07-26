@@ -1,18 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Almuhallab Code">
-  <!-- Almuhallab Code — the company mark: an Arabic mīm (م), the initial of
-       المهلب, held between two code brackets. Drawn as paths, not type, so it
-       renders identically without depending on an installed font. -->
-  <defs>
-    <linearGradient id="am" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#b06a10"/>
-      <stop offset="1" stop-color="#6f3f1c"/>
-    </linearGradient>
-  </defs>
-  <rect width="64" height="64" rx="15" fill="url(#am)"/>
-  <g fill="none" stroke="#fdf7f0" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M17.5 21 L9.5 32 L17.5 43" stroke-width="3.2" opacity=".8"/>
-    <path d="M46.5 21 L54.5 32 L46.5 43" stroke-width="3.2" opacity=".8"/>
-    <circle cx="34.5" cy="26.5" r="6.8" stroke-width="4"/>
-    <path d="M30.4 32.4 C30 39.5 27.5 43.5 22.5 45.5" stroke-width="4"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="المهلب — Almuhallab">
+  <!-- The Almuhallab mark: a dhow's lateen sail over the water, the mark the
+       company already uses. Drawn as paths so it takes the brand brown from
+       currentColor and needs no font or raster asset. -->
+  <path fill="currentColor" d="M20.9 2.7 19.5 16.3H5.1c-.6 0-.9-.7-.5-1.1C8.9 10.4 14.4 5.5 20.9 2.7Z"/>
+  <path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+        d="M4.4 18.3c1.5 1.3 4.1 2 7.4 2s5.9-.7 7.4-2"/>
 </svg>
