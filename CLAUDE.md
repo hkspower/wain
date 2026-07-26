@@ -13,6 +13,16 @@
 
 ## Almuhallab Code — `almuhallab/`
 
+### 🔒 NAMING: the system is **النوخذة**, never "Nokha"
+
+"Nokha" / "Nokha1" was the user's **private shorthand for النوخذة, for their own
+use only**. It must never appear on the live site, in any published page, name,
+title, filename, or artefact. Write **النوخذة** in Arabic; where a Latin
+filename or key is unavoidable, use `nokhatha` (matching the `nokhatha-*`
+storage keys). The portal lives at `nokhatha.html` (`/nokhatha`); `nokha1.html`
+survives only as an unlinked redirect for links published before the rename.
+`design/test_suite.py` fails if the shorthand reappears on any page.
+
 ### 🔒 THE ALMUHALLAB STYLE IS FINAL — NEVER CHANGE IT
 
 This identity is the company's own, taken from the live site. It is **not** open
@@ -36,8 +46,8 @@ Locked, exactly as they are:
 makes those checks fail, the change is wrong — fix the change, never the test.
 
 **Almuhallab Code (المهلب كود) is a software company.** `www.almuhallab-code.com`
-is the *company* website. **Nokha1 (النوخذة) is one system the company built and
-runs — a product inside the site, never the site itself.** Do not put Nokha1's
+is the *company* website. **النوخذة is one system the company built and
+runs — a product inside the site, never the site itself.** Do not put النوخذة's
 portal, registration, plans or dashboard on the root page.
 
 Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
@@ -47,10 +57,10 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   — hero, `h2.section` + `.sub`, a `.grid` of uniform `.card`s with `.chip`s, plus
   the first version's own components: wide `.product` rows for the systems the
   company built, `ol.steps` for how we work, and the `.contact` bar.
-- `nokha1.html` — the Nokha1 portal · `nizam.html` (the unified system: المركز المالي · صافي ·
+- `nokhatha.html` — the النوخذة portal · `nizam.html` (the unified system: المركز المالي · صافي ·
   XBRL · التوصيل in four tabs over one data core) · `editor.html` ·
   `admin.html` · `sw.js` · `manifest.webmanifest` (its `start_url` is
-  `nokha1.html` — the installable app is Nokha1, not the company brochure)
+  `nokhatha.html` — the installable app is النوخذة, not the company brochure)
 - `safi.html`, `xbrl.html`, `delivery.html` are **redirect stubs** to
   `nizam.html#/<tab>`. There is one implementation of each unit — do not
   reintroduce standalone copies.
@@ -65,7 +75,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - **The company's real identity, from the live site**: the mark is a dhow's
   lateen sail over the water (`logo.svg`, and `#i-sail` in the page sprite), the
   wordmark is **المهلب** in brand brown, and the palette is brown on white.
-  Nokha1 keeps the ⚓ anchor (`icon.svg`) — the company and the product are
+  النوخذة keeps the ⚓ anchor (`icon.svg`) — the company and the product are
   marked differently on purpose.
 - Contact channels are the real ones and must not be replaced with placeholders:
   واتساب `+965 6589 4110` · انستغرام `@almuhallab.code` · البريد
@@ -76,7 +86,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   `font-src 'self'`, and be added to the service-worker precache.
 - Icons on the public site are a **drawn inline-SVG set** (`<symbol>` + `<use>`),
   not emoji: emoji are a different typeface, weight and colour on every platform.
-  Nokha1's own screens still use emoji in tab labels.
+  النوخذة's own screens still use emoji in tab labels.
 - Charts are hand-built inline SVG — the strict CSP forbids any chart library.
   Colour follows the encoding job: ordinal one-hue ramps where order carries
   meaning, a diverging pair for profit/loss where the sign is *also* shown by
@@ -89,7 +99,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 144 checks covering
+- `python3 design/test_suite.py` is the full system test — 148 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, and layout. Run it
   after any change to `almuhallab/`; it exits non-zero on failure.

@@ -1,10 +1,11 @@
-/* Nokha1 service worker — precache the app shell, serve cache-first, refresh in background. */
+/* النوخذة service worker — precache the app shell, serve cache-first, refresh in background. */
 "use strict";
 
-var CACHE = "nokha1-v9";
+var CACHE = "nokhatha-v10";
 var ASSETS = [
   "./",
   "index.html",
+  "nokhatha.html",
   "nokha1.html",
   "nizam.html",
   "safi.html",

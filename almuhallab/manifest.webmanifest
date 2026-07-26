@@ -1,9 +1,9 @@
 {
-  "name": "Nokha1 — النوخذة",
-  "short_name": "Nokha1",
+  "name": "النوخذة — نظام المهلب الموحد",
+  "short_name": "النوخذة",
   "description": "نظام المهلب الموحد: صافي، XBRL، والتوصيل — يعمل بدون إنترنت.",
-  "id": "nokha1",
-  "start_url": "nokha1.html",
+  "id": "nokhatha",
+  "start_url": "nokhatha.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",

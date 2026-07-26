@@ -11,7 +11,7 @@
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b1220" />
   <link rel="preload" as="font" type="font/woff2" href="fonts/plex-arabic-400.woff2" crossorigin />
   <link rel="icon" type="image/svg+xml" href="icon.svg" />
-  <title>لوحة الإدارة — Nokha1 Admin</title>
+  <title>لوحة الإدارة — إدارة النوخذة</title>
   <style>
     /* IBM Plex Sans Arabic — bundled, not fetched from a CDN: the strict CSP
        forbids external origins, and a self-hosted face renders identically on
@@ -202,7 +202,7 @@
       <span class="mark">⚓</span>
       <div>
         <div style="font-weight:800;font-size:17px">لوحة الإدارة</div>
-        <div style="font-size:12px;color:var(--muted)">Nokha1 Admin Console</div>
+        <div style="font-size:12px;color:var(--muted)">إدارة النوخذة Console</div>
       </div>
     </div>
     <p class="note" id="gate-lead"></p>
@@ -218,7 +218,7 @@
       ⚠️ هذه اللوحة تدير البيانات المحفوظة على <b>هذا الجهاز</b> فقط. الحماية هنا
       محلية وليست تحققاً من خادم — راجع SECURITY.md.
     </p>
-    <p class="note"><a href="nokha1.html">← العودة إلى Nokha1</a></p>
+    <p class="note"><a href="nokhatha.html">← العودة إلى النوخذة</a></p>
   </form>
 </section>
 
@@ -228,11 +228,11 @@
     <header>
       <div class="brand">
         <span class="logo">⚓</span>
-        <div>لوحة الإدارة <small>Nokha1 Admin — المهلب كود</small></div>
+        <div>لوحة الإدارة <small>إدارة النوخذة — المهلب كود</small></div>
       </div>
       <nav class="site">
         <a href="index.html">← المهلب كود</a>
-        <a href="nokha1.html">⚓ Nokha1</a>
+        <a href="nokhatha.html">⚓ النوخذة</a>
       </nav>
       <button class="btn" id="btn-refresh">↻ تحديث</button>
       <button class="btn danger" id="btn-logout">خروج</button>
@@ -355,7 +355,7 @@
       <div class="grid2" style="margin-top:22px">
         <div class="card">
           <h3>البيانات</h3>
-          <p class="note" style="margin-bottom:12px">نسخة احتياطية كاملة لكل بيانات Nokha1 على هذا الجهاز.</p>
+          <p class="note" style="margin-bottom:12px">نسخة احتياطية كاملة لكل بيانات النوخذة على هذا الجهاز.</p>
           <div class="rowacts">
             <button class="btn" id="btn-export">⬇ تصدير نسخة احتياطية</button>
             <button class="btn" id="btn-import">⬆ استيراد</button>
@@ -380,7 +380,7 @@
 
   <footer class="site">
     المهلب كود — Almuhallab Code · شركة برمجة وأنظمة · صُنع في الكويت 🇰🇼<br />
-    <a href="index.html">الموقع</a> · <a href="nokha1.html">نظام Nokha1</a> ·
+    <a href="index.html">الموقع</a> · <a href="nokhatha.html">نظام النوخذة</a> ·
     <a href="editor.html">محرر الأكواد</a>
   </footer>
 </div>
@@ -399,11 +399,28 @@
     orders:   "nokhatha-delivery-orders-v1",
     couriers: "nokhatha-delivery-couriers-v1",
     xbrl:     "nokhatha-xbrl-reports-v1",
-    admin:    "nokha1-admin-v1",
-    adminSes: "nokha1-admin-session-v1",
-    adminLock:"nokha1-admin-lock-v1",
-    audit:    "nokha1-admin-audit-v1"
+    admin:    "almuhallab-admin-v1",
+    adminSes: "almuhallab-admin-session-v1",
+    adminLock:"almuhallab-admin-lock-v1",
+    audit:    "almuhallab-admin-audit-v1"
   };
+
+  /* legacy-key-migration:start — the only place the old shorthand may appear.
+     These four keys were named after a private shorthand. Carry an existing
+     console across to the new names once, so renaming them costs nobody their
+     passphrase or their audit log, then drop the old keys. */
+  (function migrate() {
+    var OLD = { admin: "nokha1-admin-v1", adminSes: "nokha1-admin-session-v1",
+                adminLock: "nokha1-admin-lock-v1", audit: "nokha1-admin-audit-v1" };
+    try {
+      Object.keys(OLD).forEach(function (k) {
+        var was = localStorage.getItem(OLD[k]);
+        if (was !== null && localStorage.getItem(K[k]) === null) localStorage.setItem(K[k], was);
+        if (was !== null) localStorage.removeItem(OLD[k]);
+      });
+    } catch (e) {}
+  })();
+  /* legacy-key-migration:end */
   function rd(k, dflt) { try { var v = JSON.parse(localStorage.getItem(k)); return v === null ? dflt : v; } catch (e) { return dflt; } }
   function wr(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
 
@@ -897,7 +914,7 @@
     var blob = new Blob([JSON.stringify(dump, null, 1)], { type: "application/json" });
     var a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "nokha1-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+    a.download = "almuhallab-backup-" + new Date().toISOString().slice(0, 10) + ".json";
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(a.href); audit("تصدير نسخة احتياطية"); toast("تم التصدير");
   });
@@ -920,7 +937,7 @@
     inp.click();
   });
   el("btn-wipe").addEventListener("click", function () {
-    if (!confirm("مسح كل بيانات Nokha1 على هذا الجهاز؟ لا يمكن التراجع.")) return;
+    if (!confirm("مسح كل بيانات النوخذة على هذا الجهاز؟ لا يمكن التراجع.")) return;
     if (!confirm("تأكيد أخير — سيتم حذف الحسابات والطلبات والمحفظة والتقارير.")) return;
     [K.users, K.safi, K.orders, K.couriers, K.xbrl].forEach(function (k) { localStorage.removeItem(k); });
     audit("مسح كل البيانات"); toast("تم المسح"); renderAll();

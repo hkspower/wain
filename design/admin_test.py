@@ -69,8 +69,8 @@ with sync_playwright() as p:
 
     # first run must be setup mode
     if "لم تُضبط" not in pg.inner_text("#gate-lead"): fails.append("setup mode not offered")
-    pg.fill('input[name="pass"]', "nokha1-admin-2026")
-    pg.fill('input[name="confirm"]', "nokha1-admin-2026")
+    pg.fill('input[name="pass"]', "almuhallab-admin-2026")
+    pg.fill('input[name="confirm"]', "almuhallab-admin-2026")
     pg.click("#gate-btn"); pg.wait_for_timeout(2600)
 
     if not pg.is_visible("#shell"): fails.append("did not enter the console")

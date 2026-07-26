@@ -1,6 +1,6 @@
 """
 Capture every page of the Almuhallab Code site — the company pages and the
-Nokha1 system inside it — from a real browser.
+النوخذة system inside it — from a real browser.
 The site is driven end-to-end first (register, add holdings, orders, a report)
 so the screenshots show a working system rather than empty forms.
 """
@@ -40,28 +40,28 @@ with sync_playwright() as p:
     page.wait_for_timeout(500)
     snap(page, "01-company", "المهلب كود — Almuhallab Code", "/")
 
-    # -------------------------------------------------- Nokha1 portal (a product)
-    page.goto(f"{BASE}/nokha1.html", wait_until="networkidle")
+    # ------------------------------------------------ النوخذة portal (a product)
+    page.goto(f"{BASE}/nokhatha.html", wait_until="networkidle")
     page.wait_for_timeout(500)
-    snap(page, "02-landing", "Nokha1 — النوخذة", "/nokha1.html")
+    snap(page, "02-landing", "النوخذة", "/nokhatha")
 
     # ---------------------------------------------------------- pricing
-    page.goto(f"{BASE}/nokha1.html#/pricing", wait_until="networkidle")
+    page.goto(f"{BASE}/nokhatha.html#/pricing", wait_until="networkidle")
     page.wait_for_timeout(400)
-    snap(page, "03-pricing", "الاشتراكات — Plans", "/nokha1.html#/pricing")
+    snap(page, "03-pricing", "الاشتراكات — Plans", "/nokhatha#/pricing")
 
     # ---------------------------------------------------------- register
-    page.goto(f"{BASE}/nokha1.html#/register", wait_until="networkidle")
+    page.goto(f"{BASE}/nokhatha.html#/register", wait_until="networkidle")
     page.fill('#form-register input[name="name"]', "محمد العلي")
     page.fill('#form-register input[name="email"]', "demo@almuhallab-code.com")
-    page.fill('#form-register input[name="password"]', "nokha1-demo-2026")
+    page.fill('#form-register input[name="password"]', "almuhallab-demo-2026")
     page.wait_for_timeout(300)
-    snap(page, "04-register", "إنشاء حساب — Registration", "/nokha1.html#/register")
+    snap(page, "04-register", "إنشاء حساب — Registration", "/nokhatha#/register")
 
     # submit -> real PBKDF2 hash, real session, lands on dashboard
     page.click('#form-register button[type="submit"]')
     page.wait_for_timeout(2500)
-    snap(page, "05-dashboard", "لوحة التحكم — Customer dashboard", "/nokha1.html#/dashboard")
+    snap(page, "05-dashboard", "لوحة التحكم — Customer dashboard", "/nokhatha#/dashboard")
 
     # ---------------------------------------------------------- SAFI
     page.goto(f"{BASE}/nizam.html#/safi", wait_until="networkidle")

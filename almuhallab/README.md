@@ -2,27 +2,27 @@
 
 The website of **Almuhallab Code**, a software company in Kuwait, plus the
 systems it runs. An **HTML5 Progressive Web App** with no build step and no
-dependencies: open it in a browser, or install Nokha1 to a phone's home screen
+dependencies: open it in a browser, or install النوخذة to a phone's home screen
 and run it offline.
 
-The root of the site is the **company**. **Nokha1 (النوخذة)** is a product
-inside it, entered at `/nokha1` — not the front door.
+The root of the site is the **company**. **النوخذة** is a product
+inside it, entered at `/nokhatha` — not the front door.
 
 ## Site map
 
 | File | Page |
 |------|------|
-| `index.html` | **Almuhallab Code** — the company site: what Nokha1 is, services, work, how we work, contact |
-| `nokha1.html` | **Nokha1 portal** — landing, registration, login, dashboard, plans |
+| `index.html` | **Almuhallab Code** — the company site: what النوخذة is, services, work, how we work, contact |
+| `nokhatha.html` | **النوخذة portal** — landing, registration, login, dashboard, plans |
 | `nizam.html` | **النظام الموحد** — one page, four tabs: المركز المالي · صافي · XBRL · التوصيل |
 | `safi.html`, `xbrl.html`, `delivery.html` | redirects to the matching tab (keeps old links working) |
 | `editor.html` | **Almuhallab Code** — in-browser HTML/CSS/JS editor |
 | `admin.html` | **Admin console** — customers, operations, finance, settings |
 | `404.html` | not-found page that returns visitors to the portal |
-| `manifest.webmanifest`, `sw.js`, `icon.svg`, `logo.svg` | PWA app manifest, offline service worker, ⚓ Nokha1 icon, and the Almuhallab Code company mark |
+| `manifest.webmanifest`, `sw.js`, `icon.svg`, `logo.svg` | PWA app manifest, offline service worker, ⚓ النوخذة icon, and the Almuhallab Code company mark |
 | `SECURITY.md` | security measures and their limits |
 
-## Nokha1 — the portal (`/nokha1`)
+## النوخذة — the portal (`/nokhatha`)
 
 Arabic-first (RTL) and presented as **one system**:
 
@@ -137,7 +137,7 @@ visitor's OS happens to have installed.
 ## Tests
 
 ```bash
-python3 design/test_suite.py     # 144 checks, exits non-zero on failure
+python3 design/test_suite.py     # 148 checks, exits non-zero on failure
 ```
 
 Covers the **pinned Almuhallab identity** (the sail mark, the المهلب wordmark,

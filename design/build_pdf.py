@@ -69,14 +69,14 @@ for i in range(H):                                   # slow vertical lift
     c = tuple(int(INK[k] + (INK_SOFT[k] - INK[k]) * (1 - t) ** 2) for k in range(3))
     dr.line([0, i, W, i], fill=c)
 anchor_mark(dr, W // 2, 700, 150, BRASS, 7)
-# The company is the cover; Nokha1 is the system inside, named in the strip below.
+# The company is the cover; النوخذة is the system inside, named in the strip below.
 ls_text(dr, W // 2, 930, "ALMUHALLAB", font(F_DISP, 168), BONE, 30, "ct")
 ls_text(dr, W // 2, 1130, "CODE", font(F_MED, 132), BRASS, 40, "ct")
 dr.line([W // 2 - 430, 1310, W // 2 + 430, 1310], fill=BORDER, width=3)
 ls_text(dr, W // 2, 1372, "SOFTWARE  AND  SYSTEMS  —  KUWAIT", font(F_TECH, 54), MUTED, 15, "ct")
 ls_text(dr, W // 2, 1520, "WEBSITE SAMPLE", font(F_MED, 62), TEAL, 22, "ct")
 ls_text(dr, W // 2, 1660, "www.almuhallab-code.com", font(F_MONO, 46), BONE, 4, "ct")
-ls_text(dr, W // 2, 1790, "NOKHA1  ·  SAFI  ·  XBRL  ·  DELIVERY  ·  EDITOR", font(F_TECH, 38), MUTED, 12, "ct")
+ls_text(dr, W // 2, 1790, "NOKHATHA  ·  SAFI  ·  XBRL  ·  DELIVERY  ·  EDITOR", font(F_TECH, 38), MUTED, 12, "ct")
 dr.line([260, 2270, W - 260, 2270], fill=BORDER, width=2)
 ls_text(dr, 260, 2320, "PROGRESSIVE WEB APP — OFFLINE CAPABLE", font(F_MONO, 32), MUTED, 2)
 ls_text(dr, W - 260, 2320, "13 SCREENS", font(F_MONO, 32), BRASS, 2, "rt")
@@ -88,7 +88,7 @@ ls_text(dr, 260, 240, "CONTENTS", font(F_DISP, 132), BONE, 22)
 dr.line([260, 470, W - 260, 470], fill=BORDER, width=3)
 rows = [
     ("01", "Almuhallab Code", "المهلب كود", "The company — services, work, contact"),
-    ("02", "Nokha1 — Portal", "النوخذة", "The system inside: hero, units, install"),
+    ("02", "Al-Nokhatha — Portal", "النوخذة", "The system inside: hero, units, install"),
     ("03", "Plans", "الاشتراكات", "Three tiers — pricing deferred, all units open"),
     ("04", "Registration", "إنشاء حساب", "PBKDF2-hashed credentials, validated"),
     ("05", "Dashboard", "لوحة التحكم", "Account, plan badge, unit access"),
@@ -114,10 +114,10 @@ pages.append(im)
 # ------------------------------------------------------------------ PLATES
 plates = [
     ("01-company",  "01", "Almuhallab Code", "المهلب كود", "/"),
-    ("02-landing",  "02", "Nokha1 — Portal", "النوخذة", "/nokha1"),
-    ("03-pricing",  "03", "Plans", "الاشتراكات", "/nokha1#/pricing"),
-    ("04-register", "04", "Registration", "إنشاء حساب", "/nokha1#/register"),
-    ("05-dashboard","05", "Dashboard", "لوحة التحكم", "/nokha1#/dashboard"),
+    ("02-landing",  "02", "النوخذة — Portal", "النوخذة", "/nokhatha"),
+    ("03-pricing",  "03", "Plans", "الاشتراكات", "/nokhatha#/pricing"),
+    ("04-register", "04", "Registration", "إنشاء حساب", "/nokhatha#/register"),
+    ("05-dashboard","05", "Dashboard", "لوحة التحكم", "/nokhatha#/dashboard"),
     ("06-safi",     "06", "SAFI — Portfolio", "صافي", "/nizam#/safi"),
     ("07-xbrl",     "07", "XBRL — Reporting", "التقارير المالية", "/nizam#/xbrl"),
     ("08-delivery", "08", "Delivery", "التوصيل", "/nizam#/delivery"),
@@ -236,7 +236,7 @@ ls_text(dr, W - 250, H - 132, "MADE IN KUWAIT", font(F_MONO, 30), MUTED, 3, "rt"
 pages.append(im)
 
 # ------------------------------------------------------------------ SAVE
-out = D / "nokha1-website-sample.pdf"
+out = D / "almuhallab-website-sample.pdf"
 pages[0].save(out, "PDF", resolution=300.0, save_all=True, append_images=pages[1:])
 print(f"{len(pages)} pages -> {out}  ({out.stat().st_size/1e6:.1f} MB)")
 for i, p in enumerate(pages):
