@@ -74,6 +74,20 @@ public_html/ folder.
      public_html/knet/. Without it: no HTTPS redirect, no security headers,
      and /shop shows "404 Not Found".
 
+  !! DELETE these from public_html/ if they are there. Uploading does not
+     remove them, and each one is readable by anyone on the internet:
+
+         .env                    <- if present, ROTATE every key in it
+         .DS_Store               <- lists your folder contents
+         .deploy-manifest.json
+         .git/  (whole folder)   <- the entire source, reconstructible
+         _headers                <- Netlify file, does nothing on Apache
+         config-dist.php
+
+     The .htaccess in this package blocks all of them, so once it is uploaded
+     they are 403 rather than downloadable — but delete them anyway. Step 5
+     checks each one for real and names any that are still readable.
+
 --------------------------------------------------------------------------------
 2. SET YOUR SUPABASE KEYS  (2 lines — the site will not sell anything until you do)
 --------------------------------------------------------------------------------

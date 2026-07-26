@@ -1,5 +1,18 @@
 # Sporta — Hostinger (Apache) production config: SPA routing + compression + caching.
 
+# ---- Deny dotfiles FIRST, before anything else can short-circuit it ----
+# Order is the whole point. This rule used to sit at the bottom of the file,
+# where it was dead: the SPA block passes any request whose target exists
+# through with [L], so it only ever saw dotfiles that were not there. Under
+# Apache, .DS_Store, .deploy-manifest.json and .git/config all returned 200
+# with their full contents — and a readable .git/config means the entire
+# repository can be reconstructed. Nothing may precede this.
+# .well-known stays reachable so SSL/ACME renewal keeps working.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule "(?i)(^|/)\.(?!well-known)" - [F,L]
+</IfModule>
+
 # ---- Canonicalise host + scheme in a SINGLE 301 (never chain redirects) ----
 # Everything on the site declares https://www.sporta.com.kw as canonical, so any
 # other spelling of the URL jumps straight there in one hop. Rule 1 fixes host
@@ -147,13 +160,12 @@ ErrorDocument 404 /index.html
 </IfModule>
 
 # ---- Never serve VCS metadata, env files, manifests or backups ----
-# Defence in depth: these should not be in public_html at all, but an SFTP
-# upload of the wrong folder must not leak credentials or source.
-# .well-known is exempt so SSL/ACME renewal keeps working.
-<IfModule mod_rewrite.c>
-  RewriteEngine On
-  RewriteRule "(?i)(^|/)\.(?!well-known)" - [F,L]
-</IfModule>
+# The rewrite half of this rule lives at the TOP of the file, not here. Left in
+# this position it did nothing at all: the SPA block above passes any request
+# whose target exists straight through with [L], so a dotfile that is really on
+# disk — the only kind that can leak — never reached the deny. Verified under
+# Apache: .DS_Store, .deploy-manifest.json and .git/config were all served 200.
+# What remains here is name-based and needs no rewrite ordering.
 <FilesMatch "(?i)^(composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|pnpm-lock\.yaml|vite\.config\.[cm]?[jt]s|(ts|js)config\.json|Dockerfile|docker-compose\.ya?ml|.*\.(bak|old|orig|save|swp|sql|log|sh|env))$">
   Require all denied
 </FilesMatch>

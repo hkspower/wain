@@ -179,6 +179,32 @@ async function run() {
       'redirect, no security headers, and /shop shows 404.')
   } catch (e) { report(false, 'Deep routes work (.htaccess)', e.message, 'Upload the hidden <code>.htaccess</code> file.') }
 
+  // Deep routes working only proves SOME .htaccess is there — an older one
+  // rewrites fine while leaving every dotfile readable. So ask the server
+  // directly for the files that must never be served. This is not theoretical:
+  // .env and .DS_Store were both sitting in public_html from an earlier deploy.
+  try {
+    const SECRET = ['/.env', '/.DS_Store', '/.deploy-manifest.json', '/.git/config',
+                    '/knet/config.php', '/config-dist.php']
+    const exposed = []
+    for (const path of SECRET) {
+      const r = await fetch(path, { headers: { Accept: 'text/plain' } }).catch(() => null)
+      if (!r || r.status !== 200) continue
+      const body = await r.text().catch(() => '')
+      // A 200 that is really the SPA fallback is fine; anything else is the
+      // file itself. config.php is exempt from the body test — PHP executes it,
+      // so an empty 200 means it ran, not that it leaked.
+      if (path.endsWith('.php')) { if (body.trim() && !body.includes('<div id="root">')) exposed.push(path) }
+      else if (!body.includes('<div id="root">')) exposed.push(path)
+    }
+    report(exposed.length === 0, 'Private files are not downloadable',
+      exposed.length ? 'READABLE BY ANYONE: ' + exposed.join(', ') : 'Every dotfile and config file is blocked.',
+      'Delete these from <code>public_html/</code> in File Manager now, then upload the current ' +
+      '<code>.htaccess</code> (8 KB — an older one does not block dotfiles). ' +
+      '<b>If <code>.env</code> was listed, treat every secret in it as compromised and rotate it</b> — ' +
+      'Supabase keys in the Supabase dashboard, Tranportal credentials with your bank.')
+  } catch (e) { report(false, 'Private files are not downloadable', e.message, '') }
+
   // The single most informative check: asking pay.php for an order that cannot
   // exist. A 404 proves PHP runs, config.php parses, the service key works and
   // the fail-closed lookup is doing its job — all at once.
