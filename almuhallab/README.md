@@ -147,7 +147,7 @@ visitor's OS happens to have installed.
 ## Tests
 
 ```bash
-python3 design/test_suite.py     # 187 checks, exits non-zero on failure
+python3 design/test_suite.py     # 191 checks, exits non-zero on failure
 ```
 
 Covers the **pinned Almuhallab identity** (the sail mark, the المهلب wordmark,

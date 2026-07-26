@@ -278,7 +278,16 @@ def home_checks(pg):
                     "لماذا المهلب كود", "تواصل معنا"):
         check(S, f"the page still carries: {heading}", heading in pg.inner_text("main"))
     cards = pg.eval_on_selector_all(".card", "n=>n.length")
-    check(S, "the card sections are all present", cards == 13, f"{cards} cards")
+    check(S, "the card sections are all present", cards == 16, f"{cards} cards")
+    # the services the company leads with
+    for want in ("أتمتة العمليات", "تطبيق مخصّص بالكامل", "تطبيق خاص لكل مشروع"):
+        check(S, f"services include: {want}", want in pg.inner_text("main"))
+    # nine services resolve as three whole rows, no orphan
+    tops = pg.eval_on_selector_all(".grid-3 .card", "n=>n.map(c=>Math.round(c.getBoundingClientRect().top))")
+    rows = {}
+    for t2 in tops: rows[t2] = rows.get(t2, 0) + 1
+    check(S, "the services grid has no orphaned row",
+          len(rows) == 3 and set(rows.values()) == {3}, str(rows))
     # the first version's own components: two wide product rows, numbered steps,
     # and the contact bar
     check(S, "the products are wide rows, not tiles",

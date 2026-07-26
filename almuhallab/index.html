@@ -53,7 +53,7 @@
        one axis, one rhythm. Spacing steps: 4 / 8 / 14 / 20 / 28 / 44 / 64. */
     header {
       display: flex; flex-direction: column; align-items: center; gap: 8px;
-      padding: 28px 20px 0; background: var(--panel);
+      padding: 20px 20px 0; background: var(--panel);
       border-bottom: 1px solid var(--border);
     }
     .brand { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
@@ -61,7 +61,7 @@
     .brand .name { font-size: 27px; font-weight: 800; color: var(--tint); line-height: 1; }
     .brand small { display: block; font-weight: 500; color: var(--muted); font-size: 12px; margin-top: 4px; }
     nav { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; justify-content: center;
-      padding: 8px 0 14px; }
+      padding: 6px 0 10px; }
     nav a, .btn {
       font-size: 13.5px; font-weight: 600; color: var(--text);
       padding: 8px 14px; border-radius: 9px; border: 1px solid transparent;
@@ -73,31 +73,31 @@
     .btn:hover { opacity: .88; }
     a:focus-visible, .btn:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
 
-    main { max-width: 1060px; margin: 0 auto; padding: 28px 20px 64px; }
+    main { max-width: 1060px; margin: 0 auto; padding: 18px 20px 44px; }
 
-    .hero { text-align: center; padding: 44px 0 8px; }
+    .hero { text-align: center; padding: 26px 0 4px; }
     .hero .kicker {
       display: inline-block; background: var(--panel-2); border: 1px solid var(--border);
       color: var(--sand); border-radius: 999px; padding: 6px 16px; font-size: 13px; font-weight: 700;
     }
-    .hero h1 { font-size: clamp(30px, 6vw, 52px); margin: 20px 0 8px; line-height: 1.4; text-wrap: balance; }
+    .hero h1 { font-size: clamp(28px, 5vw, 44px); margin: 14px 0 6px; line-height: 1.4; text-wrap: balance; }
     .hero h1 .en { color: var(--tint); direction: ltr; display: inline-block; unicode-bidi: isolate; letter-spacing: -.5px; }
-    .hero p { color: var(--muted); max-width: 640px; margin: 0 auto 24px; font-size: 16px; line-height: 1.8; }
+    .hero p { color: var(--muted); max-width: 640px; margin: 0 auto 18px; font-size: 15.5px; line-height: 1.75; }
     .hero .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 
-    h2.section { font-size: 24px; margin: 64px 0 4px; }
+    h2.section { font-size: 22px; margin: 40px 0 4px; }
     h2.section::after {
       content: ""; display: block; width: 46px; height: 3px; border-radius: 2px;
-      margin-top: 8px; background: linear-gradient(270deg, var(--tint), var(--sand-vivid));
+      margin-top: 7px; background: linear-gradient(270deg, var(--tint), var(--sand-vivid));
     }
-    .sub { color: var(--muted); margin: 0 0 20px; line-height: 1.8; }
+    .sub { color: var(--muted); margin: 0 0 14px; line-height: 1.75; }
 
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin-top: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 14px; }
     /* six cards resolve 4+2 in the shared grid above ~1080px; three columns keep the rows whole */
     .grid-3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); max-width: 900px; }
     .card {
-      background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px;
-      display: flex; flex-direction: column; gap: 8px;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px;
+      display: flex; flex-direction: column; gap: 7px;
     }
     /* One drawn icon family instead of emoji: emoji are a different typeface on
        every platform (and a different colour), so the page looked different on
@@ -108,7 +108,7 @@
     .ic.sm { width: 16px; height: 16px; stroke-width: 2; }
     .btn.primary .ic { stroke: #fff; color: #fff; }
     .card h3 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; }
-    .card p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.7; }
+    .card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
     .card .chip { margin-top: auto; }
     .chip {
       font-size: 11px; font-weight: 700; border-radius: 999px; padding: 3px 10px;
@@ -124,12 +124,12 @@
        and the contact bar are the first version's components, kept. */
     .product {
       background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
-      padding: 24px; display: grid; grid-template-columns: 1fr auto; gap: 18px;
-      align-items: center; margin-top: 18px;
+      padding: 18px; display: grid; grid-template-columns: 1fr auto; gap: 16px;
+      align-items: center; margin-top: 14px;
     }
     .product.lead { border-color: var(--tint); box-shadow: 0 0 0 1px var(--tint); }
     .product h3 { margin: 0 0 6px; font-size: 20px; display: flex; align-items: center; gap: 9px; }
-    .product p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.8; }
+    .product p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.75; }
     .product .units { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 12px; }
     .product .go { align-self: center; white-space: nowrap; }
     @media (max-width: 620px) {
@@ -137,10 +137,10 @@
       .product .go { justify-self: stretch; text-align: center; }
     }
 
-    ol.steps { counter-reset: s; list-style: none; margin: 18px 0 0; padding: 0;
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+    ol.steps { counter-reset: s; list-style: none; margin: 14px 0 0; padding: 0;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
     ol.steps li { counter-increment: s; background: var(--panel); border: 1px solid var(--border);
-      border-radius: 14px; padding: 16px 18px; color: var(--muted); font-size: 13.5px; line-height: 1.75; }
+      border-radius: 14px; padding: 14px 16px; color: var(--muted); font-size: 13px; line-height: 1.7; }
     ol.steps li b { display: block; color: var(--text); font-size: 15px; margin-bottom: 6px; }
     ol.steps li b::before { content: counter(s) "."; color: var(--tint); margin-inline-end: 7px; }
 
@@ -155,12 +155,12 @@
        The tile sits on the neutral recessed surface — the brand warmth stays in
        the mark, never in a background. */
     .channels { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 14px; margin-top: 18px; }
+      gap: 12px; margin-top: 14px; }
     .channel { background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
-      padding: 22px 18px; text-align: center; display: flex; flex-direction: column;
-      align-items: center; gap: 10px; color: var(--text); }
+      padding: 18px 16px; text-align: center; display: flex; flex-direction: column;
+      align-items: center; gap: 8px; color: var(--text); }
     .channel:hover { border-color: var(--tint); }
-    .channel .tile { width: 54px; height: 54px; border-radius: 15px; background: var(--panel-2);
+    .channel .tile { width: 46px; height: 46px; border-radius: 13px; background: var(--panel-2);
       display: grid; place-items: center; }
     .channel .tile .ic { width: 25px; height: 25px; }
     .channel b { font-size: 15.5px; }
@@ -168,20 +168,20 @@
 
     /* ═══════ mobile ═══════ */
     @media (max-width: 640px) {
-      header { padding: 20px 14px 0; }
+      header { padding: 14px 14px 0; }
       .brand .logo { width: 44px; height: 44px; }
       .brand .name { font-size: 23px; }
       nav { padding-bottom: 10px; }
       nav a, .btn { padding: 10px 12px; min-height: 44px; display: inline-flex; align-items: center; }
-      main { padding: 20px 14px 56px; }
-      .hero { padding: 24px 0 6px; }
-      h2.section { margin-top: 44px; }
+      main { padding: 16px 14px 40px; }
+      .hero { padding: 18px 0 4px; }
+      h2.section { margin-top: 32px; }
       .hero p { font-size: 15px; }
       .hero .actions .btn { flex: 1 1 100%; justify-content: center; }
       .channel { padding: 18px 14px; }
     }
 
-    footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 28px 20px;
+    footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 20px;
       border-top: 1px solid var(--border); line-height: 1.9; }
 
   </style>
@@ -205,6 +205,9 @@
     <symbol id="i-anchor" viewBox="0 0 24 24"><circle cx="12" cy="5.4" r="2.4"/><path d="M12 7.8v12.4M7.6 10.2h8.8"/><path d="M4.6 14.6c0 3.6 3.3 5.6 7.4 5.6s7.4-2 7.4-5.6"/></symbol>
     <symbol id="i-editor" viewBox="0 0 24 24"><rect x="2.8" y="4.2" width="18.4" height="12.6" rx="2.2"/><path d="M1.5 20.2h21"/><path d="M9.6 8.4 7.4 10.5l2.2 2.1M14.4 8.4l2.2 2.1-2.2 2.1"/></symbol>
     <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5.4" width="18" height="13.2" rx="2.2"/><path d="m3.8 7 8.2 6 8.2-6"/></symbol>
+    <symbol id="i-automation" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.1"/><path d="M12 2.6v3M12 18.4v3M21.4 12h-3M5.6 12h-3M18.6 5.4l-2.1 2.1M7.5 16.5l-2.1 2.1M18.6 18.6l-2.1-2.1M7.5 7.5 5.4 5.4"/></symbol>
+    <symbol id="i-tailor" viewBox="0 0 24 24"><path d="M3.4 8.6 12 3.6l8.6 5v6.8L12 20.4l-8.6-5z"/><path d="M12 11.6v8.8M3.6 8.7 12 13.5l8.4-4.8"/></symbol>
+    <symbol id="i-briefcase" viewBox="0 0 24 24"><rect x="2.8" y="7.2" width="18.4" height="13" rx="2.4"/><path d="M8.6 7.2V5.6a2 2 0 0 1 2-2h2.8a2 2 0 0 1 2 2v1.6"/><path d="M2.8 12.4h18.4M10.4 12.4v2.2h3.2v-2.2"/></symbol>
     <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3.2 4.8 6.1v6c0 4.3 3 7.3 7.2 8.7 4.2-1.4 7.2-4.4 7.2-8.7v-6z"/><path d="m8.8 12.2 2.2 2.2 4.2-4.4"/></symbol>
   </svg>
 
@@ -270,8 +273,20 @@
     </div>
 
     <h2 class="section" id="services">خدماتنا</h2>
-    <p class="sub">ما نقوم به لعملائنا — تطوير من الصفر، أو بناء فوق ما لديكم.</p>
+    <p class="sub">أتمتة، وتطبيقات مبنية على مقاس عملك — من الصفر، أو فوق ما لديكم.</p>
     <div class="grid grid-3">
+      <div class="card">
+        <h3><svg class="ic" aria-hidden="true"><use href="#i-automation"/></svg> أتمتة العمليات</h3>
+        <p>نحوّل الخطوات اليدوية المتكررة إلى مسارات آلية: الموافقات، الفواتير، التقارير، والتنبيهات — تُنفَّذ وحدها بلا تدخّل.</p>
+      </div>
+      <div class="card">
+        <h3><svg class="ic" aria-hidden="true"><use href="#i-tailor"/></svg> تطبيق مخصّص بالكامل</h3>
+        <p>لا قوالب جاهزة تُطوّع لعملك. نبني التطبيق من الصفر على إجراءاتك أنت، بكل شاشة وحقل وصلاحية كما تحتاجها.</p>
+      </div>
+      <div class="card">
+        <h3><svg class="ic" aria-hidden="true"><use href="#i-briefcase"/></svg> تطبيق خاص لكل مشروع</h3>
+        <p>لأي نشاط ولأي حجم: مطاعم، مقاولات، عيادات، تجارة، خدمات. مشروعك يحصل على تطبيقه الخاص لا على نسخة من تطبيق غيره.</p>
+      </div>
       <div class="card">
         <h3><svg class="ic" aria-hidden="true"><use href="#i-blocks"/></svg> أنظمة الأعمال</h3>
         <p>أنظمة داخلية مفصّلة على إجراءات عملك: المخزون، الطلبات، الموارد البشرية، والتقارير.</p>
