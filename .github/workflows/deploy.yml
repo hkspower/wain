@@ -14,13 +14,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
+
+      # Fail early with a readable message instead of the FTP action's
+      # cryptic "Input required and not supplied: server".
+      - name: Check FTP credentials are configured
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          missing=""
+          [ -z "$FTP_SERVER" ]   && missing="$missing FTP_SERVER"
+          [ -z "$FTP_USERNAME" ] && missing="$missing FTP_USERNAME"
+          [ -z "$FTP_PASSWORD" ] && missing="$missing FTP_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):$missing"
+            echo "Add them at: Settings -> Secrets and variables -> Actions -> New repository secret"
+            echo "Values come from hPanel -> Files -> FTP Accounts."
+            echo "FTP_SERVER must be the bare host or IP (e.g. ftp.wainkw.com) - no ftp:// prefix, no path."
+            exit 1
+          fi
+          echo "All three FTP secrets are present."
 
       - name: Install dependencies
         run: npm ci
@@ -28,15 +49,26 @@ jobs:
       - name: Build static site (produces out/)
         run: npm run build
 
-      - name: Deploy out/ to Hostinger over FTP
+      - name: Verify build output
+        run: |
+          test -f out/index.html || { echo "::error::out/index.html missing"; exit 1; }
+          test -f out/.htaccess || echo "::warning::out/.htaccess missing - custom 404 will not work"
+          echo "Pages built: $(find out -name index.html | wc -l)"
+
+      - name: Deploy out/ to Hostinger
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftp
-          # The built static site:
+          # Hostinger supports explicit FTPS. Override by setting a repo
+          # variable FTP_PROTOCOL to "ftp" if plain FTP is required.
+          protocol: ${{ vars.FTP_PROTOCOL || 'ftps' }}
+          port: ${{ vars.FTP_PORT || 21 }}
           local-dir: ./out/
-          # wainkw.com's document root on Hostinger. If your homepage lives
-          # somewhere else (e.g. /domains/wainkw.com/public_html/), change this.
-          server-dir: /public_html/
+          # wainkw.com's document root. Override with a repo variable
+          # FTP_SERVER_DIR if the domain serves from a different folder
+          # (e.g. /domains/wainkw.com/public_html/).
+          server-dir: ${{ vars.FTP_SERVER_DIR || '/public_html/' }}
+          # Never delete unrelated files that already live on the host.
+          dangerous-clean-slate: false
