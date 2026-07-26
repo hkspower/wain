@@ -34,8 +34,8 @@ const SECTIONS = [
   {
     h: { en: '3. Payment', ar: '٣. الدفع' },
     p: [{
-      en: 'You can pay online with KNET, Visa or Mastercard, or in cash to the driver when your order arrives. Online payment is processed by the Commercial Bank of Kuwait’s payment gateway: your card and KNET details are entered on the bank’s own page and are never seen, handled or stored by Sporta.',
-      ar: 'يمكنك الدفع إلكترونياً بكي نت أو فيزا أو ماستركارد، أو نقداً للمندوب عند وصول طلبك. وتتم معالجة الدفع الإلكتروني عبر بوابة الدفع لدى البنك التجاري الكويتي، فتُدخل بيانات بطاقتك أو كي نت في صفحة البنك نفسه، ولا تطّلع عليها سبورتا ولا تخزّنها إطلاقاً.',
+      en: 'You can pay online with KNET (Kuwaiti debit card), with Visa or Mastercard, through CBK T-Pay, or in cash to the driver when your order arrives. Online payment is processed by the Commercial Bank of Kuwait’s payment gateway: your card and KNET details are entered on the bank’s own page and are never seen, handled or stored by Sporta.',
+      ar: 'يمكنك الدفع إلكترونياً بكي نت (بطاقة السحب الكويتية) أو فيزا أو ماستركارد أو عبر تي-باي من البنك التجاري، أو نقداً للمندوب عند وصول طلبك. وتتم معالجة الدفع الإلكتروني عبر بوابة الدفع لدى البنك التجاري الكويتي، فتُدخل بيانات بطاقتك أو كي نت في صفحة البنك نفسه، ولا تطّلع عليها سبورتا ولا تخزّنها إطلاقاً.',
     }, {
       en: 'Cash on delivery is for orders inside Kuwait. Please have the amount ready — drivers do not always carry change. If your payment is taken but your order does not appear, contact us with your tracking number and we will resolve it.',
       ar: 'الدفع عند الاستلام متاح للطلبات داخل الكويت، ويُفضّل تجهيز المبلغ لأن المندوب قد لا يحمل فكة. وإذا خُصم المبلغ ولم يظهر طلبك، تواصل معنا مع رقم التتبّع وسنعالج الأمر.',

@@ -12,7 +12,7 @@
 --
 -- What the admin now sees, and why it matters:
 --   pending + knet  an abandoned or unverified card payment. Chase the bank.
---   pending + tpay  an abandoned or unverified T-Pay QR payment. Chase the bank.
+--   pending + tpay  an abandoned or unverified T-Pay payment. Chase the bank.
 --   pending + cod   a real order waiting to be delivered. Chase the driver.
 -- Those need opposite responses, which is exactly why they cannot share a row
 -- shape with no way to tell them apart.
@@ -28,7 +28,8 @@ do $$ begin
 end $$;
 
 comment on column public.orders.payment_method is
-  'knet = classic KNET (Tranportal, /knet). tpay = CBK hosted T-Pay QR (/pay). '
+  'knet = KNET debit card at the payment page (Tranportal, /knet). '
+  'tpay = CBK T-Pay online payment link (/pay). Same bank, separate setup. '
   'cod  = cash collected on delivery.';
 
 -- ============ 2. create_order accepts it ============

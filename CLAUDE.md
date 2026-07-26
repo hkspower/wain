@@ -36,9 +36,26 @@
   and `engines` (>=22.12). Vite 8 will not run on older Node.
 - **Frontend:** React 18 + TypeScript + Vite + Tailwind + shadcn/ui, react-router v7.
 - **Backend:** Supabase (Postgres, Auth, Edge Functions).
-- **Payments:** CBK Hosted KNET & T-Pay (REST-JSON + NVP), native PHP on Hostinger
-  under `public_html/pay/`. Implementation in `sporta-web/dropin/php-cbk/`.
-  CBK issues `ENCRP_KEY` + `AccessToken` — no client-side AES encryption.
+- **Payments — two products from the SAME bank (CBK), two separate setups**
+  (saved by user request — apply always):
+
+  | | **KNET** | **T-Pay** |
+  |---|---|---|
+  | What it is | payment page at checkout — the customer pays with a **Kuwaiti debit card** | an **online payment link** |
+  | Ships to | `public_html/knet/` | `public_html/pay/` |
+  | Source | `sporta-web/dropin/php-knet/` | `sporta-web/dropin/php-cbk/` |
+  | Credentials | Tranportal ID + password + 16-byte resource key (AES `trandata`) | `ClientId` + `ClientSecret` + `ENCRP_KEY` (CBK issues `AccessToken`; **no client-side AES**) |
+  | Config file | `knet/config.php` | `pay/config.php` |
+
+  Same bank, different activation, different credentials, different endpoints.
+  **Neither set of credentials works for the other**, and T-Pay cannot be served
+  through `/knet`. Both are selectable at checkout; `orders.payment_method` records
+  which was used (`knet` / `tpay` / `cod`).
+
+  CBK's manual describes the T-Pay selector as `tij_MerchPayType = 2`; the owner
+  describes the product as an online payment link. Customer-facing copy therefore
+  says "pay online with T-Pay" and does NOT promise a QR code — see the note in
+  `src/i18n/translations.js`.
 - **Admin quick-unlock:** device passcode feature in `sporta-web/dropin/` (TS/shadcn
   drop-ins) backed by Supabase RPCs set_/verify_/has_device_passcode.
 - **Language:** site is bilingual Arabic/English (RTL/LTR).

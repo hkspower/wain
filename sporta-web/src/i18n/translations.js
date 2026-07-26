@@ -87,8 +87,13 @@ export const translations = {
       payWith: 'How would you like to pay?',
       methodKnet: 'KNET / card',
       methodKnetHint: 'Pay now on the bank’s secure page.',
-      methodTpay: 'T-Pay QR',
-      methodTpayHint: 'Scan with your banking app to pay.',
+      // NOT "QR". CBK's manual calls tij_MerchPayType=2 the QR option, but the
+      // owner describes T-Pay as an online payment link — so this promises only
+      // what is certain: it is CBK, it is online, and it happens on their page.
+      // Telling a customer to scan something that turns out to be a link is a
+      // support call, and the wording costs nothing to keep neutral.
+      methodTpay: 'T-Pay (CBK)',
+      methodTpayHint: 'Pay online on CBK’s secure page.',
       methodCod: 'Cash on delivery',
       methodCodHint: 'Pay the driver when your order arrives.',
       placeOrder: 'Place order — pay on delivery',
@@ -272,8 +277,8 @@ export const translations = {
       payWith: 'كيف تحب تدفع؟',
       methodKnet: 'كي نت / بطاقة',
       methodKnetHint: 'ادفع الآن عبر صفحة البنك الآمنة.',
-      methodTpay: 'تي-باي — رمز QR',
-      methodTpayHint: 'امسح الرمز بتطبيق البنك لإتمام الدفع.',
+      methodTpay: 'تي-باي (البنك التجاري)',
+      methodTpayHint: 'ادفع إلكترونياً عبر صفحة البنك الآمنة.',
       methodCod: 'الدفع عند الاستلام',
       methodCodHint: 'ادفع للمندوب عند وصول طلبك.',
       placeOrder: 'تأكيد الطلب — الدفع عند الاستلام',

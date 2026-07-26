@@ -275,7 +275,7 @@ function OrderDrawer({ order, onClose, onChanged }) {
             <Field label="Amount" value={kwd(order.amount)} strong />
             <Field label="Paid at" value={when(order.paid_at)} />
             <Field label="Payment" value={order.payment_status} />
-            <Field label="Method" value={{ cod: 'Cash on delivery', tpay: 'CBK T-Pay QR', knet: 'KNET / card' }[order.payment_method] ?? order.payment_method} />
+            <Field label="Method" value={{ cod: 'Cash on delivery', tpay: 'CBK T-Pay (online payment link)', knet: 'KNET / card' }[order.payment_method] ?? order.payment_method} />
             <Field label="Fulfilment" value={order.fulfilment_status} />
             <Field label="KNET payment ID" value={order.cbk_paymentid || '—'} mono />
             <Field label="KNET reference" value={order.cbk_reference || '—'} mono />
