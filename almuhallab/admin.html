@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; worker-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'" />
   <meta name="referrer" content="no-referrer" />
   <meta name="robots" content="noindex, nofollow" />
@@ -191,6 +191,18 @@
       background: var(--tint-strong); color: #fff; padding: 9px 18px; border-radius: 999px;
       font-size: 13.5px; font-weight: 700; opacity: 0; pointer-events: none; transition: .2s; z-index: 80; }
     #toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ═══════ mobile ═══════ */
+    @media (max-width: 640px) {
+      header { padding: 10px 14px; }
+      .brand small { display: none; }
+      nav.tabs { padding: 0 10px; }
+      nav.tabs button { padding: 12px 10px; }
+      main { padding: 14px 12px 56px; }
+      input, select { font-size: 16px; }
+      .btn { min-height: 44px; }
+      .btn.sm { min-height: 34px; }
+    }
   </style>
 </head>
 <body>

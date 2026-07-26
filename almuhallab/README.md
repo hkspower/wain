@@ -137,7 +137,7 @@ visitor's OS happens to have installed.
 ## Tests
 
 ```bash
-python3 design/test_suite.py     # 148 checks, exits non-zero on failure
+python3 design/test_suite.py     # 159 checks, exits non-zero on failure
 ```
 
 Covers the **pinned Almuhallab identity** (the sail mark, the المهلب wordmark,
@@ -149,7 +149,8 @@ arithmetic against hand-computed expectations, the cross-module derivation
 (portfolio value → non-current assets, delivered orders → revenue), XBRL well-formedness and fact
 values, authentication (hashing, lockout, suspension, session expiry), XSS and
 CSV/XML injection, resilience to tampered `localStorage`, service-worker
-precaching and genuine offline loading, and layout overflow at three widths.
+precaching and genuine offline loading, layout overflow at three widths, and the mobile shell: the system's bottom
+tab bar, iOS-safe 16px inputs, and 44px touch targets.
 
 ## HTTP/3
 

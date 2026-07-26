@@ -207,6 +207,7 @@ def browser_checks():
         tamper_checks(pg)
         offline_checks(ctx, br)
         layout_checks(br)
+        mobile_checks(br)
         font_checks(pg)
 
         check("runtime", "no uncaught JavaScript errors anywhere", not errs, " | ".join(errs[:3]))
@@ -681,6 +682,59 @@ def layout_checks(br):
         want_light = bg.startswith("rgb(255, 255, 255")
         check(S, f"{scheme} theme applies", want_light if scheme == "light" else not want_light, bg)
         c.close()
+
+def mobile_checks(br):
+    """A phone gets an app, not a shrunken desktop: the system's tabs sit in a
+    fixed bottom bar within thumb reach, inputs hold 16px so iOS never zooms a
+    focused field, and primary controls meet the 44px touch target."""
+    S = "mobile"
+    c = br.new_context(viewport={"width": 390, "height": 844}, is_mobile=True,
+                       has_touch=True, locale="ar-KW")
+    p = c.new_page()
+
+    p.goto(f"{BASE}/nizam.html#/safi", wait_until="networkidle"); p.wait_for_timeout(300)
+    pos = p.eval_on_selector("nav.tabs", "e=>getComputedStyle(e).position")
+    check(S, "the system's tabs become a fixed bottom bar", pos == "fixed", pos)
+    bar = p.eval_on_selector("nav.tabs", "e=>e.getBoundingClientRect().bottom")
+    check(S, "the bar sits at the bottom of the viewport", abs(bar - 844) < 2, str(bar))
+    check(S, "tab buttons meet the touch-target floor",
+          p.eval_on_selector("nav.tabs button", "e=>e.getBoundingClientRect().height") >= 44)
+    fs = p.eval_on_selector('#safi-form input[name="ticker"]', "e=>parseFloat(getComputedStyle(e).fontSize)")
+    check(S, "inputs hold 16px so iOS does not zoom on focus", fs >= 16, f"{fs}px")
+    # the bar must never hide the content above it
+    clear = p.evaluate("""(() => {
+      const bar = document.querySelector('nav.tabs').getBoundingClientRect();
+      const main = document.querySelector('main');
+      return parseFloat(getComputedStyle(main).paddingBottom) >= (844 - bar.top) - 10;
+    })()""")
+    check(S, "content padding clears the bottom bar", clear)
+    # tabs still switch by touch
+    p.tap('nav.tabs button[data-tab="delivery"]'); p.wait_for_timeout(250)
+    check(S, "tapping the bar switches tabs", "#/delivery" in p.url)
+
+    # regression: a mobile display rule must never resurrect [hidden] elements
+    p.goto(f"{BASE}/nokhatha.html", wait_until="networkidle"); p.wait_for_timeout(300)
+    check(S, "logged-out nav hides dashboard and logout on mobile",
+          not p.is_visible("#nav-logout") and not p.is_visible("#nav-dash"))
+
+    p.goto(f"{BASE}/nokhatha.html#/register", wait_until="networkidle"); p.wait_for_timeout(300)
+    fs = p.eval_on_selector('#form-register input[name="email"]', "e=>parseFloat(getComputedStyle(e).fontSize)")
+    check(S, "portal inputs hold 16px too", fs >= 16, f"{fs}px")
+    h = p.eval_on_selector('#form-register button[type="submit"]', "e=>e.getBoundingClientRect().height")
+    check(S, "the register button meets the touch target", h >= 40, f"{h}px")
+
+    p.goto(f"{BASE}/index.html", wait_until="networkidle"); p.wait_for_timeout(300)
+    h = p.eval_on_selector('.hero .actions .btn', "e=>e.getBoundingClientRect().height")
+    check(S, "hero actions meet the touch target", h >= 44, f"{h}px")
+
+    p.goto(f"{BASE}/editor.html", wait_until="networkidle"); p.wait_for_timeout(400)
+    stacked = p.evaluate("""(() => {
+      const ed = document.querySelector('.editors').getBoundingClientRect();
+      const pv = document.querySelector('.preview-wrap').getBoundingClientRect();
+      return pv.top >= ed.bottom - 2;
+    })()""")
+    check(S, "the editor stacks panes vertically", stacked)
+    c.close()
 
 def font_checks(pg):
     """The Arabic face must be bundled and actually used, not merely listed."""

@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; worker-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'" />
   <meta name="referrer" content="no-referrer" />
   <link rel="manifest" href="manifest.webmanifest" />
@@ -156,6 +156,30 @@
       background:var(--tint-strong); color:#fff; padding:9px 18px; border-radius:999px;
       font-size:13.5px; font-weight:700; opacity:0; pointer-events:none; transition:.2s; z-index:80; }
     #toast.on { opacity:1; transform:translateX(-50%) translateY(0); }
+
+    /* ═══════ mobile: the unified system behaves like an installed app ═══════
+       The tab strip moves to a fixed bottom bar within thumb reach, inputs hold
+       16px so iOS does not zoom the page on focus, controls grow to a 44px
+       touch target, and the bar respects the home-indicator safe area. */
+    @media (max-width: 640px) {
+      .topbar { position: static; }              /* only the bottom bar is fixed */
+      nav.tabs { position: fixed; bottom: 0; inset-inline: 0; z-index: 30;
+        border-bottom: 0; border-top: 1px solid var(--border); padding: 0;
+        background: var(--panel);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        box-shadow: 0 -1px 8px rgba(11, 18, 32, .06); }
+      nav.tabs button { flex: 1; border-bottom: 0; border-top: 2px solid transparent;
+        font-size: 12px; padding: 10px 2px 12px; min-height: 52px; }
+      nav.tabs button.on { border-top-color: var(--tint); }
+      main { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+      footer.site { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+      input, select { font-size: 16px; }         /* < 16px makes iOS zoom on focus */
+      .btn { min-height: 44px; }
+      .btn.sm { min-height: 36px; }              /* inline row actions stay compact */
+      .tile .n { font-size: 21px; }
+      main { padding-top: 14px; }
+      h2 { margin-top: 20px; }
+    }
   </style>
 </head>
 <body>

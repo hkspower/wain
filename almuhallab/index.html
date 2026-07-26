@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; worker-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'" />
   <meta name="referrer" content="no-referrer" />
   <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
@@ -71,6 +71,7 @@
     }
 
     * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
     body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--text); font-family: var(--sans); }
     a { color: var(--tint); text-decoration: none; }
 
@@ -129,6 +130,7 @@
       stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .ic.sm { width: 16px; height: 16px; stroke-width: 2; }
     .card h3 .ic { stroke: var(--tint); }
+    .btn.primary .ic { stroke: currentColor; }
     .card h3 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; }
     .card p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.7; }
     .chip {
@@ -186,6 +188,19 @@
     .channel .tile .ic { width: 25px; height: 25px; }
     .channel b { font-size: 15.5px; }
     .channel span.v { color: var(--muted); font-size: 13.5px; direction: ltr; unicode-bidi: isolate; }
+
+    /* ═══════ mobile ═══════ */
+    @media (max-width: 640px) {
+      header { padding: 10px 14px; }
+      .brand small { display: none; }
+      nav a, .btn { padding: 10px 12px; min-height: 44px; display: inline-flex; align-items: center; }
+      main { padding: 22px 14px 56px; }
+      .hero { padding: 26px 0 6px; }
+      .hero p { font-size: 15px; }
+      .hero .actions .btn { flex: 1 1 100%; justify-content: center; }
+      h2.section { margin-top: 34px; }
+      .channel { padding: 18px 14px; }
+    }
 
     footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 24px;
       border-top: 1px solid var(--border); line-height: 1.9; }

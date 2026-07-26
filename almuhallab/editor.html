@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src * 'self' data: blob:; frame-src about: data: blob:; font-src 'self'; manifest-src 'self'; worker-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'" />
   <meta name="referrer" content="no-referrer" />
   <link rel="manifest" href="manifest.webmanifest" />
@@ -191,6 +191,13 @@
       .editors, .preview-wrap { width: 100%; }
       .editors { border-right: 0; border-bottom: 1px solid var(--border); }
       .brand small { display: none; }
+    }
+    @media (max-width: 640px) {
+      header { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+      .btn { min-height: 44px; }
+      .editors { height: 55vh; }                 /* typing space first, preview below */
+      .preview-wrap { min-height: 45vh; }
+      textarea { font-size: 16px !important; }   /* < 16px makes iOS zoom on focus */
     }
 
     .toast {
