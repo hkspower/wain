@@ -14,7 +14,7 @@ import { chromium } from 'playwright'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 
-const ROOT = '/tmp/pdfroot'
+const ROOT = '/tmp/site'
 const CONFIG = `${ROOT}/config.js`
 // The shipped, unedited template — read from source, never from whatever a
 // previous (possibly crashed) run left on disk. Trusting the file made the

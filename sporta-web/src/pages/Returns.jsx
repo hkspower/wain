@@ -214,6 +214,8 @@ export default function Returns() {
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder={c.search}
+        type="search"
+        aria-label={c.search}
         className="mb-4 w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-slate-900 outline-none focus:border-brand"
       />
       <div className="mb-10 grid max-h-80 grid-cols-1 gap-2 overflow-y-auto pe-1 sm:grid-cols-2">
