@@ -1,7 +1,7 @@
 /* Nokha1 service worker — precache the app shell, serve cache-first, refresh in background. */
 "use strict";
 
-var CACHE = "nokha1-v3";
+var CACHE = "nokha1-v4";
 var ASSETS = [
   "./",
   "index.html",
@@ -12,7 +12,10 @@ var ASSETS = [
   "admin.html",
   "nokha1.html",
   "manifest.webmanifest",
-  "icon.svg"
+  "icon.svg",
+  "fonts/plex-arabic-400.woff2",
+  "fonts/plex-arabic-600.woff2",
+  "fonts/plex-arabic-700.woff2"
 ];
 
 self.addEventListener("install", function (event) {

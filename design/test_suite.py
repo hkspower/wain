@@ -131,6 +131,7 @@ def browser_checks():
         tamper_checks(pg)
         offline_checks(ctx, br)
         layout_checks(br)
+        font_checks(pg)
 
         check("runtime", "no uncaught JavaScript errors anywhere", not errs, " | ".join(errs[:3]))
         br.close()
@@ -487,6 +488,29 @@ def layout_checks(br):
         want_light = bg.startswith("rgb(255, 255, 255")
         check(S, f"{scheme} theme applies", want_light if scheme == "light" else not want_light, bg)
         c.close()
+
+def font_checks(pg):
+    """The Arabic face must be bundled and actually used, not merely listed."""
+    S = "typography"
+    pg.goto(f"{BASE}/index.html", wait_until="networkidle")
+    pg.wait_for_timeout(900)
+    loaded = pg.evaluate("document.fonts.check('400 16px \"Plex Arabic\"')")
+    check(S, "the bundled Arabic face loads", loaded)
+    fam = pg.evaluate("getComputedStyle(document.querySelector('h1')).fontFamily")
+    check(S, "Arabic text resolves to the bundled face first",
+          fam.strip().startswith('"Plex Arabic"') or fam.strip().startswith("Plex Arabic"), fam)
+    faces = pg.evaluate("[...document.fonts].filter(f=>f.family==='Plex Arabic').length")
+    check(S, "all three weights are declared", faces == 3, f"{faces} faces")
+    # the CSP must permit the font, or it silently never paints
+    csp = pg.evaluate("document.querySelector('meta[http-equiv=\"Content-Security-Policy\"]').content")
+    check(S, "CSP allows self-hosted fonts", "font-src 'self'" in csp)
+    # and it must survive offline, since it is part of the shell
+    cached = pg.evaluate("""caches.keys().then(ks => ks.length
+        ? caches.open(ks[0]).then(c => c.keys().then(rs => rs.map(r => new URL(r.url).pathname)))
+        : [])""")
+    check(S, "fonts are precached for offline use",
+          sum(1 for p in cached if p.endswith(".woff2")) == 3,
+          f"{sum(1 for p in cached if p.endswith('.woff2'))} cached")
 
 # ═══════════════════════════════════════════ run
 static_checks()

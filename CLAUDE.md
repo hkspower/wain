@@ -22,6 +22,10 @@ no build step and no dependencies.
 - Colour values are **solved numerically against WCAG targets**, never picked by
   eye. Text ≥ 4.5:1 (body ≥ 7:1) against the *darkest* surface it can land on;
   essential UI boundaries ≥ 3:1; chart marks ≥ 2:1.
+- Arabic is set in bundled **IBM Plex Sans Arabic** (`almuhallab/fonts/`,
+  Arabic subset, weights 400/600/700). Never link a webfont CDN — the CSP blocks
+  it. Any new page must declare the three `@font-face` rules, carry
+  `font-src 'self'`, and be added to the service-worker precache.
 - Charts are hand-built inline SVG — the strict CSP forbids any chart library.
   Colour follows the encoding job: ordinal one-hue ramps where order carries
   meaning, a diverging pair for profit/loss where the sign is *also* shown by

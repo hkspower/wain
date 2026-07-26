@@ -14,7 +14,7 @@ F_DISP = FONTS + "Italiana-Regular.ttf"
 F_TECH = FONTS + "Jura-Light.ttf"
 F_MED  = FONTS + "Jura-Medium.ttf"
 F_MONO = FONTS + "GeistMono-Regular.ttf"
-F_AR   = "/usr/share/fonts/truetype/freefont/FreeSerif.ttf"   # the only refined Naskh available
+F_AR   = "/home/user/wain/design/fonts/plex-arabic-600.ttf"   # IBM Plex Sans Arabic, bundled
 
 INK        = (11, 18, 32)
 INK_SOFT   = (17, 26, 43)

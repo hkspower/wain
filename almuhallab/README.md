@@ -93,6 +93,21 @@ push to `main`. Enable it once in the repo: **Settings → Pages → Source:
 Cloudflare Pages, or your own server) works the same way — just serve this
 folder.
 
+## Typography
+
+Arabic is set in **IBM Plex Sans Arabic** (SIL OFL), bundled in `fonts/` rather
+than fetched from a CDN — the strict CSP forbids external origins, and a
+self-hosted face renders identically everywhere instead of depending on what the
+visitor's OS happens to have installed.
+
+- Arabic subset only, three weights (400/600/700) — 136 KB total. Latin and
+  digits stay on the system face, which is well-drawn on every platform and
+  keeps numerals native.
+- `font-display: swap`, the 400 weight preloaded, and all three precached by the
+  service worker so the face is present offline.
+- The CSP carries `font-src 'self'`; without it the browser silently refuses to
+  paint a self-hosted font.
+
 ## Tests
 
 ```bash

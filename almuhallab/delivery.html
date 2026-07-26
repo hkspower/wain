@@ -3,22 +3,40 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; manifest-src 'self'; worker-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; manifest-src 'self'; worker-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'" />
   <meta name="referrer" content="no-referrer" />
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b1220" />
+  <link rel="preload" as="font" type="font/woff2" href="fonts/plex-arabic-400.woff2" crossorigin />
   <link rel="icon" type="image/svg+xml" href="icon.svg" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>التوصيل — Delivery | Nokha1</title>
   <style>
+    /* IBM Plex Sans Arabic — bundled, not fetched from a CDN: the strict CSP
+       forbids external origins, and a self-hosted face renders identically on
+       every device instead of depending on what the OS happens to have.
+       Arabic subset only; Latin and digits stay on the system face. */
+    @font-face {
+      font-family: "Plex Arabic"; font-style: normal; font-weight: 400;
+      font-display: swap; src: url("fonts/plex-arabic-400.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "Plex Arabic"; font-style: normal; font-weight: 600;
+      font-display: swap; src: url("fonts/plex-arabic-600.woff2") format("woff2");
+    }
+    @font-face {
+      font-family: "Plex Arabic"; font-style: normal; font-weight: 700;
+      font-display: swap; src: url("fonts/plex-arabic-700.woff2") format("woff2");
+    }
+
     :root {
       --bg: #ffffff; --panel: #ffffff; --panel-2: #f1f4f8; --border: #d0d7e1; --dot-js: #836407; --code-dim: #5e6979; --warn-bg: #ffffff; --info: #1964ce; --border-input: #858d99; --panel-3: #e6ebf1;
       --text: #1b2430; --muted: #586981; --tint: #0e756b; --tint-strong: #0f8075;
       --sand: #9e5603; --sand-vivid: #e3a556; --danger: #ce1925; --good: #02783d;
-      --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Kufi Arabic",sans-serif;
+      --sans:"Plex Arabic", system-ui,-apple-system,"Segoe UI",Roboto,"Noto Kufi Arabic",sans-serif;
       --mono:ui-monospace,Menlo,Consolas,monospace;
     }
     /* Devices set to dark keep the original ink scheme. */
