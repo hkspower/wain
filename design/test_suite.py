@@ -223,7 +223,16 @@ def home_checks(pg):
                     "لماذا المهلب كود", "تواصل معنا"):
         check(S, f"the page still carries: {heading}", heading in pg.inner_text("main"))
     cards = pg.eval_on_selector_all(".card", "n=>n.length")
-    check(S, "every section is rendered as cards in the shared grid", cards == 20, f"{cards} cards")
+    check(S, "the card sections are all present", cards == 13, f"{cards} cards")
+    # the first version's own components: two wide product rows, numbered steps,
+    # and the contact bar
+    check(S, "the products are wide rows, not tiles",
+          pg.eval_on_selector_all(".product", "n=>n.length") == 2)
+    check(S, "the lead product is marked as the flagship",
+          pg.eval_on_selector_all(".product.lead", "n=>n.length") == 1)
+    check(S, "how-we-work is the numbered steps list",
+          pg.eval_on_selector_all("ol.steps li", "n=>n.length") == 4)
+    check(S, "contact is the wide bar", pg.eval_on_selector_all(".contact", "n=>n.length") == 1)
     # emoji render as a different typeface, weight and colour on every platform;
     # the drawn set must have replaced them everywhere on the public page
     check(S, "the page carries no emoji icons",
@@ -235,9 +244,9 @@ def home_checks(pg):
                       " !!document.querySelector(u.getAttribute('href')))"))
     check(S, "the contact address survived",
           "info@almuhallab-code.com" in pg.inner_text("main"))
-    check(S, "Nokha1 and the editor both open from their cards",
-          pg.eval_on_selector_all('.card a[href="nokha1.html"]', "n=>n.length") == 1
-          and pg.eval_on_selector_all('.card a[href="editor.html"]', "n=>n.length") == 1)
+    check(S, "Nokha1 and the editor both open from their rows",
+          pg.eval_on_selector_all('.product a[href="nokha1.html"]', "n=>n.length") == 1
+          and pg.eval_on_selector_all('.product a[href="editor.html"]', "n=>n.length") == 1)
 
 # ───────────── the integration: one data core feeding the statements
 def integration_checks(pg):

@@ -137,7 +137,7 @@ visitor's OS happens to have installed.
 ## Tests
 
 ```bash
-python3 design/test_suite.py     # 120 checks, exits non-zero on failure
+python3 design/test_suite.py     # 124 checks, exits non-zero on failure
 ```
 
 Covers the company/product split (the root is the company site and carries no
