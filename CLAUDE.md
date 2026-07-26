@@ -74,11 +74,11 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   identified by its commercial-registration number. Final submission is via the
   Ministry of Commerce portal — say so, never imply the file itself is the
   submission.
-- Every colour is a CSS custom property in `:root`, with a
-  `@media (prefers-color-scheme: dark)` override. **All pages must carry the
-  identical token set** — divergence between pages has been a real bug before.
+- Every colour is a CSS custom property in one `:root` block. **All pages must
+  carry the identical token set** — divergence between pages has been a real bug
+  before.
 - Colour values are **solved numerically against WCAG targets**, never picked by
-  eye. Text ≥ 4.5:1 (body ≥ 7:1) against the *darkest* surface it can land on;
+  eye. Text ≥ 4.5:1 (body ≥ 7:1) against the darkest surface it can land on;
   essential UI boundaries ≥ 3:1; chart marks ≥ 2:1.
 - **The company's real identity, from the live site**: the mark is a dhow's
   lateen sail over the water (`logo.svg`, and `#i-sail` in the page sprite), the
