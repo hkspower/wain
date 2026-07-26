@@ -76,10 +76,10 @@ dr.line([W // 2 - 430, 1310, W // 2 + 430, 1310], fill=BORDER, width=3)
 ls_text(dr, W // 2, 1372, "SOFTWARE  AND  SYSTEMS  —  KUWAIT", font(F_TECH, 54), MUTED, 15, "ct")
 ls_text(dr, W // 2, 1520, "WEBSITE SAMPLE", font(F_MED, 62), TEAL, 22, "ct")
 ls_text(dr, W // 2, 1660, "www.almuhallab-code.com", font(F_MONO, 46), BONE, 4, "ct")
-ls_text(dr, W // 2, 1790, "NOKHATHA  ·  SAFI  ·  XBRL  ·  DELIVERY  ·  EDITOR", font(F_TECH, 38), MUTED, 12, "ct")
+ls_text(dr, W // 2, 1790, "NOKHATHA  ·  SAFI  ·  XBRL  ·  DELIVERY", font(F_TECH, 38), MUTED, 12, "ct")
 dr.line([260, 2270, W - 260, 2270], fill=BORDER, width=2)
 ls_text(dr, 260, 2320, "PROGRESSIVE WEB APP — OFFLINE CAPABLE", font(F_MONO, 32), MUTED, 2)
-ls_text(dr, W - 260, 2320, "13 SCREENS", font(F_MONO, 32), BRASS, 2, "rt")
+ls_text(dr, W - 260, 2320, "12 SCREENS", font(F_MONO, 32), BRASS, 2, "rt")
 pages.append(im)
 
 # ------------------------------------------------------------------ CONTENTS
@@ -96,9 +96,8 @@ rows = [
     ("07", "XBRL", "الميزانية السنوية", "Kuwait annual filing: computed, audited, IFRS-tagged"),
     ("08", "Delivery", "التوصيل", "Orders, couriers, status pipeline"),
     ("09", "Unified Position", "المركز المالي", "One core — portfolio and orders feed the filing"),
-    ("10", "Code Editor", "المحرر", "Sandboxed live preview"),
-    ("11", "Mobile", "الجوال", "Installed app, three screens"),
-    ("12", "Specification", "المواصفات", "Stack, security, deployment"),
+    ("10", "Mobile", "الجوال", "Installed app, three screens"),
+    ("11", "Specification", "المواصفات", "Stack, security, deployment"),
 ]
 y = 590
 fnum, fen, far, fd = font(F_MONO, 46), font(F_MED, 60), font(F_TECH, 52), font(F_TECH, 40)
@@ -122,7 +121,6 @@ plates = [
     ("07-xbrl",     "07", "XBRL — Annual Filing", "الميزانية السنوية", "/nizam#/xbrl"),
     ("08-delivery", "08", "Delivery", "التوصيل", "/nizam#/delivery"),
     ("09-position", "09", "Unified Position", "المركز المالي", "/nizam#/position"),
-    ("10-editor",   "10", "Code Editor", "المحرر", "/editor"),
 ]
 fnum_s, fttl, far_s, furl = font(F_MONO, 40), font(F_MED, 64), font(F_TECH, 54), font(F_MONO, 34)
 
@@ -154,7 +152,7 @@ ls_text(dr, 360, 138, "Installed on device", fttl, BONE, 5)
 ar_text(dr, W - 250, 138, "الجوال", 62, TEAL, "rt")
 dr.line([250, 268, W - 250, 268], fill=BORDER, width=3)
 
-mobiles = [("11-m-company", "المهلب كود"), ("12-m-safi", "صافي"), ("13-m-position", "المركز المالي")]
+mobiles = [("10-m-company", "المهلب كود"), ("11-m-safi", "صافي"), ("12-m-position", "المركز المالي")]
 avail_h = H - 268 - 300
 fcap = font(F_TECH, 46)
 for i, (fn, cap) in enumerate(mobiles):

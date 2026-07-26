@@ -145,10 +145,6 @@ with sync_playwright() as p:
     page.wait_for_timeout(600)
     snap(page, "09-position", "المركز المالي — Unified position", "/nizam.html#/position")
 
-    # ---------------------------------------------------------- editor
-    page.goto(f"{BASE}/editor.html", wait_until="networkidle")
-    page.wait_for_timeout(1200)
-    snap(page, "10-editor", "Almuhallab Code — Editor", "/editor.html", full=False)
 
     # ---------------------------------------------------------- mobile
     m = browser.new_context(viewport={"width": 402, "height": 874},
@@ -169,9 +165,9 @@ with sync_playwright() as p:
         "localStorage.setItem('nokhatha-delivery-couriers-v1', %s);"
         % (json.dumps(seed_safi), json.dumps(seed_orders), json.dumps(seed_couriers)))
     mp = m.new_page()
-    for nm, url, title in [("11-m-company", "index.html", "Company — mobile"),
-                           ("12-m-safi", "nizam.html#/safi", "SAFI — mobile"),
-                           ("13-m-position", "nizam.html#/position", "Position — mobile")]:
+    for nm, url, title in [("10-m-company", "index.html", "Company — mobile"),
+                           ("11-m-safi", "nizam.html#/safi", "SAFI — mobile"),
+                           ("12-m-position", "nizam.html#/position", "Position — mobile")]:
         mp.goto(f"{BASE}/{url}", wait_until="networkidle")
         mp.wait_for_timeout(700)
         mp.screenshot(path=str(OUT / f"{nm}.png"), full_page=False)

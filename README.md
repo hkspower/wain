@@ -1,65 +1,26 @@
-# Wain? — وين؟ (Native App)
+# المهلب كود — Almuhallab Code
 
-**Wain** (وين, "where?" in Kuwaiti Arabic) answers the eternal group-chat question: **wain nrooh? — where shall we go?**
+The website of **Almuhallab Code**, a software company in Kuwait, and **النوخذة**,
+the unified system it built and runs.
 
-A full **native mobile app** for iPhone and Android (with web support as a bonus), built with Expo and React Native. Curated landmarks, food, beaches, shopping, culture, and family spots across Kuwait — each with highlights, the best time to visit, and a price level.
+Everything shipped lives in [`almuhallab/`](almuhallab/) — a static HTML5
+Progressive Web App with no build step and no dependencies. See
+[`almuhallab/README.md`](almuhallab/README.md) for the site map, the النوخذة
+system, the Kuwaiti annual XBRL filing, and how to run and publish it.
 
-## Tech stack
+## Layout
 
-- [Expo SDK 57](https://expo.dev) + [React Native](https://reactnative.dev) (TypeScript)
-- [Expo Router](https://docs.expo.dev/router/introduction/) — file-based navigation with native tabs and stack
-- Light & dark mode, English & Arabic content
-- Fully offline — no database or API keys needed to run
+| Path | What |
+|------|------|
+| `almuhallab/` | the site and the system — the deployable folder |
+| `design/` | test suite, screenshot capture, PDF sample builder, admin console test |
+| `CLAUDE.md` | project rules: the locked identity, naming, colour method, working practice |
 
-## Getting started
-
-```bash
-npm install
-npm start
-```
-
-Then:
-
-- Press **i** for the iOS simulator, **a** for Android, or **w** for web
-- Or scan the QR code with the [Expo Go](https://expo.dev/go) app on your phone
-
-## Project structure
-
-```
-src/
-├── app/
-│   ├── _layout.tsx           # Root stack (tabs + detail + about)
-│   ├── (tabs)/
-│   │   ├── _layout.tsx       # Native bottom tabs (Home, Explore)
-│   │   ├── index.tsx         # Home — hero, categories, featured
-│   │   └── explore.tsx       # Search + category filters
-│   ├── place/[slug].tsx      # Place detail screen
-│   └── about.tsx             # About Wain
-├── components/
-│   ├── app-tabs.tsx          # Native tabs (iOS/Android)
-│   ├── app-tabs.web.tsx      # Web tab bar
-│   ├── place-card.tsx
-│   ├── category-pill.tsx
-│   ├── themed-text.tsx
-│   └── themed-view.tsx
-├── constants/theme.ts        # Wain colors (light/dark), spacing, fonts
-├── hooks/                    # Color-scheme + theme hooks
-└── lib/places.ts             # Place data, categories, and helpers
-```
-
-## Adding a place
-
-Add an entry to the `places` array in `src/lib/places.ts` — the explore list, category filters, and the detail screen at `/place/<slug>` all pick it up automatically.
-
-## Building for the stores
-
-This project uses [Expo](https://docs.expo.dev/build/setup/), so production builds are one command with EAS:
+## Tests
 
 ```bash
-npx eas build --platform ios
-npx eas build --platform android
+python3 design/test_suite.py     # full system test, exits non-zero on failure
+python3 design/admin_test.py     # admin console
+python3 design/capture.py        # screenshots every page
+python3 design/build_pdf.py      # composes the PDF sample
 ```
-
----
-
-Made with ❤️ in Kuwait 🇰🇼

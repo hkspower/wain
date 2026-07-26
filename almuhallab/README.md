@@ -16,7 +16,6 @@ inside it, entered at `/nokhatha` — not the front door.
 | `nokhatha.html` | **النوخذة portal** — landing, registration, login, dashboard, plans |
 | `nizam.html` | **النظام الموحد** — one page, four tabs: المركز المالي · صافي · XBRL · التوصيل |
 | `safi.html`, `xbrl.html`, `delivery.html` | redirects to the matching tab (keeps old links working) |
-| `editor.html` | **Almuhallab Code** — in-browser HTML/CSS/JS editor |
 | `admin.html` | **Admin console** — customers, operations, finance, settings |
 | `404.html` | not-found page that returns visitors to the portal |
 | `manifest.webmanifest`, `sw.js`, `icon.svg`, `logo.svg` | PWA app manifest, offline service worker, ⚓ النوخذة icon, and the Almuhallab Code company mark |
@@ -29,8 +28,8 @@ Arabic-first (RTL) and presented as **one system**:
 - **Registration & login** — PBKDF2-hashed passwords (Web Crypto), login
   throttling, 24-hour sessions (see `SECURITY.md`)
 - **Dashboard** with stats and one-click access to every service unit
-- **Plans** (بحّار / قبطان / نوخذة) marked *قريباً* — pricing and payment come
-  later; every service is unlocked for every registered account in the meantime
+- **Free** — one plan, every unit open to every registered account. No price, no
+  payment, nothing to upgrade to
 
 ## One system, not three
 
@@ -75,8 +74,6 @@ and the admin console keep working.
 - **التوصيل — Delivery**: create orders with auto IDs (`ORD-0001`), advance
   them through جديد → قيد التحضير → في الطريق → تم التسليم (or cancel),
   manage couriers, filter by status, and track delivered revenue.
-- **Almuhallab Code**: three-pane editor with line numbers, sandboxed live
-  preview, autosave, copy/download, Tab-indent, and Ctrl/Cmd+S to run.
 
 ## Admin console
 
@@ -147,7 +144,7 @@ visitor's OS happens to have installed.
 ## Tests
 
 ```bash
-python3 design/test_suite.py     # 191 checks, exits non-zero on failure
+python3 design/test_suite.py     # 196 checks, exits non-zero on failure
 ```
 
 Covers the **pinned Almuhallab identity** (the sail mark, the المهلب wordmark,

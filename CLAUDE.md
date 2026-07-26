@@ -40,6 +40,7 @@ Locked, exactly as they are:
 | Surfaces | **white on every device** — no dark theme; white page, white cards, cool near-neutral greys. Brown is ink, never paper |
 | Icons | the drawn `<symbol>` sprite — no emoji anywhere on the public page |
 | Layout | hero · card grids · wide `.product` rows · `ol.steps` · contact channels |
+| Products | **النوخذة only.** The in-browser code editor was retired at the owner's request — do not reintroduce it |
 | Contact | واتساب `+965 6589 4110` · انستغرام `@almuhallab.code` · `hello@almuhallab-code.com` |
 
 `design/test_suite.py` pins every one of these (section `identity`). If a change
@@ -58,7 +59,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   the first version's own components: wide `.product` rows for the systems the
   company built, `ol.steps` for how we work, and the `.contact` bar.
 - `nokhatha.html` — the النوخذة portal · `nizam.html` (the unified system: المركز المالي · صافي ·
-  XBRL · التوصيل in four tabs over one data core) · `editor.html` ·
+  XBRL · التوصيل in four tabs over one data core) ·
   `admin.html` · `sw.js` · `manifest.webmanifest` (its `start_url` is
   `nokhatha.html` — the installable app is النوخذة, not the company brochure)
 - `safi.html`, `xbrl.html`, `delivery.html` are **redirect stubs** to
@@ -67,6 +68,9 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - The units are linked, not merely co-located: portfolio market value feeds the
   XBRL investments line (rolling into non-current assets), delivered-order
   totals feed XBRL revenue.
+- **النوخذة is free.** One plan, every unit open, no price and nothing to upgrade
+  to — in the portal and in the admin console alike. Don't reintroduce tiers,
+  prices or projected revenue.
 - The XBRL unit is the **Kuwaiti annual filing**: subtotals are computed from
   line items (never typed), and an audit pass reports errors that block filing,
   companies-law warnings, and suggestions with amounts (statutory reserve 10%,
@@ -113,7 +117,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 191 checks covering
+- `python3 design/test_suite.py` is the full system test — 196 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it

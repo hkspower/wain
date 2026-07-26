@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>النوخذة | نظام موحّد من المهلب كود</title>
-  <meta name="description" content="النوخذة — نظام موحد يجمع صافي (SAFI) وتقارير XBRL ونظام التوصيل في مكان واحد، مع تسجيل واشتراك شهري لعملاء المهلب." />
+  <meta name="description" content="النوخذة — نظام موحد يجمع صافي (SAFI) وتقارير XBRL ونظام التوصيل في مكان واحد، مجاناً بالكامل لعملاء المهلب." />
   <style>
     /* Tajawal (SIL OFL) — bundled, never fetched from a CDN: the strict CSP
        forbids external origins, and a self-hosted face renders identically on
@@ -114,7 +114,8 @@
     .sub { color: var(--muted); margin: 0 0 18px; line-height: 1.8; }
 
     /* Pricing */
-    .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 24px; }
+    .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 24px;
+      max-width: 420px; margin-inline: auto; }   /* one free plan — a single centred card */
     .plan { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
     .plan.featured { border-color: var(--tint-strong); box-shadow: 0 0 0 1px var(--tint-strong); }
     .plan .name { font-weight: 800; font-size: 17px; }
@@ -186,7 +187,7 @@
     <nav id="nav">
       <a href="index.html">← المهلب كود</a>
       <a href="#/" data-route="/">الرئيسية</a>
-      <a href="#/pricing" data-route="/pricing">الاشتراكات</a>
+      <a href="#/pricing" data-route="/pricing">الاشتراك</a>
       <a href="#/dashboard" data-route="/dashboard" id="nav-dash" hidden>لوحة التحكم</a>
       <a href="#/login" data-route="/login" id="nav-login">تسجيل الدخول</a>
       <a href="#/register" data-route="/register" id="nav-register" class="btn primary">سجّل الآن</a>
@@ -207,13 +208,12 @@
         <h1>النوخذة يقود كل خدماتك<br /><span class="en">One captain. Every service. One system.</span></h1>
         <p>
           نظام النوخذة من المهلب يجمع خدماتك في وحدة واحدة — صافي (SAFI) لمتابعة المحافظ،
-          تقارير XBRL المالية، ونظام التوصيل — بنظام واحد واشتراك شهري واحد.
-          سجّل حسابك، اختر باقتك، وابدأ.
+          تقارير XBRL المالية، ونظام التوصيل — بنظام واحد ومجاناً بالكامل.
+          سجّل حسابك وابدأ.
         </p>
         <div class="actions">
           <a class="btn primary" href="#/register">أنشئ حسابك مجاناً</a>
           <a class="btn outline" href="#/pricing">شاهد الباقات</a>
-          <a class="btn outline" href="editor.html">محرر الأكواد ↗</a>
         </div>
       </div>
 
@@ -224,12 +224,11 @@
 
     <!-- Pricing -->
     <section class="page" id="page-pricing">
-      <h2 class="section">الاشتراك الشهري — قريباً</h2>
-      <p class="sub">الأسعار والدفع سيُفعّلان لاحقاً. حالياً كل الخدمات متاحة لكل حساب مسجّل. الأرقام أدناه مبدئية للعرض فقط.</p>
+      <h2 class="section">الاشتراك مجاني</h2>
+      <p class="sub">النوخذة مجاني بالكامل — كل الوحدات مفتوحة لكل حساب، بلا رسوم ولا حدود ولا باقات.</p>
       <div class="plans" id="plans"></div>
       <p class="form-note" style="margin-top:18px">
-        * هذه نسخة تجريبية (Prototype): الدفع الفعلي يتطلب ربط بوابة دفع مثل
-        MyFatoorah أو Tap أو Stripe مع خادم خلفي — انظر ملف README.
+        لا تحتاج بطاقة ولا اشتراك: سجّل حسابك وابدأ فوراً.
       </p>
     </section>
 
@@ -261,8 +260,8 @@
     <!-- Dashboard -->
     <section class="page" id="page-dashboard">
       <div class="demo-banner">
-        ⚠️ <b>نسخة تجريبية:</b> الحسابات والاشتراكات محفوظة في متصفحك فقط. للتشغيل الفعلي
-        (دفع حقيقي + حسابات مشتركة + ربط الخدمات)، يلزم خادم خلفي — التفاصيل في README.
+        ⚠️ <b>نسخة تجريبية:</b> الحسابات والبيانات محفوظة في متصفحك فقط. للتشغيل الفعلي
+        (حسابات مشتركة بين الأجهزة وربط الخدمات) يلزم خادم خلفي — التفاصيل في README.
       </div>
       <div class="dash-head">
         <div class="avatar" id="dash-avatar">؟</div>
@@ -271,7 +270,7 @@
           <div style="font-size:12.5px;color:var(--muted)" id="dash-email">—</div>
         </div>
         <span class="plan-badge" id="dash-plan">—</span>
-        <a class="btn outline" href="#/pricing" style="margin-inline-start:auto">ترقية الباقة</a>
+        <a class="btn outline" href="#/pricing" style="margin-inline-start:auto">تفاصيل الاشتراك</a>
       </div>
       <div class="stat-row">
         <div class="stat"><div class="n" id="stat-total">0</div><div class="l">إجمالي الخدمات</div></div>
@@ -279,7 +278,7 @@
         <div class="stat"><div class="n" id="stat-renew">—</div><div class="l">تاريخ التجديد</div></div>
       </div>
       <h2 class="section">وحدات النوخذة — Service Units</h2>
-      <p class="sub">كل الخدمات في نظام واحد. الوحدات المقفلة تفتح بترقية الاشتراك.</p>
+      <p class="sub">كل الوحدات مفتوحة لحسابك — النوخذة مجاني بالكامل.</p>
       <div class="grid" id="mcp-grid-dash"></div>
     </section>
   </main>
@@ -303,14 +302,18 @@
       var UNITS = [
         { id: "safi",     icon: "📊", name: "صافي — SAFI",          desc: "متابعة المحافظ والأرصدة وكشوفات المساهمين — ربح/خسارة وتصدير الكشوفات.", minPlan: 0, url: "nizam.html#/safi" },
         { id: "delivery", icon: "🛵", name: "التوصيل — Delivery",    desc: "نظام توصيل متكامل: إنشاء الطلبات، تتبّع الحالة، وإدارة المناديب.", minPlan: 0, url: "nizam.html#/delivery" },
-        { id: "xbrl",     icon: "🧾", name: "XBRL — الميزانية السنوية", desc: "إعداد الميزانية السنوية لشركات الكويت وفق إطار وزارة التجارة (IFRS): حساب تلقائي، كشف أخطاء باقتراحات، وملف XBRL جاهز.", minPlan: 0, url: "nizam.html#/xbrl" },
-        { id: "editor",   icon: "💻", name: "Almuhallab Editor",     desc: "محرر الأكواد بالمتصفح مع معاينة مباشرة HTML/CSS/JS.", minPlan: 0, url: "editor.html" }
+        { id: "xbrl",     icon: "🧾", name: "XBRL — الميزانية السنوية", desc: "إعداد الميزانية السنوية لشركات الكويت وفق إطار وزارة التجارة (IFRS): حساب تلقائي، كشف أخطاء باقتراحات، وملف XBRL جاهز.", minPlan: 0, url: "nizam.html#/xbrl" }
       ];
 
+      /* النوخذة is free. One plan, everything open — no tiers, no payment,
+         nothing to upgrade to. minPlan on a unit stays 0 for the same reason. */
       var PLANS = [
-        { id: 0, name: "بحّار — Basic",  price: "0",  features: ["صافي: متابعة المحفظة", "التوصيل: ٥٠ طلب شهرياً", "مستخدم واحد"] },
-        { id: 1, name: "قبطان — Pro",    price: "15", features: ["كل خدمات النظام", "XBRL: إيداع ربع سنوي", "توصيل غير محدود", "دعم بالبريد"], featured: true },
-        { id: 2, name: "نوخذة — Fleet",  price: "39", features: ["كل خدمات النظام", "XBRL: إيداعات غير محدودة + تدقيق", "فروع ومناديب متعددون", "دعم أولوية"] }
+        { id: 0, name: "النوخذة — مجاني", price: "0", featured: true,
+          features: ["صافي: متابعة المحافظ بلا حدود",
+                     "XBRL: الميزانية السنوية والإيداعات",
+                     "التوصيل: الطلبات والمناديب بلا حدود",
+                     "المركز المالي الموحد",
+                     "يعمل بلا إنترنت ويُثبَّت على الجوال"] }
       ];
 
       /* ---------- storage ---------- */
@@ -406,7 +409,7 @@
         var open = userPlan >= mcp.minPlan;
         var chip = showLock
           ? (open ? '<span class="chip on">✔ مفعّلة</span>'
-                  : '<span class="chip locked">🔒 تتطلب ' + PLANS[mcp.minPlan].name + '</span>')
+                  : '<span class="chip on">✔ مفعّلة</span>')
           : '<span class="chip on">✔ متاحة</span>';
         var openBtn = (showLock && open && mcp.url)
           ? '<a class="btn primary" style="text-align:center;margin-top:4px" href="' + mcp.url + '">فتح الخدمة ↗</a>' : '';
@@ -427,11 +430,11 @@
         document.getElementById("plans").innerHTML = PLANS.map(function (p) {
           var isCurrent = user && user.plan === p.id;
           var btn = isCurrent
-            ? '<button class="btn outline" disabled>باقتك الحالية</button>'
-            : '<button class="btn primary" data-plan="' + p.id + '">' + (p.id === 0 ? "ابدأ مجاناً" : "اشترك شهرياً") + '</button>';
+            ? '<button class="btn outline" disabled>مفعّل لحسابك</button>'
+            : '<button class="btn primary" data-plan="' + p.id + '">ابدأ مجاناً</button>';
           return '<div class="plan' + (p.featured ? " featured" : "") + '">' +
             '<div class="name">' + p.name + '</div>' +
-            '<div class="price">' + p.price + ' <small>د.ك / شهرياً</small></div>' +
+            '<div class="price">مجاناً <small>بلا رسوم شهرية</small></div>' +
             '<ul>' + p.features.map(function (f) { return "<li>" + f + "</li>"; }).join("") + '</ul>' +
             btn + '</div>';
         }).join("");
@@ -571,7 +574,7 @@
         users[user.email].plan = planId;
         users[user.email].renewAt = planId > 0 ? renew.toISOString() : null;
         writeUsers(users);
-        toast(planId > 0 ? "تم الاشتراك في " + PLANS[planId].name + " ✔ (تجريبي)" : "تم التحويل للباقة المجانية");
+        toast("حسابك مفعّل — كل الوحدات مفتوحة ✔");
         location.hash = "#/dashboard"; route();
       });
 

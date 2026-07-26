@@ -16,7 +16,7 @@ BASE = f"http://127.0.0.1:{PORT}"
 # index.html is the Almuhallab Code company site; Nokha1 is a product inside it,
 # entered at nokha1.html. The three service units are tabs of nizam.html, and the
 # old unit filenames survive as redirect stubs so existing links keep working.
-PAGES = ["index.html", "nokhatha.html", "nizam.html", "editor.html", "admin.html"]
+PAGES = ["index.html", "nokhatha.html", "nizam.html", "admin.html"]
 STUBS = {"safi.html": "nizam.html#/safi", "xbrl.html": "nizam.html#/xbrl",
          "delivery.html": "nizam.html#/delivery", "nokha1.html": "nokhatha.html"}
 
@@ -201,6 +201,7 @@ def browser_checks():
         pg.on("pageerror", lambda e: errs.append(str(e)))
 
         home_checks(pg)
+        pricing_checks(pg)
         safi_checks(pg)
         integration_checks(pg)
         xbrl_checks(pg)
@@ -279,6 +280,8 @@ def home_checks(pg):
         check(S, f"the page still carries: {heading}", heading in pg.inner_text("main"))
     cards = pg.eval_on_selector_all(".card", "n=>n.length")
     check(S, "the card sections are all present", cards == 16, f"{cards} cards")
+    check(S, "the retired code editor is gone from the page",
+          "editor.html" not in (ROOT / "index.html").read_text())
     # the services the company leads with
     for want in ("أتمتة العمليات", "تطبيق مخصّص بالكامل", "تطبيق خاص لكل مشروع"):
         check(S, f"services include: {want}", want in pg.inner_text("main"))
@@ -290,8 +293,8 @@ def home_checks(pg):
           len(rows) == 3 and set(rows.values()) == {3}, str(rows))
     # the first version's own components: two wide product rows, numbered steps,
     # and the contact bar
-    check(S, "the products are wide rows, not tiles",
-          pg.eval_on_selector_all(".product", "n=>n.length") == 2)
+    check(S, "the product is a wide row, not a tile",
+          pg.eval_on_selector_all(".product", "n=>n.length") == 1)
     check(S, "the lead product is marked as the flagship",
           pg.eval_on_selector_all(".product.lead", "n=>n.length") == 1)
     check(S, "how-we-work is the numbered steps list",
@@ -332,9 +335,27 @@ def home_checks(pg):
           pg.evaluate("[...document.querySelectorAll('use')].every(u =>"
                       " !!document.querySelector(u.getAttribute('href')))"))
 
-    check(S, "النوخذة and the editor both open from their rows",
-          pg.eval_on_selector_all('.product a[href="nokhatha.html"]', "n=>n.length") == 1
-          and pg.eval_on_selector_all('.product a[href="editor.html"]', "n=>n.length") == 1)
+    check(S, "النوخذة opens from its row",
+          pg.eval_on_selector_all('.product a[href="nokhatha.html"]', "n=>n.length") == 1)
+
+# ───────────── النوخذة is free: one plan, no price, nothing to upgrade to
+def pricing_checks(pg):
+    S = "pricing"
+    pg.goto(f"{BASE}/nokhatha.html#/pricing", wait_until="networkidle")
+    pg.wait_for_timeout(300)
+    txt = pg.inner_text("#page-pricing")
+    check(S, "the subscription is stated as free", "مجاناً" in txt and "الاشتراك مجاني" in txt)
+    check(S, "exactly one plan is offered",
+          pg.eval_on_selector_all("#plans .plan", "n=>n.length") == 1)
+    check(S, "no monthly price is shown", "د.ك / شهرياً" not in txt)
+    src = (ROOT / "nokhatha.html").read_text()
+    for gone in ("قبطان — Pro", "نوخذة — Fleet", 'price: "15"', 'price: "39"'):
+        check(S, f"the paid tier is gone: {gone}", gone not in src)
+    check(S, "every unit is open on the free plan",
+          "🔒" not in pg.inner_text("body"))
+    adm = (ROOT / "admin.html").read_text()
+    check(S, "the console projects no subscription revenue",
+          "الإيراد الشهري المتوقع" not in adm and "اشتراكات مدفوعة" not in adm)
 
 # ───────────── the integration: one data core feeding the statements
 def integration_checks(pg):
@@ -820,13 +841,6 @@ def mobile_checks(br):
     h = p.eval_on_selector('.hero .actions .btn', "e=>e.getBoundingClientRect().height")
     check(S, "hero actions meet the touch target", h >= 44, f"{h}px")
 
-    p.goto(f"{BASE}/editor.html", wait_until="networkidle"); p.wait_for_timeout(400)
-    stacked = p.evaluate("""(() => {
-      const ed = document.querySelector('.editors').getBoundingClientRect();
-      const pv = document.querySelector('.preview-wrap').getBoundingClientRect();
-      return pv.top >= ed.bottom - 2;
-    })()""")
-    check(S, "the editor stacks panes vertically", stacked)
     c.close()
 
 def font_checks(pg):
