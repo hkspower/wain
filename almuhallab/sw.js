@@ -1,7 +1,7 @@
 /* Nokha1 service worker — precache the app shell, serve cache-first, refresh in background. */
 "use strict";
 
-var CACHE = "nokha1-v7";
+var CACHE = "nokha1-v8";
 var ASSETS = [
   "./",
   "index.html",
@@ -14,7 +14,6 @@ var ASSETS = [
   "admin.html",
   "manifest.webmanifest",
   "icon.svg",
-  "logo.svg",
   "fonts/plex-arabic-400.woff2",
   "fonts/plex-arabic-600.woff2",
   "fonts/plex-arabic-700.woff2"

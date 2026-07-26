@@ -6,10 +6,8 @@
   backgrounds and surfaces. Use **white** for the page and cards, with
   near-neutral cool greys for recessed surfaces (inputs, hover) and borders.
   This applies to the website, the app, and any generated document or mockup.
-  The brand amber (`--sand-vivid`, used in the logo gradient and for warning
-  accents) and the brand **brown** (`--tint` / `--tint-strong`, the primary
-  accent since the identity change) are deliberate inks on white surfaces and
-  are not affected by this rule — it governs backgrounds and surfaces only.
+  The brand amber (`--sand-vivid`, used in the ⚓ logo gradient and for warning
+  accents) is a deliberate accent and is not affected by this rule.
 
 ## Almuhallab Code — `almuhallab/`
 
@@ -39,9 +37,6 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Colour values are **solved numerically against WCAG targets**, never picked by
   eye. Text ≥ 4.5:1 (body ≥ 7:1) against the *darkest* surface it can land on;
   essential UI boundaries ≥ 3:1; chart marks ≥ 2:1.
-- The company mark is `logo.svg` — an Arabic mīm (م) between code brackets on an
-  amber→brown gradient. Nokha1 keeps the ⚓ anchor (`icon.svg`); the company
-  brochure and the product are marked differently on purpose.
 - Arabic is set in bundled **IBM Plex Sans Arabic** (`almuhallab/fonts/`,
   Arabic subset, weights 400/600/700). Never link a webfont CDN — the CSP blocks
   it. Any new page must declare the three `@font-face` rules, carry
