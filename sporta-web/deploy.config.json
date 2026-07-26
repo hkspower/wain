@@ -65,9 +65,9 @@
     }
   },
   "ftp": {
-    "host": "ftp.sporta.com.kw",
+    "host": "",
     "user": "",
     "remoteDir": "/public_html",
-    "_note": "host/user also readable from FTP_HOST / FTP_USER in .env.deploy, which win"
+    "_note": "Leave blank here and set FTP_HOST in .env.deploy from hPanel -> Files -> FTP Accounts. ftp.sporta.com.kw does not exist in DNS; Hostinger gives a server hostname like srv1814.hstgr.io or an IP."
   }
 }
