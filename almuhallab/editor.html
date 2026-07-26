@@ -86,17 +86,17 @@
     header {
       display: flex;
       align-items: center;
-      gap: 14px;
-      padding: 10px 16px;
+      gap: 12px;
+      padding: 12px 20px;
       background: var(--panel);
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
     }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; }
     .brand .logo {
-      width: 28px; height: 28px; border-radius: 8px;
-      background: linear-gradient(135deg, var(--tint), var(--tint-strong));
-      display: grid; place-items: center; font-size: 15px;
+      width: 34px; height: 34px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--sand-vivid), var(--tint-strong));
+      display: grid; place-items: center; font-size: 17px;
     }
     .brand small { display: block; font-weight: 500; color: var(--muted); font-size: 11px; margin-top: 1px; }
     header .spacer { flex: 1; }
@@ -205,13 +205,14 @@
 <body>
   <header>
     <div class="brand">
-      <span class="logo">&lt;/&gt;</span>
+      <span class="logo">⚓</span>
       <div>
-        Almuhallab Code
-        <small>Edit code in your browser — offline &amp; instant</small>
+        محرر الأكواد
+        <small>Almuhallab Code Editor — offline &amp; instant</small>
       </div>
     </div>
     <span class="spacer"></span>
+    <a class="btn ghost" href="index.html" style="text-decoration:none;display:inline-flex;align-items:center;">← المهلب كود</a>
     <a class="btn ghost" href="nokha1.html" style="text-decoration:none;display:inline-flex;align-items:center;">⚓ Nokha1</a>
     <label class="btn ghost" style="display:flex;align-items:center;gap:6px;">
       <input id="autorun" type="checkbox" checked style="accent-color: var(--tint);" />
