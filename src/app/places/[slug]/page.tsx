@@ -32,7 +32,7 @@ export default async function PlacePage({ params }: Props) {
     .slice(0, 3);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
+    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
       {/* Breadcrumb */}
       <nav className="mb-6 text-sm text-slate-500" aria-label="Breadcrumb">
         <Link href="/explore" className="transition hover:text-brand-700">
@@ -63,7 +63,7 @@ export default async function PlacePage({ params }: Props) {
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
             {place.name}
           </h1>
-          <p className="mt-1 text-xl text-slate-500" dir="rtl">
+          <p className="mt-1 text-left text-xl text-slate-500" dir="rtl">
             {place.nameAr}
           </p>
         </div>

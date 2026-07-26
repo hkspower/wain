@@ -14,13 +14,13 @@ export default function HomePage() {
           <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white px-4 py-1.5 text-sm font-medium text-brand-700 shadow-sm">
             🇰🇼 Your guide to Kuwait
           </p>
-          <h1 className="mx-auto max-w-3xl text-4xl font-extrabold tracking-tight text-slate-900 sm:text-6xl">
+          <h1 className="mx-auto max-w-3xl text-balance text-4xl font-extrabold tracking-tight text-slate-900 sm:text-6xl">
             Wain nrooh?{" "}
             <span className="bg-gradient-to-r from-brand-600 to-sand-500 bg-clip-text text-transparent">
               We know where.
             </span>
           </h1>
-          <p className="mx-auto mt-6 max-w-xl text-lg text-slate-500">
+          <p className="mx-auto mt-6 max-w-xl text-pretty text-lg text-slate-500">
             <span dir="rtl" className="font-semibold text-slate-700">
               وين نروح؟
             </span>{" "}
@@ -153,10 +153,10 @@ export default function HomePage() {
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-brand-700 to-brand-500 px-6 py-14 text-center shadow-xl">
           <div className="pointer-events-none absolute -right-10 -top-10 size-48 rounded-full bg-white/10 blur-2xl" />
           <div className="pointer-events-none absolute -bottom-12 -left-10 size-56 rounded-full bg-sand-400/20 blur-2xl" />
-          <h2 className="text-3xl font-extrabold text-white sm:text-4xl">
+          <h2 className="text-balance text-3xl font-extrabold text-white sm:text-4xl">
             Still asking &ldquo;wain nrooh?&rdquo;
           </h2>
-          <p className="mx-auto mt-3 max-w-md text-brand-100">
+          <p className="mx-auto mt-3 max-w-md text-pretty text-brand-100">
             Stop scrolling the group chat. Find tonight&apos;s plan in under a minute.
           </p>
           <Link

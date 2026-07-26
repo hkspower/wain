@@ -31,7 +31,7 @@ export default function ExploreClient() {
   }, [query, category]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
           Explore Kuwait
@@ -53,8 +53,8 @@ export default function ExploreClient() {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          aria-label="Search places, areas, or vibes"
-          placeholder="Search places, areas, or vibes… (English or عربي)"
+          aria-label="Search places, areas, or vibes, in English or Arabic"
+          placeholder="Search places, areas, or vibes…"
           className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-12 pr-4 text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
         />
       </div>
