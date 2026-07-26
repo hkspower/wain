@@ -1,10 +1,18 @@
 {
   "_comment": [
-    "Hostinger deploy for www.sporta.com.kw. Run from sporta-web/ on YOUR machine:",
-    "    npm run deploy",
-    "Credentials never live here \u2014 put them in .env.deploy (git-ignored).",
-    "Verify ssh.user and ssh.port in hPanel -> Advanced -> SSH Access.",
-    "mirror is false so nothing on the server is deleted. If you enable it later, upload.keep + knet/ + dotfiles are preserved."
+    "Hostinger deploy for www.sporta.com.kw.",
+    "",
+    "WITH SSH OFF (the current state) use FTPS:",
+    "    npm run publish            # build + upload + verify",
+    "    npm run publish:dry        # show what would change, upload nothing",
+    "  Credentials go in .env.deploy (git-ignored): FTP_HOST, FTP_USER, FTP_PASSWORD.",
+    "  Get them from hPanel -> Files -> FTP Accounts.",
+    "",
+    "The SFTP route below needs SSH enabled and is kept for if it ever is.",
+    "",
+    "config.js and knet/config.php are NEVER uploaded and NEVER deleted by either",
+    "route - they hold the live Supabase and Tranportal credentials and exist only",
+    "on the server."
   ],
   "ssh": {
     "host": "46.202.158.211",
@@ -55,5 +63,11 @@
       "url": "https://www.sporta.com.kw/",
       "expectStatus": 200
     }
+  },
+  "ftp": {
+    "host": "ftp.sporta.com.kw",
+    "user": "",
+    "remoteDir": "/public_html",
+    "_note": "host/user also readable from FTP_HOST / FTP_USER in .env.deploy, which win"
   }
 }

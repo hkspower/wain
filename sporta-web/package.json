@@ -17,7 +17,9 @@
     "deploy": "node dropin/scripts/deploy.mjs",
     "build:html5": "node scripts/generate-seo.mjs && node scripts/build-html5.mjs",
     "audit:files": "node scripts/file-audit.mjs",
-    "package": "node scripts/make-package.mjs"
+    "package": "node scripts/make-package.mjs",
+    "publish": "node scripts/publish-ftps.mjs",
+    "publish:dry": "node scripts/publish-ftps.mjs --dry-run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",
@@ -29,6 +31,7 @@
     "@tailwindcss/postcss": "^4.3.3",
     "@vitejs/plugin-react": "^6.0.4",
     "autoprefixer": "^10.5.4",
+    "basic-ftp": "^6.0.2",
     "dotenv": "^17.4.2",
     "playwright": "^1.61.1",
     "postcss": "^8.5.22",

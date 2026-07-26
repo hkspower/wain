@@ -12,59 +12,61 @@ below. Route A is one command; Route B needs no tools at all.
 
 ## Which route
 
-**Route A needs SSH enabled** in hPanel — `npm run deploy` uploads over SFTP,
-which rides on SSH. With SSH switched off, Route A cannot run at all; that is
-not a fault, it just means Route B is your path.
+**Route A — `npm run publish`.** Uploads over **FTPS**, which is a separate
+Hostinger service from SSH and keeps working with SSH switched off. This is the
+standing bridge. Needs Node and this repo on your machine.
 
-**Route B needs nothing** — a browser, and the zip. No Node, no npm, no
-terminal, no SSH. It is the whole go-live.
+**Route B — the zip.** A browser and nothing else. No Node, no npm, no terminal.
+
+Both do the same thing. Use whichever you are near.
+
+> The old `npm run deploy` uploaded over SFTP, which rides on SSH. With SSH off
+> it cannot run at all. It is left in place for if SSH is ever re-enabled.
 
 ---
 
-## Route A — one command (needs SSH enabled)
+## Route A — `npm run publish` (FTPS, works with SSH off)
 
-**Node 24 LTS ("Krypton") is what this project is built and tested with.**
-Node 22.12+ also works; older versions will fail because Vite 8 needs modern
-ESM support. `nvm use` picks the right one automatically — the version is
-pinned in `.nvmrc`.
-
-```bash
-node -v          # expect v24.x
-nvm use          # if you use nvm; installs from .nvmrc
-```
-
-From your Mac, once:
+**Node 24 LTS ("Krypton")** is what this project is built and tested with. Node
+22.12+ also works; older versions fail because Vite 8 needs modern ESM support.
 
 ```bash
 cd sporta-web
-npm install                      # installs deploy deps too
+npm install
 cp .env.deploy.example .env.deploy
 ```
 
-> `npm install` may print a warning that an install script for `ssh2` was
-> blocked — npm 11 blocks them by default. **This is expected and safe to
-> ignore.** That script only builds an optional native CPU-feature addon;
-> ssh2 falls back to its JavaScript implementation and the deploy works
-> normally. It was verified on Node 24 with the script left blocked.
+Open `.env.deploy` and fill in three lines from **hPanel → Files → FTP
+Accounts**:
 
-Open `.env.deploy` and put in your Hostinger SSH password (hPanel → Advanced →
-SSH Access — the same page where SSH is switched on). Then, every time you want
-to publish:
-
-```bash
-npm run deploy
+```
+FTP_HOST=ftp.sporta.com.kw
+FTP_USER=your-ftp-user
+FTP_PASSWORD=your-ftp-password
 ```
 
-That runs: regenerate SEO files → production build → bundle the KNET PHP
-endpoints → upload over SFTP → verify `.htaccess` hash, critical files and a
-live healthcheck.
+Then, every time you want to publish:
 
-Check `deploy.config.json` once before the first run — confirm `ssh.user` and
-`ssh.port` match what hPanel shows.
+```bash
+npm run publish:dry    # show exactly what would change. Uploads nothing.
+npm run publish        # do it
+```
 
-`mirror` is **off**, so nothing already on the server is deleted. That is
-deliberate for a first deploy: it protects `knet/config.php`, which holds your
-live Tranportal credentials and is never uploaded.
+What it does, in order: regenerate the SEO files → production build → bundle the
+KNET PHP endpoints → **run the file audit and refuse to upload if it fails** →
+upload over explicit TLS → re-download `.htaccess`, `knet/.htaccess` and
+`index.html` and compare them byte for byte against what it just sent.
+
+**`config.js` and `knet/config.php` are never uploaded and never deleted.** They
+hold your live Supabase and Tranportal credentials and exist only on the server.
+That is hard-coded, not a setting, so no configuration mistake can overwrite
+them.
+
+**Why not a deploy script on the server?** Your `public_html` had one —
+`sporta-deploy.php`, answering to anyone on the internet who asked. That is a way
+in, not a bridge. FTPS adds no attack surface: Hostinger already runs the server
+and authenticates it, and if the password ever leaks you delete the FTP account
+in hPanel and make another.
 
 ---
 
@@ -196,11 +198,14 @@ are not exposed.
 ## بالعربي — النشر على www.sporta.com.kw
 
 **الطريقة الأولى (أمر واحد):** من جهازك، داخل مجلد `sporta-web`، انسخ
-`.env.deploy.example` إلى `.env.deploy` وضع فيه كلمة مرور SSH من هوستنجر، ثم
-نفّذ `npm run deploy`. سيقوم بالبناء والرفع والتحقق تلقائياً.
+`.env.deploy.example` إلى `.env.deploy` وضع فيه بيانات FTP من هوستنجر
+(hPanel ← Files ← FTP Accounts)، ثم نفّذ `npm run publish`. سيقوم بالبناء
+والفحص والرفع والتحقق تلقائياً.
 
-> الطريقة الأولى تتطلب تفعيل SSH في هوستنجر، لأن الرفع يتم عبر SFTP.
-> إذا كان SSH مغلقاً فاستخدم الطريقة الثانية — وهي لا تحتاج أي أدوات.
+> الرفع يتم عبر **FTPS** وليس SFTP، وخدمة FTP منفصلة عن SSH — لذلك تعمل هذه
+> الطريقة رغم أن SSH مغلق. ولن يُرفع أو يُحذف ملفا `config.js` و
+> `knet/config.php` إطلاقاً، فهما يحملان بيانات الدخول الحقيقية.
+> استخدم `npm run publish:dry` لمعاينة ما سيتغيّر دون رفع أي شيء.
 
 **الطريقة الثانية (بدون أدوات):** حمّل ملف `SPORTA-GO-LIVE.zip`، وافتح
 File Manager في هوستنجر، ثم ارفع كل ما بداخل مجلد `public_html` إلى مجلد
@@ -211,11 +216,12 @@ File Manager في هوستنجر، ثم ارفع كل ما بداخل مجلد `
 
 **بعد الرفع:**
 
-1. أنشئ ملف الدفع على الخادم عبر SSH:
-   `cd public_html/knet && php setup-config.php`
-   سيطلب منك خمس قيم فقط (بيانات Tranportal من البنك، ورابط ومفتاح Supabase)،
-   ويتحقق منها ويكتب الملف بالصلاحيات الصحيحة. احذف `setup-config.php` و
-   `selftest.php` بعد الانتهاء.
+1. أنشئ ملف الدفع على الخادم من File Manager (SSH مغلق):
+   انسخ `public_html/knet/config.example.php` إلى `public_html/knet/config.php`،
+   واملأ القيم الخمس (بيانات Tranportal من البنك، ورابط ومفتاح Supabase)،
+   واضبط صلاحياته على 600، ثم افتح
+   `https://www.sporta.com.kw/knet/selftest.php` للتأكد.
+   واحذف `setup-config.php` و `selftest.php` بعد الانتهاء.
 2. **مهم جداً:** شغّل ملفات قاعدة البيانات في Supabase بالترتيب:
    `schema.sql` ثم `admin-migration.sql` ثم `checkout-migration.sql`
    ثم `passcode-migration.sql` ثم `seed-products.sql`.

@@ -13,8 +13,9 @@
    auto-deploy. (Claude still commits/pushes to its working branch as a backup.)
 
 3. **Deployment target: Hostinger** (`www.sporta.com.kw`), a PHP host serving a
-   React (Vite) app. Deploy by uploading the built `dist/` (and PHP endpoints)
-   over SFTP — see `sporta-web/dropin/scripts/`.
+   React (Vite) app. The owner works in **hPanel**, and **SSH is off for good**.
+   Publish with **`npm run publish`** (FTPS — see Working notes), or drop
+   `SPORTA-GO-LIVE.zip` into hPanel File Manager. Not SFTP.
 
 ## Brand identity (saved by user request — apply always)
 
@@ -69,10 +70,12 @@
   (`/public_html`), and `npm run release` also bundles the KNET PHP endpoints
   into `dist/knet/`. `sporta-html5` is a no-build fallback, not the live site.
 - **Two publish routes**, both documented in `GO-LIVE.md`:
-  1. `cd sporta-web && npm run deploy` — SEO regen → build → PHP bundle →
-     SFTP upload → verify. Config in `deploy.config.json`; credentials in
+  1. `cd sporta-web && npm run publish` — SEO regen → build → file audit →
+     **FTPS** upload → byte-for-byte verify. Works with SSH off, which is the
+     permanent state. Config in `deploy.config.json`; credentials in
      `.env.deploy` (git-ignored, never commit).
   2. `SPORTA-GO-LIVE.zip` — drag `public_html/` into Hostinger File Manager.
+  (`npm run deploy` is the old SFTP route. It needs SSH and will not run.)
 - **`.htaccess` is hidden** — it is the single most common thing to miss on a
   manual upload. Without it: no HTTPS redirect, no security headers, and deep
   routes like `/shop` 404. Always call this out when telling the user to
@@ -88,13 +91,35 @@
 
 ## Working notes
 
-- **SSH is disabled on the Hostinger account** (owner's choice, after 24
-  brute-force attempts were logged against it — and the account's shell was
-  `/sbin/nologin` anyway, so it bought nothing). Consequences: `npm run deploy`
-  cannot run, because it uploads over SFTP which rides on SSH. Deploys go
-  through hPanel File Manager with `SPORTA-GO-LIVE.zip`, and configuration is
-  edited on the server in `public_html/config.js`. Do not propose SSH-based
-  steps unless the owner says they have re-enabled it.
+- **The owner works in Hostinger hPanel, and SSH is disabled — permanently,
+  by choice** (after 24 brute-force attempts were logged against it, and the
+  account's shell was `/sbin/nologin` anyway, so it bought nothing). Treat SSH
+  as unavailable. **Never propose an SSH- or SFTP-based step** — that includes
+  `npm run deploy`, which rides on SSH — unless the owner explicitly says they
+  have re-enabled it.
+
+- **The standing bridge is FTPS: `npm run publish`** (`scripts/publish-ftps.mjs`).
+  FTP is a separate Hostinger service from SSH, so it keeps working with SSH
+  off. Credentials come from hPanel → Files → FTP Accounts and live in
+  `sporta-web/.env.deploy` (git-ignored): `FTP_HOST`, `FTP_USER`,
+  `FTP_PASSWORD`. It builds, runs `file-audit.mjs` and refuses to upload if the
+  audit fails, uploads over explicit TLS, then re-downloads `.htaccess`,
+  `knet/.htaccess` and `index.html` and compares them byte for byte.
+  `npm run publish:dry` shows what would change without writing.
+  `config.js` and `knet/config.php` are in a hard-coded never-touch list — not
+  configuration — so a publish can never overwrite the live Supabase or
+  Tranportal credentials. Verified against a real FTPS server, including that
+  both files survive untouched and that a wrong password or a failing audit
+  stops the run before anything is written.
+
+- **Never build a PHP deploy endpoint.** The live server had one —
+  `sporta-deploy.php` in the web root, answering to anyone on the internet.
+  That is a way in, not a bridge. FTPS adds no attack surface: Hostinger
+  already runs and authenticates it, and the credentials are revocable in
+  hPanel.
+
+- hPanel **File Manager + `SPORTA-GO-LIVE.zip`** remains the no-tools fallback
+  for when the owner is not at a machine with the repo and Node.
 
 - Claude's environment cannot reach the user's FTP/SFTP, the live site, or
   databases — SSH `46.202.158.211:65002` and `https://www.sporta.com.kw` are
