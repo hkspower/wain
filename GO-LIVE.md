@@ -45,6 +45,24 @@ FTP_USER=your-ftp-user
 FTP_PASSWORD=your-ftp-password
 ```
 
+**Not sure of the hostname?** Don't guess it — `ftp.sporta.com.kw` does not
+exist. Run the doctor and it will tell you which one works:
+
+```bash
+npm run ftp:doctor              # try the likely hosts
+npm run ftp:doctor -- --write   # save the one that works to .env.deploy
+npm run ftp:doctor srv1814.hstgr.io   # or test the exact host hPanel shows
+```
+
+It reports each host as DNS → TCP → TLS → LOGIN → DIR, so the stage that fails
+names the thing to fix: no DNS record means the hostname is wrong, a refused
+login means the username or password is, and a missing directory means
+`remoteDir` is. It never prints your password.
+
+If every host that resolves also refuses port 21, that is usually your own
+network blocking outbound FTP rather than the server — a phone hotspot is the
+quickest way to tell.
+
 Then, every time you want to publish:
 
 ```bash

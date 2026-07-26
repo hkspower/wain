@@ -105,7 +105,16 @@
   `FTP_PASSWORD`. It builds, runs `file-audit.mjs` and refuses to upload if the
   audit fails, uploads over explicit TLS, then re-downloads `.htaccess`,
   `knet/.htaccess` and `index.html` and compares them byte for byte.
-  `npm run publish:dry` shows what would change without writing.
+  `npm run publish:dry` shows what would change without writing, and
+  `npm run ftp:doctor` finds the right FTP host (DNS → TCP → TLS → LOGIN → DIR,
+  so the failing stage names the fix). **Never guess the FTP host** —
+  `ftp.sporta.com.kw` has no DNS record; shipping it as a default cost a round
+  trip. `publish` builds with the `VITE_` variables emptied, so nothing from a
+  local `.env` is baked in and the output matches the audited zip; it sends
+  `index.html` last so a half-finished run is not a white screen; it does not
+  re-upload `go-live.html`/`selftest.php`/`setup-config.php` (the owner is told
+  to delete those) unless `--setup-tools` is passed; and it reports leftover
+  files from the old site, since it never deletes anything.
   `config.js` and `knet/config.php` are in a hard-coded never-touch list — not
   configuration — so a publish can never overwrite the live Supabase or
   Tranportal credentials. Verified against a real FTPS server, including that

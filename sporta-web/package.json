@@ -19,7 +19,8 @@
     "audit:files": "node scripts/file-audit.mjs",
     "package": "node scripts/make-package.mjs",
     "publish": "node scripts/publish-ftps.mjs",
-    "publish:dry": "node scripts/publish-ftps.mjs --dry-run"
+    "publish:dry": "node scripts/publish-ftps.mjs --dry-run",
+    "ftp:doctor": "node scripts/ftp-doctor.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",
