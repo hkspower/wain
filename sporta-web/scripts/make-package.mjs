@@ -164,6 +164,35 @@ fails at the gateway. If you are not using T-Pay, nothing to do — KNET and cas
 work without it.
 
 --------------------------------------------------------------------------------
+4c. CATEGORY PHOTOS  (optional — 4 files, no rebuild needed)
+--------------------------------------------------------------------------------
+The four category tiles on the home page (Men, Women, Accessories, Sporta
+Outlet) will use a real photo as soon as one exists. Until then they show the
+orange silhouette artwork, which is a finished design — nothing looks broken
+if you skip this.
+
+In File Manager, create  public_html/cats/  and upload exactly these names,
+all lowercase, .jpg:
+
+    cats/men.jpg
+    cats/women.jpg
+    cats/accessories.jpg
+    cats/outlet.jpg
+
+  - Landscape, around 1600x1000. Bigger is wasted; smaller looks soft.
+  - The subject should sit in the MIDDLE of the frame. The tile crops to fill,
+    so anything near an edge gets cut.
+  - Any brightness works. The title sits over a dark scrim, so a bright studio
+    shot stays readable.
+  - Keep each one under about 300 kB or the home page gets slow on mobile data.
+
+Reload the page and they appear. No rebuild, no redeploy — same as config.js.
+To go back to the artwork, delete the file again.
+
+  !! Lowercase names matter. The server is Linux: Men.jpg is a different file
+     from men.jpg and will not be found.
+
+--------------------------------------------------------------------------------
 5. CHECK — open this in a browser
 --------------------------------------------------------------------------------
 

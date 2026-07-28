@@ -58,10 +58,30 @@ export const translations = {
     },
     cats: {
       title: 'Shop by category',
-      men: { k: 'Performance gear', t: 'Men' },
-      women: { k: 'Move with confidence', t: 'Women' },
-      acc: { k: 'Essential gear', t: 'Accessories' },
-      outlet: { k: 'Up to 60% off', t: 'Sporta Outlet' },
+      // `d` is the one-line brief under each category title. Kept to what the
+      // shop actually stocks and actually promises — the brands are the ones
+      // in the catalogue, and same-day delivery and the 14-day window are the
+      // same claims made on /about and /returns.
+      men: {
+        k: 'Performance gear',
+        t: 'Men',
+        d: 'Training tees, compression tops, hoodies and jackets built for the gym and the heat.',
+      },
+      women: {
+        k: 'Move with confidence',
+        t: 'Women',
+        d: 'Seamless sets, high-waist leggings, sports bras and zip tops that hold their shape.',
+      },
+      acc: {
+        k: 'Essential gear',
+        t: 'Accessories',
+        d: 'Caps, bags, backpacks and the small kit that finishes the session.',
+      },
+      outlet: {
+        k: 'Up to 60% off',
+        t: 'Sporta Outlet',
+        d: 'Last sizes and past seasons, reduced while they last.',
+      },
       discount: 'Up to 60% off',
     },
     ess: { kicker: 'Trending now', title: 'Shop the essentials' },
@@ -248,10 +268,26 @@ export const translations = {
     },
     cats: {
       title: 'تسوّق حسب الفئة',
-      men: { k: 'معدات الأداء', t: 'رجالي' },
-      women: { k: 'تحركي بثقة', t: 'نسائي' },
-      acc: { k: 'معدات أساسية', t: 'إكسسوارات' },
-      outlet: { k: 'خصومات تصل إلى ٦٠٪', t: 'سبورتا أوتلت' },
+      men: {
+        k: 'معدات الأداء',
+        t: 'رجالي',
+        d: 'تيشيرتات تدريب وقطع ضاغطة وهوديز وجاكيتات مصمّمة للنادي ولحرّ الصيف.',
+      },
+      women: {
+        k: 'تحركي بثقة',
+        t: 'نسائي',
+        d: 'أطقم سيملس ولكنات عالية الخصر وبرالات رياضية وتوبات بسحّاب تحافظ على شكلها.',
+      },
+      acc: {
+        k: 'معدات أساسية',
+        t: 'إكسسوارات',
+        d: 'كابات وحقائب وشنط ظهر والقطع الصغيرة التي تكمل تمرينك.',
+      },
+      outlet: {
+        k: 'خصومات تصل إلى ٦٠٪',
+        t: 'سبورتا أوتلت',
+        d: 'آخر المقاسات وموديلات المواسم السابقة بأسعار مخفّضة حتى نفاد الكمية.',
+      },
       discount: 'خصومات حتى ٦٠٪',
     },
     ess: { kicker: 'الأكثر رواجاً', title: 'تسوق الأساسيات' },
