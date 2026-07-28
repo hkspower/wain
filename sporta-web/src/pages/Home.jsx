@@ -11,9 +11,14 @@ export default function Home() {
   usePageMeta({ path: '/' })
   const featured = PRODUCTS.slice(0, 4)
 
+  // Men and women carry the owner's silhouette artwork (recoloured to the
+  // brand orange, background removed, text stripped — the source banners baked
+  // an Arabic-only title into the pixels, which cannot serve the English side
+  // of the site). Width/height are the intrinsic 2x-retina pixel sizes so the
+  // browser reserves space before the image arrives.
   const cats = [
-    { id: 'men', to: '/shop', ...t.cats.men, tile: 'tile-men' },
-    { id: 'women', to: '/shop', ...t.cats.women, tile: 'tile-women' },
+    { id: 'men', to: '/shop', ...t.cats.men, tile: 'tile-men', art: '/cats/men.webp', w: 548, h: 394 },
+    { id: 'women', to: '/shop', ...t.cats.women, tile: 'tile-women', art: '/cats/women.webp', w: 526, h: 800 },
     { id: 'acc', to: '/shop', ...t.cats.acc, tile: 'tile-acc' },
   ]
 
@@ -62,12 +67,23 @@ export default function Home() {
             <Link
               key={c.id}
               to={c.to}
-              className={`${c.tile} group relative flex h-40 items-center overflow-hidden rounded-3xl p-6 text-white md:h-48 md:p-8`}
+              className={`${c.tile} group relative flex h-44 items-center overflow-hidden rounded-3xl p-6 text-white md:h-56 md:p-8`}
             >
+              {c.art && (
+                <img
+                  src={c.art}
+                  alt=""
+                  width={c.w}
+                  height={c.h}
+                  loading="lazy"
+                  decoding="async"
+                  className="pointer-events-none absolute bottom-0 start-8 h-[86%] w-auto select-none object-contain object-bottom drop-shadow-[0_8px_24px_rgba(255,123,23,0.35)] transition duration-300 group-hover:scale-105 md:start-14"
+                />
+              )}
               <span className="absolute bottom-4 start-4 flex h-10 w-10 items-center justify-center rounded-full bg-brand text-white transition group-hover:scale-110">
                 <IconArrowUpRight size={18} />
               </span>
-              <div className="ms-auto text-end">
+              <div className="relative ms-auto text-end">
                 <p className="text-sm tracking-widest text-white/70">{c.k}</p>
                 <h3 className="text-4xl font-extrabold md:text-5xl">{c.t}</h3>
               </div>

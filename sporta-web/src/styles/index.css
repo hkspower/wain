@@ -234,8 +234,22 @@ h1, h2, h3, .font-display {
 .hero-glow {
   background: radial-gradient(1200px 500px at 50% 120%, #e0561c 0%, #b8430f 30%, #171a1e 70%);
 }
-.tile-men   { background: linear-gradient(90deg, #e0561c, #171a1e); }
-.tile-women { background: linear-gradient(90deg, #e0561c, #20252c); }
+/* Men/women host the orange silhouette artwork on the start side, so their
+   background stays charcoal-dominant there — a warm glow behind the figure,
+   never flat orange under orange art. Uses logical-direction-agnostic radial
+   positions so RTL keeps the glow under the art (start side flips with dir). */
+.tile-men,
+.tile-women {
+  background:
+    radial-gradient(60% 130% at 18% 100%, rgba(255, 123, 23, 0.28) 0%, transparent 65%),
+    linear-gradient(115deg, #20252c 0%, #171a1e 55%, #3a2213 100%);
+}
+[dir='rtl'] .tile-men,
+[dir='rtl'] .tile-women {
+  background:
+    radial-gradient(60% 130% at 82% 100%, rgba(255, 123, 23, 0.28) 0%, transparent 65%),
+    linear-gradient(-115deg, #20252c 0%, #171a1e 55%, #3a2213 100%);
+}
 .tile-acc   { background: linear-gradient(90deg, #171a1e, #e0561c); }
 
 /* ==========================================================================
