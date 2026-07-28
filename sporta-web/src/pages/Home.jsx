@@ -16,10 +16,14 @@ export default function Home() {
   // an Arabic-only title into the pixels, which cannot serve the English side
   // of the site). Width/height are the intrinsic 2x-retina pixel sizes so the
   // browser reserves space before the image arrives.
-  const cats = [
-    { id: 'men', to: '/shop', ...t.cats.men, tile: 'tile-men', art: '/cats/men.webp', w: 548, h: 394 },
-    { id: 'women', to: '/shop', ...t.cats.women, tile: 'tile-women', art: '/cats/women.webp', w: 526, h: 800 },
-    { id: 'acc', to: '/shop', ...t.cats.acc, tile: 'tile-acc' },
+  //
+  // `artH` is per-figure on purpose. The two silhouettes have opposite aspect
+  // ratios — the flexing figure is 1.39:1 wide, the runner is 0.66:1 tall — so
+  // one shared height would give them wildly different visual mass sitting
+  // side by side. Sized so both read as the same weight in their tile.
+  const hero = [
+    { id: 'men', to: '/shop', ...t.cats.men, tile: 'tile-men', art: '/cats/men.webp', w: 548, h: 394, artH: 'h-[58%] md:h-[62%]' },
+    { id: 'women', to: '/shop', ...t.cats.women, tile: 'tile-women', art: '/cats/women.webp', w: 526, h: 800, artH: 'h-[82%] md:h-[86%]' },
   ]
 
   return (
@@ -60,45 +64,87 @@ export default function Home() {
         </Link>
       </section>
 
-      {/* Category tiles */}
-      <section className="mx-auto max-w-7xl px-4 py-4 md:px-6 md:py-6">
-        <div className="grid gap-4 md:gap-5">
-          {cats.map((c) => (
+      {/* Category tiles.
+          Two tiers, not four equal bars. Men and women are the tiles that carry
+          artwork, so they get the large half-width cells; accessories and the
+          outlet sit under them as a shorter secondary row. The old layout ran
+          all four full width at the same height, which left roughly 800px of
+          empty gradient between the figure and the title in every tile and gave
+          the section no hierarchy at all. */}
+      <section className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-12">
+        <h2 className="mb-5 text-2xl font-extrabold text-slate-900 md:mb-7 md:text-3xl">
+          {t.cats.title}
+        </h2>
+
+        <div className="grid gap-4 md:grid-cols-2 md:gap-5">
+          {hero.map((c) => (
             <Link
               key={c.id}
               to={c.to}
-              className={`${c.tile} group relative flex h-44 items-center overflow-hidden rounded-3xl p-6 text-white md:h-56 md:p-8`}
+              className={`${c.tile} group relative isolate flex h-60 overflow-hidden rounded-3xl p-6 text-white md:h-[22rem] md:p-8`}
             >
-              {c.art && (
-                <img
-                  src={c.art}
-                  alt=""
-                  width={c.w}
-                  height={c.h}
-                  loading="lazy"
-                  decoding="async"
-                  className="pointer-events-none absolute bottom-0 start-8 h-[86%] w-auto select-none object-contain object-bottom drop-shadow-[0_8px_24px_rgba(255,123,23,0.35)] transition duration-300 group-hover:scale-105 md:start-14"
-                />
-              )}
-              <span className="absolute bottom-4 start-4 flex h-10 w-10 items-center justify-center rounded-full bg-brand text-white transition group-hover:scale-110">
+              {/* Anchored to the bottom-start corner and allowed to fill the
+                  cell height, so the composition reads on a diagonal — figure
+                  low and leading, title high and trailing. */}
+              <img
+                src={c.art}
+                alt=""
+                width={c.w}
+                height={c.h}
+                loading="lazy"
+                decoding="async"
+                className={`pointer-events-none absolute bottom-0 start-4 -z-10 w-auto max-w-[60%] select-none object-contain object-bottom drop-shadow-[0_10px_30px_rgba(255,123,23,0.28)] transition-transform duration-500 ease-out group-hover:scale-[1.06] md:start-8 ${c.artH}`}
+              />
+              <div className="ms-auto text-end">
+                <p className="text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-white/60 md:text-xs">
+                  {c.k}
+                </p>
+                <h3 className="mt-1.5 text-4xl font-extrabold leading-[0.95] md:text-6xl">{c.t}</h3>
+              </div>
+              {/* Bottom-END corner: the old bottom-start position put this chip
+                  directly on top of the figure's feet, and on the RTL side it
+                  landed on the runner's leg. */}
+              <span className="absolute bottom-5 end-5 flex h-11 w-11 items-center justify-center rounded-full bg-brand shadow-lg shadow-black/30 transition group-hover:scale-110 rtl:-scale-x-100 md:bottom-6 md:end-6">
                 <IconArrowUpRight size={18} />
               </span>
-              <div className="relative ms-auto text-end">
-                <p className="text-sm tracking-widest text-white/70">{c.k}</p>
-                <h3 className="text-4xl font-extrabold md:text-5xl">{c.t}</h3>
-              </div>
             </Link>
           ))}
-          {/* Outlet — discount tile */}
+
+          {/* Accessories + outlet — secondary row, deliberately shorter so the
+              two illustrated categories stay dominant. */}
+          {/* The one orange-dominant tile, so it takes near-black text rather
+              than white: white on #E0561C is 3.81:1, which fails AA for the
+              eyebrow line, and the brand rule is near-black on these oranges.
+              Near-black measures 4.59:1 here. The arrow chip inverts too — an
+              orange chip on an orange tile is invisible. */}
           <Link
             to="/shop"
-            className="group relative flex h-40 items-center overflow-hidden rounded-3xl bg-ink-soft p-6 text-white md:h-48 md:p-8"
+            className="tile-acc group relative flex h-36 items-center overflow-hidden rounded-3xl p-6 text-ink md:h-40 md:p-8"
           >
-            <span className="absolute bottom-4 start-4 flex h-10 w-10 items-center justify-center rounded-full bg-brand text-white transition group-hover:scale-110"><IconArrowUpRight size={18} /></span>
-            <div className="ms-auto text-end">
-              <span className="inline-block rounded-full bg-brand px-3 py-1 text-xs font-bold">{t.cats.discount}</span>
-              <h3 className="mt-2 text-4xl font-extrabold md:text-5xl">{t.cats.outlet.t}</h3>
+            <div className="text-start">
+              <p className="text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-ink/75 md:text-xs">
+                {t.cats.acc.k}
+              </p>
+              <h3 className="mt-1.5 text-3xl font-extrabold leading-none md:text-4xl">{t.cats.acc.t}</h3>
             </div>
+            <span className="absolute bottom-5 end-5 flex h-11 w-11 items-center justify-center rounded-full bg-ink text-white shadow-lg shadow-black/25 transition group-hover:scale-110 rtl:-scale-x-100 md:bottom-6 md:end-6">
+              <IconArrowUpRight size={18} />
+            </span>
+          </Link>
+
+          <Link
+            to="/shop"
+            className="group relative flex h-36 items-center overflow-hidden rounded-3xl bg-ink-soft p-6 text-white md:h-40 md:p-8"
+          >
+            <div className="text-start">
+              <span className="inline-block rounded-full bg-brand px-3 py-1 text-[0.7rem] font-bold text-ink">
+                {t.cats.discount}
+              </span>
+              <h3 className="mt-2 text-3xl font-extrabold leading-none md:text-4xl">{t.cats.outlet.t}</h3>
+            </div>
+            <span className="absolute bottom-5 end-5 flex h-11 w-11 items-center justify-center rounded-full bg-brand shadow-lg shadow-black/30 transition group-hover:scale-110 rtl:-scale-x-100 md:bottom-6 md:end-6">
+              <IconArrowUpRight size={18} />
+            </span>
           </Link>
         </div>
       </section>

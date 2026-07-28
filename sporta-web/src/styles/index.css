@@ -236,21 +236,52 @@ h1, h2, h3, .font-display {
 }
 /* Men/women host the orange silhouette artwork on the start side, so their
    background stays charcoal-dominant there — a warm glow behind the figure,
-   never flat orange under orange art. Uses logical-direction-agnostic radial
-   positions so RTL keeps the glow under the art (start side flips with dir). */
-.tile-men,
+   never flat orange under orange art. The radial position is mirrored under
+   [dir='rtl'] so the glow stays under the art when the start side flips.
+
+   The two are deliberately NOT the same gradient. They sit side by side in the
+   grid, and when they shared one background the pair read as a single tile
+   repeated rather than two categories: men keeps a cool steel cast, women a
+   deeper plum-warm one, both resolving to the same ember at the figure. */
+.tile-men {
+  background:
+    radial-gradient(55% 120% at 20% 100%, rgba(255, 123, 23, 0.3) 0%, transparent 62%),
+    linear-gradient(118deg, #232a33 0%, #171a1e 58%, #33200f 100%);
+}
 .tile-women {
   background:
-    radial-gradient(60% 130% at 18% 100%, rgba(255, 123, 23, 0.28) 0%, transparent 65%),
-    linear-gradient(115deg, #20252c 0%, #171a1e 55%, #3a2213 100%);
+    radial-gradient(55% 120% at 20% 100%, rgba(255, 123, 23, 0.26) 0%, transparent 62%),
+    linear-gradient(118deg, #2a2430 0%, #1a1620 55%, #3a2213 100%);
 }
-[dir='rtl'] .tile-men,
+[dir='rtl'] .tile-men {
+  background:
+    radial-gradient(55% 120% at 80% 100%, rgba(255, 123, 23, 0.3) 0%, transparent 62%),
+    linear-gradient(-118deg, #232a33 0%, #171a1e 58%, #33200f 100%);
+}
 [dir='rtl'] .tile-women {
   background:
-    radial-gradient(60% 130% at 82% 100%, rgba(255, 123, 23, 0.28) 0%, transparent 65%),
-    linear-gradient(-115deg, #20252c 0%, #171a1e 55%, #3a2213 100%);
+    radial-gradient(55% 120% at 80% 100%, rgba(255, 123, 23, 0.26) 0%, transparent 62%),
+    linear-gradient(-118deg, #2a2430 0%, #1a1620 55%, #3a2213 100%);
 }
-.tile-acc   { background: linear-gradient(90deg, #171a1e, #e0561c); }
+
+/* Accessories carries no artwork, so it leans on colour instead — the one
+   orange-dominant tile in the group, which also keeps the shorter secondary
+   row from reading as two dark leftovers.
+
+   Orange end to end, in the brand's own two-tone pair. An earlier version
+   faded to charcoal at the far end, which put the near-black arrow chip on a
+   near-black corner; keeping the whole tile orange means the near-black text
+   AND the chip both stay legible wherever they sit. */
+.tile-acc {
+  background:
+    radial-gradient(70% 140% at 85% 0%, rgba(255, 123, 23, 0.55) 0%, transparent 60%),
+    linear-gradient(118deg, #b8430f 0%, #e0561c 100%);
+}
+[dir='rtl'] .tile-acc {
+  background:
+    radial-gradient(70% 140% at 15% 0%, rgba(255, 123, 23, 0.55) 0%, transparent 60%),
+    linear-gradient(-118deg, #b8430f 0%, #e0561c 100%);
+}
 
 /* ==========================================================================
    Modern phones
