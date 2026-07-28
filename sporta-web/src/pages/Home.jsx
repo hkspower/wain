@@ -12,28 +12,12 @@ export default function Home() {
   usePageMeta({ path: '/' })
   const featured = PRODUCTS.slice(0, 4)
 
-  // Men and women carry the owner's silhouette artwork (recoloured to the
-  // brand orange, background removed, text stripped — the source banners baked
-  // an Arabic-only title into the pixels, which cannot serve the English side
-  // of the site). Width/height are the intrinsic 2x-retina pixel sizes so the
-  // browser reserves space before the image arrives.
-  //
-  // `artH` is per-figure on purpose. The two silhouettes have opposite aspect
-  // ratios — the flexing figure is 1.39:1 wide, the runner is 0.66:1 tall — so
-  // one shared height would give them wildly different visual mass sitting
-  // side by side. Sized so both read as the same weight in their tile.
-  // Each tile asks the server for /cats/<id>.jpg and falls back to this
-  // artwork when there is none — see CategoryTile for why the photo is
-  // resolved at runtime rather than bundled.
+  // Each tile prefers the owner's photo (/cats/<id>.jpg, server-only), then
+  // the shipped artwork (/cats/art-<id>.jpg), then its gradient — see
+  // CategoryTile for the full story.
   const cats = [
-    {
-      id: 'men', to: '/shop', ...t.cats.men, tone: 'tile-men', tall: true,
-      art: '/cats/men.webp', artW: 548, artH: 394, artClass: 'h-[58%] md:h-[62%]',
-    },
-    {
-      id: 'women', to: '/shop', ...t.cats.women, tone: 'tile-women', tall: true,
-      art: '/cats/women.webp', artW: 526, artH: 800, artClass: 'h-[82%] md:h-[86%]',
-    },
+    { id: 'men', to: '/shop', ...t.cats.men, tone: 'tile-men', tall: true },
+    { id: 'women', to: '/shop', ...t.cats.women, tone: 'tile-women', tall: true },
     { id: 'accessories', to: '/shop', ...t.cats.acc, tone: 'tile-acc' },
     { id: 'outlet', to: '/shop', ...t.cats.outlet, tone: 'tile-outlet', badge: t.cats.discount },
   ]
@@ -103,10 +87,6 @@ export default function Home() {
               badge={c.badge}
               tone={c.tone}
               tall={c.tall}
-              art={c.art}
-              artW={c.artW}
-              artH={c.artH}
-              artClass={c.artClass}
             />
           ))}
         </div>

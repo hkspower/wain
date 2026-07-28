@@ -2,46 +2,34 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { IconArrowUpRight } from './icons'
 
-// One category tile, photo-backed when a photo exists and self-sufficient when
-// it does not.
+// One category tile. Three layers, best available wins:
 //
-// WHY THE PHOTO IS OPTIONAL AND RESOLVED AT RUNTIME
-// The category photography lives on the server, not in this repo — the live
-// site already shows real shots for all four categories, and this sandbox has
-// no route to fetch them (the live host and FTP are both blocked by egress
-// policy). Hard-wiring the filenames into the bundle would mean the tiles are
-// broken until someone rebuilds, and the owner deploys by dropping files into
-// hPanel File Manager, not by running a build.
+//   1. The owner's photograph, /cats/<id>.jpg — lives ONLY on the server, like
+//      config.js. The live site already has real shots for all four categories;
+//      this sandbox cannot fetch them (live host and FTP are blocked by egress
+//      policy), so the tile probes for the file at runtime instead of bundling
+//      it. Uploading four files into public_html/cats/ upgrades the tiles with
+//      no rebuild; deleting them falls back cleanly. A publish can never
+//      overwrite them: it only uploads what is in dist, and dist never
+//      contains cats/<id>.jpg.
+//   2. The designed artwork, /cats/art-<id>.jpg — ships with the site, so the
+//      storefront never looks unfinished while the photography is pending.
+//   3. The tile's own gradient (the `tone` class), which is under the other
+//      two layers at all times, shows through image loading, and is the final
+//      state if both files are somehow gone.
 //
-// So: each tile asks for /cats/<id>.jpg. If it is there the photo takes over.
-// If it is not, onError drops it and the tile falls back to the silhouette and
-// gradient treatment, which is a finished design in its own right. Adding the
-// photos is therefore a pure upload — four files, no rebuild, no redeploy.
-//
-// The URL is assembled from parts rather than written as one literal string on
-// purpose: scripts/file-audit.mjs scans for literal "/path.ext" references and
-// fails the package when the target is absent, which would block `npm run
-// package` for files that are deliberately not shipped.
+// The photo/art URLs are assembled from parts, not written as one literal
+// string: scripts/file-audit.mjs fails the package over literal "/path.ext"
+// references whose target is absent, which would block `npm run package` for
+// the owner-photo slot — a file that is deliberately not shipped.
 const PHOTO_DIR = '/cats'
 const PHOTO_EXT = '.jpg'
 
-export default function CategoryTile({
-  id,
-  to,
-  kicker,
-  title,
-  brief,
-  badge,
-  tone,
-  tall = false,
-  art,
-  artW,
-  artH,
-  artClass = '',
-}) {
+export default function CategoryTile({ id, to, kicker, title, brief, badge, tone, tall = false }) {
   const [photoOk, setPhotoOk] = useState(true)
   const [artOk, setArtOk] = useState(true)
   const photo = `${PHOTO_DIR}/${id}${PHOTO_EXT}`
+  const art = `${PHOTO_DIR}/art-${id}${PHOTO_EXT}`
 
   return (
     <Link
@@ -50,9 +38,9 @@ export default function CategoryTile({
         tall ? 'h-60 md:h-[22rem]' : 'h-44 md:h-52'
       }`}
     >
-      {/* The photo, when the server has one. object-cover with a centred focal
-          point: these are people and product shots, and the subject sits in the
-          middle of the frame in every one of them. */}
+      {/* Owner photo. Never mirrored: a photograph can contain print, logos,
+          or a composition the owner chose deliberately. The README tells them
+          to centre the subject, which reads correctly in both directions. */}
       {photoOk && (
         <img
           src={photo}
@@ -64,29 +52,31 @@ export default function CategoryTile({
         />
       )}
 
-      {/* Silhouette fallback — only drawn when there is no photo, so the two
-          treatments never stack on top of each other. It carries its own error
-          handler as well: without one, a renamed or missing webp paints the
-          browser's broken-image icon over the tile, which looks far worse than
-          the plain gradient it is supposed to be decorating. */}
-      {!photoOk && art && artOk && (
-        <img
-          src={art}
-          alt=""
-          width={artW}
-          height={artH}
-          loading="lazy"
-          decoding="async"
-          onError={() => setArtOk(false)}
-          className={`pointer-events-none absolute bottom-0 end-6 -z-10 w-auto max-w-[44%] select-none object-contain object-bottom drop-shadow-[0_10px_30px_rgba(255,123,23,0.28)] transition-transform duration-500 ease-out group-hover:scale-[1.06] md:end-10 ${artClass}`}
-        />
+      {/* Shipped artwork. Composed for LTR — quiet dark on the left where the
+          copy sits, subject burning on the right — and MIRRORED under RTL so
+          the quiet side keeps following the text. Safe here and not for
+          photos: the artwork is ours, contains no letters by design, and its
+          subjects read identically flipped. */}
+      {!photoOk && artOk && (
+        <div aria-hidden="true" className="absolute inset-0 -z-20 rtl:-scale-x-100">
+          {/* Mirroring lives on the wrapper and the hover zoom on the image,
+              because they are both transforms: on one element the hover scale
+              would overwrite the RTL flip and un-mirror the art mid-hover. */}
+          <img
+            src={art}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            onError={() => setArtOk(false)}
+            className="h-full w-full select-none object-cover object-center transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+          />
+        </div>
       )}
 
-      {/* Scrim. Only over a photo — the gradient tiles are already dark enough
-          and a second layer just muddies them. Anchored to the start edge,
-          where the text is, so the copy stays legible over a photo of any
-          brightness, with the brand orange picked up at the far edge. */}
-      {photoOk && <span aria-hidden="true" className="cat-scrim absolute inset-0 -z-10" />}
+      {/* Scrim over any pictorial layer — the photo's brightness is not
+          knowable here, and the artwork, while dark by design, still gets the
+          same treatment so the two states are typographically identical. */}
+      {(photoOk || artOk) && <span aria-hidden="true" className="cat-scrim absolute inset-0 -z-10" />}
 
       <div className="relative max-w-[58%]">
         {badge ? (
@@ -112,7 +102,8 @@ export default function CategoryTile({
         )}
       </div>
 
-      {/* Bottom-END corner, opposite the artwork and opposite the copy. */}
+      {/* Bottom-END corner — the artwork keeps that corner free of critical
+          detail by construction. */}
       <span className="absolute bottom-5 end-5 flex h-11 w-11 items-center justify-center rounded-full bg-brand shadow-lg shadow-black/30 transition group-hover:scale-110 rtl:-scale-x-100 md:bottom-6 md:end-6">
         <IconArrowUpRight size={18} />
       </span>

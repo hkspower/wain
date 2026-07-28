@@ -167,9 +167,9 @@ work without it.
 4c. CATEGORY PHOTOS  (optional — 4 files, no rebuild needed)
 --------------------------------------------------------------------------------
 The four category tiles on the home page (Men, Women, Accessories, Sporta
-Outlet) will use a real photo as soon as one exists. Until then they show the
-orange silhouette artwork, which is a finished design — nothing looks broken
-if you skip this.
+Outlet) ship with designed artwork (the cats/art-*.jpg files) and will swap to
+a real photo the moment one exists on the server. Nothing looks broken if you
+skip this — but your real photography always wins.
 
 In File Manager, create  public_html/cats/  and upload exactly these names,
 all lowercase, .jpg:

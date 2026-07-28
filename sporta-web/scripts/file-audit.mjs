@@ -139,6 +139,8 @@ for (const p of onDisk) {
   if (p.startsWith('/assets/')) continue          // hashed, referenced from the bundle graph
   if (p.startsWith('/knet/')) continue            // endpoints, called by URL not by link
   if (p.startsWith('/pay/')) continue             // ditto — the CBK hosted gateway
+  if (p.startsWith('/cats/')) continue            // category art; CategoryTile assembles these
+                                                  // URLs from parts, so no literal appears
   add('LOW', `never referenced by anything shipped: ${p}`, '')
 }
 
