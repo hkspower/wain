@@ -287,7 +287,7 @@
 
   <footer>
     النوخذة — النظام الموحد · أحد أنظمة <a href="index.html">المهلب كود — Almuhallab Code</a><br />
-    صُنع في الكويت 🇰🇼 · <a href="admin.html" style="color:var(--muted)">لوحة الإدارة</a>
+    صُنع في الكويت · <a href="admin.html" style="color:var(--muted)">لوحة الإدارة</a>
   </footer>
 
   <script>
@@ -334,7 +334,13 @@
       function currentUser() {
         var s = session();
         if (!s) return null;
-        return readUsers()[s.email] || null;
+        var u = readUsers()[s.email];
+        if (!u) return null;
+        // Accounts created before the system became free may carry a plan index
+        // that no longer exists. Storage is untrusted input: clamp on read, or
+        // PLANS[u.plan] is undefined and the dashboard throws.
+        u.plan = Math.min(PLANS.length - 1, Math.max(0, Math.floor(Number(u.plan) || 0)));
+        return u;
       }
 
       /* ---- password hashing: PBKDF2-SHA256 via Web Crypto, per-user random salt.
@@ -443,6 +449,10 @@
       function renderDashboard() {
         var user = currentUser();
         if (!user) return;
+        var all = readUsers();
+        if (all[user.email] && all[user.email].plan !== user.plan) {
+          all[user.email].plan = user.plan; all[user.email].renewAt = null; writeUsers(all);
+        }
         document.getElementById("dash-name").textContent = user.name;
         document.getElementById("dash-email").textContent = user.email;
         document.getElementById("dash-avatar").textContent = (user.name || "؟").trim().charAt(0);

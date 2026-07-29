@@ -12,6 +12,7 @@
   <link rel="apple-touch-icon" href="icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>النظام الموحد — النوخذة</title>
+  <meta name="description" content="النظام الموحد في النوخذة: صافي للمحافظ، الميزانية السنوية و XBRL، والتوصيل — فوق نواة بيانات واحدة، ويعمل بلا إنترنت." />
   <style>
     /* Tajawal (SIL OFL) — bundled, never fetched from a CDN: the strict CSP
        forbids external origins, and a self-hosted face renders identically on
@@ -55,6 +56,7 @@
     .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; }
     .brand .logo { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
       font-size: 17px; background: linear-gradient(135deg, var(--sand-vivid), var(--tint-strong)); color: #fff; }
+    .brand h1 { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.35; }
     .brand small { display: block; font-weight: 500; font-size: 11px; color: var(--muted); }
     nav.site { display: flex; gap: 4px; margin-inline-start: auto; flex-wrap: wrap; align-items: center; }
     nav.site a { font-size: 13.5px; font-weight: 600; color: var(--text); padding: 8px 14px;
@@ -176,6 +178,24 @@
          reading start instead of hanging at the line-box's far edge */
       .flow .val { margin-inline-start: 0; flex-basis: 100%; }
     }
+
+    /* Printing a portfolio statement or a filing should yield the document, not
+       the application: chrome, forms, filters and row actions come off the page,
+       and the tables lose their scroll box so nothing is clipped. */
+    @media print {
+      .topbar, nav.tabs, footer.site, #toast, .row, form,
+      button, .btn, .empty { display: none !important; }
+      main { max-width: none; padding: 0; }
+      .tab { display: block !important; }          /* print what is on screen */
+      .tab:not(.on) { display: none !important; }
+      .table-wrap { overflow: visible; border: 0; }
+      table { min-width: 0; }
+      th, td { padding: 6px 8px; }
+      td:last-child, th:last-child { display: none; }   /* the actions column */
+      .tile { break-inside: avoid; }
+      h2 { margin: 10px 0 6px; }
+      body { background: #fff; }
+    }
   </style>
 </head>
 <body>
@@ -183,7 +203,7 @@
     <header>
       <div class="brand">
         <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:20px;height:20px"><circle cx="12" cy="5.3" r="1.9"/><path d="M12 7.2v12.4"/><path d="M8 10.7h8"/><path d="M5.5 14.6c.7 3.6 3.1 5.5 6.5 5.8 3.4-.3 5.8-2.2 6.5-5.8"/><path fill="currentColor" stroke-width=".8" d="M5.5 12.3 4.3 15.4l2.8-.5z"/><path fill="currentColor" stroke-width=".8" d="M18.5 12.3l1.2 3.1-2.8-.5z"/></svg></span>
-        <div>النظام الموحد <small>النوخذة — صافي · XBRL · التوصيل</small></div>
+        <div><h1>النظام الموحد</h1><small>النوخذة — صافي · XBRL · التوصيل</small></div>
       </div>
       <nav class="site">
         <a href="index.html">← المهلب كود</a>
@@ -390,7 +410,7 @@
   </main>
 
   <footer class="site">
-    المهلب كود — Almuhallab Code · شركة برمجة وأنظمة · صُنع في الكويت 🇰🇼<br />
+    المهلب كود — Almuhallab Code · شركة برمجة وأنظمة · صُنع في الكويت<br />
     <a href="index.html">الموقع</a> · <a href="nokhatha.html">نظام النوخذة</a>
   </footer>
 
@@ -525,7 +545,7 @@
       var cls = pl > 0 ? "up" : (pl < 0 ? "down" : "");
       return "<tr>" +
         '<td style="font-family:var(--mono)">' + esc(x.ticker) + "</td><td>" + esc(x.name) + "</td>" +
-        "<td>" + x.qty.toLocaleString() + "</td><td>" + x.cost + "</td><td>" + x.price + "</td>" +
+        "<td>" + x.qty.toLocaleString("en-US") + "</td><td>" + x.cost + "</td><td>" + x.price + "</td>" +
         "<td>" + kwd(value) + '</td><td class="' + cls + '">' + kwd(pl) + "</td>" +
         '<td class="' + cls + '">' + (cost > 0 ? (pl / cost * 100).toFixed(1) : "0.0") + "%</td>" +
         '<td><button class="btn sm danger" data-del-safi="' + i + '">حذف</button></td></tr>';

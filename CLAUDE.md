@@ -109,15 +109,24 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   Colour follows the encoding job: ordinal one-hue ramps where order carries
   meaning, a diverging pair for profit/loss where the sign is *also* shown by
   bar direction and a signed label.
-- Data lives in `localStorage` under `nokhatha-*` keys. Treat it as untrusted
-  input on read: escape all rendered strings, re-coerce and clamp all numbers.
+- Data lives in `localStorage` under `nokhatha-*` keys (the admin console's own
+  four are `almuhallab-admin-*`). Treat it as untrusted input on read: escape all
+  rendered strings, re-coerce and **clamp every index** — a stored `plan` from a
+  retired tier once crashed the dashboard because `PLANS[plan]` was undefined.
+- Numbers are formatted with an **explicit `"en-US"` locale**. A bare
+  `toLocaleString()` follows the visitor's device and printed Arabic-Indic digits
+  beside Latin ones in the same table.
+- `favicon.svg` (the company sail) is the tab icon for `index.html`; `icon.svg`
+  (the ⚓ anchor) is النوخذة's. Don't cross them.
+- The units print: `nizam.html` carries an `@media print` block that strips the
+  chrome, forms and row actions so a statement prints as a document.
 
 ## Working practice
 
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 196 checks covering
+- `python3 design/test_suite.py` is the full system test — 224 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it

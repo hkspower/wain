@@ -1,6 +1,6 @@
-name: Deploy Nokha1 website
+name: Deploy the Almuhallab Code site
 
-# Publishes the static Nokha1 site (almuhallab/) to GitHub Pages.
+# Publishes the static Almuhallab Code site (almuhallab/) to GitHub Pages.
 # Enable once in the repo: Settings -> Pages -> Source: "GitHub Actions".
 
 on:

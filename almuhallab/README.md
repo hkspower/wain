@@ -18,7 +18,7 @@ inside it, entered at `/nokhatha` — not the front door.
 | `safi.html`, `xbrl.html`, `delivery.html` | redirects to the matching tab (keeps old links working) |
 | `admin.html` | **Admin console** — customers, operations, finance, settings |
 | `404.html` | not-found page that returns visitors to the portal |
-| `manifest.webmanifest`, `sw.js`, `icon.svg`, `logo.svg` | PWA app manifest, offline service worker, ⚓ النوخذة icon, and the Almuhallab Code company mark |
+| `manifest.webmanifest`, `sw.js`, `icon.svg`, `logo.svg`, `favicon.svg` | PWA app manifest, offline service worker, ⚓ النوخذة icon, and the Almuhallab Code company mark |
 | `SECURITY.md` | security measures and their limits |
 
 ## النوخذة — the portal (`/nokhatha`)
@@ -144,7 +144,7 @@ visitor's OS happens to have installed.
 ## Tests
 
 ```bash
-python3 design/test_suite.py     # 196 checks, exits non-zero on failure
+python3 design/test_suite.py     # 224 checks, exits non-zero on failure
 ```
 
 Covers the **pinned Almuhallab identity** (the sail mark, the المهلب wordmark,

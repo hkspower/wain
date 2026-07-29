@@ -202,6 +202,7 @@ def browser_checks():
 
         home_checks(pg)
         pricing_checks(pg)
+        scan_checks(pg, br)
         safi_checks(pg)
         integration_checks(pg)
         xbrl_checks(pg)
@@ -337,6 +338,76 @@ def home_checks(pg):
 
     check(S, "النوخذة opens from its row",
           pg.eval_on_selector_all('.product a[href="nokhatha.html"]', "n=>n.length") == 1)
+
+# ───────────── the full-scan findings, each pinned so it cannot come back
+def scan_checks(pg, br):
+    S = "scan"
+
+    # an account stored on a retired paid tier must not crash the dashboard
+    c = br.new_context(locale="ar-KW")
+    users = {"legacy@x.c": {"name": "محمد", "email": "legacy@x.c", "hash": "x"*64,
+                            "salt": "y"*32, "iter": 310000, "plan": 2, "status": "active",
+                            "createdAt": "2026-01-01T00:00:00Z", "renewAt": None}}
+    c.add_init_script(
+        "localStorage.setItem('nokhatha-users-v1', %s);"
+        "localStorage.setItem('nokhatha-session-v1', %s);"
+        % (json.dumps(json.dumps(users, ensure_ascii=False)),
+           json.dumps(json.dumps({"email": "legacy@x.c", "exp": 9999999999999}))))
+    lp = c.new_page(); errs = []
+    lp.on("pageerror", lambda e: errs.append(str(e)))
+    lp.goto(f"{BASE}/nokhatha.html#/dashboard", wait_until="networkidle"); lp.wait_for_timeout(700)
+    check(S, "a legacy paid-tier account does not throw", not errs, str(errs[:1]))
+    check(S, "its plan badge reads the free plan",
+          "مجاني" in lp.inner_text("#dash-plan"), lp.inner_text("#dash-plan"))
+    healed = lp.evaluate("JSON.parse(localStorage.getItem('nokhatha-users-v1'))['legacy@x.c'].plan")
+    check(S, "the stored record is healed to the free plan", healed == 0, str(healed))
+    c.close()
+
+    # one numeral system per table: the quantity column used the device locale
+    c = br.new_context(locale="ar-KW")
+    c.add_init_script("localStorage.setItem('nokhatha-safi-v1', %s);" % json.dumps(json.dumps(
+        [{"ticker": "NBK", "name": "بنك", "qty": 12000, "cost": 850, "price": 921}], ensure_ascii=False)))
+    ap = c.new_page()
+    ap.goto(f"{BASE}/nizam.html#/safi", wait_until="networkidle"); ap.wait_for_timeout(400)
+    qty = ap.eval_on_selector("#safi-rows td:nth-child(3)", "e=>e.textContent")
+    check(S, "quantities use the same numerals as every other figure", qty == "12,000", qty)
+    c.close()
+
+    # printing a statement prints the statement, not the application
+    pg.goto(f"{BASE}/nizam.html#/safi", wait_until="networkidle")
+    pg.emulate_media(media="print"); pg.wait_for_timeout(300)
+    hidden = pg.evaluate("""(() => {
+      const g = s => { const e = document.querySelector(s); return !e || getComputedStyle(e).display === 'none'; };
+      return g('nav.tabs') && g('#safi-form') && g('footer.site') && g('.row');
+    })()""")
+    check(S, "print hides the chrome, the forms and the row actions", hidden)
+    check(S, "print keeps the holdings table",
+          pg.eval_on_selector("#safi-rows", "e=>getComputedStyle(e).display") != "none")
+    pg.emulate_media(media="screen")
+
+    # every shipped page carries a CSP, stubs included
+    for f in list(PAGES) + list(STUBS) + ["404.html"]:
+        t = (ROOT / f).read_text()
+        check(S, f"{f}: has a Content-Security-Policy", "Content-Security-Policy" in t)
+
+    # the company tab shows the company mark, not النوخذة's anchor
+    home = (ROOT / "index.html").read_text()
+    check(S, "the company favicon is the sail, not the anchor",
+          'href="favicon.svg"' in home and 'href="icon.svg"' not in home)
+    check(S, "the favicon file draws the sail",
+          "M20.6 2.3" in (ROOT / "favicon.svg").read_text())
+
+    # document structure: exactly one h1 per page
+    for f in list(PAGES) + list(STUBS) + ["404.html"]:
+        n = (ROOT / f).read_text().count("<h1")
+        check(S, f"{f}: exactly one h1", n == 1, f"{n} found")
+
+    check(S, "the system page has a meta description",
+          'name="description"' in (ROOT / "nizam.html").read_text())
+
+    # the flag emoji renders as the letters "KW" where no flag font exists
+    flagged = [f for f in list(PAGES) + list(STUBS) if "\U0001F1F0\U0001F1FC" in (ROOT / f).read_text()]
+    check(S, "no page carries the flag emoji", not flagged, str(flagged))
 
 # ───────────── النوخذة is free: one plan, no price, nothing to upgrade to
 def pricing_checks(pg):
