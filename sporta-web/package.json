@@ -20,6 +20,7 @@
     "package": "node scripts/make-package.mjs",
     "publish": "node scripts/publish-ftps.mjs",
     "publish:dry": "node scripts/publish-ftps.mjs --dry-run",
+    "publish:watch": "node scripts/publish-watch.mjs",
     "ftp:doctor": "node scripts/ftp-doctor.mjs"
   },
   "dependencies": {
