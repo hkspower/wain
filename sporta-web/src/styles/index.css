@@ -298,22 +298,24 @@ h1, h2, h3, .font-display {
    white copy unreadable — so the start edge, where the copy sits, is taken
    down hard and released across the frame, picking up the brand orange at the
    far edge. Mirrored for RTL so the dark end always follows the text. */
+/* Lightened once the banners started engineering their own dark zone under
+   the copy — the heavy wash read as a shadow cast over the photography. */
 .cat-scrim {
   background: linear-gradient(
     100deg,
-    rgba(10, 11, 13, 0.92) 0%,
-    rgba(10, 11, 13, 0.74) 34%,
-    rgba(10, 11, 13, 0.28) 62%,
-    rgba(224, 86, 28, 0.45) 100%
+    rgba(10, 11, 13, 0.80) 0%,
+    rgba(10, 11, 13, 0.55) 34%,
+    rgba(10, 11, 13, 0.12) 62%,
+    rgba(10, 11, 13, 0.0) 100%
   );
 }
 [dir='rtl'] .cat-scrim {
   background: linear-gradient(
     -100deg,
-    rgba(10, 11, 13, 0.92) 0%,
-    rgba(10, 11, 13, 0.74) 34%,
-    rgba(10, 11, 13, 0.28) 62%,
-    rgba(224, 86, 28, 0.45) 100%
+    rgba(10, 11, 13, 0.80) 0%,
+    rgba(10, 11, 13, 0.55) 34%,
+    rgba(10, 11, 13, 0.12) 62%,
+    rgba(10, 11, 13, 0.0) 100%
   );
 }
 

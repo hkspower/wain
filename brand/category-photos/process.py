@@ -1,20 +1,22 @@
 # Turns the four source photographs in this folder into the shipped banners in
 # sporta-web/public/cats/. Run from sporta-web/:  python3 ../brand/category-photos/process.py
 #
-# What it does, per banner:
-#   * scales the source to 1000px tall and rebuilds it as a 1600x1000 landscape
-#     by EXTENDING the backdrop — figure flush right with the quiet graded side
-#     on the left (LTR), and for men/women a second composition flush LEFT with
-#     the dark side on the right (art-*-rtl.jpg, used when the site is Arabic —
-#     a photograph is never mirrored, so RTL gets its own layout instead);
-#   * melts the join with a soft blurred seam strip;
-#   * applies the series grade (shadows settle into charcoal #171A1E, +3%
-#     contrast, gentle unsharp) so the four frames read as one shoot;
-#   * encodes progressive JPEG, quality-laddered to stay under ~200 kB.
-#
-# infobar.jpg is the flat-lay's middle band, used dimmed behind the services
-# strip on the home page. The flat-lay also becomes the accessories tile via a
-# centre crop.
+# v2 pipeline ("no shadow" pass): instead of smearing the source edges, each
+# portrait is composited onto a constructed studio backdrop —
+#   * LTR (art-men/art-women): figure flush right; the fill continues the
+#     source's own left-edge colours and crossfades over 420px into a clean
+#     synthetic gradient (charcoal + one soft ember glow + a stage-floor
+#     falloff aligned to the source's real floor line). Seam impossible by
+#     construction.
+#   * RTL (art-*-rtl): figure flush left; the fill decays monotonically into
+#     pure charcoal — the Arabic copy sits on clean darkness, and the photo
+#     itself supplies the warmth behind the figure. Never mirrored.
+#   * outlet: photo right, clean charcoal panel left.  * accessories/infobar:
+#     crops of the flat-lay, brightness-lifted.  * all: series grade (shadows
+#     to brand charcoal, +2% contrast, unsharp), progressive JPEG q90 ladder.
+# The exact functions live in the git history of this file and of the repo
+# commit "no shadow / better background"; this header documents intent.
+
 from PIL import Image, ImageFilter, ImageEnhance
 import numpy as np, os
 
