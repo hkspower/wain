@@ -78,6 +78,14 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   identified by its commercial-registration number. Final submission is via the
   Ministry of Commerce portal — say so, never imply the file itself is the
   submission.
+- **Spacing is one scale on every page**: 4 · 6 · 8 · 12 · 16 · 20 · 24 · 32 · 40 ·
+  56. Interactive rows (`.btn`, nav links, table cells) sit at `12px 16px` so they
+  measure ~44px — set by intent, not by snapping to the scale. Before this, the
+  four pages carried 27 distinct values, 7 off any scale.
+- **A computed total is a statement total, not another input.** Every readonly
+  field in the XBRL filing carries `label.total` and owns a full-width row —
+  label at the RTL start, amount at the end, `border-top` separator (heavier for
+  the two roll-ups), stacking on mobile. Pinned by the suite.
 - Every colour is a CSS custom property in one `:root` block. **All pages must
   carry the identical token set** — divergence between pages has been a real bug
   before.
@@ -126,7 +134,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 224 checks covering
+- `python3 design/test_suite.py` is the full system test — 227 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it

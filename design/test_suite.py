@@ -212,6 +212,7 @@ def browser_checks():
         tamper_checks(pg)
         offline_checks(ctx, br)
         layout_checks(br)
+        totals_alignment_checks(br)
         mobile_checks(br)
         font_checks(pg)
 
@@ -867,6 +868,42 @@ def layout_checks(br):
                   bg.startswith("rgb(255, 255, 255") and card.startswith("rgb(255, 255, 255"),
                   f"body={bg} card={card}")
         c.close()
+
+def totals_alignment_checks(br):
+    """A computed subtotal is a statement total, not another input. Every
+    readonly field in the filing must carry .total and own a full-width row —
+    before this was pinned, totals landed inline among the inputs on one
+    fieldset and orphaned alone on a second row in another."""
+    S = "layout"
+    c = br.new_context(viewport={"width": 1280, "height": 900}, locale="ar-KW")
+    p = c.new_page()
+    p.goto(f"{BASE}/nizam.html#/xbrl", wait_until="networkidle"); p.wait_for_timeout(400)
+
+    unmarked = p.evaluate("""(() => {
+      const out = [];
+      document.querySelectorAll('#xbrl-form input[readonly]').forEach(i => {
+        const l = i.closest('label');
+        if (!l || !l.classList.contains('total')) out.push(i.name || '?');
+      });
+      return out;
+    })()""")
+    check(S, "every computed total is marked as a total", not unmarked, ", ".join(unmarked))
+
+    n = p.evaluate("document.querySelectorAll('#xbrl-form label.total').length")
+    check(S, "the filing carries all eight computed totals", n == 8, str(n))
+
+    # a total line must span its fieldset's full width — nothing shares its row
+    shared = p.evaluate("""(() => {
+      const out = [];
+      document.querySelectorAll('#xbrl-form label.total').forEach(l => {
+        const r = l.getBoundingClientRect();
+        const fs = l.closest('fieldset').getBoundingClientRect();
+        if (r.width < fs.width - 40) out.push(l.textContent.trim().slice(0, 20));
+      });
+      return out;
+    })()""")
+    check(S, "each total owns a full-width row", not shared, ", ".join(shared))
+    c.close()
 
 def mobile_checks(br):
     """A phone gets an app, not a shrunken desktop: the system's tabs sit in a
