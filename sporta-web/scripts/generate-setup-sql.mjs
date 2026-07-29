@@ -28,6 +28,9 @@ const PARTS = [
   // Must come AFTER payment-method-migration (it reads orders.payment_method)
   // and after admin-migration (it replaces admin_order_stats).
   ['admin-cod-migration.sql','Settling cash orders, and cash-owed in the stats'],
+  // LAST of the admin parts: it re-gates every admin policy and RPC created
+  // above onto the admin_users allowlist, so it must run after they exist.
+  ['admin-allowlist-migration.sql','Admin means allowlisted, not merely signed in'],
   ['seed-products.sql',     'The 46 products, and retirement of anything older'],
 ]
 
@@ -70,7 +73,8 @@ select
   (select count(*) from pg_proc where proname = 'verify_device_passcode') as passcode_function,
   (select count(*) from information_schema.columns
     where table_name = 'orders' and column_name = 'payment_method')       as cash_on_delivery,
-  (select count(*) from auth.users)                                as admin_users;
+  (select count(*) from public.admin_users)                        as admins_allowlisted,
+  (select count(*) from auth.users)                                as auth_accounts;
 
 -- What those numbers should say:
 --
@@ -80,9 +84,17 @@ select
 --   passcode_function    1      0 means the admin quick-unlock screen cannot work.
 --   cash_on_delivery     1      0 means only KNET is offered; cash orders cannot
 --                               be placed.
---   admin_users          1+     0 means NOBODY CAN SIGN IN to /admin yet.
---                               Fix: Authentication -> Users -> Add user.
---                               Any email works; it does not need a real inbox.
+--   admins_allowlisted   1+     0 means NOBODY can use /admin. Signing in is
+--                               NOT enough any more: Supabase sign-up is open to
+--                               anyone, so admin is an explicit allowlist.
+--                               Fix, after creating the account under
+--                               Authentication -> Users -> Add user:
+--                                 insert into public.admin_users (user_id, email)
+--                                 select id, email from auth.users
+--                                  where email = 'you@example.com'
+--                                 on conflict (user_id) do nothing;
+--   auth_accounts        1+     accounts that exist at all. Only the ones listed
+--                               in admin_users can see any order.
 `
 
 writeFileSync(join(dir, 'SETUP-ALL.sql'), out)

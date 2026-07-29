@@ -18,6 +18,7 @@ export default function Overview({ onGoto }) {
         series: r.series ?? [],
         catalog: c.rows ?? [],
         needsMigration: s.needsMigration || r.needsMigration || c.needsMigration,
+        notAdmin: s.notAdmin || r.notAdmin,
         error: s.error || c.error,
       })
     })()
@@ -29,6 +30,26 @@ export default function Overview({ onGoto }) {
   if (state.loading) return <Skeleton />
 
   if (state.error) return <Notice tone="error" title="Cannot load the dashboard">{state.error}</Notice>
+
+  // Signed in but not allowlisted. Distinguished from "migration missing"
+  // because the fix is completely different, and from "no data" because an
+  // empty dashboard looks like a working shop with no orders.
+  if (state.notAdmin) {
+    return (
+      <Notice tone="error" title="This account is not an admin">
+        <p>
+          It is signed in, but it is not on the admin allowlist, so the database
+          refuses to show it any orders or figures. Being signed in is
+          deliberately not enough — Supabase sign-up is open to anyone.
+        </p>
+        <p className="mt-2">Add this account in the Supabase SQL editor:</p>
+        <pre className="mt-1 overflow-x-auto rounded bg-slate-900 p-2 text-[.72rem] leading-relaxed text-slate-100">{`insert into public.admin_users (user_id, email)
+select id, email from auth.users
+ where email = 'you@example.com'
+on conflict (user_id) do nothing;`}</pre>
+      </Notice>
+    )
+  }
 
   if (state.needsMigration) {
     return (

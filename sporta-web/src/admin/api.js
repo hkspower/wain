@@ -11,11 +11,29 @@ import { PRODUCTS } from '../lib/products'
 const NOT_CONFIGURED =
   'Supabase is not configured — add your Project URL and anon key to public_html/config.js.'
 
+// This account signed in but is not on the admin allowlist. Being signed in is
+// no longer enough: admin-allowlist-migration.sql gates every admin policy and
+// RPC on a row in public.admin_users, because in Supabase `authenticated` means
+// "anyone who signed up", and sign-up is open to the internet.
+export const NOT_ADMIN =
+  'This account is signed in but is not an admin.\n\n' +
+  'Add it in the Supabase SQL editor:\n' +
+  "  insert into public.admin_users (user_id, email)\n" +
+  "  select id, email from auth.users where email = 'you@example.com'\n" +
+  '  on conflict (user_id) do nothing;'
+
 export const PAYMENT_STATES = ['paid', 'pending', 'review', 'failed']
 export const FULFILMENT_STATES = ['unfulfilled', 'packed', 'shipped', 'delivered', 'cancelled']
 
 function ready() {
   return Boolean(supabase)
+}
+
+// The allowlist RPCs raise not_admin with SQLSTATE 42501. RLS on the tables is
+// silent instead — it returns zero rows — so a denial shows up as either.
+function isDeniedError(error) {
+  if (!error) return false
+  return error.code === '42501' || `${error.message || ''}`.includes('not_admin')
 }
 
 // A missing table/column/function reads as a schema problem, not a data problem.
@@ -35,6 +53,7 @@ export async function fetchStats() {
   if (!ready()) return { error: NOT_CONFIGURED }
   const { data, error } = await supabase.rpc('admin_order_stats')
   if (error) {
+    if (isDeniedError(error)) return { notAdmin: true }
     return isSchemaError(error) ? { needsMigration: true } : { error: error.message }
   }
   const row = Array.isArray(data) ? data[0] : data
@@ -44,7 +63,10 @@ export async function fetchStats() {
 export async function fetchRevenueDaily(days = 14) {
   if (!ready()) return { series: [] }
   const { data, error } = await supabase.rpc('admin_revenue_daily', { p_days: days })
-  if (error) return isSchemaError(error) ? { needsMigration: true, series: [] } : { series: [] }
+  if (error) {
+    if (isDeniedError(error)) return { notAdmin: true, series: [] }
+    return isSchemaError(error) ? { needsMigration: true, series: [] } : { series: [] }
+  }
   return { series: data ?? [] }
 }
 
@@ -111,6 +133,7 @@ export async function setCodPaid(orderId, paid = true) {
     p_paid: paid,
   })
   if (error) {
+    if (isDeniedError(error)) return { notAdmin: true }
     if (isSchemaError(error)) return { needsMigration: true }
     // The function raises named errors; turn them into something an operator
     // can act on rather than showing raw Postgres text.
