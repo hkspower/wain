@@ -25,6 +25,12 @@ import { IconArrowUpRight } from './icons'
 // the owner-photo slot — a file that is deliberately not shipped.
 const PHOTO_DIR = '/cats'
 const PHOTO_EXT = '.jpg'
+// Our artwork also ships as WebP at two widths. A phone was downloading the
+// full 1600px JPEG — 971 kB of the homepage's 1.5 MB — to paint a 390px tile.
+// The browser now picks from these; the JPEG stays as the <img> fallback and
+// as the file the audit and the owner-photo path still reason about.
+// Tiles are full-width on mobile and half of a 1280px container on desktop.
+const TILE_SIZES = '(min-width: 768px) 50vw, 100vw'
 
 export default function CategoryTile({ id, to, kicker, title, brief, badge, tone, tall = false, rtlArt = false }) {
   const { lang } = useLang()
@@ -66,14 +72,21 @@ export default function CategoryTile({ id, to, kicker, title, brief, badge, tone
           the right with a graded quiet left, and under RTL the flipped scrim
           alone carries legibility — verified in both directions. */}
       {!photoOk && artOk && (
-        <img
-          src={art}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          onError={() => (variant ? setRtlFailed(true) : setArtOk(false))}
-          className="absolute inset-0 -z-20 h-full w-full select-none object-cover object-center transition-transform duration-500 ease-out group-hover:scale-[1.04]"
-        />
+        <picture>
+          <source
+            type="image/webp"
+            sizes={TILE_SIZES}
+            srcSet={`${PHOTO_DIR}/art-${id}${variant}-800.webp 800w, ${PHOTO_DIR}/art-${id}${variant}-1600.webp 1600w`}
+          />
+          <img
+            src={art}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            onError={() => (variant ? setRtlFailed(true) : setArtOk(false))}
+            className="absolute inset-0 -z-20 h-full w-full select-none object-cover object-center transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+          />
+        </picture>
       )}
 
       {/* Scrim over any pictorial layer — the photo's brightness is not

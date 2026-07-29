@@ -62,7 +62,10 @@ export default function Navbar() {
 
         {/* logo (center) — official mark, white variant for dark header */}
         <NavLink to="/" aria-label={t.a11y.homeLink} className="flex min-h-11 items-center">
-          <img src="/logo-white.png" alt="Sporta Sports Wear" width="132" height="41" className="h-8 w-auto md:h-9" />
+          <picture>
+            <source type="image/webp" srcSet="/logo-white.webp" />
+            <img src="/logo-white.png" alt="Sporta Sports Wear" width="132" height="41" className="h-8 w-auto md:h-9" />
+          </picture>
         </NavLink>
 
         {/* actions (right) */}

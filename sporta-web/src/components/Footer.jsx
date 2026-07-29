@@ -10,7 +10,10 @@ export default function Footer() {
       <div className="mx-auto max-w-7xl px-6 py-12 md:py-16">
         {/* Brand + tagline + socials */}
         <div className="flex flex-col items-center gap-5 text-center">
-          <img src="/logo-white.png" alt="Sporta Sports Wear" width="200" height="62" loading="lazy" className="h-12 w-auto" />
+          <picture>
+            <source type="image/webp" srcSet="/logo-white.webp" />
+            <img src="/logo-white.png" alt="Sporta Sports Wear" width="200" height="62" loading="lazy" className="h-12 w-auto" />
+          </picture>
           <p className="max-w-md text-sm text-slate-400">{t.footer.tagline}</p>
           <div className="flex items-center gap-3">
             {[

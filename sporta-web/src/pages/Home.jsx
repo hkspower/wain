@@ -99,13 +99,20 @@ export default function Home() {
           are physical, hence the explicit rtl: variant. */}
       <section className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-10">
         <div className="relative isolate overflow-hidden rounded-3xl bg-ink text-white">
-          <img
-            src="/cats/infobar.jpg"
-            alt=""
-            loading="lazy"
-            decoding="async"
-            className="absolute inset-0 -z-20 h-full w-full select-none object-cover object-center"
-          />
+          <picture>
+            <source
+              type="image/webp"
+              sizes="100vw"
+              srcSet="/cats/infobar-800.webp 800w, /cats/infobar-1600.webp 1600w"
+            />
+            <img
+              src="/cats/infobar.jpg"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="absolute inset-0 -z-20 h-full w-full select-none object-cover object-center"
+            />
+          </picture>
           <span
             aria-hidden="true"
             className="absolute inset-0 -z-10 bg-gradient-to-r from-ink/95 via-ink/80 to-ink/50 rtl:bg-gradient-to-l"
