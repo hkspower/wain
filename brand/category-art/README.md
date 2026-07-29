@@ -1,9 +1,24 @@
 # Category tile artwork — "Ember Discipline"
 
 The four home-page category artworks (`sporta-web/public/cats/art-*.jpg`) are
-generated, not sourced: every canvas is produced by a Python/PIL script in this
-folder, under the design philosophy in `PHILOSOPHY.md`. Nothing here ships —
-this folder is the master, `public/cats/` holds the 1600×1000 JPEG exports.
+generated, not sourced. Two generations exist under the same philosophy
+(`PHILOSOPHY.md`); the one that ships is the second:
+
+**Current (ships): `raymarch/` — real-time 3D renders.** A GLSL sphere-tracing
+framework (`raymarch/render.mjs`) rendered in headless Chromium via WebGL2:
+one warm key light, cool fill, soft shadows, ambient occlusion, glossy floor
+with true reflections, ACES tonemap. Per-scene SDF files in
+`raymarch/scenes/`. The men/women statues are the owner's banner silhouettes
+extruded into 3D through exact Euclidean signed-distance fields
+(`scenes/men.tex.png`, `scenes/women.tex.png`, 16-bit packed in RG) with an
+organic inflation profile — the anatomy is the brand silhouette, guaranteed.
+Render: `node render.mjs <scene> out.png 1600 1000` (needs playwright; symlink
+node_modules from sporta-web). Post-grade (bloom/grain/vignette) and JPEG
+encoding are described in the git history of this folder.
+
+**First generation (superseded): the Python/PIL paintings** (`paint_*.py`,
+`men.py`, `women.py`) — kept because they are the recipe the philosophy was
+proven on. Nothing in this folder ships; `public/cats/` holds the exports.
 
 | Canvas | Script | Subject |
 |---|---|---|
