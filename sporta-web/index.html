@@ -128,12 +128,18 @@
          only after parsing finishes. -->
     <script src="/config.js"></script>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Changa:wght@600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
+    <!-- Fonts are self-hosted; the @font-face rules live in the app stylesheet
+         under styles/. The Google Fonts
+         stylesheet used to sit here, which cost a DNS lookup, a TLS handshake
+         and a render-blocking round trip to a third party before any heading
+         could paint. These two preloads are the faces above the fold — the
+         display weight for headings and the UI regular — so they start
+         downloading with the HTML instead of after the CSS parses. The rest
+         load on demand via unicode-range. -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+          href="/fonts/alexandria-var-latin.woff2" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+          href="/fonts/plex-400-latin.woff2" />
   </head>
   <body>
     <div id="root"></div>

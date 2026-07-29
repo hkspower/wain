@@ -53,7 +53,7 @@ export default function Home() {
           className="flex flex-col items-center justify-between gap-3 rounded-3xl bg-gradient-to-br from-brand to-brand-dark p-8 text-white transition hover:shadow-2xl md:flex-row md:p-10"
         >
           <div className="text-center md:text-start">
-            <p className="text-xs font-semibold uppercase tracking-wide text-white/80">{t.offer.badge}</p>
+            <p className="eyebrow text-white/80">{t.offer.badge}</p>
             <h2 className="mt-1 text-3xl font-extrabold md:text-4xl">{t.offer.title}</h2>
           </div>
           <span className="flex items-center gap-1.5 font-bold underline underline-offset-4">{t.offer.cta} <IconArrowRight size={16} /></span>
@@ -129,7 +129,7 @@ export default function Home() {
       {/* Essentials */}
       <section className="mx-auto max-w-7xl px-4 py-10 md:px-6 md:py-14">
         <div className="mb-8 text-center">
-          <p className="text-xs font-semibold uppercase tracking-widest text-brand">{t.ess.kicker}</p>
+          <p className="eyebrow text-brand">{t.ess.kicker}</p>
           <h2 className="text-3xl font-extrabold text-slate-900">{t.ess.title}</h2>
         </div>
         <div className="grid grid-cols-2 gap-x-3 gap-y-8 md:grid-cols-4 md:gap-x-4">

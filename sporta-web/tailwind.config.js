@@ -24,7 +24,7 @@ export default {
       },
       fontFamily: {
         sans: ['IBM Plex Sans Arabic', 'system-ui', 'sans-serif'],
-        display: ['Changa', 'IBM Plex Sans Arabic', 'sans-serif'],
+        display: ['Alexandria', 'IBM Plex Sans Arabic', 'sans-serif'],
       },
     },
   },

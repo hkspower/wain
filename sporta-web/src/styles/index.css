@@ -3,6 +3,7 @@
  * (Paths are relative to this file at src/styles/. In the real project where
  * index.css sits at src/, use "./styles/theme.css" etc.) */
 @import 'tailwindcss';
+@import './fonts.css';
 @import './theme.css';
 @import './admin.css';
 @import './admin-mobile.css';
@@ -22,11 +23,47 @@ body {
 }
 
 /* ---- Typography system ----
- * Headings use Changa — modern bold Arabic display face (pairs with the
- * sporty brand); body/UI stays IBM Plex Sans Arabic. */
+ * Display: Alexandria — geometric, high-contrast, equally confident in Arabic
+ * and Latin at large sizes, which is what a sportswear headline needs. It
+ * replaced Changa, whose softer, narrower forms read less premium set large,
+ * and it draws Arabic-Indic numerals (٦٠٪) properly — the discount badges and
+ * prices depend on that.
+ * UI/body: IBM Plex Sans Arabic — neutral and highly legible small, so the
+ * pairing is geometric-display over humanist-text rather than two voices
+ * competing.
+ * Headlines get optical corrections that only make sense at display sizes:
+ * tighter tracking and leading in Latin. Arabic takes NEITHER — negative
+ * tracking breaks the connected letterforms, and Arabic ascenders/descenders
+ * need more leading, not less. */
 h1, h2, h3, .font-display {
-  font-family: 'Changa', 'IBM Plex Sans Arabic', sans-serif;
-  line-height: 1.15;
+  font-family: 'Alexandria', 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  line-height: 1.14;
+  letter-spacing: -0.018em;
+  font-feature-settings: 'kern' 1, 'liga' 1;
+}
+[dir='rtl'] h1,
+[dir='rtl'] h2,
+[dir='rtl'] h3,
+[dir='rtl'] .font-display {
+  letter-spacing: 0;
+  line-height: 1.3;
+}
+/* Display sizes tighten further; small headings must not. */
+.text-4xl, .text-5xl, .text-6xl, .text-7xl, .text-8xl, .text-9xl {
+  letter-spacing: -0.028em;
+}
+[dir='rtl'] .text-4xl,
+[dir='rtl'] .text-5xl,
+[dir='rtl'] .text-6xl,
+[dir='rtl'] .text-7xl,
+[dir='rtl'] .text-8xl,
+[dir='rtl'] .text-9xl {
+  letter-spacing: 0;
+}
+
+/* Arabic body copy needs a touch more leading than Latin at the same size. */
+[dir='rtl'] body {
+  line-height: 1.7;
 }
 
 /* Arabic script must never be letter-spaced — tracking breaks the connected
@@ -75,6 +112,26 @@ h1, h2, h3, .font-display {
  * Inside the components layer, utilities win, which is the whole point of
  * having layers. */
 @layer components {
+  /* Eyebrow/kicker labels. In the components layer for the reason spelled out
+     above: as plain CSS it would sit after Tailwind and win against utilities
+     at equal specificity, so `class="eyebrow text-sm"` would silently ignore
+     the size. Wide tracking is the whole effect in Latin; Arabic gets none
+     (it breaks the connected letterforms) and a slightly larger size instead,
+     because Arabic has no capitals to give the label its weight. */
+  .eyebrow {
+    font-family: 'Alexandria', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 0.7rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    line-height: 1;
+  }
+  [dir='rtl'] .eyebrow {
+    letter-spacing: 0;
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+
   /* Buttons — 8px-grid padding, smooth press, accessible focus */
   .btn {
     display: inline-flex;

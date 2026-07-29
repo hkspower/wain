@@ -43,7 +43,7 @@ export default function CategoryTile({ id, to, kicker, title, brief, badge, tone
     <Link
       to={to}
       className={`${tone} group relative isolate flex flex-col justify-center overflow-hidden rounded-3xl p-6 text-white md:p-8 ${
-        tall ? 'h-60 md:h-[22rem]' : 'h-44 md:h-52'
+        tall ? 'h-60 md:h-[22rem]' : 'h-48 md:h-52'
       }`}
     >
       {/* Owner photo. Never mirrored: a photograph can contain print, logos,
@@ -81,13 +81,17 @@ export default function CategoryTile({ id, to, kicker, title, brief, badge, tone
           same treatment so the two states are typographically identical. */}
       {(photoOk || artOk) && <span aria-hidden="true" className="cat-scrim absolute inset-0 -z-10" />}
 
-      <div className="relative max-w-[58%]">
+      {/* The 58% cap exists so desktop copy never runs into the artwork beside
+          it. On mobile the art is full-bleed BEHIND the text, so the same cap
+          only forces wrapping — it clipped the second line of «سبورتا أوتلت»
+          straight out of the tile. */}
+      <div className="relative max-w-[76%] sm:max-w-[62%] md:max-w-[58%]">
         {badge ? (
           <span className="mb-2 inline-block rounded-full bg-brand px-3 py-1 text-[0.7rem] font-bold text-ink">
             {badge}
           </span>
         ) : (
-          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-white/70 md:text-xs">
+          <p className="eyebrow text-white/70">
             {kicker}
           </p>
         )}
