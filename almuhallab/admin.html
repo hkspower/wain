@@ -54,7 +54,7 @@
       width: 100%; max-width: 420px; background: var(--panel); border: 1px solid var(--border);
       border-radius: 16px; padding: 28px; display: flex; flex-direction: column; gap: 14px;
     }
-    .gate .mark { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center;
+    .gate .mark { color: #fff; width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center;
       background: linear-gradient(135deg, var(--sand-vivid), var(--tint-strong)); font-size: 22px; }
 
     label { font-size: 13px; font-weight: 700; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
@@ -86,7 +86,7 @@
       background: var(--panel); border-bottom: 1px solid var(--border); }
     .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; }
     .brand .logo { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
-      font-size: 17px; background: linear-gradient(135deg, var(--sand-vivid), var(--tint-strong)); }
+      font-size: 17px; background: linear-gradient(135deg, var(--sand-vivid), var(--tint-strong)); color: #fff; }
     .brand small { display: block; font-weight: 500; font-size: 11px; color: var(--muted); }
     nav.site { display: flex; gap: 4px; margin-inline-start: auto; flex-wrap: wrap; align-items: center; }
     nav.site a { font-size: 13.5px; font-weight: 600; color: var(--text); padding: 8px 14px;
@@ -195,7 +195,7 @@
 <section class="gate" id="gate">
   <form id="gate-form" autocomplete="off">
     <div style="display:flex;align-items:center;gap:12px">
-      <span class="mark">⚓</span>
+      <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:22px;height:22px"><circle cx="12" cy="5.3" r="1.9"/><path d="M12 7.2v12.4"/><path d="M8 10.7h8"/><path d="M5.5 14.6c.7 3.6 3.1 5.5 6.5 5.8 3.4-.3 5.8-2.2 6.5-5.8"/><path fill="currentColor" stroke-width=".8" d="M5.5 12.3 4.3 15.4l2.8-.5z"/><path fill="currentColor" stroke-width=".8" d="M18.5 12.3l1.2 3.1-2.8-.5z"/></svg></span>
       <div>
         <div style="font-weight:800;font-size:17px">لوحة الإدارة</div>
         <div style="font-size:12px;color:var(--muted)">إدارة النوخذة Console</div>
@@ -223,12 +223,12 @@
   <div class="topbar">
     <header>
       <div class="brand">
-        <span class="logo">⚓</span>
+        <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:20px;height:20px"><circle cx="12" cy="5.3" r="1.9"/><path d="M12 7.2v12.4"/><path d="M8 10.7h8"/><path d="M5.5 14.6c.7 3.6 3.1 5.5 6.5 5.8 3.4-.3 5.8-2.2 6.5-5.8"/><path fill="currentColor" stroke-width=".8" d="M5.5 12.3 4.3 15.4l2.8-.5z"/><path fill="currentColor" stroke-width=".8" d="M18.5 12.3l1.2 3.1-2.8-.5z"/></svg></span>
         <div>لوحة الإدارة <small>إدارة النوخذة — المهلب كود</small></div>
       </div>
       <nav class="site">
         <a href="index.html">← المهلب كود</a>
-        <a href="nokhatha.html">⚓ النوخذة</a>
+        <a href="nokhatha.html" style="display:inline-flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:15px;height:15px"><circle cx="12" cy="5.3" r="1.9"/><path d="M12 7.2v12.4"/><path d="M8 10.7h8"/><path d="M5.5 14.6c.7 3.6 3.1 5.5 6.5 5.8 3.4-.3 5.8-2.2 6.5-5.8"/><path fill="currentColor" stroke-width=".8" d="M5.5 12.3 4.3 15.4l2.8-.5z"/><path fill="currentColor" stroke-width=".8" d="M18.5 12.3l1.2 3.1-2.8-.5z"/></svg> النوخذة</a>
       </nav>
       <button class="btn" id="btn-refresh">↻ تحديث</button>
       <button class="btn danger" id="btn-logout">خروج</button>

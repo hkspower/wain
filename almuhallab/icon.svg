@@ -1,20 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- النوخذة mark: the anchor, redrawn 2026-07 at the owner's request — ring,
+       stock, shank, curved arms crowned with arrowhead flukes, white on the
+       brand gradient. All art sits inside the maskable safe zone. -->
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#e3a556"/>
-      <stop offset="1" stop-color="#8a5122"/>
+      <stop offset="1" stop-color="#6f3f1c"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="112" fill="#0b1220"/>
-  <rect x="32" y="32" width="448" height="448" rx="96" fill="url(#g)"/>
-  <g fill="none" stroke="#f4f8fb" stroke-width="34" stroke-linecap="round">
-    <circle cx="256" cy="132" r="38"/>
-    <line x1="256" y1="170" x2="256" y2="400"/>
-    <line x1="166" y1="238" x2="346" y2="238"/>
-    <path d="M136 330c0 78 54 100 120 100s120-22 120-100"/>
-    <line x1="136" y1="330" x2="106" y2="300"/>
-    <line x1="136" y1="330" x2="166" y2="300"/>
-    <line x1="376" y1="330" x2="346" y2="300"/>
-    <line x1="376" y1="330" x2="406" y2="300"/>
+  <rect width="512" height="512" rx="116" fill="url(#g)"/>
+  <g fill="none" stroke="#ffffff" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="256" cy="118" r="40"/>
+    <path d="M256 158v256"/>
+    <path d="M172 232h168"/>
+    <path d="M120 316c14 74 64 112 136 118 72-6 122-44 136-118"/>
+  </g>
+  <g fill="#ffffff" stroke="#ffffff" stroke-width="14" stroke-linejoin="round">
+    <path d="M120 268 94 330l58-8z"/>
+    <path d="M392 268l26 62-58-8z"/>
   </g>
 </svg>
