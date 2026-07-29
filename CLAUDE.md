@@ -12,7 +12,12 @@
    updates go out via direct deploy to Hostinger, not via GitHub Actions/Lovable
    auto-deploy. (Claude still commits/pushes to its working branch as a backup.)
 
-3. **Deployment target: Hostinger** (`www.sporta.com.kw`), a PHP host serving a
+3. **Keep replies brief.** Short answers, minimal preamble, no long recaps of
+   what was just done. Lead with the result; give detail only when asked or
+   when something genuinely needs a warning. Code comments stay thorough —
+   this is about chat replies, not the codebase.
+
+4. **Deployment target: Hostinger** (`www.sporta.com.kw`), a PHP host serving a
    React (Vite) app. The owner works in **hPanel**, and **SSH is off for good**.
    Publish with **`npm run publish`** (FTPS — see Working notes), or drop
    `SPORTA-GO-LIVE.zip` into hPanel File Manager. Not SFTP.
