@@ -31,6 +31,8 @@ const PARTS = [
   // LAST of the admin parts: it re-gates every admin policy and RPC created
   // above onto the admin_users allowlist, so it must run after they exist.
   ['admin-allowlist-migration.sql','Admin means allowlisted, not merely signed in'],
+  // Needs is_admin() from the allowlist migration.
+  ['passcode-hardening-migration.sql','Quick-unlock: admins only, owned, revocable'],
   ['seed-products.sql',     'The 46 products, and retirement of anything older'],
 ]
 

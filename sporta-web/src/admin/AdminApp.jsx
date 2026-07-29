@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
-import { supabase, hasDevicePasscode } from '../lib/supabase'
+import { supabase, hasDevicePasscode, isNotAdminError } from '../lib/supabase'
 import { getDeviceId, isEnrolledLocally, markEnrolled, clearEnrolled } from '../lib/deviceId'
 import { useIdleLock } from './useIdleLock'
 import { useAdminMeta } from './useAdminMeta'
 import AdminLogin from './AdminLogin'
 import LockScreen from './LockScreen'
 import SetupQuickUnlock from './SetupQuickUnlock'
-import Overview from './Overview'
+import Overview, { NotAdminNotice } from './Overview'
+import Devices from './Devices'
 import Orders from './Orders'
 import Catalog from './Catalog'
 import { IconBag, IconTruck, IconStar, IconLock } from '../components/icons'
@@ -20,23 +21,41 @@ export default function AdminApp() {
   const [session, setSession] = useState(undefined) // undefined = loading
   const [enrolled, setEnrolled] = useState(isEnrolledLocally()) // server-reconciled below
   const [locked, setLocked] = useState(isEnrolledLocally())
+  // Signed in, but not on the admin allowlist. See refreshEnrollment.
+  const [notAdmin, setNotAdmin] = useState(false)
 
   // Ask the server whether this device is enrolled; reconcile the local hint.
   // Falls back to the local flag if the RPC is unavailable.
+  //
+  // not_admin is handled separately and deliberately. has_device_passcode now
+  // requires the admin allowlist, so a signed-in non-admin gets a 42501 here.
+  // Lumping that in with "RPC missing" made it fall back to the stale local
+  // hint and show a lock screen the account could never pass — a dead end with
+  // no explanation. Instead we report notAdmin, never lock, and let the
+  // dashboard say what is wrong.
   const refreshEnrollment = useCallback(async (hasSession) => {
     if (!hasSession) {
       setEnrolled(false)
+      setNotAdmin(false)
       return false
     }
     try {
       const yes = await hasDevicePasscode(getDeviceId())
       setEnrolled(yes)
+      setNotAdmin(false)
       if (yes) markEnrolled()
       else clearEnrolled()
       return yes
-    } catch {
+    } catch (e) {
+      if (isNotAdminError(e)) {
+        setNotAdmin(true)
+        setEnrolled(false)
+        clearEnrolled()
+        return false
+      }
       const fallback = isEnrolledLocally()
       setEnrolled(fallback)
+      setNotAdmin(false)
       return fallback
     }
   }, [])
@@ -99,7 +118,7 @@ export default function AdminApp() {
 
   if (!session) return <AdminLogin />
 
-  if (locked && enrolled) {
+  if (locked && enrolled && !notAdmin) {
     return <LockScreen onUnlock={() => setLocked(false)} onUsePassword={usePasswordInstead} />
   }
 
@@ -108,6 +127,9 @@ export default function AdminApp() {
       email={session.user?.email}
       onSignOut={() => supabase.auth.signOut()}
       onEnrollChange={() => refreshEnrollment(!!session)}
+      notAdmin={notAdmin}
+      onLockNow={() => enrolled && setLocked(true)}
+      canLock={enrolled}
     />
   )
 }
@@ -124,7 +146,7 @@ const ADMIN_TABS = [
   { id: 'settings', label: 'Settings', Icon: IconLock },
 ]
 
-function Dashboard({ email, onSignOut, onEnrollChange }) {
+function Dashboard({ email, onSignOut, onEnrollChange, notAdmin, onLockNow, canLock }) {
   const [tab, setTab] = useState('overview')
   // Lets the Overview alerts deep-link into a filtered Orders view.
   const [orderFilter, setOrderFilter] = useState('all')
@@ -173,7 +195,16 @@ function Dashboard({ email, onSignOut, onEnrollChange }) {
       </header>
 
       <main className="admin-content flex-1 px-4 py-6 md:px-8 md:py-10">
-          {tab === 'overview' && <Overview onGoto={goto} />}
+        {/* Orders and Catalogue would otherwise just look empty — an allowlist
+            denial is silent at the RLS layer, it returns zero rows. Overview
+            and Settings carry their own copy of this message. */}
+        {notAdmin && tab !== 'overview' && tab !== 'settings' && (
+          <div className="mb-6">
+            <NotAdminNotice />
+          </div>
+        )}
+
+        {tab === 'overview' && <Overview onGoto={goto} />}
 
         {tab === 'orders' && <Orders key={orderFilter} initialPayment={orderFilter} />}
 
@@ -182,7 +213,15 @@ function Dashboard({ email, onSignOut, onEnrollChange }) {
         {tab === 'settings' && (
           <div className="space-y-6">
             <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
-            <SetupQuickUnlock onEnrolled={onEnrollChange} />
+
+            {notAdmin ? (
+              <NotAdminNotice />
+            ) : (
+              <>
+                <SetupQuickUnlock onEnrolled={onEnrollChange} onLockNow={onLockNow} canLock={canLock} />
+                <Devices />
+              </>
+            )}
           </div>
         )}
       </main>
@@ -204,3 +243,4 @@ function Dashboard({ email, onSignOut, onEnrollChange }) {
     </div>
   )
 }
+

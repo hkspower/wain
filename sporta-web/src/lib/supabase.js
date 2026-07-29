@@ -46,3 +46,30 @@ export async function hasDevicePasscode(deviceId) {
   if (error) throw error
   return data === true
 }
+
+// Every passcode RPC raises not_admin (SQLSTATE 42501) for an account that is
+// signed in but not on the admin allowlist. That is a completely different
+// situation from "the RPC is missing", and the two used to be caught together —
+// which meant a non-admin silently fell back to the stale local hint and got
+// shown a lock screen it could never pass. Callers separate them with this.
+export function isNotAdminError(error) {
+  if (!error) return false
+  return error.code === '42501' || `${error.message || ''}`.includes('not_admin')
+}
+
+// Enrolled devices, newest use first. No hashes are returned by the RPC.
+// `mine` is computed server-side from auth.uid(); `is_this_one` is decided in
+// the browser, because only the browser knows its own device id.
+export async function listDevices() {
+  const { data, error } = await supabase.rpc('admin_list_devices')
+  if (error) throw error
+  return data ?? []
+}
+
+export async function revokeDevice(deviceId) {
+  const { data, error } = await supabase.rpc('admin_revoke_device', {
+    p_device_id: deviceId,
+  })
+  if (error) throw error
+  return data
+}
