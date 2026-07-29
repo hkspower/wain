@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useLang } from '../i18n/LanguageContext'
 import { IconArrowUpRight } from './icons'
 
 // One category tile. Three layers, best available wins:
@@ -25,11 +26,18 @@ import { IconArrowUpRight } from './icons'
 const PHOTO_DIR = '/cats'
 const PHOTO_EXT = '.jpg'
 
-export default function CategoryTile({ id, to, kicker, title, brief, badge, tone, tall = false }) {
+export default function CategoryTile({ id, to, kicker, title, brief, badge, tone, tall = false, rtlArt = false }) {
+  const { lang } = useLang()
   const [photoOk, setPhotoOk] = useState(true)
   const [artOk, setArtOk] = useState(true)
+  // A photograph must never be mirrored, so categories whose model would sit
+  // under the Arabic copy ship a second COMPOSITION instead: the same
+  // untouched figure placed flush left with the backdrop extended to the
+  // right. rtlFailed falls back to the base art if the variant file is gone.
+  const [rtlFailed, setRtlFailed] = useState(false)
   const photo = `${PHOTO_DIR}/${id}${PHOTO_EXT}`
-  const art = `${PHOTO_DIR}/art-${id}${PHOTO_EXT}`
+  const variant = rtlArt && lang === 'ar' && !rtlFailed ? '-rtl' : ''
+  const art = `${PHOTO_DIR}/art-${id}${variant}${PHOTO_EXT}`
 
   return (
     <Link
@@ -52,25 +60,20 @@ export default function CategoryTile({ id, to, kicker, title, brief, badge, tone
         />
       )}
 
-      {/* Shipped artwork. Composed for LTR — quiet dark on the left where the
-          copy sits, subject burning on the right — and MIRRORED under RTL so
-          the quiet side keeps following the text. Safe here and not for
-          photos: the artwork is ours, contains no letters by design, and its
-          subjects read identically flipped. */}
+      {/* Shipped artwork. As of the photographic series this layer is NEVER
+          mirrored: the outlet frame contains readable signage, and flipping a
+          photograph of a person is a tell. The banners keep their subject on
+          the right with a graded quiet left, and under RTL the flipped scrim
+          alone carries legibility — verified in both directions. */}
       {!photoOk && artOk && (
-        <div aria-hidden="true" className="absolute inset-0 -z-20 rtl:-scale-x-100">
-          {/* Mirroring lives on the wrapper and the hover zoom on the image,
-              because they are both transforms: on one element the hover scale
-              would overwrite the RTL flip and un-mirror the art mid-hover. */}
-          <img
-            src={art}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            onError={() => setArtOk(false)}
-            className="h-full w-full select-none object-cover object-center transition-transform duration-500 ease-out group-hover:scale-[1.04]"
-          />
-        </div>
+        <img
+          src={art}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          onError={() => (variant ? setRtlFailed(true) : setArtOk(false))}
+          className="absolute inset-0 -z-20 h-full w-full select-none object-cover object-center transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+        />
       )}
 
       {/* Scrim over any pictorial layer — the photo's brightness is not

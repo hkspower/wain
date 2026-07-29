@@ -16,8 +16,8 @@ export default function Home() {
   // the shipped artwork (/cats/art-<id>.jpg), then its gradient — see
   // CategoryTile for the full story.
   const cats = [
-    { id: 'men', to: '/shop', ...t.cats.men, tone: 'tile-men', tall: true },
-    { id: 'women', to: '/shop', ...t.cats.women, tone: 'tile-women', tall: true },
+    { id: 'men', to: '/shop', ...t.cats.men, tone: 'tile-men', tall: true, rtlArt: true },
+    { id: 'women', to: '/shop', ...t.cats.women, tone: 'tile-women', tall: true, rtlArt: true },
     { id: 'accessories', to: '/shop', ...t.cats.acc, tone: 'tile-acc' },
     { id: 'outlet', to: '/shop', ...t.cats.outlet, tone: 'tile-outlet', badge: t.cats.discount },
   ]
@@ -87,23 +87,42 @@ export default function Home() {
               badge={c.badge}
               tone={c.tone}
               tall={c.tall}
+              rtlArt={c.rtlArt}
             />
           ))}
         </div>
       </section>
 
-      {/* Services row */}
+      {/* Services strip — the owner's flat-lay photograph (named infobar by
+          them) under a dark wash. The gradient anchors dark at the start edge
+          where the copy sits and flips under RTL; Tailwind gradient directions
+          are physical, hence the explicit rtl: variant. */}
       <section className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-10">
-        <div className="grid gap-4 sm:grid-cols-2 md:gap-5">
-          {[t.services.returns, t.services.delivery].map((s, i) => (
-            <div key={i} className="flex flex-col items-center gap-2 rounded-3xl border border-black/10 bg-sand-light p-6 text-center md:p-8">
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand/15 text-xl text-brand">
-                {i === 0 ? <IconReturn size={22} /> : <IconTruck size={22} />}
-              </span>
-              <p className="font-bold text-slate-900">{s.t}</p>
-              <p className="text-sm text-slate-500">{s.s}</p>
-            </div>
-          ))}
+        <div className="relative isolate overflow-hidden rounded-3xl bg-ink text-white">
+          <img
+            src="/cats/infobar.jpg"
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="absolute inset-0 -z-20 h-full w-full select-none object-cover object-center"
+          />
+          <span
+            aria-hidden="true"
+            className="absolute inset-0 -z-10 bg-gradient-to-r from-ink/95 via-ink/80 to-ink/50 rtl:bg-gradient-to-l"
+          />
+          <div className="grid gap-6 p-6 sm:grid-cols-2 md:p-10">
+            {[t.services.returns, t.services.delivery].map((s, i) => (
+              <div key={i} className="flex items-center gap-4">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-white">
+                  {i === 0 ? <IconReturn size={22} /> : <IconTruck size={22} />}
+                </span>
+                <div>
+                  <p className="font-bold">{s.t}</p>
+                  <p className="text-sm text-white/70">{s.s}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
