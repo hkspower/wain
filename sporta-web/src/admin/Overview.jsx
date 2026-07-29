@@ -96,8 +96,17 @@ export default function Overview({ onGoto }) {
 
       <Chart series={state.series} />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Mini label="Pending" value={s.pending_count} />
+        {/* pending+cod and pending+card are opposite jobs: one is money out with
+            a driver, the other is a checkout to chase with the bank. One
+            "Pending" number could not tell the operator which. */}
+        <Mini
+          label="Cash to collect"
+          value={`${s.cod_awaiting_count ?? 0}`}
+          sub={kwd(s.cod_awaiting_amount)}
+          warn={Number(s.cod_awaiting_count) > 0}
+        />
         <Mini label="Needs review" value={s.review_count} warn />
         <Mini label="Failed" value={s.failed_count} />
         <Mini label="Products live" value={state.catalog.length - missing} />
@@ -126,12 +135,13 @@ function Kpi({ label, value, sub, accent, warn }) {
   )
 }
 
-function Mini({ label, value, warn }) {
+function Mini({ label, value, sub, warn }) {
   const n = Number(value ?? 0)
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
       <p className="text-xs text-slate-500">{label}</p>
       <p className={`text-lg font-bold tabular-nums ${warn && n > 0 ? 'text-amber-600' : 'text-slate-800'}`}>{n}</p>
+      {sub && <p className="text-xs tabular-nums text-slate-500">{sub}</p>}
     </div>
   )
 }

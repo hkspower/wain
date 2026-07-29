@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  fetchOrders, fetchOrderItems, setFulfilment, saveCustomer,
+  fetchOrders, fetchOrderItems, setFulfilment, saveCustomer, setCodPaid,
   toCsv, PAYMENT_STATES, FULFILMENT_STATES,
 } from './api'
 import { Notice } from './Overview'
@@ -232,6 +232,21 @@ function OrderDrawer({ order, onClose, onChanged }) {
     onClose()
   }
 
+  // Cash on delivery is the only payment the admin settles by hand — the card
+  // methods are confirmed by the bank's callback. Kept out of `move` because it
+  // does not close the drawer: after taking the cash the next thing the
+  // operator usually does is mark the order delivered.
+  async function settleCash(paid) {
+    setBusy(true); setErr('')
+    const r = await setCodPaid(order.id, paid)
+    setBusy(false)
+    if (r.needsMigration) {
+      return setErr('Run supabase/admin-cod-migration.sql — the cash settlement function is not installed yet.')
+    }
+    if (r.error) return setErr(r.error)
+    onChanged?.()
+  }
+
   async function persistCustomer() {
     setBusy(true); setErr(''); setSaved(false)
     const r = await saveCustomer(order.id, cust)
@@ -365,15 +380,41 @@ function OrderDrawer({ order, onClose, onChanged }) {
                 </button>
               ))}
             </div>
-            {order.payment_status !== 'paid' && order.payment_method === 'cod' && (
-              <p className="mt-2 text-xs text-slate-500">
-                Cash on delivery — the driver collects {kwd(order.amount)} at the door.
-                Mark it paid once the cash is in.
-              </p>
+            {/* Cash on delivery: the money arrives at the door, so this is the
+                one payment the admin confirms. Previously this panel printed
+                "mark it paid" with no control that could — every cash order
+                stayed pending and its revenue never reached the dashboard. */}
+            {order.payment_method === 'cod' && order.payment_status === 'pending' && (
+              <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                <p className="text-xs text-emerald-900">
+                  Cash on delivery — the driver collects <strong>{kwd(order.amount)}</strong> at the door.
+                </p>
+                <button
+                  onClick={() => settleCash(true)}
+                  disabled={busy}
+                  className="mt-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-40"
+                >
+                  {busy ? 'Saving…' : `Cash collected — mark paid (${kwd(order.amount)})`}
+                </button>
+              </div>
+            )}
+            {order.payment_method === 'cod' && order.payment_status === 'paid' && (
+              <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs text-slate-600">
+                  Cash recorded as collected{order.paid_at ? ` on ${when(order.paid_at)}` : ''}.
+                </p>
+                <button
+                  onClick={() => settleCash(false)}
+                  disabled={busy}
+                  className="mt-2 text-xs font-semibold text-rose-700 underline hover:text-rose-800 disabled:opacity-40"
+                >
+                  Undo — cash was not collected
+                </button>
+              </div>
             )}
             {order.payment_status !== 'paid' && order.payment_method !== 'cod' && (
               <p className="mt-2 text-xs text-amber-700">
-                This order is not marked paid — confirm the payment before shipping.
+                This order is not marked paid — confirm the payment with the bank before shipping.
               </p>
             )}
           </section>

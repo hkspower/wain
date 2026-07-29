@@ -25,6 +25,9 @@ const PARTS = [
   ['checkout-migration.sql','create_order — without this every checkout fails'],
   ['passcode-migration.sql','Admin device quick-unlock'],
   ['payment-method-migration.sql','Cash on delivery alongside KNET'],
+  // Must come AFTER payment-method-migration (it reads orders.payment_method)
+  // and after admin-migration (it replaces admin_order_stats).
+  ['admin-cod-migration.sql','Settling cash orders, and cash-owed in the stats'],
   ['seed-products.sql',     'The 46 products, and retirement of anything older'],
 ]
 

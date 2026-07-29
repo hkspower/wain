@@ -93,7 +93,12 @@ create policy orders_admin_update on public.orders
 
 -- ============ 4. dashboard counters in one round trip ============
 
-create or replace function public.admin_order_stats()
+-- Same reason as get_order_status in schema.sql: admin-cod-migration.sql adds
+-- the cash-owed columns to this function later in the setup file, so it must be
+-- dropped rather than replaced or a re-run fails here.
+drop function if exists public.admin_order_stats();
+
+create function public.admin_order_stats()
 returns table (
   paid_count        bigint,
   paid_revenue      numeric,

@@ -115,7 +115,14 @@ create policy order_items_insert on public.order_items
 -- ===================== SAFE STATUS LOOKUP =======================
 
 -- The result page reads status via this RPC (no broad table SELECT exposure).
-create or replace function public.get_order_status(p_track_id text)
+-- Dropped first, not "create or replace": payment-method-migration.sql widens
+-- this function's OUT parameters later in the same setup file, and Postgres
+-- refuses to replace a function whose return type changed. Without the drop, a
+-- SECOND run of SETUP-ALL.sql aborted right here — which is the documented way
+-- to update the catalogue, so it had to work.
+drop function if exists public.get_order_status(text);
+
+create function public.get_order_status(p_track_id text)
 returns table (track_id text, amount numeric, payment_status text)
 language sql stable security definer set search_path = public as $$
   select track_id, amount, payment_status

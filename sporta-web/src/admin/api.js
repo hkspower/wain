@@ -96,6 +96,35 @@ export async function setFulfilment(orderId, status) {
   return error ? { error: error.message } : {}
 }
 
+// Settle (or un-settle) a cash-on-delivery order.
+//
+// Goes through an RPC rather than a direct update on purpose: the
+// orders_admin_update policy deliberately forbids changing payment_status, so
+// that nobody signed into /admin can assert a card payment the bank never
+// confirmed. admin_set_cod_paid is the one narrow exception — it refuses any
+// order whose payment_method is not 'cod', and it maintains paid_at, which the
+// revenue stats and the daily chart filter on.
+export async function setCodPaid(orderId, paid = true) {
+  if (!ready()) return { error: NOT_CONFIGURED }
+  const { data, error } = await supabase.rpc('admin_set_cod_paid', {
+    p_order_id: orderId,
+    p_paid: paid,
+  })
+  if (error) {
+    if (isSchemaError(error)) return { needsMigration: true }
+    // The function raises named errors; turn them into something an operator
+    // can act on rather than showing raw Postgres text.
+    const m = `${error.message || ''}`
+    if (m.includes('not_a_cash_order')) return { error: 'That is not a cash order — card payments are confirmed by the bank, not here.' }
+    if (m.includes('order_not_pending')) return { error: 'Only a pending cash order can be marked paid.' }
+    if (m.includes('order_not_paid')) return { error: 'That order is not marked paid.' }
+    if (m.includes('order_not_found')) return { error: 'Order not found — refresh the list.' }
+    return { error: error.message }
+  }
+  const row = Array.isArray(data) ? data[0] : data
+  return { order: row ?? null }
+}
+
 export async function saveCustomer(orderId, fields) {
   if (!ready()) return { error: NOT_CONFIGURED }
   const { error } = await supabase.from('orders').update(fields).eq('id', orderId)
@@ -166,7 +195,10 @@ export function toCsv(orders) {
   // Ordered so the sheet reads left to right as order → money → who → where,
   // which is how it gets handed to a courier.
   const cols = [
-    'track_id', 'created_at', 'paid_at', 'amount', 'payment_status',
+    // payment_method belongs next to the money: without it the courier sheet
+    // cannot tell the driver which deliveries have cash to collect, which is
+    // the one thing the driver has to know.
+    'track_id', 'created_at', 'paid_at', 'amount', 'payment_status', 'payment_method',
     'fulfilment_status', 'customer_name', 'customer_phone',
     'customer_governorate', 'customer_area', 'customer_block', 'customer_street',
     'customer_building', 'customer_floor', 'customer_flat', 'customer_note',
