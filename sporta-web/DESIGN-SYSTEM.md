@@ -90,6 +90,48 @@ two at 2.77:1. Now:
 
 ---
 
+## 2a. The option boxes
+
+Under the photograph: the **brand plate** — the Sporta mark (theme-aware:
+`logo.png` on light, `logo-white` on dark) and, for AHED pieces, `AHED ·
+Collection`. Who you buy from and who made it, in that order.
+
+In the buy column: three boxes, all from one component (`OptionBox` / `Chip`),
+so they cannot drift into three different ideas of what "chosen" looks like.
+
+| box | values | behaviour |
+|---|---|---|
+| **Size** | S · M · L · XL · 2XL · 3XL · 4XL · 5XL | the full ladder always draws; sizes this piece is not carried in are struck through |
+| **Fit** | Normal · Slim fit · Loose fit · Oversize · Boxy · Tank | per-garment subset, one preselected |
+| **Colour** | the other colourways of the same garment | swatches are **links**, not toggles |
+
+Three rules behind that table:
+
+- **The ladder is always complete.** Before, a page showed only the sizes the
+  piece was bought in, so a 3XL customer saw `S M L XL` and could not tell
+  whether the shop does not carry 3XL or has sold out of it. Striking it through
+  answers the question; hiding it says "we never made this".
+- **A disabled chip still has to be readable.** WCAG exempts inactive controls
+  from the contrast floor, and this one is not exempt in practice: the
+  struck-through label *is* the message. `slate-400` on `slate-100` measured
+  2.4:1, so it is `slate-600` (6.9:1) — plainly inactive from the grey fill and
+  the strike, not from being illegible.
+- **Colour is a different product, not a variant.** Each colourway has its own
+  slug, price, stock and photographs, so choosing one navigates. That is what
+  keeps "Only 2 left" on the page honest.
+
+Fit subsets are per garment (`FIT_BY_GARMENT` in `src/lib/options.js`): leggings
+offer slim and normal only, accessories offer no fit at all. Offering all six
+everywhere is how a shop takes an order for a "tank legging".
+
+**They reach the order.** The line key is `slug__size__fit`, so an L oversize
+tee and an L slim tee are two lines to pick and pack. `create_order` validates
+both against fixed lists and stores them on `order_items` — see
+`supabase/order-options-migration.sql`. Before it, a customer picked L, paid for
+L, and the shop received "2 × Cloudsoft Jacket" with no size on it.
+
+---
+
 ## 3. Type
 
 | role | face | notes |

@@ -102,6 +102,79 @@ async function open(lang, viewport = { width: 1280, height: 900 }, touch = false
   const alt = await hero.getAttribute('alt')
   is(!!alt && alt.length > 3, 'the hero image has real alt text', alt ?? '(none)')
 
+  // The brand plate under the photograph: whose shop, and whose garment.
+  const plateLogo = await page.$eval(
+    'section img[alt="Sporta Sports Wear"]',
+    (e) => e.getAttribute('src'),
+  ).catch(() => null)
+  is(!!plateLogo, 'the brand logo sits under the product image', plateLogo ?? 'missing')
+
+  // ---- the three option boxes ----
+  const boxLabels = await page.$$eval('section .rounded-2xl.border > div > span.font-bold', (els) =>
+    els.map((e) => e.textContent.trim()),
+  )
+  is(
+    ['Size', 'Fit', 'Colour'].every((l) => boxLabels.includes(l)),
+    'size, fit and colour each have their own box',
+    boxLabels.join(', '),
+  )
+
+  // The ladder is always drawn in full, so a 3XL customer can see whether the
+  // shop carries 3XL at all rather than guessing from its absence.
+  const chips = await page.$$eval('[role="group"][aria-label="Size"] button', (els) =>
+    els.map((e) => [e.textContent.trim(), e.disabled]),
+  )
+  is(
+    ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'].every((sz) =>
+      chips.some(([label]) => label === sz),
+    ),
+    'the size ladder runs S to 5XL',
+    chips.map(([l]) => l).join(' '),
+  )
+  is(
+    chips.some(([, disabled]) => disabled) && chips.some(([, disabled]) => !disabled),
+    'sizes not carried are disabled, carried ones are not',
+    `${chips.filter(([, d]) => !d).length} of ${chips.length} available`,
+  )
+
+  // A fit is preselected, because a shopper who never touches the box must
+  // still produce a coherent order.
+  const fitPressed = await page.$$eval('[role="group"][aria-label="Fit"] button', (els) =>
+    els.filter((e) => e.getAttribute('aria-pressed') === 'true').map((e) => e.textContent.trim()),
+  )
+  is(fitPressed.length === 1, 'exactly one fit is preselected', fitPressed.join(',') || 'none')
+
+  // A leggings page must not offer "Tank".
+  const fitLabels = await page.$$eval('[role="group"][aria-label="Fit"] button', (els) =>
+    els.map((e) => e.textContent.trim()),
+  )
+  is(fitLabels.length >= 2 && fitLabels.includes('Normal'), 'the fit box offers real choices', fitLabels.join(', '))
+
+  // Colour swatches are LINKS to the sibling colourways, not toggles: each
+  // colour is its own product with its own stock.
+  const swatches = await page.$$eval('ul[aria-label="Colour"] a', (els) =>
+    els.map((e) => [e.getAttribute('href'), e.getAttribute('aria-current')]),
+  )
+  is(swatches.length >= 2, 'the colour box lists the other colourways', `${swatches.length} colours`)
+  is(
+    swatches.filter(([, cur]) => cur === 'page').length === 1,
+    'exactly one swatch is marked as the current page',
+  )
+
+  // The chosen size and fit must reach the bag. A selector whose answer is
+  // thrown away is worse than no selector.
+  await page.locator('[role="group"][aria-label="Size"] button:not([disabled])').first().click()
+  await page.locator('[role="group"][aria-label="Fit"] button').nth(1).click()
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  const bag = await page.evaluate(() => JSON.parse(localStorage.getItem('sporta_cart') || '[]'))
+  is(bag.length === 1 && !!bag[0].size && !!bag[0].fit, 'the bag records the size and the fit',
+    bag.length ? `${bag[0].size} / ${bag[0].fit}` : 'bag empty')
+  is(
+    (bag[0]?.key ?? '').includes(bag[0]?.size) && (bag[0]?.key ?? '').includes(bag[0]?.fit),
+    'the line key includes both, so two cuts are two lines',
+    bag[0]?.key ?? '-',
+  )
+
   await ctx.close()
 }
 

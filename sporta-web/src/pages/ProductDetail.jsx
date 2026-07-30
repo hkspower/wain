@@ -10,6 +10,9 @@ import ProductCard from '../components/ProductCard'
 import SizeGuide from '../components/SizeGuide'
 import AhedSpec from '../components/AhedSpec'
 import ProductGallery from '../components/ProductGallery'
+import BrandPlate from '../components/BrandPlate'
+import { OptionBox, Chip, ChipRow, ColourSwatches } from '../components/OptionBox'
+import { SIZE_LADDER, normalizeSize, fitsFor, fitLabel, colourwaysOf } from '../lib/options'
 import { ahedDetail, AHED_PRODUCTS } from '../lib/ahed'
 import { fetchStock, LOW_STOCK_AT } from '../lib/stock'
 import { IconTruck, IconLock, IconReturn, IconPlus, IconMinus, IconHeart } from '../components/icons'
@@ -23,6 +26,7 @@ export default function ProductDetail() {
   const [qty, setQty] = useState(1)
   const [size, setSize] = useState(null)
   const [sizeErr, setSizeErr] = useState(false)
+  const [fit, setFit] = useState(null)
   const [guideOpen, setGuideOpen] = useState(false)
   const product = getProduct(slug)
   const ahed = ahedDetail(slug)
@@ -41,21 +45,52 @@ export default function ProductDetail() {
     }
   }, [slug])
 
-  // Which sizes to offer, most specific source first:
+  // WHICH SIZES EXIST, and separately, WHICH ONES YOU CAN HAVE.
+  //
+  // The box now draws the whole ladder, S through 5XL, for anything that is
+  // apparel. Before, it drew only the sizes this piece was bought in — so a 3XL
+  // customer saw S M L XL and had no way to tell whether the shop does not
+  // carry 3XL or simply sold out of it. The ladder answers that: every size the
+  // shop's range contains is on screen, and the ones this piece is not carried
+  // in are struck through.
+  //
+  // `carried` is the same three-source lookup as before, most specific first:
   //   1. the database — what is on the shelf right now
   //   2. the AHED packing slip — what was ever bought in
-  //   3. SIZES_FOR(category) — the generic range, as before
+  //   3. SIZES_FOR(category) — the generic range
   // A shop that has not run the inventory migration behaves exactly as it did.
-  const sizes = useMemo(() => {
+  const carried = useMemo(() => {
+    const from = (list) => new Set((list ?? []).map(normalizeSize))
     if (stock) {
-      const known = Object.keys(stock)
-      const order = ahed?.sizes ?? SIZES_FOR(product?.category) ?? []
-      const ranked = order.filter((s) => known.includes(s))
-      return ranked.length ? ranked : known
+      const known = from(Object.keys(stock))
+      return known.size ? known : from(ahed?.sizes ?? SIZES_FOR(product?.category))
     }
-    if (ahed?.sizes?.length) return ahed.sizes
-    return product ? SIZES_FOR(product.category) : null
+    if (ahed?.sizes?.length) return from(ahed.sizes)
+    return from(SIZES_FOR(product?.category))
   }, [stock, ahed, product])
+
+  // The ladder itself, plus anything carried that the ladder does not name — a
+  // one-size accessory or a numeric size must not vanish because it is not on a
+  // clothing rail.
+  const sizes = useMemo(() => {
+    if (!carried.size) return null
+    const extra = [...carried].filter((s) => !SIZE_LADDER.includes(s))
+    return [...SIZE_LADDER, ...extra]
+  }, [carried])
+
+  // Which fits this garment is made in, and the cut it is designed as. A
+  // backpack gets null: it does not come in oversize.
+  const fits = useMemo(() => fitsFor(product), [product])
+  // Only say "struck-through sizes are not carried" when some actually are.
+  const notCarried = useMemo(
+    () => !!sizes && sizes.some((sz) => !carried.has(sz)),
+    [sizes, carried],
+  )
+  const colours = useMemo(() => colourwaysOf(slug), [slug])
+
+  // Default to the garment's own cut, and reset it when the product changes —
+  // carrying "tank" from a top onto a jacket would be nonsense.
+  useEffect(() => setFit(fits?.default ?? null), [fits])
 
   // "Only 2 left" for the size in hand, or for the whole product before a size
   // is picked. Never a total across sizes — three lefts in L and none in M is
@@ -100,7 +135,7 @@ export default function ProductDetail() {
       setSizeErr(true)
       return false
     }
-    add(product, qty, size)
+    add(product, qty, size, fit)
     return true
   }
 
@@ -171,6 +206,9 @@ export default function ProductDetail() {
             where one column means it would eat the whole screen. */}
         <div className="md:sticky md:top-24 md:self-start">
           <ProductGallery images={productImages(product)} alt={product.name[lang]} />
+          {/* Who you are buying from, and who made it, directly under the
+              photograph — the two facts a shopper checks before the price. */}
+          <BrandPlate detail={ahed} />
         </div>
         <div>
           {/* HIERARCHY. The title and the price used to be two different
@@ -205,57 +243,85 @@ export default function ProductDetail() {
             {formatKWD(product.price, lang)}
           </p>
 
-          {/* Size selector — required for apparel */}
-          {sizes && (
-            <div className="mt-6">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-sm font-bold text-slate-900">{t.size.label}</span>
-                <button type="button" onClick={() => setGuideOpen(true)} className="text-accent -my-3 py-3 text-xs font-semibold underline underline-offset-2">{t.size.guide}</button>
-              </div>
-              <div className="flex flex-wrap gap-2" role="group" aria-label={t.size.label}>
-                {sizes.map((sz) => {
-                  // undefined stock = unknown, which is treated as available.
-                  const out = stock?.[sz] ? !stock[sz].inStock : false
-                  return (
-                    <button
-                      key={sz}
-                      onClick={() => { setSize(sz); setSizeErr(false) }}
-                      aria-pressed={size === sz}
-                      disabled={out}
-                      title={out ? t.spec.soldOut : undefined}
-                      className={`relative h-11 min-w-11 rounded-xl border px-4 font-bold transition ${
-                        out
-                          ? 'cursor-not-allowed border-black/10 bg-slate-100 text-slate-400'
-                          : size === sz
-                            ? 'border-brand bg-brand text-white'
-                            : 'border-black/15 bg-white text-slate-700 hover:border-brand'
-                      }`}
-                    >
-                      {/* A struck-through label says "this size exists and you
-                          cannot have it", which is the truth. Hiding the button
-                          instead makes the shop look like it never stocked it. */}
-                      <span className={out ? 'line-through decoration-slate-400' : undefined}>{sz}</span>
-                    </button>
-                  )
-                })}
-              </div>
-              {sizeErr && <p className="mt-2 text-sm font-semibold text-rose-600">{t.size.pick}</p>}
+          {/* THE THREE OPTION BOXES: size, fit, colour.
+              One shared component (OptionBox/Chip) so they cannot drift into
+              three different ideas of what "chosen" looks like — which is what
+              happens when each row is hand-built where it is used. */}
+          <div className="mt-6 space-y-3">
+            {sizes && (
+              <OptionBox
+                label={t.size.label}
+                aside={
+                  <button
+                    type="button"
+                    onClick={() => setGuideOpen(true)}
+                    className="text-accent -my-3 py-3 text-xs font-semibold underline underline-offset-2"
+                  >
+                    {t.size.guide}
+                  </button>
+                }
+                hint={notCarried ? t.size.notCarried : null}
+              >
+                <ChipRow label={t.size.label}>
+                  {sizes.map((sz) => {
+                    // Two different reasons a size cannot be picked, and the
+                    // shopper deserves to know which: NOT CARRIED (this piece
+                    // was never made in it) or SOLD OUT (it was, and it is
+                    // gone). Both are struck through; the tooltip says which.
+                    const notMine = !carried.has(sz)
+                    const out = notMine || (stock?.[sz] ? !stock[sz].inStock : false)
+                    return (
+                      <Chip
+                        key={sz}
+                        selected={size === sz}
+                        disabled={out}
+                        title={notMine ? t.size.notCarried : out ? t.spec.soldOut : undefined}
+                        onClick={() => {
+                          setSize(sz)
+                          setSizeErr(false)
+                        }}
+                      >
+                        {sz}
+                      </Chip>
+                    )
+                  })}
+                </ChipRow>
+                {sizeErr && <p className="mt-2 text-sm font-semibold text-rose-600">{t.size.pick}</p>}
 
-              {/* One fixed-height slot for both stock lines, reserved from the
-                  first paint whether or not there is anything to put in it.
-                  Measured at 390pt: this page's CLS was 0.0515 — ten times every
-                  other route — because "Only 2 left" and "Stocked in these sizes
-                  only" appeared when the stock request resolved and pushed Add
-                  to cart and Buy now down the page. A button that moves under a
-                  thumb already reaching for it is the worst kind of shift.
-                  min-h is 2.5rem: the two lines at their measured heights. */}
-              <div className="mt-2 min-h-10">
-                {/* Scarcity, only where it is a fact. */}
-                {lowNote && <p className="text-sm font-semibold text-amber-700">{lowNote}</p>}
-                {stock && ahed && <p className="text-xs text-slate-500">{t.spec.sizesShipped}</p>}
-              </div>
-            </div>
-          )}
+                {/* One fixed-height slot for both stock lines, reserved from the
+                    first paint whether or not there is anything to put in it.
+                    Measured at 390pt: this page's CLS was 0.0515 — ten times
+                    every other route — because "Only 2 left" and "Stocked in
+                    these sizes only" appeared when the stock request resolved
+                    and pushed Add to cart and Buy now down the page. A button
+                    that moves under a thumb already reaching for it is the
+                    worst kind of shift. */}
+                <div className="mt-2 min-h-10">
+                  {/* Scarcity, only where it is a fact. */}
+                  {lowNote && <p className="text-sm font-semibold text-amber-700">{lowNote}</p>}
+                  {stock && ahed && <p className="text-xs text-slate-600">{t.spec.sizesShipped}</p>}
+                </div>
+              </OptionBox>
+            )}
+
+            {fits && (
+              <OptionBox label={t.fit.label} hint={t.fit.note}>
+                <ChipRow label={t.fit.label}>
+                  {fits.options.map((f) => (
+                    <Chip key={f.id} selected={fit === f.id} onClick={() => setFit(f.id)}>
+                      {fitLabel(f.id, lang)}
+                    </Chip>
+                  ))}
+                </ChipRow>
+              </OptionBox>
+            )}
+
+            {colours.length > 1 && (
+              <OptionBox label={t.colour.label} hint={t.colour.note}>
+                <ColourSwatches colours={colours} label={t.colour.label} />
+              </OptionBox>
+            )}
+          </div>
 
           <div className="mt-6 flex flex-wrap items-center gap-4">
             <div className="flex items-center rounded-full border border-slate-300 bg-white">

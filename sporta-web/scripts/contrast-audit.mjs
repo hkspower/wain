@@ -148,8 +148,19 @@ for (const route of ROUTES) {
         [lang, theme],
       )
       await page.goto(BASE + route, { waitUntil: 'networkidle' })
-      // Pick a size so the selected-chip colours are actually on screen.
-      await page.locator('[role="group"] button').first().click().catch(() => {})
+      // Pick a size AND a fit so the selected-chip colours are actually on
+      // screen — an audit that never selects anything never measures the
+      // selected state. :not([disabled]) because the first size chip is often
+      // one this piece is not carried in, and clicking it silently did nothing:
+      // the .catch() was swallowing the failure and the audit was quietly only
+      // ever looking at unselected chips.
+      for (const group of ['Size', 'Fit']) {
+        await page
+          .locator(`[role="group"][aria-label="${group}"] button:not([disabled])`)
+          .first()
+          .click({ timeout: 2000 })
+          .catch(() => {})
+      }
       const { bad, art } = await page.evaluate(AUDIT)
       const label = `${route} [${lang}/${theme}]`
       if (!bad.length) {

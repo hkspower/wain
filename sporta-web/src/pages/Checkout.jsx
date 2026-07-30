@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
+import { optionLine } from '../lib/options'
 import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
 import { startCheckout } from '../lib/checkout'
@@ -363,8 +364,18 @@ export default function Checkout() {
             </h2>
             <ul className="mt-3 divide-y divide-slate-100">
               {summary.map((i) => (
-                <li key={i.slug} className="flex justify-between gap-3 py-3 text-sm">
-                  <span className="text-slate-600">{i.name[lang]} × {i.qty}</span>
+                // key is the LINE key, not the slug. Two sizes of one product
+                // are two lines with the same slug, so keying on the slug gave
+                // React duplicate keys and could show one line's quantity
+                // against the other's name.
+                <li key={i.key} className="flex justify-between gap-3 py-3 text-sm">
+                  <span className="text-slate-600">
+                    {i.name[lang]}
+                    {optionLine(i, lang) && (
+                      <span className="font-semibold text-slate-700"> ({optionLine(i, lang)})</span>
+                    )}{' '}
+                    × {i.qty}
+                  </span>
                   <span className="whitespace-nowrap font-semibold text-slate-800">
                     {formatKWD(i.line, lang)}
                   </span>

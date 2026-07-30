@@ -1,18 +1,28 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 
-// localStorage-backed bag. Items are keyed by slug + size so the same product
-// in two sizes are separate lines (required for apparel).
+// localStorage-backed bag. Items are keyed by slug + size + fit so the same
+// product in two sizes, or in two cuts, are separate lines (required for
+// apparel — an L oversize tee and an L slim tee are different garments to pick,
+// pack and return).
 const CartContext = createContext(null)
 const KEY = 'sporta_cart'
 
-const lineKey = (slug, size) => `${slug}__${size ?? '-'}`
+const lineKey = (slug, size, fit) => `${slug}__${size ?? '-'}__${fit ?? '-'}`
 
 export function CartProvider({ children }) {
   const [items, setItems] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) || '[]')
       // migrate older carts that have no key/size
-      return saved.map((i) => ({ size: null, key: i.key ?? lineKey(i.slug, i.size), ...i }))
+      // Older carts have no fit and, older still, no key or size. They keep
+      // whatever key they were saved with — recomputing it would split a line
+      // the shopper is already looking at into two.
+      return saved.map((i) => ({
+        size: null,
+        fit: null,
+        key: i.key ?? lineKey(i.slug, i.size, i.fit),
+        ...i,
+      }))
     } catch {
       return []
     }
@@ -22,14 +32,23 @@ export function CartProvider({ children }) {
     localStorage.setItem(KEY, JSON.stringify(items))
   }, [items])
 
-  const add = (product, qty = 1, size = null) =>
+  const add = (product, qty = 1, size = null, fit = null) =>
     setItems((prev) => {
-      const key = lineKey(product.slug, size)
+      const key = lineKey(product.slug, size, fit)
       const found = prev.find((i) => i.key === key)
       if (found) return prev.map((i) => (i.key === key ? { ...i, qty: i.qty + qty } : i))
       return [
         ...prev,
-        { key, slug: product.slug, size, name: product.name, price: product.price, image: product.image, qty },
+        {
+          key,
+          slug: product.slug,
+          size,
+          fit,
+          name: product.name,
+          price: product.price,
+          image: product.image,
+          qty,
+        },
       ]
     })
 

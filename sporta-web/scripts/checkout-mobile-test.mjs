@@ -28,7 +28,10 @@ for (const lang of ['en', 'ar']) {
   const errs = []
   p.on('pageerror', (e) => errs.push(String(e)))
   await p.goto(BASE + '/product/sculpt-top-grey', { waitUntil: 'networkidle' })
-  await p.click('[role=group] button')
+  // :not([disabled]) matters: the size ladder now draws S..5XL and strikes out
+  // the ones this piece is not carried in, so "the first chip" is often a size
+  // that cannot be clicked at all.
+  await p.click('[role=group] button:not([disabled])')
   // By role+position, not by label: the Arabic label carries a diacritic and
   // matching localised copy in a test is a way to fail on a copy edit.
   await p.locator('.action-bar button').first().click()

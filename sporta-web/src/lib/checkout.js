@@ -62,7 +62,15 @@ export async function startCheckout({ items, lang = 'en', customer, paymentMetho
   const trackId = makeTrackId()
   const { data, error } = await supabase.rpc('create_order', {
     p_track_id: trackId,
-    p_items: items.map((i) => ({ slug: i.slug, qty: i.qty })),
+    // size and fit travel with the line. They are options, not prices: the
+    // server validates them against a fixed list and still reads the price from
+    // the products table, so nothing here can change what is charged.
+    p_items: items.map((i) => ({
+      slug: i.slug,
+      qty: i.qty,
+      ...(i.size ? { size: i.size } : {}),
+      ...(i.fit ? { fit: i.fit } : {}),
+    })),
     p_customer: customer,
     p_payment_method: paymentMethod,
   })

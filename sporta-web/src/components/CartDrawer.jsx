@@ -3,6 +3,7 @@ import { useDialog } from '../lib/useDialog'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
+import { optionLine } from '../lib/options'
 import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
 import { IconClose, IconPlus, IconMinus, IconBag, IconLock } from './icons'
@@ -76,7 +77,7 @@ export default function CartDrawer({ open, onClose }) {
                   <img src={i.image} alt={i.name[lang]} width="72" height="72" className="h-18 w-18 rounded-xl object-cover" />
                   <div className="flex-1">
                     <p className="font-bold text-slate-900">{i.name[lang]}</p>
-                    <p className="mt-0.5 text-sm text-slate-500 tabular-nums">{formatKWD(i.price, lang)}{i.size ? ` · ${i.size}` : ''}</p>
+                    <p className="mt-0.5 text-sm text-slate-500 tabular-nums">{formatKWD(i.price, lang)}{optionLine(i, lang) ? ` · ${optionLine(i, lang)}` : ''}</p>
                     <div className="mt-2 flex items-center gap-3">
                       <div className="flex items-center rounded-full border border-black/15 text-slate-900">
                         <button className="px-3 py-1 text-base font-bold leading-none text-slate-700 hover:text-brand" aria-label={t.a11y.decrease} onClick={() => setQty(i.key, i.qty - 1)}><IconMinus size={15} /></button>

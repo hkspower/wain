@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
+import { optionLine } from '../lib/options'
 import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
 import { IconPlus, IconMinus, IconClose } from '../components/icons'
@@ -40,6 +41,11 @@ export default function Cart() {
             <img src={i.image} alt={i.name[lang]} width="80" height="80" className="h-20 w-20 rounded-lg object-cover" />
             <div className="min-w-0 self-center sm:flex-1">
               <h3 className="font-bold text-slate-800">{i.name[lang]}</h3>
+              {/* The bag never showed which size was chosen — the one page
+                  where a shopper checks before paying. Fit joins it. */}
+              {optionLine(i, lang) && (
+                <p className="text-sm font-semibold text-slate-700">{optionLine(i, lang)}</p>
+              )}
               <p className="text-sm text-slate-500">{formatKWD(i.price, lang)}</p>
             </div>
             <div className="col-span-2 flex items-center justify-between gap-3 sm:col-span-1 sm:contents">
