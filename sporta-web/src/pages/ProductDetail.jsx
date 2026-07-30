@@ -1,21 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
-import { getProduct, PRODUCTS, SIZES_FOR } from '../lib/products'
+import { getProduct, productImages, PRODUCTS, SIZES_FOR } from '../lib/products'
 import { useCart } from '../lib/cart'
+import { useWishlist } from '../lib/wishlist'
 import { formatKWD } from '../lib/format'
 import { usePageMeta, productJsonLd, breadcrumbJsonLd, graph } from '../lib/seo'
 import ProductCard from '../components/ProductCard'
 import SizeGuide from '../components/SizeGuide'
 import AhedSpec from '../components/AhedSpec'
+import ProductGallery from '../components/ProductGallery'
 import { ahedDetail, AHED_PRODUCTS } from '../lib/ahed'
 import { fetchStock, LOW_STOCK_AT } from '../lib/stock'
-import { IconTruck, IconLock, IconReturn, IconPlus, IconMinus } from '../components/icons'
+import { IconTruck, IconLock, IconReturn, IconPlus, IconMinus, IconHeart } from '../components/icons'
 
 export default function ProductDetail() {
   const { slug } = useParams()
   const { lang, t } = useLang()
   const { add } = useCart()
+  const wishlist = useWishlist()
   const navigate = useNavigate()
   const [qty, setQty] = useState(1)
   const [size, setSize] = useState(null)
@@ -139,23 +142,35 @@ export default function ProductDetail() {
 
   return (
     <section className="mx-auto max-w-5xl px-4 py-12">
+      {/* Visible breadcrumb, matching breadcrumbJsonLd above trail for trail.
+          The structured data claimed a trail the page did not actually show,
+          which is both the wrong signal to a search engine and a missing way
+          back for anyone who arrived on this page from search rather than from
+          the shop. aria-current marks the page itself, which is why the last
+          crumb is not a link. */}
+      <nav aria-label={t.a11y.breadcrumb} className="mb-6 text-sm text-slate-500">
+        <ol className="flex flex-wrap items-center gap-1.5">
+          {/* -my-2.5 py-2.5 grows the tap target past 40px without moving the
+              text or changing the line height — a 21px-tall link is a miss on a
+              phone. */}
+          <li><Link to="/" className="-my-2.5 inline-block py-2.5 hover:text-brand">{t.nav.home}</Link></li>
+          <li aria-hidden className="text-slate-300">/</li>
+          <li><Link to="/shop" className="-my-2.5 inline-block py-2.5 hover:text-brand">{t.nav.shop}</Link></li>
+          <li aria-hidden className="text-slate-300">/</li>
+          <li aria-current="page" className="truncate font-semibold text-slate-700">
+            {product.name[lang]}
+          </li>
+        </ol>
+      </nav>
+
       <div className="grid gap-8 md:grid-cols-2">
-        <div className="overflow-hidden rounded-2xl bg-slate-50">
-          {/* The hero, and the LCP element on this page as soon as the
-              placeholders are real photographs. fetchpriority="high" promotes it
-              ahead of the other subresources the browser discovers at the same
-              time; decoding="async" keeps its decode off the paint. Deliberately
-              NOT lazy — it is above the fold, and lazy-loading an above-the-fold
-              image delays LCP by a round trip. */}
-          <img
-            src={product.image}
-            alt={product.name[lang]}
-            width="600"
-            height="600"
-            fetchPriority="high"
-            decoding="async"
-            className="h-full w-full object-cover"
-          />
+        {/* Sticky on desktop only. The AHED specification and the cross-sell
+            make this page long, and a 600px photograph scrolling off the top
+            leaves the buy panel arguing for a product the visitor can no longer
+            see. `top-24` clears the sticky site header. Never sticky on a phone,
+            where one column means it would eat the whole screen. */}
+        <div className="md:sticky md:top-24 md:self-start">
+          <ProductGallery images={productImages(product)} alt={product.name[lang]} />
         </div>
         <div>
           <h1 className="text-3xl font-extrabold text-brand-dark">{product.name[lang]}</h1>
@@ -167,7 +182,7 @@ export default function ProductDetail() {
             <div className="mt-6">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-sm font-bold text-slate-900">{t.size.label}</span>
-                <button type="button" onClick={() => setGuideOpen(true)} className="-my-2 py-2 text-xs font-semibold text-brand underline underline-offset-2">{t.size.guide}</button>
+                <button type="button" onClick={() => setGuideOpen(true)} className="-my-3 py-3 text-xs font-semibold text-brand underline underline-offset-2">{t.size.guide}</button>
               </div>
               <div className="flex flex-wrap gap-2" role="group" aria-label={t.size.label}>
                 {sizes.map((sz) => {
@@ -228,6 +243,25 @@ export default function ProductDetail() {
               className="btn btn-ghost text-brand"
             >
               {t.shop.buyNow}
+            </button>
+            {/* Save for later. The cards in the grid have had a heart since the
+                wishlist shipped; the page a shopper actually decides on did
+                not, so the only way to save an item was to go back to the grid.
+                aria-pressed carries the state, and the label changes with it —
+                a heart that only fills in is silent to a screen reader. */}
+            <button
+              type="button"
+              onClick={() => wishlist.toggle(product.slug)}
+              aria-pressed={wishlist.has(product.slug)}
+              aria-label={wishlist.has(product.slug) ? t.a11y.savedWishlist : t.a11y.saveWishlist}
+              title={wishlist.has(product.slug) ? t.a11y.savedWishlist : t.a11y.saveWishlist}
+              className={`tap flex h-11 w-11 items-center justify-center rounded-full border transition ${
+                wishlist.has(product.slug)
+                  ? 'border-brand text-brand'
+                  : 'border-slate-300 text-slate-500 hover:border-brand hover:text-brand'
+              }`}
+            >
+              <IconHeart size={18} filled={wishlist.has(product.slug)} />
             </button>
           </div>
 

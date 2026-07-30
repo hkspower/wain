@@ -23,6 +23,7 @@
     "test:a11y": "node scripts/a11y-pwa-test.mjs",
     "test:uploader": "node scripts/image-uploader-test.mjs",
     "test:images": "node scripts/image-budget-test.mjs",
+    "test:product": "node scripts/product-page-test.mjs",
     "test:checkout": "node scripts/checkout-mobile-test.mjs",
     "package": "node scripts/make-package.mjs",
     "publish": "node scripts/publish-ftps.mjs",

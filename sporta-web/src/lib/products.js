@@ -11,11 +11,40 @@ export const CATEGORIES = [
 ]
 
 // Inline SVG placeholder so the app runs with zero external images.
-const ph = (label, c1, c2) =>
+//
+// The label argument is accepted and IGNORED, on purpose. It used to be painted
+// into the SVG, which meant every product page and every card showed the English
+// product name burnt into the picture — including on the Arabic side, where the
+// name directly underneath was in Arabic and the one in the image was not. It
+// also duplicated a name the page already states in a real heading, and it made
+// each data URI carry text no screen reader could ever reach.
+//
+// The argument stays in the signature because ~40 catalogue rows and
+// scripts/generate-seed.mjs pass it, and because it still reads as documentation
+// of which product a row is for.
+const ph = (_label, c1, c2) =>
   `data:image/svg+xml;utf8,` +
   encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><rect width="600" height="600" fill="url(#g)"/><text x="50%" y="52%" font-family="Arial" font-size="42" font-weight="bold" fill="white" text-anchor="middle">${label}</text></svg>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><rect width="600" height="600" fill="url(#g)"/></svg>`,
   )
+
+// Every image for a product, best first.
+//
+// The catalogue and the products table both carry a single `image`. The admin
+// uploader can now put a whole shoot in Storage, so this also accepts `images` —
+// a Postgres text[] comes back as an array, and a hand-edited row is allowed to
+// be a comma-separated string. Absent, it is exactly the single image it always
+// was, so nothing changes for a shop that has not filled it in.
+export function productImages(p) {
+  if (!p) return []
+  const extra = Array.isArray(p.images)
+    ? p.images
+    : typeof p.images === 'string'
+      ? p.images.split(',')
+      : []
+  const all = [p.image, ...extra].map((s) => (typeof s === 'string' ? s.trim() : '')).filter(Boolean)
+  return [...new Set(all)]
+}
 
 // Placeholder sportswear catalog matching the real Sporta range (activewear,
 // gym clothing, outerwear, accessories). Replace with real products/prices via
