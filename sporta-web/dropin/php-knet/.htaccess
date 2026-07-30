@@ -30,8 +30,40 @@
 
   # Payment responses carry order state — never store them in any cache, and
   # keep the endpoints out of search results.
-  Header always set Cache-Control "no-store, no-cache, must-revalidate, private"
+  #
+  # Inside <FilesMatch ".">, which looks redundant and is not. The storefront's
+  # .htaccess caches .txt/.xml/.json with "public, max-age=3600" from its own
+  # <FilesMatch>, and Apache merges every per-file section AFTER every plain
+  # directory directive — including those from a deeper .htaccess. A plain
+  # Header set here therefore lost to the parent, and any non-PHP file served
+  # from /knet came back carrying BOTH "no-store" and "public, max-age=3600".
+  # Matching a file section here puts this rule in the same merge stage, where
+  # the deeper directory wins. Verified under Apache 2.4: one header, no-store.
+  # unset then always-set, rather than setting both tables: Apache emits
+  # err_headers_out on a 200 as well as an error, so setting both sent the same
+  # header twice. Clearing the inherited headers_out value and setting the
+  # always one covers every status code and emits it exactly once.
+  <FilesMatch ".">
+    Header unset Cache-Control
+    Header always set Cache-Control "no-store, no-cache, must-revalidate, private"
+  </FilesMatch>
   Header always set X-Robots-Tag "noindex, nofollow"
+
+  # ---- Cookies ----
+  # These endpoints set none today. PHP emits PHPSESSID the moment anything
+  # calls session_start(), though, and no script here reads a cookie — so
+  # unlike the storefront rule, this one forces HttpOnly too.
+  #
+  # SameSite=Lax rather than Strict: the customer arrives back on callback.php
+  # as a cross-site navigation from the bank, and Strict would withhold the
+  # cookie on exactly that request.
+  #
+  # `edit`, not `edit*` (which segfaulted Apache 2.4.58 on any response carrying
+  # a Set-Cookie) and not `always` (that table is err_headers_out; PHP writes
+  # cookies to headers_out, so it would never match).
+  Header edit Set-Cookie "(?i)^((?!.*;\s*Secure).*)$" "$1; Secure"
+  Header edit Set-Cookie "(?i)^((?!.*;\s*HttpOnly).*)$" "$1; HttpOnly"
+  Header edit Set-Cookie "(?i)^((?!.*;\s*SameSite=).*)$" "$1; SameSite=Lax"
 </IfModule>
 
 <FilesMatch "^(config\.php|config\.example\.php|knet\.php|setup-config\.php)$">

@@ -4,7 +4,7 @@ import LegalPage from '../components/LegalPage'
 // actually store, not from a template. If a field is added to checkout, it
 // belongs in section 1 here — a privacy policy that under-declares is worse
 // than none, because it is a specific false statement rather than a silence.
-const UPDATED = '2026-07-26'
+const UPDATED = '2026-07-30'
 
 const INTRO = {
   en: 'This explains what Sporta collects when you shop with us, why, and what we never collect.',
@@ -49,10 +49,17 @@ const SECTIONS = [
     }],
   },
   {
-    h: { en: '5. What stays in your own browser', ar: '٥. ما يبقى داخل متصفحك أنت' },
+    h: { en: '5. Cookies, and what stays in your own browser', ar: '٥. الكوكيز وما يبقى داخل متصفحك أنت' },
     p: [{
-      en: 'Your shopping bag, your wishlist, your language and your light or dark theme are saved in your browser, not on our servers. If you tick “remember my address” at checkout, that address is also stored in your browser only — clearing your browser data removes it, and it is never uploaded until you place an order.',
-      ar: 'تُحفظ حقيبة التسوق وقائمة الرغبات واللغة ووضع العرض الفاتح أو الداكن داخل متصفحك لا على خوادمنا. وإذا اخترت «تذكّر عنواني» عند الدفع، فإن العنوان يُحفظ في متصفحك فقط — ويُحذف بمسح بيانات المتصفح، ولا يُرسل إلينا إلا عند تقديم طلب.',
+      // Stated because it is true and checkable, not as a reassurance: nothing
+      // in the site touches document.cookie, and there is no consent banner
+      // because there is nothing to consent to. If a cookie is ever added, this
+      // paragraph is wrong and has to change with it.
+      en: 'This site sets no cookies at all — none for advertising, none for analytics, and none to recognise you. That is why you are not asked to accept any.',
+      ar: 'لا يضع هذا الموقع أي كوكيز إطلاقاً — لا للإعلانات ولا للتحليلات ولا للتعرّف عليك. ولهذا لا نطلب منك الموافقة على شيء.',
+    }, {
+      en: 'What it does keep is kept by your own browser and never leaves it on its own: your shopping bag, your wishlist, your language and your light or dark theme. If you tick “remember my address” at checkout, that address is stored in your browser only — clearing your browser data removes it, and it is never uploaded until you place an order.',
+      ar: 'أما ما يُحفظ فيبقى في متصفحك ولا يخرج منه من تلقاء نفسه: حقيبة التسوق وقائمة الرغبات واللغة ووضع العرض الفاتح أو الداكن. وإذا اخترت «تذكّر عنواني» عند الدفع، فإن العنوان يُحفظ في متصفحك فقط — ويُحذف بمسح بيانات المتصفح، ولا يُرسل إلينا إلا عند تقديم طلب.',
     }],
   },
   {

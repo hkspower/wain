@@ -109,41 +109,84 @@ ErrorDocument 404 /index.html
 </IfModule>
 
 # ---- Compression (Brotli if available, else gzip) ----
+# application/manifest+json is listed explicitly: .webmanifest is not covered by
+# application/json, so the manifest was the one text file served uncompressed.
 <IfModule mod_brotli.c>
-  AddOutputFilterByType BROTLI_COMPRESS text/html text/plain text/css application/json application/javascript text/javascript image/svg+xml application/xml
+  AddOutputFilterByType BROTLI_COMPRESS text/html text/plain text/css application/json application/javascript text/javascript image/svg+xml application/xml application/manifest+json
 </IfModule>
 <IfModule mod_deflate.c>
-  AddOutputFilterByType DEFLATE text/html text/plain text/css application/json application/javascript text/javascript image/svg+xml application/xml
+  AddOutputFilterByType DEFLATE text/html text/plain text/css application/json application/javascript text/javascript image/svg+xml application/xml application/manifest+json
 </IfModule>
 
 # ---- Caching ----
+#
+# Cache-Control comes from mod_headers, so it is gated on mod_headers. It used
+# to sit inside <IfModule mod_expires.c>, which measured out under Apache as:
+# no mod_expires, NO Cache-Control at all. Not the immutable year on hashed
+# assets, not the thirty days on images — and not config.js's no-cache either,
+# so editing a Supabase URL in File Manager would have looked like it did
+# nothing. mod_expires now carries only the directive that is genuinely its own.
+#
+# ETags: Apache's default includes the inode, which changes when files are
+# restored from a backup or the account is moved between servers. Every image
+# and every HTML revalidation would then miss and re-download for no reason.
+# MTime and Size describe the file, not where it happens to sit.
+FileETag MTime Size
+
 <IfModule mod_expires.c>
   ExpiresActive On
+  ExpiresByType text/html "access plus 0 seconds"
+</IfModule>
 
+<IfModule mod_headers.c>
   # ONLY content-hashed Vite output (index-CuCZhORW.js, About-sNx2ecy0.css)
-  # may be immutable: the filename changes whenever the bytes change.
+  # may be immutable: the filename changes whenever the bytes change. No
+  # revalidation, ever — which is why nothing else may claim it.
   <FilesMatch "-[A-Za-z0-9_-]{8,}\.(js|css)$">
     Header set Cache-Control "public, max-age=31536000, immutable"
   </FilesMatch>
 
   # Fixed-name files (favicon.png, logo.png, og-image.png, fonts) keep their
   # name across deploys, so they must NOT be immutable — a replaced logo would
-  # be stuck in browser caches for a year. 30 days + revalidation instead.
+  # be stuck in browser caches for a year. 30 days, and for the week after that
+  # the old copy is drawn immediately while the new one is fetched behind it, so
+  # the visit after a month is not slower than the ones before it.
   <FilesMatch "\.(woff2?|ttf|eot|svg|png|jpe?g|gif|webp|avif|ico)$">
-    Header set Cache-Control "public, max-age=2592000"
+    Header set Cache-Control "public, max-age=2592000, stale-while-revalidate=604800"
+  </FilesMatch>
+
+  # robots.txt, llms.txt, the sitemaps and site.webmanifest had NO Cache-Control
+  # at all, so every cache in the path guessed. They change only on a deploy and
+  # crawlers fetch them repeatedly: an hour fresh, a day of serving the old copy
+  # while refreshing.
+  <FilesMatch "\.(xml|txt|webmanifest|json)$">
+    Header set Cache-Control "public, max-age=3600, stale-while-revalidate=86400"
   </FilesMatch>
 
   # config.js carries the site's settings and is edited in place on the
   # server. If it were cached, changing a Supabase URL would appear to do
-  # nothing for as long as the cache lasted.
+  # nothing for as long as the cache lasted. Must stay AFTER the rules above so
+  # it wins; it is not hashed, so none of them match it, but ordering is the
+  # thing that keeps that true if a rule is ever widened.
   <Files "config.js">
     Header set Cache-Control "no-cache, must-revalidate"
   </Files>
 
-  # HTML must always revalidate so users get new deploys immediately.
+  # HTML always revalidates, so a deploy is picked up on the next visit.
+  #
+  # must-revalidate is deliberately NOT set here, and that is the whole change:
+  # it forbids a cache from ever serving a stale copy, which cancels
+  # stale-while-revalidate. Without it the shell paints from cache immediately
+  # and the revalidation happens behind the paint — one fewer round trip before
+  # anything appears, on a mobile connection in Kuwait.
+  #
+  # Sixty seconds of staleness is safe here for a specific reason: publish never
+  # deletes, so the hashed assets a slightly-old shell asks for are still on the
+  # server. A shell that outlived its assets would be a white screen; this one
+  # cannot. Caches that do not implement stale-while-revalidate (Safari) simply
+  # behave as they did before.
   <FilesMatch "\.html$">
-    Header set Cache-Control "no-cache, must-revalidate"
-    ExpiresByType text/html "access plus 0 seconds"
+    Header set Cache-Control "no-cache, stale-while-revalidate=60"
   </FilesMatch>
 </IfModule>
 
@@ -157,6 +200,39 @@ ErrorDocument 404 /index.html
 
   # Don't advertise the PHP version to attackers.
   Header always unset X-Powered-By
+
+  # ---- Cookies ----
+  # The storefront sets NO cookies. Nothing in src/ touches document.cookie; the
+  # cart, wishlist, theme and language live in localStorage, and the admin's
+  # Supabase session does too. So there is no consent banner because there is
+  # nothing to consent to, and this rule currently rewrites nothing.
+  #
+  # It is here for the cookie that is not ours. PHP emits PHPSESSID the moment
+  # anything calls session_start(); Hostinger can inject its own; a future
+  # feature will add one and forget the flags. Any of those arriving without
+  # Secure gets Secure and SameSite=Lax added on the way out — so a cookie
+  # cannot leak over a downgraded connection or ride along on a cross-site POST,
+  # whether or not whoever set it remembered.
+  #
+  # The negative lookahead is what stops a second "; Secure" being appended to a
+  # cookie that already had it.
+  #
+  # `edit`, NOT `edit*`, and not `always`. Both were tried against Apache 2.4.58:
+  #   * `Header edit*` SEGFAULTED the worker on every request that carried a
+  #     Set-Cookie — with or without the lookahead. It is documented as "every
+  #     instance" and is not safe to use here.
+  #   * `always` writes to err_headers_out, and PHP's setcookie() writes to
+  #     headers_out, so an `always edit` would silently never see PHPSESSID —
+  #     the one cookie this rule exists for.
+  # Plain `edit` was verified to rewrite BOTH of two Set-Cookie headers on one
+  # response, so the `*` bought nothing even before it crashed.
+  #
+  # HttpOnly is deliberately NOT forced here: it is right for a session cookie
+  # and wrong for one a script is meant to read, and silently breaking a future
+  # feature is worse than this rule not covering it. The payment endpoints, where
+  # no script reads anything, do force it — see dropin/php-*/.htaccess.
+  Header edit Set-Cookie "(?i)^((?!.*;\s*Secure).*)$" "$1; Secure"
+  Header edit Set-Cookie "(?i)^((?!.*;\s*SameSite=).*)$" "$1; SameSite=Lax"
 
   # Turn off browser features the storefront never uses.
   Header set Permissions-Policy "accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), usb=(), xr-spatial-tracking=()"

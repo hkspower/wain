@@ -69,26 +69,59 @@ if printf '%s' "$hc" | grep -qi 'no-cache\|no-store\|max-age=0'; then
   ok "HTML $hc"
 else bad "HTML $hc  (HTML must revalidate or deploys won't reach visitors)"; fi
 
-bold "6. 404 handling (a made-up URL must NOT answer 200)"
+# Every rule in public/.htaccess, checked on the thing it actually applies to.
+# The Cache-Control block used to live inside <IfModule mod_expires.c> even
+# though mod_headers is what emits it — with mod_expires off, EVERY one of these
+# came back empty. Empty is the failure to watch for here, not a wrong number.
+hashed="$(curl -sS "$SITE/" | grep -oE '/assets/[A-Za-z0-9_.-]+-[A-Za-z0-9_-]{8,}\.js' | head -1)"
+check_cc() { # path, grep pattern, description
+  local cc
+  cc="$(curl -sS -o /dev/null -D - "$SITE$1" | tr -d '\r' | grep -i '^cache-control:' | head -1)"
+  if [ -z "$cc" ]; then bad "$1 has NO Cache-Control  ($3)"
+  elif printf '%s' "$cc" | grep -qi "$2"; then ok "$1 $cc"
+  else bad "$1 $cc  (expected $3)"; fi
+}
+[ -n "$hashed" ] && check_cc "$hashed" 'immutable' 'immutable — the filename is content-hashed' \
+  || warn "could not find a hashed asset in the HTML to check"
+check_cc /logo.png       'max-age=2592000' '30 days — fixed name, so never immutable'
+check_cc /sitemap.xml    'max-age='        'a max-age, so caches stop guessing'
+check_cc /robots.txt     'max-age='        'a max-age, so caches stop guessing'
+check_cc /config.js      'no-cache\|no-store' 'no-cache — it is edited in place on the server'
+check_cc /knet/pay.php   'no-store'        'no-store — payment responses are never cached'
+
+bold "6. Cookies (the site should set none; any that appear must be hardened)"
+sc="$(printf '%s' "$HDRS" | grep -i '^set-cookie:')"
+if [ -z "$sc" ]; then ok "no cookies set on / — nothing to consent to"
+else
+  printf '%s\n' "$sc" | while IFS= read -r line; do
+    miss=""
+    printf '%s' "$line" | grep -qi ';[[:space:]]*secure'     || miss="$miss Secure"
+    printf '%s' "$line" | grep -qi ';[[:space:]]*samesite='  || miss="$miss SameSite"
+    if [ -z "$miss" ]; then ok "$line"
+    else bad "$line  (missing:$miss)"; fi
+  done
+fi
+
+bold "7. 404 handling (a made-up URL must NOT answer 200)"
 for path in /this-page-does-not-exist-12345 /shop/nope-9876; do
   c="$(curl -sS -o /dev/null -w '%{http_code}' "$SITE$path")"
   [ "$c" = 404 ] && ok "$path -> 404" || bad "$path -> $c  (soft 404: wastes crawl budget)"
 done
 
-bold "7. Sensitive paths (all should be 403 or 404 — never 200)"
+bold "8. Sensitive paths (all should be 403 or 404 — never 200)"
 for path in /.git/config /.env /.htaccess /package.json /config.php /.DS_Store /knet/config.php; do
   c="$(curl -sS -o /dev/null -w '%{http_code}' "$SITE$path")"
   if [ "$c" = 200 ]; then bad "$path -> 200  ***EXPOSED***"
   else ok "$path -> $c"; fi
 done
 
-bold "8. SEO endpoints"
+bold "9. SEO endpoints"
 for path in /robots.txt /sitemap.xml /llms.txt; do
   c="$(curl -sS -o /dev/null -w '%{http_code}' "$SITE$path")"
   [ "$c" = 200 ] && ok "$path -> 200" || bad "$path -> $c"
 done
 
-bold "9. Response time (5 samples, total seconds)"
+bold "10. Response time (5 samples, total seconds)"
 for i in 1 2 3 4 5; do
   printf '  %s\n' "$(curl -sS -o /dev/null -w 'connect=%{time_connect}s  ttfb=%{time_starttransfer}s  total=%{time_total}s' "$SITE/")"
 done
