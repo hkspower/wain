@@ -132,6 +132,47 @@ L, and the shop received "2 × Cloudsoft Jacket" with no size on it.
 
 ---
 
+## 2b. Checkout, and quick checkout
+
+**Quick checkout is not a second checkout.** Same `form` object, same
+`validateDelivery()`, same `create_order`, same server-side pricing — it is the
+full checkout with nothing left to fill in. The gate is `canQuickCheckout()`: if
+one required field is missing, the shopper sees the form, because something in
+it genuinely needs them.
+
+What it shows, in this order, and why each is non-negotiable:
+
+1. **The address, in full.** The failure mode of express checkout is delivering
+   to the flat someone moved out of two years ago. Showing it — with **Change**
+   one tap away — is the defence.
+2. **The bag, with size and fit on every line.** A collapsed checkout that hides
+   the bag is how someone pays for the wrong size.
+3. **The payment method**, as radios. "Pay now on the bank's page" vs "pay the
+   driver" is the whole decision and must be readable without a tap.
+
+`/cart` and the cart drawer say **Quick checkout** when it will actually be
+quick, so it is a reason to come back rather than a pleasant surprise.
+
+### One track id per attempt, not per tap
+
+`create_order` has an idempotency guard — same `track_id`, same pending order,
+returned rather than duplicated — and **it could never fire**, because the
+browser minted a fresh id on every call. A shopper who tapped Pay, hit a slow
+network and tapped again got two orders; so did anyone who backed out of the
+bank page to try another card.
+
+The id is now derived from a fingerprint of *(bag + address + method)* and kept
+in **sessionStorage** — not localStorage, or someone reopening the shop a week
+later would be handed the same order number for a different bag. Change the bag,
+the size, or the address and it changes, because that is genuinely a different
+order. `clearAttempt()` runs when the order is placed.
+
+It lives in `src/lib/attempt.js`, deliberately free of `import.meta.env`, so
+`npm run test:quick` can exercise it in plain Node — which is the only way to
+prove "two taps, one order" without standing up a bank.
+
+---
+
 ## 3. Type
 
 | role | face | notes |

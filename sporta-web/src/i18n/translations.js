@@ -46,6 +46,16 @@ export const translations = {
       bag: 'Bag', details: 'Delivery', pay: 'Payment',
       step: 'Step {n} of {m}', done: 'done', current: 'current step',
     },
+    quick: {
+      title: 'Quick checkout',
+      sub: 'Your details are saved on this device. Check them and pay.',
+      deliverTo: 'Deliver to',
+      edit: 'Change',
+      editBag: 'Edit bag',
+      useFull: 'Fill in the form instead',
+      cta: 'Quick checkout',
+      ctaHint: 'Saved address — two taps',
+    },
     guest: {
       title: 'No account needed',
       // Honest about what happens next: there is no customer login anywhere on
@@ -284,6 +294,16 @@ export const translations = {
     flow: {
       bag: 'الحقيبة', details: 'التوصيل', pay: 'الدفع',
       step: 'الخطوة {n} من {m}', done: 'مكتملة', current: 'الخطوة الحالية',
+    },
+    quick: {
+      title: 'دفع سريع',
+      sub: 'بياناتك محفوظة على هذا الجهاز. راجعها وادفع.',
+      deliverTo: 'التوصيل إلى',
+      edit: 'تغيير',
+      editBag: 'تعديل الحقيبة',
+      useFull: 'تعبئة النموذج بدلاً من ذلك',
+      cta: 'دفع سريع',
+      ctaHint: 'عنوان محفوظ — نقرتان',
     },
     guest: {
       title: 'لا حاجة لإنشاء حساب',

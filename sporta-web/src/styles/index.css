@@ -270,6 +270,23 @@ h1, h2, h3, .font-display {
 [data-theme='dark'] .bg-slate-100 {
   background-color: #232830 !important;
 }
+/* The guest-checkout notice. Its emerald palette is the one thing on the page
+   the surface remap does not cover: bg-emerald-50/70 over charcoal composites
+   to a pale sage, and emerald-800 text on it measured 3.76:1. Given its own
+   dark pair rather than being converted to slate, because the green IS the
+   message — it is the one reassuring thing on a page about money. */
+[data-theme='dark'] .guest-note {
+  background-color: #12251d !important;
+  border-color: #1f4436 !important;
+}
+[data-theme='dark'] .guest-note .guest-note__title {
+  color: #7ee2b8 !important;
+}
+[data-theme='dark'] .guest-note .guest-note__body,
+[data-theme='dark'] .guest-note a {
+  color: #cfeee0 !important;
+}
+
 [data-theme='dark'] .btn-light {
   background: #e8eaed;
   color: #171a1e;

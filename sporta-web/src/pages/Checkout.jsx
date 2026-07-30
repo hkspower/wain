@@ -8,11 +8,16 @@ import { startCheckout } from '../lib/checkout'
 import { usePageMeta } from '../lib/seo'
 import { GOVERNORATES, governorate, governorateOfArea, normalisePhone, toAsciiDigits } from '../lib/kuwait'
 import CheckoutSteps from '../components/CheckoutSteps'
+import QuickCheckout from '../components/QuickCheckout'
+import {
+  BLANK,
+  canQuickCheckout,
+  loadDelivery,
+  remembering,
+  saveDelivery,
+  validateDelivery as validate,
+} from '../lib/delivery'
 
-const BLANK = {
-  name: '', phone: '', governorate: '', area: '',
-  block: '', street: '', building: '', floor: '', flat: '', note: '',
-}
 // Fields where anything but a digit is a mistake, stripped as they type. Block,
 // floor and flat are numbers in the Kuwaiti addressing scheme; street can be a
 // name, and building can carry a letter, so neither is listed.
@@ -34,43 +39,19 @@ function cleanPhone(raw) {
   return d.slice(0, 8)
 }
 
-const STORE_KEY = 'sporta.delivery'
-// The opt-out is stored separately from the details themselves. Deriving it
-// from "are there saved details?" meant it defaulted to off for every
-// first-time shopper, so nothing was ever saved and the feature could never
-// switch itself on; and unticking it erased the details, losing the choice
-// along with them. An explicit '0' is a decision worth keeping.
-const REMEMBER_KEY = 'sporta.delivery.remember'
-
-// The same rules create_order enforces. Repeated here only so the shopper is
-// told immediately instead of after a round trip — the copy that actually
-// protects the order is the one in checkout-migration.sql, because a browser
-// can be bypassed and the database cannot.
-function validate(f) {
-  const e = {}
-  if (f.name.trim().length < 2) e.name = 'missing_name'
-  if (!normalisePhone(f.phone)) e.phone = 'invalid_phone'
-  if (!governorate(f.governorate)) e.governorate = 'invalid_governorate'
-  if (f.area.trim().length < 2) e.area = 'missing_area'
-  if (!f.block.trim()) e.block = 'missing_block'
-  if (!f.street.trim()) e.street = 'missing_street'
-  if (!f.building.trim()) e.building = 'missing_building'
-  return e
-}
-
 export default function Checkout() {
   const { lang, t } = useLang()
   const { items, total } = useCart()
   usePageMeta({ path: '/checkout', robots: 'noindex, follow' })
 
-  const [form, setForm] = useState(() => {
-    try {
-      return { ...BLANK, ...JSON.parse(localStorage.getItem(STORE_KEY) || '{}') }
-    } catch {
-      return BLANK
-    }
-  })
-  const [remember, setRemember] = useState(() => localStorage.getItem(REMEMBER_KEY) !== '0')
+  const [form, setForm] = useState(loadDelivery)
+  const [remember, setRemember] = useState(remembering)
+  // QUICK CHECKOUT. Opens collapsed when the saved details are already complete
+  // enough to order with — the returning-customer case — and expands to the
+  // full form on "Change", or on its own if anything is missing. Held in state
+  // rather than derived on every render so that expanding it stays expanded
+  // while they type.
+  const [quick, setQuick] = useState(() => canQuickCheckout(loadDelivery()))
   const [errors, setErrors] = useState({})
   const [submitted, setSubmitted] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -142,14 +123,16 @@ export default function Checkout() {
     const e = validate(form)
     setErrors(e)
     if (Object.keys(e).length) {
+      // Quick checkout cannot show a field-level error — it has no fields. Open
+      // the form so the shopper can see what is wrong, rather than leaving them
+      // pressing a button that reports a problem they cannot reach.
+      setQuick(false)
       setFormError(t.checkout.fixErrors)
-      document.getElementById(`f-${Object.keys(e)[0]}`)?.focus()
+      requestAnimationFrame(() => document.getElementById(`f-${Object.keys(e)[0]}`)?.focus())
       return
     }
 
-    localStorage.setItem(REMEMBER_KEY, remember ? '1' : '0')
-    if (remember) localStorage.setItem(STORE_KEY, JSON.stringify(form))
-    else localStorage.removeItem(STORE_KEY)
+    saveDelivery(form, remember)
 
     setBusy(true)
     try {
@@ -162,8 +145,9 @@ export default function Checkout() {
       // A token that names a field sends the shopper straight back to it.
       const field = token.replace(/^(missing|too_long|invalid)_/, '')
       if (field in BLANK) {
+        setQuick(false)
         setErrors((prev) => ({ ...prev, [field]: token }))
-        document.getElementById(`f-${field}`)?.focus()
+        requestAnimationFrame(() => document.getElementById(`f-${field}`)?.focus())
       }
       setBusy(false)
     }
@@ -171,24 +155,47 @@ export default function Checkout() {
 
   const err = (k) => (errors[k] ? messageFor(errors[k]) : null)
 
+  // The collapsed path. Same form object, same validate(), same submit() — it
+  // is the full checkout with nothing left to fill in, not a second one.
+  if (quick) {
+    return (
+      <section className="mx-auto max-w-6xl px-4 py-10 md:py-14">
+        <CheckoutSteps current="details" paying={busy} />
+        <h1 className="mt-5 mb-2 text-3xl font-extrabold text-slate-900">{t.quick.title}</h1>
+        <p className="mb-6 text-sm text-slate-600">{t.quick.sub}</p>
+        <QuickCheckout
+          form={form}
+          items={items}
+          total={total}
+          method={method}
+          onMethod={setMethod}
+          onEdit={() => setQuick(false)}
+          onSubmit={submit}
+          busy={busy}
+          error={formError}
+        />
+      </section>
+    )
+  }
+
   return (
     <section className="mx-auto max-w-6xl px-4 py-10 md:py-14">
       <CheckoutSteps current="details" paying={busy} />
 
-      <h1 className="mt-5 mb-2 text-3xl font-extrabold text-brand-dark">{t.cart.checkout}</h1>
-      <p className="mb-5 text-sm text-slate-500">{t.checkout.deliveryHint}</p>
+      <h1 className="mt-5 mb-2 text-3xl font-extrabold text-slate-900">{t.cart.checkout}</h1>
+      <p className="mb-5 text-sm text-slate-600">{t.checkout.deliveryHint}</p>
 
       {/* Guest checkout, said out loud. There is no customer account anywhere on
           this site and never has been — but a shopper cannot know that, and
           "will I have to register?" is answered by abandoning the cart. It also
           states the consequence honestly: no email is collected, so the order
           number is the only handle they get. */}
-      <div className="mb-8 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
+      <div className="guest-note mb-8 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
         {/* Stacked on a phone. As one flex row the short heading held its
             intrinsic width and squeezed the sentence into a five-word-per-line
             column — see it once and the reason for the breakpoint is obvious. */}
-        <p className="text-sm font-bold text-emerald-900">{t.guest.title}</p>
-        <p className="mt-1 text-sm leading-snug text-emerald-800">
+        <p className="guest-note__title text-sm font-bold text-emerald-900">{t.guest.title}</p>
+        <p className="guest-note__body mt-1 text-sm leading-snug text-emerald-800">
           {t.guest.body}{' '}
           <Link to="/track" className="whitespace-nowrap font-semibold text-emerald-900 underline underline-offset-2">
             {t.guest.track}
@@ -196,7 +203,7 @@ export default function Checkout() {
         </p>
       </div>
 
-      <form onSubmit={submit} noValidate className="grid gap-8 lg:grid-cols-[1fr_23rem]">
+      <form onSubmit={submit} noValidate aria-busy={busy} className="grid gap-8 lg:grid-cols-[1fr_23rem]">
         <div className="space-y-6">
           {/* role="alert" is announced without taking focus, so focus can go
               where it is actually useful: the first field that needs fixing. */}
@@ -358,7 +365,7 @@ export default function Checkout() {
           <div className="rounded-2xl border border-slate-100 bg-white p-5 md:p-6">
             <h2 className="flex items-baseline justify-between font-bold text-slate-800">
               {t.checkout.summary}
-              <span className="text-xs font-medium text-slate-400">
+              <span className="text-xs font-medium text-slate-600">
                 {t.checkout.itemsCount(items.reduce((n, i) => n + i.qty, 0))}
               </span>
             </h2>
@@ -384,7 +391,7 @@ export default function Checkout() {
             </ul>
             <div className="mt-4 flex justify-between border-t border-slate-200 pt-4 text-lg font-bold">
               <span>{t.cart.total}</span>
-              <span className="text-brand">{formatKWD(total, lang)}</span>
+              <span className="text-accent tabular-nums">{formatKWD(total, lang)}</span>
             </div>
 
             {/* Payment method. A radio group rather than a dropdown: both
@@ -415,7 +422,7 @@ export default function Checkout() {
                     />
                     <span className="min-w-0">
                       <span className="block text-sm font-semibold text-slate-800">{label}</span>
-                      <span className="block text-xs leading-snug text-slate-500">{hint}</span>
+                      <span className="block text-xs leading-snug text-slate-600">{hint}</span>
                     </span>
                   </label>
                 ))}
@@ -428,20 +435,17 @@ export default function Checkout() {
             <button type="submit" disabled={busy} className="btn btn-primary mt-5 hidden w-full lg:inline-flex">
               {busy ? t.checkout.redirecting : method === 'cod' ? t.checkout.placeOrder : t.checkout.payNow}
             </button>
-            {method !== 'cod' && (
-              <p className="mt-3 hidden text-center text-xs text-slate-400 lg:block">{t.checkout.securedBy}</p>
-            )}
-            {method === 'cod' && (
-              <p className="mt-3 hidden text-center text-xs text-slate-400 lg:block">{t.checkout.codNote}</p>
-            )}
+            <p className="mt-3 hidden text-center text-xs text-slate-600 lg:block">
+              {method === 'cod' ? t.checkout.codNote : t.checkout.securedBy}
+            </p>
           </div>
         </aside>
 
         {/* Sticky pay bar — phones only. */}
         <div className="action-bar safe-bottom flex items-center justify-between gap-3 px-4 pt-3 lg:hidden">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t.cart.total}</p>
-            <p className="truncate text-lg font-extrabold text-brand">{formatKWD(total, lang)}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">{t.cart.total}</p>
+            <p className="text-accent truncate text-lg font-extrabold tabular-nums">{formatKWD(total, lang)}</p>
           </div>
           <button type="submit" disabled={busy} className="btn btn-primary flex-1">
             {busy ? t.checkout.redirecting : method === 'cod' ? t.checkout.placeOrder : t.checkout.payNow}
@@ -465,10 +469,10 @@ function Field({ id, label, hint, error, optional, className = '', children }) {
     <div className={className}>
       <label htmlFor={`f-${id}`} className="mb-1.5 block text-xs font-bold text-slate-600">
         {label}
-        {optional && <span className="ms-1.5 font-medium text-slate-400">({optional})</span>}
+        {optional && <span className="ms-1.5 font-medium text-slate-600">({optional})</span>}
       </label>
       {children}
-      {hint && !error && <p id={`h-${id}`} className="mt-1 text-xs text-slate-400">{hint}</p>}
+      {hint && !error && <p id={`h-${id}`} className="mt-1 text-xs text-slate-600">{hint}</p>}
       {error && (
         <p id={`e-${id}`} role="alert" className="mt-1 text-xs font-semibold text-rose-600">
           {error}

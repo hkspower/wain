@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url'
 const route = process.argv[2] ?? '/'
 const outDir = process.argv[3] ?? 'shots'
 const theme = process.argv[4] ?? 'light'
+// '', 'bag' (a cart only) or 'saved' (a cart plus saved delivery details).
+const seed = process.argv[5] ?? ''
 const dist = new URL('../dist/', import.meta.url)
 
 const MIME = {
@@ -42,10 +44,43 @@ for (const [device, viewport, dpr] of [
   for (const lang of ['en', 'ar']) {
     const ctx = await browser.newContext({ viewport, deviceScaleFactor: dpr })
     const page = await ctx.newPage()
-    await page.addInitScript(([l, th]) => {
+    await page.addInitScript(([l, th, seed]) => {
       localStorage.setItem('lang', l)
       localStorage.setItem('sporta_theme', th)
-    }, [lang, theme])
+      // /cart and /checkout return their empty state early, so without a bag
+      // the screenshot is a picture of "Your bag is empty" — which is not the
+      // screen anyone wanted to look at. `--seed` also saves delivery details,
+      // which is what puts the quick-checkout card on screen.
+      if (seed) {
+        localStorage.setItem(
+          'sporta_cart',
+          JSON.stringify([
+            {
+              key: 'cloudsoft-jacket-army-green__L__normal',
+              slug: 'cloudsoft-jacket-army-green',
+              size: 'L',
+              fit: 'normal',
+              name: { en: 'Cloudsoft Jacket — Army Green', ar: 'جاكيت كلاودسوفت — أخضر عسكري' },
+              price: 10,
+              image: '',
+              qty: 2,
+            },
+          ]),
+        )
+        if (seed === 'saved') {
+          localStorage.setItem(
+            'sporta.delivery',
+            JSON.stringify({
+              name: 'Test Shopper', phone: '99887766', governorate: 'capital',
+              area: 'Salmiya', block: '4', street: '12', building: '5',
+              floor: '', flat: '', note: '',
+            }),
+          )
+        } else {
+          localStorage.removeItem('sporta.delivery')
+        }
+      }
+    }, [lang, theme, seed])
     await page.goto(base + route, { waitUntil: 'networkidle' })
     await page.waitForTimeout(400)
     const file = join(outDir, `${device}-${lang}${theme === 'dark' ? '-dark' : ''}.png`)

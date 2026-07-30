@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { optionLine } from '../lib/options'
+import { canQuickCheckout, loadDelivery } from '../lib/delivery'
 import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
 import { IconClose, IconPlus, IconMinus, IconBag, IconLock } from './icons'
@@ -89,7 +90,7 @@ export default function CartDrawer({ open, onClose }) {
                       </button>
                     </div>
                   </div>
-                  <span className="font-extrabold text-brand-dark tabular-nums">{formatKWD(i.price * i.qty, lang)}</span>
+                  <span className="text-accent font-extrabold tabular-nums">{formatKWD(i.price * i.qty, lang)}</span>
                 </li>
               ))}
             </ul>
@@ -97,11 +98,11 @@ export default function CartDrawer({ open, onClose }) {
             <footer className="pb-[calc(1rem+var(--sa-bottom))] border-t border-black/10 px-6 py-5">
               <div className="flex items-center justify-between text-lg font-extrabold">
                 <span>{t.cart.total}</span>
-                <span className="text-brand-dark tabular-nums">{formatKWD(total, lang)}</span>
+                <span className="text-accent tabular-nums">{formatKWD(total, lang)}</span>
               </div>
               <p className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500"><IconLock size={13} /> {t.trust.pay}</p>
               <Link to="/checkout" onClick={onClose} className="btn btn-primary mt-4 w-full">
-                {t.cart.checkout}
+                {canQuickCheckout(loadDelivery()) ? t.quick.cta : t.cart.checkout}
               </Link>
               <Link
                 to="/shop"

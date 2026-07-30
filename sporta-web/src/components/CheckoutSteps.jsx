@@ -55,7 +55,15 @@ export default function CheckoutSteps({ current, paying = false }) {
               </span>
               <span
                 className={`whitespace-nowrap font-semibold ${
-                  isNow ? 'text-brand-dark' : done ? 'text-slate-600' : 'text-slate-400'
+                  // The step names are the only thing on this indicator that
+                  // says WHERE you are. Measured on the seeded checkout:
+                  // text-brand-dark was 3.97:1 on beige and 3.2:1 on charcoal,
+                  // and the upcoming steps at text-slate-400 were 1.91:1 —
+                  // effectively invisible, on a progress indicator whose whole
+                  // job is telling you how much is left. The numbered circle
+                  // still carries "done / now / next"; the label no longer has
+                  // to be faint to say it.
+                  isNow ? 'text-accent' : done ? 'text-slate-600' : 'text-slate-600'
                 }`}
               >
                 {s.label}

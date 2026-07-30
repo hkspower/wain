@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { optionLine } from '../lib/options'
+import { canQuickCheckout, loadDelivery } from '../lib/delivery'
 import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
 import { IconPlus, IconMinus, IconClose } from '../components/icons'
@@ -24,13 +25,16 @@ export default function Cart() {
     )
   }
 
+  // Read once per mount: localStorage does not change while this page is open.
+  const quick = canQuickCheckout(loadDelivery())
+
   return (
     <section className="mx-auto max-w-4xl px-4 py-12">
       {/* Same indicator as /checkout, so the shopper sees the shape of the flow
           before committing to it rather than discovering it midway. */}
       <CheckoutSteps current="bag" />
 
-      <h1 className="mt-5 mb-8 text-3xl font-extrabold text-brand-dark">{t.cart.title}</h1>
+      <h1 className="mt-5 mb-8 text-3xl font-extrabold text-slate-900">{t.cart.title}</h1>
 
       <div className="space-y-4">
         {items.map((i) => (
@@ -54,7 +58,7 @@ export default function Cart() {
                 <span className="w-8 text-center font-semibold tabular-nums">{i.qty}</span>
                 <button className="tap flex items-center justify-center px-3 text-slate-700 hover:text-brand" aria-label={t.a11y.increase} onClick={() => setQty(i.key, i.qty + 1)}><IconPlus size={15} /></button>
               </div>
-              <div className="whitespace-nowrap font-bold text-brand-dark sm:w-24 sm:text-end">{formatKWD(i.price * i.qty, lang)}</div>
+              <div className="text-accent whitespace-nowrap font-bold tabular-nums sm:w-24 sm:text-end">{formatKWD(i.price * i.qty, lang)}</div>
               <button onClick={() => remove(i.key)} className="tap flex items-center justify-center text-slate-400 hover:text-rose-500" aria-label={t.a11y.remove}><IconClose size={16} /></button>
             </div>
           </div>
@@ -63,11 +67,16 @@ export default function Cart() {
 
       <div className="mt-8 flex flex-col items-stretch gap-4 sm:items-end">
         <div className="text-end text-xl font-bold text-slate-800">
-          {t.cart.total}: <span className="text-brand">{formatKWD(total, lang)}</span>
+          {t.cart.total}: <span className="text-accent tabular-nums">{formatKWD(total, lang)}</span>
         </div>
+        {/* Named for what it will actually do. /checkout opens collapsed when
+            the saved details are complete, and a button that says "Checkout"
+            and then asks for nothing is a pleasant surprise nobody planned
+            for — saying so up front is what makes it a reason to come back. */}
         <Link to="/checkout" className="btn btn-primary w-full sm:w-auto sm:px-8">
-          {t.cart.checkout}
+          {quick ? t.quick.cta : t.cart.checkout}
         </Link>
+        {quick && <p className="text-end text-xs text-slate-600">{t.quick.ctaHint}</p>}
       </div>
     </section>
   )

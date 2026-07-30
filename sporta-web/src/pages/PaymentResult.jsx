@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { useCart } from '../lib/cart'
+import { clearAttempt } from '../lib/checkout'
 import { usePageMeta } from '../lib/seo'
 
 // Customer lands here after CBK:
@@ -21,8 +22,14 @@ export default function PaymentResult() {
   useEffect(() => {
     let alive = true
     ;(async () => {
-      // Empty the cart on success.
-      if (status === 'success' || status === 'cod') clear()
+      // Empty the cart on success, and end the checkout attempt with it.
+      // The attempt's track id is deliberately reused across retries so a
+      // double tap cannot create two orders; once the order is placed, holding
+      // on to it would hand the NEXT bag the same order number.
+      if (status === 'success' || status === 'cod') {
+        clear()
+        clearAttempt()
+      }
       if (!trackid) return setLoading(false)
       try {
         const { supabase } = await import('../lib/supabase')

@@ -14,6 +14,11 @@
 import { chromium } from 'playwright'
 
 const BASE = process.env.BASE ?? 'http://localhost:4173'
+// 'saved' also stores delivery details, which is what puts the QUICK checkout
+// card on screen instead of the full form. Both have to be audited: they are
+// different screens, and auditing only one of them is how /checkout stayed
+// green for months while nobody had ever measured it with a bag in it.
+const SEED = process.env.SEED ?? 'saved'
 const ROUTES = process.argv.slice(2).length
   ? process.argv.slice(2)
   : ['/product/cloudsoft-jacket-army-green']
@@ -141,11 +146,46 @@ for (const route of ROUTES) {
       const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } })
       const page = await ctx.newPage()
       await page.addInitScript(
-        ([l, t]) => {
+        ([l, t, seed]) => {
           localStorage.setItem('lang', l)
           localStorage.setItem('sporta_theme', t)
+          // A BAG, AND SAVED DELIVERY DETAILS.
+          //
+          // Without these, /cart and /checkout both return their empty state
+          // early — so this script has been reporting them green while never
+          // having seen a single cart row, a form field, an error style or a
+          // total. It was measuring two "Your bag is empty" screens. The seed
+          // is what puts the actual checkout on screen, and the saved address
+          // is what puts the quick-checkout card there too.
+          localStorage.setItem(
+            'sporta_cart',
+            JSON.stringify([
+              {
+                key: 'cloudsoft-jacket-army-green__L__normal',
+                slug: 'cloudsoft-jacket-army-green',
+                size: 'L',
+                fit: 'normal',
+                name: { en: 'Cloudsoft Jacket — Army Green', ar: 'جاكيت كلاودسوفت — أخضر عسكري' },
+                price: 10,
+                image: '',
+                qty: 2,
+              },
+            ]),
+          )
+          if (seed === 'saved') {
+            localStorage.setItem(
+              'sporta.delivery',
+              JSON.stringify({
+                name: 'Test Shopper', phone: '99887766', governorate: 'capital',
+                area: 'Salmiya', block: '4', street: '12', building: '5',
+                floor: '', flat: '', note: '',
+              }),
+            )
+          } else {
+            localStorage.removeItem('sporta.delivery')
+          }
         },
-        [lang, theme],
+        [lang, theme, SEED],
       )
       await page.goto(BASE + route, { waitUntil: 'networkidle' })
       // Pick a size AND a fit so the selected-chip colours are actually on
@@ -162,7 +202,7 @@ for (const route of ROUTES) {
           .catch(() => {})
       }
       const { bad, art } = await page.evaluate(AUDIT)
-      const label = `${route} [${lang}/${theme}]`
+      const label = `${route} [${lang}/${theme}${SEED === 'saved' ? '' : '/form'}]`
       if (!bad.length) {
         console.log(
           `ok   ${label}  — every text/background pair meets AA` +

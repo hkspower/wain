@@ -1,4 +1,10 @@
 import { configValue } from './runtimeConfig'
+import { attemptTrackId, clearAttempt, makeTrackId } from './attempt'
+
+// Re-exported so the pages that use them keep importing from one place: a page
+// should not have to know that the attempt logic lives in its own file to be
+// testable.
+export { attemptTrackId, clearAttempt, makeTrackId }
 
 // Base URL of the PHP payment endpoints on Hostinger. Classic KNET (KPG) lives
 // in public_html/knet/. (For the CBK REST-JSON T-Pay model it would be /pay.)
@@ -12,12 +18,6 @@ const PAY_BASE =
   configValue('payBaseUrl', import.meta.env.VITE_PAY_BASE_URL) || 'https://www.sporta.com.kw/knet'
 const CBK_BASE =
   configValue('cbkBaseUrl', import.meta.env.VITE_CBK_BASE_URL) || 'https://www.sporta.com.kw/pay'
-
-// Unique, CBK-safe track id (alphanumeric, <= 30 chars).
-export function makeTrackId(prefix = 'SP') {
-  const r = crypto.getRandomValues(new Uint32Array(2))
-  return `${prefix}${r[0].toString(36)}${r[1].toString(36)}`.slice(0, 30).toUpperCase()
-}
 
 // Carries the machine token raised by create_order, so the page can show a
 // translated message instead of raw database text.
@@ -59,7 +59,19 @@ export async function startCheckout({ items, lang = 'en', customer, paymentMetho
   // nobody captured, is worse than not taking it.
   if (!supabase) throw new CheckoutError('unconfigured')
 
-  const trackId = makeTrackId()
+  // ONE TRACK ID PER ATTEMPT, NOT PER TAP.
+  //
+  // create_order has an idempotency guard — same track_id, same pending order,
+  // returned rather than duplicated — and it could never fire, because this
+  // line minted a fresh id on every call. So a shopper who tapped Pay, hit a
+  // slow network, and tapped again got TWO orders; so did anyone who backed out
+  // of the bank page and came back to try a different card. The shop then has
+  // two pending orders for one bag and no way to tell they are the same one.
+  //
+  // The id is now derived from what is being ordered: the same bag to the same
+  // address is the same attempt and reuses it. Change the bag and it changes,
+  // because that is genuinely a different order.
+  const trackId = attemptTrackId({ items, customer, paymentMethod })
   const { data, error } = await supabase.rpc('create_order', {
     p_track_id: trackId,
     // size and fit travel with the line. They are options, not prices: the
