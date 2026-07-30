@@ -281,17 +281,30 @@ def home_checks(pg):
                     "لماذا المهلب كود", "تواصل معنا"):
         check(S, f"the page still carries: {heading}", heading in pg.inner_text("main"))
     cards = pg.eval_on_selector_all(".card", "n=>n.length")
-    check(S, "the card sections are all present", cards == 13, f"{cards} cards")
+    check(S, "the card sections are all present", cards == 15, f"{cards} cards")
     check(S, "the three commitments sit in the band, not a grid",
           pg.eval_on_selector_all(".band .fact", "n=>n.length") == 3)
     check(S, "the retired code editor is gone from the page",
           "editor.html" not in (ROOT / "index.html").read_text())
     # the services the company leads with
-    for want in ("أتمتة العمليات", "تطبيق مخصّص بالكامل", "تطبيق خاص لكل مشروع"):
+    for want in ("أتمتة العمليات", "وكلاء الذكاء الاصطناعي", "تصميم الشعارات والهوية",
+                 "تطبيق مخصّص بالكامل", "تطبيق خاص لكل مشروع"):
         check(S, f"services include: {want}", want in pg.inner_text("main"))
+    # the three animated icons: parts that move, and stop under reduced motion
+    for cls in ("spin", "spark", "draw"):
+        anim = pg.eval_on_selector(f"#services .ic .{cls}",
+                                   "e=>getComputedStyle(e).animationName")
+        check(S, f"the {cls} icon part is animated", anim not in ("none", ""), anim)
+    rm = pg.context.browser.new_context(reduced_motion="reduce", locale="ar-KW")
+    rp2 = rm.new_page()
+    rp2.goto(f"{BASE}/index.html", wait_until="networkidle"); rp2.wait_for_timeout(300)
+    check(S, "reduced motion stills the animated icons",
+          rp2.eval_on_selector("#services .ic .spin",
+                               "e=>getComputedStyle(e).animationName") == "none")
+    rm.close()
     # the card sections slide (owner's request 2026-07-30): one scroll-snap
     # rail per section, all cards on one baseline, genuinely scrollable
-    for sid, n in (("nokhatha", 4), ("services", 9)):
+    for sid, n in (("nokhatha", 4), ("services", 11)):
         cnt = pg.eval_on_selector_all(f"#{sid} .rail .card", "n=>n.length")
         check(S, f"{sid}: the rail carries all its cards", cnt == n, f"{cnt} cards")
         tops = set(pg.eval_on_selector_all(f"#{sid} .rail .card",

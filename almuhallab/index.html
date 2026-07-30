@@ -113,6 +113,20 @@
     .live { width: 7px; height: 7px; border-radius: 50%; background: var(--good);
       display: inline-block; animation: pulse 2s ease-in-out infinite; }
 
+    /* Three icons carry their meaning in motion: the automation gear turns,
+       the AI agent's spark breathes, the design pen keeps drawing its stroke.
+       Part-level animation can't reach inside a <use> clone, so these three
+       are inlined from the same drawn set. The global reduced-motion block
+       at the end of the sheet stops all of them. */
+    @keyframes icspin { to { transform: rotate(360deg); } }
+    @keyframes icpulse { 0%, 100% { opacity: .35; transform: scale(.75); }
+                         50% { opacity: 1; transform: scale(1.1); } }
+    @keyframes icdraw { 0% { stroke-dashoffset: 26; } 55%, 72% { stroke-dashoffset: 0; }
+                        100% { stroke-dashoffset: -26; } }
+    .ic .spin { animation: icspin 9s linear infinite; transform-box: fill-box; transform-origin: center; }
+    .ic .spark { animation: icpulse 2.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+    .ic .draw { stroke-dasharray: 26; animation: icdraw 3.6s ease-in-out infinite; }
+
     .card, .channel { transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease; }
     .card:hover { transform: translateY(-3px); border-color: var(--tint);
       box-shadow: 0 10px 24px rgba(27, 36, 48, .08); }
@@ -421,8 +435,16 @@
       <div class="railwrap">
         <div class="rail" tabindex="0" role="group" aria-label="خدماتنا">
           <div class="card">
-            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-automation"/></svg></span> أتمتة العمليات</h3>
+            <h3><span class="tile"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><g class="spin"><circle cx="12" cy="12" r="3.1"/><path d="M12 2.6v3M12 18.4v3M21.4 12h-3M5.6 12h-3M18.6 5.4l-2.1 2.1M7.5 16.5l-2.1 2.1M18.6 18.6l-2.1-2.1M7.5 7.5 5.4 5.4"/></g></svg></span> أتمتة العمليات</h3>
             <p>الموافقات والفواتير والتقارير تُنفَّذ وحدها.</p>
+          </div>
+          <div class="card">
+            <h3><span class="tile"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.2" y="6.2" width="11.6" height="11.6" rx="2.2"/><path d="M9.6 3.4v2.8M14.4 3.4v2.8M9.6 17.8v2.8M14.4 17.8v2.8M3.4 9.6h2.8M3.4 14.4h2.8M17.8 9.6h2.8M17.8 14.4h2.8"/><path class="spark" fill="currentColor" stroke="none" d="M12 8.4l1 2.6 2.6 1-2.6 1-1 2.6-1-2.6-2.6-1 2.6-1z"/></svg></span> وكلاء الذكاء الاصطناعي</h3>
+            <p>وكلاء نبنيهم لعملك: يردّون ويلخّصون وينفّذون.</p>
+          </div>
+          <div class="card">
+            <h3><span class="tile"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m14.3 3.7 6 6L12 18l-7.6 2.2L6.6 12.6z"/><path d="M4.4 20.2 10 14.6"/><circle cx="11" cy="13.6" r="1.2"/><path class="draw" d="M13.5 21c3-.2 5.3-1.4 7-3.4"/></svg></span> تصميم الشعارات والهوية</h3>
+            <p>شعار وهوية بصرية تُرسم لعلامتك من الصفر.</p>
           </div>
           <div class="card">
             <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-tailor"/></svg></span> تطبيق مخصّص بالكامل</h3>

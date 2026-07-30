@@ -133,6 +133,9 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   `.fact`s, "كيف نعمل" a numbered timeline, the channels one bar of pills.
 - Icons on the public site are a **drawn inline-SVG set** (`<symbol>` + `<use>`),
   not emoji: emoji are a different typeface, weight and colour on every platform.
+  Three service icons (automation gear, AI-agent spark, design pen) are inlined
+  rather than `<use>`-referenced so their parts can animate — spin, pulse and
+  stroke-draw, all stopped by `prefers-reduced-motion`.
   النوخذة's own screens still use emoji in tab labels.
 - Charts are hand-built inline SVG — the strict CSP forbids any chart library.
   Colour follows the encoding job: ordinal one-hue ramps where order carries
@@ -155,7 +158,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 248 checks covering
+- `python3 design/test_suite.py` is the full system test — 254 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
