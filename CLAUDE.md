@@ -178,3 +178,29 @@
   known-route list in `sporta-web/public/.htaccess`, or it will 404 in
   production.
 - Keep the indigo accent for admin UI.
+
+- **ElevenLabs MCP** — `.mcp.json` at the repo root, pinned to
+  `elevenlabs-mcp==0.11.0` and run through `uvx`. 27 tools: text-to-speech,
+  voice cloning, sound effects, agents, outbound calls.
+
+  Two things it needs, and it is silent about neither:
+
+  1. **`ELEVENLABS_API_KEY` in the environment.** `.mcp.json` reads
+     `${ELEVENLABS_API_KEY}` and the key itself is **never** in the file —
+     `.mcp.json` is committed, and a key in a committed file is a key on
+     GitHub. Set it in the Claude Code environment settings.
+  2. **`api.elevenlabs.io` on the network allowlist.** Without it the server
+     starts, answers the MCP handshake, lists all 27 tools, and then fails
+     every single call at CONNECT — which reads like a broken integration
+     rather than a firewall. Measured: the sandbox proxy answers 403 to
+     CONNECT for anything outside the package registries.
+
+  This is the SELF-HOSTED server, not the claude.ai ElevenLabs connector. The
+  connector is a separate thing, authenticates by OAuth, has nowhere to put an
+  API key, and is enabled per chat in the connector menu — none of which can be
+  done from inside a session.
+
+  `make_outbound_call` places real telephone calls and `voice_clone` spends
+  credits. Both are one tool call away once this is on.
+
+  To bump: change the pin in `.mcp.json`, nothing else.
