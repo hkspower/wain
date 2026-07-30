@@ -113,8 +113,9 @@
     .live { width: 7px; height: 7px; border-radius: 50%; background: var(--good);
       display: inline-block; animation: pulse 2s ease-in-out infinite; }
 
-    .card, .channel, ol.steps li { transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease; }
-    .card:hover, ol.steps li:hover { transform: translateY(-3px); border-color: var(--tint); }
+    .card, .channel { transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease; }
+    .card:hover { transform: translateY(-3px); border-color: var(--tint);
+      box-shadow: 0 10px 24px rgba(27, 36, 48, .08); }
     .channel:hover { transform: translateY(-3px); }
     .card:hover .tile, .channel:hover .tile { background: var(--tint); }
     .card:hover .tile .ic, .channel:hover .tile .ic { stroke: #fff; color: #fff; }
@@ -140,9 +141,57 @@
     }
     .sub { color: var(--muted); margin: 0 0 12px; line-height: 1.75; }
 
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 12px; }
-    /* six cards resolve 4+2 in the shared grid above ~1080px; three columns keep the rows whole */
-    .grid-3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); max-width: 900px; }
+    /* ═══════ rails: the sliders that replaced the card grids ═══════
+       (owner's request, 2026-07-30: "less grids, slide"). One horizontal
+       scroll-snap track per section; the cards keep the site's card anatomy.
+       The track is native overflow scroll, so it swipes on touch, drags on
+       trackpads, and arrow-scrolls when focused — the buttons and dots are
+       an enhancement on top, not the mechanism. Without JS the arrows stay
+       hidden (html.js gates them) and the rail is still a swipeable row. */
+    .rowhead { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+    .rowhead h2.section { margin-bottom: 0; }
+    .rowhead .sub { margin-bottom: 0; }
+    .railnav { display: none; gap: 6px; flex: none; padding-bottom: 4px; }
+    html.js .railnav { display: flex; }
+    .arrow { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border);
+      background: var(--panel); color: var(--tint); display: grid; place-items: center;
+      cursor: pointer; padding: 0; transition: background .18s ease, opacity .18s ease; }
+    .arrow:hover { background: var(--panel-2); }
+    .arrow:disabled { opacity: .35; cursor: default; }
+    .arrow:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+    .arrow .ic { width: 18px; height: 18px; }
+    .arrow.prev .ic { transform: scaleX(-1); }  /* RTL: previous returns rightwards */
+
+    .railwrap { position: relative; margin-top: 12px; }
+    .rail { display: grid; grid-auto-flow: column; grid-auto-columns: min(78vw, 264px);
+      gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
+      padding: 8px 4px 12px; margin: -8px -4px 0; scroll-padding-inline: 4px;
+      scrollbar-width: none; }
+    .rail::-webkit-scrollbar { display: none; }
+    .rail > * { scroll-snap-align: start; }
+    .rail:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 8px; }
+    #nokhatha .rail { grid-auto-columns: min(84vw, 320px); }
+    /* the white fade marks the edge that still hides content; JS clears the
+       fade on the exhausted side via at-start / at-end */
+    .railwrap::before, .railwrap::after { content: ""; position: absolute; top: 0; bottom: 12px;
+      width: 28px; pointer-events: none; z-index: 1; transition: opacity .25s ease; }
+    .railwrap::before { left: -4px; background: linear-gradient(90deg, var(--bg), rgba(255,255,255,0)); }
+    .railwrap::after { right: -4px; background: linear-gradient(270deg, var(--bg), rgba(255,255,255,0)); }
+    .slider.at-start .railwrap::after { opacity: 0; }
+    .slider.at-end .railwrap::before { opacity: 0; }
+    .dots { display: flex; justify-content: center; gap: 6px; margin-top: 8px; }
+    .dots span { width: 8px; height: 8px; border-radius: 999px; background: var(--border);
+      transition: background .25s ease, width .25s ease; }
+    .dots span.on { background: var(--tint); width: 20px; }
+    .slider.no-slide .railnav, .slider.no-slide .dots { display: none; }
+
+    /* the three commitments sit in one soft band — a statement, not a grid */
+    .band { background: var(--panel-2); border: 1px solid var(--border); border-radius: 16px;
+      padding: 20px; margin-top: 12px; display: flex; gap: 20px; }
+    .band .fact { flex: 1; min-width: 0; }
+    .band .fact + .fact { border-inline-start: 1px solid var(--border); padding-inline-start: 20px; }
+    .band .fact h3 { margin: 0 0 4px; font-size: 15.5px; display: flex; align-items: center; gap: 8px; }
+    .band .fact p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
     .card {
       background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px;
       display: flex; flex-direction: column; gap: 6px;
@@ -190,33 +239,33 @@
       .product .go { justify-self: stretch; text-align: center; }
     }
 
-    ol.steps { counter-reset: s; list-style: none; margin: 12px 0 0; padding: 0;
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
-    ol.steps li { counter-increment: s; background: var(--panel); border: 1px solid var(--border);
-      border-radius: 14px; padding: 12px 16px; color: var(--muted); font-size: 13px; line-height: 1.7; }
-    ol.steps li b { display: block; color: var(--text); font-size: 15px; margin-bottom: 6px; }
-    ol.steps li b::before { content: counter(s) "."; color: var(--tint); margin-inline-end: 7px; }
+    /* how-we-work is a timeline now, not a row of boxes: numbered discs joined
+       by a rule, horizontal on wide screens, vertical on a phone */
+    ol.steps { counter-reset: s; list-style: none; margin: 16px 0 0; padding: 0;
+      display: flex; gap: 16px; }
+    ol.steps li { counter-increment: s; flex: 1; position: relative;
+      color: var(--muted); font-size: 13px; line-height: 1.7; }
+    ol.steps li::before { content: counter(s); display: grid; place-items: center;
+      width: 32px; height: 32px; border-radius: 50%; background: var(--tint); color: #fff;
+      font-weight: 800; font-size: 14px; }
+    ol.steps li::after { content: ""; position: absolute; top: 15px;
+      inset-inline-start: 40px; inset-inline-end: -8px; height: 2px; background: var(--border); }
+    ol.steps li:last-child::after { display: none; }
+    ol.steps li b { display: block; color: var(--text); font-size: 15px; margin: 8px 0 2px; }
 
-    .contact { background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
-      padding: 24px; margin-top: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-    .contact .who { flex: 1; min-width: 220px; }
-    .contact .who b { display: flex; align-items: center; gap: 8px; font-size: 16px; margin-bottom: 6px; }
-    .contact .who span { color: var(--muted); font-size: 13.5px; line-height: 1.8; }
-
-
-    /* Contact channels, as on the live site: an icon tile, a label, the value.
-       The tile sits on the neutral recessed surface — the brand warmth stays in
-       the mark, never in a background. */
-    .channels { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 12px; margin-top: 12px; }
-    .channel { background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
-      padding: 16px 16px; text-align: center; display: flex; flex-direction: column;
-      align-items: center; gap: 8px; color: var(--text); }
+    /* Contact channels, as on the live site — the same three, laid as one bar
+       of pills: icon tile, label, value, reading start-aligned like a row. */
+    .channels { display: flex; gap: 12px; margin-top: 12px; }
+    .channel { flex: 1; min-width: 0; background: var(--panel); border: 1px solid var(--border);
+      border-radius: 14px; padding: 12px 16px; display: flex; align-items: center; gap: 12px;
+      color: var(--text); }
     .channel:hover { border-color: var(--tint); }
-    .channel .tile { width: 46px; height: 46px; border-radius: 13px; }
-    .channel .tile .ic { width: 25px; height: 25px; }
-    .channel b { font-size: 15.5px; }
-    .channel span.v { color: var(--muted); font-size: 13.5px; direction: ltr; unicode-bidi: isolate; }
+    .channel .tile { width: 40px; height: 40px; border-radius: 12px; }
+    .channel .tile .ic { width: 22px; height: 22px; }
+    .channel .t { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .channel b { font-size: 14.5px; }
+    .channel span.v { color: var(--muted); font-size: 12.5px; direction: ltr; unicode-bidi: isolate;
+      text-align: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     /* ═══════ mobile ═══════ */
     @media (max-width: 640px) {
@@ -230,7 +279,19 @@
       h2.section { margin-top: 24px; }
       .hero p { font-size: 15px; }
       .hero .actions .btn { flex: 1 1 100%; justify-content: center; }
-      .channel { padding: 16px 12px; }
+      /* a phone slides by thumb — the arrows would only crowd the heading */
+      .railnav { display: none !important; }
+      .rowhead { align-items: stretch; }
+      .band { flex-direction: column; gap: 16px; padding: 16px; }
+      .band .fact + .fact { border-inline-start: 0; padding-inline-start: 0;
+        border-top: 1px solid var(--border); padding-top: 16px; }
+      ol.steps { flex-direction: column; gap: 16px; }
+      ol.steps li { padding-inline-start: 44px; }
+      ol.steps li::before { position: absolute; inset-inline-start: 0; top: 0; }
+      ol.steps li::after { top: 36px; bottom: -16px; height: auto; width: 2px;
+        inset-inline-start: 15px; inset-inline-end: auto; }
+      ol.steps li b { margin-top: 4px; }
+      .channels { flex-direction: column; }
     }
 
     /* A visitor who asks the OS for less motion gets none of it: no entrance,
@@ -271,6 +332,7 @@
     <symbol id="i-tailor" viewBox="0 0 24 24"><path d="M3.4 8.6 12 3.6l8.6 5v6.8L12 20.4l-8.6-5z"/><path d="M12 11.6v8.8M3.6 8.7 12 13.5l8.4-4.8"/></symbol>
     <symbol id="i-briefcase" viewBox="0 0 24 24"><rect x="2.8" y="7.2" width="18.4" height="13" rx="2.4"/><path d="M8.6 7.2V5.6a2 2 0 0 1 2-2h2.8a2 2 0 0 1 2 2v1.6"/><path d="M2.8 12.4h18.4M10.4 12.4v2.2h3.2v-2.2"/></symbol>
     <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3.2 4.8 6.1v6c0 4.3 3 7.3 7.2 8.7 4.2-1.4 7.2-4.4 7.2-8.7v-6z"/><path d="m8.8 12.2 2.2 2.2 4.2-4.4"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="M14.5 6 9 12l5.5 6"/></symbol>
   </svg>
 
   <header>
@@ -298,73 +360,101 @@
       </div>
     </section>
 
-    <!-- Every section below is the site's original card vocabulary: a section
-         heading, a one-line lead, then a grid of uniform cards. -->
-    <h2 class="section" id="nokhatha">ما هي النوخذة؟</h2>
-    <p class="sub">الرقم يُكتب مرة واحدة، ويسير بنفسه إلى القائمة المالية.</p>
-    <div class="grid" data-reveal>
-      <div class="card">
-        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg></span> صافي</h3>
-        <p>محفظتك: القيمة السوقية والربح لحظياً.</p>
-        <span class="chip on">المصدر الأول</span>
+    <!-- Each multi-card section is a slider now: a heading row with the
+         arrows at its end, then a scroll-snap rail of the site's own cards.
+         The rail is real overflow scroll — swipe, drag, or keyboard — and the
+         arrows and dots are an enhancement layered on top by the script. -->
+    <section class="slider" id="nokhatha" data-reveal>
+      <div class="rowhead">
+        <div>
+          <h2 class="section">ما هي النوخذة؟</h2>
+          <p class="sub">الرقم يُكتب مرة واحدة، ويسير بنفسه إلى القائمة المالية.</p>
+        </div>
+        <div class="railnav">
+          <button type="button" class="arrow prev" aria-label="السابق"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></button>
+          <button type="button" class="arrow next" aria-label="التالي"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></button>
+        </div>
       </div>
-      <div class="card">
-        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-delivery"/></svg></span> التوصيل</h3>
-        <p>طلبات تُتابَع حتى التسليم، وإيراد من المسلَّم فقط.</p>
-        <span class="chip on">المصدر الثاني</span>
+      <div class="railwrap">
+        <div class="rail" tabindex="0" role="group" aria-label="وحدات النوخذة">
+          <div class="card">
+            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg></span> صافي</h3>
+            <p>محفظتك: القيمة السوقية والربح لحظياً.</p>
+            <span class="chip on">المصدر الأول</span>
+          </div>
+          <div class="card">
+            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-delivery"/></svg></span> التوصيل</h3>
+            <p>طلبات تُتابَع حتى التسليم، وإيراد من المسلَّم فقط.</p>
+            <span class="chip on">المصدر الثاني</span>
+          </div>
+          <div class="card">
+            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-report"/></svg></span> XBRL</h3>
+            <p>ميزانية سنوية وفق إطار وزارة التجارة، بمجاميع محسوبة.</p>
+            <span class="chip on">الوجهة</span>
+          </div>
+          <div class="card">
+            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-anchor"/></svg></span> المركز المالي</h3>
+            <p>تبويب واحد يجمعها كلها، ثم ملف XBRL بمعيار IFRS.</p>
+            <span class="chip on">النتيجة</span>
+          </div>
+        </div>
+        <div class="dots" aria-hidden="true"></div>
       </div>
-      <div class="card">
-        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-report"/></svg></span> XBRL</h3>
-        <p>ميزانية سنوية وفق إطار وزارة التجارة، بمجاميع محسوبة.</p>
-        <span class="chip on">الوجهة</span>
-      </div>
-      <div class="card">
-        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-anchor"/></svg></span> المركز المالي</h3>
-        <p>تبويب واحد يجمعها كلها، ثم ملف XBRL بمعيار IFRS.</p>
-        <span class="chip on">النتيجة</span>
-      </div>
-    </div>
+    </section>
 
-    <h2 class="section" id="services">خدماتنا</h2>
-    <p class="sub">أتمتة، وتطبيقات على مقاس عملك.</p>
-    <div class="grid grid-3" data-reveal>
-      <div class="card">
-        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-automation"/></svg></span> أتمتة العمليات</h3>
-        <p>الموافقات والفواتير والتقارير تُنفَّذ وحدها.</p>
+    <section class="slider" id="services" data-reveal>
+      <div class="rowhead">
+        <div>
+          <h2 class="section">خدماتنا</h2>
+          <p class="sub">أتمتة، وتطبيقات على مقاس عملك.</p>
+        </div>
+        <div class="railnav">
+          <button type="button" class="arrow prev" aria-label="السابق"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></button>
+          <button type="button" class="arrow next" aria-label="التالي"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></button>
+        </div>
       </div>
-      <div class="card">
-        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-tailor"/></svg></span> تطبيق مخصّص بالكامل</h3>
-        <p>من الصفر على إجراءاتك، لا قالب جاهز.</p>
+      <div class="railwrap">
+        <div class="rail" tabindex="0" role="group" aria-label="خدماتنا">
+          <div class="card">
+            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-automation"/></svg></span> أتمتة العمليات</h3>
+            <p>الموافقات والفواتير والتقارير تُنفَّذ وحدها.</p>
+          </div>
+          <div class="card">
+            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-tailor"/></svg></span> تطبيق مخصّص بالكامل</h3>
+            <p>من الصفر على إجراءاتك، لا قالب جاهز.</p>
+          </div>
+          <div class="card">
+            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-briefcase"/></svg></span> تطبيق خاص لكل مشروع</h3>
+            <p>مطاعم، مقاولات، عيادات، تجارة، خدمات.</p>
+          </div>
+          <div class="card">
+            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-blocks"/></svg></span> أنظمة الأعمال</h3>
+            <p>مخزون وطلبات وموارد بشرية وتقارير.</p>
+          </div>
+          <div class="card">
+            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg></span> تطبيقات الويب و PWA</h3>
+            <p>تُثبَّت على الجوال وتعمل بلا إنترنت.</p>
+          </div>
+          <div class="card">
+            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-report"/></svg></span> الأنظمة المالية و XBRL</h3>
+            <p>ميزانيات الكويت السنوية بمعيار IFRS.</p>
+          </div>
+          <div class="card">
+            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-delivery"/></svg></span> التوصيل واللوجستيات</h3>
+            <p>طلبات ومناديب وتتبّع حتى التسليم.</p>
+          </div>
+          <div class="card">
+            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg></span> التكامل وربط الأنظمة</h3>
+            <p>أرقامك تسير بين أنظمتك بلا إدخال يدوي.</p>
+          </div>
+          <div class="card">
+            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg></span> الأمن ومراجعة الأكواد</h3>
+            <p>تعمية كلمات المرور، CSP صارمة، مراجعة قبل النشر.</p>
+          </div>
+        </div>
+        <div class="dots" aria-hidden="true"></div>
       </div>
-      <div class="card">
-        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-briefcase"/></svg></span> تطبيق خاص لكل مشروع</h3>
-        <p>مطاعم، مقاولات، عيادات، تجارة، خدمات.</p>
-      </div>
-      <div class="card">
-        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-blocks"/></svg></span> أنظمة الأعمال</h3>
-        <p>مخزون وطلبات وموارد بشرية وتقارير.</p>
-      </div>
-      <div class="card">
-        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg></span> تطبيقات الويب و PWA</h3>
-        <p>تُثبَّت على الجوال وتعمل بلا إنترنت.</p>
-      </div>
-      <div class="card">
-        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-report"/></svg></span> الأنظمة المالية و XBRL</h3>
-        <p>ميزانيات الكويت السنوية بمعيار IFRS.</p>
-      </div>
-      <div class="card">
-        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-delivery"/></svg></span> التوصيل واللوجستيات</h3>
-        <p>طلبات ومناديب وتتبّع حتى التسليم.</p>
-      </div>
-      <div class="card">
-        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg></span> التكامل وربط الأنظمة</h3>
-        <p>أرقامك تسير بين أنظمتك بلا إدخال يدوي.</p>
-      </div>
-      <div class="card">
-        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg></span> الأمن ومراجعة الأكواد</h3>
-        <p>تعمية كلمات المرور، CSP صارمة، مراجعة قبل النشر.</p>
-      </div>
-    </div>
+    </section>
 
     <h2 class="section" id="products">من أعمالنا</h2>
     <p class="sub">النظام الذي بنيناه ونشغّله — جرّبه الآن.</p>
@@ -386,21 +476,18 @@
 
     <h2 class="section">لماذا المهلب كود</h2>
     <p class="sub">ثلاثة نلتزم بها، ويمكنك التحقق منها بنفسك.</p>
-    <div class="grid" data-reveal>
-      <div class="card">
-        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg></span> مُختبَر لا موصوف</h3>
+    <div class="band" data-reveal>
+      <div class="fact">
+        <h3><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg> مُختبَر لا موصوف</h3>
         <p>لا يُسلَّم إصدار حتى تخضرّ كل الفحوص الآلية.</p>
-        <span class="chip on">فحوص آلية قبل كل إصدار</span>
       </div>
-      <div class="card">
-        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg></span> عربي أولاً، لا مُعرَّب</h3>
+      <div class="fact">
+        <h3><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg> عربي أولاً، لا مُعرَّب</h3>
         <p>RTL من أول سطر، بخط عربي مرفق مع الموقع.</p>
-        <span class="chip on">RTL أصلي</span>
       </div>
-      <div class="card">
-        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg></span> يعمل بلا إنترنت</h3>
+      <div class="fact">
+        <h3><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg> يعمل بلا إنترنت</h3>
         <p>يُثبَّت على الجوال، بكلمات مرور مُعمّاة وسياسة محتوى صارمة.</p>
-        <span class="chip on">PWA + CSP</span>
       </div>
     </div>
 
@@ -420,18 +507,18 @@
     <div class="channels" data-reveal>
       <a class="channel" href="https://wa.me/96565894110">
         <span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-whatsapp"/></svg></span>
-        <b>واتساب</b>
-        <span class="v">+965 6589 4110</span>
+        <span class="t"><b>واتساب</b>
+        <span class="v">+965 6589 4110</span></span>
       </a>
       <a class="channel" href="https://instagram.com/almuhallab.code">
         <span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-instagram"/></svg></span>
-        <b>انستغرام</b>
-        <span class="v">@almuhallab.code</span>
+        <span class="t"><b>انستغرام</b>
+        <span class="v">@almuhallab.code</span></span>
       </a>
       <a class="channel" href="mailto:hello@almuhallab-code.com">
         <span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-mail"/></svg></span>
-        <b>البريد</b>
-        <span class="v">hello@almuhallab-code.com</span>
+        <span class="t"><b>البريد</b>
+        <span class="v">hello@almuhallab-code.com</span></span>
       </a>
     </div>
   </main>
@@ -443,6 +530,61 @@
   </footer>
 
   <script>
+    /* The sliders. The rail is native overflow scroll and stays fully usable
+       without any of this — this script only layers the arrows, the dots and
+       the edge fades on top. html.js turns the arrows on, so a visitor whose
+       script never ran gets a clean swipeable row instead of dead buttons.
+       RTL note: Chromium reports scrollLeft as 0 at the start and negative
+       leftwards in RTL, so positions are compared by absolute value, and
+       "next" scrolls by a negative delta. */
+    (function () {
+      document.documentElement.classList.add("js");
+      var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var sliders = document.querySelectorAll("section.slider");
+      for (var i = 0; i < sliders.length; i++) (function (sec) {
+        var rail = sec.querySelector(".rail");
+        var prev = sec.querySelector(".arrow.prev");
+        var next = sec.querySelector(".arrow.next");
+        var dotbox = sec.querySelector(".dots");
+        var kids = rail.children, dots = [], pending = false;
+        for (var k = 0; k < kids.length; k++) dots.push(dotbox.appendChild(document.createElement("span")));
+        function active() {  // the card whose start edge sits nearest the rail's start (right, in RTL)
+          var rr = rail.getBoundingClientRect(), best = 0, bd = 1e9;
+          for (var k = 0; k < kids.length; k++) {
+            var d = Math.abs(kids[k].getBoundingClientRect().right - rr.right);
+            if (d < bd) { bd = d; best = k; }
+          }
+          return best;
+        }
+        function paint() {
+          var a = active();
+          for (var k = 0; k < dots.length; k++) dots[k].className = k === a ? "on" : "";
+          /* the rail's own 4px inline padding means "at rest" can report a
+             few px of scroll — compare against an 8px tolerance, not zero */
+          var max = rail.scrollWidth - rail.clientWidth;
+          var pos = Math.abs(rail.scrollLeft);
+          sec.classList.toggle("no-slide", max < 12);
+          sec.classList.toggle("at-start", pos < 8);
+          sec.classList.toggle("at-end", pos > max - 8);
+          prev.disabled = pos < 8;
+          next.disabled = pos > max - 8;
+        }
+        function go(dir) {  // dir 1 = next; in RTL that is a scroll to the left
+          var step = kids[0].getBoundingClientRect().width + 12;
+          rail.scrollBy({ left: -dir * step, behavior: still ? "auto" : "smooth" });
+        }
+        next.addEventListener("click", function () { go(1); });
+        prev.addEventListener("click", function () { go(-1); });
+        rail.addEventListener("scroll", function () {
+          if (pending) return;
+          pending = true;
+          requestAnimationFrame(function () { pending = false; paint(); });
+        });
+        window.addEventListener("resize", paint);
+        paint();
+      })(sliders[i]);
+    })();
+
     /* Reveal each section as it comes into view. Whole blocks, never single
        cards: a per-card stagger would leave siblings of one row on different
        baselines while the animation ran. Anything already on screen at load is

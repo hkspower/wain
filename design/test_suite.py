@@ -281,18 +281,37 @@ def home_checks(pg):
                     "لماذا المهلب كود", "تواصل معنا"):
         check(S, f"the page still carries: {heading}", heading in pg.inner_text("main"))
     cards = pg.eval_on_selector_all(".card", "n=>n.length")
-    check(S, "the card sections are all present", cards == 16, f"{cards} cards")
+    check(S, "the card sections are all present", cards == 13, f"{cards} cards")
+    check(S, "the three commitments sit in the band, not a grid",
+          pg.eval_on_selector_all(".band .fact", "n=>n.length") == 3)
     check(S, "the retired code editor is gone from the page",
           "editor.html" not in (ROOT / "index.html").read_text())
     # the services the company leads with
     for want in ("أتمتة العمليات", "تطبيق مخصّص بالكامل", "تطبيق خاص لكل مشروع"):
         check(S, f"services include: {want}", want in pg.inner_text("main"))
-    # nine services resolve as three whole rows, no orphan
-    tops = pg.eval_on_selector_all(".grid-3 .card", "n=>n.map(c=>Math.round(c.getBoundingClientRect().top))")
-    rows = {}
-    for t2 in tops: rows[t2] = rows.get(t2, 0) + 1
-    check(S, "the services grid has no orphaned row",
-          len(rows) == 3 and set(rows.values()) == {3}, str(rows))
+    # the card sections slide (owner's request 2026-07-30): one scroll-snap
+    # rail per section, all cards on one baseline, genuinely scrollable
+    for sid, n in (("nokhatha", 4), ("services", 9)):
+        cnt = pg.eval_on_selector_all(f"#{sid} .rail .card", "n=>n.length")
+        check(S, f"{sid}: the rail carries all its cards", cnt == n, f"{cnt} cards")
+        tops = set(pg.eval_on_selector_all(f"#{sid} .rail .card",
+                   "n=>n.map(c=>Math.round(c.getBoundingClientRect().top))"))
+        check(S, f"{sid}: every card sits on one sliding row", len(tops) == 1, str(tops))
+        able = pg.eval_on_selector(f"#{sid} .rail", "e=>e.scrollWidth > e.clientWidth + 8")
+        check(S, f"{sid}: the rail actually slides", able)
+        snap = pg.eval_on_selector(f"#{sid} .rail", "e=>getComputedStyle(e).scrollSnapType")
+        check(S, f"{sid}: the rail snaps to cards", snap.startswith("x"), snap)
+    # the arrows move the rail the right way for RTL: "next" reveals content
+    # further left, and at rest the start-side arrow is disabled
+    check(S, "at rest, the previous arrow is disabled",
+          pg.eval_on_selector("#services .arrow.prev", "e=>e.disabled"))
+    before = pg.eval_on_selector("#services .rail", "e=>e.scrollLeft")
+    pg.click("#services .arrow.next"); pg.wait_for_timeout(700)
+    after = pg.eval_on_selector("#services .rail", "e=>e.scrollLeft")
+    check(S, "the next arrow slides the services rail", after < before - 40, f"{before}->{after}")
+    check(S, "sliding lights the matching dot",
+          pg.eval_on_selector("#services .dots", "e=>[...e.children].findIndex(d=>d.className==='on')") == 1)
+    pg.click("#services .arrow.prev"); pg.wait_for_timeout(700)
     # the first version's own components: two wide product rows, numbered steps,
     # and the contact bar
     check(S, "the product is a wide row, not a tile",

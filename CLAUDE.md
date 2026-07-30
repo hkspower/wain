@@ -39,7 +39,7 @@ Locked, exactly as they are:
 | Brand ink | `--tint` `#7a4418` · `--tint-strong` `#6f3f1c` |
 | Surfaces | **white on every device** — no dark theme; white page, white cards, cool near-neutral greys. Brown is ink, never paper |
 | Icons | the drawn `<symbol>` sprite — no emoji anywhere on the public page |
-| Layout | hero · card grids · wide `.product` rows · `ol.steps` · contact channels |
+| Layout | hero · **slide rails** (scroll-snap sliders with arrows + dots — the card grids became sliders at the owner's request, 2026-07-30) · wide `.product` rows · `ol.steps` as a timeline · commitments `.band` · contact channels as a bar |
 | Products | **النوخذة only.** The in-browser code editor was retired at the owner's request — do not reintroduce it |
 | Contact | واتساب `+965 6589 4110` · انستغرام `@almuhallab.code` · `hello@almuhallab-code.com` |
 
@@ -119,6 +119,16 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   everything; and a 1.5s failsafe reveals whatever the observer never reached.
   `prefers-reduced-motion` switches all of it off. Sections reveal as whole
   blocks — staggering siblings puts cards of one row on different baselines.
+- The multi-card sections are **sliders ("rails"), not grids** (owner's request,
+  2026-07-30): one scroll-snap track per section, native overflow scroll, with
+  arrows + dots layered on by script. Rules: the arrows are gated behind
+  `html.js` so a failed script leaves a clean swipeable row, never dead
+  buttons; dots are decorative spans (`aria-hidden`), arrows do navigation;
+  RTL Chromium reports `scrollLeft` 0→negative so positions compare by
+  absolute value and "next" scrolls by a negative delta; the rail's 4px inline
+  padding means "at rest" ≈ 4px, so thresholds are 8px, never 0; on phones the
+  arrows hide and the thumb does the work. "لماذا" is a `.band` of three
+  `.fact`s, "كيف نعمل" a numbered timeline, the channels one bar of pills.
 - Icons on the public site are a **drawn inline-SVG set** (`<symbol>` + `<use>`),
   not emoji: emoji are a different typeface, weight and colour on every platform.
   النوخذة's own screens still use emoji in tab labels.
@@ -143,7 +153,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 229 checks covering
+- `python3 design/test_suite.py` is the full system test — 240 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
