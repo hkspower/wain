@@ -9,9 +9,10 @@ import SetupQuickUnlock from './SetupQuickUnlock'
 import Overview, { NotAdminNotice } from './Overview'
 import Devices from './Devices'
 import Inventory from './Inventory'
+import Images from './Images'
 import Orders from './Orders'
 import Catalog from './Catalog'
-import { IconBag, IconTruck, IconStar, IconLock, IconBox } from '../components/icons'
+import { IconBag, IconTruck, IconStar, IconLock, IconBox, IconImage } from '../components/icons'
 
 // Orchestrates the admin session:
 //   no session            -> AdminLogin
@@ -145,6 +146,7 @@ const ADMIN_TABS = [
   { id: 'orders',   label: 'Orders',   Icon: IconBag },
   { id: 'catalog',  label: 'Catalogue', Icon: IconTruck },
   { id: 'stock',    label: 'Inventory', Icon: IconBox },
+  { id: 'images',   label: 'Images',   Icon: IconImage },
   { id: 'settings', label: 'Settings', Icon: IconLock },
 ]
 
@@ -213,6 +215,8 @@ function Dashboard({ email, onSignOut, onEnrollChange, notAdmin, onLockNow, canL
         {tab === 'catalog' && <Catalog />}
 
         {tab === 'stock' && <Inventory />}
+
+        {tab === 'images' && <Images />}
 
         {tab === 'settings' && (
           <div className="space-y-6">

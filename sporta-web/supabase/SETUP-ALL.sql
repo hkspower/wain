@@ -1892,7 +1892,8 @@ select
 --   * WRITES RESTRICTED TO is_admin(). Insert, update and delete all require a
 --     row in public.admin_users. Being signed in is not enough.
 --   * A SIZE CEILING and an ALLOWED MIME LIST enforced by the bucket itself, so
---     the limit holds even if a policy is ever loosened by hand.
+--     the limit holds even if a policy is ever loosened by hand. 30 MB, because
+--     the uploader keeps originals untouched and a DSLR JPEG is 8-15 MB.
 --
 -- Anything else stays absent, and the report at the bottom names any other
 -- public bucket so an accidental one is visible rather than discovered later.
@@ -1907,6 +1908,10 @@ select
 do $$
 declare
   v_bucket text := 'product-images';
+  v_mimes  text[] := array[
+    'image/jpeg', 'image/png', 'image/webp', 'image/avif',
+    'image/heic', 'image/heif', 'image/tiff', 'image/gif', 'image/bmp'
+  ];
 begin
   if to_regclass('storage.buckets') is null then
     raise notice 'Storage is not provisioned in this project — nothing to arrange. '
@@ -1915,23 +1920,35 @@ begin
   end if;
 
   -- ---------- 1. the bucket, with limits it enforces itself ----------
-  -- 5 MB is generous for a web product photograph and small enough that a
-  -- mistake is not a bill. The MIME list excludes SVG on purpose: an SVG is a
-  -- document that can carry script, and serving one from our own origin would
-  -- hand an attacker same-origin execution.
+  -- 30 MB, not the 5 MB this started at. The uploader stores originals byte for
+  -- byte — that is what lossless means — and a phone photo is 3-6 MB while a
+  -- DSLR JPEG is 8-15 MB. A 5 MB cap would have rejected most real camera files,
+  -- and rejecting a photograph is not "lossless", it is "no photograph". The
+  -- storefront never loads these: the uploader also writes a 1600px WebP copy to
+  -- web/, and that is what a product page uses.
+  --
+  -- The format list is everything a camera, a phone or a designer produces.
+  -- HEIC and HEIF are there because an iPhone shoots HEIC by default.
+  --
+  -- SVG IS DELIBERATELY ABSENT, and it is the one exclusion worth arguing about.
+  -- An SVG is not a picture, it is a document: it can carry <script>, and served
+  -- from our own origin that script runs with the site's privileges — it could
+  -- read the admin's Supabase session out of localStorage. "All image formats"
+  -- cannot include a format that is also a program. An SVG logo belongs in the
+  -- repo, where a human reads it before it ships.
   begin
     insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-    values (v_bucket, v_bucket, true, 5242880,
-            array['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
+    values (v_bucket, v_bucket, true, 31457280, v_mimes)
     on conflict (id) do update
       set public             = true,
-          file_size_limit    = 5242880,
-          allowed_mime_types  = array['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
-    raise notice 'bucket % ready: public read, 5 MB cap, raster images only', v_bucket;
+          file_size_limit    = 31457280,
+          allowed_mime_types = v_mimes;
+    raise notice 'bucket % ready: public read, 30 MB cap, % raster formats, no SVG',
+                 v_bucket, array_length(v_mimes, 1);
   exception when insufficient_privilege then
     raise notice 'Cannot write storage.buckets as this role. Create the bucket "%" '
-                 'in the dashboard (Public ON, 5 MB, image/jpeg+png+webp+avif), '
-                 'then run this file again.', v_bucket;
+                 'in the dashboard: Public ON, 30 MB limit, and these MIME types — '
+                 '%. Then run this file again.', v_bucket, array_to_string(v_mimes, ', ');
     return;
   end;
 

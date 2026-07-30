@@ -84,6 +84,16 @@ export const IconBox = (p) => (
   </Svg>
 )
 
+// Images: a frame with a horizon and a sun — reads at 17px, which a camera
+// body does not.
+export const IconImage = (p) => (
+  <Svg {...p}>
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <circle cx="8.5" cy="8.5" r="1.5" />
+    <path d="M21 15l-5-5L5 21" />
+  </Svg>
+)
+
 export const IconReturn = (p) => (
   <Svg {...p}>
     <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
