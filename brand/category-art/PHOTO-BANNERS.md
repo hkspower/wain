@@ -9,7 +9,8 @@ five-minute job:
 
 1. `n8n-banner-workflow.js` — a validated n8n Workflow-SDK script that
    generates all four banners with gpt-image-1 and uploads them straight to
-   `public_html/cats/` over FTP. Import it in n8n ("Create workflow → with
+   `public_html/cats/desktop/` and `public_html/cats/mobile/` over FTP. Import
+   it in n8n ("Create workflow → with
    code"), or ask Claude in an *interactive* session to install it via the n8n
    MCP (this repo's non-interactive sessions cannot approve n8n write calls).
 2. The four prompts below — also usable directly in ChatGPT (DALL-E /
@@ -18,7 +19,12 @@ five-minute job:
 ## Output contract (what the site expects)
 
 - Filenames, exactly, all lowercase: `men.jpg`, `women.jpg`,
-  `accessories.jpg`, `outlet.jpg` → upload into `public_html/cats/`.
+  `accessories.jpg`, `outlet.jpg` → upload into **both**
+  `public_html/cats/desktop/` and `public_html/cats/mobile/`.
+- Two folders because the tile chooses by viewport, not by pixel ratio, so a
+  phone can never be handed the desktop file. Ideal widths: ~1216 px for
+  `desktop/`, ~900 px for `mobile/`. The same file in both works; it just costs
+  a phone more than it needs.
 - The tiles probe those paths at runtime: the moment a file exists, it
   replaces the built-in artwork. Delete the file to fall back. No rebuild.
 - Landscape. gpt-image-1's largest landscape is **1536×1024** — the requested

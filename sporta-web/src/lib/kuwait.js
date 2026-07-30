@@ -154,8 +154,18 @@ export const governorate = (id) => GOVERNORATES.find((g) => g.id === id)
 // cannot receive the delivery SMS/WhatsApp, so they are rejected). Mirrors
 // normalise_kw_phone() in checkout-migration.sql — the database repeats this
 // check, because a browser can be bypassed and this one cannot.
+// Arabic-Indic (٠-٩) and Eastern Arabic-Indic (۰-۹) digits to ASCII.
+//
+// Half this shop's customers read the site in Arabic, and an Arabic keyboard
+// types ٩٩٨٨٧٧٦٦ — which /\D/ deletes as if it were punctuation. The phone box
+// silently refused every keystroke, so the field stayed empty with no error to
+// explain it. Every place a typed number is read has to come through here.
+export const toAsciiDigits = (v) =>
+  String(v ?? '').replace(/[\u0660-\u0669\u06F0-\u06F9]/g, (c) =>
+    String((c.charCodeAt(0) & 0x0f)))
+
 export function normalisePhone(input) {
-  let d = String(input ?? '').replace(/\D/g, '')
+  let d = toAsciiDigits(input).replace(/\D/g, '')
   if (d.startsWith('00965')) d = d.slice(5)
   else if (d.length === 11 && d.startsWith('965')) d = d.slice(3)
   return /^[569]\d{7}$/.test(d) ? `965${d}` : null
@@ -184,4 +194,24 @@ export function formatAddress(o, lang = 'en') {
   ]
     .filter(Boolean)
     .join(' · ')
+}
+
+// Which governorate an area belongs to, in either language, or null.
+//
+// Exists so the two fields can be filled in either order. A browser autofilling
+// a saved address writes whatever fields it recognises, in its own order, and it
+// knows "Salmiya" long before it works out which administrative area that is —
+// so the form has to be able to infer the governorate from the area rather than
+// insisting the shopper set the governorate first. The 97 area names are unique
+// across all six governorates (asserted by scripts/kuwait-areas-test.mjs), so
+// the answer is never ambiguous.
+export function governorateOfArea(name) {
+  const q = String(name ?? '').trim().toLowerCase()
+  if (q.length < 2) return null
+  for (const g of GOVERNORATES) {
+    for (const a of g.areas) {
+      if (a.en.toLowerCase() === q || a.ar === String(name).trim()) return g
+    }
+  }
+  return null
 }

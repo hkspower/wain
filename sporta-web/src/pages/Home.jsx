@@ -6,6 +6,8 @@ import CategoryTile from '../components/CategoryTile'
 import { IconTruck, IconReturn, IconArrowRight } from '../components/icons'
 import { usePageMeta } from '../lib/seo'
 
+const INFOBAR_DESKTOP_AT = '(min-width: 640px)'
+
 export default function Home() {
   const { t } = useLang()
   // Reset canonical/title/robots after client-side navigation back home.
@@ -99,14 +101,18 @@ export default function Home() {
           are physical, hence the explicit rtl: variant. */}
       <section className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-10">
         <div className="relative isolate overflow-hidden rounded-3xl bg-ink text-white">
+          {/* mobile/ and desktop/ chosen by viewport, not by device pixels —
+              see components/CategoryTile.jsx for why srcset was the wrong tool
+              here. This band is the starkest case for two files: it renders
+              380x160 (2.4:1) on a phone and 1232x124 (9.9:1) on a desktop, so
+              one master meant object-cover discarding 84% of its height in one
+              layout or the other. */}
           <picture>
-            <source
-              type="image/webp"
-              sizes="100vw"
-              srcSet="/cats/infobar-800.webp 800w, /cats/infobar-1600.webp 1600w"
-            />
+            <source media={INFOBAR_DESKTOP_AT} type="image/webp" srcSet="/cats/desktop/infobar.webp" />
+            <source media={INFOBAR_DESKTOP_AT} type="image/jpeg" srcSet="/cats/desktop/infobar.jpg" />
+            <source type="image/webp" srcSet="/cats/mobile/infobar.webp" />
             <img
-              src="/cats/infobar.jpg"
+              src="/cats/mobile/infobar.jpg"
               alt=""
               loading="lazy"
               decoding="async"

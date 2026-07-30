@@ -5,12 +5,34 @@ import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
 import { startCheckout } from '../lib/checkout'
 import { usePageMeta } from '../lib/seo'
-import { GOVERNORATES, governorate, normalisePhone } from '../lib/kuwait'
+import { GOVERNORATES, governorate, governorateOfArea, normalisePhone, toAsciiDigits } from '../lib/kuwait'
+import CheckoutSteps from '../components/CheckoutSteps'
 
 const BLANK = {
   name: '', phone: '', governorate: '', area: '',
   block: '', street: '', building: '', floor: '', flat: '', note: '',
 }
+// Fields where anything but a digit is a mistake, stripped as they type. Block,
+// floor and flat are numbers in the Kuwaiti addressing scheme; street can be a
+// name, and building can carry a letter, so neither is listed.
+const DIGITS_ONLY = new Set(['block', 'floor', 'flat'])
+
+// The phone is stripped too, but it cannot simply be truncated: the field shows
+// a fixed +965 and holds the eight national digits, while people paste
+// "+965 9988 7766" or "0096599887766" from their contacts. Dropping the country
+// code BEFORE the length cap is the difference between 99887766 and 96599887 —
+// and 96599887 is a number the driver dials and nobody answers.
+//
+// This is also why maxLength on the input is generous rather than 8: browsers
+// truncate an over-long paste before onChange ever sees it, so a tight cap would
+// destroy the country code's digits instead of letting this remove them.
+function cleanPhone(raw) {
+  let d = toAsciiDigits(raw).replace(/\D/g, '')
+  if (d.startsWith('00965')) d = d.slice(5)
+  else if (d.length > 8 && d.startsWith('965')) d = d.slice(3)
+  return d.slice(0, 8)
+}
+
 const STORE_KEY = 'sporta.delivery'
 // The opt-out is stored separately from the details themselves. Deriving it
 // from "are there saved details?" meant it defaulted to off for every
@@ -56,10 +78,32 @@ export default function Checkout() {
 
   const gov = governorate(form.governorate)
   const set = (k) => (ev) => {
-    const v = ev.target.value
-    // Changing governorate clears the area: the suggestions belong to the
-    // governorate, and a stale area is an undeliverable address.
-    setForm((f) => ({ ...f, [k]: v, ...(k === 'governorate' ? { area: '' } : null) }))
+    const raw = ev.target.value
+    // Digits only where only digits are meaningful. Doing it here rather than
+    // with a pattern means a pasted "+965 9988 7766" or "Block 4" becomes
+    // something the driver can use instead of a validation error.
+    // toAsciiDigits first, in every numeric field: an Arabic keyboard types
+    // ٤ for four, and stripping it as a non-digit meant the field could not be
+    // filled in at all by half the shop's customers.
+    const v =
+      k === 'phone' ? cleanPhone(raw)
+      : DIGITS_ONLY.has(k) ? toAsciiDigits(raw).replace(/[^\d]/g, '')
+      : raw
+    setForm((f) => {
+      const next = { ...f, [k]: v }
+      // Changing governorate clears the area: the suggestions belong to the
+      // governorate, and a stale area is an undeliverable address.
+      if (k === 'governorate') next.area = ''
+      // The other direction. A browser autofilling a saved address writes the
+      // fields it recognises in its own order, and it knows "Salmiya" without
+      // knowing which governorate that is — so an area that names exactly one
+      // governorate fills it in. Also spares anyone who types the area first.
+      if (k === 'area' && !next.governorate) {
+        const g = governorateOfArea(v)
+        if (g) next.governorate = g.id
+      }
+      return next
+    })
     // Only re-validate live once they have tried to submit. Validating while
     // someone is still typing their first field is nagging, not helping.
     if (submitted) setErrors((e) => ({ ...e, [k]: validate({ ...form, [k]: v })[k] }))
@@ -128,8 +172,28 @@ export default function Checkout() {
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-10 md:py-14">
-      <h1 className="mb-2 text-3xl font-extrabold text-brand-dark">{t.cart.checkout}</h1>
-      <p className="mb-8 text-sm text-slate-500">{t.checkout.deliveryHint}</p>
+      <CheckoutSteps current="details" paying={busy} />
+
+      <h1 className="mt-5 mb-2 text-3xl font-extrabold text-brand-dark">{t.cart.checkout}</h1>
+      <p className="mb-5 text-sm text-slate-500">{t.checkout.deliveryHint}</p>
+
+      {/* Guest checkout, said out loud. There is no customer account anywhere on
+          this site and never has been — but a shopper cannot know that, and
+          "will I have to register?" is answered by abandoning the cart. It also
+          states the consequence honestly: no email is collected, so the order
+          number is the only handle they get. */}
+      <div className="mb-8 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
+        {/* Stacked on a phone. As one flex row the short heading held its
+            intrinsic width and squeezed the sentence into a five-word-per-line
+            column — see it once and the reason for the breakpoint is obvious. */}
+        <p className="text-sm font-bold text-emerald-900">{t.guest.title}</p>
+        <p className="mt-1 text-sm leading-snug text-emerald-800">
+          {t.guest.body}{' '}
+          <Link to="/track" className="whitespace-nowrap font-semibold text-emerald-900 underline underline-offset-2">
+            {t.guest.track}
+          </Link>
+        </p>
+      </div>
 
       <form onSubmit={submit} noValidate className="grid gap-8 lg:grid-cols-[1fr_23rem]">
         <div className="space-y-6">
@@ -149,8 +213,9 @@ export default function Checkout() {
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
               <Field id="name" label={t.checkout.name} error={err('name')} className="sm:col-span-2">
                 <input
-                  id="f-name" value={form.name} onChange={set('name')}
-                  autoComplete="name" placeholder={t.checkout.namePh} maxLength={80}
+                  id="f-name" name="name" value={form.name} onChange={set('name')}
+                  autoComplete="name" autoCapitalize="words" enterKeyHint="next"
+                  placeholder={t.checkout.namePh} maxLength={80}
                   aria-invalid={!!errors.name} aria-describedby={errors.name ? 'e-name' : undefined}
                   className={input(errors.name)}
                 />
@@ -171,9 +236,10 @@ export default function Checkout() {
                     +965
                   </span>
                   <input
-                    id="f-phone" value={form.phone} onChange={set('phone')}
-                    type="tel" inputMode="numeric" autoComplete="tel-national"
-                    maxLength={12} placeholder="9988 7766"
+                    id="f-phone" name="tel" value={form.phone} onChange={set('phone')}
+                    type="tel" inputMode="numeric" pattern="[0-9]*"
+                    autoComplete="tel-national" enterKeyHint="next"
+                    maxLength={17} placeholder="99887766"
                     aria-invalid={!!errors.phone}
                     aria-describedby={errors.phone ? 'e-phone' : 'h-phone'}
                     dir="ltr"
@@ -189,7 +255,8 @@ export default function Checkout() {
             <div className="mt-3 grid gap-4 sm:grid-cols-2">
               <Field id="governorate" label={t.checkout.governorate} error={err('governorate')}>
                 <select
-                  id="f-governorate" value={form.governorate} onChange={set('governorate')}
+                  id="f-governorate" name="address-level1" autoComplete="address-level1"
+                  value={form.governorate} onChange={set('governorate')}
                   aria-invalid={!!errors.governorate}
                   aria-describedby={errors.governorate ? 'e-governorate' : undefined}
                   className={input(errors.governorate)}
@@ -206,58 +273,68 @@ export default function Checkout() {
                   the reason someone cannot place an order. */}
               <Field id="area" label={t.checkout.area} error={err('area')}>
                 <input
-                  id="f-area" value={form.area} onChange={set('area')}
+                  id="f-area" name="address-level2" value={form.area} onChange={set('area')}
                   list="kw-areas" autoComplete="address-level2" maxLength={60}
-                  placeholder={t.checkout.areaPh} disabled={!gov}
+                  enterKeyHint="next" placeholder={t.checkout.areaPh}
                   aria-invalid={!!errors.area} aria-describedby={errors.area ? 'e-area' : undefined}
-                  className={`${input(errors.area)} disabled:bg-slate-50 disabled:text-slate-400`}
+                  className={input(errors.area)}
                 />
                 <datalist id="kw-areas">
                   {(gov?.areas ?? []).map((a) => <option key={a.en} value={a[lang]} />)}
                 </datalist>
               </Field>
 
-              <div className="grid grid-cols-3 gap-3 sm:col-span-2">
+              {/* One column on a phone. These three sat in a hard grid-cols-3
+                  with no breakpoint, which measured 97px per field at 390pt —
+                  a box too narrow to show the word "Street", let alone a value,
+                  and three adjacent 97px targets to mis-tap between. */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:col-span-2">
                 <Field id="block" label={t.checkout.block} error={err('block')}>
                   <input
-                    id="f-block" value={form.block} onChange={set('block')}
-                    inputMode="numeric" maxLength={12} aria-invalid={!!errors.block}
+                    id="f-block" name="address-line2" value={form.block} onChange={set('block')}
+                    inputMode="numeric" pattern="[0-9]*" autoComplete="address-line2"
+                    enterKeyHint="next" maxLength={12} aria-invalid={!!errors.block}
                     aria-describedby={errors.block ? 'e-block' : undefined}
                     className={input(errors.block)}
                   />
                 </Field>
                 <Field id="street" label={t.checkout.street} error={err('street')}>
                   <input
-                    id="f-street" value={form.street} onChange={set('street')}
-                    maxLength={40} autoComplete="address-line1" aria-invalid={!!errors.street}
+                    id="f-street" name="address-line1" value={form.street} onChange={set('street')}
+                    maxLength={40} autoComplete="address-line1" enterKeyHint="next"
+                    autoCorrect="off" spellCheck={false} aria-invalid={!!errors.street}
                     aria-describedby={errors.street ? 'e-street' : undefined}
                     className={input(errors.street)}
                   />
                 </Field>
                 <Field id="building" label={t.checkout.building} error={err('building')}>
                   <input
-                    id="f-building" value={form.building} onChange={set('building')}
-                    maxLength={24} aria-invalid={!!errors.building}
+                    id="f-building" name="address-line3" value={form.building} onChange={set('building')}
+                    maxLength={24} autoComplete="address-line3" enterKeyHint="next"
+                    autoCorrect="off" spellCheck={false} aria-invalid={!!errors.building}
                     aria-describedby={errors.building ? 'e-building' : undefined}
                     className={input(errors.building)}
                   />
                 </Field>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:col-span-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:col-span-2">
                 <Field id="floor" label={t.checkout.floor} optional={t.checkout.optional}>
-                  <input id="f-floor" value={form.floor} onChange={set('floor')}
-                    maxLength={16} inputMode="numeric" className={input()} />
+                  <input id="f-floor" name="floor" value={form.floor} onChange={set('floor')}
+                    maxLength={16} inputMode="numeric" pattern="[0-9]*" enterKeyHint="next"
+                    autoComplete="off" className={input()} />
                 </Field>
                 <Field id="flat" label={t.checkout.flat} optional={t.checkout.optional}>
-                  <input id="f-flat" value={form.flat} onChange={set('flat')}
-                    maxLength={16} inputMode="numeric" className={input()} />
+                  <input id="f-flat" name="flat" value={form.flat} onChange={set('flat')}
+                    maxLength={16} inputMode="numeric" pattern="[0-9]*" enterKeyHint="next"
+                    autoComplete="off" className={input()} />
                 </Field>
               </div>
 
               <Field id="note" label={t.checkout.note} optional={t.checkout.optional} className="sm:col-span-2">
                 <textarea
-                  id="f-note" value={form.note} onChange={set('note')} rows={2} maxLength={280}
+                  id="f-note" name="note" value={form.note} onChange={set('note')}
+                  rows={2} maxLength={280} autoComplete="off" enterKeyHint="done"
                   placeholder={t.checkout.notePh} className={`${input()} resize-y`}
                 />
               </Field>

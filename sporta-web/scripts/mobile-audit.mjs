@@ -170,23 +170,64 @@ for (const d of DEVICES) {
 const ctx = await browser.newContext({ viewport: { width: 402, height: 874 }, isMobile: true, hasTouch: true })
 const p = await ctx.newPage()
 await p.goto('http://www.sporta.com.kw/', { waitUntil: 'networkidle' })
-const sa = await p.evaluate(() => {
+// Reading the stylesheet is done two ways, and if BOTH fail the CSS-derived
+// capabilities are reported "unknown" rather than missing.
+//
+// This used to read document.styleSheets and swallow the failure with
+// `catch { return [] }`, so `css` was the empty string on every run and
+// usesSafeArea / tapHighlight / overscroll were reported MISS no matter what the
+// build contained. All three are in fact present. The cause is worth writing
+// down because it will happen again: the site's own CSP carries
+// upgrade-insecure-requests, so auditing a plain-HTTP copy makes the browser
+// rewrite every subresource read to https:// — which a local http server cannot
+// answer. Against the real HTTPS site both reads work.
+//
+// An audit that says MISS when it could not look is worse than one that says so.
+const sa = await p.evaluate(async () => {
   const meta = document.querySelector('meta[name=viewport]')?.content ?? ''
-  const css = [...document.styleSheets].flatMap((s) => { try { return [...s.cssRules].map((r) => r.cssText) } catch { return [] } }).join('\n')
+  let css = ''
+  // 1. the CSSOM, which needs no network at all
+  try {
+    css = [...document.styleSheets]
+      .flatMap((s) => [...s.cssRules].map((r) => r.cssText))
+      .join('\n')
+  } catch {
+    /* SecurityError — fall through */
+  }
+  // 2. fetch the stylesheet ourselves
+  if (!css) {
+    const hrefs = [...document.querySelectorAll('link[rel=stylesheet]')].map((l) => l.href)
+    css = (
+      await Promise.all(hrefs.map((h) => fetch(h).then((r) => r.text()).catch(() => '')))
+    ).join('\n')
+  }
+  const has = (re) => (css ? re.test(css) : null) // null = could not read the CSS
   return {
     viewportFitCover: meta.includes('viewport-fit=cover'),
-    usesSafeArea: /safe-area-inset/.test(css),
+    usesSafeArea: has(/safe-area-inset/),
     manifest: !!document.querySelector('link[rel=manifest]'),
     themeColor: document.querySelector('meta[name=theme-color]')?.content === '#171A1E',
     appleCapable: !!document.querySelector('meta[name="apple-mobile-web-app-capable"]'),
-    tapHighlight: /tap-highlight-color/.test(css),
-    overscroll: /overscroll-behavior/.test(css),
+    tapHighlight: has(/tap-highlight-color/),
+    overscroll: has(/overscroll-behavior/),
+    cssUnreadable: !css,
   }
 })
 await browser.close()
 
 console.log('\n===== GLOBAL MOBILE CAPABILITIES =====')
-for (const [k, v] of Object.entries(sa)) console.log(`  ${v === true || v > 1 ? 'ok  ' : 'MISS'}  ${k}: ${v}`)
+const { cssUnreadable, ...caps } = sa
+for (const [k, v] of Object.entries(caps)) {
+  // null means the check could not be made, which is not the same as failing.
+  const mark = v === null ? '????' : v === true || v > 1 ? 'ok  ' : 'MISS'
+  console.log(`  ${mark}  ${k}: ${v === null ? 'unknown — CSS unreadable' : v}`)
+}
+if (cssUnreadable) {
+  console.log('\n  The stylesheet could not be read, so the three CSS checks above')
+  console.log('  say nothing. Over plain HTTP that is expected: the site\'s CSP sets')
+  console.log('  upgrade-insecure-requests, which rewrites the read to https://.')
+  console.log('  Audit the real https:// site, or a local server with TLS.')
+}
 
 console.log('\n===== FINDINGS BY KIND =====')
 const byKind = {}

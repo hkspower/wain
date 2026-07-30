@@ -33,6 +33,21 @@ export const translations = {
     },
     news: { title: 'Join the Sporta club', sub: 'Offers and new drops — straight to WhatsApp.', cta: 'Message us' },
     cross: { title: 'Complete the look' },
+    flow: {
+      // A progress indicator across bag -> details -> payment. Kuwaiti shoppers
+      // on a phone see one screen at a time; without this, "checkout" is an
+      // unbounded form with no idea how much is left.
+      bag: 'Bag', details: 'Delivery', pay: 'Payment',
+      step: 'Step {n} of {m}', done: 'done', current: 'current step',
+    },
+    guest: {
+      title: 'No account needed',
+      // Honest about what happens next: there is no customer login anywhere on
+      // this site, and no email is collected, so the ORDER NUMBER is the only
+      // handle a shopper has. Saying so is the point.
+      body: 'Check out as a guest — there is nothing to sign up for. Keep the order number from the confirmation page: that is how you track your order, and we send updates on WhatsApp.',
+      track: 'Track an order',
+    },
     spec: { fabric: 'Fabric', sku: 'Item code', weight: 'Weight', grams: '{n} g',
       care: 'Care', careValue: 'Cold machine wash · do not tumble dry · do not iron',
       soldOut: 'Sold out', lastOne: 'Last one', onlyLeft: 'Only {n} left',
@@ -247,6 +262,15 @@ export const translations = {
     },
     news: { title: 'انضم لنادي سبورتا', sub: 'العروض والإصدارات الجديدة — مباشرة على واتساب.', cta: 'راسلنا' },
     cross: { title: 'أكمل إطلالتك' },
+    flow: {
+      bag: 'الحقيبة', details: 'التوصيل', pay: 'الدفع',
+      step: 'الخطوة {n} من {m}', done: 'مكتملة', current: 'الخطوة الحالية',
+    },
+    guest: {
+      title: 'لا حاجة لإنشاء حساب',
+      body: 'أكمل الشراء كزائر — لا يوجد تسجيل ولا اشتراك. احتفظ برقم الطلب من صفحة التأكيد: به تتابع طلبك، ونرسل لك التحديثات على واتساب.',
+      track: 'تتبع طلب',
+    },
     spec: { fabric: 'القماش', sku: 'رمز المنتج', weight: 'الوزن', grams: '{n} غرام',
       care: 'العناية', careValue: 'غسيل بماء بارد · بدون مجفف · بدون كي',
       soldOut: 'نفذت الكمية', lastOne: 'آخر قطعة', onlyLeft: 'بقي {n} فقط',

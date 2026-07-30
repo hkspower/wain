@@ -41,5 +41,18 @@ read their figure masks from the original silhouette extractions (git history of
 replaced them).
 
 These artworks are the FALLBACK layer. Real photography wins: upload
-`public_html/cats/{men,women,accessories,outlet}.jpg` on the server and the
-tiles switch with no rebuild.
+`public_html/cats/desktop/{men,women,accessories,outlet}.jpg` **and**
+`public_html/cats/mobile/<same names>` on the server and the tiles switch with
+no rebuild.
+
+**Both folders, every time.** The tile picks its folder from the viewport
+(`<source media>`), so a phone is never sent the desktop file — that is the
+whole point of the split, and it is why there is no fall-through from one folder
+to the other. Finding out whether the desktop file exists would mean
+downloading it on the phone first, which is the thing being prevented. If a
+folder is missing its file, that layout shows the shipped artwork instead;
+nothing breaks, but the photograph simply will not appear there.
+
+If you only have one picture, put the same file in both. The phone then carries
+a few more kB than it needs, which is still far better than the desktop-sized
+file it used to get. Better: save a copy about 900 px wide for `mobile/`.

@@ -8,6 +8,15 @@
 //
 // Needs dist/ on :8188, the shim on :8130, a stub bank on :8131, PostgreSQL on
 // :5433.
+//
+// Stand the rig up with:
+//   ./scripts/db-rebuild.sh sporta                  # PostgreSQL on :5433
+//   node scripts/test-postgrest-shim.mjs &          # the shim on :8130
+//   node scripts/test-stub-bank.mjs &               # the stub bank on :8131
+// and put BOTH gateway bases in the served config.js — payBaseUrl for KNET and
+// cbkBaseUrl for T-Pay. Omitting cbkBaseUrl sends T-Pay to the real
+// https://www.sporta.com.kw/pay and fails with ERR_SSL_PROTOCOL_ERROR fifteen
+// seconds in, which reads like a broken redirect rather than a missing setting.
 import { chromium } from 'playwright'
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'

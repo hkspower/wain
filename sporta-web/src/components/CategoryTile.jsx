@@ -5,32 +5,53 @@ import { IconArrowUpRight } from './icons'
 
 // One category tile. Three layers, best available wins:
 //
-//   1. The owner's photograph, /cats/<id>.jpg — lives ONLY on the server, like
-//      config.js. The live site already has real shots for all four categories;
+//   1. The owner's photograph, /cats/<mobile|desktop>/<id>.jpg — lives ONLY on
+//      the server, like config.js. The live site already has real shots for all
+//      four categories;
 //      this sandbox cannot fetch them (live host and FTP are blocked by egress
 //      policy), so the tile probes for the file at runtime instead of bundling
-//      it. Uploading four files into public_html/cats/ upgrades the tiles with
-//      no rebuild; deleting them falls back cleanly. A publish can never
-//      overwrite them: it only uploads what is in dist, and dist never
-//      contains cats/<id>.jpg.
-//   2. The designed artwork, /cats/art-<id>.jpg — ships with the site, so the
-//      storefront never looks unfinished while the photography is pending.
+//      it. Uploading the files into public_html/cats/mobile/ and
+//      public_html/cats/desktop/ upgrades the tiles with no rebuild; deleting
+//      them falls back cleanly. A publish can never overwrite them: it only
+//      uploads what is in dist, and dist never contains a bare <id>.jpg.
+//   2. The designed artwork, /cats/<mobile|desktop>/art-<id>.{webp,jpg} — ships
+//      with the site, so the storefront never looks unfinished while the
+//      photography is pending.
 //   3. The tile's own gradient (the `tone` class), which is under the other
 //      two layers at all times, shows through image loading, and is the final
 //      state if both files are somehow gone.
 //
-// The photo/art URLs are assembled from parts, not written as one literal
-// string: scripts/file-audit.mjs fails the package over literal "/path.ext"
-// references whose target is absent, which would block `npm run package` for
-// the owner-photo slot — a file that is deliberately not shipped.
+// Every URL is assembled from parts, not written as one literal string:
+// scripts/file-audit.mjs fails the package over a literal "/path.ext" whose
+// target is absent, which would block `npm run package` on the owner-photo slot
+// — a file that is deliberately not shipped.
 const PHOTO_DIR = '/cats'
 const PHOTO_EXT = '.jpg'
-// Our artwork also ships as WebP at two widths. A phone was downloading the
-// full 1600px JPEG — 971 kB of the homepage's 1.5 MB — to paint a 390px tile.
-// The browser now picks from these; the JPEG stays as the <img> fallback and
-// as the file the audit and the owner-photo path still reason about.
-// Tiles are full-width on mobile and half of a 1280px container on desktop.
-const TILE_SIZES = '(min-width: 768px) 50vw, 100vw'
+
+// ---------------------------------------------------------------------------
+// mobile/ and desktop/, chosen by <source media> and never by device pixels.
+//
+// The previous version used srcset + sizes with an 800w/1600w ladder, and it
+// made phones the WORST case. srcset multiplies by devicePixelRatio, so a 358px
+// tile on a DPR3 phone asks for ~1074px and lands on the 1600w file, while a
+// 606px tile on a DPR1 desktop asks for 606px and lands on the 800w one.
+// Measured on the built site: 575 kB of images on an iPhone 12/13/14 against
+// 274 kB on a 1440px desktop. The mechanism was working as designed; it was the
+// wrong mechanism.
+//
+// `media` asks the only question that has a useful answer here — which layout
+// is this? — so a phone cannot be served the desktop file at any pixel ratio.
+// It also lets the two files be composed at the ratio each layout displays
+// (1.58:1 mobile, 1.72:1 desktop for the tall tiles), instead of one 1.60:1
+// master that object-cover trimmed to fit both.
+const DESKTOP_AT = '(min-width: 768px)' // Tailwind md — where the grid goes 2-up
+const MOBILE = `${PHOTO_DIR}/mobile`
+const DESKTOP = `${PHOTO_DIR}/desktop`
+
+// Both pictorial layers sit in the same place under the scrim.
+const LAYER =
+  'absolute inset-0 -z-20 h-full w-full select-none object-cover object-center' +
+  ' transition-transform duration-500 ease-out group-hover:scale-[1.04]'
 
 export default function CategoryTile({ id, to, kicker, title, brief, badge, tone, tall = false, rtlArt = false }) {
   const { lang } = useLang()
@@ -41,9 +62,17 @@ export default function CategoryTile({ id, to, kicker, title, brief, badge, tone
   // untouched figure placed flush left with the backdrop extended to the
   // right. rtlFailed falls back to the base art if the variant file is gone.
   const [rtlFailed, setRtlFailed] = useState(false)
-  const photo = `${PHOTO_DIR}/${id}${PHOTO_EXT}`
   const variant = rtlArt && lang === 'ar' && !rtlFailed ? '-rtl' : ''
-  const art = `${PHOTO_DIR}/art-${id}${variant}${PHOTO_EXT}`
+  // The owner uploads the same picture twice, once per folder, and the README
+  // says so. There is deliberately no cross-fallback: a <picture> cannot fall
+  // through from a missing desktop file to a mobile one, and PROBING for it
+  // would mean downloading a desktop-sized photograph on a phone to find out it
+  // exists — the exact thing this change is here to stop. One folder missing
+  // means that layout falls to the shipped artwork, which is not a failure.
+  const photoM = `${MOBILE}/${id}${PHOTO_EXT}`
+  const photoD = `${DESKTOP}/${id}${PHOTO_EXT}`
+  const artM = `${MOBILE}/art-${id}${variant}`
+  const artD = `${DESKTOP}/art-${id}${variant}`
 
   return (
     <Link
@@ -56,35 +85,39 @@ export default function CategoryTile({ id, to, kicker, title, brief, badge, tone
           or a composition the owner chose deliberately. The README tells them
           to centre the subject, which reads correctly in both directions. */}
       {photoOk && (
-        <img
-          src={photo}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          onError={() => setPhotoOk(false)}
-          className="absolute inset-0 -z-20 h-full w-full select-none object-cover object-center transition-transform duration-500 ease-out group-hover:scale-[1.04]"
-        />
+        <picture>
+          <source media={DESKTOP_AT} srcSet={photoD} />
+          <img
+            src={photoM}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            onError={() => setPhotoOk(false)}
+            className={LAYER}
+          />
+        </picture>
       )}
 
       {/* Shipped artwork. As of the photographic series this layer is NEVER
           mirrored: the outlet frame contains readable signage, and flipping a
           photograph of a person is a tell. The banners keep their subject on
           the right with a graded quiet left, and under RTL the flipped scrim
-          alone carries legibility — verified in both directions. */}
+          alone carries legibility — verified in both directions.
+          Four sources, one per (layout x format) case, so a browser without
+          WebP still gets a file of the right SIZE rather than falling across the
+          breakpoint to the other layout's picture. */}
       {!photoOk && artOk && (
         <picture>
-          <source
-            type="image/webp"
-            sizes={TILE_SIZES}
-            srcSet={`${PHOTO_DIR}/art-${id}${variant}-800.webp 800w, ${PHOTO_DIR}/art-${id}${variant}-1600.webp 1600w`}
-          />
+          <source media={DESKTOP_AT} type="image/webp" srcSet={`${artD}.webp`} />
+          <source media={DESKTOP_AT} type="image/jpeg" srcSet={`${artD}.jpg`} />
+          <source type="image/webp" srcSet={`${artM}.webp`} />
           <img
-            src={art}
+            src={`${artM}.jpg`}
             alt=""
             loading="lazy"
             decoding="async"
             onError={() => (variant ? setRtlFailed(true) : setArtOk(false))}
-            className="absolute inset-0 -z-20 h-full w-full select-none object-cover object-center transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+            className={LAYER}
           />
         </picture>
       )}

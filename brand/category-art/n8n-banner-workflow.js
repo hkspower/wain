@@ -1,5 +1,6 @@
 // n8n Workflow-SDK script: generate the four SPORTA category banners with
-// gpt-image-1 and upload them to public_html/cats/ over FTP.
+// gpt-image-1 and upload each one TWICE — public_html/cats/desktop/ and
+// public_html/cats/mobile/ — over FTP.
 //
 // Validated against the n8n Workflow SDK (validate_workflow: valid). Import in
 // n8n via "Create workflow → with code", or have Claude install it through the
@@ -7,12 +8,24 @@
 // "n8n free OpenAI API credits" and "FTP account" credentials in this n8n
 // account; adjust if yours differ (n8n → Credentials).
 //
-// Safety: writes ONLY /public_html/cats/<slug>.jpg — four files, additive,
-// each reversible by deleting the file (the site then falls back to its
-// designed artwork). Never touches config.js, knet/, pay/ or anything else.
+// Safety: writes ONLY /public_html/cats/{desktop,mobile}/<slug>.jpg — eight
+// files, additive, each reversible by deleting the file (the site then falls
+// back to its designed artwork). Never touches config.js, knet/, pay/ or
+// anything else.
 //
-// Before first run: confirm /public_html/cats exists (hPanel File Manager →
-// create the folder if missing; n8n's FTP upload does not create directories).
+// TWO SIZES, because the tile chooses its file by viewport (<source media>) and
+// so a phone can never be handed the desktop picture. There is deliberately no
+// fall-through between the folders: discovering whether the desktop file exists
+// would mean downloading it on the phone, which is the thing being avoided. Both
+// uploads therefore run for every banner.
+//
+// Before first run: confirm /public_html/cats/desktop and
+// /public_html/cats/mobile exist (hPanel File Manager → create them if missing;
+// n8n's FTP upload does not create directories).
+//
+// NOT re-validated against the n8n SDK since the two-folder change — the
+// original single-upload version was (validate_workflow: valid). Run
+// validate_workflow before trusting it.
 import { workflow, node, trigger, splitInBatches, nextBatch } from '@n8n/workflow-sdk';
 
 const STYLE =
@@ -71,16 +84,19 @@ const generateImage = node({
   output: [{}]
 });
 
-const encodeJpeg = node({
+// Two encodes and two uploads per banner. gpt-image-1 returns 1536x1024, so
+// both are downscales of the same generated frame — resizeOption onlyIfLarger
+// makes each step a no-op if a smaller image ever arrives.
+const encodeDesktop = node({
   type: 'n8n-nodes-base.editImage',
   version: 1,
   config: {
-    name: 'Encode JPEG',
+    name: 'Encode desktop JPEG',
     parameters: {
       operation: 'resize',
       dataPropertyName: 'data',
-      width: 1600,
-      height: 1200,
+      width: 1216,
+      height: 706,
       resizeOption: 'onlyIfLarger',
       options: {
         format: 'jpeg',
@@ -88,24 +104,63 @@ const encodeJpeg = node({
         fileName: { __expr: true, value: "={{ $('Category Briefs').item.json.slug }}.jpg" }
       }
     },
-    position: [1100, 300]
+    position: [1040, 300]
   },
   output: [{}]
 });
 
-const uploadFtp = node({
+const uploadDesktop = node({
   type: 'n8n-nodes-base.ftp',
   version: 1,
   config: {
-    name: 'Upload to public_html/cats',
+    name: 'Upload to cats/desktop',
     parameters: {
       protocol: 'ftp',
       operation: 'upload',
-      path: { __expr: true, value: "=/public_html/cats/{{ $('Category Briefs').item.json.slug }}.jpg" },
+      path: { __expr: true, value: "=/public_html/cats/desktop/{{ $('Category Briefs').item.json.slug }}.jpg" },
       binaryData: true
     },
     credentials: { ftp: { id: '2b7mbpEzrTEHUBQz', name: 'FTP account' } },
-    position: [1320, 300]
+    position: [1200, 300]
+  },
+  output: [{}]
+});
+
+const encodeMobile = node({
+  type: 'n8n-nodes-base.editImage',
+  version: 1,
+  config: {
+    name: 'Encode mobile JPEG',
+    parameters: {
+      operation: 'resize',
+      dataPropertyName: 'data',
+      width: 900,
+      height: 570,
+      resizeOption: 'onlyIfLarger',
+      options: {
+        format: 'jpeg',
+        quality: 84,
+        fileName: { __expr: true, value: "={{ $('Category Briefs').item.json.slug }}.jpg" }
+      }
+    },
+    position: [1360, 300]
+  },
+  output: [{}]
+});
+
+const uploadMobile = node({
+  type: 'n8n-nodes-base.ftp',
+  version: 1,
+  config: {
+    name: 'Upload to cats/mobile',
+    parameters: {
+      protocol: 'ftp',
+      operation: 'upload',
+      path: { __expr: true, value: "=/public_html/cats/mobile/{{ $('Category Briefs').item.json.slug }}.jpg" },
+      binaryData: true
+    },
+    credentials: { ftp: { id: '2b7mbpEzrTEHUBQz', name: 'FTP account' } },
+    position: [1520, 300]
   },
   output: [{}]
 });
@@ -114,8 +169,8 @@ const verifyListing = node({
   type: 'n8n-nodes-base.ftp',
   version: 1,
   config: {
-    name: 'Verify cats listing',
-    parameters: { protocol: 'ftp', operation: 'list', path: '/public_html/cats', recursive: false },
+    name: 'Verify cats listing (both folders)',
+    parameters: { protocol: 'ftp', operation: 'list', path: '/public_html/cats', recursive: true },
     credentials: { ftp: { id: '2b7mbpEzrTEHUBQz', name: 'FTP account' } },
     executeOnce: true,
     position: [1100, 120]
@@ -133,5 +188,10 @@ export default workflow('sporta-category-banners', 'SPORTA — generate + deploy
   .to(makeBriefs)
   .to(perBanner
     .onDone(verifyListing)
-    .onEachBatch(generateImage.to(encodeJpeg).to(uploadFtp).to(nextBatch(perBanner)))
+    .onEachBatch(
+      generateImage
+        .to(encodeDesktop).to(uploadDesktop)
+        .to(encodeMobile).to(uploadMobile)
+        .to(nextBatch(perBanner)),
+    )
   );

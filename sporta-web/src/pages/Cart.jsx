@@ -4,6 +4,7 @@ import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
 import { IconPlus, IconMinus, IconClose } from '../components/icons'
 import { usePageMeta } from '../lib/seo'
+import CheckoutSteps from '../components/CheckoutSteps'
 
 export default function Cart() {
   const { lang, t } = useLang()
@@ -24,7 +25,11 @@ export default function Cart() {
 
   return (
     <section className="mx-auto max-w-4xl px-4 py-12">
-      <h1 className="mb-8 text-3xl font-extrabold text-brand-dark">{t.cart.title}</h1>
+      {/* Same indicator as /checkout, so the shopper sees the shape of the flow
+          before committing to it rather than discovering it midway. */}
+      <CheckoutSteps current="bag" />
+
+      <h1 className="mt-5 mb-8 text-3xl font-extrabold text-brand-dark">{t.cart.title}</h1>
 
       <div className="space-y-4">
         {items.map((i) => (

@@ -2,7 +2,15 @@
 <html lang="en" dir="ltr">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/favicon.png" />
+    <!-- The tab icon is 16-32px, and this used to point at a 512x512 PNG —
+         29 kB fetched on every page load, more than any category banner now
+         costs and 18% of a phone's whole image budget. Declaring the sizes lets
+         the browser take the 32px file for the tab and leave the big ones for
+         the install prompt, which is what they are for.
+         (A favicon.svg also sat here unreferenced, drawn as a teal-green Arial
+         "S" from some template — the wrong mark in the wrong colour. Deleted.) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <!-- viewport-fit=cover lets the page paint under the Dynamic Island and the
          home-indicator bar on modern phones; the layout then pulls itself back
