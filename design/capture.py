@@ -37,7 +37,9 @@ with sync_playwright() as p:
 
     # -------------------------------------------------- company site (the root)
     page.goto(f"{BASE}/index.html", wait_until="networkidle")
-    page.wait_for_timeout(500)
+    # the home page reveals its sections on scroll; wait past the failsafe so the
+    # full-page shot captures the settled page, not blocks mid-reveal
+    page.wait_for_timeout(2200)
     snap(page, "01-company", "المهلب كود — Almuhallab Code", "/")
 
     # ------------------------------------------------ النوخذة portal (a product)

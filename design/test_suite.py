@@ -337,6 +337,20 @@ def home_checks(pg):
           pg.evaluate("[...document.querySelectorAll('use')].every(u =>"
                       " !!document.querySelector(u.getAttribute('href')))"))
 
+    # motion must never gate content: a renderer that does not scroll (a print,
+    # a screenshot, a crawler) has to end up with every section visible
+    pg.wait_for_timeout(1800)
+    faded = pg.evaluate("""[...document.querySelectorAll('[data-reveal]')]
+      .filter(e => parseFloat(getComputedStyle(e).opacity) < 0.99).length""")
+    check(S, "no section stays invisible when nothing scrolls", faded == 0, f"{faded} faded")
+    reduced = pg.context.browser.new_context(reduced_motion="reduce", locale="ar-KW")
+    rp = reduced.new_page()
+    rp.goto(f"{BASE}/index.html", wait_until="networkidle"); rp.wait_for_timeout(300)
+    faded = rp.evaluate("""[...document.querySelectorAll('[data-reveal]')]
+      .filter(e => parseFloat(getComputedStyle(e).opacity) < 0.99).length""")
+    check(S, "reduced motion shows everything at once, unanimated", faded == 0, f"{faded} faded")
+    reduced.close()
+
     check(S, "النوخذة opens from its row",
           pg.eval_on_selector_all('.product a[href="nokhatha.html"]', "n=>n.length") == 1)
 

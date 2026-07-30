@@ -110,6 +110,15 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   no `prefers-color-scheme: dark` block anywhere, `color-scheme: light` on
   `:root`, and one white `theme-color`. The suite fails if a dark override
   reappears.
+- The company page is **short copy carried by icons**: one line per card, each
+  headed by an icon in its own 38px tile. Motion is opacity/transform only —
+  masthead and hero entrance, per-section reveal on scroll, hover lift, one
+  sheen on the flagship row, a live dot. Two rules it must keep: the hidden
+  state is applied *by* the script (`html.motion [data-reveal]`), never by
+  default, so a blocked script or a non-scrolling renderer still shows
+  everything; and a 1.5s failsafe reveals whatever the observer never reached.
+  `prefers-reduced-motion` switches all of it off. Sections reveal as whole
+  blocks — staggering siblings puts cards of one row on different baselines.
 - Icons on the public site are a **drawn inline-SVG set** (`<symbol>` + `<use>`),
   not emoji: emoji are a different typeface, weight and colour on every platform.
   النوخذة's own screens still use emoji in tab labels.
@@ -134,7 +143,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 227 checks covering
+- `python3 design/test_suite.py` is the full system test — 229 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it

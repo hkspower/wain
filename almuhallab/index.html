@@ -77,7 +77,53 @@
 
     main { max-width: 1060px; margin: 0 auto; padding: 16px 20px 40px; }
 
-    .hero { text-align: center; padding: 24px 0 4px; }
+    /* ═══════ motion ═══════
+       Movement here has one job: to say "this arrived" and "this responds".
+       Everything is opacity and transform only — no layout property is
+       animated, so nothing reflows mid-frame — and every one of these rules is
+       switched off wholesale under prefers-reduced-motion at the end of the
+       sheet. Sections reveal as a whole block, never card by card: staggering
+       siblings would leave cards of one row on different baselines while the
+       animation ran. */
+    @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+    @keyframes draw { from { opacity: 0; transform: translateY(-8px) rotate(-6deg); } to { opacity: 1; transform: none; } }
+    @keyframes sheen { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+    @keyframes pulse { 0%, 100% { opacity: .35; transform: scale(1); } 50% { opacity: 1; transform: scale(1.35); } }
+
+    /* The hidden state is applied only once the script has taken charge of
+       revealing it (html.motion). Written the other way round — hidden by
+       default, shown by JS — a blocked or failed script leaves the whole page
+       blank, and so does any renderer that never scrolls. */
+    html.motion [data-reveal] { opacity: 0; transform: translateY(16px); transition: opacity .5s ease, transform .5s cubic-bezier(.2,.7,.3,1); }
+    html.motion [data-reveal].in { opacity: 1; transform: none; }
+
+    .brand .logo { animation: draw .7s cubic-bezier(.2,.7,.3,1) both; }
+    .hero .kicker { animation: rise .5s ease both .05s; }
+    .hero h1      { animation: rise .5s ease both .14s; }
+    .hero p       { animation: rise .5s ease both .22s; }
+    .hero .actions{ animation: rise .5s ease both .3s; }
+
+    /* the flagship row catches the light once on arrival, then stays still */
+    .product.lead::after {
+      content: ""; position: absolute; inset: 0; border-radius: 16px; pointer-events: none;
+      background: linear-gradient(90deg, transparent 40%, rgba(227,165,86,.16) 50%, transparent 60%);
+      background-size: 250% 100%; animation: sheen 2.4s ease-out 1 .4s;
+    }
+    /* a live dot on the flagship: the system is running, not a screenshot */
+    .live { width: 7px; height: 7px; border-radius: 50%; background: var(--good);
+      display: inline-block; animation: pulse 2s ease-in-out infinite; }
+
+    .card, .channel, ol.steps li { transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease; }
+    .card:hover, ol.steps li:hover { transform: translateY(-3px); border-color: var(--tint); }
+    .channel:hover { transform: translateY(-3px); }
+    .card:hover .tile, .channel:hover .tile { background: var(--tint); }
+    .card:hover .tile .ic, .channel:hover .tile .ic { stroke: #fff; color: #fff; }
+    .tile { transition: background .22s ease; }
+    .tile .ic { transition: stroke .22s ease; }
+    .btn { transition: transform .18s ease, opacity .18s ease; }
+    .btn:hover { transform: translateY(-1px); }
+
+    .hero { text-align: center; padding: 20px 0 4px; }
     .hero .kicker {
       display: inline-block; background: var(--panel-2); border: 1px solid var(--border);
       color: var(--sand); border-radius: 999px; padding: 6px 16px; font-size: 13px; font-weight: 700;
@@ -87,7 +133,7 @@
     .hero p { color: var(--muted); max-width: 640px; margin: 0 auto 16px; font-size: 15.5px; line-height: 1.75; }
     .hero .actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 
-    h2.section { font-size: 22px; margin: 40px 0 4px; }
+    h2.section { font-size: 22px; margin: 32px 0 4px; }
     h2.section::after {
       content: ""; display: block; width: 46px; height: 3px; border-radius: 2px;
       margin-top: 6px; background: linear-gradient(270deg, var(--tint), var(--sand-vivid));
@@ -111,6 +157,11 @@
     .btn.primary .ic { stroke: #fff; color: #fff; }
     .card h3 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; }
     .card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+    /* The icon carries the card now that the copy is one line: it sits in its
+       own tile at the head of the card, big enough to read at a glance. */
+    .tile { width: 38px; height: 38px; border-radius: 11px; background: var(--panel-2);
+      display: grid; place-items: center; flex: none; }
+    .card .tile .ic { width: 21px; height: 21px; }
     .card .chip { margin-top: auto; }
     .chip {
       font-size: 11px; font-weight: 700; border-radius: 999px; padding: 4px 8px;
@@ -127,7 +178,7 @@
     .product {
       background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
       padding: 16px; display: grid; grid-template-columns: 1fr auto; gap: 16px;
-      align-items: center; margin-top: 12px;
+      align-items: center; margin-top: 12px; position: relative; overflow: hidden;
     }
     .product.lead { border-color: var(--tint); box-shadow: 0 0 0 1px var(--tint); }
     .product h3 { margin: 0 0 6px; font-size: 20px; display: flex; align-items: center; gap: 8px; }
@@ -162,8 +213,7 @@
       padding: 16px 16px; text-align: center; display: flex; flex-direction: column;
       align-items: center; gap: 8px; color: var(--text); }
     .channel:hover { border-color: var(--tint); }
-    .channel .tile { width: 46px; height: 46px; border-radius: 13px; background: var(--panel-2);
-      display: grid; place-items: center; }
+    .channel .tile { width: 46px; height: 46px; border-radius: 13px; }
     .channel .tile .ic { width: 25px; height: 25px; }
     .channel b { font-size: 15.5px; }
     .channel span.v { color: var(--muted); font-size: 13.5px; direction: ltr; unicode-bidi: isolate; }
@@ -176,11 +226,22 @@
       nav { padding-bottom: 8px; }
       nav a, .btn { padding: 12px 16px; min-height: 44px; display: inline-flex; align-items: center; }
       main { padding: 16px 12px 40px; }
-      .hero { padding: 16px 0 4px; }
-      h2.section { margin-top: 32px; }
+      .hero { padding: 12px 0 4px; }
+      h2.section { margin-top: 24px; }
       .hero p { font-size: 15px; }
       .hero .actions .btn { flex: 1 1 100%; justify-content: center; }
       .channel { padding: 16px 12px; }
+    }
+
+    /* A visitor who asks the OS for less motion gets none of it: no entrance,
+       no reveal, no sheen, no pulse — and, critically, no element left at
+       opacity 0 waiting for an observer that will never move it. */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+      html.motion [data-reveal] { opacity: 1 !important; transform: none !important; }
     }
 
     footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 20px;
@@ -230,11 +291,7 @@
     <section class="hero">
       <span class="kicker"><svg class="ic sm" aria-hidden="true"><use href="#i-code"/></svg> شركة برمجة كويتية · الكويت</span>
       <h1>نبني الأنظمة التي تُدير الأعمال<br /><span class="en">Almuhallab Code</span></h1>
-      <p>
-        نبني أنظمة تُشغّل العمل فعلاً: نموذج بيانات واحد، شاشات عربية يفهمها موظفوك من أول يوم،
-        وأرقام تسير بين الوحدات بدل أن تُكتب مرتين. من قاعدة البيانات حتى الشاشة، ومن أول
-        جلسة حتى التشغيل على نطاقك.
-      </p>
+      <p>نموذج بيانات واحد، شاشات عربية، وأرقام تسير بين الوحدات بدل أن تُكتب مرتين.</p>
       <div class="actions">
         <a class="btn primary" href="nokhatha.html">شاهد النوخذة — نظامنا الموحد</a>
         <a class="btn outline" href="#services">خدماتنا</a>
@@ -244,86 +301,79 @@
     <!-- Every section below is the site's original card vocabulary: a section
          heading, a one-line lead, then a grid of uniform cards. -->
     <h2 class="section" id="nokhatha">ما هي النوخذة؟</h2>
-    <p class="sub">
-      في الأنظمة المنفصلة تكتب قيمة محفظتك في نظام، وإيراد توصيلك في نظام، ثم تعيد
-      كتابتهما يدوياً في القوائم المالية — وكل نسخة تشيخ وحدها. النوخذة يجمع صافي و XBRL
-      والتوصيل فوق نواة بيانات واحدة، فالرقم يُكتب مرة واحدة ويسير بنفسه إلى القائمة المالية.
-    </p>
-    <div class="grid">
+    <p class="sub">الرقم يُكتب مرة واحدة، ويسير بنفسه إلى القائمة المالية.</p>
+    <div class="grid" data-reveal>
       <div class="card">
-        <h3><svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg> صافي — المحفظة</h3>
-        <p>تدير أسهمك وكمياتها وأسعارها، فتُحسب القيمة السوقية والربح/الخسارة لحظياً.</p>
+        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg></span> صافي</h3>
+        <p>محفظتك: القيمة السوقية والربح لحظياً.</p>
         <span class="chip on">المصدر الأول</span>
       </div>
       <div class="card">
-        <h3><svg class="ic" aria-hidden="true"><use href="#i-delivery"/></svg> التوصيل — الطلبات</h3>
-        <p>تنشئ الطلبات وتتبّع حالتها حتى التسليم، فيتجمّع الإيراد من المسلَّم فقط.</p>
+        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-delivery"/></svg></span> التوصيل</h3>
+        <p>طلبات تُتابَع حتى التسليم، وإيراد من المسلَّم فقط.</p>
         <span class="chip on">المصدر الثاني</span>
       </div>
       <div class="card">
-        <h3><svg class="ic" aria-hidden="true"><use href="#i-report"/></svg> XBRL — الميزانية السنوية</h3>
-        <p>ميزانية سنوية وفق إطار وزارة التجارة الكويتية: المجاميع تُحسب، والأخطاء تُكشف مع اقتراح الحل، و«احسب من النظام» يجلب الأرقام من صافي والتوصيل.</p>
+        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-report"/></svg></span> XBRL</h3>
+        <p>ميزانية سنوية وفق إطار وزارة التجارة، بمجاميع محسوبة.</p>
         <span class="chip on">الوجهة</span>
       </div>
       <div class="card">
-        <h3><svg class="ic" aria-hidden="true"><use href="#i-anchor"/></svg> المركز المالي الموحد</h3>
-        <p>تبويب واحد يجمع الأرقام كلها ويكتب الترابط صراحةً، ثم تولّد ملف XBRL بمعيار IFRS.</p>
+        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-anchor"/></svg></span> المركز المالي</h3>
+        <p>تبويب واحد يجمعها كلها، ثم ملف XBRL بمعيار IFRS.</p>
         <span class="chip on">النتيجة</span>
       </div>
     </div>
 
     <h2 class="section" id="services">خدماتنا</h2>
-    <p class="sub">أتمتة، وتطبيقات مبنية على مقاس عملك — من الصفر، أو فوق ما لديكم.</p>
-    <div class="grid grid-3">
+    <p class="sub">أتمتة، وتطبيقات على مقاس عملك.</p>
+    <div class="grid grid-3" data-reveal>
       <div class="card">
-        <h3><svg class="ic" aria-hidden="true"><use href="#i-automation"/></svg> أتمتة العمليات</h3>
-        <p>نحوّل الخطوات اليدوية المتكررة إلى مسارات آلية: الموافقات، الفواتير، التقارير، والتنبيهات — تُنفَّذ وحدها بلا تدخّل.</p>
+        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-automation"/></svg></span> أتمتة العمليات</h3>
+        <p>الموافقات والفواتير والتقارير تُنفَّذ وحدها.</p>
       </div>
       <div class="card">
-        <h3><svg class="ic" aria-hidden="true"><use href="#i-tailor"/></svg> تطبيق مخصّص بالكامل</h3>
-        <p>لا قوالب جاهزة تُطوّع لعملك. نبني التطبيق من الصفر على إجراءاتك أنت، بكل شاشة وحقل وصلاحية كما تحتاجها.</p>
+        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-tailor"/></svg></span> تطبيق مخصّص بالكامل</h3>
+        <p>من الصفر على إجراءاتك، لا قالب جاهز.</p>
       </div>
       <div class="card">
-        <h3><svg class="ic" aria-hidden="true"><use href="#i-briefcase"/></svg> تطبيق خاص لكل مشروع</h3>
-        <p>لأي نشاط ولأي حجم: مطاعم، مقاولات، عيادات، تجارة، خدمات. مشروعك يحصل على تطبيقه الخاص لا على نسخة من تطبيق غيره.</p>
+        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-briefcase"/></svg></span> تطبيق خاص لكل مشروع</h3>
+        <p>مطاعم، مقاولات، عيادات، تجارة، خدمات.</p>
       </div>
       <div class="card">
-        <h3><svg class="ic" aria-hidden="true"><use href="#i-blocks"/></svg> أنظمة الأعمال</h3>
-        <p>أنظمة داخلية مفصّلة على إجراءات عملك: المخزون، الطلبات، الموارد البشرية، والتقارير.</p>
+        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-blocks"/></svg></span> أنظمة الأعمال</h3>
+        <p>مخزون وطلبات وموارد بشرية وتقارير.</p>
       </div>
       <div class="card">
-        <h3><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg> تطبيقات الويب و PWA</h3>
-        <p>مواقع وتطبيقات تُثبَّت على الجوال وتعمل بدون إنترنت، بسرعة تحميل فورية.</p>
+        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg></span> تطبيقات الويب و PWA</h3>
+        <p>تُثبَّت على الجوال وتعمل بلا إنترنت.</p>
       </div>
       <div class="card">
-        <h3><svg class="ic" aria-hidden="true"><use href="#i-report"/></svg> الأنظمة المالية و XBRL</h3>
-        <p>الميزانيات السنوية لشركات الكويت وفق إطار وزارة التجارة: حساب آلي، كشف أخطاء، وملف XBRL بمعيار IFRS.</p>
+        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-report"/></svg></span> الأنظمة المالية و XBRL</h3>
+        <p>ميزانيات الكويت السنوية بمعيار IFRS.</p>
       </div>
       <div class="card">
-        <h3><svg class="ic" aria-hidden="true"><use href="#i-delivery"/></svg> التوصيل واللوجستيات</h3>
-        <p>إدارة الطلبات والمناديب وتتبّع الحالة من الاستلام حتى التسليم.</p>
+        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-delivery"/></svg></span> التوصيل واللوجستيات</h3>
+        <p>طلبات ومناديب وتتبّع حتى التسليم.</p>
       </div>
       <div class="card">
-        <h3><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg> التكامل وربط الأنظمة</h3>
-        <p>ربط الأنظمة القائمة ببعضها حتى تسير الأرقام بينها بدل إعادة إدخالها يدوياً.</p>
+        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg></span> التكامل وربط الأنظمة</h3>
+        <p>أرقامك تسير بين أنظمتك بلا إدخال يدوي.</p>
       </div>
       <div class="card">
-        <h3><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg> الأمن ومراجعة الأكواد</h3>
-        <p>تشفير كلمات المرور، سياسات CSP صارمة، ومراجعة الكود قبل النشر.</p>
+        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg></span> الأمن ومراجعة الأكواد</h3>
+        <p>تعمية كلمات المرور، CSP صارمة، مراجعة قبل النشر.</p>
       </div>
     </div>
 
     <h2 class="section" id="products">من أعمالنا</h2>
-    <p class="sub">النظام الذي بنيناه ونشغّله — يعمل اليوم، ويمكنك تجربته الآن.</p>
+    <p class="sub">النظام الذي بنيناه ونشغّله — جرّبه الآن.</p>
 
-    <div class="product lead">
+    <div class="product lead" data-reveal>
       <div>
-        <h3><svg class="ic" aria-hidden="true"><use href="#i-anchor"/></svg> النوخذة</h3>
-        <p>
-          نظام موحّد لإدارة المحافظ والتقارير المالية والتوصيل فوق نواة بيانات واحدة:
-          قيمة محفظتك تصبح أصولاً غير متداولة، وطلباتك المسلّمة تصبح إيراداً، وملف
-          XBRL يخرج جاهزاً للإيداع. يعمل بلا إنترنت ويُثبَّت على الجوال.
-        </p>
+        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-anchor"/></svg></span> النوخذة
+          <span class="live" aria-hidden="true"></span></h3>
+        <p>محافظ وتقارير مالية وتوصيل فوق نواة واحدة. مجاني، يعمل بلا إنترنت، ويُثبَّت على الجوال.</p>
         <div class="units">
           <span class="chip on"><svg class="ic sm" aria-hidden="true"><use href="#i-chart"/></svg> صافي — المحافظ</span>
           <span class="chip on"><svg class="ic sm" aria-hidden="true"><use href="#i-report"/></svg> XBRL — التقارير المالية</span>
@@ -335,48 +385,39 @@
     </div>
 
     <h2 class="section">لماذا المهلب كود</h2>
-    <p class="sub">ثلاثة أشياء نلتزم بها في كل مشروع، ويمكنك التحقق منها بنفسك.</p>
-    <div class="grid">
+    <p class="sub">ثلاثة نلتزم بها، ويمكنك التحقق منها بنفسك.</p>
+    <div class="grid" data-reveal>
       <div class="card">
-        <h3><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg> مُختبَر لا موصوف</h3>
-        <p>
-          كل إصدار يمرّ على مجموعة اختبارات آلية: الحساب، والتباين اللوني، والأمن،
-          والعمل بدون إنترنت. النظام لا يُسلَّم إلا وهي كلها خضراء.
-        </p>
+        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg></span> مُختبَر لا موصوف</h3>
+        <p>لا يُسلَّم إصدار حتى تخضرّ كل الفحوص الآلية.</p>
         <span class="chip on">فحوص آلية قبل كل إصدار</span>
       </div>
       <div class="card">
-        <h3><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg> عربي أولاً، لا مُعرَّب</h3>
-        <p>
-          الواجهة تُبنى من اليمين لليسار من أول سطر، بخط عربي مرفق مع الموقع لا
-          مستعار من جهاز الزائر، وأرقام ومبالغ بالدينار الكويتي بثلاث خانات.
-        </p>
+        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg></span> عربي أولاً، لا مُعرَّب</h3>
+        <p>RTL من أول سطر، بخط عربي مرفق مع الموقع.</p>
         <span class="chip on">RTL أصلي</span>
       </div>
       <div class="card">
-        <h3><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg> يعمل بلا إنترنت</h3>
-        <p>
-          أنظمتنا تُثبَّت على الجوال وتفتح بلا اتصال، وكلمات المرور مُعمّاة،
-          وسياسة محتوى صارمة تمنع أي كود خارجي من العمل داخل الصفحة.
-        </p>
+        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg></span> يعمل بلا إنترنت</h3>
+        <p>يُثبَّت على الجوال، بكلمات مرور مُعمّاة وسياسة محتوى صارمة.</p>
         <span class="chip on">PWA + CSP</span>
       </div>
     </div>
 
     <h2 class="section">كيف نعمل</h2>
-    <p class="sub">أربع خطوات، من أول جلسة حتى التشغيل على نطاقك.</p>
+    <p class="sub">أربع خطوات حتى التشغيل على نطاقك.</p>
+    <div data-reveal>
     <ol class="steps">
-      <li><b>نفهم العملية</b> نجلس معك ونرسم كيف يسير العمل فعلياً اليوم، لا كيف يُفترض أن يسير.</li>
-      <li><b>نبني نواة واحدة</b> نموذج بيانات واحد تشترك فيه كل الوحدات، فلا تتكرّر الأرقام ولا تتناقض.</li>
-      <li><b>نختبر بالأرقام</b> اختبارات آلية على الحساب والأمن والعرض قبل كل إصدار، لا مراجعة بالعين.</li>
-      <li><b>نسلّم ونشغّل</b> ننشر على نطاقك، ونبقى معك في التشغيل والتطوير.</li>
+      <li><b>نفهم العملية</b> كيف يسير عملك فعلاً، لا كيف يُفترض.</li>
+      <li><b>نبني نواة واحدة</b> نموذج بيانات واحد لكل الوحدات.</li>
+      <li><b>نختبر بالأرقام</b> فحوص آلية قبل كل إصدار.</li>
+      <li><b>نسلّم ونشغّل</b> ننشر على نطاقك ونبقى معك.</li>
     </ol>
+    </div>
 
     <h2 class="section" id="contact">تواصل معنا</h2>
-    <p class="sub">
-      عندك مشروع أو فكرة؟ راسلنا ونردّ عليك بأسرع وقت. اختر الطريقة اللي تناسبك.
-    </p>
-    <div class="channels">
+    <p class="sub">عندك مشروع؟ راسلنا ونردّ بأسرع وقت.</p>
+    <div class="channels" data-reveal>
       <a class="channel" href="https://wa.me/96565894110">
         <span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-whatsapp"/></svg></span>
         <b>واتساب</b>
@@ -402,6 +443,33 @@
   </footer>
 
   <script>
+    /* Reveal each section as it comes into view. Whole blocks, never single
+       cards: a per-card stagger would leave siblings of one row on different
+       baselines while the animation ran. Anything already on screen at load is
+       revealed on the first observer callback, so nothing above the fold waits.
+       If the browser has no IntersectionObserver — or the visitor asked for
+       reduced motion — everything is shown at once rather than left invisible. */
+    (function () {
+      var blocks = document.querySelectorAll("[data-reveal]");
+      var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (still || !("IntersectionObserver" in window)) return;  // already visible
+      document.documentElement.classList.add("motion");
+      function show(el) { el.classList.add("in"); }
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (e.isIntersecting) { show(e.target); io.unobserve(e.target); }
+        });
+      }, { rootMargin: "0px 0px -8% 0px", threshold: 0.06 });
+      for (var j = 0; j < blocks.length; j++) io.observe(blocks[j]);
+      /* Failsafe: whatever the observer has not reached within a second and a
+         half — a page rendered without scrolling, a print, a screenshot — is
+         shown anyway. Nothing on this page may depend on scrolling to exist. */
+      setTimeout(function () {
+        io.disconnect();
+        for (var k = 0; k < blocks.length; k++) show(blocks[k]);
+      }, 1500);
+    })();
+
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
         navigator.serviceWorker.register("sw.js").catch(function () {});
