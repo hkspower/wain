@@ -114,7 +114,7 @@ export default function Checkout() {
   if (!items.length) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-20 text-center">
-        <p className="text-lg text-slate-500">{t.cart.empty}</p>
+        <p className="text-lg text-slate-600">{t.cart.empty}</p>
         <Link to="/shop" className="btn btn-primary mt-4 inline-flex">
           {t.shop.backToShop}
         </Link>

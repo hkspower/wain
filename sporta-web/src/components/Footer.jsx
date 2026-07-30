@@ -85,7 +85,7 @@ export default function Footer() {
           ))}
         </div>
 
-        <p className="mt-8 text-center text-xs text-slate-500">
+        <p className="mt-8 text-center text-xs text-slate-400">
           © {new Date().getFullYear()} Sporta — {t.footer.rights} · 30199/2023
         </p>
       </div>

@@ -89,7 +89,7 @@ export default function Shop() {
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-900">{t.shop.h1}</h1>
-          <p className="mt-1 text-sm text-slate-500">{sorted.length} · KWD</p>
+          <p className="mt-1 text-sm text-slate-600">{sorted.length} · KWD</p>
           <p className="mt-2 max-w-2xl text-slate-600">{t.shop.intro}</p>
         </div>
         <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
@@ -113,7 +113,7 @@ export default function Shop() {
             onClick={() => setCat(c.id)}
             aria-pressed={cat === c.id}
             className={`flex min-h-11 items-center rounded-full px-4 text-sm font-semibold transition ${
-              cat === c.id ? 'bg-brand text-white shadow' : 'bg-white text-slate-600 hover:bg-slate-100'
+              cat === c.id ? 'bg-brand text-ink shadow' : 'bg-white text-slate-600 hover:bg-slate-100'
             }`}
           >
             {c.name[lang]}
@@ -134,12 +134,12 @@ export default function Shop() {
               scroll trigger, not a control, so it is aria-hidden and the button
               beside it is the accessible way to do the same thing. */}
           <div ref={sentinel} aria-hidden className="h-px w-full" />
-          <button onClick={more} className="btn btn-ghost text-brand">
+          <button onClick={more} className="btn btn-ghost text-accent">
             {t.shop.loadMore.replace('{n}', numLocal(Math.min(PAGE, remaining), lang))}
           </button>
           {/* Announced, so a screen-reader user knows the list grew rather than
               wondering why the page got longer. */}
-          <p aria-live="polite" className="text-xs text-slate-500">
+          <p aria-live="polite" className="text-xs text-slate-600">
             {t.shop.showing
               .replace('{shown}', numLocal(visible.length, lang))
               .replace('{total}', numLocal(sorted.length, lang))}

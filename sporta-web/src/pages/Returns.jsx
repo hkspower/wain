@@ -172,7 +172,7 @@ export default function Returns() {
 
   const seg = (active) =>
     `rounded-full px-3 py-1 text-sm font-semibold transition-colors ${
-      active ? 'bg-brand text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+      active ? 'bg-brand text-ink' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
     }`
 
   return (
@@ -358,7 +358,7 @@ export default function Returns() {
             href={waHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex w-full items-center justify-center rounded-full bg-brand px-8 py-3.5 font-bold text-white transition-colors hover:bg-brand-dark sm:w-auto"
+            className="inline-flex w-full items-center justify-center rounded-full bg-brand px-8 py-3.5 font-bold text-ink transition-colors hover:bg-brand-dark sm:w-auto"
           >
             {c.send}
           </a>

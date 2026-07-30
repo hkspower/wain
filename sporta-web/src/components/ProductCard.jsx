@@ -48,7 +48,7 @@ export default function ProductCard({ product }) {
         />
 
         {product.badge && (
-          <span className="absolute start-2.5 top-2.5 rounded-md bg-brand px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-white">
+          <span className="absolute start-2.5 top-2.5 rounded-md bg-brand px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-ink">
             {product.badge[lang]}
           </span>
         )}
@@ -78,7 +78,7 @@ export default function ProductCard({ product }) {
           className={`absolute bottom-2 end-2 flex h-11 w-11 items-center justify-center rounded-full shadow-md transition focus-visible:opacity-100 ${
             added
               ? 'bg-emerald-500 text-white opacity-100'
-              : 'bg-white/95 text-ink backdrop-blur hover:bg-brand hover:text-white lg:translate-y-1 lg:opacity-0 lg:group-hover:translate-y-0 lg:group-hover:opacity-100'
+              : 'bg-white/95 text-ink backdrop-blur hover:bg-brand hover:text-ink lg:translate-y-1 lg:opacity-0 lg:group-hover:translate-y-0 lg:group-hover:opacity-100'
           }`}
         >
           {added ? <IconCheck size={18} /> : <IconPlus size={18} />}
@@ -86,10 +86,10 @@ export default function ProductCard({ product }) {
       </Link>
 
       <div className="flex flex-col gap-0.5 pt-3">
-        <Link to={`/product/${product.slug}`} className="-my-1.5 py-1.5 transition group-hover:text-brand">
+        <Link to={`/product/${product.slug}`} className="-my-1.5 py-1.5 transition group-hover:text-accent">
           <h3 className="line-clamp-1 text-sm font-semibold text-slate-900">{product.name[lang]}</h3>
         </Link>
-        <p className="line-clamp-1 text-xs text-slate-500">{product.desc[lang]}</p>
+        <p className="line-clamp-1 text-xs text-slate-600">{product.desc[lang]}</p>
         <span className="price-card pt-0.5 text-sm font-bold tabular-nums">
           {formatKWD(product.price, lang)}
         </span>

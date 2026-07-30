@@ -15,9 +15,51 @@
   --accent: 243 75% 59%;
   --accent-foreground: 0 0% 100%;
 
-  /* Accent text — darker orange, readable for links/prices on LIGHT
-   * backgrounds (never white-on-orange). */
-  --accent-text: 20 85% 38%;
+  /* ---------------------------------------------------------------------
+   * THE TWO-ORANGE RULE, and it is the whole colour scheme in one sentence:
+   *
+   *   ORANGE AS A SURFACE is #E0561C, and the thing on top of it is near-black.
+   *   ORANGE AS TEXT is never #E0561C — it is a deeper orange on light, and a
+   *   lighter one on dark.
+   *
+   * Measured, not guessed (scripts/contrast-audit.mjs walks the real page):
+   *
+   *   #FFFFFF on #E0561C ......... 3.81:1   FAILS AA for text
+   *   #171A1E on #E0561C ......... 4.59:1   passes  <- buttons, chips, the bar
+   *   #E0561C on #E2DBCE ......... 2.77:1   FAILS badly — this was the price
+   *   #B8430F on #E2DBCE ......... 3.97:1   still fails — this was every card price
+   *   #A33A0A on #E2DBCE ......... 4.82:1   passes  <- --accent-text, light
+   *   #A33A0A on #FFFFFF ......... 6.63:1   passes
+   *   #FF9A52 on #1B2026 ......... 7.80:1   passes  <- --accent-text, dark
+   *
+   * #B8430F keeps its job as the HOVER surface. It was never a text colour;
+   * using it as one is what put 3.97:1 prices on every product card.
+   * --------------------------------------------------------------------- */
+  --accent-text: 19 88% 34%; /* #A33A0A — orange text on beige or white */
+
+  /* Near-black, for anything sitting ON brand orange. Named so a component
+   * does not have to remember the hex, and so the one exception (a surface so
+   * dark that white is correct) is visible as NOT using this token. */
+  --on-brand: 210 13% 10%; /* #171A1E */
+}
+
+/* On charcoal the same role needs the opposite move: #A33A0A on #1B2026 is
+ * 2.4:1 and effectively invisible. One token flip re-colours every price, link
+ * and eyebrow that uses the role rather than the hex. */
+[data-theme='dark'] {
+  --accent-text: 24 100% 66%; /* #FF9A52 */
+}
+
+/* The role, as a utility. `text-brand` is the SURFACE orange and stays correct
+ * for icons and rules (non-text needs 3:1, and #E0561C clears it on both
+ * canvases); this is for anything made of words. */
+.text-accent {
+  color: hsl(var(--accent-text));
+}
+
+/* Anything sitting on brand orange. */
+.on-brand {
+  color: hsl(var(--on-brand));
 }
 
 /* Reusable patterns for coloured text — never white-on-light. */

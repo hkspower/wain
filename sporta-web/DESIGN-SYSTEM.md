@@ -1,0 +1,158 @@
+# Sporta — colour, type and layout
+
+The rules the site is actually built on, and the measurements behind them.
+Everything here is checked by `npm run test:contrast`, which walks the real page
+in a real browser in **both themes and both languages** and fails the build on
+anything under WCAG AA. If a rule below and the code disagree, the test says
+which.
+
+---
+
+## 1. The two-orange rule
+
+This is the whole colour scheme in one sentence:
+
+> **Orange as a *surface* is `#E0561C`, and the thing on top of it is near-black.
+> Orange as *text* is never `#E0561C`** — it is a deeper orange on light and a
+> lighter one on dark.
+
+Measured, not assumed:
+
+| pair | ratio | verdict |
+|---|---|---|
+| `#FFFFFF` on `#E0561C` | **3.81:1** | fails AA for text |
+| `#171A1E` on `#E0561C` | **4.59:1** | passes — buttons, chips, badges, the announcement bar |
+| `#E0561C` on `#E2DBCE` | **2.77:1** | fails badly — this was the product price |
+| `#B8430F` on `#E2DBCE` | **3.97:1** | still fails — this was every card price |
+| `#A33A0A` on `#E2DBCE` | **4.82:1** | passes — `--accent-text`, light |
+| `#A33A0A` on `#FFFFFF` | **6.63:1** | passes |
+| `#FF9A52` on `#1B2026` | **7.80:1** | passes — `--accent-text`, dark |
+
+`#B8430F` keeps exactly one job: the **hover surface**. It was never a text
+colour, and using it as one is what put 3.97:1 prices on every product card.
+
+### Tokens
+
+| token | light | dark | use |
+|---|---|---|---|
+| `brand` (Tailwind) | `#E0561C` | same | orange **surfaces**, icons, rules |
+| `brand.bright` | `#FF7B17` | same | the logo mark, gradients |
+| `brand.dark` | `#B8430F` | same | hover surface only |
+| `--accent-text` / `.text-accent` | `#A33A0A` | `#FF9A52` | orange **words**: prices, links, eyebrows |
+| `--on-brand` / `.on-brand` | `#171A1E` | same | anything sitting on brand orange |
+| `ink` | `#171A1E` | — | canvas of the header/footer; headline colour on light |
+| `sand` | `#E2DBCE` | remapped to `#171A1E` | the page canvas |
+
+### The grey rule
+
+`text-slate-500` is a **card-interior** colour: 4.76:1 on white, but only
+**3.46:1 on the beige canvas**. Anything sitting directly on `bg-sand` — a
+product card's description, "Showing 12 of 46", "Your bag is empty", a
+breadcrumb — uses `text-slate-600` (5.51:1). Inside a white card, slate-500 is
+fine.
+
+On the charcoal header, orange flips the other way: the surface orange `#E0561C`
+is only **4.09:1** there, so the active nav link uses `brand.bright` `#FF7B17`
+(6.0:1) — the logo's own orange, which is what it is for.
+
+Two utilities carry the roles so a component never repeats a hex:
+`.text-accent` (orange words) and `.on-brand` (near-black on orange). Reaching
+for `text-brand` on a *word* is the mistake this system exists to prevent —
+`text-brand` is for icons and rules, which need 3:1 and clear it on both
+canvases.
+
+### Dark mode is one token flip
+
+`[data-theme='dark']` re-points `--accent-text` at `#FF9A52`, and every price,
+link and eyebrow that used the **role** rather than the hex follows. That is why
+roles are worth the indirection: the alternative is a dark-mode override per
+component, and the one that gets forgotten is invisible until someone complains.
+
+---
+
+## 2. Hierarchy on the product page
+
+The rule that matters more than any single value: **one orange per column.**
+
+Before, the product name was `brand.dark` and the price was `brand` — two
+oranges, two shouts, no hierarchy, and the price was the *less* readable of the
+two at 2.77:1. Now:
+
+1. **Name** — ink (`text-slate-900`, auto-inverted in dark), Alexandria, 3xl,
+   extrabold. It carries the weight.
+2. **Description** — `slate-600`, relaxed leading. Quiet on purpose.
+3. **Price** — the only orange in the column, Alexandria, `tabular-nums`.
+   Because it is the only orange, it is where the eye lands second.
+4. **Size chips** — white on a hairline border; the chosen one is near-black on
+   orange **plus a ring**, so the selection survives colour blindness.
+5. **Add** — solid orange. **Buy now** — ghost, orange words. **Save** — an
+   outline circle. Three weights for three levels of intent.
+
+---
+
+## 3. Type
+
+| role | face | notes |
+|---|---|---|
+| Display (`h1`–`h3`, `.font-display`, prices) | **Alexandria** | geometric, confident large, draws Arabic-Indic numerals properly |
+| UI and body | **IBM Plex Sans Arabic** | humanist, legible small |
+| Eyebrows (`.eyebrow`) | Alexandria 600, 0.22em tracking | uppercase in Latin |
+
+**Arabic is never letter-spaced.** Tracking breaks the connected letterforms, so
+`[dir='rtl']` zeroes it on headings, display sizes, `.eyebrow`, `.tracking-*`
+and `.uppercase`, and gives Arabic *more* leading (1.3 on headings, 1.7 on body)
+rather than less. The eyebrow gets a slightly larger size and heavier weight in
+Arabic instead, because Arabic has no capitals to give a label its weight.
+
+Prices and quantities are `tabular-nums` everywhere so 10.000 and 8.000 line up
+digit for digit down a column.
+
+---
+
+## 4. Layout
+
+- **Reserved space before content arrives.** The gallery frame is
+  `aspect-square` with `width`/`height` on the `<img>`; the stock lines sit in a
+  fixed `min-h-10` slot. The product page's CLS was 0.0515 before that slot
+  existed, because "Only 2 left" pushed the Add button down under a thumb
+  already reaching for it.
+- **Sticky image column on desktop only** (`md:sticky md:top-24`). On a phone
+  one column means it would eat the screen.
+- **44px of finger.** `.tap`, `.btn` and form controls get `min-height: 44px`
+  under `@media (pointer: coarse)`. Text links that must be tappable get
+  `-my-2.5 py-2.5` — a bigger target without a bigger line box.
+- **The sticky buy bar clears the home indicator** (`safe-bottom`) and is
+  followed by a spacer, so it never covers the last of the page.
+
+---
+
+## 5. Checking it
+
+```bash
+npx vite preview --port 4173          # in one terminal
+npm run test:contrast                 # AA, both themes, both languages
+npm run test:product                  # product page structure and behaviour
+npm run test:perf                     # CLS, scroll, unused JS, request count
+npm run test:a11y                     # keyboard, PWA, offline
+node scripts/shot.mjs /product/<slug> shots [dark]   # look at it
+```
+
+`test:contrast` reports the offending element's tag and classes, not just the
+colours — "orange on beige" appears in four files and the fix differs in each.
+
+Two things it deliberately does **not** fail on, both stated in its output
+rather than hidden:
+
+- **`aria-hidden` text.** The `/` between breadcrumbs and the `·` between an
+  eyebrow and a heading are separators. WCAG 1.4.3 covers text that conveys
+  information; darkening these would turn punctuation into a second row of
+  content.
+- **Text over art.** A headline on `.hero-glow` sits on a radial gradient
+  painted as a background-*image*, and no colour-stack walk can measure that.
+  Those are counted and reported as "N over art, not measurable here" —
+  "unmeasurable" is a real answer and "fine" is not. Check those by eye.
+
+It composites colours **on a canvas** rather than parsing them, because Tailwind
+v4 emits `lab()` and `oklab()`: a regex that understood only `rgb()` skipped the
+header's background entirely and reported the active nav link as
+orange-on-beige when it is orange-on-charcoal.

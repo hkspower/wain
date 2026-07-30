@@ -55,7 +55,11 @@ export default function Navbar() {
           h-7 = 28px, the one-line height at both breakpoints' font sizes;
           overflow-hidden means a longer future sentence clips rather than
           reopening the shift. */}
-      <p className="flex h-7 items-center justify-center overflow-hidden bg-brand px-4 text-center text-[11px] font-semibold leading-none text-white sm:text-xs">
+      {/* on-brand, not text-white. White on #E0561C measures 3.81:1 and this is
+          11px — it was the least readable line on the site, and it is the line
+          that says same-day delivery. Near-black on the same orange is 4.59:1,
+          and it is what the logo itself does. */}
+      <p className="on-brand flex h-7 items-center justify-center overflow-hidden bg-brand px-4 text-center text-[11px] font-semibold leading-none sm:text-xs">
         {t.ann}
       </p>
       {/* Tighter on phones: at the old padding the three header rows ate 138px,
@@ -64,7 +68,7 @@ export default function Navbar() {
         {/* language toggle (left) */}
         <button
           onClick={toggle}
-          className="tap flex items-center justify-center gap-1 rounded-full border border-white/20 px-3 py-1 text-xs font-semibold text-white/90 hover:border-brand hover:text-brand"
+          className="tap flex items-center justify-center gap-1 rounded-full border border-white/20 px-3 py-1 text-xs font-semibold text-white/90 hover:border-brand hover:text-brand-bright"
         >
           <IconGlobe size={14} /> {lang === 'en' ? 'AR' : 'EN'}
         </button>
@@ -82,7 +86,7 @@ export default function Navbar() {
           <button onClick={() => setCartOpen(true)} className="tap relative flex items-center justify-center" aria-label={t.nav.cart}>
             <IconBag size={22} />
             {count > 0 && (
-              <span className="absolute -end-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-white">
+              <span className="absolute -end-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-ink">
                 {count}
               </span>
             )}
@@ -93,7 +97,7 @@ export default function Navbar() {
           <Link to="/wishlist" className="tap relative flex items-center justify-center" aria-label={t.a11y.wishlist}>
             <IconHeart size={22} filled={wishCount > 0} />
             {wishCount > 0 && (
-              <span className="absolute -end-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-white">
+              <span className="absolute -end-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-ink">
                 {wishCount}
               </span>
             )}
@@ -127,7 +131,7 @@ export default function Navbar() {
                 end={l.to === '/'}
                 onMouseEnter={l.prefetch}
                 className={({ isActive }) =>
-                  `flex min-h-11 items-center px-2 transition hover:text-brand ${isActive ? 'text-brand' : 'text-white/80'}`
+                  `flex min-h-11 items-center px-2 transition hover:text-brand-bright ${isActive ? 'text-brand-bright' : 'text-white/80'}`
                 }
               >
                 {l.label}

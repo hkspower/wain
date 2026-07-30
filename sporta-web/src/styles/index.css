@@ -168,7 +168,9 @@ h1, h2, h3, .font-display {
   }
   .btn-light:hover {
     background: hsl(var(--primary));
-    color: #fff;
+    /* Near-black, like every other thing sitting on brand orange. White here
+       was 3.81:1 — a button that became LESS readable on hover. */
+    color: hsl(var(--on-brand));
   }
   .btn-ghost {
     background: transparent;
@@ -260,6 +262,14 @@ h1, h2, h3, .font-display {
 [data-theme='dark'] .border-slate-300 {
   border-color: rgba(255, 255, 255, 0.12) !important;
 }
+/* Image and chip surfaces. bg-slate-50 is the frame behind a product photo and
+   bg-slate-100 is a sold-out size chip; both stayed near-white in dark mode, so
+   an image that had not loaded yet was a white rectangle on charcoal and a
+   sold-out chip glowed brighter than the available ones. */
+[data-theme='dark'] .bg-slate-50,
+[data-theme='dark'] .bg-slate-100 {
+  background-color: #232830 !important;
+}
 [data-theme='dark'] .btn-light {
   background: #e8eaed;
   color: #171a1e;
@@ -268,14 +278,14 @@ h1, h2, h3, .font-display {
   background: #232830;
 }
 
-/* Grid-card price. Sits directly on the page canvas (the card has no white
-   box), so it needs its own pair: dark burnt orange on the beige canvas,
-   lighter orange on charcoal where #b8430f would drop below 3:1. */
+/* Grid-card price. Sits directly on the page canvas rather than in a white
+   box, and it is 14px bold — so it needs the 4.5:1 floor, not 3:1. It used to
+   be a hard-coded #b8430f, which measured 3.97:1 on the beige canvas: a price,
+   the one number on a card that has to be legible, was the least legible thing
+   on it. Now it is the --accent-text role, which flips with the theme on its
+   own. */
 .price-card {
-  color: #b8430f;
-}
-[data-theme='dark'] .price-card {
-  color: #ff9a52;
+  color: hsl(var(--accent-text));
 }
 
 /* Cart drawer height. `inset-y-0` now resolves against the viewport (the

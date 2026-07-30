@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 
 const route = process.argv[2] ?? '/'
 const outDir = process.argv[3] ?? 'shots'
+const theme = process.argv[4] ?? 'light'
 const dist = new URL('../dist/', import.meta.url)
 
 const MIME = {
@@ -41,10 +42,13 @@ for (const [device, viewport, dpr] of [
   for (const lang of ['en', 'ar']) {
     const ctx = await browser.newContext({ viewport, deviceScaleFactor: dpr })
     const page = await ctx.newPage()
-    await page.addInitScript((l) => localStorage.setItem('lang', l), lang)
+    await page.addInitScript(([l, th]) => {
+      localStorage.setItem('lang', l)
+      localStorage.setItem('sporta_theme', th)
+    }, [lang, theme])
     await page.goto(base + route, { waitUntil: 'networkidle' })
     await page.waitForTimeout(400)
-    const file = join(outDir, `${device}-${lang}.png`)
+    const file = join(outDir, `${device}-${lang}${theme === 'dark' ? '-dark' : ''}.png`)
     await page.screenshot({ path: fileURLToPath(new URL(`../${file}`, import.meta.url)), fullPage: true })
     shots.push(file)
     await ctx.close()

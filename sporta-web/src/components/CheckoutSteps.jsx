@@ -45,7 +45,7 @@ export default function CheckoutSteps({ current, paying = false }) {
                 aria-hidden="true"
                 className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[0.7rem] font-bold ${
                   done
-                    ? 'bg-brand text-white'
+                    ? 'bg-brand text-ink'
                     : isNow
                       ? 'bg-brand-dark text-white'
                       : 'border border-black/15 text-slate-400'

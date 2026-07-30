@@ -30,7 +30,7 @@ export default function Home() {
       <section className="relative overflow-hidden bg-ink text-white">
         <div className="hero-glow absolute inset-0 opacity-90" />
         <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-6 px-4 py-28 2xl:py-40 text-center">
-          <span className="rounded-full bg-brand px-4 py-1 text-xs font-bold uppercase tracking-wide">
+          <span className="on-brand rounded-full bg-brand px-4 py-1 text-xs font-bold uppercase tracking-wide">
             {t.hero.kicker}
           </span>
           <h1 className="text-6xl font-extrabold leading-none drop-shadow md:text-8xl 2xl:text-9xl">
@@ -126,7 +126,7 @@ export default function Home() {
           <div className="grid gap-6 p-6 sm:grid-cols-2 md:p-10">
             {[t.services.returns, t.services.delivery].map((s, i) => (
               <div key={i} className="flex items-center gap-4">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-white">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-ink">
                   {i === 0 ? <IconReturn size={22} /> : <IconTruck size={22} />}
                 </span>
                 <div>
@@ -142,7 +142,7 @@ export default function Home() {
       {/* Essentials */}
       <section className="mx-auto max-w-7xl px-4 py-10 md:px-6 md:py-14">
         <div className="mb-8 text-center">
-          <p className="eyebrow text-brand">{t.ess.kicker}</p>
+          <p className="eyebrow text-accent">{t.ess.kicker}</p>
           <h2 className="text-3xl font-extrabold text-slate-900">{t.ess.title}</h2>
         </div>
         <div className="grid grid-cols-2 gap-x-3 gap-y-8 md:grid-cols-4 md:gap-x-4">

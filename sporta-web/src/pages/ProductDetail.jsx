@@ -148,14 +148,14 @@ export default function ProductDetail() {
           back for anyone who arrived on this page from search rather than from
           the shop. aria-current marks the page itself, which is why the last
           crumb is not a link. */}
-      <nav aria-label={t.a11y.breadcrumb} className="mb-6 text-sm text-slate-500">
+      <nav aria-label={t.a11y.breadcrumb} className="mb-6 text-sm text-slate-600">
         <ol className="flex flex-wrap items-center gap-1.5">
           {/* -my-2.5 py-2.5 grows the tap target past 40px without moving the
               text or changing the line height — a 21px-tall link is a miss on a
               phone. */}
-          <li><Link to="/" className="-my-2.5 inline-block py-2.5 hover:text-brand">{t.nav.home}</Link></li>
+          <li><Link to="/" className="-my-2.5 inline-block py-2.5 hover:text-accent">{t.nav.home}</Link></li>
           <li aria-hidden className="text-slate-300">/</li>
-          <li><Link to="/shop" className="-my-2.5 inline-block py-2.5 hover:text-brand">{t.nav.shop}</Link></li>
+          <li><Link to="/shop" className="-my-2.5 inline-block py-2.5 hover:text-accent">{t.nav.shop}</Link></li>
           <li aria-hidden className="text-slate-300">/</li>
           <li aria-current="page" className="truncate font-semibold text-slate-700">
             {product.name[lang]}
@@ -173,16 +173,44 @@ export default function ProductDetail() {
           <ProductGallery images={productImages(product)} alt={product.name[lang]} />
         </div>
         <div>
-          <h1 className="text-3xl font-extrabold text-brand-dark">{product.name[lang]}</h1>
-          <p className="mt-3 text-lg text-slate-600">{product.desc[lang]}</p>
-          <p className="mt-6 text-2xl font-bold text-brand">{formatKWD(product.price, lang)}</p>
+          {/* HIERARCHY. The title and the price used to be two different
+              oranges, which is two shouts and no hierarchy — and the price at
+              #E0561C on beige measured 2.77:1, the worst pair on the page.
+              Now: the name is ink and carries the weight, the price is the only
+              orange in the column and is therefore the thing the eye lands on
+              second. tabular-nums so 10.000 and 8.000 line up digit for digit. */}
+          {/* Save sits with the title, not in the action row. At 390pt the row
+              was qty + Add + Buy now + heart, which wrapped the heart onto a
+              line by itself and read as a mistake. Top-of-panel is also where
+              every shopper already looks for it. */}
+          <div className="flex items-start justify-between gap-4">
+            <h1 className="text-3xl font-extrabold text-slate-900">{product.name[lang]}</h1>
+            <button
+              type="button"
+              onClick={() => wishlist.toggle(product.slug)}
+              aria-pressed={wishlist.has(product.slug)}
+              aria-label={wishlist.has(product.slug) ? t.a11y.savedWishlist : t.a11y.saveWishlist}
+              title={wishlist.has(product.slug) ? t.a11y.savedWishlist : t.a11y.saveWishlist}
+              className={`tap mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition ${
+                wishlist.has(product.slug)
+                  ? 'border-brand text-brand'
+                  : 'border-slate-300 text-slate-600 hover:border-brand hover:text-brand'
+              }`}
+            >
+              <IconHeart size={18} filled={wishlist.has(product.slug)} />
+            </button>
+          </div>
+          <p className="mt-3 text-lg leading-relaxed text-slate-600">{product.desc[lang]}</p>
+          <p className="text-accent mt-6 font-display text-[1.75rem] font-bold tabular-nums">
+            {formatKWD(product.price, lang)}
+          </p>
 
           {/* Size selector — required for apparel */}
           {sizes && (
             <div className="mt-6">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-sm font-bold text-slate-900">{t.size.label}</span>
-                <button type="button" onClick={() => setGuideOpen(true)} className="-my-3 py-3 text-xs font-semibold text-brand underline underline-offset-2">{t.size.guide}</button>
+                <button type="button" onClick={() => setGuideOpen(true)} className="text-accent -my-3 py-3 text-xs font-semibold underline underline-offset-2">{t.size.guide}</button>
               </div>
               <div className="flex flex-wrap gap-2" role="group" aria-label={t.size.label}>
                 {sizes.map((sz) => {
@@ -240,28 +268,9 @@ export default function ProductDetail() {
             </button>
             <button
               onClick={() => handleAdd() && navigate('/checkout')}
-              className="btn btn-ghost text-brand"
+              className="btn btn-ghost text-accent"
             >
               {t.shop.buyNow}
-            </button>
-            {/* Save for later. The cards in the grid have had a heart since the
-                wishlist shipped; the page a shopper actually decides on did
-                not, so the only way to save an item was to go back to the grid.
-                aria-pressed carries the state, and the label changes with it —
-                a heart that only fills in is silent to a screen reader. */}
-            <button
-              type="button"
-              onClick={() => wishlist.toggle(product.slug)}
-              aria-pressed={wishlist.has(product.slug)}
-              aria-label={wishlist.has(product.slug) ? t.a11y.savedWishlist : t.a11y.saveWishlist}
-              title={wishlist.has(product.slug) ? t.a11y.savedWishlist : t.a11y.saveWishlist}
-              className={`tap flex h-11 w-11 items-center justify-center rounded-full border transition ${
-                wishlist.has(product.slug)
-                  ? 'border-brand text-brand'
-                  : 'border-slate-300 text-slate-500 hover:border-brand hover:text-brand'
-              }`}
-            >
-              <IconHeart size={18} filled={wishlist.has(product.slug)} />
             </button>
           </div>
 
@@ -294,7 +303,7 @@ export default function ProductDetail() {
           gesture bar — without it the button sat under the swipe strip on every
           modern iPhone and Android. */}
       <div className="action-bar safe-bottom flex items-center justify-between gap-3 px-4 pt-3 md:hidden">
-        <span className="text-lg font-extrabold text-brand-dark">{formatKWD(product.price * qty, lang)}</span>
+        <span className="text-accent text-lg font-extrabold tabular-nums">{formatKWD(product.price * qty, lang)}</span>
         <button
           onClick={() => handleAdd() && navigate('/checkout')}
           className="btn btn-primary flex-1"

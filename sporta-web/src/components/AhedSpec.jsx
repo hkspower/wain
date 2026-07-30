@@ -20,11 +20,14 @@ export default function AhedSpec({ detail, size }) {
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {/* Arabic is never letter-spaced — it joins, and tracking breaks the
             joins. .eyebrow handles that per direction. */}
-        <span className="eyebrow text-brand">{detail.brand[lang]}</span>
+        <span className="eyebrow text-accent">{detail.brand[lang]}</span>
         <span className="text-black/20" aria-hidden>
           ·
         </span>
-        <h2 className="text-lg font-extrabold text-brand-dark">
+        {/* Ink, not orange: this is a heading, and the eyebrow beside it is
+            already carrying the brand colour. Two oranges touching read as one
+            smear, and #B8430F on the dark card measured 3:1 at 18px. */}
+        <h2 className="text-lg font-extrabold text-slate-900">
           {detail.collection[lang]}
         </h2>
         {detail.colour && (
