@@ -191,6 +191,7 @@ try {
     ['/', /no-cache/, 'always revalidate'],
     ['/config.js', /no-cache/, 'edited in place on the server'],
     ['/robots.txt', /max-age=3600/, 'an hour'],
+    ['/sw.js', /no-cache/, 'a stale service worker outlives deploys'],
   ]
   for (const [p, re, why] of tiers) {
     const { cache } = head(p)

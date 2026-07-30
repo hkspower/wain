@@ -4,6 +4,7 @@ import { lazy, Suspense } from 'react'
 import Navbar from './components/Navbar'
 import ScrollManager from './components/ScrollManager'
 import Footer from './components/Footer'
+import PullToRefresh from './components/PullToRefresh'
 import Home from './pages/Home'
 
 // Route-level code splitting: the public site ships only Home + chrome up front.
@@ -56,11 +57,25 @@ export default function App() {
 }
 
 function PublicSite() {
+  const { t } = useLang()
   return (
     <div className="flex min-h-screen flex-col">
       <ScrollManager />
+      {/* Skip link. There are eight tab stops before the content on every page
+          — language, logo, bag, wishlist, theme, search, then four nav links —
+          and a keyboard or switch user had to walk all of them on every
+          navigation. Visible only when focused, and it is the FIRST thing in the
+          tab order, which is the only position that helps. */}
+      <a href="#main" className="skip-link">
+        {t.a11y.skip}
+      </a>
+
+      {/* Only renders inside an installed PWA, where there is no browser
+          chrome and so no native pull-to-refresh. */}
+      <PullToRefresh />
+
       <Navbar />
-      <main className="flex-1">
+      <main id="main" tabIndex={-1} className="flex-1">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/shop" element={<Shop />} />

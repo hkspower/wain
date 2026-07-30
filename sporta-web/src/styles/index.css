@@ -493,3 +493,23 @@ h1, h2, h3, .font-display {
     transition: none !important;
   }
 }
+
+/* Skip link — the first tab stop, invisible until it has focus.
+   Not `display:none` when unfocused: a hidden element is not focusable, so the
+   link would not exist for the only users it is for. Moved off-screen instead,
+   and brought back on :focus. */
+.skip-link {
+  position: fixed;
+  inset-inline-start: 0.75rem;
+  top: -4rem;
+  z-index: 100;
+  border-radius: 0 0 0.75rem 0.75rem;
+  background: var(--brand, #E0561C);
+  padding: 0.6rem 1.1rem;
+  font-weight: 700;
+  color: #171A1E;
+  transition: top 0.15s ease-out;
+}
+.skip-link:focus {
+  top: 0;
+}

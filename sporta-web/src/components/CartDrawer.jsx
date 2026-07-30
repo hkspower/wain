@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { useRef } from 'react'
+import { useDialog } from '../lib/useDialog'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
@@ -12,16 +13,12 @@ export default function CartDrawer({ open, onClose }) {
   const { lang, t } = useLang()
   const { items, setQty, remove, total } = useCart()
 
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    document.body.style.overflow = 'hidden'
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      document.body.style.overflow = ''
-    }
-  }, [open, onClose])
+  // inert when closed, focus trapped when open, focus restored to the bag
+  // button on close. See lib/useDialog.js — this drawer is the reason it exists:
+  // it stays mounted to slide, so its buttons were live tab stops 44 and 45 of
+  // 46 on the homepage while it was invisible.
+  const panel = useRef(null)
+  useDialog({ open, onClose, containerRef: panel })
 
   // Rendered into <body>, not in place.
   //
@@ -47,6 +44,7 @@ export default function CartDrawer({ open, onClose }) {
         aria-hidden
       />
       <aside
+        ref={panel}
         role="dialog"
         aria-modal="true"
         aria-label={t.cart.title}

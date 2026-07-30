@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { CATEGORIES, PRODUCTS, byCategory } from '../lib/products'
@@ -44,6 +44,46 @@ export default function Shop() {
     sort === 'priceAsc' ? a.price - b.price : sort === 'priceDesc' ? b.price - a.price : 0,
   )
 
+  // -------------------------------------------------------------------------
+  // Progressive rendering, with an infinite-scroll sentinel.
+  //
+  // WHY, given the catalogue is only 46 products: the grid was 827 DOM nodes and
+  // 48 <img> elements on one page, all built before the first paint. That is
+  // work the shopper pays for whether or not they scroll, and it grows with the
+  // catalogue — a real photograph per product instead of a gradient makes it
+  // grow a lot faster.
+  //
+  // PAGE is 12 because the grid is 2 / 3 / 4 columns, and 12 fills three, four
+  // or six rows exactly — no half-empty final row at any breakpoint.
+  //
+  // The sentinel loads the next page BEFORE it is reached (rootMargin 600px), so
+  // in practice there is no waiting and no spinner. If IntersectionObserver is
+  // missing, or JavaScript is having a bad day, the button underneath is a real
+  // button and does the same thing — which is also what makes this keyboard- and
+  // screen-reader-accessible, since an observer that only fires on scroll is
+  // neither.
+  const PAGE = 12
+  const [shown, setShown] = useState(PAGE)
+  const sentinel = useRef(null)
+
+  // A new filter or sort is a new list, so it starts from the top again.
+  useEffect(() => setShown(PAGE), [cat, sort, q])
+
+  const more = useCallback(() => setShown((n) => Math.min(n + PAGE, sorted.length)), [sorted.length])
+
+  useEffect(() => {
+    const el = sentinel.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver((entries) => entries[0]?.isIntersecting && more(), {
+      rootMargin: '600px 0px',
+    })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [more])
+
+  const visible = sorted.slice(0, shown)
+  const remaining = sorted.length - visible.length
+
   return (
     <section className="mx-auto max-w-7xl px-4 py-12">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
@@ -83,10 +123,33 @@ export default function Shop() {
 
       <h2 className="sr-only">{t.shop.gridHeading}</h2>
       <div className="grid grid-cols-2 gap-x-3 gap-y-8 md:grid-cols-3 md:gap-x-4 lg:grid-cols-4">
-        {sorted.map((p) => (
+        {visible.map((p) => (
           <ProductCard key={p.slug} product={p} />
         ))}
       </div>
+
+      {remaining > 0 && (
+        <div className="mt-10 flex flex-col items-center gap-3">
+          {/* The sentinel sits ABOVE the button and is zero-height: it is a
+              scroll trigger, not a control, so it is aria-hidden and the button
+              beside it is the accessible way to do the same thing. */}
+          <div ref={sentinel} aria-hidden className="h-px w-full" />
+          <button onClick={more} className="btn btn-ghost text-brand">
+            {t.shop.loadMore.replace('{n}', numLocal(Math.min(PAGE, remaining), lang))}
+          </button>
+          {/* Announced, so a screen-reader user knows the list grew rather than
+              wondering why the page got longer. */}
+          <p aria-live="polite" className="text-xs text-slate-500">
+            {t.shop.showing
+              .replace('{shown}', numLocal(visible.length, lang))
+              .replace('{total}', numLocal(sorted.length, lang))}
+          </p>
+        </div>
+      )}
     </section>
   )
 }
+
+// Arabic-Indic digits, as everywhere else numbers appear on this site.
+const numLocal = (n, lang) =>
+  lang === 'ar' ? String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[+d]) : String(n)

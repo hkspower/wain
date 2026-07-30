@@ -4,7 +4,9 @@ export const translations = {
   en: {
     dir: 'ltr',
     nav: { home: 'Home', shop: 'Shop', about: 'About', contact: 'Contact', cart: 'Bag' },
+    pull: { pull: 'Pull to refresh', release: 'Release to refresh', refreshing: 'Refreshing…' },
     a11y: {
+      skip: 'Skip to content',
       close: 'Close',
       remove: 'Remove',
       decrease: 'Decrease quantity',
@@ -110,6 +112,8 @@ export const translations = {
     },
     shop: {
       h1: 'Shop sportswear in Kuwait',
+      loadMore: 'Show {n} more',
+      showing: 'Showing {shown} of {total}',
       gridHeading: 'All products',
       intro:
         'Women\u2019s and men\u2019s activewear, hoodies and gym accessories \u2014 delivered same day across Kuwait, with KNET checkout in Kuwaiti Dinar.',
@@ -233,7 +237,9 @@ export const translations = {
   ar: {
     dir: 'rtl',
     nav: { home: 'الرئيسية', shop: 'المتجر', about: 'من نحن', contact: 'اتصل بنا', cart: 'الحقيبة' },
+    pull: { pull: 'اسحب للتحديث', release: 'أفلت للتحديث', refreshing: 'جارٍ التحديث…' },
     a11y: {
+      skip: 'تجاوز إلى المحتوى',
       close: 'إغلاق',
       remove: 'إزالة',
       decrease: 'إنقاص الكمية',
@@ -329,6 +335,8 @@ export const translations = {
     },
     shop: {
       h1: 'تسوق الملابس الرياضية في الكويت',
+      loadMore: 'اعرض {n} أخرى',
+      showing: 'يُعرض {shown} من {total}',
       gridHeading: 'جميع المنتجات',
       intro:
         'ملابس رياضية نسائية ورجالية وهوديز وإكسسوارات جيم \u2014 توصيل في نفس اليوم داخل الكويت والدفع عبر كي نت بالدينار الكويتي.',

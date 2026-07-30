@@ -150,6 +150,8 @@
          removes both problems. Wrapped in try/catch because localStorage throws
          in some privacy modes, and the fallback is exactly today's behaviour.
 
+         The theme is set here too, for the same reason — see below.
+
          The two font files for that language are preloaded in the same breath.
          Without it they are discovered only after the stylesheet is parsed,
          which is one round trip later than it needs to be — and preloading the
@@ -162,6 +164,16 @@
           var el = document.documentElement
           el.lang = ar ? 'ar' : 'en'
           el.dir = ar ? 'rtl' : 'ltr'
+          // Theme, for the same reason and with the same measurement behind it:
+          // ThemeProvider sets data-theme in an effect after hydration, so a
+          // dark-mode visitor got data-theme="(none)" at the first frame and at
+          // DOMContentLoaded, and a flash of the beige light theme on every
+          // single page load. Reading the saved choice — or the OS preference
+          // when there is none — costs nothing here.
+          var t = localStorage.getItem('sporta_theme')
+          if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+          el.dataset.theme = t
+          el.style.colorScheme = t
           var sub = ar ? 'arabic' : 'latin'
           ;['alexandria-var-' + sub, 'plex-400-' + sub].forEach(function (f) {
             var k = document.createElement('link')

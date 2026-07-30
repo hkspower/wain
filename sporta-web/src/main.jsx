@@ -23,3 +23,25 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </BrowserRouter>
   </React.StrictMode>,
 )
+
+// ---------------------------------------------------------------------------
+// Offline support.
+//
+// Registered after load, not during it: a service worker install competes with
+// the first render for bandwidth and main-thread time, and it has nothing to
+// offer the visit it is installing on. Only over HTTPS, which is every real
+// visit — the canonical host redirects anything else in one hop — and localhost,
+// so it can be tested.
+//
+// It is registered LAST in this file for the same reason it is behind a load
+// listener: nothing about the app should depend on it existing. See public/sw.js
+// for what it will and will not cache; the short version is that /knet/, /pay/
+// and config.js are never touched.
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // A failed registration costs offline support and nothing else. There is
+      // no useful thing to tell the shopper, so there is no message.
+    })
+  })
+}

@@ -180,6 +180,16 @@ FileETag MTime Size
     Header set Cache-Control "public, max-age=3600, stale-while-revalidate=86400"
   </FilesMatch>
 
+  # sw.js must always be revalidated, and it matched NONE of the rules above:
+  # not the hashed-asset pattern (its name is fixed, on purpose — the browser
+  # looks for it at exactly this path), and not the .xml/.txt/.json group. So it
+  # had no Cache-Control at all and every cache in the path guessed. A stale
+  # service worker is the worst kind of stale: it decides what the whole site is
+  # allowed to cache, so one pinned copy can outlive several deploys.
+  <Files "sw.js">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </Files>
+
   # config.js carries the site's settings and is edited in place on the
   # server. If it were cached, changing a Supabase URL would appear to do
   # nothing for as long as the cache lasted. Must stay AFTER the rules above so

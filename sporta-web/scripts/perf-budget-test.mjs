@@ -24,12 +24,17 @@ import { chromium } from 'playwright'
 const BASE = process.argv[2] ?? 'http://localhost:4173'
 
 // route -> { requests, unusedPct, worstFileUnusedKb }
+//
+// The request budgets include one for /sw.js, which every page load now fetches
+// so the browser can check the service worker for updates. Leaving it implicit
+// put one route exactly on its ceiling and made this suite flaky — and a flaky
+// budget test gets ignored, which defeats the point of having one.
 const BUDGET = {
-  '/':                          { requests: 24, unusedPct: 60, worstFile: 150 },
-  '/shop':                      { requests: 16, unusedPct: 60, worstFile: 150 },
-  '/product/sculpt-top-grey':   { requests: 18, unusedPct: 60, worstFile: 150 },
-  '/cart':                      { requests: 17, unusedPct: 60, worstFile: 150 },
-  '/checkout':                  { requests: 19, unusedPct: 60, worstFile: 150 },
+  '/':                          { requests: 25, unusedPct: 60, worstFile: 150 },
+  '/shop':                      { requests: 17, unusedPct: 60, worstFile: 150 },
+  '/product/sculpt-top-grey':   { requests: 19, unusedPct: 60, worstFile: 150 },
+  '/cart':                      { requests: 18, unusedPct: 60, worstFile: 150 },
+  '/checkout':                  { requests: 20, unusedPct: 60, worstFile: 150 },
 }
 const CLS_MAX = 0.02        // Google's "good" is 0.1; this site measures ~0.002
 const SCROLL_MEDIAN_MAX = 18 // ms. 60 FPS is 16.7

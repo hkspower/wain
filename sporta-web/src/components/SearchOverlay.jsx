@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useDialog } from '../lib/useDialog'
 import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { PRODUCTS } from '../lib/products'
@@ -12,19 +13,15 @@ export default function SearchOverlay({ open, onClose }) {
   const [q, setQ] = useState('')
   const inputRef = useRef(null)
 
+  const panel = useRef(null)
+  // Escape, the Tab trap, the scroll lock and — the part this was missing —
+  // returning focus to the search button on close, instead of leaving it
+  // wherever it happened to be.
+  useDialog({ open, onClose, containerRef: panel, initialFocusRef: inputRef })
+
   useEffect(() => {
-    if (open) {
-      setQ('')
-      setTimeout(() => inputRef.current?.focus(), 50)
-      const onKey = (e) => e.key === 'Escape' && onClose()
-      window.addEventListener('keydown', onKey)
-      document.body.style.overflow = 'hidden'
-      return () => {
-        window.removeEventListener('keydown', onKey)
-        document.body.style.overflow = ''
-      }
-    }
-  }, [open, onClose])
+    if (open) setQ('')
+  }, [open])
 
   if (!open) return null
 
@@ -40,6 +37,7 @@ export default function SearchOverlay({ open, onClose }) {
 
   return (
     <div
+      ref={panel}
       role="dialog"
       aria-modal="true"
       aria-label={t.search.title}

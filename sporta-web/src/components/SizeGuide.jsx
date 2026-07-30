@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { useRef } from 'react'
+import { useDialog } from '../lib/useDialog'
 import { useLang } from '../i18n/LanguageContext'
 import { IconClose } from './icons'
 
@@ -14,21 +15,17 @@ const ROWS = [
 export default function SizeGuide({ open, onClose }) {
   const { t } = useLang()
 
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    document.body.style.overflow = 'hidden'
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      document.body.style.overflow = ''
-    }
-  }, [open, onClose])
+  const panel = useRef(null)
+  // This one moved focus nowhere at all: opening the size guide left the cursor
+  // on the "Size guide" link behind the backdrop, so a screen-reader user was
+  // told nothing had happened.
+  useDialog({ open, onClose, containerRef: panel })
 
   if (!open) return null
 
   return (
     <div
+      ref={panel}
       role="dialog"
       aria-modal="true"
       aria-label={t.size.guide}
