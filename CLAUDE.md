@@ -106,8 +106,25 @@
   credentials). It is never committed, never in the zip, never uploaded, and
   is protected from deletion by `upload.keep` + the mirror keep-list. Deploy
   `mirror` stays **false** unless there is a reason to change it.
-- **After any deploy:** run `./scan-server-response.sh` (checks HTTPS,
-  single-hop redirects, security headers, caching, real 404s, exposed files).
+- **After any deploy:** run `./scan-server-response.sh` (HTTPS, single-hop
+  redirects, security headers, cookies, cache tiers, real 404s, directory
+  listings, exposed files). Before a deploy, `npm run audit:storage` asks the
+  same questions of `dist/` against a real Apache with the production
+  `.htaccess`.
+- **`SERVER-LAYOUT.md` is the storage map** (saved by user request — apply
+  always): what belongs in `public_html`, what must stay ABOVE it, the cache
+  tier per folder, and permissions. Two things live above the web root because
+  they are credentials, not configuration: `knet-payments.log` and
+  `.cbk_token.json` (a CBK bearer token — its old default was inside
+  `public_html/pay/`). Files are `644`, folders `755`; `npm run publish` applies
+  them over FTPS. Never `777`.
+- **A `<FilesMatch>` in `public/.htaccess` is inherited by subdirectories; a
+  `RewriteRule` is NOT** — measured under Apache: a dotfile in a folder whose
+  own `.htaccess` says `RewriteEngine On` was served 200 while the same file at
+  the root was 403. Deny by NAME for anything that must hold everywhere.
+- **Supabase Storage is arranged but unused** — one `product-images` bucket,
+  public read, writes gated on `is_admin()`, 5 MB cap, no SVG. See
+  `supabase/storage-migration.sql`; it is a no-op if Storage is not provisioned.
 - Outstanding before/after launch: real product photos (biggest gap), and the
   SPF/DKIM/DMARC records in `DNS-EMAIL-RECORDS.txt`.
 

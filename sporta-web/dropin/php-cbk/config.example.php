@@ -33,8 +33,20 @@ return [
     // Payment mode: '' = let customer choose, '1' = KNET only, '2' = T-Pay QR only
     'pay_type' => '',
 
-    // Where to cache the AccessToken (must be writable, NOT web-accessible).
-    'token_cache_file' => __DIR__ . '/.cbk_token.json',
+    // Where to cache the AccessToken. This file IS a bearer credential: whoever
+    // holds it can call CBK as this merchant until it expires.
+    //
+    // The default used to be __DIR__ . '/.cbk_token.json', which put it inside
+    // the web root at /public_html/pay/. Three .htaccess rules denied it and all
+    // three still do — but a credential in the web root is defended by
+    // configuration, and configuration is the thing that breaks. One directory
+    // up is /public_html/../, outside the document root, where no Apache rule,
+    // no rewrite ordering and no future folder .htaccess can matter. That is
+    // where knet-payments.log already lives, for the same reason.
+    //
+    // Must be writable by PHP. hPanel File Manager can create it next to
+    // public_html; cbk.php creates it on first use if the directory is writable.
+    'token_cache_file' => __DIR__ . '/../../.cbk_token.json',
 
     // --- Optional: update your Supabase "orders" table on success ---
     'supabase_url'         => '',

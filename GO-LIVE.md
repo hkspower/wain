@@ -202,8 +202,29 @@ they are numbered.
 ```
 
 Everything should be green. It checks HTTPS, single-hop redirects, all security
-headers, compression, caching, real 404s, and that `.git`/`.env`/`config.php`
-are not exposed.
+headers, cookies, compression, the cache tier of every kind of file, real 404s,
+directory listings, and that nothing sensitive is reachable — `.git`, `.env`,
+`config.php`, the payment log, the CBK token, backup archives, and the old
+site's `index.php`.
+
+If it cannot reach the site at all it now says so and stops. It used to print a
+page of green ticks for an unreachable host, because "this path must not return
+200" passes when nothing answers.
+
+Before deploying, the same questions can be asked of the build without a server:
+
+```bash
+cd sporta-web && npm run audit:storage
+```
+
+That stands up a real Apache with the production `.htaccess` and tries to fetch
+every file that should never be served — including from a subdirectory, which is
+where the rules are easiest to get wrong.
+
+**`SERVER-LAYOUT.md` is the map**: what belongs in `public_html`, what must stay
+above it (the payment log and the CBK token are credentials, and they live one
+directory up), which folders may be cached for how long, and the file
+permissions publish now applies.
 
 ### 4. Tell Google about it
 

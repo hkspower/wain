@@ -23,6 +23,26 @@ warn() { printf '  \033[33m!\033[0m %s\n' "$1"; }
 
 HDRS="$(curl -sS -o /dev/null -D - -A 'Mozilla/5.0' "$SITE/" 2>/dev/null | tr -d '\r')"
 
+# ---- Reachability gate ----------------------------------------------------
+# Every "this path must NOT return 200" check below is written as
+# `if [ "$c" = 200 ]; then bad; else ok; fi` — which means an unreachable host
+# makes ALL of them pass. Run this against a site that is down, or with a typo
+# in the hostname, and it printed a full page of green ticks saying nothing was
+# exposed. That is the most dangerous way for a security scanner to be wrong, so
+# it now refuses to run at all rather than reassure you about a host it never
+# contacted.
+# `|| echo 000` would APPEND to curl's own "000" and give "000000", so the
+# fallback is applied only when curl printed nothing at all.
+probe="$(curl -sS -o /dev/null -w '%{http_code}' -m 15 "$SITE/" 2>/dev/null)"
+[ -n "$probe" ] || probe=000
+if [ "$probe" = 000 ]; then
+  printf '\n\033[31m✖ Cannot reach %s at all — DNS, TLS or the server.\033[0m\n' "$SITE"
+  printf '  Nothing below would mean anything, so nothing was checked.\n'
+  printf '  curl says:\n'
+  curl -sS -o /dev/null "$SITE/" 2>&1 | sed 's/^/    /'
+  exit 1
+fi
+
 bold "1. Reachability & protocol"
 code="$(curl -sS -o /dev/null -w '%{http_code}' "$SITE/")"
 ver="$(curl -sS -o /dev/null -w '%{http_version}' "$SITE/")"
@@ -109,19 +129,59 @@ for path in /this-page-does-not-exist-12345 /shop/nope-9876; do
 done
 
 bold "8. Sensitive paths (all should be 403 or 404 — never 200)"
-for path in /.git/config /.env /.htaccess /package.json /config.php /.DS_Store /knet/config.php; do
-  c="$(curl -sS -o /dev/null -w '%{http_code}' "$SITE$path")"
+# Every path here has either been found in this account's live web root or is
+# the shape of one that was. See SERVER-LAYOUT.md.
+for path in /.git/config /.env /.htaccess /package.json /config.php /.DS_Store \
+            /knet/config.php /pay/config.php /pay/cbk.php /pay/.cbk_token.json \
+            /knet.log /knet-payments.log /sporta-dist.zip /sporta-deploy.php \
+            /deploy.config.json /.deploy-manifest.json /README-knet.md; do
+  c="$(curl -sS -o /dev/null -w '%{http_code}' "$SITE$path" 2>/dev/null)"; [ -n "$c" ] || c=000
   if [ "$c" = 200 ]; then bad "$path -> 200  ***EXPOSED***"
+  elif [ "$c" = 000 ]; then warn "$path -> could not connect (NOT a pass)"
   else ok "$path -> $c"; fi
 done
 
-bold "9. SEO endpoints"
+# The old PHP site's front controller. DirectoryIndex stops it answering "/",
+# but /index.php itself answered 200 with the whole old site until a 301 was
+# added — a second indexable homepage, and old PHP being executed. The 301 fires
+# before the handler, so the file never runs. It should still be deleted.
+c="$(curl -sS -o /dev/null -w '%{http_code}' "$SITE/index.php")"
+case "$c" in
+  301|302) ok "/index.php -> $c (redirected, PHP never executed)" ;;
+  200)     bad "/index.php -> 200  ***THE OLD SITE IS LIVE AT THIS URL***" ;;
+  *)       ok "/index.php -> $c (gone — best)" ;;
+esac
+
+# …and the mobile app's endpoint must NOT have been caught by that rule.
+c="$(curl -sS -o /dev/null -w '%{http_code}' "$SITE/knet/api/index.php")"
+if [ "$c" = 301 ]; then bad "/knet/api/index.php -> 301  (the index.php rule is too broad)"
+else ok "/knet/api/index.php -> $c  (mobile API still routed)"; fi
+
+# A dotfile inside a folder that has its own RewriteEngine. The root's rewrite
+# deny does NOT reach there — proved under Apache — so this checks the
+# name-based <FilesMatch>, which does.
+for path in /knet/.htaccess /pay/.htaccess /cats/.DS_Store; do
+  c="$(curl -sS -o /dev/null -w '%{http_code}' "$SITE$path" 2>/dev/null)"; [ -n "$c" ] || c=000
+  if [ "$c" = 200 ]; then bad "$path -> 200  ***EXPOSED*** (subdirectory deny not applying)"
+  elif [ "$c" = 000 ]; then warn "$path -> could not connect (NOT a pass)"
+  else ok "$path -> $c"; fi
+done
+
+bold "9. Directory listings (a folder with no index must not enumerate)"
+for path in /cats/ /cats/mobile/ /fonts/ /assets/; do
+  body="$(curl -sS -m 10 "$SITE$path" 2>/dev/null | head -c 400)"
+  if printf '%s' "$body" | grep -qi 'index of'; then bad "$path lists its contents  ***EXPOSED***"
+  elif [ -z "$body" ]; then warn "$path -> empty response (NOT a pass)"
+  else ok "$path does not list"; fi
+done
+
+bold "10. SEO endpoints"
 for path in /robots.txt /sitemap.xml /llms.txt; do
   c="$(curl -sS -o /dev/null -w '%{http_code}' "$SITE$path")"
   [ "$c" = 200 ] && ok "$path -> 200" || bad "$path -> $c"
 done
 
-bold "10. Response time (5 samples, total seconds)"
+bold "11. Response time (5 samples, total seconds)"
 for i in 1 2 3 4 5; do
   printf '  %s\n' "$(curl -sS -o /dev/null -w 'connect=%{time_connect}s  ttfb=%{time_starttransfer}s  total=%{time_total}s' "$SITE/")"
 done

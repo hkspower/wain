@@ -62,6 +62,23 @@ Options -Indexes
   RewriteCond %{THE_REQUEST} \s/+index\.html[\s?] [NC]
   RewriteRule ^index\.html$ https://www.sporta.com.kw/ [R=301,L]
 
+  # /index.php -> / . The previous PHP site's front controller is STILL in the
+  # live public_html — publish reports it as a leftover every run — and while
+  # DirectoryIndex stops it answering "/", it answered /index.php with a 200 and
+  # the whole old site. Found by scripts/storage-audit.mjs, which asserts it now.
+  #
+  # Two things wrong with that, and this rule fixes both. It was a second
+  # indexable spelling of the homepage, which is the one thing CLAUDE.md says
+  # must never exist; and it EXECUTED old PHP, with whatever that code does. A
+  # rewrite in .htaccess runs at fixup, before the PHP handler, so the file is
+  # never run — a 301 here is not cosmetic.
+  #
+  # Anchored on the full REQUEST_URI, not the filename: /knet/api/index.php is a
+  # real endpoint for the mobile app and must keep working. A <Files "index.php">
+  # would have inherited into that folder and broken it.
+  RewriteCond %{REQUEST_URI} ^/index\.php$
+  RewriteRule ^ https://www.sporta.com.kw/ [R=301,L]
+
   # /shop/ -> /shop . Canonicals and internal links never use a trailing slash;
   # this stops the slashed spelling becoming a second indexable URL.
   # !-d keeps real directories (/assets/) working.
@@ -247,6 +264,28 @@ FileETag MTime Size
   Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests"
 </IfModule>
 
+# ---- Dotfiles, everywhere, by NAME ----
+# The rewrite rule at the top of this file does not reach subdirectories. Proved
+# under Apache 2.4: with a /sub/.htaccess that merely says "RewriteEngine On",
+# /sub/.token.json was served 200 WITH ITS CONTENTS while /.rootsecret.json in
+# the same tree was 403. mod_rewrite directives are not inherited into a
+# directory that enables its own rewrite engine, so /knet and /pay are safe only
+# because each carries its own copy of the rule — and any folder added later
+# would not be.
+#
+# A <FilesMatch> is inherited. Same harness, same subdirectory: /sub/x.log,
+# /sub/secret.env, /sub/package.json and /sub/notes.md were all 403 from this
+# file alone. So the dotfile deny is restated here by name, where it covers the
+# whole tree without depending on rewrite semantics or on remembering to repeat
+# it in every new folder.
+#
+# .well-known keeps working: it is a DIRECTORY, and the request that matters is
+# /.well-known/acme-challenge/<token>, whose filename does not begin with a dot.
+# Verified 200 with this rule in place — SSL renewal is untouched.
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+
 # ---- Never serve VCS metadata, env files, manifests or backups ----
 # The rewrite half of this rule lives at the TOP of the file, not here. Left in
 # this position it did nothing at all: the SPA block above passes any request
@@ -261,13 +300,20 @@ FileETag MTime Size
 # file is normally safe because PHP executes it, but that protection vanishes
 # the moment PHP is misconfigured or the module is disabled during an upgrade,
 # which is exactly when the credentials would be served as plain text.
-<FilesMatch "(?i)^(composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|pnpm-lock\.yaml|vite\.config\.[cm]?[jt]s|(ts|js)config\.json|Dockerfile|docker-compose\.ya?ml|deploy\.config\.json|config-dist\.php|knet-config\.php|sporta-deploy\.php|sporta-deploy-config\.php|.*\.(bak|old|orig|save|swp|sql|log|jsonl|sh|env|zip|tar|gz|mjs|ts|md))$">
+<FilesMatch "(?i)^(composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|pnpm-lock\.yaml|vite\.config\.[cm]?[jt]s|(ts|js)config\.json|Dockerfile|docker-compose\.ya?ml|deploy\.config\.json|config-dist\.php|knet-config\.php|sporta-deploy\.php|sporta-deploy-config\.php|.*\.(bak|old|orig|save|swp|sql|log|json|jsonl|sh|env|zip|tar|gz|mjs|ts|md))$">
   Require all denied
 </FilesMatch>
 
-# The extension list above ends in zip|tar|gz|mjs|ts|md, and none of those is an
-# oversight — the site ships no file of any of those types, so denying the whole
-# class is free, and each one is on the live server right now:
+# json is in that list, and it is the one to notice: the site ships no .json file
+# at all (site.webmanifest is .webmanifest, and the audit asserts the count is
+# zero), so denying the class costs nothing and closes it for anything that lands
+# there later — a stray .deploy-manifest.json, a copied deploy.config.json, or a
+# cached bearer token. If a real .json ever needs serving, exempt that one
+# filename with a <Files> block rather than reopening the class.
+#
+# The list also ends in zip|tar|gz|mjs|ts|md, and none of those is an
+# oversight — the site ships no file of any of those types either, so denying the
+# whole class is free, and each one is on the live server right now:
 #   sporta-dist.zip        the entire built site, downloadable by anyone
 #   smoke-cbk.mjs          payment smoke test
 #   verify-deploy-assets.mjs

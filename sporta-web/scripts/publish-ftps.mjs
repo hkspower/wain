@@ -215,6 +215,60 @@ try {
     : c(33, '  ! knet/config.php is not on the server — payments cannot work until you create it\n' +
             '    (copy knet/config.example.php to knet/config.php and fill in five values)'))
 
+  // ----------------------------------------- 5b. permissions, actually set
+  // deploy.config.json has declared filePermissions 644 and dirPermissions 755
+  // since it was written, and nothing ever applied them: files landed with
+  // whatever the FTP account's umask happened to be. On a shared host that is
+  // the difference between "the web server can read this" and "every other
+  // account on the box can write it".
+  //
+  // 644 / 755 is the correct pair here and not a rule of thumb: PHP runs as the
+  // account's own user, so nothing needs group or world write, and a directory
+  // needs execute to be traversable at all. 777 — the thing people reach for
+  // when an upload will not work — makes every file on this account writable by
+  // anything else running on the machine.
+  //
+  // Only the uploaded set is touched, so config.js and knet/config.php are out
+  // of reach by construction: they are filtered out before this point and their
+  // modes stay whatever the owner set in File Manager.
+  //
+  // Best effort by design, and LAST on purpose. SITE CHMOD is an optional FTP
+  // extension; some servers refuse it and some drop the control connection on an
+  // unknown command. Running it before the byte-for-byte verify would let a
+  // refused mode change turn a publish that had already put a correct site on
+  // the server into a failed one — so it runs after everything that matters has
+  // been confirmed. One clear line beats 300 identical errors, so the first
+  // refusal stops the attempt.
+  const FILE_MODE = String(cfg.upload?.filePermissions ?? '644')
+  const DIR_MODE = String(cfg.upload?.dirPermissions ?? '755')
+  const chmod = async (mode, path) => {
+    await client.send(`SITE CHMOD ${mode} ${path}`)
+  }
+  let chmodOk = 0
+  let chmodRefused = null
+  for (const [mode, paths] of [
+    [DIR_MODE, dirs.map((d) => `${REMOTE}/${d}`)],
+    [FILE_MODE, upload.map((f) => `${REMOTE}/${f.rel}`)],
+  ]) {
+    for (const path of paths) {
+      if (chmodRefused) break
+      try {
+        await chmod(mode, path)
+        chmodOk++
+      } catch (e) {
+        chmodRefused = e?.message ?? String(e)
+      }
+    }
+  }
+  if (chmodRefused) {
+    log(c(33, `  ! SITE CHMOD refused after ${chmodOk} file(s): ${chmodRefused.slice(0, 90)}`))
+    log(c(33, `    Set ${FILE_MODE} on files and ${DIR_MODE} on folders in hPanel File Manager,`))
+    log(c(33, '    or leave them: Hostinger\'s default umask is usually already correct.'))
+  } else {
+    log(c(32, `  ✓ ${chmodOk} path(s) set to ${FILE_MODE}/${DIR_MODE}`))
+  }
+
+
   // --------------------- 6. what is on the server that should not be
   // Publish never deletes, so leftovers from the previous site survive forever
   // unless someone is told about them.

@@ -37,6 +37,8 @@ const PARTS = [
   // LAST of all: every variant row references a product slug, so the products
   // must exist. Also needs is_admin() from the allowlist migration.
   ['ahed-inventory-migration.sql','AHED sizes and stock, from the packing slip'],
+  // Needs is_admin(). A no-op if Storage is not provisioned in the project.
+  ['storage-migration.sql','Storage: public read of product images, admin-only writes'],
 ]
 
 const rule = (s) => `-- ${'='.repeat(74)}\n-- ${s}\n-- ${'='.repeat(74)}`
