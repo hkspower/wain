@@ -34,6 +34,9 @@ const PARTS = [
   // Needs is_admin() from the allowlist migration.
   ['passcode-hardening-migration.sql','Quick-unlock: admins only, owned, revocable'],
   ['seed-products.sql',     'The 46 products, and retirement of anything older'],
+  // LAST of all: every variant row references a product slug, so the products
+  // must exist. Also needs is_admin() from the allowlist migration.
+  ['ahed-inventory-migration.sql','AHED sizes and stock, from the packing slip'],
 ]
 
 const rule = (s) => `-- ${'='.repeat(74)}\n-- ${s}\n-- ${'='.repeat(74)}`

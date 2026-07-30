@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { getProduct, PRODUCTS, SIZES_FOR } from '../lib/products'
@@ -7,6 +7,9 @@ import { formatKWD } from '../lib/format'
 import { usePageMeta, productJsonLd, breadcrumbJsonLd, graph } from '../lib/seo'
 import ProductCard from '../components/ProductCard'
 import SizeGuide from '../components/SizeGuide'
+import AhedSpec from '../components/AhedSpec'
+import { ahedDetail, AHED_PRODUCTS } from '../lib/ahed'
+import { fetchStock, LOW_STOCK_AT } from '../lib/stock'
 import { IconTruck, IconLock, IconReturn, IconPlus, IconMinus } from '../components/icons'
 
 export default function ProductDetail() {
@@ -19,11 +22,78 @@ export default function ProductDetail() {
   const [sizeErr, setSizeErr] = useState(false)
   const [guideOpen, setGuideOpen] = useState(false)
   const product = getProduct(slug)
+  const ahed = ahedDetail(slug)
+  const [stock, setStock] = useState(null) // null = not known; see lib/stock.js
 
-  const sizes = product ? SIZES_FOR(product.category) : null
+  // Live per-size availability. Deliberately not blocking: the page renders on
+  // the static catalogue and the size buttons sharpen a moment later, because a
+  // product page that waits on the database to draw anything is a slower page
+  // for every visitor, including the ones with nothing to buy.
+  useEffect(() => {
+    let alive = true
+    setStock(null)
+    fetchStock(slug).then((s) => alive && setStock(s))
+    return () => {
+      alive = false
+    }
+  }, [slug])
+
+  // Which sizes to offer, most specific source first:
+  //   1. the database — what is on the shelf right now
+  //   2. the AHED packing slip — what was ever bought in
+  //   3. SIZES_FOR(category) — the generic range, as before
+  // A shop that has not run the inventory migration behaves exactly as it did.
+  const sizes = useMemo(() => {
+    if (stock) {
+      const known = Object.keys(stock)
+      const order = ahed?.sizes ?? SIZES_FOR(product?.category) ?? []
+      const ranked = order.filter((s) => known.includes(s))
+      return ranked.length ? ranked : known
+    }
+    if (ahed?.sizes?.length) return ahed.sizes
+    return product ? SIZES_FOR(product.category) : null
+  }, [stock, ahed, product])
+
+  // "Only 2 left" for the size in hand, or for the whole product before a size
+  // is picked. Never a total across sizes — three lefts in L and none in M is
+  // not "3 left" to someone who wears M.
+  const lowNote = useMemo(() => {
+    if (!stock) return null
+    const rows = size ? [stock[size]].filter(Boolean) : Object.values(stock)
+    const live = rows.filter((r) => r.inStock)
+    if (!live.length) return null
+    const n = size ? live[0].stock : Math.max(...live.map((r) => r.stock))
+    if (n > LOW_STOCK_AT) return null
+    return n === 1 ? t.spec.lastOne : t.spec.onlyLeft.replace('{n}', numAr(n, lang))
+  }, [stock, size, t, lang])
+
+  // "Complete the look" used to be the first four products in the catalogue,
+  // which for every single page meant the same four. The AHED collections are
+  // literally sets — a Sculpt top has a matching legging and jacket, and the
+  // packing slip says which colours exist — so pair the same colour of the same
+  // collection first, then the rest of the collection, then anything.
+  const related = useMemo(() => {
+    const mine = AHED_PRODUCTS[slug]
+    const rank = (p) => {
+      const o = AHED_PRODUCTS[p.slug]
+      if (!mine || !o || o.collection !== mine.collection) return 3
+      return o.colour === mine.colour ? 0 : 1
+    }
+    return PRODUCTS.filter((p) => p.slug !== slug)
+      .map((p) => [rank(p), p])
+      .sort((a, b) => a[0] - b[0])
+      .slice(0, 4)
+      .map(([, p]) => p)
+  }, [slug])
+
+  // Clear a selection that has just gone out of stock, rather than letting the
+  // customer carry a sold-out size into the cart.
+  useEffect(() => {
+    if (size && stock && stock[size] && !stock[size].inStock) setSize(null)
+  }, [size, stock])
 
   function handleAdd() {
-    if (sizes && !size) {
+    if (sizes?.length && !size) {
       setSizeErr(true)
       return false
     }
@@ -92,22 +162,36 @@ export default function ProductDetail() {
                 <button type="button" onClick={() => setGuideOpen(true)} className="-my-2 py-2 text-xs font-semibold text-brand underline underline-offset-2">{t.size.guide}</button>
               </div>
               <div className="flex flex-wrap gap-2" role="group" aria-label={t.size.label}>
-                {sizes.map((sz) => (
-                  <button
-                    key={sz}
-                    onClick={() => { setSize(sz); setSizeErr(false) }}
-                    aria-pressed={size === sz}
-                    className={`h-11 min-w-11 rounded-xl border px-4 font-bold transition ${
-                      size === sz
-                        ? 'border-brand bg-brand text-white'
-                        : 'border-black/15 bg-white text-slate-700 hover:border-brand'
-                    }`}
-                  >
-                    {sz}
-                  </button>
-                ))}
+                {sizes.map((sz) => {
+                  // undefined stock = unknown, which is treated as available.
+                  const out = stock?.[sz] ? !stock[sz].inStock : false
+                  return (
+                    <button
+                      key={sz}
+                      onClick={() => { setSize(sz); setSizeErr(false) }}
+                      aria-pressed={size === sz}
+                      disabled={out}
+                      title={out ? t.spec.soldOut : undefined}
+                      className={`relative h-11 min-w-11 rounded-xl border px-4 font-bold transition ${
+                        out
+                          ? 'cursor-not-allowed border-black/10 bg-slate-100 text-slate-400'
+                          : size === sz
+                            ? 'border-brand bg-brand text-white'
+                            : 'border-black/15 bg-white text-slate-700 hover:border-brand'
+                      }`}
+                    >
+                      {/* A struck-through label says "this size exists and you
+                          cannot have it", which is the truth. Hiding the button
+                          instead makes the shop look like it never stocked it. */}
+                      <span className={out ? 'line-through decoration-slate-400' : undefined}>{sz}</span>
+                    </button>
+                  )
+                })}
               </div>
               {sizeErr && <p className="mt-2 text-sm font-semibold text-rose-600">{t.size.pick}</p>}
+              {/* Scarcity, only where it is a fact. */}
+              {lowNote && <p className="mt-2 text-sm font-semibold text-amber-700">{lowNote}</p>}
+              {stock && ahed && <p className="mt-2 text-xs text-slate-500">{t.spec.sizesShipped}</p>}
             </div>
           )}
 
@@ -137,11 +221,16 @@ export default function ProductDetail() {
         </div>
       </div>
 
+      {/* The AHED specification, full width under both columns: it is reading
+          material, and squeezing a two-column feature list into the buy panel
+          pushed the Add-to-cart button below the fold on a phone. */}
+      <AhedSpec detail={ahed} size={size} />
+
       {/* Cross-sell — complete the look */}
       <div className="mt-16">
         <h2 className="mb-6 text-2xl font-extrabold text-slate-900">{t.cross.title}</h2>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          {PRODUCTS.filter((p) => p.slug !== product.slug).slice(0, 4).map((p) => (
+          {related.map((p) => (
             <ProductCard key={p.slug} product={p} />
           ))}
         </div>
@@ -166,3 +255,7 @@ export default function ProductDetail() {
     </section>
   )
 }
+
+// Arabic-Indic digits, matching how every other number on the site renders.
+const numAr = (n, lang) =>
+  lang === 'ar' ? String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[+d]) : String(n)

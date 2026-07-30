@@ -233,3 +233,37 @@ export function toCsv(orders) {
   }
   return [cols.join(','), ...orders.map((o) => cols.map((c) => esc(o[c])).join(','))].join('\n')
 }
+
+// ---------------------------------------------------------------------------
+// Inventory — AHED sizes and stock.
+//
+// Needs supabase/ahed-inventory-migration.sql. Reads go through
+// admin_variants() rather than the table so cost_aed stays behind is_admin():
+// the anon key can only see the product_stock view, which omits it.
+// ---------------------------------------------------------------------------
+export async function fetchVariants() {
+  if (!ready()) return { error: NOT_CONFIGURED, rows: [] }
+  const { data, error } = await supabase.rpc('admin_variants')
+  if (error) {
+    if (isDeniedError(error)) return { notAdmin: true, rows: [] }
+    return isSchemaError(error) ? { needsMigration: true, rows: [] } : { error: error.message, rows: [] }
+  }
+  return { rows: data ?? [] }
+}
+
+// Counting stock goes through an RPC, not an UPDATE, so the admin can only ever
+// move the count — never the SKU it belongs to, the slug or the wholesale cost.
+export async function setStock(sku, stock) {
+  if (!ready()) return { error: NOT_CONFIGURED }
+  const { data, error } = await supabase.rpc('admin_set_stock', { p_sku: sku, p_stock: stock })
+  if (error) {
+    if (isDeniedError(error)) return { notAdmin: true }
+    if (isSchemaError(error)) return { needsMigration: true }
+    const m = `${error.message || ''}`
+    if (m.includes('stock_cannot_be_negative')) return { error: 'Stock cannot be negative.' }
+    if (m.includes('sku_not_found')) return { error: 'That item code is not in the inventory — refresh.' }
+    return { error: error.message }
+  }
+  const row = Array.isArray(data) ? data[0] : data
+  return { variant: row ?? null }
+}

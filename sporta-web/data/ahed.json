@@ -1,0 +1,795 @@
+{
+ "_source": [
+  "Extracted from the two documents AHED Trading sent with the first shipment:",
+  "  Features.docx    — collection features and fabric composition, per garment.",
+  "  To_Sportakw.xlsx — proforma invoice ('List') and packing slip ('Product",
+  "                     Details'): SKU, size, quantity, HS code, weight, cost.",
+  "Both are dated 2025-05-24, shipped Deira Dubai -> Mubarak Al Kabeer, Kuwait,",
+  "1 carton, 48 pieces, 42 variants across 27 products, AED 3,481 including AED",
+  "55 freight to the forwarder.",
+  "",
+  "This file is the SOURCE. scripts/generate-ahed.mjs turns it into",
+  "src/lib/ahed.js and supabase/ahed-inventory-migration.sql — edit here and",
+  "regenerate, never edit the generated files.",
+  "",
+  "Arabic is written for a Kuwaiti customer, not translated word for word. Two",
+  "deliberate departures from the supplier's English are noted at the feature."
+ ],
+ "brand": {
+  "en": "AHED",
+  "ar": "عهد"
+ },
+ "supplier": {
+  "name": "AHED Trading",
+  "city": "Deira, Dubai",
+  "country": "United Arab Emirates",
+  "invoice_date": "2025-05-24",
+  "currency": "AED",
+  "freight_aed": 55,
+  "invoice_total_aed": 3481,
+  "cartons": 1
+ },
+ "fx": {
+  "_note": "Only used to show margin in the admin. Nothing customer-facing and nothing at checkout reads it — retail prices are products.price in KWD. The dirham is pegged to the dollar and the dinar is not, so this drifts; the owner can correct it here and regenerate.",
+  "aed_per_kwd": 11.95,
+  "as_of": "2025-05-24"
+ },
+ "collections": {
+  "cloudsoft": {
+   "name": {
+    "en": "Cloudsoft",
+    "ar": "كلاودسوفت"
+   },
+   "fabric": {
+    "en": "78% Nylon · 22% Spandex",
+    "ar": "٧٨٪ نايلون · ٢٢٪ إيلاستان"
+   },
+   "garments": {
+    "top": {
+     "features": [
+      {
+       "en": "Buttery-soft, second-skin feel",
+       "ar": "ملمس ناعم كالحرير يلتصق بالجسم بلطف"
+      },
+      {
+       "en": "Removable chest pads",
+       "ar": "حشوات صدر قابلة للإزالة"
+      },
+      {
+       "en": "High stretch, hard-wearing fabric",
+       "ar": "قماش عالي المرونة ومتين"
+      },
+      {
+       "en": "Ultimate mobility",
+       "ar": "حرية حركة كاملة"
+      }
+     ]
+    },
+    "jacket": {
+     "features": [
+      {
+       "en": "Buttery-soft, second-skin feel",
+       "ar": "ملمس ناعم كالحرير يلتصق بالجسم بلطف"
+      },
+      {
+       "en": "Sculpting cut",
+       "ar": "قَصّة تُبرز القوام"
+      },
+      {
+       "en": "High stretch, hard-wearing fabric",
+       "ar": "قماش عالي المرونة ومتين"
+      },
+      {
+       "en": "Thumbhole cuffs",
+       "ar": "أكمام بفتحة إبهام"
+      }
+     ]
+    },
+    "leggings": {
+     "features": [
+      {
+       "en": "Buttery-soft, second-skin feel",
+       "ar": "ملمس ناعم كالحرير يلتصق بالجسم بلطف"
+      },
+      {
+       "en": "High stretch, breathable fabric",
+       "ar": "قماش عالي المرونة ويسمح بمرور الهواء"
+      },
+      {
+       "_note": "Supplier writes 'anti-cameltoe design'. Kept as a modesty claim, which is what a customer here is actually asking about.",
+       "en": "Discreet front-seam design",
+       "ar": "قَصّة أمامية محتشمة"
+      },
+      {
+       "en": "Ultimate mobility",
+       "ar": "حرية حركة كاملة"
+      }
+     ]
+    }
+   }
+  },
+  "define": {
+   "name": {
+    "en": "Define",
+    "ar": "ديفاين"
+   },
+   "fabric": {
+    "en": "82.5% Polyester · 17.5% Spandex",
+    "ar": "٨٢٫٥٪ بوليستر · ١٧٫٥٪ إيلاستان"
+   },
+   "garments": {
+    "jacket": {
+     "features": [
+      {
+       "en": "Soft and lightweight",
+       "ar": "خفيف وناعم"
+      },
+      {
+       "en": "High stretch, breathable fabric",
+       "ar": "قماش عالي المرونة ويسمح بمرور الهواء"
+      },
+      {
+       "en": "Sweat-wicking fabric",
+       "ar": "قماش يطرد العرق"
+      },
+      {
+       "en": "Thumbhole cuffs",
+       "ar": "أكمام بفتحة إبهام"
+      },
+      {
+       "en": "Sculpting cut",
+       "ar": "قَصّة تُبرز القوام"
+      },
+      {
+       "en": "Semi-standing collar",
+       "ar": "رقبة نصف قائمة"
+      },
+      {
+       "en": "Full-length zip",
+       "ar": "سحّاب كامل"
+      }
+     ]
+    }
+   }
+  },
+  "sculpt": {
+   "name": {
+    "en": "Sculpt",
+    "ar": "سكالبت"
+   },
+   "fabric": {
+    "en": "90% Nylon · 10% Spandex",
+    "ar": "٩٠٪ نايلون · ١٠٪ إيلاستان"
+   },
+   "garments": {
+    "jacket": {
+     "features": [
+      {
+       "en": "Soft and lightweight",
+       "ar": "خفيف وناعم"
+      },
+      {
+       "en": "High stretch, breathable fabric",
+       "ar": "قماش عالي المرونة ويسمح بمرور الهواء"
+      },
+      {
+       "en": "Sweat-wicking fabric",
+       "ar": "قماش يطرد العرق"
+      },
+      {
+       "en": "Thumbhole cuffs",
+       "ar": "أكمام بفتحة إبهام"
+      },
+      {
+       "en": "Sculpting cut",
+       "ar": "قَصّة تُبرز القوام"
+      },
+      {
+       "en": "Semi-standing collar",
+       "ar": "رقبة نصف قائمة"
+      }
+     ]
+    },
+    "top": {
+     "features": [
+      {
+       "en": "High neckline",
+       "ar": "رقبة عالية"
+      },
+      {
+       "en": "Removable chest pads",
+       "ar": "حشوات صدر قابلة للإزالة"
+      },
+      {
+       "en": "High stretch, hard-wearing fabric",
+       "ar": "قماش عالي المرونة ومتين"
+      },
+      {
+       "en": "Soft to the touch",
+       "ar": "ملمس ناعم"
+      }
+     ]
+    },
+    "leggings": {
+     "features": [
+      {
+       "en": "High waist",
+       "ar": "خصر عالٍ"
+      },
+      {
+       "en": "Lifting contour seams",
+       "ar": "خياطة رافعة تُبرز القوام"
+      },
+      {
+       "en": "Sweat-wicking fabric",
+       "ar": "قماش يطرد العرق"
+      },
+      {
+       "_note": "Supplier writes 'subtle scrunch' — the ruched back seam.",
+       "en": "Subtle ruched back",
+       "ar": "كرمشة خفيفة من الخلف"
+      }
+     ]
+    }
+   }
+  }
+ },
+ "colours": {
+  "army-green": {
+   "en": "Army Green",
+   "ar": "أخضر عسكري",
+   "hex": "#4B5320"
+  },
+  "black": {
+   "en": "Onyx Black",
+   "ar": "أسود أونيكس",
+   "hex": "#15171A"
+  },
+  "cherry-red": {
+   "en": "Cherry Red",
+   "ar": "أحمر كرزي",
+   "hex": "#8E1F2B"
+  },
+  "coffee-brown": {
+   "en": "Coffee Brown",
+   "ar": "بني قهوة",
+   "hex": "#4A2E21"
+  },
+  "grey": {
+   "en": "Grey",
+   "ar": "رمادي",
+   "hex": "#6E7378"
+  },
+  "iris-purple": {
+   "en": "Iris Purple",
+   "ar": "بنفسجي",
+   "hex": "#5B4B8A"
+  },
+  "navy": {
+   "en": "Navy",
+   "ar": "كحلي",
+   "hex": "#23324D"
+  },
+  "onyx-black": {
+   "en": "Onyx Black",
+   "ar": "أسود أونيكس",
+   "hex": "#15171A"
+  },
+  "steel-grey": {
+   "en": "Steel Grey",
+   "ar": "رمادي فولاذي",
+   "hex": "#7C848C"
+  },
+  "taupe-brown": {
+   "en": "Taupe Brown",
+   "ar": "بني فاتح",
+   "hex": "#8B7565"
+  }
+ },
+ "variants": [
+  {
+   "slug": "cloudsoft-jacket-army-green",
+   "sku": "A-CSJ-AR-L",
+   "collection": "cloudsoft",
+   "garment": "jacket",
+   "colour": "Army",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6103320000",
+   "grams": 182,
+   "cost_aed": 75
+  },
+  {
+   "slug": "cloudsoft-jacket-army-green",
+   "sku": "A-CSJ-AR-M",
+   "collection": "cloudsoft",
+   "garment": "jacket",
+   "colour": "Army",
+   "size": "M",
+   "received": 1,
+   "hs_code": "6103320000",
+   "grams": 182,
+   "cost_aed": 75
+  },
+  {
+   "slug": "cloudsoft-jacket-cherry-red",
+   "sku": "A-CSJ-CH-L",
+   "collection": "cloudsoft",
+   "garment": "jacket",
+   "colour": "Cherry",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6103320000",
+   "grams": 182,
+   "cost_aed": 75
+  },
+  {
+   "slug": "cloudsoft-jacket-coffee-brown",
+   "sku": "A-CSJ-CO-L",
+   "collection": "cloudsoft",
+   "garment": "jacket",
+   "colour": "Coffee",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6103320000",
+   "grams": 182,
+   "cost_aed": 75
+  },
+  {
+   "slug": "cloudsoft-jacket-coffee-brown",
+   "sku": "A-CSJ-CO-M",
+   "collection": "cloudsoft",
+   "garment": "jacket",
+   "colour": "Coffee",
+   "size": "M",
+   "received": 2,
+   "hs_code": "6103320000",
+   "grams": 182,
+   "cost_aed": 75
+  },
+  {
+   "slug": "cloudsoft-leggings-army-green",
+   "sku": "A-CSL-AR-L",
+   "collection": "cloudsoft",
+   "garment": "leggings",
+   "colour": "Army",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6104630090",
+   "grams": 159,
+   "cost_aed": 70
+  },
+  {
+   "slug": "cloudsoft-leggings-army-green",
+   "sku": "A-CSL-AR-M",
+   "collection": "cloudsoft",
+   "garment": "leggings",
+   "colour": "Army",
+   "size": "M",
+   "received": 1,
+   "hs_code": "6104630090",
+   "grams": 159,
+   "cost_aed": 70
+  },
+  {
+   "slug": "cloudsoft-leggings-cherry-red",
+   "sku": "A-CSL-CH-L",
+   "collection": "cloudsoft",
+   "garment": "leggings",
+   "colour": "Cherry",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6104630090",
+   "grams": 159,
+   "cost_aed": 70
+  },
+  {
+   "slug": "cloudsoft-leggings-coffee-brown",
+   "sku": "A-CSL-CO-L",
+   "collection": "cloudsoft",
+   "garment": "leggings",
+   "colour": "Coffee",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6104630090",
+   "grams": 159,
+   "cost_aed": 70
+  },
+  {
+   "slug": "cloudsoft-leggings-coffee-brown",
+   "sku": "A-CSL-CO-M",
+   "collection": "cloudsoft",
+   "garment": "leggings",
+   "colour": "Coffee",
+   "size": "M",
+   "received": 2,
+   "hs_code": "6104630090",
+   "grams": 159,
+   "cost_aed": 70
+  },
+  {
+   "slug": "cloudsoft-leggings-grey",
+   "sku": "A-CSL-GR-L",
+   "collection": "cloudsoft",
+   "garment": "leggings",
+   "colour": "Gray",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6104630090",
+   "grams": 159,
+   "cost_aed": 70
+  },
+  {
+   "slug": "cloudsoft-leggings-navy",
+   "sku": "A-CSL-NA-L",
+   "collection": "cloudsoft",
+   "garment": "leggings",
+   "colour": "Navy",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6104630090",
+   "grams": 159,
+   "cost_aed": 70
+  },
+  {
+   "slug": "cloudsoft-leggings-onyx-black",
+   "sku": "A-CSL-ON-L",
+   "collection": "cloudsoft",
+   "garment": "leggings",
+   "colour": "Onyx",
+   "size": "L",
+   "received": 2,
+   "hs_code": "6104630090",
+   "grams": 159,
+   "cost_aed": 70
+  },
+  {
+   "slug": "cloudsoft-leggings-onyx-black",
+   "sku": "A-CSL-ON-M",
+   "collection": "cloudsoft",
+   "garment": "leggings",
+   "colour": "Onyx",
+   "size": "M",
+   "received": 2,
+   "hs_code": "6104630090",
+   "grams": 159,
+   "cost_aed": 70
+  },
+  {
+   "slug": "cloudsoft-top-grey",
+   "sku": "A-CST-GR-L",
+   "collection": "cloudsoft",
+   "garment": "top",
+   "colour": "Grey",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6109100021",
+   "grams": 182,
+   "cost_aed": 72
+  },
+  {
+   "slug": "cloudsoft-top-navy",
+   "sku": "A-CST-NA-L",
+   "collection": "cloudsoft",
+   "garment": "top",
+   "colour": "Navy",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6109100021",
+   "grams": 182,
+   "cost_aed": 72
+  },
+  {
+   "slug": "cloudsoft-top-onyx-black",
+   "sku": "A-CST-ON-L",
+   "collection": "cloudsoft",
+   "garment": "top",
+   "colour": "Onyx",
+   "size": "L",
+   "received": 2,
+   "hs_code": "6109100021",
+   "grams": 182,
+   "cost_aed": 72
+  },
+  {
+   "slug": "cloudsoft-top-onyx-black",
+   "sku": "A-CST-ON-M",
+   "collection": "cloudsoft",
+   "garment": "top",
+   "colour": "Onyx",
+   "size": "M",
+   "received": 2,
+   "hs_code": "6109100021",
+   "grams": 182,
+   "cost_aed": 72
+  },
+  {
+   "slug": "define-jacket-iris-purple",
+   "sku": "A-DFZJ-IR-L",
+   "collection": "define",
+   "garment": "jacket",
+   "colour": "Iris",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6103320000",
+   "grams": 249,
+   "cost_aed": 87
+  },
+  {
+   "slug": "define-jacket-iris-purple",
+   "sku": "A-DFZJ-IR-M",
+   "collection": "define",
+   "garment": "jacket",
+   "colour": "Iris",
+   "size": "M",
+   "received": 1,
+   "hs_code": "6103320000",
+   "grams": 249,
+   "cost_aed": 87
+  },
+  {
+   "slug": "define-jacket-onyx-black",
+   "sku": "A-DFZJ-ON-L",
+   "collection": "define",
+   "garment": "jacket",
+   "colour": "Onyx",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6103320000",
+   "grams": 269,
+   "cost_aed": 87
+  },
+  {
+   "slug": "define-jacket-onyx-black",
+   "sku": "A-DFZJ-ON-M",
+   "collection": "define",
+   "garment": "jacket",
+   "colour": "Onyx",
+   "size": "M",
+   "received": 1,
+   "hs_code": "6103320000",
+   "grams": 256,
+   "cost_aed": 87
+  },
+  {
+   "slug": "define-jacket-steel-grey",
+   "sku": "A-DFZJ-ST-L",
+   "collection": "define",
+   "garment": "jacket",
+   "colour": "Steel",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6103320000",
+   "grams": 249,
+   "cost_aed": 87
+  },
+  {
+   "slug": "define-jacket-steel-grey",
+   "sku": "A-DFZJ-ST-M",
+   "collection": "define",
+   "garment": "jacket",
+   "colour": "Steel",
+   "size": "M",
+   "received": 1,
+   "hs_code": "6103320000",
+   "grams": 249,
+   "cost_aed": 87
+  },
+  {
+   "slug": "sculpt-jacket-black",
+   "sku": "A-SJ-ON-L",
+   "collection": "sculpt",
+   "garment": "jacket",
+   "colour": "Onyx",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6103320000",
+   "grams": 269,
+   "cost_aed": 69
+  },
+  {
+   "slug": "sculpt-jacket-grey",
+   "sku": "A-SJ-GR-L",
+   "collection": "sculpt",
+   "garment": "jacket",
+   "colour": "Grey",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6103320000",
+   "grams": 269,
+   "cost_aed": 69
+  },
+  {
+   "slug": "sculpt-jacket-grey",
+   "sku": "A-SJ-GR-M",
+   "collection": "sculpt",
+   "garment": "jacket",
+   "colour": "Grey",
+   "size": "M",
+   "received": 1,
+   "hs_code": "6103320000",
+   "grams": 256,
+   "cost_aed": 69
+  },
+  {
+   "slug": "sculpt-jacket-navy",
+   "sku": "A-SJ-NA-M",
+   "collection": "sculpt",
+   "garment": "jacket",
+   "colour": "Navy",
+   "size": "M",
+   "received": 1,
+   "hs_code": "6103320000",
+   "grams": 256,
+   "cost_aed": 69
+  },
+  {
+   "slug": "sculpt-jacket-taupe-brown",
+   "sku": "A-SJ-TA-L",
+   "collection": "sculpt",
+   "garment": "jacket",
+   "colour": "Taupe",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6103320000",
+   "grams": 269,
+   "cost_aed": 69
+  },
+  {
+   "slug": "sculpt-jacket-taupe-brown",
+   "sku": "A-SJ-TA-M",
+   "collection": "sculpt",
+   "garment": "jacket",
+   "colour": "Taupe",
+   "size": "M",
+   "received": 1,
+   "hs_code": "6103320000",
+   "grams": 256,
+   "cost_aed": 69
+  },
+  {
+   "slug": "sculpt-leggings-black",
+   "sku": "A-SL-ON-L",
+   "collection": "sculpt",
+   "garment": "leggings",
+   "colour": "Onyx",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6104630090",
+   "grams": 234,
+   "cost_aed": 66
+  },
+  {
+   "slug": "sculpt-leggings-grey",
+   "sku": "A-SL-GR-L",
+   "collection": "sculpt",
+   "garment": "leggings",
+   "colour": "Grey",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6104630090",
+   "grams": 234,
+   "cost_aed": 66
+  },
+  {
+   "slug": "sculpt-leggings-grey",
+   "sku": "A-SL-GR-M",
+   "collection": "sculpt",
+   "garment": "leggings",
+   "colour": "Grey",
+   "size": "M",
+   "received": 1,
+   "hs_code": "6104630090",
+   "grams": 234,
+   "cost_aed": 66
+  },
+  {
+   "slug": "sculpt-leggings-navy",
+   "sku": "A-SL-NA-M",
+   "collection": "sculpt",
+   "garment": "leggings",
+   "colour": "Navy",
+   "size": "M",
+   "received": 1,
+   "hs_code": "6104630090",
+   "grams": 234,
+   "cost_aed": 66
+  },
+  {
+   "slug": "sculpt-leggings-taupe-brown",
+   "sku": "A-SL-TA-L",
+   "collection": "sculpt",
+   "garment": "leggings",
+   "colour": "Taupe",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6104630090",
+   "grams": 234,
+   "cost_aed": 66
+  },
+  {
+   "slug": "sculpt-leggings-taupe-brown",
+   "sku": "A-SL-TA-M",
+   "collection": "sculpt",
+   "garment": "leggings",
+   "colour": "Taupe",
+   "size": "M",
+   "received": 1,
+   "hs_code": "6104630090",
+   "grams": 234,
+   "cost_aed": 66
+  },
+  {
+   "slug": "sculpt-top-black",
+   "sku": "A-ST-ON-L",
+   "collection": "sculpt",
+   "garment": "top",
+   "colour": "Onyx",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6109100021",
+   "grams": 182,
+   "cost_aed": 62
+  },
+  {
+   "slug": "sculpt-top-grey",
+   "sku": "A-ST-GR-L",
+   "collection": "sculpt",
+   "garment": "top",
+   "colour": "Grey",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6109100021",
+   "grams": 182,
+   "cost_aed": 62
+  },
+  {
+   "slug": "sculpt-top-grey",
+   "sku": "A-ST-GR-M",
+   "collection": "sculpt",
+   "garment": "top",
+   "colour": "Grey",
+   "size": "M",
+   "received": 1,
+   "hs_code": "6109100021",
+   "grams": 182,
+   "cost_aed": 62
+  },
+  {
+   "slug": "sculpt-top-navy",
+   "sku": "A-ST-NA-M",
+   "collection": "sculpt",
+   "garment": "top",
+   "colour": "Navy",
+   "size": "M",
+   "received": 1,
+   "hs_code": "6109100021",
+   "grams": 182,
+   "cost_aed": 62
+  },
+  {
+   "slug": "sculpt-top-taupe-brown",
+   "sku": "A-ST-TA-L",
+   "collection": "sculpt",
+   "garment": "top",
+   "colour": "Taupe",
+   "size": "L",
+   "received": 1,
+   "hs_code": "6109100021",
+   "grams": 182,
+   "cost_aed": 62
+  },
+  {
+   "slug": "sculpt-top-taupe-brown",
+   "sku": "A-ST-TA-M",
+   "collection": "sculpt",
+   "garment": "top",
+   "colour": "Taupe",
+   "size": "M",
+   "received": 1,
+   "hs_code": "6109100021",
+   "grams": 182,
+   "cost_aed": 62
+  }
+ ]
+}

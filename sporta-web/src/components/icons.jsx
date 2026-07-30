@@ -75,6 +75,15 @@ export const IconTruck = (p) => (
   </Svg>
 )
 
+// Inventory: a carton, seams and all — the AHED shipment arrived as exactly one.
+export const IconBox = (p) => (
+  <Svg {...p}>
+    <path d="M21 8v8a2 2 0 0 1-1.11 1.79l-7 3.5a2 2 0 0 1-1.78 0l-7-3.5A2 2 0 0 1 3 16V8a2 2 0 0 1 1.11-1.79l7-3.5a2 2 0 0 1 1.78 0l7 3.5A2 2 0 0 1 21 8Z" />
+    <path d="M3.3 7.1 12 11.5l8.7-4.4" />
+    <path d="M12 11.5V21" />
+  </Svg>
+)
+
 export const IconReturn = (p) => (
   <Svg {...p}>
     <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />

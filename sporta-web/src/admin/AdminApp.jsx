@@ -8,9 +8,10 @@ import LockScreen from './LockScreen'
 import SetupQuickUnlock from './SetupQuickUnlock'
 import Overview, { NotAdminNotice } from './Overview'
 import Devices from './Devices'
+import Inventory from './Inventory'
 import Orders from './Orders'
 import Catalog from './Catalog'
-import { IconBag, IconTruck, IconStar, IconLock } from '../components/icons'
+import { IconBag, IconTruck, IconStar, IconLock, IconBox } from '../components/icons'
 
 // Orchestrates the admin session:
 //   no session            -> AdminLogin
@@ -143,6 +144,7 @@ const ADMIN_TABS = [
   { id: 'overview', label: 'Overview', Icon: IconStar },
   { id: 'orders',   label: 'Orders',   Icon: IconBag },
   { id: 'catalog',  label: 'Catalogue', Icon: IconTruck },
+  { id: 'stock',    label: 'Inventory', Icon: IconBox },
   { id: 'settings', label: 'Settings', Icon: IconLock },
 ]
 
@@ -209,6 +211,8 @@ function Dashboard({ email, onSignOut, onEnrollChange, notAdmin, onLockNow, canL
         {tab === 'orders' && <Orders key={orderFilter} initialPayment={orderFilter} />}
 
         {tab === 'catalog' && <Catalog />}
+
+        {tab === 'stock' && <Inventory />}
 
         {tab === 'settings' && (
           <div className="space-y-6">
