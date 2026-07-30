@@ -179,6 +179,15 @@
   production.
 - Keep the indigo accent for admin UI.
 
+- **Every order emails the logistics company** — see `sporta-web/FULFILMENT.md`.
+  A deferred constraint trigger writes `fulfilment_outbox` in the same
+  transaction as the order (so a message cannot go missing), and the
+  `notify-warehouse` Edge Function drains it. Fires **on INSERT**, i.e. BEFORE
+  payment — the owner chose that knowing it, so every message states the payment
+  state in its subject and a follow-up says ship / do not ship. Needs
+  `WAREHOUSE_EMAIL` set, and needs SPF/DKIM/DMARC from `DNS-EMAIL-RECORDS.txt`
+  or the mail silently goes to spam.
+
 - **ElevenLabs MCP** — `.mcp.json` at the repo root, pinned to
   `elevenlabs-mcp==0.11.0` and run through `uvx`. 27 tools: text-to-speech,
   voice cloning, sound effects, agents, outbound calls.

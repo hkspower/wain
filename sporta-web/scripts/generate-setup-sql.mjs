@@ -35,6 +35,9 @@ const PARTS = [
   ['passcode-hardening-migration.sql','Quick-unlock: admins only, owned, revocable'],
   // After payment-method-migration, whose create_order it replaces.
   ['order-options-migration.sql','Orders record the size and the fit that was chosen'],
+  // Needs order_items.size/fit from the file above, and is_admin() from the
+  // allowlist migration.
+  ['fulfilment-migration.sql','Every order queues a message for the logistics company'],
   ['seed-products.sql',     'The 46 products, and retirement of anything older'],
   // LAST of all: every variant row references a product slug, so the products
   // must exist. Also needs is_admin() from the allowlist migration.

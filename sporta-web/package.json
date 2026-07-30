@@ -23,6 +23,7 @@
     "test:a11y": "node scripts/a11y-pwa-test.mjs",
     "test:uploader": "node scripts/image-uploader-test.mjs",
     "test:images": "node scripts/image-budget-test.mjs",
+    "test:fulfilment": "node scripts/fulfilment-test.mjs",
     "test:quick": "node scripts/quick-checkout-test.mjs",
     "test:contrast": "node scripts/contrast-audit.mjs",
     "test:product": "node scripts/product-page-test.mjs",

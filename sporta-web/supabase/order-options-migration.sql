@@ -57,7 +57,29 @@ comment on column public.order_items.fit is
   'Cut chosen at checkout. Null for orders placed before this column existed, '
   'and for products that have no fit.';
 
--- ---------- 2. create_order, carrying them through ----------
+-- ---------- 2. the superseded three-argument create_order ----------
+-- checkout-migration.sql created create_order(text, jsonb, jsonb).
+-- payment-method-migration.sql created create_order(text, jsonb, jsonb, text)
+-- and did not drop the first, so BOTH exist, and both are granted to anon.
+--
+-- Two problems, found by counting the functions after a rebuild:
+--
+--   1. A three-argument call is now AMBIGUOUS — Postgres answers "could not
+--      choose a best candidate function". The browser sends four named
+--      arguments so the live checkout is unaffected, which is exactly why this
+--      sat unnoticed.
+--   2. Worse than the error: the old overload is a SECOND DOOR into order
+--      creation, reachable with the public anon key, running the pre-
+--      payment-method code. No method validation, no size, no fit. The whole
+--      point of the note in checkout-migration.sql — "order creation now has
+--      exactly one door, and it is guarded" — is undone by a spare door left
+--      standing next to it.
+--
+-- Dropped by exact signature, so the current four-argument function is
+-- untouched.
+drop function if exists public.create_order(text, jsonb, jsonb);
+
+-- ---------- 3. create_order, carrying size and fit through ----------
 create or replace function public.create_order(
   p_track_id text,
   p_items    jsonb,
@@ -184,7 +206,7 @@ end $$;
 
 grant execute on function public.create_order(text, jsonb, jsonb, text) to anon, authenticated;
 
--- ---------- 3. what the admin has to pack ----------
+-- ---------- 4. what the admin has to pack ----------
 -- The order's lines with their options. Gated on is_admin() like every other
 -- admin read: order_items has no policy that lets anon read it, and this must
 -- not quietly become one.
