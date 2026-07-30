@@ -35,8 +35,15 @@ export default function ProductCard({ product }) {
           src={product.image}
           alt={product.name[lang]}
           loading="lazy"
+          // decoding="async" keeps the decode off the main thread. Without it a
+          // card entering the viewport decoded during the scroll frame, and the
+          // shop page's worst frame under 4x CPU throttling was 58 ms.
+          decoding="async"
+          // 600x750 to match the aspect-[4/5] box. At 600x600 the declared
+          // intrinsic ratio contradicted the CSS one — harmless while the
+          // container reserves the space, and wrong the moment it does not.
           width="600"
-          height="600"
+          height="750"
           className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.06]"
         />
 

@@ -23,8 +23,8 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['IBM Plex Sans Arabic', 'system-ui', 'sans-serif'],
-        display: ['Alexandria', 'IBM Plex Sans Arabic', 'sans-serif'],
+        sans: ['IBM Plex Sans Arabic', 'Plex Arabic Fallback', 'system-ui', 'sans-serif'],
+        display: ['Alexandria', 'Alexandria Fallback', 'IBM Plex Sans Arabic', 'Plex Arabic Fallback', 'sans-serif'],
       },
     },
   },

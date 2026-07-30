@@ -19,6 +19,7 @@
     "audit:files": "node scripts/file-audit.mjs",
     "audit:storage": "node scripts/storage-audit.mjs",
     "test:areas": "node scripts/kuwait-areas-test.mjs",
+    "test:perf": "node scripts/perf-budget-test.mjs",
     "test:images": "node scripts/image-budget-test.mjs",
     "test:checkout": "node scripts/checkout-mobile-test.mjs",
     "package": "node scripts/make-package.mjs",

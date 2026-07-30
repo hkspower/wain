@@ -134,7 +134,56 @@
          In <head> and classic (not a module) so it has definitely run before
          the app bundle: classic scripts execute at parse time, module scripts
          only after parsing finishes. -->
-    <script src="/config.js"></script>
+    <!-- Language and direction, BEFORE the first paint.
+         ==========================================================
+         Measured on a phone at 390pt: an Arabic visitor's CLS was 0.4448
+         against 0.0058 in English — "poor" by a wide margin, and it hit the
+         half of the customers this shop is built for first. One shift of 0.4128
+         accounted for nearly all of it: this file is served with dir="ltr", and
+         LanguageContext only switched it after React hydrated, so the whole
+         page flipped from left-to-right to right-to-left in front of the reader.
+         It also meant Arabic pulled EIGHT font files instead of four, because
+         the Latin subsets were requested for the first render and the Arabic
+         ones for the second.
+
+         Reading the same localStorage key React reads, here, costs nothing and
+         removes both problems. Wrapped in try/catch because localStorage throws
+         in some privacy modes, and the fallback is exactly today's behaviour.
+
+         The two font files for that language are preloaded in the same breath.
+         Without it they are discovered only after the stylesheet is parsed,
+         which is one round trip later than it needs to be — and preloading the
+         WRONG language's fonts would be worse than not preloading, which is why
+         this could not be two static <link> tags. -->
+    <script>
+      (function () {
+        try {
+          var ar = localStorage.getItem('lang') === 'ar'
+          var el = document.documentElement
+          el.lang = ar ? 'ar' : 'en'
+          el.dir = ar ? 'rtl' : 'ltr'
+          var sub = ar ? 'arabic' : 'latin'
+          ;['alexandria-var-' + sub, 'plex-400-' + sub].forEach(function (f) {
+            var k = document.createElement('link')
+            k.rel = 'preload'
+            k.as = 'font'
+            k.type = 'font/woff2'
+            k.crossOrigin = 'anonymous'
+            k.href = '/fonts/' + f + '.woff2'
+            document.head.appendChild(k)
+          })
+        } catch (e) {}
+      })()
+    </script>
+
+    <!-- defer, so this does not block the parser.
+         As a plain blocking script it serialised the critical path: HTML ->
+         config.js (no-cache, so always a real round trip) -> stylesheet and font
+         preloads. Deferred, it still runs before main.jsx — a deferred classic
+         script and a module script both execute in document order after parsing
+         — so window.SPORTA_CONFIG is set before anything reads it, and the CSS
+         is discovered a round trip sooner. -->
+    <script src="/config.js" defer></script>
 
     <!-- Fonts are self-hosted; the @font-face rules live in the app stylesheet
          under styles/. The Google Fonts

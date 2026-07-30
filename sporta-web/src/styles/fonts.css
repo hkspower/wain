@@ -6,6 +6,14 @@
    Only the latin and arabic subsets ship — the vietnamese, cyrillic and
    latin-ext cuts Google also serves are dead weight for this store.
 
+   IBM Plex Sans Arabic ships 400, 600 and 700 only. The 500 faces were dropped:
+   nothing on the five measured routes ever requested them, and the five
+   font-medium uses left in the app are small grey labels and the admin keypad,
+   which CSS font matching now resolves DOWN to 400 (for a desired weight of
+   400-500 the algorithm prefers lighter before heavier). That is closer to what
+   those labels are for than rounding them up to 600 would have been, and it
+   takes 63 kB out of the package.
+
    Alexandria is a VARIABLE font (wght 100-900). Google's API hands back the
    same file for every weight you ask for, so requesting 600/700/800 shipped
    three byte-identical copies per subset; the file audit's duplicate check
@@ -49,22 +57,6 @@
 @font-face {
   font-family: 'IBM Plex Sans Arabic';
   font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url('/fonts/plex-500-arabic.woff2') format('woff2');
-  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC, U+102E0-102FB, U+10E60-10E7E, U+10EC2-10EC4, U+10EFC-10EFF, U+1EE00-1EE03, U+1EE05-1EE1F, U+1EE21-1EE22, U+1EE24, U+1EE27, U+1EE29-1EE32, U+1EE34-1EE37, U+1EE39, U+1EE3B, U+1EE42, U+1EE47, U+1EE49, U+1EE4B, U+1EE4D-1EE4F, U+1EE51-1EE52, U+1EE54, U+1EE57, U+1EE59, U+1EE5B, U+1EE5D, U+1EE5F, U+1EE61-1EE62, U+1EE64, U+1EE67-1EE6A, U+1EE6C-1EE72, U+1EE74-1EE77, U+1EE79-1EE7C, U+1EE7E, U+1EE80-1EE89, U+1EE8B-1EE9B, U+1EEA1-1EEA3, U+1EEA5-1EEA9, U+1EEAB-1EEBB, U+1EEF0-1EEF1;
-}
-@font-face {
-  font-family: 'IBM Plex Sans Arabic';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url('/fonts/plex-500-latin.woff2') format('woff2');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: 'IBM Plex Sans Arabic';
-  font-style: normal;
   font-weight: 600;
   font-display: swap;
   src: url('/fonts/plex-600-arabic.woff2') format('woff2');
@@ -93,4 +85,48 @@
   font-display: swap;
   src: url('/fonts/plex-700-latin.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ---------------------------------------------------------------------------
+   Metric-matched fallbacks — the whole of the site's remaining layout shift.
+
+   Measured at 390pt on the homepage: CLS 0.0058 in English and 0.0291 in
+   Arabic, and with /fonts/*.woff2 blocked so no swap could happen, CLS 0.0000
+   in both. Every remaining shift was font-display:swap replacing the fallback.
+
+   Why it moves so much is in the metrics, read from the shipped files:
+
+                        ascent   descent  lineGap  normal line-height
+     Alexandria          96.80%   25.10%    0%          1.219em
+     IBM Plex Sans Ar.  108.50%   41.50%    0%          1.500em
+     Arial / Liberation  ~90.5%   ~21.2%   ~3.3%       ~1.150em
+
+   So every line box grew about 30% the moment Plex arrived, and everything below
+   it moved down. These two faces force the real fonts' vertical metrics onto
+   whatever local fallback the device has, so the line boxes are already the
+   right height before the webfont lands and the swap moves nothing.
+
+   size-adjust is deliberately left at 100%. It corrects average glyph WIDTH,
+   which needs the fallback's own metrics — and the fallback differs per platform,
+   so any single value is a guess that would render the pre-swap text at the wrong
+   size on most devices. Width differences reflow within a line; it is the line
+   HEIGHT that moves blocks, and that is computed here from the real font with no
+   guessing at all.
+
+   The local() list covers the platforms in turn: Arial (Windows/macOS), Roboto
+   (Android), Liberation Sans / DejaVu Sans (Linux). If none is present the face
+   simply fails and the stack falls through to system-ui, exactly as before. */
+@font-face {
+  font-family: 'Alexandria Fallback';
+  src: local('Arial'), local('Helvetica'), local('Roboto'), local('Liberation Sans'), local('DejaVu Sans');
+  ascent-override: 96.8%;
+  descent-override: 25.1%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Plex Arabic Fallback';
+  src: local('Arial'), local('Helvetica'), local('Roboto'), local('Liberation Sans'), local('DejaVu Sans');
+  ascent-override: 108.5%;
+  descent-override: 41.5%;
+  line-gap-override: 0%;
 }

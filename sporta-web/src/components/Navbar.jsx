@@ -45,8 +45,17 @@ export default function Navbar() {
 
   return (
     <header className={`app-header ${hidden ? 'is-hidden' : ''} sticky top-0 z-30 border-b border-white/10 bg-ink/95 text-white backdrop-blur`}>
-      {/* Announcement bar */}
-      <p className="bg-brand px-4 py-1.5 text-center text-[11px] font-semibold text-white sm:text-xs">
+      {/* Announcement bar, with its height reserved.
+          The Arabic sentence is long enough to wrap to two lines in the fallback
+          font and fit on one once IBM Plex Sans Arabic arrives. The bar
+          therefore SHRANK by 18px mid-load and slid the entire page up with it —
+          measured as a single 0.0256 layout shift on the Arabic homepage, which
+          was all of that page's remaining CLS once the font metrics were
+          matched. A fixed line box cannot change when the font does.
+          h-7 = 28px, the one-line height at both breakpoints' font sizes;
+          overflow-hidden means a longer future sentence clips rather than
+          reopening the shift. */}
+      <p className="flex h-7 items-center justify-center overflow-hidden bg-brand px-4 text-center text-[11px] font-semibold leading-none text-white sm:text-xs">
         {t.ann}
       </p>
       {/* Tighter on phones: at the old padding the three header rows ate 138px,

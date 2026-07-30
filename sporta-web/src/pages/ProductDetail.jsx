@@ -141,11 +141,19 @@ export default function ProductDetail() {
     <section className="mx-auto max-w-5xl px-4 py-12">
       <div className="grid gap-8 md:grid-cols-2">
         <div className="overflow-hidden rounded-2xl bg-slate-50">
+          {/* The hero, and the LCP element on this page as soon as the
+              placeholders are real photographs. fetchpriority="high" promotes it
+              ahead of the other subresources the browser discovers at the same
+              time; decoding="async" keeps its decode off the paint. Deliberately
+              NOT lazy — it is above the fold, and lazy-loading an above-the-fold
+              image delays LCP by a round trip. */}
           <img
             src={product.image}
             alt={product.name[lang]}
             width="600"
             height="600"
+            fetchPriority="high"
+            decoding="async"
             className="h-full w-full object-cover"
           />
         </div>
@@ -189,9 +197,20 @@ export default function ProductDetail() {
                 })}
               </div>
               {sizeErr && <p className="mt-2 text-sm font-semibold text-rose-600">{t.size.pick}</p>}
-              {/* Scarcity, only where it is a fact. */}
-              {lowNote && <p className="mt-2 text-sm font-semibold text-amber-700">{lowNote}</p>}
-              {stock && ahed && <p className="mt-2 text-xs text-slate-500">{t.spec.sizesShipped}</p>}
+
+              {/* One fixed-height slot for both stock lines, reserved from the
+                  first paint whether or not there is anything to put in it.
+                  Measured at 390pt: this page's CLS was 0.0515 — ten times every
+                  other route — because "Only 2 left" and "Stocked in these sizes
+                  only" appeared when the stock request resolved and pushed Add
+                  to cart and Buy now down the page. A button that moves under a
+                  thumb already reaching for it is the worst kind of shift.
+                  min-h is 2.5rem: the two lines at their measured heights. */}
+              <div className="mt-2 min-h-10">
+                {/* Scarcity, only where it is a fact. */}
+                {lowNote && <p className="text-sm font-semibold text-amber-700">{lowNote}</p>}
+                {stock && ahed && <p className="text-xs text-slate-500">{t.spec.sizesShipped}</p>}
+              </div>
             </div>
           )}
 
