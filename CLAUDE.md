@@ -123,7 +123,9 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   2026-07-30): one scroll-snap track per section, native overflow scroll, with
   arrows + dots layered on by script. Rules: the arrows are gated behind
   `html.js` so a failed script leaves a clean swipeable row, never dead
-  buttons; dots are decorative spans (`aria-hidden`), arrows do navigation;
+  buttons; dots are decorative spans (`aria-hidden`) counting reachable scroll
+  positions — never one per card, or the end of the rail leaves dots that can
+  never light; arrows do navigation;
   RTL Chromium reports `scrollLeft` 0→negative so positions compare by
   absolute value and "next" scrolls by a negative delta; the rail's 4px inline
   padding means "at rest" ≈ 4px, so thresholds are 8px, never 0; on phones the
@@ -153,7 +155,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 240 checks covering
+- `python3 design/test_suite.py` is the full system test — 248 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it

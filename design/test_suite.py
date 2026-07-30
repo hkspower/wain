@@ -311,7 +311,50 @@ def home_checks(pg):
     check(S, "the next arrow slides the services rail", after < before - 40, f"{before}->{after}")
     check(S, "sliding lights the matching dot",
           pg.eval_on_selector("#services .dots", "e=>[...e.children].findIndex(d=>d.className==='on')") == 1)
-    pg.click("#services .arrow.prev"); pg.wait_for_timeout(700)
+    # drive the rail to its very end: the next arrow must die there, the
+    # at-end state must clear the exhausted-side fade, and the LAST dot must
+    # light — dots count reachable positions, not cards, so the indicator
+    # can never sit short at the end of the rail
+    for _ in range(14):
+        if pg.eval_on_selector("#services .arrow.next", "e=>e.disabled"): break
+        pg.click("#services .arrow.next"); pg.wait_for_timeout(450)
+    check(S, "the rail's end disables the next arrow",
+          pg.eval_on_selector("#services .arrow.next", "e=>e.disabled"))
+    check(S, "the rail's end is marked at-end",
+          pg.eval_on_selector("#services", "e=>e.classList.contains('at-end')"))
+    check(S, "at the end, the last dot is the lit one",
+          pg.eval_on_selector("#services .dots",
+              "e=>[...e.children].findIndex(d=>d.className==='on') === e.children.length-1"))
+    pg.eval_on_selector("#services .rail", "e=>e.scrollTo({left:0})"); pg.wait_for_timeout(400)
+
+    # tablet widths must show the whole email address — a truncated channel
+    # value is worse than a wrapped bar
+    tc = pg.context.browser.new_context(viewport={"width": 768, "height": 1024}, locale="ar-KW")
+    tp = tc.new_page()
+    tp.goto(f"{BASE}/index.html", wait_until="networkidle"); tp.wait_for_timeout(300)
+    fits = tp.evaluate("""[...document.querySelectorAll('.channel .v')]
+      .every(v => v.scrollWidth <= v.clientWidth + 1)""")
+    check(S, "no contact value truncates at tablet width", fits)
+    tc.close()
+
+    # without JavaScript the page must degrade to a clean swipeable row:
+    # everything visible, no dead arrows, and no edge fades lying about
+    # hidden content that nothing will ever clear
+    nj = pg.context.browser.new_context(viewport={"width": 1280, "height": 900},
+                                        locale="ar-KW", java_script_enabled=False)
+    np_ = nj.new_page()
+    np_.goto(f"{BASE}/index.html", wait_until="networkidle"); np_.wait_for_timeout(300)
+    check(S, "no-JS: every section is visible",
+          np_.evaluate("[...document.querySelectorAll('[data-reveal]')]"
+                       ".every(e => parseFloat(getComputedStyle(e).opacity) > 0.99)"))
+    check(S, "no-JS: the arrows stay hidden",
+          np_.evaluate("[...document.querySelectorAll('.railnav')]"
+                       ".every(e => getComputedStyle(e).display === 'none')"))
+    check(S, "no-JS: the rails still scroll as plain rows",
+          np_.eval_on_selector("#services .rail", "e=>e.scrollWidth > e.clientWidth + 8"))
+    check(S, "no-JS: the edge fades are not painted",
+          np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
+    nj.close()
     # the first version's own components: two wide product rows, numbered steps,
     # and the contact bar
     check(S, "the product is a wide row, not a tile",

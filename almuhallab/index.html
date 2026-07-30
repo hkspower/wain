@@ -172,11 +172,13 @@
     .rail:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 8px; }
     #nokhatha .rail { grid-auto-columns: min(84vw, 320px); }
     /* the white fade marks the edge that still hides content; JS clears the
-       fade on the exhausted side via at-start / at-end */
-    .railwrap::before, .railwrap::after { content: ""; position: absolute; top: 0; bottom: 12px;
-      width: 28px; pointer-events: none; z-index: 1; transition: opacity .25s ease; }
-    .railwrap::before { left: -4px; background: linear-gradient(90deg, var(--bg), rgba(255,255,255,0)); }
-    .railwrap::after { right: -4px; background: linear-gradient(270deg, var(--bg), rgba(255,255,255,0)); }
+       fade on the exhausted side via at-start / at-end. Gated behind html.js
+       like the arrows: without the script nothing maintains the classes, and
+       a permanent fade over an exhausted edge lies about hidden content. */
+    html.js .railwrap::before, html.js .railwrap::after { content: ""; position: absolute; top: 0;
+      bottom: 12px; width: 28px; pointer-events: none; z-index: 1; transition: opacity .25s ease; }
+    html.js .railwrap::before { left: -4px; background: linear-gradient(90deg, var(--bg), rgba(255,255,255,0)); }
+    html.js .railwrap::after { right: -4px; background: linear-gradient(270deg, var(--bg), rgba(255,255,255,0)); }
     .slider.at-start .railwrap::after { opacity: 0; }
     .slider.at-end .railwrap::before { opacity: 0; }
     .dots { display: flex; justify-content: center; gap: 6px; margin-top: 8px; }
@@ -255,8 +257,11 @@
 
     /* Contact channels, as on the live site — the same three, laid as one bar
        of pills: icon tile, label, value, reading start-aligned like a row. */
-    .channels { display: flex; gap: 12px; margin-top: 12px; }
-    .channel { flex: 1; min-width: 0; background: var(--panel); border: 1px solid var(--border);
+    /* the bar wraps rather than squeezing: at tablet widths three pills in one
+       row truncated the email address to an ellipsis, which is worse than a
+       second row — the value IS the content here */
+    .channels { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+    .channel { flex: 1 1 240px; min-width: 0; background: var(--panel); border: 1px solid var(--border);
       border-radius: 14px; padding: 12px 16px; display: flex; align-items: center; gap: 12px;
       color: var(--text); }
     .channel:hover { border-color: var(--tint); }
@@ -547,22 +552,22 @@
         var next = sec.querySelector(".arrow.next");
         var dotbox = sec.querySelector(".dots");
         var kids = rail.children, dots = [], pending = false;
-        for (var k = 0; k < kids.length; k++) dots.push(dotbox.appendChild(document.createElement("span")));
-        function active() {  // the card whose start edge sits nearest the rail's start (right, in RTL)
-          var rr = rail.getBoundingClientRect(), best = 0, bd = 1e9;
-          for (var k = 0; k < kids.length; k++) {
-            var d = Math.abs(kids[k].getBoundingClientRect().right - rr.right);
-            if (d < bd) { bd = d; best = k; }
-          }
-          return best;
-        }
         function paint() {
-          var a = active();
+          /* One dot per *reachable scroll position*, not per card: several
+             cards share the viewport at the rail's end, so a dot per card
+             leaves the last dots unreachable — the indicator would sit a
+             third short at the very moment the rail is exhausted. The count
+             is recomputed here so a resize keeps it honest. */
+          var step = kids[0].getBoundingClientRect().width + 12;
+          var max = rail.scrollWidth - rail.clientWidth;
+          var pos = Math.abs(rail.scrollLeft);
+          var count = max < 12 ? 1 : Math.round(max / step) + 1;
+          while (dots.length < count) dots.push(dotbox.appendChild(document.createElement("span")));
+          while (dots.length > count) dotbox.removeChild(dots.pop());
+          var a = Math.min(count - 1, Math.round(pos / step));
           for (var k = 0; k < dots.length; k++) dots[k].className = k === a ? "on" : "";
           /* the rail's own 4px inline padding means "at rest" can report a
              few px of scroll — compare against an 8px tolerance, not zero */
-          var max = rail.scrollWidth - rail.clientWidth;
-          var pos = Math.abs(rail.scrollLeft);
           sec.classList.toggle("no-slide", max < 12);
           sec.classList.toggle("at-start", pos < 8);
           sec.classList.toggle("at-end", pos > max - 8);
