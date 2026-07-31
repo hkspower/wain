@@ -204,6 +204,8 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
   after any change to `almuhallab/`; it exits non-zero on failure.
+- `design/instagram_covers.py` draws the Instagram highlight covers from the
+  page sprite (1080×1080, brown fill, white mark) — `design/instagram/`.
 - `design/capture.py` drives the site end to end and screenshots every page;
   `design/build_pdf.py` composes those into the PDF sample;
   `design/admin_test.py` exercises the admin console.
