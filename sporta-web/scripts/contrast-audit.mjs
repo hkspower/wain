@@ -188,6 +188,16 @@ for (const route of ROUTES) {
         [lang, theme, SEED],
       )
       await page.goto(BASE + route, { waitUntil: 'networkidle' })
+      // Sample only a SETTLED page. networkidle is not "painted": fonts still
+      // swap and images still decode after it, and a pixel sampled mid-decode
+      // measured a size chip against a half-painted gallery — a 1-in-3 flake
+      // that looked like a real AA failure. Wait for fonts and every image.
+      await page.evaluate(() => Promise.all([
+        document.fonts.ready,
+        ...[...document.images].map((i) =>
+          i.complete ? null : new Promise((res) => { i.onload = i.onerror = res })),
+      ]))
+      await page.waitForTimeout(250)
       // Pick a size AND a fit so the selected-chip colours are actually on
       // screen — an audit that never selects anything never measures the
       // selected state. :not([disabled]) because the first size chip is often
@@ -201,6 +211,12 @@ for (const route of ROUTES) {
           .click({ timeout: 2000 })
           .catch(() => {})
       }
+      // Freeze transitions before sampling. The click above starts a 150ms
+      // colour fade, and a sample taken mid-fade measured the chip at a blend
+      // of its two states — rgb(117,57,33), 2.6:1, a "failure" no user can
+      // ever see. The audit judges destinations, not the journey.
+      await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; animation: none !important; }' })
+      await page.waitForTimeout(100)
       const { bad, art } = await page.evaluate(AUDIT)
       const label = `${route} [${lang}/${theme}${SEED === 'saved' ? '' : '/form'}]`
       if (!bad.length) {

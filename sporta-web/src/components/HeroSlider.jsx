@@ -14,10 +14,11 @@ import { IconArrowRight } from './icons'
 //
 // Those files live ONLY on the server (upload them in hPanel File Manager;
 // a publish never touches /hero because dist never contains those names).
-// Until they exist, the slide shows the drawn scene: pictogram athletes —
-// deliberately stylised, in the black kit + ember-orange language of the
-// brand — because shipping nothing while the photography is pending is worse,
-// and shipping fake "photos" of people who do not exist is not this brand.
+// Until they exist, the slide shows the drawn scene: anatomically
+// proportioned athletes as backlit silhouettes (heroFigures.js) with rim
+// light, contact shadows and film grain — the sports-poster treatment,
+// because shipping nothing while the photography is pending is worse, and
+// shipping fake "photos" of people who do not exist is not this brand.
 //
 // Accessibility is the WAI carousel pattern plus WCAG 2.2.2: auto-advance
 // pauses on hover and on keyboard focus, there is an explicit pause button,
@@ -253,16 +254,43 @@ function Slide({ id, copy, active, first, label }) {
 }
 
 // ---------------------------------------------------------------------------
-// The drawn scenes. One visual language across all three: athletes in black
-// kit (near-black strokes, round caps — sport-pictogram idiom, not failed
-// realism), a single ember-orange rim glow, and a floor of warm light. All
-// figures live in the END half of the 1440-unit canvas so a phone, which
-// crops the start side, keeps the primary athlete in frame.
+// The drawn scenes — the sports-poster treatment: anatomically proportioned
+// athletes as backlit silhouettes (filled outlines from heroFigures.js, NOT
+// stick strokes), a single ember key light from the end side, a warm rim on
+// each lit edge, contact shadows, atmosphere haze and film grain. The idiom
+// is deliberately "photograph turned to silhouette": it is the most real a
+// build can be without an actual photo, and the photo slots stay wired above.
+// All figures live in the END half of the 1440-unit canvas so a phone, which
+// crops the start side, keeps the primary athletes in frame.
 // ---------------------------------------------------------------------------
-const K = '#0b0d10' // the kit — black clothing as silhouette
+import { FIGURES } from './heroFigures'
+
 const EMBER = '#ff7b17'
 
-function SceneShell({ children, glowId }) {
+// One athlete: an ember rim copy of the WHOLE body shifted toward the key
+// light, under fully opaque body fills — so the warm sliver traces only the
+// silhouette's outer lit edge. Both halves of that sentence were learned the
+// hard way: per-part rims + translucent far limbs drew orange seams through
+// the inside of the figure.
+function Athlete({ parts, p }) {
+  return (
+    <g>
+      <g transform="translate(6 -3)" fill={EMBER} opacity="0.5">
+        {parts.map((part, i) => (
+          <path key={i} d={part.d} />
+        ))}
+      </g>
+      {parts.map((part, i) => (
+        <path key={i} d={part.d} fill={`url(#${p}-${part.far ? 'bodyFar' : 'body'})`} />
+      ))}
+    </g>
+  )
+}
+
+// The photographic stage: key-light pool on the floor, haze, a horizon line,
+// grain over everything. Ids are prefixed per scene — all three svgs are in
+// the DOM at once, and duplicate ids would silently cross-wire the fills.
+function SceneShell({ p, children }) {
   return (
     <svg
       viewBox="0 0 1440 640"
@@ -271,171 +299,150 @@ function SceneShell({ children, glowId }) {
       aria-hidden="true"
     >
       <defs>
-        <filter id={glowId} x="-30%" y="-30%" width="160%" height="160%">
-          <feDropShadow dx="0" dy="0" stdDeviation="7" floodColor={EMBER} floodOpacity="0.4" />
-        </filter>
-        <radialGradient id={`${glowId}-floor`} cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor={EMBER} stopOpacity="0.28" />
+        {/* the body: near-black with a faint cool top light, like unlit kit */}
+        <linearGradient id={`${p}-body`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#171b21" />
+          <stop offset="55%" stopColor="#0b0d11" />
+          <stop offset="100%" stopColor="#060708" />
+        </linearGradient>
+        {/* far-side limbs: a step lighter but OPAQUE — depth without letting
+            the rim light show through the body */}
+        <linearGradient id={`${p}-bodyFar`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#22262d" />
+          <stop offset="55%" stopColor="#14171c" />
+          <stop offset="100%" stopColor="#0b0d10" />
+        </linearGradient>
+        <radialGradient id={`${p}-floor`} cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor={EMBER} stopOpacity="0.3" />
           <stop offset="100%" stopColor={EMBER} stopOpacity="0" />
         </radialGradient>
+        <radialGradient id={`${p}-haze`} cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor={EMBER} stopOpacity="0.1" />
+          <stop offset="100%" stopColor={EMBER} stopOpacity="0" />
+        </radialGradient>
+        <filter id={`${p}-soft`} x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="7" />
+        </filter>
+        <filter id={`${p}-grain`}>
+          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" />
+          <feColorMatrix type="saturate" values="0" />
+          <feComponentTransfer><feFuncA type="linear" slope="0.5" /></feComponentTransfer>
+          <feComposite operator="in" in2="SourceGraphic" />
+        </filter>
       </defs>
-      <ellipse cx="1080" cy="588" rx="470" ry="38" fill={`url(#${glowId}-floor)`} />
+
+      {/* atmosphere: haze behind the athletes, the key-light pool, a horizon */}
+      <ellipse cx="1120" cy="380" rx="560" ry="300" fill={`url(#${p}-haze)`} />
+      <ellipse cx="1080" cy="588" rx="480" ry="40" fill={`url(#${p}-floor)`} />
+      <path d="M0 580 L1440 580" stroke="#000000" strokeWidth="1.5" opacity="0.25" />
+
       {children}
+
+      {/* film grain, over everything — flat vector reads as render; grain
+          reads as photograph. Cheap: painted once, never animated. */}
+      <rect width="1440" height="640" filter={`url(#${p}-grain)`} opacity="0.05" />
     </svg>
   )
 }
 
-// Shared stroke presets: torso reads heavier than limbs, limbs than hair.
-const torso = { stroke: K, strokeWidth: 40, strokeLinecap: 'round', fill: 'none' }
-const limb = { stroke: K, strokeWidth: 24, strokeLinecap: 'round', strokeLinejoin: 'round', fill: 'none' }
-const arm = { ...limb, strokeWidth: 20 }
-const hair = { stroke: K, strokeWidth: 11, strokeLinecap: 'round', fill: 'none' }
+// A soft contact shadow where a foot meets the floor — without it a figure
+// floats, and floating is the single biggest giveaway of fake compositing.
+const Shadow = ({ cx, rx, p, o = 0.5 }) => (
+  <ellipse cx={cx} cy="582" rx={rx} ry="10" fill="#000000" opacity={o} filter={`url(#${p}-soft)`} />
+)
 
-// 1 — STRENGTH. A man mid-deadlift (side view: the plate reads as a disc at
-// his hands) and a woman locking out an overhead press.
+// 1 — STRENGTH. A man mid-deadlift (the loaded bar reads as one plate disc,
+// seen down its axis) and a woman locking out an overhead press.
 function SceneStrength() {
+  const p = 'hg-str'
   return (
-    <SceneShell glowId="hg-str">
-      {/* the man — deadlift */}
-      <g filter="url(#hg-str)">
-        <circle cx="1086" cy="318" r="30" fill={K} />
-        <path d="M1122 352 L1226 414" {...torso} />
-        <path d="M1226 414 L1186 486 L1196 560" {...limb} />
-        <path d="M1230 418 L1210 490 L1218 562" {...limb} strokeWidth="22" opacity="0.85" />
-        <path d="M1188 560 L1160 566" {...limb} strokeWidth="18" />
-        <path d="M1212 562 L1240 568" {...limb} strokeWidth="18" opacity="0.85" />
-        <path d="M1126 356 L1142 492" {...arm} />
-        <path d="M1142 360 L1156 494" {...arm} opacity="0.85" />
-        {/* the loaded bar, seen down its axis: one big plate disc */}
-        <circle cx="1150" cy="500" r="56" fill={K} />
-        <circle cx="1150" cy="500" r="56" fill="none" stroke={EMBER} strokeWidth="3" opacity="0.5" />
-        <circle cx="1150" cy="500" r="12" fill="none" stroke={EMBER} strokeWidth="4" opacity="0.6" />
-      </g>
+    <SceneShell p={p}>
+      <Shadow cx="1195" rx="115" p={p} />
+      <Shadow cx="932" rx="70" p={p} o="0.45" />
 
-      {/* the woman — overhead press, front on */}
-      <g filter="url(#hg-str)">
-        <circle cx="935" cy="296" r="26" fill={K} />
-        <path d="M956 282 C 984 288 992 314 982 338" {...hair} strokeWidth="13" />
-        <path d="M935 340 L935 430" {...torso} strokeWidth="34" />
-        <path d="M935 430 L935 446" stroke={K} strokeWidth="46" strokeLinecap="round" fill="none" />
-        <path d="M912 344 L884 282 L884 218" {...arm} />
-        <path d="M958 344 L986 282 L986 218" {...arm} />
-        <path d="M860 210 L1010 210" stroke={K} strokeWidth="9" strokeLinecap="round" />
-        <circle cx="850" cy="210" r="26" fill={K} />
-        <circle cx="1020" cy="210" r="26" fill={K} />
-        <circle cx="850" cy="210" r="26" fill="none" stroke={EMBER} strokeWidth="2.5" opacity="0.45" />
-        <circle cx="1020" cy="210" r="26" fill="none" stroke={EMBER} strokeWidth="2.5" opacity="0.45" />
-        <path d="M924 446 L918 510 L912 574" {...limb} />
-        <path d="M946 446 L954 510 L960 574" {...limb} />
-        <path d="M904 574 L878 578" {...limb} strokeWidth="16" />
-        <path d="M968 574 L994 578" {...limb} strokeWidth="16" />
-      </g>
+      {/* her bar, behind her hands */}
+      <path d="M850 118 L992 118" stroke="#0a0c0f" strokeWidth="8" strokeLinecap="round" />
+      <circle cx="846" cy="118" r="23" fill={`url(#${p}-body)`} />
+      <circle cx="996" cy="118" r="23" fill={`url(#${p}-body)`} />
+      <path d="M829.7 101.7 A 23 23 0 0 1 862.3 101.7" stroke={EMBER} strokeWidth="2.5" fill="none" opacity="0.5" />
+      <path d="M979.7 101.7 A 23 23 0 0 1 1012.3 101.7" stroke={EMBER} strokeWidth="2.5" fill="none" opacity="0.5" />
+
+      <Athlete parts={FIGURES.pressWoman} p={p} />
+      <Athlete parts={FIGURES.deadliftMan} p={p} />
+
+      {/* his plate, over the hands that grip it */}
+      <circle cx="1094" cy="506" r="55" fill={`url(#${p}-body)`} />
+      <path d="M1055.1 467.1 A 55 55 0 0 1 1132.9 467.1" stroke={EMBER} strokeWidth="3" fill="none" opacity="0.55" />
+      <circle cx="1094" cy="506" r="11" fill="none" stroke={EMBER} strokeWidth="3.5" opacity="0.5" />
     </SceneShell>
   )
 }
 
-// 2 — CARDIO. Two sprinters at full stride, the woman leading, ember speed
-// lines trailing off the end side.
+// 2 — CARDIO. Two sprinters at full stride, the woman a stride ahead; faint
+// motion trails and kicked-up dust instead of graphic speed lines.
 function SceneCardio() {
+  const p = 'hg-car'
   return (
-    <SceneShell glowId="hg-car">
-      {/* speed lines */}
-      <g strokeLinecap="round" stroke={EMBER}>
-        <path d="M640 356 L880 356" strokeWidth="12" opacity="0.4" />
-        <path d="M600 400 L860 400" strokeWidth="10" opacity="0.28" />
-        <path d="M672 444 L900 444" strokeWidth="8" opacity="0.18" />
+    <SceneShell p={p}>
+      <Shadow cx="1170" rx="95" p={p} o="0.4" />
+      <Shadow cx="895" rx="95" p={p} o="0.4" />
+
+      <g stroke={EMBER} strokeLinecap="round">
+        <path d="M660 340 L850 340" strokeWidth="9" opacity="0.16" />
+        <path d="M630 388 L830 388" strokeWidth="7" opacity="0.11" />
+        <path d="M700 436 L870 436" strokeWidth="6" opacity="0.08" />
       </g>
 
-      {/* the woman — leading */}
-      <g filter="url(#hg-car)">
-        <circle cx="1108" cy="300" r="26" fill={K} />
-        <path d="M1122 284 C 1158 268 1180 274 1192 292" {...hair} strokeWidth="12" />
-        <path d="M1140 330 L1204 408" {...torso} strokeWidth="36" />
-        <path d="M1204 408 L1140 452 L1152 520" {...limb} />
-        <path d="M1152 520 L1130 532" {...limb} strokeWidth="18" />
-        <path d="M1204 408 L1266 462 L1312 540" {...limb} />
-        <path d="M1312 540 L1334 548" {...limb} strokeWidth="18" />
-        <path d="M1140 334 L1096 372 L1120 410" {...arm} />
-        <path d="M1150 340 L1198 356 L1226 320" {...arm} opacity="0.9" />
-      </g>
+      <Athlete parts={FIGURES.sprintMan} p={p} />
+      <Athlete parts={FIGURES.sprintWoman} p={p} />
 
-      {/* the man — a stride behind */}
-      <g filter="url(#hg-car)">
-        <circle cx="864" cy="296" r="28" fill={K} />
-        <path d="M894 326 L950 402" {...torso} />
-        <path d="M950 402 L886 446 L900 516" {...limb} />
-        <path d="M900 516 L878 528" {...limb} strokeWidth="18" />
-        <path d="M950 402 L1010 458 L1052 536" {...limb} />
-        <path d="M1052 536 L1074 544" {...limb} strokeWidth="18" />
-        <path d="M896 330 L850 366 L876 404" {...arm} />
-        <path d="M906 336 L952 350 L980 314" {...arm} opacity="0.9" />
+      {/* dust off the toe-off feet */}
+      <g fill="#ffffff">
+        <circle cx="1352" cy="560" r="4" opacity="0.14" />
+        <circle cx="1368" cy="548" r="2.5" opacity="0.1" />
+        <circle cx="1066" cy="556" r="4" opacity="0.12" />
+        <circle cx="1082" cy="544" r="2.5" opacity="0.09" />
       </g>
     </SceneShell>
   )
 }
 
-// 3 — THE ARENA. A footballer striking, a kickboxer at head height, a swimmer
-// cutting through a water band along the floor.
+// 3 — THE ARENA. A footballer through the strike, a kickboxer at head
+// height, a swimmer mid-stroke half-submerged in the water band.
 function SceneArena() {
+  const p = 'hg-are'
   return (
-    <SceneShell glowId="hg-are">
-      {/* the kickboxer — roundhouse, lead guard up, rear hand chambered low
-          so the head stays a clean read; ponytail behind the neck, never
-          above the crown (drawn there it read as a horn). */}
-      <g filter="url(#hg-are)">
-        <circle cx="924" cy="252" r="25" fill={K} />
-        <path d="M944 262 C 958 272 960 290 954 306" {...hair} strokeWidth="9" />
-        <path d="M916 286 L896 370" {...torso} strokeWidth="34" />
-        <path d="M896 370 L900 450 L902 526" {...limb} />
-        <path d="M894 526 L868 532" {...limb} strokeWidth="18" />
-        <path d="M896 370 L830 372 L764 330" {...limb} />
-        <circle cx="754" cy="326" r="13" fill={K} />
-        <path d="M910 292 L872 314 L850 284" {...arm} />
-        <circle cx="846" cy="278" r="15" fill={K} />
-        <path d="M920 300 L952 326 L938 354" {...arm} opacity="0.9" />
-        <circle cx="936" cy="360" r="14" fill={K} />
-      </g>
+    <SceneShell p={p}>
+      <Shadow cx="1240" rx="85" p={p} />
+      <Shadow cx="918" rx="70" p={p} o="0.45" />
 
-      {/* the footballer — volley */}
-      <g filter="url(#hg-are)">
-        <circle cx="1266" cy="252" r="27" fill={K} />
-        <path d="M1252 288 L1222 372" {...torso} strokeWidth="38" />
-        <path d="M1222 372 L1218 456 L1214 536" {...limb} />
-        <path d="M1206 536 L1180 542" {...limb} strokeWidth="18" />
-        <path d="M1222 372 L1150 410 L1096 350" {...limb} />
-        <path d="M1096 350 L1080 330" {...limb} strokeWidth="18" />
-        <path d="M1250 292 L1198 314 L1166 288" {...arm} />
-        <path d="M1258 296 L1302 330 L1324 374" {...arm} opacity="0.9" />
-        {/* the ball, mid-flight off his boot */}
-        <circle cx="1042" cy="296" r="30" fill={K} />
-        <circle cx="1042" cy="296" r="30" fill="none" stroke={EMBER} strokeWidth="2.5" opacity="0.55" />
-        <path d="M1022 278 Q1042 296 1026 316 M1058 276 Q1048 298 1062 314" stroke={EMBER} strokeWidth="2.5" opacity="0.45" fill="none" />
-        <path d="M1078 330 L1066 314 M1096 316 L1082 302" stroke={EMBER} strokeWidth="4" strokeLinecap="round" opacity="0.35" />
-      </g>
+      <Athlete parts={FIGURES.kicker} p={p} />
+      <Athlete parts={FIGURES.striker} p={p} />
 
-      {/* the water, and the swimmer in it. Three layers, in paint order:
-          the back sheet with a lit crest, the swimmer, then a FRONT sheet
-          over his lower body — the occlusion is what makes him read as IN
-          the water rather than lying on the floor (the first draft skipped
-          it and he looked collapsed on the ground). */}
+      {/* the ball, just off his boot — a lit crescent and quiet seams, the
+          way a real ball reads against a dark pitch */}
+      <circle cx="1060" cy="304" r="30" fill={`url(#${p}-body)`} />
+      <path d="M1038.8 282.8 A 30 30 0 0 1 1081.2 282.8" stroke={EMBER} strokeWidth="3" fill="none" opacity="0.6" />
+      <path d="M1040 288 Q1060 304 1044 324 M1076 284 Q1066 306 1080 322" stroke="#000000" strokeWidth="2" opacity="0.5" fill="none" />
+
+      {/* water: back sheet with a lit crest, the swimmer, then a FRONT sheet
+          over his lower body — the occlusion is what makes him read as IN the
+          water rather than lying on the floor. */}
       <g>
-        <path d="M0 556 Q120 544 240 556 T480 556 T720 556 T960 556 T1200 556 T1440 556 L1440 640 L0 640 Z" fill="#ffffff" opacity="0.07" />
-        <path d="M0 556 Q120 544 240 556 T480 556 T720 556 T960 556 T1200 556 T1440 556" fill="none" stroke="#ffffff" strokeWidth="2.5" opacity="0.2" />
+        <path d="M0 584 Q120 574 240 584 T480 584 T720 584 T960 584 T1200 584 T1440 584 L1440 640 L0 640 Z" fill="#ffffff" opacity="0.09" />
+        <path d="M0 584 Q120 574 240 584 T480 584 T720 584 T960 584 T1200 584 T1440 584" fill="none" stroke="#ffffff" strokeWidth="2.5" opacity="0.3" />
       </g>
-      <g filter="url(#hg-are)">
-        <circle cx="966" cy="556" r="21" fill={K} />
-        <path d="M992 564 L1112 578" {...torso} strokeWidth="28" />
-        <path d="M996 560 L944 516 L896 550" {...arm} />
-        <path d="M1112 578 L1164 570 L1204 560" {...limb} strokeWidth="20" />
-        <circle cx="888" cy="562" r="6" fill="#ffffff" opacity="0.55" />
-        <circle cx="876" cy="550" r="4" fill="#ffffff" opacity="0.45" />
-        <circle cx="1214" cy="554" r="5" fill="#ffffff" opacity="0.5" />
-        <circle cx="1228" cy="564" r="3.5" fill="#ffffff" opacity="0.4" />
+      <Athlete parts={FIGURES.swimmer} p={p} />
+      <g fill="#ffffff">
+        <circle cx="888" cy="584" r="6" opacity="0.5" />
+        <circle cx="876" cy="572" r="4" opacity="0.4" />
+        <circle cx="1214" cy="576" r="5" opacity="0.45" />
+        <circle cx="1228" cy="586" r="3.5" opacity="0.35" />
       </g>
       <g>
-        <path d="M0 572 Q120 562 240 572 T480 572 T720 572 T960 572 T1200 572 T1440 572 L1440 640 L0 640 Z" fill="#10141b" opacity="0.85" />
-        <path d="M0 572 Q120 562 240 572 T480 572 T720 572 T960 572 T1200 572 T1440 572" fill="none" stroke={EMBER} strokeWidth="2" opacity="0.25" />
-        <path d="M0 600 Q120 592 240 600 T480 600 T720 600 T960 600 T1200 600 T1440 600" fill="none" stroke="#ffffff" strokeWidth="2" opacity="0.08" />
+        <path d="M0 596 Q120 588 240 596 T480 596 T720 596 T960 596 T1200 596 T1440 596 L1440 640 L0 640 Z" fill="#10141b" opacity="0.92" />
+        <path d="M0 596 Q120 588 240 596 T480 596 T720 596 T960 596 T1200 596 T1440 596" fill="none" stroke={EMBER} strokeWidth="2" opacity="0.25" />
+        <path d="M0 618 Q120 612 240 618 T480 618 T720 618 T960 618 T1200 618 T1440 618" fill="none" stroke="#ffffff" strokeWidth="2" opacity="0.08" />
       </g>
     </SceneShell>
   )
