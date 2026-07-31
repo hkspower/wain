@@ -33,7 +33,9 @@
     "publish": "node scripts/publish-ftps.mjs",
     "publish:dry": "node scripts/publish-ftps.mjs --dry-run",
     "publish:watch": "node scripts/publish-watch.mjs",
-    "ftp:doctor": "node scripts/ftp-doctor.mjs"
+    "ftp:doctor": "node scripts/ftp-doctor.mjs",
+    "test:native": "node scripts/native-backend-test.mjs",
+    "test:native-e2e": "node scripts/native-e2e-test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",

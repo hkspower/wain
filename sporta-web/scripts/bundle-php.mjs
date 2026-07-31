@@ -17,7 +17,11 @@ import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SKIP = new Set(['config.php', 'README.md', '.cbk_token.json'])
-const BUNDLES = [['php-knet', 'knet'], ['php-cbk', 'pay']]
+// php-store is the native backend: /api serves the storefront and the admin
+// from MySQL on the same plan. schema/seed ship too — they are how the owner
+// imports the database in phpMyAdmin — but they are denied by the folder's
+// .htaccess, so shipping them is not serving them.
+const BUNDLES = [['php-knet', 'knet'], ['php-cbk', 'pay'], ['php-store', 'api']]
 
 if (!existsSync(join(root, 'dist'))) { console.error('dist/ missing — run the build first'); process.exit(1) }
 

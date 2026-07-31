@@ -37,14 +37,14 @@ const REMOTE = (cfg.ftp?.remoteDir ?? '/public_html').replace(/\/$/, '')
 // Files whose server copy always wins. Hard-coded, not configuration: these
 // hold the live Supabase and Tranportal credentials and exist only on the
 // server, and a configuration mistake that overwrote them would cost real money.
-const NEVER_OVERWRITE = ['config.js', 'knet/config.php']
+const NEVER_OVERWRITE = ['config.js', 'knet/config.php', 'pay/config.php', 'api/config.php']
 // Never sent under any circumstance.
 const NEVER_SEND = ['.env', '.env.deploy', '.DS_Store']
 // GO-LIVE tells the owner to DELETE these once the site is set up, because each
 // one reveals configuration state. Re-uploading them on every publish would
 // silently undo that cleanup — so they are excluded by default and only sent
 // when asked for explicitly.
-const SETUP_ONLY = ['go-live.html', 'knet/selftest.php', 'knet/setup-config.php']
+const SETUP_ONLY = ['go-live.html', 'knet/selftest.php', 'knet/setup-config.php', 'api/setup-admin.php']
 // Must arrive, and must be verified afterwards. Listing them is not enough: the
 // verify step used to check only files that happened to be in the upload set,
 // so if one had been filtered out it would have been skipped in silence and the

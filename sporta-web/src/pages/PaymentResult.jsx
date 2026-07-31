@@ -3,6 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { useCart } from '../lib/cart'
 import { clearAttempt } from '../lib/checkout'
+import { usingPhp, phpOrderStatus } from '../lib/backend'
 import { usePageMeta } from '../lib/seo'
 import { ltr } from '../lib/bidi'
 
@@ -33,12 +34,17 @@ export default function PaymentResult() {
       }
       if (!trackid) return setLoading(false)
       try {
-        const { supabase } = await import('../lib/supabase')
-        if (supabase) {
-          // Read status via the security-definer RPC (orders has no client SELECT).
-          const { data } = await supabase.rpc('get_order_status', { p_track_id: trackid })
-          const row = Array.isArray(data) ? data[0] : data
+        if (usingPhp()) {
+          const row = await phpOrderStatus(trackid)
           if (alive) setConfirmed(row?.payment_status ?? null)
+        } else {
+          const { supabase } = await import('../lib/supabase')
+          if (supabase) {
+            // Status via the security-definer RPC (orders has no client SELECT).
+            const { data } = await supabase.rpc('get_order_status', { p_track_id: trackid })
+            const row = Array.isArray(data) ? data[0] : data
+            if (alive) setConfirmed(row?.payment_status ?? null)
+          }
         }
       } catch {
         /* ignore */

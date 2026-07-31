@@ -87,6 +87,59 @@ exit;
 // "success" page with no paid order recorded anywhere.
 function knet_update_order(array $cfg, string $trackid, bool $paid, string $result, array $fields, bool $review = false): bool
 {
+    // NATIVE MODE. When knet/config.php carries a 'store' => 'mysql' block the
+    // bank's answer is written to the MySQL orders table on this same host —
+    // no Supabase anywhere in the payment path. Everything the Supabase branch
+    // learned the hard way is kept: never downgrade paid, exact column names,
+    // report failure honestly so the customer is not shown success over an
+    // unrecorded payment. The warehouse follow-up rides the same transaction.
+    if (($cfg['store'] ?? '') === 'mysql') {
+        try {
+            $pdo = new PDO(
+                "mysql:host={$cfg['mysql_host']};dbname={$cfg['mysql_name']};charset=utf8mb4",
+                $cfg['mysql_user'], $cfg['mysql_pass'],
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]
+            );
+            $pdo->beginTransaction();
+            $sql = 'update orders set payment_status = ?, cbk_status = ?, cbk_message = ?,
+                      cbk_paymentid = ?, cbk_transaction = ?, cbk_reference = ?,
+                      cbk_authcode = ?, cbk_receipt = ?, cbk_paytype = ?, paid_at = ?
+                    where track_id = ?';
+            if (!$paid) $sql .= " and payment_status <> 'paid'";
+            $st = $pdo->prepare($sql);
+            $st->execute([
+                $paid ? 'paid' : ($review ? 'review' : 'failed'),
+                $result,
+                (string)($fields['result'] ?? ''), (string)($fields['paymentid'] ?? ''),
+                (string)($fields['tranid'] ?? ''), (string)($fields['ref'] ?? ''),
+                (string)($fields['auth'] ?? ''), (string)($fields['receipt'] ?? ''),
+                (string)($fields['paytype'] ?? ''),
+                $paid ? gmdate('Y-m-d H:i:s') : null,
+                $trackid,
+            ]);
+            $updated = $st->rowCount() > 0;
+            if ($updated && ($paid || !$review)) {
+                // The ship-it / do-not-ship follow-up, queued in the same
+                // transaction as the status it reports.
+                $o = $pdo->prepare('select id from orders where track_id = ?');
+                $o->execute([$trackid]);
+                if ($orderId = $o->fetchColumn()) {
+                    // public_html layout first (knet/ and api/ are
+                    // siblings); repo layout second, for the test rig.
+                    $storeLib = dirname(__DIR__) . '/api/store.php';
+                    if (!is_file($storeLib)) $storeLib = dirname(__DIR__) . '/php-store/store.php';
+                    require_once $storeLib;
+                    store_queue_fulfilment($pdo, (int)$orderId, 'payment');
+                }
+            }
+            $pdo->commit();
+            return $updated;
+        } catch (Throwable $e) {
+            if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+            return false;
+        }
+    }
+
     $url = rtrim($cfg['supabase_url'], '/') . '/rest/v1/'
         . rawurlencode($cfg['orders_table'])
         . '?' . rawurlencode($cfg['orders_match_column']) . '=eq.' . rawurlencode($trackid);

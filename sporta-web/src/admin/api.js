@@ -1,5 +1,17 @@
 import { supabase } from '../lib/supabase'
 import { PRODUCTS } from '../lib/products'
+import { usingPhp, phpAdmin } from '../lib/backend'
+
+// In native mode every helper below routes to /api/admin.php instead of
+// Supabase, returning the SAME shapes — the screens cannot tell the backends
+// apart, which is the whole contract. A 401 maps to notSignedIn so AdminApp
+// can show the login rather than an empty dashboard.
+async function php(route, opts) {
+  const { status, data } = await phpAdmin(route, opts)
+  if (status === 401) return { notSignedIn: true }
+  if (status >= 400) return { error: data?.error ?? `http_${status}` }
+  return { data }
+}
 
 // Every admin query lives here so screens stay presentational and there is one
 // place to look when a policy or column changes.
@@ -50,6 +62,10 @@ function isSchemaError(error) {
 }
 
 export async function fetchStats() {
+  if (usingPhp()) {
+    const r = await php('stats')
+    return r.data ? { stats: r.data } : r
+  }
   if (!ready()) return { error: NOT_CONFIGURED }
   const { data, error } = await supabase.rpc('admin_order_stats')
   if (error) {
@@ -61,6 +77,10 @@ export async function fetchStats() {
 }
 
 export async function fetchRevenueDaily(days = 14) {
+  if (usingPhp()) {
+    const r = await php(`revenue&days=${days}`)
+    return { series: r.data ?? [] }
+  }
   if (!ready()) return { series: [] }
   const { data, error } = await supabase.rpc('admin_revenue_daily', { p_days: days })
   if (error) {
@@ -71,6 +91,12 @@ export async function fetchRevenueDaily(days = 14) {
 }
 
 export async function fetchOrders({ payment = 'all', fulfilment = 'all', search = '', limit = 100 } = {}) {
+  if (usingPhp()) {
+    const r = await php(
+      `orders&payment=${payment}&fulfilment=${fulfilment}&search=${encodeURIComponent(search)}&limit=${limit}`,
+    )
+    return r.data ? { orders: r.data } : { ...r, orders: [] }
+  }
   if (!ready()) return { error: NOT_CONFIGURED, orders: [] }
   let q = supabase
     .from('orders')
@@ -100,6 +126,10 @@ export async function fetchOrders({ payment = 'all', fulfilment = 'all', search 
 
 // Line items for one order, with the product names resolved.
 export async function fetchOrderItems(orderId) {
+  if (usingPhp()) {
+    const r = await php(`items&order=${orderId}`)
+    return { items: r.data ?? [], error: r.error }
+  }
   if (!ready()) return { items: [] }
   const { data, error } = await supabase
     .from('order_items')
@@ -110,6 +140,10 @@ export async function fetchOrderItems(orderId) {
 }
 
 export async function setFulfilment(orderId, status) {
+  if (usingPhp()) {
+    const r = await php('fulfilment', { method: 'POST', body: { order_id: orderId, status } })
+    return r.data ? {} : r
+  }
   if (!ready()) return { error: NOT_CONFIGURED }
   const { error } = await supabase
     .from('orders')
@@ -127,6 +161,18 @@ export async function setFulfilment(orderId, status) {
 // order whose payment_method is not 'cod', and it maintains paid_at, which the
 // revenue stats and the daily chart filter on.
 export async function setCodPaid(orderId, paid = true) {
+  if (usingPhp()) {
+    const r = await php('cod_paid', { method: 'POST', body: { order_id: orderId, paid } })
+    if (r.data) return { order: r.data }
+    // The PHP side raises the same named errors admin_set_cod_paid does, so
+    // the translations below serve both backends.
+    const m = r.error ?? ''
+    if (m.includes('not_a_cash_order')) return { error: 'That is not a cash order — card payments are confirmed by the bank, not here.' }
+    if (m.includes('order_not_pending')) return { error: 'Only a pending cash order can be marked paid.' }
+    if (m.includes('order_not_paid')) return { error: 'That order is not marked paid.' }
+    if (m.includes('order_not_found')) return { error: 'Order not found — refresh the list.' }
+    return r
+  }
   if (!ready()) return { error: NOT_CONFIGURED }
   const { data, error } = await supabase.rpc('admin_set_cod_paid', {
     p_order_id: orderId,
@@ -149,6 +195,10 @@ export async function setCodPaid(orderId, paid = true) {
 }
 
 export async function saveCustomer(orderId, fields) {
+  if (usingPhp()) {
+    const r = await php('customer', { method: 'POST', body: { order_id: orderId, fields } })
+    return r.data ? {} : r
+  }
   if (!ready()) return { error: NOT_CONFIGURED }
   const { error } = await supabase.from('orders').update(fields).eq('id', orderId)
   return error ? { error: error.message } : {}
@@ -179,10 +229,18 @@ export function catalogRows() {
 }
 
 export async function fetchCatalogState() {
-  if (!ready()) return { error: NOT_CONFIGURED, rows: [] }
-  const { data, error } = await supabase.from('products').select('slug, price, active')
-  if (error) {
-    return isSchemaError(error) ? { needsMigration: true, rows: [] } : { error: error.message, rows: [] }
+  let data
+  if (usingPhp()) {
+    const r = await php('products_state')
+    if (!r.data) return { ...r, rows: [] }
+    data = r.data
+  } else {
+    if (!ready()) return { error: NOT_CONFIGURED, rows: [] }
+    const res = await supabase.from('products').select('slug, price, active')
+    if (res.error) {
+      return isSchemaError(res.error) ? { needsMigration: true, rows: [] } : { error: res.error.message, rows: [] }
+    }
+    data = res.data
   }
   const bySlug = new Map((data ?? []).map((r) => [r.slug, r]))
   const local = catalogRows()
@@ -206,8 +264,12 @@ export async function fetchCatalogState() {
 }
 
 export async function syncCatalog() {
-  if (!ready()) return { error: NOT_CONFIGURED }
   const rows = catalogRows()
+  if (usingPhp()) {
+    const r = await php('sync', { method: 'POST', body: { rows } })
+    return r.data ? { count: r.data.count } : r
+  }
+  if (!ready()) return { error: NOT_CONFIGURED }
   const { error } = await supabase.from('products').upsert(rows, { onConflict: 'slug' })
   return error ? { error: error.message } : { count: rows.length }
 }
@@ -242,6 +304,10 @@ export function toCsv(orders) {
 // the anon key can only see the product_stock view, which omits it.
 // ---------------------------------------------------------------------------
 export async function fetchVariants() {
+  if (usingPhp()) {
+    const r = await php('variants')
+    return r.data ? { rows: r.data } : { ...r, rows: [] }
+  }
   if (!ready()) return { error: NOT_CONFIGURED, rows: [] }
   const { data, error } = await supabase.rpc('admin_variants')
   if (error) {
@@ -254,6 +320,14 @@ export async function fetchVariants() {
 // Counting stock goes through an RPC, not an UPDATE, so the admin can only ever
 // move the count — never the SKU it belongs to, the slug or the wholesale cost.
 export async function setStock(sku, stock) {
+  if (usingPhp()) {
+    const r = await php('set_stock', { method: 'POST', body: { sku, stock } })
+    if (r.data) return { variant: r.data }
+    const m = r.error ?? ''
+    if (m.includes('stock_cannot_be_negative')) return { error: 'Stock cannot be negative.' }
+    if (m.includes('sku_not_found')) return { error: 'That item code is not in the inventory — refresh.' }
+    return r
+  }
   if (!ready()) return { error: NOT_CONFIGURED }
   const { data, error } = await supabase.rpc('admin_set_stock', { p_sku: sku, p_stock: stock })
   if (error) {

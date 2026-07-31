@@ -8,3 +8,6 @@ shots
 shots-co
 shots-co-full
 shots-cart
+
+# Native backend credentials — server-only, like knet/config.php.
+dropin/php-store/config.php

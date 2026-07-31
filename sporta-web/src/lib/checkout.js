@@ -1,5 +1,6 @@
 import { configValue } from './runtimeConfig'
 import { attemptTrackId, clearAttempt, makeTrackId } from './attempt'
+import { usingPhp, phpCreateOrder } from './backend'
 
 // Re-exported so the pages that use them keep importing from one place: a page
 // should not have to know that the attempt logic lives in its own file to be
@@ -51,14 +52,6 @@ function tokenFor(error) {
 // parameter at all — it reads the figure from the order it looks up. That is
 // what makes the amount untamperable end to end.
 export async function startCheckout({ items, lang = 'en', customer, paymentMethod = 'knet' }) {
-  const { supabase } = await import('./supabase')
-
-  // Fail closed. With no database there is nowhere to record the order or the
-  // address, and pay.php would fall back to charging whatever the browser
-  // asked for. Taking money for an order nobody wrote down, to an address
-  // nobody captured, is worse than not taking it.
-  if (!supabase) throw new CheckoutError('unconfigured')
-
   // ONE TRACK ID PER ATTEMPT, NOT PER TAP.
   //
   // create_order has an idempotency guard — same track_id, same pending order,
@@ -72,21 +65,47 @@ export async function startCheckout({ items, lang = 'en', customer, paymentMetho
   // address is the same attempt and reuses it. Change the bag and it changes,
   // because that is genuinely a different order.
   const trackId = attemptTrackId({ items, customer, paymentMethod })
-  const { data, error } = await supabase.rpc('create_order', {
-    p_track_id: trackId,
-    // size and fit travel with the line. They are options, not prices: the
-    // server validates them against a fixed list and still reads the price from
-    // the products table, so nothing here can change what is charged.
-    p_items: items.map((i) => ({
-      slug: i.slug,
-      qty: i.qty,
-      ...(i.size ? { size: i.size } : {}),
-      ...(i.fit ? { fit: i.fit } : {}),
-    })),
-    p_customer: customer,
-    p_payment_method: paymentMethod,
+
+  // size and fit travel with the line on BOTH backends. They are options, not
+  // prices: each server validates them against a fixed list and still reads
+  // the price from its products table, so nothing here can change what is
+  // charged.
+  const line = (i) => ({
+    slug: i.slug,
+    qty: i.qty,
+    ...(i.size ? { size: i.size } : {}),
+    ...(i.fit ? { fit: i.fit } : {}),
   })
-  if (error) throw new CheckoutError(tokenFor(error), error.message)
+
+  let data
+  if (usingPhp()) {
+    // The native backend — /api on the same host as the payment endpoints.
+    // phpCreateOrder throws with .token carrying the same machine tokens
+    // create_order raises, so messageFor() in Checkout.jsx translates both
+    // backends' failures with one table.
+    try {
+      data = await phpCreateOrder({ trackId, items: items.map(line), customer, paymentMethod })
+    } catch (e) {
+      throw new CheckoutError(e.token ?? 'failed', e.message)
+    }
+  } else {
+    const { supabase } = await import('./supabase')
+
+    // Fail closed. With no database there is nowhere to record the order or
+    // the address, and pay.php would fall back to charging whatever the
+    // browser asked for. Taking money for an order nobody wrote down, to an
+    // address nobody captured, is worse than not taking it.
+    if (!supabase) throw new CheckoutError('unconfigured')
+
+    const { data: sb, error } = await supabase.rpc('create_order', {
+      p_track_id: trackId,
+      p_items: items.map(line),
+      p_customer: customer,
+      p_payment_method: paymentMethod,
+    })
+    if (error) throw new CheckoutError(tokenFor(error), error.message)
+    data = sb
+  }
   if (!data?.track_id) throw new CheckoutError('failed')
 
   // Cash on delivery never touches the bank. The order is recorded and the

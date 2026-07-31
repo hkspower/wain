@@ -13,12 +13,96 @@ import Images from './Images'
 import Orders from './Orders'
 import Catalog from './Catalog'
 import { IconBag, IconTruck, IconStar, IconLock, IconBox, IconImage } from '../components/icons'
+import { usingPhp, phpAdmin } from '../lib/backend'
 
 // Orchestrates the admin session:
 //   no session            -> AdminLogin
 //   session + enrolled     -> LockScreen until unlocked (also re-locks on idle)
 //   session + unlocked     -> Dashboard
 export default function AdminApp() {
+  // Native mode replaces the whole Supabase auth orchestration (session,
+  // device passcode, idle lock) with one PHP session. The Dashboard below is
+  // shared — it renders from admin/api.js, which already routes per backend.
+  if (usingPhp()) return <PhpAdminApp />
+  return <SupabaseAdminApp />
+}
+
+// ---------------------------------------------------------------------------
+// Native (PHP session) admin. Simpler on purpose: the session cookie is the
+// whole story — HttpOnly, SameSite=Strict, throttled at the login. The device
+// passcode and idle-lock features are Supabase RPCs and do not exist here;
+// Settings says so instead of showing controls that would fail.
+// ---------------------------------------------------------------------------
+function PhpAdminApp() {
+  useAdminMeta()
+  const [session, setSession] = useState(undefined) // undefined = checking
+  const [form, setForm] = useState({ email: '', password: '' })
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    phpAdmin('me').then(({ data }) => setSession(data ?? null))
+  }, [])
+
+  async function login(e) {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    const { status, data } = await phpAdmin('login', { method: 'POST', body: form })
+    if (status === 200) setSession(data)
+    else if (status === 429) setError('Too many attempts — this account is locked for 15 minutes.')
+    else setError('Wrong email or password.')
+    setBusy(false)
+  }
+
+  if (session === undefined) {
+    return <div className="flex min-h-screen items-center justify-center text-slate-400">Loading…</div>
+  }
+
+  if (!session) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
+        <form onSubmit={login} className="w-full max-w-sm space-y-4 rounded-2xl border border-slate-200 bg-white p-8">
+          <div className="text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600 font-bold text-white">S</div>
+            <h1 className="text-xl font-bold text-slate-800">Sporta Admin</h1>
+            <p className="mt-1 text-xs text-slate-500">Native backend — signed in on this server</p>
+          </div>
+          {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</p>}
+          <input
+            type="email" required autoComplete="username" placeholder="Email"
+            value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
+          />
+          <input
+            type="password" required autoComplete="current-password" placeholder="Password"
+            value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
+          />
+          <button disabled={busy} className="w-full rounded-xl bg-indigo-600 py-2.5 font-bold text-white disabled:opacity-50">
+            {busy ? '…' : 'Sign in'}
+          </button>
+        </form>
+      </div>
+    )
+  }
+
+  return (
+    <Dashboard
+      email={session.email}
+      onSignOut={async () => {
+        await phpAdmin('logout', { method: 'POST' })
+        setSession(null)
+      }}
+      onEnrollChange={() => {}}
+      notAdmin={false}
+      onLockNow={() => {}}
+      canLock={false}
+    />
+  )
+}
+
+function SupabaseAdminApp() {
   useAdminMeta()
   const [session, setSession] = useState(undefined) // undefined = loading
   const [enrolled, setEnrolled] = useState(isEnrolledLocally()) // server-reconciled below
@@ -216,7 +300,16 @@ function Dashboard({ email, onSignOut, onEnrollChange, notAdmin, onLockNow, canL
 
         {tab === 'stock' && <Inventory />}
 
-        {tab === 'images' && <Images />}
+        {tab === 'images' && (usingPhp() ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm leading-relaxed text-slate-600">
+            <p className="font-semibold text-slate-800">Images</p>
+            <p className="mt-2">
+              The uploader stores photos in Supabase Storage, which native mode does not use.
+              Upload photos over FTPS into <code className="rounded bg-slate-100 px-1.5 py-0.5">public_html/cats/</code> and
+              paste their URLs into the catalogue — or keep Supabase configured for Storage only.
+            </p>
+          </div>
+        ) : <Images />)}
 
         {tab === 'settings' && (
           <div className="space-y-6">
@@ -224,6 +317,19 @@ function Dashboard({ email, onSignOut, onEnrollChange, notAdmin, onLockNow, canL
 
             {notAdmin ? (
               <NotAdminNotice />
+            ) : usingPhp() ? (
+              // Quick-unlock and device management are Supabase RPCs; in
+              // native mode the PHP session is the whole story. Saying so
+              // beats rendering controls that would fail on first tap.
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm leading-relaxed text-slate-600">
+                <p className="font-semibold text-slate-800">Native backend</p>
+                <p className="mt-2">
+                  You sign in with the email and password created on the server. To change the
+                  password, run <code className="rounded bg-slate-100 px-1.5 py-0.5">setup-admin.php</code> again
+                  after clearing the <code className="rounded bg-slate-100 px-1.5 py-0.5">admin_users</code> table
+                  in phpMyAdmin — or ask for a password-change screen to be added.
+                </p>
+              </div>
             ) : (
               <>
                 <SetupQuickUnlock onEnrolled={onEnrollChange} onLockNow={onLockNow} canLock={canLock} />

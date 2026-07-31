@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { ltr } from '../lib/bidi'
 import { formatKWD } from '../lib/format'
+import { usingPhp, phpOrderStatus } from '../lib/backend'
 import { usePageMeta } from '../lib/seo'
 
 // Order tracking by the track id shown after checkout. Reads status through the
@@ -19,12 +20,20 @@ export default function TrackOrder() {
     if (!trackId) return
     setState({ status: 'loading' })
     try {
-      const { supabase } = await import('../lib/supabase')
-      if (!supabase) return setState({ status: 'error' })
-      const { data, error } = await supabase.rpc('get_order_status', { p_track_id: trackId })
-      const row = Array.isArray(data) ? data[0] : data
-      if (error || !row) return setState({ status: 'notfound' })
-      setState({ status: 'found', row })
+      let row
+      if (usingPhp()) {
+        row = await phpOrderStatus(trackId)
+      } else {
+        const { supabase } = await import('../lib/supabase')
+        if (!supabase) return setState({ status: 'error' })
+        const { data, error } = await supabase.rpc('get_order_status', { p_track_id: trackId })
+        if (error) return setState({ status: 'notfound' })
+        row = Array.isArray(data) ? data[0] : data
+      }
+      if (!row) return setState({ status: 'notfound' })
+      // Neither backend returns the track id in the row — it is the QUERY. Put
+      // it back so the card can print the number that was actually looked up.
+      setState({ status: 'found', row: { ...row, track_id: trackId } })
     } catch {
       setState({ status: 'error' })
     }

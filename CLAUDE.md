@@ -40,7 +40,16 @@
 - **Toolchain:** Node **24 LTS (Krypton)** — pinned in `sporta-web/.nvmrc`
   and `engines` (>=22.12). Vite 8 will not run on older Node.
 - **Frontend:** React 18 + TypeScript + Vite + Tailwind + shadcn/ui, react-router v7.
-- **Backend:** Supabase (Postgres, Auth, Edge Functions).
+- **Backend: TWO, switchable at runtime** (saved by user request — apply
+  always). `config.js` `backend: 'php'` selects the **native backend**: MySQL
+  on the same Hostinger plan + PHP at `/api` (source
+  `sporta-web/dropin/php-store/`, docs `sporta-web/NATIVE-BACKEND.md`); any
+  other value = **Supabase** (Postgres, Auth, Edge Functions), unchanged. Both
+  enforce the SAME contract — identical validation tokens and response shapes —
+  proven by `npm run test:native` (36 checks) and `test:native-e2e` (14 browser
+  checks). `api/config.php` lives ONLY on the server, same rule as
+  `knet/config.php`. Any change to one backend's contract must be mirrored in
+  the other and covered in native-backend-test.mjs.
 - **Payments — two products from the SAME bank (CBK), two separate setups**
   (saved by user request — apply always):
 

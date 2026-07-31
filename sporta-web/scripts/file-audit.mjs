@@ -139,6 +139,7 @@ for (const p of onDisk) {
   if (p.startsWith('/assets/')) continue          // hashed, referenced from the bundle graph
   if (p.startsWith('/knet/')) continue            // endpoints, called by URL not by link
   if (p.startsWith('/pay/')) continue             // ditto — the CBK hosted gateway
+  if (p.startsWith('/api/')) continue             // the native backend; called by URL
   if (p.startsWith('/cats/')) continue            // category art; CategoryTile assembles these
                                                   // URLs from parts, so no literal appears
   add('LOW', `never referenced by anything shipped: ${p}`, '')
@@ -172,11 +173,18 @@ const REQUIRED = ['/index.html', '/.htaccess', '/knet/.htaccess', '/config.js',
                   '/knet/pay.php', '/knet/callback.php', '/knet/knet.php', '/knet/config.example.php',
                   // The CBK hosted gateway — the only one that can do T-Pay.
                   '/pay/.htaccess', '/pay/pay.php', '/pay/callback.php', '/pay/cbk.php',
-                  '/pay/config.example.php']
+                  '/pay/config.example.php',
+                  // The native backend. schema/seed ship on purpose — they are
+                  // what the owner imports in phpMyAdmin — and the folder's
+                  // .htaccess denies them by name so shipping is not serving.
+                  '/api/.htaccess', '/api/api.php', '/api/admin.php', '/api/store.php',
+                  '/api/config.example.php', '/api/cron-fulfilment.php',
+                  '/api/schema.mysql.sql', '/api/seed.mysql.sql']
 for (const r of REQUIRED) if (!onDisk.has(r)) add('HIGH', `required file absent: ${r}`, '')
 // /pay/config.php holds the CBK ClientSecret and ENCRP_KEY; .cbk_token.json is
 // a live AccessToken. Neither may ever be in the package.
 const FORBIDDEN = ['/knet/config.php', '/pay/config.php', '/pay/.cbk_token.json',
+                   '/api/config.php',
                    '/.env', '/.env.deploy']
 for (const r of FORBIDDEN) if (onDisk.has(r)) add('HIGH', `must never ship: ${r}`, '')
 

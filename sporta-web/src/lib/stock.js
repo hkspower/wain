@@ -1,4 +1,5 @@
 import { configValue } from './runtimeConfig'
+import { usingPhp, phpStock } from './backend'
 
 // Per-size availability for one product, read from the public product_stock
 // view (see supabase/ahed-inventory-migration.sql).
@@ -56,6 +57,17 @@ export function clearStockCache() {
 }
 
 async function loadAll() {
+  // Native mode: same rows, same columns, one origin. The cache, the TTL and
+  // the shared in-flight promise above apply identically — only the transport
+  // differs.
+  if (usingPhp()) {
+    try {
+      const data = await phpStock()
+      return shape(data)
+    } catch {
+      return null
+    }
+  }
   if (!url || !anonKey) return null
   // Exactly the request supabase-js would have sent for
   // .from('product_stock').select('slug, size, sku, stock, in_stock')
@@ -70,6 +82,12 @@ async function loadAll() {
   )
   if (!res.ok) return null
   const data = await res.json()
+  return shape(data)
+}
+
+// Rows -> { slug: { size: { sku, stock, inStock } } }, shared by both backends
+// so the two cannot drift in how availability is read.
+function shape(data) {
   if (!Array.isArray(data) || !data.length) return null
   const bySlug = {}
   for (const r of data) {
@@ -79,7 +97,10 @@ async function loadAll() {
 }
 
 export async function fetchStock(slug) {
-  if (!url || !anonKey || !slug) return null
+  if (!slug) return null
+  // The Supabase guard only applies on the Supabase path — native mode has no
+  // anon key and must not be silenced by its absence.
+  if (!usingPhp() && (!url || !anonKey)) return null
 
   // Stale-while-revalidate, matching what the .htaccess now does for the shell:
   // answer from the copy in hand at once and refresh behind it, so only the very

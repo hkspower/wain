@@ -16,6 +16,15 @@
    =========================================================================== */
 
 window.SPORTA_CONFIG = {
+  /* -------------------------------------------------------------------------
+     WHICH BACKEND?  أي خادم؟
+     Leave `backend` EMPTY to use Supabase (the two values below it).
+     Set backend: 'php' to run NATIVE — MySQL on this same Hostinger plan,
+     no Supabase anywhere. Needs /api uploaded and the database imported:
+     see NATIVE-BACKEND.md. Flipping this line back restores Supabase.
+     ------------------------------------------------------------------------- */
+  backend: '',
+
   supabaseUrl: 'https://YOUR-PROJECT.supabase.co',
   supabaseAnonKey: 'your-anon-public-key',
 

@@ -1,0 +1,250 @@
+<?php
+// Sporta native store backend — shared core.
+//
+// This is the Supabase-free backend: MySQL on the same Hostinger plan, PHP on
+// the same host that already runs the payment endpoints. It is the model the
+// owner's previous OpenCart site used, and it exists so the shop can run with
+// no third-party backend at all.
+//
+// EVERY RULE HERE IS A PORT, NOT AN INVENTION. create_order's validation,
+// server-side pricing, idempotency, the size/fit lists, the outbox — each was
+// designed and argued over in supabase/*.sql, and this file carries the same
+// decisions into PHP. When a rule looks arbitrary ("why 99?"), the reasoning
+// lives in the SQL file of the same name; keep the two in step or the two
+// backends will accept different orders.
+//
+// SECURITY POSTURE. This runs on the host that takes the money, so the rules
+// that governed the payment dropins govern this too:
+//   * config.php holds the DB password and the admin hash — server-only, never
+//     committed, never in the zip, denied by name in .htaccess.
+//   * Nothing here writes files. The lesson of sporta-deploy.php stands: an
+//     endpoint that writes files is a way in, not a bridge.
+//   * The browser is never trusted: prices come from the products table, and
+//     every admin write goes through the session guard below.
+
+declare(strict_types=1);
+
+// ---------------------------------------------------------------- config + db
+
+function store_config(): array {
+    static $cfg = null;
+    if ($cfg === null) {
+        $path = __DIR__ . '/config.php';
+        if (!is_file($path)) {
+            store_out(['error' => 'not_configured',
+                       'hint'  => 'copy config.example.php to config.php and fill in the MySQL details'], 500);
+        }
+        $cfg = require $path;
+    }
+    return $cfg;
+}
+
+function store_db(): PDO {
+    static $pdo = null;
+    if ($pdo === null) {
+        $c = store_config();
+        // ERRMODE_EXCEPTION everywhere: a silent false from PDO is how a half-
+        // written order happens. utf8mb4 because the catalogue is Arabic.
+        $pdo = new PDO(
+            "mysql:host={$c['db_host']};dbname={$c['db_name']};charset=utf8mb4",
+            $c['db_user'],
+            $c['db_pass'],
+            [
+                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                // Real prepared statements. Emulated ones interpolate, and an
+                // endpoint fed raw JSON from the internet does not interpolate.
+                PDO::ATTR_EMULATE_PREPARES   => false,
+            ]
+        );
+    }
+    return $pdo;
+}
+
+// ------------------------------------------------------------------ responses
+
+function store_out($data, int $code = 200): void {
+    http_response_code($code);
+    header('Content-Type: application/json; charset=utf-8');
+    // No CORS headers on purpose. The SPA and this API live on the same origin
+    // (www.sporta.com.kw), and an API nobody else may call should not invite
+    // anybody else to call it. The Supabase backend needed CORS because it was
+    // a different origin; this one is the whole point of being native.
+    echo json_encode($data, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// The same stable machine tokens create_order raises, so the storefront's
+// existing error translations keep working unchanged against this backend.
+function store_fail(string $token, int $code = 400): void {
+    store_out(['error' => $token], $code);
+}
+
+function store_body(): array {
+    $raw = file_get_contents('php://input');
+    $data = json_decode($raw === false ? '' : $raw, true);
+    return is_array($data) ? $data : [];
+}
+
+// ------------------------------------------------------------------ validation
+// Ports of the helpers in supabase/checkout-migration.sql, same names, same
+// error tokens, same limits.
+
+const STORE_GOVERNORATES = ['capital', 'hawalli', 'farwaniya', 'mubarak-al-kabeer', 'ahmadi', 'jahra'];
+const STORE_SIZES        = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', 'ONE'];
+const STORE_FITS         = ['normal', 'slim', 'loose', 'oversize', 'boxy', 'tank'];
+const STORE_PAY_METHODS  = ['knet', 'tpay', 'cod'];
+
+// Arabic-Indic and Extended digits to ASCII — an Arabic keyboard types ٤ for 4,
+// and a phone field that rejects half the country's keyboards is broken.
+function store_ascii_digits(string $s): string {
+    return strtr($s, [
+        '٠'=>'0','١'=>'1','٢'=>'2','٣'=>'3','٤'=>'4','٥'=>'5','٦'=>'6','٧'=>'7','٨'=>'8','٩'=>'9',
+        '۰'=>'0','۱'=>'1','۲'=>'2','۳'=>'3','۴'=>'4','۵'=>'5','۶'=>'6','۷'=>'7','۸'=>'8','۹'=>'9',
+    ]);
+}
+
+// A Kuwaiti mobile: 8 digits starting 5, 6 or 9, with 965 prefixes tolerated.
+// Returns the 965-prefixed canonical form or null — same as normalise_kw_phone.
+function store_phone(?string $raw): ?string {
+    $d = preg_replace('/\D/', '', store_ascii_digits((string)$raw));
+    if (str_starts_with($d, '00965')) $d = substr($d, 5);
+    elseif (strlen($d) > 8 && str_starts_with($d, '965')) $d = substr($d, 3);
+    if (!preg_match('/^[569]\d{7}$/', $d)) return null;
+    return '965' . $d;
+}
+
+// checkout_text: trim, strip control characters, enforce length — raising the
+// same missing_/too_long_ tokens the SQL raises so messages translate.
+function store_text(?string $v, string $field, int $min, int $max): string {
+    $t = trim(preg_replace('/[\x00-\x1F\x7F]/u', '', (string)$v) ?? '');
+    if (mb_strlen($t) < $min) store_fail("missing_{$field}");
+    if (mb_strlen($t) > $max) store_fail("too_long_{$field}");
+    return $t;
+}
+
+function store_opt(?string $v): ?string {
+    $t = trim((string)$v);
+    return $t === '' ? null : mb_substr($t, 0, 280);
+}
+
+// ------------------------------------------------------------------ outbox
+
+// The fulfilment snapshot, identical in shape to fulfilment_payload() in
+// supabase/fulfilment-migration.sql — render.mjs and the email tests already
+// define what the warehouse reads, and this must produce the same document.
+function store_fulfilment_payload(PDO $db, int $orderId): array {
+    $o = $db->prepare('select * from orders where id = ?');
+    $o->execute([$orderId]);
+    $ord = $o->fetch();
+    $it = $db->prepare(
+        'select p.name_en, p.name_ar, p.slug as sku, oi.qty, oi.size, oi.fit
+           from order_items oi join products p on p.id = oi.product_id
+          where oi.order_id = ? order by p.name_en, oi.size'
+    );
+    $it->execute([$orderId]);
+    return [
+        'track_id'       => $ord['track_id'],
+        'placed_at'      => $ord['created_at'],
+        'amount_kwd'     => (float)$ord['amount'],
+        'payment_method' => $ord['payment_method'],
+        'payment_status' => $ord['payment_status'],
+        'collect_cash'   => $ord['payment_method'] === 'cod' && $ord['payment_status'] !== 'paid',
+        'customer'       => ['name' => $ord['customer_name'], 'phone' => $ord['customer_phone']],
+        'address'        => [
+            'governorate' => $ord['customer_governorate'],
+            'area'        => $ord['customer_area'],
+            'block'       => $ord['customer_block'],
+            'street'      => $ord['customer_street'],
+            'building'    => $ord['customer_building'],
+            'floor'       => $ord['customer_floor'],
+            'flat'        => $ord['customer_flat'],
+            'note'        => $ord['customer_note'],
+        ],
+        'items'          => $it->fetchAll(),
+    ];
+}
+
+function store_queue_fulfilment(PDO $db, int $orderId, string $kind): void {
+    // One 'new' message per order, enforced by the unique index — a retry
+    // cannot produce two picking lists. INSERT IGNORE is MySQL's on-conflict-
+    // do-nothing.
+    $payload = json_encode(store_fulfilment_payload($db, $orderId), JSON_UNESCAPED_UNICODE);
+    if ($kind === 'new') {
+        $db->prepare('insert ignore into fulfilment_outbox (order_id, kind, payload) values (?, ?, ?)')
+           ->execute([$orderId, $kind, $payload]);
+    } else {
+        $db->prepare('insert into fulfilment_outbox (order_id, kind, payload) values (?, ?, ?)')
+           ->execute([$orderId, $kind, $payload]);
+    }
+}
+
+// Called wherever payment_status reaches a settled state — the callback and
+// the admin's mark-cash-paid. Mirrors trg_queue_fulfilment_payment.
+function store_payment_settled(PDO $db, int $orderId, string $newStatus): void {
+    if (in_array($newStatus, ['paid', 'failed'], true)) {
+        store_queue_fulfilment($db, $orderId, 'payment');
+    }
+}
+
+// ------------------------------------------------------------------ admin auth
+
+function store_session_start(): void {
+    if (session_status() === PHP_SESSION_ACTIVE) return;
+    session_name('sporta_admin');
+    session_set_cookie_params([
+        'lifetime' => 0,            // session cookie: closes with the browser
+        'path'     => '/',
+        'secure'   => !empty($_SERVER['HTTPS']),
+        'httponly' => true,         // no script access — this cookie IS the admin
+        'samesite' => 'Strict',     // the CSRF defence: no cross-site request carries it
+    ]);
+    session_start();
+}
+
+// Every admin route calls this first. 401, not a redirect: the caller is the
+// React admin, and JSON is what it can act on.
+function store_require_admin(): array {
+    store_session_start();
+    if (empty($_SESSION['admin_id'])) store_fail('not_signed_in', 401);
+    // SameSite=Strict stops the cookie travelling cross-site; this header stops
+    // the residual cases (old browsers, subdomain surprises). The React admin
+    // always sends it; nothing else has a reason to.
+    if (($_SERVER['HTTP_X_SPORTA_ADMIN'] ?? '') !== '1') store_fail('bad_request', 400);
+    return ['id' => (int)$_SESSION['admin_id'], 'email' => $_SESSION['admin_email'] ?? ''];
+}
+
+// Login with per-account throttling kept in the database, not the session —
+// an attacker does not keep your session for you. Five failures lock the
+// account for fifteen minutes; the lock releases itself.
+function store_login(string $email, string $password): array {
+    $db = store_db();
+    $q = $db->prepare('select id, email, password_hash, failed_attempts, locked_until from admin_users where email = ?');
+    $q->execute([mb_strtolower(trim($email))]);
+    $u = $q->fetch();
+
+    if ($u && $u['locked_until'] !== null && strtotime($u['locked_until']) > time()) {
+        store_fail('locked', 429);
+    }
+
+    // password_verify runs even for an unknown email (against a throwaway
+    // hash), so a missing account and a wrong password take the same time.
+    $hash = $u['password_hash'] ?? password_hash(bin2hex(random_bytes(8)), PASSWORD_DEFAULT);
+    if (!$u || !password_verify($password, $hash)) {
+        if ($u) {
+            $fails = (int)$u['failed_attempts'] + 1;
+            $db->prepare('update admin_users set failed_attempts = ?, locked_until = ? where id = ?')
+               ->execute([$fails, $fails >= 5 ? date('Y-m-d H:i:s', time() + 900) : null, $u['id']]);
+        }
+        store_fail('bad_credentials', 401);
+    }
+
+    $db->prepare('update admin_users set failed_attempts = 0, locked_until = null, last_login_at = now() where id = ?')
+       ->execute([$u['id']]);
+
+    store_session_start();
+    session_regenerate_id(true); // a fresh id on privilege change, always
+    $_SESSION['admin_id'] = (int)$u['id'];
+    $_SESSION['admin_email'] = $u['email'];
+    return ['id' => (int)$u['id'], 'email' => $u['email']];
+}
