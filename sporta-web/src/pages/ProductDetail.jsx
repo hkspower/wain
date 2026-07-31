@@ -167,7 +167,9 @@ export default function ProductDetail() {
   if (!product) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-20 text-center">
-        <p className="text-slate-500">{t.shop.notFound}</p>
+        {/* An h1, not a p — this is the page's only heading. It is noindex, so
+            SEO does not care; a screen reader does. */}
+        <h1 className="text-lg font-normal text-slate-500">{t.shop.notFound}</h1>
         <Link to="/shop" className="mt-4 inline-block font-semibold text-brand underline">
           {t.shop.backToShop}
         </Link>

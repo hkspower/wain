@@ -96,7 +96,10 @@ export default function Checkout() {
   if (!items.length) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-20 text-center">
-        <p className="text-lg text-slate-600">{t.cart.empty}</p>
+        {/* An h1, not a p: every page needs exactly one, and a screen reader
+            landing here with none has nothing to announce. Styled to read as
+            the quiet sentence it is. */}
+        <h1 className="text-lg font-normal text-slate-600">{t.cart.empty}</h1>
         <Link to="/shop" className="btn btn-primary mt-4 inline-flex">
           {t.shop.backToShop}
         </Link>

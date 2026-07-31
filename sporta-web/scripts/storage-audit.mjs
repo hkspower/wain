@@ -96,6 +96,14 @@ writeFileSync(`${ROOT}/www/.well-known/acme-challenge/abc123`, 'token\n')
 // The CBK token cache, in the place the old default put it.
 writeFileSync(`${ROOT}/www/pay/.cbk_token.json`, '{"token":"BEARER"}\n')
 
+// The native backend's config, staged the way the owner is told to create it:
+// by hand, on the server, in a folder that ships. It holds the MySQL password,
+// so /api is exactly the kind of newly-added directory the comment at the top
+// of this file warns about — the one the root rewrite rule does not reach.
+if (existsSync(`${ROOT}/www/api`)) {
+  writeFileSync(`${ROOT}/www/api/config.php`, "<?php return ['db_pass' => 'SECRET'];\n")
+}
+
 writeFileSync(
   `${ROOT}/httpd.conf`,
   `ServerName localhost
@@ -165,6 +173,27 @@ try {
   for (const p of ['/knet/pay.php', '/pay/pay.php', '/knet/callback.php', '/pay/callback.php']) {
     const { cache } = head(p)
     ok(/no-store/.test(cache), `${p} is no-store`, cache || 'NO Cache-Control')
+  }
+
+  // The native backend puts a database password and the whole schema inside a
+  // folder that ships. Only two files there are endpoints; everything else is
+  // support code that must never be fetchable.
+  if (existsSync(`${ROOT}/www/api`)) {
+    console.log('\n## The native backend (/api)')
+    for (const p of [
+      '/api/config.php',          // the MySQL password
+      '/api/config.example.php',  // the template, which names every key
+      '/api/store.php',           // shared core, not an endpoint
+      '/api/schema.mysql.sql',    // the schema
+      '/api/seed.mysql.sql',      // the catalogue
+    ]) {
+      const { status } = head(p)
+      ok(status === 403 || status === 404, `${p} is not served`, String(status))
+    }
+    for (const p of ['/api/api.php', '/api/admin.php']) {
+      const { cache } = head(p)
+      ok(/no-store/.test(cache), `${p} is no-store`, cache || 'NO Cache-Control')
+    }
   }
 
   console.log('\n## What must keep working')
