@@ -294,6 +294,26 @@ function Athlete({ parts, p }) {
   )
 }
 
+// The S mark printed on a shirt: the REAL file, placed on the torso and
+// rotated to the body's tilt. The scene mirrors under RTL but a logo never
+// does, so the image itself counter-flips in place (mark-unflip) while its
+// parent <g> keeps the mirrored position and tilt — the print stays on the
+// mirrored chest, reading the right way round.
+function ChestMark({ x, y, angle, size = 30 }) {
+  return (
+    <g transform={`translate(${x} ${y}) rotate(${angle})`} opacity="0.85">
+      <image
+        href="/favicon.png"
+        x={-size / 2}
+        y={-size / 2}
+        width={size}
+        height={size}
+        className="mark-unflip"
+      />
+    </g>
+  )
+}
+
 // The photographic stage: key-light pool on the floor, haze, a horizon line,
 // grain over everything. Ids are prefixed per scene — all three svgs are in
 // the DOM at once, and duplicate ids would silently cross-wire the fills.
@@ -376,6 +396,10 @@ function SceneStrength() {
 
       <Athlete parts={FIGURES.pressWoman} p={p} />
       <Athlete parts={FIGURES.deadliftMan} p={p} />
+      {/* her chest, front on; his shoulder — a side-on deadlift shows the
+          back of the shirt, so the print rides the shoulder panel */}
+      <ChestMark x={936} y={274} angle={-4} size={26} />
+      <ChestMark x={1136} y={352} angle={32} size={24} />
 
       {/* his plate, over the hands that grip it */}
       <circle cx="1094" cy="506" r="55" fill={`url(#${p}-body)`} />
@@ -402,6 +426,8 @@ function SceneCardio() {
 
       <Athlete parts={FIGURES.sprintMan} p={p} />
       <Athlete parts={FIGURES.sprintWoman} p={p} />
+      <ChestMark x={878} y={356} angle={-40} size={26} />
+      <ChestMark x={1154} y={358} angle={-41} size={24} />
 
       {/* dust off the toe-off feet */}
       <g fill="#ffffff">
@@ -425,6 +451,8 @@ function SceneArena() {
 
       <Athlete parts={FIGURES.kicker} p={p} />
       <Athlete parts={FIGURES.striker} p={p} />
+      <ChestMark x={917} y={334} angle={2} size={22} />
+      <ChestMark x={1258} y={324} angle={8} size={24} />
 
       {/* the ball, just off his boot — a lit crescent and quiet seams, the
           way a real ball reads against a dark pitch */}

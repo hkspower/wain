@@ -217,6 +217,16 @@ h1, h2, h3, .font-display {
 [dir='rtl'] .flip-x {
   transform: scaleX(-1);
 }
+/* A logo inside a mirrored svg scene: the mark itself flips back in place
+   (fill-box centre), while its parent keeps the mirrored position. Used by
+   the hero athletes' chest prints. */
+.mark-unflip {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+[dir='rtl'] .mark-unflip {
+  transform: scaleX(-1);
+}
 
 /* Shake animation for wrong-passcode feedback */
 @keyframes shake {
