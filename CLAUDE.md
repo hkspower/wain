@@ -37,7 +37,7 @@ Locked, exactly as they are:
 | Mark | the dhow's lateen sail over the water — `logo.svg` and `#i-sail` |
 | Wordmark | **المهلب** in brand brown, `Almuhallab Code` on the line beneath |
 | Brand ink | `--tint` `#7a4418` · `--tint-strong` `#6f3f1c` |
-| Surfaces | **white on every device** — no dark theme; white page, white cards, cool near-neutral greys. Brown is ink, never paper |
+| Surfaces | **white on every device** — no dark theme; white page, white cards, cool near-neutral greys. Brown is ink, never paper — with one exception the owner asked for (2026-07-31): the **masthead bar is brown** (`--tint-strong`) with white ink on every page, and `theme-color` matches it. Everything below the bar stays white |
 | Icons | the drawn `<symbol>` sprite — no emoji anywhere on the public page |
 | Layout | full-height hero with real counters · **slide rails** (scroll-snap sliders with arrows + dots — the card grids became sliders at the owner's request, 2026-07-30) · the automation `ol.flow` · wide `.product` rows · commitments `.band` · `ol.steps` as a slider timeline · the technology cloud · the WhatsApp project form · contact channels as a bar · the three-column footer |
 | Products | **النوخذة only.** The in-browser code editor was retired at the owner's request — do not reintroduce it |
@@ -107,9 +107,25 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   Tajawal needs `line-height` ≥ 1.35 on display sizes, or a damma collides with
   the line above.
 - **There is no dark theme.** The site is white whatever the device prefers:
-  no `prefers-color-scheme: dark` block anywhere, `color-scheme: light` on
-  `:root`, and one white `theme-color`. The suite fails if a dark override
-  reappears.
+  no `prefers-color-scheme: dark` block anywhere and `color-scheme: light` on
+  `:root`. `theme-color` is the masthead brown `#6f3f1c` on every page so the
+  browser chrome continues the bar — that is not a dark theme, and the page
+  below the bar stays white. The suite fails if a dark override reappears.
+- **The masthead is a sticky brown bar on all four pages** (owner's request,
+  2026-07-31): the company page centres the mark above the wordmark and
+  shrinks the bar once scrolled (two thresholds — 60px down, 24px up — or a
+  bar that changes the page's height retriggers itself forever); the app
+  screens keep their row layout so nav and tabs stay in reach. On brown the
+  ink inverts: white links, a **white pill** for the one call to action, and
+  outlined white for logout — the brand red measures **1.6:1** on this brown
+  and must never appear there. Set `color:#fff` on `.brand` itself, not only
+  on its children: two pages shipped a dark wordmark because their markup was
+  a `<div>`/`<span>` the colour rule never named. The suite measures every
+  masthead label on every page.
+- **المهلب is the company; النوخذة is النظام الموحد it built and runs.** The
+  masthead says «شركة برمجة وأنظمة», and the system is named «النوخذة — النظام
+  الموحد» wherever it is introduced. Never let the product name stand in for
+  the company's.
 - The company page is **short copy carried by icons**: one line per card, each
   headed by an icon in its own 38px tile. Motion is opacity/transform only —
   masthead and hero entrance, per-section reveal on scroll, hover lift, one
@@ -173,7 +189,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 272 checks covering
+- `python3 design/test_suite.py` is the full system test — 301 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it

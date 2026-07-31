@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; worker-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'" />
   <meta name="referrer" content="no-referrer" />
-  <meta name="theme-color" content="#ffffff" />
+  <meta name="theme-color" content="#6f3f1c" />
   <link rel="preload" as="font" type="font/woff2" href="fonts/tajawal-400.woff2" crossorigin />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="apple-touch-icon" href="favicon.svg" />
@@ -53,23 +53,49 @@
        one axis, one rhythm.
        Spacing is one scale on every page: 4 · 6 · 8 · 12 · 16 · 20 · 24 · 32 · 40 · 56.
        Interactive rows sit at 44px by intent, not by snapping. */
+    /* ═══════ the masthead: a sticky brown bar, the mark centred in white ═══════
+       (owner's request, 2026-07-31). This is the one brown *surface* on the
+       site — everything below it stays white, brown-as-ink. White on
+       --tint-strong measures 8.7:1, the subtitle 6.5:1, so the bar is legible
+       by solved numbers rather than by eye. It shrinks once the page scrolls,
+       or a full masthead would eat a fifth of a phone screen on every section. */
     header {
-      display: flex; flex-direction: column; align-items: center; gap: 8px;
-      padding: 20px 20px 0; background: var(--panel);
-      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 50;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      padding: 16px 20px 0; background: var(--tint-strong);
+      border-bottom: 1px solid rgba(255, 255, 255, .16);
+      transition: padding .22s ease;
     }
-    .brand { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
-    .brand .logo { width: 52px; height: 52px; display: block; color: var(--tint); }
-    .brand .name { font-size: 27px; font-weight: 800; color: var(--tint); line-height: 1; }
-    .brand small { display: block; font-weight: 500; color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .brand { display: flex; flex-direction: column; align-items: center; gap: 6px;
+      text-align: center; color: #fff; }
+    .brand .logo { width: 48px; height: 48px; display: block; color: #fff;
+      transition: width .22s ease, height .22s ease; }
+    .brand .name { font-size: 25px; font-weight: 800; color: #fff; line-height: 1.15;
+      transition: font-size .22s ease; }
+    .brand small { display: block; font-weight: 500; color: rgba(255, 255, 255, .82);
+      font-size: 12px; margin-top: 2px; overflow: hidden;
+      transition: max-height .22s ease, opacity .22s ease; max-height: 20px; }
+    /* scrolled: the bar becomes a slim brown strip with the mark still centred */
+    html.scrolled header { padding-top: 8px; }
+    html.scrolled .brand .logo { width: 30px; height: 30px; }
+    html.scrolled .brand .name { font-size: 18px; }
+    html.scrolled .brand small { max-height: 0; opacity: 0; margin-top: 0; }
+
     nav.site { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; justify-content: center;
-      padding: 6px 0 8px; }
+      padding: 4px 0 8px; }
     nav.site a, .btn {
       font-size: 13.5px; font-weight: 600; color: var(--text);
       padding: 12px 16px; border-radius: 9px; border: 1px solid transparent;
       cursor: pointer; background: transparent; font-family: var(--sans);
     }
-    nav.site a:hover { background: var(--panel-2); }
+    /* on the brown bar the nav inverts: white links, and the call to action
+       becomes a white pill with brown ink so it still reads as the one button */
+    nav.site a { color: #fff; }
+    nav.site a:hover { background: rgba(255, 255, 255, .16); }
+    nav.site .btn.primary { background: #fff; color: var(--tint-strong); }
+    nav.site .btn.primary .ic { stroke: var(--tint-strong); color: var(--tint-strong); }
+    header a:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
     .btn.primary { background: var(--tint-strong); color: #fff; }
     .btn.outline { border-color: var(--border); background: var(--panel-2); }
     .btn:hover { opacity: .88; }
@@ -453,8 +479,10 @@
     /* ═══════ mobile ═══════ */
     @media (max-width: 640px) {
       header { padding: 12px 12px 0; }
-      .brand .logo { width: 44px; height: 44px; }
-      .brand .name { font-size: 23px; }
+      .brand .logo { width: 40px; height: 40px; }
+      .brand .name { font-size: 21px; }
+      html.scrolled .brand .logo { width: 26px; height: 26px; }
+      html.scrolled .brand .name { font-size: 17px; }
       nav.site { padding-bottom: 8px; }
       nav.site a, .btn { padding: 12px 16px; min-height: 44px; display: inline-flex; align-items: center; }
       main { padding: 16px 12px 40px; }
@@ -537,13 +565,13 @@
     <div class="brand">
       <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sail"/></svg>
       <div><span class="name">المهلب</span>
-        <small>Almuhallab Code — أنظمة أعمال وتطبيقات ويب</small></div>
+        <small>Almuhallab Code — شركة برمجة وأنظمة</small></div>
     </div>
     <nav class="site">
       <a href="#services">خدماتنا</a>
       <a href="#products">أعمالنا</a>
       <a href="#contact">تواصل</a>
-      <a class="btn primary" href="nokhatha.html"><svg class="ic sm" aria-hidden="true"><use href="#i-anchor"/></svg> نظام النوخذة</a>
+      <a class="btn primary" href="nokhatha.html"><svg class="ic sm" aria-hidden="true"><use href="#i-anchor"/></svg> النوخذة</a>
     </nav>
   </header>
 
@@ -579,8 +607,8 @@
     <section class="slider" id="nokhatha" data-reveal>
       <div class="rowhead">
         <div>
-          <h2 class="section">ما هي النوخذة؟</h2>
-          <p class="sub">الرقم يُكتب مرة واحدة، ويسير بنفسه إلى القائمة المالية.</p>
+          <h2 class="section">النوخذة — النظام الموحد</h2>
+          <p class="sub">النظام الموحد الذي بنته المهلب وتشغّله: أربع وحدات فوق نواة بيانات واحدة، فالرقم يُكتب مرة واحدة ويسير بنفسه إلى القائمة المالية.</p>
         </div>
         <div class="railnav">
           <button type="button" class="arrow prev" aria-label="السابق"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></button>
@@ -681,7 +709,7 @@
 
     <div class="product lead" data-reveal data-tilt>
       <div>
-        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-anchor"/></svg></span> النوخذة
+        <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-anchor"/></svg></span> النوخذة — النظام الموحد
           <span class="live" aria-hidden="true"></span></h3>
         <p>محافظ وتقارير مالية وتوصيل فوق نواة واحدة. مجاني، يعمل بلا إنترنت، ويُثبَّت على الجوال.</p>
         <div class="units">
@@ -851,7 +879,7 @@
         <a href="#products">أعمالنا</a>
         <a href="#automation">أتمتة سير العمل</a>
         <a href="#contact">تواصل معنا</a>
-        <a href="nokhatha.html">نظام النوخذة</a>
+        <a href="nokhatha.html">النوخذة — النظام الموحد</a>
         <a href="admin.html">لوحة الإدارة</a>
       </div>
       <div>
@@ -931,6 +959,26 @@
         window.addEventListener("resize", paint);
         paint();
       })(sliders[i]);
+    })();
+
+    /* The sticky masthead shrinks once the page has scrolled. Two thresholds,
+       not one: a shrinking bar in normal flow changes how much page is left to
+       scroll, so a single boundary can toggle itself on and off forever. It
+       compacts past 60px and only expands again below 24px. */
+    (function () {
+      var root = document.documentElement, pending = false;
+      function apply() {
+        pending = false;
+        var y = window.scrollY || window.pageYOffset || 0;
+        if (y > 60) root.classList.add("scrolled");
+        else if (y < 24) root.classList.remove("scrolled");
+      }
+      window.addEventListener("scroll", function () {
+        if (pending) return;
+        pending = true;
+        requestAnimationFrame(apply);
+      }, { passive: true });
+      apply();
     })();
 
     /* Reveal each section as it comes into view. Whole blocks, never single

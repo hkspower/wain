@@ -7,7 +7,7 @@
   <meta name="referrer" content="no-referrer" />
   <meta name="robots" content="noindex, nofollow" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <meta name="theme-color" content="#ffffff" />
+  <meta name="theme-color" content="#6f3f1c" />
   <link rel="preload" as="font" type="font/woff2" href="fonts/tajawal-400.woff2" crossorigin />
   <link rel="icon" type="image/svg+xml" href="icon.svg" />
   <title>لوحة الإدارة — إدارة النوخذة</title>
@@ -82,17 +82,37 @@
     .shell.on { display: block; }
     /* One shell for the whole site — header, nav and footer are identical on
        every page; only what sits between them changes. */
+    /* The masthead is brown on every page (owner's request, 2026-07-31) — one
+       shell across the site. It is the only brown *surface*; everything below
+       stays white. White on --tint-strong measures 8.7:1. These app screens
+       keep their row layout so the nav and tabs stay within reach; the company
+       page centres its mark. */
     header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 20px;
-      background: var(--panel); border-bottom: 1px solid var(--border); }
-    .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; }
+      background: var(--tint-strong); border-bottom: 1px solid rgba(255,255,255,.16);
+      position: sticky; top: 0; z-index: 50; }
+    .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; color: #fff; }
     .brand .logo { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
-      font-size: 17px; background: linear-gradient(135deg, var(--sand-vivid), var(--tint-strong)); color: #fff; }
-    .brand h1 { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.35; }
-    .brand small { display: block; font-weight: 500; font-size: 11px; color: var(--muted); }
+      font-size: 17px; background: rgba(255,255,255,.18); color: #fff; }
+    .brand h1 { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.35; color: #fff; }
+    .brand small { display: block; font-weight: 500; font-size: 11px; color: rgba(255,255,255,.82); }
     nav.site { display: flex; gap: 4px; margin-inline-start: auto; flex-wrap: wrap; align-items: center; }
     nav.site a { font-size: 13.5px; font-weight: 600; color: var(--text); padding: 12px 16px;
       border-radius: 9px; border: 1px solid transparent; }
-    nav.site a:hover { background: var(--panel-2); }
+    nav.site a { color: #fff; }
+    nav.site a:hover { background: rgba(255,255,255,.16); }
+    nav.site .btn { color: #fff; border-color: rgba(255,255,255,.4); background: transparent; }
+    nav.site .btn.primary { background: #fff; color: var(--tint-strong); border-color: #fff; }
+    /* the brand red measures 1.6:1 on the brown bar — unreadable. On this
+       surface the logout control is white like its neighbours; the word
+       خروج carries the meaning, and the danger red stays for in-page use. */
+    /* the refresh and logout controls sit directly in the header, outside
+       nav.site: on the brown bar they invert too. The brand red measures
+       1.6:1 against this brown, so خروج is outlined white here and the
+       danger red stays for in-page use. */
+    header > .btn, header > .btn.danger, nav.site .btn, nav.site .btn.danger {
+      background: transparent; color: #fff; border-color: rgba(255,255,255,.4); }
+    header > .btn:hover, nav.site .btn:hover { background: rgba(255,255,255,.16); }
+    header a:focus-visible, header button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
     /* header and tabs travel together, so the tab strip needs no magic offset */
     .topbar { position: sticky; top: 0; z-index: 20; }
     footer.site { text-align: center; color: var(--muted); font-size: 12.5px; padding: 24px;

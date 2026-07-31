@@ -161,6 +161,15 @@ def identity_checks():
     check(S, "the page and its cards stay white",
           tok(home, "bg") == "#ffffff" and tok(home, "panel") == "#ffffff")
 
+    # the masthead is brown on every page — one shell, no divergence (owner's
+    # request, 2026-07-31). It is the only brown surface; the page stays white.
+    for p in PAGES:
+        t = (ROOT / p).read_text()
+        check(S, f"{p}: the masthead bar is brown",
+              re.search(r"header\s*\{[^}]*background:\s*var\(--tint-strong\)", t, re.S) is not None)
+        check(S, f"{p}: the browser chrome matches it",
+              'name="theme-color" content="#6f3f1c"' in t)
+
     for want in ("+965 6589 4110", "@almuhallab.code", "hello@almuhallab-code.com"):
         check(S, f"contact channel kept: {want}", want in home)
     check(S, "no invented contact address", "info@almuhallab-code.com" not in home)
@@ -277,10 +286,15 @@ def home_checks(pg):
     S = "home"
     pg.goto(f"{BASE}/index.html", wait_until="networkidle")
     pg.wait_for_timeout(300)
-    for heading in ("ما هي النوخذة؟", "خدماتنا", "من أعمالنا", "كيف نعمل",
+    for heading in ("النوخذة — النظام الموحد", "خدماتنا", "من أعمالنا", "كيف نعمل",
                     "لماذا المهلب كود", "تواصل معنا", "أتمتة سير العمل",
                     "مزايا تحصل عليها", "التقنيات"):
         check(S, f"the page still carries: {heading}", heading in pg.inner_text("main"))
+    # المهلب is the company; النوخذة is the unified system it built and runs
+    check(S, "the masthead names the company, not the product",
+          "شركة برمجة" in pg.inner_text("header"))
+    check(S, "النوخذة is named as the unified system",
+          pg.inner_text("main").count("النظام الموحد") >= 2)
     cards = pg.eval_on_selector_all(".card", "n=>n.length")
     check(S, "the card sections are all present", cards == 20, f"{cards} cards")
     check(S, "the three commitments sit in the band, not a grid",
@@ -447,6 +461,83 @@ def home_checks(pg):
           && name.top >= logo.bottom - 1;
     })()""")
     check(S, "the masthead is centred: mark above wordmark on one axis", centred)
+    # the masthead is the site's one brown surface (owner's request 2026-07-31):
+    # sticky, brown, with the mark and wordmark in white
+    bar = pg.evaluate("""(() => {
+      const h = document.querySelector('header');
+      const cs = getComputedStyle(h);
+      return { pos: cs.position, bg: cs.backgroundColor, top: h.getBoundingClientRect().top,
+               name: getComputedStyle(document.querySelector('header .name')).color,
+               mark: getComputedStyle(document.querySelector('header .logo')).color };
+    })()""")
+    check(S, "the masthead is sticky", bar["pos"] == "sticky", bar["pos"])
+    check(S, "the masthead is brown", bar["bg"] == "rgb(111, 63, 28)", bar["bg"])
+    check(S, "the wordmark and mark are white on it",
+          bar["name"] == "rgb(255, 255, 255)" and bar["mark"] == "rgb(255, 255, 255)",
+          f'{bar["name"]} / {bar["mark"]}')
+    # white on the brand brown must clear the body-text bar by measurement
+    check(S, "white on the masthead brown clears 7:1",
+          round(contrast("#ffffff", "#6f3f1c"), 2) >= 7,
+          f'{contrast("#ffffff", "#6f3f1c"):.2f}:1')
+    # it must actually stay put, and shrink rather than eat the viewport.
+    # measure the full state from the top: earlier checks in this section
+    # scroll the page, and the bar is compact whenever it is scrolled
+    pg.evaluate("window.scrollTo(0, 0)"); pg.wait_for_timeout(500)
+    tall = pg.eval_on_selector("header", "e=>e.getBoundingClientRect().height")
+    pg.evaluate("window.scrollTo(0, 600)"); pg.wait_for_timeout(500)
+    stuck = pg.eval_on_selector("header", "e=>e.getBoundingClientRect().top")
+    short = pg.eval_on_selector("header", "e=>e.getBoundingClientRect().height")
+    check(S, "the masthead stays at the top when the page scrolls",
+          abs(stuck) < 2, str(stuck))
+    check(S, "the masthead compacts once scrolled", short < tall - 20, f"{tall}->{short}")
+    pg.evaluate("window.scrollTo(0, 0)"); pg.wait_for_timeout(500)
+    check(S, "and returns to full height at the top",
+          pg.eval_on_selector("header", "e=>e.getBoundingClientRect().height") > short + 10)
+
+    # Every visible label on the brown bar must be legible against it, on every
+    # page. Two real bugs lived here: a wordmark that stayed dark ink (1.8:1)
+    # because its markup was a <div> rather than an <h1>, and a logout control
+    # in brand red (1.6:1). Measured, not eyeballed.
+    for page in PAGES:
+        pg.goto(f"{BASE}/{page}", wait_until="networkidle"); pg.wait_for_timeout(400)
+        rows = pg.evaluate("""(() => {
+          const h = document.querySelector('header'), out = [];
+          h.querySelectorAll('*').forEach(e => {
+            if (![...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) return;
+            const cs = getComputedStyle(e);
+            if (cs.display === 'none' || !e.getClientRects().length) return;
+            out.push([e.textContent.trim().slice(0, 20), cs.color, cs.backgroundColor]);
+          });
+          return out;
+        })()""")
+
+        def flatten(css_colour, under):
+            m = re.findall(r"[\d.]+", css_colour)
+            r, g, b = (float(x) for x in m[:3])
+            a = float(m[3]) if len(m) > 3 else 1.0
+            u = [int(under[i:i + 2], 16) for i in (1, 3, 5)]
+            return "#%02x%02x%02x" % tuple(round(a * v + (1 - a) * u[i]) for i, v in enumerate((r, g, b)))
+
+        worst, label = 99.0, ""
+        for text, colour, own in rows:
+            base = "#6f3f1c" if own.startswith("rgba(0, 0, 0, 0") else flatten(own, "#6f3f1c")
+            c = contrast(flatten(colour, base), base)
+            if c < worst: worst, label = c, text
+        check(S, f"{page}: every masthead label clears 4.5:1",
+              worst >= 4.5, f"{worst:.2f}:1 on “{label}”")
+        # both real bugs were "ink that stayed page-coloured on a brown bar":
+        # the brand text must be white, and no header control may keep the
+        # brand red — it measures 1.6:1 here and passed a bare ratio check
+        # only because it sat on a leftover pale pill.
+        brand = pg.eval_on_selector(".brand", "e=>getComputedStyle(e).color")
+        kids = pg.eval_on_selector_all(".brand *", "n=>n.map(e=>getComputedStyle(e).color)")
+        check(S, f"{page}: the brand reads white on the bar",
+              all(c.startswith("rgb(255, 255, 255") or "255, 255, 255" in c
+                  for c in [brand] + kids), f"{brand} / {kids}")
+        reds = pg.eval_on_selector_all(
+            "header *", "n=>n.filter(e=>getComputedStyle(e).color==='rgb(206, 25, 37)').length")
+        check(S, f"{page}: no masthead control keeps the danger red", reds == 0, str(reds))
+    pg.goto(f"{BASE}/index.html", wait_until="networkidle"); pg.wait_for_timeout(400)
     check(S, "every icon reference resolves to a symbol",
           pg.evaluate("[...document.querySelectorAll('use')].every(u =>"
                       " !!document.querySelector(u.getAttribute('href')))"))
