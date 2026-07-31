@@ -61,6 +61,11 @@
   | Credentials | Tranportal ID + password + 16-byte resource key (AES `trandata`) | `ClientId` + `ClientSecret` + `ENCRP_KEY` (CBK issues `AccessToken`; **no client-side AES**) |
   | Config file | `knet/config.php` | `pay/config.php` |
 
+  **Both dropins need an orders database configured or they refuse every
+  payment** — `'store' => 'mysql'` on the native backend, `supabase_*`
+  otherwise. Every secret the money path needs, and what breaks without each,
+  is mapped in `sporta-web/CHECKOUT-SECRETS.md`.
+
   Same bank, different activation, different credentials, different endpoints.
   **Neither set of credentials works for the other**, and T-Pay cannot be served
   through `/knet`. On the native backend `knet/config.php` MUST carry the

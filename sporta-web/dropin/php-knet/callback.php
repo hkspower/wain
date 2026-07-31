@@ -190,10 +190,17 @@ function knet_update_order(array $cfg, string $trackid, bool $paid, string $resu
                 if ($orderId = $o->fetchColumn()) {
                     // public_html layout first (knet/ and api/ are
                     // siblings); repo layout second, for the test rig.
+                    // A MISSING store.php is a deployment error, not a data
+                    // one, and must never roll back the record that money was
+                    // taken: require_once throws inside this try, and the catch
+                    // below would put the order back to 'pending' with the cash
+                    // already captured.
                     $storeLib = dirname(__DIR__) . '/api/store.php';
                     if (!is_file($storeLib)) $storeLib = dirname(__DIR__) . '/php-store/store.php';
-                    require_once $storeLib;
-                    store_queue_fulfilment($pdo, (int)$orderId, 'payment');
+                    if (is_file($storeLib)) {
+                        require_once $storeLib;
+                        store_queue_fulfilment($pdo, (int)$orderId, 'payment');
+                    }
                 }
             }
             $pdo->commit();

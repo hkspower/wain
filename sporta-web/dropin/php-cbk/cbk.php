@@ -25,10 +25,47 @@ function cbk_base(array $cfg): string
     return rtrim($cfg['env'] === 'production' ? $cfg['production_base'] : $cfg['test_base'], '/');
 }
 
-// Read an order's server-authoritative amount from Supabase by track id.
+// Is there an orders database at all — on EITHER backend? The KNET dropin
+// answered this about Supabase only, and that one omission killed its whole
+// card path on the native backend: no price to charge, no order to settle.
+// Same question, same answer, so T-Pay does not repeat it.
+function cbk_db_configured(array $cfg): bool
+{
+    if (($cfg['store'] ?? '') === 'mysql') {
+        return ($cfg['mysql_name'] ?? '') !== '' && ($cfg['mysql_user'] ?? '') !== '';
+    }
+    return ($cfg['supabase_url'] ?? '') !== '' && ($cfg['supabase_service_key'] ?? '') !== '';
+}
+
+// One connection per request, shared by the amount lookup and the writer.
+function cbk_pdo(array $cfg): PDO
+{
+    static $pdo = null;
+    if ($pdo === null) {
+        $pdo = new PDO(
+            "mysql:host={$cfg['mysql_host']};dbname={$cfg['mysql_name']};charset=utf8mb4",
+            $cfg['mysql_user'],
+            $cfg['mysql_pass'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]
+        );
+    }
+    return $pdo;
+}
+
+// Read an order's server-authoritative amount by track id.
 // Returns the amount string, or null if not found / DB not configured.
 function cbk_order_amount(array $cfg, string $trackid): ?string
 {
+    if (($cfg['store'] ?? '') === 'mysql') {
+        try {
+            $q = cbk_pdo($cfg)->prepare('select amount from orders where track_id = ?');
+            $q->execute([$trackid]);
+            $amt = $q->fetchColumn();
+            return $amt === false ? null : (string) $amt;
+        } catch (Throwable $e) {
+            return null;
+        }
+    }
     if (($cfg['supabase_url'] ?? '') === '' || ($cfg['supabase_service_key'] ?? '') === '') {
         return null;
     }

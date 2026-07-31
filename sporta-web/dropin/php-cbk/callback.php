@@ -37,7 +37,7 @@ $paymentId  = (string)($res['PaymentId'] ?? '');
 $ref        = (string)($res['ReferenceId'] ?? '');
 $paidAmount = (string)($res['Amount'] ?? '');
 
-$haveDb = $cfg['supabase_url'] !== '' && $cfg['supabase_service_key'] !== '' && $trackid !== '';
+$haveDb = cbk_db_configured($cfg) && $trackid !== '';
 
 // SECURITY — amount verification. Confirm the amount CBK actually charged
 // matches the amount recorded for this order. If they differ, the amount was
@@ -75,6 +75,10 @@ function amounts_equal(string $a, string $b): bool
 // order isn't found (so we don't wrongly reject when the DB is unavailable).
 function cbk_order_expected_amount(array $cfg, string $trackid): ?string
 {
+    // Native mode reads the same table cbk_order_amount() does.
+    if (($cfg['store'] ?? '') === 'mysql') {
+        return cbk_order_amount($cfg, $trackid);
+    }
     $url = rtrim($cfg['supabase_url'], '/') . '/rest/v1/'
         . rawurlencode($cfg['orders_table'])
         . '?select=amount&' . $cfg['orders_match_column'] . '=eq.' . rawurlencode($trackid);
@@ -99,6 +103,62 @@ function cbk_order_expected_amount(array $cfg, string $trackid): ?string
 
 function cbk_update_supabase(array $cfg, string $trackid, bool $paid, array $res): void
 {
+    $status = $paid ? 'paid' : ((string)($res['Status'] ?? '') === '1' ? 'review' : 'failed');
+
+    // NATIVE MODE — the orders table is MySQL on this same host. Mirrors the
+    // KNET dropin exactly, including the parts it learned the hard way: never
+    // downgrade a paid order, never re-stamp or re-notify on a replay, and
+    // queue the warehouse follow-up in the SAME transaction as the status it
+    // reports.
+    if (($cfg['store'] ?? '') === 'mysql') {
+        try {
+            $pdo = cbk_pdo($cfg);
+            $pdo->beginTransaction();
+            $cur = $pdo->prepare('select payment_status from orders where track_id = ?');
+            $cur->execute([$trackid]);
+            $before = $cur->fetchColumn();
+            if ($before === false) { $pdo->rollBack(); return; }
+            if ($before === 'paid' && $paid) { $pdo->rollBack(); return; }
+
+            $sql = 'update orders set payment_status = ?, cbk_status = ?, cbk_message = ?,
+                      cbk_paymentid = ?, cbk_transaction = ?, cbk_authcode = ?,
+                      cbk_reference = ?, cbk_receipt = ?, cbk_paytype = ?, paid_at = ?
+                    where track_id = ?';
+            if (!$paid) $sql .= " and payment_status <> 'paid'";
+            $pdo->prepare($sql)->execute([
+                $status,
+                (string)($res['Status'] ?? ''), (string)($res['Message'] ?? ''),
+                (string)($res['PaymentId'] ?? ''), (string)($res['TransactionId'] ?? ''),
+                (string)($res['AuthCode'] ?? ''), (string)($res['ReferenceId'] ?? ''),
+                (string)($res['ReceiptNo'] ?? ''), (string)($res['PayType'] ?? ''),
+                $paid ? gmdate('Y-m-d H:i:s') : null,
+                $trackid,
+            ]);
+            if ($before !== $status && $status !== 'review') {
+                $o = $pdo->prepare('select id from orders where track_id = ?');
+                $o->execute([$trackid]);
+                if ($orderId = $o->fetchColumn()) {
+                    // The warehouse follow-up rides this transaction so it
+                    // cannot go missing — but a MISSING store.php is a
+                    // deployment error, not a data one, and it must never roll
+                    // back the record that money was taken. Measured: with the
+                    // file absent, require_once threw inside the try and the
+                    // catch rolled the whole payment back to 'pending'.
+                    $lib = dirname(__DIR__) . '/api/store.php';
+                    if (!is_file($lib)) $lib = dirname(__DIR__) . '/php-store/store.php';
+                    if (is_file($lib)) {
+                        require_once $lib;
+                        store_queue_fulfilment($pdo, (int) $orderId, 'payment');
+                    }
+                }
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+        }
+        return;
+    }
+
     $url = rtrim($cfg['supabase_url'], '/') . '/rest/v1/'
         . rawurlencode($cfg['orders_table'])
         . '?' . $cfg['orders_match_column'] . '=eq.' . rawurlencode($trackid);
@@ -107,8 +167,7 @@ function cbk_update_supabase(array $cfg, string $trackid, bool $paid, array $res
         // 'review', not 'failed', when the bank said yes but the amount did
         // not match: the money may well have left the customer's account, and
         // filing that as a plain failure is how a real payment gets ignored.
-        'payment_status'  => $paid ? 'paid'
-            : ((string)($res['Status'] ?? '') === '1' ? 'review' : 'failed'),
+        'payment_status'  => $status,
         'cbk_status'      => (string)($res['Status'] ?? ''),
         'cbk_message'     => (string)($res['Message'] ?? ''),
         'cbk_paymentid'   => (string)($res['PaymentId'] ?? ''),
