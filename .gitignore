@@ -45,6 +45,8 @@ example
 # deploy credentials — never commit
 .env.deploy
 SPORTA-GO-LIVE.zip
+# Same rule: a generated upload, rebuilt by npm run package:knet.
+SPORTA-KNET-FIX.zip
 sporta-html5/dist
 
 # Generated site PDF — 21MB build artifact, regenerate with sporta-web/scripts/site-pdf*.
