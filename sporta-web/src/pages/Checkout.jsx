@@ -9,6 +9,7 @@ import { usePageMeta } from '../lib/seo'
 import { GOVERNORATES, governorate, governorateOfArea, normalisePhone, toAsciiDigits } from '../lib/kuwait'
 import CheckoutSteps from '../components/CheckoutSteps'
 import QuickCheckout from '../components/QuickCheckout'
+import AreaSelect from '../components/AreaSelect'
 import {
   BLANK,
   canQuickCheckout,
@@ -206,7 +207,7 @@ export default function Checkout() {
         </p>
       </div>
 
-      <form onSubmit={submit} noValidate aria-busy={busy} className="grid gap-8 lg:grid-cols-[1fr_23rem]">
+      <form onSubmit={submit} noValidate aria-busy={busy} className="grid gap-5 lg:grid-cols-[1fr_23rem]">
         <div className="space-y-6">
           {/* role="alert" is announced without taking focus, so focus can go
               where it is actually useful: the first field that needs fixing. */}
@@ -219,9 +220,9 @@ export default function Checkout() {
             </p>
           )}
 
-          <fieldset className="rounded-2xl border border-slate-100 bg-white p-5 md:p-6">
+          <fieldset className="rounded-2xl border border-slate-100 bg-white p-4 md:p-5">
             <legend className="px-1 text-sm font-bold text-slate-800">{t.checkout.contact}</legend>
-            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <Field id="name" label={t.checkout.name} error={err('name')} className="sm:col-span-2">
                 <input
                   id="f-name" name="name" value={form.name} onChange={set('name')}
@@ -261,9 +262,9 @@ export default function Checkout() {
             </div>
           </fieldset>
 
-          <fieldset className="rounded-2xl border border-slate-100 bg-white p-5 md:p-6">
+          <fieldset className="rounded-2xl border border-slate-100 bg-white p-4 md:p-5">
             <legend className="px-1 text-sm font-bold text-slate-800">{t.checkout.address}</legend>
-            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <Field id="governorate" label={t.checkout.governorate} error={err('governorate')}>
                 <select
                   id="f-governorate" name="address-level1" autoComplete="address-level1"
@@ -279,26 +280,29 @@ export default function Checkout() {
                 </select>
               </Field>
 
-              {/* Free text with suggestions, not a closed <select>: the list
-                  covers the areas we deliver to, but a new suburb must never be
-                  the reason someone cannot place an order. */}
+              {/* A scrolling dropdown you can also type into — see AreaSelect.
+                  Still not a closed <select>: the list covers the areas we
+                  deliver to, but a new suburb must never be the reason someone
+                  cannot place an order. */}
               <Field id="area" label={t.checkout.area} error={err('area')}>
-                <input
-                  id="f-area" name="address-level2" value={form.area} onChange={set('area')}
-                  list="kw-areas" autoComplete="address-level2" maxLength={60}
-                  enterKeyHint="next" placeholder={t.checkout.areaPh}
-                  aria-invalid={!!errors.area} aria-describedby={errors.area ? 'e-area' : undefined}
-                  className={input(errors.area)}
+                <AreaSelect
+                  value={form.area}
+                  governorateId={form.governorate}
+                  invalid={!!errors.area}
+                  describedBy={errors.area ? 'e-area' : undefined}
+                  placeholder={t.checkout.areaPh}
+                  onPick={(v) => set('area')({ target: { value: v } })}
                 />
-                <datalist id="kw-areas">
-                  {(gov?.areas ?? []).map((a) => <option key={a.en} value={a[lang]} />)}
-                </datalist>
               </Field>
 
-              {/* One column on a phone. These three sat in a hard grid-cols-3
-                  with no breakpoint, which measured 97px per field at 390pt —
-                  a box too narrow to show the word "Street", let alone a value,
-                  and three adjacent 97px targets to mis-tap between. */}
+              {/* ONE FIELD PER ROW ON A PHONE, and it is not negotiable:
+                  scripts/checkout-mobile-test.mjs measures it at 390pt and
+                  fails the build otherwise. These three shared a row once, at
+                  97px each — too narrow to show the word "Street", let alone a
+                  value, and three adjacent mis-tappable targets. Compactness on
+                  a phone comes out of padding and gaps, never out of the width
+                  of the box someone has to type an address into. From sm up
+                  there is genuine room, so they share a row there. */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:col-span-2">
                 <Field id="block" label={t.checkout.block} error={err('block')}>
                   <input
@@ -365,7 +369,7 @@ export default function Checkout() {
         </div>
 
         <aside className="lg:sticky lg:top-28 lg:self-start">
-          <div className="rounded-2xl border border-slate-100 bg-white p-5 md:p-6">
+          <div className="rounded-2xl border border-slate-100 bg-white p-4 md:p-5">
             <h2 className="flex items-baseline justify-between font-bold text-slate-800">
               {t.checkout.summary}
               <span className="text-xs font-medium text-slate-600">
