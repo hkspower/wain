@@ -482,15 +482,15 @@ def home_checks(pg):
     # it must actually stay put, and shrink rather than eat the viewport.
     # measure the full state from the top: earlier checks in this section
     # scroll the page, and the bar is compact whenever it is scrolled
-    pg.evaluate("window.scrollTo(0, 0)"); pg.wait_for_timeout(500)
+    pg.evaluate("window.scrollTo({top:0,behavior:'instant'})"); pg.wait_for_timeout(500)
     tall = pg.eval_on_selector("header", "e=>e.getBoundingClientRect().height")
-    pg.evaluate("window.scrollTo(0, 600)"); pg.wait_for_timeout(500)
+    pg.evaluate("window.scrollTo({top:600,behavior:'instant'})"); pg.wait_for_timeout(500)
     stuck = pg.eval_on_selector("header", "e=>e.getBoundingClientRect().top")
     short = pg.eval_on_selector("header", "e=>e.getBoundingClientRect().height")
     check(S, "the masthead stays at the top when the page scrolls",
           abs(stuck) < 2, str(stuck))
     check(S, "the masthead compacts once scrolled", short < tall - 20, f"{tall}->{short}")
-    pg.evaluate("window.scrollTo(0, 0)"); pg.wait_for_timeout(500)
+    pg.evaluate("window.scrollTo({top:0,behavior:'instant'})"); pg.wait_for_timeout(500)
     check(S, "and returns to full height at the top",
           pg.eval_on_selector("header", "e=>e.getBoundingClientRect().height") > short + 10)
 
@@ -555,6 +555,31 @@ def home_checks(pg):
       .filter(e => parseFloat(getComputedStyle(e).opacity) < 0.99).length""")
     check(S, "reduced motion shows everything at once, unanimated", faded == 0, f"{faded} faded")
     reduced.close()
+
+    # a sticky bar covers whatever an anchor jumps to unless every target keeps
+    # headroom: before scroll-margin-top, "خدماتنا" landed under the masthead
+    for sel in ("#services", "#contact", "#automation", "#process", "#tech"):
+        # scrollIntoView honours scroll-margin-top and lands deterministically,
+        # where a hash navigation races the page's smooth-scroll animation
+        pg.evaluate("(s) => document.querySelector(s).scrollIntoView({behavior:'instant'})", sel)
+        pg.wait_for_timeout(400)
+        gap = pg.evaluate("""(sel) => {
+          const t = document.querySelector(sel).getBoundingClientRect().top;
+          const h = document.querySelector('header').getBoundingClientRect().bottom;
+          return t - h;
+        }""", sel)
+        check(S, f"{sel} lands clear of the sticky masthead", gap >= 0, f"{gap:.0f}px")
+    # and the footer offers the way back up
+    pg.goto(f"{BASE}/index.html", wait_until="networkidle"); pg.wait_for_timeout(400)
+    check(S, "the footer offers a way back to the top",
+          pg.eval_on_selector(".base .top", "e=>e.getAttribute('href')") == "#top"
+          and pg.eval_on_selector_all("#top", "n=>n.length") == 1)
+    # the footer writes the channels out, not only as icon buttons
+    ftext = pg.inner_text("footer")
+    for want in ("+965 6589 4110", "hello@almuhallab-code.com"):
+        check(S, f"the footer states {want}", want in ftext)
+    check(S, "the footer maps the company, the services and the system",
+          pg.eval_on_selector_all(".fcols nav a", "n=>n.length") >= 16)
 
     check(S, "النوخذة opens from its row",
           pg.eval_on_selector_all('.product a[href="nokhatha.html"]', "n=>n.length") == 1)
@@ -1152,6 +1177,13 @@ def mobile_checks(br):
     # tabs still switch by touch
     p.tap('nav.tabs button[data-tab="delivery"]'); p.wait_for_timeout(250)
     check(S, "tapping the bar switches tabs", "#/delivery" in p.url)
+
+    # the footer's written channels are the fallback contact surface — on a
+    # phone they must be real touch targets, not 12px text
+    p.goto(f"{BASE}/index.html", wait_until="networkidle"); p.wait_for_timeout(1800)
+    rows = p.eval_on_selector_all(".fcontact a", "n=>n.map(e=>e.getBoundingClientRect().height)")
+    check(S, "footer contact rows meet the touch-target floor",
+          len(rows) == 3 and all(h >= 44 for h in rows), str([round(h) for h in rows]))
 
     # regression: a mobile display rule must never resurrect [hidden] elements
     p.goto(f"{BASE}/nokhatha.html", wait_until="networkidle"); p.wait_for_timeout(300)

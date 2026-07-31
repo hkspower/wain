@@ -1,7 +1,7 @@
 /* النوخذة service worker — precache the app shell, serve cache-first, refresh in background. */
 "use strict";
 
-var CACHE = "nokhatha-v20";
+var CACHE = "nokhatha-v21";
 var ASSETS = [
   "./",
   "index.html",

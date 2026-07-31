@@ -458,23 +458,61 @@
     .qform .send.sent .lbl { display: none; }
     @keyframes okdraw { from { stroke-dashoffset: 20; } to { stroke-dashoffset: 0; } }
 
-    /* ═══════ footer: the company, the map of the site, the channels ═══════ */
-    footer { border-top: 1px solid var(--border); margin-top: 40px;
+    /* ═══════ footer: the company, the map of the site, the channels ═══════
+       A recessed base rather than more white page: cool near-neutral grey,
+       opened by the brand hairline so it reads as the foot of the masthead's
+       column. Four columns — who we are, the company, what we do, the system —
+       with the real channels written out, not only as icon buttons. */
+    footer { background: var(--panel-2); border-top: 1px solid var(--border); margin-top: 56px;
       color: var(--muted); font-size: 12.5px; line-height: 1.9; }
-    .fcols { max-width: 1060px; margin: 0 auto; padding: 24px 20px 8px;
-      display: flex; flex-wrap: wrap; gap: 24px; }
-    .fcols > div { flex: 1 1 200px; min-width: 0; }
-    .fcols b.fh { display: block; color: var(--text); font-size: 13.5px; margin-bottom: 6px; }
-    .fcols a { display: block; color: var(--muted); padding: 2px 0; }
-    .fcols a:hover { color: var(--tint); }
-    .fbrand .logo { width: 34px; height: 34px; color: var(--tint); }
-    .fbrand .name { font-weight: 800; color: var(--tint); font-size: 17px; }
-    .soc { display: flex; gap: 8px; margin-top: 8px; }
+    footer::before { content: ""; display: block; height: 3px;
+      background: linear-gradient(270deg, var(--tint), var(--sand-vivid)); }
+    .fcols { max-width: 1060px; margin: 0 auto; padding: 32px 20px 24px;
+      display: flex; flex-wrap: wrap; gap: 32px 24px; }
+    .fcols > div { flex: 1 1 180px; min-width: 0; }
+    .fcols .fbrand { flex: 1 1 260px; }
+    .fcols b.fh { display: block; color: var(--text); font-size: 13.5px; margin-bottom: 8px; }
+    /* a link that answers the pointer: it steps toward the RTL start */
+    .fcols nav a { display: block; color: var(--muted); padding: 3px 0;
+      transition: color .18s ease, transform .18s ease; }
+    .fcols nav a:hover { color: var(--tint); transform: translateX(-4px); }
+    .fbrand .fmark { display: flex; align-items: center; gap: 8px; }
+    .fbrand .logo { width: 36px; height: 36px; color: var(--tint); }
+    .fbrand .name { font-weight: 800; color: var(--tint); font-size: 19px; line-height: 1.2; }
+    .fbrand p { margin: 10px 0 0; max-width: 30ch; }
+
+    /* the channels, written out — an icon button alone hides the number */
+    .fcontact { display: flex; flex-direction: column; align-items: flex-start;
+      gap: 2px; margin-top: 12px; }
+    .fcontact a { display: inline-flex; align-items: center; gap: 8px; color: var(--muted);
+      padding: 6px 0; min-height: 32px; transition: color .18s ease; }
+    .fcontact a:hover { color: var(--tint); }
+    .fcontact .ic { width: 16px; height: 16px; stroke: var(--muted); color: var(--muted);
+      transition: stroke .18s ease, color .18s ease; }
+    .fcontact a:hover .ic { stroke: var(--tint); color: var(--tint); }
+    .fcontact .v { direction: ltr; unicode-bidi: isolate; }
+
+    .soc { display: flex; gap: 8px; margin-top: 12px; }
     .soc a { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px;
-      border: 1px solid var(--border); padding: 0; transition: transform .2s ease, border-color .2s ease; }
-    .soc a:hover { transform: translateY(-3px); border-color: var(--tint); }
-    .base { text-align: center; border-top: 1px solid var(--border); margin-top: 12px;
-      padding: 12px 20px 16px; }
+      border: 1px solid var(--border); background: var(--panel); padding: 0;
+      transition: transform .2s ease, border-color .2s ease, background .2s ease; }
+    .soc a:hover { transform: translateY(-3px); border-color: var(--tint); background: var(--tint); }
+    .soc a:hover .ic { stroke: #fff; color: #fff; }
+
+    .base { border-top: 1px solid var(--border); padding: 14px 20px;
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 16px; }
+    .base .made { display: inline-flex; align-items: center; gap: 6px; }
+    .base .top { display: inline-flex; align-items: center; gap: 6px; color: var(--tint);
+      font-weight: 700; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border);
+      background: var(--panel); transition: border-color .18s ease, transform .18s ease; }
+    .base .top:hover { border-color: var(--tint); transform: translateY(-2px); }
+    .base .top .ic { width: 14px; height: 14px; transform: rotate(90deg); }
+
+    /* The sticky bar covers whatever an in-page link jumps to, so every anchor
+       target keeps its own headroom. Without this, "خدماتنا" landed the heading
+       underneath the masthead. */
+    :target, section[id], h2.section[id] { scroll-margin-top: 148px; }
+    html { scroll-behavior: smooth; }
 
     /* ═══════ mobile ═══════ */
     @media (max-width: 640px) {
@@ -505,6 +543,11 @@
         inset-inline-start: 15px; inset-inline-end: auto; }
       ol.steps li b { margin-top: 4px; }
       .channels { flex-direction: column; }
+      .fcols { gap: 24px 20px; padding: 24px 12px 20px; }
+      .fcols > div, .fcols .fbrand { flex: 1 1 100%; }
+      .fcontact a { min-height: 44px; }
+      .base { flex-direction: column; gap: 10px; text-align: center; }
+      :target, section[id], h2.section[id] { scroll-margin-top: 120px; }
       .qform { grid-template-columns: 1fr; padding: 16px; }
       .shape { display: none; }
       .heroart { background: none; }
@@ -518,13 +561,14 @@
         animation: none !important;
         transition: none !important;
       }
+      html { scroll-behavior: auto; }
       html.motion [data-reveal] { opacity: 1 !important; transform: none !important; }
       html.motion [data-reveal] ol.flow::before { transform: none !important; }
       html.motion [data-reveal] ol.flow li { opacity: 1 !important; transform: none !important; }
     }
   </style>
 </head>
-<body>
+<body id="top">
   <!-- icon sprite: defined once, referenced by <use>, never fetched.
        #i-sail is the company's own dhow-sail mark (refined at the owner's request
        2026-07: curved sail, crescent hull — same mark, better drawing). -->
@@ -864,35 +908,57 @@
   <footer>
     <div class="fcols">
       <div class="fbrand">
-        <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sail"/></svg>
-        <span class="name">المهلب</span>
-        <div>Almuhallab Code · شركة برمجة وأنظمة · صُنع في الكويت</div>
-        <div class="soc">
-          <a href="https://wa.me/96565894110" aria-label="واتساب"><svg class="ic" aria-hidden="true"><use href="#i-whatsapp"/></svg></a>
-          <a href="https://instagram.com/almuhallab.code" aria-label="انستغرام"><svg class="ic" aria-hidden="true"><use href="#i-instagram"/></svg></a>
-          <a href="mailto:hello@almuhallab-code.com" aria-label="البريد"><svg class="ic" aria-hidden="true"><use href="#i-mail"/></svg></a>
+        <div class="fmark">
+          <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sail"/></svg>
+          <span class="name">المهلب<br /><small style="font-size:11px;font-weight:600;color:var(--muted)">Almuhallab Code</small></span>
+        </div>
+        <p>شركة برمجة وأنظمة في الكويت. نبني المواقع وتطبيقات الجوال
+           والبرمجيات المخصّصة وحلول الذكاء الاصطناعي — ونشغّل النوخذة، النظام الموحد.</p>
+        <div class="fcontact">
+          <a href="https://wa.me/96565894110"><svg class="ic" aria-hidden="true"><use href="#i-whatsapp"/></svg> <span class="v">+965 6589 4110</span></a>
+          <a href="mailto:hello@almuhallab-code.com"><svg class="ic" aria-hidden="true"><use href="#i-mail"/></svg> <span class="v">hello@almuhallab-code.com</span></a>
+          <a href="https://instagram.com/almuhallab.code"><svg class="ic" aria-hidden="true"><use href="#i-instagram"/></svg> <span class="v">@almuhallab.code</span></a>
         </div>
       </div>
       <div>
-        <b class="fh">روابط سريعة</b>
-        <a href="#services">خدماتنا</a>
-        <a href="#products">أعمالنا</a>
-        <a href="#automation">أتمتة سير العمل</a>
-        <a href="#contact">تواصل معنا</a>
-        <a href="nokhatha.html">النوخذة — النظام الموحد</a>
-        <a href="admin.html">لوحة الإدارة</a>
+        <b class="fh">الشركة</b>
+        <nav aria-label="روابط الشركة">
+          <a href="#services">خدماتنا</a>
+          <a href="#products">أعمالنا</a>
+          <a href="#automation">أتمتة سير العمل</a>
+          <a href="#process">كيف نعمل</a>
+          <a href="#tech">التقنيات</a>
+          <a href="#contact">تواصل معنا</a>
+        </nav>
       </div>
       <div>
         <b class="fh">الخدمات</b>
-        <a href="#services">تطوير المواقع</a>
-        <a href="#services">تطبيقات الجوال</a>
-        <a href="#services">برمجيات مخصّصة</a>
-        <a href="#services">حلول الذكاء الاصطناعي</a>
-        <a href="#services">تصميم UI/UX</a>
-        <a href="#services">الحلول السحابية</a>
+        <nav aria-label="روابط الخدمات">
+          <a href="#services">تطوير المواقع</a>
+          <a href="#services">تطبيقات الجوال</a>
+          <a href="#services">برمجيات مخصّصة</a>
+          <a href="#services">حلول الذكاء الاصطناعي</a>
+          <a href="#services">تصميم UI/UX</a>
+          <a href="#services">الحلول السحابية</a>
+        </nav>
+      </div>
+      <div>
+        <b class="fh">النوخذة — النظام الموحد</b>
+        <nav aria-label="روابط النظام">
+          <a href="nokhatha.html">بوابة النوخذة</a>
+          <a href="nizam.html#/position">المركز المالي</a>
+          <a href="nizam.html#/safi">صافي — المحافظ</a>
+          <a href="nizam.html#/xbrl">XBRL — الميزانية السنوية</a>
+          <a href="nizam.html#/delivery">التوصيل</a>
+          <a href="admin.html">لوحة الإدارة</a>
+        </nav>
       </div>
     </div>
-    <div class="base">المهلب كود — Almuhallab Code · جميع الحقوق محفوظة</div>
+    <div class="base">
+      <span>© <span dir="ltr">2026</span> المهلب كود — Almuhallab Code · جميع الحقوق محفوظة</span>
+      <span class="made"><svg class="ic sm" aria-hidden="true"><use href="#i-sail"/></svg> صُنع في الكويت</span>
+      <a class="top" href="#top"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg> إلى الأعلى</a>
+    </div>
   </footer>
 
   <script>

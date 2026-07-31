@@ -39,7 +39,7 @@ Locked, exactly as they are:
 | Brand ink | `--tint` `#7a4418` · `--tint-strong` `#6f3f1c` |
 | Surfaces | **white on every device** — no dark theme; white page, white cards, cool near-neutral greys. Brown is ink, never paper — with one exception the owner asked for (2026-07-31): the **masthead bar is brown** (`--tint-strong`) with white ink on every page, and `theme-color` matches it. Everything below the bar stays white |
 | Icons | the drawn `<symbol>` sprite — no emoji anywhere on the public page |
-| Layout | full-height hero with real counters · **slide rails** (scroll-snap sliders with arrows + dots — the card grids became sliders at the owner's request, 2026-07-30) · the automation `ol.flow` · wide `.product` rows · commitments `.band` · `ol.steps` as a slider timeline · the technology cloud · the WhatsApp project form · contact channels as a bar · the three-column footer |
+| Layout | full-height hero with real counters · **slide rails** (scroll-snap sliders with arrows + dots — the card grids became sliders at the owner's request, 2026-07-30) · the automation `ol.flow` · wide `.product` rows · commitments `.band` · `ol.steps` as a slider timeline · the technology cloud · the WhatsApp project form · contact channels as a bar · the four-column footer on a recessed grey base |
 | Products | **النوخذة only.** The in-browser code editor was retired at the owner's request — do not reintroduce it |
 | Contact | واتساب `+965 6589 4110` · انستغرام `@almuhallab.code` · `hello@almuhallab-code.com` |
 
@@ -122,6 +122,16 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   on its children: two pages shipped a dark wordmark because their markup was
   a `<div>`/`<span>` the colour rule never named. The suite measures every
   masthead label on every page.
+- The **footer is the site's map**, not a copyright line: four columns (the
+  company and its channels written out in full · الشركة · الخدمات · النوخذة's
+  units), on the one recessed grey surface, opened by the brand hairline. Do
+  not put an icon-only channel row beside the written one — it repeats the
+  same three links while hiding the values.
+- **A sticky bar hides whatever an in-page link jumps to.** Every anchor
+  target carries `scroll-margin-top` (148px desktop, 120px phone, clearing the
+  compact bar's 130px) and `html` uses `scroll-behavior: smooth`, off under
+  reduced motion. Tests that measure scroll positions must pass
+  `behavior:'instant'` or they race the animation and read mid-flight values.
 - **المهلب is the company; النوخذة is النظام الموحد it built and runs.** The
   masthead says «شركة برمجة وأنظمة», and the system is named «النوخذة — النظام
   الموحد» wherever it is introduced. Never let the product name stand in for
@@ -189,7 +199,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 301 checks covering
+- `python3 design/test_suite.py` is the full system test — 311 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
