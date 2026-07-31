@@ -4,6 +4,7 @@ import { useLang } from '../i18n/LanguageContext'
 import { useCart } from '../lib/cart'
 import { clearAttempt } from '../lib/checkout'
 import { usePageMeta } from '../lib/seo'
+import { ltr } from '../lib/bidi'
 
 // Customer lands here after CBK:
 //   /payment/result?status=success|review|failed|cancelled|error&trackid=...&payid=...
@@ -67,10 +68,20 @@ export default function PaymentResult() {
         {effective === 'success' || effective === 'cod' ? '✓' : effective === 'cancelled' ? '⏱' : '✕'}
       </div>
       <h1 className="text-2xl font-bold text-slate-800">{loading ? '…' : r.title}</h1>
-      <p className="mt-2 text-slate-500">{r.msg}</p>
-      {trackid && <p className="mt-3 text-xs text-slate-400">{trackid}</p>}
+      <p className="mt-2 text-slate-600">{r.msg}</p>
+      {/* The order number is a Latin run and the only handle a guest customer
+          has. Isolated so it cannot be reordered inside Arabic, and readable —
+          slate-400 on the beige canvas measured 1.91:1. */}
+      {trackid && (
+        <p dir="ltr" className="mt-3 text-xs font-semibold tabular-nums text-slate-600">{ltr(trackid)}</p>
+      )}
+      {trackid && (effective === 'success' || effective === 'cod') && (
+        <Link to={`/invoice/${encodeURIComponent(trackid)}`} className="text-accent mt-4 text-sm font-semibold underline underline-offset-2">
+          {t.invoice.view}
+        </Link>
+      )}
       <div className="mt-6 flex gap-3">
-        <Link to="/" className="rounded-full bg-brand px-6 py-2.5 font-semibold text-white">{t.result.home}</Link>
+        <Link to="/" className="rounded-full bg-brand px-6 py-2.5 font-semibold text-ink">{t.result.home}</Link>
         {effective !== 'success' && effective !== 'cod' && (
           <Link to="/cart" className="rounded-full border border-brand px-6 py-2.5 font-semibold text-brand">
             {t.result.retry}

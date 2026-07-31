@@ -110,6 +110,9 @@ Options -Indexes
   RewriteRule ^(shop|cart|checkout|about|contact|wishlist|track|returns|terms|privacy)/?$ /index.html [L]
   RewriteRule ^product/[^/]+/?$        /index.html [L]
   RewriteRule ^payment/result/?$       /index.html [L]
+  # /invoice/<order number>. A parameterised route, so it needs its own rule —
+  # the alternation list above only matches fixed paths.
+  RewriteRule ^invoice/[A-Za-z0-9]{1,30}/?$ /index.html [L]
   RewriteRule ^admin(/.*)?$            /index.html [L]
 </IfModule>
 

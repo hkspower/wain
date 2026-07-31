@@ -15,8 +15,13 @@ export function LanguageProvider({ children }) {
 
   const toggle = () => setLang((l) => (l === 'en' ? 'ar' : 'en'))
 
+  // `dir` is exposed because components need it, not just <html>. A table that
+  // must mirror, or an element that has to opt OUT of the page direction,
+  // cannot read it off the document without a DOM query.
   return (
-    <LanguageContext.Provider value={{ lang, setLang, toggle, t: translations[lang] }}>
+    <LanguageContext.Provider
+      value={{ lang, setLang, toggle, t: translations[lang], dir: translations[lang].dir }}
+    >
       {children}
     </LanguageContext.Provider>
   )

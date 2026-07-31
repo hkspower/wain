@@ -1,11 +1,14 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
+import { ltr } from '../lib/bidi'
+import { formatKWD } from '../lib/format'
 import { usePageMeta } from '../lib/seo'
 
 // Order tracking by the track id shown after checkout. Reads status through the
 // get_order_status RPC (orders are not client-readable under RLS).
 export default function TrackOrder() {
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const [id, setId] = useState('')
   const [state, setState] = useState({ status: 'idle' })
   usePageMeta({ title: t.track.title, description: t.track.sub, path: '/track' })
@@ -51,19 +54,31 @@ export default function TrackOrder() {
 
       <div className="mt-8">
         {state.status === 'loading' && <div className="skeleton h-20 rounded-2xl" />}
-        {state.status === 'notfound' && <p className="text-slate-500">{t.track.notfound}</p>}
-        {state.status === 'error' && <p className="text-slate-500">{t.track.error}</p>}
+        {state.status === 'notfound' && <p className="text-slate-600">{t.track.notfound}</p>}
+        {state.status === 'error' && <p className="text-slate-600">{t.track.error}</p>}
         {state.status === 'found' && (
           <div className="card p-6">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-sm text-slate-500">{state.row.track_id}</span>
+            <div className="flex items-center justify-between gap-3">
+              {/* The order number is a Latin run: isolated so Arabic cannot
+                  reorder it, and slate-600 because slate-500 on this card was
+                  under the contrast floor. */}
+              <span dir="ltr" className="font-mono text-sm text-slate-600">{ltr(state.row.track_id)}</span>
               <span className={`rounded-full px-3 py-1 text-xs font-bold ${badge[state.row.payment_status] || ''}`}>
                 {t.track.states[state.row.payment_status] || state.row.payment_status}
               </span>
             </div>
-            <p className="mt-3 text-2xl font-extrabold tabular-nums text-brand-dark">
-              {Number(state.row.amount).toFixed(3)} KWD
+            {/* formatKWD, not a hand-built string: "10.000 KWD" put the
+                currency on the wrong side in Arabic and used the wrong digits.
+                Intl knows where د.ك goes. */}
+            <p className="text-accent mt-3 font-display text-2xl font-extrabold tabular-nums">
+              {formatKWD(state.row.amount, lang)}
             </p>
+            <Link
+              to={`/invoice/${encodeURIComponent(state.row.track_id)}`}
+              className="text-accent mt-4 inline-block text-sm font-semibold underline underline-offset-2"
+            >
+              {t.invoice.view}
+            </Link>
           </div>
         )}
       </div>

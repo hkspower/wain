@@ -19,6 +19,7 @@ const AdminApp = lazy(() => import('./admin/AdminApp'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 const Wishlist = lazy(() => import('./pages/Wishlist'))
 const TrackOrder = lazy(() => import('./pages/TrackOrder'))
+const Invoice = lazy(() => import('./pages/Invoice'))
 const Returns = lazy(() => import('./pages/Returns'))
 const Terms = lazy(() => import('./pages/Terms'))
 const Privacy = lazy(() => import('./pages/Privacy'))
@@ -87,6 +88,7 @@ function PublicSite() {
           <Route path="/contact" element={<Contact />} />
           <Route path="/wishlist" element={<Wishlist />} />
           <Route path="/track" element={<TrackOrder />} />
+          <Route path="/invoice/:trackId" element={<Invoice />} />
           <Route path="/returns" element={<Returns />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />

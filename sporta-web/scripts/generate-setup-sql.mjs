@@ -38,6 +38,8 @@ const PARTS = [
   // Needs order_items.size/fit from the file above, and is_admin() from the
   // allowlist migration.
   ['fulfilment-migration.sql','Every order queues a message for the logistics company'],
+  // Reads order_items.size/fit and unit_price, so after order-options.
+  ['invoice-migration.sql', 'get_order_invoice — the customer\'s printable invoice'],
   ['seed-products.sql',     'The 46 products, and retirement of anything older'],
   // LAST of all: every variant row references a product slug, so the products
   // must exist. Also needs is_admin() from the allowlist migration.

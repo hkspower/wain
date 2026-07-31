@@ -540,3 +540,58 @@ h1, h2, h3, .font-display {
 .skip-link:focus {
   top: 0;
 }
+
+
+/* ---- Printing, and specifically printing the invoice ----
+ * An invoice is a document a customer keeps, forwards, or hands to a company
+ * accounts department. It has to survive leaving the browser.
+ *
+ * DIRECTION SURVIVES PRINT. The Arabic invoice prints right-to-left because
+ * <html dir> is what the print renderer reads too — nothing here overrides it,
+ * and nothing here may, which is why every alignment on the page is logical
+ * (text-start / text-end) rather than left/right. A hard-coded text-right in
+ * the page would print the total under the item names in Arabic.
+ */
+@media print {
+  /* Chrome and Safari drop background colours by default, which turns the
+     PAID badge into black text on nothing. */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* The shop is not part of the document. */
+  .app-header,
+  .app-footer,
+  .action-bar,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .invoice {
+    max-width: none;
+    padding: 0;
+  }
+
+  .invoice article {
+    border: none;
+    padding: 0;
+  }
+
+  /* A line item split across a page break is a line item read twice. */
+  .invoice tr,
+  .invoice thead {
+    break-inside: avoid;
+  }
+  .invoice thead {
+    display: table-header-group; /* repeat the header on every page */
+  }
+
+  @page {
+    margin: 14mm;
+  }
+}
