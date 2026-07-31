@@ -278,10 +278,11 @@ def home_checks(pg):
     pg.goto(f"{BASE}/index.html", wait_until="networkidle")
     pg.wait_for_timeout(300)
     for heading in ("ما هي النوخذة؟", "خدماتنا", "من أعمالنا", "كيف نعمل",
-                    "لماذا المهلب كود", "تواصل معنا"):
+                    "لماذا المهلب كود", "تواصل معنا", "أتمتة سير العمل",
+                    "مزايا تحصل عليها", "التقنيات"):
         check(S, f"the page still carries: {heading}", heading in pg.inner_text("main"))
     cards = pg.eval_on_selector_all(".card", "n=>n.length")
-    check(S, "the card sections are all present", cards == 15, f"{cards} cards")
+    check(S, "the card sections are all present", cards == 20, f"{cards} cards")
     check(S, "the three commitments sit in the band, not a grid",
           pg.eval_on_selector_all(".band .fact", "n=>n.length") == 3)
     check(S, "the retired code editor is gone from the page",
@@ -304,7 +305,7 @@ def home_checks(pg):
     rm.close()
     # the card sections slide (owner's request 2026-07-30): one scroll-snap
     # rail per section, all cards on one baseline, genuinely scrollable
-    for sid, n in (("nokhatha", 4), ("services", 11)):
+    for sid, n in (("nokhatha", 4), ("services", 6), ("edge", 10)):
         cnt = pg.eval_on_selector_all(f"#{sid} .rail .card", "n=>n.length")
         check(S, f"{sid}: the rail carries all its cards", cnt == n, f"{cnt} cards")
         tops = set(pg.eval_on_selector_all(f"#{sid} .rail .card",
@@ -367,6 +368,11 @@ def home_checks(pg):
           np_.eval_on_selector("#services .rail", "e=>e.scrollWidth > e.clientWidth + 8"))
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
+    check(S, "no-JS: the counters already show the true numbers",
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "254", "0", "100%"])
+    check(S, "no-JS: the form is not offered dead — the channels are",
+          np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
+          and np_.is_visible(".channels"))
     nj.close()
     # the first version's own components: two wide product rows, numbered steps,
     # and the contact bar
@@ -374,8 +380,41 @@ def home_checks(pg):
           pg.eval_on_selector_all(".product", "n=>n.length") == 1)
     check(S, "the lead product is marked as the flagship",
           pg.eval_on_selector_all(".product.lead", "n=>n.length") == 1)
-    check(S, "how-we-work is the numbered steps list",
-          pg.eval_on_selector_all("ol.steps li", "n=>n.length") == 4)
+    check(S, "how-we-work is the eight-step timeline",
+          pg.eval_on_selector_all("ol.steps li", "n=>n.length") == 8)
+    # eight steps never fit a desktop: the timeline must be driven like every
+    # other rail, or three of them are unreachable with no affordance at all
+    check(S, "the timeline is a slider, not a silent overflow",
+          pg.eval_on_selector_all("#process .arrow", "n=>n.length") == 2
+          and pg.eval_on_selector_all("#process .dots span", "n=>n.length") >= 2)
+    sbefore = pg.eval_on_selector("#process ol.steps", "e=>e.scrollLeft")
+    pg.click("#process .arrow.next"); pg.wait_for_timeout(700)
+    check(S, "the timeline's next arrow advances it",
+          pg.eval_on_selector("#process ol.steps", "e=>e.scrollLeft") < sbefore - 40)
+    check(S, "the timeline is reachable by keyboard",
+          pg.eval_on_selector("#process ol.steps", "e=>e.getAttribute('tabindex')") == "0")
+    pg.eval_on_selector("#process ol.steps", "e=>e.scrollTo({left:0})"); pg.wait_for_timeout(300)
+    check(S, "the automation flow runs its seven stations",
+          pg.eval_on_selector_all("ol.flow li", "n=>n.length") == 7)
+    check(S, "the technology cloud floats all fifteen",
+          pg.eval_on_selector_all(".cloud .tech", "n=>n.length") == 15)
+    # the hero counters carry only real, verifiable numbers — and they must
+    # settle on those numbers once the count-up finishes
+    pg.wait_for_timeout(1800)
+    finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
+    check(S, "the counters settle on the true numbers",
+          finals == ["4", "254", "0", "100%"], str(finals))
+    # the project form validates honestly and never navigates on bad input
+    pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
+    check(S, "a bad email is marked invalid",
+          pg.eval_on_selector("#q-email", "e=>e.getAttribute('aria-invalid')") == "true")
+    url_before = pg.url
+    pg.click(".qform .send")
+    check(S, "an invalid form never navigates", pg.url == url_before)
+    pg.fill("#q-name", "اختبار الموقع"); pg.fill("#q-email", "test@example.com")
+    pg.fill("#q-msg", "مشروع تجريبي للاختبار الآلي فقط.")
+    check(S, "a corrected email clears its mark",
+          pg.eval_on_selector("#q-email", "e=>e.getAttribute('aria-invalid')") == "false")
     # the real contact channels, with the numbers the company actually publishes
     chans = pg.eval_on_selector_all(".channel", "n=>n.length")
     check(S, "all three contact channels are offered", chans == 3, f"{chans} channels")

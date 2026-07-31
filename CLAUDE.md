@@ -39,7 +39,7 @@ Locked, exactly as they are:
 | Brand ink | `--tint` `#7a4418` · `--tint-strong` `#6f3f1c` |
 | Surfaces | **white on every device** — no dark theme; white page, white cards, cool near-neutral greys. Brown is ink, never paper |
 | Icons | the drawn `<symbol>` sprite — no emoji anywhere on the public page |
-| Layout | hero · **slide rails** (scroll-snap sliders with arrows + dots — the card grids became sliders at the owner's request, 2026-07-30) · wide `.product` rows · `ol.steps` as a timeline · commitments `.band` · contact channels as a bar |
+| Layout | full-height hero with real counters · **slide rails** (scroll-snap sliders with arrows + dots — the card grids became sliders at the owner's request, 2026-07-30) · the automation `ol.flow` · wide `.product` rows · commitments `.band` · `ol.steps` as a slider timeline · the technology cloud · the WhatsApp project form · contact channels as a bar · the three-column footer |
 | Products | **النوخذة only.** The in-browser code editor was retired at the owner's request — do not reintroduce it |
 | Contact | واتساب `+965 6589 4110` · انستغرام `@almuhallab.code` · `hello@almuhallab-code.com` |
 
@@ -119,6 +119,21 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   everything; and a 1.5s failsafe reveals whatever the observer never reached.
   `prefers-reduced-motion` switches all of it off. Sections reveal as whole
   blocks — staggering siblings puts cards of one row on different baselines.
+- **Every number on the page is real and checkable.** The hero counters are the
+  four النوخذة units, the suite's own check count, zero dependencies, and 100%
+  offline — no invented "projects completed", "happy clients" or "years of
+  experience", and no testimonials or client logos the company cannot show. If
+  a counter's underlying fact changes, change the counter (the suite pins the
+  settled values).
+- The project form has **no server** and the CSP forbids `form-action`: a valid
+  submission composes the message and hands it to WhatsApp, the same channel the
+  bar below offers. It is JS-gated (`html.js .qwrap`) so a failed script leaves
+  the channels as the contact surface rather than a dead form.
+- **Framer Motion, Lottie and any CDN library are impossible here** — the CSP is
+  `default-src 'none'` with no build step. Every effect (scroll reveal, counters,
+  ripple, magnetic buttons, tilt, floating shapes, drawn SVG paths, the flow
+  spine) is hand-written CSS/JS. Don't accept a request to "add Framer Motion"
+  by adding a script tag; build the effect instead.
 - The multi-card sections are **sliders ("rails"), not grids** (owner's request,
   2026-07-30): one scroll-snap track per section, native overflow scroll, with
   arrows + dots layered on by script. Rules: the arrows are gated behind
@@ -158,7 +173,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 254 checks covering
+- `python3 design/test_suite.py` is the full system test — 272 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it

@@ -10,7 +10,7 @@
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="apple-touch-icon" href="favicon.svg" />
   <title>المهلب كود — Almuhallab Code | شركة برمجة وأنظمة</title>
-  <meta name="description" content="المهلب كود — شركة برمجة كويتية تبني أنظمة الأعمال وتطبيقات الويب والأنظمة المالية. من أعمالنا: النوخذة، النظام الموحد لصافي و XBRL والتوصيل." />
+  <meta name="description" content="المهلب كود — شركة برمجة كويتية تبني المواقع وتطبيقات الجوال والبرمجيات المخصّصة وحلول الذكاء الاصطناعي. من أعمالنا: النوخذة، النظام الموحد لصافي و XBRL والتوصيل." />
   <style>
     /* Tajawal (SIL OFL) — bundled, never fetched from a CDN: the strict CSP
        forbids external origins, and a self-hosted face renders identically on
@@ -62,98 +62,20 @@
     .brand .logo { width: 52px; height: 52px; display: block; color: var(--tint); }
     .brand .name { font-size: 27px; font-weight: 800; color: var(--tint); line-height: 1; }
     .brand small { display: block; font-weight: 500; color: var(--muted); font-size: 12px; margin-top: 4px; }
-    nav { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; justify-content: center;
+    nav.site { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; justify-content: center;
       padding: 6px 0 8px; }
-    nav a, .btn {
+    nav.site a, .btn {
       font-size: 13.5px; font-weight: 600; color: var(--text);
       padding: 12px 16px; border-radius: 9px; border: 1px solid transparent;
       cursor: pointer; background: transparent; font-family: var(--sans);
     }
-    nav a:hover { background: var(--panel-2); }
+    nav.site a:hover { background: var(--panel-2); }
     .btn.primary { background: var(--tint-strong); color: #fff; }
     .btn.outline { border-color: var(--border); background: var(--panel-2); }
     .btn:hover { opacity: .88; }
     a:focus-visible, .btn:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
 
     main { max-width: 1060px; margin: 0 auto; padding: 16px 20px 40px; }
-
-    /* ═══════ motion ═══════
-       Movement here has one job: to say "this arrived" and "this responds".
-       Everything is opacity and transform only — no layout property is
-       animated, so nothing reflows mid-frame — and every one of these rules is
-       switched off wholesale under prefers-reduced-motion at the end of the
-       sheet. Sections reveal as a whole block, never card by card: staggering
-       siblings would leave cards of one row on different baselines while the
-       animation ran. */
-    @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-    @keyframes draw { from { opacity: 0; transform: translateY(-8px) rotate(-6deg); } to { opacity: 1; transform: none; } }
-    @keyframes sheen { from { background-position: 100% 0; } to { background-position: -100% 0; } }
-    @keyframes pulse { 0%, 100% { opacity: .35; transform: scale(1); } 50% { opacity: 1; transform: scale(1.35); } }
-
-    /* The hidden state is applied only once the script has taken charge of
-       revealing it (html.motion). Written the other way round — hidden by
-       default, shown by JS — a blocked or failed script leaves the whole page
-       blank, and so does any renderer that never scrolls. */
-    html.motion [data-reveal] { opacity: 0; transform: translateY(16px); transition: opacity .5s ease, transform .5s cubic-bezier(.2,.7,.3,1); }
-    html.motion [data-reveal].in { opacity: 1; transform: none; }
-
-    .brand .logo { animation: draw .7s cubic-bezier(.2,.7,.3,1) both; }
-    .hero .kicker { animation: rise .5s ease both .05s; }
-    .hero h1      { animation: rise .5s ease both .14s; }
-    .hero p       { animation: rise .5s ease both .22s; }
-    .hero .actions{ animation: rise .5s ease both .3s; }
-
-    /* the flagship row catches the light once on arrival, then stays still */
-    .product.lead::after {
-      content: ""; position: absolute; inset: 0; border-radius: 16px; pointer-events: none;
-      background: linear-gradient(90deg, transparent 40%, rgba(227,165,86,.16) 50%, transparent 60%);
-      background-size: 250% 100%; animation: sheen 2.4s ease-out 1 .4s;
-    }
-    /* a live dot on the flagship: the system is running, not a screenshot */
-    .live { width: 7px; height: 7px; border-radius: 50%; background: var(--good);
-      display: inline-block; animation: pulse 2s ease-in-out infinite; }
-
-    /* Three icons carry their meaning in motion: the automation gear turns,
-       the AI agent's spark breathes, the design pen keeps drawing its stroke.
-       Part-level animation can't reach inside a <use> clone, so these three
-       are inlined from the same drawn set. The global reduced-motion block
-       at the end of the sheet stops all of them. */
-    @keyframes icspin { to { transform: rotate(360deg); } }
-    @keyframes icpulse { 0%, 100% { opacity: .35; transform: scale(.75); }
-                         50% { opacity: 1; transform: scale(1.1); } }
-    @keyframes icdraw { 0% { stroke-dashoffset: 26; } 55%, 72% { stroke-dashoffset: 0; }
-                        100% { stroke-dashoffset: -26; } }
-    .ic .spin { animation: icspin 9s linear infinite; transform-box: fill-box; transform-origin: center; }
-    .ic .spark { animation: icpulse 2.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
-    .ic .draw { stroke-dasharray: 26; animation: icdraw 3.6s ease-in-out infinite; }
-
-    .card, .channel { transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease; }
-    .card:hover { transform: translateY(-3px); border-color: var(--tint);
-      box-shadow: 0 10px 24px rgba(27, 36, 48, .08); }
-    .channel:hover { transform: translateY(-3px); }
-    .card:hover .tile, .channel:hover .tile { background: var(--tint); }
-    .card:hover .tile .ic, .channel:hover .tile .ic { stroke: #fff; color: #fff; }
-    .tile { transition: background .22s ease; }
-    .tile .ic { transition: stroke .22s ease; }
-    .btn { transition: transform .18s ease, opacity .18s ease; }
-    .btn:hover { transform: translateY(-1px); }
-
-    .hero { text-align: center; padding: 20px 0 4px; }
-    .hero .kicker {
-      display: inline-block; background: var(--panel-2); border: 1px solid var(--border);
-      color: var(--sand); border-radius: 999px; padding: 6px 16px; font-size: 13px; font-weight: 700;
-    }
-    .hero h1 { font-size: clamp(28px, 5vw, 44px); margin: 12px 0 6px; line-height: 1.4; text-wrap: balance; }
-    .hero h1 .en { color: var(--tint); direction: ltr; display: inline-block; unicode-bidi: isolate; letter-spacing: -.5px; }
-    .hero p { color: var(--muted); max-width: 640px; margin: 0 auto 16px; font-size: 15.5px; line-height: 1.75; }
-    .hero .actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-
-    h2.section { font-size: 22px; margin: 32px 0 4px; }
-    h2.section::after {
-      content: ""; display: block; width: 46px; height: 3px; border-radius: 2px;
-      margin-top: 6px; background: linear-gradient(270deg, var(--tint), var(--sand-vivid));
-    }
-    .sub { color: var(--muted); margin: 0 0 12px; line-height: 1.75; }
 
     /* ═══════ rails: the sliders that replaced the card grids ═══════
        (owner's request, 2026-07-30: "less grids, slide"). One horizontal
@@ -185,6 +107,8 @@
     .rail > * { scroll-snap-align: start; }
     .rail:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 8px; }
     #nokhatha .rail { grid-auto-columns: min(84vw, 320px); }
+    #services .rail { grid-auto-columns: min(84vw, 312px); }
+    #edge .rail { grid-auto-columns: min(56vw, 190px); }
     /* the white fade marks the edge that still hides content; JS clears the
        fade on the exhausted side via at-start / at-end. Gated behind html.js
        like the arrows: without the script nothing maintains the classes, and
@@ -208,6 +132,139 @@
     .band .fact + .fact { border-inline-start: 1px solid var(--border); padding-inline-start: 20px; }
     .band .fact h3 { margin: 0 0 4px; font-size: 15.5px; display: flex; align-items: center; gap: 8px; }
     .band .fact p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+
+    /* ═══════ motion ═══════
+       Movement here has one job: to say "this arrived" and "this responds".
+       Everything is opacity and transform only — no layout property is
+       animated, so nothing reflows mid-frame — and every one of these rules is
+       switched off wholesale under prefers-reduced-motion at the end of the
+       sheet. Sections reveal as a whole block, never card by card: staggering
+       siblings would leave cards of one row on different baselines while the
+       animation ran. (The vertical flow timeline is the one deliberate
+       exception — its items stagger top-to-bottom, which cannot break a
+       shared baseline.) */
+    @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+    @keyframes draw { from { opacity: 0; transform: translateY(-8px) rotate(-6deg); } to { opacity: 1; transform: none; } }
+    @keyframes sheen { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+    @keyframes pulse { 0%, 100% { opacity: .35; transform: scale(1); } 50% { opacity: 1; transform: scale(1.35); } }
+
+    /* The hidden state is applied only once the script has taken charge of
+       revealing it (html.motion). Written the other way round — hidden by
+       default, shown by JS — a blocked or failed script leaves the whole page
+       blank, and so does any renderer that never scrolls. */
+    html.motion [data-reveal] { opacity: 0; transform: translateY(16px); transition: opacity .5s ease, transform .5s cubic-bezier(.2,.7,.3,1); }
+    html.motion [data-reveal].in { opacity: 1; transform: none; }
+
+    .brand .logo { animation: draw .7s cubic-bezier(.2,.7,.3,1) both; }
+    .hero .kicker { animation: rise .5s ease both .05s; }
+    .hero h1      { animation: rise .5s ease both .14s; }
+    .hero .lead   { animation: rise .5s ease both .22s; }
+    .hero .actions{ animation: rise .5s ease both .3s; }
+    .hero .stats  { animation: rise .5s ease both .4s; }
+
+    /* the flagship row catches the light once on arrival, then stays still */
+    .product.lead::after {
+      content: ""; position: absolute; inset: 0; border-radius: 16px; pointer-events: none;
+      background: linear-gradient(90deg, transparent 40%, rgba(227,165,86,.16) 50%, transparent 60%);
+      background-size: 250% 100%; animation: sheen 2.4s ease-out 1 .4s;
+    }
+    /* a live dot on the flagship: the system is running, not a screenshot */
+    .live { width: 7px; height: 7px; border-radius: 50%; background: var(--good);
+      display: inline-block; animation: pulse 2s ease-in-out infinite; }
+
+    /* Icons that carry their meaning in motion: the gear turns, the AI spark
+       breathes, the design pen keeps drawing its stroke. Part-level animation
+       can't reach inside a <use> clone, so these are inlined from the same
+       drawn set. The global reduced-motion block stops all of them. */
+    @keyframes icspin { to { transform: rotate(360deg); } }
+    @keyframes icpulse { 0%, 100% { opacity: .35; transform: scale(.75); }
+                         50% { opacity: 1; transform: scale(1.1); } }
+    @keyframes icdraw { 0% { stroke-dashoffset: 26; } 55%, 72% { stroke-dashoffset: 0; }
+                        100% { stroke-dashoffset: -26; } }
+    .ic .spin { animation: icspin 9s linear infinite; transform-box: fill-box; transform-origin: center; }
+    .ic .spark { animation: icpulse 2.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+    .ic .draw { stroke-dasharray: 26; animation: icdraw 3.6s ease-in-out infinite; }
+
+    .card, .channel { transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease; }
+    .card:hover { transform: translateY(-3px); border-color: var(--tint);
+      box-shadow: 0 10px 24px rgba(27, 36, 48, .08); }
+    .channel:hover { transform: translateY(-3px); }
+    .card:hover .tile, .channel:hover .tile { background: var(--tint); }
+    .card:hover .tile .ic, .channel:hover .tile .ic { stroke: #fff; color: #fff; }
+    .tile { transition: background .22s ease; }
+    .tile .ic { transition: stroke .22s ease; }
+    .btn { transition: transform .18s ease, opacity .18s ease; }
+    .btn:hover { transform: translateY(-1px); }
+    /* ripple: a pressed primary button answers where it was touched */
+    .btn.primary { position: relative; overflow: hidden; }
+    .rip { position: absolute; width: 24px; height: 24px; border-radius: 50%;
+      background: rgba(255, 255, 255, .4); transform: scale(0); pointer-events: none;
+      animation: rip .55s ease-out forwards; }
+    @keyframes rip { to { transform: scale(9); opacity: 0; } }
+
+    /* ═══════ hero: full-height, brand-light wash, drifting geometry ═══════
+       The page stays white — the wash is two soft amber/brown glows drifting
+       behind the type, and the geometry is the brand's own shapes (the sail
+       triangle, rings, a square) drawn at low opacity. Ink, never paper. */
+    .hero { position: relative; text-align: center; overflow: hidden;
+      padding: 40px 0 24px; min-height: clamp(420px, calc(100vh - 320px), 680px);
+      display: flex; flex-direction: column; justify-content: center; }
+    /* The wash is two faint radial hints painted directly on the art layer —
+       they fade to nothing well before any edge, so there is no clipped blur
+       rectangle and the page reads white (blurred glow divs failed both ways:
+       at strength they merged into a beige field, and their boxes clipped
+       hard at the hero's bounds). The motion lives in the shapes instead. */
+    .heroart { position: absolute; inset: 0; pointer-events: none;
+      background:
+        radial-gradient(340px 260px at 84% 18%, rgba(227,165,86,.08), transparent 68%),
+        radial-gradient(320px 260px at 10% 80%, rgba(122,68,24,.05), transparent 68%); }
+    @keyframes bob { from { transform: translateY(0) rotate(0deg); } to { transform: translateY(-14px) rotate(8deg); } }
+    @keyframes bob2 { from { transform: translateY(0) rotate(0deg); } to { transform: translateY(12px) rotate(-10deg); } }
+    .shape { position: absolute; opacity: .5; }
+    .shape.tri { width: 34px; height: 34px; background: rgba(227,165,86,.35);
+      clip-path: polygon(100% 0, 100% 100%, 0 100%); top: 18%; inset-inline-start: 12%;
+      animation: bob 11s ease-in-out infinite alternate; }
+    .shape.ring { width: 44px; height: 44px; border: 2px solid rgba(122,68,24,.22); border-radius: 50%;
+      top: 62%; inset-inline-start: 8%; animation: bob2 13s ease-in-out infinite alternate; }
+    .shape.sq { width: 26px; height: 26px; border: 2px solid rgba(227,165,86,.4); border-radius: 7px;
+      top: 24%; inset-inline-end: 10%; transform: rotate(18deg);
+      animation: bob 12s ease-in-out infinite alternate; }
+    .shape.ring2 { width: 26px; height: 26px; border: 2px solid rgba(227,165,86,.45); border-radius: 50%;
+      top: 70%; inset-inline-end: 14%; animation: bob2 10s ease-in-out infinite alternate; }
+    .shape.dot { width: 10px; height: 10px; border-radius: 50%; background: rgba(122,68,24,.25);
+      top: 42%; inset-inline-start: 22%; animation: bob 9s ease-in-out infinite alternate; }
+    .hero > * { position: relative; }
+    .hero .kicker {
+      display: inline-block; background: var(--panel-2); border: 1px solid var(--border);
+      color: var(--sand); border-radius: 999px; padding: 6px 16px; font-size: 13px; font-weight: 700;
+      align-self: center;
+    }
+    .hero h1 { font-size: clamp(30px, 5.6vw, 52px); margin: 12px 0 6px; line-height: 1.4; text-wrap: balance; }
+    .hero h1 .en { color: var(--tint); direction: ltr; display: inline-block; unicode-bidi: isolate;
+      letter-spacing: -.5px; font-size: .62em; }
+    .hero .lead { color: var(--muted); max-width: 620px; margin: 0 auto 16px; font-size: 15.5px; line-height: 1.8; }
+    .hero .actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .hero .actions .btn { will-change: transform; }
+
+    /* real numbers only: units, checks, dependencies, offline — all verifiable */
+    .stats { display: flex; justify-content: center; gap: 32px; flex-wrap: wrap; margin-top: 24px; }
+    .stat { display: flex; flex-direction: column; gap: 2px; min-width: 96px; }
+    .stat b.num { font-size: 27px; font-weight: 800; color: var(--tint); direction: ltr; unicode-bidi: isolate; }
+    .stat span { color: var(--muted); font-size: 12.5px; }
+    .scrollcue { position: absolute; bottom: 8px; inset-inline-start: 50%; transform: translateX(50%);
+      color: var(--muted); display: none; }
+    html.motion .scrollcue { display: block; animation: cue 1.8s ease-in-out infinite; }
+    @keyframes cue { 0%, 100% { transform: translate(50%, 0); opacity: .5; }
+                     50% { transform: translate(50%, 8px); opacity: 1; } }
+    .scrollcue .ic { transform: rotate(-90deg); width: 22px; height: 22px; }
+
+    h2.section { font-size: 22px; margin: 32px 0 4px; }
+    h2.section::after {
+      content: ""; display: block; width: 46px; height: 3px; border-radius: 2px;
+      margin-top: 6px; background: linear-gradient(270deg, var(--tint), var(--sand-vivid));
+    }
+    .sub { color: var(--muted); margin: 0 0 12px; line-height: 1.75; }
+
     .card {
       background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px;
       display: flex; flex-direction: column; gap: 6px;
@@ -235,7 +292,15 @@
       align-self: flex-start;
     }
     .chip.on { color: var(--tint); border-color: var(--tint); }
+    /* the five things each service actually covers, as quiet mini-chips */
+    ul.feats { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+    ul.feats li { font-size: 11px; font-weight: 600; color: var(--muted); background: var(--panel-2);
+      border: 1px solid var(--border); border-radius: 999px; padding: 4px 8px; }
+    .card:hover ul.feats li { border-color: var(--sand-vivid); }
 
+    /* mini feature cards on the edge rail: icon + claim, nothing else */
+    #edge .card { align-items: flex-start; }
+    #edge .card b { font-size: 13.5px; }
 
     /* The flagship product gets a wide card of its own — النوخذة is a system we
        built and run, not one service tile among six. This, the numbered steps
@@ -245,7 +310,8 @@
       padding: 16px; display: grid; grid-template-columns: 1fr auto; gap: 16px;
       align-items: center; margin-top: 12px; position: relative; overflow: hidden;
     }
-    .product.lead { border-color: var(--tint); box-shadow: 0 0 0 1px var(--tint); }
+    .product.lead { border-color: var(--tint); box-shadow: 0 0 0 1px var(--tint);
+      transition: transform .3s ease, box-shadow .3s ease; will-change: transform; }
     .product h3 { margin: 0 0 6px; font-size: 20px; display: flex; align-items: center; gap: 8px; }
     .product p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.75; }
     .product .units { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
@@ -255,12 +321,46 @@
       .product .go { justify-self: stretch; text-align: center; }
     }
 
-    /* how-we-work is a timeline now, not a row of boxes: numbered discs joined
-       by a rule, horizontal on wide screens, vertical on a phone */
-    ol.steps { counter-reset: s; list-style: none; margin: 16px 0 0; padding: 0;
-      display: flex; gap: 16px; }
-    ol.steps li { counter-increment: s; flex: 1; position: relative;
-      color: var(--muted); font-size: 13px; line-height: 1.7; }
+    /* ═══════ the automation flow: request to running system, one line ═══════
+       A vertical timeline whose spine draws itself as the section arrives and
+       whose stations light in order — the one deliberate stagger on the page. */
+    ol.flow { list-style: none; counter-reset: f; margin: 16px 0 0; padding: 0; position: relative;
+      max-width: 560px; }
+    ol.flow::before { content: ""; position: absolute; top: 8px; bottom: 8px;
+      inset-inline-start: 15px; width: 2px; background: var(--border);
+      transform-origin: top; }
+    html.motion [data-reveal] ol.flow::before { transform: scaleY(0); transition: transform 1.6s cubic-bezier(.4,0,.2,1) .1s; }
+    html.motion [data-reveal].in ol.flow::before { transform: scaleY(1); }
+    ol.flow li { counter-increment: f; position: relative; padding: 0 44px 20px 0; }
+    ol.flow li:last-child { padding-bottom: 0; }
+    ol.flow li::before { content: counter(f); position: absolute; inset-inline-start: 0; top: 0;
+      width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+      background: var(--panel); border: 2px solid var(--tint); color: var(--tint);
+      font-weight: 800; font-size: 13px; }
+    ol.flow li.now::before { background: var(--tint); color: #fff; }
+    ol.flow li b { display: block; font-size: 15px; margin: 4px 0 2px; }
+    ol.flow li span { color: var(--muted); font-size: 13px; line-height: 1.65; }
+    html.motion [data-reveal] ol.flow li { opacity: 0; transform: translateY(10px);
+      transition: opacity .45s ease, transform .45s ease; }
+    html.motion [data-reveal].in ol.flow li { opacity: 1; transform: none; }
+    ol.flow li:nth-child(2) { transition-delay: .16s; }
+    ol.flow li:nth-child(3) { transition-delay: .32s; }
+    ol.flow li:nth-child(4) { transition-delay: .48s; }
+    ol.flow li:nth-child(5) { transition-delay: .64s; }
+    ol.flow li:nth-child(6) { transition-delay: .8s; }
+    ol.flow li:nth-child(7) { transition-delay: .96s; }
+
+    /* how-we-work: eight numbered discs joined by a rule — a timeline that
+       slides horizontally on wide screens (eight will not fit on any desktop,
+       so it is driven by the same rail arrows and dots as the card sections)
+       and stacks vertically on a phone */
+    ol.steps { counter-reset: s; list-style: none; margin: 0; padding: 8px 4px 12px;
+      display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
+      scroll-padding-inline: 4px; scrollbar-width: none; }
+    ol.steps::-webkit-scrollbar { display: none; }
+    ol.steps:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 8px; }
+    ol.steps li { counter-increment: s; flex: 0 0 190px; position: relative;
+      scroll-snap-align: start; color: var(--muted); font-size: 13px; line-height: 1.7; }
     ol.steps li::before { content: counter(s); display: grid; place-items: center;
       width: 32px; height: 32px; border-radius: 50%; background: var(--tint); color: #fff;
       font-weight: 800; font-size: 14px; }
@@ -269,11 +369,23 @@
     ol.steps li:last-child::after { display: none; }
     ol.steps li b { display: block; color: var(--text); font-size: 15px; margin: 8px 0 2px; }
 
+    /* the technologies float — each chip bobs on its own beat */
+    .cloud { display: flex; flex-wrap: wrap; gap: 8px 12px; justify-content: center;
+      margin-top: 16px; }
+    .tech { font-size: 12.5px; font-weight: 700; color: var(--muted); background: var(--panel);
+      border: 1px solid var(--border); border-radius: 999px; padding: 8px 16px;
+      direction: ltr; unicode-bidi: isolate; transition: color .2s ease, border-color .2s ease; }
+    .tech:hover { color: var(--tint); border-color: var(--tint); }
+    html.motion .tech { animation: bob 4s ease-in-out infinite alternate; }
+    html.motion .tech:nth-child(3n) { animation-duration: 5s; animation-delay: .6s; }
+    html.motion .tech:nth-child(3n+1) { animation-duration: 4.4s; animation-delay: 1.1s; }
+    html.motion .tech:nth-child(4n) { animation-delay: 1.7s; }
+
     /* Contact channels, as on the live site — the same three, laid as one bar
-       of pills: icon tile, label, value, reading start-aligned like a row. */
-    /* the bar wraps rather than squeezing: at tablet widths three pills in one
+       of pills: icon tile, label, value, reading start-aligned like a row.
+       The bar wraps rather than squeezing: at tablet widths three pills in one
        row truncated the email address to an ellipsis, which is worse than a
-       second row — the value IS the content here */
+       second row — the value IS the content here. */
     .channels { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
     .channel { flex: 1 1 240px; min-width: 0; background: var(--panel); border: 1px solid var(--border);
       border-radius: 14px; padding: 12px 16px; display: flex; align-items: center; gap: 12px;
@@ -286,31 +398,88 @@
     .channel span.v { color: var(--muted); font-size: 12.5px; direction: ltr; unicode-bidi: isolate;
       text-align: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+    /* ═══════ the project form: floating labels, honest validation ═══════
+       There is no server behind this page (and the CSP forbids form posts) —
+       a valid submission composes the message and hands it to WhatsApp, the
+       same channel the bar below offers. JS-gated: without the script the
+       channels are the contact surface, not a dead form. */
+    .qwrap { display: none; }
+    html.js .qwrap { display: block; }
+    .qform { background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+      padding: 20px; margin-top: 12px; display: grid; gap: 16px;
+      grid-template-columns: 1fr 1fr; }
+    .qform .field { position: relative; }
+    .qform .field.wide { grid-column: 1 / -1; }
+    .qform input, .qform select, .qform textarea {
+      width: 100%; font-family: var(--sans); font-size: 16px; color: var(--text);
+      background: var(--panel-2); border: 1px solid var(--border-input); border-radius: 10px;
+      padding: 20px 12px 6px; transition: border-color .2s ease; }
+    .qform textarea { min-height: 96px; resize: vertical; }
+    .qform input:focus, .qform select:focus, .qform textarea:focus { outline: none; border-color: var(--tint); }
+    .qform label { position: absolute; inset-inline-start: 12px; top: 13px; color: var(--muted);
+      font-size: 14px; pointer-events: none; transition: top .18s ease, font-size .18s ease; }
+    .qform input:focus + label, .qform input:not(:placeholder-shown) + label,
+    .qform textarea:focus + label, .qform textarea:not(:placeholder-shown) + label,
+    .qform select + label { top: 4px; font-size: 11px; color: var(--tint); }
+    .qform [aria-invalid="true"] { border-color: var(--danger); }
+    .qform .hint { display: none; color: var(--danger); font-size: 11.5px; margin-top: 4px; }
+    .qform [aria-invalid="true"] ~ .hint { display: block; }
+    .qform .send { grid-column: 1 / -1; justify-self: start; display: inline-flex;
+      align-items: center; gap: 8px; }
+    .qform .send.sent { background: var(--good); }
+    .qform .send .ok { display: none; }
+    .qform .send.sent .ok { display: inline; stroke-dasharray: 20; animation: okdraw .5s ease-out forwards; }
+    .qform .send.sent .lbl { display: none; }
+    @keyframes okdraw { from { stroke-dashoffset: 20; } to { stroke-dashoffset: 0; } }
+
+    /* ═══════ footer: the company, the map of the site, the channels ═══════ */
+    footer { border-top: 1px solid var(--border); margin-top: 40px;
+      color: var(--muted); font-size: 12.5px; line-height: 1.9; }
+    .fcols { max-width: 1060px; margin: 0 auto; padding: 24px 20px 8px;
+      display: flex; flex-wrap: wrap; gap: 24px; }
+    .fcols > div { flex: 1 1 200px; min-width: 0; }
+    .fcols b.fh { display: block; color: var(--text); font-size: 13.5px; margin-bottom: 6px; }
+    .fcols a { display: block; color: var(--muted); padding: 2px 0; }
+    .fcols a:hover { color: var(--tint); }
+    .fbrand .logo { width: 34px; height: 34px; color: var(--tint); }
+    .fbrand .name { font-weight: 800; color: var(--tint); font-size: 17px; }
+    .soc { display: flex; gap: 8px; margin-top: 8px; }
+    .soc a { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px;
+      border: 1px solid var(--border); padding: 0; transition: transform .2s ease, border-color .2s ease; }
+    .soc a:hover { transform: translateY(-3px); border-color: var(--tint); }
+    .base { text-align: center; border-top: 1px solid var(--border); margin-top: 12px;
+      padding: 12px 20px 16px; }
+
     /* ═══════ mobile ═══════ */
     @media (max-width: 640px) {
       header { padding: 12px 12px 0; }
       .brand .logo { width: 44px; height: 44px; }
       .brand .name { font-size: 23px; }
-      nav { padding-bottom: 8px; }
-      nav a, .btn { padding: 12px 16px; min-height: 44px; display: inline-flex; align-items: center; }
+      nav.site { padding-bottom: 8px; }
+      nav.site a, .btn { padding: 12px 16px; min-height: 44px; display: inline-flex; align-items: center; }
       main { padding: 16px 12px 40px; }
-      .hero { padding: 12px 0 4px; }
+      .hero { padding: 24px 0 32px; min-height: 0; }
       h2.section { margin-top: 24px; }
-      .hero p { font-size: 15px; }
+      .hero .lead { font-size: 15px; }
       .hero .actions .btn { flex: 1 1 100%; justify-content: center; }
+      .stats { gap: 16px; }
+      .stat { min-width: 40%; }
       /* a phone slides by thumb — the arrows would only crowd the heading */
       .railnav { display: none !important; }
       .rowhead { align-items: stretch; }
       .band { flex-direction: column; gap: 16px; padding: 16px; }
       .band .fact + .fact { border-inline-start: 0; padding-inline-start: 0;
         border-top: 1px solid var(--border); padding-top: 16px; }
-      ol.steps { flex-direction: column; gap: 16px; }
-      ol.steps li { padding-inline-start: 44px; }
+      ol.steps { flex-direction: column; gap: 16px; overflow: visible; padding: 8px 0 0; }
+      ol.steps li { flex: 0 0 auto; padding-inline-start: 44px; }
       ol.steps li::before { position: absolute; inset-inline-start: 0; top: 0; }
       ol.steps li::after { top: 36px; bottom: -16px; height: auto; width: 2px;
         inset-inline-start: 15px; inset-inline-end: auto; }
       ol.steps li b { margin-top: 4px; }
       .channels { flex-direction: column; }
+      .qform { grid-template-columns: 1fr; padding: 16px; }
+      .shape { display: none; }
+      .heroart { background: none; }
     }
 
     /* A visitor who asks the OS for less motion gets none of it: no entrance,
@@ -322,11 +491,9 @@
         transition: none !important;
       }
       html.motion [data-reveal] { opacity: 1 !important; transform: none !important; }
+      html.motion [data-reveal] ol.flow::before { transform: none !important; }
+      html.motion [data-reveal] ol.flow li { opacity: 1 !important; transform: none !important; }
     }
-
-    footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 20px;
-      border-top: 1px solid var(--border); line-height: 1.9; }
-
   </style>
 </head>
 <body>
@@ -352,6 +519,18 @@
     <symbol id="i-briefcase" viewBox="0 0 24 24"><rect x="2.8" y="7.2" width="18.4" height="13" rx="2.4"/><path d="M8.6 7.2V5.6a2 2 0 0 1 2-2h2.8a2 2 0 0 1 2 2v1.6"/><path d="M2.8 12.4h18.4M10.4 12.4v2.2h3.2v-2.2"/></symbol>
     <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3.2 4.8 6.1v6c0 4.3 3 7.3 7.2 8.7 4.2-1.4 7.2-4.4 7.2-8.7v-6z"/><path d="m8.8 12.2 2.2 2.2 4.2-4.4"/></symbol>
     <symbol id="i-chev" viewBox="0 0 24 24"><path d="M14.5 6 9 12l5.5 6"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><rect x="7" y="2.8" width="10" height="18.4" rx="2.6"/><path d="M10.4 18.4h3.2"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7.2 18.6a4.1 4.1 0 1 1 .5-8.15A5.3 5.3 0 0 1 18 11.9a3.4 3.4 0 0 1-.4 6.7z"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24"><path d="m14.3 3.7 6 6L12 18l-7.6 2.2L6.6 12.6z"/><path d="M4.4 20.2 10 14.6"/><circle cx="11" cy="13.6" r="1.2"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2.8 5.4 13.4h5L9 21.2l7.6-10.6h-5z"/></symbol>
+    <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M4.5 15.5a7.5 7.5 0 1 1 15 0"/><path d="M12 15.5 16 9.8"/><circle cx="12" cy="15.5" r="1.2"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.6"/><path d="m15 15 5 5"/></symbol>
+    <symbol id="i-devices" viewBox="0 0 24 24"><rect x="2.8" y="4.8" width="13.4" height="9.6" rx="1.8"/><path d="M6.8 18h5.4"/><path d="M9.5 14.4V18"/><rect x="16.8" y="9.2" width="4.6" height="8.8" rx="1.4"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3.6 8.4 4.5L12 12.6 3.6 8.1z"/><path d="m5.4 11.7-1.8 1L12 17.2l8.4-4.5-1.8-1"/><path d="m5.4 16.2-1.8 1L12 21.7l8.4-4.5-1.8-1"/></symbol>
+    <symbol id="i-headset" viewBox="0 0 24 24"><path d="M4.5 13.2a7.5 7.5 0 0 1 15 0"/><rect x="3.4" y="12.6" width="3.6" height="6" rx="1.6"/><rect x="17" y="12.6" width="3.6" height="6" rx="1.6"/><path d="M19 18.6v.6a2.6 2.6 0 0 1-2.6 2.6H13"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.8 3.4V7h-3.6"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M12 3.6l1.7 4.6 4.6 1.7-4.6 1.7L12 16.2l-1.7-4.6-4.6-1.7 4.6-1.7z"/><circle cx="18.6" cy="17.4" r="1.4"/><circle cx="5.8" cy="18.6" r="1"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M20.6 3.4 3.8 10.2l6.4 2.6 2.6 7.4z"/><path d="m10.2 12.8 5.2-5.2"/></symbol>
   </svg>
 
   <header>
@@ -360,7 +539,7 @@
       <div><span class="name">المهلب</span>
         <small>Almuhallab Code — أنظمة أعمال وتطبيقات ويب</small></div>
     </div>
-    <nav>
+    <nav class="site">
       <a href="#services">خدماتنا</a>
       <a href="#products">أعمالنا</a>
       <a href="#contact">تواصل</a>
@@ -370,19 +549,33 @@
 
   <main>
     <section class="hero">
-      <span class="kicker"><svg class="ic sm" aria-hidden="true"><use href="#i-code"/></svg> شركة برمجة كويتية · الكويت</span>
-      <h1>نبني الأنظمة التي تُدير الأعمال<br /><span class="en">Almuhallab Code</span></h1>
-      <p>نموذج بيانات واحد، شاشات عربية، وأرقام تسير بين الوحدات بدل أن تُكتب مرتين.</p>
-      <div class="actions">
-        <a class="btn primary" href="nokhatha.html">شاهد النوخذة — نظامنا الموحد</a>
-        <a class="btn outline" href="#services">خدماتنا</a>
+      <div class="heroart" aria-hidden="true">
+        <span class="shape tri"></span><span class="shape ring"></span>
+        <span class="shape sq"></span><span class="shape ring2"></span>
+        <span class="shape dot"></span>
       </div>
+      <span class="kicker"><svg class="ic sm" aria-hidden="true"><use href="#i-code"/></svg> شركة برمجة كويتية · الكويت</span>
+      <h1>نبني حلولاً رقمية قوية<br /><span class="en">We Build Powerful Digital Solutions</span></h1>
+      <p class="lead">مواقع، تطبيقات جوال، برمجيات مخصّصة، ذكاء اصطناعي، تصميم، وحلول سحابية —
+        نموذج بيانات واحد، شاشات عربية، وأرقام تسير بين الوحدات بدل أن تُكتب مرتين.</p>
+      <div class="actions">
+        <a class="btn primary" href="#contact" data-magnet>ابدأ مشروعك</a>
+        <a class="btn outline" href="#products" data-magnet>شاهد أعمالنا</a>
+      </div>
+      <!-- real, verifiable numbers — no invented clients or years -->
+      <div class="stats">
+        <div class="stat"><b class="num" data-count="4">4</b><span>وحدات في نظام النوخذة</span></div>
+        <div class="stat"><b class="num" data-count="254">254</b><span>فحصاً آلياً قبل كل إصدار</span></div>
+        <div class="stat"><b class="num" data-count="0">0</b><span>اعتماديات خارجية</span></div>
+        <div class="stat"><b class="num" data-count="100" data-suffix="%">100%</b><span>يعمل دون إنترنت</span></div>
+      </div>
+      <a class="scrollcue" href="#nokhatha" aria-label="مرر للأسفل"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></a>
     </section>
 
-    <!-- Each multi-card section is a slider now: a heading row with the
-         arrows at its end, then a scroll-snap rail of the site's own cards.
-         The rail is real overflow scroll — swipe, drag, or keyboard — and the
-         arrows and dots are an enhancement layered on top by the script. -->
+    <!-- Each multi-card section is a slider: a heading row with the arrows at
+         its end, then a scroll-snap rail of the site's own cards. The rail is
+         real overflow scroll — swipe, drag, or keyboard — and the arrows and
+         dots are an enhancement layered on top by the script. -->
     <section class="slider" id="nokhatha" data-reveal>
       <div class="rowhead">
         <div>
@@ -425,7 +618,7 @@
       <div class="rowhead">
         <div>
           <h2 class="section">خدماتنا</h2>
-          <p class="sub">أتمتة، وتطبيقات على مقاس عملك.</p>
+          <p class="sub">ستة مجالات، من أول فكرة حتى التشغيل على نطاقك.</p>
         </div>
         <div class="railnav">
           <button type="button" class="arrow prev" aria-label="السابق"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></button>
@@ -435,58 +628,58 @@
       <div class="railwrap">
         <div class="rail" tabindex="0" role="group" aria-label="خدماتنا">
           <div class="card">
-            <h3><span class="tile"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><g class="spin"><circle cx="12" cy="12" r="3.1"/><path d="M12 2.6v3M12 18.4v3M21.4 12h-3M5.6 12h-3M18.6 5.4l-2.1 2.1M7.5 16.5l-2.1 2.1M18.6 18.6l-2.1-2.1M7.5 7.5 5.4 5.4"/></g></svg></span> أتمتة العمليات</h3>
-            <p>الموافقات والفواتير والتقارير تُنفَّذ وحدها.</p>
+            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg></span> تطوير المواقع</h3>
+            <p>مواقع تُبنى للسرعة ولمحركات البحث.</p>
+            <ul class="feats"><li>مواقع شركات</li><li>متاجر إلكترونية</li><li>صفحات هبوط</li><li>إدارة محتوى</li><li>جاهزة لمحركات البحث</li></ul>
           </div>
           <div class="card">
-            <h3><span class="tile"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.2" y="6.2" width="11.6" height="11.6" rx="2.2"/><path d="M9.6 3.4v2.8M14.4 3.4v2.8M9.6 17.8v2.8M14.4 17.8v2.8M3.4 9.6h2.8M3.4 14.4h2.8M17.8 9.6h2.8M17.8 14.4h2.8"/><path class="spark" fill="currentColor" stroke="none" d="M12 8.4l1 2.6 2.6 1-2.6 1-1 2.6-1-2.6-2.6-1 2.6-1z"/></svg></span> وكلاء الذكاء الاصطناعي</h3>
-            <p>وكلاء نبنيهم لعملك: يردّون ويلخّصون وينفّذون.</p>
+            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-phone"/></svg></span> تطبيقات الجوال</h3>
+            <p>تطبيقات تُثبَّت وتعمل بلا إنترنت.</p>
+            <ul class="feats"><li>iOS</li><li>أندرويد</li><li>Flutter</li><li>React Native</li><li>تطبيقات أصيلة</li></ul>
           </div>
           <div class="card">
-            <h3><span class="tile"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m14.3 3.7 6 6L12 18l-7.6 2.2L6.6 12.6z"/><path d="M4.4 20.2 10 14.6"/><circle cx="11" cy="13.6" r="1.2"/><path class="draw" d="M13.5 21c3-.2 5.3-1.4 7-3.4"/></svg></span> تصميم الشعارات والهوية</h3>
-            <p>شعار وهوية بصرية تُرسم لعلامتك من الصفر.</p>
+            <h3><span class="tile"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.6" y="3.6" width="7.6" height="7.6" rx="1.8"/><rect x="13" y="3.6" width="7.6" height="7.6" rx="1.8"/><rect x="3.6" y="13" width="7.6" height="7.6" rx="1.8"/><g class="spin"><circle cx="16.8" cy="16.8" r="2.3"/><path d="M16.8 13v1.3M16.8 19.3v1.3M20.6 16.8h-1.3M14.3 16.8H13M19.5 14.1l-.95.95M15.05 18.55l-.95.95M19.5 19.5l-.95-.95M15.05 15.05l-.95-.95"/></g></svg></span> برمجيات مخصّصة</h3>
+            <p>أنظمة تُفصَّل على إجراءات عملك أنت.</p>
+            <ul class="feats"><li>ERP</li><li>CRM</li><li>موارد بشرية</li><li>مخزون وحجوزات</li><li>تطبيق مخصّص بالكامل</li><li>تطبيق خاص لكل مشروع</li></ul>
           </div>
           <div class="card">
-            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-tailor"/></svg></span> تطبيق مخصّص بالكامل</h3>
-            <p>من الصفر على إجراءاتك، لا قالب جاهز.</p>
+            <h3><span class="tile"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.2" y="6.2" width="11.6" height="11.6" rx="2.2"/><path d="M9.6 3.4v2.8M14.4 3.4v2.8M9.6 17.8v2.8M14.4 17.8v2.8M3.4 9.6h2.8M3.4 14.4h2.8M17.8 9.6h2.8M17.8 14.4h2.8"/><path class="spark" fill="currentColor" stroke="none" d="M12 8.4l1 2.6 2.6 1-2.6 1-1 2.6-1-2.6-2.6-1 2.6-1z"/></svg></span> حلول الذكاء الاصطناعي</h3>
+            <p>ذكاء يعمل داخل نظامك، لا عرضاً تجريبياً.</p>
+            <ul class="feats"><li>وكلاء الذكاء الاصطناعي</li><li>روبوتات محادثة</li><li>أتمتة العمليات</li><li>بحث ذكي</li><li>تحليلات</li></ul>
           </div>
           <div class="card">
-            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-briefcase"/></svg></span> تطبيق خاص لكل مشروع</h3>
-            <p>مطاعم، مقاولات، عيادات، تجارة، خدمات.</p>
+            <h3><span class="tile"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m14.3 3.7 6 6L12 18l-7.6 2.2L6.6 12.6z"/><path d="M4.4 20.2 10 14.6"/><circle cx="11" cy="13.6" r="1.2"/><path class="draw" d="M13.5 21c3-.2 5.3-1.4 7-3.4"/></svg></span> تصميم UI/UX</h3>
+            <p>تجربة تُرسم قبل أن يُكتب سطر واحد.</p>
+            <ul class="feats"><li>تصميم الشعارات والهوية</li><li>نماذج أولية</li><li>أنظمة تصميم</li><li>Figma</li><li>بحث المستخدم</li></ul>
           </div>
           <div class="card">
-            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-blocks"/></svg></span> أنظمة الأعمال</h3>
-            <p>مخزون وطلبات وموارد بشرية وتقارير.</p>
-          </div>
-          <div class="card">
-            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg></span> تطبيقات الويب و PWA</h3>
-            <p>تُثبَّت على الجوال وتعمل بلا إنترنت.</p>
-          </div>
-          <div class="card">
-            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-report"/></svg></span> الأنظمة المالية و XBRL</h3>
-            <p>ميزانيات الكويت السنوية بمعيار IFRS.</p>
-          </div>
-          <div class="card">
-            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-delivery"/></svg></span> التوصيل واللوجستيات</h3>
-            <p>طلبات ومناديب وتتبّع حتى التسليم.</p>
-          </div>
-          <div class="card">
-            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-link"/></svg></span> التكامل وربط الأنظمة</h3>
-            <p>أرقامك تسير بين أنظمتك بلا إدخال يدوي.</p>
-          </div>
-          <div class="card">
-            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg></span> الأمن ومراجعة الأكواد</h3>
-            <p>تعمية كلمات المرور، CSP صارمة، مراجعة قبل النشر.</p>
+            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg></span> الحلول السحابية</h3>
+            <p>بنية تُنشر وتتوسّع وتُراقب.</p>
+            <ul class="feats"><li>AWS</li><li>Azure</li><li>Google Cloud</li><li>واجهات APIs</li><li>DevOps</li></ul>
           </div>
         </div>
         <div class="dots" aria-hidden="true"></div>
       </div>
     </section>
 
+    <h2 class="section" id="automation">أتمتة سير العمل</h2>
+    <p class="sub">من طلبك إلى نظام يعمل — خط واحد يُنفَّذ خطوة خطوة.</p>
+    <div data-reveal>
+      <ol class="flow">
+        <li><b>طلب العميل</b><span>تصلنا الفكرة والمتطلبات كما هي.</span></li>
+        <li><b>تحليل بالذكاء الاصطناعي</b><span>نفكّك المتطلبات ونقدّر الجهد والمخاطر.</span></li>
+        <li><b>التصميم</b><span>الشاشات والتجربة قبل أول سطر كود.</span></li>
+        <li><b>التطوير</b><span>بناء النظام فوق نواة بيانات واحدة.</span></li>
+        <li><b>الاختبار</b><span>فحوص آلية على الحساب والأمن والعرض.</span></li>
+        <li><b>الإطلاق</b><span>النشر على نطاقك، جاهزاً للاستخدام.</span></li>
+        <li><b>الصيانة</b><span>متابعة وتحديثات مستمرة بعد التشغيل.</span></li>
+      </ol>
+    </div>
+
     <h2 class="section" id="products">من أعمالنا</h2>
     <p class="sub">النظام الذي بنيناه ونشغّله — جرّبه الآن.</p>
 
-    <div class="product lead" data-reveal>
+    <div class="product lead" data-reveal data-tilt>
       <div>
         <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-anchor"/></svg></span> النوخذة
           <span class="live" aria-hidden="true"></span></h3>
@@ -518,19 +711,109 @@
       </div>
     </div>
 
-    <h2 class="section">كيف نعمل</h2>
-    <p class="sub">أربع خطوات حتى التشغيل على نطاقك.</p>
-    <div data-reveal>
+    <section class="slider" id="edge" data-reveal>
+      <div class="rowhead">
+        <div>
+          <h2 class="section">مزايا تحصل عليها</h2>
+          <p class="sub">في كل مشروع، مهما كان حجمه.</p>
+        </div>
+        <div class="railnav">
+          <button type="button" class="arrow prev" aria-label="السابق"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></button>
+          <button type="button" class="arrow next" aria-label="التالي"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></button>
+        </div>
+      </div>
+      <div class="railwrap">
+        <div class="rail" tabindex="0" role="group" aria-label="مزايا تحصل عليها">
+          <div class="card"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg></span><b>تسليم سريع</b></div>
+          <div class="card"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg></span><b>أمان مؤسسي</b></div>
+          <div class="card"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-gauge"/></svg></span><b>أداء عالٍ</b></div>
+          <div class="card"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg></span><b>جاهز لمحركات البحث</b></div>
+          <div class="card"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-devices"/></svg></span><b>تصميم متجاوب</b></div>
+          <div class="card"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg></span><b>تكامل ذكاء اصطناعي</b></div>
+          <div class="card"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-layers"/></svg></span><b>بنية قابلة للتوسّع</b></div>
+          <div class="card"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-pen"/></svg></span><b>واجهات حديثة</b></div>
+          <div class="card"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-headset"/></svg></span><b>دعم مخصّص</b></div>
+          <div class="card"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg></span><b>تحديثات مستمرة</b></div>
+        </div>
+        <div class="dots" aria-hidden="true"></div>
+      </div>
+    </section>
+
+    <section class="slider" id="process" data-reveal>
+      <div class="rowhead">
+        <div>
+          <h2 class="section">كيف نعمل</h2>
+          <p class="sub">ثماني خطوات، من أول جلسة حتى ما بعد التشغيل.</p>
+        </div>
+        <div class="railnav">
+          <button type="button" class="arrow prev" aria-label="السابق"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></button>
+          <button type="button" class="arrow next" aria-label="التالي"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></button>
+        </div>
+      </div>
+      <div class="railwrap">
     <ol class="steps">
-      <li><b>نفهم العملية</b> كيف يسير عملك فعلاً، لا كيف يُفترض.</li>
-      <li><b>نبني نواة واحدة</b> نموذج بيانات واحد لكل الوحدات.</li>
-      <li><b>نختبر بالأرقام</b> فحوص آلية قبل كل إصدار.</li>
-      <li><b>نسلّم ونشغّل</b> ننشر على نطاقك ونبقى معك.</li>
+      <li><b>الاستكشاف</b> نفهم عملك وأهدافك.</li>
+      <li><b>التخطيط</b> نطاق وخطة وجدول واضح.</li>
+      <li><b>تصميم التجربة</b> رحلات ونماذج أولية.</li>
+      <li><b>تصميم الواجهة</b> شاشات بهوية علامتك.</li>
+      <li><b>التطوير</b> بناء فوق نواة واحدة.</li>
+      <li><b>الاختبار</b> فحوص آلية قبل الإصدار.</li>
+      <li><b>الإطلاق</b> النشر على نطاقك.</li>
+      <li><b>الدعم</b> معك بعد التشغيل.</li>
     </ol>
+        <div class="dots" aria-hidden="true"></div>
+      </div>
+    </section>
+
+    <h2 class="section" id="tech">التقنيات</h2>
+    <p class="sub">نختار الأداة على قدر المشروع — لا العكس.</p>
+    <div class="cloud" data-reveal>
+      <span class="tech">React</span><span class="tech">Next.js</span><span class="tech">Vue</span>
+      <span class="tech">Node.js</span><span class="tech">Laravel</span><span class="tech">PHP</span>
+      <span class="tech">Flutter</span><span class="tech">Swift</span><span class="tech">Kotlin</span>
+      <span class="tech">Python</span><span class="tech">Docker</span><span class="tech">Kubernetes</span>
+      <span class="tech">PostgreSQL</span><span class="tech">MySQL</span><span class="tech">MongoDB</span>
     </div>
 
     <h2 class="section" id="contact">تواصل معنا</h2>
-    <p class="sub">عندك مشروع؟ راسلنا ونردّ بأسرع وقت.</p>
+    <p class="sub">عندك مشروع؟ احكِ لنا عنه — أو راسلنا مباشرة على أي قناة.</p>
+
+    <div class="qwrap" data-reveal>
+      <form class="qform" id="quote" novalidate>
+        <div class="field">
+          <input type="text" id="q-name" name="name" placeholder=" " autocomplete="name" />
+          <label for="q-name">الاسم</label>
+          <span class="hint">اكتب اسمك (حرفان على الأقل).</span>
+        </div>
+        <div class="field">
+          <input type="email" id="q-email" name="email" placeholder=" " autocomplete="email" dir="ltr" />
+          <label for="q-email">البريد الإلكتروني</label>
+          <span class="hint">أدخل بريداً صحيحاً مثل name@example.com.</span>
+        </div>
+        <div class="field wide">
+          <select id="q-type" name="type">
+            <option value="موقع">موقع</option>
+            <option value="تطبيق جوال">تطبيق جوال</option>
+            <option value="نظام مخصّص">نظام مخصّص</option>
+            <option value="ذكاء اصطناعي">ذكاء اصطناعي</option>
+            <option value="تصميم">تصميم</option>
+            <option value="حلول سحابية">حلول سحابية</option>
+          </select>
+          <label for="q-type">نوع المشروع</label>
+        </div>
+        <div class="field wide">
+          <textarea id="q-msg" name="msg" placeholder=" "></textarea>
+          <label for="q-msg">احكِ لنا عن مشروعك</label>
+          <span class="hint">اكتب سطراً واحداً على الأقل (10 أحرف).</span>
+        </div>
+        <button type="submit" class="btn primary send">
+          <svg class="ic sm ok" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+          <span class="lbl"><svg class="ic sm" aria-hidden="true"><use href="#i-send"/></svg> أرسل عبر واتساب</span>
+          <span class="okmsg" hidden>تم — نكمل على واتساب</span>
+        </button>
+      </form>
+    </div>
+
     <div class="channels" data-reveal>
       <a class="channel" href="https://wa.me/96565894110">
         <span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-whatsapp"/></svg></span>
@@ -551,9 +834,37 @@
   </main>
 
   <footer>
-    المهلب كود — Almuhallab Code · شركة برمجة وأنظمة · صُنع في الكويت<br />
-    <a href="nokhatha.html">نظام النوخذة</a> ·
-    <a href="admin.html" style="color:var(--muted)">لوحة الإدارة</a>
+    <div class="fcols">
+      <div class="fbrand">
+        <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sail"/></svg>
+        <span class="name">المهلب</span>
+        <div>Almuhallab Code · شركة برمجة وأنظمة · صُنع في الكويت</div>
+        <div class="soc">
+          <a href="https://wa.me/96565894110" aria-label="واتساب"><svg class="ic" aria-hidden="true"><use href="#i-whatsapp"/></svg></a>
+          <a href="https://instagram.com/almuhallab.code" aria-label="انستغرام"><svg class="ic" aria-hidden="true"><use href="#i-instagram"/></svg></a>
+          <a href="mailto:hello@almuhallab-code.com" aria-label="البريد"><svg class="ic" aria-hidden="true"><use href="#i-mail"/></svg></a>
+        </div>
+      </div>
+      <div>
+        <b class="fh">روابط سريعة</b>
+        <a href="#services">خدماتنا</a>
+        <a href="#products">أعمالنا</a>
+        <a href="#automation">أتمتة سير العمل</a>
+        <a href="#contact">تواصل معنا</a>
+        <a href="nokhatha.html">نظام النوخذة</a>
+        <a href="admin.html">لوحة الإدارة</a>
+      </div>
+      <div>
+        <b class="fh">الخدمات</b>
+        <a href="#services">تطوير المواقع</a>
+        <a href="#services">تطبيقات الجوال</a>
+        <a href="#services">برمجيات مخصّصة</a>
+        <a href="#services">حلول الذكاء الاصطناعي</a>
+        <a href="#services">تصميم UI/UX</a>
+        <a href="#services">الحلول السحابية</a>
+      </div>
+    </div>
+    <div class="base">المهلب كود — Almuhallab Code · جميع الحقوق محفوظة</div>
   </footer>
 
   <script>
@@ -569,18 +880,28 @@
       var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       var sliders = document.querySelectorAll("section.slider");
       for (var i = 0; i < sliders.length; i++) (function (sec) {
-        var rail = sec.querySelector(".rail");
+        /* the track is a .rail of cards, or the process timeline's own <ol> —
+           eight steps never fit a desktop, so it is driven the same way */
+        var rail = sec.querySelector(".rail, ol.steps");
+        /* the timeline's own <ol> becomes a focusable scroll region only once
+           the script is running — the markup stays a plain ordered list */
+        if (!rail.hasAttribute("tabindex")) {
+          rail.setAttribute("tabindex", "0");
+          rail.setAttribute("role", "group");
+          rail.setAttribute("aria-label", sec.querySelector("h2.section").textContent);
+        }
         var prev = sec.querySelector(".arrow.prev");
         var next = sec.querySelector(".arrow.next");
         var dotbox = sec.querySelector(".dots");
         var kids = rail.children, dots = [], pending = false;
+        function gap() { return parseFloat(getComputedStyle(rail).columnGap) || 12; }
         function paint() {
           /* One dot per *reachable scroll position*, not per card: several
              cards share the viewport at the rail's end, so a dot per card
              leaves the last dots unreachable — the indicator would sit a
              third short at the very moment the rail is exhausted. The count
              is recomputed here so a resize keeps it honest. */
-          var step = kids[0].getBoundingClientRect().width + 12;
+          var step = kids[0].getBoundingClientRect().width + gap();
           var max = rail.scrollWidth - rail.clientWidth;
           var pos = Math.abs(rail.scrollLeft);
           var count = max < 12 ? 1 : Math.round(max / step) + 1;
@@ -597,7 +918,7 @@
           next.disabled = pos > max - 8;
         }
         function go(dir) {  // dir 1 = next; in RTL that is a scroll to the left
-          var step = kids[0].getBoundingClientRect().width + 12;
+          var step = kids[0].getBoundingClientRect().width + gap();
           rail.scrollBy({ left: -dir * step, behavior: still ? "auto" : "smooth" });
         }
         next.addEventListener("click", function () { go(1); });
@@ -637,6 +958,123 @@
         io.disconnect();
         for (var k = 0; k < blocks.length; k++) show(blocks[k]);
       }, 1500);
+    })();
+
+    /* Counters, ripple, magnetic buttons, product tilt. All of it is layered
+       on top of working content: the real numbers are already in the markup
+       (no-JS shows them as-is), the buttons work without the magnet, and the
+       flagship row is a plain card until a fine pointer hovers it. */
+    (function () {
+      var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var fine = window.matchMedia("(pointer: fine)").matches;
+
+      // count up once, when the stats scroll into view
+      var nums = document.querySelectorAll(".num[data-count]");
+      if (!still && "IntersectionObserver" in window && nums.length) {
+        var cio = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) {
+            if (!e.isIntersecting) return;
+            cio.unobserve(e.target);
+            var el = e.target, target = parseInt(el.getAttribute("data-count"), 10) || 0;
+            var suffix = el.getAttribute("data-suffix") || "";
+            var t0 = null;
+            function tick(t) {
+              if (!t0) t0 = t;
+              var f = Math.min(1, (t - t0) / 1100);
+              f = 1 - Math.pow(1 - f, 3);   // ease-out, settles cleanly
+              el.textContent = Math.round(target * f) + suffix;
+              if (f < 1) requestAnimationFrame(tick);
+            }
+            requestAnimationFrame(tick);
+          });
+        }, { threshold: 0.6 });
+        for (var n = 0; n < nums.length; n++) cio.observe(nums[n]);
+      }
+
+      // ripple where the press landed
+      document.addEventListener("click", function (ev) {
+        var btn = ev.target.closest && ev.target.closest(".btn.primary");
+        if (!btn || still) return;
+        var r = btn.getBoundingClientRect();
+        var rip = document.createElement("span");
+        rip.className = "rip";
+        rip.style.left = (ev.clientX - r.left - 12) + "px";
+        rip.style.top = (ev.clientY - r.top - 12) + "px";
+        btn.appendChild(rip);
+        rip.addEventListener("animationend", function () { rip.remove(); });
+      });
+
+      // magnetic CTAs: the button leans a few px toward a fine pointer
+      if (fine && !still) {
+        var mags = document.querySelectorAll("[data-magnet]");
+        for (var m = 0; m < mags.length; m++) (function (el) {
+          el.addEventListener("pointermove", function (ev) {
+            var r = el.getBoundingClientRect();
+            var dx = (ev.clientX - r.left - r.width / 2) / r.width;
+            var dy = (ev.clientY - r.top - r.height / 2) / r.height;
+            el.style.transform = "translate(" + (dx * 6) + "px," + (dy * 5) + "px)";
+          });
+          el.addEventListener("pointerleave", function () { el.style.transform = ""; });
+        })(mags[m]);
+
+        // the flagship row tilts toward the pointer, gently
+        var tilt = document.querySelector("[data-tilt]");
+        if (tilt) {
+          tilt.addEventListener("pointermove", function (ev) {
+            var r = tilt.getBoundingClientRect();
+            var rx = ((ev.clientY - r.top) / r.height - .5) * -3;
+            var ry = ((ev.clientX - r.left) / r.width - .5) * 3;
+            tilt.style.transform = "perspective(900px) rotateX(" + rx + "deg) rotateY(" + ry + "deg)";
+          });
+          tilt.addEventListener("pointerleave", function () { tilt.style.transform = ""; });
+        }
+      }
+    })();
+
+    /* The project form. No server, no form-action (the CSP forbids both) —
+       a valid submission composes the message and opens WhatsApp, the same
+       real channel the bar below offers. Validation is honest and in Arabic:
+       mark the field, say what is missing, never navigate on bad input. */
+    (function () {
+      var form = document.getElementById("quote");
+      if (!form) return;
+      var name = document.getElementById("q-name");
+      var email = document.getElementById("q-email");
+      var type = document.getElementById("q-type");
+      var msg = document.getElementById("q-msg");
+      function okName() { return name.value.trim().length >= 2; }
+      function okEmail() { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.value.trim()); }
+      function okMsg() { return msg.value.trim().length >= 10; }
+      function mark(el, ok) { el.setAttribute("aria-invalid", ok ? "false" : "true"); }
+      name.addEventListener("blur", function () { mark(name, okName()); });
+      email.addEventListener("blur", function () { mark(email, okEmail()); });
+      msg.addEventListener("blur", function () { mark(msg, okMsg()); });
+      [name, email, msg].forEach(function (el) {
+        el.addEventListener("input", function () {
+          if (el.getAttribute("aria-invalid") === "true") mark(el,
+            el === name ? okName() : el === email ? okEmail() : okMsg());
+        });
+      });
+      form.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        mark(name, okName()); mark(email, okEmail()); mark(msg, okMsg());
+        if (!(okName() && okEmail() && okMsg())) {
+          var bad = form.querySelector('[aria-invalid="true"]');
+          if (bad) bad.focus();
+          return;
+        }
+        var btn = form.querySelector(".send");
+        btn.classList.add("sent");
+        btn.querySelector(".okmsg").hidden = false;
+        var text = "مرحباً، أنا " + name.value.trim()
+          + "\nنوع المشروع: " + type.value
+          + "\nالبريد: " + email.value.trim()
+          + "\n\n" + msg.value.trim();
+        setTimeout(function () {
+          try { window.open("https://wa.me/96565894110?text=" + encodeURIComponent(text), "_blank", "noopener"); }
+          catch (e) {}
+        }, 450);
+      });
     })();
 
     if ("serviceWorker" in navigator) {
