@@ -19,6 +19,8 @@ const web = resolve(new URL('..', import.meta.url).pathname)
 const dir = join(web, 'supabase')
 
 // Order matters. Do not sort this.
+// verify.sql is ALWAYS last — it reports on everything above it, and the whole
+// point is that the file ends by telling you whether it worked.
 const PARTS = [
   ['schema.sql',            'Tables, row-level security and the public read policy'],
   ['admin-migration.sql',   'Admin reads, order stats and the fulfilment fields'],
@@ -46,6 +48,7 @@ const PARTS = [
   ['ahed-inventory-migration.sql','AHED sizes and stock, from the packing slip'],
   // Needs is_admin(). A no-op if Storage is not provisioned in the project.
   ['storage-migration.sql','Storage: public read of product images, admin-only writes'],
+  ['verify.sql',           'Did it work? — the report this file ends with'],
 ]
 
 const rule = (s) => `-- ${'='.repeat(74)}\n-- ${s}\n-- ${'='.repeat(74)}`
@@ -75,41 +78,11 @@ for (const [file, what] of PARTS) {
   out += `${rule(`${file} — ${what}`)}\n\n${body}\n\n\n`
 }
 
-// A closing report, so the person running this does not have to guess whether
-// it worked. Written as one row of plain-English answers rather than a table
-// dump, because the reader is the shop owner, not a DBA.
-out += `${rule('Did it work?')}
-
-select
-  (select count(*) from public.products where active)              as products_on_sale,
-  (select count(*) from public.products where not active)          as products_retired,
-  (select count(*) from pg_proc where proname = 'create_order')    as checkout_function,
-  (select count(*) from pg_proc where proname = 'verify_device_passcode') as passcode_function,
-  (select count(*) from information_schema.columns
-    where table_name = 'orders' and column_name = 'payment_method')       as cash_on_delivery,
-  (select count(*) from public.admin_users)                        as admins_allowlisted,
-  (select count(*) from auth.users)                                as auth_accounts;
-
--- What those numbers should say:
---
---   products_on_sale    46      the catalogue. 0 means seed-products did not run.
---   products_retired     0+     old products hidden, not deleted. 0 on a new project.
---   checkout_function    1      0 means checkout will fail with "404 Unknown order".
---   passcode_function    1      0 means the admin quick-unlock screen cannot work.
---   cash_on_delivery     1      0 means only KNET is offered; cash orders cannot
---                               be placed.
---   admins_allowlisted   1+     0 means NOBODY can use /admin. Signing in is
---                               NOT enough any more: Supabase sign-up is open to
---                               anyone, so admin is an explicit allowlist.
---                               Fix, after creating the account under
---                               Authentication -> Users -> Add user:
---                                 insert into public.admin_users (user_id, email)
---                                 select id, email from auth.users
---                                  where email = 'you@example.com'
---                                 on conflict (user_id) do nothing;
---   auth_accounts        1+     accounts that exist at all. Only the ones listed
---                               in admin_users can see any order.
-`
+// The closing report is verify.sql, the last entry in PARTS above. It used to
+// be a row of raw counts appended here, which the reader had to interpret —
+// "admins_allowlisted: 0" is only meaningful if you already know that an empty
+// allowlist locks you out of /admin. verify.sql says that in words, and being a
+// real file it can be re-run on its own later.
 
 writeFileSync(join(dir, 'SETUP-ALL.sql'), out)
 const lines = out.split('\n').length
