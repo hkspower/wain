@@ -63,7 +63,10 @@
 
   Same bank, different activation, different credentials, different endpoints.
   **Neither set of credentials works for the other**, and T-Pay cannot be served
-  through `/knet`. Both are selectable at checkout; `orders.payment_method` records
+  through `/knet`. On the native backend `knet/config.php` MUST carry the
+  `'store' => 'mysql'` block or the card path is dead (400 Invalid amount) —
+  `npm run test:knet` (39 checks, real MariaDB + a fake gateway speaking the
+  real Tranportal protocol) is what keeps it alive. Both are selectable at checkout; `orders.payment_method` records
   which was used (`knet` / `tpay` / `cod`).
 
   CBK's manual describes the T-Pay selector as `tij_MerchPayType = 2`; the owner

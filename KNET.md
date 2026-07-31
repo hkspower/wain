@@ -142,6 +142,7 @@ is separate and admin-driven.
 | `scripts/knet-callback-test.mjs` (8/8) | Real `callback.php` under real PHP against real PostgreSQL with `schema.sql`. Capture recorded as paid with `paid_at`; underpayment refused; unknown order held for review; late failure cannot un-pay; replay idempotent; wrong-key forgery rejected; plain HTTP refused. |
 | `scripts/e2e-checkout.mjs` (12/12) | Browser → `create_order` → redirect. No `amount` on the wire, price tampering ignored, zero orphan rows. |
 | `scripts/db-contract-audit.mjs` | Every table, column and function the code references exists in a database built from `supabase/*.sql` alone. This is the check that would have caught the `knet_*` column bug. |
+| `npm run test:knet` (39/39) | The whole card path on the NATIVE backend against real MariaDB and a fake gateway that speaks the real Tranportal protocol (`scripts/fake-knet-bank.php`): the trandata this code encrypts is decrypted by an INDEPENDENT AES implementation in Node, the amount charged comes from the database and an `?amount=` in the URL is ignored, the callback answers `REDIRECT=` so a server-to-server gateway can bring the customer home, replays change nothing, underpayment/cancel/garbage all fail closed, and a captured card whose callback never arrived can be settled by an operator only with the bank's payment id. |
 | `php -l` | All endpoints parse. |
 
 Run them against a database built by `scripts/db-rebuild.sh`, which applies
@@ -217,6 +218,60 @@ Also P1:
   what keeps Sporta out of PCI-DSS scope. Do not add an on-site card form.
 - **`php-cbk/` (T-Pay REST-JSON).** A second, unused integration path. Keep it
   dormant unless the bank migrates the account.
+
+---
+
+## 3a. The native backend (`config.js` → `backend: 'php'`)
+
+The card path is Supabase-agnostic, but it has to be TOLD which database holds
+the orders. `knet/config.php` needs the MySQL block:
+
+```php
+'store'      => 'mysql',
+'mysql_host' => 'localhost',
+'mysql_name' => '...',   // the same values as api/config.php
+'mysql_user' => '...',
+'mysql_pass' => '...',
+```
+
+Without it the whole card path is dead, and silently: `knet_db_configured()`
+answered "no database", so `pay.php` refused every payment with **400 Invalid
+amount** (the storefront sends no amount, by design — the price must come from
+the server) and `callback.php` skipped the write entirely, leaving the MySQL
+branch inside it unreachable and every captured payment unrecorded. Both are
+fixed and both are now covered by `npm run test:knet`; `knet/selftest.php`
+reports the database it will use, and says so loudly when there is none.
+
+## 3b. How the customer gets home — confirm this with the bank
+
+KPG has two deployment styles and the merchant cannot tell which one an
+account has been given:
+
+* the gateway **redirects the browser** to `responseURL`; or
+* the gateway calls `responseURL` **server to server** and reads the token
+  `REDIRECT=<url>` out of the reply, then sends the browser there itself.
+
+A plain HTTP 302 is correct for the first and useless for the second — the
+shopper is left on a blank bank page with the money taken. `callback.php`
+therefore answers BOTH at once by default (`'callback_response' => 'both'`):
+HTTP 200, `REDIRECT=<url>` on the first line, then a meta refresh and a link.
+Set it to `'redirect'` only if the bank confirms the browser-redirect style.
+
+**This is the one thing to ask CBK when the account goes live.**
+
+## 3c. When the bank took the money and never told us
+
+KPG reports through the customer's browser, so a closed tab loses the message:
+the money is captured and the order sits at `pending` (or `review`, where the
+callback parks anything it could not verify). This cannot be designed away — it
+is inherent to a browser-delivered result.
+
+The admin's order drawer therefore has a settle control for card orders, and it
+demands the **KNET payment id** typed in from the KNET portal. That is the
+forcing function: it cannot be filled in without having looked the transaction
+up. The order is recorded as `MANUAL_BANK_CONFIRMED`, never as a bank callback,
+so a manual settlement is always distinguishable when the books are read. Cash
+orders keep their own control and cards still cannot be settled on a hunch.
 
 ---
 

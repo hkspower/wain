@@ -97,6 +97,39 @@ if ($sbKey !== '') {
             : 'could not confirm — make sure it is the service_role key')) . "\n";
 }
 
+// ---------------------------------------------------------------------------
+// THE ORDERS DATABASE — the check that would have caught a dead card path.
+//
+// Without a database the server has no authority over the price: pay.php has
+// no amount to charge (the storefront sends none, deliberately) and the
+// callback has no order to mark paid. On the native backend this was invisible
+// until a customer met a blunt 400, because config.php simply had no MySQL
+// block and nothing said so.
+// ---------------------------------------------------------------------------
+echo "\n";
+if (($cfg['store'] ?? '') === 'mysql') {
+    echo "  orders DB   : MySQL (native backend)\n";
+    try {
+        $pdo = knet_pdo($cfg);
+        $n = (int) $pdo->query('select count(*) from orders')->fetchColumn();
+        echo "  mysql       : connected, orders table readable ($n orders)  OK\n";
+    } catch (Throwable $e) {
+        echo "  mysql       : *** CANNOT CONNECT — every card payment will be refused.\n"
+           . "                    Check mysql_name/user/pass match api/config.php. ***\n";
+    }
+} elseif (($cfg['supabase_url'] ?? '') === '') {
+    echo "  orders DB   : *** NONE CONFIGURED ***\n"
+       . "                    Card payments CANNOT work: pay.php has no amount to charge\n"
+       . "                    and the callback has no order to mark paid. Fill in either\n"
+       . "                    the 'store' => 'mysql' block (native backend) or the\n"
+       . "                    supabase_* keys — see config.example.php.\n";
+}
+
+// How the customer gets back after paying — see callback.php.
+echo "  callback    : " . (($cfg['callback_response'] ?? 'both') === 'redirect'
+    ? "HTTP 302 only (browser-redirect gateways)"
+    : "REDIRECT= token + HTML  OK  (works with either KPG style)") . "\n";
+
 // Optional Supabase ping
 if (($cfg['supabase_url'] ?? '') !== '' && ($cfg['supabase_service_key'] ?? '') !== '') {
     $ch = curl_init(rtrim($cfg['supabase_url'], '/') . '/rest/v1/');
@@ -110,7 +143,11 @@ if (($cfg['supabase_url'] ?? '') !== '' && ($cfg['supabase_service_key'] ?? '') 
     curl_close($ch);
     echo "  supabase    : " . ($code >= 200 && $code < 500 ? "reachable (HTTP $code)  OK" : "NOT reachable (HTTP $code)") . "\n";
 } else {
-    echo "  supabase    : not configured (optional — orders won't auto-update)\n";
+    // Only worth saying when Supabase is the intended backend; the native one
+    // reports its own database above.
+    if (($cfg['store'] ?? '') !== 'mysql') {
+        echo "  supabase    : not configured\n";
+    }
 }
 
 echo "\n>>> When every line shows OK/set, DELETE this file (knet/selftest.php).\n";

@@ -194,6 +194,29 @@ export async function setCodPaid(orderId, paid = true) {
   return { order: row ?? null }
 }
 
+// Settle a CARD order the bank took but never reported back — see the long
+// note on the card_settled route in dropin/php-store/admin.php. Native backend
+// only: the Supabase side has no equivalent RPC, and inventing one from the
+// browser would mean a client that can mark orders paid.
+export async function settleCard(orderId, bankReference) {
+  if (!usingPhp()) {
+    return { error: 'Manual card settlement needs the native backend. On Supabase, settle the order in the database.' }
+  }
+  const r = await php('card_settled', {
+    method: 'POST',
+    body: { order_id: orderId, bank_reference: bankReference },
+  })
+  if (r.data) return { order: r.data }
+  const m = r.error ?? ''
+  if (m.includes('bank_reference_required')) {
+    return { error: 'Enter the payment ID exactly as the KNET portal shows it (at least 6 characters).' }
+  }
+  if (m.includes('not_a_card_order')) return { error: 'That is a cash order — use "Cash collected" instead.' }
+  if (m.includes('order_already_paid')) return { error: 'That order is already paid.' }
+  if (m.includes('order_not_found')) return { error: 'Order not found — refresh the list.' }
+  return r
+}
+
 export async function saveCustomer(orderId, fields) {
   if (usingPhp()) {
     const r = await php('customer', { method: 'POST', body: { order_id: orderId, fields } })

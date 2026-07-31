@@ -167,6 +167,63 @@ if ($r === 'cod_paid' && $method === 'POST') {
     store_out($q2->fetch());
 }
 
+// A card payment the bank took but the callback never reported.
+//
+// This is the one real gap the KNET flow leaves, and it is not hypothetical:
+// KPG hands the result back through the CUSTOMER's browser, so a shopper who
+// pays and then closes the tab, loses signal in a lift, or is bounced by a
+// flaky redirect leaves the money captured at the bank and the order sitting
+// at 'pending' — or at 'review', where callback.php parks anything it could
+// not verify. Until now the admin had a warning telling them to check the KNET
+// portal and NO control that could act on what they found there; cod_paid
+// refuses cards by design, because an admin session must not be able to
+// declare a card paid on a hunch.
+//
+// So: settling a card requires the bank's own payment id, typed in. That is
+// the forcing function — you cannot fill it in without having opened the KNET
+// portal and found the transaction. It is stored, and the status is recorded
+// as MANUAL_BANK_CONFIRMED so a manual settlement can never be mistaken for
+// the bank's own callback when the books are read later.
+if ($r === 'card_settled' && $method === 'POST') {
+    $b = store_body();
+    $id  = (int)($b['order_id'] ?? 0);
+    $ref = trim((string)($b['bank_reference'] ?? ''));
+
+    $q = $db->prepare('select payment_method, payment_status, cbk_paymentid from orders where id = ?');
+    $q->execute([$id]);
+    $o = $q->fetch();
+    if (!$o) store_fail('order_not_found');
+    if ($o['payment_method'] === 'cod')  store_fail('not_a_card_order');
+    if ($o['payment_status'] === 'paid') store_fail('order_already_paid');
+    // Long enough that it cannot be a shrug. KNET payment ids are numeric and
+    // ~12 digits; this stays permissive about format because acquirers differ,
+    // but not about the field being filled in.
+    if (strlen($ref) < 6 || strlen($ref) > 60) store_fail('bank_reference_required');
+
+    $db->beginTransaction();
+    try {
+        $db->prepare(
+            "update orders set payment_status = 'paid', paid_at = ?,
+                    cbk_status = 'MANUAL_BANK_CONFIRMED',
+                    cbk_paymentid = ?, cbk_message = ?
+              where id = ? and payment_status <> 'paid'"
+        )->execute([
+            date('Y-m-d H:i:s'),
+            $ref,
+            'settled in admin by ' . (string)($_SESSION['admin_email'] ?? '?'),
+            $id,
+        ]);
+        store_payment_settled($db, $id, 'paid');
+        $db->commit();
+    } catch (Throwable $e) {
+        $db->rollBack();
+        store_fail('failed', 500);
+    }
+    $q2 = $db->prepare('select id, track_id, payment_status, paid_at, cbk_status, cbk_paymentid from orders where id = ?');
+    $q2->execute([$id]);
+    store_out($q2->fetch());
+}
+
 if ($r === 'customer' && $method === 'POST') {
     $b = store_body();
     $id = (int)($b['order_id'] ?? 0);

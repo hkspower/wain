@@ -102,9 +102,37 @@ function knet_log(array $cfg, string $event, array $data = []): void
     }
 }
 
+// Is there an orders database to price and verify against — on EITHER backend?
+//
+// This used to ask about Supabase only, and that single omission killed the
+// card path on the native backend completely: with 'store' => 'mysql' and no
+// Supabase keys it answered false, so pay.php fell through to "no database"
+// and rejected every payment with 400 Invalid amount (the storefront sends no
+// amount, by design), while callback.php skipped knet_update_order entirely —
+// leaving the MySQL branch inside it unreachable and every captured payment
+// unrecorded. Both proven under a real MariaDB by scripts/knet-test.mjs.
 function knet_db_configured(array $cfg): bool
 {
+    if (($cfg['store'] ?? '') === 'mysql') {
+        return ($cfg['mysql_name'] ?? '') !== '' && ($cfg['mysql_user'] ?? '') !== '';
+    }
     return ($cfg['supabase_url'] ?? '') !== '' && ($cfg['supabase_service_key'] ?? '') !== '';
+}
+
+// The MySQL connection for native mode. One per request, reused by the lookup
+// and the writer so a callback does not open two.
+function knet_pdo(array $cfg): PDO
+{
+    static $pdo = null;
+    if ($pdo === null) {
+        $pdo = new PDO(
+            "mysql:host={$cfg['mysql_host']};dbname={$cfg['mysql_name']};charset=utf8mb4",
+            $cfg['mysql_user'],
+            $cfg['mysql_pass'],
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]
+        );
+    }
+    return $pdo;
 }
 
 // Look an order up by track id.
@@ -123,6 +151,30 @@ function knet_order_lookup(array $cfg, string $trackid): array
 {
     if (!knet_db_configured($cfg)) {
         return ['state' => 'off', 'amount' => null, 'status' => null];
+    }
+
+    // Native mode: the orders table is on this same host.
+    if (($cfg['store'] ?? '') === 'mysql') {
+        try {
+            $q = knet_pdo($cfg)->prepare(
+                'select amount, payment_status from orders where track_id = ?'
+            );
+            $q->execute([$trackid]);
+            $row = $q->fetch(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) {
+            // Same distinction the Supabase branch draws, and for the same
+            // reason: a database that is DOWN must not read as "no such order",
+            // because the two have opposite correct responses (retry vs refuse).
+            return ['state' => 'error', 'amount' => null, 'status' => null];
+        }
+        if (!$row) {
+            return ['state' => 'missing', 'amount' => null, 'status' => null];
+        }
+        return [
+            'state'  => 'found',
+            'amount' => (string) $row['amount'],
+            'status' => (string) $row['payment_status'],
+        ];
     }
     $url = rtrim($cfg['supabase_url'], '/') . '/rest/v1/'
         . rawurlencode($cfg['orders_table'])

@@ -15,14 +15,14 @@ $in       = $_POST + $_GET;
 $trandata = (string)($in['trandata'] ?? '');
 
 if ($trandata === '') {
-    header('Location: ' . $return . '?status=error&reason=missing_data', true, 302);
+    knet_send_customer_onward($cfg, $return . '?status=error&reason=missing_data');
     exit;
 }
 
 try {
     $fields = knet_parse_response(knet_decrypt($trandata, $cfg['resource_key']));
 } catch (Throwable $e) {
-    header('Location: ' . $return . '?status=error&reason=decrypt_failed', true, 302);
+    knet_send_customer_onward($cfg, $return . '?status=error&reason=decrypt_failed');
     exit;
 }
 
@@ -79,8 +79,45 @@ $status = $paid
     ? 'success'
     : ($review ? 'review' : (($result === 'CANCELED' || $result === 'CANCELLED') ? 'cancelled' : 'failed'));
 $q = http_build_query(['status' => $status, 'trackid' => $trackid, 'payid' => $paymentid, 'ref' => $ref]);
-header('Location: ' . $return . '?' . $q, true, 302);
+knet_send_customer_onward($cfg, $return . '?' . $q);
 exit;
+
+// ---------------------------------------------------------------------------
+// Getting the customer back to the shop — the step KNET integrations lose
+// people on.
+//
+// KPG has TWO deployment styles and they need opposite answers:
+//
+//   * The gateway REDIRECTS THE BROWSER here. An HTTP 302 works; HTML works.
+//   * The gateway calls this URL SERVER TO SERVER and reads the reply looking
+//     for the token `REDIRECT=<url>`, then sends the browser there itself. A
+//     302 is useless in this mode: KNET's client does not render it, so the
+//     shopper is left on a blank bank page with their money taken.
+//
+// Which one a given Tranportal ID gets is decided by the bank, not by us, and
+// the wrong guess is invisible in testing until a real customer is stranded.
+// So the default answers BOTH at once: HTTP 200, first line `REDIRECT=<url>`
+// for the server-to-server parser, then a meta refresh, a script and a plain
+// link for a browser. Set 'callback_response' => 'redirect' in config.php to
+// force the plain 302 if the bank confirms the browser-redirect style.
+function knet_send_customer_onward(array $cfg, string $url): void
+{
+    if (($cfg['callback_response'] ?? 'both') === 'redirect') {
+        header('Location: ' . $url, true, 302);
+        return;
+    }
+    // Order matters: KNET scans from the start of the body, so REDIRECT= comes
+    // before any markup that might contain an '=' of its own.
+    header('Content-Type: text/html; charset=utf-8');
+    $safe = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+    echo 'REDIRECT=' . $url . "\n";
+    echo '<!doctype html><html><head><meta charset="utf-8">',
+         '<meta http-equiv="refresh" content="0;url=', $safe, '">',
+         '<title>Redirecting…</title></head><body>',
+         '<script>location.replace("', $safe, '");</script>',
+         '<p><a href="', $safe, '">Continue</a></p>',
+         '</body></html>';
+}
 
 // Returns true only if the order row was actually updated. The old version
 // discarded the curl result entirely, so a failed write left the customer on a
@@ -95,12 +132,29 @@ function knet_update_order(array $cfg, string $trackid, bool $paid, string $resu
     // unrecorded payment. The warehouse follow-up rides the same transaction.
     if (($cfg['store'] ?? '') === 'mysql') {
         try {
-            $pdo = new PDO(
-                "mysql:host={$cfg['mysql_host']};dbname={$cfg['mysql_name']};charset=utf8mb4",
-                $cfg['mysql_user'], $cfg['mysql_pass'],
-                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_EMULATE_PREPARES => false]
-            );
+            $pdo = knet_pdo($cfg);
             $pdo->beginTransaction();
+
+            // IDEMPOTENCE. A callback can arrive twice — the bank retries, the
+            // customer refreshes the return page, a proxy replays it. Without
+            // this an already-paid order was re-stamped with a new paid_at AND
+            // queued a SECOND "payment received" email to the warehouse, since
+            // the outbox's unique index only covers the 'new' message. It also
+            // untangles a PDO trap: rowCount() counts rows CHANGED, not matched,
+            // so rewriting identical values returns 0 and the old code read that
+            // as a failed write and logged a lost payment that was never lost.
+            $cur = $pdo->prepare('select payment_status from orders where track_id = ?');
+            $cur->execute([$trackid]);
+            $before = $cur->fetchColumn();
+            if ($before === false) {           // no such order — nothing to write
+                $pdo->rollBack();
+                return false;
+            }
+            if ($before === 'paid' && $paid) { // already settled: succeed, silently
+                $pdo->rollBack();
+                return true;
+            }
+            $after = $paid ? 'paid' : ($review ? 'review' : 'failed');
             $sql = 'update orders set payment_status = ?, cbk_status = ?, cbk_message = ?,
                       cbk_paymentid = ?, cbk_transaction = ?, cbk_reference = ?,
                       cbk_authcode = ?, cbk_receipt = ?, cbk_paytype = ?, paid_at = ?
@@ -108,7 +162,7 @@ function knet_update_order(array $cfg, string $trackid, bool $paid, string $resu
             if (!$paid) $sql .= " and payment_status <> 'paid'";
             $st = $pdo->prepare($sql);
             $st->execute([
-                $paid ? 'paid' : ($review ? 'review' : 'failed'),
+                $after,
                 $result,
                 (string)($fields['result'] ?? ''), (string)($fields['paymentid'] ?? ''),
                 (string)($fields['tranid'] ?? ''), (string)($fields['ref'] ?? ''),
@@ -117,8 +171,18 @@ function knet_update_order(array $cfg, string $trackid, bool $paid, string $resu
                 $paid ? gmdate('Y-m-d H:i:s') : null,
                 $trackid,
             ]);
-            $updated = $st->rowCount() > 0;
-            if ($updated && ($paid || !$review)) {
+            // Matched-not-changed: the guarded UPDATE above only skips rows
+            // that are already paid, and that case returned early, so reaching
+            // here means the row is ours to claim. rowCount() can still be 0
+            // when every column already holds these values (a replayed FAILURE
+            // callback), which is a successful write, not a lost one.
+            $updated = true;
+            // The warehouse hears about a TRANSITION, not about a delivery.
+            // Guarding on the status actually changing is what stops a replayed
+            // failure callback sending a second "do not ship" — the outbox's
+            // unique index only protects the 'new' message, so this guard is
+            // the only thing standing between a retry and a duplicate email.
+            if ($before !== $after && ($paid || !$review)) {
                 // The ship-it / do-not-ship follow-up, queued in the same
                 // transaction as the status it reports.
                 $o = $pdo->prepare('select id from orders where track_id = ?');

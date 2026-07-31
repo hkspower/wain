@@ -74,8 +74,8 @@ and (until you delete it) `setup-admin.php` answer over HTTP.
    still needs the SPF/DKIM/DMARC records from `DNS-EMAIL-RECORDS.txt` or it
    goes to spam.
 
-8. **KNET callback (only if payments are live).** In `knet/config.php` on the
-   server, add:
+8. **KNET — REQUIRED if you take cards.** In `knet/config.php` on the server,
+   add the MySQL block:
 
    ```php
    'store'      => 'mysql',
@@ -85,10 +85,15 @@ and (until you delete it) `setup-admin.php` answer over HTTP.
    'mysql_pass' => '...',
    ```
 
-   With that, the bank's callback settles the order in MySQL (it never
-   downgrades a paid order) and queues the "payment received / collect cash"
-   follow-up email in the same transaction. Without `store`, the callback
-   keeps writing to Supabase as before.
+   **The card path does not work without this**, and it fails bluntly: every
+   payment is refused with "400 Invalid amount", because the price must come
+   from the database and there is no database to read it from. With the block
+   in place, `pay.php` charges the stored order total, and the bank's callback
+   settles the order in MySQL (never downgrading a paid one) and queues the
+   "payment received / collect cash" follow-up in the same transaction.
+
+   Visit `knet/selftest.php` afterwards: it names the database it will use and
+   says so loudly if there is none. Delete that file when you are done.
 
 ## Day to day
 

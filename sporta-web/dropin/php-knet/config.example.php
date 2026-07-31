@@ -32,11 +32,33 @@ return [
     // but a payment system with no trail cannot be reconciled or disputed.
     'log_file' => __DIR__ . '/../../knet-payments.log',
 
-    // --- Orders database. STRONGLY RECOMMENDED ---
-    // When these are set, pay.php charges the amount stored on the order and
-    // refuses the payment if it cannot verify it. When they are EMPTY there is
-    // no price authority at all and the browser decides what to pay — never run
-    // a live storefront that way.
+    // How the customer gets back to the shop after paying. See the long note
+    // in callback.php: KPG either redirects the browser here, or calls this URL
+    // server-to-server and reads `REDIRECT=<url>` out of the reply. Which one
+    // your Tranportal ID gets is the bank's choice.
+    //   'both'     (default) answers correctly in EITHER style — leave it here
+    //              unless the bank tells you otherwise.
+    //   'redirect' plain HTTP 302, browser-redirect deployments only.
+    'callback_response' => 'both',
+
+    // --- ORDERS DATABASE. REQUIRED for a live shop ---
+    //
+    // This is what gives the SERVER authority over the price. With it, pay.php
+    // charges the amount stored on the order and callback.php checks that the
+    // amount the bank captured matches. Without it there is no price authority
+    // at all — never run a live storefront that way.
+    //
+    // Fill in ONE of the two blocks, matching public_html/config.js:
+    //
+    // (a) NATIVE backend  (config.js has  backend: 'php'):
+    //     uncomment these and use the SAME values as api/config.php.
+    // 'store'      => 'mysql',
+    // 'mysql_host' => 'localhost',
+    // 'mysql_name' => '',
+    // 'mysql_user' => '',
+    // 'mysql_pass' => '',
+    //
+    // (b) SUPABASE backend (config.js has no `backend`): fill these instead.
     'supabase_url'         => '',
     'supabase_service_key' => '',
     'orders_table'         => 'orders',

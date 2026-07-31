@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  fetchOrders, fetchOrderItems, setFulfilment, saveCustomer, setCodPaid,
+  fetchOrders, fetchOrderItems, setFulfilment, saveCustomer, setCodPaid, settleCard,
   toCsv, PAYMENT_STATES, FULFILMENT_STATES,
 } from './api'
 import { Notice } from './Overview'
@@ -196,6 +196,7 @@ function Badge({ tone, children }) {
 function OrderDrawer({ order, onClose, onChanged }) {
   const [items, setItems] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [cardRef, setCardRef] = useState('')  // the KNET payment id, typed from the portal
   const [err, setErr] = useState('')
   const CUSTOMER_FIELDS = [
     ['customer_name', 'Name'],
@@ -244,6 +245,18 @@ function OrderDrawer({ order, onClose, onChanged }) {
       return setErr('Run supabase/admin-cod-migration.sql — the cash settlement function is not installed yet.')
     }
     if (r.error) return setErr(r.error)
+    onChanged?.()
+  }
+
+  // The card the bank took but never told us about. Deliberately gated on the
+  // operator typing the KNET payment id: the whole point is that they have to
+  // have looked it up in the portal first.
+  async function settleTheCard() {
+    setBusy(true); setErr('')
+    const r = await settleCard(order.id, cardRef.trim())
+    setBusy(false)
+    if (r.error) return setErr(r.error)
+    setCardRef('')
     onChanged?.()
   }
 
@@ -396,6 +409,42 @@ function OrderDrawer({ order, onClose, onChanged }) {
                 >
                   {busy ? 'Saving…' : `Cash collected — mark paid (${kwd(order.amount)})`}
                 </button>
+              </div>
+            )}
+            {/* A card order that is not paid. KPG reports the result through
+                the customer's browser, so a closed tab or a dropped connection
+                leaves the money at the bank and the order here — the one
+                failure mode this integration cannot design away. The operator
+                confirms it in the KNET portal and types the payment id; nothing
+                settles without it. */}
+            {order.payment_method !== 'cod' && order.payment_status !== 'paid' && (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <p className="text-xs text-amber-900">
+                  Did the bank actually take this payment? Find the order in the{' '}
+                  <strong>KNET portal</strong>, then enter its payment ID to settle it here.
+                  {order.cbk_paymentid ? (
+                    <> The gateway reported <code className="font-mono">{order.cbk_paymentid}</code>.</>
+                  ) : null}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <input
+                    value={cardRef}
+                    onChange={(e) => setCardRef(e.target.value)}
+                    placeholder="KNET payment ID"
+                    aria-label="KNET payment ID"
+                    className="min-w-[12rem] flex-1 rounded-lg border border-amber-300 px-3 py-2 font-mono text-sm outline-none focus:border-amber-500"
+                  />
+                  <button
+                    onClick={settleTheCard}
+                    disabled={busy || cardRef.trim().length < 6}
+                    className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-bold text-white hover:bg-amber-700 disabled:opacity-40"
+                  >
+                    {busy ? 'Saving…' : `Confirm paid (${kwd(order.amount)})`}
+                  </button>
+                </div>
+                <p className="mt-2 text-[0.7rem] text-amber-800">
+                  Recorded as a manual settlement, never as a bank callback.
+                </p>
               </div>
             )}
             {order.payment_method === 'cod' && order.payment_status === 'paid' && (

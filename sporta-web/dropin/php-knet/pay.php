@@ -14,6 +14,13 @@ $in      = $_POST + $_GET;
 $amount  = trim((string)($in['amount']  ?? ''));
 $trackid = trim((string)($in['trackid'] ?? ''));
 
+// The bank page has an Arabic face and the storefront already knows which one
+// the shopper is reading — checkout.js sends ?lang=. Ignoring it sent every
+// Arabic customer to an English card form on an Arabic-first shop. Only the
+// two values KNET accepts are honoured; anything else falls back to config.
+$langIn = strtoupper(trim((string)($in['lang'] ?? '')));
+$langid = in_array($langIn, ['AR', 'EN'], true) ? $langIn : (string) $cfg['language'];
+
 // Strict validation (also blocks injection into the trandata string).
 if (!preg_match('/^[A-Za-z0-9]{1,30}$/', $trackid)) {
     http_response_code(400);
@@ -77,7 +84,7 @@ $trandata = knet_build_trandata([
     'id'           => $cfg['tranportal_id'],
     'password'     => $cfg['tranportal_password'],
     'action'       => $cfg['action'],
-    'langid'       => $cfg['language'],
+    'langid'       => $langid,
     'currencycode' => $cfg['currency_code'],
     'amt'          => $amount,
     'responseURL'  => $cfg['response_url'],
