@@ -33,7 +33,10 @@ const BUDGET = {
   // 26, was 25: the hero's first slide probes for the owner's photograph
   // (/hero/mobile/strength.jpg), the same one-request price the category
   // tiles already pay for their photo slots. Slides 2-3 probe lazily.
-  '/':                          { requests: 26, unusedPct: 60, worstFile: 150 },
+  // Arabic pays three more on top of its four font subsets: each slide that
+  // loads probes the -rtl composition FIRST and falls back to the base photo,
+  // so a server with no photos answers two misses where English answers one.
+  '/':                          { requests: 26, requestsAr: 33, unusedPct: 60, worstFile: 150 },
   '/shop':                      { requests: 17, unusedPct: 60, worstFile: 150 },
   '/product/sculpt-top-grey':   { requests: 19, unusedPct: 60, worstFile: 150 },
   '/cart':                      { requests: 18, unusedPct: 60, worstFile: 150 },
@@ -117,7 +120,7 @@ for (const [route, budget] of Object.entries(BUDGET)) {
     // page genuinely needs both scripts, because prices and size labels are
     // Latin digits while the copy is Arabic. Budgeting one number for both
     // languages would either be too tight for Arabic or too loose for English.
-    const allow = budget.requests + (lang === 'ar' ? 4 : 0)
+    const allow = lang === 'ar' && budget.requestsAr ? budget.requestsAr : budget.requests + (lang === 'ar' ? 4 : 0)
     const n = reqs.length
     ok(n <= allow, `${route} [${lang}] requests <= ${allow}`, String(n))
     const fonts = reqs.filter((r) => r.type === 'font')

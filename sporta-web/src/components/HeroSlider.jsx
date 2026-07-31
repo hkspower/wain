@@ -169,10 +169,17 @@ export default function HeroSlider() {
 }
 
 function Slide({ id, copy, active, first, label }) {
+  const { lang } = useLang()
   const Scene = SCENES[id]
   const [photoOk, setPhotoOk] = useState(true)
-  const photoM = `${PHOTO_DIR}/mobile/${id}${PHOTO_EXT}`
-  const photoD = `${PHOTO_DIR}/desktop/${id}${PHOTO_EXT}`
+  // A photograph is never mirrored — under RTL the copy moves to the other
+  // side, so Arabic prefers a second COMPOSITION, <id>-rtl.jpg, with the same
+  // untouched subject placed on the opposite side (the category tiles'
+  // pattern). If the server has no -rtl file, the base photo serves.
+  const [rtlFailed, setRtlFailed] = useState(false)
+  const variant = lang === 'ar' && !rtlFailed ? '-rtl' : ''
+  const photoM = `${PHOTO_DIR}/mobile/${id}${variant}${PHOTO_EXT}`
+  const photoD = `${PHOTO_DIR}/desktop/${id}${variant}${PHOTO_EXT}`
   const Title = first ? 'h1' : 'p'
 
   return (
@@ -217,7 +224,7 @@ function Slide({ id, copy, active, first, label }) {
               alt=""
               loading={first ? 'eager' : 'lazy'}
               decoding="async"
-              onError={() => setPhotoOk(false)}
+              onError={() => (variant ? setRtlFailed(true) : setPhotoOk(false))}
               className="absolute inset-0 h-full w-full select-none object-cover object-center"
             />
           </picture>
