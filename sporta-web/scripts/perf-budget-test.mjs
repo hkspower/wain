@@ -30,7 +30,10 @@ const BASE = process.argv[2] ?? 'http://localhost:4173'
 // put one route exactly on its ceiling and made this suite flaky — and a flaky
 // budget test gets ignored, which defeats the point of having one.
 const BUDGET = {
-  '/':                          { requests: 25, unusedPct: 60, worstFile: 150 },
+  // 26, was 25: the hero's first slide probes for the owner's photograph
+  // (/hero/mobile/strength.jpg), the same one-request price the category
+  // tiles already pay for their photo slots. Slides 2-3 probe lazily.
+  '/':                          { requests: 26, unusedPct: 60, worstFile: 150 },
   '/shop':                      { requests: 17, unusedPct: 60, worstFile: 150 },
   '/product/sculpt-top-grey':   { requests: 19, unusedPct: 60, worstFile: 150 },
   '/cart':                      { requests: 18, unusedPct: 60, worstFile: 150 },

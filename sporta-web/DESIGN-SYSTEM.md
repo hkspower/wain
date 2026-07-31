@@ -173,6 +173,32 @@ prove "two taps, one order" without standing up a bank.
 
 ---
 
+## 2c. The hero carousel
+
+Three slides — strength, cardio, the arena (football / kickboxing / swim) —
+in `src/components/HeroSlider.jsx`. Each slide prefers the owner's photograph
+from **`/hero/mobile/<id>.jpg` and `/hero/desktop/<id>.jpg`** (ids `strength`,
+`cardio`, `arena`; server-only, uploaded in hPanel File Manager, exactly like
+`/cats`) and falls back to the drawn scene: pictogram athletes in black kit
+with the ember rim — a deliberate idiom, chosen over fake "photography" of
+people who do not exist.
+
+Rules the component encodes, learned by measurement:
+
+- **Each slide clips its own scene** (`overflow-hidden`): the scene svg is
+  wider than the slide, and without the clip slide 2's runners bled across
+  slide 1 on a phone.
+- **The slide height is fixed** (`min-h`, copy centred): content-driven
+  padding let the Arabic font swap change the hero's height and shift the
+  whole page below it — CLS 0.0456, measured; 0 after.
+- **The scenes mirror under RTL, the S mark and any photograph never do.**
+- Slide 1's title is the page **h1**; slides 2–3 use a styled `<p>`.
+- Autoplay pauses on hover, focus, hidden tab and the explicit pause button,
+  and `prefers-reduced-motion` kills it entirely (WCAG 2.2.2). Arrows are
+  desktop-only; phones swipe (the arrows sat on the copy at 390px).
+- The home request budget in `perf-budget-test.mjs` is 26, not 25: the first
+  slide's photo probe is a real request, priced in like the tiles' probes.
+
 ## 3. Type
 
 | role | face | notes |

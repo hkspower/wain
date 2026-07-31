@@ -3,6 +3,7 @@ import { useLang } from '../i18n/LanguageContext'
 import { PRODUCTS } from '../lib/products'
 import ProductCard from '../components/ProductCard'
 import CategoryTile from '../components/CategoryTile'
+import HeroSlider from '../components/HeroSlider'
 import { IconTruck, IconReturn, IconArrowRight } from '../components/icons'
 import { usePageMeta } from '../lib/seo'
 
@@ -26,27 +27,10 @@ export default function Home() {
 
   return (
     <>
-      {/* Hero — dramatic charcoal + fire-orange */}
-      <section className="relative overflow-hidden bg-ink text-white">
-        <div className="hero-glow absolute inset-0 opacity-90" />
-        <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-6 px-4 py-28 2xl:py-40 text-center">
-          <span className="on-brand rounded-full bg-brand px-4 py-1 text-xs font-bold uppercase tracking-wide">
-            {t.hero.kicker}
-          </span>
-          <h1 className="text-6xl font-extrabold leading-none drop-shadow md:text-8xl 2xl:text-9xl">
-            {t.hero.line1}
-            <br />
-            {t.hero.line2}
-          </h1>
-          <p className="max-w-md text-lg text-white/85">{t.hero.subtitle}</p>
-          <Link
-            to="/shop"
-            className="btn btn-light"
-          >
-            {t.hero.cta} <IconArrowRight size={16} />
-          </Link>
-        </div>
-      </section>
+      {/* Hero — three slides: strength, cardio, the arena. Each prefers the
+          owner's photograph from /hero/<mobile|desktop>/<id>.jpg (server-only,
+          like /cats) and falls back to the drawn scene — see HeroSlider. */}
+      <HeroSlider />
 
       {/* Summer offers banner */}
       <section className="mx-auto max-w-7xl px-4 pt-10 pb-4 md:px-6 md:pt-14 md:pb-6">

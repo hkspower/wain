@@ -114,6 +114,36 @@ export const translations = {
       subtitle: 'Built for those who accept nothing less than the best.',
       cta: 'Shop the collection',
     },
+    // The home carousel. Slide 1 doubles as the page's h1, so its title is
+    // written to stand alone as the heading of the whole storefront.
+    heroSlides: {
+      aria: 'Highlights',
+      prev: 'Previous slide',
+      next: 'Next slide',
+      goTo: 'Go to slide',
+      pause: 'Pause slideshow',
+      play: 'Play slideshow',
+      slides: [
+        {
+          kicker: 'Strength',
+          title: 'Built by iron.',
+          sub: 'Heavy sessions, heavier standards — gear that works as hard as you lift.',
+          cta: 'Shop training',
+        },
+        {
+          kicker: 'Cardio',
+          title: 'Outrun yesterday.',
+          sub: 'Runs, intervals and everything between — kit that breathes and keeps your pace.',
+          cta: 'Shop cardio',
+        },
+        {
+          kicker: 'Every arena',
+          title: 'Football. Kickboxing. Swim.',
+          sub: 'One wardrobe for every game you play — pitch, ring and pool.',
+          cta: 'Shop the collection',
+        },
+      ],
+    },
     offer: {
       badge: 'Exclusive drop',
       title: 'Summer Offers ’24',
@@ -382,6 +412,34 @@ export const translations = {
       line2: 'اشتعل.',
       subtitle: 'مصمَّمة لمن لا يقبل بأقل من الأفضل.',
       cta: 'تسوّق المجموعة',
+    },
+    heroSlides: {
+      aria: 'أبرز العروض',
+      prev: 'الشريحة السابقة',
+      next: 'الشريحة التالية',
+      goTo: 'انتقل إلى الشريحة',
+      pause: 'إيقاف العرض مؤقتاً',
+      play: 'تشغيل العرض',
+      slides: [
+        {
+          kicker: 'قوة',
+          title: 'تُبنى بالحديد.',
+          sub: 'حصص ثقيلة ومعايير أثقل — تجهيزات تجتهد بقدر ما ترفع.',
+          cta: 'تسوّق التدريب',
+        },
+        {
+          kicker: 'كارديو',
+          title: 'اسبق أمسك.',
+          sub: 'جري وتمارين مكثّفة وكل ما بينهما — أطقم تتنفّس معك وتحفظ إيقاعك.',
+          cta: 'تسوّق الكارديو',
+        },
+        {
+          kicker: 'كل الملاعب',
+          title: 'كرة قدم. كيك بوكسينغ. سباحة.',
+          sub: 'خزانة واحدة لكل لعبة تلعبها — من الملعب إلى الحلبة إلى المسبح.',
+          cta: 'تسوّق المجموعة',
+        },
+      ],
     },
     offer: {
       badge: 'وصول حصري',

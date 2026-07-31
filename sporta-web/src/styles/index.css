@@ -318,6 +318,42 @@ h1, h2, h3, .font-display {
 .hero-glow {
   background: radial-gradient(1200px 500px at 50% 120%, #e0561c 0%, #b8430f 30%, #171a1e 70%);
 }
+
+/* Hero carousel slides. Same family as the category tiles below — charcoal
+   under the START edge where the copy sits, a warm ember at the END edge under
+   the figures — but each slide keeps its own cast so the rotation reads as
+   three scenes, not one background repeated. Radial positions mirror under
+   [dir='rtl'] exactly as the tiles do, since the figures follow the end side. */
+.hero-strength {
+  background:
+    radial-gradient(60% 110% at 78% 100%, rgba(255, 123, 23, 0.32) 0%, transparent 60%),
+    linear-gradient(112deg, #14161a 0%, #1b2026 48%, #35200e 100%);
+}
+.hero-cardio {
+  background:
+    radial-gradient(70% 100% at 72% 100%, rgba(255, 123, 23, 0.26) 0%, transparent 64%),
+    linear-gradient(112deg, #12151a 0%, #1a2028 50%, #2f1d10 100%);
+}
+.hero-arena {
+  background:
+    radial-gradient(55% 110% at 80% 100%, rgba(255, 123, 23, 0.28) 0%, transparent 60%),
+    linear-gradient(112deg, #131519 0%, #171d26 46%, #2c1c10 100%);
+}
+[dir='rtl'] .hero-strength {
+  background:
+    radial-gradient(60% 110% at 22% 100%, rgba(255, 123, 23, 0.32) 0%, transparent 60%),
+    linear-gradient(-112deg, #14161a 0%, #1b2026 48%, #35200e 100%);
+}
+[dir='rtl'] .hero-cardio {
+  background:
+    radial-gradient(70% 100% at 28% 100%, rgba(255, 123, 23, 0.26) 0%, transparent 64%),
+    linear-gradient(-112deg, #12151a 0%, #1a2028 50%, #2f1d10 100%);
+}
+[dir='rtl'] .hero-arena {
+  background:
+    radial-gradient(55% 110% at 20% 100%, rgba(255, 123, 23, 0.28) 0%, transparent 60%),
+    linear-gradient(-112deg, #131519 0%, #171d26 46%, #2c1c10 100%);
+}
 /* Men/women fallback backgrounds, used when the server has no photo for the
    category. Charcoal under the START edge where the copy sits, with a warm
    ember at the END edge under the silhouette — never flat orange under orange
