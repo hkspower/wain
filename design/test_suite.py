@@ -287,6 +287,7 @@ def home_checks(pg):
     pg.goto(f"{BASE}/index.html", wait_until="networkidle")
     pg.wait_for_timeout(300)
     for heading in ("النوخذة — النظام الموحد", "خدماتنا", "من أعمالنا", "كيف نعمل",
+                    "ما نبنيه لعملك",
                     "لماذا المهلب كود", "تواصل معنا", "أتمتة سير العمل",
                     "مزايا تحصل عليها", "التقنيات"):
         check(S, f"the page still carries: {heading}", heading in pg.inner_text("main"))
@@ -296,7 +297,7 @@ def home_checks(pg):
     check(S, "النوخذة is named as the unified system",
           pg.inner_text("main").count("النظام الموحد") >= 2)
     cards = pg.eval_on_selector_all(".card", "n=>n.length")
-    check(S, "the card sections are all present", cards == 20, f"{cards} cards")
+    check(S, "the card sections are all present", cards == 24, f"{cards} cards")
     check(S, "the three commitments sit in the band, not a grid",
           pg.eval_on_selector_all(".band .fact", "n=>n.length") == 3)
     check(S, "the retired code editor is gone from the page",
@@ -319,7 +320,7 @@ def home_checks(pg):
     rm.close()
     # the card sections slide (owner's request 2026-07-30): one scroll-snap
     # rail per section, all cards on one baseline, genuinely scrollable
-    for sid, n in (("nokhatha", 4), ("services", 6), ("edge", 10)):
+    for sid, n in (("nokhatha", 4), ("services", 6), ("offers", 4), ("edge", 10)):
         cnt = pg.eval_on_selector_all(f"#{sid} .rail .card", "n=>n.length")
         check(S, f"{sid}: the rail carries all its cards", cnt == n, f"{cnt} cards")
         tops = set(pg.eval_on_selector_all(f"#{sid} .rail .card",
@@ -580,6 +581,10 @@ def home_checks(pg):
         check(S, f"the footer states {want}", want in ftext)
     check(S, "the footer maps the company, the services and the system",
           pg.eval_on_selector_all(".fcols nav a", "n=>n.length") >= 16)
+    # one numeral system per page: Arabic-Indic digits beside "+965" and "254"
+    # is the same defect that once printed ١٢٬٠٠٠ next to 850 in one table
+    mixed = pg.evaluate(r"(document.body.innerText.match(/[٠-٩]/g) || []).length")
+    check(S, "the page uses one numeral system throughout", mixed == 0, f"{mixed} Arabic-Indic")
 
     check(S, "النوخذة opens from its row",
           pg.eval_on_selector_all('.product a[href="nokhatha.html"]', "n=>n.length") == 1)

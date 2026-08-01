@@ -607,6 +607,12 @@
          copy inline because the spark animates and part-level animation cannot
          reach inside a <use> clone — keep the two drawings identical. -->
     <symbol id="i-ai" viewBox="0 0 24 24"><rect x="6.2" y="6.2" width="11.6" height="11.6" rx="2.2"/><path d="M9.6 3.4v2.8M14.4 3.4v2.8M9.6 17.8v2.8M14.4 17.8v2.8M3.4 9.6h2.8M3.4 14.4h2.8M17.8 9.6h2.8M17.8 14.4h2.8"/><path fill="currentColor" stroke="none" d="M12 8.4l1 2.6 2.6 1-2.6 1-1 2.6-1-2.6-2.6-1 2.6-1z"/></symbol>
+    <!-- the AI employee: a person, with the same spark the AI chip carries -->
+    <symbol id="i-agent" viewBox="0 0 24 24"><circle cx="10.4" cy="8.6" r="3.5"/><path d="M4.2 20.4a6.2 6.2 0 0 1 12.4 0"/><path fill="currentColor" stroke="none" d="M18.7 3.1l.85 2.25 2.25.85-2.25.85-.85 2.25-.85-2.25-2.25-.85 2.25-.85z"/></symbol>
+    <!-- an assistant that installs inside a site you already have -->
+    <symbol id="i-plugin" viewBox="0 0 24 24"><rect x="3.2" y="4.4" width="17.6" height="15.2" rx="2.4"/><path d="M3.2 8.4h17.6"/><circle cx="6" cy="6.4" r=".75" fill="currentColor" stroke="none"/><path d="M9 11.6h6.6a1.9 1.9 0 0 1 1.9 1.9v1.9a1.9 1.9 0 0 1-1.9 1.9h-3.2l-2.6 1.9v-1.9H9a1.9 1.9 0 0 1-1.9-1.9v-1.9A1.9 1.9 0 0 1 9 11.6Z"/></symbol>
+    <!-- rebuilding the site you already run -->
+    <symbol id="i-upgrade" viewBox="0 0 24 24"><rect x="3.2" y="4.4" width="17.6" height="15.2" rx="2.4"/><path d="M3.2 8.4h17.6"/><circle cx="6" cy="6.4" r=".75" fill="currentColor" stroke="none"/><path d="M12 17.2v-5.6"/><path d="m9.3 14.3 2.7-2.7 2.7 2.7"/></symbol>
   </svg>
 
   <header>
@@ -770,6 +776,47 @@
       <a class="btn primary go" href="nokhatha.html">ادخل النظام ←</a>
     </div>
 
+    <!-- What we build for a client, kept distinct from the row above: النوخذة is
+         a system we built and run, these four are offers. Filing offers under
+         "من أعمالنا" would present them as delivered work. -->
+    <section class="slider" id="offers" data-reveal>
+      <div class="rowhead">
+        <div>
+          <h2 class="section">ما نبنيه لعملك</h2>
+          <p class="sub">أربعة نبدأ بها عادةً — ابدأ بواحد أو بها كلها.</p>
+        </div>
+        <div class="railnav">
+          <button type="button" class="arrow prev" aria-label="السابق"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></button>
+          <button type="button" class="arrow next" aria-label="التالي"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></button>
+        </div>
+      </div>
+      <div class="railwrap">
+        <div class="rail" tabindex="0" role="group" aria-label="ما نبنيه لعملك">
+          <div class="card">
+            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-agent"/></svg></span> موظف ذكاء اصطناعي</h3>
+            <p>وكيل يشتغل داخل عملك: يردّ على العملاء ويتابع الطلبات ويلخّص لك.</p>
+            <ul class="feats"><li>يردّ على مدار الساعة</li><li>يتابع الطلبات</li><li>ملخّص يومي</li><li>يتكلم بلغتك</li></ul>
+          </div>
+          <div class="card">
+            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-tailor"/></svg></span> برمجيات خاصة</h3>
+            <p>نظام يُبنى على إجراءاتك أنت، لا قالب جاهز تُطوّعه.</p>
+            <ul class="feats"><li>من الصفر</li><li>صلاحيات</li><li>تقارير</li><li>يكبر معك</li></ul>
+          </div>
+          <div class="card">
+            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-plugin"/></svg></span> برنامج مساعد داخل موقعك</h3>
+            <p>إضافة تُركّب على موقعك الحالي دون إعادة بنائه.</p>
+            <ul class="feats"><li>تركيب سريع</li><li>محادثة</li><li>حجوزات</li><li>طلبات</li></ul>
+          </div>
+          <div class="card">
+            <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-upgrade"/></svg></span> تطوير موقعك الحالي بالكامل</h3>
+            <p>نأخذ موقعك كما هو ونعيد بناءه أسرع وأوضح وبلا انقطاع.</p>
+            <ul class="feats"><li>سرعة</li><li>متجاوب</li><li>محركات البحث</li><li>نقل المحتوى</li></ul>
+          </div>
+        </div>
+        <div class="dots" aria-hidden="true"></div>
+      </div>
+    </section>
+
     <h2 class="section">لماذا المهلب كود</h2>
     <p class="sub">ثلاثة نلتزم بها، ويمكنك التحقق منها بنفسك.</p>
     <div class="band" data-reveal>
@@ -929,6 +976,7 @@
         <nav aria-label="روابط الشركة">
           <a href="#services">خدماتنا</a>
           <a href="#products">أعمالنا</a>
+          <a href="#offers">ما نبنيه لعملك</a>
           <a href="#automation">أتمتة سير العمل</a>
           <a href="#process">كيف نعمل</a>
           <a href="#tech">التقنيات</a>
@@ -986,7 +1034,10 @@
         if (!rail.hasAttribute("tabindex")) {
           rail.setAttribute("tabindex", "0");
           rail.setAttribute("role", "group");
-          rail.setAttribute("aria-label", sec.querySelector("h2.section").textContent);
+          /* name it after the section's heading when there is one — a slider
+             without an h2 must not throw and take every other rail with it */
+          var head = sec.querySelector("h2.section");
+          if (head) rail.setAttribute("aria-label", head.textContent);
         }
         var prev = sec.querySelector(".arrow.prev");
         var next = sec.querySelector(".arrow.next");

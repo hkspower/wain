@@ -39,7 +39,7 @@ Locked, exactly as they are:
 | Brand ink | `--tint` `#7a4418` · `--tint-strong` `#6f3f1c` |
 | Surfaces | **white on every device** — no dark theme; white page, white cards, cool near-neutral greys. Brown is ink, never paper — with one exception the owner asked for (2026-07-31): the **masthead bar is brown** (`--tint-strong`) with white ink on every page, and `theme-color` matches it. Everything below the bar stays white |
 | Icons | the drawn `<symbol>` sprite — no emoji anywhere on the public page |
-| Layout | full-height hero with real counters · **slide rails** (scroll-snap sliders with arrows + dots — the card grids became sliders at the owner's request, 2026-07-30) · the automation `ol.flow` · wide `.product` rows · commitments `.band` · `ol.steps` as a slider timeline · the technology cloud · the WhatsApp project form · contact channels as a bar · the four-column footer on a recessed grey base |
+| Layout | full-height hero with real counters · **slide rails** (scroll-snap sliders with arrows + dots — the card grids became sliders at the owner's request, 2026-07-30) · the automation `ol.flow` · wide `.product` rows · commitments `.band` · `ol.steps` as a slider timeline · the technology cloud · the WhatsApp project form · «ما نبنيه لعملك» offers rail · contact channels as a bar · the four-column footer on a recessed grey base |
 | Products | **النوخذة only.** The in-browser code editor was retired at the owner's request — do not reintroduce it |
 | Contact | واتساب `+965 6589 4110` · انستغرام `@almuhallab.code` · `hello@almuhallab-code.com` |
 
@@ -145,6 +145,14 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   everything; and a 1.5s failsafe reveals whatever the observer never reached.
   `prefers-reduced-motion` switches all of it off. Sections reveal as whole
   blocks — staggering siblings puts cards of one row on different baselines.
+- **«من أعمالنا» is delivered work; «ما نبنيه لعملك» is offers.** النوخذة is a
+  system the company built and runs, so it keeps the flagship row. The four
+  offers (موظف ذكاء اصطناعي · برمجيات خاصة · برنامج مساعد داخل موقعك · تطوير
+  موقعك الحالي) sit in their own rail beneath it. Do not merge the two: filing
+  an offer under "our work" presents it as something already delivered.
+- **One numeral system per page.** Latin digits throughout, matching `+965`
+  and the counters — an Arabic-Indic ٢٤/٧ chip beside them is the same defect
+  that once printed ١٢٬٠٠٠ next to 850 in one table. Pinned by the suite.
 - **Every number on the page is real and checkable.** The hero counters are the
   four النوخذة units, the suite's own check count, zero dependencies, and 100%
   offline — no invented "projects completed", "happy clients" or "years of
@@ -199,7 +207,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 311 checks covering
+- `python3 design/test_suite.py` is the full system test — 317 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
