@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { distanceKm, places, toArabicDigits, type Place } from "@/lib/places";
+import { categoryGradient, distanceKm, places, toArabicDigits, type Place } from "@/lib/places";
 
 type Status = "idle" | "locating" | "done" | "denied" | "unsupported";
 
@@ -53,13 +53,13 @@ export default function NearbyDial() {
             <span className="font-display text-4xl font-extrabold leading-none text-ink-900 sm:text-5xl">
               إلى وين؟
             </span>
-            <span className="text-sm font-medium text-sun-900/80">
+            <span className="text-sm font-semibold text-sun-900">
               {status === "locating" ? "نحدّد موقعك…" : "اضغط ودوّر حواليك"}
             </span>
             <span className="mt-2 rounded-full bg-ink-900 px-5 py-2 text-sm font-bold text-sun-100 shadow-sm">
               {status === "locating" ? "لحظة…" : "ابحث"}
             </span>
-            <span className="mt-1 text-xs font-medium text-sun-900/70">
+            <span className="mt-1 text-xs font-semibold text-sun-900">
               أقرب الأماكن — {toArabicDigits(RADIUS_KM)} كم حواليك
             </span>
           </span>
@@ -84,7 +84,7 @@ export default function NearbyDial() {
                   >
                     <span
                       aria-hidden="true"
-                      className={`grid size-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-xl ${p.gradient}`}
+                      className={`grid size-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-xl ${categoryGradient(p.category)}`}
                     >
                       {p.emoji}
                     </span>

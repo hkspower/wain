@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getCategory, toArabicDigits, type Place } from "@/lib/places";
+import { categoryGradient, getCategory, toArabicDigits, type Place } from "@/lib/places";
 
 export default function PlaceCard({ place }: { place: Place }) {
   const category = getCategory(place.category);
@@ -10,7 +10,7 @@ export default function PlaceCard({ place }: { place: Place }) {
       className="group flex flex-col overflow-hidden rounded-3xl border border-sand-200 bg-white shadow-sm transition duration-200 hover:-translate-y-1 hover:border-sand-300 hover:shadow-xl"
     >
       <div
-        className={`relative flex h-36 items-center justify-center overflow-hidden bg-gradient-to-br ${place.gradient}`}
+        className={`relative flex h-36 items-center justify-center overflow-hidden bg-gradient-to-br ${categoryGradient(place.category)}`}
       >
         <span
           aria-hidden="true"

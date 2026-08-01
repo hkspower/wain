@@ -43,11 +43,11 @@ export default function HomePage() {
       </section>
 
       {/* ---------- Categories ---------- */}
-      <section className="relative bg-sea-500">
+      <section className="relative bg-sea-700">
         <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <h2 className="flex items-center gap-2 font-display text-2xl font-bold text-white sm:text-3xl">
-              <svg viewBox="0 0 24 24" className="size-6 text-coral-300" fill="currentColor" aria-hidden="true">
+              <svg viewBox="0 0 24 24" className="size-6 text-sun-300" fill="currentColor" aria-hidden="true">
                 <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" />
               </svg>
               وش تدوّر؟
@@ -69,7 +69,7 @@ export default function HomePage() {
               >
                 <CategoryIcon name="all" />
                 <span className="text-sm font-bold">الكل</span>
-                <span className="text-[11px] font-medium text-sun-900/70">
+                <span className="text-[11px] font-semibold text-sun-900">
                   {toArabicDigits(places.length)} مكان
                 </span>
               </Link>
@@ -82,7 +82,7 @@ export default function HomePage() {
                 >
                   <CategoryIcon name={cat.icon} />
                   <span className="text-sm font-bold leading-tight">{cat.ar}</span>
-                  <span className="text-[11px] font-medium text-white/70">
+                  <span className="text-[11px] font-medium text-white/75">
                     {toArabicDigits(countByCategory(cat.id))} مكان
                   </span>
                 </Link>
@@ -160,7 +160,7 @@ export default function HomePage() {
       {/* ---------- CTA ---------- */}
       <section className="bg-sand-50">
         <div className="mx-auto max-w-6xl px-4 pb-16 sm:px-6 sm:pb-20">
-          <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-l from-sea-700 to-sea-500 px-6 py-14 text-center shadow-xl">
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-sea-800 to-sea-600 px-6 py-14 text-center shadow-xl">
             <div
               aria-hidden="true"
               className="pointer-events-none absolute -end-10 -top-10 size-48 rounded-full bg-white/10 blur-2xl"
@@ -172,7 +172,7 @@ export default function HomePage() {
             <h2 className="font-display text-3xl font-extrabold text-white sm:text-4xl">
               بعدك تسأل «وين نروح»؟
             </h2>
-            <p className="mx-auto mt-3 max-w-md text-sea-50">
+            <p className="mx-auto mt-3 max-w-md text-white">
               خلّ الجروب يرتاح — لقِ طلعة الليلة في أقل من دقيقة.
             </p>
             <Link

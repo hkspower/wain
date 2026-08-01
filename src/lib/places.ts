@@ -15,6 +15,8 @@ export interface Category {
   /** Key consumed by <CategoryIcon /> */
   icon: string;
   blurbAr: string;
+  /** Brand gradient for cards and hero panels in this category. */
+  gradient: string;
 }
 
 export interface Place {
@@ -30,7 +32,6 @@ export interface Place {
   rating: number;
   priceLevel: 1 | 2 | 3;
   emoji: string;
-  gradient: string;
   taglineAr: string;
   descriptionAr: string;
   highlightsAr: string[];
@@ -42,6 +43,7 @@ export interface Place {
 export const categories: Category[] = [
   {
     id: "landmarks",
+    gradient: "from-sea-400 via-sea-500 to-sea-700",
     ar: "معالم الكويت",
     en: "Landmarks",
     icon: "tower",
@@ -49,6 +51,7 @@ export const categories: Category[] = [
   },
   {
     id: "restaurants",
+    gradient: "from-coral-400 via-coral-500 to-coral-700",
     ar: "مطاعم",
     en: "Restaurants",
     icon: "cutlery",
@@ -56,6 +59,7 @@ export const categories: Category[] = [
   },
   {
     id: "fastfood",
+    gradient: "from-sun-300 via-sun-400 to-sun-600",
     ar: "وجبات سريعة",
     en: "Fast bites",
     icon: "burger",
@@ -63,6 +67,7 @@ export const categories: Category[] = [
   },
   {
     id: "coffee",
+    gradient: "from-sand-400 via-sand-600 to-sand-800",
     ar: "قهوة",
     en: "Coffee",
     icon: "coffee",
@@ -70,6 +75,7 @@ export const categories: Category[] = [
   },
   {
     id: "outdoors",
+    gradient: "from-palm-400 via-palm-500 to-sea-700",
     ar: "شواطئ وحدائق",
     en: "Outdoors",
     icon: "palm",
@@ -77,6 +83,7 @@ export const categories: Category[] = [
   },
   {
     id: "shopping",
+    gradient: "from-sun-400 via-coral-400 to-coral-600",
     ar: "تسوّق",
     en: "Shopping",
     icon: "bag",
@@ -84,6 +91,7 @@ export const categories: Category[] = [
   },
   {
     id: "culture",
+    gradient: "from-sea-600 via-sea-700 to-ink-800",
     ar: "ثقافة",
     en: "Culture",
     icon: "masks",
@@ -91,6 +99,7 @@ export const categories: Category[] = [
   },
   {
     id: "family",
+    gradient: "from-palm-400 via-palm-500 to-palm-700",
     ar: "عائلة",
     en: "Family",
     icon: "ferris",
@@ -111,7 +120,6 @@ export const places: Place[] = [
     rating: 4.7,
     priceLevel: 2,
     emoji: "🗼",
-    gradient: "from-sky-400 via-cyan-500 to-sea-700",
     taglineAr: "أيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.",
     descriptionAr:
       "الأبراج الثلاثة على ساحل الخليج العربي هي أشهر معلم في الكويت. اطلع للكرة الدوّارة وشوف المدينة والبحر من ٣٦٠ درجة، وإذا جيت وقت المغرب بتشوف الأبراج وهي تضوّي.",
@@ -131,7 +139,6 @@ export const places: Place[] = [
     rating: 4.8,
     priceLevel: 1,
     emoji: "🏮",
-    gradient: "from-amber-400 via-orange-500 to-coral-600",
     taglineAr: "قرنين من التجارة والبهارات والحكايات.",
     descriptionAr:
       "من أقدم أسواق الكويت. أزقّة مليانة بسطات بهارات ودكاكين ذهب وبياعين تمر ومطاعم صغيرة. يا ليتك تجي وأنت جوعان، وتختم السهرة بچاي في الحوش القديم.",
@@ -151,7 +158,6 @@ export const places: Place[] = [
     rating: 4.6,
     priceLevel: 1,
     emoji: "🌳",
-    gradient: "from-lime-400 via-emerald-500 to-palm-700",
     taglineAr: "الرئة الخضراء للعاصمة.",
     descriptionAr:
       "أكبر حديقة في الكويت، فيها حدائق نباتية وبحيرات ومتحفين ومسارات مشي وحفلات في الهواء الطلق. مكان ممتاز لمشية عصرية في قلب المدينة.",
@@ -171,7 +177,6 @@ export const places: Place[] = [
     rating: 4.6,
     priceLevel: 2,
     emoji: "🍢",
-    gradient: "from-coral-400 via-coral-500 to-coral-700",
     taglineAr: "مطعم كويتي عريق على شارع الخليج.",
     descriptionAr:
       "من أقدم وأشهر المطاعم الكويتية، معروف بالمشاوي والمقبّلات والأكل الشامي والكويتي. مكان يعرفه كل أهل الكويت، ومناسب للعزايم العائلية.",
@@ -191,7 +196,6 @@ export const places: Place[] = [
     rating: 4.5,
     priceLevel: 2,
     emoji: "🍛",
-    gradient: "from-amber-500 via-orange-600 to-coral-800",
     taglineAr: "أكل كويتي في أجواء الفريج القديم.",
     descriptionAr:
       "مطعم كويتي بديكور تراثي يرجّعك للفريج القديم. القائمة كويتية أصيلة من مچبوس ومرقوق وتشريب، والجلسة نفسها جزء من التجربة.",
@@ -210,7 +214,6 @@ export const places: Place[] = [
     rating: 4.7,
     priceLevel: 1,
     emoji: "☕",
-    gradient: "from-sand-400 via-amber-600 to-coral-800",
     taglineAr: "چاي وقهوة عربية في حوش السوق.",
     descriptionAr:
       "في قلب المباركية أحواش وجلسات شعبية تقدّم الچاي والقهوة العربية والكرك. أرخص وأصدق تجربة قهوة في الكويت، وأحلى مكان تقعد فيه بعد جولة السوق.",
@@ -230,7 +233,6 @@ export const places: Place[] = [
     rating: 4.3,
     priceLevel: 1,
     emoji: "🍔",
-    gradient: "from-yellow-400 via-orange-500 to-coral-600",
     taglineAr: "شارع الأكل السريع والسهرات في السالمية.",
     descriptionAr:
       "أشهر شارع في السالمية، مليان مطاعم وجبات سريعة ومحلات حلا وكافيهات. مكان الطلعة السريعة إذا تبي تاكل شي على الماشي وتتمشى بعدها.",
@@ -249,7 +251,6 @@ export const places: Place[] = [
     rating: 4.7,
     priceLevel: 3,
     emoji: "🛍️",
-    gradient: "from-fuchsia-400 via-purple-500 to-indigo-600",
     taglineAr: "مدينة داخل مدينة — أكبر مول في الخليج.",
     descriptionAr:
       "أكثر من ١١٠٠ محل موزّعة على مناطق مختلفة، كل وحدة لها طابعها. من الماركات العالمية في البرستيج إلى الجراند أفنيو اللي يشبه السوق المفتوح. يوم كامل ما يكفيه.",
@@ -268,7 +269,6 @@ export const places: Place[] = [
     rating: 4.4,
     priceLevel: 2,
     emoji: "⛵",
-    gradient: "from-sky-300 via-sea-400 to-sea-700",
     taglineAr: "مول على البحر مع مارينا وقوارب.",
     descriptionAr:
       "مول على الواجهة البحرية مع مارينا وقوارب راسية وكافيهات مطلّة على الماء. مكان هادي للتسوّق ومشية على البحر في نفس الطلعة.",
@@ -287,7 +287,6 @@ export const places: Place[] = [
     rating: 4.9,
     priceLevel: 1,
     emoji: "🕌",
-    gradient: "from-teal-400 via-sea-500 to-sea-800",
     taglineAr: "أكبر مساجد الكويت، وتحفة في الفن الإسلامي.",
     descriptionAr:
       "على مساحة ٤٥ ألف متر مربع، المسجد الكبير يبهرك بالخط العربي والزخارف الأندلسية والقبة الضخمة والأحواش الهادية. فيه جولات مجانية بمرشد لكل الزوّار.",
@@ -306,7 +305,6 @@ export const places: Place[] = [
     rating: 4.5,
     priceLevel: 1,
     emoji: "🏖️",
-    gradient: "from-cyan-300 via-sky-400 to-blue-600",
     taglineAr: "رمل ناعم ومطاعم على بحر السالمية.",
     descriptionAr:
       "شاطئ نظيف ومناسب للعوائل، مربوط بمول المارينا بجسر مشاة. اسبح أو استأجر كاياك، أو بس تمشّى على الكرسنت وقت الذهبي واختر كافيه على البحر.",
@@ -326,7 +324,6 @@ export const places: Place[] = [
     rating: 4.8,
     priceLevel: 2,
     emoji: "🎭",
-    gradient: "from-slate-400 via-slate-500 to-sea-900",
     taglineAr: "دار الأوبرا في الخليج.",
     descriptionAr:
       "مجمّع مسارح وقاعات موسيقية بتصميم مغطّى بزخارف هندسية إسلامية. احضر أوبرا أو حفل سيمفوني، أو بس تعال شوف المعمار وهو ينعكس على المسطحات المائية.",
@@ -345,7 +342,6 @@ export const places: Place[] = [
     rating: 4.4,
     priceLevel: 2,
     emoji: "⛵",
-    gradient: "from-blue-400 via-indigo-500 to-violet-700",
     taglineAr: "آثار يونانية قديمة، على بعد رحلة عبّارة.",
     descriptionAr:
       "كانت موطن حضارة من العصر البرونزي وفيها قلعة هلنستية. فيلكا تجمع بين الآثار والشواطئ الهادية. خذ العبّارة من السالمية، لف على الآثار، واقعد لشواء على البحر.",
@@ -364,7 +360,6 @@ export const places: Place[] = [
     rating: 4.6,
     priceLevel: 1,
     emoji: "🪞",
-    gradient: "from-zinc-300 via-slate-400 to-slate-700",
     taglineAr: "بيت مغطّى بالمرايا من داخله وخارجه.",
     descriptionAr:
       "الفنانة ليديا القطان قضت عقود وهي تغطّي كل سطح في بيت عائلتها بفسيفساء المرايا. النتيجة وحدة من أغرب المتاحف في الشرق الأوسط، والزيارة بموعد مسبق ومع جولة شخصية.",
@@ -383,7 +378,6 @@ export const places: Place[] = [
     rating: 4.3,
     priceLevel: 2,
     emoji: "🎢",
-    gradient: "from-cyan-400 via-teal-400 to-emerald-600",
     taglineAr: "أول مدينة ألعاب مائية في الخليج، جنب الأبراج.",
     descriptionAr:
       "زحاليق ومسابح أمواج وأنهار كسولة ممتدة على الواجهة البحرية. طلعة عائلية سهلة، مع أماكن أكل وجلسات مظلّلة، وكلها جنب أبراج الكويت.",
@@ -402,7 +396,6 @@ export const places: Place[] = [
     rating: 4.7,
     priceLevel: 1,
     emoji: "🏺",
-    gradient: "from-amber-500 via-sand-600 to-sand-900",
     taglineAr: "كنز خاص من الفن الإسلامي.",
     descriptionAr:
       "آلاف القطع من الخط العربي والخزف والمجوهرات والآلات الموسيقية، مجموعة على مدى خمسين سنة. متحف هادي ومنسّق بعناية، ومعروف إنه نجا من الغزو وهو مخبّى خلف جدار وهمي.",
@@ -421,7 +414,6 @@ export const places: Place[] = [
     rating: 4.2,
     priceLevel: 1,
     emoji: "🏝️",
-    gradient: "from-emerald-400 via-green-500 to-teal-700",
     taglineAr: "جزيرة صناعية فيها حدائق وبحيرات.",
     descriptionAr:
       "أول جزيرة صناعية في الخليج، مربوطة بالكورنيش بممشى. مساحات خضراء وبحيرة سباحة وبرج مشاهدة ومدرّج، تكفي لنص يوم مع العيال.",
@@ -436,6 +428,10 @@ export function getPlace(slug: string): Place | undefined {
 
 export function getFeaturedPlaces(): Place[] {
   return places.filter((p) => p.featured);
+}
+
+export function categoryGradient(id: CategoryId): string {
+  return getCategory(id)?.gradient ?? "from-sand-300 via-sand-500 to-sand-700";
 }
 
 export function getCategory(id: CategoryId): Category | undefined {

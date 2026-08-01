@@ -47,11 +47,11 @@ export default function AboutPage() {
         ))}
       </div>
 
-      <div className="mt-10 rounded-3xl bg-sea-500 p-6 text-center text-white shadow-md">
+      <div className="mt-10 rounded-3xl bg-sea-700 p-6 text-center text-white shadow-md">
         <p className="font-display text-2xl font-bold">
           {toArabicDigits(places.length)} مكان جاهز لك
         </p>
-        <p className="mt-1 text-sm text-sea-50">من أبراج الكويت لين مقاهي المباركية.</p>
+        <p className="mt-1 text-sm text-sea-100">من أبراج الكويت لين مقاهي المباركية.</p>
       </div>
 
       <div className="mt-10 text-center">

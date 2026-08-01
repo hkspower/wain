@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import PlaceCard from "@/components/PlaceCard";
-import { getCategory, getPlace, places, toArabicDigits } from "@/lib/places";
+import { categoryGradient, getCategory, getPlace, places, toArabicDigits } from "@/lib/places";
 
 export function generateStaticParams() {
   return places.map((place) => ({ slug: place.slug }));
@@ -55,7 +55,7 @@ export default async function PlacePage({
 
       {/* Hero */}
       <div
-        className={`relative flex h-56 items-center justify-center overflow-hidden rounded-[2rem] bg-gradient-to-br shadow-lg sm:h-64 ${place.gradient}`}
+        className={`relative flex h-56 items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br shadow-lg sm:h-64 ${categoryGradient(place.category)}`}
       >
         <span aria-hidden="true" className="text-7xl drop-shadow-lg sm:text-8xl">
           {place.emoji}
