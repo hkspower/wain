@@ -16,7 +16,7 @@ const FAQ = [
     q: { en: 'What payment methods do you accept?', ar: 'ما طرق الدفع المتوفرة؟' },
     a: {
       en: 'KNET (Kuwait debit card), Visa and Mastercard, CBK T-Pay, or cash to the driver on delivery. All prices are in Kuwaiti Dinar (KWD).',
-      ar: 'كي نت وفيزا وماستركارد وتي-باي من البنك التجاري، أو نقداً للمندوب عند الاستلام. وجميع الأسعار بالدينار الكويتي.',
+      ar: 'كي نت وفيزا وماستركارد وتي-باي من البنك التجاري، أو نقدًا للمندوب عند الاستلام. وجميع الأسعار بالدينار الكويتي.',
     },
   },
   {
@@ -54,9 +54,9 @@ const WHY = [
          ar: 'اطلب اليوم والبسه اليوم، وتصلك تحديثات التوصيل على واتساب.' },
   },
   {
-    t: { en: 'Free exchange and return', ar: 'استبدال وإرجاع مجاناً' },
+    t: { en: 'Free exchange and return', ar: 'استبدال وإرجاع مجانًا' },
     d: { en: 'Fourteen days to change your mind, at no cost. Sizes are easy to get wrong online.',
-         ar: 'أربعة عشر يوماً لتغيير رأيك دون أي تكلفة، فالمقاسات صعبة التقدير عبر الإنترنت.' },
+         ar: 'أربعة عشر يومًا لتغيير رأيك دون أي تكلفة، فالمقاسات صعبة التقدير عبر الإنترنت.' },
   },
   {
     t: { en: 'Pay the way Kuwait pays', ar: 'ادفع بالطريقة المعتادة في الكويت' },

@@ -39,7 +39,8 @@
     "scan": "node scripts/site-scan.mjs",
     "test:knet": "node scripts/knet-test.mjs",
     "test:tpay": "node scripts/tpay-test.mjs",
-    "package:pay": "node scripts/make-payments-fix.mjs"
+    "package:pay": "node scripts/make-payments-fix.mjs",
+    "test:arabic": "node scripts/arabic-test.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",

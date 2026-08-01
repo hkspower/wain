@@ -1,3 +1,4 @@
+import { arabicCount } from '../i18n/translations'
 import { useMemo, useState } from 'react'
 import { useLang } from '../i18n/LanguageContext'
 import { PRODUCTS, SIZES_FOR } from '../lib/products'
@@ -54,7 +55,7 @@ const C = {
   },
   ar: {
     title: 'الاستبدال والإرجاع',
-    sub: 'مجاناً خلال ١٤ يوماً من الاستلام. اختر منتجاتك بالأسفل، حدّد إرجاع أو استبدال، وأرسل الطلب عبر واتساب — وننسّق الاستلام داخل الكويت.',
+    sub: 'مجانًا خلال ١٤ يومًا من الاستلام. اختر منتجاتك بالأسفل، حدّد إرجاع أو استبدال، وأرسل الطلب عبر واتساب — وننسّق الاستلام داخل الكويت.',
     orderInfo: 'بيانات الطلب',
     orderNo: 'رقم الطلب / التتبع',
     orderNoPh: 'مثال: SP1A2B3C4D (اختياري)',
@@ -80,12 +81,13 @@ const C = {
     },
     qty: 'الكمية',
     remove: 'إزالة',
-    itemsCount: (n) => `${n} ${n === 1 ? 'منتج' : 'منتجات'}`,
+    // Same five-case rule as the checkout summary — see arabicCount().
+    itemsCount: (n) => arabicCount(n, ['منتج واحد', 'منتجان', 'منتجات', 'منتجًا']),
     send: 'أرسل الطلب عبر واتساب',
     sendNote: 'يفتح واتساب مع تفاصيل طلبك جاهزة — لا يُرسل شيء حتى تضغط إرسال هناك.',
     policyT: 'السياسة',
     policy: [
-      'الاستبدال والإرجاع مجاني خلال ١٤ يوماً من الاستلام.',
+      'الاستبدال والإرجاع مجاني خلال ١٤ يومًا من الاستلام.',
       'يجب أن تكون القطع غير ملبوسة وغير مغسولة مع البطاقات الأصلية.',
       'يُعاد المبلغ إلى وسيلة الدفع الأصلية (كي نت / بطاقة).',
       'شحنة الاستبدال تخرج في نفس يوم استلام القطعة.',
@@ -129,7 +131,7 @@ export default function Returns() {
     title: c.title,
     description:
       lang === 'ar'
-        ? 'استبدال وإرجاع مجاني خلال ١٤ يوماً في الكويت — اختر منتجاتك وأرسل الطلب عبر واتساب، والاستلام من عندك.'
+        ? 'استبدال وإرجاع مجاني خلال ١٤ يومًا في الكويت — اختر منتجاتك وأرسل الطلب عبر واتساب، والاستلام من عندك.'
         : 'Free 14-day returns and exchange in Kuwait — select your items, send the request on WhatsApp, and we pick up from you.',
     path: '/returns',
     jsonLd,

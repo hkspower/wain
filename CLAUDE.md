@@ -119,7 +119,27 @@
   HttpOnly + SameSite=Strict cookie plus an `X-Sporta-Admin: 1` header for
   CSRF, with a five-failure fifteen-minute lock. The device-passcode
   quick-unlock went with Supabase and is not coming back.
-- **Language:** site is bilingual Arabic/English (RTL/LTR).
+- **Language:** site is bilingual Arabic/English (RTL/LTR). **Arabic is the
+  default for the Arabic-speaking world**, decided in this order: an explicit
+  saved choice → `?lang=` → the device's languages → the device's **time zone**
+  → English. The rule lives in `src/i18n/detectLang.js` and is *also inlined in
+  `index.html`*, because it must run before any module loads — it sets
+  `<html dir>` and picks which fonts to preload. `npm run test:arabic` asserts
+  the two copies agree; keep them in step.
+  Time zone, not IP, on purpose: an IP lookup is a round trip, so it can only
+  land after the first paint and every Gulf visitor would watch an English LTR
+  page flip to Arabic RTL. Shared hosting also has no GeoIP module. Tehran,
+  Istanbul and Jerusalem are deliberately NOT on the list — the region is not
+  the language. Nothing redirects and no URL changes, so hreflang stays honest
+  and Googlebot (US, en, UTC) sees English.
+  **A detected language is never saved.** `localStorage.lang` means "the
+  visitor tapped the toggle"; persisting a guess would lock a traveller in.
+- **Arabic copy has a test:** `npm run test:arabic` (40 checks) covers missing
+  keys, English left untranslated, `{placeholder}` survival, tanwin written
+  `ـًا` not `ـاً`, Latin `,?;` stranded between Arabic words, mixed
+  Arabic-Indic/Western digits, and Arabic's **five** counting cases (1, 2 dual,
+  3–10 plural, 11+ back to singular, restarting each hundred) via
+  `arabicCount()`. Two branches is an English rule, and it shipped "٢ قطع".
 - **Configuration:** the site reads its endpoints at runtime from
   `public/config.js` (`window.SPORTA_CONFIG`), falling back to build-time
   `VITE_*` in `.env`. Three keys remain — `payBaseUrl`, `cbkBaseUrl`,

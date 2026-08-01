@@ -160,8 +160,52 @@
     <script>
       (function () {
         try {
-          var ar = localStorage.getItem('lang') === 'ar'
           var el = document.documentElement
+          // THE LANGUAGE DECISION, MADE ONCE, HERE.
+          //
+          // It has to be synchronous: it sets <html dir>, which decides the
+          // whole page layout, and it picks which font files to preload below.
+          // Anything asynchronous — an IP lookup especially — can only land
+          // after the first paint, so every Gulf visitor would watch an
+          // English left-to-right page flip to Arabic right-to-left.
+          //
+          // Order: an explicit saved choice, then ?lang=, then the device's
+          // languages, then its time zone. The reasoning for each, and why the
+          // time zone stands in for "Middle East IP", is in the app module
+          // i18n/detectLang.js — this is the same rule, inlined, because
+          // it must run before any module loads. KEEP THE TWO IN STEP; there
+          // is a test that asserts they agree.
+          var saved = localStorage.getItem('lang')
+          var lang = saved === 'ar' || saved === 'en' ? saved : null
+          if (!lang) {
+            var q = /[?&]lang=([A-Za-z-]{2,10})/.exec(location.search)
+            if (q) {
+              var tag = q[1].toLowerCase().split('-')[0]
+              if (tag === 'ar' || tag === 'en') lang = tag
+            }
+          }
+          if (!lang) {
+            var langs = navigator.languages || [navigator.language || '']
+            for (var i = 0; i < langs.length; i++) {
+              if (/^(ar|arz|ary|acm|apc|ajp|afb)\b|^ar-/i.test(langs[i] || '')) { lang = 'ar'; break }
+            }
+          }
+          if (!lang) {
+            var tz = ''
+            try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '' } catch (e2) {}
+            // The Arabic-speaking time zones. Not "the Middle East": Tehran,
+            // Istanbul and Jerusalem are in the region and are not Arabic, so
+            // defaulting them to Arabic would be worse than English.
+            if (/^(Asia\/(Kuwait|Riyadh|Dubai|Qatar|Bahrain|Muscat|Aden|Baghdad|Amman|Beirut|Damascus|Hebron|Gaza|Riyadh8[789])|Africa\/(Cairo|Tripoli|Tunis|Algiers|Casablanca|El_Aaiun|Khartoum|Juba|Nouakchott|Mogadishu|Djibouti))$/.test(tz)) {
+              lang = 'ar'
+            }
+          }
+          var ar = lang === 'ar'
+          // NOT written back to localStorage. That key means "the visitor
+          // chose this", and detection is not a choice — persisting it would
+          // freeze a traveller into whichever language they first arrived in
+          // and make the toggle the only way out.
+          window.__SPORTA_LANG = ar ? 'ar' : 'en'
           el.lang = ar ? 'ar' : 'en'
           el.dir = ar ? 'rtl' : 'ltr'
           // Theme, for the same reason and with the same measurement behind it:

@@ -85,9 +85,16 @@ export default function Navbar() {
       {/* Tighter on phones: at the old padding the three header rows ate 138px,
           21% of an iPhone SE viewport, before any content appeared. */}
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-3 py-2 sm:px-4 sm:py-3">
-        {/* language toggle (left) */}
+        {/* language toggle (left).
+            aria-label, because the visible text is the TARGET language ("AR")
+            and on its own that is the button's whole accessible name — a
+            screen reader announced "AR, button" with nothing to say what
+            pressing it does. The label was already written and translated in
+            a11y.switchLang and simply never used. lang= on the label so the
+            Arabic is announced by an Arabic voice when the page is English. */}
         <button
           onClick={toggle}
+          aria-label={t.a11y.switchLang}
           className="tap flex items-center justify-center gap-1 rounded-full border border-white/20 px-3 py-1 text-xs font-semibold text-white/90 hover:border-brand hover:text-brand-bright"
         >
           <IconGlobe size={14} /> {lang === 'en' ? 'AR' : 'EN'}

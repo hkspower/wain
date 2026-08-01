@@ -8,7 +8,7 @@ const UPDATED = '2026-07-30'
 
 const INTRO = {
   en: 'This explains what Sporta collects when you shop with us, why, and what we never collect.',
-  ar: 'توضّح هذه الصفحة ما تجمعه سبورتا عند الشراء منّا، ولماذا، وما لا نجمعه إطلاقاً.',
+  ar: 'توضّح هذه الصفحة ما تجمعه سبورتا عند الشراء منّا، ولماذا، وما لا نجمعه إطلاقًا.',
 }
 
 const SECTIONS = [
@@ -25,7 +25,7 @@ const SECTIONS = [
     ],
   },
   {
-    h: { en: '2. What we never collect', ar: '٢. ما لا نجمعه إطلاقاً' },
+    h: { en: '2. What we never collect', ar: '٢. ما لا نجمعه إطلاقًا' },
     p: [{
       en: 'We never see or store your card number, KNET PIN, CVV or expiry date. Those are entered on the Commercial Bank of Kuwait’s own payment page. What comes back to us is a payment reference and whether the payment succeeded — nothing that could be used to charge your card again.',
       ar: 'لا نطّلع على رقم بطاقتك أو الرقم السري لكي نت أو رمز CVV أو تاريخ الانتهاء، ولا نخزّنها. فهذه تُدخل في صفحة الدفع لدى البنك التجاري الكويتي، وكل ما يصلنا هو رقم مرجعي ونتيجة العملية — ولا شيء يمكن استخدامه لخصم مبلغ آخر من بطاقتك.',
@@ -42,7 +42,7 @@ const SECTIONS = [
     }],
   },
   {
-    h: { en: '4. Who else sees it', ar: '٤. من يطّلع عليها أيضاً' },
+    h: { en: '4. Who else sees it', ar: '٤. من يطّلع عليها أيضًا' },
     p: [{
       en: 'Only those who have to: the delivery driver bringing your order, and our payment provider, which receives the amount and a reference so the transaction can be processed. We may also disclose information where the law requires it.',
       ar: 'فقط من يلزم اطّلاعه: مندوب التوصيل الذي يوصل طلبك، ومزوّد خدمة الدفع الذي يستلم المبلغ والرقم المرجعي لإتمام العملية. وقد نُفصح عن معلومات عندما يوجب القانون ذلك.',
@@ -56,7 +56,7 @@ const SECTIONS = [
       // because there is nothing to consent to. If a cookie is ever added, this
       // paragraph is wrong and has to change with it.
       en: 'This site sets no cookies at all — none for advertising, none for analytics, and none to recognise you. That is why you are not asked to accept any.',
-      ar: 'لا يضع هذا الموقع أي كوكيز إطلاقاً — لا للإعلانات ولا للتحليلات ولا للتعرّف عليك. ولهذا لا نطلب منك الموافقة على شيء.',
+      ar: 'لا يضع هذا الموقع أي كوكيز إطلاقًا — لا للإعلانات ولا للتحليلات ولا للتعرّف عليك. ولهذا لا نطلب منك الموافقة على شيء.',
     }, {
       en: 'What it does keep is kept by your own browser and never leaves it on its own: your shopping bag, your wishlist, your language and your light or dark theme. If you tick “remember my address” at checkout, that address is stored in your browser only — clearing your browser data removes it, and it is never uploaded until you place an order.',
       ar: 'أما ما يُحفظ فيبقى في متصفحك ولا يخرج منه من تلقاء نفسه: حقيبة التسوق وقائمة الرغبات واللغة ووضع العرض الفاتح أو الداكن. وإذا اخترت «تذكّر عنواني» عند الدفع، فإن العنوان يُحفظ في متصفحك فقط — ويُحذف بمسح بيانات المتصفح، ولا يُرسل إلينا إلا عند تقديم طلب.',
@@ -66,7 +66,7 @@ const SECTIONS = [
     h: { en: '6. Your choices', ar: '٦. خياراتك' },
     p: [{
       en: 'You can ask us what we hold about you, ask for it to be corrected, or ask us to delete it where we are not required to keep it. Message us on WhatsApp at +965 2209 1914 or email cs@sporta.com.kw and we will respond.',
-      ar: 'يمكنك أن تسألنا عمّا نحتفظ به عنك، أو تطلب تصحيحه، أو حذفه إن لم يكن الاحتفاظ به مُلزماً لنا. راسلنا على واتساب ‎+965 2209 1914 أو بالبريد cs@sporta.com.kw وسنرد عليك.',
+      ar: 'يمكنك أن تسألنا عمّا نحتفظ به عنك، أو تطلب تصحيحه، أو حذفه إن لم يكن الاحتفاظ به مُلزمًا لنا. راسلنا على واتساب ‎+965 2209 1914 أو بالبريد cs@sporta.com.kw وسنرد عليك.',
     }],
   },
   {

@@ -1,5 +1,32 @@
 // Bilingual content for Sporta — voice and structure mirror the live
 // sporta.com.kw (Arabic-first, premium sportswear tone).
+// Arabic counts are not English counts with a different word.
+//
+// The language has FIVE cases where English has two, and getting it wrong is
+// the kind of mistake a native reader notices immediately:
+//
+//   0        لا قطعة           (لا النافية للجنس takes the singular)
+//   1        قطعة واحدة        (singular, the noun carries the count)
+//   2        قطعتان            (the DUAL — a separate grammatical number)
+//   3–10     ٣ قطع             (the "plural of paucity", noun in the plural)
+//   11+      ١١ قطعة           (noun back to the SINGULAR after ten)
+//   100, 200, … and x01–x02 follow the same shape as 1 and 2.
+//
+// The old version had two branches, so it wrote "٢ قطع" (should be قطعتان) and
+// "١٥ قطع" (should be "١٥ قطعة"). This is used on the checkout summary and the
+// quick-checkout bar, next to the money — the two places a shopper is already
+// looking for a reason not to trust the total.
+export function arabicCount(n, forms) {
+  const [one, two, few, many] = forms
+  const abs = Math.abs(Number(n) || 0)
+  if (abs === 0) return `لا ${many}`
+  if (abs === 1) return one
+  if (abs === 2) return two
+  const mod100 = abs % 100
+  if (mod100 >= 3 && mod100 <= 10) return `${abs} ${few}`
+  return `${abs} ${many}`
+}
+
 export const translations = {
   en: {
     dir: 'ltr',
@@ -345,7 +372,7 @@ export const translations = {
     },
     ann: 'توصيل في نفس اليوم داخل الكويت · كي نت والبطاقات والدفع عند الاستلام',
     search: { placeholder: 'ابحث عن المنتجات…', empty: 'لا توجد منتجات.', title: 'بحث' },
-    sort: { label: 'ترتيب', newest: 'الأحدث', priceAsc: 'السعر: من الأقل', priceDesc: 'السعر: من الأعلى' },
+    sort: { label: 'ترتيب', newest: 'الأحدث', priceAsc: 'السعر: من الأقل إلى الأعلى', priceDesc: 'السعر: من الأعلى إلى الأقل' },
     trust: {
       delivery: 'توصيل في نفس اليوم داخل الكويت',
       pay: 'دفع آمن — كي نت، فيزا، ماستركارد',
@@ -363,17 +390,17 @@ export const translations = {
       deliverTo: 'التوصيل إلى',
       edit: 'تغيير',
       editBag: 'تعديل الحقيبة',
-      useFull: 'تعبئة النموذج بدلاً من ذلك',
+      useFull: 'تعبئة النموذج بدلًا من ذلك',
       cta: 'دفع سريع',
       ctaHint: 'عنوان محفوظ — نقرتان',
     },
     guest: {
       title: 'لا حاجة لإنشاء حساب',
-      body: 'أكمل الشراء كزائر — لا يوجد تسجيل ولا اشتراك. احتفظ برقم الطلب من صفحة التأكيد: به تتابع طلبك، ونرسل لك التحديثات على واتساب.',
+      body: 'أكمل الشراء كزائر — لا يوجد تسجيل ولا اشتراك. احتفظ برقم الطلب من صفحة التأكيد: تتابع به طلبك، ونرسل لك التحديثات على واتساب.',
       track: 'تتبع طلب',
     },
     spec: { fabric: 'القماش', sku: 'رمز المنتج', weight: 'الوزن', grams: '{n} غرام',
-      care: 'العناية', careValue: 'غسيل بماء بارد · بدون مجفف · بدون كي',
+      care: 'العناية', careValue: 'غسل بماء بارد · بدون مجفّف · بدون كي',
       soldOut: 'نفذت الكمية', lastOne: 'آخر قطعة', onlyLeft: 'بقي {n} فقط',
       sizesShipped: 'متوفر بهذه المقاسات فقط',
       authentic: 'أصلي · بيع سبورتا' },
@@ -403,13 +430,13 @@ export const translations = {
       // line as soon as a Latin run (a block number) sits next to it.
       sep: '، ',
       taxNote: 'الأسعار بالدينار الكويتي (د.ك). لا تُطبَّق ضريبة القيمة المضافة في الكويت.',
-      footer: 'شكراً لتسوقك مع سبورتا.',
+      footer: 'شكرًا لتسوقك مع سبورتا.',
       view: 'عرض الفاتورة',
       payment: 'طريقة الدفع',
     },
     track: { title: 'تتبع طلبك', sub: 'أدخل رقم الطلب من رسالة التأكيد.',
       placeholder: 'مثال: SP1A2B3C', cta: 'تتبع', notfound: 'لا يوجد طلب بهذا الرقم.',
-      error: 'تعذر التحقق حالياً. حاول مرة أخرى.',
+      error: 'تعذر التحقق حاليًا. حاول مرة أخرى.',
       states: { paid: 'مدفوع', pending: 'بانتظار الدفع', failed: 'فشل' } },
     theme: { light: 'الوضع الفاتح', dark: 'الوضع الليلي' },
     wish: { title: 'المفضلة', empty: 'لا توجد منتجات محفوظة بعد.' },
@@ -427,18 +454,18 @@ export const translations = {
       prev: 'الشريحة السابقة',
       next: 'الشريحة التالية',
       goTo: 'انتقل إلى الشريحة',
-      pause: 'إيقاف العرض مؤقتاً',
+      pause: 'إيقاف العرض مؤقتًا',
       play: 'تشغيل العرض',
       slides: [
         {
           kicker: 'قوة',
           title: 'تُبنى بالحديد.',
-          sub: 'حصص ثقيلة ومعايير أثقل — تجهيزات تجتهد بقدر ما ترفع.',
+          sub: 'حصص ثقيلة ومعايير أثقل — عتادٌ يجتهد بقدر ما ترفع.',
           cta: 'تسوّق التدريب',
         },
         {
           kicker: 'كارديو',
-          title: 'اسبق أمسك.',
+          title: 'اسبق الأمس.',
           sub: 'جري وتمارين مكثّفة وكل ما بينهما — أطقم تتنفّس معك وتحفظ إيقاعك.',
           cta: 'تسوّق الكارديو',
         },
@@ -465,12 +492,12 @@ export const translations = {
       women: {
         k: 'تحركي بثقة',
         t: 'نسائي',
-        d: 'أطقم سيملس ولكنات عالية الخصر وبرالات رياضية وتوبات بسحّاب تحافظ على شكلها.',
+        d: 'أطقم بلا خياطة وليقنز عالية الخصر وصدريات رياضية وتوبات بسحّاب تحافظ على شكلها.',
       },
       acc: {
         k: 'معدات أساسية',
         t: 'إكسسوارات',
-        d: 'كابات وحقائب وشنط ظهر والقطع الصغيرة التي تكمل تمرينك.',
+        d: 'كابات وحقائب ظهر وشنط تدريب والقطع الصغيرة التي تكمل تمرينك.',
       },
       outlet: {
         k: 'خصومات تصل إلى ٦٠٪',
@@ -479,15 +506,15 @@ export const translations = {
       },
       discount: 'خصومات حتى ٦٠٪',
     },
-    ess: { kicker: 'الأكثر رواجاً', title: 'تسوق الأساسيات' },
+    ess: { kicker: 'الأكثر رواجًا', title: 'تسوق الأساسيات' },
     services: {
-      delivery: { t: 'توصيل سريع', s: 'خلال ٢٤-٤٨ ساعة' },
+      delivery: { t: 'توصيل سريع', s: 'من ٢٤ إلى ٤٨ ساعة' },
       returns: { t: 'إرجاع سهل', s: 'إرجاع خلال ١٤ يومًا' },
     },
     shop: {
       h1: 'تسوق الملابس الرياضية في الكويت',
-      loadMore: 'اعرض {n} أخرى',
-      showing: 'يُعرض {shown} من {total}',
+      loadMore: 'اعرض {n} منتجًا آخر',
+      showing: 'المعروض {shown} من {total}',
       gridHeading: 'جميع المنتجات',
       intro:
         'ملابس رياضية نسائية ورجالية وهوديز وإكسسوارات جيم \u2014 توصيل في نفس اليوم داخل الكويت والدفع عبر كي نت بالدينار الكويتي.',
@@ -511,7 +538,7 @@ export const translations = {
       methodKnet: 'كي نت / بطاقة',
       methodKnetHint: 'ادفع الآن عبر صفحة البنك الآمنة.',
       methodTpay: 'تي-باي (البنك التجاري)',
-      methodTpayHint: 'ادفع إلكترونياً عبر صفحة البنك الآمنة.',
+      methodTpayHint: 'ادفع إلكترونيًا عبر صفحة البنك الآمنة.',
       methodCod: 'الدفع عند الاستلام',
       methodCodHint: 'ادفع للمندوب عند وصول طلبك.',
       placeOrder: 'تأكيد الطلب — الدفع عند الاستلام',
@@ -543,7 +570,7 @@ export const translations = {
       notePh: 'علامة مميزة، لون البوابة، أنسب وقت للاتصال…',
       remember: 'احفظ هذه البيانات على هذا الجهاز',
       review: 'المراجعة والدفع',
-      itemsCount: (n) => (n === 1 ? 'قطعة واحدة' : `${n} قطع`),
+      itemsCount: (n) => arabicCount(n, ['قطعة واحدة', 'قطعتان', 'قطع', 'قطعة']),
       fixErrors: 'يرجى مراجعة الحقول المحددة.',
       err: {
         missing_name: 'يرجى إدخال الاسم الكامل.',
@@ -557,11 +584,11 @@ export const translations = {
         cart_too_large: 'عدد القطع كبير على طلب واحد. يرجى تقسيمه.',
         invalid_qty: 'إحدى الكميات غير صحيحة.',
         zero_amount: 'لا يوجد مبلغ مستحق لهذا الطلب. يرجى التواصل معنا.',
-        order_not_pending: 'تمت معالجة هذا الطلب سابقاً. ابدأ طلباً جديداً.',
-        unavailable: 'عذراً — هذه القطعة غير متوفرة حالياً.',
-        unconfigured: 'الطلب عبر الموقع غير متاح مؤقتاً. يرجى التواصل معنا على واتساب.',
+        order_not_pending: 'تمت معالجة هذا الطلب سابقًا. ابدأ طلبًا جديدًا.',
+        unavailable: 'عذرًا — هذه القطعة غير متوفرة حاليًا.',
+        unconfigured: 'الطلب عبر الموقع غير متاح مؤقتًا. يرجى التواصل معنا على واتساب.',
         failed: 'تعذّر بدء عملية الدفع. يرجى المحاولة مرة أخرى.',
-        tooLong: 'النص طويل جداً.',
+        tooLong: 'النص طويل جدًا.',
       },
     },
     result: {
@@ -570,14 +597,14 @@ export const translations = {
       success: { title: 'تم الدفع بنجاح', msg: 'تم تأكيد طلبك. شكرًا لك!' },
       cod: {
         title: 'تم تأكيد الطلب',
-        msg: 'ادفع للمندوب نقداً عند وصول طلبك، وستصلك تحديثات التوصيل عبر واتساب.',
+        msg: 'ادفع للمندوب نقدًا عند وصول طلبك، وستصلك تحديثات التوصيل عبر واتساب.',
       },
       failed: { title: 'فشل الدفع', msg: 'لم يتم خصم أي مبلغ. حاول مرة أخرى.' },
       cancelled: { title: 'تم إلغاء الدفع', msg: 'تم إلغاء العملية أو انتهت صلاحيتها.' },
       error: { title: 'حدث خطأ ما', msg: 'إذا تم خصم مبلغ، تواصل مع الدعم.' },
       review: {
         title: 'تم استلام الدفع — قيد التأكيد',
-        msg: 'لم نتمكن من تأكيد طلبك تلقائياً. لا تدفع مرة أخرى — فريقنا يراجع العملية وسيتواصل معك عبر واتساب قريباً.',
+        msg: 'لم نتمكن من تأكيد طلبك تلقائيًا. لا تدفع مرة أخرى — فريقنا يراجع العملية وسيتواصل معك عبر واتساب قريبًا.',
       },
     },
     about: {

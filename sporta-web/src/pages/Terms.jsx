@@ -25,17 +25,17 @@ const SECTIONS = [
     h: { en: '2. Orders and prices', ar: '٢. الطلبات والأسعار' },
     p: [{
       en: 'All prices are in Kuwaiti Dinar (KWD) and include any applicable taxes. The price charged is always the price held in our system at the moment you order — your browser never sets it, so a price shown on a stale page cannot be used to pay less or be charged more.',
-      ar: 'جميع الأسعار بالدينار الكويتي وتشمل أي ضرائب مستحقة. السعر المُحتسب هو السعر المسجّل في نظامنا لحظة الطلب، ولا يُحدَّد من المتصفح إطلاقاً، فلا يمكن لصفحة قديمة أن تُغيّر المبلغ زيادةً أو نقصاناً.',
+      ar: 'جميع الأسعار بالدينار الكويتي وتشمل أي ضرائب مستحقة. السعر المُحتسب هو السعر المسجّل في نظامنا لحظة الطلب، ولا يُحدَّد من المتصفح إطلاقًا، فلا يمكن لصفحة قديمة أن تُغيّر المبلغ زيادةً أو نقصانًا.',
     }, {
       en: 'An order is confirmed once payment is captured. If an item turns out to be unavailable after you order, we will contact you and refund that item in full.',
-      ar: 'يُعدّ الطلب مؤكداً بعد اكتمال الدفع. وإذا تبيّن بعد الطلب أن صنفاً غير متوفر، سنتواصل معك ونعيد قيمته كاملة.',
+      ar: 'يُعدّ الطلب مؤكدًا بعد اكتمال الدفع. وإذا تبيّن بعد الطلب أن صنفًا غير متوفر، سنتواصل معك ونعيد قيمته كاملة.',
     }],
   },
   {
     h: { en: '3. Payment', ar: '٣. الدفع' },
     p: [{
       en: 'You can pay online with KNET (Kuwaiti debit card), with Visa or Mastercard, through CBK T-Pay, or in cash to the driver when your order arrives. Online payment is processed by the Commercial Bank of Kuwait’s payment gateway: your card and KNET details are entered on the bank’s own page and are never seen, handled or stored by Sporta.',
-      ar: 'يمكنك الدفع إلكترونياً بكي نت (بطاقة السحب الكويتية) أو فيزا أو ماستركارد أو عبر تي-باي من البنك التجاري، أو نقداً للمندوب عند وصول طلبك. وتتم معالجة الدفع الإلكتروني عبر بوابة الدفع لدى البنك التجاري الكويتي، فتُدخل بيانات بطاقتك أو كي نت في صفحة البنك نفسه، ولا تطّلع عليها سبورتا ولا تخزّنها إطلاقاً.',
+      ar: 'يمكنك الدفع إلكترونيًا بكي نت (بطاقة السحب الكويتية) أو فيزا أو ماستركارد أو عبر تي-باي من البنك التجاري، أو نقدًا للمندوب عند وصول طلبك. وتتم معالجة الدفع الإلكتروني عبر بوابة الدفع لدى البنك التجاري الكويتي، فتُدخل بيانات بطاقتك أو كي نت في صفحة البنك نفسه، ولا تطّلع عليها سبورتا ولا تخزّنها إطلاقًا.',
     }, {
       en: 'Cash on delivery is for orders inside Kuwait. Please have the amount ready — drivers do not always carry change. If your payment is taken but your order does not appear, contact us with your tracking number and we will resolve it.',
       ar: 'الدفع عند الاستلام متاح للطلبات داخل الكويت، ويُفضّل تجهيز المبلغ لأن المندوب قد لا يحمل فكة. وإذا خُصم المبلغ ولم يظهر طلبك، تواصل معنا مع رقم التتبّع وسنعالج الأمر.',
@@ -49,7 +49,7 @@ const SECTIONS = [
       ar: 'الطلبات داخل الكويت تُوصَّل في نفس اليوم مع إرسال التحديثات عبر واتساب. ويعتمد التوصيل على بيانات العنوان التي تزوّدنا بها — المحافظة والمنطقة وقطعة وشارع وبناية — لذا تأكد منها قبل الدفع.',
     }, {
       en: 'Online checkout covers Kuwait. For GCC and Middle East orders, message us on WhatsApp and we will arrange delivery and confirm the cost with you first.',
-      ar: 'الدفع عبر الموقع متاح داخل الكويت. ولطلبات دول الخليج والشرق الأوسط راسلنا على واتساب لترتيب الشحن وتأكيد التكلفة معك مسبقاً.',
+      ar: 'الدفع عبر الموقع متاح داخل الكويت. ولطلبات دول الخليج والشرق الأوسط راسلنا على واتساب لترتيب الشحن وتأكيد التكلفة معك مسبقًا.',
     }],
   },
   {
@@ -57,7 +57,7 @@ const SECTIONS = [
     h: { en: '5. Returns and exchange', ar: '٥. الإرجاع والاستبدال' },
     p: [{
       en: 'Exchange and return are free within 14 days of delivery. Items should be unworn, unwashed and in their original condition with tags attached. Start a request on our Returns page or message us on WhatsApp.',
-      ar: 'الاستبدال والإرجاع مجانيان خلال ١٤ يوماً من الاستلام. ويجب أن تكون القطعة غير ملبوسة وغير مغسولة وبحالتها الأصلية مع بقاء البطاقات. ابدأ الطلب من صفحة الإرجاع أو راسلنا على واتساب.',
+      ar: 'الاستبدال والإرجاع مجانيان خلال ١٤ يومًا من الاستلام. ويجب أن تكون القطعة غير ملبوسة وغير مغسولة وبحالتها الأصلية مع بقاء البطاقات. ابدأ الطلب من صفحة الإرجاع أو راسلنا على واتساب.',
     }, {
       en: 'Refunds are returned to the card or KNET account used to pay. For hygiene reasons, items such as socks cannot be returned once opened.',
       ar: 'تُعاد المبالغ إلى نفس البطاقة أو حساب كي نت المستخدم في الدفع. ولأسباب صحية لا تُقبل إعادة أصناف مثل الجوارب بعد فتحها.',
