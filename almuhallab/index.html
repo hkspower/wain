@@ -6,26 +6,26 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; worker-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'" />
   <meta name="referrer" content="no-referrer" />
   <meta name="theme-color" content="#6f3f1c" />
-  <link rel="preload" as="font" type="font/woff2" href="fonts/tajawal-400.woff2" crossorigin />
+  <link rel="preload" as="font" type="font/woff2" href="fonts/cairo-400.woff2" crossorigin />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="apple-touch-icon" href="favicon.svg" />
   <title>المهلب كود — Almuhallab Code | شركة برمجة وأنظمة</title>
   <meta name="description" content="المهلب كود — شركة برمجة كويتية تبني المواقع وتطبيقات الجوال والبرمجيات المخصّصة وحلول الذكاء الاصطناعي. من أعمالنا: النوخذة، النظام الموحد لصافي و XBRL والتوصيل." />
   <style>
-    /* Tajawal (SIL OFL) — bundled, never fetched from a CDN: the strict CSP
+    /* Cairo (SIL OFL) — bundled, never fetched from a CDN: the strict CSP
        forbids external origins, and a self-hosted face renders identically on
        every device instead of depending on what the OS happens to have.
        Arabic subset only; Latin and digits stay on the system face. */
-    @font-face { font-family:"Tajawal"; font-style:normal; font-weight:400;
-      font-display:swap; src:url("fonts/tajawal-400.woff2") format("woff2"); }
-    @font-face { font-family:"Tajawal"; font-style:normal; font-weight:500;
-      font-display:swap; src:url("fonts/tajawal-500.woff2") format("woff2"); }
-    @font-face { font-family:"Tajawal"; font-style:normal; font-weight:600;
-      font-display:swap; src:url("fonts/tajawal-500.woff2") format("woff2"); }
-    @font-face { font-family:"Tajawal"; font-style:normal; font-weight:700;
-      font-display:swap; src:url("fonts/tajawal-700.woff2") format("woff2"); }
-    @font-face { font-family:"Tajawal"; font-style:normal; font-weight:800;
-      font-display:swap; src:url("fonts/tajawal-800.woff2") format("woff2"); }
+    @font-face { font-family:"Cairo"; font-style:normal; font-weight:400;
+      font-display:swap; src:url("fonts/cairo-400.woff2") format("woff2"); }
+    @font-face { font-family:"Cairo"; font-style:normal; font-weight:500;
+      font-display:swap; src:url("fonts/cairo-500.woff2") format("woff2"); }
+    @font-face { font-family:"Cairo"; font-style:normal; font-weight:600;
+      font-display:swap; src:url("fonts/cairo-500.woff2") format("woff2"); }
+    @font-face { font-family:"Cairo"; font-style:normal; font-weight:700;
+      font-display:swap; src:url("fonts/cairo-700.woff2") format("woff2"); }
+    @font-face { font-family:"Cairo"; font-style:normal; font-weight:800;
+      font-display:swap; src:url("fonts/cairo-800.woff2") format("woff2"); }
     /* The token set is identical on every page of this site — divergence
        between pages has been a real bug before, and the test suite fails on it. */
     :root {
@@ -41,7 +41,7 @@
       --sand: #9e5603; --sand-vivid: #e3a556;
       --danger: #ce1925;
       --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-      --sans: "Tajawal", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Kufi Arabic", "Noto Sans Arabic", sans-serif;
+      --sans: "Cairo", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Kufi Arabic", "Noto Sans Arabic", sans-serif;
     }
 
     * { box-sizing: border-box; }
@@ -151,6 +151,58 @@
     .dots span.on { background: var(--tint); width: 20px; }
     .slider.no-slide .railnav, .slider.no-slide .dots { display: none; }
 
+    /* ═══════ the flow map: what the system actually does, drawn ═══════
+       The sentence above it says a number is written once and travels to the
+       financial statement. This shows it: two sources feed one core, the core
+       feeds the filing, and current runs along the wires between them. It is a
+       labelled diagram first and an animation second — with motion off it still
+       reads as the same explanation, which is why the labels are real text and
+       not decoration. */
+    .flowmap { display: flex; align-items: center; gap: 8px; margin-top: 16px;
+      padding: 16px; background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 16px; }
+    .fcol { display: flex; flex-direction: column; gap: 8px; }
+    .fnode { flex: none; background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 8px 12px; display: flex; align-items: center; gap: 8px;
+      min-width: 0; }
+    .fnode .ic { width: 18px; height: 18px; }
+    .fnode b { font-size: 13px; display: block; line-height: 1.4; }
+    .fnode span { font-size: 11px; color: var(--muted); display: block; line-height: 1.4; }
+    .fnode.hub { border-color: var(--tint); box-shadow: 0 0 0 1px var(--tint); }
+    /* the wire: dashes that travel from the sources toward the filing */
+    .wire { flex: 1; min-width: 24px; height: 2px; border-radius: 2px;
+      background-image: linear-gradient(90deg, var(--tint) 0 45%, transparent 45% 100%);
+      background-size: 20px 2px; background-repeat: repeat-x; opacity: .55; }
+    html.motion .wire { animation: flow 1.1s linear infinite; }
+    @keyframes flow { to { background-position: -20px 0; } }
+    /* each source carries its own wire so the line always meets the node it
+       leaves — a single stretched connector cannot know where two boxes of
+       unknown height sit, and drifted off them as soon as the copy changed */
+    /* nodes size to their labels and never wrap; the wires take what is left,
+       so the diagram keeps its rhythm instead of squeezing the words */
+    .fcol.sources { flex: none; }
+    .frow { display: flex; align-items: center; gap: 8px; }
+    .frow .fnode { flex: none; }
+    .frow .wire { flex: 1; min-width: 36px; }
+    .fnode b, .fnode span { white-space: nowrap; }
+    .frow .wire { animation-delay: .3s; }
+    .frow:first-child .wire { animation-delay: 0s; }
+    /* the row needs ~840px to hold its labels unwrapped; below that it
+       becomes a vertical pipeline rather than a squeezed one */
+    @media (max-width: 900px) {
+      .flowmap { flex-direction: column; align-items: stretch; }
+      .frow { flex-direction: column; align-items: stretch; }
+      .fcol.sources { display: flex; flex-direction: column; }
+      .fnode b, .fnode span { white-space: normal; }
+      /* a 20px dash in a 22px run showed one mark and read as a stray dot —
+         the vertical wire needs a tighter pattern to read as a line at all */
+      .wire { min-height: 28px; height: 28px; width: 2px; align-self: center;
+        background-image: linear-gradient(180deg, var(--tint) 0 50%, transparent 50% 100%);
+        background-size: 2px 9px; background-repeat: repeat-y; opacity: .7; }
+      html.motion .wire { animation: flowv .9s linear infinite; }
+      @keyframes flowv { to { background-position: 0 9px; } }
+    }
+
     /* the three commitments sit in one soft band — a statement, not a grid */
     .band { background: var(--panel-2); border: 1px solid var(--border); border-radius: 16px;
       padding: 20px; margin-top: 12px; display: flex; gap: 20px; }
@@ -218,7 +270,13 @@
     .card:hover .tile, .channel:hover .tile { background: var(--tint); }
     .card:hover .tile .ic, .channel:hover .tile .ic { stroke: #fff; color: #fff; }
     .tile { transition: background .22s ease; }
-    .tile .ic { transition: stroke .22s ease; }
+    /* every icon answers the pointer, not only the three that animate their own
+       parts: those three are inlined so their pieces can move, and a <use> clone
+       cannot be reached inside — but the whole mark can still respond */
+    .tile .ic { transition: stroke .22s ease, transform .3s cubic-bezier(.2,.7,.3,1); }
+    .card:hover .tile .ic, .channel:hover .tile .ic { transform: scale(1.14) rotate(-4deg); }
+    .fnode .ic { transition: transform .3s cubic-bezier(.2,.7,.3,1); }
+    .fnode:hover .ic { transform: scale(1.15); }
     .btn { transition: transform .18s ease, opacity .18s ease; }
     .btn:hover { transform: translateY(-1px); }
     /* ripple: a pressed primary button answers where it was touched */
@@ -668,6 +726,39 @@
           <button type="button" class="arrow next" aria-label="التالي"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></button>
         </div>
       </div>
+      <div class="flowmap" data-reveal>
+        <div class="fcol sources">
+          <div class="frow">
+            <div class="fnode">
+              <svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg>
+              <div><b>صافي</b><span>القيمة السوقية</span></div>
+            </div>
+            <span class="wire" aria-hidden="true"></span>
+          </div>
+          <div class="frow">
+            <div class="fnode">
+              <svg class="ic" aria-hidden="true"><use href="#i-delivery"/></svg>
+              <div><b>التوصيل</b><span>الطلبات المسلَّمة</span></div>
+            </div>
+            <span class="wire" aria-hidden="true"></span>
+          </div>
+        </div>
+        <div class="fnode hub">
+          <svg class="ic" aria-hidden="true"><use href="#i-anchor"/></svg>
+          <div><b>نواة بيانات واحدة</b><span>الرقم يُكتب مرة واحدة</span></div>
+        </div>
+        <div class="wire" aria-hidden="true"></div>
+        <div class="fnode">
+          <svg class="ic" aria-hidden="true"><use href="#i-report"/></svg>
+          <div><b>الميزانية السنوية</b><span>أصول وإيرادات محسوبة</span></div>
+        </div>
+        <div class="wire" aria-hidden="true"></div>
+        <div class="fnode">
+          <svg class="ic" aria-hidden="true"><use href="#i-send"/></svg>
+          <div><b>ملف XBRL</b><span>جاهز للإيداع</span></div>
+        </div>
+      </div>
+
       <div class="railwrap">
         <div class="rail" tabindex="0" role="group" aria-label="وحدات النوخذة">
           <div class="card">

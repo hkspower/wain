@@ -7,7 +7,7 @@
   <meta name="referrer" content="no-referrer" />
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="theme-color" content="#6f3f1c" />
-  <link rel="preload" as="font" type="font/woff2" href="fonts/tajawal-400.woff2" crossorigin />
+  <link rel="preload" as="font" type="font/woff2" href="fonts/cairo-400.woff2" crossorigin />
   <link rel="icon" type="image/svg+xml" href="icon.svg" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -15,20 +15,20 @@
   <title>النوخذة | نظام موحّد من المهلب كود</title>
   <meta name="description" content="النوخذة — نظام موحد يجمع صافي (SAFI) وتقارير XBRL ونظام التوصيل في مكان واحد، مجاناً بالكامل لعملاء المهلب." />
   <style>
-    /* Tajawal (SIL OFL) — bundled, never fetched from a CDN: the strict CSP
+    /* Cairo (SIL OFL) — bundled, never fetched from a CDN: the strict CSP
        forbids external origins, and a self-hosted face renders identically on
        every device instead of depending on what the OS happens to have.
        Arabic subset only; Latin and digits stay on the system face. */
-    @font-face { font-family:"Tajawal"; font-style:normal; font-weight:400;
-      font-display:swap; src:url("fonts/tajawal-400.woff2") format("woff2"); }
-    @font-face { font-family:"Tajawal"; font-style:normal; font-weight:500;
-      font-display:swap; src:url("fonts/tajawal-500.woff2") format("woff2"); }
-    @font-face { font-family:"Tajawal"; font-style:normal; font-weight:600;
-      font-display:swap; src:url("fonts/tajawal-500.woff2") format("woff2"); }
-    @font-face { font-family:"Tajawal"; font-style:normal; font-weight:700;
-      font-display:swap; src:url("fonts/tajawal-700.woff2") format("woff2"); }
-    @font-face { font-family:"Tajawal"; font-style:normal; font-weight:800;
-      font-display:swap; src:url("fonts/tajawal-800.woff2") format("woff2"); }
+    @font-face { font-family:"Cairo"; font-style:normal; font-weight:400;
+      font-display:swap; src:url("fonts/cairo-400.woff2") format("woff2"); }
+    @font-face { font-family:"Cairo"; font-style:normal; font-weight:500;
+      font-display:swap; src:url("fonts/cairo-500.woff2") format("woff2"); }
+    @font-face { font-family:"Cairo"; font-style:normal; font-weight:600;
+      font-display:swap; src:url("fonts/cairo-500.woff2") format("woff2"); }
+    @font-face { font-family:"Cairo"; font-style:normal; font-weight:700;
+      font-display:swap; src:url("fonts/cairo-700.woff2") format("woff2"); }
+    @font-face { font-family:"Cairo"; font-style:normal; font-weight:800;
+      font-display:swap; src:url("fonts/cairo-800.woff2") format("woff2"); }
     :root {
       color-scheme: light;   /* the site is white on every device, dark preference included */
       --bg: #ffffff;
@@ -42,7 +42,7 @@
       --sand: #9e5603; --sand-vivid: #e3a556;
       --danger: #ce1925;
       --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-      --sans: "Tajawal", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Kufi Arabic", "Noto Sans Arabic", sans-serif;
+      --sans: "Cairo", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Kufi Arabic", "Noto Sans Arabic", sans-serif;
     }
 
     * { box-sizing: border-box; }

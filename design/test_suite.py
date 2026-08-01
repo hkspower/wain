@@ -586,6 +586,25 @@ def home_checks(pg):
     mixed = pg.evaluate(r"(document.body.innerText.match(/[٠-٩]/g) || []).length")
     check(S, "the page uses one numeral system throughout", mixed == 0, f"{mixed} Arabic-Indic")
 
+    # the flow map explains the system in labels, not only in motion: with
+    # animation off it must still read as the same diagram
+    nodes = pg.eval_on_selector_all(".flowmap .fnode b", "n=>n.map(e=>e.textContent.trim())")
+    check(S, "the flow map names every stage",
+          nodes == ["صافي", "التوصيل", "نواة بيانات واحدة", "الميزانية السنوية", "ملف XBRL"], str(nodes))
+    check(S, "each source's wire meets its own node",
+          pg.evaluate("""[...document.querySelectorAll('.frow')].every(r => {
+            const n = r.querySelector('.fnode').getBoundingClientRect();
+            const w = r.querySelector('.wire').getBoundingClientRect();
+            return Math.abs((n.top + n.height/2) - (w.top + w.height/2)) < 2;
+          })"""))
+    rm2 = pg.context.browser.new_context(reduced_motion="reduce", locale="ar-KW")
+    rp3 = rm2.new_page()
+    rp3.goto(f"{BASE}/index.html", wait_until="networkidle"); rp3.wait_for_timeout(400)
+    check(S, "reduced motion stills the flow map but keeps it legible",
+          rp3.eval_on_selector(".flowmap .wire", "e=>getComputedStyle(e).animationName") == "none"
+          and rp3.eval_on_selector_all(".flowmap .fnode", "n=>n.length") == 5)
+    rm2.close()
+
     check(S, "النوخذة opens from its row",
           pg.eval_on_selector_all('.product a[href="nokhatha.html"]', "n=>n.length") == 1)
 
@@ -1264,12 +1283,12 @@ def font_checks(pg):
     S = "typography"
     pg.goto(f"{BASE}/index.html", wait_until="networkidle")
     pg.wait_for_timeout(900)
-    loaded = pg.evaluate("document.fonts.check('400 16px \"Tajawal\"')")
+    loaded = pg.evaluate("document.fonts.check('400 16px \"Cairo\"')")
     check(S, "the bundled Arabic face loads", loaded)
     fam = pg.evaluate("getComputedStyle(document.querySelector('h1')).fontFamily")
     check(S, "Arabic text resolves to the bundled face first",
-          fam.strip().startswith('"Tajawal"') or fam.strip().startswith("Tajawal"), fam)
-    faces = pg.evaluate("[...document.fonts].filter(f=>f.family==='Tajawal').length")
+          fam.strip().startswith('"Cairo"') or fam.strip().startswith("Cairo"), fam)
+    faces = pg.evaluate("[...document.fonts].filter(f=>f.family==='Cairo').length")
     check(S, "every declared weight is present", faces == 5, f"{faces} faces")
     # the CSP must permit the font, or it silently never paints
     csp = pg.evaluate("document.querySelector('meta[http-equiv=\"Content-Security-Policy\"]').content")

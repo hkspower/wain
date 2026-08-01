@@ -127,13 +127,13 @@ folder.
 
 ## Typography
 
-Arabic is set in **Tajawal** (SIL OFL), bundled in `fonts/` rather
+Arabic is set in **Cairo** (SIL OFL), bundled in `fonts/` rather
 than fetched from a CDN — the strict CSP forbids external origins, and a
 self-hosted face renders identically everywhere instead of depending on what the
 visitor's OS happens to have installed.
 
 - Arabic subset only, four weights (400/500/700/800, with 500 serving the 600
-  slot) — 36 KB total, a quarter of what the previous face cost. Latin and
+  slot) — 54 KB total. Latin and
   digits stay on the system face, which is well-drawn on every platform and
   keeps numerals native.
 - `font-display: swap`, the 400 weight preloaded, and all three precached by the
@@ -144,7 +144,7 @@ visitor's OS happens to have installed.
 ## Tests
 
 ```bash
-python3 design/test_suite.py     # 345 checks, exits non-zero on failure
+python3 design/test_suite.py     # 348 checks, exits non-zero on failure
 ```
 
 Covers the **pinned Almuhallab identity** (the sail mark, the المهلب wordmark,

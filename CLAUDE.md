@@ -100,11 +100,15 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Contact channels are the real ones and must not be replaced with placeholders:
   واتساب `+965 6589 4110` · انستغرام `@almuhallab.code` · البريد
   `hello@almuhallab-code.com`.
-- Arabic is set in bundled **Tajawal** (SIL OFL, `almuhallab/fonts/`, Arabic
-  subset, weights 400/500/700/800 — 500 also serves the 600 slot). Never link a
+- Arabic is set in bundled **Cairo** (SIL OFL, `almuhallab/fonts/`, Arabic
+  subset, weights 400/500/700/800 — 500 also serves the 600 slot; 54 KB).
+  Chosen at the owner's request for a modern face (2026-08-01) by rendering
+  Cairo, Almarai, Readex Pro, Alexandria and IBM Plex Sans Arabic side by side
+  in the page's own copy and looking at them. Plex is ruled out — that is the
+  face the owner rejected when asking for a better Arabic font. Never link a
   webfont CDN — the CSP blocks it. Any new page must declare the five
   `@font-face` rules, carry `font-src 'self'`, and be precached. Arabic set in
-  Tajawal needs `line-height` ≥ 1.35 on display sizes, or a damma collides with
+  Cairo needs `line-height` ≥ 1.35 on display sizes, or a damma collides with
   the line above.
 - **There is no dark theme.** The site is white whatever the device prefers:
   no `prefers-color-scheme: dark` block anywhere and `color-scheme: light` on
@@ -136,6 +140,12 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   masthead says «شركة برمجة وأنظمة», and the system is named «النوخذة — النظام
   الموحد» wherever it is introduced. Never let the product name stand in for
   the company's.
+- **The النوخذة section carries a flow map**, not just prose: صافي · التوصيل →
+  نواة بيانات واحدة → الميزانية السنوية → ملف XBRL, with current running along
+  the wires. It is a labelled diagram first and an animation second — with
+  motion off it still reads as the same explanation. Each source owns its wire
+  (`.frow`); one stretched connector cannot know where two boxes of unknown
+  height sit and drifted off them as soon as the copy changed.
 - The company page is **short copy carried by icons**: one line per card, each
   headed by an icon in its own 38px tile. Motion is opacity/transform only —
   masthead and hero entrance, per-section reveal on scroll, hover lift, one
@@ -213,7 +223,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 345 checks covering
+- `python3 design/test_suite.py` is the full system test — 348 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
