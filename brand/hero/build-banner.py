@@ -146,13 +146,37 @@ ground = Image.fromarray(np.clip(ground, 0, 255).astype(np.uint8), 'RGB')
 
 # ------------------------------------------------------- the athlete's half
 #
-# Two sharpening passes doing two different things: a wide, weak one for local
-# contrast (the shirt's folds and the wall's falloff read as form), then a
-# narrow, stronger one for edges. One pass tuned to do both either halos the
-# edges or leaves the form flat.
+# Cleaned BEFORE it is sharpened, in the order the defects were created.
+#
+# 1. CHROMA DENOISE. JPEG stores colour at half resolution and quantises it
+#    hardest, so the wall around the athlete carries blotches of not-quite-the-
+#    same grey and his skin carries colour speckle. All of it lives in the Cb/Cr
+#    planes and none of the actual detail does — edges and texture are
+#    luminance. So Y is left alone and the two chroma planes are blurred hard:
+#    a free clean-up with no cost to sharpness, and it has to happen FIRST or
+#    the sharpeners below would weld the blotches in as "detail".
+# 2. TONE. A gentle S-curve on luminance only — shadows settle, his lit side
+#    lifts — so the figure reads more dimensional without the hue drifting.
+# 3. Two sharpening passes doing two different things: a wide, weak one for
+#    local contrast (the shirt's folds and the wall's falloff read as form),
+#    then a narrow, stronger one for edges. One pass tuned to do both either
+#    halos the edges or leaves the form flat.
 photo = src.resize((CW, CH), Image.LANCZOS)
+
+py, pcb, pcr = photo.convert('YCbCr').split()
+pcb = pcb.filter(ImageFilter.GaussianBlur(3.0 * S))
+pcr = pcr.filter(ImageFilter.GaussianBlur(3.0 * S))
+
+# The curve, as a 256-entry LUT on Y. Anchored so the deep shadows (the shirt,
+# the wall's dark corner) keep their black and the top does not clip: a plain
+# smoothstep blended 35% toward identity.
+_x = np.arange(256) / 255.0
+_curve = _x * _x * (3 - 2 * _x) * 0.35 + _x * 0.65
+py = py.point((np.clip(_curve * 255.0 + 0.5, 0, 255)).astype(np.uint8).tolist())
+
+photo = Image.merge('YCbCr', (py, pcb, pcr)).convert('RGB')
 photo = photo.filter(ImageFilter.UnsharpMask(radius=18 * S, percent=22, threshold=2))
-photo = photo.filter(ImageFilter.UnsharpMask(radius=1.3 * S, percent=115, threshold=3))
+photo = photo.filter(ImageFilter.UnsharpMask(radius=1.3 * S, percent=125, threshold=3))
 
 mask = Image.new('L', (CW, CH), 0)
 md = ImageDraw.Draw(mask)
@@ -365,10 +389,19 @@ for lang in ('en', 'ar'):
     im.save(p + '-4x.webp', quality=95, method=5)
     im.resize((W * 2, H * 2), Image.LANCZOS).save(p + '-2x.png', optimize=True)
     im.resize((W, H), Image.LANCZOS).save(p + '-slide.webp', quality=88, method=6)
-    # What the site actually serves on a desktop. 1600px wide because that is
-    # the hero's own width at every desktop breakpoint the site has.
+    # What the site actually serves on a desktop: a 1x and a 2x, picked by
+    # srcset. The 1x is 1600px because that is the hero's own CSS width at
+    # every desktop breakpoint; on a retina desktop the browser paints ~2880
+    # device pixels, so the 1x alone was being shown at half density — the
+    # type stayed passable and the ATHLETE went soft, since he is the only
+    # part that is not vector. The 2x carries the density and gives back the
+    # quality setting to pay for it: at twice the resolution WebP's artefacts
+    # are half the visual size, so q52 on the 2x looks cleaner than q78 on
+    # the 1x while costing about the same bytes as the phone file.
     im.resize((W, H), Image.LANCZOS).save(
         os.path.join(SHIP, 'desktop', f'banner-{lang}.webp'), quality=78, method=6)
+    im.resize((W * 2, H * 2), Image.LANCZOS).save(
+        os.path.join(SHIP, 'desktop', f'banner-{lang}-2x.webp'), quality=52, method=6)
     print(f'{lang}: headline {size}px on a {PLATE_H}px bar')
 
 

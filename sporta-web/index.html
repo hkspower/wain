@@ -258,10 +258,23 @@
           // image it never shows.
           if (location.pathname === '/' || location.pathname === '/index.html') {
             var dev = matchMedia('(min-width: 768px)').matches ? 'desktop' : 'mobile'
+            var hl = ar ? 'ar' : 'en'
             var b = document.createElement('link')
             b.rel = 'preload'
             b.as = 'image'
-            b.href = '/hero/' + dev + '/banner-' + (ar ? 'ar' : 'en') + '.webp'
+            // Desktop has a 1x and a 2x; the density decision must be the
+            // browser's own, and it must MATCH the one the <picture> in the
+            // hero will make, or this preloads one file and the page renders
+            // the other — two downloads instead of none saved. imagesrcset
+            // with the same descriptors is how the two decisions are kept
+            // identical; href stays as the fallback for anything too old to
+            // read it.
+            b.href = '/hero/' + dev + '/banner-' + hl + '.webp'
+            if (dev === 'desktop') {
+              b.setAttribute('imagesrcset',
+                '/hero/desktop/banner-' + hl + '.webp 1x, ' +
+                '/hero/desktop/banner-' + hl + '-2x.webp 2x')
+            }
             b.setAttribute('fetchpriority', 'high')
             document.head.appendChild(b)
           }

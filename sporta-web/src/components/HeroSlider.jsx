@@ -55,6 +55,9 @@ const SLIDE_IDS = ['strength', 'cardio', 'arena']
 //
 // The database still wins. The moment /backends has a slide, this is gone.
 const BANNER = (device, lang) => `/hero/${device}/banner-${lang}.webp`
+// Desktop only. The phone file is already ~2.8x its CSS width (1080px for a
+// ~390px viewport), so a second density there would be bytes for nothing.
+const BANNER2X = (lang) => `/hero/desktop/banner-${lang}-2x.webp`
 
 // THE HERO'S HEIGHT IS DECIDED BEFORE THE FIRST PAINT, NOT HERE.
 //
@@ -668,7 +671,16 @@ function BannerSlide({ size, active, first, label, lang, t, onMissing }) {
     >
       <div className="absolute inset-0 overflow-hidden">
         <picture>
-          <source media={DESKTOP_AT} srcSet={BANNER('desktop', lang)} width="1600" height="633" />
+          {/* 1x and 2x, because the hero is ~1600 CSS px wide on a desktop and
+              a retina screen paints twice that. The type in the picture is
+              vector-sharp in both files; the 2x is for the athlete, who is the
+              only part that is photograph. */}
+          <source
+            media={DESKTOP_AT}
+            srcSet={`${BANNER('desktop', lang)} 1x, ${BANNER2X(lang)} 2x`}
+            width="1600"
+            height="633"
+          />
           <img
             src={BANNER('mobile', lang)}
             alt={title}

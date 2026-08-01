@@ -193,6 +193,7 @@ const REQUIRED = ['/index.html', '/.htaccess', '/knet/.htaccess', '/config.js',
                   // is a crop each. Miss one and a whole language or a whole
                   // device class falls back to the drawn scenes.
                   '/hero/desktop/banner-en.webp', '/hero/desktop/banner-ar.webp',
+                  '/hero/desktop/banner-en-2x.webp', '/hero/desktop/banner-ar-2x.webp',
                   '/hero/mobile/banner-en.webp', '/hero/mobile/banner-ar.webp']
 for (const r of REQUIRED) if (!onDisk.has(r)) add('HIGH', `required file absent: ${r}`, '')
 // /pay/config.php holds the CBK ClientSecret and ENCRP_KEY; .cbk_token.json is
