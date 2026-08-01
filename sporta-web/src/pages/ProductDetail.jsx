@@ -171,11 +171,24 @@ export default function ProductDetail() {
     return true
   }
 
+  // Whether ANY size of this product is actually available. `stock` is null
+  // until the request lands, and null means "do not claim" — the schema then
+  // omits the assertion rather than guessing.
+  const anyInStock = useMemo(() => {
+    if (!stock) return null
+    // Each size is {sku, stock, inStock} — see shape() in lib/stock.js. Reading
+    // it as a bare number silently made everything OutOfStock, which is the
+    // same class of lie as the hard-coded InStock it replaced, in the other
+    // direction.
+    const sizes = Object.values(stock)
+    return sizes.length ? sizes.some((r) => r?.inStock || Number(r?.stock) > 0) : null
+  }, [stock])
+
   const jsonLd = useMemo(
     () =>
       product
         ? graph(
-            productJsonLd(product, lang),
+            productJsonLd(product, lang, { inStock: anyInStock }),
             breadcrumbJsonLd([
               [t.nav.home, '/'],
               [t.nav.shop, '/shop'],
@@ -183,7 +196,7 @@ export default function ProductDetail() {
             ]),
           )
         : null,
-    [product, lang, t],
+    [product, lang, t, anyInStock],
   )
   usePageMeta(
     product
@@ -192,6 +205,11 @@ export default function ProductDetail() {
           description: product.desc[lang],
           path: `/product/${product.slug}`,
           jsonLd,
+          type: 'product',
+          // Only a real URL. Most products still carry generated placeholder
+          // artwork as a data: URI, and a crawler cannot fetch one of those —
+          // usePageMeta falls back to the brand card.
+          image: product.image,
         }
       : { title: t.shop.notFound, path: '/shop', robots: 'noindex, follow' },
   )

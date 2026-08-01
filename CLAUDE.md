@@ -137,6 +137,36 @@
   and Googlebot (US, en, UTC) sees English.
   **A detected language is never saved.** `localStorage.lang` means "the
   visitor tapped the toggle"; persisting a guess would lock a traveller in.
+- **The first paint does not wait for JavaScript.** `index.html` carries a
+  no-JS shell (header bar, logo, hero box) styled by ~15 inlined rules, and the
+  app stylesheet is promoted from `preload` to `stylesheet` on arrival by a
+  Vite plugin so it cannot block that paint. Measured on a throttled phone
+  (4× CPU, 1.6 Mbps): **FCP 3376ms → ~430ms**. The shell has NO TEXT on
+  purpose — copy there would be a second, untranslated copy of the i18n
+  strings. `npm run test:perf` now asserts FCP and CLS against Google's "good"
+  thresholds and prints LCP (bounded by React mounting; not enforced because a
+  timing assertion that flakes is one people ignore).
+- **The hero's height is decided BEFORE the first paint**, from
+  `localStorage.sporta_hero_size` written by the boot script into `--hero-h`.
+  The owner's size setting arrives with `/api?r=slides`, i.e. after the paint,
+  and applying it on arrival measured **CLS 0.042 in one jump**. A change now
+  takes effect on the visitor's NEXT load rather than by moving the page under
+  them. Same trick as the theme, two lines above it.
+- **Route chunks are warmed on intent** — hover, touch or keyboard focus on an
+  internal link (`src/lib/prefetchRoute.js`). Never on a metered or 2G
+  connection, never with Save-Data, and never `/backends` (103 kB of admin no
+  shopper opens).
+- **Both languages are indexable.** `?lang=ar` is a real URL — the boot script
+  reads it before the first paint — so canonical is **self-referencing per
+  language** and every page carries `en` / `ar` / `x-default` alternates. The
+  sitemap emits both URLs with reciprocal hreflang; pointing the Arabic page at
+  the English canonical is what gets a bilingual shop indexed in one language
+  only. `og:locale` follows what is actually rendered.
+- **`Product` structured data tells the truth about stock.** `availability` was
+  hard-coded `InStock`; it now reads the same per-size data the size ladder
+  does, and omits the claim when the shop does not know. Also carries `sku`,
+  `priceValidUntil`, `hasMerchantReturnPolicy` (14 days — must match `/returns`)
+  and free same-day `shippingDetails`.
 - **Arabic copy has a test:** `npm run test:arabic` (43 checks) covers missing
   keys, English left untranslated, `{placeholder}` survival, tanwin written
   `ـًا` not `ـاً`, Latin `,?;` stranded between Arabic words, mixed

@@ -226,6 +226,23 @@
           if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
           el.dataset.theme = t
           el.style.colorScheme = t
+          // THE HERO'S HEIGHT, BEFORE THE FIRST PAINT.
+          //
+          // The height is an owner setting that arrives with /api?r=slides —
+          // i.e. AFTER the page has painted. Applying it on arrival resized
+          // the hero and pushed the whole page down: measured 0.042 of layout
+          // shift, all of it from one jump at 3.3s, and it is the single
+          // largest CLS contributor on the site.
+          //
+          // So the last known value is cached and read here, the same way the
+          // theme is two lines above. A visitor gets the right height from the
+          // first frame; a change by the owner is picked up on the next load
+          // rather than by moving the page under whoever is reading it.
+          var HERO_H = { short: ['400px','460px'], tall: ['540px','640px'], full: ['85svh','90svh'] }
+          var h = HERO_H[localStorage.getItem('sporta_hero_size')] || HERO_H.tall
+          el.style.setProperty('--hero-h', h[0])
+          el.style.setProperty('--hero-h-md', h[1])
+
           var sub = ar ? 'arabic' : 'latin'
           ;['alexandria-var-' + sub, 'plex-400-' + sub].forEach(function (f) {
             var k = document.createElement('link')
@@ -257,13 +274,79 @@
          display weight for headings and the UI regular — so they start
          downloading with the HTML instead of after the CSS parses. The rest
          load on demand via unicode-range. -->
+    <link rel="preload" as="image" href="/logo-white.webp" fetchpriority="high" />
+    <!-- The S mark. React does not render it until it has parsed and run, so
+         without this the home page's largest element is not even REQUESTED
+         until ~2.9s on a throttled phone. It is 29 kB, it is on every page, and
+         it is the favicon besides. -->
+    <link rel="preload" as="image" href="/favicon.png" />
     <link rel="preload" as="font" type="font/woff2" crossorigin
           href="/fonts/alexandria-var-latin.woff2" />
     <link rel="preload" as="font" type="font/woff2" crossorigin
           href="/fonts/plex-400-latin.woff2" />
+    <!-- Critical CSS for the first paint, inlined so the shell below does not
+         wait on the stylesheet (which lands ~1.5s later on a throttled phone).
+         Nothing here is a duplicate of the design system: these are four boxes
+         and two brand colours, and they exist only until React mounts. -->
+    <style>
+      html { background: #171a1e }
+      /* The stylesheet no longer blocks the paint, so the browser's OWN
+         defaults are in force for the first ~1.5s — including body{margin:8px},
+         which shifted the whole shell sideways and down when the reset landed.
+         Measured: 0.0095 of layout shift, entirely from this. */
+      body { margin: 0 }
+      .boot { min-height: 100vh }
+      .boot-bar  { height: 28px; background: #e0561c }
+      /* 57px logo bar + 48px nav = the header's real height, so the sticky
+         header does not push the hero down when it arrives. */
+      .boot-head { height: 105px; background: #171a1e;
+                   display: flex; align-items: flex-start; justify-content: center }
+      /* 8px top = the real logo bar's padding, so the mark does not move. */
+      .boot-head img { height: 32px; width: auto; margin-top: 12px }
+      /* --hero-h is set by the script below, from the size the owner chose,
+         BEFORE anything paints. The skeleton and the real hero read the same
+         variable, so the real one drops into exactly this box. */
+      .boot-hero { height: var(--hero-h, 540px); background: #171a1e }
+      @media (min-width: 768px) { .boot-hero { height: var(--hero-h-md, 640px) } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <!-- ================================================================
+         THE FIRST PAINT.
+         =================================================================
+         This is a SPA: nothing appears until ~260 kB of JavaScript has been
+         fetched, parsed and executed. Measured on a mid-range phone (4x CPU
+         throttle, 1.6 Mbps), that was 3.4 SECONDS of white screen — the
+         react-vendor chunk alone takes 2.4s to arrive, and the paint waits
+         on it.
+
+         So the shell paints WITHOUT JavaScript. The markup below is the
+         header bar and the hero box at their real sizes and real colours,
+         styled by the handful of inlined rules above rather than by the
+         77 kB stylesheet, so it appears as soon as the HTML is parsed.
+         React replaces it on mount (createRoot clears the container).
+
+         Deliberately NO TEXT in it. Copy here would be a second, untranslated
+         copy of strings that live in the i18n files, and it would be wrong for
+         half the visitors before it was ever wrong for the other half. Shape
+         and colour carry the whole job: the page stops being blank, and
+         because the boxes are already the right height, the real content
+         drops into place without moving anything — this LOWERS layout shift
+         rather than trading it for speed. -->
+    <div id="root">
+      <div class="boot" aria-hidden="true">
+        <div class="boot-bar"></div>
+        <div class="boot-head">
+          <!-- The real header logo, at the size the real header uses. An image
+               is CONTENTFUL where a coloured box is not, so this is what lets
+               First Contentful Paint happen with the shell rather than 1.3s
+               later with React — and it is not a placeholder, it is the same
+               mark, in the same place, that replaces it. -->
+          <img src="/logo-white.webp" alt="" width="132" height="41" fetchpriority="high" />
+        </div>
+        <div class="boot-hero"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

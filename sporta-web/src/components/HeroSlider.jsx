@@ -34,16 +34,25 @@ const INTERVAL_MS = 6500
 
 const SLIDE_IDS = ['strength', 'cardio', 'arena']
 
-// The three heights the admin can pick, and the reason they are CLASSES with a
-// fixed minimum rather than anything fluid: the hero is the first thing that
-// paints, and a height that resolves after the font or the photograph loads is
-// a layout shift on the most-viewed element of the site. A previous version
-// measured CLS 0.0456 in Arabic for exactly that reason.
-const SIZE_CLASS = {
-  short: 'min-h-[400px] md:min-h-[460px] 2xl:min-h-[520px]',
-  tall:  'min-h-[540px] md:min-h-[640px] 2xl:min-h-[720px]',
-  full:  'min-h-[85svh] md:min-h-[90svh]',
-}
+// THE HERO'S HEIGHT IS DECIDED BEFORE THE FIRST PAINT, NOT HERE.
+//
+// It is a fixed minimum rather than anything fluid because the hero is the
+// first thing that paints, and a height that resolves after the font or the
+// photograph loads is a layout shift on the most-viewed element of the site —
+// a previous version measured CLS 0.0456 in Arabic for exactly that reason.
+//
+// The owner's chosen size, though, arrives with /api?r=slides, which lands
+// AFTER the paint. Applying it on arrival re-ran the same mistake: the hero
+// grew, the whole page moved down, and CLS measured 0.042 in one jump at 3.3s.
+// So the boot script in index.html reads the last known size from
+// localStorage and writes --hero-h before anything renders; this class simply
+// consumes it. A change by the owner is cached below and takes effect on the
+// NEXT load, rather than by moving the page under whoever is reading it.
+const HERO_HEIGHT = 'min-h-[var(--hero-h,540px)] md:min-h-[var(--hero-h-md,640px)]'
+
+// Kept so the cached value can be validated — an unknown string in storage
+// must fall back, not produce an invalid CSS length.
+const SIZES = ['short', 'tall', 'full']
 
 // The slides the admin has uploaded, plus how they should play.
 //
@@ -96,6 +105,18 @@ export default function HeroSlider() {
 
   // What the admin has set up, if anything.
   const config = useHeroConfig()
+
+  // Remember the size for the next visit. Deliberately NOT applied now — see
+  // the note on HERO_HEIGHT: applying it here is what caused the shift.
+  useEffect(() => {
+    const size = config?.hero?.size
+    if (!SIZES.includes(size)) return
+    try {
+      if (localStorage.getItem('sporta_hero_size') !== size) {
+        localStorage.setItem('sporta_hero_size', size)
+      }
+    } catch { /* storage disabled */ }
+  }, [config])
   const hero = config?.hero ?? {}
   const intervalMs = Math.max(2000, Number(hero.speed_ms) || INTERVAL_MS)
 
@@ -183,7 +204,7 @@ export default function HeroSlider() {
             // carries its own words, and falls back to nothing rather than to
             // somebody else's headline.
             copy={item.kind === 'drawn' ? T.slides[SLIDE_IDS.indexOf(item.id)] : null}
-            size={SIZE_CLASS[hero.size] ?? SIZE_CLASS.tall}
+            size={HERO_HEIGHT}
             active={i === index}
             first={i === 0}
             label={`${i + 1} / ${count}`}

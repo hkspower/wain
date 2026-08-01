@@ -1,11 +1,12 @@
 import { Routes, Route } from 'react-router-dom'
 import { useLang } from './i18n/LanguageContext'
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import Navbar from './components/Navbar'
 import ScrollManager from './components/ScrollManager'
 import Footer from './components/Footer'
 import PullToRefresh from './components/PullToRefresh'
 import Home from './pages/Home'
+import { watchForIntent } from './lib/prefetchRoute'
 
 // Route-level code splitting: the public site ships only Home + chrome up front.
 const Shop = lazy(() => import('./pages/Shop'))
@@ -45,6 +46,11 @@ function Loading() {
 }
 
 export default function App() {
+  // Warm a route's chunk the moment the visitor shows intent — hover, touch or
+  // keyboard focus on any internal link. See lib/prefetchRoute.js for what it
+  // refuses to do (metered connections, Save-Data, and the admin bundle).
+  useEffect(watchForIntent, [])
+
   return (
     <Suspense fallback={<Loading />}>
       <Routes>

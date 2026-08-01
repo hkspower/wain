@@ -146,6 +146,73 @@ for (const [route, budget] of Object.entries(BUDGET)) {
     await ctx.close()
   }
 }
+// ---------------------------------------------------------------------------
+// CORE WEB VITALS, on a THROTTLED phone.
+//
+// Everything above measures the built output on a fast machine, which is the
+// wrong instrument for the metrics Google actually ranks on. This section
+// emulates a mid-range Android on a Kuwaiti mobile connection — 4x slower CPU,
+// 1.6 Mbps, 150ms of latency — because that is where the numbers that matter
+// are decided, and where two real defects were found:
+//
+//   * First Contentful Paint sat at 3.4s. The site is a SPA, so nothing
+//     appeared until 340 kB of JavaScript had arrived and run, and the
+//     stylesheet blocked even the shell from painting. Now 0.5s.
+//   * Layout shift measured 0.042, all of it one jump at 3.3s: the hero's
+//     height is an owner setting that arrives with /api?r=slides, i.e. after
+//     the paint, and applying it pushed the whole page down.
+//
+// The thresholds are Google's "good" bands, not our measurements — a budget
+// set at whatever the code currently does only ever ratchets in one direction.
+// ---------------------------------------------------------------------------
+{
+  console.log('\nCORE WEB VITALS  (4x CPU throttle, 1.6 Mbps, 150ms RTT)')
+  const GOOD = { lcp: 2500, cls: 0.1, fcp: 1800 }
+
+  for (const route of ['/', '/shop', '/product/sculpt-top-grey']) {
+    const ctx = await b.newContext({
+      viewport: { width: 390, height: 844 }, deviceScaleFactor: 3,
+      hasTouch: true, isMobile: true, serviceWorkers: 'block',
+    })
+    const p = await ctx.newPage()
+    const cdp = await ctx.newCDPSession(p)
+    await cdp.send('Network.emulateNetworkConditions', {
+      offline: false, latency: 150,
+      downloadThroughput: (1.6 * 1024 * 1024) / 8, uploadThroughput: (750 * 1024) / 8,
+    })
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 })
+
+    await p.goto(BASE + route, { waitUntil: 'load' })
+    await p.waitForTimeout(3500)
+    const v = await p.evaluate(() => new Promise((res) => {
+      const out = { cls: 0, lcp: 0, fcp: 0 }
+      for (const e of performance.getEntriesByType('paint')) {
+        if (e.name === 'first-contentful-paint') out.fcp = Math.round(e.startTime)
+      }
+      new PerformanceObserver((l) => {
+        for (const e of l.getEntries()) if (!e.hadRecentInput) out.cls += e.value
+      }).observe({ type: 'layout-shift', buffered: true })
+      new PerformanceObserver((l) => {
+        const e = l.getEntries().at(-1)
+        if (e) out.lcp = Math.round(e.startTime)
+      }).observe({ type: 'largest-contentful-paint', buffered: true })
+      setTimeout(() => { out.cls = +out.cls.toFixed(4); res(out) }, 400)
+    }))
+
+    ok(v.fcp <= GOOD.fcp, `${route} FCP <= ${GOOD.fcp}ms`, `${v.fcp}ms`)
+    ok(v.cls <= GOOD.cls, `${route} CLS <= ${GOOD.cls}`, String(v.cls))
+    // LCP is REPORTED, not enforced. It is bounded by when React mounts —
+    // there is no server-side rendering — so it moves with network and CPU
+    // weather in a way FCP and CLS do not, and a timing assertion that flakes
+    // is a suite people learn to ignore. It currently lands around 2.0s here,
+    // inside Google's 2.5s band; printing it is what makes a regression
+    // visible without making the build unreliable.
+    console.log(`     ${route} LCP ${v.lcp}ms  ${v.lcp <= GOOD.lcp ? '' : '(above 2500ms — SPA mount time)'}`)
+    await ctx.close()
+  }
+}
+
 await b.close()
+
 console.log(fails ? `\n${fails} over budget` : '\nevery route within budget, in both languages')
 process.exit(fails ? 1 : 0)

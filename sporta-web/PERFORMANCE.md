@@ -51,3 +51,38 @@ Lovable uses the same Vite + React stack, so:
 - `loading="lazy"` on offscreen images.
 - Preload the primary font weight only; keep `font-display: swap` (already set).
 - Consider prerendering the marketing pages to static HTML for instant first paint.
+
+---
+
+## Core Web Vitals, measured on a phone
+
+`npm run test:perf` ends with a section that emulates a mid-range Android on a
+Kuwaiti mobile connection — 4× CPU throttle, 1.6 Mbps, 150 ms RTT — because a
+fast desktop is the wrong instrument for the metrics Google ranks on. Two real
+defects were found that way and both are now guarded:
+
+| | before | after |
+|---|---|---|
+| First Contentful Paint | 3376 ms | ~430 ms |
+| Cumulative Layout Shift | 0.0424 | 0.0001 |
+| Largest Contentful Paint | 3452 ms | ~2000 ms |
+
+**FCP.** The site is a single-page app: nothing appeared until 340 kB of
+JavaScript had been fetched, parsed and executed, and the 77 kB stylesheet
+blocked even a static shell from painting. `index.html` now carries a shell —
+the header bar, the real logo, and a hero box at its real height — styled by a
+handful of rules inlined in the `<head>`, and a Vite plugin turns the stylesheet
+into a `preload` that promotes itself on arrival. There is no flash of unstyled
+content to trade against: nothing but the shell renders before the app's
+JavaScript, and the CSS is a quarter of its size.
+
+**CLS.** The hero's height is an owner setting delivered by `/api?r=slides`,
+which lands after the paint. Applying it on arrival grew the hero and pushed the
+page down — one 0.042 jump at 3.3 s, the largest single shift on the site. The
+boot script now reads the last known size from `localStorage` and writes
+`--hero-h` before anything renders; a change takes effect on the next load.
+
+**LCP** is bounded by when React mounts, so it is printed rather than enforced —
+a timing assertion that flakes is one people learn to skip. Moving it further
+would mean server-side rendering, which is a different architecture, not a
+tuning change.
