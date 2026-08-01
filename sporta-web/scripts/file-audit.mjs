@@ -142,6 +142,13 @@ for (const p of onDisk) {
   if (p.startsWith('/api/')) continue             // the native backend; called by URL
   if (p.startsWith('/cats/')) continue            // category art; CategoryTile assembles these
                                                   // URLs from parts, so no literal appears
+  if (p.startsWith('/hero/')) continue            // the hero banner; HeroSlider and the boot
+                                                  // script both build /hero/<device>/banner-<lang>
+                                                  // from parts, for the same reason. Exempting a
+                                                  // folder from "is it referenced?" would let a
+                                                  // MISSING banner ship silently, so all four are
+                                                  // in REQUIRED below instead — a stronger check
+                                                  // than the one being waived.
   add('LOW', `never referenced by anything shipped: ${p}`, '')
 }
 
@@ -179,7 +186,14 @@ const REQUIRED = ['/index.html', '/.htaccess', '/knet/.htaccess', '/config.js',
                   // .htaccess denies them by name so shipping is not serving.
                   '/api/.htaccess', '/api/api.php', '/api/admin.php', '/api/store.php',
                   '/api/config.example.php', '/api/cron-fulfilment.php',
-                  '/api/schema.mysql.sql', '/api/seed.mysql.sql', '/api/promo.mysql.sql']
+                  '/api/schema.mysql.sql', '/api/seed.mysql.sql', '/api/promo.mysql.sql',
+                  // The shipped hero. Four files, not one: the headline is set
+                  // INSIDE the picture so there is a language each, and the
+                  // desktop banner is 2.53:1 against a phone's 0.75:1 so there
+                  // is a crop each. Miss one and a whole language or a whole
+                  // device class falls back to the drawn scenes.
+                  '/hero/desktop/banner-en.webp', '/hero/desktop/banner-ar.webp',
+                  '/hero/mobile/banner-en.webp', '/hero/mobile/banner-ar.webp']
 for (const r of REQUIRED) if (!onDisk.has(r)) add('HIGH', `required file absent: ${r}`, '')
 // /pay/config.php holds the CBK ClientSecret and ENCRP_KEY; .cbk_token.json is
 // a live AccessToken. Neither may ever be in the package.

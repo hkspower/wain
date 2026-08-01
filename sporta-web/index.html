@@ -243,6 +243,29 @@
           el.style.setProperty('--hero-h', h[0])
           el.style.setProperty('--hero-h-md', h[1])
 
+          // THE HERO BANNER, requested here rather than in the markup above.
+          //
+          // It is the LCP element of the home page, and React does not ask for
+          // it until it has parsed, run and mounted. But which file it is
+          // depends on two things this script is the first to know: the
+          // language (the headline is set INSIDE the picture, so there is an
+          // -en and an -ar) and the viewport (a 2.53:1 desktop banner and a
+          // 0.75:1 phone one). Two static <link rel=preload> tags would
+          // download both languages; matchMedia and the resolved language pick
+          // exactly one.
+          //
+          // Only on the home page. Every other route would be preloading an
+          // image it never shows.
+          if (location.pathname === '/' || location.pathname === '/index.html') {
+            var dev = matchMedia('(min-width: 768px)').matches ? 'desktop' : 'mobile'
+            var b = document.createElement('link')
+            b.rel = 'preload'
+            b.as = 'image'
+            b.href = '/hero/' + dev + '/banner-' + (ar ? 'ar' : 'en') + '.webp'
+            b.setAttribute('fetchpriority', 'high')
+            document.head.appendChild(b)
+          }
+
           var sub = ar ? 'arabic' : 'latin'
           ;['alexandria-var-' + sub, 'plex-400-' + sub].forEach(function (f) {
             var k = document.createElement('link')
@@ -275,11 +298,18 @@
          downloading with the HTML instead of after the CSS parses. The rest
          load on demand via unicode-range. -->
     <link rel="preload" as="image" href="/logo-white.webp" fetchpriority="high" />
-    <!-- The S mark. React does not render it until it has parsed and run, so
-         without this the home page's largest element is not even REQUESTED
-         until ~2.9s on a throttled phone. It is 29 kB, it is on every page, and
-         it is the favicon besides. -->
-    <link rel="preload" as="image" href="/favicon.png" />
+    <!-- The hero banner is preloaded by the boot script below, NOT here, and
+         the 29 kB /favicon.png preload that used to sit on this line is gone.
+         Both for the same reason: the home page's largest element changed.
+
+         It used to be the S mark, because the hero was a drawn scene with the
+         mark in the middle of it. The hero is now a photograph, so the mark is
+         no longer above the fold on the home page at all — preloading it was
+         29 kB of a file the page had stopped asking for.
+
+         The banner cannot be preloaded from static markup because WHICH file
+         it is depends on the language, and the language is not known until the
+         boot script has run. Two static preloads would download both. -->
     <link rel="preload" as="font" type="font/woff2" crossorigin
           href="/fonts/alexandria-var-latin.woff2" />
     <link rel="preload" as="font" type="font/woff2" crossorigin

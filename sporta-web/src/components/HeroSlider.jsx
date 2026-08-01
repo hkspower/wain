@@ -4,11 +4,19 @@ import { useLang } from '../i18n/LanguageContext'
 import { IconArrowRight } from './icons'
 import { phpSlides } from '../lib/backend'
 
-// The home hero: three slides — strength, cardio, and the multi-sport arena
-// (football / kickboxing / swimming).
+// The home hero, in three tiers, first one that exists wins:
 //
-// THE ARTWORK IS A FALLBACK, exactly like the category tiles. Each slide
-// probes for the owner's photograph first:
+//   1. THE OWNER'S SLIDES, from /backends -> Slides. Rows in the database,
+//      served by api.php?r=slide_image. Any number, with their own words.
+//   2. THE SHIPPED BANNER (see BANNER below) — finished artwork in the
+//      package, one per language, one crop per device. This is what the shop
+//      launches with and what most visitors will actually see.
+//   3. THE DRAWN SCENES — strength, cardio, and the multi-sport arena
+//      (football / kickboxing / swimming), rendered as SVG. They are the
+//      last resort now rather than the default: they exist so that a server
+//      missing /hero still shows a hero rather than a black box.
+//
+// The drawn scenes probe for the owner's photograph first:
 //
 //   /hero/mobile/<id>.jpg   and   /hero/desktop/<id>.jpg
 //   ids: strength, cardio, arena
@@ -33,6 +41,20 @@ const DESKTOP_AT = '(min-width: 768px)'
 const INTERVAL_MS = 6500
 
 const SLIDE_IDS = ['strength', 'cardio', 'arena']
+
+// THE SHIPPED BANNER — what a visitor sees before the owner has uploaded
+// anything, and the hero this shop actually launches with.
+//
+// It ships in the package (unlike /hero/<id>.jpg above, which is server-side
+// only) because it is finished artwork, not a placeholder: brand.hero's
+// build-banner.py composes it from the studio photograph with the headline set
+// as outlines. Two languages, because the headline is IN the picture — an
+// Arabic visitor cannot be shown Latin type — and two crops, because the
+// desktop banner is 2.53:1 and a phone's hero is about 0.72:1, so a cover-crop
+// of one for the other shows a quarter of it.
+//
+// The database still wins. The moment /backends has a slide, this is gone.
+const BANNER = (device, lang) => `/hero/${device}/banner-${lang}.webp`
 
 // THE HERO'S HEIGHT IS DECIDED BEFORE THE FIRST PAINT, NOT HERE.
 //
@@ -123,13 +145,19 @@ export default function HeroSlider() {
   // The slide list: the admin's, or the drawn scenes. Built once per config so
   // the shuffle does not re-roll on every render and move the slide out from
   // under whoever is reading it.
+  // If the shipped banner is not on the server — someone extracted the zip
+  // without /hero, or deleted it — the drawn scenes come back rather than the
+  // hero going blank. It is the same reasoning as the -rtl probe below.
+  const [bannerOk, setBannerOk] = useState(true)
   const items = useMemo(() => {
     const uploaded = config?.slides ?? []
     const base = uploaded.length
       ? uploaded.map((s) => ({ kind: 'photo', ...s }))
-      : SLIDE_IDS.map((id) => ({ kind: 'drawn', id }))
+      : bannerOk
+        ? [{ kind: 'banner', id: 'banner' }]
+        : SLIDE_IDS.map((id) => ({ kind: 'drawn', id }))
     return hero.shuffle ? shuffled(base) : base
-  }, [config, hero.shuffle])
+  }, [config, hero.shuffle, bannerOk])
 
   const count = items.length
   // Autoplay is a setting; pausing is not. Hover, focus, a background tab and
@@ -208,6 +236,7 @@ export default function HeroSlider() {
             active={i === index}
             first={i === 0}
             label={`${i + 1} / ${count}`}
+            onBannerMissing={() => setBannerOk(false)}
           />
         ))}
       </div>
@@ -271,8 +300,14 @@ export default function HeroSlider() {
   )
 }
 
-function Slide({ item, copy, size, active, first, label }) {
+function Slide({ item, copy, size, active, first, label, onBannerMissing }) {
   const { lang, t } = useLang()
+  if (item.kind === 'banner') {
+    return (
+      <BannerSlide size={size} active={active} first={first} label={label}
+                   lang={lang} t={t} onMissing={onBannerMissing} />
+    )
+  }
   // An uploaded slide is a photograph and its own words. It skips the drawn
   // scene, the -rtl composition probe and the /hero file lookup entirely —
   // there is nothing to fall back to, because the picture is right there.
@@ -604,6 +639,69 @@ function SceneArena() {
 // A slide with no headline renders no headline. It does NOT borrow the shipped
 // copy: a photograph of swimming captioned "Train strength" is worse than a
 // photograph with no caption.
+// The shipped banner.
+//
+// Three things it deliberately does NOT do, each of which the uploaded-photo
+// slide above does:
+//
+//   * NO SCRIM. PhotoSlide darkens its start edge because it is handed a
+//     photograph nobody art-directed. This one was art-directed — its left
+//     third is already a generated dark ground built to sit under type — and
+//     laying another 85% ink over it would flatten the very thing it is for.
+//   * NO OVERLAID HEADLINE. The words are outlines inside the picture, set to
+//     the millimetre against the orange bar. A second copy in HTML on top of
+//     them is two headlines.
+//   * NO focal point. The two crops exist so the browser never has to guess.
+//
+// But the words still have to EXIST for anything that cannot see the picture,
+// so they are the img's alt text and a visually-hidden h1 — which is also what
+// keeps the home page's single h1 where the drawn scenes used to put it.
+function BannerSlide({ size, active, first, label, lang, t, onMissing }) {
+  const title = t.heroSlides.bannerTitle
+  return (
+    <div
+      role="group"
+      aria-roledescription="slide"
+      aria-label={label}
+      aria-hidden={!active}
+      className="relative w-full shrink-0 bg-ink"
+    >
+      <div className="absolute inset-0 overflow-hidden">
+        <picture>
+          <source media={DESKTOP_AT} srcSet={BANNER('desktop', lang)} width="1600" height="633" />
+          <img
+            src={BANNER('mobile', lang)}
+            alt={title}
+            width="1080"
+            height="1440"
+            // This is the LCP element on the home page. It is never lazy and
+            // never low priority, whichever slide index it happens to be.
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+            onError={onMissing}
+            className="absolute inset-0 h-full w-full select-none object-cover"
+          />
+        </picture>
+      </div>
+
+      <div className={`relative mx-auto flex ${size} max-w-7xl items-end px-4 pb-10 md:px-6 md:pb-14`}>
+        <div className="w-full text-center md:w-auto md:text-start">
+          {first && <h1 className="sr-only">{title}</h1>}
+          <Link
+            to="/shop"
+            className="btn btn-primary inline-flex"
+            tabIndex={active ? undefined : -1}
+          >
+            {t.heroSlides.bannerCta}
+            <IconArrowRight size={16} className="rtl:rotate-180" />
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function PhotoSlide({ slide, size, active, first, label, lang, t }) {
   const ar = lang === 'ar'
   const title = (ar ? slide.title_ar : slide.title_en) || ''

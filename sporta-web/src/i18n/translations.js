@@ -145,6 +145,14 @@ export const translations = {
     // written to stand alone as the heading of the whole storefront.
     heroSlides: {
       aria: 'Highlights',
+      // The shipped banner's headline is set as outlines INSIDE the picture, so
+      // this is the only copy of it a screen reader, a search engine or someone
+      // with images off will ever get. It is the img's alt and the page's h1.
+      bannerTitle: 'The best sportswear',
+      // Its own call to action. The shipped banner used to borrow slides[0].cta
+      // — "Shop training" — which belongs to the strength scene and is a
+      // narrower promise than a banner for the whole shop should make.
+      bannerCta: 'Shop now',
       prev: 'Previous slide',
       next: 'Next slide',
       goTo: 'Go to slide',
@@ -451,6 +459,8 @@ export const translations = {
     },
     heroSlides: {
       aria: 'أبرز العروض',
+      bannerTitle: 'أفضل الملابس الرياضية',
+      bannerCta: 'تسوّق الآن',
       prev: 'الشريحة السابقة',
       next: 'الشريحة التالية',
       goTo: 'انتقل إلى الشريحة',

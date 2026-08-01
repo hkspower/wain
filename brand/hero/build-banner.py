@@ -353,6 +353,10 @@ def build(lang):
 #   -2x.png     what a retina desktop hero actually wants
 #   -slide.webp what the admin's slide uploader accepts (it downscales to 1600
 #               in the browser, so handing it more only wastes bytes)
+SHIP = os.path.join(REPO, 'sporta-web', 'public', 'hero')
+os.makedirs(os.path.join(SHIP, 'desktop'), exist_ok=True)
+os.makedirs(os.path.join(SHIP, 'mobile'), exist_ok=True)
+
 base = im.copy()
 for lang in ('en', 'ar'):
     im = base.copy()
@@ -361,4 +365,107 @@ for lang in ('en', 'ar'):
     im.save(p + '-4x.webp', quality=95, method=5)
     im.resize((W * 2, H * 2), Image.LANCZOS).save(p + '-2x.png', optimize=True)
     im.resize((W, H), Image.LANCZOS).save(p + '-slide.webp', quality=88, method=6)
-    print(f'{lang}: headline {size}px on a {PLATE_H}px plate')
+    # What the site actually serves on a desktop. 1600px wide because that is
+    # the hero's own width at every desktop breakpoint the site has.
+    im.resize((W, H), Image.LANCZOS).save(
+        os.path.join(SHIP, 'desktop', f'banner-{lang}.webp'), quality=78, method=6)
+    print(f'{lang}: headline {size}px on a {PLATE_H}px bar')
+
+
+# =========================================================== the phone version
+#
+# A separate COMPOSITION, not a crop. The desktop banner is 2.53:1 and a phone's
+# hero is about 0.72:1, so a cover-crop of it shows roughly a quarter of the
+# width — either the headline or the athlete, never both.
+#
+# The layout is forced by one fact about the source: the athlete's head touches
+# y=0. There is no wall above him to extend, so he cannot be moved down, which
+# means he is top-aligned and everything else goes below him. His other edge is
+# a crop too — the photograph ends mid-thigh — so his lower 160px are FADED into
+# the ground rather than cut. A hard line across a man's legs is the kind of
+# thing nobody can name but everybody sees.
+MW, MH = 1080, 1440
+MS = 2
+TILE_H = 950              # 720px of source scaled 1.5x to the canvas width
+FADE_T = 790              # where he starts dissolving
+M_BAR_T, M_BAR_B = 980, 1150   # clear space below is for the CTA button
+M_MARGIN = 70             # side margin for the headline
+
+# The 290px under the bar is not slack. The hero's call-to-action button is
+# rendered by the page ON TOP of this image, bottom-anchored, and it needs
+# somewhere to land: at a 540px hero that gap is 109 CSS px against a button
+# 88px tall including its margin. The first version left 210px there and the
+# button sat on the orange.
+
+mcanvas = (MW * MS, MH * MS)
+
+# The wall's tone per row, reused from the desktop ground: the same column, and
+# already free of the stripe. Below the photograph it holds the last value and
+# falls away, so the bottom of the canvas goes quietly black.
+wall_y = np.clip(np.linspace(0, MH - 1, MH * MS) / (TILE_H / H), 0, H - 1)
+wall = np.stack([np.interp(wall_y, np.arange(H), col[:, c]) for c in range(3)], 1)
+drop = np.clip((np.linspace(0, MH, MH * MS) - FADE_T) / (MH - FADE_T), 0, 1)
+wall = wall * (1 - 0.55 * drop)[:, None]
+mground = np.repeat(wall[:, None, :], MW * MS, axis=1)
+mground += rng.triangular(-1.4, 0, 1.4, (MH * MS, MW * MS, 1))
+mground = Image.fromarray(np.clip(mground, 0, 255).astype(np.uint8), 'RGB')
+
+# The photograph's own stripe has to come off him first, or the phone gets two
+# orange bars — the source's across his chest and the drawn one at the foot.
+#
+# Which pixels to lift is not a judgement call: in those rows the wall IS the
+# stripe, so orange is wall and everything else is him. What replaces it is the
+# same straight line between the clean row above and the clean row below that
+# the desktop ground uses, taken per column so his shadow on the wall survives.
+# The mask is dilated 3px and softened before use: the stripe's own edge is
+# antialiased, and leaving that half-orange fringe behind would be worse than
+# trimming 3px off his sleeve into a dark wall nobody can see it against.
+STRIP_A, STRIP_B = 243, 328
+de = np.asarray(src, dtype=np.float64).copy()
+tt = np.linspace(0, 1, STRIP_B - STRIP_A)[:, None, None]
+fill = de[STRIP_A - 1][None] * (1 - tt) + de[STRIP_B][None] * tt
+
+band = np.zeros((STRIP_B - STRIP_A, W), dtype=np.uint8)
+band[is_orange[STRIP_A:STRIP_B]] = 255
+band = (Image.fromarray(band).filter(ImageFilter.MaxFilter(7))
+        .filter(ImageFilter.GaussianBlur(1.5)))
+alpha = (np.asarray(band, dtype=np.float64) / 255)[:, :, None]
+de[STRIP_A:STRIP_B] = de[STRIP_A:STRIP_B] * (1 - alpha) + fill * alpha
+destriped = Image.fromarray(np.clip(de, 0, 255).astype(np.uint8), 'RGB')
+
+tile = destriped.crop((880, 0, W, H)).resize((MW * MS, TILE_H * MS), Image.LANCZOS)
+tile = tile.filter(ImageFilter.UnsharpMask(radius=18 * MS, percent=22, threshold=2))
+tile = tile.filter(ImageFilter.UnsharpMask(radius=1.3 * MS, percent=115, threshold=3))
+tfade = Image.new('L', tile.size, 255)
+tf = ImageDraw.Draw(tfade)
+for i in range((TILE_H - FADE_T) * MS):
+    tf.line([(0, FADE_T * MS + i), (MW * MS, FADE_T * MS + i)],
+            fill=255 - 255 * i // ((TILE_H - FADE_T) * MS))
+mground.paste(tile, (0, 0), tfade)
+
+M_BAR_H = (M_BAR_B - M_BAR_T) * MS
+for lang in ('en', 'ar'):
+    m = mground.copy()
+    ImageDraw.Draw(m).rectangle(
+        [0, M_BAR_T * MS, MW * MS, M_BAR_B * MS], fill=ORANGE)
+    maxw = (MW - 2 * M_MARGIN) * MS
+    if lang == 'en':
+        head, msize = fit('latin', 900, 'SPORTSWEAR', INK, -2.2 * MS, SHEAR,
+                          M_BAR_H * 0.86, maxw, 220 * MS)
+        kick = set_type('THE BEST', ImageFont.truetype(cut('latin', 700), 34 * MS),
+                        (255, 255, 255), 14 * MS)
+    else:
+        head, msize = fit('arabic', 900, 'ملابس رياضية', INK, 0, 0,
+                          M_BAR_H * 0.86, maxw, 300 * MS)
+        kick = set_type('الأفضل', ImageFont.truetype(cut('arabic', 700), 50 * MS),
+                        (255, 255, 255), 0)
+    # Centred, both lines, both languages. A phone column has no long edge to
+    # hang type off, and centring is the one alignment that does not have to
+    # flip between LTR and RTL.
+    m.paste(head, ((m.width - head.width) // 2,
+                   (M_BAR_T + M_BAR_B) * MS // 2 - head.height // 2), head)
+    m.paste(kick, ((m.width - kick.width) // 2,
+                   M_BAR_T * MS - 34 * MS - kick.height), kick)
+    m.resize((MW, MH), Image.LANCZOS).save(
+        os.path.join(SHIP, 'mobile', f'banner-{lang}.webp'), quality=76, method=6)
+    print(f'{lang}: phone headline {msize}px on a {M_BAR_H}px bar')
