@@ -605,6 +605,74 @@ def home_checks(pg):
           and rp3.eval_on_selector_all(".flowmap .fnode", "n=>n.length") == 5)
     rm2.close()
 
+    # البحار, the voice assistant. Unconfigured it must not render at all — a
+    # sticky button that opens nothing is worse than no button.
+    check(S, "البحار stays hidden until an agent URL is set",
+          pg.eval_on_selector("#callfab", "e=>e.hidden") is True
+          and not pg.is_visible("#callfab"))
+    check(S, "البحار carries no href while unconfigured",
+          not pg.eval_on_selector("#callfab", "e=>e.getAttribute('href')"))
+    # configured, it must be a real, reachable, named control that opens out
+    pg.evaluate("""(() => {
+      const f = document.getElementById('callfab');
+      f.href = 'https://elevenlabs.io/app/talk-to?agent_id=test';
+      f.hidden = false;
+    })()""")
+    pg.wait_for_timeout(200)
+    fab = pg.evaluate("""(() => {
+      const f = document.getElementById('callfab');
+      const r = f.getBoundingClientRect();
+      const cs = getComputedStyle(f);
+      return { h: r.height, pos: cs.position, label: f.getAttribute('aria-label'),
+               target: f.getAttribute('target'), rel: f.getAttribute('rel'),
+               inView: r.bottom <= window.innerHeight + 1 && r.top >= 0 };
+    })()""")
+    check(S, "البحار is sticky once configured", fab["pos"] == "fixed", fab["pos"])
+    check(S, "البحار meets the touch-target floor", fab["h"] >= 44, f'{fab["h"]}px')
+    check(S, "البحار has an accessible name",
+          "البحار" in (fab["label"] or ""), str(fab["label"]))
+    check(S, "البحار opens in a new tab, safely",
+          fab["target"] == "_blank" and "noopener" in (fab["rel"] or ""),
+          f'{fab["target"]} / {fab["rel"]}')
+    check(S, "البحار sits within the viewport", fab["inView"])
+    # a fixed pill must never sit on top of another control: the rails put
+    # their arrows at the inline-end, so البحار lives at the inline-start
+    # a fixed pill must never sit on top of another control anywhere down the
+    # page — measured by walking the whole scroll range, not just the top
+    covered = pg.evaluate("""(() => {
+      const f = document.getElementById('callfab');
+      const bad = [];
+      for (let y = 0; y < document.body.scrollHeight; y += 250) {
+        window.scrollTo({top: y, behavior: 'instant'});
+        if (getComputedStyle(f).pointerEvents === 'none') continue;   // stepped aside
+        const fr = f.getBoundingClientRect();
+        document.querySelectorAll('.arrow, .btn, .channel, .top, nav.site a').forEach(e => {
+          const r = e.getBoundingClientRect();
+          if (r.width === 0 || r.bottom < 0 || r.top > innerHeight) return;
+          if (r.left < fr.right && r.right > fr.left && r.top < fr.bottom && r.bottom > fr.top)
+            bad.push(y + ':' + (e.textContent || e.getAttribute('aria-label') || e.tagName).trim().slice(0, 14));
+        });
+      }
+      window.scrollTo({top: 0, behavior: 'instant'});
+      return [...new Set(bad)];
+    })()""")
+    check(S, "البحار covers no other control at any scroll position",
+          not covered, str(covered))
+    pg.wait_for_timeout(300)
+    check(S, "البحار steps aside over the contact bar",
+          pg.evaluate("""(() => {
+            document.getElementById('contact').scrollIntoView({behavior:'instant'});
+            return new Promise(r => setTimeout(() =>
+              r(document.getElementById('callfab').classList.contains('away')), 400));
+          })()"""))
+    # the CSP must still forbid every external origin — the agent is a link,
+    # never an embedded widget
+    csp = re.search(r'Content-Security-Policy" content="([^"]+)"',
+                    (ROOT / "index.html").read_text()).group(1)
+    check(S, "the page still allows no external origin",
+          "default-src 'none'" in csp and "elevenlabs" not in csp.lower(), csp[:60])
+    pg.reload(wait_until="networkidle"); pg.wait_for_timeout(1600)
+
     check(S, "النوخذة opens from its row",
           pg.eval_on_selector_all('.product a[href="nokhatha.html"]', "n=>n.length") == 1)
 

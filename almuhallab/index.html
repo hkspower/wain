@@ -516,6 +516,48 @@
     .qform .send.sent .lbl { display: none; }
     @keyframes okdraw { from { stroke-dashoffset: 20; } to { stroke-dashoffset: 0; } }
 
+    /* ═══════ البحار: the voice assistant, one tap from anywhere ═══════
+       النوخذة is the captain; البحار is the sailor who answers. The control is
+       a sticky pill that opens the ElevenLabs agent in a new tab — not an
+       embedded widget: the site's CSP is default-src 'none' with no external
+       origins, and opening it for a third-party widget would undo the whole
+       security posture. It ships hidden and is revealed by the script only
+       once an agent URL is configured, so a dead button can never reach a
+       visitor. */
+    .callfab {
+      /* inline-start (the right, in RTL): the rails put their arrows at the
+         inline-end, and a fixed pill there would sit on top of a real control */
+      position: fixed; inset-block-end: 20px; inset-inline-start: 20px; z-index: 60;
+      display: inline-flex; align-items: center; gap: 10px;
+      background: var(--tint-strong); color: #fff; border-radius: 999px;
+      padding: 12px 20px 12px 16px; min-height: 56px;
+      box-shadow: 0 8px 24px rgba(27, 36, 48, .22);
+      transition: transform .22s cubic-bezier(.2,.7,.3,1), box-shadow .22s ease;
+    }
+    .callfab:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(27, 36, 48, .28); }
+    /* it steps aside over the contact bar and the footer: down there the
+       channels are on screen anyway, and a fixed pill would sit on one of
+       them — measured, it landed squarely on واتساب */
+    .callfab.away { opacity: 0; transform: translateY(16px); pointer-events: none; }
+    .callfab:focus-visible { outline: 2px solid var(--tint); outline-offset: 3px; }
+    .callfab .ic { stroke: #fff; color: #fff; width: 22px; height: 22px; }
+    .callfab b { font-size: 15px; font-weight: 800; line-height: 1.25; display: block; }
+    .callfab span { font-size: 11.5px; color: rgba(255, 255, 255, .82); display: block; }
+    /* a live ring: the assistant is answering now, not a form that waits */
+    .callfab .halo { position: absolute; inset: 0; border-radius: 999px;
+      border: 2px solid var(--sand-vivid); opacity: 0; pointer-events: none; }
+    html.motion .callfab .halo { animation: halo 2.6s ease-out infinite; }
+    @keyframes halo {
+      0%   { opacity: .7; transform: scale(1); }
+      70%  { opacity: 0;  transform: scale(1.18); }
+      100% { opacity: 0;  transform: scale(1.18); }
+    }
+    @media (max-width: 640px) {
+      .callfab { inset-block-end: 14px; inset-inline-start: 14px; padding: 10px 16px 10px 12px;
+        min-height: 52px; }
+      .callfab b { font-size: 14px; }
+    }
+
     /* ═══════ footer: the company, the map of the site, the channels ═══════
        A recessed base rather than more white page: cool near-neutral grey,
        opened by the brand hairline so it reads as the foot of the masthead's
@@ -664,6 +706,7 @@
          copy inline because the spark animates and part-level animation cannot
          reach inside a <use> clone — keep the two drawings identical. -->
     <symbol id="i-ai" viewBox="0 0 24 24"><rect x="6.2" y="6.2" width="11.6" height="11.6" rx="2.2"/><path d="M9.6 3.4v2.8M14.4 3.4v2.8M9.6 17.8v2.8M14.4 17.8v2.8M3.4 9.6h2.8M3.4 14.4h2.8M17.8 9.6h2.8M17.8 14.4h2.8"/><path fill="currentColor" stroke="none" d="M12 8.4l1 2.6 2.6 1-2.6 1-1 2.6-1-2.6-2.6-1 2.6-1z"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2.6" width="6" height="11.4" rx="3"/><path d="M5.4 11.4a6.6 6.6 0 0 0 13.2 0"/><path d="M12 18v3.4"/><path d="M8.6 21.4h6.8"/></symbol>
     <!-- the AI employee: a person, with the same spark the AI chip carries -->
     <symbol id="i-agent" viewBox="0 0 24 24"><circle cx="10.4" cy="8.6" r="3.5"/><path d="M4.2 20.4a6.2 6.2 0 0 1 12.4 0"/><path fill="currentColor" stroke="none" d="M18.7 3.1l.85 2.25 2.25.85-2.25.85-.85 2.25-.85-2.25-2.25-.85 2.25-.85z"/></symbol>
     <!-- an assistant that installs inside a site you already have -->
@@ -989,7 +1032,8 @@
     </div>
 
     <h2 class="section" id="contact">تواصل معنا</h2>
-    <p class="sub">عندك مشروع؟ احكِ لنا عنه — أو راسلنا مباشرة على أي قناة.</p>
+    <p class="sub">عندك مشروع؟ احكِ لنا عنه — أو راسلنا مباشرة على أي قناة.
+      وإن فضّلت الكلام، <b>البحار</b> مساعدنا الصوتي يردّ عليك بالعربية في أي وقت.</p>
 
     <div class="qwrap" data-reveal>
       <form class="qform" id="quote" novalidate>
@@ -1045,6 +1089,16 @@
       </a>
     </div>
   </main>
+
+  <!-- Revealed by the script only when an agent URL is set (see AGENT_URL at
+       the foot of this file). Ships hidden so no dead control can reach a
+       visitor before the agent exists. -->
+  <a class="callfab" id="callfab" hidden rel="noopener" target="_blank"
+     aria-label="اتصل بالبحار — المساعد الصوتي لشركة المهلب">
+    <span class="halo" aria-hidden="true"></span>
+    <svg class="ic" aria-hidden="true"><use href="#i-mic"/></svg>
+    <span><b>البحار</b><span>مساعد صوتي — كلّمه الآن</span></span>
+  </a>
 
   <footer>
     <div class="fcols">
@@ -1104,6 +1158,44 @@
   </footer>
 
   <script>
+    /* ══════════════════════════════════════════════════════════════════
+       البحار — the voice assistant.
+
+       PASTE THE AGENT LINK HERE. It is the share URL of the ElevenLabs
+       agent (Agents ▸ البحار ▸ Share), and it is the only line to change: */
+    var AGENT_URL = "";
+    /*  Left empty, the button does not render at all — a missing control
+        beats one that opens nothing. The agent opens in a new tab rather
+        than embedded: this page's CSP is default-src 'none', and widening
+        it for a third-party widget would undo the posture the whole site
+        is built on.
+       ══════════════════════════════════════════════════════════════════ */
+    (function () {
+      var fab = document.getElementById("callfab");
+      if (!fab) return;
+      var url = (AGENT_URL || "").trim();
+      if (/^https:\/\//i.test(url)) { fab.href = url; fab.hidden = false; }
+      /* the placement logic below is wired regardless of configuration: it
+         belongs to the control, not to whether a URL happened to be set at
+         parse time */
+
+      /* Step aside once the contact bar or the footer is on screen: the real
+         channels are visible there, and the pill would otherwise sit on top
+         of one of them. Without IntersectionObserver it simply stays put —
+         visible and usable, which is the safe end of that trade. */
+      var zones = [document.getElementById("contact"), document.querySelector("footer")]
+        .filter(Boolean);
+      if (!zones.length || !("IntersectionObserver" in window)) return;
+      var near = new Set();
+      var zio = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (e.isIntersecting) near.add(e.target); else near.delete(e.target);
+        });
+        fab.classList.toggle("away", near.size > 0);
+      }, { threshold: 0 });
+      zones.forEach(function (z) { zio.observe(z); });
+    })();
+
     /* The sliders. The rail is native overflow scroll and stays fully usable
        without any of this — this script only layers the arrows, the dots and
        the edge fades on top. html.js turns the arrows on, so a visitor whose
