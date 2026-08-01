@@ -389,19 +389,6 @@ for lang in ('en', 'ar'):
     im.save(p + '-4x.webp', quality=95, method=5)
     im.resize((W * 2, H * 2), Image.LANCZOS).save(p + '-2x.png', optimize=True)
     im.resize((W, H), Image.LANCZOS).save(p + '-slide.webp', quality=88, method=6)
-    # What the site actually serves on a desktop: a 1x and a 2x, picked by
-    # srcset. The 1x is 1600px because that is the hero's own CSS width at
-    # every desktop breakpoint; on a retina desktop the browser paints ~2880
-    # device pixels, so the 1x alone was being shown at half density — the
-    # type stayed passable and the ATHLETE went soft, since he is the only
-    # part that is not vector. The 2x carries the density and gives back the
-    # quality setting to pay for it: at twice the resolution WebP's artefacts
-    # are half the visual size, so q52 on the 2x looks cleaner than q78 on
-    # the 1x while costing about the same bytes as the phone file.
-    im.resize((W, H), Image.LANCZOS).save(
-        os.path.join(SHIP, 'desktop', f'banner-{lang}.webp'), quality=78, method=6)
-    im.resize((W * 2, H * 2), Image.LANCZOS).save(
-        os.path.join(SHIP, 'desktop', f'banner-{lang}-2x.webp'), quality=52, method=6)
     print(f'{lang}: headline {size}px on a {PLATE_H}px bar')
 
 
@@ -499,6 +486,170 @@ for lang in ('en', 'ar'):
                    (M_BAR_T + M_BAR_B) * MS // 2 - head.height // 2), head)
     m.paste(kick, ((m.width - kick.width) // 2,
                    M_BAR_T * MS - 34 * MS - kick.height), kick)
+    # A MASTER, not a shipped file. The hero is the three slide photographs
+    # below; this banner is kept so the owner can upload it in /backends ->
+    # Slides, which outranks everything the package ships.
     m.resize((MW, MH), Image.LANCZOS).save(
-        os.path.join(SHIP, 'mobile', f'banner-{lang}.webp'), quality=76, method=6)
+        os.path.join(HERE, f'banner-sportswear-{lang}-phone.webp'), quality=82, method=6)
     print(f'{lang}: phone headline {msize}px on a {M_BAR_H}px bar')
+
+
+# ==================================================== the three slide pictures
+#
+# The hero is a slider of three: strength, cardio, every arena. Their words and
+# their button live in the app's i18n and are drawn as HTML over the picture —
+# unlike the banner above, where the headline is set INTO the image. That is
+# why these are photographs with no lettering at all: the copy must be able to
+# change, and be translated, without anyone re-running this script.
+#
+# ONE SHOOT, THREE SLIDES, and that constraint is worth naming rather than
+# hiding. There is one photograph of one man in a gym. It cannot honestly
+# illustrate football, kickboxing and swimming, and no crop of it will. What it
+# can do is give the three slides a consistent, real subject instead of drawn
+# silhouettes, so they differ the way three frames from one session differ:
+# by how close the camera is and how much air is around him.
+#
+#   strength   1.32x, chest-up. Closest, heaviest, least room.
+#   cardio     1.00x, head to thigh — the frame as shot.
+#   arena      0.82x, bottom-aligned with air above his head. Widest.
+#
+# WHY THERE IS AN -rtl OF EACH. The copy sits on the reading-start edge, so it
+# is left in English and right in Arabic, and the subject has to be on the
+# other side of it. The photograph is NEVER mirrored to achieve that — a
+# mirrored person is a different person, and any lettering in shot would end up
+# backwards. The man is re-placed on the opposite side of a fresh canvas
+# instead, still facing the way he was photographed. HeroSlider probes for
+# <id>-rtl and falls back to <id>, so a missing one is a soft failure.
+#
+# WHAT THEY ARE BUILT FROM is the DE-STRIPED source — the orange stripe lifted
+# off him back in the phone section. These slides have their own graphic
+# language (the scrim and the pill in HTML); a second orange bar burnt into the
+# picture would fight it.
+SLIDES = [
+    ('strength', 1.32),
+    ('cardio',   1.00),
+    ('arena',    0.82),
+]
+
+# The generated ground again, but for a canvas with no bar on it.
+#
+# It does NOT reuse `col`, the banner's per-row anchor, and that is the point.
+# On the banner the anchor only ever painted the left third and the photograph
+# covered the rest, so the wall's small row-to-row colour wander was invisible.
+# Stretched across a whole canvas it is not: the first attempt came out with
+# brown horizontal bands across the frame, one per wobble in the source column.
+#
+# So the trend is taken and the wander is thrown away — one flat wall colour,
+# lifted a little toward the top the way a lit studio wall is, swept dark
+# toward whichever edge the copy will sit on. Smoothstep, then dither.
+WALL = col.mean(axis=0)
+
+
+def slide_ground(cw, ch, dark_side):
+    v = 0.92 + 0.16 * (1 - np.linspace(0, 1, ch))[:, None]     # gentle top lift
+    x2 = np.linspace(0, 1, cw)[None, :]
+    u = np.clip((x2 if dark_side == 'left' else 1 - x2) / 0.62, 0, 1)
+    f = v * (0.55 + 0.45 * (u * u * (3 - 2 * u)))
+    g = WALL[None, None, :] * f[:, :, None]
+    g += rng.triangular(-1.4, 0, 1.4, (ch, cw, 1))
+    return Image.fromarray(np.clip(g, 0, 255).astype(np.uint8), 'RGB')
+
+
+def feathered(man_img, bottom_fade):
+    """His edges dissolved into the ground instead of butting against it.
+
+    Both vertical sides, always — the one facing the copy and the one facing
+    the canvas edge, since he does not always reach it — and the BOTTOM when
+    he does not fill the canvas height.
+
+    Never the top. He is bottom-aligned in the first version of this, with air
+    above his head, and the fade ate his face: the source crops him AT his
+    hairline, so there is no wall up there to dissolve into. Top-aligned with
+    the bottom fading is the only arrangement this photograph allows, and it
+    is the honest one — the bottom edge IS a crop (the frame ends mid-thigh),
+    so fading it is finishing something the photographer already started.
+    """
+    w2, h2 = man_img.size
+    m = Image.new('L', (w2, h2), 255)
+    dd = ImageDraw.Draw(m)
+    side = int(90 * DS)
+    for i in range(min(side, w2 // 2)):
+        v = int(255 * i / side)
+        dd.line([(i, 0), (i, h2)], fill=v)
+        dd.line([(w2 - 1 - i, 0), (w2 - 1 - i, h2)], fill=v)
+    if bottom_fade > 0:
+        for i in range(min(bottom_fade, h2)):
+            dd.line([(0, h2 - 1 - i), (w2, h2 - 1 - i)], fill=int(255 * i / bottom_fade))
+    out = man_img.copy()
+    out.putalpha(m)
+    return out
+
+
+def sharpen(img, scale):
+    img = img.filter(ImageFilter.UnsharpMask(radius=int(18 * scale), percent=22, threshold=2))
+    return img.filter(ImageFilter.UnsharpMask(radius=max(1, int(1.3 * scale)), percent=115, threshold=3))
+
+
+# The man, cut out of the de-striped frame once. x=880 is left of him at every
+# height (he starts at 937 across the stripe and 940-960 above and below it),
+# so this carries a margin of his own wall with him — which is what makes the
+# crossfade into the generated ground invisible.
+MAN = destriped.crop((880, 0, W, H))          # 720 x 633
+MANW, MANH = MAN.size
+
+# A NARROWER crop for the portrait canvas. Filling a phone's width with the
+# wide tile above puts him in the top third and leaves 60% of the frame dead
+# black; trimming the wall either side of him lets the same width buy half
+# again as much height. 890 still clears his left edge (937) and 1560 leaves
+# 200px of wall past his right (1349), so both feathers still have wall to
+# dissolve into rather than arm.
+MAN_P = destriped.crop((890, 0, 1560, H))     # 670 x 633
+MPW, MPH = MAN_P.size
+
+DS = 2                                        # slides drawn at 2x, saved at 1x
+DW, DH = W, H                                 # desktop slide: 1600 x 633
+PW, PH = 1080, 1440                           # phone slide, portrait
+
+for sid, zoom in SLIDES:
+    for rtl in (False, True):
+        side = 'right' if rtl else 'left'      # where the copy goes
+
+        # ---- desktop -------------------------------------------------------
+        cw, ch = DW * DS, DH * DS
+        canvas = slide_ground(cw, ch, side)
+        mw = int(MANW * zoom * DS)
+        mh = int(MANH * zoom * DS)
+        man = sharpen(MAN.resize((mw, mh), Image.LANCZOS), zoom * DS)
+        # Always top-aligned: his head is at the source's own top edge.
+        mx = cw - mw if not rtl else 0
+        man = feathered(man, int(200 * DS) if mh < ch else 0)
+        canvas.paste(man, (mx, 0), man)
+        canvas.resize((DW, DH), Image.LANCZOS).save(
+            os.path.join(SHIP, 'desktop', f'{sid}{"-rtl" if rtl else ""}.webp'),
+            quality=72, method=6)
+
+        # ---- phone ---------------------------------------------------------
+        # Portrait, and the component draws it with object-cover object-center,
+        # so what ships is already the crop.
+        #
+        # He is sized by WIDTH here, not by height, and that is the whole
+        # difference from the desktop frame. He is a 1.14:1 picture and this is
+        # a 0.75:1 canvas, so filling the height would make him 1636px wide on
+        # a 1080px canvas — which is exactly what the first attempt did: he
+        # overflowed both edges, so there was no dark side left for the copy to
+        # sit on and all three slides came out identical because the zoom had
+        # nowhere to show. Sized by width, the zoom reads and the ground the
+        # copy needs survives.
+        cw, ch = PW * DS, PH * DS
+        canvas = slide_ground(cw, ch, side)
+        pz = min(1.0, 0.78 * zoom) * cw / MPW
+        mw = int(MPW * pz)
+        mh = int(MPH * pz)
+        man = sharpen(MAN_P.resize((mw, mh), Image.LANCZOS), pz)
+        mx = cw - mw if not rtl else 0
+        man = feathered(man, int(200 * DS))
+        canvas.paste(man, (mx, 0), man)
+        canvas.resize((PW, PH), Image.LANCZOS).save(
+            os.path.join(SHIP, 'mobile', f'{sid}{"-rtl" if rtl else ""}.webp'),
+            quality=72, method=6)
+    print(f'slide {sid}: {zoom}x')

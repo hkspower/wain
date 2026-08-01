@@ -142,13 +142,14 @@ for (const p of onDisk) {
   if (p.startsWith('/api/')) continue             // the native backend; called by URL
   if (p.startsWith('/cats/')) continue            // category art; CategoryTile assembles these
                                                   // URLs from parts, so no literal appears
-  if (p.startsWith('/hero/')) continue            // the hero banner; HeroSlider and the boot
-                                                  // script both build /hero/<device>/banner-<lang>
-                                                  // from parts, for the same reason. Exempting a
-                                                  // folder from "is it referenced?" would let a
-                                                  // MISSING banner ship silently, so all four are
-                                                  // in REQUIRED below instead — a stronger check
-                                                  // than the one being waived.
+  // The hero slides. HeroSlider and the boot script both build
+  // /hero/<device>/<id><-rtl>.webp from parts, so no literal ever appears —
+  // the same reason /cats is exempt. But a blanket exemption is one-sided: it
+  // stops a MISSING file being caught (REQUIRED below covers that) and it also
+  // stops an EXTRA one being caught, which is how two stale banner-*.webp from
+  // an earlier design sat in dist/ and shipped inside the zip. So the exemption
+  // is limited to the names that are actually expected.
+  if (/^\/hero\/(desktop|mobile)\/(strength|cardio|arena)(-rtl)?\.webp$/.test(p)) continue
   add('LOW', `never referenced by anything shipped: ${p}`, '')
 }
 
@@ -187,14 +188,15 @@ const REQUIRED = ['/index.html', '/.htaccess', '/knet/.htaccess', '/config.js',
                   '/api/.htaccess', '/api/api.php', '/api/admin.php', '/api/store.php',
                   '/api/config.example.php', '/api/cron-fulfilment.php',
                   '/api/schema.mysql.sql', '/api/seed.mysql.sql', '/api/promo.mysql.sql',
-                  // The shipped hero. Four files, not one: the headline is set
-                  // INSIDE the picture so there is a language each, and the
-                  // desktop banner is 2.53:1 against a phone's 0.75:1 so there
-                  // is a crop each. Miss one and a whole language or a whole
-                  // device class falls back to the drawn scenes.
-                  '/hero/desktop/banner-en.webp', '/hero/desktop/banner-ar.webp',
-                  '/hero/desktop/banner-en-2x.webp', '/hero/desktop/banner-ar-2x.webp',
-                  '/hero/mobile/banner-en.webp', '/hero/mobile/banner-ar.webp']
+                  // The shipped hero: three slides, each with an LTR and an RTL
+                  // composition, each in a desktop and a phone crop. Miss one
+                  // and that slide silently drops to the drawn silhouette for
+                  // one language or one device class — which looks like a
+                  // design choice rather than a missing file, so it is asserted.
+                  ...['strength', 'cardio', 'arena'].flatMap((id) =>
+                    ['desktop', 'mobile'].flatMap((d) =>
+                      ['', '-rtl'].map((v) => `/hero/${d}/${id}${v}.webp`))),
+                 ]
 for (const r of REQUIRED) if (!onDisk.has(r)) add('HIGH', `required file absent: ${r}`, '')
 // /pay/config.php holds the CBK ClientSecret and ENCRP_KEY; .cbk_token.json is
 // a live AccessToken. Neither may ever be in the package.

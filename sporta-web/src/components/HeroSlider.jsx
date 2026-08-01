@@ -4,30 +4,33 @@ import { useLang } from '../i18n/LanguageContext'
 import { IconArrowRight } from './icons'
 import { phpSlides } from '../lib/backend'
 
-// The home hero, in three tiers, first one that exists wins:
+// The home hero: three slides — strength, cardio, and the multi-sport arena
+// (football / kickboxing / swimming) — over the owner's slides when there are
+// any (/backends -> Slides wins, always).
 //
-//   1. THE OWNER'S SLIDES, from /backends -> Slides. Rows in the database,
-//      served by api.php?r=slide_image. Any number, with their own words.
-//   2. THE SHIPPED BANNER (see BANNER below) — finished artwork in the
-//      package, one per language, one crop per device. This is what the shop
-//      launches with and what most visitors will actually see.
-//   3. THE DRAWN SCENES — strength, cardio, and the multi-sport arena
-//      (football / kickboxing / swimming), rendered as SVG. They are the
-//      last resort now rather than the default: they exist so that a server
-//      missing /hero still shows a hero rather than a black box.
+// EACH SLIDE HAS THREE PICTORIAL LAYERS, and only the topmost one that loads
+// is seen:
 //
-// The drawn scenes probe for the owner's photograph first:
+//   /hero/<mobile|desktop>/<id>.webp      SHIPS in the package. Composed by
+//                                         brand/hero/build-banner.py from the
+//                                         studio photograph of the athlete —
+//                                         one shoot, three framings.
+//   /hero/<mobile|desktop>/<id>-rtl.webp  the same, with him on the other
+//                                         side, because the copy moves.
+//   the drawn scene                       SVG silhouettes (heroFigures.js),
+//                                         shown if the files are missing.
 //
-//   /hero/mobile/<id>.jpg   and   /hero/desktop/<id>.jpg
-//   ids: strength, cardio, arena
+// ONE SHOOT, THREE SLIDES — a constraint worth stating rather than hiding.
+// There is one photograph of one man in a gym, and it cannot honestly
+// illustrate football, kickboxing and swimming. The owner chose it over the
+// drawn silhouettes knowing that; the framings differ the way three frames of
+// one session differ, by how close the camera is. Real product photography is
+// still the outstanding gap, and when it arrives it goes in through /backends
+// rather than through here.
 //
-// Those files live ONLY on the server (upload them in hPanel File Manager;
-// a publish never touches /hero because dist never contains those names).
-// Until they exist, the slide shows the drawn scene: anatomically
-// proportioned athletes as backlit silhouettes (heroFigures.js) with rim
-// light, contact shadows and film grain — the sports-poster treatment,
-// because shipping nothing while the photography is pending is worse, and
-// shipping fake "photos" of people who do not exist is not this brand.
+// THE WORDS ARE NOT IN THE PICTURES. Copy, kicker and button come from i18n
+// and are drawn as HTML over the photograph, so they can be changed and
+// translated without anyone re-running a Python script.
 //
 // Accessibility is the WAI carousel pattern plus WCAG 2.2.2: auto-advance
 // pauses on hover and on keyboard focus, there is an explicit pause button,
@@ -36,28 +39,15 @@ import { phpSlides } from '../lib/backend'
 // the other slides use a styled <p>, so the page keeps exactly one h1 with
 // stable content.
 const PHOTO_DIR = '/hero'
-const PHOTO_EXT = '.jpg'
+// WebP, not JPEG. These are dark photographs of a dark subject, which is the
+// case WebP wins hardest: the six desktop files together are 109 kB where the
+// JPEGs of the same frames were 1.6 MB, and the home page's image budget is
+// 175 kB for EVERYTHING on a phone.
+const PHOTO_EXT = '.webp'
 const DESKTOP_AT = '(min-width: 768px)'
 const INTERVAL_MS = 6500
 
 const SLIDE_IDS = ['strength', 'cardio', 'arena']
-
-// THE SHIPPED BANNER — what a visitor sees before the owner has uploaded
-// anything, and the hero this shop actually launches with.
-//
-// It ships in the package (unlike /hero/<id>.jpg above, which is server-side
-// only) because it is finished artwork, not a placeholder: brand.hero's
-// build-banner.py composes it from the studio photograph with the headline set
-// as outlines. Two languages, because the headline is IN the picture — an
-// Arabic visitor cannot be shown Latin type — and two crops, because the
-// desktop banner is 2.53:1 and a phone's hero is about 0.72:1, so a cover-crop
-// of one for the other shows a quarter of it.
-//
-// The database still wins. The moment /backends has a slide, this is gone.
-const BANNER = (device, lang) => `/hero/${device}/banner-${lang}.webp`
-// Desktop only. The phone file is already ~2.8x its CSS width (1080px for a
-// ~390px viewport), so a second density there would be bytes for nothing.
-const BANNER2X = (lang) => `/hero/desktop/banner-${lang}-2x.webp`
 
 // THE HERO'S HEIGHT IS DECIDED BEFORE THE FIRST PAINT, NOT HERE.
 //
@@ -148,19 +138,13 @@ export default function HeroSlider() {
   // The slide list: the admin's, or the drawn scenes. Built once per config so
   // the shuffle does not re-roll on every render and move the slide out from
   // under whoever is reading it.
-  // If the shipped banner is not on the server — someone extracted the zip
-  // without /hero, or deleted it — the drawn scenes come back rather than the
-  // hero going blank. It is the same reasoning as the -rtl probe below.
-  const [bannerOk, setBannerOk] = useState(true)
   const items = useMemo(() => {
     const uploaded = config?.slides ?? []
     const base = uploaded.length
       ? uploaded.map((s) => ({ kind: 'photo', ...s }))
-      : bannerOk
-        ? [{ kind: 'banner', id: 'banner' }]
-        : SLIDE_IDS.map((id) => ({ kind: 'drawn', id }))
+      : SLIDE_IDS.map((id) => ({ kind: 'drawn', id }))
     return hero.shuffle ? shuffled(base) : base
-  }, [config, hero.shuffle, bannerOk])
+  }, [config, hero.shuffle])
 
   const count = items.length
   // Autoplay is a setting; pausing is not. Hover, focus, a background tab and
@@ -239,7 +223,6 @@ export default function HeroSlider() {
             active={i === index}
             first={i === 0}
             label={`${i + 1} / ${count}`}
-            onBannerMissing={() => setBannerOk(false)}
           />
         ))}
       </div>
@@ -303,14 +286,8 @@ export default function HeroSlider() {
   )
 }
 
-function Slide({ item, copy, size, active, first, label, onBannerMissing }) {
+function Slide({ item, copy, size, active, first, label }) {
   const { lang, t } = useLang()
-  if (item.kind === 'banner') {
-    return (
-      <BannerSlide size={size} active={active} first={first} label={label}
-                   lang={lang} t={t} onMissing={onBannerMissing} />
-    )
-  }
   // An uploaded slide is a photograph and its own words. It skips the drawn
   // scene, the -rtl composition probe and the /hero file lookup entirely —
   // there is nothing to fall back to, because the picture is right there.
@@ -325,6 +302,17 @@ function Slide({ item, copy, size, active, first, label, onBannerMissing }) {
   // untouched subject placed on the opposite side (the category tiles'
   // pattern). If the server has no -rtl file, the base photo serves.
   const [rtlFailed, setRtlFailed] = useState(false)
+  // loading="lazy" is not enough here and the measurement says so: all three
+  // photographs were fetched on first paint, 69 kB for two slides nobody had
+  // swiped to. The images live inside the slider's track, which IS in the
+  // viewport — only a transform puts them off-screen, and a transform is not
+  // something the lazy heuristic looks at.
+  //
+  // So slide 1 renders its <picture> immediately and the others render theirs
+  // the first time they are shown, and never un-render (going back to slide 2
+  // must not re-download it).
+  const [reached, setReached] = useState(first)
+  useEffect(() => { if (active) setReached(true) }, [active])
   const variant = lang === 'ar' && !rtlFailed ? '-rtl' : ''
   const photoM = `${PHOTO_DIR}/mobile/${id}${variant}${PHOTO_EXT}`
   const photoD = `${PHOTO_DIR}/desktop/${id}${variant}${PHOTO_EXT}`
@@ -344,27 +332,43 @@ function Slide({ item, copy, size, active, first, label, onBannerMissing }) {
           (measured on a 390px viewport). */}
       <div aria-hidden="true" className="absolute inset-0 overflow-hidden">
         {/* The S mark — the real file, never redrawn, never mirrored. Behind
-            the athletes, so it reads as a watermark, not a wash over them. */}
-        <img
-          src="/favicon.png"
-          alt=""
-          width="512"
-          height="512"
-          loading="lazy"
-          decoding="async"
-          className="absolute -end-[5%] top-1/2 h-[85%] w-auto -translate-y-1/2 select-none opacity-[0.05]"
-        />
+            the athletes, so it reads as a watermark, not a wash over them.
+
+            ONLY when there is no photograph. It sits at 5% opacity BEHIND the
+            scene, so an opaque photograph on top of it makes it invisible —
+            and it is a 512px PNG, 29 kB, which was 17% of a phone's whole
+            image budget being spent on something nobody could see. */}
+        {!photoOk && (
+          <img
+            src="/favicon.png"
+            alt=""
+            width="512"
+            height="512"
+            loading="lazy"
+            decoding="async"
+            className="absolute -end-[5%] top-1/2 h-[85%] w-auto -translate-y-1/2 select-none opacity-[0.05]"
+          />
+        )}
 
         {/* The drawn scene. Mirrored under RTL so the athletes keep to the end
             side — these are pictograms with no lettering, so a mirror is safe
             (a PHOTOGRAPH never gets this treatment, which is why the photo
-            layer below sits outside this wrapper). */}
-        <div className="absolute inset-0 rtl:-scale-x-100">
-          <Scene />
-        </div>
+            layer below sits outside this wrapper).
 
-        {/* The owner's photograph, when the server has one. */}
-        {photoOk && (
+            ONLY when the photograph is missing, and that is a bytes decision
+            as much as a visual one: the scene's chest marks are <image
+            href="/favicon.png">, so merely having it in the tree fetched 29 kB
+            of a 512px PNG that an opaque photograph then covered completely.
+            Rendering it on demand means a server WITHOUT the hero files still
+            gets the full drawn hero, and a server with them never pays for it. */}
+        {!photoOk && (
+          <div className="absolute inset-0 rtl:-scale-x-100">
+            <Scene />
+          </div>
+        )}
+
+        {/* The photograph, when the server has one. */}
+        {photoOk && reached && (
           <picture>
             <source media={DESKTOP_AT} srcSet={photoD} />
             <img
@@ -390,7 +394,9 @@ function Slide({ item, copy, size, active, first, label, onBannerMissing }) {
       <div className={`relative mx-auto flex ${size} max-w-7xl items-center px-4 py-16 md:px-6`}>
         <div className="max-w-xl text-start">
           <span className="flex items-center gap-3">
-            <img src="/favicon.png" alt="" width="512" height="512" className="h-9 w-9 select-none" />
+            {/* 36 CSS px, so the 192px file: enough for a DPR3 phone (108px) and
+                a fifth of the 512px one's bytes. */}
+            <img src="/favicon-192.png" alt="" width="192" height="192" className="h-9 w-9 select-none" />
             <span className="on-brand rounded-full bg-brand px-4 py-1 text-xs font-bold uppercase tracking-wide">
               {copy.kicker}
             </span>
@@ -642,78 +648,6 @@ function SceneArena() {
 // A slide with no headline renders no headline. It does NOT borrow the shipped
 // copy: a photograph of swimming captioned "Train strength" is worse than a
 // photograph with no caption.
-// The shipped banner.
-//
-// Three things it deliberately does NOT do, each of which the uploaded-photo
-// slide above does:
-//
-//   * NO SCRIM. PhotoSlide darkens its start edge because it is handed a
-//     photograph nobody art-directed. This one was art-directed — its left
-//     third is already a generated dark ground built to sit under type — and
-//     laying another 85% ink over it would flatten the very thing it is for.
-//   * NO OVERLAID HEADLINE. The words are outlines inside the picture, set to
-//     the millimetre against the orange bar. A second copy in HTML on top of
-//     them is two headlines.
-//   * NO focal point. The two crops exist so the browser never has to guess.
-//
-// But the words still have to EXIST for anything that cannot see the picture,
-// so they are the img's alt text and a visually-hidden h1 — which is also what
-// keeps the home page's single h1 where the drawn scenes used to put it.
-function BannerSlide({ size, active, first, label, lang, t, onMissing }) {
-  const title = t.heroSlides.bannerTitle
-  return (
-    <div
-      role="group"
-      aria-roledescription="slide"
-      aria-label={label}
-      aria-hidden={!active}
-      className="relative w-full shrink-0 bg-ink"
-    >
-      <div className="absolute inset-0 overflow-hidden">
-        <picture>
-          {/* 1x and 2x, because the hero is ~1600 CSS px wide on a desktop and
-              a retina screen paints twice that. The type in the picture is
-              vector-sharp in both files; the 2x is for the athlete, who is the
-              only part that is photograph. */}
-          <source
-            media={DESKTOP_AT}
-            srcSet={`${BANNER('desktop', lang)} 1x, ${BANNER2X(lang)} 2x`}
-            width="1600"
-            height="633"
-          />
-          <img
-            src={BANNER('mobile', lang)}
-            alt={title}
-            width="1080"
-            height="1440"
-            // This is the LCP element on the home page. It is never lazy and
-            // never low priority, whichever slide index it happens to be.
-            loading="eager"
-            fetchPriority="high"
-            decoding="async"
-            onError={onMissing}
-            className="absolute inset-0 h-full w-full select-none object-cover"
-          />
-        </picture>
-      </div>
-
-      <div className={`relative mx-auto flex ${size} max-w-7xl items-end px-4 pb-10 md:px-6 md:pb-14`}>
-        <div className="w-full text-center md:w-auto md:text-start">
-          {first && <h1 className="sr-only">{title}</h1>}
-          <Link
-            to="/shop"
-            className="btn btn-primary inline-flex"
-            tabIndex={active ? undefined : -1}
-          >
-            {t.heroSlides.bannerCta}
-            <IconArrowRight size={16} className="rtl:rotate-180" />
-          </Link>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function PhotoSlide({ slide, size, active, first, label, lang, t }) {
   const ar = lang === 'ar'
   const title = (ar ? slide.title_ar : slide.title_en) || ''
