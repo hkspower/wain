@@ -5,7 +5,10 @@ import Inventory from './Inventory'
 import Orders from './Orders'
 import Catalog from './Catalog'
 import Brands from './Brands'
-import { IconBag, IconTruck, IconStar, IconLock, IconBox } from '../components/icons'
+import Slides from './Slides'
+import Promotions from './Promotions'
+import Discounts from './Discounts'
+import { IconBag, IconTruck, IconStar, IconLock, IconBox, IconImage, IconHeart, IconPlus } from '../components/icons'
 import { phpAdmin } from '../lib/backend'
 
 // The three ways the backends screen can be unreachable that are NOT a wrong
@@ -215,6 +218,9 @@ const ADMIN_TABS = [
   { id: 'orders',   label: 'Orders',   Icon: IconBag },
   { id: 'catalog',  label: 'Catalogue', Icon: IconTruck },
   { id: 'brands',   label: 'Brands',   Icon: IconStar },
+  { id: 'slides',   label: 'Slides',   Icon: IconImage },
+  { id: 'promos',   label: 'Promotions', Icon: IconHeart },
+  { id: 'discounts', label: 'Discounts', Icon: IconPlus },
   { id: 'stock',    label: 'Inventory', Icon: IconBox },
   { id: 'settings', label: 'Settings', Icon: IconLock },
 ]
@@ -276,6 +282,12 @@ function Dashboard({ email, onSignOut }) {
         {tab === 'catalog' && <Catalog />}
 
         {tab === 'brands' && <Brands />}
+
+        {tab === 'slides' && <Slides />}
+
+        {tab === 'promos' && <Promotions />}
+
+        {tab === 'discounts' && <Discounts />}
 
         {tab === 'stock' && <Inventory />}
 

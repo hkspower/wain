@@ -48,7 +48,7 @@
   existed twice while there were two, and a fix applied to one was a bug
   waiting in the other (the KNET dropin was hardened against a browser-supplied
   price and T-Pay was not, and it stayed that way until a test went looking).
-  Proven by `npm run test:native` (36 checks) and `test:native-e2e` (20 browser
+  Proven by `npm run test:native` (74 checks) and `test:native-e2e` (28 browser
   checks). `api/config.php` lives ONLY on the server, same rule as
   `knet/config.php`. Any change to one backend's contract must be mirrored in
   the other and covered in native-backend-test.mjs.
@@ -84,6 +84,28 @@
   describes the product as an online payment link. Customer-facing copy therefore
   says "pay online with T-Pay" and does NOT promise a QR code — see the note in
   `src/i18n/translations.js`.
+- **Home slides, promotions and discounts** are admin-managed (`hero_slides`,
+  `settings`, `discounts`, plus `products.sale_price`/`featured` — all in
+  `schema.mysql.sql` and in the additive `dropin/php-store/promo.mysql.sql`).
+  Three rules hold this together and none is optional:
+  1. **The server decides every number.** A sale price, an automatic rule and a
+     coupon are three more figures the browser would like to name, and
+     `orders.amount` is what `/knet/pay.php` hands the bank. `store_price_lines()`
+     and `store_discounts_for()` are the only implementations; the checkout's
+     coupon preview calls the same code, so what is quoted and what is charged
+     cannot drift. A browser-supplied `amount`/`discount_amount` is ignored.
+  2. **Discounts stack in a fixed order** — every qualifying automatic rule,
+     best first, then at most one typed code — and the total is capped at
+     **60%** of the order (`STORE_DISCOUNT_MAX_PCT`), with 90% the per-rule
+     ceiling. Single-use codes are claimed with a guarded `UPDATE` inside the
+     order's transaction; proven by racing eight concurrent checkouts.
+  3. **A slide photograph is a row, not a file** — same rule as brand logos.
+     But it is served by `api.php?r=slide_image` with a content hash and a
+     one-year immutable cache, never inlined into JSON: a hero is ~200 kB and
+     `/api` is `no-store`. The admin downscales to 1600px WebP in the browser.
+  Slider speed/shuffle/size and the promo bar live in `settings` as JSON,
+  whitelisted field by field on save. Hero buttons and the promo bar accept
+  **same-origin paths only** (`store_internal_href`).
 - **Brands** are admin-managed (`brands` table; `schema.mysql.sql` plus the
   additive `dropin/php-store/brands.mysql.sql`). The logo is a capped
   `data:image/(png|jpeg|webp);base64,…` string **in the row, never a file** —

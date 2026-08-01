@@ -47,7 +47,7 @@ for (const forbidden of ['knet/config.php', 'pay/config.php', 'api/config.php', 
 // order is the most common way this setup fails, and it fails quietly,
 // leaving a storefront that renders and a checkout that refuses everything.
 mkdirSync(join(stage, 'database-sql'), { recursive: true })
-const ORDER = ['schema.mysql', 'seed.mysql', 'brands.mysql']
+const ORDER = ['schema.mysql', 'seed.mysql', 'brands.mysql', 'promo.mysql']
 ORDER.forEach((name, i) => {
   cpSync(join(web, 'dropin', 'php-store', `${name}.sql`),
          join(stage, 'database-sql', `${i + 1}-${name}.sql`))
@@ -106,6 +106,11 @@ Then hPanel -> Databases -> phpMyAdmin -> Import, and run these IN THIS ORDER:
     database-sql/1-schema.mysql.sql   the tables
     database-sql/2-seed.mysql.sql     the 46 products and the stock
     database-sql/3-brands.mysql.sql   the brands
+    database-sql/4-promo.mysql.sql    home slides, promotions and discounts
+
+(3 and 4 are already inside 1 on a fresh install. They are listed separately
+because a shop set up before those features needs them on their own, and
+running them twice changes nothing.)
 
 Safe to re-run. Re-seeding updates prices and names in place; it never
 duplicates a product and never overwrites your stock counts.

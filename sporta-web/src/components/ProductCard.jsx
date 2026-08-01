@@ -90,8 +90,25 @@ export default function ProductCard({ product }) {
           <h3 className="line-clamp-1 text-sm font-semibold text-slate-900">{product.name[lang]}</h3>
         </Link>
         <p className="line-clamp-1 text-xs text-slate-600">{product.desc[lang]}</p>
-        <span className="price-card pt-0.5 text-sm font-bold tabular-nums">
+        {/* `price` is always what the shop CHARGES — a live sale has already
+            replaced it on the server. `list_price` is only ever the old,
+            higher number to strike through, so a component that ignores both
+            of these still shows the right money. */}
+        <span className="price-card flex items-baseline gap-2 pt-0.5 text-sm font-bold tabular-nums">
           {formatKWD(product.price, lang)}
+          {product.on_sale && (
+            <>
+              <s className="text-xs font-semibold text-slate-400">
+                {formatKWD(product.list_price, lang)}
+              </s>
+              {/* The percentage is the thing a shopper actually reads, and
+                  screen readers get the whole sentence rather than "-25%"
+                  floating with no referent. */}
+              <span className="sr-only">
+                {formatKWD(product.list_price, lang)} → {formatKWD(product.price, lang)}
+              </span>
+            </>
+          )}
         </span>
       </div>
     </article>

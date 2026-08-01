@@ -7,9 +7,31 @@ import CartDrawer from './CartDrawer'
 import { useWishlist } from '../lib/wishlist'
 import { useTheme } from '../lib/theme'
 import { IconBag, IconHeart, IconSearch, IconSun, IconMoon, IconGlobe } from './icons'
+import { phpSlides } from '../lib/backend'
+
+// The bar across the top, when the admin has set one.
+//
+// It starts as the SHIPPED sentence and swaps only if the server answers with
+// something different. That ordering matters: the bar is the first painted
+// element on the page, and rendering nothing until a fetch resolves would be a
+// flash of missing content on every single load — and a layout shift on the
+// one element measured for CLS. The shipped text is never wrong, only
+// sometimes out of date by one request.
+function usePromoBar() {
+  const [bar, setBar] = useState(null)
+  useEffect(() => {
+    let alive = true
+    phpSlides()
+      .then((d) => { if (alive && d?.promo_bar) setBar(d.promo_bar) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+  return bar
+}
 
 export default function Navbar() {
   const { t, lang, toggle } = useLang()
+  const bar = usePromoBar()
   const { count } = useCart()
   const { count: wishCount } = useWishlist()
   const { theme, toggle: toggleTheme } = useTheme()
@@ -59,9 +81,7 @@ export default function Navbar() {
           11px — it was the least readable line on the site, and it is the line
           that says same-day delivery. Near-black on the same orange is 4.59:1,
           and it is what the logo itself does. */}
-      <p className="on-brand flex h-7 items-center justify-center overflow-hidden bg-brand px-4 text-center text-[11px] font-semibold leading-none sm:text-xs">
-        {t.ann}
-      </p>
+      <PromoBar bar={bar} fallback={t.ann} lang={lang} />
       {/* Tighter on phones: at the old padding the three header rows ate 138px,
           21% of an iPhone SE viewport, before any content appeared. */}
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-3 py-2 sm:px-4 sm:py-3">
@@ -141,5 +161,31 @@ export default function Navbar() {
         </ul>
       </div>
     </header>
+  )
+}
+
+// The announcement strip.
+//
+// h-7 and overflow-hidden are load-bearing and were measured: a fixed one-line
+// box cannot change height when the font swaps or when the admin writes a
+// longer sentence, and this element sits above everything else on the page, so
+// any change in its height moves the entire site.
+//
+// on-brand, not text-white: white on #E0561C measures 3.81:1 at 11px, which
+// made this the least readable line on the site — and it is the line that says
+// same-day delivery. Near-black on the same orange is 4.59:1.
+function PromoBar({ bar, fallback, lang }) {
+  // `live` is the SERVER's answer about the schedule. The browser is not asked
+  // to decide whether a promotion has started.
+  const text = bar?.live ? (lang === 'ar' ? bar.text_ar : bar.text_en) : null
+  const shown = text ?? (bar && !bar.live ? '' : fallback)
+  if (bar && !bar.live && !text) return null
+
+  const className =
+    'on-brand flex h-7 items-center justify-center overflow-hidden bg-brand px-4 text-center text-[11px] font-semibold leading-none sm:text-xs'
+  return bar?.href ? (
+    <Link to={bar.href} className={`${className} underline-offset-2 hover:underline`}>{shown}</Link>
+  ) : (
+    <p className={className}>{shown}</p>
   )
 }

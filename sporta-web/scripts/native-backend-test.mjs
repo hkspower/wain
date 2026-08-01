@@ -288,6 +288,154 @@ const order = (track, items, extra = {}) =>
 // reach. The admin screen keys its setup instructions off these exact tokens,
 // so they are contract, not detail.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// PROMOTIONS AND DISCOUNTS.
+//
+// Every check here is about ONE property: the server decides what an order
+// costs. A sale price, a coupon and an automatic rule are three more numbers
+// the browser would love to name, and orders.amount is what /knet/pay.php
+// hands the bank — so anything able to move it is able to move what is
+// collected. These are the tests that hold that line.
+// ---------------------------------------------------------------------------
+// -------------------------------------------------------- sale prices
+{
+  await run('mariadb', ['sporta', '-e',
+    "update products set sale_price = 7.500, sale_starts_at = null, sale_ends_at = null " +
+    "where slug = 'cloudsoft-jacket-army-green'"])
+
+  const { body } = await api('products')
+  const jacket = body.find((p) => p.slug === 'cloudsoft-jacket-army-green')
+  is(jacket.price === 7.5 && jacket.list_price === 10 && jacket.on_sale === true,
+     'a live sale replaces `price` and keeps the old one as `list_price`',
+     `${jacket.price} was ${jacket.list_price}`)
+  is(!('sale_starts_at' in jacket) && !('sale_ends_at' in jacket),
+     'the sale WINDOW never reaches the browser — it is not the browser’s decision')
+
+  const paid = await order('SPSALE0001', [{ slug: 'cloudsoft-jacket-army-green', qty: 2, size: 'L' }])
+  is(paid.body.amount === 15, 'and CHECKOUT charges the sale price, not the list price', `${paid.body.amount}`)
+
+  // Expired, and dated in the future: both must fall back to the list price.
+  for (const [from, to, what] of [
+    ["'2020-01-01 00:00:00'", "'2020-02-01 00:00:00'", 'an EXPIRED sale'],
+    ["'2099-01-01 00:00:00'", 'null', 'a sale dated in the FUTURE'],
+  ]) {
+    await run('mariadb', ['sporta', '-e',
+      `update products set sale_starts_at = ${from}, sale_ends_at = ${to} where slug = 'cloudsoft-jacket-army-green'`])
+    const { body: b2 } = await api('products')
+    const j = b2.find((p) => p.slug === 'cloudsoft-jacket-army-green')
+    is(j.price === 10 && j.on_sale === false, `${what} is not applied`, `${j.price}`)
+  }
+  await run('mariadb', ['sporta', '-e',
+    "update products set sale_price = null, sale_starts_at = null, sale_ends_at = null " +
+    "where slug = 'cloudsoft-jacket-army-green'"])
+}
+
+// ---------------------------------------------------------- discounts
+{
+  await run('mariadb', ['sporta', '-e',
+    'delete from orders; delete from discounts; ' +
+    "insert into discounts (kind, code, label, type, value, min_order, active) values " +
+    "('code','SAVE10','10% welcome','percent',10,5,1), " +
+    "('code','TENOFF','10 KWD off','fixed',10,0,1), " +
+    "('auto',null,'3 KWD over 30','fixed',3,30,1)"])
+
+  const cart = [{ slug: 'cloudsoft-jacket-army-green', qty: 4, size: 'L' }] // 40.000
+
+  const check = async (code) => {
+    const res = await fetch(`${BASE}/api.php?r=discount`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: cart, code }),
+    })
+    return { status: res.status, body: await res.json().catch(() => null) }
+  }
+
+  const stacked = await check('SAVE10')
+  is(stacked.body.discount === 7 && stacked.body.total === 33,
+     'an automatic rule and a code STACK, automatic first', JSON.stringify(stacked.body.applied?.map((a) => a.amount)))
+
+  // Lowercase in, uppercase matched: a customer retyping a code off a poster
+  // does not get "invalid" for a capital letter.
+  is((await check('save10')).body.discount === 7, 'a code is matched case-insensitively')
+
+  is((await check('NOSUCH')).body.error === 'discount_unknown', 'an unknown code is REPORTED, not ignored')
+
+  // Silently ignoring an unusable code is the failure that costs trust: the
+  // customer believes they were given a discount and was not.
+  await run('mariadb', ['sporta', '-e', "update discounts set min_order = 999 where code = 'SAVE10'"])
+  is((await check('SAVE10')).body.error === 'discount_min_order', 'a code under its minimum says so')
+  await run('mariadb', ['sporta', '-e', "update discounts set min_order = 5 where code = 'SAVE10'"])
+
+  await run('mariadb', ['sporta', '-e',
+    "update discounts set ends_at = '2020-01-01 00:00:00' where code = 'SAVE10'"])
+  is((await check('SAVE10')).body.error === 'discount_expired', 'an expired code says so')
+  await run('mariadb', ['sporta', '-e', "update discounts set ends_at = null where code = 'SAVE10'"])
+
+  // ---- the line that matters most ----
+  const cheat = await fetch(`${BASE}/api.php?r=order`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      track_id: 'SPCHEAT001', items: cart, customer: CUSTOMER, payment_method: 'knet',
+      amount: 0.1, subtotal: 0.1, discount_amount: 39.9, discount_code: 'SAVE10',
+    }),
+  })
+  const cheated = await cheat.json()
+  is(cheated.amount === 33 && cheated.discount === 7,
+     'a browser-supplied amount and discount are IGNORED — the server recomputes both',
+     `charged ${cheated.amount}`)
+  const stored = (await run('mariadb', ['sporta', '-N', '-B', '-e',
+    "select amount, subtotal, discount_amount, discount_code from orders where track_id = 'SPCHEAT001'"])).stdout.trim()
+  is(stored === '33.000\t40.000\t7.000\tSAVE10', 'and MySQL holds the server’s figures', stored)
+
+  // ---- the stack cap ----
+  await run('mariadb', ['sporta', '-e',
+    "update discounts set value = 90, type = 'percent' where code = 'SAVE10'; " +
+    "update discounts set value = 50, type = 'percent', min_order = 0 where kind = 'auto'"])
+  const capped = await check('SAVE10')
+  is(capped.body.discount === 24 && capped.body.total === 16,
+     'two rules that would give 140% off are capped at 60% of the order',
+     `${capped.body.discount} off ${capped.body.subtotal}`)
+  await run('mariadb', ['sporta', '-e',
+    "update discounts set value = 10 where code = 'SAVE10'; " +
+    "update discounts set value = 3, type = 'fixed', min_order = 30 where kind = 'auto'"])
+
+  // ---- single use, under concurrency ----
+  await run('mariadb', ['sporta', '-e',
+    "delete from orders; " +
+    "update discounts set usage_limit = 1, used_count = 0 where code = 'TENOFF'; " +
+    // The automatic rule is switched off for this section so the only thing
+    // being raced is the single-use code.
+    "update discounts set active = 0 where kind = 'auto'"])
+
+  const races = await Promise.all(Array.from({ length: 8 }, (_, i) =>
+    fetch(`${BASE}/api.php?r=order`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        track_id: `SPRACE000${i}`, items: cart, customer: CUSTOMER,
+        payment_method: 'knet', discount_code: 'TENOFF',
+      }),
+    }).then((r) => r.json())))
+  const granted = races.filter((r) => r.discount === 10).length
+  is(granted === 1, 'eight simultaneous checkouts, one single-use code, exactly ONE gets it', `${granted} granted`)
+  const used = (await run('mariadb', ['sporta', '-N', '-B', '-e',
+    "select used_count from discounts where code = 'TENOFF'"])).stdout.trim()
+  is(used === '1', 'and used_count says 1, not 8', used)
+
+  await run('mariadb', ['sporta', '-e', 'delete from orders; delete from discounts'])
+}
+
+// ------------------------------------------------------- hero + settings
+{
+  const { body } = await api('slides')
+  is(Array.isArray(body.slides), 'the slides endpoint answers with a list')
+  is(typeof body.hero?.speed_ms === 'number' && body.hero.speed_ms >= 2000,
+     'and carries the playback settings', `${body.hero?.speed_ms}ms`)
+  is(typeof body.promo_bar?.live === 'boolean',
+     'the promo bar’s SCHEDULE is resolved server-side, not left to the browser')
+  is(!('starts_at' in (body.promo_bar ?? {})),
+     'so its dates never reach the browser at all')
+}
+
+
 // ------------------------------------------------ a half-set-up server
 {
   cookie = ''

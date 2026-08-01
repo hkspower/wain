@@ -240,7 +240,8 @@ if ($r === 'card_settled' && $method === 'POST') {
 // single-row companion — add a piece, change a price, take one off sale.
 if ($r === 'products_all') {
     store_out($db->query(
-        'select id, slug, name_en, name_ar, desc_en, desc_ar, price, category, image, active
+        'select id, slug, name_en, name_ar, desc_en, desc_ar, price, sale_price,
+                sale_starts_at, sale_ends_at, featured, featured_sort, category, image, active
            from products order by id desc'
     )->fetchAll());
 }
@@ -260,20 +261,46 @@ if ($r === 'product_save' && $method === 'POST') {
     $price = number_format($price, 3, '.', '');
     $active = array_key_exists('active', $b) ? (!empty($b['active']) ? 1 : 0) : 1;
 
+    // The sale price. Optional, and only meaningful BELOW the list price — a
+    // "sale" above it would quietly overcharge, which is the kind of mistake
+    // nobody reports because the customer just leaves. Refused here rather
+    // than ignored at read time, so the admin says so instead of saving
+    // something that does nothing.
+    $salePrice = $b['sale_price'] ?? null;
+    if ($salePrice === '' || $salePrice === null) {
+        $salePrice = null;
+        $saleFrom = $saleTo = null;
+    } else {
+        $salePrice = (float)$salePrice;
+        if ($salePrice <= 0)              store_fail('invalid_sale_price');
+        if ($salePrice >= (float)$price)  store_fail('sale_not_lower');
+        $salePrice = number_format($salePrice, 3, '.', '');
+        $saleFrom = store_datetime($b['sale_starts_at'] ?? null);
+        $saleTo   = store_datetime($b['sale_ends_at'] ?? null);
+        if ($saleFrom !== null && $saleTo !== null && $saleFrom > $saleTo) store_fail('sale_dates_backwards');
+    }
+    $featured = !empty($b['featured']) ? 1 : 0;
+    $featuredSort = (int)($b['featured_sort'] ?? 0);
+
     try {
         if ($id > 0) {
             $db->prepare(
                 'update products set slug = ?, name_en = ?, name_ar = ?, desc_en = ?, desc_ar = ?,
-                        price = ?, category = ?, image = ?, active = ? where id = ?'
+                        price = ?, sale_price = ?, sale_starts_at = ?, sale_ends_at = ?,
+                        featured = ?, featured_sort = ?, category = ?, image = ?, active = ?
+                  where id = ?'
             )->execute([$slug, $nameEn, $nameAr, store_opt($b['desc_en'] ?? null),
-                        store_opt($b['desc_ar'] ?? null), $price, store_opt($b['category'] ?? null),
+                        store_opt($b['desc_ar'] ?? null), $price, $salePrice, $saleFrom, $saleTo,
+                        $featured, $featuredSort, store_opt($b['category'] ?? null),
                         store_opt($b['image'] ?? null), $active, $id]);
         } else {
             $db->prepare(
-                'insert into products (slug, name_en, name_ar, desc_en, desc_ar, price, category, image, active)
-                 values (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                'insert into products (slug, name_en, name_ar, desc_en, desc_ar, price, sale_price,
+                        sale_starts_at, sale_ends_at, featured, featured_sort, category, image, active)
+                 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             )->execute([$slug, $nameEn, $nameAr, store_opt($b['desc_en'] ?? null),
-                        store_opt($b['desc_ar'] ?? null), $price, store_opt($b['category'] ?? null),
+                        store_opt($b['desc_ar'] ?? null), $price, $salePrice, $saleFrom, $saleTo,
+                        $featured, $featuredSort, store_opt($b['category'] ?? null),
                         store_opt($b['image'] ?? null), $active]);
             $id = (int)$db->lastInsertId();
         }
@@ -281,7 +308,8 @@ if ($r === 'product_save' && $method === 'POST') {
         if (str_contains($e->getMessage(), 'Duplicate')) store_fail('slug_taken');
         throw $e;
     }
-    $q = $db->prepare('select id, slug, name_en, name_ar, desc_en, desc_ar, price, category, image, active from products where id = ?');
+    $q = $db->prepare('select id, slug, name_en, name_ar, desc_en, desc_ar, price, sale_price,
+                sale_starts_at, sale_ends_at, featured, featured_sort, category, image, active from products where id = ?');
     $q->execute([$id]);
     store_out($q->fetch());
 }
@@ -448,6 +476,253 @@ if ($r === 'set_stock' && $method === 'POST') {
     $q2 = $db->prepare('select sku, slug, size, stock from product_variants where sku = ?');
     $q2->execute([(string)($b['sku'] ?? '')]);
     store_out($q2->fetch());
+}
+
+// ------------------------------------------------------------------- slides
+// The home hero. The photograph lives in the ROW, not on disk — the same rule
+// the brand logos follow, and for the same reason: an endpoint that writes
+// into the web root is a way in, and this server already hosted one.
+//
+// The admin sends the image already downscaled and re-encoded to WebP in the
+// browser, so a 12-megapixel phone photo becomes ~200 kB before it is ever
+// uploaded. store_data_image() is the floor under that, because a client-side
+// limit is a suggestion.
+if ($r === 'slides') {
+    $rows = $db->query(
+        'select id, sort, active, title_en, title_ar, subtitle_en, subtitle_ar,
+                cta_label_en, cta_label_ar, cta_href, image_hash, image_w, image_h,
+                focal_x, focal_y, updated_at
+           from hero_slides order by sort, id'
+    )->fetchAll();
+    foreach ($rows as &$row) {
+        $row['id'] = (int)$row['id'];
+        $row['active'] = (bool)$row['active'];
+        $row['sort'] = (int)$row['sort'];
+        $row['focal_x'] = (int)$row['focal_x'];
+        $row['focal_y'] = (int)$row['focal_y'];
+        // The admin gets the same cacheable URL the storefront gets, rather
+        // than a megabyte of base64 per slide in a list response.
+        $row['image'] = $row['image_hash']
+            ? 'api.php?r=slide_image&id=' . $row['id'] . '&v=' . substr((string)$row['image_hash'], 0, 16)
+            : null;
+        $row['width']  = $row['image_w'] === null ? null : (int)$row['image_w'];
+        $row['height'] = $row['image_h'] === null ? null : (int)$row['image_h'];
+        unset($row['image_hash'], $row['image_w'], $row['image_h']);
+    }
+    unset($row);
+    store_out(['slides' => $rows, 'hero' => store_setting($db, 'hero')]);
+}
+
+if ($r === 'slide_save' && $method === 'POST') {
+    $b = store_body();
+    $id = (int)($b['id'] ?? 0);
+
+    // A slide with no photograph is a blank panel on the home page. The image
+    // is required on CREATE; on edit, omitting it keeps the one already there
+    // rather than wiping it, so changing a caption cannot lose the artwork.
+    $image = null;
+    if (($b['image'] ?? '') !== '') {
+        $image = store_data_image((string)$b['image'], STORE_HERO_MAX);
+    } elseif ($id === 0) {
+        store_fail('image_required');
+    }
+
+    $focalX = max(0, min(100, (int)($b['focal_x'] ?? 50)));
+    $focalY = max(0, min(100, (int)($b['focal_y'] ?? 50)));
+    $fields = [
+        'title_en'     => store_opt($b['title_en'] ?? null),
+        'title_ar'     => store_opt($b['title_ar'] ?? null),
+        'subtitle_en'  => store_opt($b['subtitle_en'] ?? null),
+        'subtitle_ar'  => store_opt($b['subtitle_ar'] ?? null),
+        'cta_label_en' => store_opt($b['cta_label_en'] ?? null),
+        'cta_label_ar' => store_opt($b['cta_label_ar'] ?? null),
+        // Same-origin paths only. A hero button is the most prominent link on
+        // the site, so it may not be pointed at somebody else's domain from a
+        // form — that is a redirect the shop's own design would be lending
+        // credibility to.
+        'cta_href'     => store_internal_href($b['cta_href'] ?? null),
+        'active'       => !empty($b['active']) ? 1 : 0,
+        'sort'         => (int)($b['sort'] ?? 0),
+        'focal_x'      => $focalX,
+        'focal_y'      => $focalY,
+    ];
+    if ($image !== null) {
+        $fields['image'] = $image;
+        // The hash is the cache key the storefront URL carries, so a replaced
+        // photograph is a different URL and appears at once despite the
+        // one-year immutable cache on the old one.
+        $fields['image_hash'] = hash('sha256', $image);
+        $fields['image_w'] = (int)($b['width'] ?? 0) ?: null;
+        $fields['image_h'] = (int)($b['height'] ?? 0) ?: null;
+    }
+
+    $cols = array_keys($fields);
+    if ($id > 0) {
+        $set = implode(', ', array_map(fn ($c) => "$c = ?", $cols));
+        $db->prepare("update hero_slides set $set where id = ?")
+           ->execute([...array_values($fields), $id]);
+    } else {
+        $ph = implode(', ', array_fill(0, count($cols), '?'));
+        $db->prepare('insert into hero_slides (' . implode(', ', $cols) . ") values ($ph)")
+           ->execute(array_values($fields));
+        $id = (int)$db->lastInsertId();
+    }
+    store_out(['id' => $id]);
+}
+
+if ($r === 'slide_delete' && $method === 'POST') {
+    $b = store_body();
+    // Slides are genuinely deletable, unlike products and brands: nothing
+    // points at one. No order, no invoice and no history refers to a slide, so
+    // removing it loses nothing but the picture.
+    $db->prepare('delete from hero_slides where id = ?')->execute([(int)($b['id'] ?? 0)]);
+    store_out(['ok' => true]);
+}
+
+// Reorder in one call. Sending the whole order at once means the list can
+// never be left half-renumbered by a failed second request.
+if ($r === 'slide_reorder' && $method === 'POST') {
+    $ids = store_body()['ids'] ?? [];
+    if (!is_array($ids)) store_fail('bad_request');
+    $db->beginTransaction();
+    $up = $db->prepare('update hero_slides set sort = ? where id = ?');
+    foreach (array_values($ids) as $i => $id) $up->execute([$i, (int)$id]);
+    $db->commit();
+    store_out(['ok' => true]);
+}
+
+// ------------------------------------------------------------------ settings
+// How the slider plays, and the promo bar. Whitelisted by name and rebuilt
+// field by field: a settings endpoint that stores whatever JSON it is handed
+// is a place to park arbitrary data inside the shop's own configuration.
+if ($r === 'settings_save' && $method === 'POST') {
+    $b = store_body();
+    $name = (string)($b['name'] ?? '');
+    $v = is_array($b['value'] ?? null) ? $b['value'] : [];
+
+    if ($name === 'hero') {
+        store_setting_save($db, 'hero', [
+            // 2s floor: anything faster is unreadable, and WCAG 2.2.2 wants
+            // moving content to be pausable, not merely slow. 30s ceiling
+            // because past that the second slide is never seen.
+            'speed_ms' => max(2000, min(30000, (int)($v['speed_ms'] ?? 6500))),
+            'shuffle'  => !empty($v['shuffle']),
+            'autoplay' => !empty($v['autoplay']),
+            'size'     => in_array($v['size'] ?? '', ['short', 'tall', 'full'], true) ? $v['size'] : 'tall',
+        ]);
+    } elseif ($name === 'promo_bar') {
+        store_setting_save($db, 'promo_bar', [
+            'enabled'   => !empty($v['enabled']),
+            'text_en'   => mb_substr(trim((string)($v['text_en'] ?? '')), 0, 160),
+            'text_ar'   => mb_substr(trim((string)($v['text_ar'] ?? '')), 0, 160),
+            'href'      => store_internal_href($v['href'] ?? null) ?? '',
+            'starts_at' => store_datetime($v['starts_at'] ?? null),
+            'ends_at'   => store_datetime($v['ends_at'] ?? null),
+        ]);
+    } else {
+        store_fail('unknown_setting');
+    }
+    store_out(store_setting($db, $name));
+}
+
+// ----------------------------------------------------------------- discounts
+if ($r === 'discounts') {
+    $rows = $db->query('select * from discounts order by kind, code, id')->fetchAll();
+    foreach ($rows as &$row) {
+        $row['id'] = (int)$row['id'];
+        $row['active'] = (bool)$row['active'];
+        $row['value'] = (float)$row['value'];
+        $row['min_order'] = (float)$row['min_order'];
+        $row['usage_limit'] = (int)$row['usage_limit'];
+        $row['used_count'] = (int)$row['used_count'];
+        $row['live'] = $row['active'] && store_window_open($row['starts_at'], $row['ends_at'])
+            && ($row['usage_limit'] === 0 || $row['used_count'] < $row['usage_limit']);
+    }
+    unset($row);
+    store_out($rows);
+}
+
+if ($r === 'discount_save' && $method === 'POST') {
+    $b = store_body();
+    $id = (int)($b['id'] ?? 0);
+    $kind = ($b['kind'] ?? 'code') === 'auto' ? 'auto' : 'code';
+    $type = ($b['type'] ?? 'percent') === 'fixed' ? 'fixed' : 'percent';
+
+    // Uppercase and stripped to A-Z0-9, so SAVE10 and save10 cannot both
+    // exist and a code cannot carry a space the customer will never reproduce.
+    $code = null;
+    if ($kind === 'code') {
+        $code = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string)($b['code'] ?? '')));
+        if (strlen($code) < 3 || strlen($code) > 24) store_fail('invalid_code');
+    }
+
+    $value = (float)($b['value'] ?? 0);
+    // 90% is the per-rule ceiling; store_discounts_for caps the STACK at 60%
+    // of the order. Both exist: one stops a typo ("100" meaning 10), the other
+    // stops two sane rules adding up to a free order.
+    if ($type === 'percent' && ($value < 1 || $value > 90)) store_fail('invalid_percent');
+    if ($type === 'fixed' && ($value <= 0 || $value > 9999)) store_fail('invalid_amount');
+
+    $fields = [
+        'kind'        => $kind,
+        'code'        => $code,
+        'label'       => store_text($b['label'] ?? null, 'label', 2, 80),
+        'type'        => $type,
+        'value'       => number_format($value, 3, '.', ''),
+        'min_order'   => number_format(max(0, (float)($b['min_order'] ?? 0)), 3, '.', ''),
+        'category'    => store_opt($b['category'] ?? null),
+        'starts_at'   => store_datetime($b['starts_at'] ?? null),
+        'ends_at'     => store_datetime($b['ends_at'] ?? null),
+        'usage_limit' => max(0, (int)($b['usage_limit'] ?? 0)),
+        'active'      => !empty($b['active']) ? 1 : 0,
+    ];
+    if ($fields['starts_at'] !== null && $fields['ends_at'] !== null
+        && $fields['starts_at'] > $fields['ends_at']) store_fail('sale_dates_backwards');
+
+    $cols = array_keys($fields);
+    try {
+        if ($id > 0) {
+            $set = implode(', ', array_map(fn ($c) => "$c = ?", $cols));
+            $db->prepare("update discounts set $set where id = ?")
+               ->execute([...array_values($fields), $id]);
+        } else {
+            $ph = implode(', ', array_fill(0, count($cols), '?'));
+            $db->prepare('insert into discounts (' . implode(', ', $cols) . ") values ($ph)")
+               ->execute(array_values($fields));
+            $id = (int)$db->lastInsertId();
+        }
+    } catch (Throwable $e) {
+        if (str_contains($e->getMessage(), 'Duplicate')) store_fail('code_taken');
+        throw $e;
+    }
+    $q = $db->prepare('select * from discounts where id = ?');
+    $q->execute([$id]);
+    store_out($q->fetch());
+}
+
+// Switched off, never deleted while it has been used: orders reference the
+// code they were given, and a report that cannot explain why an order was
+// 3 KWD cheaper is a report nobody trusts.
+if ($r === 'discount_active' && $method === 'POST') {
+    $b = store_body();
+    $db->prepare('update discounts set active = ? where id = ?')
+       ->execute([!empty($b['active']) ? 1 : 0, (int)($b['id'] ?? 0)]);
+    store_out(['ok' => true]);
+}
+
+if ($r === 'discount_delete' && $method === 'POST') {
+    $b = store_body();
+    $id = (int)($b['id'] ?? 0);
+    $q = $db->prepare('select code from discounts where id = ?');
+    $q->execute([$id]);
+    $code = $q->fetchColumn();
+    if ($code !== false && $code !== null) {
+        $u = $db->prepare('select count(*) from orders where discount_code = ?');
+        $u->execute([$code]);
+        if ((int)$u->fetchColumn() > 0) store_fail('discount_in_use', 409);
+    }
+    $db->prepare('delete from discounts where id = ?')->execute([$id]);
+    store_out(['ok' => true]);
 }
 
 store_fail('not_found', 404);

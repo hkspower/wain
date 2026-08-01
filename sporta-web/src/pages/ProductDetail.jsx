@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
-import { getProduct, productImages, PRODUCTS, SIZES_FOR } from '../lib/products'
+import { getProduct, loadProducts, productImages, PRODUCTS, SIZES_FOR } from '../lib/products'
 import { useCart } from '../lib/cart'
 import { useWishlist } from '../lib/wishlist'
 import { formatKWD } from '../lib/format'
@@ -28,7 +28,31 @@ export default function ProductDetail() {
   const [sizeErr, setSizeErr] = useState(false)
   const [fit, setFit] = useState(null)
   const [guideOpen, setGuideOpen] = useState(false)
-  const product = getProduct(slug)
+  const shipped = getProduct(slug)
+  // The LIVE price, when the shop has one.
+  //
+  // The page renders on the shipped catalogue first — same reasoning as the
+  // stock below: waiting on a database to draw anything is a slower page for
+  // every visitor. But the price is not decoration. Checkout charges what the
+  // products table says, so a page that only ever showed the bundled price
+  // would advertise 10.000 for something that rings up at 7.500 the moment a
+  // sale is on, and the shopper meets the difference at the last step.
+  const [live, setLive] = useState(null)
+  useEffect(() => {
+    let alive = true
+    setLive(null)
+    loadProducts()
+      .then((all) => { if (alive) setLive(all.find((p) => p.slug === slug) ?? null) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [slug])
+  // Only the price fields are taken from the server. Everything else — the
+  // images, the copy, the AHED detail — stays with the shipped record, which
+  // is richer than the table and does not change under the reader.
+  const product = shipped && {
+    ...shipped,
+    ...(live ? { price: live.price, list_price: live.list_price, on_sale: live.on_sale } : {}),
+  }
   const ahed = ahedDetail(slug)
   const [stock, setStock] = useState(null) // null = not known; see lib/stock.js
 
@@ -80,7 +104,15 @@ export default function ProductDetail() {
 
   // Which fits this garment is made in, and the cut it is designed as. A
   // backpack gets null: it does not come in oversize.
-  const fits = useMemo(() => fitsFor(product), [product])
+  // Keyed on the SLUG, not on the product object.
+  //
+  // `product` is rebuilt whenever the live price arrives, so a dependency on
+  // the object identity re-ran this, produced a new `fits`, and the effect
+  // below reset the shopper's chosen fit back to the default — after they had
+  // chosen it. Measured: pick Oversize, wait for the price, and the order goes
+  // to the warehouse as Normal. Which fits a garment comes in depends on the
+  // garment, and the garment is the slug.
+  const fits = useMemo(() => fitsFor(shipped), [slug]) // eslint-disable-line react-hooks/exhaustive-deps
   // Only say "struck-through sizes are not carried" when some actually are.
   const notCarried = useMemo(
     () => !!sizes && sizes.some((sz) => !carried.has(sz)),
@@ -241,8 +273,13 @@ export default function ProductDetail() {
             </button>
           </div>
           <p className="mt-3 text-lg leading-relaxed text-slate-600">{product.desc[lang]}</p>
-          <p className="text-accent mt-6 font-display text-[1.75rem] font-bold tabular-nums">
+          <p className="text-accent mt-6 flex items-baseline gap-3 font-display text-[1.75rem] font-bold tabular-nums">
             {formatKWD(product.price, lang)}
+            {product.on_sale && (
+              <s className="text-lg font-semibold text-slate-400">
+                {formatKWD(product.list_price, lang)}
+              </s>
+            )}
           </p>
 
           {/* THE THREE OPTION BOXES: size, fit, colour.

@@ -29,7 +29,7 @@ export function makeTrackId(prefix = 'SP') {
 // trying to check out right now".
 const ATTEMPT_KEY = 'sporta.checkout.attempt'
 
-function fingerprint({ items, customer, paymentMethod }) {
+function fingerprint({ items, customer, paymentMethod, discountCode = '' }) {
   const lines = items
     .map((i) => `${i.slug}:${i.qty}:${i.size ?? ''}:${i.fit ?? ''}`)
     .sort()
@@ -41,7 +41,11 @@ function fingerprint({ items, customer, paymentMethod }) {
   // djb2. Not a security hash — nothing is protected by it. It only has to
   // change when the order changes, and be the same string twice in a row.
   let h = 5381
-  const src = `${lines}#${who}#${paymentMethod}`
+  // The discount code is part of the order's identity. Without it, adding a
+  // code after a first tap reused the earlier attempt id, and create_order
+  // answered idempotently with the ALREADY-CREATED order at the old price —
+  // the code appeared to be accepted and changed nothing.
+  const src = `${lines}#${who}#${paymentMethod}#${discountCode}`
   for (let i = 0; i < src.length; i++) h = ((h << 5) + h + src.charCodeAt(i)) | 0
   return (h >>> 0).toString(36)
 }

@@ -114,7 +114,7 @@ project folder on your Mac. Nothing is installed and nothing is rebuilt.
    and give that user all privileges on it. Note the four values.
 5. In **phpMyAdmin → Import**, run the zip's `database-sql/` files **in their
    numbered order**: `1-schema.mysql.sql`, `2-seed.mysql.sql`,
-   `3-brands.mysql.sql`.
+   `3-brands.mysql.sql`, `4-promo.mysql.sql`.
 6. Copy `public_html/api/config.example.php` to `api/config.php` and fill in
    those four values. The site cannot sell anything until this exists —
    the catalogue is empty and every checkout is refused.
@@ -181,6 +181,7 @@ hPanel → **Databases → phpMyAdmin → Import**, and run these one after anot
 | `api/schema.mysql.sql` | every table, plus the triggers that price an order server-side | nothing works; the admin says the migration is not applied |
 | `api/seed.mysql.sql` | the 46 products and the AHED stock | the catalogue is empty and **every checkout is refused** |
 | `api/brands.mysql.sql` | the brands table and eight brands | the Brands screen has nothing to show |
+| `api/promo.mysql.sql` | home slides, site settings, sale prices, discounts | the Slides, Promotions and Discounts screens say the migration is missing |
 
 The order matters and getting it wrong fails *silently* — the storefront still
 renders and checkout refuses everything. All three are safe to re-run: products

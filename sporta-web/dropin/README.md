@@ -25,8 +25,11 @@ on the server. Create them once in hPanel File Manager and leave them there.
 
 ## Setting up
 
-* `php-store/schema.mysql.sql` + `seed.mysql.sql` + `brands.mysql.sql` — run in
-  hPanel → Databases → phpMyAdmin, in that order.
+* `php-store/schema.mysql.sql` + `seed.mysql.sql` + `brands.mysql.sql` +
+  `promo.mysql.sql` — run in hPanel → Databases → phpMyAdmin, in that order.
+  The last two are already inside `schema.mysql.sql` on a fresh install; they
+  exist so a shop set up before those features can add them alone, and running
+  either twice changes nothing.
 * `php-store/setup-admin.php` — creates the first admin sign-in.
 * `php-knet/selftest.php` — visit it after uploading; it checks the AES key
   length, HTTPS, and that the orders database actually answers. **Delete it

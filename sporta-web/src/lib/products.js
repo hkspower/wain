@@ -349,8 +349,46 @@ export async function loadProducts() {
   try {
     const { phpProducts } = await import('./backend')
     const data = await phpProducts()
-    return Array.isArray(data) && data.length ? data : PRODUCTS
+    return Array.isArray(data) && data.length ? data.map(fromApi) : PRODUCTS
   } catch {
     return PRODUCTS
+  }
+}
+
+// The API's row shape, turned into the shape every component already reads.
+//
+// The database has flat name_en / name_ar columns; the shipped catalogue has
+// name: {en, ar}. Converting HERE, at the one boundary, is what lets
+// ProductCard, the cart and the wishlist stay unaware that a database exists —
+// and is why they render identically whether the shop is live or on its
+// bundled fallback. Getting this wrong is silent: the cards render, with every
+// name blank.
+function fromApi(row) {
+  // The shipped record for the same slug, when there is one. It is richer than
+  // the table — placeholder artwork, a bilingual badge — and those are exactly
+  // the fields the database has no column for.
+  const shipped = PRODUCTS.find((p) => p.slug === row.slug)
+  return {
+    slug: row.slug,
+    name: { en: row.name_en, ar: row.name_ar },
+    desc: { en: row.desc_en ?? '', ar: row.desc_ar ?? '' },
+    // Already the effective price — a live sale replaced it server-side.
+    price: Number(row.price),
+    list_price: row.list_price === undefined ? undefined : Number(row.list_price),
+    on_sale: !!row.on_sale,
+    featured: !!row.featured,
+    featured_sort: Number(row.featured_sort ?? 0),
+    category: row.category,
+    // products.image is NULL for the whole seeded catalogue — the seed has no
+    // image column to fill, because the artwork is generated in the front end.
+    // Passing that null straight through rendered <img src={null}> on every
+    // card: a broken-image glyph where the product should be. The shipped
+    // placeholder is the answer until real photography exists.
+    image: row.image || shipped?.image,
+    // The shipped catalogue carries a bilingual badge; the database does not
+    // have that column, and a badge is decoration. Keeping the shipped one
+    // when the slug matches means switching to the live catalogue does not
+    // silently strip "Bestseller" off every card.
+    badge: shipped?.badge,
   }
 }

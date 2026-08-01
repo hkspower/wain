@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
-import { PRODUCTS } from '../lib/products'
+import { PRODUCTS, loadProducts } from '../lib/products'
 import ProductCard from '../components/ProductCard'
 import CategoryTile from '../components/CategoryTile'
 import HeroSlider from '../components/HeroSlider'
@@ -13,7 +14,29 @@ export default function Home() {
   const { t } = useLang()
   // Reset canonical/title/robots after client-side navigation back home.
   usePageMeta({ path: '/' })
-  const featured = PRODUCTS.slice(0, 4)
+  // The four products this row shows.
+  //
+  // Starts as the first four of the shipped catalogue so the grid paints
+  // immediately with the right number of cards — a row that appears after a
+  // fetch is a layout shift halfway down the home page. Then, if the admin has
+  // marked anything Featured, those replace them in the order it chose.
+  const [featured, setFeatured] = useState(() => PRODUCTS.slice(0, 4))
+  useEffect(() => {
+    let alive = true
+    loadProducts()
+      .then((all) => {
+        if (!alive) return
+        const picked = all
+          .filter((p) => p.featured)
+          .sort((a, b) => (a.featured_sort ?? 0) - (b.featured_sort ?? 0))
+        // Never fewer than four: a "Featured" row with one card in it looks
+        // broken rather than curated, so the rest of the catalogue fills in.
+        const rest = all.filter((p) => !p.featured)
+        setFeatured([...picked, ...rest].slice(0, 4))
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
 
   // Each tile prefers the owner's photo (/cats/<id>.jpg, server-only), then
   // the shipped artwork (/cats/art-<id>.jpg), then its gradient — see

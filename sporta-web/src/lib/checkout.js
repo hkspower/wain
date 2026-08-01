@@ -51,7 +51,7 @@ function tokenFor(error) {
 // No price is sent from here, and pay.php is called with no `amount`
 // parameter at all — it reads the figure from the order it looks up. That is
 // what makes the amount untamperable end to end.
-export async function startCheckout({ items, lang = 'en', customer, paymentMethod = 'knet' }) {
+export async function startCheckout({ items, lang = 'en', customer, paymentMethod = 'knet', discountCode = '' }) {
   // ONE TRACK ID PER ATTEMPT, NOT PER TAP.
   //
   // create_order has an idempotency guard — same track_id, same pending order,
@@ -64,7 +64,10 @@ export async function startCheckout({ items, lang = 'en', customer, paymentMetho
   // The id is now derived from what is being ordered: the same bag to the same
   // address is the same attempt and reuses it. Change the bag and it changes,
   // because that is genuinely a different order.
-  const trackId = attemptTrackId({ items, customer, paymentMethod })
+  // The code is part of the attempt: entering one after a first tap is a
+  // genuinely different order, and reusing the id would return the earlier
+  // pending order at the OLD price and quietly ignore the code.
+  const trackId = attemptTrackId({ items, customer, paymentMethod, discountCode })
 
   // size and fit travel with the line on BOTH backends. They are options, not
   // prices: each server validates them against a fixed list and still reads
@@ -82,7 +85,13 @@ export async function startCheckout({ items, lang = 'en', customer, paymentMetho
   // raises, so messageFor() in Checkout.jsx turns them into a sentence.
   let data
   try {
-    data = await phpCreateOrder({ trackId, items: items.map(line), customer, paymentMethod })
+    // The code travels; the AMOUNT never does. api.php looks the code up,
+    // decides what it is worth and writes orders.amount — which is the number
+    // pay.php later hands the bank. A discount the browser could name would be
+    // a price the browser could set.
+    data = await phpCreateOrder({
+      trackId, items: items.map(line), customer, paymentMethod, discountCode,
+    })
   } catch (e) {
     throw new CheckoutError(e.token ?? 'failed', e.message)
   }

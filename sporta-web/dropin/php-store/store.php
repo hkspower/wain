@@ -224,11 +224,17 @@ function store_payment_settled(PDO $db, int $orderId, string $newStatus): void {
 // Anything present but invalid fails the request outright — silently dropping
 // a logo would look like a save that worked.
 const STORE_LOGO_MAX = 160000;   // ~160 kB of base64, ~120 kB of image
+// A hero photograph is a different order of magnitude from a brand logo: it
+// fills the viewport, and the admin sends it downscaled to 1600px WebP. This
+// is the floor under that, not the target. It is NOT inlined into the
+// storefront's JSON — r=slide_image serves it as a cacheable image — so the
+// size buys quality on the one image the home page is built around.
+const STORE_HERO_MAX = 1200000;  // ~1.2 MB of base64, ~900 kB of image
 
-function store_data_image(?string $raw): ?string {
+function store_data_image(?string $raw, int $max = STORE_LOGO_MAX): ?string {
     $v = trim((string)$raw);
     if ($v === '') return null;
-    if (strlen($v) > STORE_LOGO_MAX) store_fail('logo_too_large');
+    if (strlen($v) > $max) store_fail('logo_too_large');
     if (!preg_match('#^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=\s]+)$#', $v, $m)) {
         store_fail('logo_bad_format');
     }
@@ -326,4 +332,295 @@ function store_login(string $email, string $password): array {
     $_SESSION['admin_id'] = (int)$u['id'];
     $_SESSION['admin_email'] = $u['email'];
     return ['id' => (int)$u['id'], 'email' => $u['email']];
+}
+
+// ---------------------------------------------------------------- settings
+//
+// Small named pieces of configuration the owner edits without a deploy: the
+// slider's speed and size, the promo bar's text. Stored as JSON in one table
+// so adding a setting is an INSERT, not a migration on a live shop.
+//
+// Reads are cached per request. api.php?r=slides asks for two of these and the
+// home page asks for the same two again on the next request; there is no
+// reason for either to hit the table twice.
+function store_settings(PDO $db): array {
+    static $all = null;
+    if ($all === null) {
+        $all = [];
+        foreach ($db->query('select name, value from settings') as $row) {
+            $decoded = json_decode((string)$row['value'], true);
+            $all[$row['name']] = is_array($decoded) ? $decoded : [];
+        }
+    }
+    return $all;
+}
+
+// One setting, merged over its defaults.
+//
+// The defaults live in PHP as well as in the seed row, and that is deliberate:
+// a shop that imported schema.mysql.sql before this feature has no row at all,
+// and a home page that renders nothing because a SELECT missed is a worse
+// outcome than a home page that renders the values it shipped with.
+const STORE_SETTING_DEFAULTS = [
+    'hero'      => ['speed_ms' => 6500, 'shuffle' => false, 'size' => 'tall', 'autoplay' => true],
+    'promo_bar' => ['enabled' => false, 'text_en' => '', 'text_ar' => '', 'href' => '',
+                    'starts_at' => null, 'ends_at' => null],
+];
+
+function store_setting(PDO $db, string $name): array {
+    return array_merge(STORE_SETTING_DEFAULTS[$name] ?? [], store_settings($db)[$name] ?? []);
+}
+
+function store_setting_save(PDO $db, string $name, array $value): void {
+    $db->prepare('insert into settings (name, value) values (?, ?)
+                  on duplicate key update value = values(value)')
+       ->execute([$name, json_encode($value, JSON_UNESCAPED_UNICODE)]);
+}
+
+// Is a dated window open right now? Either end may be null, meaning "no bound".
+// Everything is compared in the database's own clock via gmdate, the same
+// clock paid_at and created_at are written with, so a promotion cannot appear
+// to start an hour early because PHP and MySQL disagree about the timezone.
+function store_window_open(?string $starts, ?string $ends, ?string $now = null): bool {
+    $now = $now ?? gmdate('Y-m-d H:i:s');
+    if ($starts !== null && $starts !== '' && $starts > $now) return false;
+    if ($ends   !== null && $ends   !== '' && $ends   < $now) return false;
+    return true;
+}
+
+// ------------------------------------------------------------------- pricing
+//
+// THE price of a product right now, in integer fils.
+//
+// A sale price only counts inside its window and only if it is actually lower.
+// Both guards matter: an expired sale that still applied would be a permanent
+// unannounced discount, and a "sale" above the list price would quietly
+// overcharge — the kind of mistake nobody reports because the customer just
+// leaves. When either is true, the list price wins.
+//
+// Fils, not floats. KWD has exactly three decimals, so 10.000 KWD is 10000
+// fils and integer arithmetic is exact. This is the same rule create_order
+// already followed for line totals; percentages make it matter more, not less.
+function store_fils(string|float|null $kwd): int {
+    return (int)round(((float)$kwd) * 1000);
+}
+
+function store_kwd(int $fils): string {
+    return number_format($fils / 1000, 3, '.', '');
+}
+
+function store_effective_price(array $product, ?string $now = null): array {
+    $list = store_fils($product['price'] ?? 0);
+    $sale = isset($product['sale_price']) && $product['sale_price'] !== null
+        ? store_fils($product['sale_price'])
+        : null;
+    $on = $sale !== null
+        && $sale > 0
+        && $sale < $list
+        && store_window_open($product['sale_starts_at'] ?? null, $product['sale_ends_at'] ?? null, $now);
+    return ['fils' => $on ? $sale : $list, 'list_fils' => $list, 'on_sale' => $on];
+}
+
+// ----------------------------------------------------------------- discounts
+//
+// Everything below runs on the SERVER, from rows the browser cannot touch.
+// The browser may name a code; it may never name an amount. That is the same
+// rule that governs product prices, and it is load-bearing in exactly the same
+// way: /pay/pay.php charges orders.amount, so anything that can move
+// orders.amount can move what the bank collects.
+//
+// Order of application, fixed and documented because "which discount wins" is
+// the question every shop eventually gets asked:
+//   1. every qualifying AUTOMATIC rule, best first
+//   2. then at most ONE typed code
+//   3. the total is capped at STORE_DISCOUNT_MAX_PCT of the subtotal
+// The cap is the backstop against a stacking mistake being a free order.
+const STORE_DISCOUNT_MAX_PCT = 60;
+
+// What one rule takes off, in fils. `$eligibleFils` is the part of the order
+// the rule may act on — the whole subtotal, or just one category's lines.
+function store_discount_amount(array $d, int $eligibleFils): int {
+    if ($eligibleFils <= 0) return 0;
+    $off = $d['type'] === 'percent'
+        // intdiv, so a percentage of an odd number of fils rounds DOWN and the
+        // shop never gives away a fil it did not mean to.
+        ? intdiv($eligibleFils * (int)round((float)$d['value']), 100)
+        : store_fils($d['value']);
+    return max(0, min($off, $eligibleFils));
+}
+
+// Every live rule, with the typed code (if any) resolved.
+//
+// Returns ['applied' => [...], 'total_fils' => int, 'error' => ?string]. An
+// unusable code is reported, never silently ignored: a customer who typed
+// SAVE10 and was charged full price will not assume they mistyped, they will
+// assume the shop cheated them.
+function store_discounts_for(PDO $db, array $lines, int $subtotalFils, ?string $code): array {
+    $now = gmdate('Y-m-d H:i:s');
+    $applied = [];
+    $error = null;
+
+    // How much of this order sits in each category, so a category-restricted
+    // rule acts on its own lines only.
+    $byCategory = [];
+    foreach ($lines as $l) {
+        $cat = (string)($l['category'] ?? '');
+        $byCategory[$cat] = ($byCategory[$cat] ?? 0) + $l['line_fils'];
+    }
+    $eligible = function (?string $cat) use ($subtotalFils, $byCategory): int {
+        return ($cat === null || $cat === '') ? $subtotalFils : ($byCategory[$cat] ?? 0);
+    };
+
+    $usable = function (array $d) use ($now, $subtotalFils, $eligible): ?string {
+        if (!(int)$d['active'])                                        return 'discount_inactive';
+        if (!store_window_open($d['starts_at'], $d['ends_at'], $now))  return 'discount_expired';
+        if ((int)$d['usage_limit'] > 0
+            && (int)$d['used_count'] >= (int)$d['usage_limit'])        return 'discount_used_up';
+        if ($subtotalFils < store_fils($d['min_order']))               return 'discount_min_order';
+        if ($eligible($d['category']) <= 0)                            return 'discount_not_applicable';
+        return null;
+    };
+
+    // 1. automatic rules — best first, so if two apply the customer gets the
+    //    better one at the front and the cap (if it bites) trims the weaker.
+    $autos = $db->query("select * from discounts where kind = 'auto' and active = 1")->fetchAll();
+    $scored = [];
+    foreach ($autos as $d) {
+        if ($usable($d) !== null) continue;
+        $off = store_discount_amount($d, $eligible($d['category']));
+        if ($off > 0) $scored[] = ['d' => $d, 'off' => $off];
+    }
+    usort($scored, fn ($a, $b) => $b['off'] <=> $a['off']);
+    foreach ($scored as $s) {
+        $applied[] = ['id' => (int)$s['d']['id'], 'code' => null, 'label' => $s['d']['label'],
+                      'fils' => $s['off']];
+    }
+
+    // 2. one typed code
+    $code = strtoupper(trim((string)$code));
+    if ($code !== '') {
+        $q = $db->prepare("select * from discounts where kind = 'code' and code = ?");
+        $q->execute([$code]);
+        $d = $q->fetch();
+        if (!$d) {
+            $error = 'discount_unknown';
+        } elseif (($why = $usable($d)) !== null) {
+            $error = $why;
+        } else {
+            $off = store_discount_amount($d, $eligible($d['category']));
+            if ($off <= 0) $error = 'discount_not_applicable';
+            else $applied[] = ['id' => (int)$d['id'], 'code' => $d['code'], 'label' => $d['label'],
+                               'fils' => $off];
+        }
+    }
+
+    // 3. the cap. Trimmed from the LAST rule backwards so the first (best)
+    //    discount survives intact and the customer sees the one they were
+    //    promised, not two halves of two.
+    $cap = intdiv($subtotalFils * STORE_DISCOUNT_MAX_PCT, 100);
+    $total = array_sum(array_column($applied, 'fils'));
+    for ($i = count($applied) - 1; $i >= 0 && $total > $cap; $i--) {
+        $trim = min($applied[$i]['fils'], $total - $cap);
+        $applied[$i]['fils'] -= $trim;
+        $total -= $trim;
+    }
+    $applied = array_values(array_filter($applied, fn ($a) => $a['fils'] > 0));
+
+    return ['applied' => $applied, 'total_fils' => array_sum(array_column($applied, 'fils')),
+            'error' => $error];
+}
+
+// Claim the usage slots, inside the order's own transaction.
+//
+// The guarded UPDATE is the whole point: `used_count < usage_limit` in the
+// WHERE means two simultaneous checkouts cannot both take the last use of a
+// one-per-shop code. If the claim does not land, the caller must fail the
+// order rather than honour a discount that is gone — a code that can be used
+// twice is a code that can be used a thousand times.
+function store_discounts_claim(PDO $db, array $applied): bool {
+    foreach ($applied as $a) {
+        $st = $db->prepare(
+            'update discounts set used_count = used_count + 1
+              where id = ? and (usage_limit = 0 or used_count < usage_limit)'
+        );
+        $st->execute([$a['id']]);
+        if ($st->rowCount() !== 1) return false;
+    }
+    return true;
+}
+
+// ------------------------------------------------------------- pricing a cart
+//
+// Turn the browser's items into priced lines. ONE implementation, used by both
+// create_order and the discount preview — a preview computed by different code
+// from the charge is a preview that can promise a total the checkout refuses,
+// and the customer sees the shop change its price at the last step.
+//
+// Every line is validated before anything is written, so a bad cart is
+// rejected with the token naming the problem rather than a rolled-back
+// mystery. The unit price is the EFFECTIVE price (a live sale, else the list
+// price), read from the table at this instant. Nothing the browser sent has
+// been near it.
+function store_price_lines(PDO $db, array $items): array {
+    $lines = [];
+    $q = $db->prepare(
+        'select id, price, sale_price, sale_starts_at, sale_ends_at, category
+           from products where slug = ? and active = 1'
+    );
+    foreach ($items as $item) {
+        $qty = (int)($item['qty'] ?? 1);
+        if ($qty < 1 || $qty > 99) store_fail('invalid_qty');
+
+        $size = strtoupper(trim((string)($item['size'] ?? '')));
+        $fit  = strtolower(trim((string)($item['fit'] ?? '')));
+        // Rejected, never silently dropped — a dropped size is an order that
+        // looks complete and does not say which size to pack.
+        if ($size !== '' && !in_array($size, STORE_SIZES, true)) store_fail('invalid_size');
+        if ($fit  !== '' && !in_array($fit,  STORE_FITS,  true)) store_fail('invalid_fit');
+
+        $q->execute([(string)($item['slug'] ?? '')]);
+        $prod = $q->fetch();
+        if (!$prod) store_fail('unavailable_' . (string)($item['slug'] ?? '?'));
+
+        $eff = store_effective_price($prod);
+        $lines[] = [
+            'product_id' => (int)$prod['id'],
+            'qty'        => $qty,
+            'unit_price' => store_kwd($eff['fils']),
+            'unit_fils'  => $eff['fils'],
+            'line_fils'  => $eff['fils'] * $qty,
+            'category'   => $prod['category'],
+            'size'       => $size === '' ? null : $size,
+            'fit'        => $fit  === '' ? null : $fit,
+        ];
+    }
+    return $lines;
+}
+
+// A datetime from the admin's <input type="datetime-local">, or null.
+//
+// The browser sends "2026-08-14T18:00" with no zone. The whole system compares
+// against gmdate(), so the value is stored verbatim as UTC and the admin form
+// says so — the alternative is guessing a timezone, and a promotion that
+// starts three hours early because the server disagreed with the browser is a
+// bug nobody can see until a customer gets a price nobody meant to offer.
+function store_datetime(?string $raw): ?string {
+    $v = trim((string)$raw);
+    if ($v === '') return null;
+    $v = str_replace('T', ' ', $v);
+    if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/', $v)) store_fail('invalid_date');
+    return strlen($v) === 16 ? $v . ':00' : $v;
+}
+
+// A link the admin may point a hero button or the promo bar at.
+//
+// SAME ORIGIN ONLY. These are the most prominent links on the site, rendered
+// inside the shop's own design, so an off-site URL here would be the brand
+// lending its credibility to somewhere else — and a "javascript:" or "data:"
+// one would be script execution from a form field. A path, or nothing.
+function store_internal_href(?string $raw): ?string {
+    $v = trim((string)$raw);
+    if ($v === '') return null;
+    if (!preg_match('#^/[A-Za-z0-9/_\-\?=&%\.]{0,180}$#', $v)) store_fail('invalid_link');
+    return $v;
 }

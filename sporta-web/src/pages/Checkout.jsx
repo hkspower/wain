@@ -4,6 +4,7 @@ import { useLang } from '../i18n/LanguageContext'
 import { optionLine } from '../lib/options'
 import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
+import { phpDiscountCheck } from '../lib/backend'
 import { startCheckout } from '../lib/checkout'
 import { usePageMeta } from '../lib/seo'
 import { GOVERNORATES, governorate, governorateOfArea, normalisePhone, toAsciiDigits } from '../lib/kuwait'
@@ -43,6 +44,13 @@ function cleanPhone(raw) {
 export default function Checkout() {
   const { lang, t } = useLang()
   const { items, total } = useCart()
+  // The coupon. `applied` is the SERVER's answer — what it says the discount is
+  // worth for this exact bag — never a number worked out here. The checkout
+  // shows what it was told, and create_order recomputes it from the same code
+  // when the order is actually placed, so the two cannot disagree.
+  const [code, setCode] = useState('')
+  const [applied, setApplied] = useState(null)
+  const [codeState, setCodeState] = useState({ busy: false, error: '' })
   usePageMeta({ path: '/checkout', robots: 'noindex, follow' })
 
   const [form, setForm] = useState(loadDelivery)
@@ -141,6 +149,7 @@ export default function Checkout() {
     setBusy(true)
     try {
       await startCheckout({ items, lang, paymentMethod: method,
+        discountCode: applied?.code ?? '',
         customer: { ...form, phone: normalisePhone(form.phone) } })
       // On success the browser is already navigating to the bank.
     } catch (error) {
@@ -396,9 +405,32 @@ export default function Checkout() {
                 </li>
               ))}
             </ul>
+            <Coupon
+              items={items} lang={lang} code={code} setCode={setCode}
+              applied={applied} setApplied={setApplied}
+              state={codeState} setState={setCodeState}
+            />
+
+            {applied?.applied?.length > 0 && (
+              <div className="mt-4 space-y-1.5 border-t border-slate-200 pt-4 text-sm">
+                <div className="flex justify-between text-slate-600">
+                  <span>{t.cart.subtotal}</span>
+                  <span className="tabular-nums">{formatKWD(applied.subtotal, lang)}</span>
+                </div>
+                {applied.applied.map((a, i) => (
+                  <div key={i} className="flex justify-between font-semibold text-emerald-700">
+                    <span>{a.label}</span>
+                    <span className="tabular-nums">−{formatKWD(a.amount, lang)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="mt-4 flex justify-between border-t border-slate-200 pt-4 text-lg font-bold">
               <span>{t.cart.total}</span>
-              <span className="text-accent tabular-nums">{formatKWD(total, lang)}</span>
+              <span className="text-accent tabular-nums">
+                {formatKWD(applied ? applied.total : total, lang)}
+              </span>
             </div>
 
             {/* Payment method. A radio group rather than a dropdown: both
@@ -452,7 +484,9 @@ export default function Checkout() {
         <div className="action-bar safe-bottom flex items-center justify-between gap-3 px-4 pt-3 lg:hidden">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">{t.cart.total}</p>
-            <p className="text-accent truncate text-lg font-extrabold tabular-nums">{formatKWD(total, lang)}</p>
+            <p className="text-accent truncate text-lg font-extrabold tabular-nums">
+              {formatKWD(applied ? applied.total : total, lang)}
+            </p>
           </div>
           <button type="submit" disabled={busy} className="btn btn-primary flex-1">
             {busy ? t.checkout.redirecting : method === 'cod' ? t.checkout.placeOrder : t.checkout.payNow}
@@ -487,4 +521,98 @@ function Field({ id, label, hint, error, optional, className = '', children }) {
       )}
     </div>
   )
+}
+
+// The coupon field.
+//
+// It asks the SERVER whether the code is good, and for how much, against this
+// exact bag — it never works out a discount here. That is the same rule that
+// stops the browser naming a price: create_order recomputes the code from the
+// same rows when the order is placed, so the figure shown here and the figure
+// charged are produced by one implementation and cannot drift.
+//
+// An unusable code says WHY. "Invalid code" for a code that is real but has
+// expired, or needs a bigger basket, sends the customer to look for a typo
+// that is not there — and a customer who believes they were given a discount
+// and was not is a complaint, not a lost sale.
+function Coupon({ items, lang, code, setCode, applied, setApplied, state, setState }) {
+  const { t } = useLang()
+
+  async function apply(e) {
+    e.preventDefault()
+    const entered = code.trim()
+    if (!entered) return
+    setState({ busy: true, error: '' })
+    try {
+      const res = await phpDiscountCheck({
+        items: items.map((i) => ({
+          slug: i.slug, qty: i.qty,
+          ...(i.size ? { size: i.size } : {}),
+          ...(i.fit ? { fit: i.fit } : {}),
+        })),
+        code: entered,
+      })
+      setApplied({ ...res, code: entered.toUpperCase() })
+      setState({ busy: false, error: '' })
+    } catch (err) {
+      setApplied(null)
+      setState({ busy: false, error: DISCOUNT_MESSAGE[err.token] ?? DISCOUNT_MESSAGE.failed })
+    }
+  }
+
+  if (applied?.code) {
+    return (
+      <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-emerald-50 px-3.5 py-2.5">
+        <p className="min-w-0 text-sm font-semibold text-emerald-800">
+          <code className="font-mono">{applied.code}</code> {t.checkout.couponApplied}
+        </p>
+        <button
+          type="button"
+          onClick={() => { setApplied(null); setCode(''); setState({ busy: false, error: '' }) }}
+          className="flex-none text-sm font-semibold text-emerald-700 underline underline-offset-2"
+        >
+          {t.checkout.couponRemove}
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-4">
+      {/* Not a <form>: this sits inside the checkout form, and a nested form is
+          invalid HTML that browsers resolve by submitting the OUTER one — so
+          pressing Enter on a coupon would have placed the order. */}
+      <div className="flex gap-2">
+        <input
+          value={code}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); apply(e) } }}
+          placeholder={t.checkout.couponPlaceholder}
+          aria-label={t.checkout.coupon}
+          autoComplete="off"
+          spellCheck="false"
+          className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2.5 font-mono text-sm uppercase outline-none focus:border-accent"
+        />
+        <button
+          type="button" onClick={apply} disabled={state.busy || !code.trim()}
+          className="flex-none rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 disabled:opacity-40"
+        >
+          {state.busy ? '…' : t.checkout.applyCoupon}
+        </button>
+      </div>
+      {state.error && (
+        <p role="alert" className="mt-2 text-sm font-semibold text-rose-600">{state.error}</p>
+      )}
+    </div>
+  )
+}
+
+const DISCOUNT_MESSAGE = {
+  discount_unknown: 'We do not recognise that code.',
+  discount_expired: 'That code has expired.',
+  discount_inactive: 'That code is no longer active.',
+  discount_used_up: 'That code has already been used the maximum number of times.',
+  discount_min_order: 'Your basket is below the minimum for that code.',
+  discount_not_applicable: 'That code does not apply to anything in your basket.',
+  failed: 'Could not check that code. Please try again.',
 }

@@ -1,5 +1,5 @@
 import { PRODUCTS } from '../lib/products'
-import { phpAdmin } from '../lib/backend'
+import { phpAdmin, phpBase } from '../lib/backend'
 
 export const PAYMENT_STATES = ['paid', 'pending', 'review', 'failed']
 export const FULFILMENT_STATES = ['unfulfilled', 'packed', 'shipped', 'delivered', 'cancelled']
@@ -278,5 +278,91 @@ export async function setStock(sku, stock) {
   const m = r.error ?? ''
   if (m.includes('stock_cannot_be_negative')) return { error: 'Stock cannot be negative.' }
   if (m.includes('sku_not_found')) return { error: 'That item code is not in the inventory — refresh.' }
+  return r
+}
+
+// ---------------------------------------------------------------------------
+// The home hero.
+//
+// The image never travels as a file. It is read in the browser, downscaled on
+// a canvas and sent as a data: URL that lands in a database row — the same
+// rule the brand logos follow, because an endpoint that writes into the web
+// root is a way in, and this server once hosted exactly that.
+//
+// It comes BACK as a URL, though, not as base64: a hero photograph is two
+// orders of magnitude bigger than a logo, and a list of them inlined into JSON
+// would be a megabyte of uncacheable response on every load. api.php serves
+// the bytes with a content hash and a one-year cache instead.
+// ---------------------------------------------------------------------------
+export async function fetchSlides() {
+  const r = await php('slides')
+  // Same relative-URL resolution the storefront does — admin.php cannot know
+  // where the API is mounted, and this side has to render the thumbnails.
+  const slides = (r.data?.slides ?? []).map((s) => ({
+    ...s, image: s.image ? `${phpBase()}/${s.image}` : null,
+  }))
+  return { ...r, slides, hero: r.data?.hero ?? null }
+}
+
+export async function saveSlide(slide) {
+  const r = await php('slide_save', { method: 'POST', body: slide })
+  if (r.data) return { id: r.data.id }
+  const m = r.error ?? ''
+  if (m.includes('image_required')) return { error: 'A slide needs a photograph.' }
+  if (m.includes('logo_too_large')) return { error: 'That image is too large even after downscaling. Try a smaller one.' }
+  if (m.includes('logo_bad_format') || m.includes('logo_not_an_image')) {
+    return { error: 'That file is not a PNG, JPEG or WebP image. (SVG is refused — it can carry script.)' }
+  }
+  if (m.includes('invalid_link')) return { error: 'The button link must be a path on this site, like /shop.' }
+  return r
+}
+
+export const deleteSlide = (id) => php('slide_delete', { method: 'POST', body: { id } })
+export const reorderSlides = (ids) => php('slide_reorder', { method: 'POST', body: { ids } })
+
+export async function saveSettings(name, value) {
+  const r = await php('settings_save', { method: 'POST', body: { name, value } })
+  if (r.data) return { value: r.data }
+  if ((r.error ?? '').includes('invalid_link')) {
+    return { error: 'The link must be a path on this site, like /shop.' }
+  }
+  return r
+}
+
+// ---------------------------------------------------------------------------
+// Discounts.
+//
+// Everything here is a rule the SERVER applies. The browser can name a code at
+// checkout; it can never name an amount. That is the same rule that stops it
+// naming a price, and it matters more here — a discount is a number the
+// customer actively wants to be bigger.
+// ---------------------------------------------------------------------------
+export async function fetchDiscounts() {
+  const r = await php('discounts')
+  return { ...r, rows: r.data ?? [] }
+}
+
+export async function saveDiscount(d) {
+  const r = await php('discount_save', { method: 'POST', body: d })
+  if (r.data) return { discount: r.data }
+  const m = r.error ?? ''
+  if (m.includes('code_taken')) return { error: 'Another discount already uses that code.' }
+  if (m.includes('invalid_code')) return { error: 'A code needs 3–24 letters or numbers.' }
+  if (m.includes('invalid_percent')) return { error: 'A percentage must be between 1 and 90.' }
+  if (m.includes('invalid_amount')) return { error: 'Enter an amount greater than zero.' }
+  if (m.includes('sale_dates_backwards')) return { error: 'The end date is before the start date.' }
+  if (m.includes('missing_label')) return { error: 'Give it a name — the customer sees it at checkout.' }
+  if (m.includes('invalid_date')) return { error: 'Check the dates.' }
+  return r
+}
+
+export const setDiscountActive = (id, active) =>
+  php('discount_active', { method: 'POST', body: { id, active } })
+
+export async function deleteDiscount(id) {
+  const r = await php('discount_delete', { method: 'POST', body: { id } })
+  if ((r.error ?? '').includes('discount_in_use')) {
+    return { error: 'Orders were placed with this code, so it cannot be deleted. Switch it off instead.' }
+  }
   return r
 }

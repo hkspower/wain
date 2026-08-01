@@ -98,6 +98,64 @@ and (until you delete it) `setup-admin.php` answer over HTTP.
    `api/config.php` spells them `db_host`/`db_name`/`db_user`/`db_pass`, the
    two gateway configs spell them `mysql_*`. Same four values, same database.
 
+## Home slides, promotions and discounts
+
+Four admin screens, one migration (`api/promo.mysql.sql` — already inside
+`schema.mysql.sql` on a fresh install, and safe to run twice).
+
+**Slides** is the home hero. Upload a photograph and it is downscaled to 1600px
+WebP *in your browser* before it is sent, so a picture straight off a phone is
+fine. It is stored in the database row, not as a file — the same rule the brand
+logos follow, because an endpoint that writes into the web root is a way in.
+The bytes are then served by `api/api.php?r=slide_image` with a content hash in
+the URL and a one-year cache, so the page pays exactly what it would have paid
+for a file.
+
+Per slide: a headline, a line under it and a button in both languages, plus a
+**focal point**. That last one matters — the slide crops to fill and crops
+differently on a phone than on a desktop, so the focal point marks the part
+that must survive, usually the athlete's face. Above the list: **speed**
+(2–30 seconds), **shuffle**, **advance on its own**, and **size** (short, tall,
+full height). Pausing on hover, on keyboard focus and for reduced-motion is not
+a setting; it is a requirement and it always applies.
+
+With no slides, the home page shows the drawn artwork it ships with.
+
+**Promotions** covers the three surfaces a promotion actually uses:
+
+* a **sale price** on a product — "was 12.000, now 9.000", optionally dated.
+  It is stored alongside the list price, so ending a sale is one click and
+  nobody has to remember the original. **Checkout charges it**, computed
+  server-side from the same row the shop displays.
+* the **featured** row the home page leads with, and its order;
+* the **promo bar** across the top of every page, in both languages.
+
+**Discounts** are codes the customer types and rules that apply themselves.
+Percent or fixed, an optional minimum, an optional category, optional start and
+end dates (in UTC — Kuwait is UTC+3, and the screen says so), and an optional
+usage limit.
+
+They stack in a fixed order: every qualifying automatic rule, best first, then
+at most one typed code. The total is capped at **60% of the order** — the
+backstop against two reasonable discounts adding up to a free one — with 90%
+the ceiling on any single rule. A single-use code is claimed inside the order's
+own transaction, so eight simultaneous checkouts cannot all take the last one.
+
+An unusable code always says **why** — expired, below the minimum, already used
+up — because "invalid code" for a code that is real sends the customer hunting
+for a typo that is not there.
+
+There is no free-delivery discount type: delivery is already free, so it would
+be a discount off nothing.
+
+### The rule underneath all of it
+
+The browser may name a **code**. It may never name an **amount**. `pay.php`
+charges `orders.amount`, so anything able to move that figure is able to move
+what the bank collects. The checkout's coupon preview and the order itself call
+the same two functions in `store.php`, which is why the number quoted and the
+number charged cannot disagree.
+
 ## Brands
 
 The admin's **Brands** tab manages the brands the shop carries: English and

@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { IconArrowRight } from './icons'
+import { phpSlides } from '../lib/backend'
 
 // The home hero: three slides — strength, cardio, and the multi-sport arena
 // (football / kickboxing / swimming).
@@ -32,6 +33,49 @@ const DESKTOP_AT = '(min-width: 768px)'
 const INTERVAL_MS = 6500
 
 const SLIDE_IDS = ['strength', 'cardio', 'arena']
+
+// The three heights the admin can pick, and the reason they are CLASSES with a
+// fixed minimum rather than anything fluid: the hero is the first thing that
+// paints, and a height that resolves after the font or the photograph loads is
+// a layout shift on the most-viewed element of the site. A previous version
+// measured CLS 0.0456 in Arabic for exactly that reason.
+const SIZE_CLASS = {
+  short: 'min-h-[400px] md:min-h-[460px] 2xl:min-h-[520px]',
+  tall:  'min-h-[540px] md:min-h-[640px] 2xl:min-h-[720px]',
+  full:  'min-h-[85svh] md:min-h-[90svh]',
+}
+
+// The slides the admin has uploaded, plus how they should play.
+//
+// Until there are any, this returns null and the component renders the three
+// drawn scenes it ships with — the same fallback the category tiles use. A
+// home page that renders nothing while the photography is pending is worse
+// than one that renders the artwork.
+function useHeroConfig() {
+  const [config, setConfig] = useState(null)
+  useEffect(() => {
+    let alive = true
+    phpSlides()
+      .then((d) => { if (alive && d) setConfig(d) })
+      // No /api (the html5 fallback, a preview server, a half-set-up host) is
+      // not an error here: it means "use the artwork", which is what null does.
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+  return config
+}
+
+// A stable shuffle: the order is decided ONCE per mount, not on every render.
+// Re-shuffling on a re-render would move the slide out from under whoever was
+// reading it, which is the opposite of what the setting is for.
+function shuffled(list) {
+  const a = [...list]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
 const TONE = { strength: 'hero-strength', cardio: 'hero-cardio', arena: 'hero-arena' }
 const SCENES = { strength: SceneStrength, cardio: SceneCardio, arena: SceneArena }
 
@@ -50,7 +94,27 @@ export default function HeroSlider() {
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   ).current
 
-  const paused = hovered || focused || stopped || hidden || reduced
+  // What the admin has set up, if anything.
+  const config = useHeroConfig()
+  const hero = config?.hero ?? {}
+  const intervalMs = Math.max(2000, Number(hero.speed_ms) || INTERVAL_MS)
+
+  // The slide list: the admin's, or the drawn scenes. Built once per config so
+  // the shuffle does not re-roll on every render and move the slide out from
+  // under whoever is reading it.
+  const items = useMemo(() => {
+    const uploaded = config?.slides ?? []
+    const base = uploaded.length
+      ? uploaded.map((s) => ({ kind: 'photo', ...s }))
+      : SLIDE_IDS.map((id) => ({ kind: 'drawn', id }))
+    return hero.shuffle ? shuffled(base) : base
+  }, [config, hero.shuffle])
+
+  const count = items.length
+  // Autoplay is a setting; pausing is not. Hover, focus, a background tab and
+  // prefers-reduced-motion all still stop it, because WCAG 2.2.2 requires
+  // moving content to be pausable however the shop has configured it.
+  const paused = hovered || focused || stopped || hidden || reduced || hero.autoplay === false
 
   useEffect(() => {
     const onVis = () => setHidden(document.hidden)
@@ -59,12 +123,17 @@ export default function HeroSlider() {
   }, [])
 
   useEffect(() => {
-    if (paused) return undefined
-    const id = setInterval(() => setIndex((i) => (i + 1) % SLIDE_IDS.length), INTERVAL_MS)
+    if (paused || count < 2) return undefined
+    const id = setInterval(() => setIndex((i) => (i + 1) % count), intervalMs)
     return () => clearInterval(id)
-  }, [paused])
+  }, [paused, count, intervalMs])
 
-  const goTo = (i) => setIndex((i + SLIDE_IDS.length) % SLIDE_IDS.length)
+  // A shorter list than the one that was showing must not leave the index past
+  // its end — deleting the last slide in the admin would otherwise blank the
+  // hero until a reload.
+  useEffect(() => { setIndex((i) => (i < count ? i : 0)) }, [count])
+
+  const goTo = (i) => setIndex((i + count) % count)
 
   // Swipe. The side arrows are desktop-only (on a phone they sat on top of
   // the copy), so touch gets the gesture it expects instead. Horizontal-only,
@@ -106,14 +175,26 @@ export default function HeroSlider() {
         className={`flex ${reduced ? '' : 'transition-transform duration-700 ease-out'}`}
         style={{ transform: `translateX(${offset}%)` }}
       >
-        {SLIDE_IDS.map((id, i) => (
-          <Slide key={id} id={id} copy={T.slides[i]} active={i === index} first={i === 0}
-                 label={`${i + 1} / ${SLIDE_IDS.length}`} />
+        {items.map((item, i) => (
+          <Slide
+            key={item.kind === 'photo' ? `p${item.id}` : item.id}
+            item={item}
+            // The shipped copy belongs to the shipped scenes. An uploaded slide
+            // carries its own words, and falls back to nothing rather than to
+            // somebody else's headline.
+            copy={item.kind === 'drawn' ? T.slides[SLIDE_IDS.indexOf(item.id)] : null}
+            size={SIZE_CLASS[hero.size] ?? SIZE_CLASS.tall}
+            active={i === index}
+            first={i === 0}
+            label={`${i + 1} / ${count}`}
+          />
         ))}
       </div>
 
       {/* prev / next. Physical chevrons flipped by the flip-x convention, so
-          "next" always points in the reading direction. */}
+          "next" always points in the reading direction. Hidden entirely for a
+          single slide: a control that cannot do anything is worse than none. */}
+      {count > 1 && (<>
       <button
         type="button"
         onClick={() => goTo(index - 1)}
@@ -130,12 +211,13 @@ export default function HeroSlider() {
       >
         <IconArrowRight size={18} className="rtl:rotate-180" />
       </button>
+      </>)}
 
       {/* dots + pause */}
-      <div className="absolute bottom-5 start-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rtl:translate-x-1/2">
-        {SLIDE_IDS.map((id, i) => (
+      <div className={`absolute bottom-5 start-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rtl:translate-x-1/2 ${count > 1 ? '' : 'hidden'}`}>
+        {items.map((item, i) => (
           <button
-            key={id}
+            key={item.kind === 'photo' ? `p${item.id}` : item.id}
             type="button"
             onClick={() => goTo(i)}
             aria-label={`${T.goTo} ${i + 1}`}
@@ -168,8 +250,15 @@ export default function HeroSlider() {
   )
 }
 
-function Slide({ id, copy, active, first, label }) {
-  const { lang } = useLang()
+function Slide({ item, copy, size, active, first, label }) {
+  const { lang, t } = useLang()
+  // An uploaded slide is a photograph and its own words. It skips the drawn
+  // scene, the -rtl composition probe and the /hero file lookup entirely —
+  // there is nothing to fall back to, because the picture is right there.
+  if (item.kind === 'photo') {
+    return <PhotoSlide slide={item} size={size} active={active} first={first} label={label} lang={lang} t={t} />
+  }
+  const id = item.id
   const Scene = SCENES[id]
   const [photoOk, setPhotoOk] = useState(true)
   // A photograph is never mirrored — under RTL the copy moves to the other
@@ -239,7 +328,7 @@ function Slide({ id, copy, active, first, label }) {
           Arabic font swap changed the copy height a few pixels and shifted
           the whole page below the hero (CLS 0.0456, measured). Centred copy
           inside a constant box cannot move anything. */}
-      <div className="relative mx-auto flex min-h-[540px] max-w-7xl items-center px-4 py-16 md:min-h-[640px] md:px-6 2xl:min-h-[720px]">
+      <div className={`relative mx-auto flex ${size} max-w-7xl items-center px-4 py-16 md:px-6`}>
         <div className="max-w-xl text-start">
           <span className="flex items-center gap-3">
             <img src="/favicon.png" alt="" width="512" height="512" className="h-9 w-9 select-none" />
@@ -480,5 +569,79 @@ function SceneArena() {
         <path d="M0 618 Q120 612 240 618 T480 618 T720 618 T960 618 T1200 618 T1440 618" fill="none" stroke="#ffffff" strokeWidth="2" opacity="0.08" />
       </g>
     </SceneShell>
+  )
+}
+
+// A slide the owner uploaded.
+//
+// Everything about it comes from the database row: the photograph, both
+// languages of copy, the button, and the focal point. The focal point is the
+// one that earns its place — the image fills the slide and crops differently
+// on a phone than on a desktop, so without it the athlete's face is the first
+// thing to go.
+//
+// A slide with no headline renders no headline. It does NOT borrow the shipped
+// copy: a photograph of swimming captioned "Train strength" is worse than a
+// photograph with no caption.
+function PhotoSlide({ slide, size, active, first, label, lang, t }) {
+  const ar = lang === 'ar'
+  const title = (ar ? slide.title_ar : slide.title_en) || ''
+  const sub = (ar ? slide.subtitle_ar : slide.subtitle_en) || ''
+  const cta = (ar ? slide.cta_label_ar : slide.cta_label_en) || ''
+  // The first slide's title is the page h1, exactly as with the drawn scenes,
+  // so the page keeps one h1 — but only when there IS a title to be one.
+  const Title = first && title ? 'h1' : 'p'
+
+  return (
+    <div
+      role="group"
+      aria-roledescription="slide"
+      aria-label={label}
+      aria-hidden={!active}
+      className="relative w-full shrink-0 bg-ink"
+    >
+      <div aria-hidden="true" className="absolute inset-0 overflow-hidden">
+        <img
+          src={slide.image}
+          alt=""
+          width={slide.width ?? undefined}
+          height={slide.height ?? undefined}
+          // The first slide is the largest thing above the fold and is what
+          // LCP measures; the rest can wait until they are swiped to.
+          loading={first ? 'eager' : 'lazy'}
+          fetchPriority={first ? 'high' : undefined}
+          decoding="async"
+          style={{ objectPosition: `${slide.focal_x ?? 50}% ${slide.focal_y ?? 50}%` }}
+          className="absolute inset-0 h-full w-full select-none object-cover"
+        />
+        {/* The same start-edge scrim the drawn slides use. A photograph the
+            shop did not art-direct can be bright anywhere, and white text over
+            an unknown photo is the most common way a hero becomes unreadable. */}
+        <span className="absolute inset-0 bg-gradient-to-r from-ink/85 via-ink/40 to-transparent rtl:bg-gradient-to-l" />
+      </div>
+
+      <div className={`relative mx-auto flex ${size} max-w-7xl items-center px-4 py-16 md:px-6`}>
+        <div className="max-w-xl text-start">
+          {title && (
+            <Title className="text-5xl font-extrabold leading-none text-white drop-shadow md:text-7xl">
+              {title}
+            </Title>
+          )}
+          {sub && <p className="mt-4 max-w-md text-lg text-white/85">{sub}</p>}
+          {slide.cta_href && (
+            <Link
+              to={slide.cta_href}
+              className="btn btn-light mt-7 inline-flex"
+              // Off-screen slides must not be tab stops, or keyboard focus
+              // jumps into a slide nobody can see and drags the track with it.
+              tabIndex={active ? undefined : -1}
+            >
+              {cta || t.heroSlides.slides[0].cta}
+              <IconArrowRight size={16} className="rtl:rotate-180" />
+            </Link>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }

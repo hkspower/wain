@@ -19,10 +19,19 @@ const ok = (n, d = '') => console.log(`ok   ${n}${d ? `  — ${d}` : ''}`)
 const bad = (n, d = '') => { fails++; console.log(`FAIL ${n}${d ? `  — ${d}` : ''}`) }
 const is = (c, n, d) => (c ? ok(n, d) : bad(n, d))
 
-// Unlock too: the throttle section of native-backend-test.mjs deliberately
-// leaves the admin account locked, and this suite signs in.
+// A known starting state, because this suite asserts exact prices.
+//
+// Unlock: the throttle section of native-backend-test.mjs deliberately leaves
+// the admin account locked, and this suite signs in.
+//
+// Clear promotions: a sale price or a live automatic discount left behind by
+// another suite — or by an afternoon of poking at the admin — changes what
+// checkout charges, and the failure reads as "the server priced this wrong"
+// rather than "something else was on sale".
 await sql('delete from fulfilment_outbox; delete from order_items; delete from orders; ' +
-  'update admin_users set failed_attempts = 0, locked_until = null;')
+  'update admin_users set failed_attempts = 0, locked_until = null; ' +
+  'update products set sale_price = null, sale_starts_at = null, sale_ends_at = null; ' +
+  'delete from discounts;')
 
 const browser = await chromium.launch({
   executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium',
@@ -134,7 +143,7 @@ is(!!confirmed && confirmed.trim().length > 1, 'the result page confirms against
   // and treat any uncaught page error, on any tab, as a failure.
   const screenErrors = []
   ap.on('pageerror', (e) => screenErrors.push(e.message))
-  for (const tab of ['Overview', 'Catalog', 'Products', 'Brands', 'Settings']) {
+  for (const tab of ['Overview', 'Catalog', 'Products', 'Brands', 'Slides', 'Promotions', 'Discounts', 'Settings']) {
     const button = ap.getByRole('button', { name: tab }).first()
     if (!(await button.count())) { bad(`the ${tab} tab exists`); continue }
     await button.click()
@@ -146,6 +155,58 @@ is(!!confirmed && confirmed.trim().length > 1, 'the result page confirms against
   }
   is(screenErrors.length === 0, 'no admin screen throws', screenErrors.join(' | ') || 'clean')
   await admin.close()
+}
+
+// ---------------------------------------------------------------------------
+// A SALE AND A COUPON, THROUGH THE REAL CHECKOUT.
+//
+// The unit tests prove the arithmetic; this proves the shopper can reach it.
+// Both numbers are the SERVER's — the page shows what it was told and the
+// order records what was charged, and if those two ever differ the customer
+// sees the shop change its price at the last step.
+// ---------------------------------------------------------------------------
+{
+  await sql("update products set sale_price = 7.500 where slug = 'cloudsoft-jacket-army-green'; " +
+    "insert into discounts (kind, code, label, type, value, min_order, active) " +
+    "values ('code','E2E10','e2e ten percent','percent',10,0,1)")
+
+  const shop = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+  const sp = await shop.newPage()
+  const shopErrors = []
+  sp.on('pageerror', (e) => shopErrors.push(e.message))
+  await sp.route('**/knet/pay.php*', (route) =>
+    route.fulfill({ status: 200, contentType: 'text/html', body: '<title>bank</title>gateway' }))
+
+  await sp.goto(`${BASE}/product/cloudsoft-jacket-army-green`, { waitUntil: 'networkidle' })
+  const priceText = await sp.locator('main').innerText()
+  is(/7\.500/.test(priceText), 'the product page shows the sale price')
+
+  await sp.locator('[role="group"][aria-label="Size"] button:not([disabled])').first().click()
+  await sp.getByRole('button', { name: 'Add', exact: true }).click()
+  await sp.goto(`${BASE}/checkout`, { waitUntil: 'networkidle' })
+
+  await sp.getByLabel('Discount code').fill('e2e10')
+  await sp.getByRole('button', { name: 'Apply' }).click()
+  await sp.waitForTimeout(900)
+  const summary = await sp.locator('main').innerText()
+  is(/0\.750/.test(summary), 'a lowercase code is accepted and priced against the SALE price', '10% of 7.500')
+
+  await sp.locator('#f-name').fill('Coupon Customer')
+  await sp.locator('#f-phone').fill('99887766')
+  await sp.locator('#f-governorate').selectOption('hawalli')
+  for (const [id, v] of [['area', 'Salmiya'], ['block', '4'], ['street', '12'], ['building', '5']]) {
+    await sp.locator(`#f-${id}`).fill(v)
+  }
+  await sp.getByRole('button', { name: /Pay with KNET/ }).first().click()
+  await sp.waitForURL('**/knet/pay.php*', { timeout: 15000 })
+
+  const paid = (await sql('select subtotal, discount_amount, discount_code, amount from orders order by id desc limit 1')).split('\t')
+  is(paid.join('/') === '7.500/0.750/E2E10/6.750',
+     'and MySQL records subtotal, discount and the charged amount', paid.join(' / '))
+  is(shopErrors.length === 0, 'the checkout throws nothing', shopErrors.join(' | ') || 'clean')
+  await shop.close()
+
+  await sql("update products set sale_price = null; delete from discounts where code = 'E2E10'")
 }
 
 await ctx.close()

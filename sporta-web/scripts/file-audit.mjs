@@ -179,7 +179,7 @@ const REQUIRED = ['/index.html', '/.htaccess', '/knet/.htaccess', '/config.js',
                   // .htaccess denies them by name so shipping is not serving.
                   '/api/.htaccess', '/api/api.php', '/api/admin.php', '/api/store.php',
                   '/api/config.example.php', '/api/cron-fulfilment.php',
-                  '/api/schema.mysql.sql', '/api/seed.mysql.sql']
+                  '/api/schema.mysql.sql', '/api/seed.mysql.sql', '/api/promo.mysql.sql']
 for (const r of REQUIRED) if (!onDisk.has(r)) add('HIGH', `required file absent: ${r}`, '')
 // /pay/config.php holds the CBK ClientSecret and ENCRP_KEY; .cbk_token.json is
 // a live AccessToken. Neither may ever be in the package.

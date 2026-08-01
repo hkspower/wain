@@ -37,24 +37,24 @@ const BUDGET = {
   // loads probes the -rtl composition FIRST and falls back to the base photo,
   // so a server with no photos answers two misses where English answers one.
   //
-  // RE-BASELINED after the backend consolidation, +9 or +10 on every route.
-  // Not a page that got heavier: total JS went DOWN by roughly 200 kB when the
-  // hosted-backend client left. Dropping that dependency changed the module
-  // graph, and Rolldown now splits the modules shared between the entry and
-  // the lazy routes into many small chunks instead of few large ones — eleven
-  // of them on /shop, the smallest 350 BYTES. Same bytes, more round trips.
+  // MEASURED, not chosen, and re-measured whenever the module graph moves.
   //
-  // These numbers are therefore MEASURED, not chosen, and the +1 is only
-  // enough headroom to stop the suite flaking. The chunk granularity is worth
-  // fixing on its own — a round trip on a phone costs far more than 350 bytes
-  // — but that is a build-config change, not a budget change, and it belongs
-  // in its own piece of work. Until then this records the real figure rather
-  // than a ceiling nothing is measured against.
-  '/':                          { requests: 37, requestsAr: 44, unusedPct: 60, worstFile: 150 },
-  '/shop':                      { requests: 26, unusedPct: 60, worstFile: 150 },
-  '/product/sculpt-top-grey':   { requests: 30, unusedPct: 60, worstFile: 150 },
-  '/cart':                      { requests: 27, unusedPct: 60, worstFile: 150 },
-  '/checkout':                  { requests: 29, unusedPct: 60, worstFile: 150 },
+  // The figures moved twice in one day: once UP when dropping a large
+  // dependency changed how Rolldown splits shared chunks (same bytes, more
+  // round trips), and once DOWN again when new imports merged several of those
+  // chunks back together. Neither was a page getting heavier or lighter, which
+  // is why a request budget has to be re-derived rather than reasoned about.
+  //
+  // These are measured against `vite preview`, which serves the built site but
+  // has NO /api behind it. In production the home page additionally fetches the
+  // slides and the catalogue, and every other route fetches the slides once for
+  // the promo bar — up to two more requests, all same-origin JSON. The headroom
+  // below covers them.
+  '/':                          { requests: 31, requestsAr: 38, unusedPct: 60, worstFile: 150 },
+  '/shop':                      { requests: 19, unusedPct: 60, worstFile: 150 },
+  '/product/sculpt-top-grey':   { requests: 23, unusedPct: 60, worstFile: 150 },
+  '/cart':                      { requests: 20, unusedPct: 60, worstFile: 150 },
+  '/checkout':                  { requests: 21, unusedPct: 60, worstFile: 150 },
 }
 const CLS_MAX = 0.02        // Google's "good" is 0.1; this site measures ~0.002
 const SCROLL_MEDIAN_MAX = 18 // ms. 60 FPS is 16.7

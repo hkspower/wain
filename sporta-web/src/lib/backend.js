@@ -31,12 +31,59 @@ async function phpGet(route) {
 export const phpProducts = () => phpGet('products')
 export const phpStock = () => phpGet('stock')
 export const phpBrands = () => phpGet('brands')
+// The home hero, its playback settings and the promo bar, in one request —
+// they are painted by the same screen at the same moment, and three round
+// trips to draw one header is three too many.
+// ONE request per page load, shared.
+//
+// Two components want this payload — the hero wants the slides, the navbar
+// wants the promo bar — and they mount together on the home page. Without the
+// cache that is two identical requests for one document. The promise is cached,
+// not the value, so simultaneous callers join the request already in flight
+// rather than starting a second one.
+//
+// Deliberately per page load and not longer: the shop is a SPA, and an owner
+// who edits the bar and reloads must see the change.
+let slidesOnce = null
+export function phpSlides() {
+  if (!slidesOnce) slidesOnce = phpSlidesFetch().catch((e) => { slidesOnce = null; throw e })
+  return slidesOnce
+}
+
+async function phpSlidesFetch() {
+  const d = await phpGet('slides')
+  if (!d?.slides) return d
+  // api.php returns the image as a path RELATIVE TO ITSELF, because it does not
+  // know what the API is mounted at — /api by default, but config.js may point
+  // it anywhere. Resolving it here is the one place that knows both. Left
+  // relative it resolved against the PAGE, so the home page asked for
+  // /api.php?r=slide_image and got a 404-shaped broken image.
+  return { ...d, slides: d.slides.map((s) => ({ ...s, image: `${phpBase()}/${s.image}` })) }
+}
+// Check a coupon before the customer commits. The server re-prices the cart
+// from the products table rather than trusting a subtotal, so this preview is
+// the number create_order will charge — computed by the same code.
+export async function phpDiscountCheck({ items, code }) {
+  const res = await fetch(`${phpBase()}/api.php?r=discount`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'omit',
+    body: JSON.stringify({ items, code }),
+  })
+  const body = await res.json().catch(() => null)
+  if (!res.ok || body?.error) {
+    const err = new Error(body?.error ?? 'failed')
+    err.token = body?.error ?? 'failed'
+    throw err
+  }
+  return body
+}
 export const phpOrderStatus = (trackId) => phpGet(`status&id=${encodeURIComponent(trackId)}`)
 export const phpOrderInvoice = (trackId) => phpGet(`invoice&id=${encodeURIComponent(trackId)}`)
 
 // Create an order. Throws the machine tokens api.php raises, so checkout.js's
 // messageFor() turns them into something a shopper can act on.
-export async function phpCreateOrder({ trackId, items, customer, paymentMethod }) {
+export async function phpCreateOrder({ trackId, items, customer, paymentMethod, discountCode = '' }) {
   const res = await fetch(`${phpBase()}/api.php?r=order`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -46,6 +93,7 @@ export async function phpCreateOrder({ trackId, items, customer, paymentMethod }
       items,
       customer,
       payment_method: paymentMethod,
+      discount_code: discountCode,
     }),
   })
   const body = await res.json().catch(() => null)

@@ -37,9 +37,23 @@
     background: #fff;
     border-top: 1px solid #e2e8f0;
     padding-bottom: env(safe-area-inset-bottom, 0);
+    /* The bar SCROLLS. With flex:1 and nine tabs a 390px phone gave each one
+       43px — narrower than a fingertip and too narrow to print "Promotions".
+       Fixed widths plus overflow keeps every target thumb-sized and lets the
+       row of them slide, which is what a phone tab bar does when it outgrows
+       the screen. */
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
   }
+  .m-tabbar::-webkit-scrollbar { display: none; }
   .m-tabbar__item {
-    flex: 1;
+    flex: 0 0 auto;
+    min-width: 4.75rem;
+    padding-inline: 0.35rem;
+    scroll-snap-align: center;
     display: flex;
     flex-direction: column;
     align-items: center;

@@ -3,6 +3,9 @@
 // Place at public_html/api/. Routes:
 //
 //   GET  ?r=products            active catalogue (what loadProducts reads)
+//   GET  ?r=slides              hero slides + slider settings + the promo bar
+//   GET  ?r=slide_image&id=&v=  one slide photograph, cached for a year
+//   POST ?r=discount            check a coupon code against a cart
 //   GET  ?r=stock               per-size availability (never the cost column)
 //   POST ?r=order               create an order — the port of create_order
 //   GET  ?r=status&id=TRACK     payment status for the result/track pages
@@ -23,11 +26,123 @@ $db = store_db();
 // ---------------------------------------------------------------- products
 if ($r === 'products') {
     $rows = $db->query(
-        'select slug, name_en, name_ar, desc_en, desc_ar, price, category, image
+        'select slug, name_en, name_ar, desc_en, desc_ar, price, sale_price,
+                sale_starts_at, sale_ends_at, featured, featured_sort, category, image
            from products where active = 1 order by name_en'
     )->fetchAll();
-    foreach ($rows as &$row) $row['price'] = (float)$row['price'];
+    foreach ($rows as &$row) {
+        // `price` is what the shop CHARGES, so a sale price replaces it rather
+        // than travelling beside it. The storefront strikes through
+        // `list_price` when on_sale is true, and every other consumer — cart
+        // totals, the wishlist, structured data — keeps reading `price` and is
+        // correct without knowing promotions exist.
+        //
+        // The sale WINDOW is resolved here and never sent. A browser that
+        // decides for itself whether a sale is live is a browser that can
+        // decide it is live, and the dates are the shop's business anyway.
+        $eff = store_effective_price($row);
+        $row['price']      = $eff['fils'] / 1000;
+        $row['list_price'] = $eff['list_fils'] / 1000;
+        $row['on_sale']    = $eff['on_sale'];
+        $row['featured']   = (bool)$row['featured'];
+        unset($row['sale_price'], $row['sale_starts_at'], $row['sale_ends_at']);
+    }
+    unset($row);
     store_out($rows);
+}
+
+// ------------------------------------------------------------------ slides
+// The home hero, plus the two settings that describe HOW it plays and the
+// promo bar above it. One request: they are rendered by the same screen at the
+// same moment, and three round trips to paint one header is three too many.
+//
+// The photographs are NOT in this response. They are the largest thing on the
+// site and they change rarely, so each slide carries a URL into r=slide_image
+// with a content hash, and the browser caches the bytes for a year. Inlining
+// them would put ~700 kB of base64 into a JSON document that must not be
+// cached at all, on every single page load.
+if ($r === 'slides') {
+    $rows = $db->query(
+        'select id, sort, title_en, title_ar, subtitle_en, subtitle_ar,
+                cta_label_en, cta_label_ar, cta_href, image_hash, image_w, image_h,
+                focal_x, focal_y
+           from hero_slides where active = 1 and image is not null order by sort, id'
+    )->fetchAll();
+    foreach ($rows as &$row) {
+        $row['id']    = (int)$row['id'];
+        $row['image'] = 'api.php?r=slide_image&id=' . $row['id'] . '&v=' . substr((string)$row['image_hash'], 0, 16);
+        $row['width']  = $row['image_w'] === null ? null : (int)$row['image_w'];
+        $row['height'] = $row['image_h'] === null ? null : (int)$row['image_h'];
+        $row['focal_x'] = (int)$row['focal_x'];
+        $row['focal_y'] = (int)$row['focal_y'];
+        unset($row['image_hash'], $row['image_w'], $row['image_h']);
+    }
+    unset($row);
+
+    $bar = store_setting($db, 'promo_bar');
+    // The schedule is resolved here for the same reason the sale window is.
+    $bar['live'] = (bool)$bar['enabled'] && store_window_open($bar['starts_at'] ?? null, $bar['ends_at'] ?? null);
+    unset($bar['starts_at'], $bar['ends_at']);
+
+    store_out(['slides' => $rows, 'hero' => store_setting($db, 'hero'), 'promo_bar' => $bar]);
+}
+
+// One slide's bytes.
+//
+// Served from the row, decoded here, with a long immutable cache — the ?v= is
+// the content hash, so a replaced photograph is a different URL and is picked
+// up at once while the old one stays cacheable forever. This is what makes
+// storing images in the database cost the same as storing them as files, and
+// it is why nothing on this server needs write access to the web root.
+if ($r === 'slide_image') {
+    $q = $db->prepare('select image from hero_slides where id = ?');
+    $q->execute([(int)($_GET['id'] ?? 0)]);
+    $data = (string)($q->fetchColumn() ?: '');
+    if ($data === '' || !preg_match('#^data:image/(png|jpeg|webp);base64,(.+)$#s', $data, $m)) {
+        http_response_code(404);
+        exit;
+    }
+    $bytes = base64_decode($m[2], true);
+    if ($bytes === false) { http_response_code(404); exit; }
+
+    header('Content-Type: image/' . $m[1]);
+    header('Content-Length: ' . strlen($bytes));
+    // A year, immutable — safe ONLY because the URL carries the content hash.
+    header('Cache-Control: public, max-age=31536000, immutable');
+    // It is an image and nothing else, whatever a browser might sniff it as.
+    header('X-Content-Type-Options: nosniff');
+    // .htaccess sets no-store for this whole folder, which is right for the
+    // JSON endpoints and wrong for an immutable image. Replace it explicitly.
+    header_remove('Pragma');
+    echo $bytes;
+    exit;
+}
+
+// -------------------------------------------------------------- discount check
+// Check a code against a cart BEFORE the customer commits to paying.
+//
+// This deliberately re-prices the cart from the products table rather than
+// trusting a subtotal from the browser: otherwise "is my code valid for a
+// 50 KWD order" could be asked about an order that does not exist, and the
+// answer would be a preview the checkout could not honour. The number this
+// returns is the number create_order will compute, because it is the same code.
+if ($r === 'discount' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    $b = store_body();
+    $items = is_array($b['items'] ?? null) ? $b['items'] : [];
+    if (count($items) === 0 || count($items) > 50) store_fail('empty_cart');
+
+    $priced = store_price_lines($db, $items);
+    $sub = array_sum(array_column($priced, 'line_fils'));
+    $res = store_discounts_for($db, $priced, $sub, (string)($b['code'] ?? ''));
+    if ($res['error'] !== null) store_fail($res['error']);
+
+    store_out([
+        'subtotal' => (float)store_kwd($sub),
+        'discount' => (float)store_kwd($res['total_fils']),
+        'total'    => (float)store_kwd($sub - $res['total_fils']),
+        'applied'  => array_map(fn ($a) => ['label' => $a['label'], 'code' => $a['code'],
+                                            'amount' => (float)store_kwd($a['fils'])], $res['applied']),
+    ]);
 }
 
 // ------------------------------------------------------------------ brands
@@ -91,6 +206,13 @@ if ($r === 'invoice') {
         'placed_at'      => $o['created_at'],
         'paid_at'        => $o['paid_at'],
         'amount'         => (float)$o['amount'],
+        // The invoice has to add up. Without these an order that was given
+        // 3 KWD off shows lines totalling 23 and a total of 20, and the
+        // customer's reasonable conclusion is that the shop cannot count.
+        'subtotal'        => (float)$o['subtotal'],
+        'discount_amount' => (float)$o['discount_amount'],
+        'discount_label'  => $o['discount_label'],
+        'discount_code'   => $o['discount_code'],
         'payment_method' => $o['payment_method'],
         'payment_status' => $o['payment_status'],
         'customer_name'  => $o['customer_name'],
@@ -146,35 +268,29 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $street   = store_text($customer['street'] ?? null,   'street',   1, 40);
     $building = store_text($customer['building'] ?? null, 'building', 1, 24);
 
-    // Validate every line BEFORE the transaction opens, so a bad cart rejects
-    // cleanly with the token naming the problem, not a rolled-back mystery.
-    $lines = [];
-    foreach ($items as $item) {
-        $qty = (int)($item['qty'] ?? 1);
-        if ($qty < 1 || $qty > 99) store_fail('invalid_qty');
+    // Validate and price every line BEFORE the transaction opens, so a bad
+    // cart rejects cleanly with the token naming the problem, not a
+    // rolled-back mystery. Prices come from the table; the browser named only
+    // slugs, sizes and quantities.
+    $lines = store_price_lines($db, $items);
 
-        $size = strtoupper(trim((string)($item['size'] ?? '')));
-        $fit  = strtolower(trim((string)($item['fit'] ?? '')));
-        // Rejected, never silently dropped — a dropped size is an order that
-        // looks complete and does not say which size to pack.
-        if ($size !== '' && !in_array($size, STORE_SIZES, true)) store_fail('invalid_size');
-        if ($fit  !== '' && !in_array($fit,  STORE_FITS,  true)) store_fail('invalid_fit');
-
-        $p = $db->prepare('select id, price from products where slug = ? and active = 1');
-        $p->execute([(string)($item['slug'] ?? '')]);
-        $prod = $p->fetch();
-        if (!$prod) store_fail('unavailable_' . (string)($item['slug'] ?? '?'));
-
-        $lines[] = [
-            'product_id' => (int)$prod['id'],
-            'qty'        => $qty,
-            // THE price. From the table, at order time. Nothing the browser
-            // sent has been near this number.
-            'unit_price' => (string)$prod['price'],
-            'size'       => $size === '' ? null : $size,
-            'fit'        => $fit === '' ? null : $fit,
-        ];
-    }
+    // The discount, decided here and nowhere else. The browser may send a
+    // CODE; it may never send an amount. orders.amount is what /knet/pay.php
+    // charges, so anything able to move it is able to move what the bank
+    // collects — this is the same rule that stops the browser naming a price,
+    // and it matters more here because a discount is a number the customer
+    // actively wants to be larger.
+    $subtotalFils = array_sum(array_column($lines, 'line_fils'));
+    if ($subtotalFils <= 0) store_fail('zero_amount');
+    $disc = store_discounts_for($db, $lines, $subtotalFils, (string)($b['discount_code'] ?? ''));
+    if ($disc['error'] !== null) store_fail($disc['error']);
+    $discountFils = $disc['total_fils'];
+    $amountFils   = $subtotalFils - $discountFils;
+    // A 100%-off order would be handed to the bank as 0.000 and refused there,
+    // with the customer already told the order exists. The cap in
+    // store_discounts_for should make this unreachable; it is asserted anyway
+    // because "should be unreachable" is where money goes missing.
+    if ($amountFils <= 0) store_fail('zero_amount');
 
     $db->beginTransaction();
     try {
@@ -197,18 +313,34 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         // arithmetic is exact; bcmath would also be exact but is a compiled-in
         // extension this must not depend on — shared hosting decides what PHP
         // has, not this file.
-        $amountFils = 0;
         $ins = $db->prepare(
             'insert into order_items (order_id, product_id, qty, unit_price, size, fit)
              values (?, ?, ?, ?, ?, ?)'
         );
         foreach ($lines as $l) {
             $ins->execute([$orderId, $l['product_id'], $l['qty'], $l['unit_price'], $l['size'], $l['fit']]);
-            $amountFils += (int)round(((float)$l['unit_price']) * 1000) * $l['qty'];
         }
-        if ($amountFils <= 0) store_fail('zero_amount');
-        $amount = number_format($amountFils / 1000, 3, '.', '');
-        $db->prepare('update orders set amount = ? where id = ?')->execute([$amount, $orderId]);
+
+        // Claim the usage slots inside THIS transaction. The guarded update
+        // means two simultaneous checkouts cannot both take the last use of a
+        // one-per-shop code; if the claim does not land the whole order rolls
+        // back, because honouring a discount that is gone is how a code meant
+        // for one customer ends up used a thousand times.
+        if (!store_discounts_claim($db, $disc['applied'])) store_fail('discount_used_up', 409);
+
+        $amount = store_kwd($amountFils);
+        // discount_label is a SNAPSHOT. Renaming or deleting a discount later
+        // must not rewrite what an order says it was given.
+        $label = implode(' + ', array_column($disc['applied'], 'label'));
+        $code  = null;
+        foreach ($disc['applied'] as $a) if ($a['code'] !== null) $code = $a['code'];
+        $db->prepare(
+            'update orders set amount = ?, subtotal = ?, discount_amount = ?,
+                    discount_code = ?, discount_label = ? where id = ?'
+        )->execute([
+            $amount, store_kwd($subtotalFils), store_kwd($discountFils),
+            $code, $label === '' ? null : mb_substr($label, 0, 200), $orderId,
+        ]);
 
         // The warehouse message, in the SAME transaction as the order — the
         // whole point of the outbox. If the order exists, its message exists.
@@ -228,7 +360,8 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     }
 
     store_out(['order_id' => $orderId, 'track_id' => $track,
-               'amount' => (float)$amount, 'payment_method' => $method]);
+               'amount' => (float)$amount, 'subtotal' => (float)store_kwd($subtotalFils),
+               'discount' => (float)store_kwd($discountFils), 'payment_method' => $method]);
 }
 
 store_fail('not_found', 404);

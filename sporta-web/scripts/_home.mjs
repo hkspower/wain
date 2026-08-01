@@ -1,0 +1,11 @@
+import { chromium } from 'playwright'
+const b = await chromium.launch({ executablePath:'/opt/pw-browsers/chromium' })
+const ctx = await b.newContext({ viewport:{width:1280,height:900}, serviceWorkers:'block' })
+const p = await ctx.newPage()
+const errs=[]; p.on('pageerror', e=>errs.push(e.message))
+await p.goto('http://127.0.0.1:8096/', { waitUntil:'networkidle' })
+await p.waitForTimeout(1200)
+const cards = await p.locator('article').evaluateAll(els => els.map(e => e.innerText.replace(/\n/g,' | ')).slice(0,4))
+console.log('pageerrors:', errs.length?errs.join('|'):'none')
+cards.forEach(c => console.log(' •', c))
+await b.close()
