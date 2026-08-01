@@ -2,10 +2,13 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import CategoryIcon from "@/components/CategoryIcon";
+import { IconGo, IconLocate, IconPinSolid } from "@/components/icons";
 import {
   categoryGradient,
   countAr,
   distanceKm,
+  getCategory,
   places,
   PLACES_COUNT,
   toArabicDigits,
@@ -97,6 +100,30 @@ export default function NearbyDial() {
           aria-hidden="true"
           className="absolute inset-0 rounded-full bg-sun-300/60 animate-pulse-ring"
         />
+        {/* compass tick ring */}
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 100 100"
+          className="pointer-events-none absolute -inset-4 size-[calc(100%+2rem)] text-sun-600/50"
+        >
+          <g stroke="currentColor" strokeLinecap="round">
+            {Array.from({ length: 36 }).map((_, i) => {
+              const a = (i * 10 * Math.PI) / 180;
+              const major = i % 9 === 0;
+              const r1 = major ? 44.5 : 46.5;
+              return (
+                <line
+                  key={i}
+                  x1={50 + r1 * Math.cos(a)}
+                  y1={50 + r1 * Math.sin(a)}
+                  x2={50 + 48 * Math.cos(a)}
+                  y2={50 + 48 * Math.sin(a)}
+                  strokeWidth={major ? 1.6 : 0.9}
+                />
+              );
+            })}
+          </g>
+        </svg>
         <button
           type="button"
           onClick={() => setOpened(true)}
@@ -132,9 +159,7 @@ export default function NearbyDial() {
             </p>
             {origin ? (
               <span className="flex items-center gap-1 rounded-full bg-palm-500/10 px-2.5 py-1 text-xs font-bold text-palm-600">
-                <svg viewBox="0 0 24 24" className="size-3.5" fill="currentColor" aria-hidden="true">
-                  <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" />
-                </svg>
+                <IconPinSolid className="size-3.5" />
                 من موقعك
               </span>
             ) : (
@@ -144,9 +169,7 @@ export default function NearbyDial() {
                 disabled={locating}
                 className="flex items-center gap-1.5 rounded-full bg-sea-700 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-sea-800 disabled:opacity-70"
               >
-                <svg viewBox="0 0 24 24" className="size-3.5" fill="currentColor" aria-hidden="true">
-                  <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" />
-                </svg>
+                <IconLocate className="size-3.5" />
                 {locating ? "نحدّد موقعك…" : "استخدم موقعي"}
               </button>
             )}
@@ -167,9 +190,9 @@ export default function NearbyDial() {
                 >
                   <span
                     aria-hidden="true"
-                    className={`grid size-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-xl ${categoryGradient(p.category)}`}
+                    className={`grid size-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br text-white ${categoryGradient(p.category)}`}
                   >
-                    {p.emoji}
+                    <CategoryIcon name={getCategory(p.category)?.icon ?? "all"} className="size-6" />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-bold text-ink-900">{p.nameAr}</span>
@@ -185,9 +208,10 @@ export default function NearbyDial() {
 
           <Link
             href="/explore"
-            className="mt-3 block rounded-2xl bg-ink-900 px-5 py-2.5 text-center text-sm font-bold text-white transition hover:bg-ink-800"
+            className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-ink-900 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-ink-800"
           >
-            شوف كل الأماكن ↗
+            شوف كل الأماكن
+            <IconGo className="size-4" />
           </Link>
         </div>
       )}

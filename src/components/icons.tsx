@@ -1,0 +1,297 @@
+/**
+ * Wain icon system.
+ *
+ * Every icon is drawn on a 24px grid with 1.8px rounded strokes and an
+ * optional duotone fill (currentColor at 15%), so the whole set reads as
+ * one family and stays crisp at any rendering scale.
+ */
+import type { SVGProps } from "react";
+
+type IconProps = SVGProps<SVGSVGElement> & { className?: string };
+
+function base(props: IconProps) {
+  const { className = "size-5", ...rest } = props;
+  return {
+    className,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+    focusable: false,
+    ...rest,
+  };
+}
+
+/** Soft duotone underlay used across the set. */
+const DUO = { fill: "currentColor", opacity: 0.15, stroke: "none" } as const;
+
+export function IconPin(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path {...DUO} d="M12 21s-6.5-7-6.5-11.6A6.5 6.5 0 0 1 12 3a6.5 6.5 0 0 1 6.5 6.4C18.5 14 12 21 12 21Z" />
+      <path d="M12 21s-6.5-7-6.5-11.6A6.5 6.5 0 0 1 12 3a6.5 6.5 0 0 1 6.5 6.4C18.5 14 12 21 12 21Z" />
+      <circle cx="12" cy="9.4" r="2.4" />
+    </svg>
+  );
+}
+
+export function IconPinSolid(props: IconProps) {
+  const { className = "size-5", ...rest } = props;
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden focusable={false} {...rest}>
+      <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" />
+    </svg>
+  );
+}
+
+export function IconGrid(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <rect {...DUO} x="13.5" y="13.5" width="7" height="7" rx="2.2" />
+      <rect x="3.5" y="3.5" width="7" height="7" rx="2.2" />
+      <rect x="13.5" y="3.5" width="7" height="7" rx="2.2" />
+      <rect x="3.5" y="13.5" width="7" height="7" rx="2.2" />
+      <rect x="13.5" y="13.5" width="7" height="7" rx="2.2" />
+    </svg>
+  );
+}
+
+export function IconTower(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path {...DUO} d="M8.5 4.5a2.8 2.8 0 1 0 .01 5.6 2.8 2.8 0 0 0 0-5.6Z" />
+      <path d="M8.5 2v2.5" />
+      <circle cx="8.5" cy="7.3" r="2.8" />
+      <path d="M7.6 10 6.5 21M9.4 10l1.1 11" />
+      <path d="M17 6v3.2" />
+      <circle cx="17" cy="10.8" r="1.9" />
+      <path d="M16.4 12.6 15.7 21M17.6 12.6l.7 8.4" />
+      <path d="M4.5 21h15" />
+    </svg>
+  );
+}
+
+export function IconCutlery(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M7 3v6.2a2 2 0 0 0 4 0V3" />
+      <path d="M9 9.5V21" />
+      <path {...DUO} d="M17.5 3c-1.9 1.2-2.9 3.2-2.9 5.4 0 1.8 1 2.9 2.9 3.1Z" />
+      <path d="M17.5 3c-1.9 1.2-2.9 3.2-2.9 5.4 0 1.8 1 2.9 2.9 3.1V21" />
+    </svg>
+  );
+}
+
+export function IconBurger(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path {...DUO} d="M4 9.5C4 6.5 7.6 4.5 12 4.5s8 2 8 5H4Z" />
+      <path d="M4 9.5C4 6.5 7.6 4.5 12 4.5s8 2 8 5H4Z" />
+      <path d="M3.5 13h17" />
+      <path d="M4 16.5h16c0 1.9-1.6 3.3-3.5 3.3h-9C5.6 19.8 4 18.4 4 16.5Z" />
+      <path d="M8.5 7h.01M12 6.5h.01M15.5 7h.01" />
+    </svg>
+  );
+}
+
+/** Arabic coffee pot (dallah) — more Kuwaiti than a latte cup. */
+export function IconDallah(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path {...DUO} d="M9 8h6l1.2 9.5a2 2 0 0 1-2 2.5H9.8a2 2 0 0 1-2-2.5L9 8Z" />
+      <path d="M9 8h6l1.2 9.5a2 2 0 0 1-2 2.5H9.8a2 2 0 0 1-2-2.5L9 8Z" />
+      <path d="M9.2 8 8 5.5h8L14.8 8" />
+      <path d="M11 3.5h2" />
+      <path d="M12 3.5V2.6" />
+      <path d="M16.6 10.5c1.7.3 2.9 1.3 2.9 2.7 0 1.1-.8 2-2.1 2.4" />
+      <path d="M7.4 10.5C5.9 9.9 5 8.7 5 7.4" />
+    </svg>
+  );
+}
+
+export function IconPalm(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path {...DUO} d="M13 8.5c-2.7-1.5-5.6-.9-7.2 1.5 2.4-.5 4.9-.6 7.2.1Z" />
+      <path d="M12.6 21c.2-5.4.5-9.5 1-12.4" />
+      <path d="M13.6 8.6c-2.7-1.5-5.7-.9-7.3 1.5 2.5-.5 5-.6 7.3.1Z" />
+      <path d="M13.6 8.6c2.6-1.7 5.7-1.1 7.2 1.1-2.6-.4-5-.4-7.2.2Z" />
+      <path d="M13.6 8.6c-1.2-2.7-3.7-4-6.6-3.5 2.3 1.2 4.3 2.4 5.7 4Z" />
+      <path d="M13.6 8.6c1.6-2.5 4.3-3.4 7-2.6-2.5 1-4.5 2.1-6 3.4Z" />
+      <path d="M4 21h16" />
+    </svg>
+  );
+}
+
+export function IconBag(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path {...DUO} d="M5.8 8.5h12.4l.9 10.2a2 2 0 0 1-2 2.3H6.9a2 2 0 0 1-2-2.3L5.8 8.5Z" />
+      <path d="M5.8 8.5h12.4l.9 10.2a2 2 0 0 1-2 2.3H6.9a2 2 0 0 1-2-2.3L5.8 8.5Z" />
+      <path d="M9 11V6.5a3 3 0 0 1 6 0V11" />
+    </svg>
+  );
+}
+
+export function IconMasks(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path {...DUO} d="M13 5.5h7.5v5.6a3.75 3.75 0 0 1-7.5 0Z" />
+      <path d="M3.5 5.5H11v5.6a3.75 3.75 0 0 1-7.5 0Z" />
+      <path d="M13 5.5h7.5v5.6a3.75 3.75 0 0 1-7.5 0Z" />
+      <path d="M5.9 8.3h.01M8.6 8.3h.01M15.4 8.3h.01M18.1 8.3h.01" />
+      <path d="M6.3 18.6c1.7 1.3 3.5 1.9 5.7 1.9s4-.6 5.7-1.9" />
+    </svg>
+  );
+}
+
+export function IconFerris(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <circle {...DUO} cx="12" cy="10" r="6.8" />
+      <circle cx="12" cy="10" r="6.8" />
+      <circle cx="12" cy="10" r="1.7" />
+      <path d="M12 3.2v13.6M5.2 10h13.6M7.2 5.2l9.6 9.6M16.8 5.2l-9.6 9.6" />
+      <path d="M8.8 21h6.4L12 16.8Z" />
+    </svg>
+  );
+}
+
+export function IconStar(props: IconProps) {
+  const { className = "size-5", ...rest } = props;
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden focusable={false} {...rest}>
+      <path d="m12 2.6 2.8 5.8 6.3.9-4.6 4.5 1.1 6.4L12 17.2l-5.6 3-1.1-6.4-4.6-4.5 6.3-.9L12 2.6Z" />
+    </svg>
+  );
+}
+
+export function IconClock(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <circle {...DUO} cx="12" cy="12" r="8.5" />
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
+    </svg>
+  );
+}
+
+export function IconCheck(props: IconProps) {
+  return (
+    <svg {...base(props)} strokeWidth={2.4}>
+      <path d="m5 13 4 4L19 7" />
+    </svg>
+  );
+}
+
+export function IconSearch(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <circle {...DUO} cx="11" cy="11" r="7" />
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20.5 20.5-4-4" />
+    </svg>
+  );
+}
+
+/** Forward arrow: points left, the reading direction of this RTL site. */
+export function IconGo(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M4.5 12h15" />
+      <path d="m10.5 6-6 6 6 6" />
+    </svg>
+  );
+}
+
+/** Back arrow: points right, against the RTL reading direction. */
+export function IconBack(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M4.5 12h15" />
+      <path d="m13.5 6 6 6-6 6" />
+    </svg>
+  );
+}
+
+export function IconCompass(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <circle {...DUO} cx="12" cy="12" r="8.5" />
+      <circle cx="12" cy="12" r="8.5" />
+      <path fill="currentColor" stroke="none" d="m15.8 8.2-2.5 5.1-5.1 2.5 2.5-5.1 5.1-2.5Z" />
+      <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+/** Crosshair target for "use my location". */
+export function IconLocate(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <circle {...DUO} cx="12" cy="12" r="5.5" />
+      <circle cx="12" cy="12" r="5.5" />
+      <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+      <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" />
+    </svg>
+  );
+}
+
+export function IconMap(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path {...DUO} d="m9 4-4.6 1.8a1 1 0 0 0-.65.94V19.3a.7.7 0 0 0 .96.65L9 18.3l6 1.9 4.6-1.8a1 1 0 0 0 .65-.94V5.4a.7.7 0 0 0-.96-.65L15 6.4 9 4Z" />
+      <path d="m9 4-4.6 1.8a1 1 0 0 0-.65.94V19.3a.7.7 0 0 0 .96.65L9 18.3l6 1.9 4.6-1.8a1 1 0 0 0 .65-.94V5.4a.7.7 0 0 0-.96-.65L15 6.4 9 4Z" />
+      <path d="M9 4v14.3M15 6.4v13.4" />
+    </svg>
+  );
+}
+
+export function IconSparkle(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path
+        {...DUO}
+        d="M12 3.5c.6 3.6 2.2 5.2 5.8 5.8-3.6.6-5.2 2.2-5.8 5.8-.6-3.6-2.2-5.2-5.8-5.8 3.6-.6 5.2-2.2 5.8-5.8Z"
+      />
+      <path d="M12 3.5c.6 3.6 2.2 5.2 5.8 5.8-3.6.6-5.2 2.2-5.8 5.8-.6-3.6-2.2-5.2-5.8-5.8 3.6-.6 5.2-2.2 5.8-5.8Z" />
+      <path d="M18.5 15.5c.3 1.8 1.1 2.6 2.9 2.9-1.8.3-2.6 1.1-2.9 2.9-.3-1.8-1.1-2.6-2.9-2.9 1.8-.3 2.6-1.1 2.9-2.9Z" />
+    </svg>
+  );
+}
+
+export function IconCar(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path {...DUO} d="M5 12.5 6.6 8a2 2 0 0 1 1.9-1.3h7a2 2 0 0 1 1.9 1.3l1.6 4.5Z" />
+      <path d="M5 12.5 6.6 8a2 2 0 0 1 1.9-1.3h7a2 2 0 0 1 1.9 1.3l1.6 4.5" />
+      <path d="M4.5 12.5h15a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1Z" />
+      <path d="M7.3 15h.01M16.7 15h.01" />
+      <path d="M6 17.5v1.6M18 17.5v1.6" />
+    </svg>
+  );
+}
+
+export function IconCoins(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <ellipse {...DUO} cx="12" cy="6.5" rx="7" ry="3" />
+      <ellipse cx="12" cy="6.5" rx="7" ry="3" />
+      <path d="M5 6.5v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5" />
+      <path d="M5 11.5v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5" />
+    </svg>
+  );
+}
+
+export function IconWave(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path d="M3 8.5c2.3 0 2.3 1.6 4.5 1.6S9.8 8.5 12 8.5s2.3 1.6 4.5 1.6S18.8 8.5 21 8.5" />
+      <path d="M3 13.5c2.3 0 2.3 1.6 4.5 1.6s2.3-1.6 4.5-1.6 2.3 1.6 4.5 1.6 2.2-1.6 4.5-1.6" opacity=".55" />
+      <path d="M3 18.5c2.3 0 2.3 1.6 4.5 1.6s2.3-1.6 4.5-1.6 2.3 1.6 4.5 1.6 2.2-1.6 4.5-1.6" opacity=".3" />
+    </svg>
+  );
+}

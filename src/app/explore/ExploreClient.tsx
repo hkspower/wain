@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import CategoryIcon from "@/components/CategoryIcon";
+import { IconCompass, IconSearch } from "@/components/icons";
 import PlaceCard from "@/components/PlaceCard";
 import {
   categories,
@@ -62,10 +63,7 @@ export default function ExploreClient() {
           aria-hidden="true"
           className="pointer-events-none absolute inset-y-0 start-4 flex items-center text-ink-500"
         >
-          <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="7" />
-            <path d="m20 20-3.5-3.5" strokeLinecap="round" />
-          </svg>
+          <IconSearch className="size-5" />
         </span>
         <input
           type="search"
@@ -124,9 +122,9 @@ export default function ExploreClient() {
         </>
       ) : (
         <div className="rounded-3xl border border-dashed border-sand-300 bg-white/60 py-20 text-center">
-          <p className="text-4xl" aria-hidden="true">
-            🤷
-          </p>
+          <span className="mx-auto grid size-16 place-items-center rounded-3xl bg-sand-100 text-sand-600" aria-hidden="true">
+            <IconCompass className="size-9" />
+          </span>
           <h2 className="mt-4 font-display text-xl font-bold text-ink-900">ما لقينا شي</h2>
           <p className="mt-1 text-ink-500">جرّب بحث ثاني أو تصنيف ثاني — الكويت فيها وايد.</p>
           <button

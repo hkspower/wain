@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { IconPinSolid } from "@/components/icons";
 import { categories } from "@/lib/places";
 
 export default function Footer() {
@@ -11,11 +12,9 @@ export default function Footer() {
             <div className="flex items-center gap-2">
               <span
                 aria-hidden="true"
-                className="grid size-8 place-items-center rounded-xl bg-coral-600 text-white"
+                className="grid size-8 place-items-center rounded-xl bg-gradient-to-b from-coral-500 to-coral-700 text-white shadow-sm"
               >
-                <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden="true">
-                  <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" />
-                </svg>
+                <IconPinSolid className="size-4" />
               </span>
               <span className="font-display text-xl font-extrabold text-ink-900">
                 وين<span className="text-coral-600">؟</span>

@@ -1,7 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import CategoryArt from "@/components/CategoryArt";
 import PlaceCard from "@/components/PlaceCard";
+import {
+  IconBack,
+  IconCheck,
+  IconClock,
+  IconCoins,
+  IconMap,
+  IconPinSolid,
+  IconSparkle,
+  IconStar,
+} from "@/components/icons";
 import { categoryGradient, getCategory, getPlace, places, toArabicDigits } from "@/lib/places";
 
 export function generateStaticParams() {
@@ -57,16 +68,12 @@ export default async function PlacePage({
       <div
         className={`relative flex h-56 items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br shadow-lg sm:h-64 ${categoryGradient(place.category)}`}
       >
-        <span aria-hidden="true" className="text-7xl drop-shadow-lg sm:text-8xl">
-          {place.emoji}
-        </span>
+        <CategoryArt category={place.category} className="absolute inset-0 h-full w-full" />
         <span
           className="absolute start-4 top-4 flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-sm font-bold text-ink-800 shadow-sm backdrop-blur"
           aria-label={`التقييم ${place.rating} من ٥`}
         >
-          <svg viewBox="0 0 24 24" className="size-4 text-sun-500" fill="currentColor" aria-hidden="true">
-            <path d="m12 2 2.9 6.1 6.6.9-4.8 4.7 1.2 6.7L12 17.2 6.1 20.4l1.2-6.7L2.5 9l6.6-.9L12 2Z" />
-          </svg>
+          <IconStar className="size-4 text-sun-500" />
           {toArabicDigits(place.rating.toFixed(1))}
         </span>
       </div>
@@ -109,9 +116,7 @@ export default async function PlacePage({
       </div>
 
       <p className="mt-3 flex items-center gap-1.5 text-ink-500">
-        <svg viewBox="0 0 24 24" className="size-4 text-coral-600" fill="currentColor" aria-hidden="true">
-          <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" />
-        </svg>
+        <IconPinSolid className="size-4 text-coral-600" />
         {place.areaAr}، الكويت
       </p>
 
@@ -120,22 +125,14 @@ export default async function PlacePage({
       {/* Details */}
       <div className="mt-9 grid gap-4 sm:grid-cols-2">
         <div className="rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
-          <h2 className="font-display text-lg font-bold text-ink-900">أبرز ما فيه</h2>
+          <h2 className="flex items-center gap-2 font-display text-lg font-bold text-ink-900">
+            <IconSparkle className="size-5 text-sun-600" />
+            أبرز ما فيه
+          </h2>
           <ul className="mt-3 space-y-2.5">
             {place.highlightsAr.map((h) => (
               <li key={h} className="flex items-start gap-2 text-sm text-ink-600">
-                <svg
-                  viewBox="0 0 24 24"
-                  className="mt-0.5 size-4 shrink-0 text-palm-500"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="m5 13 4 4L19 7" />
-                </svg>
+                <IconCheck className="mt-0.5 size-4 shrink-0 text-palm-500" />
                 {h}
               </li>
             ))}
@@ -143,10 +140,16 @@ export default async function PlacePage({
         </div>
 
         <div className="rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
-          <h2 className="font-display text-lg font-bold text-ink-900">أحسن وقت للزيارة</h2>
+          <h2 className="flex items-center gap-2 font-display text-lg font-bold text-ink-900">
+            <IconClock className="size-5 text-sea-600" />
+            أحسن وقت للزيارة
+          </h2>
           <p className="mt-2.5 text-sm text-ink-600">{place.bestTimeAr}</p>
 
-          <h2 className="mt-6 font-display text-lg font-bold text-ink-900">مستوى الأسعار</h2>
+          <h2 className="mt-6 flex items-center gap-2 font-display text-lg font-bold text-ink-900">
+            <IconCoins className="size-5 text-sand-600" />
+            مستوى الأسعار
+          </h2>
           <p className="mt-2.5 text-sm text-ink-600">{priceLabel[place.priceLevel]}</p>
 
           <a
@@ -155,9 +158,7 @@ export default async function PlacePage({
             rel="noopener noreferrer"
             className="mt-6 inline-flex items-center gap-2 rounded-xl bg-sea-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-sea-700"
           >
-            <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" aria-hidden="true">
-              <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" />
-            </svg>
+            <IconMap className="size-4" />
             افتح في الخرائط
           </a>
         </div>
@@ -180,9 +181,10 @@ export default async function PlacePage({
       <div className="mt-12 text-center">
         <Link
           href="/explore"
-          className="inline-block rounded-xl border border-sand-300 bg-white px-6 py-3 font-bold text-ink-700 shadow-sm transition hover:border-sea-300 hover:text-sea-700"
+          className="inline-flex items-center gap-2 rounded-xl border border-sand-300 bg-white px-6 py-3 font-bold text-ink-700 shadow-sm transition hover:border-sea-300 hover:text-sea-700"
         >
-          ← رجوع للاستكشاف
+          <IconBack className="size-4" />
+          رجوع للاستكشاف
         </Link>
       </div>
     </div>

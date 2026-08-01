@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { IconGo, IconLocate, IconPinSolid, IconSparkle } from "@/components/icons";
 import { countAr, places, PLACES_COUNT } from "@/lib/places";
 
 export const metadata: Metadata = {
@@ -33,13 +34,28 @@ export default function AboutPage() {
 
       <div className="mt-10 grid gap-4 sm:grid-cols-3">
         {[
-          { emoji: "🇰🇼", title: "من أهل الديرة", text: "مختارة من ناس عايشين هني فعلاً." },
-          { emoji: "✨", title: "كيف مو كم", text: "كل مكان يستاهل مكانه بالقائمة." },
-          { emoji: "📍", title: "قريب منك", text: "نرتّب الأماكن حسب قربها من موقعك." },
+          {
+            icon: <IconPinSolid className="size-5" />,
+            tone: "bg-coral-50 text-coral-600",
+            title: "من أهل الديرة",
+            text: "مختارة من ناس عايشين هني فعلاً.",
+          },
+          {
+            icon: <IconSparkle className="size-5" />,
+            tone: "bg-sun-50 text-sun-700",
+            title: "كيف مو كم",
+            text: "كل مكان يستاهل مكانه بالقائمة.",
+          },
+          {
+            icon: <IconLocate className="size-5" />,
+            tone: "bg-sea-50 text-sea-700",
+            title: "قريب منك",
+            text: "نرتّب الأماكن حسب قربها من موقعك.",
+          },
         ].map((item) => (
           <div key={item.title} className="rounded-3xl border border-sand-200 bg-white p-5 shadow-sm">
-            <span className="text-2xl" aria-hidden="true">
-              {item.emoji}
+            <span className={`grid size-10 place-items-center rounded-2xl ${item.tone}`} aria-hidden="true">
+              {item.icon}
             </span>
             <h2 className="mt-2 font-display text-lg font-bold text-ink-900">{item.title}</h2>
             <p className="mt-1 text-sm leading-relaxed text-ink-500">{item.text}</p>
@@ -57,9 +73,10 @@ export default function AboutPage() {
       <div className="mt-10 text-center">
         <Link
           href="/explore"
-          className="inline-block rounded-2xl bg-ink-900 px-6 py-3 font-display text-lg font-bold text-white shadow-md transition hover:bg-ink-800"
+          className="inline-flex items-center gap-2 rounded-2xl bg-ink-900 px-6 py-3 font-display text-lg font-bold text-white shadow-md transition hover:bg-ink-800 active:scale-[0.98]"
         >
-          يالله نبدأ ↗
+          يالله نبدأ
+          <IconGo className="size-5" />
         </Link>
       </div>
     </div>

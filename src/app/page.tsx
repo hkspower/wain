@@ -3,6 +3,7 @@ import KuwaitSkyline from "@/components/KuwaitSkyline";
 import CategoryIcon from "@/components/CategoryIcon";
 import NearbyDial from "@/components/NearbyDial";
 import PlaceCard from "@/components/PlaceCard";
+import { IconCar, IconGo, IconLocate, IconPinSolid, IconSparkle } from "@/components/icons";
 import {
   categories,
   countAr,
@@ -32,9 +33,7 @@ export default function HomePage() {
                 aria-hidden="true"
                 className="absolute -right-6 -top-3 text-coral-600 sm:-right-8 sm:-top-4"
               >
-                <svg viewBox="0 0 24 24" className="size-9 sm:size-12" fill="currentColor">
-                  <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" />
-                </svg>
+                <IconPinSolid className="size-9 sm:size-12" />
               </span>
             </span>
             <p className="mt-3 font-display text-2xl font-bold text-coral-600 sm:text-3xl">
@@ -54,16 +53,15 @@ export default function HomePage() {
         <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <h2 className="flex items-center gap-2 font-display text-2xl font-bold text-white sm:text-3xl">
-              <svg viewBox="0 0 24 24" className="size-6 text-sun-300" fill="currentColor" aria-hidden="true">
-                <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" />
-              </svg>
+              <IconPinSolid className="size-6 text-sun-300" />
               وش تدوّر؟
             </h2>
             <Link
               href="/explore"
-              className="rounded-full bg-white/95 px-4 py-2 text-sm font-bold text-sea-800 shadow-sm transition hover:bg-white"
+              className="flex items-center gap-1.5 rounded-full bg-white/95 px-4 py-2 text-sm font-bold text-sea-800 shadow-sm transition hover:bg-white"
             >
-              شوف الكل ↗
+              شوف الكل
+              <IconGo className="size-4" />
             </Link>
           </div>
 
@@ -111,9 +109,10 @@ export default function HomePage() {
             </div>
             <Link
               href="/explore"
-              className="text-sm font-bold text-coral-700 transition hover:text-coral-800"
+              className="group flex items-center gap-1.5 text-sm font-bold text-coral-700 transition hover:text-coral-800"
             >
-              شوف الكل ↗
+              شوف الكل
+              <IconGo className="size-4 transition group-hover:-translate-x-0.5" />
             </Link>
           </div>
 
@@ -135,28 +134,32 @@ export default function HomePage() {
             {[
               {
                 n: "١",
+                icon: <IconLocate className="size-6" />,
                 title: "حدّد موقعك",
                 text: "اضغط على «إلى وين؟» وتطلع لك أقرب الأماكن — وإذا تبي دقّة أكثر شارك موقعك.",
               },
               {
                 n: "٢",
+                icon: <IconSparkle className="size-6" />,
                 title: "اختر الجو",
                 text: "معالم، مطاعم، قهوة، بحر أو أسواق — كل وحدة ولها وقتها.",
               },
               {
                 n: "٣",
+                icon: <IconCar className="size-6" />,
                 title: "يالله نروح",
                 text: "تعرف وين تروح ومتى تروح، وتخلص من نقاش الجروب.",
               },
             ].map((step) => (
               <div
                 key={step.n}
-                className="relative rounded-3xl border border-sand-200 bg-white p-6 shadow-sm"
+                className="group relative rounded-3xl border border-sand-200 bg-white p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg"
               >
-                <span className="absolute -top-4 start-6 grid size-9 place-items-center rounded-full bg-coral-600 font-display text-base font-bold text-white shadow-sm">
-                  {step.n}
+                <span className="absolute -top-5 start-6 grid size-11 place-items-center rounded-2xl bg-gradient-to-b from-coral-500 to-coral-700 text-white shadow-md shadow-coral-600/30 transition duration-300 group-hover:scale-105">
+                  {step.icon}
                 </span>
-                <h3 className="mt-2 font-display text-lg font-bold text-ink-900">{step.title}</h3>
+                <span className="font-display text-sm font-bold text-sand-500">{step.n}</span>
+                <h3 className="mt-1 font-display text-lg font-bold text-ink-900">{step.title}</h3>
                 <p className="mt-1.5 text-sm leading-relaxed text-ink-500">{step.text}</p>
               </div>
             ))}
@@ -184,9 +187,10 @@ export default function HomePage() {
             </p>
             <Link
               href="/explore"
-              className="mt-8 inline-block rounded-2xl bg-sun-300 px-7 py-3 font-display text-lg font-bold text-ink-900 shadow-lg transition hover:bg-sun-200"
+              className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-sun-300 px-7 py-3 font-display text-lg font-bold text-ink-900 shadow-lg transition hover:bg-sun-200 active:scale-[0.98]"
             >
-              استكشف الأماكن ↗
+              استكشف الأماكن
+              <IconGo className="size-5" />
             </Link>
           </div>
         </div>

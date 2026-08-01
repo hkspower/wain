@@ -1,4 +1,6 @@
 import Link from "next/link";
+import CategoryArt from "@/components/CategoryArt";
+import { IconGo, IconPinSolid, IconStar } from "@/components/icons";
 import { categoryGradient, getCategory, toArabicDigits, type Place } from "@/lib/places";
 
 export default function PlaceCard({ place }: { place: Place }) {
@@ -7,30 +9,26 @@ export default function PlaceCard({ place }: { place: Place }) {
   return (
     <Link
       href={`/places/${place.slug}`}
-      className="group flex flex-col overflow-hidden rounded-3xl border border-sand-200 bg-white shadow-sm transition duration-200 hover:-translate-y-1 hover:border-sand-300 hover:shadow-xl"
+      className="group flex flex-col overflow-hidden rounded-3xl border border-sand-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-sand-300 hover:shadow-xl hover:shadow-ink-900/10"
     >
       <div
-        className={`relative flex h-36 items-center justify-center overflow-hidden bg-gradient-to-br ${categoryGradient(place.category)}`}
+        className={`relative h-36 overflow-hidden bg-gradient-to-br ${categoryGradient(place.category)}`}
       >
-        <span
-          aria-hidden="true"
-          className="text-5xl drop-shadow-md transition duration-300 group-hover:scale-110"
-        >
-          {place.emoji}
-        </span>
+        <CategoryArt
+          category={place.category}
+          className="absolute inset-0 h-full w-full transition duration-500 group-hover:scale-105"
+        />
         <span
           className="absolute start-3 top-3 flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-bold text-ink-800 shadow-sm backdrop-blur"
           aria-label={`التقييم ${place.rating} من ٥`}
         >
-          <svg viewBox="0 0 24 24" className="size-3.5 text-sun-500" fill="currentColor" aria-hidden="true">
-            <path d="m12 2 2.9 6.1 6.6.9-4.8 4.7 1.2 6.7L12 17.2 6.1 20.4l1.2-6.7L2.5 9l6.6-.9L12 2Z" />
-          </svg>
+          <IconStar className="size-3.5 text-sun-500" />
           {toArabicDigits(place.rating.toFixed(1))}
         </span>
       </div>
 
       <div className="flex flex-1 flex-col p-4">
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start justify-between gap-3">
           <h3 className="font-display text-lg font-bold leading-tight text-ink-900 transition group-hover:text-coral-700">
             {place.nameAr}
           </h3>
@@ -56,18 +54,17 @@ export default function PlaceCard({ place }: { place: Place }) {
           {place.taglineAr}
         </p>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+        <div className="mt-3 flex items-center gap-2 text-xs">
           {category && (
             <span className="rounded-full bg-sea-50 px-2.5 py-1 font-bold text-sea-700">
               {category.ar}
             </span>
           )}
-          <span className="flex items-center gap-1 text-ink-500">
-            <svg viewBox="0 0 24 24" className="size-3.5" fill="currentColor" aria-hidden="true">
-              <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z" />
-            </svg>
-            {place.areaAr}
+          <span className="flex min-w-0 items-center gap-1 text-ink-500">
+            <IconPinSolid className="size-3.5 shrink-0 text-coral-600/70" />
+            <span className="truncate">{place.areaAr}</span>
           </span>
+          <IconGo className="ms-auto size-4 shrink-0 text-sand-400 transition duration-300 group-hover:-translate-x-1 group-hover:text-coral-600" />
         </div>
       </div>
     </Link>
