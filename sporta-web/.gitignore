@@ -14,3 +14,4 @@ dropin/php-store/config.php
 # Test Tranportal credentials for scripts/knet-test.mjs. Same rule as the real
 # one: a knet config.php never enters the repo, not even a fake one.
 dropin/php-knet/config.php
+dropin/php-cbk/config.php

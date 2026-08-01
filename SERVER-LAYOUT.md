@@ -19,6 +19,7 @@ node scripts/storage-audit.mjs     # before deploying: is anything reachable tha
 ```
 /home/u130124229/                     ← the account root. NOT web-accessible.
 ├── knet-payments.log                 ← KNET payment audit trail (chmod 600, append-only)
+├── cbk-payments.log                  ← T-Pay payment audit trail (chmod 600, append-only)
 ├── .cbk_token.json                   ← cached CBK AccessToken (chmod 600)
 ├── backups/                          ← anything you download before overwriting it
 └── public_html/                      ← the web root. Everything here is public unless denied.
@@ -52,6 +53,7 @@ defended by an Apache rule — they are simply not in a place Apache serves.
 
 | File | Why it is up there |
 |---|---|
+| `cbk-payments.log` | The same for T-Pay, which had no trail at all until the two gateways were brought to parity. |
 | `knet-payments.log` | Every payment attempt, with track IDs and amounts. A payment system with no trail cannot be reconciled or disputed, and a trail in the web root is a customer list waiting to be downloaded. |
 | `.cbk_token.json` | A **bearer credential**: whoever holds it can call CBK as this merchant until it expires. Its old default was `public_html/pay/.cbk_token.json`, defended by three `.htaccess` rules. Rules are configuration, and configuration is the thing that breaks. |
 

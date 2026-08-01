@@ -39,6 +39,10 @@ $paidAmount = (string)($res['Amount'] ?? '');
 
 $haveDb = cbk_db_configured($cfg) && $trackid !== '';
 
+cbk_log($cfg, 'callback.received', [
+    'trackid' => $trackid, 'status' => $statusCode, 'amt' => $paidAmount, 'payid' => $paymentId,
+]);
+
 // SECURITY — amount verification. Confirm the amount CBK actually charged
 // matches the amount recorded for this order. If they differ, the amount was
 // tampered with: refuse to mark the order paid.
@@ -47,6 +51,9 @@ if ($paid && $haveDb) {
     if ($expected !== null && !amounts_equal($expected, $paidAmount)) {
         $paid = false;
         $statusCode = 'amount_mismatch';
+        cbk_log($cfg, 'callback.amount_mismatch', [
+            'trackid' => $trackid, 'expected' => $expected, 'paid' => $paidAmount,
+        ]);
     }
 }
 

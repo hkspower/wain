@@ -52,6 +52,67 @@ function cbk_pdo(array $cfg): PDO
     return $pdo;
 }
 
+// Amount AND payment status, so a caller can tell "no such order" from
+// "already paid". pay.php needs the difference: without it a shopper who
+// returned to a paid order's link was sent to the gateway to pay a second
+// time, which is a refund and an apology rather than a bug report.
+function cbk_order_lookup(array $cfg, string $trackid): array
+{
+    if (($cfg['store'] ?? '') === 'mysql') {
+        try {
+            $q = cbk_pdo($cfg)->prepare('select amount, payment_status from orders where track_id = ?');
+            $q->execute([$trackid]);
+            $row = $q->fetch(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) {
+            return ['amount' => null, 'status' => null];
+        }
+        return $row
+            ? ['amount' => (string) $row['amount'], 'status' => (string) $row['payment_status']]
+            : ['amount' => null, 'status' => null];
+    }
+    if (($cfg['supabase_url'] ?? '') === '' || ($cfg['supabase_service_key'] ?? '') === '') {
+        return ['amount' => null, 'status' => null];
+    }
+    $url = rtrim($cfg['supabase_url'], '/') . '/rest/v1/'
+        . rawurlencode($cfg['orders_table'])
+        . '?select=amount,payment_status&' . $cfg['orders_match_column'] . '=eq.' . rawurlencode($trackid);
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_HTTPHEADER     => [
+            'apikey: ' . $cfg['supabase_service_key'],
+            'Authorization: Bearer ' . $cfg['supabase_service_key'],
+        ],
+    ]);
+    $body = curl_exec($ch);
+    curl_close($ch);
+    $rows = $body === false ? null : json_decode((string) $body, true);
+    if (!isset($rows[0]['amount'])) return ['amount' => null, 'status' => null];
+    return [
+        'amount' => (string) $rows[0]['amount'],
+        'status' => isset($rows[0]['payment_status']) ? (string) $rows[0]['payment_status'] : null,
+    ];
+}
+
+// Append-only audit log, the twin of knet_log(). A payment system with no
+// trail cannot be reconciled or disputed, and T-Pay had none at all while the
+// KNET dropin logged both sides of every payment. Secrets are never written.
+function cbk_log(array $cfg, string $event, array $data = []): void
+{
+    $path = (string) ($cfg['log_file'] ?? '');
+    if ($path === '') return;
+    $line = json_encode([
+        'ts'    => gmdate('c'),
+        'event' => $event,
+        'ip'    => $_SERVER['REMOTE_ADDR'] ?? '',
+    ] + $data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $new = !file_exists($path);
+    if (@file_put_contents($path, $line . "\n", FILE_APPEND | LOCK_EX) !== false && $new) {
+        @chmod($path, 0600);
+    }
+}
+
 // Read an order's server-authoritative amount by track id.
 // Returns the amount string, or null if not found / DB not configured.
 function cbk_order_amount(array $cfg, string $trackid): ?string

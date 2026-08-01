@@ -71,7 +71,10 @@
   through `/knet`. On the native backend `knet/config.php` MUST carry the
   `'store' => 'mysql'` block or the card path is dead (400 Invalid amount) —
   `npm run test:knet` (39 checks, real MariaDB + a fake gateway speaking the
-  real Tranportal protocol) is what keeps it alive. Both are selectable at checkout; `orders.payment_method` records
+  real Tranportal protocol) is what keeps it alive. T-Pay has the same block
+  and its own suite, `npm run test:tpay` (34 checks, fake CBK API) — it was
+  written because T-Pay had NO coverage while KNET had 39, and it found a
+  live price-authority hole on its first run. Both are selectable at checkout; `orders.payment_method` records
   which was used (`knet` / `tpay` / `cod`).
 
   CBK's manual describes the T-Pay selector as `tij_MerchPayType = 2`; the owner

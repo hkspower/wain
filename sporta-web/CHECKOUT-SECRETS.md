@@ -105,6 +105,7 @@ not work here and T-Pay credentials do not work in `/knet`.
 | `result_page_url` | `https://www.sporta.com.kw/payment/result` | customer stranded |
 | **`store` + `mysql_*`** (native only) | same values as `api/config.php` | **every T-Pay payment refused** and nothing recorded |
 | `token_cache_file` | leave as-is — **above** `public_html` | a live bearer token becomes fetchable over HTTP |
+| `log_file` | leave as-is (above `public_html`) | no audit trail — disputes cannot be settled |
 
 **Verify:** place a 0.100 KWD test order, choose T-Pay, and confirm the order
 turns `paid` in the admin.

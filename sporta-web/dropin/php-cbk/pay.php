@@ -29,16 +29,37 @@ if (!preg_match('/^[A-Za-z0-9]{1,30}$/', $trackid)) {
 //
 // The stored amount is computed by a database trigger from product prices
 // (supabase/schema.sql), so it cannot be influenced from the browser at all.
-$serverAmount = cbk_order_amount($cfg, $trackid);
-if ($serverAmount !== null) {
+// FAIL CLOSED. `null` used to mean three different things at once — no
+// database, no such order, database unreachable — and the fallback for all
+// three was the amount the BROWSER sent. So with a database configured and
+// working, /pay/pay.php?trackid=ANYTHING&amount=0.100 still produced a payment
+// form for 0.100 KWD against an order that did not exist. The /knet dropin was
+// hardened against exactly this and T-Pay never was; scripts/tpay-test.mjs
+// caught it on its first run. Now: if there IS a database, its answer is the
+// only answer, and anything it cannot confirm is refused.
+$lookup = cbk_order_lookup($cfg, $trackid);
+$serverAmount = $lookup['amount'];
+if (cbk_db_configured($cfg)) {
+    if ($serverAmount === null) {
+        cbk_log($cfg, 'pay.reject', ['reason' => 'order_not_found', 'trackid' => $trackid, 'asked' => $amount]);
+        http_response_code(404);
+        exit('Unknown order.');
+    }
+    if ($lookup['status'] === 'paid') {
+        // Charging a settled order again is a refund and an apology.
+        cbk_log($cfg, 'pay.reject', ['reason' => 'already_paid', 'trackid' => $trackid]);
+        http_response_code(409);
+        exit('This order has already been paid.');
+    }
     if ((float) $serverAmount <= 0) {
         http_response_code(400);
         exit('Order has no payable amount.');
     }
     $amount = number_format((float) $serverAmount, 3, '.', '');
 } elseif ($amount === '') {
-    // No database configured AND no amount given: there is nothing to charge.
-    // Failing here beats sending the customer to the bank for 0.000 KWD.
+    // No orders database at all: the browser's figure is the only one there
+    // is, so it must at least be present. Running a live shop this way means
+    // the browser sets the price — see config.example.php.
     http_response_code(400);
     exit('Unknown order.');
 }
@@ -53,9 +74,16 @@ if (!preg_match('/^\d{1,7}(\.\d{1,3})?$/', $amount) || (float) $amount <= 0) {
 try {
     $token = cbk_get_access_token($cfg);
 } catch (Throwable $e) {
+    cbk_log($cfg, 'pay.error', ['trackid' => $trackid, 'error' => $e->getMessage()]);
     http_response_code(502);
     exit('Payment init failed: could not authenticate with CBK.');
 }
+
+cbk_log($cfg, 'pay.init', [
+    'trackid' => $trackid,
+    'amount'  => $amount,
+    'source'  => cbk_db_configured($cfg) ? 'server' : 'client-no-db',
+]);
 
 $checkoutUrl = cbk_base($cfg) . '/ePay/pg/epay?_v=' . rawurlencode($token);
 

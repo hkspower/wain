@@ -46,6 +46,11 @@ return [
     //
     // Must be writable by PHP. hPanel File Manager can create it next to
     // public_html; cbk.php creates it on first use if the directory is writable.
+    // Payment audit log (append-only, chmod 600 on first write). Put it
+    // OUTSIDE public_html so it can never be fetched over HTTP. Set '' to
+    // disable — but a payment system with no trail cannot be reconciled.
+    'log_file' => __DIR__ . '/../../cbk-payments.log',
+
     'token_cache_file' => __DIR__ . '/../../.cbk_token.json',
 
     // --- Optional: update your Supabase "orders" table on success ---
