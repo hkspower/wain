@@ -278,5 +278,53 @@ const order = (track, items, extra = {}) =>
   void sixth
 }
 
+// ---------------------------------------------------------------------------
+// A HALF-SET-UP SERVER MUST SAY SO.
+//
+// Every one of these used to reach the owner as "Wrong email or password",
+// because that was the login's only failure branch. The password was fine in
+// all three cases; the shop simply was not finished. The owner retypes it,
+// gets the same lie, and eventually locks the account they are trying to
+// reach. The admin screen keys its setup instructions off these exact tokens,
+// so they are contract, not detail.
+// ---------------------------------------------------------------------------
+// ------------------------------------------------ a half-set-up server
+{
+  cookie = ''
+  await run('mariadb', ['sporta', '-e',
+    'create table if not exists admin_users_probe like admin_users; ' +
+    'delete from admin_users_probe; ' +
+    'insert into admin_users_probe select * from admin_users; delete from admin_users;'])
+
+  const me = await admin('me')
+  is(me.status === 409 && me.body?.error === 'no_admin_account',
+     'with no account, ?r=me says so BEFORE a password is ever typed',
+     `${me.status} ${me.body?.error}`)
+
+  const login = await admin('login', { method: 'POST',
+    body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }) })
+  is(login.status === 409 && login.body?.error === 'no_admin_account',
+     'and the RIGHT password is not called wrong — it is nobody’s password yet',
+     `${login.status} ${login.body?.error}`)
+
+  await run('mariadb', ['sporta', '-e',
+    'insert into admin_users select * from admin_users_probe; drop table admin_users_probe; ' +
+    'update admin_users set failed_attempts = 0, locked_until = null;'])
+
+  // A table that was never imported is not an outage, and the fix is different.
+  await run('mariadb', ['sporta', '-e', 'rename table admin_users to admin_users_hidden;'])
+  const missing = await admin('me')
+  is(missing.status === 503 && missing.body?.error === 'no_table',
+     'a database with no tables reports no_table, not a generic failure',
+     `${missing.status} ${missing.body?.error}`)
+  is(!/admin_users|SQLSTATE|select /i.test(JSON.stringify(missing.body)),
+     'and the reply names no table, no SQL and no database',
+     JSON.stringify(missing.body))
+  await run('mariadb', ['sporta', '-e', 'rename table admin_users_hidden to admin_users;'])
+
+  const back = await admin('me')
+  is(back.status === 200, 'everything answers normally again afterwards', `${back.status}`)
+}
+
 console.log(fails ? `\n${fails} problem(s) in the native backend` : '\nnative backend: every check passed')
 process.exit(fails ? 1 : 0)

@@ -285,6 +285,19 @@ function store_require_admin(): array {
 // account for fifteen minutes; the lock releases itself.
 function store_login(string $email, string $password): array {
     $db = store_db();
+
+    // Nobody has been created yet. Answering "wrong email or password" here is
+    // technically true and completely useless: the owner types the password
+    // they meant to set, is told it is wrong, and goes looking for a typo that
+    // does not exist. Say what is actually missing instead.
+    //
+    // This leaks only that the shop has no admin yet — which an empty
+    // catalogue already announces — and it cannot enumerate accounts, because
+    // it can only ever fire when the table holds NONE.
+    if ((int)$db->query('select count(*) from admin_users')->fetchColumn() === 0) {
+        store_fail('no_admin_account', 409);
+    }
+
     $q = $db->prepare('select id, email, password_hash, failed_attempts, locked_until from admin_users where email = ?');
     $q->execute([mb_strtolower(trim($email))]);
     $u = $q->fetch();

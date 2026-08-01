@@ -30,7 +30,18 @@ if ($r === 'logout' && $method === 'POST') {
 
 if ($r === 'me') {
     store_session_start();
-    if (empty($_SESSION['admin_id'])) store_out(null);
+    if (empty($_SESSION['admin_id'])) {
+        // Not signed in — so answer the OTHER question the screen needs before
+        // it offers a password box: is there anything to sign in to? Without
+        // this, a server whose SQL was never imported and a server with no
+        // account both look like a plain login, and the first thing the owner
+        // learns is that their correct password is "wrong". One cheap count on
+        // a tiny table, and only on the signed-out path.
+        if ((int)$db->query('select count(*) from admin_users')->fetchColumn() === 0) {
+            store_fail('no_admin_account', 409);
+        }
+        store_out(null);
+    }
     store_out(['email' => $_SESSION['admin_email'] ?? '']);
 }
 

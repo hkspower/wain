@@ -8,6 +8,102 @@ import Brands from './Brands'
 import { IconBag, IconTruck, IconStar, IconLock, IconBox } from '../components/icons'
 import { phpAdmin } from '../lib/backend'
 
+// The three ways the backends screen can be unreachable that are NOT a wrong
+// password. Each names the one file or action that fixes it, because "check
+// your configuration" is what you say when you do not know which part is
+// wrong — and here the server has already told us.
+function setupReason(status, data) {
+  const token = data?.error ?? ''
+  // 404 = the api/ folder never arrived. 0 = the request did not complete at
+  // all. Both mean "not installed", and both used to read as a bad password.
+  if (status === 404 || status === 0) {
+    return {
+      title: 'The backend is not on the server',
+      lead: 'Nothing is answering at /api. The site was uploaded without its api/ folder.',
+      steps: [
+        'Upload public_html/api/ from SPORTA-GO-LIVE.zip (or run npm run publish, which sends it).',
+        'Then create api/config.php from api/config.example.php and set its permissions to 600.',
+      ],
+      note: 'While /api is missing the shop shows no catalogue and refuses every checkout, not just the admin.',
+    }
+  }
+  if (token === 'not_configured') {
+    return {
+      title: 'The backend is not configured yet',
+      lead: 'The site is on the server, but nothing has told it which database to use.',
+      steps: [
+        'hPanel → Databases → MySQL Databases: create a database and a user, and give that user all privileges on it.',
+        'hPanel → File Manager: copy public_html/api/config.example.php to public_html/api/config.php.',
+        'Fill in db_host (localhost), db_name, db_user and db_pass, then set the file’s permissions to 600.',
+      ],
+      note: 'knet/config.php and pay/config.php need the SAME four values, spelled mysql_host / mysql_name / mysql_user / mysql_pass. Until they have them, every card payment is refused.',
+    }
+  }
+  if (token === 'no_table') {
+    return {
+      title: 'The database is empty',
+      lead: 'api/config.php is working and the server connected — the tables just are not there yet.',
+      steps: [
+        'hPanel → Databases → phpMyAdmin → Import.',
+        'Run api/schema.mysql.sql, then api/seed.mysql.sql, then api/brands.mysql.sql — in that order.',
+      ],
+      note: 'The order matters and getting it wrong fails quietly. All three are safe to re-run: prices and names update in place, nothing duplicates, and your stock counts are never overwritten.',
+    }
+  }
+  if (token === 'no_admin_account') {
+    return {
+      title: 'No sign-in has been created yet',
+      lead: 'The database is set up. There is simply nobody to sign in as — so no password can be correct.',
+      steps: [
+        'Open https://www.sporta.com.kw/api/setup-admin.php',
+        'It asks for the cron_key from api/config.php, then your email and a password of at least 12 characters.',
+        'Delete api/setup-admin.php from the server afterwards.',
+      ],
+      note: 'It only works while no account exists, so it can create the first one and never a second.',
+    }
+  }
+  return null
+}
+
+// Deliberately plain: this screen is read on a phone, in hPanel, by someone who
+// is mid-task and stuck.
+function SetupNeeded({ title, lead, steps, note }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6 py-12">
+      <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-8">
+        <div className="mb-5 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 font-bold text-white">S</div>
+          <span className="font-bold text-slate-800">Sporta Backends</span>
+        </div>
+        <h1 className="text-lg font-bold text-slate-900">{title}</h1>
+        <p className="mt-1.5 text-sm text-slate-600">{lead}</p>
+        <ol className="mt-5 space-y-3">
+          {steps.map((s, i) => (
+            <li key={i} className="flex gap-3 text-sm text-slate-700">
+              <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-indigo-50 text-xs font-bold text-indigo-700">
+                {i + 1}
+              </span>
+              <span>{s}</span>
+            </li>
+          ))}
+        </ol>
+        {note && (
+          <p className="mt-5 rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900">{note}</p>
+        )}
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-6 w-full rounded-xl bg-indigo-600 py-2.5 text-sm font-bold text-white hover:bg-indigo-700"
+        >
+          Check again
+        </button>
+        <p className="mt-3 text-center text-xs text-slate-400">
+          GO-LIVE.md walks through all of this in order.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 // The backends screen.
 //
 // The session cookie is the whole story: HttpOnly, SameSite=Strict, throttled
@@ -22,9 +118,28 @@ export default function AdminApp() {
   const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [blocked, setBlocked] = useState(null) // a SETUP step, not a bad password
 
+  // Ask the server how it is BEFORE offering a password box.
+  //
+  // Every setup failure used to arrive as "Wrong email or password", because
+  // that was the only branch the login had. So a server with no api/config.php,
+  // a database with no tables, and a genuine typo all looked identical — and
+  // the one thing they have in common is that the password is fine. The owner
+  // retypes it, gets the same lie back, and eventually locks the account.
   useEffect(() => {
-    phpAdmin('me').then(({ data }) => setSession(data ?? null))
+    phpAdmin('me')
+      .then(({ status, data }) => {
+        const reason = setupReason(status, data)
+        if (reason) setBlocked(reason)
+        setSession(data ?? null)
+      })
+      // A rejected fetch means the request never completed. Without this the
+      // promise rejects unhandled and the screen sits on "Loading…" forever.
+      .catch(() => {
+        setBlocked(setupReason(0, null))
+        setSession(null)
+      })
   }, [])
 
   async function login(e) {
@@ -32,15 +147,21 @@ export default function AdminApp() {
     setBusy(true)
     setError('')
     const { status, data } = await phpAdmin('login', { method: 'POST', body: form })
+      .catch(() => ({ status: 0, data: null }))
+    const reason = setupReason(status, data)
     if (status === 200) setSession(data)
-    else if (status === 429) setError('Too many attempts — this account is locked for 15 minutes.')
-    else setError('Wrong email or password.')
+    else if (reason) setBlocked(reason)
+    else if (status === 429 || data?.error === 'locked') {
+      setError('Too many attempts — this account is locked for 15 minutes.')
+    } else setError('Wrong email or password.')
     setBusy(false)
   }
 
   if (session === undefined) {
     return <div className="flex min-h-screen items-center justify-center text-slate-400">Loading…</div>
   }
+
+  if (blocked) return <SetupNeeded {...blocked} />
 
   if (!session) {
     return (
