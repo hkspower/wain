@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Baloo_Bhaijaan_2, Cairo } from "next/font/google";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import FahadLauncher from "@/components/FahadLauncher";
 import "./globals.css";
 
 /** Rounded, friendly Kufi-ish face for the وين wordmark and headings. */
@@ -79,6 +80,7 @@ export default function RootLayout({
           {children}
         </main>
         <Footer />
+        <FahadLauncher />
       </body>
     </html>
   );
