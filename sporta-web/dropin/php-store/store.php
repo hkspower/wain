@@ -44,20 +44,45 @@ function store_db(): PDO {
     static $pdo = null;
     if ($pdo === null) {
         $c = store_config();
-        // ERRMODE_EXCEPTION everywhere: a silent false from PDO is how a half-
-        // written order happens. utf8mb4 because the catalogue is Arabic.
-        $pdo = new PDO(
-            "mysql:host={$c['db_host']};dbname={$c['db_name']};charset=utf8mb4",
-            $c['db_user'],
-            $c['db_pass'],
-            [
-                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                // Real prepared statements. Emulated ones interpolate, and an
-                // endpoint fed raw JSON from the internet does not interpolate.
-                PDO::ATTR_EMULATE_PREPARES   => false,
-            ]
-        );
+        try {
+            // ERRMODE_EXCEPTION everywhere: a silent false from PDO is how a
+            // half-written order happens. utf8mb4 because the catalogue is
+            // Arabic.
+            $pdo = new PDO(
+                "mysql:host={$c['db_host']};dbname={$c['db_name']};charset=utf8mb4",
+                $c['db_user'],
+                $c['db_pass'],
+                [
+                    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    // Real prepared statements. Emulated ones interpolate, and
+                    // an endpoint fed raw JSON from the internet does not.
+                    PDO::ATTR_EMULATE_PREPARES   => false,
+                ]
+            );
+        } catch (PDOException $e) {
+            // FAILING TO CONNECT IS NOT THE SAME AS A QUERY FAILING, and the
+            // difference is the whole point of this branch.
+            //
+            // Without it, a typo in config.php's db_pass came out of the
+            // exception handler below as the generic 'failed', the admin had
+            // no branch for that, and it fell through to the last thing on the
+            // list — "Wrong email or password." So the owner retyped a correct
+            // password five times and locked the account for fifteen minutes,
+            // over a wrong DATABASE password. Every one of these errors means
+            // "one of the four values in config.php is wrong", and MySQL says
+            // WHICH, so it is passed on rather than thrown away.
+            $code = (int) ($e->errorInfo[1] ?? 0);
+            $which = match ($code) {
+                1045    => 'db_user or db_pass',
+                1044    => 'db_user has no privileges on db_name',
+                1049    => 'db_name',
+                2002,
+                2005    => 'db_host',
+                default => 'one of the four values',
+            };
+            store_out(['error' => 'db_unreachable', 'cause' => $which], 500);
+        }
     }
     return $pdo;
 }

@@ -544,5 +544,68 @@ const order = (track, items, extra = {}) =>
   is(back.status === 200, 'everything answers normally again afterwards', `${back.status}`)
 }
 
+// ------------------------------------ config.php that MySQL will not accept
+//
+// The most common way a live install is broken, and for a long time the worst
+// reported: a typo in db_pass threw out of `new PDO`, the exception handler
+// flattened it to the generic 'failed', the admin had no branch for that, and
+// it fell through to the last message on the list — "Wrong email or password."
+// So the owner retyped a CORRECT password five times and locked the account
+// for fifteen minutes over a wrong DATABASE password.
+//
+// Each of the four values is broken in turn, against a throwaway PHP server so
+// the suite's own backend is never touched. MySQL says which one is wrong and
+// the reply has to pass that on, because the fix differs: a bad db_name is a
+// different hPanel screen from a bad db_host.
+{
+  const { mkdtempSync, cpSync, writeFileSync, rmSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const { spawn } = await import('node:child_process')
+
+  const dir = mkdtempSync(join(tmpdir(), 'sporta-badcfg-'))
+  cpSync(new URL('../dropin/php-store', import.meta.url).pathname, dir, { recursive: true })
+
+  const good = { db_host: 'localhost', db_name: 'sporta', db_user: 'sporta', db_pass: 'test-pass' }
+  const cases = [
+    ['db_pass', { db_pass: 'not-the-password' }, /db_user or db_pass/],
+    ['db_name', { db_name: 'no_such_database_here' }, /db_name|privileges/],
+    ['db_host', { db_host: '10.255.255.1' }, /db_host/],
+  ]
+
+  let port = 8241
+  for (const [label, override, wants] of cases) {
+    const cfg = { ...good, ...override, cron_key: 'x'.repeat(24) }
+    // Hand-built, not JSON.stringify with the quotes swapped: PHP wants
+    // `['k' => 'v']`, and `{"k":"v"}` is a parse error that shows up as the
+    // generic failure this very test is here to rule out.
+    writeFileSync(join(dir, 'config.php'),
+      `<?php return [\n` +
+      Object.entries(cfg).map(([k, v]) => `  '${k}' => '${v}',`).join('\n') +
+      `\n];\n`)
+    const srv = spawn('php', ['-S', `127.0.0.1:${port}`, '-t', dir], { stdio: 'ignore' })
+    let body = null, status = 0
+    for (let i = 0; i < 40 && status === 0; i++) {
+      await new Promise((r) => setTimeout(r, 150))
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/admin.php?r=me`,
+                                { headers: { 'X-Sporta-Admin': '1' } })
+        status = res.status
+        body = await res.json().catch(() => null)
+      } catch { /* still starting */ }
+    }
+    srv.kill()
+    is(body?.error === 'db_unreachable',
+       `a wrong ${label} says the DATABASE is unreachable, not that the password is wrong`,
+       `${status} ${JSON.stringify(body)}`)
+    is(wants.test(body?.cause ?? ''),
+       `and names which value to fix`, body?.cause ?? '(none)')
+    is(!/test-pass|SQLSTATE|Access denied/i.test(JSON.stringify(body)),
+       'without echoing the credential or the driver error', JSON.stringify(body))
+    port++
+  }
+  rmSync(dir, { recursive: true, force: true })
+}
+
 console.log(fails ? `\n${fails} problem(s) in the native backend` : '\nnative backend: every check passed')
 process.exit(fails ? 1 : 0)

@@ -53,6 +53,19 @@ function setupReason(status, data) {
       note: 'The order matters and getting it wrong fails quietly. All three are safe to re-run: prices and names update in place, nothing duplicates, and your stock counts are never overwritten.',
     }
   }
+  if (token === 'db_unreachable') {
+    return {
+      title: 'The database is refusing the connection',
+      lead: `api/config.php is on the server, but MySQL will not accept what is in it — ${data?.cause ?? 'one of the four values'} is wrong.`,
+      steps: [
+        'hPanel → Databases → MySQL Databases. Check the database name and the user name EXACTLY: Hostinger prefixes both with your account, so they look like u123456789_sporta, not sporta.',
+        'Set a fresh password on that user there, and paste the same one into api/config.php as db_pass.',
+        'Make sure the user is listed under that database with ALL PRIVILEGES.',
+        'db_host is localhost.',
+      ],
+      note: 'knet/config.php and pay/config.php carry the same four values under different names (mysql_host / mysql_name / mysql_user / mysql_pass). If this one is wrong they usually are too, and until they are fixed every card payment is refused.',
+    }
+  }
   if (token === 'no_admin_account') {
     return {
       title: 'No sign-in has been created yet',
@@ -135,7 +148,13 @@ export default function AdminApp() {
       .then(({ status, data }) => {
         const reason = setupReason(status, data)
         if (reason) setBlocked(reason)
-        setSession(data ?? null)
+        // ONLY a 200 is a session. This was `data ?? null`, and every error
+        // response has a body — so {"error":"db_unreachable"} was truthy, the
+        // app decided somebody was signed in, and rendered the whole dashboard
+        // shell around the words "Cannot load the dashboard". A failure that
+        // dresses itself as a working screen is worse than a blank one: there
+        // is nothing on it to act on and no way back to the sign-in form.
+        setSession(status === 200 ? data : null)
       })
       // A rejected fetch means the request never completed. Without this the
       // promise rejects unhandled and the screen sits on "Loading…" forever.
@@ -156,6 +175,11 @@ export default function AdminApp() {
     else if (reason) setBlocked(reason)
     else if (status === 429 || data?.error === 'locked') {
       setError('Too many attempts — this account is locked for 15 minutes.')
+    } else if (status >= 500 || status === 0) {
+      // A server error is not a bad password, and saying it is costs the owner
+      // five attempts and a fifteen-minute lock. Anything 5xx that setupReason
+      // could not name is still the server's fault, and is reported as such.
+      setError('The server failed to answer. This is not your password — check that api/config.php is correct and that the database is running.')
     } else setError('Wrong email or password.')
     setBusy(false)
   }
