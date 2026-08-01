@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { places, toArabicDigits } from "@/lib/places";
+import { countAr, places, PLACES_COUNT } from "@/lib/places";
 
 export const metadata: Metadata = {
   title: "عن وين",
@@ -49,7 +49,7 @@ export default function AboutPage() {
 
       <div className="mt-10 rounded-3xl bg-sea-700 p-6 text-center text-white shadow-md">
         <p className="font-display text-2xl font-bold">
-          {toArabicDigits(places.length)} مكان جاهز لك
+          {countAr(places.length, PLACES_COUNT)} جاهز لك
         </p>
         <p className="mt-1 text-sm text-sea-100">من أبراج الكويت لين مقاهي المباركية.</p>
       </div>

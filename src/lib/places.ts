@@ -161,7 +161,7 @@ export const places: Place[] = [
     taglineAr: "الرئة الخضراء للعاصمة.",
     descriptionAr:
       "أكبر حديقة في الكويت، فيها حدائق نباتية وبحيرات ومتحفين ومسارات مشي وحفلات في الهواء الطلق. مكان ممتاز لمشية عصرية في قلب المدينة.",
-    highlightsAr: ["حدائق نباتية", "متحف الحبيتات والذاكرة", "مسار مشي حول البحيرة"],
+    highlightsAr: ["حدائق نباتية", "متحف الحبيتات ومتحف الذاكرة", "مسار مشي حول البحيرة"],
     bestTimeAr: "الصبح بدري أو بعد المغرب",
     featured: true,
   },
@@ -461,3 +461,49 @@ export function distanceKm(
 export function toArabicDigits(value: string | number): string {
   return String(value).replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[Number(d)]);
 }
+
+export interface CountForms {
+  /** ١ — "مكان واحد" (no numeral) */
+  one: string;
+  /** ٢ — "مكانين" (dual, no numeral) */
+  two: string;
+  /** ٣–١٠ — plural after the numeral: "٣ أماكن" */
+  few: string;
+  /** ١١+ — singular after the numeral: "١٧ مكان" */
+  many: string;
+  /** ٠ — defaults to the `many` form */
+  zero?: string;
+}
+
+/**
+ * Arabic count agreement. Arabic does not simply append a noun to a numeral:
+ * 1 takes the singular alone, 2 takes the dual, 3–10 take the plural, and
+ * 11+ revert to the singular. Writing "٣ مكان" or "٢ مكان" is ungrammatical.
+ */
+export function countAr(n: number, forms: CountForms): string {
+  const digits = toArabicDigits(n);
+  if (n === 0) return forms.zero ?? `${digits} ${forms.many}`;
+  if (n === 1) return forms.one;
+  if (n === 2) return forms.two;
+  const mod100 = n % 100;
+  if (mod100 >= 3 && mod100 <= 10) return `${digits} ${forms.few}`;
+  return `${digits} ${forms.many}`;
+}
+
+/** "مكان واحد" / "مكانين" / "٣ أماكن" / "١٧ مكان" */
+export const PLACES_COUNT: CountForms = {
+  zero: "ما فيه أماكن",
+  one: "مكان واحد",
+  two: "مكانين",
+  few: "أماكن",
+  many: "مكان",
+};
+
+/** "نتيجة واحدة" / "نتيجتين" / "٥ نتائج" / "١٧ نتيجة" */
+export const RESULTS_COUNT: CountForms = {
+  zero: "ما فيه نتائج",
+  one: "نتيجة وحدة",
+  two: "نتيجتين",
+  few: "نتائج",
+  many: "نتيجة",
+};

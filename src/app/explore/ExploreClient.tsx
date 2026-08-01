@@ -4,7 +4,14 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import CategoryIcon from "@/components/CategoryIcon";
 import PlaceCard from "@/components/PlaceCard";
-import { categories, places, toArabicDigits, type CategoryId } from "@/lib/places";
+import {
+  categories,
+  countAr,
+  places,
+  PLACES_COUNT,
+  RESULTS_COUNT,
+  type CategoryId,
+} from "@/lib/places";
 
 /** Strip Arabic diacritics and normalise alef/ya/ta-marbuta so search is forgiving. */
 function normalise(value: string): string {
@@ -45,7 +52,7 @@ export default function ExploreClient() {
           استكشف الكويت
         </h1>
         <p className="mt-2 text-ink-500">
-          {toArabicDigits(places.length)} مكان، وما عاد فيه «ما أدري، اختر أنت».
+          {countAr(places.length, PLACES_COUNT)}، وما عاد فيه «ما أدري، اختر أنت».
         </p>
       </header>
 
@@ -107,7 +114,7 @@ export default function ExploreClient() {
       {filtered.length > 0 ? (
         <>
           <p className="mb-4 text-sm font-medium text-ink-500">
-            {toArabicDigits(filtered.length)} نتيجة
+            {countAr(filtered.length, RESULTS_COUNT)}
           </p>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((place) => (

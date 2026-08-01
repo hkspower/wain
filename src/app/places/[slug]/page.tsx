@@ -77,8 +77,10 @@ export default async function PlacePage({
           <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink-900 sm:text-4xl">
             {place.nameAr}
           </h1>
-          <p className="mt-1 text-lg text-ink-500" dir="ltr" style={{ textAlign: "right" }}>
-            {place.name}
+          <p className="mt-1 text-lg text-ink-500">
+            <span lang="en" dir="ltr">
+              {place.name}
+            </span>
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

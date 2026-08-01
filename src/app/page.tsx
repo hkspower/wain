@@ -3,7 +3,14 @@ import KuwaitSkyline from "@/components/KuwaitSkyline";
 import CategoryIcon from "@/components/CategoryIcon";
 import NearbyDial from "@/components/NearbyDial";
 import PlaceCard from "@/components/PlaceCard";
-import { categories, countByCategory, getFeaturedPlaces, places, toArabicDigits } from "@/lib/places";
+import {
+  categories,
+  countAr,
+  countByCategory,
+  getFeaturedPlaces,
+  places,
+  PLACES_COUNT,
+} from "@/lib/places";
 
 export default function HomePage() {
   const featured = getFeaturedPlaces();
@@ -70,7 +77,7 @@ export default function HomePage() {
                 <CategoryIcon name="all" />
                 <span className="text-sm font-bold">الكل</span>
                 <span className="text-[11px] font-semibold text-sun-900">
-                  {toArabicDigits(places.length)} مكان
+                  {countAr(places.length, PLACES_COUNT)}
                 </span>
               </Link>
             </li>
@@ -83,7 +90,7 @@ export default function HomePage() {
                   <CategoryIcon name={cat.icon} />
                   <span className="text-sm font-bold leading-tight">{cat.ar}</span>
                   <span className="text-[11px] font-medium text-white/75">
-                    {toArabicDigits(countByCategory(cat.id))} مكان
+                    {countAr(countByCategory(cat.id), PLACES_COUNT)}
                   </span>
                 </Link>
               </li>
@@ -129,7 +136,7 @@ export default function HomePage() {
               {
                 n: "١",
                 title: "حدّد موقعك",
-                text: "اضغط على «إلى وين؟» ونجيب لك أقرب الأماكن حواليك.",
+                text: "اضغط على «إلى وين؟» وتطلع لك أقرب الأماكن — وإذا تبي دقّة أكثر شارك موقعك.",
               },
               {
                 n: "٢",
