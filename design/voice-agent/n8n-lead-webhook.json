@@ -1,0 +1,160 @@
+{
+  "name": "المهلب — عملاء الوكيل الصوتي",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "almuhallab-voice-lead",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b1f7a2c0-0001-4a01-9001-almuhallab01",
+      "name": "استقبال من الوكيل الصوتي",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "5bfb7fc7-6ade-4b1b-a62f-938b613caf0e"
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            { "id": "f-name", "name": "name", "value": "={{ $json.body?.name ?? $json.name ?? \"\" }}", "type": "string" },
+            { "id": "f-phone", "name": "phone", "value": "={{ $json.body?.phone ?? $json.phone ?? \"\" }}", "type": "string" },
+            { "id": "f-type", "name": "project_type", "value": "={{ $json.body?.project_type ?? $json.project_type ?? \"غير محدد\" }}", "type": "string" },
+            { "id": "f-summary", "name": "summary", "value": "={{ $json.body?.summary ?? $json.summary ?? \"\" }}", "type": "string" },
+            { "id": "f-conv", "name": "conversation_id", "value": "={{ $json.body?.conversation_id ?? $json.conversation_id ?? \"\" }}", "type": "string" },
+            { "id": "f-at", "name": "received_at", "value": "={{ $now.toISO() }}", "type": "string" },
+            { "id": "f-src", "name": "source", "value": "voice-agent", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b1f7a2c0-0002-4a02-9002-almuhallab02",
+      "name": "توحيد الحقول",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "c-name",
+              "leftValue": "={{ ($json.name ?? \"\").toString().trim().length }}",
+              "rightValue": 2,
+              "operator": { "type": "number", "operation": "gte" }
+            },
+            {
+              "id": "c-phone",
+              "leftValue": "={{ ($json.phone ?? \"\").toString().trim().length }}",
+              "rightValue": 6,
+              "operator": { "type": "number", "operation": "gte" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b1f7a2c0-0003-4a03-9003-almuhallab03",
+      "name": "بيانات صالحة؟",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": { "__rl": true, "mode": "name", "value": "voice_leads" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "name": "={{ $json.name }}",
+            "phone": "={{ $json.phone }}",
+            "project_type": "={{ $json.project_type }}",
+            "summary": "={{ $json.summary }}",
+            "conversation_id": "={{ $json.conversation_id }}",
+            "received_at": "={{ $json.received_at }}",
+            "source": "={{ $json.source }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            { "id": "name", "displayName": "name", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "phone", "displayName": "phone", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "project_type", "displayName": "project_type", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "summary", "displayName": "summary", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "conversation_id", "displayName": "conversation_id", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "received_at", "displayName": "received_at", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "source", "displayName": "source", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true }
+          ]
+        }
+      },
+      "id": "b1f7a2c0-0004-4a04-9004-almuhallab04",
+      "name": "حفظ العميل المحتمل",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [660, -110]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"ok\": true,\n  \"message\": \"تم تسجيل طلبك بنجاح وسيتواصل معك فريق المهلب قريباً\"\n}",
+        "options": {}
+      },
+      "id": "b1f7a2c0-0005-4a05-9005-almuhallab05",
+      "name": "ردّ النجاح",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [880, -110]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"ok\": false,\n  \"error\": \"الاسم ورقم الهاتف مطلوبان\"\n}",
+        "options": { "responseCode": 400 }
+      },
+      "id": "b1f7a2c0-0006-4a06-9006-almuhallab06",
+      "name": "ردّ الرفض",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [660, 130]
+    },
+    {
+      "parameters": {
+        "content": "## عملاء الوكيل الصوتي\n\nيستقبل هذا السير طلبات وكيل ElevenLabs الصوتي (أداة register_lead)\nويحفظها في جدول البيانات **voice_leads**.\n\n**قبل التفعيل:** أنشئ Data Table باسم `voice_leads`\nبالأعمدة (كلها نص): name · phone · project_type · summary · conversation_id · received_at · source\n\nالرد 200 عند النجاح و400 عند نقص الاسم أو الهاتف —\nوالوكيل الصوتي يقرأ حقل message ويؤكد للعميل.",
+        "height": 320,
+        "width": 380,
+        "color": 5
+      },
+      "id": "b1f7a2c0-0007-4a07-9007-almuhallab07",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-40, -400]
+    }
+  ],
+  "connections": {
+    "استقبال من الوكيل الصوتي": {
+      "main": [[{ "node": "توحيد الحقول", "type": "main", "index": 0 }]]
+    },
+    "توحيد الحقول": {
+      "main": [[{ "node": "بيانات صالحة؟", "type": "main", "index": 0 }]]
+    },
+    "بيانات صالحة؟": {
+      "main": [
+        [{ "node": "حفظ العميل المحتمل", "type": "main", "index": 0 }],
+        [{ "node": "ردّ الرفض", "type": "main", "index": 0 }]
+      ]
+    },
+    "حفظ العميل المحتمل": {
+      "main": [[{ "node": "ردّ النجاح", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "pinData": {}
+}

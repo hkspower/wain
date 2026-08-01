@@ -228,6 +228,14 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
   after any change to `almuhallab/`; it exits non-zero on failure.
+- `design/voice-agent/` is the Arabic ElevenLabs voice agent + n8n lead
+  webhook: an importable n8n workflow (webhook → validate → `voice_leads`
+  data table → Arabic JSON reply the agent speaks), and the full agent
+  config whose prompt is locked to the company's real facts (real channels,
+  النوخذة free, no invented prices/clients). The claude.ai ElevenLabs and n8n
+  connectors need interactive authorization before Claude can apply these
+  directly; until then the README's manual steps are the path. Do not embed
+  the ElevenLabs widget in the site — the CSP stays `default-src 'none'`.
 - `design/instagram_covers.py` draws the Instagram highlight covers from the
   page sprite (1080×1080, brown fill, white mark) — `design/instagram/`.
 - `design/capture.py` drives the site end to end and screenshots every page;
