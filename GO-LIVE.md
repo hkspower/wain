@@ -20,8 +20,11 @@ standing bridge. Needs Node and this repo on your machine.
 
 Both do the same thing. Use whichever you are near.
 
-> The old `npm run deploy` uploaded over SFTP, which rides on SSH. With SSH off
-> it cannot run at all. It is left in place for if SSH is ever re-enabled.
+> There used to be a third route, `npm run deploy`, uploading over SFTP. SFTP
+> rides on SSH, so it stopped working the day SSH was turned off, and it has
+> now been deleted rather than left as a command that only ever errors. If SSH
+> is ever re-enabled it is one `git revert` away — but `npm run publish` does
+> the same job over FTPS and does not need it.
 
 ---
 

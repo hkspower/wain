@@ -6,8 +6,9 @@
 // .env ships a store whose checkout refuses every order.
 //
 // So values are read from /config.js on the server first, and only fall back
-// to the build-time .env. Both routes keep working: `npm run deploy` bakes
-// values in as before, and the upload-a-folder route edits config.js in place.
+// to the build-time .env. That is what lets the store be repointed by editing
+// one file in Hostinger's File Manager — no Node, no rebuild, and no shell on
+// the server account to do it any other way.
 //
 // Nothing secret lives here. Every value is a public URL —
 // it is what the browser authenticates with, and row-level security is what

@@ -209,7 +209,9 @@
      permanent state. Config in `deploy.config.json`; credentials in
      `.env.deploy` (git-ignored, never commit).
   2. `SPORTA-GO-LIVE.zip` — drag `public_html/` into Hostinger File Manager.
-  (`npm run deploy` is the old SFTP route. It needs SSH and will not run.)
+  (There is no third route. `npm run deploy`, the old SFTP one, was deleted:
+  it rode on SSH, so it had not been runnable since SSH was turned off, and a
+  command that cannot work is worse than no command. `git log` has it.)
 - **`.htaccess` is hidden** — it is the single most common thing to miss on a
   manual upload. Without it: no HTTPS redirect, no security headers, and deep
   routes like `/shop` 404. Always call this out when telling the user to
@@ -247,9 +249,10 @@
 - **The owner works in Hostinger hPanel, and SSH is disabled — permanently,
   by choice** (after 24 brute-force attempts were logged against it, and the
   account's shell was `/sbin/nologin` anyway, so it bought nothing). Treat SSH
-  as unavailable. **Never propose an SSH- or SFTP-based step** — that includes
-  `npm run deploy`, which rides on SSH — unless the owner explicitly says they
-  have re-enabled it.
+  as unavailable. **Never propose an SSH- or SFTP-based step** unless the owner
+  explicitly says they have re-enabled it. There is no longer one to propose:
+  the SFTP `npm run deploy` has been deleted along with its `ssh2-sftp-client`
+  dependency.
 
 - **The standing bridge is FTPS: `npm run publish`** (`scripts/publish-ftps.mjs`).
   FTP is a separate Hostinger service from SSH, so it keeps working with SSH

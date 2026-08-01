@@ -47,7 +47,7 @@ if command -v node >/dev/null 2>&1; then
   else bad "Node.js" "$v — too old"; note "Vite 8 needs Node 22.12+. Install Node 24 LTS from nodejs.org."; fi
 else
   bad "Node.js" "not installed"
-  note "Only needed for 'npm run deploy'. The upload-the-zip route does not need it."
+  note "Only needed for 'npm run publish'. The upload-the-zip route does not need it."
 fi
 command -v npm >/dev/null 2>&1 && ok "npm" "$(npm -v)" || bad "npm" "not installed"
 command -v git >/dev/null 2>&1 && ok "git" "$(git --version | awk '{print $3}')" || bad "git" "not installed"
@@ -62,7 +62,7 @@ if [ -n "$found" ]; then
     note "Not needed if you use the zip + File Manager route."; }
 else
   bad "project folder" "not found under $HOME"
-  note "That is why 'npm run deploy' gave ENOENT — npm must run inside it."
+  note "That is why 'npm run publish' gave ENOENT — npm must run inside it."
   note "Use the zip route instead, or clone the repo first."
 fi
 

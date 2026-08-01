@@ -736,4 +736,3 @@ function colourKey(slug, p) {
   return slug.startsWith(prefix) ? slug.slice(prefix.length) : slug.split('-').slice(2).join('-')
 }
 
-export const isAhed = (slug) => Boolean(AHED_PRODUCTS[slug])
