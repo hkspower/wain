@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchSlides, saveSlide, deleteSlide, reorderSlides, saveSettings } from './api'
 import { Notice } from './Overview'
 import { IconClose, IconImage } from '../components/icons'
+import { downscaleImage, ACCEPTED_ATTR } from './lib/downscaleImage'
 
 // The home hero: the slides themselves, and how they play.
 //
@@ -24,31 +25,6 @@ import { IconClose, IconImage } from '../components/icons'
 
 const MAX_EDGE = 1600
 const QUALITY = 0.82
-
-async function toSlideImage(file) {
-  if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
-    throw new Error('Choose a PNG, JPEG or WebP image. (SVG is not accepted — it can carry script.)')
-  }
-  const bitmap = await createImageBitmap(file)
-  const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height))
-  const w = Math.max(1, Math.round(bitmap.width * scale))
-  const h = Math.max(1, Math.round(bitmap.height * scale))
-  const canvas = document.createElement('canvas')
-  canvas.width = w
-  canvas.height = h
-  const ctx = canvas.getContext('2d')
-  // A hero is displayed large, so a cheap nearest-neighbour downscale shows.
-  ctx.imageSmoothingEnabled = true
-  ctx.imageSmoothingQuality = 'high'
-  ctx.drawImage(bitmap, 0, 0, w, h)
-  bitmap.close?.()
-  let url = canvas.toDataURL('image/webp', QUALITY)
-  // Safari before 16 has no WebP encoder and silently hands back a PNG data
-  // URL — which for a photograph is far LARGER than the JPEG it came from, and
-  // would fail the server's cap. Fall back to JPEG, not to whatever we got.
-  if (!url.startsWith('data:image/webp')) url = canvas.toDataURL('image/jpeg', QUALITY)
-  return { url, width: w, height: h }
-}
 
 const BLANK = {
   id: 0, title_en: '', title_ar: '', subtitle_en: '', subtitle_ar: '',
@@ -308,7 +284,9 @@ function SlideEditor({ slide, onClose, onSaved }) {
     if (!file) return
     setError('')
     try {
-      const { url, width, height } = await toSlideImage(file)
+      const { url, width, height } = await downscaleImage(file, {
+        maxEdge: MAX_EDGE, quality: QUALITY, kind: 'photo',
+      })
       setPicked(url)
       setPreview(url)
       setForm((f) => ({ ...f, width, height }))
@@ -367,7 +345,7 @@ function SlideEditor({ slide, onClose, onSaved }) {
               )}
             </div>
             <div className="min-w-[13rem] flex-1 space-y-3">
-              <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={choose} className="hidden" />
+              <input ref={fileRef} type="file" accept={ACCEPTED_ATTR} onChange={choose} className="hidden" />
               <button
                 type="button" onClick={() => fileRef.current?.click()}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:border-slate-300"

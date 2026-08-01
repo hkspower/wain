@@ -148,6 +148,23 @@ for a typo that is not there.
 There is no free-delivery discount type: delivery is already free, so it would
 be a discount off nothing.
 
+### Two things that protect it
+
+**The discount endpoint is throttled.** `?r=discount` answers "is this code
+real?" to anyone, which makes it an oracle — and an unthrottled oracle is a
+code generator: a script walks SAVE10, SAVE15, SAVE20 and finds every live
+discount in seconds. Thirty FAILED lookups from one address in ten minutes is
+the wall. Only failures are counted, so a customer re-checking a basket with a
+code that works is never affected. The counter lives in the `rate_limit` table,
+keyed by a hash of the IP (this is abuse control, not a visitor log) and swept
+opportunistically, so it needs no cron.
+
+**The admin session cookie is Secure behind the proxy.** Hostinger terminates
+TLS at a proxy, so PHP sees plain HTTP on a request the browser made over
+https://. Reading `$_SERVER['HTTPS']` alone left the cookie without the Secure
+flag on the live site; `store_is_https()` checks the same three signals the
+payment endpoints have always checked.
+
 ### The rule underneath all of it
 
 The browser may name a **code**. It may never name an **amount**. `pay.php`

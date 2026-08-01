@@ -134,7 +134,14 @@ if ($r === 'discount' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $priced = store_price_lines($db, $items);
     $sub = array_sum(array_column($priced, 'line_fils'));
     $res = store_discounts_for($db, $priced, $sub, (string)($b['code'] ?? ''));
-    if ($res['error'] !== null) store_fail($res['error']);
+    if ($res['error'] !== null) {
+        // Only a FAILED lookup is counted, and it is counted before the answer
+        // is given. A shopper re-checking a basket with a code that works is
+        // not guessing; a script walking SAVE10, SAVE15, SAVE20 is, and thirty
+        // wrong answers in ten minutes is far past anyone typing by hand.
+        store_throttle($db, 'discount', 30, 600);
+        store_fail($res['error']);
+    }
 
     store_out([
         'subtotal' => (float)store_kwd($sub),

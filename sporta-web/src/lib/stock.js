@@ -31,14 +31,9 @@ const TTL_MS = 2 * 60 * 1000
 let cache = null // { at: epochMs, bySlug: { slug: { size: {...} } } }
 let inflight = null // shared promise, so six mounts at once make one request
 
-// Deliberately module state and not sessionStorage. Availability is the one
-// value here that must not survive a reload — a shopper who reloads because
-// something looked wrong should get the truth, and this is also the reason the
-// site stores no more in the browser than it already does.
-export function clearStockCache() {
-  cache = null
-  inflight = null
-}
+// Deliberately module state and not sessionStorage: availability is the one
+// value here that must NOT survive a reload. A shopper who reloads because
+// something looked wrong should get the truth.
 
 async function loadAll() {
   try {

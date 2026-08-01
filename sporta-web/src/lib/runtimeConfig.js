@@ -28,12 +28,3 @@ export function configValue(key, buildTimeValue) {
   if (usable(buildTimeValue)) return buildTimeValue.trim()
   return ''
 }
-
-// Named so the message points at the file to edit rather than at a variable
-// name that only exists in a repo the site owner may not have.
-export function warnUnconfigured(what) {
-  console.warn(
-    `[sporta] ${what} is not configured. Edit /config.js on the server ` +
-      '(or set the matching VITE_ variable and rebuild).',
-  )
-}

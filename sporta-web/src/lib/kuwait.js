@@ -171,12 +171,6 @@ export function normalisePhone(input) {
   return /^[569]\d{7}$/.test(d) ? `965${d}` : null
 }
 
-// Display form of what the customer typed: 9988 7766.
-export const prettyPhone = (d) => {
-  const n = String(d ?? '').replace(/\D/g, '').slice(-8)
-  return n.length === 8 ? `${n.slice(0, 4)} ${n.slice(4)}` : String(d ?? '')
-}
-
 // One-line address for the admin, the packing slip and the courier.
 export function formatAddress(o, lang = 'en') {
   const g = governorate(o.customer_governorate)

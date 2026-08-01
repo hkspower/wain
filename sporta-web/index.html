@@ -184,12 +184,20 @@
               if (tag === 'ar' || tag === 'en') lang = tag
             }
           }
+          // THE PHONE DECIDES. A language list is a setting a person chose;
+          // a time zone is a guess about where they are. If the device says
+          // anything at all, that is the answer and the zone is not consulted.
           if (!lang) {
-            var langs = navigator.languages || [navigator.language || '']
-            for (var i = 0; i < langs.length; i++) {
-              if (/^(ar|arz|ary|acm|apc|ajp|afb)\b|^ar-/i.test(langs[i] || '')) { lang = 'ar'; break }
+            var langs = navigator.languages || []
+            if (!langs.length && navigator.language) langs = [navigator.language]
+            if (langs.length) {
+              lang = 'en'
+              for (var i = 0; i < langs.length; i++) {
+                if (/^(ar|arz|ary|acm|apc|ajp|afb)\b|^ar-/i.test(langs[i] || '')) { lang = 'ar'; break }
+              }
             }
           }
+          // Only reached when the device reported no languages at all.
           if (!lang) {
             var tz = ''
             try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '' } catch (e2) {}

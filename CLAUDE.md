@@ -121,8 +121,11 @@
   quick-unlock went with Supabase and is not coming back.
 - **Language:** site is bilingual Arabic/English (RTL/LTR). **Arabic is the
   default for the Arabic-speaking world**, decided in this order: an explicit
-  saved choice → `?lang=` → the device's languages → the device's **time zone**
-  → English. The rule lives in `src/i18n/detectLang.js` and is *also inlined in
+  saved choice → `?lang=` → **the device's languages** → the device's time zone
+  → English. **The phone decides**: a language list is a setting a person chose,
+  a location is a guess about them, so an English phone in Kuwait stays English
+  (roughly 70% of the country is expatriate). The time zone is consulted only
+  when the device reports no languages at all. The rule lives in `src/i18n/detectLang.js` and is *also inlined in
   `index.html`*, because it must run before any module loads — it sets
   `<html dir>` and picks which fonts to preload. `npm run test:arabic` asserts
   the two copies agree; keep them in step.
@@ -134,7 +137,7 @@
   and Googlebot (US, en, UTC) sees English.
   **A detected language is never saved.** `localStorage.lang` means "the
   visitor tapped the toggle"; persisting a guess would lock a traveller in.
-- **Arabic copy has a test:** `npm run test:arabic` (40 checks) covers missing
+- **Arabic copy has a test:** `npm run test:arabic` (43 checks) covers missing
   keys, English left untranslated, `{placeholder}` survival, tanwin written
   `ـًا` not `ـاً`, Latin `,?;` stranded between Arabic words, mixed
   Arabic-Indic/Western digits, and Arabic's **five** counting cases (1, 2 dual,

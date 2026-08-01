@@ -24,9 +24,3 @@ export function formatKWD(amount, lang = 'en') {
   const n = typeof amount === 'string' ? Number.parseFloat(amount) : amount
   return formatter(lang).format(Number.isFinite(n) ? n : 0)
 }
-
-// CBK/KNET expects a plain number string with up to 3 decimals.
-export function amountForGateway(amount) {
-  const n = typeof amount === 'string' ? Number.parseFloat(amount) : amount
-  return (Number.isFinite(n) ? n : 0).toFixed(3)
-}

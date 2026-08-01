@@ -436,6 +436,76 @@ const order = (track, items, extra = {}) =>
 }
 
 
+// ---------------------------------------------------------------------------
+// SECURITY: the two that were wrong, and must not come back.
+// ---------------------------------------------------------------------------
+// ------------------------------------------- the session cookie behind a proxy
+{
+  await run('mariadb', ['sporta', '-e',
+    'update admin_users set failed_attempts = 0, locked_until = null'])
+
+  // Hostinger terminates TLS at a proxy, so PHP sees plain HTTP on a request
+  // the browser made over https://. Reading $_SERVER['HTTPS'] alone left the
+  // admin session cookie WITHOUT the Secure flag on the live site.
+  const login = async (headers) => {
+    const res = await fetch(`${BASE}/admin.php?r=login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1', ...headers },
+      body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }),
+    })
+    return res.headers.get('set-cookie') ?? ''
+  }
+
+  const behindProxy = await login({ 'X-Forwarded-Proto': 'https' })
+  is(/;\s*secure/i.test(behindProxy),
+     'behind an SSL-terminating proxy the admin cookie is Secure', behindProxy.split(';').slice(1).join(';').trim())
+  is(/HttpOnly/i.test(behindProxy) && /SameSite=Strict/i.test(behindProxy),
+     'and still HttpOnly + SameSite=Strict')
+
+  await run('mariadb', ['sporta', '-e',
+    'update admin_users set failed_attempts = 0, locked_until = null'])
+  const plain = await login({})
+  is(!/;\s*secure/i.test(plain),
+     'on genuinely plain HTTP it is not, or local development cannot sign in at all')
+}
+
+// --------------------------------------------- the discount-code guessing wall
+{
+  await run('mariadb', ['sporta', '-e',
+    'delete from rate_limit; delete from orders; delete from discounts; ' +
+    "insert into discounts (kind, code, label, type, value, active) " +
+    "values ('code','REALCODE','a code that exists','percent',10,1)"])
+
+  const cart = [{ slug: 'cloudsoft-jacket-army-green', qty: 1, size: 'L' }]
+  const check = async (code) => {
+    const res = await fetch(`${BASE}/api.php?r=discount`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: cart, code }),
+    })
+    return { status: res.status, body: await res.json().catch(() => null) }
+  }
+
+  // A public endpoint that says whether a code is real is an oracle, and an
+  // unthrottled oracle is a code generator: SAVE10, SAVE15, SAVE20 …
+  let blockedAt = 0
+  for (let i = 1; i <= 40 && !blockedAt; i++) {
+    const r = await check(`NOPE${i}`)
+    if (r.body?.error === 'too_many_attempts') blockedAt = i
+  }
+  is(blockedAt > 0 && blockedAt <= 35, 'guessing discount codes is cut off', `blocked on attempt ${blockedAt}`)
+  is((await check('NOPE99')).status === 429, 'and stays cut off, with 429')
+
+  // The whole point of counting only FAILURES: a customer whose code works is
+  // not attacking anything, and throttling them breaks the feature to protect it.
+  const real = await check('REALCODE')
+  is(real.body?.discount === 1,
+     'but a REAL code still works from the same address — only failures are counted',
+     JSON.stringify(real.body?.applied?.[0]?.code))
+
+  await run('mariadb', ['sporta', '-e', 'delete from rate_limit; delete from discounts'])
+}
+
+
 // ------------------------------------------------ a half-set-up server
 {
   cookie = ''

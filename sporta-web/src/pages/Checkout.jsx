@@ -5,6 +5,7 @@ import { optionLine } from '../lib/options'
 import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
 import { phpDiscountCheck } from '../lib/backend'
+import PaymentMethods from '../components/PaymentMethods'
 import { startCheckout } from '../lib/checkout'
 import { usePageMeta } from '../lib/seo'
 import { GOVERNORATES, governorate, governorateOfArea, normalisePhone, toAsciiDigits } from '../lib/kuwait'
@@ -437,36 +438,12 @@ export default function Checkout() {
                 options need their consequence visible without a tap, because
                 the difference — pay now on the bank's page, or pay the driver —
                 is the whole decision. */}
-            <fieldset className="mt-5 border-t border-slate-200 pt-4">
-              <legend className="mb-2 text-sm font-bold text-slate-800">{t.checkout.payWith}</legend>
-              <div className="space-y-2">
-                {[
-                  ['knet', t.checkout.methodKnet, t.checkout.methodKnetHint],
-                  ['tpay', t.checkout.methodTpay, t.checkout.methodTpayHint],
-                  ['cod', t.checkout.methodCod, t.checkout.methodCodHint],
-                ].map(([id, label, hint]) => (
-                  <label
-                    key={id}
-                    className={`tap-row flex cursor-pointer gap-3 rounded-xl border p-3 transition ${
-                      method === id ? 'border-brand bg-brand/5' : 'border-slate-200 hover:border-slate-300'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="paymethod"
-                      value={id}
-                      checked={method === id}
-                      onChange={() => setMethod(id)}
-                      className="mt-0.5 h-5 w-5 shrink-0 accent-brand"
-                    />
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-slate-800">{label}</span>
-                      <span className="block text-xs leading-snug text-slate-600">{hint}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+            <PaymentMethods
+              value={method}
+              onChange={setMethod}
+              className="mt-5 border-t border-slate-200 pt-4"
+              legendClassName="mb-2 text-sm font-bold text-slate-800"
+            />
 
             {/* On a phone the summary sits below a long form, so the real Pay
                 button is the sticky bar below; showing both would be two live

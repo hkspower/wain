@@ -22,7 +22,7 @@ const CBK_BASE =
 
 // Carries the machine token raised by create_order, so the page can show a
 // translated message instead of raw database text.
-export class CheckoutError extends Error {
+class CheckoutError extends Error {
   constructor(token, detail) {
     super(token)
     this.name = 'CheckoutError'

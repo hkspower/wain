@@ -33,8 +33,6 @@ export function saveDelivery(form, remember) {
   else localStorage.removeItem(STORE_KEY)
 }
 
-export const forgetDelivery = () => localStorage.removeItem(STORE_KEY)
-
 // The same rules create_order enforces. Repeated in the browser only so the
 // shopper is told immediately instead of after a round trip — the copy that
 // actually protects the order is the one in the migration, because a browser

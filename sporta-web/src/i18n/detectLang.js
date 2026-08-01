@@ -6,15 +6,18 @@
 //      who has tapped the language button. Stored only when they tap it.
 //   2. ?lang=ar / ?lang=en on the URL       — so a campaign, a WhatsApp
 //      message or a QR code can open the shop in the right language.
-//   3. the device's LANGUAGES               — a phone set to Arabic is the
-//      strongest statement of preference there is, and it is free.
-//   4. the device's TIME ZONE               — where the visitor is.
+//   3. the device's LANGUAGES               — THE PHONE DECIDES. A language
+//      list is a setting a person chose; a location is a guess about them.
+//      Arabic anywhere in the list means Arabic, anything else means English,
+//      and either way nothing below is consulted.
+//   4. the device's TIME ZONE               — only when the device reports no
+//      languages at all. A fallback, not a competitor.
 //   5. English.
 //
-// WHY TIME ZONE AND NOT THE IP ADDRESS.
+// WHY THE TIME ZONE IS THE FALLBACK, AND NOT THE IP ADDRESS.
 //
-// The ask was "Arabic for Middle East IPs", and the time zone is the better
-// instrument for it here, for three reasons that are all measurable:
+// The location signal here is the time zone, for three reasons that are all
+// measurable:
 //
 //   * It is SYNCHRONOUS. The language has to be known before the first frame:
 //      it sets <html dir>, which decides the entire page layout, and it picks
@@ -32,8 +35,8 @@
 //      a corporate proxy in Frankfurt all keep Asia/Kuwait on their phone.
 //
 // If the site is ever put behind Cloudflare, `CF-IPCountry` arrives as a real
-// header and `countryFromHeader()` below is where it would join step 4 —
-// server-side, so it would still be synchronous by the time the page renders.
+// header and would join step 4 server-side, so it would still be resolved
+// before the page renders. It would still sit BELOW the device's languages.
 //
 // SEO: this never redirects and never changes the URL. Every page keeps one
 // canonical address in both languages, so Googlebot (US IP, en, UTC) sees
@@ -91,9 +94,26 @@ export function isArabicTimeZone(tz) {
 // and the tests can drive every branch.
 export function detectLang({ saved = null, search = '', languages = [], timeZone = null } = {}) {
   if (SUPPORTED.has(saved)) return saved
+
   const fromUrl = langFromQuery(search)
   if (fromUrl) return fromUrl
-  if (prefersArabic(languages)) return 'ar'
+
+  // THE PHONE DECIDES.
+  //
+  // A device language list is a setting a person chose, on purpose, and it
+  // outranks any guess about where they are. Arabic anywhere in it means
+  // Arabic; anything else means English.
+  //
+  // The `.length` check is what makes the time zone a FALLBACK rather than a
+  // competitor: it is consulted only when the device says nothing at all.
+  // Before this, a phone set to English in Kuwait was overruled by its own time
+  // zone and served Arabic — which is exactly the case Kuwait has most of.
+  // Roughly seventy per cent of the country is expatriate, and a Filipino,
+  // Indian or British resident with an English phone reads English.
+  if (languages.length > 0) return prefersArabic(languages) ? 'ar' : 'en'
+
+  // Nothing from the device — an old browser, or a locked-down one. Fall back
+  // to where they are, which is the only signal left.
   if (isArabicTimeZone(timeZone)) return 'ar'
   return 'en'
 }

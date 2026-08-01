@@ -259,7 +259,70 @@ function store_slug(string $s): string {
     return trim((string)$slug, '-');
 }
 
+// ------------------------------------------------------------- guessing guard
+//
+// A public endpoint that answers "is this code real?" is an oracle, and an
+// unthrottled oracle is a code generator. `?r=discount` is exactly that: no
+// session, an unlimited number of tries, and a different answer for a code
+// that exists. A script can walk SAVE10, SAVE15, SAVE20 … in seconds and find
+// every live discount the shop has.
+//
+// The throttle is deliberately cheap and stateless-ish: a per-IP counter in
+// the same MySQL the request is already talking to, in a fixed window. No new
+// table, no cache server, no per-request file writes — this runs on shared
+// hosting where none of those exist.
+//
+// It counts only FAILED lookups. A customer with a real code who re-checks
+// their basket four times is not attacking anything, and throttling them would
+// break the feature to protect it.
+function store_throttle(PDO $db, string $bucket, int $max, int $windowSec): void {
+    $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    if ($ip === '') return;
+    // The IP is HASHED. This is abuse control, not a visitor log, and a table
+    // of who-asked-what is a privacy liability the shop has no use for.
+    $key = substr(hash('sha256', $bucket . '|' . $ip), 0, 32);
+    $now = time();
+    $windowStart = $now - ($now % $windowSec);
+
+    $db->prepare(
+        'insert into rate_limit (bucket_key, window_start, hits) values (?, ?, 1)
+         on duplicate key update hits = hits + 1'
+    )->execute([$key, $windowStart]);
+
+    $q = $db->prepare('select hits from rate_limit where bucket_key = ? and window_start = ?');
+    $q->execute([$key, $windowStart]);
+    if ((int) $q->fetchColumn() > $max) {
+        // 429 with no detail: telling a guesser how long to wait is telling it
+        // how fast to go.
+        store_fail('too_many_attempts', 429);
+    }
+
+    // Opportunistic sweep, ~1 request in 50, so the table cannot grow without
+    // bound on a shop that never runs a cron for it.
+    if (random_int(1, 50) === 1) {
+        $db->prepare('delete from rate_limit where window_start < ?')
+           ->execute([$windowStart - ($windowSec * 4)]);
+    }
+}
+
 // ------------------------------------------------------------------ admin auth
+
+// Is this request really over HTTPS?
+//
+// Hostinger terminates TLS at a proxy, so PHP sees a PLAIN HTTP request even
+// when the browser is on https:// — $_SERVER['HTTPS'] is empty and
+// SERVER_PORT is 80. The payment endpoints have always known this
+// (knet_require_https, cbk_require_https); the admin session did not, and the
+// consequence was worse than a wrong answer: the session cookie was issued
+// WITHOUT the Secure flag on the live site, so any request that ever left over
+// plain HTTP would carry the admin session with it in clear text.
+//
+// Same three signals the gateways use, and for the same reason.
+function store_is_https(): bool {
+    return (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
+        || ((string) ($_SERVER['SERVER_PORT'] ?? '') === '443')
+        || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https');
+}
 
 function store_session_start(): void {
     if (session_status() === PHP_SESSION_ACTIVE) return;
@@ -267,7 +330,9 @@ function store_session_start(): void {
     session_set_cookie_params([
         'lifetime' => 0,            // session cookie: closes with the browser
         'path'     => '/',
-        'secure'   => !empty($_SERVER['HTTPS']),
+        // See store_is_https(): reading $_SERVER['HTTPS'] alone left this
+        // false on the live server, behind Hostinger's TLS proxy.
+        'secure'   => store_is_https(),
         'httponly' => true,         // no script access — this cookie IS the admin
         'samesite' => 'Strict',     // the CSRF defence: no cross-site request carries it
     ]);
@@ -538,11 +603,14 @@ function store_discounts_for(PDO $db, array $lines, int $subtotalFils, ?string $
 // order rather than honour a discount that is gone — a code that can be used
 // twice is a code that can be used a thousand times.
 function store_discounts_claim(PDO $db, array $applied): bool {
+    // Prepared once, executed per rule — the same shape store_price_lines()
+    // uses for the cart. Re-preparing identical SQL inside a loop is a round
+    // trip per iteration for nothing.
+    $st = $db->prepare(
+        'update discounts set used_count = used_count + 1
+          where id = ? and (usage_limit = 0 or used_count < usage_limit)'
+    );
     foreach ($applied as $a) {
-        $st = $db->prepare(
-            'update discounts set used_count = used_count + 1
-              where id = ? and (usage_limit = 0 or used_count < usage_limit)'
-        );
         $st->execute([$a['id']]);
         if ($st->rowCount() !== 1) return false;
     }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchBrands, saveBrand, setBrandActive, slugify } from './api'
 import { Notice } from './Overview'
 import { IconClose, IconImage } from '../components/icons'
+import { downscaleImage, ACCEPTED_ATTR } from './lib/downscaleImage'
 
 // The brands the shop carries. Add one, rename it, give it a logo, and show or
 // hide it on the storefront.
@@ -17,31 +18,13 @@ import { IconClose, IconImage } from '../components/icons'
 //     "disabled" is the reversible answer. The switch is the whole feature.
 //
 // The downscale is not a nicety. A logo dragged off a phone is a 4 MB
-// photograph; at 320px and WebP it is a few kilobytes, and both backends cap
-// what they will store anyway — this is what keeps the admin from hitting that
-// cap on every save.
+// photograph; at 320px and WebP it is a few kilobytes, and the server caps
+// what it will store anyway — this is what keeps the admin from hitting that
+// cap on every save. The scaling itself lives in lib/downscaleImage.js, shared
+// with the slides screen, because the file-type check in it is a security rule
+// and one copy of a security rule is one place to get it right.
 
 const MAX_EDGE = 320
-const TARGET_TYPE = 'image/webp'
-
-// Read → downscale → data URL, entirely in the browser.
-async function toLogoDataUrl(file) {
-  if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
-    throw new Error('Choose a PNG, JPEG or WebP image. (SVG is not accepted — it can carry script.)')
-  }
-  const bitmap = await createImageBitmap(file)
-  const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height))
-  const w = Math.max(1, Math.round(bitmap.width * scale))
-  const h = Math.max(1, Math.round(bitmap.height * scale))
-  const canvas = document.createElement('canvas')
-  canvas.width = w
-  canvas.height = h
-  canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h)
-  bitmap.close?.()
-  // WebP where the browser has it; PNG keeps transparency everywhere else.
-  const url = canvas.toDataURL(TARGET_TYPE, 0.9)
-  return url.startsWith('data:image/webp') ? url : canvas.toDataURL('image/png')
-}
 
 const BLANK = { id: 0, slug: '', name_en: '', name_ar: '', logo: null, sort: 0 }
 
@@ -187,7 +170,7 @@ function BrandEditor({ brand, onClose, onSaved }) {
     if (!f) return
     setErr('')
     try {
-      const logo = await toLogoDataUrl(f)
+      const { url: logo } = await downscaleImage(f, { maxEdge: MAX_EDGE, quality: 0.9 })
       setForm((s) => ({ ...s, logo }))
       setLogoTouched(true)
     } catch (ex) {
@@ -236,7 +219,7 @@ function BrandEditor({ brand, onClose, onSaved }) {
             <input
               ref={file}
               type="file"
-              accept="image/png,image/jpeg,image/webp"
+              accept={ACCEPTED_ATTR}
               onChange={pick}
               className="hidden"
             />

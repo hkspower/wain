@@ -258,6 +258,27 @@ alter table products add column if not exists featured_sort  int           not n
 
 create index if not exists idx_products_featured on products (featured, featured_sort);
 
+-- --------------------------------------------------------------- rate limiting
+--
+-- A fixed-window counter, keyed by a HASH of bucket + client IP. It exists for
+-- `?r=discount`, which is a public endpoint that answers "is this code real?"
+-- — an oracle, and an unthrottled oracle is a code generator.
+--
+-- In MySQL rather than a cache server or a file, because this runs on shared
+-- hosting where neither exists and the request is already holding a database
+-- connection. The IP is hashed: this is abuse control, not a visitor log, and
+-- a table of who-asked-what is a liability with no use.
+--
+-- Swept opportunistically by store_throttle(), so it needs no cron.
+create table if not exists rate_limit (
+  bucket_key   char(32)     not null,
+  window_start int unsigned not null,
+  hits         int unsigned not null default 0,
+  primary key (bucket_key, window_start)
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+create index if not exists idx_rate_limit_sweep on rate_limit (window_start);
+
 -- ------------------------------------------------------------------ discounts
 --
 -- Two kinds in one table, because they are the same arithmetic and splitting
@@ -319,3 +340,23 @@ alter table orders add column if not exists discount_label  varchar(200)  null a
 
 -- Existing orders predate discounts: their subtotal is simply their amount.
 update orders set subtotal = amount where subtotal = 0 and amount > 0;
+
+-- ------------------------------------------------------------------- indexes
+--
+-- Added when the shop was small and every plan looked fine. They are here for
+-- the shape the tables grow into, not the shape they have:
+--
+--   orders          the admin's Orders screen filters by payment or fulfilment
+--                   status and always sorts newest-first. Without a composite
+--                   index each filtered view is a full scan plus a filesort,
+--                   and it gets slower with every order ever taken.
+--   fulfilment_outbox  the cron claims work every five minutes, forever, from a
+--                   table that only grows — sent rows are KEPT, deliberately,
+--                   because they are the record that the warehouse was told.
+--                   Measured before this index: type ALL, Using filesort.
+--   orders.discount_code  the guard that refuses to delete a discount an order
+--                   was placed with. A scan per delete.
+create index if not exists idx_orders_payment    on orders (payment_status, created_at);
+create index if not exists idx_orders_fulfilment on orders (fulfilment_status, created_at);
+create index if not exists idx_orders_discount   on orders (discount_code);
+create index if not exists idx_outbox_pending    on fulfilment_outbox (sent_at, attempts, created_at);

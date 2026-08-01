@@ -39,7 +39,7 @@ export const normalizeSize = (s) => {
 // How the garment sits. This is a real choice on a sportswear page — the same
 // tee is bought oversized for training and slim for wearing out — and it is
 // the question customers ask before they ask anything else.
-export const FITS = [
+const FITS = [
   { id: 'normal',   en: 'Normal',    ar: 'عادي' },
   { id: 'slim',     en: 'Slim fit',  ar: 'ضيق' },
   { id: 'loose',    en: 'Loose fit', ar: 'واسع' },

@@ -50,12 +50,6 @@ export const hasArabic = (s) => /[؀-ۿݐ-ݿﭐ-﷿ﹰ-﻿]/.test(String(s ?? ''
 // and "فاطمة الصباح", and neither should render backwards.
 export const dirFor = (s) => (hasArabic(s) ? 'rtl' : 'ltr')
 
-// An Arabic-Indic rendering of a number, for the places where the design calls
-// for it. NOT used for money — formatKWD deliberately keeps Latin digits so
-// prices stay scannable next to Latin brand names, and an invoice must not
-// disagree with the price the shopper saw on the product page.
-export const arDigits = (n) => String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[+d])
-
 // A date both languages can read, and that no bidi algorithm can rearrange.
 //
 // Deliberately ISO-ish (2026-07-30 21:13) rather than a localised long form:

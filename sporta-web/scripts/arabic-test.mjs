@@ -35,27 +35,41 @@ const head = (t) => console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 56 - t.leng
 // ===========================================================================
 head('who gets Arabic')
 
-is(detectLang({ timeZone: 'Asia/Kuwait' }) === 'ar',
-   'a visitor in Kuwait gets Arabic without asking')
-is(detectLang({ timeZone: 'Asia/Riyadh' }) === 'ar' && detectLang({ timeZone: 'Asia/Dubai' }) === 'ar'
-   && detectLang({ timeZone: 'Africa/Cairo' }) === 'ar',
+// THE PHONE FIRST. A language list is a setting somebody chose; a location is
+// a guess about them, and it must not overrule the setting.
+is(detectLang({ languages: ['ar-KW', 'en'], timeZone: 'Europe/London' }) === 'ar',
+   'a phone set to Arabic gets Arabic ANYWHERE — the setting outranks the place')
+is(detectLang({ languages: ['en-GB'], timeZone: 'Asia/Kuwait' }) === 'en',
+   'a phone set to ENGLISH in Kuwait gets English — its own setting is not overruled')
+is(detectLang({ languages: ['fil-PH', 'en'], timeZone: 'Asia/Kuwait' }) === 'en',
+   'and so does a Tagalog phone in Kuwait — most of the country is expatriate')
+
+// The time zone is the fallback for a device that says nothing at all.
+is(detectLang({ languages: [], timeZone: 'Asia/Kuwait' }) === 'ar',
+   'with NO language from the device, Kuwait falls back to Arabic')
+is(detectLang({ languages: [], timeZone: 'Asia/Riyadh' }) === 'ar'
+   && detectLang({ languages: [], timeZone: 'Asia/Dubai' }) === 'ar'
+   && detectLang({ languages: [], timeZone: 'Africa/Cairo' }) === 'ar',
    'so do Riyadh, Dubai and Cairo')
-is(detectLang({ timeZone: 'Europe/London' }) === 'en' && detectLang({ timeZone: 'America/New_York' }) === 'en',
+is(detectLang({ languages: [], timeZone: 'Europe/London' }) === 'en'
+   && detectLang({ languages: [], timeZone: 'America/New_York' }) === 'en',
    'London and New York get English')
 
 // The region is not the language. Getting this wrong would serve Arabic to
 // three countries that do not read it.
 for (const tz of ['Asia/Tehran', 'Europe/Istanbul', 'Asia/Jerusalem']) {
-  is(detectLang({ timeZone: tz }) === 'en',
+  is(detectLang({ languages: [], timeZone: tz }) === 'en',
      `${tz} is in the region and is NOT Arabic-speaking — it gets English`)
 }
 
-is(detectLang({ languages: ['ar-KW', 'en'] }) === 'ar', 'a phone set to Arabic gets Arabic anywhere')
-is(detectLang({ languages: ['en-GB', 'ar'] }) === 'ar', 'Arabic ANYWHERE in the list counts — the reader is bilingual')
+is(detectLang({ languages: ['en-GB', 'ar'] }) === 'ar',
+   'Arabic anywhere in the list counts — the reader is bilingual')
 is(detectLang({ languages: ['fr-FR'], timeZone: 'Europe/Paris' }) === 'en', 'French in Paris gets English')
 
 is(detectLang({ saved: 'en', timeZone: 'Asia/Kuwait', languages: ['ar'] }) === 'en',
    'an explicit choice beats BOTH signals — nothing overrides a person who tapped the button')
+is(detectLang({ saved: 'ar', languages: ['en-GB'] }) === 'ar',
+   'including their own phone’s language')
 is(detectLang({ saved: 'ar', timeZone: 'Europe/London' }) === 'ar',
    'and it survives leaving the region')
 
@@ -183,11 +197,11 @@ head('the page, rendered right-to-left')
     executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium',
   })
 
-  // A visitor in Kuwait who has never chosen a language and whose phone is in
-  // English. This is the case the whole feature exists for.
+  // A phone set to Arabic. This is the case the feature exists for, and the
+  // one that has to work without the visitor touching anything.
   const kw = await browser.newContext({
     viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true,
-    locale: 'en-GB', timezoneId: 'Asia/Kuwait', serviceWorkers: 'block',
+    locale: 'ar-KW', timezoneId: 'Asia/Kuwait', serviceWorkers: 'block',
   })
   const p = await kw.newPage()
   const errs = []
@@ -195,7 +209,7 @@ head('the page, rendered right-to-left')
   await p.goto(BASE, { waitUntil: 'networkidle' })
 
   is(await p.evaluate(() => document.documentElement.lang) === 'ar',
-     'a phone in Kuwait, set to English, still opens the shop in Arabic')
+     'a phone set to Arabic opens the shop in Arabic, with nothing tapped')
   is(await p.evaluate(() => document.documentElement.dir) === 'rtl', 'and the page is right-to-left')
 
   // The direction has to be right at the FIRST frame, not after hydration:
@@ -232,6 +246,19 @@ head('the page, rendered right-to-left')
   const up = await uk.newPage()
   await up.goto(BASE, { waitUntil: 'networkidle' })
   is(await up.evaluate(() => document.documentElement.lang) === 'en', 'London gets English')
+
+  // The regression this ordering exists to prevent: an English phone sitting
+  // in Kuwait must NOT be flipped to Arabic by its own time zone.
+  const expat = await browser.newContext({
+    viewport: { width: 390, height: 844 }, locale: 'en-GB',
+    timezoneId: 'Asia/Kuwait', serviceWorkers: 'block',
+  })
+  const ep = await expat.newPage()
+  await ep.goto(BASE, { waitUntil: 'networkidle' })
+  is(await ep.evaluate(() => document.documentElement.lang) === 'en',
+     'an ENGLISH phone in Kuwait stays English — the phone outranks the place')
+  is(await ep.evaluate(() => document.documentElement.dir) === 'ltr', 'and the page stays left-to-right')
+  await expat.close()
   await up.goto(`${BASE}/?lang=ar`, { waitUntil: 'networkidle' })
   is(await up.evaluate(() => document.documentElement.dir) === 'rtl',
      '?lang=ar opens Arabic for them anyway')

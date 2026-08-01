@@ -65,18 +65,11 @@ export async function setFulfilment(orderId, status) {
   return r.data ? {} : r
 }
 
-// Settle (or un-settle) a cash-on-delivery order.
-//
-// Goes through an RPC rather than a direct update on purpose: the
-// orders_admin_update policy deliberately forbids changing payment_status, so
-// that nobody signed into /backends can assert a card payment the bank never
-// confirmed. admin_set_cod_paid is the one narrow exception — it refuses any
-// order whose payment_method is not 'cod', and it maintains paid_at, which the
-// revenue stats and the daily chart filter on.
 // Settle (or un-settle) a cash-on-delivery order — the one narrow path that
-// may touch payment_status. A card is confirmed by the bank's callback, never
-// by a person with an admin session; settleCard() below is the audited
-// exception for a payment the bank took but never reported.
+// may touch payment_status, and it refuses any order that is not 'cod'. A CARD
+// is confirmed by the bank's callback and never by a person with an admin
+// session; settleCard() below is the audited exception, for a payment the bank
+// took but never reported.
 export async function setCodPaid(orderId, paid = true) {
   const r = await php('cod_paid', { method: 'POST', body: { order_id: orderId, paid } })
   if (r.data) return { order: r.data }
@@ -88,10 +81,6 @@ export async function setCodPaid(orderId, paid = true) {
   return r
 }
 
-// Settle a CARD order the bank took but never reported back — see the long
-// note on the card_settled route in dropin/php-store/admin.php.
-// only: there is no equivalent stored routine, and inventing one from the
-// browser would mean a client that can mark orders paid.
 // Settle a CARD order the bank took but never reported back — see the long
 // note on the card_settled route in dropin/php-store/admin.php.
 export async function settleCard(orderId, bankReference) {
@@ -167,7 +156,7 @@ export async function saveCustomer(orderId, fields) {
 // that ships with the front end into MySQL, matching on slug so re-running it
 // updates rather than duplicating.
 // ---------------------------------------------------------------------------
-export function catalogRows() {
+function catalogRows() {
   return PRODUCTS.map((p) => ({
     slug: p.slug,
     name_en: p.name.en,

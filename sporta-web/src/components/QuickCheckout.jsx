@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
+import PaymentMethods from './PaymentMethods'
 import { addressLines } from '../lib/delivery'
 import { optionLine } from '../lib/options'
 import { formatKWD } from '../lib/format'
@@ -126,36 +127,12 @@ export default function QuickCheckout({
       {/* HOW IT IS PAID — radios, not a dropdown: the difference between paying
           now on the bank's page and paying the driver is the whole decision, and
           it must be readable without a tap. */}
-      <fieldset className="rounded-2xl border border-slate-100 bg-white p-5">
-        <legend className="px-1 text-sm font-bold text-slate-800">{t.checkout.payWith}</legend>
-        <div className="mt-2 space-y-2">
-          {[
-            ['knet', t.checkout.methodKnet, t.checkout.methodKnetHint],
-            ['tpay', t.checkout.methodTpay, t.checkout.methodTpayHint],
-            ['cod', t.checkout.methodCod, t.checkout.methodCodHint],
-          ].map(([id, label, hint]) => (
-            <label
-              key={id}
-              className={`tap-row flex cursor-pointer gap-3 rounded-xl border p-3 transition ${
-                method === id ? 'border-brand bg-brand/5' : 'border-slate-200 hover:border-slate-300'
-              }`}
-            >
-              <input
-                type="radio"
-                name="paymethod"
-                value={id}
-                checked={method === id}
-                onChange={() => onMethod(id)}
-                className="mt-0.5 h-5 w-5 shrink-0 accent-brand"
-              />
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold text-slate-800">{label}</span>
-                <span className="block text-xs leading-snug text-slate-600">{hint}</span>
-              </span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      <PaymentMethods
+        value={method}
+        onChange={onMethod}
+        className="rounded-2xl border border-slate-100 bg-white p-5"
+        legendClassName="px-1 text-sm font-bold text-slate-800"
+      />
 
       <button type="submit" disabled={busy} className="btn btn-primary w-full">
         {busy ? t.checkout.redirecting : method === 'cod' ? t.checkout.placeOrder : t.checkout.payNow}
