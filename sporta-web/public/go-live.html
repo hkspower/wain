@@ -54,7 +54,7 @@
 // been verified yet, so it has no build step, no imports and no dependencies.
 const cfg = window.SPORTA_CONFIG || {}
 const rows = document.getElementById('rows')
-const PLACEHOLDER = /YOUR-PROJECT|your-anon-public-key/
+const API = (cfg.phpApiUrl || '/api').replace(/\/$/, '')
 
 let failures = 0
 function report(okState, title, detail, fix) {
@@ -68,12 +68,13 @@ function report(okState, title, detail, fix) {
   rows.appendChild(el)
 }
 
-// Supabase REST needs the anon key in two headers; that key is public by design.
-const sb = (path, init = {}) =>
-  fetch(cfg.supabaseUrl.replace(/\/$/, '') + '/rest/v1/' + path, {
+// The backend is /api on this same origin. Nothing here needs a key: the
+// catalogue and stock are shop-window data, and the only write this page makes
+// is a deliberately invalid order it expects to be refused.
+const api = (route, init = {}) =>
+  fetch(API + '/api.php?r=' + route, {
     ...init,
-    headers: { apikey: cfg.supabaseAnonKey, Authorization: 'Bearer ' + cfg.supabaseAnonKey,
-               'Content-Type': 'application/json', ...(init.headers || {}) },
+    headers: { 'Content-Type': 'application/json', ...(init.headers || {}) },
   })
 
 // Each check is isolated: a thrown error becomes a failed line, not a blank
@@ -84,85 +85,60 @@ async function step(fn) {
 }
 
 async function run() {
-  // ---- 1. config.js -------------------------------------------------------
-  const configured =
-    cfg.supabaseUrl && cfg.supabaseAnonKey &&
-    !PLACEHOLDER.test(cfg.supabaseUrl) && !PLACEHOLDER.test(cfg.supabaseAnonKey)
-  report(configured, 'Site configuration (config.js)',
-    configured ? cfg.supabaseUrl : 'Still holding the placeholder values.',
-    'Open <code>public_html/config.js</code> in File Manager and paste your Supabase ' +
-    '<b>Project URL</b> and <b>anon</b> key (Supabase → Project Settings → API). ' +
-    'Nothing else on this page can pass until this does.')
-  if (!configured) return finish()
-
-  // Pasting the service key here would expose it to every visitor.
-  // Padded properly and guarded: an unparseable key must not stop the page.
-  // ('==' appended unconditionally makes a correctly-sized payload invalid, and
-  // atob then throws — which aborted every check below it.)
-  const jwtRole = (key) => {
-    try {
-      const b64 = (key.split('.')[1] || '').replace(/-/g, '+').replace(/_/g, '/')
-      const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4)
-      return JSON.parse(atob(padded)).role || ''
-    } catch { return '' }
-  }
-  const looksService = jwtRole(cfg.supabaseAnonKey) === 'service_role' ||
-                       cfg.supabaseAnonKey.startsWith('sb_secret_')
-  report(!looksService, 'Correct key type',
-    looksService ? 'That is the SERVICE key — it must never be in config.js.' : 'anon / public key.',
-    'Replace it with the <b>anon</b> key immediately, then rotate the service key in ' +
-    'Supabase — it has been published to everyone who loaded this site.')
-
-  await step(async () => {
-  // ---- 2. database --------------------------------------------------------
+  // ---- 1. the backend answers --------------------------------------------
+  // /api is the whole backend: catalogue, stock, orders, invoices, admin. If
+  // it does not answer, nothing below it can, so this runs first and stops.
   let productCount = null
   try {
-    const r = await sb('products?select=slug', { headers: { Prefer: 'count=exact' } })
+    const r = await api('products')
     if (r.status === 200) {
-      productCount = Number((r.headers.get('content-range') || '').split('/')[1]) || (await r.json()).length
-      report(true, 'Supabase reachable', 'Answered over the anon key.')
+      const body = await r.json().catch(() => null)
+      productCount = Array.isArray(body?.products) ? body.products.length : 0
+      report(true, 'Backend reachable (/api)', 'api.php answered.')
+    } else if (r.status === 503) {
+      report(false, 'Backend reachable (/api)', 'HTTP 503 — PHP ran but the database refused.',
+        'Check the four <code>mysql_*</code> values in <code>public_html/api/config.php</code> ' +
+        'against hPanel → Databases → Management.')
+    } else if (r.status === 404) {
+      report(false, 'Backend reachable (/api)', 'Nothing is answering at /api/api.php.',
+        'The <code>api/</code> folder was not uploaded. Upload it from the package, then create ' +
+        '<code>api/config.php</code> from <code>config.example.php</code>.')
     } else {
-      report(false, 'Supabase reachable', 'HTTP ' + r.status + ' from the products table.',
-        r.status === 401 || r.status === 403
-          ? 'The key is wrong, or <code>schema.sql</code> has not been run (it creates the read policy).'
-          : 'Check the Project URL in <code>config.js</code>.')
+      report(false, 'Backend reachable (/api)', 'HTTP ' + r.status + ' from api.php.',
+        'Open <code>api/config.php</code> and check it parses — a stray character makes PHP 500.')
     }
   } catch (e) {
-    report(false, 'Supabase reachable', 'Could not connect: ' + e.message,
-      'The Project URL in <code>config.js</code> is wrong, or the project is paused.')
+    report(false, 'Backend reachable (/api)', 'Could not connect: ' + e.message,
+      'Upload the <code>api/</code> folder and create <code>api/config.php</code>.')
   }
+  if (productCount === null) return finish()
 
-  if (productCount !== null) {
-    report(productCount > 0, 'Products loaded',
-      productCount + ' product(s) in the database.',
-      'Run <code>5-seed-products.sql</code> in the Supabase SQL Editor. Orders are priced ' +
-      'from this table, so while it is empty <b>every checkout is refused</b>.')
-  }
+  await step(async () => {
+  // ---- 2. the database has a catalogue to price from ----------------------
+  report(productCount > 0, 'Products loaded',
+    productCount + ' product(s) in the database.',
+    'Import <code>api/schema.mysql.sql</code> then <code>api/seed.mysql.sql</code> in ' +
+    'hPanel → Databases → phpMyAdmin. Orders are priced from this table, so while it is ' +
+    'empty <b>every checkout is refused</b>.')
 
-  // create_order: an empty cart must be rejected BY the function. A 404 or
-  // PGRST202 means the function does not exist at all.
+  // Order creation must reject an empty cart. That it rejects it with the
+  // documented token — rather than 404 — proves the endpoint exists, the
+  // database is writable, and the server is the one deciding the price.
   try {
-    const r = await sb('rpc/create_order', {
+    const r = await api('order', {
       method: 'POST',
-      body: JSON.stringify({ p_track_id: 'GOLIVECHK', p_items: [], p_customer: {} }),
+      body: JSON.stringify({ track_id: 'GOLIVECHK', items: [], customer: {} }),
     })
     const body = await r.json().catch(() => ({}))
-    const exists = !(r.status === 404 || body.code === 'PGRST202')
-    report(exists, 'Checkout function (create_order)',
-      exists ? 'Present — it rejected an empty cart, as it should.' : 'Not found.',
-      'Run <code>3-checkout-migration.sql</code>. Without it the browser cannot create an ' +
-      'order and every shopper hits <b>404 Unknown order</b> when they press Pay.')
-  } catch (e) { report(false, 'Checkout function (create_order)', e.message, 'Run <code>3-checkout-migration.sql</code>.') }
-
-  // Admin passcode RPCs. Unauthenticated they return 401/403 — that still
-  // proves they exist, which is all this checks.
-  try {
-    const r = await sb('rpc/has_device_passcode', { method: 'POST', body: JSON.stringify({ p_device_id: 'go-live-check' }) })
-    const body = await r.json().catch(() => ({}))
-    const exists = !(r.status === 404 || body.code === 'PGRST202')
-    report(exists, 'Admin quick-unlock', exists ? 'Installed.' : 'Not found.',
-      'Run <code>4-passcode-migration.sql</code>. The admin passcode screen cannot work without it.')
-  } catch (e) { report(false, 'Admin quick-unlock', e.message, 'Run <code>4-passcode-migration.sql</code>.') }
+    const good = r.status !== 404 && typeof body?.error === 'string'
+    report(good, 'Checkout endpoint (create order)',
+      good ? 'Present — it rejected an empty cart, as it should.' : 'Not answering.',
+      'Upload <code>api/store.php</code> with the rest of the folder, then import ' +
+      '<code>api/schema.mysql.sql</code>. Without it every shopper hits an error on Pay.')
+  } catch (e) {
+    report(false, 'Checkout endpoint (create order)', e.message,
+      'Upload the <code>api/</code> folder and import <code>api/schema.mysql.sql</code>.')
+  }
 
   })
 
@@ -206,8 +182,9 @@ async function run() {
       exposed.length ? 'READABLE BY ANYONE: ' + exposed.join(', ') : 'Every dotfile and config file is blocked.',
       'Delete these from <code>public_html/</code> in File Manager now, then upload the current ' +
       '<code>.htaccess</code> (8 KB — an older one does not block dotfiles). ' +
-      '<b>If <code>.env</code> was listed, treat every secret in it as compromised and rotate it</b> — ' +
-      'Supabase keys in the Supabase dashboard, Tranportal credentials with your bank.')
+      '<b>If <code>.env</code> or a <code>config.php</code> was listed, treat every secret in it as ' +
+      'compromised and rotate it</b> — the database password in hPanel, Tranportal and T-Pay ' +
+      'credentials with your bank.')
   } catch (e) { report(false, 'Private files are not downloadable', e.message, '') }
 
   // The single most informative check: asking pay.php for an order that cannot
@@ -231,9 +208,9 @@ async function run() {
       fix = 'PHP is disabled for this folder, or the file was uploaded with the wrong extension. ' +
             'Check the PHP version setting in hPanel.'
     }
-    else if (r.status === 503) { detail = 'Cannot reach the orders database (503).'; fix = 'Check <code>supabase_url</code> and the <b>service</b> key in <code>knet/config.php</code>.' }
+    else if (r.status === 503) { detail = 'Cannot reach the orders database (503).'; fix = 'Check the four <code>mysql_*</code> values in <code>knet/config.php</code> — they must match <code>api/config.php</code>.' }
     else if (r.status === 500) { detail = 'Server error (500).'; fix = 'Usually a resource key that is not exactly 16 bytes. Open <code>/knet/selftest.php</code> — it names the problem.' }
-    else if (r.status === 0 || r.type === 'opaqueredirect') { detail = 'Redirected to the bank for an order that does not exist.'; fix = '<b>Serious:</b> the orders database is not configured in <code>knet/config.php</code>, so the browser could set its own price. Fill in <code>supabase_url</code> and the service key.' }
+    else if (r.status === 0 || r.type === 'opaqueredirect') { detail = 'Redirected to the bank for an order that does not exist.'; fix = '<b>Serious:</b> the orders database is not configured in <code>knet/config.php</code>, so the browser could set its own price. Fill in the <code>mysql_*</code> values.' }
     else { detail = 'Unexpected HTTP ' + r.status + '.'; fix = 'Open <code>/knet/selftest.php</code> for detail.' }
     report(ok, title, detail, fix)
   } catch (e) {

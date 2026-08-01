@@ -19,9 +19,8 @@
 // Deliberately left out, and this is the point of doing it in a script rather
 // than a glob:
 //   * AdminApp — 62 kB the shop's customers will never open.
-//   * supabase — 200 kB, needed at checkout and in the admin. Checkout cannot
-//     work offline anyway (it has to reach the bank), so precaching it would be
-//     paying 200 kB up front for a page that will fail regardless.
+//     (A hosted-backend client used to be skipped here too, at 200 kB. The
+//     backend is /api on this same origin now, so there is no such chunk.)
 //   * The Arabic font subsets, unless the visitor reads Arabic — the browser
 //     fetches those on demand and the service worker caches them then.
 //   * Category art and product images: cached on first sight, not up front. The
@@ -40,7 +39,7 @@ if (!existsSync(SW)) {
 
 // Chunks whose weight is not worth an install. Matched on the readable part of
 // the name, before the hash.
-const SKIP = /^(AdminApp|supabase)-/
+const SKIP = /^AdminApp-/
 
 const assets = readdirSync(join(DIST, 'assets'))
   .filter((f) => /\.(js|css)$/.test(f))

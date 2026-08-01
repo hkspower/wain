@@ -4,7 +4,7 @@
 -- SQL tab). Safe to re-run: everything is IF NOT EXISTS and the seed matches on
 -- slug, so prices update in place and nothing duplicates.
 --
--- This is the MySQL twin of supabase/schema.sql and its migrations, carrying
+-- This carries every rule the Postgres schema this shop started on carried,
 -- the same decisions: DECIMAL(10,3) because KWD has three decimal places and
 -- floats lose fils; sizes and fits as CHECK lists because a text column fed
 -- from a JSON body must not be free storage; utf8mb4 because the catalogue is
@@ -103,7 +103,7 @@ create table if not exists admin_users (
   created_at    timestamp not null default current_timestamp
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
--- The transactional outbox — same design as supabase/fulfilment-migration.sql,
+-- The transactional outbox — see FULFILMENT.md for the design,
 -- same reasoning: the message row is written in the order's own transaction so
 -- an order cannot exist without its warehouse message, and sending is a
 -- separate job (cron-fulfilment.php) that drains and marks.
@@ -141,7 +141,7 @@ create unique index if not exists uq_outbox_new on fulfilment_outbox (new_once);
 -- and is backed up with everything else. store_data_image() caps the size and
 -- allows only png/jpeg/webp — never SVG, which can carry script.
 --
--- The same column shape as the Supabase twin (supabase/brands-migration.sql),
+-- Brands are admin-managed; the logo is a capped data: URI in the row,
 -- so the admin screen cannot tell the two backends apart.
 create table if not exists brands (
   id        int unsigned auto_increment primary key,

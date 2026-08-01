@@ -45,11 +45,15 @@ After payment the customer lands on `result_page_url`
 (`/payment/result?status=success|failed|cancelled&trackid=…&payid=…&ref=…`).
 
 ## Order update
-`callback.php` PATCHes your Supabase `orders` row (matched by `track_id`) if you
-set `supabase_url` + `supabase_service_key`. Columns used: `payment_status`,
-`cbk_status`, `cbk_message`, `cbk_paymentid`, `cbk_transaction`, `cbk_authcode`,
-`cbk_reference`, `cbk_receipt`, `cbk_paytype`, `amount`, `paid_at`. Adjust to
-your schema. The manual REQUIRES saving the returned values.
+`callback.php` updates the MySQL `orders` row (matched by `track_id`) using the
+`mysql_*` values in `config.php` — the same database `api/config.php` and
+`knet/config.php` name. Columns used: `payment_status`, `cbk_status`,
+`cbk_message`, `cbk_paymentid`, `cbk_transaction`, `cbk_authcode`,
+`cbk_reference`, `cbk_receipt`, `cbk_paytype`, `paid_at`. The manual REQUIRES
+saving the returned values.
+
+The write is idempotent and never downgrades a paid order, and the warehouse
+follow-up is queued in the same transaction as the status it reports.
 
 ## Payment mode
 - `tij_MerchPayType` = '' → customer chooses KNET or T-Pay; '1' = KNET only;

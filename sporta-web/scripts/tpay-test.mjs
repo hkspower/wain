@@ -2,8 +2,8 @@
 // that speaks the real CBK API (scripts/fake-cbk-gateway.php).
 //
 // T-Pay had no coverage at all while KNET had 39 checks, and that asymmetry
-// was not academic: T-Pay carried the SAME bug KNET did — a Supabase-only
-// amount lookup and a Supabase-only writer — so on the native backend it
+// was not academic: T-Pay carried the SAME bug KNET did — an amount lookup and
+// a writer that both queried a database the shop no longer used — so
 // refused every payment and recorded nothing, and no test noticed. This suite
 // is what stops the two gateways drifting apart again.
 //

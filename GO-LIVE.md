@@ -88,8 +88,9 @@ GO-LIVE tells you to delete them once the site is set up, and re-uploading them
 every time would silently undo that. Pass `--setup-tools` on a first deploy when
 you still need them.
 
-**`config.js` and `knet/config.php` are never uploaded and never deleted.** They
-hold your live Supabase and Tranportal credentials and exist only on the server.
+**`config.js`, `api/config.php`, `knet/config.php` and `pay/config.php` are
+never uploaded and never deleted.** They hold your live database and bank
+credentials and exist only on the server.
 That is hard-coded, not a setting, so no configuration mistake can overwrite
 them.
 
@@ -109,13 +110,14 @@ project folder on your Mac. Nothing is installed and nothing is rebuilt.
 1. Download **`SPORTA-GO-LIVE.zip`** and read `README-FIRST.txt` inside it.
 2. Hostinger hPanel → **File Manager** → open `public_html`.
 3. Upload everything inside the zip's `public_html/` folder.
-4. **Edit `public_html/config.js`** — paste your Supabase Project URL and
-   *anon* key. This is the whole configuration step; the site cannot sell
-   anything until it is done, and checkout will say "Online ordering is
-   temporarily unavailable" until it is.
-5. Paste all of the zip's `supabase-sql/SETUP-ALL.sql` into the Supabase SQL
-   Editor and press Run. Read the report it prints at the end — see step 2
-   below for what each number means.
+4. In hPanel → **Databases → MySQL Databases**, create a database and a user
+   and give that user all privileges on it. Note the four values.
+5. In **phpMyAdmin → Import**, run the zip's `database-sql/` files **in their
+   numbered order**: `1-schema.mysql.sql`, `2-seed.mysql.sql`,
+   `3-brands.mysql.sql`.
+6. Copy `public_html/api/config.example.php` to `api/config.php` and fill in
+   those four values. The site cannot sell anything until this exists —
+   the catalogue is empty and every checkout is refused.
 
 Regenerate the zip any time with `node sporta-web/scripts/make-package.mjs`.
 
@@ -133,8 +135,9 @@ Regenerate the zip any time with `node sporta-web/scripts/make-package.mjs`.
 credentials. With SSH off, create it in **File Manager**:
 
 1. Copy `public_html/knet/config.example.php` to `public_html/knet/config.php`
-2. Fill in the five values (Tranportal ID, password and resource key from your
-   bank; your Supabase URL and **service** key)
+2. Fill in the Tranportal ID, password and resource key from your bank, plus
+   the four `mysql_*` values — the same database as `api/config.php`, which
+   spells the same four keys `db_*`
 3. Set its permissions to **600**
 4. Open `https://www.sporta.com.kw/knet/selftest.php`
 
@@ -144,9 +147,11 @@ you money:
 - **a resource key that is not exactly 16 bytes** — AES-128 needs 16, and one
   trailing space from a copy/paste makes KNET reject every transaction with no
   useful error message;
-- **the Supabase _anon_ key pasted where the _service_ key belongs** —
-  row-level security then blocks order creation, so checkout fails for every
-  customer.
+- **an orders database that is not actually reachable** — without one the
+  server has no authority over the price, so `pay.php` has no amount to charge
+  and refuses every card with a blunt `400 Invalid amount`. This is not
+  hypothetical: it is exactly how the card path died when the shop moved to
+  MySQL, and `npm run test:knet` exists to stop it happening again.
 
 Delete `setup-config.php` and `selftest.php` from the server once every line
 reads OK — both reveal configuration state.
@@ -159,41 +164,43 @@ cd public_html/knet
 php setup-config.php
 ```
 
-It asks for the five secrets, validates them, writes the file with the right
-permissions, and checks that your `products` and `orders` tables are reachable.
+It asks for the secrets, validates them, writes the file with the right
+permissions, and proves the `products` and `orders` tables are readable before
+it writes anything.
 It refuses to run over HTTP. Note it cannot run if the account's login shell is
 `/sbin/nologin`, even with SSH enabled.
 
 </details>
 
-### 2. Set up the database — one file
+### 2. Set up the database — three files, in order
 
-In the Supabase SQL editor, paste **all** of `supabase/SETUP-ALL.sql` and press
-Run. That is the whole database step.
+hPanel → **Databases → phpMyAdmin → Import**, and run these one after another:
 
-It is one file on purpose. The five migrations must run in a specific order —
-`create_order` needs the tables from `schema.sql`, and the products need the
-table to exist — and running them out of order fails *silently*: the storefront
-still renders, and every checkout is refused. Safe to re-run at any time.
-
-It ends by printing a report. Read it rather than assuming:
-
-| Column | Should say | If it says 0 |
+| File | What it does | If you skip it |
 |---|---|---|
-| `products_on_sale` | 46 | the catalogue did not load; checkout refuses everything |
-| `products_retired` | 0+ | old products hidden, not deleted — 0 on a new project |
-| `checkout_function` | 1 | every shopper hits **404 Unknown order** at Pay |
-| `passcode_function` | 1 | the admin quick-unlock screen cannot work |
-| `admin_users` | 1 or more | **nobody can sign in to /admin** |
+| `api/schema.mysql.sql` | every table, plus the triggers that price an order server-side | nothing works; the admin says the migration is not applied |
+| `api/seed.mysql.sql` | the 46 products and the AHED stock | the catalogue is empty and **every checkout is refused** |
+| `api/brands.mysql.sql` | the brands table and eight brands | the Brands screen has nothing to show |
 
-**If `admin_users` is 0**, create one: Supabase → **Authentication → Users →
-Add user**. Any email works — it does not need a real inbox, and it is not
-where order mail goes. That email and password are what you type at
-`https://www.sporta.com.kw/admin`.
+The order matters and getting it wrong fails *silently* — the storefront still
+renders and checkout refuses everything. All three are safe to re-run: products
+match on slug and variants on SKU, so prices and names update in place, nothing
+duplicates, and **your stock counts are never overwritten**.
 
-The five migrations are still there individually (`supabase/schema.sql` and so
-on) if you would rather run them one at a time, but they must go in the order
-they are numbered.
+Then create your sign-in. Open
+
+```
+https://www.sporta.com.kw/api/setup-admin.php
+```
+
+It asks for the `cron_key` from `api/config.php` (so only someone who can
+already read the server's config can use it), an email — any email, it does not
+need a real inbox and it is not where order mail goes — and a password of at
+least 12 characters. It refuses to run once an account exists, so it can
+bootstrap but never add.
+
+**Delete `api/setup-admin.php` from the server afterwards.** That email and
+password are what you type at `https://www.sporta.com.kw/backends`.
 
 ### 3. Confirm the site is live and correctly configured
 
@@ -269,19 +276,23 @@ File Manager في هوستنجر، ثم ارفع كل ما بداخل مجلد `
 
 1. أنشئ ملف الدفع على الخادم من File Manager (SSH مغلق):
    انسخ `public_html/knet/config.example.php` إلى `public_html/knet/config.php`،
-   واملأ القيم الخمس (بيانات Tranportal من البنك، ورابط ومفتاح Supabase)،
+   واملأ القيم (بيانات Tranportal من البنك، وبيانات قاعدة بيانات MySQL)،
    واضبط صلاحياته على 600، ثم افتح
    `https://www.sporta.com.kw/knet/selftest.php` للتأكد.
    واحذف `setup-config.php` و `selftest.php` بعد الانتهاء.
-2. **مهم جداً:** شغّل ملفات قاعدة البيانات في Supabase بالترتيب:
-   `schema.sql` ثم `admin-migration.sql` ثم `checkout-migration.sql`
-   ثم `passcode-migration.sql` ثم `seed-products.sql`.
-   بدون `checkout-migration.sql` لن يعمل الشراء إطلاقاً — ستظهر للعميل
-   صفحة «404 Unknown order» عند الضغط على الدفع.
-   و`seed-products.sql` يحمّل المنتجات العشرين بأسعارها الحالية، والسعر
-   يُحتسب من قاعدة البيانات وليس من المتصفح — فبدونه يُرفض كل طلب.
+2. **مهم جداً:** أنشئ قاعدة بيانات ومستخدماً لها من hPanel، ثم شغّل ملفات
+   قاعدة البيانات في phpMyAdmin بالترتيب:
+   `api/schema.mysql.sql` ثم `api/seed.mysql.sql` ثم `api/brands.mysql.sql`.
+   ثم انسخ `public_html/api/config.example.php` إلى `api/config.php` واملأ
+   بيانات قاعدة البيانات الأربعة — بدون هذا الملف لا يعمل المتجر إطلاقاً:
+   القائمة فارغة ويُرفض كل طلب.
+   و`seed.mysql.sql` يحمّل المنتجات بأسعارها الحالية، والسعر يُحتسب من قاعدة
+   البيانات وليس من المتصفح.
    يمكن إعادة تشغيل كل الملفات بأمان: التطابق على `slug` فيُحدّث السعر
-   ولا يكرّر المنتج، ولا يمسح روابط الصور الحقيقية التي أضفتها.
+   ولا يكرّر المنتج، ولا يمسح كميات المخزون التي عندك.
+   وأخيراً افتح `https://www.sporta.com.kw/api/setup-admin.php` لإنشاء حساب
+   الدخول، **ثم احذف هذا الملف من الخادم**. تسجّل الدخول من
+   `https://www.sporta.com.kw/backends`.
 3. شغّل `./scan-server-response.sh` للتأكد أن إعدادات الخادم سليمة.
 4. أضف الموقع في Google Search Console وأرسل `sitemap.xml`.
 

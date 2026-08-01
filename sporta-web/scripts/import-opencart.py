@@ -4,7 +4,7 @@
     python3 scripts/import-opencart.py path/to/sportaexport.xlsx
 
 Writes src/lib/products.js and sporta-html5/assets/products.js, then
-generate-seed.mjs turns those into supabase/seed-products.sql.
+generate-mysql-seed.mjs turns those into dropin/php-store/seed.mysql.sql.
 
 WHY THIS IS NOT A STRAIGHT COPY
 The export has 90 rows, but they are not 90 products. They are size and colour

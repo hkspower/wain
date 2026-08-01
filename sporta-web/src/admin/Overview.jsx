@@ -18,7 +18,6 @@ export default function Overview({ onGoto }) {
         series: r.series ?? [],
         catalog: c.rows ?? [],
         needsMigration: s.needsMigration || r.needsMigration || c.needsMigration,
-        notAdmin: s.notAdmin || r.notAdmin,
         error: s.error || c.error,
       })
     })()
@@ -34,17 +33,16 @@ export default function Overview({ onGoto }) {
   // Signed in but not allowlisted. Distinguished from "migration missing"
   // because the fix is completely different, and from "no data" because an
   // empty dashboard looks like a working shop with no orders.
-  if (state.notAdmin) return <NotAdminNotice />
 
   if (state.needsMigration) {
     return (
       <Notice tone="warn" title="Database migration not applied yet">
         The admin needs the policies and functions in{' '}
         <code className="rounded bg-amber-100 px-1 font-mono text-[.85em]">
-          supabase/admin-migration.sql
+          api/schema.mysql.sql
         </code>
-        . Open the Supabase SQL editor, paste that file in, and run it — then reload this page.
-        Until then the admin cannot read orders, because only an insert policy exists.
+        . Open hPanel → Databases → phpMyAdmin, paste that file in, and run it — then reload this
+        page. Until then the tables the admin reads do not exist.
       </Notice>
     )
   }
@@ -214,22 +212,3 @@ function Skeleton() {
 }
 
 // Signed in, but not allowlisted. Deliberately explains WHY being signed in is
-// not enough, because the account holder's instinct will be that the password
-// worked so the tool is broken.
-export function NotAdminNotice() {
-  return (
-    <Notice tone="error" title="This account is not an admin">
-      <p>
-        It is signed in, but it is not on the admin allowlist, so the database
-        refuses it every order, figure and setting. Being signed in is
-        deliberately not enough — Supabase sign-up is open to anyone on the
-        internet.
-      </p>
-      <p className="mt-2">Add this account in the Supabase SQL editor:</p>
-      <pre className="mt-1 overflow-x-auto rounded bg-slate-900 p-2 text-[.72rem] leading-relaxed text-slate-100">{`insert into public.admin_users (user_id, email)
-select id, email from auth.users
- where email = 'you@example.com'
-on conflict (user_id) do nothing;`}</pre>
-    </Notice>
-  )
-}

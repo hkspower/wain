@@ -4,12 +4,12 @@
 # or the wildcard group if no name matches. It does not read the wildcard group
 # as well. So the Disallow lines have to be repeated in EVERY group. They were
 # previously only in the wildcard group, which meant every named AI bot below
-# was told "Allow: /" and nothing else, and was free to crawl /admin and the
+# was told "Allow: /" and nothing else, and was free to crawl /backends and the
 # payment endpoints. Add a bot, add its three Disallow lines with it.
 
 User-agent: *
 Allow: /
-Disallow: /admin
+Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
 
@@ -17,97 +17,97 @@ Disallow: /pay/
 
 User-agent: Googlebot
 Allow: /
-Disallow: /admin
+Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: Bingbot
 Allow: /
-Disallow: /admin
+Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: GPTBot
 Allow: /
-Disallow: /admin
+Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: OAI-SearchBot
 Allow: /
-Disallow: /admin
+Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: ChatGPT-User
 Allow: /
-Disallow: /admin
+Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: ClaudeBot
 Allow: /
-Disallow: /admin
+Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: Claude-Web
 Allow: /
-Disallow: /admin
+Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: anthropic-ai
 Allow: /
-Disallow: /admin
+Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: PerplexityBot
 Allow: /
-Disallow: /admin
+Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: Google-Extended
 Allow: /
-Disallow: /admin
+Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: Applebot-Extended
 Allow: /
-Disallow: /admin
+Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: Amazonbot
 Allow: /
-Disallow: /admin
+Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: CCBot
 Allow: /
-Disallow: /admin
+Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: Bytespider
 Allow: /
-Disallow: /admin
+Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: cohere-ai
 Allow: /
-Disallow: /admin
+Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: Meta-ExternalAgent
 Allow: /
-Disallow: /admin
+Disallow: /backends
 Disallow: /knet/
 Disallow: /pay/
 

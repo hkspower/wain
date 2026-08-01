@@ -1,7 +1,7 @@
 // The checkout ATTEMPT: one track id per attempt, not per tap.
 //
 // Its own module, with no import.meta.env in it, for two reasons. It is pure
-// logic — no payment endpoints, no Supabase — and keeping it separate is what
+// logic — no payment endpoints, no network at all — and keeping it separate is what
 // lets scripts/quick-checkout-test.mjs import and exercise it in plain Node,
 // which is the only way to prove the property that matters here without
 // standing up a bank.

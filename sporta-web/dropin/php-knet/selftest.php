@@ -71,32 +71,6 @@ if ($key !== '' && $key !== 'YOUR_TERMINAL_RESOURCE_KEY') {
         . "                       newline from a copy/paste is the usual cause. ***") . "\n";
 }
 
-// Supabase anon key pasted where the service key belongs: row-level security
-// then blocks order creation and checkout fails for every customer.
-$sbKey = (string) ($cfg['supabase_service_key'] ?? '');
-if ($sbKey !== '') {
-    $role = null;
-    if (str_starts_with($sbKey, 'eyJ')) {                  // classic JWT key
-        $parts = explode('.', $sbKey);
-        if (count($parts) === 3) {
-            $pad  = strtr($parts[1], '-_', '+/');
-            $json = json_decode((string) base64_decode($pad . str_repeat('=', (4 - strlen($pad) % 4) % 4)), true);
-            $role = $json['role'] ?? null;
-        }
-    } elseif (str_starts_with($sbKey, 'sb_secret_')) {      // new-style secret key
-        $role = 'service_role';
-    } elseif (str_starts_with($sbKey, 'sb_publishable_')) {
-        $role = 'anon';
-    }
-    echo "  supabase key role  : " . ($role ?? 'unknown') . '  ' . ($role === 'service_role'
-        ? 'OK'
-        : ($role === 'anon'
-            ? "*** WRONG — this is the ANON (public) key. Row-level security will\n"
-            . "                       block order creation and checkout will fail for every\n"
-            . "                       customer. Copy the service_role key instead. ***"
-            : 'could not confirm — make sure it is the service_role key')) . "\n";
-}
-
 // ---------------------------------------------------------------------------
 // THE ORDERS DATABASE — the check that would have caught a dead card path.
 //
@@ -107,47 +81,25 @@ if ($sbKey !== '') {
 // block and nothing said so.
 // ---------------------------------------------------------------------------
 echo "\n";
-if (($cfg['store'] ?? '') === 'mysql') {
-    echo "  orders DB   : MySQL (native backend)\n";
+if (knet_db_configured($cfg)) {
     try {
         $pdo = knet_pdo($cfg);
         $n = (int) $pdo->query('select count(*) from orders')->fetchColumn();
-        echo "  mysql       : connected, orders table readable ($n orders)  OK\n";
+        echo "  orders DB   : connected, orders table readable ($n orders)  OK\n";
     } catch (Throwable $e) {
-        echo "  mysql       : *** CANNOT CONNECT — every card payment will be refused.\n"
+        echo "  orders DB   : *** CANNOT CONNECT — every card payment will be refused.\n"
            . "                    Check mysql_name/user/pass match api/config.php. ***\n";
     }
-} elseif (($cfg['supabase_url'] ?? '') === '') {
+} else {
     echo "  orders DB   : *** NONE CONFIGURED ***\n"
        . "                    Card payments CANNOT work: pay.php has no amount to charge\n"
-       . "                    and the callback has no order to mark paid. Fill in either\n"
-       . "                    the 'store' => 'mysql' block (native backend) or the\n"
-       . "                    supabase_* keys — see config.example.php.\n";
+       . "                    and the callback has no order to mark paid. Fill in the\n"
+       . "                    mysql_* keys — see config.example.php.\n";
 }
 
 // How the customer gets back after paying — see callback.php.
 echo "  callback    : " . (($cfg['callback_response'] ?? 'both') === 'redirect'
     ? "HTTP 302 only (browser-redirect gateways)"
     : "REDIRECT= token + HTML  OK  (works with either KPG style)") . "\n";
-
-// Optional Supabase ping
-if (($cfg['supabase_url'] ?? '') !== '' && ($cfg['supabase_service_key'] ?? '') !== '') {
-    $ch = curl_init(rtrim($cfg['supabase_url'], '/') . '/rest/v1/');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 8,
-        CURLOPT_HTTPHEADER => ['apikey: ' . $cfg['supabase_service_key']],
-    ]);
-    curl_exec($ch);
-    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    echo "  supabase    : " . ($code >= 200 && $code < 500 ? "reachable (HTTP $code)  OK" : "NOT reachable (HTTP $code)") . "\n";
-} else {
-    // Only worth saying when Supabase is the intended backend; the native one
-    // reports its own database above.
-    if (($cfg['store'] ?? '') !== 'mysql') {
-        echo "  supabase    : not configured\n";
-    }
-}
 
 echo "\n>>> When every line shows OK/set, DELETE this file (knet/selftest.php).\n";

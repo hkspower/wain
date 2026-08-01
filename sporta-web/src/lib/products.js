@@ -1,5 +1,5 @@
 // Product catalog. Bilingual (en/ar). Replace with your real Sporta products,
-// or load from Supabase (see loadProducts). Prices are in KWD.
+// or load from the API (see loadProducts). Prices are in KWD.
 //
 // Each product: slug, name{en,ar}, desc{en,ar}, price, category, image, badge?
 export const CATEGORIES = [
@@ -48,7 +48,7 @@ export function productImages(p) {
 
 // Placeholder sportswear catalog matching the real Sporta range (activewear,
 // gym clothing, outerwear, accessories). Replace with real products/prices via
-// the admin or Supabase.
+// the admin or the products table.
 export const PRODUCTS = [
   {
     slug: "cagliari-calcio-backpack",
@@ -339,15 +339,17 @@ export const getProduct = (slug) => PRODUCTS.find((p) => p.slug === slug)
 export const byCategory = (cat) =>
   cat === 'all' ? PRODUCTS : PRODUCTS.filter((p) => p.category === cat)
 
-// Optional: load products from Supabase instead of the static list.
-// Falls back to PRODUCTS if Supabase isn't configured or the query fails.
+// The live catalogue from /api, falling back to the SHIPPED list.
+//
+// The fallback is not politeness. PRODUCTS is bundled with the site, so a
+// database that is unreachable for a moment shows a shop rather than an empty
+// page — and the prices that matter are the ones api.php reads at order time,
+// which the browser never sees or influences either way.
 export async function loadProducts() {
   try {
-    const { supabase } = await import('./supabase')
-    if (!supabase) return PRODUCTS
-    const { data, error } = await supabase.from('products').select('*').eq('active', true)
-    if (error || !data?.length) return PRODUCTS
-    return data
+    const { phpProducts } = await import('./backend')
+    const data = await phpProducts()
+    return Array.isArray(data) && data.length ? data : PRODUCTS
   } catch {
     return PRODUCTS
   }

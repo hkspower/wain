@@ -1,7 +1,7 @@
 // The native PHP + MySQL backend, end to end against the real stack:
 // MariaDB loaded from schema.mysql.sql + seed.mysql.sql, PHP 8 serving
 // dropin/php-store. No mocks anywhere — the point of this suite is that the
-// native backend enforces the SAME contract as the Supabase one, token for
+// backend enforces the SAME contract the frontend expects, token for
 // token, because the storefront's error messages and the admin's screens are
 // written against that contract.
 //
@@ -111,7 +111,7 @@ const order = (track, items, extra = {}) =>
   ]
   for (const [name, p, want] of cases) {
     const { body } = await p
-    is(body?.error === want, `${name} is rejected with the same token as Supabase`, body?.error)
+    is(body?.error === want, `${name} is rejected with the documented token`, body?.error)
   }
 
   const badPhone = await api('order', {
@@ -278,5 +278,5 @@ const order = (track, items, extra = {}) =>
   void sixth
 }
 
-console.log(fails ? `\n${fails} problem(s) in the native backend` : '\nnative backend: same contract, no Supabase')
+console.log(fails ? `\n${fails} problem(s) in the native backend` : '\nnative backend: every check passed')
 process.exit(fails ? 1 : 0)

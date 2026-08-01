@@ -6,18 +6,18 @@ Every order that gets written emails the warehouse a packing list, automatically
 customer pays
      │
      ▼
-create_order()  ──── writes orders + order_items
+store_create_order()  ── writes orders + order_items
      │
-     │  (same transaction — a deferred constraint trigger)
+     │  (same transaction, always — store_queue_fulfilment())
      ▼
 fulfilment_outbox  ← the message, snapshotted
      │
-     │  Database Webhook fires immediately · a schedule sweeps up anything it missed
+     │  a cron job every 5 minutes drains it
      ▼
-notify-warehouse   (Supabase Edge Function)
+api/cron-fulfilment.php
      │
      ▼
-WAREHOUSE_EMAIL    subject line says whether to ship
+warehouse_email    subject line says whether to ship
 ```
 
 A second, one-line email follows when the payment outcome lands: **ship it** or
@@ -88,31 +88,30 @@ stranger controls that lands in your logistics company's inbox.
 
 ## Setting it up
 
-**1. Run the SQL.** `supabase/SETUP-ALL.sql`, which now includes
-`fulfilment-migration.sql`. Safe to re-run.
+**1. Import the SQL.** `api/schema.mysql.sql` creates `fulfilment_outbox`
+along with everything else. Safe to re-run.
 
-**2. Deploy the function.**
+**2. Set two values in `api/config.php`** (on the server, never committed):
 
-```bash
-supabase functions deploy notify-warehouse
-supabase secrets set \
-  WAREHOUSE_EMAIL=orders@your-logistics-company.com \
-  MAIL_FROM=orders@sporta.com.kw \
-  RESEND_API_KEY=re_...
+```php
+'warehouse_email' => 'orders@your-logistics-company.com',
+'cron_key'        => '<a long random string>',
 ```
 
-`WAREHOUSE_EMAIL` takes a comma-separated list if more than one person there
-wants a copy. The function refuses to claim anything when it is unset, rather
-than burning retry attempts while the real problem is one missing setting.
+`warehouse_email` takes a comma-separated list if more than one person there
+wants a copy. The drain refuses to claim anything when it is unset, rather than
+burning retry attempts while the real problem is one missing setting.
 
-**3. Trigger it — both ways.**
+**3. Add the cron job.** hPanel → Advanced → Cron Jobs, every 5 minutes:
 
-- **Database Webhook** on INSERT into `fulfilment_outbox`
-  (Supabase → Database → Webhooks). This is what makes it immediate.
-- **A schedule** every few minutes. This is the safety net and it is *not*
-  optional: a webhook that fails to fire leaves an order unsent forever.
+```
+wget -qO- "https://www.sporta.com.kw/api/cron-fulfilment.php?key=YOUR_CRON_KEY"
+```
 
-Both firing at once is safe — `claim_fulfilment` uses `for update skip locked`.
+The key is checked with `hash_equals` before anything else happens, so the
+endpoint is inert to anyone who does not have it. Two overlapping runs are
+safe: the claim uses `for update skip locked` inside a transaction, and a
+message is retried at most 5 times.
 
 **4. Set SPF, DKIM and DMARC.** See `DNS-EMAIL-RECORDS.txt`. Without them mail
 from `@sporta.com.kw` lands in the logistics company's spam folder or is

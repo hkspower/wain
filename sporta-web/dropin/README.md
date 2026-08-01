@@ -1,73 +1,38 @@
-# Admin passcode quick-unlock — drop-in for the Sporta Admin (Vite + React + TS + shadcn)
+# `dropin/` — the PHP that runs on the server
 
-These files are written to match your real stack (TypeScript, shadcn/ui,
-react-router v7, `@supabase/supabase-js`). Copy them into your project's
-`src/` and wire in the three integration points below.
+Everything here is copied into `dist/` by `npm run bundle:php` (part of
+`npm run release`) and ends up in `public_html/`. None of it is bundled by
+Vite; it is plain PHP 8 running on the Hostinger plan.
 
-## 1. Copy files into your project
+| Folder | Ships to | What it is |
+|---|---|---|
+| `php-store` | `public_html/api/` | **The backend.** MySQL on the same plan: catalogue, stock, orders, invoices, the admin API and its session auth. |
+| `php-knet` | `public_html/knet/` | **KNET** — the checkout page where the customer pays with a Kuwaiti debit card (Tranportal ID + password + 16-byte AES resource key). |
+| `php-cbk` | `public_html/pay/` | **T-Pay** — CBK's online payment link (ClientId + ClientSecret + ENCRP_KEY). |
+| `scripts` | — | Not deployed. Old SFTP deploy helper; `npm run publish` (FTPS) is the live route. |
 
-| From `dropin/` | To (in your `src/`) |
-|---|---|
-| `lib/deviceId.ts` | `src/lib/deviceId.ts` |
-| `lib/quickUnlock.ts` | `src/lib/quickUnlock.ts` |
-| `hooks/useIdleLock.ts` | `src/hooks/useIdleLock.ts` |
-| `components/quick-unlock/*` | `src/components/quick-unlock/` |
+There is **one backend**. The shop, the admin and both gateways read and write
+the same MySQL database, so `api/config.php`, `knet/config.php` and
+`pay/config.php` all carry the same four `mysql_*` values.
 
-**Check the Supabase import path.** These files import
-`@/integrations/supabase/client` (the Lovable default). If your client lives
-elsewhere, update the import in `lib/quickUnlock.ts` and
-`components/quick-unlock/QuickUnlockGate.tsx`.
+## config.php never leaves the server
 
-## 2. Run the SQL migration (server-authoritative enrollment)
+Each folder has a `config.example.php` and a real `config.php` that holds live
+bank and database credentials. The real files are **never committed, never in
+`SPORTA-GO-LIVE.zip`, and never uploaded** — `scripts/file-audit.mjs` fails the
+build if one appears, and `npm run publish` will not overwrite the ones already
+on the server. Create them once in hPanel File Manager and leave them there.
 
-Run `supabase/has_device_passcode.sql` (in this repo, one level up) in the
-Supabase SQL editor. Verify the device-id column name (`device_id`) and the
-`grant ... to authenticated` role match your schema.
+## Setting up
 
-## 3. Wire the three integration points
+* `php-store/schema.mysql.sql` + `seed.mysql.sql` + `brands.mysql.sql` — run in
+  hPanel → Databases → phpMyAdmin, in that order.
+* `php-store/setup-admin.php` — creates the first admin sign-in.
+* `php-knet/selftest.php` — visit it after uploading; it checks the AES key
+  length, HTTPS, and that the orders database actually answers. **Delete it
+  once every line reads OK**, along with `setup-config.php`; both report on
+  configuration and neither belongs on a live site.
 
-**a) Gate your authenticated admin area** — wrap wherever you render admin
-routes once logged in:
-
-```tsx
-import { QuickUnlockGate } from "@/components/quick-unlock/QuickUnlockGate";
-
-<QuickUnlockGate>
-  <AdminRoutes />   {/* your existing authed admin */}
-</QuickUnlockGate>
-```
-
-**b) Add the enrollment card to admin Settings:**
-
-```tsx
-import { SetupQuickUnlock } from "@/components/quick-unlock/SetupQuickUnlock";
-
-// inside your Settings page, only rendered for a logged-in admin:
-<SetupQuickUnlock defaultLabel="This device" />
-```
-
-**c) Add the shake keyframe** (used for wrong-passcode feedback). Add to your
-global CSS (e.g. `src/index.css`):
-
-```css
-@keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  20%, 60% { transform: translateX(-8px); }
-  40%, 80% { transform: translateX(8px); }
-}
-```
-
-## Behaviour
-
-- **Device ID**: 256-bit token in `localStorage.sporta_device_id`, reused.
-- **Lock**: shows on app open and after 15 min idle when a session exists and
-  a passcode is enrolled. `verify_device_passcode` → unlock / attempts-left /
-  lockout countdown. "Use password instead" signs out.
-- **Mobile UX**: big tap targets, numeric input mode, autofocus, auto-submit
-  on the 6th digit, shake + haptic on error, indigo accent.
-
-## Notes for your native wrappers
-
-Works as-is in Capacitor/Electron (it's plain web + localStorage). For extra
-security you could later swap the local device token for
-`@capacitor/preferences` or Keychain, but it isn't required for this feature.
+`sporta-web/NATIVE-BACKEND.md` is the full walkthrough, and
+`sporta-web/CHECKOUT-SECRETS.md` maps every secret the money path needs to
+what breaks without it.

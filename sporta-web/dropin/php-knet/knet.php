@@ -102,25 +102,21 @@ function knet_log(array $cfg, string $event, array $data = []): void
     }
 }
 
-// Is there an orders database to price and verify against — on EITHER backend?
+// Is there an orders database to price and verify against?
 //
-// This used to ask about Supabase only, and that single omission killed the
-// card path on the native backend completely: with 'store' => 'mysql' and no
-// Supabase keys it answered false, so pay.php fell through to "no database"
-// and rejected every payment with 400 Invalid amount (the storefront sends no
-// amount, by design), while callback.php skipped knet_update_order entirely —
-// leaving the MySQL branch inside it unreachable and every captured payment
-// unrecorded. Both proven under a real MariaDB by scripts/knet-test.mjs.
+// Without one there is no price authority at all: pay.php has no amount to
+// charge (the storefront sends none, by design) and the callback has no order
+// to settle. This asked about a different database once, and that omission killed
+// the whole card path when the shop moved to MySQL — every payment refused
+// with 400 Invalid amount, every captured payment unrecorded. One question,
+// one answer now, and scripts/knet-test.mjs holds it there.
 function knet_db_configured(array $cfg): bool
 {
-    if (($cfg['store'] ?? '') === 'mysql') {
-        return ($cfg['mysql_name'] ?? '') !== '' && ($cfg['mysql_user'] ?? '') !== '';
-    }
-    return ($cfg['supabase_url'] ?? '') !== '' && ($cfg['supabase_service_key'] ?? '') !== '';
+    return ($cfg['mysql_name'] ?? '') !== '' && ($cfg['mysql_user'] ?? '') !== '';
 }
 
-// The MySQL connection for native mode. One per request, reused by the lookup
-// and the writer so a callback does not open two.
+// One connection per request, reused by the lookup and the writer so a
+// callback does not open two.
 function knet_pdo(array $cfg): PDO
 {
     static $pdo = null;
@@ -152,58 +148,21 @@ function knet_order_lookup(array $cfg, string $trackid): array
     if (!knet_db_configured($cfg)) {
         return ['state' => 'off', 'amount' => null, 'status' => null];
     }
-
-    // Native mode: the orders table is on this same host.
-    if (($cfg['store'] ?? '') === 'mysql') {
-        try {
-            $q = knet_pdo($cfg)->prepare(
-                'select amount, payment_status from orders where track_id = ?'
-            );
-            $q->execute([$trackid]);
-            $row = $q->fetch(PDO::FETCH_ASSOC);
-        } catch (Throwable $e) {
-            // Same distinction the Supabase branch draws, and for the same
-            // reason: a database that is DOWN must not read as "no such order",
-            // because the two have opposite correct responses (retry vs refuse).
-            return ['state' => 'error', 'amount' => null, 'status' => null];
-        }
-        if (!$row) {
-            return ['state' => 'missing', 'amount' => null, 'status' => null];
-        }
-        return [
-            'state'  => 'found',
-            'amount' => (string) $row['amount'],
-            'status' => (string) $row['payment_status'],
-        ];
-    }
-    $url = rtrim($cfg['supabase_url'], '/') . '/rest/v1/'
-        . rawurlencode($cfg['orders_table'])
-        . '?select=amount,payment_status&'
-        . rawurlencode($cfg['orders_match_column']) . '=eq.' . rawurlencode($trackid);
-
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 10,
-        CURLOPT_HTTPHEADER     => [
-            'apikey: ' . $cfg['supabase_service_key'],
-            'Authorization: Bearer ' . $cfg['supabase_service_key'],
-        ],
-    ]);
-    $body = curl_exec($ch);
-    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($body === false || $code < 200 || $code >= 300) {
+    try {
+        $q = knet_pdo($cfg)->prepare('select amount, payment_status from orders where track_id = ?');
+        $q->execute([$trackid]);
+        $row = $q->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        // A database that is DOWN must not read as "no such order": the two
+        // have opposite correct responses — retry versus refuse.
         return ['state' => 'error', 'amount' => null, 'status' => null];
     }
-    $rows = json_decode((string) $body, true);
-    if (!is_array($rows) || !isset($rows[0]['amount'])) {
+    if (!$row) {
         return ['state' => 'missing', 'amount' => null, 'status' => null];
     }
     return [
         'state'  => 'found',
-        'amount' => (string) $rows[0]['amount'],
-        'status' => isset($rows[0]['payment_status']) ? (string) $rows[0]['payment_status'] : null,
+        'amount' => (string) $row['amount'],
+        'status' => (string) $row['payment_status'],
     ];
 }

@@ -39,14 +39,16 @@
 
 - **Toolchain:** Node **24 LTS (Krypton)** — pinned in `sporta-web/.nvmrc`
   and `engines` (>=22.12). Vite 8 will not run on older Node.
-- **Frontend:** React 18 + TypeScript + Vite + Tailwind + shadcn/ui, react-router v7.
-- **Backend: TWO, switchable at runtime** (saved by user request — apply
-  always). `config.js` `backend: 'php'` selects the **native backend**: MySQL
-  on the same Hostinger plan + PHP at `/api` (source
-  `sporta-web/dropin/php-store/`, docs `sporta-web/NATIVE-BACKEND.md`); any
-  other value = **Supabase** (Postgres, Auth, Edge Functions), unchanged. Both
-  enforce the SAME contract — identical validation tokens and response shapes —
-  proven by `npm run test:native` (36 checks) and `test:native-e2e` (14 browser
+- **Frontend:** React 18 + Vite + Tailwind, react-router.
+- **Backend: ONE** (saved by user request — apply always). MySQL on the same
+  Hostinger plan + PHP at `/api` (source `sporta-web/dropin/php-store/`, docs
+  `sporta-web/NATIVE-BACKEND.md`). **Supabase is gone** — removed at the
+  owner's request, along with the `backend` flag in `config.js` that used to
+  switch between the two. Do not reintroduce a second backend: every rule
+  existed twice while there were two, and a fix applied to one was a bug
+  waiting in the other (the KNET dropin was hardened against a browser-supplied
+  price and T-Pay was not, and it stayed that way until a test went looking).
+  Proven by `npm run test:native` (36 checks) and `test:native-e2e` (20 browser
   checks). `api/config.php` lives ONLY on the server, same rule as
   `knet/config.php`. Any change to one backend's contract must be mirrored in
   the other and covered in native-backend-test.mjs.
@@ -61,10 +63,11 @@
   | Credentials | Tranportal ID + password + 16-byte resource key (AES `trandata`) | `ClientId` + `ClientSecret` + `ENCRP_KEY` (CBK issues `AccessToken`; **no client-side AES**) |
   | Config file | `knet/config.php` | `pay/config.php` |
 
-  **Both dropins need an orders database configured or they refuse every
-  payment** — `'store' => 'mysql'` on the native backend, `supabase_*`
-  otherwise. Every secret the money path needs, and what breaks without each,
-  is mapped in `sporta-web/CHECKOUT-SECRETS.md`.
+  **Both dropins need the orders database configured or they refuse every
+  payment** — the four `mysql_*` values, naming the same database as
+  `api/config.php` (which spells them `db_*`). Every secret the money path
+  needs, and what breaks without each, is mapped in
+  `sporta-web/CHECKOUT-SECRETS.md`.
 
   Same bank, different activation, different credentials, different endpoints.
   **Neither set of credentials works for the other**, and T-Pay cannot be served
@@ -81,22 +84,29 @@
   describes the product as an online payment link. Customer-facing copy therefore
   says "pay online with T-Pay" and does NOT promise a QR code — see the note in
   `src/i18n/translations.js`.
-- **Brands** are admin-managed on BOTH backends (`brands` table; MySQL in
-  `schema.mysql.sql` + the additive `dropin/php-store/brands.mysql.sql`,
-  Postgres in `supabase/brands-migration.sql`). The logo is a capped
+- **Brands** are admin-managed (`brands` table; `schema.mysql.sql` plus the
+  additive `dropin/php-store/brands.mysql.sql`). The logo is a capped
   `data:image/(png|jpeg|webp);base64,…` string **in the row, never a file** —
   an upload endpoint would write into the web root, which this project
-  forbids. SVG is refused on both sides (it can carry script), and the bytes
-  are checked against the format's magic number, not just the label.
-- **Admin quick-unlock:** device passcode feature in `sporta-web/dropin/` (TS/shadcn
-  drop-ins) backed by Supabase RPCs set_/verify_/has_device_passcode.
+  forbids. SVG is refused (it can carry script), and the bytes are checked
+  against the format's magic number, not just the label.
+- **The admin is at `/backends`** (saved by user request — apply always). It
+  was `/admin`; the owner renamed it. There is deliberately NO redirect from
+  the old path, the route is listed in `public/.htaccess` (or it 404s in
+  production), and `public/robots.txt` disallows it. Sign-in is a PHP session:
+  HttpOnly + SameSite=Strict cookie plus an `X-Sporta-Admin: 1` header for
+  CSRF, with a five-failure fifteen-minute lock. The device-passcode
+  quick-unlock went with Supabase and is not coming back.
 - **Language:** site is bilingual Arabic/English (RTL/LTR).
-- **Configuration:** the site reads Supabase settings at runtime from
+- **Configuration:** the site reads its endpoints at runtime from
   `public/config.js` (`window.SPORTA_CONFIG`), falling back to build-time
-  `VITE_*` in `.env`. That is what lets the store be configured by editing a
-  file in Hostinger File Manager, with no Node and no rebuild — the user's
-  server account has no shell (`/sbin/nologin`). `config.js` is in the deploy
-  keep-list, so a deploy never overwrites the live values.
+  `VITE_*` in `.env`. Three keys remain — `payBaseUrl`, `cbkBaseUrl`,
+  `phpApiUrl` — and all three have working defaults, so an empty
+  `window.SPORTA_CONFIG={}` is a correct production config. It stays because it
+  is what lets the store be repointed by editing a file in Hostinger File
+  Manager, with no Node and no rebuild — the server account has no shell
+  (`/sbin/nologin`). `config.js` is in the deploy keep-list, so a deploy never
+  overwrites the live values.
 - **Packaging:** `node sporta-web/scripts/make-package.mjs` (or `npm run
   package`) regenerates `SPORTA-GO-LIVE.zip`. Never hand-assemble it — the
   previous hand-made zip went stale and carried the payment-losing callback bug
@@ -149,9 +159,11 @@
   `RewriteRule` is NOT** — measured under Apache: a dotfile in a folder whose
   own `.htaccess` says `RewriteEngine On` was served 200 while the same file at
   the root was 403. Deny by NAME for anything that must hold everywhere.
-- **Supabase Storage is arranged but unused** — one `product-images` bucket,
-  public read, writes gated on `is_admin()`, 5 MB cap, no SVG. See
-  `supabase/storage-migration.sql`; it is a no-op if Storage is not provisioned.
+- **There is no image upload, by design.** Product and brand images are either
+  files the owner puts on the server by hand (category photos, `/cats/*.jpg`)
+  or `data:` URIs stored in the database row (brand logos). An upload endpoint
+  would have to write into the web root, and the live server already had one
+  such endpoint once — see "Never build a PHP deploy endpoint" below.
 - Outstanding before/after launch: real product photos (biggest gap), and the
   SPF/DKIM/DMARC records in `DNS-EMAIL-RECORDS.txt`.
 
@@ -182,7 +194,7 @@
   to delete those) unless `--setup-tools` is passed; and it reports leftover
   files from the old site, since it never deletes anything.
   `config.js` and `knet/config.php` are in a hard-coded never-touch list — not
-  configuration — so a publish can never overwrite the live Supabase or
+  configuration — so a publish can never overwrite the live database or
   Tranportal credentials. Verified against a real FTPS server, including that
   both files survive untouched and that a wrong password or a failing audit
   stops the run before anything is written.

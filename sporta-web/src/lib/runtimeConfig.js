@@ -1,7 +1,7 @@
 // Runtime configuration.
 //
 // Settings used to be baked in at build time from .env, which meant changing a
-// Supabase URL required Node, the repo, and a rebuild. On a host reached only
+// backend URL required Node, the repo, and a rebuild. On a host reached only
 // through a browser file manager that is not possible, and a build with no
 // .env ships a store whose checkout refuses every order.
 //
@@ -9,7 +9,7 @@
 // to the build-time .env. Both routes keep working: `npm run deploy` bakes
 // values in as before, and the upload-a-folder route edits config.js in place.
 //
-// Nothing secret lives here. The Supabase anon key is designed to be public —
+// Nothing secret lives here. Every value is a public URL —
 // it is what the browser authenticates with, and row-level security is what
 // protects the data. The service key and the KNET credentials never leave the
 // server: they live in knet/config.php, which is not web-readable.

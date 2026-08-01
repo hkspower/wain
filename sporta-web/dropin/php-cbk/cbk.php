@@ -25,16 +25,12 @@ function cbk_base(array $cfg): string
     return rtrim($cfg['env'] === 'production' ? $cfg['production_base'] : $cfg['test_base'], '/');
 }
 
-// Is there an orders database at all — on EITHER backend? The KNET dropin
-// answered this about Supabase only, and that one omission killed its whole
-// card path on the native backend: no price to charge, no order to settle.
-// Same question, same answer, so T-Pay does not repeat it.
+// Is there an orders database at all? Without one there is no price authority:
+// nothing to charge and nothing to settle. The same question the KNET dropin
+// asks, with the same answer, so the two gateways cannot drift.
 function cbk_db_configured(array $cfg): bool
 {
-    if (($cfg['store'] ?? '') === 'mysql') {
-        return ($cfg['mysql_name'] ?? '') !== '' && ($cfg['mysql_user'] ?? '') !== '';
-    }
-    return ($cfg['supabase_url'] ?? '') !== '' && ($cfg['supabase_service_key'] ?? '') !== '';
+    return ($cfg['mysql_name'] ?? '') !== '' && ($cfg['mysql_user'] ?? '') !== '';
 }
 
 // One connection per request, shared by the amount lookup and the writer.
@@ -58,41 +54,16 @@ function cbk_pdo(array $cfg): PDO
 // time, which is a refund and an apology rather than a bug report.
 function cbk_order_lookup(array $cfg, string $trackid): array
 {
-    if (($cfg['store'] ?? '') === 'mysql') {
-        try {
-            $q = cbk_pdo($cfg)->prepare('select amount, payment_status from orders where track_id = ?');
-            $q->execute([$trackid]);
-            $row = $q->fetch(PDO::FETCH_ASSOC);
-        } catch (Throwable $e) {
-            return ['amount' => null, 'status' => null];
-        }
-        return $row
-            ? ['amount' => (string) $row['amount'], 'status' => (string) $row['payment_status']]
-            : ['amount' => null, 'status' => null];
-    }
-    if (($cfg['supabase_url'] ?? '') === '' || ($cfg['supabase_service_key'] ?? '') === '') {
+    try {
+        $q = cbk_pdo($cfg)->prepare('select amount, payment_status from orders where track_id = ?');
+        $q->execute([$trackid]);
+        $row = $q->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
         return ['amount' => null, 'status' => null];
     }
-    $url = rtrim($cfg['supabase_url'], '/') . '/rest/v1/'
-        . rawurlencode($cfg['orders_table'])
-        . '?select=amount,payment_status&' . $cfg['orders_match_column'] . '=eq.' . rawurlencode($trackid);
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 10,
-        CURLOPT_HTTPHEADER     => [
-            'apikey: ' . $cfg['supabase_service_key'],
-            'Authorization: Bearer ' . $cfg['supabase_service_key'],
-        ],
-    ]);
-    $body = curl_exec($ch);
-    curl_close($ch);
-    $rows = $body === false ? null : json_decode((string) $body, true);
-    if (!isset($rows[0]['amount'])) return ['amount' => null, 'status' => null];
-    return [
-        'amount' => (string) $rows[0]['amount'],
-        'status' => isset($rows[0]['payment_status']) ? (string) $rows[0]['payment_status'] : null,
-    ];
+    return $row
+        ? ['amount' => (string) $row['amount'], 'status' => (string) $row['payment_status']]
+        : ['amount' => null, 'status' => null];
 }
 
 // Append-only audit log, the twin of knet_log(). A payment system with no
@@ -117,38 +88,7 @@ function cbk_log(array $cfg, string $event, array $data = []): void
 // Returns the amount string, or null if not found / DB not configured.
 function cbk_order_amount(array $cfg, string $trackid): ?string
 {
-    if (($cfg['store'] ?? '') === 'mysql') {
-        try {
-            $q = cbk_pdo($cfg)->prepare('select amount from orders where track_id = ?');
-            $q->execute([$trackid]);
-            $amt = $q->fetchColumn();
-            return $amt === false ? null : (string) $amt;
-        } catch (Throwable $e) {
-            return null;
-        }
-    }
-    if (($cfg['supabase_url'] ?? '') === '' || ($cfg['supabase_service_key'] ?? '') === '') {
-        return null;
-    }
-    $url = rtrim($cfg['supabase_url'], '/') . '/rest/v1/'
-        . rawurlencode($cfg['orders_table'])
-        . '?select=amount&' . $cfg['orders_match_column'] . '=eq.' . rawurlencode($trackid);
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 10,
-        CURLOPT_HTTPHEADER     => [
-            'apikey: ' . $cfg['supabase_service_key'],
-            'Authorization: Bearer ' . $cfg['supabase_service_key'],
-        ],
-    ]);
-    $body = curl_exec($ch);
-    curl_close($ch);
-    if ($body === false) {
-        return null;
-    }
-    $rows = json_decode((string) $body, true);
-    return isset($rows[0]['amount']) ? (string) $rows[0]['amount'] : null;
+    return cbk_order_lookup($cfg, $trackid)['amount'];
 }
 
 // Basic auth header value: base64("ClientId:ClientSecret").

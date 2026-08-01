@@ -108,9 +108,9 @@ export default function Orders({ initialPayment = 'all' }) {
 
       {state.needsMigration && (
         <Notice tone="warn" title="Orders cannot be read yet">
-          Run <code className="rounded bg-amber-100 px-1 font-mono text-[.85em]">supabase/admin-migration.sql</code>{' '}
-          in the Supabase SQL editor. The orders table has an insert policy but no select policy,
-          so nothing is readable from the admin until it is applied.
+          Run <code className="rounded bg-amber-100 px-1 font-mono text-[.85em]">api/schema.mysql.sql</code>{' '}
+          in hPanel → Databases → phpMyAdmin. It creates the <code>orders</code> table; until it is
+          applied there is nothing for the admin to read.
         </Notice>
       )}
       {state.error && <Notice tone="error" title="Query failed">{state.error}</Notice>}
@@ -242,7 +242,7 @@ function OrderDrawer({ order, onClose, onChanged }) {
     const r = await setCodPaid(order.id, paid)
     setBusy(false)
     if (r.needsMigration) {
-      return setErr('Run supabase/admin-cod-migration.sql — the cash settlement function is not installed yet.')
+      return setErr('The orders table is not installed yet — import api/schema.mysql.sql in phpMyAdmin.')
     }
     if (r.error) return setErr(r.error)
     onChanged?.()

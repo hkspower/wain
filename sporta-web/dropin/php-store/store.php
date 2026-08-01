@@ -1,14 +1,15 @@
 <?php
 // Sporta native store backend — shared core.
 //
-// This is the Supabase-free backend: MySQL on the same Hostinger plan, PHP on
+// This is the backend: MySQL on the same Hostinger plan, PHP on
 // the same host that already runs the payment endpoints. It is the model the
 // owner's previous OpenCart site used, and it exists so the shop can run with
 // no third-party backend at all.
 //
 // EVERY RULE HERE IS A PORT, NOT AN INVENTION. create_order's validation,
 // server-side pricing, idempotency, the size/fit lists, the outbox — each was
-// designed and argued over in supabase/*.sql, and this file carries the same
+// designed and argued over in the Postgres schema this shop started on, and
+// this file carries the same
 // decisions into PHP. When a rule looks arbitrary ("why 99?"), the reasoning
 // lives in the SQL file of the same name; keep the two in step or the two
 // backends will accept different orders.
@@ -61,6 +62,23 @@ function store_db(): PDO {
     return $pdo;
 }
 
+// ---------------------------------------------------------------- error floor
+//
+// Any database error that is not caught locally used to escape as a PHP fatal:
+// the browser got HTML instead of JSON (so the admin screen showed a blank
+// panel rather than a reason), and on a host with display_errors on, the
+// message itself names the database and the SQL. Neither belongs in a
+// response. One handler turns both into a JSON token.
+//
+// The missing-table case is told apart on purpose. It is not an outage — it
+// means the SQL was never imported, and it has a specific fix the admin
+// screens spell out.
+set_exception_handler(function (Throwable $e): void {
+    $isMissingTable = $e instanceof PDOException
+        && (($e->errorInfo[1] ?? 0) === 1146 || str_contains($e->getMessage(), '42S02'));
+    store_out(['error' => $isMissingTable ? 'no_table' : 'failed'], $isMissingTable ? 503 : 500);
+});
+
 // ------------------------------------------------------------------ responses
 
 function store_out($data, int $code = 200): void {
@@ -68,8 +86,8 @@ function store_out($data, int $code = 200): void {
     header('Content-Type: application/json; charset=utf-8');
     // No CORS headers on purpose. The SPA and this API live on the same origin
     // (www.sporta.com.kw), and an API nobody else may call should not invite
-    // anybody else to call it. The Supabase backend needed CORS because it was
-    // a different origin; this one is the whole point of being native.
+    // anybody else to call it. A backend hosted somewhere else needs CORS
+    // precisely because it IS a different origin; this one is not.
     echo json_encode($data, JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -87,7 +105,7 @@ function store_body(): array {
 }
 
 // ------------------------------------------------------------------ validation
-// Ports of the helpers in supabase/checkout-migration.sql, same names, same
+// The checkout helpers, same names as the Postgres functions they replace, same
 // error tokens, same limits.
 
 const STORE_GOVERNORATES = ['capital', 'hawalli', 'farwaniya', 'mubarak-al-kabeer', 'ahmadi', 'jahra'];
@@ -131,7 +149,7 @@ function store_opt(?string $v): ?string {
 // ------------------------------------------------------------------ outbox
 
 // The fulfilment snapshot, identical in shape to fulfilment_payload() in
-// supabase/fulfilment-migration.sql — render.mjs and the email tests already
+// the Postgres trigger it replaces — render.mjs and the email tests already
 // define what the warehouse reads, and this must produce the same document.
 function store_fulfilment_payload(PDO $db, int $orderId): array {
     $o = $db->prepare('select * from orders where id = ?');

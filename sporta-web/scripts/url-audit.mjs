@@ -23,7 +23,7 @@ const SELF = /sporta\.com\.kw/i
 // Directories that are inputs or outputs, kept apart: a localhost URL in a test
 // script is fine, the same URL in shipped output is a serious defect.
 const SHIPPED = [join(web, 'dist'), join(root, 'sporta-html5')]
-const SOURCE = [join(web, 'src'), join(web, 'public'), join(web, 'dropin'), join(web, 'supabase'),
+const SOURCE = [join(web, 'src'), join(web, 'public'), join(web, 'dropin'),
                 join(web, 'index.html'), join(web, 'deploy.config.json')]
 const DOCS = [join(root, 'GO-LIVE.md'), join(root, 'KNET.md'), join(root, 'CLAUDE.md'),
               join(root, 'SECURITY.md'), join(root, 'DNS-EMAIL-RECORDS.txt')]
@@ -101,10 +101,9 @@ for (const [spelling, files] of selfSpellings) {
 // ---- 2. nothing local may reach shipped output -----------------------------
 const LOCAL = /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|.*\.local)(:|$)/i
 // Third-party libraries ship their own defaults and error-message URLs, which
-// are inert. supabase-js carries http://localhost:9999 as gotrue's default auth
-// URL; it is always overridden by the URL given to createClient, and this app
-// never constructs a client without one. Only OUR files matter here.
-const isVendorBundle = (f) => /\/(assets|vendor)\/(supabase|react-vendor|rolldown)-/.test(f)
+// are inert — a localhost fallback inside a vendored library is not an address
+// this site ever calls. Only OUR files matter here.
+const isVendorBundle = (f) => /\/(assets|vendor)\/(react-vendor|rolldown)-/.test(f)
 for (const [host, files] of byHost) {
   const shipped = [...files].filter(
     (f) => (f.startsWith('sporta-web/dist') || f.startsWith('sporta-html5')) && !isVendorBundle(f))
@@ -126,9 +125,8 @@ for (const [host, files] of byHost) {
 // Only subresources are governed by CSP. A regex cannot tell a fetch from an
 // <a href> navigation or from a URL inside a library's error message, so this
 // looks only where the distinction is unambiguous: <link>/<script> tags in the
-// shipped HTML, and url() in the shipped CSS. Runtime fetches configured at
-// run time (Supabase, from config.js) cannot be seen statically and are noted
-// rather than guessed at.
+// shipped HTML, and url() in the shipped CSS. The backend is /api on this same
+// origin, so connect-src is 'self' and there is no runtime host to guess at.
 const htaccess = readFileSync(join(web, 'public', '.htaccess'), 'utf8')
 const csp = htaccess.match(/Content-Security-Policy\s+"([^"]+)"/)?.[1] ?? ''
 const cspHosts = new Set((csp.match(/https:\/\/[^\s;']+/g) ?? []).map((u) => u.replace('https://', '')))
@@ -175,7 +173,6 @@ for (const h of [...subresourceHosts].filter((h) => !SELF.test(h)).sort()) {
   const covered = [...cspHosts].some((c) => c === h || (c.startsWith('*.') && h.endsWith(c.slice(1))))
   console.log(`  ${h.padEnd(34)} ${covered ? 'allowed by CSP' : '*** BLOCKED BY CSP ***'}`)
 }
-console.log('  *.supabase.co                      allowed by CSP (set at runtime in config.js)')
 
 console.log('\nHOSTS ONLY LINKED TO  (navigations — CSP does not apply)')
 const LINKED = ['wa.me', 'www.instagram.com', 'www.tiktok.com', 'kpay.com.kw', 'kpaytest.com.kw']

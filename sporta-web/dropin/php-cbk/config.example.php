@@ -53,7 +53,6 @@ return [
 
     'token_cache_file' => __DIR__ . '/../../.cbk_token.json',
 
-    // --- Optional: update your Supabase "orders" table on success ---
     // --- ORDERS DATABASE. REQUIRED for a live shop ---
     //
     // Gives the SERVER authority over the price: pay.php charges the amount
@@ -61,19 +60,10 @@ return [
     // captured does not match. Without it there is nothing to charge and
     // T-Pay refuses every payment.
     //
-    // Fill in ONE block, matching public_html/config.js — and use the SAME
-    // values as knet/config.php, since both gateways read the same orders.
-    //
-    // (a) NATIVE backend  (config.js has  backend: 'php'):
-    // 'store'      => 'mysql',
-    // 'mysql_host' => 'localhost',
-    // 'mysql_name' => '',
-    // 'mysql_user' => '',
-    // 'mysql_pass' => '',
-    //
-    // (b) SUPABASE backend:
-    'supabase_url'         => '',
-    'supabase_service_key' => '',
-    'orders_table'         => 'orders',
-    'orders_match_column'  => 'track_id',
+    // Use the SAME four values as knet/config.php and api/config.php: both
+    // gateways settle rows in the one orders table the shop writes.
+    'mysql_host' => 'localhost',
+    'mysql_name' => '',
+    'mysql_user' => '',
+    'mysql_pass' => '',
 ];

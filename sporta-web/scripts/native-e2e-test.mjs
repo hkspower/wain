@@ -1,7 +1,7 @@
 // The native backend driven by the REAL SITE in a REAL BROWSER — the built SPA
 // and the PHP API on one origin, exactly the production layout, with MariaDB
 // underneath. This is the test that proves the switch: config.js says
-// backend:'php' and the shop takes an order with no Supabase anywhere.
+// the shop takes an order against MySQL, end to end.
 //
 //   npm run test:native-e2e
 //   (needs MariaDB up and `php -S 127.0.0.1:8096 scripts/router-native.php`)
@@ -108,7 +108,7 @@ is(!!confirmed && confirmed.trim().length > 1, 'the result page confirms against
   await ap.route('**/config.js', (route) =>
     route.fulfill({ status: 200, contentType: 'text/javascript', body: "window.SPORTA_CONFIG={backend:'php'};" }),
   )
-  await ap.goto(`${BASE}/admin`, { waitUntil: 'networkidle' })
+  await ap.goto(`${BASE}/backends`, { waitUntil: 'networkidle' })
   is(await ap.locator('input[type=email]').isVisible(), 'the native admin shows its login')
 
   await ap.locator('input[type=email]').fill('cs@sporta.com.kw')
@@ -126,10 +126,29 @@ is(!!confirmed && confirmed.trim().length > 1, 'the result page confirms against
   await ap.waitForTimeout(800)
   const inv2 = await ap.locator('main').innerText()
   is(/A-CSJ-AR-L/.test(inv2), 'the inventory reads the MySQL variants')
+
+  // EVERY tab, not just the two above. A helper that admin/api.js had stopped
+  // importing threw "php is not defined" on every screen, and the two tabs
+  // this suite happened to open were the only reason it was caught at all —
+  // the failure looks like an empty panel, not like an error. So walk the lot
+  // and treat any uncaught page error, on any tab, as a failure.
+  const screenErrors = []
+  ap.on('pageerror', (e) => screenErrors.push(e.message))
+  for (const tab of ['Overview', 'Catalog', 'Products', 'Brands', 'Settings']) {
+    const button = ap.getByRole('button', { name: tab }).first()
+    if (!(await button.count())) { bad(`the ${tab} tab exists`); continue }
+    await button.click()
+    await ap.waitForTimeout(700)
+    // "Loading…" forever is the shape this bug takes: the request never fires,
+    // so the screen never resolves and never reports anything either.
+    const text = await ap.locator('main').innerText()
+    is(!/^\s*\w+\s*Loading…\s*$/.test(text), `the ${tab} screen finishes loading`)
+  }
+  is(screenErrors.length === 0, 'no admin screen throws', screenErrors.join(' | ') || 'clean')
   await admin.close()
 }
 
 await ctx.close()
 await browser.close()
-console.log(fails ? `\n${fails} problem(s) in the native e2e` : '\nthe whole shop runs with no Supabase')
+console.log(fails ? `\n${fails} problem(s) in the native e2e` : '\nthe whole shop runs on the one backend')
 process.exit(fails ? 1 : 0)

@@ -59,14 +59,12 @@ const browser = await chromium.launch({
 // site's surface only exists in one direction, and an RTL-only crash would be
 // invisible to an English-only sweep.
 const seenLinks = new Set()
-const KNOWN = /^\/(shop|cart|checkout|about|contact|wishlist|track|returns|terms|privacy|admin|product\/[^/]+|payment\/result|invoice\/[A-Za-z0-9]{1,30})?$/
+const KNOWN = /^\/(shop|cart|checkout|about|contact|wishlist|track|returns|terms|privacy|backends|product\/[^/]+|payment\/result|invoice\/[A-Za-z0-9]{1,30})?$/
 
 for (const lang of ['en', 'ar']) {
   head(`routes — ${lang === 'ar' ? 'Arabic (RTL)' : 'English (LTR)'}`)
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
   await ctx.addInitScript(`localStorage.setItem('lang', ${JSON.stringify(lang)})`)
-  await ctx.route('**/config.js', (r) =>
-    r.fulfill({ status: 200, contentType: 'text/javascript', body: "window.SPORTA_CONFIG={backend:'php'};" }))
 
   for (const [path, name] of ROUTES) {
     const page = await ctx.newPage()

@@ -35,7 +35,7 @@ const REMOTE = (cfg.ftp?.remoteDir ?? '/public_html').replace(/\/$/, '')
 
 // ---------------------------------------------------------------------------
 // Files whose server copy always wins. Hard-coded, not configuration: these
-// hold the live Supabase and Tranportal credentials and exist only on the
+// hold the live database and Tranportal credentials and exist only on the
 // server, and a configuration mistake that overwrote them would cost real money.
 const NEVER_OVERWRITE = ['config.js', 'knet/config.php', 'pay/config.php', 'api/config.php']
 // Never sent under any circumstance.
@@ -83,12 +83,12 @@ if (!NO_BUILD) {
   // is not tidiness: whatever is in the developer's .env would otherwise be
   // baked into the bundle as a fallback, so a missing config.js on the server
   // would quietly fall back to those values instead of failing closed — and a
-  // dev or staging Supabase project could end up compiled into production. It
+  // dev or staging backend URL could end up compiled into production. It
   // also keeps what publish sends identical to what the audited zip contains.
   execFileSync('npm', ['run', 'release'], {
     cwd: web,
     stdio: 'inherit',
-    env: { ...process.env, VITE_SUPABASE_URL: '', VITE_SUPABASE_ANON_KEY: '', VITE_PAY_BASE_URL: '' },
+    env: { ...process.env, VITE_PAY_BASE_URL: '', VITE_CBK_BASE_URL: '', VITE_PHP_API_URL: '' },
   })
 }
 if (!existsSync(outputDir)) fail(`No build output at ${outputDir}. Run without --no-build.`)
@@ -207,7 +207,7 @@ try {
     // all, and the storefront would render while refusing every order.
     await client.uploadFrom(createReadStream(join(outputDir, 'config.js')), `${REMOTE}/config.js`)
     log(c(33, '  ! config.js was missing — uploaded the blank template.'))
-    log(c(33, '    Edit it in File Manager and paste your Supabase URL + anon key.'))
+    log(c(33, '    Edit it in File Manager if the site needs non-default endpoints.'))
   }
   const knetNames = (await client.list(`${REMOTE}/knet`).catch(() => [])).map((i) => i.name)
   log(knetNames.includes('config.php')

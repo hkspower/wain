@@ -49,7 +49,11 @@ export default function App() {
     <Suspense fallback={<Loading />}>
       <Routes>
         {/* Admin panel — standalone, no marketing chrome, lazy-loaded */}
-        <Route path="/admin/*" element={<AdminApp />} />
+        {/* The backends screen. It was /admin until the owner renamed it — a
+            bookmark to the old path now lands on the 404 page, deliberately:
+            there is no redirect, because the point of a name nobody guesses is
+            defeated by a signpost pointing at it. */}
+        <Route path="/backends/*" element={<AdminApp />} />
         {/* Public storefront */}
         <Route path="/*" element={<PublicSite />} />
       </Routes>

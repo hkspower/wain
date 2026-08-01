@@ -59,7 +59,7 @@ if ($paid && $haveDb) {
 
 // Persist the result (the manual requires merchants to save it).
 if ($haveDb) {
-    cbk_update_supabase($cfg, $trackid, $paid, $res);
+    cbk_update_order($cfg, $trackid, $paid, $res);
 }
 
 $status = $paid ? 'success' : ($statusCode === '3' ? 'cancelled' : 'failed');
@@ -78,132 +78,65 @@ function amounts_equal(string $a, string $b): bool
     return abs((float) $a - (float) $b) < 0.001;
 }
 
-// Fetch the expected amount for this order from Supabase. Returns null if the
-// order isn't found (so we don't wrongly reject when the DB is unavailable).
+// The amount this order is expected to cost, read from the orders table.
+// Returns null when the order is not found or the database is unreachable, so
+// a blip does not wrongly reject a real payment.
 function cbk_order_expected_amount(array $cfg, string $trackid): ?string
 {
-    // Native mode reads the same table cbk_order_amount() does.
-    if (($cfg['store'] ?? '') === 'mysql') {
-        return cbk_order_amount($cfg, $trackid);
-    }
-    $url = rtrim($cfg['supabase_url'], '/') . '/rest/v1/'
-        . rawurlencode($cfg['orders_table'])
-        . '?select=amount&' . $cfg['orders_match_column'] . '=eq.' . rawurlencode($trackid);
-
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 10,
-        CURLOPT_HTTPHEADER     => [
-            'apikey: ' . $cfg['supabase_service_key'],
-            'Authorization: Bearer ' . $cfg['supabase_service_key'],
-        ],
-    ]);
-    $body = curl_exec($ch);
-    curl_close($ch);
-    if ($body === false) {
-        return null;
-    }
-    $rows = json_decode((string) $body, true);
-    return isset($rows[0]['amount']) ? (string) $rows[0]['amount'] : null;
+    return cbk_order_amount($cfg, $trackid);
 }
 
-function cbk_update_supabase(array $cfg, string $trackid, bool $paid, array $res): void
+function cbk_update_order(array $cfg, string $trackid, bool $paid, array $res): void
 {
     $status = $paid ? 'paid' : ((string)($res['Status'] ?? '') === '1' ? 'review' : 'failed');
 
-    // NATIVE MODE — the orders table is MySQL on this same host. Mirrors the
-    // KNET dropin exactly, including the parts it learned the hard way: never
-    // downgrade a paid order, never re-stamp or re-notify on a replay, and
-    // queue the warehouse follow-up in the SAME transaction as the status it
-    // reports.
-    if (($cfg['store'] ?? '') === 'mysql') {
-        try {
-            $pdo = cbk_pdo($cfg);
-            $pdo->beginTransaction();
-            $cur = $pdo->prepare('select payment_status from orders where track_id = ?');
-            $cur->execute([$trackid]);
-            $before = $cur->fetchColumn();
-            if ($before === false) { $pdo->rollBack(); return; }
-            if ($before === 'paid' && $paid) { $pdo->rollBack(); return; }
+    // Mirrors the KNET dropin exactly, including the parts it learned the hard
+    // way: never downgrade a paid order, never re-stamp or re-notify on a
+    // replay, and queue the warehouse follow-up in the SAME transaction as the
+    // status it reports.
+    try {
+        $pdo = cbk_pdo($cfg);
+        $pdo->beginTransaction();
+        $cur = $pdo->prepare('select payment_status from orders where track_id = ?');
+        $cur->execute([$trackid]);
+        $before = $cur->fetchColumn();
+        if ($before === false) { $pdo->rollBack(); return; }
+        if ($before === 'paid' && $paid) { $pdo->rollBack(); return; }
 
-            $sql = 'update orders set payment_status = ?, cbk_status = ?, cbk_message = ?,
-                      cbk_paymentid = ?, cbk_transaction = ?, cbk_authcode = ?,
-                      cbk_reference = ?, cbk_receipt = ?, cbk_paytype = ?, paid_at = ?
-                    where track_id = ?';
-            if (!$paid) $sql .= " and payment_status <> 'paid'";
-            $pdo->prepare($sql)->execute([
-                $status,
-                (string)($res['Status'] ?? ''), (string)($res['Message'] ?? ''),
-                (string)($res['PaymentId'] ?? ''), (string)($res['TransactionId'] ?? ''),
-                (string)($res['AuthCode'] ?? ''), (string)($res['ReferenceId'] ?? ''),
-                (string)($res['ReceiptNo'] ?? ''), (string)($res['PayType'] ?? ''),
-                $paid ? gmdate('Y-m-d H:i:s') : null,
-                $trackid,
-            ]);
-            if ($before !== $status && $status !== 'review') {
-                $o = $pdo->prepare('select id from orders where track_id = ?');
-                $o->execute([$trackid]);
-                if ($orderId = $o->fetchColumn()) {
-                    // The warehouse follow-up rides this transaction so it
-                    // cannot go missing — but a MISSING store.php is a
-                    // deployment error, not a data one, and it must never roll
-                    // back the record that money was taken. Measured: with the
-                    // file absent, require_once threw inside the try and the
-                    // catch rolled the whole payment back to 'pending'.
-                    $lib = dirname(__DIR__) . '/api/store.php';
-                    if (!is_file($lib)) $lib = dirname(__DIR__) . '/php-store/store.php';
-                    if (is_file($lib)) {
-                        require_once $lib;
-                        store_queue_fulfilment($pdo, (int) $orderId, 'payment');
-                    }
+        $sql = 'update orders set payment_status = ?, cbk_status = ?, cbk_message = ?,
+                  cbk_paymentid = ?, cbk_transaction = ?, cbk_authcode = ?,
+                  cbk_reference = ?, cbk_receipt = ?, cbk_paytype = ?, paid_at = ?
+                where track_id = ?';
+        if (!$paid) $sql .= " and payment_status <> 'paid'";
+        $pdo->prepare($sql)->execute([
+            $status,
+            (string)($res['Status'] ?? ''), (string)($res['Message'] ?? ''),
+            (string)($res['PaymentId'] ?? ''), (string)($res['TransactionId'] ?? ''),
+            (string)($res['AuthCode'] ?? ''), (string)($res['ReferenceId'] ?? ''),
+            (string)($res['ReceiptNo'] ?? ''), (string)($res['PayType'] ?? ''),
+            $paid ? gmdate('Y-m-d H:i:s') : null,
+            $trackid,
+        ]);
+        if ($before !== $status && $status !== 'review') {
+            $o = $pdo->prepare('select id from orders where track_id = ?');
+            $o->execute([$trackid]);
+            if ($orderId = $o->fetchColumn()) {
+                // The warehouse follow-up rides this transaction so it
+                // cannot go missing — but a MISSING store.php is a
+                // deployment error, not a data one, and it must never roll
+                // back the record that money was taken. Measured: with the
+                // file absent, require_once threw inside the try and the
+                // catch rolled the whole payment back to 'pending'.
+                $lib = dirname(__DIR__) . '/api/store.php';
+                if (!is_file($lib)) $lib = dirname(__DIR__) . '/php-store/store.php';
+                if (is_file($lib)) {
+                    require_once $lib;
+                    store_queue_fulfilment($pdo, (int) $orderId, 'payment');
                 }
             }
-            $pdo->commit();
-        } catch (Throwable $e) {
-            if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
         }
-        return;
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
     }
-
-    $url = rtrim($cfg['supabase_url'], '/') . '/rest/v1/'
-        . rawurlencode($cfg['orders_table'])
-        . '?' . $cfg['orders_match_column'] . '=eq.' . rawurlencode($trackid);
-
-    $payload = json_encode([
-        // 'review', not 'failed', when the bank said yes but the amount did
-        // not match: the money may well have left the customer's account, and
-        // filing that as a plain failure is how a real payment gets ignored.
-        'payment_status'  => $status,
-        'cbk_status'      => (string)($res['Status'] ?? ''),
-        'cbk_message'     => (string)($res['Message'] ?? ''),
-        'cbk_paymentid'   => (string)($res['PaymentId'] ?? ''),
-        'cbk_transaction' => (string)($res['TransactionId'] ?? ''),
-        'cbk_authcode'    => (string)($res['AuthCode'] ?? ''),
-        'cbk_reference'   => (string)($res['ReferenceId'] ?? ''),
-        'cbk_receipt'     => (string)($res['ReceiptNo'] ?? ''),
-        'cbk_paytype'     => (string)($res['PayType'] ?? ''),
-        // NOT 'amount'. That column is computed by a database trigger from the
-        // stored product prices and is the figure this order is owed. Writing
-        // the gateway's number over it would let a failed or tampered payment
-        // rewrite what the customer owes — and this runs on the failure path
-        // too, so it would have done exactly that.
-        'paid_at'         => $paid ? gmdate('c') : null,
-    ]);
-
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_CUSTOMREQUEST  => 'PATCH',
-        CURLOPT_POSTFIELDS     => $payload,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 10,
-        CURLOPT_HTTPHEADER     => [
-            'Content-Type: application/json',
-            'apikey: ' . $cfg['supabase_service_key'],
-            'Authorization: Bearer ' . $cfg['supabase_service_key'],
-            'Prefer: return=minimal',
-        ],
-    ]);
-    curl_exec($ch);
-    curl_close($ch);
 }

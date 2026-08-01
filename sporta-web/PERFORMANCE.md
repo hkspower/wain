@@ -5,7 +5,7 @@ Applied to this app; the same techniques apply to the real Lovable/Vite project.
 ## What changed & why
 
 ### 1. Route-level code splitting (`src/App.jsx`)
-`About`, `Services`, `Contact`, and the entire **admin** (with Supabase) are now
+`About`, `Services`, `Contact`, and the entire **admin** are now
 `React.lazy()` imports behind `<Suspense>`. A first-time visitor to the home page
 no longer downloads admin/checkout code they don't need.
 

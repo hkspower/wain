@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchBrands, saveBrand, setBrandActive, slugify, NOT_ADMIN } from './api'
+import { fetchBrands, saveBrand, setBrandActive, slugify } from './api'
 import { Notice } from './Overview'
 import { IconClose, IconImage } from '../components/icons'
 
@@ -56,7 +56,6 @@ export default function Brands() {
       loading: false,
       brands: r.brands ?? [],
       error: r.error,
-      notAdmin: r.notAdmin,
       needsMigration: r.needsMigration,
       notSignedIn: r.notSignedIn,
     })
@@ -70,17 +69,15 @@ export default function Brands() {
       brands: s.brands.map((b) => (b.id === brand.id ? { ...b, active: !b.active } : b)),
     }))
     const r = await setBrandActive(brand.id, !brand.active)
-    if (r.error || r.notAdmin) load()
+    if (r.error) load()
   }
 
   if (state.loading) return <p className="text-sm text-slate-500">Loading…</p>
-  if (state.notAdmin) return <Notice tone="error" title="Not an admin">{NOT_ADMIN}</Notice>
   if (state.needsMigration) {
     return (
       <Notice tone="warn" title="The brands table is not installed yet">
-        Run <code className="font-mono">supabase/brands-migration.sql</code> in the Supabase SQL
-        editor — or, on the native backend, import{' '}
-        <code className="font-mono">api/brands.mysql.sql</code> in phpMyAdmin.
+        Import <code className="font-mono">api/brands.mysql.sql</code> once in
+        phpMyAdmin — hPanel → Databases → phpMyAdmin → your database → Import.
       </Notice>
     )
   }
@@ -213,7 +210,6 @@ function BrandEditor({ brand, onClose, onSaved }) {
     const r = await saveBrand(payload)
     setBusy(false)
     if (r.error) return setErr(r.error)
-    if (r.notAdmin) return setErr(NOT_ADMIN)
     onSaved()
   }
 

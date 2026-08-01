@@ -10,7 +10,7 @@
 //   1. NEVER TOUCHED. Anything under /knet/ or /pay/, and config.js.
 //      A payment response carries order state and is marked no-store for that
 //      reason; a service worker that cached one could show a stale "payment
-//      successful" for an order that failed. config.js holds the live Supabase
+//      successful" for an order that failed. config.js holds the live backend
 //      settings and is edited in place on the server — caching it would make an
 //      edit look like it did nothing, which is exactly the bug the .htaccess
 //      no-cache rule exists to prevent. Both are passed straight to the network,
@@ -26,7 +26,7 @@
 //      network always gets asked first; the cached shell is what makes the site
 //      open at all on a train or in a lift.
 //
-// POST is never cached, and neither is any cross-origin request: Supabase reads
+// POST is never cached, and neither is any cross-origin request: API reads
 // go to the network every time, because a cached stock figure or order status
 // would be worse than none.
 //
@@ -78,7 +78,7 @@ self.addEventListener('fetch', (e) => {
   const { request } = e
   if (request.method !== 'GET') return
   const url = new URL(request.url)
-  if (url.origin !== location.origin) return // Supabase and the bank: always live
+  if (url.origin !== location.origin) return // the bank: always live
   if (NEVER(url)) return
 
   if (CACHE_FIRST(url)) {

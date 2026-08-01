@@ -25,7 +25,7 @@ const stage = join(root, '.package-stage')
 // No VITE_ variables on purpose: the package configures itself at runtime from
 // config.js. Baking in this machine's values would ship the wrong project.
 console.log('building…')
-execFileSync('npm', ['run', 'release'], { cwd: web, stdio: 'inherit', env: { ...process.env, VITE_SUPABASE_URL: '', VITE_SUPABASE_ANON_KEY: '', VITE_PAY_BASE_URL: '' } })
+execFileSync('npm', ['run', 'release'], { cwd: web, stdio: 'inherit', env: { ...process.env, VITE_PAY_BASE_URL: '', VITE_CBK_BASE_URL: '', VITE_PHP_API_URL: '' } })
 
 rmSync(stage, { recursive: true, force: true })
 mkdirSync(join(stage, 'public_html'), { recursive: true })
@@ -35,22 +35,22 @@ cpSync(join(web, 'dist'), join(stage, 'public_html'), { recursive: true })
 
 // npm run release bundles the PHP into dist/knet already; make sure the two
 // files that must never ship are absent even if something upstream changes.
-for (const forbidden of ['knet/config.php', '.env', '.env.deploy']) {
+for (const forbidden of ['knet/config.php', 'pay/config.php', 'api/config.php', '.env', '.env.deploy']) {
   const p = join(stage, 'public_html', forbidden)
   if (existsSync(p)) { rmSync(p); console.log(`removed ${forbidden} from the package`) }
 }
 
-// ---- 3. the SQL, so the database can be set up without the repo -------------
-mkdirSync(join(stage, 'supabase-sql'), { recursive: true })
-// SETUP-ALL.sql first, because running the five separately in the wrong order
-// is the most common way this setup fails — and it fails quietly, leaving a
-// storefront that renders and a checkout that refuses everything.
-execFileSync('node', [join(web, 'scripts', 'generate-setup-sql.mjs')], { stdio: 'inherit' })
-cpSync(join(web, 'supabase', 'SETUP-ALL.sql'), join(stage, 'supabase-sql', 'SETUP-ALL.sql'))
-const ORDER = ['schema', 'admin-migration', 'checkout-migration', 'passcode-migration',
-               'payment-method-migration', 'seed-products']
+// ---- 3. the SQL, numbered, so the database can be set up without the repo ---
+// The files also ship inside public_html/api/ (denied by that folder's own
+// .htaccess), but nobody hunts through a web root to find them. Numbered
+// copies at the top level make the ORDER unmissable — running them out of
+// order is the most common way this setup fails, and it fails quietly,
+// leaving a storefront that renders and a checkout that refuses everything.
+mkdirSync(join(stage, 'database-sql'), { recursive: true })
+const ORDER = ['schema.mysql', 'seed.mysql', 'brands.mysql']
 ORDER.forEach((name, i) => {
-  cpSync(join(web, 'supabase', `${name}.sql`), join(stage, 'supabase-sql', `${i + 1}-${name}.sql`))
+  cpSync(join(web, 'dropin', 'php-store', `${name}.sql`),
+         join(stage, 'database-sql', `${i + 1}-${name}.sql`))
 })
 
 // The Mac-side checker travels with the package so there is one thing to keep,
@@ -95,37 +95,42 @@ public_html/ folder.
      checks each one for real and names any that are still readable.
 
 --------------------------------------------------------------------------------
-2. SET YOUR SUPABASE KEYS  (2 lines — the site will not sell anything until you do)
+2. THE DATABASE  (hPanel -> Databases -> MySQL Databases)
 --------------------------------------------------------------------------------
-In File Manager, open  public_html/config.js  and replace the two placeholders.
-Get both from Supabase -> Project Settings -> API:
+Create a database and a user, and give that user ALL privileges on it. Write
+down the four values -- host (localhost), database name, user, password. Every
+part of the site reads the SAME four.
 
-    supabaseUrl      = Project URL
-    supabaseAnonKey  = the "anon" / "public" key      <- NOT the service key
+Then hPanel -> Databases -> phpMyAdmin -> Import, and run these IN THIS ORDER:
 
-Save. Reload the site. That is the whole configuration step.
+    database-sql/1-schema.mysql.sql   the tables
+    database-sql/2-seed.mysql.sql     the 46 products and the stock
+    database-sql/3-brands.mysql.sql   the brands
+
+Safe to re-run. Re-seeding updates prices and names in place; it never
+duplicates a product and never overwrites your stock counts.
 
 --------------------------------------------------------------------------------
-3. DATABASE  (Supabase -> SQL Editor)
+3. CONNECT THE SITE TO IT  (3 files, the same 4 values in each)
 --------------------------------------------------------------------------------
-Open  supabase-sql/SETUP-ALL.sql  , paste ALL of it into the Supabase SQL
-Editor, and press Run. That is the whole database step.
+In File Manager, copy each example to its real name and fill in the four
+mysql_ values from step 2:
 
-It ends by printing a report. Read it:
+    public_html/api/config.example.php   ->  api/config.php     <- required
+    public_html/knet/config.example.php  ->  knet/config.php    <- see step 4
+    public_html/pay/config.example.php   ->  pay/config.php     <- see step 4b
 
-    products_on_sale    46    the catalogue
-    checkout_function    1    0 means every checkout fails
-    passcode_function    1    0 means admin quick-unlock cannot work
-    admin_users          1+   0 means NOBODY CAN SIGN IN to /admin
+Set each one's permissions to 600.
 
-If admin_users is 0, go to Authentication -> Users -> Add user. Any email
-works; it does not need to be a real inbox. That is the account you use at
-https://www.sporta.com.kw/admin
+  !! api/config.php is what makes the shop work at all. Without it the
+     catalogue is empty and every checkout is refused.
 
-Safe to run again whenever the catalogue changes.
+Then create your admin sign-in: open
 
-(The same five migrations are also in that folder numbered 1-5, if you would
-rather run them one at a time. They MUST go in that order.)
+    https://www.sporta.com.kw/api/setup-admin.php
+
+and follow it. That is the account you use at
+https://www.sporta.com.kw/backends -- DELETE setup-admin.php afterwards.
 
 --------------------------------------------------------------------------------
 4. PAYMENT CREDENTIALS  (server-side only — never in config.js)
@@ -137,14 +142,15 @@ Then open  https://www.sporta.com.kw/knet/selftest.php  in a browser. It checks
 the two mistakes that fail silently and cost money:
   - a resource key that is not exactly 16 bytes (a stray space breaks every
     transaction with no useful error)
-  - the Supabase SERVICE key vs the anon key pasted in the wrong place
+  - an orders database that is not actually reachable (without it the server
+    has no authority over the price and every card payment is refused)
 
 When every line reads OK, DELETE these two files from the server:
     public_html/knet/selftest.php
     public_html/knet/setup-config.php
 
 --------------------------------------------------------------------------------
-4b. T-PAY  (optional — only if you want the QR payment method)
+4b. T-PAY  (optional — CBK's online payment link)
 --------------------------------------------------------------------------------
 T-Pay runs on a DIFFERENT CBK product from the KNET endpoints above, with
 DIFFERENT credentials. It cannot work through knet/.
@@ -153,7 +159,7 @@ DIFFERENT credentials. It cannot work through knet/.
   2. Fill in what CBK sends on activation:
        test_base / production_base  (the gateway hosts)
        client_id, client_secret, encrp_key
-       supabase_url + supabase SERVICE key   (same pair as knet/config.php)
+       the four mysql_ values   (the same ones as api/config.php)
   3. Set its permissions to 600
   4. Tell CBK your return URL:  https://www.sporta.com.kw/pay/callback.php
      and give them your server IP if they filter by it (max 2)
@@ -198,9 +204,9 @@ To go back to the artwork, delete the file again.
 
     https://www.sporta.com.kw/go-live.html
 
-It tests every step above for real: config.js, Supabase, the products table,
-the checkout function, the admin passcode, .htaccess, the payment endpoint,
-sitemap and manifest. Each failure names the exact file to fix.
+It tests every step above for real: the /api backend, the products table, the
+checkout endpoint, .htaccess, private files, the payment endpoint, sitemap and
+manifest. Each failure names the exact file to fix.
 
 When it says "Sporta is live and can take orders", make one real 0.100 KWD
 test payment, then confirm that order shows as PAID in the admin -- a green

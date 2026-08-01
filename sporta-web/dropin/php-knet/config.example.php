@@ -48,19 +48,10 @@ return [
     // amount the bank captured matches. Without it there is no price authority
     // at all — never run a live storefront that way.
     //
-    // Fill in ONE of the two blocks, matching public_html/config.js:
-    //
-    // (a) NATIVE backend  (config.js has  backend: 'php'):
-    //     uncomment these and use the SAME values as api/config.php.
-    // 'store'      => 'mysql',
-    // 'mysql_host' => 'localhost',
-    // 'mysql_name' => '',
-    // 'mysql_user' => '',
-    // 'mysql_pass' => '',
-    //
-    // (b) SUPABASE backend (config.js has no `backend`): fill these instead.
-    'supabase_url'         => '',
-    'supabase_service_key' => '',
-    'orders_table'         => 'orders',
-    'orders_match_column'  => 'track_id',
+    // Use the SAME four values as api/config.php — one database, one set of
+    // orders, read by the shop and by both gateways.
+    'mysql_host' => 'localhost',
+    'mysql_name' => '',
+    'mysql_user' => '',
+    'mysql_pass' => '',
 ];

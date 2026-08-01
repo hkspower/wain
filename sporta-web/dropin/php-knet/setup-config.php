@@ -1,8 +1,12 @@
 <?php
-// knet/setup-config.php — writes knet/config.php from five secrets.
+// knet/setup-config.php — writes knet/config.php from the secrets it asks for.
 //
-// Run it ON THE SERVER over SSH:
+// Run it from a PHP command line ON THE SERVER:
 //     cd public_html/knet && php setup-config.php
+//
+// This host has no shell (SSH is off for good), so in practice config.php is
+// written by hand in hPanel File Manager and knet/selftest.php does the
+// validating instead. This script stays for hosts that do have a CLI.
 //
 // Everything except the five secrets is already known, so this only asks for
 // what it cannot work out, validates each answer, and writes config.php with
@@ -13,8 +17,9 @@
 //   * a resource key that is not exactly 16 bytes — AES-128 needs 16, and a
 //     stray space from copy/paste makes KNET reject every transaction with no
 //     useful error;
-//   * the Supabase ANON key pasted where the SERVICE key belongs — row-level
-//     security then blocks order creation, so checkout fails for everyone.
+//   * an orders database that is not actually reachable — without it the
+//     server has no authority over the price, pay.php has no amount to charge
+//     and every card payment is refused with a blunt 400.
 
 declare(strict_types=1);
 
@@ -83,59 +88,39 @@ while (true) {
     warn('Check for a trailing space or a missing character, then re-enter it.');
 }
 
-// ------------------------------------------------------------------ Supabase
-fwrite(STDOUT, "\nFrom Supabase (Project settings -> API):\n");
+// ------------------------------------------------------------ orders database
+// The SAME database api/config.php uses. Both gateways settle rows in the one
+// orders table the shop writes, so these four values must match exactly.
+fwrite(STDOUT, "\nThe orders database (same values as api/config.php):\n");
+$dbHost = ask('  MySQL host             : ');
+$dbName = ask('  MySQL database name    : ');
+$dbUser = ask('  MySQL user             : ');
+$dbPass = ask('  MySQL password         : ', true);
 
-while (true) {
-    $sbUrl = rtrim(ask('  Project URL            : '), '/');
-    if (preg_match('~^https://[A-Za-z0-9.-]+\.supabase\.(co|in)$~', $sbUrl)) {
-        ok('Project URL looks right.');
-        break;
+// Prove it before writing it. A config that names an unreachable database
+// looks configured and refuses every payment.
+try {
+    $probe = new PDO(
+        "mysql:host={$dbHost};dbname={$dbName};charset=utf8mb4",
+        $dbUser,
+        $dbPass,
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+    );
+    $n = (int) $probe->query('select count(*) from orders')->fetchColumn();
+    ok("Connected; the orders table is readable ($n orders).");
+    $p = (int) $probe->query('select count(*) from products')->fetchColumn();
+    if ($p === 0) {
+        warn('The products table is EMPTY. Orders are priced from it, so');
+        warn('checkout will fail until the catalogue is loaded.');
+    } else {
+        ok("The products table holds $p products to price orders from.");
     }
-    // Self-hosted Supabase and custom domains are legitimate, so warn rather
-    // than refuse — but make an obvious typo hard to accept by accident.
-    warn('That is not the usual https://<project>.supabase.co form.');
-    if (!preg_match('~^https?://~', $sbUrl)) {
-        warn('It is not even a URL — re-enter it.');
-        continue;
-    }
-    fwrite(STDOUT, "  Self-hosted or custom domain? Type 'yes' to accept: ");
-    if (trim((string) fgets(STDIN)) === 'yes') {
-        break;
-    }
-}
-
-while (true) {
-    $sbKey = ask('  SERVICE role key       : ', true);
-    $role  = null;
-
-    if (str_starts_with($sbKey, 'eyJ')) {              // classic JWT key
-        $parts = explode('.', $sbKey);
-        if (count($parts) === 3) {
-            $pad  = strtr($parts[1], '-_', '+/');
-            $json = json_decode((string) base64_decode($pad . str_repeat('=', (4 - strlen($pad) % 4) % 4)), true);
-            $role = $json['role'] ?? null;
-        }
-    } elseif (str_starts_with($sbKey, 'sb_secret_')) {  // new-style secret key
-        $role = 'service_role';
-    } elseif (str_starts_with($sbKey, 'sb_publishable_')) {
-        $role = 'anon';
-    }
-
-    if ($role === 'service_role') {
-        ok('That is the service key.');
-        break;
-    }
-    if ($role === 'anon') {
-        warn('That is the ANON (public) key, not the service key.');
-        warn('With it, row-level security blocks order creation and checkout');
-        warn('fails for every customer. Copy the "service_role" key instead.');
-        continue;
-    }
-    warn('Could not confirm this is the service key.');
-    fwrite(STDOUT, "  Use it anyway? Type 'yes' to continue: ");
-    if (trim((string) fgets(STDIN)) === 'yes') {
-        break;
+} catch (Throwable $e) {
+    warn('Could not read the orders table: ' . $e->getMessage());
+    warn('Card payments will be refused until this connects.');
+    fwrite(STDOUT, "  Write the config anyway? Type 'yes' to continue: ");
+    if (trim((string) fgets(STDIN)) !== 'yes') {
+        exit("Nothing written.\n");
     }
 }
 
@@ -146,8 +131,10 @@ $q      = fn (string $v): string => var_export($v, true);
 $eTid   = $q($tid);
 $eTpw   = $q($tpw);
 $eKey   = $q($key);
-$eUrl   = $q($sbUrl);
-$eSbKey = $q($sbKey);
+$eHost  = $q($dbHost);
+$eName  = $q($dbName);
+$eUser  = $q($dbUser);
+$ePass  = $q($dbPass);
 
 $cfg = <<<PHP
 <?php
@@ -174,10 +161,10 @@ return [
 
     'log_file' => __DIR__ . '/../../knet-payments.log',
 
-    'supabase_url'         => {$eUrl},
-    'supabase_service_key' => {$eSbKey},
-    'orders_table'         => 'orders',
-    'orders_match_column'  => 'track_id',
+    'mysql_host' => {$eHost},
+    'mysql_name' => {$eName},
+    'mysql_user' => {$eUser},
+    'mysql_pass' => {$ePass},
 ];
 
 PHP;
@@ -189,43 +176,6 @@ if (@file_put_contents($dest, $cfg) === false) {
 
 fwrite(STDOUT, "\n");
 ok("Wrote $dest (0600)");
-
-// ------------------------------------------------------- live sanity checks
-fwrite(STDOUT, "\nChecking Supabase...\n");
-$probe = function (string $path) use ($sbUrl, $sbKey) {
-    $ch = curl_init($sbUrl . '/rest/v1/' . $path);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 12,
-        CURLOPT_HTTPHEADER     => ['apikey: ' . $sbKey, 'Authorization: Bearer ' . $sbKey],
-    ]);
-    $body = curl_exec($ch);
-    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    return [$code, $body];
-};
-
-[$code, $body] = $probe('products?select=slug&limit=5');
-if ($code >= 200 && $code < 300) {
-    $rows = json_decode((string) $body, true);
-    $n = is_array($rows) ? count($rows) : 0;
-    if ($n > 0) {
-        ok("products table reachable, rows present.");
-    } else {
-        warn('products table is reachable but EMPTY.');
-        warn('Checkout will fail with "Order has no payable amount" until the');
-        warn('catalogue is loaded (task B1). Orders are priced from this table.');
-    }
-} else {
-    warn("products query returned HTTP $code — check the URL and key.");
-}
-
-[$code2] = $probe('orders?select=track_id&limit=1');
-if ($code2 >= 200 && $code2 < 300) {
-    ok('orders table reachable.');
-} else {
-    warn("orders query returned HTTP $code2 — the schema may not be applied yet.");
-}
 
 fwrite(STDOUT, <<<TXT
 

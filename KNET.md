@@ -28,7 +28,8 @@ in `sporta-web/dropin/php-cbk/` and is **not** what is deployed.
 | `sporta-web/dropin/php-knet/.htaccess` | `public_html/knet/` | HTTPS + canonical host, `no-store`, `noindex`, denies `config.php`/`knet.php`/`setup-config.php`/`*.log`. |
 | `sporta-web/src/lib/checkout.js` | `dist/` | Browser side: calls `create_order`, then sends the customer to `pay.php`. |
 | `sporta-web/src/pages/PaymentResult.jsx` | `dist/` | The page KNET's callback finally lands the customer on. |
-| `sporta-web/supabase/*.sql` | Supabase | Order tables, server-side pricing triggers, `create_order`, admin passcode, catalogue seed. Run order in §3; `scripts/db-rebuild.sh` is the executable copy of it. |
+| `sporta-web/dropin/php-store/*.sql` | `public_html/api/` | Order tables, the server-side pricing trigger, the catalogue seed and the brands. Import order in §3. |
+| `sporta-web/dropin/php-store/store.php` | `public_html/api/` | `store_create_order()` — the shared checkout core both the shop and the gateways price from. |
 
 `npm run release` bundles `dropin/php-knet/` into `dist/knet/`, excluding
 `config.php`, so one deploy ships the site and the endpoints together.
@@ -38,12 +39,12 @@ in `sporta-web/dropin/php-cbk/` and is **not** what is deployed.
 ```mermaid
 sequenceDiagram
     participant B as Browser
-    participant DB as Supabase
+    participant DB as MySQL (via /api)
     participant P as knet/pay.php
     participant K as KNET (kpay.com.kw)
     participant C as knet/callback.php
 
-    B->>DB: create_order(track_id, items[slug,qty], customer)
+    B->>DB: POST /api/api.php?r=order (track_id, items[slug,qty], customer)
     Note over DB: validates address, resolves slugs,<br/>triggers compute the amount
     DB-->>B: {order_id, track_id, amount}
     B->>P: GET pay.php?trackid=…   (no amount)
@@ -139,16 +140,14 @@ is separate and admin-driven.
 
 | Suite | Covers |
 |---|---|
-| `scripts/knet-callback-test.mjs` (8/8) | Real `callback.php` under real PHP against real PostgreSQL with `schema.sql`. Capture recorded as paid with `paid_at`; underpayment refused; unknown order held for review; late failure cannot un-pay; replay idempotent; wrong-key forgery rejected; plain HTTP refused. |
-| `scripts/e2e-checkout.mjs` (12/12) | Browser → `create_order` → redirect. No `amount` on the wire, price tampering ignored, zero orphan rows. |
-| `scripts/db-contract-audit.mjs` | Every table, column and function the code references exists in a database built from `supabase/*.sql` alone. This is the check that would have caught the `knet_*` column bug. |
+| `npm run test:native` (36/36) | The `/api` contract itself: validation tokens, price authority, stock, invoices, brands, admin auth and its five-failure lock. |
+| `npm run test:native-e2e` (20/20) | The built site in a real browser against real MariaDB — product page to order to invoice to the admin, every admin tab walked. |
 | `npm run test:knet` (39/39) | The whole card path on the NATIVE backend against real MariaDB and a fake gateway that speaks the real Tranportal protocol (`scripts/fake-knet-bank.php`): the trandata this code encrypts is decrypted by an INDEPENDENT AES implementation in Node, the amount charged comes from the database and an `?amount=` in the URL is ignored, the callback answers `REDIRECT=` so a server-to-server gateway can bring the customer home, replays change nothing, underpayment/cancel/garbage all fail closed, and a captured card whose callback never arrived can be settled by an operator only with the bank's payment id. |
 | `php -l` | All endpoints parse. |
 
-Run them against a database built by `scripts/db-rebuild.sh`, which applies
-`supabase/*.sql` in the required order and seeds the catalogue. Every suite
-runs against that result, so the documented run order is executable and
-verified rather than a note that can rot.
+Run them against a database built by importing `dropin/php-store/schema.mysql.sql`,
+`seed.mysql.sql` and `brands.mysql.sql` in that order — the same order §3
+documents, so the documented order is the one the tests actually exercise.
 
 ---
 
@@ -156,15 +155,14 @@ verified rather than a note that can rot.
 
 ### P0 — before any live payment
 
-1. **Run the migrations** (Supabase SQL editor, in order): `schema.sql`,
-   `admin-migration.sql`, `checkout-migration.sql`, `passcode-migration.sql`,
-   `seed-products.sql`. `scripts/db-rebuild.sh` runs exactly this order against
-   a throwaway database, and every test suite runs against the result — so the
-   order is verified, not just documented.
-2. **Confirm the catalogue loaded.** `seed-products.sql` does it; Admin →
+1. **Import the SQL** (phpMyAdmin, in order): `api/schema.mysql.sql`,
+   `api/seed.mysql.sql`, `api/brands.mysql.sql`. Every test suite runs against
+   a database built this way, so the order is verified, not just documented.
+2. **Confirm the catalogue loaded.** `seed.mysql.sql` does it; Backends →
    Catalogue → Push products is the browser equivalent. Orders price from that
    table, and empty means every checkout is refused.
-3. **Create `config.php`**: `cd public_html/knet && php setup-config.php`.
+3. **Create `config.php`** in hPanel File Manager from `config.example.php`
+   (SSH is off, so `setup-config.php` is not available to this host).
 4. **Register `https://www.sporta.com.kw/knet/callback.php`** with the bank as
    both `responseURL` and `errorURL`.
 5. **Test transaction** on `env: 'test'` against `kpaytest.com.kw` — a real
@@ -221,18 +219,22 @@ Also P1:
 
 ---
 
-## 3a. The native backend (`config.js` → `backend: 'php'`)
+## 3a. Pointing the card path at the orders database
 
-The card path is Supabase-agnostic, but it has to be TOLD which database holds
-the orders. `knet/config.php` needs the MySQL block:
+`knet/config.php` has to be TOLD which database holds the orders — it is a
+separate file from `api/config.php` and shares nothing with it automatically:
 
 ```php
-'store'      => 'mysql',
 'mysql_host' => 'localhost',
-'mysql_name' => '...',   // the same values as api/config.php
-'mysql_user' => '...',
+'mysql_name' => '...',   // the same database as api/config.php,
+'mysql_user' => '...',   // where these four keys are spelled db_*
 'mysql_pass' => '...',
 ```
+
+Leave them blank and `pay.php` has no amount to charge: every card is refused
+with `400 Invalid amount` and every captured payment goes unrecorded. That is
+not hypothetical — it is what happened, and `npm run test:knet` exists because
+of it.
 
 Without it the whole card path is dead, and silently: `knet_db_configured()`
 answered "no database", so `pay.php` refused every payment with **400 Invalid
@@ -279,10 +281,10 @@ orders keep their own control and cards still cannot be settled on a hunch.
 
 | Symptom | Cause | Action |
 |---|---|---|
-| `404 Unknown order` at Pay | `checkout-migration.sql` not run, or `create_order` failed | Run the migrations |
+| `404 Unknown order` at Pay | `schema.mysql.sql` not imported, or the order was never created | Import the SQL |
 | `Order has no payable amount` | `products` table empty | Admin → Catalogue → Push products |
-| KNET rejects every transaction | `resource_key` not exactly 16 bytes | Re-run `setup-config.php` |
-| Checkout fails for everyone, orders never appear | anon key pasted where the **service** key belongs | Re-run `setup-config.php` |
+| KNET rejects every transaction | `resource_key` not exactly 16 bytes | `knet/selftest.php` names it |
+| Every card refused with `400 Invalid amount` | no `mysql_*` values in `knet/config.php` | Fill them in — see §3a |
 | Customer sees success, order stays `pending` | `callback.db_write_failed` in the log | Check the log; fixed for the column-mismatch cause |
 | Order stuck at `review` | Amount could not be verified | Compare against the bank statement by `cbk_paymentid`, then set manually |
-| `503` at Pay | Supabase unreachable | Correct — no payment starts. Check the project is not paused |
+| `503` at Pay | the orders database is unreachable | Correct — no payment starts. Check the `mysql_*` values and that MySQL is up |

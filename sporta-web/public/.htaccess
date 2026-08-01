@@ -73,9 +73,9 @@ Options -Indexes
   # rewrite in .htaccess runs at fixup, before the PHP handler, so the file is
   # never run — a 301 here is not cosmetic.
   #
-  # Anchored on the full REQUEST_URI, not the filename: /knet/api/index.php is a
-  # real endpoint for the mobile app and must keep working. A <Files "index.php">
-  # would have inherited into that folder and broken it.
+  # Anchored on the full REQUEST_URI, not the filename, so it only ever catches
+  # the one at the web root. A <Files "index.php"> would inherit into every
+  # subfolder and 301 any nested index.php a dropin might add.
   RewriteCond %{REQUEST_URI} ^/index\.php$
   RewriteRule ^ https://www.sporta.com.kw/ [R=301,L]
 
@@ -113,7 +113,7 @@ Options -Indexes
   # /invoice/<order number>. A parameterised route, so it needs its own rule —
   # the alternation list above only matches fixed paths.
   RewriteRule ^invoice/[A-Za-z0-9]{1,30}/?$ /index.html [L]
-  RewriteRule ^admin(/.*)?$            /index.html [L]
+  RewriteRule ^backends(/.*)?$         /index.html [L]
 </IfModule>
 
 # Unknown URL -> SPA shell rendered with a real 404 status (not a soft 404).
@@ -144,7 +144,7 @@ ErrorDocument 404 /index.html
 # to sit inside <IfModule mod_expires.c>, which measured out under Apache as:
 # no mod_expires, NO Cache-Control at all. Not the immutable year on hashed
 # assets, not the thirty days on images — and not config.js's no-cache either,
-# so editing a Supabase URL in File Manager would have looked like it did
+# so editing a backend URL in File Manager would have looked like it did
 # nothing. mod_expires now carries only the directive that is genuinely its own.
 #
 # ETags: Apache's default includes the inode, which changes when files are
@@ -194,7 +194,7 @@ FileETag MTime Size
   </Files>
 
   # config.js carries the site's settings and is edited in place on the
-  # server. If it were cached, changing a Supabase URL would appear to do
+  # server. If it were cached, changing a backend URL would appear to do
   # nothing for as long as the cache lasted. Must stay AFTER the rules above so
   # it wins; it is not hashed, so none of them match it, but ordering is the
   # thing that keeps that true if a rule is ever widened.
@@ -234,7 +234,7 @@ FileETag MTime Size
   # ---- Cookies ----
   # The storefront sets NO cookies. Nothing in src/ touches document.cookie; the
   # cart, wishlist, theme and language live in localStorage, and the admin's
-  # Supabase session does too. So there is no consent banner because there is
+  # admin session does too. So there is no consent banner because there is
   # nothing to consent to, and this rule currently rewrites nothing.
   #
   # It is here for the cookie that is not ours. PHP emits PHPSESSID the moment
@@ -272,9 +272,10 @@ FileETag MTime Size
   # inline JSON-LD (and the static build of this site carries inline page
   # scripts). Even so the policy still blocks third-party script hosts,
   # <object>/<embed>, <base> hijacking and cross-origin framing.
-  # connect-src covers Supabase (admin panel); fonts.* cover Google Fonts;
+  # connect-src is same-origin only now that /api is the whole backend;
+  # fonts.* cover Google Fonts;
   # form-action lists the KNET gateway in case pay.php ever posts a form.
-  Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests"
+  Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests"
 </IfModule>
 
 # ---- Dotfiles, everywhere, by NAME ----

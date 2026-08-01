@@ -17,8 +17,8 @@ export default defineConfig({
     rollupOptions: {
       output: {
         // Split rarely-changing framework code into its own chunk so it stays
-        // cached across content deploys. Supabase stays in the lazy admin
-        // chunk automatically (only the admin imports it).
+        // cached across content deploys. The admin's own code stays in the
+        // lazy AdminApp chunk automatically (only /backends imports it).
         manualChunks(id) {
           if (
             id.includes('node_modules/react/') ||

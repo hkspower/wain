@@ -28,7 +28,7 @@ if (!preg_match('/^[A-Za-z0-9]{1,30}$/', $trackid)) {
 // storefront now sends only a track id, exactly as /knet does.
 //
 // The stored amount is computed by a database trigger from product prices
-// (supabase/schema.sql), so it cannot be influenced from the browser at all.
+// (api/schema.mysql.sql), so it cannot be influenced from the browser at all.
 // FAIL CLOSED. `null` used to mean three different things at once — no
 // database, no such order, database unreachable — and the fallback for all
 // three was the amount the BROWSER sent. So with a database configured and

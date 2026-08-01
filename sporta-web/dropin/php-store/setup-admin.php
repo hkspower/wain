@@ -46,7 +46,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $db->prepare('insert into admin_users (email, password_hash) values (?, ?)')
            ->execute([$email, password_hash($pass, PASSWORD_DEFAULT)]);
         exit('Admin created for ' . htmlspecialchars($email)
-           . '. NOW DELETE setup-admin.php FROM THE SERVER, then sign in at /admin.');
+           . '. NOW DELETE setup-admin.php FROM THE SERVER, then sign in at /backends.');
     }
 }
 ?><!doctype html>

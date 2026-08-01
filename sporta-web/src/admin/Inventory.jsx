@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchVariants, setStock } from './api'
 import { AHED_FX, ahedCostKwd, AHED_COLLECTIONS } from '../lib/ahed'
 import { formatKWD } from '../lib/format'
-import { Notice, NotAdminNotice } from './Overview'
+import { Notice } from './Overview'
 
 const kwd = (n) => formatKWD(Number(n ?? 0), 'en')
 
@@ -74,7 +74,7 @@ export default function Inventory() {
       setMsg(r.error)
       return
     }
-    if (r.notAdmin || r.needsMigration) {
+    if (r.needsMigration) {
       await load()
       return
     }
@@ -85,15 +85,14 @@ export default function Inventory() {
   }
 
   if (state.loading) return <div className="h-40 rounded-xl bg-slate-100" aria-busy="true" />
-  if (state.notAdmin) return <NotAdminNotice />
   if (state.error) return <Notice tone="error" title="Cannot load inventory">{state.error}</Notice>
 
   if (state.needsMigration) {
     return (
       <Notice tone="warn" title="Inventory table not created yet">
         <p>
-          Run <code className="rounded bg-amber-100 px-1 font-mono text-[.85em]">supabase/SETUP-ALL.sql</code>{' '}
-          in the Supabase SQL editor. It creates <code>product_variants</code> and loads the AHED
+          Run <code className="rounded bg-amber-100 px-1 font-mono text-[.85em]">api/schema.mysql.sql</code>{' '}
+          in hPanel → Databases → phpMyAdmin. It creates <code>product_variants</code> and loads the AHED
           packing slip — 42 sizes across 27 products, 48 pieces.
         </p>
         <p className="mt-2">

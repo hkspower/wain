@@ -127,7 +127,7 @@ everywhere is how a shop takes an order for a "tank legging".
 **They reach the order.** The line key is `slug__size__fit`, so an L oversize
 tee and an L slim tee are two lines to pick and pack. `create_order` validates
 both against fixed lists and stores them on `order_items` — see
-`supabase/order-options-migration.sql`. Before it, a customer picked L, paid for
+`order_items.size` / `order_items.fit` in `schema.mysql.sql`. Before it, a customer picked L, paid for
 L, and the shop received "2 × Cloudsoft Jacket" with no size on it.
 
 ---

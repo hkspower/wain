@@ -80,7 +80,7 @@ jobs:
       # fails — then the FTPS upload, then it re-downloads .htaccess,
       # knet/.htaccess and index.html and compares them byte for byte.
       # config.js and knet/config.php are on its hard-coded never-touch list, so
-      # this can never overwrite the live Supabase or Tranportal credentials.
+      # this can never overwrite the live database or Tranportal credentials.
       - name: Build, audit, publish, verify
         env:
           FTP_HOST: ${{ secrets.FTP_HOST }}
@@ -88,9 +88,9 @@ jobs:
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           # Build with the VITE_ vars empty so the bundle configures itself at
           # runtime from config.js on the server, exactly like the zip does.
-          VITE_SUPABASE_URL: ''
-          VITE_SUPABASE_ANON_KEY: ''
           VITE_PAY_BASE_URL: ''
+          VITE_CBK_BASE_URL: ''
+          VITE_PHP_API_URL: ''
         run: npm run publish
 
       - name: Summary

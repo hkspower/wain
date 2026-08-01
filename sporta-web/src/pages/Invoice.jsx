@@ -6,7 +6,7 @@ import { formatKWD } from '../lib/format'
 import { ltr, stamp, dirFor } from '../lib/bidi'
 import { fitLabel } from '../lib/options'
 import { governorate } from '../lib/kuwait'
-import { usingPhp, phpOrderInvoice } from '../lib/backend'
+import { phpOrderInvoice } from '../lib/backend'
 
 // The customer's invoice, at /invoice/<order number>.
 //
@@ -50,16 +50,7 @@ export default function Invoice() {
     let alive = true
     ;(async () => {
       try {
-        let data
-        if (usingPhp()) {
-          data = await phpOrderInvoice(trackId)
-        } else {
-          const { supabase } = await import('../lib/supabase')
-          if (!supabase) throw new Error('unconfigured')
-          const res = await supabase.rpc('get_order_invoice', { p_track_id: trackId })
-          if (res.error) throw res.error
-          data = res.data
-        }
+        const data = await phpOrderInvoice(trackId)
         if (alive) setState({ loading: false, data: data ?? null, error: data ? null : 'notfound' })
       } catch {
         if (alive) setState({ loading: false, data: null, error: 'error' })

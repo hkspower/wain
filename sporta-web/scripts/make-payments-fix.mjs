@@ -2,7 +2,7 @@
 // payment fixes actually changed, not the 1.8 MB site.
 //
 // It covers BOTH gateways, because they were fixed together and for the same
-// reasons: each was Supabase-only and therefore dead on the native backend,
+// reasons: each looked up orders in the wrong database and was therefore dead,
 // each could be replayed into a duplicate warehouse email, and T-Pay could
 // additionally be talked into pricing an order that did not exist.
 //

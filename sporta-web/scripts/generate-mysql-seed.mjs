@@ -1,5 +1,5 @@
-// Regenerates dropin/php-store/seed.mysql.sql — the native backend's twin of
-// seed-products.sql + the AHED variant rows.
+// Regenerates dropin/php-store/seed.mysql.sql — the catalogue and the AHED
+// variant rows the backend prices and ships from.
 //
 // Same source of truth, same rule: the catalogue file is where products live,
 // and a hand-maintained second copy in SQL is how the site shows one price
@@ -18,14 +18,13 @@ new Function('window', readFileSync(join(root, 'sporta-html5', 'assets', 'produc
 const PRODUCTS = sandbox.window.SPORTA_PRODUCTS
 if (!PRODUCTS?.length) throw new Error('catalogue not found')
 
-// The variant rows are lifted from the Postgres migration rather than from
-// data/ahed.json directly, so the two backends can never disagree about what
-// was on the packing slip.
-const pgSeed = readFileSync(join(web, 'supabase', 'ahed-inventory-migration.sql'), 'utf8')
-const variantRows = [...pgSeed.matchAll(
-  /\('(A-[A-Z-]+)',\s*'([a-z0-9-]+)',\s*'(\w+)',\s*'\w+',\s*'[\w-]+',\s*(\d+),\s*\d+,\s*'\d+',\s*\d+,\s*([\d.]+)\)/g,
-)]
-if (!variantRows.length) throw new Error('no variant rows found in ahed-inventory-migration.sql')
+// The variants come straight from data/ahed.json — the transcription of the
+// packing slip, and the same file src/lib/ahed.js is generated from. Reading
+// the one source means the shelf and the shop cannot disagree about what
+// arrived. (This used to parse them back out of a Postgres migration; that
+// database is gone, and one hop fewer is one fewer thing to get wrong.)
+const variantRows = JSON.parse(readFileSync(join(web, 'data', 'ahed.json'), 'utf8')).variants
+if (!variantRows.length) throw new Error('no variants found in data/ahed.json')
 
 const q = (v) => (v == null || v === '' ? 'null' : `'${String(v).replace(/\\/g, '\\\\').replace(/'/g, "''")}'`)
 
@@ -35,7 +34,7 @@ const productValues = PRODUCTS.map((p) =>
 ).join(',\n')
 
 const variantValues = variantRows.map(
-  ([, sku, slug, size, stock, cost]) => `  ('${sku}', '${slug}', '${size}', ${stock}, ${cost})`,
+  (v) => `  ('${v.sku}', '${v.slug}', '${v.size}', ${v.received}, ${v.cost_aed})`,
 ).join(',\n')
 
 const sql = `-- Sporta native backend — catalogue + inventory seed.

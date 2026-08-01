@@ -10,9 +10,9 @@
     "",
     "The SFTP route below needs SSH enabled and is kept for if it ever is.",
     "",
-    "config.js and knet/config.php are NEVER uploaded and NEVER deleted by either",
-    "route - they hold the live Supabase and Tranportal credentials and exist only",
-    "on the server."
+    "config.js, api/config.php, knet/config.php and pay/config.php are NEVER",
+    "uploaded and NEVER deleted by either route - they hold the live database and",
+    "bank credentials and exist only on the server."
   ],
   "ssh": {
     "host": "46.202.158.211",

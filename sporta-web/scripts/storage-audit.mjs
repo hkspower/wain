@@ -208,7 +208,7 @@ try {
   ok(oldSite.status === 301, 'index.php 301s to the canonical homepage',
     `${oldSite.status} — the old PHP front controller is never executed`)
   ok(head('/knet/api/index.php').status !== 301,
-    '…but /knet/api/index.php still works',
+    '…but a NESTED index.php is left alone',
     'the rule is anchored on the full path, not the filename')
 
   console.log('\n## Cache tier matches the folder it is in')

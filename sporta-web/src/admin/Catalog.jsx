@@ -7,7 +7,7 @@ import Products from './Products'
 const kwd = (n) => formatKWD(Number(n ?? 0), 'en')
 
 // The catalogue lives in two places: the JS the site ships with, and the
-// products table Supabase prices orders from. Only the table matters at
+// products table the server prices orders from. Only the table matters at
 // checkout, so this screen exists to make any divergence between them visible
 // and fixable in one action.
 export default function Catalog() {
@@ -50,7 +50,7 @@ export default function Catalog() {
       {state.error && <Notice tone="error" title="Cannot read products">{state.error}</Notice>}
       {state.needsMigration && (
         <Notice tone="warn" title="Run the migration first">
-          <code className="rounded bg-amber-100 px-1 font-mono text-[.85em]">supabase/schema.sql</code>{' '}
+          <code className="rounded bg-amber-100 px-1 font-mono text-[.85em]">api/schema.mysql.sql</code>{' '}
           creates the products table.
         </Notice>
       )}
@@ -74,7 +74,7 @@ export default function Catalog() {
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-bold text-slate-800">Push the site catalogue to Supabase</p>
+            <p className="font-bold text-slate-800">Push the site catalogue to the database</p>
             <p className="mt-0.5 text-sm text-slate-500">
               Inserts what is missing and updates what differs, matching on slug. Re-running it is
               safe — it never creates duplicates and never deletes anything.

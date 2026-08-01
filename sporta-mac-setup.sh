@@ -121,5 +121,5 @@ cat <<EOF
       npm run publish
 
   The database is separate: product and price changes go in through the
-  Supabase SQL editor, not over FTP.
+  admin at /backends, or phpMyAdmin in hPanel — not over FTP.
 EOF

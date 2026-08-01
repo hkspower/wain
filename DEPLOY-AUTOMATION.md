@@ -129,7 +129,7 @@ the reason this is safe to run unattended:
 - **The file audit gates the upload.** `publish-ftps.mjs` runs
   `file-audit.mjs` and refuses to upload at all if it fails.
 - **`config.js` and `knet/config.php` are on a hard-coded never-touch list**, so
-  no deploy can overwrite the live Supabase or Tranportal credentials.
+  no deploy can overwrite the live database or Tranportal credentials.
 - **`index.html` is uploaded last**, so an interrupted run is never a white
   screen.
 - **Post-upload verification**: `.htaccess`, `knet/.htaccess` and `index.html`

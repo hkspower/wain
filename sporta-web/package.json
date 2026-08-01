@@ -42,7 +42,6 @@
     "package:pay": "node scripts/make-payments-fix.mjs"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.110.8",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^6.30.4"

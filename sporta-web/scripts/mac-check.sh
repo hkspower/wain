@@ -57,10 +57,9 @@ hdr "The Sporta project on this Mac"
 found=$(find "$HOME" -maxdepth 5 -type d -name sporta-web -not -path "*/node_modules/*" 2>/dev/null | head -1)
 if [ -n "$found" ]; then
   ok "project folder" "$found"
-  [ -f "$found/.env" ] && ok ".env (Supabase keys)" "present" || {
-    bad ".env (Supabase keys)" "missing"
-    note "Without it a local build ships a store whose checkout refuses every order."
-    note "Not needed if you use the zip + config.js route."; }
+  [ -f "$found/.env.deploy" ] && ok ".env.deploy (FTPS credentials)" "present" || {
+    note ".env.deploy is missing — only 'npm run publish' needs it."
+    note "Not needed if you use the zip + File Manager route."; }
 else
   bad "project folder" "not found under $HOME"
   note "That is why 'npm run deploy' gave ENOENT — npm must run inside it."
@@ -96,11 +95,11 @@ if [ "$code" = "200" ]; then
       bad "uploaded: $f" "HTTP $c"
     fi
   done
-  if curl -s --max-time 12 "$SITE/config.js" 2>/dev/null | grep -q 'YOUR-PROJECT'; then
-    bad "config.js edited" "still has the placeholders"
-    note "Open public_html/config.js in File Manager and paste your Supabase URL + anon key."
+  if curl -s --max-time 12 "$SITE/api/api.php?r=products" 2>/dev/null | grep -q '"products"'; then
+    ok "backend answering" "/api/api.php serves the catalogue"
   else
-    ok "config.js edited" "real values present"
+    bad "backend answering" "/api/api.php did not return a catalogue"
+    note "Upload public_html/api/, create api/config.php, and import the SQL in phpMyAdmin."
   fi
 fi
 
@@ -173,7 +172,7 @@ else
 fi
 printf "  Going live needs no terminal and no SSH:\n"
 printf "    1. upload public_html/ in File Manager\n"
-printf "    2. edit config.js  (Supabase URL + anon key)\n"
-printf "    3. run the 5 SQL files in the Supabase SQL Editor\n"
-printf "    4. create knet/config.php from config.example.php\n"
+printf "    2. create api/config.php from api/config.example.php  (the 4 MySQL values)\n"
+printf "    3. import api/schema.mysql.sql, seed.mysql.sql and brands.mysql.sql in phpMyAdmin\n"
+printf "    4. create knet/config.php and pay/config.php from their examples\n"
 printf "    5. open %s/go-live.html\n" "$SITE"

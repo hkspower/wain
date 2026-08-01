@@ -34,9 +34,9 @@ const is = (c, n, d) => (c ? ok(n, d) : bad(n, d))
   is(stamp(null) === '' && stamp('nonsense') === '', 'a missing or unparseable date renders nothing')
 }
 
-// The invoice reads from Supabase, which the built preview has no connection
-// to. The RPC response is stubbed at the network layer so the PAGE is what is
-// under test — its layout, its direction and its formatting.
+// The invoice reads from /api, which the built preview has no database behind.
+// The response is stubbed at the network layer so the PAGE is what is under
+// test — its layout, its direction and its formatting.
 const INVOICE = {
   track_id: TRACK,
   placed_at: '2026-07-30T21:13:02Z',
@@ -66,7 +66,15 @@ const browser = await chromium.launch({
 })
 
 async function open(lang) {
-  const ctx = await browser.newContext({ viewport: { width: 1000, height: 1200 } })
+  // serviceWorkers: 'block' is load-bearing, not tidying. The built site
+  // registers sw.js, and a service worker answers fetches BEFORE Playwright's
+  // route layer sees them — so the invoice request sailed past the stub below
+  // and hit the preview server, which has no database. The symptom is a bare
+  // "waiting for locator('table')" timeout that says nothing about why.
+  const ctx = await browser.newContext({
+    viewport: { width: 1000, height: 1200 },
+    serviceWorkers: 'block',
+  })
   await ctx.addInitScript((l) => localStorage.setItem('lang', l), lang)
   const page = await ctx.newPage()
   page.on('console', (m) => m.type() === 'error' && console.log('   [console]', m.text()))
@@ -78,16 +86,19 @@ async function open(lang) {
     route.fulfill({
       status: 200,
       contentType: 'text/javascript',
-      body: "window.SPORTA_CONFIG={supabaseUrl:'https://stub.supabase.co',supabaseAnonKey:'stub-key'};",
+      body: 'window.SPORTA_CONFIG={};',
     }),
   )
-  await page.route('**/rest/v1/rpc/get_order_invoice', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      headers: { 'access-control-allow-origin': '*' },
-      body: JSON.stringify(INVOICE),
-    }),
+  // A predicate, not a glob: the route is api.php?r=invoice&id=... and the
+  // query string is where Playwright's URL globs stop being reliable.
+  await page.route(
+    (url) => url.pathname.endsWith('/api.php') && url.searchParams.get('r') === 'invoice',
+    (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(INVOICE),
+      }),
   )
   await page.goto(`${BASE}/invoice/${TRACK}`, { waitUntil: 'networkidle' })
   await page.locator('table').waitFor({ timeout: 10000 })

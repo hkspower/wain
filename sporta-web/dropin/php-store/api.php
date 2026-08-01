@@ -9,7 +9,7 @@
 //   GET  ?r=invoice&id=TRACK    the printable invoice document
 //
 // No authentication on these, deliberately, and the same reasoning as the
-// Supabase grants they replace: the catalogue and stock are shop-window data,
+// grants they replace: the catalogue and stock are shop-window data,
 // and the ORDER NUMBER is the credential for status and invoice — ~64 bits
 // from crypto.getRandomValues, exactly as get_order_status has worked since
 // day one. What the invoice returns is scoped accordingly (no phone number).

@@ -1,207 +1,100 @@
-import { supabase } from '../lib/supabase'
 import { PRODUCTS } from '../lib/products'
-import { usingPhp, phpAdmin } from '../lib/backend'
-
-// In native mode every helper below routes to /api/admin.php instead of
-// Supabase, returning the SAME shapes — the screens cannot tell the backends
-// apart, which is the whole contract. A 401 maps to notSignedIn so AdminApp
-// can show the login rather than an empty dashboard.
-async function php(route, opts) {
-  const { status, data } = await phpAdmin(route, opts)
-  if (status === 401) return { notSignedIn: true }
-  if (status >= 400) return { error: data?.error ?? `http_${status}` }
-  return { data }
-}
-
-// Every admin query lives here so screens stay presentational and there is one
-// place to look when a policy or column changes.
-//
-// Reads require the policies in supabase/admin-migration.sql. Without them the
-// queries return an empty set rather than an error, so each helper reports
-// `needsMigration` and the UI can say what to do instead of showing "no orders".
-
-const NOT_CONFIGURED =
-  'Supabase is not configured — add your Project URL and anon key to public_html/config.js.'
-
-// This account signed in but is not on the admin allowlist. Being signed in is
-// no longer enough: admin-allowlist-migration.sql gates every admin policy and
-// RPC on a row in public.admin_users, because in Supabase `authenticated` means
-// "anyone who signed up", and sign-up is open to the internet.
-export const NOT_ADMIN =
-  'This account is signed in but is not an admin.\n\n' +
-  'Add it in the Supabase SQL editor:\n' +
-  "  insert into public.admin_users (user_id, email)\n" +
-  "  select id, email from auth.users where email = 'you@example.com'\n" +
-  '  on conflict (user_id) do nothing;'
+import { phpAdmin } from '../lib/backend'
 
 export const PAYMENT_STATES = ['paid', 'pending', 'review', 'failed']
 export const FULFILMENT_STATES = ['unfulfilled', 'packed', 'shipped', 'delivered', 'cancelled']
 
-function ready() {
-  return Boolean(supabase)
-}
+// Every admin screen talks to /api/admin.php through this one call, so the
+// three answers that are NOT data get turned into flags here instead of being
+// re-decided screen by screen:
+//
+//   needsMigration  the SQL has not been imported yet. Told apart from a real
+//                   outage on purpose — the fix is "run schema.mysql.sql in
+//                   phpMyAdmin", and a screen that just says "failed" sends
+//                   the owner looking for a broken server instead.
+//   signedOut       the session expired. AdminApp shows the login again.
+//   error           anything else, as a sentence a person can act on.
+//
+// A thrown fetch (server down, no network) must not blank the dashboard
+// either, so it comes back as an ordinary error too.
+async function php(route, opts) {
+  let res
+  try {
+    res = await phpAdmin(route, opts)
+  } catch {
+    return { error: 'Cannot reach the server. Check that the site is up, then retry.' }
+  }
+  const { status, data } = res
+  if (status === 401 || status === 403) return { signedOut: true }
+  if (status >= 200 && status < 300 && !data?.error) return { data }
 
-// The allowlist RPCs raise not_admin with SQLSTATE 42501. RLS on the tables is
-// silent instead — it returns zero rows — so a denial shows up as either.
-function isDeniedError(error) {
-  if (!error) return false
-  return error.code === '42501' || `${error.message || ''}`.includes('not_admin')
-}
-
-// A missing table/column/function reads as a schema problem, not a data problem.
-function isSchemaError(error) {
-  if (!error) return false
-  const m = `${error.message || ''} ${error.details || ''}`.toLowerCase()
-  return (
-    error.code === '42P01' || // undefined_table
-    error.code === '42703' || // undefined_column
-    error.code === 'PGRST202' || // function not found
-    m.includes('does not exist') ||
-    m.includes('schema cache')
-  )
+  const token = data?.error ?? `http_${status}`
+  // MySQL 1146: "Table 'sporta.orders' doesn't exist" — the schema import was
+  // skipped. store.php reports it as this token rather than a bare 500.
+  if (token === 'no_table' || token === 'missing_table' || /doesn'?t exist/i.test(token)) {
+    return { needsMigration: true }
+  }
+  return { error: token }
 }
 
 export async function fetchStats() {
-  if (usingPhp()) {
-    const r = await php('stats')
-    return r.data ? { stats: r.data } : r
-  }
-  if (!ready()) return { error: NOT_CONFIGURED }
-  const { data, error } = await supabase.rpc('admin_order_stats')
-  if (error) {
-    if (isDeniedError(error)) return { notAdmin: true }
-    return isSchemaError(error) ? { needsMigration: true } : { error: error.message }
-  }
-  const row = Array.isArray(data) ? data[0] : data
-  return { stats: row ?? null }
+  const r = await php('stats')
+  return r.data ? { stats: r.data } : r
 }
 
 export async function fetchRevenueDaily(days = 14) {
-  if (usingPhp()) {
-    const r = await php(`revenue&days=${days}`)
-    return { series: r.data ?? [] }
-  }
-  if (!ready()) return { series: [] }
-  const { data, error } = await supabase.rpc('admin_revenue_daily', { p_days: days })
-  if (error) {
-    if (isDeniedError(error)) return { notAdmin: true, series: [] }
-    return isSchemaError(error) ? { needsMigration: true, series: [] } : { series: [] }
-  }
-  return { series: data ?? [] }
+  const r = await php(`revenue&days=${days}`)
+  return { ...r, series: r.data ?? [] }
 }
 
 export async function fetchOrders({ payment = 'all', fulfilment = 'all', search = '', limit = 100 } = {}) {
-  if (usingPhp()) {
-    const r = await php(
-      `orders&payment=${payment}&fulfilment=${fulfilment}&search=${encodeURIComponent(search)}&limit=${limit}`,
-    )
-    return r.data ? { orders: r.data } : { ...r, orders: [] }
-  }
-  if (!ready()) return { error: NOT_CONFIGURED, orders: [] }
-  let q = supabase
-    .from('orders')
-    .select(
-      'id, track_id, amount, payment_status, payment_method, fulfilment_status, paid_at, created_at,' +
-        ' customer_name, customer_phone, customer_area, customer_note,' +
-        ' customer_governorate, customer_block, customer_street, customer_building,' +
-        ' customer_floor, customer_flat,' +
-        ' cbk_paymentid, cbk_reference, cbk_status',
-    )
-    .order('created_at', { ascending: false })
-    .limit(limit)
-
-  if (payment !== 'all') q = q.eq('payment_status', payment)
-  if (fulfilment !== 'all') q = q.eq('fulfilment_status', fulfilment)
-  const term = search.trim()
-  if (term) q = q.ilike('track_id', `%${term}%`)
-
-  const { data, error } = await q
-  if (error) {
-    return isSchemaError(error)
-      ? { needsMigration: true, orders: [] }
-      : { error: error.message, orders: [] }
-  }
-  return { orders: data ?? [] }
+  const r = await php(
+    `orders&payment=${payment}&fulfilment=${fulfilment}&search=${encodeURIComponent(search)}&limit=${limit}`,
+  )
+  return { ...r, orders: r.data ?? [] }
 }
 
 // Line items for one order, with the product names resolved.
 export async function fetchOrderItems(orderId) {
-  if (usingPhp()) {
-    const r = await php(`items&order=${orderId}`)
-    return { items: r.data ?? [], error: r.error }
-  }
-  if (!ready()) return { items: [] }
-  const { data, error } = await supabase
-    .from('order_items')
-    .select('id, qty, unit_price, products ( slug, name_en, name_ar )')
-    .eq('order_id', orderId)
-  if (error) return { items: [], error: error.message }
-  return { items: data ?? [] }
+  const r = await php(`items&order=${orderId}`)
+  return { items: r.data ?? [], error: r.error }
 }
 
 export async function setFulfilment(orderId, status) {
-  if (usingPhp()) {
-    const r = await php('fulfilment', { method: 'POST', body: { order_id: orderId, status } })
-    return r.data ? {} : r
-  }
-  if (!ready()) return { error: NOT_CONFIGURED }
-  const { error } = await supabase
-    .from('orders')
-    .update({ fulfilment_status: status })
-    .eq('id', orderId)
-  return error ? { error: error.message } : {}
+  const r = await php('fulfilment', { method: 'POST', body: { order_id: orderId, status } })
+  return r.data ? {} : r
 }
 
 // Settle (or un-settle) a cash-on-delivery order.
 //
 // Goes through an RPC rather than a direct update on purpose: the
 // orders_admin_update policy deliberately forbids changing payment_status, so
-// that nobody signed into /admin can assert a card payment the bank never
+// that nobody signed into /backends can assert a card payment the bank never
 // confirmed. admin_set_cod_paid is the one narrow exception — it refuses any
 // order whose payment_method is not 'cod', and it maintains paid_at, which the
 // revenue stats and the daily chart filter on.
+// Settle (or un-settle) a cash-on-delivery order — the one narrow path that
+// may touch payment_status. A card is confirmed by the bank's callback, never
+// by a person with an admin session; settleCard() below is the audited
+// exception for a payment the bank took but never reported.
 export async function setCodPaid(orderId, paid = true) {
-  if (usingPhp()) {
-    const r = await php('cod_paid', { method: 'POST', body: { order_id: orderId, paid } })
-    if (r.data) return { order: r.data }
-    // The PHP side raises the same named errors admin_set_cod_paid does, so
-    // the translations below serve both backends.
-    const m = r.error ?? ''
-    if (m.includes('not_a_cash_order')) return { error: 'That is not a cash order — card payments are confirmed by the bank, not here.' }
-    if (m.includes('order_not_pending')) return { error: 'Only a pending cash order can be marked paid.' }
-    if (m.includes('order_not_paid')) return { error: 'That order is not marked paid.' }
-    if (m.includes('order_not_found')) return { error: 'Order not found — refresh the list.' }
-    return r
-  }
-  if (!ready()) return { error: NOT_CONFIGURED }
-  const { data, error } = await supabase.rpc('admin_set_cod_paid', {
-    p_order_id: orderId,
-    p_paid: paid,
-  })
-  if (error) {
-    if (isDeniedError(error)) return { notAdmin: true }
-    if (isSchemaError(error)) return { needsMigration: true }
-    // The function raises named errors; turn them into something an operator
-    // can act on rather than showing raw Postgres text.
-    const m = `${error.message || ''}`
-    if (m.includes('not_a_cash_order')) return { error: 'That is not a cash order — card payments are confirmed by the bank, not here.' }
-    if (m.includes('order_not_pending')) return { error: 'Only a pending cash order can be marked paid.' }
-    if (m.includes('order_not_paid')) return { error: 'That order is not marked paid.' }
-    if (m.includes('order_not_found')) return { error: 'Order not found — refresh the list.' }
-    return { error: error.message }
-  }
-  const row = Array.isArray(data) ? data[0] : data
-  return { order: row ?? null }
+  const r = await php('cod_paid', { method: 'POST', body: { order_id: orderId, paid } })
+  if (r.data) return { order: r.data }
+  const m = r.error ?? ''
+  if (m.includes('not_a_cash_order')) return { error: 'That is not a cash order — card payments are confirmed by the bank, not here.' }
+  if (m.includes('order_not_pending')) return { error: 'Only a pending cash order can be marked paid.' }
+  if (m.includes('order_not_paid')) return { error: 'That order is not marked paid.' }
+  if (m.includes('order_not_found')) return { error: 'Order not found — refresh the list.' }
+  return r
 }
 
 // Settle a CARD order the bank took but never reported back — see the long
-// note on the card_settled route in dropin/php-store/admin.php. Native backend
-// only: the Supabase side has no equivalent RPC, and inventing one from the
+// note on the card_settled route in dropin/php-store/admin.php.
+// only: there is no equivalent stored routine, and inventing one from the
 // browser would mean a client that can mark orders paid.
+// Settle a CARD order the bank took but never reported back — see the long
+// note on the card_settled route in dropin/php-store/admin.php.
 export async function settleCard(orderId, bankReference) {
-  if (!usingPhp()) {
-    return { error: 'Manual card settlement needs the native backend. On Supabase, settle the order in the database.' }
-  }
   const r = await php('card_settled', {
     method: 'POST',
     body: { order_id: orderId, bank_reference: bankReference },
@@ -220,74 +113,24 @@ export async function settleCard(orderId, bankReference) {
 // --------------------------------------------------------------------- brands
 // The brands the shop carries: name, logo, and whether the storefront shows
 // them. The logo is a capped data: URL held in the row — see the note in
-// supabase/brands-migration.sql for why it is not a file on either backend.
+// dropin/php-store/schema.mysql.sql for why it is never a file.
 
 export async function fetchBrands() {
-  if (usingPhp()) {
-    const r = await php('brands')
-    return r.data ? { brands: r.data } : r
-  }
-  if (!ready()) return { error: NOT_CONFIGURED }
-  // The admin sees disabled brands too — a switch you cannot see is a switch
-  // you cannot turn back on.
-  const { data, error } = await supabase
-    .from('brands')
-    .select('id, slug, name_en, name_ar, logo, active, sort')
-    .order('sort')
-    .order('name_en')
-  if (error) {
-    if (isDeniedError(error)) return { notAdmin: true }
-    if (isSchemaError(error)) return { needsMigration: true }
-    return { error: error.message }
-  }
-  return { brands: data ?? [] }
+  const r = await php('brands')
+  return r.data ? { brands: r.data } : r
 }
 
 export async function saveBrand(brand) {
-  if (usingPhp()) {
-    const r = await php('brand_save', { method: 'POST', body: brand })
-    if (r.data) return { brand: r.data }
-    return { error: brandError(r.error) }
-  }
-  if (!ready()) return { error: NOT_CONFIGURED }
-  const row = {
-    slug: brand.slug || slugify(brand.name_en),
-    name_en: brand.name_en,
-    name_ar: brand.name_ar,
-    sort: brand.sort ?? 0,
-    // Absent means "leave the logo alone", exactly as the PHP route reads it.
-    ...(Object.hasOwn(brand, 'logo') ? { logo: brand.logo || null } : {}),
-  }
-  const q = brand.id
-    ? supabase.from('brands').update(row).eq('id', brand.id)
-    : supabase.from('brands').insert(row)
-  const { data, error } = await q.select('id, slug, name_en, name_ar, logo, active, sort').single()
-  if (error) {
-    if (isDeniedError(error)) return { notAdmin: true }
-    if (isSchemaError(error)) return { needsMigration: true }
-    return { error: brandError(error.message) }
-  }
-  return { brand: data }
+  const r = await php('brand_save', { method: 'POST', body: brand })
+  return r.data ? { brand: r.data } : { ...r, error: r.error && brandError(r.error) }
 }
 
 export async function setBrandActive(id, active) {
-  if (usingPhp()) {
-    const r = await php('brand_active', { method: 'POST', body: { id, active } })
-    return r.data ? { brand: r.data } : { error: brandError(r.error) }
-  }
-  if (!ready()) return { error: NOT_CONFIGURED }
-  const { data, error } = await supabase
-    .from('brands').update({ active }).eq('id', id).select('id, slug, active').single()
-  if (error) {
-    if (isDeniedError(error)) return { notAdmin: true }
-    return { error: error.message }
-  }
-  return { brand: data }
+  const r = await php('brand_active', { method: 'POST', body: { id, active } })
+  return r.data ? { brand: r.data } : { ...r, error: r.error && brandError(r.error) }
 }
 
-// One translation table for both backends: the PHP route raises these tokens
-// and Postgres raises the matching constraint names, so an operator sees the
-// same sentence either way.
+// The route's machine tokens, turned into something an operator can act on.
 function brandError(m = '') {
   const s = String(m)
   if (s.includes('logo_too_large') || s.includes('brands_logo_ck')) {
@@ -312,13 +155,8 @@ export const slugify = (s = '') =>
   String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
 export async function saveCustomer(orderId, fields) {
-  if (usingPhp()) {
-    const r = await php('customer', { method: 'POST', body: { order_id: orderId, fields } })
-    return r.data ? {} : r
-  }
-  if (!ready()) return { error: NOT_CONFIGURED }
-  const { error } = await supabase.from('orders').update(fields).eq('id', orderId)
-  return error ? { error: error.message } : {}
+  const r = await php('customer', { method: 'POST', body: { order_id: orderId, fields } })
+  return r.data ? {} : r
 }
 
 // ---------------------------------------------------------------------------
@@ -326,8 +164,8 @@ export async function saveCustomer(orderId, fields) {
 //
 // Orders are priced from the products table, so an empty table means every
 // checkout dies with "Order has no payable amount". This pushes the catalogue
-// that ships with the front end into Supabase, matching on slug so re-running
-// it updates rather than duplicating.
+// that ships with the front end into MySQL, matching on slug so re-running it
+// updates rather than duplicating.
 // ---------------------------------------------------------------------------
 export function catalogRows() {
   return PRODUCTS.map((p) => ({
@@ -346,49 +184,29 @@ export function catalogRows() {
 }
 
 export async function fetchCatalogState() {
-  let data
-  if (usingPhp()) {
-    const r = await php('products_state')
-    if (!r.data) return { ...r, rows: [] }
-    data = r.data
-  } else {
-    if (!ready()) return { error: NOT_CONFIGURED, rows: [] }
-    const res = await supabase.from('products').select('slug, price, active')
-    if (res.error) {
-      return isSchemaError(res.error) ? { needsMigration: true, rows: [] } : { error: res.error.message, rows: [] }
-    }
-    data = res.data
-  }
-  const bySlug = new Map((data ?? []).map((r) => [r.slug, r]))
+  const r = await php('products_state')
+  if (!r.data) return { ...r, rows: [] }
+  const bySlug = new Map(r.data.map((x) => [x.slug, x]))
   const local = catalogRows()
   return {
-    rows: local.map((r) => {
-      const remote = bySlug.get(r.slug)
+    rows: local.map((row) => {
+      const remote = bySlug.get(row.slug)
       return {
-        slug: r.slug,
-        name_en: r.name_en,
-        price: r.price,
-        state: !remote
-          ? 'missing'
-          : Number(remote.price) !== r.price
-            ? 'differs'
-            : 'ok',
+        slug: row.slug,
+        name_en: row.name_en,
+        price: row.price,
+        state: !remote ? 'missing' : Number(remote.price) !== row.price ? 'differs' : 'ok',
         remotePrice: remote ? Number(remote.price) : null,
       }
     }),
-    extra: (data ?? []).filter((r) => !local.some((l) => l.slug === r.slug)).map((r) => r.slug),
+    extra: r.data.filter((x) => !local.some((l) => l.slug === x.slug)).map((x) => x.slug),
   }
 }
 
 export async function syncCatalog() {
   const rows = catalogRows()
-  if (usingPhp()) {
-    const r = await php('sync', { method: 'POST', body: { rows } })
-    return r.data ? { count: r.data.count } : r
-  }
-  if (!ready()) return { error: NOT_CONFIGURED }
-  const { error } = await supabase.from('products').upsert(rows, { onConflict: 'slug' })
-  return error ? { error: error.message } : { count: rows.length }
+  const r = await php('sync', { method: 'POST', body: { rows } })
+  return r.data ? { count: r.data.count } : r
 }
 
 // ---------------------------------------------------------------------------
@@ -416,45 +234,49 @@ export function toCsv(orders) {
 // ---------------------------------------------------------------------------
 // Inventory — AHED sizes and stock.
 //
-// Needs supabase/ahed-inventory-migration.sql. Reads go through
-// admin_variants() rather than the table so cost_aed stays behind is_admin():
-// the anon key can only see the product_stock view, which omits it.
+// This route returns cost_aed, what Sporta paid AHED per piece; the PUBLIC
+// stock endpoint does not. The session is the line between them.
 // ---------------------------------------------------------------------------
+// The single-product editor, alongside the whole-catalogue sync above.
+export async function fetchAllProducts() {
+  const r = await php('products_all')
+  return { ...r, rows: r.data ?? [] }
+}
+
+export async function saveProduct(product) {
+  const r = await php('product_save', { method: 'POST', body: product })
+  if (r.data) return { product: r.data }
+  const m = r.error ?? ''
+  if (m.includes('slug_taken')) return { error: 'Another product already uses that web name.' }
+  if (m.includes('invalid_price')) return { error: 'Enter a price greater than zero.' }
+  if (m.includes('invalid_slug')) return { error: 'The web name may only contain letters, numbers and dashes.' }
+  if (m.includes('missing_name')) return { error: 'Both the English and Arabic names are required.' }
+  return r
+}
+
+// On sale / off sale. Never a delete: order_items point at products, and a
+// shop that deletes a sold product loses the line on every invoice that ever
+// contained it.
+export async function setProductActive(id, active) {
+  const r = await php('product_active', { method: 'POST', body: { id, active } })
+  return r.data ? { product: r.data } : r
+}
+
 export async function fetchVariants() {
-  if (usingPhp()) {
-    const r = await php('variants')
-    return r.data ? { rows: r.data } : { ...r, rows: [] }
-  }
-  if (!ready()) return { error: NOT_CONFIGURED, rows: [] }
-  const { data, error } = await supabase.rpc('admin_variants')
-  if (error) {
-    if (isDeniedError(error)) return { notAdmin: true, rows: [] }
-    return isSchemaError(error) ? { needsMigration: true, rows: [] } : { error: error.message, rows: [] }
-  }
-  return { rows: data ?? [] }
+  const r = await php('variants')
+  return { ...r, rows: r.data ?? [] }
 }
 
 // Counting stock goes through an RPC, not an UPDATE, so the admin can only ever
 // move the count — never the SKU it belongs to, the slug or the wholesale cost.
+// Counting stock goes through its own route, not a table update, so the admin
+// can only ever move the count — never the SKU it belongs to, the slug, or the
+// wholesale cost.
 export async function setStock(sku, stock) {
-  if (usingPhp()) {
-    const r = await php('set_stock', { method: 'POST', body: { sku, stock } })
-    if (r.data) return { variant: r.data }
-    const m = r.error ?? ''
-    if (m.includes('stock_cannot_be_negative')) return { error: 'Stock cannot be negative.' }
-    if (m.includes('sku_not_found')) return { error: 'That item code is not in the inventory — refresh.' }
-    return r
-  }
-  if (!ready()) return { error: NOT_CONFIGURED }
-  const { data, error } = await supabase.rpc('admin_set_stock', { p_sku: sku, p_stock: stock })
-  if (error) {
-    if (isDeniedError(error)) return { notAdmin: true }
-    if (isSchemaError(error)) return { needsMigration: true }
-    const m = `${error.message || ''}`
-    if (m.includes('stock_cannot_be_negative')) return { error: 'Stock cannot be negative.' }
-    if (m.includes('sku_not_found')) return { error: 'That item code is not in the inventory — refresh.' }
-    return { error: error.message }
-  }
-  const row = Array.isArray(data) ? data[0] : data
-  return { variant: row ?? null }
+  const r = await php('set_stock', { method: 'POST', body: { sku, stock } })
+  if (r.data) return { variant: r.data }
+  const m = r.error ?? ''
+  if (m.includes('stock_cannot_be_negative')) return { error: 'Stock cannot be negative.' }
+  if (m.includes('sku_not_found')) return { error: 'That item code is not in the inventory — refresh.' }
+  return r
 }

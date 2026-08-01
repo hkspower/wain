@@ -25,7 +25,7 @@ node scripts/storage-audit.mjs     # before deploying: is anything reachable tha
 └── public_html/                      ← the web root. Everything here is public unless denied.
     ├── .htaccess                     ← HIDDEN. Routing, caching, and every deny rule.
     ├── index.html                    ← the app shell
-    ├── config.js                     ← YOUR Supabase URL + anon key. Server-only.
+    ├── config.js                     ← runtime endpoints. Edited in place, never overwritten.
     ├── assets/                        ← content-hashed JS/CSS. Cached for a year, immutable.
     ├── cats/
     │   ├── mobile/                    ← category art + your photos, phone-sized
@@ -112,41 +112,23 @@ against a real Apache before you deploy.
 | `cats/**`, `fonts/*`, logos, icons | `max-age=2592000, stale-while-revalidate=604800` | Fixed names — a replaced logo must not be stuck for a year. After 30 days the old copy paints immediately while the new one loads. |
 | `*.xml`, `*.txt`, `*.webmanifest` | `max-age=3600, stale-while-revalidate=86400` | Change only on deploy, and crawlers re-fetch them constantly. |
 | `*.html` | `no-cache, stale-while-revalidate=60` | Revalidates on every visit, so a deploy is picked up next load — but paints from cache first. Safe because publish never deletes, so a 60-second-old shell's assets are still there. |
-| `config.js` | `no-cache, must-revalidate` | You edit it in place. If it were cached, changing your Supabase URL would appear to do nothing. |
+| `config.js` | `no-cache, must-revalidate` | You edit it in place. If it were cached, an edit would appear to do nothing. |
 | `knet/*`, `pay/*` | `no-store, no-cache, must-revalidate, private` | Payment responses carry order state. Nothing caches them, anywhere. |
 
 ---
 
-## Supabase Storage
+## There is no image upload, and that is deliberate
 
-Storage holds no files today. It is arranged anyway, by
-`supabase/storage-migration.sql`, because the moment product photography is
-added the ordinary path is: create a bucket, tick "public", accept the policy
-template that grants insert to `authenticated` — and in Supabase
-`authenticated` means **anyone who signed up**, sign-up is open, and the anon
-key is published in `config.js` because it is designed to be public. That is the
-same chain that was closed for orders and products.
+Nothing on this server accepts a file over HTTP. Product and category photos
+are files the owner uploads in hPanel File Manager (`cats/*.jpg`); brand logos
+are capped `data:` URIs stored **in the database row**, not on disk.
 
-The arrangement:
-
-- One bucket, `product-images`.
-- **Public read.** Product photos are shop-window data fetched by browsers with
-  no session; signed URLs would defeat CDN caching for images whose whole
-  purpose is to be cached.
-- **Writes require `is_admin()`** — a row in `public.admin_users`. Insert,
-  update and delete are three separate policies, because `for all` reads like
-  "admins may write" and means delete too.
-- A **5 MB ceiling** and an allowed-MIME list on the bucket itself, so the limit
-  holds even if a policy is loosened by hand. SVG is excluded deliberately: an
-  SVG is a document that can carry script, and serving one from our own origin
-  hands an attacker same-origin execution.
-- The migration's report **names any other public bucket**, so an accidental one
-  is visible rather than discovered.
-
-It is a clean no-op if Storage is not provisioned, so it is safe inside
-`SETUP-ALL.sql`.
-
----
+The ordinary path — an upload endpoint that writes into the web root — is the
+same shape as `sporta-deploy.php`, which was found sitting in this
+`public_html` answering to anyone on the internet. A directory that is both
+writable by the application and served by Apache is the thing to avoid, not a
+detail to configure carefully. So the web root is never written to at runtime,
+by anything.
 
 ## Backups
 

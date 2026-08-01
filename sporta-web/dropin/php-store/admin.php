@@ -1,9 +1,9 @@
 <?php
-// Sporta native admin API — what the React /admin calls in native mode.
+// Sporta admin API — what the React /backends screen calls.
 // Place at public_html/api/. Every route below ?r=login requires the session.
 //
 // The shapes returned here are the SAME shapes admin/api.js already hands the
-// screens from Supabase — stats keys, order columns, nested product names on
+// screens expected — stats keys, order columns, nested product names on
 // items — so the admin UI does not know or care which backend it is on. The
 // contract is the UI's, not the database's.
 
@@ -101,7 +101,7 @@ if ($r === 'orders') {
 }
 
 if ($r === 'items') {
-    // Nested `products` object, matching the supabase-js join shape the Orders
+    // Nested `products` object, matching the join shape the Orders
     // screen already renders.
     $q = $db->prepare(
         'select oi.id, oi.qty, oi.unit_price, oi.size, oi.fit,
@@ -224,6 +224,73 @@ if ($r === 'card_settled' && $method === 'POST') {
     store_out($q2->fetch());
 }
 
+// ---------------------------------------------------------------- products
+// The product editor. `sync` pushes the whole shipped catalogue; this is the
+// single-row companion — add a piece, change a price, take one off sale.
+if ($r === 'products_all') {
+    store_out($db->query(
+        'select id, slug, name_en, name_ar, desc_en, desc_ar, price, category, image, active
+           from products order by id desc'
+    )->fetchAll());
+}
+
+if ($r === 'product_save' && $method === 'POST') {
+    $b = store_body();
+    $id = (int)($b['id'] ?? 0);
+    $slug = store_slug((string)($b['slug'] ?? ''));
+    if ($slug === '') store_fail('invalid_slug');
+    $nameEn = store_text($b['name_en'] ?? null, 'name_en', 1, 160);
+    $nameAr = store_text($b['name_ar'] ?? null, 'name_ar', 1, 160);
+    // THE PRICE IS MONEY. Same three-decimal discipline the order path uses:
+    // KWD has exactly three, and a price that arrives as 10.5 must be stored
+    // as 10.500 or the fils quietly disappear.
+    $price = (float)($b['price'] ?? 0);
+    if ($price <= 0 || $price > 9999999) store_fail('invalid_price');
+    $price = number_format($price, 3, '.', '');
+    $active = array_key_exists('active', $b) ? (!empty($b['active']) ? 1 : 0) : 1;
+
+    try {
+        if ($id > 0) {
+            $db->prepare(
+                'update products set slug = ?, name_en = ?, name_ar = ?, desc_en = ?, desc_ar = ?,
+                        price = ?, category = ?, image = ?, active = ? where id = ?'
+            )->execute([$slug, $nameEn, $nameAr, store_opt($b['desc_en'] ?? null),
+                        store_opt($b['desc_ar'] ?? null), $price, store_opt($b['category'] ?? null),
+                        store_opt($b['image'] ?? null), $active, $id]);
+        } else {
+            $db->prepare(
+                'insert into products (slug, name_en, name_ar, desc_en, desc_ar, price, category, image, active)
+                 values (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            )->execute([$slug, $nameEn, $nameAr, store_opt($b['desc_en'] ?? null),
+                        store_opt($b['desc_ar'] ?? null), $price, store_opt($b['category'] ?? null),
+                        store_opt($b['image'] ?? null), $active]);
+            $id = (int)$db->lastInsertId();
+        }
+    } catch (Throwable $e) {
+        if (str_contains($e->getMessage(), 'Duplicate')) store_fail('slug_taken');
+        throw $e;
+    }
+    $q = $db->prepare('select id, slug, name_en, name_ar, desc_en, desc_ar, price, category, image, active from products where id = ?');
+    $q->execute([$id]);
+    store_out($q->fetch());
+}
+
+// Take a product off sale. NOT a delete: order_items point at products by id,
+// and a shop that deletes a sold product loses the line on every invoice that
+// ever contained it. `active = 0` hides it from the storefront and keeps the
+// history intact — the same reasoning as brands.
+if ($r === 'product_active' && $method === 'POST') {
+    $b = store_body();
+    $id = (int)($b['id'] ?? 0);
+    $db->prepare('update products set active = ? where id = ?')
+       ->execute([empty($b['active']) ? 0 : 1, $id]);
+    $q = $db->prepare('select id, slug, active from products where id = ?');
+    $q->execute([$id]);
+    $row = $q->fetch();
+    if (!$row) store_fail('product_not_found');
+    store_out($row);
+}
+
 // ------------------------------------------------------------------ brands
 // The admin sees EVERY brand, disabled ones included — a switch you cannot
 // see is a switch you cannot turn back on.
@@ -307,7 +374,7 @@ if ($r === 'products_state') {
 }
 
 if ($r === 'sync' && $method === 'POST') {
-    // Upsert on slug, exactly like the Supabase syncCatalog. The rows come
+    // Upsert on slug, exactly like syncCatalog expects. The rows come
     // from the shipped catalogue via the admin UI; prices here are what
     // checkout charges, which is the entire reason this screen exists.
     $rows = store_body()['rows'] ?? [];

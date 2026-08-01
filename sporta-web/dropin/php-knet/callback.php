@@ -124,151 +124,87 @@ function knet_send_customer_onward(array $cfg, string $url): void
 // "success" page with no paid order recorded anywhere.
 function knet_update_order(array $cfg, string $trackid, bool $paid, string $result, array $fields, bool $review = false): bool
 {
-    // NATIVE MODE. When knet/config.php carries a 'store' => 'mysql' block the
-    // bank's answer is written to the MySQL orders table on this same host —
-    // no Supabase anywhere in the payment path. Everything the Supabase branch
-    // learned the hard way is kept: never downgrade paid, exact column names,
-    // report failure honestly so the customer is not shown success over an
-    // unrecorded payment. The warehouse follow-up rides the same transaction.
-    if (($cfg['store'] ?? '') === 'mysql') {
-        try {
-            $pdo = knet_pdo($cfg);
-            $pdo->beginTransaction();
+    // The bank's answer, written to the orders table on this same host. Every
+    // rule here was learned the hard way and none of them is decoration: never
+    // downgrade a paid order, never re-stamp or re-notify on a replay, and
+    // report a failed write honestly so the customer is not shown success over
+    // a payment nobody recorded.
+    try {
+        $pdo = knet_pdo($cfg);
+        $pdo->beginTransaction();
 
-            // IDEMPOTENCE. A callback can arrive twice — the bank retries, the
-            // customer refreshes the return page, a proxy replays it. Without
-            // this an already-paid order was re-stamped with a new paid_at AND
-            // queued a SECOND "payment received" email to the warehouse, since
-            // the outbox's unique index only covers the 'new' message. It also
-            // untangles a PDO trap: rowCount() counts rows CHANGED, not matched,
-            // so rewriting identical values returns 0 and the old code read that
-            // as a failed write and logged a lost payment that was never lost.
-            $cur = $pdo->prepare('select payment_status from orders where track_id = ?');
-            $cur->execute([$trackid]);
-            $before = $cur->fetchColumn();
-            if ($before === false) {           // no such order — nothing to write
-                $pdo->rollBack();
-                return false;
-            }
-            if ($before === 'paid' && $paid) { // already settled: succeed, silently
-                $pdo->rollBack();
-                return true;
-            }
-            $after = $paid ? 'paid' : ($review ? 'review' : 'failed');
-            $sql = 'update orders set payment_status = ?, cbk_status = ?, cbk_message = ?,
-                      cbk_paymentid = ?, cbk_transaction = ?, cbk_reference = ?,
-                      cbk_authcode = ?, cbk_receipt = ?, cbk_paytype = ?, paid_at = ?
-                    where track_id = ?';
-            if (!$paid) $sql .= " and payment_status <> 'paid'";
-            $st = $pdo->prepare($sql);
-            $st->execute([
-                $after,
-                $result,
-                (string)($fields['result'] ?? ''), (string)($fields['paymentid'] ?? ''),
-                (string)($fields['tranid'] ?? ''), (string)($fields['ref'] ?? ''),
-                (string)($fields['auth'] ?? ''), (string)($fields['receipt'] ?? ''),
-                (string)($fields['paytype'] ?? ''),
-                $paid ? gmdate('Y-m-d H:i:s') : null,
-                $trackid,
-            ]);
-            // Matched-not-changed: the guarded UPDATE above only skips rows
-            // that are already paid, and that case returned early, so reaching
-            // here means the row is ours to claim. rowCount() can still be 0
-            // when every column already holds these values (a replayed FAILURE
-            // callback), which is a successful write, not a lost one.
-            $updated = true;
-            // The warehouse hears about a TRANSITION, not about a delivery.
-            // Guarding on the status actually changing is what stops a replayed
-            // failure callback sending a second "do not ship" — the outbox's
-            // unique index only protects the 'new' message, so this guard is
-            // the only thing standing between a retry and a duplicate email.
-            if ($before !== $after && ($paid || !$review)) {
-                // The ship-it / do-not-ship follow-up, queued in the same
-                // transaction as the status it reports.
-                $o = $pdo->prepare('select id from orders where track_id = ?');
-                $o->execute([$trackid]);
-                if ($orderId = $o->fetchColumn()) {
-                    // public_html layout first (knet/ and api/ are
-                    // siblings); repo layout second, for the test rig.
-                    // A MISSING store.php is a deployment error, not a data
-                    // one, and must never roll back the record that money was
-                    // taken: require_once throws inside this try, and the catch
-                    // below would put the order back to 'pending' with the cash
-                    // already captured.
-                    $storeLib = dirname(__DIR__) . '/api/store.php';
-                    if (!is_file($storeLib)) $storeLib = dirname(__DIR__) . '/php-store/store.php';
-                    if (is_file($storeLib)) {
-                        require_once $storeLib;
-                        store_queue_fulfilment($pdo, (int)$orderId, 'payment');
-                    }
-                }
-            }
-            $pdo->commit();
-            return $updated;
-        } catch (Throwable $e) {
-            if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+        // IDEMPOTENCE. A callback can arrive twice — the bank retries, the
+        // customer refreshes the return page, a proxy replays it. Without
+        // this an already-paid order was re-stamped with a new paid_at AND
+        // queued a SECOND "payment received" email to the warehouse, since
+        // the outbox's unique index only covers the 'new' message. It also
+        // untangles a PDO trap: rowCount() counts rows CHANGED, not matched,
+        // so rewriting identical values returns 0 and the old code read that
+        // as a failed write and logged a lost payment that was never lost.
+        $cur = $pdo->prepare('select payment_status from orders where track_id = ?');
+        $cur->execute([$trackid]);
+        $before = $cur->fetchColumn();
+        if ($before === false) {           // no such order — nothing to write
+            $pdo->rollBack();
             return false;
         }
-    }
-
-    $url = rtrim($cfg['supabase_url'], '/') . '/rest/v1/'
-        . rawurlencode($cfg['orders_table'])
-        . '?' . rawurlencode($cfg['orders_match_column']) . '=eq.' . rawurlencode($trackid);
-
-    // Never downgrade an already-paid order: a replayed or late failure
-    // callback must not flip a captured payment back to failed.
-    if (!$paid) {
-        $url .= '&payment_status=neq.paid';
-    }
-
-    // Column names must match supabase/schema.sql exactly. They are cbk_* —
-    // the acquirer is CBK, KNET is the scheme. This block used to write
-    // knet_result / knet_paymentid / knet_tranid / knet_ref / knet_auth, none
-    // of which exist, so PostgREST rejected the whole PATCH with PGRST204 and
-    // NOTHING was written: not payment_status, not paid_at, nothing. The bank
-    // captured the money, the customer was redirected to ?status=success, and
-    // the order sat at 'pending' forever with no record for the admin to ship
-    // from. Verified against a real PostgreSQL loaded with schema.sql:
-    // "column knet_result of relation orders does not exist".
-    $payload = json_encode([
-        'payment_status'  => $paid ? 'paid' : ($review ? 'review' : 'failed'),
-        'cbk_status'      => $result,
-        'cbk_message'     => (string)($fields['result'] ?? ''),
-        'cbk_paymentid'   => (string)($fields['paymentid'] ?? ''),
-        'cbk_transaction' => (string)($fields['tranid'] ?? ''),
-        'cbk_reference'   => (string)($fields['ref'] ?? ''),
-        'cbk_authcode'    => (string)($fields['auth'] ?? ''),
-        'cbk_receipt'     => (string)($fields['receipt'] ?? ''),
-        'cbk_paytype'     => (string)($fields['paytype'] ?? ''),
-        'paid_at'         => $paid ? gmdate('c') : null,
-    ]);
-
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_CUSTOMREQUEST  => 'PATCH',
-        CURLOPT_POSTFIELDS     => $payload,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 10,
-        CURLOPT_HTTPHEADER     => [
-            'Content-Type: application/json',
-            'apikey: ' . $cfg['supabase_service_key'],
-            'Authorization: Bearer ' . $cfg['supabase_service_key'],
-            'Prefer: return=minimal',
-        ],
-    ]);
-    // One retry: a transient network blip must not lose a captured payment.
-    $ok = false;
-    for ($attempt = 1; $attempt <= 2; $attempt++) {
-        $res  = curl_exec($ch);
-        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        if ($res !== false && $code >= 200 && $code < 300) {
-            $ok = true;
-            break;
+        if ($before === 'paid' && $paid) { // already settled: succeed, silently
+            $pdo->rollBack();
+            return true;
         }
-        if ($attempt === 1) {
-            sleep(1);
+        $after = $paid ? 'paid' : ($review ? 'review' : 'failed');
+        $sql = 'update orders set payment_status = ?, cbk_status = ?, cbk_message = ?,
+                  cbk_paymentid = ?, cbk_transaction = ?, cbk_reference = ?,
+                  cbk_authcode = ?, cbk_receipt = ?, cbk_paytype = ?, paid_at = ?
+                where track_id = ?';
+        if (!$paid) $sql .= " and payment_status <> 'paid'";
+        $st = $pdo->prepare($sql);
+        $st->execute([
+            $after,
+            $result,
+            (string)($fields['result'] ?? ''), (string)($fields['paymentid'] ?? ''),
+            (string)($fields['tranid'] ?? ''), (string)($fields['ref'] ?? ''),
+            (string)($fields['auth'] ?? ''), (string)($fields['receipt'] ?? ''),
+            (string)($fields['paytype'] ?? ''),
+            $paid ? gmdate('Y-m-d H:i:s') : null,
+            $trackid,
+        ]);
+        // Matched-not-changed: the guarded UPDATE above only skips rows
+        // that are already paid, and that case returned early, so reaching
+        // here means the row is ours to claim. rowCount() can still be 0
+        // when every column already holds these values (a replayed FAILURE
+        // callback), which is a successful write, not a lost one.
+        $updated = true;
+        // The warehouse hears about a TRANSITION, not about a delivery.
+        // Guarding on the status actually changing is what stops a replayed
+        // failure callback sending a second "do not ship" — the outbox's
+        // unique index only protects the 'new' message, so this guard is
+        // the only thing standing between a retry and a duplicate email.
+        if ($before !== $after && ($paid || !$review)) {
+            // The ship-it / do-not-ship follow-up, queued in the same
+            // transaction as the status it reports.
+            $o = $pdo->prepare('select id from orders where track_id = ?');
+            $o->execute([$trackid]);
+            if ($orderId = $o->fetchColumn()) {
+                // public_html layout first (knet/ and api/ are
+                // siblings); repo layout second, for the test rig.
+                // A MISSING store.php is a deployment error, not a data
+                // one, and must never roll back the record that money was
+                // taken: require_once throws inside this try, and the catch
+                // below would put the order back to 'pending' with the cash
+                // already captured.
+                $storeLib = dirname(__DIR__) . '/api/store.php';
+                if (!is_file($storeLib)) $storeLib = dirname(__DIR__) . '/php-store/store.php';
+                if (is_file($storeLib)) {
+                    require_once $storeLib;
+                    store_queue_fulfilment($pdo, (int)$orderId, 'payment');
+                }
+            }
         }
+        $pdo->commit();
+        return $updated;
+    } catch (Throwable $e) {
+        if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+        return false;
     }
-    curl_close($ch);
-    return $ok;
 }

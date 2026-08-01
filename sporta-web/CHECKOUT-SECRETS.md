@@ -23,23 +23,22 @@ committed, packaged, or overwritten by a deploy:
 
 ---
 
-## Step 0 — decide the backend first
+## Step 0 — one database, named three times
 
-Everything else follows from this one line, because the payment endpoints have
-to read orders out of the *same* database the storefront wrote them to.
+There is one backend: MySQL on this Hostinger plan. But **three separate config
+files each name that database independently**, and nothing checks that they
+agree:
 
-```js
-// public_html/config.js
-window.SPORTA_CONFIG = { backend: 'php', /* … */ }
-```
+| File | Keys |
+|---|---|
+| `api/config.php` | `db_host` `db_name` `db_user` `db_pass` |
+| `knet/config.php` | `mysql_host` `mysql_name` `mysql_user` `mysql_pass` |
+| `pay/config.php` | `mysql_host` `mysql_name` `mysql_user` `mysql_pass` |
 
-* `backend: 'php'` → **native**: MySQL on this Hostinger plan. Fill in the
-  `store => mysql` blocks below.
-* anything else → **Supabase**. Fill in the `supabase_*` blocks below.
-
-Mixing them is the failure that hides longest: the shop writes orders to one
-database and the gateway looks for them in another, so every payment is
-refused for an order that plainly exists.
+Different spellings, same four values. Getting them out of step is the failure
+that hides longest: the shop writes orders to one database and the gateway
+looks for them in another, so every payment is refused for an order that
+plainly exists.
 
 ---
 
@@ -56,10 +55,7 @@ Copy `api/config.example.php` → `api/config.php`.
 | `mail_reply_to` | `cs@sporta.com.kw` | the warehouse cannot reply to a human |
 | `cron_key` | invent one — 32+ random characters | the fulfilment cron is either open to the internet or refuses to run |
 
-**Verify:** `https://www.sporta.com.kw/admin` signs in and Orders loads.
-
-*Supabase instead?* Then this file is not used; the equivalents are the
-project URL and **service_role** key in `config.js` + the payment configs.
+**Verify:** `https://www.sporta.com.kw/backends` signs in and Orders loads.
 
 ---
 
@@ -133,9 +129,6 @@ Orders are queued the moment they are placed; a cron drains the queue.
    the domain's DNS. Missing → the mail is sent and **silently spam-filtered**,
    which looks exactly like everything working.
 
-*Supabase instead?* The `WAREHOUSE_EMAIL` secret on the `notify-warehouse` Edge
-Function, plus the same DNS records.
-
 ---
 
 ## The one question only CBK can answer
@@ -186,5 +179,5 @@ Cash can go live at step 4. Nothing else should.
 Rotate it, do not just remove it. Tranportal password and resource key: CBK
 reissues. T-Pay ClientSecret: CBK reissues. MySQL password: hPanel → Databases
 (then update `api/config.php`, `knet/config.php` and `pay/config.php` together
-— all three hold it). Supabase service key: dashboard → API → rotate. Cron key:
+— all three hold it). Cron key:
 change it in `api/config.php` and in the cron line at the same moment.

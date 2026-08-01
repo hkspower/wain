@@ -4,8 +4,8 @@
 تم فحص الكود بالكامل. لا توجد برمجيات خبيثة، لا أسرار مكشوفة، لا ثغرات في
 المكتبات (0). أهم ثغرة كانت **تلاعب بمبلغ الدفع** (المبلغ يأتي من المتصفح) —
 تم تعزيزها بالتحقق من الإدخال ومطابقة المبلغ المدفوع مع مبلغ الطلب في
-`callback.php`. يبقى إجراء واحد مطلوب منك: تفعيل RLS في Supabase وجعل الأسعار
-مصدرها الخادم (انظر أدناه).
+`callback.php`. والأسعار الآن مصدرها الخادم بالكامل: قاعدة البيانات هي التي
+تحسب المبلغ، والمتصفح لا يرسل سعراً إطلاقاً (انظر أدناه).
 
 ## What was checked
 - Dependencies: `npm audit` → **0 vulnerabilities**.
@@ -15,7 +15,9 @@
 - Transport: site + `/pay/` force HTTPS + HSTS; payment endpoints reject
   non-HTTPS (`cbk_require_https`).
 - Secrets exposure: CBK keys are server-side only (PHP `config.php`, blocked by
-  `.htaccess`). The Supabase service key is only in server code, never the client.
+  `.htaccess`). The database password is only in `config.php` on the server —
+  the browser has no credential of any kind, because there is nothing for it to
+  talk to but our own `/api`.
 
 ## Findings & fixes
 
@@ -26,12 +28,12 @@ real price. Fixes applied:
    ≤3 decimals, > 0); track id must be alphanumeric ≤30. Blocks bad input and
    NVP-parameter injection.
 2. **Amount verification** in `callback.php` — after CBK confirms payment, we
-   fetch the order's recorded amount from Supabase and compare it to the amount
+   fetch the order's recorded amount from the database and compare it to the amount
    CBK actually charged. On mismatch the order is **NOT** marked paid
    (`amount_mismatch`).
 
 ### 🟢 Server-side price authority (IMPLEMENTED)
-Prices are now authoritative on the server (`supabase/schema.sql`):
+Prices are authoritative on the server (`dropin/php-store/schema.mysql.sql`):
 - `products.price` is the single source of truth.
 - A DB trigger copies each item's price from `products` and recomputes
   `orders.amount` from the line items — the client cannot set the price.
@@ -39,24 +41,35 @@ Prices are now authoritative on the server (`supabase/schema.sql`):
   charges the order's server-computed amount (via `cbk_order_amount`), and
   `callback.php` verifies the charged amount again.
 
-**Remaining for you:** run `supabase/schema.sql` and seed real products.
+**Remaining for you:** import `api/schema.mysql.sql` and `api/seed.mysql.sql`.
 
-### 🟠 Supabase RLS (ACTION REQUIRED — you)
-`checkout.js` inserts orders with the browser (anon) key. Add Row Level Security:
-- `orders`: allow INSERT of new pending rows only; **deny** clients from UPDATE
-  (paid status is set server-side via the service key) and from SELECTing other
-  users' orders.
-- `products`: SELECT only where `active = true`; no client writes.
-- Admin tables / `admin_device_passcodes`: restrict to authenticated admins.
+### 🟢 Table-level access (RESOLVED BY DESIGN)
+This used to require Row Level Security, because the browser held a database
+key and talked to the database directly. It no longer does. The browser can
+only reach `/api/api.php`, which exposes exactly five read routes plus order
+creation, and never a table. Everything privileged — orders, stock with cost
+prices, the catalogue editor — is behind `admin.php` and its session:
 
-### 🟢 Admin passcode
-Device id is 256-bit; enrollment is server-side (`set_device_passcode`);
-verification is server-side with attempt limits + lockout (`verify_device_passcode`).
-Local enrollment flag is only a UI hint; the server is authoritative.
+- `api.php` returns only shop-window columns; the public stock route omits
+  `cost_aed` entirely, which the admin route returns.
+- Order creation ignores any price the browser sends; the amount is computed
+  from `products` by a trigger.
+- Reading an order back needs its `track_id`, which only the customer has.
+
+### 🟢 Admin sign-in
+Email + password (`password_hash`), a session cookie that is HttpOnly and
+SameSite=Strict, plus an `X-Sporta-Admin: 1` header the PHP side requires — the
+two together are the CSRF defence. Five wrong passwords lock the account for
+15 minutes, counted **in the database**, not the session, so clearing cookies
+does not reset it.
 
 ## Checklist for going live
-- [ ] Enable RLS on `orders`, `products`, and admin tables.
-- [ ] Make order amount server-authoritative (Edge Function or trigger).
+- [ ] Keep the database password only in `api/config.php`, `knet/config.php`
+      and `pay/config.php` — all three server-side, all three denied by name.
+- [ ] Delete `api/setup-admin.php`, `knet/selftest.php`, `knet/setup-config.php`
+      and `go-live.html` from the server once setup is done.
 - [ ] Keep CBK keys only in `pay/config.php` (never client-side).
 - [ ] Confirm SSL grade A on SSL Labs; cert covers apex + www.
 - [ ] Rotate any credential ever pasted into chat/email.
+- [ ] Run `./scan-server-response.sh` after every deploy, and
+      `npm run audit:storage` before one.
