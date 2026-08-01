@@ -607,6 +607,30 @@ def home_checks(pg):
 
     # البحار, the voice assistant. Unconfigured it must not render at all — a
     # sticky button that opens nothing is worse than no button.
+    # the four drawn scenes: pictures carry «ما نبنيه لعملك», not paragraphs
+    scenes = pg.eval_on_selector_all("#offers .scene", "n=>n.map(e=>e.getAttribute('aria-label'))")
+    check(S, "the four works are drawn, not written", len(scenes) == 4, str(len(scenes)))
+    check(S, "each drawing is described for screen readers",
+          all(s_ and "رسم" in s_ for s_ in scenes), str(scenes))
+    labels = pg.eval_on_selector_all("#offers .card.drawn > b", "n=>n.map(e=>e.textContent.trim())")
+    check(S, "the works are أتمتة · تصميم · تطبيقات · برمجة خاصة",
+          labels == ["أتمتة", "تصميم", "تطبيقات", "برمجة خاصة"], str(labels))
+    check(S, "the app scene names both platforms",
+          "iOS" in pg.inner_text("#offers") and "Android" in pg.inner_text("#offers"))
+    # every card must lay out in the rail — a card that inherits position:absolute
+    # from a same-named class stacks all four in one cell and the rail stops
+    # sliding, which is exactly what .shape (the hero's floating geometry) did
+    stacked = pg.evaluate("""(() => {
+      const cards = [...document.querySelectorAll('#offers .rail > .card')];
+      const lefts = new Set(cards.map(c => Math.round(c.getBoundingClientRect().left)));
+      const abs = cards.filter(c => getComputedStyle(c).position === 'absolute').length;
+      return { distinct: lefts.size, abs };
+    })()""")
+    check(S, "each drawn card takes its own column",
+          stacked["distinct"] == 4 and stacked["abs"] == 0, str(stacked))
+    check(S, "the drawings animate, and stop under reduced motion",
+          pg.eval_on_selector("#offers .scene .ga", "e=>getComputedStyle(e).animationName") != "none")
+
     check(S, "البحار stays hidden until an agent URL is set",
           pg.eval_on_selector("#callfab", "e=>e.hidden") is True
           and not pg.is_visible("#callfab"))

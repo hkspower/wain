@@ -155,6 +155,16 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   everything; and a 1.5s failsafe reveals whatever the observer never reached.
   `prefers-reduced-motion` switches all of it off. Sections reveal as whole
   blocks — staggering siblings puts cards of one row on different baselines.
+- **«ما نبنيه لعملك» is drawn, not written** (owner's request, 2026-08-01:
+  «قلل الكتابة واجعل بدل كتابة أشكال»): four SVG scenes — gears that turn,
+  a pen that draws, two devices labelled iOS/Android whose screens fill, and
+  code that types itself — each under a two-word label. No Apple or Android
+  logo is drawn: the platform names are set as text, which is nominative use;
+  reproducing their marks is not ours to do. **Never name a card class
+  `.shape`** — that is the hero's floating geometry and carries
+  `position: absolute`; the collision stacked all four cards in one grid cell
+  and silently killed the rail. The suite now checks each drawn card takes its
+  own column and that none is absolutely positioned.
 - **«من أعمالنا» is delivered work; «ما نبنيه لعملك» is offers.** النوخذة is a
   system the company built and runs, so it keeps the flagship row. The four
   offers (موظف ذكاء اصطناعي · برمجيات خاصة · برنامج مساعد داخل موقعك · تطوير
@@ -223,7 +233,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 358 checks covering
+- `python3 design/test_suite.py` is the full system test — 364 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
