@@ -30,6 +30,14 @@ export async function generateMetadata({
   return {
     title: place.nameAr,
     description: place.taglineAr,
+    alternates: { canonical: `/places/${place.slug}/` },
+    openGraph: {
+      title: `${place.nameAr} | وين؟`,
+      description: place.taglineAr,
+      url: `/places/${place.slug}/`,
+      type: "article",
+      images: [{ url: "/og.png", width: 1200, height: 630, alt: place.nameAr }],
+    },
   };
 }
 

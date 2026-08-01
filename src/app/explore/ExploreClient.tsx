@@ -111,9 +111,9 @@ export default function ExploreClient() {
       {/* Results */}
       {filtered.length > 0 ? (
         <>
-          <p className="mb-4 text-sm font-medium text-ink-500">
+          <h2 className="mb-4 text-sm font-medium text-ink-500">
             {countAr(filtered.length, RESULTS_COUNT)}
-          </p>
+          </h2>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((place) => (
               <PlaceCard key={place.slug} place={place} />
