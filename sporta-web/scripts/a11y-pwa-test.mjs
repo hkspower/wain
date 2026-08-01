@@ -166,6 +166,46 @@ for (const [saved, want] of [['dark', 'dark'], ['light', 'light']]) {
   await ctx.close()
 }
 
+// ------------------------------------ the shell has to stop being a shell
+//
+// index.html paints a header bar, a logo and a hero box before any JavaScript
+// runs, and React clears it on mount. If the bundle never arrives it is never
+// cleared — and a visitor gets an orange bar, a logo and nothing else, for
+// ever. That does not look broken, it looks like a shop with no stock, so it
+// gets reported as "the website is only a top bar and a logo" rather than as
+// a failed deploy.
+//
+// The module is aborted here exactly the way a partial upload breaks it: the
+// HTML is current, the hashed chunk it names is not on the server.
+{
+  const ctx = await b.newContext({ serviceWorkers: 'block' })
+  const p = await ctx.newPage()
+  await p.route('**/assets/index-*.js', (r) => r.abort())
+  await p.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await p.waitForTimeout(11500)
+  const text = await p.locator('#root').innerText()
+  ok(/did not finish loading/i.test(text),
+     'a bundle that never loads says so, instead of leaving a bare shell',
+     JSON.stringify(text.split('\n')[0]))
+  ok(/assets\/index-.*\.js/.test(text),
+     'and names the file that failed, which is the whole diagnosis',
+     (text.match(/\S*assets\/\S+/) ?? ['(none)'])[0])
+  await ctx.close()
+}
+
+// The other half of that check, and the one that matters more: it must not
+// cry wolf. A false alarm on a slow connection would be its own bug.
+{
+  const ctx = await b.newContext({ serviceWorkers: 'block' })
+  const p = await ctx.newPage()
+  await p.goto(BASE, { waitUntil: 'load' })
+  await p.waitForTimeout(11500)
+  const text = await p.locator('#root').innerText()
+  ok(!/did not finish loading/i.test(text),
+     'and a HEALTHY page never shows it, however long it is left open')
+  await ctx.close()
+}
+
 await b.close()
 console.log(fails ? `\n${fails} failed` : '\nall accessible, installable and offline-capable')
 process.exit(fails ? 1 : 0)

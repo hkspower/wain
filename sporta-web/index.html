@@ -343,6 +343,13 @@
          BEFORE anything paints. The skeleton and the real hero read the same
          variable, so the real one drops into exactly this box. */
       .boot-hero { height: var(--hero-h, 540px); background: #171a1e }
+      /* Only ever seen when the shell has become permanent — see the note by
+         the <noscript> below. Plain, centred, no dependency on the stylesheet
+         that also did not load. */
+      .boot-msg { position: absolute; inset: 133px 0 auto; padding: 48px 24px;
+                  text-align: center; color: #e2dbce; font: 16px/1.6 system-ui, sans-serif }
+      .boot-msg code { display: block; margin-top: 16px; font-size: 12px;
+                       color: #8a8a8a; word-break: break-all }
       @media (min-width: 768px) { .boot-hero { height: var(--hero-h-md, 640px) } }
     </style>
   </head>
@@ -383,6 +390,54 @@
         <div class="boot-hero"></div>
       </div>
     </div>
+    <!-- WHAT THE SHELL SAYS WHEN IT IS NOT A SHELL ANY MORE.
+         =================================================================
+         Everything above is a placeholder React clears on mount. That is
+         true for about 400ms — and if the bundle never arrives it is not
+         true at all: the shell becomes the whole site, permanently, and a
+         visitor gets an orange bar, a logo, and nothing else, forever. It
+         does not look broken. It looks like a shop with nothing in it.
+
+         So the shell is given a terminal state. This is the ONE place the
+         "no text in the shell" rule is relaxed, and only for text that
+         cannot exist in i18n: the i18n strings live in the bundle that, by
+         the time anyone reads this, did not load. -->
+    <noscript>
+      <div class="boot-msg">
+        <p>This shop needs JavaScript. Please enable it and reload.</p>
+        <p dir="rtl" lang="ar">يحتاج هذا المتجر إلى جافاسكربت. فعّلها ثم أعد التحميل.</p>
+      </div>
+    </noscript>
+    <script>
+      // JavaScript ran but the app never mounted — a different failure from
+      // the one above, and by far the more likely one: index.html and
+      // assets/ disagreeing after a partial upload, so the module 404s.
+      //
+      // Ten seconds, because the budget suite measures LCP under 2s on a
+      // throttled phone and a false alarm here would be its own bug. Paused
+      // tabs are skipped: background timers are throttled, so a tab restored
+      // after a minute would accuse a perfectly good server.
+      (function () {
+        var failed = ''
+        addEventListener('error', function (e) {
+          var t = e.target
+          if (t && (t.src || t.href)) failed = t.src || t.href
+        }, true)
+        setTimeout(function () {
+          if (window.__SPORTA_MOUNTED || document.visibilityState !== 'visible') return
+          var ar = window.__SPORTA_LANG === 'ar'
+          var d = document.createElement('div')
+          d.className = 'boot-msg'
+          d.setAttribute('dir', ar ? 'rtl' : 'ltr')
+          d.innerHTML =
+            '<p>' + (ar ? 'لم تكتمل عملية تحميل الصفحة.' : 'This page did not finish loading.') + '</p>' +
+            '<p>' + (ar ? 'حدّث الصفحة. إذا تكرر ذلك، فقد تكون ملفات الموقع غير مرفوعة بالكامل.'
+                        : 'Refresh the page. If it keeps happening, the site\'s files are probably not all on the server.') + '</p>' +
+            (failed ? '<code>' + failed.replace(/[<&]/g, '') + '</code>' : '')
+          document.getElementById('root').appendChild(d)
+        }, 10000)
+      })()
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

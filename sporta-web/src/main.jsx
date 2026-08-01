@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.jsx'
@@ -8,6 +8,15 @@ import { WishlistProvider } from './lib/wishlist.jsx'
 import { ThemeProvider } from './lib/theme.jsx'
 import './styles/index.css'
 
+// The signal the boot watchdog in index.html waits for. Set from inside the
+// tree rather than after render(), because render() only SCHEDULES work — a
+// bundle that loads and then throws on its first render would otherwise clear
+// the watchdog and leave the visitor with the same silent shell.
+function Mounted() {
+  useEffect(() => { window.__SPORTA_MOUNTED = true }, [])
+  return null
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
@@ -15,6 +24,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <LanguageProvider>
         <CartProvider>
           <WishlistProvider>
+            <Mounted />
             <App />
           </WishlistProvider>
         </CartProvider>
