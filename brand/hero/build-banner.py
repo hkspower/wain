@@ -27,21 +27,19 @@
 # left ground is generated, and the orange graphic and every letter are drawn
 # on top as vectors.
 #
-# WHY THE STRIPE BECOMES A PLATE
+# WHY THE BAR IS DEEPER THAN THE PHOTOGRAPH'S
 #
 # The headline's size is not a taste decision, it is a geometry one: near-black
 # type has to stay inside the orange or it lands on near-black ground and its
 # tops vanish. The source's stripe is 74px of a 633px canvas, so it capped the
 # headline at about 58px of cap height — small, on a banner this wide.
 #
-# The stripe cannot simply be made taller, because it passes BEHIND the athlete
-# and there is no mask for him. But it does not have to be one thickness. Left
-# of him it is a PLATE 112px deep, cut off by a diagonal that repeats the type's
-# 10 degree lean; from there the original 74px stripe carries on behind him and
-# out the right edge. The measurements that make this safe are in PLATE_R —
-# the athlete's silhouette was measured, not guessed.
-#
-# The headline gained about 60% of its cap height from that one change.
+# The stripe passes BEHIND the athlete, so making it deeper means cutting him
+# out of it. His silhouette is exact and free across the stripe's own rows —
+# the wall there is orange, so anything that is not orange is him — and the 19
+# rows the bar gains above and below come from a line fitted to those measured
+# edges. The bar is therefore ONE thickness from edge to edge, and the headline
+# gained about 65% of its cap height.
 import math
 import os
 import sys
@@ -62,16 +60,9 @@ SHEAR  = math.tan(math.radians(10))
 SEAM     = 860            # left of here is generated, right of here is photo
 BLEND    = 30             # crossfade width across that seam
 STRIPE_T, STRIPE_B = 248, 322    # the stripe as it exists in the photograph
-PLATE_T, PLATE_B   = 229, 341    # the deeper plate drawn left of the athlete
-STRIPE_R = 910            # vector stripe ends here; the photo's own orange
-                          # covers 910..937, and the athlete starts at 937
-# The plate's diagonal. Measured, not guessed: scanning the source for orange
-# puts the athlete's edge at x=937 across the stripe rows, and a luminance scan
-# of the rows just above and below the stripe puts it at 955 and 940. The
-# diagonal's rightmost point is 918, so it clears him everywhere by ~20px, and
-# it leans the same 10 degrees as the headline.
-PLATE_R_TOP, PLATE_R_BOT = 918, 898
-TEXT_L, TEXT_R = 120, 880        # the run the headline may occupy
+PLATE_T, PLATE_B   = 229, 341    # the bar as drawn: same centre, 112px deep
+TEXT_L, TEXT_R = 120, 900        # the run the headline may occupy — it stops
+                                 # short of the athlete, who starts at 937
 
 # The site ships Alexandria as a variable woff2; Pillow cannot pick a weight off
 # a variable font, so each cut is instantiated to a static TTF in a temp dir.
@@ -171,18 +162,95 @@ for i in range(BLEND * S):
 im = Image.composite(photo, ground, mask)
 
 # ------------------------------------------------------- the orange graphic
-d = ImageDraw.Draw(im)
-# The stripe first, out to where the photograph's own orange takes over. The
-# last 16px fade rather than butt, so a hair of colour drift between the drawn
-# orange and the photographed orange cannot show as a seam.
-d.rectangle([0, STRIPE_T * S, STRIPE_R * S, STRIPE_B * S], fill=ORANGE)
-fw, fh = 16 * S, (STRIPE_B - STRIPE_T) * S
-fade = Image.new('L', (fw, fh))
-fade.putdata([255 - 255 * (i % fw) // fw for i in range(fw * fh)])
-im.paste(Image.new('RGB', (fw, fh), ORANGE), (STRIPE_R * S, STRIPE_T * S), fade)
-# Then the plate over it, diagonal edge and all.
-d.polygon([(0, PLATE_T * S), (PLATE_R_TOP * S, PLATE_T * S),
-           (PLATE_R_BOT * S, PLATE_B * S), (0, PLATE_B * S)], fill=ORANGE)
+#
+# ONE bar, ONE thickness, edge to edge. Getting there needed the athlete cut
+# out of it, because the bar passes behind him: the source's own stripe is
+# 74px, the bar is 112px, and the 19px it gains above and below have to stop at
+# his silhouette or they paint over his arms.
+#
+# His silhouette is not guessed. Across the stripe's own rows it is EXACT and
+# free: the wall there is orange, so anything that is not orange is him. That
+# gives his left and right edges for 74 of the bar's 112 rows, and both edges
+# are all but straight over that run (he leans a little). The remaining 19 rows
+# above and 19 below come from a least-squares line through those measured
+# edges — an extrapolation of a fifth of the distance already measured.
+#
+# The cut is then widened 4px on each side. An extrapolation can be a couple of
+# pixels out, and the two ways of being wrong are not equal: a hair of dark
+# wall along his arm is invisible, orange ON his arm is the first thing anyone
+# would see.
+o = np.asarray(src.convert('RGB'), dtype=np.int16)
+is_orange = ((o[:, :, 0] > 195) & (o[:, :, 1] > 70) &
+             (o[:, :, 1] < 175) & (o[:, :, 2] < 85))
+
+KNOWN_T, KNOWN_B = 252, 318      # stripe rows clear of its own soft edges
+known = {}
+for y in range(KNOWN_T, KNOWN_B + 1):
+    # Search right of 920 only: left of it lies the old headline, which is also
+    # "not orange" and is not the athlete.
+    notor = np.flatnonzero(~is_orange[y, 920:]) + 920
+    known[y] = (float(notor[0]), float(notor[-1]))
+
+# The 19 rows above and below are TRACKED, not extrapolated. A straight line
+# fitted to the measured edges was tried first and left a visible notch: his
+# forearms flare outward through the stripe, so the line kept flaring after he
+# stopped, and up to 14px of dark wall showed where orange should have been.
+#
+# Tracking follows him instead. Each row starts from the row before it — which
+# begins at a row that is known exactly — and looks within 7px for the
+# strongest luminance step. There is a real step to find in both directions:
+# below the bar his forearm is lit skin at ~110 against a ~30 wall, and above it
+# his shirt is ~14 against the same ~30 wall. A row with no step worth the name
+# holds the previous position rather than inventing one.
+lum = np.asarray(src.convert('L'), dtype=np.float64)
+lum = np.apply_along_axis(lambda r: np.convolve(r, np.ones(5) / 5, 'same'), 1, lum)
+
+
+def track(y_from, y_to, seed_l, seed_r):
+    out, l, r = {}, seed_l, seed_r
+    step = 1 if y_to > y_from else -1
+    for y in range(y_from, y_to + step, step):
+        for name, cur in (('l', l), ('r', r)):
+            lo, hi = int(cur) - 7, int(cur) + 8
+            g = np.abs(np.diff(lum[y, lo - 1:hi + 1]))
+            if g.max() > 6:
+                cur = lo + int(np.argmax(g))
+            if name == 'l':
+                l = cur
+            else:
+                r = cur
+        out[y] = (l, r)
+    return out
+
+
+edge = dict(known)
+edge.update(track(KNOWN_B + 1, PLATE_B, *known[KNOWN_B]))
+edge.update(track(KNOWN_T - 1, PLATE_T, *known[KNOWN_T]))
+
+ys = np.arange(PLATE_T, PLATE_B + 1)
+lv = np.array([edge[y][0] for y in ys])
+rv = np.array([edge[y][1] for y in ys])
+# A 5-row mean takes the tracker's one-pixel jitter out without rounding off
+# the contour it is following.
+sm = np.ones(5) / 5
+lv = np.convolve(np.pad(lv, 2, 'edge'), sm, 'valid')
+rv = np.convolve(np.pad(rv, 2, 'edge'), sm, 'valid')
+
+BAR_T, BAR_B = PLATE_T, PLATE_B
+rows = np.arange(BAR_T * S, BAR_B * S)
+ysrc = rows / S
+CUT = 2                                      # widen the cut, both sides
+left = (np.interp(ysrc, ys, lv) - CUT) * S
+right = (np.interp(ysrc, ys, rv) + CUT) * S
+
+# A 2px soft edge (at source scale) so the cut is antialiased rather than
+# stepped — the same edge quality the drawn type gets.
+soft = 2.0 * S
+xs = np.arange(CW)[None, :]
+him = (np.clip((xs - left[:, None]) / soft, 0, 1) *
+       np.clip((right[:, None] - xs) / soft, 0, 1))
+bar_alpha = Image.fromarray(((1 - him) * 255).astype(np.uint8), 'L')
+im.paste(Image.new('RGB', bar_alpha.size, ORANGE), (0, BAR_T * S), bar_alpha)
 
 PLATE_H = (PLATE_B - PLATE_T) * S
 
@@ -257,23 +325,26 @@ def build(lang):
                          PLATE_H * 0.86, max_w, 320 * S // 2)
         kick = set_type('THE BEST', ImageFont.truetype(cut('latin', 700), 42 * S),
                         (255, 255, 255), 17 * S)
-        hx, kx, anchor = TEXT_L * S, TEXT_L * S, 'ls'
+        # Latin reads from the left, so both lines hang off the same left edge.
+        hx = TEXT_L * S
+        kx = hx
     else:
         # Arabic is sized by HEIGHT, never by width: its ascenders and dots
-        # tower over Latin caps, so a width fit puts ink outside the plate.
+        # tower over Latin caps, so a width fit puts ink outside the bar.
         # And it is never sheared — an obliqued Arabic is a broken Arabic.
         head, size = fit('arabic', 900, 'ملابس رياضية', INK, 0, 0,
                          PLATE_H * 0.86, max_w, 460)
-        kick = set_type('الأفضل', ImageFont.truetype(cut('arabic', 700), 42 * S),
+        # الأفضل is set larger than its Latin counterpart and CENTRED over the
+        # headline rather than hung off its right edge. Two reasons it can be:
+        # it is one short word, and there is nothing else on that line.
+        kick = set_type('الأفضل', ImageFont.truetype(cut('arabic', 700), 62 * S),
                         (255, 255, 255), 0)
-        # Right-aligned to the plate, clear of its diagonal.
-        hx = kx = (PLATE_R_BOT - 60) * S
-        anchor = 'rs'
+        hx = (TEXT_R - 40) * S - head.width
+        kx = hx + (head.width - kick.width) // 2
 
-    for lay, y in ((head, plate_mid - head.height // 2),
-                   (kick, PLATE_T * S - 30 * S - kick.height)):
-        x = (hx if lay is head else kx)
-        im.paste(lay, (x if anchor == 'ls' else x - lay.width, y), lay)
+    for lay, x, y in ((head, hx, plate_mid - head.height // 2),
+                      (kick, kx, PLATE_T * S - 30 * S - kick.height)):
+        im.paste(lay, (x, y), lay)
     return size
 
 
