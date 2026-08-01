@@ -10,6 +10,7 @@
   <meta name="theme-color" content="#6f3f1c" />
   <link rel="preload" as="font" type="font/woff2" href="fonts/tajawal-400.woff2" crossorigin />
   <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <meta name="description" content="لوحة إدارة النوخذة — المهلب كود: العملاء والعمليات والمالية وإعدادات النظام." />
   <title>لوحة الإدارة — إدارة النوخذة</title>
   <style>
     /* Tajawal (SIL OFL) — bundled, never fetched from a CDN: the strict CSP
@@ -29,7 +30,7 @@
     :root {
       color-scheme: light;   /* the site is white on every device, dark preference included */
       --bg: #ffffff; --panel: #ffffff; --panel-2: #f1f4f8; --panel-3: #e6ebf1;
-      --border: #d0d7e1; --border-input: #858d99;
+      --border: #d0d7e1; --dot-js: #836407; --code-dim: #5e6979; --border-input: #858d99;
       --text: #1b2430; --muted: #586981;
       --tint: #7a4418; --tint-strong: #6f3f1c;
       --sand: #9e5603; --sand-vivid: #e3a556;
@@ -39,7 +40,7 @@
       /* diverging — two poles + a neutral midpoint; sign is also carried by direction + label */
       --viz-pos: #02783d; --viz-neg: #ce1925; --viz-zero: #acb4bf;
       --viz-grid: #dee4ec;
-      --sans: "Tajawal", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Kufi Arabic", sans-serif;
+      --sans: "Tajawal", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Kufi Arabic", "Noto Sans Arabic", sans-serif;
       --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     }
 
@@ -96,7 +97,7 @@
     .brand h1 { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.35; color: #fff; }
     .brand small { display: block; font-weight: 500; font-size: 11px; color: rgba(255,255,255,.82); }
     nav.site { display: flex; gap: 4px; margin-inline-start: auto; flex-wrap: wrap; align-items: center; }
-    nav.site a { font-size: 13.5px; font-weight: 600; color: var(--text); padding: 12px 16px;
+    nav.site a { font-size: 13.5px; font-weight: 600; padding: 12px 16px;
       border-radius: 9px; border: 1px solid transparent; }
     nav.site a { color: #fff; }
     nav.site a:hover { background: rgba(255,255,255,.16); }
@@ -115,6 +116,8 @@
     header a:focus-visible, header button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
     /* header and tabs travel together, so the tab strip needs no magic offset */
     .topbar { position: sticky; top: 0; z-index: 20; }
+    /* WCAG 2.2 target size: a 12px-tall link is below the 24px floor */
+    footer.site a { display: inline-block; padding: 6px 4px; }
     footer.site { text-align: center; color: var(--muted); font-size: 12.5px; padding: 24px;
       border-top: 1px solid var(--border); line-height: 1.9; }
 
@@ -236,7 +239,7 @@
       ⚠️ هذه اللوحة تدير البيانات المحفوظة على <b>هذا الجهاز</b> فقط. الحماية هنا
       محلية وليست تحققاً من خادم — راجع SECURITY.md.
     </p>
-    <p class="note"><a href="nokhatha.html">← العودة إلى النوخذة</a></p>
+    <p class="note"><a href="nokhatha.html" style="display:inline-block;padding:6px 4px">← العودة إلى النوخذة</a></p>
   </form>
 </section>
 
@@ -282,8 +285,8 @@
     <section class="tab" id="tab-customers">
       <h2>العملاء</h2>
       <div class="toolbar">
-        <input id="cust-q" placeholder="بحث بالاسم أو البريد…" maxlength="80" />
-        <select id="cust-status">
+        <input id="cust-q" placeholder="بحث بالاسم أو البريد…" maxlength="80" / aria-label="بحث في العملاء">
+        <select id="cust-status" aria-label="تصفية حسب الحالة">
           <option value="">كل الحالات</option>
           <option value="active">نشط</option>
           <option value="suspended">موقوف</option>
@@ -296,7 +299,7 @@
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th style="width:34px"><input type="checkbox" id="cust-all" style="width:auto" /></th>
+            <th style="width:34px"><input type="checkbox" id="cust-all" style="width:auto" / aria-label="تحديد كل العملاء"></th>
             <th class="sortable" data-sort="name">الاسم</th>
             <th class="sortable" data-sort="email">البريد</th>
             <th class="sortable" data-sort="status">الحالة</th>
@@ -314,8 +317,8 @@
     <section class="tab" id="tab-ops">
       <h2>الطلبات</h2>
       <div class="toolbar">
-        <input id="ops-q" placeholder="بحث بالعميل أو رقم الطلب…" maxlength="80" />
-        <select id="ops-status"><option value="">كل الحالات</option></select>
+        <input id="ops-q" aria-label="بحث في الطلبات" placeholder="بحث بالعميل أو رقم الطلب…" maxlength="80" />
+        <select id="ops-status" aria-label="تصفية الطلبات حسب الحالة"><option value="">كل الحالات</option></select>
       </div>
       <div class="table-wrap">
         <table>
@@ -376,7 +379,7 @@
           <h3>كلمة مرور المشرف</h3>
           <form id="pw-form" autocomplete="off" style="display:flex;flex-direction:column;gap:10px">
             <label>الحالية <input name="cur" type="password" required maxlength="128" /></label>
-            <label>الجديدة (١٠ أحرف على الأقل) <input name="nw" type="password" required minlength="10" maxlength="128" /></label>
+            <label>الجديدة (10 أحرف على الأقل) <input name="nw" type="password" required minlength="10" maxlength="128" /></label>
             <p class="err" id="pw-err"></p>
             <button class="btn primary" type="submit">تغيير</button>
           </form>

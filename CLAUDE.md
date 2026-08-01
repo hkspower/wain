@@ -150,6 +150,12 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   offers (موظف ذكاء اصطناعي · برمجيات خاصة · برنامج مساعد داخل موقعك · تطوير
   موقعك الحالي) sit in their own rail beneath it. Do not merge the two: filing
   an offer under "our work" presents it as something already delivered.
+- **One numeral system across the whole site**, not just the company page:
+  placeholders read «٨ أحرف» and the not-found page was titled ٤٠٤ while every
+  figure beside them was Latin. Pinned per page.
+- **Every form control needs a name** (`label[for]`, a wrapping `<label>`, or
+  `aria-label`) and **every interactive target clears 24px** (WCAG 2.2 AA).
+  Five admin controls had no name; footer links measured 12px on three pages.
 - **One numeral system per page.** Latin digits throughout, matching `+965`
   and the counters — an Arabic-Indic ٢٤/٧ chip beside them is the same defect
   that once printed ١٢٬٠٠٠ next to 850 in one table. Pinned by the suite.
@@ -207,7 +213,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 317 checks covering
+- `python3 design/test_suite.py` is the full system test — 345 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it

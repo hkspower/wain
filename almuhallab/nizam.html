@@ -39,7 +39,7 @@
       --code-dim: #5e6979; --dot-js: #836407;
       --ord-1: #c08552; --ord-2: #a86f42; --ord-3: #8f5a33; --ord-4: #763f22; --ord-5: #5e3218;
       --viz-pos: #02783d; --viz-neg: #ce1925; --viz-zero: #acb4bf; --viz-grid: #dee4ec;
-      --sans: "Tajawal", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --sans: "Tajawal", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Kufi Arabic", "Noto Sans Arabic", sans-serif;
       --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     }
 
@@ -64,7 +64,7 @@
     .brand h1 { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.35; color: #fff; }
     .brand small { display: block; font-weight: 500; font-size: 11px; color: rgba(255,255,255,.82); }
     nav.site { display: flex; gap: 4px; margin-inline-start: auto; flex-wrap: wrap; align-items: center; }
-    nav.site a { font-size: 13.5px; font-weight: 600; color: var(--text); padding: 12px 16px;
+    nav.site a { font-size: 13.5px; font-weight: 600; padding: 12px 16px;
       border-radius: 9px; border: 1px solid transparent; }
     nav.site a { color: #fff; }
     nav.site a:hover { background: rgba(255,255,255,.16); }
@@ -73,6 +73,8 @@
     header a:focus-visible, header button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
     /* header and tabs travel together, so the tab strip needs no magic offset */
     .topbar { position: sticky; top: 0; z-index: 20; }
+    /* WCAG 2.2 target size: a 12px-tall link is below the 24px floor */
+    footer.site a { display: inline-block; padding: 6px 4px; }
     footer.site { text-align: center; color: var(--muted); font-size: 12.5px; padding: 24px;
       border-top: 1px solid var(--border); line-height: 1.9; }
 
@@ -407,8 +409,8 @@
       <form id="del-form">
         <label>اسم العميل <input name="customer" required maxlength="80" placeholder="أم محمد" /></label>
         <label>الهاتف <input name="phone" required maxlength="15" pattern="[0-9+ ]{7,15}" inputmode="tel" placeholder="9XXXXXXX" /></label>
-        <label>العنوان <input name="address" required maxlength="160" placeholder="السالمية، قطعة ٢" /></label>
-        <label>الطلب <input name="items" required maxlength="160" placeholder="مجبوس دجاج ×٢" /></label>
+        <label>العنوان <input name="address" required maxlength="160" placeholder="السالمية، قطعة 2" /></label>
+        <label>الطلب <input name="items" required maxlength="160" placeholder="مجبوس دجاج ×2" /></label>
         <label>المبلغ (د.ك) <input name="amount" type="number" min="0" step="0.050" required placeholder="5.500" /></label>
         <label>المندوب <select name="courier" id="del-courier"><option value="">— بدون —</option></select></label>
         <button class="btn primary" type="submit">إضافة الطلب</button>

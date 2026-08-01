@@ -659,6 +659,58 @@ def scan_checks(pg, br):
     flagged = [f for f in list(PAGES) + list(STUBS) if "\U0001F1F0\U0001F1FC" in (ROOT / f).read_text()]
     check(S, "no page carries the flag emoji", not flagged, str(flagged))
 
+    # ── the 2026-08-01 scan, each finding pinned ──────────────────────────
+    # One numeral system across the whole site, not just the company page:
+    # placeholders read "٨ أحرف" and the not-found page was titled ٤٠٤ while
+    # every figure beside them was Latin.
+    for f in list(PAGES) + list(STUBS):
+        t = (ROOT / f).read_text()
+        body = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", t, flags=re.S)
+        body = re.sub(r"<!--.*?-->", "", body, flags=re.S)
+        found = re.findall(r"[٠-٩]", body)
+        check(S, f"{f}: one numeral system in the markup", not found, f"{len(found)} Arabic-Indic")
+
+    # The shared token set must not diverge — --sans had drifted into three
+    # different font stacks, and admin was missing two colours outright.
+    def tokset(t):
+        m = re.search(r":root\s*\{(.*?)\}", t, re.S)
+        return dict(re.findall(r"--([a-z0-9-]+):\s*([^;]+);", m.group(1))) if m else {}
+    home_tok = tokset((ROOT / "index.html").read_text())
+    for f in PAGES[1:]:
+        tk = tokset((ROOT / f).read_text())
+        drift = [k for k, v in home_tok.items()
+                 if k not in tk or tk[k].strip() != v.strip()]
+        check(S, f"{f}: carries the company page's token set", not drift, str(drift))
+
+    # Every form control needs a name a screen reader can read: five controls
+    # in the admin console had none.
+    for f in PAGES:
+        pg.goto(f"{BASE}/{f}", wait_until="networkidle"); pg.wait_for_timeout(500)
+        bare = pg.evaluate("""[...document.querySelectorAll('input,select,textarea')]
+          .filter(i => i.type !== 'hidden')
+          .filter(i => !(i.id && document.querySelector(`label[for="${i.id}"]`))
+                    && !i.closest('label') && !i.getAttribute('aria-label'))
+          .map(i => i.id || i.name || i.type)""")
+        check(S, f"{f}: every form control has a label", not bare, str(bare))
+
+    # WCAG 2.2 target size: footer links were 12px tall on three pages.
+    for f in PAGES:
+        pg.goto(f"{BASE}/{f}", wait_until="networkidle"); pg.wait_for_timeout(1800)
+        small = pg.evaluate("""[...new Set([...document.querySelectorAll('a[href],button')]
+          .filter(e => { const r = e.getBoundingClientRect(); return r.height > 0 && r.height < 24; })
+          .map(e => (e.textContent || '').trim().slice(0, 20) || e.tagName))]""")
+        check(S, f"{f}: interactive targets clear 24px", not small, str(small))
+
+    # the installed app's colour follows the masthead, like every page's meta
+    mani = json.loads((ROOT / "manifest.webmanifest").read_text())
+    check(S, "the manifest's theme colour is the masthead brown",
+          mani.get("theme_color") == "#6f3f1c", str(mani.get("theme_color")))
+
+    # every shipped page belongs in the offline shell — 404.html did not
+    sw = (ROOT / "sw.js").read_text()
+    for f in list(PAGES) + list(STUBS):
+        check(S, f"{f}: is precached for offline", f'"{f}"' in sw)
+
 # ───────────── النوخذة is free: one plan, no price, nothing to upgrade to
 def pricing_checks(pg):
     S = "pricing"
