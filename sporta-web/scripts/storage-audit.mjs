@@ -186,6 +186,7 @@ try {
       '/api/store.php',           // shared core, not an endpoint
       '/api/schema.mysql.sql',    // the schema
       '/api/seed.mysql.sql',      // the catalogue
+      '/api/brands.mysql.sql',    // the brands migration
     ]) {
       const { status } = head(p)
       ok(status === 403 || status === 404, `${p} is not served`, String(status))

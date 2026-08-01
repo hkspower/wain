@@ -95,6 +95,24 @@ and (until you delete it) `setup-admin.php` answer over HTTP.
    Visit `knet/selftest.php` afterwards: it names the database it will use and
    says so loudly if there is none. Delete that file when you are done.
 
+## Brands
+
+The admin's **Brands** tab manages the brands the shop carries: English and
+Arabic name, a logo, the order they appear in, and a switch for whether the
+storefront shows them. There is no delete — a brand with orders behind it is
+history, and hiding it is the reversible answer.
+
+**If your shop was set up before this feature**, import
+`api/brands.mysql.sql` once in phpMyAdmin. Fresh installs already have the
+table from `schema.mysql.sql`.
+
+The logo is stored **in the database**, as a capped `data:` URL, not as a file.
+That is deliberate on both backends: uploading would mean a PHP endpoint that
+writes into the web root, which this project forbids outright. The admin
+downscales the image to 320px in the browser before sending it, so a photo
+straight off a phone is fine. PNG, JPEG and WebP only — never SVG, which is a
+document that can carry script and would be served from our own origin.
+
 ## Day to day
 
 - **Admin:** `https://www.sporta.com.kw/admin` — email + password (session

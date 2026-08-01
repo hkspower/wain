@@ -224,6 +224,66 @@ if ($r === 'card_settled' && $method === 'POST') {
     store_out($q2->fetch());
 }
 
+// ------------------------------------------------------------------ brands
+// The admin sees EVERY brand, disabled ones included — a switch you cannot
+// see is a switch you cannot turn back on.
+if ($r === 'brands') {
+    store_out($db->query(
+        'select id, slug, name_en, name_ar, logo, active, sort from brands order by sort, name_en'
+    )->fetchAll());
+}
+
+// Create or rename a brand. One route for both: the admin screen has one form
+// and the difference is whether an id came with it.
+if ($r === 'brand_save' && $method === 'POST') {
+    $b = store_body();
+    $id = (int)($b['id'] ?? 0);
+    $nameEn = store_text($b['name_en'] ?? null, 'name_en', 1, 80);
+    $nameAr = store_text($b['name_ar'] ?? null, 'name_ar', 1, 80);
+    $slug = store_slug((string)($b['slug'] ?? '')) ?: store_slug($nameEn);
+    if ($slug === '') store_fail('invalid_slug');
+    $sort = (int)($b['sort'] ?? 0);
+    // Absent means "leave the logo alone"; empty string means "remove it".
+    $hasLogo = array_key_exists('logo', $b);
+    $logo = $hasLogo ? store_data_image($b['logo']) : null;
+
+    try {
+        if ($id > 0) {
+            $sql = 'update brands set slug = ?, name_en = ?, name_ar = ?, sort = ?'
+                 . ($hasLogo ? ', logo = ?' : '') . ' where id = ?';
+            $args = $hasLogo ? [$slug, $nameEn, $nameAr, $sort, $logo, $id]
+                             : [$slug, $nameEn, $nameAr, $sort, $id];
+            $db->prepare($sql)->execute($args);
+        } else {
+            $db->prepare('insert into brands (slug, name_en, name_ar, logo, sort) values (?, ?, ?, ?, ?)')
+               ->execute([$slug, $nameEn, $nameAr, $logo, $sort]);
+            $id = (int)$db->lastInsertId();
+        }
+    } catch (Throwable $e) {
+        // The slug is unique, and two brands with one slug is a storefront
+        // filter that shows the wrong things — name the clash, do not 500.
+        if (str_contains($e->getMessage(), 'Duplicate')) store_fail('slug_taken');
+        throw $e;
+    }
+    $q = $db->prepare('select id, slug, name_en, name_ar, logo, active, sort from brands where id = ?');
+    $q->execute([$id]);
+    store_out($q->fetch());
+}
+
+// Show it, or stop showing it. Never a delete: a brand with orders behind it
+// is history, and disabling is the reversible answer.
+if ($r === 'brand_active' && $method === 'POST') {
+    $b = store_body();
+    $id = (int)($b['id'] ?? 0);
+    $on = !empty($b['active']);
+    $db->prepare('update brands set active = ? where id = ?')->execute([$on ? 1 : 0, $id]);
+    $q = $db->prepare('select id, slug, active from brands where id = ?');
+    $q->execute([$id]);
+    $row = $q->fetch();
+    if (!$row) store_fail('brand_not_found');
+    store_out($row);
+}
+
 if ($r === 'customer' && $method === 'POST') {
     $b = store_body();
     $id = (int)($b['order_id'] ?? 0);

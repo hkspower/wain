@@ -81,6 +81,13 @@
   describes the product as an online payment link. Customer-facing copy therefore
   says "pay online with T-Pay" and does NOT promise a QR code — see the note in
   `src/i18n/translations.js`.
+- **Brands** are admin-managed on BOTH backends (`brands` table; MySQL in
+  `schema.mysql.sql` + the additive `dropin/php-store/brands.mysql.sql`,
+  Postgres in `supabase/brands-migration.sql`). The logo is a capped
+  `data:image/(png|jpeg|webp);base64,…` string **in the row, never a file** —
+  an upload endpoint would write into the web root, which this project
+  forbids. SVG is refused on both sides (it can carry script), and the bytes
+  are checked against the format's magic number, not just the label.
 - **Admin quick-unlock:** device passcode feature in `sporta-web/dropin/` (TS/shadcn
   drop-ins) backed by Supabase RPCs set_/verify_/has_device_passcode.
 - **Language:** site is bilingual Arabic/English (RTL/LTR).

@@ -12,6 +12,7 @@ import Inventory from './Inventory'
 import Images from './Images'
 import Orders from './Orders'
 import Catalog from './Catalog'
+import Brands from './Brands'
 import { IconBag, IconTruck, IconStar, IconLock, IconBox, IconImage } from '../components/icons'
 import { usingPhp, phpAdmin } from '../lib/backend'
 
@@ -229,6 +230,7 @@ const ADMIN_TABS = [
   { id: 'overview', label: 'Overview', Icon: IconStar },
   { id: 'orders',   label: 'Orders',   Icon: IconBag },
   { id: 'catalog',  label: 'Catalogue', Icon: IconTruck },
+  { id: 'brands',   label: 'Brands',   Icon: IconStar },
   { id: 'stock',    label: 'Inventory', Icon: IconBox },
   { id: 'images',   label: 'Images',   Icon: IconImage },
   { id: 'settings', label: 'Settings', Icon: IconLock },
@@ -297,6 +299,8 @@ function Dashboard({ email, onSignOut, onEnrollChange, notAdmin, onLockNow, canL
         {tab === 'orders' && <Orders key={orderFilter} initialPayment={orderFilter} />}
 
         {tab === 'catalog' && <Catalog />}
+
+        {tab === 'brands' && <Brands />}
 
         {tab === 'stock' && <Inventory />}
 

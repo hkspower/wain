@@ -217,6 +217,100 @@ export async function settleCard(orderId, bankReference) {
   return r
 }
 
+// --------------------------------------------------------------------- brands
+// The brands the shop carries: name, logo, and whether the storefront shows
+// them. The logo is a capped data: URL held in the row — see the note in
+// supabase/brands-migration.sql for why it is not a file on either backend.
+
+export async function fetchBrands() {
+  if (usingPhp()) {
+    const r = await php('brands')
+    return r.data ? { brands: r.data } : r
+  }
+  if (!ready()) return { error: NOT_CONFIGURED }
+  // The admin sees disabled brands too — a switch you cannot see is a switch
+  // you cannot turn back on.
+  const { data, error } = await supabase
+    .from('brands')
+    .select('id, slug, name_en, name_ar, logo, active, sort')
+    .order('sort')
+    .order('name_en')
+  if (error) {
+    if (isDeniedError(error)) return { notAdmin: true }
+    if (isSchemaError(error)) return { needsMigration: true }
+    return { error: error.message }
+  }
+  return { brands: data ?? [] }
+}
+
+export async function saveBrand(brand) {
+  if (usingPhp()) {
+    const r = await php('brand_save', { method: 'POST', body: brand })
+    if (r.data) return { brand: r.data }
+    return { error: brandError(r.error) }
+  }
+  if (!ready()) return { error: NOT_CONFIGURED }
+  const row = {
+    slug: brand.slug || slugify(brand.name_en),
+    name_en: brand.name_en,
+    name_ar: brand.name_ar,
+    sort: brand.sort ?? 0,
+    // Absent means "leave the logo alone", exactly as the PHP route reads it.
+    ...(Object.hasOwn(brand, 'logo') ? { logo: brand.logo || null } : {}),
+  }
+  const q = brand.id
+    ? supabase.from('brands').update(row).eq('id', brand.id)
+    : supabase.from('brands').insert(row)
+  const { data, error } = await q.select('id, slug, name_en, name_ar, logo, active, sort').single()
+  if (error) {
+    if (isDeniedError(error)) return { notAdmin: true }
+    if (isSchemaError(error)) return { needsMigration: true }
+    return { error: brandError(error.message) }
+  }
+  return { brand: data }
+}
+
+export async function setBrandActive(id, active) {
+  if (usingPhp()) {
+    const r = await php('brand_active', { method: 'POST', body: { id, active } })
+    return r.data ? { brand: r.data } : { error: brandError(r.error) }
+  }
+  if (!ready()) return { error: NOT_CONFIGURED }
+  const { data, error } = await supabase
+    .from('brands').update({ active }).eq('id', id).select('id, slug, active').single()
+  if (error) {
+    if (isDeniedError(error)) return { notAdmin: true }
+    return { error: error.message }
+  }
+  return { brand: data }
+}
+
+// One translation table for both backends: the PHP route raises these tokens
+// and Postgres raises the matching constraint names, so an operator sees the
+// same sentence either way.
+function brandError(m = '') {
+  const s = String(m)
+  if (s.includes('logo_too_large') || s.includes('brands_logo_ck')) {
+    return 'That logo is too large or not a PNG/JPEG/WebP. Try a smaller image.'
+  }
+  if (s.includes('logo_bad_format') || s.includes('logo_not_an_image')) {
+    return 'That file is not a real PNG, JPEG or WebP image.'
+  }
+  if (s.includes('slug_taken') || s.includes('duplicate') || s.includes('23505')) {
+    return 'Another brand already uses that web name.'
+  }
+  if (s.includes('missing_name_en') || s.includes('missing_name_ar')) {
+    return 'Both the English and Arabic names are required.'
+  }
+  if (s.includes('invalid_slug') || s.includes('brands_slug_ck')) {
+    return 'The web name may only contain letters, numbers and dashes.'
+  }
+  return s || 'Could not save the brand.'
+}
+
+export const slugify = (s = '') =>
+  String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+
 export async function saveCustomer(orderId, fields) {
   if (usingPhp()) {
     const r = await php('customer', { method: 'POST', body: { order_id: orderId, fields } })

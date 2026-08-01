@@ -128,3 +128,32 @@ create table if not exists fulfilment_outbox (
 
 -- One picking list per order, guaranteed by the index rather than by memory.
 create unique index if not exists uq_outbox_new on fulfilment_outbox (new_once);
+
+-- ---------------------------------------------------------------- brands
+-- The brands the shop carries, managed from the admin: name, logo, and
+-- whether the storefront shows them.
+--
+-- THE LOGO LIVES IN THIS TABLE, as a `data:image/...;base64,…` URL, and that
+-- is deliberate. Uploading a file would mean a PHP endpoint that WRITES to the
+-- web root, and this project has a standing rule against exactly that — the
+-- live server once carried a sporta-deploy.php that answered to anyone on the
+-- internet. A row in a table cannot be executed, cannot be fetched directly,
+-- and is backed up with everything else. store_data_image() caps the size and
+-- allows only png/jpeg/webp — never SVG, which can carry script.
+--
+-- The same column shape as the Supabase twin (supabase/brands-migration.sql),
+-- so the admin screen cannot tell the two backends apart.
+create table if not exists brands (
+  id        int unsigned auto_increment primary key,
+  slug      varchar(80)  not null unique,
+  name_en   varchar(80)  not null,
+  name_ar   varchar(80)  not null,
+  -- mediumtext, not text: a 64 KB text column silently TRUNCATES a base64
+  -- logo, and a truncated data URL renders as a broken image with no error
+  -- anywhere. mediumtext holds 16 MB; store_data_image() caps it long before.
+  logo      mediumtext   null,
+  active    tinyint(1)   not null default 1,
+  sort      int          not null default 0,
+  created_at timestamp   not null default current_timestamp,
+  updated_at timestamp   not null default current_timestamp on update current_timestamp
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;

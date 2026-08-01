@@ -187,6 +187,54 @@ function store_payment_settled(PDO $db, int $orderId, string $newStatus): void {
     }
 }
 
+// A logo submitted from the admin, as a data: URL.
+//
+// The shop needs brand logos and the owner has no shell, so they arrive
+// through the browser — but nothing here writes a file. The lesson of
+// sporta-deploy.php stands: an endpoint that writes files is a way in. The
+// image becomes a row instead, and this is the gate it has to pass:
+//
+//   * png / jpeg / webp ONLY. Never SVG — an SVG is a document that can carry
+//     script, and it would be served from our own origin.
+//   * the base64 must actually decode, and the DECODED bytes must begin with
+//     that format's magic number, so "data:image/png;base64,<some html>" is
+//     rejected rather than stored and later served as an image.
+//   * a hard size cap. The admin downscales before sending; this is the floor
+//     under that, because a client-side limit is a suggestion.
+//
+// Returns the normalised data URL, or null when there is nothing to store.
+// Anything present but invalid fails the request outright — silently dropping
+// a logo would look like a save that worked.
+const STORE_LOGO_MAX = 160000;   // ~160 kB of base64, ~120 kB of image
+
+function store_data_image(?string $raw): ?string {
+    $v = trim((string)$raw);
+    if ($v === '') return null;
+    if (strlen($v) > STORE_LOGO_MAX) store_fail('logo_too_large');
+    if (!preg_match('#^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=\s]+)$#', $v, $m)) {
+        store_fail('logo_bad_format');
+    }
+    $bytes = base64_decode(preg_replace('/\s+/', '', $m[2]), true);
+    if ($bytes === false || strlen($bytes) < 32) store_fail('logo_bad_format');
+    $magic = [
+        'png'  => "\x89PNG\r\n\x1a\n",
+        'jpeg' => "\xff\xd8\xff",
+        'webp' => 'RIFF',
+    ][$m[1]];
+    if (!str_starts_with($bytes, $magic)) store_fail('logo_not_an_image');
+    // webp carries RIFF....WEBP; check the second marker too.
+    if ($m[1] === 'webp' && substr($bytes, 8, 4) !== 'WEBP') store_fail('logo_not_an_image');
+    return 'data:image/' . $m[1] . ';base64,' . preg_replace('/\s+/', '', $m[2]);
+}
+
+// A brand slug: what the storefront will filter on, so it is url-safe or it is
+// nothing. Derived from the English name when the admin does not supply one.
+function store_slug(string $s): string {
+    $slug = strtolower(trim($s));
+    $slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
+    return trim((string)$slug, '-');
+}
+
 // ------------------------------------------------------------------ admin auth
 
 function store_session_start(): void {

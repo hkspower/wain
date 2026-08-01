@@ -49,7 +49,9 @@ const run = promisify(execFile)
 await run('mariadb', ['sporta', '-e',
   'delete from fulfilment_outbox; delete from order_items; delete from orders; ' +
   'update admin_users set failed_attempts = 0, locked_until = null; ' +
-  "delete from admin_users where email <> 'cs@sporta.com.kw';"])
+  "delete from admin_users where email <> 'cs@sporta.com.kw'; " +
+  // the brand this suite creates, so a second run starts from the seed again
+  "delete from brands where slug in ('test-brand','renamed');"])
 
 const CUSTOMER = {
   name: 'Fatima Al-Sabah', phone: '٩٩٨٨٧٧٦٦', governorate: 'hawalli', area: 'Salmiya',
@@ -187,6 +189,69 @@ const order = (track, items, extra = {}) =>
   is(ghost.body?.error === 'sku_not_found', 'an unknown SKU is named, not silently ignored')
   const { body: variants } = await admin('variants')
   is(variants.some((v) => v.cost_aed != null), 'the ADMIN variants do include the wholesale cost')
+}
+
+// -------------------------------------------------------------------- brands
+{
+  const { body: list } = await admin('brands')
+  is(Array.isArray(list) && list.length >= 8, 'the admin sees the seeded brands', `${list?.length}`)
+
+  const made = await admin('brand_save', { method: 'POST',
+    body: JSON.stringify({ name_en: 'Test Brand', name_ar: 'علامة', sort: 99 }) })
+  is(made.body?.slug === 'test-brand', 'a new brand is created, slug derived from the name', made.body?.slug)
+  const id = made.body?.id
+
+  const dupe = await admin('brand_save', { method: 'POST',
+    body: JSON.stringify({ name_en: 'Test Brand', name_ar: 'علامة' }) })
+  is(dupe.body?.error === 'slug_taken', 'two brands cannot share one web name', dupe.body?.error)
+
+  const renamed = await admin('brand_save', { method: 'POST',
+    body: JSON.stringify({ id, slug: 'test-brand', name_en: 'Renamed', name_ar: 'مُعاد' }) })
+  is(renamed.body?.name_en === 'Renamed', 'a brand can be renamed')
+  is(renamed.body?.logo === null, 'and omitting the logo leaves it alone')
+
+  // A 1x1 PNG, the smallest real image there is.
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+  const withLogo = await admin('brand_save', { method: 'POST',
+    body: JSON.stringify({ id, slug: 'test-brand', name_en: 'Renamed', name_ar: 'مُعاد', logo: PNG }) })
+  is(withLogo.body?.logo?.startsWith('data:image/png;base64,'), 'a logo is stored on the row')
+
+  // The guards. Each of these would otherwise be served from our own origin.
+  const svg = await admin('brand_save', { method: 'POST',
+    body: JSON.stringify({ id, name_en: 'X', name_ar: 'X', logo: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=' }) })
+  is(svg.body?.error === 'logo_bad_format', 'an SVG logo is refused — it can carry script', svg.body?.error)
+
+  const liar = await admin('brand_save', { method: 'POST',
+    body: JSON.stringify({ id, name_en: 'X', name_ar: 'X',
+      // Padded past the 32-byte sanity floor on purpose, so this reaches the
+      // MAGIC NUMBER check rather than being turned away for being too short —
+      // the point is that the bytes are inspected, not just the label.
+      logo: 'data:image/png;base64,' + Buffer.from(
+        '<html><script>alert(1)</script><!-- ' + 'x'.repeat(64) + ' -->').toString('base64') }) })
+  is(liar.body?.error === 'logo_not_an_image',
+     'a file CLAIMING to be a png is checked against the real magic number', liar.body?.error)
+
+  const huge = await admin('brand_save', { method: 'POST',
+    body: JSON.stringify({ id, name_en: 'X', name_ar: 'X', logo: 'data:image/png;base64,' + 'A'.repeat(200000) }) })
+  is(huge.body?.error === 'logo_too_large', 'an oversized logo is refused', huge.body?.error)
+
+  const noName = await admin('brand_save', { method: 'POST',
+    body: JSON.stringify({ name_en: '', name_ar: '' }) })
+  is(noName.body?.error === 'missing_name_en', 'a brand needs a name', noName.body?.error)
+
+  // The switch, and what the PUBLIC endpoint does about it.
+  const before = await api('brands')
+  is(before.body.some((b) => b.slug === 'test-brand'), 'an active brand is public')
+  const off = await admin('brand_active', { method: 'POST', body: JSON.stringify({ id, active: false }) })
+  is(Number(off.body?.active) === 0, 'a brand can be hidden')
+  const after = await api('brands')
+  is(!after.body.some((b) => b.slug === 'test-brand'),
+     'a hidden brand disappears from the storefront — the switch means something')
+  const { body: adminList } = await admin('brands')
+  is(adminList.some((b) => b.slug === 'test-brand'),
+     'but the ADMIN still sees it, or it could never be turned back on')
+  is(!JSON.stringify(after.body).includes('sort'),
+     'the public endpoint sends only what a storefront needs')
 }
 
 // -------------------------------------------------------------------- throttle

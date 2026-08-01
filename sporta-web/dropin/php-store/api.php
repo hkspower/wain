@@ -30,6 +30,17 @@ if ($r === 'products') {
     store_out($rows);
 }
 
+// ------------------------------------------------------------------ brands
+// The brands the storefront may show. ACTIVE ONLY — "disabled" has to mean
+// invisible to a shopper or the switch means nothing. The logo travels as the
+// data URL it is stored as, so a brand needs no second request and no file.
+if ($r === 'brands') {
+    $rows = $db->query(
+        'select slug, name_en, name_ar, logo from brands where active = 1 order by sort, name_en'
+    )->fetchAll();
+    store_out($rows);
+}
+
 // ------------------------------------------------------------------- stock
 if ($r === 'stock') {
     // Same columns as the product_stock view — and NOT cost_aed, which is the
