@@ -1,5 +1,10 @@
-// Builds SPORTA-KNET-FIX.zip — the SMALL upload: only the server files the
-// KNET fix actually changed, not the 1.8 MB site.
+// Builds SPORTA-PAYMENTS-FIX.zip — the SMALL upload: only the server files the
+// payment fixes actually changed, not the 1.8 MB site.
+//
+// It covers BOTH gateways, because they were fixed together and for the same
+// reasons: each was Supabase-only and therefore dead on the native backend,
+// each could be replayed into a duplicate warehouse email, and T-Pay could
+// additionally be talked into pricing an order that did not exist.
 //
 // It exists as a script for the same reason make-package.mjs does. A
 // hand-assembled zip goes stale the moment the source moves, and this project
@@ -17,7 +22,7 @@ import { fileURLToPath } from 'node:url'
 const web = join(dirname(fileURLToPath(import.meta.url)), '..')
 const root = join(web, '..')
 const stage = '/tmp/sporta-knet-fix'
-const out = join(root, 'SPORTA-KNET-FIX.zip')
+const out = join(root, 'SPORTA-PAYMENTS-FIX.zip')
 
 // The files this fix changes on the server, and where each lands under
 // public_html. Kept explicit: a glob would quietly start shipping whatever
@@ -28,31 +33,45 @@ const FILES = [
   ['dropin/php-knet/pay.php', 'knet/pay.php'],
   ['dropin/php-knet/selftest.php', 'knet/selftest.php'],
   ['dropin/php-knet/config.example.php', 'knet/config.example.php'],
+  ['dropin/php-cbk/pay.php', 'pay/pay.php'],
+  ['dropin/php-cbk/cbk.php', 'pay/cbk.php'],
+  ['dropin/php-cbk/callback.php', 'pay/callback.php'],
+  ['dropin/php-cbk/config.example.php', 'pay/config.example.php'],
   ['dropin/php-store/admin.php', 'api/admin.php'],
 ]
 
-const README = `SPORTA — KNET fix. Upload these 6 files, nothing else.
-======================================================
+const README = `SPORTA — payment fixes. Upload these files, nothing else.
+========================================================
 
 WHERE THEY GO (hPanel -> File Manager -> public_html)
 
-  knet/callback.php        overwrite
-  knet/knet.php            overwrite
-  knet/pay.php             overwrite
-  knet/selftest.php        overwrite
-  knet/config.example.php  overwrite   (reference only)
-  api/admin.php            overwrite
+  KNET (debit card at checkout)
+    knet/callback.php        overwrite
+    knet/knet.php            overwrite
+    knet/pay.php             overwrite
+    knet/selftest.php        overwrite
+    knet/config.example.php  overwrite   (reference only)
 
-DO **NOT** touch knet/config.php or api/config.php. Those hold your
-credentials, they are not in this zip, and nothing here overwrites them.
+  T-Pay (online payment link)
+    pay/pay.php              overwrite
+    pay/cbk.php              overwrite
+    pay/callback.php         overwrite
+    pay/config.example.php   overwrite   (reference only)
+
+  Admin
+    api/admin.php            overwrite
+
+DO **NOT** touch knet/config.php, pay/config.php or api/config.php. Those
+hold your credentials, they are not in this zip, and nothing here
+overwrites them.
 
 
-THEN — THE ONE EDIT THAT MAKES CARDS WORK
------------------------------------------
+THEN — THE EDIT THAT MAKES PAYMENTS WORK
+----------------------------------------
 Only if config.js says  backend: 'php'  (the native MySQL backend).
 
-Open  knet/config.php  and add these five lines inside the list, using the
-SAME database values that are already in api/config.php:
+Open  knet/config.php  AND  pay/config.php  and add these five lines to
+EACH of them, using the SAME database values already in api/config.php:
 
     'store'      => 'mysql',
     'mysql_host' => 'localhost',
@@ -60,7 +79,8 @@ SAME database values that are already in api/config.php:
     'mysql_user' => 'YOUR_DB_USER',
     'mysql_pass' => 'YOUR_DB_PASSWORD',
 
-Without this every card payment is refused with "400 Invalid amount".
+Without this, KNET refuses every card with "400 Invalid amount" and T-Pay
+refuses every payment as an unknown order.
 
 
 CHECK IT

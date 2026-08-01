@@ -39,7 +39,7 @@
     "scan": "node scripts/site-scan.mjs",
     "test:knet": "node scripts/knet-test.mjs",
     "test:tpay": "node scripts/tpay-test.mjs",
-    "package:knet": "node scripts/make-knet-fix.mjs"
+    "package:pay": "node scripts/make-payments-fix.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",
