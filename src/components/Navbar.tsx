@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconPinSolid } from "@/components/icons";
+import WainLogo from "@/components/WainLogo";
 
 const links = [
   { href: "/explore", label: "استكشف" },
@@ -26,9 +26,9 @@ export default function Navbar() {
         >
           <span
             aria-hidden="true"
-            className="grid size-9 place-items-center rounded-2xl bg-gradient-to-b from-coral-500 to-coral-700 text-white shadow-md shadow-coral-600/30 transition duration-300 group-hover:scale-105 group-hover:shadow-lg group-hover:shadow-coral-600/40"
+            className="transition duration-300 group-hover:scale-105"
           >
-            <IconPinSolid className="size-5" />
+            <WainLogo className="size-10" />
           </span>
           <span className="font-display text-2xl font-extrabold leading-none text-ink-900">
             وين<span className="text-coral-600">؟</span>

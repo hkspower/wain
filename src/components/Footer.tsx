@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { IconPinSolid } from "@/components/icons";
+import WainLogo from "@/components/WainLogo";
 import { categories } from "@/lib/places";
 
 export default function Footer() {
@@ -10,11 +10,8 @@ export default function Footer() {
           {/* Brand */}
           <div>
             <div className="flex items-center gap-2">
-              <span
-                aria-hidden="true"
-                className="grid size-8 place-items-center rounded-xl bg-gradient-to-b from-coral-500 to-coral-700 text-white shadow-sm"
-              >
-                <IconPinSolid className="size-4" />
+              <span aria-hidden="true">
+                <WainLogo className="size-9" />
               </span>
               <span className="font-display text-xl font-extrabold text-ink-900">
                 وين<span className="text-coral-600">؟</span>
