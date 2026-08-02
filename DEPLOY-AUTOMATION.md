@@ -26,7 +26,8 @@ verify. So the machine doing it needs Node, the repo, and the FTP credential.
 | Owner's Mac (`publish:watch`) | Only while it is awake | Yes | Yes — `.env.deploy` | **Half the answer** |
 | GitHub Actions | **Yes** | Yes | Needs 3 secrets added | **The other half** |
 | n8n cloud | Yes | **No** — cannot run `npm run build` | Yes, already configured | Cannot deploy code alone |
-| Hostinger cron | Yes | No — the account has no shell (`/sbin/nologin`), SSH is off for good | It *is* the server | Not available |
+| **hPanel → Advanced → GIT** | Yes | **No** — no Node on shared hosting | It *is* the server | **Possible, but only with a pre-built branch** — see below |
+| Hostinger cron | Yes | No — and it cannot fetch a build either | It *is* the server | Rejected — see below |
 | Claude's sandbox | — | Yes | **No route and no credential** | Impossible — see below |
 
 ### Why n8n cannot do this on its own
@@ -37,6 +38,55 @@ so it looks like the obvious answer. It is not: n8n moves files, it cannot run
 already built. That adds a moving part without removing one, so it is not part
 of this plan. (n8n remains the right tool for the *image-generation* workflow in
 `brand/category-art/n8n-banner-workflow.js`, which only moves files.)
+
+### hPanel's own Git deployment — the hPanel-native option
+
+hPanel has a Git section (**Advanced → GIT**) that clones a repository into a
+directory and gives back a webhook URL; adding that URL to GitHub makes every
+push pull itself onto the server. It is the only auto-deploy that lives *inside*
+hPanel, which is where the owner works, so it deserves a straight answer rather
+than being left off the table.
+
+**It cannot build.** Shared hosting has no Node, so whatever branch it watches
+must already contain the finished `public_html/` tree — `dist/` plus the bundled
+PHP, exactly what the zip contains. Producing that is a build, and a build has
+to happen somewhere with Node. So this route does not remove GitHub Actions; it
+changes what the Action does, from *uploading the site* to *committing the built
+site to a branch*.
+
+What that buys, and it is not nothing:
+
+- **No FTP credential ever leaves hPanel.** The Action holds nothing; the server
+  pulls. That is a smaller blast radius than three secrets in a CI system.
+- The rollback is `git revert` and a webhook, visible in hPanel.
+
+What it costs:
+
+- **A `.git` directory inside the web root.** Everything ever committed becomes
+  one careless rule away from public — every old secret, every rotated password.
+  This repository's `.htaccess` blocks it today (`/.git/config`, `/.git/HEAD`
+  and `/.git/refs/*` all answer 403, asserted in `storage-audit.mjs` since this
+  option was considered) — but it blocks it *because that file is there*, and
+  the single most common hPanel mistake is uploading without `.htaccess`.
+  Missing `.htaccess` is a bad day on its own; missing `.htaccess` **plus** a
+  `.git` in the web root is a source-code leak.
+- A second branch of built output, which is a second thing to keep honest.
+- `git pull` keeps untracked files, so `knet/config.php` survives — but a clean
+  re-clone would not, and nothing in hPanel promises which one it does.
+
+**Verdict: viable, and the better choice if keeping the FTP credential off
+GitHub matters more than simplicity.** Otherwise Half 2 below is fewer moving
+parts for the same result. Check the plan actually has the Git section — it is
+not on every tier — before planning around it.
+
+### Why Hostinger's cron is not the answer either
+
+Cron jobs *do* work without SSH: hPanel runs them, and they can execute PHP. So
+the reason to say no is not "no shell", it is what the job would have to do —
+download a build from somewhere and unpack it over the web root. That is a
+script on the server that writes into `public_html`, which is the thing
+`sporta-deploy.php` was, minus the listener. Whoever controls the URL it fetches
+controls the site. Not worth it when FTPS already works.
 
 ### Why Claude cannot be the runner
 
@@ -139,9 +189,27 @@ the reason this is safe to run unattended:
   `concurrency` group in the Action, with `cancel-in-progress: false` because a
   cancelled deploy is a half-uploaded site).
 
+## Before trusting any of it: `npm run test:publish`
+
+Automation means `npm run publish` runs with nobody looking, so the run itself
+is worth proving first. `npm run test:publish` stands up a **real FTPS server**
+with TLS, seeds it with a `config.js`, `knet/config.php`, `pay/config.php` and
+`api/config.php` holding pretend-live credentials, and does a genuine publish
+into it. Then it checks the things that only matter when nobody is watching:
+
+- all four credential files still hold their original values,
+- a file the deploy did not put there is still there (`mirror` is false),
+- `index.html`, `.htaccess`, `knet/.htaccess` and `sw.js` arrived byte for byte,
+- `index.html` was uploaded **last** of 108,
+- the setup tools the owner was told to delete were not put back,
+- `.env` and `.env.deploy` were never sent.
+
+It skips itself if pyftpdlib or openssl is absent, rather than passing quietly.
+
 ## Order to do this in
 
 1. `cd sporta-web && npm run ftp:doctor` — confirm the real FTP host.
+1b. `npm run test:publish` — prove the publish itself, before automating it.
 2. Fill `sporta-web/.env.deploy` (git-ignored) and run `npm run publish` **once,
    by hand**, to prove the credentials end to end.
 3. `npm run publish:watch` — you now have automatic deploys while you work.

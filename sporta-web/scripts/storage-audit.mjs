@@ -85,6 +85,23 @@ writeFileSync(`${ROOT}/www/sub/.htaccess`, '<IfModule mod_rewrite.c>\n  RewriteE
 for (const name of ['.token.json', '.env', 'x.log', 'package.json'])
   writeFileSync(`${ROOT}/www/sub/${name}`, 'SECRET\n')
 
+// A .git directory in the web root.
+//
+// Not hypothetical: hPanel's own Git deployment (Advanced -> GIT) clones INTO
+// the target directory, so choosing public_html puts .git there. If it is
+// readable, the whole repository is — every commit, every file ever committed,
+// including anything that was a secret at the time and got rotated later.
+//
+// The interesting file is NOT the dotfile. /.git/config is a plain name inside
+// a dot-DIRECTORY, so the <FilesMatch> that catches .env and .DS_Store does not
+// look at it — only the path-based rule does. That distinction is exactly the
+// kind that holds until someone reorganises the rules, which is why it is
+// asserted rather than reasoned about.
+mkdirSync(`${ROOT}/www/.git/refs`, { recursive: true })
+writeFileSync(`${ROOT}/www/.git/config`, '[remote "origin"]\n  url = git@github.com:owner/private.git\n')
+writeFileSync(`${ROOT}/www/.git/HEAD`, 'ref: refs/heads/sporta-live\n')
+writeFileSync(`${ROOT}/www/.git/refs/x`, 'deadbeef\n')
+
 // A folder with no index file, to prove directory listing is off.
 mkdirSync(`${ROOT}/www/emptyish`, { recursive: true })
 writeFileSync(`${ROOT}/www/emptyish/thing.txt`, 'x\n')
@@ -164,6 +181,12 @@ try {
   }
 
   console.log('\n## The payment endpoints')
+  for (const p of ['/.git/config', '/.git/HEAD', '/.git/refs/x']) {
+    const { status } = head(p)
+    ok(status === 403 || status === 404, `${p} is not served`,
+       `${status} — hPanel's Git deploy would put this in the web root`)
+  }
+
   ok(head('/pay/.cbk_token.json').status !== 200, 'the CBK bearer token is not served',
     'and its default location is now above the web root entirely')
   for (const p of ['/knet/config.php', '/pay/config.php', '/knet/config.example.php', '/pay/cbk.php']) {

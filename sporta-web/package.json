@@ -32,6 +32,7 @@
     "publish": "node scripts/publish-ftps.mjs",
     "publish:dry": "node scripts/publish-ftps.mjs --dry-run",
     "publish:watch": "node scripts/publish-watch.mjs",
+    "test:publish": "node scripts/publish-test.mjs",
     "ftp:doctor": "node scripts/ftp-doctor.mjs",
     "test:native": "node scripts/native-backend-test.mjs",
     "test:native-e2e": "node scripts/native-e2e-test.mjs",
