@@ -211,10 +211,17 @@ if (!$configured) {
             continue;
         }
         $c = array_change_key_case((array) (require $p), CASE_LOWER);
+        // A PLACEHOLDER IS NOT A CREDENTIAL. config.example.php ships
+        // YOUR_TRANPORTAL_ID, YOUR_TRANPORTAL_PASSWORD and
+        // YOUR_TERMINAL_RESOURCE_KEY, and a check for "not empty" accepted
+        // every one of them — so copying the example and filling in nothing
+        // reported "credentials set" and the ladder walked straight past step
+        // 6 to declare the shop live.
+        $unset = fn ($v) => $v === '' || str_starts_with(strtoupper((string) $v), 'YOUR_');
         $blank = [];
-        foreach ($keys as $k) if (($c[$k] ?? '') === '') $blank[] = $k;
+        foreach ($keys as $k) if ($unset($c[$k] ?? '')) $blank[] = $k;
         check($blank ? $sev : 'ok', $rel,
-              $blank ? 'empty: ' . implode(', ', $blank) : 'credentials set',
+              $blank ? 'still the example value: ' . implode(', ', $blank) : 'credentials set',
               'These come from CBK, on the activation letter for THIS product. KNET credentials do not work for T-Pay and T-Pay credentials do not work for KNET.', $step);
         $mysql = array_filter(['mysql_host', 'mysql_name', 'mysql_user', 'mysql_pass'],
                               fn ($k) => ($c[$k] ?? '') === '');
@@ -234,16 +241,71 @@ if (!$configured) {
                   'AES-128 needs 16 bytes. 17 usually means a trailing space or newline came along with the copy/paste; 0 means it is still the placeholder text.', 6);
         }
 
-        // Which gateway this is actually pointed at. Both directions are a
-        // real mistake: testing against the live bank, or taking real money on
-        // the test one and wondering why it never settles.
-        $env = strtolower((string) ($c['env'] ?? ''));
-        check($env === 'production' ? 'ok' : 'warn', "$rel: env",
-              $env === '' ? 'not set' : $env,
-              $env === 'production'
+        // ------------------------------------------------ ready to go live?
+        //
+        // Step 7 is not "is env set to production". It is "may this safely BE
+        // set to production", which is a different question and the one worth
+        // answering before real money is involved: the flip changes one word
+        // and every card after it is somebody's actual money.
+        //
+        // Everything below is checked whichever mode the shop is in, so the
+        // answer is ready BEFORE the switch rather than discovered by the
+        // first live customer.
+        $env  = strtolower((string) ($c['env'] ?? ''));
+        $live = $env === 'production';
+        $s7   = $rel === 'knet/config.php' ? 7 : 0;
+
+        if ($rel === 'knet/config.php') {
+            $prod = (string) ($c['production_url'] ?? '');
+            $test = (string) ($c['test_url'] ?? '');
+            // The flip swaps which URL is used. If production_url is empty,
+            // still the test host, or the same string as test_url, then
+            // switching to production changes nothing except the label — and
+            // that is the failure that looks exactly like success: orders
+            // "succeed" all day against a gateway that settles nothing.
+            $badProd = $prod === '' || $prod === $test
+                       || stripos($prod, 'test') !== false || !str_starts_with($prod, 'https://');
+            check($badProd ? 'bad' : 'ok', 'knet: production_url',
+                  $prod === '' ? 'not set' : $prod,
+                  'This is the URL the flip switches TO. If it is empty, still a test host, or the same as test_url, then going live changes the label and nothing else — and payments keep landing on a gateway that never settles. CBK gives you the production URL; do not guess it.', $s7);
+
+            // The bank can only report a result to a URL it can reach, and
+            // KNET requires https. A callback still pointing at localhost or
+            // http is a payment that is taken and never recorded.
+            foreach (['response_url' => 'where the bank reports success',
+                      'error_url'    => 'where it reports failure',
+                      'result_page_url' => 'where the customer lands afterwards'] as $k => $why) {
+                $u = (string) ($c[$k] ?? '');
+                $okUrl = str_starts_with($u, 'https://') && stripos($u, 'localhost') === false;
+                check($okUrl ? 'ok' : 'bad', "knet: $k", $u === '' ? 'not set' : $u,
+                      "$why. It must be a public https:// URL on your own domain, and the response and error URLs must be the ones REGISTERED WITH CBK — the bank posts to what it has on file, not to what is in this file.", $s7);
+            }
+
+            // The audit trail. A payment system whose log cannot be written
+            // cannot be reconciled, and a dispute is then the customer's word
+            // against nothing.
+            $logf = (string) ($c['log_file'] ?? '');
+            if ($logf === '') {
+                check('warn', 'knet: log_file', 'disabled',
+                      'No payment audit trail. Disputes and reconciliation have nothing to go on.', $s7);
+            } else {
+                $dir = dirname($logf);
+                $writable = (is_file($logf) && is_writable($logf)) || (!is_file($logf) && is_writable($dir));
+                $above = !str_starts_with(realpath($dir) ?: $dir, realpath($root) ?: $root);
+                check($writable ? 'ok' : 'bad', 'knet: log_file writable', $logf,
+                      'PHP cannot write the payment log. Check the folder exists and its permissions.', $s7);
+                check($above ? 'ok' : 'bad', 'knet: log_file is above public_html',
+                      $above ? 'yes' : 'NO — it is inside the web root',
+                      'A payment log inside public_html is downloadable over HTTP. Move it one directory up, as config.example.php has it.', $s7);
+            }
+        }
+
+        // And finally the switch itself.
+        check($live ? 'ok' : 'warn', "$rel: env", $env === '' ? 'not set' : $env,
+              $live
                 ? ''
-                : "Still pointed at the TEST gateway, so real cards will not work. Change env to 'production' — but ONLY after CBK confirms the account is live, and after you have put a test order through.",
-              $rel === 'knet/config.php' ? 7 : 0);
+                : "Everything above is what has to be right BEFORE this changes. When they are all green, CBK has confirmed the account is live, and you have put one test order through: change env to 'production' in $rel. Then make one real purchase with a real card and refund it.",
+              $s7);
     }
 }
 
