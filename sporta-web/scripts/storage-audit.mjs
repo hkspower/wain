@@ -215,10 +215,24 @@ try {
   const hashed = readdirSync(join(DIST, 'assets')).find((f) => /-[A-Za-z0-9_-]{8,}\.js$/.test(f))
   const tiers = [
     [`/assets/${hashed}`, /immutable/, 'immutable — content-hashed'],
-    ['/cats/mobile/art-men.webp', /max-age=2592000/, '30 days — fixed name'],
-    ['/cats/desktop/art-men.webp', /max-age=2592000/, '30 days — fixed name'],
+    // The pictures the owner replaces. A day fresh, then a month of serving
+    // the old copy while fetching the new one — NOT the thirty hard days the
+    // other fixed-name images get, which made a replaced hero invisible for a
+    // month. The folder is what decides this, so both folders are asserted.
+    ['/hero/desktop/strength.webp', /max-age=86400/, 'a day — the owner replaces these'],
+    ['/hero/mobile/strength.webp', /max-age=86400/, 'a day — the owner replaces these'],
+    ['/cats/mobile/art-men.webp', /max-age=86400/, 'a day — the owner replaces these'],
+    ['/cats/desktop/art-men.webp', /max-age=86400/, 'a day — the owner replaces these'],
+    // …while everything else fixed-name keeps the month.
+    ['/logo-white.webp', /max-age=2592000/, '30 days — fixed name, rarely changes'],
     ['/fonts/alexandria-var-latin.woff2', /max-age=2592000/, '30 days — fixed name'],
     ['/', /no-cache/, 'always revalidate'],
+    // A deep route is the SAME html, rewritten to it — and it has to carry the
+    // same no-cache, or a shell cached at a proxy outlives the chunks it names
+    // and the visitor gets a header, a logo and nothing else.
+    ['/shop', /no-cache/, 'the SPA shell, however it was reached'],
+    ['/product/anything', /no-cache/, 'the SPA shell, however it was reached'],
+    ['/backends', /no-cache/, 'the SPA shell, however it was reached'],
     ['/config.js', /no-cache/, 'edited in place on the server'],
     ['/robots.txt', /max-age=3600/, 'an hour'],
     ['/sw.js', /no-cache/, 'a stale service worker outlives deploys'],

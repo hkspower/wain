@@ -544,6 +544,104 @@ const order = (track, items, extra = {}) =>
   is(back.status === 200, 'everything answers normally again afterwards', `${back.status}`)
 }
 
+// ------------------------------------------------- the session cookie itself
+//
+// Everything about this cookie IS the admin: it is the only thing standing
+// between the internet and the screen that sets prices. Four properties, each
+// asserted because each is one word away from being absent.
+{
+  const res = await fetch(`${BASE}/admin.php?r=login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1',
+               // Hostinger terminates TLS in front of PHP, so this is the
+               // header the live server is actually judged on.
+               'X-Forwarded-Proto': 'https' },
+    body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }),
+  })
+  const set = res.headers.get('set-cookie') ?? ''
+  is(/^__Host-sporta_admin=/.test(set),
+     'over HTTPS the cookie takes the __Host- prefix, so no other host can write it',
+     set.split(';')[0])
+  is(/HttpOnly/i.test(set), 'HttpOnly — script cannot read the thing that IS the admin')
+  is(/SameSite=Strict/i.test(set), 'SameSite=Strict — no cross-site request carries it')
+  is(/Secure/i.test(set), 'Secure — and __Host- would be REFUSED by the browser without it')
+  // Case-insensitively: PHP emits `path=/` in lower case, and a case-sensitive
+  // check here failed on a cookie that was entirely correct.
+  is(!/domain=/i.test(set) && /path=\/(;|$)/i.test(set),
+     'no Domain and Path=/, which __Host- also requires', set)
+
+  // Plain HTTP has to keep working, or a local or half-configured server locks
+  // the owner out: a browser must REJECT a __Host- cookie that is not Secure.
+  const plain = await fetch(`${BASE}/admin.php?r=login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1' },
+    body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }),
+  })
+  const plainSet = plain.headers.get('set-cookie') ?? ''
+  is(/^sporta_admin=/.test(plainSet),
+     'without HTTPS it falls back to the unprefixed name rather than a cookie no browser will store',
+     plainSet.split(';')[0])
+}
+
+// --------------------------------------------- and how long it stays valid
+//
+// The cookie dies when the browser closes — but a desktop browser is not
+// closed for weeks, so the server keeps its own two clocks. They are tested by
+// winding the session file back, which is the only way to test a timeout
+// without waiting eight hours for it.
+{
+  const { readFileSync, writeFileSync, existsSync } = await import('node:fs')
+  const dir = (await run('php', ['-r', 'echo ini_get("session.save_path") ?: sys_get_temp_dir();'])).stdout
+  const sign = async () => {
+    const r = await fetch(`${BASE}/admin.php?r=login`, { method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1' },
+      body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }) })
+    return (r.headers.get('set-cookie') ?? '').split(';')[0]
+  }
+  const me = (c) => fetch(`${BASE}/admin.php?r=me`, { headers: { 'X-Sporta-Admin': '1', Cookie: c } })
+  const rewind = (c, key, seconds) => {
+    const f = `${dir}/sess_${c.split('=')[1]}`
+    if (!existsSync(f)) return false
+    const t = Math.floor(Date.now() / 1000) - seconds
+    writeFileSync(f, readFileSync(f, 'utf8').replace(new RegExp(`${key}\\|i:\\d+;`), `${key}|i:${t};`))
+    return true
+  }
+
+  const live = await sign()
+  is((await me(live)).status === 200, 'a fresh session is accepted')
+
+  // ?r=me is checked as well as the data routes, and that is the point of the
+  // test. The first version put the expiry only in store_require_admin(), which
+  // ?r=me does not call — so an expired session still answered "signed in", the
+  // dashboard rendered, and every panel on it then 401'd. An expiry that
+  // reports itself as eight broken screens is worse than none.
+  const idle = await sign()
+  if (rewind(idle, 'seen_at', 9 * 3600)) {
+    const r = await me(idle)
+    is(r.status === 200 && (await r.json()) === null,
+       'nine hours idle reads as signed OUT, on ?r=me and not only on the data routes')
+  } else { bad('could not locate the session file to age it') }
+
+  const oldSession = await sign()
+  if (rewind(oldSession, 'started_at', 8 * 86400)) {
+    const r = await me(oldSession)
+    is(r.status === 200 && (await r.json()) === null,
+       'and eight days old expires even if it was used a moment ago')
+  } else { bad('could not locate the session file to age it') }
+
+  // Signing out has to take the cookie with it. Emptying $_SESSION alone left
+  // the browser holding an id that a not-yet-collected session still answered.
+  const bye = await sign()
+  const out = await fetch(`${BASE}/admin.php?r=logout`, { method: 'POST',
+    headers: { 'X-Sporta-Admin': '1', Cookie: bye } })
+  is(/(^|;)\s*(__Host-)?sporta_admin=(;|\s|$)/.test(out.headers.get('set-cookie') ?? '')
+     || /expires=/i.test(out.headers.get('set-cookie') ?? ''),
+     'signing out clears the cookie, not just the server side',
+     out.headers.get('set-cookie') ?? '(none)')
+  is((await me(bye)).status === 200 && (await (await me(bye)).json()) === null,
+     'and the old cookie no longer resolves to anybody')
+}
+
 // ------------------------------------ config.php that MySQL will not accept
 //
 // The most common way a live install is broken, and for a long time the worst

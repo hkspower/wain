@@ -175,6 +175,31 @@ FileETag MTime Size
     Header set Cache-Control "public, max-age=2592000, stale-while-revalidate=604800"
   </FilesMatch>
 
+  # ...except the pictures the owner actually REPLACES.
+  #
+  # /hero and /cats are shipped artwork with fixed filenames, and swapping one
+  # is a normal thing to do — a new hero, a new category tile. Thirty days of
+  # hard freshness meant a returning visitor could not see the change for a
+  # month, and the service worker held the same file cache-first on top of
+  # that, so on neither path did the new picture arrive. A day fresh, then a
+  # month of drawing the old copy instantly while the new one is fetched
+  # behind it: same speed on every visit, a day's lag instead of a month's.
+  #
+  # SetEnvIf picks the FOLDER, because that is what the distinction is —
+  # logo.png and the favicons keep the thirty days above, and .htaccess cannot
+  # open a <Directory> block.
+  #
+  # The override then has to sit inside a <FilesMatch> of its own, and that is
+  # not cosmetic. Apache applies directives from a <FilesMatch> section AFTER
+  # the ones in the enclosing scope, whatever the order in the file — so the
+  # same rule written at this level was silently overwritten by the block
+  # above it. Measured against a real Apache: 2592000, not 86400. Same kind of
+  # section, later in the file, is what actually wins.
+  SetEnvIf Request_URI "^/(hero|cats)/" SPORTA_REPLACEABLE_IMAGE
+  <FilesMatch "\.(png|jpe?g|gif|webp|avif)$">
+    Header set Cache-Control "public, max-age=86400, stale-while-revalidate=2592000" env=SPORTA_REPLACEABLE_IMAGE
+  </FilesMatch>
+
   # robots.txt, llms.txt, the sitemaps and site.webmanifest had NO Cache-Control
   # at all, so every cache in the path guessed. They change only on a deploy and
   # crawlers fetch them repeatedly: an hour fresh, a day of serving the old copy

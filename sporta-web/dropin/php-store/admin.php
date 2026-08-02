@@ -23,14 +23,21 @@ if ($r === 'login' && $method === 'POST') {
 
 if ($r === 'logout' && $method === 'POST') {
     store_session_start();
-    $_SESSION = [];
-    session_destroy();
+    // Clears the cookie as well as the server-side session. Emptying $_SESSION
+    // and calling session_destroy() left the browser holding an id — expired
+    // server-side, but still sent on every request, and still the thing an
+    // attacker with the cookie would replay against a session PHP had not yet
+    // collected.
+    store_session_end();
     store_out(['ok' => true]);
 }
 
 if ($r === 'me') {
-    store_session_start();
-    if (empty($_SESSION['admin_id'])) {
+    // store_session_admin(), not store_session_start(): an expired session must
+    // read as signed OUT here, or the dashboard renders around a session every
+    // other route will refuse.
+    $who = store_session_admin();
+    if ($who === null) {
         // Not signed in — so answer the OTHER question the screen needs before
         // it offers a password box: is there anything to sign in to? Without
         // this, a server whose SQL was never imported and a server with no
@@ -42,7 +49,7 @@ if ($r === 'me') {
         }
         store_out(null);
     }
-    store_out(['email' => $_SESSION['admin_email'] ?? '']);
+    store_out(['email' => $who['email']]);
 }
 
 // Everything below this line is an admin.

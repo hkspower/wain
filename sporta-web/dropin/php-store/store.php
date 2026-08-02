@@ -349,31 +349,100 @@ function store_is_https(): bool {
         || (strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https');
 }
 
+// How long a signed-in admin stays signed in, enforced on the SERVER.
+//
+// The cookie itself is a session cookie, so closing the browser ends it — but
+// a desktop browser is not closed for weeks, and until now nothing else ended
+// it either. These two are the ordinary pair: idle expiry for a machine walked
+// away from, absolute expiry so a session cannot live indefinitely by being
+// touched. Generous on purpose; this is a shop, not a bank, and a re-login
+// every hour would only teach the owner to leave the password in a browser.
+const STORE_ADMIN_IDLE_SECONDS     = 8 * 3600;
+const STORE_ADMIN_ABSOLUTE_SECONDS = 7 * 86400;
+
 function store_session_start(): void {
     if (session_status() === PHP_SESSION_ACTIVE) return;
-    session_name('sporta_admin');
+    // See store_is_https(): reading $_SERVER['HTTPS'] alone left this false on
+    // the live server, behind Hostinger's TLS proxy.
+    $secure = store_is_https();
+    // __Host- is a promise the BROWSER enforces, and it is free: a cookie with
+    // that prefix is only accepted when it is Secure, Path=/ and carries no
+    // Domain — which this one already is. What it buys is that no other host
+    // can write it. Without the prefix, anything able to set a cookie for a
+    // sibling or parent name (a subdomain on the same account, a plain-HTTP
+    // page on this one) can plant a session id that this site would then read
+    // back as its own. With it, the cookie belongs to exactly this origin.
+    //
+    // Only over HTTPS, because a browser must REJECT a __Host- cookie that is
+    // not Secure — using the prefix on http would lock the admin out of a
+    // local or half-configured server entirely.
+    session_name($secure ? '__Host-sporta_admin' : 'sporta_admin');
     session_set_cookie_params([
         'lifetime' => 0,            // session cookie: closes with the browser
         'path'     => '/',
-        // See store_is_https(): reading $_SERVER['HTTPS'] alone left this
-        // false on the live server, behind Hostinger's TLS proxy.
-        'secure'   => store_is_https(),
+        'secure'   => $secure,
         'httponly' => true,         // no script access — this cookie IS the admin
         'samesite' => 'Strict',     // the CSRF defence: no cross-site request carries it
     ]);
     session_start();
 }
 
-// Every admin route calls this first. 401, not a redirect: the caller is the
-// React admin, and JSON is what it can act on.
-function store_require_admin(): array {
+// Ends the session and the cookie together. Unsetting $_SESSION alone leaves
+// the browser holding an id that still resolves, which is how a "signed out"
+// admin turns out not to be.
+function store_session_end(): void {
+    $_SESSION = [];
+    if (ini_get('session.use_cookies')) {
+        $p = session_get_cookie_params();
+        setcookie(session_name(), '', [
+            'expires'  => time() - 42000,
+            'path'     => $p['path'],
+            'secure'   => $p['secure'],
+            'httponly' => $p['httponly'],
+            'samesite' => $p['samesite'],
+        ]);
+    }
+    session_destroy();
+}
+
+// Who is signed in, or null — and the ONE place a session's age is judged.
+//
+// It has to be one place. The first version put the expiry inside
+// store_require_admin(), which every data route calls; ?r=me does not, because
+// it has to answer before anyone is signed in. So a session nine hours idle
+// still answered "signed in", the dashboard rendered, and then every panel on
+// it 401'd — an expiry that reported itself as eight broken screens. Both
+// callers come through here now.
+//
+// Expiry is ours rather than PHP's garbage collector's, because that collector
+// is shared hosting's to configure: its lifetime is whatever the host set, it
+// only runs probabilistically, and it cannot tell an idle session from an old
+// one. Two clocks, both ours — idle, and absolute.
+function store_session_admin(): ?array {
     store_session_start();
-    if (empty($_SESSION['admin_id'])) store_fail('not_signed_in', 401);
+    if (empty($_SESSION['admin_id'])) return null;
+    $now = time();
+    $started = (int) ($_SESSION['started_at'] ?? $now);
+    $seen    = (int) ($_SESSION['seen_at'] ?? $now);
+    if ($now - $seen > STORE_ADMIN_IDLE_SECONDS
+        || $now - $started > STORE_ADMIN_ABSOLUTE_SECONDS) {
+        store_session_end();
+        return null;
+    }
+    $_SESSION['seen_at'] = $now;
+    return ['id' => (int)$_SESSION['admin_id'], 'email' => $_SESSION['admin_email'] ?? ''];
+}
+
+// Every admin DATA route calls this first. 401, not a redirect: the caller is
+// the React admin, and JSON is what it can act on.
+function store_require_admin(): array {
+    $who = store_session_admin();
+    if ($who === null) store_fail('not_signed_in', 401);
     // SameSite=Strict stops the cookie travelling cross-site; this header stops
     // the residual cases (old browsers, subdomain surprises). The React admin
     // always sends it; nothing else has a reason to.
     if (($_SERVER['HTTP_X_SPORTA_ADMIN'] ?? '') !== '1') store_fail('bad_request', 400);
-    return ['id' => (int)$_SESSION['admin_id'], 'email' => $_SESSION['admin_email'] ?? ''];
+    return $who;
 }
 
 // Login with per-account throttling kept in the database, not the session —
@@ -421,6 +490,8 @@ function store_login(string $email, string $password): array {
     session_regenerate_id(true); // a fresh id on privilege change, always
     $_SESSION['admin_id'] = (int)$u['id'];
     $_SESSION['admin_email'] = $u['email'];
+    $_SESSION['started_at'] = time();
+    $_SESSION['seen_at'] = time();
     return ['id' => (int)$u['id'], 'email' => $u['email']];
 }
 

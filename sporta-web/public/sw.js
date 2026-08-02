@@ -16,10 +16,20 @@
 //      no-cache rule exists to prevent. Both are passed straight to the network,
 //      and if the network is down they fail, which is the correct answer.
 //
-//   2. CACHE FIRST, for /assets/ — content-hashed, so the filename changes when
-//      the bytes do and a cached copy can never be stale. Also fonts, images and
-//      the icons: fixed names, but a month old is not a problem for a logo, and
-//      the alternative on a bad connection is no logo.
+//   2. CACHE FIRST AND NEVER RE-ASKED, for /assets/ and /fonts/ — content-hashed
+//      or effectively frozen, so the filename changes when the bytes do and a
+//      cached copy can never be stale.
+//
+//   2b. CACHE FIRST, THEN QUIETLY REFRESHED, for images with FIXED names —
+//      /hero/, /cats/, the logo, the icons. These were in rule 2, and that was
+//      wrong in a way nothing surfaced: a hero photograph replaced by the owner
+//      kept its filename, so the cached copy was served for ever. The cache
+//      version only changes when the PRECACHE list changes, and that list is
+//      the JS chunks, two fonts and the shell — no images. Replacing a picture
+//      therefore did not rotate the cache, the HTTP layer had it at thirty days
+//      as well, and the new picture reached returning visitors on neither path.
+//      Now the cached copy is still served instantly, and a background fetch
+//      updates it for next time.
 //
 //   3. NETWORK FIRST, falling back to cache, for everything else — the HTML
 //      shell above all. A deploy must be picked up on the next visit, so the
@@ -49,11 +59,14 @@ const NEVER = (url) =>
   url.pathname.startsWith('/pay/') ||
   url.pathname === '/config.js'
 
-const CACHE_FIRST = (url) =>
+// Content-hashed, or frozen in practice. A hit is correct by construction.
+const IMMUTABLE = (url) =>
   url.pathname.startsWith('/assets/') ||
   url.pathname.startsWith('/fonts/') ||
-  url.pathname.startsWith('/cats/') ||
-  /\.(woff2?|png|jpe?g|webp|avif|svg|ico)$/.test(url.pathname)
+  /\.woff2?$/.test(url.pathname)
+
+// Fixed names whose BYTES change — every picture the owner can replace.
+const REFRESHABLE = (url) => /\.(png|jpe?g|webp|avif|svg|ico)$/.test(url.pathname)
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
@@ -81,7 +94,28 @@ self.addEventListener('fetch', (e) => {
   if (url.origin !== location.origin) return // the bank: always live
   if (NEVER(url)) return
 
-  if (CACHE_FIRST(url)) {
+  // Stale-while-revalidate, by hand. The visitor waits for nothing — the
+  // cached picture is returned immediately — and the network copy replaces it
+  // in the cache for the next load. waitUntil keeps the worker alive for that
+  // fetch; without it the browser is free to kill it the moment the response
+  // is handed over, and the refresh would never land.
+  if (REFRESHABLE(url) && !IMMUTABLE(url)) {
+    e.respondWith(
+      caches.match(request, { ignoreVary: true }).then((hit) => {
+        const fresh = fetch(request)
+          .then((res) => {
+            if (res.ok) caches.open(ASSETS).then((c) => c.put(request, res.clone()))
+            return res
+          })
+          .catch(() => hit ?? Response.error())
+        if (hit) e.waitUntil(fresh)
+        return hit ?? fresh
+      }),
+    )
+    return
+  }
+
+  if (IMMUTABLE(url)) {
     e.respondWith(
       // ignoreVary, and it is not optional. The server sends
       // "Vary: Accept-Encoding" on every compressible response, and
