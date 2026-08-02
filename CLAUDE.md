@@ -72,7 +72,7 @@
   Same bank, different activation, different credentials, different endpoints.
   **Neither set of credentials works for the other**, and T-Pay cannot be served
   through `/knet`. On the native backend `knet/config.php` MUST carry the
-  `'store' => 'mysql'` block or the card path is dead (400 Invalid amount) —
+  four `mysql_*` values or the card path is dead (400 Invalid amount) —
   `npm run test:knet` (39 checks, real MariaDB + a fake gateway speaking the
   real Tranportal protocol) is what keeps it alive. T-Pay has the same block
   and its own suite, `npm run test:tpay` (34 checks, fake CBK API) — it was

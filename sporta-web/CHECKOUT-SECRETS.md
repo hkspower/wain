@@ -72,7 +72,7 @@ Copy `knet/config.example.php` → `knet/config.php`. Credentials come from
 | `env` | `'test'` until CBK confirms live, then `'production'` | you test against the live gateway, or take real money on the test one |
 | `response_url` `error_url` | `https://www.sporta.com.kw/knet/callback.php` | the bank has nowhere to report the result |
 | `result_page_url` | `https://www.sporta.com.kw/payment/result` | the customer is left on a blank page after paying |
-| **`store` + `mysql_*`** (native only) | same values as `api/config.php` | **every card payment fails with "400 Invalid amount"** and nothing is ever recorded |
+| **the four `mysql_*`** | same values as `api/config.php`, renamed | **every card payment fails with "400 Invalid amount"** and nothing is ever recorded |
 | `callback_response` | leave `'both'` | see the question for CBK below |
 | `log_file` | leave as-is (above `public_html`) | no audit trail — disputes cannot be settled |
 
@@ -99,7 +99,7 @@ not work here and T-Pay credentials do not work in `/knet`.
 | `env` | `'test'` → `'production'` | as above |
 | `return_url` | `https://www.sporta.com.kw/pay/callback.php` | no result comes back |
 | `result_page_url` | `https://www.sporta.com.kw/payment/result` | customer stranded |
-| **`store` + `mysql_*`** (native only) | same values as `api/config.php` | **every T-Pay payment refused** and nothing recorded |
+| **the four `mysql_*`** | same values as `api/config.php`, renamed | **every T-Pay payment refused** and nothing recorded |
 | `token_cache_file` | leave as-is — **above** `public_html` | a live bearer token becomes fetchable over HTTP |
 | `log_file` | leave as-is (above `public_html`) | no audit trail — disputes cannot be settled |
 

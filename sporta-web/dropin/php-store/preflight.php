@@ -190,6 +190,28 @@ if (!$configured) {
         check($mysql ? 'bad' : 'ok', "$rel: database block",
               $mysql ? 'missing: ' . implode(', ', $mysql) : 'present',
               'These four name the SAME database as api/config.php, just spelled mysql_* instead of db_*. Without them every payment is refused with "Invalid amount" while the shop looks perfectly fine.');
+
+        // KNET's AES key must be EXACTLY 16 bytes, and the failure when it is
+        // not is the nastiest one in the whole money path: the bank rejects
+        // every transaction and says nothing useful about why. A trailing
+        // space off a copy/paste is the usual cause, so the count is what is
+        // reported rather than "set".
+        if ($rel === 'knet/config.php') {
+            $len = strlen((string) ($c['resource_key'] ?? ''));
+            check($len === 16 ? 'ok' : 'bad', 'knet/config.php: resource_key length',
+                  "$len bytes (must be exactly 16)",
+                  'AES-128 needs 16 bytes. 17 usually means a trailing space or newline got copied with it; 0 means it is still the placeholder.');
+        }
+
+        // Which gateway this is actually pointed at. Both directions are a
+        // real mistake: testing against the live bank, or taking real money on
+        // the test one and wondering why it never settles.
+        $env = strtolower((string) ($c['env'] ?? ''));
+        check($env === 'production' ? 'ok' : 'warn', "$rel: env",
+              $env === '' ? 'not set' : $env,
+              $env === 'production'
+                ? ''
+                : "Still on the TEST gateway — real cards will not work. Change env to 'production' once CBK confirms the account is live.");
     }
 }
 
