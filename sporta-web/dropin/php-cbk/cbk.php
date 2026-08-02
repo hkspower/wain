@@ -91,6 +91,18 @@ function cbk_order_amount(array $cfg, string $trackid): ?string
     return cbk_order_lookup($cfg, $trackid)['amount'];
 }
 
+// One NVP field, cut to the length and charset the gateway will accept.
+//
+// mb_substr, not substr: the payment reference may be Arabic, and slicing
+// UTF-8 down the middle of a character produces bytes the gateway reads as
+// invalid rather than as a shorter description.
+function cbk_field($value, int $max, ?string $strip = null): string
+{
+    $v = trim((string) $value);
+    if ($strip !== null) $v = preg_replace($strip, '', $v) ?? '';
+    return mb_substr($v, 0, $max);
+}
+
 // Basic auth header value: base64("ClientId:ClientSecret").
 function cbk_basic_auth(array $cfg): string
 {

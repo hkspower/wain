@@ -11,7 +11,65 @@ $cfg = require __DIR__ . '/config.php';
 $return = $cfg['result_page_url'];
 $encrp  = (string)($_REQUEST['encrp'] ?? '');
 
+// THE GATEWAY'S OTHER RETURN PATH, and it is in the manual: "On any error
+// during the transaction, the result page will be returned with" ErrorCode and
+// PayTrackID — NOT with encrp. (CBK Hosted KNET & T-Pay Integration & Reference
+// Manual v2.93, "Error", p.13.)
+//
+// This branch did not exist. A rejected request arrived with no encrp, took the
+// missing_encrp exit, and the order was left PENDING for ever: no failure
+// recorded, nothing logged, and the one thing that says exactly what was wrong
+// — a code from the table on p.15 — thrown away at the door. TIJ0002 is a
+// malformed amount, TIJ0009 an expired auth key, TIJ0020 a failure inside KNET
+// itself; each is a different fix and none of them could be seen.
+$errorCode  = strtoupper(trim((string)($_REQUEST['ErrorCode'] ?? $_REQUEST['errorcode'] ?? '')));
+$errorTrack = trim((string)($_REQUEST['PayTrackID'] ?? $_REQUEST['paytrackid'] ?? ''));
+
+if ($errorCode !== '') {
+    // Every code in the manual's table, so the log says what the bank meant
+    // rather than a five-character token nobody can look up in a hurry.
+    $CBK_ERRORS = [
+        'TIJ0001' => 'Invalid merchant language',
+        'TIJ0002' => 'Invalid merchant amount',
+        'TIJ0003' => 'Invalid merchant amount (KWD)',
+        'TIJ0004' => 'Invalid merchant track id',
+        'TIJ0005' => 'Invalid merchant UDF1',
+        'TIJ0006' => 'Invalid merchant currency',
+        'TIJ0007' => 'Invalid merchant payment reference',
+        'TIJ0008' => 'Invalid merchant pay type',
+        'TIJ0009' => 'Invalid merchant API authenticate key',
+        'TIJ0015' => 'Invalid merchant UDF2',
+        'TIJ0016' => 'Error in QR',
+        'TIJ0020' => 'Error in KNET',
+        'TIJ0022' => 'Invalid merchant UDF3',
+        'TIJ0023' => 'Invalid merchant UDF4',
+        'TIJ0024' => 'Invalid merchant UDF5',
+        'TIJ0027' => 'Invalid merchant return URL',
+    ];
+    $meaning = $CBK_ERRORS[$errorCode] ?? 'Unknown gateway error';
+    cbk_log($cfg, 'callback.gateway_error',
+            ['code' => $errorCode, 'meaning' => $meaning, 'trackid' => $errorTrack]);
+
+    // TIJ0009 is the one worth acting on rather than only recording: the token
+    // is stale, and the next payment should mint a fresh one instead of
+    // reusing the cached copy for the rest of its two hours.
+    if ($errorCode === 'TIJ0009' && !empty($cfg['token_cache_file'])) {
+        @unlink($cfg['token_cache_file']);
+    }
+
+    if ($errorTrack !== '') {
+        cbk_update_order($cfg, $errorTrack, false, [
+            'Status'  => '2',
+            'Message' => $errorCode . ' ' . $meaning,
+            'PayType' => 'CBK',
+        ]);
+    }
+    header('Location: ' . $return . '?status=failed&reason=' . rawurlencode($errorCode), true, 302);
+    exit;
+}
+
 if ($encrp === '') {
+    cbk_log($cfg, 'callback.no_encrp', ['query' => array_keys($_REQUEST)]);
     header('Location: ' . $return . '?status=error&reason=missing_encrp', true, 302);
     exit;
 }

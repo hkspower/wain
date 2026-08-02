@@ -220,5 +220,35 @@ head('the access token is cached, not re-fetched per payment')
   is(mode === '600', 'and the cache file is chmod 600 — it is a live bearer token', mode)
 }
 
+// ------------------------------------------- the gateway's OTHER return path
+//
+// CBK's manual (v2.93, "Error", p.13): on any error during the transaction the
+// return URL is called with ErrorCode and PayTrackID — not with encrp. That
+// branch did not exist here. A rejected request took the missing_encrp exit and
+// the order stayed PENDING for ever: no failure recorded, nothing logged, and
+// the code that says exactly what the bank objected to discarded at the door.
+head('a gateway ERROR return is recorded, not silently dropped')
+{
+  const track = 'TIJERR' + Date.now().toString(36).toUpperCase()
+  await sql(`insert into orders (track_id, amount, subtotal, payment_method, payment_status)
+             values ('${track}', 5.000, 5.000, 'tpay', 'pending')`)
+
+  // TIJ0002 is "Invalid Merchant Amount" in the manual's table.
+  const r = await get(`${PAY}/callback.php?ErrorCode=TIJ0002&PayTrackID=${track}`)
+  is(r.status === 302, 'the customer is still redirected, not shown a blank page', `${r.status}`)
+  is((r.headers.get('location') ?? '').includes('TIJ0002'),
+     'and the code travels to the result page', r.headers.get('location') ?? '')
+
+  const row = await sql(`select payment_status, cbk_message from orders where track_id = '${track}'`)
+  is(row.startsWith('failed'), 'the order is marked FAILED rather than left pending for ever', row)
+  is(/TIJ0002/.test(row) && /amount/i.test(row),
+     'and it records the code AND what the code means, so the log is readable', row)
+
+  // An error with no track id must still not blow up — the gateway can fail
+  // before it has one (a bad return URL, TIJ0027).
+  const orphan = await get(`${PAY}/callback.php?ErrorCode=TIJ0027`)
+  is(orphan.status === 302, 'an error with no track id still redirects cleanly', `${orphan.status}`)
+}
+
 console.log(fails ? `\n${fails} problem(s) in the T-Pay path` : '\nT-Pay: the online payment path is alive end to end')
 process.exit(fails ? 1 : 0)

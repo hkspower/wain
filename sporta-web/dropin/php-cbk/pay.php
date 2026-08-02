@@ -94,13 +94,21 @@ $fields = [
     'tij_MerchantPaymentLang'  => $lang,
     'tij_MerchantPaymentAmount'=> $amount,
     'tij_MerchantPaymentTrack' => $trackid,
-    'tij_MerchantPaymentRef'   => (string)($_REQUEST['ref'] ?? ''),
+    // Trimmed to the manual's own limits (Request Parameters, pp.8-9), because
+    // the gateway does not truncate — it REJECTS, and the rejection arrives as
+    // a bare TIJ code on the return URL long after the customer has left the
+    // shop. Ref is 30, Udf1 20, Udf2 10, Udf3-5 100. Cutting them here costs a
+    // few characters of a description nobody reads; not cutting them costs the
+    // sale. The charset restrictions in the same table are enforced too: Udf2
+    // becomes the merchant's bank-statement reference and CBK accepts only
+    // letters, digits, hyphen and space in it.
+    'tij_MerchantPaymentRef'   => cbk_field($_REQUEST['ref']  ?? '', 30),
     'tij_MerchantPaymentCurrency' => 'KWD',
-    'tij_MerchantUdf1'         => (string)($_REQUEST['udf1'] ?? ''),
-    'tij_MerchantUdf2'         => (string)($_REQUEST['udf2'] ?? ''),
-    'tij_MerchantUdf3'         => (string)($_REQUEST['udf3'] ?? ''),
-    'tij_MerchantUdf4'         => (string)($_REQUEST['udf4'] ?? ''),
-    'tij_MerchantUdf5'         => (string)($_REQUEST['udf5'] ?? ''),
+    'tij_MerchantUdf1'         => cbk_field($_REQUEST['udf1'] ?? '', 20, '/[^A-Za-z0-9]/'),
+    'tij_MerchantUdf2'         => cbk_field($_REQUEST['udf2'] ?? '', 10, '/[^A-Za-z0-9\- ]/'),
+    'tij_MerchantUdf3'         => cbk_field($_REQUEST['udf3'] ?? '', 100, '/[^A-Za-z0-9\- ]/'),
+    'tij_MerchantUdf4'         => cbk_field($_REQUEST['udf4'] ?? '', 100, '/[^A-Za-z0-9\- ]/'),
+    'tij_MerchantUdf5'         => cbk_field($_REQUEST['udf5'] ?? '', 100, '/[^A-Za-z0-9\- ]/'),
     'tij_MerchPayType'         => $payType,
     'tij_MerchReturnUrl'       => $cfg['return_url'],
 ];
