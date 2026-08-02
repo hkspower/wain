@@ -10,6 +10,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE}/`, priority: 1 },
     { url: `${BASE}/explore/`, priority: 0.9 },
     { url: `${BASE}/about/`, priority: 0.5 },
+    { url: `${BASE}/privacy/`, priority: 0.3 },
   ];
   const placeRoutes = places.map((p) => ({
     url: `${BASE}/places/${p.slug}/`,

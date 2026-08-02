@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { IconPinSolid } from "@/components/icons";
 import {
   FAHAD_AGENT_ID,
@@ -152,8 +153,11 @@ export default function FahadLauncher() {
               )}
             </div>
 
-            <p className="mt-3 text-center text-[11px] text-ink-500">
-              {FAHAD_COPY.micNote}
+            <p className="mt-3 text-center text-[11px] leading-relaxed text-ink-500">
+              {FAHAD_COPY.micNote}{" "}
+              <Link href="/privacy" className="underline hover:text-coral-700">
+                الخصوصية
+              </Link>
             </p>
           </div>
         </div>

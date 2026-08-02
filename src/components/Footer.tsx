@@ -56,6 +56,11 @@ export default function Footer() {
                   عن وين
                 </Link>
               </li>
+              <li>
+                <Link href="/privacy" className="text-sm text-ink-500 transition hover:text-coral-700">
+                  الخصوصية والكوكيز
+                </Link>
+              </li>
             </ul>
           </nav>
         </div>
