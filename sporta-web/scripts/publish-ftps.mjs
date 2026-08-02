@@ -44,7 +44,8 @@ const NEVER_SEND = ['.env', '.env.deploy', '.DS_Store']
 // one reveals configuration state. Re-uploading them on every publish would
 // silently undo that cleanup — so they are excluded by default and only sent
 // when asked for explicitly.
-const SETUP_ONLY = ['go-live.html', 'knet/selftest.php', 'knet/setup-config.php', 'api/setup-admin.php']
+const SETUP_ONLY = ['go-live.html', 'knet/selftest.php', 'knet/setup-config.php',
+                    'api/setup-admin.php', 'api/preflight.php']
 // Must arrive, and must be verified afterwards. Listing them is not enough: the
 // verify step used to check only files that happened to be in the upload set,
 // so if one had been filtered out it would have been skipped in silence and the

@@ -208,6 +208,31 @@ password are what you type at `https://www.sporta.com.kw/backends`.
 
 ### 3. Confirm the site is live and correctly configured
 
+**Open `https://www.sporta.com.kw/api/preflight.php` first.** It is the fastest
+answer to "why is the shop not working", because it checks the install from the
+INSIDE — which is where every problem so far has been:
+
+- PHP version and the four extensions the site needs.
+- **Whether the upload actually landed**: it reads `index.html`, takes every
+  hashed asset that file names, and checks each one is on the disk. A page that
+  shows an orange bar, the logo and nothing else is this check failing.
+- All four `.htaccess` files (the ones File Manager hides).
+- `api/config.php`, and if MySQL refuses it, **which** of the four values is
+  wrong.
+- Every table imported, the catalogue seeded, an admin account existing, and
+  whether that account is currently locked out.
+- `knet/config.php` and `pay/config.php` — including the `mysql_*` block, whose
+  absence refuses every card payment while the shop looks perfectly fine.
+- Which setup tools are still on the server and should be deleted.
+
+It writes nothing and prints no secret value. Before `api/config.php` exists it
+answers openly, because there is nothing yet to protect; once it exists, the
+database and payment sections need the `cron_key` from that file. **Delete
+`api/preflight.php` when the shop is live** — `npm run publish` never puts it
+back.
+
+Then, from your own machine, the outside view:
+
 ```bash
 ./scan-server-response.sh
 ```

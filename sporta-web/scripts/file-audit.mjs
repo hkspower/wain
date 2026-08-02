@@ -187,6 +187,10 @@ const REQUIRED = ['/index.html', '/.htaccess', '/knet/.htaccess', '/config.js',
                   // .htaccess denies them by name so shipping is not serving.
                   '/api/.htaccess', '/api/api.php', '/api/admin.php', '/api/store.php',
                   '/api/config.example.php', '/api/cron-fulfilment.php',
+                  // The install check. It is how the owner finds out WHY the
+                  // shop is not working, so it going missing is the failure
+                  // that hides every other failure.
+                  '/api/preflight.php',
                   '/api/schema.mysql.sql', '/api/seed.mysql.sql', '/api/promo.mysql.sql',
                   // The shipped hero: three slides, each with an LTR and an RTL
                   // composition, each in a desktop and a phone crop. Miss one
