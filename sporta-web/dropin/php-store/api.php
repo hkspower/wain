@@ -187,6 +187,24 @@ if ($r === 'status') {
     store_out($row);
 }
 
+// -------------------------------------------------------------- سبورتا AI
+//
+// POST, because a question is not a resource to be fetched and must never end
+// up in a proxy cache or a browser history. Throttled per IP: it is an
+// unauthenticated endpoint that runs database queries, so the same guard the
+// discount oracle has applies here.
+if ($r === 'assistant' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    store_throttle($db, 'assistant', 30, 60);
+    $in = json_decode((string) file_get_contents('php://input'), true) ?: [];
+    // Capped hard. Anything longer than this is not a customer question, and
+    // an unbounded string reaching a paid model is somebody else's bill.
+    $msg = mb_substr(trim((string) ($in['message'] ?? '')), 0, 500);
+    $lang = ($in['lang'] ?? 'en') === 'ar' ? 'ar' : 'en';
+    if ($msg === '') store_out(['error' => 'empty'], 400);
+    require_once __DIR__ . '/assistant.php';
+    store_out(assistant_answer($db, store_config(), $msg, $lang));
+}
+
 // ------------------------------------------------------------------ invoice
 if ($r === 'invoice') {
     $q = $db->prepare('select * from orders where track_id = ?');

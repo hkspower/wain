@@ -127,6 +127,11 @@ is(missingKeys.length === 0, 'every English string has an Arabic one', missingKe
 // was never translated. The exceptions are real and are named here.
 const SAME_ON_PURPOSE = new Set([
   'dir', 'invoice.print', 'checkout.payNow', 'checkout.methodTpay',
+  // The assistant's name is سبورتا AI in BOTH languages, and that is the
+  // point: it is the shop's name, and a name that changes with the interface
+  // language is two brands. It reads as untranslated to this check precisely
+  // because it is untranslated, on purpose.
+  'assistant.title',
 ])
 const untranslated = enKeys
   .filter(([k, v]) => typeof v === 'string' && v.length > 3 && arMap.get(k) === v)

@@ -4,6 +4,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import Navbar from './components/Navbar'
 import ScrollManager from './components/ScrollManager'
 import Footer from './components/Footer'
+import Assistant from './components/Assistant'
 import PullToRefresh from './components/PullToRefresh'
 import Home from './pages/Home'
 import { watchForIntent } from './lib/prefetchRoute'
@@ -106,6 +107,9 @@ function PublicSite() {
         </Routes>
       </main>
       <Footer />
+      {/* Storefront only. The admin has its own job and a chat bubble over
+          the orders table is somebody's mis-click. */}
+      <Assistant />
     </div>
   )
 }

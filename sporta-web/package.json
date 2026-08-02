@@ -40,7 +40,8 @@
     "test:knet": "node scripts/knet-test.mjs",
     "test:tpay": "node scripts/tpay-test.mjs",
     "package:pay": "node scripts/make-payments-fix.mjs",
-    "test:arabic": "node scripts/arabic-test.mjs"
+    "test:arabic": "node scripts/arabic-test.mjs",
+    "test:assistant": "node scripts/assistant-test.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",
