@@ -326,6 +326,11 @@
          and two brand colours, and they exist only until React mounts. -->
     <style>
       html { background: #171a1e }
+      /* The root type size, duplicated from index.css for the same reason
+         body{margin:0} is below: the stylesheet does not block the paint, so
+         anything NOT here is at the browser's default until it lands — and
+         the root size multiplies every rem in the design. */
+      html { font-size: clamp(16px, 15.5px + 0.104vw, 17px) }
       /* The stylesheet no longer blocks the paint, so the browser's OWN
          defaults are in force for the first ~1.5s — including body{margin:8px},
          which shifted the whole shell sideways and down when the reset landed.

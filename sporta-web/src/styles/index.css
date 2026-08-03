@@ -12,6 +12,37 @@
 html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+
+  /* ---- THE ROOT SIZE, AND WHY IT IS THE ONLY SIZE THAT CHANGES ----
+   *
+   * The site was set at a flat 16px root on a 27-inch monitor and on a
+   * five-inch phone alike, which is a phone's type scale stretched across a
+   * desktop: every heading, price and label reads a size small the further
+   * back you sit.
+   *
+   * This grows the root from 16px to 17px between 480px and 1440px of
+   * viewport, and everything follows, because ALL of it — Tailwind's type
+   * steps, its spacing, our own components — is written in rem. That is the
+   * point of moving this one number instead of a hundred: type and the space
+   * around it grow TOGETHER, so the proportions the design was drawn at
+   * survive. Enlarging only the font sizes is what produces cramped text in
+   * boxes built for smaller text.
+   *
+   * It stops at 17px on purpose, and 6% is not timidity — it is where the
+   * measurements stopped agreeing. See the note on Arabic below.
+   *
+   * clamp() rather than breakpoints so it is continuous: a step at a
+   * breakpoint is visible as a jump when a window is dragged.
+   *
+   * The floor is exactly 16px, so phones stay where they were — which is
+   * where the iOS 16px form-field rule and the measured CLS numbers live.
+   *
+   * DUPLICATED in index.html's inlined critical CSS. It has to be: the
+   * stylesheet deliberately does not block the first paint, so a root size
+   * only declared here would mean the shell paints at the browser's 16px and
+   * the whole page rescales when this file lands. Keep the two in step.
+   */
+  font-size: clamp(16px, 15.5px + 0.104vw, 17px);
 }
 
 body {
@@ -20,6 +51,12 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   font-family: 'IBM Plex Sans Arabic', 'Plex Arabic Fallback', system-ui, sans-serif;
+  /* Alexandria is a variable font; let the renderer take its optical size cue
+     from the file rather than drawing every size off one master. */
+  font-optical-sizing: auto;
+  /* 1.5 is a user-interface default, not a reading measure, and this site has
+     real paragraphs on /about, /returns, /privacy and every product page. */
+  line-height: 1.6;
 }
 
 /* ---- Typography system ----
@@ -40,6 +77,20 @@ h1, h2, h3, .font-display {
   line-height: 1.14;
   letter-spacing: -0.018em;
   font-feature-settings: 'kern' 1, 'liga' 1;
+  /* A headline that drops two words onto a second line is the commonest way
+     a good type setting looks amateur, and a bilingual shop invites it: the
+     same heading is four words in one language and seven in the other.
+     `balance` evens the lines instead. Browsers cap it at a few lines, which
+     is exactly the range headings live in, and ignore it where unsupported —
+     nothing to fall back to. */
+  text-wrap: balance;
+}
+
+/* Paragraphs get `pretty`, not `balance`: it leaves the line breaks alone and
+   only refuses the orphan — one word marooned on the last line. `balance` on
+   long copy is the wrong tool, and browsers decline to apply it there. */
+p, li, dd, figcaption {
+  text-wrap: pretty;
 }
 [dir='rtl'] h1,
 [dir='rtl'] h2,
@@ -61,9 +112,22 @@ h1, h2, h3, .font-display {
   letter-spacing: 0;
 }
 
-/* Arabic body copy needs a touch more leading than Latin at the same size. */
+/* Arabic body copy needs more leading than Latin at the same size: it has no
+ * capitals to sit under and its meaning lives in dots and strokes above and
+ * below the baseline, which collide at Latin line spacing.
+ *
+ * WHAT IS DELIBERATELY NOT HERE: a larger root size for Arabic. Arabic does
+ * read smaller than Latin at an identical font-size, and setting the RTL root
+ * a step up (17-18px) is the textbook fix. It was written, and it was
+ * reverted, because it is not free here — /shop in Arabic measured CLS 0.027
+ * against a 0.02 budget, a tenfold rise from 0.0018. At the larger root the
+ * product grid's labels reflow as the cards settle. A shop whose Arabic
+ * catalogue visibly moves under the reader's thumb has not been improved by
+ * being set a point larger. If it comes back it comes back with the grid
+ * fixed first, and test:perf is the thing that says so.
+ */
 [dir='rtl'] body {
-  line-height: 1.7;
+  line-height: 1.75;
 }
 
 /* Arabic script must never be letter-spaced — tracking breaks the connected
