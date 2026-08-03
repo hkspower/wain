@@ -23,6 +23,51 @@ require __DIR__ . '/store.php';
 $r = $_GET['r'] ?? '';
 $db = store_db();
 
+// ------------------------------------------------------------- rate limits
+// EVERY ROUTE IS LISTED HERE, AND THE DEFAULT IS "PROTECTED".
+//
+// Throttling used to be opt-in: a line typed inside each route's own if
+// block, by whoever remembered. Seven of the eleven routes had none, and the
+// one that turned a request into outbound mail was among them for months
+// while the coupon preview beside it was guarded from the day it shipped.
+// That is not a routing bug, it is what opt-in security always does — the
+// next route added inherits nothing, and there is nowhere to look to see
+// which are covered.
+//
+// The usual defence for leaving GETs alone is that they are cached, and here
+// it does not hold: /api/.htaccess sets Cache-Control: no-store on all of
+// them, so every one runs a real query for every hit. ?r=stock is a full scan
+// of product_variants.
+//
+// The ceilings are generous on purpose. A shopper loading the shop, then a
+// product, then the cart touches products/stock/slides a handful of times a
+// minute; 120 is far above that and far below useful for hammering the
+// database. The two that cost real money or real mail are tighter.
+//
+// A null means DELIBERATELY UNLIMITED HERE, and the reason must be written
+// beside it. Both of them are still throttled — just not on arrival, because
+// for these two WHEN the request is counted is the whole point.
+$STORE_LIMITS = [
+    'products'    => [120, 60],
+    'slides'      => [120, 60],
+    'brands'      => [120, 60],
+    'stock'       => [120, 60],
+    'status'      => [60, 60],
+    'invoice'     => [60, 60],
+    'assistant'   => [30, 60],
+    'order'       => [20, 600],   // queues mail to the warehouse — see ?r=order
+    'slide_image' => null,        // hashed URL, one-year immutable cache: the
+                                  // browser asks once, but a page legitimately
+                                  // asks for five slides at once and a cold
+                                  // cache would trip any sane ceiling.
+    'discount'    => null,        // counted inside the route, on FAILED lookups
+                                  // only — re-checking a basket is not guessing.
+    'say'         => null,        // counted inside the route, AFTER the
+                                  // signature verifies, so forgeries cannot
+                                  // ration a real speaker press.
+];
+if (isset($STORE_LIMITS[$r])) store_throttle($db, $r, ...$STORE_LIMITS[$r]);
+
 // ---------------------------------------------------------------- products
 if ($r === 'products') {
     $rows = $db->query(
@@ -194,7 +239,6 @@ if ($r === 'status') {
 // unauthenticated endpoint that runs database queries, so the same guard the
 // discount oracle has applies here.
 if ($r === 'assistant' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
-    store_throttle($db, 'assistant', 30, 60);
     $in = json_decode((string) file_get_contents('php://input'), true) ?: [];
     // Capped hard. Anything longer than this is not a customer question, and
     // an unbounded string reaching a paid model is somebody else's bill.
@@ -296,8 +340,8 @@ if ($r === 'invoice') {
 // The port of create_order — same validation, same tokens, same idempotency,
 // same server-side pricing. The browser never sends a price and never will.
 if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
-    // THROTTLED, and this is the one route where the reason is not the
-    // database.
+    // THE TIGHTEST LIMIT IN $STORE_LIMITS IS THIS ROUTE'S, and this is the
+    // one route where the reason is not the database.
     //
     // A created order queues a row in fulfilment_outbox in the same
     // transaction, and cron-fulfilment.php turns that row into an EMAIL to
@@ -311,9 +355,10 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     //
     // 20 in ten minutes: far above any real shopper (the attempt id means
     // retries reuse one order rather than creating another) and far below
-    // useful for flooding. The discount preview has had this guard since it
-    // shipped; the route that actually sends mail did not.
-    store_throttle($db, 'order', 20, 600);
+    // useful for flooding. Applied on arrival by the table at the top of this
+    // file, before the body is even parsed — a throttle that runs after
+    // validation is not a throttle, because the flood is exactly the traffic
+    // that fails validation.
     $b = store_body();
 
     $track = trim((string)($b['track_id'] ?? ''));

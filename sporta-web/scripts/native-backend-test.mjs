@@ -720,6 +720,42 @@ const order = (track, items, extra = {}) =>
   rmSync(dir, { recursive: true, force: true })
 }
 
+// ------------------------------------------- every route has a rate limit
+// THE CHECK THAT KEEPS THE TABLE HONEST, and the reason the table exists.
+//
+// Throttling used to be opt-in — a line typed inside each route's own if
+// block — and seven of eleven routes had none, including the one that turns a
+// request into mail to the warehouse. The fix is a table applied once on
+// arrival, but a table is only worth having if adding a route to api.php
+// without adding it to the table FAILS. That is what this asserts: it reads
+// the routes out of the source and demands each one appear.
+{
+  const { readFileSync } = await import('node:fs')
+  const src = readFileSync(new URL('../dropin/php-store/api.php', import.meta.url), 'utf8')
+  const routes = [...src.matchAll(/\$r === '(\w+)'/g)].map((m) => m[1])
+  const table = src.slice(src.indexOf('$STORE_LIMITS = ['), src.indexOf('];', src.indexOf('$STORE_LIMITS = [')))
+  const listed = [...table.matchAll(/'(\w+)'\s*=>/g)].map((m) => m[1])
+
+  const missing = [...new Set(routes)].filter((x) => !listed.includes(x))
+  is(missing.length === 0, 'every route in api.php appears in $STORE_LIMITS',
+     missing.length ? `NOT LISTED: ${missing.join(', ')}` : `${listed.length} routes`)
+
+  const stale = listed.filter((x) => !routes.includes(x))
+  is(stale.length === 0, 'and the table has no entries for routes that no longer exist',
+     stale.join(', ') || 'none')
+
+  // And it is really applied, not merely declared. ?r=stock is the cheapest
+  // one to prove it on: it is a full scan of product_variants that anyone can
+  // call in a loop, and it had no guard at all until the table.
+  await run('mariadb', ['sporta', '-e', 'delete from rate_limit'])
+  let hit429 = false
+  for (let i = 0; i < 125 && !hit429; i++) {
+    if ((await api('stock')).status === 429) hit429 = true
+  }
+  is(hit429, 'and a GET route is really limited, not just listed — ?r=stock stops')
+  await run('mariadb', ['sporta', '-e', 'delete from rate_limit'])
+}
+
 // ------------------------------------ order creation cannot be used as a cannon
 // LAST, because it deliberately exhausts the budget.
 //

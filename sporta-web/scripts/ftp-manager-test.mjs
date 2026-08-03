@@ -159,6 +159,23 @@ try {
     is(readFileSync(onServer('public_html/api/config.php'), 'utf8').includes('REAL-DB-PASSWORD'),
        'and after all of them the credentials are still there')
 
+    // CHMOD IS THE WRITE THAT DOES NOT DESTROY THE FILE, SO IT IS NOT
+    // REFUSED OUTRIGHT — it exposes it instead. On shared hosting 777 on
+    // api/config.php hands the database password to every other account on
+    // the machine, and nothing in the site's behaviour changes to say so.
+    // Tightening must keep working; opening up must not.
+    for (const mode of ['777', '644', '666']) {
+      const r = ftp(['chmod', mode, '/public_html/api/config.php'])
+      is(r.code !== 0, `chmod REFUSES ${mode} on a credentials file`, `exit ${r.code}`)
+    }
+    for (const mode of ['600', '400']) {
+      const r = ftp(['chmod', mode, '/public_html/api/config.php'])
+      is(r.code === 0, `but chmod ${mode} is allowed — tightening is the point`, r.out.trim())
+    }
+    // And an ordinary file is nobody's business but the owner's.
+    is(ftp(['chmod', '644', '/public_html/index.html']).code === 0,
+       'an ordinary file still takes any mode')
+
     // Reading it is allowed, and is the point: that is how a backup is taken
     // before anything else is done.
     const get = ftp(['get', '/public_html/api/config.php', 'cfg-backup.php'])

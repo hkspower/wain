@@ -248,6 +248,25 @@ try {
 
     case 'chmod': {
       if (rest.length < 2) die('chmod <mode> <path>   e.g. chmod 600 /public_html/api/config.php')
+      // THE ONE WRITE THAT IS NOT ABOUT DESTROYING THE FILE. put, mv and rm
+      // are refused outright on the four protected files, because each of
+      // them loses the only copy of a credential. chmod cannot lose it — it
+      // can EXPOSE it, which on shared hosting is worse: 777 on
+      // api/config.php means every other account on the machine can read the
+      // database password, and nothing in the site's own behaviour changes to
+      // tell anyone it happened.
+      //
+      // So this is not a blanket refusal. Tightening is exactly what the
+      // usage line above suggests and must keep working; only opening the
+      // file up to group or other is refused. A mode is rejected unless its
+      // last two digits are zero, which permits 600, 400 and 000 and stops
+      // 644, 664, 666 and 777.
+      if (isProtected(rest[1]) && !/^0?[0-7]00$/.test(rest[0])) {
+        die(`Refusing to chmod ${rest[1]} to ${rest[0]}.\n` +
+            'It holds live credentials, and this host is shared — any mode that is\n' +
+            'group- or world-readable hands the database password to every other\n' +
+            'account on the machine. Tightening is allowed: chmod 600 works.')
+      }
       // SITE CHMOD is an extension, not core FTP. Hostinger supports it; a
       // server that does not will answer 500 and the message says so rather
       // than pretending it worked.
