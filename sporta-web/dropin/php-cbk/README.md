@@ -28,7 +28,11 @@ that you pass through as-is.
    - `https://www.sporta.com.kw/pay/pay.php`
    - `https://www.sporta.com.kw/pay/callback.php`
 2. Copy `config.example.php` → `config.php`, fill in:
-   - `test_base` / `production_base` (the {TestPG}/{ProductionPG} hosts CBK gives you)
+   - `test_base` / `production_base` — already filled in as
+     `https://pgtest.cbk.com` and `https://pg.cbk.com`. The manual prints
+     these only as `{TestPG}` / `{ProductionPG}` placeholders; the real hosts
+     come off CBK's own integration screen. Check them against your
+     activation email before you go live.
    - `client_id`, `client_secret`, `encrp_key`
    - `env` = `test` first, then `production`
 3. Make sure `pay/` is writable (for the `.cbk_token.json` cache).

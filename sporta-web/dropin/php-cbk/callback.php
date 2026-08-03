@@ -87,10 +87,63 @@ if (!is_array($res)) {
     exit;
 }
 
+// STATUS 0 AND -1 ARE NOT A DECLINED PAYMENT. They are the API refusing to
+// answer the question: 0 is "Invalid Access. Re-generate new API key", -1 is
+// "Error/Invalid {encrp}/{payid}" (manual, p.14), and the manual spells out
+// the remedy — "If Status=0, re-generate new API key and try again."
+//
+// Everything that is not 1 or 3 used to fall through to 'failed', which wrote
+// payment_status='failed' onto an order whose real state is UNKNOWN. The
+// token is valid for two hours and cached for 100 minutes, so a token that
+// expires early or is revoked mid-session turns real, captured payments into
+// failed orders — and 'failed' is a state a shop acts on. Refunds get issued
+// for money that was taken and kept.
+//
+// So: throw the cached token away, mint a fresh one, ask exactly once more,
+// and if it still will not answer, LEAVE THE ORDER ALONE. Pending is honest.
+// Failed is a claim, and this code is not in a position to make it.
+if (in_array((string)($res['Status'] ?? ''), ['0', '-1'], true)) {
+    cbk_log($cfg, 'callback.stale_token', ['status' => $res['Status'] ?? '']);
+    if (!empty($cfg['token_cache_file'])) @unlink($cfg['token_cache_file']);
+    try {
+        $res = cbk_get_transaction($cfg, $encrp, cbk_get_access_token($cfg)) ?? $res;
+    } catch (Throwable $e) {
+        // fall through to the check below
+    }
+    if (in_array((string)($res['Status'] ?? ''), ['0', '-1'], true)) {
+        cbk_log($cfg, 'callback.unresolved', ['status' => $res['Status'] ?? '', 'encrp' => substr($encrp, 0, 8)]);
+        header('Location: ' . $return . '?status=error&reason=unresolved', true, 302);
+        exit;
+    }
+}
+
 // Payment Result Status Code: 1=Success, 2=Failed, 3=Expired/Cancelled, 0/-1=Invalid
 $statusCode = (string)($res['Status'] ?? '');
 $paid       = $statusCode === '1';
-$trackid    = (string)($res['TrackId'] ?? ($res['PayId'] ?? ''));
+// PayId FIRST, and the order of these two is the whole settlement.
+//
+// The manual's Payment Details table (v2.93, p.12) lists them as two
+// different things:
+//     TrackId   Payment Gateway Track ID
+//     PayId     Merchant Track ID
+// TrackId is CBK's own reference for the transaction. PayId is the value we
+// sent as tij_MerchantPaymentTrack — our orders.track_id, and the only one of
+// the two that exists in this database. Its own example makes it plain:
+// tij_MerchantPaymentTrack went out as "123" and came back as PayId "123"
+// while TrackId was "123123123".
+//
+// Read the other way round — which is how this was written — every settlement
+// looks up a gateway id that matches no row, cbk_update_order() finds nothing
+// and returns, and a paid order stays PENDING for ever. The money moves, the
+// customer sees the success page, the shop never ships. It survived because
+// the fake gateway echoed the merchant's track back as TrackId, so the test
+// suite held the same misreading as the code and the two agreed.
+//
+// The fallback stays, for a gateway that omits PayId; but it is the fallback.
+$trackid    = (string)($res['PayId'] ?? '');
+if ($trackid === '') $trackid = (string)($res['TrackId'] ?? '');
+// CBK's own reference, kept for reconciliation against the bank statement.
+$gatewayTrack = (string)($res['TrackId'] ?? '');
 $paymentId  = (string)($res['PaymentId'] ?? '');
 $ref        = (string)($res['ReferenceId'] ?? '');
 $paidAmount = (string)($res['Amount'] ?? '');

@@ -70,7 +70,19 @@ if (str_contains($path, '/ePay/pg/epay')) {
     $txns[$encrp] = [
         'Status'        => $status,
         'Message'       => $status === '1' ? 'Success' : 'Declined',
-        'TrackId'       => (string) ($_POST['tij_MerchantPaymentTrack'] ?? ''),
+        // TWO DIFFERENT IDS, and they are not interchangeable. The manual's
+        // Payment Details table (p.12) reads:
+        //     TrackId  Payment Gateway Track ID
+        //     PayId    Merchant Track ID
+        // So TrackId is CBK's own reference and PayId is what the merchant
+        // sent as tij_MerchantPaymentTrack. This fake used to echo the
+        // merchant's track back as TrackId and omit PayId entirely, which
+        // made the suite agree with the callback's misreading of the same
+        // two fields — the two of them consistent with each other and wrong
+        // about the bank. A fake that is generous where the real thing is
+        // strict tests nothing.
+        'TrackId'       => 'CBK' . random_int(100000000, 999999999),
+        'PayId'         => (string) ($_POST['tij_MerchantPaymentTrack'] ?? ''),
         'PaymentId'     => '9' . random_int(100000000, 999999999),
         'TransactionId' => (string) random_int(1000000000, 9999999999),
         'AuthCode'      => $status === '1' ? 'B' . random_int(10000, 99999) : '',
@@ -94,12 +106,25 @@ if (str_contains($path, '/ePay/pg/epay')) {
     ], JSON_UNESCAPED_SLASHES));
 }
 
+// Arms a one-shot Status=0 from GetTransactions, so the suite can prove what
+// the callback does with "Invalid Access. Re-generate new API key" — which is
+// the API declining to answer, not a declined payment.
+if ($path === '/stale-once') {
+    $t = $load(); $t['_stale_once'] = true; $save($t);
+    exit('armed');
+}
+
 // ------------------------------------------------------- GetTransactions
 if (str_contains($path, '/GetTransactions/')) {
     $parts = array_values(array_filter(explode('/', $path)));
     $encrp = rawurldecode((string) ($parts[count($parts) - 2] ?? ''));
     $txns = $load();
     header('Content-Type: application/json');
+    if (!empty($txns['_stale_once'])) {
+        unset($txns['_stale_once']);
+        $save($txns);
+        exit(json_encode(['Status' => '0', 'Message' => 'Invalid']));
+    }
     if (!isset($txns[$encrp])) exit(json_encode(['Status' => '0', 'Message' => 'unknown transaction']));
     $t = $txns[$encrp];
     unset($t['_sent']);

@@ -250,5 +250,50 @@ head('a gateway ERROR return is recorded, not silently dropped')
   is(orphan.status === 302, 'an error with no track id still redirects cleanly', `${orphan.status}`)
 }
 
+// ------------------------------- the two ids the manual keeps telling apart
+head('the settlement uses the MERCHANT’s track id, not the gateway’s')
+{
+  const track = 'SPTPAYID' + Date.now().toString(36).toUpperCase()
+  await sql(`insert into orders (track_id, amount, subtotal, payment_method, payment_status)
+             values ('${track}', 7.000, 7.000, 'tpay', 'pending')`)
+  const html = await (await get(`${PAY}/pay.php?trackid=${track}`)).text()
+  const { gw, location } = await payThrough(html, 'outcome=success')
+
+  // The gateway answers with BOTH: TrackId is its own reference, PayId is the
+  // value we sent. Confirm the fake is really handing back two different
+  // things, or the check below proves nothing.
+  const t = await (await fetch(`${GW}/GetTransactions/${gw.encrp}/x`)).json()
+  is(t.TrackId !== t.PayId && t.PayId === track,
+     'the gateway returns its OWN TrackId and our PayId, as the manual says', `${t.TrackId} / ${t.PayId}`)
+
+  // The order is looked up by OUR id. Reading TrackId instead finds no row,
+  // and a captured payment stays pending for ever while the customer is shown
+  // a success page — which is exactly what this used to do.
+  is(await sql(`select payment_status from orders where track_id = '${track}'`) === 'paid',
+     'and the order is settled anyway', location.split('?')[1] ?? '')
+}
+
+// ------------------------------------------- the API declining to answer
+head('"invalid access" is not the same as "payment declined"')
+{
+  const track = 'SPSTALE' + Date.now().toString(36).toUpperCase()
+  await sql(`insert into orders (track_id, amount, subtotal, payment_method, payment_status)
+             values ('${track}', 9.000, 9.000, 'tpay', 'pending')`)
+  const html = await (await get(`${PAY}/pay.php?trackid=${track}`)).text()
+
+  // Arm one Status=0 — "Invalid Access. Re-generate new API key" (p.14). The
+  // manual's own remedy is to mint a fresh key and try again, so a successful
+  // payment must still settle.
+  await fetch(`${GW}/stale-once`)
+  const { location } = await payThrough(html, 'outcome=success')
+
+  const status = await sql(`select payment_status from orders where track_id = '${track}'`)
+  is(status !== 'failed',
+     'a stale token NEVER marks a captured payment as failed', status)
+  is(status === 'paid',
+     'it re-authenticates and settles, which is what the manual says to do',
+     `${status} — ${location.split('?')[1] ?? ''}`)
+}
+
 console.log(fails ? `\n${fails} problem(s) in the T-Pay path` : '\nT-Pay: the online payment path is alive end to end')
 process.exit(fails ? 1 : 0)

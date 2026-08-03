@@ -11,10 +11,14 @@ return [
     // --- Environment: 'test' or 'production' ---
     'env' => 'test',
 
-    // Base URLs from CBK (the {TestPG} / {ProductionPG} placeholders in the
-    // manual). CBK gives you the real hosts on activation.
-    'test_base'       => 'https://PROVIDED_BY_CBK_TEST',        // {TestPG}
-    'production_base' => 'https://PROVIDED_BY_CBK_PRODUCTION',  // {ProductionPG}
+    // Base URLs — the {TestPG} / {ProductionPG} placeholders in the manual.
+    // These are the real CBK hosts, taken from the bank's own integration
+    // screen; the manual itself never prints them, which is why these two
+    // lines used to say PROVIDED_BY_CBK and the dropin could not be pointed
+    // anywhere. Confirm them against your activation email before going live:
+    // if CBK has put you on a different host, this is the one line to change.
+    'test_base'       => 'https://pgtest.cbk.com',  // {TestPG}
+    'production_base' => 'https://pg.cbk.com',      // {ProductionPG}
 
     // --- Merchant API credentials (server-side only, never to the browser) ---
     'client_id'     => 'YOUR_CLIENT_ID',      // ClientId  (Merchant API ID)
