@@ -31,13 +31,41 @@ pick, so this is a listening job, not a configuration one:
 'tts_key'       => 'sk_…',           // ElevenLabs → Profile → API key
 'tts_voice_id'  => 'xxxxxxxxxxxxxxxxxxxx',
 'tts_model'     => 'eleven_multilingual_v2',
+'tts_format'    => 'mp3_22050_32',
 'tts_cache_dir' => __DIR__ . '/../../sporta-voice',
 ```
 
 `eleven_multilingual_v2` is not optional. A monolingual model reads Arabic
 letters with English phonemes, which is worse than silence.
 
+`tts_format` is speech, not music. The API defaults to 128 kbps, which is four
+times the bytes for nothing anyone can hear on a spoken sentence — and these
+play on mobile data. Everything else (`tts_stability`, `tts_style`,
+`tts_timeout`, `tts_log`) has a working default; see `config.example.php`.
+
 `cron_key` must already be set — the signature is keyed on it.
+
+### Then warm it, once
+
+```
+https://www.sporta.com.kw/api/cron-voice.php?key=YOUR_CRON_KEY&do=warm
+```
+
+Paste that in a browser after setting the voice. It buys all twenty-six fixed
+sentences — both languages — in one run, so **no customer is ever the one who
+waits for a synthesis call** on "delivery is same-day". Without it those
+twenty-six waits happen to twenty-six real people, one each.
+
+Re-run it after changing the voice, the model or the format: each is part of
+the cache key, so changing one makes the whole cache cold.
+
+`&do=prune` deletes audio nobody has played in 90 days, and is worth a monthly
+hPanel cron — every order-status answer names an order number, so each is a
+sentence said once and never again. `&do=` on its own reports what is cached.
+
+It answers over **HTTP** rather than being a command-line script because this
+server has no shell and never will. `cron_key` is the authorisation, and a
+missing or wrong key is refused before a single upstream call is made.
 
 ### What it costs, and why that is small
 
@@ -45,6 +73,41 @@ Almost nothing, because **the shop's answers repeat**. Delivery, returns,
 payment methods and the greeting are the same words every time; each is
 synthesised once and served from `sporta-voice/` on disk for ever after. Only
 a genuinely new sentence — an order card, a product list — is ever bought.
+
+Two customers pressing the speaker on the same new sentence at the same moment
+buy it **once**: the second waits on a lock and gets what the first wrote. That
+also stops two processes writing one file, which used to be a real risk of an
+mp3 that plays as a burst of noise. Audio is written to a temp name and renamed
+into place, so a reader sees the whole file or no file, never half of one.
+
+### What it sounds like
+
+The text on screen and the text read aloud are **not the same string**, and the
+two sentences a customer most needs to hear right are the two a TTS model gets
+most wrong:
+
+- `SP1AU702NKHTKDV` inside an Arabic sentence is a Latin token, and the model
+  tries to pronounce it as a **word**. Spelled out, it is read as characters —
+  which is the point, because the customer is checking it against the SMS in
+  their other hand.
+- `22091914` is eight digits, so the model reads **"twenty-two million, ninety
+  one thousand…"**. Nobody can dial that. Phone numbers go digit by digit.
+
+Prices are deliberately left alone: `4.000` KWD must stay "four point zero zero
+zero", not become four separate digits.
+
+This happens on the way out, after the signature check, so **fixing
+pronunciation never invalidates a signature a browser is already holding**, and
+what the customer reads is untouched.
+
+### When it does not work
+
+A wrong key, an unknown voice ID and an exhausted quota used to be the same
+thing from outside: a speaker button that does nothing. The reason is now
+written to `sporta-voice.log`, beside the cache and above `public_html` —
+status and reason, never the key. A 200 carrying a JSON error instead of audio
+is also refused rather than cached as if it were sound, which would have played
+as silence for ever and never retried.
 
 The cache directory sits **above `public_html`** (`SERVER-LAYOUT.md`). An
 audio cache inside the web root is a directory anyone can walk, and some of
@@ -91,11 +154,18 @@ Payload: `source`, `intent`, `lang`, `message`, `reply`, `at`.
 
 ## Proving it
 
-`npm run test:assistant` covers both against a fake gateway
+`npm run test:assistant` (87 checks) covers both against a fake gateway
 (`scripts/fake-voice.php`) — forged and unsigned text refused without a single
 upstream call, a signed sentence spoken, the same sentence bought only once, a
 cross-language replay refused, and the handoff arriving correctly signed and
 *not* arriving for an ordinary answered question.
+
+It also proves the parts you cannot hear from here: an order number goes
+upstream **spelled out** and a phone number **digit by digit** while what the
+customer reads is unchanged; audio is asked for at speech bitrate; an upstream
+401 lands in the log without the API key in it; a 200 carrying JSON is refused
+rather than cached as audio; and after `do=warm` a real customer pressing the
+speaker makes **no upstream call at all**.
 
 Claude's sandbox cannot reach `api.elevenlabs.io` (it is outside the egress
 allowlist), so no voice has been auditioned here and no live call has been

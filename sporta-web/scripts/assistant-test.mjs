@@ -207,6 +207,18 @@ head('the voice, and who is allowed to ask for it')
   const VOICE = 'http://127.0.0.1:8101'
   const CFG = new URL('../dropin/php-store/config.php', import.meta.url).pathname
   const original = readFileSync(CFG, 'utf8')
+  // REFUSE TO RUN AGAINST A POISONED CONFIG. This block splices a fake voice
+  // into config.php and puts the original back in its finally — but a crash
+  // between the two (a typo in a new check, a killed run) leaves the splice on
+  // disk, and then the NEXT run captures the already-spliced file as
+  // `original` and faithfully restores THAT. The visible symptom is one
+  // baffling failure at the far end of the suite — "no voice configured" finds
+  // a voice — pointing at code that is fine. Cheaper to say so here.
+  if (/tts_key/.test(original)) {
+    bad('config.php is left over from a crashed run',
+        'it already contains tts_key. Remove the tts_/n8n_ lines from ' + CFG + ' and re-run.')
+    process.exit(1)
+  }
   const fake = spawn('php', ['-S', '127.0.0.1:8101', new URL('fake-voice.php', import.meta.url).pathname],
                      { stdio: 'ignore', detached: true })
   const calls = async () => (await fetch(`${VOICE}/calls`)).json()
@@ -234,13 +246,17 @@ head('the voice, and who is allowed to ask for it')
     try { await fetch(`${VOICE}/reset`); break } catch { await new Promise((r) => setTimeout(r, 100)) }
   }
 
+  // Hoisted above the try so the checks in the finally can use it too — the
+  // handoff and the pronunciation checks both run there, after the config has
+  // done its work but before it is put back.
+  const say = async (t, v, lang = 'en') =>
+    fetch(`${BASE}/api.php?r=say&lang=${lang}&v=${v}&t=${encodeURIComponent(t)}`)
+
   try {
     const { body } = await ask('when will it arrive')
     is(typeof body?.speak === 'string' && body.speak.length === 32,
        'an answer carries a signature once a voice is configured', body?.speak)
 
-    const say = async (t, v, lang = 'en') =>
-      fetch(`${BASE}/api.php?r=say&lang=${lang}&v=${v}&t=${encodeURIComponent(t)}`)
 
     // THE ONE THAT MATTERS. Without the signature check this endpoint is a
     // free text-to-speech service for the whole internet, billed to this shop.
@@ -299,6 +315,128 @@ head('the voice, and who is allowed to ask for it')
     await ask('when will it arrive')
     is((await calls()).n8n.length === before,
        'an ordinary answered question is NOT handed off — n8n is not a transcript log')
+
+    // ------------------------------------------------- how it SOUNDS, not reads
+    // The two sentences a customer most needs to hear correctly are the two a
+    // TTS model gets most wrong: an order number is a Latin token inside an
+    // Arabic sentence (read as a WORD — syllable soup nobody can check against
+    // their SMS) and a phone number is eight digits in a row (read as "twenty-two
+    // million, ninety-one thousand..." — undiallable).
+    {
+      await fetch(`${VOICE}/reset`)
+      // The sentence must be one the shop actually said, or it has no
+      // signature — so ask the shop for it rather than inventing the text.
+      const askTrack = await ask('where is my order')
+      const spoken = await say(askTrack.body.reply, askTrack.body.speak)
+      is(spoken.status === 200, 'the order-number prompt speaks', `${spoken.status}`)
+
+      // What actually went upstream for a sentence containing a track id.
+      await fetch(`${VOICE}/reset`)
+      const miss = await ask('order SP1AU702NKHTKDV')
+      const r2 = await say(miss.body.reply, miss.body.speak)
+      const c2 = await calls()
+      is(r2.status === 200, 'a sentence naming an order number speaks', `${r2.status}`)
+      is(/S P 1 A U 7 0 2/.test(c2.last_text || ''),
+         'and the order number went upstream SPELLED OUT, not as a word',
+         (c2.last_text || '').slice(0, 80))
+      is(!/SP1AU702NKHTKDV/.test(c2.last_text || ''),
+         'the unspaced token is not what the model was asked to pronounce')
+
+      // The phone number, in the contact line.
+      await fetch(`${VOICE}/reset`)
+      const contact = await ask('I want to speak to a human')
+      await say(contact.body.reply, contact.body.speak)
+      const c3 = await calls()
+      is(/9 6 5/.test(c3.last_text || '') && /2 2 0 9 1 9 1 4/.test(c3.last_text || ''),
+         'and a phone number is read digit by digit, not as one huge number',
+         (c3.last_text || '').slice(-46))
+
+      // And the sentence CACHED is the one the shop wrote, not the spelled-out
+      // one — otherwise every pronunciation fix would silently invalidate a
+      // signature the browser is already holding.
+      is(!/S P 1 A U/.test(contact.body.reply), 'what the customer READS is unchanged')
+    }
+
+    // ------------------------------------------------------- speech-sized audio
+    {
+      await fetch(`${VOICE}/reset`)
+      const a = await ask('what payment methods do you take')
+      await say(a.body.reply, a.body.speak)
+      const c = await calls()
+      is(c.last_format === 'mp3_22050_32',
+         'audio is requested at speech bitrate, not 128 kbps music', c.last_format)
+      is((c.last_settings || {}).use_speaker_boost === true,
+         'with speaker boost on', JSON.stringify(c.last_settings))
+    }
+
+    // ------------------------------------- a failure is written down, not silent
+    // A wrong key, an unknown voice or an exhausted quota used to be an
+    // identical silent null: a speaker button that does nothing, with no way
+    // for the owner to find out why.
+    {
+      await run('rm', ['-rf', '/tmp/sporta-voice-test', '/tmp/sporta-voice.log'])
+      await fetch(`${VOICE}/reset`)
+      await fetch(`${VOICE}/fail?code=401&n=1`)
+      const a = await ask('what about returns')
+      const r = await say(a.body.reply, a.body.speak)
+      is(r.status === 502, 'an upstream 401 fails the request, not the shop', `${r.status}`)
+      const log = (await run('cat', ['/tmp/sporta-voice.log']).catch(() => ({ stdout: '' }))).stdout || ''
+      is(/401/.test(log), 'and the reason is in the log where the owner can find it', log.trim().slice(0, 90))
+      is(!/fake-key/.test(log), 'without writing the API key into it')
+    }
+
+    // A 200 carrying a JSON error is not audio, and must not be cached as if
+    // it were — a cached error plays as silence for ever and never retries.
+    {
+      await run('rm', ['-rf', '/tmp/sporta-voice-test'])
+      await fetch(`${VOICE}/reset`)
+      await fetch(`${VOICE}/lie`)
+      const a = await ask('tell me about sizing')
+      const bad = await say(a.body.reply, a.body.speak)
+      is(bad.status === 502, 'a 200 with a JSON body is refused, not cached as audio', `${bad.status}`)
+      const good = await say(a.body.reply, a.body.speak)
+      is(good.status === 200, 'and the next attempt really retries upstream', `${good.status}`)
+    }
+
+    // ------------------------------------------------------------ warm + prune
+    {
+      await run('rm', ['-rf', '/tmp/sporta-voice-test'])
+      await fetch(`${VOICE}/reset`)
+      const warm = await run('php', [new URL('../dropin/php-store/cron-voice.php', import.meta.url).pathname, 'warm'])
+      const n = (await calls()).tts
+      is(/warmed: \d+ new/.test(warm.stdout), 'the warmer buys every canned line up front',
+         (warm.stdout.trim().split('\n').slice(-3)[0] || ''))
+      is(n >= 20, 'both languages, in one run', `${n} upstream calls`)
+
+      // THE POINT OF WARMING: the customer's press must now cost nothing.
+      await fetch(`${VOICE}/reset`)
+      const a = await ask('when will it arrive')
+      const r = await say(a.body.reply, a.body.speak)
+      is(r.status === 200 && (await calls()).tts === 0,
+         'so a real customer pressing the speaker makes NO upstream call',
+         `${(await calls()).tts} calls`)
+
+      // And the warmer agrees with the shop about what is cached — a warmer
+      // that fills a different path than the request checks is silent waste.
+      const status = await run('php', [new URL('../dropin/php-store/cron-voice.php', import.meta.url).pathname, 'status'])
+      is(/canned\s+(\d+) of \1 warm/.test(status.stdout.replace(/(\d+) of \1/, '$1 of $1')) ||
+         /canned\s+(\d+) of (\d+) warm/.test(status.stdout),
+         'and status reports the cache it just filled', status.stdout.trim().split('\n').pop())
+      const m = status.stdout.match(/canned\s+(\d+) of (\d+)/)
+      is(m && m[1] === m[2], 'every canned line reported warm', m ? `${m[1]}/${m[2]}` : 'no match')
+
+      // Prune leaves fresh audio alone.
+      const before = (await run('sh', ['-c', 'ls /tmp/sporta-voice-test/*.mp3 | wc -l'])).stdout.trim()
+      await run('php', [new URL('../dropin/php-store/cron-voice.php', import.meta.url).pathname, 'prune', '90'])
+      const after = (await run('sh', ['-c', 'ls /tmp/sporta-voice-test/*.mp3 | wc -l'])).stdout.trim()
+      is(before === after, 'prune leaves audio that is still being played', `${before} → ${after}`)
+
+      // And removes what has gone cold.
+      await run('sh', ['-c', 'touch -d "200 days ago" /tmp/sporta-voice-test/*.mp3'])
+      await run('php', [new URL('../dropin/php-store/cron-voice.php', import.meta.url).pathname, 'prune', '90'])
+      const gone = (await run('sh', ['-c', 'ls /tmp/sporta-voice-test/*.mp3 2>/dev/null | wc -l'])).stdout.trim()
+      is(gone === '0', 'and sweeps out audio nobody has played in 90 days', `${gone} left`)
+    }
 
     writeFileSync(CFG, original)
     await settle(false)

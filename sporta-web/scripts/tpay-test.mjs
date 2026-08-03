@@ -35,6 +35,13 @@ const head = (t) => console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 58 - t.leng
 
 const sql = async (q) => (await run('mariadb', ['sporta', '-N', '-B', '-e', q])).stdout.trim()
 
+// ?r=order IS RATE LIMITED (20 per ten minutes per IP), and this suite creates
+// orders in a loop from one IP. Left over from a previous run — or from the
+// native suite, which shares the bucket — that limit turns into an order whose
+// amount is `undefined` and a cascade of failures pointing at the gateway,
+// which is not where the problem is. Clear the counter first.
+await run('mariadb', ['sporta', '-e', 'delete from rate_limit'])
+
 // The endpoints refuse plain HTTP exactly as they will on Hostinger; the proxy
 // header is how the edge says TLS was terminated upstream.
 const HTTPS = { 'X-Forwarded-Proto': 'https' }

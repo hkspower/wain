@@ -61,6 +61,24 @@ return [
     // synthesised ONCE and never paid for again. Above public_html: an audio
     // cache in the web root is a directory anyone can walk.
     'tts_cache_dir' => __DIR__ . '/../../sporta-voice',
+    // Audio format. Speech, not music: 22 kHz / 32 kbps mono is a quarter of
+    // the bytes of the API's 128 kbps default with nothing a listener can hear
+    // for it, and these play on Kuwaiti mobile data. Part of the cache key —
+    // change it and the cache is cold, so re-run the warmer.
+    'tts_format' => 'mp3_22050_32',
+    // Voice character. Stability low-ish keeps some life in the read; push it
+    // up and a shop greeting starts to sound like a station announcement.
+    // Worth an evening with the ElevenLabs preview before touching.
+    'tts_stability'     => 0.45,
+    'tts_similarity'    => 0.8,
+    'tts_style'         => 0.0,
+    'tts_speaker_boost' => true,
+    // Seconds to wait for the voice. The customer is already reading the same
+    // words on screen, so a slow voice is skipped rather than waited on.
+    'tts_timeout' => 10,
+    // Why a speaker button did nothing: wrong key, unknown voice, spent quota.
+    // Defaults to sporta-voice.log beside the cache, ABOVE public_html.
+    'tts_log' => '',
 
     // n8n. When a customer asks for a human, or the assistant cannot answer,
     // the conversation is POSTed here. n8n does the rest — WhatsApp, email,

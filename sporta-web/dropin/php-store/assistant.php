@@ -133,12 +133,10 @@ function assistant_find_track(string $text): ?string
 // Each returns [reply, data] — data being anything the widget can render as
 // something better than a sentence (an order card, a row of products).
 
-function assistant_order(PDO $db, ?string $track, bool $ar): array
+function assistant_order(PDO $db, array $cfg, ?string $track, bool $ar): array
 {
     if ($track === null) {
-        return [$ar
-            ? 'أرسل لي رقم الطلب (يبدأ بـ SP) وسأتحقق من حالته فورًا.'
-            : 'Send me your order number (it starts with SP) and I will check it right away.', null];
+        return [assistant_canned($cfg, 'ask_track', $ar), null];
     }
     $q = $db->prepare('select track_id, amount, payment_status, payment_method,
                               fulfilment_status, created_at
@@ -160,18 +158,13 @@ function assistant_order(PDO $db, ?string $track, bool $ar): array
     // late, it is unfinished, and telling them it is "being prepared" would
     // send them to wait for a parcel that will never be packed.
     if (!$paid && $o['payment_method'] !== 'cod') {
-        $line = $ar
-            ? 'لم يكتمل الدفع لهذا الطلب بعد، لذلك لم يدخل التجهيز. يمكنك إعادة المحاولة من صفحة تتبع الطلب.'
-            : 'Payment for this order has not completed, so it has not gone into preparation. You can try again from the order tracking page.';
+        $line = assistant_canned($cfg, 'stage_unpaid', $ar);
     } elseif ($ful === 'delivered') {
-        $line = $ar ? 'تم تسليم هذا الطلب. نتمنى أن يكون كل شيء على ما يرام.'
-                    : 'This order has been delivered. We hope everything is as it should be.';
+        $line = assistant_canned($cfg, 'stage_delivered', $ar);
     } elseif ($ful === 'shipped' || $ful === 'dispatched') {
-        $line = $ar ? 'الطلب مع المندوب الآن وفي طريقه إليك.'
-                    : 'Your order is with the courier and on its way to you.';
+        $line = assistant_canned($cfg, 'stage_shipped', $ar);
     } else {
-        $line = $ar ? 'تم استلام الطلب وهو قيد التجهيز. التوصيل داخل الكويت في نفس اليوم للطلبات المؤكدة.'
-                    : 'We have your order and it is being prepared. Delivery inside Kuwait is same-day for confirmed orders.';
+        $line = assistant_canned($cfg, 'stage_packing', $ar);
     }
 
     return [$line, [
@@ -187,7 +180,7 @@ function assistant_order(PDO $db, ?string $track, bool $ar): array
 
 // Product search over both languages at once. The shopper types in whichever
 // they think in, and the catalogue is stored in both.
-function assistant_search(PDO $db, string $text, bool $ar): array
+function assistant_search(PDO $db, array $cfg, string $text, bool $ar): array
 {
     $t = assistant_normalise($text);
     // Words worth searching on: two characters or more, and not the padding
@@ -208,11 +201,9 @@ function assistant_search(PDO $db, string $text, bool $ar): array
     }
 
     if (!$found) {
-        return [$ar
-            ? 'لم أفهم طلبك تمامًا. أستطيع مساعدتك في: حالة الطلب، التوصيل، الإرجاع والاستبدال، طرق الدفع، والمقاسات — أو ابحث في المتجر مباشرة.'
-            : 'I did not quite follow that. I can help with order status, delivery, returns and exchanges, payment methods and sizing — or you can search the shop directly.', null];
+        return [assistant_canned($cfg, 'no_idea', $ar), null];
     }
-    return [$ar ? 'وجدت هذه المنتجات:' : 'Here is what I found:', [
+    return [assistant_canned($cfg, 'found', $ar), [
         'kind'  => 'products',
         'items' => array_map(fn ($p) => [
             'slug'  => $p['slug'],
@@ -221,6 +212,98 @@ function assistant_search(PDO $db, string $text, bool $ar): array
             'sale'  => $p['sale_price'] !== null && $p['sale_price'] !== '',
         ], $found),
     ]];
+}
+
+// ------------------------------------------------------------ fixed answers
+//
+// THE SENTENCES THE SHOP CAN SAY WITHOUT LOOKING ANYTHING UP, and the reason
+// they live in a table instead of inside the switch that used to hold them:
+// the voice cache is warmed from this list, so a sentence that exists twice is
+// a sentence the warmer buys in one spelling and the customer requests in
+// another. Nothing breaks visibly — the shop just pays for audio it already
+// owns, on the exact answers it says most often, for ever.
+//
+// One list, read by both. Edit a line here and the warmer warms the new one.
+function assistant_canned(array $cfg, string $intent, bool $ar): ?string
+{
+    $phone = (string) ($cfg['shop_phone'] ?? '+965 22091914');
+    $email = (string) ($cfg['shop_email'] ?? 'cs@sporta.com.kw');
+
+    $t = [
+        'delivery' => [
+            'ar' => 'التوصيل داخل الكويت في نفس اليوم للطلبات المؤكدة، والتوصيل مجاني. يصلك اتصال من المندوب قبل الوصول.',
+            'en' => 'Delivery inside Kuwait is same-day for confirmed orders, and it is free. The courier calls before arriving.',
+        ],
+        'returns' => [
+            // 14 days must match /returns and the Product structured data.
+            'ar' => 'الإرجاع والاستبدال متاح خلال ١٤ يومًا من الاستلام، بشرط أن تكون القطعة بحالتها الأصلية مع البطاقة.',
+            'en' => 'You can return or exchange within 14 days of delivery, as long as the item is unworn and still has its tag.',
+        ],
+        'payment' => [
+            'ar' => 'نقبل كي نت، والدفع أونلاين عبر T-Pay، والدفع عند الاستلام.',
+            'en' => 'We accept KNET, paying online with T-Pay, and cash on delivery.',
+        ],
+        'sizes' => [
+            'ar' => 'كل منتج فيه جدول مقاسات في صفحته. إذا كنت بين مقاسين ننصح بالأكبر للقصّات الواسعة.',
+            'en' => 'Every product page has a size guide. If you are between two sizes, take the larger one for the oversized fits.',
+        ],
+        'contact' => [
+            'ar' => 'يسعدنا خدمتك: ' . $phone . ' أو ' . $email,
+            'en' => 'We are happy to help: ' . $phone . ' or ' . $email,
+        ],
+        'greeting' => [
+            'ar' => 'أهلًا بك في سبورتا. أقدر أساعدك في حالة طلبك، التوصيل، الإرجاع، أو إيجاد المقاس المناسب.',
+            'en' => 'Welcome to Sporta. I can help with your order, delivery, returns, or finding the right size.',
+        ],
+        // Not reachable as an intent — these are the fixed replies the two
+        // database-backed tools fall back to, and the voice warms them too
+        // because "send me your order number" is said many times a day.
+        'ask_track' => [
+            'ar' => 'أرسل لي رقم الطلب (يبدأ بـ SP) وسأتحقق من حالته فورًا.',
+            'en' => 'Send me your order number (it starts with SP) and I will check it right away.',
+        ],
+        'stage_packing' => [
+            'ar' => 'تم استلام الطلب وهو قيد التجهيز. التوصيل داخل الكويت في نفس اليوم للطلبات المؤكدة.',
+            'en' => 'We have your order and it is being prepared. Delivery inside Kuwait is same-day for confirmed orders.',
+        ],
+        'stage_shipped' => [
+            'ar' => 'الطلب مع المندوب الآن وفي طريقه إليك.',
+            'en' => 'Your order is with the courier and on its way to you.',
+        ],
+        'stage_delivered' => [
+            'ar' => 'تم تسليم هذا الطلب. نتمنى أن يكون كل شيء على ما يرام.',
+            'en' => 'This order has been delivered. We hope everything is as it should be.',
+        ],
+        'stage_unpaid' => [
+            'ar' => 'لم يكتمل الدفع لهذا الطلب بعد، لذلك لم يدخل التجهيز. يمكنك إعادة المحاولة من صفحة تتبع الطلب.',
+            'en' => 'Payment for this order has not completed, so it has not gone into preparation. You can try again from the order tracking page.',
+        ],
+        'no_idea' => [
+            'ar' => 'لم أفهم طلبك تمامًا. أستطيع مساعدتك في: حالة الطلب، التوصيل، الإرجاع والاستبدال، طرق الدفع، والمقاسات — أو ابحث في المتجر مباشرة.',
+            'en' => 'I did not quite follow that. I can help with order status, delivery, returns and exchanges, payment methods and sizing — or you can search the shop directly.',
+        ],
+        'found' => [
+            'ar' => 'وجدت هذه المنتجات:',
+            'en' => 'Here is what I found:',
+        ],
+    ];
+
+    return $t[$intent][$ar ? 'ar' : 'en'] ?? null;
+}
+
+// Every fixed sentence, both languages — what the voice warmer buys up front.
+// Derived from the table above, so it cannot list a sentence the shop no
+// longer says or miss one it just started saying.
+function assistant_canned_lines(array $cfg): array
+{
+    $keys = ['delivery', 'returns', 'payment', 'sizes', 'contact', 'greeting', 'ask_track',
+             'stage_packing', 'stage_shipped', 'stage_delivered', 'stage_unpaid', 'no_idea', 'found'];
+    $out = ['ar' => [], 'en' => []];
+    foreach ($keys as $k) {
+        $out['ar'][] = assistant_canned($cfg, $k, true);
+        $out['en'][] = assistant_canned($cfg, $k, false);
+    }
+    return $out;
 }
 
 // ------------------------------------------------------ the optional LLM seam
@@ -283,40 +366,15 @@ function assistant_answer(PDO $db, array $cfg, string $message, string $lang): a
 
     switch ($intent) {
         case 'order_status':
-            [$reply, $data] = assistant_order($db, assistant_find_track($message), $ar);
+            [$reply, $data] = assistant_order($db, $cfg, assistant_find_track($message), $ar);
             break;
-        case 'delivery':
-            $reply = $ar
-                ? 'التوصيل داخل الكويت في نفس اليوم للطلبات المؤكدة، والتوصيل مجاني. يصلك اتصال من المندوب قبل الوصول.'
-                : 'Delivery inside Kuwait is same-day for confirmed orders, and it is free. The courier calls before arriving.';
-            break;
-        case 'returns':
-            $reply = $ar
-                ? 'الإرجاع والاستبدال متاح خلال ١٤ يومًا من الاستلام، بشرط أن تكون القطعة بحالتها الأصلية مع البطاقة.'
-                : 'You can return or exchange within 14 days of delivery, as long as the item is unworn and still has its tag.';
-            break;
-        case 'payment':
-            $reply = $ar
-                ? 'نقبل كي نت، والدفع أونلاين عبر T-Pay، والدفع عند الاستلام.'
-                : 'We accept KNET, paying online with T-Pay, and cash on delivery.';
-            break;
-        case 'sizes':
-            $reply = $ar
-                ? 'كل منتج فيه جدول مقاسات في صفحته. إذا كنت بين مقاسين ننصح بالأكبر للقصّات الواسعة.'
-                : 'Every product page has a size guide. If you are between two sizes, take the larger one for the oversized fits.';
-            break;
-        case 'contact':
-            $reply = $ar
-                ? 'يسعدنا خدمتك: ' . ($cfg['shop_phone'] ?? '+965 22091914') . ' أو ' . ($cfg['shop_email'] ?? 'cs@sporta.com.kw')
-                : 'We are happy to help: ' . ($cfg['shop_phone'] ?? '+965 22091914') . ' or ' . ($cfg['shop_email'] ?? 'cs@sporta.com.kw');
-            break;
-        case 'greeting':
-            $reply = $ar
-                ? 'أهلًا بك في سبورتا. أقدر أساعدك في حالة طلبك، التوصيل، الإرجاع، أو إيجاد المقاس المناسب.'
-                : 'Welcome to Sporta. I can help with your order, delivery, returns, or finding the right size.';
+        case 'search':
+            [$reply, $data] = assistant_search($db, $cfg, $message, $ar);
             break;
         default:
-            [$reply, $data] = assistant_search($db, $message, $ar);
+            // Everything else is a fixed sentence — see assistant_canned().
+            $reply = assistant_canned($cfg, $intent, $ar)
+                ?? assistant_canned($cfg, 'greeting', $ar);
     }
 
     // The model, if there is one, only rewords what is already true.
@@ -372,6 +430,84 @@ function assistant_speech_available(array $cfg): bool
         && ($cfg['cron_key'] ?? '') !== '';
 }
 
+// ------------------------------------------------- what the sentence SOUNDS like
+//
+// THE TEXT ON SCREEN AND THE TEXT TO READ ALOUD ARE NOT THE SAME STRING, and
+// assuming they were is the difference between a voice that sounds like a shop
+// and one that sounds broken. Two cases, both of which happen on the most
+// important sentences the assistant says:
+//
+//   "لم أجد طلبًا بالرقم SP1AU702NKHTKDV"
+//       A fifteen-character random Latin token sitting in an Arabic sentence.
+//       A multilingual model treats it as a WORD and tries to pronounce it —
+//       the customer hears a syllable soup and cannot check it against the SMS
+//       in their other hand, which is the entire reason that sentence exists.
+//       Spaced out, it is read as characters: ess, pee, one, ay, you…
+//
+//   "+965 22091914"
+//       Eight digits in a row is a NUMBER to a TTS model, so it says "twenty-two
+//       million, ninety-one thousand, nine hundred and fourteen". Nobody can
+//       dial that. Phone numbers are read digit by digit in every language.
+//
+// This runs AFTER the signature check and does NOT change the cache key: what
+// is signed and cached is the sentence the shop actually said. This is a
+// pronunciation hint applied on the way out, so fixing pronunciation never
+// invalidates a signature the browser is already holding.
+function assistant_speech_prep(string $text, string $lang): string
+{
+    // Order numbers, spelled. 4+ trailing characters so SP-anything is caught,
+    // and the whole token is upper-cased first so the model does not read a
+    // lowercase run as a word.
+    $text = preg_replace_callback('/\b(SP[A-Za-z0-9]{4,28})\b/', function ($m) {
+        return implode(' ', str_split(strtoupper($m[1])));
+    }, $text) ?? $text;
+
+    // Long digit runs — phone numbers, and nothing else the shop says. Prices
+    // are three-decimal (4.000 KWD) and must NOT be split: "four point zero
+    // zero zero" is right and "four zero zero zero" is not, so the pattern
+    // requires 7+ digits with no decimal point attached.
+    $text = preg_replace_callback('/(?<![\d.])(\d{7,})(?![\d.])/', function ($m) {
+        return implode(' ', str_split($m[1]));
+    }, $text) ?? $text;
+
+    // A country code reads as a number too: +965 is "plus nine sixty-five".
+    $text = preg_replace_callback('/\+(\d{1,4})\b/', function ($m) use ($lang) {
+        return ($lang === 'ar' ? 'زائد ' : 'plus ') . implode(' ', str_split($m[1]));
+    }, $text) ?? $text;
+
+    return trim(preg_replace('/[ \t]+/u', ' ', $text) ?? $text);
+}
+
+function assistant_voice_dir(array $cfg): string
+{
+    return (string) ($cfg['tts_cache_dir'] ?? sys_get_temp_dir() . '/sporta-voice');
+}
+
+// WHERE A SENTENCE'S AUDIO LIVES — the ONE implementation of the cache key.
+//
+// It was briefly computed in three places (here, and twice in cron-voice.php),
+// which is how a warm cache and a cold lookup end up disagreeing about the
+// same sentence: the warmer fills one path and the customer's request checks
+// another, so the shop pays for audio it already owns and nobody notices,
+// because everything still works.
+//
+// The key is the sentence AS WRITTEN, not as pronounced — pronunciation is
+// applied on the way out and must never invalidate a signature the browser is
+// already holding. It is bound to the voice, the model and the format too:
+// change any of those in config and the shop must buy new audio rather than
+// serve the old voice from disk for ever.
+function assistant_voice_path(array $cfg, string $text, string $lang): string
+{
+    $hash = hash('sha256', implode("\0", [
+        $lang,
+        (string) ($cfg['tts_voice_id'] ?? ''),
+        (string) ($cfg['tts_model'] ?? 'eleven_multilingual_v2'),
+        (string) ($cfg['tts_format'] ?? 'mp3_22050_32'),
+        $text,
+    ]));
+    return assistant_voice_dir($cfg) . '/' . $hash . '.mp3';
+}
+
 // Returns the mp3 bytes, from cache when possible.
 //
 // CACHING IS NOT AN OPTIMISATION HERE, it is most of the design. The shop's
@@ -383,40 +519,148 @@ function assistant_speak(array $cfg, string $text, string $lang): ?string
 {
     if (!assistant_speech_available($cfg)) return null;
 
-    $dir = (string) ($cfg['tts_cache_dir'] ?? sys_get_temp_dir() . '/sporta-voice');
-    $hash = hash('sha256', $lang . "\0" . $cfg['tts_voice_id'] . "\0" . $text);
-    $file = $dir . '/' . $hash . '.mp3';
+    $dir    = assistant_voice_dir($cfg);
+    $file   = assistant_voice_path($cfg, $text, $lang);
+    $model  = (string) ($cfg['tts_model'] ?? 'eleven_multilingual_v2');
+    // 22 kHz / 32 kbps mono. Speech, not music: at 128 kbps (the API default)
+    // the same sentence is four times the bytes with nothing a listener can
+    // hear for it, and these are played on Kuwaiti mobile data.
+    $format = (string) ($cfg['tts_format'] ?? 'mp3_22050_32');
     if (is_readable($file)) return (string) file_get_contents($file);
+
+    if (!is_dir($dir)) @mkdir($dir, 0700, true);
+
+    // SINGLE FLIGHT. Two customers pressing the speaker on the same new
+    // sentence at the same moment used to mean two synthesis calls billed for
+    // one file, and — worse — two processes writing the same path, which
+    // interleaves into an mp3 that plays as a burst of noise. The second
+    // request now waits for the first and serves what it wrote.
+    $lockPath = $file . '.lock';
+    $lock = @fopen($lockPath, 'c');
+    if ($lock !== false) {
+        @flock($lock, LOCK_EX);
+        // The winner wrote it while this process was waiting on the lock.
+        if (is_readable($file)) {
+            @flock($lock, LOCK_UN); @fclose($lock); @unlink($lockPath);
+            return (string) file_get_contents($file);
+        }
+    }
 
     // The base URL is configurable for one reason only: the test suite points
     // it at a fake gateway. It defaults to the real one and the owner never
     // sets it.
     $base = rtrim((string) ($cfg['tts_url'] ?? 'https://api.elevenlabs.io'), '/');
-    $ch = curl_init($base . '/v1/text-to-speech/' . rawurlencode((string) $cfg['tts_voice_id']));
+    $url  = $base . '/v1/text-to-speech/' . rawurlencode((string) $cfg['tts_voice_id'])
+          . '?output_format=' . rawurlencode($format);
+    $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_POST => true,
         CURLOPT_RETURNTRANSFER => true,
         // A customer is waiting and reading the same words on screen. If the
         // voice is slow, the voice is skipped — it is an enhancement, and an
         // enhancement that blocks the answer has stopped being one.
-        CURLOPT_TIMEOUT => 10,
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'xi-api-key: ' . $cfg['tts_key']],
+        CURLOPT_TIMEOUT => (int) ($cfg['tts_timeout'] ?? 10),
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Accept: audio/mpeg',
+            'xi-api-key: ' . $cfg['tts_key'],
+        ],
         CURLOPT_POSTFIELDS => json_encode([
-            'text' => $text,
+            // PRONOUNCED, not displayed — see assistant_speech_prep.
+            'text' => assistant_speech_prep($text, $lang),
             // Multilingual, or Arabic letters get read with English phonemes.
-            'model_id' => (string) ($cfg['tts_model'] ?? 'eleven_multilingual_v2'),
-            'voice_settings' => ['stability' => 0.45, 'similarity_boost' => 0.8],
+            'model_id' => $model,
+            'voice_settings' => [
+                // Stability low-ish so the read has some life in it; too high
+                // and a shop greeting sounds like a station announcement.
+                'stability'         => (float) ($cfg['tts_stability'] ?? 0.45),
+                'similarity_boost'  => (float) ($cfg['tts_similarity'] ?? 0.8),
+                'style'             => (float) ($cfg['tts_style'] ?? 0.0),
+                'use_speaker_boost' => (bool)  ($cfg['tts_speaker_boost'] ?? true),
+            ],
         ], JSON_UNESCAPED_UNICODE),
     ]);
     $body = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err  = curl_error($ch);
     curl_close($ch);
-    if ($code !== 200 || !is_string($body) || $body === '') return null;
 
-    if (!is_dir($dir)) @mkdir($dir, 0700, true);
-    @file_put_contents($file, $body);
-    @chmod($file, 0600);
+    $release = function () use ($lock, $lockPath) {
+        if ($lock !== false) { @flock($lock, LOCK_UN); @fclose($lock); @unlink($lockPath); }
+    };
+
+    // AN mp3 IS NOT THE ONLY THING THIS CAN RETURN. A wrong key answers 401
+    // with a JSON body, an exhausted quota 429, an unknown voice 404 — and
+    // every one of those used to become a silent `null`, i.e. a speaker button
+    // that does nothing, with no way for the owner to find out why. The reason
+    // is written down now. The log sits beside knet-payments.log ABOVE the web
+    // root; it records status and reason, never the key.
+    if ($code !== 200 || !is_string($body) || $body === '') {
+        $why = $err !== '' ? $err : substr((string) $body, 0, 300);
+        assistant_voice_log($cfg, sprintf('tts %d %s', $code, str_replace("\n", ' ', $why)));
+        $release();
+        return null;
+    }
+    // A JSON error body served with a 200 is not audio. Check the bytes are
+    // actually an MPEG frame or an ID3 tag before caching them for ever.
+    if (!str_starts_with($body, 'ID3') && ($body[0] !== "\xFF")) {
+        assistant_voice_log($cfg, 'tts 200 but body is not mp3: ' . substr($body, 0, 200));
+        $release();
+        return null;
+    }
+
+    // ATOMIC. Write to a temp file in the same directory and rename it into
+    // place — rename(2) is atomic on the same filesystem, so a reader either
+    // sees no file or sees the whole file, never a half-written one.
+    $tmp = $file . '.' . bin2hex(random_bytes(6)) . '.part';
+    if (@file_put_contents($tmp, $body) === strlen($body)) {
+        @chmod($tmp, 0600);
+        @rename($tmp, $file);
+    } else {
+        @unlink($tmp);
+    }
+    $release();
     return $body;
+}
+
+// One line per failure, above the web root. Silent if it cannot write —
+// logging is diagnosis, and diagnosis must never take the shop down.
+function assistant_voice_log(array $cfg, string $line): void
+{
+    $path = (string) ($cfg['tts_log'] ?? '');
+    if ($path === '') {
+        $dir = (string) ($cfg['tts_cache_dir'] ?? sys_get_temp_dir() . '/sporta-voice');
+        $path = dirname($dir) . '/sporta-voice.log';
+    }
+    @file_put_contents($path, gmdate('c') . ' ' . $line . "\n", FILE_APPEND | LOCK_EX);
+    @chmod($path, 0600);
+}
+
+// Delete cached audio nobody has asked for in a long time.
+//
+// THE CACHE IS UNBOUNDED WITHOUT THIS. The canned lines above are a fixed two
+// dozen files, but every order-status answer names an order number, so each is
+// a sentence that will be said once and never again. A shop doing forty orders
+// a day writes forty files a day, for ever, into a directory the owner cannot
+// see over FTP without going looking. Pruned by last ACCESS where the
+// filesystem records it, so a line that is still being played stays.
+function assistant_voice_prune(array $cfg, int $maxAgeDays = 90): int
+{
+    $dir = (string) ($cfg['tts_cache_dir'] ?? sys_get_temp_dir() . '/sporta-voice');
+    if (!is_dir($dir)) return 0;
+    $cut = time() - ($maxAgeDays * 86400);
+    $gone = 0;
+    foreach ((glob($dir . '/*.mp3') ?: []) as $f) {
+        // atime, falling back to mtime: shared hosts often mount noatime, and
+        // in that case atime IS mtime, which is the conservative answer.
+        $seen = max((int) @fileatime($f), (int) @filemtime($f));
+        if ($seen > 0 && $seen < $cut && @unlink($f)) $gone++;
+    }
+    // Abandoned lock/part files from a process that died mid-synthesis.
+    foreach (array_merge(glob($dir . '/*.lock') ?: [], glob($dir . '/*.part') ?: []) as $f) {
+        if ((int) @filemtime($f) < time() - 3600) @unlink($f);
+    }
+    return $gone;
 }
 
 // ---------------------------------------------------------------------- n8n

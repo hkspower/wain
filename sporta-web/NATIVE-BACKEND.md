@@ -31,8 +31,8 @@ checks) prove the contract against a real MariaDB and a real browser.
 | `public_html/api/config.php` | **created by you on the server** | DB credentials + warehouse email + cron key — never committed, never in the zip, never overwritten by `npm run publish` |
 
 `api/.htaccess` denies `store.php`, `config.php`, the `.sql` files and the
-example config by name, so only `api.php`, `admin.php`, `cron-fulfilment.php`
-and (until you delete it) `setup-admin.php` answer over HTTP.
+example config by name, so only `api.php`, `admin.php`, `cron-fulfilment.php`,
+`cron-voice.php` and (until you delete it) `setup-admin.php` answer over HTTP.
 
 ## Setup — once, in hPanel (~15 minutes)
 

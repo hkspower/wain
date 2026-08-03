@@ -29,6 +29,22 @@ if ($path === '/calls') {
 }
 if ($path === '/reset') { @unlink($state); echo 'ok'; exit; }
 
+// Make the next N synthesis calls fail with a given status, so the test can
+// prove that a wrong key is WRITTEN DOWN rather than becoming a silent null.
+// /fail?code=401&n=1
+if ($path === '/fail') {
+    $s = $read();
+    $s['fail_code'] = (int) ($_GET['code'] ?? 401);
+    $s['fail_left'] = (int) ($_GET['n'] ?? 1);
+    $write($s);
+    echo 'ok';
+    exit;
+}
+// Answer 200 with a JSON body instead of audio — the shape an upstream error
+// sometimes actually takes, and the one that used to get cached as "audio"
+// for ever.
+if ($path === '/lie') { $s = $read(); $s['lie'] = 1; $write($s); echo 'ok'; exit; }
+
 // ElevenLabs: POST /v1/text-to-speech/{voice_id}
 if (str_starts_with($path, '/v1/text-to-speech/')) {
     $s = $read();
@@ -38,6 +54,28 @@ if (str_starts_with($path, '/v1/text-to-speech/')) {
     $s['last_model'] = $body['model_id'] ?? '';
     $s['last_voice'] = rawurldecode(substr($path, strlen('/v1/text-to-speech/')));
     $s['last_key'] = $_SERVER['HTTP_XI_API_KEY'] ?? '';
+    // The format is a QUERY parameter, not a body field — recorded so the test
+    // can prove the shop asks for speech-sized audio and not 128 kbps music.
+    parse_str((string) (parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_QUERY) ?: ''), $qs);
+    $s['last_format'] = $qs['output_format'] ?? '';
+    $s['last_settings'] = $body['voice_settings'] ?? [];
+    $s['texts'][] = $body['text'] ?? '';
+
+    if (($s['fail_left'] ?? 0) > 0) {
+        $s['fail_left']--;
+        $write($s);
+        http_response_code((int) $s['fail_code']);
+        header('Content-Type: application/json');
+        echo '{"detail":{"status":"invalid_api_key","message":"Invalid API key"}}';
+        exit;
+    }
+    if (($s['lie'] ?? 0) === 1) {
+        $s['lie'] = 0;
+        $write($s);
+        header('Content-Type: application/json');
+        echo '{"detail":"quota exceeded"}';
+        exit;
+    }
     $write($s);
     header('Content-Type: audio/mpeg');
     // An ID3 header and a frame's worth of silence. Real enough that anything
