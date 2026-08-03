@@ -321,7 +321,142 @@ function assistant_answer(PDO $db, array $cfg, string $message, string $lang): a
 
     // The model, if there is one, only rewords what is already true.
     $better = assistant_llm($cfg, $message, $reply . ($data ? "\n" . json_encode($data, JSON_UNESCAPED_UNICODE) : ''), $ar);
+    $final = $better ?? $reply;
 
-    return ['intent' => $intent, 'reply' => $better ?? $reply, 'data' => $data,
+    // Hand off to n8n exactly where the assistant runs out: the customer asked
+    // for a person, or the question fell through to the catch-all and found
+    // nothing. Handing off every message would make the workflow a transcript
+    // log, which is not what it is for.
+    if ($intent === 'contact' || ($intent === 'search' && !$data)) {
+        assistant_handoff($cfg, $message, $final, $intent, $lang);
+    }
+
+    $out = ['intent' => $intent, 'reply' => $final, 'data' => $data,
             'source' => $better === null ? 'shop' : 'shop+ai'];
+
+    // The signature, not the audio. Speech is a second request the visitor
+    // makes only if they press the speaker — synthesising every answer aloud
+    // would bill the shop for words nobody listened to, and would put a
+    // ten-second upstream call in front of a reply that is already written.
+    if (assistant_speech_available($cfg)) $out['speak'] = assistant_speech_sig($cfg, $final, $lang);
+
+    return $out;
+}
+
+// ------------------------------------------------------------------- the voice
+//
+// ELEVENLABS, PROXIED — the key never reaches the browser, and neither does
+// the ability to spend it.
+//
+// The obvious build is an endpoint that takes text and returns speech. That
+// endpoint is a free text-to-speech service for the entire internet, billed to
+// this shop: one loop posting Moby-Dick a paragraph at a time is the whole
+// month's budget. So the browser cannot ask for arbitrary speech at all.
+//
+// Every assistant reply comes back with a SIGNATURE — HMAC of the exact text,
+// keyed on cron_key, which only the server knows. say.php synthesises text
+// whose signature verifies and refuses everything else. The browser can
+// therefore ask for the sentence the shop just said to it, and for nothing
+// else, ever.
+function assistant_speech_sig(array $cfg, string $text, string $lang): string
+{
+    // Truncated to 32 hex characters: this is an anti-abuse tag on a public
+    // sentence, not a secret, and 128 bits is far past what forging it is
+    // worth. The full digest would only make the URL longer.
+    return substr(hash_hmac('sha256', $lang . "\0" . $text, (string) ($cfg['cron_key'] ?? '')), 0, 32);
+}
+
+function assistant_speech_available(array $cfg): bool
+{
+    return ($cfg['tts_key'] ?? '') !== '' && ($cfg['tts_voice_id'] ?? '') !== ''
+        && ($cfg['cron_key'] ?? '') !== '';
+}
+
+// Returns the mp3 bytes, from cache when possible.
+//
+// CACHING IS NOT AN OPTIMISATION HERE, it is most of the design. The shop's
+// answers repeat: "delivery is same-day", "returns within 14 days", the
+// greeting. Those are the same bytes every time, so they are synthesised once
+// and served from disk for ever after. Only a genuinely new sentence — an
+// order card, a product list — costs anything.
+function assistant_speak(array $cfg, string $text, string $lang): ?string
+{
+    if (!assistant_speech_available($cfg)) return null;
+
+    $dir = (string) ($cfg['tts_cache_dir'] ?? sys_get_temp_dir() . '/sporta-voice');
+    $hash = hash('sha256', $lang . "\0" . $cfg['tts_voice_id'] . "\0" . $text);
+    $file = $dir . '/' . $hash . '.mp3';
+    if (is_readable($file)) return (string) file_get_contents($file);
+
+    // The base URL is configurable for one reason only: the test suite points
+    // it at a fake gateway. It defaults to the real one and the owner never
+    // sets it.
+    $base = rtrim((string) ($cfg['tts_url'] ?? 'https://api.elevenlabs.io'), '/');
+    $ch = curl_init($base . '/v1/text-to-speech/' . rawurlencode((string) $cfg['tts_voice_id']));
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        // A customer is waiting and reading the same words on screen. If the
+        // voice is slow, the voice is skipped — it is an enhancement, and an
+        // enhancement that blocks the answer has stopped being one.
+        CURLOPT_TIMEOUT => 10,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'xi-api-key: ' . $cfg['tts_key']],
+        CURLOPT_POSTFIELDS => json_encode([
+            'text' => $text,
+            // Multilingual, or Arabic letters get read with English phonemes.
+            'model_id' => (string) ($cfg['tts_model'] ?? 'eleven_multilingual_v2'),
+            'voice_settings' => ['stability' => 0.45, 'similarity_boost' => 0.8],
+        ], JSON_UNESCAPED_UNICODE),
+    ]);
+    $body = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($code !== 200 || !is_string($body) || $body === '') return null;
+
+    if (!is_dir($dir)) @mkdir($dir, 0700, true);
+    @file_put_contents($file, $body);
+    @chmod($file, 0600);
+    return $body;
+}
+
+// ---------------------------------------------------------------------- n8n
+//
+// One outbound webhook, fired when the assistant has reached the end of what
+// it can do — the customer asked for a person, or the question fell through to
+// the catch-all. n8n decides what happens next: WhatsApp, an email, a row in a
+// sheet. None of that belongs in a shop's PHP.
+//
+// FIRE AND FORGET, deliberately. The customer is waiting for an answer that is
+// already written; whether an automation platform acknowledged the handoff is
+// not their problem and must never delay them or fail their request.
+function assistant_handoff(array $cfg, string $message, string $reply, string $intent, string $lang): void
+{
+    $url = (string) ($cfg['n8n_webhook'] ?? '');
+    if ($url === '') return;
+
+    $payload = json_encode([
+        'source'  => 'sporta-ai',
+        'intent'  => $intent,
+        'lang'    => $lang,
+        'message' => $message,
+        'reply'   => $reply,
+        'at'      => gmdate('c'),
+    ], JSON_UNESCAPED_UNICODE);
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 4,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            // A webhook URL stops being a secret the moment it is in a browser
+            // history or a screenshot. The signature is what lets the workflow
+            // tell this shop from anyone who has seen the URL.
+            'X-Sporta-Signature: ' . hash_hmac('sha256', $payload, (string) ($cfg['n8n_secret'] ?? '')),
+        ],
+        CURLOPT_POSTFIELDS => $payload,
+    ]);
+    curl_exec($ch);
+    curl_close($ch);
 }

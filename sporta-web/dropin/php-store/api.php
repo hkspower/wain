@@ -205,6 +205,44 @@ if ($r === 'assistant' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     store_out(assistant_answer($db, store_config(), $msg, $lang));
 }
 
+// ------------------------------------------------------- سبورتا AI, out loud
+//
+// GET, and the text is in the URL, because this answers with an mp3 that a
+// browser <audio> element fetches and that should be cacheable.
+//
+// THE SIGNATURE IS THE WHOLE POINT. Without it this is a free text-to-speech
+// service for the entire internet, billed to this shop: anyone could POST a
+// novel and have ElevenLabs read it. `v` is an HMAC of the exact text, keyed
+// on cron_key, minted by assistant_answer() when it wrote that sentence. So
+// the browser can ask for the sentence the shop just said to it, and for
+// nothing else. hash_equals, not ===, so the comparison is constant-time.
+if ($r === 'say') {
+    require_once __DIR__ . '/assistant.php';
+    $cfg  = store_config();
+    $text = (string) ($_GET['t'] ?? '');
+    $lang = ($_GET['lang'] ?? 'en') === 'ar' ? 'ar' : 'en';
+    // Bounded before it is hashed. An unbounded string would still fail the
+    // signature check, but only after this process had hashed all of it.
+    if ($text === '' || mb_strlen($text) > 1000) store_out(['error' => 'bad_text'], 400);
+    if (!assistant_speech_available($cfg)) store_out(['error' => 'no_voice'], 404);
+    if (!hash_equals(assistant_speech_sig($cfg, $text, $lang), (string) ($_GET['v'] ?? ''))) {
+        store_out(['error' => 'bad_signature'], 403);
+    }
+    // Throttled only AFTER the signature verifies: a valid speaker press must
+    // not be rationed because someone else spent the budget on forgeries.
+    store_throttle($db, 'say', 30, 60);
+    $mp3 = assistant_speak($cfg, $text, $lang);
+    if ($mp3 === null) store_out(['error' => 'tts_failed'], 502);
+    header('Content-Type: audio/mpeg');
+    header('Content-Length: ' . strlen($mp3));
+    // Signed, immutable, and identical for every visitor who asks the same
+    // question — exactly the thing a cache is for. Private: it may quote an
+    // order number back, and that is not for a shared proxy to keep.
+    header('Cache-Control: private, max-age=31536000, immutable');
+    echo $mp3;
+    exit;
+}
+
 // ------------------------------------------------------------------ invoice
 if ($r === 'invoice') {
     $q = $db->prepare('select * from orders where track_id = ?');

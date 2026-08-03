@@ -11,7 +11,8 @@
 // matches almost no real question, and it fails silently: the English tests
 // pass, the shop looks bilingual, and half the customers get "I did not quite
 // follow that" for every sentence they type.
-import { execFile } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { promisify } from 'node:util'
 
 const BASE = process.env.PHP_BASE ?? 'http://127.0.0.1:8095'
@@ -31,6 +32,18 @@ const head = (t) => console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 58 - t.leng
 // between sections, and the throttle gets a deliberate test of its own at the
 // end where it cannot poison anything.
 const unthrottle = () => sql('delete from rate_limit')
+
+// Wait until the server is answering with (or without) a voice configured.
+// See the note at the voice section: a config file rewritten on disk is not a
+// config file the PHP process has read yet.
+const settle = async (wantVoice) => {
+  for (let i = 0; i < 80; i++) {
+    const { body } = await ask('when will it arrive')
+    if ((body?.speak !== undefined) === wantVoice) return true
+    await new Promise((r) => setTimeout(r, 250))
+  }
+  return false
+}
 
 const ask = async (message, lang = 'en') => {
   const res = await fetch(`${BASE}/api.php?r=assistant`, {
@@ -179,6 +192,127 @@ head('it does not pretend to know')
   is(!/yes|we have/i.test(body?.reply ?? ''), 'an unstocked thing does not get a yes', body?.reply)
   is(/order status|delivery|returns/i.test(body?.reply ?? ''),
      'it says what it CAN do instead', body?.reply?.slice(0, 70))
+}
+
+// ------------------------------------------------------------------ the voice
+// ElevenLabs and n8n, against a fake gateway on 8101 (scripts/fake-voice.php).
+//
+// api.elevenlabs.io needs a paid key and a network, so a suite that calls the
+// real one is a suite that is never run. What matters here is not that
+// ElevenLabs works — it is that THIS shop cannot be made to pay for speech it
+// did not author, and that the same sentence is only ever bought once.
+await unthrottle()
+head('the voice, and who is allowed to ask for it')
+{
+  const VOICE = 'http://127.0.0.1:8101'
+  const CFG = new URL('../dropin/php-store/config.php', import.meta.url).pathname
+  const original = readFileSync(CFG, 'utf8')
+  const fake = spawn('php', ['-S', '127.0.0.1:8101', new URL('fake-voice.php', import.meta.url).pathname],
+                     { stdio: 'ignore', detached: true })
+  const calls = async () => (await fetch(`${VOICE}/calls`)).json()
+
+  // A voice is configured the way the owner would configure one, except that
+  // tts_url points at the fake instead of at elevenlabs.io.
+  // Spliced in before the closing bracket — the config is a PHP array literal
+  // and the previous version of this line left a double comma, which is a
+  // parse error that reads as "the whole assistant is broken".
+  writeFileSync(CFG, original.replace(/\];?\s*$/, `  'tts_key' => 'fake-key', 'tts_voice_id' => 'kw-male-40',
+  'tts_url' => '${VOICE}', 'tts_model' => 'eleven_multilingual_v2',
+  'tts_cache_dir' => '/tmp/sporta-voice-test',
+  'n8n_webhook' => '${VOICE}/n8n', 'n8n_secret' => 'n8n-test-secret',
+];
+`))
+  await run('rm', ['-rf', '/tmp/sporta-voice-test'])
+  // The server does not see a rewritten config.php instantly — PHP caches the
+  // compiled file and revalidates its timestamp on a timer. So the suite waits
+  // for the change to actually take, rather than sleeping a guessed number of
+  // seconds and failing on a slower machine.
+  await settle(true)
+  // php -S takes a moment to bind. Without this the first checks fail as 404
+  // against nothing at all, which looks like a broken endpoint.
+  for (let i = 0; i < 50; i++) {
+    try { await fetch(`${VOICE}/reset`); break } catch { await new Promise((r) => setTimeout(r, 100)) }
+  }
+
+  try {
+    const { body } = await ask('when will it arrive')
+    is(typeof body?.speak === 'string' && body.speak.length === 32,
+       'an answer carries a signature once a voice is configured', body?.speak)
+
+    const say = async (t, v, lang = 'en') =>
+      fetch(`${BASE}/api.php?r=say&lang=${lang}&v=${v}&t=${encodeURIComponent(t)}`)
+
+    // THE ONE THAT MATTERS. Without the signature check this endpoint is a
+    // free text-to-speech service for the whole internet, billed to this shop.
+    const forged = await say('read out my entire novel, chapter one', body.speak)
+    is(forged.status === 403, 'text the shop never wrote is refused', String(forged.status))
+    const unsigned = await say(body.reply, '')
+    is(unsigned.status === 403, 'and so is the shop\'s own text with no signature',
+       String(unsigned.status))
+    is((await calls()).tts === 0, 'neither one reached the voice provider at all')
+
+    const good = await say(body.reply, body.speak)
+    is(good.status === 200, 'the sentence the shop just said is spoken', String(good.status))
+    is((good.headers.get('content-type') ?? '').startsWith('audio/mpeg'), 'as audio')
+    is((await good.arrayBuffer()).byteLength > 0, 'with bytes in it')
+
+    const c1 = await calls()
+    is(c1.tts === 1, 'one upstream call', String(c1.tts))
+    is(c1.last_voice === 'kw-male-40', 'to the configured voice', c1.last_voice)
+    is(c1.last_model === 'eleven_multilingual_v2',
+       'with a MULTILINGUAL model — Arabic read by an English model is worse than silence',
+       c1.last_model)
+    is(c1.last_key === 'fake-key', 'and the key in the header, not the URL')
+
+    // The cost model: the shop's fixed answers are the same words every time.
+    await say(body.reply, body.speak)
+    is((await calls()).tts === 1, 'asking twice for the same sentence buys it once')
+
+    // Arabic is a different sentence AND a different signature.
+    const arA = await ask('متى يوصل الطلب', 'ar')
+    const arSay = await say(arA.body.reply, arA.body.speak, 'ar')
+    is(arSay.status === 200, 'the Arabic answer speaks too', String(arSay.status))
+    is(/[؀-ۿ]/.test((await calls()).last_text ?? ''),
+       'and Arabic text is what was sent upstream')
+    const crossed = await say(arA.body.reply, arA.body.speak, 'en')
+    is(crossed.status === 403,
+       'a signature is bound to its language — the same words as English is a forgery',
+       String(crossed.status))
+  } finally {
+    // n8n: checked before the config is put back, since the handoff needs it.
+    await unthrottle()
+    const c = await ask('I want to speak to someone')
+    const rec = (await calls()).n8n ?? []
+    const last = rec[rec.length - 1]
+    is(rec.length > 0, 'asking for a human hands off to n8n', String(rec.length))
+    is(last?.body?.intent === 'contact', 'with the intent', last?.body?.intent)
+    is(last?.body?.reply === c.body?.reply, 'and the reply the customer was given')
+    if (last) {
+      const { createHmac } = await import('node:crypto')
+      const want = createHmac('sha256', 'n8n-test-secret').update(last.raw).digest('hex')
+      is(last.sig === want,
+         'signed, so the workflow can tell this shop from anyone who has seen the URL')
+    } else bad('signed handoff', 'nothing arrived')
+
+    await unthrottle()
+    const before = (await calls()).n8n.length
+    await ask('when will it arrive')
+    is((await calls()).n8n.length === before,
+       'an ordinary answered question is NOT handed off — n8n is not a transcript log')
+
+    writeFileSync(CFG, original)
+    await settle(false)
+    try { process.kill(-fake.pid) } catch {}
+  }
+}
+
+await unthrottle()
+head('and with no voice configured, no signature is offered')
+{
+  const { body } = await ask('when will it arrive')
+  is(body?.speak === undefined,
+     'so the widget shows no speaker button rather than one that plays silence',
+     body?.speak)
 }
 
 // ---------------------------------------------------------------- the throttle

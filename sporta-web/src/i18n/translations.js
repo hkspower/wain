@@ -165,6 +165,11 @@ export const translations = {
       unpaid: 'Not paid',
       stageLabel: 'Stage',
       viewOrder: 'Open full order →',
+      // The speaker button. `listen` is the label while silent, `stop` while
+      // playing — the same button, because two buttons for one sound is one
+      // button too many on a phone.
+      listen: 'Listen to this answer',
+      stopAudio: 'Stop',
       stages: {
         unfulfilled: 'Being prepared',
         packed: 'Packed',
@@ -498,6 +503,8 @@ export const translations = {
       unpaid: 'غير مدفوع',
       stageLabel: 'الحالة',
       viewOrder: 'عرض الطلب كاملًا ←',
+      listen: 'استمع إلى الإجابة',
+      stopAudio: 'إيقاف',
       stages: {
         unfulfilled: 'قيد التجهيز',
         packed: 'تم التغليف',

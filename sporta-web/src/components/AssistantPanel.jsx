@@ -57,7 +57,7 @@ export default function AssistantPanel({ onClose }) {
       // the generic failure — the shop is fine, the visitor is just fast.
       if (res.status === 429) setLog((l) => [...l, { from: 'ai', text: T.tooFast }])
       else if (!d?.reply) setLog((l) => [...l, { from: 'ai', text: T.failed }])
-      else setLog((l) => [...l, { from: 'ai', text: d.reply, data: d.data }])
+      else setLog((l) => [...l, { from: 'ai', text: d.reply, data: d.data, speak: d.speak }])
     } catch {
       // Offline, or /api not reachable. Say so, and point at a human — the one
       // thing worse than no answer is a spinner that never resolves.
@@ -95,6 +95,7 @@ export default function AssistantPanel({ onClose }) {
                 : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100'}`}>
               {m.text}
             </div>
+            {m.from === 'ai' && m.speak && <Speaker text={m.text} sig={m.speak} lang={lang} T={T} />}
             {m.data?.kind === 'order' && <OrderCard d={m.data} T={T} ar={ar} />}
             {m.data?.kind === 'products' && <ProductRow items={m.data.items} />}
           </div>
@@ -131,6 +132,48 @@ export default function AssistantPanel({ onClose }) {
           className="btn btn-primary shrink-0 px-4 py-2 text-sm disabled:opacity-40">{T.send}</button>
       </form>
     </div>
+  )
+}
+
+// The speaker button.
+//
+// It appears only when the server sent a `speak` signature, i.e. only when a
+// voice is actually configured on this installation. No signature, no button —
+// rather than a button that plays silence and looks broken.
+//
+// The audio is fetched by URL, not by XHR, so the browser's HTTP cache holds
+// it: the shop's fixed answers (delivery, returns, payment) are the same mp3
+// every time and are paid for once, upstream and downstream both.
+function Speaker({ text, sig, lang, T }) {
+  const ref = useRef(null)
+  const [playing, setPlaying] = useState(false)
+
+  // Stop when the panel closes or the message scrolls out of existence. An
+  // Arabic sentence still talking after the window is shut is a bug people
+  // remember.
+  useEffect(() => () => ref.current?.pause(), [])
+
+  function toggle() {
+    if (playing) { ref.current?.pause(); setPlaying(false); return }
+    const url = `${phpBase()}/api.php?r=say&lang=${lang}`
+      + `&v=${sig}&t=${encodeURIComponent(text)}`
+    const a = ref.current ?? new Audio(url)
+    ref.current = a
+    a.onended = () => setPlaying(false)
+    // A 403/502 from the voice endpoint must not become a broken-looking chat.
+    // The words are already on screen; losing the audio loses nothing.
+    a.onerror = () => setPlaying(false)
+    a.play().then(() => setPlaying(true)).catch(() => setPlaying(false))
+  }
+
+  return (
+    <button
+      onClick={toggle}
+      aria-label={playing ? T.stopAudio : T.listen}
+      className="tap-target mt-1 rounded-lg px-2 py-1 text-xs text-slate-400 hover:text-brand"
+    >
+      {playing ? '■' : '🔊'}
+    </button>
   )
 }
 
