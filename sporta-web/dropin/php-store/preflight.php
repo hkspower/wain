@@ -179,7 +179,7 @@ if (!$configured) {
         $absent = array_values(array_diff(array_keys($need), $have));
         check($absent ? 'bad' : 'ok', 'Database tables',
               $absent ? 'missing: ' . implode(', ', $absent) : count($need) . ' present',
-              'phpMyAdmin → Import → run api/schema.mysql.sql, then api/seed.mysql.sql, then api/brands.mysql.sql. IN THAT ORDER — getting it wrong fails quietly. All three are safe to re-run.', 4);
+              'hPanel → Databases → phpMyAdmin → pick your database → Import → api/install.mysql.sql → Go. That one file is all four parts in the right order, so there is no order to get wrong, and it is safe to re-run — it repairs what is missing and leaves orders alone.', 4);
 
         if (!$absent) {
             $n = (int) $db->query('select count(*) from products')->fetchColumn();

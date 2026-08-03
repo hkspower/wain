@@ -47,6 +47,12 @@ for (const forbidden of ['knet/config.php', 'pay/config.php', 'api/config.php', 
 // order is the most common way this setup fails, and it fails quietly,
 // leaving a storefront that renders and a checkout that refuses everything.
 mkdirSync(join(stage, 'database-sql'), { recursive: true })
+// IMPORT-THIS-ONE first, alphabetically and in intent: the four parts
+// concatenated in dependency order by make-install-sql.mjs. The numbered
+// copies stay for a shop that needs only one of them re-run, but nobody
+// setting up for the first time should have to get an order right.
+cpSync(join(web, 'dropin', 'php-store', 'install.mysql.sql'),
+       join(stage, 'database-sql', 'IMPORT-THIS-ONE.sql'))
 const ORDER = ['schema.mysql', 'seed.mysql', 'brands.mysql', 'promo.mysql']
 ORDER.forEach((name, i) => {
   cpSync(join(web, 'dropin', 'php-store', `${name}.sql`),
@@ -101,16 +107,19 @@ Create a database and a user, and give that user ALL privileges on it. Write
 down the four values -- host (localhost), database name, user, password. Every
 part of the site reads the SAME four.
 
-Then hPanel -> Databases -> phpMyAdmin -> Import, and run these IN THIS ORDER:
+Then hPanel -> Databases -> phpMyAdmin -> Import, and run ONE file:
+
+    database-sql/IMPORT-THIS-ONE.sql
+
+That is the whole database step. It is the four files below joined in the
+right order, so there is no order to get wrong.
+
+The parts are still here for a shop that needs only one of them re-run:
 
     database-sql/1-schema.mysql.sql   the tables
     database-sql/2-seed.mysql.sql     the 46 products and the stock
     database-sql/3-brands.mysql.sql   the brands
     database-sql/4-promo.mysql.sql    home slides, promotions and discounts
-
-(3 and 4 are already inside 1 on a fresh install. They are listed separately
-because a shop set up before those features needs them on their own, and
-running them twice changes nothing.)
 
 Safe to re-run. Re-seeding updates prices and names in place; it never
 duplicates a product and never overwrites your stock counts.

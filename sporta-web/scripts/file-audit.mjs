@@ -220,6 +220,7 @@ const REQUIRED = ['/index.html', '/.htaccess', '/knet/.htaccess', '/config.js',
                   // shop is not working, so it going missing is the failure
                   // that hides every other failure.
                   '/api/preflight.php',
+                  '/api/install.mysql.sql',
                   '/api/schema.mysql.sql', '/api/seed.mysql.sql', '/api/promo.mysql.sql',
                   // The shipped hero: three slides, each with an LTR and an RTL
                   // composition, each in a desktop and a phone crop. Miss one

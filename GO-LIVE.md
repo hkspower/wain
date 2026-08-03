@@ -116,7 +116,9 @@ project folder on your Mac. Nothing is installed and nothing is rebuilt.
 4. In hPanel → **Databases → MySQL Databases**, create a database and a user
    and give that user all privileges on it. Note the four values.
 5. In **phpMyAdmin → Import**, run the zip's `database-sql/` files **in their
-   numbered order**: `1-schema.mysql.sql`, `2-seed.mysql.sql`,
+   **one file — `database-sql/IMPORT-THIS-ONE.sql`** (the four parts joined in
+   dependency order; nothing to get wrong). The numbered parts are still there
+   if you ever need just one re-run: `1-schema.mysql.sql`, `2-seed.mysql.sql`,
    `3-brands.mysql.sql`, `4-promo.mysql.sql`.
 6. Copy `public_html/api/config.example.php` to `api/config.php` and fill in
    those four values. The site cannot sell anything until this exists —

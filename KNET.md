@@ -259,9 +259,12 @@ bank now believes this merchant can do.
    §2a. Everything below assumes credentials issued for a raw integration; the
    plugin's are not interchangeable, and the letter only hands over the RAW
    details on request. This step gates steps 3 and 5.
-1. **Import the SQL** (phpMyAdmin, in order): `api/schema.mysql.sql`,
-   `api/seed.mysql.sql`, `api/brands.mysql.sql`. Every test suite runs against
-   a database built this way, so the order is verified, not just documented.
+1. **Import the SQL** — one file: phpMyAdmin → Import → `api/install.mysql.sql`.
+   It is the four part files concatenated in dependency order by
+   `scripts/make-install-sql.mjs`, so there is no order to get wrong. Verified
+   against a fresh database: importing it once produces a schema
+   byte-identical to running the four by hand, and importing it twice changes
+   nothing. The parts still ship for re-running one on its own.
 2. **Confirm the catalogue loaded.** `seed.mysql.sql` does it; Backends →
    Catalogue → Push products is the browser equivalent. Orders price from that
    table, and empty means every checkout is refused.

@@ -117,7 +117,7 @@ async function run() {
   // ---- 2. the database has a catalogue to price from ----------------------
   report(productCount > 0, 'Products loaded',
     productCount + ' product(s) in the database.',
-    'Import <code>api/schema.mysql.sql</code> then <code>api/seed.mysql.sql</code> in ' +
+    'Import ONE file — <code>api/install.mysql.sql</code> (all four parts, right order) in ' +
     'hPanel → Databases → phpMyAdmin. Orders are priced from this table, so while it is ' +
     'empty <b>every checkout is refused</b>.')
 

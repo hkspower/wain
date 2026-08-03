@@ -11,6 +11,7 @@
 //
 // No config.php is ever copied — both hold live bank credentials and exist only
 // on the server.
+import { execFileSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -24,6 +25,11 @@ const SKIP = new Set(['config.php', 'README.md', '.cbk_token.json'])
 const BUNDLES = [['php-knet', 'knet'], ['php-cbk', 'pay'], ['php-store', 'api']]
 
 if (!existsSync(join(root, 'dist'))) { console.error('dist/ missing — run the build first'); process.exit(1) }
+
+// Rebuilt from its parts on every bundle, so it cannot ship stale. A
+// generated file that is only regenerated when someone remembers is the
+// hand-made zip all over again.
+execFileSync('node', [join(root, 'scripts', 'make-install-sql.mjs')], { stdio: 'inherit' })
 
 for (const [from, to] of BUNDLES) {
   const src = join(root, 'dropin', from)

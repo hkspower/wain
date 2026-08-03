@@ -42,6 +42,8 @@ and (until you delete it) `setup-admin.php` answer over HTTP.
 
 2. **Import the schema, then the seed.** hPanel → Databases → phpMyAdmin →
    select the new database → Import:
+   0. `dropin/php-store/install.mysql.sql` — **all of the below in one import.**
+      Use this unless you need a single part re-run.
    1. `dropin/php-store/schema.mysql.sql` (tables)
    2. `dropin/php-store/seed.mysql.sql` (46 products, 42 stock rows)
 

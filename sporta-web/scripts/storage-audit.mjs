@@ -207,6 +207,7 @@ try {
       '/api/config.php',          // the MySQL password
       '/api/config.example.php',  // the template, which names every key
       '/api/store.php',           // shared core, not an endpoint
+      '/api/install.mysql.sql',   // the one-file install
       '/api/schema.mysql.sql',    // the schema
       '/api/seed.mysql.sql',      // the catalogue
       '/api/brands.mysql.sql',    // the brands migration
