@@ -20,8 +20,8 @@ in `sporta-web/dropin/php-cbk/` and is **not** what is deployed.
 | `sporta-web/dropin/php-knet/knet.php` | `public_html/knet/` | Crypto + helpers. AES-128-CBC, HTTPS guard, order lookup, audit log. Never served (denied in `.htaccess`). |
 | `sporta-web/dropin/php-knet/pay.php` | `public_html/knet/` | Starts a payment. Prices the order server-side, builds encrypted `trandata`, redirects to KNET. |
 | `sporta-web/dropin/php-knet/callback.php` | `public_html/knet/` | Receives KNET's result. Decrypts, verifies, writes the order, redirects the customer. |
-| `sporta-web/dropin/php-knet/api/index.php` | `public_html/knet/api/` | JSON API for the Flutter app. Delegates order creation to `create_order`. |
 | `sporta-web/dropin/php-knet/config.example.php` | — | Template. |
+| ~~`php-knet/api/index.php`~~ | — | **Does not exist.** This table listed a JSON API for the Flutter app; there is no such file and no `api/` directory under `php-knet/`. The Flutter skeleton in `sporta-app/` is unbuilt. Removed rather than left as a path someone goes looking for. |
 | `config.php` | **server only** | Real credentials. Never committed, never in the zip, never uploaded, protected by the deploy keep-list. |
 | `sporta-web/dropin/php-knet/setup-config.php` | `public_html/knet/` | CLI-only generator for `config.php`. **Delete after install.** |
 | `sporta-web/dropin/php-knet/selftest.php` | `public_html/knet/` | Readiness check. **Delete after install.** |
