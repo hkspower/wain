@@ -723,25 +723,23 @@ const order = (track, items, extra = {}) =>
 // ------------------------------------ order creation cannot be used as a cannon
 // LAST, because it deliberately exhausts the budget.
 //
-// A created order queues a fulfilment_outbox row in the same transaction, and
-// cron-fulfilment.php turns that row into an EMAIL to the logistics company —
-// on INSERT, before payment. So an unthrottled ?r=order is an unauthenticated
-// way to send mail from this domain to a third party as fast as a loop runs:
-// the warehouse's real orders get buried and the domain gets marked as a spam
-// source. The discount oracle has been throttled since it shipped; the route
-// that actually sends mail was not.
+// Why the cap exists is argued in full at the store_throttle call in api.php's
+// ?r=order route. What is proven here: the cap holds against a burst, the
+// warehouse is not mailed once per request, and a real shopper is still served
+// after the window.
 {
   await run('mariadb', ['sporta', '-e', 'delete from rate_limit'])
   let limited = 0
-  const count = async (t) =>
-    Number((await run('mariadb', ['sporta', '-N', '-B', '-e', `select count(*) from ${t}`])).stdout.trim())
-  const before = await count('fulfilment_outbox')
+  const outboxRows = async () =>
+    Number((await run('mariadb',
+      ['sporta', '-N', '-B', '-e', 'select count(*) from fulfilment_outbox'])).stdout.trim())
+  const before = await outboxRows()
   for (let i = 0; i < 30; i++) {
     const { status } = await order(`SPFLOOD${i}`, [{ slug: 'cagliari-calcio-backpack', qty: 1 }])
     if (status === 429) limited++
   }
   is(limited > 0, 'a burst of thirty orders is cut off', `${limited} refused`)
-  const after = await count('fulfilment_outbox')
+  const after = await outboxRows()
   is(after - before <= 20,
      'so the warehouse cannot be mailed thirty times by a stranger',
      `${after - before} messages queued`)

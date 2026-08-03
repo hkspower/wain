@@ -37,7 +37,7 @@
 // them up, run `npm run ftp:doctor` first — it finds the right host.
 import { Client } from 'basic-ftp'
 import { createReadStream, createWriteStream, existsSync, statSync } from 'node:fs'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, join, posix } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createInterface } from 'node:readline/promises'
 import { config as loadEnv } from 'dotenv'
@@ -66,19 +66,17 @@ const PROTECTED = [
 // NORMALISE BEFORE COMPARING. The guard used to test the raw string, so
 // /public_html/api//config.php slipped past it — a doubled slash the FTP
 // server collapses back to one on the way in, which means the tool refused
-// the path a person types and allowed the path a shell loop builds. Collapse
-// runs of slashes, resolve . and .., drop a trailing slash, then compare.
-function normalise(p) {
-  const out = []
-  for (const seg of String(p).split('/')) {
-    if (seg === '' || seg === '.') continue
-    if (seg === '..') out.pop()
-    else out.push(seg)
-  }
-  return (String(p).startsWith('/') ? '/' : '') + out.join('/')
-}
+// the path a person types and allowed the path a shell loop builds.
+// posix.normalize collapses runs of slashes and resolves . and .., but keeps
+// a trailing one, so that is stripped separately. Hand-rolled path parsing is
+// the wrong thing to maintain in the guard standing between a typo and the
+// only copy of the Tranportal credentials.
+//
+// The n === f test is not redundant with endsWith: config.js has no slash in
+// it, and this tool accepts relative paths, so `ftp put evil.js config.js`
+// normalises to exactly config.js and matches nothing else.
 const isProtected = (p) => {
-  const n = normalise(p)
+  const n = posix.normalize(String(p)).replace(/\/+$/, '')
   return PROTECTED.some((f) => n.endsWith('/' + f) || n === f)
 }
 
