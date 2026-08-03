@@ -550,6 +550,25 @@
     html.motion .scene .bar:nth-of-type(3) { animation-delay: .5s; }
     html.motion .scene .caret { animation: blink 1s step-end infinite; }
 
+    /* ═══════ each service explained by a drawing ═══════
+       Six scenes, one per service card, in the same idiom as the four above:
+       a page whose content fills, a device that installs, blocks that fit
+       together, a model wired to its sources, a pen over an artboard, and a
+       cloud feeding its machines. Every scene is complete at rest — motion
+       only sets already-drawn parts moving — so a reduced-motion visitor,
+       a print, and a screenshot all read the same explanation. */
+    /* the offer cards keep their taller 136px scene — this is the service rail */
+    .card:not(.drawn) > .scene { height: 108px; }
+    @keyframes fitIn   { 0%, 10% { transform: translate(15px, -11px); opacity: .3; }
+                         45%, 100% { transform: none; opacity: 1; } }
+    @keyframes pulseIn { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+    @keyframes rise    { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+    html.motion .scene .fit { transform-box: fill-box; animation: fitIn 4s ease-in-out infinite; }
+    html.motion .scene .pulse { animation: pulseIn 2.4s ease-in-out infinite; }
+    html.motion .scene .pulse.d1 { animation-delay: .5s; }
+    html.motion .scene .pulse.d2 { animation-delay: 1s; }
+    html.motion .scene .rise { transform-box: fill-box; animation: rise 3.4s ease-in-out infinite; }
+
     /* ═══════ البحار: the voice assistant, one tap from anywhere ═══════
        النوخذة is the captain; البحار is the sailor who answers. The control is
        a sticky pill that opens the ElevenLabs agent in a new tab — not an
@@ -780,7 +799,7 @@
       <!-- real, verifiable numbers — no invented clients or years -->
       <div class="stats">
         <div class="stat"><b class="num" data-count="4">4</b><span>وحدات في نظام النوخذة</span></div>
-        <div class="stat"><b class="num" data-count="254">254</b><span>فحصاً آلياً قبل كل إصدار</span></div>
+        <div class="stat"><b class="num" data-count="370">370</b><span>فحصاً آلياً قبل كل إصدار</span></div>
         <div class="stat"><b class="num" data-count="0">0</b><span>اعتماديات خارجية</span></div>
         <div class="stat"><b class="num" data-count="100" data-suffix="%">100%</b><span>يعمل دون إنترنت</span></div>
       </div>
@@ -876,31 +895,86 @@
       <div class="railwrap">
         <div class="rail" tabindex="0" role="group" aria-label="خدماتنا">
           <div class="card">
+            <svg class="scene" viewBox="0 0 240 116" role="img" aria-label="رسم: صفحة موقع يمتلئ محتواها سطراً بعد سطر">
+              <rect class="soft" x="22" y="12" width="196" height="92" rx="9"/>
+              <path class="soft" d="M22 36h196"/>
+              <circle cx="204" cy="24" r="2.6"/><circle cx="194" cy="24" r="2.6"/><circle cx="184" cy="24" r="2.6"/>
+              <rect class="bar" x="40" y="48" width="160" height="9" rx="4.5"/>
+              <rect class="bar" x="40" y="66" width="160" height="9" rx="4.5"/>
+              <rect class="bar" x="118" y="84" width="82" height="9" rx="4.5"/>
+            </svg>
             <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg></span> تطوير المواقع</h3>
             <p>مواقع تُبنى للسرعة ولمحركات البحث.</p>
             <ul class="feats"><li>مواقع شركات</li><li>متاجر إلكترونية</li><li>صفحات هبوط</li></ul>
           </div>
           <div class="card">
+            <svg class="scene" viewBox="0 0 240 116" role="img" aria-label="رسم: تطبيق يُثبَّت على الجهاز ويعمل بلا إنترنت">
+              <rect class="soft" x="92" y="10" width="56" height="96" rx="11"/>
+              <path class="soft" d="M110 18h20"/>
+              <rect class="bar" x="102" y="34" width="36" height="7" rx="3.5"/>
+              <rect class="bar" x="102" y="48" width="36" height="7" rx="3.5"/>
+              <rect class="bar" x="118" y="62" width="20" height="7" rx="3.5"/>
+              <circle cx="120" cy="90" r="7"/>
+              <g class="rise"><path d="M186 34v26"/><path d="M178 52l8 8 8-8"/></g>
+              <path class="soft" d="M172 72h28"/>
+            </svg>
             <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-phone"/></svg></span> تطبيقات الجوال</h3>
             <p>تطبيقات تُثبَّت وتعمل بلا إنترنت.</p>
             <ul class="feats"><li>iOS</li><li>أندرويد</li><li>Flutter</li></ul>
           </div>
           <div class="card">
+            <svg class="scene" viewBox="0 0 240 116" role="img" aria-label="رسم: قطعة تُفصَّل وتدخل مكانها في نظام قائم">
+              <rect x="80" y="24" width="32" height="32" rx="5"/>
+              <rect x="118" y="24" width="32" height="32" rx="5"/>
+              <rect x="80" y="62" width="32" height="32" rx="5"/>
+              <rect class="soft" x="118" y="62" width="32" height="32" rx="5" stroke-dasharray="5 5"/>
+              <rect class="fit" x="118" y="62" width="32" height="32" rx="5"/>
+            </svg>
             <h3><span class="tile"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.6" y="3.6" width="7.6" height="7.6" rx="1.8"/><rect x="13" y="3.6" width="7.6" height="7.6" rx="1.8"/><rect x="3.6" y="13" width="7.6" height="7.6" rx="1.8"/><g class="spin"><circle cx="16.8" cy="16.8" r="2.3"/><path d="M16.8 13v1.3M16.8 19.3v1.3M20.6 16.8h-1.3M14.3 16.8H13M19.5 14.1l-.95.95M15.05 18.55l-.95.95M19.5 19.5l-.95-.95M15.05 15.05l-.95-.95"/></g></svg></span> برمجيات مخصّصة</h3>
             <p>أنظمة تُفصَّل على إجراءات عملك أنت.</p>
             <ul class="feats"><li>تطبيق مخصّص بالكامل</li><li>تطبيق خاص لكل مشروع</li><li>ERP</li><li>CRM</li></ul>
           </div>
           <div class="card">
+            <svg class="scene" viewBox="0 0 240 116" role="img" aria-label="رسم: نموذج ذكاء اصطناعي موصول بمصادر بياناتك">
+              <circle cx="120" cy="58" r="20"/>
+              <path fill="currentColor" stroke="none" d="M120 47l3.2 7.8 7.8 3.2-7.8 3.2-3.2 7.8-3.2-7.8-7.8-3.2 7.8-3.2z"/>
+              <path class="soft wire2" d="M186 30h-40l-14 14"/>
+              <path class="soft wire2" d="M186 58h-46"/>
+              <path class="soft wire2" d="M186 86h-40l-14-14"/>
+              <circle class="pulse" cx="192" cy="30" r="5"/>
+              <circle class="pulse d1" cx="192" cy="58" r="5"/>
+              <circle class="pulse d2" cx="192" cy="86" r="5"/>
+              <path class="soft" d="M100 58H54"/>
+              <rect class="soft" x="22" y="44" width="30" height="28" rx="5"/>
+            </svg>
             <h3><span class="tile"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.2" y="6.2" width="11.6" height="11.6" rx="2.2"/><path d="M9.6 3.4v2.8M14.4 3.4v2.8M9.6 17.8v2.8M14.4 17.8v2.8M3.4 9.6h2.8M3.4 14.4h2.8M17.8 9.6h2.8M17.8 14.4h2.8"/><path class="spark" fill="currentColor" stroke="none" d="M12 8.4l1 2.6 2.6 1-2.6 1-1 2.6-1-2.6-2.6-1 2.6-1z"/></svg></span> حلول الذكاء الاصطناعي</h3>
             <p>ذكاء يعمل داخل نظامك، لا عرضاً تجريبياً.</p>
             <ul class="feats"><li>وكلاء الذكاء الاصطناعي</li><li>روبوتات محادثة</li><li>أتمتة العمليات</li></ul>
           </div>
           <div class="card">
+            <svg class="scene" viewBox="0 0 240 116" role="img" aria-label="رسم: قلم يرسم الواجهة على لوح التصميم قبل البرمجة">
+              <rect class="soft" x="30" y="14" width="180" height="88" rx="8"/>
+              <path class="pen" d="M56 84c22 0 26-42 48-42s26 30 48 30 20-24 32-24"/>
+              <circle cx="56" cy="84" r="3.5"/>
+              <g class="rise"><path d="M184 40l14-14 8 8-14 14z"/><path d="M184 40l-4 12 12-4"/></g>
+            </svg>
             <h3><span class="tile"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m14.3 3.7 6 6L12 18l-7.6 2.2L6.6 12.6z"/><path d="M4.4 20.2 10 14.6"/><circle cx="11" cy="13.6" r="1.2"/><path class="draw" d="M13.5 21c3-.2 5.3-1.4 7-3.4"/></svg></span> تصميم UI/UX</h3>
             <p>تجربة تُرسم قبل أن يُكتب سطر واحد.</p>
             <ul class="feats"><li>تصميم الشعارات والهوية</li><li>نماذج أولية</li><li>أنظمة تصميم</li></ul>
           </div>
           <div class="card">
+            <svg class="scene" viewBox="0 0 240 116" role="img" aria-label="رسم: سحابة تغذّي ثلاثة خوادم وتتوسّع معها">
+              <path d="M100 54a16 16 0 0 1 3-31 22 22 0 0 1 41 5 14 14 0 0 1-2 26z"/>
+              <path class="soft wire2" d="M120 54v18"/>
+              <path class="soft wire2" d="M120 62H72v10"/>
+              <path class="soft wire2" d="M120 62h48v10"/>
+              <rect x="52" y="74" width="40" height="26" rx="5"/>
+              <rect x="100" y="74" width="40" height="26" rx="5"/>
+              <rect x="148" y="74" width="40" height="26" rx="5"/>
+              <circle class="pulse" cx="62" cy="87" r="3.2"/>
+              <circle class="pulse d1" cx="110" cy="87" r="3.2"/>
+              <circle class="pulse d2" cx="158" cy="87" r="3.2"/>
+            </svg>
             <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-cloud"/></svg></span> الحلول السحابية</h3>
             <p>بنية تُنشر وتتوسّع وتُراقب.</p>
             <ul class="feats"><li>AWS</li><li>Azure</li><li>Google Cloud</li></ul>
@@ -1250,7 +1324,12 @@
          channels are visible there, and the pill would otherwise sit on top
          of one of them. Without IntersectionObserver it simply stays put —
          visible and usable, which is the safe end of that trade. */
-      var zones = [document.getElementById("contact"), document.querySelector("footer")]
+      /* the channels bar is a zone in its own right, not just the heading above
+         it: the heading scrolls out while the واتساب pill is still on screen,
+         and the fab came back down on top of it the moment the page above grew
+         taller. Observe the thing that must not be covered. */
+      var zones = [document.getElementById("contact"), document.querySelector(".qwrap"),
+                   document.querySelector(".channels"), document.querySelector("footer")]
         .filter(Boolean);
       if (!zones.length || !("IntersectionObserver" in window)) return;
       var near = new Set();

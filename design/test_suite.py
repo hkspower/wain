@@ -384,7 +384,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "254", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "370", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -418,7 +418,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "254", "0", "100%"], str(finals))
+          finals == ["4", "370", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -581,7 +581,7 @@ def home_checks(pg):
         check(S, f"the footer states {want}", want in ftext)
     check(S, "the footer maps the company, the services and the system",
           pg.eval_on_selector_all(".fcols nav a", "n=>n.length") >= 16)
-    # one numeral system per page: Arabic-Indic digits beside "+965" and "254"
+    # one numeral system per page: Arabic-Indic digits beside "+965" and "370"
     # is the same defect that once printed ١٢٬٠٠٠ next to 850 in one table
     mixed = pg.evaluate(r"(document.body.innerText.match(/[٠-٩]/g) || []).length")
     check(S, "the page uses one numeral system throughout", mixed == 0, f"{mixed} Arabic-Indic")
@@ -631,6 +631,41 @@ def home_checks(pg):
     check(S, "the drawings animate, and stop under reduced motion",
           pg.eval_on_selector("#offers .scene .ga", "e=>getComputedStyle(e).animationName") != "none")
 
+    # every service explains itself with a drawing, in the same idiom
+    svc = pg.evaluate("""(() => {
+      const cards = [...document.querySelectorAll('#services .rail > .card')];
+      return cards.map(c => {
+        const s = c.querySelector(':scope > svg.scene');
+        return { label: s && s.getAttribute('aria-label'),
+                 role: s && s.getAttribute('role'),
+                 h: s ? Math.round(s.getBoundingClientRect().height) : 0,
+                 title: c.querySelector('h3').textContent.trim() };
+      });
+    })()""")
+    check(S, "all six services carry a drawing", len(svc) == 6
+          and all(c["label"] for c in svc), str([c["title"] for c in svc if not c["label"]]))
+    check(S, "each service drawing is described for screen readers",
+          all(c["role"] == "img" and "رسم" in (c["label"] or "") for c in svc), str(svc))
+    # the service scene is the short one; the offer scenes must keep their height
+    check(S, "service scenes are drawn at the service height",
+          all(100 <= c["h"] <= 116 for c in svc), str([c["h"] for c in svc]))
+    check(S, "the offer scenes keep their own taller height",
+          pg.eval_on_selector("#offers .scene", "e=>Math.round(e.getBoundingClientRect().height)") >= 130)
+    # motion is additive: the parts move, but nothing is hidden until it moves,
+    # so reduced motion, print and a screenshot all read the same explanation
+    hidden = pg.evaluate("""(() => {
+      const parts = [...document.querySelectorAll('#services .scene *')];
+      return parts.filter(p => {
+        const cs = getComputedStyle(p);
+        return cs.opacity === '0' || cs.display === 'none' || cs.visibility === 'hidden';
+      }).length;
+    })()""")
+    check(S, "no part of a service drawing starts invisible", hidden == 0, str(hidden))
+    animated = pg.evaluate("""(() => [...document.querySelectorAll('#services .rail > .card')]
+      .filter(c => [...c.querySelectorAll(':scope > svg.scene *')]
+        .some(p => getComputedStyle(p).animationName !== 'none')).length)()""")
+    check(S, "every service drawing animates", animated == 6, str(animated))
+
     check(S, "البحار stays hidden until an agent URL is set",
           pg.eval_on_selector("#callfab", "e=>e.hidden") is True
           and not pg.is_visible("#callfab"))
@@ -663,11 +698,16 @@ def home_checks(pg):
     # their arrows at the inline-end, so البحار lives at the inline-start
     # a fixed pill must never sit on top of another control anywhere down the
     # page — measured by walking the whole scroll range, not just the top
-    covered = pg.evaluate("""(() => {
+    # await a frame at each stop: stepping aside is driven by an
+    # IntersectionObserver, whose callback cannot run inside a synchronous
+    # scroll loop, so a sync walk measures a state the visitor never sees
+    covered = pg.evaluate("""(async () => {
       const f = document.getElementById('callfab');
+      const settle = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 30)));
       const bad = [];
       for (let y = 0; y < document.body.scrollHeight; y += 250) {
         window.scrollTo({top: y, behavior: 'instant'});
+        await settle();
         if (getComputedStyle(f).pointerEvents === 'none') continue;   // stepped aside
         const fr = f.getBoundingClientRect();
         document.querySelectorAll('.arrow, .btn, .channel, .top, nav.site a').forEach(e => {
