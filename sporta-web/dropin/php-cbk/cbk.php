@@ -118,7 +118,23 @@ function cbk_http(string $method, string $url, array $cfg, ?array $json = null, 
         CURLOPT_CUSTOMREQUEST  => $method,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT        => 30,
+        // BOTH of these, explicitly, and they are the one place this file
+        // deliberately contradicts CBK's own reference implementation.
+        //
+        // PGPaymentRequestHosted.php and PGPaymentResultHosted.php — the
+        // sample code the bank ships — set SSL_VERIFYHOST and SSL_VERIFYPEER
+        // to 0 on the Authenticate call. That is the request carrying the
+        // ClientSecret and the ENCRP_KEY, and with verification off curl will
+        // hand them to whatever answers on the address. Being in the vendor's
+        // example is what makes it dangerous: it is precisely the line a
+        // future "make this match the bank's sample" pass would copy in.
+        //
+        // VERIFYHOST is curl's secure default anyway; it is written out so
+        // that removing it is a visible deletion rather than an omission.
+        // Proven by scripts/tls-probe.php against a self-signed server: the
+        // request fails, and the suite asserts that it does.
         CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
         CURLOPT_SSLVERSION     => CURL_SSLVERSION_TLSv1_2,
     ];
     if ($json !== null) {

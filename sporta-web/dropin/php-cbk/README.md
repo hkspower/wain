@@ -71,3 +71,59 @@ returns one, tell me the code and I'll pinpoint the field.
 ## Test → Live
 Keep `env: 'test'` with CBK's test credentials until a real test order returns
 `Status:1`. Then switch `env` to `production` and use production credentials.
+
+---
+
+## Checked against CBK's own sample code
+
+The bank ships `PGPaymentRequestHosted.php`, `PGPaymentResultHosted.php` and a
+three-line `Test_Integration_Steps.txt`. This dropin was read line by line
+against them.
+
+**Settled by the sample** — things the manual leaves ambiguous and the code
+does not:
+
+| | |
+|---|---|
+| Test host | `https://pgtest.cbk.com`, hard-coded in both sample files |
+| Basic auth | genuinely `base64_encode(ClientId . ':' . ClientSecret)`. The manual's own example prints it unencoded, so this was worth confirming; our fake gateway enforces it. |
+| Authenticate | POST JSON `{ClientId, ClientSecret, ENCRP_KEY}` **and** the Basic header — both, not either |
+| Checkout | `{base}/ePay/pg/epay?_v={AccessToken}`, NVP form POST |
+| Currency | the sample omits `tij_MerchantPaymentCurrency` entirely. We send `KWD`; the manual says optional, default KWD. Harmless either way. |
+
+**Where this dropin deliberately differs, and why**
+
+1. **TLS verification stays ON.** The sample sets `CURLOPT_SSL_VERIFYHOST => 0`
+   and `CURLOPT_SSL_VERIFYPEER => 0` on the Authenticate call — the request
+   carrying the ClientSecret and the ENCRP_KEY. With both off, curl hands
+   those to whatever answers on the address. `scripts/tls-probe.php` and a
+   check in `test:tpay` prove we refuse a certificate we cannot verify, so
+   that this cannot be quietly "fixed" to match the vendor.
+
+2. **Status 0 and -1 are handled.** The sample means to reject them:
+
+   ```php
+   if ($paymentDetails->Status != "0" or $paymentDetails->Status != "-1")
+   ```
+
+   That condition is always true — a value cannot be equal to both, so `or`
+   makes it a tautology and the guard never fires. The intent is right and the
+   code does nothing. Our callback re-authenticates once and, failing that,
+   leaves the order alone rather than marking a payment of unknown state
+   failed.
+
+3. **Form values are escaped.** The sample interpolates straight into
+   `value='$v'`; a value containing a quote would break out of the attribute.
+
+**Still open: the track id must be unique PER ATTEMPT**
+
+The manual (p.10) says the Merchant Track/Order ID "must be always unique for
+each transaction attempts", and the sample calls `uniqid()` for every request.
+We send `orders.track_id`, which is per ORDER — so a customer retrying after a
+declined card sends the same id twice, and the gateway is entitled to refuse
+it (`TIJ0004`). That would make a failed payment unretryable.
+
+The fix is a per-attempt id sent as `tij_MerchantPaymentTrack` with the order's
+own id kept for lookup, which needs a column and a migration, so it is a
+decision rather than a patch. Not implemented; nothing in the suite covers a
+retry today.

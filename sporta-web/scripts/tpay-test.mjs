@@ -18,7 +18,8 @@
 //
 //   npm run test:tpay
 //   (needs MariaDB, php -S :8095 php-store, :8099 the gateway, :8100 php-cbk)
-import { execFile } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
+import { writeFile } from 'node:fs/promises'
 import { promisify } from 'node:util'
 
 const run = promisify(execFile)
@@ -293,6 +294,49 @@ head('"invalid access" is not the same as "payment declined"')
   is(status === 'paid',
      'it re-authenticates and settles, which is what the manual says to do',
      `${status} — ${location.split('?')[1] ?? ''}`)
+}
+
+// ----------------------------------------------- the vendor sample's bad line
+head('an unverifiable certificate is refused')
+{
+  // CBK's own reference implementation turns TLS verification OFF —
+  //     CURLOPT_SSL_VERIFYHOST => 0, CURLOPT_SSL_VERIFYPEER => 0
+  // — on the Authenticate call, which is the request carrying the
+  // ClientSecret and the ENCRP_KEY. This asserts we did not copy it, against
+  // a real HTTPS server with a certificate nothing can verify.
+  const dir = '/tmp/sporta-tls-test'
+  await run('mkdir', ['-p', dir])
+  await run('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-keyout', `${dir}/k.pem`,
+                        '-out', `${dir}/c.pem`, '-days', '2', '-nodes', '-subj', '/CN=127.0.0.1'])
+  const py = `import http.server, ssl
+ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+ctx.load_cert_chain('${dir}/c.pem', '${dir}/k.pem')
+s = http.server.HTTPServer(('127.0.0.1', 8102), http.server.SimpleHTTPRequestHandler)
+s.socket = ctx.wrap_socket(s.socket, server_side=True)
+s.serve_forever()`
+  await writeFile(`${dir}/srv.py`, py)
+  const srv = spawn('python3', [`${dir}/srv.py`], { stdio: 'ignore', detached: true })
+  try {
+    // Wait for it, and prove it is genuinely serving — otherwise "our client
+    // failed" would pass against a server that was never listening, which is
+    // the same result for the opposite reason.
+    let alive = false
+    for (let i = 0; i < 50; i++) {
+      const r = await run('curl', ['-sk', '-o', '/dev/null', '-w', '%{http_code}',
+                                   'https://127.0.0.1:8102/']).catch(() => null)
+      if (r?.stdout === '200') { alive = true; break }
+      await new Promise((r) => setTimeout(r, 100))
+    }
+    is(alive, 'the self-signed server is up and answering curl -k')
+
+    const { stdout } = await run('php', [new URL('tls-probe.php', import.meta.url).pathname,
+                                         'https://127.0.0.1:8102/'])
+    is(stdout.trim() === '0',
+       'and cbk_http REFUSES it — the bank\'s own sample disables this check',
+       `http ${stdout.trim()}`)
+  } finally {
+    try { process.kill(-srv.pid) } catch {}
+  }
 }
 
 console.log(fails ? `\n${fails} problem(s) in the T-Pay path` : '\nT-Pay: the online payment path is alive end to end')
