@@ -296,6 +296,24 @@ if ($r === 'invoice') {
 // The port of create_order — same validation, same tokens, same idempotency,
 // same server-side pricing. The browser never sends a price and never will.
 if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    // THROTTLED, and this is the one route where the reason is not the
+    // database.
+    //
+    // A created order queues a row in fulfilment_outbox in the same
+    // transaction, and cron-fulfilment.php turns that row into an EMAIL to
+    // the logistics company — on INSERT, before payment, deliberately. So an
+    // unauthenticated POST that nobody rate-limits is an unauthenticated way
+    // to send mail from orders@sporta.com.kw to a third party, as fast as a
+    // script can loop. That buries the real orders in the warehouse's inbox
+    // and gets the shop's own domain marked as a spam source, which then
+    // costs every future customer their confirmation mail. The rows and the
+    // disk they take are the smaller half of it.
+    //
+    // 20 in ten minutes: far above any real shopper (the attempt id means
+    // retries reuse one order rather than creating another) and far below
+    // useful for flooding. The discount preview has had this guard since it
+    // shipped; the route that actually sends mail did not.
+    store_throttle($db, 'order', 20, 600);
     $b = store_body();
 
     $track = trim((string)($b['track_id'] ?? ''));

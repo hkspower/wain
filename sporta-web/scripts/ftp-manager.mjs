@@ -63,7 +63,24 @@ const die = (m) => { console.error(RED(m)); process.exit(1) }
 const PROTECTED = [
   'api/config.php', 'knet/config.php', 'pay/config.php', 'config.js',
 ]
-const isProtected = (p) => PROTECTED.some((n) => p.replace(/\/+$/, '').endsWith('/' + n) || p === n)
+// NORMALISE BEFORE COMPARING. The guard used to test the raw string, so
+// /public_html/api//config.php slipped past it — a doubled slash the FTP
+// server collapses back to one on the way in, which means the tool refused
+// the path a person types and allowed the path a shell loop builds. Collapse
+// runs of slashes, resolve . and .., drop a trailing slash, then compare.
+function normalise(p) {
+  const out = []
+  for (const seg of String(p).split('/')) {
+    if (seg === '' || seg === '.') continue
+    if (seg === '..') out.pop()
+    else out.push(seg)
+  }
+  return (String(p).startsWith('/') ? '/' : '') + out.join('/')
+}
+const isProtected = (p) => {
+  const n = normalise(p)
+  return PROTECTED.some((f) => n.endsWith('/' + f) || n === f)
+}
 
 const [cmd, ...args] = process.argv.slice(2)
 const flags = new Set(args.filter((a) => a.startsWith('-')))

@@ -720,5 +720,36 @@ const order = (track, items, extra = {}) =>
   rmSync(dir, { recursive: true, force: true })
 }
 
+// ------------------------------------ order creation cannot be used as a cannon
+// LAST, because it deliberately exhausts the budget.
+//
+// A created order queues a fulfilment_outbox row in the same transaction, and
+// cron-fulfilment.php turns that row into an EMAIL to the logistics company —
+// on INSERT, before payment. So an unthrottled ?r=order is an unauthenticated
+// way to send mail from this domain to a third party as fast as a loop runs:
+// the warehouse's real orders get buried and the domain gets marked as a spam
+// source. The discount oracle has been throttled since it shipped; the route
+// that actually sends mail was not.
+{
+  await run('mariadb', ['sporta', '-e', 'delete from rate_limit'])
+  let limited = 0
+  const count = async (t) =>
+    Number((await run('mariadb', ['sporta', '-N', '-B', '-e', `select count(*) from ${t}`])).stdout.trim())
+  const before = await count('fulfilment_outbox')
+  for (let i = 0; i < 30; i++) {
+    const { status } = await order(`SPFLOOD${i}`, [{ slug: 'cagliari-calcio-backpack', qty: 1 }])
+    if (status === 429) limited++
+  }
+  is(limited > 0, 'a burst of thirty orders is cut off', `${limited} refused`)
+  const after = await count('fulfilment_outbox')
+  is(after - before <= 20,
+     'so the warehouse cannot be mailed thirty times by a stranger',
+     `${after - before} messages queued`)
+
+  await run('mariadb', ['sporta', '-e', 'delete from rate_limit'])
+  const ok2 = await order('SPFLOODOK', [{ slug: 'cagliari-calcio-backpack', qty: 1 }])
+  is(ok2.status === 200, 'and a real shopper is served once the window passes', `${ok2.status}`)
+}
+
 console.log(fails ? `\n${fails} problem(s) in the native backend` : '\nnative backend: every check passed')
 process.exit(fails ? 1 : 0)

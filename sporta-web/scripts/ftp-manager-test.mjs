@@ -146,6 +146,19 @@ try {
     is(rm.code !== 0, 'rm REFUSES it too, even with -f', `exit ${rm.code}`)
     is(existsSync(onServer('public_html/api/config.php')), 'and the file survives')
 
+    // AND THE PATHS THAT ARE THE SAME PATH. The guard compared raw strings,
+    // so /public_html/api//config.php walked straight past it — a doubled
+    // slash the FTP server collapses on the way in, meaning the tool refused
+    // what a person types and allowed what a shell loop builds.
+    for (const sneaky of ['/public_html/api//config.php',
+                          '/public_html/x/../api/config.php',
+                          '/public_html/./api/./config.php']) {
+      const r = ftp(['put', 'evil.php', sneaky])
+      is(r.code !== 0, `put refuses ${sneaky}`, `exit ${r.code}`)
+    }
+    is(readFileSync(onServer('public_html/api/config.php'), 'utf8').includes('REAL-DB-PASSWORD'),
+       'and after all of them the credentials are still there')
+
     // Reading it is allowed, and is the point: that is how a backup is taken
     // before anything else is done.
     const get = ftp(['get', '/public_html/api/config.php', 'cfg-backup.php'])
