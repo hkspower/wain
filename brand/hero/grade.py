@@ -39,6 +39,9 @@ GAIN = 0.45      # extra multiplier at full brightness
 FLOOR = 40.0     # below this nothing moves — the copy side lives here
 KNEE = 0.86      # where the highlight roll-off starts
 SHARP = 45       # unsharp percent
+DESAT = 0.18     # highlight desaturation — hot skin reads plastic at full chroma
+TOE = 0.010      # shadow toe lift — pure crushed black next to new highlights
+                 # is the harshness people mean by "hard on the eyes"
 
 
 def grade(im: Image.Image) -> Image.Image:
@@ -55,6 +58,18 @@ def grade(im: Image.Image) -> Image.Image:
     n = out / 255.0
     hi = n > KNEE
     n[hi] = KNEE + (1 - KNEE) * np.tanh((n[hi] - KNEE) / (1 - KNEE))
+
+    # Comfort, in two small moves. Highlights lose a little chroma as they
+    # brighten — lifted skin at full saturation reads as a plastic sheen —
+    # and the deepest shadows get a gentle toe so the frame is dark charcoal
+    # rather than void. The toe raises the wall ~3/255; the copy reads over
+    # an ink/85 scrim, so its background moves under half a point and
+    # test:contrast stays the authority.
+    lum2 = n.max(axis=2)
+    ds = DESAT * np.clip((lum2 - 0.80) / 0.20, 0, 1)
+    grey = n.mean(axis=2, keepdims=True)
+    n = n * (1 - ds[:, :, None]) + grey * ds[:, :, None]
+    n = n + TOE * (1 - n) ** 8
 
     im2 = Image.fromarray(np.clip(n * 255.0, 0, 255).astype(np.uint8), 'RGB')
     # threshold=4 so film grain and WebP noise in the flat wall are left alone;
