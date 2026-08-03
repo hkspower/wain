@@ -297,8 +297,10 @@
 - Keep the indigo accent for admin UI.
 
 - **Every order emails the logistics company** — see `sporta-web/FULFILMENT.md`.
-  A deferred constraint trigger writes `fulfilment_outbox` in the same
-  transaction as the order (so a message cannot go missing), and the
+  `store_queue_fulfilment()` writes `fulfilment_outbox` in the same
+  transaction as the order (so a message cannot go missing) — in PHP, not a
+  trigger; the MySQL schema has none, and the docs said otherwise until a
+  schema check counted zero. The
   `notify-warehouse` Edge Function drains it. Fires **on INSERT**, i.e. BEFORE
   payment — the owner chose that knowing it, so every message states the payment
   state in its subject and a follow-up says ship / do not ship. Needs

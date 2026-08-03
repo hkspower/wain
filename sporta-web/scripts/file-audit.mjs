@@ -76,6 +76,12 @@ for (const f of files) {
   if (size === 0) add('HIGH', 'zero-byte file', rel(f))
   if (/\.(map)$/i.test(name)) add('MED', 'source map shipped — exposes original source', rel(f))
   if (/^\.DS_Store$|~$|\.(bak|orig|swp|tmp|save)$/i.test(name)) add('MED', 'editor/OS leftover', rel(f))
+  // __MACOSX is what Finder puts inside a zip: one shadow file per real file,
+  // carrying resource forks and the original names. It does NOT begin with a
+  // dot, so every rule written to catch .DS_Store misses it entirely, and it
+  // survives as a browsable directory listing the whole site's contents. It
+  // appears whenever a folder is re-zipped on a Mac and uploaded.
+  if (name === '__MACOSX') add('HIGH', 'Finder zip leftover — delete this folder', rel(f))
   if (/^\._/.test(name)) add('MED', 'macOS resource fork (created by zipping on a Mac)', rel(f))
   if (/\.(env|pem|key|p12|sql\.gz)$/i.test(name)) add('HIGH', 'credential-shaped file in web root', rel(f))
 }

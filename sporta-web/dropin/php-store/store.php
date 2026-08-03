@@ -746,6 +746,28 @@ function store_price_lines(PDO $db, array $items): array {
         $prod = $q->fetch();
         if (!$prod) store_fail('unavailable_' . (string)($item['slug'] ?? '?'));
 
+        // A SIZE IS REQUIRED EXACTLY WHEN THE PRODUCT HAS SIZES.
+        //
+        // The comment four lines up says a dropped size is "an order that
+        // looks complete and does not say which size to pack" — and then an
+        // ABSENT size was accepted, because only an invalid one was rejected.
+        // The browser's size ladder is what enforced it, which makes the rule
+        // a front-end convention rather than a rule: anything posting
+        // straight to /api could book a t-shirt with no size, and the
+        // warehouse would get an order it cannot fill.
+        //
+        // Conditional on the catalogue, not hard-coded, because it has to
+        // stay true for both halves of it. Nineteen active products — a
+        // backpack, a cap, a phone strap — have no size rows at all and must
+        // remain orderable without one. So the question asked is the only one
+        // that means anything: does THIS product have sizes, and did the order
+        // name one?
+        if ($size === '') {
+            $hasSizes = $db->prepare('select 1 from product_variants where slug = ? limit 1');
+            $hasSizes->execute([(string)($item['slug'] ?? '')]);
+            if ($hasSizes->fetchColumn()) store_fail('size_required_' . (string)($item['slug'] ?? '?'));
+        }
+
         $eff = store_effective_price($prod);
         $lines[] = [
             'product_id' => (int)$prod['id'],

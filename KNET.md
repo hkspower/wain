@@ -45,7 +45,7 @@ sequenceDiagram
     participant C as knet/callback.php
 
     B->>DB: POST /api/api.php?r=order (track_id, items[slug,qty], customer)
-    Note over DB: validates address, resolves slugs,<br/>triggers compute the amount
+    Note over DB: validates address, resolves slugs,<br/>store_price_lines() computes the amount
     DB-->>B: {order_id, track_id, amount}
     B->>P: GET pay.php?trackid=…   (no amount)
     P->>DB: look up order by track_id
@@ -67,8 +67,18 @@ sequenceDiagram
 
 **The browser never states a price, at any point.**
 
-1. `create_order` takes only slugs and quantities. `trg_set_item_price` copies
-   the price from `products`; `trg_recompute_amount` sets `orders.amount`.
+1. `create_order` takes only slugs, sizes and quantities — never a price.
+   `store_price_lines()` reads each price from the `products` table and
+   `store_discounts_for()` decides the discount; `api.php` then writes
+   `orders.amount` from those figures inside the checkout transaction.
+
+   > Earlier versions of this document said the amount was computed by
+   > database triggers named `trg_set_item_price` and `trg_recompute_amount`.
+   > **There are no triggers in this schema** — `information_schema.triggers`
+   > returns zero rows after importing all four SQL files. The guarantee is
+   > unchanged and just as strong, because the browser still never names a
+   > price and the code that decides is on the server; but anyone auditing the
+   > money path was being sent to look for something that is not there.
 2. `pay.php` is called with **no `amount` parameter**. It reads the figure from
    the order it looks up.
 3. `callback.php` re-reads the stored amount and compares it to what KNET says

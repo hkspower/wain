@@ -101,6 +101,14 @@ const order = (track, items, extra = {}) =>
 
 // ------------------------------------------------------------------ validation
 {
+  // The other half of the same rule, and the reason it is conditional rather
+  // than a flat "size is mandatory": nineteen active products have no size
+  // rows at all — a backpack, a cap, a phone strap — and must stay orderable
+  // without one. The rejection case below and this one have to both hold.
+  const accessory = await order('SPNATA001', [{ slug: 'cagliari-calcio-backpack', qty: 1 }])
+  is(!accessory.body?.error, 'a product with NO size rows is still orderable without a size',
+     accessory.body?.error ?? 'accepted')
+
   const cases = [
     ['bad track id', order('x!', [{ slug: 'cagliari-calcio-backpack', qty: 1 }]), 'invalid_track_id'],
     ['empty cart', order('SPNATV001', []), 'empty_cart'],
@@ -108,6 +116,13 @@ const order = (track, items, extra = {}) =>
     ['unknown product', order('SPNATV003', [{ slug: 'no-such-thing', qty: 1 }]), 'unavailable_no-such-thing'],
     ['made-up size', order('SPNATV004', [{ slug: 'cheetahs-rugby-t-shirt', qty: 1, size: 'XXS' }]), 'invalid_size'],
     ['made-up fit', order('SPNATV005', [{ slug: 'cheetahs-rugby-t-shirt', qty: 1, fit: 'skintight' }]), 'invalid_fit'],
+    // An ABSENT size, on a product that HAS sizes. Only an invalid size was
+    // ever rejected, so the browser's size ladder was the only thing enforcing
+    // this — and anything posting straight to /api could book a jacket with no
+    // size, which the warehouse cannot pack.
+    ['no size on a sized product',
+     order('SPNATV006', [{ slug: 'cloudsoft-jacket-army-green', qty: 1 }]),
+     'size_required_cloudsoft-jacket-army-green'],
   ]
   for (const [name, p, want] of cases) {
     const { body } = await p

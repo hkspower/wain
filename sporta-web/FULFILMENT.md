@@ -25,9 +25,19 @@ A second, one-line email follows when the payment outcome lands: **ship it** or
 
 ---
 
-## Why an outbox and not just an HTTP call from the trigger
+## Why an outbox and not just an HTTP call at checkout
 
-A trigger that POSTs to a function has two failure modes and both are bad.
+> **Terminology, corrected.** This section described a *deferred constraint
+> trigger* — a Postgres feature, from when the shop ran on Supabase. There are
+> **no database triggers in the MySQL schema at all**; the outbox row is
+> written by `store_queue_fulfilment()` in PHP, called inside the checkout
+> transaction (and again by each gateway's callback). Every guarantee below
+> still holds — it is the same transaction and the same all-or-nothing — but
+> the mechanism is a function call, not a trigger, and looking for the trigger
+> is a wasted afternoon.
+
+Posting to the warehouse straight from the checkout has two failure modes and
+both are bad.
 Synchronous, and the warehouse's mail provider having a slow morning becomes a
 checkout that times out — a customer who cannot pay. Fire-and-forget, and a
 failed call is recorded nowhere and the order is simply never sent.
@@ -36,15 +46,17 @@ The second is the one that matters, because **this failure is silent**. No
 customer complains that the warehouse did not get an email. It surfaces days
 later as "where is my order".
 
-So the trigger writes a row in the same transaction as the order. If the order
+So the row is written in the same transaction as the order. If the order
 exists, its message exists. Sending is a separate job that drains the table and
 marks rows sent; anything unsent is still sitting there, visible in the admin,
 and can be retried.
 
-**The trigger is a deferred constraint trigger, not a plain `AFTER INSERT`.**
-`order_items` are inserted *after* the `orders` row, so a row-level trigger
-snapshots an order with an empty item list — a picking list with nothing on it.
-Deferring to the end of the transaction is what makes the items appear.
+**It is queued AFTER the items are inserted, not alongside the `orders` row.**
+`order_items` are written after `orders`, so anything snapshotting the order
+at insert time gets an empty item list — a picking list with nothing on it.
+Calling `store_queue_fulfilment()` at the end of the transaction body is what
+makes the items appear. (Under Postgres the same problem was solved with a
+deferred constraint trigger; in PHP it is just where the call sits.)
 
 ---
 

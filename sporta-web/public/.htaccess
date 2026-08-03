@@ -321,6 +321,12 @@ FileETag MTime Size
 # .well-known keeps working: it is a DIRECTORY, and the request that matters is
 # /.well-known/acme-challenge/<token>, whose filename does not begin with a dot.
 # Verified 200 with this rule in place — SSL renewal is untouched.
+# __MACOSX — the folder Finder puts inside a zip, one shadow file per real
+# file. It does NOT begin with a dot, so the rule below does not see it, and
+# it is browsable: a directory index of everything the site is made of. It
+# turns up whenever a folder is re-zipped on a Mac and re-uploaded.
+RedirectMatch 404 (?i)(^|/)__MACOSX(/|$)
+
 <FilesMatch "^\.">
   Require all denied
 </FilesMatch>
