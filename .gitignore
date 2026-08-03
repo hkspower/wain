@@ -51,3 +51,7 @@ sporta-html5/dist
 
 # Generated site PDF — 21MB build artifact, regenerate with sporta-web/scripts/site-pdf*.
 SPORTA-WEBSITE.pdf
+
+# Ungraded hero originals kept by brand/hero/regrade.py so the grade is never
+# applied twice. They are masters, and masters do not live in the repo.
+brand/hero/ungraded/
