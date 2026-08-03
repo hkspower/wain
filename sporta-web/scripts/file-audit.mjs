@@ -22,7 +22,19 @@ import { createHash } from 'node:crypto'
 import { join, relative, extname, basename } from 'node:path'
 import { execFileSync } from 'node:child_process'
 
-const ROOT = process.argv[2] ?? '/tmp/v2/public_html'
+// Default to the real build output, NOT a scratch directory.
+//
+// This used to default to /tmp/v2/public_html — a staging tree left behind by
+// some past run. On any machine where that path is stale or partial,
+// `npm run audit:files` audits it happily and reports on a tree nobody is
+// shipping: 27 "required file absent" findings for files that were sitting in
+// dist/ the whole time, or, worse, a clean bill of health for a directory that
+// has nothing to do with the site. An audit whose default target is a
+// leftover is an audit that answers a question nobody asked.
+//
+// make-package.mjs still passes its own staged tree explicitly, which is the
+// authoritative run — it refuses to write the zip if this fails.
+const ROOT = process.argv[2] ?? new URL('../dist/', import.meta.url).pathname
 if (!existsSync(ROOT)) { console.error(`no such directory: ${ROOT}`); process.exit(2) }
 
 const findings = []
