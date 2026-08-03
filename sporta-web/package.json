@@ -42,7 +42,9 @@
     "package:pay": "node scripts/make-payments-fix.mjs",
     "test:arabic": "node scripts/arabic-test.mjs",
     "test:assistant": "node scripts/assistant-test.mjs",
-    "test:preflight": "node scripts/preflight-test.mjs"
+    "test:preflight": "node scripts/preflight-test.mjs",
+    "ftp": "node scripts/ftp-manager.mjs",
+    "test:ftp": "node scripts/ftp-manager-test.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",

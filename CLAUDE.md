@@ -277,6 +277,14 @@
   both files survive untouched and that a wrong password or a failing audit
   stops the run before anything is written.
 
+- **`npm run ftp` is the file manager**, and it is a CLIENT on the owner's Mac
+  (`scripts/ftp-manager.mjs`): `ls · cat · get · put · mkdir · mv · rm · rmdir
+  · chmod · du · find`, over the same FTPS as `publish`, same `.env.deploy`.
+  `api/config.php`, `knet/config.php`, `pay/config.php` and `config.js` cannot
+  be overwritten or deleted through it — `get` is allowed, because taking a
+  backup is the point. Proven by `npm run test:ftp` (18 checks, real pyftpdlib
+  over TLS, results verified on the server's own disk).
+
 - **Never build a PHP deploy endpoint.** The live server had one —
   `sporta-deploy.php` in the web root, answering to anyone on the internet.
   That is a way in, not a bridge. FTPS adds no attack surface: Hostinger
