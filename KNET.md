@@ -151,10 +151,104 @@ documents, so the documented order is the one the tests actually exercise.
 
 ---
 
+## 2a. The nomination letter — what the bank has actually issued
+
+KNET Administration's "New Merchant Nomination" reply for
+**AL MUHALLAB CO FOR DESIGNING AND PROGRAMMING SPECIAL SOFTWARE**,
+CBK, **T-6261**, request ref. **6223**.
+
+| | |
+|---|---|
+| Website registered | `https://www.sporta.com.kw` |
+| Test Merchant ID | `6261` |
+| Test Terminal ID | `626101` |
+| Production Merchant ID | **not yet issued** |
+| Production Terminal ID | **not yet issued** |
+| Nominated features | Manual Refund, Batch Refund, Refund API, KFAST, ApplePay — Debit |
+
+The registered website is exactly the canonical origin this codebase emits —
+`www`, over HTTPS, one spelling. That is worth stating rather than assuming:
+KNET validates the merchant site against what was nominated, and a bare-domain
+or plain-HTTP spelling reaching the gateway is a rejected transaction rather
+than a warning. Every `.htaccess` here already 301s the alternatives in a
+single hop.
+
+**Those two numbers are TEST-tier identifiers, not credentials.** The secrets —
+the Tranportal password and the terminal resource key — are not in the letter
+and are not in this repository; they come off the merchant portal and go only
+into `knet/config.php` on the server. The production pair, when issued, is
+subject to the same rule.
+
+### The four things the letter says to do, and what each is for
+
+1. **Tell KNET you are using the RAW toolkit.** The letter: *"If you are
+   planning to use the RAW toolkits, then please inform us of the same so we
+   can provide you with the RAW details."* This is the item to act on first,
+   and it is the easiest one in the letter to read past.
+
+   This shop does not use KNET's downloadable plugin. `knet.php` builds and
+   AES-128-CBC-encrypts `trandata` itself against the raw KPG endpoint — that
+   IS the raw integration, and it is why the card path is 39 tested checks of
+   our own code rather than a vendor jar. So the RAW details have to be
+   requested explicitly. Without them, the key and endpoint parameters handed
+   over are the plugin's, and the plugin is not what is deployed.
+
+2. **Resource file / keystore download** (Merchant Process → Resource File
+   Download, both links). This is where the AES **resource key** comes from —
+   `config.php`'s `resource_key`, the 16-byte secret the entire `trandata`
+   model rests on.
+
+3. **Alias name** (Merchant Process → View Terminal → View → Plugin tab). The
+   alias names a key inside the plugin's Java keystore. A RAW integration has
+   no keystore, so this is a *plugin* value with no slot in `config.php` —
+   note it down, but do not go hunting for where to paste it.
+
+4. **Certification test before production.** The production IDs are blank in
+   the letter because they are issued after certification, not before. So P0
+   step 6 — "switch `env` to `production`" — cannot happen yet, however ready
+   everything else is. The test path (`kpaytest.com.kw`, Merchant 6261 /
+   Terminal 626101) is the only one that exists today.
+
+### Which number is the Tranportal ID — confirm, do not assume
+
+`config.php` wants `tranportal_id` + `tranportal_password`. The letter gives a
+Merchant ID and a Terminal ID, and neither is labelled "Tranportal". In CBK's
+usual arrangement the Tranportal ID is the **terminal**-level credential —
+`626101` — with `6261` identifying the merchant above it. That is the likely
+mapping and it is still a guess, so put the question in the same email as the
+RAW request rather than discovering the answer as a failed test transaction.
+
+### Nominated ≠ built
+
+Four of the five nominated features have no implementation here, and switching
+them on at the bank does not create one:
+
+- **Manual Refund / Batch Refund / Refund API** — already logged as P2 item 7.
+  `action=2` and void are unbuilt, so a refund today is a bank-side operation
+  that leaves no row in `orders`. The Refund API being nominated is what turns
+  this from a nicety into something worth building.
+- **KFAST** — KNET's saved-card flow. It adds fields to `trandata` and a token
+  to store against the customer. Nothing here does that, and it should not be
+  bolted on casually: a stored payment token is the one piece of this system
+  whose loss costs a customer money rather than an order.
+- **ApplePay — Debit** — needs an Apple merchant identity and a domain
+  association file served from `/.well-known/`. That path is already exempt
+  from the dotfile deny rule in `public/.htaccess` (the exemption exists for
+  ACME renewal), so the file would be reachable; everything else is unbuilt.
+
+None of this blocks going live with the card path. All four are things the
+bank now believes this merchant can do.
+
+---
+
 ## 3. Plan
 
 ### P0 — before any live payment
 
+0. **Email KNET: RAW toolkit, and which number is the Tranportal ID.** See
+   §2a. Everything below assumes credentials issued for a raw integration; the
+   plugin's are not interchangeable, and the letter only hands over the RAW
+   details on request. This step gates steps 3 and 5.
 1. **Import the SQL** (phpMyAdmin, in order): `api/schema.mysql.sql`,
    `api/seed.mysql.sql`, `api/brands.mysql.sql`. Every test suite runs against
    a database built this way, so the order is verified, not just documented.
@@ -169,6 +263,8 @@ documents, so the documented order is the one the tests actually exercise.
    0.100 KWD payment returning `CAPTURED`. Confirm the order flips to `paid`
    in the admin, not just that the browser showed a tick.
 6. **Switch `env` to `production`** with production credentials, repeat once.
+   Blocked until KNET's certification test is passed — the production Merchant
+   and Terminal IDs do not exist before it (§2a).
 7. **Delete `setup-config.php` and `selftest.php`** from the server.
 
 > Item 5 is the one that matters. A green result page proves the redirect

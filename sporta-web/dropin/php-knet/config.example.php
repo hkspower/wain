@@ -12,6 +12,13 @@ return [
     'production_url' => 'https://kpay.com.kw/kpg/PaymentHTTP.htm',
 
     // --- From your bank / KNET (Tranportal) ---
+    //
+    // The nomination letter names a Merchant ID and a Terminal ID and calls
+    // NEITHER of them "Tranportal" (Sporta's test pair: merchant 6261,
+    // terminal 626101). CBK usually means the terminal-level credential here,
+    // but that is an inference — confirm it with the bank in the same email
+    // that requests the RAW toolkit details, or the first thing that tells you
+    // is a failed test transaction. See KNET.md §2a.
     'tranportal_id'       => 'YOUR_TRANPORTAL_ID',
     'tranportal_password' => 'YOUR_TRANPORTAL_PASSWORD',
     'resource_key'        => 'YOUR_TERMINAL_RESOURCE_KEY', // AES key (secret)
