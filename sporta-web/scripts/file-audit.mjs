@@ -38,6 +38,17 @@ const ROOT = process.argv[2] ?? new URL('../dist/', import.meta.url).pathname
 if (!existsSync(ROOT)) { console.error(`no such directory: ${ROOT}`); process.exit(2) }
 
 const findings = []
+
+// `vite build` alone produces the browser bundle and nothing else — the PHP
+// endpoints are copied in by `npm run bundle:php`, which `release` and
+// `package` run and `build` does not. Auditing that tree lists every endpoint
+// as a missing required file: twenty findings describing one situation, and
+// none of them the actual advice. Say the actual advice instead.
+if (!['api', 'knet', 'pay'].some((d) => existsSync(join(ROOT, d)))) {
+  console.error(`${ROOT} has no /api, /knet or /pay — this looks like the output of a bare`)
+  console.error('`vite build`. Run `npm run release` (or `npm run package`) and audit that.')
+  process.exit(2)
+}
 // `where` is a file for most checks and a list of referrers for the reference
 // checks; the report labelled both "referenced by:", which read as though a
 // zero-byte file were being referenced by itself.

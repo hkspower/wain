@@ -79,7 +79,14 @@ Copy `knet/config.example.php` → `knet/config.php`. Credentials come from
 **Register with CBK:** the response and error URLs above must be the ones on
 file at the bank, or the result never comes back.
 
-**Verify:** `https://www.sporta.com.kw/knet/selftest.php` — every line OK,
+**Verify:** `https://www.sporta.com.kw/api/preflight.php` (unlock with the
+`cron_key` from `api/config.php`). It opens the orders database with *this*
+file's `mysql_*` values, confirms it is the same database `api/config.php`
+names, and encrypts a probe with the real `resource_key` — so "filled in" and
+"actually works" stop being the same answer. `knet/selftest.php` still
+reports the same ground more briefly; delete both when the install is done.
+
+**Also:** `https://www.sporta.com.kw/knet/selftest.php` — every line OK,
 including `mysql : connected`. **Then delete that file.**
 
 ---

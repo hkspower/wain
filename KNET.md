@@ -267,6 +267,29 @@ bank now believes this merchant can do.
    and Terminal IDs do not exist before it (§2a).
 7. **Delete `setup-config.php` and `selftest.php`** from the server.
 
+**One page answers "is step N done?"** — `https://www.sporta.com.kw/api/preflight.php`,
+unlocked with the `cron_key` from `api/config.php`. It shows the lowest
+unfinished step and nothing else, and for KNET it now goes past "are the keys
+filled in":
+
+- opens the orders database with **`knet/config.php`'s own** `mysql_*` values
+  and reads the `orders` table — four non-empty keys that do not actually work
+  is the documented way to get "Invalid amount" on every card;
+- checks that database is the **same one** `api/config.php` names, because two
+  valid databases means the gateway looks for an order the shop wrote
+  elsewhere;
+- **encrypts and decrypts a probe with the real `resource_key`** through
+  `knet.php` itself — 16 bytes of the wrong thing is still 16 bytes;
+- flags **invisible characters** (leading/trailing space, NBSP, zero-width
+  space, BOM) in any credential, which File Manager renders as nothing at all;
+- refuses a `test_url` pointing at the production host while `env` is `test`,
+  which is a rehearsal run with real cards;
+- reads `knet/.htaccess` and confirms it actually **denies** `config.php` and
+  `knet.php`, rather than merely existing.
+
+`npm run test:preflight` breaks the install in each of those ways and asserts
+the page names it, and that no secret is ever printed.
+
 > Item 5 is the one that matters. A green result page proves the redirect
 > worked; only the admin row proves the money was recorded. That distinction is
 > exactly what the column-name bug hid.

@@ -117,6 +117,26 @@ foreach (['/.htaccess' => 'HTTPS, security headers, and deep routes like /shop',
     check(is_file($root . $p) ? 'ok' : 'bad', $p, $why,
           'Turn on "Show hidden files" in File Manager and re-extract. Without these the site 404s on /shop and your credentials are downloadable.', 1);
 }
+// PRESENT IS NOT THE SAME AS PROTECTING ANYTHING. The check above asks only
+// whether a file with that name arrived. A .htaccess that was truncated by a
+// half-finished upload, or overwritten by a tidier-looking one from somewhere
+// else, passes it — and the thing it was guarding is the Tranportal password.
+// So the two that guard credentials are read, and the deny rule is looked for
+// by name. Cheap, deterministic, no network.
+foreach (['/knet/.htaccess' => ['config.php', 'knet.php'],
+          '/pay/.htaccess'  => ['config.php', 'cbk.php']] as $p => $names) {
+    if (!is_file($root . $p)) continue;   // already reported missing above
+    // Backslashes stripped first: the rule is written as a regex —
+    // <FilesMatch "^(config\.php|knet\.php)$"> — so a plain search for
+    // "config.php" does not find "config\.php" and the real, correct file
+    // would be reported as guarding nothing.
+    $txt = str_replace('\\', '', (string) file_get_contents($root . $p));
+    $unguarded = array_values(array_filter($names, fn ($n) => !str_contains($txt, $n)));
+    check($unguarded ? 'bad' : 'ok', "$p denies its secrets",
+          $unguarded ? 'no rule mentions: ' . implode(', ', $unguarded) : 'config.php and the library are denied',
+          "This file is what stops $p" . "'s credentials being downloaded over HTTP. Re-extract it from the zip rather than editing it — it is not a file to tidy.", 1);
+}
+
 check(is_dir($root . '/hero') ? 'ok' : 'warn', '/hero', is_dir($root . '/hero') ? 'present' : 'missing',
       'Without it the home page falls back to drawn illustrations instead of the photographs.', 1);
 
@@ -223,11 +243,75 @@ if (!$configured) {
         check($blank ? $sev : 'ok', $rel,
               $blank ? 'still the example value: ' . implode(', ', $blank) : 'credentials set',
               'These come from CBK, on the activation letter for THIS product. KNET credentials do not work for T-Pay and T-Pay credentials do not work for KNET.', $step);
+        // AN INVISIBLE CHARACTER IS A WRONG CREDENTIAL, and it looks right in
+        // every editor. A Tranportal password pasted out of a PDF or an email
+        // routinely arrives carrying a non-breaking space, a zero-width space
+        // or a BOM; File Manager renders all three as nothing at all. The
+        // bank then rejects the credential and the owner re-types a value
+        // that was already correct. setup-config.php knew to strip these, but
+        // it is CLI-only on a host with no shell, so the knowledge lived
+        // where it could never run.
+        $invisible = [];
+        foreach ($keys as $k) {
+            $v = (string) ($c[$k] ?? '');
+            if ($v === '' || $unset($v)) continue;
+            if (preg_match('/^\s|\s$|\x{00A0}|\x{200B}|\x{FEFF}/u', $v)) $invisible[] = $k;
+        }
+        check($invisible ? $sev : 'ok', "$rel: characters",
+              $invisible ? 'stray or invisible whitespace in: ' . implode(', ', $invisible) : 'clean',
+              'One of these values begins or ends with a space, or contains a non-breaking space, zero-width space or BOM — invisible in File Manager and fatal to the bank. Retype the value by hand rather than pasting it, or paste into a plain text editor first.', $step);
+
         $mysql = array_filter(['mysql_host', 'mysql_name', 'mysql_user', 'mysql_pass'],
                               fn ($k) => ($c[$k] ?? '') === '');
         check($mysql ? $sev : 'ok', "$rel: database block",
               $mysql ? 'missing: ' . implode(', ', $mysql) : 'present',
               'These four name the SAME database as api/config.php, just spelled mysql_* instead of db_*. Copy the values across exactly. Without them every payment is refused with "Invalid amount" while the shop looks perfectly fine.', $step);
+
+        // PRESENT IS NOT CONNECTED, and this is the hole in the check above.
+        //
+        // The four keys being non-empty was the whole test. A password typed
+        // with one character wrong, or a db_name without the u123456789_
+        // prefix Hostinger silently requires, passes it — and then every card
+        // payment is refused with "Invalid amount" while this page says the
+        // database block is present. That is the exact failure this file was
+        // written to catch, checked in a way that could not catch it.
+        //
+        // So the gateway's OWN credentials are used to open its OWN
+        // connection, and the orders table is read. Nothing is printed but
+        // the outcome.
+        if (!$mysql) {
+            try {
+                $gwdb = new PDO(
+                    "mysql:host={$c['mysql_host']};dbname={$c['mysql_name']};charset=utf8mb4",
+                    (string) $c['mysql_user'], (string) $c['mysql_pass'],
+                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+                );
+                $n = (int) $gwdb->query('select count(*) from orders')->fetchColumn();
+                check('ok', "$rel: reaches the orders table", "connected, $n order(s)", '', $step);
+
+                // Connected is still not the same as connected to the RIGHT
+                // one. Two valid databases, one shop: the checkout writes an
+                // order here and the gateway looks for it there, finds
+                // nothing, and refuses a payment for an order that plainly
+                // exists. Comparing the names is enough to see it.
+                $same = strtolower((string) ($c['mysql_name'] ?? '')) === strtolower((string) ($cfg['db_name'] ?? ''))
+                     && strtolower((string) ($c['mysql_host'] ?? '')) === strtolower((string) ($cfg['db_host'] ?? ''));
+                check($same ? 'ok' : $sev, "$rel: same database as api/config.php",
+                      $same ? 'yes' : 'NO — it names a different database',
+                      'The shop writes the order and this gateway reads it. Pointing them at two databases means every payment is for an order the gateway cannot find. mysql_host/mysql_name here must equal db_host/db_name in api/config.php.', $step);
+            } catch (PDOException $e) {
+                $code = (int) ($e->errorInfo[1] ?? 0);
+                $which = match ($code) {
+                    1045 => 'mysql_user or mysql_pass is wrong',
+                    1044 => 'that user has no privileges on that database',
+                    1049 => 'mysql_name does not exist',
+                    2002, 2005 => 'cannot reach MySQL — mysql_host is wrong',
+                    default => 'MySQL refused the connection',
+                };
+                check($sev, "$rel: reaches the orders table", $which,
+                      'The four values are filled in but they do not work. Copy them from api/config.php exactly — Hostinger PREFIXES both the database and the user with your account number, so they look like u123456789_sporta. Until this connects, every payment is refused with "Invalid amount".', $step);
+            }
+        }
 
         // KNET's AES key must be EXACTLY 16 bytes, and the failure when it is
         // not is the nastiest one in the whole money path: the bank rejects
@@ -239,6 +323,34 @@ if (!$configured) {
             check($len === 16 ? 'ok' : 'bad', 'knet/config.php: resource_key length',
                   "$len bytes (must be exactly 16)",
                   'AES-128 needs 16 bytes. 17 usually means a trailing space or newline came along with the copy/paste; 0 means it is still the placeholder text.', 6);
+
+            // SIXTEEN BYTES IS NECESSARY, NOT SUFFICIENT. Sixteen bytes of
+            // the wrong thing counts as sixteen, and so does a key with a
+            // non-breaking space in the middle of it. The only way to know
+            // openssl will accept this key in the shape the real code uses is
+            // to run the real code: encrypt a payload with knet_encrypt() and
+            // read it back with knet_decrypt(). If that round trip does not
+            // return what went in, every transaction dies at the bank with no
+            // useful error — the single most expensive failure in this
+            // system, and the one the owner has no way to diagnose.
+            //
+            // knet.php is a pure library: it declares functions and runs
+            // nothing at include time, so requiring it here is safe.
+            $lib = $root . '/knet/knet.php';
+            if ($len === 16 && is_file($lib)) {
+                require_once $lib;
+                $probe = 'trackid=PREFLIGHT&amt=1.500';
+                try {
+                    $ok = knet_decrypt(knet_encrypt($probe, (string) $c['resource_key']),
+                                       (string) $c['resource_key']) === $probe;
+                    check($ok ? 'ok' : 'bad', 'knet: the key actually encrypts',
+                          $ok ? 'AES-128-CBC round trip OK' : 'round trip FAILED',
+                          'The key is the right length but openssl cannot use it. Re-download the resource file from the KNET merchant portal and paste the key again, by hand.', 6);
+                } catch (Throwable $e) {
+                    check('bad', 'knet: the key actually encrypts', 'openssl refused the key',
+                          'The key is 16 bytes but not usable. Re-download the resource file from the KNET merchant portal.', 6);
+                }
+            }
         }
 
         // ------------------------------------------------ ready to go live?
@@ -265,6 +377,18 @@ if (!$configured) {
             // "succeed" all day against a gateway that settles nothing.
             $badProd = $prod === '' || $prod === $test
                        || stripos($prod, 'test') !== false || !str_starts_with($prod, 'https://');
+            // And the mirror image, which matters BEFORE the flip rather
+            // than after it: while env is 'test', test_url must actually be a
+            // test host. Pointing it at production and leaving the label on
+            // 'test' means the rehearsal is being run with real cards.
+            if (!$live) {
+                $badTest = $test === '' || !str_starts_with($test, 'https://')
+                           || stripos($test, 'test') === false;
+                check($badTest ? 'bad' : 'ok', 'knet: test_url',
+                      $test === '' ? 'not set' : $test,
+                      'While env is "test" this is the gateway every payment goes to, so it must be the TEST host. If it is the production URL, the test transactions are real ones.', 6);
+            }
+
             check($badProd ? 'bad' : 'ok', 'knet: production_url',
                   $prod === '' ? 'not set' : $prod,
                   'This is the URL the flip switches TO. If it is empty, still a test host, or the same as test_url, then going live changes the label and nothing else — and payments keep landing on a gateway that never settles. CBK gives you the production URL; do not guess it.', $s7);
