@@ -68,6 +68,15 @@ body {
  * UI/body: IBM Plex Sans Arabic — neutral and highly legible small, so the
  * pairing is geometric-display over humanist-text rather than two voices
  * competing.
+ * DISPLAY SIZES USE 900, NOT 800 (`font-black`, in the markup): the hero
+ * titles, the category tiles and the 404. Alexandria is a variable font whose
+ * axis runs 100–900 and the @font-face declares the whole range, so the
+ * heaviest cut is already inside the file the site ships — 900 costs no extra
+ * bytes and no extra request over 800. Sportswear headlines want the weight
+ * and it was sitting there unused.
+ * Section headings (text-3xl and below) deliberately STAY at 800. At that
+ * size 900 stops reading as emphasis and starts reading as shouting, and the
+ * page loses the hierarchy between a hero and a subhead.
  * Headlines get optical corrections that only make sense at display sizes:
  * tighter tracking and leading in Latin. Arabic takes NEITHER — negative
  * tracking breaks the connected letterforms, and Arabic ascenders/descenders

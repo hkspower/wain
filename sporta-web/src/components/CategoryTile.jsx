@@ -142,7 +142,7 @@ export default function CategoryTile({ id, to, kicker, title, brief, badge, tone
           </p>
         )}
         <h3
-          className={`mt-1.5 font-extrabold leading-[0.95] ${
+          className={`mt-1.5 font-black leading-[0.95] ${
             tall ? 'text-4xl md:text-6xl' : 'text-3xl md:text-4xl'
           }`}
         >

@@ -401,7 +401,7 @@ function Slide({ item, copy, size, active, first, label }) {
               {copy.kicker}
             </span>
           </span>
-          <Title className="mt-5 text-5xl font-extrabold leading-none drop-shadow md:text-7xl">
+          <Title className="mt-5 text-5xl font-black leading-none drop-shadow md:text-7xl">
             {copy.title}
           </Title>
           <p className="mt-4 max-w-md text-lg text-white/85">{copy.sub}</p>
@@ -688,7 +688,7 @@ function PhotoSlide({ slide, size, active, first, label, lang, t }) {
       <div className={`relative mx-auto flex ${size} max-w-7xl items-center px-4 py-16 md:px-6`}>
         <div className="max-w-xl text-start">
           {title && (
-            <Title className="text-5xl font-extrabold leading-none text-white drop-shadow md:text-7xl">
+            <Title className="text-5xl font-black leading-none text-white drop-shadow md:text-7xl">
               {title}
             </Title>
           )}

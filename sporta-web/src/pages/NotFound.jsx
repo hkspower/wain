@@ -8,7 +8,7 @@ export default function NotFound() {
 
   return (
     <section className="mx-auto flex max-w-xl flex-col items-center gap-5 px-6 py-28 text-center">
-      <p className="font-display text-7xl font-extrabold text-brand">404</p>
+      <p className="font-display text-7xl font-black text-brand">404</p>
       <h1 className="text-2xl font-extrabold text-slate-900">{t.nf.title}</h1>
       <p className="text-slate-500">{t.nf.sub}</p>
       <div className="flex flex-wrap justify-center gap-3">
