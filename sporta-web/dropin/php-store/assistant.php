@@ -681,8 +681,20 @@ function assistant_voice_prune(array $cfg, int $maxAgeDays = 90): int
 // not their problem and must never delay them or fail their request.
 function assistant_handoff(array $cfg, string $message, string $reply, string $intent, string $lang): void
 {
-    $url = (string) ($cfg['n8n_webhook'] ?? '');
+    $url    = (string) ($cfg['n8n_webhook'] ?? '');
+    $secret = (string) ($cfg['n8n_secret'] ?? '');
     if ($url === '') return;
+    // NO SECRET, NO SEND. An unset n8n_secret used to sign the payload with an
+    // EMPTY KEY, and the workflow at the other end verified it against the same
+    // empty key and accepted it — so the signature check passed while
+    // protecting nothing, which is worse than having none, because the design
+    // and the comments both say the handoff is authenticated.
+    //
+    // The webhook URL is not a secret; it leaks through browser history,
+    // screenshots and support tickets, and that is exactly why the signature
+    // exists. Without a key, anyone holding the URL can make this shop email
+    // itself text they wrote, presented as a customer's words. Refuse instead.
+    if ($secret === '') return;
 
     $payload = json_encode([
         'source'  => 'sporta-ai',
@@ -703,7 +715,7 @@ function assistant_handoff(array $cfg, string $message, string $reply, string $i
             // A webhook URL stops being a secret the moment it is in a browser
             // history or a screenshot. The signature is what lets the workflow
             // tell this shop from anyone who has seen the URL.
-            'X-Sporta-Signature: ' . hash_hmac('sha256', $payload, (string) ($cfg['n8n_secret'] ?? '')),
+            'X-Sporta-Signature: ' . hash_hmac('sha256', $payload, $secret),
         ],
         CURLOPT_POSTFIELDS => $payload,
     ]);

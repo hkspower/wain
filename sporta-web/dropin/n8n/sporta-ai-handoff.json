@@ -6,35 +6,49 @@
         "httpMethod": "POST",
         "path": "sporta-ai",
         "responseMode": "lastNode",
-        "options": { "rawBody": true }
+        "options": {
+          "rawBody": true
+        }
       },
       "id": "webhook",
       "name": "Sporta AI webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [-220, 0],
+      "position": [
+        -220,
+        0
+      ],
       "webhookId": "sporta-ai"
     },
     {
       "parameters": {
         "language": "javaScript",
-        "jsCode": "// Verify X-Sporta-Signature before anything else.\n//\n// A webhook URL stops being a secret the moment it appears in a browser\n// history, a screenshot or a support ticket. This node is what lets the\n// workflow tell the shop from anyone who has seen the URL, and it must run\n// FIRST: a workflow that messages a human on an unverified payload is a way\n// to make this shop send messages for strangers.\n//\n// Put the same string that is in api/config.php's n8n_secret into an n8n\n// environment variable called SPORTA_N8N_SECRET.\nconst crypto = require('crypto');\nconst secret = $env.SPORTA_N8N_SECRET || '';\nconst raw = $input.first().binary\n  ? Buffer.from($input.first().binary.data.data, 'base64').toString('utf8')\n  : JSON.stringify($input.first().json);\nconst got = ($input.first().json.headers || {})['x-sporta-signature'] || '';\nconst want = crypto.createHmac('sha256', secret).update(raw).digest('hex');\n// timingSafeEqual, not ===: comparing a signature byte by byte and stopping\n// at the first difference leaks it, one character at a time.\nconst okLen = got.length === want.length;\nconst ok = okLen && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want));\nif (!ok) throw new Error('bad signature — refusing');\nreturn [{ json: JSON.parse(raw) }];"
+        "jsCode": "// Verify X-Sporta-Signature before anything else.\n//\n// A webhook URL stops being a secret the moment it appears in a browser\n// history, a screenshot or a support ticket. This node is what lets the\n// workflow tell the shop from anyone who has seen the URL, and it must run\n// FIRST: a workflow that messages a human on an unverified payload is a way\n// to make this shop send messages for strangers.\n//\n// Put the same string that is in api/config.php's n8n_secret into an n8n\n// environment variable called SPORTA_N8N_SECRET.\nconst crypto = require('crypto');\nconst secret = $env.SPORTA_N8N_SECRET || '';\n// AN UNSET SECRET IS NOT A PASS. Falling back to '' computes a valid HMAC with\n// an empty key, and the shop's PHP did the same on the other end — so the two\n// agreed, the check \"passed\", and it protected nothing at all. Refuse to run\n// rather than accept anything. The shop now also refuses to SEND without one.\nif (!secret) throw new Error('SPORTA_N8N_SECRET is not set — refusing to verify');\nconst raw = $input.first().binary\n  ? Buffer.from($input.first().binary.data.data, 'base64').toString('utf8')\n  : JSON.stringify($input.first().json);\nconst got = ($input.first().json.headers || {})['x-sporta-signature'] || '';\nconst want = crypto.createHmac('sha256', secret).update(raw).digest('hex');\n// timingSafeEqual, not ===: comparing a signature byte by byte and stopping\n// at the first difference leaks it, one character at a time.\nconst okLen = got.length === want.length;\nconst ok = okLen && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want));\nif (!ok) throw new Error('bad signature — refusing');\nreturn [{ json: JSON.parse(raw) }];"
       },
       "id": "verify",
       "name": "Verify the signature",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [0, 0]
+      "position": [
+        0,
+        0
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": true, "version": 2 },
+          "options": {
+            "caseSensitive": true,
+            "version": 2
+          },
           "conditions": [
             {
               "leftValue": "={{ $json.intent }}",
               "rightValue": "contact",
-              "operator": { "type": "string", "operation": "equals" }
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
             }
           ],
           "combinator": "and"
@@ -44,7 +58,10 @@
       "name": "Asked for a person?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [220, 0]
+      "position": [
+        220,
+        0
+      ]
     },
     {
       "parameters": {
@@ -57,7 +74,10 @@
       "name": "Tell the shop",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2,
-      "position": [460, -100],
+      "position": [
+        460,
+        -100
+      ],
       "notesInFlow": true,
       "notes": "Swap for WhatsApp, Slack or a sheet — the shop's PHP does not care."
     },
@@ -70,19 +90,56 @@
       "name": "Log the gap",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [460, 120]
+      "position": [
+        460,
+        120
+      ]
     }
   ],
   "connections": {
-    "Sporta AI webhook": { "main": [[{ "node": "Verify the signature", "type": "main", "index": 0 }]] },
-    "Verify the signature": { "main": [[{ "node": "Asked for a person?", "type": "main", "index": 0 }]] },
+    "Sporta AI webhook": {
+      "main": [
+        [
+          {
+            "node": "Verify the signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify the signature": {
+      "main": [
+        [
+          {
+            "node": "Asked for a person?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Asked for a person?": {
       "main": [
-        [{ "node": "Tell the shop", "type": "main", "index": 0 }],
-        [{ "node": "Log the gap", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Tell the shop",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log the gap",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },
-  "settings": { "executionOrder": "v1" },
+  "settings": {
+    "executionOrder": "v1"
+  },
   "pinData": {}
 }

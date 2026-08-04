@@ -438,6 +438,36 @@ head('the voice, and who is allowed to ask for it')
       is(gone === '0', 'and sweeps out audio nobody has played in 90 days', `${gone} left`)
     }
 
+    // ------------------------------- a handoff without a secret is not sent
+    // The webhook URL is not a secret — it leaks through browser history,
+    // screenshots and support tickets — so the HMAC is the only thing telling
+    // the workflow this shop from anyone who has seen the URL.
+    //
+    // With n8n_secret unset, the shop used to sign with an EMPTY KEY, and the
+    // workflow verified against the same empty key and accepted it. The check
+    // passed and protected nothing, which is worse than no check at all,
+    // because the design says the handoff is authenticated. Both ends now
+    // refuse. This asserts the shop's half.
+    {
+      // The voice is dropped from this config ON PURPOSE. settle() detects a
+      // config change by whether `speak` is offered, and a config that still
+      // has a voice is indistinguishable from the previous one — so settle()
+      // returned at once and the ask below raced a server still holding the
+      // OLD config, secret and all. Removing the voice makes the change
+      // observable; the handoff does not depend on it.
+      writeFileSync(CFG, original.replace(/\];?\s*$/, `  'n8n_webhook' => '${VOICE}/n8n',
+];
+`))
+      await settle(false)
+      await fetch(`${VOICE}/reset`)
+      await unthrottle()
+      await ask('I want to speak to someone')
+      const rec = (await calls()).n8n ?? []
+      is(rec.length === 0,
+         'with n8n_secret unset the handoff is NOT sent — an unsigned one is worse than none',
+         `${rec.length} arrived`)
+    }
+
     writeFileSync(CFG, original)
     await settle(false)
     try { process.kill(-fake.pid) } catch {}

@@ -144,6 +144,13 @@ A webhook URL stops being a secret the moment it is in a browser history, and
 a workflow that messages a human on an unverified payload is a way to make
 this shop send messages for strangers.
 
+**Both ends now refuse to run without the secret.** It used to be optional in
+effect: an unset `n8n_secret` signed with an empty key, and an unset
+`SPORTA_N8N_SECRET` verified against the same empty key and accepted it — so
+the signature check passed and protected nothing. That is worse than having no
+check, because the design says the handoff is authenticated. If you configure
+`n8n_webhook`, configure `n8n_secret` too, or the shop simply will not send.
+
 The POST is **fire-and-forget with a 4-second timeout**. The customer already
 has their answer on screen; whether an automation platform acknowledged the
 handoff is not their problem and must never delay or fail their request.
