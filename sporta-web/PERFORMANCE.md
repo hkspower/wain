@@ -1,56 +1,78 @@
-# Performance optimizations — Sporta web
+# Performance — Sporta web
 
-Applied to this app; the same techniques apply to the real Lovable/Vite project.
+This describes **the live site**. `sporta-web` is what runs at
+www.sporta.com.kw; there is no other project to apply these to. (An earlier
+version of this file was written during the move off Lovable and read as though
+this app were a demo and the real shop lived somewhere else. It did not, and
+saying so sent people to the wrong codebase.)
 
-## What changed & why
+Numbers below are measured, not estimated. Re-measure rather than trust them if
+the catalogue or the dependencies have moved.
+
+## What the build does
 
 ### 1. Route-level code splitting (`src/App.jsx`)
-`About`, `Services`, `Contact`, and the entire **admin** are now
-`React.lazy()` imports behind `<Suspense>`. A first-time visitor to the home page
-no longer downloads admin/checkout code they don't need.
+Twelve routes are `React.lazy()` imports behind `<Suspense>` — Shop, product,
+cart, checkout, payment result, about, contact, wishlist, track, invoice, 404
+and the entire admin. A first-time visitor to the home page never downloads
+checkout or admin code.
 
-**Result — entry bundle: 172 kB → 8 kB.** Other routes load on demand as tiny
-chunks (< 1 kB each).
+The admin is the one that matters: `AdminApp` is **101.8 kB raw / 21.9 kB
+brotli** of screens no shopper ever opens. It is also excluded from route
+prefetching on purpose (`src/lib/prefetchRoute.js`).
 
 ### 2. Vendor chunk isolation (`vite.config.js`)
-React / React-DOM / React-Router are split into a stable `react-vendor` chunk.
-It only changes when you upgrade those libraries, so returning visitors keep it
-cached across content deploys instead of re-downloading on every change.
+React, React-DOM and React-Router go into a stable `react-vendor` chunk, so a
+content deploy does not make returning visitors re-download the framework.
 
 ### 3. Modern build target
-`target: 'es2020'` skips legacy transpilation → smaller, faster JS for the
-modern browsers KNET/CBK already require (TLS 1.2 era).
+`target: 'es2022'` — no legacy transpilation for browsers that the payment
+gateways already require anyway.
 
-### 4. Hostinger compression + caching (`public/.htaccess`)
-The single biggest real-world win:
-- **Brotli/gzip** on all text assets (HTML/CSS/JS/SVG).
-- **`Cache-Control: immutable, max-age=1yr`** on hashed assets (`index-AbC123.js`)
-  — repeat visits are near-instant.
-- **HTML `no-cache`** so new deploys show up immediately.
-- Security headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`).
+### 4. Compression + cache tiers (`public/.htaccess`)
+Brotli and gzip on every text type including `application/json`; a year of
+`immutable` on content-hashed assets; `no-cache` on the HTML so a deploy is
+visible immediately; security headers. `npm run audit:storage` asserts the tiers
+against a real Apache.
 
-## Final build (gzip)
-| Asset | Size |
-|---|---|
-| entry `index.js` | 3.6 kB |
-| `react-vendor.js` | 53 kB (cached long-term) |
-| CSS | 3.4 kB |
-| About / Services / Contact / Admin | on-demand, < 1 kB each |
+## Measured build output
 
-## Applying to the real Lovable app
-Lovable uses the same Vite + React stack, so:
-1. Lazy-load routes with `React.lazy` (especially admin + checkout).
-2. Add the `manualChunks` block to its `vite.config.ts`.
-3. Deploy this `public/.htaccess` alongside the build (it's what makes Hostinger
-   serve compressed, cacheable assets).
-4. Compress/serve images as WebP/AVIF and add `loading="lazy"` to below-the-fold
-   images.
+| | raw | brotli |
+|---|---|---|
+| `react-vendor.js` | 208.3 kB | 62.3 kB |
+| `index.js` (entry) | 129.9 kB | 37.7 kB |
+| `AdminApp.js` (never on the shopper path) | 101.8 kB | 21.9 kB |
+| `Checkout.js` | 21.8 kB | 6.1 kB |
+| CSS | — | 13.6 kB |
+| **all JS, 23 files** | **539.6 kB** | **157.2 kB** |
 
-## Further wins (when there's real content)
-- Convert hero/product images to **WebP/AVIF**, add width/height to avoid layout shift.
+**First paint needs ~114 kB brotli**: entry + react-vendor + runtime + CSS.
+Warm build takes ~1.2 s.
+
+## The scaling limit, when it comes
+
+Measured against a synthetic 3,726-product / 22,122-variant catalogue: query
+time is not the problem (28 ms and 46 ms), the payload is. At ~4,000 distinct
+products `?r=products` is roughly **150 kB brotli per request**, and
+`api/.htaccess` sets `Cache-Control: no-store` across the whole directory — so
+the catalogue is re-fetched on every page load and the browser is forbidden from
+reusing it.
+
+`no-store` is right for `status`, `invoice` and `order`. It is inherited by
+`products`, `slides`, `brands` and `stock`, which are byte-identical for every
+visitor. Splitting that is the highest-value change left, and it is not a
+one-liner: `Header set` in `.htaccess` overrides whatever PHP sends.
+
+Two things that look like fixes and are not, both measured:
+- **An index on `products(active)`** — the optimiser ignores it (~85% of rows
+  are active, so a scan wins). Timings were identical with and without.
+- **Batching the per-line lookup in `store_price_lines`** — it costs 0.37 ms per
+  cart line against a hard cap of 50, and it sits in the server-side price
+  authority, which is the worst place in the shop to add complexity.
+
+## Further wins (when there is real content)
+- Real product photography in WebP/AVIF with width/height set.
 - `loading="lazy"` on offscreen images.
-- Preload the primary font weight only; keep `font-display: swap` (already set).
-- Consider prerendering the marketing pages to static HTML for instant first paint.
 
 ---
 

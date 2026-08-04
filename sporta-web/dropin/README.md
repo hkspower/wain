@@ -9,7 +9,6 @@ Vite; it is plain PHP 8 running on the Hostinger plan.
 | `php-store` | `public_html/api/` | **The backend.** MySQL on the same plan: catalogue, stock, orders, invoices, the admin API and its session auth. |
 | `php-knet` | `public_html/knet/` | **KNET** — the checkout page where the customer pays with a Kuwaiti debit card (Tranportal ID + password + 16-byte AES resource key). |
 | `php-cbk` | `public_html/pay/` | **T-Pay** — CBK's online payment link (ClientId + ClientSecret + ENCRP_KEY). |
-| `scripts` | — | Not deployed. Old SFTP deploy helper; `npm run publish` (FTPS) is the live route. |
 
 There is **one backend**. The shop, the admin and both gateways read and write
 the same MySQL database, so `api/config.php`, `knet/config.php` and
