@@ -48,7 +48,7 @@
   existed twice while there were two, and a fix applied to one was a bug
   waiting in the other (the KNET dropin was hardened against a browser-supplied
   price and T-Pay was not, and it stayed that way until a test went looking).
-  Proven by `npm run test:native` (74 checks) and `test:native-e2e` (28 browser
+  Proven by `npm run test:native` (113 checks) and `test:native-e2e` (26 browser
   checks). `api/config.php` lives ONLY on the server, same rule as
   `knet/config.php`. Any change to one backend's contract must be mirrored in
   the other and covered in native-backend-test.mjs.
@@ -73,9 +73,9 @@
   **Neither set of credentials works for the other**, and T-Pay cannot be served
   through `/knet`. On the native backend `knet/config.php` MUST carry the
   four `mysql_*` values or the card path is dead (400 Invalid amount) —
-  `npm run test:knet` (39 checks, real MariaDB + a fake gateway speaking the
+  `npm run test:knet` (40 checks, real MariaDB + a fake gateway speaking the
   real Tranportal protocol) is what keeps it alive. T-Pay has the same block
-  and its own suite, `npm run test:tpay` (34 checks, fake CBK API) — it was
+  and its own suite, `npm run test:tpay` (44 checks, fake CBK API) — it was
   written because T-Pay had NO coverage while KNET had 39, and it found a
   live price-authority hole on its first run. Both are selectable at checkout; `orders.payment_method` records
   which was used (`knet` / `tpay` / `cod`).
@@ -167,7 +167,7 @@
   does, and omits the claim when the shop does not know. Also carries `sku`,
   `priceValidUntil`, `hasMerchantReturnPolicy` (14 days — must match `/returns`)
   and free same-day `shippingDetails`.
-- **Arabic copy has a test:** `npm run test:arabic` (43 checks) covers missing
+- **Arabic copy has a test:** `npm run test:arabic` (48 checks) covers missing
   keys, English left untranslated, `{placeholder}` survival, tanwin written
   `ـًا` not `ـاً`, Latin `,?;` stranded between Arabic words, mixed
   Arabic-Indic/Western digits, and Arabic's **five** counting cases (1, 2 dual,
@@ -282,7 +282,7 @@
   · chmod · du · find`, over the same FTPS as `publish`, same `.env.deploy`.
   `api/config.php`, `knet/config.php`, `pay/config.php` and `config.js` cannot
   be overwritten or deleted through it — `get` is allowed, because taking a
-  backup is the point. Proven by `npm run test:ftp` (18 checks, real pyftpdlib
+  backup is the point. Proven by `npm run test:ftp` (28 checks, real pyftpdlib
   over TLS, results verified on the server's own disk).
 
 - **Never build a PHP deploy endpoint.** The live server had one —

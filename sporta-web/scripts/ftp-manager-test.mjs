@@ -62,7 +62,27 @@ h.masquerade_address = '127.0.0.1'
 FTPServer(('127.0.0.1', 2123), h).serve_forever()
 `)
 const srv = spawn('python3', [join(DIR, 'server.py')], { stdio: 'ignore' })
-await new Promise((r) => setTimeout(r, 1500))
+
+// WAIT FOR THE PORT, DO NOT GUESS AT IT. This was a flat 1500ms sleep, which
+// is a coin toss on a loaded machine: pyftpdlib had not finished binding, the
+// first command got ECONNREFUSED, and the suite reported one failure in the
+// FIRST check while all 26 after it passed — so the summary said "1 problem"
+// about a tool that was working. An intermittent red in a security suite is
+// worse than no suite, because it teaches people to re-run it.
+await (async () => {
+  const { connect } = await import('node:net')
+  for (let i = 0; i < 100; i++) {
+    const ok = await new Promise((res) => {
+      const s = connect(2123, '127.0.0.1')
+        .on('connect', () => { s.destroy(); res(true) })
+        .on('error', () => res(false))
+    })
+    if (ok) return
+    await new Promise((r) => setTimeout(r, 100))
+  }
+  console.log('FAIL the FTPS test server never came up on 2123')
+  process.exit(1)
+})()
 
 // The certificate is self-signed, so FTP_INSECURE=1 — the same escape hatch
 // publish-test.mjs uses, and the only place it is ever set.

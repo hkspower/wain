@@ -189,6 +189,38 @@ const order = (track, items, extra = {}) =>
   is(Number(stats.paid_count) === 1 && Number(stats.paid_revenue) === 8,
      'the stats see the settled cash order', `paid=${stats.paid_count} revenue=${stats.paid_revenue}`)
   is('cod_awaiting_count' in stats && 'revenue_7d' in stats, 'stats carry the exact keys Overview reads')
+
+  // ------------------------------------ a hero button cannot leave the site
+  // The hero button is the most prominent link on the shop, so store.php has
+  // always insisted it be a same-origin path. It did not actually insist:
+  // //evil.com starts with a slash and contains only permitted characters, so
+  // it passed — and a leading double slash is not a path, it is a hostname.
+  // The browser reads it as https://evil.com.
+  //
+  // It takes an admin session to set one, which is why this is a hardening
+  // check rather than an open door. The difference it makes is between one
+  // compromised login and a phishing page customers reach by clicking a
+  // button on sporta.com.kw. Backslash is the same trick in other
+  // punctuation — react-router follows browsers in treating it as a slash
+  // (CVE-2025-68470) — so it is checked here too.
+  // A real 1x1 PNG: slide_save requires a photograph before it looks at the
+  // link, so without one this tests image_required and proves nothing.
+  const PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ'
+           + 'AAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+  for (const href of ['//evil.com', '///evil.com', '/\\evil.com', 'https://evil.com']) {
+    const r = await admin('slide_save', { method: 'POST',
+      body: JSON.stringify({ image: PX, cta_href: href, active: 0, sort: 99 }) })
+    is(r.status === 400 && r.body?.error === 'invalid_link',
+       `a hero button may not point at ${href}`, `${r.status} ${r.body?.error ?? ''}`)
+  }
+  // And an ordinary internal path still saves, or the guard has eaten the feature.
+  const okHref = await admin('slide_save', { method: 'POST',
+    body: JSON.stringify({ image: PX, cta_href: '/shop?cat=men', active: 0, sort: 99 }) })
+  is(okHref.status === 200, 'but an ordinary internal path still saves',
+     `${okHref.status} ${okHref.body?.error ?? ''}`)
+  if (okHref.body?.id) {
+    await admin('slide_delete', { method: 'POST', body: JSON.stringify({ id: okHref.body.id }) })
+  }
 }
 
 // --------------------------------------------------------------- admin: stock

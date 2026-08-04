@@ -20,7 +20,7 @@ but it now holds only endpoints, all of which have working defaults:
 window.SPORTA_CONFIG = {}   // correct as-is: /api, /knet and /pay are the defaults
 ```
 
-`npm run test:native` (36 checks) and `npm run test:native-e2e` (20 browser
+`npm run test:native` (113 checks) and `npm run test:native-e2e` (20 browser
 checks) prove the contract against a real MariaDB and a real browser.
 
 ## What ships where

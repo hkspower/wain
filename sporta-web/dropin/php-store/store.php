@@ -807,6 +807,21 @@ function store_datetime(?string $raw): ?string {
 function store_internal_href(?string $raw): ?string {
     $v = trim((string)$raw);
     if ($v === '') return null;
-    if (!preg_match('#^/[A-Za-z0-9/_\-\?=&%\.]{0,180}$#', $v)) store_fail('invalid_link');
+    // A LEADING DOUBLE SLASH IS NOT A PATH, IT IS A HOSTNAME. //evil.com is a
+    // protocol-relative URL: the browser reads it as https://evil.com and
+    // leaves the shop. It starts with / and contains only characters from the
+    // list below, so the original pattern accepted it — a function whose only
+    // job is "same-origin paths" handing back an off-site link.
+    //
+    // It takes an admin session to set one, so this is not an open door; it is
+    // the difference between one compromised login and a phishing page that
+    // real customers reach by clicking the hero button on sporta.com.kw. A
+    // link that leaves the site should never be spellable here at all.
+    //
+    // Backslash was already refused by the character list, which matters more
+    // than it used to: react-router treats a backslash the way browsers do
+    // (CVE-2025-68470 and its bypass), so \\evil.com is the same trick in
+    // different punctuation. Both are now refused explicitly.
+    if (!preg_match('#^/(?![/\\\\])[A-Za-z0-9/_\-\?=&%\.]{0,180}$#', $v)) store_fail('invalid_link');
     return $v;
 }
