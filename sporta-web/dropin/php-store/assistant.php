@@ -236,8 +236,14 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
         ],
         'returns' => [
             // 14 days must match /returns and the Product structured data.
-            'ar' => 'الإرجاع والاستبدال متاح خلال ١٤ يومًا من الاستلام، بشرط أن تكون القطعة بحالتها الأصلية مع البطاقة.',
-            'en' => 'You can return or exchange within 14 days of delivery, as long as the item is unworn and still has its tag.',
+            // It must also say the words FREE and مجانيان: /returns, /terms,
+            // /about and the footer badge all promise free returns, and this
+            // answer did not — a customer who asked the assistant instead of
+            // reading the page was told returns exist, not that they cost
+            // nothing. And «الإرجاع والاستبدال» is two nouns, so the adjective
+            // is dual (مجانيان), not singular (مجاني).
+            'ar' => 'الإرجاع والاستبدال مجانيان خلال ١٤ يومًا من الاستلام، بشرط أن تكون القطعة غير ملبوسة وغير مغسولة مع بطاقتها الأصلية.',
+            'en' => 'Returns and exchanges are free within 14 days of delivery, as long as the item is unworn, unwashed and still has its original tag.',
         ],
         'payment' => [
             'ar' => 'نقبل كي نت، والدفع أونلاين عبر T-Pay، والدفع عند الاستلام.',

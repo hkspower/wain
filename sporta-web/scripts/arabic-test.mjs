@@ -254,6 +254,50 @@ head('the page, rendered right-to-left')
 
   // The regression this ordering exists to prevent: an English phone sitting
   // in Kuwait must NOT be flipped to Arabic by its own time zone.
+  // ---------------------------------- the policy says the same thing everywhere
+  // THE RETURNS POLICY LIVES IN FIVE PLACES and they have to agree, because a
+  // customer meets whichever one they happen to open: /returns, /terms,
+  // /about, the footer badge, and the assistant's answer. They drifted —
+  // /returns and /terms both stated the window, but /returns said
+  // «الاستبدال والإرجاع مجاني» where the other two said «مجانيان». Two nouns
+  // joined by و are a DUAL subject, so the adjective is dual; the page that
+  // defines the policy was the one with the error.
+  //
+  // The assistant had the bigger problem: it named the window and the
+  // condition but never said the returns were FREE, in either language, while
+  // every other surface promised it. Someone who asked the shop assistant
+  // instead of reading the page was quietly told less than the shop offers.
+  {
+    const { readFileSync } = await import('node:fs')
+    // Comments stripped, or the check reads a code comment as shipped copy —
+    // and the English window must be matched as "14 days"/"14-day", never a
+    // bare 14: the shop's own phone number ends 1914, which passed a looser
+    // pattern on a page whose FAQ never mentioned the window at all.
+    const src = (f) => readFileSync(new URL('../' + f, import.meta.url), 'utf8')
+      .replace(/^\s*(\/\/|\*|\/\*).*$/gm, '')
+    const surfaces = {
+      '/returns':   src('src/pages/Returns.jsx'),
+      '/terms':     src('src/pages/Terms.jsx'),
+      '/about':     src('src/pages/About.jsx'),
+      'assistant':  src('dropin/php-store/assistant.php'),
+    }
+    for (const [name, text] of Object.entries(surfaces)) {
+      // Arabic: the window, in Arabic-Indic digits, and the word "free".
+      const win = /١٤\s*يومًا/.test(text)
+      const free = /مجانيان|مجانًا/.test(text)
+      is(win,  `${name} states the 14-day window in Arabic`)
+      is(free, `${name} says returns are free in Arabic`)
+      // and never the singular form for the two-noun subject
+      is(!/(الاستبدال والإرجاع|الإرجاع والاستبدال)\s+(مجاني|متاح)(?![يا])/.test(text),
+         `${name} uses the DUAL form, not «مجاني»/«متاح», for the two-noun subject`)
+    }
+    // English has to carry the same two facts.
+    for (const [name, text] of Object.entries(surfaces)) {
+      is(/within 14 days|14-day/.test(text), `${name} states the 14-day window in English`)
+      is(/free/i.test(text), `${name} says returns are free in English`)
+    }
+  }
+
   const expat = await browser.newContext({
     viewport: { width: 390, height: 844 }, locale: 'en-GB',
     timezoneId: 'Asia/Kuwait', serviceWorkers: 'block',
