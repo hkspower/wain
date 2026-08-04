@@ -284,7 +284,11 @@ head('the page, rendered right-to-left')
     for (const [name, text] of Object.entries(surfaces)) {
       // Arabic: the window, in Arabic-Indic digits, and the word "free".
       const win = /١٤\s*يومًا/.test(text)
-      const free = /مجانيان|مجانًا/.test(text)
+      // «مجاني» singular is CORRECT when the subject is one noun
+      // («الاستبدال مجاني»); it is only wrong for the two-noun compound, and
+      // that is what the dedicated check below catches. Accept all three forms
+      // here, or this check starts failing on correct Arabic.
+      const free = /مجانيان|مجانًا|مجاني/.test(text)
       is(win,  `${name} states the 14-day window in Arabic`)
       is(free, `${name} says returns are free in Arabic`)
       // and never the singular form for the two-noun subject

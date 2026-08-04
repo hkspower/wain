@@ -176,12 +176,17 @@ export function productJsonLd(product, lang = 'en', { inStock = null } = {}) {
       shippingDetails: {
         '@type': 'OfferShippingDetails',
         shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'KW' },
-        // Free, same-day, inside Kuwait — the same promise the header makes.
-        shippingRate: { '@type': 'MonetaryAmount', value: 0, currency: 'KWD' },
+        // 1.000 KWD flat, every governorate — the same number the checkout
+        // quotes and the bank charges (STORE_DELIVERY_FEE_FILS). It said 0
+        // while the shop delivered free; a shipping rate that disagrees with
+        // the checkout is the kind of thing Merchant Center suspends a feed
+        // over, and it earns a "free delivery" badge the shop cannot honour.
+        shippingRate: { '@type': 'MonetaryAmount', value: 1, currency: 'KWD' },
         deliveryTime: {
           '@type': 'ShippingDeliveryTime',
+          // Within 24 hours. handling 0-1 day, transit 0-1 day.
           handlingTime: { '@type': 'QuantitativeValue', minValue: 0, maxValue: 1, unitCode: 'DAY' },
-          transitTime: { '@type': 'QuantitativeValue', minValue: 0, maxValue: 2, unitCode: 'DAY' },
+          transitTime: { '@type': 'QuantitativeValue', minValue: 0, maxValue: 1, unitCode: 'DAY' },
         },
       },
     },

@@ -87,7 +87,8 @@ is(true, 'checkout hands off to the payment gateway')
 const row = (await sql(
   "select track_id, amount, payment_status, payment_method from orders order by id desc limit 1",
 )).split('\t')
-is(row[1] === '10.000', 'the order in MySQL is priced from the products table', `${row[1]} KWD`)
+// 9.000 of goods + 1.000 delivery. The browser sent no price and no fee.
+is(row[1] === '11.000', 'the order in MySQL is priced from the products table, delivery included', `${row[1]} KWD`)
 is(row[2] === 'pending' && row[3] === 'knet', 'status pending, method knet', `${row[2]}/${row[3]}`)
 
 const item = (await sql(
@@ -201,7 +202,9 @@ is(!!confirmed && confirmed.trim().length > 1, 'the result page confirms against
   await sp.waitForURL('**/knet/pay.php*', { timeout: 15000 })
 
   const paid = (await sql('select subtotal, discount_amount, discount_code, amount from orders order by id desc limit 1')).split('\t')
-  is(paid.join('/') === '7.500/0.750/E2E10/6.750',
+  // 7.500 goods − 0.750 discount + 1.000 delivery = 7.750. The discount takes
+  // nothing off the courier.
+  is(paid.join('/') === '7.500/0.750/E2E10/7.750',
      'and MySQL records subtotal, discount and the charged amount', paid.join(' / '))
   is(shopErrors.length === 0, 'the checkout throws nothing', shopErrors.join(' | ') || 'clean')
   await shop.close()

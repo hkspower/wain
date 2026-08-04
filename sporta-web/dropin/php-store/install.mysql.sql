@@ -363,6 +363,21 @@ create index if not exists idx_discounts_live on discounts (active, kind);
 alter table orders add column if not exists subtotal        decimal(10,3) not null default 0 after amount;
 alter table orders add column if not exists discount_amount decimal(10,3) not null default 0 after subtotal;
 alter table orders add column if not exists discount_code   varchar(24)   null after discount_amount;
+
+-- Delivery is 1.000 KWD flat, every governorate, every payment method. Stored
+-- per order rather than assumed from a constant, because an order is a record
+-- of what was actually charged: if the fee changes next year, every invoice
+-- and every warehouse message already written must keep saying what that
+-- customer really paid. Added AFTER the discount — see STORE_DELIVERY_FEE_FILS.
+alter table orders add column if not exists delivery_fee decimal(10,3) not null default 0 after discount_amount;
+
+-- Some products cannot be exchanged at all — women's clothing, by the shop's
+-- policy. A flag on the row, not a category rule: the women's Sculpt, Cloudsoft
+-- and Define JACKETS live under category 'outerwear', so `category = 'women'`
+-- would have left ten of them exchangeable while the matching tops were not.
+-- The owner can also change one product's mind in /backends without moving it
+-- between categories, which would reshuffle the shop.
+alter table products add column if not exists no_exchange tinyint(1) not null default 0 after active;
 alter table orders add column if not exists discount_label  varchar(200)  null after discount_code;
 
 -- Existing orders predate discounts: their subtotal is simply their amount.
@@ -501,6 +516,20 @@ insert into product_variants (sku, slug, size, stock, cost_aed) values
 on duplicate key update
   slug = values(slug), size = values(size), cost_aed = values(cost_aed);
   -- stock deliberately NOT updated: re-seeding must not overwrite the count.
+
+-- ---------------------------------------------------------------------------
+-- What cannot be exchanged. Women's clothing is excluded by the shop's policy,
+-- and "women's" is not the same set as category = 'women': the Sculpt,
+-- Cloudsoft, Define and Naples JACKETS are women's line but sit under
+-- 'outerwear', so a category rule alone would have left ten of them
+-- exchangeable while the matching tops were not.
+--
+-- An UPDATE rather than a column in every INSERT above, so this stays readable
+-- and re-running the seed cannot half-apply it. The owner can override any
+-- single product afterwards in /backends.
+update products set no_exchange = 1 where category = 'women';
+update products set no_exchange = 1 where category = 'outerwear'
+  and (slug like 'sculpt-%' or slug like 'cloudsoft-%' or slug like 'define-%' or slug like 'naples-%');
 
 
 -- ========================================================================

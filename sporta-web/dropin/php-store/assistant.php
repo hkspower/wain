@@ -231,8 +231,8 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
 
     $t = [
         'delivery' => [
-            'ar' => 'التوصيل داخل الكويت في نفس اليوم للطلبات المؤكدة، والتوصيل مجاني. يصلك اتصال من المندوب قبل الوصول.',
-            'en' => 'Delivery inside Kuwait is same-day for confirmed orders, and it is free. The courier calls before arriving.',
+            'ar' => 'التوصيل داخل الكويت خلال ٢٤ ساعة للطلبات المؤكدة، ورسوم التوصيل ١ د.ك لجميع مناطق الكويت. يصلك اتصال من المندوب قبل الوصول.',
+            'en' => 'Delivery inside Kuwait is within 24 hours for confirmed orders, and it costs 1 KWD to every area. The courier calls before arriving.',
         ],
         'returns' => [
             // 14 days must match /returns and the Product structured data.
@@ -242,8 +242,8 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
             // reading the page was told returns exist, not that they cost
             // nothing. And «الإرجاع والاستبدال» is two nouns, so the adjective
             // is dual (مجانيان), not singular (مجاني).
-            'ar' => 'الإرجاع والاستبدال مجانيان خلال ١٤ يومًا من الاستلام، بشرط أن تكون القطعة غير ملبوسة وغير مغسولة مع بطاقتها الأصلية.',
-            'en' => 'Returns and exchanges are free within 14 days of delivery, as long as the item is unworn, unwashed and still has its original tag.',
+            'ar' => 'الاستبدال مجاني وسريع خلال ١٤ يومًا من الاستلام، في حال كان المنتج تالفًا أو المقاس غير مناسب. والاسترجاع في حال التلف أو إذا كانت الجودة غير متوقعة. الملابس النسائية غير قابلة للاستبدال نهائيًا.',
+            'en' => 'Exchange is free and fast within 14 days of delivery, for a damaged item or the wrong size. Return applies if the item is damaged or the quality is not as expected. Women\'s clothing cannot be exchanged.',
         ],
         'payment' => [
             'ar' => 'نقبل كي نت، والدفع أونلاين عبر T-Pay، والدفع عند الاستلام.',
@@ -269,8 +269,8 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
             'en' => 'Send me your order number (it starts with SP) and I will check it right away.',
         ],
         'stage_packing' => [
-            'ar' => 'تم استلام الطلب وهو قيد التجهيز. التوصيل داخل الكويت في نفس اليوم للطلبات المؤكدة.',
-            'en' => 'We have your order and it is being prepared. Delivery inside Kuwait is same-day for confirmed orders.',
+            'ar' => 'تم استلام الطلب وهو قيد التجهيز. التوصيل داخل الكويت خلال ٢٤ ساعة للطلبات المؤكدة.',
+            'en' => 'We have your order and it is being prepared. Delivery inside Kuwait is within 24 hours for confirmed orders.',
         ],
         'stage_shipped' => [
             'ar' => 'الطلب مع المندوب الآن وفي طريقه إليك.',

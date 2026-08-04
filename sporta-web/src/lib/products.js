@@ -379,6 +379,16 @@ function fromApi(row) {
     featured: !!row.featured,
     featured_sort: Number(row.featured_sort ?? 0),
     category: row.category,
+    // Women's clothing cannot be exchanged. The server decides which products
+    // those are (products.no_exchange) rather than the browser inferring it
+    // from the category: the women's Sculpt, Cloudsoft and Define jackets sit
+    // under 'outerwear', so a category rule would have offered an exchange the
+    // shop will refuse at the pickup.
+    //
+    // The shipped fallback catalogue has no such column, so it defaults to
+    // false — which is the safe direction: it offers an exchange that a human
+    // can decline, rather than refusing one the customer is entitled to.
+    noExchange: !!row.no_exchange,
     // products.image is NULL for the whole seeded catalogue — the seed has no
     // image column to fill, because the artwork is generated in the front end.
     // Passing that null straight through rendered <img src={null}> on every

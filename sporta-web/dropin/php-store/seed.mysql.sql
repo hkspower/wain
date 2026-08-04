@@ -106,3 +106,17 @@ insert into product_variants (sku, slug, size, stock, cost_aed) values
 on duplicate key update
   slug = values(slug), size = values(size), cost_aed = values(cost_aed);
   -- stock deliberately NOT updated: re-seeding must not overwrite the count.
+
+-- ---------------------------------------------------------------------------
+-- What cannot be exchanged. Women's clothing is excluded by the shop's policy,
+-- and "women's" is not the same set as category = 'women': the Sculpt,
+-- Cloudsoft, Define and Naples JACKETS are women's line but sit under
+-- 'outerwear', so a category rule alone would have left ten of them
+-- exchangeable while the matching tops were not.
+--
+-- An UPDATE rather than a column in every INSERT above, so this stays readable
+-- and re-running the seed cannot half-apply it. The owner can override any
+-- single product afterwards in /backends.
+update products set no_exchange = 1 where category = 'women';
+update products set no_exchange = 1 where category = 'outerwear'
+  and (slug like 'sculpt-%' or slug like 'cloudsoft-%' or slug like 'define-%' or slug like 'naples-%');

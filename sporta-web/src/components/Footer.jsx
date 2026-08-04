@@ -88,6 +88,10 @@ export default function Footer() {
         <p className="mt-8 text-center text-xs text-slate-400">
           © {new Date().getFullYear()} Sporta — {t.footer.rights} · 30199/2023
         </p>
+        {/* Who the shop actually trades as. A customer disputing a charge, and
+            the bank behind KNET, both need the legal entity named — the card
+            statement says Al-Muhallab, not Sporta. */}
+        <p className="mt-1 text-center text-xs text-slate-500">{t.footer.operator}</p>
       </div>
     </footer>
   )

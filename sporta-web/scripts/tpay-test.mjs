@@ -91,12 +91,16 @@ await sql('delete from fulfilment_outbox; delete from order_items; delete from o
 head('pay.php hands the gateway the right numbers')
 {
   const order = await newOrder('SPTPAY0001')
-  is(order.amount === 20, 'an order exists, priced by the server', `${order.amount} KWD`)
+  // 2 x 10.000 of goods + 1.000 delivery. The fee is part of what the BANK is
+  // asked for, so this assertion is the one that would catch delivery being
+  // quoted to the customer but not charged, or charged twice.
+  is(order.amount === 21, 'an order exists, priced by the server (goods + delivery)', `${order.amount} KWD`)
 
   const html = await (await get(`${PAY}/pay.php?trackid=SPTPAY0001&lang=ar`)).text()
   const f = formFields(html)
   is(formAction(html).includes('/ePay/pg/epay'), 'the shopper is posted to the CBK hosted page')
-  is(f.tij_MerchantPaymentAmount === '20.000', 'the amount is the ORDER total', f.tij_MerchantPaymentAmount)
+  // Goods + delivery, matching orders.amount to the fil.
+  is(f.tij_MerchantPaymentAmount === '21.000', 'the amount is the ORDER total', f.tij_MerchantPaymentAmount)
   is(f.tij_MerchantPaymentTrack === 'SPTPAY0001', 'the track id is carried')
   is(f.tij_MerchantEncryptCode === 'TESTENCRP', 'the ENCRP_KEY identifies the merchant account')
   is(f.tij_MerchAuthKeyApi?.startsWith('FAKETOKEN-'), 'a real AccessToken was fetched from the gateway')
@@ -109,7 +113,7 @@ head('pay.php hands the gateway the right numbers')
 head('the browser cannot choose what it pays')
 {
   const html = await (await get(`${PAY}/pay.php?trackid=SPTPAY0001&amount=0.100`)).text()
-  is(formFields(html).tij_MerchantPaymentAmount === '20.000',
+  is(formFields(html).tij_MerchantPaymentAmount === '21.000',
      'an amount in the URL is IGNORED, not charged', formFields(html).tij_MerchantPaymentAmount)
 
   const unknown = await get(`${PAY}/pay.php?trackid=NOSUCHORDER&amount=0.100`)

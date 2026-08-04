@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { optionLine } from '../lib/options'
@@ -52,6 +52,37 @@ export default function Checkout() {
   const [code, setCode] = useState('')
   const [applied, setApplied] = useState(null)
   const [codeState, setCodeState] = useState({ busy: false, error: '' })
+  // THE QUOTE, AND WHY IT IS FETCHED RATHER THAN ADDED UP HERE.
+  //
+  // Delivery is 1.000 KWD and it would be one line to add locally — and that
+  // line is how a shop ends up showing one total and charging another. The fee
+  // lives in the server's STORE_DELIVERY_FEE_FILS, and the same function that
+  // charges it answers here, so the number on screen is the number the bank
+  // gets. It is the identical rule the coupon already follows.
+  //
+  // Asked with an EMPTY code: this is a pricing question, not a coupon
+  // attempt, so it never counts against the failed-code throttle.
+  const [quote, setQuote] = useState(null)
+  useEffect(() => {
+    if (!items.length) { setQuote(null); return }
+    let live = true
+    phpDiscountCheck({
+      items: items.map((i) => ({
+        slug: i.slug, qty: i.qty,
+        ...(i.size ? { size: i.size } : {}),
+        ...(i.fit ? { fit: i.fit } : {}),
+      })),
+      code: '',
+    })
+      .then((q) => { if (live) setQuote(q) })
+      // A failed quote must not block checking out: the order is priced again
+      // server-side anyway. The delivery line simply stays hidden.
+      .catch(() => { if (live) setQuote(null) })
+    return () => { live = false }
+  }, [items])
+  // What the summary shows: the coupon answer when there is one, otherwise the
+  // plain quote. Both come from the server.
+  const money = applied ?? quote
   usePageMeta({ path: '/checkout', robots: 'noindex, follow' })
 
   const [form, setForm] = useState(loadDelivery)
@@ -427,10 +458,17 @@ export default function Checkout() {
               </div>
             )}
 
+            {money?.delivery > 0 && (
+              <div className="mt-3 flex justify-between text-sm text-slate-600">
+                <span>{t.cart.delivery}</span>
+                <span className="tabular-nums">{formatKWD(money.delivery, lang)}</span>
+              </div>
+            )}
+
             <div className="mt-4 flex justify-between border-t border-slate-200 pt-4 text-lg font-bold">
               <span>{t.cart.total}</span>
               <span className="text-accent tabular-nums">
-                {formatKWD(applied ? applied.total : total, lang)}
+                {formatKWD(money ? money.total : total, lang)}
               </span>
             </div>
 
@@ -462,7 +500,7 @@ export default function Checkout() {
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">{t.cart.total}</p>
             <p className="text-accent truncate text-lg font-extrabold tabular-nums">
-              {formatKWD(applied ? applied.total : total, lang)}
+              {formatKWD(money ? money.total : total, lang)}
             </p>
           </div>
           <button type="submit" disabled={busy} className="btn btn-primary flex-1">

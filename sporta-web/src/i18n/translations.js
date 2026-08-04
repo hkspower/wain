@@ -56,11 +56,11 @@ export const translations = {
       tiktok: 'TikTok',
       whatsapp: 'WhatsApp',
     },
-    ann: 'Same-day delivery in Kuwait · KNET, cards & cash on delivery',
+    ann: 'Delivery within 24 hours in Kuwait · 1 KWD · KNET, cards & cash on delivery',
     search: { placeholder: 'Search products…', empty: 'No products found.', title: 'Search' },
     sort: { label: 'Sort', newest: 'Newest', priceAsc: 'Price: low → high', priceDesc: 'Price: high → low' },
     trust: {
-      delivery: 'Same-day delivery in Kuwait',
+      delivery: 'Delivery within 24 hours · 1 KWD',
       pay: 'Secure checkout — KNET, Visa, Mastercard',
       returns: 'Free 14-day returns',
     },
@@ -260,7 +260,7 @@ export const translations = {
       viewAll: 'View all',
     },
     cart: { title: 'Your bag', empty: 'Your bag is empty.', total: 'Total', checkout: 'Checkout',
-            subtotal: 'Subtotal' },
+            subtotal: 'Subtotal', delivery: 'Delivery' },
     checkout: {
       summary: 'Order summary',
       coupon: 'Discount code',
@@ -374,6 +374,9 @@ export const translations = {
         privacy: 'Privacy',
       },
       rights: 'All rights reserved.',
+      // The trading entity behind the shop. On the trademark certificate
+      // (KW1671646) and on the CBK merchant nomination for sporta.com.kw.
+      operator: 'Sporta is operated by Al-Muhallab Co. for Designing and Programming Special Software.',
     },
     bar: { support: 'Support', account: 'Account', back: 'Back', top: 'Top' },
   },
@@ -406,11 +409,11 @@ export const translations = {
       tiktok: 'تيك توك',
       whatsapp: 'واتساب',
     },
-    ann: 'توصيل في نفس اليوم داخل الكويت · كي نت والبطاقات والدفع عند الاستلام',
+    ann: 'التوصيل خلال ٢٤ ساعة داخل الكويت · ١ د.ك · كي نت والبطاقات والدفع عند الاستلام',
     search: { placeholder: 'ابحث عن المنتجات…', empty: 'لا توجد منتجات.', title: 'بحث' },
     sort: { label: 'ترتيب', newest: 'الأحدث', priceAsc: 'السعر: من الأقل إلى الأعلى', priceDesc: 'السعر: من الأعلى إلى الأقل' },
     trust: {
-      delivery: 'توصيل في نفس اليوم داخل الكويت',
+      delivery: 'التوصيل خلال ٢٤ ساعة · ١ د.ك',
       pay: 'دفع آمن — كي نت، فيزا، ماستركارد',
       returns: 'إرجاع مجاني خلال ١٤ يومًا',
     },
@@ -591,7 +594,7 @@ export const translations = {
       viewAll: 'عرض الكل',
     },
     cart: { title: 'حقيبتك', empty: 'حقيبتك فارغة.', total: 'الإجمالي', checkout: 'إتمام الشراء',
-            subtotal: 'المجموع الفرعي' },
+            subtotal: 'المجموع الفرعي', delivery: 'التوصيل' },
     checkout: {
       summary: 'ملخص الطلب',
       coupon: 'كود الخصم',
@@ -698,6 +701,7 @@ export const translations = {
         privacy: 'الخصوصية',
       },
       rights: 'جميع الحقوق محفوظة.',
+      operator: 'متجر سبورتا تحت إدارة شركة المهلب لتصميم وبرمجة البرمجيات الخاصة.',
     },
     bar: { support: 'الدعم', account: 'حسابي', back: 'رجوع', top: 'الأعلى' },
   },

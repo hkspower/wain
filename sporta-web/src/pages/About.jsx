@@ -49,7 +49,7 @@ const FAQ = [
 // claimed.
 const WHY = [
   {
-    t: { en: 'Same-day delivery in Kuwait', ar: 'توصيل في نفس اليوم داخل الكويت' },
+    t: { en: 'Delivery within 24 hours · 1 KWD', ar: 'التوصيل خلال ٢٤ ساعة · ١ د.ك' },
     d: { en: 'Order today, wear it today. Delivery updates come to you on WhatsApp.',
          ar: 'اطلب اليوم والبسه اليوم، وتصلك تحديثات التوصيل على واتساب.' },
   },
@@ -97,7 +97,7 @@ export default function About() {
     description:
       lang === 'ar'
         ? 'سبورتا — متجر ملابس رياضية كويتي: توصيل في نفس اليوم، دفع كي نت، استبدال مجاني.'
-        : 'Sporta is a Kuwaiti sportswear store — same-day delivery, KNET payment, free exchange & return.',
+        : 'Sporta is a Kuwaiti sportswear store — delivery within 24 hours for 1 KWD, KNET payment, free exchange.',
     path: '/about',
     jsonLd,
   })

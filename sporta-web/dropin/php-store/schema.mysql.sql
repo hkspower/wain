@@ -336,6 +336,21 @@ create index if not exists idx_discounts_live on discounts (active, kind);
 alter table orders add column if not exists subtotal        decimal(10,3) not null default 0 after amount;
 alter table orders add column if not exists discount_amount decimal(10,3) not null default 0 after subtotal;
 alter table orders add column if not exists discount_code   varchar(24)   null after discount_amount;
+
+-- Delivery is 1.000 KWD flat, every governorate, every payment method. Stored
+-- per order rather than assumed from a constant, because an order is a record
+-- of what was actually charged: if the fee changes next year, every invoice
+-- and every warehouse message already written must keep saying what that
+-- customer really paid. Added AFTER the discount — see STORE_DELIVERY_FEE_FILS.
+alter table orders add column if not exists delivery_fee decimal(10,3) not null default 0 after discount_amount;
+
+-- Some products cannot be exchanged at all — women's clothing, by the shop's
+-- policy. A flag on the row, not a category rule: the women's Sculpt, Cloudsoft
+-- and Define JACKETS live under category 'outerwear', so `category = 'women'`
+-- would have left ten of them exchangeable while the matching tops were not.
+-- The owner can also change one product's mind in /backends without moving it
+-- between categories, which would reshuffle the shop.
+alter table products add column if not exists no_exchange tinyint(1) not null default 0 after active;
 alter table orders add column if not exists discount_label  varchar(200)  null after discount_code;
 
 -- Existing orders predate discounts: their subtotal is simply their amount.

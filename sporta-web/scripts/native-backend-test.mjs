@@ -83,10 +83,13 @@ const order = (track, items, extra = {}) =>
   ])
   is(status === 200 && body.track_id === 'SPNAT0001', 'an order is created', JSON.stringify(body))
   // 2 × 10.000 + 4.000 — priced from the TABLE. The request carried no price.
-  is(body.amount === 24, 'the amount is computed server-side from stored prices', `${body.amount}`)
+  // 2 x 10.000 + 4.000 of goods, then DELIVERY on top: 24 + 1 = 25. The fee is
+  // added after the discount and is never discounted — see STORE_DELIVERY_FEE_FILS.
+  is(body.amount === 25, 'the amount is computed server-side from stored prices, delivery included', `${body.amount}`)
+  is(body.delivery === 1, 'and the 1.000 KWD delivery fee is named in the answer', `${body.delivery}`)
 
   const again = await order('SPNAT0001', [{ slug: 'cagliari-calcio-backpack', qty: 9 }])
-  is(again.body.amount === 24 && again.body.order_id === body.order_id,
+  is(again.body.amount === 25 && again.body.order_id === body.order_id,
      'the same track id returns the SAME order — a double tap cannot buy twice',
      `still ${again.body.amount}`)
 
@@ -96,7 +99,7 @@ const order = (track, items, extra = {}) =>
   is(!JSON.stringify(inv).includes('9988'), 'the invoice does not return the phone number')
 
   const { body: st } = await api('status&id=SPNAT0001')
-  is(st.payment_status === 'pending' && st.amount === 24, 'status works by order number')
+  is(st.payment_status === 'pending' && st.amount === 25, 'status works by order number')
 }
 
 // ------------------------------------------------------------------ validation
@@ -186,7 +189,7 @@ const order = (track, items, extra = {}) =>
   is(ful.body?.ok === true, 'fulfilment status updates')
 
   const { body: stats } = await admin('stats')
-  is(Number(stats.paid_count) === 1 && Number(stats.paid_revenue) === 8,
+  is(Number(stats.paid_count) === 1 && Number(stats.paid_revenue) === 9,
      'the stats see the settled cash order', `paid=${stats.paid_count} revenue=${stats.paid_revenue}`)
   is('cod_awaiting_count' in stats && 'revenue_7d' in stats, 'stats carry the exact keys Overview reads')
 
@@ -359,7 +362,7 @@ const order = (track, items, extra = {}) =>
      'the sale WINDOW never reaches the browser — it is not the browser’s decision')
 
   const paid = await order('SPSALE0001', [{ slug: 'cloudsoft-jacket-army-green', qty: 2, size: 'L' }])
-  is(paid.body.amount === 15, 'and CHECKOUT charges the sale price, not the list price', `${paid.body.amount}`)
+  is(paid.body.amount === 16, 'and CHECKOUT charges the sale price, not the list price (+1 delivery)', `${paid.body.amount}`)
 
   // Expired, and dated in the future: both must fall back to the list price.
   for (const [from, to, what] of [
@@ -397,7 +400,7 @@ const order = (track, items, extra = {}) =>
   }
 
   const stacked = await check('SAVE10')
-  is(stacked.body.discount === 7 && stacked.body.total === 33,
+  is(stacked.body.discount === 7 && stacked.body.total === 34,
      'an automatic rule and a code STACK, automatic first', JSON.stringify(stacked.body.applied?.map((a) => a.amount)))
 
   // Lowercase in, uppercase matched: a customer retyping a code off a poster
@@ -426,19 +429,22 @@ const order = (track, items, extra = {}) =>
     }),
   })
   const cheated = await cheat.json()
-  is(cheated.amount === 33 && cheated.discount === 7,
+  is(cheated.amount === 34 && cheated.discount === 7,
      'a browser-supplied amount and discount are IGNORED — the server recomputes both',
      `charged ${cheated.amount}`)
   const stored = (await run('mariadb', ['sporta', '-N', '-B', '-e',
-    "select amount, subtotal, discount_amount, discount_code from orders where track_id = 'SPCHEAT001'"])).stdout.trim()
-  is(stored === '33.000\t40.000\t7.000\tSAVE10', 'and MySQL holds the server’s figures', stored)
+    "select amount, subtotal, discount_amount, delivery_fee, discount_code from orders where track_id = 'SPCHEAT001'"])).stdout.trim()
+  // 40 goods − 7 discount + 1 delivery = 34. The delivery fee is stored on the
+  // row, not inferred from a constant, so this invoice still reads correctly
+  // after the fee changes.
+  is(stored === '34.000\t40.000\t7.000\t1.000\tSAVE10', 'and MySQL holds the server’s figures', stored)
 
   // ---- the stack cap ----
   await run('mariadb', ['sporta', '-e',
     "update discounts set value = 90, type = 'percent' where code = 'SAVE10'; " +
     "update discounts set value = 50, type = 'percent', min_order = 0 where kind = 'auto'"])
   const capped = await check('SAVE10')
-  is(capped.body.discount === 24 && capped.body.total === 16,
+  is(capped.body.discount === 24 && capped.body.total === 17,
      'two rules that would give 140% off are capped at 60% of the order',
      `${capped.body.discount} off ${capped.body.subtotal}`)
   await run('mariadb', ['sporta', '-e',

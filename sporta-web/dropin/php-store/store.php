@@ -138,6 +138,24 @@ const STORE_SIZES        = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', 'ON
 const STORE_FITS         = ['normal', 'slim', 'loose', 'oversize', 'boxy', 'tank'];
 const STORE_PAY_METHODS  = ['knet', 'tpay', 'cod'];
 
+// DELIVERY IS 1 KWD, FLAT, EVERY GOVERNORATE, EVERY PAYMENT METHOD.
+//
+// In FILS, like every other amount in this file: KWD has exactly three decimal
+// places, so 1.000 KWD is 1000 fils and integer arithmetic is exact. A float
+// here would be a rounding error in the total the bank charges.
+//
+// It is added AFTER the discount, and that ordering is the policy: a discount
+// is a reduction on the goods, not on the courier, so a 60% code takes 60% off
+// the shirt and never a fil off the delivery. It also means an order can never
+// total zero — the fee is always payable — which is why the zero check below
+// looks at the GOODS, not at the amount the customer pays.
+//
+// The shop used to deliver free and said so in six places; the fee arrived
+// with the change of policy, and everything that quotes a total — the
+// checkout, the invoice, the warehouse email's COLLECT CASH line, and the
+// Product structured data Google reads — has to agree with this one number.
+const STORE_DELIVERY_FEE_FILS = 1000;
+
 // Arabic-Indic and Extended digits to ASCII — an Arabic keyboard types ٤ for 4,
 // and a phone field that rejects half the country's keyboards is broken.
 function store_ascii_digits(string $s): string {

@@ -12,7 +12,7 @@ const WHATSAPP = '96522091914'
 const C = {
   en: {
     title: 'Returns & Exchange',
-    sub: 'Free within 14 days of delivery. Pick your items below, choose return or exchange, and send the request on WhatsApp — we arrange pickup in Kuwait.',
+    sub: 'Free exchange within 14 days of delivery — damaged items or the wrong size. Women\u2019s clothing cannot be exchanged. Pick your items below, choose return or exchange, and send the request on WhatsApp — we arrange pickup in Kuwait.',
     orderInfo: 'Order details',
     orderNo: 'Order / track number',
     orderNoPh: 'e.g. SP1A2B3C4D (optional)',
@@ -27,6 +27,7 @@ const C = {
     action: 'Action',
     aReturn: 'Return',
     aExchange: 'Exchange',
+    noExchangeNote: 'This item cannot be exchanged — return only.',
     newSize: 'New size',
     reason: 'Reason',
     reasons: {
@@ -43,10 +44,13 @@ const C = {
     sendNote: 'Opens WhatsApp with your request pre-filled — nothing is sent until you press Send there.',
     policyT: 'Policy',
     policy: [
-      'Exchange and return are free within 14 days of delivery.',
+      'Exchange is free and fast, within 14 days of delivery.',
+      'Exchange applies to a damaged item or the wrong size.',
+      'Return applies if the item is damaged or the quality is not as expected.',
+      "Women's clothing cannot be exchanged.",
       'Items must be unworn, unwashed, with original tags attached.',
       'Refunds go back to the original payment method (KNET / card).',
-      'Exchanges ship the same day the pickup is received.',
+      'Exchanges ship within 24 hours of the pickup being received.',
     ],
     waIntro: 'Return/Exchange request — Sporta',
     waOrder: 'Order',
@@ -55,7 +59,7 @@ const C = {
   },
   ar: {
     title: 'الاستبدال والإرجاع',
-    sub: 'مجانًا خلال ١٤ يومًا من الاستلام. اختر منتجاتك بالأسفل، حدّد إرجاع أو استبدال، وأرسل الطلب عبر واتساب — وننسّق الاستلام داخل الكويت.',
+    sub: 'استبدال مجاني خلال ١٤ يومًا من الاستلام — للمنتج التالف أو المقاس غير المناسب. الملابس النسائية غير قابلة للاستبدال. اختر منتجاتك بالأسفل، حدّد إرجاع أو استبدال، وأرسل الطلب عبر واتساب — وننسّق الاستلام داخل الكويت.',
     orderInfo: 'بيانات الطلب',
     orderNo: 'رقم الطلب / التتبع',
     orderNoPh: 'مثال: SP1A2B3C4D (اختياري)',
@@ -70,6 +74,7 @@ const C = {
     action: 'الإجراء',
     aReturn: 'إرجاع',
     aExchange: 'استبدال',
+    noExchangeNote: 'هذا المنتج غير قابل للاستبدال — الإرجاع فقط.',
     newSize: 'المقاس الجديد',
     reason: 'السبب',
     reasons: {
@@ -87,10 +92,13 @@ const C = {
     sendNote: 'يفتح واتساب مع تفاصيل طلبك جاهزة — لا يُرسل شيء حتى تضغط إرسال هناك.',
     policyT: 'السياسة',
     policy: [
-      'الاستبدال والإرجاع مجانيان خلال ١٤ يومًا من الاستلام.',
+      'الاستبدال مجاني وسريع خلال ١٤ يومًا من الاستلام.',
+      'الاستبدال في حال كان المنتج تالفًا أو المقاس غير مناسب.',
+      'الاسترجاع في حال التلف أو إذا كانت الجودة غير متوقعة.',
+      'الملابس النسائية غير قابلة للاستبدال نهائيًا.',
       'يجب أن تكون القطع غير ملبوسة وغير مغسولة مع البطاقات الأصلية.',
       'يُعاد المبلغ إلى وسيلة الدفع الأصلية (كي نت / بطاقة).',
-      'شحنة الاستبدال تخرج في نفس يوم استلام القطعة.',
+      'شحنة الاستبدال تخرج خلال ٢٤ ساعة من استلام القطعة.',
     ],
     waIntro: 'طلب إرجاع/استبدال — سبورتا',
     waOrder: 'رقم الطلب',
@@ -144,6 +152,8 @@ export default function Returns() {
 
   const addItem = (p) => {
     if (items.some((i) => i.slug === p.slug)) return
+    // Starts as 'return' for everything, which is also the only action a
+    // non-exchangeable item can ever have — see the note by the buttons.
     const sizes = SIZES_FOR(p.category)
     setItems([
       ...items,
@@ -281,10 +291,20 @@ export default function Returns() {
                     <button className={seg(i.action === 'return')} onClick={() => patch(i.slug, { action: 'return' })}>
                       {c.aReturn}
                     </button>
-                    <button className={seg(i.action === 'exchange')} onClick={() => patch(i.slug, { action: 'exchange' })}>
-                      {c.aExchange}
-                    </button>
+                    {/* Women's clothing cannot be exchanged, so the button is
+                        not offered rather than offered and then refused at the
+                        pickup. RETURN stays available: the policy excludes the
+                        exchange, not a damaged or poor-quality item coming
+                        back. p.noExchange comes from the server. */}
+                    {!p.noExchange && (
+                      <button className={seg(i.action === 'exchange')} onClick={() => patch(i.slug, { action: 'exchange' })}>
+                        {c.aExchange}
+                      </button>
+                    )}
                   </div>
+                  {p.noExchange && (
+                    <p className="w-full text-xs font-semibold text-amber-700">{c.noExchangeNote}</p>
+                  )}
                   {/* qty */}
                   <div className="flex items-center gap-1 rounded-full border border-slate-300">
                     <button

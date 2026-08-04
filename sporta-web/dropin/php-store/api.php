@@ -72,7 +72,8 @@ if (isset($STORE_LIMITS[$r])) store_throttle($db, $r, ...$STORE_LIMITS[$r]);
 if ($r === 'products') {
     $rows = $db->query(
         'select slug, name_en, name_ar, desc_en, desc_ar, price, sale_price,
-                sale_starts_at, sale_ends_at, featured, featured_sort, category, image
+                sale_starts_at, sale_ends_at, featured, featured_sort, category, image,
+                no_exchange
            from products where active = 1 order by name_en'
     )->fetchAll();
     foreach ($rows as &$row) {
@@ -90,6 +91,10 @@ if ($r === 'products') {
         $row['list_price'] = $eff['list_fils'] / 1000;
         $row['on_sale']    = $eff['on_sale'];
         $row['featured']   = (bool)$row['featured'];
+        // Women's clothing cannot be exchanged. The storefront needs this to
+        // say so on the product page and to refuse the item on /returns —
+        // finding out at the pickup is the worst possible moment.
+        $row['no_exchange'] = (bool)$row['no_exchange'];
         unset($row['sale_price'], $row['sale_starts_at'], $row['sale_ends_at']);
     }
     unset($row);
@@ -188,10 +193,17 @@ if ($r === 'discount' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         store_fail($res['error']);
     }
 
+    // DELIVERY IS PART OF THE QUOTE, or the quote is not what the customer
+    // pays. This endpoint exists so the checkout can show a number computed by
+    // the same code that will charge it; leaving the fee out here would put a
+    // total on screen that is 1.000 KWD lower than the one the bank asks for,
+    // which is the exact drift the shared-code rule was written to prevent.
+    $previewDelivery = STORE_DELIVERY_FEE_FILS;
     store_out([
         'subtotal' => (float)store_kwd($sub),
         'discount' => (float)store_kwd($res['total_fils']),
-        'total'    => (float)store_kwd($sub - $res['total_fils']),
+        'delivery' => (float)store_kwd($previewDelivery),
+        'total'    => (float)store_kwd($sub - $res['total_fils'] + $previewDelivery),
         'applied'  => array_map(fn ($a) => ['label' => $a['label'], 'code' => $a['code'],
                                             'amount' => (float)store_kwd($a['fils'])], $res['applied']),
     ]);
@@ -316,8 +328,13 @@ if ($r === 'invoice') {
         // The invoice has to add up. Without these an order that was given
         // 3 KWD off shows lines totalling 23 and a total of 20, and the
         // customer's reasonable conclusion is that the shop cannot count.
+        // Delivery is on the invoice for exactly that reason: 4.000 of goods
+        // against a 5.000 charge reads as a mistake until the fee is named.
+        // Read from the ROW, never from the constant — an invoice must say
+        // what that customer actually paid, even after the fee changes.
         'subtotal'        => (float)$o['subtotal'],
         'discount_amount' => (float)$o['discount_amount'],
+        'delivery_fee'    => (float)$o['delivery_fee'],
         'discount_label'  => $o['discount_label'],
         'discount_code'   => $o['discount_code'],
         'payment_method' => $o['payment_method'],
@@ -411,12 +428,17 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $disc = store_discounts_for($db, $lines, $subtotalFils, (string)($b['discount_code'] ?? ''));
     if ($disc['error'] !== null) store_fail($disc['error']);
     $discountFils = $disc['total_fils'];
-    $amountFils   = $subtotalFils - $discountFils;
-    // A 100%-off order would be handed to the bank as 0.000 and refused there,
-    // with the customer already told the order exists. The cap in
-    // store_discounts_for should make this unreachable; it is asserted anyway
-    // because "should be unreachable" is where money goes missing.
-    if ($amountFils <= 0) store_fail('zero_amount');
+    // Goods after the discount, BEFORE delivery. Checked on its own because a
+    // 100%-off order would otherwise still look healthy — the delivery fee
+    // alone would carry the total above zero and the bank would be handed an
+    // order whose goods were free. The cap in store_discounts_for should make
+    // this unreachable; it is asserted anyway, because "should be unreachable"
+    // is where money goes missing.
+    $goodsFils = $subtotalFils - $discountFils;
+    if ($goodsFils <= 0) store_fail('zero_amount');
+    // Delivery last, so no discount can eat into it. See STORE_DELIVERY_FEE_FILS.
+    $deliveryFils = STORE_DELIVERY_FEE_FILS;
+    $amountFils   = $goodsFils + $deliveryFils;
 
     $db->beginTransaction();
     try {
@@ -462,9 +484,10 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         foreach ($disc['applied'] as $a) if ($a['code'] !== null) $code = $a['code'];
         $db->prepare(
             'update orders set amount = ?, subtotal = ?, discount_amount = ?,
-                    discount_code = ?, discount_label = ? where id = ?'
+                    delivery_fee = ?, discount_code = ?, discount_label = ? where id = ?'
         )->execute([
             $amount, store_kwd($subtotalFils), store_kwd($discountFils),
+            store_kwd($deliveryFils),
             $code, $label === '' ? null : mb_substr($label, 0, 200), $orderId,
         ]);
 
@@ -487,7 +510,8 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
     store_out(['order_id' => $orderId, 'track_id' => $track,
                'amount' => (float)$amount, 'subtotal' => (float)store_kwd($subtotalFils),
-               'discount' => (float)store_kwd($discountFils), 'payment_method' => $method]);
+               'discount' => (float)store_kwd($discountFils),
+               'delivery' => (float)store_kwd($deliveryFils), 'payment_method' => $method]);
 }
 
 store_fail('not_found', 404);

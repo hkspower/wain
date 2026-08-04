@@ -46,7 +46,7 @@ const SECTIONS = [
     h: { en: '4. Delivery', ar: '٤. التوصيل' },
     p: [{
       en: 'Orders inside Kuwait are delivered the same day, with updates sent on WhatsApp. Delivery depends on the address details you give us — governorate, area, block, street and building — so please check them before paying.',
-      ar: 'الطلبات داخل الكويت تُوصَّل في نفس اليوم مع إرسال التحديثات عبر واتساب. ويعتمد التوصيل على بيانات العنوان التي تزوّدنا بها — المحافظة والمنطقة وقطعة وشارع وبناية — لذا تأكد منها قبل الدفع.',
+      ar: 'الطلبات داخل الكويت تُوصَّل خلال ٢٤ ساعة، ورسوم التوصيل ١ د.ك لجميع مناطق الكويت، مع إرسال التحديثات عبر واتساب. ويعتمد التوصيل على بيانات العنوان التي تزوّدنا بها — المحافظة والمنطقة وقطعة وشارع وبناية — لذا تأكد منها قبل الدفع.',
     }, {
       en: 'Online checkout covers Kuwait. For GCC and Middle East orders, message us on WhatsApp and we will arrange delivery and confirm the cost with you first.',
       ar: 'الدفع عبر الموقع متاح داخل الكويت. ولطلبات دول الخليج والشرق الأوسط راسلنا على واتساب لترتيب الشحن وتأكيد التكلفة معك مسبقًا.',

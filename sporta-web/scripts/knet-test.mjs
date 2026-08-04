@@ -96,7 +96,10 @@ await sql('delete from fulfilment_outbox; delete from order_items; delete from o
 head('pay.php hands the bank the right numbers')
 {
   const order = await newOrder('SPKNET0001')
-  is(order.amount === 20, 'an order exists, priced by the server', `${order.amount} KWD`)
+  // 2 x 10.000 of goods + 1.000 delivery. The fee is part of what the BANK is
+  // asked for, so this assertion is the one that would catch delivery being
+  // quoted to the customer but not charged, or charged twice.
+  is(order.amount === 21, 'an order exists, priced by the server (goods + delivery)', `${order.amount} KWD`)
 
   const res = await get(`${KNET}/pay.php?trackid=SPKNET0001&lang=ar`)
   const loc = res.headers.get('location') ?? ''
@@ -104,7 +107,9 @@ head('pay.php hands the bank the right numbers')
 
   const sent = parse(decrypt(new URL(loc).searchParams.get('trandata')))
   is(true, 'the trandata decrypts with an INDEPENDENT AES implementation')
-  is(sent.amt === '20.000', 'the amount is the ORDER total, in fils-exact form', sent.amt)
+  // What the BANK is asked for. Goods + delivery, and it must equal orders.amount
+  // exactly — this is the number the customer's card is debited.
+  is(sent.amt === '21.000', 'the amount is the ORDER total, in fils-exact form', sent.amt)
   is(sent.trackid === 'SPKNET0001', 'the track id is carried')
   is(sent.id === 'TESTID001' && sent.password === 'testpass', 'the Tranportal credentials are inside the ENCRYPTED blob')
   is(sent.langid === 'AR', 'the shopper’s language reaches the bank page', sent.langid)
@@ -117,7 +122,7 @@ head('the browser cannot choose what it pays')
 {
   const res = await get(`${KNET}/pay.php?trackid=SPKNET0001&amount=0.100`)
   const sent = parse(decrypt(new URL(res.headers.get('location')).searchParams.get('trandata')))
-  is(sent.amt === '20.000', 'an amount in the URL is IGNORED, not charged', sent.amt)
+  is(sent.amt === '21.000', 'an amount in the URL is IGNORED, not charged', sent.amt)
 
   const unknown = await get(`${KNET}/pay.php?trackid=NOSUCHORDER&amount=0.100`)
   is(unknown.status === 404, 'an invented track id is refused, not priced by the browser', `${unknown.status}`)
@@ -158,10 +163,10 @@ head('a replayed callback changes nothing')
 {
   const before = await sql("select paid_at from orders where track_id='SPKNET0002'")
   // The bank retries; the customer refreshes the return page. Same trandata.
-  const replay = parse(decrypt(encrypt('result=CAPTURED&trackid=SPKNET0002&amt=20.000&paymentid=REPLAY1&ref=R1')))
+  const replay = parse(decrypt(encrypt('result=CAPTURED&trackid=SPKNET0002&amt=21.000&paymentid=REPLAY1&ref=R1')))
   void replay
   const res = await post(`${KNET}/callback.php`, {
-    trandata: encrypt('result=CAPTURED&trackid=SPKNET0002&amt=20.000&paymentid=REPLAY1&ref=R1'),
+    trandata: encrypt('result=CAPTURED&trackid=SPKNET0002&amt=21.000&paymentid=REPLAY1&ref=R1'),
   })
   is(res.status === 200, 'the replay is answered cleanly', `${res.status}`)
 
@@ -172,7 +177,7 @@ head('a replayed callback changes nothing')
 
   // A late failure must never undo a captured payment.
   await post(`${KNET}/callback.php`, {
-    trandata: encrypt('result=NOT CAPTURED&trackid=SPKNET0002&amt=20.000&paymentid=LATE&ref=R2'),
+    trandata: encrypt('result=NOT CAPTURED&trackid=SPKNET0002&amt=21.000&paymentid=LATE&ref=R2'),
   })
   const status = await sql("select payment_status from orders where track_id='SPKNET0002'")
   is(status === 'paid', 'a late failure callback cannot downgrade a paid order', status)
