@@ -22,7 +22,7 @@
     <title>Sporta — Sports &amp; Fitness Store in Kuwait | سبورتا</title>
     <meta
       name="description"
-      content="Sporta (سبورتا) is a Kuwait sportswear store — activewear, gym clothing, hoodies, caps, and sports accessories from brands like Gymshark, RHEO &amp; more. Fast delivery, free returns, KNET checkout. Arabic &amp; English."
+      content="Sporta (سبورتا) is a Kuwait sportswear store — activewear, gym clothing, hoodies, caps, and sports accessories from brands like Gymshark, RHEO &amp; more. Delivery in 24 hours for 1 KWD, free exchange, KNET checkout. Arabic &amp; English."
     />
     <meta name="keywords" content="Sporta, سبورتا, sportswear Kuwait, activewear Kuwait, gym clothes Kuwait, fitness apparel, hoodies Kuwait, gym accessories, Gymshark Kuwait, RHEO, Vanquish, sportswear GCC, activewear Middle East, ملابس رياضية الكويت, ملابس جيم, ملابس رياضية نسائية, ملابس رياضية رجالية, هوديز, إكسسوارات رياضية, تسوق اونلاين الكويت, كي نت, ملابس رياضية الخليج, KNET, الكويت" />
     <meta name="author" content="Sporta" />
@@ -90,7 +90,7 @@
           "image": "https://www.sporta.com.kw/og-image.png",
           "email": "cs@sporta.com.kw",
           "telephone": "+965-22091914",
-          "description": "Sporta is a Kuwait sportswear store — activewear, gym clothing, hoodies, caps, and sports accessories from brands like Gymshark, RHEO and its own SPORTA label. Fast delivery, free exchange/return, bilingual Arabic/English with KNET payment.",
+          "description": "Sporta is a Kuwait sportswear store — activewear, gym clothing, hoodies, caps, and sports accessories from brands like Gymshark, RHEO and its own SPORTA label. Delivery within 24 hours for 1 KWD, free exchange, bilingual Arabic/English with KNET payment.",
           "currenciesAccepted": "KWD",
           "paymentAccepted": "KNET, Visa, Mastercard",
           "priceRange": "KWD 3.500 - KWD 24.000",
@@ -343,10 +343,19 @@
       body { margin: 0 }
       .boot { min-height: 100vh }
       .boot-bar  { height: 28px; background: #e0561c }
-      /* 57px logo bar + 48px nav = the header's real height, so the sticky
-         header does not push the hero down when it arrives. */
+      /* The header's REAL height, measured, so the sticky header does not push
+         the hero down when it arrives. Phone: 28px promo bar + 60px logo bar +
+         45px nav = 133. The logo bar grows at 640px and then creeps with the
+         fluid root size, so the reserved box grows with it — measured at
+         134/143/147/151 against 133 reserved, i.e. the shell was 10-18px short
+         on every screen above a phone. (An earlier comment here said
+         "57px + 48px"; neither number was ever right.) */
       .boot-head { height: 105px; background: #171a1e;
                    display: flex; align-items: flex-start; justify-content: center }
+      @media (min-width: 640px)  { .boot-head { height: 115px } }
+      @media (min-width: 768px)  { .boot-head { height: 117px } }
+      @media (min-width: 1024px) { .boot-head { height: 119px } }
+      @media (min-width: 1440px) { .boot-head { height: 121px } }
       /* 8px top = the real logo bar's padding, so the mark does not move. */
       .boot-head img { height: 32px; width: auto; margin-top: 12px }
       /* --hero-h is set by the script below, from the size the owner chose,

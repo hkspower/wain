@@ -62,16 +62,6 @@
   color: hsl(var(--on-brand));
 }
 
-/* Reusable patterns for coloured text — never white-on-light. */
-.link-accent {
-  color: hsl(var(--accent-text));
-  font-weight: 600;
-}
-.link-accent:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
 .price {
   color: hsl(var(--accent-text));
   font-weight: 700;

@@ -402,6 +402,16 @@ export default function ProductDetail() {
             <li className="flex items-center gap-3"><IconTruck size={18} className="text-brand" /> {t.trust.delivery}</li>
             <li className="flex items-center gap-3"><IconLock size={18} className="text-brand" /> {t.trust.pay}</li>
             <li className="flex items-center gap-3"><IconReturn size={18} className="text-brand" /> {t.trust.returns}</li>
+            {/* SAY IT BEFORE THE MONEY, NOT AFTER. Women's clothing cannot be
+                exchanged, and until now the only place that appeared was the
+                returns page — which a customer opens once they already have
+                the parcel. Sitting under a badge that reads "free 14-day
+                returns", the silence read as a promise. */}
+            {product.noExchange && (
+              <li className="flex items-center gap-3 font-semibold text-amber-700">
+                <IconReturn size={18} className="text-amber-700" /> {t.trust.noExchange}
+              </li>
+            )}
           </ul>
         </div>
       </div>

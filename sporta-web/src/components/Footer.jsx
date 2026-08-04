@@ -91,7 +91,7 @@ export default function Footer() {
         {/* Who the shop actually trades as. A customer disputing a charge, and
             the bank behind KNET, both need the legal entity named — the card
             statement says Al-Muhallab, not Sporta. */}
-        <p className="mt-1 text-center text-xs text-slate-500">{t.footer.operator}</p>
+        <p className="mt-1 text-center text-xs text-slate-400">{t.footer.operator}</p>
       </div>
     </footer>
   )
