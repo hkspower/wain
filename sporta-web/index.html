@@ -61,8 +61,13 @@
     <meta property="og:image" content="https://www.sporta.com.kw/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:locale" content="en_US" />
-    <meta property="og:locale:alternate" content="ar_AR" />
+    <!-- These must match what the app writes at runtime (en_KW / ar_KW; see
+         the SEO helper under src).
+         They were en_US and ar_AR, which is what a crawler that does NOT run
+         JavaScript reads — and several AI and social crawlers do not. This is
+         a Kuwaiti shop, and ar_AR is not the locale any page renders in. -->
+    <meta property="og:locale" content="en_KW" />
+    <meta property="og:locale:alternate" content="ar_KW" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />

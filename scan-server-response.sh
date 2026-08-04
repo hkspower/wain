@@ -181,7 +181,118 @@ for path in /robots.txt /sitemap.xml /llms.txt; do
   [ "$c" = 200 ] && ok "$path -> 200" || bad "$path -> $c"
 done
 
-bold "11. Response time (5 samples, total seconds)"
+bold "11. TLS — certificate, chain and protocol versions"
+# openssl, not curl: curl tells you the handshake worked, openssl tells you
+# WHAT it agreed to. Both matter — a cert that verifies today can still be
+# three weeks from expiry, and a server that speaks TLS 1.0 still fails a PCI
+# scan even though every browser negotiated 1.3.
+if command -v openssl >/dev/null 2>&1; then
+  cert="$(echo | openssl s_client -servername "$HOST" -connect "$HOST:443" 2>/dev/null | openssl x509 -noout -subject -issuer -dates -ext subjectAltName 2>/dev/null)"
+  if [ -n "$cert" ]; then
+    printf '%s\n' "$cert" | sed 's/^/    /'
+    end="$(printf '%s\n' "$cert" | sed -n 's/^notAfter=//p')"
+    if [ -n "$end" ]; then
+      ends=$(date -j -f "%b %d %T %Y %Z" "$end" +%s 2>/dev/null || date -d "$end" +%s 2>/dev/null)
+      now=$(date +%s)
+      if [ -n "$ends" ]; then
+        days=$(( (ends - now) / 86400 ))
+        if   [ "$days" -lt 0 ];  then bad "certificate EXPIRED $(( -days )) days ago"
+        elif [ "$days" -lt 14 ]; then bad "certificate expires in $days days — renew now"
+        elif [ "$days" -lt 30 ]; then ok "certificate expires in $days days (renewal window)"
+        else ok "certificate valid for $days more days"; fi
+      fi
+    fi
+    # The name actually has to cover the canonical host.
+    if printf '%s\n' "$cert" | grep -q "DNS:$HOST"; then ok "certificate covers $HOST"
+    else bad "certificate does NOT list $HOST in subjectAltName"; fi
+  else
+    bad "could not read the certificate with openssl"
+  fi
+
+  # Old protocols must be refused. A success here is a FAILED connection.
+  for proto in tls1 tls1_1; do
+    if echo | openssl s_client -"$proto" -connect "$HOST:443" >/dev/null 2>&1; then
+      bad "server still accepts ${proto} — deprecated, and a PCI finding"
+    else
+      ok "${proto} refused"
+    fi
+  done
+  for proto in tls1_2 tls1_3; do
+    if echo | openssl s_client -"$proto" -connect "$HOST:443" >/dev/null 2>&1; then
+      ok "${proto} accepted"
+    else
+      bad "${proto} NOT accepted — modern clients expect it"
+    fi
+  done
+else
+  printf '  openssl not installed — skipping certificate detail.\n'
+fi
+
+bold "12. HTTP/3 (QUIC)"
+# HTTP/3 is the HOST'"'"'s to enable, not something .htaccess can turn on. What a
+# site controls is whether it ADVERTISES it, via the Alt-Svc header. A browser
+# uses HTTP/2 on the first visit either way and only upgrades once it has seen
+# that header, so "no Alt-Svc" means nobody ever gets h3, however well the
+# server supports it.
+altsvc="$(curl -sSI "$SITE/" | tr -d "\r" | grep -i "^alt-svc:" || true)"
+if [ -n "$altsvc" ]; then
+  ok "advertised: $altsvc"
+else
+  printf "  \033[33m•\033[0m no Alt-Svc header — the server is not advertising HTTP/3.\n"
+  printf "    On Hostinger this is a hosting-side setting (LiteSpeed/QUIC or the\n"
+  printf "    Cloudflare layer), not something public_html/.htaccess can switch on.\n"
+fi
+if curl --version | grep -q HTTP3; then
+  h3="$(curl -sS --http3 -o /dev/null -w "%{http_version}" "$SITE/" 2>/dev/null || echo "failed")"
+  [ "$h3" = "3" ] && ok "a real HTTP/3 request succeeded" || bad "--http3 did not negotiate h3 (got: $h3)"
+else
+  printf "  this curl has no HTTP/3 support, so h3 was not dialled directly.\n"
+  printf "    macOS system curl usually lacks it: brew install curl, then use\n"
+  printf "    /opt/homebrew/opt/curl/bin/curl --http3 %s/\n" "$SITE"
+fi
+
+bold "13. robots.txt and the sitemaps, read and checked"
+robots="$(curl -sS "$SITE/robots.txt")"
+# NO DATA IS NOT A PASS. Every check below counts things; if robots.txt did not
+# come back, the counts are all zero and "0 of 0" reads as success. A scanner
+# that goes green when it cannot see is worse than no scanner.
+if [ -z "$robots" ] || ! printf '%s\n' "$robots" | grep -qi "^User-agent:"; then
+  bad "robots.txt is empty or is not a robots file — nothing below could be checked"
+  robots=""
+fi
+printf '%s\n' "$robots" | grep -qi "^Sitemap: $SITE/sitemap.xml" \
+  && ok "robots.txt points at $SITE/sitemap.xml" \
+  || bad "robots.txt does not declare the sitemap at the canonical origin"
+[ -n "$robots" ] && for d in /backends /knet/ /pay/; do
+  # Every group must carry the Disallow, not just the wildcard one: a crawler
+  # obeys ONE group and does not fall back to *.
+  groups="$(printf '%s\n' "$robots" | grep -ci "^User-agent:")"
+  hits="$(printf '%s\n' "$robots" | grep -c "^Disallow: $d")"
+  if [ "$groups" -eq 0 ]; then bad "no User-agent groups found — cannot check Disallow: $d"
+  elif [ "$hits" -ge "$groups" ]; then ok "Disallow: $d present in all $groups group(s)"
+  else bad "Disallow: $d in only $hits of $groups group(s) — the rest may crawl it"; fi
+done
+# Every <loc> in every sitemap must be on the canonical origin and answer 200.
+maps="$(curl -sS "$SITE/sitemap.xml" | grep -o "<loc>[^<]*</loc>" | sed "s|</*loc>||g")"
+[ -n "$maps" ] && ok "sitemap index lists $(printf '%s\n' "$maps" | wc -l | tr -d ' ') sitemap(s)" \
+               || bad "sitemap index is empty or unreadable"
+total=0; bad404=0; offorigin=0
+for m in $maps; do
+  for loc in $(curl -sS "$m" | grep -o "<loc>[^<]*</loc>" | sed "s|</*loc>||g"); do
+    total=$((total+1))
+    case "$loc" in "$SITE"*) ;; *) offorigin=$((offorigin+1)); printf "    off-origin: %s\n" "$loc";; esac
+    c="$(curl -sS -o /dev/null -w '%{http_code}' "$loc")"
+    [ "$c" = 200 ] || { bad404=$((bad404+1)); printf "    %s -> %s\n" "$loc" "$c"; }
+  done
+done
+if [ "$total" -eq 0 ]; then
+  bad "no <loc> entries were read from any sitemap — the two checks below prove nothing"
+else
+  [ "$offorigin" = 0 ] && ok "all $total sitemap URLs are on $SITE" || bad "$offorigin sitemap URL(s) point off-origin"
+  [ "$bad404" = 0 ]    && ok "all $total sitemap URLs return 200"   || bad "$bad404 sitemap URL(s) do not return 200"
+fi
+
+bold "14. Response time (5 samples, total seconds)"
 for i in 1 2 3 4 5; do
   printf '  %s\n' "$(curl -sS -o /dev/null -w 'connect=%{time_connect}s  ttfb=%{time_starttransfer}s  total=%{time_total}s' "$SITE/")"
 done
