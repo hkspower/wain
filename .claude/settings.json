@@ -20,7 +20,6 @@
       "Bash(git log:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git pull:*)",
       "Bash(git fetch:*)",
       "Bash(git push:*)",
       "Bash(git checkout:*)",
@@ -42,6 +41,9 @@
       "mcp__elevenlabs__get_agent",
       "mcp__elevenlabs__list_conversations",
       "mcp__elevenlabs__get_conversation"
+    ],
+    "ask": [
+      "Bash(git pull:*)"
     ]
   }
 }
