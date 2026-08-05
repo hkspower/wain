@@ -43,7 +43,8 @@
     "test:preflight": "node scripts/preflight-test.mjs",
     "ftp": "node scripts/ftp-manager.mjs",
     "test:ftp": "node scripts/ftp-manager-test.mjs",
-    "test:install-sql": "node scripts/install-sql-test.mjs"
+    "test:install-sql": "node scripts/install-sql-test.mjs",
+    "hostinger": "node scripts/hostinger-api.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",
