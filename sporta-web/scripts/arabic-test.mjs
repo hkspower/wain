@@ -123,6 +123,14 @@ const arMap = new Map(walk(ar))
 const missingKeys = enKeys.filter(([k]) => !arMap.has(k)).map(([k]) => k)
 is(missingKeys.length === 0, 'every English string has an Arabic one', missingKeys.slice(0, 5).join(', ') || 'none missing')
 
+// And the reverse: an Arabic key with no English twin is an ORPHAN — dead copy
+// left behind when the English side was renamed, or a key only ever added to
+// ar. The forward check above cannot see it (it walks English), so a stray
+// Arabic string could sit in the bundle, shipped and unreachable, forever.
+const enMap = new Map(enKeys)
+const orphanKeys = walk(ar).filter(([k]) => !enMap.has(k)).map(([k]) => k)
+is(orphanKeys.length === 0, 'every Arabic string has an English twin — no orphans', orphanKeys.slice(0, 5).join(', ') || 'none orphaned')
+
 // A string that is byte-identical in both languages is almost always one that
 // was never translated. The exceptions are real and are named here.
 const SAME_ON_PURPOSE = new Set([
