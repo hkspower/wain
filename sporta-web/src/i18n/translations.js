@@ -116,6 +116,13 @@ export const translations = {
       qty: 'Qty',
       unitPrice: 'Unit price',
       lineTotal: 'Total',
+      // The invoice must add up. The API sends subtotal, discount and delivery
+      // for exactly this reason — items summing to 23 under a total of 20 (a
+      // 3 KWD coupon) or 4 of goods under a 5 charge (the delivery fee) reads
+      // as arithmetic the shop got wrong until each line is named.
+      subtotal: 'Subtotal',
+      discount: 'Discount',
+      delivery: 'Delivery',
       print: 'Print / Save as PDF',
       seller: 'Sporta Sports Wear · Kuwait · Licence 30199/2023',
       // The separator between address parts and between size and fit. In
@@ -464,6 +471,9 @@ export const translations = {
       qty: 'الكمية',
       unitPrice: 'سعر الوحدة',
       lineTotal: 'الإجمالي',
+      subtotal: 'المجموع الفرعي',
+      discount: 'الخصم',
+      delivery: 'التوصيل',
       print: 'طباعة / حفظ PDF',
       seller: 'سبورتا سبورتس وير · الكويت · ترخيص ٣٠١٩٩/٢٠٢٣',
       // The ARABIC comma (U+060C), not a Latin one. A Latin comma between two

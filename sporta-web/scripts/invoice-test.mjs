@@ -41,7 +41,17 @@ const INVOICE = {
   track_id: TRACK,
   placed_at: '2026-07-30T21:13:02Z',
   paid_at: '2026-07-30T21:15:40Z',
-  amount: 28.0,
+  // Goods 28.000, a 3.000 coupon, a 1.000 delivery fee → 26.000 charged.
+  // The lines deliberately do NOT sum to the total: that is the whole point.
+  // An invoice that printed only items and a bare "Total: 26.000" would show
+  // 28.000 of goods against a smaller total with nothing explaining the gap,
+  // and the server sends subtotal/discount/delivery precisely so the page can.
+  subtotal: 28.0,
+  discount_amount: 3.0,
+  discount_label: 'Launch 10% off',
+  discount_code: 'SAVE10',
+  delivery_fee: 1.0,
+  amount: 26.0,
   payment_method: 'knet',
   payment_status: 'paid',
   customer_name: 'فاطمة الصباح',
@@ -112,12 +122,31 @@ async function open(lang) {
 
   is(body.includes(TRACK), 'the order number is on the invoice')
   is(/Cloudsoft Jacket/.test(body), 'the item names are there')
-  // Read the TOTAL CELL, not the page text — /KWD 28.000/ across the whole
+  // Read the TOTAL CELL, not the page text — /KWD 26.000/ across the whole
   // article also matches the tax note and would pass with an empty total.
   const totalCell = (await page.locator('tfoot td').last().innerText()).trim()
-  is(/28\.000/.test(totalCell), 'the total is the amount the server recorded', totalCell)
+  is(/26\.000/.test(totalCell), 'the total is the amount the server recorded', totalCell)
   is(/KWD\s*10\.000/.test(body), 'unit prices are the price at the time of the order')
   is(/L/.test(body) && /Oversize/i.test(body), 'the size and cut are on the line')
+
+  // THE INVOICE MUST ADD UP. The items sum to 28.000, but a 3.000 coupon and a
+  // 1.000 delivery fee make the charge 26.000 — so a bare item table under a
+  // "Total: 26.000" would look like the shop cannot count. Every figure in the
+  // reconciliation has to be on its own labelled line, and they must sum to the
+  // total. This is the regression the fixture was rebuilt to catch: the API
+  // sends subtotal/discount/delivery and the page used to throw them away.
+  const foot = await page.locator('tfoot').innerText()
+  is(/Subtotal[\s\S]*28\.000/.test(foot), 'the goods subtotal is named', foot.replace(/\n/g, ' | '))
+  is(/Discount/.test(foot) && /Launch 10% off/.test(foot) && /3\.000/.test(foot),
+     'the discount is named, its promo labelled, its figure shown', foot.replace(/\n/g, ' | '))
+  is(/[−-]\s*(KWD\s*)?3\.000/.test(foot), 'the discount is a subtraction, not an addition', foot.replace(/\n/g, ' | '))
+  is(/Delivery[\s\S]*1\.000/.test(foot), 'the delivery fee is named', foot.replace(/\n/g, ' | '))
+  // 28.000 − 3.000 + 1.000 = 26.000. Pull the four figures and check the sum,
+  // so a future edit that mislabels or drops a line fails here, not in a
+  // customer's inbox.
+  const nums = (foot.match(/\d+\.\d{3}/g) || []).map(Number)
+  is(nums.includes(28) && nums.includes(3) && nums.includes(1) && nums.includes(26) &&
+     28 - 3 + 1 === 26, 'the four figures reconcile to the total', nums.join(', '))
 
   // Columns run left to right in English.
   const cols = await page.$$eval('thead th', (th) => th.map((e) => e.getBoundingClientRect().x))
@@ -181,7 +210,17 @@ async function open(lang) {
 
   // Money keeps Latin digits in both languages so the invoice cannot disagree
   // with the price the shopper saw on the product page.
-  is(/28\.000/.test(body), 'the total renders with the same digits as the shop', body.match(/[\d.]+\s*د\.ك/)?.[0] ?? '')
+  is(/26\.000/.test(body), 'the total renders with the same digits as the shop', body.match(/[\d.]+\s*د\.ك/)?.[0] ?? '')
+
+  // The reconciliation is translated but the arithmetic is the same in Arabic.
+  const footAr = await page.locator('tfoot').innerText()
+  is(/المجموع الفرعي/.test(footAr), 'the goods subtotal is named in Arabic')
+  is(/الخصم/.test(footAr), 'the discount is named in Arabic')
+  is(/التوصيل/.test(footAr), 'the delivery fee is named in Arabic')
+  is(!/\b(Subtotal|Discount|Delivery)\b/.test(footAr), 'no English reconciliation label is left untranslated', footAr.replace(/\n/g, ' | '))
+  const numsAr = (footAr.match(/\d+\.\d{3}/g) || []).map(Number)
+  is(numsAr.includes(28) && numsAr.includes(3) && numsAr.includes(1) && numsAr.includes(26),
+     'the four figures are present in Arabic too', numsAr.join(', '))
 
   await ctx.close()
 }

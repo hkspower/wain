@@ -80,7 +80,16 @@ export default function Invoice() {
   const gov = governorate(inv.address?.governorate)
   const paid = inv.payment_status === 'paid'
   const items = inv.items ?? []
-  const subtotal = items.reduce((s, i) => s + Number(i.line_total ?? 0), 0)
+  // The sum of the line totals — the goods before discount and delivery. It is
+  // the fallback for the server's subtotal, and (with delivery/discount) for
+  // the grand total, so a response missing a field still adds up on screen.
+  const lineSum = items.reduce((s, i) => s + Number(i.line_total ?? 0), 0)
+  const goodsSubtotal = inv.subtotal != null ? Number(inv.subtotal) : lineSum
+  const discountAmount = Number(inv.discount_amount ?? 0)
+  const deliveryFee = Number(inv.delivery_fee ?? 0)
+  const discountLabel = inv.discount_label || inv.discount_code || ''
+  const total =
+    inv.amount != null ? Number(inv.amount) : goodsSubtotal - discountAmount + deliveryFee
 
   const addressParts = [
     inv.address?.block && `${t.checkout.block} ${inv.address.block}`,
@@ -205,11 +214,50 @@ export default function Invoice() {
             })}
           </tbody>
           <tfoot>
+            {/* The invoice has to add up. The server sends goods subtotal,
+                discount and delivery separately, and each is shown on its own
+                line: items summing to more than the total (a coupon) or less
+                than it (the delivery fee) reads as a miscount until the
+                difference is named. Discount appears only when there is one;
+                subtotal and delivery are always present. Values fall back to
+                the arithmetic if an older cached response lacks a field. */}
+            <tr>
+              <td colSpan={2} className="pt-4" />
+              <td className="pt-4 text-end text-sm text-slate-600">{t.invoice.subtotal}</td>
+              <td className="pt-4 text-end tabular-nums text-slate-700">
+                {formatKWD(goodsSubtotal, lang)}
+              </td>
+            </tr>
+            {discountAmount > 0 && (
+              <tr>
+                <td colSpan={2} />
+                {/* The line is always named in the reader's language; the
+                    promo's own name (which the merchant may have typed in one
+                    language only) rides alongside as context, like a product
+                    name does — never in place of the translated label. */}
+                <td className="text-end text-sm text-slate-600">
+                  {t.invoice.discount}
+                  {discountLabel && (
+                    <span dir={dirFor(discountLabel)} className="text-slate-400"> · {discountLabel}</span>
+                  )}
+                </td>
+                <td dir="ltr" className="text-end tabular-nums text-emerald-700">
+                  −{formatKWD(discountAmount, lang)}
+                </td>
+              </tr>
+            )}
             <tr>
               <td colSpan={2} />
-              <td className="pt-4 text-end text-sm font-bold text-slate-700">{t.cart.total}</td>
-              <td className="text-accent pt-4 text-end font-display text-lg font-extrabold tabular-nums">
-                {formatKWD(inv.amount ?? subtotal, lang)}
+              <td className="text-end text-sm text-slate-600">{t.invoice.delivery}</td>
+              <td className="text-end tabular-nums text-slate-700">
+                {formatKWD(deliveryFee, lang)}
+              </td>
+            </tr>
+            <tr>
+              <td colSpan={2} />
+              <td className="pt-3 text-end text-sm font-bold text-slate-700">{t.cart.total}</td>
+              <td className="text-accent pt-3 text-end font-display text-lg font-extrabold tabular-nums">
+                {formatKWD(total, lang)}
               </td>
             </tr>
           </tfoot>
