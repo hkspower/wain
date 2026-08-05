@@ -27,7 +27,21 @@
       "Bash(git branch:*)",
       "Read(*)",
       "Grep(*)",
-      "Glob(*)"
+      "Glob(*)",
+
+      "mcp__elevenlabs__text_to_speech",
+      "mcp__elevenlabs__text_to_sound_effects",
+      "mcp__elevenlabs__list_models",
+      "mcp__elevenlabs__list_voices",
+      "mcp__elevenlabs__search_voices",
+      "mcp__elevenlabs__search_voice_library",
+      "mcp__elevenlabs__get_voice",
+      "mcp__elevenlabs__play_audio",
+      "mcp__elevenlabs__check_subscription",
+      "mcp__elevenlabs__list_agents",
+      "mcp__elevenlabs__get_agent",
+      "mcp__elevenlabs__list_conversations",
+      "mcp__elevenlabs__get_conversation"
     ]
   }
 }
