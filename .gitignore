@@ -47,6 +47,9 @@ example
 SPORTA-GO-LIVE.zip
 # Same rule: a generated upload, rebuilt by npm run package:knet.
 SPORTA-PAYMENTS-FIX.zip
+# Same rule: an assets-only re-sync cut from SPORTA-GO-LIVE.zip to recover a
+# partial File Manager upload. A regenerable artifact, never source.
+SPORTA-ASSETS-FIX.zip
 sporta-html5/dist
 
 # Generated site PDF — 21MB build artifact, regenerate with sporta-web/scripts/site-pdf*.
