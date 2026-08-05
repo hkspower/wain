@@ -47,16 +47,27 @@ printf '========================================================================
 # IN a phase is that phase minus the one before it:
 #
 #   namelookup                        DNS
-#   connect     - namelookup          TCP handshake (round trip to datacenter)
+#   connect     - namelookup          TCP handshake == ONE ROUND TRIP (the RTT)
 #   appconnect  - connect             TLS handshake
-#   starttransfer - appconnect        SERVER THINK TIME  <-- the interesting one
+#   starttransfer - appconnect        request out + server work + response back
 #   total       - starttransfer       download
 #
-# A big namelookup is a DNS problem. A big connect is distance/routing. A big
-# appconnect is TLS config. A big starttransfer on a STATIC file is the server
-# being busy — shared-hosting contention, or no cache in front of it.
-bold "Where the time goes (${SAMPLES} samples, cold-ish)"
-printf '  %-6s %9s %9s %9s %9s %9s %9s\n' "run" "dns" "tcp" "tls" "server" "download" "TOTAL"
+# THE SUBTLETY THAT MAKES OR BREAKS THIS REPORT: starttransfer-appconnect is
+# NOT server think time. The request still has to fly to the server and the
+# first byte fly back, so it contains one full round trip. On a 190ms link that
+# is 190ms of pure travel booked as if the host were busy — and an early version
+# of this script reported exactly that, blaming a server that was doing nothing.
+#
+# The TCP handshake is itself one round trip, so it measures the RTT directly.
+# Subtracting it leaves the server's ACTUAL work:
+#
+#   rtt         = connect - namelookup
+#   server real = (starttransfer - appconnect) - rtt
+#
+# A static file should land at ~0ms of real work. Anything above ~50ms is the
+# server genuinely doing something — rewrite processing, PHP, or slow disk.
+bold "Where the time goes (${SAMPLES} samples, new connection each)"
+printf '  %-5s %8s %8s %8s %9s %9s %9s\n' "run" "dns" "tcp" "tls" "srv-real" "download" "TOTAL"
 
 tot_dns=0; tot_tcp=0; tot_tls=0; tot_srv=0; tot_dl=0; tot_all=0
 for i in $(seq 1 "$SAMPLES"); do
@@ -66,9 +77,12 @@ for i in $(seq 1 "$SAMPLES"); do
     -H 'Cache-Control: no-cache' -m 30 "$SITE/?_perf=$i$$" 2>/dev/null)"
   [ -n "$tt" ] || continue
   # awk does the subtraction; bash cannot do floating point.
-  read -r dns tcp tls srv dl <<<"$(awk -v nl="$nl" -v cn="$cn" -v ac="$ac" -v st="$st" -v tt="$tt" \
-    'BEGIN{printf "%.3f %.3f %.3f %.3f %.3f", nl, cn-nl, (ac>0?ac-cn:0), st-(ac>0?ac:cn), tt-st}')"
-  printf '  %-6s %8ss %8ss %8ss %8ss %8ss %8ss\n' "$i" "$dns" "$tcp" "$tls" "$srv" "$dl" "$tt"
+  # srv is RTT-CORRECTED (see the note above) and clamped at 0 — a negative
+  # would only mean the RTT estimate was noisy, never that time ran backwards.
+  read -r dns tcp tls srv dl rtt <<<"$(awk -v nl="$nl" -v cn="$cn" -v ac="$ac" -v st="$st" -v tt="$tt" \
+    'BEGIN{ r=cn-nl; s=st-(ac>0?ac:cn)-r; if(s<0)s=0;
+            printf "%.3f %.3f %.3f %.3f %.3f %.3f", nl, cn-nl, (ac>0?ac-cn:0), s, tt-st, r}')"
+  printf '  %-5s %7ss %7ss %7ss %8ss %8ss %8ss\n' "$i" "$dns" "$tcp" "$tls" "$srv" "$dl" "$tt"
   tot_dns=$(awk -v a="$tot_dns" -v b="$dns" 'BEGIN{print a+b}')
   tot_tcp=$(awk -v a="$tot_tcp" -v b="$tcp" 'BEGIN{print a+b}')
   tot_tls=$(awk -v a="$tot_tls" -v b="$tls" 'BEGIN{print a+b}')
@@ -82,11 +96,14 @@ avg() { awk -v t="$1" -v n="$SAMPLES" 'BEGIN{printf "%.3f", t/n}'; }
 a_dns=$(avg "$tot_dns"); a_tcp=$(avg "$tot_tcp"); a_tls=$(avg "$tot_tls")
 a_srv=$(avg "$tot_srv"); a_dl=$(avg "$tot_dl");  a_all=$(avg "$tot_all")
 printf '  DNS        %ss\n' "$a_dns"
-printf '  TCP        %ss\n' "$a_tcp"
+printf '  TCP        %ss   (== your round-trip time to the origin)\n' "$a_tcp"
 printf '  TLS        %ss\n' "$a_tls"
-printf '  SERVER     %ss   <-- think time on a STATIC file\n' "$a_srv"
+printf '  SERVER     %ss   <-- REAL work, one round trip already subtracted\n' "$a_srv"
 printf '  download   %ss\n' "$a_dl"
 printf '  TOTAL      %ss\n' "$a_all"
+# Round trips are the hidden cost on a long link: TCP, TLS and the request
+# itself are each one, before a byte of content moves.
+awk -v r="$a_tcp" 'BEGIN{ if(r>0.05) printf "\n  At %.0fms RTT you pay ~%.2fs in round trips alone, before any content.\n", r*1000, r*3 }'
 
 # Name the culprit rather than leaving five numbers on screen.
 #
@@ -112,11 +129,40 @@ case "$phase" in
   DNS)      warn "DNS owns it (${secs}s) — slow resolver or no DNS caching. Try a different resolver; consider Cloudflare DNS for the domain." ;;
   TCP)      warn "TCP owns it (${secs}s) — physical distance/routing to the datacenter. A CDN in front is the only real fix." ;;
   TLS)      warn "TLS owns it (${secs}s) — handshake cost. Check TLS 1.3 and session resumption are on; HTTP/3 helps here." ;;
-  SERVER)   bad  "SERVER owns it (${secs}s) — the host took this long to hand back a STATIC file. That is not your code: it is shared-hosting CPU contention, no LiteSpeed/LSCache in front, or an underpowered plan." ;;
-  DOWNLOAD) warn "DOWNLOAD owns it (${secs}s) — bandwidth or payload size." ;;
+  SERVER)   bad  "SERVER owns it (${secs}s of REAL work, travel already subtracted) — on a static file that should be ~0. Suspect .htaccess rewrite processing, PHP touching the request, or slow disk." ;;
+  DOWNLOAD) warn "DOWNLOAD owns it (${secs}s) — payload size. Check compression below before blaming bandwidth." ;;
 esac
-awk -v s="$a_srv" 'BEGIN{ if(s>0.6) print "  (>0.6s of static think time is the single biggest win available.)" }'
+awk -v s="$a_srv" 'BEGIN{ if(s>0.05) printf "  (%.0fms of real work on a static file is worth chasing; ~0ms is normal.)\n", s*1000 }'
+# Round trips often out-rank every single phase without owning any one of them.
+awk -v r="$a_tcp" -v l="$a_tls" -v t="$a_all" 'BEGIN{ h=r+l; if(t>0 && h > t*0.4)
+  printf "  \033[33m!\033[0m Handshakes (TCP+TLS) are %.0f%% of the total — HTTP/3 merges them into one, and a CDN moves them nearer.\n", h/t*100 }'
 fi
+
+# ------------------------------------------------------- what a browser gets
+# Every sample above opened a FRESH connection, which is the worst case and not
+# what a real visitor experiences: a browser pays the TCP+TLS handshake once and
+# then reuses that connection for the HTML, the CSS, the JS and the images.
+# Reporting only cold numbers overstates what the site actually feels like, so
+# measure the reused case too — several URLs down one connection.
+bold "With connection reuse (what a real browser gets)"
+# ONE -o PER URL. curl applies -o positionally, so a single -o /dev/null covers
+# only the FIRST url and the rest of the bodies land on stdout — which this
+# script then parsed as if they were timings, printing "TTFB Disallow:s" a
+# hundred times. Found by running it, not by reading it.
+reuse="$(curl -sS -w '%{time_starttransfer} %{time_total}\n' -m 40 \
+  -o /dev/null "$SITE/" \
+  -o /dev/null "$SITE/robots.txt" \
+  -o /dev/null "$SITE/site.webmanifest" 2>/dev/null)"
+n=0
+while read -r st tt; do
+  [ -n "$tt" ] || continue
+  n=$((n+1))
+  if [ "$n" = 1 ]; then printf '  request 1 (pays the handshake)  TTFB %ss\n' "$st"
+  else printf '  request %s (connection reused)   TTFB %ss\n' "$n" "$st"; fi
+done <<EOF
+$reuse
+EOF
+printf '  \033[2mThe drop from request 1 to 2 is the handshake cost a browser pays only once.\033[0m\n'
 
 # ------------------------------------------------------------------ warm/cold
 # If the second hit is much faster, something in front IS caching. If it is the
@@ -148,6 +194,24 @@ case "$enc" in
   *gzip*) warn "gzip only — Brotli is ~15-20% smaller. On LiteSpeed the mod_brotli block in .htaccess does NOT apply; enable compression server-side" ;;
   *)      bad  "no compression on the HTML — the single cheapest fix available" ;;
 esac
+
+# Headers can be argued with; bytes cannot. Ask for the main bundle twice —
+# once accepting compression, once refusing it — and compare what arrives. If
+# the two sizes match, nothing was compressed no matter what any header claims.
+# This matters more than it sounds: an uncompressed response can cross TCP's
+# initial congestion window (~14.6kB) and buy an extra round trip on top of the
+# extra bytes, so it is paid for twice.
+bundle="$(curl -sS -m 20 "$SITE/" 2>/dev/null | grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' | head -1)"
+if [ -n "$bundle" ]; then
+  bold "Bytes actually on the wire (${bundle})"
+  cmp_on="$(curl -sS -o /dev/null -w '%{size_download}' -H 'Accept-Encoding: br, gzip' -m 30 "$SITE$bundle" 2>/dev/null)"
+  cmp_off="$(curl -sS -o /dev/null -w '%{size_download}' -H 'Accept-Encoding: identity' -m 30 "$SITE$bundle" 2>/dev/null)"
+  printf '  asking for compression: %s bytes\n  refusing compression:   %s bytes\n' "$cmp_on" "$cmp_off"
+  awk -v a="$cmp_on" -v b="$cmp_off" 'BEGIN{
+    if (a>0 && b>0 && a < b*0.9) printf "  \033[32m✓\033[0m compressed — %.0f%% smaller on the wire\n", (1-a/b)*100;
+    else if (a>0 && b>0)         print "  \033[31m✗\033[0m NOT COMPRESSED — identical byte counts. This is the cheapest fix on the list.";
+  }'
+fi
 
 srv="$(curl -sS -o /dev/null -D - -m 20 "$SITE/" 2>/dev/null | tr -d '\r' \
       | awk -F': ' 'tolower($1)=="server"{print $2}')"
