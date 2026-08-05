@@ -68,6 +68,33 @@ const IMMUTABLE = (url) =>
 // Fixed names whose BYTES change — every picture the owner can replace.
 const REFRESHABLE = (url) => /\.(png|jpe?g|webp|avif|svg|ico)$/.test(url.pathname)
 
+// A 200 is NOT proof the body is what was asked for, and caching on res.ok
+// alone is how a site breaks in a way a refresh cannot fix.
+//
+// Observed on this site: Hostinger's CDN bot-check answered a request for
+// /assets/index-*.js with its "Checking your browser" HTML — and served it as
+// HTTP 200, with content-type: application/x-javascript and the real file's
+// cache-control: max-age=31536000, immutable. Every guard downstream believed
+// it. A browser that hits that once stores an HTML page under the bundle's URL
+// for a year; the app then dies on `Unexpected token '<'` on every subsequent
+// load, hard refresh included, because immutable means the browser will not
+// even revalidate.
+//
+// So: refuse to cache an HTML body under a URL that is not asking for HTML.
+// That is the shape of a challenge page, a login interstitial and a captive
+// portal alike, and none of them should ever be persisted as a script.
+const CACHEABLE = (request, res) => {
+  if (!res.ok) return false
+  // An opaque cross-origin response has no readable headers; NEVER()/origin
+  // checks already excluded those, so anything here should be same-origin.
+  if (res.type === 'opaque') return false
+  const asked = new URL(request.url).pathname
+  const isHtml = (res.headers.get('content-type') || '').toLowerCase().includes('text/html')
+  if (!isHtml) return true
+  // HTML is legitimate ONLY for a navigation or an actual .html path.
+  return request.mode === 'navigate' || asked === '/' || asked.endsWith('.html')
+}
+
 self.addEventListener('install', (e) => {
   e.waitUntil(
     // addAll rejects the whole batch if ONE entry 404s, which would leave the
@@ -104,7 +131,7 @@ self.addEventListener('fetch', (e) => {
       caches.match(request, { ignoreVary: true }).then((hit) => {
         const fresh = fetch(request)
           .then((res) => {
-            if (res.ok) caches.open(ASSETS).then((c) => c.put(request, res.clone()))
+            if (CACHEABLE(request, res)) caches.open(ASSETS).then((c) => c.put(request, res.clone()))
             return res
           })
           .catch(() => hit ?? Response.error())
@@ -129,7 +156,9 @@ self.addEventListener('fetch', (e) => {
         (hit) =>
           hit ??
           fetch(request).then((res) => {
-            if (res.ok) caches.open(ASSETS).then((c) => c.put(request, res.clone()))
+            // The immutable path is where a poisoned entry does the most
+            // damage — it is never revalidated — so the guard matters most here.
+            if (CACHEABLE(request, res)) caches.open(ASSETS).then((c) => c.put(request, res.clone()))
             return res
           }),
       ),
@@ -143,7 +172,7 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     fetch(request)
       .then((res) => {
-        if (res.ok) caches.open(SHELL).then((c) => c.put(request, res.clone()))
+        if (CACHEABLE(request, res)) caches.open(SHELL).then((c) => c.put(request, res.clone()))
         return res
       })
       .catch(async () => {
