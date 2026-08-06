@@ -31,7 +31,7 @@ export default function ExploreClient() {
   const initial = searchParams.get("category");
 
   const { places } = usePlaces();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const [category, setCategory] = useState<CategoryId | "all">(
     categories.some((c) => c.id === initial) ? (initial as CategoryId) : "all"
   );
