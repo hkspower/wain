@@ -498,6 +498,17 @@ function store_login(string $email, string $password): array {
             $db->prepare('update admin_users set failed_attempts = ?, locked_until = ? where id = ?')
                ->execute([$fails, $fails >= 5 ? date('Y-m-d H:i:s', time() + 900) : null, $u['id']]);
         }
+        // AND count it against the IP, because the lock above is per ACCOUNT.
+        // Five failures freeze one email; they do nothing about one guess tried
+        // against a hundred addresses, and nothing about an unknown email at
+        // all — the branch above cannot even run, since there is no row to
+        // lock. That is the shape of a spray, and without this it is free.
+        //
+        // Counted only on FAILURE, so a busy admin signing in and out is never
+        // touched, and set well above the per-account ceiling: with one admin
+        // account the lockout bites first and this never fires. It is here for
+        // the case the lockout cannot see.
+        store_throttle($db, 'login_fail', 50, 900);
         store_fail('bad_credentials', 401);
     }
 

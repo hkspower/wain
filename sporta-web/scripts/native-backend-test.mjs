@@ -823,5 +823,56 @@ const order = (track, items, extra = {}) =>
   is(ok2.status === 200, 'and a real shopper is served once the window passes', `${ok2.status}`)
 }
 
+// ---------------------------------------------------------------------------
+// RATE LIMITING FAILS CLOSED
+//
+// The dispatcher used to read `isset($STORE_LIMITS[$r])`, and isset() is false
+// for a null — so a route deliberately opted out and a route somebody FORGOT
+// were indistinguishable, and both ran unthrottled. The table was complete at
+// the time; the bug was the next route added.
+//
+// Last in the file on purpose: these checks deliberately exhaust buckets, and
+// anything running after them would be measuring the damage.
+{
+  await run('mariadb', ['sporta', '-e', 'delete from rate_limit'])
+
+  // A route that is not in the table at all — the forgotten-route case.
+  let unlisted = 0
+  for (let i = 0; i < 70; i++) {
+    const res = await fetch(`${BASE}/api.php?r=noSuchRouteExists`)
+    if (res.status === 429) { unlisted = i + 1; break }
+  }
+  is(unlisted > 0, 'an UNLISTED route is throttled by the default, not waved through',
+     unlisted ? `429 after ${unlisted}` : 'never limited in 70')
+
+  // ...but an explicit null must still mean unlimited, or the fix has broken
+  // the home page: one visit legitimately asks for every slide at once.
+  await run('mariadb', ['sporta', '-e', 'delete from rate_limit'])
+  let slideLimited = 0
+  for (let i = 0; i < 80; i++) {
+    const res = await fetch(`${BASE}/api.php?r=slide_image&id=1&v=x`)
+    if (res.status === 429) { slideLimited = i + 1; break }
+  }
+  is(slideLimited === 0, 'an explicit null opt-out is still unlimited',
+     slideLimited ? `throttled after ${slideLimited}` : 'unlimited, as intended')
+
+  // The account lockout is PER ACCOUNT: it cannot see one guess sprayed across
+  // many addresses, and for an unknown email there is no row to lock at all.
+  await run('mariadb', ['sporta', '-e', 'delete from rate_limit'])
+  let spray = 0
+  for (let i = 0; i < 60; i++) {
+    const res = await fetch(`${BASE}/admin.php?r=login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1' },
+      body: JSON.stringify({ email: `spray${i}@example.com`, password: 'guess' }),
+    })
+    if (res.status === 429) { spray = i + 1; break }
+  }
+  is(spray > 0, 'a login spray across unknown emails is stopped by IP, not just by account',
+     spray ? `429 after ${spray}` : 'never limited in 60')
+
+  await run('mariadb', ['sporta', '-e', 'delete from rate_limit'])
+}
+
 console.log(fails ? `\n${fails} problem(s) in the native backend` : '\nnative backend: every check passed')
 process.exit(fails ? 1 : 0)

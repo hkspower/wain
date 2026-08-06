@@ -66,7 +66,22 @@ $STORE_LIMITS = [
                                   // signature verifies, so forgeries cannot
                                   // ration a real speaker press.
 ];
-if (isset($STORE_LIMITS[$r])) store_throttle($db, $r, ...$STORE_LIMITS[$r]);
+// FAIL CLOSED. This used to read `isset($STORE_LIMITS[$r])`, and isset() is
+// false for a null value — so an explicit "deliberately unlimited" entry and a
+// route somebody FORGOT to add were indistinguishable, and both went through
+// unthrottled. The table is complete today; the failure mode is the next route
+// added, shipped uncounted, with nothing to notice it.
+//
+// So the default is now a limit rather than the absence of one. A route must
+// opt OUT by name, with the reason written beside it, and opting out is
+// something you have to do on purpose.
+if (array_key_exists($r, $STORE_LIMITS)) {
+    if ($STORE_LIMITS[$r] !== null) store_throttle($db, $r, ...$STORE_LIMITS[$r]);
+} else {
+    // Anything unlisted — a new route, or a garbage ?r= from a scanner. Both
+    // cost a database connection and a PHP process, so neither should be free.
+    store_throttle($db, 'default', 60, 60);
+}
 
 // ---------------------------------------------------------------- products
 if ($r === 'products') {

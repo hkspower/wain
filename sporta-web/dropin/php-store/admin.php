@@ -14,6 +14,25 @@ $r = $_GET['r'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $db = store_db();
 
+// ---------------------------------------------------------------- throttling
+// This file had NONE, and the login lockout is not a substitute for it.
+//
+// That lockout is PER ACCOUNT — five failures freeze one email for fifteen
+// minutes. It says nothing about an attacker who sprays one guess across a
+// hundred addresses, or who simply hammers ?r=me (unauthenticated, and it runs
+// a count over admin_users on every call). Neither is slowed by an account
+// lock, and both are free database load on shared hosting.
+//
+// The ceiling is deliberately high. An admin opening the dashboard fires a
+// dozen requests before they have touched anything — stats, revenue, orders,
+// items, products — and a limit that interrupts real work is one that gets
+// removed. This is a bound on machines, not on people.
+//
+// Failed LOGINS are counted separately and inside store_login(), on the
+// failure path only: a signed-in admin reloading their screen is not guessing,
+// and the same distinction the discount route makes applies here.
+store_throttle($db, 'admin', 240, 60);
+
 // ------------------------------------------------------------------- session
 if ($r === 'login' && $method === 'POST') {
     $b = store_body();
