@@ -186,6 +186,11 @@ export const translations = {
         delivered: 'Delivered',
         cancelled: 'Cancelled',
       },
+      addToBag: 'Add to bag',
+      chooseSize: 'Choose size',
+      added: 'Added ✓',
+      // The persistent bar; {n} is the item count.
+      reviewBag: 'Review bag & checkout ({n})',
     },
     heroSlides: {
       aria: 'Highlights',
@@ -528,6 +533,10 @@ export const translations = {
         delivered: 'تم التسليم',
         cancelled: 'ملغى',
       },
+      addToBag: 'أضف إلى السلة',
+      chooseSize: 'اختر المقاس',
+      added: 'أُضيف ✓',
+      reviewBag: 'مراجعة السلة وإتمام الطلب ({n})',
     },
     heroSlides: {
       aria: 'أبرز العروض',

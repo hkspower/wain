@@ -53,9 +53,28 @@ return [
     //
     // The model must be multilingual or the Arabic comes out as English
     // phonemes read off Arabic letters, which is worse than silence.
+    //
+    // FOR A KUWAITI-ARABIC SHOP VOICE, two good choices:
+    //   eleven_multilingual_v2  — highest quality, auto-detects language, a
+    //                             little slower to synthesise. The safe default.
+    //   eleven_turbo_v2_5       — faster and cheaper, and it ACCEPTS a fixed
+    //                             language_code (below), which removes the
+    //                             per-sentence language guess that trips up an
+    //                             Arabic reply carrying a Latin order number.
+    //                             Recommended once you have picked a voice.
+    // Audio is cached after the first synthesis, so the model's speed only
+    // costs on brand-new sentences — but the enforced language is a quality win
+    // on every play. Pick an ElevenLabs voice that was cloned or designed on
+    // Gulf/Kuwaiti Arabic; the model cannot add an accent the voice lacks.
     'tts_key'      => '',
     'tts_voice_id' => '',
     'tts_model'    => 'eleven_multilingual_v2',
+    // ISO 639-1 language, e.g. 'ar'. Sent to ElevenLabs to PIN pronunciation
+    // instead of letting the model detect it per request. Left blank it detects,
+    // which is the old behaviour and the only option on multilingual_v2 (which
+    // ignores this field). Set it to 'ar' when you move to eleven_turbo_v2_5.
+    // Part of the cache key: changing it means the shop buys fresh audio.
+    'tts_language_code' => '',
     // Spoken answers are cached here by content hash. The fixed replies
     // (delivery, returns, payment) are identical every time, so they are
     // synthesised ONCE and never paid for again. Above public_html: an audio

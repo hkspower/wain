@@ -160,6 +160,78 @@ head('product search reads the real catalogue, in both languages')
      ar.body?.data?.items?.[0]?.name)
 }
 
+// -------------------------------------------------- suggestions and buying
+await unthrottle()
+head('it suggests items, and every suggestion can be bought')
+{
+  // A request for a suggestion names no product, so plain search would find
+  // nothing. It must offer the shelf instead.
+  const rec = await ask('what do you recommend')
+  is(rec.body?.intent === 'recommend', '"what do you recommend" is a suggestion, not a search', rec.body?.intent)
+  const items = rec.body?.data?.items ?? []
+  is(items.length > 0, 'and it returns real products to suggest', String(items.length))
+  is(items.every((p) => p.buyable === true), 'every suggested item is marked buyable')
+  is(items.every((p) => typeof p.price_kwd === 'number' && p.price_kwd > 0),
+     'each carries a numeric price for the bag to total', JSON.stringify(items[0]?.price_kwd))
+  for (const p of items) {
+    const real = await sql(`select count(*) from products where slug = '${p.slug}' and active = 1`)
+    is(real === '1', `suggested ${p.slug} is a real active product`)
+  }
+
+  // "what SIZE do you recommend" is a sizing question, not a product one — the
+  // sizes intent is tested before recommend for exactly this.
+  const size = await ask('what size do you recommend')
+  is(size.body?.intent === 'sizes', 'but "what size do you recommend" stays a sizing question', size.body?.intent)
+
+  // Arabic asks with a verb.
+  const ar = await ask('شنو تنصح', 'ar')
+  is(ar.body?.intent === 'recommend', 'Arabic "شنو تنصح" is understood as a suggestion', ar.body?.intent)
+  is(/[؀-ۿ]/.test(ar.body?.data?.items?.[0]?.name ?? ''), 'and names products in Arabic')
+
+  // has_sizes decides add-to-bag vs choose-size: a garment with size rows must
+  // be picked in a size, an accessory can drop straight in the bag.
+  const withSizes = items.filter((p) => p.has_sizes)
+  const noSizes = items.filter((p) => !p.has_sizes)
+  for (const p of withSizes) {
+    const n = await sql(`select count(*) from product_variants where slug = '${p.slug}'`)
+    is(Number(n) > 0, `has_sizes=true matches real size rows for ${p.slug}`, n)
+  }
+  for (const p of noSizes) {
+    const n = await sql(`select count(*) from product_variants where slug = '${p.slug}'`)
+    is(n === '0', `has_sizes=false matches no size rows for ${p.slug}`, n)
+  }
+}
+
+// ------------------------------------------- the voice asks for Kuwaiti Arabic
+// A pure-function test of the request body, run straight through php -r: no
+// server, no opcache, no timing — the deterministic way to prove the shop pins
+// the language on the models that accept it and stays silent on the one that
+// does not.
+head('the voice tells ElevenLabs the language, where the model accepts it')
+{
+  const AP = new URL('../dropin/php-store/assistant.php', import.meta.url).pathname
+  const bodyFor = async (model, langCode) => {
+    const php = `require ${JSON.stringify(AP)};`
+      + ` $cfg=['tts_language_code'=>${JSON.stringify(langCode)}];`
+      + ` echo json_encode(assistant_tts_body($cfg, ${JSON.stringify(model)}, 'مرحبا', 'ar'));`
+    const { stdout } = await run('php', ['-r', php])
+    return JSON.parse(stdout)
+  }
+  const multi = await bodyFor('eleven_multilingual_v2', 'ar')
+  is(multi.language_code === undefined,
+     'multilingual_v2 is NOT sent a language_code — it rejects one', JSON.stringify(multi.language_code))
+  is(multi.model_id === 'eleven_multilingual_v2', 'the configured model is what is sent', multi.model_id)
+  is((multi.voice_settings || {}).use_speaker_boost === true, 'and the tuned voice settings ride along')
+
+  const turbo = await bodyFor('eleven_turbo_v2_5', 'ar')
+  is(turbo.language_code === 'ar',
+     'turbo_v2_5 IS told the language, so Kuwaiti Arabic is enforced not guessed', turbo.language_code)
+
+  const turboNoLang = await bodyFor('eleven_turbo_v2_5', '')
+  is(turboNoLang.language_code === undefined,
+     'but only when the shop actually configured one', JSON.stringify(turboNoLang.language_code))
+}
+
 // -------------------------------------------------------------- the guardrails
 await unthrottle()
 head('the guardrails')
@@ -279,6 +351,11 @@ head('the voice, and who is allowed to ask for it')
        'with a MULTILINGUAL model — Arabic read by an English model is worse than silence',
        c1.last_model)
     is(c1.last_key === 'fake-key', 'and the key in the header, not the URL')
+    // multilingual_v2 does not accept a fixed language, so the shop must not
+    // send one to it — the model detects, as it always did.
+    is(!c1.last_language_code,
+       'no language_code is sent to the multilingual model, which would reject it',
+       JSON.stringify(c1.last_language_code))
 
     // The cost model: the shop's fixed answers are the same words every time.
     await say(body.reply, body.speak)

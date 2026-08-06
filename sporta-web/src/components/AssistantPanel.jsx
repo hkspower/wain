@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
+import { useCart } from '../lib/cart'
 import { phpBase } from '../lib/backend'
 
 // سبورتا AI — the conversation itself.
@@ -22,6 +23,8 @@ export default function AssistantPanel({ onClose }) {
   const { t, lang } = useLang()
   const T = t.assistant
   const ar = lang === 'ar'
+  const cart = useCart()
+  const navigate = useNavigate()
   const [log, setLog] = useState([{ from: 'ai', text: T.greeting }])
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
@@ -97,12 +100,27 @@ export default function AssistantPanel({ onClose }) {
             </div>
             {m.from === 'ai' && m.speak && <Speaker text={m.text} sig={m.speak} lang={lang} T={T} />}
             {m.data?.kind === 'order' && <OrderCard d={m.data} T={T} ar={ar} />}
-            {m.data?.kind === 'products' && <ProductRow items={m.data.items} />}
+            {m.data?.kind === 'products' && <ProductRow items={m.data.items} T={T} cart={cart} ar={ar} />}
           </div>
         ))}
         {busy && <p className="text-sm text-slate-400">{T.thinking}</p>}
         <div ref={endRef} />
       </div>
+
+      {/* The bag bar — the AI's route to a completed order. It fills the REAL
+          cart (same store the whole shop uses) and hands off to the normal,
+          fully-validated checkout, where the server prices every line and
+          collects the address and payment. The assistant never prices and
+          never places the order itself; it only gets the shopper to the door. */}
+      {cart.count > 0 && (
+        <button
+          type="button"
+          onClick={() => { onClose(); navigate('/checkout') }}
+          className="btn btn-primary mx-3 mb-1 mt-1 flex items-center justify-center gap-2 py-2 text-sm"
+        >
+          {T.reviewBag.replace('{n}', cart.count)}
+        </button>
+      )}
 
       {/* The starters exist because an empty box invites nothing. They are the
           four questions the shop is actually asked. */}
@@ -194,16 +212,50 @@ function OrderCard({ d, T, ar }) {
   )
 }
 
-function ProductRow({ items }) {
+function ProductRow({ items, T, cart, ar }) {
   return (
     <div className="mt-2 space-y-1">
       {items.map((p) => (
-        <Link key={p.slug} to={`/product/${p.slug}`}
-          className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 text-xs hover:border-brand dark:border-slate-700">
-          <span className="min-w-0 truncate">{p.name}</span>
-          <span className="shrink-0 font-bold">{p.price}</span>
-        </Link>
+        <div key={p.slug}
+          className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs dark:border-slate-700">
+          <Link to={`/product/${p.slug}`} className="min-w-0 flex-1 truncate hover:text-brand">
+            {p.name}
+          </Link>
+          <span className="shrink-0 font-bold">{p.price} {ar ? 'د.ك' : 'KWD'}</span>
+          <BuyButton p={p} T={T} cart={cart} />
+        </div>
       ))}
     </div>
+  )
+}
+
+// One product's call to action. A garment with sizes cannot be added blind —
+// create_order refuses a size-less line — so it links to the product page to
+// pick one. A size-less item (an accessory) is added straight to the bag, and
+// the button confirms it rather than silently doing nothing.
+function BuyButton({ p, T, cart }) {
+  const [added, setAdded] = useState(false)
+
+  if (p.has_sizes) {
+    return (
+      <Link to={`/product/${p.slug}`}
+        className="shrink-0 rounded-lg border border-brand px-2 py-1 font-semibold text-brand hover:bg-brand hover:text-ink">
+        {T.chooseSize}
+      </Link>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        // price is for display only; create_order re-prices from the database.
+        cart.add({ slug: p.slug, name: p.name, price: p.price_kwd, image: p.image }, 1)
+        setAdded(true)
+      }}
+      disabled={added}
+      className="shrink-0 rounded-lg bg-brand px-2 py-1 font-semibold text-ink disabled:opacity-60"
+    >
+      {added ? T.added : T.addToBag}
+    </button>
   )
 }

@@ -59,6 +59,9 @@ if (str_starts_with($path, '/v1/text-to-speech/')) {
     parse_str((string) (parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_QUERY) ?: ''), $qs);
     $s['last_format'] = $qs['output_format'] ?? '';
     $s['last_settings'] = $body['voice_settings'] ?? [];
+    // Absent unless the shop is configured to pin the language — recorded so
+    // the test can prove Kuwaiti Arabic is enforced, not detected.
+    $s['last_language_code'] = $body['language_code'] ?? '';
     $s['texts'][] = $body['text'] ?? '';
 
     if (($s['fail_left'] ?? 0) > 0) {

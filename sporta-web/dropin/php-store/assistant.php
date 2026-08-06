@@ -107,6 +107,17 @@ function assistant_intent(string $text): string
                            'size', 'sizing', 'fit', 'measurement'])) {
         return 'sizes';
     }
+    // A request for a SUGGESTION, not a search for a named thing. "وش تنصح",
+    // "شنو الأكثر مبيعا", "recommend something" name no product, so product
+    // search would find nothing and the customer would be told the shop has
+    // nothing — when the honest answer is a shelf of what sells. Kept AFTER
+    // sizes/returns so "what size do you recommend" stays a sizing question.
+    if (assistant_has($t, ['انصح', 'تنصح', 'نصيحه', 'اقترح', 'اقتراح', 'وش تنصح', 'شنو تنصح',
+                           'الاكثر مبيعا', 'الافضل', 'الاكثر طلبا', 'عروض', 'تخفيضات', 'خصومات',
+                           'recommend', 'suggest', 'suggestion', 'best seller', 'bestseller',
+                           'popular', 'what should i', 'on sale', 'deals', 'offers', 'featured'])) {
+        return 'recommend';
+    }
     if (assistant_has($t, ['تواصل', 'اتصال', 'خدمه العملاء', 'موظف', 'انسان', 'واتساب', 'رقمكم',
                            'contact', 'human', 'agent', 'speak to', 'phone', 'whatsapp', 'email'])) {
         return 'contact';
@@ -201,17 +212,84 @@ function assistant_search(PDO $db, array $cfg, string $text, bool $ar): array
     }
 
     if (!$found) {
+        // Honest ignorance, not a shelf of unrelated guesses. "do you sell live
+        // goldfish" should hear what the shop CAN help with — the same rule the
+        // rest of this file follows. A shopper who wants ideas asks for them,
+        // and that is the 'recommend' intent, which offers real bestsellers.
         return [assistant_canned($cfg, 'no_idea', $ar), null];
     }
-    return [assistant_canned($cfg, 'found', $ar), [
+    return [assistant_canned($cfg, 'found', $ar), assistant_products_payload($db, $found, $ar)];
+}
+
+// What the shop wants to put in front of someone who asks "what do you
+// recommend" or "what's on offer": things on sale first (a reason to buy now),
+// then whatever the owner marked featured, padded with the rest. Never
+// generated — these are real rows, in stock terms the catalogue knows.
+function assistant_recommend(PDO $db, array $cfg, bool $ar): array
+{
+    // Sale items first, then featured, then newest — one query, ordered so the
+    // most compelling reason to buy is at the top. Only active products.
+    $rows = $db->query(
+        "select slug, name_en, name_ar, price, sale_price, category
+           from products
+          where active = 1
+          order by (sale_price is not null and sale_price <> '') desc,
+                   featured desc, featured_sort asc, id desc
+          limit 4"
+    )->fetchAll();
+
+    if (!$rows) return [assistant_canned($cfg, 'no_idea', $ar), null];
+    return [assistant_canned($cfg, 'recommend', $ar), assistant_products_payload($db, $rows, $ar)];
+}
+
+// ONE shape for a product the widget can add to the cart, so search and
+// recommend cannot disagree about what a buyable item looks like.
+//
+// It carries a NUMERIC price for the cart to display a running total — but that
+// number is never authoritative: create_order re-prices every line from the
+// products table, so a tampered price here changes what the customer SEES for a
+// moment and nothing about what they are charged. The three-decimal string is
+// what is shown; the number is what the cart sums.
+function assistant_products_payload(PDO $db, array $rows, bool $ar): array
+{
+    // Which of these products carry per-size stock rows. A garment that does
+    // must be picked in a size before it can be ordered — create_order refuses
+    // it with size_required_<slug> otherwise — so the widget sends those to the
+    // product page instead of dropping a size-less line in the bag that fails
+    // at checkout. One query for the whole result set, not one per row.
+    $sized = [];
+    $slugs = array_column($rows, 'slug');
+    if ($slugs) {
+        $in = implode(',', array_fill(0, count($slugs), '?'));
+        $q = $db->prepare("select distinct slug from product_variants where slug in ($in)");
+        $q->execute($slugs);
+        foreach ($q->fetchAll(PDO::FETCH_COLUMN) as $s) $sized[$s] = true;
+    }
+
+    return [
         'kind'  => 'products',
-        'items' => array_map(fn ($p) => [
-            'slug'  => $p['slug'],
-            'name'  => $ar ? $p['name_ar'] : $p['name_en'],
-            'price' => number_format((float) ($p['sale_price'] ?: $p['price']), 3, '.', ''),
-            'sale'  => $p['sale_price'] !== null && $p['sale_price'] !== '',
-        ], $found),
-    ]];
+        'items' => array_map(function ($p) use ($ar, $sized) {
+            $effFils = (int) round((float) (($p['sale_price'] !== null && $p['sale_price'] !== '')
+                ? $p['sale_price'] : $p['price']) * 1000);
+            return [
+                'slug'      => $p['slug'],
+                'name'      => $ar ? $p['name_ar'] : $p['name_en'],
+                'price'     => number_format($effFils / 1000, 3, '.', ''),
+                'price_kwd' => $effFils / 1000,
+                'sale'      => $p['sale_price'] !== null && $p['sale_price'] !== '',
+                'category'  => $p['category'],
+                // Whether it needs a size chosen first. The widget adds a
+                // size-less item straight to the bag, and links a sized one to
+                // its page so the shopper picks the size the order path demands.
+                'has_sizes' => isset($sized[$p['slug']]),
+                // The widget shows an Add button on a buyable row. The order it
+                // eventually places goes through the SAME create_order every
+                // other checkout uses, priced server-side; this flag is a UI
+                // affordance, not an authority.
+                'buyable'   => true,
+            ];
+        }, $rows),
+    ];
 }
 
 // ------------------------------------------------------------ fixed answers
@@ -292,6 +370,14 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
             'ar' => 'وجدت هذه المنتجات:',
             'en' => 'Here is what I found:',
         ],
+        'recommend' => [
+            'ar' => 'هذي من أكثر القطع طلبًا عندنا، وبعضها عليه عرض. أضف اللي يعجبك للسلة وأنا أكمل معك الطلب.',
+            'en' => 'These are some of our most popular pieces, a few of them on offer. Add what you like to the bag and I will take you through checkout.',
+        ],
+        'in_cart' => [
+            'ar' => 'أضفته للسلة. تبي تضيف شي ثاني، أو نكمل الطلب؟',
+            'en' => 'Added to your bag. Add anything else, or shall we check out?',
+        ],
     ];
 
     return $t[$intent][$ar ? 'ar' : 'en'] ?? null;
@@ -303,7 +389,8 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
 function assistant_canned_lines(array $cfg): array
 {
     $keys = ['delivery', 'returns', 'payment', 'sizes', 'contact', 'greeting', 'ask_track',
-             'stage_packing', 'stage_shipped', 'stage_delivered', 'stage_unpaid', 'no_idea', 'found'];
+             'stage_packing', 'stage_shipped', 'stage_delivered', 'stage_unpaid', 'no_idea', 'found',
+             'recommend', 'in_cart'];
     $out = ['ar' => [], 'en' => []];
     foreach ($keys as $k) {
         $out['ar'][] = assistant_canned($cfg, $k, true);
@@ -376,6 +463,9 @@ function assistant_answer(PDO $db, array $cfg, string $message, string $lang): a
             break;
         case 'search':
             [$reply, $data] = assistant_search($db, $cfg, $message, $ar);
+            break;
+        case 'recommend':
+            [$reply, $data] = assistant_recommend($db, $cfg, $ar);
             break;
         default:
             // Everything else is a fixed sentence — see assistant_canned().
@@ -484,6 +574,44 @@ function assistant_speech_prep(string $text, string $lang): string
     return trim(preg_replace('/[ \t]+/u', ' ', $text) ?? $text);
 }
 
+// The JSON body sent to ElevenLabs — extracted so the test can assert exactly
+// what the shop asks for without reaching the real API.
+//
+// KUWAITI ARABIC, MADE DELIBERATE. The multilingual model DETECTS language per
+// request, and detection is a coin-flip on the shop's most important sentences:
+// an Arabic reply carrying a Latin order token, or an English product name,
+// can tip the whole sentence into the wrong phoneme set — the customer hears
+// "SP-one-A" read as Arabic letters, or حولي read with English vowels. Setting
+// language_code removes the guess. It is sent ONLY when configured, because
+// eleven_multilingual_v2 does not accept it while eleven_turbo_v2_5 and
+// eleven_flash_v2_5 (the faster models, recommended for Arabic in the config)
+// do — so an installation on the old model is unaffected and one on the new
+// model gets enforced Kuwaiti Arabic.
+function assistant_tts_body(array $cfg, string $model, string $text, string $lang): array
+{
+    $body = [
+        // PRONOUNCED, not displayed — see assistant_speech_prep.
+        'text' => assistant_speech_prep($text, $lang),
+        // Multilingual, or Arabic letters get read with English phonemes.
+        'model_id' => $model,
+        'voice_settings' => [
+            // Stability low-ish so the read has some life in it; too high and a
+            // shop greeting sounds like a station announcement.
+            'stability'         => (float) ($cfg['tts_stability'] ?? 0.45),
+            'similarity_boost'  => (float) ($cfg['tts_similarity'] ?? 0.8),
+            'style'             => (float) ($cfg['tts_style'] ?? 0.0),
+            'use_speaker_boost' => (bool)  ($cfg['tts_speaker_boost'] ?? true),
+        ],
+    ];
+    // Explicit language, when the installation set one AND the model is not the
+    // one that rejects it. Default '' = let the model detect, the old behaviour.
+    $langCode = trim((string) ($cfg['tts_language_code'] ?? ''));
+    if ($langCode !== '' && $model !== 'eleven_multilingual_v2') {
+        $body['language_code'] = $langCode;
+    }
+    return $body;
+}
+
 function assistant_voice_dir(array $cfg): string
 {
     return (string) ($cfg['tts_cache_dir'] ?? sys_get_temp_dir() . '/sporta-voice');
@@ -509,6 +637,10 @@ function assistant_voice_path(array $cfg, string $text, string $lang): string
         (string) ($cfg['tts_voice_id'] ?? ''),
         (string) ($cfg['tts_model'] ?? 'eleven_multilingual_v2'),
         (string) ($cfg['tts_format'] ?? 'mp3_22050_32'),
+        // Bound to the language code too: turning on enforced Arabic changes how
+        // a sentence sounds, so the shop must buy new audio rather than serve
+        // the detected-language read from disk for ever.
+        (string) ($cfg['tts_language_code'] ?? ''),
         $text,
     ]));
     return assistant_voice_dir($cfg) . '/' . $hash . '.mp3';
@@ -571,20 +703,7 @@ function assistant_speak(array $cfg, string $text, string $lang): ?string
             'Accept: audio/mpeg',
             'xi-api-key: ' . $cfg['tts_key'],
         ],
-        CURLOPT_POSTFIELDS => json_encode([
-            // PRONOUNCED, not displayed — see assistant_speech_prep.
-            'text' => assistant_speech_prep($text, $lang),
-            // Multilingual, or Arabic letters get read with English phonemes.
-            'model_id' => $model,
-            'voice_settings' => [
-                // Stability low-ish so the read has some life in it; too high
-                // and a shop greeting sounds like a station announcement.
-                'stability'         => (float) ($cfg['tts_stability'] ?? 0.45),
-                'similarity_boost'  => (float) ($cfg['tts_similarity'] ?? 0.8),
-                'style'             => (float) ($cfg['tts_style'] ?? 0.0),
-                'use_speaker_boost' => (bool)  ($cfg['tts_speaker_boost'] ?? true),
-            ],
-        ], JSON_UNESCAPED_UNICODE),
+        CURLOPT_POSTFIELDS => json_encode(assistant_tts_body($cfg, $model, $text, $lang), JSON_UNESCAPED_UNICODE),
     ]);
     $body = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
