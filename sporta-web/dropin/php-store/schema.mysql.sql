@@ -375,3 +375,53 @@ create index if not exists idx_orders_payment    on orders (payment_status, crea
 create index if not exists idx_orders_fulfilment on orders (fulfilment_status, created_at);
 create index if not exists idx_orders_discount   on orders (discount_code);
 create index if not exists idx_outbox_pending    on fulfilment_outbox (sent_at, attempts, created_at);
+
+-- ===========================================================================
+-- WhatsApp order updates to the customer.
+--
+-- Byte-for-byte the same statements as whatsapp.mysql.sql, which exists so a
+-- shop set up BEFORE this feature can add it without re-importing. Keep them
+-- in step: a divergence means a fresh install and an upgraded one disagree
+-- about the shape of the shop, and only one of them is tested.
+-- ===========================================================================
+alter table orders add column if not exists customer_lang varchar(2) null after customer_note;
+
+-- ------------------------------------------------------------ whatsapp_outbox
+create table if not exists whatsapp_outbox (
+  id         int unsigned auto_increment primary key,
+  order_id   int unsigned not null,
+  -- 'confirmed' the bank settled and the order is real
+  -- 'shipped'   it left the warehouse
+  kind       varchar(12) not null,
+  -- E.164 WITHOUT the plus, which is what the Cloud API wants: 96599887766.
+  -- Snapshotted at queue time rather than joined at send time, so correcting a
+  -- customer's number in the admin cannot silently redirect a message that was
+  -- already queued for the old one.
+  to_e164    varchar(20) not null,
+  -- The approved template name and the language it was queued for, both
+  -- snapshotted for the same reason: renaming a template in Meta's console
+  -- must not rewrite what an already-queued message claims to be.
+  template   varchar(80) not null,
+  lang       varchar(5)  not null default 'ar',
+  payload    json not null,
+  created_at timestamp not null default current_timestamp,
+  sent_at    timestamp null,
+  attempts   int not null default 0,
+  last_error varchar(500) null,
+  -- The message id Meta hands back, so a delivery question has an answer that
+  -- does not depend on anyone's memory.
+  wa_message_id varchar(120) null,
+  -- ONE message per order per kind, enforced by the index and not by care.
+  -- A callback that fires twice — which KNET's does, through the customer's
+  -- browser — must not send the customer two confirmations. Unlike the
+  -- warehouse's 'payment' rows there is no legitimate repeat here: an order
+  -- is confirmed once and shipped once.
+  constraint uq_wa_once unique (order_id, kind),
+  constraint fk_wa_order foreign key (order_id) references orders (id) on delete cascade,
+  constraint wa_kind_ck check (kind in ('confirmed','shipped'))
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-- The cron claims pending work every few minutes from a table that only grows
+-- — sent rows are KEPT, because they are the record that the customer was
+-- told. Same index shape, and same reason, as idx_outbox_pending.
+create index if not exists idx_wa_pending on whatsapp_outbox (sent_at, attempts, created_at);

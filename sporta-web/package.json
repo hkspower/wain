@@ -44,7 +44,8 @@
     "ftp": "node scripts/ftp-manager.mjs",
     "test:ftp": "node scripts/ftp-manager-test.mjs",
     "test:install-sql": "node scripts/install-sql-test.mjs",
-    "hostinger": "node scripts/hostinger-api.mjs"
+    "hostinger": "node scripts/hostinger-api.mjs",
+    "test:whatsapp": "node scripts/whatsapp-test.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",

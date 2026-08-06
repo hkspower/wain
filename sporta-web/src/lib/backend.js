@@ -83,7 +83,7 @@ export const phpOrderInvoice = (trackId) => phpGet(`invoice&id=${encodeURICompon
 
 // Create an order. Throws the machine tokens api.php raises, so checkout.js's
 // messageFor() turns them into something a shopper can act on.
-export async function phpCreateOrder({ trackId, items, customer, paymentMethod, discountCode = '' }) {
+export async function phpCreateOrder({ trackId, items, customer, paymentMethod, discountCode = '', lang }) {
   const res = await fetch(`${phpBase()}/api.php?r=order`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -94,6 +94,12 @@ export async function phpCreateOrder({ trackId, items, customer, paymentMethod, 
       customer,
       payment_method: paymentMethod,
       discount_code: discountCode,
+      // Which language the shopper was READING. It picks the WhatsApp template
+      // they get later, and this is the only moment it can be known — by the
+      // time the message is queued the browser is gone. Falls back to the
+      // <html lang> the boot script set, so an order placed from a page this
+      // function was called without a language still records the right one.
+      lang: lang ?? (typeof document !== 'undefined' ? document.documentElement.lang : undefined),
     }),
   })
   const body = await res.json().catch(() => null)

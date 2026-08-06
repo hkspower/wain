@@ -165,10 +165,16 @@ if ($r === 'fulfilment' && $method === 'POST') {
     if (!in_array($status, ['unfulfilled','packed','shipped','delivered','cancelled'], true)) {
         store_fail('invalid_status');
     }
+    $orderId = (int)($b['order_id'] ?? 0);
     $db->prepare('update orders set fulfilment_status = ?,
                     fulfilled_at = case when ? = \'delivered\' then now() else fulfilled_at end
                   where id = ?')
-       ->execute([$status, $status, (int)($b['order_id'] ?? 0)]);
+       ->execute([$status, $status, $orderId]);
+    // Tell the customer it is on its way. Only on 'shipped': 'packed' is an
+    // internal state that means nothing to a shopper, and 'delivered' arrives
+    // after they are holding the bag. The unique index makes this safe to call
+    // again when an order is re-marked, which the admin screen allows.
+    if ($status === 'shipped') store_queue_whatsapp($db, $orderId, 'shipped');
     store_out(['ok' => true]);
 }
 

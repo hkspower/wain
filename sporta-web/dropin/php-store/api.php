@@ -461,13 +461,20 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             'insert into orders (track_id, payment_status, payment_method,
                customer_name, customer_phone, customer_governorate, customer_area,
                customer_block, customer_street, customer_building,
-               customer_floor, customer_flat, customer_note)
-             values (?, \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+               customer_floor, customer_flat, customer_note, customer_lang)
+             values (?, \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )->execute([
             $track, $method, $name, $phone, $gov, $area, $block, $street, $building,
             store_opt($customer['floor'] ?? null),
             store_opt($customer['flat'] ?? null),
             store_opt($customer['note'] ?? null),
+            // The language the checkout was RENDERED in, not a guess from the
+            // phone number or the address. It decides which WhatsApp template
+            // the customer gets, and it is the only chance to know: by the time
+            // the message is sent the browser is long gone. Whitelisted to the
+            // two the shop speaks — this is a column that selects a template
+            // name, so it does not take arbitrary input.
+            in_array($b['lang'] ?? '', ['ar', 'en'], true) ? $b['lang'] : null,
         ]);
         $orderId = (int)$db->lastInsertId();
 

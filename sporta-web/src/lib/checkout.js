@@ -90,7 +90,7 @@ export async function startCheckout({ items, lang = 'en', customer, paymentMetho
     // pay.php later hands the bank. A discount the browser could name would be
     // a price the browser could set.
     data = await phpCreateOrder({
-      trackId, items: items.map(line), customer, paymentMethod, discountCode,
+      trackId, items: items.map(line), customer, paymentMethod, discountCode, lang,
     })
   } catch (e) {
     throw new CheckoutError(e.token ?? 'failed', e.message)

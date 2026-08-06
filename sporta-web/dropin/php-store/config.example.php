@@ -88,4 +88,32 @@ return [
     // not come from this shop. A webhook URL is a secret only until it is in
     // somebody's browser history.
     'n8n_secret'  => '',
+
+    // ---------------------------------------------------------------- WhatsApp
+    // Order updates to the CUSTOMER, through Meta's WhatsApp Cloud API.
+    // Blank = the feature is off: nothing is queued and nothing is sent, so
+    // leaving these empty is a valid production setup. See WHATSAPP.md.
+    //
+    // The PERMANENT access token, from a System User in Meta Business Manager.
+    // A token generated in the Graph API Explorer expires in about an hour and
+    // will strand every message with an auth error the day after it is set up.
+    'whatsapp_token' => '',
+    // The PHONE NUMBER ID — NOT the WhatsApp Business Account ID, and not the
+    // phone number. All three are long digit strings on the same screen in
+    // Meta's console, which is exactly why this is worth saying: the WABA id
+    // in this field returns an error that reads like a permissions problem and
+    // sends nobody anything.
+    'whatsapp_phone_number_id' => '',
+    // The approved TEMPLATE names. Every message this shop sends is
+    // business-initiated — the customer has not messaged us — so freeform text
+    // is not an option and a template is required. Register each name in Meta
+    // Business Manager in BOTH Arabic and English; the language is chosen per
+    // message from the one the customer was reading at checkout.
+    //
+    // Body variables are POSITIONAL and must be declared in this order:
+    //   {{1}} customer name   {{2}} order number   {{3}} amount in KWD
+    'whatsapp_template_confirmed' => '',
+    'whatsapp_template_shipped'   => '',
+    // Override only to pin an API version or to point the tests at a fake.
+    'whatsapp_api_base' => 'https://graph.facebook.com/v21.0',
 ];

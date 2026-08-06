@@ -240,11 +240,85 @@ function store_queue_fulfilment(PDO $db, int $orderId, string $kind): void {
     }
 }
 
+// ---------------------------------------------------------------- WhatsApp
+// Queue one message to the CUSTOMER. See whatsapp.mysql.sql for why this is a
+// separate queue from the warehouse's and fires at a different moment.
+//
+// It writes a row and nothing else — no HTTP call happens here. A checkout
+// that waits on graph.facebook.com is a checkout that fails when Meta is slow,
+// and the customer is standing at the bank's payment page while it does. The
+// row is written in the caller's transaction so the message cannot go missing;
+// cron-whatsapp.php delivers it.
+function store_queue_whatsapp(PDO $db, int $orderId, string $kind): void {
+    $cfg = store_config();
+    // NO CREDENTIALS, NO QUEUE. Rows nobody can ever send are not a queue, they
+    // are a table that grows until someone asks why. The same fail-closed rule
+    // the n8n handoff follows: configure it or it does not run.
+    if (($cfg['whatsapp_token'] ?? '') === '' || ($cfg['whatsapp_phone_number_id'] ?? '') === '') return;
+
+    $q = $db->prepare('select track_id, customer_phone, customer_name, customer_lang, amount
+                         from orders where id = ?');
+    $q->execute([$orderId]);
+    $o = $q->fetch();
+    if (!$o) return;
+
+    $to = store_wa_e164((string)($o['customer_phone'] ?? ''));
+    // A cash order taken over the phone may have no usable number. Silently
+    // skipping is right — there is no message to send and nothing is wrong.
+    if ($to === null) return;
+
+    // The customer's own language, defaulting to Arabic. See the column note.
+    $lang = ($o['customer_lang'] ?? '') === 'en' ? 'en' : 'ar';
+    $tplKey = $kind === 'shipped' ? 'whatsapp_template_shipped' : 'whatsapp_template_confirmed';
+    $template = (string)($cfg[$tplKey] ?? '');
+    if ($template === '') return;   // template not configured: nothing to send
+
+    // The variables the template's {{1}}, {{2}} … will be filled with, in
+    // order. Stored rather than computed at send time so the message says what
+    // the order said WHEN IT HAPPENED, even if the order is edited later.
+    $payload = json_encode([
+        'name'     => (string)($o['customer_name'] ?? ''),
+        'track_id' => (string)($o['track_id'] ?? ''),
+        'amount'   => number_format((float)$o['amount'], 3, '.', ''),
+    ], JSON_UNESCAPED_UNICODE);
+
+    // insert ignore: the unique index is what guarantees one message per order
+    // per kind, and KNET's callback legitimately fires more than once.
+    $db->prepare('insert ignore into whatsapp_outbox (order_id, kind, to_e164, template, lang, payload)
+                  values (?, ?, ?, ?, ?, ?)')
+       ->execute([$orderId, $kind, $to, $template, $lang, $payload]);
+}
+
+// A Kuwaiti number as the Cloud API wants it: digits only, country code, no
+// plus. The shop stores eight local digits ("99887766"); Meta will not accept
+// that, and a malformed number fails the send with an error that reads like an
+// auth problem.
+function store_wa_e164(?string $raw): ?string {
+    $d = preg_replace('/\D+/', '', (string)$raw);
+    if ($d === '') return null;
+    // Already carries the country code.
+    if (str_starts_with($d, '965') && strlen($d) === 11) return $d;
+    // A local Kuwaiti mobile is 8 digits and starts 5, 6 or 9.
+    if (strlen($d) === 8 && preg_match('/^[569]/', $d)) return '965' . $d;
+    // Anything else — a landline, a foreign number, a typo — is left alone
+    // rather than guessed at. A message sent to a number the shop invented is
+    // worse than one not sent.
+    return null;
+}
+
 // Called wherever payment_status reaches a settled state — the callback and
 // the admin's mark-cash-paid. Mirrors trg_queue_fulfilment_payment.
 function store_payment_settled(PDO $db, int $orderId, string $newStatus): void {
     if (in_array($newStatus, ['paid', 'failed'], true)) {
         store_queue_fulfilment($db, $orderId, 'payment');
+    }
+    // The customer hears from us only when the money is actually in. 'failed'
+    // deliberately sends nothing: a shopper whose card was declined is already
+    // looking at the failure on screen, and a WhatsApp message about it would
+    // arrive minutes later, out of context, about an order they may have
+    // already re-placed successfully.
+    if ($newStatus === 'paid') {
+        store_queue_whatsapp($db, $orderId, 'confirmed');
     }
 }
 
