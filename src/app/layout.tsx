@@ -5,7 +5,15 @@ import Footer from "@/components/Footer";
 import FahadLauncher from "@/components/FahadLauncher";
 import "./globals.css";
 
-/** Rounded, friendly Kufi-ish face for the وين wordmark and headings. */
+/**
+ * Rounded, friendly Kufi-ish face for the وين wordmark and headings.
+ *
+ * Keep "latin" in the subsets even though no Latin *word* is ever set in this
+ * face. The Latin subset's unicode-range covers U+0000–00FF, which includes
+ * the space character, so Arabic headings match it regardless. Dropping the
+ * subset does not stop the download — it only stops the preload, so the same
+ * bytes arrive later and block render for longer. Measured both ways.
+ */
 const display = Baloo_Bhaijaan_2({
   subsets: ["arabic", "latin"],
   weight: ["500", "600", "700", "800"],
@@ -38,7 +46,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/og.png",
+        url: "/og.jpg",
         width: 1200,
         height: 630,
         alt: "وين؟ — وين الطلعة اليوم؟",
@@ -49,7 +57,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "وين؟ — وين الطلعة اليوم؟",
     description: "أقرب الأماكن حواليك في الكويت.",
-    images: ["/og.png"],
+    images: ["/og.jpg"],
   },
   icons: { icon: "/icon.svg", apple: "/icon.svg" },
 };

@@ -28,15 +28,6 @@ function base(props: IconProps) {
 /** Soft duotone underlay used across the set. */
 const DUO = { fill: "currentColor", opacity: 0.15, stroke: "none" } as const;
 
-export function IconPin(props: IconProps) {
-  return (
-    <svg {...base(props)}>
-      <path {...DUO} d="M12 21s-6.5-7-6.5-11.6A6.5 6.5 0 0 1 12 3a6.5 6.5 0 0 1 6.5 6.4C18.5 14 12 21 12 21Z" />
-      <path d="M12 21s-6.5-7-6.5-11.6A6.5 6.5 0 0 1 12 3a6.5 6.5 0 0 1 6.5 6.4C18.5 14 12 21 12 21Z" />
-      <circle cx="12" cy="9.4" r="2.4" />
-    </svg>
-  );
-}
 
 export function IconPinSolid(props: IconProps) {
   const { className = "size-5", ...rest } = props;
@@ -286,12 +277,3 @@ export function IconCoins(props: IconProps) {
   );
 }
 
-export function IconWave(props: IconProps) {
-  return (
-    <svg {...base(props)}>
-      <path d="M3 8.5c2.3 0 2.3 1.6 4.5 1.6S9.8 8.5 12 8.5s2.3 1.6 4.5 1.6S18.8 8.5 21 8.5" />
-      <path d="M3 13.5c2.3 0 2.3 1.6 4.5 1.6s2.3-1.6 4.5-1.6 2.3 1.6 4.5 1.6 2.2-1.6 4.5-1.6" opacity=".55" />
-      <path d="M3 18.5c2.3 0 2.3 1.6 4.5 1.6s2.3-1.6 4.5-1.6 2.3 1.6 4.5 1.6 2.2-1.6 4.5-1.6" opacity=".3" />
-    </svg>
-  );
-}

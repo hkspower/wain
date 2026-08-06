@@ -36,7 +36,7 @@ export async function generateMetadata({
       description: place.taglineAr,
       url: `/places/${place.slug}/`,
       type: "article",
-      images: [{ url: "/og.png", width: 1200, height: 630, alt: place.nameAr }],
+      images: [{ url: "/og.jpg", width: 1200, height: 630, alt: place.nameAr }],
     },
   };
 }
