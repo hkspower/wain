@@ -416,9 +416,28 @@ function store_throttle(PDO $db, string $bucket, int $max, int $windowSec): void
 
     // Opportunistic sweep, ~1 request in 50, so the table cannot grow without
     // bound on a shop that never runs a cron for it.
+    //
+    // SCOPED TO THIS BUCKET, and that is the whole point. It used to be
+    // `where window_start < ?` with no bucket at all, while the cutoff was
+    // computed from the CALLING bucket's window — so a short-window counter
+    // swept away long-window ones that were still live. Measured: the 60-second
+    // admin bucket deletes anything older than four minutes, which is exactly
+    // what a 900-second login_fail window looks like fifteen minutes in. Half a
+    // sixty-attempt password spray vanished from the table mid-run, and the
+    // throttle that should have stopped it never fired.
+    //
+    // A rate limiter that quietly forgets is worse than none: it reports
+    // success while the counter it is defending resets under it, and nothing
+    // logs the difference.
     if (random_int(1, 50) === 1) {
+        $db->prepare('delete from rate_limit where bucket_key = ? and window_start < ?')
+           ->execute([$key, $windowStart - ($windowSec * 4)]);
+        // And a global sweep for buckets nobody visits any more — scoped
+        // sweeping alone would leave those forever. A day is far longer than
+        // the longest window in $STORE_LIMITS, so this can never reach a live
+        // counter no matter which bucket triggers it.
         $db->prepare('delete from rate_limit where window_start < ?')
-           ->execute([$windowStart - ($windowSec * 4)]);
+           ->execute([$now - 86400]);
     }
 }
 
