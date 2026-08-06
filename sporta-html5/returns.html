@@ -79,7 +79,12 @@
  </div>
 
  <h2 class="rx-h" id="hPick"></h2>
- <input id="fSearch" class="rx-search" autocomplete="off">
+ <!-- aria-label, not just the placeholder below. A placeholder is not an
+      accessible name: it disappears the moment the field is focused, and a
+      screen reader announces the control as an unnamed edit box. The English
+      here is the fallback for a failed script; setLang() overwrites it in the
+      reader's language alongside the placeholder. -->
+ <input id="fSearch" class="rx-search" autocomplete="off" aria-label="Search products">
  <div class="rx-picker" id="picker"></div>
 
  <h2 class="rx-h"><span id="hReq"></span> <small class="muted" id="reqCount"></small></h2>
@@ -188,7 +193,11 @@ window.SPORTA_PAGE = (S, H) => {
     document.getElementById(id).textContent = val
   document.getElementById('fOrder').placeholder = x.pOrder
   document.getElementById('fPhone').placeholder = x.pPhone
-  document.getElementById('fSearch').placeholder = x.search
+  const fSearch = document.getElementById('fSearch')
+  fSearch.placeholder = x.search
+  // The label follows the language toggle too, or an Arabic reader hears the
+  // English fallback baked into the markup.
+  fSearch.setAttribute('aria-label', x.search)
   document.getElementById('policyList').innerHTML = x.policy.map((l) => `<li>${l}</li>`).join('')
   document.getElementById('reqCount').textContent = `— ${x.items(req.length)}`
 
