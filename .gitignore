@@ -10,6 +10,10 @@
 # production
 /build
 
+# hand-off archives built from out/ and from the repo itself
+/wain-deploy.zip
+/wain-source.zip
+
 # misc
 .DS_Store
 *.pem
