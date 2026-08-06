@@ -824,6 +824,54 @@ const order = (track, items, extra = {}) =>
 }
 
 // ---------------------------------------------------------------------------
+// WHICH AD PAID FOR THE ORDER
+//
+// The shop advertises, and without this the owner sees forty sales and cannot
+// tell which campaign produced them — so the budget is split by instinct and
+// the campaign that works is as likely to be cut as kept.
+//
+// The rule that matters just as much: attribution is REPORTING. It decides
+// nothing about price, stock or fulfilment, so a malformed campaign label must
+// never cost a sale. Every check below asserts the order still succeeds.
+{
+  const buy = async (attribution) => {
+    const track = 'SPUTM' + Math.random().toString(36).slice(2, 9).toUpperCase()
+    const res = await order(track, [{ slug: 'cagliari-calcio-backpack', qty: 1 }], { attribution })
+    return { track, status: res.status }
+  }
+  const q = async (s) => (await run('mariadb', ['sporta', '-N', '-B', '-e', s])).stdout.trim()
+  const col = (track, c) => q(`select coalesce(${c}, '<null>') from orders where track_id = '${track}'`)
+
+  const real = await buy({ utm_source: 'instagram', utm_medium: 'paid_social',
+                           utm_campaign: 'summer_sale', referrer_host: 'l.instagram.com' })
+  is(real.status === 200, 'an order from an ad is accepted', String(real.status))
+  is(await col(real.track, 'utm_source') === 'instagram', 'and records the campaign source')
+  is(await col(real.track, 'utm_campaign') === 'summer_sale', 'and the campaign name')
+  is(await col(real.track, 'referrer_host') === 'l.instagram.com', 'and the site it arrived from')
+
+  const direct = await buy(undefined)
+  is(direct.status === 200, 'a direct visit still orders fine', String(direct.status))
+  is(await col(direct.track, 'utm_source') === '<null>',
+     'and records no campaign, rather than inventing one')
+
+  // A query string is attacker-controlled, and all of this arrives from one.
+  const huge = await buy({ utm_source: 'x'.repeat(4000), utm_campaign: 'y'.repeat(4000) })
+  is(huge.status === 200, 'a 4 kB campaign label does NOT fail the order', String(huge.status))
+  is((await col(huge.track, 'utm_source')).length === 60, 'it is truncated to fit the column')
+
+  const junk = await buy({ utm_source: ['array'], utm_medium: 42, utm_campaign: true })
+  is(junk.status === 200, 'wrong types do not fail the order', String(junk.status))
+  is(await col(junk.track, 'utm_source') === '<null>', 'they are simply not recorded')
+
+  const notObj = await buy('not-an-object')
+  is(notObj.status === 200, 'attribution that is not an object is ignored, not fatal', String(notObj.status))
+
+  const inject = await buy({ utm_source: "insta'; drop table orders; --" })
+  is(inject.status === 200, 'a SQL-shaped campaign label is just a label', String(inject.status))
+  is(Number(await q('select count(*) from orders')) > 0, 'and the orders table is still there')
+}
+
+// ---------------------------------------------------------------------------
 // RATE LIMITING FAILS CLOSED
 //
 // The dispatcher used to read `isset($STORE_LIMITS[$r])`, and isset() is false

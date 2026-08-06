@@ -114,7 +114,10 @@ if ($r === 'orders') {
                    paid_at, created_at, customer_name, customer_phone, customer_area,
                    customer_note, customer_governorate, customer_block, customer_street,
                    customer_building, customer_floor, customer_flat,
-                   cbk_paymentid, cbk_reference, cbk_status
+                   cbk_paymentid, cbk_reference, cbk_status,
+                   -- Which ad produced the order. The whole point of recording
+                   -- it is that the owner can see it beside the money.
+                   utm_source, utm_medium, utm_campaign, referrer_host
               from orders';
     $where = [];
     $args = [];

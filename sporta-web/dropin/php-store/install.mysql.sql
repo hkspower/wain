@@ -453,6 +453,27 @@ create table if not exists whatsapp_outbox (
 -- told. Same index shape, and same reason, as idx_outbox_pending.
 create index if not exists idx_wa_pending on whatsapp_outbox (sent_at, attempts, created_at);
 
+-- ===========================================================================
+-- Where the order came from — ad attribution.
+--
+-- Byte-for-byte the same statements as attribution.mysql.sql, which exists so
+-- a shop set up BEFORE this feature can add it without re-importing. Keep them
+-- in step.
+-- ===========================================================================
+alter table orders add column if not exists utm_source   varchar(60)  null after customer_lang;
+alter table orders add column if not exists utm_medium   varchar(60)  null after utm_source;
+alter table orders add column if not exists utm_campaign varchar(80)  null after utm_medium;
+
+-- The site the visitor arrived FROM, host only — never the full URL, which can
+-- carry a search query or a private page path. It answers the organic half of
+-- the question: an order tagged instagram.com with no campaign came from a
+-- post, not from a paid ad, and those are two different budgets.
+alter table orders add column if not exists referrer_host varchar(120) null after utm_campaign;
+
+-- The owner's real question is "how did LAST MONTH's campaigns do", which is a
+-- scan over dates filtered by source. Indexed accordingly.
+create index if not exists idx_orders_source on orders (utm_source, created_at);
+
 
 -- ========================================================================
 -- seed.mysql.sql — the catalogue and its sizes

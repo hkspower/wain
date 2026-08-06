@@ -137,6 +137,10 @@ export default function Orders({ initialPayment = 'all' }) {
                 <th className="py-2 text-end font-semibold">Amount</th>
                 <th className="py-2 text-start font-semibold">Payment</th>
                 <th className="py-2 text-start font-semibold">Method</th>
+                {/* Which ad paid for this order. It sits beside the amount on
+                    purpose: the question is never "where did they come from"
+                    on its own, it is "what did that campaign earn". */}
+                <th className="py-2 text-start font-semibold">Source</th>
                 <th className="py-2 text-start font-semibold">Fulfilment</th>
               </tr>
             </thead>
@@ -155,6 +159,7 @@ export default function Orders({ initialPayment = 'all' }) {
                   <td className="py-3 text-xs font-semibold text-slate-500">
                     {{ cod: 'Cash', tpay: 'T-Pay', knet: 'KNET' }[o.payment_method] ?? o.payment_method}
                   </td>
+                  <td className="py-3 text-xs"><SourceCell o={o} /></td>
                   <td className="py-3"><Badge tone={FUL_TONE[o.fulfilment_status]}>{o.fulfilment_status}</Badge></td>
                 </tr>
               ))}
@@ -191,6 +196,25 @@ function Badge({ tone, children }) {
       {children}
     </span>
   )
+}
+
+// Where the order came from, in one cell.
+//
+// A campaign when the ad URL named one, otherwise the site they arrived from,
+// otherwise "Direct" — which is a real answer, not missing data: someone typed
+// the address, used a bookmark, or came from a link that carries no referrer.
+// Showing an em-dash there would read as a bug in the tracking.
+function SourceCell({ o }) {
+  if (o.utm_source) {
+    return (
+      <span title={[o.utm_source, o.utm_medium, o.utm_campaign].filter(Boolean).join(' · ')}>
+        <span className="font-semibold text-slate-700">{o.utm_source}</span>
+        {o.utm_campaign && <span className="block text-[11px] text-slate-400">{o.utm_campaign}</span>}
+      </span>
+    )
+  }
+  if (o.referrer_host) return <span className="text-slate-500">{o.referrer_host}</span>
+  return <span className="text-slate-400">Direct</span>
 }
 
 function OrderDrawer({ order, onClose, onChanged }) {

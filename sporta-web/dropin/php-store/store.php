@@ -289,6 +289,24 @@ function store_queue_whatsapp(PDO $db, int $orderId, string $kind): void {
        ->execute([$orderId, $kind, $to, $template, $lang, $payload]);
 }
 
+// One attribution field off the order payload: trimmed, capped, or null.
+//
+// Never rejects. Attribution is REPORTING — it decides nothing about what is
+// charged, shipped or refunded — so a malformed campaign label must cost the
+// customer nothing. An order that failed because an ad platform appended
+// something odd to a URL would be a sale lost to a statistic.
+//
+// Control characters are stripped rather than escaped: these end up in an admin
+// table, and a newline in a campaign name is a row that looks broken.
+function store_utm($raw, string $field, int $max): ?string {
+    if (!is_array($raw)) return null;
+    $v = $raw[$field] ?? null;
+    if (!is_string($v)) return null;
+    $v = trim(preg_replace('/[\x00-\x1F\x7F]/u', '', $v) ?? '');
+    if ($v === '') return null;
+    return mb_substr($v, 0, $max);
+}
+
 // A Kuwaiti number as the Cloud API wants it: digits only, country code, no
 // plus. The shop stores eight local digits ("99887766"); Meta will not accept
 // that, and a malformed number fails the send with an error that reads like an

@@ -461,8 +461,9 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             'insert into orders (track_id, payment_status, payment_method,
                customer_name, customer_phone, customer_governorate, customer_area,
                customer_block, customer_street, customer_building,
-               customer_floor, customer_flat, customer_note, customer_lang)
-             values (?, \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+               customer_floor, customer_flat, customer_note, customer_lang,
+               utm_source, utm_medium, utm_campaign, referrer_host)
+             values (?, \'pending\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )->execute([
             $track, $method, $name, $phone, $gov, $area, $block, $street, $building,
             store_opt($customer['floor'] ?? null),
@@ -475,6 +476,16 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             // two the shop speaks — this is a column that selects a template
             // name, so it does not take arbitrary input.
             in_array($b['lang'] ?? '', ['ar', 'en'], true) ? $b['lang'] : null,
+            // WHICH AD PAID FOR THIS ORDER. Read from the landing URL by the
+            // browser and capped again here, because everything in a query
+            // string is attacker-controlled: a link with a 4 kB utm_campaign
+            // must become a truncated label, never a rejected order. It is a
+            // report field and touches nothing about price or fulfilment, so
+            // the worst a forged value can do is make one row's reporting wrong.
+            store_utm($b['attribution'] ?? null, 'utm_source', 60),
+            store_utm($b['attribution'] ?? null, 'utm_medium', 60),
+            store_utm($b['attribution'] ?? null, 'utm_campaign', 80),
+            store_utm($b['attribution'] ?? null, 'referrer_host', 120),
         ]);
         $orderId = (int)$db->lastInsertId();
 

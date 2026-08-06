@@ -6,7 +6,14 @@ import { LanguageProvider } from './i18n/LanguageContext.jsx'
 import { CartProvider } from './lib/cart.jsx'
 import { WishlistProvider } from './lib/wishlist.jsx'
 import { ThemeProvider } from './lib/theme.jsx'
+import { captureAttribution } from './lib/attribution.js'
 import './styles/index.css'
+
+// Which ad brought this visit, read from the landing URL before the shopper
+// navigates away from it. See lib/attribution.js — by the time they reach the
+// checkout the campaign is several clicks in the past, and an order that cannot
+// name its campaign is an ad budget spent on instinct.
+captureAttribution()
 
 // The signal the boot watchdog in index.html waits for. Set from inside the
 // tree rather than after render(), because render() only SCHEDULES work — a

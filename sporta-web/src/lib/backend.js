@@ -1,4 +1,5 @@
 import { configValue } from './runtimeConfig'
+import { orderAttribution } from './attribution'
 
 // The backend. There is one.
 //
@@ -100,6 +101,11 @@ export async function phpCreateOrder({ trackId, items, customer, paymentMethod, 
       // <html lang> the boot script set, so an order placed from a page this
       // function was called without a language still records the right one.
       lang: lang ?? (typeof document !== 'undefined' ? document.documentElement.lang : undefined),
+      // Which ad this visit came from, captured on the landing page. Omitted
+      // entirely when there is nothing to say, so a direct visit does not send
+      // four nulls. The server whitelists and caps it again — this is a report,
+      // and a report assembled in the browser is attacker-controlled.
+      attribution: orderAttribution(),
     }),
   })
   const body = await res.json().catch(() => null)
