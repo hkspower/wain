@@ -8,11 +8,11 @@ import PlaceCard from "@/components/PlaceCard";
 import {
   categories,
   countAr,
-  places,
   PLACES_COUNT,
   RESULTS_COUNT,
   type CategoryId,
 } from "@/lib/places";
+import { usePlaces } from "@/lib/usePlaces";
 
 /** Strip Arabic diacritics and normalise alef/ya/ta-marbuta so search is forgiving. */
 function normalise(value: string): string {
@@ -30,6 +30,7 @@ export default function ExploreClient() {
   const searchParams = useSearchParams();
   const initial = searchParams.get("category");
 
+  const { places } = usePlaces();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<CategoryId | "all">(
     categories.some((c) => c.id === initial) ? (initial as CategoryId) : "all"
@@ -44,7 +45,7 @@ export default function ExploreClient() {
       );
       return matchesCategory && (q === "" || haystack.includes(q));
     });
-  }, [query, category]);
+  }, [query, category, places]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
