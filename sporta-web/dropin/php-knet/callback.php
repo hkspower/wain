@@ -28,7 +28,12 @@ try {
 
 $result    = strtoupper((string)($fields['result'] ?? ''));
 $paid      = ($result === 'CAPTURED' || $result === 'APPROVED');
-$trackid   = (string)($fields['trackid'] ?? '');
+// What the bank echoes back is the reference we SENT, which on a retry carries
+// an attempt suffix. Resolve it to the order's own track id immediately, before
+// anything else touches it: every lookup and the settling UPDATE below key on
+// `track_id`, and an unresolved reference would match no row at all — the bank
+// having captured the money while the order stayed pending.
+$trackid   = knet_resolve_track($cfg, (string)($fields['trackid'] ?? ''));
 $paymentid = (string)($fields['paymentid'] ?? '');
 $ref       = (string)($fields['ref'] ?? '');
 $paidAmt   = (string)($fields['amt'] ?? ($fields['Amt'] ?? ''));

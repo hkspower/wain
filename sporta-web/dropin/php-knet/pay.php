@@ -89,7 +89,9 @@ $trandata = knet_build_trandata([
     'amt'          => $amount,
     'responseURL'  => $cfg['response_url'],
     'errorURL'     => $cfg['error_url'],
-    'trackid'      => $trackid,
+    // A reference unique to this ATTEMPT, so a retry after a decline is not
+    // refused as a duplicate. Attempt one is the track id unchanged.
+    'trackid'      => knet_attempt_ref($cfg, $trackid),
     'udf1'         => (string)($in['udf1'] ?? ''),
     'udf2'         => (string)($in['udf2'] ?? ''),
     'udf3'         => (string)($in['udf3'] ?? ''),

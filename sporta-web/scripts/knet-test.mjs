@@ -158,6 +158,58 @@ head('a captured payment is recorded')
   void order
 }
 
+// --------------------------------------------------- a declined card retries
+//
+// KNET wants the track id unique per ATTEMPT. The shop sent orders.track_id,
+// which is unique per ORDER — and the checkout deliberately REUSES that id on a
+// retry, because it is the idempotency key that stops a double tap buying
+// twice. So the second attempt handed the bank an id it had already seen, and
+// the bank is entitled to refuse it: a declined card became an unrecoverable
+// checkout for a reason that had nothing to do with the card.
+head('a declined card can be paid again')
+{
+  await newOrder('SPKNET0RETRY')
+
+  // First attempt — declined by the bank.
+  const one = await get(`${KNET}/pay.php?trackid=SPKNET0RETRY`)
+  const sentOne = parse(decrypt(new URL(one.headers.get('location')).searchParams.get('trandata')))
+  is(sentOne.trackid === 'SPKNET0RETRY',
+     'the FIRST attempt sends the order id unchanged — the common case is untouched',
+     sentOne.trackid)
+  const declined = await fetch(
+    `${BANK}/fake-knet-bank.php?${new URL(one.headers.get('location')).searchParams}&outcome=notcaptured`)
+  await declined.json()
+  is(await sql("select payment_status from orders where track_id='SPKNET0RETRY'") !== 'paid',
+     'and the decline leaves the order unpaid')
+
+  // The shopper taps "try again" — same basket, so the SAME order and track id.
+  const two = await get(`${KNET}/pay.php?trackid=SPKNET0RETRY`)
+  const sentTwo = parse(decrypt(new URL(two.headers.get('location')).searchParams.get('trandata')))
+  is(sentTwo.trackid !== sentOne.trackid,
+     'the RETRY sends a different reference, so the bank cannot refuse it as a duplicate',
+     `${sentOne.trackid} -> ${sentTwo.trackid}`)
+  is(sentTwo.trackid.startsWith('SPKNET0RETRY'),
+     'and it still carries the order number, so a bank statement can be reconciled',
+     sentTwo.trackid)
+  is(sentTwo.trackid.length <= 30, 'within the field the gateway accepts', String(sentTwo.trackid.length))
+
+  // THE PART THAT MUST NOT BREAK: the callback comes back carrying the RETRY
+  // reference, and has to settle the original order. cbk_update_order keys on
+  // track_id — an unresolved reference would mean the bank took the money and
+  // the order stayed pending, with nothing to say why.
+  const captured = await (await fetch(
+    `${BANK}/fake-knet-bank.php?${new URL(two.headers.get('location')).searchParams}&outcome=captured`)).json()
+  is(captured.bank_result === 'CAPTURED', 'the retry is captured')
+  is(captured.merchant_code === 200, 'and the callback answers 200', `${captured.merchant_code}`)
+
+  const row = (await sql(
+    "select payment_status, paid_at is not null, pay_attempt from orders where track_id='SPKNET0RETRY'")).split('\t')
+  is(row[0] === 'paid',
+     'THE ORIGINAL ORDER settles, even though the bank echoed the retry reference', row[0])
+  is(row[1] === '1', 'with paid_at stamped')
+  is(Number(row[2]) === 2, 'and the attempt counter says it took two', row[2])
+}
+
 // ------------------------------------------------------------- replay safety
 head('a replayed callback changes nothing')
 {

@@ -510,6 +510,15 @@ create table if not exists blocked_customers (
 create index if not exists idx_orders_phone_open
   on orders (customer_phone, payment_method, payment_status);
 
+-- ===========================================================================
+-- A unique reference per PAYMENT ATTEMPT, so a declined card can be retried.
+--
+-- Byte-for-byte the same statement as payattempt.mysql.sql, which exists so a
+-- shop set up BEFORE this fix can add it without re-importing.
+-- ===========================================================================
+alter table orders add column if not exists pay_attempt int unsigned not null default 0
+  after cbk_status;
+
 
 -- ========================================================================
 -- seed.mysql.sql — the catalogue and its sizes

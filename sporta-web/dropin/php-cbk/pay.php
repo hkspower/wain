@@ -93,7 +93,9 @@ $fields = [
     'tij_MerchAuthKeyApi'      => $token,
     'tij_MerchantPaymentLang'  => $lang,
     'tij_MerchantPaymentAmount'=> $amount,
-    'tij_MerchantPaymentTrack' => $trackid,
+    // Unique per ATTEMPT, so a retry after a decline is not refused as a
+    // duplicate (TIJ0004). Attempt one is the track id unchanged.
+    'tij_MerchantPaymentTrack' => cbk_attempt_ref($cfg, $trackid),
     // Trimmed to the manual's own limits (Request Parameters, pp.8-9), because
     // the gateway does not truncate — it REJECTS, and the rejection arrives as
     // a bare TIJ code on the return URL long after the customer has left the

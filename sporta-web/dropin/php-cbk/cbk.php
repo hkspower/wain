@@ -52,6 +52,66 @@ function cbk_pdo(array $cfg): PDO
 // "already paid". pay.php needs the difference: without it a shopper who
 // returned to a paid order's link was sent to the gateway to pay a second
 // time, which is a refund and an apology rather than a bug report.
+// ------------------------------------------------- one reference per attempt
+//
+// The manual (p.10) says the Merchant Track/Order ID "must be always unique for
+// each transaction attempts", and CBK's own sample calls uniqid() every time.
+// The shop sent orders.track_id, which is unique per ORDER — so a shopper
+// retrying a declined card sent the same value twice and the gateway is
+// entitled to refuse it with TIJ0004, making a failed payment unretryable.
+//
+// THE FIRST ATTEMPT SENDS THE TRACK ID UNCHANGED, so the common case is exactly
+// as it was and a bank statement still carries the order number. Only a retry —
+// which could not work at all before — carries a suffix.
+function cbk_attempt_ref(array $cfg, string $trackid): string
+{
+    if (!cbk_db_configured($cfg)) return $trackid;
+    try {
+        $pdo = cbk_pdo($cfg);
+        $pdo->prepare('update orders set pay_attempt = pay_attempt + 1 where track_id = ?')
+            ->execute([$trackid]);
+        $q = $pdo->prepare('select pay_attempt from orders where track_id = ?');
+        $q->execute([$trackid]);
+        $n = (int) $q->fetchColumn();
+    } catch (Throwable $e) {
+        // The counter is a convenience; the sale is not. A customer must never
+        // be stopped at the payment page because a column is missing.
+        return $trackid;
+    }
+    if ($n <= 1) return $trackid;
+    $suffix = 'A' . $n;
+    // The manual caps this field at 30. Trim the ORDER part, never the suffix —
+    // the suffix is the part that makes it unique, and resolution is by lookup
+    // rather than by parsing a fixed width.
+    return substr($trackid, 0, max(1, 30 - strlen($suffix))) . $suffix;
+}
+
+// A reference that came BACK from the gateway, resolved to the order it belongs
+// to. Exact match FIRST — so attempt one, and every order placed before this
+// existed, behaves exactly as it always did — and only then is the value
+// treated as a retry reference.
+//
+// Getting this wrong is the worst failure available: cbk_update_order keys on
+// track_id, so an unresolved reference settles no row while the gateway has
+// taken the money.
+function cbk_resolve_track(array $cfg, string $ref): string
+{
+    if ($ref === '' || !cbk_db_configured($cfg)) return $ref;
+    try {
+        $q = cbk_pdo($cfg)->prepare('select 1 from orders where track_id = ?');
+        $q->execute([$ref]);
+        if ($q->fetchColumn()) return $ref;
+        if (preg_match('/^(.+)A\d+$/', $ref, $m)) {
+            $q->execute([$m[1]]);
+            if ($q->fetchColumn()) return $m[1];
+        }
+    } catch (Throwable $e) {
+        // A database that is down must not rewrite the reference into
+        // something else.
+    }
+    return $ref;
+}
+
 function cbk_order_lookup(array $cfg, string $trackid): array
 {
     try {

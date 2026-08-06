@@ -193,6 +193,49 @@ head('an order cannot be paid twice')
   is(res.status === 409, 'pay.php refuses an order that is already paid', `${res.status}`)
 }
 
+// ------------------------------------------------------- retrying a decline
+head('a declined card can be paid again')
+{
+  // CBK's manual (p.10) requires the Merchant Track to be unique for EVERY
+  // attempt, and its own sample calls uniqid(). The shop sent orders.track_id,
+  // which is unique per ORDER — so the second attempt handed the gateway a
+  // reference it had already seen, and it is entitled to refuse it (TIJ0004).
+  // Every declined card was therefore an unrecoverable checkout, for a reason
+  // that had nothing to do with the card.
+  await newOrder('SPTPAY0RETRY')
+
+  const first = await (await get(`${PAY}/pay.php?trackid=SPTPAY0RETRY`)).text()
+  is(formFields(first).tij_MerchantPaymentTrack === 'SPTPAY0RETRY',
+     'the FIRST attempt sends the order id unchanged — the common case is untouched',
+     formFields(first).tij_MerchantPaymentTrack)
+  const declined = await payThrough(first, 'outcome=failed')
+  is(!declined.location.includes('status=success'), 'the card is declined')
+
+  const second = await (await get(`${PAY}/pay.php?trackid=SPTPAY0RETRY`)).text()
+  const ref = formFields(second).tij_MerchantPaymentTrack
+  is(ref !== 'SPTPAY0RETRY',
+     'the RETRY sends a different reference, so the gateway cannot refuse it as a duplicate',
+     `SPTPAY0RETRY -> ${ref}`)
+  is(ref.startsWith('SPTPAY0RETRY'),
+     'and it still carries the order number, so a bank statement can be reconciled', ref)
+  is(ref.length <= 30, 'within the field the manual allows', `${ref.length}`)
+
+  const retry = await payThrough(second, 'outcome=success')
+  is(retry.location.includes('status=success'), 'the retry is captured',
+     retry.location.split('?')[1] ?? '')
+
+  // THE PART THAT MUST NOT BREAK. The gateway echoes back the RETRY reference,
+  // and cbk_update_order keys on track_id — an unresolved reference would mean
+  // CBK took the money while the order stayed pending, with nothing to say why.
+  const row = (await sql(
+    "select payment_status, pay_attempt from orders where track_id='SPTPAY0RETRY'")).split('\t')
+  is(row[0] === 'paid',
+     'THE ORIGINAL ORDER settles, even though the gateway echoed the retry reference', row[0])
+  is(row[1] === '2', 'and the attempt counter says it took two', row[1])
+  is((await sql("select count(*) from orders where track_id like 'SPTPAY0RETRYA%'")) === '0',
+     'no phantom order is created for the retry reference')
+}
+
 // --------------------------------------------------------------- the audit log
 head('the money leaves a trail')
 {

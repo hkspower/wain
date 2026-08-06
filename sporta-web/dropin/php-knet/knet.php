@@ -143,6 +143,72 @@ function knet_pdo(array $cfg): PDO
 // collapsed all three into null, so a DB outage — or simply an unknown track
 // id — silently fell back to the client-supplied amount, letting anyone pay an
 // arbitrary price for any order.
+// ------------------------------------------------- one reference per attempt
+//
+// KNET wants the track id to be unique per TRANSACTION ATTEMPT. The shop's
+// track id is unique per ORDER, so a shopper retrying a declined card sent the
+// same id twice and the gateway was entitled to refuse it — which made a
+// failed payment unretryable for a reason that had nothing to do with the card.
+//
+// THE FIRST ATTEMPT SENDS THE TRACK ID UNCHANGED. That keeps the common case
+// exactly as it was — the bank statement still carries the order number — and
+// means this can be deployed while payments are in flight. Only a retry, which
+// could not work at all before, carries a suffix.
+function knet_attempt_ref(array $cfg, string $trackid): string
+{
+    // No orders database: nothing to count, and nothing to reconcile against.
+    if (!knet_db_configured($cfg)) return $trackid;
+    try {
+        $pdo = knet_pdo($cfg);
+        $pdo->prepare('update orders set pay_attempt = pay_attempt + 1 where track_id = ?')
+            ->execute([$trackid]);
+        $q = $pdo->prepare('select pay_attempt from orders where track_id = ?');
+        $q->execute([$trackid]);
+        $n = (int) $q->fetchColumn();
+    } catch (Throwable $e) {
+        // THE COUNTER IS A CONVENIENCE; THE SALE IS NOT. If it cannot be
+        // incremented, send what we always sent and let the bank decide. A
+        // customer must never be stopped at the payment page because a column
+        // is missing.
+        return $trackid;
+    }
+    if ($n <= 1) return $trackid;
+    $suffix = 'A' . $n;
+    // KNET's trackid field is limited; trim the ORDER part, never the suffix,
+    // since the suffix is what makes it unique. Resolution is by lookup rather
+    // than by parsing a fixed width, so a trimmed prefix is still resolvable.
+    return substr($trackid, 0, max(1, 30 - strlen($suffix))) . $suffix;
+}
+
+// A reference that came BACK from the bank, resolved to the order it belongs to.
+//
+// The order of the two lookups is the safety property. An exact match is tried
+// FIRST, so attempt one — and every order placed before this existed — behaves
+// exactly as it always did. Only when that finds nothing is the value treated
+// as a retry reference and the suffix stripped.
+//
+// Getting this wrong is the worst failure the shop has: the callback updates
+// `where track_id = ?`, so an unresolved reference means the bank captured the
+// money and the order stayed pending, with nothing to say why.
+function knet_resolve_track(array $cfg, string $ref): string
+{
+    if ($ref === '' || !knet_db_configured($cfg)) return $ref;
+    try {
+        $q = knet_pdo($cfg)->prepare('select 1 from orders where track_id = ?');
+        $q->execute([$ref]);
+        if ($q->fetchColumn()) return $ref;
+        if (preg_match('/^(.+)A\d+$/', $ref, $m)) {
+            $q->execute([$m[1]]);
+            if ($q->fetchColumn()) return $m[1];
+        }
+    } catch (Throwable $e) {
+        // A database that is down must not rewrite the reference into
+        // something else — hand back what the bank sent and let the caller's
+        // own error handling deal with it.
+    }
+    return $ref;
+}
+
 function knet_order_lookup(array $cfg, string $trackid): array
 {
     if (!knet_db_configured($cfg)) {

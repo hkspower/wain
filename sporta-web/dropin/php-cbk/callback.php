@@ -58,7 +58,7 @@ if ($errorCode !== '') {
     }
 
     if ($errorTrack !== '') {
-        cbk_update_order($cfg, $errorTrack, false, [
+        cbk_update_order($cfg, cbk_resolve_track($cfg, $errorTrack), false, [
             'Status'  => '2',
             'Message' => $errorCode . ' ' . $meaning,
             'PayType' => 'CBK',
@@ -142,6 +142,11 @@ $paid       = $statusCode === '1';
 // The fallback stays, for a gateway that omits PayId; but it is the fallback.
 $trackid    = (string)($res['PayId'] ?? '');
 if ($trackid === '') $trackid = (string)($res['TrackId'] ?? '');
+// What came back is the reference we SENT, which on a retry carries an attempt
+// suffix. Resolve it to the order's own track id before anything keys on it:
+// cbk_update_order() matches `where track_id = ?`, so an unresolved reference
+// settles no row while the gateway has taken the money.
+$trackid    = cbk_resolve_track($cfg, $trackid);
 // CBK's own reference, kept for reconciliation against the bank statement.
 $gatewayTrack = (string)($res['TrackId'] ?? '');
 $paymentId  = (string)($res['PaymentId'] ?? '');
