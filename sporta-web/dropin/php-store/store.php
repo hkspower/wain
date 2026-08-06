@@ -99,9 +99,20 @@ function store_db(): PDO {
 // means the SQL was never imported, and it has a specific fix the admin
 // screens spell out.
 set_exception_handler(function (Throwable $e): void {
-    $isMissingTable = $e instanceof PDOException
-        && (($e->errorInfo[1] ?? 0) === 1146 || str_contains($e->getMessage(), '42S02'));
-    store_out(['error' => $isMissingTable ? 'no_table' : 'failed'], $isMissingTable ? 503 : 500);
+    // A missing COLUMN counts too, and it used to not. 1146 is "table does not
+    // exist"; 1054 is "unknown column", which is what a server sees when the
+    // FILES have been published but the additive SQL beside them has not been
+    // imported yet — a shop upgraded rather than installed fresh. The symptom
+    // was a bare 500 "failed" on the Orders screen, which names neither the
+    // cause nor the fix, on the one screen the owner opens to find out what is
+    // wrong. Both mean the same thing to a human — the database is behind the
+    // code — and both are fixed by importing the SQL.
+    $code = $e instanceof PDOException ? ($e->errorInfo[1] ?? 0) : 0;
+    $isMissingSchema = $e instanceof PDOException
+        && ($code === 1146 || $code === 1054
+            || str_contains($e->getMessage(), '42S02')   // no such table
+            || str_contains($e->getMessage(), '42S22')); // no such column
+    store_out(['error' => $isMissingSchema ? 'no_table' : 'failed'], $isMissingSchema ? 503 : 500);
 });
 
 // ------------------------------------------------------------------ responses

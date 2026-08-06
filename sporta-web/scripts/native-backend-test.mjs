@@ -824,6 +824,43 @@ const order = (track, items, extra = {}) =>
 }
 
 // ---------------------------------------------------------------------------
+// A DATABASE BEHIND THE CODE SAYS SO, INSTEAD OF JUST FAILING
+//
+// Publishing the files is one step and importing the additive SQL beside them
+// is another, and they happen minutes apart. In between, the server runs new
+// code against an old database — which is the shape of every upgrade, not an
+// exotic case.
+//
+// The handler used to recognise only a missing TABLE (1146). A missing COLUMN
+// (1054) is what an UPGRADED shop actually hits, and it produced a bare 500
+// "failed" on the Orders screen: no cause, no fix, on the one screen the owner
+// opens to find out what is wrong.
+{
+  const q = async (s) => (await run('mariadb', ['sporta', '-N', '-B', '-e', s])).stdout.trim()
+
+  // The throttle section above deliberately leaves the account locked and the
+  // cookie spent, so sign in first — otherwise this reads 401 and the failure
+  // looks like the schema check rather than a missing session.
+  await run('mariadb', ['sporta', '-e',
+    'update admin_users set failed_attempts = 0, locked_until = null'])
+  await admin('login', { method: 'POST',
+    body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }) })
+
+  await run('mariadb', ['sporta', '-e', 'alter table orders drop column utm_source'])
+  const broken = await admin('orders')
+  is(broken.status === 503 && broken.body?.error === 'no_table',
+     'a column the SQL has not added yet reads as "import the SQL", not as an outage',
+     `${broken.status} ${broken.body?.error}`)
+
+  // Put it back exactly as attribution.mysql.sql would.
+  await run('mariadb', ['sporta', '-e',
+    'alter table orders add column if not exists utm_source varchar(60) null'])
+  const fixed = await admin('orders')
+  is(fixed.status === 200, 'and the screen works again once the column exists', String(fixed.status))
+  is((await q("show columns from orders like 'utm_source'")).length > 0, 'the column really is back')
+}
+
+// ---------------------------------------------------------------------------
 // CASH ON DELIVERY IS THE ONLY METHOD THAT SPENDS MONEY BEFORE ANYONE PAYS
 //
 // A fake card order costs nothing — the bank never settled it. A fake COD order
