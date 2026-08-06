@@ -420,6 +420,14 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $gov = trim((string)($customer['governorate'] ?? ''));
     if (!in_array($gov, STORE_GOVERNORATES, true)) store_fail('invalid_governorate');
 
+    // IS THIS CUSTOMER ALLOWED TO ORDER THIS WAY? Checked here — after the
+    // phone is canonical, before anything is written or any mail is queued.
+    //
+    // Cash on delivery is the only method that spends the shop's money before
+    // anyone has paid: the courier goes out either way. One phone placed twelve
+    // COD orders in seconds before this existed. See store_order_guard().
+    store_order_guard($db, $phone, $method);
+
     $name     = store_text($customer['name'] ?? null,     'name',     2, 80);
     $area     = store_text($customer['area'] ?? null,     'area',     2, 60);
     $block    = store_text($customer['block'] ?? null,    'block',    1, 12);

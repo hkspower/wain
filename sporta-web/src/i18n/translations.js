@@ -339,6 +339,12 @@ export const translations = {
         invalid_qty: 'One of the quantities is not valid.',
         zero_amount: 'This order has no payable total. Please contact us.',
         order_not_pending: 'This order has already been processed. Start a new one.',
+        // A refusal the shopper can act on: pay for this one up front, or wait
+        // for the outstanding deliveries. It never says "you look like a
+        // fraudster" — most people who meet this are simply waiting on orders.
+        too_many_open_cod: 'You already have orders awaiting delivery. Please receive those first, or pay for this one online with KNET.',
+        cod_blocked: 'Cash on delivery is not available for this number. You can still order by paying online with KNET.',
+        customer_blocked: 'We are unable to take this order. Please contact us on +965 22091914 and we will help.',
         unavailable: 'Sorry — this item is currently unavailable.',
         unconfigured: 'Online ordering is temporarily unavailable. Please contact us on WhatsApp.',
         failed: 'We could not start the payment. Please try again.',
@@ -674,6 +680,9 @@ export const translations = {
         invalid_qty: 'إحدى الكميات غير صحيحة.',
         zero_amount: 'لا يوجد مبلغ مستحق لهذا الطلب. يرجى التواصل معنا.',
         order_not_pending: 'تمت معالجة هذا الطلب سابقًا. ابدأ طلبًا جديدًا.',
+        too_many_open_cod: 'لديك طلبات بانتظار التوصيل. يرجى استلامها أولًا، أو ادفع لهذا الطلب أونلاين عبر كي نت.',
+        cod_blocked: 'الدفع عند الاستلام غير متاح لهذا الرقم. يمكنك الطلب بالدفع أونلاين عبر كي نت.',
+        customer_blocked: 'لا يمكننا استقبال هذا الطلب. يرجى التواصل معنا على ٢٢٠٩١٩١٤ ٩٦٥+ وسنساعدك.',
         unavailable: 'عذرًا — هذه القطعة غير متوفرة حاليًا.',
         unconfigured: 'الطلب عبر الموقع غير متاح مؤقتًا. يرجى التواصل معنا على واتساب.',
         failed: 'تعذّر بدء عملية الدفع. يرجى المحاولة مرة أخرى.',

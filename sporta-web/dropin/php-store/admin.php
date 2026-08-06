@@ -660,6 +660,46 @@ if ($r === 'settings_save' && $method === 'POST') {
     store_out(store_setting($db, $name));
 }
 
+// ------------------------------------------------------------- blocked numbers
+// The manual half of the cash-on-delivery defence — see antifraud.mysql.sql.
+// The automatic cap stops one number flooding the courier; this is where the
+// owner records the number that already cost them three wasted trips.
+if ($r === 'blocked') {
+    store_out($db->query(
+        'select id, phone, scope, reason, blocked_by, created_at
+           from blocked_customers order by created_at desc limit 500'
+    )->fetchAll());
+}
+
+if ($r === 'block_customer' && $method === 'POST') {
+    $b = store_body();
+    // Canonicalised with the SAME function the checkout uses, or the block is
+    // recorded against a spelling the order path will never produce and
+    // silently protects nothing.
+    $phone = store_phone((string)($b['phone'] ?? ''));
+    if ($phone === null) store_fail('invalid_phone');
+    $scope = ($b['scope'] ?? 'cod') === 'all' ? 'all' : 'cod';
+    $reason = mb_substr(trim((string)($b['reason'] ?? '')), 0, 200);
+
+    $db->prepare(
+        'insert into blocked_customers (phone, scope, reason, blocked_by) values (?, ?, ?, ?)
+         on duplicate key update scope = values(scope), reason = values(reason),
+                                 blocked_by = values(blocked_by)'
+    )->execute([$phone, $scope, $reason === '' ? null : $reason,
+                (string)($_SESSION['admin_email'] ?? '')]);
+    store_out(['ok' => true, 'phone' => $phone, 'scope' => $scope]);
+}
+
+// Unblocking must be as easy as blocking. A block placed by mistake that
+// cannot be undone from the same screen becomes a customer nobody can help.
+if ($r === 'unblock_customer' && $method === 'POST') {
+    $b = store_body();
+    $phone = store_phone((string)($b['phone'] ?? ''));
+    if ($phone === null) store_fail('invalid_phone');
+    $db->prepare('delete from blocked_customers where phone = ?')->execute([$phone]);
+    store_out(['ok' => true]);
+}
+
 // ----------------------------------------------------------------- discounts
 if ($r === 'discounts') {
     $rows = $db->query('select * from discounts order by kind, code, id')->fetchAll();

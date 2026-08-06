@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   fetchOrders, fetchOrderItems, setFulfilment, saveCustomer, setCodPaid, settleCard,
-  toCsv, PAYMENT_STATES, FULFILMENT_STATES,
+  blockCustomer, toCsv, PAYMENT_STATES, FULFILMENT_STATES,
 } from './api'
 import { Notice } from './Overview'
 import { formatKWD } from '../lib/format'
@@ -237,6 +237,9 @@ function OrderDrawer({ order, onClose, onChanged }) {
     Object.fromEntries(CUSTOMER_FIELDS.map(([k]) => [k, order[k] ?? ''])),
   )
   const [saved, setSaved] = useState(false)
+  // Set once this number has been blocked from the drawer, so the buttons can
+  // say so rather than inviting the operator to block an already-blocked number.
+  const [blocked, setBlocked] = useState(false)
 
   useEffect(() => {
     fetchOrderItems(order.id).then((r) => setItems(r.items))
@@ -291,6 +294,27 @@ function OrderDrawer({ order, onClose, onChanged }) {
     if (r.error) return setErr(r.error)
     setSaved(true)
     onChanged?.()
+  }
+
+  // Blocking this number. Cash-on-delivery only by default — the proportionate
+  // answer to a serial no-show, who can still buy by paying up front, which
+  // costs the shop nothing. A reason is required rather than optional: in six
+  // months it is the only thing that says whether this was a fraud pattern or
+  // one bad afternoon.
+  async function blockThisNumber(scope) {
+    const reason = window.prompt(
+      scope === 'all'
+        ? 'Block this number from ALL orders. Why?'
+        : 'Block this number from cash on delivery (they can still pay online). Why?',
+    )
+    if (reason === null) return
+    if (!reason.trim()) return setErr('A reason is required — future-you will want to know why.')
+    setBusy(true); setErr('')
+    const r = await blockCustomer(cust.customer_phone, reason.trim(), scope)
+    setBusy(false)
+    if (r.error) return setErr(r.error)
+    setErr('')
+    setBlocked(true)
   }
 
   const wa = cust.customer_phone.replace(/[^0-9]/g, '')
@@ -401,6 +425,40 @@ function OrderDrawer({ order, onClose, onChanged }) {
             <p className="mt-2 text-xs text-slate-400">
               Captured at checkout. Blank on orders placed before checkout started asking.
             </p>
+
+            {/* Refusing this number future business. Cash on delivery is the
+                only payment that spends the shop's money before anyone pays —
+                the courier goes out either way — so that is what a no-show
+                loses first. Paying online stays open, because a prepaid order
+                costs the shop nothing and a blocked customer who can still buy
+                is a customer. */}
+            {wa.length >= 8 && (
+              <div className="mt-4 border-t border-slate-100 pt-3">
+                {blocked ? (
+                  <p className="text-xs font-semibold text-rose-600">
+                    Blocked. Manage the full list under Blocked numbers.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-slate-500">Refused delivery or a fake order?</span>
+                    <button
+                      onClick={() => blockThisNumber('cod')}
+                      disabled={busy}
+                      className="rounded-lg border border-amber-300 px-2 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-40"
+                    >
+                      Block cash on delivery
+                    </button>
+                    <button
+                      onClick={() => blockThisNumber('all')}
+                      disabled={busy}
+                      className="rounded-lg border border-rose-300 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-40"
+                    >
+                      Block entirely
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
           <section>

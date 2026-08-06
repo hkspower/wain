@@ -289,6 +289,58 @@ function store_queue_whatsapp(PDO $db, int $orderId, string $kind): void {
        ->execute([$orderId, $kind, $to, $template, $lang, $payload]);
 }
 
+// ------------------------------------------------- cash-on-delivery abuse
+//
+// How many UNDELIVERED cash orders one phone may have at once. See
+// antifraud.mysql.sql for why this exists at all; the number is a judgement:
+// high enough that a real person ordering twice in a day never meets it, low
+// enough that one number cannot send a courier out a hundred times.
+//
+// It counts orders still IN FLIGHT, never orders already delivered — so a
+// customer who has bought ten times and received them all is not throttled at
+// all. A rule that punishes the shop's best customers is a rule the owner
+// switches off, and then there is no rule.
+const STORE_COD_OPEN_MAX = 3;
+
+// The one place an order is judged before it is written. Raises and never
+// returns when it refuses.
+//
+// COD ONLY for the cap, deliberately. A card order that turns out to be fake
+// costs the shop nothing — the bank never settled it, nothing shipped. Cash on
+// delivery is the only method that spends money before anyone has paid, so it
+// is the only one worth guarding. Rate-limiting real prepaid customers would be
+// all cost and no benefit.
+function store_order_guard(PDO $db, string $phone, string $method): void {
+    // 1. The blocklist. A human decision, so it outranks everything else.
+    $q = $db->prepare('select scope from blocked_customers where phone = ?');
+    $q->execute([$phone]);
+    $scope = $q->fetchColumn();
+    if ($scope === 'all') store_fail('customer_blocked', 403);
+    if ($scope === 'cod' && $method === 'cod') store_fail('cod_blocked', 403);
+
+    if ($method !== 'cod') return;
+
+    // 2. The automatic cap on orders still in flight.
+    //
+    // 'pending' AND not delivered/cancelled is the definition of "the shop is
+    // still owed money and still holds the goods". A COD order marked paid has
+    // been collected; one marked delivered is finished; one cancelled is
+    // closed. None of those should count against the next purchase.
+    $q = $db->prepare(
+        "select count(*) from orders
+          where customer_phone = ? and payment_method = 'cod'
+            and payment_status = 'pending'
+            and fulfilment_status not in ('delivered', 'cancelled')"
+    );
+    $q->execute([$phone]);
+    if ((int) $q->fetchColumn() >= STORE_COD_OPEN_MAX) {
+        // 409, not 429: this is not "too fast", it is "settle what you have".
+        // A shopper who reads the message can act on it; a rate-limit message
+        // would tell them to wait, which will never help.
+        store_fail('too_many_open_cod', 409);
+    }
+}
+
 // One attribution field off the order payload: trimmed, capped, or null.
 //
 // Never rejects. Attribution is REPORTING — it decides nothing about what is

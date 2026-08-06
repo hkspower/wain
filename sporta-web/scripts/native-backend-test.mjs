@@ -824,6 +824,96 @@ const order = (track, items, extra = {}) =>
 }
 
 // ---------------------------------------------------------------------------
+// CASH ON DELIVERY IS THE ONLY METHOD THAT SPENDS MONEY BEFORE ANYONE PAYS
+//
+// A fake card order costs nothing — the bank never settled it. A fake COD order
+// has already sent a courier to an address, and the shop pays for that trip
+// whether or not a door opens. Measured before the guard existed: ONE phone
+// number placed twelve COD orders in a few seconds, all accepted, each queuing
+// a picking list.
+{
+  const q = async (s) => (await run('mariadb', ['sporta', '-N', '-B', '-e', s])).stdout.trim()
+  const PHONE = '95559999'
+  const CANON = '96595559999'
+  await run('mariadb', ['sporta', '-e',
+    `delete from orders where customer_phone = '${CANON}'; delete from blocked_customers;`])
+
+  const buy = async (method) => {
+    const track = 'SPCOD' + Math.random().toString(36).slice(2, 9).toUpperCase()
+    const res = await api('order', {
+      method: 'POST',
+      body: JSON.stringify({ track_id: track, items: [{ slug: 'cagliari-calcio-backpack', qty: 1 }],
+        customer: { ...CUSTOMER, phone: PHONE }, payment_method: method }),
+    })
+    return { status: res.status, err: res.body?.error, track }
+  }
+
+  // The cap lets a real customer through and stops a flood.
+  const first = []
+  for (let i = 0; i < 3; i++) first.push(await buy('cod'))
+  is(first.every((r) => r.status === 200), 'three open cash orders are fine — a real customer is not throttled',
+     first.map((r) => r.status).join(','))
+  const fourth = await buy('cod')
+  is(fourth.status === 409 && fourth.err === 'too_many_open_cod',
+     'the fourth undelivered cash order from one phone is refused', `${fourth.status} ${fourth.err}`)
+
+  // ...but the cap is COD-only. A prepaid order is money in before anything
+  // ships, so throttling it would be all cost and no benefit.
+  const prepaid = await buy('knet')
+  is(prepaid.status === 200, 'a PREPAID order from the same phone is still accepted', String(prepaid.status))
+
+  // THE RULE THAT KEEPS THIS SHIPPABLE: delivered orders free the slot, so the
+  // shop's best customers are never the ones it blocks.
+  await run('mariadb', ['sporta', '-e',
+    `update orders set fulfilment_status = 'delivered' where customer_phone = '${CANON}' and payment_method = 'cod' limit 1`])
+  const afterDelivery = await buy('cod')
+  is(afterDelivery.status === 200,
+     'once an order is delivered the customer can order again', String(afterDelivery.status))
+
+  // The blocklist, keyed on the canonical phone. The admin types it however
+  // they like; it must still match what the checkout writes.
+  //
+  // Sign in FIRST: the throttle section above deliberately leaves the account
+  // locked and the cookie spent, so an admin call here would 401 and the
+  // failure would read as "the blocklist is broken" rather than "the session
+  // is gone".
+  await run('mariadb', ['sporta', '-e',
+    'update admin_users set failed_attempts = 0, locked_until = null'])
+  await admin('login', { method: 'POST',
+    body: JSON.stringify({ email: 'cs@sporta.com.kw', password: 'correct-horse-battery-kw' }) })
+
+  const block = await admin('block_customer', {
+    method: 'POST',
+    body: JSON.stringify({ phone: '+965 9555 9999', reason: 'three refused deliveries' }),
+  })
+  is(block.body?.phone === CANON,
+     'a block typed as "+965 9555 9999" is stored in the form the checkout uses', block.body?.phone)
+
+  const blockedCod = await buy('cod')
+  is(blockedCod.status === 403 && blockedCod.err === 'cod_blocked',
+     'a blocked number cannot use cash on delivery', `${blockedCod.status} ${blockedCod.err}`)
+  const blockedCard = await buy('knet')
+  is(blockedCard.status === 200,
+     'but scope=cod still lets them pay up front — prepaid costs the shop nothing',
+     String(blockedCard.status))
+
+  await admin('block_customer', { method: 'POST',
+    body: JSON.stringify({ phone: PHONE, scope: 'all', reason: 'fraud' }) })
+  const blockedAll = await buy('knet')
+  is(blockedAll.status === 403 && blockedAll.err === 'customer_blocked',
+     'scope=all refuses every payment method', `${blockedAll.status} ${blockedAll.err}`)
+
+  await admin('unblock_customer', { method: 'POST',
+    body: JSON.stringify({ phone: '00965 95559999' }) })
+  const unblocked = await buy('knet')
+  is(unblocked.status === 200, 'and unblocking works from any spelling of the number',
+     String(unblocked.status))
+
+  await run('mariadb', ['sporta', '-e',
+    `delete from orders where customer_phone = '${CANON}'; delete from blocked_customers;`])
+}
+
+// ---------------------------------------------------------------------------
 // WHICH AD PAID FOR THE ORDER
 //
 // The shop advertises, and without this the owner sees forty sales and cannot
@@ -908,16 +998,22 @@ const order = (track, items, extra = {}) =>
   // many addresses, and for an unknown email there is no row to lock at all.
   await run('mariadb', ['sporta', '-e', 'delete from rate_limit'])
   let spray = 0
+  // What the spray actually got. Without this the failure reads "never limited
+  // in 60" and says nothing about WHY — a spray answered 409 no_admin_account
+  // never reaches the throttle at all, and looks identical to a broken guard.
+  const spraySaw = {}
   for (let i = 0; i < 60; i++) {
     const res = await fetch(`${BASE}/admin.php?r=login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Sporta-Admin': '1' },
       body: JSON.stringify({ email: `spray${i}@example.com`, password: 'guess' }),
     })
+    const tag = `${res.status} ${(await res.json().catch(() => ({})))?.error ?? ''}`.trim()
+    spraySaw[tag] = (spraySaw[tag] ?? 0) + 1
     if (res.status === 429) { spray = i + 1; break }
   }
   is(spray > 0, 'a login spray across unknown emails is stopped by IP, not just by account',
-     spray ? `429 after ${spray}` : 'never limited in 60')
+     spray ? `429 after ${spray}` : `never limited in 60 — saw ${JSON.stringify(spraySaw)}`)
 
   await run('mariadb', ['sporta', '-e', 'delete from rate_limit'])
 }

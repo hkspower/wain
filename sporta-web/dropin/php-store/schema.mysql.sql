@@ -446,3 +446,39 @@ alter table orders add column if not exists referrer_host varchar(120) null afte
 -- The owner's real question is "how did LAST MONTH's campaigns do", which is a
 -- scan over dates filtered by source. Indexed accordingly.
 create index if not exists idx_orders_source on orders (utm_source, created_at);
+
+-- ===========================================================================
+-- Cash-on-delivery abuse control.
+--
+-- Byte-for-byte the same statements as antifraud.mysql.sql, which exists so a
+-- shop set up BEFORE this feature can add it without re-importing. Keep them
+-- in step.
+-- ===========================================================================
+create table if not exists blocked_customers (
+  id          int unsigned auto_increment primary key,
+  -- The CANONICAL phone, exactly as store_phone() returns it: 965 followed by
+  -- eight digits. Storing what the customer typed would let 99887766,
+  -- +965 99887766 and 00965-99887766 be three different people to this table
+  -- and one person to the courier.
+  phone       varchar(15)  not null unique,
+  -- 'cod' refuses cash on delivery only; 'all' refuses every order.
+  --
+  -- 'cod' is the default and the proportionate answer. A prepaid KNET order
+  -- from a blocked number costs the shop nothing — the money is in before
+  -- anything ships — so refusing it turns a serial no-show into a lost
+  -- customer for no gain. 'all' is there for the case where the person is the
+  -- problem rather than the payment method.
+  scope       varchar(3)   not null default 'cod',
+  -- Why, in the owner's words. Not decoration: in six months this is the only
+  -- thing that says whether a block was a fraud pattern or a bad afternoon.
+  reason      varchar(200) null,
+  -- Which admin did it, for the same reason.
+  blocked_by  varchar(120) null,
+  created_at  timestamp    not null default current_timestamp,
+  constraint blocked_scope_ck check (scope in ('cod', 'all'))
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
+
+-- The open-order cap counts a phone's unsettled COD orders on every checkout,
+-- so it must not be a table scan on a table that only grows.
+create index if not exists idx_orders_phone_open
+  on orders (customer_phone, payment_method, payment_status);

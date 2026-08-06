@@ -36,7 +36,13 @@ class CheckoutError extends Error {
 // failure rather than leaking a Postgres message to a shopper.
 function tokenFor(error) {
   const m = String(error?.message ?? '').match(
-    /\b(invalid_track_id|order_not_pending|empty_cart|cart_too_large|invalid_phone|invalid_governorate|invalid_qty|zero_amount|missing_[a-z]+|too_long_[a-z]+|unavailable_[\w-]+|invalid_payment_method)\b/,
+    // too_many_open_cod / cod_blocked / customer_blocked are refusals the
+    // shopper can ACT on — settle an outstanding order, or pay up front — so
+    // they must survive as themselves. Falling through to the generic failure
+    // would tell someone whose order was declined for a specific, fixable
+    // reason only that "something went wrong", and they would try again and
+    // see the same nothing.
+    /\b(invalid_track_id|order_not_pending|empty_cart|cart_too_large|invalid_phone|invalid_governorate|invalid_qty|zero_amount|missing_[a-z]+|too_long_[a-z]+|unavailable_[\w-]+|invalid_payment_method|too_many_open_cod|cod_blocked|customer_blocked)\b/,
   )
   return m ? m[1] : 'failed'
 }

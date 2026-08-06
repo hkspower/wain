@@ -355,3 +355,19 @@ export async function deleteDiscount(id) {
   }
   return r
 }
+
+// ------------------------------------------------------- blocked customers
+// The manual half of the cash-on-delivery defence. The automatic cap stops one
+// number flooding the courier; this is where a number that already cost the
+// shop three wasted trips gets recorded.
+//
+// 'cod' refuses cash on delivery and still lets them pay up front, which is the
+// proportionate answer — a prepaid order costs the shop nothing. 'all' is for
+// when the person, not the payment method, is the problem.
+export const fetchBlocked = () => php('blocked')
+
+export const blockCustomer = (phone, reason, scope = 'cod') =>
+  php('block_customer', { method: 'POST', body: { phone, reason, scope } })
+
+export const unblockCustomer = (phone) =>
+  php('unblock_customer', { method: 'POST', body: { phone } })
