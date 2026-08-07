@@ -43,7 +43,7 @@ export interface Place {
 export const categories: Category[] = [
   {
     id: "landmarks",
-    gradient: "from-sea-400 via-sea-500 to-sea-700",
+    gradient: "from-sea-500 via-sea-600 to-sea-800",
     ar: "معالم الكويت",
     en: "Landmarks",
     icon: "tower",
@@ -51,7 +51,7 @@ export const categories: Category[] = [
   },
   {
     id: "restaurants",
-    gradient: "from-coral-400 via-coral-500 to-coral-700",
+    gradient: "from-coral-500 via-coral-600 to-coral-800",
     ar: "مطاعم",
     en: "Restaurants",
     icon: "cutlery",
@@ -59,7 +59,7 @@ export const categories: Category[] = [
   },
   {
     id: "fastfood",
-    gradient: "from-sun-300 via-sun-400 to-sun-600",
+    gradient: "from-sun-600 via-sun-700 to-sun-900",
     ar: "وجبات سريعة",
     en: "Fast bites",
     icon: "burger",
@@ -67,7 +67,7 @@ export const categories: Category[] = [
   },
   {
     id: "coffee",
-    gradient: "from-sand-400 via-sand-600 to-sand-800",
+    gradient: "from-sand-600 via-sand-700 to-sand-900",
     ar: "قهوة",
     en: "Coffee",
     icon: "coffee",
@@ -75,7 +75,7 @@ export const categories: Category[] = [
   },
   {
     id: "outdoors",
-    gradient: "from-palm-400 via-palm-500 to-sea-700",
+    gradient: "from-palm-500 via-palm-600 to-sea-700",
     ar: "شواطئ وحدائق",
     en: "Outdoors",
     icon: "palm",
@@ -83,7 +83,7 @@ export const categories: Category[] = [
   },
   {
     id: "shopping",
-    gradient: "from-sun-400 via-coral-400 to-coral-600",
+    gradient: "from-sun-600 via-coral-600 to-coral-800",
     ar: "تسوّق",
     en: "Shopping",
     icon: "bag",
@@ -91,7 +91,7 @@ export const categories: Category[] = [
   },
   {
     id: "culture",
-    gradient: "from-sea-600 via-sea-700 to-ink-800",
+    gradient: "from-sea-600 via-sea-800 to-ink-800",
     ar: "ثقافة",
     en: "Culture",
     icon: "masks",
@@ -99,7 +99,7 @@ export const categories: Category[] = [
   },
   {
     id: "family",
-    gradient: "from-palm-400 via-palm-500 to-palm-700",
+    gradient: "from-palm-500 via-palm-600 to-palm-800",
     ar: "عائلة",
     en: "Family",
     icon: "ferris",
@@ -431,7 +431,7 @@ export function getFeaturedPlaces(): Place[] {
 }
 
 export function categoryGradient(id: CategoryId): string {
-  return getCategory(id)?.gradient ?? "from-sand-300 via-sand-500 to-sand-700";
+  return getCategory(id)?.gradient ?? "from-sand-600 via-sand-700 to-sand-900";
 }
 
 /**

@@ -35,7 +35,13 @@ export default function CategoryArt({
       aria-hidden="true"
       focusable="false"
     >
-      <g transform={VARIANT_TRANSFORM[variant]}>
+      {/* A soft shadow cast down-right, matching the elevation shadows'
+          overhead light. Without it the white strokes read as cut into the
+          gradient; with it the scene sits on top of it. */}
+      <g
+        transform={VARIANT_TRANSFORM[variant]}
+        style={{ filter: "drop-shadow(0 1.5px 2px rgb(20 18 15 / 0.28))" }}
+      >
         <Scene category={category} />
       </g>
     </svg>

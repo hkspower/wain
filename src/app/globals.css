@@ -106,17 +106,27 @@
   --radius-2xl: 0.9375rem; /* 15px — nested tiles */
   --radius-3xl: 1.25rem; /* 20px — cards, panels */
 
-  /* Tailwind's default shadows are neutral black, which turns grey and muddy
-     over warm sand paper. These keep the same size scale but tint every
-     shadow with ink (#14120f) and split it into a tight contact layer plus a
-     soft ambient one, so card edges stay defined instead of hazy. */
+  /* Shadows modelled on how light actually falls, not a single blur.
+     A real object under overhead light casts two things at once: a tight,
+     relatively dark CONTACT shadow where it meets the surface, and a wide,
+     faint AMBIENT shadow that spreads and fades. Stacking those (three
+     layers once an object is properly raised) gives the smooth falloff a
+     single blur can't, so surfaces read as lifted rather than as stickers
+     with a grey outline. Every layer is tinted with ink (#14120f) because
+     neutral black goes muddy over this palette.
+     Offsets grow faster than blur with elevation — the higher a thing sits,
+     the further its shadow is thrown. */
   --shadow-2xs: 0 1px rgb(20 18 15 / 0.05);
-  --shadow-xs: 0 1px 2px 0 rgb(20 18 15 / 0.05);
-  --shadow-sm: 0 1px 2px rgb(20 18 15 / 0.07), 0 1px 1px rgb(20 18 15 / 0.04);
-  --shadow-md: 0 2px 4px rgb(20 18 15 / 0.06), 0 5px 12px -2px rgb(20 18 15 / 0.08);
-  --shadow-lg: 0 3px 6px rgb(20 18 15 / 0.05), 0 10px 24px -4px rgb(20 18 15 / 0.1);
-  --shadow-xl: 0 4px 8px rgb(20 18 15 / 0.05), 0 16px 36px -6px rgb(20 18 15 / 0.12);
-  --shadow-2xl: 0 8px 16px rgb(20 18 15 / 0.07), 0 28px 64px -12px rgb(20 18 15 / 0.18);
+  --shadow-xs: 0 1px 1px rgb(20 18 15 / 0.04), 0 1px 2px rgb(20 18 15 / 0.05);
+  --shadow-sm: 0 1px 1px rgb(20 18 15 / 0.05), 0 2px 4px -1px rgb(20 18 15 / 0.07);
+  --shadow-md: 0 1px 2px rgb(20 18 15 / 0.05), 0 4px 8px -2px rgb(20 18 15 / 0.07),
+    0 8px 16px -4px rgb(20 18 15 / 0.05);
+  --shadow-lg: 0 1px 2px rgb(20 18 15 / 0.05), 0 6px 12px -3px rgb(20 18 15 / 0.08),
+    0 16px 28px -8px rgb(20 18 15 / 0.07);
+  --shadow-xl: 0 1px 3px rgb(20 18 15 / 0.05), 0 10px 20px -5px rgb(20 18 15 / 0.09),
+    0 28px 48px -12px rgb(20 18 15 / 0.09);
+  --shadow-2xl: 0 2px 4px rgb(20 18 15 / 0.06), 0 16px 32px -8px rgb(20 18 15 / 0.1),
+    0 40px 72px -16px rgb(20 18 15 / 0.15);
   --shadow: var(--shadow-sm);
 }
 
