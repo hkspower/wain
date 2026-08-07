@@ -43,8 +43,9 @@ DirectoryIndex index.html
     Header set Cache-Control "public, max-age=0, must-revalidate"
   </FilesMatch>
 
-  # 2b. Stable-named media — a week in cache, then revalidate.
-  <FilesMatch "\.(png|jpg|jpeg|webp|avif|svg|ico)$">
+  # 2b. Stable-named media (incl. صوت وين clips) — a week in cache, then
+  # revalidate.
+  <FilesMatch "\.(png|jpg|jpeg|webp|avif|svg|ico|mp3)$">
     Header set Cache-Control "public, max-age=604800, stale-while-revalidate=86400"
   </FilesMatch>
 
@@ -69,6 +70,7 @@ DirectoryIndex index.html
   ExpiresByType image/png             "access plus 1 week"
   ExpiresByType image/svg+xml         "access plus 1 week"
   ExpiresByType image/x-icon          "access plus 1 week"
+  ExpiresByType audio/mpeg            "access plus 1 week"
 </IfModule>
 
 # ---------------------------------------------------------------------------

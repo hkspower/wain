@@ -4,10 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import SearchResults from "@/components/SearchResults";
+import VoiceControls from "@/components/VoiceControls";
 import { IconCompass, IconSearch } from "@/components/icons";
 import { toArabicDigits } from "@/lib/places";
 import { usePlaces } from "@/lib/usePlaces";
 import { buildIndex, search, type DocKind } from "@/lib/search";
+import { searchSummaryParts } from "@/lib/voice-lines";
+import { speak, stop as stopVoice, useVoice } from "@/lib/voice";
 
 const FILTERS: { id: DocKind | "all"; label: string }[] = [
   { id: "all", label: "الكل" },
@@ -62,11 +65,37 @@ export default function SearchClient() {
     };
   }, [q, index]);
 
+  // صوت وين: once a search settles, say the best suggestion out loud —
+  // only while the visitor has the voice toggle on, and never twice for the
+  // same outcome.
+  const { enabled: voiceEnabled } = useVoice();
+  const lastSpokenRef = useRef("");
+  useEffect(() => {
+    if (!voiceEnabled) return;
+    if (!q.trim()) {
+      lastSpokenRef.current = "";
+      return;
+    }
+    const t = setTimeout(() => {
+      const signature = `${hits[0]?.doc.id ?? "none"}|${counts.all}`;
+      if (signature === lastSpokenRef.current) return;
+      lastSpokenRef.current = signature;
+      speak(searchSummaryParts(hits, counts.all));
+    }, 900);
+    return () => clearTimeout(t);
+  }, [q, hits, counts.all, voiceEnabled]);
+
+  // Leaving the page shouldn't leave a voice talking.
+  useEffect(() => () => stopVoice(), []);
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-14">
-      <h1 className="mb-6 font-display text-3xl font-extrabold tracking-tight text-ink-900 sm:text-4xl">
-        دوّر في وين
-      </h1>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink-900 sm:text-4xl">
+          دوّر في وين
+        </h1>
+        <VoiceControls />
+      </div>
 
       {/* Query box */}
       <div className="relative">

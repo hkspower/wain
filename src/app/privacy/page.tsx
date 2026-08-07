@@ -86,6 +86,26 @@ export default function PrivacyPage() {
         </div>
       </section>
 
+      {/* صوت وين */}
+      <section className="mt-6 rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
+        <h2 className="font-display text-xl font-bold text-ink-900">
+          صوت وين — الاقتراح الصوتي
+        </h2>
+        <div className="mt-3 space-y-3 text-sm leading-relaxed text-ink-600">
+          <p>
+            إذا شغّلت الاقتراح الصوتي واخترت صوت شوق أو سالم، اختيارك ينحفظ{" "}
+            <strong className="text-ink-900">داخل متصفحك بس</strong> (Local
+            Storage) عشان يبقى محفوظ لك بالزيارة الجاية — ما ينرسل لأي خادم ولا
+            يُستخدم للتتبّع.
+          </p>
+          <p>
+            المقاطع الصوتية ملفات جاهزة من ضمن الموقع نفسه، وإذا ما كانت موجودة
+            يستخدم المتصفح صوته العربي الداخلي — بالحالتين ما يطلع أي شي من
+            جهازك.
+          </p>
+        </div>
+      </section>
+
       {/* Hosting */}
       <section className="mt-6 rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
         <h2 className="font-display text-xl font-bold text-ink-900">الاستضافة</h2>

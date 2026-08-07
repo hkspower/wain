@@ -46,6 +46,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # صوت وين: pre-render the two ElevenLabs voices when the secrets are
+      # configured; without them the step logs a notice and the site falls
+      # back to the browser's own Arabic voice.
+      - name: Generate voice clips (optional)
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVEN_VOICE_SHOUQ: ${{ secrets.ELEVEN_VOICE_SHOUQ }}
+          ELEVEN_VOICE_SALEM: ${{ secrets.ELEVEN_VOICE_SALEM }}
+        run: node scripts/gen-voice.mjs --ci
+
       - name: Build static site (produces out/)
         # فهد only renders when this is set; an unset value ships the site
         # without the voice assistant rather than with a broken launcher.

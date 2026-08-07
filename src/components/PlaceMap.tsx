@@ -1,5 +1,7 @@
+import VoiceControls, { SpeakButton } from "@/components/VoiceControls";
 import { IconMap, IconGo } from "@/components/icons";
 import type { Place } from "@/lib/places";
+import { placeSuggestParts } from "@/lib/voice-lines";
 
 /**
  * Interactive map for a place: an OpenStreetMap embed with a marker (no API
@@ -8,8 +10,15 @@ import type { Place } from "@/lib/places";
  * anonymous dropped pin — and a directions link that navigates to the exact
  * coordinates.
  */
-export default function PlaceMap({ place }: { place: Place }) {
+export default function PlaceMap({
+  place,
+  related = [],
+}: {
+  place: Place;
+  related?: Place[];
+}) {
   const { lat, lng } = place;
+  const suggestParts = placeSuggestParts(place, related);
   // A box tight enough to show the surrounding streets and landmarks.
   const bbox = [lng - 0.008, lat - 0.005, lng + 0.008, lat + 0.005].join(",");
   const embed = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(
@@ -61,6 +70,12 @@ export default function PlaceMap({ place }: { place: Place }) {
           >
             بيانات الخريطة © OpenStreetMap
           </a>
+        </div>
+
+        {/* صوت وين — spoken suggestion for this spot and what's around it */}
+        <div className="flex flex-wrap items-center gap-3 border-t border-sand-200 bg-sand-50/60 p-4">
+          <SpeakButton parts={suggestParts} label="اسمع الاقتراح" />
+          <VoiceControls />
         </div>
       </div>
     </section>

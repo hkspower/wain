@@ -277,3 +277,30 @@ export function IconCoins(props: IconProps) {
   );
 }
 
+export function IconSpeaker(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path
+        {...DUO}
+        d="M10.7 4.9 6.6 8.2H4a1 1 0 0 0-1 1v5.6a1 1 0 0 0 1 1h2.6l4.1 3.3a.9.9 0 0 0 1.5-.7V5.6a.9.9 0 0 0-1.5-.7Z"
+      />
+      <path d="M10.7 4.9 6.6 8.2H4a1 1 0 0 0-1 1v5.6a1 1 0 0 0 1 1h2.6l4.1 3.3a.9.9 0 0 0 1.5-.7V5.6a.9.9 0 0 0-1.5-.7Z" />
+      <path d="M15.5 9.6a3.6 3.6 0 0 1 0 4.8" />
+      <path d="M18 7.2a7 7 0 0 1 0 9.6" />
+    </svg>
+  );
+}
+
+export function IconSpeakerOff(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path
+        {...DUO}
+        d="M10.7 4.9 6.6 8.2H4a1 1 0 0 0-1 1v5.6a1 1 0 0 0 1 1h2.6l4.1 3.3a.9.9 0 0 0 1.5-.7V5.6a.9.9 0 0 0-1.5-.7Z"
+      />
+      <path d="M10.7 4.9 6.6 8.2H4a1 1 0 0 0-1 1v5.6a1 1 0 0 0 1 1h2.6l4.1 3.3a.9.9 0 0 0 1.5-.7V5.6a.9.9 0 0 0-1.5-.7Z" />
+      <path d="m15.6 9.7 4.6 4.6M20.2 9.7l-4.6 4.6" />
+    </svg>
+  );
+}
+

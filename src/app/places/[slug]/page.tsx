@@ -13,7 +13,14 @@ import {
   IconSparkle,
   IconStar,
 } from "@/components/icons";
-import { categoryGradient, getCategory, getPlace, places, toArabicDigits } from "@/lib/places";
+import {
+  categoryGradient,
+  distanceKm,
+  getCategory,
+  getPlace,
+  places,
+  toArabicDigits,
+} from "@/lib/places";
 
 export function generateStaticParams() {
   return places.map((place) => ({ slug: place.slug }));
@@ -53,9 +60,15 @@ export default async function PlacePage({
   if (!place) notFound();
 
   const category = getCategory(place.category);
-  const related = places
-    .filter((p) => p.category === place.category && p.slug !== place.slug)
-    .slice(0, 3);
+  // Same-category places first; if that's thin (some categories have a
+  // single place), fill with whatever is physically closest.
+  const sameCategory = places.filter(
+    (p) => p.category === place.category && p.slug !== place.slug
+  );
+  const nearest = places
+    .filter((p) => p.slug !== place.slug && p.category !== place.category)
+    .sort((a, b) => distanceKm(place, a) - distanceKm(place, b));
+  const related = [...sameCategory, ...nearest].slice(0, 3);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
@@ -162,7 +175,7 @@ export default async function PlacePage({
         </div>
       </div>
 
-      <PlaceMap place={place} />
+      <PlaceMap place={place} related={related} />
 
       {/* Related */}
       {related.length > 0 && (
