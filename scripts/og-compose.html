@@ -1,0 +1,111 @@
+<!doctype html>
+<!-- Source for public/og.jpg and public/brand/kuwait-mix.png: the one image
+     mixing Kuwait's famous places with the flag, in the site's line-art
+     style. To re-render: copy this file into out/, serve out/, screenshot
+     the <svg> at 1200x630 (deviceScaleFactor 2). The stylesheet href is the
+     built CSS bundle - update its hash after a rebuild. -->
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/_next/static/css/e6da604c4e3b2629.css">
+<style>
+  html,body{margin:0;padding:0}
+  body{width:1200px;height:630px;overflow:hidden;font-family:"IBM Plex Sans Arabic",system-ui,sans-serif}
+  svg{display:block}
+  text{font-family:"IBM Plex Sans Arabic",system-ui,sans-serif}
+</style>
+</head>
+<body>
+<svg width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fdfaf3"/>
+      <stop offset="1" stop-color="#fef0c7"/>
+    </linearGradient>
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3194d1"/>
+      <stop offset="0.55" stop-color="#1e6092"/>
+      <stop offset="1" stop-color="#132c42"/>
+    </linearGradient>
+  </defs>
+
+  <!-- sky -->
+  <rect width="1200" height="216" fill="url(#sky)"/>
+  <circle cx="400" cy="74" r="42" fill="#fccb4d" opacity="0.55"/>
+  <circle cx="400" cy="74" r="58" fill="#fccb4d" opacity="0.18"/>
+
+  <!-- وين؟ wordmark + tagline (RTL start = right) -->
+  <text x="1140" y="102" text-anchor="start" font-size="64" font-weight="700" fill="#14120f">وين<tspan fill="#dc2f25">؟</tspan></text>
+  <text x="1140" y="158" text-anchor="start" font-size="30" font-weight="700" fill="#dc2f25">وين الطلعة اليوم؟</text>
+
+  <!-- Kuwaiti flag: pole on the right of the flag, flying leftward (RTL) -->
+  <g>
+    <rect x="288" y="34" width="6" height="182" rx="3" fill="#57422a"/>
+    <circle cx="291" cy="30" r="7" fill="#57422a"/>
+    <!-- bands with a gentle wave; hoist (black trapezoid) at the pole side -->
+    <path d="M288 44 C 230 36, 170 52, 116 44 L116 66 C 170 74, 230 58, 288 66 Z" fill="#1f6f3d"/>
+    <path d="M288 66 C 230 58, 170 74, 116 66 L116 88 C 170 96, 230 80, 288 88 Z" fill="#ffffff"/>
+    <path d="M288 88 C 230 80, 170 96, 116 88 L116 110 C 170 118, 230 102, 288 110 Z" fill="#dc2f25"/>
+    <path d="M288 44 L 244 55 L 244 99 L 288 110 Z" fill="#14120f"/>
+  </g>
+
+  <!-- sea panel with the mixed skyline -->
+  <rect y="216" width="1200" height="358" fill="url(#sea)"/>
+
+  <g stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- ferris wheel (entertainment city) -->
+    <circle cx="152" cy="424" r="74" fill="#ffffff" fill-opacity="0.08"/>
+    <circle cx="152" cy="424" r="74"/>
+    <circle cx="152" cy="424" r="12" fill="#ffffff" fill-opacity="0.25"/>
+    <path d="M152 350v148M78 424h148M100 372l104 104M204 372 100 476" stroke-width="3.4"/>
+    <path d="M118 540h68l-34-58Z" fill="#ffffff" fill-opacity="0.18"/>
+
+    <!-- dallah + cup: Kuwaiti hospitality, foreground left -->
+    <path d="M300 470h44l9 62a13 13 0 0 1-13 14h-36a13 13 0 0 1-13-14Z" fill="#ffffff" fill-opacity="0.16"/>
+    <path d="M302 470l-9-18h58l-9 18"/>
+    <path d="M314 438h14M321 438v-9"/>
+    <path d="M352 488c12 3 20 9 20 18 0 8-6 13-14 16" stroke-width="4"/>
+    <path d="M255 512h32v10a16 16 0 0 1-32 0Z" fill="#ffffff" fill-opacity="0.2" stroke-width="4"/>
+
+    <!-- Grand Mosque: dome + arches + minarets -->
+    <path d="M520 316c3 22 30 33 30 60h-60c0-27 27-38 30-60Z" fill="#ffffff" fill-opacity="0.2"/>
+    <path d="M520 316v-12"/>
+    <path d="M466 546v-92a54 33 0 0 1 108 0v92"/>
+    <path d="M420 546v-44a17 17 0 0 1 34 0v44M586 546v-44a17 17 0 0 1 34 0v44" fill="#ffffff" fill-opacity="0.12"/>
+    <path d="M394 546V424"/>
+    <path d="M384 424h20l-10-26Z" fill="#ffffff" fill-opacity="0.22"/>
+    <path d="M646 546V424"/>
+    <path d="M636 424h20l-10-26Z" fill="#ffffff" fill-opacity="0.22"/>
+
+    <!-- Liberation Tower spire -->
+    <path d="M716 546l9-158M754 546l-9-158M735 388v-56"/>
+    <circle cx="735" cy="360" r="17" fill="#ffffff" fill-opacity="0.22"/>
+
+    <!-- Kuwait Towers -->
+    <path d="M836 546 852 330M900 546 884 330"/>
+    <path d="M868 258v52"/>
+    <circle cx="868" cy="342" r="40" fill="#ffffff" fill-opacity="0.22"/>
+    <circle cx="868" cy="272" r="17" fill="#ffffff" fill-opacity="0.22"/>
+    <path d="M962 546l9-118M1006 546l-9-118M983.5 402v-32"/>
+    <circle cx="983.5" cy="418" r="24" fill="#ffffff" fill-opacity="0.22"/>
+
+    <!-- palms framing -->
+    <path d="M1094 546c3-38 7-64 13-82" stroke-width="4.5"/>
+    <path d="M1107 464c-18-10-38-6-49 10 17-3 34-4 49-1Z" fill="#ffffff" fill-opacity="0.2" stroke-width="4"/>
+    <path d="M1107 464c18-11 39-7 49 8-17-3-34-3-49-1Z" fill="#ffffff" fill-opacity="0.2" stroke-width="4"/>
+    <path d="M1107 464c-8-18-25-27-45-24 15 8 29 17 39 28Z" fill="#ffffff" fill-opacity="0.2" stroke-width="4"/>
+    <path d="M1107 464c11-17 29-22 47-17-16 7-30 14-40 22Z" fill="#ffffff" fill-opacity="0.2" stroke-width="4"/>
+
+    <!-- birds -->
+    <path d="M636 262q8-8 16 0M666 246q7-7 14 0M262 300q8-8 16 0" stroke-width="3.4"/>
+
+    <!-- waves -->
+    <path d="M24 560c19 0 19 12 37 12s18-12 37-12 19 12 37 12 18-12 37-12 19 12 37 12 18-12 37-12 19 12 37 12 18-12 37-12 19 12 37 12 18-12 37-12 19 12 37 12 18-12 37-12 19 12 37 12 18-12 37-12 19 12 37 12 18-12 37-12 19 12 37 12 18-12 37-12 19 12 37 12 18-12 37-12 19 12 37 12 18-12 37-12 19 12 37 12 18-12 37-12 19 12 37 12 18-12 37-12 19 12 37 12 18-12 37-12 19 12 37 12" stroke-width="4" opacity="0.85"/>
+  </g>
+
+  <!-- green ground + site bar -->
+  <rect y="574" width="1200" height="56" fill="#1f6f3d"/>
+  <text x="600" y="611" text-anchor="middle" font-size="27" font-weight="700" fill="#ffffff" direction="ltr">www.wainkw.com</text>
+</svg>
+</body>
+</html>
