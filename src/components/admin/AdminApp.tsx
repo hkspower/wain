@@ -143,7 +143,7 @@ export default function AdminApp() {
         <div className="flex items-center gap-3">
           <WainLogo className="size-10" />
           <div>
-            <h1 className="font-display text-2xl font-extrabold text-ink-900">لوحة التحكّم</h1>
+            <h1 className="font-display text-2xl font-bold text-ink-900">لوحة التحكّم</h1>
             <p className="text-xs text-ink-500">{session.user.email}</p>
           </div>
         </div>
@@ -314,7 +314,7 @@ function Banner({
 function NotConfigured() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-20">
-      <h1 className="font-display text-2xl font-extrabold text-ink-900">لوحة التحكّم غير مفعّلة</h1>
+      <h1 className="font-display text-2xl font-bold text-ink-900">لوحة التحكّم غير مفعّلة</h1>
       <p className="mt-3 text-sm leading-relaxed text-ink-600">
         ما فيه إعداد لقاعدة البيانات في هذا البناء. الموقع يشتغل عادي من بياناته
         المدمجة، بس التحرير محتاج ربط Supabase.
@@ -339,7 +339,7 @@ function NotConfigured() {
 function NotAllowed({ email }: { email: string }) {
   return (
     <div className="mx-auto max-w-lg px-4 py-20 text-center">
-      <h1 className="font-display text-2xl font-extrabold text-ink-900">ما عندك صلاحية</h1>
+      <h1 className="font-display text-2xl font-bold text-ink-900">ما عندك صلاحية</h1>
       <p className="mt-3 text-sm leading-relaxed text-ink-600">
         دخلت باسم <strong dir="ltr">{email}</strong>، بس هذا الحساب مو مضاف في
         جدول <code dir="ltr">admins</code>.
@@ -375,7 +375,7 @@ function SignIn({ error, onError }: { error: string; onError: (s: string) => voi
     <div className="mx-auto flex min-h-[70vh] max-w-sm flex-col justify-center px-4">
       <div className="mb-6 flex flex-col items-center gap-3 text-center">
         <WainLogo className="size-14" />
-        <h1 className="font-display text-2xl font-extrabold text-ink-900">لوحة التحكّم</h1>
+        <h1 className="font-display text-2xl font-bold text-ink-900">لوحة التحكّم</h1>
       </div>
       <form onSubmit={submit} className="space-y-4 rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
         {error && (

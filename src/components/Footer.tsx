@@ -5,7 +5,7 @@ import { categories } from "@/lib/places";
 export default function Footer() {
   return (
     <footer className="mt-auto border-t border-sand-200 bg-sand-100">
-      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-12">
         <div className="grid gap-8 sm:grid-cols-3">
           {/* Brand */}
           <div>
@@ -13,7 +13,7 @@ export default function Footer() {
               <span aria-hidden="true">
                 <WainLogo className="size-9" />
               </span>
-              <span className="font-display text-xl font-extrabold text-ink-900">
+              <span className="font-display text-xl font-bold text-ink-900">
                 وين<span className="text-coral-600">؟</span>
               </span>
             </div>
@@ -25,12 +25,12 @@ export default function Footer() {
           {/* Categories */}
           <nav aria-label="التصنيفات">
             <h2 className="text-sm font-bold text-ink-800">التصنيفات</h2>
-            <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2">
+            <ul className="mt-1 grid grid-cols-2 gap-x-4">
               {categories.slice(0, 6).map((cat) => (
                 <li key={cat.id}>
                   <Link
-                    href={`/explore?category=${cat.id}`}
-                    className="text-sm text-ink-500 transition hover:text-coral-700"
+                    href={`/explore/?category=${cat.id}`}
+                    className="inline-flex min-h-11 items-center text-sm text-ink-500 transition hover:text-coral-700"
                   >
                     {cat.ar}
                   </Link>
@@ -42,19 +42,19 @@ export default function Footer() {
           {/* Links */}
           <nav aria-label="روابط">
             <h2 className="text-sm font-bold text-ink-800">روابط</h2>
-            <ul className="mt-3 space-y-2">
+            <ul className="mt-1">
               <li>
-                <Link href="/explore" className="text-sm text-ink-500 transition hover:text-coral-700">
+                <Link href="/explore" className="inline-flex min-h-11 items-center text-sm text-ink-500 transition hover:text-coral-700">
                   استكشف كل الأماكن
                 </Link>
               </li>
               <li>
-                <Link href="/about" className="text-sm text-ink-500 transition hover:text-coral-700">
+                <Link href="/about" className="inline-flex min-h-11 items-center text-sm text-ink-500 transition hover:text-coral-700">
                   عن وين
                 </Link>
               </li>
               <li>
-                <Link href="/privacy" className="text-sm text-ink-500 transition hover:text-coral-700">
+                <Link href="/privacy" className="inline-flex min-h-11 items-center text-sm text-ink-500 transition hover:text-coral-700">
                   الخصوصية والكوكيز
                 </Link>
               </li>

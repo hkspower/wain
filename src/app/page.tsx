@@ -22,11 +22,11 @@ export default function HomePage() {
       <section className="relative overflow-hidden bg-sand-50">
         <KuwaitSkyline className="pointer-events-none absolute inset-x-0 bottom-0 h-auto min-h-[210px] w-full" />
 
-        <div className="relative mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6 sm:pb-24 sm:pt-14">
+        <div className="relative mx-auto max-w-6xl px-4 pb-12 pt-8 sm:px-6 sm:pb-24 sm:pt-14">
           {/* Wordmark */}
           <div className="text-center">
             <span className="relative inline-block">
-              <h1 className="font-display text-7xl font-extrabold leading-none tracking-tight text-ink-900 sm:text-8xl">
+              <h1 className="font-display text-7xl font-bold leading-none tracking-tight text-ink-900 sm:text-8xl">
                 وين
               </h1>
               <span
@@ -50,7 +50,7 @@ export default function HomePage() {
 
       {/* ---------- Categories ---------- */}
       <section className="relative bg-sea-700">
-        <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+        <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-14">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <h2 className="flex items-center gap-2 font-display text-2xl font-bold text-white sm:text-3xl">
               <IconPinSolid className="size-6 text-sun-300" />
@@ -82,7 +82,7 @@ export default function HomePage() {
             {categories.map((cat) => (
               <li key={cat.id} className="w-28 shrink-0 snap-start sm:w-32 lg:w-auto">
                 <Link
-                  href={`/explore?category=${cat.id}`}
+                  href={`/explore/?category=${cat.id}`}
                   className="flex h-full flex-col items-center justify-center gap-2 rounded-2xl bg-white/12 p-4 text-center text-white ring-1 ring-white/20 backdrop-blur-sm transition hover:-translate-y-0.5 hover:bg-white/20"
                 >
                   <CategoryIcon name={cat.icon} />
@@ -99,7 +99,7 @@ export default function HomePage() {
 
       {/* ---------- Featured ---------- */}
       <section className="bg-sand-50">
-        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-16">
+        <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-16">
           <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="font-display text-2xl font-bold text-ink-900 sm:text-3xl">
@@ -126,7 +126,7 @@ export default function HomePage() {
 
       {/* ---------- How it works ---------- */}
       <section className="bg-sand-100">
-        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-16">
+        <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-16">
           <h2 className="text-center font-display text-2xl font-bold text-ink-900 sm:text-3xl">
             كيف يشتغل وين؟
           </h2>
@@ -169,7 +169,7 @@ export default function HomePage() {
 
       {/* ---------- CTA ---------- */}
       <section className="bg-sand-50">
-        <div className="mx-auto max-w-6xl px-4 pb-16 sm:px-6 sm:pb-20">
+        <div className="mx-auto max-w-6xl px-4 pb-12 sm:px-6 sm:pb-20">
           <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-sea-800 to-sea-600 px-6 py-14 text-center shadow-xl">
             <div
               aria-hidden="true"
@@ -179,7 +179,7 @@ export default function HomePage() {
               aria-hidden="true"
               className="pointer-events-none absolute -bottom-12 -start-10 size-56 rounded-full bg-sun-300/20 blur-2xl"
             />
-            <h2 className="font-display text-3xl font-extrabold text-white sm:text-4xl">
+            <h2 className="font-display text-3xl font-bold text-white sm:text-4xl">
               بعدك تسأل «وين نروح»؟
             </h2>
             <p className="mx-auto mt-3 max-w-md text-white">

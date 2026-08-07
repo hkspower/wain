@@ -48,9 +48,9 @@ export default function ExploreClient() {
   }, [query, category, places]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-14">
       <header className="mb-7">
-        <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink-900 sm:text-4xl">
+        <h1 className="font-display text-3xl font-bold tracking-tight text-ink-900 sm:text-4xl">
           استكشف الكويت
         </h1>
         <p className="mt-2 text-ink-500">
@@ -82,7 +82,7 @@ export default function ExploreClient() {
           type="button"
           onClick={() => setCategory("all")}
           aria-pressed={category === "all"}
-          className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition ${
+          className={`flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-bold transition ${
             category === "all"
               ? "bg-ink-900 text-white shadow-sm"
               : "border border-sand-200 bg-white text-ink-600 hover:border-sea-300 hover:text-sea-700"
@@ -97,7 +97,7 @@ export default function ExploreClient() {
             type="button"
             onClick={() => setCategory(cat.id)}
             aria-pressed={category === cat.id}
-            className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition ${
+            className={`flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-bold transition ${
               category === cat.id
                 ? "bg-ink-900 text-white shadow-sm"
                 : "border border-sand-200 bg-white text-ink-600 hover:border-sea-300 hover:text-sea-700"

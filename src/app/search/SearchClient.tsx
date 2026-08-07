@@ -89,9 +89,9 @@ export default function SearchClient() {
   useEffect(() => () => stopVoice(), []);
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-14">
+    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-14">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink-900 sm:text-4xl">
+        <h1 className="font-display text-3xl font-bold tracking-tight text-ink-900 sm:text-4xl">
           دوّر في وين
         </h1>
         <VoiceControls />
@@ -138,7 +138,7 @@ export default function SearchClient() {
                 onClick={() => setKind(f.id)}
                 aria-pressed={kind === f.id}
                 disabled={n === 0}
-                className={`rounded-full px-3.5 py-1.5 text-sm font-bold transition disabled:opacity-40 ${
+                className={`min-h-11 rounded-full px-4 text-sm font-bold transition disabled:opacity-40 ${
                   kind === f.id
                     ? "bg-ink-900 text-white"
                     : "border border-sand-200 bg-white text-ink-600 hover:border-sea-300"
@@ -161,7 +161,7 @@ export default function SearchClient() {
                   <button
                     type="button"
                     onClick={() => setQ(s)}
-                    className="rounded-full border border-sand-200 bg-white px-4 py-2 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
+                    className="flex min-h-11 items-center rounded-full border border-sand-200 bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
                   >
                     {s}
                   </button>

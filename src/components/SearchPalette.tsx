@@ -75,7 +75,7 @@ export default function SearchPalette() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="بحث"
-        className="flex items-center gap-2 rounded-full border border-sand-200 bg-white/80 px-3 py-2 text-sm font-semibold text-ink-500 transition hover:border-sea-300 hover:text-ink-700"
+        className="flex min-h-11 items-center gap-2 rounded-full border border-sand-200 bg-white/80 px-4 text-sm font-semibold text-ink-500 transition hover:border-sea-300 hover:text-ink-700"
       >
         <IconSearch className="size-4" />
         <span className="hidden sm:inline">بحث</span>

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Almarai, Cairo } from "next/font/google";
+import { IBM_Plex_Sans_Arabic } from "next/font/google";
 import AppTabBar from "@/components/AppTabBar";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -7,23 +7,21 @@ import FahadLauncher from "@/components/FahadLauncher";
 import "./globals.css";
 
 /**
- * Clean geometric Arabic face for the وين wordmark and headings — carries
- * authority without losing warmth.
+ * One family for the whole site: IBM Plex Sans Arabic.
  *
- * Keep "latin" in the subsets even though no Latin *word* is ever set in this
- * face. The Latin subset's unicode-range covers U+0000–00FF, which includes
- * the space character, so Arabic headings match it regardless. Dropping the
- * subset does not stop the download — it only stops the preload, so the same
- * bytes arrive later and block render for longer. Measured both ways.
+ * Purpose-built for interfaces (Bold Monday for IBM's design system), so its
+ * Arabic stays legible at 12px in a chip and authoritative at 40px in a
+ * headline. Hierarchy comes from weight, not from a second face clashing with
+ * the first — which is what reads "official" rather than decorative. Shipping
+ * one family instead of two also cuts a whole font download on mobile.
+ *
+ * Keep "latin" in the subsets even though no Latin *word* is ever set here.
+ * The Latin subset's unicode-range covers U+0000–00FF, which includes the
+ * space character, so Arabic text matches it regardless. Dropping the subset
+ * does not stop the download — it only stops the preload, so the same bytes
+ * arrive later and block render for longer. Measured both ways.
  */
-const display = Almarai({
-  subsets: ["arabic", "latin"],
-  weight: ["400", "700", "800"],
-  variable: "--font-display",
-});
-
-/** Highly legible Arabic body face. */
-const arabic = Cairo({
+const plex = IBM_Plex_Sans_Arabic({
   subsets: ["arabic", "latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-arabic",
@@ -77,7 +75,7 @@ export default function RootLayout({
   return (
     <html lang="ar" dir="rtl">
       <body
-        className={`${display.variable} ${arabic.variable} flex min-h-screen flex-col font-sans`}
+        className={`${plex.variable} flex min-h-screen flex-col font-sans`}
       >
         <a
           href="#main-content"

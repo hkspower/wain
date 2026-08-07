@@ -66,8 +66,19 @@
   --color-ink-800: #221f1b;
   --color-ink-900: #14120f;
 
-  --font-display: var(--font-display), system-ui, sans-serif;
+  /* One family, two roles. font-display keeps working everywhere it is
+     already used — it now selects weight, not a different typeface. */
+  --font-display: var(--font-arabic), system-ui, sans-serif;
   --font-sans: var(--font-arabic), system-ui, sans-serif;
+
+  /* Corner scale. Tailwind's defaults (xl 12 / 2xl 16 / 3xl 24) put a 24px
+     round on every card, which at a 328px mobile card reads soft and toy-like.
+     Tightened one step across the board so edges look precise while the
+     relationship between sizes stays intact. */
+  --radius-lg: 0.625rem; /* 10px — small chips */
+  --radius-xl: 0.75rem; /* 12px — buttons, inputs */
+  --radius-2xl: 0.9375rem; /* 15px — nested tiles */
+  --radius-3xl: 1.25rem; /* 20px — cards, panels */
 
   /* Tailwind's default shadows are neutral black, which turns grey and muddy
      over warm sand paper. These keep the same size scale but tint every

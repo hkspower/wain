@@ -22,7 +22,7 @@ export default function Navbar() {
         {/* Brand */}
         <Link
           href="/"
-          className="group flex shrink-0 items-center gap-2"
+          className="group flex min-h-11 shrink-0 items-center gap-2"
           aria-label="وين — الصفحة الرئيسية"
         >
           <span
@@ -31,7 +31,7 @@ export default function Navbar() {
           >
             <WainLogo className="size-10" />
           </span>
-          <span className="font-display text-2xl font-extrabold leading-none text-ink-900">
+          <span className="font-display text-2xl font-bold leading-none text-ink-900">
             وين<span className="text-coral-600">؟</span>
           </span>
         </Link>
@@ -47,7 +47,7 @@ export default function Navbar() {
                 key={link.href}
                 href={link.href}
                 aria-current={active ? "page" : undefined}
-                className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-bold transition ${
+                className={`flex min-h-11 items-center whitespace-nowrap rounded-full px-4 text-sm font-bold transition ${
                   active
                     ? "bg-ink-900 text-white shadow-sm"
                     : "text-ink-600 hover:bg-sand-100 hover:text-ink-900"

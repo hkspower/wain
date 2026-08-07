@@ -27,7 +27,7 @@ export default function VoiceControls() {
         type="button"
         onClick={() => setEnabled(!enabled)}
         aria-pressed={enabled}
-        className={`flex items-center gap-2 rounded-full px-3.5 py-2 text-sm font-bold transition ${
+        className={`flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-bold transition ${
           enabled
             ? "bg-coral-600 text-white shadow-sm hover:bg-coral-700"
             : "border border-sand-300 bg-white text-ink-600 hover:border-coral-300 hover:text-coral-700"
@@ -46,7 +46,7 @@ export default function VoiceControls() {
               onClick={() => setPersona(id)}
               aria-pressed={persona === id}
               title={PERSONAS[id].descAr}
-              className={`rounded-full px-3 py-1 text-sm font-bold transition ${
+              className={`min-h-9 rounded-full px-4 text-sm font-bold transition ${
                 persona === id
                   ? "bg-ink-900 text-white"
                   : "text-ink-600 hover:text-coral-700"

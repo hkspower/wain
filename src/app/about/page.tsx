@@ -10,8 +10,8 @@ export const metadata: Metadata = {
 
 export default function AboutPage() {
   return (
-    <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6 sm:py-16">
-      <h1 className="font-display text-3xl font-extrabold tracking-tight text-ink-900 sm:text-4xl">
+    <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-16">
+      <h1 className="font-display text-3xl font-bold tracking-tight text-ink-900 sm:text-4xl">
         وين؟ شنو هذا
       </h1>
 

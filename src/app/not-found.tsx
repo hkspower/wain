@@ -10,7 +10,7 @@ export default function NotFound() {
       >
         <IconCompass className="size-12" />
       </span>
-      <h1 className="mt-6 font-display text-3xl font-extrabold text-ink-900 sm:text-4xl">
+      <h1 className="mt-6 font-display text-3xl font-bold text-ink-900 sm:text-4xl">
         وين رايح؟
       </h1>
       <p className="mt-3 text-ink-500">
