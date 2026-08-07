@@ -1,5 +1,5 @@
 import VoiceControls, { SpeakButton } from "@/components/VoiceControls";
-import { IconMap, IconGo } from "@/components/icons";
+import { IconMap, IconGo, IconPinSolid } from "@/components/icons";
 import type { Place } from "@/lib/places";
 import { placeSuggestParts } from "@/lib/voice-lines";
 
@@ -37,12 +37,26 @@ export default function PlaceMap({
         وينه بالضبط؟
       </h2>
       <div className="overflow-hidden rounded-3xl border border-sand-200 bg-white shadow-sm">
-        <iframe
-          src={embed}
-          title={`خريطة ${place.nameAr}`}
-          loading="lazy"
-          className="block h-72 w-full border-0 sm:h-96"
-        />
+        {/* The iframe is transparent until OpenStreetMap paints, so give it a
+            deliberate ground: a soft sand field with a pin, instead of a
+            stark white void while tiles load. */}
+        <div className="relative h-72 w-full bg-sand-100 sm:h-96">
+          <span
+            aria-hidden="true"
+            className="absolute inset-0 grid place-items-center text-sand-400"
+          >
+            <span className="flex flex-col items-center gap-2">
+              <IconPinSolid className="size-10" />
+              <span className="text-xs font-semibold">الخريطة تحمّل…</span>
+            </span>
+          </span>
+          <iframe
+            src={embed}
+            title={`خريطة ${place.nameAr}`}
+            loading="lazy"
+            className="absolute inset-0 block h-full w-full border-0"
+          />
+        </div>
         <div className="flex flex-wrap items-center gap-3 border-t border-sand-200 p-4">
           <a
             href={gmapsPoi}
