@@ -277,6 +277,18 @@ export function IconCoins(props: IconProps) {
   );
 }
 
+export function IconHome(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path
+        {...DUO}
+        d="M4.5 10.2 12 4l7.5 6.2V19a1 1 0 0 1-1 1h-4.6v-5.4H10V20H5.5a1 1 0 0 1-1-1v-8.8Z"
+      />
+      <path d="M4.5 10.2 12 4l7.5 6.2V19a1 1 0 0 1-1 1h-4.6v-5.4H10V20H5.5a1 1 0 0 1-1-1v-8.8Z" />
+    </svg>
+  );
+}
+
 export function IconSpeaker(props: IconProps) {
   return (
     <svg {...base(props)}>

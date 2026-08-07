@@ -89,7 +89,7 @@ export default function FahadLauncher() {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-controls="fahad-panel"
-        className="fixed bottom-5 start-5 z-50 flex items-center gap-2.5 rounded-full bg-gradient-to-b from-coral-500 to-coral-700 py-3 pe-5 ps-4 text-white shadow-xl shadow-coral-700/30 transition duration-300 hover:-translate-y-0.5 hover:shadow-2xl active:scale-[0.97]"
+        className="fahad-launcher fixed bottom-5 start-5 z-50 flex items-center gap-2.5 rounded-full bg-gradient-to-b from-coral-500 to-coral-700 py-3 pe-5 ps-4 text-white shadow-xl shadow-coral-700/30 transition duration-300 hover:-translate-y-0.5 hover:shadow-2xl active:scale-[0.97]"
       >
         <span className="relative grid size-8 place-items-center rounded-full bg-white/20">
           <FahadMark className="size-5" />

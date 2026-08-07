@@ -25,24 +25,11 @@ export default function CategoryArt({
   );
 }
 
-function Dots() {
-  return (
-    <g fill="#ffffff" opacity="0.14">
-      {Array.from({ length: 6 }).map((_, r) =>
-        Array.from({ length: 14 }).map((__, c) => (
-          <circle key={`${r}-${c}`} cx={16 + c * 28 + (r % 2) * 14} cy={14 + r * 26} r="1.6" />
-        ))
-      )}
-    </g>
-  );
-}
-
 function Scene({ category }: { category: CategoryId }) {
   switch (category) {
     case "landmarks":
       return (
         <g stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none">
-          <Dots />
           <circle cx="330" cy="42" r="24" fill="#ffffff" opacity="0.25" stroke="none" />
           {/* main tower */}
           <path d="M186 160 194 66M214 160 206 66" />
@@ -63,7 +50,6 @@ function Scene({ category }: { category: CategoryId }) {
     case "restaurants":
       return (
         <g stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none">
-          <Dots />
           {/* cloche */}
           <path d="M130 96a70 42 0 0 1 140 0Z" fill="#ffffff" fillOpacity="0.2" />
           <path d="M196 50c0-4 3-7 4-7s4 3 4 7" />
@@ -79,7 +65,6 @@ function Scene({ category }: { category: CategoryId }) {
     case "fastfood":
       return (
         <g stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none">
-          <Dots />
           {/* burger */}
           <path d="M142 74c0-18 26-30 58-30s58 12 58 30Z" fill="#ffffff" fillOpacity="0.2" />
           <path d="M136 88h128" strokeWidth="4.5" />
@@ -96,7 +81,6 @@ function Scene({ category }: { category: CategoryId }) {
     case "coffee":
       return (
         <g stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none">
-          <Dots />
           {/* dallah */}
           <path
             d="M182 62h36l8 56a12 12 0 0 1-12 14h-28a12 12 0 0 1-12-14Z"
@@ -118,7 +102,6 @@ function Scene({ category }: { category: CategoryId }) {
     case "outdoors":
       return (
         <g stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none">
-          <Dots />
           <circle cx="300" cy="44" r="22" fill="#ffffff" fillOpacity="0.25" />
           <path d="M300 10v-2M300 80v-2M266 44h-2M336 44h-2M276 20l-1.5-1.5M325.5 68.5 324 67M324 20l1.5-1.5M274.5 68.5 276 67" strokeWidth="2.6" />
           {/* palm */}
@@ -135,7 +118,6 @@ function Scene({ category }: { category: CategoryId }) {
     case "shopping":
       return (
         <g stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none">
-          <Dots />
           {/* big bag */}
           <path d="M156 66h88l7 62a10 10 0 0 1-10 11h-82a10 10 0 0 1-10-11Z" fill="#ffffff" fillOpacity="0.18" />
           <path d="M178 82V56a22 22 0 0 1 44 0v26" />
@@ -150,7 +132,6 @@ function Scene({ category }: { category: CategoryId }) {
     case "culture":
       return (
         <g stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none">
-          <Dots />
           {/* dome */}
           <path d="M200 26c2 16 22 24 22 44H178c0-20 20-28 22-44Z" fill="#ffffff" fillOpacity="0.2" />
           <path d="M200 26v-8" />
@@ -167,7 +148,6 @@ function Scene({ category }: { category: CategoryId }) {
     case "family":
       return (
         <g stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none">
-          <Dots />
           {/* ferris wheel */}
           <circle cx="200" cy="76" r="52" fill="#ffffff" fillOpacity="0.08" />
           <circle cx="200" cy="76" r="52" />
@@ -180,6 +160,6 @@ function Scene({ category }: { category: CategoryId }) {
         </g>
       );
     default:
-      return <Dots />;
+      return null;
   }
 }

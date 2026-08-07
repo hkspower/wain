@@ -35,7 +35,6 @@ export interface SearchDoc {
   /** Extra terms that should match but are not shown. */
   keywords: string[];
   body: string;
-  emoji?: string;
 }
 
 export interface SearchHit {
@@ -169,7 +168,6 @@ export function buildDocs(list: Place[] = snapshot): SearchDoc[] {
       subtitle: `${cat?.ar ?? ""}، ${p.areaAr}`,
       url: `/places/${p.slug}/`,
       category: p.category,
-      emoji: p.emoji,
       keywords: [p.name, p.area, cat?.ar ?? "", cat?.en ?? "", ...p.highlightsAr],
       body: `${p.taglineAr} ${p.descriptionAr} ${p.bestTimeAr}`,
     };

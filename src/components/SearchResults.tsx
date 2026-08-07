@@ -40,14 +40,12 @@ function Marked({ text, matched }: { text: string; matched: string[] }) {
 function Thumb({ hit }: { hit: SearchHit }) {
   const { doc } = hit;
   if (doc.kind === "place" && doc.category) {
-    const cat = getCategory(doc.category);
     return (
       <span
         aria-hidden="true"
-        className="grid size-11 shrink-0 place-items-center rounded-xl bg-sand-100 text-xl"
+        className="grid size-11 shrink-0 place-items-center rounded-xl bg-coral-50 text-coral-700"
       >
-        {doc.emoji ?? "📍"}
-        <span className="sr-only">{cat?.ar}</span>
+        <CategoryIcon name={getCategory(doc.category)?.icon ?? "all"} className="size-6" />
       </span>
     );
   }

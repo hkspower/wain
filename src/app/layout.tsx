@@ -1,12 +1,14 @@
 import type { Metadata, Viewport } from "next";
-import { Baloo_Bhaijaan_2, Cairo } from "next/font/google";
+import { Almarai, Cairo } from "next/font/google";
+import AppTabBar from "@/components/AppTabBar";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import FahadLauncher from "@/components/FahadLauncher";
 import "./globals.css";
 
 /**
- * Rounded, friendly Kufi-ish face for the وين wordmark and headings.
+ * Clean geometric Arabic face for the وين wordmark and headings — carries
+ * authority without losing warmth.
  *
  * Keep "latin" in the subsets even though no Latin *word* is ever set in this
  * face. The Latin subset's unicode-range covers U+0000–00FF, which includes
@@ -14,9 +16,9 @@ import "./globals.css";
  * subset does not stop the download — it only stops the preload, so the same
  * bytes arrive later and block render for longer. Measured both ways.
  */
-const display = Baloo_Bhaijaan_2({
+const display = Almarai({
   subsets: ["arabic", "latin"],
-  weight: ["500", "600", "700", "800"],
+  weight: ["400", "700", "800"],
   variable: "--font-display",
 });
 
@@ -89,6 +91,7 @@ export default function RootLayout({
         </main>
         <Footer />
         <FahadLauncher />
+        <AppTabBar />
       </body>
     </html>
   );

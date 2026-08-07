@@ -4,11 +4,25 @@ export const dynamic = "force-static";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: "/",
     name: "وين؟ — وين الطلعة اليوم؟",
     short_name: "وين؟",
     description: "أقرب الأماكن حواليك في الكويت.",
     start_url: "/",
+    scope: "/",
     display: "standalone",
+    shortcuts: [
+      {
+        name: "استكشف الأماكن",
+        url: "/explore/",
+        icons: [{ src: "/brand/app-icon-192.png", sizes: "192x192", type: "image/png" }],
+      },
+      {
+        name: "بحث",
+        url: "/search/",
+        icons: [{ src: "/brand/app-icon-192.png", sizes: "192x192", type: "image/png" }],
+      },
+    ],
     background_color: "#fdfaf3",
     theme_color: "#fdfaf3",
     lang: "ar",

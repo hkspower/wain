@@ -39,7 +39,7 @@ export default function Navbar() {
         {/* Links */}
         <div className="flex shrink-0 items-center gap-2">
           <SearchPalette />
-          <div className="flex items-center gap-1 rounded-full bg-white/70 p-1 ring-1 ring-sand-200/80 backdrop-blur">
+          <div className="standalone-hidden flex items-center gap-1 rounded-full bg-white/70 p-1 ring-1 ring-sand-200/80 backdrop-blur">
           {links.map((link) => {
             const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
             return (
