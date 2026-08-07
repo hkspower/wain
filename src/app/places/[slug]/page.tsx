@@ -72,7 +72,7 @@ export default async function PlacePage({
   const related = [...sameCategory, ...nearest].slice(0, 3);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
+    <div className="mx-auto max-w-4xl px-4 py-8 standalone:px-3 standalone:py-4 sm:px-6 sm:py-12">
       {/* Breadcrumb */}
       <nav className="mb-5 text-sm text-ink-500" aria-label="مسار التنقّل">
         <Link href="/explore" className="transition hover:text-coral-700">
@@ -88,7 +88,7 @@ export default async function PlacePage({
 
       {/* Hero */}
       <div
-        className={`relative flex h-56 items-center justify-center overflow-hidden rounded-3xl shadow-lg sm:h-64 ${placeGradient(place)}`}
+        className={`relative flex h-56 items-center justify-center overflow-hidden rounded-3xl shadow-lg standalone:h-40 sm:h-64 ${placeGradient(place)}`}
       >
         <CategoryArt
           category={place.category}
@@ -149,8 +149,8 @@ export default async function PlacePage({
       <p className="mt-6 text-lg leading-relaxed text-ink-600">{place.descriptionAr}</p>
 
       {/* Details */}
-      <div className="mt-9 grid gap-4 sm:grid-cols-2">
-        <div className="rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
+      <div className="mt-9 grid gap-4 standalone:mt-5 standalone:gap-3 sm:grid-cols-2">
+        <div className="rounded-3xl border border-sand-200 bg-white p-6 shadow-sm standalone:p-4">
           <h2 className="flex items-center gap-2 font-display text-lg font-bold text-ink-900">
             <IconSparkle className="size-5 text-sun-600" />
             أبرز ما فيه
@@ -165,7 +165,7 @@ export default async function PlacePage({
           </ul>
         </div>
 
-        <div className="rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
+        <div className="rounded-3xl border border-sand-200 bg-white p-6 shadow-sm standalone:p-4">
           <h2 className="flex items-center gap-2 font-display text-lg font-bold text-ink-900">
             <IconClock className="size-5 text-sea-600" />
             أحسن وقت للزيارة
@@ -188,7 +188,7 @@ export default async function PlacePage({
           <h2 className="mb-5 font-display text-2xl font-bold text-ink-900">
             أماكن مشابهة
           </h2>
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-5 standalone:gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {related.map((p) => (
               <PlaceCard key={p.slug} place={p} />
             ))}

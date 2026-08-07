@@ -1,13 +1,22 @@
 @import "tailwindcss";
 
+/* `standalone:` applies only in the installed app (home-screen launch), never
+   in a browser tab. It carries the compact app theme: tighter gutters, denser
+   cards, smaller headings — the website's own spacing is untouched. */
+@custom-variant standalone (@media (display-mode: standalone));
+
 @theme {
-  /* Warm desert paper — the base canvas of the whole site.
-     sand-200 doubles as the sitewide border colour, so it sits deep enough
-     to draw a clean edge on a white card instead of dissolving into it. */
-  --color-sand-50: #fdfaf3;
-  --color-sand-100: #faf4e6;
-  --color-sand-200: #f0e3c5;
-  --color-sand-300: #ead9b2;
+  /* The ramp splits in two.
+     50-300 are SURFACES — page canvas, panels, borders. They are white and
+     near-neutral (a trace of warmth keeps them from going clinical blue-grey,
+     but there is no beige cast). Cards are white on white, so sand-200 is
+     the border that defines them and has to stay clearly visible.
+     400-900 are BRAND — the coffee category's gradient and warm text
+     accents — and stay warm on purpose. */
+  --color-sand-50: #ffffff;
+  --color-sand-100: #f6f5f3;
+  --color-sand-200: #e6e4e0;
+  --color-sand-300: #d4d1cb;
   --color-sand-400: #dcc287;
   --color-sand-500: #c9a55f;
   --color-sand-600: #ad8544;

@@ -5,8 +5,8 @@ import { categories } from "@/lib/places";
 export default function Footer() {
   return (
     <footer className="mt-auto border-t border-sand-200 bg-sand-100">
-      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-12">
-        <div className="grid gap-8 sm:grid-cols-3">
+      <div className="mx-auto max-w-6xl px-4 py-10 standalone:px-3 standalone:py-5 sm:px-6 sm:py-12">
+        <div className="grid gap-8 standalone:gap-4 sm:grid-cols-3">
           {/* Brand */}
           <div>
             <div className="flex items-center gap-2">
@@ -23,7 +23,7 @@ export default function Footer() {
           </div>
 
           {/* Categories */}
-          <nav aria-label="التصنيفات">
+          <nav aria-label="التصنيفات" className="standalone:hidden">
             <h2 className="text-sm font-bold text-ink-800">التصنيفات</h2>
             <ul className="mt-1 grid grid-cols-2 gap-x-4">
               {categories.slice(0, 6).map((cat) => (
@@ -40,7 +40,7 @@ export default function Footer() {
           </nav>
 
           {/* Links */}
-          <nav aria-label="روابط">
+          <nav aria-label="روابط" className="standalone:hidden">
             <h2 className="text-sm font-bold text-ink-800">روابط</h2>
             <ul className="mt-1">
               <li>

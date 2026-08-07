@@ -23,8 +23,8 @@ export default function manifest(): MetadataRoute.Manifest {
         icons: [{ src: "/brand/app-icon-192.png", sizes: "192x192", type: "image/png" }],
       },
     ],
-    background_color: "#fdfaf3",
-    theme_color: "#fdfaf3",
+    background_color: "#ffffff",
+    theme_color: "#ffffff",
     lang: "ar",
     dir: "rtl",
     icons: [

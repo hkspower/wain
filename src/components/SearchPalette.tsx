@@ -79,7 +79,7 @@ export default function SearchPalette() {
       >
         <IconSearch className="size-4" />
         <span className="hidden sm:inline">بحث</span>
-        <kbd className="hidden rounded border border-sand-300 bg-sand-50 px-1.5 text-[10px] font-semibold text-ink-500 lg:inline" dir="ltr">
+        <kbd className="hidden rounded border border-sand-300 bg-sand-100 px-1.5 text-[10px] font-semibold text-ink-500 lg:inline" dir="ltr">
           ⌘K
         </kbd>
       </button>
@@ -132,7 +132,7 @@ export default function SearchPalette() {
                   close();
                   router.push(`/search?q=${encodeURIComponent(q.trim())}`);
                 }}
-                className="block w-full border-t border-sand-200 bg-sand-50 px-4 py-3 text-center text-sm font-bold text-ink-700 transition hover:bg-sand-100"
+                className="block w-full border-t border-sand-200 bg-sand-100 px-4 py-3 text-center text-sm font-bold text-ink-700 transition hover:bg-sand-200"
               >
                 شوف كل النتائج
               </button>

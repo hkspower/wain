@@ -15,7 +15,7 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
     >
       <defs>
         <linearGradient id="wain-sky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#fdfaf3" />
+          <stop offset="0%" stopColor="#ffffff" />
           <stop offset="45%" stopColor="#fbeed6" />
           <stop offset="100%" stopColor="#f6dfb4" />
         </linearGradient>
@@ -214,7 +214,7 @@ export default function KuwaitSkyline({ className = "" }: { className?: string }
         <rect x="-2" y="0" width="4" height="72" rx="2" fill="#8b6836" />
         <g>
           <rect x="2" y="2" width="54" height="10" fill="#2f8a4e" />
-          <rect x="2" y="12" width="54" height="10" fill="#fdfaf3" />
+          <rect x="2" y="12" width="54" height="10" fill="#ffffff" />
           <rect x="2" y="22" width="54" height="10" fill="#dc2f25" />
           <path d="M2 2 L22 12 L22 22 L2 32 Z" fill="#14120f" />
         </g>

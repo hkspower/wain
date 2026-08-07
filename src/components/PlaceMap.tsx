@@ -31,7 +31,7 @@ export default function PlaceMap({
   const gmapsDirections = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
 
   return (
-    <section className="mt-9">
+    <section className="mt-9 standalone:mt-5">
       <h2 className="mb-4 flex items-center gap-2 font-display text-2xl font-bold text-ink-900">
         <IconMap className="size-6 text-sea-600" />
         وينه بالضبط؟
@@ -40,7 +40,7 @@ export default function PlaceMap({
         {/* The iframe is transparent until OpenStreetMap paints, so give it a
             deliberate ground: a soft sand field with a pin, instead of a
             stark white void while tiles load. */}
-        <div className="relative h-72 w-full bg-sand-100 sm:h-96">
+        <div className="relative h-72 w-full bg-sand-100 standalone:h-52 sm:h-96">
           <span
             aria-hidden="true"
             className="absolute inset-0 grid place-items-center text-sand-700"
@@ -87,7 +87,7 @@ export default function PlaceMap({
         </div>
 
         {/* صوت وين — spoken suggestion for this spot and what's around it */}
-        <div className="flex flex-wrap items-center gap-3 border-t border-sand-200 bg-sand-50/60 p-4">
+        <div className="flex flex-wrap items-center gap-3 border-t border-sand-200 bg-sand-100 p-4">
           <SpeakButton parts={suggestParts} label="اسمع الاقتراح" />
           <VoiceControls />
         </div>

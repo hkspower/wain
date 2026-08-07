@@ -48,7 +48,7 @@ export default function ExploreClient() {
   }, [query, category, places]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-14">
+    <div className="mx-auto max-w-6xl px-4 py-8 standalone:px-3 standalone:py-4 sm:px-6 sm:py-14">
       <header className="mb-7">
         <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
           استكشف الكويت
@@ -115,14 +115,14 @@ export default function ExploreClient() {
           <h2 className="mb-4 text-sm font-medium text-ink-500">
             {countAr(filtered.length, RESULTS_COUNT)}
           </h2>
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-5 standalone:gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((place) => (
               <PlaceCard key={place.slug} place={place} />
             ))}
           </div>
         </>
       ) : (
-        <div className="rounded-3xl border border-dashed border-sand-300 bg-white/60 py-20 text-center">
+        <div className="rounded-3xl border border-dashed border-sand-300 bg-sand-100/70 py-20 text-center">
           <span className="mx-auto grid size-16 place-items-center rounded-3xl bg-sand-100 text-sand-600" aria-hidden="true">
             <IconCompass className="size-9" />
           </span>

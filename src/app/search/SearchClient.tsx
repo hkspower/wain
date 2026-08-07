@@ -89,7 +89,7 @@ export default function SearchClient() {
   useEffect(() => () => stopVoice(), []);
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-14">
+    <div className="mx-auto max-w-3xl px-4 py-8 standalone:px-3 standalone:py-4 sm:px-6 sm:py-14">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
           دوّر في وين
@@ -177,7 +177,7 @@ export default function SearchClient() {
             <SearchResults hits={hits} />
           </>
         ) : (
-          <div className="rounded-3xl border border-dashed border-sand-300 bg-white/60 py-16 text-center">
+          <div className="rounded-3xl border border-dashed border-sand-300 bg-sand-100/70 py-16 text-center">
             <span
               aria-hidden="true"
               className="mx-auto grid size-16 place-items-center rounded-3xl bg-sand-100 text-sand-600"

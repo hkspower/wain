@@ -186,7 +186,7 @@ export default function NearbyDial() {
               <li key={p.slug}>
                 <Link
                   href={`/places/${p.slug}`}
-                  className="flex items-center gap-3 rounded-2xl border border-transparent p-2.5 transition hover:border-sand-200 hover:bg-sand-50"
+                  className="flex items-center gap-3 rounded-2xl border border-transparent p-2.5 transition hover:border-sand-200 hover:bg-sand-100"
                 >
                   <span
                     aria-hidden="true"

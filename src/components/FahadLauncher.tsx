@@ -139,7 +139,7 @@ export default function FahadLauncher() {
             <p className="text-sm leading-relaxed text-ink-600">{FAHAD_COPY.greeting}</p>
             <p className="mt-2 text-xs leading-relaxed text-ink-500">{FAHAD_COPY.hint}</p>
 
-            <div className="mt-4 min-h-24 rounded-2xl bg-sand-50 p-3">
+            <div className="mt-4 min-h-24 rounded-2xl bg-sand-100 p-3">
               {failed ? (
                 <p className="py-4 text-center text-sm font-semibold text-ink-600">
                   ما قدرنا نشغّل فهد الحين — جرّب مرة ثانية بعدين.

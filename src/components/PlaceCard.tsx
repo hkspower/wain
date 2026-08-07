@@ -11,7 +11,7 @@ export default function PlaceCard({ place }: { place: Place }) {
       href={`/places/${place.slug}`}
       className="group flex flex-col overflow-hidden rounded-3xl border border-sand-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-sand-300 hover:shadow-xl hover:shadow-ink-900/10"
     >
-      <div className={`relative h-36 overflow-hidden ${placeGradient(place)}`}>
+      <div className={`relative h-36 overflow-hidden standalone:h-24 ${placeGradient(place)}`}>
         <CategoryArt
           category={place.category}
           variant={placeVariant(place.slug)}
@@ -26,7 +26,7 @@ export default function PlaceCard({ place }: { place: Place }) {
         </span>
       </div>
 
-      <div className="flex flex-1 flex-col p-4">
+      <div className="flex flex-1 flex-col p-4 standalone:p-3">
         <div className="flex items-start justify-between gap-3">
           <h3 className="font-display text-lg font-bold leading-snug text-ink-900 transition group-hover:text-coral-700">
             {place.nameAr}

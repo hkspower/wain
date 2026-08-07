@@ -90,7 +90,7 @@ export default function SearchResults({
             className={`group flex items-center gap-3 rounded-2xl border p-3 transition ${
               i === activeIndex
                 ? "border-sea-300 bg-sea-50/60 ring-2 ring-sea-100"
-                : "border-sand-200 bg-white hover:border-sand-300 hover:bg-sand-50"
+                : "border-sand-200 bg-white hover:border-sand-300 hover:bg-sand-100"
             }`}
           >
             <Thumb hit={hit} />
