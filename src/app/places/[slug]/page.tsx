@@ -3,12 +3,12 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import CategoryArt from "@/components/CategoryArt";
 import PlaceCard from "@/components/PlaceCard";
+import PlaceMap from "@/components/PlaceMap";
 import {
   IconBack,
   IconCheck,
   IconClock,
   IconCoins,
-  IconMap,
   IconPinSolid,
   IconSparkle,
   IconStar,
@@ -159,18 +159,10 @@ export default async function PlacePage({
             مستوى الأسعار
           </h2>
           <p className="mt-2.5 text-sm text-ink-600">{priceLabel[place.priceLevel]}</p>
-
-          <a
-            href={`https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-sea-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-sea-700"
-          >
-            <IconMap className="size-4" />
-            افتح في الخرائط
-          </a>
         </div>
       </div>
+
+      <PlaceMap place={place} />
 
       {/* Related */}
       {related.length > 0 && (
