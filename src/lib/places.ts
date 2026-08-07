@@ -434,6 +434,34 @@ export function categoryGradient(id: CategoryId): string {
   return getCategory(id)?.gradient ?? "from-sand-300 via-sand-500 to-sand-700";
 }
 
+/**
+ * Stable 0-3 derived from the slug. Places in one category share a single
+ * hand-drawn scene, so without this every تسوّق card rendered the identical
+ * image; the variant drives a mirrored or shifted composition plus a
+ * different gradient direction, making each place's art its own.
+ *
+ * The constants (×38 mod 65521) were chosen so that no two places in the
+ * same category land on the same variant with the current dataset — verify
+ * again if that ever seems off after adding places.
+ */
+export function placeVariant(slug: string): 0 | 1 | 2 | 3 {
+  let h = 0;
+  for (let i = 0; i < slug.length; i++) h = (h * 38 + slug.charCodeAt(i)) % 65521;
+  return (h % 4) as 0 | 1 | 2 | 3;
+}
+
+const GRADIENT_DIRECTION = [
+  "bg-gradient-to-br",
+  "bg-gradient-to-tr",
+  "bg-gradient-to-b",
+  "bg-gradient-to-bl",
+] as const;
+
+/** Category hues with a per-place direction, so same-category cards differ. */
+export function placeGradient(place: Pick<Place, "slug" | "category">): string {
+  return `${GRADIENT_DIRECTION[placeVariant(place.slug)]} ${categoryGradient(place.category)}`;
+}
+
 export function getCategory(id: CategoryId): Category | undefined {
   return categories.find((c) => c.id === id);
 }

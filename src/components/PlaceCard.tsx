@@ -1,7 +1,7 @@
 import Link from "next/link";
 import CategoryArt from "@/components/CategoryArt";
 import { IconGo, IconPinSolid, IconStar } from "@/components/icons";
-import { categoryGradient, getCategory, toArabicDigits, type Place } from "@/lib/places";
+import { getCategory, placeGradient, placeVariant, toArabicDigits, type Place } from "@/lib/places";
 
 export default function PlaceCard({ place }: { place: Place }) {
   const category = getCategory(place.category);
@@ -11,11 +11,10 @@ export default function PlaceCard({ place }: { place: Place }) {
       href={`/places/${place.slug}`}
       className="group flex flex-col overflow-hidden rounded-3xl border border-sand-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-sand-300 hover:shadow-xl hover:shadow-ink-900/10"
     >
-      <div
-        className={`relative h-36 overflow-hidden bg-gradient-to-br ${categoryGradient(place.category)}`}
-      >
+      <div className={`relative h-36 overflow-hidden ${placeGradient(place)}`}>
         <CategoryArt
           category={place.category}
+          variant={placeVariant(place.slug)}
           className="absolute inset-0 h-full w-full transition duration-500 group-hover:scale-105"
         />
         <span

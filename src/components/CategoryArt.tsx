@@ -1,15 +1,30 @@
 import type { CategoryId } from "@/lib/places";
 
 /**
+ * Composition per variant, so places sharing a category's scene still get
+ * their own image: as drawn, mirrored, panned, or mirrored-and-panned.
+ * Pure transforms — the scenes contain no text, so mirroring is safe.
+ */
+const VARIANT_TRANSFORM = [
+  undefined,
+  "translate(400 0) scale(-1 1)",
+  "translate(-26 0)",
+  "translate(426 0) scale(-1 1)",
+] as const;
+
+/**
  * Illustrated header art for place cards and detail heroes.
  * One hand-drawn duotone scene per category, rendered in white over the
  * category's brand gradient — vector, so it stays sharp at any density.
+ * `variant` (from placeVariant) recomposes the scene per place.
  */
 export default function CategoryArt({
   category,
+  variant = 0,
   className = "",
 }: {
   category: CategoryId;
+  variant?: 0 | 1 | 2 | 3;
   className?: string;
 }) {
   return (
@@ -20,7 +35,9 @@ export default function CategoryArt({
       aria-hidden="true"
       focusable="false"
     >
-      <Scene category={category} />
+      <g transform={VARIANT_TRANSFORM[variant]}>
+        <Scene category={category} />
+      </g>
     </svg>
   );
 }

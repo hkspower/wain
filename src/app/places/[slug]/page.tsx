@@ -14,11 +14,12 @@ import {
   IconStar,
 } from "@/components/icons";
 import {
-  categoryGradient,
   distanceKm,
   getCategory,
   getPlace,
+  placeGradient,
   places,
+  placeVariant,
   toArabicDigits,
 } from "@/lib/places";
 
@@ -87,9 +88,13 @@ export default async function PlacePage({
 
       {/* Hero */}
       <div
-        className={`relative flex h-56 items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br shadow-lg sm:h-64 ${categoryGradient(place.category)}`}
+        className={`relative flex h-56 items-center justify-center overflow-hidden rounded-3xl shadow-lg sm:h-64 ${placeGradient(place)}`}
       >
-        <CategoryArt category={place.category} className="absolute inset-0 h-full w-full" />
+        <CategoryArt
+          category={place.category}
+          variant={placeVariant(place.slug)}
+          className="absolute inset-0 h-full w-full"
+        />
         <span
           className="absolute start-4 top-4 flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-sm font-bold text-ink-800 shadow-sm backdrop-blur"
           aria-label={`التقييم ${place.rating} من ٥`}
