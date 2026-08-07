@@ -26,7 +26,7 @@ export default function HomePage() {
           {/* Wordmark */}
           <div className="text-center">
             <span className="relative inline-block">
-              <h1 className="font-display text-7xl font-bold leading-none tracking-tight text-ink-900 sm:text-8xl">
+              <h1 className="font-display text-7xl font-bold leading-none text-ink-900 sm:text-8xl">
                 وين
               </h1>
               <span
@@ -158,7 +158,7 @@ export default function HomePage() {
                 <span className="absolute -top-5 start-6 grid size-11 place-items-center rounded-2xl bg-gradient-to-b from-coral-500 to-coral-700 text-white shadow-md shadow-coral-600/30 transition duration-300 group-hover:scale-105">
                   {step.icon}
                 </span>
-                <span className="font-display text-sm font-bold text-sand-500">{step.n}</span>
+                <span className="font-display text-sm font-bold text-sand-700">{step.n}</span>
                 <h3 className="mt-1 font-display text-lg font-bold text-ink-900">{step.title}</h3>
                 <p className="mt-1.5 text-sm leading-relaxed text-ink-500">{step.text}</p>
               </div>

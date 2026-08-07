@@ -158,7 +158,7 @@ export default function NearbyDial() {
                 : "أقرب الأماكن لك"}
             </p>
             {origin ? (
-              <span className="flex items-center gap-1 rounded-full bg-palm-500/10 px-2.5 py-1 text-xs font-bold text-palm-600">
+              <span className="flex items-center gap-1 rounded-full bg-palm-500/10 px-2.5 py-1 text-xs font-semibold text-palm-600">
                 <IconPinSolid className="size-3.5" />
                 من موقعك
               </span>
@@ -167,7 +167,7 @@ export default function NearbyDial() {
                 type="button"
                 onClick={useMyLocation}
                 disabled={locating}
-                className="flex items-center gap-1.5 rounded-full bg-sea-700 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-sea-800 disabled:opacity-70"
+                className="flex items-center gap-1.5 rounded-full bg-sea-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-sea-800 disabled:opacity-70"
               >
                 <IconLocate className="size-3.5" />
                 {locating ? "نحدّد موقعك…" : "استخدم موقعي"}
@@ -198,7 +198,7 @@ export default function NearbyDial() {
                     <span className="block truncate font-bold text-ink-900">{p.nameAr}</span>
                     <span className="block truncate text-xs text-ink-500">{p.areaAr}</span>
                   </span>
-                  <span className="shrink-0 rounded-full bg-sea-50 px-2.5 py-1 text-xs font-bold text-sea-700">
+                  <span className="shrink-0 rounded-full bg-sea-50 px-2.5 py-1 text-xs font-semibold text-sea-700">
                     {toArabicDigits(p.km.toFixed(1))} كم
                   </span>
                 </Link>

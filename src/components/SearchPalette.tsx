@@ -79,7 +79,7 @@ export default function SearchPalette() {
       >
         <IconSearch className="size-4" />
         <span className="hidden sm:inline">بحث</span>
-        <kbd className="hidden rounded border border-sand-300 bg-sand-50 px-1.5 text-[10px] font-bold text-ink-500 lg:inline" dir="ltr">
+        <kbd className="hidden rounded border border-sand-300 bg-sand-50 px-1.5 text-[10px] font-semibold text-ink-500 lg:inline" dir="ltr">
           ⌘K
         </kbd>
       </button>

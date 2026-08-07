@@ -50,7 +50,7 @@ export default function ExploreClient() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-14">
       <header className="mb-7">
-        <h1 className="font-display text-3xl font-bold tracking-tight text-ink-900 sm:text-4xl">
+        <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
           استكشف الكويت
         </h1>
         <p className="mt-2 text-ink-500">

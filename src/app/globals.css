@@ -59,8 +59,13 @@
   --color-palm-700: #1b5832;
   --color-palm-800: #17462a;
 
-  /* Ink — warm near-black for Arabic text */
-  --color-ink-500: #6b6357;
+  /* Ink — warm near-black for Arabic text.
+     ink-500 carries most secondary copy (taglines, descriptions, metadata),
+     so it is set dark enough to clear WCAG AAA (7:1) on sand-50, sand-100
+     and white rather than only AA. ink-400 keeps the old, lighter value for
+     genuinely tertiary marks that shouldn't compete with body text. */
+  --color-ink-400: #6b6357;
+  --color-ink-500: #585044;
   --color-ink-600: #4e483f;
   --color-ink-700: #35302a;
   --color-ink-800: #221f1b;
@@ -70,6 +75,18 @@
      already used — it now selects weight, not a different typeface. */
   --font-display: var(--font-arabic), system-ui, sans-serif;
   --font-sans: var(--font-arabic), system-ui, sans-serif;
+
+  /* Line height for the display sizes. Tailwind's defaults are tuned for
+     Latin (text-4xl ships 1.11), which is too tight for Arabic: the script
+     has deep descenders (ج ح خ ع م ن ي س ص ق ل) plus dots above and below,
+     so a two-line heading collides. Loosened per step, staying tighter as
+     the type grows the way a type scale should. */
+  --text-lg--line-height: 1.6;
+  --text-xl--line-height: 1.5;
+  --text-2xl--line-height: 1.4;
+  --text-3xl--line-height: 1.3;
+  --text-4xl--line-height: 1.25;
+  --text-5xl--line-height: 1.2;
 
   /* Corner scale. Tailwind's defaults (xl 12 / 2xl 16 / 3xl 24) put a 24px
      round on every card, which at a 328px mobile card reads soft and toy-like.

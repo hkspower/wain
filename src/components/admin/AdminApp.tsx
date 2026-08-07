@@ -231,12 +231,12 @@ export default function AdminApp() {
                   </span>
                 </span>
                 {p.featured && (
-                  <span className="rounded-full bg-sun-100 px-2.5 py-1 text-[11px] font-bold text-sun-800">مميّز</span>
+                  <span className="rounded-full bg-sun-100 px-2.5 py-1 text-[11px] font-semibold text-sun-800">مميّز</span>
                 )}
                 <button
                   type="button"
                   onClick={() => togglePublished(p)}
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition ${
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
                     p.published !== false
                       ? "bg-palm-500/15 text-palm-700 hover:bg-palm-500/25"
                       : "bg-sand-200 text-ink-600 hover:bg-sand-300"
@@ -247,14 +247,14 @@ export default function AdminApp() {
                 <button
                   type="button"
                   onClick={() => setView({ mode: "edit", place: p })}
-                  className="rounded-lg border border-sand-300 px-3 py-1.5 text-xs font-bold text-ink-700 transition hover:border-sea-300"
+                  className="rounded-lg border border-sand-300 px-3 py-1.5 text-xs font-semibold text-ink-700 transition hover:border-sea-300"
                 >
                   تعديل
                 </button>
                 <button
                   type="button"
                   onClick={() => remove(p)}
-                  className="rounded-lg border border-coral-200 px-3 py-1.5 text-xs font-bold text-coral-700 transition hover:bg-coral-50"
+                  className="rounded-lg border border-coral-200 px-3 py-1.5 text-xs font-semibold text-coral-700 transition hover:bg-coral-50"
                 >
                   حذف
                 </button>

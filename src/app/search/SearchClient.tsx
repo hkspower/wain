@@ -91,7 +91,7 @@ export default function SearchClient() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-14">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-3xl font-bold tracking-tight text-ink-900 sm:text-4xl">
+        <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
           دوّر في وين
         </h1>
         <VoiceControls />

@@ -43,7 +43,7 @@ export default function PlaceMap({
         <div className="relative h-72 w-full bg-sand-100 sm:h-96">
           <span
             aria-hidden="true"
-            className="absolute inset-0 grid place-items-center text-sand-400"
+            className="absolute inset-0 grid place-items-center text-sand-700"
           >
             <span className="flex flex-col items-center gap-2">
               <IconPinSolid className="size-10" />

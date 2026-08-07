@@ -18,7 +18,7 @@ export default function PlaceCard({ place }: { place: Place }) {
           className="absolute inset-0 h-full w-full transition duration-500 group-hover:scale-105"
         />
         <span
-          className="absolute start-3 top-3 flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-bold text-ink-800 shadow-sm backdrop-blur"
+          className="absolute start-3 top-3 flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-ink-800 shadow-sm backdrop-blur"
           aria-label={`التقييم ${place.rating} من ٥`}
         >
           <IconStar className="size-3.5 text-sun-500" />
@@ -28,11 +28,11 @@ export default function PlaceCard({ place }: { place: Place }) {
 
       <div className="flex flex-1 flex-col p-4">
         <div className="flex items-start justify-between gap-3">
-          <h3 className="font-display text-lg font-bold leading-tight text-ink-900 transition group-hover:text-coral-700">
+          <h3 className="font-display text-lg font-bold leading-snug text-ink-900 transition group-hover:text-coral-700">
             {place.nameAr}
           </h3>
           <span
-            className="flex shrink-0 items-center gap-1.5 pt-1 text-xs font-bold text-sand-700"
+            className="flex shrink-0 items-center gap-1.5 pt-1 text-xs font-semibold text-sand-700"
             aria-label={`مستوى السعر ${place.priceLevel} من ٣`}
           >
             <span className="flex gap-0.5" aria-hidden="true">
