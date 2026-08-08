@@ -156,6 +156,15 @@ export default function Checkout() {
       const item = items.find((i) => i.slug === token.slice('unavailable_'.length))
       return `${t.checkout.err.unavailable}${item ? ` — ${item.name[lang]}` : ''}`
     }
+    // size_required_<slug>. The grid no longer produces these, but a bag saved
+    // in localStorage BEFORE that fix still can, and so can any future path
+    // that forgets. Without this it fell through to the generic failure, on a
+    // page with no size picker to fix it with — a dead end at the last step of
+    // buying, naming neither the item nor the reason.
+    if (token.startsWith('size_required_')) {
+      const item = items.find((i) => i.slug === token.slice('size_required_'.length))
+      return `${t.checkout.err.sizeRequired}${item ? ` — ${item.name[lang]}` : ''}`
+    }
     if (token.startsWith('too_long_')) return t.checkout.err.tooLong
     return t.checkout.err[token] ?? t.checkout.err.failed
   }

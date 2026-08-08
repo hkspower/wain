@@ -18,6 +18,7 @@
     "package:backend": "node scripts/make-backend-package.mjs",
     "audit:files": "node scripts/file-audit.mjs",
     "audit:storage": "node scripts/storage-audit.mjs",
+    "test:grid": "node scripts/grid-card-test.mjs",
     "test:legal": "node scripts/legal-pages-test.mjs",
     "audit:mobile": "node scripts/mobile-audit.mjs",
     "test:areas": "node scripts/kuwait-areas-test.mjs",

@@ -53,6 +53,23 @@ function shape(data) {
   return bySlug
 }
 
+// The WHOLE table, or null if we do not have it.
+//
+// fetchStock(slug) collapses two different answers into null — "this product
+// has no size rows" and "we could not load the table" — and the grid needs to
+// tell them apart. On an accessory, quick-add is correct; on a garment whose
+// sizes we cannot see, it is not, because the server refuses a size-less line
+// for anything that has sizes. Same cache, same shared request: a grid of
+// twelve cards asking at once still makes one.
+export async function fetchStockTable() {
+  if (cache) {
+    if (Date.now() - cache.at >= TTL_MS) revalidate()
+    return cache.bySlug
+  }
+  await revalidate()
+  return cache?.bySlug ?? null
+}
+
 export async function fetchStock(slug) {
   if (!slug) return null
   // Stale-while-revalidate, matching what the .htaccess now does for the shell:

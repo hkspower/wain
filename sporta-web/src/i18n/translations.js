@@ -380,6 +380,9 @@ export const translations = {
         invalid_phone: 'Enter a Kuwait mobile number — 8 digits starting 5, 6 or 9.',
         invalid_governorate: 'Please choose a governorate.',
         empty_cart: 'Your bag is empty.',
+        // Names the item and the fix, because the checkout has no size picker:
+        // the shopper has to go back to the product to resolve it.
+        sizeRequired: 'Please choose a size for this item — open it from your bag and pick one',
         cart_too_large: 'That is too many items for one order. Please split it.',
         invalid_qty: 'One of the quantities is not valid.',
         zero_amount: 'This order has no payable total. Please contact us.',
@@ -748,6 +751,7 @@ export const translations = {
         invalid_phone: 'أدخل رقم هاتف كويتي من ٨ أرقام يبدأ بـ ٥ أو ٦ أو ٩.',
         invalid_governorate: 'يرجى اختيار المحافظة.',
         empty_cart: 'حقيبتك فارغة.',
+        sizeRequired: 'يرجى اختيار مقاس لهذه القطعة — افتحها من الحقيبة واختر المقاس',
         cart_too_large: 'عدد القطع كبير على طلب واحد. يرجى تقسيمه.',
         invalid_qty: 'إحدى الكميات غير صحيحة.',
         zero_amount: 'لا يوجد مبلغ مستحق لهذا الطلب. يرجى التواصل معنا.',

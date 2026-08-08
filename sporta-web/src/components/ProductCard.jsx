@@ -1,10 +1,11 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
 import { useCart } from '../lib/cart'
 import { useWishlist } from '../lib/wishlist'
 import { IconHeart, IconCheck, IconPlus } from './icons'
 import { formatKWD } from '../lib/format'
+import { fetchStockTable } from '../lib/stock'
 
 // Modern retail grid card (Gymshark-style): the photo IS the card — portrait
 // 4:5, no border, no shadow, no white box. Everything interactive lives as an
@@ -15,10 +16,53 @@ export default function ProductCard({ product }) {
   const { lang, t } = useLang()
   const { add } = useCart()
   const { has, toggle } = useWishlist()
+  const navigate = useNavigate()
   const [added, setAdded] = useState(false)
+  // undefined = not looked up yet, null = the table is unavailable.
+  const [sizes, setSizes] = useState(undefined)
 
+  // One shared, cached request for the whole stock table — twelve cards
+  // mounting together make one call, and the product page has usually warmed
+  // it already. Deliberately not blocking the render: the card draws from the
+  // catalogue immediately and this only ever refines it.
+  useEffect(() => {
+    let live = true
+    fetchStockTable()
+      .then((table) => { if (live) setSizes(table ? (table[product.slug] ?? {}) : null) })
+      .catch(() => { if (live) setSizes(null) })
+    return () => { live = false }
+  }, [product.slug])
+
+  // Does this product come in sizes? An accessory has no variant rows, so an
+  // EMPTY map is a real answer meaning "no sizes" — which is why {} must not be
+  // read as "unknown". null here is genuinely unknown.
+  const hasSizes = sizes ? Object.keys(sizes).length > 0 : null
+
+  // Every size out of stock. Only ever true for a product we HAVE rows for, so
+  // an accessory is never marked sold out on the strength of no evidence.
+  const soldOut = hasSizes === true
+    && Object.values(sizes).every((r) => !r?.inStock && !(Number(r?.stock) > 0))
+
+  // WHY THIS BUTTON SOMETIMES NAVIGATES INSTEAD OF ADDING.
+  //
+  // It used to call add(product) with no size, always. The server refuses a
+  // size-less line for anything that HAS sizes — `size_required_<slug>` — so
+  // tapping + on a garment built a bag that checkout would not accept, and the
+  // checkout has no size picker to fix it with. The shopper met a generic
+  // failure at the last step of buying.
+  //
+  // A garment therefore goes to the product page to choose a size, which is
+  // what every retail grid does with quick-add. An accessory still adds in one
+  // tap, because for it there is nothing to choose.
+  //
+  // UNKNOWN COUNTS AS SIZED. If the stock table did not load we cannot tell a
+  // jacket from a cap, and the two mistakes are not equal: navigating costs an
+  // accessory buyer one extra tap, while adding costs a garment buyer their
+  // order at the checkout.
   function quickAdd(e) {
     e.preventDefault()
+    if (soldOut) return
+    if (hasSizes !== false) { navigate(`/product/${product.slug}`); return }
     add(product)
     setAdded(true)
     setTimeout(() => setAdded(false), 1200)
@@ -47,7 +91,18 @@ export default function ProductCard({ product }) {
           className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.06]"
         />
 
-        {product.badge && (
+        {/* SOLD OUT — a veil on the photo, never a change in the card's box,
+            so arriving after the first paint moves nothing on the page. */}
+        {soldOut && (
+          <>
+            <span className="absolute inset-0 bg-white/55" aria-hidden="true" />
+            <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 bg-ink/85 py-1.5 text-center text-[11px] font-bold uppercase tracking-widest text-white">
+              {t.spec.soldOut}
+            </span>
+          </>
+        )}
+
+        {product.badge && !soldOut && (
           <span className="absolute start-2.5 top-2.5 rounded-md bg-brand px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-ink">
             {product.badge[lang]}
           </span>
@@ -74,11 +129,21 @@ export default function ProductCard({ product }) {
         <button
           type="button"
           onClick={quickAdd}
-          aria-label={`${t.shop.add} — ${product.name[lang]}`}
+          disabled={soldOut}
+          // The label says what the tap will DO. On a garment that is "choose a
+          // size", because that is where it goes — a button labelled "add" that
+          // navigates is the kind of thing a screen-reader user cannot forgive.
+          aria-label={
+            soldOut
+              ? `${t.spec.soldOut} — ${product.name[lang]}`
+              : `${hasSizes === false ? t.shop.add : t.assistant.chooseSize} — ${product.name[lang]}`
+          }
           className={`absolute bottom-2 end-2 flex h-11 w-11 items-center justify-center rounded-full shadow-md transition focus-visible:opacity-100 ${
-            added
-              ? 'bg-emerald-500 text-white opacity-100'
-              : 'bg-white/95 text-ink backdrop-blur hover:bg-brand hover:text-ink lg:translate-y-1 lg:opacity-0 lg:group-hover:translate-y-0 lg:group-hover:opacity-100'
+            soldOut
+              ? 'hidden'
+              : added
+                ? 'bg-emerald-500 text-white opacity-100'
+                : 'bg-white/95 text-ink backdrop-blur hover:bg-brand hover:text-ink lg:translate-y-1 lg:opacity-0 lg:group-hover:translate-y-0 lg:group-hover:opacity-100'
           }`}
         >
           {added ? <IconCheck size={18} /> : <IconPlus size={18} />}
