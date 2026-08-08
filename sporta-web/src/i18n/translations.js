@@ -178,6 +178,17 @@ export const translations = {
       // button too many on a phone.
       listen: 'Listen to this answer',
       stopAudio: 'Stop',
+      // The microphone. `speak` is the label while idle, `listening` while the
+      // browser is recording — the same button, for the same reason as above.
+      // `micDenied` is said once, in the conversation, when the visitor refuses
+      // the permission: a mic button that silently does nothing reads as a
+      // broken shop rather than as a choice the visitor made.
+      speak: 'Speak to us',
+      listening: 'Listening — tap to stop',
+      micDenied: 'I could not hear you — the microphone is blocked in your browser. You can still type below.',
+      // Hands-free: the reply is spoken aloud automatically when the question
+      // was asked aloud. Off by default for typed questions.
+      handsFree: 'Speak the replies',
       stages: {
         unfulfilled: 'Being prepared',
         packed: 'Packed',
@@ -531,6 +542,10 @@ export const translations = {
       viewOrder: 'عرض الطلب كاملًا ←',
       listen: 'استمع إلى الإجابة',
       stopAudio: 'إيقاف',
+      speak: 'كلّمنا',
+      listening: 'أسمعك — اضغط للإيقاف',
+      micDenied: 'ما قدرت أسمعك — المايك محظور في المتصفح. تقدر تكتب سؤالك بالأسفل.',
+      handsFree: 'اقرأ الردود بصوت',
       stages: {
         unfulfilled: 'قيد التجهيز',
         packed: 'تم التغليف',

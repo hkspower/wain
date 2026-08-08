@@ -28,6 +28,12 @@ export default function AssistantPanel({ onClose }) {
   const [log, setLog] = useState([{ from: 'ai', text: T.greeting }])
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
+  // Hands-free: the reply is READ ALOUD when the question was ASKED ALOUD.
+  // It is deliberately not a setting the visitor has to find and turn on —
+  // speaking to a shop and being answered in silent text is the wrong shape,
+  // and typing to it and being shouted at in an open-plan office is the other
+  // wrong shape. The way the question arrived decides.
+  const [handsFree, setHandsFree] = useState(false)
   const endRef = useRef(null)
   const inputRef = useRef(null)
   const panelRef = useRef(null)
@@ -43,9 +49,15 @@ export default function AssistantPanel({ onClose }) {
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  async function send(text) {
+  // `spoken` says the question arrived by microphone, which decides two things:
+  // whether the answer is read back, and — the part browsers care about —
+  // whether it is ALLOWED to be. Autoplay is gated on a user gesture, and the
+  // mic tap is that gesture; a reply to a typed question has none, so it would
+  // be silently blocked and look broken.
+  async function send(text, spoken = false) {
     const msg = (text ?? draft).trim()
     if (!msg || busy) return
+    if (spoken) setHandsFree(true)
     setDraft('')
     setLog((l) => [...l, { from: 'me', text: msg }])
     setBusy(true)
@@ -60,7 +72,14 @@ export default function AssistantPanel({ onClose }) {
       // the generic failure — the shop is fine, the visitor is just fast.
       if (res.status === 429) setLog((l) => [...l, { from: 'ai', text: T.tooFast }])
       else if (!d?.reply) setLog((l) => [...l, { from: 'ai', text: T.failed }])
-      else setLog((l) => [...l, { from: 'ai', text: d.reply, data: d.data, speak: d.speak }])
+      // `auto` is consumed once, by the Speaker that renders for this message.
+      // It is stamped on the message rather than read from state at play time
+      // so that turning hands-free off does not retroactively silence a reply
+      // that is already mid-sentence.
+      else setLog((l) => [...l, {
+        from: 'ai', text: d.reply, data: d.data, speak: d.speak,
+        auto: spoken || handsFree,
+      }])
     } catch {
       // Offline, or /api not reachable. Say so, and point at a human — the one
       // thing worse than no answer is a spinner that never resolves.
@@ -98,7 +117,7 @@ export default function AssistantPanel({ onClose }) {
                 : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100'}`}>
               {m.text}
             </div>
-            {m.from === 'ai' && m.speak && <Speaker text={m.text} sig={m.speak} lang={lang} T={T} />}
+            {m.from === 'ai' && m.speak && <Speaker text={m.text} sig={m.speak} lang={lang} T={T} auto={m.auto} />}
             {m.data?.kind === 'order' && <OrderCard d={m.data} T={T} ar={ar} />}
             {m.data?.kind === 'products' && <ProductRow items={m.data.items} T={T} cart={cart} ar={ar} />}
           </div>
@@ -137,6 +156,9 @@ export default function AssistantPanel({ onClose }) {
 
       <form onSubmit={(e) => { e.preventDefault(); send() }}
         className="flex gap-2 border-t border-slate-200 p-3 dark:border-slate-700">
+        <Mic lang={lang} T={T} disabled={busy}
+             onHeard={(said) => send(said, true)}
+             onDenied={() => setLog((l) => [...l, { from: 'ai', text: T.micDenied }])} />
         <input
           ref={inputRef}
           value={draft}
@@ -162,7 +184,13 @@ export default function AssistantPanel({ onClose }) {
 // The audio is fetched by URL, not by XHR, so the browser's HTTP cache holds
 // it: the shop's fixed answers (delivery, returns, payment) are the same mp3
 // every time and are paid for once, upstream and downstream both.
-function Speaker({ text, sig, lang, T }) {
+// `auto` plays it the moment it arrives — the hands-free half of a call. It is
+// only ever set on a reply to a SPOKEN question, because that is the only case
+// where a user gesture exists for the browser's autoplay policy to be satisfied
+// by. Set it on a typed reply and the play() promise rejects: no sound, no
+// error the visitor can see, and a feature that looks broken on some browsers
+// and not others.
+function Speaker({ text, sig, lang, T, auto = false }) {
   const ref = useRef(null)
   const [playing, setPlaying] = useState(false)
 
@@ -184,6 +212,11 @@ function Speaker({ text, sig, lang, T }) {
     a.play().then(() => setPlaying(true)).catch(() => setPlaying(false))
   }
 
+  // Once, on arrival. The empty-ish dependency list is deliberate: re-running
+  // this on every render would restart the sentence each time the panel
+  // re-renders, which it does on every keystroke in the box below.
+  useEffect(() => { if (auto) toggle() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <button
       onClick={toggle}
@@ -191,6 +224,83 @@ function Speaker({ text, sig, lang, T }) {
       className="tap-target mt-1 rounded-lg px-2 py-1 text-xs text-slate-400 hover:text-brand"
     >
       {playing ? '■' : '🔊'}
+    </button>
+  )
+}
+
+// The microphone — the caller's half of the call.
+//
+// ON-DEVICE, AND THAT IS THE WHOLE ARGUMENT. The browser's own SpeechRecognition
+// does the transcription; no audio is uploaded, the shop pays nothing per
+// utterance, and there is no third party in the path holding a recording of a
+// customer reading out an order number. A server-side speech-to-text endpoint
+// would be all three of those problems at once, and — exactly like the text-to-
+// speech seam next door — an open audio-upload endpoint billed to this shop.
+//
+// IT RENDERS NOTHING WHERE IT DOES NOT WORK. Firefox has no SpeechRecognition
+// at all. A mic button that is present and dead is worse than no mic button:
+// the visitor taps it, nothing happens, and they conclude the shop is broken
+// rather than that their browser lacks a feature they never knew about.
+//
+// ar-KW, not ar: dialect matters to recognition as much as it does to the
+// voice. "وين طلبي" is not Modern Standard Arabic and is the actual sentence
+// people say.
+function Mic({ lang, T, disabled, onHeard, onDenied }) {
+  const [listening, setListening] = useState(false)
+  const ref = useRef(null)
+
+  const Rec = typeof window !== 'undefined'
+    && (window.SpeechRecognition || window.webkitSpeechRecognition)
+
+  // Stop the moment the panel goes away. A recogniser left running holds the
+  // microphone open, and the browser shows a recording indicator for a page
+  // that is no longer listening to anything.
+  useEffect(() => () => { try { ref.current?.abort() } catch { /* already gone */ } }, [])
+
+  if (!Rec) return null
+
+  function toggle() {
+    if (listening) { try { ref.current?.stop() } catch { /* mid-teardown */ } return }
+
+    const r = new Rec()
+    ref.current = r
+    r.lang = lang === 'ar' ? 'ar-KW' : 'en-US'
+    // One question at a time. `continuous` would keep the mic open through the
+    // reply and hear the shop's OWN VOICE as the next question — a loop that
+    // costs money on every turn and never ends on its own.
+    r.continuous = false
+    r.interimResults = false
+    r.maxAlternatives = 1
+
+    r.onresult = (e) => {
+      const said = e.results?.[0]?.[0]?.transcript?.trim() ?? ''
+      if (said) onHeard(said)
+    }
+    r.onerror = (e) => {
+      setListening(false)
+      // A refused permission is a decision, and it deserves a sentence. The
+      // rest — 'no-speech', 'aborted', a network blip — is noise: the visitor
+      // simply says nothing, and the box below still takes typing.
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') onDenied()
+    }
+    r.onend = () => setListening(false)
+
+    try { r.start(); setListening(true) } catch { setListening(false) }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      disabled={disabled}
+      aria-label={listening ? T.listening : T.speak}
+      aria-pressed={listening}
+      className={`tap-target shrink-0 rounded-xl border px-3 py-2 text-sm disabled:opacity-40 ${
+        listening
+          ? 'animate-pulse border-brand bg-brand text-ink'
+          : 'border-slate-300 text-slate-500 hover:border-brand hover:text-brand dark:border-slate-600 dark:text-slate-300'}`}
+    >
+      {listening ? '●' : '🎙'}
     </button>
   )
 }
