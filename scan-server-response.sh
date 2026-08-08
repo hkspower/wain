@@ -58,6 +58,23 @@ for u in "http://$BARE/shop" "http://$HOST/shop" "https://$BARE/shop"; do
   else bad "$u -> $n hops (redirect chain) -> $fin"; fi
 done
 
+bold "2b. Deep routes — the SPA's own URLs must serve the app, not Apache's 404"
+# .htaccess IS HIDDEN IN FILE MANAGER, and it is the single most-missed file on
+# a manual upload. Without it every route that is not a real file on disk 404s.
+#
+# /shop is checked above and a shopper would report it within the hour.
+# /backends is the one NOBODY reports: no customer ever opens it, so the owner
+# discovers it only when they need the admin — which is usually the moment they
+# need it urgently. It is checked by NAME for that reason.
+#
+# 200 with the SPA shell is the pass. A 404 here almost always means .htaccess
+# did not make it up, not that the route is broken.
+for path in /backends /shop /track; do
+  c="$(curl -sS -o /dev/null -w '%{http_code}' "$SITE$path")"
+  if [ "$c" = 200 ]; then ok "$path -> 200 (the app answers)"
+  else bad "$path -> $c  — .htaccess is probably missing from public_html (it is hidden in File Manager)"; fi
+done
+
 bold "3. Security headers"
 check() {
   if printf '%s' "$HDRS" | grep -qi "^$1:"; then
