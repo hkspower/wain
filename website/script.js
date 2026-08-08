@@ -11,9 +11,10 @@
     return String(value).replace(/\d/g, function (d) { return AR_DIGITS[+d]; });
   }
 
-  /** تنسيق رقم بفواصل الآلاف ثم تحويله لأرقام عربية */
+  /** تنسيق رقم بفاصل الآلاف العربي (U+066C) ثم تحويله لأرقام عربية،
+      ليتناسق مع الفاصلة العشرية العربية (٫) المستخدمة في الأسعار */
   function formatCount(n) {
-    return toArabicDigits(n.toLocaleString('en-US'));
+    return toArabicDigits(n.toLocaleString('en-US')).replace(/,/g, '٬');
   }
 
   /* ------------------------- القائمة على الجوال ------------------------- */
