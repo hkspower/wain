@@ -248,8 +248,18 @@ export default function Checkout() {
         </p>
       </div>
 
+      {/* min-w-0 ON BOTH COLUMNS, and it is not decoration.
+          A grid item defaults to `min-width: auto`, which means it refuses to
+          shrink below its own min-content — and an auto-sized column then
+          takes that width whether or not the container has it. The order
+          summary's coupon row (an input beside an Apply button) has a
+          min-content of ~350px, so on a 360px phone the single mobile column
+          resolved to 350px inside a 328px container and the CHECKOUT PAGE
+          SCROLLED SIDEWAYS: 6px on a Galaxy S24, 22px on a folded Z Fold.
+          Sideways drift on the page where people hand over money reads as a
+          broken shop. Caught by npm run audit:mobile. */}
       <form onSubmit={submit} noValidate aria-busy={busy} className="grid gap-5 lg:grid-cols-[1fr_23rem]">
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           {/* role="alert" is announced without taking focus, so focus can go
               where it is actually useful: the first field that needs fixing. */}
           {formError && (
@@ -409,7 +419,7 @@ export default function Checkout() {
           </fieldset>
         </div>
 
-        <aside className="lg:sticky lg:top-28 lg:self-start">
+        <aside className="min-w-0 lg:sticky lg:top-28 lg:self-start">
           <div className="rounded-2xl border border-slate-100 bg-white p-4 md:p-5">
             <h2 className="flex items-baseline justify-between font-bold text-slate-800">
               {t.checkout.summary}
