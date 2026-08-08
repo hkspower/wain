@@ -16,9 +16,17 @@ if (preg_match('#^/api/(api|admin|cron-fulfilment|setup-admin)\.php$#', $uri, $m
 
 $file = realpath($root . '/dist' . $uri);
 if ($uri !== '/' && $file !== false && str_starts_with($file, $root . '/dist') && is_file($file)) {
+    // jpg/jpeg WERE MISSING, and every product and category photograph on the
+    // site is a .jpg — so the rig served the shop's photography as
+    // application/octet-stream. Browsers sniff images and render them anyway,
+    // which is exactly why it went unnoticed: nothing looked wrong, and any
+    // check that asked what TYPE an image was got the wrong answer. A rig that
+    // does not serve what Apache serves is a rig that hides content-type bugs.
     $mime = [
         'js' => 'text/javascript', 'css' => 'text/css', 'html' => 'text/html',
         'json' => 'application/json', 'png' => 'image/png', 'svg' => 'image/svg+xml',
+        'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'gif' => 'image/gif',
+        'avif' => 'image/avif', 'ico' => 'image/x-icon',
         'webp' => 'image/webp', 'woff2' => 'font/woff2', 'txt' => 'text/plain',
         'xml' => 'application/xml', 'webmanifest' => 'application/manifest+json',
     ][strtolower(pathinfo($file, PATHINFO_EXTENSION))] ?? 'application/octet-stream';

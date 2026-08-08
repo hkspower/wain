@@ -9,6 +9,18 @@ import { useCart } from '../lib/cart'
 import { formatKWD } from '../lib/format'
 import { IconClose, IconPlus, IconMinus, IconBag, IconLock } from './icons'
 
+// A cart line keeps whatever the product had WHEN IT WAS ADDED, and the cart
+// lives in localStorage — so a bag saved before a product had artwork, or
+// before the placeholder fallback existed, still holds an empty image. The
+// browser draws that as a broken-image glyph next to the price, which reads as
+// a shop that has lost the item.
+const LINE_ART =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80">' +
+    '<rect width="80" height="80" fill="%23E2DBCE"/></svg>',
+  )
+
 // Slide-in bag. Lets shoppers review/edit and reach checkout without leaving
 // the page they're browsing — removes a full navigation from the funnel.
 export default function CartDrawer({ open, onClose }) {
@@ -75,7 +87,7 @@ export default function CartDrawer({ open, onClose }) {
             <ul className="flex-1 divide-y divide-black/5 overflow-y-auto px-6">
               {items.map((i) => (
                 <li key={i.key} className="flex gap-4 py-4">
-                  <img src={i.image} alt={i.name[lang]} width="72" height="72" className="h-18 w-18 rounded-xl object-cover" />
+                  <img src={i.image || LINE_ART} alt={i.name[lang]} width="72" height="72" className="h-18 w-18 rounded-xl object-cover" />
                   <div className="flex-1">
                     <p className="font-bold text-slate-900">{i.name[lang]}</p>
                     <p className="mt-0.5 text-sm text-slate-500 tabular-nums">{formatKWD(i.price, lang)}{optionLine(i, lang) ? ` · ${optionLine(i, lang)}` : ''}</p>

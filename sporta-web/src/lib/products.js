@@ -408,7 +408,18 @@ function fromApi(row) {
     // Passing that null straight through rendered <img src={null}> on every
     // card: a broken-image glyph where the product should be. The shipped
     // placeholder is the answer until real photography exists.
-    image: row.image || shipped?.image,
+    //
+    // AND A THIRD FALLBACK, because the first two both miss the case that
+    // actually happens. `shipped` is matched by slug against the bundled
+    // catalogue, so a product the owner ADDS IN /backends has no shipped row —
+    // and if they leave Image URL empty, which it is by default, both sides of
+    // that `||` are empty and the card renders a broken-image glyph on the home
+    // page. Measured, not guessed: a new row with no image gave src=null and
+    // the browser reported naturalWidth 0.
+    //
+    // The gradient is the same one the bundled catalogue uses, so a product
+    // waiting for photography looks deliberate rather than damaged.
+    image: row.image || shipped?.image || ph(row.slug, '#E0561C', '#B8430F'),
     // Extra photographs, comma-separated in display order. productImages()
     // splits this and puts `image` first. Absent for the shipped catalogue,
     // which has one picture per product and always will.

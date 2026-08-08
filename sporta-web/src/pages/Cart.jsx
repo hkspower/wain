@@ -8,6 +8,18 @@ import { IconPlus, IconMinus, IconClose } from '../components/icons'
 import { usePageMeta } from '../lib/seo'
 import CheckoutSteps from '../components/CheckoutSteps'
 
+// A cart line keeps whatever the product had WHEN IT WAS ADDED, and the cart
+// lives in localStorage — so a bag saved before a product had artwork, or
+// before the placeholder fallback existed, still holds an empty image. The
+// browser draws that as a broken-image glyph next to the price, which reads as
+// a shop that has lost the item.
+const LINE_ART =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80">' +
+    '<rect width="80" height="80" fill="%23E2DBCE"/></svg>',
+  )
+
 export default function Cart() {
   const { lang, t } = useLang()
   const { items, setQty, remove, total } = useCart()
@@ -42,7 +54,7 @@ export default function Cart() {
           // needed 488px — every phone in the range scrolled sideways, and the
           // price and remove button sat off the edge of the screen.
           <div key={i.key} className="grid grid-cols-[5rem_1fr] gap-x-4 gap-y-3 rounded-2xl border border-slate-100 bg-white p-4 sm:flex sm:items-center">
-            <img src={i.image} alt={i.name[lang]} width="80" height="80" className="h-20 w-20 rounded-lg object-cover" />
+            <img src={i.image || LINE_ART} alt={i.name[lang]} width="80" height="80" className="h-20 w-20 rounded-lg object-cover" />
             <div className="min-w-0 self-center sm:flex-1">
               <h3 className="font-bold text-slate-800">{i.name[lang]}</h3>
               {/* The bag never showed which size was chosen — the one page
