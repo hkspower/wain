@@ -2,8 +2,18 @@
 
 /* `standalone:` applies only in the installed app (home-screen launch), never
    in a browser tab. It carries the compact app theme: tighter gutters, denser
-   cards, smaller headings — the website's own spacing is untouched. */
-@custom-variant standalone (@media (display-mode: standalone));
+   cards, smaller headings — the website's own spacing is untouched.
+   Two signals, because iOS reports home-screen launches through
+   navigator.standalone and older versions never match the media query;
+   AppShell mirrors that onto <html data-standalone>. */
+@custom-variant standalone {
+  @media (display-mode: standalone) {
+    @slot;
+  }
+  html[data-standalone="true"] & {
+    @slot;
+  }
+}
 
 @theme {
   /* The ramp splits in two.
@@ -153,7 +163,10 @@ input[type="search"]::-webkit-search-decoration {
 
 /* App version (installed to the home screen). The bottom tab bar becomes the
    primary navigation, so content clears it, the navbar's duplicate links go,
-   and فهد's launcher moves up out of the tab bar's way. */
+   and فهد's launcher moves up out of the tab bar's way.
+   Written twice on purpose: the media query applies instantly with no JS (so
+   there is no flash of website layout), and the attribute covers iOS, which
+   reports home-screen launches through navigator.standalone. */
 @media (display-mode: standalone) {
   body {
     padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
@@ -164,6 +177,57 @@ input[type="search"]::-webkit-search-decoration {
   .fahad-launcher {
     bottom: 5.5rem;
   }
+}
+html[data-standalone="true"] body {
+  padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
+}
+html[data-standalone="true"] .standalone-hidden {
+  display: none;
+}
+html[data-standalone="true"] .fahad-launcher {
+  bottom: 5.5rem;
+}
+
+/* --- App physics -------------------------------------------------------
+   The remaining tells that a standalone page is a *page*: it rubber-bands at
+   the edges, long-pressing a control raises the iOS copy/share callout, drag
+   selects the chrome, and taps have no felt response. Native apps do none of
+   that. */
+
+/* No overscroll bounce or pull-to-refresh chaining to the viewport. Kept on
+   html and body only, so inner scrollers (the category rail, the ⌘K result
+   list) still scroll normally. */
+html[data-standalone="true"],
+html[data-standalone="true"] body {
+  overscroll-behavior-y: none;
+}
+
+/* Chrome should not feel like selectable text — but article copy still must
+   be selectable. Scoped to the site chrome (.app-chrome marks the navbar and
+   tab bar) and to controls themselves. Never to bare `header`/`nav`: pages
+   use <header> for their own titles, and user-select inherits, which silently
+   made body copy unselectable. */
+:where(.app-chrome, button, [role="button"], kbd, summary) {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Immediate, felt response to a tap — native controls acknowledge touch
+   before anything navigates. Pointer-coarse only, so a mouse keeps hover. */
+@media (pointer: coarse) {
+  :where(a, button, [role="button"]):active {
+    transform: scale(0.975);
+  }
+  :where(a, button, [role="button"]) {
+    transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+/* Rotating the phone must not resize type under the layout. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 ::selection {

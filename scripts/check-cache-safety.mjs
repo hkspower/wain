@@ -11,6 +11,10 @@ import { join, relative } from "node:path";
 const OUT = "out";
 const IMMUTABLE = /\.(js|mjs|css|woff2|woff)$/;
 const SAFE_PREFIX = "_next/static/";
+// sw.js is deliberately unhashed — an installed app fetches it by that exact
+// name to discover new builds. .htaccess gives it max-age=0, must-revalidate,
+// so the immutable rule never applies to it.
+const EXEMPT = new Set(["sw.js"]);
 
 if (!existsSync(OUT)) {
   console.error("check-cache-safety: out/ not found — run the build first.");
@@ -24,7 +28,8 @@ const offenders = [];
     if (statSync(full).isDirectory()) walk(full);
     else {
       const rel = relative(OUT, full).split("\\").join("/");
-      if (IMMUTABLE.test(rel) && !rel.startsWith(SAFE_PREFIX)) offenders.push(rel);
+      if (IMMUTABLE.test(rel) && !rel.startsWith(SAFE_PREFIX) && !EXEMPT.has(rel))
+        offenders.push(rel);
     }
   }
 })(OUT);

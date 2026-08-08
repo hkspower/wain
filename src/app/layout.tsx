@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans_Arabic } from "next/font/google";
+import AppShell from "@/components/AppShell";
 import AppTabBar from "@/components/AppTabBar";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -60,11 +61,15 @@ export const metadata: Metadata = {
     images: ["/og.jpg"],
   },
   icons: { icon: "/icon.svg", apple: "/icon.svg" },
+  appleWebApp: { capable: true, title: "وين؟", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
   themeColor: "#ffffff",
   colorScheme: "light",
+  // The app draws its own background behind the status bar area; without this
+  // iOS reserves an opaque bar and the launch reads as a web view.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -90,6 +95,7 @@ export default function RootLayout({
         <Footer />
         <FahadLauncher />
         <AppTabBar />
+        <AppShell />
       </body>
     </html>
   );

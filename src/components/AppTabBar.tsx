@@ -25,7 +25,7 @@ export default function AppTabBar() {
   return (
     <nav
       aria-label="تنقّل التطبيق"
-      className="fixed inset-x-0 bottom-0 z-50 hidden border-t border-sand-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur [@media(display-mode:standalone)]:block"
+      className="app-chrome fixed inset-x-0 bottom-0 z-50 hidden border-t border-sand-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur standalone:block"
     >
       <div className="mx-auto grid max-w-md grid-cols-3">
         {TABS.map(({ href, label, icon: Icon, exact }) => {
