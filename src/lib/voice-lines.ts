@@ -69,9 +69,14 @@ export function helloParts(persona: PersonaId): SpeechPart[] {
 type SuggestHit = { doc: { id: string; kind: string; title: string; subtitle: string } };
 
 /** What to say once a search settles: the count (fallback only, it changes
- * with every query) and the strongest place suggestion. */
+ * with every query) and the strongest place suggestion.
+ *
+ * `total` can disagree with `hits.length` — the caller counts across every
+ * kind while hits may be filtered to one — so emptiness is decided by the
+ * hits themselves. Trusting `total` here dereferenced hits[0] on an empty
+ * array and threw. */
 export function searchSummaryParts(hits: SuggestHit[], total: number): SpeechPart[] {
-  if (total === 0) {
+  if (total === 0 || hits.length === 0) {
     return [{ key: "search-empty", text: GENERIC_LINES["search-empty"] }];
   }
   const parts: SpeechPart[] = [

@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { Session } from "@supabase/supabase-js";
 import WainLogo from "@/components/WainLogo";
 import { IconBack, IconCheck, IconSearch } from "@/components/icons";
-import { categories, getCategory, toArabicDigits } from "@/lib/places";
+import { getCategory, toArabicDigits } from "@/lib/places";
 import {
   getSupabase,
   placeToRow,

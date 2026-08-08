@@ -65,6 +65,14 @@ export default function SearchClient() {
     };
   }, [q, index]);
 
+  // A kind filter chosen for an earlier query can have nothing for the new
+  // one. Left alone it becomes a dead end: the chip stays selected but
+  // disabled, and the page shows "ما لقينا شي" while the الكل chip is still
+  // counting results. Drop back to الكل so the visitor sees them.
+  useEffect(() => {
+    if (kind !== "all" && counts[kind] === 0 && counts.all > 0) setKind("all");
+  }, [kind, counts]);
+
   // صوت وين: once a search settles, say the best suggestion out loud —
   // only while the visitor has the voice toggle on, and never twice for the
   // same outcome.
@@ -77,13 +85,13 @@ export default function SearchClient() {
       return;
     }
     const t = setTimeout(() => {
-      const signature = `${hits[0]?.doc.id ?? "none"}|${counts.all}`;
+      const signature = `${hits[0]?.doc.id ?? "none"}|${hits.length}`;
       if (signature === lastSpokenRef.current) return;
       lastSpokenRef.current = signature;
-      speak(searchSummaryParts(hits, counts.all));
+      speak(searchSummaryParts(hits, hits.length));
     }, 900);
     return () => clearTimeout(t);
-  }, [q, hits, counts.all, voiceEnabled]);
+  }, [q, hits, voiceEnabled]);
 
   // Leaving the page shouldn't leave a voice talking.
   useEffect(() => () => stopVoice(), []);

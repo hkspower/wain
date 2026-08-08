@@ -103,10 +103,10 @@ const SYNONYMS: Record<string, string[]> = {
   طلعه: ["مكان", "زياره"],
 };
 
-function expand(tokens: string[]): string[] {
-  const out = new Set(tokens);
-  for (const t of tokens) for (const s of SYNONYMS[t] ?? []) out.add(normalise(s));
-  return [...out];
+/** A typed token plus its synonyms, kept grouped under the token they came
+ * from so scoring can tell which *query word* a match satisfies. */
+function variantsOf(token: string): string[] {
+  return [...new Set([token, ...(SYNONYMS[token] ?? []).map(normalise)])];
 }
 
 /** Bounded Levenshtein — returns maxDist+1 as soon as it is exceeded. */
@@ -273,7 +273,7 @@ const B = 0.75;
 function candidates(term: string, index: SearchIndex): { term: string; boost: number }[] {
   if (index.postings.has(term)) return [{ term, boost: 1 }];
 
-  const prefix = index.terms.filter((t) => t.startsWith(term) && term.length >= 2);
+  const prefix = index.terms.filter((t) => t.startsWith(term));
   if (prefix.length) return prefix.slice(0, 12).map((t) => ({ term: t, boost: 0.82 }));
 
   const max = term.length >= 6 ? 2 : 1;
@@ -292,25 +292,34 @@ export function search(
 ): SearchHit[] {
   const raw = tokenize(query);
   if (raw.length === 0) return [];
-  const tokens = expand(raw);
   const N = index.docs.length;
   const scores = new Map<number, number>();
+  /** Index terms that matched — drives highlighting. */
   const hitTerms = new Map<number, Set<string>>();
+  /** Which *query words* a doc satisfied — drives coverage. Kept separate
+   * because one token can expand (prefix, fuzzy, synonym) to many index
+   * terms; counting those as coverage let a doc matching half the query
+   * claim full credit. */
+  const hitTokens = new Map<number, Set<string>>();
 
-  for (const token of tokens) {
-    // Synonyms should help, not outrank what the visitor actually typed.
-    const isTyped = raw.includes(token);
-    for (const { term, boost } of candidates(token, index)) {
-      const postings = index.postings.get(term);
-      if (!postings) continue;
-      const idf = Math.log(1 + (N - postings.length + 0.5) / (postings.length + 0.5));
-      for (const { docIndex, weighted } of postings) {
-        const dl = index.docLen[docIndex];
-        const tf = (weighted * (K1 + 1)) / (weighted + K1 * (1 - B + B * (dl / index.avgLen)));
-        const add = idf * tf * boost * (isTyped ? 1 : 0.55);
-        scores.set(docIndex, (scores.get(docIndex) ?? 0) + add);
-        if (!hitTerms.has(docIndex)) hitTerms.set(docIndex, new Set());
-        hitTerms.get(docIndex)!.add(term);
+  for (const rawToken of raw) {
+    for (const token of variantsOf(rawToken)) {
+      // Synonyms should help, not outrank what the visitor actually typed.
+      const isTyped = token === rawToken;
+      for (const { term, boost } of candidates(token, index)) {
+        const postings = index.postings.get(term);
+        if (!postings) continue;
+        const idf = Math.log(1 + (N - postings.length + 0.5) / (postings.length + 0.5));
+        for (const { docIndex, weighted } of postings) {
+          const dl = index.docLen[docIndex] ?? index.avgLen;
+          const tf = (weighted * (K1 + 1)) / (weighted + K1 * (1 - B + B * (dl / index.avgLen)));
+          const add = idf * tf * boost * (isTyped ? 1 : 0.55);
+          scores.set(docIndex, (scores.get(docIndex) ?? 0) + add);
+          if (!hitTerms.has(docIndex)) hitTerms.set(docIndex, new Set());
+          hitTerms.get(docIndex)!.add(term);
+          if (!hitTokens.has(docIndex)) hitTokens.set(docIndex, new Set());
+          hitTokens.get(docIndex)!.add(rawToken);
+        }
       }
     }
   }
@@ -320,7 +329,7 @@ export function search(
     const doc = index.docs[docIndex];
     if (kinds && !kinds.includes(doc.kind)) continue;
     // Reward covering more of the query — two matching words beats one twice.
-    const coverage = (hitTerms.get(docIndex)?.size ?? 0) / raw.length;
+    const coverage = (hitTokens.get(docIndex)?.size ?? 0) / raw.length;
     // Places are what people are looking for; pages are navigation.
     const kindBoost = doc.kind === "place" ? 1.15 : doc.kind === "page" ? 0.7 : 1;
     hits.push({
