@@ -78,7 +78,7 @@ export default function Footer() {
           {['KNET', 'VISA', 'Mastercard'].map((p) => (
             <span
               key={p}
-              className="rounded-md border border-white/15 px-2.5 py-1 text-[11px] font-bold tracking-wide text-slate-300"
+              className="rounded-lg border border-white/15 px-2.5 py-1 text-xs font-bold tracking-wide text-slate-300"
             >
               {p}
             </span>

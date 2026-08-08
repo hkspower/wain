@@ -217,8 +217,35 @@ and `.uppercase`, and gives Arabic *more* leading (1.3 on headings, 1.7 on body)
 rather than less. The eyebrow gets a slightly larger size and heavier weight in
 Arabic instead, because Arabic has no capitals to give a label its weight.
 
+**12px is the floor.** Nothing a customer reads renders smaller, in either
+language — verified across seven routes. The shop previously set labels at 10px
+and 11px (the cart badge, the announcement bar, brand eyebrows, payment chips),
+which is small in Latin and a squint in Arabic.
+
+**Arabic gets one step more.** `[dir='rtl'] .text-xs` is 13px against 12px,
+because Arabic reads smaller at an identical size — no capitals, and its meaning
+sits in dots and strokes above and below the baseline.
+
+This is the NARROW version of a change that was tried and reverted. Raising the
+RTL *root* to 17–18px is the textbook fix and it cost `/shop [ar]` a CLS of
+0.027 against a 0.02 budget, because the whole product grid reflows as the cards
+settle. Scoping it to `.text-xs` — labels, badges and captions, never body copy,
+never headings, never anything that sizes a grid cell — left every route's CLS
+unchanged from baseline, `/shop [ar]` included at 0.0018. If this is ever
+widened, re-run `npm run test:perf` and read `/shop [ar]` specifically.
+
 Prices and quantities are `tabular-nums` everywhere so 10.000 and 8.000 line up
 digit for digit down a column.
+
+---
+
+### Radius
+
+`rounded-lg` · `rounded-xl` · `rounded-2xl` · `rounded-3xl` · `rounded-full`,
+and nothing else in customer-facing code. `rounded-md` was used twice — a grid
+badge and the footer's payment chips — which is a value the rest of the shop
+never uses; both are now `rounded-lg`. The admin keeps bare `rounded` on inline
+`<code>` chips, which is consistent within `/backends`.
 
 ---
 

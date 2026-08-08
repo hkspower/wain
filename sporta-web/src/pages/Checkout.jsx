@@ -517,7 +517,7 @@ export default function Checkout() {
         {/* Sticky pay bar — phones only. */}
         <div className="action-bar safe-bottom flex items-center justify-between gap-3 px-4 pt-3 lg:hidden">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">{t.cart.total}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">{t.cart.total}</p>
             <p className="text-accent truncate text-lg font-extrabold tabular-nums">
               {formatKWD(money ? money.total : total, lang)}
             </p>

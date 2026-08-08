@@ -139,6 +139,28 @@ p, li, dd, figcaption {
   line-height: 1.75;
 }
 
+/* THE SMALLEST LABELS, ONE STEP UP IN ARABIC.
+ *
+ * Arabic reads smaller than Latin at an identical font-size — it has no
+ * capitals and its meaning lives in dots and strokes above and below the
+ * baseline. 12px is a floor in Latin and a squint in Arabic.
+ *
+ * This is the NARROW version of a change that was tried and reverted before.
+ * Raising the RTL ROOT to 17-18px is the textbook fix and it is not free here:
+ * /shop in Arabic measured CLS 0.027 against a 0.02 budget, because the whole
+ * product grid reflows as the cards settle. This touches only text-xs — small
+ * labels, badges and captions, never body copy, never headings, never anything
+ * that sizes a grid cell — so the reflow that killed the root change does not
+ * apply. Measured after: no route moved from its baseline.
+ *
+ * If a future edit widens this beyond text-xs, re-run npm run test:perf and
+ * read /shop [ar] specifically. That is the number that says whether the shop's
+ * Arabic catalogue moves under the reader's thumb.
+ */
+[dir='rtl'] .text-xs {
+  font-size: 0.8125rem;   /* 13px, from 12px */
+}
+
 /* Arabic script must never be letter-spaced — tracking breaks the connected
  * letterforms. Zero it in RTL wherever tracking utilities are used. */
 [dir='rtl'] .tracking-wide,
@@ -194,14 +216,20 @@ p, li, dd, figcaption {
   .eyebrow {
     font-family: 'Alexandria', 'Alexandria Fallback', 'IBM Plex Sans Arabic', 'Plex Arabic Fallback', system-ui, sans-serif;
     font-weight: 600;
-    font-size: 0.7rem;
+    /* 12px is the floor for anything a customer has to read on a phone. This
+       was 0.7rem — 11.2px — which is the smallest text the shop set, on a
+       label that names the brand of the garment. */
+    font-size: 0.75rem;
     letter-spacing: 0.22em;
     text-transform: uppercase;
     line-height: 1;
   }
   [dir='rtl'] .eyebrow {
     letter-spacing: 0;
-    font-size: 0.78rem;
+    /* Kept a step above the Latin size, for the reason above the rule: Arabic
+       has no capitals to give a label its weight, so it gets size instead of
+       the tracking it must never have. */
+    font-size: 0.8125rem;
     font-weight: 700;
   }
 

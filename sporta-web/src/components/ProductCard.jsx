@@ -96,14 +96,14 @@ export default function ProductCard({ product }) {
         {soldOut && (
           <>
             <span className="absolute inset-0 bg-white/55" aria-hidden="true" />
-            <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 bg-ink/85 py-1.5 text-center text-[11px] font-bold uppercase tracking-widest text-white">
+            <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 bg-ink/85 py-1.5 text-center text-xs font-bold uppercase tracking-widest text-white">
               {t.spec.soldOut}
             </span>
           </>
         )}
 
         {product.badge && !soldOut && (
-          <span className="absolute start-2.5 top-2.5 rounded-md bg-brand px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-ink">
+          <span className="absolute start-2.5 top-2.5 rounded-lg bg-brand px-2 py-1 text-xs font-bold uppercase tracking-wide text-ink">
             {product.badge[lang]}
           </span>
         )}

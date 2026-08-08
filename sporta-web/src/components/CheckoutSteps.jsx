@@ -43,7 +43,7 @@ export default function CheckoutSteps({ current, paying = false }) {
             <span className="flex items-center gap-2">
               <span
                 aria-hidden="true"
-                className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[0.7rem] font-bold ${
+                className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold ${
                   done
                     ? 'bg-brand text-ink'
                     : isNow

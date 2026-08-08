@@ -133,7 +133,7 @@ export default function CategoryTile({ id, to, kicker, title, brief, badge, tone
           straight out of the tile. */}
       <div className="relative max-w-[76%] sm:max-w-[62%] md:max-w-[58%]">
         {badge ? (
-          <span className="mb-2 inline-block rounded-full bg-brand px-3 py-1 text-[0.7rem] font-bold text-ink">
+          <span className="mb-2 inline-block rounded-full bg-brand px-3 py-1 text-xs font-bold text-ink">
             {badge}
           </span>
         ) : (

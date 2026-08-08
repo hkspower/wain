@@ -100,7 +100,7 @@ export default function AssistantPanel({ onClose }) {
         <img src="/favicon-192.png" alt="" width="192" height="192" className="h-7 w-7" />
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-bold text-white">{T.title}</span>
-          <span className="block text-[11px] text-white/60">{T.subtitle}</span>
+          <span className="block text-xs text-white/60">{T.subtitle}</span>
         </span>
         <button onClick={onClose} aria-label={T.close}
           className="tap-target rounded-lg px-2 py-1 text-white/70 hover:text-white">✕</button>

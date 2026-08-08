@@ -178,7 +178,7 @@ export default function AreaSelect({
                 ${i === active ? 'bg-brand/10 text-brand-dark' : 'text-slate-700'}`}
             >
               <span>{a[lang]}</span>
-              {a.gov && <span className="text-[0.7rem] text-slate-500">{a.gov}</span>}
+              {a.gov && <span className="text-xs text-slate-500">{a.gov}</span>}
             </li>
           ))}
         </ul>

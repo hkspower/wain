@@ -113,7 +113,7 @@ export default function Navbar() {
           <button onClick={() => setCartOpen(true)} className="tap relative flex items-center justify-center" aria-label={t.nav.cart}>
             <IconBag size={22} />
             {count > 0 && (
-              <span className="absolute -end-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-ink">
+              <span className="absolute -end-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-xs font-bold text-ink">
                 {count}
               </span>
             )}
@@ -124,7 +124,7 @@ export default function Navbar() {
           <Link to="/wishlist" className="tap relative flex items-center justify-center" aria-label={t.a11y.wishlist}>
             <IconHeart size={22} filled={wishCount > 0} />
             {wishCount > 0 && (
-              <span className="absolute -end-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-bold text-ink">
+              <span className="absolute -end-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand px-1 text-xs font-bold text-ink">
                 {wishCount}
               </span>
             )}
@@ -189,7 +189,7 @@ function PromoBar({ bar, fallback, lang }) {
   if (bar && !bar.live && !text) return null
 
   const className =
-    'on-brand flex h-7 items-center justify-center overflow-hidden bg-brand px-4 text-center text-[11px] font-semibold leading-none sm:text-xs'
+    'on-brand flex h-7 items-center justify-center overflow-hidden bg-brand px-4 text-center text-xs font-semibold leading-none sm:text-xs'
   return bar?.href ? (
     <Link to={bar.href} className={`${className} underline-offset-2 hover:underline`}>{shown}</Link>
   ) : (
