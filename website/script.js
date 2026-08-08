@@ -50,13 +50,38 @@
     });
   }
 
-  /* --------------------- ظل الهيدر عند التمرير --------------------- */
+  /* ------- ظل الهيدر + شريط التقدّم + زر العودة للأعلى (بإطار واحد) ------- */
   var header = document.getElementById('header');
-  function onScroll() {
-    if (header) header.classList.toggle('is-stuck', window.scrollY > 8);
+  var progress = document.getElementById('progress');
+  var toTop = document.getElementById('toTop');
+  var ticking = false;
+
+  function onScrollFrame() {
+    var y = window.scrollY;
+    var max = document.documentElement.scrollHeight - window.innerHeight;
+
+    if (header) header.classList.toggle('is-stuck', y > 8);
+    if (progress) progress.style.transform = 'scaleX(' + (max > 0 ? y / max : 0) + ')';
+    if (toTop) toTop.classList.toggle('is-visible', y > 700);
+
+    ticking = false;
   }
+
+  function onScroll() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(onScrollFrame);
+  }
+
   window.addEventListener('scroll', onScroll, { passive: true });
-  onScroll();
+  window.addEventListener('resize', onScroll, { passive: true });
+  onScrollFrame();
+
+  if (toTop) {
+    toTop.addEventListener('click', function () {
+      window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+    });
+  }
 
   /* --------------------- إبراز رابط القسم الحالي --------------------- */
   var navLinks = Array.prototype.slice.call(
