@@ -34,7 +34,7 @@ Locked, exactly as they are:
 
 | | Locked value |
 |---|---|
-| Mark | the dhow's lateen sail over the water — `logo.svg` and `#i-sail` |
+| Mark | the dhow's lateen sail over the water — `logo.svg`, `favicon.svg` and `#i-sail`, one drawing in all three. Redrawn 2026-08-08 at the owner's ask: 24 grid, 2-unit optical margin, straight yard, long curved leech, foot arched up against the hull's belly, bow lifted right. The suite pins its path signature in all three files |
 | Wordmark | **المهلب** in brand brown, `Almuhallab Code` on the line beneath |
 | Brand ink | `--tint` `#7a4418` · `--tint-strong` `#6f3f1c` |
 | Surfaces | **white on every device** — no dark theme; white page, white cards, cool near-neutral greys. Brown is ink, never paper — with one exception the owner asked for (2026-07-31): the **masthead bar is brown** (`--tint-strong`) with white ink on every page, and `theme-color` matches it. Everything below the bar stays white |
@@ -238,7 +238,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 372 checks covering
+- `python3 design/test_suite.py` is the full system test — 373 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
