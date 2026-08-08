@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useLang } from '../i18n/LanguageContext'
-import { CATEGORIES, PRODUCTS, byCategory } from '../lib/products'
+import { CATEGORIES, byCategory } from '../lib/products'
+import { useCatalogue } from '../lib/useCatalogue'
 import ProductCard from '../components/ProductCard'
 import { usePageMeta, itemListJsonLd, breadcrumbJsonLd, graph } from '../lib/seo'
 
@@ -13,16 +14,24 @@ export default function Shop() {
   // schema, so it must really filter.
   const [params] = useSearchParams()
   const q = (params.get('q') || '').trim().toLowerCase()
+
+  // THE LIVE CATALOGUE, not the bundled one. byCategory() reads the bundled
+  // list, so a product added in /backends never reached this grid at all —
+  // it was saved, returned by the API, and shown nowhere a customer could get
+  // to. Filtering the live list here is the whole fix; the bundle is still what
+  // paints first, inside the hook.
+  const { products: catalogue } = useCatalogue()
+
   const jsonLd = useMemo(
     () =>
       graph(
-        itemListJsonLd(PRODUCTS, lang),
+        itemListJsonLd(catalogue, lang),
         breadcrumbJsonLd([
           [t.nav.home, '/'],
           [t.nav.shop, '/shop'],
         ]),
       ),
-    [lang, t],
+    [lang, t, catalogue],
   )
   usePageMeta({
     title: t.nav.shop,
@@ -32,7 +41,7 @@ export default function Shop() {
     path: '/shop',
     jsonLd,
   })
-  const products = byCategory(cat).filter(
+  const products = (cat === 'all' ? catalogue : catalogue.filter((p) => p.category === cat)).filter(
     (p) =>
       !q ||
       p.name.en.toLowerCase().includes(q) ||

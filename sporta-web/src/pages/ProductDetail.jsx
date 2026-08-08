@@ -38,12 +38,19 @@ export default function ProductDetail() {
   // would advertise 10.000 for something that rings up at 7.500 the moment a
   // sale is on, and the shopper meets the difference at the last step.
   const [live, setLive] = useState(null)
+  // `ready` is the difference between "there is no such product" and "we have
+  // not looked yet". Without it a product that exists only in the database
+  // flashed "product not found" for the length of one request before rendering
+  // — and a crawler, which does not wait, would have indexed the not-found.
+  const [ready, setReady] = useState(false)
   useEffect(() => {
     let alive = true
     setLive(null)
+    setReady(false)
     loadProducts()
       .then((all) => { if (alive) setLive(all.find((p) => p.slug === slug) ?? null) })
       .catch(() => {})
+      .finally(() => { if (alive) setReady(true) })
     return () => { alive = false }
   }, [slug])
   // Only the price fields — and the brand — are taken from the server.
@@ -58,8 +65,19 @@ export default function ProductDetail() {
   // no matter what was saved. THIS MERGE IS WHERE A SERVER-ONLY COLUMN GOES TO
   // BE FORGOTTEN — anything added to the products table that the page must
   // render has to be named here too.
-  const product = shipped && {
-    ...shipped,
+  // A PRODUCT MAY EXIST IN ONLY ONE OF THE TWO PLACES, and both cases are real.
+  //
+  //   in the bundle only  — the shipped catalogue is richer (copy, AHED detail)
+  //                         and the database has not been imported yet
+  //   in the database only — the owner added it in /backends, which is the case
+  //                         that used to answer "product not found" at its own
+  //                         URL while the admin showed it saved
+  //
+  // So the bundled record is the base when there is one, the live row otherwise,
+  // and the live values that the bundle cannot know always win.
+  const base = shipped ?? live
+  const product = base && {
+    ...base,
     ...(live
       ? { price: live.price, list_price: live.list_price, on_sale: live.on_sale,
           brand: live.brand, images: live.images }
@@ -225,6 +243,17 @@ export default function ProductDetail() {
         }
       : { title: t.shop.notFound, path: '/shop', robots: 'noindex, follow' },
   )
+
+  // NOT FOUND IS AN ANSWER, AND IT HAS TO BE EARNED. Until the catalogue has
+  // been fetched we do not know whether this slug exists, and saying so early
+  // is how a real product page becomes a 404 in a crawler's index.
+  if (!product && !ready) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-20 text-center">
+        <p className="text-sm text-slate-400">{t.a11y.loading}</p>
+      </div>
+    )
+  }
 
   if (!product) {
     return (
