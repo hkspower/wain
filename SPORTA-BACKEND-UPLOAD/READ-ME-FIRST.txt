@@ -1,0 +1,52 @@
+SPORTA — the backend panel, ready to upload
+============================================
+
+Drop the CONTENTS of this folder into public_html, keeping the folder
+structure. Nothing here overwrites your database credentials, your payment
+settings or your product photos.
+
+BEFORE YOU START — turn on hidden files
+---------------------------------------
+hPanel -> File Manager -> Settings -> "Show hidden files".
+
+Do this FIRST. The file called .htaccess starts with a dot, so File Manager
+hides it by default, and it will not be uploaded if you cannot see it. That
+file is what makes the address /backends work at all: the panel is not a file
+on disk, it is a URL the app claims, so without .htaccess the server answers
+its own "404 Not Found" and the panel looks like it was never uploaded.
+
+WHAT TO UPLOAD
+--------------
+  .htaccess        -> public_html/.htaccess          (the route; hidden file)
+  index.html       -> public_html/index.html
+  assets/          -> public_html/assets/            (merge with what is there)
+  api/             -> public_html/api/               (merge)
+
+The admin panel itself is assets/AdminApp-CqcrlJWu.js.
+If that file is on the server and /backends still does not open, the problem
+is .htaccess, not the panel.
+
+AFTER UPLOADING
+---------------
+1. In phpMyAdmin, import api/payattempt.mysql.sql.
+   Until you do, a customer whose card is declined cannot try again.
+
+2. Open https://www.sporta.com.kw/backends
+
+   It opens and asks you to sign in ................ done.
+   It shows an orange setup page ................... it IS installed; the page
+       names which of the four values in api/config.php is wrong. Fix that one.
+   It shows "404 Not Found" ........................ .htaccess did not upload.
+       Turn on hidden files and send it again.
+
+WHAT IS NOT IN HERE, ON PURPOSE
+-------------------------------
+api/config.php — your database credentials. That file lives only on the
+server. If this bundle carried one it would overwrite yours and take the whole
+shop down.
+
+knet/ and pay/ — the payment endpoints, which have their own server-only
+credentials. Nothing here changes them, so nothing here touches them.
+
+Your products, photos and orders are in the database and on the server
+already. This bundle does not contain and cannot affect them.

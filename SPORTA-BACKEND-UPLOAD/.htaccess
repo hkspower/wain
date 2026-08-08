@@ -1,0 +1,380 @@
+# Sporta — Hostinger (Apache) production config: SPA routing + compression + caching.
+
+# ---- Deny dotfiles FIRST, before anything else can short-circuit it ----
+# Order is the whole point. This rule used to sit at the bottom of the file,
+# where it was dead: the SPA block passes any request whose target exists
+# through with [L], so it only ever saw dotfiles that were not there. Under
+# Apache, .DS_Store, .deploy-manifest.json and .git/config all returned 200
+# with their full contents — and a readable .git/config means the entire
+# repository can be reconstructed. Nothing may precede this.
+# .well-known stays reachable so SSL/ACME renewal keeps working.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule "(?i)(^|/)\.(?!well-known)" - [F,L]
+</IfModule>
+
+# ---- index.html is the homepage, never index.php ----
+# The live server still has an index.php from the previous PHP site sitting
+# beside index.html. Hostinger's default DirectoryIndex lists index.php first,
+# so "/" would serve the OLD site while every deep route served the new one —
+# and nothing about that looks broken enough to notice. Stating the order here
+# removes the dependence on the host's default entirely.
+DirectoryIndex index.html
+
+# Directory listings must never be generated. public_html has folders from the
+# old site (images/, fonts/, private/) with no index file of their own.
+Options -Indexes
+
+# ---- Canonicalise host + scheme in a SINGLE 301 (never chain redirects) ----
+# Everything on the site declares https://www.sporta.com.kw as canonical, so any
+# other spelling of the URL jumps straight there in one hop. Rule 1 fixes host
+# AND scheme together, so http://sporta.com.kw/x is ONE redirect, not two.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # 1) Wrong host (bare domain, old alias, IP) -> canonical host over HTTPS.
+  # (:port tolerated — Host carries a port on non-default ports / odd proxies.)
+  RewriteCond %{HTTP_HOST} !^www\.sporta\.com\.kw(:[0-9]+)?$ [NC]
+  RewriteRule ^ https://www.sporta.com.kw%{REQUEST_URI} [R=301,L]
+
+  # 2) Right host, plain HTTP -> HTTPS. Hostinger terminates SSL at a proxy, so
+  #    Apache often sees plain HTTP even for real HTTPS hits. Redirect ONLY when
+  #    every signal says insecure — if one is missing we serve the page instead
+  #    of risking an infinite http->https->http loop.
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  RewriteCond %{HTTP:X-Forwarded-SSL} !=on
+  RewriteCond %{SERVER_PORT} !=443
+  RewriteRule ^ https://www.sporta.com.kw%{REQUEST_URI} [R=301,L]
+</IfModule>
+
+# ---- One URL per page (kill duplicates without adding redirect hops) ----
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # /index.html -> / . Guarded by THE_REQUEST, which keeps the ORIGINAL request
+  # line even after an internal rewrite, so the SPA rewrite below (which targets
+  # /index.html internally) can never re-enter this rule and loop.
+  # Target is the ABSOLUTE canonical URL, not "/": behind Hostinger's SSL-
+  # terminating proxy Apache sees plain HTTP, so a path-only target would be
+  # expanded to http:// and bounce through the HTTPS rule = 2 hops.
+  RewriteCond %{THE_REQUEST} \s/+index\.html[\s?] [NC]
+  RewriteRule ^index\.html$ https://www.sporta.com.kw/ [R=301,L]
+
+  # /index.php -> / . The previous PHP site's front controller is STILL in the
+  # live public_html — publish reports it as a leftover every run — and while
+  # DirectoryIndex stops it answering "/", it answered /index.php with a 200 and
+  # the whole old site. Found by scripts/storage-audit.mjs, which asserts it now.
+  #
+  # Two things wrong with that, and this rule fixes both. It was a second
+  # indexable spelling of the homepage, which is the one thing CLAUDE.md says
+  # must never exist; and it EXECUTED old PHP, with whatever that code does. A
+  # rewrite in .htaccess runs at fixup, before the PHP handler, so the file is
+  # never run — a 301 here is not cosmetic.
+  #
+  # Anchored on the full REQUEST_URI, not the filename, so it only ever catches
+  # the one at the web root. A <Files "index.php"> would inherit into every
+  # subfolder and 301 any nested index.php a dropin might add.
+  RewriteCond %{REQUEST_URI} ^/index\.php$
+  RewriteRule ^ https://www.sporta.com.kw/ [R=301,L]
+
+  # /shop/ -> /shop . Canonicals and internal links never use a trailing slash;
+  # this stops the slashed spelling becoming a second indexable URL.
+  # !-d keeps real directories (/assets/) working.
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^(.+?)/+$ https://www.sporta.com.kw/$1 [R=301,L]
+</IfModule>
+
+# ---- SPA routing: only KNOWN routes become 200 ----
+# Internal rewrites (no R flag), so deep links cost zero redirect hops and the
+# browser keeps /shop in the address bar.
+#
+# A catch-all ". -> /index.html" would answer 200 for EVERY made-up URL, which
+# Google treats as a soft 404: crawl budget burnt on junk and the URL is
+# eligible for indexing. So each real route is listed, and anything unmatched
+# falls through to the ErrorDocument below, which serves the same SPA shell
+# with a genuine 404 status.
+#
+# ►► ADDING A ROUTE TO App.jsx? ADD IT HERE TOO, or it will 404. ◄◄
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteRule ^index\.html$ - [L]
+
+  # Real files and directories always win (assets, sitemap.xml, robots.txt…).
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  RewriteRule ^(shop|cart|checkout|about|contact|wishlist|track|returns|terms|privacy)/?$ /index.html [L]
+  RewriteRule ^product/[^/]+/?$        /index.html [L]
+  RewriteRule ^payment/result/?$       /index.html [L]
+  # /invoice/<order number>. A parameterised route, so it needs its own rule —
+  # the alternation list above only matches fixed paths.
+  RewriteRule ^invoice/[A-Za-z0-9]{1,30}/?$ /index.html [L]
+  RewriteRule ^backends(/.*)?$         /index.html [L]
+</IfModule>
+
+# Unknown URL -> SPA shell rendered with a real 404 status (not a soft 404).
+# React Router still sees the original path and renders the NotFound page.
+ErrorDocument 404 /index.html
+
+# Unknown product slugs stay 200 by design: the server cannot know the
+# catalogue, and ProductDetail already sends robots "noindex, follow" for them.
+
+# ---- HSTS: tell browsers to always use HTTPS for this domain ----
+<IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+</IfModule>
+
+# ---- Compression (Brotli if available, else gzip) ----
+# application/manifest+json is listed explicitly: .webmanifest is not covered by
+# application/json, so the manifest was the one text file served uncompressed.
+<IfModule mod_brotli.c>
+  AddOutputFilterByType BROTLI_COMPRESS text/html text/plain text/css application/json application/javascript text/javascript image/svg+xml application/xml application/manifest+json
+</IfModule>
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css application/json application/javascript text/javascript image/svg+xml application/xml application/manifest+json
+</IfModule>
+
+# ---- Caching ----
+#
+# Cache-Control comes from mod_headers, so it is gated on mod_headers. It used
+# to sit inside <IfModule mod_expires.c>, which measured out under Apache as:
+# no mod_expires, NO Cache-Control at all. Not the immutable year on hashed
+# assets, not the thirty days on images — and not config.js's no-cache either,
+# so editing a backend URL in File Manager would have looked like it did
+# nothing. mod_expires now carries only the directive that is genuinely its own.
+#
+# ETags: Apache's default includes the inode, which changes when files are
+# restored from a backup or the account is moved between servers. Every image
+# and every HTML revalidation would then miss and re-download for no reason.
+# MTime and Size describe the file, not where it happens to sit.
+FileETag MTime Size
+
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/html "access plus 0 seconds"
+</IfModule>
+
+<IfModule mod_headers.c>
+  # ONLY content-hashed Vite output (index-CuCZhORW.js, About-sNx2ecy0.css)
+  # may be immutable: the filename changes whenever the bytes change. No
+  # revalidation, ever — which is why nothing else may claim it.
+  <FilesMatch "-[A-Za-z0-9_-]{8,}\.(js|css)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # Fixed-name files (favicon.png, logo.png, og-image.png, fonts) keep their
+  # name across deploys, so they must NOT be immutable — a replaced logo would
+  # be stuck in browser caches for a year. 30 days, and for the week after that
+  # the old copy is drawn immediately while the new one is fetched behind it, so
+  # the visit after a month is not slower than the ones before it.
+  <FilesMatch "\.(woff2?|ttf|eot|svg|png|jpe?g|gif|webp|avif|ico)$">
+    Header set Cache-Control "public, max-age=2592000, stale-while-revalidate=604800"
+  </FilesMatch>
+
+  # ...except the pictures the owner actually REPLACES.
+  #
+  # /hero and /cats are shipped artwork with fixed filenames, and swapping one
+  # is a normal thing to do — a new hero, a new category tile. Thirty days of
+  # hard freshness meant a returning visitor could not see the change for a
+  # month, and the service worker held the same file cache-first on top of
+  # that, so on neither path did the new picture arrive. A day fresh, then a
+  # month of drawing the old copy instantly while the new one is fetched
+  # behind it: same speed on every visit, a day's lag instead of a month's.
+  #
+  # SetEnvIf picks the FOLDER, because that is what the distinction is —
+  # logo.png and the favicons keep the thirty days above, and .htaccess cannot
+  # open a <Directory> block.
+  #
+  # The override then has to sit inside a <FilesMatch> of its own, and that is
+  # not cosmetic. Apache applies directives from a <FilesMatch> section AFTER
+  # the ones in the enclosing scope, whatever the order in the file — so the
+  # same rule written at this level was silently overwritten by the block
+  # above it. Measured against a real Apache: 2592000, not 86400. Same kind of
+  # section, later in the file, is what actually wins.
+  SetEnvIf Request_URI "^/(hero|cats)/" SPORTA_REPLACEABLE_IMAGE
+  <FilesMatch "\.(png|jpe?g|gif|webp|avif)$">
+    Header set Cache-Control "public, max-age=86400, stale-while-revalidate=2592000" env=SPORTA_REPLACEABLE_IMAGE
+  </FilesMatch>
+
+  # robots.txt, llms.txt, the sitemaps and site.webmanifest had NO Cache-Control
+  # at all, so every cache in the path guessed. They change only on a deploy and
+  # crawlers fetch them repeatedly: an hour fresh, a day of serving the old copy
+  # while refreshing.
+  <FilesMatch "\.(xml|txt|webmanifest|json)$">
+    Header set Cache-Control "public, max-age=3600, stale-while-revalidate=86400"
+  </FilesMatch>
+
+  # sw.js must always be revalidated, and it matched NONE of the rules above:
+  # not the hashed-asset pattern (its name is fixed, on purpose — the browser
+  # looks for it at exactly this path), and not the .xml/.txt/.json group. So it
+  # had no Cache-Control at all and every cache in the path guessed. A stale
+  # service worker is the worst kind of stale: it decides what the whole site is
+  # allowed to cache, so one pinned copy can outlive several deploys.
+  <Files "sw.js">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </Files>
+
+  # config.js carries the site's settings and is edited in place on the
+  # server. If it were cached, changing a backend URL would appear to do
+  # nothing for as long as the cache lasted. Must stay AFTER the rules above so
+  # it wins; it is not hashed, so none of them match it, but ordering is the
+  # thing that keeps that true if a rule is ever widened.
+  <Files "config.js">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </Files>
+
+  # HTML always revalidates, so a deploy is picked up on the next visit.
+  #
+  # must-revalidate is deliberately NOT set here, and that is the whole change:
+  # it forbids a cache from ever serving a stale copy, which cancels
+  # stale-while-revalidate. Without it the shell paints from cache immediately
+  # and the revalidation happens behind the paint — one fewer round trip before
+  # anything appears, on a mobile connection in Kuwait.
+  #
+  # Sixty seconds of staleness is safe here for a specific reason: publish never
+  # deletes, so the hashed assets a slightly-old shell asks for are still on the
+  # server. A shell that outlived its assets would be a white screen; this one
+  # cannot. Caches that do not implement stale-while-revalidate (Safari) simply
+  # behave as they did before.
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache, stale-while-revalidate=60"
+  </FilesMatch>
+</IfModule>
+
+# ---- Security headers ----
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-Frame-Options "SAMEORIGIN"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+  Header set Cross-Origin-Opener-Policy "same-origin"
+  Header set X-Permitted-Cross-Domain-Policies "none"
+
+  # Don't advertise the PHP version to attackers.
+  Header always unset X-Powered-By
+
+  # ---- Cookies ----
+  # The storefront sets NO cookies. Nothing in src/ touches document.cookie; the
+  # cart, wishlist, theme and language live in localStorage, and the admin's
+  # admin session does too. So there is no consent banner because there is
+  # nothing to consent to, and this rule currently rewrites nothing.
+  #
+  # It is here for the cookie that is not ours. PHP emits PHPSESSID the moment
+  # anything calls session_start(); Hostinger can inject its own; a future
+  # feature will add one and forget the flags. Any of those arriving without
+  # Secure gets Secure and SameSite=Lax added on the way out — so a cookie
+  # cannot leak over a downgraded connection or ride along on a cross-site POST,
+  # whether or not whoever set it remembered.
+  #
+  # The negative lookahead is what stops a second "; Secure" being appended to a
+  # cookie that already had it.
+  #
+  # `edit`, NOT `edit*`, and not `always`. Both were tried against Apache 2.4.58:
+  #   * `Header edit*` SEGFAULTED the worker on every request that carried a
+  #     Set-Cookie — with or without the lookahead. It is documented as "every
+  #     instance" and is not safe to use here.
+  #   * `always` writes to err_headers_out, and PHP's setcookie() writes to
+  #     headers_out, so an `always edit` would silently never see PHPSESSID —
+  #     the one cookie this rule exists for.
+  # Plain `edit` was verified to rewrite BOTH of two Set-Cookie headers on one
+  # response, so the `*` bought nothing even before it crashed.
+  #
+  # HttpOnly is deliberately NOT forced here: it is right for a session cookie
+  # and wrong for one a script is meant to read, and silently breaking a future
+  # feature is worse than this rule not covering it. The payment endpoints, where
+  # no script reads anything, do force it — see dropin/php-*/.htaccess.
+  Header edit Set-Cookie "(?i)^((?!.*;\s*Secure).*)$" "$1; Secure"
+  Header edit Set-Cookie "(?i)^((?!.*;\s*SameSite=).*)$" "$1; SameSite=Lax"
+
+  # Turn off browser features the storefront never uses.
+  Header set Permissions-Policy "accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), usb=(), xr-spatial-tracking=()"
+
+  # Content-Security-Policy.
+  # 'unsafe-inline' is required for script-src because index.html carries
+  # inline JSON-LD (and the static build of this site carries inline page
+  # scripts). Even so the policy still blocks third-party script hosts,
+  # <object>/<embed>, <base> hijacking and cross-origin framing.
+  # connect-src is same-origin only now that /api is the whole backend;
+  # fonts.* cover Google Fonts;
+  # form-action lists the KNET gateway in case pay.php ever posts a form.
+  Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests"
+</IfModule>
+
+# ---- Dotfiles, everywhere, by NAME ----
+# The rewrite rule at the top of this file does not reach subdirectories. Proved
+# under Apache 2.4: with a /sub/.htaccess that merely says "RewriteEngine On",
+# /sub/.token.json was served 200 WITH ITS CONTENTS while /.rootsecret.json in
+# the same tree was 403. mod_rewrite directives are not inherited into a
+# directory that enables its own rewrite engine, so /knet and /pay are safe only
+# because each carries its own copy of the rule — and any folder added later
+# would not be.
+#
+# A <FilesMatch> is inherited. Same harness, same subdirectory: /sub/x.log,
+# /sub/secret.env, /sub/package.json and /sub/notes.md were all 403 from this
+# file alone. So the dotfile deny is restated here by name, where it covers the
+# whole tree without depending on rewrite semantics or on remembering to repeat
+# it in every new folder.
+#
+# .well-known keeps working: it is a DIRECTORY, and the request that matters is
+# /.well-known/acme-challenge/<token>, whose filename does not begin with a dot.
+# Verified 200 with this rule in place — SSL renewal is untouched.
+# __MACOSX — the folder Finder puts inside a zip, one shadow file per real
+# file. It does NOT begin with a dot, so the rule below does not see it, and
+# it is browsable: a directory index of everything the site is made of. It
+# turns up whenever a folder is re-zipped on a Mac and re-uploaded.
+RedirectMatch 404 (?i)(^|/)__MACOSX(/|$)
+
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+
+# ---- Never serve VCS metadata, env files, manifests or backups ----
+# The rewrite half of this rule lives at the TOP of the file, not here. Left in
+# this position it did nothing at all: the SPA block above passes any request
+# whose target exists straight through with [L], so a dotfile that is really on
+# disk — the only kind that can leak — never reached the deny. Verified under
+# Apache: .DS_Store, .deploy-manifest.json and .git/config were all served 200.
+# What remains here is name-based and needs no rewrite ordering.
+# The named files are not hypothetical — every one of them was photographed in
+# the live public_html. deploy.config.json and deployhostinger.mjs describe how
+# to reach the server; knet.log is the payment log; config-dist.php and
+# knet-config.php are payment-credential files from the previous site. A .php
+# file is normally safe because PHP executes it, but that protection vanishes
+# the moment PHP is misconfigured or the module is disabled during an upgrade,
+# which is exactly when the credentials would be served as plain text.
+<FilesMatch "(?i)^(composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|pnpm-lock\.yaml|vite\.config\.[cm]?[jt]s|(ts|js)config\.json|Dockerfile|docker-compose\.ya?ml|deploy\.config\.json|config-dist\.php|knet-config\.php|sporta-deploy\.php|sporta-deploy-config\.php|.*\.(bak|old|orig|save|swp|sql|log|json|jsonl|sh|env|zip|tar|gz|mjs|ts|md))$">
+  Require all denied
+</FilesMatch>
+
+# json is in that list, and it is the one to notice: the site ships no .json file
+# at all (site.webmanifest is .webmanifest, and the audit asserts the count is
+# zero), so denying the class costs nothing and closes it for anything that lands
+# there later — a stray .deploy-manifest.json, a copied deploy.config.json, or a
+# cached bearer token. If a real .json ever needs serving, exempt that one
+# filename with a <Files> block rather than reopening the class.
+#
+# The list also ends in zip|tar|gz|mjs|ts|md, and none of those is an
+# oversight — the site ships no file of any of those types either, so denying the
+# whole class is free, and each one is on the live server right now:
+#   sporta-dist.zip        the entire built site, downloadable by anyone
+#   smoke-cbk.mjs          payment smoke test
+#   verify-deploy-assets.mjs
+#   sporta-mac-check.sh    (already covered by sh)
+#   vite.config.ts         build configuration
+#   README-knet.md         describes the payment integration in detail
+#
+# sporta-deploy.php is named individually and is the reason this block matters
+# more than the rest of the file: it is a deploy endpoint sitting in the web
+# root, answering to anyone who requests it. Denying it here is a stopgap.
+# DELETE IT — a deploy endpoint has no business being reachable from the
+# internet at all, and no .htaccess rule is a substitute for its absence.
+
+# Keep the server version out of generated error pages.
+ServerSignature Off
+
+<IfModule mod_mime.c>
+  AddType application/manifest+json .webmanifest
+</IfModule>
