@@ -297,7 +297,7 @@ def home_checks(pg):
     check(S, "النوخذة is named as the unified system",
           pg.inner_text("main").count("النظام الموحد") >= 2)
     cards = pg.eval_on_selector_all(".card", "n=>n.length")
-    check(S, "the card sections are all present", cards == 24, f"{cards} cards")
+    check(S, "the card sections are all present", cards == 25, f"{cards} cards")
     check(S, "the three commitments sit in the band, not a grid",
           pg.eval_on_selector_all(".band .fact", "n=>n.length") == 3)
     check(S, "the retired code editor is gone from the page",
@@ -320,7 +320,7 @@ def home_checks(pg):
     rm.close()
     # the card sections slide (owner's request 2026-07-30): one scroll-snap
     # rail per section, all cards on one baseline, genuinely scrollable
-    for sid, n in (("nokhatha", 4), ("services", 6), ("offers", 4), ("edge", 10)):
+    for sid, n in (("nokhatha", 4), ("services", 6), ("offers", 5), ("edge", 10)):
         cnt = pg.eval_on_selector_all(f"#{sid} .rail .card", "n=>n.length")
         check(S, f"{sid}: the rail carries all its cards", cnt == n, f"{cnt} cards")
         tops = set(pg.eval_on_selector_all(f"#{sid} .rail .card",
@@ -384,7 +384,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "370", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "372", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -418,7 +418,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "370", "0", "100%"], str(finals))
+          finals == ["4", "372", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -581,7 +581,7 @@ def home_checks(pg):
         check(S, f"the footer states {want}", want in ftext)
     check(S, "the footer maps the company, the services and the system",
           pg.eval_on_selector_all(".fcols nav a", "n=>n.length") >= 16)
-    # one numeral system per page: Arabic-Indic digits beside "+965" and "370"
+    # one numeral system per page: Arabic-Indic digits beside "+965" and "372"
     # is the same defect that once printed ١٢٬٠٠٠ next to 850 in one table
     mixed = pg.evaluate(r"(document.body.innerText.match(/[٠-٩]/g) || []).length")
     check(S, "the page uses one numeral system throughout", mixed == 0, f"{mixed} Arabic-Indic")
@@ -609,12 +609,12 @@ def home_checks(pg):
     # sticky button that opens nothing is worse than no button.
     # the four drawn scenes: pictures carry «ما نبنيه لعملك», not paragraphs
     scenes = pg.eval_on_selector_all("#offers .scene", "n=>n.map(e=>e.getAttribute('aria-label'))")
-    check(S, "the four works are drawn, not written", len(scenes) == 4, str(len(scenes)))
+    check(S, "the five works are drawn, not written", len(scenes) == 5, str(len(scenes)))
     check(S, "each drawing is described for screen readers",
           all(s_ and "رسم" in s_ for s_ in scenes), str(scenes))
     labels = pg.eval_on_selector_all("#offers .card.drawn > b", "n=>n.map(e=>e.textContent.trim())")
-    check(S, "the works are أتمتة · تصميم · تطبيقات · برمجة خاصة",
-          labels == ["أتمتة", "تصميم", "تطبيقات", "برمجة خاصة"], str(labels))
+    check(S, "the works are أتمتة · تصميم · تطبيقات · برمجة خاصة · شعار وهوية",
+          labels == ["أتمتة", "تصميم", "تطبيقات", "برمجة خاصة", "شعار وهوية"], str(labels))
     check(S, "the app scene names both platforms",
           "iOS" in pg.inner_text("#offers") and "Android" in pg.inner_text("#offers"))
     # every card must lay out in the rail — a card that inherits position:absolute
@@ -627,7 +627,22 @@ def home_checks(pg):
       return { distinct: lefts.size, abs };
     })()""")
     check(S, "each drawn card takes its own column",
-          stacked["distinct"] == 4 and stacked["abs"] == 0, str(stacked))
+          stacked["distinct"] == 5 and stacked["abs"] == 0, str(stacked))
+    # the logo offer says what a logo is made of, and never shows the company's
+    # own sail as if it were a sample of client work
+    logo = pg.evaluate("""(() => {
+      const c = [...document.querySelectorAll('#offers .card.drawn')]
+        .find(e => e.querySelector('b').textContent.trim() === 'شعار وهوية');
+      if (!c) return null;
+      const s = c.querySelector('svg.scene');
+      return { beats: [...s.querySelectorAll('text')].map(t => t.textContent.trim()),
+               borrows: !!s.querySelector('use') };
+    })()""")
+    check(S, "the logo offer is told as فكرة · بناء · روح",
+          logo and logo["beats"] == ["فكرة", "بناء", "روح"], str(logo))
+    check(S, "the logo offer draws a neutral mark, not the company's own",
+          logo and not logo["borrows"], str(logo))
+
     check(S, "the drawings animate, and stop under reduced motion",
           pg.eval_on_selector("#offers .scene .ga", "e=>getComputedStyle(e).animationName") != "none")
 

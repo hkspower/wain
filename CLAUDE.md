@@ -165,6 +165,11 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   `position: absolute`; the collision stacked all four cards in one grid cell
   and silently killed the rail. The suite now checks each drawn card takes its
   own column and that none is absolutely positioned.
+- **A logo is drawn as فكرة → بناء → روح**, not shown as a finished picture:
+  the offer card's scene is a bulb, then the mark under construction on its
+  geometry, then the finished mark with a halo. The mark drawn there is a
+  neutral one — the company's own sail is never used as a sample of client
+  work, and the suite fails if that scene ever `<use>`s the sprite.
 - **«من أعمالنا» is delivered work; «ما نبنيه لعملك» is offers.** النوخذة is a
   system the company built and runs, so it keeps the flagship row. The four
   offers (موظف ذكاء اصطناعي · برمجيات خاصة · برنامج مساعد داخل موقعك · تطوير
@@ -233,7 +238,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 370 checks covering
+- `python3 design/test_suite.py` is the full system test — 372 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
