@@ -1,14 +1,18 @@
 // What a search engine actually gets, in both languages.
 //
-// THE DEFECT THIS SUITE EXISTS FOR. /?lang=ar rendered Arabic perfectly — right
-// lang, right dir, Arabic headings, Arabic body — and then handed the crawler
-// an ENGLISH <title> and an ENGLISH <meta description>. Those two lines are the
+// ARABIC IS THE DEFAULT. The bare URL is the Arabic one and is canonical to
+// itself; English lives at ?lang=en. This suite is what holds that true across
+// the three places it is written — the static shell, usePageMeta and the
+// sitemap — because three sources saying three things is how an hreflang
+// cluster gets thrown away.
+//
+// THE DEFECT IT WAS WRITTEN FOR. The Arabic page rendered perfectly — right
+// lang, right dir, Arabic headings and body — and then handed the crawler an
+// ENGLISH <title> and an ENGLISH <meta description>. Those two lines are the
 // entire search result. An Arabic query returning an English snippet is a
 // result nobody clicks, and it is the likeliest single reason a bilingual shop
-// ranks in one language only.
-//
-// Nothing on the page looked wrong. Opening /?lang=ar in a browser showed a
-// correct Arabic page; the fault was in the two tags a reader never sees.
+// ranks in one language only. Nothing on the page looked wrong; the fault was
+// in the two tags a reader never sees.
 //
 //   npm run test:seo    (needs php -S :8188 router-native)
 import { chromium } from 'playwright'
@@ -26,9 +30,10 @@ const head = (t) => console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 58 - t.leng
 const ARABIC = /[ء-ي]/
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' })
 
-// Googlebot's actual signals: a US datacentre, en-US, UTC. Every one of those
-// is a reason detectLang picks English, which is exactly why the Arabic pages
-// have to be reachable by URL rather than by preference.
+// Googlebot's actual signals: a US datacentre, en-US, UTC. It is the visitor
+// most likely to expose a page that decides its language from the device rather
+// than from its own address — which is precisely why the device no longer
+// decides anything.
 async function crawl(path) {
   const ctx = await browser.newContext({
     locale: 'en-US',
@@ -57,8 +62,9 @@ async function crawl(path) {
 // ------------------------------------------------------- the Arabic result
 head('an Arabic page describes itself in Arabic')
 {
-  const ar = await crawl('/?lang=ar')
-  is(ar.lang === 'ar' && ar.dir === 'rtl', 'it renders as Arabic for a crawler with an English locale',
+  const ar = await crawl('/')
+  is(ar.lang === 'ar' && ar.dir === 'rtl',
+     'the BARE url renders Arabic for a crawler reporting en-US — the device does not vote',
      `lang=${ar.lang} dir=${ar.dir}`)
   // The two that were wrong, and they are the two that ARE the search result.
   is(ARABIC.test(ar.title), 'the TITLE is Arabic', ar.title)
@@ -72,10 +78,10 @@ head('an Arabic page describes itself in Arabic')
      'and it is a usable length rather than a fragment or an essay', `${ar.desc.length} chars`)
 }
 
-head('an English page still describes itself in English')
+head('English has its own address and describes itself in English')
 {
-  const en = await crawl('/')
-  is(en.lang === 'en', 'English is unchanged at the bare URL', en.lang)
+  const en = await crawl('/?lang=en')
+  is(en.lang === 'en', 'English lives at ?lang=en', en.lang)
   is(!ARABIC.test(en.title), 'the title is English', en.title)
   is(!ARABIC.test(en.desc), 'and so is the description', en.desc.slice(0, 44) + '…')
   is(en.locale === 'en_KW', 'og:locale follows', en.locale)
@@ -85,8 +91,8 @@ head('an English page still describes itself in English')
 head('the hreflang cluster is a cluster')
 {
   for (const path of ['/', '/shop', '/about']) {
-    const en = await crawl(path)
-    const ar = await crawl(`${path}?lang=ar`)
+    const ar = await crawl(path || '/')
+    const en = await crawl(`${path}?lang=en`)
 
     // THREE ANNOTATIONS ON ONE URL IS NOT A SET OF ALTERNATIVES. index.html
     // used to point en, ar and x-default at the same address, which Google
@@ -111,6 +117,9 @@ head('the hreflang cluster is a cluster')
     // shown, and for a Kuwaiti shop that is Arabic.
     is(en.alts['x-default'] === en.alts.ar, `${path}: x-default is the ARABIC url`,
        en.alts['x-default']?.replace(CANON, ''))
+    // And the Arabic url is the BARE one — the strongest address the shop has.
+    is(!en.alts.ar.includes('lang='), `${path}: which is the bare path, carrying no parameter`,
+       en.alts.ar.replace(CANON, ''))
   }
 }
 
@@ -130,9 +139,10 @@ head('the static shell and the rendered page say the same thing')
   // is how an hreflang cluster gets thrown away.
   const map = readFileSync(new URL('../public/sitemap-pages.xml', import.meta.url), 'utf8')
   const first = map.slice(map.indexOf('<url>'), map.indexOf('</url>'))
-  is(first.includes(`hreflang="x-default" href="${CANON}/?lang=ar"`),
+  is(first.includes(`hreflang="x-default" href="${CANON}/"`),
      'and the sitemap agrees with both')
-  is(first.includes(`hreflang="ar" href="${CANON}/?lang=ar"`), 'with the Arabic url spelled the same way')
+  is(first.includes(`hreflang="ar" href="${CANON}/"`), 'with the Arabic url spelled the same way')
+  is(first.includes(`hreflang="en" href="${CANON}/?lang=en"`), 'and English on its own address')
 }
 
 await browser.close()

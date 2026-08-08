@@ -44,7 +44,11 @@ const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '
   ok(closed.took === false, '…so its buttons cannot take focus', 'was tab stops 44-45 of 46')
 
   // Open it: focus in, trapped, Escape out, focus restored.
-  const bag = p.locator('header button[aria-label*="Bag" i]').first()
+  // BOTH LANGUAGES. The shop's default is Arabic, so an English-only selector
+  // finds nothing at the bare URL — which reads as a missing control rather
+  // than as a test that assumed a language. Line 112 already matched both; this
+  // one did not, and only the default changing revealed the difference.
+  const bag = p.locator('header button[aria-label*="Bag" i], header button[aria-label*="حقيبة"]').first()
   await bag.focus()
   await p.keyboard.press('Enter')
   await p.waitForTimeout(500)
@@ -60,7 +64,7 @@ const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '
   await p.waitForTimeout(500)
   ok(!(await p.evaluate(() => document.querySelector('.cart-drawer').className.includes('translate-x-0'))),
     'Escape closes it')
-  ok(await p.evaluate(() => document.activeElement.getAttribute('aria-label')?.match(/bag/i) !== null),
+  ok(await p.evaluate(() => /bag|حقيبة/i.test(document.activeElement.getAttribute('aria-label') ?? '')),
     'focus returns to the button that opened it',
     await p.evaluate(() => document.activeElement.getAttribute('aria-label') ?? document.activeElement.tagName))
   await p.close()
@@ -184,7 +188,10 @@ for (const [saved, want] of [['dark', 'dark'], ['light', 'light']]) {
   await p.goto(BASE, { waitUntil: 'domcontentloaded' })
   await p.waitForTimeout(11500)
   const text = await p.locator('#root').innerText()
-  ok(/did not finish loading/i.test(text),
+  // The watchdog copy is bilingual and the shop's default is Arabic, so this
+  // has to accept either. It was English-only, which failed on the correct
+  // Arabic message — the feature working, reported as broken.
+  ok(/did not finish loading|لم تكتمل عملية تحميل/i.test(text),
      'a bundle that never loads says so, instead of leaving a bare shell',
      JSON.stringify(text.split('\n')[0]))
   ok(/assets\/index-.*\.js/.test(text),

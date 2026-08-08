@@ -24,7 +24,7 @@ import { useLang } from '../i18n/LanguageContext'
 // avoid writing them would cost more than it saves on a page whose image budget
 // is already the tightest thing about it.
 export default function ProductGallery({ images, alt }) {
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const [i, setI] = useState(0)
   const [zoom, setZoom] = useState(false)
 
@@ -45,6 +45,7 @@ export default function ProductGallery({ images, alt }) {
         go={go}
         onZoom={() => setZoom(true)}
         t={t}
+        rtl={lang === 'ar'}
       />
 
       {total > 1 && (
@@ -67,7 +68,7 @@ export default function ProductGallery({ images, alt }) {
 // transform on the track, which the compositor can do without laying anything
 // out again — animating `left` or swapping `src` both cost a frame the phone
 // does not have while a finger is moving.
-function Frame({ images, at, total, alt, go, onZoom, t }) {
+function Frame({ images, at, total, alt, go, onZoom, t, rtl }) {
   const [drag, setDrag] = useState(null)   // { x0, dx } while a finger is down
   const box = useRef(null)
   // WHETHER THE FINGER MOVED, in a ref rather than in state, because the click
@@ -100,7 +101,6 @@ function Frame({ images, at, total, alt, go, onZoom, t }) {
     const w = box.current?.clientWidth ?? 1
     // A quarter of the frame is the commit point. Less and a scroll that
     // wandered sideways flips the photo; more and a deliberate swipe does not.
-    const rtl = getComputedStyle(box.current).direction === 'rtl'
     if (Math.abs(drag.dx) > w * 0.25) go(at + (drag.dx < 0 ? 1 : -1) * (rtl ? -1 : 1))
     setDrag(null)
   }
@@ -119,7 +119,19 @@ function Frame({ images, at, total, alt, go, onZoom, t }) {
     })
   }
 
-  const offset = -at * 100
+  // THE SIGN IS THE DIRECTION, and it was LTR-only.
+  //
+  // A flex row in an RTL document lays its items right to left, so the first
+  // photograph sits at the RIGHT edge and the second is to its left. Moving the
+  // track by -100% therefore slides it away from the frame in Arabic: choosing
+  // the second photograph left NO image under the viewport at all — a blank
+  // square, on the largest element of the page, in the shop's default language.
+  //
+  // Measured rather than reasoned about: in Arabic, "which image occupies the
+  // frame" answered -1. The thumbnails and the dots kept working, which is why
+  // it looked like a slider that had simply gone blank.
+  const dir = rtl ? 1 : -1
+  const offset = dir * at * 100
   const dragPct = drag && box.current ? (drag.dx / box.current.clientWidth) * 100 : 0
 
   return (

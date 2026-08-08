@@ -52,6 +52,16 @@ const lightboxOpen = (p) => p.locator(LIGHTBOX).evaluateAll((ds) =>
     return r.width > 0 && r.height > 0 && r.left < innerWidth && r.right > 0
   }).length)
 
+// Which photograph actually occupies the frame. Direction-independent, which
+// the transform is not.
+const visibleIndex = (p) => p.evaluate(() => {
+  const frame = document.querySelector('.aspect-square')
+  const r = frame.getBoundingClientRect()
+  const mid = r.left + r.width / 2
+  return [...frame.querySelectorAll('img')]
+    .findIndex((im) => { const b = im.getBoundingClientRect(); return b.left < mid && b.right > mid })
+})
+
 const before = {
   images: await sql(`select ifnull(images,'') from products where slug='${SLUG}'`),
   brand: await sql(`select ifnull(brand_slug,'') from products where slug='${SLUG}'`),
@@ -89,15 +99,18 @@ try {
     const dots = await p.locator('button[aria-label^="Image "], button[aria-label^="صورة "]').count()
     is(dots >= 3, 'and there are controls to reach them', `${dots} buttons`)
 
-    // The track moves. Reading the transform is reading the mechanism rather
-    // than a class name that might mean nothing.
-    const track = p.locator('.aspect-square > div').first()
-    const at0 = await track.evaluate((el) => el.style.transform)
+    // WHICH IMAGE IS UNDER THE FRAME, not what the transform string says.
+    //
+    // This asserted `translateX(-100%)`, and that is an LTR fact: a flex row in
+    // an RTL document runs the other way, so the correct Arabic transform is
+    // +100%. The old assertion passed in English while Arabic showed a BLANK
+    // SQUARE — the track slid away from the frame entirely. Asking which image
+    // occupies the viewport is the question the shopper actually asks, and it
+    // has one answer in both directions.
+    is(await visibleIndex(p) === 0, 'it starts on the first photograph')
     await p.locator('button[aria-label^="Image 2"], button[aria-label^="صورة 2"]').first().click()
     await p.waitForTimeout(500)
-    const at1 = await track.evaluate((el) => el.style.transform)
-    is(at0 !== at1, 'choosing the second photograph slides the track', `${at0} -> ${at1}`)
-    is(/-100%/.test(at1), 'by exactly one frame', at1)
+    is(await visibleIndex(p) === 1, 'choosing the second photograph brings the SECOND one into the frame')
     await p.context().close()
   }
 
@@ -105,23 +118,34 @@ try {
   head('a finger can swipe it')
   {
     const p = await open()
-    const track = p.locator('.aspect-square > div').first()
     const box = await p.locator('.aspect-square').first().boundingBox()
+    const rtl = await p.evaluate(() => document.documentElement.dir === 'rtl')
+
+    // WHICH WAY IS "NEXT" DEPENDS ON THE DIRECTION, and this test used to
+    // assume it did not. In an RTL document the next photograph sits to the
+    // LEFT of the current one, so the finger drags RIGHT to pull it in — a
+    // leftward drag correctly goes BACK, which is what it did, and the test
+    // called that a failure. Dragging the wrong way and asserting "next" would
+    // have hidden a real bug the day the direction logic broke.
+    const from = rtl ? 0.2 : 0.8
+    const to = rtl ? 0.8 : 0.2
+    const path = rtl ? [0.4, 0.55, 0.7, 0.8] : [0.6, 0.45, 0.3, 0.2]
+
     // A real drag: down, several moves, up. One move is not a gesture and the
     // handler is right to ignore it.
-    await p.mouse.move(box.x + box.width * 0.8, box.y + box.height / 2)
+    await p.mouse.move(box.x + box.width * from, box.y + box.height / 2)
     await p.dispatchEvent('.aspect-square', 'pointerdown',
-      { pointerId: 1, pointerType: 'touch', clientX: box.x + box.width * 0.8, clientY: box.y + box.height / 2, isPrimary: true })
-    for (const f of [0.6, 0.45, 0.3, 0.2]) {
+      { pointerId: 1, pointerType: 'touch', clientX: box.x + box.width * from, clientY: box.y + box.height / 2, isPrimary: true })
+    for (const f of path) {
       await p.dispatchEvent('.aspect-square', 'pointermove',
         { pointerId: 1, pointerType: 'touch', clientX: box.x + box.width * f, clientY: box.y + box.height / 2, isPrimary: true })
     }
     await p.dispatchEvent('.aspect-square', 'pointerup',
-      { pointerId: 1, pointerType: 'touch', clientX: box.x + box.width * 0.2, clientY: box.y + box.height / 2, isPrimary: true })
+      { pointerId: 1, pointerType: 'touch', clientX: box.x + box.width * to, clientY: box.y + box.height / 2, isPrimary: true })
     await p.waitForTimeout(600)
-    is(/-100%/.test(await track.evaluate((el) => el.style.transform)),
-       'swiping left moves to the next photograph',
-       await track.evaluate((el) => el.style.transform))
+    is(await visibleIndex(p) === 1,
+       `swiping ${rtl ? 'right (RTL)' : 'left (LTR)'} moves to the next photograph`,
+       `now showing image ${(await visibleIndex(p)) + 1}`)
     await p.context().close()
   }
 
@@ -152,7 +176,10 @@ try {
     await sql(`update products set brand_slug = 'vanquish' where slug='${SLUG}'`)
     await sql("update brands set logo = null where slug = 'vanquish'")
     const p = await open()
-    is((await p.locator('body').innerText()).includes('Vanquish'),
+    // The plate shows the brand's name IN THE PAGE'S LANGUAGE, and the page's
+    // language is now Arabic by default — so this has to look for فانكويش, not
+    // Vanquish.
+    is(/Vanquish|فانكويش/.test(await p.locator('body').innerText()),
        'with no logo uploaded it shows the NAME — better than a gap')
     await p.context().close()
 
@@ -160,7 +187,7 @@ try {
     const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
     await sql(`update brands set logo = 'data:image/png;base64,${PNG}' where slug = 'vanquish'`)
     const p2 = await open()
-    const logo = p2.locator('img[alt="Vanquish"]')
+    const logo = p2.locator('img[alt="Vanquish"], img[alt="فانكويش"]')
     is(await logo.count() === 1, 'once uploaded, the logo is shown instead')
     const src = await logo.getAttribute('src')
     is(/r=brand_logo/.test(src ?? ''), 'served from the image endpoint, not inlined base64', src?.slice(0, 60))

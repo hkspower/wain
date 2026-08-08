@@ -1,68 +1,48 @@
 // Which language a visitor gets when they have never chosen one.
 //
-// THE ORDER, and why each step is where it is:
-//
 //   1. an explicit choice they made before  — nothing may override a person
 //      who has tapped the language button. Stored only when they tap it.
 //   2. ?lang=ar / ?lang=en on the URL       — so a campaign, a WhatsApp
 //      message or a QR code can open the shop in the right language.
-//   3. the device's LANGUAGES               — THE PHONE DECIDES. A language
-//      list is a setting a person chose; a location is a guess about them.
-//      Arabic anywhere in the list means Arabic, anything else means English,
-//      and either way nothing below is consulted.
-//   4. the device's TIME ZONE               — only when the device reports no
-//      languages at all. A fallback, not a competitor.
-//   5. English.
+//   3. ARABIC.
 //
-// WHY THE TIME ZONE IS THE FALLBACK, AND NOT THE IP ADDRESS.
+// ARABIC IS THE DEFAULT, AND IT IS A DEFAULT RATHER THAN A GUESS.
 //
-// The location signal here is the time zone, for three reasons that are all
-// measurable:
+// This used to consult the device's language list and then its time zone. Both
+// are gone, and their absence is the point: the bare URL now has ONE answer.
 //
-//   * It is SYNCHRONOUS. The language has to be known before the first frame:
-//      it sets <html dir>, which decides the entire page layout, and it picks
-//      which font files to preload. An IP lookup is a network round trip, so
-//      it can only arrive AFTER the page has painted — meaning every Gulf
-//      visitor would see an English, left-to-right page flip to Arabic
-//      right-to-left in front of them. That is a worse experience than the
-//      thing it was trying to fix, and it is a large layout shift on the
-//      most-viewed element of the site.
-//   * It needs NO DATABASE. Shared hosting has no GeoIP module, and a bundled
-//      IP-range table would be wrong the day a registry reallocates a block.
-//      `Intl.DateTimeFormat().resolvedOptions().timeZone` is in every browser
-//      this site supports and costs nothing.
-//   * It is MORE ACCURATE for this shop. A Kuwaiti on a foreign SIM, a VPN, or
-//      a corporate proxy in Frankfurt all keep Asia/Kuwait on their phone.
+// The reason is search, and it is not a preference. sporta.com.kw/ is the
+// strongest address the shop has, and Kuwait's market searches for sportswear
+// in Arabic. For Google to index that URL as Arabic, that URL has to BE Arabic
+// — for everyone, every time. The alternative is serving Arabic to Googlebot
+// and English to a visitor at the same address, which is cloaking and risks the
+// whole domain.
 //
-// If the site is ever put behind Cloudflare, `CF-IPCountry` arrives as a real
-// header and would join step 4 server-side, so it would still be resolved
-// before the page renders. It would still sit BELOW the device's languages.
+// It also cannot be conditional on the device without lying. If an English
+// phone renders English at a URL whose canonical says Arabic, then Googlebot —
+// which reports en-US — indexes English under an Arabic canonical, and the two
+// contradict each other. A canonical is a promise about what is at an address.
 //
-// SEO: this never redirects and never changes the URL. Every page keeps one
-// canonical address in both languages, so Googlebot (US IP, en, UTC) sees
-// English, and the hreflang tags stay honest. Auto-redirecting on location is
-// what gets a shop's Arabic pages dropped from the index.
-
-// The time zones of the Arabic-speaking world. `Asia/Kuwait` first because
-// that is the shop's own market and the overwhelming majority of its traffic.
+// WHAT THIS COSTS, stated plainly because it is real: an English-speaking
+// resident — and roughly seventy per cent of Kuwait is expatriate — lands on
+// Arabic the first time. One tap on the language button fixes it permanently,
+// because step 1 above outranks everything and a tap is stored. English also
+// has its own address, /?lang=en, which is what the hreflang tags advertise and
+// what an English search result links to.
 //
-// Deliberately not "the Middle East": Iran (Asia/Tehran), Türkiye
-// (Europe/Istanbul) and Israel (Asia/Jerusalem) are in the region and are not
-// Arabic-speaking, so defaulting them to Arabic would be worse than English.
-export const ARABIC_TIME_ZONES = new Set([
-  // Gulf
-  'Asia/Kuwait', 'Asia/Riyadh', 'Asia/Dubai', 'Asia/Qatar', 'Asia/Bahrain',
-  'Asia/Muscat', 'Asia/Aden',
-  // Levant and Iraq
-  'Asia/Baghdad', 'Asia/Amman', 'Asia/Beirut', 'Asia/Damascus', 'Asia/Hebron',
-  'Asia/Gaza',
-  // North Africa
-  'Africa/Cairo', 'Africa/Tripoli', 'Africa/Tunis', 'Africa/Algiers',
-  'Africa/Casablanca', 'Africa/El_Aaiun', 'Africa/Khartoum', 'Africa/Juba',
-  'Africa/Nouakchott', 'Africa/Mogadishu', 'Africa/Djibouti',
-  // Historical aliases browsers still report
-  'Asia/Riyadh87', 'Asia/Riyadh88', 'Asia/Riyadh89',
-])
+// WHAT WAS REMOVED, AND WHY IT IS NOT COMING BACK.
+//
+// This file used to consult the device's language list and then its time zone,
+// and carried a table of every Arabic-speaking time zone to do it. All of that
+// is gone. It was the right design for a site whose bare URL was English and
+// whose job was to guess a visitor's language; it is the wrong design for one
+// whose bare URL IS Arabic, because a guess and a canonical cannot both decide
+// what is at an address.
+//
+// If a future change ever makes the bare URL language-neutral again, the rule
+// to restore is in git — along with the reasoning for reading the time zone
+// rather than the IP, which still holds: it is synchronous, so it lands before
+// the first paint instead of flipping the layout after it.
 
 const SUPPORTED = new Set(['en', 'ar'])
 
@@ -74,59 +54,25 @@ export function langFromQuery(search = '') {
   return SUPPORTED.has(tag) ? tag : null
 }
 
-// Any Arabic in the browser's accept-language list.
-//
-// `navigator.languages` and not just `navigator.language`: a phone set to
-// English with Arabic second is a bilingual reader, and this shop is bilingual.
-// Matching on the SUBTAG covers ar, ar-KW, ar-SA, arz (Egyptian) and so on.
-export function prefersArabic(languages = []) {
-  return languages.some((l) => /^ar\b|^ar-|^arz|^ary|^acm|^apc|^ajp|^afb/i.test(String(l)))
-}
-
-export function isArabicTimeZone(tz) {
-  return !!tz && ARABIC_TIME_ZONES.has(tz)
-}
-
 // The whole decision, pure and testable.
 //
 // `saved` is the stored explicit choice (or null). Everything else is read
 // from the environment by the caller, so this function has no globals in it
 // and the tests can drive every branch.
-export function detectLang({ saved = null, search = '', languages = [], timeZone = null } = {}) {
+export function detectLang({ saved = null, search = '' } = {}) {
   if (SUPPORTED.has(saved)) return saved
 
   const fromUrl = langFromQuery(search)
   if (fromUrl) return fromUrl
 
-  // THE PHONE DECIDES.
-  //
-  // A device language list is a setting a person chose, on purpose, and it
-  // outranks any guess about where they are. Arabic anywhere in it means
-  // Arabic; anything else means English.
-  //
-  // The `.length` check is what makes the time zone a FALLBACK rather than a
-  // competitor: it is consulted only when the device says nothing at all.
-  // Before this, a phone set to English in Kuwait was overruled by its own time
-  // zone and served Arabic — which is exactly the case Kuwait has most of.
-  // Roughly seventy per cent of the country is expatriate, and a Filipino,
-  // Indian or British resident with an English phone reads English.
-  if (languages.length > 0) return prefersArabic(languages) ? 'ar' : 'en'
-
-  // Nothing from the device — an old browser, or a locked-down one. Fall back
-  // to where they are, which is the only signal left.
-  if (isArabicTimeZone(timeZone)) return 'ar'
-  return 'en'
+  // ARABIC. Not because of the device, not because of the time zone — because
+  // this address is the Arabic one, and it says so in its own canonical.
+  return 'ar'
 }
 
 // The same decision, reading the live browser. Kept apart from detectLang so
 // the rules above can be tested without a DOM.
 export function detectLangFromBrowser() {
-  let timeZone = null
-  try {
-    timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
-  } catch {
-    /* very old browser: fall through to the language list */
-  }
   let saved = null
   try {
     saved = localStorage.getItem('lang')
@@ -136,9 +82,5 @@ export function detectLangFromBrowser() {
   return detectLang({
     saved,
     search: typeof location === 'undefined' ? '' : location.search,
-    languages: typeof navigator === 'undefined'
-      ? []
-      : navigator.languages ?? [navigator.language].filter(Boolean),
-    timeZone,
   })
 }

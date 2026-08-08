@@ -34,14 +34,17 @@ function setTag(selector, attrs) {
 // schema; this enriches routes for engines that execute JS.
 // The two addresses every page has.
 //
-// The site is bilingual on ONE path, with the language chosen in the browser —
-// but `?lang=ar` renders Arabic deterministically, for a crawler as much as for
-// a customer. So each page has two indexable URLs, and saying so is the whole
-// job of hreflang:
+// The site is bilingual on ONE path. The BARE URL IS ARABIC — deterministically,
+// for a crawler as much as for a customer — and English has its own address. So
+// each page has two indexable URLs, and saying so is the whole job of hreflang:
 //
-//   en        /shop
-//   ar        /shop?lang=ar
+//   ar        /shop
+//   en        /shop?lang=en
 //   x-default /shop
+//
+// This was the other way round until Arabic became the default. The bare path
+// is the strongest address the shop has, and Kuwait's market searches for
+// sportswear in Arabic; it now carries the language those searches are in.
 //
 // The canonical is SELF-referencing per language. Pointing the Arabic page at
 // the English URL — which is what listing one canonical for both did — tells
@@ -49,12 +52,12 @@ function setTag(selector, attrs) {
 // reason a bilingual shop is only ever found in one language.
 function urlsFor(path, lang) {
   const base = SITE + (path || '/')
-  const ar = `${base}?lang=ar`
-  // x-default is the ARABIC url. It is the version Google shows a searcher who
-  // matches neither listed language, and for a Kuwaiti shop that fallback
-  // should be Arabic rather than English. It must match index.html, or the
-  // static head and the rendered head describe two different sites.
-  return { canonical: lang === 'ar' ? ar : base, en: base, ar, xDefault: ar }
+  const en = `${base}?lang=en`
+  // x-default is the BARE url, which is now the Arabic one — the version Google
+  // shows a searcher who matches neither listed language. It must match
+  // index.html and the sitemap, or the three describe different sites and
+  // Google trusts none of them.
+  return { canonical: lang === 'en' ? en : base, ar: base, en, xDefault: base }
 }
 
 export function usePageMeta({ title, description, path = '', jsonLd, robots, image, type } = {}) {

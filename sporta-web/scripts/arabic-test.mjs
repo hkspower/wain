@@ -20,9 +20,7 @@
 //      language toggle, and no Latin text left visible where Arabic belongs.
 import { readFileSync } from 'node:fs'
 import { chromium } from 'playwright'
-import {
-  detectLang, prefersArabic, isArabicTimeZone, langFromQuery, ARABIC_TIME_ZONES,
-} from '../src/i18n/detectLang.js'
+import { detectLang, langFromQuery } from '../src/i18n/detectLang.js'
 import { translations, arabicCount } from '../src/i18n/translations.js'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8096'
@@ -35,47 +33,38 @@ const head = (t) => console.log(`\n=== ${t} ${'='.repeat(Math.max(0, 56 - t.leng
 // ===========================================================================
 head('who gets Arabic')
 
-// THE PHONE FIRST. A language list is a setting somebody chose; a location is
-// a guess about them, and it must not overrule the setting.
-is(detectLang({ languages: ['ar-KW', 'en'], timeZone: 'Europe/London' }) === 'ar',
-   'a phone set to Arabic gets Arabic ANYWHERE — the setting outranks the place')
-is(detectLang({ languages: ['en-GB'], timeZone: 'Asia/Kuwait' }) === 'en',
-   'a phone set to ENGLISH in Kuwait gets English — its own setting is not overruled')
-is(detectLang({ languages: ['fil-PH', 'en'], timeZone: 'Asia/Kuwait' }) === 'en',
-   'and so does a Tagalog phone in Kuwait — most of the country is expatriate')
+// ARABIC IS THE DEFAULT, and the rule is now deliberately short: an explicit
+// choice, then ?lang=, then Arabic.
+//
+// THIS SECTION USED TO ASSERT THE OPPOSITE, and the assertions were right for
+// the design they described — "the phone decides", an English phone in Kuwait
+// stays English, the time zone as a fallback. That design guessed a visitor's
+// language at a URL that belonged to neither. The bare URL is now the ARABIC
+// one and says so in its own canonical, so it has to be Arabic for everyone: a
+// page that renders English at an address canonical to Arabic contradicts
+// itself, and Googlebot — which reports en-US — is exactly the visitor that
+// would see the contradiction.
+is(detectLang({}) === 'ar', 'with no signal at all, the answer is ARABIC')
+is(detectLang({ search: '' }) === 'ar', 'the bare URL is Arabic')
 
-// The time zone is the fallback for a device that says nothing at all.
-is(detectLang({ languages: [], timeZone: 'Asia/Kuwait' }) === 'ar',
-   'with NO language from the device, Kuwait falls back to Arabic')
-is(detectLang({ languages: [], timeZone: 'Asia/Riyadh' }) === 'ar'
-   && detectLang({ languages: [], timeZone: 'Asia/Dubai' }) === 'ar'
-   && detectLang({ languages: [], timeZone: 'Africa/Cairo' }) === 'ar',
-   'so do Riyadh, Dubai and Cairo')
-is(detectLang({ languages: [], timeZone: 'Europe/London' }) === 'en'
-   && detectLang({ languages: [], timeZone: 'America/New_York' }) === 'en',
-   'London and New York get English')
+// The device is no longer consulted, and that is the change. An English phone
+// gets Arabic at the bare URL — one tap on the toggle fixes it for good, and
+// English has its own address for a link or a search result to point at.
+is(detectLang({ saved: null, search: '' }) === 'ar',
+   'and a device that would once have chosen English does not get a vote')
 
-// The region is not the language. Getting this wrong would serve Arabic to
-// three countries that do not read it.
-for (const tz of ['Asia/Tehran', 'Europe/Istanbul', 'Asia/Jerusalem']) {
-  is(detectLang({ languages: [], timeZone: tz }) === 'en',
-     `${tz} is in the region and is NOT Arabic-speaking — it gets English`)
-}
-
-is(detectLang({ languages: ['en-GB', 'ar'] }) === 'ar',
-   'Arabic anywhere in the list counts — the reader is bilingual')
-is(detectLang({ languages: ['fr-FR'], timeZone: 'Europe/Paris' }) === 'en', 'French in Paris gets English')
-
-is(detectLang({ saved: 'en', timeZone: 'Asia/Kuwait', languages: ['ar'] }) === 'en',
-   'an explicit choice beats BOTH signals — nothing overrides a person who tapped the button')
-is(detectLang({ saved: 'ar', languages: ['en-GB'] }) === 'ar',
-   'including their own phone’s language')
-is(detectLang({ saved: 'ar', timeZone: 'Europe/London' }) === 'ar',
-   'and it survives leaving the region')
-
-is(detectLang({ search: '?lang=ar' }) === 'ar' && detectLang({ search: '?utm=x&lang=en' }) === 'en',
-   '?lang= works, so a WhatsApp link can open the shop in the right language')
+// EXPLICIT CHOICES STILL WIN, both of them, and that is what keeps this humane.
+is(detectLang({ search: '?lang=en' }) === 'en',
+   '?lang=en opens English — what an English search result links to')
+is(detectLang({ search: '?utm=spring&lang=en' }) === 'en',
+   'alongside other query parameters, so a campaign link works')
+is(detectLang({ saved: 'en' }) === 'en',
+   'a visitor who TAPPED English keeps English — a tap is stored, and it outranks the default')
+is(detectLang({ saved: 'en', search: '?lang=ar' }) === 'en',
+   'and their saved choice even outranks ?lang= — the person beats the link')
+is(detectLang({ saved: 'ar' }) === 'ar', 'a saved Arabic choice is honoured too')
 is(langFromQuery('?lang=de') === null, 'a language we do not have is ignored, not obeyed')
+is(detectLang({ saved: 'de' }) === 'ar', 'and a stored junk value falls back to the default')
 
 // ---------------------------------------------------------------------------
 // The two copies of the rule.
@@ -86,23 +75,20 @@ is(langFromQuery('?lang=de') === null, 'a language we do not have is ignored, no
 head('index.html and detectLang.js agree')
 {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8')
-  const tzRe = /Asia\\\/\(([^)]+)\)|Africa\\\/\(([^)]+)\)/g
-  const inHtml = new Set()
-  for (const m of html.matchAll(/(Asia|Africa)\\\/\(([^)]+)\)/g)) {
-    for (const city of m[2].split('|')) {
-      // Riyadh8[789] is a character class standing for three aliases.
-      if (city.includes('[')) {
-        const [stem, cls] = city.split('[')
-        for (const d of cls.replace(']', '')) inHtml.add(`${m[1]}/${stem}${d}`)
-      } else inHtml.add(`${m[1]}/${city}`)
-    }
-  }
-  void tzRe
-  const missing = [...ARABIC_TIME_ZONES].filter((z) => !inHtml.has(z))
-  const extra = [...inHtml].filter((z) => !ARABIC_TIME_ZONES.has(z))
-  is(inHtml.size > 0, 'the boot script lists time zones at all', `${inHtml.size} found`)
-  is(missing.length === 0, 'every zone in detectLang.js is in the boot script', missing.join(', ') || 'none missing')
-  is(extra.length === 0, 'and the boot script invents none of its own', extra.join(', ') || 'none extra')
+
+  // The boot script must reach the SAME answer as the module. It used to be
+  // compared table-for-table against a list of Arabic time zones; there is no
+  // table any more, so what is checked now is the rule itself — that it falls
+  // back to Arabic, and that neither of the two signals that were removed has
+  // quietly returned.
+  is(/if \(!lang\) lang = 'ar'/.test(html),
+     'the boot script falls back to ARABIC, exactly as detectLang does')
+  is(!/navigator\.languages/.test(html),
+     'and it does NOT consult the device language — that would contradict the canonical')
+  is(!/resolvedOptions\(\)\.timeZone/.test(html),
+     'nor the time zone')
+  is(/<html lang="ar" dir="rtl">/.test(html),
+     'the raw HTML is Arabic, for a crawler that runs no JavaScript')
 
   is(/window\.__SPORTA_LANG/.test(html),
      'the boot script publishes its answer, so React cannot disagree for a frame')
@@ -251,17 +237,26 @@ head('the page, rendered right-to-left')
   is(errs.length === 0, 'nothing threw', errs.join(' | ') || 'clean')
   await kw.close()
 
-  // A visitor in London gets English, and ?lang=ar still works for them.
+  // A VISITOR IN LONDON ON AN ENGLISH LAPTOP ALSO GETS ARABIC, and that is the
+  // whole change rather than an oversight. The bare URL is the Arabic one; the
+  // device no longer votes, anywhere. English is reached by ?lang=en — which is
+  // what the hreflang tags advertise and what an English search result links
+  // to — or by one tap on the toggle, which is then remembered.
   const uk = await browser.newContext({
     viewport: { width: 1280, height: 800 }, locale: 'en-GB',
     timezoneId: 'Europe/London', serviceWorkers: 'block',
   })
   const up = await uk.newPage()
   await up.goto(BASE, { waitUntil: 'networkidle' })
-  is(await up.evaluate(() => document.documentElement.lang) === 'en', 'London gets English')
+  is(await up.evaluate(() => document.documentElement.lang) === 'ar',
+     'an English laptop in London gets ARABIC at the bare URL — the device does not vote')
 
-  // The regression this ordering exists to prevent: an English phone sitting
-  // in Kuwait must NOT be flipped to Arabic by its own time zone.
+  await up.goto(`${BASE}/?lang=en`, { waitUntil: 'networkidle' })
+  is(await up.evaluate(() => document.documentElement.lang) === 'en',
+     'and ?lang=en is how they get English')
+  is(await up.evaluate(() => document.documentElement.dir) === 'ltr',
+     'left to right, as English must be')
+  await uk.close()
   // ---------------------------------- the policy says the same thing everywhere
   // THE RETURNS POLICY LIVES IN FIVE PLACES and they have to agree, because a
   // customer meets whichever one they happen to open: /returns, /terms,
@@ -316,14 +311,22 @@ head('the page, rendered right-to-left')
   })
   const ep = await expat.newPage()
   await ep.goto(BASE, { waitUntil: 'networkidle' })
+  // THE COST OF THE DEFAULT, ASSERTED RATHER THAN LEFT IMPLIED. Roughly seventy
+  // per cent of Kuwait is expatriate, and an English phone here now lands on
+  // Arabic. That is the accepted trade for the bare URL being the Arabic one;
+  // writing it down as a passing check means nobody later reads it as a bug.
+  is(await ep.evaluate(() => document.documentElement.lang) === 'ar',
+     'an English phone IN KUWAIT also gets Arabic — the accepted cost of the default')
+
+  // And the way out is one tap, remembered for good.
+  await ep.getByRole('button', { name: /تغيير اللغة|switch language/i }).first().click()
+  await ep.waitForTimeout(400)
+  is(await ep.evaluate(() => document.documentElement.lang) === 'en', 'one tap gives them English')
+  is(await ep.evaluate(() => document.documentElement.dir) === 'ltr', 'left to right with it')
+  await ep.reload({ waitUntil: 'networkidle' })
   is(await ep.evaluate(() => document.documentElement.lang) === 'en',
-     'an ENGLISH phone in Kuwait stays English — the phone outranks the place')
-  is(await ep.evaluate(() => document.documentElement.dir) === 'ltr', 'and the page stays left-to-right')
+     'and it survives a reload — they never meet the default twice')
   await expat.close()
-  await up.goto(`${BASE}/?lang=ar`, { waitUntil: 'networkidle' })
-  is(await up.evaluate(() => document.documentElement.dir) === 'rtl',
-     '?lang=ar opens Arabic for them anyway')
-  await uk.close()
 
   await browser.close()
 }

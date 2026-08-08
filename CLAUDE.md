@@ -123,24 +123,38 @@
   HttpOnly + SameSite=Strict cookie plus an `X-Sporta-Admin: 1` header for
   CSRF, with a five-failure fifteen-minute lock. The device-passcode
   quick-unlock went with Supabase and is not coming back.
-- **Language:** site is bilingual Arabic/English (RTL/LTR). **Arabic is the
-  default for the Arabic-speaking world**, decided in this order: an explicit
-  saved choice → `?lang=` → **the device's languages** → the device's time zone
-  → English. **The phone decides**: a language list is a setting a person chose,
-  a location is a guess about them, so an English phone in Kuwait stays English
-  (roughly 70% of the country is expatriate). The time zone is consulted only
-  when the device reports no languages at all. The rule lives in `src/i18n/detectLang.js` and is *also inlined in
+- **Language:** site is bilingual Arabic/English (RTL/LTR). **ARABIC IS THE
+  DEFAULT** (saved by user request — apply always). The rule is short on
+  purpose: an explicit saved choice → `?lang=` → **Arabic**. The device's
+  language list and its time zone used to sit in between; both were removed.
+  **`www.sporta.com.kw/` IS the Arabic page** and is canonical to itself;
+  English lives at `?lang=en`. The bare path is the strongest address the shop
+  has and Kuwait's market searches for sportswear in Arabic, so it carries the
+  language those searches are in.
+  The rule cannot be conditional on the device without lying: a page that
+  renders English at a URL whose canonical claims Arabic contradicts itself, and
+  Googlebot — which reports en-US — is exactly the visitor that would see the
+  contradiction. Serving Arabic to the crawler and English to a visitor at the
+  same address is cloaking and risks the domain; it is not an option.
+  **The cost is real and accepted:** roughly 70% of Kuwait is expatriate, and an
+  English phone now lands on Arabic. One tap on the toggle fixes it for good — a
+  tap is stored and outranks everything — and English has its own address for a
+  link or a search result to point at. A DETECTED language is still never saved;
+  `localStorage.lang` means "the visitor tapped the toggle".
+  The rule lives in `src/i18n/detectLang.js` and is *also inlined in
   `index.html`*, because it must run before any module loads — it sets
   `<html dir>` and picks which fonts to preload. `npm run test:arabic` asserts
-  the two copies agree; keep them in step.
-  Time zone, not IP, on purpose: an IP lookup is a round trip, so it can only
-  land after the first paint and every Gulf visitor would watch an English LTR
-  page flip to Arabic RTL. Shared hosting also has no GeoIP module. Tehran,
-  Istanbul and Jerusalem are deliberately NOT on the list — the region is not
-  the language. Nothing redirects and no URL changes, so hreflang stays honest
-  and Googlebot (US, en, UTC) sees English.
-  **A detected language is never saved.** `localStorage.lang` means "the
-  visitor tapped the toggle"; persisting a guess would lock a traveller in.
+  the two copies agree; keep them in step. Nothing redirects and no URL changes,
+  so hreflang stays honest.
+- **Arabic SEO is checked by `npm run test:seo`** (27 checks, crawling as
+  Googlebot from en-US/UTC). It holds the three places the URL model is written
+  — `index.html`, `usePageMeta` and the sitemap — in agreement, because three
+  sources saying three things is how an hreflang cluster gets thrown away.
+  `hreflang`: **ar → the bare path, en → `?lang=en`, x-default → the bare
+  path**. Titles and descriptions come from `t.seo.*` in the language of the
+  page; they were a single English constant, so Arabic pages described
+  themselves in English to anyone searching in Arabic — which is the likeliest
+  single reason a bilingual shop ranks in one language only.
 - **The first paint does not wait for JavaScript.** `index.html` carries a
   no-JS shell (header bar, logo, hero box) styled by ~15 inlined rules, and the
   app stylesheet is promoted from `preload` to `stylesheet` on arrival by a

@@ -153,7 +153,10 @@ head('a sold-out product cannot be quick-added')
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
     const card = await cardFor(page, SIZED)
     const text = await card.innerText()
-    is(/sold out|نفد/i.test(text), 'the card says it is sold out', text.split('\n')[0])
+    // Both languages, and the Arabic spelled the way the shop spells it:
+    // «نفذت الكمية», with ذ. This read نفد — a different letter — so it failed
+    // against correct copy the moment Arabic became the default.
+    is(/sold out|نفذت/i.test(text), 'the card says it is sold out', text.split('\n')[0])
     // Hidden rather than merely disabled: a control the shopper cannot use
     // should not sit there inviting the tap.
     const visible = await card.locator('button:not([disabled])').count()
