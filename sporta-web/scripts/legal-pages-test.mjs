@@ -32,7 +32,13 @@ for (const lang of ['en','ar']) {
     ok(`${path} [${lang}] renders`, h1.includes(mustContain) && sections >= 6 && words > 200,
        `h1="${h1}" ${sections} sections, ${words} words, dir=${dir}`)
     const canon = await p.evaluate(() => document.querySelector('link[rel=canonical]')?.href)
-    ok(`${path} [${lang}] canonical`, canon === 'https://www.sporta.com.kw'+path, canon)
+    // SELF-REFERENCING PER LANGUAGE. ?lang=ar is a real URL — the boot script
+    // reads it before the first paint — so the Arabic page is canonical to
+    // ITSELF, not to the English one. This assertion used to demand the bare
+    // path in both languages, which is the exact mistake that gets a bilingual
+    // shop indexed in one language only; the rule changed and the test did not.
+    const want = 'https://www.sporta.com.kw' + path + (lang === 'ar' ? '?lang=ar' : '')
+    ok(`${path} [${lang}] canonical`, canon === want, canon)
     // Each block is its own JSON document. Joining them and parsing once
     // produced two concatenated objects and a guaranteed SyntaxError — the
     // page was fine, the assertion was not.
