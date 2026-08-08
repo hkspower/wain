@@ -41,6 +41,7 @@
     "package:pay": "node scripts/make-payments-fix.mjs",
     "test:arabic": "node scripts/arabic-test.mjs",
     "test:assistant": "node scripts/assistant-test.mjs",
+    "test:review": "node scripts/review-test.mjs",
     "test:voice-ui": "node scripts/voice-ui-test.mjs",
     "test:backend-pkg": "node scripts/backend-package-test.mjs",
     "test:preflight": "node scripts/preflight-test.mjs",

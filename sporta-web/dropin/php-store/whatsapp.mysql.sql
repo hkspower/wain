@@ -77,7 +77,7 @@ create table if not exists whatsapp_outbox (
   -- is confirmed once and shipped once.
   constraint uq_wa_once unique (order_id, kind),
   constraint fk_wa_order foreign key (order_id) references orders (id) on delete cascade,
-  constraint wa_kind_ck check (kind in ('confirmed','shipped'))
+  constraint wa_kind_ck check (kind in ('confirmed','shipped','review'))
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
 -- The cron claims pending work every few minutes from a table that only grows

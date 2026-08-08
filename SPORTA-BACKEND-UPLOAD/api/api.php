@@ -56,6 +56,12 @@ $STORE_LIMITS = [
     'invoice'     => [60, 60],
     'assistant'   => [30, 60],
     'order'       => [20, 600],   // queues mail to the warehouse — see ?r=order
+    // A review link is signed, so this is not guessable — but a valid link
+    // held by one person must not become a way to hammer the database, and
+    // ?r=review WRITES a discount row. Generous enough that a customer who
+    // mistypes, reloads and resubmits never meets it.
+    'review_invite' => [30, 600],
+    'review'        => [10, 600],
     'slide_image' => null,        // hashed URL, one-year immutable cache: the
                                   // browser asks once, but a page legitimately
                                   // asks for five slides at once and a cold
@@ -312,6 +318,71 @@ if ($r === 'say') {
     header('Cache-Control: private, max-age=31536000, immutable');
     echo $mp3;
     exit;
+}
+
+// ------------------------------------------------------------------ reviews
+//
+// Two routes, both keyed on a signed link the shop sent. `review_invite` is
+// what the page loads with; `review` is the submission.
+//
+// The signature is checked BEFORE anything is read or written, so an unsigned
+// request costs a hash and nothing else — it never reaches the orders table.
+if ($r === 'review_invite') {
+    $order = store_review_order(
+        $db,
+        trim((string)($_GET['o'] ?? '')),
+        trim((string)($_GET['t'] ?? '')),
+    );
+    // ONE ANSWER FOR "no such order", "wrong signature" and "cancelled". They
+    // are the same thing to the caller and telling them apart would turn this
+    // into an oracle for which order numbers exist.
+    if (!$order) store_fail('invalid_review_link', 404);
+
+    store_out([
+        'track_id'  => $order['track_id'],
+        'name'      => $order['customer_name'],
+        'lang'      => $order['customer_lang'] === 'en' ? 'en' : 'ar',
+        // Already reviewed: the page shows the code again rather than a form
+        // that cannot be submitted.
+        'reviewed'  => $order['rating'] !== null,
+        'rating'    => $order['rating'] === null ? null : (int)$order['rating'],
+        'code'      => $order['reward_code'],
+        // The offer, from the server. The page must never name its own number:
+        // the percentage the customer is promised and the percentage checkout
+        // applies have to be the same one.
+        'reward_pct' => STORE_REVIEW_REWARD_PCT,
+    ]);
+}
+
+if ($r === 'review') {
+    $in = store_body();
+    $order = store_review_order(
+        $db,
+        trim((string)($in['track_id'] ?? '')),
+        trim((string)($in['token'] ?? '')),
+    );
+    if (!$order) store_fail('invalid_review_link', 404);
+
+    // ANY rating is accepted and any rating is paid. Rewarding only the good
+    // ones is review gating — see reviews.mysql.sql. What is refused here is a
+    // number that is not a rating at all, because it would be averaged in.
+    $rating = (int)($in['rating'] ?? 0);
+    if ($rating < 1 || $rating > 5) store_fail('invalid_rating');
+
+    $comment = trim((string)($in['comment'] ?? ''));
+    // Cut to the column, in CHARACTERS not bytes: an Arabic comment is two to
+    // three bytes a letter, and slicing on bytes would both truncate it early
+    // and cut a character in half.
+    if ($comment !== '') $comment = mb_substr($comment, 0, 1000);
+    $lang = ($in['lang'] ?? '') === 'en' ? 'en' : 'ar';
+
+    $res = store_review_submit($db, $order, $rating, $comment === '' ? null : $comment, $lang);
+    store_out([
+        'ok'         => true,
+        'already'    => $res['already'],
+        'code'       => $res['code'],
+        'reward_pct' => STORE_REVIEW_REWARD_PCT,
+    ]);
 }
 
 // ------------------------------------------------------------------ invoice

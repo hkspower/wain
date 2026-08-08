@@ -23,6 +23,7 @@ const Wishlist = lazy(() => import('./pages/Wishlist'))
 const TrackOrder = lazy(() => import('./pages/TrackOrder'))
 const Invoice = lazy(() => import('./pages/Invoice'))
 const Returns = lazy(() => import('./pages/Returns'))
+const Review = lazy(() => import('./pages/Review'))
 const Terms = lazy(() => import('./pages/Terms'))
 const Privacy = lazy(() => import('./pages/Privacy'))
 
@@ -99,6 +100,9 @@ function PublicSite() {
           <Route path="/contact" element={<Contact />} />
           <Route path="/wishlist" element={<Wishlist />} />
           <Route path="/track" element={<TrackOrder />} />
+          {/* Reached only from a signed link the shop sends. Also listed in
+              public/.htaccess, or it 404s in production. */}
+          <Route path="/review" element={<Review />} />
           <Route path="/invoice/:trackId" element={<Invoice />} />
           <Route path="/returns" element={<Returns />} />
           <Route path="/terms" element={<Terms />} />

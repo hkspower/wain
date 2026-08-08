@@ -22,7 +22,7 @@ WHAT TO UPLOAD
   assets/          -> public_html/assets/            (merge with what is there)
   api/             -> public_html/api/               (merge)
 
-The admin panel itself is assets/AdminApp-CqcrlJWu.js.
+The admin panel itself is assets/AdminApp-BmhvJHb-.js.
 If that file is on the server and /backends still does not open, the problem
 is .htaccess, not the panel.
 

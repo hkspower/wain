@@ -167,6 +167,17 @@ const STORE_PAY_METHODS  = ['knet', 'tpay', 'cod'];
 // Product structured data Google reads — has to agree with this one number.
 const STORE_DELIVERY_FEE_FILS = 1000;
 
+// What a review is worth. Percent off one later order, single use, 90 days.
+//
+// It sits here beside the delivery fee because it is the same kind of number:
+// a business decision the code must not scatter. Set it to 0 and the shop asks
+// for reviews without offering anything, which is the only change needed to
+// turn the reward off.
+//
+// Well under STORE_DISCOUNT_MAX_PCT (60), so a review code still stacks with a
+// live promotion instead of colliding with the cap and quietly shrinking.
+const STORE_REVIEW_REWARD_PCT = 20;
+
 // Arabic-Indic and Extended digits to ASCII — an Arabic keyboard types ٤ for 4,
 // and a phone field that rejects half the country's keyboards is broken.
 function store_ascii_digits(string $s): string {
@@ -280,18 +291,34 @@ function store_queue_whatsapp(PDO $db, int $orderId, string $kind): void {
 
     // The customer's own language, defaulting to Arabic. See the column note.
     $lang = ($o['customer_lang'] ?? '') === 'en' ? 'en' : 'ar';
-    $tplKey = $kind === 'shipped' ? 'whatsapp_template_shipped' : 'whatsapp_template_confirmed';
+    $tplKey = match ($kind) {
+        'shipped' => 'whatsapp_template_shipped',
+        'review'  => 'whatsapp_template_review',
+        default   => 'whatsapp_template_confirmed',
+    };
     $template = (string)($cfg[$tplKey] ?? '');
     if ($template === '') return;   // template not configured: nothing to send
 
     // The variables the template's {{1}}, {{2}} … will be filled with, in
     // order. Stored rather than computed at send time so the message says what
     // the order said WHEN IT HAPPENED, even if the order is edited later.
-    $payload = json_encode([
+    $vars = [
         'name'     => (string)($o['customer_name'] ?? ''),
         'track_id' => (string)($o['track_id'] ?? ''),
         'amount'   => number_format((float)$o['amount'], 3, '.', ''),
-    ], JSON_UNESCAPED_UNICODE);
+    ];
+    // The review invitation carries the SIGNED link, computed here and stored
+    // with the message. Computing it at send time instead would be one more
+    // place the signature is built, and the two would drift the first time the
+    // key rotated — leaving a queue of messages nobody could open.
+    //
+    // A path, not a full URL: the template's button already carries the
+    // domain, and it is also the shape store_internal_href allows.
+    if ($kind === 'review') {
+        $vars['review_path'] = '/review?o=' . rawurlencode($vars['track_id'])
+                             . '&t=' . store_review_sig($vars['track_id']);
+    }
+    $payload = json_encode($vars, JSON_UNESCAPED_UNICODE);
 
     // insert ignore: the unique index is what guarantees one message per order
     // per kind, and KNET's callback legitimately fires more than once.
@@ -1027,4 +1054,151 @@ function store_internal_href(?string $raw): ?string {
     // different punctuation. Both are now refused explicitly.
     if (!preg_match('#^/(?![/\\\\])[A-Za-z0-9/_\-\?=&%\.]{0,180}$#', $v)) store_fail('invalid_link');
     return $v;
+}
+
+// ============================================================ customer reviews
+//
+// Asking every customer what they thought, and paying 20% for the answer.
+//
+// WHY THE DISCOUNT IS FOR **SPORTA'S** REVIEW AND NOT FOR A GOOGLE ONE.
+// Google forbids offering anything of value in exchange for a review, and it
+// enforces that by deleting the reviews and, at its discretion, suspending the
+// Business Profile. Buying fifty reviews and losing all fifty plus the listing
+// is strictly worse than never asking. So the shop pays for its OWN review —
+// an ordinary loyalty offer, nobody's policy violation — and the thank-you
+// page invites Google afterwards with nothing attached. The customer who has
+// just written something kind is the one most likely to write it again, and
+// that invitation is allowed precisely because the code is already theirs.
+//
+// AND WHY ONE STAR PAYS THE SAME AS FIVE. Rewarding only good ratings is
+// review gating: against Google's policy in its own right, unlawful in several
+// markets, and it makes the shop's own average a number that means nothing
+// because the unhappy customers were filtered out of it. A one-star review
+// with a paragraph about a late delivery is the most useful row this table
+// will ever hold, and the shop should pay for it gladly.
+
+// The link a customer is sent is `/review?o=<track>&t=<sig>`, and this is the
+// signature. Same construction as the assistant's speech tag and for the same
+// reason: it proves the shop issued this link, so the endpoint cannot be walked
+// by trying track ids. Keyed on cron_key, which never leaves the server.
+//
+// It is DERIVED, not stored — there is no token column and no row to create
+// when an order is placed. A link is therefore valid from the moment the order
+// exists, cannot be exhausted, and needs no cleanup.
+function store_review_sig(string $trackId): string {
+    $cfg = store_config();
+    // 32 hex characters. This gates a 20% code on one order, not a bank
+    // transfer; 128 bits is far past what forging it is worth.
+    return substr(hash_hmac('sha256', 'review' . "\0" . $trackId,
+                            (string)($cfg['cron_key'] ?? '')), 0, 32);
+}
+
+// Constant-time compare, because a byte-at-a-time strcmp on a signature is a
+// timing oracle. hash_equals costs nothing and removes the question.
+function store_review_token_ok(string $trackId, string $token): bool {
+    $cfg = store_config();
+    // NO KEY, NO REVIEWS. An empty cron_key would make every signature the HMAC
+    // of an empty secret — which is to say, forgeable by anyone who reads this
+    // file. Fail closed rather than issue codes to strangers.
+    if (($cfg['cron_key'] ?? '') === '') return false;
+    return hash_equals(store_review_sig($trackId), $token);
+}
+
+// The order a review link points at, or null. Only real, non-cancelled orders
+// can be reviewed: there is nothing to say about an order that never happened,
+// and a cancelled one would be a code for no purchase.
+function store_review_order(PDO $db, string $trackId, string $token): ?array {
+    if ($trackId === '' || !store_review_token_ok($trackId, $token)) return null;
+    $q = $db->prepare('select o.id, o.track_id, o.customer_name, o.customer_lang,
+                              o.fulfilment_status, o.payment_status,
+                              r.rating, r.reward_code
+                         from orders o
+                    left join reviews r on r.order_id = o.id
+                        where o.track_id = ?');
+    $q->execute([$trackId]);
+    $row = $q->fetch();
+    if (!$row || $row['fulfilment_status'] === 'cancelled') return null;
+    return $row;
+}
+
+// The code a review earns.
+//
+// A REAL ROW IN `discounts`, not a special case. Checkout already knows how to
+// price a code, cap it, refuse an expired one and claim a single-use one inside
+// the order's transaction — and every one of those rules would have to exist
+// twice if reviews minted their own kind of code. The 60% stack cap and the
+// 90% per-rule ceiling apply to this exactly as they apply to everything else.
+function store_review_reward(PDO $db, int $orderId): ?string {
+    $pct = (float) STORE_REVIEW_REWARD_PCT;
+    if ($pct <= 0) return null;   // the shop can turn the reward off entirely
+
+    // Unambiguous alphabet: no O/0, no I/1. This code is read off a phone
+    // screen and typed into a box, sometimes by someone reading it aloud.
+    $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    for ($attempt = 0; $attempt < 5; $attempt++) {
+        $suffix = '';
+        for ($i = 0; $i < 6; $i++) $suffix .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+        $code = 'SHUKRAN' . $suffix;   // شكرًا — thank you
+        try {
+            $db->prepare(
+                'insert into discounts (kind, code, label, type, value, usage_limit, active, ends_at)
+                 values (?, ?, ?, ?, ?, 1, 1, ?)'
+            )->execute([
+                'code', $code, 'Review thank-you', 'percent', $pct,
+                // Ninety days. An open-ended code is a liability that never
+                // ages off the books, and a deadline is also what makes the
+                // offer worth acting on.
+                gmdate('Y-m-d H:i:s', time() + 90 * 86400),
+            ]);
+            return $code;
+        } catch (PDOException $e) {
+            // 1062 = the code already exists. Astronomically unlikely at 32^6,
+            // but a collision must mint a new code rather than hand back
+            // somebody else's single-use one.
+            if ((int)($e->errorInfo[1] ?? 0) !== 1062) throw $e;
+        }
+    }
+    return null;
+}
+
+// Record a review and issue its code, atomically.
+//
+// ONE TRANSACTION, because the two halves must not be able to disagree. A
+// review saved without a code is a customer who was promised 20% and got
+// nothing; a code issued without a review is a code printer. The unique index
+// on order_id is what makes a double submission collapse into the first one
+// rather than into a second code.
+function store_review_submit(PDO $db, array $order, int $rating, ?string $comment, string $lang): array {
+    $db->beginTransaction();
+    try {
+        // Claim the order first. If this throws 1062 someone already reviewed
+        // it — including the same person double-tapping the button.
+        $ins = $db->prepare('insert into reviews (order_id, rating, comment, lang) values (?, ?, ?, ?)');
+        try {
+            $ins->execute([(int)$order['id'], $rating, $comment, $lang]);
+        } catch (PDOException $e) {
+            if ((int)($e->errorInfo[1] ?? 0) === 1062) {
+                $db->rollBack();
+                // Not an error to the customer: hand back the code they already
+                // earned, so a refresh shows the same thing rather than a
+                // failure they cannot act on.
+                $q = $db->prepare('select rating, reward_code from reviews where order_id = ?');
+                $q->execute([(int)$order['id']]);
+                $prev = $q->fetch() ?: [];
+                return ['already' => true, 'code' => $prev['reward_code'] ?? null,
+                        'rating' => (int)($prev['rating'] ?? 0)];
+            }
+            throw $e;
+        }
+        $code = store_review_reward($db, (int)$order['id']);
+        if ($code !== null) {
+            $db->prepare('update reviews set reward_code = ? where order_id = ?')
+               ->execute([$code, (int)$order['id']]);
+        }
+        $db->commit();
+        return ['already' => false, 'code' => $code, 'rating' => $rating];
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
 }

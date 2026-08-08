@@ -151,6 +151,40 @@ export const translations = {
     },
     // The home carousel. Slide 1 doubles as the page's h1, so its title is
     // written to stand alone as the heading of the whole storefront.
+    // The post-order review page (/review). The name is `rate`, not `review`,
+    // because payment.review already exists and means something else entirely
+    // — a payment being manually confirmed.
+    rate: {
+      loading: 'One moment…',
+      title: 'How did we do?',
+      titleNamed: 'How did we do, {name}?',
+      subtitle: 'Rate your order and we\u2019ll send you {pct}% off your next one.',
+      ratingLabel: 'Your rating',
+      starLabel: '{n} out of 5',
+      commentLabel: 'Anything you\u2019d like to tell us?',
+      commentPlaceholder: 'The fit, the delivery, the fabric \u2014 whatever stood out.',
+      submit: 'Send review',
+      sending: 'Sending…',
+      // Stated BEFORE they pick a rating. Without it a customer assumes the
+      // usual arrangement and rates up to earn the code, and the shop's own
+      // average stops meaning anything.
+      anyRating: 'Every rating earns the discount \u2014 including a low one. Tell us the truth.',
+      thanksTitle: 'Thank you.',
+      thanksBody: 'We read every one of these.',
+      codeLabel: 'Your code for {pct}% off',
+      codeNote: 'One use, valid for 90 days. Enter it at checkout.',
+      codeFailed: 'Your review is saved, but we could not create your discount code. Please email cs@sporta.com.kw and we will sort it out.',
+      invalidTitle: 'This review link is not valid',
+      invalidBody: 'It may have been mistyped, or the order may have been cancelled. If you think this is wrong, email cs@sporta.com.kw.',
+      // Shown AFTER the review is submitted and the code is already theirs.
+      // Nothing is offered for this and nothing checks whether they go: paying
+      // for a Google review breaks Google's policy and risks the whole profile.
+      googleAsk: 'If you have a moment, a public review helps other people find us.',
+      googleCta: 'Review us on Google',
+      // The shop's Google review link. Empty hides the whole section.
+      // Google Business Profile \u2192 Ask for reviews.
+      googleUrl: '',
+    },
     assistant: {
       // سبورتا AI keeps its Arabic name in BOTH languages. It is the shop's
       // name, and translating a name is how a brand becomes two brands.
@@ -521,6 +555,29 @@ export const translations = {
       line2: 'اشتعل.',
       subtitle: 'مصمَّمة لمن لا يقبل بأقل من الأفضل.',
       cta: 'تسوّق المجموعة',
+    },
+    rate: {
+      loading: 'لحظة من فضلك…',
+      title: 'شلون كانت تجربتك؟',
+      titleNamed: 'شلون كانت تجربتك، {name}؟',
+      subtitle: 'قيّم طلبك ونرسل لك خصم {pct}٪ على طلبك الجاي.',
+      ratingLabel: 'تقييمك',
+      starLabel: '{n} من ٥',
+      commentLabel: 'حاب تقول لنا شي؟',
+      commentPlaceholder: 'المقاس، التوصيل، الخامة — أي شي لفت انتباهك.',
+      submit: 'أرسل التقييم',
+      sending: 'جارٍ الإرسال…',
+      anyRating: 'كل تقييم يستحق الخصم — حتى المنخفض. قل لنا الصراحة.',
+      thanksTitle: 'شكرًا لك.',
+      thanksBody: 'نقرأ كل تقييم يوصلنا.',
+      codeLabel: 'كودك لخصم {pct}٪',
+      codeNote: 'يُستخدم مرة واحدة، وصالح ٩٠ يومًا. أدخله عند إتمام الطلب.',
+      codeFailed: 'حُفظ تقييمك، لكن ما قدرنا ننشئ كود الخصم. راسلنا على cs@sporta.com.kw ونحلها لك.',
+      invalidTitle: 'رابط التقييم غير صالح',
+      invalidBody: 'يمكن الرابط ناقص، أو الطلب ملغى. إذا تعتقد أن في خطأ، راسلنا على cs@sporta.com.kw.',
+      googleAsk: 'إذا عندك دقيقة، تقييمك العلني يساعد غيرك يوصل لنا.',
+      googleCta: 'قيّمنا على Google',
+      googleUrl: '',
     },
     assistant: {
       title: 'سبورتا AI',

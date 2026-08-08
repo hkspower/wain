@@ -178,6 +178,13 @@ if ($r === 'fulfilment' && $method === 'POST') {
     // after they are holding the bag. The unique index makes this safe to call
     // again when an order is re-marked, which the admin screen allows.
     if ($status === 'shipped') store_queue_whatsapp($db, $orderId, 'shipped');
+    // And ask what they thought, once it is actually in their hands. 'delivered'
+    // is the only honest moment for this: a review invitation that arrives
+    // while the order is still with the courier is asking someone to rate a
+    // parcel they have not opened. The unique index on (order_id, kind) makes
+    // re-marking an order safe — the admin screen allows it, and it must not
+    // send a second invitation.
+    if ($status === 'delivered') store_queue_whatsapp($db, $orderId, 'review');
     store_out(['ok' => true]);
 }
 

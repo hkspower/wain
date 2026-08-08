@@ -133,6 +133,13 @@ return [
     //   {{1}} customer name   {{2}} order number   {{3}} amount in KWD
     'whatsapp_template_confirmed' => '',
     'whatsapp_template_shipped'   => '',
+    // The review invitation, sent once an order is marked DELIVERED. Its
+    // variables differ from the two above because it carries a link:
+    //   {{1}} customer name   {{2}} order number
+    // and the button/URL variable is the signed review path, which the queue
+    // supplies. Leave empty and no review is ever requested — the whole
+    // feature is off, and nothing else changes.
+    'whatsapp_template_review'    => '',
     // Override only to pin an API version or to point the tests at a fake.
     'whatsapp_api_base' => 'https://graph.facebook.com/v21.0',
 ];

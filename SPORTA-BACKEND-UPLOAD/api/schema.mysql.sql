@@ -418,7 +418,7 @@ create table if not exists whatsapp_outbox (
   -- is confirmed once and shipped once.
   constraint uq_wa_once unique (order_id, kind),
   constraint fk_wa_order foreign key (order_id) references orders (id) on delete cascade,
-  constraint wa_kind_ck check (kind in ('confirmed','shipped'))
+  constraint wa_kind_ck check (kind in ('confirmed','shipped','review'))
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
 -- The cron claims pending work every few minutes from a table that only grows
@@ -491,3 +491,33 @@ create index if not exists idx_orders_phone_open
 -- ===========================================================================
 alter table orders add column if not exists pay_attempt int unsigned not null default 0
   after cbk_status;
+
+-- ===========================================================================
+-- Customer reviews, and the thank-you discount.
+--
+-- Byte-for-byte the same statement as reviews.mysql.sql, which exists so a
+-- shop set up before this feature can add it without re-importing.
+--
+-- The reward is for reviewing SPORTA, not for reviewing on Google: Google's
+-- policy forbids paying for reviews and the penalty is removal of the reviews
+-- and possible suspension of the Business Profile. Google is invited AFTER the
+-- review, with nothing attached. Any rating earns the discount — paying only
+-- for good ones is review gating, which is against policy in its own right and
+-- makes the shop's own average meaningless.
+-- ===========================================================================
+create table if not exists reviews (
+  id          int unsigned auto_increment primary key,
+  order_id    int unsigned not null,
+  rating      tinyint unsigned not null,
+  comment     varchar(1000) null,
+  lang        varchar(2)   not null default 'ar',
+  reward_code varchar(24)  null,
+  published   tinyint(1)   not null default 0,
+  created_at  timestamp    not null default current_timestamp,
+  -- One row per order, in the database: the only thing standing between this
+  -- and a discount-code printer, and the one place a race cannot get around.
+  unique key uq_reviews_order (order_id),
+  key idx_reviews_created (created_at),
+  constraint reviews_rating_ck check (rating between 1 and 5),
+  constraint reviews_lang_ck   check (lang in ('ar','en'))
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
