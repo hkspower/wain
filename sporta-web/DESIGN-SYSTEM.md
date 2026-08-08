@@ -261,6 +261,14 @@ never uses; both are now `rounded-lg`. The admin keeps bare `rounded` on inline
 - **44px of finger.** `.tap`, `.btn` and form controls get `min-height: 44px`
   under `@media (pointer: coarse)`. Text links that must be tappable get
   `-my-2.5 py-2.5` — a bigger target without a bigger line box.
+- **24px is the floor for everything else** (WCAG 2.5.8). Where a control is
+  deliberately small — the carousel dots are 10px pills — the *button* carries
+  the 24px and the pill sits inside it, so the target grows and the design does
+  not. Do not reach for a negative-inset `::after` to keep the spacing tight:
+  at that pitch the hit areas overlap, and overlapping targets are worse than
+  small ones because a tap in the overlap silently goes to whichever paints
+  last. Tighten the gap instead. `npm run audit:mobile` reports every control
+  under 24px, per phone.
 - **The sticky buy bar clears the home indicator** (`safe-bottom`) and is
   followed by a spacer, so it never covers the last of the page.
 

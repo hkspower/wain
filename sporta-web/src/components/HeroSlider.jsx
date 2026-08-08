@@ -250,7 +250,20 @@ export default function HeroSlider() {
       </>)}
 
       {/* dots + pause */}
-      <div className={`absolute bottom-5 start-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rtl:translate-x-1/2 ${count > 1 ? '' : 'hidden'}`}>
+      {/* THE DOT IS THE PILL; THE TARGET IS THE BUTTON AROUND IT.
+          These were 10x10 px — the button and the pill were the same element —
+          which is under half the 24x24 that WCAG 2.5.8 asks for and well under
+          a thumb. The pill is unchanged; the button is now 24px in both
+          directions with the pill centred inside it, so the carousel looks
+          exactly as it did and can actually be operated.
+
+          The hit areas are NOT expanded with a negative-inset pseudo-element,
+          which is the usual trick for keeping the spacing tight. At this pitch
+          they would overlap, and overlapping targets are worse than small ones:
+          a tap in the overlap silently goes to whichever button paints last.
+          The gap tightens to 2px instead, so the visible dots sit at nearly the
+          spacing they did. */}
+      <div className={`absolute bottom-5 start-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rtl:translate-x-1/2 ${count > 1 ? '' : 'hidden'}`}>
         {items.map((item, i) => (
           <button
             key={item.kind === 'photo' ? `p${item.id}` : item.id}
@@ -258,10 +271,15 @@ export default function HeroSlider() {
             onClick={() => goTo(i)}
             aria-label={`${T.goTo} ${i + 1}`}
             aria-current={i === index || undefined}
-            className={`h-2.5 rounded-full transition-all ${
-              i === index ? 'w-7 bg-brand' : 'w-2.5 bg-white/40 hover:bg-white/70'
-            }`}
-          />
+            className="group/dot grid h-6 min-w-6 place-items-center"
+          >
+            <span
+              aria-hidden="true"
+              className={`block h-2.5 rounded-full transition-all ${
+                i === index ? 'w-7 bg-brand' : 'w-2.5 bg-white/40 group-hover/dot:bg-white/70'
+              }`}
+            />
+          </button>
         ))}
         {!reduced && (
           <button
