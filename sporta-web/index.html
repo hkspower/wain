@@ -47,10 +47,23 @@
     <meta name="geo.position" content="29.3759;47.9774" />
     <meta name="ICBM" content="29.3759, 47.9774" />
 
-    <!-- Language alternates (bilingual site) -->
+    <!-- Language alternates.
+         ALL THREE USED TO POINT AT THE SAME URL, which is not an hreflang
+         cluster — it is three annotations Google discards, because a set of
+         alternates whose members are indistinguishable describes no
+         alternatives at all. The Arabic version was therefore invisible as a
+         language target to any pass that did not execute JavaScript, and the
+         sitemap has been emitting the correct pair the whole time, so the two
+         disagreed.
+
+         x-default is ARABIC on purpose. It is what Google falls back to when a
+         searcher matches no listed language, and this is a Kuwaiti shop whose
+         market searches in Arabic. Pointing it at English answered "when in
+         doubt, show English" for a country where doubt should resolve the
+         other way. -->
     <link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/" />
-    <link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/" />
-    <link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/" />
+    <link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/?lang=ar" />
+    <link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/?lang=ar" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />

@@ -13,7 +13,7 @@ const INFOBAR_DESKTOP_AT = '(min-width: 640px)'
 export default function Home() {
   const { t } = useLang()
   // Reset canonical/title/robots after client-side navigation back home.
-  usePageMeta({ path: '/' })
+  usePageMeta({ path: '/', description: t.seo.home })
   // The four products this row shows.
   //
   // Starts as the first four of the shipped catalogue so the grid paints

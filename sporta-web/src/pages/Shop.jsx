@@ -26,8 +26,9 @@ export default function Shop() {
   )
   usePageMeta({
     title: t.nav.shop,
-    description:
-      'Shop premium sportswear in Kuwait — activewear, hoodies, caps and accessories. Prices in KWD with KNET checkout. تسوق ملابس سبورتا الرياضية في الكويت.',
+    // Was one string with an Arabic sentence bolted on the end, which reads
+    // as neither language to a searcher in either.
+    description: t.seo.shop,
     path: '/shop',
     jsonLd,
   })

@@ -2,10 +2,13 @@ import { useEffect } from 'react'
 import { useLang } from '../i18n/LanguageContext'
 
 export const SITE = 'https://www.sporta.com.kw'
-const BASE_TITLE = 'Sporta — Sports & Fitness Store in Kuwait'
-const BASE_DESC =
-  'Sporta (سبورتا) is a Kuwait sportswear store — activewear, gym clothing, hoodies, caps, and sports accessories from brands like Gymshark, RHEO & more. Fast delivery, free returns, KNET checkout. Arabic & English.'
 const OG_IMAGE = `${SITE}/og-image.png`
+
+// THE TITLE AND THE DESCRIPTION ARE THE RESULT. They are the two lines a
+// searcher reads before deciding whether to click, and until now both were a
+// single English constant — so /?lang=ar rendered Arabic properly and then
+// described itself in English to anyone searching in Arabic. Both now come from
+// the translations, in the language of the page.
 
 // Third-party brands carried by the store; anything else is the house label.
 const KNOWN_BRANDS = ['RHEO', 'Vanquish', 'ATE', 'Gymshark', 'Eyesportwear', 'NBA']
@@ -47,13 +50,22 @@ function setTag(selector, attrs) {
 function urlsFor(path, lang) {
   const base = SITE + (path || '/')
   const ar = `${base}?lang=ar`
-  return { canonical: lang === 'ar' ? ar : base, en: base, ar, xDefault: base }
+  // x-default is the ARABIC url. It is the version Google shows a searcher who
+  // matches neither listed language, and for a Kuwaiti shop that fallback
+  // should be Arabic rather than English. It must match index.html, or the
+  // static head and the rendered head describe two different sites.
+  return { canonical: lang === 'ar' ? ar : base, en: base, ar, xDefault: ar }
 }
 
 export function usePageMeta({ title, description, path = '', jsonLd, robots, image, type } = {}) {
-  const { lang } = useLang()
+  const { lang, t } = useLang()
   useEffect(() => {
-    document.title = title ? `${title} — Sporta` : BASE_TITLE
+    const BASE_TITLE = t.seo.baseTitle
+    const BASE_DESC = t.seo.baseDesc
+    // The brand suffix is the brand's own name and is NOT translated — it is
+    // written سبورتا on the Arabic side of the wordmark, and a title that says
+    // "— Sporta" in an Arabic result still reads as the shop it is.
+    document.title = title ? `${title} — ${lang === 'ar' ? 'سبورتا' : 'Sporta'}` : BASE_TITLE
 
     // Always reset the description so a product page's copy never leaks onto
     // the next route (routes that pass none get the site default back).
@@ -121,7 +133,7 @@ export function usePageMeta({ title, description, path = '', jsonLd, robots, ima
     return () => {
       if (script) script.remove()
     }
-  }, [title, description, path, jsonLd, robots, image, type, lang])
+  }, [title, description, path, jsonLd, robots, image, type, lang, t])
 }
 
 // Build a schema.org Product object for a product detail page.

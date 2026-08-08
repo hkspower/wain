@@ -154,6 +154,24 @@ export const translations = {
     // The post-order review page (/review). The name is `rate`, not `review`,
     // because payment.review already exists and means something else entirely
     // — a payment being manually confirmed.
+    // SEO copy — the title and description Google actually shows in a result.
+    //
+    // THESE WERE ENGLISH ON THE ARABIC PAGES. `?lang=ar` rendered Arabic
+    // correctly — right lang, right dir, Arabic headings — and then handed the
+    // crawler an English <title> and an English description, which are the two
+    // things a searcher reads. An Arabic query returning an English snippet is
+    // a result nobody clicks, and it is the likeliest single reason a bilingual
+    // shop ranks in one language only.
+    seo: {
+      baseTitle: 'Sporta — Sports & Fitness Store in Kuwait',
+      baseDesc: 'Sporta is a Kuwait sportswear store — activewear, gym clothing, hoodies, caps and sports accessories from Gymshark, RHEO, Vanquish and more. Same-day delivery in Kuwait, 14-day returns, KNET and cash on delivery.',
+      home: 'Premium sportswear in Kuwait. Activewear, gym clothing, hoodies and accessories — same-day delivery for 1 KWD, KNET, cards and cash on delivery.',
+      shop: 'Shop sportswear in Kuwait — activewear, hoodies, leggings, caps and accessories. Prices in Kuwaiti Dinar, KNET checkout, same-day delivery.',
+      about: 'Sporta is a Kuwaiti sportswear store carrying Gymshark, RHEO, Vanquish, ATE and our own SPORTA label.',
+      contact: 'Contact Sporta Kuwait about an order, a size, delivery or a return. WhatsApp, phone and email.',
+      returns: 'Sporta returns and exchanges in Kuwait — 14 days from delivery, free collection.',
+      track: 'Track a Sporta order with your order number. Payment and delivery status in real time.',
+    },
     rate: {
       loading: 'One moment…',
       title: 'How did we do?',
@@ -558,6 +576,20 @@ export const translations = {
       line2: 'اشتعل.',
       subtitle: 'مصمَّمة لمن لا يقبل بأقل من الأفضل.',
       cta: 'تسوّق المجموعة',
+    },
+    seo: {
+      // Written as Kuwaiti shoppers actually search: «ملابس رياضية الكويت»،
+      // «توصيل نفس اليوم»، «كي نت». Not a translation of the English — the two
+      // languages are searched with different words, and a rendered English
+      // sentence would rank for nothing.
+      baseTitle: 'سبورتا — متجر الملابس الرياضية في الكويت',
+      baseDesc: 'سبورتا متجر ملابس رياضية في الكويت — ملابس تمارين، هوديز، ليقنز، كابات وإكسسوارات رياضية من جيمشارك وريو وفانكويش وغيرها. توصيل في نفس اليوم داخل الكويت، إرجاع خلال ١٤ يومًا، دفع بكي نت أو عند الاستلام.',
+      home: 'ملابس رياضية فاخرة في الكويت. ملابس تمارين وهوديز وإكسسوارات — توصيل في نفس اليوم بدينار واحد، كي نت وبطاقات ودفع عند الاستلام.',
+      shop: 'تسوّق الملابس الرياضية في الكويت — ملابس تمارين، هوديز، ليقنز، كابات وإكسسوارات. الأسعار بالدينار الكويتي، الدفع بكي نت، وتوصيل في نفس اليوم.',
+      about: 'سبورتا متجر كويتي للملابس الرياضية يقدّم جيمشارك وريو وفانكويش وATE وعلامتنا الخاصة سبورتا.',
+      contact: 'تواصل مع سبورتا الكويت بخصوص طلبك أو المقاس أو التوصيل أو الإرجاع. واتساب وهاتف وبريد إلكتروني.',
+      returns: 'الإرجاع والاستبدال في سبورتا الكويت — خلال ١٤ يومًا من الاستلام، مع استلام مجاني.',
+      track: 'تتبّع طلبك من سبورتا برقم الطلب. حالة الدفع والتوصيل لحظة بلحظة.',
     },
     rate: {
       loading: 'لحظة من فضلك…',
