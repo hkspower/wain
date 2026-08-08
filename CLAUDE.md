@@ -2,15 +2,19 @@
 
 ## Standing preferences (saved by user request — apply for all time)
 
-1. **Claude does the full coding — not Lovable.**
+1. **Claude does the full coding.**
    Write complete, production-ready code directly in this repo. Do NOT delegate
-   implementation to Lovable's AI or hand off "paste this into Lovable" prompts
-   as the deliverable. Deliver actual files that build and run.
+   implementation to another AI builder or hand off "paste this into <tool>"
+   prompts as the deliverable. Deliver actual files that build and run.
 
-2. **No GitHub-based workflow is required of the user.**
-   The user prefers to avoid GitHub for their own deploys. Payments and site
-   updates go out via direct deploy to Hostinger, not via GitHub Actions/Lovable
-   auto-deploy. (Claude still commits/pushes to its working branch as a backup.)
+2. **Nothing deploys from CI, and the owner never touches one.**
+   Site updates go out by direct deploy to Hostinger — `npm run publish` over
+   FTPS, or the zip in hPanel File Manager. There is no GitHub Actions workflow
+   and there is not meant to be: the one that existed was deleted at the
+   owner's request, along with every trace of the Lovable era it was written
+   alongside. Do not reintroduce either.
+   (Claude still commits and pushes to its working branch — that is a backup of
+   the source, not a deploy route, and nothing on the server reads from it.)
 
 3. **Keep replies brief.** Short answers, minimal preamble, no long recaps of
    what was just done. Lead with the result; give detail only when asked or

@@ -24,7 +24,7 @@ verify. So the machine doing it needs Node, the repo, and the FTP credential.
 | Runner | Runs 24/7? | Can build? | Has the FTP credential? | Verdict |
 |---|---|---|---|---|
 | Owner's Mac (`publish:watch`) | Only while it is awake | Yes | Yes — `.env.deploy` | **Half the answer** |
-| GitHub Actions | **Yes** | Yes | Needs 3 secrets added | **The other half** |
+| ~~GitHub Actions~~ | Yes | Yes | Would need 3 secrets | **Removed at the owner's request — see Half 2** |
 | n8n cloud | Yes | **No** — cannot run `npm run build` | Yes, already configured | Cannot deploy code alone |
 | **hPanel → Advanced → GIT** | Yes | **No** — no Node on shared hosting | It *is* the server | **Possible, but only with a pre-built branch** — see below |
 | Hostinger cron | Yes | No — and it cannot fetch a build either | It *is* the server | Rejected — see below |
@@ -50,7 +50,8 @@ than being left off the table.
 **It cannot build.** Shared hosting has no Node, so whatever branch it watches
 must already contain the finished `public_html/` tree — `dist/` plus the bundled
 PHP, exactly what the zip contains. Producing that is a build, and a build has
-to happen somewhere with Node. So this route does not remove GitHub Actions; it
+to happen somewhere with Node. So this route does not remove the need for a
+build step; it
 changes what the Action does, from *uploading the site* to *committing the built
 site to a branch*.
 
@@ -74,10 +75,14 @@ What it costs:
 - `git pull` keeps untracked files, so `knet/config.php` survives — but a clean
   re-clone would not, and nothing in hPanel promises which one it does.
 
-**Verdict: viable, and the better choice if keeping the FTP credential off
-GitHub matters more than simplicity.** Otherwise Half 2 below is fewer moving
-parts for the same result. Check the plan actually has the Git section — it is
-not on every tier — before planning around it.
+**Verdict: technically viable, but NOT taken.** It is a GitHub-based deploy —
+a push to a remote is what triggers it — and the owner has asked for those to be
+gone, which is a preference and not a limitation to be worked around. It is
+described here so the option is a decision on the record rather than an
+oversight, and so nobody proposes it again as if it were new.
+
+Half 1 gives the same result with fewer moving parts and no `.git` anywhere
+near the web root.
 
 ### Why Hostinger's cron is not the answer either
 
@@ -127,7 +132,7 @@ decision is what makes "always on" safe rather than reckless.
 
 ## Half 1 — while you are at your machine: `npm run publish:watch`
 
-Ready now. No secrets to add, no GitHub, no new attack surface.
+Ready now. No secrets to add, nothing in the cloud, no new attack surface.
 
 ```bash
 cd sporta-web
@@ -140,35 +145,29 @@ It never runs two publishes at once — if you save during an upload it queues o
 follow-up instead, because two concurrent uploads interleave two versions of the
 site on the server. A failed publish does not kill the watcher.
 
-Stops when the machine sleeps. That is what Half 2 is for.
+Stops when the machine sleeps — and that is now the whole story. See below.
 
-## Half 2 — while you are asleep: GitHub Actions
+## Half 2 — while you are asleep: **there is no longer one**
 
-`.github/workflows/deploy-sporta.yml`, already in the repo and **deliberately
-inert**. It cannot deploy anything until both of these exist, so committing it
-was safe:
+There used to be a GitHub Actions workflow here that built and uploaded from
+GitHub's cloud, so deploys kept happening while the owner's machine was off.
+**It has been deleted at the owner's request, along with the rest of the
+GitHub- and Lovable-era tooling, and it should not be reintroduced.**
 
-1. the branch **`sporta-live`**, and
-2. the repository secrets **`FTP_HOST`**, **`FTP_USER`**, **`FTP_PASSWORD`**
-   (Settings → Secrets and variables → Actions). Values come from
-   hPanel → Files → FTP Accounts. **Do not guess the host** — run
-   `npm run ftp:doctor` locally to find the right one.
+That is a real trade and it is worth writing down rather than discovering:
 
-Then the loop is: merge into `sporta-live` → it builds, audits, uploads,
-verifies. There is also a **Run workflow** button for redeploying the current
-`sporta-live` without inventing a commit, which is the rollback path.
+* **What was given up.** Nothing deploys while the Mac is asleep. "Automatic"
+  now means "automatic whenever you are working", not "automatic always".
+* **What was gained.** No FTP password stored outside the owner's own machine,
+  no third party holding a credential to the live store, and one fewer system
+  that can publish to a shop taking real payments. The standing preference in
+  CLAUDE.md — the owner does not want a CI workflow in their life — is now
+  simply true rather than true-with-an-exception.
 
-### Note on the standing "no GitHub workflow" preference
-
-CLAUDE.md records: *"No GitHub-based workflow is required of the user."* Half 2
-uses GitHub, so it is worth being explicit: it does not put GitHub **in your
-way** — you never open it, and the hPanel/zip route and `npm run publish` both
-keep working exactly as before. But it is the only runner that exists while your
-machine is off, so "auto all the time" is not achievable without something like
-it. **If you would rather not have it, delete the workflow file and Half 1 still
-gives you automatic deploys whenever you are working.** That is your call, not
-mine.
-
+If "deploy while asleep" is ever wanted again, the honest options are a machine
+that stays on, or a scheduled run on a host that has Node — not a PHP endpoint
+on the server. See "Never build a PHP deploy endpoint" in CLAUDE.md: the live
+site already had one of those once.
 ---
 
 ## What protects the live store on every automatic run

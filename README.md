@@ -13,7 +13,7 @@ npm run dev      # local preview
 npm run build    # production build -> dist/
 ```
 
-- **Deploy & handoff:** see `sporta-web/HANDOFF.md`
+- **Deploy:** see `GO-LIVE.md`, and `SERVER-LAYOUT.md` for what lives where
 - **Payments (CBK T-Pay, PHP):** `sporta-web/dropin/php-cbk/`
 - **Backend (MySQL + PHP at `/api`):** `sporta-web/NATIVE-BACKEND.md`, source in `sporta-web/dropin/php-store/`
 - **Security notes:** `sporta-web/SECURITY.md`

@@ -2,9 +2,9 @@
 
 This describes **the live site**. `sporta-web` is what runs at
 www.sporta.com.kw; there is no other project to apply these to. (An earlier
-version of this file was written during the move off Lovable and read as though
-this app were a demo and the real shop lived somewhere else. It did not, and
-saying so sent people to the wrong codebase.)
+version of this file read as though this app were a demo and the real shop
+lived somewhere else. It did not, and saying so sent people to the wrong
+codebase.)
 
 Numbers below are measured, not estimated. Re-measure rather than trust them if
 the catalogue or the dependencies have moved.
