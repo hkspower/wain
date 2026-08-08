@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { fetchAllProducts, saveProduct, setProductActive, slugify } from './api'
+import { fetchAllProducts, fetchBrands, saveProduct, setProductActive, slugify } from './api'
 import { Notice } from './Overview'
 import { IconClose } from '../components/icons'
 
@@ -20,7 +20,7 @@ import { IconClose } from '../components/icons'
 
 const BLANK = {
   id: 0, slug: '', name_en: '', name_ar: '', desc_en: '', desc_ar: '',
-  price: '', category: '', image: '', active: true,
+  price: '', category: '', brand_slug: '', image: '', images: '', active: true,
 }
 
 export default function Products() {
@@ -134,6 +134,17 @@ function Editor({ product, onClose, onSaved }) {
   const [form, setForm] = useState(product)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  // The brand list, for the selector. A failure leaves it empty, which shows
+  // "— none —" alone: the editor still saves everything else rather than
+  // refusing to open because one dropdown could not be filled.
+  const [brands, setBrands] = useState([])
+  useEffect(() => {
+    let live = true
+    fetchBrands()
+      .then((r) => { if (live) setBrands(r.brands ?? []) })
+      .catch(() => { if (live) setBrands([]) })
+    return () => { live = false }
+  }, [])
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   async function submit(e) {
@@ -148,6 +159,9 @@ function Editor({ product, onClose, onSaved }) {
       desc_ar: form.desc_ar || null,
       price: Number(form.price),
       category: form.category || null,
+      // '' clears it; the server refuses a slug that is not a real brand.
+      brand_slug: form.brand_slug || '',
+      images: form.images || '',
       image: form.image || null,
       active: form.active,
     })
@@ -200,9 +214,39 @@ function Editor({ product, onClose, onSaved }) {
             <span className="mb-1.5 block text-xs font-bold text-slate-600">Category</span>
             <input value={form.category ?? ''} onChange={set('category')} maxLength={40} className={field} />
           </label>
+          {/* A SELECT, NOT A TEXT BOX. The server checks the slug against the
+              brands table and refuses an unknown one, but a typo should not be
+              something the admin can make in the first place — "the logo did
+              not appear" is far harder to diagnose than a list with the right
+              names in it. */}
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-bold text-slate-600">Brand</span>
+            <select value={form.brand_slug ?? ''} onChange={set('brand_slug')} className={field}>
+              <option value="">— none —</option>
+              {brands.map((b) => (
+                <option key={b.slug} value={b.slug}>
+                  {b.name_en}{b.has_logo ? '' : '  (no logo yet)'}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="block">
             <span className="mb-1.5 block text-xs font-bold text-slate-600">Image URL</span>
             <input value={form.image ?? ''} onChange={set('image')} maxLength={500} className={field} />
+          </label>
+          {/* The gallery only appears when there is more than one photograph.
+              One per product is the normal case and stays free of it. */}
+          <label className="block sm:col-span-2">
+            <span className="mb-1.5 block text-xs font-bold text-slate-600">
+              More photos <span className="font-normal text-slate-400">— comma separated, in order. The main image comes first.</span>
+            </span>
+            <input
+              value={form.images ?? ''}
+              onChange={set('images')}
+              maxLength={2000}
+              placeholder="/photos/jacket-back.jpg, /photos/jacket-detail.jpg"
+              className={`${field} font-mono`}
+            />
           </label>
         </div>
 

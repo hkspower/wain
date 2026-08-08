@@ -51,6 +51,8 @@ $STORE_LIMITS = [
     'products'    => [120, 60],
     'slides'      => [120, 60],
     'brands'      => [120, 60],
+    'brand_logo'  => null,        // hashed URL, one-year immutable cache — the
+                                  // browser asks once per logo, ever.
     'stock'       => [120, 60],
     'status'      => [60, 60],
     'invoice'     => [60, 60],
@@ -92,10 +94,29 @@ if (array_key_exists($r, $STORE_LIMITS)) {
 // ---------------------------------------------------------------- products
 if ($r === 'products') {
     $rows = $db->query(
-        'select slug, name_en, name_ar, desc_en, desc_ar, price, sale_price,
-                sale_starts_at, sale_ends_at, featured, featured_sort, category, image,
-                no_exchange
-           from products where active = 1 order by name_en'
+        // THE BRAND IS JOINED IN, rather than fetched separately.
+        //
+        // The product page used to make a second call to ?r=brands for a slug,
+        // two names and a hash — one more round trip on a page whose request
+        // budget has two to spare, for about sixty bytes. Joined here it costs
+        // ~3 kB across the whole catalogue and no extra request anywhere.
+        //
+        // The LOGO itself is still not here and must not be: it is a data: URI
+        // up to 160 kB, /api is no-store, and products that share a brand would
+        // each carry their own copy of it. `brand_logo_v` is the content hash,
+        // which is all the browser needs to build the cacheable ?r=brand_logo
+        // URL for the one brand it is actually showing.
+        'select p.slug, p.name_en, p.name_ar, p.desc_en, p.desc_ar, p.price, p.sale_price,
+                p.sale_starts_at, p.sale_ends_at, p.featured, p.featured_sort, p.category,
+                p.image, p.no_exchange, p.brand_slug, p.images,
+                b.name_en as brand_name_en, b.name_ar as brand_name_ar,
+                case when b.logo is null or b.logo = \'\' then 0 else 1 end as brand_has_logo,
+                substr(sha2(coalesce(b.logo, \'\'), 256), 1, 12) as brand_logo_v
+           from products p
+           -- LEFT, and on the slug: deleting a brand must never hide a product,
+           -- and an unmatched slug simply shows no brand.
+           left join brands b on b.slug = p.brand_slug and b.active = 1
+          where p.active = 1 order by p.name_en'
     )->fetchAll();
     foreach ($rows as &$row) {
         // `price` is what the shop CHARGES, so a sale price replaces it rather
@@ -189,6 +210,36 @@ if ($r === 'slide_image') {
     exit;
 }
 
+// ------------------------------------------------------------- brand logo
+//
+// The same treatment a hero slide's photograph gets, for the same reason. A
+// logo is stored as a data: URI in the brands row (never a file — an upload
+// endpoint would write into the web root), and /api is `no-store`, so inlining
+// it into the products JSON would re-download every logo on every page.
+//
+// Served as bytes behind a URL carrying the content hash, cached for a year and
+// immutable. Change the logo and the hash changes, so the new one appears
+// without anybody clearing a cache.
+if ($r === 'brand_logo') {
+    $q = $db->prepare('select logo from brands where slug = ? and active = 1');
+    $q->execute([trim((string)($_GET['slug'] ?? ''))]);
+    $data = (string)($q->fetchColumn() ?: '');
+    if ($data === '' || !preg_match('#^data:image/(png|jpeg|webp);base64,(.+)$#s', $data, $m)) {
+        http_response_code(404);
+        exit;
+    }
+    $bytes = base64_decode($m[2], true);
+    if ($bytes === false) { http_response_code(404); exit; }
+
+    header('Content-Type: image/' . $m[1]);
+    header('Content-Length: ' . strlen($bytes));
+    header('Cache-Control: public, max-age=31536000, immutable');
+    header('X-Content-Type-Options: nosniff');
+    header_remove('Pragma');
+    echo $bytes;
+    exit;
+}
+
 // -------------------------------------------------------------- discount check
 // Check a code against a cart BEFORE the customer commits to paying.
 //
@@ -236,7 +287,14 @@ if ($r === 'discount' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 // data URL it is stored as, so a brand needs no second request and no file.
 if ($r === 'brands') {
     $rows = $db->query(
-        'select slug, name_en, name_ar, logo from brands where active = 1 order by sort, name_en'
+        // `logo` is deliberately NOT selected. It is a data: URI up to 160 kB
+        // and eight of them would be a megabyte of base64 on a no-store
+        // endpoint that a product page now calls. `has_logo` says whether to
+        // ask for the bytes; ?r=brand_logo serves them, cached for a year.
+        // `logo_v` is the content hash that makes that cache safe.
+        'select slug, name_en, name_ar, logo is not null and logo <> \'\' as has_logo,
+                substr(sha2(coalesce(logo, \'\'), 256), 1, 12) as logo_v
+           from brands where active = 1 order by sort, name_en'
     )->fetchAll();
     store_out($rows);
 }

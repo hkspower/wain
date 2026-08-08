@@ -46,12 +46,24 @@ export default function ProductDetail() {
       .catch(() => {})
     return () => { alive = false }
   }, [slug])
-  // Only the price fields are taken from the server. Everything else — the
-  // images, the copy, the AHED detail — stays with the shipped record, which
-  // is richer than the table and does not change under the reader.
+  // Only the price fields — and the brand — are taken from the server.
+  // Everything else, the images and the copy and the AHED detail, stays with
+  // the shipped record, which is richer than the table and does not change
+  // under the reader.
+  //
+  // The brand and the extra photographs are on this list because they exist
+  // ONLY in the database: the bundled catalogue has neither field and never
+  // will, since both are things the owner sets in /backends. Left off, the
+  // plate silently showed no maker and the gallery silently showed one picture,
+  // no matter what was saved. THIS MERGE IS WHERE A SERVER-ONLY COLUMN GOES TO
+  // BE FORGOTTEN — anything added to the products table that the page must
+  // render has to be named here too.
   const product = shipped && {
     ...shipped,
-    ...(live ? { price: live.price, list_price: live.list_price, on_sale: live.on_sale } : {}),
+    ...(live
+      ? { price: live.price, list_price: live.list_price, on_sale: live.on_sale,
+          brand: live.brand, images: live.images }
+      : {}),
   }
   const ahed = ahedDetail(slug)
   const [stock, setStock] = useState(null) // null = not known; see lib/stock.js
@@ -260,7 +272,7 @@ export default function ProductDetail() {
           <ProductGallery images={productImages(product)} alt={product.name[lang]} />
           {/* Who you are buying from, and who made it, directly under the
               photograph — the two facts a shopper checks before the price. */}
-          <BrandPlate detail={ahed} />
+          <BrandPlate detail={ahed} brand={product.brand} />
         </div>
         <div>
           {/* HIERARCHY. The title and the price used to be two different

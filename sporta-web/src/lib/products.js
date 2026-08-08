@@ -379,6 +379,20 @@ function fromApi(row) {
     featured: !!row.featured,
     featured_sort: Number(row.featured_sort ?? 0),
     category: row.category,
+    // Which brand made it. Null for a product the admin has not assigned yet,
+    // and for the whole shipped fallback catalogue — the plate then shows what
+    // it always showed.
+    // The brand, joined in by the API rather than fetched separately — see the
+    // note on ?r=products. `brand` is null when the product has none, or when
+    // the slug points at a brand that has since been hidden.
+    brand: row.brand_slug
+      ? {
+          slug: row.brand_slug,
+          name: { en: row.brand_name_en, ar: row.brand_name_ar },
+          hasLogo: Number(row.brand_has_logo) === 1,
+          v: row.brand_logo_v,
+        }
+      : null,
     // Women's clothing cannot be exchanged. The server decides which products
     // those are (products.no_exchange) rather than the browser inferring it
     // from the category: the women's Sculpt, Cloudsoft and Define jackets sit
@@ -395,6 +409,10 @@ function fromApi(row) {
     // card: a broken-image glyph where the product should be. The shipped
     // placeholder is the answer until real photography exists.
     image: row.image || shipped?.image,
+    // Extra photographs, comma-separated in display order. productImages()
+    // splits this and puts `image` first. Absent for the shipped catalogue,
+    // which has one picture per product and always will.
+    images: row.images ?? null,
     // The shipped catalogue carries a bilingual badge; the database does not
     // have that column, and a badge is decoration. Keeping the shipped one
     // when the slug matches means switching to the live catalogue does not

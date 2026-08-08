@@ -549,6 +549,26 @@ create table if not exists reviews (
   constraint reviews_lang_ck   check (lang in ('ar','en'))
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_unicode_ci;
 
+-- ===========================================================================
+-- Which BRAND a product belongs to.
+--
+-- Byte-for-byte the same statements as productbrand.mysql.sql, which exists so
+-- a shop set up before this feature can add it without re-importing.
+--
+-- A slug rather than an id, because the catalogue is re-imported from the
+-- supplier's export and an auto-increment id is not stable across that.
+-- Deliberately not a foreign key: deleting a brand must not delete products or
+-- fail because a garment still points at it. An unmatched slug shows no brand,
+-- which is what every product shows today.
+-- ===========================================================================
+alter table products add column if not exists brand_slug varchar(64) null after category;
+create index if not exists idx_products_brand on products (brand_slug);
+
+-- Extra photographs, comma-separated, in display order. The main `image` stays
+-- first. Paths to files the owner puts on the server by hand — this shop has no
+-- image upload by design.
+alter table products add column if not exists images text null after image;
+
 
 -- ========================================================================
 -- seed.mysql.sql — the catalogue and its sizes

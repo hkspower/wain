@@ -283,7 +283,8 @@ if ($r === 'card_settled' && $method === 'POST') {
 if ($r === 'products_all') {
     store_out($db->query(
         'select id, slug, name_en, name_ar, desc_en, desc_ar, price, sale_price,
-                sale_starts_at, sale_ends_at, featured, featured_sort, category, image, active
+                sale_starts_at, sale_ends_at, featured, featured_sort, category, brand_slug,
+                image, active
            from products order by id desc'
     )->fetchAll());
 }
@@ -324,26 +325,57 @@ if ($r === 'product_save' && $method === 'POST') {
     $featured = !empty($b['featured']) ? 1 : 0;
     $featuredSort = (int)($b['featured_sort'] ?? 0);
 
+    // WHICH BRAND MADE IT. Checked against the brands table rather than stored
+    // as typed: a slug with a typo would silently show no brand on the product
+    // page, and "the logo did not appear" is a much harder thing to diagnose
+    // than a save that refused. Empty clears it, which is how a product goes
+    // back to having no brand.
+    // EXTRA PHOTOGRAPHS, as a comma-separated list of same-origin paths.
+    // store_internal_href is the same gate the hero buttons pass: a leading //
+    // is a HOSTNAME, not a path, so an off-site URL cannot be spelled here.
+    // Blank entries are dropped rather than becoming empty <img> tags.
+    $extraImages = null;
+    $rawImages = trim((string)($b['images'] ?? ''));
+    if ($rawImages !== '') {
+        $clean = [];
+        foreach (explode(',', $rawImages) as $one) {
+            $one = trim($one);
+            if ($one === '') continue;
+            $clean[] = store_internal_href($one);
+        }
+        $extraImages = $clean ? implode(',', $clean) : null;
+    }
+
+    $brandSlug = trim((string)($b['brand_slug'] ?? ''));
+    if ($brandSlug === '') {
+        $brandSlug = null;
+    } else {
+        $q = $db->prepare('select 1 from brands where slug = ?');
+        $q->execute([$brandSlug]);
+        if (!$q->fetchColumn()) store_fail('unknown_brand');
+    }
+
     try {
         if ($id > 0) {
             $db->prepare(
                 'update products set slug = ?, name_en = ?, name_ar = ?, desc_en = ?, desc_ar = ?,
                         price = ?, sale_price = ?, sale_starts_at = ?, sale_ends_at = ?,
-                        featured = ?, featured_sort = ?, category = ?, image = ?, active = ?
+                        featured = ?, featured_sort = ?, category = ?, brand_slug = ?, image = ?, images = ?, active = ?
                   where id = ?'
             )->execute([$slug, $nameEn, $nameAr, store_opt($b['desc_en'] ?? null),
                         store_opt($b['desc_ar'] ?? null), $price, $salePrice, $saleFrom, $saleTo,
-                        $featured, $featuredSort, store_opt($b['category'] ?? null),
-                        store_opt($b['image'] ?? null), $active, $id]);
+                        $featured, $featuredSort, store_opt($b['category'] ?? null), $brandSlug,
+                        store_opt($b['image'] ?? null), $extraImages, $active, $id]);
         } else {
             $db->prepare(
                 'insert into products (slug, name_en, name_ar, desc_en, desc_ar, price, sale_price,
-                        sale_starts_at, sale_ends_at, featured, featured_sort, category, image, active)
-                 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                        sale_starts_at, sale_ends_at, featured, featured_sort, category, brand_slug,
+                        image, images, active)
+                 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             )->execute([$slug, $nameEn, $nameAr, store_opt($b['desc_en'] ?? null),
                         store_opt($b['desc_ar'] ?? null), $price, $salePrice, $saleFrom, $saleTo,
-                        $featured, $featuredSort, store_opt($b['category'] ?? null),
-                        store_opt($b['image'] ?? null), $active]);
+                        $featured, $featuredSort, store_opt($b['category'] ?? null), $brandSlug,
+                        store_opt($b['image'] ?? null), $extraImages, $active]);
             $id = (int)$db->lastInsertId();
         }
     } catch (Throwable $e) {
@@ -351,7 +383,8 @@ if ($r === 'product_save' && $method === 'POST') {
         throw $e;
     }
     $q = $db->prepare('select id, slug, name_en, name_ar, desc_en, desc_ar, price, sale_price,
-                sale_starts_at, sale_ends_at, featured, featured_sort, category, image, active from products where id = ?');
+                sale_starts_at, sale_ends_at, featured, featured_sort, category, brand_slug, image,
+                images, active from products where id = ?');
     $q->execute([$id]);
     store_out($q->fetch());
 }
