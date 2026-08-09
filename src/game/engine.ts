@@ -12,6 +12,7 @@ import { RIVALS, RivalDef } from "./rivals";
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
 import { GEARS } from "./gears";
+import { loadGarage, computeEffects, addKd, TuneEffects } from "./mods";
 
 // Tokyo-Xtreme-Racer-style rules, Kuwait edition: cruise the loop, find the
 // rival, flash your headlights (F) to start a battle. Both drivers have SP
@@ -41,6 +42,10 @@ export interface HudData {
   defeated: number;
   total: number;
   map: { px: number; py: number; rx: number; ry: number } | null;
+  /** Turbo boost 0..1, or null when no turbo is fitted. */
+  boost: number | null;
+  /** NOS charge 0..1, or null when no kit is fitted. */
+  nos: number | null;
 }
 
 export interface EngineEvents {
@@ -208,6 +213,11 @@ export class GameEngine {
 
   private bumpCooldown = 0;
   private scrapeCooldown = 0;
+  // Garage tuning (loaded once at engine start; edit in the menu garage)
+  private tune: TuneEffects = computeEffects(loadGarage());
+  private boost = 0; // turbo spool 0..1
+  private nosCharge = 1; // 0..1, drains while N is held
+  private nosActive = false;
   // Handling model: heading relative to the track tangent, smoothed
   // steering input, centrifugal slip in curves, weight-transfer pitch
   private heading = 0;
@@ -358,7 +368,13 @@ export class GameEngine {
     }
 
     // Player car — Kuwait flag colours: white body, green stripe
-    this.carBody = createCar({ body: 0xf2f4f7, accent: 0x007a3d });
+    this.carBody = createCar({
+      body: this.tune.paint,
+      accent: 0x007a3d,
+      underglow: this.tune.glow ?? undefined,
+      spoiler: this.tune.spoiler,
+      goldRims: this.tune.goldRims,
+    });
     this.playerMesh = new THREE.Group();
     this.playerMesh.add(this.carBody);
     // The contact blob must stay flat on the road — carBody pitches and
@@ -461,6 +477,9 @@ export class GameEngine {
   start(): void {
     try {
       this.sound = new SoundEngine();
+      this.sound.configureAspiration(
+        this.tune.aspiration === "super" ? "super" : this.tune.boostMult > 0 ? "turbo" : "none"
+      );
       this.sound.revStart();
     } catch {
       this.sound = null;
@@ -763,6 +782,9 @@ export class GameEngine {
     const r = this.rival!;
     r.state = "defeated";
     this.inBattle = false;
+    // Prize money scales with how deep in the roster you are
+    const payout = 400 + this.rivalIndex * 300;
+    const balance = addKd(payout);
     this.rivalIndex++;
     this.saveProgress();
     this.voice.speak(r.def.lines.lose, r.def.voice, `${r.def.id}-lose`);
@@ -775,7 +797,10 @@ export class GameEngine {
       setTimeout(() => this.events.onChampion(), 1800);
     } else {
       this.sound?.winSting();
-      this.events.onMessage(`VICTORY — ${r.def.name} defeated`, `${r.def.crew} bows out`);
+      this.events.onMessage(
+        `VICTORY — ${r.def.name} defeated`,
+        `+${payout} KD (garage balance: ${balance} KD)`
+      );
       setTimeout(() => {
         if (this.disposed) return;
         this.spawnRival();
@@ -838,17 +863,36 @@ export class GameEngine {
   private updatePlayer(dt: number): void {
     const p = this.player;
 
-    // Accel/drag equilibrium sits at ~92 m/s (≈330 km/h) — keep it above
-    // every rival's chase speed or late battles become unwinnable.
-    const accel = this.throttle * Math.max(0, 19 * (1 - p.speed / 115));
-    const braking = this.brake * 26;
+    // Accel/drag equilibrium sits at ~92 m/s (≈330 km/h) stock — garage
+    // mods raise the multiplier, ceiling, and brake force from there.
+    // Turbo spool: pressure builds under throttle, dumps on lift.
+    if (this.tune.boostMult > 0) {
+      const spoolRate = this.tune.aspiration === "twin" ? 2.6 : 1.5;
+      const target = this.throttle > 0.5 && p.speed > 4 ? 1 : 0;
+      if (target < this.boost - 0.4 && this.boost > 0.5) this.sound?.blowOff();
+      this.boost += (target - this.boost) * Math.min(1, dt * spoolRate);
+    }
+    // NOS: hold N for a shove; the bottle refills slowly
+    this.nosActive =
+      this.tune.hasNos && this.keys.has("n") && this.nosCharge > 0.02 && this.throttle > 0;
+    if (this.nosActive) this.nosCharge = Math.max(0, this.nosCharge - dt / 3);
+    else this.nosCharge = Math.min(1, this.nosCharge + dt * 0.06);
+    this.sound?.setNos(this.nosActive);
+
+    const power =
+      this.tune.accelMult * (1 + this.boost * this.tune.boostMult);
+    const ceiling = 115 + this.tune.topSpeedBonus;
+    const accel =
+      this.throttle * Math.max(0, 19 * power * (1 - p.speed / ceiling)) +
+      (this.nosActive ? 14 : 0);
+    const braking = this.brake * this.tune.brakeForce;
     const drag = 0.0012 * p.speed * p.speed + 1.2;
     p.speed = Math.max(0, p.speed + (accel - braking - drag * (this.throttle ? 0.35 : 1)) * dt);
 
     // --- Steering: the car carries a heading relative to the lane.
     // Yaw authority is grip-limited, so it shrinks as speed rises.
     this.steerSmooth += (this.steer - this.steerSmooth) * Math.min(1, dt * 7);
-    const yawRateMax = Math.min(1.6, 12 / Math.max(p.speed, 2)); // a_lat ≈ 12 m/s²
+    const yawRateMax = Math.min(1.6, this.tune.gripAccel / Math.max(p.speed, 2));
     this.heading += this.steerSmooth * yawRateMax * dt;
     // Caster self-centering when the wheel is released
     if (Math.abs(this.steer) < 0.1) {
@@ -862,7 +906,11 @@ export class GameEngine {
     this.track.tangentAt(p.s + 8, this.v2);
     const crossY = this.v1.z * this.v2.x - this.v1.x * this.v2.z;
     const curvature = -Math.asin(THREE.MathUtils.clamp(crossY, -1, 1)) / 8;
-    const pushAccel = THREE.MathUtils.clamp(curvature * p.speed * p.speed * 0.22, -8, 8);
+    const pushAccel = THREE.MathUtils.clamp(
+      curvature * p.speed * p.speed * 0.22 * this.tune.slipMult,
+      -8,
+      8
+    );
     this.slipVel += (pushAccel - this.slipVel * 2.5) * dt;
     this.curvature = curvature;
 
@@ -1223,6 +1271,8 @@ export class GameEngine {
       rpmFrac,
       gear: speedKmh < 2 ? 0 : gear + 1,
       skid,
+      boost: this.boost,
+      nosActive: this.nosActive,
     });
   }
 
@@ -1315,6 +1365,8 @@ export class GameEngine {
       defeated: this.rivalIndex,
       total: RIVALS.length,
       map,
+      boost: this.tune.boostMult > 0 ? this.boost : null,
+      nos: this.tune.hasNos ? this.nosCharge : null,
     });
   }
 }

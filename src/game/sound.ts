@@ -13,6 +13,8 @@ export interface SoundFrame {
   rpmFrac: number; // 0..1 within the current gear
   gear: number; // 1..6 (0 = neutral)
   skid: number; // 0..1 tire slide intensity
+  boost?: number; // 0..1 turbo boost (drives the whistle)
+  nosActive?: boolean;
 }
 
 function makeNoiseBuffer(ctx: AudioContext): AudioBuffer {
@@ -52,6 +54,11 @@ export class SoundEngine {
   private lastGear = 0;
   private revUntil = 0;
   private paused = false;
+  // Forced-induction layers (created on demand by configureAspiration)
+  private whineOsc: OscillatorNode | null = null;
+  private whineGain: GainNode | null = null;
+  private whineMode: "none" | "turbo" | "super" = "none";
+  private nosGain: GainNode | null = null;
 
   constructor() {
     this.ctx = new AudioContext();
@@ -130,6 +137,41 @@ export class SoundEngine {
     if (this.ctx.state === "suspended") void this.ctx.resume().catch(() => {});
   }
 
+  /** Wire up the whistle/whine layer for the equipped aspiration mod. */
+  configureAspiration(mode: "none" | "turbo" | "super"): void {
+    this.whineMode = mode;
+    if (mode === "none" || this.whineOsc) {
+      if (this.whineGain && mode === "none") this.whineGain.gain.value = 0;
+      return;
+    }
+    this.whineOsc = this.ctx.createOscillator();
+    this.whineOsc.type = "sine";
+    this.whineOsc.frequency.value = 900;
+    this.whineGain = this.ctx.createGain();
+    this.whineGain.gain.value = 0;
+    this.whineOsc.connect(this.whineGain).connect(this.master);
+    this.whineOsc.start();
+  }
+
+  /** Turbo blow-off — the psshh on throttle lift at boost. */
+  blowOff(): void {
+    this.oneShotNoise("bandpass", 1500, 0.22, 0.35, 3);
+    this.oneShotNoise("highpass", 3800, 0.12, 0.25);
+  }
+
+  /** NOS hiss while the bottle is open. */
+  setNos(active: boolean): void {
+    if (!this.nosGain) {
+      this.nosGain = this.ctx.createGain();
+      this.nosGain.gain.value = 0;
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = "highpass";
+      filter.frequency.value = 2200;
+      this.loopNoise().connect(filter).connect(this.nosGain).connect(this.master);
+    }
+    this.nosGain.gain.setTargetAtTime(active ? 0.09 : 0, this.ctx.currentTime, 0.04);
+  }
+
   private loopNoise(): AudioBufferSourceNode {
     const src = this.ctx.createBufferSource();
     src.buffer = this.noise;
@@ -165,8 +207,24 @@ export class SoundEngine {
 
     this.skidGain.gain.setTargetAtTime(Math.min(f.skid, 1) * 0.2, t, 0.05);
 
+    // Forced-induction voice: turbo whistle rises with boost pressure,
+    // supercharger whine tracks RPM
+    if (this.whineOsc && this.whineGain) {
+      if (this.whineMode === "turbo") {
+        const boost = f.boost ?? 0;
+        this.whineOsc.frequency.setTargetAtTime(1200 + boost * 2600, t, 0.06);
+        this.whineGain.gain.setTargetAtTime(boost * 0.035, t, 0.06);
+      } else if (this.whineMode === "super") {
+        this.whineOsc.frequency.setTargetAtTime(700 + rpm * 2400, t, 0.05);
+        this.whineGain.gain.setTargetAtTime(throttle * 0.03 + rpm * 0.01, t, 0.05);
+      }
+    }
+
     // Upshift blow-off
-    if (f.gear > this.lastGear && this.lastGear > 0 && f.throttle > 0.5) this.shiftHiss();
+    if (f.gear > this.lastGear && this.lastGear > 0 && f.throttle > 0.5) {
+      if (this.whineMode === "turbo" && (f.boost ?? 0) > 0.4) this.blowOff();
+      else this.shiftHiss();
+    }
     this.lastGear = f.gear;
   }
 

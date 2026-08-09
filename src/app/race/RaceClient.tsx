@@ -5,6 +5,18 @@ import type { GameEngine, HudData } from "@/game/engine";
 import { GEARS } from "@/game/gears";
 import { RIVALS, RivalDef } from "@/game/rivals";
 import { HubClient, loadProfile, formatLap } from "@/game/net";
+import { PARTS, Part, GarageState, loadGarage, saveGarage } from "@/game/mods";
+
+const EXCLUSIVE_CATS = new Set(["aspiration", "brakes", "tires", "paint", "glow"]);
+const CAT_LABELS: Record<string, string> = {
+  aspiration: "ENGINE — TURBO & SUPERCHARGER · المكينة",
+  internals: "INTERNALS · القطع الداخلية",
+  brakes: "BRAKES · البريكات",
+  tires: "TIRES · التواير",
+  extras: "EXTRAS & NOS · الإضافات",
+  paint: "PAINT · الصبغ",
+  glow: "UNDERGLOW · الليتات",
+};
 
 type Phase = "menu" | "playing" | "defeated" | "champion";
 
@@ -36,8 +48,37 @@ export default function RaceClient() {
   const [message, setMessage] = useState<{ title: string; sub?: string } | null>(null);
   const [beatenBy, setBeatenBy] = useState<RivalDef | null>(null);
   const [vsRival, setVsRival] = useState<RivalDef | null>(null);
+  const [garageOpen, setGarageOpen] = useState(false);
+  const [garage, setGarage] = useState<GarageState | null>(null);
   const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const boostWrapRef = useRef<HTMLDivElement>(null);
+  const boostRef = useRef<HTMLDivElement>(null);
+  const nosWrapRef = useRef<HTMLDivElement>(null);
+  const nosRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setGarage(loadGarage()); // client-only: reads localStorage
+  }, []);
+
+  const buyOrEquip = useCallback((p: Part) => {
+    const g = loadGarage();
+    const owned = g.owned.includes(p.id);
+    const exclusive = EXCLUSIVE_CATS.has(p.cat);
+    if (!owned) {
+      if (g.kd < p.price) return;
+      g.kd -= p.price;
+      g.owned.push(p.id);
+      if (exclusive) g.equipped[p.cat as keyof GarageState["equipped"]] = p.id;
+    } else if (exclusive) {
+      const key = p.cat as keyof GarageState["equipped"];
+      // Tap the equipped part again to run stock in that slot
+      if (g.equipped[key] === p.id) delete g.equipped[key];
+      else g.equipped[key] = p.id;
+    }
+    saveGarage(g);
+    setGarage(g);
+  }, []);
 
   // Online cruise
   const hubRef = useRef<HubClient | null>(null);
@@ -101,6 +142,15 @@ export default function RaceClient() {
       // visibility, not opacity: animate-pulse animates opacity and would
       // override an inline opacity toggle
       if (flashRef.current) flashRef.current.style.visibility = d.canFlash ? "visible" : "hidden";
+
+      // Garage gauges: turbo boost + NOS charge (hidden without the mods)
+      if (boostWrapRef.current)
+        boostWrapRef.current.style.display = d.boost === null ? "none" : "flex";
+      if (boostRef.current && d.boost !== null)
+        boostRef.current.style.width = `${Math.round(d.boost * 100)}%`;
+      if (nosWrapRef.current) nosWrapRef.current.style.display = d.nos === null ? "none" : "flex";
+      if (nosRef.current && d.nos !== null)
+        nosRef.current.style.width = `${Math.round(d.nos * 100)}%`;
 
       if (battleRef.current) {
         battleRef.current.style.opacity = d.battle ? "1" : "0";
@@ -342,11 +392,23 @@ export default function RaceClient() {
               style={{ width: "0%" }}
             />
           </div>
+          <div ref={boostWrapRef} className="mt-1 items-center gap-2" style={{ display: "none" }}>
+            <span className="w-10 text-[9px] font-black tracking-widest text-cyan-300">BOOST</span>
+            <div className="h-1.5 w-52 -skew-x-12 overflow-hidden rounded-sm bg-black/50 ring-1 ring-white/15">
+              <div ref={boostRef} className="h-full bg-cyan-400" style={{ width: "0%" }} />
+            </div>
+          </div>
+          <div ref={nosWrapRef} className="mt-1 items-center gap-2" style={{ display: "none" }}>
+            <span className="w-10 text-[9px] font-black tracking-widest text-blue-300">NOS</span>
+            <div className="h-1.5 w-52 -skew-x-12 overflow-hidden rounded-sm bg-black/50 ring-1 ring-white/15">
+              <div ref={nosRef} className="h-full bg-blue-400" style={{ width: "0%" }} />
+            </div>
+          </div>
         </div>
 
         {/* Controls hint */}
         <div className="absolute bottom-5 right-5 text-right text-[11px] leading-5 text-white/50">
-          W/↑ accelerate · S/↓ brake · A D steer · H horn
+          W/↑ accelerate · S/↓ brake · A D steer · N nitro · H horn
           <br />F flash headlights · M mute · V voices · G glow fx
         </div>
       </div>
@@ -410,19 +472,110 @@ export default function RaceClient() {
               </div>
             ))}
           </div>
-          <button
-            onClick={startGame}
-            className="mt-10 rounded-xl bg-amber-400 px-10 py-4 text-lg font-black text-black shadow-lg shadow-amber-400/30 transition hover:bg-amber-300"
-          >
-            START ENGINE — يلا 🏁
-          </button>
-          <div className="mt-3 text-xs text-white/40">or press Enter</div>
+          <div className="mt-10 flex items-center gap-4">
+            <button
+              onClick={startGame}
+              className="rounded-xl bg-amber-400 px-10 py-4 text-lg font-black text-black shadow-lg shadow-amber-400/30 transition hover:bg-amber-300"
+            >
+              START ENGINE — يلا 🏁
+            </button>
+            <button
+              onClick={() => {
+                setGarage(loadGarage());
+                setGarageOpen(true);
+              }}
+              className="rounded-xl border-2 border-cyan-400/60 px-8 py-4 text-lg font-black text-cyan-300 transition hover:bg-cyan-400/10"
+            >
+              GARAGE 🔧 الكراج
+            </button>
+          </div>
+          <div className="mt-3 text-xs text-white/40">
+            or press Enter{garage ? ` · balance: ${garage.kd} KD` : ""}
+          </div>
           <a
             href="/hub"
             className="mt-5 text-sm font-semibold text-cyan-300 underline-offset-4 transition hover:underline"
           >
             Cruise with friends in the Online Hub →
           </a>
+        </div>
+      )}
+
+      {/* Garage */}
+      {garageOpen && garage && (
+        <div className="absolute inset-0 z-20 overflow-y-auto bg-gradient-to-b from-[#05070f] via-[#0a1226] to-[#05070f] px-6 py-8">
+          <div className="mx-auto max-w-4xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs font-bold tracking-[0.4em] text-cyan-400">THE GARAGE</div>
+                <h2 className="text-3xl font-black italic">
+                  الكراج <span className="text-amber-400">TUNING</span>
+                </h2>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-black text-amber-400">{garage.kd} KD</div>
+                <button
+                  onClick={() => setGarageOpen(false)}
+                  className="mt-1 rounded-lg bg-white px-5 py-2 text-sm font-black text-black transition hover:bg-white/85"
+                >
+                  DONE — يلا نطلع
+                </button>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-white/50">
+              Parts apply when you start the engine. Win battles to earn KD — deeper rivals pay
+              more. Tap an equipped part to run stock in that slot.
+            </p>
+            {Object.entries(CAT_LABELS).map(([cat, label]) => (
+              <div key={cat} className="mt-6">
+                <h3 className="text-sm font-black tracking-widest text-white/60">{label}</h3>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {PARTS.filter((p) => p.cat === cat).map((p) => {
+                    const owned = garage.owned.includes(p.id);
+                    const equipped =
+                      EXCLUSIVE_CATS.has(p.cat) &&
+                      garage.equipped[p.cat as keyof GarageState["equipped"]] === p.id;
+                    const affordable = garage.kd >= p.price;
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => buyOrEquip(p)}
+                        disabled={!owned && !affordable}
+                        className={`rounded-xl border p-3 text-left transition ${
+                          equipped
+                            ? "border-amber-400 bg-amber-400/10"
+                            : owned
+                              ? "border-emerald-400/50 bg-emerald-400/5 hover:bg-emerald-400/10"
+                              : affordable
+                                ? "border-white/15 bg-white/5 hover:bg-white/10"
+                                : "cursor-not-allowed border-white/10 bg-white/5 opacity-40"
+                        }`}
+                      >
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-sm font-black">{p.name}</span>
+                          <span className="text-xs font-bold text-white/60">{p.ar}</span>
+                        </div>
+                        {p.desc && <div className="mt-1 text-[11px] text-white/55">{p.desc}</div>}
+                        <div className="mt-1.5 text-xs font-black">
+                          {equipped ? (
+                            <span className="text-amber-400">EQUIPPED ✓</span>
+                          ) : owned ? (
+                            <span className="text-emerald-300">
+                              {EXCLUSIVE_CATS.has(p.cat) ? "OWNED — tap to equip" : "INSTALLED ✓"}
+                            </span>
+                          ) : (
+                            <span className={affordable ? "text-cyan-300" : "text-white/40"}>
+                              {p.price} KD
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

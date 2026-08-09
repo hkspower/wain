@@ -15,6 +15,23 @@ export interface CarColors {
   underglow?: number;
   /** Skip the fine detailing (seams, trim, interior) — used for traffic. */
   simple?: boolean;
+  /** GT wing on the trunk (garage mod). */
+  spoiler?: boolean;
+  /** Gold rims (garage mod). */
+  goldRims?: boolean;
+}
+
+let goldRimMat: THREE.MeshStandardMaterial | null = null;
+function getGoldRimMat(): THREE.MeshStandardMaterial {
+  if (!goldRimMat) {
+    goldRimMat = new THREE.MeshStandardMaterial({
+      color: 0xd4af37,
+      roughness: 0.18,
+      metalness: 1,
+      envMapIntensity: 1.8,
+    });
+  }
+  return goldRimMat;
 }
 
 let glowTexShared: THREE.CanvasTexture | null = null;
@@ -221,19 +238,20 @@ function plateMat(): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({ map: sharedPlateTex, roughness: 0.5 });
 }
 
-function buildWheel(): THREE.Group {
+function buildWheel(gold = false): THREE.Group {
+  const spokeMat = gold ? getGoldRimMat() : rimMat;
   const w = new THREE.Group();
   w.add(new THREE.Mesh(tireGeo, tireMat));
   w.add(new THREE.Mesh(rimGeo, rimDarkMat));
   for (let i = 0; i < 5; i++) {
     const holder = new THREE.Group();
     holder.rotation.x = (i / 5) * Math.PI * 2;
-    const spoke = new THREE.Mesh(spokeGeo, rimMat);
+    const spoke = new THREE.Mesh(spokeGeo, spokeMat);
     spoke.position.y = 0.1;
     holder.add(spoke);
     w.add(holder);
   }
-  w.add(new THREE.Mesh(hubGeo, rimMat));
+  w.add(new THREE.Mesh(hubGeo, spokeMat));
   return w;
 }
 
@@ -314,7 +332,7 @@ export function createCar(colors: CarColors): THREE.Group {
     [-0.84, -1.42],
     [0.84, -1.42],
   ]) {
-    const wheel = buildWheel();
+    const wheel = buildWheel(colors.goldRims);
     wheel.position.set(wx, 0.36, wz);
     group.add(wheel);
     wheels.push(wheel);
@@ -454,6 +472,24 @@ export function createCar(colors: CarColors): THREE.Group {
     const muffler = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.1, 0.3), grilleMat);
     muffler.position.set(0, 0.23, -1.92);
     group.add(muffler);
+  }
+
+  // GT wing (garage mod)
+  if (colors.spoiler) {
+    for (const sx of [-0.62, 0.62]) {
+      const strut = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.26, 0.16), seamMat);
+      strut.position.set(sx, 1.16, -1.95);
+      group.add(strut);
+    }
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.04, 0.42), bodyMat);
+    wing.position.set(0, 1.31, -1.98);
+    wing.rotation.x = -0.12;
+    group.add(wing);
+    for (const sx of [-0.88, 0.88]) {
+      const endplate = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.16, 0.4), seamMat);
+      endplate.position.set(sx, 1.31, -1.98);
+      group.add(endplate);
+    }
   }
 
   group.userData.wheels = wheels;
