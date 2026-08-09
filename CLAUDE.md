@@ -34,8 +34,8 @@ Locked, exactly as they are:
 
 | | Locked value |
 |---|---|
-| Mark | a **Kuwaiti boum under way** — `logo.svg`, `favicon.svg` and `#i-sail`, one drawing in all three. Redrawn 2026-08-09 at the owner's direction from a photograph of the real ship, replacing the lateen-sail mark: long hull with its sweeping sheer, tall transom aft, raked stem forward, two forward-raked masts, their lateen yards, and a pennant at the main truck. **The yards are raked, never square across a mast** — square ones read as a cross, which this mark must never do. The owner chose this knowing it loses detail at 20–32px; that was measured and shown before the change. The suite pins its path signature in all three files |
-| Wordmark | **المهلب**, then `Almuhallab Code` on its own line beneath (LTR in its own bidi isolate), then «شركة برمجة وأنظمة». On the brown bar all three are white. Enlarging the lockup covers more of the page, so `scroll-margin-top` moved with it — 172px desktop, 146px phone |
+| Mark | a **Kuwaiti boum under way**, in two fixed forms of one drawing. The **wide form** (2:1, `logo.svg` and `#i-boum`) is the mark wherever width allows — masthead and print — with the full detail of the real ship: tall transom, sweeping sheer with a rubbing strake and a hawse hole (a true evenodd hole, so it reads on any surface), two forward-raked masts, raked lateen yards, three stays, pennant, the long raked stem with its finial, and the water line. The **square form** (`favicon.svg`, `#i-sail`) serves square holes: browser tab, footer, covers. **Yards are raked, never square across a mast** — square ones read as a cross, which this mark must never do. Stroke weights are fixed: masts 1.0/0.9, yards .62/.58, strake .5, stays .32. The suite pins both forms' path signatures |
+| Wordmark | **المهلب**, then `Almuhallab Code` on its own line beneath (LTR in its own bidi isolate), then «شركة برمجة وأنظمة». On the brown bar all three are white. Enlarging the lockup covers more of the page, so `scroll-margin-top` moved with it — 178px desktop, 152px phone |
 | Brand ink | `--tint` `#7a4418` · `--tint-strong` `#6f3f1c` |
 | Surfaces | **white on every device** — no dark theme; white page, white cards, cool near-neutral greys. Brown is ink, never paper — with one exception the owner asked for (2026-07-31): the **masthead bar is brown** (`--tint-strong`) with white ink on every page, and `theme-color` matches it. Everything below the bar stays white |
 | Icons | the drawn `<symbol>` sprite — no emoji anywhere on the public page |
@@ -132,7 +132,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   not put an icon-only channel row beside the written one — it repeats the
   same three links while hiding the values.
 - **A sticky bar hides whatever an in-page link jumps to.** Every anchor
-  target carries `scroll-margin-top` (148px desktop, 120px phone, clearing the
+  target carries `scroll-margin-top` (178px desktop, 152px phone, clearing the
   compact bar's 130px) and `html` uses `scroll-behavior: smooth`, off under
   reduced motion. Tests that measure scroll positions must pass
   `behavior:'instant'` or they race the animation and read mid-flight values.

@@ -141,12 +141,18 @@ def identity_checks():
 
     # the mark's own path signature. It lives in three files and they have to
     # stay one drawing — a favicon that lags a redraw is a second logo
-    SAIL = "M9.7 15.4 11.0 3.2"
-    HULL = "M2.5 14.4C8.6 16.15 15.0 15.95 20.5 14.05"
-    check(S, "the mark is the boum, in logo.svg and in the page sprite",
-          'id="i-sail"' in home and SAIL in home and SAIL in logo)
-    check(S, "her masts stand on that hull in both",
-          HULL in home and HULL in logo)
+    SQ_MAST = "M9.7 15.4 11.0 3.2"
+    SQ_HULL = "M2.5 14.4C8.6 16.15 15.0 15.95 20.5 14.05"
+    W_MAST = "M19.6 15.3 21.8 2.5"
+    W_HULL = "M3.6 13.75C14 16 28 16 38.8 13.6"
+    check(S, "the square boum serves the sprite for square holes",
+          'id="i-sail"' in home and SQ_MAST in home and SQ_HULL in home)
+    check(S, "the wide boum is the mark: logo.svg and the #i-boum symbol",
+          'id="i-boum"' in home and W_MAST in logo and W_HULL in logo
+          and W_MAST in home and W_HULL in home)
+    check(S, "the masthead flies the wide mark; the footer keeps the square",
+          '<use href="#i-boum"/>' in home.split("<footer>")[0].split('class="brand"')[1]
+          and '<use href="#i-sail"/>' in home.split("<footer>")[1])
     check(S, "the header carries the mark, not an emoji or a letter",
           '<use href="#i-sail"/>' in home)
     check(S, "the wordmark is المهلب", '<span class="name">المهلب</span>' in home)
@@ -457,7 +463,7 @@ def home_checks(pg):
     icons = pg.eval_on_selector_all("main use", "n=>n.length")
     check(S, "the drawn icon set is used throughout", icons >= 14, f"{icons} icons")
     check(S, "the header carries the Almuhallab mark",
-          pg.eval_on_selector("header .logo use", "e=>e.getAttribute('href')") == "#i-sail")
+          pg.eval_on_selector("header .logo use", "e=>e.getAttribute('href')") == "#i-boum")
     check(S, "the wordmark reads المهلب",
           pg.inner_text("header .name").strip() == "المهلب")
     centred = pg.evaluate("""(() => {

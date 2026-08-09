@@ -68,26 +68,30 @@
     }
     .brand { display: flex; flex-direction: column; align-items: center; gap: 6px;
       text-align: center; color: #fff; }
-    /* the lockup: a large mark, المهلب under it, then the English name, then
-       what the company is. The two names are one block — the English line sits
-       tight under the Arabic and is set LTR in its own bidi isolate so the RTL
-       page cannot reorder it. */
-    .brand .logo { width: 68px; height: 68px; display: block; color: #fff;
+    /* the lockup: the boum at her real proportions (2:1 — the square mark is
+       for square holes like the tab icon), المهلب under her, then the English
+       name, then what the company is. The two names are one block — the
+       English line sits tight under the Arabic and is set LTR in its own bidi
+       isolate so the RTL page cannot reorder it. Spacing runs on the 4/8
+       rhythm: 8 under the mark, 4 between the lines. */
+    .brand { gap: 8px; }
+    .brand .logo { width: 148px; height: 74px; display: block; color: #fff;
       transition: width .22s ease, height .22s ease; }
     .brand .name { font-size: 30px; font-weight: 800; color: #fff; line-height: 1.2;
       transition: font-size .22s ease; }
     .brand .en { display: block; color: #fff; font-weight: 700; font-size: 14px;
-      letter-spacing: .1em; line-height: 1.3; margin-top: 1px;
+      letter-spacing: .1em; line-height: 1.3; margin-top: 4px;
       direction: ltr; unicode-bidi: isolate;
       transition: font-size .22s ease; }
     .brand small { display: block; font-weight: 500; color: rgba(255, 255, 255, .82);
-      font-size: 12px; margin-top: 3px; overflow: hidden;
+      font-size: 12px; margin-top: 4px; overflow: hidden;
       transition: max-height .22s ease, opacity .22s ease; max-height: 20px; }
     /* scrolled: the bar becomes a slim brown strip with the mark still centred.
        The descriptor collapses; both names stay — a masthead that drops the
        company's name is not a masthead. */
     html.scrolled header { padding-top: 8px; }
-    html.scrolled .brand .logo { width: 38px; height: 38px; }
+    html.scrolled .brand { gap: 4px; }
+    html.scrolled .brand .logo { width: 84px; height: 42px; }
     html.scrolled .brand .name { font-size: 20px; }
     html.scrolled .brand .en { font-size: 11px; }
     html.scrolled .brand small { max-height: 0; opacity: 0; margin-top: 0; }
@@ -675,16 +679,16 @@
     /* The sticky bar covers whatever an in-page link jumps to, so every anchor
        target keeps its own headroom. Without this, "خدماتنا" landed the heading
        underneath the masthead. */
-    :target, section[id], h2.section[id] { scroll-margin-top: 172px; }
+    :target, section[id], h2.section[id] { scroll-margin-top: 178px; }
     html { scroll-behavior: smooth; }
 
     /* ═══════ mobile ═══════ */
     @media (max-width: 640px) {
       header { padding: 12px 12px 0; }
-      .brand .logo { width: 54px; height: 54px; }
+      .brand .logo { width: 116px; height: 58px; }
       .brand .name { font-size: 25px; }
       .brand .en { font-size: 12px; letter-spacing: .08em; }
-      html.scrolled .brand .logo { width: 32px; height: 32px; }
+      html.scrolled .brand .logo { width: 68px; height: 34px; }
       html.scrolled .brand .name { font-size: 18px; }
       html.scrolled .brand .en { font-size: 10.5px; }
       nav.site { padding-bottom: 8px; }
@@ -713,7 +717,7 @@
       .fcols > div, .fcols .fbrand { flex: 1 1 100%; }
       .fcontact a { min-height: 44px; }
       .base { flex-direction: column; gap: 10px; text-align: center; }
-      :target, section[id], h2.section[id] { scroll-margin-top: 146px; }
+      :target, section[id], h2.section[id] { scroll-margin-top: 152px; }
       .qform { grid-template-columns: 1fr; padding: 16px; }
       .shape { display: none; }
       .heroart { background: none; }
@@ -739,7 +743,7 @@
        #i-sail is the company's own dhow-sail mark (refined at the owner's request
        2026-07: curved sail, crescent hull — same mark, better drawing). -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
-    <symbol id="i-sail" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="0.95" stroke-linecap="round" d="M9.7 15.4 11.0 3.2"/><path fill="none" stroke="currentColor" stroke-width="0.9" stroke-linecap="round" d="M15.0 15.2 16.0 5.4"/><path fill="none" stroke="currentColor" stroke-width="0.6" stroke-linecap="round" d="M7.4 9.6 13.3 3.9M12.9 10.4 17.9 5.6"/><path fill="currentColor" d="M11.0 3.1 13.3 3.6 11.05 4.6Z"/><path fill="currentColor" d="M2.45 14.8 1.85 10.9 3.45 10.7 4.0 14.6Z"/><path fill="currentColor" d="M19.8 14.6 21.75 9.75 22.45 10.15 20.65 14.9Z"/><path fill="currentColor" d="M2.5 14.4C8.6 16.15 15.0 15.95 20.5 14.05 20.15 16.3 19.0 18.0 17.1 19.0 14.8 20.15 12.0 20.5 9.4 20.5 6.6 20.5 4.3 19.65 3.05 18.15 2.4 17.3 2.2 15.3 2.5 14.4Z"/></symbol>
+    <symbol id="i-boum" viewBox="0 0 48 24"><path fill="none" stroke="currentColor" stroke-width="0.32" stroke-linecap="round" d="M21.7 2.8 41.3 12.1M21.6 2.8 4.4 10.5M31.3 5.4 39.3 12.9"/><path fill="none" stroke="currentColor" stroke-width="1.0" stroke-linecap="round" d="M19.6 15.3 21.8 2.5"/><path fill="none" stroke="currentColor" stroke-width="0.9" stroke-linecap="round" d="M29.8 14.9 31.4 4.9"/><path fill="none" stroke="currentColor" stroke-width="0.62" stroke-linecap="round" d="M12.9 10.6 25.9 3.5"/><path fill="none" stroke="currentColor" stroke-width="0.58" stroke-linecap="round" d="M25.8 10.8 35.4 5.4"/><path fill="currentColor" stroke="none" d="M21.8 2.4 24.5 2.9 21.9 3.8Z"/><path fill="currentColor" stroke="none" d="M2.0 10.0 3.6 9.7 4.8 15.2 3.1 15.5Z"/><path fill="currentColor" stroke="none" d="M38.6 14.6 44.6 6.2 45.6 6.9 40.0 15.0Z"/><circle fill="currentColor" stroke="none" cx="45.2" cy="6.1" r="0.75"/><path fill="none" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" d="M5.0 13.1C14 15.3 28 15.4 38.8 12.9"/><path fill="currentColor" stroke="none" fill-rule="evenodd" d="M3.6 13.75C14 16 28 16 38.8 13.6L40.5 13.4C40 18.5 34 20.8 26 21.2 16 21.6 8 20.2 4.6 17.4Z M8.2 16.4A0.9 0.9 0 1 0 8.2 18.2 0.9 0.9 0 1 0 8.2 16.4Z"/><path fill="none" stroke="currentColor" stroke-width="0.55" stroke-linecap="round" d="M6.8 22.8C16 23.4 30 23.4 40.6 22.6"/></symbol><symbol id="i-sail" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="0.95" stroke-linecap="round" d="M9.7 15.4 11.0 3.2"/><path fill="none" stroke="currentColor" stroke-width="0.9" stroke-linecap="round" d="M15.0 15.2 16.0 5.4"/><path fill="none" stroke="currentColor" stroke-width="0.6" stroke-linecap="round" d="M7.4 9.6 13.3 3.9M12.9 10.4 17.9 5.6"/><path fill="currentColor" d="M11.0 3.1 13.3 3.6 11.05 4.6Z"/><path fill="currentColor" d="M2.45 14.8 1.85 10.9 3.45 10.7 4.0 14.6Z"/><path fill="currentColor" d="M19.8 14.6 21.75 9.75 22.45 10.15 20.65 14.9Z"/><path fill="currentColor" d="M2.5 14.4C8.6 16.15 15.0 15.95 20.5 14.05 20.15 16.3 19.0 18.0 17.1 19.0 14.8 20.15 12.0 20.5 9.4 20.5 6.6 20.5 4.3 19.65 3.05 18.15 2.4 17.3 2.2 15.3 2.5 14.4Z"/></symbol>
     <symbol id="i-whatsapp" viewBox="0 0 24 24"><path d="M8.2 4.5h2.1l1.3 3.2-1.6 1.2a10 10 0 0 0 5.1 5.1l1.2-1.6 3.2 1.3v2.1c0 1.1-.9 2-2 2A14.6 14.6 0 0 1 6.2 6.5c0-1.1.9-2 2-2Z"/></symbol>
     <symbol id="i-instagram" viewBox="0 0 24 24"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="5"/><circle cx="12" cy="12" r="4.1"/><circle cx="17.1" cy="6.9" r="1.15" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-code" viewBox="0 0 24 24"><path d="M9 7 4.5 12 9 17M15 7l4.5 5L15 17"/></symbol>
@@ -783,7 +787,7 @@
 
   <header>
     <div class="brand">
-      <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sail"/></svg>
+      <svg class="logo" viewBox="0 0 48 24" aria-hidden="true"><use href="#i-boum"/></svg>
       <div><span class="name">المهلب</span>
         <span class="en">Almuhallab&nbsp;Code</span>
         <small>شركة برمجة وأنظمة</small></div>
