@@ -687,11 +687,22 @@ def home_checks(pg):
         .some(p => getComputedStyle(p).animationName !== 'none')).length)()""")
     check(S, "every service drawing animates", animated == 6, str(animated))
 
-    check(S, "البحار stays hidden until an agent URL is set",
-          pg.eval_on_selector("#callfab", "e=>e.hidden") is True
-          and not pg.is_visible("#callfab"))
-    check(S, "البحار carries no href while unconfigured",
-          not pg.eval_on_selector("#callfab", "e=>e.getAttribute('href')"))
+    # البحار ships gated on AGENT_URL: no URL, no button. Test the rule, not
+    # today's value — the agent is live now, and a check that only passed while
+    # the line was empty would have to be deleted the moment it was filled in.
+    home_src = (ROOT / "index.html").read_text()
+    agent_url = re.search(r'var AGENT_URL = "([^"]*)"', home_src).group(1)
+    check(S, "البحار is revealed only for an https agent URL",
+          'if (/^https:\\/\\//i.test(url)) { fab.href = url; fab.hidden = false; }' in home_src)
+    if agent_url:
+        check(S, "البحار is configured and on screen", agent_url.startswith("https://")
+              and pg.eval_on_selector("#callfab", "e=>e.getAttribute('href')") == agent_url
+              and pg.is_visible("#callfab"), agent_url)
+    else:
+        check(S, "البحار stays hidden while unconfigured",
+              pg.eval_on_selector("#callfab", "e=>e.hidden") is True
+              and not pg.is_visible("#callfab")
+              and not pg.eval_on_selector("#callfab", "e=>e.getAttribute('href')"))
     # configured, it must be a real, reachable, named control that opens out
     pg.evaluate("""(() => {
       const f = document.getElementById('callfab');
