@@ -25,6 +25,21 @@
   --color-sand-900: #6f3d21;
 
   --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display), "Barlow Condensed", ui-sans-serif, sans-serif;
+  --font-arabic: var(--font-arabic), "Noto Kufi Arabic", ui-sans-serif, sans-serif;
+
+  /* Gulf Road Nights — night-racing UI palette. Warm sodium amber for
+     primary actions, gulf cyan for information, emerald/red for the
+     player/rival duality, all on a deep navy glass. */
+  --color-night-950: #04060d;
+  --color-night-900: #070b16;
+  --color-night-800: #0c1322;
+  --color-night-700: #141d31;
+  --color-sodium-400: #ffc45c;
+  --color-sodium-500: #f5a524;
+  --color-gulf-300: #7fe3ff;
+  --color-gulf-400: #38c9ee;
+  --color-gulf-500: #1aa7cc;
 }
 
 html {
@@ -88,3 +103,113 @@ body {
 }
 .card-in-left { animation: card-in-left 0.35s ease-out both; }
 .card-in-right { animation: card-in-right 0.35s ease-out both 0.12s; }
+
+/* ==========================================================
+   Gulf Road Nights — UI kit
+   Shared surfaces so every panel, popup and card in the game
+   reads as one system: same glass, same hairline borders, same
+   label typography.
+   ========================================================== */
+
+.grn-display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.grn-ar {
+  font-family: var(--font-arabic);
+}
+
+/* Small all-caps label — the HUD's connective tissue */
+.grn-label {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: color-mix(in oklab, white 62%, transparent);
+}
+
+/* Frosted panel: dark glass, hairline top highlight, soft depth */
+.grn-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)),
+    rgba(7, 11, 22, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0.85rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.12) inset,
+    0 18px 40px -18px rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(10px);
+}
+
+/* Angled HUD plate with an accent spine on the leading edge */
+.grn-plate {
+  position: relative;
+  background: linear-gradient(90deg, rgba(7, 11, 22, 0.88), rgba(7, 11, 22, 0.55));
+  border-left: 3px solid var(--color-sodium-500);
+  border-radius: 0 0.5rem 0.5rem 0;
+  box-shadow: 0 10px 30px -14px rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(6px);
+}
+
+/* Popup dialogs (defeat, champion) share one dramatic frame */
+.grn-dialog {
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(56, 201, 238, 0.12), transparent 60%),
+    linear-gradient(180deg, rgba(12, 19, 34, 0.96), rgba(4, 6, 13, 0.97));
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.14) inset,
+    0 40px 90px -30px rgba(0, 0, 0, 1);
+}
+
+/* Segmented meter (SP, boost, NOS) */
+.grn-meter {
+  position: relative;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 0.2rem;
+}
+.grn-meter::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 13px,
+    rgba(0, 0, 0, 0.6) 13px 15px
+  );
+}
+
+/* Primary / secondary buttons */
+.grn-btn {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  border-radius: 0.75rem;
+  transition: transform 0.12s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+.grn-btn:hover {
+  transform: translateY(-1px);
+}
+.grn-btn-primary {
+  background: linear-gradient(180deg, var(--color-sodium-400), var(--color-sodium-500));
+  color: #140d02;
+  box-shadow: 0 12px 30px -12px rgba(245, 165, 36, 0.85);
+}
+.grn-btn-primary:hover {
+  box-shadow: 0 16px 36px -12px rgba(245, 165, 36, 0.95);
+}
+.grn-btn-ghost {
+  border: 1px solid rgba(127, 227, 255, 0.5);
+  color: var(--color-gulf-300);
+  background: rgba(56, 201, 238, 0.07);
+}
+.grn-btn-ghost:hover {
+  background: rgba(56, 201, 238, 0.15);
+}

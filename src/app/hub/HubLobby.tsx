@@ -112,20 +112,22 @@ export default function HubLobby() {
         </div>
 
         <div className="mt-6 text-center">
-          <div className="text-xs font-bold tracking-[0.4em] text-cyan-400">ONLINE HUB</div>
-          <h1 className="mt-2 text-4xl font-black italic sm:text-5xl">
-            THE GULF ROAD <span className="text-amber-400">CRUISE</span>
+          <div className="grn-label text-[0.75rem] tracking-[0.42em] text-gulf-400 [text-shadow:0_0_18px_rgba(56,201,238,0.45)]">
+            Online Hub
+          </div>
+          <h1 className="grn-display mt-2 text-5xl italic leading-[0.95] sm:text-6xl">
+            THE GULF ROAD <span className="text-sodium-400">CRUISE</span>
           </h1>
-          <div className="mt-1 text-lg font-bold text-white/75" dir="rtl">
+          <div className="grn-ar mt-2 text-xl text-white/75" dir="rtl">
             تجمع شارع الخليج
           </div>
         </div>
 
         {/* Profile + join */}
         {status !== "online" && (
-          <div className="mx-auto mt-8 max-w-md rounded-2xl bg-white/5 p-6 backdrop-blur">
-            <label className="text-xs font-bold tracking-widest text-white/60">
-              DRIVER NAME — اسم السائق
+          <div className="grn-panel mx-auto mt-8 max-w-md p-7">
+            <label className="grn-label text-[0.64rem]">
+              Driver name — <span className="grn-ar">اسم السائق</span>
             </label>
             <input
               value={name}
@@ -133,10 +135,10 @@ export default function HubLobby() {
               onKeyDown={(e) => e.key === "Enter" && join()}
               maxLength={24}
               placeholder="Bu Dragster"
-              className="mt-2 w-full rounded-lg border border-white/15 bg-black/40 px-4 py-3 text-base font-semibold outline-none transition focus:border-cyan-400"
+              className="mt-2 w-full rounded-lg border border-white/15 bg-black/45 px-4 py-3 text-base font-semibold outline-none transition focus:border-gulf-400 focus:ring-2 focus:ring-gulf-400/30"
             />
-            <label className="mt-5 block text-xs font-bold tracking-widest text-white/60">
-              CAR COLOUR — لون السيارة
+            <label className="grn-label mt-6 block text-[0.64rem]">
+              Car colour — <span className="grn-ar">لون السيارة</span>
             </label>
             <div className="mt-2 flex flex-wrap gap-2">
               {CAR_COLORS.map((c) => (
@@ -144,8 +146,10 @@ export default function HubLobby() {
                   key={c}
                   onClick={() => setColor(c)}
                   aria-label={`car colour ${c}`}
-                  className={`size-9 rounded-full border-2 transition ${
-                    color === c ? "scale-110 border-cyan-300" : "border-white/20"
+                  className={`size-10 rounded-full border-2 transition ${
+                    color === c
+                      ? "scale-110 border-gulf-300 shadow-[0_0_16px_rgba(127,227,255,0.7)]"
+                      : "border-white/20 hover:border-white/50"
                   }`}
                   style={{ backgroundColor: c }}
                 />
@@ -154,9 +158,9 @@ export default function HubLobby() {
             <button
               onClick={join}
               disabled={!name.trim() || status === "connecting"}
-              className="mt-6 w-full rounded-xl bg-amber-400 py-3 text-base font-black text-black transition hover:bg-amber-300 disabled:opacity-40"
+              className="grn-btn grn-btn-primary mt-7 w-full py-3.5 text-lg disabled:opacity-40 disabled:hover:translate-y-0"
             >
-              {status === "connecting" ? "CONNECTING…" : "JOIN THE HUB — يلا"}
+              {status === "connecting" ? "CONNECTING…" : <>JOIN THE HUB — <span className="grn-ar">يلا</span></>}
             </button>
             {status === "offline" && (
               <p className="mt-4 text-center text-xs leading-5 text-red-300">
@@ -174,9 +178,9 @@ export default function HubLobby() {
         {status === "online" && (
           <div className="mt-8 grid gap-6 lg:grid-cols-3">
             {/* Drivers online */}
-            <div className="rounded-2xl bg-white/5 p-5 backdrop-blur">
-              <h2 className="text-sm font-bold tracking-widest text-white/60">
-                DRIVERS ONLINE — {players.length}
+            <div className="grn-panel p-5">
+              <h2 className="grn-label border-b border-white/10 pb-2 text-[0.66rem]">
+                Drivers online — <span className="text-gulf-300">{players.length}</span>
               </h2>
               <ul className="mt-3 space-y-2">
                 {players.map((p) => (
@@ -194,7 +198,7 @@ export default function HubLobby() {
               </ul>
               <Link
                 href="/race?online=1"
-                className="mt-6 block rounded-xl bg-amber-400 py-3 text-center text-base font-black text-black transition hover:bg-amber-300"
+                className="grn-btn grn-btn-primary mt-6 block py-3.5 text-center text-lg"
               >
                 ENTER THE CRUISE 🏁
               </Link>
@@ -204,9 +208,9 @@ export default function HubLobby() {
             </div>
 
             {/* Chat */}
-            <div className="flex flex-col rounded-2xl bg-white/5 p-5 backdrop-blur">
-              <h2 className="text-sm font-bold tracking-widest text-white/60">
-                DIWANIYA CHAT — الديوانية
+            <div className="grn-panel flex flex-col p-5">
+              <h2 className="grn-label border-b border-white/10 pb-2 text-[0.66rem]">
+                Diwaniya chat — <span className="grn-ar">الديوانية</span>
               </h2>
               <div className="mt-3 h-64 flex-1 space-y-1.5 overflow-y-auto pr-1 text-sm">
                 {chat.length === 0 && (
@@ -214,7 +218,7 @@ export default function HubLobby() {
                 )}
                 {chat.map((m) => (
                   <p key={m.key} className="leading-5">
-                    <span className="font-bold text-cyan-300">{m.name}:</span>{" "}
+                    <span className="font-bold text-gulf-300">{m.name}:</span>{" "}
                     <span className="text-white/85">{m.text}</span>
                   </p>
                 ))}
@@ -227,11 +231,11 @@ export default function HubLobby() {
                   onKeyDown={(e) => e.key === "Enter" && sendChat()}
                   maxLength={200}
                   placeholder="Type a message…"
-                  className="min-w-0 flex-1 rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-sm outline-none transition focus:border-cyan-400"
+                  className="min-w-0 flex-1 rounded-lg border border-white/15 bg-black/45 px-3 py-2 text-sm outline-none transition focus:border-gulf-400"
                 />
                 <button
                   onClick={sendChat}
-                  className="rounded-lg bg-white/15 px-4 text-sm font-bold transition hover:bg-white/25"
+                  className="grn-btn bg-white/15 px-4 text-sm hover:bg-white/25"
                 >
                   Send
                 </button>
@@ -239,9 +243,9 @@ export default function HubLobby() {
             </div>
 
             {/* Leaderboard */}
-            <div className="rounded-2xl bg-white/5 p-5 backdrop-blur">
-              <h2 className="text-sm font-bold tracking-widest text-white/60">
-                BEST LAPS — أفضل اللفات
+            <div className="grn-panel p-5">
+              <h2 className="grn-label border-b border-white/10 pb-2 text-[0.66rem]">
+                Best laps — <span className="grn-ar">أفضل اللفات</span>
               </h2>
               <p className="mt-1 text-[11px] text-white/35">
                 Full 7.3 km Gulf Road laps, this session
@@ -253,7 +257,7 @@ export default function HubLobby() {
                 {leaderboard.map((e, i) => (
                   <li key={e.name} className="flex items-center justify-between text-sm">
                     <span className="font-semibold">
-                      <span className={`mr-2 font-black ${i === 0 ? "text-amber-400" : "text-white/40"}`}>
+                      <span className={`grn-display mr-2 ${i === 0 ? "text-sodium-400" : "text-white/40"}`}>
                         {i + 1}.
                       </span>
                       {e.name}

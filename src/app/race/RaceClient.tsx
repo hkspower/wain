@@ -319,23 +319,26 @@ export default function RaceClient() {
       >
         {/* Area + progress */}
         <div className="absolute left-4 top-4">
-          <div className="-skew-x-6 border-l-4 border-amber-400 bg-black/45 px-3 py-1.5 backdrop-blur-sm">
-            <div ref={areaRef} className="text-lg font-bold tracking-wide drop-shadow" />
-            <div ref={progressRef} className="text-[11px] tracking-widest text-white/70" />
+          <div className="grn-plate px-4 py-2">
+            <div ref={areaRef} className="grn-display text-xl leading-tight tracking-wide" />
+            <div ref={progressRef} className="grn-label mt-0.5 text-[0.62rem]" />
           </div>
           {onlineCount !== null && (
-            <div className="mt-1.5 -skew-x-6 bg-black/40 px-3 py-0.5 text-xs font-bold text-cyan-300">
-              ● {onlineCount} cruising online
+            <div className="grn-panel mt-2 inline-flex items-center gap-1.5 px-3 py-1">
+              <span className="size-1.5 rounded-full bg-gulf-400 shadow-[0_0_8px_var(--color-gulf-400)]" />
+              <span className="grn-label text-[0.62rem] text-gulf-300">
+                {onlineCount} cruising online
+              </span>
             </div>
           )}
         </div>
 
         {/* Hub chat feed */}
         {feed.length > 0 && (
-          <div className="absolute bottom-16 right-5 max-w-xs space-y-0.5 text-right text-xs">
+          <div className="grn-panel absolute bottom-24 right-5 max-w-xs space-y-1 px-3 py-2 text-right text-xs">
             {feed.map((m) => (
-              <p key={m.key} className="leading-4 drop-shadow">
-                <span className="font-bold text-cyan-300">{m.name}:</span>{" "}
+              <p key={m.key} className="leading-4">
+                <span className="font-bold text-gulf-300">{m.name}:</span>{" "}
                 <span className="text-white/85">{m.text}</span>
               </p>
             ))}
@@ -347,7 +350,7 @@ export default function RaceClient() {
           ref={mapRef}
           width={150}
           height={150}
-          className="absolute right-4 top-4 rounded-xl bg-black/40 backdrop-blur-sm"
+          className="grn-panel absolute right-4 top-4 p-1"
         />
 
         {/* Battle SP bars */}
@@ -355,58 +358,69 @@ export default function RaceClient() {
           ref={battleRef}
           className="absolute left-1/2 top-4 w-[min(560px,90vw)] -translate-x-1/2 opacity-0 transition-opacity"
         >
-          <div className="mb-1 flex justify-between text-[11px] font-black tracking-[0.25em]">
-            <span className="text-emerald-300 drop-shadow-[0_0_6px_rgba(52,211,153,0.9)]">SP — أنت</span>
-            <span className="text-red-300 drop-shadow-[0_0_6px_rgba(248,113,113,0.9)]">RIVAL SP</span>
+          <div className="mb-1.5 flex items-end justify-between">
+            <span className="grn-label text-[0.66rem] text-emerald-300 [text-shadow:0_0_10px_rgba(52,211,153,0.8)]">
+              SP <span className="grn-ar">أنت</span>
+            </span>
+            <span className="grn-label text-[0.66rem] text-rose-300 [text-shadow:0_0_10px_rgba(251,113,133,0.8)]">
+              Rival SP
+            </span>
           </div>
-          <div className="relative h-4 -skew-x-12 overflow-hidden rounded-sm bg-black/50 ring-1 ring-white/25">
+          <div className="grn-meter h-[18px] -skew-x-12">
             <div
               ref={playerBarRef}
-              className="h-full bg-gradient-to-r from-emerald-600 via-emerald-400 to-emerald-200 shadow-[0_0_16px_rgba(52,211,153,0.9)] transition-[width]"
+              className="h-full bg-gradient-to-r from-emerald-600 via-emerald-400 to-emerald-200 shadow-[0_0_18px_rgba(52,211,153,0.85)] transition-[width] duration-150"
             />
-            <div className="absolute inset-0 [background:repeating-linear-gradient(90deg,transparent_0,transparent_14px,rgba(0,0,0,0.55)_14px,rgba(0,0,0,0.55)_16px)]" />
           </div>
-          <div className="relative mt-1.5 h-4 -skew-x-12 overflow-hidden rounded-sm bg-black/50 ring-1 ring-white/25">
+          <div className="grn-meter mt-2 h-[18px] -skew-x-12">
             <div
               ref={rivalBarRef}
-              className="h-full bg-gradient-to-r from-red-700 via-red-500 to-orange-300 shadow-[0_0_16px_rgba(239,68,68,0.9)] transition-[width]"
+              className="h-full bg-gradient-to-r from-rose-700 via-rose-500 to-amber-300 shadow-[0_0_18px_rgba(244,63,94,0.85)] transition-[width] duration-150"
             />
-            <div className="absolute inset-0 [background:repeating-linear-gradient(90deg,transparent_0,transparent_14px,rgba(0,0,0,0.55)_14px,rgba(0,0,0,0.55)_16px)]" />
           </div>
-          <div ref={battleNameRef} className="mt-1 text-center text-xs font-bold tracking-wider text-white/90 drop-shadow" />
+          <div
+            ref={battleNameRef}
+            className="grn-display mt-1.5 text-center text-sm tracking-[0.14em] text-white/90 [text-shadow:0_2px_10px_rgba(0,0,0,0.9)]"
+          />
         </div>
 
         {/* Rival distance + flash prompt */}
         <div className="absolute left-1/2 top-24 -translate-x-1/2 text-center">
-          <div ref={rivalInfoRef} className="text-sm font-semibold text-amber-300 drop-shadow" />
+          <div
+            ref={rivalInfoRef}
+            className="grn-display text-base tracking-[0.16em] text-sodium-400 transition-opacity [text-shadow:0_2px_12px_rgba(0,0,0,0.95)]"
+          />
           <div
             ref={flashRef}
-            className="invisible mt-1 animate-pulse text-base font-extrabold text-cyan-300 drop-shadow"
+            className="grn-display invisible mt-1.5 animate-pulse text-lg tracking-[0.14em] text-gulf-300 [text-shadow:0_0_16px_rgba(56,201,238,0.7),0_2px_10px_rgba(0,0,0,0.9)]"
           >
             FLASH 3× TO CHALLENGE ⚡ ○○○
           </div>
         </div>
 
         {/* Speed cluster: digital speed, gear, tach bar */}
-        <div className="absolute bottom-5 left-16 select-none">
-          <div className="flex items-end gap-3">
+        <div className="absolute bottom-7 left-16 select-none">
+          <div className="flex items-end gap-3.5">
             <span
               ref={speedRef}
-              className="text-7xl font-black italic leading-none tabular-nums drop-shadow-[0_0_14px_rgba(56,232,255,0.45)]"
+              className="grn-display block text-[5.5rem] italic leading-[0.78] tabular-nums text-white [text-shadow:0_0_28px_rgba(56,201,238,0.35),0_4px_18px_rgba(0,0,0,0.95)]"
             >
               0
             </span>
-            <div className="pb-0.5">
-              <div className="text-[10px] font-bold tracking-widest text-white/60">km/h</div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-[10px] font-bold tracking-widest text-white/60">GEAR</span>
-                <span ref={gearRef} className="text-2xl font-black italic text-amber-400">
+            <div className="pb-1">
+              <div className="grn-label text-[0.62rem]">km/h</div>
+              <div className="mt-1.5 flex items-baseline gap-1.5">
+                <span className="grn-label text-[0.6rem]">Gear</span>
+                <span
+                  ref={gearRef}
+                  className="grn-display text-3xl italic leading-none text-sodium-400 [text-shadow:0_0_16px_rgba(245,165,36,0.6)]"
+                >
                   N
                 </span>
               </div>
             </div>
           </div>
-          <div className="mt-1.5 h-2 w-64 -skew-x-12 overflow-hidden rounded-sm bg-black/50 ring-1 ring-white/20">
+          <div className="grn-meter mt-2 h-2.5 w-64 -skew-x-12">
             <div
               ref={rpmRef}
               className="h-full bg-gradient-to-r from-cyan-400 via-amber-400 to-red-500"
@@ -414,21 +428,29 @@ export default function RaceClient() {
             />
           </div>
           <div ref={boostWrapRef} className="mt-1 items-center gap-2" style={{ display: "none" }}>
-            <span className="w-10 text-[9px] font-black tracking-widest text-cyan-300">BOOST</span>
-            <div className="h-1.5 w-52 -skew-x-12 overflow-hidden rounded-sm bg-black/50 ring-1 ring-white/15">
-              <div ref={boostRef} className="h-full bg-cyan-400" style={{ width: "0%" }} />
+            <span className="grn-label w-11 text-[0.58rem] text-gulf-300">Boost</span>
+            <div className="grn-meter h-2 w-52 -skew-x-12">
+              <div
+                ref={boostRef}
+                className="h-full bg-gradient-to-r from-gulf-500 to-gulf-300 shadow-[0_0_12px_rgba(56,201,238,0.8)]"
+                style={{ width: "0%" }}
+              />
             </div>
           </div>
           <div ref={nosWrapRef} className="mt-1 items-center gap-2" style={{ display: "none" }}>
-            <span className="w-10 text-[9px] font-black tracking-widest text-blue-300">NOS</span>
-            <div className="h-1.5 w-52 -skew-x-12 overflow-hidden rounded-sm bg-black/50 ring-1 ring-white/15">
-              <div ref={nosRef} className="h-full bg-blue-400" style={{ width: "0%" }} />
+            <span className="grn-label w-11 text-[0.58rem] text-indigo-300">NOS</span>
+            <div className="grn-meter h-2 w-52 -skew-x-12">
+              <div
+                ref={nosRef}
+                className="h-full bg-gradient-to-r from-indigo-500 to-sky-300 shadow-[0_0_12px_rgba(129,140,248,0.8)]"
+                style={{ width: "0%" }}
+              />
             </div>
           </div>
         </div>
 
         {/* Controls hint */}
-        <div className="absolute bottom-5 right-5 text-right text-[11px] leading-5 text-white/50">
+        <div className="grn-panel absolute bottom-5 right-5 px-3 py-2 text-right font-display text-[0.78rem] leading-5 tracking-wide text-white/60">
           W/↑ accelerate · S/↓ brake · A D steer · N nitro · H horn
           <br />F flash headlights · M mute · V voices · G glow fx
         </div>
@@ -437,64 +459,74 @@ export default function RaceClient() {
       {/* Challenge cards — both drivers revealed, rival answers */}
       {challenge && phase === "playing" && (
         <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 px-4">
-          <div className="text-xs font-black tracking-[0.4em] text-cyan-300">
-            HEADLIGHTS FLASHED ×3 — التحدي
+          <div className="grn-label text-[0.7rem] tracking-[0.42em] text-gulf-300 [text-shadow:0_0_18px_rgba(56,201,238,0.6)]">
+            Headlights flashed ×3 — <span className="grn-ar">التحدي</span>
           </div>
           <div className="mt-4 flex w-full max-w-3xl items-stretch justify-center gap-4">
             {[challenge.player, challenge.rival].map((d, i) => (
               <div
                 key={i}
-                className={`${i === 0 ? "card-in-left" : "card-in-right"} flex-1 rounded-xl border-2 bg-black/70 p-4 backdrop-blur ${
-                  i === 0 ? "border-emerald-400/70" : "border-red-400/70"
+                className={`${i === 0 ? "card-in-left" : "card-in-right"} grn-panel flex-1 p-5 ${
+                  i === 0
+                    ? "border-emerald-400/60 shadow-[0_0_40px_-12px_rgba(52,211,153,0.6)]"
+                    : "border-rose-400/60 shadow-[0_0_40px_-12px_rgba(244,63,94,0.6)]"
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <span
-                    className={`text-[10px] font-black tracking-widest ${
-                      i === 0 ? "text-emerald-300" : "text-red-300"
+                    className={`grn-label text-[0.62rem] ${
+                      i === 0 ? "text-emerald-300" : "text-rose-300"
                     }`}
                   >
-                    {i === 0 ? "CHALLENGER" : "DEFENDER"}
+                    {i === 0 ? "Challenger" : "Defender"}
                   </span>
                   <span
-                    className="size-4 rounded-full border border-white/40"
+                    className="size-5 rounded-full border border-white/50 shadow-[0_0_12px_rgba(255,255,255,0.25)]"
                     style={{ backgroundColor: `#${d.color.toString(16).padStart(6, "0")}` }}
                   />
                 </div>
-                <div className="mt-1 text-2xl font-black italic leading-tight">{d.name}</div>
+                <div className="grn-display mt-2 text-3xl italic leading-none">{d.name}</div>
                 {d.arabicName && (
-                  <div className="text-lg font-bold text-white/80">{d.arabicName}</div>
+                  <div className="grn-ar mt-1 text-lg text-white/75">{d.arabicName}</div>
                 )}
-                <div className="mt-2 grid grid-cols-2 gap-1 text-xs">
-                  <span className="text-white/50">LEVEL</span>
-                  <span className="text-right font-black text-amber-400">LV. {d.level}</span>
-                  <span className="text-white/50">COUNTRY</span>
-                  <span className="text-right font-bold">
-                    {d.flag} {d.country}
-                  </span>
-                  <span className="text-white/50">CREW</span>
-                  <span className="text-right font-bold text-white/85">{d.crew}</span>
+                <div className="mt-4 space-y-1.5 border-t border-white/10 pt-3 text-sm">
+                  <div className="flex items-baseline justify-between">
+                    <span className="grn-label text-[0.58rem]">Level</span>
+                    <span className="grn-display text-lg text-sodium-400">LV. {d.level}</span>
+                  </div>
+                  <div className="flex items-baseline justify-between">
+                    <span className="grn-label text-[0.58rem]">Country</span>
+                    <span className="font-semibold">
+                      {d.flag} {d.country}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="grn-label text-[0.58rem]">Crew</span>
+                    <span className="text-right text-[0.8rem] font-semibold text-white/85">
+                      {d.crew}
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
           <div className="mt-5 h-10 text-center">
             {challenge.answer === null ? (
-              <div className="animate-pulse text-lg font-black tracking-widest text-white/80">
-                AWAITING RESPONSE… ينتظر الرد
+              <div className="grn-label animate-pulse text-base text-white/80">
+                Awaiting response… <span className="grn-ar">ينتظر الرد</span>
               </div>
             ) : challenge.answer.accepted ? (
               <div>
-                <div className="text-3xl font-black italic text-emerald-400 drop-shadow-[0_0_16px_rgba(52,211,153,0.8)]">
-                  ACCEPTED — قبل التحدي ✓
+                <div className="grn-display text-4xl italic text-emerald-400 [text-shadow:0_0_26px_rgba(52,211,153,0.85)]">
+                  ACCEPTED — <span className="grn-ar">قبل التحدي</span> ✓
                 </div>
               </div>
             ) : (
               <div>
-                <div className="text-3xl font-black italic text-red-500 drop-shadow-[0_0_16px_rgba(248,113,113,0.8)]">
-                  REJECTED — رفض ✕
+                <div className="grn-display text-4xl italic text-rose-500 [text-shadow:0_0_26px_rgba(244,63,94,0.85)]">
+                  REJECTED — <span className="grn-ar">رفض</span> ✕
                 </div>
-                <div className="mt-1 text-sm font-semibold text-white/70">
+                <div className="mt-1.5 text-sm font-semibold text-white/70">
                   {challenge.answer.reason}
                 </div>
               </div>
@@ -507,25 +539,23 @@ export default function RaceClient() {
       {vsRival && phase === "playing" && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center overflow-hidden bg-black/55">
           <div className="vs-slide-left w-[38%] text-right">
-            <div className="text-5xl font-black italic text-emerald-300 drop-shadow-[0_0_18px_rgba(52,211,153,0.8)] sm:text-6xl">
+            <div className="grn-display text-6xl italic text-emerald-300 [text-shadow:0_0_28px_rgba(52,211,153,0.85)] sm:text-7xl">
               YOU
             </div>
-            <div className="mt-1 text-xl font-bold text-white/80" dir="rtl">
+            <div className="grn-ar mt-1 text-xl text-white/75" dir="rtl">
               أنت
             </div>
           </div>
-          <div className="vs-pop mx-8 text-7xl font-black italic text-amber-400 drop-shadow-[0_0_24px_rgba(251,191,36,0.9)] sm:text-8xl">
+          <div className="vs-pop grn-display mx-8 text-8xl italic text-sodium-400 [text-shadow:0_0_34px_rgba(245,165,36,0.9)] sm:text-9xl">
             VS
           </div>
           <div className="vs-slide-right w-[38%]">
-            <div className="text-4xl font-black italic text-red-400 drop-shadow-[0_0_18px_rgba(248,113,113,0.8)] sm:text-5xl">
+            <div className="grn-display text-5xl italic text-rose-400 [text-shadow:0_0_28px_rgba(244,63,94,0.85)] sm:text-6xl">
               {vsRival.name}
             </div>
-            <div className="mt-1 text-xl font-bold text-white/85">{vsRival.arabicName}</div>
-            <div className="mt-1 text-sm font-bold tracking-widest text-white/60">
-              {vsRival.crew.toUpperCase()}
-            </div>
-            <div className="mt-2 text-sm italic text-white/70">&quot;{vsRival.taunt}&quot;</div>
+            <div className="grn-ar mt-1 text-xl text-white/80">{vsRival.arabicName}</div>
+            <div className="grn-label mt-2 text-[0.66rem]">{vsRival.crew}</div>
+            <div className="mt-2.5 text-sm italic text-white/70">&quot;{vsRival.taunt}&quot;</div>
           </div>
         </div>
       )}
@@ -533,9 +563,13 @@ export default function RaceClient() {
       {/* Center message toast */}
       {message && phase === "playing" && (
         <div className="pointer-events-none absolute left-1/2 top-1/3 w-[min(640px,92vw)] -translate-x-1/2 text-center">
-          <div className="text-2xl font-black drop-shadow-lg sm:text-3xl">{message.title}</div>
+          <div className="grn-display text-3xl leading-tight [text-shadow:0_4px_20px_rgba(0,0,0,0.95)] sm:text-4xl">
+            {message.title}
+          </div>
           {message.sub && (
-            <div className="mt-1 text-sm font-medium text-white/80">{message.sub}</div>
+            <div className="mt-1.5 text-sm font-medium text-white/75 [text-shadow:0_2px_10px_rgba(0,0,0,0.9)]">
+              {message.sub}
+            </div>
           )}
         </div>
       )}
@@ -543,48 +577,55 @@ export default function RaceClient() {
       {/* Menu */}
       {phase === "menu" && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-[#05070f] via-[#0a1226] to-[#05070f] px-6 text-center">
-          <div className="text-sm font-bold tracking-[0.4em] text-cyan-400">KUWAIT XTREME RACER</div>
-          <h1 className="mt-3 text-5xl font-black italic sm:text-7xl">
-            GULF ROAD <span className="text-amber-400">NIGHTS</span>
+          <div className="grn-label text-[0.8rem] tracking-[0.45em] text-gulf-400 [text-shadow:0_0_20px_rgba(56,201,238,0.5)]">
+            Kuwait Xtreme Racer
+          </div>
+          <h1 className="grn-display mt-3 text-6xl italic leading-[0.9] sm:text-8xl">
+            GULF ROAD <span className="text-sodium-400">NIGHTS</span>
           </h1>
-          <div className="mt-2 text-2xl font-bold text-white/80" dir="rtl">
+          <div className="grn-ar mt-3 text-2xl text-white/75" dir="rtl">
             ليالي شارع الخليج
           </div>
-          <p className="mt-6 max-w-xl text-sm leading-6 text-white/60">
+          <p className="mt-7 max-w-xl text-[0.95rem] leading-7 text-white/60">
             Midnight on the real Gulf Road — 7 km from the Kuwait Towers down the corniche to Ras
             Al-Ard and back through the city. Six street legends rule it. Hunt them down, flash
             your headlights, and drain their spirit — TXR style. وين الحدود؟
           </p>
-          <div className="mt-8 grid grid-cols-2 gap-x-10 gap-y-1 text-left text-xs text-white/55 sm:grid-cols-3">
+          <div className="grn-panel mt-8 grid grid-cols-2 gap-x-8 gap-y-1.5 px-6 py-4 text-left sm:grid-cols-3">
             {RIVALS.map((r, i) => (
-              <div key={r.id}>
-                {i + 1}. {r.name} <span className="text-white/35">· {r.area}</span>
+              <div key={r.id} className="text-sm">
+                <span className="grn-display mr-1.5 text-sodium-400">{i + 1}.</span>
+                <span className="font-semibold text-white/85">{r.name}</span>
+                <span className="text-white/35"> · {r.area}</span>
               </div>
             ))}
           </div>
           <div className="mt-10 flex items-center gap-4">
             <button
               onClick={startGame}
-              className="rounded-xl bg-amber-400 px-10 py-4 text-lg font-black text-black shadow-lg shadow-amber-400/30 transition hover:bg-amber-300"
+              className="grn-btn grn-btn-primary px-12 py-4 text-xl"
             >
-              START ENGINE — يلا 🏁
+              START ENGINE — <span className="grn-ar">يلا</span> 🏁
             </button>
             <button
               onClick={() => {
                 setGarage(loadGarage());
                 setGarageOpen(true);
               }}
-              className="rounded-xl border-2 border-cyan-400/60 px-8 py-4 text-lg font-black text-cyan-300 transition hover:bg-cyan-400/10"
+              className="grn-btn grn-btn-ghost px-9 py-4 text-xl"
             >
-              GARAGE 🔧 الكراج
+              GARAGE 🔧 <span className="grn-ar">الكراج</span>
             </button>
           </div>
-          <div className="mt-3 text-xs text-white/40">
-            or press Enter{garage ? ` · balance: ${garage.kd} KD` : ""}
+          <div className="grn-label mt-4 text-[0.62rem] text-white/40">
+            press Enter to start
+            {garage ? (
+              <span className="text-sodium-400"> · balance {garage.kd} KD</span>
+            ) : null}
           </div>
           <a
             href="/hub"
-            className="mt-5 text-sm font-semibold text-cyan-300 underline-offset-4 transition hover:underline"
+            className="mt-6 text-sm font-semibold text-gulf-300 underline-offset-4 transition hover:underline"
           >
             Cruise with friends in the Online Hub →
           </a>
@@ -597,29 +638,35 @@ export default function RaceClient() {
           <div className="mx-auto max-w-4xl">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-xs font-bold tracking-[0.4em] text-cyan-400">THE GARAGE</div>
-                <h2 className="text-3xl font-black italic">
-                  الكراج <span className="text-amber-400">TUNING</span>
+                <div className="grn-label text-[0.72rem] tracking-[0.42em] text-gulf-400">
+                  The Garage
+                </div>
+                <h2 className="grn-display mt-1 text-4xl italic">
+                  <span className="grn-ar">الكراج</span>{" "}
+                  <span className="text-sodium-400">TUNING</span>
                 </h2>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-black text-amber-400">{garage.kd} KD</div>
+                <div className="grn-label text-[0.58rem]">Balance</div>
+                <div className="grn-display text-3xl italic text-sodium-400 [text-shadow:0_0_20px_rgba(245,165,36,0.5)]">
+                  {garage.kd} KD
+                </div>
                 <button
                   onClick={() => setGarageOpen(false)}
-                  className="mt-1 rounded-lg bg-white px-5 py-2 text-sm font-black text-black transition hover:bg-white/85"
+                  className="grn-btn mt-2 bg-white px-6 py-2 text-sm text-black hover:bg-white/85"
                 >
-                  DONE — يلا نطلع
+                  DONE — <span className="grn-ar">يلا نطلع</span>
                 </button>
               </div>
             </div>
-            <p className="mt-2 text-xs text-white/50">
+            <p className="mt-3 max-w-2xl text-[0.82rem] leading-6 text-white/50">
               Parts apply when you start the engine. Win battles to earn KD — deeper rivals pay
               more. Tap an equipped part to run stock in that slot.
             </p>
             {Object.entries(CAT_LABELS).map(([cat, label]) => (
               <div key={cat} className="mt-6">
-                <h3 className="text-sm font-black tracking-widest text-white/60">{label}</h3>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <h3 className="grn-label border-b border-white/10 pb-2 text-[0.68rem]">{label}</h3>
+                <div className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                   {PARTS.filter((p) => p.cat === cat).map((p) => {
                     const owned = garage.owned.includes(p.id);
                     const equipped =
@@ -631,30 +678,38 @@ export default function RaceClient() {
                         key={p.id}
                         onClick={() => buyOrEquip(p)}
                         disabled={!owned && !affordable}
-                        className={`rounded-xl border p-3 text-left transition ${
+                        className={`grn-panel p-3.5 text-left transition ${
                           equipped
-                            ? "border-amber-400 bg-amber-400/10"
+                            ? "border-sodium-400/80 bg-sodium-500/10 shadow-[0_0_30px_-10px_rgba(245,165,36,0.7)]"
                             : owned
-                              ? "border-emerald-400/50 bg-emerald-400/5 hover:bg-emerald-400/10"
+                              ? "border-emerald-400/45 hover:border-emerald-400/70"
                               : affordable
-                                ? "border-white/15 bg-white/5 hover:bg-white/10"
-                                : "cursor-not-allowed border-white/10 bg-white/5 opacity-40"
+                                ? "hover:border-white/30 hover:bg-white/[0.09]"
+                                : "cursor-not-allowed opacity-40"
                         }`}
                       >
-                        <div className="flex items-baseline justify-between">
-                          <span className="text-sm font-black">{p.name}</span>
-                          <span className="text-xs font-bold text-white/60">{p.ar}</span>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="grn-display text-lg leading-tight">{p.name}</span>
+                          <span className="grn-ar text-[0.8rem] text-white/60">{p.ar}</span>
                         </div>
-                        {p.desc && <div className="mt-1 text-[11px] text-white/55">{p.desc}</div>}
-                        <div className="mt-1.5 text-xs font-black">
+                        {p.desc && (
+                          <div className="mt-1.5 text-[0.76rem] leading-5 text-white/55">
+                            {p.desc}
+                          </div>
+                        )}
+                        <div className="grn-label mt-2.5 text-[0.6rem]">
                           {equipped ? (
-                            <span className="text-amber-400">EQUIPPED ✓</span>
+                            <span className="text-sodium-400">Equipped ✓</span>
                           ) : owned ? (
                             <span className="text-emerald-300">
-                              {EXCLUSIVE_CATS.has(p.cat) ? "OWNED — tap to equip" : "INSTALLED ✓"}
+                              {EXCLUSIVE_CATS.has(p.cat) ? "Owned — tap to equip" : "Installed ✓"}
                             </span>
                           ) : (
-                            <span className={affordable ? "text-cyan-300" : "text-white/40"}>
+                            <span
+                              className={`grn-display text-base tracking-normal ${
+                                affordable ? "text-gulf-300" : "text-white/40"
+                              }`}
+                            >
                               {p.price} KD
                             </span>
                           )}
@@ -671,44 +726,53 @@ export default function RaceClient() {
 
       {/* Defeat */}
       {phase === "defeated" && beatenBy && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/75 px-6 text-center backdrop-blur-sm">
-          <div className="text-5xl font-black text-red-500">DEFEATED</div>
-          <div className="mt-2 text-xl font-bold text-white/85">
-            {beatenBy.name} {beatenBy.arabicName} takes the night
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 px-6 backdrop-blur-sm">
+          <div className="grn-dialog w-full max-w-lg px-10 py-9 text-center">
+            <div className="grn-label text-[0.7rem] text-rose-300">Battle lost</div>
+            <div className="grn-display mt-2 text-6xl italic text-rose-500 [text-shadow:0_0_30px_rgba(244,63,94,0.7)]">
+              DEFEATED
+            </div>
+            <div className="mt-4 text-lg font-semibold text-white/85">
+              {beatenBy.name} <span className="grn-ar">{beatenBy.arabicName}</span> takes the night
+            </div>
+            <div className="mt-2 text-sm italic text-white/55">&quot;{beatenBy.taunt}&quot;</div>
+            <button
+              onClick={() => {
+                engineRef.current?.retryBattle();
+                setPhase("playing");
+              }}
+              className="grn-btn mt-8 w-full bg-white px-8 py-3.5 text-lg text-black hover:bg-white/85"
+            >
+              REMATCH <span className="text-black/50">(R)</span>
+            </button>
           </div>
-          <div className="mt-1 text-sm text-white/55">&quot;{beatenBy.taunt}&quot;</div>
-          <button
-            onClick={() => {
-              engineRef.current?.retryBattle();
-              setPhase("playing");
-            }}
-            className="mt-8 rounded-xl bg-white px-8 py-3 text-base font-black text-black transition hover:bg-white/85"
-          >
-            REMATCH (R)
-          </button>
         </div>
       )}
 
       {/* Champion */}
       {phase === "champion" && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/75 px-6 text-center backdrop-blur-sm">
-          <div className="text-6xl">👑</div>
-          <div className="mt-3 text-5xl font-black text-amber-400">KING OF GULF ROAD</div>
-          <div className="mt-2 text-2xl font-bold" dir="rtl">
-            ملك شارع الخليج
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 px-6 backdrop-blur-sm">
+          <div className="grn-dialog w-full max-w-xl px-10 py-10 text-center">
+            <div className="text-6xl">👑</div>
+            <div className="grn-display mt-4 text-5xl italic text-sodium-400 [text-shadow:0_0_34px_rgba(245,165,36,0.75)] sm:text-6xl">
+              KING OF GULF ROAD
+            </div>
+            <div className="grn-ar mt-3 text-2xl text-white/85" dir="rtl">
+              ملك شارع الخليج
+            </div>
+            <div className="mx-auto mt-4 max-w-md text-[0.95rem] leading-6 text-white/65">
+              All six legends defeated — from Salmiya to Jahra, every street is yours. Mabrook! 🇰🇼
+            </div>
+            <button
+              onClick={() => {
+                engineRef.current?.resetProgress();
+                setPhase("playing");
+              }}
+              className="grn-btn grn-btn-primary mt-8 w-full px-8 py-3.5 text-lg"
+            >
+              RUN IT BACK — <span className="grn-ar">من جديد</span>
+            </button>
           </div>
-          <div className="mt-3 max-w-md text-sm text-white/65">
-            All six legends defeated — from Salmiya to Jahra, every street is yours. Mabrook! 🇰🇼
-          </div>
-          <button
-            onClick={() => {
-              engineRef.current?.resetProgress();
-              setPhase("playing");
-            }}
-            className="mt-8 rounded-xl bg-amber-400 px-8 py-3 text-base font-black text-black transition hover:bg-amber-300"
-          >
-            RUN IT BACK — من جديد
-          </button>
         </div>
       )}
     </div>
