@@ -14,6 +14,7 @@ public class GameController : MonoBehaviour
     Camera cam;
     ElevenLabsVoice voice;
     EngineAudio engineAudio;
+    TouchControls touch;
 
     // Player state (same handling model as the web build)
     float pS = 40f, pLat, pSpeed, pSp = 100f;
@@ -61,6 +62,8 @@ public class GameController : MonoBehaviour
 
         voice = gameObject.AddComponent<ElevenLabsVoice>();
         engineAudio = gameObject.AddComponent<EngineAudio>();
+        touch = gameObject.AddComponent<TouchControls>();
+        MobileTier.Apply(); // trims the render load on phones
 
         playerCar = CarFactory.Create(new Color(0.95f, 0.96f, 0.97f), new Color(0f, 0.48f, 0.24f));
         pLat = TrackSpline.Lanes[1];
@@ -201,7 +204,7 @@ public class GameController : MonoBehaviour
         float rpm = Mathf.Clamp((kmh - Gears[gear]) / (Gears[gear + 1] - Gears[gear]), 0.12f, 1f);
         engineAudio.Set(rpm, Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow) ? 1f : 0f, kmh);
 
-        if (Input.GetKeyDown(KeyCode.F)) TryFlash();
+        if (Input.GetKeyDown(KeyCode.F) || (touch != null && touch.FlashPressed)) TryFlash();
         if (Input.GetKeyDown(KeyCode.M)) engineAudio.ToggleMute();
     }
 
@@ -212,8 +215,20 @@ public class GameController : MonoBehaviour
         float steer = (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow) ? 1 : 0)
                     - (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow) ? 1 : 0);
 
-        float accel = up ? Mathf.Max(0, 19f * (1f - pSpeed / 115f)) : 0;
-        float braking = down ? 26f : 0;
+        // On-screen pads sit alongside the keyboard, never replace it
+        float throttleAmt = up ? 1f : 0f;
+        float brakeAmt = down ? 1f : 0f;
+        if (touch != null && touch.Enabled)
+        {
+            throttleAmt = Mathf.Max(throttleAmt, touch.Throttle);
+            brakeAmt = Mathf.Max(brakeAmt, touch.Brake);
+            steer = Mathf.Clamp(steer + touch.Steer, -1f, 1f);
+        }
+        up = throttleAmt > 0.01f;
+        down = brakeAmt > 0.01f;
+
+        float accel = throttleAmt * Mathf.Max(0, 19f * (1f - pSpeed / 115f));
+        float braking = brakeAmt * 26f;
         float drag = 0.0012f * pSpeed * pSpeed + 1.2f;
         pSpeed = Mathf.Max(0, pSpeed + (accel - braking - drag * (up ? 0.35f : 1f)) * dt);
 
@@ -424,8 +439,11 @@ public class GameController : MonoBehaviour
             GUI.Label(new Rect(Screen.width / 2f - 300, Screen.height / 3f, 600, 40), message,
                 new GUIStyle(GUI.skin.label) { fontSize = 26, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter });
 
-        GUI.Label(new Rect(Screen.width - 330, Screen.height - 50, 320, 40),
-            "W/S drive · A/D steer · F flash · R rematch · M mute", GUI.skin.label);
+        if (touch == null || !touch.Enabled)
+        {
+            GUI.Label(new Rect(Screen.width - 330, Screen.height - 50, 320, 40),
+                "W/S drive · A/D steer · F flash · R rematch · M mute", GUI.skin.label);
+        }
     }
 
     static void DrawBar(Rect r, float frac, Color c)

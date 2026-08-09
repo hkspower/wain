@@ -45,6 +45,49 @@ telling you to run the setup menu item.
 Controls: `W/S` drive · `A/D` steer · `F` flash headlights (start a
 battle) · `R` rematch after a defeat · `M` mute.
 
+## Why Unity and not Unreal
+
+For a phone racer Unity is the right engine, and it is not a close call:
+
+| | Unity | Unreal 5 |
+| --- | --- | --- |
+| Empty build size | ~15-25 MB | ~80-150 MB |
+| Share of top-grossing mobile titles | ~70% | under 5% |
+| Mobile thermals / battery | Tuned for it | Desktop-class renderer |
+| Web/desktop/mobile from one codebase | Yes | Heavier lift |
+
+Unreal wins on high-end PC and console fidelity - Nanite and Lumen have
+no Unity equivalent. If a console-grade version is ever the goal it is
+the better host, and this repo's track spline, handling constants and
+rival data port over cleanly. For phones, Unity ships the same game at a
+fraction of the download and battery cost.
+
+## Mobile builds
+
+Touch controls are built in: `TouchControls.cs` reads `Input.touches`
+directly (not GUI buttons) so steering and throttle register at the same
+time, and draws steering, gas/brake and Flash/NOS/Horn pads sized to the
+screen. The keyboard keeps working alongside them, and the keyboard hint
+hides itself on handhelds.
+
+`MobileTier.cs` runs once at startup on handheld devices and trims the
+render load without changing the look: 60 fps target, 0.85 render scale,
+hard shadows at 90 m with 2 cascades, MSAA 2x, and motion blur, chromatic
+aberration and film grain switched off. Bloom and ACES tonemapping stay -
+they are the night.
+
+**iOS:** File > Build Settings > iOS > Switch Platform, then Build. Open
+the generated Xcode project, set your team and bundle id, Archive, and
+submit through App Store Connect (needs a US$99/year Apple Developer
+account and a Mac).
+
+**Android:** switch platform to Android, tick **Build App Bundle
+(.aab)**, set a keystore under Player Settings > Publishing Settings,
+Build, then upload the `.aab` to the Play Console (US$25 one-off).
+
+For both, set the orientation to Landscape Left/Right in Player Settings
+and enable **Auto Graphics API** so older devices fall back to GLES3.
+
 ## ElevenLabs voices & effects
 
 Rival lines (Kuwaiti dialect) are spoken through the ElevenLabs
@@ -91,4 +134,5 @@ at the repo root to pre-render them once for both platforms.
 | Bloom / grain / ACES / motion blur | ✅ URP volume |
 | Real-time shadows (moon + headlights) | ✅ |
 | Procedural asphalt + normal map | ✅ |
+| Touch controls + mobile render tier | ✅ |
 | Billboards, tunnel, beacons, minimap, online hub, garage | ❌ web-only for now |
