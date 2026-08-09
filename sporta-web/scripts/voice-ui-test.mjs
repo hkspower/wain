@@ -12,6 +12,19 @@
 import { chromium } from 'playwright'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8096'
+
+// ARABIC IS THE DEFAULT, so the BARE URL IS THE ARABIC PAGE. This suite was
+// written when it was the English one, and every English expectation in it —
+// `en-US` on the recogniser, `aria-label="Listen to this answer"` — was being
+// checked against a page rendering Arabic. That is three failures reported
+// against a component doing exactly the right thing, and, worse, it made the
+// English block and the Arabic block at the bottom test the same language.
+// The English checks now ask for the English page BY NAME.
+const EN = `${BASE}/?lang=en`
+
+// The listen button is labelled in the page's language. Matching only the
+// English string is how a correct Arabic page reads as a missing button.
+const LISTEN = 'button[aria-label="Listen to this answer"], button[aria-label="استمع إلى الإجابة"]'
 let fails = 0
 const is = (c, n, d = '') => {
   if (!c) fails++
@@ -33,7 +46,7 @@ const browser = await chromium.launch({
     delete window.SpeechRecognition
     delete window.webkitSpeechRecognition
   })
-  await page.goto(BASE, { waitUntil: 'networkidle' })
+  await page.goto(EN, { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: /Sporta assistant|مساعد سبورتا/ }).click()
   const panel = page.locator('[role="dialog"][aria-label="سبورتا AI"]')
   await panel.waitFor()
@@ -80,7 +93,7 @@ const browser = await chromium.launch({
     route.fulfill({ status: 404, body: '' })
   })
 
-  await page.goto(BASE, { waitUntil: 'networkidle' })
+  await page.goto(EN, { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: /Sporta assistant|مساعد سبورتا/ }).click()
   // Scoped by name, NOT by [role="dialog"] alone — the bag drawer is a dialog
   // too and is in the DOM from page load, so a bare role selector silently
@@ -155,7 +168,7 @@ const browser = await chromium.launch({
       route.fulfill({ status: 404, body: '' })
     })
 
-    await page.goto(BASE, { waitUntil: 'networkidle' })
+    await page.goto(EN, { waitUntil: 'networkidle' })
     await page.getByRole('button', { name: /Sporta assistant|مساعد سبورتا/ }).click()
     const d = page.locator('[role="dialog"][aria-label="سبورتا AI"]')
     await d.waitFor()
@@ -177,7 +190,7 @@ const browser = await chromium.launch({
        `${played.length} audio request(s)`)
 
     // Either way the button is offered, so the answer can be heard on request.
-    is(await d.locator('button[aria-label="Listen to this answer"]').count() === 1,
+    is(await d.locator(LISTEN).count() === 1,
        spokenQuestion ? 'and it can still be replayed' : 'but it can be played on request')
 
     await page.close()

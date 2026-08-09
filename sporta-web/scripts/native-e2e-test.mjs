@@ -11,6 +11,18 @@ import { promisify } from 'node:util'
 
 const run = promisify(execFile)
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8096'
+
+// THIS SUITE IS AN ENGLISH SUITE, and it has to say so out loud now that ARABIC
+// IS THE DEFAULT. Every string it looks for — the "Size" and "Fit" groups, the
+// Add button, "Discount code", every admin tab — is English, and the bare URL
+// stopped being the English page. The size ladder was reported as "0 chips" on
+// a page that was rendering المقاس perfectly well: a correct component failing
+// a test that was silently asking the wrong language.
+//
+// So every storefront navigation names the language. `?lang=` is read by the
+// boot script before the first paint, so this is the real thing, not a stub.
+const en = (path) => `${BASE}${path}${path.includes('?') ? '&' : '?'}lang=en`
+
 const sql = async (q) =>
   (await run('mariadb', ['sporta', '-N', '-B', '-e', q])).stdout.trim()
 
@@ -56,7 +68,7 @@ await page.route('**/knet/pay.php*', (route) =>
 )
 
 // ---- product page reads stock from MySQL ----
-await page.goto(`${BASE}/product/cloudsoft-jacket-army-green`, { waitUntil: 'networkidle' })
+await page.goto(en(`/product/cloudsoft-jacket-army-green`), { waitUntil: 'networkidle' })
 const chips = await page.$$eval('[role="group"][aria-label="Size"] button', (els) =>
   els.map((e) => [e.textContent.trim(), e.disabled]),
 )
@@ -70,7 +82,7 @@ await page.locator('[role="group"][aria-label="Fit"] button').nth(3).click() // 
 await page.getByRole('button', { name: 'Add', exact: true }).click()
 
 // ---- checkout: fill the form and pay ----
-await page.goto(`${BASE}/checkout`, { waitUntil: 'networkidle' })
+await page.goto(en(`/checkout`), { waitUntil: 'networkidle' })
 const fill = async (id, v) => page.locator(`#f-${id}`).fill(v)
 await fill('name', 'Native Test Customer')
 await page.locator('#f-phone').fill('99887766')
@@ -101,13 +113,22 @@ is(outbox === '1', 'the warehouse message queued in the same transaction')
 
 // ---- invoice + tracking read back through the native API ----
 const track = row[0]
-await page.goto(`${BASE}/invoice/${track}`, { waitUntil: 'networkidle' })
+await page.goto(en(`/invoice/${track}`), { waitUntil: 'networkidle' })
 const body = await page.locator('article').innerText()
 is(body.includes(track) && /10\.000/.test(body), 'the invoice renders from MySQL', track)
 
 // ---- the bank confirms: callback in mysql mode settles the order ----
 await sql(`update orders set payment_status='paid', paid_at=now() where track_id='${track}'`)
-await page.goto(`${BASE}/payment/result?status=success&trackid=${track}`, { waitUntil: 'networkidle' })
+await page.goto(en(`/payment/result?status=success&trackid=${track}`), { waitUntil: 'networkidle' })
+// WAIT FOR THE ANSWER, NOT FOR THE NETWORK. `networkidle` only says nothing is
+// in flight right now, and this page's status fetch is fired from an effect
+// AFTER the first paint — so idle is reached, the heading still reads its
+// placeholder «…», and the assertion fails perhaps one run in three. A flaky
+// check on a working page is worse than no check: it teaches you to re-run.
+await page.waitForFunction(() => {
+  const h = document.querySelector('h1')?.textContent?.trim() ?? ''
+  return h.length > 1 && h !== '…'
+}, null, { timeout: 15000 })
 const confirmed = await page.locator('h1').first().textContent()
 is(!!confirmed && confirmed.trim().length > 1, 'the result page confirms against the native API', confirmed?.trim())
 
@@ -178,13 +199,13 @@ is(!!confirmed && confirmed.trim().length > 1, 'the result page confirms against
   await sp.route('**/knet/pay.php*', (route) =>
     route.fulfill({ status: 200, contentType: 'text/html', body: '<title>bank</title>gateway' }))
 
-  await sp.goto(`${BASE}/product/cloudsoft-jacket-army-green`, { waitUntil: 'networkidle' })
+  await sp.goto(en(`/product/cloudsoft-jacket-army-green`), { waitUntil: 'networkidle' })
   const priceText = await sp.locator('main').innerText()
   is(/7\.500/.test(priceText), 'the product page shows the sale price')
 
   await sp.locator('[role="group"][aria-label="Size"] button:not([disabled])').first().click()
   await sp.getByRole('button', { name: 'Add', exact: true }).click()
-  await sp.goto(`${BASE}/checkout`, { waitUntil: 'networkidle' })
+  await sp.goto(en(`/checkout`), { waitUntil: 'networkidle' })
 
   await sp.getByLabel('Discount code').fill('e2e10')
   await sp.getByRole('button', { name: 'Apply' }).click()
