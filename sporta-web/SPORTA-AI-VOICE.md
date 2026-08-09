@@ -25,6 +25,28 @@ pick, so this is a listening job, not a configuration one:
    reading two minutes of that text is the fallback (needs their consent).
 4. Add it to your voices and copy the **Voice ID** (a 20-character string).
 
+#### Or let the script do the auditioning
+
+Step 3 by hand means listening to one voice, forgetting it, and listening to
+the next — which is how you end up picking the last one you heard. This does
+the comparison properly, on your Mac (Claude's sandbox cannot reach
+`api.elevenlabs.io`):
+
+```bash
+export ELEVENLABS_API_KEY=sk_...
+node scripts/voice-audition.mjs --library --take 6 --audition
+open scripts/.voice-audition/index.html
+```
+
+Every candidate says the **shop's own three sentences** — the greeting, an
+order number, and the contact line with the phone and email — put through the
+same pronunciation preparation the server applies, so what you hear is what a
+customer hears. One page, same sentences, same order, so the choice is A/B.
+
+`--mine` lists the voices already on the account; naming voice IDs outright
+auditions just those. It never writes your key anywhere, never clones, and
+never touches the server.
+
 ### Then, in `api/config.php` on the server
 
 ```php
@@ -51,10 +73,10 @@ play on mobile data. Everything else (`tts_stability`, `tts_style`,
 https://www.sporta.com.kw/api/cron-voice.php?key=YOUR_CRON_KEY&do=warm
 ```
 
-Paste that in a browser after setting the voice. It buys all twenty-six fixed
-sentences — both languages — in one run, so **no customer is ever the one who
-waits for a synthesis call** on "delivery is same-day". Without it those
-twenty-six waits happen to twenty-six real people, one each.
+Paste that in a browser after setting the voice. It buys all thirty-six fixed
+sentences — eighteen in each language — in one run, so **no customer is ever
+the one who waits for a synthesis call** on "delivery is same-day". Without it
+those thirty-six waits happen to thirty-six real people, one each.
 
 Re-run it after changing the voice, the model or the format: each is part of
 the cache key, so changing one makes the whole cache cold.
@@ -92,6 +114,13 @@ most wrong:
   their other hand.
 - `22091914` is eight digits, so the model reads **"twenty-two million, ninety
   one thousand…"**. Nobody can dial that. Phone numbers go digit by digit.
+- `cs@sporta.com.kw` was handed over whole and came back as one syllable — on
+  the single sentence whose entire job is to be **written down** by someone
+  holding a phone. It is now spoken as its parts: the local part spelled out,
+  the domain joined by "dot", the brand still sounding like the brand.
+- `KWD` read as "kay double-you dee", and «د.ك» no better — in the delivery
+  answer, one of the three sentences this shop says most. Both are expanded to
+  the spoken currency.
 
 Prices are deliberately left alone: `4.000` KWD must stay "four point zero zero
 zero", not become four separate digits.
@@ -128,9 +157,14 @@ language, so the same words cannot be replayed as the other one.
 
 ## 2. n8n (the handoff)
 
-Fired at exactly two moments: the customer **asked for a person**, or the
-question **fell through and found nothing**. Not on every message — n8n is not
-a transcript log.
+Fired at exactly three moments: the customer **asked for a person**, the
+customer **asked to cancel an order**, or the question **fell through and found
+nothing**. Not on every message — n8n is not a transcript log.
+
+Cancelling is on that list because it is the one intent whose fixed answer is
+not the end of the matter: something is already moving, the shop can only stop
+it by acting, and the reply tells the customer to telephone. With no handoff
+that is advice nobody followed up.
 
 ```php
 'n8n_webhook' => 'https://your-n8n/webhook/sporta-ai',
@@ -161,15 +195,16 @@ Payload: `source`, `intent`, `lang`, `message`, `reply`, `at`.
 
 ## Proving it
 
-`npm run test:assistant` (87 checks) covers both against a fake gateway
+`npm run test:assistant` (126 checks) covers both against a fake gateway
 (`scripts/fake-voice.php`) — forged and unsigned text refused without a single
 upstream call, a signed sentence spoken, the same sentence bought only once, a
 cross-language replay refused, and the handoff arriving correctly signed and
 *not* arriving for an ordinary answered question.
 
 It also proves the parts you cannot hear from here: an order number goes
-upstream **spelled out** and a phone number **digit by digit** while what the
-customer reads is unchanged; audio is asked for at speech bitrate; an upstream
+upstream **spelled out**, a phone number **digit by digit**, an email address
+**as its parts** and «د.ك» / `KWD` as the spoken currency — while what the
+customer reads on screen is unchanged in every case; audio is asked for at speech bitrate; an upstream
 401 lands in the log without the API key in it; a 200 carrying JSON is refused
 rather than cached as audio; and after `do=warm` a real customer pressing the
 speaker makes **no upstream call at all**.

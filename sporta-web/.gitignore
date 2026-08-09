@@ -15,3 +15,6 @@ dropin/php-store/config.php
 # one: a knet config.php never enters the repo, not even a fake one.
 dropin/php-knet/config.php
 dropin/php-cbk/config.php
+
+# Auditioned voice samples — mp3s bought from ElevenLabs, not source.
+scripts/.voice-audition/

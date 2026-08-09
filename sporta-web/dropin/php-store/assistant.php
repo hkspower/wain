@@ -77,6 +77,17 @@ function assistant_intent(string $text): string
     // matching on phrasing alone missed it: "order SP1AU..." contains none of
     // the keywords below, so it fell all the way through to product search and
     // the customer was offered four jackets.
+    // CANCELLING IS TESTED BEFORE EVERYTHING, INCLUDING THE ORDER NUMBER.
+    // "ألغي طلبي SP1AU702NKHTKDV" carries a track ID, so it used to be read as
+    // a tracking question and answered with a status report — the customer
+    // asked to stop an order and was told, pleasantly, that it is being
+    // prepared. Someone who says "cancel" while quoting the order number is
+    // cancelling THAT order, so cancel wins over both branches below.
+    if (assistant_has($t, ['الغاء', 'الغي', 'الغ الطلب', 'لغي', 'ابي الغي', 'ما ابي الطلب',
+                           'بطل الطلب', 'اوقف الطلب', 'cancel', 'cancellation'])) {
+        return 'cancel';
+    }
+
     if (assistant_find_track($text) !== null) return 'order_status';
 
     // 'tracking', not 'track': "do you have a tracksuit" contains "track", and
@@ -122,10 +133,33 @@ function assistant_intent(string $text): string
                            'contact', 'human', 'agent', 'speak to', 'phone', 'whatsapp', 'email'])) {
         return 'contact';
     }
+    // WHERE THE SHOP IS. There is no branch to visit — Sporta is online only,
+    // delivering across Kuwait — but "وين موقعكم" fell through to product
+    // search and came back "I did not quite follow that", which reads as a shop
+    // hiding its address. Saying plainly that it is an online shop is both true
+    // and the more useful answer. Kept after `delivery`, so "متى يوصل لموقعي"
+    // stays a delivery question.
+    if (assistant_has($t, ['وين موقعكم', 'موقعكم', 'مقركم', 'عنوانكم', 'فرع', 'فروع', 'محل',
+                           'معرض', 'وين تلقونكم', 'زياره',
+                           'where are you', 'your location', 'address', 'branch', 'store location',
+                           'showroom', 'visit you', 'shop location'])) {
+        return 'location';
+    }
+
     if (assistant_has($t, ['سلام', 'مرحبا', 'هلا', 'صباح', 'مساء',
                            'hello', 'hi ', 'hey', 'good morning', 'salam'])) {
         return 'greeting';
     }
+
+    // THANKS IS AN ANSWER, NOT A SEARCH. "شكرا" matched nothing and became a
+    // product search, so the shop ended a conversation it had just handled well
+    // with "I did not quite follow that" — the last thing the customer reads.
+    // Tested LAST so that "thanks, where is my order" is still about the order.
+    if (assistant_has($t, ['شكرا', 'مشكور', 'يعطيك العافيه', 'تسلم', 'ماقصرت', 'الله يعافيك',
+                           'thanks', 'thank you', 'thx', 'appreciate it', 'cheers'])) {
+        return 'thanks';
+    }
+
     return 'search';
 }
 
@@ -335,6 +369,30 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
             'ar' => 'يسعدنا خدمتك: ' . $phone . ' أو ' . $email,
             'en' => 'We are happy to help: ' . $phone . ' or ' . $email,
         ],
+        // WHAT THE SHOP CAN HONESTLY PROMISE ABOUT CANCELLING. There is no
+        // self-service cancel button, and inventing one would send the customer
+        // hunting for a control that does not exist. So it says the true thing:
+        // be quick, reach a human, and if it has already gone out the returns
+        // policy — 14 days, free exchange — is the route. Every claim here is
+        // one /returns already makes.
+        'cancel' => [
+            'ar' => 'نقدر نلغي الطلب قبل ما يطلع مع المندوب. تواصل معنا فورًا على ' . $phone
+                  . ' ومعك رقم الطلب. وإذا كان طلع للتوصيل، ترفضه عند الاستلام أو ترجعه خلال ١٤ يومًا.',
+            'en' => 'We can cancel an order before it leaves with the courier. Call us right away on ' . $phone
+                  . ' with your order number. If it has already gone out for delivery, refuse it at the door or return it within 14 days.',
+        ],
+        // ONLINE ONLY, SAID PLAINLY. There is no branch, and a shop that will
+        // not say where it is reads as one with something to hide.
+        'location' => [
+            'ar' => 'سبورتا متجر إلكتروني، ما عندنا فرع تزوره. نوصّل لجميع مناطق الكويت خلال ٢٤ ساعة، وتقدر تتواصل معنا على '
+                  . $phone . ' أو ' . $email,
+            'en' => 'Sporta is an online shop — there is no branch to visit. We deliver to every area in Kuwait within 24 hours, and you can reach us on '
+                  . $phone . ' or ' . $email,
+        ],
+        'thanks' => [
+            'ar' => 'العفو، وين ما تحتاجني أنا هني. نتمنى لك يومًا سعيدًا من سبورتا.',
+            'en' => 'You are very welcome. I am here whenever you need me — enjoy your day from all of us at Sporta.',
+        ],
         'greeting' => [
             'ar' => 'أهلًا بك في سبورتا. أقدر أساعدك في حالة طلبك، التوصيل، الإرجاع، أو إيجاد المقاس المناسب.',
             'en' => 'Welcome to Sporta. I can help with your order, delivery, returns, or finding the right size.',
@@ -388,7 +446,8 @@ function assistant_canned(array $cfg, string $intent, bool $ar): ?string
 // longer says or miss one it just started saying.
 function assistant_canned_lines(array $cfg): array
 {
-    $keys = ['delivery', 'returns', 'payment', 'sizes', 'contact', 'greeting', 'ask_track',
+    $keys = ['delivery', 'returns', 'payment', 'sizes', 'contact', 'cancel', 'location', 'thanks',
+             'greeting', 'ask_track',
              'stage_packing', 'stage_shipped', 'stage_delivered', 'stage_unpaid', 'no_idea', 'found',
              'recommend', 'in_cart'];
     $out = ['ar' => [], 'en' => []];
@@ -481,7 +540,12 @@ function assistant_answer(PDO $db, array $cfg, string $message, string $lang): a
     // for a person, or the question fell through to the catch-all and found
     // nothing. Handing off every message would make the workflow a transcript
     // log, which is not what it is for.
-    if ($intent === 'contact' || ($intent === 'search' && !$data)) {
+    // `cancel` joins them because it is the one intent where the fixed answer
+    // is not the end of the matter: the customer has asked to stop something
+    // that is moving, the shop can only honour it by acting, and the reply
+    // tells them to telephone. If nobody is told, the answer is advice nobody
+    // followed up — so it goes out with the other two.
+    if ($intent === 'contact' || $intent === 'cancel' || ($intent === 'search' && !$data)) {
         assistant_handoff($cfg, $message, $final, $intent, $lang);
     }
 
@@ -570,6 +634,30 @@ function assistant_speech_prep(string $text, string $lang): string
     $text = preg_replace_callback('/\+(\d{1,4})\b/', function ($m) use ($lang) {
         return ($lang === 'ar' ? 'زائد ' : 'plus ') . implode(' ', str_split($m[1]));
     }, $text) ?? $text;
+
+    // AN EMAIL ADDRESS IS NOT A WORD. "cs@sporta.com.kw" was handed to the
+    // model whole and came back as a syllable — and this is the CONTACT answer,
+    // the one sentence whose entire job is to be written down by someone
+    // holding a phone. Spoken as its parts, it can be transcribed.
+    $text = preg_replace_callback('/([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})/',
+        function ($m) use ($lang) {
+            $at  = $lang === 'ar' ? ' آت ' : ' at ';
+            $dot = $lang === 'ar' ? ' دوت ' : ' dot ';
+            // The local part is spelled out — "cs" is initials, not a word —
+            // while the domain is left as words joined by "dot", because
+            // "sporta" is the brand and must sound like itself.
+            $user = implode(' ', str_split($m[1]));
+            $host = str_replace('.', $dot, $m[2]);
+            return $user . $at . $host;
+        }, $text) ?? $text;
+
+    // THE CURRENCY. "1 KWD" was read letter by letter as "kay double-you dee",
+    // and «د.ك» fares no better — both appear in the delivery answer, which is
+    // among the three sentences this shop says most. Expanded to the spoken
+    // name, after the digit rules above so a price is still read as a number.
+    $text = $lang === 'ar'
+        ? (preg_replace('/\bد\.?\s?ك\b/u', 'دينار كويتي', $text) ?? $text)
+        : (preg_replace('/\bKWD\b/u', 'Kuwaiti dinars', $text) ?? $text);
 
     return trim(preg_replace('/[ \t]+/u', ' ', $text) ?? $text);
 }

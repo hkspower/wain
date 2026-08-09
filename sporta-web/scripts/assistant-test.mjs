@@ -102,6 +102,62 @@ for (const [q, want, why] of [
   is(body?.intent === want, `"${q}" -> ${want}`, why || (body?.intent ?? ''))
 }
 
+// ------------------------------- the three questions that used to fall through
+//
+// Each of these was MEASURED landing somewhere wrong before the intents existed,
+// and each failure is a different kind of bad:
+//
+//   "ألغي طلبي"      -> order_status. The customer asked to STOP an order and
+//                       was pleasantly told it is being prepared. The worst of
+//                       the three: it reads as an answer, so nobody reports it.
+//   "وين موقعكم"     -> search -> "I did not quite follow that", which from a
+//                       shop asked for its address reads as evasion.
+//   "شكرا"           -> search -> the same failure sentence, as the LAST thing
+//                       said in a conversation that had otherwise gone well.
+await unthrottle()
+head('the questions that used to fall through the catch-all')
+for (const [q, lang, want, why] of [
+  ['أبي ألغي طلبي', 'ar', 'cancel', 'was answered with a status report'],
+  ['cancel my order', 'en', 'cancel', ''],
+  ['وين موقعكم', 'ar', 'location', 'was "I did not quite follow that"'],
+  ['where are you located', 'en', 'location', ''],
+  ['شكرا', 'ar', 'thanks', 'the last thing a happy customer says'],
+  ['thanks a lot', 'en', 'thanks', ''],
+]) {
+  const { body } = await ask(q, lang)
+  is(body?.intent === want, `"${q}" -> ${want}`, why || (body?.intent ?? ''))
+}
+
+await unthrottle()
+head('and the order between them, which is the whole policy')
+{
+  // CANCEL OUTRANKS THE ORDER NUMBER. A message carrying both is someone
+  // cancelling THAT order — reading the ID first is what produced the status
+  // report above.
+  const c = await ask('ألغي طلبي SP1AU702NKHTKDV', 'ar')
+  is(c.body?.intent === 'cancel',
+     'a cancellation that quotes the order number is still a cancellation', c.body?.intent)
+
+  // THANKS IS TESTED LAST, so a courteous question is still a question.
+  const t = await ask('thanks, where is my order')
+  is(t.body?.intent === 'order_status',
+     '"thanks, where is my order" is an order question, not a goodbye', t.body?.intent)
+
+  // And the cancellation answer must not invent a button that does not exist.
+  const en = await ask('cancel my order')
+  is(/call|phone|\+965/i.test(en.body?.reply ?? ''),
+     'the cancel answer routes to a human, because there is no self-serve cancel',
+     (en.body?.reply ?? '').slice(0, 60))
+  is(!/click|button|dashboard|account/i.test(en.body?.reply ?? ''),
+     'and it does not send the customer hunting for a control the shop lacks')
+
+  // The shop is online-only. Saying so is the honest answer; naming a branch
+  // would be a lie that costs someone a drive.
+  const loc = (await ask('where are you located')).body?.reply ?? ''
+  is(/online shop/i.test(loc) && /no branch/i.test(loc),
+     'the location answer says online shop, and that there is no branch', loc.slice(0, 60))
+}
+
 // ------------------------------------------------------------- the order tool
 await unthrottle()
 head('an order answer matches the row in the database')
@@ -428,10 +484,53 @@ head('the voice, and who is allowed to ask for it')
          'and a phone number is read digit by digit, not as one huge number',
          (c3.last_text || '').slice(-46))
 
+      // THE EMAIL ADDRESS, in the same contact line. It was handed over whole
+      // and came back as one syllable — on the ONE sentence whose entire job is
+      // to be written down by somebody holding a phone.
+      is(/c s +آت|c s +at/.test(c3.last_text || ''),
+         'the email is spoken as its parts, so it can be transcribed',
+         (c3.last_text || '').slice(-40))
+      is(!/cs@sporta/.test(c3.last_text || ''),
+         'and the raw address is not what the model was asked to pronounce')
+
+      // THE CURRENCY. "1 KWD" read as "kay double-you dee", and «د.ك» no
+      // better — in the delivery answer, one of the three sentences this shop
+      // says most.
+      // THE DISK CACHE HAS TO GO FIRST, and forgetting that is how this pair of
+      // checks failed on working code: the delivery sentence was already on
+      // disk from an earlier assertion, so `say` served the file, called
+      // nothing upstream, and the fake gateway had no text to show. An empty
+      // last_text reads exactly like a pronunciation rule that did not fire.
+      //
+      // And the LANGUAGE has to be passed to `say`. The signature is
+      // HMAC(lang \0 text): asking for an Arabic sentence at the default
+      // lang=en is a forgery as far as the server is concerned, and it answers
+      // 403 — correctly.
+      await run('rm', ['-rf', '/tmp/sporta-voice-test'])
+      await fetch(`${VOICE}/reset`)
+      const del = await ask('when will my parcel arrive')
+      const rDel = await say(del.body.reply, del.body.speak, 'en')
+      const c4 = await calls()
+      is(rDel.status === 200 && /Kuwaiti dinars/.test(c4.last_text || '') && !/\bKWD\b/.test(c4.last_text || ''),
+         'the currency is spoken, not spelled as three letters',
+         (c4.last_text || '').slice(0, 90) || `${rDel.status}, nothing sent upstream`)
+
+      await run('rm', ['-rf', '/tmp/sporta-voice-test'])
+      await fetch(`${VOICE}/reset`)
+      const delAr = await ask('متى يوصل الطلب', 'ar')
+      const rAr = await say(delAr.body.reply, delAr.body.speak, 'ar')
+      const c5 = await calls()
+      is(rAr.status === 200 && /دينار كويتي/.test(c5.last_text || '') && !/د\.ك/.test(c5.last_text || ''),
+         'and in Arabic «د.ك» is read as دينار كويتي',
+         (c5.last_text || '').slice(0, 90) || `${rAr.status}, nothing sent upstream`)
+
       // And the sentence CACHED is the one the shop wrote, not the spelled-out
       // one — otherwise every pronunciation fix would silently invalidate a
       // signature the browser is already holding.
       is(!/S P 1 A U/.test(contact.body.reply), 'what the customer READS is unchanged')
+      is(/cs@sporta\.com\.kw/.test(contact.body.reply),
+         'the customer still READS a real email address, not a spelled one')
+      is(/KWD/.test(del.body.reply), 'and still reads KWD, not "Kuwaiti dinars"')
     }
 
     // ------------------------------------------------------- speech-sized audio
