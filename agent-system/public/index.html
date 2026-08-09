@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>نظام موصول | إدارة المندوبين والطلبات</title>
+<meta name="theme-color" content="#0f6b76">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="assets/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="assets/mawsool-mark-512.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="preload" href="assets/fonts/alexandria-arabic.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/alexandria-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<!-- شاشة تسجيل الدخول -->
+<div class="login" id="loginScreen" hidden>
+  <form class="login__card" id="loginForm" novalidate>
+    <img class="login__logo" src="assets/logo-mawsool.png" alt="موصول" width="220" height="68">
+    <h1>نظام إدارة المندوبين</h1>
+    <p class="login__sub">سجّل الدخول لمتابعة طلباتك وتحويلها بين الزملاء.</p>
+
+    <label class="field">
+      <span>اسم المستخدم</span>
+      <input name="username" autocomplete="username" required dir="ltr" placeholder="ahmad">
+    </label>
+    <label class="field">
+      <span>كلمة المرور</span>
+      <input name="password" type="password" autocomplete="current-password" required dir="ltr" placeholder="••••••••">
+    </label>
+
+    <button class="btn btn--primary btn--block btn--lg" type="submit">دخول</button>
+    <p class="form-msg" id="loginMsg" role="alert"></p>
+
+    <details class="login__demo">
+      <summary>حسابات تجريبية</summary>
+      <p>مدير العمليات: <code>admin</code> / <code>admin1234</code></p>
+      <p>مندوب: <code>ahmad</code> · <code>yousef</code> · <code>fahad</code> · <code>bader</code> · <code>meshari</code> / <code>agent1234</code></p>
+    </details>
+  </form>
+</div>
+
+<!-- التطبيق -->
+<div class="app" id="app" hidden>
+  <header class="topbar">
+    <div class="topbar__inner">
+      <a class="topbar__brand" href="#/">
+        <img src="assets/logo-mawsool-light.png" alt="موصول" width="150" height="46">
+      </a>
+
+      <nav class="topbar__nav" id="mainNav"></nav>
+
+      <div class="topbar__side">
+        <label class="availability" id="availabilityWrap" hidden>
+          <span class="sr-only">حالتي</span>
+          <select id="availabilitySelect">
+            <option value="available">متاح</option>
+            <option value="busy">مشغول</option>
+            <option value="offline">غير متصل</option>
+          </select>
+        </label>
+        <div class="who">
+          <b id="whoName"></b>
+          <span id="whoRole"></span>
+        </div>
+        <button class="btn btn--ghost btn--sm" id="logoutBtn" type="button">خروج</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="page" id="view" tabindex="-1"></main>
+
+  <nav class="tabbar" id="tabbar"></nav>
+</div>
+
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal__backdrop" data-close></div>
+  <div class="modal__card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal__head">
+      <h2 id="modalTitle"></h2>
+      <button class="modal__x" type="button" data-close aria-label="إغلاق">✕</button>
+    </div>
+    <div class="modal__body" id="modalBody"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,1002 @@
+/* =========================================================================
+   نظام موصول — واجهة المستخدم (بدون أطر عمل، بلا خطوة بناء)
+   ========================================================================= */
+(function () {
+  'use strict';
+
+  /* ------------------------------ الحالة ------------------------------ */
+  const state = {
+    me: null,
+    meta: null,
+    agents: [],
+    stats: null,
+    ordersFilter: { scope: 'active', q: '', status: '', governorate: '', agent_id: '' },
+  };
+
+  const el = {
+    login: document.getElementById('loginScreen'),
+    loginForm: document.getElementById('loginForm'),
+    loginMsg: document.getElementById('loginMsg'),
+    app: document.getElementById('app'),
+    view: document.getElementById('view'),
+    nav: document.getElementById('mainNav'),
+    tabbar: document.getElementById('tabbar'),
+    whoName: document.getElementById('whoName'),
+    whoRole: document.getElementById('whoRole'),
+    availWrap: document.getElementById('availabilityWrap'),
+    availSelect: document.getElementById('availabilitySelect'),
+    logout: document.getElementById('logoutBtn'),
+    modal: document.getElementById('modal'),
+    modalTitle: document.getElementById('modalTitle'),
+    modalBody: document.getElementById('modalBody'),
+    toasts: document.getElementById('toasts'),
+  };
+
+  /* ------------------------------ أدوات ------------------------------ */
+
+  const AR_DIGITS = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  const ar = (v) => String(v).replace(/\d/g, (d) => AR_DIGITS[+d]);
+
+  /** يحوّل الرقم إلى نص عربي مع فاصلة عشرية عربية */
+  const money = (v) => ar(Number(v || 0).toFixed(3)).replace('.', '٫');
+  const int = (v) => ar(Number(v || 0).toLocaleString('en-US')).replace(/,/g, '٬');
+
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  const fmtDate = (iso) => {
+    if (!iso) return '—';
+    try {
+      return new Intl.DateTimeFormat('ar-KW', {
+        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+        hour12: true, timeZone: 'Asia/Kuwait',
+      }).format(new Date(iso));
+    } catch { return iso; }
+  };
+
+  const relTime = (iso) => {
+    if (!iso) return '';
+    const diff = (Date.now() - new Date(iso).getTime()) / 60000;
+    if (diff < 1) return 'الآن';
+    if (diff < 60) return `قبل ${ar(Math.round(diff))} دقيقة`;
+    if (diff < 24 * 60) return `قبل ${ar(Math.round(diff / 60))} ساعة`;
+    return `قبل ${ar(Math.round(diff / 1440))} يوم`;
+  };
+
+  function toast(message, kind = '') {
+    const node = document.createElement('div');
+    node.className = 'toast' + (kind ? ` toast--${kind}` : '');
+    node.textContent = message;
+    el.toasts.appendChild(node);
+    setTimeout(() => node.remove(), 4200);
+  }
+
+  /* ------------------------------- الشبكة ------------------------------- */
+
+  async function api(path, { method = 'GET', body } = {}) {
+    const res = await fetch('/api' + path, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+      credentials: 'same-origin',
+    });
+
+    let data = {};
+    try { data = await res.json(); } catch { /* استجابة بلا جسم */ }
+
+    if (res.status === 401 && state.me) { logout(true); throw new Error(data.error || 'انتهت الجلسة'); }
+    if (!res.ok) throw new Error(data.error || 'تعذّر تنفيذ الطلب');
+    return data;
+  }
+
+  /* ------------------------------- النافذة ------------------------------- */
+
+  function openModal(title, html, onMount) {
+    el.modalTitle.textContent = title;
+    el.modalBody.innerHTML = html;
+    el.modal.hidden = false;
+    document.body.style.overflow = 'hidden';
+    if (onMount) onMount(el.modalBody);
+    const first = el.modalBody.querySelector('input, select, textarea, button');
+    if (first) first.focus();
+  }
+
+  function closeModal() {
+    el.modal.hidden = true;
+    el.modalBody.innerHTML = '';
+    document.body.style.overflow = '';
+  }
+
+  el.modal.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) closeModal(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !el.modal.hidden) closeModal(); });
+
+  /* ------------------------------ مكوّنات ------------------------------ */
+
+  const statusBadge = (s) =>
+    `<span class="badge badge--${s}">${esc(state.meta.statuses[s] || s)}</span>`;
+
+  const vehicleName = (v) => state.meta.vehicles[v] || v;
+
+  function orderCard(o) {
+    const urgent = o.priority === 'urgent';
+    return `
+      <a class="order${urgent ? ' is-urgent' : ''}" href="#/orders/${o.id}">
+        <div class="order__top">
+          <span class="order__code num">${esc(o.code)}</span>
+          ${statusBadge(o.status)}
+          ${urgent ? '<span class="badge badge--urgent">عاجل</span>' : ''}
+          ${o.has_pending_transfer ? '<span class="badge badge--transfer">تحويل معلّق</span>' : ''}
+        </div>
+        <div class="order__customer">${esc(o.customer_name)}</div>
+        <div class="order__route">
+          من <b>${esc(o.pickup_address)}</b><br>
+          إلى <b>${esc(o.dropoff_address)}</b>
+        </div>
+        <div class="order__meta">
+          <span>${esc(o.governorate)}</span>
+          <span>${esc(vehicleName(o.vehicle))}</span>
+          ${o.cod_amount > 0 ? `<span>تحصيل <b class="num">${money(o.cod_amount)}</b> د.ك</span>` : ''}
+          ${o.agent_name ? `<span>المندوب: ${esc(o.agent_name)}</span>` : '<span>غير مُسند</span>'}
+          <span>${esc(relTime(o.updated_at))}</span>
+        </div>
+      </a>`;
+  }
+
+  const emptyState = (title, sub) => `
+    <div class="empty">
+      <img src="assets/mawsool-mark.png" alt="">
+      <b>${esc(title)}</b>
+      <span>${esc(sub || '')}</span>
+    </div>`;
+
+  const skeleton = (n = 3) =>
+    `<div class="skeleton">${'<div></div>'.repeat(n)}</div>`;
+
+  /* ------------------------------ التوجيه ------------------------------ */
+
+  const routes = {
+    '': renderDashboard,
+    'orders': renderOrders,
+    'transfers': renderTransfers,
+    'agents': renderAgents,
+    'new': renderNewOrder,
+  };
+
+  function parseHash() {
+    const raw = location.hash.replace(/^#\/?/, '');
+    const [head, ...rest] = raw.split('/');
+    return { head, rest };
+  }
+
+  async function router() {
+    if (!state.me) return;
+    const { head, rest } = parseHash();
+    highlightNav(head);
+
+    try {
+      if (head === 'orders' && rest[0]) return await renderOrderDetail(rest[0]);
+      const fn = routes[head];
+      if (!fn) { location.hash = '#/'; return; }
+      await fn();
+    } catch (err) {
+      el.view.innerHTML = `<div class="card"><div class="card__body">${emptyState('تعذّر تحميل الصفحة', err.message)}</div></div>`;
+    }
+    el.view.focus({ preventScroll: true });
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }
+
+  function navItems() {
+    const inbox = state.stats?.pending_transfers_in || 0;
+    const items = [
+      { href: '#/', key: '', label: 'الرئيسية' },
+      { href: '#/orders', key: 'orders', label: 'الطلبات' },
+      { href: '#/transfers', key: 'transfers', label: 'التحويلات', pill: inbox },
+    ];
+    if (state.me.role === 'admin') {
+      items.push({ href: '#/agents', key: 'agents', label: 'المندوبون' });
+      items.push({ href: '#/new', key: 'new', label: 'طلب جديد' });
+    }
+    return items;
+  }
+
+  function renderNav() {
+    const html = navItems().map((i) =>
+      `<a href="${i.href}" data-key="${i.key}">${esc(i.label)}${i.pill ? `<span class="pill num">${ar(i.pill)}</span>` : ''}</a>`
+    ).join('');
+    el.nav.innerHTML = html;
+    el.tabbar.innerHTML = html;
+    highlightNav(parseHash().head);
+  }
+
+  function highlightNav(key) {
+    document.querySelectorAll('#mainNav a, #tabbar a').forEach((a) => {
+      a.classList.toggle('is-active', a.dataset.key === key);
+    });
+  }
+
+  /* ------------------------------ الصفحات ------------------------------ */
+
+  async function refreshShared() {
+    const [stats, agents] = await Promise.all([api('/stats'), api('/agents')]);
+    state.stats = stats;
+    state.agents = agents.agents;
+    renderNav();
+  }
+
+  /* ---- الرئيسية ---- */
+
+  async function renderDashboard() {
+    el.view.innerHTML = `<div class="page-head"><div><h1>لوحة المتابعة</h1></div></div>${skeleton(2)}`;
+    await refreshShared();
+
+    const s = state.stats;
+    const isAdmin = state.me.role === 'admin';
+
+    const [active, transfersIn] = await Promise.all([
+      api('/orders?scope=active&limit=8'),
+      api('/transfers?box=inbox&status=pending'),
+    ]);
+
+    el.view.innerHTML = `
+      <div class="page-head">
+        <div>
+          <h1>أهلًا ${esc(state.me.name.split(' ')[0])} 👋</h1>
+          <p>${isAdmin ? 'ملخّص عمليات اليوم عبر كل المندوبين.' : 'هذه طلباتك النشطة وما يخصّك اليوم.'}</p>
+        </div>
+        ${isAdmin ? '<a class="btn btn--accent" href="#/new">+ طلب جديد</a>' : ''}
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat"><b class="num">${ar(s.active)}</b><span>طلبات نشطة</span></div>
+        <div class="stat"><b class="num">${ar(s.delivered_today)}</b><span>سُلّمت اليوم</span></div>
+        <div class="stat stat--accent"><b class="num">${money(s.cod_today)}</b><span>تحصيل اليوم (د.ك)</span></div>
+        ${isAdmin
+          ? `<div class="stat"><b class="num">${ar(s.counts.new)}</b><span>بانتظار الإسناد</span></div>
+             <div class="stat stat--dark"><b class="num">${ar(s.agents_online)}</b><span>مندوب متاح الآن</span></div>`
+          : `<div class="stat stat--dark"><b class="num">${ar(s.pending_transfers_in)}</b><span>تحويلات بانتظار ردّك</span></div>`}
+      </div>
+
+      ${transfersIn.transfers.length ? `
+      <div class="card">
+        <div class="card__head">
+          <h2>تحويلات بانتظار ردّك</h2>
+          <a class="btn btn--ghost btn--sm" href="#/transfers">عرض الكل</a>
+        </div>
+        <div class="card__body">${transfersIn.transfers.slice(0, 3).map(transferCard).join('')}</div>
+      </div>` : ''}
+
+      <div class="card">
+        <div class="card__head">
+          <h2>${isAdmin ? 'أحدث الطلبات النشطة' : 'طلباتي النشطة'}</h2>
+          <a class="btn btn--ghost btn--sm" href="#/orders">كل الطلبات</a>
+        </div>
+        <div class="card__body">
+          ${active.orders.length
+            ? `<div class="orders">${active.orders.map(orderCard).join('')}</div>`
+            : emptyState('لا توجد طلبات نشطة', isAdmin ? 'كل الطلبات مكتملة حاليًا.' : 'ستظهر هنا الطلبات المسندة إليك.')}
+        </div>
+      </div>`;
+
+    bindTransferActions(el.view);
+  }
+
+  /* ---- قائمة الطلبات ---- */
+
+  async function renderOrders() {
+    const f = state.ordersFilter;
+    const isAdmin = state.me.role === 'admin';
+
+    el.view.innerHTML = `
+      <div class="page-head">
+        <div><h1>الطلبات</h1><p>${isAdmin ? 'كل طلبات النظام مع إمكانية الإسناد والتحويل.' : 'الطلبات المسندة إليك.'}</p></div>
+        ${isAdmin ? '<a class="btn btn--accent" href="#/new">+ طلب جديد</a>' : ''}
+      </div>
+
+      <div class="filters">
+        <input id="fq" type="search" placeholder="ابحث برقم الطلب أو اسم العميل أو العنوان" value="${esc(f.q)}">
+        <select id="fgov">
+          <option value="">كل المحافظات</option>
+          ${state.meta.governorates.map((g) => `<option value="${esc(g)}"${f.governorate === g ? ' selected' : ''}>${esc(g)}</option>`).join('')}
+        </select>
+        ${isAdmin ? `
+        <select id="fagent">
+          <option value="">كل المندوبين</option>
+          ${state.agents.filter((a) => a.role === 'agent').map((a) =>
+            `<option value="${a.id}"${String(f.agent_id) === String(a.id) ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}
+        </select>` : ''}
+      </div>
+
+      <div class="chips" id="scopeChips">
+        ${[
+          ['active', 'نشطة'], ['done', 'منتهية'],
+          ...(isAdmin ? [['unassigned', 'بانتظار الإسناد']] : []),
+          ['', 'الكل'],
+        ].map(([v, label]) =>
+          `<button class="chip${f.scope === v ? ' is-on' : ''}" data-scope="${v}" type="button">${esc(label)}</button>`).join('')}
+      </div>
+
+      <div id="ordersList" style="margin-top:1rem">${skeleton(4)}</div>`;
+
+    const load = async () => {
+      const params = new URLSearchParams();
+      if (f.scope) params.set('scope', f.scope);
+      if (f.q) params.set('q', f.q);
+      if (f.governorate) params.set('governorate', f.governorate);
+      if (f.agent_id) params.set('agent_id', f.agent_id);
+      const list = document.getElementById('ordersList');
+      try {
+        const { orders } = await api('/orders?' + params.toString());
+        list.innerHTML = orders.length
+          ? `<div class="orders">${orders.map(orderCard).join('')}</div>`
+          : emptyState('لا توجد طلبات مطابقة', 'جرّب تغيير عوامل التصفية.');
+      } catch (err) {
+        list.innerHTML = emptyState('تعذّر تحميل الطلبات', err.message);
+      }
+    };
+
+    let timer;
+    document.getElementById('fq').addEventListener('input', (e) => {
+      f.q = e.target.value.trim();
+      clearTimeout(timer);
+      timer = setTimeout(load, 280);
+    });
+    document.getElementById('fgov').addEventListener('change', (e) => { f.governorate = e.target.value; load(); });
+    const fagent = document.getElementById('fagent');
+    if (fagent) fagent.addEventListener('change', (e) => { f.agent_id = e.target.value; load(); });
+
+    document.getElementById('scopeChips').addEventListener('click', (e) => {
+      const chip = e.target.closest('.chip');
+      if (!chip) return;
+      f.scope = chip.dataset.scope;
+      document.querySelectorAll('#scopeChips .chip').forEach((c) => c.classList.toggle('is-on', c === chip));
+      load();
+    });
+
+    await load();
+  }
+
+  /* ---- تفاصيل الطلب ---- */
+
+  const EVENT_LABELS = {
+    created: 'أُنشئ الطلب',
+    assigned: 'إسناد لمندوب',
+    status: 'تغيير الحالة',
+    transfer_requested: 'طلب تحويل',
+    transfer_accepted: 'قبول التحويل',
+    transfer_rejected: 'رفض التحويل',
+    transfer_cancelled: 'سحب التحويل',
+  };
+
+  function eventRow(ev) {
+    const isTransfer = ev.type.startsWith('transfer');
+    const bad = ev.type === 'transfer_rejected' || (ev.type === 'status' && ['failed', 'cancelled'].includes(ev.to_value));
+    let detail = '';
+    if (ev.type === 'status') {
+      detail = `${state.meta.statuses[ev.from_value] || ev.from_value || '—'} ← ${state.meta.statuses[ev.to_value] || ev.to_value}`;
+    } else if (ev.from_value || ev.to_value) {
+      detail = `${esc(ev.from_value || '—')} ← ${esc(ev.to_value || '—')}`;
+    }
+    return `
+      <li class="tl${isTransfer ? ' tl--transfer' : ''}${bad ? ' tl--bad' : ''}">
+        <span class="tl__dot"></span>
+        <b>${esc(EVENT_LABELS[ev.type] || ev.type)}</b>
+        ${detail ? `<em>${detail}</em>` : ''}
+        ${ev.note ? `<em>«${esc(ev.note)}»</em>` : ''}
+        <span>${esc(fmtDate(ev.created_at))}${ev.actor_name ? ' — ' + esc(ev.actor_name) : ''}</span>
+      </li>`;
+  }
+
+  async function renderOrderDetail(orderId) {
+    el.view.innerHTML = skeleton(2);
+    const { order } = await api('/orders/' + encodeURIComponent(orderId));
+    const isAdmin = state.me.role === 'admin';
+    const mine = order.agent_id === state.me.id;
+    const pending = order.pending_transfer;
+
+    const canAct = (isAdmin || mine) && order.allowed_next.length > 0;
+    const canTransfer = (isAdmin || mine)
+      && state.meta.active_statuses.includes(order.status)
+      && order.agent_id && !pending;
+
+    el.view.innerHTML = `
+      <div class="page-head">
+        <div>
+          <h1>الطلب <span class="num">${esc(order.code)}</span></h1>
+          <p>${statusBadge(order.status)}
+             ${order.priority === 'urgent' ? '<span class="badge badge--urgent">عاجل</span>' : ''}
+             <span style="color:var(--ink-soft)">آخر تحديث ${esc(relTime(order.updated_at))}</span></p>
+        </div>
+        <a class="btn btn--ghost btn--sm" href="#/orders">رجوع للقائمة</a>
+      </div>
+
+      ${pending ? `
+        <div class="transfer-note">
+          <b>طلب تحويل معلّق</b>
+          <p>من <b>${esc(pending.from_name)}</b> إلى <b>${esc(pending.to_name)}</b> — «${esc(pending.reason)}»</p>
+          <div class="btn-row">
+            ${(isAdmin || pending.to_agent_id === state.me.id) ? `
+              <button class="btn btn--primary btn--sm" data-transfer="accept" data-id="${pending.id}">قبول التحويل</button>
+              <button class="btn btn--danger btn--sm" data-transfer="reject" data-id="${pending.id}">رفض</button>` : ''}
+            ${(isAdmin || pending.from_agent_id === state.me.id) ? `
+              <button class="btn btn--quiet btn--sm" data-transfer="cancel" data-id="${pending.id}">سحب الطلب</button>` : ''}
+          </div>
+        </div>` : ''}
+
+      <div class="detail">
+        <div>
+          <div class="card">
+            <div class="card__head"><h2>بيانات الشحنة</h2></div>
+            <div class="card__body">
+              <dl class="kv">
+                <dt>العميل</dt><dd>${esc(order.customer_name)}</dd>
+                <dt>الهاتف</dt><dd><a href="tel:${esc(order.customer_phone)}" dir="ltr">${esc(order.customer_phone)}</a></dd>
+                <dt>الاستلام</dt><dd>${esc(order.pickup_address)}</dd>
+                <dt>التسليم</dt><dd>${esc(order.dropoff_address)}</dd>
+                <dt>المحافظة</dt><dd>${esc(order.governorate)}</dd>
+                <dt>المركبة</dt><dd>${esc(vehicleName(order.vehicle))}</dd>
+                <dt>التحصيل</dt><dd class="num">${money(order.cod_amount)} د.ك</dd>
+                <dt>رسوم التوصيل</dt><dd class="num">${money(order.delivery_fee)} د.ك</dd>
+                <dt>المندوب</dt><dd>${order.agent_name ? esc(order.agent_name) : 'غير مُسند'}</dd>
+                ${order.notes ? `<dt>ملاحظات</dt><dd>${esc(order.notes)}</dd>` : ''}
+                ${order.failure_reason ? `<dt>سبب التعذّر</dt><dd>${esc(order.failure_reason)}</dd>` : ''}
+                <dt>أُنشئ</dt><dd>${esc(fmtDate(order.created_at))}</dd>
+                ${order.delivered_at ? `<dt>سُلّم</dt><dd>${esc(fmtDate(order.delivered_at))}</dd>` : ''}
+              </dl>
+            </div>
+          </div>
+
+          ${(canAct || canTransfer || isAdmin) ? `
+          <div class="card">
+            <div class="card__head"><h2>الإجراءات</h2></div>
+            <div class="card__body">
+              <div class="btn-row">
+                ${order.allowed_next.map((s) =>
+                  `<button class="btn ${['delivered'].includes(s) ? 'btn--primary' : ['failed', 'cancelled'].includes(s) ? 'btn--danger' : 'btn--ghost'} btn--sm"
+                           data-status="${s}">${esc(state.meta.statuses[s])}</button>`).join('')}
+                ${canTransfer ? '<button class="btn btn--accent btn--sm" data-open="transfer">تحويل لزميل</button>' : ''}
+                ${isAdmin ? '<button class="btn btn--quiet btn--sm" data-open="assign">إسناد لمندوب</button>' : ''}
+              </div>
+              ${!canAct && !canTransfer && !isAdmin ? '<p style="margin:.6rem 0 0;color:var(--ink-soft)">لا توجد إجراءات متاحة على هذا الطلب.</p>' : ''}
+            </div>
+          </div>` : ''}
+        </div>
+
+        <div class="card">
+          <div class="card__head"><h2>سجل الطلب</h2></div>
+          <div class="card__body">
+            <ul class="timeline">${order.events.map(eventRow).join('')}</ul>
+          </div>
+        </div>
+      </div>`;
+
+    bindTransferActions(el.view);
+
+    el.view.querySelectorAll('[data-status]').forEach((btn) => {
+      btn.addEventListener('click', () => promptStatus(order, btn.dataset.status));
+    });
+    const tBtn = el.view.querySelector('[data-open="transfer"]');
+    if (tBtn) tBtn.addEventListener('click', () => promptTransfer(order));
+    const aBtn = el.view.querySelector('[data-open="assign"]');
+    if (aBtn) aBtn.addEventListener('click', () => promptAssign(order));
+  }
+
+  function promptStatus(order, status) {
+    const needsNote = status === 'failed';
+    openModal(`تغيير الحالة إلى «${state.meta.statuses[status]}»`, `
+      <form id="statusForm">
+        <label class="field">
+          <span>ملاحظة${needsNote ? ' (مطلوبة)' : ' (اختيارية)'}</span>
+          <textarea name="note" placeholder="${needsNote ? 'اكتب سبب تعذّر التسليم' : 'أي تفاصيل تودّ تسجيلها'}"${needsNote ? ' required' : ''}></textarea>
+        </label>
+        <p class="form-msg" id="statusMsg"></p>
+        <button class="btn btn--primary btn--block" type="submit">تأكيد</button>
+      </form>`, (body) => {
+      body.querySelector('#statusForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const note = e.target.note.value.trim();
+        const msg = body.querySelector('#statusMsg');
+        if (needsNote && !note) { msg.textContent = 'السبب مطلوب'; msg.className = 'form-msg is-bad'; return; }
+        await submit(e.target, msg, async () => {
+          await api(`/orders/${order.id}/status`, { method: 'PATCH', body: { status, note } });
+          closeModal();
+          toast('تم تحديث حالة الطلب', 'ok');
+          await refreshShared();
+          await renderOrderDetail(order.id);
+        });
+      });
+    });
+  }
+
+  function promptTransfer(order) {
+    const others = state.agents.filter((a) => a.role === 'agent' && a.active && a.id !== order.agent_id);
+    openModal('تحويل الطلب إلى زميل', `
+      <p style="color:var(--ink-soft);font-size:.88rem">
+        لن ينتقل الطلب حتى يقبله الزميل. يمكنك سحب الطلب قبل ردّه.
+      </p>
+      <form id="transferForm">
+        <label class="field">
+          <span>المندوب المستلِم</span>
+          <select name="to_agent_id" required>
+            <option value="">اختر مندوبًا…</option>
+            ${others.map((a) => `<option value="${a.id}">${esc(a.name)} — ${esc(state.meta.availability[a.availability])} (${ar(a.active_orders)} طلب نشط)</option>`).join('')}
+          </select>
+        </label>
+        <label class="field">
+          <span>سبب التحويل</span>
+          <textarea name="reason" required placeholder="مثال: العنوان أقرب لمنطقتك، أو عندي طلب عاجل آخر"></textarea>
+        </label>
+        <p class="form-msg" id="transferMsg"></p>
+        <button class="btn btn--accent btn--block" type="submit">إرسال طلب التحويل</button>
+      </form>`, (body) => {
+      body.querySelector('#transferForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const msg = body.querySelector('#transferMsg');
+        await submit(e.target, msg, async () => {
+          await api(`/orders/${order.id}/transfer`, {
+            method: 'POST',
+            body: {
+              to_agent_id: Number(e.target.to_agent_id.value),
+              reason: e.target.reason.value.trim(),
+            },
+          });
+          closeModal();
+          toast('أُرسل طلب التحويل، بانتظار ردّ الزميل', 'ok');
+          await refreshShared();
+          await renderOrderDetail(order.id);
+        });
+      });
+    });
+  }
+
+  function promptAssign(order) {
+    const options = state.agents.filter((a) => a.role === 'agent' && a.active && a.id !== order.agent_id);
+    openModal('إسناد الطلب لمندوب', `
+      <form id="assignForm">
+        <label class="field">
+          <span>المندوب</span>
+          <select name="agent_id" required>
+            <option value="">اختر مندوبًا…</option>
+            ${options.map((a) => `<option value="${a.id}">${esc(a.name)} — ${esc(a.governorate || 'بلا منطقة')} (${ar(a.active_orders)} طلب نشط)</option>`).join('')}
+          </select>
+        </label>
+        <label class="field">
+          <span>ملاحظة (اختيارية)</span>
+          <textarea name="note" placeholder="سبب الإسناد أو إعادة التوزيع"></textarea>
+        </label>
+        <p class="form-msg" id="assignMsg"></p>
+        <button class="btn btn--primary btn--block" type="submit">إسناد</button>
+      </form>`, (body) => {
+      body.querySelector('#assignForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const msg = body.querySelector('#assignMsg');
+        await submit(e.target, msg, async () => {
+          await api(`/orders/${order.id}/assign`, {
+            method: 'POST',
+            body: { agent_id: Number(e.target.agent_id.value), note: e.target.note.value.trim() },
+          });
+          closeModal();
+          toast('تم إسناد الطلب', 'ok');
+          await refreshShared();
+          await renderOrderDetail(order.id);
+        });
+      });
+    });
+  }
+
+  /* ---- التحويلات ---- */
+
+  function transferCard(t) {
+    const isIncoming = t.to_agent_id === state.me.id;
+    const canRespond = t.status === 'pending' && (isIncoming || state.me.role === 'admin');
+    const canCancel = t.status === 'pending' && (t.from_agent_id === state.me.id || state.me.role === 'admin');
+    return `
+      <div class="order" style="cursor:default">
+        <div class="order__top">
+          <a class="order__code num" href="#/orders/${t.order_id}">${esc(t.code)}</a>
+          <span class="badge badge--${t.status === 'pending' ? 'pending' : t.status === 'accepted' ? 'delivered' : t.status === 'rejected' ? 'rejected' : 'offline'}">
+            ${esc({ pending: 'بانتظار الردّ', accepted: 'مقبول', rejected: 'مرفوض', cancelled: 'مسحوب' }[t.status])}
+          </span>
+          ${t.priority === 'urgent' ? '<span class="badge badge--urgent">عاجل</span>' : ''}
+        </div>
+        <div class="order__customer">${esc(t.customer_name)}</div>
+        <div class="order__route">
+          ${isIncoming ? 'من' : 'إلى'} <b>${esc(isIncoming ? t.from_name : t.to_name)}</b>
+          — «${esc(t.reason)}»
+        </div>
+        <div class="order__meta">
+          <span>${esc(t.dropoff_address)}</span>
+          <span>${esc(t.governorate)}</span>
+          ${t.cod_amount > 0 ? `<span>تحصيل <b class="num">${money(t.cod_amount)}</b> د.ك</span>` : ''}
+          <span>${esc(relTime(t.created_at))}</span>
+        </div>
+        ${t.response_note ? `<div class="order__route">الردّ: «${esc(t.response_note)}»</div>` : ''}
+        ${(canRespond || canCancel) ? `
+          <div class="btn-row" style="margin-top:.7rem">
+            ${canRespond && isIncoming || (canRespond && state.me.role === 'admin') ? `
+              <button class="btn btn--primary btn--sm" data-transfer="accept" data-id="${t.id}">قبول</button>
+              <button class="btn btn--danger btn--sm" data-transfer="reject" data-id="${t.id}">رفض</button>` : ''}
+            ${canCancel ? `<button class="btn btn--quiet btn--sm" data-transfer="cancel" data-id="${t.id}">سحب</button>` : ''}
+          </div>` : ''}
+      </div>`;
+  }
+
+  async function renderTransfers() {
+    el.view.innerHTML = `<div class="page-head"><div><h1>التحويلات</h1></div></div>${skeleton(3)}`;
+    const [inbox, outbox] = await Promise.all([
+      api('/transfers?box=inbox'),
+      api('/transfers?box=outbox'),
+    ]);
+
+    el.view.innerHTML = `
+      <div class="page-head">
+        <div>
+          <h1>التحويلات</h1>
+          <p>الطلبات التي يريد زملاؤك تحويلها إليك، والطلبات التي حوّلتها أنت.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__head"><h2>محوّلة إليّ</h2></div>
+        <div class="card__body">
+          ${inbox.transfers.length
+            ? `<div class="orders">${inbox.transfers.map(transferCard).join('')}</div>`
+            : emptyState('لا توجد تحويلات واردة', 'ستظهر هنا الطلبات التي يحوّلها الزملاء إليك.')}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__head"><h2>حوّلتها أنا</h2></div>
+        <div class="card__body">
+          ${outbox.transfers.length
+            ? `<div class="orders">${outbox.transfers.map(transferCard).join('')}</div>`
+            : emptyState('لم تحوّل أي طلب بعد', 'افتح أي طلب مسند إليك واضغط «تحويل لزميل».')}
+        </div>
+      </div>`;
+
+    bindTransferActions(el.view);
+  }
+
+  function bindTransferActions(root) {
+    root.querySelectorAll('[data-transfer]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const action = btn.dataset.transfer;
+        const id = btn.dataset.id;
+        const labels = { accept: 'قبول التحويل', reject: 'رفض التحويل', cancel: 'سحب طلب التحويل' };
+        openModal(labels[action], `
+          <form id="respForm">
+            <label class="field">
+              <span>ملاحظة (اختيارية)</span>
+              <textarea name="note" placeholder="${action === 'reject' ? 'سبب الرفض' : 'أي ملاحظة للزميل'}"></textarea>
+            </label>
+            <p class="form-msg" id="respMsg"></p>
+            <button class="btn ${action === 'accept' ? 'btn--primary' : action === 'reject' ? 'btn--danger' : 'btn--quiet'} btn--block" type="submit">
+              تأكيد
+            </button>
+          </form>`, (body) => {
+          body.querySelector('#respForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const msg = body.querySelector('#respMsg');
+            await submit(e.target, msg, async () => {
+              await api(`/transfers/${id}/${action}`, { method: 'POST', body: { note: e.target.note.value.trim() } });
+              closeModal();
+              toast({ accept: 'تم قبول التحويل، الطلب صار لك', reject: 'تم رفض التحويل', cancel: 'تم سحب طلب التحويل' }[action], 'ok');
+              await refreshShared();
+              await router();
+            });
+          });
+        });
+      });
+    });
+  }
+
+  /* ---- المندوبون (للمدير) ---- */
+
+  async function renderAgents() {
+    if (state.me.role !== 'admin') { location.hash = '#/'; return; }
+    el.view.innerHTML = `<div class="page-head"><div><h1>المندوبون</h1></div></div>${skeleton(2)}`;
+    await refreshShared();
+
+    el.view.innerHTML = `
+      <div class="page-head">
+        <div><h1>المندوبون</h1><p>إدارة الحسابات والأحمال الحالية.</p></div>
+        <button class="btn btn--accent" id="addAgent" type="button">+ حساب جديد</button>
+      </div>
+
+      <div class="card">
+        <div class="card__body card__body--flush">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>الاسم</th><th>اسم المستخدم</th><th>الدور</th><th>المركبة</th>
+                  <th>المنطقة</th><th>الحالة</th><th>طلبات نشطة</th><th>الهاتف</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${state.agents.map((a) => `
+                  <tr>
+                    <td><b>${esc(a.name)}</b></td>
+                    <td dir="ltr">${esc(a.username)}</td>
+                    <td>${esc(state.meta.roles[a.role])}</td>
+                    <td>${esc(vehicleName(a.vehicle))}</td>
+                    <td>${esc(a.governorate || '—')}</td>
+                    <td>
+                      <span class="badge badge--${a.availability}">${esc(state.meta.availability[a.availability])}</span>
+                      ${a.active ? '' : '<span class="badge badge--cancelled">معطّل</span>'}
+                    </td>
+                    <td class="num">${ar(a.active_orders)}</td>
+                    <td dir="ltr">${esc(a.phone || '—')}</td>
+                    <td>
+                      <button class="btn btn--ghost btn--sm" data-edit="${a.id}" type="button">تعديل</button>
+                    </td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
+
+    document.getElementById('addAgent').addEventListener('click', promptNewAgent);
+    el.view.querySelectorAll('[data-edit]').forEach((b) =>
+      b.addEventListener('click', () => promptEditAgent(state.agents.find((a) => a.id === Number(b.dataset.edit)))));
+  }
+
+  function agentFormFields(a = {}) {
+    return `
+      <div class="form-grid">
+        <label class="field"><span>الاسم الكامل</span><input name="name" required value="${esc(a.name || '')}"></label>
+        <label class="field"><span>رقم الهاتف</span><input name="phone" dir="ltr" value="${esc(a.phone || '')}"></label>
+        <label class="field">
+          <span>نوع المركبة</span>
+          <select name="vehicle">
+            ${Object.entries(state.meta.vehicles).map(([k, v]) =>
+              `<option value="${k}"${a.vehicle === k ? ' selected' : ''}>${esc(v)}</option>`).join('')}
+          </select>
+        </label>
+        <label class="field">
+          <span>منطقة العمل</span>
+          <select name="governorate">
+            <option value="">بلا تحديد</option>
+            ${state.meta.governorates.map((g) =>
+              `<option value="${esc(g)}"${a.governorate === g ? ' selected' : ''}>${esc(g)}</option>`).join('')}
+          </select>
+        </label>
+      </div>`;
+  }
+
+  function promptNewAgent() {
+    openModal('إضافة حساب جديد', `
+      <form id="agentForm">
+        ${agentFormFields()}
+        <div class="form-grid">
+          <label class="field">
+            <span>اسم المستخدم</span>
+            <input name="username" dir="ltr" required placeholder="ahmad" pattern="[a-z0-9._-]+">
+            <small>حروف لاتينية صغيرة وأرقام فقط</small>
+          </label>
+          <label class="field"><span>كلمة المرور</span><input name="password" type="password" required minlength="6"></label>
+          <label class="field field--full">
+            <span>الدور</span>
+            <select name="role">
+              <option value="agent">مندوب توصيل</option>
+              <option value="admin">مدير عمليات</option>
+            </select>
+          </label>
+        </div>
+        <p class="form-msg" id="agentMsg"></p>
+        <button class="btn btn--primary btn--block" type="submit">إنشاء الحساب</button>
+      </form>`, (body) => {
+      body.querySelector('#agentForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const msg = body.querySelector('#agentMsg');
+        const fd = Object.fromEntries(new FormData(e.target));
+        await submit(e.target, msg, async () => {
+          await api('/agents', { method: 'POST', body: fd });
+          closeModal();
+          toast('تم إنشاء الحساب', 'ok');
+          await renderAgents();
+        });
+      });
+    });
+  }
+
+  function promptEditAgent(a) {
+    if (!a) return;
+    openModal(`تعديل: ${a.name}`, `
+      <form id="agentForm">
+        ${agentFormFields(a)}
+        <label class="field">
+          <span>كلمة مرور جديدة (اتركها فارغة لعدم التغيير)</span>
+          <input name="password" type="password" minlength="6" autocomplete="new-password">
+        </label>
+        <label class="field" style="flex-direction:row;align-items:center;gap:.5rem">
+          <input type="checkbox" name="active" style="width:auto" ${a.active ? 'checked' : ''}>
+          <span>الحساب مفعّل</span>
+        </label>
+        <p class="form-msg" id="agentMsg"></p>
+        <button class="btn btn--primary btn--block" type="submit">حفظ التعديلات</button>
+      </form>`, (body) => {
+      body.querySelector('#agentForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const msg = body.querySelector('#agentMsg');
+        const fd = Object.fromEntries(new FormData(e.target));
+        fd.active = e.target.active.checked;
+        if (!fd.password) delete fd.password;
+        await submit(e.target, msg, async () => {
+          await api('/agents/' + a.id, { method: 'PATCH', body: fd });
+          closeModal();
+          toast('تم حفظ التعديلات', 'ok');
+          await renderAgents();
+        });
+      });
+    });
+  }
+
+  /* ---- طلب جديد (للمدير) ---- */
+
+  async function renderNewOrder() {
+    if (state.me.role !== 'admin') { location.hash = '#/'; return; }
+    await refreshShared();
+
+    el.view.innerHTML = `
+      <div class="page-head"><div><h1>طلب جديد</h1><p>سجّل شحنة جديدة وأسندها لمندوب مباشرةً أو اتركها بانتظار الإسناد.</p></div></div>
+      <div class="card">
+        <div class="card__body">
+          <form id="orderForm">
+            <div class="form-grid">
+              <label class="field"><span>اسم العميل</span><input name="customer_name" required></label>
+              <label class="field"><span>هاتف العميل</span><input name="customer_phone" dir="ltr" required placeholder="+965…"></label>
+              <label class="field field--full"><span>عنوان الاستلام</span><input name="pickup_address" required placeholder="المنطقة، القطعة، الشارع، المبنى"></label>
+              <label class="field field--full"><span>عنوان التسليم</span><input name="dropoff_address" required placeholder="المنطقة، القطعة، الشارع، المبنى"></label>
+              <label class="field">
+                <span>المحافظة</span>
+                <select name="governorate" required>
+                  <option value="">اختر…</option>
+                  ${state.meta.governorates.map((g) => `<option value="${esc(g)}">${esc(g)}</option>`).join('')}
+                </select>
+              </label>
+              <label class="field">
+                <span>نوع المركبة</span>
+                <select name="vehicle">
+                  ${Object.entries(state.meta.vehicles).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}
+                </select>
+              </label>
+              <label class="field"><span>المبلغ المطلوب تحصيله (د.ك)</span><input name="cod_amount" type="number" step="0.001" min="0" value="0" dir="ltr"></label>
+              <label class="field"><span>رسوم التوصيل (د.ك)</span><input name="delivery_fee" type="number" step="0.001" min="0" value="1.5" dir="ltr"></label>
+              <label class="field">
+                <span>الأولوية</span>
+                <select name="priority">
+                  <option value="normal">عادي</option>
+                  <option value="urgent">عاجل</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>إسناد لمندوب (اختياري)</span>
+                <select name="agent_id">
+                  <option value="">بانتظار الإسناد</option>
+                  ${state.agents.filter((a) => a.role === 'agent' && a.active).map((a) =>
+                    `<option value="${a.id}">${esc(a.name)} — ${ar(a.active_orders)} طلب نشط</option>`).join('')}
+                </select>
+              </label>
+              <label class="field field--full"><span>ملاحظات للمندوب</span><textarea name="notes" placeholder="تفاصيل الشحنة، تعليمات التسليم…"></textarea></label>
+            </div>
+            <p class="form-msg" id="orderMsg"></p>
+            <button class="btn btn--primary btn--lg" type="submit">إنشاء الطلب</button>
+          </form>
+        </div>
+      </div>`;
+
+    document.getElementById('orderForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('orderMsg');
+      const fd = Object.fromEntries(new FormData(e.target));
+      if (!fd.agent_id) delete fd.agent_id;
+      await submit(e.target, msg, async () => {
+        const { order } = await api('/orders', { method: 'POST', body: fd });
+        toast(`تم إنشاء الطلب ${order.code}`, 'ok');
+        location.hash = '#/orders/' + order.id;
+      });
+    });
+  }
+
+  /* --------------------------- إرسال النماذج --------------------------- */
+
+  async function submit(form, msgNode, fn) {
+    const button = form.querySelector('button[type=submit]');
+    const original = button ? button.textContent : '';
+    if (button) { button.disabled = true; button.textContent = 'جارٍ التنفيذ…'; }
+    if (msgNode) { msgNode.textContent = ''; msgNode.className = 'form-msg'; }
+    try {
+      await fn();
+    } catch (err) {
+      if (msgNode) { msgNode.textContent = err.message; msgNode.className = 'form-msg is-bad'; }
+      else toast(err.message, 'bad');
+    } finally {
+      if (button) { button.disabled = false; button.textContent = original; }
+    }
+  }
+
+  /* ------------------------------ الجلسة ------------------------------ */
+
+  function showLogin() {
+    el.app.hidden = true;
+    el.login.hidden = false;
+    state.me = null;
+  }
+
+  async function showApp() {
+    el.login.hidden = true;
+    el.app.hidden = false;
+
+    el.whoName.textContent = state.me.name;
+    el.whoRole.textContent = state.meta.roles[state.me.role];
+
+    const isAgent = state.me.role === 'agent';
+    el.availWrap.hidden = !isAgent;
+    if (isAgent) el.availSelect.value = state.me.availability;
+
+    await refreshShared();
+    await router();
+  }
+
+  async function logout(silent) {
+    try { if (!silent) await api('/auth/logout', { method: 'POST' }); } catch { /* تجاهل */ }
+    state.me = null;
+    location.hash = '';
+    showLogin();
+    if (!silent) toast('تم تسجيل الخروج');
+  }
+
+  el.logout.addEventListener('click', () => logout(false));
+
+  el.availSelect.addEventListener('change', async (e) => {
+    try {
+      const { agent } = await api('/me/availability', { method: 'PATCH', body: { availability: e.target.value } });
+      state.me = agent;
+      toast('تم تحديث حالتك إلى: ' + state.meta.availability[agent.availability], 'ok');
+    } catch (err) {
+      toast(err.message, 'bad');
+      e.target.value = state.me.availability;
+    }
+  });
+
+  el.loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = el.loginMsg;
+    await submit(e.target, msg, async () => {
+      const { agent } = await api('/auth/login', {
+        method: 'POST',
+        body: { username: e.target.username.value.trim(), password: e.target.password.value },
+      });
+      state.me = agent;
+      e.target.reset();
+      await showApp();
+    });
+  });
+
+  window.addEventListener('hashchange', router);
+
+  /* تحديث تلقائي كل ٤٥ ثانية للصفحة الحالية */
+  setInterval(async () => {
+    if (!state.me || document.hidden || !el.modal.hidden) return;
+    try { await refreshShared(); } catch { /* تجاهل */ }
+  }, 45000);
+
+  /* ------------------------------ الإقلاع ------------------------------ */
+
+  (async function boot() {
+    try {
+      state.meta = await api('/meta');
+    } catch {
+      document.body.innerHTML = '<p style="padding:2rem;text-align:center">تعذّر الاتصال بالخادم.</p>';
+      return;
+    }
+    try {
+      const { agent } = await api('/auth/me');
+      state.me = agent;
+      await showApp();
+    } catch {
+      showLogin();
+    }
+  })();
+})();
