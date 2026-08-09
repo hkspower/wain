@@ -302,7 +302,9 @@ export class GameEngine {
       this.player.s = Math.max(0, opts.startS);
     }
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Full native resolution — on a 4K panel this renders 4K, not an
+    // upscaled 1080p. Adaptive quality drops it if the GPU can't hold up.
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3));
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;

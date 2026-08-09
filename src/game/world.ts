@@ -140,46 +140,184 @@ function buildWall(
   return geo;
 }
 
-function asphaltTexture(): THREE.CanvasTexture {
-  const c = document.createElement("canvas");
-  c.width = 256;
-  c.height = 256;
-  const ctx = c.getContext("2d")!;
-  ctx.fillStyle = "#1d1f24";
-  ctx.fillRect(0, 0, 256, 256);
-  // Aggregate speckle
-  for (let i = 0; i < 5200; i++) {
-    const g = 24 + Math.random() * 36;
-    ctx.fillStyle = `rgba(${g},${g},${g + 4},${0.25 + Math.random() * 0.5})`;
-    ctx.fillRect(Math.random() * 256, Math.random() * 256, 1.4, 1.4);
+/** High-detail asphalt built in a typed array rather than with tens of
+ *  thousands of canvas paths — same look, ~100 ms instead of ~30 s.
+ *  Returns the colour map and a matching normal map generated from the
+ *  identical height field, so lighting lines up with the aggregate.
+ *  Tiles every ~14 m of road. */
+function asphaltSurface(): { map: THREE.CanvasTexture; normalMap: THREE.CanvasTexture } {
+  const S = 1024;
+
+  // --- cheap tileable value noise -------------------------------------
+  const hash = (x: number, y: number) => {
+    let h = (x * 374761393 + y * 668265263) | 0;
+    h = (h ^ (h >> 13)) * 1274126177;
+    return ((h ^ (h >> 16)) >>> 0) / 4294967295;
+  };
+  const smooth = (t: number) => t * t * (3 - 2 * t);
+  const valueNoise = (x: number, y: number, period: number) => {
+    const fx = x / period;
+    const fy = y / period;
+    const x0 = Math.floor(fx);
+    const y0 = Math.floor(fy);
+    const tx = smooth(fx - x0);
+    const ty = smooth(fy - y0);
+    const w = Math.max(1, Math.round(S / period)); // wrap for seamless tiling
+    const a = hash((x0 % w + w) % w, (y0 % w + w) % w);
+    const b = hash(((x0 + 1) % w + w) % w, (y0 % w + w) % w);
+    const c = hash((x0 % w + w) % w, ((y0 + 1) % w + w) % w);
+    const d = hash(((x0 + 1) % w + w) % w, ((y0 + 1) % w + w) % w);
+    return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
+  };
+
+  // --- height field: coarse swells + three aggregate grades ------------
+  // Each octave is rendered into its own row-cached pass so the inner
+  // loop stays a handful of arithmetic ops per pixel.
+  const height = new Float32Array(S * S);
+  const octaves: Array<[number, number]> = [
+    [128, 0.34],
+    [32, 0.26],
+    [8, 0.24],
+    [3, 0.16],
+  ];
+  for (const [period, amp] of octaves) {
+    for (let y = 0; y < S; y++) {
+      const row = y * S;
+      for (let x = 0; x < S; x++) {
+        height[row + x] += valueNoise(x, y, period) * amp;
+      }
+    }
   }
-  // Tire-polished wear bands where the wheels run in each lane
-  ctx.fillStyle = "rgba(12,13,16,0.5)";
+
+  // --- colour map from the same field ---------------------------------
+  const c = document.createElement("canvas");
+  c.width = c.height = S;
+  const ctx = c.getContext("2d")!;
+  const img = ctx.createImageData(S, S);
+  for (let i = 0; i < S * S; i++) {
+    const h = height[i];
+    // dark binder with lighter stones poking through
+    const stone = Math.max(0, h - 0.52) * 2.1;
+    const v = 22 + h * 26 + stone * 74;
+    img.data[i * 4] = v;
+    img.data[i * 4 + 1] = v + 1;
+    img.data[i * 4 + 2] = v + 5;
+    img.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+
+  // --- structural detail (few ops, drawn over the grain) ---------------
+  // Tyre-polished wear bands where the wheels track in each lane
   for (const u of [0.125, 0.375, 0.625, 0.875]) {
     for (const off of [-0.045, 0.045]) {
-      ctx.fillRect((u + off) * 256 - 5, 0, 10, 256);
+      const x = (u + off) * S;
+      const g = ctx.createLinearGradient(x - 24, 0, x + 24, 0);
+      g.addColorStop(0, "rgba(10,11,14,0)");
+      g.addColorStop(0.5, "rgba(10,11,14,0.45)");
+      g.addColorStop(1, "rgba(10,11,14,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(x - 24, 0, 48, S);
     }
   }
-  // Cracks and patches
-  ctx.strokeStyle = "rgba(10,10,12,0.55)";
-  ctx.lineWidth = 1;
-  for (let i = 0; i < 7; i++) {
+
+  // Patched repairs with ragged edges
+  for (let i = 0; i < 4; i++) {
+    const w = 90 + Math.random() * 240;
+    const hgt = 80 + Math.random() * 200;
+    const x = Math.random() * (S - w);
+    const y = Math.random() * (S - hgt);
+    ctx.fillStyle = "rgba(14,15,19,0.7)";
     ctx.beginPath();
-    let x = Math.random() * 256;
-    let y = Math.random() * 256;
     ctx.moveTo(x, y);
-    for (let j = 0; j < 6; j++) {
-      x += (Math.random() - 0.5) * 40;
-      y += Math.random() * 30;
-      ctx.lineTo(x, y);
+    for (let k = 0; k <= 12; k++) ctx.lineTo(x + (w * k) / 12, y + (Math.random() - 0.5) * 9);
+    for (let k = 0; k <= 12; k++) ctx.lineTo(x + w + (Math.random() - 0.5) * 9, y + (hgt * k) / 12);
+    for (let k = 12; k >= 0; k--) ctx.lineTo(x + (w * k) / 12, y + hgt + (Math.random() - 0.5) * 9);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Crack networks with branches
+  const crack = (x: number, y: number, len: number, angle: number, depth: number) => {
+    ctx.strokeStyle = `rgba(${8 + depth * 5},${9 + depth * 5},${11 + depth * 5},${0.8 - depth * 0.2})`;
+    ctx.lineWidth = Math.max(0.7, 2.6 - depth * 0.8);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    let cx = x;
+    let cy = y;
+    let a = angle;
+    const steps = 8;
+    for (let i = 0; i < steps; i++) {
+      a += (Math.random() - 0.5) * 0.6;
+      cx += Math.cos(a) * (len / steps);
+      cy += Math.sin(a) * (len / steps);
+      ctx.lineTo(cx, cy);
     }
     ctx.stroke();
+    if (depth < 2 && Math.random() < 0.8) {
+      crack(cx, cy, len * 0.55, a + (Math.random() < 0.5 ? 0.9 : -0.9), depth + 1);
+    }
+  };
+  for (let i = 0; i < 10; i++) {
+    crack(Math.random() * S, Math.random() * S, 110 + Math.random() * 240, Math.random() * 6.28, 0);
   }
-  const tex = new THREE.CanvasTexture(c);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
-  return tex;
+
+  // Sealed tar seams
+  for (let i = 0; i < 3; i++) {
+    ctx.strokeStyle = "rgba(6,6,8,0.8)";
+    ctx.lineWidth = 4 + Math.random() * 4;
+    ctx.beginPath();
+    const y0 = Math.random() * S;
+    ctx.moveTo(0, y0);
+    for (let x = 0; x <= S; x += 48) ctx.lineTo(x, y0 + Math.sin(x * 0.02) * 6);
+    ctx.stroke();
+  }
+
+  // Oil drips down the lane centres
+  for (let i = 0; i < 20; i++) {
+    const x = [0.25, 0.5, 0.75][i % 3] * S + (Math.random() - 0.5) * 60;
+    const y = Math.random() * S;
+    const r = 6 + Math.random() * 22;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, "rgba(4,4,6,0.5)");
+    g.addColorStop(1, "rgba(4,4,6,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+
+  const map = new THREE.CanvasTexture(c);
+  map.wrapS = map.wrapT = THREE.RepeatWrapping;
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.anisotropy = 16;
+
+  // --- normal map straight from the height field (single fast pass) ----
+  const nc = document.createElement("canvas");
+  nc.width = nc.height = S;
+  const nctx = nc.getContext("2d")!;
+  const nimg = nctx.createImageData(S, S);
+  const strength = 2.6;
+  for (let y = 0; y < S; y++) {
+    const yp = ((y + 1) % S) * S;
+    const ym = ((y - 1 + S) % S) * S;
+    const yc = y * S;
+    for (let x = 0; x < S; x++) {
+      const xp = (x + 1) % S;
+      const xm = (x - 1 + S) % S;
+      const dx = (height[yc + xp] - height[yc + xm]) * strength;
+      const dy = (height[yp + x] - height[ym + x]) * strength;
+      const len = Math.hypot(dx, dy, 1);
+      const o = (yc + x) * 4;
+      nimg.data[o] = ((-dx / len) * 0.5 + 0.5) * 255;
+      nimg.data[o + 1] = ((-dy / len) * 0.5 + 0.5) * 255;
+      nimg.data[o + 2] = (1 / len) * 0.5 * 255 + 127;
+      nimg.data[o + 3] = 255;
+    }
+  }
+  nctx.putImageData(nimg, 0, 0);
+  const normalMap = new THREE.CanvasTexture(nc);
+  normalMap.wrapS = normalMap.wrapT = THREE.RepeatWrapping;
+  normalMap.anisotropy = 16;
+
+  return { map, normalMap };
 }
 
 function seaTexture(): THREE.CanvasTexture {
@@ -235,76 +373,6 @@ function glowTexture(r: number, g: number, b: number): THREE.CanvasTexture {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 128, 128);
   return new THREE.CanvasTexture(c);
-}
-
-/** Sobel-filter a grayscale canvas into a tangent-space normal map. */
-function normalMapFrom(c: HTMLCanvasElement, strength = 2.2): THREE.CanvasTexture {
-  const w = c.width;
-  const h = c.height;
-  const src = c.getContext("2d")!.getImageData(0, 0, w, h).data;
-  const out = document.createElement("canvas");
-  out.width = w;
-  out.height = h;
-  const ctx = out.getContext("2d")!;
-  const img = ctx.createImageData(w, h);
-  const lum = (x: number, y: number) =>
-    src[(((y + h) % h) * w + ((x + w) % w)) * 4] / 255;
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const dx =
-        lum(x + 1, y - 1) + 2 * lum(x + 1, y) + lum(x + 1, y + 1) -
-        (lum(x - 1, y - 1) + 2 * lum(x - 1, y) + lum(x - 1, y + 1));
-      const dy =
-        lum(x - 1, y + 1) + 2 * lum(x, y + 1) + lum(x + 1, y + 1) -
-        (lum(x - 1, y - 1) + 2 * lum(x, y - 1) + lum(x + 1, y - 1));
-      const n = new THREE.Vector3(-dx * strength, -dy * strength, 1).normalize();
-      const o = (y * w + x) * 4;
-      img.data[o] = (n.x * 0.5 + 0.5) * 255;
-      img.data[o + 1] = (n.y * 0.5 + 0.5) * 255;
-      img.data[o + 2] = (n.z * 0.5 + 0.5) * 255;
-      img.data[o + 3] = 255;
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-  const tex = new THREE.CanvasTexture(out);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  return tex;
-}
-
-/** Grayscale height canvas for the asphalt normal map: blurred undulations
- *  with a whisper of fine grain — raw noise would Sobel into glitter. */
-function asphaltHeightCanvas(): HTMLCanvasElement {
-  const c = document.createElement("canvas");
-  c.width = 256;
-  c.height = 256;
-  const ctx = c.getContext("2d")!;
-  ctx.fillStyle = "#808080";
-  ctx.fillRect(0, 0, 256, 256);
-  for (let i = 0; i < 1400; i++) {
-    const g = 96 + Math.random() * 70;
-    ctx.fillStyle = `rgb(${g},${g},${g})`;
-    ctx.globalAlpha = 0.35 + Math.random() * 0.4;
-    ctx.fillRect(Math.random() * 256, Math.random() * 256, 2 + Math.random() * 4, 2 + Math.random() * 4);
-  }
-  ctx.globalAlpha = 1;
-  // Box-blur via downscale/upscale round trips
-  const small = document.createElement("canvas");
-  small.width = 64;
-  small.height = 64;
-  const sctx = small.getContext("2d")!;
-  sctx.imageSmoothingEnabled = true;
-  sctx.drawImage(c, 0, 0, 64, 64);
-  ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(small, 0, 0, 256, 256);
-  // Faint fine grain back on top
-  for (let i = 0; i < 1800; i++) {
-    const g = 100 + Math.random() * 60;
-    ctx.fillStyle = `rgb(${g},${g},${g})`;
-    ctx.globalAlpha = 0.1;
-    ctx.fillRect(Math.random() * 256, Math.random() * 256, 1.4, 1.4);
-  }
-  ctx.globalAlpha = 1;
-  return c;
 }
 
 function concreteTexture(): THREE.CanvasTexture {
@@ -976,39 +1044,40 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // Road surface — textured asphalt with a faintly damp sheen so the
   // streetlights and skyline catch on it; darker (tire-polished) areas
   // read as smoother via the roughness map
-  const asphalt = asphaltTexture();
-  const asphaltNormals = normalMapFrom(asphaltHeightCanvas(), 1.1);
+  const { map: asphalt, normalMap: asphaltNormals } = asphaltSurface();
   const road = new THREE.Mesh(
-    buildRibbon(track, -ROAD_HALF_WIDTH, ROAD_HALF_WIDTH, 0.02, 6),
+    buildRibbon(track, -ROAD_HALF_WIDTH, ROAD_HALF_WIDTH, 0.02, 3),
     new THREE.MeshStandardMaterial({
       map: asphalt,
       roughnessMap: asphalt,
       normalMap: asphaltNormals,
-      normalScale: new THREE.Vector2(0.3, 0.3),
+      normalScale: new THREE.Vector2(0.55, 0.55),
       color: 0xffffff,
-      roughness: 0.8,
-      metalness: 0.25,
-      envMapIntensity: 0.9,
+      roughness: 0.72,
+      metalness: 0.3,
+      envMapIntensity: 1.15,
     })
   );
   road.receiveShadow = true;
   scene.add(road);
 
   const lineMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    emissive: 0xaaaaaa,
+    color: 0xf6f6f2,
+    emissive: 0xa8a8a0,
     emissiveIntensity: 0.5,
+    roughness: 0.5,
   });
-  scene.add(new THREE.Mesh(buildRibbon(track, -(ROAD_HALF_WIDTH - 0.35), -(ROAD_HALF_WIDTH - 0.15), 0.03), lineMat));
-  scene.add(new THREE.Mesh(buildRibbon(track, ROAD_HALF_WIDTH - 0.35, ROAD_HALF_WIDTH - 0.15, 0.03), lineMat));
+  scene.add(new THREE.Mesh(buildRibbon(track, -(ROAD_HALF_WIDTH - 0.35), -(ROAD_HALF_WIDTH - 0.15), 0.03, 4), lineMat));
+  scene.add(new THREE.Mesh(buildRibbon(track, ROAD_HALF_WIDTH - 0.35, ROAD_HALF_WIDTH - 0.15, 0.03, 4), lineMat));
 
   {
-    const dashGeo = new THREE.PlaneGeometry(0.18, 3);
+    const dashGeo = new THREE.PlaneGeometry(0.14, 3);
     dashGeo.rotateX(-Math.PI / 2);
     const dashMat = new THREE.MeshStandardMaterial({
-      color: 0xd8d8d8,
-      emissive: 0x888888,
-      emissiveIntensity: 0.4,
+      color: 0xf2f2ee,
+      emissive: 0x9a9a92,
+      emissiveIntensity: 0.45,
+      roughness: 0.55, // thermoplastic paint, slightly glossier than asphalt
     });
     const boundaries = [-3.5, 0, 3.5];
     const spacing = 14;
