@@ -153,8 +153,8 @@ def identity_checks():
     check(S, "the masthead flies the wide mark; the footer keeps the square",
           '<use href="#i-boum"/>' in home.split("<footer>")[0].split('class="brand"')[1]
           and '<use href="#i-sail"/>' in home.split("<footer>")[1])
-    check(S, "the header carries the mark, not an emoji or a letter",
-          '<use href="#i-sail"/>' in home)
+    check(S, "the page carries both forms of the mark, not an emoji or a letter",
+          '<use href="#i-boum"/>' in home and '<use href="#i-sail"/>' in home)
     check(S, "the wordmark is المهلب", '<span class="name">المهلب</span>' in home)
     check(S, "Almuhallab Code sits on its own line beneath المهلب",
           '<span class="en">Almuhallab&nbsp;Code</span>' in home

@@ -93,7 +93,8 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   eye. Text ≥ 4.5:1 (body ≥ 7:1) against the darkest surface it can land on;
   essential UI boundaries ≥ 3:1; chart marks ≥ 2:1.
 - **The company's real identity, from the live site**: the mark is a Kuwaiti
-  boum under way (`logo.svg`, and `#i-sail` in the page sprite), the
+  boum under way — wide form in `logo.svg`/`#i-boum` (masthead), square form in
+  `favicon.svg`/`#i-sail` (footer, tab) — the
   wordmark is **المهلب** in brand brown, and the palette is brown on white.
   النوخذة keeps the ⚓ anchor (`icon.svg`) — the company and the product are
   marked differently on purpose.
