@@ -279,7 +279,7 @@ export class GameEngine {
     // long moon shadows across the asphalt.
     const moon = this.world.moonLight;
     moon.castShadow = true;
-    moon.shadow.mapSize.set(2048, 2048);
+    moon.shadow.mapSize.set(4096, 4096);
     moon.shadow.camera.left = -90;
     moon.shadow.camera.right = 90;
     moon.shadow.camera.top = 90;
@@ -361,11 +361,22 @@ export class GameEngine {
     this.carBody = createCar({ body: 0xf2f4f7, accent: 0x007a3d });
     this.playerMesh = new THREE.Group();
     this.playerMesh.add(this.carBody);
+    // The contact blob must stay flat on the road — carBody pitches and
+    // rolls with weight transfer, which would tilt it into the asphalt
+    const contact = this.carBody.userData.contact as THREE.Object3D | undefined;
+    if (contact) this.playerMesh.add(contact);
     this.scene.add(this.playerMesh);
 
     this.headlight = new THREE.SpotLight(0xfff2cc, 90, 90, 0.42, 0.45, 1.4);
     this.headlight.position.set(0, 1.1, 1.8);
     this.headlight.target.position.set(0, 0, 40);
+    // Your own headlights throw real moving shadows off traffic and rails
+    this.headlight.castShadow = true;
+    this.headlight.shadow.mapSize.set(1024, 1024);
+    this.headlight.shadow.camera.near = 2;
+    // (shadow far is governed by the light's distance, 90 m)
+    this.headlight.shadow.bias = -0.002;
+    this.headlight.shadow.normalBias = 0.03;
     this.playerMesh.add(this.headlight, this.headlight.target);
 
     // Visible beam cones + a splash of light on the road ahead
@@ -517,6 +528,7 @@ export class GameEngine {
     if (this.fpsEma < 32) {
       this.bloomPass.enabled = false;
       this.world.moonLight.castShadow = false;
+      this.headlight.castShadow = false;
       this.fxaaPass.enabled = false;
       if (this.fpsEma < 18) {
         this.renderer.setPixelRatio(1);
@@ -638,6 +650,7 @@ export class GameEngine {
       this.qualityLocked = true;
       this.bloomPass.enabled = !this.bloomPass.enabled;
       this.world.moonLight.castShadow = this.bloomPass.enabled;
+      this.headlight.castShadow = this.bloomPass.enabled;
       this.fxaaPass.enabled = this.bloomPass.enabled;
       this.events.onMessage(
         this.bloomPass.enabled ? "Glow & shadows on ✨" : "Glow & shadows off"
@@ -1059,7 +1072,7 @@ export class GameEngine {
     this.v4
       .copy(this.v1)
       .addScaledVector(this.v3, -dist)
-      .add(this.v2.set(0, 3.4 + p.speed * 0.014, 0));
+      .add(this.v2.set(0, 3.4 + p.speed * 0.007, 0));
     if (!this.camInit) {
       this.camInit = true;
       this.camBase.copy(this.v4);
@@ -1141,7 +1154,7 @@ export class GameEngine {
     // shadow-map texels — a continuously sliding ortho frustum makes
     // every shadow edge crawl and flicker at speed
     const moon = this.world.moonLight;
-    const texel = 180 / 2048; // ortho width / map size
+    const texel = 180 / moon.shadow.mapSize.x; // ortho width / map size
     const p = this.playerMesh.position;
     const u = p.dot(this.lightRight);
     const v = p.dot(this.lightUp);

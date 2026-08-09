@@ -34,6 +34,38 @@ function underglowTexture(): THREE.CanvasTexture {
   return glowTexShared;
 }
 
+// Soft dark blob under every car — grounds it on the asphalt even where
+// the moon shadow falls subtle. Geometry/material shared across all cars
+// (created per car they'd leak on rival rematches and remote re-styles).
+const contactGeo = new THREE.PlaneGeometry(2.6, 5.2);
+let contactMatShared: THREE.MeshBasicMaterial | null = null;
+function contactMat(): THREE.MeshBasicMaterial {
+  if (!contactMatShared) {
+    contactMatShared = new THREE.MeshBasicMaterial({
+      map: contactShadowTexture(),
+      transparent: true,
+      depthWrite: false,
+    });
+  }
+  return contactMatShared;
+}
+let contactTexShared: THREE.CanvasTexture | null = null;
+function contactShadowTexture(): THREE.CanvasTexture {
+  if (contactTexShared) return contactTexShared;
+  const c = document.createElement("canvas");
+  c.width = 128;
+  c.height = 128;
+  const ctx = c.getContext("2d")!;
+  const g = ctx.createRadialGradient(64, 64, 8, 64, 64, 62);
+  g.addColorStop(0, "rgba(0,0,0,0.5)");
+  g.addColorStop(0.6, "rgba(0,0,0,0.32)");
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  contactTexShared = new THREE.CanvasTexture(c);
+  return contactTexShared;
+}
+
 /** Extrude a side profile (x = length, y = height) across the car's width. */
 function extrudeProfile(
   points: Array<[number, number]>,
@@ -124,8 +156,11 @@ const rimDarkMat = new THREE.MeshStandardMaterial({
   metalness: 0.6,
 });
 
-const archGeo = new THREE.TorusGeometry(0.45, 0.085, 8, 14, Math.PI);
+const archGeo = new THREE.TorusGeometry(0.46, 0.055, 8, 16, Math.PI);
 const archMat = new THREE.MeshStandardMaterial({ color: 0x101114, roughness: 0.9 });
+// Dark disc behind each wheel fakes the cut-out wheel well
+const wellGeo = new THREE.CircleGeometry(0.44, 16);
+const wellMat = new THREE.MeshBasicMaterial({ color: 0x060708 });
 
 const glassMat = new THREE.MeshPhysicalMaterial({
   color: 0x0c1018,
@@ -288,7 +323,23 @@ export function createCar(colors: CarColors): THREE.Group {
     arch.rotation.y = Math.PI / 2;
     arch.position.set(wx, 0.4, wz);
     group.add(arch);
+
+    // Wheel well: dark disc facing outward so the wheel reads as inset
+    const well = new THREE.Mesh(wellGeo, wellMat);
+    well.rotation.y = wx > 0 ? Math.PI / 2 : -Math.PI / 2;
+    well.position.set(wx * 0.9, 0.38, wz);
+    group.add(well);
   }
+
+  // Contact shadow blob — all cars, traffic included. Sits above the lane
+  // paint (y 0.03) so it darkens markings like a real shadow. Exposed via
+  // userData so the engine can re-parent it off the pitching player body.
+  const contact = new THREE.Mesh(contactGeo, contactMat());
+  contact.rotation.x = -Math.PI / 2;
+  contact.position.y = 0.035;
+  contact.userData.noShadow = true;
+  group.add(contact);
+  group.userData.contact = contact;
 
   // ---- Fine detailing (skipped for traffic to keep draw calls down)
   if (!colors.simple) {
@@ -363,13 +414,53 @@ export function createCar(colors: CarColors): THREE.Group {
       caliper.position.set(wx * 0.93, 0.42, wz + 0.11);
       group.add(caliper);
     }
+
+    // B-pillars split the side glass into door windows
+    for (const sx of [-0.77, 0.77]) {
+      const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.44, 0.07), bodyMat);
+      pillar.position.set(sx, 1.14, -0.2);
+      group.add(pillar);
+    }
+
+    // Windshield wipers parked at the glass base
+    for (const [wxp, rz] of [
+      [-0.35, 0.12],
+      [0.28, 0.18],
+    ]) {
+      const wiper = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.014, 0.025), seamMat);
+      wiper.position.set(wxp, 0.98, 0.93);
+      wiper.rotation.x = -0.66;
+      wiper.rotation.z = rz;
+      group.add(wiper);
+    }
+
+    // Lower intake + fog lights complete the front fascia
+    const intake = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.13, 0.06), grilleMat);
+    intake.position.set(0, 0.36, 2.26);
+    group.add(intake);
+    for (const sx of [-0.66, 0.66]) {
+      const fog = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 10), reverseMat);
+      fog.rotation.x = Math.PI / 2;
+      fog.position.set(sx, 0.38, 2.26);
+      group.add(fog);
+    }
+
+    // Mirror glass + a muffler box feeding the exhaust tips
+    for (const sx of [-1.0, 1.0]) {
+      const mGlass = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.07, 0.012), chromeMat);
+      mGlass.position.set(sx, 1.04, 0.72);
+      group.add(mGlass);
+    }
+    const muffler = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.1, 0.3), grilleMat);
+    muffler.position.set(0, 0.23, -1.92);
+    group.add(muffler);
   }
 
   group.userData.wheels = wheels;
   group.userData.tailMat = tailMat;
 
   group.traverse((o) => {
-    if (o instanceof THREE.Mesh) o.castShadow = true;
+    if (o instanceof THREE.Mesh) o.castShadow = !o.userData.noShadow;
   });
 
   if (colors.underglow !== undefined) {

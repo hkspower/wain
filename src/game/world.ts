@@ -1,5 +1,28 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { Track, ROAD_HALF_WIDTH, COAST_U } from "./track";
+
+/** Drooping palm fronds merged into one geometry (crown sits at trunk top). */
+function palmCrownGeometry(): THREE.BufferGeometry {
+  const fronds: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < 8; i++) {
+    const frond = new THREE.BoxGeometry(0.2, 0.035, 2.0);
+    frond.translate(0, 0, 0.98);
+    frond.applyMatrix4(new THREE.Matrix4().makeRotationX(0.32 + (i % 3) * 0.14));
+    frond.applyMatrix4(
+      new THREE.Matrix4().makeRotationY((i / 8) * Math.PI * 2 + (i % 2) * 0.22)
+    );
+    fronds.push(frond);
+  }
+  // A short upright tuft at the centre
+  const tuft = new THREE.ConeGeometry(0.22, 0.7, 5);
+  tuft.translate(0, 0.3, 0);
+  fronds.push(tuft);
+  const merged = mergeGeometries(fronds.map((f) => f.toNonIndexed()))!;
+  merged.translate(0, 6.1, 0);
+  merged.computeVertexNormals();
+  return merged;
+}
 
 // Night-time Gulf Road: the corniche leg runs right along the water —
 // beach, palms, Green Island, the Salmiya marina, the Scientific Center
@@ -421,6 +444,7 @@ function billboard(track: Track, s: number, offset: number, tex: THREE.CanvasTex
     post.position.set(px, 3.5, 0);
     g.add(post);
   }
+  // Front face only — the back gets a plain panel instead of mirrored text
   const board = new THREE.Mesh(
     new THREE.PlaneGeometry(13, 5.6),
     new THREE.MeshStandardMaterial({
@@ -429,11 +453,17 @@ function billboard(track: Track, s: number, offset: number, tex: THREE.CanvasTex
       emissiveMap: tex,
       emissiveIntensity: 0.85,
       roughness: 0.6,
-      side: THREE.DoubleSide,
     })
   );
   board.position.y = 9.4;
   g.add(board);
+  const back = new THREE.Mesh(
+    new THREE.PlaneGeometry(13, 5.6),
+    new THREE.MeshStandardMaterial({ color: 0x24272c, roughness: 0.9 })
+  );
+  back.rotation.y = Math.PI;
+  back.position.set(0, 9.4, -0.04);
+  g.add(back);
   const p = new THREE.Vector3();
   const side = new THREE.Vector3();
   track.pointAt(s, p);
@@ -1155,10 +1185,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     trunkGeo.translate(0, 3, 0);
     const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a4327, roughness: 1 });
     const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, count);
-    const crownGeo = new THREE.ConeGeometry(2.1, 1.6, 7);
-    crownGeo.translate(0, 6.4, 0);
-    const crownMat = new THREE.MeshStandardMaterial({ color: 0x2c5e2e, roughness: 1 });
+    // Trunks cast too, or the frond shadows float detached from the trees
+    trunks.castShadow = true;
+    const crownGeo = palmCrownGeometry();
+    const crownMat = new THREE.MeshStandardMaterial({ color: 0x2e5f30, roughness: 1 });
     const crowns = new THREE.InstancedMesh(crownGeo, crownMat, count);
+    crowns.castShadow = true;
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();
     const tmp = new THREE.Vector3();
@@ -1172,6 +1204,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       track.pose(s + Math.random() * 6, lateral, p, tmp);
       m.makeTranslation(p.x, 0, p.z);
       trunks.setMatrixAt(i, m);
+      // Random spin per crown so the frond pattern doesn't repeat
+      m.makeRotationY(Math.random() * Math.PI * 2).setPosition(p.x, 0, p.z);
       crowns.setMatrixAt(i, m);
     }
     trunks.instanceMatrix.needsUpdate = true;
@@ -1386,16 +1420,23 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     );
     beam.position.y = 7.3;
     g.add(beam);
+    // Front face only — a DoubleSide plane shows mirrored text from behind
     const board = new THREE.Mesh(
       new THREE.PlaneGeometry(10, 3.1),
       new THREE.MeshStandardMaterial({
         map: signTexture(area.name.toUpperCase(), area.arabic),
         emissive: 0x666666,
-        side: THREE.DoubleSide,
       })
     );
     board.position.y = 5.4;
     g.add(board);
+    const back = new THREE.Mesh(
+      new THREE.PlaneGeometry(10, 3.1),
+      new THREE.MeshStandardMaterial({ color: 0x2c3036, roughness: 0.85 })
+    );
+    back.rotation.y = Math.PI;
+    back.position.set(0, 5.4, -0.03);
+    g.add(back);
 
     const p = new THREE.Vector3();
     const tan = new THREE.Vector3();
