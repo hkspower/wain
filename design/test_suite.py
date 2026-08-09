@@ -150,7 +150,9 @@ def identity_checks():
     check(S, "the header carries the mark, not an emoji or a letter",
           '<use href="#i-sail"/>' in home)
     check(S, "the wordmark is المهلب", '<span class="name">المهلب</span>' in home)
-    check(S, "Almuhallab Code sits on the line beneath", "Almuhallab Code —" in home)
+    check(S, "Almuhallab Code sits on its own line beneath المهلب",
+          '<span class="en">Almuhallab&nbsp;Code</span>' in home
+          and home.index('<span class="name">المهلب</span>') < home.index('<span class="en">'))
 
     def tok(src, name, dark=False):
         import re

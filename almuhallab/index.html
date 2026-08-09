@@ -68,17 +68,28 @@
     }
     .brand { display: flex; flex-direction: column; align-items: center; gap: 6px;
       text-align: center; color: #fff; }
-    .brand .logo { width: 48px; height: 48px; display: block; color: #fff;
+    /* the lockup: a large mark, المهلب under it, then the English name, then
+       what the company is. The two names are one block — the English line sits
+       tight under the Arabic and is set LTR in its own bidi isolate so the RTL
+       page cannot reorder it. */
+    .brand .logo { width: 68px; height: 68px; display: block; color: #fff;
       transition: width .22s ease, height .22s ease; }
-    .brand .name { font-size: 25px; font-weight: 800; color: #fff; line-height: 1.15;
+    .brand .name { font-size: 30px; font-weight: 800; color: #fff; line-height: 1.2;
+      transition: font-size .22s ease; }
+    .brand .en { display: block; color: #fff; font-weight: 700; font-size: 14px;
+      letter-spacing: .1em; line-height: 1.3; margin-top: 1px;
+      direction: ltr; unicode-bidi: isolate;
       transition: font-size .22s ease; }
     .brand small { display: block; font-weight: 500; color: rgba(255, 255, 255, .82);
-      font-size: 12px; margin-top: 2px; overflow: hidden;
+      font-size: 12px; margin-top: 3px; overflow: hidden;
       transition: max-height .22s ease, opacity .22s ease; max-height: 20px; }
-    /* scrolled: the bar becomes a slim brown strip with the mark still centred */
+    /* scrolled: the bar becomes a slim brown strip with the mark still centred.
+       The descriptor collapses; both names stay — a masthead that drops the
+       company's name is not a masthead. */
     html.scrolled header { padding-top: 8px; }
-    html.scrolled .brand .logo { width: 30px; height: 30px; }
-    html.scrolled .brand .name { font-size: 18px; }
+    html.scrolled .brand .logo { width: 38px; height: 38px; }
+    html.scrolled .brand .name { font-size: 20px; }
+    html.scrolled .brand .en { font-size: 11px; }
     html.scrolled .brand small { max-height: 0; opacity: 0; margin-top: 0; }
 
     nav.site { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; justify-content: center;
@@ -664,16 +675,18 @@
     /* The sticky bar covers whatever an in-page link jumps to, so every anchor
        target keeps its own headroom. Without this, "خدماتنا" landed the heading
        underneath the masthead. */
-    :target, section[id], h2.section[id] { scroll-margin-top: 148px; }
+    :target, section[id], h2.section[id] { scroll-margin-top: 172px; }
     html { scroll-behavior: smooth; }
 
     /* ═══════ mobile ═══════ */
     @media (max-width: 640px) {
       header { padding: 12px 12px 0; }
-      .brand .logo { width: 40px; height: 40px; }
-      .brand .name { font-size: 21px; }
-      html.scrolled .brand .logo { width: 26px; height: 26px; }
-      html.scrolled .brand .name { font-size: 17px; }
+      .brand .logo { width: 54px; height: 54px; }
+      .brand .name { font-size: 25px; }
+      .brand .en { font-size: 12px; letter-spacing: .08em; }
+      html.scrolled .brand .logo { width: 32px; height: 32px; }
+      html.scrolled .brand .name { font-size: 18px; }
+      html.scrolled .brand .en { font-size: 10.5px; }
       nav.site { padding-bottom: 8px; }
       nav.site a, .btn { padding: 12px 16px; min-height: 44px; display: inline-flex; align-items: center; }
       main { padding: 16px 12px 40px; }
@@ -700,7 +713,7 @@
       .fcols > div, .fcols .fbrand { flex: 1 1 100%; }
       .fcontact a { min-height: 44px; }
       .base { flex-direction: column; gap: 10px; text-align: center; }
-      :target, section[id], h2.section[id] { scroll-margin-top: 120px; }
+      :target, section[id], h2.section[id] { scroll-margin-top: 146px; }
       .qform { grid-template-columns: 1fr; padding: 16px; }
       .shape { display: none; }
       .heroart { background: none; }
@@ -726,7 +739,7 @@
        #i-sail is the company's own dhow-sail mark (refined at the owner's request
        2026-07: curved sail, crescent hull — same mark, better drawing). -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
-    <symbol id="i-sail" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M20.4 2.4C21.08 1.9 21.95 2.5 21.7 3.3 20.75 6.8 19.5 10.2 17.95 13.45 17.75 13.87 17.35 14.1 16.9 14.1 12.5 13.5 8.2 13.6 4.35 14.35 3.45 14.35 3.2 13.2 3.83 12.65Z"/><path fill="currentColor" stroke="none" d="M2.9 16.55C8.9 17.95 15.05 17.6 21.05 15.5 21.65 15.28 22.15 15.9 21.85 16.43 19.85 19.75 16.4 21.6 12.05 21.6 7.6 21.6 4.1 19.65 2.2 16.25 2.05 16.05 2.45 16.2 2.9 16.55Z"/></symbol>
+    <symbol id="i-sail" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M20.4 2.4C21.08 1.9 21.95 2.5 21.7 3.3 20.75 6.8 19.5 10.2 17.95 13.45 17.75 13.87 17.35 14.1 16.9 14.1 12.5 13.5 8.2 13.6 4.35 14.35 3.45 14.35 3.2 13.2 3.83 12.65Z"/><path fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" d="M4.3 12.3 21.95 2.35"/><path fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" d="M11.75 16.85 11.95 14.75"/><path fill="currentColor" stroke="none" d="M2.9 16.55C8.9 17.95 15.05 17.6 21.05 15.5L21.15 13.1 22.1 13.3 21.8 16.5C19.8 19.6 16.35 21.4 12.05 21.4 7.7 21.4 4.2 19.5 2.25 16.25 2.1 16.05 2.45 16.2 2.9 16.55Z"/></symbol>
     <symbol id="i-whatsapp" viewBox="0 0 24 24"><path d="M8.2 4.5h2.1l1.3 3.2-1.6 1.2a10 10 0 0 0 5.1 5.1l1.2-1.6 3.2 1.3v2.1c0 1.1-.9 2-2 2A14.6 14.6 0 0 1 6.2 6.5c0-1.1.9-2 2-2Z"/></symbol>
     <symbol id="i-instagram" viewBox="0 0 24 24"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="5"/><circle cx="12" cy="12" r="4.1"/><circle cx="17.1" cy="6.9" r="1.15" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-code" viewBox="0 0 24 24"><path d="M9 7 4.5 12 9 17M15 7l4.5 5L15 17"/></symbol>
@@ -772,7 +785,8 @@
     <div class="brand">
       <svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sail"/></svg>
       <div><span class="name">المهلب</span>
-        <small>Almuhallab Code — شركة برمجة وأنظمة</small></div>
+        <span class="en">Almuhallab&nbsp;Code</span>
+        <small>شركة برمجة وأنظمة</small></div>
     </div>
     <nav class="site">
       <a href="#services">خدماتنا</a>

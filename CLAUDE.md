@@ -34,8 +34,8 @@ Locked, exactly as they are:
 
 | | Locked value |
 |---|---|
-| Mark | the dhow's lateen sail over the water — `logo.svg`, `favicon.svg` and `#i-sail`, one drawing in all three. Redrawn 2026-08-08 at the owner's ask: 24 grid, 2-unit optical margin, straight yard, long curved leech, foot arched up against the hull's belly, bow lifted right. The suite pins its path signature in all three files |
-| Wordmark | **المهلب** in brand brown, `Almuhallab Code` on the line beneath |
+| Mark | the dhow's lateen sail over the water — `logo.svg`, `favicon.svg` and `#i-sail`, one drawing in all three. Redrawn 2026-08-09 at the owner's ask for more of the real boat: **four parts** — sail, the lateen **yard** laid over the luff and protruding past the peak, the **mast** showing in the gap between foot and deck, and the hull with its **stem post** rising at the bow. The yard overlaps the luff rather than sitting beside it — a hairline gap there closes up at small sizes and reads as a scratch. The suite pins its path signature in all three files |
+| Wordmark | **المهلب**, then `Almuhallab Code` on its own line beneath (LTR in its own bidi isolate), then «شركة برمجة وأنظمة». On the brown bar all three are white. Enlarging the lockup covers more of the page, so `scroll-margin-top` moved with it — 172px desktop, 146px phone |
 | Brand ink | `--tint` `#7a4418` · `--tint-strong` `#6f3f1c` |
 | Surfaces | **white on every device** — no dark theme; white page, white cards, cool near-neutral greys. Brown is ink, never paper — with one exception the owner asked for (2026-07-31): the **masthead bar is brown** (`--tint-strong`) with white ink on every page, and `theme-color` matches it. Everything below the bar stays white |
 | Icons | the drawn `<symbol>` sprite — no emoji anywhere on the public page |
