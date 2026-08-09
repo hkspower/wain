@@ -61,9 +61,32 @@ if command -v claude >/dev/null 2>&1; then
   g "  ok    claude  ($(command -v claude))"
 else
   y "  not installed — this is the part that gives you a full-time connection."
-  y "  Install it with:"
-  y "        npm install -g @anthropic-ai/claude-code"
-  y "  or use the desktop app from https://claude.com/claude-code"
+  # OFFERED, NOT DONE SILENTLY. A global npm install writes outside this
+  # project, and a setup script that installs things nobody asked for is a
+  # setup script people stop trusting. It is one keypress either way.
+  printf '  Install it now with npm? [y/N] '
+  read -r reply < /dev/tty || reply=n
+  case "$reply" in
+    [yY]*)
+      if npm install -g @anthropic-ai/claude-code; then
+        g "  installed — $(command -v claude 2>/dev/null || echo 'restart Terminal to pick it up')"
+      else
+        # The usual cause is a global prefix owned by root. Never suggest
+        # `sudo npm install -g`: it leaves root-owned files in the prefix and
+        # the NEXT install fails for a reason nobody connects to this one.
+        r "  install failed — most likely the npm global folder is not writable."
+        y "        Fix it once, without sudo:"
+        y "          mkdir -p ~/.npm-global && npm config set prefix ~/.npm-global"
+        y "          echo 'export PATH=~/.npm-global/bin:\$PATH' >> ~/.zshrc && source ~/.zshrc"
+        y "        then run this script again."
+      fi
+      ;;
+    *)
+      y "  skipped. When you want it:"
+      y "        npm install -g @anthropic-ai/claude-code"
+      y "  or the desktop app from https://claude.com/claude-code"
+      ;;
+  esac
 fi
 
 [ "$missing" -eq 1 ] && { r $'\nInstall what is marked MISSING above, then run this again.'; exit 1; }
@@ -102,6 +125,22 @@ if grep -q '^FTP_USER=.\+' "$ENVF" 2>/dev/null; then
 else
   y "  skipped — fill in $ENVF first, then run:"
   y "        cd $DIR/sporta-web && npm run ftp:doctor -- --write"
+fi
+
+b "7. What this Mac can actually reach"
+# THE QUESTION THE WHOLE EXERCISE IS ABOUT. Everything above is local setup;
+# this is the first moment anything is proved against the real server. It is a
+# separate script because it is worth re-running on its own after a deploy, but
+# running it here means the answer arrives now rather than after a surprise.
+#
+# It never sends a password — the SSH probe is BatchMode on purpose, because
+# this account already has 24 failed attempts logged and a wrong one risks a
+# lockout. A service you deliberately switched off is reported as off, not as
+# broken.
+if [ -x "$DIR/sporta-web/scripts/mac-check.sh" ] || [ -f "$DIR/sporta-web/scripts/mac-check.sh" ]; then
+  bash "$DIR/sporta-web/scripts/mac-check.sh" || true
+else
+  y "  scripts/mac-check.sh not found in this checkout — skipped."
 fi
 
 b "Done"

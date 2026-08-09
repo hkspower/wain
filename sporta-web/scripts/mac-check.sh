@@ -54,7 +54,17 @@ command -v git >/dev/null 2>&1 && ok "git" "$(git --version | awk '{print $3}')"
 
 # ------------------------------------------------------------ the project
 hdr "The Sporta project on this Mac"
-found=$(find "$HOME" -maxdepth 5 -type d -name sporta-web -not -path "*/node_modules/*" 2>/dev/null | head -1)
+# SPORTA_DIR FIRST, because the setup script honours it and this did not — a
+# checkout somewhere other than $HOME was reported "not found" while the very
+# script that had just cloned it was calling this one. Then the checkout this
+# file is sitting in, then a search of $HOME.
+found=""
+[ -n "${SPORTA_DIR:-}" ] && [ -d "$SPORTA_DIR/sporta-web" ] && found="$SPORTA_DIR/sporta-web"
+if [ -z "$found" ]; then
+  self="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)"
+  [ -n "$self" ] && [ -f "$self/package.json" ] && found="$self"
+fi
+[ -z "$found" ] && found=$(find "$HOME" -maxdepth 5 -type d -name sporta-web -not -path "*/node_modules/*" 2>/dev/null | head -1)
 if [ -n "$found" ]; then
   ok "project folder" "$found"
   [ -f "$found/.env.deploy" ] && ok ".env.deploy (FTPS credentials)" "present" || {
@@ -173,6 +183,7 @@ fi
 printf "  Going live needs no terminal and no SSH:\n"
 printf "    1. upload public_html/ in File Manager\n"
 printf "    2. create api/config.php from api/config.example.php  (the 4 MySQL values)\n"
-printf "    3. import api/schema.mysql.sql, seed.mysql.sql and brands.mysql.sql in phpMyAdmin\n"
+printf "    3. import api/install.mysql.sql in phpMyAdmin — ONE file, safe to re-run\n"
+printf "       then the migrations: payattempt, reviews, productbrand (.mysql.sql)\n"
 printf "    4. create knet/config.php and pay/config.php from their examples\n"
 printf "    5. open %s/go-live.html\n" "$SITE"
