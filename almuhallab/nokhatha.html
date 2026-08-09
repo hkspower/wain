@@ -287,12 +287,12 @@
           <div style="font-size:12.5px;color:var(--muted)" id="dash-email">—</div>
         </div>
         <span class="plan-badge" id="dash-plan">—</span>
-        <a class="btn outline" href="#/pricing" style="margin-inline-start:auto">تفاصيل الاشتراك</a>
+        <a class="btn outline" href="#/pricing" style="margin-inline-start:auto">ماذا تشمل الخطة المجانية</a>
       </div>
       <div class="stat-row">
-        <div class="stat"><div class="n" id="stat-total">0</div><div class="l">إجمالي الخدمات</div></div>
-        <div class="stat"><div class="n" id="stat-open">0</div><div class="l">مفتوحة لباقتك</div></div>
-        <div class="stat"><div class="n" id="stat-renew">—</div><div class="l">تاريخ التجديد</div></div>
+        <div class="stat"><div class="n" id="stat-total">0</div><div class="l">وحدات النظام</div></div>
+        <div class="stat"><div class="n" id="stat-open">0</div><div class="l">مفتوحة لك</div></div>
+        <div class="stat"><div class="n" id="stat-cost">0 د.ك</div><div class="l">التكلفة</div></div>
       </div>
       <h2 class="section">وحدات النوخذة — Service Units</h2>
       <p class="sub">كل الوحدات مفتوحة لحسابك — النوخذة مجاني بالكامل.</p>
@@ -317,6 +317,7 @@
       // The service fleet — one unified system. minPlan gates access per subscription tier.
       // All units unlocked while the system is being built — pricing gates come later.
       var UNITS = [
+        { id: "position", icon: "⚓", name: "المركز المالي",           desc: "الصورة الموحدة: قيمة المحفظة وربحها، إيراد التوصيل والطلبات الجارية، وإجمالي الموارد.", minPlan: 0, url: "nizam.html#/position" },
         { id: "safi",     icon: "📊", name: "صافي — SAFI",          desc: "متابعة المحافظ والأرصدة وكشوفات المساهمين — ربح/خسارة وتصدير الكشوفات.", minPlan: 0, url: "nizam.html#/safi" },
         { id: "delivery", icon: "🛵", name: "التوصيل — Delivery",    desc: "نظام توصيل متكامل: إنشاء الطلبات، تتبّع الحالة، وإدارة المناديب.", minPlan: 0, url: "nizam.html#/delivery" },
         { id: "xbrl",     icon: "🧾", name: "XBRL — الميزانية السنوية", desc: "إعداد الميزانية السنوية لشركات الكويت وفق إطار وزارة التجارة (IFRS): حساب تلقائي، كشف أخطاء باقتراحات، وملف XBRL جاهز.", minPlan: 0, url: "nizam.html#/xbrl" }
@@ -468,7 +469,7 @@
         if (!user) return;
         var all = readUsers();
         if (all[user.email] && all[user.email].plan !== user.plan) {
-          all[user.email].plan = user.plan; all[user.email].renewAt = null; writeUsers(all);
+          all[user.email].plan = user.plan; writeUsers(all);
         }
         document.getElementById("dash-name").textContent = user.name;
         document.getElementById("dash-email").textContent = user.email;
@@ -479,8 +480,10 @@
         var openCount = UNITS.filter(function (m) { return user.plan >= m.minPlan; }).length;
         document.getElementById("stat-total").textContent = UNITS.length;
         document.getElementById("stat-open").textContent = openCount;
-        document.getElementById("stat-renew").textContent = user.plan > 0 && user.renewAt
-          ? new Date(user.renewAt).toLocaleDateString("ar-KW") : "—";
+        /* no renewal tile: النوخذة is free, so there is nothing to renew. The
+           line that stood here was doubly dead — it read user.plan > 0, which
+           cannot be true with one plan, and formatted the date as ar-KW, which
+           would have printed Arabic-Indic digits beside the Latin ones. */
       }
 
       function renderNav() {
@@ -528,7 +531,7 @@
           users[email] = {
             name: name, email: email,
             salt: salt, hash: hash, iter: PBKDF2_ITER,
-            plan: 0, renewAt: null, createdAt: new Date().toISOString()
+            plan: 0, createdAt: new Date().toISOString()
           };
           writeUsers(users); setSession(email); f.reset(); err.textContent = "";
           toast("أهلاً بك في النوخذة ⚓");
@@ -597,9 +600,7 @@
         if (!user) { toast("سجّل حسابك أولاً"); location.hash = "#/register"; return; }
         var planId = Number(btn.getAttribute("data-plan"));
         var users = readUsers();
-        var renew = new Date(); renew.setMonth(renew.getMonth() + 1);
         users[user.email].plan = planId;
-        users[user.email].renewAt = planId > 0 ? renew.toISOString() : null;
         writeUsers(users);
         toast("حسابك مفعّل — كل الوحدات مفتوحة ✔");
         location.hash = "#/dashboard"; route();

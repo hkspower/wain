@@ -609,7 +609,7 @@
         name: String(u.name || "—").slice(0, 80),
         plan: Math.min(2, Math.max(0, Math.floor(Number(u.plan) || 0))),
         status: u.status === "suspended" ? "suspended" : "active",
-        createdAt: u.createdAt || "", renewAt: u.renewAt || null
+        createdAt: u.createdAt || ""
       });
     });
     return out;
