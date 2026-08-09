@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import CategoryIcon from "@/components/CategoryIcon";
+import PlaceIcon from "@/components/PlaceIcon";
 import { IconCompass, IconGo, IconPinSolid } from "@/components/icons";
 import { getCategory } from "@/lib/places";
 import { highlight, type DocKind, type SearchHit } from "@/lib/search";
@@ -39,13 +40,13 @@ function Marked({ text, matched }: { text: string; matched: string[] }) {
 
 function Thumb({ hit }: { hit: SearchHit }) {
   const { doc } = hit;
-  if (doc.kind === "place" && doc.category) {
+  if (doc.kind === "place") {
     return (
       <span
         aria-hidden="true"
-        className="grid size-11 shrink-0 place-items-center rounded-xl bg-coral-50 text-coral-700"
+        className="grid size-11 shrink-0 place-items-center rounded-xl bg-sand-100 text-ink-700"
       >
-        <CategoryIcon name={getCategory(doc.category)?.icon ?? "all"} className="size-6" />
+        <PlaceIcon slug={doc.id.replace(/^place:/, "")} className="size-7" />
       </span>
     );
   }
