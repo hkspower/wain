@@ -5,7 +5,18 @@ import type { DriverCard, GameEngine, HudData } from "@/game/engine";
 import { GEARS } from "@/game/gears";
 import { RIVALS, RivalDef } from "@/game/rivals";
 import { HubClient, loadProfile, formatLap } from "@/game/net";
-import { PARTS, Part, GarageState, loadGarage, saveGarage } from "@/game/mods";
+import {
+  PARTS,
+  Part,
+  GarageState,
+  loadGarage,
+  saveGarage,
+  CARS,
+  CLASS_LABELS,
+  CarClass,
+  getCar,
+  WAGERS,
+} from "@/game/mods";
 
 const EXCLUSIVE_CATS = new Set(["aspiration", "brakes", "tires", "paint", "glow"]);
 const CAT_LABELS: Record<string, string> = {
@@ -51,8 +62,13 @@ export default function RaceClient() {
   const [challenge, setChallenge] = useState<{
     player: DriverCard;
     rival: DriverCard;
+    maxWager: number;
+    /** null while the player is still choosing car + stake */
     answer: { accepted: boolean; reason: string } | null;
+    sent: boolean;
   } | null>(null);
+  const [wager, setWager] = useState(0);
+  const [raceCar, setRaceCar] = useState<string>("wain-special");
   const challengeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [garageOpen, setGarageOpen] = useState(false);
   const [garage, setGarage] = useState<GarageState | null>(null);
@@ -65,6 +81,19 @@ export default function RaceClient() {
 
   useEffect(() => {
     setGarage(loadGarage()); // client-only: reads localStorage
+  }, []);
+
+  const buyOrDrive = useCallback((carId: string) => {
+    const g = loadGarage();
+    const car = getCar(carId);
+    if (!g.cars.includes(carId)) {
+      if (g.kd < car.price) return;
+      g.kd -= car.price;
+      g.cars.push(carId);
+    }
+    g.car = carId; // buying it also puts you behind the wheel
+    saveGarage(g);
+    setGarage(g);
   }, []);
 
   const buyOrEquip = useCallback((p: Part) => {
@@ -217,12 +246,16 @@ export default function RaceClient() {
         if (vsTimer.current) clearTimeout(vsTimer.current);
         vsTimer.current = setTimeout(() => setVsRival(null), 2400);
       },
-      onChallenge: (player, rival) => {
+      onChallenge: (player, rival, maxWager) => {
         if (challengeTimer.current) clearTimeout(challengeTimer.current);
-        setChallenge({ player, rival, answer: null });
+        const g = loadGarage();
+        setRaceCar(g.car);
+        setWager(WAGERS.filter((w) => w <= maxWager).slice(-1)[0] ?? 0);
+        setChallenge({ player, rival, maxWager, answer: null, sent: false });
       },
       onChallengeResult: (accepted, reason) => {
         setChallenge((c) => (c ? { ...c, answer: { accepted, reason } } : c));
+        if (accepted) setGarage(loadGarage());
         if (challengeTimer.current) clearTimeout(challengeTimer.current);
         challengeTimer.current = setTimeout(() => setChallenge(null), accepted ? 1200 : 2600);
       },
@@ -458,7 +491,7 @@ export default function RaceClient() {
 
       {/* Challenge cards — both drivers revealed, rival answers */}
       {challenge && phase === "playing" && (
-        <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 px-4">
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center overflow-y-auto bg-black/70 px-4 py-6">
           <div className="grn-label text-[0.7rem] tracking-[0.42em] text-gulf-300 [text-shadow:0_0_18px_rgba(56,201,238,0.6)]">
             Headlights flashed ×3 — <span className="grn-ar">التحدي</span>
           </div>
@@ -506,12 +539,89 @@ export default function RaceClient() {
                       {d.crew}
                     </span>
                   </div>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="grn-label text-[0.58rem]">Car</span>
+                    <span className="grn-display text-right text-[0.95rem] text-gulf-300">
+                      {i === 0 ? getCar(raceCar).name : d.car}
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
-          <div className="mt-5 h-10 text-center">
-            {challenge.answer === null ? (
+          <div className="mt-5 min-h-[9rem] w-full max-w-3xl text-center">
+            {challenge.answer === null && !challenge.sent ? (
+              <div className="grn-panel px-5 py-4 text-left">
+                {/* Pick the machine */}
+                <div className="grn-label text-[0.6rem]">
+                  Your car — <span className="grn-ar">اختر سيارتك</span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(garage?.cars ?? ["wain-special"]).map((id) => {
+                    const c = getCar(id);
+                    const on = raceCar === id;
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => setRaceCar(id)}
+                        className={`pointer-events-auto rounded-lg border px-3 py-1.5 text-left transition ${
+                          on
+                            ? "border-sodium-400 bg-sodium-500/15"
+                            : "border-white/15 hover:border-white/35"
+                        }`}
+                      >
+                        <div className="grn-display text-sm leading-tight">{c.name}</div>
+                        <div className="grn-label text-[0.52rem]">{c.cls}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Pick the purse */}
+                <div className="grn-label mt-4 text-[0.6rem]">
+                  Stake — <span className="grn-ar">مبلغ السباق</span>
+                  <span className="ml-2 text-white/40">
+                    winner takes both · max {challenge.maxWager} KD
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {[0, ...WAGERS.filter((w) => w <= challenge.maxWager)].map((w) => (
+                    <button
+                      key={w}
+                      onClick={() => setWager(w)}
+                      className={`pointer-events-auto grn-display rounded-lg border px-3.5 py-1.5 text-sm transition ${
+                        wager === w
+                          ? "border-gulf-400 bg-gulf-500/20 text-gulf-300"
+                          : "border-white/15 text-white/70 hover:border-white/35"
+                      }`}
+                    >
+                      {w === 0 ? "PRIDE" : `${w} KD`}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-4 flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      setChallenge((c) => (c ? { ...c, sent: true } : c));
+                      engineRef.current?.confirmChallenge(wager, raceCar);
+                    }}
+                    className="pointer-events-auto grn-btn grn-btn-primary flex-1 py-3 text-lg"
+                  >
+                    SEND CHALLENGE — <span className="grn-ar">تحداه</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      engineRef.current?.cancelChallenge();
+                      setChallenge(null);
+                    }}
+                    className="pointer-events-auto grn-btn border border-white/20 px-5 py-3 text-sm text-white/70 hover:bg-white/10"
+                  >
+                    BACK OFF
+                  </button>
+                </div>
+              </div>
+            ) : challenge.answer === null ? (
               <div className="grn-label animate-pulse text-base text-white/80">
                 Awaiting response… <span className="grn-ar">ينتظر الرد</span>
               </div>
@@ -519,6 +629,9 @@ export default function RaceClient() {
               <div>
                 <div className="grn-display text-4xl italic text-emerald-400 [text-shadow:0_0_26px_rgba(52,211,153,0.85)]">
                   ACCEPTED — <span className="grn-ar">قبل التحدي</span> ✓
+                </div>
+                <div className="grn-label mt-1.5 text-[0.66rem] text-sodium-400">
+                  {challenge.answer.reason}
                 </div>
               </div>
             ) : (
@@ -660,9 +773,89 @@ export default function RaceClient() {
               </div>
             </div>
             <p className="mt-3 max-w-2xl text-[0.82rem] leading-6 text-white/50">
-              Parts apply when you start the engine. Win battles to earn KD — deeper rivals pay
-              more. Tap an equipped part to run stock in that slot.
+              Buy a car, then bolt parts to it. Both apply when you start the engine. Race for a
+              purse — you and the rival each stake the same money, winner takes it all. Tap an
+              equipped part to run stock in that slot.
             </p>
+            <div className="grn-panel mt-4 inline-flex items-center gap-3 px-4 py-2">
+              <span className="grn-label text-[0.58rem]">In the driveway</span>
+              <span className="grn-display text-lg text-sodium-400">
+                {getCar(garage.car).name}
+              </span>
+            </div>
+            {/* Showroom — priced high to low */}
+            {(["supercar", "sport", "normal"] as CarClass[]).map((cls) => (
+              <div key={cls} className="mt-7">
+                <h3 className="grn-label border-b border-white/10 pb-2 text-[0.68rem]">
+                  {CLASS_LABELS[cls]}
+                </h3>
+                <div className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                  {CARS.filter((c) => c.cls === cls).map((c) => {
+                    const owned = garage.cars.includes(c.id);
+                    const driving = garage.car === c.id;
+                    const affordable = garage.kd >= c.price;
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => buyOrDrive(c.id)}
+                        disabled={!owned && !affordable}
+                        className={`grn-panel p-3.5 text-left transition ${
+                          driving
+                            ? "border-sodium-400/80 bg-sodium-500/10 shadow-[0_0_30px_-10px_rgba(245,165,36,0.7)]"
+                            : owned
+                              ? "border-emerald-400/45 hover:border-emerald-400/70"
+                              : affordable
+                                ? "hover:border-white/30 hover:bg-white/[0.09]"
+                                : "cursor-not-allowed opacity-40"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="grn-display text-lg leading-tight">{c.name}</div>
+                            <div className="grn-ar text-[0.78rem] text-white/55">{c.ar}</div>
+                          </div>
+                          <span
+                            className="mt-1 size-5 shrink-0 rounded-full border border-white/40"
+                            style={{ backgroundColor: `#${c.color.toString(16).padStart(6, "0")}` }}
+                          />
+                        </div>
+                        <div className="mt-2 text-[0.76rem] leading-5 text-white/55">{c.desc}</div>
+                        <div className="mt-2.5 grid grid-cols-3 gap-1 border-t border-white/10 pt-2 text-center">
+                          {(
+                            [
+                              ["PWR", c.power.toFixed(2) + "×"],
+                              ["GRIP", c.grip.toFixed(1)],
+                              ["BRK", String(c.brake)],
+                            ] as const
+                          ).map(([k, v]) => (
+                            <div key={k}>
+                              <div className="grn-label text-[0.5rem]">{k}</div>
+                              <div className="grn-display text-sm text-white/85">{v}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="grn-label mt-2.5 text-[0.6rem]">
+                          {driving ? (
+                            <span className="text-sodium-400">Driving now ✓</span>
+                          ) : owned ? (
+                            <span className="text-emerald-300">Owned — tap to drive</span>
+                          ) : (
+                            <span
+                              className={`grn-display text-base tracking-normal ${
+                                affordable ? "text-gulf-300" : "text-white/40"
+                              }`}
+                            >
+                              {c.price.toLocaleString()} KD
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
             {Object.entries(CAT_LABELS).map(([cat, label]) => (
               <div key={cat} className="mt-6">
                 <h3 className="grn-label border-b border-white/10 pb-2 text-[0.68rem]">{label}</h3>

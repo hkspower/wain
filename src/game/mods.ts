@@ -63,10 +63,179 @@ export const GLOW_COLORS: Record<string, number> = {
   "glow-purple": 0xb84dd6,
 };
 
+// ---------------------------------------------------------------- cars
+
+export type CarClass = "supercar" | "sport" | "normal";
+
+export interface CarModel {
+  id: string;
+  name: string;
+  ar: string;
+  cls: CarClass;
+  price: number;
+  /** Base handling before garage mods. */
+  power: number; // accel multiplier
+  topSpeed: number; // ceiling bonus (km/h-ish units)
+  grip: number; // lateral grip m/s²
+  brake: number; // braking m/s²
+  color: number; // factory paint
+  desc: string;
+}
+
+/** The showroom, richest metal first. */
+export const CARS: CarModel[] = [
+  {
+    id: "sahara-v12",
+    name: "Sahara GT-12",
+    ar: "صحارى",
+    cls: "supercar",
+    price: 96000,
+    power: 1.62,
+    topSpeed: 26,
+    grip: 16.4,
+    brake: 42,
+    color: 0xb8860b,
+    desc: "V12 hypercar. Nothing on the corniche pulls harder.",
+  },
+  {
+    id: "falcon-720",
+    name: "Falcon 720 Veloce",
+    ar: "الصقر ٧٢٠",
+    cls: "supercar",
+    price: 71000,
+    power: 1.5,
+    topSpeed: 21,
+    grip: 15.8,
+    brake: 40,
+    color: 0xc1121f,
+    desc: "Mid-engine, feather light, screams past 300.",
+  },
+  {
+    id: "storm-s8",
+    name: "Desert Storm S8",
+    ar: "عاصفة",
+    cls: "supercar",
+    price: 54000,
+    power: 1.4,
+    topSpeed: 17,
+    grip: 15.2,
+    brake: 38,
+    color: 0x1f2933,
+    desc: "All-wheel-drive missile. Launches like a catapult.",
+  },
+  {
+    id: "gulf-coupe-rs",
+    name: "Gulf Coupe RS",
+    ar: "كوبيه الخليج",
+    cls: "sport",
+    price: 33000,
+    power: 1.28,
+    topSpeed: 13,
+    grip: 14.6,
+    brake: 35,
+    color: 0x2e8f96,
+    desc: "Track-bred coupe. Rewards a clean line.",
+  },
+  {
+    id: "salmiya-turbo",
+    name: "Salmiya Turbo GT",
+    ar: "توربو السالمية",
+    cls: "sport",
+    price: 24000,
+    power: 1.2,
+    topSpeed: 10,
+    grip: 13.8,
+    brake: 32,
+    color: 0xb84dd6,
+    desc: "The street favourite. Boost from every corner exit.",
+  },
+  {
+    id: "hawally-2t",
+    name: "Hawally Sport 2.0T",
+    ar: "حولي سبورت",
+    cls: "sport",
+    price: 16000,
+    power: 1.12,
+    topSpeed: 7,
+    grip: 13.2,
+    brake: 30,
+    color: 0xf5c211,
+    desc: "Cheap thrills with a real chassis under them.",
+  },
+  {
+    id: "deera-sedan",
+    name: "Deera Sedan",
+    ar: "سيدان الديرة",
+    cls: "normal",
+    price: 8500,
+    power: 1.05,
+    topSpeed: 4,
+    grip: 12.6,
+    brake: 28,
+    color: 0xdfe3e8,
+    desc: "Comfortable, quiet, quicker than it looks.",
+  },
+  {
+    id: "jahra-pickup",
+    name: "Jahra Pickup",
+    ar: "ونيت الجهراء",
+    cls: "normal",
+    price: 6000,
+    power: 1.0,
+    topSpeed: 2,
+    grip: 12.0,
+    brake: 27,
+    color: 0x6e7f8d,
+    desc: "Heavy, honest, and it never dies.",
+  },
+  {
+    id: "sharq-hatch",
+    name: "Sharq Hatch",
+    ar: "شرق هاتش",
+    cls: "normal",
+    price: 2200,
+    power: 0.98,
+    topSpeed: 1,
+    grip: 12.4,
+    brake: 27,
+    color: 0x16a34a,
+    desc: "Tiny, tossable, easy on the wallet.",
+  },
+  {
+    id: "wain-special",
+    name: "Wain Special",
+    ar: "وين سبيشال",
+    cls: "normal",
+    price: 0,
+    power: 1.0,
+    topSpeed: 0,
+    grip: 12.0,
+    brake: 26,
+    color: 0xf2f4f7,
+    desc: "The car you showed up in. It owes you nothing.",
+  },
+];
+
+export const CLASS_LABELS: Record<CarClass, string> = {
+  supercar: "SUPERCARS · سوبر كار",
+  sport: "SPORT CARS · سيارات رياضية",
+  normal: "NORMAL CARS · سيارات عادية",
+};
+
+export function getCar(id: string): CarModel {
+  return CARS.find((c) => c.id === id) ?? CARS[CARS.length - 1];
+}
+
+/** Stake tiers offered before a race; higher rivals allow bigger money. */
+export const WAGERS = [250, 500, 1000, 2500, 5000, 10000, 25000];
+
 export interface GarageState {
   kd: number;
   owned: string[];
   equipped: Partial<Record<ExclusiveCat, string>>;
+  /** Cars in the driveway, and the one currently being driven. */
+  cars: string[];
+  car: string;
 }
 
 const KEY = "gulf-road-nights-garage";
@@ -78,14 +247,20 @@ export function loadGarage(): GarageState {
       const g = JSON.parse(raw) as GarageState;
       if (typeof g.kd === "number" && Array.isArray(g.owned)) {
         g.equipped = g.equipped ?? {};
+        // Saves from before the dealership existed start in the freebie
+        if (!Array.isArray(g.cars) || g.cars.length === 0) g.cars = ["wain-special"];
+        if (!g.car || !g.cars.includes(g.car)) g.car = g.cars[0];
         return g;
       }
     }
   } catch {}
   return {
-    kd: 500,
+    // Enough to leave the dealership with the cheapest car after one win
+    kd: 2500,
     owned: ["paint-white", "glow-none"],
     equipped: { paint: "paint-white", glow: "glow-none" },
+    cars: ["wain-special"],
+    car: "wain-special",
   };
 }
 
@@ -105,6 +280,8 @@ export function addKd(amount: number): number {
 export type Aspiration = "none" | "turbo" | "super" | "twin";
 
 export interface TuneEffects {
+  carId: string;
+  carName: string;
   accelMult: number; // multiplies base acceleration
   topSpeedBonus: number; // added to the accel-curve ceiling (km/h-ish units)
   brakeForce: number; // m/s²
@@ -123,8 +300,9 @@ export interface TuneEffects {
 export function computeEffects(g: GarageState): TuneEffects {
   const has = (id: string) => g.owned.includes(id);
   const eq = g.equipped;
+  const car = getCar(g.car);
 
-  let accelMult = 1;
+  let accelMult = car.power;
   if (has("ecu")) accelMult += 0.08;
   if (has("exhaust")) accelMult += 0.07;
   if (has("intake")) accelMult += 0.05;
@@ -136,21 +314,24 @@ export function computeEffects(g: GarageState): TuneEffects {
   if (eq.aspiration === "turbo") { aspiration = "turbo"; boostMult = 0.25; topSpeedBonus = 6; }
   else if (eq.aspiration === "supercharger") { aspiration = "super"; accelMult += 0.3; topSpeedBonus = 4; }
   else if (eq.aspiration === "twin-turbo") { aspiration = "twin"; boostMult = 0.45; topSpeedBonus = 12; }
+  topSpeedBonus += car.topSpeed;
 
-  let brakeForce = 26;
+  let brakeForce = car.brake;
   if (eq.brakes === "brakes-sport") brakeForce = 32;
   else if (eq.brakes === "brakes-race") brakeForce = 38;
   else if (eq.brakes === "brakes-carbon") brakeForce = 44;
   if (has("weight")) brakeForce += 3;
 
-  let gripAccel = 12;
+  let gripAccel = car.grip;
   let slipMult = 1;
-  if (eq.tires === "tires-sport") { gripAccel = 13.5; slipMult = 0.86; }
-  else if (eq.tires === "tires-race") { gripAccel = 15; slipMult = 0.73; }
-  else if (eq.tires === "tires-slick") { gripAccel = 16.5; slipMult = 0.59; }
+  if (eq.tires === "tires-sport") { gripAccel += 1.5; slipMult = 0.86; }
+  else if (eq.tires === "tires-race") { gripAccel += 3; slipMult = 0.73; }
+  else if (eq.tires === "tires-slick") { gripAccel += 4.5; slipMult = 0.59; }
   if (has("spoiler")) { gripAccel += 0.5; slipMult *= 0.92; }
 
   return {
+    carId: car.id,
+    carName: car.name,
     accelMult,
     topSpeedBonus,
     brakeForce,
@@ -162,7 +343,11 @@ export function computeEffects(g: GarageState): TuneEffects {
     spoiler: has("spoiler"),
     goldRims: has("gold-rims"),
     exhaustLevel: has("exhaust") ? 1 : 0,
-    paint: PAINT_COLORS[eq.paint ?? "paint-white"] ?? 0xf2f4f7,
+    // An explicitly bought paint wins; otherwise the car's factory colour
+    paint:
+      eq.paint && eq.paint !== "paint-white"
+        ? PAINT_COLORS[eq.paint] ?? car.color
+        : car.color,
     glow: eq.glow && eq.glow !== "glow-none" ? GLOW_COLORS[eq.glow] ?? null : null,
   };
 }

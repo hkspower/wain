@@ -13,6 +13,8 @@ export interface RivalDef {
   flag?: string;
   /** Spoken when they turn a challenge down. */
   rejectLine?: string;
+  /** The machine they bring to the line. */
+  car?: string;
   bodyColor: number;
   accentColor: number;
   topSpeedKmh: number;
@@ -26,6 +28,7 @@ export interface RivalDef {
 export const RIVALS: RivalDef[] = [
   {
     id: "abu-shanab",
+    car: "Hawally Sport 2.0T",
     country: "Kuwait",
     flag: "🇰🇼",
     rejectLine: "مو الحين... جيب سرعة وتعال",
@@ -46,6 +49,7 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "bint-aldeera",
+    car: "Salmiya Turbo GT",
     country: "Kuwait",
     flag: "🇰🇼",
     rejectLine: "لا، ما عندي وقت للمبتدئين",
@@ -66,6 +70,7 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "al-daboos",
+    car: "Gulf Coupe RS",
     country: "Kuwait",
     flag: "🇰🇼",
     rejectLine: "روح تدرب الأول، بعدين نتكلم",
@@ -86,6 +91,7 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "bu-machboos",
+    car: "Desert Storm S8",
     country: "Kuwait",
     flag: "🇰🇼",
     rejectLine: "خلها لبعدين، سيارتك ما تسوى",
@@ -106,6 +112,7 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "al-saqer",
+    car: "Falcon 720 Veloce",
     country: "Kuwait",
     flag: "🇰🇼",
     rejectLine: "الصقر ما يطارد الضعيف",
@@ -126,6 +133,7 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "shabah-alkhaleej",
+    car: "Sahara GT-12",
     country: "???",
     flag: "🏴",
     rejectLine: "لست جاهزاً بعد...",

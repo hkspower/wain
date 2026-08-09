@@ -12,7 +12,7 @@ import { RIVALS, RivalDef } from "./rivals";
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
 import { GEARS } from "./gears";
-import { loadGarage, computeEffects, addKd, TuneEffects } from "./mods";
+import { loadGarage, saveGarage, computeEffects, addKd, TuneEffects, getCar } from "./mods";
 
 // Tokyo-Xtreme-Racer-style rules, Kuwait edition: cruise the loop, find the
 // rival, flash your headlights (F) to start a battle. Both drivers have SP
@@ -58,6 +58,8 @@ export interface DriverCard {
   country: string;
   flag: string;
   color: number;
+  /** Machine on the line. */
+  car: string;
 }
 
 export interface EngineEvents {
@@ -70,8 +72,8 @@ export interface EngineEvents {
   onLap?(ms: number): void;
   /** Fired the moment a battle begins — drives the VS splash. */
   onBattleStart?(rival: RivalDef): void;
-  /** Three flashes landed: both cars revealed, cards go up. */
-  onChallenge?(player: DriverCard, rival: DriverCard): void;
+  /** Three flashes landed: both cars revealed, race setup opens. */
+  onChallenge?(player: DriverCard, rival: DriverCard, maxWager: number): void;
   /** The rival's answer to the challenge. */
   onChallengeResult?(accepted: boolean, reason: string): void;
 }
@@ -225,6 +227,10 @@ export class GameEngine {
   private flashWindowUntil = 0;
   private challengePending = false;
   private challengeTimers: ReturnType<typeof setTimeout>[] = [];
+  private challengePace = 0;
+  private challengeAccepted = false;
+  /** KD staked on the current race (each side puts it up). */
+  private wager = 0;
 
   // Online cruise
   private remotes = new Map<number, RemotePlayer>();
@@ -814,6 +820,7 @@ export class GameEngine {
       country,
       flag,
       color: this.tune.paint,
+      car: this.tune.carName,
     };
   }
 
@@ -826,37 +833,64 @@ export class GameEngine {
       country: def.country ?? "Kuwait",
       flag: def.flag ?? "🇰🇼",
       color: def.bodyColor,
+      car: def.car ?? "Street Tuned",
     };
   }
 
-  /** Both cars reveal, cards go up, then the rival answers. */
+  /** Both cars reveal, then the race-setup screen opens: the player
+   *  picks the car and the stake before the rival is asked. */
   private issueChallenge(): void {
     const r = this.rival;
     if (!r) return;
     this.challengePending = true;
     this.flashRival(r);
     this.sound?.battleSting();
-    this.events.onChallenge?.(this.playerCard(), this.rivalCard(r.def));
 
-    // A rival only takes you seriously if you're actually running with
-    // them: match their pace at the moment of the challenge, or get
-    // waved off. Relative to their current speed, so it's the same test
-    // whether they're cruising or already pushing.
-    const paceNeeded = Math.max(r.speed * 0.85, 8);
-    const accepted = this.player.speed >= paceNeeded;
+    // Pace is judged at the moment of the flash, before the game pauses
+    this.challengePace = Math.max(r.speed * 0.85, 8);
+    this.challengeAccepted = this.player.speed >= this.challengePace;
+
+    // Bigger names play for bigger money
+    const garage = loadGarage();
+    const rivalCeiling = 1000 * Math.pow(2, this.rivalIndex);
+    const maxWager = Math.max(0, Math.min(garage.kd, rivalCeiling));
+
+    this.setPaused(true);
+    this.events.onChallenge?.(this.playerCard(), this.rivalCard(r.def), maxWager);
+  }
+
+  /** UI callback: the player confirmed a car and a stake. */
+  confirmChallenge(wager: number, carId?: string): void {
+    const r = this.rival;
+    if (!r || !this.challengePending) return;
+
+    if (carId) {
+      const g = loadGarage();
+      if (g.cars.includes(carId) && g.car !== carId) {
+        g.car = carId;
+        saveGarage(g);
+        this.applyGarage();
+      }
+    }
+    this.wager = Math.max(0, Math.round(wager));
+    this.setPaused(false);
 
     this.challengeTimers.push(
       setTimeout(() => {
         if (this.disposed || !this.rival) return;
         const rv = this.rival;
         this.challengePending = false;
-        if (accepted) {
-          this.events.onChallengeResult?.(true, "Challenge accepted");
+        if (this.challengeAccepted) {
+          this.events.onChallengeResult?.(
+            true,
+            this.wager > 0 ? `Stakes: ${this.wager} KD each` : "Pride only"
+          );
           this.startBattle(rv);
         } else {
+          this.wager = 0;
           this.events.onChallengeResult?.(
             false,
-            `Keep pace with them — ${Math.round(paceNeeded * KMH)} km/h or better`
+            `Keep pace with them — ${Math.round(this.challengePace * KMH)} km/h or better`
           );
           this.voice.speak(
             rv.def.rejectLine ?? "مو الحين",
@@ -864,7 +898,35 @@ export class GameEngine {
             `${rv.def.id}-reject`
           );
         }
-      }, 2600)
+      }, 2200)
+    );
+  }
+
+  /** UI callback: the player backed out of the race setup. */
+  cancelChallenge(): void {
+    this.challengePending = false;
+    this.wager = 0;
+    this.setPaused(false);
+  }
+
+  /** Rebuild the player car after a garage change (new model, paint, mods). */
+  private applyGarage(): void {
+    this.tune = computeEffects(loadGarage());
+    const contact = this.carBody.userData.contact as THREE.Object3D | undefined;
+    if (contact) this.playerMesh.remove(contact);
+    this.playerMesh.remove(this.carBody);
+    this.carBody = createCar({
+      body: this.tune.paint,
+      accent: 0x007a3d,
+      underglow: this.tune.glow ?? undefined,
+      spoiler: this.tune.spoiler,
+      goldRims: this.tune.goldRims,
+    });
+    this.playerMesh.add(this.carBody);
+    const newContact = this.carBody.userData.contact as THREE.Object3D | undefined;
+    if (newContact) this.playerMesh.add(newContact);
+    this.sound?.configureAspiration(
+      this.tune.aspiration === "super" ? "super" : this.tune.boostMult > 0 ? "turbo" : "none"
     );
   }
 
@@ -909,9 +971,11 @@ export class GameEngine {
     const r = this.rival!;
     r.state = "defeated";
     this.inBattle = false;
-    // Prize money scales with how deep in the roster you are
-    const payout = 400 + this.rivalIndex * 300;
+    // Prize money scales with the roster depth, plus the staked purse
+    const payout = 400 + this.rivalIndex * 300 + this.wager;
     const balance = addKd(payout);
+    const staked = this.wager;
+    this.wager = 0;
     this.rivalIndex++;
     this.saveProgress();
     this.voice.speak(r.def.lines.lose, r.def.voice, `${r.def.id}-lose`);
@@ -926,7 +990,9 @@ export class GameEngine {
       this.sound?.winSting();
       this.events.onMessage(
         `VICTORY — ${r.def.name} defeated`,
-        `+${payout} KD (garage balance: ${balance} KD)`
+        staked > 0
+          ? `+${payout} KD (${staked} KD purse) · balance ${balance} KD`
+          : `+${payout} KD · balance ${balance} KD`
       );
       setTimeout(() => {
         if (this.disposed) return;
@@ -947,6 +1013,14 @@ export class GameEngine {
     r.state = "cruise";
     this.inBattle = false;
     this.locked = true;
+    if (this.wager > 0) {
+      const balance = addKd(-this.wager);
+      this.events.onMessage(
+        `Lost the purse — ${this.wager} KD`,
+        `Balance ${balance} KD`
+      );
+      this.wager = 0;
+    }
     this.sound?.loseSting();
     this.voice.speak(r.def.lines.win, r.def.voice, `${r.def.id}-win`);
     this.events.onDefeat(r.def);
