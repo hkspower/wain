@@ -280,9 +280,11 @@ export function createCar(colors: CarColors): THREE.Group {
     group.add(stripe);
   }
 
-  // Lights: lens strips front and rear
+  // Lights: lens strips front and rear. The head material is cloned per
+  // car so a single rival can flash back without lighting up traffic.
+  const headMat = headlightMat.clone();
   for (const sx of [-0.62, 0.62]) {
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.13, 0.07), headlightMat);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.13, 0.07), headMat);
     head.position.set(sx, 0.7, 2.24);
     group.add(head);
   }
@@ -494,6 +496,7 @@ export function createCar(colors: CarColors): THREE.Group {
 
   group.userData.wheels = wheels;
   group.userData.tailMat = tailMat;
+  group.userData.headMat = headMat;
 
   group.traverse((o) => {
     if (o instanceof THREE.Mesh) o.castShadow = !o.userData.noShadow;

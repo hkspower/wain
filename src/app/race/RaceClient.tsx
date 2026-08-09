@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { GameEngine, HudData } from "@/game/engine";
+import type { DriverCard, GameEngine, HudData } from "@/game/engine";
 import { GEARS } from "@/game/gears";
 import { RIVALS, RivalDef } from "@/game/rivals";
 import { HubClient, loadProfile, formatLap } from "@/game/net";
@@ -48,6 +48,12 @@ export default function RaceClient() {
   const [message, setMessage] = useState<{ title: string; sub?: string } | null>(null);
   const [beatenBy, setBeatenBy] = useState<RivalDef | null>(null);
   const [vsRival, setVsRival] = useState<RivalDef | null>(null);
+  const [challenge, setChallenge] = useState<{
+    player: DriverCard;
+    rival: DriverCard;
+    answer: { accepted: boolean; reason: string } | null;
+  } | null>(null);
+  const challengeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [garageOpen, setGarageOpen] = useState(false);
   const [garage, setGarage] = useState<GarageState | null>(null);
   const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -141,7 +147,12 @@ export default function RaceClient() {
       }
       // visibility, not opacity: animate-pulse animates opacity and would
       // override an inline opacity toggle
-      if (flashRef.current) flashRef.current.style.visibility = d.canFlash ? "visible" : "hidden";
+      if (flashRef.current) {
+        flashRef.current.style.visibility = d.canFlash ? "visible" : "hidden";
+        // "○○○" filling to "●●○" as the three challenge flashes land
+        const dots = "●".repeat(d.flashCount) + "○".repeat(Math.max(0, 3 - d.flashCount));
+        flashRef.current.textContent = `FLASH 3× TO CHALLENGE ⚡ ${dots}`;
+      }
 
       // Garage gauges: turbo boost + NOS charge (hidden without the mods)
       if (boostWrapRef.current)
@@ -206,6 +217,15 @@ export default function RaceClient() {
         if (vsTimer.current) clearTimeout(vsTimer.current);
         vsTimer.current = setTimeout(() => setVsRival(null), 2400);
       },
+      onChallenge: (player, rival) => {
+        if (challengeTimer.current) clearTimeout(challengeTimer.current);
+        setChallenge({ player, rival, answer: null });
+      },
+      onChallengeResult: (accepted, reason) => {
+        setChallenge((c) => (c ? { ...c, answer: { accepted, reason } } : c));
+        if (challengeTimer.current) clearTimeout(challengeTimer.current);
+        challengeTimer.current = setTimeout(() => setChallenge(null), accepted ? 1200 : 2600);
+      },
     }, Number.isFinite(startS) ? { startS } : undefined);
     engineRef.current = engine;
     mapPathRef.current = engine.getMapPath();
@@ -268,6 +288,7 @@ export default function RaceClient() {
       startingRef.current = false;
       if (msgTimer.current) clearTimeout(msgTimer.current);
       if (vsTimer.current) clearTimeout(vsTimer.current);
+      if (challengeTimer.current) clearTimeout(challengeTimer.current);
       if (sendTimer.current) clearInterval(sendTimer.current);
       hubRef.current?.close();
       hubRef.current = null;
@@ -362,7 +383,7 @@ export default function RaceClient() {
             ref={flashRef}
             className="invisible mt-1 animate-pulse text-base font-extrabold text-cyan-300 drop-shadow"
           >
-            PRESS F TO FLASH ⚡ اضغط F
+            FLASH 3× TO CHALLENGE ⚡ ○○○
           </div>
         </div>
 
@@ -412,6 +433,75 @@ export default function RaceClient() {
           <br />F flash headlights · M mute · V voices · G glow fx
         </div>
       </div>
+
+      {/* Challenge cards — both drivers revealed, rival answers */}
+      {challenge && phase === "playing" && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 px-4">
+          <div className="text-xs font-black tracking-[0.4em] text-cyan-300">
+            HEADLIGHTS FLASHED ×3 — التحدي
+          </div>
+          <div className="mt-4 flex w-full max-w-3xl items-stretch justify-center gap-4">
+            {[challenge.player, challenge.rival].map((d, i) => (
+              <div
+                key={i}
+                className={`${i === 0 ? "card-in-left" : "card-in-right"} flex-1 rounded-xl border-2 bg-black/70 p-4 backdrop-blur ${
+                  i === 0 ? "border-emerald-400/70" : "border-red-400/70"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span
+                    className={`text-[10px] font-black tracking-widest ${
+                      i === 0 ? "text-emerald-300" : "text-red-300"
+                    }`}
+                  >
+                    {i === 0 ? "CHALLENGER" : "DEFENDER"}
+                  </span>
+                  <span
+                    className="size-4 rounded-full border border-white/40"
+                    style={{ backgroundColor: `#${d.color.toString(16).padStart(6, "0")}` }}
+                  />
+                </div>
+                <div className="mt-1 text-2xl font-black italic leading-tight">{d.name}</div>
+                {d.arabicName && (
+                  <div className="text-lg font-bold text-white/80">{d.arabicName}</div>
+                )}
+                <div className="mt-2 grid grid-cols-2 gap-1 text-xs">
+                  <span className="text-white/50">LEVEL</span>
+                  <span className="text-right font-black text-amber-400">LV. {d.level}</span>
+                  <span className="text-white/50">COUNTRY</span>
+                  <span className="text-right font-bold">
+                    {d.flag} {d.country}
+                  </span>
+                  <span className="text-white/50">CREW</span>
+                  <span className="text-right font-bold text-white/85">{d.crew}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-5 h-10 text-center">
+            {challenge.answer === null ? (
+              <div className="animate-pulse text-lg font-black tracking-widest text-white/80">
+                AWAITING RESPONSE… ينتظر الرد
+              </div>
+            ) : challenge.answer.accepted ? (
+              <div>
+                <div className="text-3xl font-black italic text-emerald-400 drop-shadow-[0_0_16px_rgba(52,211,153,0.8)]">
+                  ACCEPTED — قبل التحدي ✓
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="text-3xl font-black italic text-red-500 drop-shadow-[0_0_16px_rgba(248,113,113,0.8)]">
+                  REJECTED — رفض ✕
+                </div>
+                <div className="mt-1 text-sm font-semibold text-white/70">
+                  {challenge.answer.reason}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* TXR-style VS splash on battle start */}
       {vsRival && phase === "playing" && (

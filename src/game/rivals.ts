@@ -8,6 +8,11 @@ export interface RivalDef {
   arabicName: string;
   crew: string;
   area: string;
+  /** Shown on the challenge card. */
+  country?: string;
+  flag?: string;
+  /** Spoken when they turn a challenge down. */
+  rejectLine?: string;
   bodyColor: number;
   accentColor: number;
   topSpeedKmh: number;
@@ -21,6 +26,9 @@ export interface RivalDef {
 export const RIVALS: RivalDef[] = [
   {
     id: "abu-shanab",
+    country: "Kuwait",
+    flag: "🇰🇼",
+    rejectLine: "مو الحين... جيب سرعة وتعال",
     name: "Abu Shanab",
     arabicName: "أبو شنب",
     crew: "Salmiya Street Kings",
@@ -38,6 +46,9 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "bint-aldeera",
+    country: "Kuwait",
+    flag: "🇰🇼",
+    rejectLine: "لا، ما عندي وقت للمبتدئين",
     name: "Bint Al-Deera",
     arabicName: "بنت الديرة",
     crew: "Gulf Road Gazelles",
@@ -55,6 +66,9 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "al-daboos",
+    country: "Kuwait",
+    flag: "🇰🇼",
+    rejectLine: "روح تدرب الأول، بعدين نتكلم",
     name: "Al-Daboos",
     arabicName: "الدبوس",
     crew: "Hawally Night Hawks",
@@ -72,6 +86,9 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "bu-machboos",
+    country: "Kuwait",
+    flag: "🇰🇼",
+    rejectLine: "خلها لبعدين، سيارتك ما تسوى",
     name: "Bu Machboos",
     arabicName: "بو مجبوس",
     crew: "Fahaheel Phantoms",
@@ -89,6 +106,9 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "al-saqer",
+    country: "Kuwait",
+    flag: "🇰🇼",
+    rejectLine: "الصقر ما يطارد الضعيف",
     name: "Al-Saqer",
     arabicName: "الصقر",
     crew: "Jahra Junoon",
@@ -106,6 +126,9 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "shabah-alkhaleej",
+    country: "???",
+    flag: "🏴",
+    rejectLine: "لست جاهزاً بعد...",
     name: "Shabah Al-Khaleej",
     arabicName: "شبح الخليج",
     crew: "???",

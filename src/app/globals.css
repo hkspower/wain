@@ -76,3 +76,15 @@ body {
 .vs-slide-left { animation: vs-slide-left 2.4s ease-out forwards; }
 .vs-slide-right { animation: vs-slide-right 2.4s ease-out forwards; }
 .vs-pop { animation: vs-pop 2.4s ease-out forwards; }
+
+/* Gulf Road Nights — challenge driver cards */
+@keyframes card-in-left {
+  0% { transform: translateX(-40px) scale(0.92); opacity: 0; }
+  100% { transform: translateX(0) scale(1); opacity: 1; }
+}
+@keyframes card-in-right {
+  0% { transform: translateX(40px) scale(0.92); opacity: 0; }
+  100% { transform: translateX(0) scale(1); opacity: 1; }
+}
+.card-in-left { animation: card-in-left 0.35s ease-out both; }
+.card-in-right { animation: card-in-right 0.35s ease-out both 0.12s; }

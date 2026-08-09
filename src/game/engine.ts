@@ -33,6 +33,8 @@ export interface BattleHud {
 }
 
 export interface HudData {
+  /** Headlight flashes landed so far in the current challenge window (0-3). */
+  flashCount: number;
   speedKmh: number;
   areaName: string;
   areaArabic: string;
@@ -48,6 +50,16 @@ export interface HudData {
   nos: number | null;
 }
 
+export interface DriverCard {
+  name: string;
+  arabicName?: string;
+  crew: string;
+  level: number;
+  country: string;
+  flag: string;
+  color: number;
+}
+
 export interface EngineEvents {
   onHud(d: HudData): void;
   onMessage(title: string, sub?: string): void;
@@ -58,6 +70,10 @@ export interface EngineEvents {
   onLap?(ms: number): void;
   /** Fired the moment a battle begins — drives the VS splash. */
   onBattleStart?(rival: RivalDef): void;
+  /** Three flashes landed: both cars revealed, cards go up. */
+  onChallenge?(player: DriverCard, rival: DriverCard): void;
+  /** The rival's answer to the challenge. */
+  onChallengeResult?(accepted: boolean, reason: string): void;
 }
 
 interface RemotePlayer {
@@ -203,6 +219,12 @@ export class GameEngine {
   private rivalIndex = 0;
   private inBattle = false;
   private locked = false; // input locked after defeat / championship
+
+  // Challenge ritual: three headlight flashes inside a rolling window
+  private flashCount = 0;
+  private flashWindowUntil = 0;
+  private challengePending = false;
+  private challengeTimers: ReturnType<typeof setTimeout>[] = [];
 
   // Online cruise
   private remotes = new Map<number, RemotePlayer>();
@@ -637,6 +659,8 @@ export class GameEngine {
   dispose(): void {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
+    for (const t of this.challengeTimers) clearTimeout(t);
+    this.challengeTimers = [];
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
     window.removeEventListener("blur", this.onBlur);
@@ -748,22 +772,125 @@ export class GameEngine {
 
   // ---------------------------------------------------------------- battle
 
+  /** Headlight flash. Three inside 3 s while alongside a rival issues a
+   *  challenge — the TXR ritual: reveal, size each other up, answer. */
   private tryFlash(): void {
     const r = this.rival;
-    if (!r || this.inBattle || this.locked || r.state !== "cruise") return;
+    if (!r || this.inBattle || this.locked || this.challengePending || r.state !== "cruise") return;
     const gap = this.track.deltaAhead(this.player.s, r.s);
     if (gap < 2 || gap > FLASH_RANGE) return;
 
+    const now = performance.now();
+    if (now > this.flashWindowUntil) this.flashCount = 0;
+    this.flashWindowUntil = now + 3000;
+    this.flashCount++;
+    this.flashHeadlights();
+    this.sound?.flashClick();
+
+    if (this.flashCount >= 3) {
+      this.flashCount = 0;
+      this.issueChallenge();
+    }
+  }
+
+  private playerCard(): DriverCard {
+    let name = "You";
+    let country = "Kuwait";
+    let flag = "🇰🇼";
+    try {
+      const raw = localStorage.getItem("gulf-road-nights-profile");
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (typeof p.name === "string" && p.name.trim()) name = p.name.trim();
+        if (typeof p.country === "string" && p.country.trim()) country = p.country.trim();
+        if (typeof p.flag === "string" && p.flag.trim()) flag = p.flag.trim();
+      }
+    } catch {}
+    return {
+      name,
+      arabicName: "أنت",
+      crew: "Privateer",
+      level: this.rivalIndex + 1,
+      country,
+      flag,
+      color: this.tune.paint,
+    };
+  }
+
+  private rivalCard(def: RivalDef): DriverCard {
+    return {
+      name: def.name,
+      arabicName: def.arabicName,
+      crew: def.crew,
+      level: RIVALS.indexOf(def) + 1,
+      country: def.country ?? "Kuwait",
+      flag: def.flag ?? "🇰🇼",
+      color: def.bodyColor,
+    };
+  }
+
+  /** Both cars reveal, cards go up, then the rival answers. */
+  private issueChallenge(): void {
+    const r = this.rival;
+    if (!r) return;
+    this.challengePending = true;
+    this.flashRival(r);
+    this.sound?.battleSting();
+    this.events.onChallenge?.(this.playerCard(), this.rivalCard(r.def));
+
+    // A rival only takes you seriously if you're actually running with
+    // them: match their pace at the moment of the challenge, or get
+    // waved off. Relative to their current speed, so it's the same test
+    // whether they're cruising or already pushing.
+    const paceNeeded = Math.max(r.speed * 0.85, 8);
+    const accepted = this.player.speed >= paceNeeded;
+
+    this.challengeTimers.push(
+      setTimeout(() => {
+        if (this.disposed || !this.rival) return;
+        const rv = this.rival;
+        this.challengePending = false;
+        if (accepted) {
+          this.events.onChallengeResult?.(true, "Challenge accepted");
+          this.startBattle(rv);
+        } else {
+          this.events.onChallengeResult?.(
+            false,
+            `Keep pace with them — ${Math.round(paceNeeded * KMH)} km/h or better`
+          );
+          this.voice.speak(
+            rv.def.rejectLine ?? "مو الحين",
+            rv.def.voice,
+            `${rv.def.id}-reject`
+          );
+        }
+      }, 2600)
+    );
+  }
+
+  private startBattle(r: Rival): void {
     this.inBattle = true;
     r.state = "battle";
     this.player.sp = 100;
     r.sp = 100;
-    this.flashHeadlights();
-    this.sound?.flashClick();
-    this.sound?.battleSting();
     this.voice.speak(r.def.lines.intro, r.def.voice, `${r.def.id}-intro`);
     if (this.events.onBattleStart) this.events.onBattleStart(r.def);
     else this.events.onMessage(`⚡ BATTLE — ${r.def.name} ${r.def.arabicName}`, `"${r.def.taunt}"`);
+  }
+
+  /** The rival flashes back — the reveal. */
+  private flashRival(r: Rival): void {
+    const mat = r.mesh.userData.headMat as THREE.MeshStandardMaterial | undefined;
+    if (!mat) return;
+    const base = mat.emissiveIntensity;
+    let n = 0;
+    const id = setInterval(() => {
+      mat.emissiveIntensity = mat.emissiveIntensity > base ? base : base * 4;
+      if (++n >= 6 || this.disposed) {
+        clearInterval(id);
+        mat.emissiveIntensity = base;
+      }
+    }, 110);
   }
 
   private flashHeadlights(): void {
@@ -1309,6 +1436,9 @@ export class GameEngine {
       const ds = this.track.deltaAhead(this.player.s, t.s);
       if (ds > 0 && ds < 90 && (!nearest || ds < nearest.ds)) nearest = { ds, lat: t.lat };
     }
+    // Dev handles: the live state snapshot plus the engine itself, so
+    // scripted play-tests can stage situations the sim reaches slowly.
+    (window as unknown as { __grnEngine: GameEngine }).__grnEngine = this;
     (window as unknown as { __grnDebug: object }).__grnDebug = {
       playerSpeed: this.player.speed,
       playerLat: this.player.lat,
@@ -1338,7 +1468,7 @@ export class GameEngine {
     if (r && r.state !== "defeated") {
       const gap = this.track.deltaAhead(this.player.s, r.s);
       rivalDist = gap;
-      canFlash = !this.inBattle && gap >= 2 && gap <= FLASH_RANGE;
+      canFlash = !this.inBattle && !this.challengePending && gap >= 2 && gap <= FLASH_RANGE;
       this.track.pointAt(r.s, this.v1);
       const [rx, ry] = this.toMap(this.v1.x, this.v1.z);
       map = { px, py, rx, ry };
@@ -1347,6 +1477,7 @@ export class GameEngine {
     }
 
     this.events.onHud({
+      flashCount: performance.now() > this.flashWindowUntil ? 0 : this.flashCount,
       speedKmh: this.player.speed * KMH,
       areaName: area.name,
       areaArabic: area.arabic,
