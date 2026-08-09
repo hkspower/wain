@@ -66,7 +66,7 @@ export default function HomePage() {
           </div>
 
           {/* Scroll rail on small screens, even grid from lg up */}
-          <ul className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:mx-0 sm:px-0 lg:grid lg:grid-cols-9 lg:overflow-visible lg:pb-0">
+          <ul className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [mask-image:linear-gradient(to_left,transparent,#000_1.25rem,#000_calc(100%-1.25rem),transparent)] [scrollbar-width:none] sm:mx-0 sm:px-0 lg:grid lg:grid-cols-9 lg:overflow-visible lg:pb-0 lg:[mask-image:none]">
             <li className="w-28 shrink-0 snap-start sm:w-32 lg:w-auto">
               <Link
                 href="/explore"

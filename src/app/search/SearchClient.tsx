@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import SearchResults from "@/components/SearchResults";
 import VoiceControls from "@/components/VoiceControls";
-import { IconCompass, IconSearch } from "@/components/icons";
+import { IconClose, IconCompass, IconSearch } from "@/components/icons";
 import { toArabicDigits } from "@/lib/places";
 import { usePlaces } from "@/lib/usePlaces";
 import { buildIndex, search, type DocKind } from "@/lib/search";
@@ -127,9 +127,9 @@ export default function SearchClient() {
             type="button"
             onClick={() => setQ("")}
             aria-label="مسح البحث"
-            className="absolute inset-y-0 end-3 my-auto grid size-8 place-items-center rounded-full text-ink-500 transition hover:bg-sand-100"
+            className="absolute inset-y-0 end-3 my-auto grid size-8 place-items-center rounded-full text-ink-500 transition hover:bg-sand-200 hover:text-ink-800"
           >
-            ×
+            <IconClose className="size-4" />
           </button>
         )}
       </div>

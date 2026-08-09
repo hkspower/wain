@@ -277,6 +277,14 @@ export function IconCoins(props: IconProps) {
   );
 }
 
+export function IconClose(props: IconProps) {
+  return (
+    <svg {...base(props)} strokeWidth={2.2}>
+      <path d="m6.5 6.5 11 11M17.5 6.5l-11 11" />
+    </svg>
+  );
+}
+
 export function IconHome(props: IconProps) {
   return (
     <svg {...base(props)}>

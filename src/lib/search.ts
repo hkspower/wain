@@ -109,6 +109,34 @@ function variantsOf(token: string): string[] {
   return [...new Set([token, ...(SYNONYMS[token] ?? []).map(normalise)])];
 }
 
+/**
+ * Arabic glues short function words onto the next word: و (and), ب (in/with),
+ * ل (for), ك (like), ف (so), and those again in front of ال — بال، وال، لل…
+ * «بالسالمية» is one token to a tokeniser but "in Salmiya" to a reader, and
+ * before this it matched nothing at all.
+ *
+ * Returns progressively shorter readings, longest prefix first. Only consulted
+ * when the token itself is not in the index, so a real word that merely starts
+ * with one of these letters — بحر, ليلة, كرك — is never mangled.
+ */
+function declitic(token: string): string[] {
+  const out: string[] = [];
+  const add = (t: string) => {
+    if (t.length > 1 && !out.includes(t) && t !== token) out.push(t);
+  };
+  for (const p of ["بال", "وال", "فال", "كال", "لل"]) {
+    if (token.startsWith(p) && token.length > p.length + 1) add(token.slice(p.length));
+  }
+  for (const p of ["و", "ب", "ل", "ك", "ف"]) {
+    if (token.startsWith(p) && token.length > 3) {
+      const rest = token.slice(1);
+      add(rest);
+      if (rest.startsWith("ال") && rest.length > 3) add(rest.slice(2));
+    }
+  }
+  return out;
+}
+
 /** Bounded Levenshtein — returns maxDist+1 as soon as it is exceeded. */
 function editDistance(a: string, b: string, max: number): number {
   if (Math.abs(a.length - b.length) > max) return max + 1;
@@ -151,6 +179,23 @@ export interface SearchIndex {
   terms: string[];
 }
 
+/**
+ * Price and rating live as numbers, so "رخيص" or "أحسن تقييم" — both ordinary
+ * ways to ask — used to return nothing at all. These turn them into the words
+ * people actually type.
+ */
+const PRICE_WORDS: Record<number, string> = {
+  1: "رخيص اقتصادي بسيط",
+  2: "متوسط معقول",
+  3: "غالي راقي فخم",
+};
+
+function ratingWords(rating: number): string {
+  if (rating >= 4.7) return "الأعلى تقييماً ممتاز أحسن أفضل تقييم";
+  if (rating >= 4.4) return "تقييم عالي حلو زين";
+  return "تقييم جيد";
+}
+
 export function buildDocs(list: Place[] = snapshot): SearchDoc[] {
   const byCategory = new Map<CategoryId, number>();
   const areas = new Map<string, { ar: string; en: string; n: number }>();
@@ -169,7 +214,11 @@ export function buildDocs(list: Place[] = snapshot): SearchDoc[] {
       url: `/places/${p.slug}/`,
       category: p.category,
       keywords: [p.name, p.area, cat?.ar ?? "", cat?.en ?? "", ...p.highlightsAr],
-      body: `${p.taglineAr} ${p.descriptionAr} ${p.bestTimeAr}`,
+      // Price and rating sit in the body rather than keywords: they should
+      // let a place be *found* by "رخيص", not outrank a name match for it.
+      body: `${p.taglineAr} ${p.descriptionAr} ${p.bestTimeAr} ${
+        PRICE_WORDS[p.priceLevel] ?? ""
+      } ${ratingWords(p.rating)}`,
     };
   });
 
@@ -273,8 +322,19 @@ const B = 0.75;
 function candidates(term: string, index: SearchIndex): { term: string; boost: number }[] {
   if (index.postings.has(term)) return [{ term, boost: 1 }];
 
+  // Try the word without its glued function letters before guessing at
+  // prefixes or typos — «بالسالمية» is a spelling of a real term, not a typo.
+  for (const stripped of declitic(term)) {
+    if (index.postings.has(stripped)) return [{ term: stripped, boost: 0.95 }];
+  }
+
   const prefix = index.terms.filter((t) => t.startsWith(term));
   if (prefix.length) return prefix.slice(0, 12).map((t) => ({ term: t, boost: 0.82 }));
+
+  // Below four letters a single edit reaches too much of the vocabulary —
+  // «قق» would "correct" to any two-letter term — so short tokens get exact,
+  // prefix and synonym matching only.
+  if (term.length < 4) return [];
 
   const max = term.length >= 6 ? 2 : 1;
   const fuzzy: { term: string; boost: number }[] = [];

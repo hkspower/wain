@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { IconPinSolid } from "@/components/icons";
+import { IconClose, IconPinSolid } from "@/components/icons";
 import {
   FAHAD_AGENT_ID,
   FAHAD_COPY,
@@ -129,9 +129,7 @@ export default function FahadLauncher() {
               aria-label={FAHAD_COPY.close}
               className="grid size-8 shrink-0 place-items-center rounded-full bg-white/15 transition hover:bg-white/25"
             >
-              <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
-                <path d="m6 6 12 12M18 6 6 18" />
-              </svg>
+              <IconClose className="size-4" />
             </button>
           </header>
 
