@@ -18,12 +18,28 @@ export class VoiceBox {
   private synth: SpeechSynthesis | null = null;
   private male: SpeechSynthesisVoice | null = null;
   private female: SpeechSynthesisVoice | null = null;
+  // Pre-rendered ElevenLabs clips (scripts/generate-voices.mjs) — used
+  // in preference to speech synthesis whenever a line's clip exists
+  private clips = new Set<string>();
+  private clipAudio: HTMLAudioElement | null = null;
+  private manifestLoading: Promise<void> | null = null;
 
   constructor() {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    this.synth = window.speechSynthesis;
-    this.pickVoices();
-    this.synth.addEventListener?.("voiceschanged", () => this.pickVoices());
+    if (typeof window === "undefined") return;
+    if ("speechSynthesis" in window) {
+      this.synth = window.speechSynthesis;
+      this.pickVoices();
+      this.synth.addEventListener?.("voiceschanged", () => this.pickVoices());
+    }
+    this.manifestLoading = fetch("/voices/manifest.json")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: string[]) => {
+        if (Array.isArray(list)) for (const id of list) this.clips.add(id);
+      })
+      .catch(() => {})
+      .finally(() => {
+        this.manifestLoading = null;
+      });
   }
 
   /** Whether the platform offers any Arabic voice at all. */
@@ -42,8 +58,25 @@ export class VoiceBox {
     if (!this.female) this.female = this.male;
   }
 
-  speak(text: string, style: Partial<VoiceStyle> = {}): void {
-    if (!this.enabled || !this.synth) return;
+  speak(text: string, style: Partial<VoiceStyle> = {}, clipId?: string): void {
+    if (!this.enabled) return;
+    // Real ElevenLabs clip takes priority over the synthesizer. Early
+    // lines can race the manifest fetch — wait for it before deciding.
+    if (clipId && this.manifestLoading) {
+      void this.manifestLoading.then(() => {
+        if (this.enabled) this.speak(text, style, clipId);
+      });
+      return;
+    }
+    if (clipId && this.clips.has(clipId)) {
+      this.synth?.cancel();
+      this.clipAudio?.pause();
+      this.clipAudio = new Audio(`/voices/${clipId}.mp3`);
+      this.clipAudio.volume = 0.9;
+      void this.clipAudio.play().catch(() => {});
+      return;
+    }
+    if (!this.synth) return;
     const voice = style.female ? this.female : this.male;
     // Cut off whatever is still being said — racing banter is snappy.
     this.synth.cancel();
@@ -58,11 +91,15 @@ export class VoiceBox {
 
   toggle(): boolean {
     this.enabled = !this.enabled;
-    if (!this.enabled) this.synth?.cancel();
+    if (!this.enabled) {
+      this.synth?.cancel();
+      this.clipAudio?.pause();
+    }
     return this.enabled;
   }
 
   dispose(): void {
     this.synth?.cancel();
+    this.clipAudio?.pause();
   }
 }

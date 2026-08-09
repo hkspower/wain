@@ -28,6 +28,22 @@ Point clients elsewhere with `NEXT_PUBLIC_HUB_WS=wss://your-server:8787` at buil
 
 Want it as a desktop / Steam PC build? See [`desktop/README.md`](desktop/README.md) for the Electron + Steamworks packaging guide.
 
+Prefer a **native Unity build** for Steam? A complete code-only Unity port lives in [`unity/`](unity/README.md) — same track, handling, rivals, and voice lines.
+
+### ElevenLabs voices (optional)
+
+Pre-render the rivals' Kuwaiti lines with a real ElevenLabs voice:
+
+```bash
+ELEVENLABS_API_KEY=sk_... node scripts/generate-voices.mjs
+```
+
+Clips land in `public/voices/` and the game plays them in preference to
+the browser's speech synthesis (which remains the zero-setup fallback).
+The Unity port (`unity/`) uses the same lines and caches them at runtime —
+see `unity/README.md`.
+
+
 ## Tech stack
 
 - [Next.js 15](https://nextjs.org) (App Router, React 19, TypeScript)

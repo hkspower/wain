@@ -486,7 +486,7 @@ export class GameEngine {
         `Find ${r.def.name} — ${r.def.arabicName}`,
         `${r.def.crew} · close in and press F to flash`
       );
-      this.voice.speak("يلا! دور على خصمك"); // announcer: go find your rival
+      this.voice.speak("يلا! دور على خصمك", {}, "announcer-start"); // announcer
     } else if (this.rivalIndex >= RIVALS.length) {
       // Reloaded as a reigning champion — straight to the crown screen.
       // Deferred: the caller sets its "playing" state right after start().
@@ -644,7 +644,7 @@ export class GameEngine {
     if (k === "v" && !e.repeat) {
       const on = this.voice.toggle();
       this.events.onMessage(on ? "Voices on — الأصوات شغالة 🗣️" : "Voices off");
-      if (on) this.voice.speak("الأصوات شغالة");
+      if (on) this.voice.speak("الأصوات شغالة", {}, "voices-on");
     }
     if (k === "g" && !e.repeat) {
       this.qualityLocked = true;
@@ -742,7 +742,7 @@ export class GameEngine {
     this.flashHeadlights();
     this.sound?.flashClick();
     this.sound?.battleSting();
-    this.voice.speak(r.def.lines.intro, r.def.voice);
+    this.voice.speak(r.def.lines.intro, r.def.voice, `${r.def.id}-intro`);
     if (this.events.onBattleStart) this.events.onBattleStart(r.def);
     else this.events.onMessage(`⚡ BATTLE — ${r.def.name} ${r.def.arabicName}`, `"${r.def.taunt}"`);
   }
@@ -765,13 +765,13 @@ export class GameEngine {
     this.inBattle = false;
     this.rivalIndex++;
     this.saveProgress();
-    this.voice.speak(r.def.lines.lose, r.def.voice);
+    this.voice.speak(r.def.lines.lose, r.def.voice, `${r.def.id}-lose`);
     if (this.rivalIndex >= RIVALS.length) {
       this.events.onMessage("👑 KING OF GULF ROAD", "كل الشوارع لك — every street is yours");
       this.sound?.championFanfare();
       this.locked = false;
       // Let the ghost concede before the announcer crowns you
-      setTimeout(() => this.voice.speak("مبروك! إنت ملك شارع الخليج"), 3200);
+      setTimeout(() => this.voice.speak("مبروك! إنت ملك شارع الخليج", {}, "announcer-champion"), 3200);
       setTimeout(() => this.events.onChampion(), 1800);
     } else {
       this.sound?.winSting();
@@ -796,7 +796,7 @@ export class GameEngine {
     this.inBattle = false;
     this.locked = true;
     this.sound?.loseSting();
-    this.voice.speak(r.def.lines.win, r.def.voice);
+    this.voice.speak(r.def.lines.win, r.def.voice, `${r.def.id}-win`);
     this.events.onDefeat(r.def);
   }
 
