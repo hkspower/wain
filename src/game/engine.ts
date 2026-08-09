@@ -44,6 +44,10 @@ export interface HudData {
   defeated: number;
   total: number;
   map: { px: number; py: number; rx: number; ry: number } | null;
+  /** Nearest online player within challenge range, if any. */
+  nearestRemote: { id: number; name: string; dist: number } | null;
+  /** Live PvP duel state, or null when not duelling. */
+  duel: { you: number; them: number; gap: number; opponent: string } | null;
   /** Turbo boost 0..1, or null when no turbo is fitted. */
   boost: number | null;
   /** NOS charge 0..1, or null when no kit is fitted. */
@@ -79,6 +83,7 @@ export interface EngineEvents {
 }
 
 interface RemotePlayer {
+  name: string;
   mesh: THREE.Group;
   s: number;
   lat: number;
@@ -236,6 +241,8 @@ export class GameEngine {
 
   // Online cruise
   private remotes = new Map<number, RemotePlayer>();
+  /** Live duel, mirrored from the hub referee for the HUD. */
+  private duel: { you: number; them: number; gap: number; opponent: string } | null = null;
 
   // Lap timing
   private lapStartAt = 0;
@@ -621,6 +628,7 @@ export class GameEngine {
     mesh.visible = false; // until the first state snapshot lands
     this.scene.add(mesh);
     this.remotes.set(id, {
+      name,
       mesh,
       s: 0,
       lat: 0,
@@ -650,6 +658,11 @@ export class GameEngine {
     if (!r) return;
     this.scene.remove(r.mesh);
     this.remotes.delete(id);
+  }
+
+  /** Feed the referee's SP numbers into the HUD. */
+  setDuel(d: { you: number; them: number; gap: number; opponent: string } | null): void {
+    this.duel = d;
   }
 
   getLocalState(): { s: number; lat: number; speed: number } {
@@ -1581,7 +1594,19 @@ export class GameEngine {
       map = { px, py, rx: -1, ry: -1 };
     }
 
+    let nearestRemote: HudData["nearestRemote"] = null;
+    for (const [id, r] of this.remotes) {
+      if (!r.mesh.visible) continue;
+      const d = this.track.deltaAhead(this.player.s, r.s);
+      if (Math.abs(d) > 70) continue;
+      if (!nearestRemote || Math.abs(d) < Math.abs(nearestRemote.dist)) {
+        nearestRemote = { id, name: r.name, dist: d };
+      }
+    }
+
     this.events.onHud({
+      nearestRemote,
+      duel: this.duel,
       flashCount: performance.now() > this.flashWindowUntil ? 0 : this.flashCount,
       speedKmh: this.player.speed * KMH,
       areaName: area.name,

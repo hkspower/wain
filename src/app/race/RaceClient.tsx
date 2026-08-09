@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { DriverCard, GameEngine, HudData } from "@/game/engine";
 import { GEARS } from "@/game/gears";
 import { RIVALS, RivalDef } from "@/game/rivals";
-import { HubClient, loadProfile, formatLap } from "@/game/net";
+import { HubClient, DuelInvite, loadProfile, formatLap } from "@/game/net";
 import {
   PARTS,
   Part,
@@ -124,6 +124,13 @@ export default function RaceClient() {
   const feedKey = useRef(0);
   const [onlineCount, setOnlineCount] = useState<number | null>(null);
   const [feed, setFeed] = useState<FeedMsg[]>([]);
+  // PvP
+  const [invite, setInvite] = useState<DuelInvite | null>(null);
+  const [duelResult, setDuelResult] = useState<{ won: boolean; reason: string; wager: number } | null>(null);
+  const [nearby, setNearby] = useState<{ id: number; name: string; dist: number } | null>(null);
+  const nearbyRef = useRef<{ id: number; name: string; dist: number } | null>(null);
+  const duelRef = useRef(false);
+  const resultTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const drawMap = useCallback((d: HudData) => {
     const canvas = mapRef.current;
@@ -186,6 +193,26 @@ export default function RaceClient() {
         flashRef.current.textContent = `FLASH 3× TO CHALLENGE ⚡ ${dots}`;
       }
 
+      // Nearest online driver — the PvP challenge target
+      nearbyRef.current = d.nearestRemote;
+      setNearby((prev) => {
+        const n = d.nearestRemote;
+        if (!n && !prev) return prev;
+        if (n && prev && n.id === prev.id && Math.abs(n.dist - prev.dist) < 3) return prev;
+        return n;
+      });
+
+      // A live duel drives the same SP bars as a rival battle
+      if (d.duel && battleRef.current) {
+        battleRef.current.style.opacity = "1";
+        if (playerBarRef.current) playerBarRef.current.style.width = `${d.duel.you}%`;
+        if (rivalBarRef.current) rivalBarRef.current.style.width = `${d.duel.them}%`;
+        if (battleNameRef.current)
+          battleNameRef.current.textContent = `DUEL · ${d.duel.opponent} · ${
+            d.duel.gap >= 0 ? `${Math.round(d.duel.gap)} m ahead` : `${Math.round(-d.duel.gap)} m behind`
+          }`;
+      }
+
       // Garage gauges: turbo boost + NOS charge (hidden without the mods)
       if (boostWrapRef.current)
         boostWrapRef.current.style.display = d.boost === null ? "none" : "flex";
@@ -195,7 +222,7 @@ export default function RaceClient() {
       if (nosRef.current && d.nos !== null)
         nosRef.current.style.width = `${Math.round(d.nos * 100)}%`;
 
-      if (battleRef.current) {
+      if (battleRef.current && !d.duel) {
         battleRef.current.style.opacity = d.battle ? "1" : "0";
         if (d.battle) {
           if (playerBarRef.current) playerBarRef.current.style.width = `${d.battle.playerSp}%`;
@@ -296,6 +323,30 @@ export default function RaceClient() {
           },
           onChat: (name, text) =>
             setFeed((prev) => [...prev.slice(-3), { name, text, key: feedKey.current++ }]),
+          onDuelInvite: (inv) => setInvite(inv),
+          onDuelStart: (opponent, w) => {
+            duelRef.current = true;
+            setInvite(null);
+            showMessage(`⚔ DUEL — ${opponent}`, w > 0 ? `${w} KD on the line` : "Pride only");
+          },
+          onDuelSp: (you, them, gap) => {
+            const opp = nearbyRef.current?.name ?? "Rival";
+            engine.setDuel({ you, them, gap, opponent: opp });
+          },
+          onDuelEnd: (won, reason, w) => {
+            duelRef.current = false;
+            engine.setDuel(null);
+            if (w > 0) {
+              const g = loadGarage();
+              g.kd = Math.max(0, g.kd + (won ? w : -w));
+              saveGarage(g);
+              setGarage(g);
+            }
+            setDuelResult({ won, reason, wager: w });
+            if (resultTimer.current) clearTimeout(resultTimer.current);
+            resultTimer.current = setTimeout(() => setDuelResult(null), 4200);
+          },
+          onDuelDeclined: () => showMessage("Challenge declined", "They weren't interested"),
           onClose: () => {
             setOnlineCount(null);
             showMessage("Hub disconnected", "Cruising solo — the road is still yours");
@@ -325,6 +376,7 @@ export default function RaceClient() {
       if (msgTimer.current) clearTimeout(msgTimer.current);
       if (vsTimer.current) clearTimeout(vsTimer.current);
       if (challengeTimer.current) clearTimeout(challengeTimer.current);
+      if (resultTimer.current) clearTimeout(resultTimer.current);
       if (sendTimer.current) clearInterval(sendTimer.current);
       hubRef.current?.close();
       hubRef.current = null;
@@ -499,6 +551,100 @@ export default function RaceClient() {
           <br />F flash headlights · M mute · V voices · G glow fx
         </div>
       </div>
+
+      {/* PvP: challenge the nearest online driver */}
+      {phase === "playing" && nearby && !invite && !duelResult && (
+        <div className="pointer-events-none absolute left-1/2 top-40 z-[6] -translate-x-1/2 text-center">
+          <div className="grn-panel px-4 py-2">
+            <div className="grn-label text-[0.58rem] text-gulf-300">Online driver</div>
+            <div className="grn-display text-xl leading-tight">{nearby.name}</div>
+            <div className="grn-label mt-0.5 text-[0.55rem]">
+              {Math.abs(Math.round(nearby.dist))} m {nearby.dist >= 0 ? "ahead" : "behind"}
+            </div>
+            <div className="mt-2 flex items-center justify-center gap-1.5">
+              <button
+                onClick={() => {
+                  // Cycle the stake through what you can actually cover
+                  const bal = garage?.kd ?? 0;
+                  const tiers = [0, ...WAGERS.filter((w) => w <= bal)];
+                  const i = tiers.indexOf(wager);
+                  setWager(tiers[(i + 1) % tiers.length] ?? 0);
+                }}
+                className="pointer-events-auto grn-btn border border-white/20 px-2.5 py-1.5 text-[0.62rem] text-white/70 hover:bg-white/10"
+                title="Cycle the stake"
+              >
+                ⇅
+              </button>
+              <button
+                onClick={() => hubRef.current?.challengePlayer(nearby.id, wager)}
+                className="pointer-events-auto grn-btn grn-btn-ghost px-4 py-1.5 text-xs"
+              >
+                CHALLENGE ⚔ {wager > 0 ? `${wager} KD` : "PRIDE"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PvP: someone challenged you */}
+      {invite && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70 px-6 backdrop-blur-sm">
+          <div className="grn-dialog w-full max-w-md px-9 py-8 text-center">
+            <div className="grn-label text-[0.66rem] text-gulf-300">Incoming challenge</div>
+            <div className="grn-display mt-2 text-4xl italic">
+              {invite.tag ? <span className="text-sodium-400">[{invite.tag}] </span> : null}
+              {invite.name}
+            </div>
+            <div className="mt-2 text-sm text-white/70">
+              wants to race you for{" "}
+              <span className="grn-display text-lg text-sodium-400">
+                {invite.wager > 0 ? `${invite.wager} KD` : "pride"}
+              </span>
+            </div>
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => hubRef.current?.answerDuel(true)}
+                className="grn-btn grn-btn-primary flex-1 py-3 text-lg"
+              >
+                ACCEPT — <span className="grn-ar">يلا</span>
+              </button>
+              <button
+                onClick={() => {
+                  hubRef.current?.answerDuel(false);
+                  setInvite(null);
+                }}
+                className="grn-btn border border-white/20 px-6 py-3 text-sm text-white/70 hover:bg-white/10"
+              >
+                DECLINE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PvP: result */}
+      {duelResult && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-black/55">
+          <div className="grn-dialog px-12 py-9 text-center">
+            <div
+              className={`grn-display text-6xl italic ${
+                duelResult.won
+                  ? "text-emerald-400 [text-shadow:0_0_30px_rgba(52,211,153,0.8)]"
+                  : "text-rose-500 [text-shadow:0_0_30px_rgba(244,63,94,0.8)]"
+              }`}
+            >
+              {duelResult.won ? "DUEL WON" : "DUEL LOST"}
+            </div>
+            <div className="grn-label mt-3 text-[0.66rem]">{duelResult.reason}</div>
+            {duelResult.wager > 0 && (
+              <div className="grn-display mt-2 text-2xl text-sodium-400">
+                {duelResult.won ? "+" : "−"}
+                {duelResult.wager} KD
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Challenge cards — both drivers revealed, rival answers */}
       {challenge && phase === "playing" && (

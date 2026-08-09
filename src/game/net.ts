@@ -14,9 +14,24 @@ export interface LapEntry {
   ms: number;
 }
 
+export interface DuelInvite {
+  from: number;
+  name: string;
+  tag: string | null;
+  wager: number;
+}
+
 export interface HubEvents {
   onTeams?(teams: Team[]): void;
   onMyTeam?(team: Team | null): void;
+  /** Someone wants to race you. */
+  onDuelInvite?(invite: DuelInvite): void;
+  /** Both sides agreed — the duel is live. */
+  onDuelStart?(opponent: string, wager: number): void;
+  /** Referee tick: SP for both sides and the signed gap. */
+  onDuelSp?(you: number, them: number, gap: number): void;
+  onDuelEnd?(won: boolean, reason: string, wager: number): void;
+  onDuelDeclined?(): void;
   onWelcome?(selfId: number, players: HubPlayer[], leaderboard: LapEntry[]): void;
   onJoined?(p: HubPlayer): void;
   onLeft?(id: number): void;
@@ -58,6 +73,26 @@ export class HubClient {
           break;
         case "team-you":
           events.onMyTeam?.(msg.team ?? null);
+          break;
+        case "duel-invite":
+          events.onDuelInvite?.({
+            from: msg.from,
+            name: msg.name,
+            tag: msg.tag ?? null,
+            wager: msg.wager ?? 0,
+          });
+          break;
+        case "duel-start":
+          events.onDuelStart?.(msg.opponent, msg.wager ?? 0);
+          break;
+        case "duel-sp":
+          events.onDuelSp?.(msg.you, msg.them, msg.gap);
+          break;
+        case "duel-end":
+          events.onDuelEnd?.(!!msg.won, msg.reason ?? "", msg.wager ?? 0);
+          break;
+        case "duel-declined":
+          events.onDuelDeclined?.();
           break;
         case "joined":
           events.onJoined?.({ id: msg.id, name: msg.name, color: msg.color });
@@ -108,6 +143,20 @@ export class HubClient {
 
   leaveTeam(): void {
     this.send({ t: "team-leave" });
+  }
+
+  // ---- player-vs-player duels
+
+  challengePlayer(targetId: number, wager: number): void {
+    this.send({ t: "duel-challenge", targetId, wager });
+  }
+
+  answerDuel(accept: boolean): void {
+    this.send({ t: "duel-answer", accept });
+  }
+
+  quitDuel(): void {
+    this.send({ t: "duel-quit" });
   }
 
   close(): void {

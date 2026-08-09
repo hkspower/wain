@@ -9,11 +9,16 @@
 //                    {t:"chat",text}       {t:"lap",ms}
 //                    {t:"team-create",name,tag,logo} {t:"team-join",id}
 //                    {t:"team-leave"}
+//                    {t:"duel-challenge",targetId,wager} {t:"duel-answer",accept}
+//                    {t:"duel-quit"}
 //   server → client: {t:"welcome",id,players,leaderboard,teams,team}
 //                    {t:"joined",id,name,color} {t:"left",id}
 //                    {t:"states",players:[[id,s,lat,speed],...]}
 //                    {t:"chat",name,text}       {t:"leaderboard",entries}
 //                    {t:"teams",teams}          {t:"team-you",team}
+//                    {t:"duel-invite",from,name,tag,wager}
+//                    {t:"duel-start",opponent} {t:"duel-sp",you,them,gap}
+//                    {t:"duel-end",won,reason,wager} {t:"duel-declined"}
 
 import { WebSocketServer } from "ws";
 
@@ -32,6 +37,44 @@ const bestLaps = new Map();
 /** teamId -> { id, name, tag, logo, founder, members: Map<name, id|null> } */
 const teams = new Map();
 let nextTeamId = 1;
+
+/**
+ * Live player-vs-player duels. The server is the referee: it owns the SP
+ * clock, reading the position stream both sides already send at 10 Hz,
+ * so neither client can simply declare itself the winner.
+ *   id -> { a, b, spA, spB, wager, startedAt }
+ */
+const duels = new Map();
+let nextDuelId = 1;
+/** playerId -> duelId, for O(1) lookup from either side */
+const duelOf = new Map();
+/** playerId -> { from, wager, at } — one pending invite per player */
+const invites = new Map();
+
+const DUEL_MAX_WAGER = 25000;
+const INVITE_TTL_MS = 45000; // a challenged driver may be mid-corner
+
+function endDuel(duelId, winnerId, reason) {
+  const d = duels.get(duelId);
+  if (!d) return;
+  duels.delete(duelId);
+  duelOf.delete(d.a);
+  duelOf.delete(d.b);
+  for (const pid of [d.a, d.b]) {
+    const p = players.get(pid);
+    if (!p) continue;
+    send(p.ws, {
+      t: "duel-end",
+      won: winnerId === pid,
+      reason,
+      wager: d.wager,
+    });
+  }
+  const w = players.get(winnerId);
+  console.log(
+    `[hub] duel #${duelId} won by ${w ? w.name : "?"} (${reason}), ${d.wager} KD`
+  );
+}
 
 const MAX_TEAM_NAME = 28;
 const MAX_TEAMS = 200;
@@ -192,6 +235,51 @@ wss.on("connection", (ws) => {
       if (team.members.size === 0) teams.delete(team.id);
       send(ws, { t: "team-you", team: null });
       broadcastTeams();
+    } else if (msg.t === "duel-challenge") {
+      const targetId = Number(msg.targetId);
+      const target = players.get(targetId);
+      if (!target || targetId === id) return;
+      if (duelOf.has(id) || duelOf.has(targetId)) return; // already racing
+      const wager = Math.max(0, Math.min(DUEL_MAX_WAGER, Math.round(Number(msg.wager) || 0)));
+      invites.set(targetId, { from: id, wager, at: Date.now() });
+      const mine = teamOf(p.name);
+      send(target.ws, {
+        t: "duel-invite",
+        from: id,
+        name: p.name,
+        tag: mine ? mine.tag : null,
+        wager,
+      });
+    } else if (msg.t === "duel-answer") {
+      const inv = invites.get(id);
+      if (!inv) return;
+      invites.delete(id);
+      const challenger = players.get(inv.from);
+      if (!challenger) return;
+      if (!msg.accept) {
+        send(challenger.ws, { t: "duel-declined" });
+        return;
+      }
+      if (duelOf.has(id) || duelOf.has(inv.from)) return;
+      const duelId = nextDuelId++;
+      duels.set(duelId, {
+        a: inv.from,
+        b: id,
+        spA: 100,
+        spB: 100,
+        wager: inv.wager,
+        startedAt: Date.now(),
+      });
+      duelOf.set(inv.from, duelId);
+      duelOf.set(id, duelId);
+      send(challenger.ws, { t: "duel-start", opponent: p.name, wager: inv.wager });
+      send(ws, { t: "duel-start", opponent: challenger.name, wager: inv.wager });
+      console.log(`[hub] duel #${duelId}: ${challenger.name} vs ${p.name} for ${inv.wager} KD`);
+    } else if (msg.t === "duel-quit") {
+      const duelId = duelOf.get(id);
+      if (duelId === undefined) return;
+      const d = duels.get(duelId);
+      endDuel(duelId, d.a === id ? d.b : d.a, "opponent quit");
     } else if (msg.t === "lap") {
       const ms = Number(msg.ms);
       // Sanity: a 7.3 km lap takes at least ~80 s flat out
@@ -207,6 +295,12 @@ wss.on("connection", (ws) => {
   ws.on("close", () => {
     const p = players.get(id);
     if (p) {
+      const duelId = duelOf.get(id);
+      if (duelId !== undefined) {
+        const d = duels.get(duelId);
+        endDuel(duelId, d.a === id ? d.b : d.a, "opponent disconnected");
+      }
+      invites.delete(id);
       players.delete(id);
       syncTeamPresence();
       broadcast({ t: "left", id });
@@ -218,6 +312,17 @@ wss.on("connection", (ws) => {
   ws.on("error", () => {});
 });
 
+// Track length must match src/game/track.ts so the wrap-around maths
+// agrees with what the clients are driving.
+const TRACK_LENGTH = 7342;
+
+/** Signed shortest distance from a to b around the loop. */
+function deltaAhead(from, to) {
+  let d = ((to - from) % TRACK_LENGTH + TRACK_LENGTH) % TRACK_LENGTH;
+  if (d > TRACK_LENGTH / 2) d -= TRACK_LENGTH;
+  return d;
+}
+
 setInterval(() => {
   if (players.size === 0) return;
   const states = [];
@@ -225,6 +330,36 @@ setInterval(() => {
     if (p.state) states.push([id, p.state.s, p.state.lat, p.state.speed]);
   }
   if (states.length) broadcast({ t: "states", players: states });
+
+  // --- duel referee: whoever trails bleeds SP, same rules as the
+  // single-player battles, but judged here from both position streams
+  const dt = TICK_MS / 1000;
+  for (const [duelId, d] of duels) {
+    const A = players.get(d.a);
+    const B = players.get(d.b);
+    if (!A || !B) continue;
+    if (!A.state || !B.state) continue;
+
+    // Positive gap => B is ahead of A
+    const gap = deltaAhead(A.state.s, B.state.s);
+    const lead = Math.abs(gap);
+    const drain = lead < 4 ? 0 : 1.7 + Math.min(lead, 160) * 0.04 + (lead > 230 ? 16 : 0);
+
+    if (gap > 4) d.spA = Math.max(0, d.spA - drain * dt);
+    else if (gap < -4) d.spB = Math.max(0, d.spB - drain * dt);
+
+    send(A.ws, { t: "duel-sp", you: d.spA, them: d.spB, gap });
+    send(B.ws, { t: "duel-sp", you: d.spB, them: d.spA, gap: -gap });
+
+    if (d.spA <= 0) endDuel(duelId, d.b, "SP drained");
+    else if (d.spB <= 0) endDuel(duelId, d.a, "SP drained");
+  }
+
+  // Expire stale invitations
+  const now = Date.now();
+  for (const [pid, inv] of invites) {
+    if (now - inv.at > INVITE_TTL_MS) invites.delete(pid);
+  }
 }, TICK_MS);
 
 console.log(`[hub] Gulf Road Nights hub listening on ws://0.0.0.0:${PORT}`);
