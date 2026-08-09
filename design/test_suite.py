@@ -141,11 +141,11 @@ def identity_checks():
 
     # the mark's own path signature. It lives in three files and they have to
     # stay one drawing — a favicon that lags a redraw is a second logo
-    SAIL = "M20.4 2.4C21.08 1.9 21.95 2.5 21.7 3.3"
-    HULL = "M2.9 16.55C8.9 17.95 15.05 17.6 21.05 15.5"
-    check(S, "the mark is the dhow sail, in logo.svg and in the page sprite",
+    SAIL = "M9.7 15.4 11.0 3.2"
+    HULL = "M2.5 14.4C8.6 16.15 15.0 15.95 20.5 14.05"
+    check(S, "the mark is the boum, in logo.svg and in the page sprite",
           'id="i-sail"' in home and SAIL in home and SAIL in logo)
-    check(S, "the sail sits over its hull in both",
+    check(S, "her masts stand on that hull in both",
           HULL in home and HULL in logo)
     check(S, "the header carries the mark, not an emoji or a letter",
           '<use href="#i-sail"/>' in home)
@@ -830,9 +830,9 @@ def scan_checks(pg, br):
     check(S, "the company favicon is the sail, not the anchor",
           'href="favicon.svg"' in home and 'href="icon.svg"' not in home)
     fav = (ROOT / "favicon.svg").read_text()
-    check(S, "the favicon file draws the sail",
-          "M20.4 2.4C21.08 1.9 21.95 2.5 21.7 3.3" in fav
-          and "M2.9 16.55C8.9 17.95 15.05 17.6 21.05 15.5" in fav)
+    check(S, "the favicon file draws the boum",
+          "M9.7 15.4 11.0 3.2" in fav
+          and "M2.5 14.4C8.6 16.15 15.0 15.95 20.5 14.05" in fav)
 
     # document structure: exactly one h1 per page
     for f in list(PAGES) + list(STUBS) + ["404.html"]:

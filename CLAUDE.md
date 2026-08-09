@@ -34,7 +34,7 @@ Locked, exactly as they are:
 
 | | Locked value |
 |---|---|
-| Mark | the dhow's lateen sail over the water — `logo.svg`, `favicon.svg` and `#i-sail`, one drawing in all three. Redrawn 2026-08-09 at the owner's ask for more of the real boat: **four parts** — sail, the lateen **yard** laid over the luff and protruding past the peak, the **mast** showing in the gap between foot and deck, and the hull with its **stem post** rising at the bow. The yard overlaps the luff rather than sitting beside it — a hairline gap there closes up at small sizes and reads as a scratch. The suite pins its path signature in all three files |
+| Mark | a **Kuwaiti boum under way** — `logo.svg`, `favicon.svg` and `#i-sail`, one drawing in all three. Redrawn 2026-08-09 at the owner's direction from a photograph of the real ship, replacing the lateen-sail mark: long hull with its sweeping sheer, tall transom aft, raked stem forward, two forward-raked masts, their lateen yards, and a pennant at the main truck. **The yards are raked, never square across a mast** — square ones read as a cross, which this mark must never do. The owner chose this knowing it loses detail at 20–32px; that was measured and shown before the change. The suite pins its path signature in all three files |
 | Wordmark | **المهلب**, then `Almuhallab Code` on its own line beneath (LTR in its own bidi isolate), then «شركة برمجة وأنظمة». On the brown bar all three are white. Enlarging the lockup covers more of the page, so `scroll-margin-top` moved with it — 172px desktop, 146px phone |
 | Brand ink | `--tint` `#7a4418` · `--tint-strong` `#6f3f1c` |
 | Surfaces | **white on every device** — no dark theme; white page, white cards, cool near-neutral greys. Brown is ink, never paper — with one exception the owner asked for (2026-07-31): the **masthead bar is brown** (`--tint-strong`) with white ink on every page, and `theme-color` matches it. Everything below the bar stays white |
@@ -92,8 +92,8 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Colour values are **solved numerically against WCAG targets**, never picked by
   eye. Text ≥ 4.5:1 (body ≥ 7:1) against the darkest surface it can land on;
   essential UI boundaries ≥ 3:1; chart marks ≥ 2:1.
-- **The company's real identity, from the live site**: the mark is a dhow's
-  lateen sail over the water (`logo.svg`, and `#i-sail` in the page sprite), the
+- **The company's real identity, from the live site**: the mark is a Kuwaiti
+  boum under way (`logo.svg`, and `#i-sail` in the page sprite), the
   wordmark is **المهلب** in brand brown, and the palette is brown on white.
   النوخذة keeps the ⚓ anchor (`icon.svg`) — the company and the product are
   marked differently on purpose.
@@ -228,7 +228,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Numbers are formatted with an **explicit `"en-US"` locale**. A bare
   `toLocaleString()` follows the visitor's device and printed Arabic-Indic digits
   beside Latin ones in the same table.
-- `favicon.svg` (the company sail) is the tab icon for `index.html`; `icon.svg`
+- `favicon.svg` (the company boum) is the tab icon for `index.html`; `icon.svg`
   (the ⚓ anchor) is النوخذة's. Don't cross them.
 - The units print: `nizam.html` carries an `@media print` block that strips the
   chrome, forms and row actions so a statement prints as a document.
