@@ -16,8 +16,8 @@ public static class CarFactory
         var root = new GameObject("Car");
         var car = new Car { Root = root };
 
-        var bodyMat = Standard(body, metallic: 0.7f, smooth: 0.8f);
-        var glassMat = Standard(new Color(0.05f, 0.07f, 0.1f), metallic: 0.8f, smooth: 0.95f);
+        var bodyMat = Mats.CarPaint(body);
+        var glassMat = Mats.Lit(new Color(0.05f, 0.07f, 0.1f), 0.9f, 0.97f);
 
         Box(root, "Body", new Vector3(0, 0.62f, 0), new Vector3(1.9f, 0.55f, 4.4f), bodyMat);
         Box(root, "Hood", new Vector3(0, 0.93f, 1.55f), new Vector3(1.84f, 0.28f, 1.0f), bodyMat);
@@ -26,19 +26,21 @@ public static class CarFactory
 
         if (accent.HasValue)
             Box(root, "Stripe", new Vector3(0, 0.92f, 0), new Vector3(0.5f, 0.04f, 4.42f),
-                Standard(accent.Value, 0.2f, 0.6f));
+                Mats.Lit(accent.Value, 0.2f, 0.6f));
 
-        var headMat = Emissive(new Color(1f, 0.96f, 0.81f), 2.2f);
+        // HDR intensities so the bloom pass actually blooms them
+        var headMat = Mats.Emissive(new Color(1f, 0.96f, 0.81f), 6f);
         foreach (float sx in new[] { -0.62f, 0.62f })
             Box(root, "Headlight", new Vector3(sx, 0.7f, 2.22f), new Vector3(0.5f, 0.13f, 0.06f), headMat);
 
-        car.TailMat = Emissive(new Color(1f, 0.13f, 0.13f), 1.6f);
+        car.TailMat = Mats.Emissive(new Color(1f, 0.13f, 0.13f), 3.5f);
         Box(root, "Taillight", new Vector3(0, 0.78f, -2.24f), new Vector3(1.7f, 0.1f, 0.06f), car.TailMat);
 
         Box(root, "Grille", new Vector3(0, 0.5f, 2.23f), new Vector3(1.05f, 0.17f, 0.06f),
-            Standard(new Color(0.05f, 0.05f, 0.06f), 0.3f, 0.4f));
+            Mats.Lit(new Color(0.05f, 0.05f, 0.06f), 0.3f, 0.4f));
 
-        var wheelMat = Standard(new Color(0.05f, 0.05f, 0.06f), 0.2f, 0.3f);
+        var wheelMat = Mats.Lit(new Color(0.05f, 0.05f, 0.06f), 0.2f, 0.25f);
+        var rimMat = Mats.Lit(new Color(0.78f, 0.8f, 0.84f), 0.95f, 0.85f);
         var wheels = new Transform[4];
         var slots = new[]
         {
@@ -56,8 +58,37 @@ public static class CarFactory
             w.transform.localScale = new Vector3(0.72f, 0.13f, 0.72f);
             w.GetComponent<MeshRenderer>().sharedMaterial = wheelMat;
             wheels[i] = w.transform;
+
+            // Rim face so the wheel reads as an alloy, not a black puck
+            var rim = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            rim.name = "Rim";
+            Object.Destroy(rim.GetComponent<Collider>());
+            rim.transform.SetParent(w.transform, false);
+            rim.transform.localScale = new Vector3(0.62f, 1.04f, 0.62f);
+            rim.GetComponent<MeshRenderer>().sharedMaterial = rimMat;
         }
         car.Wheels = wheels;
+
+        // Every mesh casts; the contact blob below must not
+        foreach (var r in root.GetComponentsInChildren<MeshRenderer>())
+        {
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+            r.receiveShadows = true;
+        }
+
+        // Contact shadow — grounds the car even where the moon shadow is soft
+        var blob = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        blob.name = "ContactShadow";
+        Object.Destroy(blob.GetComponent<Collider>());
+        blob.transform.SetParent(root.transform, false);
+        blob.transform.localPosition = new Vector3(0, 0.035f, 0);
+        blob.transform.localRotation = Quaternion.Euler(90, 0, 0);
+        blob.transform.localScale = new Vector3(2.6f, 5.2f, 1f);
+        var br = blob.GetComponent<MeshRenderer>();
+        br.sharedMaterial = Mats.AlphaBlend(Color.white, Mats.Blob());
+        br.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        br.receiveShadows = false;
+
         return car;
     }
 
@@ -72,20 +103,4 @@ public static class CarFactory
         go.GetComponent<MeshRenderer>().sharedMaterial = mat;
     }
 
-    public static Material Standard(Color c, float metallic, float smooth)
-    {
-        var m = new Material(Shader.Find("Standard"));
-        m.color = c;
-        m.SetFloat("_Metallic", metallic);
-        m.SetFloat("_Glossiness", smooth);
-        return m;
-    }
-
-    public static Material Emissive(Color c, float intensity)
-    {
-        var m = Standard(c, 0.1f, 0.5f);
-        m.EnableKeyword("_EMISSION");
-        m.SetColor("_EmissionColor", c * intensity);
-        return m;
-    }
 }

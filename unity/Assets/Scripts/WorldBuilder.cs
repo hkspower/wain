@@ -20,33 +20,44 @@ public static class WorldBuilder
         var moon = new GameObject("Moon").AddComponent<Light>();
         moon.type = LightType.Directional;
         moon.color = new Color(0.75f, 0.82f, 1f);
-        moon.intensity = 0.6f;
+        moon.intensity = 0.75f;
         moon.shadows = LightShadows.Soft;
+        moon.shadowStrength = 0.85f;
+        moon.shadowBias = 0.04f;
+        moon.shadowNormalBias = 0.35f;
         moon.transform.rotation = Quaternion.LookRotation(new Vector3(0.5f, -0.8f, -0.33f));
         moon.transform.SetParent(root.transform);
 
         // Ground + sea
         Plane(root, "Ground", new Vector3(2700, -0.08f, -1400), new Vector2(8000, 8000),
-            CarFactory.Standard(new Color(0.14f, 0.11f, 0.07f), 0f, 0.1f));
+            Mats.Lit(new Color(0.14f, 0.11f, 0.07f), 0f, 0.1f));
         Plane(root, "Sea", new Vector3(-880, -0.04f, -1400), new Vector2(3300, 5800),
-            CarFactory.Standard(new Color(0.04f, 0.13f, 0.21f), 0.4f, 0.9f));
+            Mats.Lit(new Color(0.04f, 0.13f, 0.21f), 0.4f, 0.9f));
 
-        // Road ribbon + edge lines (single combined meshes)
-        Ribbon(root, "Road", track, -TrackSpline.RoadHalfWidth, TrackSpline.RoadHalfWidth, 0.02f,
-            CarFactory.Standard(new Color(0.11f, 0.11f, 0.13f), 0.2f, 0.55f));
-        var lineMat = CarFactory.Emissive(Color.white, 0.35f);
+        // Road ribbon: procedural asphalt with a matching normal map
+        Mats.AsphaltTextures(out var asphaltAlbedo, out var asphaltNormal);
+        var roadMat = Mats.Lit(Color.white, 0.3f, 0.34f);
+        roadMat.mainTexture = asphaltAlbedo;
+        roadMat.SetTexture("_BaseMap", asphaltAlbedo);
+        roadMat.SetTextureScale("_BaseMap", new Vector2(1, 1)); // UVs already metre-scaled
+        roadMat.EnableKeyword("_NORMALMAP");
+        roadMat.SetTexture("_BumpMap", asphaltNormal);
+        roadMat.SetFloat("_BumpScale", 0.85f);
+        Ribbon(root, "Road", track, -TrackSpline.RoadHalfWidth, TrackSpline.RoadHalfWidth, 0.02f, roadMat);
+        var lineMat = Mats.Emissive(Color.white, 0.35f);
         Ribbon(root, "EdgeL", track, -(TrackSpline.RoadHalfWidth - 0.35f), -(TrackSpline.RoadHalfWidth - 0.15f), 0.03f, lineMat);
         Ribbon(root, "EdgeR", track, TrackSpline.RoadHalfWidth - 0.35f, TrackSpline.RoadHalfWidth - 0.15f, 0.03f, lineMat);
 
         // Guardrails
-        var railMat = CarFactory.Standard(new Color(0.6f, 0.63f, 0.67f), 0.8f, 0.7f);
+        var railMat = Mats.Lit(new Color(0.6f, 0.63f, 0.67f), 0.8f, 0.7f);
         Wall(root, "RailL", track, -(TrackSpline.RoadHalfWidth + 0.6f), 0.3f, 0.95f, railMat);
         Wall(root, "RailR", track, TrackSpline.RoadHalfWidth + 0.6f, 0.3f, 0.95f, railMat);
 
         // Street lamps: emissive heads every 42 m (combined mesh) + real
         // point lights every 5th lamp to keep the light count sane
-        var lampMat = CarFactory.Emissive(new Color(1f, 0.72f, 0.4f), 3f);
-        var poleMat = CarFactory.Standard(new Color(0.22f, 0.24f, 0.27f), 0.5f, 0.4f);
+        var lampMat = Mats.Emissive(new Color(1f, 0.72f, 0.4f), 9f); // HDR -> bloom
+        var coronaMat = Mats.Additive(new Color(1f, 0.66f, 0.32f, 1f), Mats.Glow());
+        var poleMat = Mats.Lit(new Color(0.22f, 0.24f, 0.27f), 0.5f, 0.4f);
         var poles = new List<CombineInstance>();
         var heads = new List<CombineInstance>();
         var cube = CubeMesh();
@@ -58,13 +69,27 @@ public static class WorldBuilder
             poles.Add(Ci(cube, basePos + new Vector3(0, 4.2f, 0), new Vector3(0.25f, 8.4f, 0.25f)));
             Vector3 headPos = track.Pose(s, side * (TrackSpline.RoadHalfWidth + 0.6f)) + new Vector3(0, 8.3f, 0);
             heads.Add(Ci(cube, headPos, new Vector3(0.7f, 0.5f, 0.7f)));
-            if (lampIndex % 5 == 0)
+            // Soft corona around every head so the string of lights reads
+            // the way a real sodium-lit highway does
+            var corona = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            Object.Destroy(corona.GetComponent<Collider>());
+            corona.name = "Corona";
+            corona.transform.SetParent(root.transform);
+            corona.transform.position = headPos;
+            corona.transform.localScale = Vector3.one * 7f;
+            var cr = corona.GetComponent<MeshRenderer>();
+            cr.sharedMaterial = coronaMat;
+            cr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            corona.AddComponent<FaceCamera>();
+
+            if (lampIndex % 4 == 0)
             {
                 var l = new GameObject("LampLight").AddComponent<Light>();
                 l.type = LightType.Point;
                 l.color = new Color(1f, 0.7f, 0.38f);
-                l.intensity = 1.6f;
-                l.range = 26f;
+                l.intensity = 3.2f;
+                l.range = 30f;
+                l.shadows = LightShadows.None; // too many to shadow-map
                 l.transform.position = headPos - new Vector3(0, 1.5f, 0);
                 l.transform.SetParent(root.transform);
             }
@@ -73,8 +98,8 @@ public static class WorldBuilder
         Combined(root, "LampHeads", heads, lampMat);
 
         // Corniche palms (coastal 46% of the lap)
-        var trunkMat = CarFactory.Standard(new Color(0.35f, 0.26f, 0.15f), 0f, 0.2f);
-        var frondMat = CarFactory.Standard(new Color(0.18f, 0.37f, 0.19f), 0f, 0.2f);
+        var trunkMat = Mats.Lit(new Color(0.35f, 0.26f, 0.15f), 0f, 0.2f);
+        var frondMat = Mats.Lit(new Color(0.18f, 0.37f, 0.19f), 0f, 0.2f);
         var trunks = new List<CombineInstance>();
         var fronds = new List<CombineInstance>();
         for (float s = 0; s < track.Length * 0.46f; s += 26f)
@@ -97,7 +122,7 @@ public static class WorldBuilder
         Mosque(root, track.Pose(track.Length * 0.02f, 55f));
 
         // City blocks
-        var blockMat = CarFactory.Standard(new Color(0.16f, 0.17f, 0.2f), 0.1f, 0.3f);
+        var blockMat = Mats.Lit(new Color(0.16f, 0.17f, 0.2f), 0.1f, 0.3f);
         var blocks = new List<CombineInstance>();
         var rng = new System.Random(7);
         for (int i = 0; i < 160; i++)
@@ -121,8 +146,8 @@ public static class WorldBuilder
         var g = new GameObject("KuwaitTowers");
         g.transform.SetParent(root.transform);
         g.transform.position = at;
-        var spireMat = CarFactory.Standard(new Color(0.81f, 0.84f, 0.87f), 0.3f, 0.5f);
-        var ballMat = CarFactory.Emissive(new Color(0.18f, 0.56f, 0.59f), 0.6f);
+        var spireMat = Mats.Lit(new Color(0.81f, 0.84f, 0.87f), 0.3f, 0.5f);
+        var ballMat = Mats.Emissive(new Color(0.18f, 0.56f, 0.59f), 0.6f);
         Prim(g, PrimitiveType.Cylinder, new Vector3(0, 56.5f, 0), new Vector3(4f, 56.5f, 4f), spireMat);
         Prim(g, PrimitiveType.Sphere, new Vector3(0, 58, 0), Vector3.one * 22f, ballMat);
         Prim(g, PrimitiveType.Sphere, new Vector3(0, 88, 0), Vector3.one * 13f, ballMat);
@@ -135,8 +160,8 @@ public static class WorldBuilder
         var g = new GameObject("WaterTowers");
         g.transform.SetParent(root.transform);
         g.transform.position = at;
-        var stemMat = CarFactory.Standard(new Color(0.85f, 0.87f, 0.89f), 0.2f, 0.5f);
-        var capMat = CarFactory.Standard(new Color(0.49f, 0.78f, 0.89f), 0.2f, 0.6f);
+        var stemMat = Mats.Lit(new Color(0.85f, 0.87f, 0.89f), 0.2f, 0.5f);
+        var capMat = Mats.Lit(new Color(0.49f, 0.78f, 0.89f), 0.2f, 0.6f);
         for (int i = 0; i < 5; i++)
         {
             Vector3 o = new Vector3(i % 3 * 22f - 22f, 0, i / 3 * 20f - 10f);
@@ -150,8 +175,8 @@ public static class WorldBuilder
         var g = new GameObject("Mosque");
         g.transform.SetParent(root.transform);
         g.transform.position = at;
-        var wallMat = CarFactory.Emissive(new Color(0.85f, 0.79f, 0.66f), 0.15f);
-        var domeMat = CarFactory.Emissive(new Color(0.18f, 0.56f, 0.59f), 0.4f);
+        var wallMat = Mats.Emissive(new Color(0.85f, 0.79f, 0.66f), 0.15f);
+        var domeMat = Mats.Emissive(new Color(0.18f, 0.56f, 0.59f), 0.4f);
         Prim(g, PrimitiveType.Cube, new Vector3(0, 4.5f, 0), new Vector3(26f, 9f, 22f), wallMat);
         Prim(g, PrimitiveType.Sphere, new Vector3(0, 9, 0), Vector3.one * 16f, domeMat);
         Prim(g, PrimitiveType.Cylinder, new Vector3(17, 13.5f, 8), new Vector3(2.9f, 13.5f, 2.9f), wallMat);
@@ -176,10 +201,15 @@ public static class WorldBuilder
     {
         var mesh = new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
         mesh.CombineMeshes(parts.ToArray(), true, true);
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
         var go = new GameObject(name);
         go.transform.SetParent(root.transform);
         go.AddComponent<MeshFilter>().sharedMesh = mesh;
-        go.AddComponent<MeshRenderer>().sharedMaterial = mat;
+        var r = go.AddComponent<MeshRenderer>();
+        r.sharedMaterial = mat;
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+        r.receiveShadows = true;
     }
 
     static void Prim(GameObject parent, PrimitiveType type, Vector3 pos, Vector3 scale, Material mat)
@@ -219,15 +249,19 @@ public static class WorldBuilder
     static void BuildStrip(GameObject root, string name, TrackSpline track,
         System.Func<float, Vector3> edgeA, System.Func<float, Vector3> edgeB, Material mat)
     {
-        const float step = 8f;
+        const float step = 4f;
         int n = Mathf.CeilToInt(track.Length / step);
         var verts = new Vector3[(n + 1) * 2];
+        var uvs = new Vector2[(n + 1) * 2];
         var tris = new int[n * 6];
         for (int i = 0; i <= n; i++)
         {
             float s = (float)i / n * track.Length;
             verts[i * 2] = edgeA(s);
             verts[i * 2 + 1] = edgeB(s);
+            // one texture tile per ~14 m, matching the web build
+            uvs[i * 2] = new Vector2(0f, s / 14f);
+            uvs[i * 2 + 1] = new Vector2(1f, s / 14f);
         }
         for (int i = 0; i < n; i++)
         {
@@ -235,11 +269,16 @@ public static class WorldBuilder
             tris[t] = v; tris[t + 1] = v + 2; tris[t + 2] = v + 1;
             tris[t + 3] = v + 1; tris[t + 4] = v + 2; tris[t + 5] = v + 3;
         }
-        var mesh = new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32, vertices = verts, triangles = tris };
+        var mesh = new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32, vertices = verts, uv = uvs, triangles = tris };
         mesh.RecalculateNormals();
+        mesh.RecalculateTangents();
+        mesh.RecalculateBounds();
         var go = new GameObject(name);
         go.transform.SetParent(root.transform);
         go.AddComponent<MeshFilter>().sharedMesh = mesh;
-        go.AddComponent<MeshRenderer>().sharedMaterial = mat;
+        var mr = go.AddComponent<MeshRenderer>();
+        mr.sharedMaterial = mat;
+        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        mr.receiveShadows = true;
     }
 }

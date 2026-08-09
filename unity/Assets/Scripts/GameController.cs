@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 
 // The whole game loop — a faithful port of the web build's engine
 // (src/game/engine.ts): TXR rules on the Gulf Road. Find the rival,
@@ -39,14 +40,24 @@ public class GameController : MonoBehaviour
     void Start()
     {
         Application.targetFrameRate = 120;
+        QualitySettings.shadows = ShadowQuality.All;
+        QualitySettings.shadowResolution = ShadowResolution.VeryHigh;
+        QualitySettings.shadowDistance = 220f;
+        QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable;
         track = new TrackSpline();
         WorldBuilder.Build(track);
 
-        cam = new GameObject("ChaseCam").AddComponent<Camera>();
+        var camGo = new GameObject("ChaseCam");
+        camGo.tag = "MainCamera"; // Camera.main, used by the corona billboards
+        cam = camGo.AddComponent<Camera>();
         cam.backgroundColor = new Color(0.02f, 0.028f, 0.06f);
         cam.clearFlags = CameraClearFlags.SolidColor;
         cam.fieldOfView = 62f;
         cam.farClipPlane = 4000f;
+        cam.allowHDR = true;
+        cam.allowMSAA = true;
+        camGo.AddComponent<AudioListener>();
+        AttachPostProcessing(camGo);
 
         voice = gameObject.AddComponent<ElevenLabsVoice>();
         engineAudio = gameObject.AddComponent<EngineAudio>();
@@ -60,9 +71,26 @@ public class GameController : MonoBehaviour
         headlight.intensity = 4f;
         headlight.range = 90f;
         headlight.spotAngle = 55f;
-        headlight.shadows = LightShadows.Hard;
+        headlight.innerSpotAngle = 28f;
+        headlight.shadows = LightShadows.Soft;
+        headlight.shadowStrength = 0.9f;
+        headlight.shadowNearPlane = 1.5f;
         headlight.transform.SetParent(playerCar.Root.transform, false);
         headlight.transform.localPosition = new Vector3(0, 1.2f, 1.8f);
+
+        // Glow discs at the lamps themselves
+        foreach (float gx in new[] { -0.62f, 0.62f })
+        {
+            var glow = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            Destroy(glow.GetComponent<Collider>());
+            glow.name = "HeadlightGlow";
+            glow.transform.SetParent(playerCar.Root.transform, false);
+            glow.transform.localPosition = new Vector3(gx, 0.7f, 2.3f);
+            glow.transform.localScale = Vector3.one * 1.6f;
+            var gr = glow.GetComponent<MeshRenderer>();
+            gr.sharedMaterial = Mats.Additive(new Color(1f, 0.95f, 0.8f, 1f), Mats.Glow());
+            gr.shadowCastingMode = ShadowCastingMode.Off;
+        }
 
         traffic = new Traffic[16];
         var trafficColors = new[] { 0x8A96A3, 0x5D6770, 0xB0A890, 0x6E7F8D, 0x4A5560, 0x9C8F7A };
@@ -81,6 +109,58 @@ public class GameController : MonoBehaviour
         SpawnRival();
         Say("يلا! دور على خصمك", "announcer-start", 0.5f);
         ShowMessage("Find " + rivalDef.Name + " — flash F to battle");
+    }
+
+    /// Hook the camera into URP post-processing and drop the global volume
+    /// (ACES tonemap, bloom, vignette, grain, motion blur) into the scene.
+    /// Everything is looked up by name so the project still runs if the
+    /// render pipeline package hasn't been installed yet.
+    void AttachPostProcessing(GameObject camGo)
+    {
+        var camDataType = System.Type.GetType(
+            "UnityEngine.Rendering.Universal.UniversalAdditionalCameraData, Unity.RenderPipelines.Universal.Runtime");
+        if (camDataType != null)
+        {
+            var data = camGo.AddComponent(camDataType);
+            var prop = camDataType.GetProperty("renderPostProcessing");
+            prop?.SetValue(data, true);
+            camDataType.GetProperty("antialiasing")?.SetValue(data, 2); // SMAA
+            camDataType.GetProperty("antialiasingQuality")?.SetValue(data, 2); // high
+        }
+        else
+        {
+            Debug.LogWarning(
+                "[Gulf Road Nights] URP not found — running on the built-in pipeline. " +
+                "Install Universal RP and run 'Gulf Road Nights ▸ Setup Rendering' for the full look.");
+            return;
+        }
+
+        var profile = Resources.Load<VolumeProfile>("GulfRoadPostProfile")
+            ?? FindProfileInSettings();
+        if (profile == null)
+        {
+            Debug.LogWarning(
+                "[Gulf Road Nights] No post profile — run 'Gulf Road Nights ▸ Setup Rendering (URP + Post)'.");
+            return;
+        }
+        var volGo = new GameObject("GlobalPostVolume");
+        var vol = volGo.AddComponent<Volume>();
+        vol.isGlobal = true;
+        vol.priority = 1f;
+        vol.sharedProfile = profile;
+    }
+
+    static VolumeProfile FindProfileInSettings()
+    {
+#if UNITY_EDITOR
+        var guids = UnityEditor.AssetDatabase.FindAssets("GulfRoadPostProfile t:VolumeProfile");
+        if (guids.Length > 0)
+        {
+            var path = UnityEditor.AssetDatabase.GUIDToAssetPath(guids[0]);
+            return UnityEditor.AssetDatabase.LoadAssetAtPath<VolumeProfile>(path);
+        }
+#endif
+        return null;
     }
 
     void SpawnRival()
@@ -169,7 +249,7 @@ public class GameController : MonoBehaviour
         PoseCar(playerCar, pS, pLat, -heading * 0.85f);
         foreach (var w in playerCar.Wheels) w.Rotate(pSpeed / 0.36f * dt * Mathf.Rad2Deg, 0, 0, Space.Self);
         playerCar.TailMat.SetColor("_EmissionColor",
-            new Color(1f, 0.13f, 0.13f) * (down ? 6f : 1.6f));
+            new Color(1f, 0.13f, 0.13f) * (down ? 14f : 3.5f));
 
         if (bumpCooldown <= 0)
             foreach (var t in traffic)

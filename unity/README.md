@@ -7,16 +7,40 @@ art assets, no scene wiring.
 
 > **Status:** authored code-only (this repo has no Unity editor), so the
 > first person to open it should expect to fix small compile nits if your
-> Unity version's API differs. The scripts target Unity **2022.3 LTS**
-> using only built-in modules (no packages) and the built-in render
-> pipeline.
+> Unity version's API differs. The scripts target **Unity 6 LTS
+> (6000.0)** with the **Universal Render Pipeline**.
 
 ## Open & play
 
-1. Install **Unity 2022.3 LTS** via Unity Hub.
-2. Unity Hub → **Add** → select this `unity/` folder → open it.
-3. Open any empty scene (File → New Scene → Basic) and press **Play**.
+1. Install **Unity 6 LTS (6000.0.x)** via Unity Hub.
+2. Unity Hub → **Add** → select this `unity/` folder → open it. The URP
+   package restores automatically from `Packages/manifest.json`.
+3. Run the menu item **Gulf Road Nights ▸ Setup Rendering (URP + Post)**
+   once. It generates the pipeline asset, renderer and post-processing
+   profile and wires them into Graphics/Quality settings.
+4. Open any empty scene (File → New Scene → Basic) and press **Play**.
    `Bootstrap.cs` spawns the whole game automatically — no scene setup.
+
+## The render stack
+
+Everything is procedural — no textures or models ship in the repo.
+
+| Feature | Detail |
+| --- | --- |
+| Pipeline | Universal RP, HDR, 4x MSAA, SRP batcher |
+| Anti-aliasing | MSAA 4x + SMAA (high) |
+| Tonemapping | ACES filmic, +0.25 EV, mild contrast/saturation lift |
+| Bloom | Threshold 0.85, warm sodium tint — lamps, headlights, taillights and tower spheres all halo |
+| Post | Vignette, film grain, chromatic aberration, camera motion blur |
+| Sun/moon shadows | Soft, 4096 shadow map, 4 cascades, 220 m distance |
+| Headlights | Spot light with **soft real-time shadows** — traffic throws moving shadows up the road |
+| Street lamps | HDR emissive heads + camera-facing coronas, point lights every 4th pole |
+| Road | Procedurally generated asphalt: four octaves of tileable value noise for graded aggregate, tyre-polished wear bands, oil drips, plus a matching normal map from the same height field. 16x anisotropic |
+| Cars | Clearcoat paint, alloy rims, HDR emissive lamps, brake flare, soft contact shadow |
+
+If you open the project before installing URP, the game still runs on the
+built-in pipeline (materials fall back to `Standard`) and logs a warning
+telling you to run the setup menu item.
 
 Controls: `W/S` drive · `A/D` steer · `F` flash headlights (start a
 battle) · `R` rematch after a defeat · `M` mute.
@@ -64,5 +88,7 @@ at the repo root to pre-render them once for both platforms.
 | Kuwaiti voice lines | ✅ via ElevenLabs |
 | Engine/wind/impact audio | ✅ procedural (OnAudioFilterRead) |
 | Kuwait Towers, water towers, mosque, palms, lamps | ✅ simplified |
-| Billboards, tunnel, beacons, minimap, online hub | ❌ web-only for now |
-| Bloom/grain post stack | ❌ add URP + a Volume when you want it |
+| Bloom / grain / ACES / motion blur | ✅ URP volume |
+| Real-time shadows (moon + headlights) | ✅ |
+| Procedural asphalt + normal map | ✅ |
+| Billboards, tunnel, beacons, minimap, online hub, garage | ❌ web-only for now |
