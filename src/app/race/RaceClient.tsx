@@ -72,6 +72,7 @@ export default function RaceClient() {
   const challengeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [garageOpen, setGarageOpen] = useState(false);
   const [garage, setGarage] = useState<GarageState | null>(null);
+  const [isTouch, setIsTouch] = useState(false);
   const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const boostWrapRef = useRef<HTMLDivElement>(null);
@@ -81,6 +82,8 @@ export default function RaceClient() {
 
   useEffect(() => {
     setGarage(loadGarage()); // client-only: reads localStorage
+    // Phones and tablets get on-screen controls; desktop stays keyboard
+    setIsTouch(navigator.maxTouchPoints > 0 || matchMedia("(pointer: coarse)").matches);
   }, []);
 
   const buyOrDrive = useCallback((carId: string) => {
@@ -432,7 +435,11 @@ export default function RaceClient() {
         </div>
 
         {/* Speed cluster: digital speed, gear, tach bar */}
-        <div className="absolute bottom-7 left-16 select-none">
+        <div
+          className={`absolute select-none ${
+            isTouch ? "bottom-28 left-6 scale-90 origin-bottom-left" : "bottom-7 left-16"
+          }`}
+        >
           <div className="flex items-end gap-3.5">
             <span
               ref={speedRef}
@@ -483,7 +490,11 @@ export default function RaceClient() {
         </div>
 
         {/* Controls hint */}
-        <div className="grn-panel absolute bottom-5 right-5 px-3 py-2 text-right font-display text-[0.78rem] leading-5 tracking-wide text-white/60">
+        <div
+          className={`grn-panel absolute bottom-5 right-5 px-3 py-2 text-right font-display text-[0.78rem] leading-5 tracking-wide text-white/60 ${
+            isTouch ? "hidden" : ""
+          }`}
+        >
           W/↑ accelerate · S/↓ brake · A D steer · N nitro · H horn
           <br />F flash headlights · M mute · V voices · G glow fx
         </div>
@@ -669,6 +680,81 @@ export default function RaceClient() {
             <div className="grn-ar mt-1 text-xl text-white/80">{vsRival.arabicName}</div>
             <div className="grn-label mt-2 text-[0.66rem]">{vsRival.crew}</div>
             <div className="mt-2.5 text-sm italic text-white/70">&quot;{vsRival.taunt}&quot;</div>
+          </div>
+        </div>
+      )}
+
+      {/* On-screen controls (touch devices) */}
+      {isTouch && phase === "playing" && !challenge && !garageOpen && (
+        <div className="absolute inset-x-0 bottom-0 z-[5] select-none px-4 pb-5">
+          <div className="flex items-end justify-between gap-4">
+            <div className="flex gap-3">
+              {([["\u25c0", -1], ["\u25b6", 1]] as const).map(([glyph, dir]) => (
+                <button
+                  key={glyph}
+                  onPointerDown={(e) => {
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                    engineRef.current?.setTouchInput({ steer: dir });
+                  }}
+                  onPointerUp={() => engineRef.current?.setTouchInput({ steer: 0 })}
+                  onPointerCancel={() => engineRef.current?.setTouchInput({ steer: 0 })}
+                  className="grn-panel grid size-20 place-items-center text-2xl text-white/85 active:bg-white/20"
+                  aria-label={dir < 0 ? "steer left" : "steer right"}
+                >
+                  {glyph}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                onPointerDown={() => engineRef.current?.touchFlash()}
+                className="grn-panel grn-label px-4 py-3 text-[0.6rem] text-gulf-300 active:bg-gulf-500/25"
+              >
+                Flash
+              </button>
+              <button
+                onPointerDown={() => engineRef.current?.touchNos(true)}
+                onPointerUp={() => engineRef.current?.touchNos(false)}
+                onPointerCancel={() => engineRef.current?.touchNos(false)}
+                className="grn-panel grn-label px-4 py-3 text-[0.6rem] text-indigo-300 active:bg-indigo-500/25"
+              >
+                NOS
+              </button>
+              <button
+                onPointerDown={() => engineRef.current?.touchHorn(true)}
+                onPointerUp={() => engineRef.current?.touchHorn(false)}
+                onPointerCancel={() => engineRef.current?.touchHorn(false)}
+                className="grn-panel grn-label px-4 py-3 text-[0.6rem] text-white/70 active:bg-white/20"
+              >
+                Horn
+              </button>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onPointerDown={(e) => {
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                  engineRef.current?.setTouchInput({ brake: 1 });
+                }}
+                onPointerUp={() => engineRef.current?.setTouchInput({ brake: 0 })}
+                onPointerCancel={() => engineRef.current?.setTouchInput({ brake: 0 })}
+                className="grn-panel grn-label grid size-20 place-items-center text-[0.62rem] text-rose-300 active:bg-rose-500/25"
+              >
+                Brake
+              </button>
+              <button
+                onPointerDown={(e) => {
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                  engineRef.current?.setTouchInput({ throttle: 1 });
+                }}
+                onPointerUp={() => engineRef.current?.setTouchInput({ throttle: 0 })}
+                onPointerCancel={() => engineRef.current?.setTouchInput({ throttle: 0 })}
+                className="grn-panel grn-label grid size-24 place-items-center text-[0.66rem] text-emerald-300 active:bg-emerald-500/25"
+              >
+                Gas
+              </button>
+            </div>
           </div>
         </div>
       )}

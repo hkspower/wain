@@ -1,3 +1,5 @@
+import type { Team, TeamLogo } from "./teams";
+
 // WebSocket client for the online hub (server/hub-server.mjs).
 // Used by the /hub lobby page and by the race in online mode.
 
@@ -13,6 +15,8 @@ export interface LapEntry {
 }
 
 export interface HubEvents {
+  onTeams?(teams: Team[]): void;
+  onMyTeam?(team: Team | null): void;
   onWelcome?(selfId: number, players: HubPlayer[], leaderboard: LapEntry[]): void;
   onJoined?(p: HubPlayer): void;
   onLeft?(id: number): void;
@@ -46,6 +50,14 @@ export class HubClient {
         case "welcome":
           this.selfId = msg.id;
           events.onWelcome?.(msg.id, msg.players, msg.leaderboard);
+          if (msg.teams) events.onTeams?.(msg.teams);
+          events.onMyTeam?.(msg.team ?? null);
+          break;
+        case "teams":
+          events.onTeams?.(msg.teams ?? []);
+          break;
+        case "team-you":
+          events.onMyTeam?.(msg.team ?? null);
           break;
         case "joined":
           events.onJoined?.({ id: msg.id, name: msg.name, color: msg.color });
@@ -86,6 +98,18 @@ export class HubClient {
     this.send({ t: "lap", ms });
   }
 
+  createTeam(name: string, tag: string, logo: TeamLogo): void {
+    this.send({ t: "team-create", name, tag, logo });
+  }
+
+  joinTeam(id: string): void {
+    this.send({ t: "team-join", id });
+  }
+
+  leaveTeam(): void {
+    this.send({ t: "team-leave" });
+  }
+
   close(): void {
     this.ws.onclose = null;
     this.ws.close();
@@ -98,6 +122,12 @@ const PROFILE_KEY = "gulf-road-nights-profile";
 export interface Profile {
   name: string;
   color: string;
+  country?: string;
+  flag?: string;
+  /** Crew identity, mirrored locally so solo play can show it too. */
+  teamTag?: string;
+  teamName?: string;
+  teamLogo?: TeamLogo;
 }
 
 export function loadProfile(): Profile {
@@ -105,7 +135,7 @@ export function loadProfile(): Profile {
     const raw = localStorage.getItem(PROFILE_KEY);
     if (raw) {
       const p = JSON.parse(raw);
-      if (typeof p.name === "string" && typeof p.color === "string") return p;
+      if (typeof p.name === "string" && typeof p.color === "string") return p as Profile;
     }
   } catch {}
   return { name: "", color: "#f2f4f7" };

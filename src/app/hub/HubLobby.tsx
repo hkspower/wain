@@ -3,6 +3,16 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Team,
+  TeamLogo,
+  DEFAULT_LOGO,
+  LOGO_SHAPES,
+  LOGO_SYMBOLS,
+  LOGO_COLORS,
+  teamLogoDataUrl,
+  sanitizeTag,
+} from "@/game/teams";
+import {
   HubClient,
   HubPlayer,
   LapEntry,
@@ -39,6 +49,12 @@ export default function HubLobby() {
   const [leaderboard, setLeaderboard] = useState<LapEntry[]>([]);
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [draft, setDraft] = useState("");
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [myTeam, setMyTeam] = useState<Team | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [teamName, setTeamName] = useState("");
+  const [teamTag, setTeamTag] = useState("");
+  const [logo, setLogo] = useState<TeamLogo>(DEFAULT_LOGO);
 
   const clientRef = useRef<HubClient | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -75,6 +91,20 @@ export default function HubLobby() {
         onChat: (from, text) =>
           setChat((prev) => [...prev.slice(-60), { name: from, text, key: chatKey.current++ }]),
         onLeaderboard: setLeaderboard,
+        onTeams: setTeams,
+        onMyTeam: (t) => {
+          setMyTeam(t);
+          setShowCreate(false);
+          // Mirror the crew into the local profile so the race scene can
+          // decal the car and show the tag while playing solo
+          const p = loadProfile();
+          saveProfile({
+            ...p,
+            teamTag: t?.tag,
+            teamName: t?.name,
+            teamLogo: t?.logo,
+          });
+        },
         onClose: () => {
           clientRef.current = null;
           setStatus("offline");
@@ -203,7 +233,9 @@ export default function HubLobby() {
                 ENTER THE CRUISE 🏁
               </Link>
               <p className="mt-2 text-center text-[11px] text-white/40">
-                Everyone here shares the same midnight Gulf Road
+                {myTeam
+                  ? `Racing as [${myTeam.tag}] ${myTeam.name}`
+                  : "Racing solo — join or found a crew below"}
               </p>
             </div>
 
@@ -239,6 +271,205 @@ export default function HubLobby() {
                 >
                   Send
                 </button>
+              </div>
+            </div>
+
+            {/* Crews */}
+            <div className="grn-panel p-5 lg:col-span-3">
+              <div className="flex items-center justify-between">
+                <h2 className="grn-label text-[0.66rem]">
+                  Crews — <span className="grn-ar">الفرق</span>
+                </h2>
+                {myTeam ? (
+                  <button
+                    onClick={() => clientRef.current?.leaveTeam()}
+                    className="grn-btn border border-white/20 px-4 py-1.5 text-xs text-white/70 hover:bg-white/10"
+                  >
+                    LEAVE CREW
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowCreate((v) => !v)}
+                    className="grn-btn grn-btn-ghost px-4 py-1.5 text-xs"
+                  >
+                    {showCreate ? "CANCEL" : "+ CREATE CREW"}
+                  </button>
+                )}
+              </div>
+
+              {/* Your crew */}
+              {myTeam && (
+                <div className="mt-4 flex items-center gap-5 border-b border-white/10 pb-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={teamLogoDataUrl(myTeam.logo, 160, myTeam.tag)}
+                    alt={`${myTeam.name} emblem`}
+                    className="size-24 shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <div className="grn-display text-3xl italic leading-none">{myTeam.name}</div>
+                    <div className="grn-label mt-1 text-[0.6rem] text-sodium-400">
+                      [{myTeam.tag}] · founded by {myTeam.founder}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                      {myTeam.members.map((m) => (
+                        <span key={m.name} className="flex items-center gap-1.5">
+                          <span
+                            className={`size-1.5 rounded-full ${
+                              m.online ? "bg-emerald-400" : "bg-white/25"
+                            }`}
+                          />
+                          <span className={m.online ? "text-white/90" : "text-white/45"}>
+                            {m.name}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Create form */}
+              {showCreate && !myTeam && (
+                <div className="mt-4 grid gap-5 border-b border-white/10 pb-5 sm:grid-cols-[auto_1fr]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={teamLogoDataUrl(logo, 160, teamTag || "TAG")}
+                    alt="crew emblem preview"
+                    className="size-28"
+                  />
+                  <div>
+                    <div className="flex flex-wrap gap-3">
+                      <div className="min-w-[12rem] flex-1">
+                        <label className="grn-label text-[0.58rem]">Crew name</label>
+                        <input
+                          value={teamName}
+                          onChange={(e) => setTeamName(e.target.value)}
+                          maxLength={28}
+                          placeholder="Salmiya Street Kings"
+                          className="mt-1 w-full rounded-lg border border-white/15 bg-black/45 px-3 py-2 text-sm font-semibold outline-none focus:border-gulf-400"
+                        />
+                      </div>
+                      <div className="w-24">
+                        <label className="grn-label text-[0.58rem]">Tag</label>
+                        <input
+                          value={teamTag}
+                          onChange={(e) => setTeamTag(sanitizeTag(e.target.value))}
+                          placeholder="SSK"
+                          className="grn-display mt-1 w-full rounded-lg border border-white/15 bg-black/45 px-3 py-2 text-center text-sm outline-none focus:border-gulf-400"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-4">
+                      <div>
+                        <label className="grn-label text-[0.55rem]">Shape</label>
+                        <div className="mt-1 flex gap-1.5">
+                          {LOGO_SHAPES.map((sh) => (
+                            <button
+                              key={sh}
+                              onClick={() => setLogo({ ...logo, shape: sh })}
+                              className={`rounded-md border px-2.5 py-1 text-[0.7rem] capitalize transition ${
+                                logo.shape === sh
+                                  ? "border-gulf-400 text-gulf-300"
+                                  : "border-white/15 text-white/60 hover:border-white/35"
+                              }`}
+                            >
+                              {sh}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="grn-label text-[0.55rem]">Colours</label>
+                        <div className="mt-1 flex gap-1.5">
+                          {LOGO_COLORS.slice(0, 6).map((c) => (
+                            <button
+                              key={c}
+                              onClick={() => setLogo({ ...logo, fg: c })}
+                              aria-label={`accent ${c}`}
+                              className={`size-6 rounded-full border-2 transition ${
+                                logo.fg === c ? "scale-110 border-white" : "border-white/25"
+                              }`}
+                              style={{ backgroundColor: c }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <label className="grn-label text-[0.55rem]">Emblem</label>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {LOGO_SYMBOLS.map((sym) => (
+                          <button
+                            key={sym}
+                            onClick={() => setLogo({ ...logo, symbol: sym })}
+                            className={`rounded-md border px-2 py-1 text-base transition ${
+                              logo.symbol === sym
+                                ? "border-gulf-400 bg-gulf-500/15"
+                                : "border-white/10 hover:border-white/30"
+                            }`}
+                          >
+                            {sym}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        const n = teamName.trim();
+                        const tg = sanitizeTag(teamTag);
+                        if (!n || !tg) return;
+                        clientRef.current?.createTeam(n, tg, logo);
+                      }}
+                      disabled={!teamName.trim() || !sanitizeTag(teamTag)}
+                      className="grn-btn grn-btn-primary mt-4 px-6 py-2.5 text-sm disabled:opacity-40"
+                    >
+                      FOUND THE CREW — <span className="grn-ar">أسس فريقك</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Everyone else's crews */}
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {teams.length === 0 && (
+                  <p className="text-sm text-white/35">
+                    No crews yet — found the first one, or keep racing solo.
+                  </p>
+                )}
+                {teams.map((t) => (
+                  <div
+                    key={t.id}
+                    className={`flex items-center gap-3 rounded-xl border p-3 ${
+                      myTeam?.id === t.id ? "border-sodium-400/70 bg-sodium-500/10" : "border-white/12"
+                    }`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={teamLogoDataUrl(t.logo, 96, t.tag)}
+                      alt={`${t.name} emblem`}
+                      className="size-14 shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="grn-display truncate text-lg leading-tight">{t.name}</div>
+                      <div className="grn-label text-[0.55rem]">
+                        [{t.tag}] · {t.members.length}{" "}
+                        {t.members.length === 1 ? "driver" : "drivers"}
+                      </div>
+                    </div>
+                    {!myTeam && (
+                      <button
+                        onClick={() => clientRef.current?.joinTeam(t.id)}
+                        className="grn-btn grn-btn-ghost shrink-0 px-3 py-1.5 text-xs"
+                      >
+                        JOIN
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
 

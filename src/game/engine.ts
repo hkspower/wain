@@ -208,6 +208,8 @@ export class GameEngine {
   private paused = false;
 
   private keys = new Set<string>();
+  /** On-screen (touch) controls, merged with the keyboard. */
+  private touch = { throttle: 0, brake: 0, steer: 0 };
   private events: EngineEvents;
 
   // Player — spawns just past the start-line gantry
@@ -531,7 +533,7 @@ export class GameEngine {
     if (r) {
       this.events.onMessage(
         `Find ${r.def.name} — ${r.def.arabicName}`,
-        `${r.def.crew} · close in and press F to flash`
+        `${r.def.crew} · close in and flash 3× to challenge`
       );
       this.voice.speak("يلا! دور على خصمك", {}, "announcer-start"); // announcer
     } else if (this.rivalIndex >= RIVALS.length) {
@@ -717,23 +719,50 @@ export class GameEngine {
    *  sticks and the horn drones forever. */
   private onBlur = () => {
     this.keys.clear();
+    this.touch = { throttle: 0, brake: 0, steer: 0 };
     this.sound?.hornOff();
   };
 
   private get throttle(): number {
     if (this.locked) return 0;
-    return this.keys.has("arrowup") || this.keys.has("w") ? 1 : 0;
+    const key = this.keys.has("arrowup") || this.keys.has("w") ? 1 : 0;
+    return Math.max(key, this.touch.throttle);
   }
   private get brake(): number {
     if (this.locked) return 0;
-    return this.keys.has("arrowdown") || this.keys.has("s") ? 1 : 0;
+    const key = this.keys.has("arrowdown") || this.keys.has("s") ? 1 : 0;
+    return Math.max(key, this.touch.brake);
   }
   private get steer(): number {
     if (this.locked) return 0;
     let s = 0;
     if (this.keys.has("arrowleft") || this.keys.has("a")) s -= 1;
     if (this.keys.has("arrowright") || this.keys.has("d")) s += 1;
-    return s;
+    return THREE.MathUtils.clamp(s + this.touch.steer, -1, 1);
+  }
+
+  // ---------------------------------------------------------- touch API
+
+  /** Drive from on-screen controls (phones, tablets, Steam Deck touch). */
+  setTouchInput(v: Partial<{ throttle: number; brake: number; steer: number }>): void {
+    if (v.throttle !== undefined) this.touch.throttle = THREE.MathUtils.clamp(v.throttle, 0, 1);
+    if (v.brake !== undefined) this.touch.brake = THREE.MathUtils.clamp(v.brake, 0, 1);
+    if (v.steer !== undefined) this.touch.steer = THREE.MathUtils.clamp(v.steer, -1, 1);
+    this.sound?.resume();
+  }
+
+  /** Touch equivalents of the keyboard actions. */
+  touchFlash(): void {
+    this.sound?.resume();
+    this.tryFlash();
+  }
+  touchNos(on: boolean): void {
+    if (on) this.keys.add("n");
+    else this.keys.delete("n");
+  }
+  touchHorn(on: boolean): void {
+    if (on) this.sound?.hornOn();
+    else this.sound?.hornOff();
   }
 
   // ---------------------------------------------------------------- spawning

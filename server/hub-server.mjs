@@ -7,10 +7,13 @@
 // Protocol (JSON over WebSocket):
 //   client → server: {t:"join",name,color} {t:"state",s,lat,speed}
 //                    {t:"chat",text}       {t:"lap",ms}
-//   server → client: {t:"welcome",id,players,leaderboard}
+//                    {t:"team-create",name,tag,logo} {t:"team-join",id}
+//                    {t:"team-leave"}
+//   server → client: {t:"welcome",id,players,leaderboard,teams,team}
 //                    {t:"joined",id,name,color} {t:"left",id}
 //                    {t:"states",players:[[id,s,lat,speed],...]}
 //                    {t:"chat",name,text}       {t:"leaderboard",entries}
+//                    {t:"teams",teams}          {t:"team-you",team}
 
 import { WebSocketServer } from "ws";
 
@@ -26,6 +29,62 @@ let nextId = 1;
 const players = new Map();
 /** name -> best lap ms */
 const bestLaps = new Map();
+/** teamId -> { id, name, tag, logo, founder, members: Map<name, id|null> } */
+const teams = new Map();
+let nextTeamId = 1;
+
+const MAX_TEAM_NAME = 28;
+const MAX_TEAMS = 200;
+
+function teamView(t) {
+  return {
+    id: t.id,
+    name: t.name,
+    tag: t.tag,
+    logo: t.logo,
+    founder: t.founder,
+    members: [...t.members.entries()].map(([name, id]) => ({
+      id: id ?? -1,
+      name,
+      online: id !== null,
+    })),
+  };
+}
+
+function teamList() {
+  return [...teams.values()].map(teamView);
+}
+
+function teamOf(playerName) {
+  for (const t of teams.values()) if (t.members.has(playerName)) return t;
+  return null;
+}
+
+function broadcastTeams() {
+  broadcast({ t: "teams", teams: teamList() });
+}
+
+/** Keep a team's online flags in step with who is connected. */
+function syncTeamPresence() {
+  const onlineByName = new Map();
+  for (const [id, p] of players) onlineByName.set(p.name, id);
+  for (const t of teams.values()) {
+    for (const name of t.members.keys()) {
+      t.members.set(name, onlineByName.get(name) ?? null);
+    }
+  }
+}
+
+function sanitizeLogo(raw) {
+  const hex = (v, fallback) => (/^#[0-9a-fA-F]{6}$/.test(String(v)) ? v : fallback);
+  const shapes = ["shield", "circle", "hex", "diamond"];
+  return {
+    shape: shapes.includes(raw?.shape) ? raw.shape : "shield",
+    symbol: String(raw?.symbol ?? "🦅").slice(0, 4),
+    bg: hex(raw?.bg, "#0d1b2a"),
+    fg: hex(raw?.fg, "#f5a524"),
+  };
+}
 
 function send(ws, msg) {
   if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
@@ -66,7 +125,17 @@ wss.on("connection", (ws) => {
       const color = /^#[0-9a-fA-F]{6}$/.test(String(msg.color)) ? msg.color : "#f2f4f7";
       players.set(id, { ws, name, color, state: null, lastChatAt: 0 });
       joined = true;
-      send(ws, { t: "welcome", id, players: roster(), leaderboard: leaderboard() });
+      syncTeamPresence();
+      const mine = teamOf(name);
+      send(ws, {
+        t: "welcome",
+        id,
+        players: roster(),
+        leaderboard: leaderboard(),
+        teams: teamList(),
+        team: mine ? teamView(mine) : null,
+      });
+      if (mine) broadcastTeams();
       broadcast({ t: "joined", id, name, color }, id);
       console.log(`[hub] ${name}#${id} joined (${players.size} online)`);
       return;
@@ -88,6 +157,41 @@ wss.on("connection", (ws) => {
       p.lastChatAt = now;
       const text = String(msg.text ?? "").slice(0, MAX_CHAT).trim();
       if (text) broadcast({ t: "chat", name: p.name, text });
+    } else if (msg.t === "team-create") {
+      if (teams.size >= MAX_TEAMS) return;
+      if (teamOf(p.name)) return; // one crew at a time
+      const tname = String(msg.name ?? "").slice(0, MAX_TEAM_NAME).trim();
+      const tag = String(msg.tag ?? "")
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, "")
+        .slice(0, 4);
+      if (!tname || !tag) return;
+      const team = {
+        id: "t" + nextTeamId++,
+        name: tname,
+        tag,
+        logo: sanitizeLogo(msg.logo),
+        founder: p.name,
+        members: new Map([[p.name, id]]),
+      };
+      teams.set(team.id, team);
+      console.log(`[hub] team "${tname}" [${tag}] founded by ${p.name}`);
+      send(ws, { t: "team-you", team: teamView(team) });
+      broadcastTeams();
+    } else if (msg.t === "team-join") {
+      const team = teams.get(String(msg.id));
+      if (!team || teamOf(p.name)) return;
+      team.members.set(p.name, id);
+      send(ws, { t: "team-you", team: teamView(team) });
+      broadcastTeams();
+    } else if (msg.t === "team-leave") {
+      const team = teamOf(p.name);
+      if (!team) return;
+      team.members.delete(p.name);
+      // A crew with nobody left folds
+      if (team.members.size === 0) teams.delete(team.id);
+      send(ws, { t: "team-you", team: null });
+      broadcastTeams();
     } else if (msg.t === "lap") {
       const ms = Number(msg.ms);
       // Sanity: a 7.3 km lap takes at least ~80 s flat out
@@ -104,7 +208,9 @@ wss.on("connection", (ws) => {
     const p = players.get(id);
     if (p) {
       players.delete(id);
+      syncTeamPresence();
       broadcast({ t: "left", id });
+      if (teamOf(p.name)) broadcastTeams();
       console.log(`[hub] ${p.name}#${id} left (${players.size} online)`);
     }
   });
