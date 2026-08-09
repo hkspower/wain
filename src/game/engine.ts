@@ -478,37 +478,64 @@ export class GameEngine {
     window.addEventListener("blur", this.onBlur);
   }
 
-  /** A tiny HDR night scene baked into reflections: moonlight on car
-   *  paint and a sodium-orange skyline streak on the damp asphalt. */
+  /** The world the paint reflects.
+   *
+   *  Car photography lives on one thing: a bright horizon band that
+   *  sweeps across the bodywork as the car turns, with dark ground below
+   *  and dark sky above. Add the sodium streetlights as discrete hot
+   *  spots and the clearcoat gets those long travelling streaks that
+   *  read as real lacquer. Baked once into a PMREM cubemap. */
   private buildEnvironment(): void {
     const env = new THREE.Scene();
-    env.add(
-      new THREE.Mesh(
-        new THREE.SphereGeometry(50, 16, 8),
-        new THREE.MeshBasicMaterial({
-          color: new THREE.Color().setRGB(0.04, 0.06, 0.13),
-          side: THREE.BackSide,
-        })
-      )
+
+    // Gradient dome: asphalt below, sodium-lit haze at the horizon,
+    // deep blue night above.
+    const c = document.createElement("canvas");
+    c.width = 16;
+    c.height = 256;
+    const ctx = c.getContext("2d")!;
+    const g = ctx.createLinearGradient(0, 0, 0, 256);
+    g.addColorStop(0.0, "#0a1024"); // zenith
+    g.addColorStop(0.42, "#16233f");
+    g.addColorStop(0.5, "#e8b070"); // the horizon band — the money stripe
+    g.addColorStop(0.56, "#3a2a1c");
+    g.addColorStop(0.72, "#0b0c10");
+    g.addColorStop(1.0, "#050506"); // ground
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 16, 256);
+    const domeTex = new THREE.CanvasTexture(c);
+    domeTex.colorSpace = THREE.SRGBColorSpace;
+    const dome = new THREE.Mesh(
+      new THREE.SphereGeometry(60, 24, 16),
+      new THREE.MeshBasicMaterial({ map: domeTex, side: THREE.BackSide })
     );
+    env.add(dome);
+
+    // Streetlights: a ring of warm emitters at lamp height, so the
+    // clearcoat picks up travelling highlights instead of one flat sheen.
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const lamp = new THREE.Mesh(
+        new THREE.SphereGeometry(1.6, 8, 6),
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(9, 6.2, 3.1) })
+      );
+      lamp.position.set(Math.cos(a) * 34, 11 + (i % 3) * 3, Math.sin(a) * 34);
+      env.add(lamp);
+    }
+
+    // The moon, high and cool — a small hard highlight
     const moon = new THREE.Mesh(
-      new THREE.SphereGeometry(4, 8, 8),
-      new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(6, 5.6, 4.4) })
+      new THREE.SphereGeometry(3.4, 12, 10),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(7, 7.4, 9) })
     );
-    moon.position.set(-30, 26, -10);
+    moon.position.set(-34, 38, -14);
     env.add(moon);
-    const skyline = new THREE.Mesh(
-      new THREE.CylinderGeometry(40, 40, 3, 24, 1, true),
-      new THREE.MeshBasicMaterial({
-        color: new THREE.Color().setRGB(1.1, 0.65, 0.22),
-        side: THREE.BackSide,
-      })
-    );
-    skyline.position.y = 3;
-    env.add(skyline);
+
     const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.scene.environment = pmrem.fromScene(env, 0.05).texture;
+    pmrem.compileEquirectangularShader();
+    this.scene.environment = pmrem.fromScene(env, 0.02).texture;
     pmrem.dispose();
+    domeTex.dispose();
   }
 
   // ---------------------------------------------------------------- public

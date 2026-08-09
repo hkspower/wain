@@ -83,6 +83,40 @@ function contactShadowTexture(): THREE.CanvasTexture {
   return contactTexShared;
 }
 
+/** Chamfered box. Real sheet metal never meets at a sharp 90 degrees —
+ *  every panel edge carries a small radius that catches a bright
+ *  specular line, and that highlight is most of what makes a car read as
+ *  a car. Built as a rounded rectangle extruded with a bevel, so the
+ *  rounding wraps all three axes. */
+function roundedBox(w: number, h: number, d: number, r = 0.035, seg = 2): THREE.BufferGeometry {
+  r = Math.min(r, w / 2 - 1e-3, h / 2 - 1e-3, d / 2 - 1e-3);
+  const shape = new THREE.Shape();
+  const hw = w / 2;
+  const hh = h / 2;
+  shape.moveTo(-hw + r, -hh);
+  shape.lineTo(hw - r, -hh);
+  shape.quadraticCurveTo(hw, -hh, hw, -hh + r);
+  shape.lineTo(hw, hh - r);
+  shape.quadraticCurveTo(hw, hh, hw - r, hh);
+  shape.lineTo(-hw + r, hh);
+  shape.quadraticCurveTo(-hw, hh, -hw, hh - r);
+  shape.lineTo(-hw, -hh + r);
+  shape.quadraticCurveTo(-hw, -hh, -hw + r, -hh);
+
+  let geo: THREE.BufferGeometry = new THREE.ExtrudeGeometry(shape, {
+    depth: Math.max(1e-3, d - r * 2),
+    bevelEnabled: true,
+    bevelThickness: r,
+    bevelSize: r,
+    bevelSegments: seg,
+    curveSegments: 3,
+  });
+  geo.translate(0, 0, -(d - r * 2) / 2);
+  geo = mergeVertices(geo, 1e-4);
+  geo.computeVertexNormals();
+  return geo;
+}
+
 /** Extrude a side profile (x = length, y = height) across the car's width. */
 function extrudeProfile(
   points: Array<[number, number]>,
@@ -189,6 +223,9 @@ const glassMat = new THREE.MeshPhysicalMaterial({
 });
 
 const seamMat = new THREE.MeshStandardMaterial({ color: 0x0a0b0d, roughness: 0.85 });
+// Panel gaps read almost black and swallow light — that contrast against
+// the lit chamfer beside them is what sells a shut line.
+const gapMat = new THREE.MeshStandardMaterial({ color: 0x050506, roughness: 1 });
 const interiorMat = new THREE.MeshStandardMaterial({ color: 0x14161a, roughness: 0.95 });
 const indicatorMat = new THREE.MeshStandardMaterial({
   color: 0xffa020,
@@ -258,13 +295,16 @@ function buildWheel(gold = false): THREE.Group {
 export function createCar(colors: CarColors): THREE.Group {
   const group = new THREE.Group();
 
+  // Automotive paint is two layers: a metallic basecoat with flake, and a
+  // hard clearcoat over it. The clearcoat is what throws the sharp
+  // reflection of the world; the basecoat carries the colour and sparkle.
   const bodyMat = new THREE.MeshPhysicalMaterial({
     color: colors.body,
-    roughness: 0.28,
-    metalness: 0.75,
+    roughness: 0.34, // basecoat: flake scatter, not a mirror
+    metalness: 0.9,
     clearcoat: 1,
-    clearcoatRoughness: 0.08,
-    envMapIntensity: 1.3,
+    clearcoatRoughness: 0.03, // lacquer: near-mirror
+    envMapIntensity: 2.1,
   });
 
   group.add(new THREE.Mesh(bodyGeo, bodyMat));
@@ -273,7 +313,7 @@ export function createCar(colors: CarColors): THREE.Group {
 
   if (colors.accent !== undefined) {
     const stripe = new THREE.Mesh(
-      new THREE.BoxGeometry(0.46, 0.03, 4.3),
+      roundedBox(0.46, 0.03, 4.3, 0.012),
       new THREE.MeshStandardMaterial({ color: colors.accent, roughness: 0.35 })
     );
     stripe.position.y = 1.0;
@@ -284,7 +324,7 @@ export function createCar(colors: CarColors): THREE.Group {
   // car so a single rival can flash back without lighting up traffic.
   const headMat = headlightMat.clone();
   for (const sx of [-0.62, 0.62]) {
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.13, 0.07), headMat);
+    const head = new THREE.Mesh(roundedBox(0.52, 0.13, 0.07, 0.02), headMat);
     head.position.set(sx, 0.7, 2.24);
     group.add(head);
   }
@@ -293,12 +333,12 @@ export function createCar(colors: CarColors): THREE.Group {
     emissive: 0xff2222,
     emissiveIntensity: 2.0,
   });
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.1, 0.06), tailMat);
+  const tail = new THREE.Mesh(roundedBox(1.7, 0.1, 0.06, 0.018), tailMat);
   tail.position.set(0, 0.78, -2.26);
   group.add(tail);
 
   // Grille, chrome trim, plates, exhausts
-  const grille = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.17, 0.07), grilleMat);
+  const grille = new THREE.Mesh(roundedBox(1.05, 0.17, 0.07, 0.02), grilleMat);
   grille.position.set(0, 0.52, 2.25);
   group.add(grille);
   const trim = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.025, 0.08), chromeMat);
@@ -321,7 +361,7 @@ export function createCar(colors: CarColors): THREE.Group {
 
   // Side mirrors
   for (const sx of [-1.0, 1.0]) {
-    const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.2), bodyMat);
+    const mirror = new THREE.Mesh(roundedBox(0.16, 0.1, 0.2, 0.035), bodyMat);
     mirror.position.set(sx, 1.04, 0.82);
     group.add(mirror);
   }
@@ -363,13 +403,19 @@ export function createCar(colors: CarColors): THREE.Group {
 
   // ---- Fine detailing (skipped for traffic to keep draw calls down)
   if (!colors.simple) {
-    // Door seams + beltline chrome + handles + side skirts
+    // Shut lines: hood, doors and trunk. Real panel gaps are dark slots
+    // between two lit chamfers, so they get their own near-black material.
     for (const sx of [-0.925, 0.925]) {
       for (const sz of [0.62, -0.72]) {
-        const seam = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.46, 0.016), seamMat);
+        const seam = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.5, 0.012), gapMat);
         seam.position.set(sx, 0.58, sz);
         group.add(seam);
       }
+      // Character line — the crease that runs the flank of every modern
+      // car and catches a long highlight as the world slides past
+      const crease = new THREE.Mesh(roundedBox(0.035, 0.05, 3.1, 0.016), bodyMat);
+      crease.position.set(sx * 1.005, 0.72, -0.1);
+      group.add(crease);
       const belt = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.02, 2.7), chromeMat);
       belt.position.set(sx, 0.94, -0.15);
       group.add(belt);
@@ -381,6 +427,19 @@ export function createCar(colors: CarColors): THREE.Group {
       const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 2.7), seamMat);
       skirt.position.set(sx * 0.97, 0.25, -0.1);
       group.add(skirt);
+    }
+
+    // Hood and trunk shut lines across the top surfaces
+    const hoodGap = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.012, 0.016), gapMat);
+    hoodGap.position.set(0, 0.99, 1.06);
+    group.add(hoodGap);
+    const trunkGap = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.012, 0.016), gapMat);
+    trunkGap.position.set(0, 0.965, -1.42);
+    group.add(trunkGap);
+    for (const sx of [-0.86, 0.86]) {
+      const hoodSide = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.012, 1.0), gapMat);
+      hoodSide.position.set(sx, 0.98, 1.55);
+      group.add(hoodSide);
     }
 
     // Front splitter, rear diffuser fins, shark-fin antenna, grille badge
