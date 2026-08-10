@@ -124,10 +124,11 @@ const VignetteGrainShader = {
     tDiffuse: { value: null as THREE.Texture | null },
     uTime: { value: 0 },
     uTexel: { value: new THREE.Vector2(1 / 1280, 1 / 720) },
-    /** Everything below this maps to true zero. */
-    uBlackPoint: { value: 0.035 },
+    /** Everything below this maps to true zero. Display-referred, so this
+     *  is a literal ~2.5% lift-kill rather than an HDR-space guess. */
+    uBlackPoint: { value: 0.025 },
     /** Shadow toe: >1 pushes the darks down without touching highlights. */
-    uToe: { value: 1.18 },
+    uToe: { value: 1.10 },
   },
   vertexShader: `
     varying vec2 vUv;
@@ -198,7 +199,9 @@ function headlightPoolTexture(): THREE.CanvasTexture {
   g.addColorStop(1, "rgba(255,235,190,0)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 128, 128);
-  return new THREE.CanvasTexture(c);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 /** Floating name banner above an online player's car. */
@@ -389,9 +392,13 @@ export class GameEngine {
       0.8
     );
     this.composer.addPass(this.bloomPass);
+    // OutputPass (tone map + sRGB encode) must run BEFORE the grade.
+    // Grading scene-referred HDR meant the final clamp(0,1) clipped every
+    // emissive above 1 — lamps, taillights and beacons lost their ACES
+    // shoulder and the black point was operating in the wrong space.
+    this.composer.addPass(new OutputPass());
     this.grainPass = new ShaderPass(VignetteGrainShader);
     this.composer.addPass(this.grainPass);
-    this.composer.addPass(new OutputPass());
     this.fxaaPass = new ShaderPass(FXAAShader);
     this.composer.addPass(this.fxaaPass);
     this.updateFxaaResolution();

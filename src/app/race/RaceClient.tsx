@@ -6,6 +6,14 @@ import { GEARS } from "@/game/gears";
 import { RIVALS, RivalDef } from "@/game/rivals";
 import { HubClient, DuelInvite, loadProfile, formatLap } from "@/game/net";
 import {
+  Settings,
+  loadSettings,
+  saveSettings,
+  applySettings,
+  haptic,
+  HAPTIC,
+} from "@/game/settings";
+import {
   PARTS,
   Part,
   GarageState,
@@ -73,6 +81,8 @@ export default function RaceClient() {
   const [garageOpen, setGarageOpen] = useState(false);
   const [garage, setGarage] = useState<GarageState | null>(null);
   const [isTouch, setIsTouch] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState<Settings | null>(null);
   const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const boostWrapRef = useRef<HTMLDivElement>(null);
@@ -84,6 +94,18 @@ export default function RaceClient() {
     setGarage(loadGarage()); // client-only: reads localStorage
     // Phones and tablets get on-screen controls; desktop stays keyboard
     setIsTouch(navigator.maxTouchPoints > 0 || matchMedia("(pointer: coarse)").matches);
+    const st = loadSettings();
+    applySettings(st);
+    setSettings(st);
+  }, []);
+
+  const updateSetting = useCallback(<K extends keyof Settings>(k: K, v: Settings[K]) => {
+    setSettings((prev) => {
+      const next = { ...(prev ?? loadSettings()), [k]: v };
+      saveSettings(next);
+      haptic(HAPTIC.tap, next.haptics);
+      return next;
+    });
   }, []);
 
   const buyOrDrive = useCallback((carId: string) => {
@@ -256,6 +278,7 @@ export default function RaceClient() {
       onHud,
       onMessage: showMessage,
       onBump: () => {
+        haptic(HAPTIC.impact, loadSettings().haptics);
         const el = canvasRef.current;
         if (!el) return;
         el.classList.remove("race-bump");
@@ -277,6 +300,7 @@ export default function RaceClient() {
         vsTimer.current = setTimeout(() => setVsRival(null), 2400);
       },
       onChallenge: (player, rival, maxWager) => {
+        haptic(HAPTIC.challenge, loadSettings().haptics);
         if (challengeTimer.current) clearTimeout(challengeTimer.current);
         const g = loadGarage();
         setRaceCar(g.car);
@@ -406,7 +430,7 @@ export default function RaceClient() {
         }`}
       >
         {/* Area + progress */}
-        <div className="absolute left-4 top-4">
+        <div className="hud-safe-t hud-safe-l absolute">
           <div className="grn-plate px-4 py-2">
             <div ref={areaRef} className="grn-display text-xl leading-tight tracking-wide" />
             <div ref={progressRef} className="grn-label mt-0.5 text-[0.62rem]" />
@@ -423,7 +447,7 @@ export default function RaceClient() {
 
         {/* Hub chat feed */}
         {feed.length > 0 && (
-          <div className="grn-panel absolute bottom-24 right-5 max-w-xs space-y-1 px-3 py-2 text-right text-xs">
+          <div className="grn-panel hud-safe-r absolute bottom-[calc(env(safe-area-inset-bottom)+6rem)] max-w-xs space-y-1 px-3 py-2 text-right text-xs">
             {feed.map((m) => (
               <p key={m.key} className="leading-4">
                 <span className="font-bold text-gulf-300">{m.name}:</span>{" "}
@@ -438,7 +462,7 @@ export default function RaceClient() {
           ref={mapRef}
           width={150}
           height={150}
-          className="grn-panel absolute right-4 top-4 p-1"
+          className="grn-panel hud-safe-t hud-safe-r absolute p-1"
         />
 
         {/* Battle SP bars */}
@@ -448,10 +472,10 @@ export default function RaceClient() {
         >
           <div className="mb-1.5 flex items-end justify-between">
             <span className="grn-label text-[0.66rem] text-emerald-300 [text-shadow:0_0_10px_rgba(52,211,153,0.8)]">
-              SP <span className="grn-ar">أنت</span>
+              ▲ SP <span className="grn-ar">أنت</span>
             </span>
-            <span className="grn-label text-[0.66rem] text-rose-300 [text-shadow:0_0_10px_rgba(251,113,133,0.8)]">
-              Rival SP
+            <span className="grn-label rival-ink text-[0.66rem] text-rose-300 [text-shadow:0_0_10px_rgba(251,113,133,0.8)]">
+              ▼ Rival SP
             </span>
           </div>
           <div className="grn-meter h-[18px] -skew-x-12">
@@ -463,7 +487,7 @@ export default function RaceClient() {
           <div className="grn-meter mt-2 h-[18px] -skew-x-12">
             <div
               ref={rivalBarRef}
-              className="h-full bg-gradient-to-r from-rose-700 via-rose-500 to-amber-300 shadow-[0_0_18px_rgba(244,63,94,0.85)] transition-[width] duration-150"
+              className="rival-bar h-full bg-gradient-to-r from-rose-700 via-rose-500 to-amber-300 shadow-[0_0_18px_rgba(244,63,94,0.85)] transition-[width] duration-150"
             />
           </div>
           <div
@@ -488,8 +512,10 @@ export default function RaceClient() {
 
         {/* Speed cluster: digital speed, gear, tach bar */}
         <div
-          className={`absolute select-none ${
-            isTouch ? "bottom-28 left-6 scale-90 origin-bottom-left" : "bottom-7 left-16"
+          className={`hud-safe-l absolute select-none ${
+            isTouch
+              ? "origin-bottom-left scale-90 bottom-[calc(env(safe-area-inset-bottom)+7rem)]"
+              : "bottom-[calc(env(safe-area-inset-bottom)+1.75rem)]"
           }`}
         >
           <div className="flex items-end gap-3.5">
@@ -543,7 +569,7 @@ export default function RaceClient() {
 
         {/* Controls hint */}
         <div
-          className={`grn-panel absolute bottom-5 right-5 px-3 py-2 text-right font-display text-[0.78rem] leading-5 tracking-wide text-white/60 ${
+          className={`grn-panel hud-safe-b hud-safe-r absolute px-3 py-2 text-right font-display text-[0.78rem] leading-5 tracking-wide text-white/60 ${
             isTouch ? "hidden" : ""
           }`}
         >
@@ -832,7 +858,7 @@ export default function RaceClient() {
 
       {/* On-screen controls (touch devices) */}
       {isTouch && phase === "playing" && !challenge && !garageOpen && (
-        <div className="absolute inset-x-0 bottom-0 z-[5] select-none px-4 pb-5">
+        <div className="absolute inset-x-0 bottom-0 z-[5] select-none px-[calc(env(safe-area-inset-left)+1rem)] pb-[calc(env(safe-area-inset-bottom)+1rem)]">
           <div className="flex items-end justify-between gap-4">
             <div className="flex gap-3">
               {([["\u25c0", -1], ["\u25b6", 1]] as const).map(([glyph, dir]) => (
@@ -844,7 +870,7 @@ export default function RaceClient() {
                   }}
                   onPointerUp={() => engineRef.current?.setTouchInput({ steer: 0 })}
                   onPointerCancel={() => engineRef.current?.setTouchInput({ steer: 0 })}
-                  className="grn-panel grid size-20 place-items-center text-2xl text-white/85 active:bg-white/20"
+                  className="tap grn-panel grid size-[4.5rem] place-items-center text-2xl text-white/85 active:bg-white/20"
                   aria-label={dir < 0 ? "steer left" : "steer right"}
                 >
                   {glyph}
@@ -855,7 +881,7 @@ export default function RaceClient() {
             <div className="flex flex-wrap items-center justify-center gap-2">
               <button
                 onPointerDown={() => engineRef.current?.touchFlash()}
-                className="grn-panel grn-label px-4 py-3 text-[0.6rem] text-gulf-300 active:bg-gulf-500/25"
+                className="tap grn-panel grn-label px-5 py-3.5 text-[0.6rem] text-gulf-300 active:bg-gulf-500/25"
               >
                 Flash
               </button>
@@ -863,7 +889,7 @@ export default function RaceClient() {
                 onPointerDown={() => engineRef.current?.touchNos(true)}
                 onPointerUp={() => engineRef.current?.touchNos(false)}
                 onPointerCancel={() => engineRef.current?.touchNos(false)}
-                className="grn-panel grn-label px-4 py-3 text-[0.6rem] text-indigo-300 active:bg-indigo-500/25"
+                className="tap grn-panel grn-label px-5 py-3.5 text-[0.6rem] text-indigo-300 active:bg-indigo-500/25"
               >
                 NOS
               </button>
@@ -871,7 +897,7 @@ export default function RaceClient() {
                 onPointerDown={() => engineRef.current?.touchHorn(true)}
                 onPointerUp={() => engineRef.current?.touchHorn(false)}
                 onPointerCancel={() => engineRef.current?.touchHorn(false)}
-                className="grn-panel grn-label px-4 py-3 text-[0.6rem] text-white/70 active:bg-white/20"
+                className="tap grn-panel grn-label px-5 py-3.5 text-[0.6rem] text-white/70 active:bg-white/20"
               >
                 Horn
               </button>
@@ -885,7 +911,7 @@ export default function RaceClient() {
                 }}
                 onPointerUp={() => engineRef.current?.setTouchInput({ brake: 0 })}
                 onPointerCancel={() => engineRef.current?.setTouchInput({ brake: 0 })}
-                className="grn-panel grn-label grid size-20 place-items-center text-[0.62rem] text-rose-300 active:bg-rose-500/25"
+                className="tap grn-panel grn-label grid size-[4.5rem] place-items-center text-[0.62rem] text-rose-300 active:bg-rose-500/25"
               >
                 Brake
               </button>
@@ -896,7 +922,7 @@ export default function RaceClient() {
                 }}
                 onPointerUp={() => engineRef.current?.setTouchInput({ throttle: 0 })}
                 onPointerCancel={() => engineRef.current?.setTouchInput({ throttle: 0 })}
-                className="grn-panel grn-label grid size-24 place-items-center text-[0.66rem] text-emerald-300 active:bg-emerald-500/25"
+                className="tap grn-panel grn-label grid size-[5.5rem] place-items-center text-[0.66rem] text-emerald-300 active:bg-emerald-500/25"
               >
                 Gas
               </button>
@@ -921,7 +947,7 @@ export default function RaceClient() {
 
       {/* Menu */}
       {phase === "menu" && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-[#05070f] via-[#0a1226] to-[#05070f] px-6 text-center">
+        <div className="safe-pad absolute inset-0 flex flex-col items-center justify-center overflow-y-auto bg-gradient-to-b from-[#05070f] via-[#0a1226] to-[#05070f] text-center">
           <div className="grn-label text-[0.8rem] tracking-[0.45em] text-gulf-400 [text-shadow:0_0_20px_rgba(56,201,238,0.5)]">
             Kuwait Xtreme Racer
           </div>
@@ -957,9 +983,16 @@ export default function RaceClient() {
                 setGarage(loadGarage());
                 setGarageOpen(true);
               }}
-              className="grn-btn grn-btn-ghost px-9 py-4 text-xl"
+              className="tap grn-btn grn-btn-ghost px-9 py-4 text-xl"
             >
               GARAGE 🔧 <span className="grn-ar">الكراج</span>
+            </button>
+            <button
+              onClick={() => setSettingsOpen(true)}
+              aria-label="Settings"
+              className="tap grn-btn border border-white/20 px-5 py-4 text-xl text-white/70 hover:bg-white/10"
+            >
+              ⚙
             </button>
           </div>
           <div className="grn-label mt-4 text-[0.62rem] text-white/40">
@@ -974,6 +1007,125 @@ export default function RaceClient() {
           >
             Cruise with friends in the Online Hub →
           </a>
+        </div>
+      )}
+
+      {/* Settings */}
+      {settingsOpen && settings && (
+        <div className="safe-pad absolute inset-0 z-30 overflow-y-auto bg-gradient-to-b from-[#05070f] via-[#0a1226] to-[#05070f]">
+          <div className="mx-auto max-w-xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="grn-label text-[0.72rem] tracking-[0.42em] text-gulf-400">
+                  Settings
+                </div>
+                <h2 className="grn-display mt-1 text-4xl italic">
+                  <span className="grn-ar">الإعدادات</span>
+                </h2>
+              </div>
+              <button
+                onClick={() => setSettingsOpen(false)}
+                className="tap grn-btn bg-white px-6 py-2.5 text-sm text-black hover:bg-white/85"
+              >
+                DONE
+              </button>
+            </div>
+
+            {/* Accessibility */}
+            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-[0.68rem]">
+              Accessibility · إمكانية الوصول
+            </h3>
+            <div className="mt-3 space-y-2">
+              {(
+                [
+                  ["reducedMotion", "Reduced motion", "Stops splashes, pulses and camera shake"],
+                  ["colorBlindSafe", "Colour-blind safe", "Rival switches off the red/green pair"],
+                  ["largeHud", "Large HUD", "Bigger speed, gauges and prompts"],
+                  ["haptics", "Haptics", "Vibrate on impacts, challenges and rewards"],
+                ] as const
+              ).map(([key, label, hint]) => (
+                <button
+                  key={key}
+                  onClick={() => updateSetting(key, !settings[key])}
+                  role="switch"
+                  aria-checked={settings[key]}
+                  className="tap grn-panel flex w-full items-center justify-between gap-4 p-4 text-left transition hover:border-white/30"
+                >
+                  <span>
+                    <span className="grn-display block text-lg leading-tight">{label}</span>
+                    <span className="text-[0.78rem] text-white/50">{hint}</span>
+                  </span>
+                  <span
+                    className={`relative h-7 w-12 shrink-0 rounded-full transition ${
+                      settings[key] ? "bg-emerald-500/80" : "bg-white/15"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-1 size-5 rounded-full bg-white transition-all ${
+                        settings[key] ? "left-6" : "left-1"
+                      }`}
+                    />
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Quality */}
+            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-[0.68rem]">
+              Graphics · الرسومات
+            </h3>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {(["auto", "high", "balanced", "battery"] as const).map((q) => (
+                <button
+                  key={q}
+                  onClick={() => updateSetting("quality", q)}
+                  className={`tap grn-panel px-3 py-3 text-center capitalize transition ${
+                    settings.quality === q
+                      ? "border-sodium-400/80 bg-sodium-500/10 text-sodium-400"
+                      : "text-white/70 hover:border-white/30"
+                  }`}
+                >
+                  <span className="grn-display text-base">{q}</span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-[0.76rem] text-white/45">
+              Auto measures your frame rate for six seconds and drops glow and shadows if the
+              device can&apos;t hold it. Battery caps the resolution as well.
+            </p>
+
+            {/* Audio */}
+            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-[0.68rem]">
+              Audio · الصوت
+            </h3>
+            <div className="mt-3 space-y-4">
+              {(
+                [
+                  ["musicVolume", "Music"],
+                  ["sfxVolume", "Effects"],
+                ] as const
+              ).map(([key, label]) => (
+                <label key={key} className="block">
+                  <span className="flex items-baseline justify-between">
+                    <span className="grn-label text-[0.62rem]">{label}</span>
+                    <span className="grn-display text-sm text-white/70">
+                      {Math.round(settings[key] * 100)}%
+                    </span>
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={Math.round(settings[key] * 100)}
+                    onChange={(e) => updateSetting(key, Number(e.target.value) / 100)}
+                    className="mt-2 h-2 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-sodium-400"
+                  />
+                </label>
+              ))}
+            </div>
+
+            <div className="h-10" />
+          </div>
         </div>
       )}
 

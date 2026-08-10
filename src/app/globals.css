@@ -213,3 +213,93 @@ body {
 .grn-btn-ghost:hover {
   background: rgba(56, 201, 238, 0.15);
 }
+
+/* ==========================================================
+   AAA mobile foundation
+   Safe areas, touch targets, motion language and accessibility
+   toggles. Everything below is device-driven, not decorative.
+   ========================================================== */
+
+:root {
+  /* Notch / Dynamic Island / home indicator. env() resolves to 0 on
+     desktop, so the same rules work everywhere. A minimum inset keeps
+     the HUD off the physical screen edge on flat-edged phones too. */
+  --safe-t: max(env(safe-area-inset-top), 0px);
+  --safe-r: max(env(safe-area-inset-right), 0px);
+  --safe-b: max(env(safe-area-inset-bottom), 0px);
+  --safe-l: max(env(safe-area-inset-left), 0px);
+  --hud-gutter: 0.75rem;
+
+  /* 44pt is Apple's minimum, 48dp Google's — take the larger. */
+  --touch-min: 48px;
+
+  /* One motion language: fast in, gentle out, never sluggish. */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-instant: 90ms;   /* button press feedback */
+  --dur-fast: 180ms;     /* state change, hover */
+  --dur-screen: 320ms;   /* screen transition */
+  --dur-reward: 700ms;   /* payoff moments only */
+}
+
+/* HUD lives inside the safe area, always. */
+.hud-safe-t { top: calc(var(--safe-t) + var(--hud-gutter)); }
+.hud-safe-b { bottom: calc(var(--safe-b) + var(--hud-gutter)); }
+.hud-safe-l { left: calc(var(--safe-l) + var(--hud-gutter)); }
+.hud-safe-r { right: calc(var(--safe-r) + var(--hud-gutter)); }
+
+.safe-pad {
+  padding-top: calc(var(--safe-t) + 0.5rem);
+  padding-bottom: calc(var(--safe-b) + 0.5rem);
+  padding-left: calc(var(--safe-l) + 1rem);
+  padding-right: calc(var(--safe-r) + 1rem);
+}
+
+/* Every interactive element clears the minimum touch target, even when
+   its visual box is smaller. */
+.tap {
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  touch-action: manipulation;         /* kills the 300ms double-tap delay */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Press feedback — immediate, physical, on every control. */
+.grn-btn:active,
+.tap:active {
+  transform: translateY(1px) scale(0.985);
+  transition-duration: var(--dur-instant);
+}
+
+/* Reduced motion: honour the OS setting AND an in-game override. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+html[data-reduced-motion="1"] *,
+html[data-reduced-motion="1"] *::before,
+html[data-reduced-motion="1"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* Colour-blind safe mode: the game signals "you" vs "rival" with
+   green/red, which is exactly the deuteranopia confusion pair. This
+   swaps the rival channel to a hue that stays distinct, and is paired
+   with the shape/label cues added in the HUD. */
+html[data-cvd="1"] {
+  --color-rival-1: #38bdf8;  /* sky */
+  --color-rival-2: #a78bfa;  /* violet */
+}
+html[data-cvd="1"] .rival-bar {
+  background-image: linear-gradient(90deg, var(--color-rival-1), var(--color-rival-2)) !important;
+}
+html[data-cvd="1"] .rival-ink {
+  color: var(--color-rival-1) !important;
+}

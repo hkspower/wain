@@ -145,13 +145,17 @@ function buildWall(
  *  Returns the colour map and a matching normal map generated from the
  *  identical height field, so lighting lines up with the aggregate.
  *  Tiles every ~14 m of road. */
-function asphaltSurface(): { map: THREE.CanvasTexture; normalMap: THREE.CanvasTexture } {
+function asphaltSurface(): {
+  map: THREE.CanvasTexture;
+  normalMap: THREE.CanvasTexture;
+  roughnessMap: THREE.CanvasTexture;
+} {
   const S = 1024;
 
   // --- cheap tileable value noise -------------------------------------
   const hash = (x: number, y: number) => {
     let h = (x * 374761393 + y * 668265263) | 0;
-    h = (h ^ (h >> 13)) * 1274126177;
+    h = Math.imul(h ^ (h >> 13), 1274126177); // imul: plain * loses low bits
     return ((h ^ (h >> 16)) >>> 0) / 4294967295;
   };
   const smooth = (t: number) => t * t * (3 - 2 * t);
@@ -289,6 +293,28 @@ function asphaltSurface(): { map: THREE.CanvasTexture; normalMap: THREE.CanvasTe
   map.colorSpace = THREE.SRGBColorSpace;
   map.anisotropy = 16;
 
+  // Roughness needs its OWN linear texture. Aliasing `map` into
+  // roughnessMap carried colorSpace = SRGBColorSpace with it, so the
+  // sampler applied the sRGB EOTF to the roughness fetch too and the road
+  // came out at ~0.01 roughness — a black mirror. Roughness is data.
+  const rc = document.createElement("canvas");
+  rc.width = rc.height = S;
+  const rctx = rc.getContext("2d")!;
+  const shade = ctx.getImageData(0, 0, S, S).data;
+  const rimg = rctx.createImageData(S, S);
+  for (let i = 0; i < S * S; i++) {
+    // dark = tyre-polished = smoother; light = coarse aggregate = rougher
+    const t = Math.min(1, Math.max(0, (shade[i * 4 + 1] - 9) / 26));
+    const v = (0.38 + t * 0.54) * 255;
+    rimg.data[i * 4] = rimg.data[i * 4 + 1] = rimg.data[i * 4 + 2] = v;
+    rimg.data[i * 4 + 3] = 255;
+  }
+  rctx.putImageData(rimg, 0, 0);
+  const roughnessMap = new THREE.CanvasTexture(rc);
+  roughnessMap.wrapS = roughnessMap.wrapT = THREE.RepeatWrapping;
+  roughnessMap.anisotropy = 16;
+  // no colorSpace assignment on purpose — this is linear data
+
   // --- normal map straight from the height field (single fast pass) ----
   const nc = document.createElement("canvas");
   nc.width = nc.height = S;
@@ -317,7 +343,7 @@ function asphaltSurface(): { map: THREE.CanvasTexture; normalMap: THREE.CanvasTe
   normalMap.wrapS = normalMap.wrapT = THREE.RepeatWrapping;
   normalMap.anisotropy = 16;
 
-  return { map, normalMap };
+  return { map, normalMap, roughnessMap };
 }
 
 function seaTexture(): THREE.CanvasTexture {
@@ -358,7 +384,9 @@ function lightPoolTexture(): THREE.CanvasTexture {
   g.addColorStop(1, "rgba(255,150,60,0)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 128, 128);
-  return new THREE.CanvasTexture(c);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 function glowTexture(r: number, g: number, b: number): THREE.CanvasTexture {
@@ -372,7 +400,9 @@ function glowTexture(r: number, g: number, b: number): THREE.CanvasTexture {
   grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 128, 128);
-  return new THREE.CanvasTexture(c);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 function concreteTexture(): THREE.CanvasTexture {
@@ -1059,17 +1089,18 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // Road surface — textured asphalt with a faintly damp sheen so the
   // streetlights and skyline catch on it; darker (tire-polished) areas
   // read as smoother via the roughness map
-  const { map: asphalt, normalMap: asphaltNormals } = asphaltSurface();
+  const { map: asphalt, normalMap: asphaltNormals, roughnessMap: asphaltRough } =
+    asphaltSurface();
   const road = new THREE.Mesh(
     buildRibbon(track, -ROAD_HALF_WIDTH, ROAD_HALF_WIDTH, 0.02, 3),
     new THREE.MeshStandardMaterial({
       map: asphalt,
-      roughnessMap: asphalt,
+      roughnessMap: asphaltRough,
       normalMap: asphaltNormals,
       normalScale: new THREE.Vector2(0.55, 0.55),
       color: 0xffffff,
-      roughness: 0.72,
-      metalness: 0.3,
+      roughness: 1.0, // the map supplies the real 0.38-0.92 range
+      metalness: 0.0, // asphalt is a dielectric
       envMapIntensity: 1.15,
     })
   );
