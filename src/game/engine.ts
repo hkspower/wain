@@ -116,11 +116,18 @@ const TRAFFIC_COLORS = [0x8a96a3, 0x5d6770, 0xb0a890, 0x6e7f8d, 0x4a5560, 0x9c8f
 
 // Unsharp-mask crispening + film vignette + animated grain, in linear
 // space before output.
+// Final grade: unsharp crispen, vignette, luminance-weighted grain, then a
+// hard black point. Order matters — the black point runs last so nothing
+// downstream can lift the shadows back up.
 const VignetteGrainShader = {
   uniforms: {
     tDiffuse: { value: null as THREE.Texture | null },
     uTime: { value: 0 },
     uTexel: { value: new THREE.Vector2(1 / 1280, 1 / 720) },
+    /** Everything below this maps to true zero. */
+    uBlackPoint: { value: 0.035 },
+    /** Shadow toe: >1 pushes the darks down without touching highlights. */
+    uToe: { value: 1.18 },
   },
   vertexShader: `
     varying vec2 vUv;
@@ -132,12 +139,15 @@ const VignetteGrainShader = {
     uniform sampler2D tDiffuse;
     uniform float uTime;
     uniform vec2 uTexel;
+    uniform float uBlackPoint;
+    uniform float uToe;
     varying vec2 vUv;
     float hash(vec2 p) {
       return fract(sin(dot(p, vec2(127.1, 311.7)) + uTime * 13.0) * 43758.5453);
     }
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
+
       // Unsharp mask against a 4-tap cross blur
       vec3 blur = 0.25 * (
         texture2D(tDiffuse, vUv + vec2(uTexel.x, 0.0)).rgb +
@@ -145,10 +155,23 @@ const VignetteGrainShader = {
         texture2D(tDiffuse, vUv + vec2(0.0, uTexel.y)).rgb +
         texture2D(tDiffuse, vUv - vec2(0.0, uTexel.y)).rgb);
       c.rgb += (c.rgb - blur) * 0.4;
+
       float d = distance(vUv, vec2(0.5));
       c.rgb *= 1.0 - 0.38 * smoothstep(0.38, 0.85, d);
-      c.rgb += (hash(vUv * vec2(1920.0, 1080.0)) - 0.5) * 0.025;
-      gl_FragColor = c;
+
+      // Grain scaled by luminance. A flat +/- offset lifts every black
+      // pixel off zero and is what makes a night scene look milky; real
+      // film grain lives in the midtones and dies out in the shadows.
+      float luma = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
+      float grainAmt = 0.03 * sqrt(clamp(luma, 0.0, 1.0));
+      c.rgb += (hash(vUv * vec2(1920.0, 1080.0)) - 0.5) * grainAmt;
+
+      // Shadow toe, then crush the remaining lift to true black and
+      // rescale so highlights keep their range.
+      c.rgb = pow(max(c.rgb, 0.0), vec3(uToe));
+      c.rgb = max(c.rgb - uBlackPoint, 0.0) / max(1.0 - uBlackPoint, 1e-4);
+
+      gl_FragColor = vec4(clamp(c.rgb, 0.0, 1.0), c.a);
     }`,
 };
 
@@ -319,9 +342,12 @@ export class GameEngine {
     this.renderer.toneMappingExposure = 1.15;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    // Far plane covers most of the 7.3 km lap, so the far shore and the
-    // city skyline stay in frame instead of being clipped away
-    this.camera = new THREE.PerspectiveCamera(62, canvas.clientWidth / canvas.clientHeight, 0.5, 7000);
+    // Far plane is matched to the fog, not to the track. FogExp2 at density
+    // 0.0009 has hidden everything by ~2,550 m, so anything past that was
+    // being rasterised for nothing. Clipping there costs no visible range
+    // and buys back depth precision (near:far 5200:1 instead of 14000:1),
+    // which also steadies the road markings against z-fighting.
+    this.camera = new THREE.PerspectiveCamera(62, canvas.clientWidth / canvas.clientHeight, 0.6, 2600);
 
     this.buildEnvironment();
     this.world = buildWorld(this.scene, this.track);
@@ -1498,6 +1524,16 @@ export class GameEngine {
     moon.target.position.copy(this.v1);
 
     this.grainPass.uniforms.uTime.value = (performance.now() / 1000) % 100;
+
+    // Sky dome, stars and moon ride with the camera — they are backdrop,
+    // not geometry, so they must never fall outside the far plane. Each
+    // keeps the offset it was authored with, so the moon stays off to one
+    // side instead of being dragged overhead.
+    for (const o of this.world.skyFollowers) {
+      const off = o.userData.skyOffset as THREE.Vector3;
+      o.position.x = this.camera.position.x + off.x;
+      o.position.z = this.camera.position.z + off.z;
+    }
 
     if (this.sparkLife > 0) {
       this.sparkLife = Math.max(0, this.sparkLife - dt);

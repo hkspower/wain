@@ -891,6 +891,9 @@ export interface WorldHandle {
   tick(dt: number): void;
   /** The moon — the engine drives its shadow frustum along with the player. */
   moonLight: THREE.DirectionalLight;
+  /** Sky dome, stars and moon disc — re-centred on the camera each frame
+   *  so they can sit inside a tight far plane without ever clipping. */
+  skyFollowers: THREE.Object3D[];
 }
 
 /** Pulsing red aircraft-warning beacon for tower tops. */
@@ -911,13 +914,19 @@ const TUNNEL_U = { from: 0.615, to: 0.655 };
 export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   const L = track.length;
   const beacons: THREE.MeshStandardMaterial[] = [];
+  const skyFollowers: THREE.Object3D[] = [];
 
   // Fog and light
   // Draw distance: at 0.0021 the world vanished by ~700 m, which hid the
   // far side of the bay. 0.0009 pushes usable visibility past 2 km so the
   // skyline, the towers and oncoming traffic read from a long way out.
-  scene.fog = new THREE.FogExp2(0x05070f, 0.0009);
-  scene.add(new THREE.HemisphereLight(0x3a4a6b, 0x1a140c, 0.65));
+  // Fog colour is the floor the whole scene fades to, so it has to be at
+  // least as dark as the darkest object or distance reads as grey haze.
+  scene.fog = new THREE.FogExp2(0x02030b, 0.0009);
+  // Ambient fill is the other black-level lift: at 0.65 nothing in the
+  // scene could reach zero. 0.3 keeps shape in the shadows without
+  // flooding them.
+  scene.add(new THREE.HemisphereLight(0x2b3853, 0x120e08, 0.3));
   const moonLight = new THREE.DirectionalLight(0xbfd0ff, 0.8);
   moonLight.position.set(-300, 500, 200);
   scene.add(moonLight);
@@ -938,28 +947,29 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         varying vec3 vPos;
         void main() {
           float h = clamp(vPos.y / 600.0, 0.0, 1.0);
-          vec3 top = vec3(0.012, 0.018, 0.05);
-          vec3 horizon = vec3(0.07, 0.09, 0.16);
+          vec3 top = vec3(0.004, 0.007, 0.026);
+          vec3 horizon = vec3(0.05, 0.066, 0.125);
           vec3 col = mix(horizon, top, smoothstep(0.0, 0.6, h));
           // sodium light pollution hugging the skyline
-          col += vec3(0.10, 0.055, 0.012) * (1.0 - smoothstep(0.0, 0.18, h));
+          col += vec3(0.085, 0.046, 0.010) * (1.0 - smoothstep(0.0, 0.16, h));
           gl_FragColor = vec4(col, 1.0);
         }`,
     });
-    const sky = new THREE.Mesh(new THREE.SphereGeometry(3400, 24, 12), skyMat);
-    sky.position.set(1200, 0, -1400);
+    const sky = new THREE.Mesh(new THREE.SphereGeometry(1900, 24, 12), skyMat);
     sky.renderOrder = -2;
     scene.add(sky);
+    skyFollowers.push(sky);
 
     // The moon over the Gulf, with a soft halo
     const moonDisc = new THREE.Mesh(
       new THREE.CircleGeometry(70, 32),
       new THREE.MeshBasicMaterial({ color: 0xfdf3d3, fog: false })
     );
-    moonDisc.position.set(-1450, 950, -300);
-    moonDisc.lookAt(1200, 100, -1400);
+    moonDisc.position.set(-980, 640, -200);
+    moonDisc.lookAt(0, 0, 0);
     moonDisc.renderOrder = -1;
     scene.add(moonDisc);
+    skyFollowers.push(moonDisc);
     const halo = new THREE.Sprite(
       new THREE.SpriteMaterial({
         map: glowTexture(225, 220, 195),
@@ -970,9 +980,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         opacity: 0.5,
       })
     );
-    halo.scale.set(700, 700, 1);
+    halo.scale.set(520, 520, 1);
     halo.position.copy(moonDisc.position);
     scene.add(halo);
+    skyFollowers.push(halo);
   }
 
   // Stars
@@ -982,10 +993,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2;
       const e = Math.random() * Math.PI * 0.45 + 0.08;
-      const r = 3000;
-      pos[i * 3] = Math.cos(a) * Math.cos(e) * r + 1200;
+      const r = 1750;
+      pos[i * 3] = Math.cos(a) * Math.cos(e) * r;
       pos[i * 3 + 1] = Math.sin(e) * r * 0.5;
-      pos[i * 3 + 2] = Math.sin(a) * Math.cos(e) * r - 1400;
+      pos[i * 3 + 2] = Math.sin(a) * Math.cos(e) * r;
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
@@ -994,6 +1005,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       new THREE.PointsMaterial({ color: 0xcdd8ff, size: 2.4, sizeAttenuation: false, fog: false })
     );
     scene.add(stars);
+    skyFollowers.push(stars);
   }
 
   // City floor inland of the corniche
@@ -1520,9 +1532,16 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     scene.add(g);
   });
 
+  // Remember where each backdrop piece was authored, so the per-frame
+  // re-centring preserves its offset rather than collapsing it to zero.
+  for (const o of skyFollowers) {
+    o.userData.skyOffset = o.position.clone();
+  }
+
   let time = 0;
   return {
     moonLight,
+    skyFollowers,
     tick(dt: number) {
       time += dt;
       // Slow drift of the wave crests across the bay
