@@ -239,7 +239,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 447 checks covering
+- `python3 design/test_suite.py` is the full system test — 467 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
@@ -270,7 +270,12 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   facts already on the page: the real channels, النوخذة at 0 KWD, and
   **never an aggregateRating** — invented review markup earns a manual action.
   The six non-public pages carry `noindex`, and the suite fails if the sitemap
-  ever lists one of them.
+  ever lists one of them. `robots.txt`, `sitemap.xml` (with real git `lastmod`
+  dates) and `llms.txt` are **generated** by `design/seo_files.py` — run it
+  after adding a page, and `--check` in the suite fails when the committed
+  files have drifted. The company page also declares its six services as an
+  `OfferCatalog`, each asserted to appear verbatim on the page, and the two
+  inner pages carry a `BreadcrumbList`.
 - `design/instagram_covers.py` draws the Instagram highlight covers from the
   page sprite (1080×1080, brown fill, white mark) — `design/instagram/`.
 - `design/capture.py` drives the site end to end and screenshots every page;

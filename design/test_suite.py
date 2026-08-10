@@ -6,6 +6,7 @@ artefacts, auth, hostile input, storage tampering, offline, and layout.
 Run:  python3 design/test_suite.py
 """
 import http.server, socketserver, threading, functools, time, json, re, pathlib, sys
+import subprocess
 import xml.etree.ElementTree as ET
 from playwright.sync_api import sync_playwright
 
@@ -229,6 +230,56 @@ def seo_checks():
         check(S, "no invented ratings or review counts",
               not any("aggregateRating" in json.dumps(e) or "reviewCount" in json.dumps(e)
                       for e in graph))
+
+    # llms.txt: the crawlers that read sites into language models look for it,
+    # and the risk it manages is real — a model summarising this company must
+    # not invent prices or clients, so the file says so in as many words
+    llms = ROOT / "llms.txt"
+    check(S, "llms.txt exists", llms.is_file())
+    if llms.is_file():
+        lt = llms.read_text()
+        check(S, "llms.txt names the real channels and nothing else",
+              "+965 6589 4110" in lt and "hello@almuhallab-code.com" in lt
+              and "@almuhallab.code" in lt)
+        check(S, "llms.txt tells a summariser not to invent prices or clients",
+              "do not invent" in lt.lower())
+        check(S, "llms.txt states النوخذة is free", "0 KWD" in lt)
+
+    # <lastmod> must be a real date, not one typed once and left to ossify
+    for lm in re.findall(r"<lastmod>([^<]+)</lastmod>", sx):
+        check(S, f"sitemap lastmod {lm} is a valid ISO date",
+              bool(re.fullmatch(r"\d{4}-\d{2}-\d{2}", lm)), lm)
+    check(S, "every sitemap entry carries a lastmod",
+          sx.count("<lastmod>") == len(locs), f"{sx.count('<lastmod>')} of {len(locs)}")
+
+    # the generated files must match what the generator produces now — the whole
+    # point of generating them is that a new page cannot slip out of the sitemap
+    gen = subprocess.run([sys.executable, str(ROOT.parent / "design" / "seo_files.py"), "--check"],
+                         capture_output=True, text=True)
+    check(S, "robots.txt, sitemap.xml and llms.txt are not stale",
+          gen.returncode == 0, (gen.stdout + gen.stderr).strip()[:160])
+
+    # a services company that declares no services leaves search engines guessing
+    graph_all = json.loads(ld.group(1))["@graph"] if ld else []
+    org2 = next((e for e in graph_all if e["@type"] == "Organization"), {})
+    cat = org2.get("hasOfferCatalog", {}).get("itemListElement", [])
+    check(S, "the six services are declared as an offer catalogue", len(cat) == 6, str(len(cat)))
+    home_txt = pages["index.html"]
+    for offer in cat:
+        svc = offer["itemOffered"]
+        check(S, f"declared service is on the page: {svc['name']}",
+              svc["name"] in home_txt and svc["description"] in home_txt)
+
+    # breadcrumbs put the inner pages under the company in a search result
+    for f, expected in (("nokhatha.html", "النوخذة"), ("nizam.html", "النظام الموحد")):
+        b = re.search(r'<script type="application/ld\+json">(.*?)</script>', pages[f], re.S)
+        check(S, f"{f}: carries a breadcrumb", bool(b))
+        if b:
+            crumb = json.loads(b.group(1))
+            names = [i["name"] for i in crumb["itemListElement"]]
+            check(S, f"{f}: the trail starts at the company and ends here",
+                  crumb["@type"] == "BreadcrumbList" and names == ["المهلب كود", expected],
+                  str(names))
 
 
 # ═══════════════════════════════════════════ 1b. IDENTITY — pinned, do not relax
@@ -498,7 +549,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "447", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "467", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -532,7 +583,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "447", "0", "100%"], str(finals))
+          finals == ["4", "467", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -695,7 +746,7 @@ def home_checks(pg):
         check(S, f"the footer states {want}", want in ftext)
     check(S, "the footer maps the company, the services and the system",
           pg.eval_on_selector_all(".fcols nav a", "n=>n.length") >= 16)
-    # one numeral system per page: Arabic-Indic digits beside "+965" and "447"
+    # one numeral system per page: Arabic-Indic digits beside "+965" and "467"
     # is the same defect that once printed ١٢٬٠٠٠ next to 850 in one table
     mixed = pg.evaluate(r"(document.body.innerText.match(/[٠-٩]/g) || []).length")
     check(S, "the page uses one numeral system throughout", mixed == 0, f"{mixed} Arabic-Indic")
