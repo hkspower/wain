@@ -131,6 +131,106 @@ def static_checks():
     check(S, "manifest has the required fields",
           all(k in mf for k in ("name", "start_url", "display", "icons")))
 
+# ═══════════════════════════════════════════ 1c. SEO — what a crawler and a share see
+def seo_checks():
+    """A brochure site that no one can find, and whose links paste as bare URLs,
+    is not finished. These pin the signals a crawler and a link preview read:
+    they are invisible in a browser, so nothing else would catch their loss."""
+    S = "seo"
+    BASE = "https://www.almuhallab-code.com"
+    PUBLIC = ("index.html", "nokhatha.html", "nizam.html")
+    PRIVATE = ("admin.html", "404.html", "safi.html", "xbrl.html",
+               "delivery.html", "nokha1.html")
+    pages = {f: (ROOT / f).read_text() for f in PUBLIC + PRIVATE}
+
+    robots = (ROOT / "robots.txt")
+    check(S, "robots.txt exists", robots.is_file())
+    rb = robots.read_text() if robots.is_file() else ""
+    check(S, "robots.txt points at the sitemap",
+          f"Sitemap: {BASE}/sitemap.xml" in rb)
+    check(S, "robots.txt keeps crawlers out of the admin console",
+          "Disallow: /admin.html" in rb)
+
+    sm = (ROOT / "sitemap.xml")
+    check(S, "sitemap.xml exists", sm.is_file())
+    sx = sm.read_text() if sm.is_file() else ""
+    locs = re.findall(r"<loc>([^<]+)</loc>", sx)
+    check(S, "the sitemap lists exactly the three public pages", len(locs) == 3, str(locs))
+    check(S, "and every entry is an absolute URL on the real domain",
+          all(u.startswith(BASE + "/") for u in locs), str(locs))
+    # a sitemap that lists a noindex page is a contradiction search engines
+    # report straight back at you
+    check(S, "the sitemap lists nothing that is marked noindex",
+          not any(any(pv.split(".")[0] in u for u in locs) for pv in PRIVATE),
+          str(locs))
+    if sm.is_file():
+        ET.fromstring(sx)   # raises if malformed
+        check(S, "the sitemap is well-formed XML", True)
+
+    for f in PUBLIC:
+        h = pages[f]
+        slug = "/" if f == "index.html" else f"/{f}"
+        check(S, f"{f}: canonical points at the real URL",
+              f'<link rel="canonical" href="{BASE}{slug}" />' in h)
+        for prop in ("og:type", "og:title", "og:description", "og:image",
+                     "og:url", "og:site_name", "og:locale"):
+            check(S, f"{f}: {prop} is set", f'property="{prop}"' in h)
+        check(S, f"{f}: the share image is absolute and sized",
+              f'content="{BASE}/og.png"' in h
+              and 'property="og:image:width" content="1200"' in h
+              and 'property="og:image:height" content="630"' in h)
+        check(S, f"{f}: twitter card is the large one",
+              'name="twitter:card" content="summary_large_image"' in h)
+        check(S, f"{f}: og:image carries alt text", 'property="og:image:alt"' in h)
+        check(S, f"{f}: is not accidentally noindexed", 'name="robots"' not in h)
+        title = re.search(r"<title>([^<]*)</title>", h)
+        desc = re.search(r'name="description" content="([^"]*)"', h)
+        check(S, f"{f}: has a title of a sane length",
+              title and 15 <= len(title.group(1)) <= 70, title.group(1) if title else "none")
+        check(S, f"{f}: has a description of a sane length",
+              desc and 50 <= len(desc.group(1)) <= 320,
+              str(len(desc.group(1))) if desc else "none")
+
+    for f in PRIVATE:
+        check(S, f"{f}: stays out of the index", 'content="noindex' in pages[f])
+
+    og = ROOT / "og.png"
+    check(S, "the share image exists", og.is_file())
+    if og.is_file():
+        # PNG header carries the real dimensions — a 1200x630 claim in the meta
+        # tag that the file does not honour is what makes a preview crop badly
+        raw = og.read_bytes()
+        w = int.from_bytes(raw[16:20], "big"); ht = int.from_bytes(raw[20:24], "big")
+        check(S, "the share image really is 1200x630", (w, ht) == (1200, 630), f"{w}x{ht}")
+        check(S, "and is small enough to preview quickly",
+              og.stat().st_size < 300_000, f"{og.stat().st_size // 1024} KB")
+
+    # structured data: it must parse, and it must not claim anything we cannot
+    # stand behind — invented reviews are the fastest way to a manual action
+    ld = re.search(r'<script type="application/ld\+json">(.*?)</script>',
+                   pages["index.html"], re.S)
+    check(S, "the company page carries structured data", bool(ld))
+    if ld:
+        graph = json.loads(ld.group(1))["@graph"]
+        types = [e["@type"] for e in graph]
+        check(S, "it declares the Organization, the site and النوخذة",
+              set(types) == {"Organization", "WebSite", "SoftwareApplication"}, str(types))
+        org = next(e for e in graph if e["@type"] == "Organization")
+        check(S, "the structured phone is the real one",
+              org["telephone"] == "+96565894110", org["telephone"])
+        check(S, "the structured email is the real one",
+              org["email"] == "hello@almuhallab-code.com", org["email"])
+        check(S, "the structured profile is the real Instagram",
+              org["sameAs"] == ["https://www.instagram.com/almuhallab.code"], str(org["sameAs"]))
+        app = next(e for e in graph if e["@type"] == "SoftwareApplication")
+        check(S, "النوخذة is declared free, matching the page",
+              app["offers"]["price"] == "0" and app["offers"]["priceCurrency"] == "KWD",
+              str(app["offers"]))
+        check(S, "no invented ratings or review counts",
+              not any("aggregateRating" in json.dumps(e) or "reviewCount" in json.dumps(e)
+                      for e in graph))
+
+
 # ═══════════════════════════════════════════ 1b. IDENTITY — pinned, do not relax
 def identity_checks():
     """The Almuhallab identity is the company's own and is final. These values
@@ -398,7 +498,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "381", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "447", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -432,7 +532,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "381", "0", "100%"], str(finals))
+          finals == ["4", "447", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -595,7 +695,7 @@ def home_checks(pg):
         check(S, f"the footer states {want}", want in ftext)
     check(S, "the footer maps the company, the services and the system",
           pg.eval_on_selector_all(".fcols nav a", "n=>n.length") >= 16)
-    # one numeral system per page: Arabic-Indic digits beside "+965" and "381"
+    # one numeral system per page: Arabic-Indic digits beside "+965" and "447"
     # is the same defect that once printed ١٢٬٠٠٠ next to 850 in one table
     mixed = pg.evaluate(r"(document.body.innerText.match(/[٠-٩]/g) || []).length")
     check(S, "the page uses one numeral system throughout", mixed == 0, f"{mixed} Arabic-Indic")
@@ -1528,6 +1628,7 @@ def font_checks(pg):
 
 # ═══════════════════════════════════════════ run
 static_checks()
+seo_checks()
 identity_checks()
 browser_checks()
 

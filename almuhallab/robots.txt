@@ -1,0 +1,12 @@
+# Almuhallab Code — www.almuhallab-code.com
+# The company site and النوخذة's public pages are open to crawlers. The admin
+# console, the redirect stubs and the not-found page carry <meta name="robots"
+# content="noindex"> as well — this file is the coarse gate, the meta tags are
+# the precise one.
+
+User-agent: *
+Allow: /
+Disallow: /admin.html
+Disallow: /nokha1.html
+
+Sitemap: https://www.almuhallab-code.com/sitemap.xml
