@@ -345,10 +345,20 @@
           return s;
         } catch (e) { return null; }
       }
+      /* Guarded like every other write here — this one was not, and the gap had
+         teeth: on a full quota (or Safari private browsing, which throws on
+         setItem) the throw landed in the registration promise's .catch and was
+         reported as "the browser does not support the required encryption",
+         which is a false diagnosis of a storage problem. Returns whether the
+         session was actually stored so the caller can say the true thing. */
       function setSession(email) {
-        if (email) localStorage.setItem(SESSION_KEY, JSON.stringify({ email: email, exp: Date.now() + SESSION_TTL }));
-        else localStorage.removeItem(SESSION_KEY);
+        try {
+          if (email) localStorage.setItem(SESSION_KEY, JSON.stringify({ email: email, exp: Date.now() + SESSION_TTL }));
+          else localStorage.removeItem(SESSION_KEY);
+          return true;
+        } catch (e) { return false; }
       }
+      var STORAGE_FULL = "تعذّر الحفظ على هذا الجهاز — المساحة ممتلئة أو التصفح الخاص مفعّل.";
       function currentUser() {
         var s = session();
         if (!s) return null;
@@ -533,7 +543,9 @@
             salt: salt, hash: hash, iter: PBKDF2_ITER,
             plan: 0, createdAt: new Date().toISOString()
           };
-          writeUsers(users); setSession(email); f.reset(); err.textContent = "";
+          writeUsers(users);
+          if (!setSession(email)) { err.textContent = STORAGE_FULL; return; }
+          f.reset(); err.textContent = "";
           toast("أهلاً بك في النوخذة ⚓");
           location.hash = "#/dashboard";
         }).catch(function () {
@@ -560,7 +572,8 @@
             return;
           }
           lockClear(email);
-          setSession(email); f.reset(); err.textContent = "";
+          if (!setSession(email)) { err.textContent = STORAGE_FULL; return; }
+          f.reset(); err.textContent = "";
           toast("تم تسجيل الدخول");
           location.hash = "#/dashboard";
         }

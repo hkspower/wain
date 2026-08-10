@@ -398,7 +398,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "378", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "381", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -432,7 +432,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "378", "0", "100%"], str(finals))
+          finals == ["4", "381", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -595,7 +595,7 @@ def home_checks(pg):
         check(S, f"the footer states {want}", want in ftext)
     check(S, "the footer maps the company, the services and the system",
           pg.eval_on_selector_all(".fcols nav a", "n=>n.length") >= 16)
-    # one numeral system per page: Arabic-Indic digits beside "+965" and "378"
+    # one numeral system per page: Arabic-Indic digits beside "+965" and "381"
     # is the same defect that once printed ١٢٬٠٠٠ next to 850 in one table
     mixed = pg.evaluate(r"(document.body.innerText.match(/[٠-٩]/g) || []).length")
     check(S, "the page uses one numeral system throughout", mixed == 0, f"{mixed} Arabic-Indic")
@@ -1314,6 +1314,34 @@ def tamper_checks(pg):
         rendered = pg.evaluate("document.body.innerText.length > 40")
         check(S, f"{page} survives malformed stored data", not errs and rendered,
               (errs[0] if errs else "page rendered empty") if (errs or not rendered) else "")
+
+    # A full quota is not hypothetical: Safari's private browsing throws on
+    # setItem, and a phone that has been using the system for months can fill
+    # 5MB. Registering must then say so — the write that stored the session was
+    # the one unguarded write in the file, and its throw was being caught by the
+    # registration promise's .catch and reported as "the browser does not
+    # support the required encryption", which blames the wrong thing entirely.
+    pg.goto(f"{BASE}/nokhatha.html#/register", wait_until="networkidle")
+    pg.evaluate("""(() => {
+      const real = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (k, v) {
+        if (String(k).indexOf('session') !== -1) {
+          const e = new Error('QuotaExceededError'); e.name = 'QuotaExceededError'; throw e;
+        }
+        return real.call(this, k, v);
+      };
+    })()""")
+    pg.fill('#form-register input[name="name"]', "ممتلئ")
+    pg.fill('#form-register input[name="email"]', "full@example.com")
+    pg.fill('#form-register input[name="password"]', "correct-horse-2026")
+    errs = []
+    pg.once("pageerror", lambda e: errs.append(str(e)))
+    pg.click('#form-register button[type="submit"]'); pg.wait_for_timeout(2600)
+    msg = pg.eval_on_selector("#register-error", "e=>e.textContent.trim()")
+    check(S, "a full quota is reported as a storage problem, not a crypto one",
+          not errs and "تعذّر الحفظ" in msg, f"errs={errs} msg={msg!r}")
+    check(S, "and a failed session write does not strand the visitor on a dashboard",
+          "/dashboard" not in pg.url, pg.url)
 
     # corrupt JSON entirely
     pg.goto(f"{BASE}/nizam.html#/safi", wait_until="networkidle")
