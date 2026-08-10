@@ -11,6 +11,7 @@ import { createCar } from "./cars";
 import { RIVALS, RivalDef } from "./rivals";
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
+import { Music } from "./music";
 import { GEARS } from "./gears";
 import { loadGarage, saveGarage, computeEffects, addKd, TuneEffects, getCar } from "./mods";
 
@@ -287,6 +288,7 @@ export class GameEngine {
 
   // Audio
   private sound: SoundEngine | null = null;
+  private music: Music | null = null;
   private voice = new VoiceBox();
 
   // Camera motion
@@ -317,7 +319,9 @@ export class GameEngine {
     this.renderer.toneMappingExposure = 1.15;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.camera = new THREE.PerspectiveCamera(62, canvas.clientWidth / canvas.clientHeight, 0.5, 4000);
+    // Far plane covers most of the 7.3 km lap, so the far shore and the
+    // city skyline stay in frame instead of being clipped away
+    this.camera = new THREE.PerspectiveCamera(62, canvas.clientWidth / canvas.clientHeight, 0.5, 7000);
 
     this.buildEnvironment();
     this.world = buildWorld(this.scene, this.track);
@@ -547,6 +551,8 @@ export class GameEngine {
         this.tune.aspiration === "super" ? "super" : this.tune.boostMult > 0 ? "turbo" : "none"
       );
       this.sound.revStart();
+      this.music = new Music(this.sound.audioContext);
+      this.music.start();
     } catch {
       this.sound = null;
     }
@@ -714,6 +720,7 @@ export class GameEngine {
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
     window.removeEventListener("blur", this.onBlur);
+    this.music?.dispose();
     this.sound?.dispose();
     this.voice.dispose();
     this.composer.dispose();
@@ -734,6 +741,10 @@ export class GameEngine {
       this.events.onMessage(muted ? "Sound off 🔇" : "Sound on 🔊");
     }
     if (k === "h" && !e.repeat) this.sound?.hornOn();
+    if (k === "b" && !e.repeat && this.music) {
+      const on = this.music.toggle();
+      this.events.onMessage(on ? "Music on 🎵" : "Music off");
+    }
     if (k === "v" && !e.repeat) {
       const on = this.voice.toggle();
       this.events.onMessage(on ? "Voices on — الأصوات شغالة 🗣️" : "Voices off");
@@ -1124,6 +1135,7 @@ export class GameEngine {
     this.updateRival(dt);
     this.updateRemotes(dt);
     if (this.inBattle) this.updateBattle(dt);
+    this.music?.setMood(this.inBattle || this.duel ? "battle" : "cruise");
     this.updateCamera(dt);
     this.updateStreaks();
     this.updateAudio();

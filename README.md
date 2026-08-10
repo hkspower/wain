@@ -30,6 +30,19 @@ Want it as a desktop / Steam PC build? See [`desktop/README.md`](desktop/README.
 
 Prefer a **native Unity build** for Steam? A complete code-only Unity port lives in [`unity/`](unity/README.md) — same track, handling, rivals, and voice lines.
 
+### Background music (optional)
+
+Generate the two soundtrack loops with the ElevenLabs Music API:
+
+```bash
+ELEVENLABS_API_KEY=sk_... node scripts/generate-music.mjs
+```
+
+They land in `public/music/` and the game crossfades between them —
+a slow synthwave cruise theme, and a driving battle theme that takes over
+the moment a fight starts. Without them the game plays a procedural synth
+score instead, so it is never silent. `B` toggles music in-game.
+
 ### ElevenLabs voices (optional)
 
 Pre-render the rivals' Kuwaiti lines with a real ElevenLabs voice:

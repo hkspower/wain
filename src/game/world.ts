@@ -913,7 +913,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   const beacons: THREE.MeshStandardMaterial[] = [];
 
   // Fog and light
-  scene.fog = new THREE.FogExp2(0x05070f, 0.0021);
+  // Draw distance: at 0.0021 the world vanished by ~700 m, which hid the
+  // far side of the bay. 0.0009 pushes usable visibility past 2 km so the
+  // skyline, the towers and oncoming traffic read from a long way out.
+  scene.fog = new THREE.FogExp2(0x05070f, 0.0009);
   scene.add(new THREE.HemisphereLight(0x3a4a6b, 0x1a140c, 0.65));
   const moonLight = new THREE.DirectionalLight(0xbfd0ff, 0.8);
   moonLight.position.set(-300, 500, 200);
@@ -1208,7 +1211,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // City blocks with lit windows
   const windows = windowTexture();
   {
-    const count = 230;
+    const count = 340; // more blocks now that they are visible much further
     const geo = new THREE.BoxGeometry(1, 1, 1);
     geo.translate(0, 0.5, 0);
     const mat = new THREE.MeshStandardMaterial({ map: windows, color: 0xffffff, roughness: 0.8 });
@@ -1227,7 +1230,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // Never on the sea side of the corniche; both sides inland.
       const onCoast = u >= COAST_U.from && u <= COAST_U.to;
       const sideSign = onCoast ? 1 : Math.random() < 0.5 ? 1 : -1;
-      const dist = 32 + Math.random() * 110;
+      const dist = 32 + Math.random() * 230; // deeper skyline for the longer view
       track.pose(s, sideSign * dist, p, tmp);
       q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.random() * Math.PI);
       // Taller skyline near the city at the top of the lap

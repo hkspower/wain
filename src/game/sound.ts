@@ -132,6 +132,11 @@ export class SoundEngine {
     if (this.ctx.state !== "running") this.resume();
   }
 
+  /** The shared AudioContext — the music player rides on this one. */
+  get audioContext(): AudioContext {
+    return this.ctx;
+  }
+
   /** Safe to call from any user-gesture handler; no-op when running. */
   resume(): void {
     if (this.ctx.state === "suspended") void this.ctx.resume().catch(() => {});

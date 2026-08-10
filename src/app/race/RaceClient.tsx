@@ -548,7 +548,7 @@ export default function RaceClient() {
           }`}
         >
           W/↑ accelerate · S/↓ brake · A D steer · N nitro · H horn
-          <br />F flash headlights · M mute · V voices · G glow fx
+          <br />F flash headlights · M mute · B music · V voices · G glow fx
         </div>
       </div>
 
