@@ -1,10 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DriverCard, GameEngine, HudData } from "@/game/engine";
+import type { DriverCard, GameEngine, HudData, RaceResult } from "@/game/engine";
+import Results from "./Results";
+import Onboarding, { CoachHint, CoachState, hasOnboarded } from "./Onboarding";
 import { GEARS } from "@/game/gears";
 import { RIVALS, RivalDef } from "@/game/rivals";
 import { HubClient, DuelInvite, loadProfile, formatLap } from "@/game/net";
+import {
+  Profile,
+  loadProfileStats,
+  levelInfo,
+  rankTitle,
+} from "@/game/profile";
 import {
   Settings,
   loadSettings,
@@ -37,7 +45,16 @@ const CAT_LABELS: Record<string, string> = {
   glow: "UNDERGLOW · الليتات",
 };
 
-type Phase = "menu" | "playing" | "defeated" | "champion";
+type Phase = "menu" | "loading" | "playing" | "champion" | "error";
+
+/** Rivals defeated so far, as the engine saves it. */
+function readBeaten(): number {
+  try {
+    return Math.min(RIVALS.length, Number(localStorage.getItem("gulf-road-nights-progress") ?? "0"));
+  } catch {
+    return 0;
+  }
+}
 
 interface FeedMsg {
   name: string;
@@ -65,7 +82,6 @@ export default function RaceClient() {
 
   const [phase, setPhase] = useState<Phase>("menu");
   const [message, setMessage] = useState<{ title: string; sub?: string } | null>(null);
-  const [beatenBy, setBeatenBy] = useState<RivalDef | null>(null);
   const [vsRival, setVsRival] = useState<RivalDef | null>(null);
   const [challenge, setChallenge] = useState<{
     player: DriverCard;
@@ -79,10 +95,17 @@ export default function RaceClient() {
   const [raceCar, setRaceCar] = useState<string>("wain-special");
   const challengeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [garageOpen, setGarageOpen] = useState(false);
+  const garageWasOpen = useRef(false);
   const [garage, setGarage] = useState<GarageState | null>(null);
   const [isTouch, setIsTouch] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [result, setResult] = useState<RaceResult | null>(null);
+  const [onboarding, setOnboarding] = useState(false);
+  const [coach, setCoach] = useState<CoachState | null>(null);
+  const coachRef = useRef<CoachState | null>(null);
+  const [career, setCareer] = useState<Profile | null>(null);
+  const [beaten, setBeaten] = useState(0);
   const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const boostWrapRef = useRef<HTMLDivElement>(null);
@@ -97,6 +120,10 @@ export default function RaceClient() {
     const st = loadSettings();
     applySettings(st);
     setSettings(st);
+    // First-time players get the five-card primer before the menu.
+    if (!hasOnboarded()) setOnboarding(true);
+    setCareer(loadProfileStats());
+    setBeaten(readBeaten());
   }, []);
 
   const updateSetting = useCallback(<K extends keyof Settings>(k: K, v: Settings[K]) => {
@@ -253,6 +280,11 @@ export default function RaceClient() {
             battleNameRef.current.textContent = `${d.battle.rivalName} ${d.battle.rivalArabic} · ${d.battle.rivalCrew}`;
         }
       }
+      coachRef.current = {
+        speedKmh: d.speedKmh,
+        rivalDist: d.rivalDist ?? 0,
+        inBattle: d.battle !== null,
+      };
       drawMap(d);
     },
     [drawMap]
@@ -271,53 +303,81 @@ export default function RaceClient() {
     // Enter/click builds two engines on the same canvas
     if (engineRef.current || startingRef.current || !canvasRef.current) return;
     startingRef.current = true;
-    const { GameEngine } = await import("@/game/engine");
+    setPhase("loading");
+    let GameEngine: typeof import("@/game/engine").GameEngine;
+    try {
+      ({ GameEngine } = await import("@/game/engine"));
+    } catch (err) {
+      console.error(err);
+      startingRef.current = false;
+      setPhase("error");
+      return;
+    }
     // Dev helper: ?start=<metres> spawns further along the lap
     const startS = parseFloat(new URLSearchParams(window.location.search).get("start") ?? "");
-    const engine = new GameEngine(canvasRef.current, {
-      onHud,
-      onMessage: showMessage,
-      onBump: () => {
-        haptic(HAPTIC.impact, loadSettings().haptics);
-        const el = canvasRef.current;
-        if (!el) return;
-        el.classList.remove("race-bump");
-        void el.offsetWidth;
-        el.classList.add("race-bump");
-      },
-      onDefeat: (rival) => {
-        setBeatenBy(rival);
-        setPhase("defeated");
-      },
-      onChampion: () => setPhase("champion"),
-      onLap: (ms) => {
-        showMessage(`LAP — ${formatLap(ms)}`);
-        hubRef.current?.sendLap(ms);
-      },
-      onBattleStart: (rival) => {
-        setVsRival(rival);
-        if (vsTimer.current) clearTimeout(vsTimer.current);
-        vsTimer.current = setTimeout(() => setVsRival(null), 2400);
-      },
-      onChallenge: (player, rival, maxWager) => {
-        haptic(HAPTIC.challenge, loadSettings().haptics);
-        if (challengeTimer.current) clearTimeout(challengeTimer.current);
-        const g = loadGarage();
-        setRaceCar(g.car);
-        setWager(WAGERS.filter((w) => w <= maxWager).slice(-1)[0] ?? 0);
-        setChallenge({ player, rival, maxWager, answer: null, sent: false });
-      },
-      onChallengeResult: (accepted, reason) => {
-        setChallenge((c) => (c ? { ...c, answer: { accepted, reason } } : c));
-        if (accepted) setGarage(loadGarage());
-        if (challengeTimer.current) clearTimeout(challengeTimer.current);
-        challengeTimer.current = setTimeout(() => setChallenge(null), accepted ? 1200 : 2600);
-      },
-    }, Number.isFinite(startS) ? { startS } : undefined);
+    let engine: GameEngine;
+    try {
+      engine = new GameEngine(canvasRef.current, {
+        onHud,
+        onMessage: showMessage,
+        onBump: () => {
+          haptic(HAPTIC.impact, loadSettings().haptics);
+          const el = canvasRef.current;
+          if (!el) return;
+          el.classList.remove("race-bump");
+          void el.offsetWidth;
+          el.classList.add("race-bump");
+        },
+        // Unreachable while onResult is wired (the results screen owns the
+        // loss), kept so the engine contract stays honest.
+        onDefeat: (rival) => showMessage(`${rival.name} takes the night`, "Press R for a rematch"),
+        onChampion: () => setPhase("champion"),
+        onLap: (ms) => {
+          showMessage(`LAP — ${formatLap(ms)}`);
+          hubRef.current?.sendLap(ms);
+        },
+        onBattleStart: (rival) => {
+          setVsRival(rival);
+          if (vsTimer.current) clearTimeout(vsTimer.current);
+          vsTimer.current = setTimeout(() => setVsRival(null), 2400);
+        },
+        onChallenge: (player, rival, maxWager) => {
+          haptic(HAPTIC.challenge, loadSettings().haptics);
+          if (challengeTimer.current) clearTimeout(challengeTimer.current);
+          const g = loadGarage();
+          setRaceCar(g.car);
+          setWager(WAGERS.filter((w) => w <= maxWager).slice(-1)[0] ?? 0);
+          setChallenge({ player, rival, maxWager, answer: null, sent: false });
+        },
+        onResult: (r) => {
+          setChallenge(null);
+          setVsRival(null);
+          setMessage(null);
+          haptic(r.outcome === "win" ? HAPTIC.reward : HAPTIC.impact, loadSettings().haptics);
+          setGarage(loadGarage());
+          setCareer(loadProfileStats());
+          setBeaten(readBeaten()); // engine has already saved by now
+          setResult(r);
+        },
+        onChallengeResult: (accepted, reason) => {
+          setChallenge((c) => (c ? { ...c, answer: { accepted, reason } } : c));
+          if (accepted) setGarage(loadGarage());
+          if (challengeTimer.current) clearTimeout(challengeTimer.current);
+          challengeTimer.current = setTimeout(() => setChallenge(null), accepted ? 1200 : 2600);
+        },
+      }, Number.isFinite(startS) ? { startS } : undefined);
+      mapPathRef.current = engine.getMapPath();
+      engine.resize();
+      engine.start();
+    } catch (err) {
+      // Almost always "no WebGL" — a blank black screen is the worst
+      // possible answer, so say what happened and offer a way out.
+      console.error(err);
+      startingRef.current = false;
+      setPhase("error");
+      return;
+    }
     engineRef.current = engine;
-    mapPathRef.current = engine.getMapPath();
-    engine.resize();
-    engine.start();
     setPhase("playing");
 
     // Online cruise: connect to the hub and mirror the other drivers.
@@ -389,6 +449,28 @@ export default function RaceClient() {
     }
   }, [onHud, showMessage]);
 
+  // Coach hints read the live HUD at 4 Hz — enough to feel responsive
+  // without re-rendering React every frame.
+  useEffect(() => {
+    if (phase !== "playing") return;
+    const id = setInterval(() => setCoach(coachRef.current), 250);
+    return () => clearInterval(id);
+  }, [phase]);
+
+  // The garage is a full-screen overlay: freeze the race behind it, and
+  // rebuild the car with whatever was bought on the way out.
+  useEffect(() => {
+    if (phase !== "playing") return;
+    const e = engineRef.current;
+    if (!e) return;
+    e.setPaused(garageOpen);
+    if (garageOpen) garageWasOpen.current = true;
+    else if (garageWasOpen.current) {
+      garageWasOpen.current = false;
+      e.refreshGarage();
+    }
+  }, [garageOpen, phase]);
+
   useEffect(() => {
     const onResize = () => engineRef.current?.resize();
     window.addEventListener("resize", onResize);
@@ -410,14 +492,18 @@ export default function RaceClient() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (phase === "menu" && e.key === "Enter" && !e.repeat) startGame();
-      if (phase === "defeated" && e.key.toLowerCase() === "r") {
+      if (result && result.outcome === "loss" && e.key.toLowerCase() === "r") {
+        setResult(null);
+        engineRef.current?.setPaused(false);
         engineRef.current?.retryBattle();
-        setPhase("playing");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [phase, startGame]);
+  }, [phase, startGame, result]);
+
+  const lvl = levelInfo(career?.xp ?? 0);
+  const rank = rankTitle(lvl.level);
 
   return (
     <div className="fixed inset-0 z-[60] bg-black text-white">
@@ -509,6 +595,9 @@ export default function RaceClient() {
             FLASH 3× TO CHALLENGE ⚡ ○○○
           </div>
         </div>
+
+        {/* First-run coaching, in-world */}
+        {phase === "playing" && !result && <CoachHint state={coach} />}
 
         {/* Speed cluster: digital speed, gear, tach bar */}
         <div
@@ -857,7 +946,7 @@ export default function RaceClient() {
       )}
 
       {/* On-screen controls (touch devices) */}
-      {isTouch && phase === "playing" && !challenge && !garageOpen && (
+      {isTouch && phase === "playing" && !challenge && !garageOpen && !result && !onboarding && (
         <div className="absolute inset-x-0 bottom-0 z-[5] select-none px-[calc(env(safe-area-inset-left)+1rem)] pb-[calc(env(safe-area-inset-bottom)+1rem)]">
           <div className="flex items-end justify-between gap-4">
             <div className="flex gap-3">
@@ -947,66 +1036,189 @@ export default function RaceClient() {
 
       {/* Menu */}
       {phase === "menu" && (
-        <div className="safe-pad absolute inset-0 flex flex-col items-center justify-center overflow-y-auto bg-gradient-to-b from-[#05070f] via-[#0a1226] to-[#05070f] text-center">
-          <div className="grn-label text-[0.8rem] tracking-[0.45em] text-gulf-400 [text-shadow:0_0_20px_rgba(56,201,238,0.5)]">
-            Kuwait Xtreme Racer
-          </div>
-          <h1 className="grn-display mt-3 text-6xl italic leading-[0.9] sm:text-8xl">
-            GULF ROAD <span className="text-sodium-400">NIGHTS</span>
-          </h1>
-          <div className="grn-ar mt-3 text-2xl text-white/75" dir="rtl">
-            ليالي شارع الخليج
-          </div>
-          <p className="mt-7 max-w-xl text-[0.95rem] leading-7 text-white/60">
-            Midnight on the real Gulf Road — 7 km from the Kuwait Towers down the corniche to Ras
-            Al-Ard and back through the city. Six street legends rule it. Hunt them down, flash
-            your headlights, and drain their spirit — TXR style. وين الحدود؟
-          </p>
-          <div className="grn-panel mt-8 grid grid-cols-2 gap-x-8 gap-y-1.5 px-6 py-4 text-left sm:grid-cols-3">
-            {RIVALS.map((r, i) => (
-              <div key={r.id} className="text-sm">
-                <span className="grn-display mr-1.5 text-sodium-400">{i + 1}.</span>
-                <span className="font-semibold text-white/85">{r.name}</span>
-                <span className="text-white/35"> · {r.area}</span>
+        <div className="safe-pad screen-in absolute inset-0 z-10 overflow-y-auto bg-gradient-to-b from-[#05070f] via-[#0a1226] to-[#05070f]">
+          <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col">
+            {/* Driver bar — who you are, what you have, how far you are */}
+            <div className="grn-panel flex items-center gap-3 px-3 py-2.5">
+              <div className="grid size-11 shrink-0 place-items-center rounded-xl border border-sodium-500/50 bg-sodium-500/15">
+                <span className="grn-display tnum text-lg leading-none text-sodium-400">
+                  {lvl.level}
+                </span>
               </div>
-            ))}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="grn-display truncate text-sm text-white">
+                    {rank.en}{" "}
+                    <span className="grn-ar hidden text-white/50 sm:inline">{rank.ar}</span>
+                  </span>
+                  <span className="grn-label tnum shrink-0 text-[0.52rem] text-white/45">
+                    {lvl.into}/{lvl.need} XP
+                  </span>
+                </div>
+                <div className="grn-meter mt-1 h-2">
+                  <div
+                    className="xp-fill h-full bg-gradient-to-r from-gulf-500 to-gulf-300"
+                    style={{ width: `${Math.round(lvl.pct * 100)}%` }}
+                  />
+                </div>
+              </div>
+              <div className="shrink-0 text-right">
+                <div className="grn-label text-[0.5rem] text-white/45">Balance</div>
+                <div className="grn-display tnum text-lg leading-tight text-sodium-400">
+                  {(garage?.kd ?? 0).toLocaleString()}
+                  <span className="ml-0.5 text-[0.6rem] text-white/50">KD</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setSettingsOpen(true)}
+                aria-label="Settings"
+                className="tap grid shrink-0 place-items-center rounded-xl border border-white/15 text-lg text-white/70 hover:bg-white/10"
+              >
+                ⚙
+              </button>
+            </div>
+
+            <div className="menu-grid">
+             <div className="menu-col">
+            {/* Title */}
+            <div className="menu-title mt-5 text-center sm:mt-7">
+              <div className="grn-label text-[0.62rem] tracking-[0.45em] text-gulf-400 [text-shadow:0_0_20px_rgba(56,201,238,0.5)]">
+                Kuwait Xtreme Racer
+              </div>
+              <h1 className="grn-display menu-wordmark mt-1.5 text-[clamp(2.4rem,12vw,5rem)] italic leading-[0.88]">
+                GULF ROAD <span className="text-sodium-400">NIGHTS</span>
+              </h1>
+              <div className="grn-ar mt-1.5 text-lg text-white/70" dir="rtl">
+                ليالي شارع الخليج
+              </div>
+            </div>
+
+            {/* Career stats — the returning-player payoff */}
+            {career && career.races > 0 && (
+              <div className="mt-4 grid grid-cols-4 gap-2">
+                {[
+                  { k: "Races", v: String(career.races) },
+                  { k: "Wins", v: String(career.wins) },
+                  { k: "Top speed", v: career.topSpeed ? `${career.topSpeed}` : "—" },
+                  { k: "Best lap", v: career.bestLapMs ? formatLap(career.bestLapMs) : "—" },
+                ].map((x) => (
+                  <div
+                    key={x.k}
+                    className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-2 text-center"
+                  >
+                    <div className="grn-display tnum text-base leading-tight text-white">{x.v}</div>
+                    <div className="grn-label text-[0.48rem] text-white/45">{x.k}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+             </div>
+
+             <div className="menu-col">
+            {/* Next race — the one thing the menu is for */}
+            <div className="grn-dialog mt-5 p-4 sm:p-5">
+              <div className="flex items-center justify-between">
+                <span className="grn-label text-[0.55rem] text-gulf-400">
+                  {beaten >= RIVALS.length ? "Career complete" : "Next race"}
+                </span>
+                <span className="grn-label tnum text-[0.55rem] text-white/45">
+                  {beaten} / {RIVALS.length} legends beaten
+                </span>
+              </div>
+              {beaten >= RIVALS.length ? (
+                <div className="mt-2 flex items-center gap-3">
+                  <span className="text-3xl">👑</span>
+                  <div>
+                    <div className="grn-display text-xl text-sodium-400">King of Gulf Road</div>
+                    <div className="text-[0.75rem] text-white/55">
+                      Every street is yours — run it back for the times.
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-2 flex items-center gap-3">
+                  <span
+                    className="size-11 shrink-0 rounded-lg border border-white/15"
+                    style={{
+                      background: `linear-gradient(140deg, #${RIVALS[beaten].bodyColor
+                        .toString(16)
+                        .padStart(6, "0")}, #0a0e18)`,
+                    }}
+                  />
+                  <div className="min-w-0">
+                    <div className="grn-display truncate text-xl text-white">
+                      {RIVALS[beaten].name}{" "}
+                      <span className="grn-ar text-white/60">{RIVALS[beaten].arabicName}</span>
+                    </div>
+                    <div className="truncate text-[0.75rem] text-white/55">
+                      {RIVALS[beaten].crew} · {RIVALS[beaten].area}
+                    </div>
+                  </div>
+                  <div className="ml-auto shrink-0 text-right">
+                    <div className="grn-label text-[0.5rem] text-white/45">Prize</div>
+                    <div className="grn-display tnum text-base text-sodium-400">
+                      {(400 + beaten * 300).toLocaleString()} KD
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Roster progress */}
+              <div className="mt-3 flex gap-1" aria-label="Career progress">
+                {RIVALS.map((r, i) => (
+                  <span
+                    key={r.id}
+                    title={r.name}
+                    className={`h-1.5 flex-1 rounded-full ${
+                      i < beaten
+                        ? "bg-sodium-400"
+                        : i === beaten
+                          ? "bg-gulf-400"
+                          : "bg-white/15"
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Primary actions */}
+            <div className="mt-5 flex flex-col gap-2.5 sm:flex-row">
+              <button
+                onClick={startGame}
+                className="grn-btn grn-btn-primary tap flex-1 whitespace-nowrap px-6 py-4 text-base sm:text-lg"
+              >
+                {beaten > 0 ? "CONTINUE" : "START ENGINE"} <span className="grn-ar">يلا</span> 🏁
+              </button>
+              <button
+                onClick={() => {
+                  setGarage(loadGarage());
+                  setGarageOpen(true);
+                }}
+                className="tap grn-btn grn-btn-ghost whitespace-nowrap px-6 py-4 text-base sm:text-lg"
+              >
+                GARAGE 🔧 <span className="grn-ar">الكراج</span>
+              </button>
+            </div>
+
+             </div>
+            </div>
+
+            <div className="mt-auto flex items-center justify-between pt-4">
+              <button
+                onClick={() => setOnboarding(true)}
+                className="grn-label tap px-1 text-[0.55rem] text-white/45 hover:text-white"
+              >
+                How to play
+              </button>
+              <a
+                href="/hub"
+                className="grn-label text-[0.55rem] text-gulf-300 underline-offset-4 hover:underline"
+              >
+                Online hub →
+              </a>
+            </div>
           </div>
-          <div className="mt-10 flex items-center gap-4">
-            <button
-              onClick={startGame}
-              className="grn-btn grn-btn-primary px-12 py-4 text-xl"
-            >
-              START ENGINE — <span className="grn-ar">يلا</span> 🏁
-            </button>
-            <button
-              onClick={() => {
-                setGarage(loadGarage());
-                setGarageOpen(true);
-              }}
-              className="tap grn-btn grn-btn-ghost px-9 py-4 text-xl"
-            >
-              GARAGE 🔧 <span className="grn-ar">الكراج</span>
-            </button>
-            <button
-              onClick={() => setSettingsOpen(true)}
-              aria-label="Settings"
-              className="tap grn-btn border border-white/20 px-5 py-4 text-xl text-white/70 hover:bg-white/10"
-            >
-              ⚙
-            </button>
-          </div>
-          <div className="grn-label mt-4 text-[0.62rem] text-white/40">
-            press Enter to start
-            {garage ? (
-              <span className="text-sodium-400"> · balance {garage.kd} KD</span>
-            ) : null}
-          </div>
-          <a
-            href="/hub"
-            className="mt-6 text-sm font-semibold text-gulf-300 underline-offset-4 transition hover:underline"
-          >
-            Cruise with friends in the Online Hub →
-          </a>
         </div>
       )}
 
@@ -1301,31 +1513,6 @@ export default function RaceClient() {
         </div>
       )}
 
-      {/* Defeat */}
-      {phase === "defeated" && beatenBy && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/70 px-6 backdrop-blur-sm">
-          <div className="grn-dialog w-full max-w-lg px-10 py-9 text-center">
-            <div className="grn-label text-[0.7rem] text-rose-300">Battle lost</div>
-            <div className="grn-display mt-2 text-6xl italic text-rose-500 [text-shadow:0_0_30px_rgba(244,63,94,0.7)]">
-              DEFEATED
-            </div>
-            <div className="mt-4 text-lg font-semibold text-white/85">
-              {beatenBy.name} <span className="grn-ar">{beatenBy.arabicName}</span> takes the night
-            </div>
-            <div className="mt-2 text-sm italic text-white/55">&quot;{beatenBy.taunt}&quot;</div>
-            <button
-              onClick={() => {
-                engineRef.current?.retryBattle();
-                setPhase("playing");
-              }}
-              className="grn-btn mt-8 w-full bg-white px-8 py-3.5 text-lg text-black hover:bg-white/85"
-            >
-              REMATCH <span className="text-black/50">(R)</span>
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Champion */}
       {phase === "champion" && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 px-6 backdrop-blur-sm">
@@ -1351,6 +1538,92 @@ export default function RaceClient() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Loading — the engine build takes a beat on a phone */}
+      {phase === "loading" && (
+        <div className="safe-pad absolute inset-0 z-20 flex flex-col items-center justify-center bg-gradient-to-b from-[#05070f] via-[#0a1226] to-[#05070f]">
+          <div className="grn-label text-[0.6rem] tracking-[0.45em] text-gulf-400">
+            Warming up
+          </div>
+          <div className="grn-display mt-2 text-[clamp(1.4rem,6vw,2.2rem)] italic">
+            BUILDING THE CORNICHE
+          </div>
+          <div className="grn-ar mt-1 text-sm text-white/50">جاري تجهيز الشارع</div>
+          <div className="grn-meter mt-5 h-2 w-[min(320px,70vw)]">
+            <div className="h-full w-1/3 animate-pulse bg-gradient-to-r from-gulf-500 to-gulf-300" />
+          </div>
+          <div className="mt-6 w-[min(420px,80vw)] space-y-2">
+            <div className="skeleton h-3 w-2/3" />
+            <div className="skeleton h-3 w-1/2" />
+          </div>
+          <p className="mt-6 max-w-sm text-center text-[0.72rem] leading-5 text-white/40">
+            Tip: flash your headlights three times behind a rival to start a
+            battle — the trailing car loses SP.
+          </p>
+        </div>
+      )}
+
+      {/* Error — never leave a black screen unexplained */}
+      {phase === "error" && (
+        <div className="safe-pad absolute inset-0 z-30 flex items-center justify-center bg-night-950/95 px-6">
+          <div className="grn-dialog w-[min(460px,92vw)] p-6 text-center">
+            <div className="text-4xl">⚠️</div>
+            <h2 className="grn-display mt-3 text-2xl">ENGINE WOULD NOT START</h2>
+            <p className="mt-2 text-sm leading-6 text-white/65">
+              The 3D renderer could not be created. This usually means WebGL is
+              disabled or unavailable on this device.
+            </p>
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+              <button
+                onClick={() => {
+                  startingRef.current = false;
+                  setPhase("menu");
+                }}
+                className="grn-btn grn-btn-ghost tap flex-1 px-5 py-3 text-sm"
+              >
+                BACK TO MENU
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="grn-btn grn-btn-primary tap flex-1 px-5 py-3 text-sm"
+              >
+                TRY AGAIN
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Post-race results sequence */}
+      {result && settings && (
+        <Results
+          result={result}
+          haptics={settings.haptics}
+          onNext={() => {
+            setResult(null);
+            engineRef.current?.resumeAfterResult();
+          }}
+          onRetry={() => {
+            setResult(null);
+            engineRef.current?.setPaused(false);
+            engineRef.current?.retryBattle();
+          }}
+          onGarage={() => {
+            setResult(null);
+            engineRef.current?.resumeAfterResult();
+            setGarage(loadGarage());
+            setGarageOpen(true);
+          }}
+        />
+      )}
+
+      {/* First-run onboarding */}
+      {onboarding && (
+        <Onboarding
+          haptics={settings?.haptics ?? true}
+          onDone={() => setOnboarding(false)}
+        />
       )}
     </div>
   );

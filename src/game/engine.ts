@@ -13,7 +13,8 @@ import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
 import { Music } from "./music";
 import { GEARS } from "./gears";
-import { loadGarage, saveGarage, computeEffects, addKd, TuneEffects, getCar } from "./mods";
+import { loadGarage, saveGarage, computeEffects, addKd, TuneEffects, getCar, CARS } from "./mods";
+import { levelInfo, recordRace, recordLap, loadProfileStats, LevelInfo } from "./profile";
 
 // Tokyo-Xtreme-Racer-style rules, Kuwait edition: cruise the loop, find the
 // rival, flash your headlights (F) to start a battle. Both drivers have SP
@@ -67,6 +68,46 @@ export interface DriverCard {
   car: string;
 }
 
+/** One line of the post-race reward reel. */
+export interface RewardLine {
+  icon: string;
+  title: string;
+  sub: string;
+}
+
+/** Everything the results sequence needs, computed once when a race ends. */
+export interface RaceResult {
+  outcome: "win" | "loss";
+  /** 1st or 2nd — the podium line at the top of the card. */
+  position: 1 | 2;
+  rival: DriverCard;
+  /** KD staked by each side. */
+  purse: number;
+  /** Signed KD change (prize + purse, or the purse lost). */
+  kd: number;
+  balance: number;
+  xpGain: number;
+  /** Level bar before and after the XP is applied — drives the fill. */
+  levelBefore: LevelInfo;
+  levelAfter: LevelInfo;
+  /** How the XP was earned, itemised. */
+  xpBreakdown: Array<{ label: string; value: number }>;
+  stats: {
+    topSpeedKmh: number;
+    durationMs: number;
+    contacts: number;
+    clean: boolean;
+    /** Biggest SP gap held over the rival, 0..100. */
+    maxLeadSp: number;
+    distanceM: number;
+  };
+  career: { races: number; wins: number; streak: number; bestStreak: number };
+  rewards: RewardLine[];
+  champion: boolean;
+  /** Who is waiting next, when the roster continues. */
+  nextRival: { name: string; arabicName: string; crew: string } | null;
+}
+
 export interface EngineEvents {
   onHud(d: HudData): void;
   onMessage(title: string, sub?: string): void;
@@ -81,6 +122,8 @@ export interface EngineEvents {
   onChallenge?(player: DriverCard, rival: DriverCard, maxWager: number): void;
   /** The rival's answer to the challenge. */
   onChallengeResult?(accepted: boolean, reason: string): void;
+  /** A race ended — drives the full results sequence. */
+  onResult?(r: RaceResult): void;
 }
 
 interface RemotePlayer {
@@ -265,6 +308,8 @@ export class GameEngine {
   private challengeAccepted = false;
   /** KD staked on the current race (each side puts it up). */
   private wager = 0;
+  /** Per-battle telemetry, reset at the green light, read at the finish. */
+  private bstat = { startAt: 0, dist: 0, topSpeed: 0, contacts: 0, maxLead: 0 };
 
   // Online cruise
   private remotes = new Map<number, RemotePlayer>();
@@ -931,7 +976,7 @@ export class GameEngine {
       name,
       arabicName: "أنت",
       crew: "Privateer",
-      level: this.rivalIndex + 1,
+      level: levelInfo(loadProfileStats().xp).level,
       country,
       flag,
       color: this.tune.paint,
@@ -1024,6 +1069,14 @@ export class GameEngine {
     this.setPaused(false);
   }
 
+  /**
+   * Re-read the garage and rebuild the car. Public so the UI can open the
+   * garage mid-session and have the change take effect immediately.
+   */
+  refreshGarage(): void {
+    this.applyGarage();
+  }
+
   /** Rebuild the player car after a garage change (new model, paint, mods). */
   private applyGarage(): void {
     this.tune = computeEffects(loadGarage());
@@ -1050,6 +1103,7 @@ export class GameEngine {
     r.state = "battle";
     this.player.sp = 100;
     r.sp = 100;
+    this.bstat = { startAt: performance.now(), dist: 0, topSpeed: 0, contacts: 0, maxLead: 0 };
     this.voice.speak(r.def.lines.intro, r.def.voice, `${r.def.id}-intro`);
     if (this.events.onBattleStart) this.events.onBattleStart(r.def);
     else this.events.onMessage(`⚡ BATTLE — ${r.def.name} ${r.def.arabicName}`, `"${r.def.taunt}"`);
@@ -1082,6 +1136,117 @@ export class GameEngine {
     }, 90);
   }
 
+  /** Snapshot the battle telemetry and settle XP, stats and rewards. */
+  private buildResult(
+    r: Rival,
+    outcome: "win" | "loss",
+    money: { purse: number; kd: number; balance: number },
+    champion: boolean
+  ): RaceResult {
+    const clean = this.bstat.contacts === 0;
+    const durationMs = Math.max(0, performance.now() - this.bstat.startAt);
+    const topSpeedKmh = Math.round(this.bstat.topSpeed);
+    const tier = RIVALS.indexOf(r.def);
+
+    // XP is itemised so the player can see exactly where it came from —
+    // the breakdown is what teaches the scoring, not a tooltip.
+    const xpBreakdown: Array<{ label: string; value: number }> = [];
+    if (outcome === "win") {
+      xpBreakdown.push({ label: "Race won", value: 150 });
+      xpBreakdown.push({ label: `Rival tier ${tier + 1}`, value: 40 * (tier + 1) });
+      if (clean) xpBreakdown.push({ label: "Clean run — no contact", value: 75 });
+      if (this.bstat.maxLead >= 60) xpBreakdown.push({ label: "Dominant lead", value: 60 });
+      if (topSpeedKmh >= 280) xpBreakdown.push({ label: `Top speed ${topSpeedKmh} km/h`, value: 40 });
+      if (money.purse > 0) xpBreakdown.push({ label: "Stakes race", value: 50 });
+      if (champion) xpBreakdown.push({ label: "King of Gulf Road", value: 500 });
+    } else {
+      xpBreakdown.push({ label: "Race completed", value: 30 });
+      if (this.bstat.maxLead > 0) xpBreakdown.push({ label: "Led the battle", value: 20 });
+      if (durationMs > 45000) xpBreakdown.push({ label: "Went the distance", value: 25 });
+    }
+    const xpGain = xpBreakdown.reduce((a, b) => a + b.value, 0);
+    const { before, after } = recordRace(xpGain, outcome, { topSpeed: topSpeedKmh, clean });
+
+    // Rewards: only things that actually changed state get a card.
+    const rewards: RewardLine[] = [];
+    const lvlBefore = levelInfo(before.xp);
+    const lvlAfter = levelInfo(after.xp);
+    if (lvlAfter.level > lvlBefore.level) {
+      rewards.push({
+        icon: "★",
+        title: `Level ${lvlAfter.level}`,
+        sub: "Driver level up — مستوى جديد",
+      });
+    }
+    if (outcome === "win" && !champion) {
+      const next = RIVALS[this.rivalIndex];
+      if (next) {
+        rewards.push({
+          icon: "⚑",
+          title: `${next.name} unlocked`,
+          sub: next.crew,
+        });
+      }
+    }
+    if (champion) {
+      rewards.push({ icon: "👑", title: "King of Gulf Road", sub: "ملك شارع الخليج" });
+    }
+    // Anything newly affordable is worth telling them about — it is the
+    // difference between "I won money" and "I can buy the GT-R now".
+    const owned = new Set(loadGarage().cars);
+    const unlockable = CARS.filter(
+      (c) => !owned.has(c.id) && c.price <= money.balance && c.price > money.balance - money.kd
+    ).sort((a, b) => b.price - a.price)[0];
+    if (unlockable) {
+      rewards.push({
+        icon: "🔑",
+        title: `${unlockable.name} affordable`,
+        sub: `${unlockable.price.toLocaleString()} KD in the showroom`,
+      });
+    }
+    if (after.streak >= 3 && outcome === "win") {
+      rewards.push({ icon: "🔥", title: `${after.streak}-race streak`, sub: "On a run — ما يوقف" });
+    }
+
+    return {
+      outcome,
+      position: outcome === "win" ? 1 : 2,
+      rival: this.rivalCard(r.def),
+      purse: money.purse,
+      kd: money.kd,
+      balance: money.balance,
+      xpGain,
+      levelBefore: lvlBefore,
+      levelAfter: lvlAfter,
+      xpBreakdown,
+      stats: {
+        topSpeedKmh,
+        durationMs,
+        contacts: this.bstat.contacts,
+        clean,
+        maxLeadSp: Math.round(Math.max(0, this.bstat.maxLead)),
+        distanceM: Math.round(this.bstat.dist),
+      },
+      career: {
+        races: after.races,
+        wins: after.wins,
+        streak: after.streak,
+        bestStreak: after.bestStreak,
+      },
+      rewards,
+      champion,
+      nextRival: champion
+        ? null
+        : RIVALS[this.rivalIndex]
+          ? {
+              name: RIVALS[this.rivalIndex].name,
+              arabicName: RIVALS[this.rivalIndex].arabicName,
+              crew: RIVALS[this.rivalIndex].crew,
+            }
+          : null,
+    };
+  }
+
   private winBattle(): void {
     const r = this.rival!;
     r.state = "defeated";
@@ -1094,32 +1259,57 @@ export class GameEngine {
     this.rivalIndex++;
     this.saveProgress();
     this.voice.speak(r.def.lines.lose, r.def.voice, `${r.def.id}-lose`);
-    if (this.rivalIndex >= RIVALS.length) {
-      this.events.onMessage("👑 KING OF GULF ROAD", "كل الشوارع لك — every street is yours");
+    const champion = this.rivalIndex >= RIVALS.length;
+    const result = this.buildResult(r, "win", { purse: staked, kd: payout, balance }, champion);
+
+    if (champion) {
       this.sound?.championFanfare();
       this.locked = false;
       // Let the ghost concede before the announcer crowns you
       setTimeout(() => this.voice.speak("مبروك! إنت ملك شارع الخليج", {}, "announcer-champion"), 3200);
-      setTimeout(() => this.events.onChampion(), 1800);
     } else {
       this.sound?.winSting();
+    }
+
+    if (this.events.onResult) {
+      // The results screen owns the moment: pause the world behind it.
+      this.setPaused(true);
+      this.events.onResult(result);
+      return;
+    }
+    // Fallback for hosts without a results screen (e.g. the Unity shim).
+    if (champion) {
+      this.events.onMessage("👑 KING OF GULF ROAD", "كل الشوارع لك — every street is yours");
+      setTimeout(() => this.events.onChampion(), 1800);
+    } else {
+      this.events.onMessage(`VICTORY — ${r.def.name} defeated`, `+${payout} KD · balance ${balance} KD`);
+      setTimeout(() => this.advanceToNextRival(), 2600);
+    }
+  }
+
+  /**
+   * Leave the results screen: spawn the next rival, or hand the
+   * championship screen over to the UI.
+   */
+  resumeAfterResult(): void {
+    if (this.disposed) return;
+    this.setPaused(false);
+    if (this.rivalIndex >= RIVALS.length) {
+      this.events.onChampion();
+      return;
+    }
+    if (this.rival?.state === "defeated" || !this.rival) this.advanceToNextRival();
+  }
+
+  private advanceToNextRival(): void {
+    if (this.disposed) return;
+    this.spawnRival();
+    const next = this.rival;
+    if (next) {
       this.events.onMessage(
-        `VICTORY — ${r.def.name} defeated`,
-        staked > 0
-          ? `+${payout} KD (${staked} KD purse) · balance ${balance} KD`
-          : `+${payout} KD · balance ${balance} KD`
+        `Next: ${next.def.name} — ${next.def.arabicName}`,
+        `${next.def.crew} · flash (F) to battle`
       );
-      setTimeout(() => {
-        if (this.disposed) return;
-        this.spawnRival();
-        const next = this.rival;
-        if (next) {
-          this.events.onMessage(
-            `Next: ${next.def.name} — ${next.def.arabicName}`,
-            `${next.def.crew} · flash (F) to battle`
-          );
-        }
-      }, 2600);
     }
   }
 
@@ -1128,16 +1318,21 @@ export class GameEngine {
     r.state = "cruise";
     this.inBattle = false;
     this.locked = true;
-    if (this.wager > 0) {
-      const balance = addKd(-this.wager);
-      this.events.onMessage(
-        `Lost the purse — ${this.wager} KD`,
-        `Balance ${balance} KD`
-      );
+    const staked = this.wager;
+    let balance = loadGarage().kd;
+    if (staked > 0) {
+      balance = addKd(-staked);
       this.wager = 0;
     }
     this.sound?.loseSting();
     this.voice.speak(r.def.lines.win, r.def.voice, `${r.def.id}-win`);
+    const result = this.buildResult(r, "loss", { purse: staked, kd: -staked, balance }, false);
+    if (this.events.onResult) {
+      this.setPaused(true);
+      this.events.onResult(result);
+      return;
+    }
+    if (staked > 0) this.events.onMessage(`Lost the purse — ${staked} KD`, `Balance ${balance} KD`);
     this.events.onDefeat(r.def);
   }
 
@@ -1242,6 +1437,7 @@ export class GameEngine {
       if (this.scrapeCooldown <= 0) {
         this.scrapeCooldown = 0.5;
         this.events.onBump();
+        if (this.inBattle) this.bstat.contacts++;
         this.spawnSparks();
         this.sound?.scrape();
         this.shake = Math.max(this.shake, 0.55);
@@ -1256,7 +1452,9 @@ export class GameEngine {
     if (unwrapped >= this.track.length) {
       const now = performance.now();
       if (this.lapDistance >= this.track.length * 0.995) {
-        this.events.onLap?.(now - this.lapStartAt);
+        const ms = now - this.lapStartAt;
+        recordLap(ms);
+        this.events.onLap?.(ms);
       }
       this.lapStartAt = now;
       this.lapDistance = 0;
@@ -1291,6 +1489,7 @@ export class GameEngine {
           // forever and glues them to the traffic car's tail.
           if (ds >= 0) p.s = this.track.wrap(t.s - 4.5);
           this.events.onBump();
+          if (this.inBattle) this.bstat.contacts++;
           this.spawnSparks();
           this.sound?.bump();
           this.shake = 1;
@@ -1411,6 +1610,11 @@ export class GameEngine {
   private updateBattle(dt: number): void {
     const r = this.rival!;
     const gap = this.track.deltaAhead(this.player.s, r.s); // >0 → rival ahead
+
+    // Telemetry for the results card
+    this.bstat.dist += this.player.speed * dt;
+    this.bstat.topSpeed = Math.max(this.bstat.topSpeed, this.player.speed * KMH);
+    this.bstat.maxLead = Math.max(this.bstat.maxLead, this.player.sp - r.sp);
 
     if (gap > 4) {
       let drain = 1.7 + Math.min(gap, 160) * 0.04;

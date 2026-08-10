@@ -303,3 +303,177 @@ html[data-cvd="1"] .rival-bar {
 html[data-cvd="1"] .rival-ink {
   color: var(--color-rival-1) !important;
 }
+
+/* Large HUD: one knob that scales the readouts without touching layout. */
+html[data-large-hud="1"] {
+  --hud-scale: 1.22;
+}
+html[data-large-hud="1"] .hud-scale {
+  transform: scale(var(--hud-scale, 1));
+}
+
+/* ==========================================================
+   Animation system
+   Screen transitions, staged reveals, counters and payoffs.
+   Everything reads from the motion tokens above, so reduced
+   motion neutralises the whole system in one place.
+   ========================================================== */
+
+@keyframes screen-in {
+  0% { opacity: 0; transform: translateY(14px) scale(0.985); }
+  100% { opacity: 1; transform: none; }
+}
+.screen-in {
+  animation: screen-in var(--dur-screen) var(--ease-out) both;
+}
+
+/* Staged reveal — each element sets --d for its slot in the sequence. */
+@keyframes reveal-up {
+  0% { opacity: 0; transform: translateY(18px); }
+  100% { opacity: 1; transform: none; }
+}
+.reveal {
+  animation: reveal-up 420ms var(--ease-out) both;
+  animation-delay: var(--d, 0ms);
+}
+
+/* The podium stamp: lands hard, then settles. */
+@keyframes stamp-in {
+  0% { opacity: 0; transform: scale(2.4) rotate(-6deg); filter: blur(6px); }
+  55% { opacity: 1; transform: scale(0.94) rotate(0deg); filter: blur(0); }
+  72% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+.stamp-in {
+  animation: stamp-in var(--dur-reward) var(--ease-out) both;
+}
+
+/* Reward cards pop in one after another. */
+@keyframes reward-pop {
+  0% { opacity: 0; transform: scale(0.8) translateY(10px); }
+  60% { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.reward-pop {
+  animation: reward-pop 460ms var(--ease-out) both;
+  animation-delay: var(--d, 0ms);
+}
+
+/* Level-up flare behind the XP bar. */
+@keyframes level-flare {
+  0% { opacity: 0; transform: scale(0.6); }
+  40% { opacity: 0.9; }
+  100% { opacity: 0; transform: scale(1.8); }
+}
+.level-flare {
+  animation: level-flare 900ms var(--ease-out) both;
+}
+
+/* XP / progress bar fill — the width is set from React, the easing here. */
+.xp-fill {
+  transition: width 900ms var(--ease-out);
+}
+
+/* Sweep of light across a freshly filled bar. */
+@keyframes bar-sheen {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(220%); }
+}
+.bar-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  animation: bar-sheen 1.4s var(--ease-in-out) 0.3s;
+}
+
+/* Numbers that count up get tabular figures so they never jitter. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Scrollable sheets keep a slim, on-brand scrollbar. */
+.grn-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.grn-scroll::-webkit-scrollbar { width: 6px; }
+.grn-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+}
+
+/* Skeleton shimmer for loading states. */
+@keyframes skeleton {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 25%,
+    rgba(255, 255, 255, 0.13) 37%,
+    rgba(255, 255, 255, 0.05) 63%
+  );
+  background-size: 200% 100%;
+  animation: skeleton 1.4s linear infinite;
+  border-radius: 0.5rem;
+}
+
+/* Main menu: the wordmark has to give way on a short landscape screen so
+   the primary action never drops below the fold. */
+@media (max-height: 620px) {
+  .menu-wordmark {
+    font-size: clamp(1.7rem, 8.5vh, 3.2rem);
+  }
+  .menu-title {
+    margin-top: 0.75rem;
+  }
+}
+@media (max-height: 620px) and (min-width: 700px) {
+  .menu-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.1fr;
+    column-gap: 1.5rem;
+    align-items: center;
+    margin-top: 0.5rem;
+  }
+  .menu-col > *:first-child {
+    margin-top: 0;
+  }
+}
+
+/* Results card: on a landscape phone the viewport is ~390px tall, so the
+   single column would bury the call to action below the fold. Split it
+   into two columns and shrink the podium type instead of scrolling. */
+@media (max-height: 560px) and (min-width: 700px) {
+  .results-card {
+    width: min(960px, 96vw);
+    padding: 0.9rem 1.1rem;
+  }
+  .results-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 1.25rem;
+    align-items: start;
+  }
+  .results-grid > div > div:first-child {
+    margin-top: 0;
+  }
+  .results-podium {
+    font-size: clamp(1.6rem, 6.5vh, 2.6rem);
+  }
+}
+
+/* Coach marks in onboarding pulse gently until they are used. */
+@keyframes coach-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 196, 92, 0.55); }
+  50% { box-shadow: 0 0 0 12px rgba(255, 196, 92, 0); }
+}
+.coach-ring {
+  animation: coach-ring 1.8s var(--ease-in-out) infinite;
+}
