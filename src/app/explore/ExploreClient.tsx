@@ -112,7 +112,7 @@ export default function ExploreClient() {
       {/* Results */}
       {filtered.length > 0 ? (
         <>
-          <h2 className="mb-4 text-sm font-medium text-ink-500">
+          <h2 className="mb-4 text-sm font-semibold text-ink-500">
             {countAr(filtered.length, RESULTS_COUNT)}
           </h2>
           <div className="grid gap-5 standalone:gap-3 sm:grid-cols-2 lg:grid-cols-3">

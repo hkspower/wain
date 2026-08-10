@@ -24,7 +24,9 @@ import "./globals.css";
  */
 const plex = IBM_Plex_Sans_Arabic({
   subsets: ["arabic", "latin"],
-  weight: ["400", "500", "600", "700"],
+  // 500 was requested for two labels and cost two preloaded font files;
+  // those now use 600, which the site loads anyway.
+  weight: ["400", "600", "700"],
   variable: "--font-arabic",
 });
 

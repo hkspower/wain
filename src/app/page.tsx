@@ -87,7 +87,7 @@ export default function HomePage() {
                 >
                   <CategoryIcon name={cat.icon} />
                   <span className="text-sm font-bold leading-tight">{cat.ar}</span>
-                  <span className="text-[11px] font-medium text-white">
+                  <span className="text-[11px] font-semibold text-white">
                     {countAr(countByCategory(cat.id), PLACES_COUNT)}
                   </span>
                 </Link>
