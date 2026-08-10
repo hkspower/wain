@@ -41,3 +41,7 @@ example
 # generated native folders
 /ios
 /android
+
+# Flutter build output and local tooling state
+nokhatha_app/build/
+nokhatha_app/.dart_tool/
