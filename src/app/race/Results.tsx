@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { RaceResult } from "@/game/engine";
 import { rankTitle } from "@/game/profile";
 import { haptic, HAPTIC } from "@/game/settings";
+import { playSfx } from "@/game/sfx";
 
 /**
  * Post-race results sequence.
@@ -65,6 +66,7 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
   const [beat, setBeat] = useState<Beat>(0);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const won = result.outcome === "win";
+  const levelUpAhead = result.levelAfter.level > result.levelBefore.level;
 
   useEffect(() => {
     const reduced =
@@ -78,15 +80,28 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
       if (i === 0) return;
       timers.current.push(setTimeout(() => setBeat(i as Beat), at));
     });
-    // Haptic punctuation on the two beats that actually pay out
-    timers.current.push(setTimeout(() => haptic(HAPTIC.reward, haptics), BEATS[1]));
+    // Sound and haptics land on the beats that actually pay out.
+    playSfx(won ? "victory" : "defeat");
+    timers.current.push(
+      setTimeout(() => {
+        haptic(HAPTIC.reward, haptics);
+        playSfx("xp-tick", 0.7);
+      }, BEATS[1])
+    );
+    if (levelUpAhead)
+      timers.current.push(setTimeout(() => playSfx("level-up"), BEATS[1] + 700));
     if (result.rewards.length)
-      timers.current.push(setTimeout(() => haptic(HAPTIC.challenge, haptics), BEATS[3]));
+      timers.current.push(
+        setTimeout(() => {
+          haptic(HAPTIC.challenge, haptics);
+          playSfx("unlock");
+        }, BEATS[3])
+      );
     return () => {
       timers.current.forEach(clearTimeout);
       timers.current = [];
     };
-  }, [haptics, result.rewards.length]);
+  }, [haptics, result.rewards.length, won, levelUpAhead]);
 
   const skip = () => {
     timers.current.forEach(clearTimeout);
@@ -98,7 +113,7 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
   const kd = useCountUp(Math.abs(result.kd), beat >= 2, 750);
   const balance = useCountUp(result.balance, beat >= 2, 900);
 
-  const levelUp = result.levelAfter.level > result.levelBefore.level;
+  const levelUp = levelUpAhead;
   // Before the XP lands the bar shows where the player started; after, it
   // shows where they finished (a level-up simply refills from empty).
   const barPct = beat >= 1 ? result.levelAfter.pct : result.levelBefore.pct;

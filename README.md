@@ -43,6 +43,19 @@ a slow synthwave cruise theme, and a driving battle theme that takes over
 the moment a fight starts. Without them the game plays a procedural synth
 score instead, so it is never silent. `B` toggles music in-game.
 
+### ElevenLabs sound effects (optional)
+
+Generate the interface and reward sounds — UI taps, XP ticks, level-up,
+unlock, victory and defeat stings — with the ElevenLabs Sound Effects API:
+
+```bash
+ELEVENLABS_API_KEY=sk_... node scripts/generate-sfx.mjs
+```
+
+They land in `public/sfx/` and the results screen, menus and settings pick
+them up automatically. Without them the game uses its procedural synth
+stings, so nothing is ever silent.
+
 ### ElevenLabs voices (optional)
 
 Pre-render the rivals' Kuwaiti lines with a real ElevenLabs voice:

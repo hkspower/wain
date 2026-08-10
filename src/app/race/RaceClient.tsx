@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DriverCard, GameEngine, HudData, RaceResult } from "@/game/engine";
+import { playSfx, preloadSfx, setSfxVolume } from "@/game/sfx";
 import Results from "./Results";
 import Onboarding, { CoachHint, CoachState, hasOnboarded } from "./Onboarding";
 import { GEARS } from "@/game/gears";
@@ -120,6 +121,8 @@ export default function RaceClient() {
     const st = loadSettings();
     applySettings(st);
     setSettings(st);
+    setSfxVolume(st.sfxVolume);
+    preloadSfx();
     // First-time players get the five-card primer before the menu.
     if (!hasOnboarded()) setOnboarding(true);
     setCareer(loadProfileStats());
@@ -131,6 +134,8 @@ export default function RaceClient() {
       const next = { ...(prev ?? loadSettings()), [k]: v };
       saveSettings(next);
       haptic(HAPTIC.tap, next.haptics);
+      if (k === "sfxVolume") setSfxVolume(next.sfxVolume);
+      playSfx("ui-tap", 0.6);
       return next;
     });
   }, []);
