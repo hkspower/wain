@@ -408,3 +408,101 @@ tbody tr:hover { background: #fbfdfe; }
     transition-duration: .001ms !important;
   }
 }
+
+/* ------------------------- تتبّع الموقع ------------------------- */
+
+/* شريط دائم يذكّر المندوب أن موقعه يُشارَك الآن */
+.geo-bar {
+  display: flex; align-items: center; gap: .7rem;
+  background: var(--ok-bg); color: var(--ok-fg);
+  border-bottom: 1.5px solid #a8d9c1;
+  padding: .5rem max(1rem, calc((100% - 1240px) / 2));
+  font-size: .87rem; font-weight: 600;
+}
+.geo-bar--off { background: var(--warn-bg); color: var(--warn-fg); border-bottom-color: #e8c79a; }
+.geo-bar__dot {
+  width: 9px; height: 9px; border-radius: 50%; background: currentColor;
+  box-shadow: 0 0 0 0 currentColor; animation: geoPulse 2s ease-out infinite;
+}
+@keyframes geoPulse { 0% { box-shadow: 0 0 0 0 rgba(15,107,69,.5); } 100% { box-shadow: 0 0 0 9px rgba(15,107,69,0); } }
+.geo-bar .btn { margin-inline-start: auto; }
+
+/* بطاقة الموافقة */
+.consent { border: 1.5px solid var(--line-str); border-radius: var(--radius); overflow: hidden; }
+.consent__head {
+  background: linear-gradient(150deg, var(--teal-800), var(--teal-950));
+  color: #eaf6f7; padding: var(--pad-md);
+}
+.consent__head h2 { color: #fff; margin: 0 0 .2em; }
+.consent__head p { color: #b6dde2; margin: 0; font-size: .9rem; }
+.consent__body { padding: var(--pad-md); background: var(--card); }
+.consent__list { display: grid; gap: .55rem; margin-bottom: 1.1rem; }
+.consent__list li {
+  position: relative; padding-inline-start: 1.6rem; font-size: .92rem; color: var(--ink-mid);
+  line-height: 1.8;
+}
+.consent__list li::before {
+  content: ""; position: absolute; inset-inline-start: 0;
+  inset-block-start: calc((1.8em - 14px) / 2);
+  width: 14px; height: 14px; border-radius: 3px;
+  background: var(--teal-50); border: 1px solid var(--teal-600);
+}
+.consent__list li::after {
+  content: ""; position: absolute; inset-inline-start: 4px;
+  inset-block-start: calc((1.8em - 14px) / 2 + 4.6px);
+  width: 6px; height: 3.4px;
+  border-left: 2px solid var(--teal-700); border-bottom: 2px solid var(--teal-700);
+  transform: rotate(-45deg);
+}
+.consent__note {
+  background: var(--mute-bg); border-inline-start: 3px solid var(--teal-600);
+  padding: .7rem var(--pad-sm); border-radius: var(--radius-sm);
+  font-size: .86rem; color: var(--ink-mid); margin-bottom: 1.1rem;
+}
+
+/* لوحة المواقع المباشرة */
+.live { display: grid; grid-template-columns: 1.25fr 1fr; gap: 1.1rem; align-items: start; }
+.map {
+  position: relative; background:
+    linear-gradient(#eaf4f5 1px, transparent 1px) 0 0 / 100% 12.5%,
+    linear-gradient(90deg, #eaf4f5 1px, transparent 1px) 0 0 / 12.5% 100%,
+    var(--card);
+  border: 1px solid var(--line-str); border-radius: var(--radius);
+  aspect-ratio: 4 / 5; overflow: hidden;
+}
+.map__pin {
+  position: absolute; transform: translate(50%, -100%);
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+.map__pin b {
+  background: var(--teal-800); color: #fff; font-size: .68rem; font-weight: 700;
+  padding: .1rem .4rem; border-radius: 3px; white-space: nowrap;
+}
+.map__pin i {
+  width: 13px; height: 13px; border-radius: 50% 50% 50% 0;
+  background: var(--orange-600); border: 2px solid #fff;
+  transform: rotate(-45deg); box-shadow: 0 1px 3px rgba(10,63,71,.4);
+}
+.map__pin--stale i { background: var(--mute-fg); }
+.map__scale {
+  position: absolute; inset-block-end: .5rem; inset-inline-start: .6rem;
+  font-size: .7rem; color: var(--ink-soft); background: rgba(255,255,255,.85);
+  padding: .15rem .45rem; border-radius: 3px; border: 1px solid var(--line);
+}
+.live__list { display: grid; gap: .6rem; }
+.live-row {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: var(--pad-sm) var(--pad-md);
+}
+.live-row__top { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-bottom: .2rem; }
+.live-row__top b { font-size: .95rem; }
+.live-row__meta { display: flex; flex-wrap: wrap; gap: .2rem .9rem; font-size: .84rem; color: var(--ink-soft); }
+.live-row__meta a { font-weight: 600; }
+
+@media (max-width: 900px) {
+  .live { grid-template-columns: 1fr; }
+  .map { aspect-ratio: 1 / 1; }
+}
+@media (max-width: 720px) {
+  .geo-bar { padding-inline: .7rem; font-size: .8rem; gap: .5rem; }
+}

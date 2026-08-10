@@ -3,6 +3,7 @@
 const { db, now, nextOrderCode, logEvent } = require('./db');
 const auth = require('./auth');
 const D = require('./domain');
+const L = require('./location');
 const {
   badRequest, unauthorized, forbidden, notFound, conflict,
   str, num, oneOf, id,
@@ -14,6 +15,7 @@ const publicAgent = (a) => ({
   id: a.id, name: a.name, username: a.username, phone: a.phone, role: a.role,
   vehicle: a.vehicle, governorate: a.governorate, availability: a.availability,
   active: !!a.active, created_at: a.created_at,
+  location_consent: !!a.location_consent, location_sharing: !!a.location_sharing,
 });
 
 function requireAdmin(ctx) {
@@ -278,6 +280,7 @@ on('GET', '/api/orders/:id', async (ctx) => {
   }
   const full = orderWithExtras(order);
   full.allowed_next = D.allowedNextStatuses(order, ctx.agent.role);
+  full.driver_location = order.agent_id ? L.locationOf(ctx.agent, order.agent_id) : null;
   return { order: full };
 });
 
@@ -349,6 +352,32 @@ const transferAction = (action, fn) =>
 transferAction('accept', D.acceptTransfer);
 transferAction('reject', D.rejectTransfer);
 transferAction('cancel', D.cancelTransfer);
+
+/* ---- تتبّع الموقع (بموافقة المندوب) ---- */
+
+on('GET', '/api/me/location-consent', async (ctx) => L.consentState(ctx.agent));
+
+on('POST', '/api/me/location-consent', async (ctx) => {
+  if (typeof ctx.body.granted !== 'boolean') throw badRequest('يجب تحديد الموافقة صراحةً');
+  return L.setConsent(ctx.agent, ctx.body.granted);
+});
+
+on('PATCH', '/api/me/location-sharing', async (ctx) => {
+  if (typeof ctx.body.sharing !== 'boolean') throw badRequest('يجب تحديد حالة المشاركة');
+  return L.setSharing(ctx.agent, ctx.body.sharing);
+});
+
+on('DELETE', '/api/me/location-history', async (ctx) => L.purgeOwnHistory(ctx.agent));
+
+on('POST', '/api/me/location', async (ctx) => L.recordPoint(ctx.agent, ctx.body));
+
+on('GET', '/api/agents/:id/location', async (ctx) =>
+  L.locationOf(ctx.agent, id(ctx.params.id, 'معرّف المندوب')));
+
+on('GET', '/api/agents/:id/trail', async (ctx) =>
+  L.trailOf(ctx.agent, id(ctx.params.id, 'معرّف المندوب'), ctx.query.minutes));
+
+on('GET', '/api/locations/live', async (ctx) => ({ agents: L.liveBoard(ctx.agent) }));
 
 /* ---- الإحصاءات ---- */
 

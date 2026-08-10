@@ -11,10 +11,11 @@ class HttpError extends Error {
   }
 }
 
+/* كل المساعدات تقبل رمز خطأ اختياريًا حتى تستطيع الواجهة التصرّف بحسبه */
 const badRequest = (m, c) => new HttpError(400, m, c);
-const unauthorized = (m = 'الجلسة غير صالحة، الرجاء تسجيل الدخول') => new HttpError(401, m);
-const forbidden = (m = 'ليست لديك صلاحية لهذا الإجراء') => new HttpError(403, m);
-const notFound = (m = 'العنصر غير موجود') => new HttpError(404, m);
+const unauthorized = (m = 'الجلسة غير صالحة، الرجاء تسجيل الدخول', c) => new HttpError(401, m, c);
+const forbidden = (m = 'ليست لديك صلاحية لهذا الإجراء', c) => new HttpError(403, m, c);
+const notFound = (m = 'العنصر غير موجود', c) => new HttpError(404, m, c);
 const conflict = (m, c) => new HttpError(409, m, c);
 
 function readBody(req) {

@@ -11,6 +11,7 @@
     agents: [],
     stats: null,
     ordersFilter: { scope: 'active', q: '', status: '', governorate: '', agent_id: '' },
+    loc: null,
   };
 
   const el = {
@@ -30,6 +31,9 @@
     modalTitle: document.getElementById('modalTitle'),
     modalBody: document.getElementById('modalBody'),
     toasts: document.getElementById('toasts'),
+    geoBar: document.getElementById('geoBar'),
+    geoBarText: document.getElementById('geoBarText'),
+    geoStop: document.getElementById('geoStop'),
   };
 
   /* ------------------------------ أدوات ------------------------------ */
@@ -160,6 +164,8 @@
     'transfers': renderTransfers,
     'agents': renderAgents,
     'new': renderNewOrder,
+    'location': renderLocation,
+    'live': renderLive,
   };
 
   function parseHash() {
@@ -193,8 +199,11 @@
       { href: '#/transfers', key: 'transfers', label: 'التحويلات', pill: inbox },
     ];
     if (state.me.role === 'admin') {
+      items.push({ href: '#/live', key: 'live', label: 'المباشر' });
       items.push({ href: '#/agents', key: 'agents', label: 'المندوبون' });
       items.push({ href: '#/new', key: 'new', label: 'طلب جديد' });
+    } else {
+      items.push({ href: '#/location', key: 'location', label: 'موقعي' });
     }
     return items;
   }
@@ -422,6 +431,8 @@
           </div>
         </div>` : ''}
 
+      ${driverLocationBlock(order)}
+
       <div class="detail">
         <div>
           <div class="card">
@@ -478,6 +489,34 @@
     if (tBtn) tBtn.addEventListener('click', () => promptTransfer(order));
     const aBtn = el.view.querySelector('[data-open="assign"]');
     if (aBtn) aBtn.addEventListener('click', () => promptAssign(order));
+  }
+
+/** موقع المندوب المسند — يوضّح سبب عدم التوفّر بدل تركه فارغًا */
+  function driverLocationBlock(order) {
+    const d = order.driver_location;
+    if (!d || !order.agent_id) return '';
+    if (!d.available) {
+      const why = {
+        no_consent: 'لم يمنح المندوب موافقته على مشاركة الموقع.',
+        sharing_off: 'أوقف المندوب مشاركة الموقع مؤقتًا.',
+        no_data: 'لم تصل أي قراءة موقع بعد.',
+        stale: 'آخر قراءة موقع قديمة.',
+      }[d.reason] || 'موقع المندوب غير متاح.';
+      return `<div class="transfer-note" style="background:var(--mute-bg);border-color:var(--line-str)">
+                <b>موقع المندوب غير متاح</b>
+                <p style="margin-bottom:0">${esc(why)}</p>
+              </div>`;
+    }
+    return `
+      <div class="transfer-note" style="background:var(--ok-bg);border-color:#a8d9c1">
+        <b>موقع المندوب الآن</b>
+        <p>${esc(d.agent_name)} — آخر تحديث ${esc(relTime(d.recorded_at))}${
+          d.accuracy ? ` (دقة ~${ar(Math.round(d.accuracy))} م)` : ''}</p>
+        <div class="btn-row">
+          <a class="btn btn--ghost btn--sm" target="_blank" rel="noopener"
+             href="https://www.google.com/maps?q=${d.lat},${d.lng}">افتح في الخرائط</a>
+        </div>
+      </div>`;
   }
 
   function promptStatus(order, status) {
@@ -899,6 +938,327 @@
     });
   }
 
+
+  /* ========================= تتبّع الموقع ========================= */
+
+  const geo = {
+    watchId: null,
+    lastSent: 0,
+    /** أقل فاصل بين إرسالين — يطابق الحدّ في الخادم */
+    interval: 10000,
+
+    supported() {
+      return 'geolocation' in navigator;
+    },
+    /** المتصفحات تمنع تحديد الموقع خارج سياق آمن */
+    secure() {
+      return window.isSecureContext || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    },
+
+    start() {
+      if (this.watchId != null || !this.supported() || !this.secure()) return;
+      this.watchId = navigator.geolocation.watchPosition(
+        (pos) => this.onPosition(pos),
+        (err) => this.onError(err),
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 25000 }
+      );
+    },
+
+    stop() {
+      if (this.watchId == null) return;
+      navigator.geolocation.clearWatch(this.watchId);
+      this.watchId = null;
+    },
+
+    async onPosition(pos) {
+      const now = Date.now();
+      if (now - this.lastSent < this.interval) return;
+      this.lastSent = now;
+      const c = pos.coords;
+      try {
+        await api('/me/location', {
+          method: 'POST',
+          body: {
+            lat: c.latitude, lng: c.longitude,
+            accuracy: c.accuracy, speed: c.speed, heading: c.heading,
+          },
+        });
+      } catch (err) {
+        // الخادم قد يرفض إن سُحبت الموافقة من جهاز آخر — نوقف فورًا
+        if (/موافقة|متوقفة/.test(err.message)) {
+          this.stop();
+          await refreshConsent();
+          renderGeoBar();
+        }
+      }
+    },
+
+    onError(err) {
+      const messages = {
+        1: 'رفض المتصفح إذن الموقع. فعّله من إعدادات الموقع في المتصفح.',
+        2: 'تعذّر تحديد موقعك حاليًا. تأكّد من تشغيل خدمة الموقع في جهازك.',
+        3: 'انتهت مهلة تحديد الموقع.',
+      };
+      toast(messages[err.code] || 'تعذّر قراءة الموقع', 'bad');
+      if (err.code === 1) { this.stop(); renderGeoBar(); }
+    },
+  };
+
+  async function refreshConsent() {
+    if (state.me.role !== 'agent') return null;
+    state.loc = await api('/me/location-consent');
+    return state.loc;
+  }
+
+  /** الشريط الدائم: المندوب يجب أن يرى أن موقعه يُشارَك، دائمًا */
+  function renderGeoBar() {
+    if (!state.me || state.me.role !== 'agent' || !state.loc) {
+      el.geoBar.hidden = true;
+      return;
+    }
+    const on = state.loc.consent && state.loc.sharing;
+    el.geoBar.hidden = !state.loc.consent;
+    el.geoBar.classList.toggle('geo-bar--off', !on);
+    el.geoBarText.textContent = on
+      ? 'مشاركة موقعك نشطة أثناء العمل'
+      : 'مشاركة الموقع متوقفة';
+    el.geoStop.textContent = on ? 'إيقاف المشاركة' : 'استئناف المشاركة';
+
+    if (on) geo.start(); else geo.stop();
+  }
+
+  el.geoStop.addEventListener('click', async () => {
+    try {
+      state.loc = await api('/me/location-sharing', {
+        method: 'PATCH',
+        body: { sharing: !(state.loc && state.loc.sharing) },
+      });
+      renderGeoBar();
+      toast(state.loc.sharing ? 'استُؤنفت مشاركة الموقع' : 'أُوقفت مشاركة الموقع', 'ok');
+      if (parseHash().head === 'location') await renderLocation();
+    } catch (err) { toast(err.message, 'bad'); }
+  });
+
+  /* ---- صفحة المندوب: الموافقة والتحكّم ---- */
+
+  async function renderLocation() {
+    if (state.me.role !== 'agent') { location.hash = '#/'; return; }
+    el.view.innerHTML = skeleton(2);
+    await refreshConsent();
+    const L = state.loc;
+    const blocked = !geo.supported() || !geo.secure();
+
+    el.view.innerHTML = `
+      <div class="page-head">
+        <div>
+          <h1>موقعي</h1>
+          <p>أنت تتحكّم بمشاركة موقعك بالكامل — لا يُسجَّل شيء بدون موافقتك.</p>
+        </div>
+      </div>
+
+      ${blocked ? `<div class="card"><div class="card__body">${emptyState(
+        'تحديد الموقع غير متاح في هذا المتصفح',
+        !geo.secure()
+          ? 'يعمل تحديد الموقع على اتصال آمن (HTTPS) فقط. افتح النظام عبر رابط آمن.'
+          : 'متصفحك لا يدعم تحديد الموقع.')}</div></div>` : ''}
+
+      <div class="consent">
+        <div class="consent__head">
+          <h2>${L.consent ? 'مشاركة الموقع مفعّلة' : 'مشاركة الموقع أثناء العمل'}</h2>
+          <p>${L.consent
+            ? 'وافقت في ' + esc(fmtDate(L.consent_at)) + '. يمكنك السحب في أي وقت.'
+            : 'اقرأ ما يلي قبل الموافقة.'}</p>
+        </div>
+        <div class="consent__body">
+          <ul class="consent__list">
+            <li>يُسجَّل موقعك <b>فقط حين تكون المشاركة مشغّلة</b>، وتوقفها بضغطة واحدة متى شئت.</li>
+            <li>يراه <b>مدير العمليات فقط</b> لتوزيع الطلبات ومتابعة التسليم — ولا يراه أي مندوب آخر.</li>
+            <li>تُحذف النقاط تلقائيًا بعد <b>${ar(L.retention_hours)} ساعة</b>.</li>
+            <li>عند سحب الموافقة <b>يُمسح كل سجلّ مواقعك فورًا</b>.</li>
+            <li>تُسجَّل كل مرة يطّلع فيها المدير على موقعك، وتظهر لك أدناه.</li>
+          </ul>
+
+          <p class="consent__note">
+            الموافقة اختيارية وقابلة للسحب، ولا تُستخدم لأي غرض غير توزيع الطلبات ومتابعتها.
+          </p>
+
+          <div class="btn-row">
+            ${L.consent ? `
+              <button class="btn ${L.sharing ? 'btn--quiet' : 'btn--primary'}" id="toggleShare" type="button">
+                ${L.sharing ? 'إيقاف المشاركة مؤقتًا' : 'استئناف المشاركة'}
+              </button>
+              <button class="btn btn--ghost" id="purgeHistory" type="button">مسح سجلّ مواقعي</button>
+              <button class="btn btn--danger" id="revoke" type="button">سحب الموافقة ومسح البيانات</button>
+            ` : `
+              <button class="btn btn--primary btn--lg" id="grant" type="button" ${blocked ? 'disabled' : ''}>
+                أوافق على مشاركة موقعي أثناء العمل
+              </button>
+            `}
+          </div>
+        </div>
+      </div>
+
+      ${L.consent ? `
+      <div class="card" style="margin-top:1.1rem">
+        <div class="card__head"><h2>ما هو مخزّن الآن</h2></div>
+        <div class="card__body">
+          <dl class="kv">
+            <dt>حالة المشاركة</dt>
+            <dd>${L.sharing ? '<span class="badge badge--available">نشطة</span>' : '<span class="badge badge--offline">متوقفة</span>'}</dd>
+            <dt>عدد النقاط المحفوظة</dt><dd class="num">${ar(L.stored_points)}</dd>
+            <dt>آخر نقطة</dt><dd>${L.last_point_at ? esc(fmtDate(L.last_point_at)) + ' — ' + esc(relTime(L.last_point_at)) : 'لا توجد'}</dd>
+            <dt>مدة الاحتفاظ</dt><dd>${ar(L.retention_hours)} ساعة</dd>
+          </dl>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card__head"><h2>من اطّلع على موقعي</h2></div>
+        <div class="card__body">
+          ${L.recent_views.length
+            ? `<ul class="timeline">${L.recent_views.map((v) => `
+                <li class="tl"><span class="tl__dot"></span>
+                  <b>${esc(v.viewer_name)}</b>
+                  <span>${esc(fmtDate(v.viewed_at))} — ${esc(relTime(v.viewed_at))}</span>
+                </li>`).join('')}</ul>`
+            : emptyState('لم يطّلع أحد بعد', 'سيظهر هنا كل اطّلاع من الإدارة على موقعك.')}
+        </div>
+      </div>` : ''}`;
+
+    const bind = (id, fn) => {
+      const b = document.getElementById(id);
+      if (b) b.addEventListener('click', fn);
+    };
+
+    bind('grant', async () => {
+      // نطلب إذن المتصفح أولًا: لا معنى لتسجيل موافقة ثم يرفض الجهاز
+      navigator.geolocation.getCurrentPosition(
+        async () => {
+          try {
+            state.loc = await api('/me/location-consent', { method: 'POST', body: { granted: true } });
+            toast('شكرًا — بدأت مشاركة موقعك أثناء العمل', 'ok');
+            renderGeoBar();
+            await renderLocation();
+          } catch (err) { toast(err.message, 'bad'); }
+        },
+        (err) => geo.onError(err),
+        { enableHighAccuracy: true, timeout: 20000 }
+      );
+    });
+
+    bind('toggleShare', () => el.geoStop.click());
+
+    bind('purgeHistory', () => {
+      openModal('مسح سجلّ المواقع', `
+        <p>سيُحذف كل ما سُجّل من نقاط موقعك حتى الآن. تبقى الموافقة فعّالة ويستمر التسجيل بعدها.</p>
+        <div class="btn-row">
+          <button class="btn btn--danger" id="confirmPurge" type="button">نعم، امسح السجل</button>
+          <button class="btn btn--quiet" type="button" data-close>إلغاء</button>
+        </div>`, (body) => {
+        body.querySelector('#confirmPurge').addEventListener('click', async () => {
+          try {
+            const r = await api('/me/location-history', { method: 'DELETE' });
+            state.loc = r;
+            closeModal();
+            toast('حُذفت ' + ar(r.deleted) + ' نقطة', 'ok');
+            await renderLocation();
+          } catch (err) { toast(err.message, 'bad'); }
+        });
+      });
+    });
+
+    bind('revoke', () => {
+      openModal('سحب الموافقة', `
+        <p>سيتوقّف تسجيل موقعك فورًا، و<b>يُمسح كل سجلّ مواقعك</b> نهائيًا.
+           يمكنك الموافقة مجددًا في أي وقت.</p>
+        <div class="btn-row">
+          <button class="btn btn--danger" id="confirmRevoke" type="button">نعم، اسحب الموافقة</button>
+          <button class="btn btn--quiet" type="button" data-close>إلغاء</button>
+        </div>`, (body) => {
+        body.querySelector('#confirmRevoke').addEventListener('click', async () => {
+          try {
+            state.loc = await api('/me/location-consent', { method: 'POST', body: { granted: false } });
+            geo.stop();
+            closeModal();
+            toast('سُحبت الموافقة ومُسحت البيانات', 'ok');
+            renderGeoBar();
+            await renderLocation();
+          } catch (err) { toast(err.message, 'bad'); }
+        });
+      });
+    });
+  }
+
+  /* ---- لوحة المدير المباشرة ---- */
+
+  // حدود الكويت التقريبية لرسم مخطّط المواقع
+  const KW = { minLat: 28.45, maxLat: 30.15, minLng: 46.5, maxLng: 48.5 };
+
+  const REASONS = {
+    no_consent: 'لم يمنح الموافقة',
+    sharing_off: 'أوقف المشاركة',
+    no_data: 'لا توجد قراءة بعد',
+    stale: 'آخر قراءة قديمة',
+  };
+
+  async function renderLive() {
+    if (state.me.role !== 'admin') { location.hash = '#/'; return; }
+    el.view.innerHTML = `<div class="page-head"><div><h1>المواقع المباشرة</h1></div></div>${skeleton(3)}`;
+    const { agents } = await api('/locations/live');
+
+    const shown = agents.filter((a) => a.available);
+    const pins = shown.map((a) => {
+      const x = (a.lng - KW.minLng) / (KW.maxLng - KW.minLng);
+      const y = 1 - (a.lat - KW.minLat) / (KW.maxLat - KW.minLat);
+      const cx = Math.min(Math.max(x, 0.02), 0.98) * 100;
+      const cy = Math.min(Math.max(y, 0.04), 0.98) * 100;
+      return `<div class="map__pin${a.reason === 'stale' ? ' map__pin--stale' : ''}"
+                   style="inset-inline-start:${(100 - cx).toFixed(2)}%; top:${cy.toFixed(2)}%">
+                <b>${esc(a.agent_name.split(' ')[0])}</b><i></i>
+              </div>`;
+    }).join('');
+
+    el.view.innerHTML = `
+      <div class="page-head">
+        <div>
+          <h1>المواقع المباشرة</h1>
+          <p>يظهر هنا المندوبون الذين وافقوا على المشاركة وفعّلوها فقط.</p>
+        </div>
+        <button class="btn btn--ghost btn--sm" id="refreshLive" type="button">تحديث</button>
+      </div>
+
+      <div class="live">
+        <div class="map">
+          ${pins || ''}
+          <span class="map__scale">مخطّط تقريبي لحدود الكويت — ${ar(shown.length)} مندوب ظاهر</span>
+        </div>
+
+        <div class="live__list">
+          ${agents.map((a) => `
+            <div class="live-row">
+              <div class="live-row__top">
+                <b>${esc(a.agent_name)}</b>
+                <span class="badge badge--${a.availability}">${esc(state.meta.availability[a.availability])}</span>
+                ${a.available
+                  ? '<span class="badge badge--delivered">موقع محدَّث</span>'
+                  : `<span class="badge badge--offline">${esc(REASONS[a.reason] || 'غير متاح')}</span>`}
+              </div>
+              <div class="live-row__meta">
+                <span>${esc(vehicleName(a.vehicle))}</span>
+                <span>${esc(a.governorate || 'بلا منطقة')}</span>
+                <span>${ar(a.active_orders)} طلب نشط</span>
+                ${a.order_code ? `<span>يوصّل <a href="#/orders/${a.order_id}">${esc(a.order_code)}</a></span>` : ''}
+                ${a.recorded_at ? `<span>${esc(relTime(a.recorded_at))}</span>` : ''}
+                ${a.lat != null ? `<span><a href="https://www.google.com/maps?q=${a.lat},${a.lng}"
+                     target="_blank" rel="noopener">افتح في الخرائط</a></span>` : ''}
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+
+    document.getElementById('refreshLive').addEventListener('click', renderLive);
+  }
+
   /* --------------------------- إرسال النماذج --------------------------- */
 
   async function submit(form, msgNode, fn) {
@@ -936,11 +1296,17 @@
     if (isAgent) el.availSelect.value = state.me.availability;
 
     await refreshShared();
+    if (state.me.role === 'agent') {
+      try { await refreshConsent(); renderGeoBar(); } catch { /* غير حرج */ }
+    }
     await router();
   }
 
   async function logout(silent) {
     try { if (!silent) await api('/auth/logout', { method: 'POST' }); } catch { /* تجاهل */ }
+    geo.stop();
+    state.loc = null;
+    el.geoBar.hidden = true;
     state.me = null;
     location.hash = '';
     showLogin();

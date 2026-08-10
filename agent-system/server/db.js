@@ -97,7 +97,38 @@ CREATE TABLE IF NOT EXISTS events (
   created_at TEXT    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_events_order ON events(order_id);
+
+CREATE TABLE IF NOT EXISTS locations (
+  id          INTEGER PRIMARY KEY,
+  agent_id    INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+  lat         REAL    NOT NULL,
+  lng         REAL    NOT NULL,
+  accuracy    REAL,
+  speed       REAL,
+  heading     REAL,
+  order_id    INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+  recorded_at TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_locations_agent ON locations(agent_id, recorded_at DESC);
+
+/* سجل من اطّلع على موقع أي مندوب — الشفافية شرط للثقة */
+CREATE TABLE IF NOT EXISTS location_views (
+  id        INTEGER PRIMARY KEY,
+  viewer_id INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+  agent_id  INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+  viewed_at TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_location_views_agent ON location_views(agent_id, viewed_at DESC);
 `);
+
+/* ---- ترحيلات: أعمدة موافقة الموقع تُضاف للقواعد القائمة ---- */
+const agentCols = db.prepare('PRAGMA table_info(agents)').all().map((c) => c.name);
+const addColumn = (name, ddl) => {
+  if (!agentCols.includes(name)) db.exec(`ALTER TABLE agents ADD COLUMN ${name} ${ddl}`);
+};
+addColumn('location_consent',    'INTEGER NOT NULL DEFAULT 0');
+addColumn('location_consent_at', 'TEXT');
+addColumn('location_sharing',    'INTEGER NOT NULL DEFAULT 0');
 
 /** الوقت الحالي بصيغة ISO — كل الطوابع الزمنية مخزّنة بتوقيت UTC */
 const now = () => new Date().toISOString();
