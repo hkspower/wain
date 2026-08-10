@@ -143,6 +143,9 @@
 html {
   scroll-behavior: smooth;
   -webkit-tap-highlight-color: transparent;
+  /* Rotating the phone must not resize type under the layout. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -163,13 +166,21 @@ input[type="search"]::-webkit-search-decoration {
 
 /* App version (installed to the home screen). The bottom tab bar becomes the
    primary navigation, so content clears it, the navbar's duplicate links go,
-   and فهد's launcher moves up out of the tab bar's way.
-   Written twice on purpose: the media query applies instantly with no JS (so
-   there is no flash of website layout), and the attribute covers iOS, which
-   reports home-screen launches through navigator.standalone. */
+   فهد's launcher moves up out of the tab bar's way, and the page stops
+   rubber-banding at its edges the way a document does.
+
+   Written twice on purpose, and the two lists must stay identical: the media
+   query applies instantly with no JS (so there is no flash of website layout),
+   while the attribute covers iOS, which reports home-screen launches through
+   navigator.standalone rather than the media query. Overscroll used to sit
+   only on the attribute path, which made it depend on JS. */
 @media (display-mode: standalone) {
+  html {
+    overscroll-behavior-y: none;
+  }
   body {
     padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
+    overscroll-behavior-y: none;
   }
   .standalone-hidden {
     display: none;
@@ -178,8 +189,12 @@ input[type="search"]::-webkit-search-decoration {
     bottom: 5.5rem;
   }
 }
+html[data-standalone="true"] {
+  overscroll-behavior-y: none;
+}
 html[data-standalone="true"] body {
   padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
+  overscroll-behavior-y: none;
 }
 html[data-standalone="true"] .standalone-hidden {
   display: none;
@@ -189,18 +204,9 @@ html[data-standalone="true"] .fahad-launcher {
 }
 
 /* --- App physics -------------------------------------------------------
-   The remaining tells that a standalone page is a *page*: it rubber-bands at
-   the edges, long-pressing a control raises the iOS copy/share callout, drag
-   selects the chrome, and taps have no felt response. Native apps do none of
-   that. */
-
-/* No overscroll bounce or pull-to-refresh chaining to the viewport. Kept on
-   html and body only, so inner scrollers (the category rail, the ⌘K result
-   list) still scroll normally. */
-html[data-standalone="true"],
-html[data-standalone="true"] body {
-  overscroll-behavior-y: none;
-}
+   The remaining tells that a standalone page is a *page*: long-pressing a
+   control raises the iOS copy/share callout, drag selects the chrome, and
+   taps have no felt response. Native apps do none of that. */
 
 /* Chrome should not feel like selectable text — but article copy still must
    be selectable. Scoped to the site chrome (.app-chrome marks the navbar and
@@ -224,12 +230,6 @@ html[data-standalone="true"] body {
   }
 }
 
-/* Rotating the phone must not resize type under the layout. */
-html {
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
-}
-
 ::selection {
   @apply bg-sun-200 text-ink-900;
 }
@@ -237,11 +237,6 @@ html {
 /* Visible keyboard focus for all interactive elements */
 :where(a, button, input, select, textarea):focus-visible {
   @apply outline-none ring-2 ring-sea-600 ring-offset-2 ring-offset-sand-50;
-}
-
-/* Arabic numerals inside a latin-leaning font still need the tabular feel */
-.nums {
-  font-feature-settings: "tnum";
 }
 
 @media (prefers-reduced-motion: reduce) {
