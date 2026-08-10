@@ -98,6 +98,14 @@ await page.addStyleTag({ content: `
   }
   .section, .cta, .footer { break-before: auto; }
 
+  /* بطاقة التتبع + الخط الزمني بالكاد يتجاوزان الصفحة، فينزل الخط الزمني وحده
+     ويترك نصف صفحة فارغة — تضييق بسيط يجعلهما يتّسعان معًا. */
+  #track.section { padding-block: 1.8rem !important; }
+  #track .track { padding-block: 1.2rem !important; }
+  #track .track__form { margin-top: 1.1rem !important; }
+  #track .timeline { margin-top: 1rem !important; padding: 1.2rem !important; }
+  #track .tl { padding-bottom: .55rem !important; }
+
   /* صفحة غلاف للمعاينة */
   #pdfCover {
     height: ${PAGE_H - 2}px;

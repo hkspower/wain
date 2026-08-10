@@ -537,6 +537,9 @@ a.topbar__item:hover { color: #fff; }
 .plan__price { margin: .4rem 0 .25rem; line-height: 1.3; }
 .plan__price b { font-size: clamp(2rem, 4vw, 2.5rem); font-weight: 800; color: var(--teal-700); }
 .plan__price span { color: var(--ink-soft); font-size: var(--fs-sm); }
+/* سطر تمهيدي فوق السعر — يبقى محجوزًا في كل البطاقات حتى تتحاذى الأسعار والقوائم */
+.plan__price .plan__from { display: block; font-size: var(--fs-xs); line-height: 1.7; color: var(--ink-soft); }
+.plan__price .plan__from:empty::before { content: "\200B"; }
 .plan__desc { color: var(--ink-mid); font-size: var(--fs-md); }
 .plan__list { margin: 1.1rem 0 1.7rem; border-top: 1px dashed var(--line-str); padding-top: 1.1rem; flex: 1; }
 .plan__list li { position: relative; padding-inline-start: 1.7rem; font-size: var(--fs-md); margin-bottom: .3rem; line-height: 1.85; }
