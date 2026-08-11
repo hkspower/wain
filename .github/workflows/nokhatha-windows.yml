@@ -1,0 +1,114 @@
+name: النوخذة — Windows build
+
+# A Flutter Windows binary can only be compiled on Windows with the MSVC
+# toolchain; it cannot be cross-compiled from Linux. So the build runs here, on
+# a real Windows runner, and every run leaves a downloadable installer behind.
+#
+#   * push / manual run  → the Setup .exe is attached as a build artifact
+#   * tagged v*          → it is also published on a GitHub Release
+#
+# The installer is NOT code-signed. Windows SmartScreen will show
+# "Windows protected your PC" the first time anyone runs it, and they must
+# click "More info → Run anyway". Removing that warning needs an Authenticode
+# certificate from a CA — see the note at the end of this file.
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "nokhatha_app/**"
+      - ".github/workflows/nokhatha-windows.yml"
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # needed only to attach the installer to a release
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: nokhatha_app/pubspec.yaml
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        working-directory: nokhatha_app
+        run: flutter pub get
+
+      # The checks run here too. A build that ships is a build that passed,
+      # and finding out on the customer's machine is not a test strategy.
+      - name: Analyze
+        working-directory: nokhatha_app
+        run: flutter analyze
+
+      - name: Test
+        working-directory: nokhatha_app
+        run: flutter test
+
+      - name: Build Windows release
+        working-directory: nokhatha_app
+        run: flutter build windows --release
+
+      - name: Read the version from pubspec
+        id: ver
+        shell: pwsh
+        run: |
+          $raw = (Select-String -Path nokhatha_app/pubspec.yaml -Pattern '^version:\s*(.+)$').Matches[0].Groups[1].Value.Trim()
+          $v = $raw.Split('+')[0]
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "version: $v"
+
+      # Inno Setup ships on the windows-latest image, so there is nothing to
+      # install: this is the step that turns a folder of DLLs into one file a
+      # person can download and double-click.
+      - name: Build the installer
+        working-directory: nokhatha_app/windows/installer
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=${{ steps.ver.outputs.version }} nokhatha.iss
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nokhatha-Setup-${{ steps.ver.outputs.version }}
+          path: nokhatha_app/dist/*.exe
+          if-no-files-found: error
+
+      # The portable folder is the answer for anyone who cannot install
+      # software on their machine — unzip and run, no installer involved.
+      - name: Upload the portable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nokhatha-portable-${{ steps.ver.outputs.version }}
+          path: nokhatha_app/build/windows/x64/runner/Release/
+          if-no-files-found: error
+
+      - name: Attach the installer to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: nokhatha_app/dist/*.exe
+          generate_release_notes: true
+
+# ---------------------------------------------------------------------------
+# Code signing, when you are ready for it
+#
+# Buy an Authenticode certificate (an EV one clears SmartScreen immediately;
+# a standard OV one builds reputation over time), store the .pfx as the secret
+# WINDOWS_CERT_BASE64 and its password as WINDOWS_CERT_PASSWORD, then add a
+# step before "Build the installer":
+#
+#   - name: Sign the executable
+#     shell: pwsh
+#     run: |
+#       [IO.File]::WriteAllBytes("cert.pfx",
+#         [Convert]::FromBase64String("${{ secrets.WINDOWS_CERT_BASE64 }}"))
+#       & signtool sign /f cert.pfx /p "${{ secrets.WINDOWS_CERT_PASSWORD }}" `
+#         /tr http://timestamp.digicert.com /td sha256 /fd sha256 `
+#         nokhatha_app/build/windows/x64/runner/Release/nokhatha.exe
+#
+# Sign the installer the same way after ISCC runs. Do not commit the .pfx.

@@ -1,17 +1,80 @@
-# nokhatha
+# النوخذة — تطبيق ويندوز
 
-النوخذة — النظام الموحد من المهلب كود
+النظام الموحد من **المهلب كود**، كتطبيق يُثبَّت على ويندوز ١١: المركز المالي ·
+صافي · XBRL · التوصيل — أربع وحدات فوق نواة بيانات واحدة.
 
-## Getting Started
+## تحميل النسخة الجاهزة
 
-This project is a starting point for a Flutter application.
+لا يُبنى ملف ويندوز التنفيذي على لينكس — يحتاج ويندوز وأدوات MSVC. لذلك يبنيه
+**GitHub Actions** على جهاز ويندوز حقيقي في كل دفعة، ويترك خلفه ملفاً جاهزاً:
 
-A few resources to get you started if this is your first Flutter project:
+1. افتح تبويب **Actions** في المستودع ← سير العمل **النوخذة — Windows build**.
+2. اختر آخر تشغيل ناجح.
+3. من قسم **Artifacts** حمّل أحد الملفين:
+   - `Nokhatha-Setup-<الإصدار>` — **مثبِّت** بملف واحد (`Setup.exe`). شغّله
+     ويثبَّت التطبيق ويظهر في قائمة ابدأ.
+   - `Nokhatha-portable-<الإصدار>` — نسخة **محمولة**: فك الضغط وشغّل
+     `nokhatha.exe` مباشرة، دون تثبيت. هذه للأجهزة التي لا تسمح بتثبيت البرامج.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+ولإصدار عام: ادفع وسماً يبدأ بـ`v` (مثل `v1.0.0`) فيُرفَق المثبِّت تلقائياً
+بصفحة **Releases**، ويصير له رابط تحميل مباشر تشاركه مع العملاء.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+### ⚠️ تحذير ويندوز عند أول تشغيل — متوقّع
+
+المثبِّت **غير موقَّع رقمياً**، فسيعرض ويندوز شاشة زرقاء:
+
+> Windows protected your PC
+
+اضغط **More info** ← **Run anyway**. هذا ليس خطأً في الملف؛ SmartScreen يحذّر من
+أي برنامج لا يحمل شهادة Authenticode. لإزالة التحذير نهائياً تحتاج شهادة توقيع
+من جهة إصدار معتمدة — الخطوات مكتوبة في نهاية
+`.github/workflows/nokhatha-windows.yml`.
+
+## متطلبات التشغيل
+
+- ويندوز ١٠ إصدار 1809 (build 17763) أو أحدث — بما يشمل ويندوز ١١.
+- معمارية x64.
+- التثبيت **لا يحتاج صلاحية مدير**: التطبيق يحفظ سجلاتك أنت ولا يطلب من الجهاز
+  شيئاً، فطلب صلاحية إدارية لتثبيته طلبٌ لصلاحية لا يستعملها.
+
+## البناء محلياً على ويندوز
+
+```powershell
+flutter pub get
+flutter test          # ٣٥ فحصاً
+flutter build windows --release
+```
+
+الناتج في `build\windows\x64\runner\Release\`. ولصناعة المثبِّت (يتطلب
+[Inno Setup 6](https://jrsoftware.org/isdl.php)):
+
+```powershell
+cd windows\installer
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=1.0.0 nokhatha.iss
+```
+
+فيظهر `dist\Nokhatha-Setup-1.0.0.exe`.
+
+## ما بداخل التطبيق
+
+| المجلد | المحتوى |
+|---|---|
+| `lib/core/` | النواة: المال بالفلس الصحيح، النماذج، وحساب XBRL كاملاً |
+| `lib/ui/` | الهوية (البوم مرسوم أصلاً في Flutter) والقالب المتكيّف |
+| `lib/store.dart` | المصدر الوحيد للسجلات — الوحدات الأربع تقرأ منه |
+| `test/` | ٣٥ فحصاً، أرقامها المتوقّعة هي نفسها التي تثبّتها مجموعة اختبارات الموقع |
+
+**المال يُحسب بالفلس الصحيح** لا بالعشري: المحفظة المحسوبة بأرقام عائمة تنحرف،
+وميزانية تختل بـ٠٫٠٠١ د.ك ميزانية لا تُودَع.
+
+## الشاشة العريضة مقابل الجوال
+
+الحاسوب والجوال شكلان مختلفان لا شكل واحد بحجمين: فوق 720 بكسل تظهر الوحدات في
+شريط جانبي، وتحتها في شريط سفلي تحت الإبهام. شريط سفلي بعرض 1280 بكسل وعناصره
+الأربعة ضائعة في وسطه هو تخطيط جوال مُطّاط، ويبدو كذلك.
+
+## ملاحظة عن الحفظ
+
+النسخة الحالية تحمل بيانات العرض في الذاكرة. قبل أن يَعِد التطبيق بحفظ سجلات
+العميل يجب أن يُحسم **أين** تُحفظ ويُقال ذلك على الشاشة — كما يفعل الموقع حين
+يوضّح أن البيانات في متصفح الزائر وحده. لا يَعِد التطبيق بما لم يُبنَ بعد.

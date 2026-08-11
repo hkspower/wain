@@ -54,4 +54,26 @@ void main() {
     expect(app.darkTheme, isNull);
     expect(app.theme!.scaffoldBackgroundColor, Brand.bg);
   });
+
+  testWidgets('a phone gets the bottom bar; a Windows window gets a rail',
+      (tester) async {
+    // Desktop and phone are different shapes, not one shape at two sizes: a
+    // 1280px-wide bottom bar with four items adrift in the middle is a phone
+    // layout that has been stretched, and it looks like one.
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const NokhathaApp());
+    await tester.pumpAndSettle();
+    expect(find.byType(NavigationRail), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
+
+    tester.view.physicalSize = const Size(390, 800);
+    await tester.pumpWidget(const NokhathaApp());
+    await tester.pumpAndSettle();
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byType(NavigationRail), findsNothing);
+  });
 }

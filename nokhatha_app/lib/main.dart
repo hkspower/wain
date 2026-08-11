@@ -11,6 +11,7 @@ import 'core/xbrl.dart';
 import 'core/money.dart';
 import 'store.dart';
 import 'ui/brand.dart';
+import 'ui/shell_layout.dart';
 
 void main() => runApp(const NokhathaApp());
 
@@ -44,10 +45,10 @@ class _ShellState extends State<Shell> {
   int tab = 0;
 
   static const _tabs = [
-    (icon: Icons.anchor, label: 'المركز المالي'),
-    (icon: Icons.show_chart, label: 'صافي'),
-    (icon: Icons.description_outlined, label: 'XBRL'),
-    (icon: Icons.delivery_dining, label: 'التوصيل'),
+    UnitTab(Icons.anchor, 'المركز المالي'),
+    UnitTab(Icons.show_chart, 'صافي'),
+    UnitTab(Icons.description_outlined, 'XBRL'),
+    UnitTab(Icons.delivery_dining, 'التوصيل'),
   ];
 
   @override
@@ -66,19 +67,18 @@ class _ShellState extends State<Shell> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-          toolbarHeight: 78,
-          title: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const BoumMark(height: 30),
-              const SizedBox(height: Brand.s4),
-              Text(_tabs[tab].label,
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w800)),
-            ],
-          ),
+  Widget build(BuildContext context) => AdaptiveShell(
+        tabs: _tabs,
+        index: tab,
+        onSelect: (i) => setState(() => tab = i),
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const BoumMark(height: 28),
+            const SizedBox(height: Brand.s4),
+            Text(_tabs[tab].label,
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+          ],
         ),
         body: switch (tab) {
           0 => PositionView(store: store),
@@ -86,16 +86,6 @@ class _ShellState extends State<Shell> {
           2 => XbrlView(store: store),
           _ => DeliveryView(store: store),
         },
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: tab,
-          onDestinationSelected: (i) => setState(() => tab = i),
-          backgroundColor: Brand.bg,
-          indicatorColor: Brand.panel2,
-          destinations: [
-            for (final t in _tabs)
-              NavigationDestination(icon: Icon(t.icon), label: t.label),
-          ],
-        ),
       );
 }
 
