@@ -12,11 +12,18 @@ import 'core/money.dart';
 import 'store.dart';
 import 'ui/brand.dart';
 import 'ui/shell_layout.dart';
+import 'ui/auth_gate.dart';
+import 'ui/forms.dart';
 
 void main() => runApp(const NokhathaApp());
 
 class NokhathaApp extends StatelessWidget {
-  const NokhathaApp({super.key});
+  /// Tests inject a store pointed at a temp directory. Without this the suite
+  /// would read and write the real user's records, which is not a thing a test
+  /// run should ever be able to do.
+  const NokhathaApp({super.key, this.store});
+
+  final Store? store;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -30,18 +37,19 @@ class NokhathaApp extends StatelessWidget {
           textDirection: TextDirection.rtl,
           child: child ?? const SizedBox.shrink(),
         ),
-        home: const Shell(),
+        home: Shell(store: store),
       );
 }
 
 class Shell extends StatefulWidget {
-  const Shell({super.key});
+  const Shell({super.key, this.store});
+  final Store? store;
   @override
   State<Shell> createState() => _ShellState();
 }
 
 class _ShellState extends State<Shell> {
-  final store = Store();
+  late final Store store = widget.store ?? Store();
   int tab = 0;
 
   static const _tabs = [
@@ -67,7 +75,15 @@ class _ShellState extends State<Shell> {
   }
 
   @override
-  Widget build(BuildContext context) => AdaptiveShell(
+  Widget build(BuildContext context) {
+    if (!store.ready) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (!store.signedIn) return AuthGate(store: store);
+    return _shell(context);
+  }
+
+  Widget _shell(BuildContext context) => AdaptiveShell(
         tabs: _tabs,
         index: tab,
         onSelect: (i) => setState(() => tab = i),
@@ -80,6 +96,22 @@ class _ShellState extends State<Shell> {
                 style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
           ],
         ),
+        onSignOut: store.signOut,
+        action: switch (tab) {
+          1 => FloatingActionButton.extended(
+              onPressed: () => showAddHolding(context, store),
+              backgroundColor: Brand.tintStrong,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add),
+              label: const Text('إضافة سهم')),
+          3 => FloatingActionButton.extended(
+              onPressed: () => showAddOrder(context, store),
+              backgroundColor: Brand.tintStrong,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add),
+              label: const Text('طلب جديد')),
+          _ => null,
+        },
         body: switch (tab) {
           0 => PositionView(store: store),
           1 => SafiView(store: store),

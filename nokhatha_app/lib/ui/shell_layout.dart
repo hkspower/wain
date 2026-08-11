@@ -28,6 +28,8 @@ class AdaptiveShell extends StatelessWidget {
     required this.onSelect,
     required this.title,
     required this.body,
+    this.action,
+    this.onSignOut,
   });
 
   final List<UnitTab> tabs;
@@ -35,6 +37,16 @@ class AdaptiveShell extends StatelessWidget {
   final ValueChanged<int> onSelect;
   final Widget title;
   final Widget body;
+  final Widget? action;
+  final Future<void> Function()? onSignOut;
+
+  Widget _signOut() => Builder(
+        builder: (context) => IconButton(
+          tooltip: 'تسجيل الخروج',
+          icon: const Icon(Icons.logout),
+          onPressed: onSignOut == null ? null : () => onSignOut!(),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +54,8 @@ class AdaptiveShell extends StatelessWidget {
 
     if (!wide) {
       return Scaffold(
-        appBar: AppBar(toolbarHeight: 78, title: title),
+        appBar: AppBar(toolbarHeight: 78, title: title, actions: [_signOut()]),
+        floatingActionButton: action,
         body: body,
         bottomNavigationBar: NavigationBar(
           selectedIndex: index,
@@ -58,7 +71,8 @@ class AdaptiveShell extends StatelessWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(toolbarHeight: 68, title: title),
+      appBar: AppBar(toolbarHeight: 68, title: title, actions: [_signOut()]),
+      floatingActionButton: action,
       body: Row(
         children: [
           NavigationRail(

@@ -43,7 +43,7 @@ class FilingInput {
   const FilingInput({
     required this.entityName,
     required this.commercialRegistration,
-    required this.periodEnd,
+    DateTime? periodEnd,
     this.months = 12,
     this.kind = EntityKind.wll,
     this.cashFils = 0,
@@ -61,11 +61,16 @@ class FilingInput {
     this.revenueFils = 0,
     this.costOfSalesFils = 0,
     this.expensesFils = 0,
-  });
+  }) : periodEndOrNull = periodEnd;
 
   final String entityName;
   final String commercialRegistration;
-  final DateTime periodEnd;
+  /// The period's closing date. Null until the filer sets it — a filing
+  /// dated by default is a filing dated wrongly, and today's date is not a
+  /// financial year end.
+  final DateTime? periodEndOrNull;
+  DateTime get periodEnd => periodEndOrNull ?? DateTime.utc(DateTime.now().year, 12, 31);
+  bool get hasPeriodEnd => periodEndOrNull != null;
   final int months;
   final EntityKind kind;
 
@@ -216,7 +221,7 @@ class Filing {
   FilingInput derivedFrom(UnifiedPosition position) => FilingInput(
         entityName: input.entityName,
         commercialRegistration: input.commercialRegistration,
-        periodEnd: input.periodEnd,
+        periodEnd: input.periodEndOrNull,
         months: input.months,
         kind: input.kind,
         cashFils: input.cashFils,
