@@ -5,6 +5,7 @@ import type { DriverCard, GameEngine, HudData, RaceResult } from "@/game/engine"
 import { playSfx, preloadSfx, setSfxVolume } from "@/game/sfx";
 import Results from "./Results";
 import Onboarding, { CoachHint, CoachState, hasOnboarded } from "./Onboarding";
+import Garage from "./Garage";
 import { GEARS } from "@/game/gears";
 import { RIVALS, RivalDef } from "@/game/rivals";
 import { HubClient, DuelInvite, loadProfile, formatLap } from "@/game/net";
@@ -23,28 +24,15 @@ import {
   HAPTIC,
 } from "@/game/settings";
 import {
-  PARTS,
+  EXCLUSIVE_CATS,
   Part,
   GarageState,
   loadGarage,
   saveGarage,
-  CARS,
-  CLASS_LABELS,
-  CarClass,
   getCar,
   WAGERS,
 } from "@/game/mods";
 
-const EXCLUSIVE_CATS = new Set(["aspiration", "brakes", "tires", "paint", "glow"]);
-const CAT_LABELS: Record<string, string> = {
-  aspiration: "ENGINE — TURBO & SUPERCHARGER · المكينة",
-  internals: "INTERNALS · القطع الداخلية",
-  brakes: "BRAKES · البريكات",
-  tires: "TIRES · التواير",
-  extras: "EXTRAS & NOS · الإضافات",
-  paint: "PAINT · الصبغ",
-  glow: "UNDERGLOW · الليتات",
-};
 
 type Phase = "menu" | "loading" | "playing" | "champion" | "error";
 
@@ -137,6 +125,7 @@ export default function RaceClient() {
       saveSettings(next);
       haptic(HAPTIC.tap, next.haptics);
       if (k === "sfxVolume") setSfxVolume(next.sfxVolume);
+      if (k === "quality") engineRef.current?.applyQualityTier(next.quality);
       playSfx("ui-tap", 0.6);
       return next;
     });
@@ -406,6 +395,8 @@ export default function RaceClient() {
       return;
     }
     engineRef.current = engine;
+    const tier = loadSettings().quality;
+    if (tier !== "auto") engine.applyQualityTier(tier);
     setPhase("playing");
 
     // Online cruise: connect to the hub and mirror the other drivers.
@@ -534,7 +525,16 @@ export default function RaceClient() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (phase === "menu" && e.key === "Enter" && !e.repeat) startGame();
+      // Enter must not fall through a modal and start the race behind it
+      if (
+        phase === "menu" &&
+        e.key === "Enter" &&
+        !e.repeat &&
+        !garageOpen &&
+        !settingsOpen &&
+        !onboarding
+      )
+        startGame();
       if (result && result.outcome === "loss" && e.key.toLowerCase() === "r") {
         setResult(null);
         engineRef.current?.setPaused(false);
@@ -543,7 +543,7 @@ export default function RaceClient() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [phase, startGame, result]);
+  }, [phase, startGame, result, garageOpen, settingsOpen, onboarding]);
 
   const lvl = levelInfo(career?.xp ?? 0);
   const rank = rankTitle(lvl.level);
@@ -1405,174 +1405,12 @@ export default function RaceClient() {
 
       {/* Garage */}
       {garageOpen && garage && (
-        <div className="absolute inset-0 z-20 overflow-y-auto bg-gradient-to-b from-[#05070f] via-[#0a1226] to-[#05070f] px-6 py-8">
-          <div className="mx-auto max-w-4xl">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="grn-label text-[0.72rem] tracking-[0.42em] text-gulf-400">
-                  The Garage
-                </div>
-                <h2 className="grn-display mt-1 text-4xl italic">
-                  <span className="grn-ar">الكراج</span>{" "}
-                  <span className="text-sodium-400">TUNING</span>
-                </h2>
-              </div>
-              <div className="text-right">
-                <div className="grn-label text-[0.58rem]">Balance</div>
-                <div className="grn-display text-3xl italic text-sodium-400 [text-shadow:0_0_20px_rgba(245,165,36,0.5)]">
-                  {garage.kd} KD
-                </div>
-                <button
-                  onClick={() => setGarageOpen(false)}
-                  className="grn-btn mt-2 bg-white px-6 py-2 text-sm text-black hover:bg-white/85"
-                >
-                  DONE — <span className="grn-ar">يلا نطلع</span>
-                </button>
-              </div>
-            </div>
-            <p className="mt-3 max-w-2xl text-[0.82rem] leading-6 text-white/50">
-              Buy a car, then bolt parts to it. Both apply when you start the engine. Race for a
-              purse — you and the rival each stake the same money, winner takes it all. Tap an
-              equipped part to run stock in that slot.
-            </p>
-            <div className="grn-panel mt-4 inline-flex items-center gap-3 px-4 py-2">
-              <span className="grn-label text-[0.58rem]">In the driveway</span>
-              <span className="grn-display text-lg text-sodium-400">
-                {getCar(garage.car).name}
-              </span>
-            </div>
-            {/* Showroom — priced high to low */}
-            {(["supercar", "sport", "normal"] as CarClass[]).map((cls) => (
-              <div key={cls} className="mt-7">
-                <h3 className="grn-label border-b border-white/10 pb-2 text-[0.68rem]">
-                  {CLASS_LABELS[cls]}
-                </h3>
-                <div className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                  {CARS.filter((c) => c.cls === cls).map((c) => {
-                    const owned = garage.cars.includes(c.id);
-                    const driving = garage.car === c.id;
-                    const affordable = garage.kd >= c.price;
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => buyOrDrive(c.id)}
-                        disabled={!owned && !affordable}
-                        className={`grn-panel p-3.5 text-left transition ${
-                          driving
-                            ? "border-sodium-400/80 bg-sodium-500/10 shadow-[0_0_30px_-10px_rgba(245,165,36,0.7)]"
-                            : owned
-                              ? "border-emerald-400/45 hover:border-emerald-400/70"
-                              : affordable
-                                ? "hover:border-white/30 hover:bg-white/[0.09]"
-                                : "cursor-not-allowed opacity-40"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="grn-display text-lg leading-tight">{c.name}</div>
-                            <div className="grn-ar text-[0.78rem] text-white/55">{c.ar}</div>
-                          </div>
-                          <span
-                            className="mt-1 size-5 shrink-0 rounded-full border border-white/40"
-                            style={{ backgroundColor: `#${c.color.toString(16).padStart(6, "0")}` }}
-                          />
-                        </div>
-                        <div className="mt-2 text-[0.76rem] leading-5 text-white/55">{c.desc}</div>
-                        <div className="mt-2.5 grid grid-cols-3 gap-1 border-t border-white/10 pt-2 text-center">
-                          {(
-                            [
-                              ["PWR", c.power.toFixed(2) + "×"],
-                              ["GRIP", c.grip.toFixed(1)],
-                              ["BRK", String(c.brake)],
-                            ] as const
-                          ).map(([k, v]) => (
-                            <div key={k}>
-                              <div className="grn-label text-[0.5rem]">{k}</div>
-                              <div className="grn-display text-sm text-white/85">{v}</div>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="grn-label mt-2.5 text-[0.6rem]">
-                          {driving ? (
-                            <span className="text-sodium-400">Driving now ✓</span>
-                          ) : owned ? (
-                            <span className="text-emerald-300">Owned — tap to drive</span>
-                          ) : (
-                            <span
-                              className={`grn-display text-base tracking-normal ${
-                                affordable ? "text-gulf-300" : "text-white/40"
-                              }`}
-                            >
-                              {c.price.toLocaleString()} KD
-                            </span>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-
-            {Object.entries(CAT_LABELS).map(([cat, label]) => (
-              <div key={cat} className="mt-6">
-                <h3 className="grn-label border-b border-white/10 pb-2 text-[0.68rem]">{label}</h3>
-                <div className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                  {PARTS.filter((p) => p.cat === cat).map((p) => {
-                    const owned = garage.owned.includes(p.id);
-                    const equipped =
-                      EXCLUSIVE_CATS.has(p.cat) &&
-                      garage.equipped[p.cat as keyof GarageState["equipped"]] === p.id;
-                    const affordable = garage.kd >= p.price;
-                    return (
-                      <button
-                        key={p.id}
-                        onClick={() => buyOrEquip(p)}
-                        disabled={!owned && !affordable}
-                        className={`grn-panel p-3.5 text-left transition ${
-                          equipped
-                            ? "border-sodium-400/80 bg-sodium-500/10 shadow-[0_0_30px_-10px_rgba(245,165,36,0.7)]"
-                            : owned
-                              ? "border-emerald-400/45 hover:border-emerald-400/70"
-                              : affordable
-                                ? "hover:border-white/30 hover:bg-white/[0.09]"
-                                : "cursor-not-allowed opacity-40"
-                        }`}
-                      >
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className="grn-display text-lg leading-tight">{p.name}</span>
-                          <span className="grn-ar text-[0.8rem] text-white/60">{p.ar}</span>
-                        </div>
-                        {p.desc && (
-                          <div className="mt-1.5 text-[0.76rem] leading-5 text-white/55">
-                            {p.desc}
-                          </div>
-                        )}
-                        <div className="grn-label mt-2.5 text-[0.6rem]">
-                          {equipped ? (
-                            <span className="text-sodium-400">Equipped ✓</span>
-                          ) : owned ? (
-                            <span className="text-emerald-300">
-                              {EXCLUSIVE_CATS.has(p.cat) ? "Owned — tap to equip" : "Installed ✓"}
-                            </span>
-                          ) : (
-                            <span
-                              className={`grn-display text-base tracking-normal ${
-                                affordable ? "text-gulf-300" : "text-white/40"
-                              }`}
-                            >
-                              {p.price} KD
-                            </span>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <Garage
+          garage={garage}
+          onClose={() => setGarageOpen(false)}
+          onBuyCar={buyOrDrive}
+          onBuyPart={buyOrEquip}
+        />
       )}
 
       {/* Champion */}

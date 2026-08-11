@@ -556,6 +556,10 @@ export function createCar(colors: CarColors): THREE.Group {
   group.userData.wheels = wheels;
   group.userData.tailMat = tailMat;
   group.userData.headMat = headMat;
+  // The paint is per-car (glass/chrome/rims are shared modules), so the
+  // engine can feed the player's paint a live reflection probe without
+  // leaking it onto every car on the road.
+  group.userData.bodyMat = bodyMat;
 
   group.traverse((o) => {
     if (o instanceof THREE.Mesh) o.castShadow = !o.userData.noShadow;

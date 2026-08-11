@@ -300,6 +300,12 @@ export class GameEngine {
   private playerMesh: THREE.Group;
   private carBody: THREE.Group;
   private headlight: THREE.SpotLight;
+  // Live reflection probe: a low-res cube camera rides with the player so
+  // streetlights, towers and neon actually sweep across the paint.
+  private cubeRT!: THREE.WebGLCubeRenderTarget;
+  private cubeCam!: THREE.CubeCamera;
+  private cubeFrame = 0;
+  private liveReflections = true;
 
   private traffic: TrafficCar[] = [];
   private rival: Rival | null = null;
@@ -578,6 +584,28 @@ export class GameEngine {
     // (shadow far is governed by the light's distance, 90 m)
     this.headlight.shadow.bias = -0.002;
     this.headlight.shadow.normalBias = 0.03;
+
+    // Cool rim light riding behind the roofline — the body edge reads
+    // against dark asphalt instead of dissolving into it.
+    const rim = new THREE.PointLight(0x86a9ff, 4.5, 13, 1.8);
+    rim.position.set(0, 2.6, -4.4);
+    this.playerMesh.add(rim);
+
+    // The live paint probe. HalfFloat so HDR lamp emissives survive into
+    // the clearcoat as real hot streaks — with an LDR fallback where float
+    // render targets don't exist. No mip chain: physical materials read
+    // the cube through a PMREM conversion, which filters for itself.
+    const floatOk =
+      this.renderer.extensions.has("EXT_color_buffer_float") ||
+      this.renderer.extensions.has("EXT_color_buffer_half_float");
+    this.cubeRT = new THREE.WebGLCubeRenderTarget(128, {
+      generateMipmaps: false,
+      minFilter: THREE.LinearFilter,
+      type: floatOk ? THREE.HalfFloatType : THREE.UnsignedByteType,
+    });
+    this.cubeCam = new THREE.CubeCamera(0.5, 420, this.cubeRT);
+    this.scene.add(this.cubeCam);
+    this.applyLiveReflections();
     this.playerMesh.add(this.headlight, this.headlight.target);
 
     // Visible beam cones + a splash of light on the road ahead
@@ -709,6 +737,24 @@ export class GameEngine {
       this.autoQuality();
       const dt = Math.min(raw, 0.05);
       if (!this.paused) this.update(dt);
+      // Refresh the paint's reflection probe on a stride. Every face
+      // render would redraw the shadow maps too — freeze them for the
+      // probe (the main render's maps are reused), and re-convolve the
+      // PMREM cache afterwards or the paint keeps the first frame forever.
+      if (this.liveReflections && !this.paused && ++this.cubeFrame % 6 === 0) {
+        const shadowAuto = this.renderer.shadowMap.autoUpdate;
+        this.renderer.shadowMap.autoUpdate = false;
+        this.playerMesh.visible = false;
+        try {
+          this.cubeCam.position.copy(this.playerMesh.position);
+          this.cubeCam.position.y += 1.2;
+          this.cubeCam.update(this.renderer, this.scene);
+          this.cubeRT.texture.needsPMREMUpdate = true;
+        } finally {
+          this.playerMesh.visible = true;
+          this.renderer.shadowMap.autoUpdate = shadowAuto;
+        }
+      }
       // One pipeline for both quality modes keeps colour grading identical
       this.composer.render();
     };
@@ -765,6 +811,8 @@ export class GameEngine {
       this.world.moonLight.castShadow = false;
       this.headlight.castShadow = false;
       this.fxaaPass.enabled = false;
+      this.liveReflections = false;
+      this.applyLiveReflections();
       if (this.fpsEma < 18) {
         this.renderer.setPixelRatio(1);
         this.composer.setPixelRatio(1);
@@ -772,6 +820,32 @@ export class GameEngine {
       }
       this.events.onMessage("Performance mode", "Glow & shadows off — press G to toggle them back");
     }
+  }
+
+  /**
+   * Player-chosen quality tier from the settings screen. "auto" hands
+   * control back to the frame-rate governor; the explicit tiers lock it.
+   */
+  applyQualityTier(tier: "auto" | "high" | "balanced" | "battery"): void {
+    if (tier === "auto") {
+      this.qualityLocked = false;
+      this.startedAt = performance.now(); // give the governor a fresh window
+      return;
+    }
+    this.qualityLocked = true;
+    const high = tier === "high";
+    const balanced = tier === "balanced";
+    this.bloomPass.enabled = high || balanced;
+    this.world.moonLight.castShadow = high || balanced;
+    this.headlight.castShadow = high || balanced;
+    this.fxaaPass.enabled = high || balanced;
+    // The live paint probe is the most expensive single toy — high only
+    this.liveReflections = high;
+    this.applyLiveReflections();
+    const ratio = high ? Math.min(window.devicePixelRatio, 2) : balanced ? Math.min(window.devicePixelRatio, 1.5) : 1;
+    this.renderer.setPixelRatio(ratio);
+    this.composer.setPixelRatio(ratio);
+    this.resize();
   }
 
   /** After a defeat: refill SP and rematch the same rival. */
@@ -861,6 +935,7 @@ export class GameEngine {
     cancelAnimationFrame(this.raf);
     for (const t of this.challengeTimers) clearTimeout(t);
     this.challengeTimers = [];
+    this.cubeRT?.dispose();
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
     window.removeEventListener("blur", this.onBlur);
@@ -904,6 +979,8 @@ export class GameEngine {
       this.world.moonLight.castShadow = this.bloomPass.enabled;
       this.headlight.castShadow = this.bloomPass.enabled;
       this.fxaaPass.enabled = this.bloomPass.enabled;
+      this.liveReflections = this.bloomPass.enabled;
+      this.applyLiveReflections();
       this.events.onMessage(
         this.bloomPass.enabled ? "Glow & shadows on ✨" : "Glow & shadows off"
       );
@@ -1164,12 +1241,34 @@ export class GameEngine {
     this.applyGarage();
   }
 
+  /** Point the player's paint at the live probe (or back at the baked
+   *  environment when the probe is off for performance). */
+  private applyLiveReflections(): void {
+    const body = this.carBody.userData.bodyMat as THREE.MeshPhysicalMaterial | undefined;
+    if (!body) return;
+    if (this.liveReflections) {
+      body.envMap = this.cubeRT.texture;
+      // The live probe carries real HDR lamps — rein the gain back in
+      body.envMapIntensity = 1.35;
+    } else {
+      body.envMap = null; // falls back to scene.environment
+      body.envMapIntensity = 2.1;
+    }
+    body.needsUpdate = true;
+  }
+
   /** Rebuild the player car after a garage change (new model, paint, mods). */
   private applyGarage(): void {
     this.tune = computeEffects(loadGarage());
     const contact = this.carBody.userData.contact as THREE.Object3D | undefined;
     if (contact) this.playerMesh.remove(contact);
     this.playerMesh.remove(this.carBody);
+    // The old car is gone for good — release its per-car materials, or a
+    // player cycling paints leaks a shader program per visit. Geometries
+    // and module-shared materials stay (other cars still use them).
+    for (const key of ["bodyMat", "tailMat", "headMat"] as const) {
+      (this.carBody.userData[key] as THREE.Material | undefined)?.dispose();
+    }
     this.carBody = createCar({
       body: this.tune.paint,
       accent: 0x007a3d,
@@ -1178,6 +1277,7 @@ export class GameEngine {
       goldRims: this.tune.goldRims,
     });
     this.playerMesh.add(this.carBody);
+    this.applyLiveReflections();
     const newContact = this.carBody.userData.contact as THREE.Object3D | undefined;
     if (newContact) this.playerMesh.add(newContact);
     this.sound?.configureAspiration(

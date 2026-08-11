@@ -5,6 +5,15 @@
 export type ExclusiveCat = "aspiration" | "brakes" | "tires" | "paint" | "glow";
 export type Category = ExclusiveCat | "internals" | "extras";
 
+/** Slots where equipping one part unequips the previous one. */
+export const EXCLUSIVE_CATS: ReadonlySet<string> = new Set([
+  "aspiration",
+  "brakes",
+  "tires",
+  "paint",
+  "glow",
+]);
+
 export interface Part {
   id: string;
   cat: Category;
@@ -37,7 +46,7 @@ export const PARTS: Part[] = [
   { id: "spoiler", cat: "extras", name: "GT Wing", ar: "جناح", price: 300, desc: "Downforce: steadier at speed" },
   { id: "gold-rims", cat: "extras", name: "Gold Rims", ar: "رنجات ذهب", price: 600, desc: "Pure Salmiya energy" },
   // Paint — exclusive, equip freely once owned
-  { id: "paint-white", cat: "paint", name: "Pearl White", ar: "أبيض لؤلؤي", price: 0, desc: "Factory" },
+  { id: "paint-white", cat: "paint", name: "Factory Finish", ar: "لون الوكالة", price: 0, desc: "The colour it left the showroom in" },
   { id: "paint-black", cat: "paint", name: "Midnight Black", ar: "أسود", price: 150, desc: "" },
   { id: "paint-red", cat: "paint", name: "Falcon Red", ar: "أحمر", price: 150, desc: "" },
   { id: "paint-gold", cat: "paint", name: "Desert Gold", ar: "ذهبي", price: 250, desc: "" },

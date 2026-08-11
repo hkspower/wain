@@ -389,6 +389,32 @@ function lightPoolTexture(): THREE.CanvasTexture {
   return tex;
 }
 
+/** Long soft smear for the wet-asphalt reflection of a lamp head. */
+function lightStreakTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 32;
+  c.height = 128;
+  const ctx = c.getContext("2d")!;
+  // Hot near the lamp, trailing off along the road; soft lateral falloff.
+  // Canvas-bottom is the +Z (lamp-side) end of the rotated plane.
+  const along = ctx.createLinearGradient(0, 128, 0, 0);
+  along.addColorStop(0, "rgba(255,205,130,0.85)");
+  along.addColorStop(0.35, "rgba(255,175,90,0.35)");
+  along.addColorStop(1, "rgba(255,150,60,0)");
+  ctx.fillStyle = along;
+  ctx.fillRect(0, 0, 32, 128);
+  const across = ctx.createLinearGradient(0, 0, 32, 0);
+  across.addColorStop(0, "rgba(0,0,0,1)");
+  across.addColorStop(0.5, "rgba(0,0,0,0)");
+  across.addColorStop(1, "rgba(0,0,0,1)");
+  ctx.globalCompositeOperation = "destination-out";
+  ctx.fillStyle = across;
+  ctx.fillRect(0, 0, 32, 128);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function glowTexture(r: number, g: number, b: number): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = 128;
@@ -1214,11 +1240,51 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       m.makeTranslation(p.x, 0.045, p.z);
       pools.setMatrixAt(i, m);
     }
+    // Wet-look smears: each lamp drags a long reflection down the road
+    // surface — the single cheapest thing that sells night asphalt.
+    const streakGeo = new THREE.PlaneGeometry(1.4, 12);
+    streakGeo.rotateX(-Math.PI / 2); // lie on the road, length along Z
+    const streakMat = new THREE.MeshBasicMaterial({
+      map: lightStreakTexture(),
+      transparent: true,
+      opacity: 0.42,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+    });
+    const streaks = new THREE.InstancedMesh(streakGeo, streakMat, count);
+    const q = new THREE.Quaternion();
+    const zAxis = new THREE.Vector3(0, 0, 1);
+    const scl = new THREE.Vector3(1, 1, 1);
+    const tan = new THREE.Vector3();
+    for (let i = 0; i < count; i++) {
+      const s2 = i * spacing;
+      const u2 = s2 / L;
+      if (u2 > TUNNEL_U.from - 0.004 && u2 < TUNNEL_U.to + 0.004) {
+        streaks.setMatrixAt(i, hidden);
+        continue;
+      }
+      const sideSign = i % 2 === 0 ? 1 : -1;
+      // Inset from the kerb so a straight smear never crosses the rail
+      // when the road bends underneath it.
+      track.pose(s2, sideSign * (ROAD_HALF_WIDTH - 2.8), p, tmp);
+      track.tangentAt(s2, tan);
+      tan.y = 0;
+      tan.normalize();
+      q.setFromUnitVectors(zAxis, tan);
+      // The smear starts under the lamp and trails backwards down the road
+      p.y = 0.05;
+      p.addScaledVector(tan, -5);
+      m.compose(p, q, scl);
+      streaks.setMatrixAt(i, m);
+    }
+    streaks.instanceMatrix.needsUpdate = true;
+
     poles.instanceMatrix.needsUpdate = true;
     lamps.instanceMatrix.needsUpdate = true;
     pools.instanceMatrix.needsUpdate = true;
     poles.castShadow = true;
-    scene.add(poles, lamps, pools);
+    scene.add(poles, lamps, pools, streaks);
     // Sodium coronas around every lamp head
     scene.add(coronaPoints(lampPositions, 0xffb15c, 5.5));
   }
