@@ -72,12 +72,12 @@ const CARDS: Card[] = [
   },
   {
     kicker: "02 · BOOST",
-    title: "Boost and NOS",
-    ar: "التيربو والنيترو",
+    title: "Boost, NOS and drift",
+    ar: "التيربو والدرفت",
     body:
-      "Turbo spools on throttle — the boost bar fills, and the power comes with " +
-      "it. Fit a NOS kit in the garage and hold N (or the NOS pad) for a " +
-      "three-second shove. It recharges while you cruise.",
+      "Turbo spools on throttle and NOS (hold N) is a three-second shove. " +
+      "Hold DRIFT (Space) while turning to kick the tail out — hold the " +
+      "throttle through the slide, counter-steer to catch it. Style pays XP.",
     art: (
       <div className="w-full space-y-2">
         <div className="grn-meter h-3">

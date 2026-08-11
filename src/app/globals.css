@@ -469,6 +469,34 @@ html[data-large-hud="1"] .hud-scale {
   }
 }
 
+/* Pre-battle cinematic: letterbox bars slide in, the rival card lands a
+   beat later, the skip hint fades up last. */
+@keyframes cine-bar-in {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+.cine-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 11vh;
+  background: #000;
+  animation: cine-bar-in 480ms var(--ease-out) both;
+}
+.cine-bar-t { top: 0; transform-origin: top; }
+.cine-bar-b { bottom: 0; transform-origin: bottom; }
+
+@keyframes cine-card-in {
+  0% { opacity: 0; transform: translateX(-36px); }
+  100% { opacity: 1; transform: none; }
+}
+.cine-card {
+  animation: cine-card-in 560ms var(--ease-out) 350ms both;
+}
+.cine-skip {
+  animation: reveal-up 400ms var(--ease-out) 1200ms both;
+}
+
 /* Coach marks in onboarding pulse gently until they are used. */
 @keyframes coach-ring {
   0%, 100% { box-shadow: 0 0 0 0 rgba(255, 196, 92, 0.55); }

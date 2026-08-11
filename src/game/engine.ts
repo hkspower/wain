@@ -22,6 +22,9 @@ import { levelInfo, recordRace, recordLap, loadProfileStats, LevelInfo } from ".
 // the rival's bar to take their crown and move up the roster.
 
 const KMH = 3.6;
+const SMOKE_N = 110;
+/** Pre-battle cinematic length in real seconds (shots at 1.8 / 3.1). */
+const CINE_LEN = 4.2;
 const PLAYER_TOP_SPEED = 92; // m/s ≈ 331 km/h
 const FLASH_RANGE = 60;
 const SAVE_KEY = "gulf-road-nights-progress";
@@ -54,6 +57,8 @@ export interface HudData {
   boost: number | null;
   /** NOS charge 0..1, or null when no kit is fitted. */
   nos: number | null;
+  /** Live drift readout — non-null while sliding (and briefly after). */
+  drift: { deg: number; score: number; active: boolean } | null;
 }
 
 export interface DriverCard {
@@ -124,6 +129,8 @@ export interface EngineEvents {
   onChallengeResult?(accepted: boolean, reason: string): void;
   /** A race ended — drives the full results sequence. */
   onResult?(r: RaceResult): void;
+  /** Pre-battle cinematic begins/ends — drives the letterbox + rival card. */
+  onCinematic?(active: boolean, rival: DriverCard): void;
 }
 
 interface RemotePlayer {
@@ -284,7 +291,7 @@ export class GameEngine {
 
   private keys = new Set<string>();
   /** On-screen (touch) controls, merged with the keyboard. */
-  private touch = { throttle: 0, brake: 0, steer: 0 };
+  private touch = { throttle: 0, brake: 0, steer: 0, drift: false };
   private events: EngineEvents;
 
   // Player — spawns just past the start-line gantry
@@ -309,7 +316,20 @@ export class GameEngine {
   /** KD staked on the current race (each side puts it up). */
   private wager = 0;
   /** Per-battle telemetry, reset at the green light, read at the finish. */
-  private bstat = { startAt: 0, dist: 0, topSpeed: 0, contacts: 0, maxLead: 0 };
+  private bstat = { startAt: 0, dist: 0, topSpeed: 0, contacts: 0, maxLead: 0, driftScore: 0 };
+
+  // Drift: the handbrake breaks the rear loose. driftYaw is how far the
+  // body points past the direction of travel; the velocity heading is
+  // dragged after it, which is what actually carries the car around.
+  private driftYaw = 0;
+  /** Style points for the current, still-unbanked slide. */
+  private driftRun = 0;
+  /** Seconds the readout lingers after the slide ends. */
+  private driftFlash = 0;
+
+  // Pre-battle rival cinematic: wall-clock start for the camera timeline,
+  // world in slow motion underneath. Null when not playing.
+  private cine: { start: number; r: Rival } | null = null;
 
   // Online cruise
   private remotes = new Map<number, RemotePlayer>();
@@ -351,6 +371,11 @@ export class GameEngine {
 
   // Scrape/bump sparks
   private sparks: THREE.Points;
+  // Drift tire smoke (ring buffer; see constructor)
+  private smoke!: THREE.Points;
+  private smokeLife = new Float32Array(SMOKE_N);
+  private smokeVel = new Float32Array(SMOKE_N * 3);
+  private smokeHead = 0;
   private sparkVel = new Float32Array(60 * 3);
   private sparkLife = 0;
 
@@ -466,6 +491,39 @@ export class GameEngine {
       this.sparks.visible = false;
       this.sparks.frustumCulled = false;
       this.scene.add(this.sparks);
+    }
+
+    {
+      // Tire smoke — a small ring buffer of points fed while drifting.
+      // Dead particles park far underground instead of per-point alpha.
+      // A radial sprite keeps the puffs soft; bare points draw as squares.
+      const cv = document.createElement("canvas");
+      cv.width = cv.height = 64;
+      const cx = cv.getContext("2d")!;
+      const grad = cx.createRadialGradient(32, 32, 3, 32, 32, 30);
+      grad.addColorStop(0, "rgba(255,255,255,0.7)");
+      grad.addColorStop(0.55, "rgba(255,255,255,0.28)");
+      grad.addColorStop(1, "rgba(255,255,255,0)");
+      cx.fillStyle = grad;
+      cx.fillRect(0, 0, 64, 64);
+      const geo = new THREE.BufferGeometry();
+      const pos = new Float32Array(SMOKE_N * 3);
+      pos.fill(-9999);
+      geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      this.smoke = new THREE.Points(
+        geo,
+        new THREE.PointsMaterial({
+          color: 0x878d96,
+          size: 1.6,
+          map: new THREE.CanvasTexture(cv),
+          transparent: true,
+          opacity: 0.3,
+          depthWrite: false,
+        })
+      );
+      this.smoke.visible = false;
+      this.smoke.frustumCulled = false;
+      this.scene.add(this.smoke);
     }
 
     // Wind streaks — motion lines that fade in past ~220 km/h
@@ -813,6 +871,10 @@ export class GameEngine {
     const k = e.key.toLowerCase();
     if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) e.preventDefault();
     this.keys.add(k);
+    if (this.cine && (k === "enter" || k === " ") && !e.repeat) {
+      this.skipCinematic();
+      return;
+    }
     if (k === "f") this.tryFlash();
     if (k === "m" && !e.repeat && this.sound) {
       const muted = this.sound.toggleMute();
@@ -850,26 +912,31 @@ export class GameEngine {
    *  sticks and the horn drones forever. */
   private onBlur = () => {
     this.keys.clear();
-    this.touch = { throttle: 0, brake: 0, steer: 0 };
+    this.touch = { throttle: 0, brake: 0, steer: 0, drift: false };
     this.sound?.hornOff();
   };
 
   private get throttle(): number {
-    if (this.locked) return 0;
+    if (this.locked || this.cine) return 0;
     const key = this.keys.has("arrowup") || this.keys.has("w") ? 1 : 0;
     return Math.max(key, this.touch.throttle);
   }
   private get brake(): number {
-    if (this.locked) return 0;
+    if (this.locked || this.cine) return 0;
     const key = this.keys.has("arrowdown") || this.keys.has("s") ? 1 : 0;
     return Math.max(key, this.touch.brake);
   }
   private get steer(): number {
-    if (this.locked) return 0;
+    if (this.locked || this.cine) return 0;
     let s = 0;
     if (this.keys.has("arrowleft") || this.keys.has("a")) s -= 1;
     if (this.keys.has("arrowright") || this.keys.has("d")) s += 1;
     return THREE.MathUtils.clamp(s + this.touch.steer, -1, 1);
+  }
+
+  private get handbrake(): boolean {
+    if (this.locked || this.cine) return false;
+    return this.keys.has(" ") || this.touch.drift;
   }
 
   // ---------------------------------------------------------- touch API
@@ -886,6 +953,10 @@ export class GameEngine {
   touchFlash(): void {
     this.sound?.resume();
     this.tryFlash();
+  }
+  touchDrift(on: boolean): void {
+    this.touch.drift = on;
+    this.sound?.resume();
   }
   touchNos(on: boolean): void {
     if (on) this.keys.add("n");
@@ -942,7 +1013,8 @@ export class GameEngine {
    *  challenge — the TXR ritual: reveal, size each other up, answer. */
   private tryFlash(): void {
     const r = this.rival;
-    if (!r || this.inBattle || this.locked || this.challengePending || r.state !== "cruise") return;
+    if (!r || this.inBattle || this.locked || this.challengePending || this.cine) return;
+    if (r.state !== "cruise") return;
     const gap = this.track.deltaAhead(this.player.s, r.s);
     if (gap < 2 || gap > FLASH_RANGE) return;
 
@@ -1045,7 +1117,7 @@ export class GameEngine {
             true,
             this.wager > 0 ? `Stakes: ${this.wager} KD each` : "Pride only"
           );
-          this.startBattle(rv);
+          this.beginBattleCinematic(rv);
         } else {
           this.wager = 0;
           this.events.onChallengeResult?.(
@@ -1098,15 +1170,57 @@ export class GameEngine {
     );
   }
 
-  private startBattle(r: Rival): void {
+  /**
+   * The short pre-battle film: slow-motion orbit of the rival's machine,
+   * a side pass of yours, then the camera falls back into the chase and
+   * the fight is on. Skippable; reduced motion goes straight to battle.
+   */
+  private beginBattleCinematic(r: Rival): void {
+    const reduced =
+      typeof document !== "undefined" &&
+      (document.documentElement.dataset.reducedMotion === "1" ||
+        (typeof matchMedia !== "undefined" &&
+          matchMedia("(prefers-reduced-motion: reduce)").matches));
+    if (reduced || !this.events.onCinematic) {
+      this.startBattle(r);
+      return;
+    }
+    this.cine = { start: performance.now(), r };
+    // The intro line plays over the film instead of after it
+    this.voice.speak(r.def.lines.intro, r.def.voice, `${r.def.id}-intro`);
+    this.events.onCinematic(true, this.rivalCard(r.def));
+  }
+
+  /** UI callback: the player tapped through the intro film. */
+  skipCinematic(): void {
+    if (this.cine) this.endCinematic();
+  }
+
+  private endCinematic(): void {
+    const r = this.cine?.r ?? null;
+    this.cine = null;
+    // Snap the chase camera home instead of lerping across the map
+    this.camInit = false;
+    if (r) {
+      this.events.onCinematic?.(false, this.rivalCard(r.def));
+      this.startBattle(r, true);
+    }
+  }
+
+  private startBattle(r: Rival, fromCine = false): void {
     this.inBattle = true;
     r.state = "battle";
     this.player.sp = 100;
     r.sp = 100;
-    this.bstat = { startAt: performance.now(), dist: 0, topSpeed: 0, contacts: 0, maxLead: 0 };
-    this.voice.speak(r.def.lines.intro, r.def.voice, `${r.def.id}-intro`);
-    if (this.events.onBattleStart) this.events.onBattleStart(r.def);
-    else this.events.onMessage(`⚡ BATTLE — ${r.def.name} ${r.def.arabicName}`, `"${r.def.taunt}"`);
+    this.bstat = { startAt: performance.now(), dist: 0, topSpeed: 0, contacts: 0, maxLead: 0, driftScore: 0 };
+    if (fromCine) {
+      // The film already introduced them — just drop the green flag.
+      this.events.onMessage("⚡ GO — يلا!", `"${r.def.taunt}"`);
+    } else {
+      this.voice.speak(r.def.lines.intro, r.def.voice, `${r.def.id}-intro`);
+      if (this.events.onBattleStart) this.events.onBattleStart(r.def);
+      else this.events.onMessage(`⚡ BATTLE — ${r.def.name} ${r.def.arabicName}`, `"${r.def.taunt}"`);
+    }
   }
 
   /** The rival flashes back — the reveal. */
@@ -1143,6 +1257,9 @@ export class GameEngine {
     money: { purse: number; kd: number; balance: number },
     champion: boolean
   ): RaceResult {
+    // A slide still in progress at the flag counts too
+    this.bstat.driftScore += this.driftRun;
+    this.driftRun = 0;
     const clean = this.bstat.contacts === 0;
     const durationMs = Math.max(0, performance.now() - this.bstat.startAt);
     const topSpeedKmh = Math.round(this.bstat.topSpeed);
@@ -1157,6 +1274,11 @@ export class GameEngine {
       if (clean) xpBreakdown.push({ label: "Clean run — no contact", value: 75 });
       if (this.bstat.maxLead >= 60) xpBreakdown.push({ label: "Dominant lead", value: 60 });
       if (topSpeedKmh >= 280) xpBreakdown.push({ label: `Top speed ${topSpeedKmh} km/h`, value: 40 });
+      if (this.bstat.driftScore >= 250)
+        xpBreakdown.push({
+          label: `Drift style ${Math.round(this.bstat.driftScore)}`,
+          value: Math.min(120, Math.round(this.bstat.driftScore / 25)),
+        });
       if (money.purse > 0) xpBreakdown.push({ label: "Stakes race", value: 50 });
       if (champion) xpBreakdown.push({ label: "King of Gulf Road", value: 500 });
     } else {
@@ -1355,6 +1477,13 @@ export class GameEngine {
   // ---------------------------------------------------------------- update
 
   private update(dt: number): void {
+    // Pre-battle cinematic: the camera runs on wall time (so the film is
+    // always CINE_LEN seconds, whatever the frame rate) while the world
+    // underneath drops into slow motion.
+    if (this.cine) {
+      if ((performance.now() - this.cine.start) / 1000 >= CINE_LEN) this.endCinematic();
+      else dt *= 0.22;
+    }
     this.bumpCooldown = Math.max(0, this.bumpCooldown - dt);
     this.scrapeCooldown = Math.max(0, this.scrapeCooldown - dt);
 
@@ -1363,7 +1492,7 @@ export class GameEngine {
     this.updateRival(dt);
     this.updateRemotes(dt);
     if (this.inBattle) this.updateBattle(dt);
-    this.music?.setMood(this.inBattle || this.duel ? "battle" : "cruise");
+    this.music?.setMood(this.inBattle || this.duel || this.cine ? "battle" : "cruise");
     this.updateCamera(dt);
     this.updateStreaks();
     this.updateAudio();
@@ -1394,8 +1523,11 @@ export class GameEngine {
     const power =
       this.tune.accelMult * (1 + this.boost * this.tune.boostMult);
     const ceiling = 115 + this.tune.topSpeedBonus;
+    // Sideways tires can't put all the power down — a slide trades a
+    // little speed for the angle, so gripping is always the faster line.
+    const driveGrip = 1 - Math.min(0.55, Math.abs(this.driftYaw) * 1.1);
     const accel =
-      this.throttle * Math.max(0, 19 * power * (1 - p.speed / ceiling)) +
+      this.throttle * Math.max(0, 19 * power * (1 - p.speed / ceiling)) * driveGrip +
       (this.nosActive ? 14 : 0);
     const braking = this.brake * this.tune.brakeForce;
     const drag = 0.0012 * p.speed * p.speed + 1.2;
@@ -1412,6 +1544,53 @@ export class GameEngine {
     }
     this.heading = THREE.MathUtils.clamp(this.heading, -0.45, 0.45);
 
+    // --- Drift. The handbrake breaks the rear tires loose: the body
+    // rotates well past the direction of travel (driftYaw) while the
+    // velocity heading is dragged behind it, so the car goes through the
+    // corner sideways. Throttle sustains the slide, counter-steer (or
+    // just releasing everything) brings the grip back.
+    if (this.handbrake && p.speed > 14) {
+      const steerDir =
+        Math.abs(this.steerSmooth) > 0.12
+          ? Math.sign(this.steerSmooth)
+          : Math.sign(this.driftYaw); // no wheel input: hold the current slide
+      if (steerDir !== 0) {
+        const angleCap = 0.38 + 0.28 * Math.min(1, p.speed / 55);
+        const target =
+          steerDir * angleCap * Math.min(1, Math.abs(this.steerSmooth) + 0.45);
+        this.driftYaw += (target - this.driftYaw) * Math.min(1, dt * 3.4);
+      }
+      // Sideways tires scrub speed; keeping the throttle in feeds it back
+      p.speed *= 1 - (0.05 + Math.abs(this.driftYaw) * 0.24) * (1 - this.throttle * 0.55) * dt;
+    } else if (this.driftYaw !== 0) {
+      // Grip returns. Counter-steering straightens faster and smoother; a
+      // big angle dropped without correction snaps back with a jolt.
+      const counter =
+        Math.sign(this.steerSmooth) === -Math.sign(this.driftYaw)
+          ? Math.abs(this.steerSmooth)
+          : 0;
+      const prev = this.driftYaw;
+      this.driftYaw -= this.driftYaw * Math.min(1, dt * (2.3 + counter * 3.2));
+      if (Math.abs(prev) > 0.3 && Math.abs(this.driftYaw) <= 0.3 && counter < 0.2) {
+        this.shake = Math.max(this.shake, 0.18);
+      }
+      if (Math.abs(this.driftYaw) < 0.005) this.driftYaw = 0;
+    }
+    this.driftYaw = THREE.MathUtils.clamp(this.driftYaw, -0.75, 0.75);
+
+    // Style points: angle × speed, banked when the slide ends cleanly.
+    const driftDeg = (Math.abs(this.driftYaw) * 180) / Math.PI;
+    if (driftDeg > 8 && p.speed > 12) {
+      this.driftRun += driftDeg * (p.speed * KMH / 100) * 3.2 * dt;
+      this.driftFlash = 1.2;
+    } else if (this.driftFlash > 0) {
+      this.driftFlash -= dt;
+      if (this.driftFlash <= 0 && this.driftRun > 0) {
+        if (this.inBattle) this.bstat.driftScore += this.driftRun;
+        this.driftRun = 0;
+      }
+    }
+
     // --- Centrifugal push: sweepers shove the car toward the outside,
     // demanding counter-steer at speed.
     this.track.tangentAt(p.s, this.v1);
@@ -1426,13 +1605,19 @@ export class GameEngine {
     this.slipVel += (pushAccel - this.slipVel * 2.5) * dt;
     this.curvature = curvature;
 
-    p.lat += (Math.sin(this.heading) * p.speed + this.slipVel) * dt;
+    // Sideways tires translate less of the heading into lateral travel —
+    // the body hangs out while the trajectory stays controllable.
+    const driftScrub = 1 - 0.5 * Math.min(1, Math.abs(this.driftYaw) / 0.5);
+    p.lat += (Math.sin(this.heading) * p.speed * driftScrub + this.slipVel) * dt;
 
     const maxLat = ROAD_HALF_WIDTH - 1.1;
     if (Math.abs(p.lat) > maxLat) {
       p.lat = THREE.MathUtils.clamp(p.lat, -maxLat, maxLat);
       this.heading *= 0.15;
       this.slipVel *= 0.2;
+      // The wall ends the slide — and takes the unbanked style points
+      this.driftYaw *= 0.25;
+      this.driftRun = 0;
       p.speed *= 1 - 0.9 * dt;
       if (this.scrapeCooldown <= 0) {
         this.scrapeCooldown = 0.5;
@@ -1468,15 +1653,14 @@ export class GameEngine {
     this.playerMesh.lookAt(this.v4);
     // Body language: nose follows the heading, weight transfer pitches
     // under braking/throttle, body rolls in the turn
-    this.carBody.rotation.y = -this.heading * 0.85;
-    this.carBody.rotation.z = this.heading * 0.06;
+    this.carBody.rotation.y = -(this.heading * 0.85 + this.driftYaw);
+    this.carBody.rotation.z = this.heading * 0.06 + this.driftYaw * 0.1;
     const pitchTarget = this.brake * 0.035 * Math.min(1, p.speed / 20) - this.throttle * 0.014;
     this.pitch += (pitchTarget - this.pitch) * Math.min(1, dt * 6);
     this.carBody.rotation.x = this.pitch;
     spinWheels(this.carBody, p.speed, dt, -this.steerSmooth * 0.3);
-    (this.carBody.userData.tailMat as THREE.MeshStandardMaterial).emissiveIntensity = this.brake
-      ? 7
-      : 2;
+    (this.carBody.userData.tailMat as THREE.MeshStandardMaterial).emissiveIntensity =
+      this.brake || this.handbrake ? 7 : 2;
 
     // Traffic collisions
     if (this.bumpCooldown <= 0) {
@@ -1485,6 +1669,8 @@ export class GameEngine {
         if (Math.abs(ds) < 4.2 && Math.abs(t.lat - p.lat) < 2.0) {
           this.bumpCooldown = 1;
           p.speed = Math.min(p.speed * 0.55, t.speed * 0.9);
+          this.driftYaw *= 0.25;
+          this.driftRun = 0;
           // Knock the player out of the hitbox, or the cooldown re-bumps
           // forever and glues them to the traffic car's tail.
           if (ds >= 0) p.s = this.track.wrap(t.s - 4.5);
@@ -1632,6 +1818,10 @@ export class GameEngine {
   }
 
   private updateCamera(dt: number): void {
+    if (this.cine) {
+      this.updateCineCamera();
+      return;
+    }
     const p = this.player;
     this.track.pose(p.s, p.lat, this.v1, this.v2);
     this.track.tangentAt(p.s, this.v3);
@@ -1668,7 +1858,8 @@ export class GameEngine {
     // Lateral-G camera roll
     const rollTarget =
       THREE.MathUtils.clamp(this.heading * (p.speed / PLAYER_TOP_SPEED), -0.5, 0.5) * 0.14 +
-      THREE.MathUtils.clamp(this.slipVel * 0.012, -0.03, 0.03);
+      THREE.MathUtils.clamp(this.slipVel * 0.012, -0.03, 0.03) +
+      this.driftYaw * 0.1;
     this.camRoll += (rollTarget - this.camRoll) * Math.min(1, dt * 4);
     this.camera.rotateZ(this.camRoll + Math.sin(t * 23.7) * this.shake * 0.02);
 
@@ -1678,6 +1869,77 @@ export class GameEngine {
     this.fovCurrent += (targetFov - this.fovCurrent) * Math.min(1, dt * 3);
     this.camera.fov = this.fovCurrent;
     this.camera.updateProjectionMatrix();
+  }
+
+  /**
+   * Three shots on the real-time clock:
+   *   A 0.0–1.8s  orbit of the rival, rear quarter sweeping to the nose
+   *   B 1.8–3.1s  low side pass of the player's own machine
+   *   C 3.1–4.2s  pull back and settle into the chase camera
+   */
+  private updateCineCamera(): void {
+    const c = this.cine!;
+    const t = (performance.now() - c.start) / 1000;
+    const p = this.player;
+
+    const ease = (x: number) => 1 - Math.pow(1 - THREE.MathUtils.clamp(x, 0, 1), 2);
+
+    if (t < 1.8) {
+      const k = ease(t / 1.8);
+      this.track.pose(c.r.s, c.r.lat, this.v1, this.v2); // v1 = rival
+      this.track.tangentAt(c.r.s, this.v3);
+      const a = 2.55 - 1.35 * k; // rear-quarter → front-side sweep
+      const radius = 6.2 - 1.2 * k;
+      const sx = -this.v3.z;
+      const sz = this.v3.x;
+      this.camera.position.set(
+        this.v1.x + (this.v3.x * Math.cos(a) + sx * Math.sin(a)) * radius,
+        this.v1.y + 1.5 - 0.7 * k,
+        this.v1.z + (this.v3.z * Math.cos(a) + sz * Math.sin(a)) * radius
+      );
+      this.v4.set(this.v1.x, this.v1.y + 0.6, this.v1.z);
+      this.camera.lookAt(this.v4);
+    } else if (t < 3.1) {
+      const k = ease((t - 1.8) / 1.3);
+      this.track.pose(p.s, p.lat, this.v1, this.v2); // v1 = player
+      this.track.tangentAt(p.s, this.v3);
+      const sx = -this.v3.z;
+      const sz = this.v3.x;
+      const along = 2.2 - 2.8 * k; // slides from ahead of the door to behind it
+      this.camera.position.set(
+        this.v1.x + sx * 4.6 + this.v3.x * along,
+        this.v1.y + 1.05,
+        this.v1.z + sz * 4.6 + this.v3.z * along
+      );
+      this.v4.set(this.v1.x, this.v1.y + 0.55, this.v1.z);
+      this.camera.lookAt(this.v4);
+    } else {
+      const k = ease((t - 3.1) / (CINE_LEN - 3.1));
+      this.track.pose(p.s, p.lat, this.v1, this.v2);
+      this.track.tangentAt(p.s, this.v3);
+      const sx = -this.v3.z;
+      const sz = this.v3.x;
+      // From the side-rear up into the standard chase position
+      const dist = 9.5 + p.speed * 0.02;
+      const chaseY = this.v1.y + 3.4 + p.speed * 0.007;
+      this.camera.position.set(
+        this.v1.x + THREE.MathUtils.lerp(sx * 4.2 - this.v3.x * 2.5, -this.v3.x * dist, k),
+        THREE.MathUtils.lerp(this.v1.y + 1.1, chaseY, k),
+        this.v1.z + THREE.MathUtils.lerp(sz * 4.2 - this.v3.z * 2.5, -this.v3.z * dist, k)
+      );
+      this.v4.set(
+        this.v1.x + this.v3.x * (k * 14),
+        this.v1.y + THREE.MathUtils.lerp(0.55, 1.4, k),
+        this.v1.z + this.v3.z * (k * 14)
+      );
+      this.camera.lookAt(this.v4);
+    }
+    // The film is framed at the lens's resting focal length
+    if (this.fovCurrent !== 58) {
+      this.fovCurrent += (58 - this.fovCurrent) * 0.1;
+      this.camera.fov = this.fovCurrent;
+      this.camera.updateProjectionMatrix();
+    }
   }
 
   // ------------------------------------------------------------ streaks
@@ -1764,6 +2026,64 @@ export class GameEngine {
     } else {
       this.sparks.visible = false;
     }
+
+    // --- Tire smoke while drifting: pour from both rear arches, rise,
+    // spread downwind of the slide, die in about a second.
+    const drifting =
+      Math.abs(this.driftYaw) > 0.14 && this.player.speed > 12 && !this.cine;
+    if (drifting) {
+      this.track.tangentAt(this.player.s, this.v3);
+      const px = this.playerMesh.position.x;
+      const pz = this.playerMesh.position.z;
+      // Rear axle sits behind the car centre; ± the side vector per wheel
+      const bx = px - this.v3.x * 1.6;
+      const bz = pz - this.v3.z * 1.6;
+      const sx = -this.v3.z;
+      const sz = this.v3.x;
+      const spawn = Math.abs(this.driftYaw) > 0.4 ? 3 : 2;
+      const posAttr = this.smoke.geometry.getAttribute("position") as THREE.BufferAttribute;
+      for (let n = 0; n < spawn; n++) {
+        const i = this.smokeHead;
+        this.smokeHead = (this.smokeHead + 1) % SMOKE_N;
+        const side = n % 2 === 0 ? 0.85 : -0.85;
+        posAttr.setXYZ(
+          i,
+          bx + sx * side + (Math.random() - 0.5) * 0.3,
+          0.32,
+          bz + sz * side + (Math.random() - 0.5) * 0.3
+        );
+        // Drifts up and toward the outside of the slide
+        const out = Math.sign(this.driftYaw);
+        this.smokeVel[i * 3] = sx * out * (1.2 + Math.random()) + (Math.random() - 0.5);
+        this.smokeVel[i * 3 + 1] = 1.4 + Math.random() * 1.6;
+        this.smokeVel[i * 3 + 2] = sz * out * (1.2 + Math.random()) + (Math.random() - 0.5);
+        this.smokeLife[i] = 0.8 + Math.random() * 0.4;
+      }
+    }
+    let anySmoke = false;
+    {
+      const posAttr = this.smoke.geometry.getAttribute("position") as THREE.BufferAttribute;
+      for (let i = 0; i < SMOKE_N; i++) {
+        if (this.smokeLife[i] <= 0) continue;
+        this.smokeLife[i] -= dt;
+        if (this.smokeLife[i] <= 0) {
+          posAttr.setY(i, -9999);
+        } else {
+          anySmoke = true;
+          posAttr.setXYZ(
+            i,
+            posAttr.getX(i) + this.smokeVel[i * 3] * dt,
+            posAttr.getY(i) + this.smokeVel[i * 3 + 1] * dt,
+            posAttr.getZ(i) + this.smokeVel[i * 3 + 2] * dt
+          );
+          // Smoke decelerates as it billows out
+          this.smokeVel[i * 3] *= 1 - 1.6 * dt;
+          this.smokeVel[i * 3 + 2] *= 1 - 1.6 * dt;
+        }
+      }
+      if (anySmoke || this.smoke.visible) posAttr.needsUpdate = true;
+      this.smoke.visible = anySmoke;
+    }
   }
 
   /** Burst of sparks at the car — wall scrapes and traffic shunts. */
@@ -1794,7 +2114,10 @@ export class GameEngine {
     // Tires complain when the heading fights the lane at speed
     const skid = Math.max(
       0,
-      Math.abs(this.heading) * (speedKmh / 140) + Math.abs(this.slipVel) * 0.12 - 0.22
+      Math.abs(this.heading) * (speedKmh / 140) +
+        Math.abs(this.slipVel) * 0.12 +
+        Math.abs(this.driftYaw) * (speedKmh / 95) -
+        0.22
     );
     this.sound.update({
       speedKmh,
@@ -1859,6 +2182,9 @@ export class GameEngine {
       slipVel: this.slipVel,
       shake: this.shake,
       streakOpacity: (this.streaks.material as THREE.LineBasicMaterial).opacity,
+      driftYaw: this.driftYaw,
+      driftRun: this.driftRun,
+      cine: this.cine ? (performance.now() - this.cine.start) / 1000 : null,
       sound: this.sound?.debugState() ?? null,
     };
 
@@ -1914,6 +2240,14 @@ export class GameEngine {
       map,
       boost: this.tune.boostMult > 0 ? this.boost : null,
       nos: this.tune.hasNos ? this.nosCharge : null,
+      drift:
+        this.driftFlash > 0 || Math.abs(this.driftYaw) > 0.06
+          ? {
+              deg: Math.round((Math.abs(this.driftYaw) * 180) / Math.PI),
+              score: Math.round(this.driftRun),
+              active: Math.abs(this.driftYaw) > 0.14,
+            }
+          : null,
     });
   }
 }

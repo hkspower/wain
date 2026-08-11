@@ -102,6 +102,8 @@ export default function RaceClient() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [result, setResult] = useState<RaceResult | null>(null);
+  const [cine, setCine] = useState<DriverCard | null>(null);
+  const driftRef = useRef<HTMLDivElement>(null);
   const [onboarding, setOnboarding] = useState(false);
   const [coach, setCoach] = useState<CoachState | null>(null);
   const coachRef = useRef<CoachState | null>(null);
@@ -247,6 +249,23 @@ export default function RaceClient() {
         flashRef.current.textContent = `FLASH 3× TO CHALLENGE ⚡ ${dots}`;
       }
 
+      // Drift readout: angle while sliding, banked score lingering after
+      if (driftRef.current) {
+        if (d.drift) {
+          driftRef.current.style.opacity = "1";
+          driftRef.current.textContent = d.drift.active
+            ? `DRIFT ${d.drift.deg}° ${"|".repeat(Math.min(14, 1 + (d.drift.score / 60) | 0))}`
+            : `DRIFT +${d.drift.score}`;
+          driftRef.current.style.color = d.drift.active
+            ? d.drift.deg > 26
+              ? "#ffc45c"
+              : "#7fe3ff"
+            : "#a7f3d0";
+        } else {
+          driftRef.current.style.opacity = "0";
+        }
+      }
+
       // Nearest online driver — the PvP challenge target
       nearbyRef.current = d.nearestRemote;
       setNearby((prev) => {
@@ -364,7 +383,11 @@ export default function RaceClient() {
           setBeaten(readBeaten()); // engine has already saved by now
           setResult(r);
         },
-        onChallengeResult: (accepted, reason) => {
+        onCinematic: (active, rival) => {
+        setCine(active ? rival : null);
+        if (active) setChallenge(null); // the film replaces the setup card
+      },
+      onChallengeResult: (accepted, reason) => {
           setChallenge((c) => (c ? { ...c, answer: { accepted, reason } } : c));
           if (accepted) setGarage(loadGarage());
           if (challengeTimer.current) clearTimeout(challengeTimer.current);
@@ -462,6 +485,21 @@ export default function RaceClient() {
     return () => clearInterval(id);
   }, [phase]);
 
+  // The touch pads unmount whenever an overlay covers them, which eats
+  // their pointerup events — release every input or a held Gas/Drift pad
+  // stays latched through the overlay and beyond.
+  const padsVisible =
+    isTouch && phase === "playing" && !challenge && !garageOpen && !result && !onboarding && !cine;
+  useEffect(() => {
+    if (padsVisible) return;
+    const e = engineRef.current;
+    if (!e) return;
+    e.setTouchInput({ throttle: 0, brake: 0, steer: 0 });
+    e.touchDrift(false);
+    e.touchNos(false);
+    e.touchHorn(false);
+  }, [padsVisible]);
+
   // The garage is a full-screen overlay: freeze the race behind it, and
   // rebuild the car with whatever was bought on the way out.
   useEffect(() => {
@@ -517,7 +555,7 @@ export default function RaceClient() {
       {/* HUD */}
       <div
         className={`pointer-events-none absolute inset-0 transition-opacity ${
-          phase === "playing" ? "opacity-100" : "opacity-0"
+          phase === "playing" && !cine ? "opacity-100" : "opacity-0"
         }`}
       >
         {/* Area + progress */}
@@ -601,6 +639,14 @@ export default function RaceClient() {
           </div>
         </div>
 
+        {/* Drift angle + style counter */}
+        <div className="pointer-events-none absolute left-1/2 top-[66%] -translate-x-1/2">
+          <div
+            ref={driftRef}
+            className="grn-display text-xl italic tracking-[0.14em] opacity-0 transition-opacity duration-300 [text-shadow:0_0_18px_rgba(56,201,238,0.5),0_2px_10px_rgba(0,0,0,0.9)]"
+          />
+        </div>
+
         {/* First-run coaching, in-world */}
         {phase === "playing" && !result && <CoachHint state={coach} />}
 
@@ -667,7 +713,7 @@ export default function RaceClient() {
             isTouch ? "hidden" : ""
           }`}
         >
-          W/↑ accelerate · S/↓ brake · A D steer · N nitro · H horn
+          W/↑ accelerate · S/↓ brake · A D steer · Space drift · N nitro
           <br />F flash headlights · M mute · B music · V voices · G glow fx
         </div>
       </div>
@@ -951,7 +997,7 @@ export default function RaceClient() {
       )}
 
       {/* On-screen controls (touch devices) */}
-      {isTouch && phase === "playing" && !challenge && !garageOpen && !result && !onboarding && (
+      {padsVisible && (
         <div className="absolute inset-x-0 bottom-0 z-[5] select-none px-[calc(env(safe-area-inset-left)+1rem)] pb-[calc(env(safe-area-inset-bottom)+1rem)]">
           <div className="flex items-end justify-between gap-4">
             <div className="flex gap-3">
@@ -998,6 +1044,17 @@ export default function RaceClient() {
             </div>
 
             <div className="flex gap-3">
+              <button
+                onPointerDown={(e) => {
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                  engineRef.current?.touchDrift(true);
+                }}
+                onPointerUp={() => engineRef.current?.touchDrift(false)}
+                onPointerCancel={() => engineRef.current?.touchDrift(false)}
+                className="tap grn-panel grn-label grid size-[4.5rem] place-items-center text-[0.6rem] text-sodium-400 active:bg-sodium-500/25"
+              >
+                Drift
+              </button>
               <button
                 onPointerDown={(e) => {
                   e.currentTarget.setPointerCapture(e.pointerId);
@@ -1543,6 +1600,44 @@ export default function RaceClient() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Pre-battle rival cinematic: letterbox + card, tap to skip */}
+      {cine && (
+        <button
+          onClick={() => engineRef.current?.skipCinematic()}
+          className="absolute inset-0 z-[25] block w-full cursor-default text-left"
+          aria-label="Skip intro"
+        >
+          <div className="cine-bar cine-bar-t" />
+          <div className="cine-bar cine-bar-b" />
+          {/* Rival card rides the lower bar */}
+          <div className="cine-card absolute bottom-[calc(11vh+env(safe-area-inset-bottom))] left-[calc(env(safe-area-inset-left)+1.25rem)]">
+            <div className="grn-label text-[0.58rem] text-sodium-400">
+              Challenger · تحدي
+            </div>
+            <div className="grn-display mt-0.5 text-[clamp(1.6rem,6vw,2.6rem)] italic leading-none text-white [text-shadow:0_2px_18px_rgba(0,0,0,0.9)]">
+              {cine.name}{" "}
+              <span className="grn-ar not-italic text-white/70">{cine.arabicName}</span>
+            </div>
+            <div className="mt-1 flex items-center gap-2 text-[0.75rem] text-white/70">
+              <span
+                className="inline-block size-3 rounded-sm border border-white/25"
+                style={{ background: `#${cine.color.toString(16).padStart(6, "0")}` }}
+              />
+              <span>{cine.car}</span>
+              <span className="text-white/35">·</span>
+              <span>{cine.crew}</span>
+              <span className="text-white/35">·</span>
+              <span>
+                LV {cine.level} {cine.flag}
+              </span>
+            </div>
+          </div>
+          <div className="grn-label cine-skip absolute bottom-[calc(3vh+env(safe-area-inset-bottom))] right-[calc(env(safe-area-inset-right)+1.25rem)] text-[0.55rem] text-white/50">
+            tap to skip ▸▸
+          </div>
+        </button>
       )}
 
       {/* Loading — the engine build takes a beat on a phone */}
