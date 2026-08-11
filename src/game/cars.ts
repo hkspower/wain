@@ -123,15 +123,28 @@ function roundedBox(w: number, h: number, d: number, r = 0.035, seg = 2): THREE.
   return geo;
 }
 
-/** Extrude a side profile (x = length, y = height) across the car's width. */
+/**
+ * Extrude a side profile (x = length, y = height) across the car's width.
+ *
+ * Sheet metal is never a polyline: the whole top run — nose, hood,
+ * roofline, tail — is threaded through a Catmull-Rom spline so the
+ * silhouette is one continuous curve, while the rocker line along the
+ * bottom stays dead straight. `bottomPoints` is how many trailing points
+ * belong to that straight underbody run.
+ */
 function extrudeProfile(
   points: Array<[number, number]>,
   width: number,
-  bevel: number
+  bevel: number,
+  bottomPoints = 2
 ): THREE.BufferGeometry {
   const shape = new THREE.Shape();
-  shape.moveTo(points[0][0], points[0][1]);
-  for (let i = 1; i < points.length; i++) shape.lineTo(points[i][0], points[i][1]);
+  const top = points.slice(0, points.length - bottomPoints);
+  shape.moveTo(top[0][0], top[0][1]);
+  shape.splineThru(top.slice(1).map(([x, y]) => new THREE.Vector2(x, y)));
+  for (let i = points.length - bottomPoints; i < points.length; i++) {
+    shape.lineTo(points[i][0], points[i][1]);
+  }
   shape.closePath();
   let geo: THREE.BufferGeometry = new THREE.ExtrudeGeometry(shape, {
     depth: width - bevel * 2,
@@ -139,7 +152,9 @@ function extrudeProfile(
     bevelThickness: bevel,
     bevelSize: bevel,
     bevelSegments: 5,
-    curveSegments: 10,
+    // The spline spans the whole body top, so it needs real sampling
+    // density or the curve degenerates back into a polyline.
+    curveSegments: 28,
   });
   geo.translate(0, 0, -(width - bevel * 2) / 2);
   geo = mergeVertices(geo, 1e-3);
@@ -177,7 +192,8 @@ const canopyGeo = extrudeProfile(
     [-1.5, 0.94],
   ],
   1.6,
-  0.1
+  0.1,
+  0
 );
 
 // Painted roof panel over the glass
@@ -189,7 +205,8 @@ const roofGeo = extrudeProfile(
     [-0.76, 1.42],
   ],
   1.42,
-  0.06
+  0.06,
+  0
 );
 
 // ---- Z32-style wedge: long flat nose, cab-back glasshouse, fastback
@@ -219,7 +236,8 @@ const zxCanopyGeo = extrudeProfile(
     [-2.0, 0.78], // fastback all the way down
   ],
   1.64,
-  0.1
+  0.1,
+  0
 );
 const zxRoofGeo = extrudeProfile(
   [
@@ -229,7 +247,8 @@ const zxRoofGeo = extrudeProfile(
     [-0.9, 1.2],
   ],
   1.46,
-  0.05
+  0.05,
+  0
 );
 
 // ---- R34-style coupe: short deck up high, upright glasshouse, thick
@@ -259,7 +278,8 @@ const gtrCanopyGeo = extrudeProfile(
     [-1.32, 0.99],
   ],
   1.68,
-  0.1
+  0.1,
+  0
 );
 const gtrRoofGeo = extrudeProfile(
   [
@@ -269,7 +289,8 @@ const gtrRoofGeo = extrudeProfile(
     [-0.64, 1.44],
   ],
   1.48,
-  0.06
+  0.06,
+  0
 );
 
 /** Per-silhouette anchor points so every detail lands on its body. */
@@ -290,17 +311,17 @@ interface StyleDims {
 }
 const STYLE_DIMS: Record<BodyStyle, StyleDims> = {
   sedan: {
-    nose: 2.25, tail: -2.26, noseTopY: 0.7, grilleY: 0.52, beltY: 0.94,
+    nose: 2.37, tail: -2.38, noseTopY: 0.7, grilleY: 0.52, beltY: 0.94,
     hoodY: 0.98, tailY: 0.78, deckY: 0.96, mirror: [1.0, 1.04, 0.82],
     dashY: 1.0, wiperZ: 0.93, bPillar: [0.77, 1.14, -0.2], creaseY: 0.72,
   },
   zx: {
-    nose: 2.4, tail: -2.31, noseTopY: 0.56, grilleY: 0.42, beltY: 0.85,
+    nose: 2.5, tail: -2.44, noseTopY: 0.56, grilleY: 0.42, beltY: 0.85,
     hoodY: 0.82, tailY: 0.66, deckY: 0.79, mirror: [1.02, 0.92, 0.4],
     dashY: 0.9, wiperZ: 0.5, bPillar: [0.8, 1.02, -0.75], creaseY: 0.6,
   },
   gtr: {
-    nose: 2.34, tail: -2.27, noseTopY: 0.76, grilleY: 0.5, beltY: 0.99,
+    nose: 2.46, tail: -2.4, noseTopY: 0.76, grilleY: 0.5, beltY: 0.99,
     hoodY: 1.0, tailY: 0.84, deckY: 0.98, mirror: [1.03, 1.08, 0.85],
     dashY: 1.02, wiperZ: 0.95, bPillar: [0.79, 1.16, -0.16], creaseY: 0.76,
   },
