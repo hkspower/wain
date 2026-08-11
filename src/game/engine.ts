@@ -562,6 +562,7 @@ export class GameEngine {
     this.carBody = createCar({
       body: this.tune.paint,
       accent: 0x007a3d,
+      style: this.tune.bodyStyle,
       underglow: this.tune.glow ?? undefined,
       spoiler: this.tune.spoiler,
       goldRims: this.tune.goldRims,
@@ -1081,6 +1082,7 @@ export class GameEngine {
     const mesh = createCar({
       body: def.bodyColor,
       accent: def.accentColor,
+      style: def.bodyStyle,
       underglow: def.accentColor,
     });
     this.scene.add(mesh);
@@ -1272,6 +1274,7 @@ export class GameEngine {
     this.carBody = createCar({
       body: this.tune.paint,
       accent: 0x007a3d,
+      style: this.tune.bodyStyle,
       underglow: this.tune.glow ?? undefined,
       spoiler: this.tune.spoiler,
       goldRims: this.tune.goldRims,

@@ -15,6 +15,8 @@ export interface RivalDef {
   rejectLine?: string;
   /** The machine they bring to the line. */
   car?: string;
+  /** Body silhouette for their car mesh (cars.ts). */
+  bodyStyle?: "sedan" | "zx" | "gtr";
   bodyColor: number;
   accentColor: number;
   topSpeedKmh: number;
@@ -70,6 +72,7 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "al-daboos",
+    bodyStyle: "zx",
     car: "Gulf Coupe RS",
     country: "Kuwait",
     flag: "🇰🇼",
@@ -91,6 +94,7 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "bu-machboos",
+    bodyStyle: "gtr",
     car: "Desert Storm S8",
     country: "Kuwait",
     flag: "🇰🇼",
@@ -112,6 +116,7 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "al-saqer",
+    bodyStyle: "zx",
     car: "Falcon 720 Veloce",
     country: "Kuwait",
     flag: "🇰🇼",
@@ -133,6 +138,7 @@ export const RIVALS: RivalDef[] = [
   },
   {
     id: "shabah-alkhaleej",
+    bodyStyle: "gtr",
     car: "Sahara GT-12",
     country: "???",
     flag: "🏴",

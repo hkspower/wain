@@ -82,6 +82,8 @@ export interface CarModel {
   ar: string;
   cls: CarClass;
   price: number;
+  /** Body silhouette (cars.ts): sedan, zx wedge, or gtr coupe. */
+  style?: "sedan" | "zx" | "gtr";
   /** Base handling before garage mods. */
   power: number; // accel multiplier
   topSpeed: number; // ceiling bonus (km/h-ish units)
@@ -98,6 +100,7 @@ export const CARS: CarModel[] = [
     name: "Sahara GT-12",
     ar: "صحارى",
     cls: "supercar",
+    style: "zx",
     price: 96000,
     power: 1.62,
     topSpeed: 26,
@@ -111,6 +114,7 @@ export const CARS: CarModel[] = [
     name: "Falcon 720 Veloce",
     ar: "الصقر ٧٢٠",
     cls: "supercar",
+    style: "zx",
     price: 71000,
     power: 1.5,
     topSpeed: 21,
@@ -131,6 +135,34 @@ export const CARS: CarModel[] = [
     brake: 38,
     color: 0x1f2933,
     desc: "All-wheel-drive missile. Launches like a catapult.",
+  },
+  {
+    id: "kaiju-r",
+    name: "Kaiju R",
+    ar: "كايجو",
+    cls: "sport",
+    style: "gtr",
+    price: 38000,
+    power: 1.34,
+    topSpeed: 15,
+    grip: 16.2, // AWD monster — nothing in the class sticks like it
+    brake: 38,
+    color: 0x3f66c4, // that blue
+    desc: "Four round tails, boxed arches, a wing from the factory. The monster of the corniche.",
+  },
+  {
+    id: "zeta-300",
+    name: "Zeta 300",
+    ar: "زيتا ٣٠٠",
+    cls: "sport",
+    style: "zx",
+    price: 27000,
+    power: 1.26,
+    topSpeed: 12,
+    grip: 13.9,
+    brake: 34,
+    color: 0xc1272d, // golden-era JDM red
+    desc: "Twin-turbo wedge from the golden era — one light bar, no grille, all nose.",
   },
   {
     id: "gulf-coupe-rs",
@@ -304,6 +336,7 @@ export interface TuneEffects {
   exhaustLevel: number; // 0..1 sound character
   paint: number;
   glow: number | null;
+  bodyStyle: "sedan" | "zx" | "gtr";
 }
 
 export function computeEffects(g: GarageState): TuneEffects {
@@ -341,6 +374,7 @@ export function computeEffects(g: GarageState): TuneEffects {
   return {
     carId: car.id,
     carName: car.name,
+    bodyStyle: car.style ?? "sedan",
     accelMult,
     topSpeedBonus,
     brakeForce,

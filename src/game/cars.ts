@@ -8,9 +8,15 @@ import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 //
 // group.userData: { wheels: Group[4] (fl, fr, rl, rr), tailMat }
 
+/** Silhouette family. "zx" is the long-nose fastback wedge of a Z32
+ *  300ZX; "gtr" is the boxy, high-decked muscle of an R34 Skyline. */
+export type BodyStyle = "sedan" | "zx" | "gtr";
+
 export interface CarColors {
   body: number;
   accent?: number;
+  /** Body silhouette; default is the original sedan. */
+  style?: BodyStyle;
   /** Neon underglow colour — TXR rival style. */
   underglow?: number;
   /** Skip the fine detailing (seams, trim, interior) — used for traffic. */
@@ -54,7 +60,7 @@ function underglowTexture(): THREE.CanvasTexture {
 // Soft dark blob under every car — grounds it on the asphalt even where
 // the moon shadow falls subtle. Geometry/material shared across all cars
 // (created per car they'd leak on rival rematches and remote re-styles).
-const contactGeo = new THREE.PlaneGeometry(2.6, 5.2);
+const contactGeo = new THREE.PlaneGeometry(2.9, 5.8);
 let contactMatShared: THREE.MeshBasicMaterial | null = null;
 function contactMat(): THREE.MeshBasicMaterial {
   if (!contactMatShared) {
@@ -132,8 +138,8 @@ function extrudeProfile(
     bevelEnabled: true,
     bevelThickness: bevel,
     bevelSize: bevel,
-    bevelSegments: 3,
-    curveSegments: 6,
+    bevelSegments: 5,
+    curveSegments: 10,
   });
   geo.translate(0, 0, -(width - bevel * 2) / 2);
   geo = mergeVertices(geo, 1e-3);
@@ -185,6 +191,120 @@ const roofGeo = extrudeProfile(
   1.42,
   0.06
 );
+
+// ---- Z32-style wedge: long flat nose, cab-back glasshouse, fastback
+// tail. The whole car sits lower and the glass flows almost to the tail.
+const zxBodyGeo = extrudeProfile(
+  [
+    [2.36, 0.3],
+    [2.42, 0.54], // slim, flush nose — no upright grille face
+    [2.3, 0.64],
+    [1.0, 0.78], // the long hood
+    [0.2, 0.87],
+    [-1.6, 0.86], // rear haunch
+    [-2.26, 0.76], // kicked tail
+    [-2.34, 0.48],
+    [-2.26, 0.28],
+    [-1.9, 0.2],
+    [1.95, 0.2],
+  ],
+  1.92,
+  0.15
+);
+const zxCanopyGeo = extrudeProfile(
+  [
+    [0.48, 0.84],
+    [-0.12, 1.24], // peak just over the driver
+    [-0.95, 1.19],
+    [-2.0, 0.78], // fastback all the way down
+  ],
+  1.64,
+  0.1
+);
+const zxRoofGeo = extrudeProfile(
+  [
+    [-0.16, 1.24],
+    [-0.24, 1.29],
+    [-0.82, 1.25],
+    [-0.9, 1.2],
+  ],
+  1.46,
+  0.05
+);
+
+// ---- R34-style coupe: short deck up high, upright glasshouse, thick
+// haunches. The silhouette is a brick with intent.
+const gtrBodyGeo = extrudeProfile(
+  [
+    [2.28, 0.3],
+    [2.36, 0.68], // deep bumper face
+    [2.18, 0.82],
+    [1.1, 0.94], // short power-bulge hood
+    [0.45, 1.0],
+    [-1.3, 1.0], // dead-flat beltline
+    [-2.1, 0.97], // the high R34 trunk deck
+    [-2.28, 0.66],
+    [-2.2, 0.32],
+    [-1.88, 0.22],
+    [1.88, 0.22],
+  ],
+  1.96,
+  0.13
+);
+const gtrCanopyGeo = extrudeProfile(
+  [
+    [1.0, 0.97],
+    [0.34, 1.42],
+    [-0.66, 1.44],
+    [-1.32, 0.99],
+  ],
+  1.68,
+  0.1
+);
+const gtrRoofGeo = extrudeProfile(
+  [
+    [0.3, 1.43],
+    [0.2, 1.49],
+    [-0.56, 1.5],
+    [-0.64, 1.44],
+  ],
+  1.48,
+  0.06
+);
+
+/** Per-silhouette anchor points so every detail lands on its body. */
+interface StyleDims {
+  nose: number;
+  tail: number;
+  noseTopY: number; // headlight centre height
+  grilleY: number;
+  beltY: number; // chrome beltline
+  hoodY: number; // hood surface (shut lines, wipers)
+  tailY: number; // tail light centre height
+  deckY: number; // trunk deck (wing base)
+  mirror: [number, number, number];
+  dashY: number;
+  wiperZ: number;
+  bPillar: [number, number, number];
+  creaseY: number;
+}
+const STYLE_DIMS: Record<BodyStyle, StyleDims> = {
+  sedan: {
+    nose: 2.25, tail: -2.26, noseTopY: 0.7, grilleY: 0.52, beltY: 0.94,
+    hoodY: 0.98, tailY: 0.78, deckY: 0.96, mirror: [1.0, 1.04, 0.82],
+    dashY: 1.0, wiperZ: 0.93, bPillar: [0.77, 1.14, -0.2], creaseY: 0.72,
+  },
+  zx: {
+    nose: 2.4, tail: -2.31, noseTopY: 0.56, grilleY: 0.42, beltY: 0.85,
+    hoodY: 0.82, tailY: 0.66, deckY: 0.79, mirror: [1.02, 0.92, 0.4],
+    dashY: 0.9, wiperZ: 0.5, bPillar: [0.8, 1.02, -0.75], creaseY: 0.6,
+  },
+  gtr: {
+    nose: 2.34, tail: -2.27, noseTopY: 0.76, grilleY: 0.5, beltY: 0.99,
+    hoodY: 1.0, tailY: 0.84, deckY: 0.98, mirror: [1.03, 1.08, 0.85],
+    dashY: 1.02, wiperZ: 0.95, bPillar: [0.79, 1.16, -0.16], creaseY: 0.76,
+  },
+};
 
 const tireGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.26, 22);
 tireGeo.rotateZ(Math.PI / 2);
@@ -294,6 +414,8 @@ function buildWheel(gold = false): THREE.Group {
 
 export function createCar(colors: CarColors): THREE.Group {
   const group = new THREE.Group();
+  const style: BodyStyle = colors.style ?? "sedan";
+  const d = STYLE_DIMS[style];
 
   // Automotive paint is two layers: a metallic basecoat with flake, and a
   // hard clearcoat over it. The clearcoat is what throws the sharp
@@ -307,11 +429,17 @@ export function createCar(colors: CarColors): THREE.Group {
     envMapIntensity: 2.1,
   });
 
-  group.add(new THREE.Mesh(bodyGeo, bodyMat));
-  group.add(new THREE.Mesh(canopyGeo, glassMat));
-  group.add(new THREE.Mesh(roofGeo, bodyMat));
+  const [bGeo, cGeo, rGeo] =
+    style === "zx"
+      ? [zxBodyGeo, zxCanopyGeo, zxRoofGeo]
+      : style === "gtr"
+        ? [gtrBodyGeo, gtrCanopyGeo, gtrRoofGeo]
+        : [bodyGeo, canopyGeo, roofGeo];
+  group.add(new THREE.Mesh(bGeo, bodyMat));
+  group.add(new THREE.Mesh(cGeo, glassMat));
+  group.add(new THREE.Mesh(rGeo, bodyMat));
 
-  if (colors.accent !== undefined) {
+  if (colors.accent !== undefined && style === "sedan") {
     const stripe = new THREE.Mesh(
       roundedBox(0.46, 0.03, 4.3, 0.012),
       new THREE.MeshStandardMaterial({ color: colors.accent, roughness: 0.35 })
@@ -323,56 +451,117 @@ export function createCar(colors: CarColors): THREE.Group {
   // Lights: lens strips front and rear. The head material is cloned per
   // car so a single rival can flash back without lighting up traffic.
   const headMat = headlightMat.clone();
-  for (const sx of [-0.62, 0.62]) {
-    const head = new THREE.Mesh(roundedBox(0.52, 0.13, 0.07, 0.02), headMat);
-    head.position.set(sx, 0.7, 2.24);
-    group.add(head);
+  if (style === "zx") {
+    // Z32 signature: one flush light bar across the whole nose
+    const bar = new THREE.Mesh(roundedBox(1.56, 0.1, 0.07, 0.03), headMat);
+    bar.position.set(0, d.noseTopY + 0.03, d.nose - 0.08);
+    bar.rotation.x = -0.09; // gently raked, flush with the hood line
+    group.add(bar);
+  } else {
+    for (const sx of [-0.62, 0.62]) {
+      const head = new THREE.Mesh(roundedBox(0.52, 0.13, 0.07, 0.02), headMat);
+      head.position.set(sx, d.noseTopY, d.nose - 0.01);
+      group.add(head);
+    }
+    if (style === "gtr") {
+      // Inner projector eyes beside the main lamps
+      for (const sx of [-0.3, 0.3]) {
+        const eye = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.04, 12), headMat);
+        eye.rotation.x = Math.PI / 2;
+        eye.position.set(sx, d.noseTopY, d.nose - 0.005);
+        group.add(eye);
+      }
+    }
   }
   const tailMat = new THREE.MeshStandardMaterial({
     color: 0x550000,
     emissive: 0xff2222,
     emissiveIntensity: 2.0,
   });
-  const tail = new THREE.Mesh(roundedBox(1.7, 0.1, 0.06, 0.018), tailMat);
-  tail.position.set(0, 0.78, -2.26);
-  group.add(tail);
+  if (style === "gtr") {
+    // The R34 calling card: four round afterburners
+    for (const sx of [-0.72, -0.44, 0.44, 0.72]) {
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.05, 14), tailMat);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(sx, d.tailY, d.tail - 0.02);
+      group.add(ring);
+    }
+    // Dark tail garnish panel they sit in
+    const garnish = new THREE.Mesh(roundedBox(1.72, 0.3, 0.05, 0.02), grilleMat);
+    garnish.position.set(0, d.tailY, d.tail - 0.005);
+    group.add(garnish);
+  } else if (style === "zx") {
+    // Full-width single tail band under the fastback glass
+    const band = new THREE.Mesh(roundedBox(1.78, 0.13, 0.06, 0.025), tailMat);
+    band.position.set(0, d.tailY, d.tail - 0.02);
+    group.add(band);
+  } else {
+    const tail = new THREE.Mesh(roundedBox(1.7, 0.1, 0.06, 0.018), tailMat);
+    tail.position.set(0, d.tailY, d.tail);
+    group.add(tail);
+  }
 
-  // Grille, chrome trim, plates, exhausts
-  const grille = new THREE.Mesh(roundedBox(1.05, 0.17, 0.07, 0.02), grilleMat);
-  grille.position.set(0, 0.52, 2.25);
-  group.add(grille);
-  const trim = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.025, 0.08), chromeMat);
-  trim.position.set(0, 0.61, 2.25);
-  group.add(trim);
-  for (const z of [2.27, -2.29]) {
+  // Grille, chrome trim, plates, exhausts — all hung off the style dims
+  if (style !== "zx") {
+    // The Z32 nose is famously grille-less; the others get one
+    const grille = new THREE.Mesh(roundedBox(1.05, 0.17, 0.07, 0.02), grilleMat);
+    grille.position.set(0, d.grilleY, d.nose);
+    group.add(grille);
+    const trim = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.025, 0.08), chromeMat);
+    trim.position.set(0, d.grilleY + 0.09, d.nose);
+    group.add(trim);
+  } else {
+    // Just a thin cooling slot low in the bumper
+    const slot = new THREE.Mesh(roundedBox(1.3, 0.07, 0.06, 0.02), grilleMat);
+    slot.position.set(0, d.grilleY, d.nose - 0.02);
+    group.add(slot);
+  }
+  for (const z of [d.nose + 0.02, d.tail - 0.03]) {
     const plate = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.13, 0.02), plateMat());
     plate.position.set(0, 0.38, z);
     group.add(plate);
   }
-  for (const sx of [-0.45, 0.45]) {
-    const pipe = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.05, 0.055, 0.18, 10),
-      grilleMat
-    );
-    pipe.rotation.x = Math.PI / 2;
-    pipe.position.set(sx, 0.27, -2.25);
-    group.add(pipe);
+  if (style === "gtr") {
+    // Big single bore each side — the R34 exhausts announce themselves
+    for (const sx of [-0.55, 0.55]) {
+      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, 0.22, 12), chromeMat);
+      pipe.rotation.x = Math.PI / 2;
+      pipe.position.set(sx, 0.26, d.tail + 0.02);
+      group.add(pipe);
+    }
+  } else if (style === "zx") {
+    // Twin round tips together on the left, Z-style
+    for (const sx of [-0.55, -0.36]) {
+      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 0.2, 10), chromeMat);
+      pipe.rotation.x = Math.PI / 2;
+      pipe.position.set(sx, 0.25, d.tail + 0.02);
+      group.add(pipe);
+    }
+  } else {
+    for (const sx of [-0.45, 0.45]) {
+      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.055, 0.18, 10), grilleMat);
+      pipe.rotation.x = Math.PI / 2;
+      pipe.position.set(sx, 0.27, d.tail + 0.01);
+      group.add(pipe);
+    }
   }
 
   // Side mirrors
-  for (const sx of [-1.0, 1.0]) {
+  for (const sxSign of [-1, 1]) {
     const mirror = new THREE.Mesh(roundedBox(0.16, 0.1, 0.2, 0.035), bodyMat);
-    mirror.position.set(sx, 1.04, 0.82);
+    mirror.position.set(sxSign * d.mirror[0], d.mirror[1], d.mirror[2]);
     group.add(mirror);
   }
 
   // Wheels with arches; fronts steer, all spin (engine drives userData.wheels)
   const wheels: THREE.Group[] = [];
+  const wzF = style === "zx" ? 1.52 : style === "gtr" ? 1.45 : 1.42;
+  const wzR = style === "zx" ? -1.48 : style === "gtr" ? -1.45 : -1.42;
   for (const [wx, wz] of [
-    [-0.84, 1.42],
-    [0.84, 1.42],
-    [-0.84, -1.42],
-    [0.84, -1.42],
+    [-0.84, wzF],
+    [0.84, wzF],
+    [-0.84, wzR],
+    [0.84, wzR],
   ]) {
     const wheel = buildWheel(colors.goldRims);
     wheel.position.set(wx, 0.36, wz);
@@ -414,14 +603,14 @@ export function createCar(colors: CarColors): THREE.Group {
       // Character line — the crease that runs the flank of every modern
       // car and catches a long highlight as the world slides past
       const crease = new THREE.Mesh(roundedBox(0.035, 0.05, 3.1, 0.016), bodyMat);
-      crease.position.set(sx * 1.005, 0.72, -0.1);
+      crease.position.set(sx * 1.005, d.creaseY, -0.1);
       group.add(crease);
       const belt = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.02, 2.7), chromeMat);
-      belt.position.set(sx, 0.94, -0.15);
+      belt.position.set(sx, d.beltY, -0.15);
       group.add(belt);
       for (const hz of [0.28, -1.02]) {
         const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.035, 0.14), chromeMat);
-        handle.position.set(sx, 0.8, hz);
+        handle.position.set(sx, d.creaseY + 0.08, hz);
         group.add(handle);
       }
       const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 2.7), seamMat);
@@ -431,63 +620,96 @@ export function createCar(colors: CarColors): THREE.Group {
 
     // Hood and trunk shut lines across the top surfaces
     const hoodGap = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.012, 0.016), gapMat);
-    hoodGap.position.set(0, 0.99, 1.06);
+    hoodGap.position.set(0, d.hoodY + 0.01, style === "zx" ? 0.65 : 1.06);
     group.add(hoodGap);
     const trunkGap = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.012, 0.016), gapMat);
-    trunkGap.position.set(0, 0.965, -1.42);
+    trunkGap.position.set(0, d.deckY + 0.005, -1.42);
     group.add(trunkGap);
     for (const sx of [-0.86, 0.86]) {
       const hoodSide = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.012, 1.0), gapMat);
-      hoodSide.position.set(sx, 0.98, 1.55);
+      hoodSide.position.set(sx, d.hoodY, style === "zx" ? 1.2 : 1.55);
       group.add(hoodSide);
     }
 
-    // Front splitter, rear diffuser fins, shark-fin antenna, grille badge
+    if (style === "gtr") {
+      // Power bulge and the NACA-ish vents either side of it
+      const bulge = new THREE.Mesh(roundedBox(0.72, 0.06, 1.0, 0.03), bodyMat);
+      bulge.position.set(0, d.hoodY, 1.55);
+      group.add(bulge);
+      for (const sx of [-0.55, 0.55]) {
+        const vent = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.015, 0.4), gapMat);
+        vent.position.set(sx, d.hoodY + 0.005, 1.5);
+        group.add(vent);
+      }
+      // Boxed fender flares over all four arches
+      for (const [fx, fz] of [
+        [-0.96, wzF],
+        [0.96, wzF],
+        [-0.96, wzR],
+        [0.96, wzR],
+      ]) {
+        const flare = new THREE.Mesh(roundedBox(0.09, 0.1, 1.02, 0.035), bodyMat);
+        flare.position.set(fx, 0.68, fz);
+        group.add(flare);
+      }
+    }
+    if (style === "zx") {
+      // Cooling slats let into the long hood
+      for (const sx of [-0.5, 0.5]) {
+        const slat = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.014, 0.5), gapMat);
+        slat.position.set(sx, d.hoodY + 0.005, 1.45);
+        group.add(slat);
+      }
+    }
+
+    // Front splitter, rear diffuser fins, antenna, grille badge
     const splitter = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.05, 0.3), seamMat);
-    splitter.position.set(0, 0.22, 2.26);
+    splitter.position.set(0, 0.2, d.nose + 0.01);
     group.add(splitter);
-    for (const fx of [-0.45, 0, 0.45]) {
+    for (const fx of style === "gtr" ? [-0.6, -0.2, 0.2, 0.6] : [-0.45, 0, 0.45]) {
       const fin = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.11, 0.28), seamMat);
-      fin.position.set(fx, 0.23, -2.24);
+      fin.position.set(fx, 0.21, d.tail + 0.02);
       group.add(fin);
     }
-    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.11, 0.24), bodyMat);
-    fin.position.set(0, 1.5, -0.72);
-    fin.rotation.x = -0.25;
-    group.add(fin);
+    if (style === "sedan") {
+      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.11, 0.24), bodyMat);
+      fin.position.set(0, 1.5, -0.72);
+      fin.rotation.x = -0.25;
+      group.add(fin);
+    }
     const badge = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.02, 12), chromeMat);
     badge.rotation.x = Math.PI / 2;
-    badge.position.set(0, 0.7, 2.26);
+    badge.position.set(0, d.noseTopY, d.nose + 0.01);
     group.add(badge);
 
     // Indicators + reverse lights
     for (const sx of [-0.86, 0.86]) {
       const ind = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.08, 0.05), indicatorMat);
-      ind.position.set(sx, 0.58, 2.22);
+      ind.position.set(sx, d.grilleY + 0.06, d.nose - 0.03);
       group.add(ind);
     }
     for (const sx of [-0.55, 0.55]) {
       const rev = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.06, 0.04), reverseMat);
-      rev.position.set(sx, 0.66, -2.25);
+      rev.position.set(sx, d.tailY - 0.14, d.tail + 0.01);
       group.add(rev);
     }
 
     // Interior silhouettes behind the glass: dashboard + headrests
     const dash = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.13, 0.34), interiorMat);
-    dash.position.set(0, 1.0, 0.5);
+    dash.position.set(0, d.dashY, style === "zx" ? 0.15 : 0.5);
     group.add(dash);
     for (const sx of [-0.38, 0.38]) {
       const headrest = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.22, 0.12), interiorMat);
-      headrest.position.set(sx, 1.14, -0.05);
+      headrest.position.set(sx, d.dashY + 0.14, style === "zx" ? -0.45 : -0.05);
       group.add(headrest);
     }
 
     // Brake calipers peeking through the spokes
     for (const [wx, wz] of [
-      [-0.84, 1.42],
-      [0.84, 1.42],
-      [-0.84, -1.42],
-      [0.84, -1.42],
+      [-0.84, wzF],
+      [0.84, wzF],
+      [-0.84, wzR],
+      [0.84, wzR],
     ]) {
       const caliper = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.17, 0.11), caliperMat);
       caliper.position.set(wx * 0.93, 0.42, wz + 0.11);
@@ -495,9 +717,9 @@ export function createCar(colors: CarColors): THREE.Group {
     }
 
     // B-pillars split the side glass into door windows
-    for (const sx of [-0.77, 0.77]) {
+    for (const sxSign of [-1, 1]) {
       const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.44, 0.07), bodyMat);
-      pillar.position.set(sx, 1.14, -0.2);
+      pillar.position.set(sxSign * d.bPillar[0], d.bPillar[1], d.bPillar[2]);
       group.add(pillar);
     }
 
@@ -507,27 +729,30 @@ export function createCar(colors: CarColors): THREE.Group {
       [0.28, 0.18],
     ]) {
       const wiper = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.014, 0.025), seamMat);
-      wiper.position.set(wxp, 0.98, 0.93);
+      wiper.position.set(wxp, d.hoodY, d.wiperZ);
       wiper.rotation.x = -0.66;
       wiper.rotation.z = rz;
       group.add(wiper);
     }
 
     // Lower intake + fog lights complete the front fascia
-    const intake = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.13, 0.06), grilleMat);
-    intake.position.set(0, 0.36, 2.26);
+    const intake = new THREE.Mesh(
+      new THREE.BoxGeometry(style === "gtr" ? 1.5 : 1.3, style === "gtr" ? 0.2 : 0.13, 0.06),
+      grilleMat
+    );
+    intake.position.set(0, style === "gtr" ? 0.4 : 0.34, d.nose + 0.01);
     group.add(intake);
     for (const sx of [-0.66, 0.66]) {
       const fog = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 10), reverseMat);
       fog.rotation.x = Math.PI / 2;
-      fog.position.set(sx, 0.38, 2.26);
+      fog.position.set(sx, 0.36, d.nose + 0.01);
       group.add(fog);
     }
 
     // Mirror glass + a muffler box feeding the exhaust tips
-    for (const sx of [-1.0, 1.0]) {
+    for (const sxSign of [-1, 1]) {
       const mGlass = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.07, 0.012), chromeMat);
-      mGlass.position.set(sx, 1.04, 0.72);
+      mGlass.position.set(sxSign * d.mirror[0], d.mirror[1], d.mirror[2] - 0.1);
       group.add(mGlass);
     }
     const muffler = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.1, 0.3), grilleMat);
@@ -535,20 +760,22 @@ export function createCar(colors: CarColors): THREE.Group {
     group.add(muffler);
   }
 
-  // GT wing (garage mod)
-  if (colors.spoiler) {
+  // GT wing: a garage mod on most cars, standard equipment on the R34
+  // silhouette — that wing IS the car.
+  if (colors.spoiler || style === "gtr") {
+    const baseY = d.deckY + 0.18;
     for (const sx of [-0.62, 0.62]) {
       const strut = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.26, 0.16), seamMat);
-      strut.position.set(sx, 1.16, -1.95);
+      strut.position.set(sx, baseY, -1.95);
       group.add(strut);
     }
     const wing = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.04, 0.42), bodyMat);
-    wing.position.set(0, 1.31, -1.98);
+    wing.position.set(0, baseY + 0.15, -1.98);
     wing.rotation.x = -0.12;
     group.add(wing);
     for (const sx of [-0.88, 0.88]) {
       const endplate = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.16, 0.4), seamMat);
-      endplate.position.set(sx, 1.31, -1.98);
+      endplate.position.set(sx, baseY + 0.15, -1.98);
       group.add(endplate);
     }
   }
@@ -564,6 +791,10 @@ export function createCar(colors: CarColors): THREE.Group {
   group.traverse((o) => {
     if (o instanceof THREE.Mesh) o.castShadow = !o.userData.noShadow;
   });
+
+  // Screen presence: the cars read ~12% larger without touching any
+  // gameplay collision size (those live in the engine's constants).
+  group.scale.setScalar(1.12);
 
   if (colors.underglow !== undefined) {
     const glow = new THREE.Mesh(

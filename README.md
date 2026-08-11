@@ -15,6 +15,7 @@ A built-in **Kuwait Xtreme Racer** game at [`/race`](http://localhost:3000/race)
 - **Roster**: six street legends from Salmiya to Jahra, ending with the boss, *Shabah Al-Khaleej* (شبح الخليج)
 - **Paintwork**: the player car's lacquer reflects the actual world around it — a live low-res cube probe rides with the car, so streetlights, towers and neon sweep across the clearcoat as you drive. Streetlights also drag wet-look reflections down the asphalt. The probe is on in High/Auto quality and off in Balanced/Battery (Settings ⚙), and `G` toggles the whole fx stack
 - **Garage**: three rooms — Showroom, Performance, Style — with a live spec panel (power, real top speed, brakes, grip) that moves the moment a part bolts on
+- **Machines**: three body silhouettes — the sedan, the **Zeta 300** long-nose fastback wedge (flush light bar, full-width tail band, hood slats — golden-era JDM), and the **Kaiju R** coupe (four round tail lights, boxed fender flares, hood bulge, factory wing). Supercars wear the wedge; two rivals and the boss bring their own
 - Progress is saved locally; beat all six to become **King of Gulf Road** 👑
 
 ### Online Hub — تجمع شارع الخليج
