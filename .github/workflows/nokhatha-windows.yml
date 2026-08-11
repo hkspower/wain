@@ -7,10 +7,8 @@ name: النوخذة — Windows build
 #   * push / manual run  → the Setup .exe is attached as a build artifact
 #   * tagged v*          → it is also published on a GitHub Release
 #
-# The installer is NOT code-signed. Windows SmartScreen will show
-# "Windows protected your PC" the first time anyone runs it, and they must
-# click "More info → Run anyway". Removing that warning needs an Authenticode
-# certificate from a CA — see the note at the end of this file.
+# Everything in this file exists to make the download something a stranger can
+# reasonably trust. See docs/WINDOWS-TRUST.md for what a customer should check.
 
 on:
   push:
@@ -22,7 +20,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write # needed only to attach the installer to a release
+  contents: write   # attach the installer to a release
+  id-token: write   # sign the build provenance attestation
+  attestations: write
 
 jobs:
   build:
@@ -36,16 +36,19 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Resolve dependencies
+      # --locked: build exactly the versions in the committed lock file. A
+      # build that silently resolves newer packages is a build nobody can
+      # reproduce, and reproducibility is most of what "trustworthy" means.
+      - name: Resolve dependencies (locked)
         working-directory: nokhatha_app
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
-      # The checks run here too. A build that ships is a build that passed,
-      # and finding out on the customer's machine is not a test strategy.
       - name: Analyze
         working-directory: nokhatha_app
         run: flutter analyze
 
+      # Includes the supply-chain guards: no network-capable package, no
+      # sockets, no launching other programs, no obfuscation.
       - name: Test
         working-directory: nokhatha_app
         run: flutter test
@@ -63,19 +66,82 @@ jobs:
           "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           Write-Host "version: $v"
 
-      # Inno Setup ships on the windows-latest image, so there is nothing to
-      # install: this is the step that turns a folder of DLLs into one file a
-      # person can download and double-click.
+      # ── Code signing ──────────────────────────────────────────────────────
+      # Without this, SmartScreen shows "Windows protected your PC" on first
+      # run. There is no trick that avoids it — only a certificate does. The
+      # step is inert until the two secrets exist, so the build keeps working
+      # in the meantime and starts signing the moment they are added.
+      - name: Sign the application
+        if: ${{ env.WINDOWS_CERT_BASE64 != '' }}
+        env:
+          WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        shell: pwsh
+        run: |
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\cert.pfx",
+            [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
+          $signtool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+                       Where-Object { $_.FullName -like "*x64*" } | Select-Object -First 1).FullName
+          # A timestamp is what keeps the signature valid after the certificate
+          # expires; without it the app "goes bad" on the certificate's expiry.
+          & $signtool sign /f "$env:RUNNER_TEMP\cert.pfx" /p $env:WINDOWS_CERT_PASSWORD `
+            /tr http://timestamp.digicert.com /td sha256 /fd sha256 `
+            nokhatha_app\build\windows\x64\runner\Release\nokhatha.exe
+          Remove-Item "$env:RUNNER_TEMP\cert.pfx" -Force
+
       - name: Build the installer
         working-directory: nokhatha_app/windows/installer
         run: |
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=${{ steps.ver.outputs.version }} nokhatha.iss
 
+      - name: Sign the installer
+        if: ${{ env.WINDOWS_CERT_BASE64 != '' }}
+        env:
+          WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        shell: pwsh
+        run: |
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\cert.pfx",
+            [Convert]::FromBase64String($env:WINDOWS_CERT_BASE64))
+          $signtool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+                       Where-Object { $_.FullName -like "*x64*" } | Select-Object -First 1).FullName
+          & $signtool sign /f "$env:RUNNER_TEMP\cert.pfx" /p $env:WINDOWS_CERT_PASSWORD `
+            /tr http://timestamp.digicert.com /td sha256 /fd sha256 `
+            nokhatha_app\dist\*.exe
+          Remove-Item "$env:RUNNER_TEMP\cert.pfx" -Force
+
+      # ── What a customer can check for themselves ──────────────────────────
+      - name: Publish checksums and a dependency manifest
+        shell: pwsh
+        working-directory: nokhatha_app
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Get-FileHash -Algorithm SHA256 dist\*.exe |
+            ForEach-Object { "{0}  {1}" -f $_.Hash.ToLower(), (Split-Path $_.Path -Leaf) } |
+            Out-File -Encoding ascii dist\SHA256SUMS.txt
+          # The exact package versions this binary was built from — the lock
+          # file IS the bill of materials for a Dart app, so ship it rather
+          # than generate a prettier document that says the same thing.
+          Copy-Item pubspec.lock dist\pubspec.lock.txt
+          Get-Content dist\SHA256SUMS.txt
+
+      # Cryptographic proof, signed by GitHub, that this exact file came out of
+      # this repository at this commit via this workflow. A customer (or we)
+      # can verify it with `gh attestation verify`. This is the part that makes
+      # "it is genuinely ours" checkable rather than merely asserted.
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: nokhatha_app/dist/*.exe
+
       - name: Upload the installer
         uses: actions/upload-artifact@v4
         with:
           name: Nokhatha-Setup-${{ steps.ver.outputs.version }}
-          path: nokhatha_app/dist/*.exe
+          path: |
+            nokhatha_app/dist/*.exe
+            nokhatha_app/dist/SHA256SUMS.txt
+            nokhatha_app/dist/pubspec.lock.txt
           if-no-files-found: error
 
       # The portable folder is the answer for anyone who cannot install
@@ -91,24 +157,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: nokhatha_app/dist/*.exe
+          files: |
+            nokhatha_app/dist/*.exe
+            nokhatha_app/dist/SHA256SUMS.txt
           generate_release_notes: true
-
-# ---------------------------------------------------------------------------
-# Code signing, when you are ready for it
-#
-# Buy an Authenticode certificate (an EV one clears SmartScreen immediately;
-# a standard OV one builds reputation over time), store the .pfx as the secret
-# WINDOWS_CERT_BASE64 and its password as WINDOWS_CERT_PASSWORD, then add a
-# step before "Build the installer":
-#
-#   - name: Sign the executable
-#     shell: pwsh
-#     run: |
-#       [IO.File]::WriteAllBytes("cert.pfx",
-#         [Convert]::FromBase64String("${{ secrets.WINDOWS_CERT_BASE64 }}"))
-#       & signtool sign /f cert.pfx /p "${{ secrets.WINDOWS_CERT_PASSWORD }}" `
-#         /tr http://timestamp.digicert.com /td sha256 /fd sha256 `
-#         nokhatha_app/build/windows/x64/runner/Release/nokhatha.exe
-#
-# Sign the installer the same way after ISCC runs. Do not commit the .pfx.
