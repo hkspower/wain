@@ -129,8 +129,9 @@ export interface EngineEvents {
   onChallengeResult?(accepted: boolean, reason: string): void;
   /** A race ended — drives the full results sequence. */
   onResult?(r: RaceResult): void;
-  /** Pre-battle cinematic begins/ends — drives the letterbox + rival card. */
-  onCinematic?(active: boolean, rival: DriverCard): void;
+  /** Pre-battle cinematic begins/ends — drives the letterbox + rival card.
+   *  `stake` is the KD each side has up (0 = pride only). */
+  onCinematic?(active: boolean, rival: DriverCard, stake: number): void;
 }
 
 interface RemotePlayer {
@@ -318,6 +319,9 @@ export class GameEngine {
   /** Per-battle telemetry, reset at the green light, read at the finish. */
   private bstat = { startAt: 0, dist: 0, topSpeed: 0, contacts: 0, maxLead: 0, driftScore: 0 };
 
+  /** Set when a film ends; cleared the first frame nothing is held. */
+  private handbrakeStale = false;
+
   // Drift: the handbrake breaks the rear loose. driftYaw is how far the
   // body points past the direction of travel; the velocity heading is
   // dragged after it, which is what actually carries the car around.
@@ -336,8 +340,9 @@ export class GameEngine {
   /** Live duel, mirrored from the hub referee for the HUD. */
   private duel: { you: number; them: number; gap: number; opponent: string } | null = null;
 
-  // Lap timing
+  // Lap timing (wall clock, credited back for pauses and film slow-mo)
   private lapStartAt = 0;
+  private pausedAt = 0;
   private lapDistance = 0;
 
   private bumpCooldown = 0;
@@ -376,6 +381,7 @@ export class GameEngine {
   private smokeLife = new Float32Array(SMOKE_N);
   private smokeVel = new Float32Array(SMOKE_N * 3);
   private smokeHead = 0;
+  private smokeAcc = 0;
   private sparkVel = new Float32Array(60 * 3);
   private sparkLife = 0;
 
@@ -724,6 +730,8 @@ export class GameEngine {
   }
 
   setPaused(p: boolean): void {
+    if (p && !this.paused) this.pausedAt = performance.now();
+    else if (!p && this.paused) this.lapStartAt += performance.now() - this.pausedAt;
     this.paused = p;
     this.sound?.setPaused(p);
   }
@@ -870,11 +878,11 @@ export class GameEngine {
     this.sound?.resume();
     const k = e.key.toLowerCase();
     if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) e.preventDefault();
-    this.keys.add(k);
     if (this.cine && (k === "enter" || k === " ") && !e.repeat) {
       this.skipCinematic();
-      return;
+      return; // deliberately not added to this.keys — Space is the handbrake
     }
+    this.keys.add(k);
     if (k === "f") this.tryFlash();
     if (k === "m" && !e.repeat && this.sound) {
       const muted = this.sound.toggleMute();
@@ -936,7 +944,11 @@ export class GameEngine {
 
   private get handbrake(): boolean {
     if (this.locked || this.cine) return false;
-    return this.keys.has(" ") || this.touch.drift;
+    const held = this.keys.has(" ") || this.touch.drift;
+    // A hold carried through the film (key auto-repeat re-adds it) must
+    // not drag the handbrake at the green flag — demand a fresh press.
+    if (!held) this.handbrakeStale = false;
+    return held && !this.handbrakeStale;
   }
 
   // ---------------------------------------------------------- touch API
@@ -1014,6 +1026,9 @@ export class GameEngine {
   private tryFlash(): void {
     const r = this.rival;
     if (!r || this.inBattle || this.locked || this.challengePending || this.cine) return;
+    // A live duel is refereed on the wall clock by the hub — pausing into
+    // the setup card + film mid-duel would forfeit it.
+    if (this.duel) return;
     if (r.state !== "cruise") return;
     const gap = this.track.deltaAhead(this.player.s, r.s);
     if (gap < 2 || gap > FLASH_RANGE) return;
@@ -1188,7 +1203,7 @@ export class GameEngine {
     this.cine = { start: performance.now(), r };
     // The intro line plays over the film instead of after it
     this.voice.speak(r.def.lines.intro, r.def.voice, `${r.def.id}-intro`);
-    this.events.onCinematic(true, this.rivalCard(r.def));
+    this.events.onCinematic(true, this.rivalCard(r.def), this.wager);
   }
 
   /** UI callback: the player tapped through the intro film. */
@@ -1199,10 +1214,12 @@ export class GameEngine {
   private endCinematic(): void {
     const r = this.cine?.r ?? null;
     this.cine = null;
+    // A key or pad held through the film must not fire at the green flag
+    this.handbrakeStale = true;
     // Snap the chase camera home instead of lerping across the map
     this.camInit = false;
     if (r) {
-      this.events.onCinematic?.(false, this.rivalCard(r.def));
+      this.events.onCinematic?.(false, this.rivalCard(r.def), this.wager);
       this.startBattle(r, true);
     }
   }
@@ -1213,6 +1230,9 @@ export class GameEngine {
     this.player.sp = 100;
     r.sp = 100;
     this.bstat = { startAt: performance.now(), dist: 0, topSpeed: 0, contacts: 0, maxLead: 0, driftScore: 0 };
+    // Style points earned cruising before the flag don't count in the race
+    this.driftRun = 0;
+    this.driftFlash = 0;
     if (fromCine) {
       // The film already introduced them — just drop the green flag.
       this.events.onMessage("⚡ GO — يلا!", `"${r.def.taunt}"`);
@@ -1482,7 +1502,11 @@ export class GameEngine {
     // underneath drops into slow motion.
     if (this.cine) {
       if ((performance.now() - this.cine.start) / 1000 >= CINE_LEN) this.endCinematic();
-      else dt *= 0.22;
+      else {
+        // The lap clock is wall-time; credit back what slow-mo swallows
+        this.lapStartAt += dt * (1 - 0.22) * 1000;
+        dt *= 0.22;
+      }
     }
     this.bumpCooldown = Math.max(0, this.bumpCooldown - dt);
     this.scrapeCooldown = Math.max(0, this.scrapeCooldown - dt);
@@ -1507,7 +1531,7 @@ export class GameEngine {
     // Accel/drag equilibrium sits at ~92 m/s (≈330 km/h) stock — garage
     // mods raise the multiplier, ceiling, and brake force from there.
     // Turbo spool: pressure builds under throttle, dumps on lift.
-    if (this.tune.boostMult > 0) {
+    if (this.tune.boostMult > 0 && !this.cine) {
       const spoolRate = this.tune.aspiration === "twin" ? 2.6 : 1.5;
       const target = this.throttle > 0.5 && p.speed > 4 ? 1 : 0;
       if (target < this.boost - 0.4 && this.boost > 0.5) this.sound?.blowOff();
@@ -2040,7 +2064,11 @@ export class GameEngine {
       const bz = pz - this.v3.z * 1.6;
       const sx = -this.v3.z;
       const sz = this.v3.x;
-      const spawn = Math.abs(this.driftYaw) > 0.4 ? 3 : 2;
+      // Time-budgeted so density is refresh-rate independent and the ring
+      // never wraps onto a still-alive puff (rate * max life < SMOKE_N).
+      this.smokeAcc += (Math.abs(this.driftYaw) > 0.4 ? 85 : 55) * dt;
+      const spawn = Math.floor(this.smokeAcc);
+      this.smokeAcc -= spawn;
       const posAttr = this.smoke.geometry.getAttribute("position") as THREE.BufferAttribute;
       for (let n = 0; n < spawn; n++) {
         const i = this.smokeHead;

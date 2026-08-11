@@ -102,7 +102,7 @@ export default function RaceClient() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [result, setResult] = useState<RaceResult | null>(null);
-  const [cine, setCine] = useState<DriverCard | null>(null);
+  const [cine, setCine] = useState<{ card: DriverCard; stake: number } | null>(null);
   const driftRef = useRef<HTMLDivElement>(null);
   const [onboarding, setOnboarding] = useState(false);
   const [coach, setCoach] = useState<CoachState | null>(null);
@@ -383,8 +383,8 @@ export default function RaceClient() {
           setBeaten(readBeaten()); // engine has already saved by now
           setResult(r);
         },
-        onCinematic: (active, rival) => {
-        setCine(active ? rival : null);
+        onCinematic: (active, rival, stake) => {
+        setCine(active ? { card: rival, stake } : null);
         if (active) setChallenge(null); // the film replaces the setup card
       },
       onChallengeResult: (accepted, reason) => {
@@ -719,7 +719,7 @@ export default function RaceClient() {
       </div>
 
       {/* PvP: challenge the nearest online driver */}
-      {phase === "playing" && nearby && !invite && !duelResult && (
+      {phase === "playing" && nearby && !invite && !duelResult && !cine && (
         <div className="pointer-events-none absolute left-1/2 top-40 z-[6] -translate-x-1/2 text-center">
           <div className="grn-panel px-4 py-2">
             <div className="grn-label text-[0.58rem] text-gulf-300">Online driver</div>
@@ -753,7 +753,7 @@ export default function RaceClient() {
       )}
 
       {/* PvP: someone challenged you */}
-      {invite && (
+      {invite && !cine && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70 px-6 backdrop-blur-sm">
           <div className="grn-dialog w-full max-w-md px-9 py-8 text-center">
             <div className="grn-label text-[0.66rem] text-gulf-300">Incoming challenge</div>
@@ -1617,21 +1617,33 @@ export default function RaceClient() {
               Challenger · تحدي
             </div>
             <div className="grn-display mt-0.5 text-[clamp(1.6rem,6vw,2.6rem)] italic leading-none text-white [text-shadow:0_2px_18px_rgba(0,0,0,0.9)]">
-              {cine.name}{" "}
-              <span className="grn-ar not-italic text-white/70">{cine.arabicName}</span>
+              {cine.card.name}{" "}
+              <span className="grn-ar not-italic text-white/70">{cine.card.arabicName}</span>
             </div>
             <div className="mt-1 flex items-center gap-2 text-[0.75rem] text-white/70">
               <span
                 className="inline-block size-3 rounded-sm border border-white/25"
-                style={{ background: `#${cine.color.toString(16).padStart(6, "0")}` }}
+                style={{ background: `#${cine.card.color.toString(16).padStart(6, "0")}` }}
               />
-              <span>{cine.car}</span>
+              <span>{cine.card.car}</span>
               <span className="text-white/35">·</span>
-              <span>{cine.crew}</span>
+              <span>{cine.card.crew}</span>
               <span className="text-white/35">·</span>
               <span>
-                LV {cine.level} {cine.flag}
+                LV {cine.card.level} {cine.card.flag}
               </span>
+            </div>
+            <div className="grn-display mt-1.5 text-[0.8rem] tracking-[0.12em] text-sodium-400">
+              {cine.stake > 0 ? (
+                <>
+                  {cine.stake.toLocaleString()} KD EACH — ON THE LINE{" "}
+                  <span className="grn-ar">على المحك</span>
+                </>
+              ) : (
+                <>
+                  PRIDE ONLY <span className="grn-ar">على الشرف</span>
+                </>
+              )}
             </div>
           </div>
           <div className="grn-label cine-skip absolute bottom-[calc(3vh+env(safe-area-inset-bottom))] right-[calc(env(safe-area-inset-right)+1.25rem)] text-[0.55rem] text-white/50">
