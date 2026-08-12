@@ -156,9 +156,40 @@ plugin from the Epic marketplace to activate them. DLSS Quality is the
 default rather than Performance: at 4K it renders 1440p internally, which
 on an RTX card is both faster and sharper than native 4K through TSR.
 
+### The 5090-class profile
+
+`-grnrtxultra` layers a top-end RTX profile on top of the NVIDIA path.
+It is deliberately opt-in because every line of it costs real
+milliseconds:
+
+- **Lumen traced far denser** — probe resolution 64, octahedron 16,
+  radiosity spacing 1, reflections traced to roughness 1.0. The corniche
+  is lit almost entirely by many small sodium sources, which is the case
+  that punishes a sparse probe grid hardest.
+- **Ray-traced shadows and AO at 4 samples per pixel** rather than the
+  denoised default — the lamp posts cast the long shadows the whole look
+  rests on, and they are what shows undersampling first.
+- **Nanite and virtual shadow maps unclamped** (0.5 px per edge, 16k
+  pages, 16 SMRT rays), volumetric fog at a 4 px grid, and a 12 GB
+  streaming pool, because a 5090 carries 32 GB and there is no reason to
+  stream conservatively.
+- **DLSS Ray Reconstruction** replaces the hand-tuned denoisers with the
+  trained one — the single biggest win for ray-traced detail.
+
+**Frame Generation is opt-in on top of that** (`-grnframegen`). It
+roughly doubles displayed frame rate but adds a frame of latency, and in
+a game decided by when you lift for a corner that is a trade only the
+player should make — so it is never forced on.
+
+`-grnpathtrace` switches to the path tracer at 2048 spp for marketing
+stills. It converges over many frames, so it is a capture tool, not a
+gameplay mode.
+
 **Building it is a Windows job.** This repo carries the source, the
 config and the data pipeline — it cannot compile or package itself here.
-Generate project files, open in UE 5.4+, and package for Win64.
+Generate project files, open in UE 5.4+, and package for Win64. The DLSS
+options above additionally need the NVIDIA DLSS plugin installed; without
+it those console variables are simply unrecognised and ignored.
 
 ## Where to take it next
 

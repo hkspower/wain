@@ -157,5 +157,72 @@ void GRNGraphics::ApplyCommandLineOverrides(UObject* WorldContext)
 	if (!FParse::Param(Cmd, TEXT("grnnonvidia")))
 	{
 		ApplyNvidia(WorldContext, bQuality);
+		if (FParse::Param(Cmd, TEXT("grnrtxultra")))
+		{
+			ApplyRtxUltra(WorldContext, FParse::Param(Cmd, TEXT("grnframegen")));
+		}
+	}
+	if (FParse::Param(Cmd, TEXT("grnpathtrace"))) SetPathTracing(WorldContext, true);
+}
+
+void GRNGraphics::ApplyRtxUltra(UObject* WorldContext, bool bFrameGeneration)
+{
+	const TCHAR* Cmds[] = {
+		// Lumen: more probes and more rays per probe. The corniche is lit
+		// almost entirely by many small sodium sources, which is the case
+		// that punishes a sparse probe grid hardest.
+		TEXT("r.Lumen.ScreenProbeGather.RadianceCache.ProbeResolution 64"),
+		TEXT("r.Lumen.ScreenProbeGather.TracingOctahedronResolution 16"),
+		TEXT("r.Lumen.ScreenProbeGather.DownsampleFactor 8"),
+		TEXT("r.LumenScene.Radiosity.ProbeSpacing 1"),
+		TEXT("r.LumenScene.Radiosity.HemisphereProbeResolution 8"),
+		TEXT("r.Lumen.Reflections.MaxRoughnessToTrace 1.0"),
+		TEXT("r.Lumen.Reflections.SmoothBias 0"),
+
+		// Ray-traced shadows at full quality rather than the denoised
+		// half-rate default; the lamp posts cast the long shadows the look
+		// depends on and they are what shows sampling first.
+		TEXT("r.RayTracing.Shadows.SamplesPerPixel 4"),
+		TEXT("r.RayTracing.Shadows.EnableTwoSidedGeometry 1"),
+		TEXT("r.RayTracing.AmbientOcclusion.SamplesPerPixel 4"),
+
+		// Nanite and virtual shadow maps unclamped
+		TEXT("r.Nanite.MaxPixelsPerEdge 0.5"),
+		TEXT("r.Shadow.Virtual.MaxPhysicalPages 16384"),
+		TEXT("r.Shadow.Virtual.SMRT.RayCountLocal 16"),
+		TEXT("r.Shadow.Virtual.SMRT.RayCountDirectional 16"),
+
+		// Volumetrics and translucency: the sodium haze over the bay
+		TEXT("r.VolumetricFog.GridPixelSize 4"),
+		TEXT("r.VolumetricFog.GridSizeZ 128"),
+		TEXT("r.TranslucencyLightingVolumeDim 128"),
+
+		// A 5090 carries 32 GB; there is no reason to stream conservatively
+		TEXT("r.Streaming.PoolSize 12288"),
+
+		// DLSS Ray Reconstruction replaces the hand-tuned denoisers with
+		// the trained one — the single biggest win for ray-traced detail.
+		TEXT("r.NGX.DLSS.RayReconstruction 1"),
+		TEXT("r.NGX.DLSS.Quality 3"),
+	};
+	for (const TCHAR* C : Cmds) Run(WorldContext, C);
+
+	// Frame Generation is opt-in: it roughly doubles displayed frame rate
+	// but adds a frame of latency, which a racing game feels.
+	Run(WorldContext, bFrameGeneration ? TEXT("r.NGX.DLSSG.Enable 1")
+	                                   : TEXT("r.NGX.DLSSG.Enable 0"));
+
+	UE_LOG(LogTemp, Log, TEXT("GRNGraphics: RTX ultra profile applied (frame gen %s)"),
+		bFrameGeneration ? TEXT("on") : TEXT("off"));
+}
+
+void GRNGraphics::SetPathTracing(UObject* WorldContext, bool bEnabled)
+{
+	Run(WorldContext, bEnabled ? TEXT("r.PathTracing 1") : TEXT("r.PathTracing 0"));
+	if (bEnabled)
+	{
+		Run(WorldContext, TEXT("r.PathTracing.SamplesPerPixel 2048"));
+		Run(WorldContext, TEXT("r.PathTracing.MaxBounces 8"));
+		Run(WorldContext, TEXT("r.PathTracing.Denoiser 1"));
 	}
 }

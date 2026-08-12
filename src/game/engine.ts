@@ -185,6 +185,8 @@ const VignetteGrainShader = {
     /** Where the highlight shoulder starts. Below this nothing changes,
      *  so midtones and the scene's colour intent are untouched. */
     uKnee: { value: 0.86 },
+    /** Dither amplitude in 8-bit steps. 0 disables it (A/B testing). */
+    uDither: { value: 1.0 },
   },
   vertexShader: `
     varying vec2 vUv;
@@ -199,6 +201,7 @@ const VignetteGrainShader = {
     uniform float uBlackPoint;
     uniform float uToe;
     uniform float uKnee;
+    uniform float uDither;
     varying vec2 vUv;
     float hash(vec2 p) {
       return fract(sin(dot(p, vec2(127.1, 311.7)) + uTime * 13.0) * 43758.5453);
@@ -240,6 +243,23 @@ const VignetteGrainShader = {
       // so lamps keep their warmth as they bloom.
       vec3 over = max(c.rgb - uKnee, 0.0);
       c.rgb = min(c.rgb, uKnee) + (1.0 - uKnee) * (over / (over + (1.0 - uKnee)));
+
+      // Triangular-PDF dither, applied last, immediately before the 8-bit
+      // quantisation it exists to hide. The frame buffer is half-float all
+      // the way here, but the display is 8-bit, and a slow gradient across
+      // a dark sky quantises into wide flat bands with visible contour
+      // rings. The luminance-scaled grain above cannot fix that: it is
+      // multiplied by sqrt(luma) precisely so it dies in the shadows, which
+      // is exactly where the banding lives.
+      //
+      // Two summed uniform randoms give a triangular distribution, which
+      // decorrelates the quantisation error from the signal instead of
+      // merely masking it. Amplitude is one 8-bit step and the mean is
+      // zero, so blacks stay black — unlike a flat offset, which is what
+      // makes a night scene look milky.
+      float d1 = hash(vUv + vec2(0.11, 0.37));
+      float d2 = hash(vUv + vec2(0.73, 0.19));
+      c.rgb += (d1 + d2 - 1.0) * uDither / 255.0;
 
       gl_FragColor = vec4(clamp(c.rgb, 0.0, 1.0), c.a);
     }`,
@@ -1009,6 +1029,13 @@ export class GameEngine {
       this.headlight.shadow.map?.dispose();
       this.headlight.shadow.map = null as unknown as THREE.WebGLRenderTarget;
     }
+    const moonSize = ultra ? 8192 : 4096;
+    if (this.world.moonLight.shadow.mapSize.x !== moonSize) {
+      this.world.moonLight.shadow.mapSize.setScalar(moonSize);
+      this.world.moonLight.shadow.map?.dispose();
+      this.world.moonLight.shadow.map = null as unknown as THREE.WebGLRenderTarget;
+    }
+    if (this.liveReflections) this.setProbeResolution(ultra ? 256 : 128);
     this.renderScale = 1;
     this.applyRenderScale();
   }
@@ -1459,6 +1486,33 @@ export class GameEngine {
 
   /** Point the player's paint at the live probe (or back at the baked
    *  environment when the probe is off for performance). */
+  /**
+   * Rebuild the paint's reflection probe at a new face resolution.
+   * 128 is plenty at 1080p, but on a 4K panel the probe is the limiting
+   * factor in how the clearcoat reads — the lamp streaks that slide along
+   * the bodywork are literally probe texels, and at 128 they are visibly
+   * chunky once the frame carries four times the pixels.
+   */
+  private setProbeResolution(size: number): void {
+    if (this.cubeRT.width === size) return;
+    const previous = this.cubeRT;
+    const floatOk =
+      this.renderer.extensions.has("EXT_color_buffer_float") ||
+      this.renderer.extensions.has("EXT_color_buffer_half_float");
+    this.cubeRT = new THREE.WebGLCubeRenderTarget(size, {
+      generateMipmaps: false,
+      minFilter: THREE.LinearFilter,
+      type: floatOk ? THREE.HalfFloatType : THREE.UnsignedByteType,
+    });
+    this.scene.remove(this.cubeCam);
+    this.cubeCam = new THREE.CubeCamera(0.5, 420, this.cubeRT);
+    this.scene.add(this.cubeCam);
+    // Re-point the paint at the new target before dropping the old one,
+    // or the material spends a frame sampling a disposed texture.
+    this.applyLiveReflections();
+    previous.dispose();
+  }
+
   private applyLiveReflections(): void {
     const body = this.carBody.userData.bodyMat as THREE.MeshPhysicalMaterial | undefined;
     if (!body) return;

@@ -40,6 +40,23 @@ namespace GRNGraphics
 	 */
 	void ApplyNvidia(UObject* WorldContext, bool bPreferQuality = true);
 
+	/**
+	 * Top-end RTX profile — aimed at a 5090-class card driving 4K.
+	 *
+	 * Everything here costs real milliseconds and is deliberately NOT in
+	 * the default path: denser Lumen tracing, ray-traced shadows at full
+	 * sample count, Nanite and virtual shadow maps unclamped, and DLSS Ray
+	 * Reconstruction plus Frame Generation where the plugin provides them.
+	 * Frame Generation is left to the player rather than forced, because it
+	 * adds latency — in a game decided by when you lift for a corner, that
+	 * is a trade only the player should make.
+	 */
+	void ApplyRtxUltra(UObject* WorldContext, bool bFrameGeneration = false);
+
+	/** Path tracer for stills. Not a gameplay mode — it converges over
+	 *  many frames and is here for marketing captures. */
+	void SetPathTracing(UObject* WorldContext, bool bEnabled);
+
 	/** Parse -grn4k / -grn2k / -grn1080 / -grndlss=off from the command
 	 *  line so a build can be pointed at a resolution without recompiling. */
 	void ApplyCommandLineOverrides(UObject* WorldContext);
