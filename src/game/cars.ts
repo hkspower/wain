@@ -338,6 +338,19 @@ const rx7RoofGeo = extrudeProfile(
   0.05
 );
 
+/**
+ * Per-silhouette scale onto real-world dimensions, from the car each
+ * shape evokes: a generic saloon (4.70 x 1.80 m), a Z32 300ZX
+ * (4.31 x 1.80), an R34 Skyline (4.60 x 1.79) and an FD RX-7
+ * (4.30 x 1.76). Applied to the whole group in createCar.
+ */
+const STYLE_SCALE: Record<BodyStyle, number> = {
+  sedan: 0.978,
+  zx: 0.894,
+  gtr: 0.926,
+  rx7: 0.899,
+};
+
 /** Per-silhouette anchor points so every detail lands on its body. */
 interface StyleDims {
   nose: number;
@@ -1197,9 +1210,20 @@ export function createCar(colors: CarColors): THREE.Group {
     if (o instanceof THREE.Mesh) o.castShadow = !o.userData.noShadow;
   });
 
-  // Screen presence: the cars read ~12% larger without touching any
-  // gameplay collision size (those live in the engine's constants).
-  group.scale.setScalar(1.12);
+  // Real-world sizing. The profiles are authored a little oversized, and
+  // a flat 1.12 "presence" multiplier on top left every car 15-31% larger
+  // than the machine it evokes — a 2.15 m wide RX-7 is wider than a
+  // pickup, and the tyres came out 0.81 m across. Each style now carries
+  // the factor that lands it on its real dimensions.
+  //
+  // The scale stays uniform on purpose: the wheels spin about their own
+  // axis, so a non-uniform group scale would sweep them into ellipses.
+  // That means length and width cannot both be exact, so the factor is
+  // the geometric mean of the two corrections — every car ends up within
+  // ~5% on all three axes, with tyres at a correct 0.64-0.70 m.
+  //
+  // Collision sizes are engine constants and are deliberately untouched.
+  group.scale.setScalar(STYLE_SCALE[style]);
 
   // Swap in the Blender-authored shells when they arrive. Traffic keeps
   // the cheap procedural extrusions — thirty cars don't need the density.
