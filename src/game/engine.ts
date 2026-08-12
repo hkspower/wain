@@ -1824,8 +1824,15 @@ export class GameEngine {
     this.pitch += (pitchTarget - this.pitch) * Math.min(1, dt * 6);
     this.carBody.rotation.x = this.pitch;
     spinWheels(this.carBody, p.speed, dt, -this.steerSmooth * 0.3);
-    (this.carBody.userData.tailMat as THREE.MeshStandardMaterial).emissiveIntensity =
-      this.brake || this.handbrake ? 7 : 2;
+    const brakeLit = this.brake > 0 || this.handbrake;
+    (this.carBody.userData.tailMat as THREE.MeshStandardMaterial).emissiveIntensity = brakeLit
+      ? 7
+      : 2;
+    // The glow halos behind the lenses flare with them
+    const tailGlows = this.carBody.userData.tailGlowMats as THREE.MeshBasicMaterial[] | undefined;
+    if (tailGlows) {
+      for (const g of tailGlows) g.opacity = brakeLit ? 0.85 : 0.3;
+    }
 
     // Traffic collisions
     if (this.bumpCooldown <= 0) {

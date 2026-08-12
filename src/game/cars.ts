@@ -297,6 +297,8 @@ const gtrRoofGeo = extrudeProfile(
 interface StyleDims {
   nose: number;
   tail: number;
+  /** Sunroof / antenna anchors on the roof panel: [z, y]. */
+  roof: [number, number];
   noseTopY: number; // headlight centre height
   grilleY: number;
   beltY: number; // chrome beltline
@@ -311,17 +313,17 @@ interface StyleDims {
 }
 const STYLE_DIMS: Record<BodyStyle, StyleDims> = {
   sedan: {
-    nose: 2.37, tail: -2.38, noseTopY: 0.7, grilleY: 0.52, beltY: 0.94,
+    nose: 2.37, tail: -2.38, roof: [-0.2, 1.49], noseTopY: 0.7, grilleY: 0.52, beltY: 0.94,
     hoodY: 0.98, tailY: 0.78, deckY: 0.96, mirror: [1.0, 1.04, 0.82],
     dashY: 1.0, wiperZ: 0.93, bPillar: [0.77, 1.14, -0.2], creaseY: 0.72,
   },
   zx: {
-    nose: 2.5, tail: -2.44, noseTopY: 0.56, grilleY: 0.42, beltY: 0.85,
+    nose: 2.5, tail: -2.44, roof: [-0.53, 1.3], noseTopY: 0.56, grilleY: 0.42, beltY: 0.85,
     hoodY: 0.82, tailY: 0.66, deckY: 0.79, mirror: [1.02, 0.92, 0.4],
     dashY: 0.9, wiperZ: 0.5, bPillar: [0.8, 1.02, -0.75], creaseY: 0.6,
   },
   gtr: {
-    nose: 2.46, tail: -2.4, noseTopY: 0.76, grilleY: 0.5, beltY: 0.99,
+    nose: 2.46, tail: -2.4, roof: [-0.18, 1.51], noseTopY: 0.76, grilleY: 0.5, beltY: 0.99,
     hoodY: 1.0, tailY: 0.84, deckY: 0.98, mirror: [1.03, 1.08, 0.85],
     dashY: 1.02, wiperZ: 0.95, bPillar: [0.79, 1.16, -0.16], creaseY: 0.76,
   },
@@ -379,6 +381,30 @@ const reverseMat = new THREE.MeshStandardMaterial({
   emissiveIntensity: 0.3,
 });
 const caliperMat = new THREE.MeshStandardMaterial({ color: 0xb01818, roughness: 0.5 });
+
+// Smoked lamp housing: the dark bezel the lenses live in. The contrast
+// between this and the lit lens is what makes a lamp read as an assembly
+// instead of a painted-on rectangle.
+const housingMat = new THREE.MeshStandardMaterial({
+  color: 0x17090b,
+  roughness: 0.25,
+  metalness: 0.5,
+  envMapIntensity: 1.2,
+});
+// Passive rear reflectors: catch light, never emit
+const reflectorMat = new THREE.MeshStandardMaterial({
+  color: 0x7a1016,
+  roughness: 0.25,
+  metalness: 0.3,
+  emissive: 0x30060a,
+  emissiveIntensity: 0.4,
+});
+const amberReflectorMat = new THREE.MeshStandardMaterial({
+  color: 0xa66414,
+  roughness: 0.25,
+  emissive: 0x5a3208,
+  emissiveIntensity: 0.4,
+});
 
 const headlightMat = new THREE.MeshStandardMaterial({
   color: 0xffffff,
@@ -499,27 +525,89 @@ export function createCar(colors: CarColors): THREE.Group {
     emissive: 0xff2222,
     emissiveIntensity: 2.0,
   });
+  // The rear lamps are built as assemblies — smoked housing, outer lens,
+  // and a hotter inner core — with additive glow halos hung behind them
+  // that the engine flares when the brakes bite.
+  const tailGlowMats: THREE.MeshBasicMaterial[] = [];
+  const addTailGlow = (x: number, y: number, z: number, w = 0.55, h = 0.4) => {
+    const m = new THREE.MeshBasicMaterial({
+      map: underglowTexture(),
+      color: 0xff2222,
+      transparent: true,
+      opacity: 0.3,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+    });
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(w, h), m);
+    glow.position.set(x, y, z - 0.12);
+    glow.rotation.y = Math.PI; // faces the following traffic
+    glow.userData.noShadow = true;
+    group.add(glow);
+    tailGlowMats.push(m);
+  };
+
   if (style === "gtr") {
-    // The R34 calling card: four round afterburners
-    for (const sx of [-0.72, -0.44, 0.44, 0.72]) {
-      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.05, 14), tailMat);
-      ring.rotation.x = Math.PI / 2;
-      ring.position.set(sx, d.tailY, d.tail - 0.02);
-      group.add(ring);
-    }
-    // Dark tail garnish panel they sit in
+    // The R34 calling card: four round afterburners, each a dark ring
+    // with a hot core — the classic double-circle look.
     const garnish = new THREE.Mesh(roundedBox(1.72, 0.3, 0.05, 0.02), grilleMat);
     garnish.position.set(0, d.tailY, d.tail - 0.005);
     group.add(garnish);
+    for (const sx of [-0.72, -0.44, 0.44, 0.72]) {
+      const bezel = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.115, 0.04, 16), housingMat);
+      bezel.rotation.x = Math.PI / 2;
+      bezel.position.set(sx, d.tailY, d.tail - 0.03);
+      group.add(bezel);
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.095, 0.05, 16), tailMat);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(sx, d.tailY, d.tail - 0.02);
+      group.add(ring);
+      const core = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.06, 10), tailMat);
+      core.rotation.x = Math.PI / 2;
+      core.position.set(sx, d.tailY, d.tail - 0.015);
+      group.add(core);
+    }
+    addTailGlow(-0.58, d.tailY, d.tail, 0.75, 0.45);
+    addTailGlow(0.58, d.tailY, d.tail, 0.75, 0.45);
   } else if (style === "zx") {
-    // Full-width single tail band under the fastback glass
+    // Full-width assembly under the fastback glass: smoked housing frame,
+    // the band, and a hotter inner strip running its length
+    const frame = new THREE.Mesh(roundedBox(1.86, 0.19, 0.05, 0.03), housingMat);
+    frame.position.set(0, d.tailY, d.tail - 0.03);
+    group.add(frame);
     const band = new THREE.Mesh(roundedBox(1.78, 0.13, 0.06, 0.025), tailMat);
     band.position.set(0, d.tailY, d.tail - 0.02);
     group.add(band);
+    const core = new THREE.Mesh(roundedBox(1.6, 0.045, 0.065, 0.02), tailMat);
+    core.position.set(0, d.tailY, d.tail - 0.015);
+    group.add(core);
+    addTailGlow(-0.6, d.tailY, d.tail, 0.8, 0.4);
+    addTailGlow(0.6, d.tailY, d.tail, 0.8, 0.4);
   } else {
-    const tail = new THREE.Mesh(roundedBox(1.7, 0.1, 0.06, 0.018), tailMat);
-    tail.position.set(0, d.tailY, d.tail);
-    group.add(tail);
+    // Two wrap-around housings with lens + core, split by the plate
+    for (const sxSign of [-1, 1]) {
+      const housing = new THREE.Mesh(roundedBox(0.78, 0.17, 0.05, 0.03), housingMat);
+      housing.position.set(sxSign * 0.52, d.tailY, d.tail - 0.02);
+      group.add(housing);
+      const lens = new THREE.Mesh(roundedBox(0.7, 0.11, 0.06, 0.02), tailMat);
+      lens.position.set(sxSign * 0.52, d.tailY, d.tail - 0.01);
+      group.add(lens);
+      const core = new THREE.Mesh(roundedBox(0.62, 0.04, 0.065, 0.015), tailMat);
+      core.position.set(sxSign * 0.52, d.tailY, d.tail - 0.005);
+      group.add(core);
+      addTailGlow(sxSign * 0.52, d.tailY, d.tail, 0.7, 0.4);
+    }
+  }
+
+  // High-mount third brake light: sedan/gtr at the rear-glass base, and
+  // for the gtr a second element in the wing itself; zx on the fastback.
+  {
+    const cherry = new THREE.Mesh(roundedBox(0.5, 0.035, 0.05, 0.015), tailMat);
+    if (style === "zx") cherry.position.set(0, 0.86, -1.98);
+    else if (style === "gtr") cherry.position.set(0, d.deckY + 0.05, -1.7);
+    else cherry.position.set(0, 1.36, -1.28);
+    cherry.rotation.x = style === "zx" ? -0.5 : -0.2;
+    group.add(cherry);
   }
 
   // Grille, chrome trim, plates, exhausts — all hung off the style dims
@@ -567,6 +655,35 @@ export function createCar(colors: CarColors): THREE.Group {
     }
   }
 
+  // --- Roof furniture: a glass sunroof inset, slim side rails along the
+  // panel edges, and an antenna. The bare painted rectangle up top was
+  // the last place the car still looked like a toy from above.
+  {
+    const [rz, ry] = d.roof;
+    const sunroof = new THREE.Mesh(roundedBox(0.72, 0.02, 0.62, 0.015), glassMat);
+    sunroof.position.set(0, ry + 0.005, rz + (style === "zx" ? 0.28 : 0.18));
+    group.add(sunroof);
+    const railLen = style === "zx" ? 0.72 : 1.0;
+    for (const sxSign of [-1, 1]) {
+      const rail = new THREE.Mesh(roundedBox(0.035, 0.025, railLen, 0.012), housingMat);
+      rail.position.set(sxSign * (style === "zx" ? 0.62 : 0.64), ry, rz);
+      group.add(rail);
+    }
+    if (style === "gtr") {
+      // Shark fin at the trailing edge of the roof
+      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.1, 0.22), bodyMat);
+      fin.position.set(0, ry + 0.04, rz - 0.42);
+      fin.rotation.x = -0.25;
+      group.add(fin);
+    } else if (style === "zx") {
+      // Period-correct power antenna on the rear quarter
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, 0.42, 6), chromeMat);
+      mast.position.set(0.82, 1.0, -1.86);
+      mast.rotation.x = 0.16;
+      group.add(mast);
+    }
+  }
+
   // Side mirrors
   for (const sxSign of [-1, 1]) {
     const mirror = new THREE.Mesh(roundedBox(0.16, 0.1, 0.2, 0.035), bodyMat);
@@ -599,6 +716,26 @@ export function createCar(colors: CarColors): THREE.Group {
     well.rotation.y = wx > 0 ? Math.PI / 2 : -Math.PI / 2;
     well.position.set(wx * 0.9, 0.38, wz);
     group.add(well);
+  }
+
+  // --- Bumper assemblies: a black lower valance front and rear so the
+  // bumpers read as fitted parts, amber corner reflectors up front and
+  // red ones behind — the details every road car actually carries.
+  {
+    const frontValance = new THREE.Mesh(roundedBox(1.62, 0.09, 0.1, 0.03), seamMat);
+    frontValance.position.set(0, 0.3, d.nose - 0.02);
+    group.add(frontValance);
+    const rearValance = new THREE.Mesh(roundedBox(1.66, 0.1, 0.1, 0.03), seamMat);
+    rearValance.position.set(0, 0.3, d.tail + 0.02);
+    group.add(rearValance);
+    for (const sxSign of [-1, 1]) {
+      const amber = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.05, 0.04), amberReflectorMat);
+      amber.position.set(sxSign * 0.82, 0.42, d.nose - 0.06);
+      group.add(amber);
+      const red = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.05, 0.04), reflectorMat);
+      red.position.set(sxSign * 0.8, 0.42, d.tail + 0.05);
+      group.add(red);
+    }
   }
 
   // Contact shadow blob — all cars, traffic included. Sits above the lane
@@ -794,6 +931,10 @@ export function createCar(colors: CarColors): THREE.Group {
     wing.position.set(0, baseY + 0.15, -1.98);
     wing.rotation.x = -0.12;
     group.add(wing);
+    // Brake strip let into the wing's trailing edge
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.025, 0.03), tailMat);
+    strip.position.set(0, baseY + 0.13, -2.17);
+    group.add(strip);
     for (const sx of [-0.88, 0.88]) {
       const endplate = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.16, 0.4), seamMat);
       endplate.position.set(sx, baseY + 0.15, -1.98);
@@ -808,6 +949,8 @@ export function createCar(colors: CarColors): THREE.Group {
   // engine can feed the player's paint a live reflection probe without
   // leaking it onto every car on the road.
   group.userData.bodyMat = bodyMat;
+  // Brake-glow halos: the engine flares these with the tail lamps
+  group.userData.tailGlowMats = tailGlowMats;
 
   group.traverse((o) => {
     if (o instanceof THREE.Mesh) o.castShadow = !o.userData.noShadow;
