@@ -33,7 +33,10 @@ Point clients elsewhere with `NEXT_PUBLIC_HUB_WS=wss://your-server:8787` at buil
 
 Want it as a desktop / Steam PC build? See [`desktop/README.md`](desktop/README.md) for the Electron + Steamworks packaging guide.
 
-Prefer a **native Unity build** for Steam? A complete code-only Unity port lives in [`unity/`](unity/README.md) — same track, handling, rivals, and voice lines.
+Prefer a **native engine build**? Two complete code-only ports live alongside the web game:
+
+- [`unreal/`](unreal/README.md) — **Unreal Engine 5.4** C++ project: the same spline, handling constants and battle rules, with Lumen GI/reflections, virtual shadow maps, TSR, real per-lamp spot lights, and gamepad bindings. No binary assets — open the `.uproject` and press Play.
+- [`unity/`](unity/README.md) — Unity 6 + URP port with the mobile tier.
 
 ### Background music (optional)
 
