@@ -625,7 +625,7 @@ export default function RaceClient() {
 
         {/* Hub chat feed */}
         {feed.length > 0 && (
-          <div className="grn-panel hud-safe-r absolute bottom-[calc(env(safe-area-inset-bottom)+6rem)] max-w-xs space-y-1 px-3 py-2 text-right text-xs">
+          <div className="grn-panel hud-safe-r absolute bottom-[calc(env(safe-area-inset-bottom)+16rem)] max-w-xs space-y-1 px-3 py-2 text-right text-xs">
             {feed.map((m) => (
               <p key={m.key} className="leading-4">
                 <span className="font-bold text-gulf-300">{m.name}:</span>{" "}
@@ -634,14 +634,6 @@ export default function RaceClient() {
             ))}
           </div>
         )}
-
-        {/* Minimap */}
-        <canvas
-          ref={mapRef}
-          width={150}
-          height={150}
-          className="grn-panel hud-safe-t hud-safe-r absolute p-1"
-        />
 
         {/* Battle SP bars */}
         <div
@@ -756,14 +748,25 @@ export default function RaceClient() {
           </div>
         </div>
 
-        {/* Controls hint */}
-        <div
-          className={`grn-panel hud-safe-b hud-safe-r absolute px-3 py-2 text-right font-display text-[0.78rem] leading-5 tracking-wide text-white/60 ${
-            isTouch ? "hidden" : ""
-          }`}
-        >
-          W/↑ accelerate · S/↓ brake · A D steer · Space drift · N nitro
-          <br />F flash · Esc pause · M mute · B music · V voices · 🎮 supported
+        {/* Bottom-right stack: minimap pinned above the controls hint.
+            One flex column rather than three independently-positioned
+            panels, so they can never overlap at any viewport size and the
+            hint disappearing on touch simply closes the gap. */}
+        <div className="hud-safe-b hud-safe-r absolute flex flex-col items-end gap-2">
+          <canvas
+            ref={mapRef}
+            width={150}
+            height={150}
+            className="grn-panel p-1"
+          />
+          <div
+            className={`grn-panel px-3 py-2 text-right font-display text-[0.78rem] leading-5 tracking-wide text-white/60 ${
+              isTouch ? "hidden" : ""
+            }`}
+          >
+            W/↑ accelerate · S/↓ brake · A D steer · Space drift · N nitro
+            <br />F flash · Esc pause · M mute · B music · V voices · 🎮 supported
+          </div>
         </div>
       </div>
 
