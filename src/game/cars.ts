@@ -350,6 +350,8 @@ const rimDarkMat = new THREE.MeshStandardMaterial({
   metalness: 0.6,
 });
 
+const lipGeo = new THREE.TorusGeometry(0.195, 0.014, 6, 20);
+lipGeo.rotateY(Math.PI / 2);
 const archGeo = new THREE.TorusGeometry(0.46, 0.055, 8, 16, Math.PI);
 const archMat = new THREE.MeshStandardMaterial({ color: 0x101114, roughness: 0.9 });
 // Dark disc behind each wheel fakes the cut-out wheel well
@@ -442,11 +444,16 @@ function plateMat(): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({ map: sharedPlateTex, roughness: 0.5 });
 }
 
-function buildWheel(gold = false): THREE.Group {
+function buildWheel(gold = false, side = 1): THREE.Group {
   const spokeMat = gold ? getGoldRimMat() : rimMat;
   const w = new THREE.Group();
   w.add(new THREE.Mesh(tireGeo, tireMat));
   w.add(new THREE.Mesh(rimGeo, rimDarkMat));
+  // Machined lip on the outer face — the ring highlight that makes a
+  // wheel read as an alloy instead of a drum
+  const lip = new THREE.Mesh(lipGeo, spokeMat);
+  lip.position.x = side * 0.135;
+  w.add(lip);
   for (let i = 0; i < 5; i++) {
     const holder = new THREE.Group();
     holder.rotation.x = (i / 5) * Math.PI * 2;
@@ -701,7 +708,7 @@ export function createCar(colors: CarColors): THREE.Group {
     [-0.84, wzR],
     [0.84, wzR],
   ]) {
-    const wheel = buildWheel(colors.goldRims);
+    const wheel = buildWheel(colors.goldRims, Math.sign(wx));
     wheel.position.set(wx, 0.36, wz);
     group.add(wheel);
     wheels.push(wheel);
@@ -916,11 +923,29 @@ export function createCar(colors: CarColors): THREE.Group {
     const muffler = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.1, 0.3), grilleMat);
     muffler.position.set(0, 0.23, -1.92);
     group.add(muffler);
+
+    // Fuel filler door on the right rear quarter
+    const filler = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.012, 12), bodyMat);
+    filler.rotation.z = Math.PI / 2;
+    filler.position.set(0.945, d.creaseY + 0.09, -1.55);
+    group.add(filler);
+    const fillerRing = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.006, 6, 14), gapMat);
+    fillerRing.rotation.y = Math.PI / 2;
+    fillerRing.position.set(0.948, d.creaseY + 0.09, -1.55);
+    group.add(fillerRing);
+
+    if (style === "gtr") {
+      // Rear wiper parked across the hatch glass
+      const rwiper = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.013, 0.022), seamMat);
+      rwiper.position.set(0.12, 1.12, -1.42);
+      rwiper.rotation.x = 0.9;
+      rwiper.rotation.z = 0.25;
+      group.add(rwiper);
+    }
   }
 
-  // GT wing: a garage mod on most cars, standard equipment on the R34
-  // silhouette — that wing IS the car.
-  if (colors.spoiler || style === "gtr") {
+  // GT wing — always the player's choice: equip the part or run clean
+  if (colors.spoiler) {
     const baseY = d.deckY + 0.18;
     for (const sx of [-0.62, 0.62]) {
       const strut = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.26, 0.16), seamMat);

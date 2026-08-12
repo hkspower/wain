@@ -179,9 +179,9 @@ const VignetteGrainShader = {
     uTexel: { value: new THREE.Vector2(1 / 1280, 1 / 720) },
     /** Everything below this maps to true zero. Display-referred, so this
      *  is a literal ~2.5% lift-kill rather than an HDR-space guess. */
-    uBlackPoint: { value: 0.025 },
+    uBlackPoint: { value: 0.02 },
     /** Shadow toe: >1 pushes the darks down without touching highlights. */
-    uToe: { value: 1.10 },
+    uToe: { value: 1.06 },
   },
   vertexShader: `
     varying vec2 vUv;
@@ -217,7 +217,7 @@ const VignetteGrainShader = {
       // pixel off zero and is what makes a night scene look milky; real
       // film grain lives in the midtones and dies out in the shadows.
       float luma = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
-      float grainAmt = 0.03 * sqrt(clamp(luma, 0.0, 1.0));
+      float grainAmt = 0.02 * sqrt(clamp(luma, 0.0, 1.0));
       c.rgb += (hash(vUv * vec2(1920.0, 1080.0)) - 0.5) * grainAmt;
 
       // Shadow toe, then crush the remaining lift to true black and
@@ -485,11 +485,13 @@ export class GameEngine {
     // which leaves shadows alone.
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
+    // Comfort-tuned: enough halo to sell the sodium lamps, tight enough
+    // that bright edges never smear across dark areas and tire the eye.
     this.bloomPass = new UnrealBloomPass(
       new THREE.Vector2(canvas.clientWidth, canvas.clientHeight),
-      0.5,
-      0.45,
-      0.8
+      0.42,
+      0.4,
+      0.85
     );
     this.composer.addPass(this.bloomPass);
     // OutputPass (tone map + sRGB encode) must run BEFORE the grade.
@@ -1184,6 +1186,7 @@ export class GameEngine {
       body: def.bodyColor,
       accent: def.accentColor,
       style: def.bodyStyle,
+      spoiler: def.bodyStyle === "gtr",
       underglow: def.accentColor,
     });
     this.scene.add(mesh);

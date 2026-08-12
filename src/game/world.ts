@@ -379,8 +379,8 @@ function lightPoolTexture(): THREE.CanvasTexture {
   c.height = 128;
   const ctx = c.getContext("2d")!;
   const g = ctx.createRadialGradient(64, 64, 4, 64, 64, 64);
-  g.addColorStop(0, "rgba(255,190,110,0.5)");
-  g.addColorStop(0.5, "rgba(255,165,80,0.18)");
+  g.addColorStop(0, "rgba(255,190,110,0.62)");
+  g.addColorStop(0.5, "rgba(255,165,80,0.24)");
   g.addColorStop(1, "rgba(255,150,60,0)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 128, 128);
@@ -410,6 +410,36 @@ function lightStreakTexture(): THREE.CanvasTexture {
   ctx.globalCompositeOperation = "destination-out";
   ctx.fillStyle = across;
   ctx.fillRect(0, 0, 32, 128);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** Four-point star glint — the sparkle a bright point source throws. */
+function glintTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const ctx = c.getContext("2d")!;
+  const arm = (w: number, h: number) => {
+    const g = ctx.createLinearGradient(32 - w, 32, 32 + w, 32);
+    g.addColorStop(0, "rgba(255,225,170,0)");
+    g.addColorStop(0.5, "rgba(255,235,190,0.9)");
+    g.addColorStop(1, "rgba(255,225,170,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(32 - w, 32 - h, w * 2, h * 2);
+  };
+  arm(30, 1.4); // horizontal
+  ctx.save();
+  ctx.translate(32, 32);
+  ctx.rotate(Math.PI / 2);
+  ctx.translate(-32, -32);
+  arm(30, 1.4); // vertical
+  ctx.restore();
+  const core = ctx.createRadialGradient(32, 32, 1, 32, 32, 7);
+  core.addColorStop(0, "rgba(255,245,220,1)");
+  core.addColorStop(1, "rgba(255,225,170,0)");
+  ctx.fillStyle = core;
+  ctx.fillRect(0, 0, 64, 64);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
@@ -968,6 +998,10 @@ function makeBeacon(beacons: THREE.MeshStandardMaterial[]): THREE.Mesh {
 const TUNNEL_U = { from: 0.615, to: 0.655 };
 
 export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
+  // Handles for the night-shimmer tick (assigned in the streetlight block)
+  let glintMat: THREE.PointsMaterial | null = null;
+  let shimmerLampMat: THREE.MeshStandardMaterial | null = null;
+
   const L = track.length;
   const beacons: THREE.MeshStandardMaterial[] = [];
   const skyFollowers: THREE.Object3D[] = [];
@@ -982,7 +1016,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // Ambient fill is the other black-level lift: at 0.65 nothing in the
   // scene could reach zero. 0.3 keeps shape in the shadows without
   // flooding them.
-  scene.add(new THREE.HemisphereLight(0x2b3853, 0x120e08, 0.3));
+  scene.add(new THREE.HemisphereLight(0x2b3853, 0x120e08, 0.36));
   const moonLight = new THREE.DirectionalLight(0xbfd0ff, 0.8);
   moonLight.position.set(-300, 500, 200);
   scene.add(moonLight);
@@ -1194,7 +1228,14 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const poleGeo = new THREE.CylinderGeometry(0.14, 0.2, 8.4, 6);
     const poleMat = new THREE.MeshStandardMaterial({ color: 0x3c4148, roughness: 0.7 });
     const poles = new THREE.InstancedMesh(poleGeo, poleMat, count);
-    const lampGeo = new THREE.SphereGeometry(0.42, 8, 6);
+    // Cobra arm reaching from the pole top out over the carriageway —
+    // real street lamps hang their heads over the road, not the kerb
+    const armGeo = new THREE.CylinderGeometry(0.055, 0.075, 3.0, 6);
+    armGeo.rotateZ(Math.PI / 2); // along X, oriented per instance
+    const arms = new THREE.InstancedMesh(armGeo, poleMat, count);
+    const headGeo = new THREE.BoxGeometry(0.55, 0.12, 0.3);
+    const heads = new THREE.InstancedMesh(headGeo, poleMat, count);
+    const lampGeo = new THREE.SphereGeometry(0.34, 8, 6);
     const lampMat = new THREE.MeshStandardMaterial({
       color: 0xffc873,
       emissive: 0xffaa40,
@@ -1216,6 +1257,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();
     const tmp = new THREE.Vector3();
+    const tanV = new THREE.Vector3();
+    const sideV = new THREE.Vector3();
+    const armMid = new THREE.Vector3();
+    const armQ = new THREE.Quaternion();
+    const xAxis = new THREE.Vector3(1, 0, 0);
+    const unitV = new THREE.Vector3(1, 1, 1);
     const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
     const lampPositions: THREE.Vector3[] = [];
     for (let i = 0; i < count; i++) {
@@ -1224,6 +1271,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       if (u > TUNNEL_U.from - 0.004 && u < TUNNEL_U.to + 0.004) {
         // No street poles inside the tunnel
         poles.setMatrixAt(i, hidden);
+        arms.setMatrixAt(i, hidden);
+        heads.setMatrixAt(i, hidden);
         lamps.setMatrixAt(i, hidden);
         pools.setMatrixAt(i, hidden);
         continue;
@@ -1232,14 +1281,36 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       track.pose(s, sideSign * (ROAD_HALF_WIDTH + 1.6), p, tmp);
       m.makeTranslation(p.x, 4.2, p.z);
       poles.setMatrixAt(i, m);
-      track.pose(s, sideSign * (ROAD_HALF_WIDTH + 0.6), p, tmp);
-      m.makeTranslation(p.x, 8.3, p.z);
+
+      // Head hangs over the road edge; the arm bridges pole top → head
+      track.pose(s, sideSign * (ROAD_HALF_WIDTH - 1.2), p, tmp);
+      const hx = p.x;
+      const hz = p.z;
+      track.tangentAt(s, tanV);
+      tanV.y = 0;
+      tanV.normalize();
+      // Unit vector for +lat is (-Tz, 0, Tx); the arm points inward
+      sideV.set(tanV.z * sideSign, 0, -tanV.x * sideSign).normalize();
+      armQ.setFromUnitVectors(xAxis, sideV);
+      track.pose(s, sideSign * (ROAD_HALF_WIDTH + 0.4), p, tmp);
+      armMid.set((p.x + hx) / 2, 8.42, (p.z + hz) / 2);
+      m.compose(armMid, armQ, unitV);
+      arms.setMatrixAt(i, m);
+      armMid.set(hx, 8.45, hz);
+      m.compose(armMid, armQ, unitV);
+      heads.setMatrixAt(i, m);
+      m.makeTranslation(hx, 8.32, hz);
       lamps.setMatrixAt(i, m);
-      lampPositions.push(new THREE.Vector3(p.x, 8.3, p.z));
-      track.pose(s, sideSign * (ROAD_HALF_WIDTH - 2.5), p, tmp);
+      lampPositions.push(new THREE.Vector3(hx, 8.32, hz));
+
+      // The pool lands under the head and spills toward the road centre
+      // (the head's optic faces down-and-in, not straight down)
+      track.pose(s, sideSign * (ROAD_HALF_WIDTH - 2.4), p, tmp);
       m.makeTranslation(p.x, 0.045, p.z);
       pools.setMatrixAt(i, m);
     }
+    arms.instanceMatrix.needsUpdate = true;
+    heads.instanceMatrix.needsUpdate = true;
     // Wet-look smears: each lamp drags a long reflection down the road
     // surface — the single cheapest thing that sells night asphalt.
     const streakGeo = new THREE.PlaneGeometry(1.4, 12);
@@ -1267,7 +1338,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       const sideSign = i % 2 === 0 ? 1 : -1;
       // Inset from the kerb so a straight smear never crosses the rail
       // when the road bends underneath it.
-      track.pose(s2, sideSign * (ROAD_HALF_WIDTH - 2.8), p, tmp);
+      track.pose(s2, sideSign * (ROAD_HALF_WIDTH - 1.2), p, tmp);
       track.tangentAt(s2, tan);
       tan.y = 0;
       tan.normalize();
@@ -1284,9 +1355,34 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     lamps.instanceMatrix.needsUpdate = true;
     pools.instanceMatrix.needsUpdate = true;
     poles.castShadow = true;
-    scene.add(poles, lamps, pools, streaks);
+    scene.add(poles, arms, heads, lamps, pools, streaks);
     // Sodium coronas around every lamp head
     scene.add(coronaPoints(lampPositions, 0xffb15c, 5.5));
+    // Star glints: the sparkle each bright source throws at the lens
+    {
+      const geo = new THREE.BufferGeometry();
+      const pos = new Float32Array(lampPositions.length * 3);
+      lampPositions.forEach((lp, i) => {
+        pos[i * 3] = lp.x;
+        pos[i * 3 + 1] = lp.y;
+        pos[i * 3 + 2] = lp.z;
+      });
+      geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      glintMat = new THREE.PointsMaterial({
+        map: glintTexture(),
+        color: 0xffd9a0,
+        size: 2.6,
+        transparent: true,
+        opacity: 0.55,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        sizeAttenuation: true,
+      });
+      const glints = new THREE.Points(geo, glintMat);
+      glints.frustumCulled = false;
+      scene.add(glints);
+    }
+    shimmerLampMat = lampMat;
   }
 
   // Cat-eye road studs along both edge lines — they sparkle into the
@@ -1648,6 +1744,15 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       beacons.forEach((b, i) => {
         b.emissiveIntensity = 0.25 + 2.75 * Math.max(0, Math.sin(time * 1.8 + i * 2.1));
       });
+      // Sodium lamps hum: a barely-there shimmer on every head + glint —
+      // two incommensurate sines so it never reads as a loop
+      if (shimmerLampMat) {
+        shimmerLampMat.emissiveIntensity =
+          3.2 + Math.sin(time * 7.3) * 0.14 + Math.sin(time * 13.7) * 0.07;
+      }
+      if (glintMat) {
+        glintMat.opacity = 0.55 + Math.sin(time * 9.1) * 0.06 + Math.sin(time * 15.9) * 0.04;
+      }
     },
   };
 }

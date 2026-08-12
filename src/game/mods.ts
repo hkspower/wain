@@ -148,7 +148,7 @@ export const CARS: CarModel[] = [
     grip: 16.2, // AWD monster — nothing in the class sticks like it
     brake: 38,
     color: 0x3f66c4, // that blue
-    desc: "Four round tails, boxed arches, a wing from the factory. The monster of the corniche.",
+    desc: "Four round tails, boxed arches, AWD bite. Add the GT Wing to complete the legend.",
   },
   {
     id: "zeta-300",
