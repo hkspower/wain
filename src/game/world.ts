@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { Track, ROAD_HALF_WIDTH, COAST_U } from "./track";
+import { applyTextureManifest } from "./assets";
 
 /** Drooping palm fronds merged into one geometry (crown sits at trunk top). */
 function palmCrownGeometry(): THREE.BufferGeometry {
@@ -1174,21 +1175,27 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // read as smoother via the roughness map
   const { map: asphalt, normalMap: asphaltNormals, roughnessMap: asphaltRough } =
     asphaltSurface();
+  const roadMat = new THREE.MeshStandardMaterial({
+    map: asphalt,
+    roughnessMap: asphaltRough,
+    normalMap: asphaltNormals,
+    normalScale: new THREE.Vector2(0.55, 0.55),
+    color: 0xffffff,
+    roughness: 1.0, // the map supplies the real 0.38-0.92 range
+    metalness: 0.0, // asphalt is a dielectric
+    envMapIntensity: 1.15,
+  });
   const road = new THREE.Mesh(
     buildRibbon(track, -ROAD_HALF_WIDTH, ROAD_HALF_WIDTH, 0.02, 3),
-    new THREE.MeshStandardMaterial({
-      map: asphalt,
-      roughnessMap: asphaltRough,
-      normalMap: asphaltNormals,
-      normalScale: new THREE.Vector2(0.55, 0.55),
-      color: 0xffffff,
-      roughness: 1.0, // the map supplies the real 0.38-0.92 range
-      metalness: 0.0, // asphalt is a dielectric
-      envMapIntensity: 1.15,
-    })
+    roadMat
   );
   road.receiveShadow = true;
   scene.add(road);
+
+  // Authored artwork wins over the procedural maps when it is present.
+  // Nothing ships in public/textures/, so by default this is one 404 and
+  // the asphalt above stands unchanged.
+  void applyTextureManifest({ road: roadMat });
 
   const lineMat = new THREE.MeshStandardMaterial({
     color: 0xf6f6f2,
