@@ -292,15 +292,27 @@ def identity_checks():
 
     # the mark's own path signature. It lives in three files and they have to
     # stay one drawing — a favicon that lags a redraw is a second logo
-    SQ_MAST = "M9.7 15.4 11.0 3.2"
-    SQ_HULL = "M2.5 14.4C8.6 16.15 15.0 15.95 20.5 14.05"
-    W_MAST = "M19.6 15.3 21.8 2.5"
-    W_HULL = "M3.6 13.75C14 16 28 16 38.8 13.6"
+    SQ_MAST = "M11.6 16.15 12.9 8.8"
+    SQ_HULL = "M2.4 13.4C3.9 14.6 5.3 15.3 6.9 15.6"
+    SQ_SAIL = "M4.6 3.4 17.2 11.6 6.2 13.6Z"
+    W_MAST = "M26.8 16.4 28.63 7.79"
+    W_HULL = "M4.6 12.6C6.3 13.9 8 14.8 9.8 15.15"
+    W_SAIL = "M20.5 2.2 35.6 12.6 23.6 14.4Z"
+    fav = (ROOT / "favicon.svg").read_text()
     check(S, "the square boum serves the sprite for square holes",
           'id="i-sail"' in home and SQ_MAST in home and SQ_HULL in home)
     check(S, "the wide boum is the mark: logo.svg and the #i-boum symbol",
           'id="i-boum"' in home and W_MAST in logo and W_HULL in logo
           and W_MAST in home and W_HULL in home)
+    # The boum is the one Kuwaiti dhow that is DOUBLE-ENDED — no transom — and
+    # she is drawn under sail. Bare poles read as a laid-up hull, and a transom
+    # makes her a baghlah. Both were real defects an independent review caught.
+    check(S, "both forms carry a filled lateen sail, not bare poles",
+          W_SAIL in logo and W_SAIL in home and SQ_SAIL in home and SQ_SAIL in fav)
+    check(S, "favicon.svg is the same square drawing as #i-sail, not a second ship",
+          SQ_MAST in fav and SQ_HULL in fav)
+    check(S, "the tall mainmast is forward of the short mizzen, as a boum is rigged",
+          logo.index("M26.8 16.4") > 0 and "M13 16 14.1 9.23" in logo)
     check(S, "the masthead flies the wide mark; the footer keeps the square",
           '<use href="#i-boum"/>' in home.split("<footer>")[0].split('class="brand"')[1]
           and '<use href="#i-sail"/>' in home.split("<footer>")[1])
@@ -549,7 +561,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "467", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "470", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -583,7 +595,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "467", "0", "100%"], str(finals))
+          finals == ["4", "470", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -988,8 +1000,8 @@ def scan_checks(pg, br):
           'href="favicon.svg"' in home and 'href="icon.svg"' not in home)
     fav = (ROOT / "favicon.svg").read_text()
     check(S, "the favicon file draws the boum",
-          "M9.7 15.4 11.0 3.2" in fav
-          and "M2.5 14.4C8.6 16.15 15.0 15.95 20.5 14.05" in fav)
+          "M11.6 16.15 12.9 8.8" in fav
+          and "M2.4 13.4C3.9 14.6 5.3 15.3 6.9 15.6" in fav)
 
     # document structure: exactly one h1 per page
     for f in list(PAGES) + list(STUBS) + ["404.html"]:

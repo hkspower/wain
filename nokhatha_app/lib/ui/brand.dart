@@ -89,62 +89,62 @@ class _BoumPainter extends CustomPainter {
       ..strokeWidth = w * k
       ..strokeCap = StrokeCap.round;
 
-    // Standing rigging — thin, and the first thing to vanish when small.
-    final stays = stroke(0.32);
-    canvas.drawLine(p(21.7, 2.8), p(41.3, 12.1), stays);
-    canvas.drawLine(p(21.6, 2.8), p(4.4, 10.5), stays);
-    canvas.drawLine(p(31.3, 5.4), p(39.3, 12.9), stays);
+    // Drawn from almuhallab/logo.svg on the same 48x24 grid — the boum under
+    // sail: a double-ended hull with a tall raked stem, the tall mainmast
+    // FORWARD and the short mizzen aft, and two filled lateen sails. The sail
+    // is what says "Arab" and "under way"; the previous bare-poled drawing
+    // read as a laid-up hull. Two stroke steps only: masts 1.0, the rest 0.6.
 
-    canvas.drawLine(p(19.6, 15.3), p(21.8, 2.5), stroke(1.0)); // main mast
-    canvas.drawLine(p(29.8, 14.9), p(31.4, 4.9), stroke(0.9)); // mizzen
-    canvas.drawLine(p(12.9, 10.6), p(25.9, 3.5), stroke(0.62)); // lateen yards
-    canvas.drawLine(p(25.8, 10.8), p(35.4, 5.4), stroke(0.58));
-
-    // Pennant at the main truck
+    // The water she sails in — drawn first, so the hull cuts it.
     canvas.drawPath(
-      Path()..moveTo(21.8 * k, 2.4 * k)..lineTo(24.5 * k, 2.9 * k)
-        ..lineTo(21.9 * k, 3.8 * k)..close(),
+      Path()..moveTo(5.5 * k, 18.95 * k)
+        ..cubicTo(15 * k, 19.5 * k, 32 * k, 19.5 * k, 43.4 * k, 18.85 * k),
+      stroke(0.6),
+    );
+
+    // Hull: sternpost, sheer, and the stem — one continuous silhouette.
+    canvas.drawPath(
+      Path()
+        ..moveTo(4.6 * k, 12.6 * k)
+        ..cubicTo(6.3 * k, 13.9 * k, 8 * k, 14.8 * k, 9.8 * k, 15.15 * k)
+        ..cubicTo(15 * k, 16.4 * k, 23 * k, 16.5 * k, 30.4 * k, 15.55 * k)
+        ..cubicTo(34.6 * k, 15 * k, 37.7 * k, 14.2 * k, 40.3 * k, 13.2 * k)
+        ..lineTo(43.35 * k, 6.85 * k)
+        ..lineTo(44.35 * k, 7.3 * k)
+        ..lineTo(41.4 * k, 14.4 * k)
+        ..cubicTo(38.4 * k, 18.2 * k, 33 * k, 20 * k, 25.8 * k, 20.35 * k)
+        ..cubicTo(18.4 * k, 20.75 * k, 11 * k, 19.4 * k, 7.7 * k, 16.7 * k)
+        ..close(),
       fill,
     );
-    // Transom aft
+
+    // Rubbing strake, under the sheer
     canvas.drawPath(
-      Path()..moveTo(2.0 * k, 10.0 * k)..lineTo(3.6 * k, 9.7 * k)
-        ..lineTo(4.8 * k, 15.2 * k)..lineTo(3.1 * k, 15.5 * k)..close(),
+      Path()..moveTo(9.6 * k, 16.05 * k)
+        ..cubicTo(15 * k, 17.3 * k, 23 * k, 17.4 * k, 30.3 * k, 16.45 * k)
+        ..cubicTo(34.5 * k, 15.9 * k, 37.5 * k, 15.1 * k, 39.6 * k, 14.2 * k),
+      stroke(0.6),
+    );
+
+    // Masts — butt-capped, ending at their sail's luff so no peg pokes out.
+    final mast = stroke(1.0)..strokeCap = StrokeCap.butt;
+    canvas.drawLine(p(13, 16), p(14.1, 9.23), mast);      // mizzen, aft
+    canvas.drawLine(p(26.8, 16.4), p(28.63, 7.79), mast); // mainmast, forward
+
+    // Lateen yards: peak high aft, tack low forward.
+    canvas.drawLine(p(7.6, 5.2), p(18.4, 11.9), stroke(0.6));
+    canvas.drawLine(p(20.5, 2.2), p(35.6, 12.6), stroke(0.6));
+
+    // The sails themselves
+    canvas.drawPath(
+      Path()..moveTo(7.6 * k, 5.2 * k)..lineTo(18.4 * k, 11.9 * k)
+        ..lineTo(9.2 * k, 13.4 * k)..close(),
       fill,
     );
-    // Raked stem forward, with its finial
     canvas.drawPath(
-      Path()..moveTo(38.6 * k, 14.6 * k)..lineTo(44.6 * k, 6.2 * k)
-        ..lineTo(45.6 * k, 6.9 * k)..lineTo(40.0 * k, 15.0 * k)..close(),
+      Path()..moveTo(20.5 * k, 2.2 * k)..lineTo(35.6 * k, 12.6 * k)
+        ..lineTo(23.6 * k, 14.4 * k)..close(),
       fill,
-    );
-    canvas.drawCircle(p(45.2, 6.1), 0.75 * k, fill);
-
-    // Rubbing strake above the deck line
-    canvas.drawPath(
-      Path()..moveTo(5.0 * k, 13.1 * k)
-        ..cubicTo(14 * k, 15.3 * k, 28 * k, 15.4 * k, 38.8 * k, 12.9 * k),
-      stroke(0.5),
-    );
-
-    // Hull, with the hawse hole punched through it — a real hole, via evenodd,
-    // so it shows the surface behind rather than a painted-on dot.
-    final hull = Path()
-      ..fillType = PathFillType.evenOdd
-      ..moveTo(3.6 * k, 13.75 * k)
-      ..cubicTo(14 * k, 16 * k, 28 * k, 16 * k, 38.8 * k, 13.6 * k)
-      ..lineTo(40.5 * k, 13.4 * k)
-      ..cubicTo(40 * k, 18.5 * k, 34 * k, 20.8 * k, 26 * k, 21.2 * k)
-      ..cubicTo(16 * k, 21.6 * k, 8 * k, 20.2 * k, 4.6 * k, 17.4 * k)
-      ..close()
-      ..addOval(Rect.fromCircle(center: p(8.2, 17.3), radius: 0.9 * k));
-    canvas.drawPath(hull, fill);
-
-    // The water she stands in
-    canvas.drawPath(
-      Path()..moveTo(6.8 * k, 22.45 * k)
-        ..cubicTo(16 * k, 23.05 * k, 30 * k, 23.05 * k, 40.6 * k, 22.25 * k),
-      stroke(0.55),
     );
   }
 

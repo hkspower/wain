@@ -1,15 +1,28 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 24" role="img" aria-label="المهلب — Almuhallab">
-  <!-- The Almuhallab mark, full form: the Kuwaiti boum at her real proportions —
-       wide and low, which a square can only compress. Drawn 2026-08-09 from the
-       photograph of the ship, at the owner's direction. Parts, stern to bow:
-       the tall transom; the hull with its sweeping sheer, a rubbing strake
-       above the deck line and a hawse hole aft (a true hole via evenodd, so it
-       reads on any surface); two forward-raked masts with raked lateen yards —
-       raked, never square across a mast, which would read as a cross; three
-       stays; the pennant at the main truck; the long raked stem with its
-       finial; the water she stands in. Stroke weights are a discipline, not a
-       accident: masts 1.0/0.9, yards .62/.58, strake .5, stays .32.
-       The square companion (favicon.svg, #i-sail) serves browser tabs and any
-       square hole; this file is the mark everywhere width allows. -->
-  <path fill="none" stroke="currentColor" stroke-width="0.32" stroke-linecap="round" d="M21.7 2.8 41.3 12.1M21.6 2.8 4.4 10.5M31.3 5.4 39.3 12.9"/><path fill="none" stroke="currentColor" stroke-width="1.0" stroke-linecap="round" d="M19.6 15.3 21.8 2.5"/><path fill="none" stroke="currentColor" stroke-width="0.9" stroke-linecap="round" d="M29.8 14.9 31.4 4.9"/><path fill="none" stroke="currentColor" stroke-width="0.62" stroke-linecap="round" d="M12.9 10.6 25.9 3.5"/><path fill="none" stroke="currentColor" stroke-width="0.58" stroke-linecap="round" d="M25.8 10.8 35.4 5.4"/><path fill="currentColor" stroke="none" d="M21.8 2.4 24.5 2.9 21.9 3.8Z"/><path fill="currentColor" stroke="none" d="M2.0 10.0 3.6 9.7 4.8 15.2 3.1 15.5Z"/><path fill="currentColor" stroke="none" d="M38.6 14.6 44.6 6.2 45.6 6.9 40.0 15.0Z"/><circle fill="currentColor" stroke="none" cx="45.2" cy="6.1" r="0.75"/><path fill="none" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" d="M5.0 13.1C14 15.3 28 15.4 38.8 12.9"/><path fill="currentColor" stroke="none" fill-rule="evenodd" d="M3.6 13.75C14 16 28 16 38.8 13.6L40.5 13.4C40 18.5 34 20.8 26 21.2 16 21.6 8 20.2 4.6 17.4Z M8.2 16.4A0.9 0.9 0 1 0 8.2 18.2 0.9 0.9 0 1 0 8.2 16.4Z"/><path fill="none" stroke="currentColor" stroke-width="0.55" stroke-linecap="round" d="M6.8 22.45C16 23.05 30 23.05 40.6 22.25"/>
+  <!-- The Almuhallab mark, wide form: the Kuwaiti boum under sail. Redrawn
+       2026-08-12 after an independent review found the previous drawing was a
+       generic dhow, not a boum. Parts, stern to bow:
+         * the hull is DOUBLE-ENDED — a raked pointed sternpost aft and a tall,
+           near-straight raked stem forward, both continuous with the hull as
+           one filled path. A boum has no transom; a transom made the old mark
+           a baghlah. The stem is the single most identifying timber and it
+           carries the mark;
+         * the sheer rises into both ends and lifts most at the bow, with a
+           rubbing strake under it and the hawse hole forward, just abaft the
+           stem — a hawse is where the anchor cable runs, so it cannot be aft;
+         * two filled LATEEN SAILS, peak high aft and tack low forward. The old
+           mark had bare poles and read as a laid-up hull; the sail is what says
+           "Arab" and "under way", and it is the only mass that survives small;
+         * the tall MAINMAST FORWARD and the short mizzen aft, as a boum is
+           rigged — the old mark had them the wrong way round;
+         * nothing else. The stays, the pennant and the hawse hole are gone:
+           hairlines die first at every size the mark ships at, the pennant on
+           a bare masthead read as a bird's head, and the hawse — drawn as a
+           true hole — read as an eye, which put a whale on the masthead bar.
+       Stroke weight is two real steps, not seven near-identical ones:
+       masts 1.0 · yards, strake and water 0.6. Masts end at the sail's luff
+       with butt caps, so no round peg pokes through the silhouette.
+       The square companion (favicon.svg, #i-sail) is this same drawing cropped
+       to one hull, one stem, one mast and one sail, so it holds at 16px. -->
+  <path fill="none" stroke="currentColor" stroke-width="0.6" stroke-linecap="round" d="M5.5 18.95C15 19.5 32 19.5 43.4 18.85"/><path fill="currentColor" stroke="none" d="M4.6 12.6C6.3 13.9 8 14.8 9.8 15.15 15 16.4 23 16.5 30.4 15.55 34.6 15 37.7 14.2 40.3 13.2L43.35 6.85 44.35 7.3 41.4 14.4C38.4 18.2 33 20 25.8 20.35 18.4 20.75 11 19.4 7.7 16.7Z"/><path fill="none" stroke="currentColor" stroke-width="0.6" stroke-linecap="round" d="M9.6 16.05C15 17.3 23 17.4 30.3 16.45 34.5 15.9 37.5 15.1 39.6 14.2"/><path fill="none" stroke="currentColor" stroke-width="1.0" stroke-linecap="butt" d="M13 16 14.1 9.23"/><path fill="none" stroke="currentColor" stroke-width="1.0" stroke-linecap="butt" d="M26.8 16.4 28.63 7.79"/><path fill="none" stroke="currentColor" stroke-width="0.6" stroke-linecap="round" d="M7.6 5.2 18.4 11.9M20.5 2.2 35.6 12.6"/><path fill="currentColor" stroke="none" d="M7.6 5.2 18.4 11.9 9.2 13.4Z"/><path fill="currentColor" stroke="none" d="M20.5 2.2 35.6 12.6 23.6 14.4Z"/>
 </svg>

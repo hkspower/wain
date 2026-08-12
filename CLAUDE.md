@@ -34,7 +34,7 @@ Locked, exactly as they are:
 
 | | Locked value |
 |---|---|
-| Mark | a **Kuwaiti boum under way**, in two fixed forms of one drawing. The **wide form** (2:1, `logo.svg` and `#i-boum`) is the mark wherever width allows — masthead and print — with the full detail of the real ship: tall transom, sweeping sheer with a rubbing strake and a hawse hole (a true evenodd hole, so it reads on any surface), two forward-raked masts, raked lateen yards, three stays, pennant, the long raked stem with its finial, and the water line. The **square form** (`favicon.svg`, `#i-sail`) serves square holes: browser tab, footer, covers. **Yards are raked, never square across a mast** — square ones read as a cross, which this mark must never do. Stroke weights are fixed: masts 1.0/0.9, yards .62/.58, strake .5, stays .32. The suite pins both forms' path signatures |
+| Mark | a **Kuwaiti boum under sail**, in two forms of one drawing (redrawn 2026-08-12 at the owner's word, after an independent review found the previous mark was a generic dhow with bare poles). Four things make her a boum and none may change: she is **double-ended** — a raked pointed sternpost aft and a **tall, near-straight raked stem** forward, both continuous with the hull as one filled path, **never a transom** (a transom makes her a baghlah); she carries **filled lateen sails**, peak high aft and tack low forward — bare poles read as a laid-up hull, and the sail is the only mass that survives small; the **tall mainmast is forward** and the short mizzen aft; and the sheer rises into both ends. The **wide form** (2:1, `logo.svg` and `#i-boum`) is the mark wherever width allows — masthead and print. The **square form** (`favicon.svg`, `#i-sail`) is that same drawing cropped to one hull, one stem, one mast and one sail at heavier weights, because 16px is its real working size. Stroke weight is **two steps, not seven**: masts 1.0, everything else 0.6 (square: 1.3 / 0.8). Masts stop at their sail's luff with butt caps. **No stays, no pennant, no hawse hole** — hairlines die first, a pennant on a bare masthead read as a bird's head, and the hawse read as an eye, which put a whale on the masthead bar. The suite pins both forms' path signatures, and `design/logo_pack.py` generates the whole delivery pack from the sprite so nothing can drift |
 | Wordmark | **المهلب**, then `Almuhallab Code` on its own line beneath (LTR in its own bidi isolate), then «شركة برمجة وأنظمة». On the brown bar all three are white. Enlarging the lockup covers more of the page, so `scroll-margin-top` moved with it — 178px desktop, 152px phone |
 | Brand ink | `--tint` `#7a4418` · `--tint-strong` `#6f3f1c` |
 | Surfaces | **white on every device** — no dark theme; white page, white cards, cool near-neutral greys. Brown is ink, never paper — with one exception the owner asked for (2026-07-31): the **masthead bar is brown** (`--tint-strong`) with white ink on every page, and `theme-color` matches it. Everything below the bar stays white |
@@ -93,7 +93,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   eye. Text ≥ 4.5:1 (body ≥ 7:1) against the darkest surface it can land on;
   essential UI boundaries ≥ 3:1; chart marks ≥ 2:1.
 - **The company's real identity, from the live site**: the mark is a Kuwaiti
-  boum under way — wide form in `logo.svg`/`#i-boum` (masthead), square form in
+  boum under sail — wide form in `logo.svg`/`#i-boum` (masthead), square form in
   `favicon.svg`/`#i-sail` (footer, tab) — the
   wordmark is **المهلب** in brand brown, and the palette is brown on white.
   النوخذة keeps the ⚓ anchor (`icon.svg`) — the company and the product are
@@ -278,6 +278,14 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   inner pages carry a `BreadcrumbList`.
 - `design/instagram_covers.py` draws the Instagram highlight covers from the
   page sprite (1080×1080, brown fill, white mark) — `design/instagram/`.
+- `design/logo_pack.py` builds `design/logo-pack/` — the 39-file delivery pack a
+  printer or a partner asks for: SVG in brown/white/black for both forms, the
+  gradient tile, PNGs at three grounds, a multi-size `.ico`, and a README fixing
+  clear space (height ÷ 4), the minimum sizes (wide 90px/20mm, square 16px) and
+  the CMYK figure for `#6F3F1C` (0·43·75·56, computed from sRGB — ask the
+  printer for a proof, it is not a colour-managed conversion). Every file is
+  generated from the page's own sprite, so the pack cannot drift from the mark
+  the site flies. Re-run it after any change to the logo.
 - `design/capture.py` drives the site end to end and screenshots every page;
   `design/build_pdf.py` composes those into the PDF sample;
   `design/admin_test.py` exercises the admin console.
