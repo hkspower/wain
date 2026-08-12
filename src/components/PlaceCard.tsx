@@ -11,7 +11,7 @@ export default function PlaceCard({ place }: { place: Place }) {
       href={`/places/${place.slug}`}
       className="group flex flex-col overflow-hidden rounded-3xl border border-sand-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-sand-300 hover:shadow-xl hover:shadow-ink-900/10"
     >
-      <div className="relative flex h-36 items-center justify-center overflow-hidden border-b border-sand-200 bg-sand-100 standalone:h-24">
+      <div className="relative flex h-36 items-center justify-center overflow-hidden border-b border-sand-200 bg-sand-200/60 standalone:h-24">
         <PlaceIcon
           slug={place.slug}
           className="size-20 text-ink-700 transition duration-500 group-hover:scale-105 standalone:size-14"
