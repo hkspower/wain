@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { haptic, HAPTIC } from "@/game/settings";
+import { RIVALS } from "@/game/rivals";
 
 /**
  * First-run onboarding.
@@ -134,15 +135,15 @@ const CARDS: Card[] = [
   },
   {
     kicker: "05 · PROGRESS",
-    title: "Six legends, one crown",
+    title: `${RIVALS.length} legends, one crown`,
     ar: "ملك شارع الخليج",
     body:
       "Beating a rival unlocks the next, harder one and raises your driver " +
-      "level. Clean wins and big leads pay extra XP. Take all six and the " +
+      `level. Clean wins and big leads pay extra XP. Take all ${RIVALS.length} and the ` +
       "street is yours — King of Gulf Road.",
     art: (
       <div className="flex w-full items-center justify-center gap-1.5">
-        {[0, 1, 2, 3, 4, 5].map((i) => (
+        {RIVALS.map((_, i) => (
           <span
             key={i}
             className={`h-2.5 flex-1 rounded-full ${

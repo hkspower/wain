@@ -39,7 +39,7 @@ void AGRNGameMode::BeginPlay()
 
 	LoadProgress();
 	ApplyCar(CurrentCarIdx);
-	for (int32 i = 0; i < 8; i++)
+	for (int32 i = 0; i < 14; i++)
 	{
 		AGRNTraffic* T = World->SpawnActor<AGRNTraffic>();
 		T->Init(Track, Player, i);

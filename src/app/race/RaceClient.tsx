@@ -1472,7 +1472,7 @@ export default function RaceClient() {
               ملك شارع الخليج
             </div>
             <div className="mx-auto mt-4 max-w-md text-[0.95rem] leading-6 text-white/65">
-              All six legends defeated — from Salmiya to Jahra, every street is yours. Mabrook! 🇰🇼
+              Every legend on the roster defeated — from Salmiya to Jahra, the street is yours. Mabrook! 🇰🇼
             </div>
             <button
               onClick={() => {

@@ -663,7 +663,7 @@ export class GameEngine {
       this.playerMesh.add(pool);
     }
 
-    this.spawnTraffic(22);
+    this.spawnTraffic(30);
 
     this.rivalIndex = this.loadProgress();
     this.spawnRival();

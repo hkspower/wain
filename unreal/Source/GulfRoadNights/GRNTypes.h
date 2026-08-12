@@ -57,6 +57,8 @@ static const FGRNRivalDef GRNRivals[] = {
 	{ TEXT("Al-Daboos"), TEXT("الدبوس"), TEXT("Hawally Night Hawks"), TEXT("Hawally"), FColor(0xF5, 0xC2, 0x11), 261.0f, EGRNBodyStyle::ZX },
 	{ TEXT("Bu Machboos"), TEXT("بو مجبوس"), TEXT("Fahaheel Phantoms"), TEXT("Fahaheel"), FColor(0xE8, 0x64, 0x1B), 277.0f, EGRNBodyStyle::GTR },
 	{ TEXT("Al-Saqer"), TEXT("الصقر"), TEXT("Jahra Junoon"), TEXT("Jahra"), FColor(0xC1, 0x12, 0x1F), 293.0f, EGRNBodyStyle::ZX },
+	{ TEXT("Bu Torab"), TEXT("بو تراب"), TEXT("Doha Dust Devils"), TEXT("Doha"), FColor(0x56, 0x5F, 0x6B), 301.0f, EGRNBodyStyle::ZX },
+	{ TEXT("Al-Sayyaf"), TEXT("السياف"), TEXT("Bayan Blade Runners"), TEXT("Bayan"), FColor(0x0F, 0x76, 0x6E), 307.0f, EGRNBodyStyle::GTR },
 	{ TEXT("Shabah Al-Khaleej"), TEXT("شبح الخليج"), TEXT("???"), TEXT("Gulf Road"), FColor(0x0A, 0x0A, 0x0C), 318.0f, EGRNBodyStyle::GTR },
 };
 static const int32 GRNRivalCount = UE_ARRAY_COUNT(GRNRivals);

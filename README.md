@@ -13,11 +13,11 @@ A built-in **Kuwait Xtreme Racer** game at [`/race`](http://localhost:3000/race)
 - **Drift**: hold `Space` while turning to kick the tail out — keep the throttle in to sustain the slide, counter-steer to catch it. Angle × speed pays style points, banked as bonus XP when you win the battle (a wall hit voids the run)
 - **Voices**: rivals speak Kuwaiti dialect lines (battle intros, gloats, concessions) through the browser's Arabic speech voices — each character has their own pitch and pace, from Abu Shanab's cheerful jab to the ghost's slow rasp
 - **Battle**: catch a rival and press `F` to flash your headlights — after the stake is agreed, a short slow-motion intro film pans the rival's machine before the green flag (tap to skip; reduced-motion players go straight to the flag). The trailing car bleeds SP (Spirit Points); empty the rival's bar to win
-- **Roster**: six street legends from Salmiya to Jahra, ending with the boss, *Shabah Al-Khaleej* (شبح الخليج)
+- **Roster**: eight street legends from Salmiya to Doha and Bayan, ending with the boss, *Shabah Al-Khaleej* (شبح الخليج)
 - **Paintwork**: the player car's lacquer reflects the actual world around it — a live low-res cube probe rides with the car, so streetlights, towers and neon sweep across the clearcoat as you drive. Streetlights also drag wet-look reflections down the asphalt. The probe is on in High/Auto quality and off in Balanced/Battery (Settings ⚙), and `G` toggles the whole fx stack
 - **Garage**: three rooms — Showroom, Performance, Style — with a live spec panel (power, real top speed, brakes, grip) that moves the moment a part bolts on
 - **Machines**: three body silhouettes — the sedan, the **Zeta 300** long-nose fastback wedge (flush light bar, full-width tail band, hood slats — golden-era JDM), and the **Kaiju R** coupe (four round tail lights, boxed fender flares, hood bulge, factory wing). Supercars wear the wedge; two rivals and the boss bring their own
-- Progress is saved locally; beat all six to become **King of Gulf Road** 👑
+- Progress is saved locally; beat all eight to become **King of Gulf Road** 👑
 
 ### Online Hub — تجمع شارع الخليج
 

@@ -51,7 +51,7 @@ const duelOf = new Map();
 /** playerId -> { from, wager, at } — one pending invite per player */
 const invites = new Map();
 
-const DUEL_MAX_WAGER = 25000;
+const DUEL_MAX_WAGER = 100000;
 const INVITE_TTL_MS = 45000; // a challenged driver may be mid-corner
 
 function endDuel(duelId, winnerId, reason) {
@@ -77,7 +77,7 @@ function endDuel(duelId, winnerId, reason) {
 }
 
 const MAX_TEAM_NAME = 28;
-const MAX_TEAMS = 200;
+const MAX_TEAMS = 500;
 
 function teamView(t) {
   return {
@@ -144,7 +144,7 @@ function leaderboard() {
   return [...bestLaps.entries()]
     .map(([name, ms]) => ({ name, ms }))
     .sort((a, b) => a.ms - b.ms)
-    .slice(0, 10);
+    .slice(0, 20);
 }
 
 function roster() {
