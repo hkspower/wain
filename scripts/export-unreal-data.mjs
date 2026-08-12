@@ -75,7 +75,7 @@ const cars = carsBlock
 if (cars.length < 5) throw new Error(`car parse failed (${cars.length})`);
 
 // ------------------------------------------------------------- emit C++
-const styleEnum = { sedan: "EGRNBodyStyle::Sedan", zx: "EGRNBodyStyle::ZX", gtr: "EGRNBodyStyle::GTR" };
+const styleEnum = { sedan: "EGRNBodyStyle::Sedan", zx: "EGRNBodyStyle::ZX", gtr: "EGRNBodyStyle::GTR", rx7: "EGRNBodyStyle::RX7" };
 const col = (hex) =>
   `FColor(0x${hex.slice(0, 2).toUpperCase()}, 0x${hex.slice(2, 4).toUpperCase()}, 0x${hex.slice(4, 6).toUpperCase()})`;
 
@@ -103,7 +103,7 @@ ${points.map((p) => `\t{ ${p.x}, ${p.z} },`).join("\n")}
 
 // ------------------------------------------------------------- rivals
 
-enum class EGRNBodyStyle : uint8 { Sedan, ZX, GTR };
+enum class EGRNBodyStyle : uint8 { Sedan, ZX, GTR, RX7 };
 
 struct FGRNRivalDef
 {

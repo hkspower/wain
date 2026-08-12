@@ -38,7 +38,7 @@ static const FGRNTrackPoint GRNControlPoints[] = {
 
 // ------------------------------------------------------------- rivals
 
-enum class EGRNBodyStyle : uint8 { Sedan, ZX, GTR };
+enum class EGRNBodyStyle : uint8 { Sedan, ZX, GTR, RX7 };
 
 struct FGRNRivalDef
 {
@@ -83,6 +83,7 @@ static const FGRNCarDef GRNCars[] = {
 	{ TEXT("falcon-720"), TEXT("Falcon 720 Veloce"), 71000, 1.50f, 21.0f, 15.8f, 40.0f, FColor(0xC1, 0x12, 0x1F), EGRNBodyStyle::ZX },
 	{ TEXT("storm-s8"), TEXT("Desert Storm S8"), 54000, 1.40f, 17.0f, 15.2f, 38.0f, FColor(0x1F, 0x29, 0x33), EGRNBodyStyle::Sedan },
 	{ TEXT("kaiju-r"), TEXT("Kaiju R"), 38000, 1.34f, 15.0f, 16.2f, 38.0f, FColor(0x3F, 0x66, 0xC4), EGRNBodyStyle::GTR },
+	{ TEXT("efreet-rx"), TEXT("Efreet RX"), 31000, 1.30f, 13.0f, 14.8f, 35.0f, FColor(0xD7, 0x26, 0x3D), EGRNBodyStyle::RX7 },
 	{ TEXT("zeta-300"), TEXT("Zeta 300"), 27000, 1.26f, 12.0f, 13.9f, 34.0f, FColor(0xC1, 0x27, 0x2D), EGRNBodyStyle::ZX },
 	{ TEXT("gulf-coupe-rs"), TEXT("Gulf Coupe RS"), 33000, 1.28f, 13.0f, 14.6f, 35.0f, FColor(0x2E, 0x8F, 0x96), EGRNBodyStyle::Sedan },
 	{ TEXT("salmiya-turbo"), TEXT("Salmiya Turbo GT"), 24000, 1.20f, 10.0f, 13.8f, 32.0f, FColor(0xB8, 0x4D, 0xD6), EGRNBodyStyle::Sedan },

@@ -16,7 +16,7 @@ export interface RivalDef {
   /** The machine they bring to the line. */
   car?: string;
   /** Body silhouette for their car mesh (cars.ts). */
-  bodyStyle?: "sedan" | "zx" | "gtr";
+  bodyStyle?: "sedan" | "zx" | "gtr" | "rx7";
   bodyColor: number;
   accentColor: number;
   topSpeedKmh: number;

@@ -77,7 +77,7 @@ npm run sync:unreal     # regenerates Source/GulfRoadNights/GRNTypes.h
 ```
 
 and commit the regenerated header. Track geometry, the rival roster,
-the full 12-car showroom and the handling constants all flow from the
+the full 13-car showroom and the handling constants all flow from the
 TypeScript source of truth into UE5 in one step.
 
 ## What maps to what

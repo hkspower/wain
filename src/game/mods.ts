@@ -82,8 +82,8 @@ export interface CarModel {
   ar: string;
   cls: CarClass;
   price: number;
-  /** Body silhouette (cars.ts): sedan, zx wedge, or gtr coupe. */
-  style?: "sedan" | "zx" | "gtr";
+  /** Body silhouette (cars.ts): sedan, zx wedge, gtr coupe, or rx7. */
+  style?: "sedan" | "zx" | "gtr" | "rx7";
   /** Base handling before garage mods. */
   power: number; // accel multiplier
   topSpeed: number; // ceiling bonus (km/h-ish units)
@@ -149,6 +149,20 @@ export const CARS: CarModel[] = [
     brake: 38,
     color: 0x3f66c4, // that blue
     desc: "Four round tails, boxed arches, AWD bite. Add the GT Wing to complete the legend.",
+  },
+  {
+    id: "efreet-rx",
+    name: "Efreet RX",
+    ar: "عفريت",
+    cls: "sport",
+    style: "rx7",
+    price: 31000,
+    power: 1.3,
+    topSpeed: 13,
+    grip: 14.8,
+    brake: 35,
+    color: 0xd7263d, // vintage rotary red
+    desc: "Rotary-hearted curves — pop-ups up, first light on the horizon, nothing else on the road.",
   },
   {
     id: "zeta-300",
@@ -336,7 +350,7 @@ export interface TuneEffects {
   exhaustLevel: number; // 0..1 sound character
   paint: number;
   glow: number | null;
-  bodyStyle: "sedan" | "zx" | "gtr";
+  bodyStyle: "sedan" | "zx" | "gtr" | "rx7";
 }
 
 export function computeEffects(g: GarageState): TuneEffects {

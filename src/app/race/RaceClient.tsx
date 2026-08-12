@@ -127,6 +127,7 @@ export default function RaceClient() {
       haptic(HAPTIC.tap, next.haptics);
       if (k === "sfxVolume") setSfxVolume(next.sfxVolume);
       if (k === "quality") engineRef.current?.applyQualityTier(next.quality);
+      if (k === "sky") engineRef.current?.setSky(next.sky);
       playSfx("ui-tap", 0.6);
       return next;
     });
@@ -416,8 +417,9 @@ export default function RaceClient() {
       return;
     }
     engineRef.current = engine;
-    const tier = loadSettings().quality;
-    if (tier !== "auto") engine.applyQualityTier(tier);
+    const boot = loadSettings();
+    if (boot.quality !== "auto") engine.applyQualityTier(boot.quality);
+    if (boot.sky !== "night") engine.setSky(boot.sky);
     setPhase("playing");
 
     // Online cruise: connect to the hub and mirror the other drivers.
@@ -1414,6 +1416,34 @@ export default function RaceClient() {
               Auto measures your frame rate for six seconds and drops glow and shadows if the
               device can&apos;t hold it. Battery caps the resolution as well.
             </p>
+
+            {/* Time of day */}
+            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-[0.68rem]">
+              Sky · السما
+            </h3>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {(
+                [
+                  ["night", "Midnight", "ليل", "Sodium lamps, full stars, the classic run"],
+                  ["dawn", "First light", "فجر", "Sunrise band on the horizon, stars fading"],
+                ] as const
+              ).map(([mode, label, ar, desc]) => (
+                <button
+                  key={mode}
+                  onClick={() => updateSetting("sky", mode)}
+                  className={`tap grn-panel px-3 py-3 text-left transition ${
+                    settings.sky === mode
+                      ? "border-sodium-400/80 bg-sodium-500/10"
+                      : "hover:border-white/30"
+                  }`}
+                >
+                  <span className="grn-display block text-base">
+                    {label} <span className="grn-ar text-white/55">{ar}</span>
+                  </span>
+                  <span className="block text-[0.7rem] text-white/50">{desc}</span>
+                </button>
+              ))}
+            </div>
 
             {/* Audio */}
             <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-[0.68rem]">

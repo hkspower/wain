@@ -14,6 +14,7 @@ namespace
 	{
 		if (S == TEXT("zx")) return EGRNBodyStyle::ZX;
 		if (S == TEXT("gtr")) return EGRNBodyStyle::GTR;
+		if (S == TEXT("rx7")) return EGRNBodyStyle::RX7;
 		return EGRNBodyStyle::Sedan;
 	}
 

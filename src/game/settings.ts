@@ -18,6 +18,8 @@ export interface Settings {
   sfxVolume: number;
   /** Bigger HUD for small screens or low vision. */
   largeHud: boolean;
+  /** Time of day on the corniche. */
+  sky: "night" | "dawn";
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -28,6 +30,7 @@ export const DEFAULT_SETTINGS: Settings = {
   musicVolume: 0.32,
   sfxVolume: 0.75,
   largeHud: false,
+  sky: "night",
 };
 
 const KEY = "gulf-road-nights-settings";

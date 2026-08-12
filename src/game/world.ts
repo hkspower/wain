@@ -972,9 +972,13 @@ function placeBeside(track: Track, obj: THREE.Object3D, s: number, offset: numbe
   obj.position.set(p.x + side.x * offset, 0, p.z + side.z * offset);
 }
 
+export type SkyMode = "night" | "dawn";
+
 export interface WorldHandle {
   /** Advance animated scenery (sea shimmer, tower beacons). */
   tick(dt: number): void;
+  /** Repaint the world for midnight or the first light of dawn. */
+  setSky(mode: SkyMode): void;
   /** The moon — the engine drives its shadow frustum along with the player. */
   moonLight: THREE.DirectionalLight;
   /** Sky dome, stars and moon disc — re-centred on the camera each frame
@@ -1001,6 +1005,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // Handles for the night-shimmer tick (assigned in the streetlight block)
   let glintMat: THREE.PointsMaterial | null = null;
   let shimmerLampMat: THREE.MeshStandardMaterial | null = null;
+  // Handles the time-of-day switch repaints
+  let skyMatRef: THREE.ShaderMaterial | null = null;
+  let starsMatRef: THREE.PointsMaterial | null = null;
+  let moonDiscMat: THREE.MeshBasicMaterial | null = null;
+  let moonHaloMat: THREE.SpriteMaterial | null = null;
+  let hemiRef: THREE.HemisphereLight | null = null;
 
   const L = track.length;
   const beacons: THREE.MeshStandardMaterial[] = [];
@@ -1016,7 +1026,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // Ambient fill is the other black-level lift: at 0.65 nothing in the
   // scene could reach zero. 0.3 keeps shape in the shadows without
   // flooding them.
-  scene.add(new THREE.HemisphereLight(0x2b3853, 0x120e08, 0.36));
+  hemiRef = new THREE.HemisphereLight(0x2b3853, 0x120e08, 0.36);
+  scene.add(hemiRef);
   const moonLight = new THREE.DirectionalLight(0xbfd0ff, 0.8);
   moonLight.position.set(-300, 500, 200);
   scene.add(moonLight);
@@ -1026,7 +1037,15 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const skyMat = new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
-      uniforms: {},
+      // Palette lives in uniforms so setSky can turn midnight into dawn
+      // without rebuilding the dome.
+      uniforms: {
+        uTop: { value: new THREE.Color(0.004, 0.007, 0.026) },
+        uHorizon: { value: new THREE.Color(0.05, 0.066, 0.125) },
+        uGlow: { value: new THREE.Color(0.085, 0.046, 0.01) },
+        /** How far the horizon band climbs — dawn light reaches higher. */
+        uGlowHeight: { value: 0.16 },
+      },
       vertexShader: `
         varying vec3 vPos;
         void main() {
@@ -1035,41 +1054,41 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         }`,
       fragmentShader: `
         varying vec3 vPos;
+        uniform vec3 uTop;
+        uniform vec3 uHorizon;
+        uniform vec3 uGlow;
+        uniform float uGlowHeight;
         void main() {
           float h = clamp(vPos.y / 600.0, 0.0, 1.0);
-          vec3 top = vec3(0.004, 0.007, 0.026);
-          vec3 horizon = vec3(0.05, 0.066, 0.125);
-          vec3 col = mix(horizon, top, smoothstep(0.0, 0.6, h));
-          // sodium light pollution hugging the skyline
-          col += vec3(0.085, 0.046, 0.010) * (1.0 - smoothstep(0.0, 0.16, h));
+          vec3 col = mix(uHorizon, uTop, smoothstep(0.0, 0.6, h));
+          // light hugging the skyline: sodium at night, sunrise at dawn
+          col += uGlow * (1.0 - smoothstep(0.0, uGlowHeight, h));
           gl_FragColor = vec4(col, 1.0);
         }`,
     });
+    skyMatRef = skyMat;
     const sky = new THREE.Mesh(new THREE.SphereGeometry(1900, 24, 12), skyMat);
     sky.renderOrder = -2;
     scene.add(sky);
     skyFollowers.push(sky);
 
     // The moon over the Gulf, with a soft halo
-    const moonDisc = new THREE.Mesh(
-      new THREE.CircleGeometry(70, 32),
-      new THREE.MeshBasicMaterial({ color: 0xfdf3d3, fog: false })
-    );
+    moonDiscMat = new THREE.MeshBasicMaterial({ color: 0xfdf3d3, fog: false, transparent: true });
+    const moonDisc = new THREE.Mesh(new THREE.CircleGeometry(70, 32), moonDiscMat);
     moonDisc.position.set(-980, 640, -200);
     moonDisc.lookAt(0, 0, 0);
     moonDisc.renderOrder = -1;
     scene.add(moonDisc);
     skyFollowers.push(moonDisc);
-    const halo = new THREE.Sprite(
-      new THREE.SpriteMaterial({
-        map: glowTexture(225, 220, 195),
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        fog: false,
-        opacity: 0.5,
-      })
-    );
+    moonHaloMat = new THREE.SpriteMaterial({
+      map: glowTexture(225, 220, 195),
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+      opacity: 0.5,
+    });
+    const halo = new THREE.Sprite(moonHaloMat);
     halo.scale.set(520, 520, 1);
     halo.position.copy(moonDisc.position);
     scene.add(halo);
@@ -1090,10 +1109,14 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    const stars = new THREE.Points(
-      geo,
-      new THREE.PointsMaterial({ color: 0xcdd8ff, size: 2.4, sizeAttenuation: false, fog: false })
-    );
+    starsMatRef = new THREE.PointsMaterial({
+      color: 0xcdd8ff,
+      size: 2.4,
+      sizeAttenuation: false,
+      fog: false,
+      transparent: true,
+    });
+    const stars = new THREE.Points(geo, starsMatRef);
     scene.add(stars);
     skyFollowers.push(stars);
   }
@@ -1735,6 +1758,38 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   return {
     moonLight,
     skyFollowers,
+    setSky(mode: SkyMode) {
+      const dawn = mode === "dawn";
+      // Fog is the floor the scene fades to — at dawn it warms and lifts
+      // toward the sunrise horizon instead of the black of the bay.
+      (scene.fog as THREE.FogExp2).color.setHex(dawn ? 0x191a2c : 0x02030b);
+      if (skyMatRef) {
+        const u = skyMatRef.uniforms;
+        if (dawn) {
+          (u.uTop.value as THREE.Color).setRGB(0.030, 0.048, 0.105);
+          (u.uHorizon.value as THREE.Color).setRGB(0.42, 0.24, 0.16);
+          (u.uGlow.value as THREE.Color).setRGB(0.55, 0.21, 0.07);
+          u.uGlowHeight.value = 0.34; // sunrise light climbs the sky
+        } else {
+          (u.uTop.value as THREE.Color).setRGB(0.004, 0.007, 0.026);
+          (u.uHorizon.value as THREE.Color).setRGB(0.05, 0.066, 0.125);
+          (u.uGlow.value as THREE.Color).setRGB(0.085, 0.046, 0.01);
+          u.uGlowHeight.value = 0.16;
+        }
+      }
+      // Stars melt away as the sky lightens; the moon fades to a ghost
+      if (starsMatRef) starsMatRef.opacity = dawn ? 0.22 : 1.0;
+      if (moonDiscMat) moonDiscMat.opacity = dawn ? 0.3 : 1.0;
+      if (moonHaloMat) moonHaloMat.opacity = dawn ? 0.15 : 0.5;
+      // Cool moonlight becomes the first warm sun; fill rises with it
+      moonLight.color.setHex(dawn ? 0xffd9b0 : 0xbfd0ff);
+      moonLight.intensity = dawn ? 1.05 : 0.8;
+      if (hemiRef) {
+        hemiRef.color.setHex(dawn ? 0x5a6a96 : 0x2b3853);
+        hemiRef.groundColor.setHex(dawn ? 0x2b2018 : 0x120e08);
+        hemiRef.intensity = dawn ? 0.52 : 0.36;
+      }
+    },
     tick(dt: number) {
       time += dt;
       // Slow drift of the wave crests across the bay

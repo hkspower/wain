@@ -869,6 +869,11 @@ export class GameEngine {
     }
   }
 
+  /** Repaint the world for midnight or dawn (settings screen). */
+  setSky(mode: "night" | "dawn"): void {
+    this.world.setSky(mode);
+  }
+
   /**
    * Player-chosen quality tier from the settings screen. "auto" hands
    * control back to the frame-rate governor; the explicit tiers lock it.

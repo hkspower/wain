@@ -55,7 +55,8 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 
 	// Web-build proportions × the 1.12 presence factor. Forward = +X.
 	const float K = 1.12f;
-	const bool bZX = Style == EGRNBodyStyle::ZX;
+	// The RX7 shares the Z's cab-back massing at primitive fidelity
+	const bool bZX = Style == EGRNBodyStyle::ZX || Style == EGRNBodyStyle::RX7;
 	const bool bGTR = Style == EGRNBodyStyle::GTR;
 
 	// Lower body: one long slab, nose/tail wedges per silhouette
