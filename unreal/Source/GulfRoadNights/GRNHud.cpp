@@ -3,6 +3,7 @@
 #include "GRNVehiclePawn.h"
 #include "GRNRival.h"
 #include "GRNTrack.h"
+#include "GRNApi.h"
 #include "Engine/Canvas.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -29,7 +30,7 @@ void AGRNHud::DrawHUD()
 
 	// Roster progress, top left
 	DrawText(FString::Printf(TEXT("RIVALS BEATEN: %d / %d   %d KD"),
-		GM->RivalIndex, GRNRivalCount, GM->Kd),
+		GM->RivalIndex, GM->Api ? GM->Api->NumRivals() : GRNRivalCount, GM->Kd),
 		FLinearColor(1.f, 0.77f, 0.36f), 40, 36, Font, 1.2f);
 
 	// Battle: twin SP bars top centre, drain mirrored from the game mode
@@ -39,7 +40,7 @@ void AGRNHud::DrawHUD()
 		const float BX = (W - BarW) * 0.5f;
 		DrawBar(BX, 30, BarW, 20, GM->Player->Sp / 100.f, FLinearColor(0.2f, 0.83f, 0.6f));
 		DrawBar(BX, 58, BarW, 20, GM->Rival->Sp / 100.f, FLinearColor(0.96f, 0.25f, 0.37f));
-		DrawText(GRNRivals[GM->Rival->DefIndex].Name, FLinearColor::White, BX, 84, Font, 1.1f);
+		DrawText(GM->Rival->DisplayName(), FLinearColor::White, BX, 84, Font, 1.1f);
 	}
 	else if (GM->Rival && GM->Rival->State == EGRNRivalState::Cruise)
 	{

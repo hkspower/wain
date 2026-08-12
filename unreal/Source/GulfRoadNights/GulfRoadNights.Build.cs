@@ -9,7 +9,9 @@ public class GulfRoadNights : ModuleRules
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
 			"Core", "CoreUObject", "Engine", "InputCore",
-			"ProceduralMeshComponent"
+			"ProceduralMeshComponent",
+			// Live data API client (GRNApi)
+			"HTTP", "Json", "JsonUtilities"
 		});
 	}
 }

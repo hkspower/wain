@@ -30,6 +30,13 @@ public:
 
 	UPROPERTY() AGRNTrack* Track = nullptr;
 	UPROPERTY() AGRNVehiclePawn* Player = nullptr;
+	/** Set by the game mode before Init; live tables when available. */
+	UPROPERTY() class UGRNApiSubsystem* Api = nullptr;
+
+	/** Name/crew for the HUD, from live data or the baked roster. */
+	FString DisplayName() const;
+	FString CrewName() const;
+	float TopSpeedKmh() const;
 
 	int32 DefIndex = 0;
 	EGRNRivalState State = EGRNRivalState::Cruise;

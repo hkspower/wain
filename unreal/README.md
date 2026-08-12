@@ -15,6 +15,57 @@ reviewable, diffable text.
 3. Press Play. The game mode spawns the track, world, player and first
    rival automatically — no map setup needed.
 
+## The data API
+
+The Unreal build does not just *copy* the web game's numbers — it can
+**fetch** them. At boot `UGRNApiSubsystem` requests
+`/api/grn/v1/gamedata` and, on success, replaces the compiled-in tables
+with live ones: roster, showroom, handling constants, even the track's
+control points (the spline is rebuilt from them). If the fetch fails —
+offline, LAN, a plane — the tables baked into `GRNTypes.h` stand in and
+the game plays identically. A payload whose `apiVersion` the client does
+not recognise is rejected in favour of the baked data, and a partial
+payload is refused outright: half a roster is worse than none.
+
+| Endpoint | Serves |
+| --- | --- |
+| `GET /api/grn/v1/manifest` | discovery: version, endpoint list, counts, hub URLs |
+| `GET /api/grn/v1/gamedata` | everything in one fetch (what the game uses) |
+| `GET /api/grn/v1/track` | control points, road width, lane offsets |
+| `GET /api/grn/v1/rivals` | the roster with colours, top speeds, prizes, voice lines |
+| `GET /api/grn/v1/cars` | showroom + garage parts |
+
+These are statically generated, so they also ship inside the static
+export (`out/api/grn/v1/…`) and are served by the Electron shell — a
+packaged Steam build can point the Unreal client at its own bundled
+copy with no server at all.
+
+The hub server adds the write side at `http://<hub>:8787/api/v1`:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /status` | health, players online, teams, uptime |
+| `GET /leaderboard` | session best laps |
+| `POST /lap` `{name,ms}` | submit a lap; replies whether it is a personal best |
+| `GET /career/:name` | pull a cloud career |
+| `PUT /career/:name` | push one (4 KB cap) |
+
+`UGRNApiSubsystem::SubmitLap` / `PushCareer` / `PullCareer` wrap those.
+Point a build elsewhere without recompiling:
+
+```
+GulfRoadNights.exe -grnapi=https://your-site -grnhub=http://your-hub:8787
+```
+
+### Drift protection
+
+`npm run check:unreal` fetches the live API and diffs it against
+`GRNTypes.h` — track points, every rival's name/crew/colour/top
+speed/body, every car's price and handling figures, the shared handling
+constants, and the API version both sides claim. It exits non-zero on
+any mismatch, so the offline tables can never silently disagree with
+what an online client is racing.
+
 ## Staying in sync with the web build
 
 The data tables in `GRNTypes.h` are **generated** — never edit them by

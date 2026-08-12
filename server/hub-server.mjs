@@ -27,7 +27,11 @@ const TICK_MS = 100;
 const MAX_NAME = 24;
 const MAX_CHAT = 200;
 
-const wss = new WebSocketServer({ port: PORT });
+// One HTTP server hosts both: REST for the Unreal client (and any other
+// engine) and the WebSocket upgrade for the live cruise.
+const http = await import("node:http");
+const httpServer = http.createServer((req, res) => handleRest(req, res));
+const wss = new WebSocketServer({ server: httpServer });
 let nextId = 1;
 
 /** id -> { ws, name, color, state: {s,lat,speed} | null, lastChatAt } */
@@ -138,6 +142,114 @@ function broadcast(msg, exceptId = null) {
   for (const [id, p] of players) {
     if (id !== exceptId && p.ws.readyState === p.ws.OPEN) p.ws.send(data);
   }
+}
+
+/** name -> career blob, for engines without their own cloud save. */
+const careers = new Map();
+const MAX_CAREER_BYTES = 4096;
+const API_VERSION = 1;
+
+function sendJson(res, code, body) {
+  const payload = JSON.stringify(body);
+  res.writeHead(code, {
+    "Content-Type": "application/json; charset=utf-8",
+    // The Unreal client and the web build may live on different origins
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET,PUT,POST,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "X-GRN-Api-Version": String(API_VERSION),
+  });
+  res.end(payload);
+}
+
+function readBody(req, limit = MAX_CAREER_BYTES) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    req.on("data", (c) => {
+      size += c.length;
+      if (size > limit) {
+        reject(new Error("payload too large"));
+        req.destroy();
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    req.on("error", reject);
+  });
+}
+
+/**
+ * REST surface, versioned under /api/v1:
+ *   GET  /api/v1/status              — health + live player count
+ *   GET  /api/v1/leaderboard         — session best laps
+ *   POST /api/v1/lap  {name,ms}      — submit a lap, get the new board
+ *   GET  /api/v1/career/:name        — cloud career blob
+ *   PUT  /api/v1/career/:name        — store one (4 KB cap)
+ */
+async function handleRest(req, res) {
+  const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
+  const path = url.pathname.replace(/\/+$/, "");
+
+  if (req.method === "OPTIONS") return sendJson(res, 204, {});
+
+  if (path === "/api/v1/status") {
+    return sendJson(res, 200, {
+      apiVersion: API_VERSION,
+      game: "Gulf Road Nights",
+      online: players.size,
+      teams: teams.size,
+      uptimeSec: Math.round(process.uptime()),
+    });
+  }
+
+  if (path === "/api/v1/leaderboard") {
+    return sendJson(res, 200, { apiVersion: API_VERSION, entries: leaderboard() });
+  }
+
+  if (path === "/api/v1/lap" && req.method === "POST") {
+    try {
+      const body = JSON.parse(await readBody(req));
+      const name = String(body?.name ?? "").slice(0, MAX_NAME).trim();
+      const ms = Number(body?.ms);
+      if (!name || !Number.isFinite(ms) || ms < 20000 || ms > 3600000) {
+        return sendJson(res, 400, { error: "name and a plausible lap ms required" });
+      }
+      const prev = bestLaps.get(name);
+      const isBest = prev === undefined || ms < prev;
+      if (isBest) {
+        bestLaps.set(name, Math.round(ms));
+        broadcast({ t: "leaderboard", entries: leaderboard() });
+      }
+      return sendJson(res, 200, { accepted: true, personalBest: isBest, entries: leaderboard() });
+    } catch {
+      return sendJson(res, 400, { error: "bad json" });
+    }
+  }
+
+  const career = path.match(/^\/api\/v1\/career\/(.+)$/);
+  if (career) {
+    const name = decodeURIComponent(career[1]).slice(0, MAX_NAME).trim();
+    if (!name) return sendJson(res, 400, { error: "name required" });
+    if (req.method === "GET") {
+      const blob = careers.get(name);
+      return blob
+        ? sendJson(res, 200, { apiVersion: API_VERSION, name, career: blob })
+        : sendJson(res, 404, { error: "no career stored" });
+    }
+    if (req.method === "PUT") {
+      try {
+        const blob = JSON.parse(await readBody(req));
+        careers.set(name, blob);
+        return sendJson(res, 200, { apiVersion: API_VERSION, name, stored: true });
+      } catch {
+        return sendJson(res, 400, { error: "bad json or payload too large" });
+      }
+    }
+  }
+
+  return sendJson(res, 404, { error: "unknown endpoint", see: "/api/v1/status" });
 }
 
 function leaderboard() {
@@ -362,4 +474,7 @@ setInterval(() => {
   }
 }, TICK_MS);
 
-console.log(`[hub] Gulf Road Nights hub listening on ws://0.0.0.0:${PORT}`);
+httpServer.listen(PORT, () => {
+  console.log(`[hub] Gulf Road Nights hub listening on ws://0.0.0.0:${PORT}`);
+  console.log(`[hub] REST API: http://localhost:${PORT}/api/v1/status`);
+});

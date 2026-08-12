@@ -2,6 +2,7 @@
 #include "GRNTrack.h"
 #include "GRNVehiclePawn.h"
 #include "GRNCarFactory.h"
+#include "GRNApi.h"
 
 AGRNRival::AGRNRival()
 {
@@ -13,16 +14,40 @@ void AGRNRival::Init(AGRNTrack* InTrack, AGRNVehiclePawn* InPlayer, int32 RivalI
 {
 	Track = InTrack;
 	Player = InPlayer;
-	DefIndex = FMath::Clamp(RivalIndex, 0, GRNRivalCount - 1);
+	DefIndex = FMath::Clamp(RivalIndex, 0, (Api ? Api->NumRivals() : GRNRivalCount) - 1);
 	State = EGRNRivalState::Cruise;
 	Sp = 100.f;
 	S = Track->Wrap(Player->S + GRN_M(260.f));
 	Lat = GRNLanes[2];
 	TargetLat = GRNLanes[2];
 
-	const FGRNRivalDef& Def = GRNRivals[DefIndex];
-	Rig = GRNCarFactory::Build(this, RootComponent, Def.Style,
-		FLinearColor(Def.BodyColor), /*bWing=*/Def.Style == EGRNBodyStyle::GTR);
+	if (Api)
+	{
+		const FGRNRuntimeRival R = Api->GetRival(DefIndex);
+		Rig = GRNCarFactory::Build(this, RootComponent, R.Style,
+			FLinearColor(R.BodyColor), /*bWing=*/R.Style == EGRNBodyStyle::GTR);
+	}
+	else
+	{
+		const FGRNRivalDef& Def = GRNRivals[DefIndex];
+		Rig = GRNCarFactory::Build(this, RootComponent, Def.Style,
+			FLinearColor(Def.BodyColor), /*bWing=*/Def.Style == EGRNBodyStyle::GTR);
+	}
+}
+
+FString AGRNRival::DisplayName() const
+{
+	return Api ? Api->GetRival(DefIndex).Name : FString(GRNRivals[DefIndex].Name);
+}
+
+FString AGRNRival::CrewName() const
+{
+	return Api ? Api->GetRival(DefIndex).Crew : FString(GRNRivals[DefIndex].Crew);
+}
+
+float AGRNRival::TopSpeedKmh() const
+{
+	return Api ? Api->GetRival(DefIndex).TopSpeedKmh : GRNRivals[DefIndex].TopSpeedKmh;
 }
 
 void AGRNRival::Tick(float Dt)
@@ -31,8 +56,7 @@ void AGRNRival::Tick(float Dt)
 	if (!Track || !Player) return;
 	Dt = FMath::Min(Dt, 0.05f);
 
-	const FGRNRivalDef& Def = GRNRivals[DefIndex];
-	const float Top = Def.TopSpeedKmh / 3.6f;
+	const float Top = TopSpeedKmh() / 3.6f;
 	const float GapM = Track->DeltaAhead(Player->S, S) / 100.f;
 
 	float TargetSpeed;

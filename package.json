@@ -14,7 +14,8 @@
     "mobile:ios": "npm run mobile:sync && npx cap open ios",
     "mobile:android": "npm run mobile:sync && npx cap open android",
     "build:steam": "NEXT_OUTPUT=export next build && rm -rf desktop/out && cp -r out desktop/out",
-    "sync:unreal": "node scripts/export-unreal-data.mjs"
+    "sync:unreal": "node scripts/export-unreal-data.mjs",
+    "check:unreal": "node scripts/check-unreal-sync.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",

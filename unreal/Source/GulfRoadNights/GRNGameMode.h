@@ -57,13 +57,18 @@ public:
 	float CineT = 0.f;
 	void SkipCinematic();
 
+	/** Lives for the session; owns the data API and hub REST calls. */
+	UPROPERTY() class UGRNApiSubsystem* Api = nullptr;
+
 	/** Showroom: apply a car's spec + silhouette to the player. */
 	void ApplyCar(int32 CarIdx);
 	/** Dev showroom cycling (Tab / D-pad) until the UMG garage lands. */
 	void CycleCar();
 	int32 CurrentCarIdx = 0;
+	FString CurrentCarId = TEXT("wain-special");
 
 private:
+	void BuildWorldAndStart(bool bLiveData);
 	void SpawnRival();
 	void StartBattle();
 	void WinBattle();

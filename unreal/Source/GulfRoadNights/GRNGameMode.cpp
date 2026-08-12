@@ -10,6 +10,8 @@
 #include "Camera/CameraComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "GRNGraphics.h"
+#include "GRNApi.h"
+#include "Engine/GameInstance.h"
 
 AGRNGameMode::AGRNGameMode()
 {
@@ -25,8 +27,29 @@ void AGRNGameMode::BeginPlay()
 	// Renderer to its ceiling before anything draws
 	GRNGraphics::ApplyMax(this);
 
+	// Ask the web build for the authoritative tables, then build the
+	// world from whatever answers first — live data or the baked ones.
+	// The fetch has its own 6 s timeout, so boot can never hang on it.
+	Api = GetGameInstance()->GetSubsystem<UGRNApiSubsystem>();
+	if (Api)
+	{
+		Api->OnGameDataReady.AddUObject(this, &AGRNGameMode::BuildWorldAndStart);
+		Api->FetchGameData();
+	}
+	else
+	{
+		BuildWorldAndStart(false);
+	}
+}
+
+void AGRNGameMode::BuildWorldAndStart(bool bLiveData)
+{
 	UWorld* World = GetWorld();
 	Track = World->SpawnActor<AGRNTrack>();
+	if (Api && bLiveData && Api->GetTrackPoints().Num() >= 4)
+	{
+		Track->RebuildFrom(Api->GetTrackPoints());
+	}
 	World->SpawnActor<AGRNWorldBuilder>()->Build(Track);
 
 	Player = Cast<AGRNVehiclePawn>(UGameplayStatics::GetPlayerPawn(this, 0));
@@ -46,9 +69,16 @@ void AGRNGameMode::BeginPlay()
 		Traffic.Add(T);
 	}
 	SpawnRival();
-	ShowMessage(RivalIndex < GRNRivalCount
-		? FString::Printf(TEXT("Find %s — close in and flash 3x to challenge"), GRNRivals[RivalIndex].Name)
+
+	const int32 Total = Api ? Api->NumRivals() : GRNRivalCount;
+	ShowMessage(RivalIndex < Total
+		? FString::Printf(TEXT("Find %s — close in and flash 3x to challenge"),
+			*(Api ? Api->GetRival(RivalIndex).Name : FString(GRNRivals[RivalIndex].Name)))
 		: TEXT("King of Gulf Road — every street is yours"));
+	if (bLiveData)
+	{
+		UE_LOG(LogTemp, Log, TEXT("GRN: booted on live API data"));
+	}
 }
 
 void AGRNGameMode::Tick(float Dt)
@@ -87,9 +117,15 @@ void AGRNGameMode::UpdateTrafficCollisions(float Dt)
 
 void AGRNGameMode::ApplyCar(int32 CarIdx)
 {
-	CurrentCarIdx = FMath::Clamp(CarIdx, 0, GRNCarCount - 1);
-	const FGRNCarDef& Car = GRNCars[CurrentCarIdx];
+	const int32 CarTotal = Api ? Api->NumCars() : GRNCarCount;
+	CurrentCarIdx = FMath::Clamp(CarIdx, 0, CarTotal - 1);
 	if (!Player) return;
+	const FGRNRuntimeCar Car = Api
+		? Api->GetCar(CurrentCarIdx)
+		: [&] { FGRNRuntimeCar C; const FGRNCarDef& D = GRNCars[CurrentCarIdx];
+			C.Id = D.Id; C.Name = D.Name; C.Price = D.Price; C.Power = D.Power;
+			C.TopSpeed = D.TopSpeed; C.Grip = D.Grip; C.Brake = D.Brake;
+			C.Paint = D.Paint; C.Style = D.Style; return C; }();
 	Player->PowerMult = Car.Power;
 	Player->TopSpeedBonus = Car.TopSpeed;
 	Player->GripAccel = Car.Grip;
@@ -102,21 +138,25 @@ void AGRNGameMode::ApplyCar(int32 CarIdx)
 		bWing = Save->OwnedParts.Contains(TEXT("spoiler"));
 	}
 	Player->BuildRig(Car.Style, FLinearColor(Car.Paint), bWing);
+	CurrentCarId = Car.Id;
 }
 
 void AGRNGameMode::CycleCar()
 {
 	if (Phase != EGRNPhase::Cruise) return;
-	ApplyCar((CurrentCarIdx + 1) % GRNCarCount);
-	ShowMessage(FString::Printf(TEXT("Machine: %s"), GRNCars[CurrentCarIdx].Name), 2.f);
+	const int32 CarTotal = Api ? Api->NumCars() : GRNCarCount;
+	ApplyCar((CurrentCarIdx + 1) % CarTotal);
+	ShowMessage(FString::Printf(TEXT("Machine: %s"), *CurrentCarId), 2.f);
 	SaveProgress();
 }
 
 void AGRNGameMode::SpawnRival()
 {
 	if (Rival) { Rival->Destroy(); Rival = nullptr; }
-	if (RivalIndex >= GRNRivalCount || !Player) return;
+	const int32 Total = Api ? Api->NumRivals() : GRNRivalCount;
+	if (RivalIndex >= Total || !Player) return;
 	Rival = GetWorld()->SpawnActor<AGRNRival>();
+	Rival->Api = Api;
 	Rival->Init(Track, Player, RivalIndex);
 }
 
@@ -144,7 +184,7 @@ void AGRNGameMode::TryFlash()
 			PC->SetViewTargetWithBlend(CineCamera, 0.f);
 		}
 		ShowMessage(FString::Printf(TEXT("CHALLENGER — %s · %s"),
-			GRNRivals[Rival->DefIndex].Name, GRNRivals[Rival->DefIndex].Crew), 4.5f);
+			*Rival->DisplayName(), *Rival->CrewName()), 4.5f);
 	}
 }
 
@@ -252,19 +292,21 @@ void AGRNGameMode::WinBattle()
 	BattleDriftBank += Player->DriftRun;
 	Player->DriftRun = 0.f;
 
-	const int32 Payout = 400 + RivalIndex * 300;
+	const int32 Payout = Api ? Api->GetRival(RivalIndex).PrizeKd : 400 + RivalIndex * 300;
 	Kd += Payout;
 	Xp += 150 + 40 * (RivalIndex + 1) + FMath::Min(120, FMath::RoundToInt(BattleDriftBank / 25.f));
 	RivalIndex++;
 	SaveProgress();
 
-	if (RivalIndex >= GRNRivalCount)
+	const int32 Total = Api ? Api->NumRivals() : GRNRivalCount;
+	if (RivalIndex >= Total)
 	{
 		ShowMessage(TEXT("KING OF GULF ROAD — كل الشوارع لك"), 6.f);
 	}
 	else
 	{
-		ShowMessage(FString::Printf(TEXT("VICTORY — +%d KD. Next: %s"), Payout, GRNRivals[RivalIndex].Name), 4.f);
+		ShowMessage(FString::Printf(TEXT("VICTORY — +%d KD. Next: %s"), Payout,
+			*(Api ? Api->GetRival(RivalIndex).Name : FString(GRNRivals[RivalIndex].Name))), 4.f);
 		FTimerHandle H;
 		GetWorldTimerManager().SetTimer(H, [this]() { SpawnRival(); }, 2.6f, false);
 	}
@@ -277,7 +319,7 @@ void AGRNGameMode::LoseBattle()
 	Xp += 30;
 	SaveProgress();
 	ShowMessage(FString::Printf(TEXT("DEFEATED — %s takes the night. Flash to rematch"),
-		GRNRivals[Rival->DefIndex].Name), 4.f);
+		*Rival->DisplayName()), 4.f);
 	Rival->Sp = 100.f;
 	Player->Sp = 100.f;
 }
@@ -304,20 +346,24 @@ void AGRNGameMode::SaveProgress()
 	Save->RivalIndex = RivalIndex;
 	Save->Kd = Kd;
 	Save->Xp = Xp;
-	Save->CurrentCar = GRNCars[CurrentCarIdx].Id;
+	Save->CurrentCar = CurrentCarId;
 	UGameplayStatics::SaveGameToSlot(Save, SaveSlot, 0);
+	// Mirror the career to the hub so any device can pick it up
+	if (Api) Api->PushCareer(TEXT("player"), RivalIndex, Kd, Xp);
 }
 
 void AGRNGameMode::LoadProgress()
 {
 	if (UGRNSaveGame* Save = Cast<UGRNSaveGame>(UGameplayStatics::LoadGameFromSlot(SaveSlot, 0)))
 	{
-		RivalIndex = FMath::Clamp(Save->RivalIndex, 0, GRNRivalCount);
+		RivalIndex = FMath::Clamp(Save->RivalIndex, 0, Api ? Api->NumRivals() : GRNRivalCount);
 		Kd = Save->Kd;
 		Xp = Save->Xp;
-		for (int32 i = 0; i < GRNCarCount; i++)
+		const int32 CarTotal = Api ? Api->NumCars() : GRNCarCount;
+		for (int32 i = 0; i < CarTotal; i++)
 		{
-			if (Save->CurrentCar == GRNCars[i].Id) { CurrentCarIdx = i; break; }
+			const FString Id = Api ? Api->GetCar(i).Id : FString(GRNCars[i].Id);
+			if (Save->CurrentCar == Id) { CurrentCarIdx = i; break; }
 		}
 	}
 }

@@ -23,6 +23,13 @@ public:
 	UPROPERTY(VisibleAnywhere)
 	USplineComponent* Spline;
 
+	/**
+	 * Replace the baked circuit with control points from the data API.
+	 * Points are already in UE space. Fewer than 4 is ignored — a broken
+	 * payload must never leave the game without a road.
+	 */
+	void RebuildFrom(const TArray<FVector>& Points);
+
 	/** Total lap length in UE units (≈ 7.3 km * 100). */
 	float LapLength() const;
 

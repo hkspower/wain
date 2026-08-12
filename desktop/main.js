@@ -74,8 +74,18 @@ function startServer() {
         res.end("Not found");
         return;
       }
+      // The exported data API lands as extensionless files under
+      // out/api/... — serve those as JSON so the Unreal client (and any
+      // other consumer) can read them straight from the shell.
+      const ext = path.extname(file);
+      const type =
+        MIME[ext] ||
+        (!ext && req.url.startsWith("/api/") ? "application/json; charset=utf-8" : null) ||
+        "application/octet-stream";
       res.writeHead(200, {
-        "Content-Type": MIME[path.extname(file)] || "application/octet-stream",
+        "Content-Type": type,
+        // The UE5 client may run as a separate process on the same box
+        "Access-Control-Allow-Origin": "*",
       });
       fs.createReadStream(file).pipe(res);
     });

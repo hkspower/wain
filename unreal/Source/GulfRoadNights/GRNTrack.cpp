@@ -22,6 +22,24 @@ AGRNTrack::AGRNTrack()
 	Spline->UpdateSpline();
 }
 
+void AGRNTrack::RebuildFrom(const TArray<FVector>& Points)
+{
+	if (Points.Num() < 4)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("GRNTrack: %d live points is not a circuit — keeping baked"), Points.Num());
+		return;
+	}
+	Spline->ClearSplinePoints(false);
+	for (const FVector& P : Points)
+	{
+		Spline->AddSplinePoint(P, ESplineCoordinateSpace::World, false);
+	}
+	Spline->SetClosedLoop(true, true);
+	Spline->UpdateSpline();
+	UE_LOG(LogTemp, Log, TEXT("GRNTrack: rebuilt from %d live points, lap %.0f m"),
+		Points.Num(), LapLength() / 100.f);
+}
+
 float AGRNTrack::LapLength() const
 {
 	return Spline->GetSplineLength();

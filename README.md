@@ -78,6 +78,21 @@ The Unity port (`unity/`) uses the same lines and caches them at runtime —
 see `unity/README.md`.
 
 
+### Data API (for engine ports and tools)
+
+The game's definition is served as versioned JSON so other engines can
+read it live instead of hard-coding it:
+
+```bash
+curl localhost:3000/api/grn/v1/manifest    # discovery
+curl localhost:3000/api/grn/v1/gamedata    # track, rivals, cars, parts, handling
+```
+
+The Unreal build consumes it at boot and falls back to its compiled-in
+tables when offline; `npm run check:unreal` proves the two agree. The
+hub server exposes the write side (`/api/v1/lap`, `/api/v1/career/:name`,
+`/api/v1/leaderboard`) for lap submission and cloud careers.
+
 ## Tech stack
 
 - [Next.js 15](https://nextjs.org) (App Router, React 19, TypeScript)

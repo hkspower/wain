@@ -11,7 +11,8 @@ export const LANES = [-5.25, -1.75, 1.75, 5.25];
 /** Fraction of the lap that runs along the coast (sea on the left). */
 export const COAST_U = { from: 0.0, to: 0.46 };
 
-const CONTROL_POINTS: Array<[number, number, number]> = [
+/** Exported for the UE5 data API and the header generator. */
+export const CONTROL_POINTS: Array<[number, number, number]> = [
   // Coastal leg — southbound, sea to the left (lower x), bays and points
   [800, 0, 0], // start: Ras Ajouza, Kuwait Towers
   [770, 0, -350], // Dasman curve
