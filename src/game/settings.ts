@@ -12,7 +12,7 @@ export interface Settings {
   /** Vibrate on impacts, challenges and rewards. */
   haptics: boolean;
   /** Render tier: auto follows measured frame rate. */
-  quality: "auto" | "high" | "balanced" | "battery";
+  quality: "auto" | "ultra" | "high" | "balanced" | "battery";
   /** 0..1 master levels. */
   musicVolume: number;
   sfxVolume: number;

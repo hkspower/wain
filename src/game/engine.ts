@@ -182,6 +182,9 @@ const VignetteGrainShader = {
     uBlackPoint: { value: 0.02 },
     /** Shadow toe: >1 pushes the darks down without touching highlights. */
     uToe: { value: 1.06 },
+    /** Where the highlight shoulder starts. Below this nothing changes,
+     *  so midtones and the scene's colour intent are untouched. */
+    uKnee: { value: 0.86 },
   },
   vertexShader: `
     varying vec2 vUv;
@@ -195,6 +198,7 @@ const VignetteGrainShader = {
     uniform vec2 uTexel;
     uniform float uBlackPoint;
     uniform float uToe;
+    uniform float uKnee;
     varying vec2 vUv;
     float hash(vec2 p) {
       return fract(sin(dot(p, vec2(127.1, 311.7)) + uTime * 13.0) * 43758.5453);
@@ -224,6 +228,18 @@ const VignetteGrainShader = {
       // rescale so highlights keep their range.
       c.rgb = pow(max(c.rgb, 0.0), vec3(uToe));
       c.rgb = max(c.rgb - uBlackPoint, 0.0) / max(1.0 - uBlackPoint, 1e-4);
+
+      // Highlight shoulder. Two things push pixels past 1.0 here: the
+      // black-point rescale multiplies everything by 1/(1-bp), and the
+      // unsharp mask overshoots hard at bright edges — a headlamp against
+      // dark asphalt is the worst case. Hitting the clamp flat blows those
+      // to paper white AND bends their colour, because whichever channel
+      // reaches 1.0 first stops while the others keep climbing. This
+      // compresses the top end asymptotically instead: uKnee maps to
+      // itself, everything above approaches 1.0 without ever reaching it,
+      // so lamps keep their warmth as they bloom.
+      vec3 over = max(c.rgb - uKnee, 0.0);
+      c.rgb = min(c.rgb, uKnee) + (1.0 - uKnee) * (over / (over + (1.0 - uKnee)));
 
       gl_FragColor = vec4(clamp(c.rgb, 0.0, 1.0), c.a);
     }`,
@@ -952,7 +968,7 @@ export class GameEngine {
    * Player-chosen quality tier from the settings screen. "auto" hands
    * control back to the frame-rate governor; the explicit tiers lock it.
    */
-  applyQualityTier(tier: "auto" | "high" | "balanced" | "battery"): void {
+  applyQualityTier(tier: "auto" | "ultra" | "high" | "balanced" | "battery"): void {
     if (tier === "auto") {
       this.qualityLocked = false;
       this.drsEnabled = true;
@@ -964,7 +980,8 @@ export class GameEngine {
     }
     this.qualityLocked = true;
     this.drsEnabled = false; // explicit tiers pin their resolution
-    const high = tier === "high";
+    const ultra = tier === "ultra";
+    const high = tier === "high" || ultra;
     const balanced = tier === "balanced";
     this.bloomPass.enabled = high || balanced;
     this.world.moonLight.castShadow = high || balanced;
@@ -973,11 +990,25 @@ export class GameEngine {
     // The live paint probe is the most expensive single toy — high only
     this.liveReflections = high;
     this.applyLiveReflections();
-    this.baseRatio = high
-      ? Math.min(window.devicePixelRatio, 2)
-      : balanced
-        ? Math.min(window.devicePixelRatio, 1.5)
-        : 1;
+    // Ultra is for desktop GPUs driving a 4K panel. A 4K monitor usually
+    // reports devicePixelRatio 1, so "native" already means 3840x2160 and
+    // the only way further up is supersampling: render above the panel and
+    // let the downsample do the anti-aliasing, which resolves the lamp
+    // filaments and lane edges that even TSR-class upscalers soften.
+    this.baseRatio = ultra
+      ? Math.min(window.devicePixelRatio * 1.5, 2)
+      : tier === "high"
+        ? Math.min(window.devicePixelRatio, 2)
+        : balanced
+          ? Math.min(window.devicePixelRatio, 1.5)
+          : 1;
+    // Sharper shadow cascades to match the extra pixels
+    const shadowSize = ultra ? 2048 : 1024;
+    if (this.headlight.shadow.mapSize.x !== shadowSize) {
+      this.headlight.shadow.mapSize.setScalar(shadowSize);
+      this.headlight.shadow.map?.dispose();
+      this.headlight.shadow.map = null as unknown as THREE.WebGLRenderTarget;
+    }
     this.renderScale = 1;
     this.applyRenderScale();
   }

@@ -26,6 +26,8 @@ void AGRNGameMode::BeginPlay()
 
 	// Renderer to its ceiling before anything draws
 	GRNGraphics::ApplyMax(this);
+	// Then the NVIDIA path and any -grn4k / -grn2k override on top
+	GRNGraphics::ApplyCommandLineOverrides(this);
 
 	// Ask the web build for the authoritative tables, then build the
 	// world from whatever answers first — live data or the baked ones.
@@ -62,7 +64,9 @@ void AGRNGameMode::BuildWorldAndStart(bool bLiveData)
 
 	LoadProgress();
 	ApplyCar(CurrentCarIdx);
-	for (int32 i = 0; i < 14; i++)
+	// 30, matching the web build. A PC target has the headroom, and a
+	// sparse corniche is the fastest way to make a city feel like a demo.
+	for (int32 i = 0; i < 30; i++)
 	{
 		AGRNTraffic* T = World->SpawnActor<AGRNTraffic>();
 		T->Init(Track, Player, i);

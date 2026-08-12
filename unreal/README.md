@@ -77,7 +77,7 @@ npm run sync:unreal     # regenerates Source/GulfRoadNights/GRNTypes.h
 ```
 
 and commit the regenerated header. Track geometry, the rival roster,
-the full 13-car showroom and the handling constants all flow from the
+the full 14-car showroom and the handling constants all flow from the
 TypeScript source of truth into UE5 in one step.
 
 ## What maps to what
@@ -92,7 +92,7 @@ TypeScript source of truth into UE5 in one step.
 | pre-battle cinematic (slow-mo film) | time dilation 0.22× + a real camera flying the same three shots (rival orbit → side pass → chase pull-back), Start/Esc skips |
 | `world.ts` road, rails, cobra-head street lights | `AGRNWorldBuilder` — procedural road ribbon + instanced lights **with real Lumen spot lights per lamp** |
 | `cars.ts` three silhouettes | `GRNCarFactory` — primitive-built sedan / Z-wedge / R34-style coupe with paint MIDs, spinning wheels, brake-flare tail lamps, real headlight beams; wing only when the part is owned |
-| traffic | `AGRNTraffic` × 8 with the web build's shunt rules (speed clamp, hitbox knock-out, SP cost in battle) |
+| traffic | `AGRNTraffic` × 30, matching the web build, with its shunt rules (speed clamp, hitbox knock-out, SP cost in battle) |
 | HUD (React) | `AGRNHud` Canvas drawing (swap for UMG in the art pass) |
 | localStorage saves | `UGRNSaveGame` slot "GulfRoadNights" |
 | Gamepad (browser Gamepad API) | `DefaultInput.ini`: sticks/triggers/face buttons, same layout |
@@ -124,6 +124,41 @@ and sharpen at 0.4, matching the web build's comfort grade.
 
 For marketing stills, the Path Tracer is one console command away
 (`r.PathTracing 1`) and `HighResShot 3840x2160` captures native 4K.
+
+### 4K / 2K and the NVIDIA path
+
+`GRNGraphics` takes an explicit output preset as well as the native
+default, so a player can render 4K on a 1440p panel or drop to 1440p on a
+4K one:
+
+```
+GulfRoadNights.exe -grn4k          # 3840 x 2160
+GulfRoadNights.exe -grn2k          # 2560 x 1440
+GulfRoadNights.exe -grn1080        # 1920 x 1080
+GulfRoadNights.exe -grndlss=perf   # DLSS Performance instead of Quality
+GulfRoadNights.exe -grnnonvidia    # skip the NVIDIA path entirely
+```
+
+The shadow atlas and streaming pool scale with the preset rather than
+sitting at one compromise value — a 4K frame carries 2.25x the pixels of
+1440p, and a shadow atlas sized for 1440p shows it.
+
+`ApplyNvidia` turns on hardware ray tracing for Lumen (GI, reflections
+and translucency), ray-traced shadows and AO, and pushes reflections past
+the usual roughness cutoff to 0.75 — wet asphalt under sodium light is
+the entire look of a night corniche, and that is exactly the roughness
+range it lives in.
+
+DLSS and Reflex are **plugin-provided**. The console variables are set
+unconditionally because an unrecognised variable is a no-op, so the same
+build stays correct on AMD, Intel and in the editor. Install the DLSS
+plugin from the Epic marketplace to activate them. DLSS Quality is the
+default rather than Performance: at 4K it renders 1440p internally, which
+on an RTX card is both faster and sharper than native 4K through TSR.
+
+**Building it is a Windows job.** This repo carries the source, the
+config and the data pipeline — it cannot compile or package itself here.
+Generate project files, open in UE 5.4+, and package for Win64.
 
 ## Where to take it next
 

@@ -1397,8 +1397,8 @@ export default function RaceClient() {
             <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-[0.68rem]">
               Graphics · الرسومات
             </h3>
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {(["auto", "high", "balanced", "battery"] as const).map((q) => (
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {(["auto", "ultra", "high", "balanced", "battery"] as const).map((q) => (
                 <button
                   key={q}
                   onClick={() => updateSetting("quality", q)}
