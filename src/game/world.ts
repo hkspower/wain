@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { Track, ROAD_HALF_WIDTH, COAST_U } from "./track";
+import { Track, ROAD_HALF_WIDTH, COAST_U, DRIFT_PLAZA } from "./track";
 import { applyTextureManifest } from "./assets";
 
 /** Drooping palm fronds merged into one geometry (crown sits at trunk top). */
@@ -45,12 +45,17 @@ export function areaAt(track: Track, s: number) {
   return AREAS[Math.min(AREAS.length - 1, Math.floor(u * AREAS.length))];
 }
 
+/** Lateral offset: a constant, or a function of s for widths that follow
+ *  the drivable road (the Sharq plaza swell). */
+type LatOffset = number | ((s: number) => number);
+const latAt = (o: LatOffset, s: number) => (typeof o === "number" ? o : o(s));
+
 /** Flat ribbon following the track between lateral offsets a..b at height y,
  *  optionally only over the lap fraction u0..u1. */
 function buildRibbon(
   track: Track,
-  a: number,
-  b: number,
+  a: LatOffset,
+  b: LatOffset,
   y: number,
   step = 8,
   u0 = 0,
@@ -68,13 +73,15 @@ function buildRibbon(
     const s = u0 * track.length + (i / n) * span;
     track.pointAt(s, p);
     track.sideAt(s, side);
+    const av = latAt(a, s);
+    const bv = latAt(b, s);
     const o = i * 6;
-    positions[o] = p.x + side.x * a;
+    positions[o] = p.x + side.x * av;
     positions[o + 1] = y;
-    positions[o + 2] = p.z + side.z * a;
-    positions[o + 3] = p.x + side.x * b;
+    positions[o + 2] = p.z + side.z * av;
+    positions[o + 3] = p.x + side.x * bv;
     positions[o + 4] = y;
-    positions[o + 5] = p.z + side.z * b;
+    positions[o + 5] = p.z + side.z * bv;
     const ou = i * 4;
     uvs[ou] = 0;
     uvs[ou + 1] = s / 14; // one texture tile per ~14 m of road
@@ -97,7 +104,7 @@ function buildRibbon(
 /** Vertical band (guardrail/tunnel wall) following the track at lateral offset. */
 function buildWall(
   track: Track,
-  lateral: number,
+  lateral: LatOffset,
   y0: number,
   y1: number,
   step = 8,
@@ -114,7 +121,7 @@ function buildWall(
 
   for (let i = 0; i <= n; i++) {
     const s = u0 * track.length + (i / n) * span;
-    track.pose(s, lateral, p, tmp);
+    track.pose(s, latAt(lateral, s), p, tmp);
     const o = i * 6;
     positions[o] = p.x;
     positions[o + 1] = y0;
@@ -712,6 +719,103 @@ function signTexture(en: string, ar: string, sub?: string): THREE.CanvasTexture 
   return tex;
 }
 
+const ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩";
+const arabicNumber = (n: number) =>
+  String(n)
+    .split("")
+    .map((d) => (d === "." ? "٫" : ARABIC_DIGITS[+d] ?? d))
+    .join("");
+
+/** Kuwait-style kilometre way-marker: distance in Arabic-Indic numerals
+ *  over the road's Arabic name. */
+function waymarkTexture(km: number): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 320;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#0a4da3";
+  ctx.fillRect(0, 0, 256, 320);
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 8;
+  ctx.strokeRect(10, 10, 236, 300);
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "center";
+  ctx.font = "bold 30px sans-serif";
+  ctx.fillText("طريق الخليج العربي", 128, 62);
+  ctx.font = "bold 118px sans-serif";
+  ctx.fillText(arabicNumber(km), 128, 205);
+  ctx.font = "bold 44px sans-serif";
+  ctx.fillText("كم", 128, 276);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** Blue roundabout sign: the three-arrow circle with the plaza's name. */
+function roundaboutSignTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 340;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#0a4da3";
+  ctx.fillRect(0, 0, 256, 340);
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 8;
+  ctx.strokeRect(10, 10, 236, 320);
+  // The glyph: three arrows chasing each other around a circle
+  ctx.save();
+  ctx.translate(128, 128);
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 14;
+  ctx.lineCap = "round";
+  for (let i = 0; i < 3; i++) {
+    const a0 = (i / 3) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, 58, a0 + 0.35, a0 + 1.75);
+    ctx.stroke();
+    // Arrowhead at the leading end of each arc
+    const at = a0 + 1.75;
+    const hx = Math.cos(at) * 58;
+    const hy = Math.sin(at) * 58;
+    ctx.save();
+    ctx.translate(hx, hy);
+    ctx.rotate(at + Math.PI / 2);
+    ctx.beginPath();
+    ctx.moveTo(0, 18);
+    ctx.lineTo(-13, -6);
+    ctx.lineTo(13, -6);
+    ctx.closePath();
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "center";
+  ctx.font = "bold 46px sans-serif";
+  ctx.fillText("دوار شرق", 128, 258);
+  ctx.font = "bold 26px sans-serif";
+  ctx.fillText("SHARQ CIRCLE", 128, 302);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** White thermoplastic road text, transparent everywhere else. */
+function roadTextTexture(text: string): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 512;
+  c.height = 256;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#f2f2ee";
+  ctx.textAlign = "center";
+  ctx.font = "bold 120px sans-serif";
+  ctx.fillText(text, 256, 160);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function stripeTexture(colorA: string, colorB: string): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = 8;
@@ -1186,16 +1290,31 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     envMapIntensity: 1.15,
   });
   const road = new THREE.Mesh(
-    buildRibbon(track, -ROAD_HALF_WIDTH, ROAD_HALF_WIDTH, 0.02, 3),
+    buildRibbon(
+      track,
+      (s) => -track.halfWidthAt(s),
+      (s) => track.halfWidthAt(s),
+      0.02,
+      3
+    ),
     roadMat
   );
   road.receiveShadow = true;
   scene.add(road);
 
+  // The Sharq plaza island's mosaic face — declared here beside the road
+  // material because both register with the texture manifest below, and
+  // the manifest is the drop-in point for authored artwork: name a file
+  // under "plaza" and it becomes the roundabout's mosaic, no code needed.
+  const plazaMosaicMat = new THREE.MeshStandardMaterial({
+    color: 0xc9b48a,
+    roughness: 0.9,
+  });
+
   // Authored artwork wins over the procedural maps when it is present.
   // Nothing ships in public/textures/, so by default this is one 404 and
-  // the asphalt above stands unchanged.
-  void applyTextureManifest({ road: roadMat });
+  // the road and mosaic above stand unchanged.
+  void applyTextureManifest({ road: roadMat, plaza: plazaMosaicMat });
 
   const lineMat = new THREE.MeshStandardMaterial({
     color: 0xf6f6f2,
@@ -1203,8 +1322,14 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     emissiveIntensity: 0.5,
     roughness: 0.5,
   });
-  scene.add(new THREE.Mesh(buildRibbon(track, -(ROAD_HALF_WIDTH - 0.35), -(ROAD_HALF_WIDTH - 0.15), 0.03, 4), lineMat));
-  scene.add(new THREE.Mesh(buildRibbon(track, ROAD_HALF_WIDTH - 0.35, ROAD_HALF_WIDTH - 0.15, 0.03, 4), lineMat));
+  scene.add(new THREE.Mesh(
+    buildRibbon(track, (s) => -(track.halfWidthAt(s) - 0.35), (s) => -(track.halfWidthAt(s) - 0.15), 0.03, 4),
+    lineMat
+  ));
+  scene.add(new THREE.Mesh(
+    buildRibbon(track, (s) => track.halfWidthAt(s) - 0.35, (s) => track.halfWidthAt(s) - 0.15, 0.03, 4),
+    lineMat
+  ));
 
   {
     const dashGeo = new THREE.PlaneGeometry(0.14, 3);
@@ -1248,8 +1373,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     metalness: 0.7,
     side: THREE.DoubleSide,
   });
-  scene.add(new THREE.Mesh(buildWall(track, -(ROAD_HALF_WIDTH + 0.6), 0.3, 0.95), railMat));
-  scene.add(new THREE.Mesh(buildWall(track, ROAD_HALF_WIDTH + 0.6, 0.3, 0.95), railMat));
+  scene.add(new THREE.Mesh(buildWall(track, (s) => -(track.halfWidthAt(s) + 0.6), 0.3, 0.95), railMat));
+  scene.add(new THREE.Mesh(buildWall(track, (s) => track.halfWidthAt(s) + 0.6, 0.3, 0.95), railMat));
 
   // Streetlights: poles + sodium lamps, alternating sides
   {
@@ -1754,6 +1879,166 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     g.lookAt(p.clone().sub(tan));
     scene.add(g);
   });
+
+  // ------------------------------------------------- the Sharq drift circle
+  // The corniche swells into a round plaza (the physics follows
+  // track.halfWidthAt), with a kerbed island to slide around, a painted
+  // drift ring, and Arabic wayfinding leading in.
+  {
+    const sPlaza = DRIFT_PLAZA.u * L;
+    const islandPos = new THREE.Vector3();
+    const tmp = new THREE.Vector3();
+    track.pose(sPlaza, DRIFT_PLAZA.islandLat, islandPos, tmp);
+
+    const island = new THREE.Group();
+    const kerb = new THREE.Mesh(
+      new THREE.CylinderGeometry(DRIFT_PLAZA.islandRadius, DRIFT_PLAZA.islandRadius + 0.25, 0.5, 32),
+      new THREE.MeshStandardMaterial({ color: 0xd8dde2, roughness: 0.7 })
+    );
+    kerb.position.y = 0.25;
+    island.add(kerb);
+    // The island's face is a mosaic disc, registered with the texture
+    // manifest as "plaza" — authored artwork drops onto it with no code.
+    const mosaic = new THREE.Mesh(
+      new THREE.CircleGeometry(DRIFT_PLAZA.islandRadius - 0.3, 32),
+      plazaMosaicMat
+    );
+    mosaic.rotation.x = -Math.PI / 2;
+    mosaic.position.y = 0.51;
+    island.add(mosaic);
+    // A ring of date palms around a central roundabout sign
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a4327, roughness: 1 });
+    const crownMat = new THREE.MeshStandardMaterial({ color: 0x2c5e2e, roughness: 1 });
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + 0.5;
+      const r = DRIFT_PLAZA.islandRadius - 1.7;
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.22, 4.2, 6), trunkMat);
+      trunk.position.set(Math.cos(a) * r, 2.6, Math.sin(a) * r);
+      island.add(trunk);
+      const crown = new THREE.Mesh(new THREE.ConeGeometry(1.5, 1.2, 7), crownMat);
+      crown.position.set(Math.cos(a) * r, 5.0, Math.sin(a) * r);
+      island.add(crown);
+    }
+    island.position.copy(islandPos);
+    scene.add(island);
+
+    // Painted drift ring around the island, and the rubber laid into it
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(DRIFT_PLAZA.islandRadius + 3.0, DRIFT_PLAZA.islandRadius + 3.4, 48),
+      new THREE.MeshStandardMaterial({
+        color: 0xf2f2ee,
+        emissive: 0x9a9a92,
+        emissiveIntensity: 0.4,
+        roughness: 0.55,
+        transparent: true,
+        opacity: 0.9,
+      })
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(islandPos.x, 0.045, islandPos.z);
+    scene.add(ring);
+    const rubberMat = new THREE.MeshStandardMaterial({
+      color: 0x0b0b0d,
+      roughness: 1,
+      transparent: true,
+      opacity: 0.45,
+    });
+    for (const [a0, len] of [
+      [0.3, 1.9],
+      [2.5, 1.4],
+      [4.4, 2.2],
+    ]) {
+      const skid = new THREE.Mesh(
+        new THREE.RingGeometry(DRIFT_PLAZA.islandRadius + 1.4, DRIFT_PLAZA.islandRadius + 2.6, 40, 1, a0, len),
+        rubberMat
+      );
+      skid.rotation.x = -Math.PI / 2;
+      skid.position.set(islandPos.x, 0.04, islandPos.z);
+      scene.add(skid);
+    }
+
+    // Arabic paint on the approach asphalt: the circle's name, twice
+    for (const back of [75, 130]) {
+      const s = sPlaza - back;
+      const paint = new THREE.Mesh(
+        new THREE.PlaneGeometry(4.6, 2.3),
+        new THREE.MeshStandardMaterial({
+          map: roadTextTexture("دوار شرق"),
+          transparent: true,
+          roughness: 0.55,
+          emissive: 0x9a9a92,
+          emissiveIntensity: 0.35,
+        })
+      );
+      const g = new THREE.Group();
+      paint.rotation.x = -Math.PI / 2;
+      paint.position.y = 0.05;
+      g.add(paint);
+      const p = new THREE.Vector3();
+      track.pointAt(s, p);
+      track.tangentAt(s, tmp);
+      g.position.copy(p);
+      // Lay the text so an oncoming driver reads it upright
+      g.lookAt(p.clone().sub(tmp));
+      scene.add(g);
+    }
+
+    // Advance sign on the right shoulder before the swell begins
+    {
+      const g = new THREE.Group();
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.09, 0.11, 3.6, 8),
+        new THREE.MeshStandardMaterial({ color: 0x4a5058, roughness: 0.6 })
+      );
+      post.position.y = 1.8;
+      g.add(post);
+      const board = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.9, 2.5),
+        new THREE.MeshStandardMaterial({ map: roundaboutSignTexture(), emissive: 0x555555 })
+      );
+      board.position.y = 3.2;
+      g.add(board);
+      const s = sPlaza - 170;
+      const p = new THREE.Vector3();
+      track.pose(s, ROAD_HALF_WIDTH + 1.8, p, tmp);
+      track.tangentAt(s, tmp);
+      g.position.copy(p);
+      g.lookAt(p.clone().sub(tmp));
+      scene.add(g);
+    }
+  }
+
+  // Kilometre way-markers down the whole road, numbered in Arabic-Indic
+  // numerals like the real Gulf Road reassurance signs
+  {
+    const COUNT = 12;
+    for (let i = 1; i <= COUNT; i++) {
+      const s = (i / COUNT) * L;
+      const g = new THREE.Group();
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.07, 0.09, 2.6, 8),
+        new THREE.MeshStandardMaterial({ color: 0x4a5058, roughness: 0.6 })
+      );
+      post.position.y = 1.3;
+      g.add(post);
+      const board = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.05, 1.3),
+        new THREE.MeshStandardMaterial({
+          map: waymarkTexture(Math.round((s / L) * 7.3 * 10) / 10),
+          emissive: 0x444444,
+        })
+      );
+      board.position.y = 2.2;
+      g.add(board);
+      const p = new THREE.Vector3();
+      const tmp2 = new THREE.Vector3();
+      track.pose(s, ROAD_HALF_WIDTH + 1.6, p, tmp2);
+      track.tangentAt(s, tmp2);
+      g.position.copy(p);
+      g.lookAt(p.clone().sub(tmp2));
+      scene.add(g);
+    }
+  }
 
   // Remember where each backdrop piece was authored, so the per-frame
   // re-centring preserves its offset rather than collapsing it to zero.

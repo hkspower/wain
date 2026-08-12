@@ -5,7 +5,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
-import { Track, ROAD_HALF_WIDTH, LANES } from "./track";
+import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA } from "./track";
 import { buildWorld, areaAt, WorldHandle } from "./world";
 import { createCar } from "./cars";
 import { RIVALS, RivalDef } from "./rivals";
@@ -1851,9 +1851,29 @@ export class GameEngine {
     const driftScrub = 1 - 0.5 * Math.min(1, Math.abs(this.driftYaw) / 0.5);
     p.lat += (Math.sin(this.heading) * p.speed * driftScrub + this.slipVel) * dt;
 
-    const maxLat = ROAD_HALF_WIDTH - 1.1;
-    if (Math.abs(p.lat) > maxLat) {
-      p.lat = THREE.MathUtils.clamp(p.lat, -maxLat, maxLat);
+    // The wall follows the drivable width — constant four lanes except
+    // through the Sharq plaza, where the road swells into the circle
+    const maxLat = this.track.halfWidthAt(p.s) - 1.1;
+    let hitKerb = Math.abs(p.lat) > maxLat;
+    if (hitKerb) p.lat = THREE.MathUtils.clamp(p.lat, -maxLat, maxLat);
+
+    // The plaza island is solid too: push out radially in (s, lat) space
+    {
+      const ds = this.track.deltaAhead(DRIFT_PLAZA.u * this.track.length, p.s);
+      if (Math.abs(ds) < DRIFT_PLAZA.islandRadius + 4) {
+        const dLat = p.lat - DRIFT_PLAZA.islandLat;
+        const dist = Math.hypot(ds, dLat);
+        const minR = DRIFT_PLAZA.islandRadius + 0.9; // half a car of margin
+        if (dist < minR) {
+          const push = minR - dist;
+          p.s = this.track.wrap(p.s + (ds / (dist || 1)) * push);
+          p.lat += (dLat / (dist || 1)) * push;
+          hitKerb = true;
+        }
+      }
+    }
+
+    if (hitKerb) {
       this.heading *= 0.15;
       this.slipVel *= 0.2;
       // The wall ends the slide — and takes the unbanked style points

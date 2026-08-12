@@ -11,6 +11,20 @@ export const LANES = [-5.25, -1.75, 1.75, 5.25];
 /** Fraction of the lap that runs along the coast (sea on the left). */
 export const COAST_U = { from: 0.0, to: 0.46 };
 
+/** The Sharq drift circle: the corniche swells into a round plaza with
+ *  a kerbed island to slide around, seaward of the through lanes. */
+export const DRIFT_PLAZA = {
+  /** Centre of the plaza as a lap fraction — inside the Sharq district. */
+  u: 0.075,
+  /** Road half-width grows over this many metres either side of centre. */
+  halfSpan: 62,
+  /** Peak extra half-width: 7 m becomes 19 m at the middle. */
+  extraWidth: 12,
+  /** The island sits seaward, clear of all four traffic lanes. */
+  islandLat: 11.5,
+  islandRadius: 4.6,
+};
+
 /** Exported for the UE5 data API and the header generator. */
 export const CONTROL_POINTS: Array<[number, number, number]> = [
   // Coastal leg — southbound, sea to the left (lower x), bays and points
@@ -88,5 +102,15 @@ export class Track {
     this.pointAt(s, outPos);
     this.sideAt(s, tmp);
     return outPos.addScaledVector(tmp, lateral);
+  }
+
+  /** Drivable half-width at `s`: the constant four-lane road everywhere
+   *  except the Sharq plaza, where it swells smoothly into the circle. */
+  halfWidthAt(s: number): number {
+    const d = Math.abs(this.deltaAhead(DRIFT_PLAZA.u * this.length, s));
+    if (d >= DRIFT_PLAZA.halfSpan) return ROAD_HALF_WIDTH;
+    const t = 1 - d / DRIFT_PLAZA.halfSpan;
+    const w = t * t * (3 - 2 * t); // smoothstep swell, no kink at the ends
+    return ROAD_HALF_WIDTH + DRIFT_PLAZA.extraWidth * w;
   }
 }
