@@ -240,18 +240,77 @@ function spinWheels(car: THREE.Object3D, speed: number, dt: number, steer = 0): 
   }
 }
 
-/** Soft white radial texture for the headlight splash on the asphalt. */
+/**
+ * The headlight splash on the asphalt: two overlapping lobes rather than
+ * one blob, because a car has two lamps and the pair reads as a wide hot
+ * bar near the bumper that merges into a single pool further out. The
+ * near edge is cut off sharply — light does not wrap back under the car.
+ */
 function headlightPoolTexture(): THREE.CanvasTexture {
+  const S = 256;
   const c = document.createElement("canvas");
-  c.width = 128;
+  c.width = c.height = S;
+  const ctx = c.getContext("2d")!;
+  // v runs 0 at the near (bumper) edge to 1 far up the road
+  const lobe = (cx: number, cy: number, rx: number, ry: number, a: number) => {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(rx, ry);
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    g.addColorStop(0, `rgba(255,248,222,${a})`);
+    g.addColorStop(0.45, `rgba(255,242,205,${a * 0.42})`);
+    g.addColorStop(1, "rgba(255,236,190,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, 1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  };
+  ctx.globalCompositeOperation = "lighter";
+  // Two lamp lobes, splayed and reaching up the road
+  lobe(S * 0.36, S * 0.56, S * 0.3, S * 0.42, 0.5);
+  lobe(S * 0.64, S * 0.56, S * 0.3, S * 0.42, 0.5);
+  // The shared hot spot where both beams overlap
+  lobe(S * 0.5, S * 0.44, S * 0.26, S * 0.3, 0.34);
+  // Fade the very near edge so the pool does not start under the nose
+  const cut = ctx.createLinearGradient(0, S, 0, S * 0.74);
+  cut.addColorStop(0, "rgba(0,0,0,1)");
+  cut.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.globalCompositeOperation = "destination-out";
+  ctx.fillStyle = cut;
+  ctx.fillRect(0, 0, S, S);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/**
+ * Length-wise gradient for the visible beam cone. A cone painted a flat
+ * colour reads as a solid wedge of plastic; real light in dusty air is
+ * brightest at the lamp and dissolves as it spreads.
+ */
+function beamGradientTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 8;
   c.height = 128;
   const ctx = c.getContext("2d")!;
-  const g = ctx.createRadialGradient(64, 64, 4, 64, 64, 64);
-  g.addColorStop(0, "rgba(255,246,215,0.55)");
-  g.addColorStop(0.5, "rgba(255,240,200,0.2)");
-  g.addColorStop(1, "rgba(255,235,190,0)");
+  // The cone is additive and double-sided, so the eye sums both walls —
+  // and those walls converge at the apex, piling the accumulation into a
+  // bright dome sitting on top of the car. So the shaft fades to nothing
+  // at BOTH ends: out at the apex to kill that dome, and out at the far
+  // end where the light should dissolve into the night.
+  // v runs 0 at the wide far end to 1 at the apex. The profile is kept
+  // deliberately FLAT between the end fades: from the chase camera you
+  // look straight down the cone's axis, and any peak along its length
+  // accumulates into a defined bright lens floating over the road. Even
+  // haze reads as air; a shaped core reads as a solid object.
+  const g = ctx.createLinearGradient(0, 128, 0, 0);
+  g.addColorStop(0.0, "rgba(255,238,195,0)"); // far end, dissolved
+  g.addColorStop(0.22, "rgba(255,242,205,0.5)");
+  g.addColorStop(0.78, "rgba(255,244,210,0.55)");
+  g.addColorStop(1.0, "rgba(255,244,210,0)"); // apex, hidden at the lamp
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 128, 128);
+  ctx.fillRect(0, 0, 8, 128);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
@@ -311,6 +370,11 @@ export class GameEngine {
   private playerMesh: THREE.Group;
   private carBody: THREE.Group;
   private headlight: THREE.SpotLight;
+  /** Visible beam cones — flared with the lamps during the flash ritual. */
+  private beamMat: THREE.MeshBasicMaterial | null = null;
+  private beamBaseOpacity = 0.05;
+  private beamCamDir = new THREE.Vector3();
+  private beamCarDir = new THREE.Vector3();
   // Live reflection probe: a low-res cube camera rides with the player so
   // streetlights, towers and neon actually sweep across the paint.
   private cubeRT!: THREE.WebGLCubeRenderTarget;
@@ -632,20 +696,26 @@ export class GameEngine {
 
     // Visible beam cones + a splash of light on the road ahead
     {
-      const beamGeo = new THREE.ConeGeometry(1.5, 13, 12, 1, true);
+      const beamGeo = new THREE.ConeGeometry(1.5, 13, 14, 1, true);
       beamGeo.rotateX(-Math.PI / 2); // apex toward the car, opening forward
       const beamMat = new THREE.MeshBasicMaterial({
+        map: beamGradientTexture(),
         color: 0xfff3cf,
         transparent: true,
-        opacity: 0.045,
+        opacity: 0.05, // barely-there haze; the road pool does the work
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         side: THREE.DoubleSide,
         fog: false,
       });
+      this.beamMat = beamMat;
+      this.beamBaseOpacity = beamMat.opacity;
       for (const sx of [-0.7, 0.7]) {
         const beam = new THREE.Mesh(beamGeo, beamMat);
         beam.position.set(sx, 0.8, 8.7);
+        // Splay each beam outward a touch so the pair diverges down the
+        // road instead of running as two parallel tubes
+        beam.rotation.y = sx > 0 ? -0.035 : 0.035;
         this.playerMesh.add(beam);
       }
       const pool = new THREE.Mesh(
@@ -653,13 +723,16 @@ export class GameEngine {
         new THREE.MeshBasicMaterial({
           map: headlightPoolTexture(),
           transparent: true,
-          opacity: 0.5,
+          opacity: 0.4,
           blending: THREE.AdditiveBlending,
           depthWrite: false,
           fog: false,
         })
       );
       pool.rotation.x = -Math.PI / 2;
+      // Rotated flat, the plane's +v axis points back toward the car, so
+      // the texture's near-edge cut lands at the bumper end.
+      pool.rotation.z = Math.PI;
       pool.position.set(0, 0.07, 10.5);
       this.playerMesh.add(pool);
     }
@@ -1461,25 +1534,45 @@ export class GameEngine {
   private flashRival(r: Rival): void {
     const mat = r.mesh.userData.headMat as THREE.MeshStandardMaterial | undefined;
     if (!mat) return;
+    const glows = (r.mesh.userData.headGlowMats as THREE.SpriteMaterial[]) ?? [];
     const base = mat.emissiveIntensity;
+    const baseGlow = glows.map((m) => m.opacity);
     let n = 0;
     const id = setInterval(() => {
-      mat.emissiveIntensity = mat.emissiveIntensity > base ? base : base * 4;
+      const on = mat.emissiveIntensity <= base;
+      mat.emissiveIntensity = on ? base * 4 : base;
+      glows.forEach((m, i) => (m.opacity = on ? Math.min(1, baseGlow[i] * 2.1) : baseGlow[i]));
       if (++n >= 6 || this.disposed) {
         clearInterval(id);
         mat.emissiveIntensity = base;
+        glows.forEach((m, i) => (m.opacity = baseGlow[i]));
       }
     }, 110);
   }
 
   private flashHeadlights(): void {
+    // The flash has to be visible from outside the car, not just in the
+    // pool it throws: blink the lamp faces, their glare sprites and the
+    // beam cones together with the spot light.
     const base = this.headlight.intensity;
+    const headMat = this.carBody.userData.headMat as THREE.MeshStandardMaterial | undefined;
+    const glows = (this.carBody.userData.headGlowMats as THREE.SpriteMaterial[]) ?? [];
+    const baseEmissive = headMat?.emissiveIntensity ?? 0;
+    const baseGlow = glows.map((m) => m.opacity);
+    const baseBeam = this.beamMat?.opacity ?? 0;
     let n = 0;
     const id = setInterval(() => {
-      this.headlight.intensity = this.headlight.intensity > 1 ? 0 : base;
-      if (++n >= 6) {
+      const on = this.headlight.intensity <= 1;
+      this.headlight.intensity = on ? base : 0;
+      if (headMat) headMat.emissiveIntensity = on ? baseEmissive * 2.2 : baseEmissive * 0.15;
+      glows.forEach((m, i) => (m.opacity = on ? Math.min(1, baseGlow[i] * 1.9) : baseGlow[i] * 0.1));
+      if (this.beamMat) this.beamMat.opacity = on ? baseBeam : baseBeam * 0.12;
+      if (++n >= 6 || this.disposed) {
         clearInterval(id);
         this.headlight.intensity = base;
+        if (headMat) headMat.emissiveIntensity = baseEmissive;
+        glows.forEach((m, i) => (m.opacity = baseGlow[i]));
+        if (this.beamMat) this.beamMat.opacity = baseBeam;
       }
     }, 90);
   }
@@ -1732,6 +1825,7 @@ export class GameEngine {
     if (this.inBattle) this.updateBattle(dt);
     this.music?.setMood(this.inBattle || this.duel || this.cine ? "battle" : "cruise");
     this.updateCamera(dt);
+    this.updateBeamVisibility();
     this.updateStreaks();
     this.updateAudio();
     this.world.tick(dt);
@@ -2101,6 +2195,27 @@ export class GameEngine {
         Math.tan(THREE.MathUtils.degToRad(vFovDeg) / 2) * ((16 / 9) / aspect)
       );
     return Math.min(108, THREE.MathUtils.radToDeg(widened));
+  }
+
+  /**
+   * A light shaft is air made visible, and air only shows when you look
+   * ACROSS it. From the chase camera you look straight down the beams'
+   * axis, where an additive cone accumulates its full depth into a disc
+   * hanging over the road — no opacity is low enough to fix that, only
+   * hiding it is. So the shafts fade out as the view aligns with them and
+   * return in side and head-on views, where they read as real light.
+   */
+  private updateBeamVisibility(): void {
+    if (!this.beamMat) return;
+    this.camera.getWorldDirection(this.beamCamDir);
+    this.playerMesh.getWorldDirection(this.beamCarDir);
+    // +1 = looking the same way the car points (down the beams from
+    // behind); 0 = across them; -1 = head-on into them, which should
+    // stay bright because that is what oncoming headlights do.
+    const align = this.beamCamDir.dot(this.beamCarDir);
+    const behind = Math.max(0, align);
+    const hide = behind * behind * (3 - 2 * behind); // smoothstep
+    this.beamMat.opacity = this.beamBaseOpacity * (1 - hide);
   }
 
   private updateCamera(dt: number): void {

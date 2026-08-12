@@ -44,6 +44,53 @@ function getGoldRimMat(): THREE.MeshStandardMaterial {
   return goldRimMat;
 }
 
+/** Four-point diffraction star — what a bright lamp does to an eye or a
+ *  lens. Drawn once and shared by every headlight in the scene. */
+let starTexShared: THREE.CanvasTexture | null = null;
+function headlightStarTexture(): THREE.CanvasTexture {
+  if (starTexShared) return starTexShared;
+  const S = 128;
+  const c = document.createElement("canvas");
+  c.width = c.height = S;
+  const ctx = c.getContext("2d")!;
+  const mid = S / 2;
+  // Spikes: long and thin, horizontal pair longer than the vertical, the
+  // asymmetry real headlamp optics and camera irises both produce
+  const arm = (len: number, thick: number, angle: number, alpha: number) => {
+    ctx.save();
+    ctx.translate(mid, mid);
+    ctx.rotate(angle);
+    const g = ctx.createLinearGradient(-len, 0, len, 0);
+    g.addColorStop(0, "rgba(255,238,205,0)");
+    g.addColorStop(0.5, `rgba(255,248,230,${alpha})`);
+    g.addColorStop(1, "rgba(255,238,205,0)");
+    ctx.fillStyle = g;
+    // Taper the spike toward its tips so it reads as a ray, not a bar
+    ctx.beginPath();
+    ctx.moveTo(-len, 0);
+    ctx.lineTo(0, -thick);
+    ctx.lineTo(len, 0);
+    ctx.lineTo(0, thick);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  };
+  arm(mid * 0.98, 3.4, 0, 0.95); // horizontal, the dominant flare
+  arm(mid * 0.62, 2.6, Math.PI / 2, 0.75); // vertical
+  arm(mid * 0.34, 1.8, Math.PI / 4, 0.4); // faint diagonals
+  arm(mid * 0.34, 1.8, -Math.PI / 4, 0.4);
+  // Blown-out core
+  const core = ctx.createRadialGradient(mid, mid, 0.5, mid, mid, mid * 0.28);
+  core.addColorStop(0, "rgba(255,255,250,1)");
+  core.addColorStop(0.35, "rgba(255,246,215,0.75)");
+  core.addColorStop(1, "rgba(255,238,200,0)");
+  ctx.fillStyle = core;
+  ctx.fillRect(0, 0, S, S);
+  starTexShared = new THREE.CanvasTexture(c);
+  starTexShared.colorSpace = THREE.SRGBColorSpace;
+  return starTexShared;
+}
+
 let glowTexShared: THREE.CanvasTexture | null = null;
 function underglowTexture(): THREE.CanvasTexture {
   if (glowTexShared) return glowTexShared;
@@ -605,12 +652,54 @@ export function createCar(colors: CarColors): THREE.Group {
   // Lights: lens strips front and rear. The head material is cloned per
   // car so a single rival can flash back without lighting up traffic.
   const headMat = headlightMat.clone();
+
+  // Every lamp carries a soft bloom and a diffraction star. Sprites, so
+  // the flare always faces the camera — an oncoming car's lights spike
+  // properly whichever way it is pointing. Traffic skips them: thirty
+  // background cars do not need sixty extra additive sprites.
+  const headGlowMats: THREE.SpriteMaterial[] = [];
+  const addHeadGlare = (x: number, y: number, z: number, size = 1) => {
+    if (colors.simple) return;
+    const halo = new THREE.SpriteMaterial({
+      map: underglowTexture(),
+      color: 0xfff2cc,
+      transparent: true,
+      opacity: 0.5,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+    });
+    const h = new THREE.Sprite(halo);
+    h.scale.setScalar(0.85 * size);
+    h.position.set(x, y, z + 0.06);
+    h.userData.noShadow = true;
+    group.add(h);
+    headGlowMats.push(halo);
+
+    const starMat = new THREE.SpriteMaterial({
+      map: headlightStarTexture(),
+      color: 0xfff6e0,
+      transparent: true,
+      opacity: 0.62,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+    });
+    const star = new THREE.Sprite(starMat);
+    star.scale.setScalar(1.7 * size);
+    star.position.set(x, y, z + 0.07);
+    star.userData.noShadow = true;
+    group.add(star);
+    headGlowMats.push(starMat);
+  };
+
   if (style === "zx") {
     // Z32 signature: one flush light bar across the whole nose
     const bar = new THREE.Mesh(roundedBox(1.56, 0.1, 0.07, 0.03), headMat);
     bar.position.set(0, d.noseTopY + 0.03, d.nose - 0.08);
     bar.rotation.x = -0.09; // gently raked, flush with the hood line
     group.add(bar);
+    for (const sx of [-0.5, 0.5]) addHeadGlare(sx, d.noseTopY + 0.03, d.nose - 0.08, 0.95);
   } else if (style === "rx7") {
     // Pop-up headlights, up for the night run: a body-colour door tilted
     // out of the hood with the lamp shining from under it
@@ -622,12 +711,14 @@ export function createCar(colors: CarColors): THREE.Group {
       const lamp = new THREE.Mesh(roundedBox(0.36, 0.12, 0.08, 0.03), headMat);
       lamp.position.set(sx, d.noseTopY + 0.07, d.nose - 0.36);
       group.add(lamp);
+      addHeadGlare(sx, d.noseTopY + 0.07, d.nose - 0.32, 0.9);
     }
   } else {
     for (const sx of [-0.62, 0.62]) {
       const head = new THREE.Mesh(roundedBox(0.52, 0.13, 0.07, 0.02), headMat);
       head.position.set(sx, d.noseTopY, d.nose - 0.01);
       group.add(head);
+      addHeadGlare(sx, d.noseTopY, d.nose + 0.02);
     }
     if (style === "gtr") {
       // Inner projector eyes beside the main lamps
@@ -1199,6 +1290,8 @@ export function createCar(colors: CarColors): THREE.Group {
   group.userData.wheels = wheels;
   group.userData.tailMat = tailMat;
   group.userData.headMat = headMat;
+  // Flashed with the lamps by the engine's challenge ritual
+  group.userData.headGlowMats = headGlowMats;
   // The paint is per-car (glass/chrome/rims are shared modules), so the
   // engine can feed the player's paint a live reflection probe without
   // leaking it onto every car on the road.
