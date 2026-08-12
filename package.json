@@ -12,7 +12,8 @@
     "build:mobile": "NEXT_OUTPUT=export next build",
     "mobile:sync": "npm run build:mobile && npx cap sync",
     "mobile:ios": "npm run mobile:sync && npx cap open ios",
-    "mobile:android": "npm run mobile:sync && npx cap open android"
+    "mobile:android": "npm run mobile:sync && npx cap open android",
+    "build:steam": "NEXT_OUTPUT=export next build && rm -rf desktop/out && cp -r out desktop/out"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",

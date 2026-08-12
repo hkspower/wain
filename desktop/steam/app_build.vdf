@@ -1,0 +1,34 @@
+// SteamPipe app build script — upload with:
+//   steamcmd +login <builder_account> +run_app_build ../desktop/steam/app_build.vdf +quit
+// Replace 480 (Spacewar, the test app) with your real App ID from
+// https://partner.steamgames.com once Steam Direct is approved.
+"AppBuild"
+{
+	"AppID" "480"
+	"Desc" "Gulf Road Nights v1.0 — Kuwait Xtreme Racer"
+	"ContentRoot" "..\\dist\\"
+	"BuildOutput" "..\\steam_build_output\\"
+	"SetLive" "" // set to "beta" or "default" to auto-publish the branch
+
+	"Depots"
+	{
+		"481" // Windows depot (App ID + 1 by convention)
+		{
+			"FileMapping"
+			{
+				"LocalPath" "win-unpacked\\*"
+				"DepotPath" "."
+				"recursive" "1"
+			}
+		}
+		"482" // Linux depot
+		{
+			"FileMapping"
+			{
+				"LocalPath" "linux-unpacked\\*"
+				"DepotPath" "."
+				"recursive" "1"
+			}
+		}
+	}
+}

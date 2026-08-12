@@ -306,6 +306,12 @@ export class GameEngine {
   private cubeCam!: THREE.CubeCamera;
   private cubeFrame = 0;
   private liveReflections = true;
+  // Dynamic resolution: a continuous governor scales the internal render
+  // resolution to hold frame rate; the tier sets the ceiling.
+  private baseRatio = 1;
+  private renderScale = 1;
+  private drsEnabled = true;
+  private drsAt = 0;
 
   private traffic: TrafficCar[] = [];
   private rival: Rival | null = null;
@@ -421,7 +427,8 @@ export class GameEngine {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     // Full native resolution — on a 4K panel this renders 4K, not an
     // upscaled 1080p. Adaptive quality drops it if the GPU can't hold up.
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3));
+    this.baseRatio = Math.min(window.devicePixelRatio, 2);
+    this.renderer.setPixelRatio(this.baseRatio);
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
@@ -736,6 +743,7 @@ export class GameEngine {
       const raw = this.clock.getDelta();
       if (raw > 0) this.fpsEma = this.fpsEma * 0.95 + (1 / raw) * 0.05;
       this.autoQuality();
+      this.updateDrs(performance.now());
       const dt = Math.min(raw, 0.05);
       if (!this.paused) this.update(dt);
       // Refresh the paint's reflection probe on a stride. Every face
@@ -803,6 +811,33 @@ export class GameEngine {
     res.set(1 / buf.x, 1 / buf.y);
   }
 
+  private applyRenderScale(): void {
+    const r = this.baseRatio * this.renderScale;
+    this.renderer.setPixelRatio(r);
+    this.composer.setPixelRatio(r);
+    this.resize();
+  }
+
+  /**
+   * Dynamic resolution: walk the internal render scale down 10% at a
+   * time while the frame rate is under target, and back up 5% at a time
+   * once there is headroom. Runs continuously (Auto tier), unlike the
+   * one-shot effects governor below.
+   */
+  private updateDrs(now: number): void {
+    if (!this.drsEnabled || this.paused) return;
+    if (now - this.startedAt < 4000 || now - this.drsAt < 1500) return;
+    if (this.fpsEma < 50 && this.renderScale > 0.6) {
+      this.drsAt = now;
+      this.renderScale = Math.max(0.6, this.renderScale - 0.1);
+      this.applyRenderScale();
+    } else if (this.fpsEma > 58 && this.renderScale < 1) {
+      this.drsAt = now;
+      this.renderScale = Math.min(1, this.renderScale + 0.05);
+      this.applyRenderScale();
+    }
+  }
+
   /** Drop the expensive effects once it's clear the machine can't keep up. */
   private autoQuality(): void {
     if (this.qualityLocked || performance.now() - this.startedAt < 6000) return;
@@ -814,11 +849,6 @@ export class GameEngine {
       this.fxaaPass.enabled = false;
       this.liveReflections = false;
       this.applyLiveReflections();
-      if (this.fpsEma < 18) {
-        this.renderer.setPixelRatio(1);
-        this.composer.setPixelRatio(1);
-        this.resize();
-      }
       this.events.onMessage("Performance mode", "Glow & shadows off — press G to toggle them back");
     }
   }
@@ -830,10 +860,15 @@ export class GameEngine {
   applyQualityTier(tier: "auto" | "high" | "balanced" | "battery"): void {
     if (tier === "auto") {
       this.qualityLocked = false;
-      this.startedAt = performance.now(); // give the governor a fresh window
+      this.drsEnabled = true;
+      this.renderScale = 1;
+      this.baseRatio = Math.min(window.devicePixelRatio, 2);
+      this.applyRenderScale();
+      this.startedAt = performance.now(); // give the governors a fresh window
       return;
     }
     this.qualityLocked = true;
+    this.drsEnabled = false; // explicit tiers pin their resolution
     const high = tier === "high";
     const balanced = tier === "balanced";
     this.bloomPass.enabled = high || balanced;
@@ -843,10 +878,13 @@ export class GameEngine {
     // The live paint probe is the most expensive single toy — high only
     this.liveReflections = high;
     this.applyLiveReflections();
-    const ratio = high ? Math.min(window.devicePixelRatio, 2) : balanced ? Math.min(window.devicePixelRatio, 1.5) : 1;
-    this.renderer.setPixelRatio(ratio);
-    this.composer.setPixelRatio(ratio);
-    this.resize();
+    this.baseRatio = high
+      ? Math.min(window.devicePixelRatio, 2)
+      : balanced
+        ? Math.min(window.devicePixelRatio, 1.5)
+        : 1;
+    this.renderScale = 1;
+    this.applyRenderScale();
   }
 
   /** After a defeat: refill SP and rematch the same rival. */
@@ -1944,6 +1982,24 @@ export class GameEngine {
     else if (this.player.sp <= 0) this.loseBattle();
   }
 
+  /**
+   * three.js FOV is vertical, which starves the horizontal view on
+   * screens narrower than 16:9 (portrait phones, 4:3 monitors): the road
+   * ahead vanishes. Widen the vertical FOV on narrow aspects so the
+   * horizontal field never drops below its 16:9 equivalent; wider
+   * screens keep standard Hor+ behaviour.
+   */
+  private aspectFov(vFovDeg: number): number {
+    const aspect = this.camera.aspect;
+    if (!Number.isFinite(aspect) || aspect >= 16 / 9 - 1e-3) return vFovDeg;
+    const widened =
+      2 *
+      Math.atan(
+        Math.tan(THREE.MathUtils.degToRad(vFovDeg) / 2) * ((16 / 9) / aspect)
+      );
+    return Math.min(108, THREE.MathUtils.radToDeg(widened));
+  }
+
   private updateCamera(dt: number): void {
     if (this.cine) {
       this.updateCineCamera();
@@ -1994,7 +2050,7 @@ export class GameEngine {
     const launchKick = this.throttle * THREE.MathUtils.clamp(1 - p.speed / 40, 0, 1) * 5;
     const targetFov = 62 + (p.speed / PLAYER_TOP_SPEED) * 18 + launchKick;
     this.fovCurrent += (targetFov - this.fovCurrent) * Math.min(1, dt * 3);
-    this.camera.fov = this.fovCurrent;
+    this.camera.fov = this.aspectFov(this.fovCurrent);
     this.camera.updateProjectionMatrix();
   }
 
@@ -2064,7 +2120,7 @@ export class GameEngine {
     // The film is framed at the lens's resting focal length
     if (this.fovCurrent !== 58) {
       this.fovCurrent += (58 - this.fovCurrent) * 0.1;
-      this.camera.fov = this.fovCurrent;
+      this.camera.fov = this.aspectFov(this.fovCurrent);
       this.camera.updateProjectionMatrix();
     }
   }
@@ -2316,6 +2372,8 @@ export class GameEngine {
       driftYaw: this.driftYaw,
       driftRun: this.driftRun,
       cine: this.cine ? (performance.now() - this.cine.start) / 1000 : null,
+      renderScale: this.renderScale,
+      fpsEma: Math.round(this.fpsEma),
       sound: this.sound?.debugState() ?? null,
     };
 

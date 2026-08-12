@@ -2,11 +2,12 @@
   "name": "gulf-road-nights-desktop",
   "version": "1.0.0",
   "private": true,
-  "description": "Gulf Road Nights — Kuwait Xtreme Racer. Electron shell for the Steam PC build.",
+  "description": "Gulf Road Nights \u2014 Kuwait Xtreme Racer. Electron shell for the Steam PC build.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --publish never"
+    "dist": "electron-builder --publish never",
+    "dist:all": "electron-builder --win --linux --publish never"
   },
   "devDependencies": {
     "electron": "^33.0.0",
@@ -15,7 +16,11 @@
   "build": {
     "appId": "com.wain.gulfroadnights",
     "productName": "Gulf Road Nights",
-    "files": ["main.js", "out/**/*", "steam_appid.txt"],
+    "files": [
+      "main.js",
+      "out/**/*",
+      "steam_appid.txt"
+    ],
     "directories": {
       "output": "dist"
     },
@@ -23,7 +28,8 @@
       "target": "dir"
     },
     "linux": {
-      "target": "dir"
+      "target": "dir",
+      "category": "Game"
     },
     "mac": {
       "target": "dir"
