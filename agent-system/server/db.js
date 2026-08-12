@@ -119,9 +119,22 @@ CREATE TABLE IF NOT EXISTS location_views (
   viewed_at TEXT    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_location_views_agent ON location_views(agent_id, viewed_at DESC);
+
+/* سجل قرارات الاعتماد على الحسابات — منفصل عن events لأن تلك مرتبطة بطلب */
+CREATE TABLE IF NOT EXISTS agent_events (
+  id         INTEGER PRIMARY KEY,
+  agent_id   INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+  actor_id   INTEGER REFERENCES agents(id) ON DELETE SET NULL,
+  type       TEXT    NOT NULL,
+  from_value TEXT    NOT NULL DEFAULT '',
+  to_value   TEXT    NOT NULL DEFAULT '',
+  note       TEXT    NOT NULL DEFAULT '',
+  created_at TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_agent_events_agent ON agent_events(agent_id, id DESC);
 `);
 
-/* ---- ترحيلات: أعمدة موافقة الموقع تُضاف للقواعد القائمة ---- */
+/* ---- ترحيلات: أعمدة تُضاف للقواعد القائمة ---- */
 const agentCols = db.prepare('PRAGMA table_info(agents)').all().map((c) => c.name);
 const addColumn = (name, ddl) => {
   if (!agentCols.includes(name)) db.exec(`ALTER TABLE agents ADD COLUMN ${name} ${ddl}`);
@@ -129,6 +142,18 @@ const addColumn = (name, ddl) => {
 addColumn('location_consent',    'INTEGER NOT NULL DEFAULT 0');
 addColumn('location_consent_at', 'TEXT');
 addColumn('location_sharing',    'INTEGER NOT NULL DEFAULT 0');
+
+/* حالة اعتماد الحساب. `active` صار مشتقًّا منها لا مستقلًّا عنها، فلا يوجد
+   مفتاحان متعارضان: الحسابات المعتمدة وتحت التجربة تعمل، والمرفوضة والمحظورة لا.
+   الترحيل يُسقط الحالة القديمة على الجديدة: مفعّل ← معتمد، معطّل ← محظور. */
+const isNewApprovalColumn = !agentCols.includes('approval');
+addColumn('approval',     "TEXT NOT NULL DEFAULT 'under_test'");
+addColumn('approval_note', 'TEXT NOT NULL DEFAULT \'\'');
+addColumn('approval_at',   'TEXT');
+addColumn('approval_by',   'INTEGER REFERENCES agents(id) ON DELETE SET NULL');
+if (isNewApprovalColumn) {
+  db.exec(`UPDATE agents SET approval = CASE WHEN active = 1 THEN 'approved' ELSE 'blocked' END`);
+}
 
 /** الوقت الحالي بصيغة ISO — كل الطوابع الزمنية مخزّنة بتوقيت UTC */
 const now = () => new Date().toISOString();
@@ -147,4 +172,12 @@ function logEvent({ orderId, actorId, type, from = '', to = '', note = '' }) {
   ).run(orderId, actorId ?? null, type, String(from ?? ''), String(to ?? ''), String(note ?? ''), now());
 }
 
-module.exports = { db, now, nextOrderCode, logEvent, DB_FILE, DATA_DIR };
+/** سجل قرار على حساب (اعتماد، حظر، رفض…) — سجل غير قابل للتعديل */
+function logAgentEvent({ agentId, actorId, type, from = '', to = '', note = '' }) {
+  db.prepare(
+    `INSERT INTO agent_events (agent_id, actor_id, type, from_value, to_value, note, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(agentId, actorId ?? null, type, String(from ?? ''), String(to ?? ''), String(note ?? ''), now());
+}
+
+module.exports = { db, now, nextOrderCode, logEvent, logAgentEvent, DB_FILE, DATA_DIR };

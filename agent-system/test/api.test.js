@@ -46,10 +46,10 @@ async function call(as, method, path, body) {
 const login = (as, username, password) => call(as, 'POST', '/api/auth/login', { username, password });
 
 test.before(async () => {
-  db.exec('DELETE FROM events; DELETE FROM transfers; DELETE FROM orders; DELETE FROM sessions; DELETE FROM agents;');
+  db.exec('DELETE FROM events; DELETE FROM agent_events; DELETE FROM transfers; DELETE FROM orders; DELETE FROM sessions; DELETE FROM agents;');
   const ins = db.prepare(
-    `INSERT INTO agents (name, username, phone, password_hash, role, vehicle, governorate, availability, active, created_at)
-     VALUES (?, ?, '', ?, ?, 'sedan', 'العاصمة', 'available', 1, datetime('now'))`
+    `INSERT INTO agents (name, username, phone, password_hash, role, vehicle, governorate, availability, active, approval, created_at)
+     VALUES (?, ?, '', ?, ?, 'sedan', 'العاصمة', 'available', 1, 'approved', datetime('now'))`
   );
   ins.run('المدير', 'admin', hashPassword('pass1234'), 'admin');
   ins.run('مندوب أ', 'ag1', hashPassword('pass1234'), 'agent');
@@ -333,7 +333,7 @@ test('يمنع تكرار اسم المستخدم', async () => {
   assert.equal(status, 409);
 });
 
-test('تعطيل الحساب يُنهي جلساته', async () => {
+test('منع الحساب يُنهي جلساته', async () => {
   const created = await call('admin', 'POST', '/api/agents', {
     name: 'مندوب مؤقت', username: 'temp1', password: 'pass1234',
   });
@@ -342,6 +342,9 @@ test('تعطيل الحساب يُنهي جلساته', async () => {
   await login('temp1', 'temp1', 'pass1234');
   assert.equal((await call('temp1', 'GET', '/api/auth/me')).status, 200);
 
-  await call('admin', 'PATCH', '/api/agents/' + created.data.agent.id, { active: false });
+  const blocked = await call('admin', 'PATCH', `/api/agents/${created.data.agent.id}/approval`, {
+    approval: 'blocked', note: 'انتهى التعاقد',
+  });
+  assert.equal(blocked.status, 200);
   assert.equal((await call('temp1', 'GET', '/api/auth/me')).status, 401);
 });

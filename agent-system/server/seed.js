@@ -4,14 +4,14 @@
  * التشغيل:  npm run seed          (يضيف فقط إذا كانت القاعدة فارغة)
  *           npm run reset         (يمسح كل شيء ويعيد البناء)
  */
-const { db, now, logEvent } = require('./db');
+const { db, now, logEvent, logAgentEvent } = require('./db');
 const { hashPassword } = require('./auth');
 const ar = require('arabic-kit');
 
 const RESET = process.argv.includes('--reset');
 
 if (RESET) {
-  db.exec('DELETE FROM events; DELETE FROM transfers; DELETE FROM orders; DELETE FROM sessions; DELETE FROM agents;');
+  db.exec('DELETE FROM events; DELETE FROM agent_events; DELETE FROM transfers; DELETE FROM orders; DELETE FROM sessions; DELETE FROM agents;');
   console.log('تم مسح البيانات السابقة.');
 }
 
@@ -21,30 +21,48 @@ if (existing > 0 && !RESET) {
   process.exit(0);
 }
 
+/* حالات الاعتماد الأربع ممثَّلة كلها ليمكن تجربة الشاشة فورًا.
+   الممنوعون (غير مقبول / محظور) بلا طلبات لأن النظام يمنع منع حساب يحمل طلبًا نشطًا. */
 const people = [
-  { name: 'سعود العتيبي',   username: 'admin',  phone: '+96522220000', role: 'admin', vehicle: 'sedan',  governorate: 'العاصمة',      password: 'admin1234' },
-  { name: 'أحمد الكندري',   username: 'ahmad',  phone: '+96590000001', role: 'agent', vehicle: 'sedan',  governorate: 'العاصمة',      password: 'agent1234' },
-  { name: 'يوسف الرشيدي',   username: 'yousef', phone: '+96590000002', role: 'agent', vehicle: 'van',    governorate: 'حولي',         password: 'agent1234' },
-  { name: 'فهد المطيري',    username: 'fahad',  phone: '+96590000003', role: 'agent', vehicle: 'reefer', governorate: 'الفروانية',    password: 'agent1234' },
-  { name: 'بدر العنزي',     username: 'bader',  phone: '+96590000004', role: 'agent', vehicle: 'sedan',  governorate: 'الأحمدي',      password: 'agent1234' },
-  { name: 'مشاري الشمري',   username: 'meshari',phone: '+96590000005', role: 'agent', vehicle: 'van',    governorate: 'مبارك الكبير', password: 'agent1234' },
+  { name: 'سعود العتيبي',   username: 'admin',  phone: '+96522220000', role: 'admin', vehicle: 'sedan',  governorate: 'العاصمة',      password: 'admin1234', approval: 'approved' },
+  { name: 'أحمد الكندري',   username: 'ahmad',  phone: '+96590000001', role: 'agent', vehicle: 'sedan',  governorate: 'العاصمة',      password: 'agent1234', approval: 'approved' },
+  { name: 'يوسف الرشيدي',   username: 'yousef', phone: '+96590000002', role: 'agent', vehicle: 'van',    governorate: 'حولي',         password: 'agent1234', approval: 'approved' },
+  { name: 'فهد المطيري',    username: 'fahad',  phone: '+96590000003', role: 'agent', vehicle: 'reefer', governorate: 'الفروانية',    password: 'agent1234', approval: 'approved' },
+  { name: 'بدر العنزي',     username: 'bader',  phone: '+96590000004', role: 'agent', vehicle: 'sedan',  governorate: 'الأحمدي',      password: 'agent1234', approval: 'under_test', note: 'انضم حديثًا — تحت التجربة لأول شهر' },
+  { name: 'مشاري الشمري',   username: 'meshari',phone: '+96590000005', role: 'agent', vehicle: 'van',    governorate: 'مبارك الكبير', password: 'agent1234', approval: 'approved' },
+  { name: 'ناصر الدوسري',   username: 'nasser', phone: '+96590000006', role: 'agent', vehicle: 'sedan',  governorate: 'الجهراء',      password: 'agent1234', approval: 'rejected',  note: 'لم تكتمل مستندات الرخصة المطلوبة' },
+  { name: 'سالم الفضلي',    username: 'salem',  phone: '+96590000007', role: 'agent', vehicle: 'bike',   governorate: 'حولي',         password: 'agent1234', approval: 'blocked',   note: 'شكاوى تسليم متكرّرة — موقوف بانتظار التحقيق' },
 ];
 
 const insertAgent = db.prepare(
-  `INSERT INTO agents (name, username, phone, password_hash, role, vehicle, governorate, availability, active, created_at)
-   VALUES (@name, @username, @phone, @hash, @role, @vehicle, @governorate, @availability, 1, @ts)`
+  `INSERT INTO agents (name, username, phone, password_hash, role, vehicle, governorate,
+                       availability, active, approval, approval_note, approval_at, created_at)
+   VALUES (@name, @username, @phone, @hash, @role, @vehicle, @governorate,
+           @availability, @active, @approval, @note, @ts, @ts)`
 );
 
+const WORKING = ['approved', 'under_test'];
 const ids = {};
 db.transaction(() => {
   for (const p of people) {
+    const working = WORKING.includes(p.approval);
     const info = insertAgent.run({
       ...p,
       hash: hashPassword(p.password),
-      availability: p.role === 'agent' ? 'available' : 'offline',
+      note: p.note || '',
+      active: working ? 1 : 0,
+      availability: p.role === 'agent' && working ? 'available' : 'offline',
       ts: now(),
     });
     ids[p.username] = Number(info.lastInsertRowid);
+  }
+  // سجل قرار الاعتماد الأول لكل حساب حتى تظهر الشاشة بسجل حقيقي.
+  // بلا `from` لأنه القرار الأول لا انتقالًا من حالة سابقة.
+  for (const p of people) {
+    logAgentEvent({
+      agentId: ids[p.username], actorId: ids.admin,
+      type: 'created', to: p.approval, note: p.note || '',
+    });
   }
 })();
 
@@ -126,6 +144,7 @@ logEvent({
 console.log(`
 تم إنشاء البيانات التجريبية:
   • ${ar.plural(people.length, 'account')} (مدير + ${ar.plural(people.length - 1, 'agent')})
+    الاعتماد: ${ar.plural(people.filter((p) => p.approval === 'approved').length, 'account')} معتمدة · واحد تحت التجربة · واحد غير مقبول · واحد محظور
   • ${ar.plural(orders.length, 'order')} بحالات مختلفة
   • طلب تحويل معلّق واحد لتجربة القبول والرفض
 

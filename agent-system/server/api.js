@@ -1,6 +1,6 @@
 'use strict';
 /** واجهة برمجة التطبيق — كل المسارات تحت /api */
-const { db, now, nextOrderCode, logEvent } = require('./db');
+const { db, now, nextOrderCode, logEvent, logAgentEvent } = require('./db');
 const auth = require('./auth');
 const D = require('./domain');
 const L = require('./location');
@@ -15,6 +15,8 @@ const publicAgent = (a) => ({
   id: a.id, name: a.name, username: a.username, phone: a.phone, role: a.role,
   vehicle: a.vehicle, governorate: a.governorate, availability: a.availability,
   active: !!a.active, created_at: a.created_at,
+  approval: a.approval, approval_note: a.approval_note || '',
+  approval_at: a.approval_at || null,
   location_consent: !!a.location_consent, location_sharing: !!a.location_sharing,
 });
 
@@ -56,10 +58,22 @@ on('POST', '/api/auth/login', async (ctx) => {
   }
 
   const agent = db.prepare('SELECT * FROM agents WHERE lower(username) = ?').get(username);
-  if (!agent || !agent.active || !auth.verifyPassword(password, agent.password_hash)) {
+  if (!agent || !auth.verifyPassword(password, agent.password_hash)) {
     auth.recordFailure(key);
     throw unauthorized('اسم المستخدم أو كلمة المرور غير صحيحة');
   }
+
+  // سبب المنع يُكشف بعد التحقق من كلمة المرور فقط: صاحب الحساب يستحق معرفة
+  // لماذا مُنع، ومن يخمّن كلمة مرور لا يعرف حتى إن كان الحساب موجودًا.
+  if (!D.WORKING_APPROVALS.includes(agent.approval)) {
+    auth.recordFailure(key);
+    throw new (require('./lib/http').HttpError)(
+      403,
+      D.APPROVAL_BLOCK_REASON[agent.approval] || 'حسابك غير مفعّل. راجع إدارة العمليات.',
+      'approval_' + agent.approval
+    );
+  }
+  if (!agent.active) throw unauthorized('حسابك غير مفعّل. راجع إدارة العمليات.');
 
   auth.clearFailures(key);
   const session = auth.createSession(agent.id);
@@ -89,6 +103,9 @@ on('GET', '/api/meta', async () => ({
   availability: D.AVAILABILITY,
   roles: D.ROLES,
   governorates: D.GOVERNORATES,
+  approval: D.APPROVAL,
+  working_approvals: D.WORKING_APPROVALS,
+  probation_max_orders: D.PROBATION_MAX_ORDERS,
   active_statuses: D.ACTIVE_STATUSES,
   final_statuses: D.FINAL_STATUSES,
 }), { auth: false });
@@ -96,9 +113,24 @@ on('GET', '/api/meta', async () => ({
 /* ---- المندوبون ---- */
 
 on('GET', '/api/agents', async (ctx) => {
-  const rows = ctx.agent.role === 'admin'
-    ? db.prepare('SELECT * FROM agents ORDER BY role DESC, name').all()
-    : db.prepare("SELECT * FROM agents WHERE role='agent' AND active=1 ORDER BY name").all();
+  // المندوب لا يرى إلا الزملاء القادرين على العمل — لا قائمة الحسابات الممنوعة
+  const isAdmin = ctx.agent.role === 'admin';
+  const approvalFilter = ctx.query.approval
+    ? oneOf(ctx.query.approval, 'حالة الاعتماد', Object.keys(D.APPROVAL))
+    : '';
+
+  let rows;
+  if (!isAdmin) {
+    rows = db.prepare(
+      `SELECT * FROM agents WHERE role='agent' AND active=1
+         AND approval IN (${D.WORKING_APPROVALS.map(() => '?').join(',')})
+       ORDER BY name`
+    ).all(...D.WORKING_APPROVALS);
+  } else if (approvalFilter) {
+    rows = db.prepare('SELECT * FROM agents WHERE approval=? ORDER BY role DESC, name').all(approvalFilter);
+  } else {
+    rows = db.prepare('SELECT * FROM agents ORDER BY role DESC, name').all();
+  }
 
   const load = db.prepare(
     `SELECT agent_id, COUNT(*) AS n FROM orders
@@ -127,10 +159,23 @@ on('POST', '/api/agents', async (ctx) => {
     throw conflict('اسم المستخدم مستخدم بالفعل');
   }
 
+  // المندوب الجديد يبدأ تحت التجربة فلا يُعتمد أحد ضمنيًا؛ والمدير يبدأ معتمدًا.
+  // يقبل الطلب `approval` صراحةً لمن يريد اعتماد مندوب فور إنشائه.
+  const approval = ctx.body.approval
+    ? oneOf(ctx.body.approval, 'حالة الاعتماد', D.WORKING_APPROVALS)
+    : (role === 'admin' ? 'approved' : 'under_test');
+
   const info = db.prepare(
-    `INSERT INTO agents (name, username, phone, password_hash, role, vehicle, governorate, availability, active, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'offline', 1, ?)`
-  ).run(name, username, phone, auth.hashPassword(password), role, vehicle, governorate, now());
+    `INSERT INTO agents (name, username, phone, password_hash, role, vehicle, governorate,
+                         availability, active, approval, approval_at, approval_by, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'offline', 1, ?, ?, ?, ?)`
+  ).run(name, username, phone, auth.hashPassword(password), role, vehicle, governorate,
+        approval, now(), ctx.agent.id, now());
+
+  logAgentEvent({
+    agentId: Number(info.lastInsertRowid), actorId: ctx.agent.id,
+    type: 'created', to: approval,
+  });
 
   return { agent: publicAgent(db.prepare('SELECT * FROM agents WHERE id=?').get(info.lastInsertRowid)) };
 });
@@ -147,24 +192,45 @@ on('PATCH', '/api/agents/:id', async (ctx) => {
   if (ctx.body.phone != null)       { fields.push('phone = ?');       values.push(str(ctx.body.phone, 'رقم الهاتف', { required: false, max: 25 })); }
   if (ctx.body.vehicle != null)     { fields.push('vehicle = ?');     values.push(oneOf(ctx.body.vehicle, 'نوع المركبة', Object.keys(D.VEHICLES))); }
   if (ctx.body.governorate != null) { fields.push('governorate = ?'); values.push(str(ctx.body.governorate, 'المحافظة', { required: false, max: 40 })); }
-  if (ctx.body.active != null)      { fields.push('active = ?');      values.push(ctx.body.active ? 1 : 0); }
   if (ctx.body.password) {
     fields.push('password_hash = ?');
     values.push(auth.hashPassword(str(ctx.body.password, 'كلمة المرور', { min: 6, max: 200 })));
   }
-  if (!fields.length) throw badRequest('لا يوجد ما يُحدَّث');
-
-  // منع تعطيل آخر مدير في النظام
-  if (ctx.body.active === false && agent.role === 'admin') {
-    const admins = db.prepare("SELECT COUNT(*) AS n FROM agents WHERE role='admin' AND active=1").get().n;
-    if (admins <= 1) throw conflict('لا يمكن تعطيل آخر مدير في النظام');
+  // حالة الاعتماد لها نقطة نهاية مستقلّة لأنها تحمل قواعد وسجلًّا، ولا تُخلط
+  // مع تعديل البيانات. `active` صار مشتقًّا منها فلا يُضبط مباشرةً.
+  if (ctx.body.approval != null || ctx.body.active != null) {
+    throw badRequest('استخدم PATCH /api/agents/:id/approval لتغيير حالة الاعتماد', 'use_approval_endpoint');
   }
+  if (!fields.length) throw badRequest('لا يوجد ما يُحدَّث');
 
   values.push(agentId);
   db.prepare(`UPDATE agents SET ${fields.join(', ')} WHERE id = ?`).run(...values);
-  if (ctx.body.active === false) db.prepare('DELETE FROM sessions WHERE agent_id=?').run(agentId);
 
   return { agent: publicAgent(db.prepare('SELECT * FROM agents WHERE id=?').get(agentId)) };
+});
+
+/* ---- اعتماد المندوبين: معتمد · تحت التجربة · غير مقبول · محظور ---- */
+
+on('PATCH', '/api/agents/:id/approval', async (ctx) => {
+  requireAdmin(ctx);
+  const agentId = id(ctx.params.id, 'معرّف المندوب');
+  const approval = oneOf(ctx.body.approval, 'حالة الاعتماد', Object.keys(D.APPROVAL));
+  const note = str(ctx.body.note, 'سبب القرار', { required: false, max: 400 });
+
+  const agent = D.setApproval(agentId, ctx.agent, approval, note);
+  return { agent: publicAgent(agent), history: D.approvalHistory(agentId) };
+});
+
+on('GET', '/api/agents/:id/approval', async (ctx) => {
+  requireAdmin(ctx);
+  const agentId = id(ctx.params.id, 'معرّف المندوب');
+  const agent = db.prepare('SELECT * FROM agents WHERE id=?').get(agentId);
+  if (!agent) throw notFound('المندوب غير موجود');
+  return {
+    agent: publicAgent(agent),
+    active_orders: D.activeOrderCount(agentId),
+    history: D.approvalHistory(agentId),
+  };
 });
 
 on('PATCH', '/api/me/availability', async (ctx) => {
@@ -419,6 +485,9 @@ on('GET', '/api/stats', async (ctx) => {
     pending_transfers_out: outgoingTransfers,
     agents_online: isAdmin
       ? db.prepare("SELECT COUNT(*) AS n FROM agents WHERE role='agent' AND active=1 AND availability='available'").get().n
+      : null,
+    agents_under_test: isAdmin
+      ? db.prepare("SELECT COUNT(*) AS n FROM agents WHERE role='agent' AND approval='under_test'").get().n
       : null,
   };
 });

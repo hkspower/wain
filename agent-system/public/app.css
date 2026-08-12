@@ -162,6 +162,11 @@ code { font-size: .92em; background: var(--mute-bg); padding: .1em .45em; border
 .stat--accent b { color: var(--orange-700); }
 .stat--dark { background: linear-gradient(150deg, var(--teal-800), var(--teal-950)); border-color: var(--teal-950); }
 .stat--dark b { color: #ffb45c; } .stat--dark span { color: #b6dde2; }
+/* بطاقة تحت التجربة تصير رابطًا للشاشة عندما يكون هناك قرار منتظَر */
+a.stat { text-decoration: none; }
+a.stat:hover { border-color: var(--teal-600); }
+.stat--warn { background: var(--warn-bg); border-color: #e8c9a0; }
+.stat--warn b { color: var(--warn-fg); } .stat--warn span { color: var(--warn-fg); }
 
 /* بطاقة عامة */
 .card {
@@ -232,6 +237,52 @@ code { font-size: .92em; background: var(--mute-bg); padding: .1em .45em; border
 .badge--offline { background: var(--mute-bg); color: var(--mute-fg); }
 .badge--pending { background: var(--warn-bg); color: var(--warn-fg); }
 .badge--rejected { background: var(--bad-bg); color: var(--bad-fg); }
+
+/* حالات اعتماد الحساب — أربع درجات متمايزة بلا اعتماد على اللون وحده:
+   النص نفسه يحمل المعنى، واللون يسرّع التمييز فقط. */
+.badge--ap-approved   { background: var(--ok-bg);   color: var(--ok-fg); }
+.badge--ap-under_test { background: var(--warn-bg); color: var(--warn-fg); }
+.badge--ap-rejected   { background: var(--mute-bg); color: var(--mute-fg); }
+.badge--ap-blocked    { background: var(--bad-bg);  color: var(--bad-fg); }
+
+/* ---------------------- اعتماد المندوبين ---------------------- */
+
+/* الحسابات الممنوعة تُخفَّف بصريًا، ما عدا الاسم وحالة الاعتماد */
+.row--muted td { opacity: .62; }
+.row--muted td:first-child, .row--muted td:nth-child(2) { opacity: 1; }
+.row__note { display: block; font-size: .76rem; font-weight: 500; color: var(--ink-soft); line-height: 1.65; margin-top: .15rem; }
+.row__actions { display: flex; align-items: center; gap: .35rem; white-space: nowrap; }
+.td-empty { text-align: center; color: var(--ink-soft); padding-block: 1.6rem; }
+.muted { color: var(--ink-soft); }
+
+.notice {
+  border: 1px solid var(--line); border-inline-start: 3px solid var(--teal-600);
+  background: var(--teal-50); border-radius: var(--radius-sm);
+  padding: .75rem 1rem; margin-bottom: 1rem; font-size: .9rem; line-height: 1.8;
+}
+.notice--warn { border-inline-start-color: var(--orange-600); background: var(--warn-bg); color: var(--warn-fg); }
+
+.hint {
+  font-size: .84rem; color: var(--ink-soft); line-height: 1.75;
+  background: var(--teal-50); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding: .6rem .8rem; margin: .2rem 0 1rem;
+}
+
+.approval { display: flex; flex-direction: column; gap: 1rem; }
+.approval__now { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; }
+.approval__now > span:first-child { color: var(--ink-soft); font-size: .86rem; }
+.approval__note {
+  flex-basis: 100%; margin: .1rem 0 0; font-size: .86rem; line-height: 1.8;
+  color: var(--ink-mid); border-inline-start: 2px solid var(--line-str); padding-inline-start: .7rem;
+}
+.approval__load { margin: 0; font-size: .9rem; line-height: 1.8; }
+.approval__hint { margin: 0; font-size: .84rem; color: var(--ink-soft); }
+.approval__h { margin: .3rem 0 0; font-size: .92rem; }
+.approval__log { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: .6rem; }
+.approval__log li {
+  font-size: .86rem; line-height: 1.75;
+  border-inline-start: 2px solid var(--line-str); padding-inline-start: .7rem;
+}
 
 /* -------------------------- تفاصيل الطلب -------------------------- */
 .detail { display: grid; grid-template-columns: 1.5fr 1fr; gap: 1.1rem; align-items: start; }

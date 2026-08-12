@@ -258,7 +258,9 @@
         <div class="stat stat--accent"><b class="num">${money(s.cod_today)}</b><span>تحصيل اليوم (د.ك)</span></div>
         ${isAdmin
           ? `<div class="stat"><b class="num">${ar(s.counts.new)}</b><span>بانتظار الإسناد</span></div>
-             <div class="stat stat--dark"><b class="num">${ar(s.agents_online)}</b><span>مندوب متاح الآن</span></div>`
+             <div class="stat stat--dark"><b class="num">${ar(s.agents_online)}</b><span>مندوب متاح الآن</span></div>
+             <a class="stat${s.agents_under_test > 0 ? ' stat--warn' : ''}" href="#/agents">
+               <b class="num">${ar(s.agents_under_test)}</b><span>تحت التجربة</span></a>`
           : `<div class="stat stat--dark"><b class="num">${ar(s.pending_transfers_in)}</b><span>تحويلات بانتظار ردّك</span></div>`}
       </div>
 
@@ -544,7 +546,7 @@
   }
 
   function promptTransfer(order) {
-    const others = state.agents.filter((a) => a.role === 'agent' && a.active && a.id !== order.agent_id);
+    const others = assignableAgents(order.agent_id);
     openModal('تحويل الطلب إلى زميل', `
       <p style="color:var(--ink-soft);font-size:.88rem">
         لن ينتقل الطلب حتى يقبله الزميل. يمكنك سحب الطلب قبل ردّه.
@@ -554,7 +556,7 @@
           <span>المندوب المستلِم</span>
           <select name="to_agent_id" required>
             <option value="">اختر مندوبًا…</option>
-            ${others.map((a) => `<option value="${a.id}">${esc(a.name)} — ${esc(state.meta.availability[a.availability])} (${AR.describe(a.active_orders, 'order', 'active')})</option>`).join('')}
+            ${others.map((a) => `<option value="${a.id}">${esc(a.name)}${probationTag(a)} — ${esc(state.meta.availability[a.availability])} (${AR.describe(a.active_orders, 'order', 'active')})</option>`).join('')}
           </select>
         </label>
         <label class="field">
@@ -585,14 +587,14 @@
   }
 
   function promptAssign(order) {
-    const options = state.agents.filter((a) => a.role === 'agent' && a.active && a.id !== order.agent_id);
+    const options = assignableAgents(order.agent_id);
     openModal('إسناد الطلب لمندوب', `
       <form id="assignForm">
         <label class="field">
           <span>المندوب</span>
           <select name="agent_id" required>
             <option value="">اختر مندوبًا…</option>
-            ${options.map((a) => `<option value="${a.id}">${esc(a.name)} — ${esc(a.governorate || 'بلا منطقة')} (${AR.describe(a.active_orders, 'order', 'active')})</option>`).join('')}
+            ${options.map((a) => `<option value="${a.id}">${esc(a.name)}${probationTag(a)} — ${esc(a.governorate || 'بلا منطقة')} (${AR.describe(a.active_orders, 'order', 'active')})</option>`).join('')}
           </select>
         </label>
         <label class="field">
@@ -727,16 +729,64 @@
 
   /* ---- المندوبون (للمدير) ---- */
 
+  /** وسم حالة الاعتماد */
+  const approvalBadge = (a) =>
+    `<span class="badge badge--ap-${a.approval}">${esc(state.meta.approval[a.approval] || a.approval)}</span>`;
+
+  /** هل يستطيع الحساب العمل واستلام الطلبات */
+  const canWork = (a) => state.meta.working_approvals.includes(a.approval);
+
+  /** هل بلغ المندوب تحت التجربة سقف طلباته النشطة */
+  const atProbationCap = (a) =>
+    a.approval === 'under_test' && state.meta.probation_max_orders > 0
+      && a.active_orders >= state.meta.probation_max_orders;
+
+  /**
+   * المندوبون المؤهّلون لاستلام طلب. الخادم يفرض القاعدة نفسها؛ الفلترة هنا
+   * حتى لا يختار المدير مندوبًا ثم تُرفض العملية.
+   */
+  const assignableAgents = (excludeId) => state.agents.filter((a) =>
+    a.role === 'agent' && a.active && canWork(a) && !atProbationCap(a) && a.id !== excludeId);
+
+  /** لاحقة توضّح أن المندوب تحت التجربة داخل القوائم المنسدلة */
+  const probationTag = (a) => (a.approval === 'under_test' ? ' — تحت التجربة' : '');
+
   async function renderAgents() {
     if (state.me.role !== 'admin') { location.hash = '#/'; return; }
     el.view.innerHTML = `<div class="page-head"><div><h1>المندوبون</h1></div></div>${skeleton(2)}`;
     await refreshShared();
 
+    const filter = state.agentsFilter || '';
+    const shown = filter ? state.agents.filter((a) => a.approval === filter) : state.agents;
+    const countOf = (k) => state.agents.filter((a) => a.approval === k).length;
+
+    const tabs = [{ key: '', label: 'الكل', n: state.agents.length }]
+      .concat(Object.entries(state.meta.approval).map(([k, v]) => ({ key: k, label: v, n: countOf(k) })));
+
+    const cap = state.meta.probation_max_orders;
+
     el.view.innerHTML = `
       <div class="page-head">
-        <div><h1>المندوبون</h1><p>إدارة الحسابات والأحمال الحالية.</p></div>
+        <div>
+          <h1>المندوبون</h1>
+          <p>اعتماد الحسابات وإدارة الأحمال الحالية.</p>
+        </div>
         <button class="btn btn--accent" id="addAgent" type="button">+ حساب جديد</button>
       </div>
+
+      <div class="filters" role="tablist" aria-label="تصفية حسب حالة الاعتماد">
+        ${tabs.map((t) => `
+          <button class="chip${filter === t.key ? ' is-on' : ''}" role="tab"
+                  aria-selected="${filter === t.key}" data-approval="${t.key}" type="button">
+            ${esc(t.label)} <span class="n">${ar(t.n)}</span>
+          </button>`).join('')}
+      </div>
+
+      ${countOf('under_test') > 0 && !filter ? `
+        <p class="notice notice--warn">
+          ${count(countOf('under_test'), 'account')} تحت التجربة بانتظار قرارك.
+          ${cap > 0 ? `سقف الطلبات النشطة لكل واحد منهم ${count(cap, 'order')}.` : ''}
+        </p>` : ''}
 
       <div class="card">
         <div class="card__body card__body--flush">
@@ -744,25 +794,33 @@
             <table>
               <thead>
                 <tr>
-                  <th>الاسم</th><th>اسم المستخدم</th><th>الدور</th><th>المركبة</th>
-                  <th>المنطقة</th><th>الحالة</th><th>طلبات نشطة</th><th>الهاتف</th><th></th>
+                  <th>الاسم</th><th>الاعتماد</th><th>اسم المستخدم</th><th>الدور</th>
+                  <th>المركبة</th><th>المنطقة</th><th>التوفّر</th><th>طلبات نشطة</th>
+                  <th>الهاتف</th><th></th>
                 </tr>
               </thead>
               <tbody>
-                ${state.agents.map((a) => `
-                  <tr>
-                    <td><b>${esc(a.name)}</b></td>
+                ${shown.length === 0 ? `
+                  <tr><td colspan="10" class="td-empty">لا حسابات في هذه الحالة.</td></tr>` : ''}
+                ${shown.map((a) => `
+                  <tr${canWork(a) ? '' : ' class="row--muted"'}>
+                    <td>
+                      <b>${esc(a.name)}</b>
+                      ${a.approval_note ? `<small class="row__note">${esc(a.approval_note)}</small>` : ''}
+                    </td>
+                    <td>${approvalBadge(a)}</td>
                     <td dir="ltr">${esc(a.username)}</td>
                     <td>${esc(state.meta.roles[a.role])}</td>
                     <td>${esc(vehicleName(a.vehicle))}</td>
                     <td>${esc(a.governorate || '—')}</td>
-                    <td>
-                      <span class="badge badge--${a.availability}">${esc(state.meta.availability[a.availability])}</span>
-                      ${a.active ? '' : '<span class="badge badge--cancelled">معطّل</span>'}
-                    </td>
-                    <td class="num">${ar(a.active_orders)}</td>
+                    <td>${canWork(a)
+                      ? `<span class="badge badge--${a.availability}">${esc(state.meta.availability[a.availability])}</span>`
+                      : '<span class="muted">—</span>'}</td>
+                    <td class="num">${ar(a.active_orders)}${
+                      a.approval === 'under_test' && cap > 0 ? `<small class="muted"> / ${ar(cap)}</small>` : ''}</td>
                     <td dir="ltr">${esc(a.phone || '—')}</td>
-                    <td>
+                    <td class="row__actions">
+                      <button class="btn btn--ghost btn--sm" data-approval-for="${a.id}" type="button">الاعتماد</button>
                       <button class="btn btn--ghost btn--sm" data-edit="${a.id}" type="button">تعديل</button>
                     </td>
                   </tr>`).join('')}
@@ -773,8 +831,89 @@
       </div>`;
 
     document.getElementById('addAgent').addEventListener('click', promptNewAgent);
+    el.view.querySelectorAll('[data-approval]').forEach((b) =>
+      b.addEventListener('click', () => { state.agentsFilter = b.dataset.approval; renderAgents(); }));
     el.view.querySelectorAll('[data-edit]').forEach((b) =>
       b.addEventListener('click', () => promptEditAgent(state.agents.find((a) => a.id === Number(b.dataset.edit)))));
+    el.view.querySelectorAll('[data-approval-for]').forEach((b) =>
+      b.addEventListener('click', () => promptApproval(state.agents.find((a) => a.id === Number(b.dataset.approvalFor)))));
+  }
+
+  /** شاشة قرار الاعتماد: الحالة الحالية، والحمل، والسجل، وتغيير الحالة بسبب */
+  async function promptApproval(a) {
+    if (!a) return;
+    openModal(`اعتماد: ${a.name}`, skeleton(2));
+
+    let info;
+    try {
+      info = await api('/agents/' + a.id + '/approval');
+    } catch (err) {
+      el.modalBody.innerHTML = `<p class="form-msg is-error">${esc(err.message)}</p>`;
+      return;
+    }
+
+    const cur = info.agent.approval;
+    const cap = state.meta.probation_max_orders;
+    const options = Object.entries(state.meta.approval).filter(([k]) => k !== cur);
+
+    el.modalBody.innerHTML = `
+      <div class="approval">
+        <div class="approval__now">
+          <span>الحالة الحالية</span>
+          ${approvalBadge(info.agent)}
+          ${info.agent.approval_note ? `<p class="approval__note">${esc(info.agent.approval_note)}</p>` : ''}
+        </div>
+
+        <p class="approval__load">
+          ${AR.describe(info.active_orders, 'order', 'active')} لدى هذا الحساب.
+          ${info.active_orders > 0
+            ? '<b>لا يمكن حظره أو رفضه قبل إعادة إسناد طلباته لمندوب آخر.</b>'
+            : ''}
+        </p>
+
+        <form id="approvalForm">
+          <label class="field">
+            <span>الحالة الجديدة</span>
+            <select name="approval" required>
+              ${options.map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}
+            </select>
+          </label>
+          <label class="field">
+            <span>السبب <small class="muted">(إلزامي عند الرفض أو الحظر)</small></span>
+            <textarea name="note" rows="2" maxlength="400"
+                      placeholder="يُحفظ في سجل الحساب ويظهر للإدارة"></textarea>
+          </label>
+          <p class="form-msg" id="approvalMsg"></p>
+          <button class="btn btn--primary btn--block" type="submit">حفظ القرار</button>
+        </form>
+
+        ${cap > 0 && cur === 'under_test'
+          ? `<p class="approval__hint">تحت التجربة: سقف ${count(cap, 'order')} نشطة في وقت واحد.</p>` : ''}
+
+        <h4 class="approval__h">سجل القرارات</h4>
+        <ol class="approval__log">
+          ${info.history.length === 0 ? '<li class="muted">لا قرارات سابقة.</li>' : ''}
+          ${info.history.map((h) => `
+            <li>
+              <b>${esc(state.meta.approval[h.to_value] || h.to_value)}</b>
+              ${h.from_value ? `<span class="muted">من ${esc(state.meta.approval[h.from_value] || h.from_value)}</span>` : ''}
+              <span class="muted">— ${esc(h.actor_name || 'النظام')}، ${esc(relTime(h.created_at))}</span>
+              ${h.note ? `<p class="approval__note">${esc(h.note)}</p>` : ''}
+            </li>`).join('')}
+        </ol>
+      </div>`;
+
+    el.modalBody.querySelector('#approvalForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = el.modalBody.querySelector('#approvalMsg');
+      const fd = Object.fromEntries(new FormData(e.target));
+      await submit(e.target, msg, async () => {
+        await api('/agents/' + a.id + '/approval', { method: 'PATCH', body: fd });
+        closeModal();
+        toast('تم حفظ قرار الاعتماد', 'ok');
+        await renderAgents();
+      });
+    });
   }
 
   function agentFormFields(a = {}) {
@@ -845,10 +984,10 @@
           <span>كلمة مرور جديدة (اتركها فارغة لعدم التغيير)</span>
           <input name="password" type="password" minlength="6" autocomplete="new-password">
         </label>
-        <label class="field" style="flex-direction:row;align-items:center;gap:.5rem">
-          <input type="checkbox" name="active" style="width:auto" ${a.active ? 'checked' : ''}>
-          <span>الحساب مفعّل</span>
-        </label>
+        <p class="hint">
+          الحالة الحالية: ${esc(state.meta.approval[a.approval] || a.approval)}.
+          تُغيَّر من زر «الاعتماد» لأنها تتطلّب سببًا وتُسجَّل في سجل الحساب.
+        </p>
         <p class="form-msg" id="agentMsg"></p>
         <button class="btn btn--primary btn--block" type="submit">حفظ التعديلات</button>
       </form>`, (body) => {
@@ -856,7 +995,6 @@
         e.preventDefault();
         const msg = body.querySelector('#agentMsg');
         const fd = Object.fromEntries(new FormData(e.target));
-        fd.active = e.target.active.checked;
         if (!fd.password) delete fd.password;
         await submit(e.target, msg, async () => {
           await api('/agents/' + a.id, { method: 'PATCH', body: fd });
@@ -910,8 +1048,8 @@
                 <span>إسناد لمندوب (اختياري)</span>
                 <select name="agent_id">
                   <option value="">بانتظار الإسناد</option>
-                  ${state.agents.filter((a) => a.role === 'agent' && a.active).map((a) =>
-                    `<option value="${a.id}">${esc(a.name)} — ${AR.describe(a.active_orders, 'order', 'active')}</option>`).join('')}
+                  ${assignableAgents().map((a) =>
+                    `<option value="${a.id}">${esc(a.name)}${probationTag(a)} — ${AR.describe(a.active_orders, 'order', 'active')}</option>`).join('')}
                 </select>
               </label>
               <label class="field field--full"><span>ملاحظات للمندوب</span><textarea name="notes" placeholder="تفاصيل الشحنة، تعليمات التسليم…"></textarea></label>
