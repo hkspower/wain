@@ -38,12 +38,16 @@
 
   /* ------------------------------ أدوات ------------------------------ */
 
-  const AR_DIGITS = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-  const ar = (v) => String(v).replace(/\d/g, (d) => AR_DIGITS[+d]);
+  /* حزمة اللغة العربية — تتولّى الأرقام وتمييز العدد والوقت.
+     تُحمَّل من vendor/arabic-kit.js قبل هذا الملف. */
+  const AR = window.arabicKit;
 
-  /** يحوّل الرقم إلى نص عربي مع فاصلة عشرية عربية */
-  const money = (v) => ar(Number(v || 0).toFixed(3)).replace('.', '٫');
-  const int = (v) => ar(Number(v || 0).toLocaleString('en-US')).replace(/,/g, '٬');
+  const ar = AR.digits;
+  const money = (v) => AR.number(Number(v || 0), 3);
+  const int = (v) => AR.number(Number(v || 0));
+
+  /** عدد + اسمه بالصيغة الصحيحة: ٥ دقائق، طلبان، لا طلبات… */
+  const count = (n, noun) => AR.plural(n, noun);
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -58,14 +62,7 @@
     } catch { return iso; }
   };
 
-  const relTime = (iso) => {
-    if (!iso) return '';
-    const diff = (Date.now() - new Date(iso).getTime()) / 60000;
-    if (diff < 1) return 'الآن';
-    if (diff < 60) return `قبل ${ar(Math.round(diff))} دقيقة`;
-    if (diff < 24 * 60) return `قبل ${ar(Math.round(diff / 60))} ساعة`;
-    return `قبل ${ar(Math.round(diff / 1440))} يوم`;
-  };
+  const relTime = (iso) => (iso ? AR.since(iso) : '');
 
   function toast(message, kind = '') {
     const node = document.createElement('div');
@@ -557,7 +554,7 @@
           <span>المندوب المستلِم</span>
           <select name="to_agent_id" required>
             <option value="">اختر مندوبًا…</option>
-            ${others.map((a) => `<option value="${a.id}">${esc(a.name)} — ${esc(state.meta.availability[a.availability])} (${ar(a.active_orders)} طلب نشط)</option>`).join('')}
+            ${others.map((a) => `<option value="${a.id}">${esc(a.name)} — ${esc(state.meta.availability[a.availability])} (${AR.describe(a.active_orders, 'order', 'active')})</option>`).join('')}
           </select>
         </label>
         <label class="field">
@@ -595,7 +592,7 @@
           <span>المندوب</span>
           <select name="agent_id" required>
             <option value="">اختر مندوبًا…</option>
-            ${options.map((a) => `<option value="${a.id}">${esc(a.name)} — ${esc(a.governorate || 'بلا منطقة')} (${ar(a.active_orders)} طلب نشط)</option>`).join('')}
+            ${options.map((a) => `<option value="${a.id}">${esc(a.name)} — ${esc(a.governorate || 'بلا منطقة')} (${AR.describe(a.active_orders, 'order', 'active')})</option>`).join('')}
           </select>
         </label>
         <label class="field">
@@ -688,7 +685,7 @@
         <div class="card__body">
           ${outbox.transfers.length
             ? `<div class="orders">${outbox.transfers.map(transferCard).join('')}</div>`
-            : emptyState('لم تحوّل أي طلب بعد', 'افتح أي طلب مسند إليك واضغط «تحويل لزميل».')}
+            : emptyState('لم تحوّل أي طلب بعد', 'افتح أي طلب مُسند إليك واضغط «تحويل لزميل».')}
         </div>
       </div>`;
 
@@ -914,7 +911,7 @@
                 <select name="agent_id">
                   <option value="">بانتظار الإسناد</option>
                   ${state.agents.filter((a) => a.role === 'agent' && a.active).map((a) =>
-                    `<option value="${a.id}">${esc(a.name)} — ${ar(a.active_orders)} طلب نشط</option>`).join('')}
+                    `<option value="${a.id}">${esc(a.name)} — ${AR.describe(a.active_orders, 'order', 'active')}</option>`).join('')}
                 </select>
               </label>
               <label class="field field--full"><span>ملاحظات للمندوب</span><textarea name="notes" placeholder="تفاصيل الشحنة، تعليمات التسليم…"></textarea></label>
@@ -1073,7 +1070,7 @@
           <ul class="consent__list">
             <li>يُسجَّل موقعك <b>فقط حين تكون المشاركة مشغّلة</b>، وتوقفها بضغطة واحدة متى شئت.</li>
             <li>يراه <b>مدير العمليات فقط</b> لتوزيع الطلبات ومتابعة التسليم — ولا يراه أي مندوب آخر.</li>
-            <li>تُحذف النقاط تلقائيًا بعد <b>${ar(L.retention_hours)} ساعة</b>.</li>
+            <li>تُحذف النقاط تلقائيًا بعد <b>${count(L.retention_hours, 'hour')}</b>.</li>
             <li>عند سحب الموافقة <b>يُمسح كل سجلّ مواقعك فورًا</b>.</li>
             <li>تُسجَّل كل مرة يطّلع فيها المدير على موقعك، وتظهر لك أدناه.</li>
           </ul>
@@ -1107,7 +1104,7 @@
             <dd>${L.sharing ? '<span class="badge badge--available">نشطة</span>' : '<span class="badge badge--offline">متوقفة</span>'}</dd>
             <dt>عدد النقاط المحفوظة</dt><dd class="num">${ar(L.stored_points)}</dd>
             <dt>آخر نقطة</dt><dd>${L.last_point_at ? esc(fmtDate(L.last_point_at)) + ' — ' + esc(relTime(L.last_point_at)) : 'لا توجد'}</dd>
-            <dt>مدة الاحتفاظ</dt><dd>${ar(L.retention_hours)} ساعة</dd>
+            <dt>مدة الاحتفاظ</dt><dd>${count(L.retention_hours, 'hour')}</dd>
           </dl>
         </div>
       </div>
@@ -1230,7 +1227,7 @@
       <div class="live">
         <div class="map">
           ${pins || ''}
-          <span class="map__scale">مخطّط تقريبي لحدود الكويت — ${ar(shown.length)} مندوب ظاهر</span>
+          <span class="map__scale">مخطّط تقريبي لحدود الكويت — ${AR.describe(shown.length, 'agent', 'shown')}</span>
         </div>
 
         <div class="live__list">
@@ -1246,7 +1243,7 @@
               <div class="live-row__meta">
                 <span>${esc(vehicleName(a.vehicle))}</span>
                 <span>${esc(a.governorate || 'بلا منطقة')}</span>
-                <span>${ar(a.active_orders)} طلب نشط</span>
+                <span>${AR.describe(a.active_orders, 'order', 'active')}</span>
                 ${a.order_code ? `<span>يوصّل <a href="#/orders/${a.order_id}">${esc(a.order_code)}</a></span>` : ''}
                 ${a.recorded_at ? `<span>${esc(relTime(a.recorded_at))}</span>` : ''}
                 ${a.lat != null ? `<span><a href="https://www.google.com/maps?q=${a.lat},${a.lng}"

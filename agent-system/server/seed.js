@@ -6,6 +6,7 @@
  */
 const { db, now, logEvent } = require('./db');
 const { hashPassword } = require('./auth');
+const ar = require('arabic-kit');
 
 const RESET = process.argv.includes('--reset');
 
@@ -16,7 +17,7 @@ if (RESET) {
 
 const existing = db.prepare('SELECT COUNT(*) AS n FROM agents').get().n;
 if (existing > 0 && !RESET) {
-  console.log(`القاعدة تحتوي على ${existing} حسابًا بالفعل — لم يُضف شيء. استخدم npm run reset لإعادة البناء.`);
+  console.log(`القاعدة تحتوي على ${ar.plural(existing, 'account')} بالفعل — لم يُضف شيء. استخدم npm run reset لإعادة البناء.`);
   process.exit(0);
 }
 
@@ -124,8 +125,8 @@ logEvent({
 
 console.log(`
 تم إنشاء البيانات التجريبية:
-  • ${people.length} حسابًا (مدير + ${people.length - 1} مندوبين)
-  • ${orders.length} طلبات بحالات مختلفة
+  • ${ar.plural(people.length, 'account')} (مدير + ${ar.plural(people.length - 1, 'agent')})
+  • ${ar.plural(orders.length, 'order')} بحالات مختلفة
   • طلب تحويل معلّق واحد لتجربة القبول والرفض
 
 بيانات الدخول:

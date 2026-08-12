@@ -4,17 +4,13 @@
 (function () {
   'use strict';
 
-  var AR_DIGITS = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  /* حزمة اللغة العربية — الأرقام وفواصلها وتمييز العدد.
+     تُحمَّل من assets/js/arabic-kit.js قبل هذا الملف. */
+  var AR = window.arabicKit;
 
-  /** تحويل الأرقام اللاتينية إلى أرقام عربية-هندية */
-  function toArabicDigits(value) {
-    return String(value).replace(/\d/g, function (d) { return AR_DIGITS[+d]; });
-  }
-
-  /** تنسيق رقم بفاصل الآلاف العربي (U+066C) ثم تحويله لأرقام عربية،
-      ليتناسق مع الفاصلة العشرية العربية (٫) المستخدمة في الأسعار */
+  /** تنسيق رقم بفاصل الآلاف العربي (٬) وأرقام عربية-هندية */
   function formatCount(n) {
-    return toArabicDigits(n.toLocaleString('en-US')).replace(/,/g, '٬');
+    return AR.number(n);
   }
 
   /* ------------------------- القائمة على الجوال ------------------------- */
@@ -124,12 +120,20 @@
   /* --------------------------- عدّاد الأرقام --------------------------- */
   var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  /* عدّاد يحترم تمييز العدد: العدّاد الموسوم بـ data-noun يمرّ أثناء الحركة
+     على ٣ و١١ و٥٢، ولكل منها صيغة مختلفة — «٣ دقائق» ثم «١١ دقيقة». بدون هذا
+     كان يعرض «٣ دقيقة» طوال الحركة. */
+  function counterText(el, value) {
+    var noun = el.dataset.noun;
+    if (noun) return AR.plural(value, noun, { showNumber: true });
+    return formatCount(value) + (el.dataset.suffix || '');
+  }
+
   function runCounter(el) {
     var target = parseInt(el.dataset.count, 10) || 0;
-    var suffix = el.dataset.suffix || '';
 
     if (reduceMotion) {
-      el.textContent = formatCount(target) + suffix;
+      el.textContent = counterText(el, target);
       return;
     }
 
@@ -140,7 +144,7 @@
       if (start === null) start = ts;
       var p = Math.min((ts - start) / duration, 1);
       var eased = 1 - Math.pow(1 - p, 3);
-      el.textContent = formatCount(Math.round(target * eased)) + suffix;
+      el.textContent = counterText(el, Math.round(target * eased));
       if (p < 1) requestAnimationFrame(tick);
     }
     requestAnimationFrame(tick);
@@ -300,5 +304,5 @@
 
   /* ------------------------------ السنة ------------------------------ */
   var year = document.getElementById('year');
-  if (year) year.textContent = toArabicDigits(new Date().getFullYear());
+  if (year) year.textContent = AR.digits(new Date().getFullYear());
 })();

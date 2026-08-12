@@ -15,7 +15,7 @@ const STATUSES = {
   delivered:  'تم التسليم',
   failed:     'تعذّر التسليم',
   returned:   'مرتجع',
-  cancelled:  'ملغي',
+  cancelled:  'مُلغى',
 };
 
 const VEHICLES = { sedan: 'سيارة سيدان', van: 'فان توصيل', reefer: 'سيارة مبرّدة', bike: 'دراجة' };

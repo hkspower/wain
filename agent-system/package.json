@@ -12,9 +12,12 @@
     "start": "node server/index.js",
     "seed": "node server/seed.js",
     "reset": "node server/seed.js --reset",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "sync:arabic": "node -e \"require('fs').copyFileSync(require.resolve('arabic-kit'), 'public/vendor/arabic-kit.js')\"",
+    "postinstall": "node -e \"require('fs').mkdirSync('public/vendor',{recursive:true})\" && npm run sync:arabic"
   },
   "dependencies": {
+    "arabic-kit": "file:../arabic-kit",
     "better-sqlite3": "^12.4.1"
   }
 }

@@ -1,0 +1,30 @@
+{
+  "name": "arabic-kit",
+  "version": "1.0.0",
+  "description": "حزمة اللغة العربية لمشروع موصول — تمييز العدد وصيغه الست، والأرقام العربية-الهندية، والوقت والتاريخ والعملة الكويتية",
+  "main": "index.js",
+  "browser": "index.js",
+  "type": "commonjs",
+  "files": [
+    "index.js",
+    "sync.js",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "sync": "node sync.js",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "arabic",
+    "i18n",
+    "pluralization",
+    "rtl",
+    "kuwait"
+  ],
+  "license": "MIT",
+  "private": true
+}
