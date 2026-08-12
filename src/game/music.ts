@@ -119,29 +119,45 @@ export class Music {
 }
 
 // ---------------------------------------------------------------------
-// Procedural fallback: a slow minor-key arpeggio over a sub bass, with a
-// bit of an eighth-note pulse. Deliberately sparse — it sits under the
-// engine rather than competing with it.
+// Procedural fallback: a Tokyo-expressway score in the eurobeat/synthwave
+// idiom the genre runs on — four-on-the-floor kick, offbeat hats, a
+// driving sixteenth bassline and a supersaw arpeggio over a minor
+// progression. Cruise is the same music held back; battle opens the
+// filter, doubles the bass and adds stabs.
+//
+// Timing is a lookahead scheduler against the AudioContext clock rather
+// than a setInterval per note: setInterval drifts by tens of
+// milliseconds under load, which on a four-on-the-floor kick is audible
+// as a limp. Here the timer only *queues* notes, and their start times
+// come from the sample clock, so the groove stays rigid while the game
+// stutters.
 
-const CRUISE = [
-  [220, 261.63, 329.63, 392.0], // Am
-  [174.61, 220, 261.63, 349.23], // F
-  [196, 246.94, 293.66, 392.0], // G
-  [220, 261.63, 329.63, 440.0], // Am
-];
-const BATTLE = [
-  [146.83, 174.61, 220, 293.66], // Dm — darker, faster
-  [155.56, 185, 233.08, 311.13], // Eb
-  [130.81, 155.56, 196, 261.63], // Cm
-  [146.83, 174.61, 233.08, 293.66],
-];
+/** Minor progressions, as semitone offsets from the root. */
+const PROG: Record<MusicMood, number[]> = {
+  // i – VI – III – VII in A minor: the genre's home turf
+  cruise: [0, 8, 3, 10],
+  // i – VI – VII – v in D minor, darker and more urgent
+  battle: [0, 8, 10, 7],
+};
+const ROOT: Record<MusicMood, number> = { cruise: 55, battle: 36.71 }; // A1 / D1
+const BPM: Record<MusicMood, number> = { cruise: 118, battle: 148 };
+/** Minor scale degrees the arpeggio walks, in semitones. */
+const ARP = [0, 3, 7, 12, 15, 12, 7, 3];
+
+const semis = (hz: number, n: number) => hz * Math.pow(2, n / 12);
 
 class SynthScore {
   private ctx: AudioContext;
   private out: GainNode;
+  private bus: GainNode;
+  private filter: BiquadFilterNode;
+  private noise: AudioBuffer;
+
   private timer: ReturnType<typeof setInterval> | null = null;
-  private step = 0;
+  private step = 0; // sixteenth counter
+  private nextNoteAt = 0; // AudioContext time of the next sixteenth
   private mood: MusicMood = "cruise";
+
   private pad: OscillatorNode[] = [];
   private padGain: GainNode;
 
@@ -149,62 +165,192 @@ class SynthScore {
     this.ctx = ctx;
     this.out = out;
 
-    // Sustained pad underneath everything
+    // Everything but the pad runs through one filter so the battle
+    // transition can open the whole mix at once, like a riser.
+    this.filter = ctx.createBiquadFilter();
+    this.filter.type = "lowpass";
+    this.filter.frequency.value = 1800;
+    this.filter.Q.value = 0.7;
+    this.bus = ctx.createGain();
+    this.bus.gain.value = 1;
+    this.bus.connect(this.filter).connect(out);
+
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    this.noise = buf;
+
+    // Sustained pad, kept out of the filter so the low end never vanishes
     this.padGain = ctx.createGain();
-    this.padGain.gain.value = 0.05;
-    const filter = ctx.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.value = 700;
-    this.padGain.connect(filter).connect(out);
-    for (const detune of [-6, 6]) {
+    this.padGain.gain.value = 0.045;
+    const padFilter = ctx.createBiquadFilter();
+    padFilter.type = "lowpass";
+    padFilter.frequency.value = 700;
+    this.padGain.connect(padFilter).connect(out);
+    for (const detune of [-8, 8]) {
       const o = ctx.createOscillator();
       o.type = "sawtooth";
-      o.frequency.value = 110;
+      o.frequency.value = ROOT.cruise * 2;
       o.detune.value = detune;
       o.connect(this.padGain);
       o.start();
       this.pad.push(o);
     }
 
-    this.schedule();
+    this.nextNoteAt = ctx.currentTime + 0.1;
+    this.timer = setInterval(() => this.pump(), 25);
   }
 
   setMood(mood: MusicMood): void {
+    if (mood === this.mood) return;
     this.mood = mood;
-    this.schedule();
-    // Battle drops the pad a fifth and opens it up
-    const root = mood === "battle" ? 73.42 : 110;
-    for (const o of this.pad) o.frequency.setTargetAtTime(root, this.ctx.currentTime, 0.4);
-    this.padGain.gain.setTargetAtTime(mood === "battle" ? 0.08 : 0.05, this.ctx.currentTime, 0.6);
-  }
-
-  private schedule(): void {
-    if (this.timer) clearInterval(this.timer);
-    const beat = this.mood === "battle" ? 300 : 460;
-    this.timer = setInterval(() => this.tick(), beat);
-  }
-
-  private tick(): void {
-    const chords = this.mood === "battle" ? BATTLE : CRUISE;
-    const chord = chords[Math.floor(this.step / 4) % chords.length];
-    const note = chord[this.step % chord.length];
-    this.step++;
-
     const t = this.ctx.currentTime;
+    for (const o of this.pad) o.frequency.setTargetAtTime(ROOT[mood] * 2, t, 0.4);
+    this.padGain.gain.setTargetAtTime(mood === "battle" ? 0.07 : 0.045, t, 0.6);
+    // The filter sweep is the transition — it reads as the track lifting
+    this.filter.frequency.setTargetAtTime(mood === "battle" ? 5200 : 1800, t, 0.5);
+  }
+
+  /** Queue every sixteenth that falls inside the lookahead window. */
+  private pump(): void {
+    if (this.ctx.state !== "running") return;
+    const sixteenth = 60 / BPM[this.mood] / 4;
+    const horizon = this.ctx.currentTime + 0.12;
+    // A tab left in the background can park the clock far behind; catch
+    // up rather than queueing thousands of notes at once.
+    if (this.nextNoteAt < this.ctx.currentTime - 0.5) {
+      this.nextNoteAt = this.ctx.currentTime;
+    }
+    while (this.nextNoteAt < horizon) {
+      this.emit(this.step, this.nextNoteAt);
+      this.step++;
+      this.nextNoteAt += sixteenth;
+    }
+  }
+
+  private emit(step: number, t: number): void {
+    const battle = this.mood === "battle";
+    const bar = Math.floor(step / 16) % PROG[this.mood].length;
+    const chordRoot = semis(ROOT[this.mood], PROG[this.mood][bar]);
+    const i = step % 16;
+
+    // Four-on-the-floor kick, with a push on the last sixteenth of a bar
+    if (i % 4 === 0 || (battle && i === 15)) this.kick(t, i === 0 ? 1 : 0.85);
+    // Offbeat hats — the eighth-note shuffle the genre lives on
+    if (i % 4 === 2) this.hat(t, battle ? 0.05 : 0.035);
+    if (battle && i % 4 === 1) this.hat(t, 0.02);
+    // Snare/clap on 2 and 4
+    if (i === 4 || i === 12) this.clap(t, battle ? 0.09 : 0.06);
+
+    // Sixteenth bassline: root with an octave lift, driving and relentless
+    if (battle ? true : i % 2 === 0) {
+      const oct = i % 8 === 6 ? 2 : 1;
+      this.bass(t, chordRoot * oct, battle ? 0.11 : 0.075);
+    }
+
+    // Supersaw arpeggio two octaves up
+    if (i % 2 === 0) {
+      const note = semis(chordRoot * 4, ARP[(step / 2) % ARP.length | 0]);
+      this.arp(t, note, battle ? 0.05 : 0.032);
+    }
+
+    // Battle stabs on the downbeat of every other bar
+    if (battle && i === 0 && bar % 2 === 0) {
+      this.stab(t, chordRoot * 4);
+    }
+  }
+
+  private kick(t: number, level: number): void {
     const o = this.ctx.createOscillator();
-    o.type = this.mood === "battle" ? "square" : "triangle";
-    o.frequency.value = note * 2;
+    o.type = "sine";
+    o.frequency.setValueAtTime(130, t);
+    o.frequency.exponentialRampToValueAtTime(42, t + 0.09);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.22 * level, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+    o.connect(g).connect(this.bus);
+    o.start(t);
+    o.stop(t + 0.24);
+  }
+
+  private noiseHit(t: number, type: BiquadFilterType, freq: number, level: number, dur: number, q = 1): void {
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noise;
+    const f = this.ctx.createBiquadFilter();
+    f.type = type;
+    f.frequency.value = freq;
+    f.Q.value = q;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(level, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f).connect(g).connect(this.bus);
+    src.start(t, Math.random() * 0.2);
+    src.stop(t + dur + 0.02);
+  }
+
+  private hat(t: number, level: number): void {
+    this.noiseHit(t, "highpass", 7500, level, 0.045);
+  }
+
+  private clap(t: number, level: number): void {
+    this.noiseHit(t, "bandpass", 1600, level, 0.13, 1.6);
+  }
+
+  private bass(t: number, freq: number, level: number): void {
+    const o = this.ctx.createOscillator();
+    o.type = "sawtooth";
+    o.frequency.value = freq;
+    const f = this.ctx.createBiquadFilter();
+    f.type = "lowpass";
+    // Per-note filter envelope: the pluck that makes a bassline move
+    f.frequency.setValueAtTime(freq * 8, t);
+    f.frequency.exponentialRampToValueAtTime(Math.max(freq * 2, 90), t + 0.1);
     const g = this.ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(this.mood === "battle" ? 0.07 : 0.05, t + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
-    o.connect(g).connect(this.out);
+    g.gain.exponentialRampToValueAtTime(level, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    o.connect(f).connect(g).connect(this.bus);
     o.start(t);
-    o.stop(t + 0.6);
+    o.stop(t + 0.18);
+  }
+
+  private arp(t: number, freq: number, level: number): void {
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(level, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
+    g.connect(this.bus);
+    // Three detuned saws — the supersaw the whole idiom is built on
+    for (const detune of [-11, 0, 11]) {
+      const o = this.ctx.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.value = freq;
+      o.detune.value = detune;
+      o.connect(g);
+      o.start(t);
+      o.stop(t + 0.26);
+    }
+  }
+
+  private stab(t: number, root: number): void {
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.05, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+    g.connect(this.bus);
+    for (const n of [0, 3, 7]) {
+      const o = this.ctx.createOscillator();
+      o.type = "square";
+      o.frequency.value = semis(root, n);
+      o.connect(g);
+      o.start(t);
+      o.stop(t + 0.42);
+    }
   }
 
   stop(): void {
     if (this.timer) clearInterval(this.timer);
+    this.timer = null;
     for (const o of this.pad) o.stop();
   }
 }

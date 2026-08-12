@@ -2417,6 +2417,8 @@ export class GameEngine {
       skid,
       boost: this.boost,
       nosActive: this.nosActive,
+      brake: this.brake,
+      driftYaw: this.driftYaw,
     });
   }
 

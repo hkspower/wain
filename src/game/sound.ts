@@ -2,10 +2,13 @@
 // works offline in the Electron/Steam build.
 //
 // Layers: a three-oscillator engine (fundamental, detuned octave, sub)
-// through soft distortion and a throttle-following lowpass; exhaust rasp
-// (bandpassed noise tracking RPM); wind roar (speed²); tire squeal
-// (warbled bandpass noise while sliding); one-shot impacts, scrapes,
-// gear-shift blow-off, horn, and little musical stings for battles.
+// through soft distortion and a throttle-following lowpass; an induction
+// growl that tracks load rather than revs, so pinned throttle sounds
+// different from coasting at the same speed; exhaust rasp (bandpassed
+// noise tracking RPM) with overrun burble on lift; wind roar (speed²);
+// a two-band tire slide whose pitch and warble follow how far the body
+// is hung out; brakes as pad rumble plus a resonant rotor squeal; and
+// one-shot impacts, scrapes, blow-off, horn and battle stings.
 
 export interface SoundFrame {
   speedKmh: number;
@@ -15,6 +18,8 @@ export interface SoundFrame {
   skid: number; // 0..1 tire slide intensity
   boost?: number; // 0..1 turbo boost (drives the whistle)
   nosActive?: boolean;
+  brake?: number; // 0..1 pedal pressure — drives disc squeal and pad rumble
+  driftYaw?: number; // |body slip| in radians — colours the squeal
 }
 
 function makeNoiseBuffer(ctx: AudioContext): AudioBuffer {
@@ -49,11 +54,24 @@ export class SoundEngine {
   private windGain: GainNode;
   private windFilter: BiquadFilterNode;
   private skidGain: GainNode;
+  private skidFilter: BiquadFilterNode;
+  private skidWarble: OscillatorNode;
+  private scrubGain: GainNode;
+  // Induction: the intake growl that swells with load
+  private inductionGain: GainNode;
+  private inductionFilter: BiquadFilterNode;
+  // Brakes: pad rumble + rotor squeal
+  private brakeRumbleGain: GainNode;
+  private brakeRumbleFilter: BiquadFilterNode;
+  private brakeSquealGain: GainNode;
+  private brakeSquealFilter: BiquadFilterNode;
   private hornOscs: OscillatorNode[] = [];
   private hornGain: GainNode | null = null;
   private lastGear = 0;
   private revUntil = 0;
   private paused = false;
+  private lastThrottle = 0;
+  private nextBurbleAt = 0;
   // Forced-induction layers (created on demand by configureAspiration)
   private whineOsc: OscillatorNode | null = null;
   private whineGain: GainNode | null = null;
@@ -111,20 +129,68 @@ export class SoundEngine {
     this.windGain.gain.value = 0;
     this.loopNoise().connect(this.windFilter).connect(this.windGain).connect(this.master);
 
-    // --- Tire squeal: warbled bandpass noise
-    const skidFilter = this.ctx.createBiquadFilter();
-    skidFilter.type = "bandpass";
-    skidFilter.frequency.value = 1100;
-    skidFilter.Q.value = 7;
-    const warble = this.ctx.createOscillator();
-    warble.frequency.value = 9;
+    // --- Tire squeal: warbled bandpass noise. Two bands, because a real
+    // slide is a high rotor-like squeal riding on a broad rubber scrub —
+    // one band alone reads as a kettle whistle.
+    this.skidFilter = this.ctx.createBiquadFilter();
+    this.skidFilter.type = "bandpass";
+    this.skidFilter.frequency.value = 1100;
+    this.skidFilter.Q.value = 7;
+    this.skidWarble = this.ctx.createOscillator();
+    this.skidWarble.frequency.value = 9;
     const warbleAmt = this.ctx.createGain();
     warbleAmt.gain.value = 170;
-    warble.connect(warbleAmt).connect(skidFilter.frequency);
-    warble.start();
+    this.skidWarble.connect(warbleAmt).connect(this.skidFilter.frequency);
+    this.skidWarble.start();
     this.skidGain = this.ctx.createGain();
     this.skidGain.gain.value = 0;
-    this.loopNoise().connect(skidFilter).connect(this.skidGain).connect(this.master);
+    this.loopNoise().connect(this.skidFilter).connect(this.skidGain).connect(this.master);
+
+    // Broad low scrub under the squeal — the tire's contact patch tearing
+    const scrubFilter = this.ctx.createBiquadFilter();
+    scrubFilter.type = "bandpass";
+    scrubFilter.frequency.value = 320;
+    scrubFilter.Q.value = 1.4;
+    this.scrubGain = this.ctx.createGain();
+    this.scrubGain.gain.value = 0;
+    this.loopNoise().connect(scrubFilter).connect(this.scrubGain).connect(this.master);
+
+    // --- Induction: airbox growl. Tracks load rather than road speed, so
+    // it separates "pinned throttle" from "coasting at the same revs" —
+    // the cue that makes acceleration feel like effort instead of pitch.
+    this.inductionFilter = this.ctx.createBiquadFilter();
+    this.inductionFilter.type = "bandpass";
+    this.inductionFilter.frequency.value = 480;
+    this.inductionFilter.Q.value = 0.9;
+    this.inductionGain = this.ctx.createGain();
+    this.inductionGain.gain.value = 0;
+    this.loopNoise().connect(this.inductionFilter).connect(this.inductionGain).connect(this.master);
+
+    // --- Brakes: a low pad-on-rotor rumble plus a high metallic squeal
+    // that only appears under real pressure at speed
+    this.brakeRumbleFilter = this.ctx.createBiquadFilter();
+    this.brakeRumbleFilter.type = "lowpass";
+    this.brakeRumbleFilter.frequency.value = 260;
+    this.brakeRumbleGain = this.ctx.createGain();
+    this.brakeRumbleGain.gain.value = 0;
+    this.loopNoise()
+      .connect(this.brakeRumbleFilter)
+      .connect(this.brakeRumbleGain)
+      .connect(this.master);
+
+    this.brakeSquealFilter = this.ctx.createBiquadFilter();
+    this.brakeSquealFilter.type = "bandpass";
+    this.brakeSquealFilter.frequency.value = 2400;
+    // Resonant enough to read as rotor ring rather than hiss, but not so
+    // narrow that it passes no energy — at Q 14 the squeal measured only
+    // 3% over coasting and simply vanished under the engine.
+    this.brakeSquealFilter.Q.value = 7;
+    this.brakeSquealGain = this.ctx.createGain();
+    this.brakeSquealGain.gain.value = 0;
+    this.loopNoise()
+      .connect(this.brakeSquealFilter)
+      .connect(this.brakeSquealGain)
+      .connect(this.master);
 
     // Autoplay-policy recovery: contexts created outside a gesture call
     // stack (we start after an async chunk import) can come up suspended,
@@ -206,11 +272,49 @@ export class SoundEngine {
     this.exhaustFilter.frequency.setTargetAtTime(140 + rpm * 260, t, 0.05);
     this.exhaustGain.gain.setTargetAtTime(throttle * 0.05 + rpm * 0.01, t, 0.06);
 
+    // Induction growl: load × revs. Attacks fast and decays slower, so
+    // stabbing the throttle barks and lifting off falls away naturally.
+    const load = throttle * (0.35 + rpm * 0.65);
+    this.inductionFilter.frequency.setTargetAtTime(320 + rpm * 900, t, 0.05);
+    this.inductionGain.gain.setTargetAtTime(load * 0.055, t, load > 0.3 ? 0.03 : 0.12);
+
     const windAmt = Math.pow(Math.min(f.speedKmh / 330, 1), 2);
     this.windFilter.frequency.setTargetAtTime(300 + f.speedKmh * 7, t, 0.1);
     this.windGain.gain.setTargetAtTime(windAmt * 0.24, t, 0.1);
 
-    this.skidGain.gain.setTargetAtTime(Math.min(f.skid, 1) * 0.2, t, 0.05);
+    // Tire slide: a hard drift squeals higher and warbles faster than a
+    // little scrub, so the ear can tell how far out the back end is.
+    const skid = Math.min(f.skid, 1);
+    const yaw = Math.min(Math.abs(f.driftYaw ?? 0) / 0.6, 1);
+    this.skidFilter.frequency.setTargetAtTime(900 + yaw * 700, t, 0.08);
+    this.skidWarble.frequency.setTargetAtTime(7 + yaw * 9, t, 0.1);
+    // The slide is this game's signature sound — a big drift should sing
+    // over the engine, not hide under it.
+    this.skidGain.gain.setTargetAtTime(skid * (0.2 + yaw * 0.18), t, 0.05);
+    this.scrubGain.gain.setTargetAtTime(skid * 0.1, t, 0.05);
+
+    // Brakes: rumble needs pressure and rotation; the squeal only sings
+    // above a threshold, which keeps gentle braking silent.
+    const brake = Math.min(Math.max(f.brake ?? 0, 0), 1);
+    const rolling = Math.min(f.speedKmh / 60, 1);
+    this.brakeRumbleFilter.frequency.setTargetAtTime(180 + f.speedKmh * 1.6, t, 0.08);
+    this.brakeRumbleGain.gain.setTargetAtTime(brake * rolling * 0.22, t, 0.05);
+    const squeal = Math.max(0, brake - 0.35) / 0.65;
+    this.brakeSquealFilter.frequency.setTargetAtTime(1900 + rolling * 1400, t, 0.09);
+    this.brakeSquealGain.gain.setTargetAtTime(squeal * rolling * 0.19, t, 0.06);
+
+    // Overrun burble: lifting off at revs pops the exhaust — the JDM
+    // signature. Rate-limited so it crackles rather than machine-guns.
+    if (
+      this.lastThrottle - throttle > 0.35 &&
+      rpm > 0.55 &&
+      f.speedKmh > 40 &&
+      t > this.nextBurbleAt
+    ) {
+      this.nextBurbleAt = t + 0.5;
+      this.burble();
+    }
+    this.lastThrottle = throttle;
 
     // Forced-induction voice: turbo whistle rises with boost pressure,
     // supercharger whine tracks RPM
@@ -236,6 +340,28 @@ export class SoundEngine {
   /** Ignition rev flourish when the race starts. */
   revStart(): void {
     this.revUntil = this.ctx.currentTime + 0.9;
+  }
+
+  /** Decel pops: three or four irregular cracks over half a second. */
+  private burble(): void {
+    const t0 = this.ctx.currentTime;
+    const pops = 3 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < pops; i++) {
+      const t = t0 + i * (0.055 + Math.random() * 0.07);
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.noise;
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.value = 220 + Math.random() * 260;
+      filter.Q.value = 2.4;
+      const g = this.ctx.createGain();
+      const level = 0.1 + Math.random() * 0.08;
+      g.gain.setValueAtTime(level, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+      src.connect(filter).connect(g).connect(this.master);
+      src.start(t, Math.random());
+      src.stop(t + 0.12);
+    }
   }
 
   private oneShotNoise(
