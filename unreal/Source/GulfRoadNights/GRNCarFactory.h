@@ -32,10 +32,13 @@ namespace GRNCarFactory
 	/**
 	 * Attach a full car to Parent under AttachTo.
 	 * Dimensions are metres * 100, matching the web build's car scaled by
-	 * its 1.12 screen-presence factor.
+	 * its 1.12 screen-presence factor. bAttackKit layers the factory
+	 * time-attack aero (swan wing, splitter, canards, bronze wheels) on
+	 * top of whatever bWing says — the kit's wing replaces the garage one.
 	 */
 	FGRNCarRig Build(AActor* Parent, USceneComponent* AttachTo,
-		EGRNBodyStyle Style, FLinearColor Paint, bool bWing);
+		EGRNBodyStyle Style, FLinearColor Paint, bool bWing,
+		bool bAttackKit = false);
 
 	/** Advance wheel spin from road speed (m/s). */
 	void SpinWheels(const FGRNCarRig& Rig, float SpeedMs, float Dt);

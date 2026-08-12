@@ -25,6 +25,9 @@ export interface CarColors {
   spoiler?: boolean;
   /** Gold rims (garage mod). */
   goldRims?: boolean;
+  /** Full time-attack aero: swan-neck wing, splitter, canards, vented
+   *  hood, skirts, diffuser, bronze six-spokes and teal calipers. */
+  raceKit?: boolean;
 }
 
 let goldRimMat: THREE.MeshStandardMaterial | null = null;
@@ -429,6 +432,27 @@ const reverseMat = new THREE.MeshStandardMaterial({
   emissiveIntensity: 0.3,
 });
 const caliperMat = new THREE.MeshStandardMaterial({ color: 0xb01818, roughness: 0.5 });
+// Big-brake teal — the time-attack kit's signature peeking through bronze
+const tealCaliperMat = new THREE.MeshStandardMaterial({
+  color: 0x18b09a,
+  roughness: 0.4,
+  emissive: 0x073b33,
+  emissiveIntensity: 0.3,
+});
+// Forged bronze, matte like a shot-peened TE37 — not jewellery gold
+const bronzeRimMat = new THREE.MeshStandardMaterial({
+  color: 0x9c6b2f,
+  roughness: 0.45,
+  metalness: 0.85,
+  envMapIntensity: 1.2,
+});
+// Dry carbon for the aero: near-black, a hint of weave sheen
+const carbonMat = new THREE.MeshStandardMaterial({
+  color: 0x101215,
+  roughness: 0.35,
+  metalness: 0.55,
+  envMapIntensity: 1.1,
+});
 
 // Smoked lamp housing: the dark bezel the lenses live in. The contrast
 // between this and the lit lens is what makes a lamp read as an assembly
@@ -490,8 +514,11 @@ function plateMat(): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({ map: sharedPlateTex, roughness: 0.5 });
 }
 
-function buildWheel(gold = false, side = 1): THREE.Group {
-  const spokeMat = gold ? getGoldRimMat() : rimMat;
+type WheelFinish = "silver" | "gold" | "bronze";
+
+function buildWheel(finish: WheelFinish = "silver", side = 1): THREE.Group {
+  const spokeMat =
+    finish === "gold" ? getGoldRimMat() : finish === "bronze" ? bronzeRimMat : rimMat;
   const w = new THREE.Group();
   w.add(new THREE.Mesh(tireGeo, tireMat));
   w.add(new THREE.Mesh(rimGeo, rimDarkMat));
@@ -500,9 +527,11 @@ function buildWheel(gold = false, side = 1): THREE.Group {
   const lip = new THREE.Mesh(lipGeo, spokeMat);
   lip.position.x = side * 0.135;
   w.add(lip);
-  for (let i = 0; i < 5; i++) {
+  // Six straight spokes on the forged bronze wheel, five on the street cast
+  const nSpokes = finish === "bronze" ? 6 : 5;
+  for (let i = 0; i < nSpokes; i++) {
     const holder = new THREE.Group();
-    holder.rotation.x = (i / 5) * Math.PI * 2;
+    holder.rotation.x = (i / nSpokes) * Math.PI * 2;
     const spoke = new THREE.Mesh(spokeGeo, spokeMat);
     spoke.position.y = 0.1;
     holder.add(spoke);
@@ -794,7 +823,10 @@ export function createCar(colors: CarColors): THREE.Group {
     [-0.84, wzR],
     [0.84, wzR],
   ]) {
-    const wheel = buildWheel(colors.goldRims, Math.sign(wx));
+    const wheel = buildWheel(
+      colors.raceKit ? "bronze" : colors.goldRims ? "gold" : "silver",
+      Math.sign(wx)
+    );
     wheel.position.set(wx, 0.36, wz);
     group.add(wheel);
     wheels.push(wheel);
@@ -962,7 +994,10 @@ export function createCar(colors: CarColors): THREE.Group {
       [-0.84, wzR],
       [0.84, wzR],
     ]) {
-      const caliper = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.17, 0.11), caliperMat);
+      const caliper = new THREE.Mesh(
+        new THREE.BoxGeometry(0.06, 0.17, 0.11),
+        colors.raceKit ? tealCaliperMat : caliperMat
+      );
       caliper.position.set(wx * 0.93, 0.42, wz + 0.11);
       group.add(caliper);
     }
@@ -1030,8 +1065,94 @@ export function createCar(colors: CarColors): THREE.Group {
     }
   }
 
+  // Time-attack aero — the whole catalogue at once, factory-fitted.
+  // Modelled on the classic yellow FD time-attack formula: swan-neck GT
+  // wing, front splitter, canards, vented hood, skirts and a diffuser.
+  if (colors.raceKit) {
+    // Swan-neck GT wing, twice the garage part: tall carbon stays, a
+    // body-colour main plane and big endplates
+    const wingY = d.deckY + 0.58;
+    for (const sx of [-0.55, 0.55]) {
+      const stay = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.55, 0.22), carbonMat);
+      stay.position.set(sx, d.deckY + 0.28, -1.88);
+      stay.rotation.x = 0.16; // swept back into the plane
+      group.add(stay);
+    }
+    const plane = new THREE.Mesh(new THREE.BoxGeometry(1.95, 0.045, 0.5), bodyMat);
+    plane.position.set(0, wingY, -2.02);
+    plane.rotation.x = -0.18;
+    group.add(plane);
+    // Gurney flap on the trailing edge + brake strip beneath it
+    const gurney = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.05, 0.02), carbonMat);
+    gurney.position.set(0, wingY + 0.06, -2.25);
+    group.add(gurney);
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.028, 0.03), tailMat);
+    strip.position.set(0, wingY - 0.03, -2.24);
+    group.add(strip);
+    for (const sx of [-0.99, 0.99]) {
+      const endplate = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.3, 0.54), carbonMat);
+      endplate.position.set(sx, wingY, -2.02);
+      group.add(endplate);
+    }
+
+    // Front splitter jutting past the bumper, low enough to scrape
+    const splitter = new THREE.Mesh(new THREE.BoxGeometry(1.95, 0.035, 0.7), carbonMat);
+    splitter.position.set(0, 0.14, d.nose - 0.18);
+    group.add(splitter);
+
+    // Canards: two per corner, biting the air off the bumper sides
+    for (const sxSign of [-1, 1]) {
+      for (const [cy, cz] of [
+        [0.34, -0.14],
+        [0.47, -0.22],
+      ]) {
+        const canard = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.018, 0.18), carbonMat);
+        canard.position.set(sxSign * 0.85, cy, d.nose + cz);
+        canard.rotation.z = sxSign * 0.3;
+        canard.rotation.x = -0.25;
+        group.add(canard);
+      }
+    }
+
+    // Vented hood: twin extraction louvres and a pair of intake scoops
+    for (const sx of [-0.36, 0.36]) {
+      const louvre = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.025, 0.5), carbonMat);
+      louvre.position.set(sx, d.hoodY + 0.015, 1.15);
+      louvre.rotation.x = -0.06; // follows the hood's fall
+      group.add(louvre);
+      const scoop = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.07, 0.22), carbonMat);
+      scoop.position.set(sx * 1.4, d.hoodY + 0.05, 0.62);
+      group.add(scoop);
+    }
+
+    // Side skirts hugging the rockers
+    for (const sxSign of [-1, 1]) {
+      const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.1, 2.7), carbonMat);
+      skirt.position.set(sxSign * 0.93, 0.16, 0);
+      group.add(skirt);
+    }
+
+    // Rear diffuser kicking up between the exhaust and the bumper
+    const diffuser = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.03, 0.5), carbonMat);
+    diffuser.position.set(0, 0.18, d.tail + 0.12);
+    diffuser.rotation.x = 0.35;
+    group.add(diffuser);
+    for (const fx of [-0.4, 0, 0.4]) {
+      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.1, 0.4), carbonMat);
+      fin.position.set(fx, 0.2, d.tail + 0.1);
+      fin.rotation.x = 0.35;
+      group.add(fin);
+    }
+
+    // Red tow hook on the splitter — scrutineering says so
+    const hook = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.035, 0.12), caliperMat);
+    hook.position.set(0.45, 0.19, d.nose + 0.08);
+    group.add(hook);
+  }
+
   // GT wing — always the player's choice: equip the part or run clean
-  if (colors.spoiler) {
+  // (the attack kit brings its own swan-neck; don't stack two wings)
+  if (colors.spoiler && !colors.raceKit) {
     const baseY = d.deckY + 0.18;
     for (const sx of [-0.62, 0.62]) {
       const strut = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.26, 0.16), seamMat);

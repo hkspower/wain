@@ -125,7 +125,7 @@ void AGRNGameMode::ApplyCar(int32 CarIdx)
 		: [&] { FGRNRuntimeCar C; const FGRNCarDef& D = GRNCars[CurrentCarIdx];
 			C.Id = D.Id; C.Name = D.Name; C.Price = D.Price; C.Power = D.Power;
 			C.TopSpeed = D.TopSpeed; C.Grip = D.Grip; C.Brake = D.Brake;
-			C.Paint = D.Paint; C.Style = D.Style; return C; }();
+			C.Paint = D.Paint; C.Style = D.Style; C.bAttackKit = D.bAttackKit; return C; }();
 	Player->PowerMult = Car.Power;
 	Player->TopSpeedBonus = Car.TopSpeed;
 	Player->GripAccel = Car.Grip;
@@ -137,7 +137,7 @@ void AGRNGameMode::ApplyCar(int32 CarIdx)
 	{
 		bWing = Save->OwnedParts.Contains(TEXT("spoiler"));
 	}
-	Player->BuildRig(Car.Style, FLinearColor(Car.Paint), bWing);
+	Player->BuildRig(Car.Style, FLinearColor(Car.Paint), bWing, Car.bAttackKit);
 	CurrentCarId = Car.Id;
 }
 

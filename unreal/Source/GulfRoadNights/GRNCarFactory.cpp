@@ -45,7 +45,7 @@ namespace
 }
 
 FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
-	EGRNBodyStyle Style, FLinearColor Paint, bool bWing)
+	EGRNBodyStyle Style, FLinearColor Paint, bool bWing, bool bAttackKit)
 {
 	FGRNCarRig Rig;
 	Rig.PaintMid = Mid(Parent, Paint);
@@ -96,8 +96,43 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 			FVector(0.06f, 1.78f * K, 0.13f), Rig.TailMid);
 	}
 
+	// Factory time-attack aero: swan-neck wing, splitter, canards, skirts.
+	// The kit's wing replaces the garage part — never two wings.
+	if (bAttackKit)
+	{
+		// Swan-neck GT wing well above the deck
+		Box(Parent, AttachTo, FVector(TailX + 0.05f * K, 0, 1.62f * K),
+			FVector(0.5f, 1.95f * K, 0.05f), Rig.PaintMid, FRotator(-10.f, 0.f, 0.f));
+		for (float Y : { -0.55f, 0.55f })
+		{
+			Box(Parent, AttachTo, FVector(TailX + 0.12f * K, Y * K, 1.28f * K),
+				FVector(0.2f, 0.05f, 0.6f), Dark, FRotator(9.f, 0.f, 0.f));
+		}
+		for (float Y : { -0.99f, 0.99f })
+		{
+			Box(Parent, AttachTo, FVector(TailX + 0.05f * K, Y * K, 1.62f * K),
+				FVector(0.54f, 0.03f, 0.3f), Dark);
+		}
+		// Front splitter past the bumper, canards on the corners
+		Box(Parent, AttachTo, FVector(BodyLen * 0.5f - 0.1f * K, 0, 0.14f * K),
+			FVector(0.7f, 1.95f * K, 0.035f), Dark);
+		for (float Side : { -1.f, 1.f })
+		{
+			for (float Z : { 0.34f, 0.47f })
+			{
+				Box(Parent, AttachTo, FVector(BodyLen * 0.5f - 0.16f * K, Side * 0.85f * K, Z * K),
+					FVector(0.18f, 0.3f, 0.02f), Dark, FRotator(-14.f, 0.f, Side * 17.f));
+			}
+		}
+		// Side skirts along the rockers
+		for (float Side : { -1.f, 1.f })
+		{
+			Box(Parent, AttachTo, FVector(0, Side * 0.93f * K, 0.16f * K),
+				FVector(2.7f * K, 0.08f, 0.1f), Dark);
+		}
+	}
 	// Optional GT wing — the player's choice, never forced
-	if (bWing)
+	else if (bWing)
 	{
 		Box(Parent, AttachTo, FVector(TailX + 0.15f * K, 0, (bGTR ? 1.31f : 1.25f) * K),
 			FVector(0.42f, 1.8f * K, 0.05f), Rig.PaintMid, FRotator(-7.f, 0.f, 0.f));
@@ -108,7 +143,10 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 		}
 	}
 
-	// Wheels: cylinders on their sides, fronts forward per style stance
+	// Wheels: cylinders on their sides, fronts forward per style stance.
+	// The attack kit runs forged bronze; everything else gunmetal dark.
+	UMaterialInstanceDynamic* WheelMat =
+		bAttackKit ? Mid(Parent, FLinearColor(0.38f, 0.22f, 0.07f)) : Dark;
 	const float WzF = (bZX ? 1.52f : bGTR ? 1.45f : 1.42f) * K;
 	const float WzR = -(bZX ? 1.48f : bGTR ? 1.45f : 1.42f) * K;
 	for (const FVector2D& W : { FVector2D(WzF, -0.94f * K), FVector2D(WzF, 0.94f * K),
@@ -121,7 +159,7 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 		Wheel->SetRelativeLocation(FVector(W.X, W.Y, 0.40f * K) * 100.f);
 		Wheel->SetRelativeRotation(FRotator(0.f, 0.f, 90.f));
 		Wheel->SetRelativeScale3D(FVector(0.8f * K, 0.29f * K, 0.8f * K));
-		Wheel->SetMaterial(0, Dark);
+		Wheel->SetMaterial(0, WheelMat);
 		Wheel->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		Rig.Wheels.Add(Wheel);
 	}

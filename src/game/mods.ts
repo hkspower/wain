@@ -84,6 +84,9 @@ export interface CarModel {
   price: number;
   /** Body silhouette (cars.ts): sedan, zx wedge, gtr coupe, or rx7. */
   style?: "sedan" | "zx" | "gtr" | "rx7";
+  /** Factory-fitted time-attack aero: swan wing, splitter, canards,
+   *  vented hood, bronze wheels. Not a garage part — the car IS the kit. */
+  kit?: "attack";
   /** Base handling before garage mods. */
   power: number; // accel multiplier
   topSpeed: number; // ceiling bonus (km/h-ish units)
@@ -95,6 +98,21 @@ export interface CarModel {
 
 /** The showroom, richest metal first. */
 export const CARS: CarModel[] = [
+  {
+    id: "efreet-rx-kai",
+    name: "Efreet RX Kai",
+    ar: "كبير العفاريت",
+    cls: "supercar",
+    style: "rx7",
+    kit: "attack",
+    price: 120000,
+    power: 1.66,
+    topSpeed: 27,
+    grip: 17.5,
+    brake: 44,
+    color: 0xf2b90d, // competition yellow
+    desc: "One-off rotary time-attack build — swan-neck wing, canards, bronze forged wheels. The rarest machine on Gulf Road.",
+  },
   {
     id: "sahara-v12",
     name: "Sahara GT-12",
@@ -347,6 +365,8 @@ export interface TuneEffects {
   hasNos: boolean;
   spoiler: boolean;
   goldRims: boolean;
+  /** Full time-attack aero built into the car (cars.ts raceKit). */
+  raceKit: boolean;
   exhaustLevel: number; // 0..1 sound character
   paint: number;
   glow: number | null;
@@ -384,6 +404,8 @@ export function computeEffects(g: GarageState): TuneEffects {
   else if (eq.tires === "tires-race") { gripAccel += 3; slipMult = 0.73; }
   else if (eq.tires === "tires-slick") { gripAccel += 4.5; slipMult = 0.59; }
   if (has("spoiler")) { gripAccel += 0.5; slipMult *= 0.92; }
+  // Real downforce: the attack kit's wing and splitter plant the car
+  if (car.kit === "attack") { gripAccel += 1.0; slipMult *= 0.88; }
 
   return {
     carId: car.id,
@@ -399,6 +421,7 @@ export function computeEffects(g: GarageState): TuneEffects {
     hasNos: has("nos"),
     spoiler: has("spoiler"),
     goldRims: has("gold-rims"),
+    raceKit: car.kit === "attack",
     exhaustLevel: has("exhaust") ? 1 : 0,
     // An explicitly bought paint wins; otherwise the car's factory colour
     paint:

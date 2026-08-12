@@ -49,6 +49,8 @@ struct FGRNRuntimeCar
 	UPROPERTY() float Brake = 26.f;
 	UPROPERTY() FColor Paint = FColor::White;
 	EGRNBodyStyle Style = EGRNBodyStyle::Sedan;
+	/** Factory time-attack aero (wing, splitter, bronze wheels). */
+	UPROPERTY() bool bAttackKit = false;
 };
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FGRNOnGameDataReady, bool /*bFromNetwork*/);

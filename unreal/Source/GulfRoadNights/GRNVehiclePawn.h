@@ -59,7 +59,7 @@ public:
 	bool bInDrift = false, bInNos = false;
 
 	/** Rebuild the visible car (garage swap / respray / wing). */
-	void BuildRig(EGRNBodyStyle Style, FLinearColor Paint, bool bWing);
+	void BuildRig(EGRNBodyStyle Style, FLinearColor Paint, bool bWing, bool bAttackKit = false);
 	FGRNCarRig Rig;
 
 private:

@@ -64,6 +64,7 @@ export function buildCars() {
     brake: c.brake,
     color: hex(c.color),
     bodyStyle: c.style ?? "sedan",
+    kit: c.kit ?? null,
     desc: c.desc,
   }));
 }

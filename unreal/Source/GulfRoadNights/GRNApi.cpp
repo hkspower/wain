@@ -135,6 +135,8 @@ void UGRNApiSubsystem::ParseGameData(const FString& Json)
 			C.Brake = (float)O->GetNumberField(TEXT("brake"));
 			C.Paint = ColorFromHex(O->GetStringField(TEXT("color")));
 			C.Style = StyleFromString(O->GetStringField(TEXT("bodyStyle")));
+			FString Kit;
+			C.bAttackKit = O->TryGetStringField(TEXT("kit"), Kit) && Kit == TEXT("attack");
 			Cars.Add(MoveTemp(C));
 		}
 	}
@@ -228,6 +230,7 @@ FGRNRuntimeCar UGRNApiSubsystem::GetCar(int32 Index) const
 	C.Brake = D.Brake;
 	C.Paint = D.Paint;
 	C.Style = D.Style;
+	C.bAttackKit = D.bAttackKit;
 	return C;
 }
 

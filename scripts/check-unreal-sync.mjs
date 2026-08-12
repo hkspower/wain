@@ -73,10 +73,11 @@ if (hRivals.length !== api.rivals.length) {
 
 // ---- cars -----------------------------------------------------------
 const hCars = [...header.matchAll(
-  /\{ TEXT\("([^"]+)"\), TEXT\("([^"]+)"\), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, FColor\([^)]*\), EGRNBodyStyle::(\w+) \},/g
-)].map(([, id, name, price, power, top, grip, brake, style]) => ({
+  /\{ TEXT\("([^"]+)"\), TEXT\("([^"]+)"\), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, FColor\([^)]*\), EGRNBodyStyle::(\w+), (true|false) \},/g
+)].map(([, id, name, price, power, top, grip, brake, style, kit]) => ({
   id, name, price: +price, power: +power, top: +top, grip: +grip, brake: +brake,
   style: style.toLowerCase(),
+  attack: kit === "true",
 }));
 if (hCars.length !== api.cars.length) {
   fail(`cars: header ${hCars.length} vs api ${api.cars.length}`);
@@ -90,8 +91,9 @@ if (hCars.length !== api.cars.length) {
     if (h.grip !== a.grip) fail(`car ${h.id} grip: ${h.grip} vs ${a.grip}`);
     if (h.brake !== a.brake) fail(`car ${h.id} brake: ${h.brake} vs ${a.brake}`);
     if (h.style !== a.bodyStyle) fail(`car ${h.id} body style: ${h.style} vs ${a.bodyStyle}`);
+    if (h.attack !== (a.kit === "attack")) fail(`car ${h.id} attack kit: ${h.attack} vs ${a.kit}`);
   }
-  if (!process.exitCode) ok(`cars: ${hCars.length} match (id, price, power, grip, brake, body)`);
+  if (!process.exitCode) ok(`cars: ${hCars.length} match (id, price, power, grip, brake, body, kit)`);
 }
 
 // ---- handling -------------------------------------------------------

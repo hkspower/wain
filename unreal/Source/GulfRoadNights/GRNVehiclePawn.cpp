@@ -71,7 +71,7 @@ void AGRNVehiclePawn::CyclePressed()
 	}
 }
 
-void AGRNVehiclePawn::BuildRig(EGRNBodyStyle Style, FLinearColor Paint, bool bWing)
+void AGRNVehiclePawn::BuildRig(EGRNBodyStyle Style, FLinearColor Paint, bool bWing, bool bAttackKit)
 {
 	// Tear down the previous machine before the new one goes on
 	for (UStaticMeshComponent* W : Rig.Wheels) if (W) W->DestroyComponent();
@@ -81,7 +81,7 @@ void AGRNVehiclePawn::BuildRig(EGRNBodyStyle Style, FLinearColor Paint, bool bWi
 	{
 		if (K != Camera) K->DestroyComponent();
 	}
-	Rig = GRNCarFactory::Build(this, CarRoot, Style, Paint, bWing);
+	Rig = GRNCarFactory::Build(this, CarRoot, Style, Paint, bWing, bAttackKit);
 }
 
 void AGRNVehiclePawn::Tick(float Dt)

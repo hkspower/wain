@@ -586,6 +586,7 @@ export class GameEngine {
       underglow: this.tune.glow ?? undefined,
       spoiler: this.tune.spoiler,
       goldRims: this.tune.goldRims,
+      raceKit: this.tune.raceKit,
     });
     this.playerMesh = new THREE.Group();
     this.playerMesh.add(this.carBody);
@@ -1387,6 +1388,7 @@ export class GameEngine {
       underglow: this.tune.glow ?? undefined,
       spoiler: this.tune.spoiler,
       goldRims: this.tune.goldRims,
+      raceKit: this.tune.raceKit,
     });
     this.playerMesh.add(this.carBody);
     this.applyLiveReflections();

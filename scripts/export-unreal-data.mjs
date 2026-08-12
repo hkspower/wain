@@ -69,6 +69,7 @@ const cars = carsBlock
       brake: +f(/brake: ([\d.]+)/),
       color: f(/color: 0x([0-9a-fA-F]{6})/),
       style: f(/style: "(\w+)"/) ?? "sedan",
+      kit: f(/kit: "(\w+)"/) ?? null,
     };
   })
   .filter(Boolean);
@@ -139,13 +140,15 @@ struct FGRNCarDef
 	float Brake;
 	FColor Paint;
 	EGRNBodyStyle Style;
+	/** Factory time-attack aero (wing, splitter, bronze wheels). */
+	bool bAttackKit;
 };
 
 static const FGRNCarDef GRNCars[] = {
 ${cars
   .map(
     (c) =>
-      `\t{ TEXT("${c.id}"), TEXT("${c.name}"), ${c.price}, ${c.power.toFixed(2)}f, ${c.top.toFixed(1)}f, ${c.grip.toFixed(1)}f, ${c.brake.toFixed(1)}f, ${col(c.color)}, ${styleEnum[c.style]} },`
+      `\t{ TEXT("${c.id}"), TEXT("${c.name}"), ${c.price}, ${c.power.toFixed(2)}f, ${c.top.toFixed(1)}f, ${c.grip.toFixed(1)}f, ${c.brake.toFixed(1)}f, ${col(c.color)}, ${styleEnum[c.style]}, ${c.kit === "attack" ? "true" : "false"} },`
   )
   .join("\n")}
 };
