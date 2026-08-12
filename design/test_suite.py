@@ -561,7 +561,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "470", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "484", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -595,7 +595,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "470", "0", "100%"], str(finals))
+          finals == ["4", "484", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -967,6 +967,61 @@ def scan_checks(pg, br):
     check(S, "the stored record is healed to the free plan", healed == 0, str(healed))
     c.close()
 
+    # The rendered-text numeral check above only sees what a page shows on
+    # load. Five Arabic-Indic digits hid in JS strings that appear only on
+    # error — including «٨ أحرف» in an error whose own placeholder said "8".
+    for f in list(PAGES) + list(STUBS) + ["404.html"]:
+        found = sorted(set(re.findall(r"[\u0660-\u0669\u06f0-\u06f9]+",
+                                      (ROOT / f).read_text())))
+        check(S, f"{f}: no Arabic-Indic digits, even in strings shown only on error",
+              not found, ", ".join(found))
+
+    # An annual filing with no financial year end is not a filing. The form's
+    # `required` only raises a browser tooltip; the audit report is what the
+    # user reads before filing, so it has to say this itself.
+    c = br.new_context()
+    dp = c.new_page()
+    dp.goto(f"{BASE}/nizam.html#/xbrl", wait_until="networkidle"); dp.wait_for_timeout(300)
+    dp.fill('#xbrl-form [name="entity"]', "شركة المهلب كود")
+    dp.fill('#xbrl-form [name="crn"]', "123456")
+    dp.fill('#xbrl-form [name="capital"]', "50000")
+    dp.fill('#xbrl-form [name="cash"]', "50000")
+    dp.click("#xbrl-validate"); dp.wait_for_timeout(250)
+    check(S, "the audit reports a missing financial year end",
+          "نهاية السنة المالية غير محددة" in dp.inner_text("#xbrl-audit"))
+    dp.fill('#xbrl-form [name="periodEnd"]', "2026-12-31")
+    dp.click("#xbrl-validate"); dp.wait_for_timeout(250)
+    check(S, "and stops reporting it once the date is entered",
+          "نهاية السنة المالية غير محددة" not in dp.inner_text("#xbrl-audit"))
+    # the statement totals read like statement totals; the instance stays raw
+    tot = dp.eval_on_selector('#xbrl-form [name="totalAssets"]', "e=>e.value")
+    check(S, "computed totals carry the same thousands separator as every "
+             "other figure", tot == "50,000.000", tot)
+    dp.click("#xbrl-preview"); dp.wait_for_timeout(250)
+    xml = dp.inner_text("#xbrl-out")
+    check(S, "the XBRL instance itself stays machine-readable",
+          "50000.000" in xml and "50,000.000" not in xml)
+    c.close()
+
+    # Two tabs of one system are the same records. Without a storage listener
+    # one tab's table went stale while its CSV export — which re-reads storage
+    # — wrote the other tab's rows: a statement disagreeing with its screen.
+    c = br.new_context()
+    a1, a2 = c.new_page(), c.new_page()
+    for t in (a1, a2):
+        t.goto(f"{BASE}/nizam.html#/safi", wait_until="networkidle")
+    a1.fill('#safi-form [name="ticker"]', "NBK")
+    a1.fill('#safi-form [name="name"]', "بنك")
+    a1.fill('#safi-form [name="qty"]', "100")
+    a1.fill('#safi-form [name="cost"]', "850")
+    a1.fill('#safi-form [name="price"]', "910")
+    a1.click('#safi-form button[type=submit]'); a1.wait_for_timeout(500)
+    rows = (a1.eval_on_selector_all("#safi-rows tr", "r=>r.length"),
+            a2.eval_on_selector_all("#safi-rows tr", "r=>r.length"))
+    check(S, "a record added in one tab appears in the other", rows[0] == rows[1] == 1,
+          str(rows))
+    c.close()
+
     # one numeral system per table: the quantity column used the device locale
     c = br.new_context(locale="ar-KW")
     c.add_init_script("localStorage.setItem('nokhatha-safi-v1', %s);" % json.dumps(json.dumps(
@@ -1130,7 +1185,11 @@ def integration_checks(pg):
     pg.fill('input[name="revenue"]', "0")
     pg.click("#xbrl-derive"); pg.wait_for_timeout(250)
     inv = float(pg.input_value('input[name="investments"]'))
-    nca = float(pg.input_value('input[name="nonCurrentAssets"]'))
+    # the computed totals are display fields now — they carry the same
+    # thousands separator as every other figure, so strip it before comparing
+    def total(name):
+        return float(pg.input_value(f'input[name="{name}"]').replace(",", ""))
+    nca = total("nonCurrentAssets")
     rev = float(pg.input_value('input[name="revenue"]'))
     check(S, "SAFI market value becomes the financial investments line", abs(inv - market) < .001,
           f"{inv} vs {market:.3f}")
@@ -1138,7 +1197,7 @@ def integration_checks(pg):
           f"{nca} vs {market:.3f}")
     check(S, "delivered orders become revenue", abs(rev - 7.5) < .001, str(rev))
     check(S, "net income follows the derived revenue",
-          abs(float(pg.input_value('input[name="netIncome"]')) - 7.5) < .001)
+          abs(total("netIncome") - 7.5) < .001)
     check(S, "derived fields are marked as derived",
           "derived" in (pg.get_attribute('input[name="revenue"]', "class") or "")
           and "derived" in (pg.get_attribute('input[name="investments"]', "class") or ""))
@@ -1192,7 +1251,8 @@ def xbrl_checks(pg):
                        ("totalAssets", "31000.000"), ("currentLiabilities", "5000.000"),
                        ("nonCurrentLiabilities", "7000.000"), ("netIncome", "3135.000"),
                        ("equity", "19000.000")):
-        got = pg.input_value(f'input[name="{name}"]')
+        # the totals read as statement totals, so compare on the number
+        got = pg.input_value(f'input[name="{name}"]').replace(",", "")
         check(S, f"computed {name} matches the hand total", got == want, f"{got} vs {want}")
 
     pg.click("#xbrl-validate"); pg.wait_for_timeout(250)

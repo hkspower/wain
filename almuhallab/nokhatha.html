@@ -569,7 +569,7 @@
         var email = f.email.value.trim().toLowerCase();
         var password = f.password.value;
         if (!EMAIL_RE.test(email)) { err.textContent = "صيغة البريد الإلكتروني غير صحيحة."; return; }
-        if (password.length < 8) { err.textContent = "كلمة المرور يجب أن تكون ٨ أحرف على الأقل."; return; }
+        if (password.length < 8) { err.textContent = "كلمة المرور يجب أن تكون 8 أحرف على الأقل."; return; }
         var users = readUsers();
         if (users[email]) { err.textContent = "هذا البريد مسجّل من قبل — سجّل الدخول."; return; }
         var salt = newSalt();

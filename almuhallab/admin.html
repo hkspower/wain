@@ -667,7 +667,7 @@
     if (cancelled) pipe.push({ k: "⃠ " + STATUSES[4], v: cancelled, color: "var(--viz-neg)" });
 
     el("charts").innerHTML =
-      fig("تسجيل العملاء", "عدد الحسابات الجديدة في كل أسبوع، آخر ٨ أسابيع.",
+      fig("تسجيل العملاء", "عدد الحسابات الجديدة في كل أسبوع، آخر 8 أسابيع.",
           areaChart(weeks, function (v) { return v + " حساب"; })) +
       fig("مسار الطلبات", "المراحل بالترتيب؛ الملغاة معلّمة برمز ولون منفصل.",
           ordinalBars(pipe, function (v) { return v + " طلب"; }),
@@ -942,7 +942,7 @@
   var setupMode = !rd(K.admin, null);
   function paintGate() {
     el("gate-lead").textContent = setupMode
-      ? "لم تُضبط كلمة مرور للمشرف بعد. اختر واحدة الآن (١٠ أحرف على الأقل)."
+      ? "لم تُضبط كلمة مرور للمشرف بعد. اختر واحدة الآن (10 أحرف على الأقل)."
       : "أدخل كلمة مرور المشرف للمتابعة.";
     el("lbl-confirm").hidden = !setupMode;
     el("gate-btn").textContent = setupMode ? "ضبط كلمة المرور" : "دخول";
@@ -957,7 +957,7 @@
     f.querySelector("button").disabled = true;
 
     if (setupMode) {
-      if (pw.length < 10) { err.textContent = "١٠ أحرف على الأقل."; f.querySelector("button").disabled = false; return; }
+      if (pw.length < 10) { err.textContent = "10 أحرف على الأقل."; f.querySelector("button").disabled = false; return; }
       if (pw !== f.confirm.value) { err.textContent = "التأكيد لا يطابق."; f.querySelector("button").disabled = false; return; }
       var s = salt();
       derive(pw, s).then(function (h) {
