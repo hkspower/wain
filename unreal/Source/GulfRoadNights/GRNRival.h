@@ -8,6 +8,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "GRNTypes.h"
+#include "GRNCarFactory.h"
 #include "GRNRival.generated.h"
 
 class AGRNTrack;
@@ -37,4 +38,5 @@ public:
 	float TargetLat = 0.f;
 	float SpeedMs = 0.f;
 	float Sp = 100.f;
+	FGRNCarRig Rig;
 };

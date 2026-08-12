@@ -8,6 +8,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
 #include "GRNTypes.h"
+#include "GRNCarFactory.h"
 #include "GRNVehiclePawn.generated.h"
 
 class AGRNTrack;
@@ -57,6 +58,10 @@ public:
 	float InThrottle = 0.f, InBrake = 0.f, InSteer = 0.f;
 	bool bInDrift = false, bInNos = false;
 
+	/** Rebuild the visible car (garage swap / respray / wing). */
+	void BuildRig(EGRNBodyStyle Style, FLinearColor Paint, bool bWing);
+	FGRNCarRig Rig;
+
 private:
 	void UpdateHandling(float Dt);
 	void UpdateCamera(float Dt);
@@ -70,6 +75,7 @@ private:
 	void NosReleased() { bInNos = false; }
 	void FlashPressed();
 	void PausePressed();
+	void CyclePressed();
 
 	float FovCurrent = 62.f;
 };

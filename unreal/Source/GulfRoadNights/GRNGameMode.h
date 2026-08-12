@@ -13,8 +13,10 @@
 class AGRNTrack;
 class AGRNVehiclePawn;
 class AGRNRival;
+class AGRNTraffic;
 class AGRNWorldBuilder;
 class UGRNSaveGame;
+class ACameraActor;
 
 UENUM()
 enum class EGRNPhase : uint8 { Cruise, Cinematic, Battle, Results, Paused };
@@ -55,6 +57,12 @@ public:
 	float CineT = 0.f;
 	void SkipCinematic();
 
+	/** Showroom: apply a car's spec + silhouette to the player. */
+	void ApplyCar(int32 CarIdx);
+	/** Dev showroom cycling (Tab / D-pad) until the UMG garage lands. */
+	void CycleCar();
+	int32 CurrentCarIdx = 0;
+
 private:
 	void SpawnRival();
 	void StartBattle();
@@ -67,5 +75,8 @@ private:
 	void UpdateCinematic(float Dt);
 
 	float BattleDriftBank = 0.f;
+	UPROPERTY() TArray<AGRNTraffic*> Traffic;
+	UPROPERTY() ACameraActor* CineCamera = nullptr;
+	void UpdateTrafficCollisions(float Dt);
 	static constexpr TCHAR SaveSlot[] = TEXT("GulfRoadNights");
 };

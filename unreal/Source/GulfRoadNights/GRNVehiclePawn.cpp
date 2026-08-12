@@ -35,6 +35,7 @@ void AGRNVehiclePawn::SetupPlayerInputComponent(UInputComponent* Input)
 	Input->BindAction(TEXT("Nos"), IE_Released, this, &AGRNVehiclePawn::NosReleased);
 	Input->BindAction(TEXT("Flash"), IE_Pressed, this, &AGRNVehiclePawn::FlashPressed);
 	Input->BindAction(TEXT("Pause"), IE_Pressed, this, &AGRNVehiclePawn::PausePressed);
+	Input->BindAction(TEXT("CycleCar"), IE_Pressed, this, &AGRNVehiclePawn::CyclePressed);
 }
 
 void AGRNVehiclePawn::AxisSteer(float V)
@@ -62,6 +63,27 @@ void AGRNVehiclePawn::PausePressed()
 	}
 }
 
+void AGRNVehiclePawn::CyclePressed()
+{
+	if (AGRNGameMode* GM = Cast<AGRNGameMode>(UGameplayStatics::GetGameMode(this)))
+	{
+		GM->CycleCar();
+	}
+}
+
+void AGRNVehiclePawn::BuildRig(EGRNBodyStyle Style, FLinearColor Paint, bool bWing)
+{
+	// Tear down the previous machine before the new one goes on
+	for (UStaticMeshComponent* W : Rig.Wheels) if (W) W->DestroyComponent();
+	TArray<USceneComponent*> Kids;
+	CarRoot->GetChildrenComponents(false, Kids);
+	for (USceneComponent* K : Kids)
+	{
+		if (K != Camera) K->DestroyComponent();
+	}
+	Rig = GRNCarFactory::Build(this, CarRoot, Style, Paint, bWing);
+}
+
 void AGRNVehiclePawn::Tick(float Dt)
 {
 	Super::Tick(Dt);
@@ -69,6 +91,8 @@ void AGRNVehiclePawn::Tick(float Dt)
 	Dt = FMath::Min(Dt, 0.05f);
 	UpdateHandling(Dt);
 	UpdateCamera(Dt);
+	GRNCarFactory::SpinWheels(Rig, SpeedMs, Dt);
+	GRNCarFactory::SetBraking(Rig, InBrake > 0.f || bInDrift);
 }
 
 void AGRNVehiclePawn::UpdateHandling(float Dt)

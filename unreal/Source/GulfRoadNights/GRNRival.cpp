@@ -1,6 +1,7 @@
 #include "GRNRival.h"
 #include "GRNTrack.h"
 #include "GRNVehiclePawn.h"
+#include "GRNCarFactory.h"
 
 AGRNRival::AGRNRival()
 {
@@ -18,6 +19,10 @@ void AGRNRival::Init(AGRNTrack* InTrack, AGRNVehiclePawn* InPlayer, int32 RivalI
 	S = Track->Wrap(Player->S + GRN_M(260.f));
 	Lat = GRNLanes[2];
 	TargetLat = GRNLanes[2];
+
+	const FGRNRivalDef& Def = GRNRivals[DefIndex];
+	Rig = GRNCarFactory::Build(this, RootComponent, Def.Style,
+		FLinearColor(Def.BodyColor), /*bWing=*/Def.Style == EGRNBodyStyle::GTR);
 }
 
 void AGRNRival::Tick(float Dt)
@@ -63,4 +68,5 @@ void AGRNRival::Tick(float Dt)
 	FVector Pos; FRotator Rot;
 	Track->Pose(S, Lat, Pos, Rot);
 	SetActorLocationAndRotation(Pos, Rot);
+	GRNCarFactory::SpinWheels(Rig, SpeedMs, Dt);
 }

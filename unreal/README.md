@@ -15,6 +15,20 @@ reviewable, diffable text.
 3. Press Play. The game mode spawns the track, world, player and first
    rival automatically — no map setup needed.
 
+## Staying in sync with the web build
+
+The data tables in `GRNTypes.h` are **generated** — never edit them by
+hand. When `src/game/{track,rivals,mods}.ts` change, run from the repo
+root:
+
+```bash
+npm run sync:unreal     # regenerates Source/GulfRoadNights/GRNTypes.h
+```
+
+and commit the regenerated header. Track geometry, the rival roster,
+the full 12-car showroom and the handling constants all flow from the
+TypeScript source of truth into UE5 in one step.
+
 ## What maps to what
 
 | Web build (`src/game/`) | UE5 (`Source/GulfRoadNights/`) |
@@ -23,9 +37,11 @@ reviewable, diffable text.
 | `engine.ts` handling: thrust/drag, heading, drift | `GRNVehiclePawn::UpdateHandling` — constants copied 1:1 into `GRNTypes.h` |
 | `engine.ts` battle rules: SP drain, flash ritual | `AGRNGameMode` (drain curve identical) |
 | `rivals.ts` roster | `GRNRivals[]` in `GRNTypes.h` |
-| `mods.ts` showroom | `GRNCars[]` (garage UI: build in UMG) |
-| pre-battle cinematic (slow-mo film) | global time dilation 0.22× for 4.2 s, Start/Esc skips |
+| `mods.ts` showroom | `GRNCars[]` — applied to the pawn by `ApplyCar`; Tab / D-pad-right cycles machines until the UMG garage lands |
+| pre-battle cinematic (slow-mo film) | time dilation 0.22× + a real camera flying the same three shots (rival orbit → side pass → chase pull-back), Start/Esc skips |
 | `world.ts` road, rails, cobra-head street lights | `AGRNWorldBuilder` — procedural road ribbon + instanced lights **with real Lumen spot lights per lamp** |
+| `cars.ts` three silhouettes | `GRNCarFactory` — primitive-built sedan / Z-wedge / R34-style coupe with paint MIDs, spinning wheels, brake-flare tail lamps, real headlight beams; wing only when the part is owned |
+| traffic | `AGRNTraffic` × 8 with the web build's shunt rules (speed clamp, hitbox knock-out, SP cost in battle) |
 | HUD (React) | `AGRNHud` Canvas drawing (swap for UMG in the art pass) |
 | localStorage saves | `UGRNSaveGame` slot "GulfRoadNights" |
 | Gamepad (browser Gamepad API) | `DefaultInput.ini`: sticks/triggers/face buttons, same layout |
@@ -45,9 +61,9 @@ reviewable, diffable text.
 
 ## Where to take it next
 
-- **Cars**: `GRNVehiclePawn`/`GRNRival` render as poses; attach the car
-  meshes (the three silhouettes — sedan, Z-wedge, R34-style coupe) as
-  static meshes or import real Nanite assets. All handling already works.
+- **Cars**: the primitive rigs drive and read correctly today; swap
+  `GRNCarFactory::Build` internals for Nanite car scans when art lands —
+  the rig API (wheels, paint MID, tail MID, headlight) stays.
 - **Garage/results/menus**: the data tables are in `GRNTypes.h`; build
   the screens in UMG against `AGRNGameMode`'s state.
 - **Audio**: port `sound.ts`'s synth via MetaSounds (the layered

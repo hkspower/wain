@@ -5,6 +5,9 @@
 #include "GRNWorldBuilder.h"
 #include "GRNSaveGame.h"
 #include "GRNHud.h"
+#include "GRNTraffic.h"
+#include "Camera/CameraActor.h"
+#include "Camera/CameraComponent.h"
 #include "Kismet/GameplayStatics.h"
 
 AGRNGameMode::AGRNGameMode()
@@ -31,6 +34,13 @@ void AGRNGameMode::BeginPlay()
 	}
 
 	LoadProgress();
+	ApplyCar(CurrentCarIdx);
+	for (int32 i = 0; i < 8; i++)
+	{
+		AGRNTraffic* T = World->SpawnActor<AGRNTraffic>();
+		T->Init(Track, Player, i);
+		Traffic.Add(T);
+	}
 	SpawnRival();
 	ShowMessage(RivalIndex < GRNRivalCount
 		? FString::Printf(TEXT("Find %s — close in and flash 3x to challenge"), GRNRivals[RivalIndex].Name)
@@ -46,6 +56,56 @@ void AGRNGameMode::Tick(float Dt)
 	case EGRNPhase::Cinematic: UpdateCinematic(Dt); break;
 	default: break;
 	}
+	if (Phase != EGRNPhase::Cinematic) UpdateTrafficCollisions(Dt);
+}
+
+void AGRNGameMode::UpdateTrafficCollisions(float Dt)
+{
+	// The web build's simple shunt: close enough in S and Lat costs
+	// speed, knocks the player out of the hitbox, and bleeds SP mid-battle
+	if (!Player) return;
+	for (AGRNTraffic* T : Traffic)
+	{
+		const float DsM = Track->DeltaAhead(Player->S, T->S) / 100.f;
+		const float DLatM = FMath::Abs(T->Lat - Player->Lat) / 100.f;
+		if (FMath::Abs(DsM) < 4.2f && DLatM < 2.0f)
+		{
+			Player->SpeedMs = FMath::Min(Player->SpeedMs * 0.55f, T->SpeedMs * 0.9f);
+			if (DsM >= 0.f) Player->S = Track->Wrap(T->S - GRN_M(4.5f));
+			if (Phase == EGRNPhase::Battle)
+			{
+				Player->Sp = FMath::Max(0.f, Player->Sp - 8.f);
+			}
+			break;
+		}
+	}
+}
+
+void AGRNGameMode::ApplyCar(int32 CarIdx)
+{
+	CurrentCarIdx = FMath::Clamp(CarIdx, 0, GRNCarCount - 1);
+	const FGRNCarDef& Car = GRNCars[CurrentCarIdx];
+	if (!Player) return;
+	Player->PowerMult = Car.Power;
+	Player->TopSpeedBonus = Car.TopSpeed;
+	Player->GripAccel = Car.Grip;
+	Player->BrakeForce = Car.Brake;
+	// Wing only if the GT Wing part is owned — the player's choice
+	bool bWing = false;
+	if (UGRNSaveGame* Save = Cast<UGRNSaveGame>(
+		UGameplayStatics::LoadGameFromSlot(SaveSlot, 0)))
+	{
+		bWing = Save->OwnedParts.Contains(TEXT("spoiler"));
+	}
+	Player->BuildRig(Car.Style, FLinearColor(Car.Paint), bWing);
+}
+
+void AGRNGameMode::CycleCar()
+{
+	if (Phase != EGRNPhase::Cruise) return;
+	ApplyCar((CurrentCarIdx + 1) % GRNCarCount);
+	ShowMessage(FString::Printf(TEXT("Machine: %s"), GRNCars[CurrentCarIdx].Name), 2.f);
+	SaveProgress();
 }
 
 void AGRNGameMode::SpawnRival()
@@ -74,6 +134,11 @@ void AGRNGameMode::TryFlash()
 		Phase = EGRNPhase::Cinematic;
 		CineT = 0.f;
 		UGameplayStatics::SetGlobalTimeDilation(this, 0.22f);
+		if (!CineCamera) CineCamera = GetWorld()->SpawnActor<ACameraActor>();
+		if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+		{
+			PC->SetViewTargetWithBlend(CineCamera, 0.f);
+		}
 		ShowMessage(FString::Printf(TEXT("CHALLENGER — %s · %s"),
 			GRNRivals[Rival->DefIndex].Name, GRNRivals[Rival->DefIndex].Crew), 4.5f);
 	}
@@ -83,13 +148,60 @@ void AGRNGameMode::UpdateCinematic(float Dt)
 {
 	// Wall-clock: dilation slows Dt, so divide it back out
 	CineT += Dt / FMath::Max(0.05f, UGameplayStatics::GetGlobalTimeDilation(this));
-	if (CineT >= 4.2f) SkipCinematic();
+	if (CineT >= 4.2f) { SkipCinematic(); return; }
+	if (!CineCamera || !Rival || !Player) return;
+
+	// Same three shots as the web build: orbit the rival's machine, a low
+	// side pass of yours, then fall back into the chase.
+	const float T = CineT;
+	auto Ease = [](float X) { X = FMath::Clamp(X, 0.f, 1.f); return 1.f - FMath::Square(1.f - X); };
+	FVector Focus, Cam;
+	if (T < 1.8f)
+	{
+		const float K = Ease(T / 1.8f);
+		FVector Pos; FRotator Rot;
+		Track->Pose(Rival->S, Rival->Lat, Pos, Rot);
+		const FVector Fwd = Track->TangentAt(Rival->S);
+		const FVector Side = Track->SideAt(Rival->S);
+		const float A = 2.55f - 1.35f * K;
+		Cam = Pos + (Fwd * FMath::Cos(A) + Side * FMath::Sin(A)) * GRN_M(6.2f - 1.2f * K)
+			+ FVector(0, 0, GRN_M(1.5f - 0.7f * K));
+		Focus = Pos + FVector(0, 0, GRN_M(0.6f));
+	}
+	else if (T < 3.1f)
+	{
+		const float K = Ease((T - 1.8f) / 1.3f);
+		FVector Pos; FRotator Rot;
+		Track->Pose(Player->S, Player->Lat, Pos, Rot);
+		const FVector Fwd = Track->TangentAt(Player->S);
+		const FVector Side = Track->SideAt(Player->S);
+		Cam = Pos + Side * GRN_M(4.6f) + Fwd * GRN_M(2.2f - 2.8f * K) + FVector(0, 0, GRN_M(1.05f));
+		Focus = Pos + FVector(0, 0, GRN_M(0.55f));
+	}
+	else
+	{
+		const float K = Ease((T - 3.1f) / 1.1f);
+		FVector Pos; FRotator Rot;
+		Track->Pose(Player->S, Player->Lat, Pos, Rot);
+		const FVector Fwd = Track->TangentAt(Player->S);
+		const FVector Side = Track->SideAt(Player->S);
+		const FVector From = Pos + Side * GRN_M(4.2f) - Fwd * GRN_M(2.5f) + FVector(0, 0, GRN_M(1.1f));
+		const FVector To = Pos - Fwd * GRN_M(9.5f) + FVector(0, 0, GRN_M(3.4f));
+		Cam = FMath::Lerp(From, To, K);
+		Focus = Pos + Fwd * GRN_M(K * 14.f) + FVector(0, 0, GRN_M(FMath::Lerp(0.55f, 1.4f, K)));
+	}
+	CineCamera->SetActorLocation(Cam);
+	CineCamera->SetActorRotation((Focus - Cam).Rotation());
 }
 
 void AGRNGameMode::SkipCinematic()
 {
 	if (Phase != EGRNPhase::Cinematic) return;
 	UGameplayStatics::SetGlobalTimeDilation(this, 1.f);
+	if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+	{
+		PC->SetViewTargetWithBlend(Player, 0.3f); // hand back to the chase
+	}
 	StartBattle();
 }
 
@@ -188,6 +300,7 @@ void AGRNGameMode::SaveProgress()
 	Save->RivalIndex = RivalIndex;
 	Save->Kd = Kd;
 	Save->Xp = Xp;
+	Save->CurrentCar = GRNCars[CurrentCarIdx].Id;
 	UGameplayStatics::SaveGameToSlot(Save, SaveSlot, 0);
 }
 
@@ -198,5 +311,9 @@ void AGRNGameMode::LoadProgress()
 		RivalIndex = FMath::Clamp(Save->RivalIndex, 0, GRNRivalCount);
 		Kd = Save->Kd;
 		Xp = Save->Xp;
+		for (int32 i = 0; i < GRNCarCount; i++)
+		{
+			if (Save->CurrentCar == GRNCars[i].Id) { CurrentCarIdx = i; break; }
+		}
 	}
 }
