@@ -91,6 +91,7 @@ export default function RaceClient() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [result, setResult] = useState<RaceResult | null>(null);
   const [cine, setCine] = useState<{ card: DriverCard; stake: number } | null>(null);
+  const [pauseOpen, setPauseOpen] = useState(false);
   const driftRef = useRef<HTMLDivElement>(null);
   const [onboarding, setOnboarding] = useState(false);
   const [coach, setCoach] = useState<CoachState | null>(null);
@@ -311,6 +312,25 @@ export default function RaceClient() {
 
   const startingRef = useRef(false);
 
+  const exitToMenu = useCallback(() => {
+    engineRef.current?.dispose();
+    engineRef.current = null;
+    startingRef.current = false;
+    if (sendTimer.current) clearInterval(sendTimer.current);
+    hubRef.current?.close();
+    hubRef.current = null;
+    setOnlineCount(null);
+    setPauseOpen(false);
+    setResult(null);
+    setChallenge(null);
+    setCine(null);
+    setMessage(null);
+    setGarage(loadGarage());
+    setCareer(loadProfileStats());
+    setBeaten(readBeaten());
+    setPhase("menu");
+  }, []);
+
   const startGame = useCallback(async () => {
     // startingRef guards the async import window — without it a double
     // Enter/click builds two engines on the same canvas
@@ -372,7 +392,8 @@ export default function RaceClient() {
           setBeaten(readBeaten()); // engine has already saved by now
           setResult(r);
         },
-        onCinematic: (active, rival, stake) => {
+        onPauseRequest: () => setPauseOpen((p) => !p),
+      onCinematic: (active, rival, stake) => {
         setCine(active ? { card: rival, stake } : null);
         if (active) setChallenge(null); // the film replaces the setup card
       },
@@ -468,6 +489,13 @@ export default function RaceClient() {
     }
   }, [onHud, showMessage]);
 
+  // A controller is welcomed the moment it wakes up
+  useEffect(() => {
+    const hello = () => showMessage("Controller connected 🎮", "Stick steer · RT gas · LT brake · B drift · X flash · A NOS");
+    window.addEventListener("gamepadconnected", hello);
+    return () => window.removeEventListener("gamepadconnected", hello);
+  }, [showMessage]);
+
   // Coach hints read the live HUD at 4 Hz — enough to feel responsive
   // without re-rendering React every frame.
   useEffect(() => {
@@ -490,6 +518,13 @@ export default function RaceClient() {
     e.touchNos(false);
     e.touchHorn(false);
   }, [padsVisible]);
+
+  // The pause menu freezes the race (and holds it frozen under the
+  // settings screen); the garage and results manage their own pause.
+  useEffect(() => {
+    if (phase !== "playing" || garageOpen || result) return;
+    engineRef.current?.setPaused(pauseOpen || settingsOpen);
+  }, [pauseOpen, settingsOpen, phase, garageOpen, result]);
 
   // The garage is a full-screen overlay: freeze the race behind it, and
   // rebuild the car with whatever was bought on the way out.
@@ -525,6 +560,18 @@ export default function RaceClient() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (
+        e.key === "Escape" &&
+        phase === "playing" &&
+        !garageOpen &&
+        !settingsOpen &&
+        !onboarding &&
+        !result &&
+        !cine &&
+        !challenge
+      ) {
+        setPauseOpen((p) => !p);
+      }
       // Enter must not fall through a modal and start the race behind it
       if (
         phase === "menu" &&
@@ -543,7 +590,7 @@ export default function RaceClient() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [phase, startGame, result, garageOpen, settingsOpen, onboarding]);
+  }, [phase, startGame, result, garageOpen, settingsOpen, onboarding, cine, challenge]);
 
   const lvl = levelInfo(career?.xp ?? 0);
   const rank = rankTitle(lvl.level);
@@ -714,7 +761,7 @@ export default function RaceClient() {
           }`}
         >
           W/↑ accelerate · S/↓ brake · A D steer · Space drift · N nitro
-          <br />F flash headlights · M mute · B music · V voices · G glow fx
+          <br />F flash · Esc pause · M mute · B music · V voices · 🎮 supported
         </div>
       </div>
 
@@ -1488,6 +1535,56 @@ export default function RaceClient() {
             tap to skip ▸▸
           </div>
         </button>
+      )}
+
+      {/* Pause menu — Escape or the controller's Start button */}
+      {pauseOpen && phase === "playing" && !garageOpen && !settingsOpen && !result && (
+        <div
+          className="absolute inset-0 z-[28] flex items-center justify-center bg-night-950/85 backdrop-blur-md"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Paused"
+        >
+          <div className="grn-dialog screen-in w-[min(400px,92vw)] p-6 text-center">
+            <div className="grn-label text-[0.6rem] tracking-[0.4em] text-gulf-400">Paused</div>
+            <div className="grn-display mt-1 text-4xl italic">
+              PIT STOP <span className="grn-ar not-italic text-white/60">وقفة</span>
+            </div>
+            <div className="mt-6 flex flex-col gap-2.5">
+              <button
+                onClick={() => setPauseOpen(false)}
+                className="grn-btn grn-btn-primary tap w-full px-6 py-3.5 text-base"
+              >
+                RESUME — <span className="grn-ar">كمّل</span>
+              </button>
+              <button
+                onClick={() => {
+                  setPauseOpen(false);
+                  setGarage(loadGarage());
+                  setGarageOpen(true);
+                }}
+                className="grn-btn grn-btn-ghost tap w-full px-6 py-3 text-sm"
+              >
+                GARAGE 🔧
+              </button>
+              <button
+                onClick={() => setSettingsOpen(true)}
+                className="grn-btn grn-btn-ghost tap w-full px-6 py-3 text-sm"
+              >
+                SETTINGS ⚙
+              </button>
+              <button
+                onClick={exitToMenu}
+                className="grn-btn tap w-full border border-rose-400/40 px-6 py-3 text-sm text-rose-300 hover:bg-rose-500/15"
+              >
+                EXIT TO MENU
+              </button>
+            </div>
+            <p className="grn-label mt-4 text-[0.52rem] text-white/40">
+              Esc / 🎮 Start to resume · progress is saved
+            </p>
+          </div>
+        </div>
       )}
 
       {/* Loading — the engine build takes a beat on a phone */}

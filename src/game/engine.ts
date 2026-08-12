@@ -132,6 +132,8 @@ export interface EngineEvents {
   /** Pre-battle cinematic begins/ends — drives the letterbox + rival card.
    *  `stake` is the KD each side has up (0 = pride only). */
   onCinematic?(active: boolean, rival: DriverCard, stake: number): void;
+  /** The controller's Start button — the UI opens its pause menu. */
+  onPauseRequest?(): void;
 }
 
 interface RemotePlayer {
@@ -293,6 +295,15 @@ export class GameEngine {
   private keys = new Set<string>();
   /** On-screen (touch) controls, merged with the keyboard. */
   private touch = { throttle: 0, brake: 0, steer: 0, drift: false };
+  // Gamepad: polled every frame, merged into the same input model as
+  // keys/touch. Sticks steer, triggers drive, face buttons do the rest.
+  private pad = { steer: 0, throttle: 0, brake: 0, drift: false, nos: false };
+  private padButtons: boolean[] = [];
+  private padSeen = false;
+  /** RAF throttles hard on hidden/paused pages; a timer keeps the Start
+   *  button responsive there. Edges are consumed per poll, so the two
+   *  callers can never double-fire one press. */
+  private padTimer: ReturnType<typeof setInterval> | null = null;
   private events: EngineEvents;
 
   // Player — spawns just past the start-line gantry
@@ -737,6 +748,7 @@ export class GameEngine {
     this.clock.getDelta();
     this.lapStartAt = performance.now();
     this.startedAt = performance.now();
+    this.padTimer = setInterval(() => this.pollGamepad(), 50);
     const loop = () => {
       if (this.disposed) return;
       this.raf = requestAnimationFrame(loop);
@@ -745,6 +757,8 @@ export class GameEngine {
       this.autoQuality();
       this.updateDrs(performance.now());
       const dt = Math.min(raw, 0.05);
+      // Polled outside update() so Start still works while paused
+      this.pollGamepad();
       if (!this.paused) this.update(dt);
       // Refresh the paint's reflection probe on a stride. Every face
       // render would redraw the shadow maps too — freeze them for the
@@ -974,6 +988,7 @@ export class GameEngine {
     cancelAnimationFrame(this.raf);
     for (const t of this.challengeTimers) clearTimeout(t);
     this.challengeTimers = [];
+    if (this.padTimer) clearInterval(this.padTimer);
     this.cubeRT?.dispose();
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
@@ -1043,28 +1058,76 @@ export class GameEngine {
   private get throttle(): number {
     if (this.locked || this.cine) return 0;
     const key = this.keys.has("arrowup") || this.keys.has("w") ? 1 : 0;
-    return Math.max(key, this.touch.throttle);
+    return Math.max(key, this.touch.throttle, this.pad.throttle);
   }
   private get brake(): number {
     if (this.locked || this.cine) return 0;
     const key = this.keys.has("arrowdown") || this.keys.has("s") ? 1 : 0;
-    return Math.max(key, this.touch.brake);
+    return Math.max(key, this.touch.brake, this.pad.brake);
   }
   private get steer(): number {
     if (this.locked || this.cine) return 0;
     let s = 0;
     if (this.keys.has("arrowleft") || this.keys.has("a")) s -= 1;
     if (this.keys.has("arrowright") || this.keys.has("d")) s += 1;
-    return THREE.MathUtils.clamp(s + this.touch.steer, -1, 1);
+    return THREE.MathUtils.clamp(s + this.touch.steer + this.pad.steer, -1, 1);
   }
 
   private get handbrake(): boolean {
     if (this.locked || this.cine) return false;
-    const held = this.keys.has(" ") || this.touch.drift;
+    const held = this.keys.has(" ") || this.touch.drift || this.pad.drift;
     // A hold carried through the film (key auto-repeat re-adds it) must
     // not drag the handbrake at the green flag — demand a fresh press.
     if (!held) this.handbrakeStale = false;
     return held && !this.handbrakeStale;
+  }
+
+  /**
+   * Standard pad layout: left stick steers (deadzone + a gentle curve so
+   * small corrections stay small), triggers drive, A = NOS, B = drift,
+   * X = flash, LB = horn, Start = pause. Merged with keyboard/touch, so
+   * plugging a pad in never disables anything else.
+   */
+  private pollGamepad(): void {
+    const pads = typeof navigator !== "undefined" ? navigator.getGamepads?.() : null;
+    const gp = pads ? Array.from(pads).find((p) => p && p.connected) : null;
+    if (!gp) {
+      if (this.padSeen) this.pad = { steer: 0, throttle: 0, brake: 0, drift: false, nos: false };
+      this.padSeen = false;
+      return;
+    }
+    this.padSeen = true;
+    const edge = (i: number) => {
+      const now = gp.buttons[i]?.pressed ?? false;
+      const was = this.padButtons[i] ?? false;
+      this.padButtons[i] = now;
+      return now && !was;
+    };
+
+    if (!this.paused) {
+      const x = gp.axes[0] ?? 0;
+      const dz = 0.15;
+      this.pad.steer =
+        Math.abs(x) < dz ? 0 : Math.sign(x) * Math.pow((Math.abs(x) - dz) / (1 - dz), 1.3);
+      this.pad.throttle = gp.buttons[7]?.value ?? 0; // RT
+      this.pad.brake = gp.buttons[6]?.value ?? 0; // LT
+      this.pad.nos = gp.buttons[0]?.pressed ?? false; // A / Cross
+      this.pad.drift = gp.buttons[1]?.pressed ?? false; // B / Circle
+      if (edge(2)) this.tryFlash(); // X / Square
+      const hornNow = gp.buttons[4]?.pressed ?? false; // LB
+      if (hornNow && !this.padButtons[4]) this.sound?.hornOn();
+      if (!hornNow && this.padButtons[4]) this.sound?.hornOff();
+      this.padButtons[4] = hornNow;
+    } else {
+      this.pad = { steer: 0, throttle: 0, brake: 0, drift: false, nos: false };
+      this.padButtons[2] = gp.buttons[2]?.pressed ?? false;
+      this.padButtons[4] = gp.buttons[4]?.pressed ?? false;
+    }
+    if (edge(9)) {
+      // Start: during the film it skips; otherwise the UI takes over
+      if (this.cine) this.skipCinematic();
+      else this.events.onPauseRequest?.();
+    }
   }
 
   // ---------------------------------------------------------- touch API
@@ -1680,7 +1743,10 @@ export class GameEngine {
     }
     // NOS: hold N for a shove; the bottle refills slowly
     this.nosActive =
-      this.tune.hasNos && this.keys.has("n") && this.nosCharge > 0.02 && this.throttle > 0;
+      this.tune.hasNos &&
+      (this.keys.has("n") || this.pad.nos) &&
+      this.nosCharge > 0.02 &&
+      this.throttle > 0;
     if (this.nosActive) this.nosCharge = Math.max(0, this.nosCharge - dt / 3);
     else this.nosCharge = Math.min(1, this.nosCharge + dt * 0.06);
     this.sound?.setNos(this.nosActive);

@@ -8,7 +8,8 @@ A modern place-discovery app for Kuwait: curated landmarks, food, beaches, shopp
 
 A built-in **Kuwait Xtreme Racer** game at [`/race`](http://localhost:3000/race): Tokyo-Xtreme-Racer-style midnight highway battles on a 7.3 km lap of the real **Gulf Road** — south along the corniche from the Kuwait Towers past Green Island, the Salmiya marina, and the Scientific Center to Ras Al-Ard, then back north through Hawally and the city skyline (Al Hamra, Liberation Tower, the striped water towers).
 
-- **Drive**: `W/↑` accelerate, `S/↓` brake, `A`/`D` steer, `Space` drift, `N` NOS, `M` mute, `V` voices, `G` glow fx
+- **Drive**: `W/↑` accelerate, `S/↓` brake, `A`/`D` steer, `Space` drift, `N` NOS, `Esc` pause, `M` mute, `V` voices, `G` glow fx
+- **Controller**: plug in any standard gamepad — left stick steers (with deadzone + response curve), `RT`/`LT` drive, `A` NOS, `B` drift, `X` flash, `LB` horn, `Start` pauses (or skips the intro film)
 - **Drift**: hold `Space` while turning to kick the tail out — keep the throttle in to sustain the slide, counter-steer to catch it. Angle × speed pays style points, banked as bonus XP when you win the battle (a wall hit voids the run)
 - **Voices**: rivals speak Kuwaiti dialect lines (battle intros, gloats, concessions) through the browser's Arabic speech voices — each character has their own pitch and pace, from Abu Shanab's cheerful jab to the ghost's slow rasp
 - **Battle**: catch a rival and press `F` to flash your headlights — after the stake is agreed, a short slow-motion intro film pans the rival's machine before the green flag (tap to skip; reduced-motion players go straight to the flag). The trailing car bleeds SP (Spirit Points); empty the rival's bar to win
