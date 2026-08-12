@@ -132,6 +132,26 @@ CREATE TABLE IF NOT EXISTS agent_events (
   created_at TEXT    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_agent_events_agent ON agent_events(agent_id, id DESC);
+
+/* إعدادات تشغيلية يضبطها المدير من لوحة التحكم بدل تثبيتها في الكود */
+CREATE TABLE IF NOT EXISTS settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by INTEGER REFERENCES agents(id) ON DELETE SET NULL
+);
+
+/* سجل تغييرات الإعدادات — العمولة تمسّ مستحقّات الكباتن فلا تتغيّر بلا أثر */
+CREATE TABLE IF NOT EXISTS setting_events (
+  id         INTEGER PRIMARY KEY,
+  key        TEXT    NOT NULL,
+  actor_id   INTEGER REFERENCES agents(id) ON DELETE SET NULL,
+  from_value TEXT    NOT NULL DEFAULT '',
+  to_value   TEXT    NOT NULL DEFAULT '',
+  note       TEXT    NOT NULL DEFAULT '',
+  created_at TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_setting_events_key ON setting_events(key, id DESC);
 `);
 
 /* ---- ترحيلات: أعمدة تُضاف للقواعد القائمة ---- */
@@ -154,6 +174,17 @@ addColumn('approval_by',   'INTEGER REFERENCES agents(id) ON DELETE SET NULL');
 if (isNewApprovalColumn) {
   db.exec(`UPDATE agents SET approval = CASE WHEN active = 1 THEN 'approved' ELSE 'blocked' END`);
 }
+
+/* لقطة العمولة على الطلب. تُحفظ وقت الإنشاء ولا تتغيّر بعده: تغيير العمولة في
+   لوحة التحكم يجب ألّا يعيد حساب مستحقّات طلبات سابقة اتُّفق عليها. */
+const orderCols = db.prepare('PRAGMA table_info(orders)').all().map((c) => c.name);
+const addOrderColumn = (name, ddl) => {
+  if (!orderCols.includes(name)) db.exec(`ALTER TABLE orders ADD COLUMN ${name} ${ddl}`);
+};
+addOrderColumn('commission_type',   "TEXT NOT NULL DEFAULT 'percent'");
+addOrderColumn('commission_rate',   'REAL NOT NULL DEFAULT 0');
+addOrderColumn('commission_amount', 'REAL NOT NULL DEFAULT 0');
+addOrderColumn('agent_earning',     'REAL NOT NULL DEFAULT 0');
 
 /** الوقت الحالي بصيغة ISO — كل الطوابع الزمنية مخزّنة بتوقيت UTC */
 const now = () => new Date().toISOString();

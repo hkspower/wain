@@ -4,6 +4,7 @@ const { db, now, nextOrderCode, logEvent, logAgentEvent } = require('./db');
 const auth = require('./auth');
 const D = require('./domain');
 const L = require('./location');
+const S = require('./settings');
 const {
   badRequest, unauthorized, forbidden, notFound, conflict,
   str, num, oneOf, id,
@@ -209,6 +210,40 @@ on('PATCH', '/api/agents/:id', async (ctx) => {
   return { agent: publicAgent(db.prepare('SELECT * FROM agents WHERE id=?').get(agentId)) };
 });
 
+/* ---- الإعدادات: عمولة الوساطة وغيرها ---- */
+
+on('GET', '/api/settings', async (ctx) => {
+  requireAdmin(ctx);
+  return {
+    settings: S.all(),
+    commission: S.describeCommission(),
+    commission_types: S.COMMISSION_TYPES,
+    history: S.history('commission', 30),
+  };
+});
+
+on('PATCH', '/api/settings', async (ctx) => {
+  requireAdmin(ctx);
+  const note = str(ctx.body.note, 'سبب التغيير', { required: false, max: 300 });
+
+  if (ctx.body.commission_type == null && ctx.body.commission_rate == null) {
+    throw badRequest('لا يوجد ما يُحدَّث');
+  }
+  const commission = S.setCommission(
+    { type: ctx.body.commission_type, rate: ctx.body.commission_rate },
+    ctx.agent, note
+  );
+
+  return { settings: S.all(), commission, history: S.history('commission', 30) };
+});
+
+/** معاينة العمولة على رسوم معيّنة قبل حفظ الطلب */
+on('GET', '/api/settings/commission-preview', async (ctx) => {
+  requireAdmin(ctx);
+  const fee = num(ctx.query.delivery_fee, 'رسوم التوصيل', { max: 10000 });
+  return { preview: S.commissionFor(fee) };
+});
+
 /* ---- اعتماد المندوبين: معتمد · تحت التجربة · غير مقبول · محظور ---- */
 
 on('PATCH', '/api/agents/:id/approval', async (ctx) => {
@@ -309,18 +344,26 @@ on('POST', '/api/orders', async (ctx) => {
   };
 
   const agentId = ctx.body.agent_id ? id(ctx.body.agent_id, 'معرّف المندوب') : null;
-  if (agentId && !db.prepare("SELECT 1 FROM agents WHERE id=? AND role='agent' AND active=1").get(agentId)) {
-    throw badRequest('المندوب غير موجود أو غير مفعّل');
+  if (agentId) {
+    const target = db.prepare("SELECT * FROM agents WHERE id=? AND role='agent'").get(agentId);
+    if (!target) throw badRequest('المندوب غير موجود أو غير مفعّل');
+    D.assertCanReceiveOrders(target);
   }
+
+  // لقطة العمولة وقت الإنشاء — تغييرها لاحقًا لا يمسّ هذا الطلب
+  const commission = S.commissionFor(order.delivery_fee);
 
   const info = db.prepare(
     `INSERT INTO orders
       (code, customer_name, customer_phone, pickup_address, dropoff_address, governorate,
-       vehicle, cod_amount, delivery_fee, priority, notes, status, agent_id, created_by, created_at, updated_at)
+       vehicle, cod_amount, delivery_fee, priority, notes, status, agent_id, created_by,
+       commission_type, commission_rate, commission_amount, agent_earning, created_at, updated_at)
      VALUES (@code, @customer_name, @customer_phone, @pickup_address, @dropoff_address, @governorate,
-       @vehicle, @cod_amount, @delivery_fee, @priority, @notes, @status, @agent_id, @created_by, @ts, @ts)`
+       @vehicle, @cod_amount, @delivery_fee, @priority, @notes, @status, @agent_id, @created_by,
+       @commission_type, @commission_rate, @commission_amount, @agent_earning, @ts, @ts)`
   ).run({
     ...order,
+    ...commission,
     status: agentId ? 'assigned' : 'new',
     agent_id: agentId,
     created_by: ctx.agent.id,
@@ -463,7 +506,11 @@ on('GET', '/api/stats', async (ctx) => {
   todayStart.setUTCHours(0, 0, 0, 0);
 
   const today = db.prepare(
-    `SELECT COUNT(*) AS delivered, COALESCE(SUM(cod_amount), 0) AS cod
+    `SELECT COUNT(*) AS delivered,
+            COALESCE(SUM(cod_amount), 0)        AS cod,
+            COALESCE(SUM(delivery_fee), 0)      AS fees,
+            COALESCE(SUM(commission_amount), 0) AS commission,
+            COALESCE(SUM(agent_earning), 0)     AS earning
        FROM orders WHERE status='delivered' AND delivered_at >= @from ${scope}`
   ).get({ ...args, from: todayStart.toISOString() });
 
@@ -481,6 +528,10 @@ on('GET', '/api/stats', async (ctx) => {
     active: D.ACTIVE_STATUSES.reduce((sum, s) => sum + counts[s], 0),
     delivered_today: today.delivered,
     cod_today: today.cod,
+    fees_today: S.round3(today.fees),
+    // عمولتنا كوسيط، ومستحقّ الكباتن — المجموعان من لقطة كل طلب لا من نسبة حالية
+    commission_today: S.round3(today.commission),
+    agent_earning_today: S.round3(today.earning),
     pending_transfers_in: pendingTransfers,
     pending_transfers_out: outgoingTransfers,
     agents_online: isAdmin

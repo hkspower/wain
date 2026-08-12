@@ -7,11 +7,14 @@
 const { db, now, logEvent, logAgentEvent } = require('./db');
 const { hashPassword } = require('./auth');
 const ar = require('arabic-kit');
+const settings = require('./settings');
 
 const RESET = process.argv.includes('--reset');
 
 if (RESET) {
-  db.exec('DELETE FROM events; DELETE FROM agent_events; DELETE FROM transfers; DELETE FROM orders; DELETE FROM sessions; DELETE FROM agents;');
+  db.exec(`DELETE FROM events; DELETE FROM agent_events; DELETE FROM setting_events;
+           DELETE FROM settings; DELETE FROM transfers; DELETE FROM orders;
+           DELETE FROM sessions; DELETE FROM agents;`);
   console.log('تم مسح البيانات السابقة.');
 }
 
@@ -85,9 +88,11 @@ const insertOrder = db.prepare(
   `INSERT INTO orders
     (code, customer_name, customer_phone, pickup_address, dropoff_address, governorate, vehicle,
      cod_amount, delivery_fee, priority, notes, status, agent_id, created_by, failure_reason,
+     commission_type, commission_rate, commission_amount, agent_earning,
      created_at, updated_at, delivered_at)
    VALUES (@code, @customer_name, @customer_phone, @pickup, @dropoff, @gov, @vehicle,
      @cod, @fee, @priority, @notes, @status, @agent_id, @created_by, @failure_reason,
+     @commission_type, @commission_rate, @commission_amount, @agent_earning,
      @created_at, @updated_at, @delivered_at)`
 );
 
@@ -96,6 +101,8 @@ db.transaction(() => {
   orders.forEach((o, i) => {
     const created = new Date(Date.now() - (orders.length - i) * 42 * 60_000).toISOString();
     const info = insertOrder.run({
+      // نفس حساب الواجهة البرمجية، فتظهر الأرقام التجريبية بعمولة حقيقية
+      ...settings.commissionFor(o.fee),
       code: 'MW-' + (4801 + i),
       customer_name: o.customer_name,
       customer_phone: o.customer_phone,

@@ -163,6 +163,7 @@
     'new': renderNewOrder,
     'location': renderLocation,
     'live': renderLive,
+    'settings': renderSettings,
   };
 
   function parseHash() {
@@ -199,6 +200,7 @@
       items.push({ href: '#/live', key: 'live', label: 'المباشر' });
       items.push({ href: '#/agents', key: 'agents', label: 'المندوبون' });
       items.push({ href: '#/new', key: 'new', label: 'طلب جديد' });
+      items.push({ href: '#/settings', key: 'settings', label: 'الإعدادات' });
     } else {
       items.push({ href: '#/location', key: 'location', label: 'موقعي' });
     }
@@ -256,6 +258,10 @@
         <div class="stat"><b class="num">${ar(s.active)}</b><span>طلبات نشطة</span></div>
         <div class="stat"><b class="num">${ar(s.delivered_today)}</b><span>سُلّمت اليوم</span></div>
         <div class="stat stat--accent"><b class="num">${money(s.cod_today)}</b><span>تحصيل اليوم (د.ك)</span></div>
+        ${isAdmin
+          ? `<div class="stat"><b class="num">${money(s.commission_today)}</b><span>عمولتنا اليوم (د.ك)</span></div>
+             <div class="stat"><b class="num">${money(s.agent_earning_today)}</b><span>مستحقّ الكباتن اليوم (د.ك)</span></div>`
+          : ''}
         ${isAdmin
           ? `<div class="stat"><b class="num">${ar(s.counts.new)}</b><span>بانتظار الإسناد</span></div>
              <div class="stat stat--dark"><b class="num">${ar(s.agents_online)}</b><span>مندوب متاح الآن</span></div>
@@ -446,6 +452,12 @@
                 <dt>المركبة</dt><dd>${esc(vehicleName(order.vehicle))}</dd>
                 <dt>التحصيل</dt><dd class="num">${money(order.cod_amount)} د.ك</dd>
                 <dt>رسوم التوصيل</dt><dd class="num">${money(order.delivery_fee)} د.ك</dd>
+                ${isAdmin ? `
+                  <dt>عمولة موصول</dt>
+                  <dd class="num">${money(order.commission_amount)} د.ك
+                    <small class="muted">${order.commission_type === 'percent'
+                      ? `(${ar(order.commission_rate)}٪)` : '(مبلغ ثابت)'}</small></dd>` : ''}
+                <dt>مستحقّ الكابتن</dt><dd class="num">${money(order.agent_earning)} د.ك</dd>
                 <dt>المندوب</dt><dd>${order.agent_name ? esc(order.agent_name) : 'غير مُسند'}</dd>
                 ${order.notes ? `<dt>ملاحظات</dt><dd>${esc(order.notes)}</dd>` : ''}
                 ${order.failure_reason ? `<dt>سبب التعذّر</dt><dd>${esc(order.failure_reason)}</dd>` : ''}
@@ -1335,6 +1347,127 @@
     no_data: 'لا توجد قراءة بعد',
     stale: 'آخر قراءة قديمة',
   };
+
+  /* ------------------------- الإعدادات: العمولة ------------------------- */
+
+  async function renderSettings() {
+    if (state.me.role !== 'admin') { location.hash = '#/'; return; }
+    el.view.innerHTML = `<div class="page-head"><div><h1>الإعدادات</h1></div></div>${skeleton(2)}`;
+
+    let data;
+    try {
+      data = await api('/settings');
+    } catch (err) {
+      el.view.innerHTML = `<div class="card"><div class="card__body">${emptyState('تعذّر تحميل الإعدادات', err.message)}</div></div>`;
+      return;
+    }
+
+    const s = data.settings;
+    const isPercent = s.commission_type === 'percent';
+    // مثال حيّ على رسوم شائعة حتى يرى المدير أثر العمولة قبل أن يحفظها
+    const sample = 1.5;
+
+    el.view.innerHTML = `
+      <div class="page-head">
+        <div>
+          <h1>الإعدادات</h1>
+          <p>عمولة الوساطة وما يترتّب عليها من مستحقّات الكباتن.</p>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card__head"><h2>عمولة الوساطة</h2></div>
+          <div class="card__body">
+            <p class="hint">
+              موصول وسيط بين الكابتن والزبون: العمولة دخل المنصّة، والباقي مستحقّ
+              للكابتن. <b>تُلتقط على الطلب وقت إنشائه</b> — تغييرها هنا يسري على
+              الطلبات الجديدة فقط ولا يمسّ طلبًا سابقًا.
+            </p>
+
+            <form id="settingsForm">
+              <div class="form-grid">
+                <label class="field">
+                  <span>نوع العمولة</span>
+                  <select name="commission_type" id="cType">
+                    ${Object.entries(data.commission_types).map(([k, v]) =>
+                      `<option value="${k}"${s.commission_type === k ? ' selected' : ''}>${esc(v)}</option>`).join('')}
+                  </select>
+                </label>
+                <label class="field">
+                  <span id="cLabel">${isPercent ? 'النسبة (٪)' : 'المبلغ (د.ك)'}</span>
+                  <input name="commission_rate" id="cRate" type="number" dir="ltr"
+                         step="${isPercent ? '0.5' : '0.05'}" min="0" max="100"
+                         value="${esc(s.commission_rate)}" required>
+                </label>
+                <label class="field field--full">
+                  <span>سبب التغيير <small class="muted">(اختياري، يُحفظ في السجل)</small></span>
+                  <input name="note" maxlength="300" placeholder="مثال: مراجعة أسعار الربع الأول">
+                </label>
+              </div>
+
+              <div class="calc" id="calc"></div>
+
+              <p class="form-msg" id="settingsMsg"></p>
+              <button class="btn btn--primary btn--block" type="submit">حفظ العمولة</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__head"><h2>سجل تغييرات العمولة</h2></div>
+          <div class="card__body">
+            <ol class="approval__log">
+              ${data.history.length === 0 ? '<li class="muted">لم تُغيَّر العمولة بعد.</li>' : ''}
+              ${data.history.map((h) => `
+                <li>
+                  <b>${esc(h.to_value)}</b>
+                  <span class="muted">من ${esc(h.from_value)}</span>
+                  <span class="muted">— ${esc(h.actor_name || 'النظام')}، ${esc(relTime(h.created_at))}</span>
+                  ${h.note ? `<p class="approval__note">${esc(h.note)}</p>` : ''}
+                </li>`).join('')}
+            </ol>
+          </div>
+        </div>
+      </div>`;
+
+    const form = document.getElementById('settingsForm');
+    const typeSel = document.getElementById('cType');
+    const rateInp = document.getElementById('cRate');
+    const calcBox = document.getElementById('calc');
+
+    /** يعرض أثر القيمة المكتوبة على رسوم نموذجية، بنفس حساب الخادم */
+    function paint() {
+      const percent = typeSel.value === 'percent';
+      document.getElementById('cLabel').textContent = percent ? 'النسبة (٪)' : 'المبلغ (د.ك)';
+      rateInp.step = percent ? '0.5' : '0.05';
+
+      const rate = Math.min(100, Math.max(0, Number(rateInp.value) || 0));
+      const raw = percent ? sample * (rate / 100) : rate;
+      const commission = Math.round(Math.min(sample, Math.max(0, raw)) * 1000) / 1000;
+      const earning = Math.round((sample - commission) * 1000) / 1000;
+
+      calcBox.innerHTML = `
+        <span class="calc__t">على طلب رسومه ${money(sample)} د.ك</span>
+        <div class="calc__row"><span>عمولة موصول</span><b>${money(commission)} د.ك</b></div>
+        <div class="calc__row"><span>مستحقّ الكابتن</span><b>${money(earning)} د.ك</b></div>`;
+    }
+
+    typeSel.addEventListener('change', paint);
+    rateInp.addEventListener('input', paint);
+    paint();
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('settingsMsg');
+      const fd = Object.fromEntries(new FormData(e.target));
+      await submit(e.target, msg, async () => {
+        await api('/settings', { method: 'PATCH', body: fd });
+        toast('تم حفظ العمولة', 'ok');
+        await renderSettings();
+      });
+    });
+  }
 
   async function renderLive() {
     if (state.me.role !== 'admin') { location.hash = '#/'; return; }

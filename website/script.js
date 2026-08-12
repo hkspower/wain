@@ -126,7 +126,9 @@
   function counterText(el, value) {
     var noun = el.dataset.noun;
     if (noun) return AR.plural(value, noun, { showNumber: true });
-    return formatCount(value) + (el.dataset.suffix || '');
+    // السنوات وأرقام الموديل بلا فاصل آلاف: ٢٠٢٢ لا ٢٬٠٢٢
+    var body = el.hasAttribute('data-plain') ? AR.digits(value) : formatCount(value);
+    return body + (el.dataset.suffix || '');
   }
 
   function runCounter(el) {

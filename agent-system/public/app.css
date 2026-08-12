@@ -284,6 +284,27 @@ a.stat:hover { border-color: var(--teal-600); }
   border-inline-start: 2px solid var(--line-str); padding-inline-start: .7rem;
 }
 
+/* ----------------------- الإعدادات: العمولة ----------------------- */
+
+.grid-2 { display: grid; grid-template-columns: 1.35fr 1fr; gap: 1.1rem; align-items: start; }
+
+/* أثر العمولة على رسوم نموذجية — يتحدّث مع الكتابة قبل الحفظ */
+.calc {
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--teal-50); padding: .8rem 1rem; margin: .2rem 0 1.1rem;
+}
+.calc__t { display: block; font-size: .82rem; color: var(--ink-soft); margin-bottom: .4rem; }
+.calc__row {
+  display: flex; justify-content: space-between; gap: 1rem;
+  font-size: .92rem; line-height: 2;
+}
+.calc__row + .calc__row { border-top: 1px dashed var(--line-str); }
+.calc__row b { font-variant-numeric: tabular-nums; color: var(--teal-700); }
+
+@media (max-width: 860px) {
+  .grid-2 { grid-template-columns: 1fr; }
+}
+
 /* -------------------------- تفاصيل الطلب -------------------------- */
 .detail { display: grid; grid-template-columns: 1.5fr 1fr; gap: 1.1rem; align-items: start; }
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: .5rem 1rem; }
