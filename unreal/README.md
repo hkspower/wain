@@ -46,18 +46,33 @@ TypeScript source of truth into UE5 in one step.
 | localStorage saves | `UGRNSaveGame` slot "GulfRoadNights" |
 | Gamepad (browser Gamepad API) | `DefaultInput.ini`: sticks/triggers/face buttons, same layout |
 
-## Renderer
+## Renderer — full UE5, max resolution by default
 
-`Config/DefaultEngine.ini` turns on the UE5 night-city stack:
+The game boots at the renderer's ceiling. `GRNGraphics::ApplyMax` runs
+before the first frame and sets:
 
-- **Lumen** global illumination + reflections — the sodium lamps light
-  the asphalt for real, and car paint reflects the actual scene (the
-  web build fakes this with a cube probe; here it's native).
-- **Virtual shadow maps** for crisp lamp shadows.
-- **TSR** upscaling — the UE analogue of the web build's dynamic
-  resolution governor; scalability groups replace the quality tiers.
-- Motion blur off, bloom on, sharpen 0.4 — tuned to the same
-  "comfortable night" target as the web grade.
+- **Native desktop resolution, fullscreen**, VSync off, frame cap off —
+  `r.ScreenPercentage 100`, no hidden upscale.
+- **Cinematic scalability** (level 4) across every group.
+- **Lumen** GI + reflections at raised quality (probe resolution 32,
+  radiosity spacing 2, rough reflections traced to 0.6) — the sodium
+  lamps light the asphalt for real and car paint reflects the actual
+  scene. **Hardware ray tracing** feeds Lumen on GPUs that have it
+  (`r.Lumen.HardwareRayTracing`, hit-lighting mode); software Lumen is
+  the automatic fallback.
+- **Nanite** enabled project-wide, ready for scanned car/city meshes.
+- **Virtual shadow maps** at zero LOD bias; **TSR** at its
+  highest-quality history preset; SSR/refraction/translucency at max;
+  a 4 GB streaming pool so nothing pops on the 7 km lap.
+
+`Config/DefaultScalability.ini` defines a Cine tier above Epic (denser
+Lumen probes, sharper VSM) and keeps even lower rungs on Lumen + VSM.
+Players can pull any dial down from the console or a future settings
+screen — ApplyMax sets the ceiling, not a cage. Motion blur stays off
+and sharpen at 0.4, matching the web build's comfort grade.
+
+For marketing stills, the Path Tracer is one console command away
+(`r.PathTracing 1`) and `HighResShot 3840x2160` captures native 4K.
 
 ## Where to take it next
 

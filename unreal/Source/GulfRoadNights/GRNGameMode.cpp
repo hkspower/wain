@@ -9,6 +9,7 @@
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "GRNGraphics.h"
 
 AGRNGameMode::AGRNGameMode()
 {
@@ -20,6 +21,9 @@ AGRNGameMode::AGRNGameMode()
 void AGRNGameMode::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Renderer to its ceiling before anything draws
+	GRNGraphics::ApplyMax(this);
 
 	UWorld* World = GetWorld();
 	Track = World->SpawnActor<AGRNTrack>();
