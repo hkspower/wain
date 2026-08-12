@@ -46,6 +46,7 @@ const MIME = {
   ".woff2": "font/woff2",
   ".mp3": "audio/mpeg",
   ".txt": "text/plain",
+  ".glb": "model/gltf-binary",
 };
 
 function resolveFile(urlPath) {

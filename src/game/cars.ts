@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { upgradeCarShells } from "./models";
 
 // Procedural sedans with a real silhouette: the body and glasshouse are
 // bevel-extruded side profiles (smoothed normals), riding on spoked
@@ -567,9 +568,17 @@ export function createCar(colors: CarColors): THREE.Group {
         : style === "gtr"
           ? [gtrBodyGeo, gtrCanopyGeo, gtrRoofGeo]
           : [bodyGeo, canopyGeo, roofGeo];
-  group.add(new THREE.Mesh(bGeo, bodyMat));
-  group.add(new THREE.Mesh(cGeo, glassMat));
-  group.add(new THREE.Mesh(rGeo, bodyMat));
+  // The three shells are tagged so models.ts can swap in Blender-authored
+  // geometry (same profiles, denser sampling) once it loads.
+  const bodyShell = new THREE.Mesh(bGeo, bodyMat);
+  bodyShell.userData.shell = "body";
+  group.add(bodyShell);
+  const canopyShell = new THREE.Mesh(cGeo, glassMat);
+  canopyShell.userData.shell = "canopy";
+  group.add(canopyShell);
+  const roofShell = new THREE.Mesh(rGeo, bodyMat);
+  roofShell.userData.shell = "roof";
+  group.add(roofShell);
 
   if (colors.accent !== undefined && style === "sedan") {
     const stripe = new THREE.Mesh(
@@ -1191,6 +1200,10 @@ export function createCar(colors: CarColors): THREE.Group {
   // Screen presence: the cars read ~12% larger without touching any
   // gameplay collision size (those live in the engine's constants).
   group.scale.setScalar(1.12);
+
+  // Swap in the Blender-authored shells when they arrive. Traffic keeps
+  // the cheap procedural extrusions — thirty cars don't need the density.
+  if (!colors.simple) upgradeCarShells(group, style);
 
   if (colors.underglow !== undefined) {
     const glow = new THREE.Mesh(
