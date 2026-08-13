@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "arabic-kit": "file:../arabic-kit",
-    "better-sqlite3": "^12.4.1"
+    "better-sqlite3": "^12.4.1",
+    "nodemailer": "^9.0.5"
   }
 }

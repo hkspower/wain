@@ -163,3 +163,12 @@ test('التطبيع يتجاهل التشكيل واختلاف الهمزات',
   assert.ok(ar.looseEqual('إلى', 'الي'));
   assert.ok(!ar.looseEqual('حولي', 'الجهراء'));
 });
+
+test('أسماء أضيفت للنظام: رسالة وملاحظة', () => {
+  assert.equal(ar.plural(0, 'message'), 'لا رسائل');
+  assert.equal(ar.plural(1, 'message'), 'رسالة واحدة');
+  assert.equal(ar.plural(2, 'message'), 'رسالتان');
+  assert.equal(ar.plural(3, 'message'), '٣ رسائل');
+  assert.equal(ar.plural(11, 'message'), '١١ رسالة');
+  assert.equal(ar.plural(4, 'note'), '٤ ملاحظات');
+});

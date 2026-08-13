@@ -209,7 +209,7 @@ function assertCanTouch(order, actor) {
 
 /* ------------------------------ تغيير الحالة ------------------------------ */
 
-function changeStatus(orderId, actor, nextStatus, note = '') {
+function changeStatus(orderId, actor, nextStatus, note = '', options = {}) {
   const run = db.transaction(() => {
     const order = getOrder(orderId);
     assertCanTouch(order, actor);
@@ -217,7 +217,13 @@ function changeStatus(orderId, actor, nextStatus, note = '') {
     if (!Object.hasOwn(STATUSES, nextStatus)) throw badRequest('حالة غير معروفة');
     if (order.status === nextStatus) throw conflict('الطلب في هذه الحالة أصلًا');
 
-    const allowed = allowedNextStatuses(order, actor.role);
+    /* `allowJump` لرابط المهمّة: الكابتن الذي لا يفتح اللوحة أصلًا لا يستطيع
+       تسلّق سُلّم الحالات خطوةً خطوة، فيُسمح له بإغلاق المهمّة مباشرةً.
+       الحالات النهائية تبقى مقفلة، والقفزة تُسجَّل كما هي بلا اختلاق خطوات. */
+    const allowed = FINAL_STATUSES.includes(order.status) ? []
+      : options.allowJump
+        ? Object.keys(STATUSES).filter((s) => s !== order.status && s !== 'new')
+        : allowedNextStatuses(order, actor.role);
     if (!allowed.includes(nextStatus)) {
       throw conflict(
         `لا يمكن الانتقال من «${STATUSES[order.status]}» إلى «${STATUSES[nextStatus]}»`,

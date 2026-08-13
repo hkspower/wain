@@ -72,7 +72,13 @@ function serveStatic(req, res, pathname) {
 
   fs.stat(target, (err, stat) => {
     if (err || !stat.isFile()) {
-      // أي مسار غير معروف يعيد الصفحة الرئيسية (تطبيق صفحة واحدة)
+      /* مسار بامتداد ملف مفقود يردّ ٤٠٤ صريحًا. إعادة index.html مكانه تجعل
+         ملفًّا ناقصًا يصل كصفحة HTML بحالة ٢٠٠، فيفشل بصمت ويصعب تشخيصه.
+         الاحتياط للمسارات بلا امتداد فقط — وهي مسارات تطبيق الصفحة الواحدة. */
+      if (path.extname(rel)) {
+        res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Not Found');
+        return;
+      }
       const fallback = path.join(PUBLIC_DIR, 'index.html');
       return fs.readFile(fallback, (e2, buf) => {
         if (e2) { res.writeHead(404).end('Not Found'); return; }
@@ -102,6 +108,10 @@ const server = http.createServer(async (req, res) => {
   if (!pathname.startsWith('/api/')) {
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       return H.sendJson(res, 405, { error: 'طريقة غير مدعومة' });
+    }
+    // ‎/l/<token> صفحة الكابتن المستقلّة — ليست جزءًا من تطبيق اللوحة
+    if (pathname === '/l' || pathname.startsWith('/l/')) {
+      return serveStatic(req, res, '/link.html');
     }
     return serveStatic(req, res, pathname);
   }
@@ -134,10 +144,30 @@ const server = http.createServer(async (req, res) => {
       ctx.agent = auth.agentFromToken(ctx.token);
     }
 
-    if (req.method !== 'GET') ctx.body = await H.readBody(req);
+    if (req.method !== 'GET') {
+      if (hit.route.raw) {
+        // رفع ثنائي (تسجيل صوتي): جسم خام بحدّ حجم خاص، بلا تحليل JSON
+        ctx.rawBody = await H.readRawBody(req, hit.route.raw);
+      } else {
+        ctx.body = await H.readBody(req);
+      }
+    }
 
     const payload = await hit.route.handler(ctx);
     if (setCookies.length) res.setHeader('Set-Cookie', setCookies);
+
+    // ردّ يبثّ ملفًا من القرص بدل JSON (الملاحظات الصوتية)
+    if (payload && payload.__stream) {
+      const file = payload.__stream;
+      res.writeHead(200, {
+        'Content-Type': file.mime || 'application/octet-stream',
+        'Content-Length': file.bytes,
+        'Cache-Control': 'private, max-age=3600',
+        'X-Content-Type-Options': 'nosniff',
+      });
+      return fs.createReadStream(file.path).pipe(res);
+    }
+
     H.sendJson(res, 200, payload ?? { ok: true });
   } catch (err) {
     if (setCookies.length) res.setHeader('Set-Cookie', setCookies);

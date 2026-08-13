@@ -477,8 +477,25 @@
                            data-status="${s}">${esc(state.meta.statuses[s])}</button>`).join('')}
                 ${canTransfer ? '<button class="btn btn--accent btn--sm" data-open="transfer">تحويل لزميل</button>' : ''}
                 ${isAdmin ? '<button class="btn btn--quiet btn--sm" data-open="assign">إسناد لمندوب</button>' : ''}
+                ${isAdmin && order.agent_id && !state.meta.final_statuses.includes(order.status)
+                  ? '<button class="btn btn--ghost btn--sm" data-open="link">رابط للكابتن</button>' : ''}
+                ${isAdmin ? '<button class="btn btn--quiet btn--sm" data-open="report">إرسال التقرير بريدًا</button>' : ''}
               </div>
               ${!canAct && !canTransfer && !isAdmin ? '<p style="margin:.6rem 0 0;color:var(--ink-soft)">لا توجد إجراءات متاحة على هذا الطلب.</p>' : ''}
+            </div>
+          </div>` : ''}
+
+          ${isAdmin && order.voice_notes && order.voice_notes.length ? `
+          <div class="card">
+            <div class="card__head"><h2>ملاحظات صوتية من الكابتن</h2></div>
+            <div class="card__body">
+              <ul class="voice-list">
+                ${order.voice_notes.map((v) => `
+                  <li>
+                    <audio controls preload="none" src="/api/voice/${v.id}"></audio>
+                    <span class="muted">${esc(count(Math.round(v.seconds), 'second'))} — ${esc(relTime(v.created_at))}</span>
+                  </li>`).join('')}
+              </ul>
             </div>
           </div>` : ''}
         </div>
@@ -500,6 +517,106 @@
     if (tBtn) tBtn.addEventListener('click', () => promptTransfer(order));
     const aBtn = el.view.querySelector('[data-open="assign"]');
     if (aBtn) aBtn.addEventListener('click', () => promptAssign(order));
+    const lBtn = el.view.querySelector('[data-open="link"]');
+    if (lBtn) lBtn.addEventListener('click', () => promptLink(order));
+    const rBtn = el.view.querySelector('[data-open="report"]');
+    if (rBtn) rBtn.addEventListener('click', () => sendReport(order));
+  }
+
+  /* --------------------- رابط المهمّة للكابتن --------------------- */
+
+  /** يعرض روابط الطلب، ويولّد رابطًا جديدًا جاهزًا للإرسال على واتساب */
+  async function promptLink(order) {
+    openModal('رابط المهمّة للكابتن', skeleton(2));
+
+    async function paint() {
+      let data;
+      try {
+        data = await api(`/orders/${order.id}/links`);
+      } catch (err) {
+        el.modalBody.innerHTML = `<p class="form-msg is-error">${esc(err.message)}</p>`;
+        return;
+      }
+      const active = data.links.find((l) => l.active);
+
+      el.modalBody.innerHTML = `
+        <p class="hint">
+          رابط واحد لهذه المهمّة يفتحه الكابتن بلا تسجيل دخول: يوافق على مشاركة
+          موقعه، ويرسل ملاحظة صوتية، ويبلّغ النتيجة. إنشاء رابط جديد يُلغي السابق.
+        </p>
+
+        ${active ? `
+          <label class="field">
+            <span>الرابط — انسخه وأرسله على واتساب</span>
+            <input id="lkUrl" dir="ltr" readonly value="${esc(active.url)}">
+          </label>
+          <div class="btn-row">
+            <button class="btn btn--primary" id="lkCopy" type="button">نسخ الرابط</button>
+            <a class="btn btn--accent" id="lkWa" target="_blank" rel="noopener"
+               href="https://wa.me/?text=${encodeURIComponent(active.url)}">إرسال على واتساب</a>
+            <button class="btn btn--danger btn--sm" id="lkRevoke" type="button">إلغاء الرابط</button>
+          </div>
+          <p class="lk-meta muted">
+            ينتهي ${esc(AR.dateTime(active.expires_at))} ·
+            ${active.opened_at ? `فُتح ${esc(relTime(active.opened_at))}` : 'لم يُفتح بعد'}
+          </p>`
+        : `<button class="btn btn--primary btn--block" id="lkNew" type="button">إنشاء رابط للكابتن</button>`}
+
+        ${data.links.length > 1 || (data.links.length && !active) ? `
+          <h4 class="approval__h">روابط سابقة</h4>
+          <ol class="approval__log">
+            ${data.links.filter((l) => !l.active).map((l) => `
+              <li>
+                <span class="muted">أُنشئ ${esc(relTime(l.created_at))}</span>
+                ${l.opened_at ? `<span class="muted"> · فُتح</span>` : '<span class="muted"> · لم يُفتح</span>'}
+                ${l.revoked_at ? '<span class="muted"> · ملغى</span>' : '<span class="muted"> · منتهٍ</span>'}
+              </li>`).join('')}
+          </ol>` : ''}`;
+
+      const nBtn = document.getElementById('lkNew');
+      if (nBtn) nBtn.addEventListener('click', async () => {
+        nBtn.disabled = true;
+        try {
+          await api(`/orders/${order.id}/link`, { method: 'POST' });
+          toast('أُنشئ الرابط', 'ok');
+          await paint();
+        } catch (err) { toast(err.message, 'error'); nBtn.disabled = false; }
+      });
+
+      const cBtn = document.getElementById('lkCopy');
+      if (cBtn) cBtn.addEventListener('click', async () => {
+        const input = document.getElementById('lkUrl');
+        try {
+          await navigator.clipboard.writeText(input.value);
+          toast('نُسخ الرابط', 'ok');
+        } catch {
+          input.select();
+          toast('اضغط نسخ من لوحة المفاتيح', '');
+        }
+      });
+
+      const rvBtn = document.getElementById('lkRevoke');
+      if (rvBtn) rvBtn.addEventListener('click', async () => {
+        if (!confirm('سيتوقّف الرابط عن العمل فورًا. متأكّد؟')) return;
+        try {
+          await api(`/links/${active.id}`, { method: 'DELETE' });
+          toast('أُلغي الرابط', 'ok');
+          await paint();
+        } catch (err) { toast(err.message, 'error'); }
+      });
+    }
+
+    await paint();
+  }
+
+  /** يرسل تقرير المهمّة بريدًا يدويًا */
+  async function sendReport(order) {
+    try {
+      const r = await api(`/orders/${order.id}/report`, { method: 'POST', body: {} });
+      if (r.mail.status === 'sent') toast('أُرسل التقرير بريدًا', 'ok');
+      else if (!r.configured) toast('لم يُضبط بريد الخادم — التقرير محفوظ في الصندوق', '');
+      else toast('تعذّر الإرسال — التقرير محفوظ في الصندوق', 'error');
+    } catch (err) { toast(err.message, 'error'); }
   }
 
 /** موقع المندوب المسند — يوضّح سبب عدم التوفّر بدل تركه فارغًا */
@@ -1415,6 +1532,14 @@
         </div>
 
         <div class="card">
+          <div class="card__head">
+            <h2>صادر البريد</h2>
+            <button class="btn btn--quiet btn--sm" id="mailRetry" type="button">إعادة المحاولة</button>
+          </div>
+          <div class="card__body" id="mailBox">${skeleton(1)}</div>
+        </div>
+
+        <div class="card">
           <div class="card__head"><h2>سجل تغييرات العمولة</h2></div>
           <div class="card__body">
             <ol class="approval__log">
@@ -1456,6 +1581,7 @@
     typeSel.addEventListener('change', paint);
     rateInp.addEventListener('input', paint);
     paint();
+    paintMailbox();
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -1467,6 +1593,58 @@
         await renderSettings();
       });
     });
+  }
+
+  const MAIL_STATUS = { pending: 'بانتظار الإرسال', sent: 'أُرسلت', failed: 'فشلت' };
+
+  /** صادر البريد داخل شاشة الإعدادات */
+  async function paintMailbox() {
+    const box = document.getElementById('mailBox');
+    if (!box) return;
+
+    let data;
+    try {
+      data = await api('/emails');
+    } catch (err) {
+      box.innerHTML = `<p class="form-msg is-error">${esc(err.message)}</p>`;
+      return;
+    }
+
+    box.innerHTML = `
+      ${data.configured
+        ? `<p class="hint">الإرسال مضبوط إلى <b dir="ltr">${esc(data.to)}</b>.</p>`
+        : `<p class="notice notice--warn">
+             <b>لم يُضبط بريد الخادم بعد.</b> التقارير تُحفظ هنا ولا تضيع، لكنها
+             لا تصل أحدًا حتى تُضبط <code dir="ltr">MAWSOOL_SMTP_URL</code> و
+             <code dir="ltr">MAWSOOL_MAIL_TO</code> ثم تضغط «إعادة المحاولة».
+           </p>`}
+
+      <ol class="approval__log">
+        ${data.emails.length === 0 ? '<li class="muted">لا رسائل بعد.</li>' : ''}
+        ${data.emails.map((m) => `
+          <li>
+            <b>${esc(m.order_code || 'تقرير')}</b>
+            <span class="badge badge--${m.status === 'sent' ? 'delivered' : m.status === 'failed' ? 'failed' : 'assigned'}">
+              ${esc(MAIL_STATUS[m.status] || m.status)}</span>
+            <span class="muted">— ${esc(relTime(m.created_at))}</span>
+            ${m.error ? `<p class="approval__note">${esc(m.error)}</p>` : ''}
+          </li>`).join('')}
+      </ol>`;
+
+    const retry = document.getElementById('mailRetry');
+    if (retry && !retry.dataset.bound) {
+      retry.dataset.bound = '1';
+      retry.addEventListener('click', async () => {
+        retry.disabled = true;
+        try {
+          const r = await api('/emails/retry', { method: 'POST', body: {} });
+          const sent = r.results.filter((x) => x.sent).length;
+          toast(sent ? `أُرسلت ${count(sent, 'message')}` : 'لم تُرسل أي رسالة', sent ? 'ok' : '');
+        } catch (err) { toast(err.message, 'error'); }
+        retry.disabled = false;
+        await paintMailbox();
+      });
+    }
   }
 
   async function renderLive() {

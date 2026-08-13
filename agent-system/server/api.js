@@ -5,6 +5,8 @@ const auth = require('./auth');
 const D = require('./domain');
 const L = require('./location');
 const S = require('./settings');
+const LK = require('./links');
+const M = require('./mailer');
 const {
   badRequest, unauthorized, forbidden, notFound, conflict,
   str, num, oneOf, id,
@@ -25,6 +27,23 @@ function requireAdmin(ctx) {
   if (ctx.agent.role !== 'admin') throw forbidden('هذا الإجراء متاح لمدير العمليات فقط');
 }
 
+/** الرابط كما يُعرض للمدير — مع العنوان الكامل الجاهز للإرسال على واتساب */
+function publicLink(link, ctx) {
+  const host = ctx.req.headers['x-forwarded-host'] || ctx.req.headers.host || 'localhost';
+  const proto = ctx.req.headers['x-forwarded-proto']
+    || (process.env.MAWSOOL_SECURE_COOKIE === '1' ? 'https' : 'http');
+  return {
+    id: link.id,
+    url: `${proto}://${host}/l/${link.token}`,
+    agent_name: link.agent_name,
+    created_at: link.created_at,
+    expires_at: link.expires_at,
+    opened_at: link.opened_at,
+    revoked_at: link.revoked_at,
+    active: !link.revoked_at && new Date(link.expires_at).getTime() > Date.now(),
+  };
+}
+
 function orderWithExtras(order) {
   const events = db.prepare(
     `SELECT e.*, a.name AS actor_name
@@ -38,14 +57,20 @@ function orderWithExtras(order) {
        JOIN agents tt ON tt.id = t.to_agent_id
       WHERE t.order_id = ? ORDER BY t.id DESC`
   ).all(order.id);
-  return { ...order, events, transfers, pending_transfer: transfers.find((t) => t.status === 'pending') || null };
+  const voiceNotes = db.prepare(
+    'SELECT id, seconds, bytes, created_at FROM voice_notes WHERE order_id=? ORDER BY id DESC'
+  ).all(order.id);
+  return {
+    ...order, events, transfers, voice_notes: voiceNotes,
+    pending_transfer: transfers.find((t) => t.status === 'pending') || null,
+  };
 }
 
 /* -------------------------------- المسارات ------------------------------- */
 
 const routes = [];
 const on = (method, pattern, handler, opts = {}) =>
-  routes.push({ method, pattern, handler, auth: opts.auth !== false });
+  routes.push({ method, pattern, handler, auth: opts.auth !== false, raw: opts.raw || 0 });
 
 /* ---- المصادقة ---- */
 
@@ -208,6 +233,102 @@ on('PATCH', '/api/agents/:id', async (ctx) => {
   db.prepare(`UPDATE agents SET ${fields.join(', ')} WHERE id = ?`).run(...values);
 
   return { agent: publicAgent(db.prepare('SELECT * FROM agents WHERE id=?').get(agentId)) };
+});
+
+/* ---- روابط المهام: صفحة الكابتن بلا تسجيل دخول ---- */
+
+on('POST', '/api/orders/:id/link', async (ctx) => {
+  requireAdmin(ctx);
+  const link = LK.createLink(id(ctx.params.id, 'معرّف الطلب'), ctx.agent);
+  return { link: publicLink(link, ctx) };
+});
+
+on('GET', '/api/orders/:id/links', async (ctx) => {
+  requireAdmin(ctx);
+  const orderId = id(ctx.params.id, 'معرّف الطلب');
+  return { links: LK.linksForOrder(orderId).map((l) => publicLink(l, ctx)) };
+});
+
+on('DELETE', '/api/links/:id', async (ctx) => {
+  requireAdmin(ctx);
+  return { link: publicLink(LK.revokeLink(id(ctx.params.id, 'معرّف الرابط'), ctx.agent), ctx) };
+});
+
+/* نقاط الرابط العامة — بلا جلسة، الرمز نفسه هو الإذن */
+
+on('GET', '/api/link/:token', async (ctx) => LK.context(ctx.params.token), { auth: false });
+
+on('POST', '/api/link/:token/consent', async (ctx) => {
+  const state = LK.setConsent(ctx.params.token, ctx.body.granted);
+  return { consent: state };
+}, { auth: false });
+
+on('PATCH', '/api/link/:token/sharing', async (ctx) => {
+  const state = LK.setSharing(ctx.params.token, ctx.body.sharing);
+  return { consent: state };
+}, { auth: false });
+
+on('POST', '/api/link/:token/location', async (ctx) => {
+  const point = LK.recordPoint(ctx.params.token, {
+    lat: ctx.body.lat, lng: ctx.body.lng,
+    accuracy: ctx.body.accuracy, speed: ctx.body.speed, heading: ctx.body.heading,
+  });
+  return { point };
+}, { auth: false });
+
+on('POST', '/api/link/:token/voice', async (ctx) => {
+  const mime = String(ctx.req.headers['content-type'] || '');
+  const seconds = Number(ctx.req.headers['x-voice-seconds']) || 0;
+  const note = LK.saveVoiceNote(ctx.params.token, ctx.rawBody, mime, seconds);
+  return { voice_note: note };
+}, { auth: false, raw: LK.VOICE_MAX_BYTES });
+
+on('POST', '/api/link/:token/outcome', async (ctx) => {
+  const outcome = oneOf(ctx.body.outcome, 'النتيجة', Object.keys(LK.OUTCOMES));
+  const note = str(ctx.body.note, 'الملاحظة', { required: false, max: 500 });
+  const result = LK.reportOutcome(ctx.params.token, outcome, note);
+
+  // تقرير المهمّة يُرسل بريدًا بعد كل بلاغ — بلا الملاحظة الصوتية
+  const mail = await M.sendOrderReport(result.order.id);
+
+  return {
+    outcome: result.outcome,
+    changed_status: result.changed_status,
+    status: result.order.status,
+    status_label: D.STATUSES[result.order.status],
+    mail: { status: mail.status, configured: M.isConfigured() },
+  };
+}, { auth: false });
+
+/* ---- الملاحظات الصوتية ووصلات البريد للوحة ---- */
+
+on('GET', '/api/voice/:id', async (ctx) => {
+  const file = LK.voiceFile(id(ctx.params.id, 'معرّف الملاحظة'), ctx.agent);
+  return { __stream: file };
+});
+
+on('GET', '/api/emails', async (ctx) => {
+  requireAdmin(ctx);
+  return { emails: M.outbox(50), configured: M.isConfigured(), to: M.mailTo() };
+});
+
+on('GET', '/api/emails/:id', async (ctx) => {
+  requireAdmin(ctx);
+  const row = M.getEmail(id(ctx.params.id, 'معرّف الرسالة'));
+  if (!row) throw notFound('الرسالة غير موجودة');
+  return { email: row };
+});
+
+on('POST', '/api/emails/retry', async (ctx) => {
+  requireAdmin(ctx);
+  const results = await M.retryPending();
+  return { results, emails: M.outbox(50), configured: M.isConfigured() };
+});
+
+on('POST', '/api/orders/:id/report', async (ctx) => {
+  requireAdmin(ctx);
+  const mail = await M.sendOrderReport(id(ctx.params.id, 'معرّف الطلب'), ctx.body.to);
+  return { mail, configured: M.isConfigured() };
 });
 
 /* ---- الإعدادات: عمولة الوساطة وغيرها ---- */

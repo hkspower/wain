@@ -152,6 +152,52 @@ CREATE TABLE IF NOT EXISTS setting_events (
   created_at TEXT    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_setting_events_key ON setting_events(key, id DESC);
+
+/* رابط مهمّة يُرسل للكابتن على واتساب: يفتح صفحة بلا تسجيل دخول يمنح فيها
+   موافقة الموقع، ويسجّل ملاحظة صوتية، ويبلّغ نتيجة التسليم. */
+CREATE TABLE IF NOT EXISTS delivery_links (
+  id          INTEGER PRIMARY KEY,
+  token       TEXT    NOT NULL UNIQUE,
+  order_id    INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  agent_id    INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+  created_by  INTEGER REFERENCES agents(id) ON DELETE SET NULL,
+  created_at  TEXT    NOT NULL,
+  expires_at  TEXT    NOT NULL,
+  opened_at   TEXT,
+  revoked_at  TEXT,
+  last_seen_at TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_delivery_links_order ON delivery_links(order_id, id DESC);
+
+/* ملاحظة صوتية من الكابتن إلى الإدارة. الملف على القرص لا في القاعدة. */
+CREATE TABLE IF NOT EXISTS voice_notes (
+  id          INTEGER PRIMARY KEY,
+  order_id    INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  agent_id    INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+  link_id     INTEGER REFERENCES delivery_links(id) ON DELETE SET NULL,
+  filename    TEXT    NOT NULL,
+  mime        TEXT    NOT NULL,
+  bytes       INTEGER NOT NULL,
+  seconds     REAL    NOT NULL DEFAULT 0,
+  created_at  TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_voice_notes_order ON voice_notes(order_id, id DESC);
+
+/* صندوق صادر البريد. يُكتب أولًا ثم يُرسل، فلا تضيع رسالة لو تعذّر SMTP. */
+CREATE TABLE IF NOT EXISTS emails (
+  id          INTEGER PRIMARY KEY,
+  to_address  TEXT    NOT NULL,
+  subject     TEXT    NOT NULL,
+  body        TEXT    NOT NULL,
+  order_id    INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+  status      TEXT    NOT NULL DEFAULT 'pending'
+                      CHECK (status IN ('pending', 'sent', 'failed')),
+  error       TEXT    NOT NULL DEFAULT '',
+  attempts    INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT    NOT NULL,
+  sent_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_emails_status ON emails(status, id DESC);
 `);
 
 /* ---- ترحيلات: أعمدة تُضاف للقواعد القائمة ---- */

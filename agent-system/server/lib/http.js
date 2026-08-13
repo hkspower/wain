@@ -18,30 +18,41 @@ const forbidden = (m = 'ليست لديك صلاحية لهذا الإجراء',
 const notFound = (m = 'العنصر غير موجود', c) => new HttpError(404, m, c);
 const conflict = (m, c) => new HttpError(409, m, c);
 
-function readBody(req) {
+/** يقرأ الجسم خامًا بحدّ حجم مخصّص — الملاحظات الصوتية أكبر من حدّ JSON */
+function readRawBody(req, maxBytes = MAX_BODY) {
+  // الرفض من الترويسة قبل قراءة بايت واحد: قطع الاتصال في منتصف الرفع يصل
+  // المستخدم كـ«فشل الشبكة» بدل رسالة تشرح أن الملف أكبر من الحدّ.
+  const declared = Number(req.headers['content-length']);
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    req.resume(); // نصرّف ما وصل حتى يُسلَّم الردّ سليمًا
+    return Promise.reject(new HttpError(413, 'حجم الطلب كبير جدًا', 'too_large'));
+  }
+
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
     req.on('data', (chunk) => {
       size += chunk.length;
-      if (size > MAX_BODY) {
+      if (size > maxBytes) {
         reject(new HttpError(413, 'حجم الطلب كبير جدًا'));
         req.destroy();
         return;
       }
       chunks.push(chunk);
     });
-    req.on('end', () => {
-      if (!chunks.length) return resolve({});
-      const raw = Buffer.concat(chunks).toString('utf8');
-      try {
-        resolve(JSON.parse(raw));
-      } catch {
-        reject(badRequest('صيغة البيانات المرسلة غير صحيحة'));
-      }
-    });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
+}
+
+async function readBody(req) {
+  const raw = await readRawBody(req);
+  if (!raw.length) return {};
+  try {
+    return JSON.parse(raw.toString('utf8'));
+  } catch {
+    throw badRequest('صيغة البيانات المرسلة غير صحيحة');
+  }
 }
 
 function sendJson(res, status, payload) {
@@ -108,6 +119,6 @@ function id(value, field = 'المعرّف') {
 
 module.exports = {
   HttpError, badRequest, unauthorized, forbidden, notFound, conflict,
-  readBody, sendJson, parseCookies, cookie,
+  readBody, readRawBody, sendJson, parseCookies, cookie,
   str, num, oneOf, id, MAX_BODY,
 };

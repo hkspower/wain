@@ -102,6 +102,8 @@
     transfer: { gender: 'm', human: false, zero: 'لا تحويلات',  one: 'تحويل واحد',   two: 'تحويلان',     twoOblique: 'تحويلين',    few: 'تحويلات',    many: 'تحويلًا',    other: 'تحويل' },
     attempt:  { gender: 'f', human: false, zero: 'لا محاولات',  one: 'محاولة واحدة', two: 'محاولتان',    twoOblique: 'محاولتين',   few: 'محاولات',    many: 'محاولة',     other: 'محاولة' },
     point:    { gender: 'f', human: false, zero: 'لا نقاط',     one: 'نقطة واحدة',   two: 'نقطتان',      twoOblique: 'نقطتين',     few: 'نقاط',       many: 'نقطة',       other: 'نقطة' },
+    message:  { gender: 'f', human: false, zero: 'لا رسائل',    one: 'رسالة واحدة',  two: 'رسالتان',     twoOblique: 'رسالتين',    few: 'رسائل',      many: 'رسالة',      other: 'رسالة' },
+    note:     { gender: 'f', human: false, zero: 'لا ملاحظات',  one: 'ملاحظة واحدة', two: 'ملاحظتان',    twoOblique: 'ملاحظتين',   few: 'ملاحظات',    many: 'ملاحظة',     other: 'ملاحظة' },
     second:   { gender: 'f', human: false, zero: 'لا ثوانٍ',    one: 'ثانية واحدة',  two: 'ثانيتان',     twoOblique: 'ثانيتين',    few: 'ثوانٍ',      many: 'ثانية',      other: 'ثانية' },
     minute:   { gender: 'f', human: false, zero: 'لا دقائق',    one: 'دقيقة واحدة',  two: 'دقيقتان',     twoOblique: 'دقيقتين',    few: 'دقائق',      many: 'دقيقة',      other: 'دقيقة' },
     hour:     { gender: 'f', human: false, zero: 'لا ساعات',    one: 'ساعة واحدة',   two: 'ساعتان',      twoOblique: 'ساعتين',     few: 'ساعات',      many: 'ساعة',       other: 'ساعة' },
