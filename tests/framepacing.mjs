@@ -68,7 +68,7 @@ console.log(`browser rAF: ${rafHz} Hz — throughput assertions ${canMeasureThro
 const targets = await page.evaluate(() => {
   const e = window.__grnEngine;
   const out = {};
-  for (const cap of ["display", "vrr", 30, 60, 120, 144]) {
+  for (const cap of ["display", "vrr", 30, 60, 120, 144, 165, 240]) {
     e.setFrameCap(cap);
     out[String(cap)] = { target: +e.targetFps.toFixed(1), minMs: +e.frameMinMs.toFixed(2) };
   }
@@ -80,7 +80,7 @@ for (const [k, v] of Object.entries(targets.out)) {
   console.log(`  ${k.padEnd(8)} ${String(v.target).padStart(6)}   ${v.minMs} ms`);
 }
 // Explicit numeric caps must produce exactly that budget
-for (const n of [30, 60, 120, 144]) {
+for (const n of [30, 60, 120, 144, 165, 240]) {
   const t = targets.out[String(n)];
   check(Math.abs(t.target - n) < 0.01, `cap ${n} resolved to target ${t.target}`);
   check(Math.abs(t.minMs - 1000 / n) < 0.01, `cap ${n} budget ${t.minMs}ms != ${(1000 / n).toFixed(2)}ms`);
@@ -91,6 +91,30 @@ check(targets.out.display.minMs === 0, "display mode should impose no frame budg
 const vrrT = targets.out.vrr.target;
 console.log(`\nG-Sync cap  target=${vrrT} vs panel ${targets.hz} Hz  ` +
   check(vrrT < targets.hz && vrrT >= targets.hz - 4, "VRR cap is not just under the refresh rate"));
+
+// --- render budgets must scale to the device, not to constants ---
+const caps = await page.evaluate(async () => {
+  const e = window.__grnEngine;
+  const c = e.deviceCaps;
+  e.applyQualityTier("high");
+  await new Promise((r) => setTimeout(r, 900));
+  const high = { moon: e.world.moonLight.shadow.mapSize.x, head: e.headlight.shadow.mapSize.x, probe: e.cubeRT.width };
+  e.applyQualityTier("ultra");
+  await new Promise((r) => setTimeout(r, 1400));
+  const ultra = { moon: e.world.moonLight.shadow.mapSize.x, head: e.headlight.shadow.mapSize.x, probe: e.cubeRT.width };
+  return { c, high, ultra };
+});
+console.log(`\ndevice: maxTexture=${caps.c.maxTexture} maxCube=${caps.c.maxCube} ` +
+  `memory=${caps.c.memoryGB}GB cores=${caps.c.cores}`);
+console.log(`  high   moon=${caps.high.moon} head=${caps.high.head} probe=${caps.high.probe}`);
+console.log(`  ultra  moon=${caps.ultra.moon} head=${caps.ultra.head} probe=${caps.ultra.probe}`);
+// Nothing may exceed what the driver said it would accept
+check(caps.ultra.moon <= caps.c.maxTexture, `moon shadow ${caps.ultra.moon} exceeds maxTexture ${caps.c.maxTexture}`);
+check(caps.ultra.head <= caps.c.maxTexture, `headlight shadow exceeds maxTexture`);
+check(caps.ultra.probe <= caps.c.maxCube, `probe ${caps.ultra.probe} exceeds maxCube ${caps.c.maxCube}`);
+// Ultra must actually ask for more than high
+check(caps.ultra.moon >= caps.high.moon && caps.ultra.probe > caps.high.probe,
+  "ultra does not raise the render budget above high");
 
 // --- governors must scale with the target, not a hardcoded 60 ---
 const gov = await page.evaluate(() => {

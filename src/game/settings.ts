@@ -27,7 +27,7 @@ export interface Settings {
    * refresh, which is the standard G-Sync practice: crossing the ceiling
    * drops you out of VRR and back onto v-sync's latency.
    */
-  frameCap: "display" | "vrr" | 30 | 60 | 120 | 144 | 0;
+  frameCap: "display" | "vrr" | 30 | 60 | 120 | 144 | 165 | 240 | 0;
 }
 
 export const DEFAULT_SETTINGS: Settings = {

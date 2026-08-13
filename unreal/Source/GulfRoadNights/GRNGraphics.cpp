@@ -204,7 +204,11 @@ void GRNGraphics::ApplyRtxUltra(UObject* WorldContext, bool bFrameGeneration)
 		TEXT("r.TranslucencyLightingVolumeDim 128"),
 
 		// A 5090 carries 32 GB; there is no reason to stream conservatively
-		TEXT("r.Streaming.PoolSize 12288"),
+		// 16 GB pool: a 5090 carries 32 GB and a 7 km lap of scanned
+		// geometry has no reason to stream conservatively against it.
+		TEXT("r.Streaming.PoolSize 16384"),
+		TEXT("r.Streaming.LimitPoolSizeToVRAM 1"),
+		TEXT("r.Streaming.MaxTempMemoryAllowed 512"),
 
 		// DLSS Ray Reconstruction replaces the hand-tuned denoisers with
 		// the trained one — the single biggest win for ray-traced detail.

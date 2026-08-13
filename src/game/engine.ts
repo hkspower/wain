@@ -498,6 +498,19 @@ export class GameEngine {
    * often we accept a frame, which is the half of the problem that
    * actually matters here.
    */
+  /**
+   * What this device can actually do. Ceilings were hardcoded — an 8192
+   * shadow map on Ultra, a 256 cube probe — which is simultaneously too
+   * large for a GPU reporting a 4096 texture limit (the allocation fails
+   * or is silently clamped) and too small for one that could serve four
+   * times that. Read the limits and scale to them.
+   */
+  private caps = {
+    maxTexture: 4096,
+    maxCube: 4096,
+    memoryGB: 4,
+    cores: 4,
+  };
   private refreshHz = 0;          // measured panel refresh, 0 until known
   private refreshSamples: number[] = [];
   private frameMinMs = 0;         // 0 = accept every frame the browser offers
@@ -553,6 +566,18 @@ export class GameEngine {
     this.baseRatio = Math.min(window.devicePixelRatio, 2);
     this.renderer.setPixelRatio(this.baseRatio);
     this.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+    {
+      const gl = this.renderer.getContext();
+      const nav = navigator as Navigator & { deviceMemory?: number };
+      this.caps = {
+        maxTexture: gl.getParameter(gl.MAX_TEXTURE_SIZE) as number,
+        maxCube: gl.getParameter(gl.MAX_CUBE_MAP_TEXTURE_SIZE) as number,
+        // deviceMemory is coarse and absent on Safari/Firefox; 4 GB is the
+        // conservative read, not an optimistic one.
+        memoryGB: nav.deviceMemory ?? 4,
+        cores: navigator.hardwareConcurrency || 4,
+      };
+    }
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
     this.renderer.shadowMap.enabled = true;
@@ -577,7 +602,7 @@ export class GameEngine {
     // long moon shadows across the asphalt.
     const moon = this.world.moonLight;
     moon.castShadow = true;
-    moon.shadow.mapSize.set(4096, 4096);
+    moon.shadow.mapSize.setScalar(this.budget(4096));
     moon.shadow.camera.left = -90;
     moon.shadow.camera.right = 90;
     moon.shadow.camera.top = 90;
@@ -1022,6 +1047,28 @@ export class GameEngine {
   private refreshFrames = 0;
   private refreshProbeStart = 0;
 
+  /** What the GPU and device report they can carry. */
+  get deviceCaps(): { maxTexture: number; maxCube: number; memoryGB: number; cores: number } {
+    return { ...this.caps };
+  }
+
+  /**
+   * The texture budget for a tier, scaled to the hardware rather than
+   * assumed. A machine reporting 8 GB and a 16384 texture limit gets
+   * shadow maps twice the size of one reporting 4 GB — and neither is
+   * handed an allocation its driver will refuse.
+   */
+  private budget(want: number, kind: "texture" | "cube" = "texture"): number {
+    const limit = kind === "cube" ? this.caps.maxCube : this.caps.maxTexture;
+    // Below 4 GB, halve — those devices are usually sharing memory with
+    // the system and an oversized map costs more than it shows.
+    const lean = this.caps.memoryGB < 4 ? 0.5 : 1;
+    // Only ever clamps DOWN. An earlier floor of 512 quietly raised the
+    // lower tiers instead — the high tier's 128 probe became 512, costing
+    // memory on exactly the machines that asked for less.
+    return Math.max(64, Math.min(limit, Math.floor(want * lean)));
+  }
+
   /** Panel refresh in Hz once measured, else 0. */
   get displayHz(): number {
     return this.refreshHz;
@@ -1137,19 +1184,19 @@ export class GameEngine {
           ? Math.min(window.devicePixelRatio, 1.5)
           : 1;
     // Sharper shadow cascades to match the extra pixels
-    const shadowSize = ultra ? 2048 : 1024;
+    const shadowSize = this.budget(ultra ? 4096 : 1024);
     if (this.headlight.shadow.mapSize.x !== shadowSize) {
       this.headlight.shadow.mapSize.setScalar(shadowSize);
       this.headlight.shadow.map?.dispose();
       this.headlight.shadow.map = null as unknown as THREE.WebGLRenderTarget;
     }
-    const moonSize = ultra ? 8192 : 4096;
+    const moonSize = this.budget(ultra ? 16384 : 4096);
     if (this.world.moonLight.shadow.mapSize.x !== moonSize) {
       this.world.moonLight.shadow.mapSize.setScalar(moonSize);
       this.world.moonLight.shadow.map?.dispose();
       this.world.moonLight.shadow.map = null as unknown as THREE.WebGLRenderTarget;
     }
-    if (this.liveReflections) this.setProbeResolution(ultra ? 256 : 128);
+    if (this.liveReflections) this.setProbeResolution(this.budget(ultra ? 512 : 128, "cube"));
     this.renderScale = 1;
     this.applyRenderScale();
   }
