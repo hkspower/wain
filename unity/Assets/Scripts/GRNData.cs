@@ -233,6 +233,24 @@ public static class GRNData
         public const float DriftYawClamp = 0.75f;
         public const float DriftLatScrub = 0.5f;
         public const float DriftDriveLoss = 1.1f;
+        public const float TractionBase = 0.8f;
+        public const float TractionRampSpeed = 22f;
+        public const float BrakeGripK = 1.05f;
+        public const float BrakePadK = 0.25f;
+        public const float TrailBrakeK = 0.6f;
+        public const float LatDemandSpeed = 40f;
+        public const float UndersteerK = 0.35f;
+        public const float CornerScrubK = 0.3f;
+        public const float CornerScrubSpeed = 40f;
+        public const float PowerOverSpin = 1.2f;
+        public const float PowerOverSteer = 0.5f;
+        public const float PowerOverMinSpeed = 18f;
+        public const float PowerOverThrottle = 0.85f;
+        public const float PowerOverAngleK = 0.6f;
+        public const float CrashLatFull = 12f;
+        public const float CrashSpeedLossK = 0.28f;
+        public const float CrashReboundK = 5f;
+        public const float TrafficClosingFull = 22f;
     }
 
     static Color Hex(int rgb) =>

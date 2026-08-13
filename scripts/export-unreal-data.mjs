@@ -80,6 +80,16 @@ const styleEnum = { sedan: "EGRNBodyStyle::Sedan", zx: "EGRNBodyStyle::ZX", gtr:
 const col = (hex) =>
   `FColor(0x${hex.slice(0, 2).toUpperCase()}, 0x${hex.slice(2, 4).toUpperCase()}, 0x${hex.slice(4, 6).toUpperCase()})`;
 
+
+// Handling constants come from src/game/handling.ts itself; a hardcoded
+// twin of that table is exactly the rot this generator exists to prevent.
+const handlingTsU = readFileSync("src/game/handling.ts", "utf8");
+const handlingKeys = [...handlingTsU.matchAll(/^\s{2}(\w+):\s*([\d.]+),/gm)].map(
+  ([, k, v]) => [k, +v]
+);
+if (handlingKeys.length < 16) throw new Error(`handling parse failed (${handlingKeys.length})`);
+const cppf = (v) => (Number.isInteger(v) ? `${v}.f` : `${v}f`);
+
 const header = `#pragma once
 
 // GENERATED FILE — do not edit by hand.
@@ -155,28 +165,14 @@ ${cars
 static const int32 GRNCarCount = UE_ARRAY_COUNT(GRNCars);
 
 // -------------------------------------------------------- handling model
-// Mirrors src/game/engine.ts. If tuning changes there, update here (the
-// generator owns this block, so edit the generator).
+// Mirrors src/game/handling.ts — parsed from it, never hand-copied. If a
+// constant is added there, rerunning this generator publishes it here.
 
 namespace GRNHandling
 {
-	constexpr float Ceiling = 115.f;
-	constexpr float ThrustK = 19.f;
-	constexpr float DragA = 0.0012f;
-	constexpr float DragB = 1.2f;
-	constexpr float SteerSmoothRate = 7.f;
-	constexpr float CasterRate = 2.4f;
-	constexpr float HeadingClamp = 0.45f;
-	constexpr float FlashRangeM = 60.f;
-
-	constexpr float DriftMinSpeed = 14.f;
-	constexpr float DriftAngleBase = 0.38f;
-	constexpr float DriftAngleSpeedK = 0.28f;
-	constexpr float DriftEngageRate = 3.4f;
-	constexpr float DriftRecoverRate = 2.3f;
-	constexpr float DriftYawClamp = 0.75f;
-	constexpr float DriftLatScrub = 0.5f;
-	constexpr float DriftDriveLoss = 1.1f;
+${handlingKeys
+  .map(([k, v]) => `\tconstexpr float ${k[0].toUpperCase()}${k.slice(1)} = ${cppf(v)};`)
+  .join("\n")}
 }
 `;
 

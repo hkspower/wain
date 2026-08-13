@@ -449,6 +449,9 @@ export class GameEngine {
   // body points past the direction of travel; the velocity heading is
   // dragged after it, which is what actually carries the car around.
   private driftYaw = 0;
+  /** m/s² of engine torque the driven tires could NOT transmit this
+   *  frame — the launch-burnout signal for wheels, smoke and power-over. */
+  private wheelspin = 0;
   /** Style points for the current, still-unbanked slide. */
   private driftRun = 0;
   /** Seconds the readout lingers after the slide ends. */
@@ -2142,18 +2145,49 @@ export class GameEngine {
     // Sideways tires can't put all the power down — a slide trades a
     // little speed for the angle, so gripping is always the faster line.
     const driveGrip = 1 - Math.min(0.55, Math.abs(this.driftYaw) * 1.1);
+    // The engine proposes, the tires dispose: torque beyond what the
+    // driven axle can transmit becomes wheelspin, not thrust. Traction
+    // climbs as speed builds (weight settles, aero starts working), so
+    // launches are traction-limited and the top end stays power-limited —
+    // which is why the big-power cars leave the line in smoke instead of
+    // teleporting.
+    const engineAccel =
+      this.throttle * Math.max(0, 19 * power * (1 - p.speed / ceiling));
+    const tractionCap =
+      this.tune.gripAccel * (0.8 + 0.2 * Math.min(1, p.speed / 22));
+    this.wheelspin = Math.max(0, engineAccel - tractionCap) * driveGrip;
     const accel =
-      this.throttle * Math.max(0, 19 * power * (1 - p.speed / ceiling)) * driveGrip +
-      (this.nosActive ? 14 : 0);
-    const braking = this.brake * this.tune.brakeForce;
+      Math.min(engineAccel, tractionCap) * driveGrip + (this.nosActive ? 14 : 0);
+
+    // Brakes are grip-limited, not pad-limited: pads can out-torque the
+    // tire, but the tire cannot out-grip the road. Better pads still pay
+    // — they reach the tires' limit and hold it — the tires just set
+    // most of the ceiling.
+    const brakeCap = this.tune.gripAccel * 1.05 + this.tune.brakeForce * 0.25;
+    // Friction circle, half one: front tires steering hard have less
+    // left for braking. Trail-braking works; standing on both pedals
+    // mid-corner doesn't.
+    const latDemand = Math.min(1, (Math.abs(this.steerSmooth) * p.speed) / 40);
+    const braking =
+      Math.min(this.brake * this.tune.brakeForce, brakeCap) *
+      Math.sqrt(1 - 0.6 * latDemand * latDemand);
     const drag = 0.0012 * p.speed * p.speed + 1.2;
     p.speed = Math.max(0, p.speed + (accel - braking - drag * (this.throttle ? 0.35 : 1)) * dt);
 
     // --- Steering: the car carries a heading relative to the lane.
-    // Yaw authority is grip-limited, so it shrinks as speed rises.
+    // Yaw authority is grip-limited, so it shrinks as speed rises — and
+    // friction circle, half two: heavy braking or a spinning rear axle
+    // leaves less grip to turn with, so the car pushes wide instead of
+    // holding an impossible arc.
     this.steerSmooth += (this.steer - this.steerSmooth) * Math.min(1, dt * 7);
-    const yawRateMax = Math.min(1.6, this.tune.gripAccel / Math.max(p.speed, 2));
+    const longDemand = Math.min(1, (braking + this.wheelspin) / (brakeCap || 1));
+    const yawRateMax =
+      Math.min(1.6, this.tune.gripAccel / Math.max(p.speed, 2)) *
+      (1 - 0.35 * longDemand);
     this.heading += this.steerSmooth * yawRateMax * dt;
+    // Cornering isn't free: held near the limit, the front tires scrub
+    // speed off — the reason real drivers straighten before they send it
+    p.speed *= 1 - Math.abs(this.heading) * Math.min(1, p.speed / 40) * 0.3 * dt;
     // Caster self-centering when the wheel is released
     if (Math.abs(this.steer) < 0.1) {
       this.heading -= this.heading * Math.min(1, dt * 2.4);
@@ -2165,13 +2199,22 @@ export class GameEngine {
     // velocity heading is dragged behind it, so the car goes through the
     // corner sideways. Throttle sustains the slide, counter-steer (or
     // just releasing everything) brings the grip back.
-    if (this.handbrake && p.speed > 14) {
+    // Power-over: enough throttle to keep the rears lit mid-corner hangs
+    // the tail out without the handbrake — shallower than a handbrake
+    // entry, but it is how big-power cars change direction.
+    const powerOver =
+      this.wheelspin > 1.2 &&
+      Math.abs(this.steerSmooth) > 0.5 &&
+      p.speed > 18 &&
+      this.throttle > 0.85;
+    if ((this.handbrake || powerOver) && p.speed > 14) {
       const steerDir =
         Math.abs(this.steerSmooth) > 0.12
           ? Math.sign(this.steerSmooth)
           : Math.sign(this.driftYaw); // no wheel input: hold the current slide
       if (steerDir !== 0) {
-        const angleCap = 0.38 + 0.28 * Math.min(1, p.speed / 55);
+        const angleCap =
+          (0.38 + 0.28 * Math.min(1, p.speed / 55)) * (this.handbrake ? 1 : 0.6);
         const target =
           steerDir * angleCap * Math.min(1, Math.abs(this.steerSmooth) + 0.45);
         this.driftYaw += (target - this.driftYaw) * Math.min(1, dt * 3.4);
@@ -2249,20 +2292,39 @@ export class GameEngine {
     }
 
     if (hitKerb) {
-      this.heading *= 0.15;
+      // A wall hit is not one thing. The speed component INTO the
+      // barrier decides what happened: near-parallel contact is a scrape
+      // that grinds the door, a steep arrival is a crash that deflects
+      // the nose, kills real speed and bounces the car back off.
+      const side = Math.sign(p.lat) || 1;
+      const intoWall = Math.max(
+        0,
+        (Math.sin(this.heading) * p.speed * driftScrub + this.slipVel) * side
+      );
+      const severity = Math.min(1, intoWall / 12);
+      // Sustained rubbing: friction scales with how hard the car is
+      // pressed into the steel, not a flat rate
+      p.speed *= 1 - (0.35 + 1.3 * severity) * dt;
+      if (Math.sign(this.heading) === side) {
+        // The barrier turns the nose away — steeper arrivals rebound more
+        this.heading *= -(0.1 + 0.3 * severity);
+      }
       this.slipVel *= 0.2;
       // The wall ends the slide — and takes the unbanked style points
       this.driftYaw *= 0.25;
       this.driftRun = 0;
-      p.speed *= 1 - 0.9 * dt;
       if (this.scrapeCooldown <= 0) {
         this.scrapeCooldown = 0.5;
+        // The impact itself, once per contact: energy loss and a shove
+        // off the barrier, both scaled by how hard it was hit
+        p.speed *= 1 - 0.28 * severity;
+        this.slipVel = -side * (1.2 + 5 * severity);
         this.events.onBump();
         if (this.inBattle) this.bstat.contacts++;
         this.spawnSparks();
         this.sound?.scrape();
-        this.shake = Math.max(this.shake, 0.55);
-        if (this.inBattle) p.sp = Math.max(0, p.sp - 4);
+        this.shake = Math.max(this.shake, 0.3 + 0.9 * severity);
+        if (this.inBattle) p.sp = Math.max(0, p.sp - Math.round(2 + 8 * severity));
       }
     }
 
@@ -2294,7 +2356,8 @@ export class GameEngine {
     const pitchTarget = this.brake * 0.035 * Math.min(1, p.speed / 20) - this.throttle * 0.014;
     this.pitch += (pitchTarget - this.pitch) * Math.min(1, dt * 6);
     this.carBody.rotation.x = this.pitch;
-    spinWheels(this.carBody, p.speed, dt, -this.steerSmooth * 0.3);
+    // Lit-up rears visibly overspin the road speed — the launch tell
+    spinWheels(this.carBody, p.speed + this.wheelspin * 0.8, dt, -this.steerSmooth * 0.3);
     const brakeLit = this.brake > 0 || this.handbrake;
     (this.carBody.userData.tailMat as THREE.MeshStandardMaterial).emissiveIntensity = brakeLit
       ? 7
@@ -2305,24 +2368,44 @@ export class GameEngine {
       for (const g of tailGlows) g.opacity = brakeLit ? 0.85 : 0.3;
     }
 
-    // Traffic collisions
+    // Traffic collisions. Severity comes from the closing speed, the way
+    // it does on a real bumper: matching the flow and tapping a car is a
+    // shunt; arriving 80 km/h faster is a wreck.
     if (this.bumpCooldown <= 0) {
       for (const t of this.traffic) {
         const ds = this.track.deltaAhead(p.s, t.s);
         if (Math.abs(ds) < 4.2 && Math.abs(t.lat - p.lat) < 2.0) {
           this.bumpCooldown = 1;
-          p.speed = Math.min(p.speed * 0.55, t.speed * 0.9);
-          this.driftYaw *= 0.25;
+          const rel = p.speed - t.speed; // + = we ran into them
+          const closing = Math.abs(rel);
+          const sev = Math.min(1, closing / 22);
+          if (rel >= 0) {
+            // We hit them: the closing speed is mostly shed, and a harder
+            // hit sheds proportionally more of it
+            p.speed = Math.max(0, t.speed + rel * (0.4 - 0.25 * sev));
+            // Knock the player out of the hitbox, or the cooldown
+            // re-bumps forever and glues them to the traffic car's tail.
+            if (ds >= 0) p.s = this.track.wrap(t.s - 4.5);
+          } else {
+            // They hit us: a rear shunt shoves the car forward by a share
+            // of the striker's closing momentum — not to its full speed,
+            // which would be a free elastic slingshot off every bumper.
+            p.speed += closing * 0.45;
+            if (ds < 0) p.s = this.track.wrap(t.s + 4.5);
+          }
+          // The nose glances off toward the open side and the body gets
+          // kicked off line — a shunt is never perfectly square
+          const shove = Math.sign(p.lat - t.lat) || 1;
+          p.lat += shove * (0.4 + 0.9 * sev);
+          this.heading += shove * 0.06 * (0.5 + sev);
+          this.driftYaw = this.driftYaw * 0.25 + shove * 0.12 * sev;
           this.driftRun = 0;
-          // Knock the player out of the hitbox, or the cooldown re-bumps
-          // forever and glues them to the traffic car's tail.
-          if (ds >= 0) p.s = this.track.wrap(t.s - 4.5);
           this.events.onBump();
           if (this.inBattle) this.bstat.contacts++;
           this.spawnSparks();
           this.sound?.bump();
-          this.shake = 1;
-          if (this.inBattle) p.sp = Math.max(0, p.sp - 8);
+          this.shake = 0.5 + 0.7 * sev;
+          if (this.inBattle) p.sp = Math.max(0, p.sp - Math.round(4 + 8 * sev));
           break;
         }
       }
@@ -2710,9 +2793,13 @@ export class GameEngine {
     }
 
     // --- Tire smoke while drifting: pour from both rear arches, rise,
-    // spread downwind of the slide, die in about a second.
+    // spread downwind of the slide, die in about a second. A launch with
+    // the rears lit up smokes the same arches before the car is moving
+    // fast enough to drift.
+    const burnout = this.wheelspin > 3 && this.player.speed < 22;
     const drifting =
-      Math.abs(this.driftYaw) > 0.14 && this.player.speed > 12 && !this.cine;
+      ((Math.abs(this.driftYaw) > 0.14 && this.player.speed > 12) || burnout) &&
+      !this.cine;
     if (drifting) {
       this.track.tangentAt(this.player.s, this.v3);
       const px = this.playerMesh.position.x;

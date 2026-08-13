@@ -26,6 +26,32 @@ that is 5 mm larger would lift the car off its own shadow.
 npm run test:assets
 ```
 
+## physics.mjs — the tire model, measured
+
+Launch, braking, cornering and crashing all draw on one grip budget now,
+and this suite meters each of them with hand-stepped 1/60 s simulation:
+
+- a full-throttle launch is **traction-limited** (~0-100 in 2.7 s stock,
+  with measurable wheelspin) instead of the old 1.9 g teleport;
+- braking is **grip-limited** — pads can out-torque a tire, the tire
+  cannot out-grip the road — and lands in a plausible g band;
+- the **friction circle** is real in both directions: full lock adds
+  braking distance, hard braking blunts turn-in (understeer);
+- **power-over** hangs the tail out with throttle alone, and the
+  handbrake still out-angles it;
+- **crash severity** follows the speed component into the wall: a
+  glancing scrape and a steep plunge shed different speed, shake
+  differently, and the steep one rebounds off the barrier.
+
+It also parks the traffic before metering — a lesson, not a nicety: the
+first run's readings were corrupted by a bumper, and untangling that
+exposed a real collision-asymmetry bug where faster traffic slingshotted
+the player to its own speed for free.
+
+```bash
+npm run test:physics
+```
+
 ## framepacing.mjs — dynamic fps, v-sync, G-Sync
 
 Panel-refresh detection, the frame limiter, the G-Sync-style

@@ -21,7 +21,8 @@
     "check:unity": "node scripts/check-unity-sync.mjs",
     "test:motion": "node tests/motion.mjs",
     "test:pacing": "node tests/framepacing.mjs",
-    "test:assets": "node tests/assets.mjs"
+    "test:assets": "node tests/assets.mjs",
+    "test:physics": "node tests/physics.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",

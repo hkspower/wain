@@ -198,7 +198,7 @@ ${cars
     /// values here match what the browser is actually racing.</summary>
     public static class Handling
     {
-${needed.map((k) => `        public const float ${k[0].toUpperCase()}${k.slice(1)} = ${f(handling[k])};`).join("\n")}
+${Object.keys(handling).map((k) => `        public const float ${k[0].toUpperCase()}${k.slice(1)} = ${f(handling[k])};`).join("\n")}
     }
 
     static Color Hex(int rgb) =>
@@ -209,5 +209,5 @@ ${needed.map((k) => `        public const float ${k[0].toUpperCase()}${k.slice(1
 writeFileSync("unity/Assets/Scripts/GRNData.cs", out);
 console.log(
   `GRNData.cs regenerated: ${points.length} track points, ${rivals.length} rivals, ` +
-    `${cars.length} cars, ${needed.length} handling constants, apiVersion ${apiVersion}.`
+    `${cars.length} cars, ${Object.keys(handling).length} handling constants, apiVersion ${apiVersion}.`
 );

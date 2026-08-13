@@ -99,8 +99,8 @@ static const FGRNCarDef GRNCars[] = {
 static const int32 GRNCarCount = UE_ARRAY_COUNT(GRNCars);
 
 // -------------------------------------------------------- handling model
-// Mirrors src/game/engine.ts. If tuning changes there, update here (the
-// generator owns this block, so edit the generator).
+// Mirrors src/game/handling.ts — parsed from it, never hand-copied. If a
+// constant is added there, rerunning this generator publishes it here.
 
 namespace GRNHandling
 {
@@ -112,7 +112,6 @@ namespace GRNHandling
 	constexpr float CasterRate = 2.4f;
 	constexpr float HeadingClamp = 0.45f;
 	constexpr float FlashRangeM = 60.f;
-
 	constexpr float DriftMinSpeed = 14.f;
 	constexpr float DriftAngleBase = 0.38f;
 	constexpr float DriftAngleSpeedK = 0.28f;
@@ -121,4 +120,22 @@ namespace GRNHandling
 	constexpr float DriftYawClamp = 0.75f;
 	constexpr float DriftLatScrub = 0.5f;
 	constexpr float DriftDriveLoss = 1.1f;
+	constexpr float TractionBase = 0.8f;
+	constexpr float TractionRampSpeed = 22.f;
+	constexpr float BrakeGripK = 1.05f;
+	constexpr float BrakePadK = 0.25f;
+	constexpr float TrailBrakeK = 0.6f;
+	constexpr float LatDemandSpeed = 40.f;
+	constexpr float UndersteerK = 0.35f;
+	constexpr float CornerScrubK = 0.3f;
+	constexpr float CornerScrubSpeed = 40.f;
+	constexpr float PowerOverSpin = 1.2f;
+	constexpr float PowerOverSteer = 0.5f;
+	constexpr float PowerOverMinSpeed = 18.f;
+	constexpr float PowerOverThrottle = 0.85f;
+	constexpr float PowerOverAngleK = 0.6f;
+	constexpr float CrashLatFull = 12.f;
+	constexpr float CrashSpeedLossK = 0.28f;
+	constexpr float CrashReboundK = 5.f;
+	constexpr float TrafficClosingFull = 22.f;
 }
