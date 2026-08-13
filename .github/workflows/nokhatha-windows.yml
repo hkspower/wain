@@ -11,12 +11,15 @@ name: النوخذة — Windows build
 # reasonably trust. See docs/WINDOWS-TRUST.md for what a customer should check.
 
 on:
+  # Two separate triggers on purpose. A `paths` filter and a `tags` filter in
+  # one block apply together, so the release tag — which changes no files —
+  # would match nothing and never publish.
   push:
     branches: ["**"]
     paths:
       - "nokhatha_app/**"
       - ".github/workflows/nokhatha-windows.yml"
-    tags: ["v*"]
+  create:
   workflow_dispatch:
 
 permissions:
@@ -26,6 +29,8 @@ permissions:
 
 jobs:
   build:
+    # `create` also fires for every new branch; only a tag means a release.
+    if: github.event_name != 'create' || github.event.ref_type == 'tag'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

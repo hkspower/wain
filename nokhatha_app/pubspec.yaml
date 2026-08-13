@@ -19,7 +19,12 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
+  # Both, deliberately. `flutter-version-file:` in the Windows workflow reads
+  # `environment.flutter`; with only the Dart constraint here it resolved to
+  # null and every CI run died on "Unable to determine Flutter version for
+  # channel: stable" — before a single line was compiled.
   sdk: ^3.12.2
+  flutter: ">=3.44.9"
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
