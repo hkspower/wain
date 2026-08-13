@@ -239,7 +239,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 484 checks covering
+- `python3 design/test_suite.py` is the full system test — 488 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
@@ -251,8 +251,17 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   hidden and the script reveals it only when `AGENT_URL` (one line, top of
   index.html's script) holds an https link — a sticky button that opens
   nothing is worse than no button. It steps aside over the contact bar and
-  the footer: measured, it otherwise landed on the واتساب pill. Pinned both
-  ways, including a sweep of the whole scroll range for overlaps.
+  the footer — and, since a swept measurement found it sitting on eleven other
+  things a phone visitor scrolls past, over **any heading or control** it would
+  otherwise cover. On phones it is an icon-only disc in the **inline-end**
+  corner (the rails' arrows are hidden at that width, so that corner is free,
+  and in RTL a disc there clips where a line ends rather than where it starts).
+  Two traps, both hit and both pinned: the pill's own `<b>البحار</b>` matched
+  the dodge's own selector and hid it on every pixel of the page; and `.away`
+  translates the pill, so testing its live rect made the test undo its own
+  result — measure where it **rests**. The suite sweeps for covered headings
+  *and* asserts the pill is still on screen for ≥35% of the page, because a
+  dodge that always fires is not a fix.
 - `design/voice-agent/` is the Arabic ElevenLabs voice agent + n8n lead
   webhook: an importable n8n workflow (webhook → validate → `voice_leads`
   data table → Arabic JSON reply the agent speaks), and the full agent

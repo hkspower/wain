@@ -542,7 +542,7 @@
 
     /* real numbers only: units, checks, dependencies, offline — all verifiable */
     .stats { display: flex; justify-content: center; gap: 32px; flex-wrap: wrap; margin-top: 24px; }
-    .stat { display: flex; flex-direction: column; gap: 2px; min-width: 96px; }
+    .stat { display: flex; flex-direction: column; gap: 4px; min-width: 96px; }
     .stat b.num { font-size: 27px; font-weight: 800; color: var(--tint); direction: ltr; unicode-bidi: isolate; }
     .stat span { color: var(--muted); font-size: 12.5px; }
     .scrollcue { position: absolute; bottom: 8px; inset-inline-start: 50%; transform: translateX(50%);
@@ -550,8 +550,18 @@
     html.motion .scrollcue { display: block; animation: cue 1.8s ease-in-out infinite; }
     @keyframes cue { 0%, 100% { transform: translate(50%, 0); opacity: .5; }
                      50% { transform: translate(50%, 8px); opacity: 1; } }
-    .scrollcue .ic { transform: rotate(-90deg); width: 22px; height: 22px; }
+    /* 24px on both axes: the cue measured 22 wide, the only target on the
+       site under the WCAG 2.2 floor */
+    .scrollcue { padding: 4px; }
+    .scrollcue .ic { transform: rotate(-90deg); width: 24px; height: 24px; display: block; }
 
+
+    /* Arabic in Cairo needs line-height >= 1.35 at display sizes, or a damma
+       collides with the line above. Measured: 18 headings sat at 1.2 — the
+       browser default — including a 52px h1 that wraps to two lines. */
+    h1, h2, h3, .num, h2.section, .product h3, .card h3, .band .fact h3 {
+      line-height: 1.4;
+    }
     h2.section { font-size: 22px; margin: 32px 0 4px; }
     h2.section::after {
       content: ""; display: block; width: 46px; height: 3px; border-radius: 2px;
@@ -632,7 +642,7 @@
       background: var(--panel); border: 2px solid var(--tint); color: var(--tint);
       font-weight: 800; font-size: 13px; }
     ol.flow li.now::before { background: var(--tint); color: #fff; }
-    ol.flow li b { display: block; font-size: 15px; margin: 4px 0 2px; }
+    ol.flow li b { display: block; font-size: 15px; margin: 4px 0 4px; }
     ol.flow li span { color: var(--muted); font-size: 13px; line-height: 1.65; }
     html.motion [data-reveal] ol.flow li { opacity: 0; transform: translateY(10px);
       transition: opacity .45s ease, transform .45s ease; }
@@ -661,7 +671,7 @@
     ol.steps li::after { content: ""; position: absolute; top: 15px;
       inset-inline-start: 40px; inset-inline-end: -8px; height: 2px; background: var(--border); }
     ol.steps li:last-child::after { display: none; }
-    ol.steps li b { display: block; color: var(--text); font-size: 15px; margin: 8px 0 2px; }
+    ol.steps li b { display: block; color: var(--text); font-size: 15px; margin: 8px 0 4px; }
 
     /* the technologies float — each chip bobs on its own beat */
     .cloud { display: flex; flex-wrap: wrap; gap: 8px 12px; justify-content: center;
@@ -687,7 +697,7 @@
     .channel:hover { border-color: var(--tint); }
     .channel .tile { width: 40px; height: 40px; border-radius: 12px; }
     .channel .tile .ic { width: 22px; height: 22px; }
-    .channel .t { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .channel .t { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
     .channel b { font-size: 14.5px; }
     .channel span.v { color: var(--muted); font-size: 12.5px; direction: ltr; unicode-bidi: isolate;
       text-align: start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -738,7 +748,7 @@
     .scene .soft { stroke: var(--border); }
     .scene text { fill: var(--muted); stroke: none; font-family: var(--sans);
       font-size: 11px; font-weight: 700; }
-    .card.drawn { gap: 10px; }
+    .card.drawn { gap: 12px; }
     .card.drawn b { font-size: 16px; }
     .card.drawn p { font-size: 12.5px; }
 
@@ -791,7 +801,7 @@
       /* inline-start (the right, in RTL): the rails put their arrows at the
          inline-end, and a fixed pill there would sit on top of a real control */
       position: fixed; inset-block-end: 20px; inset-inline-start: 20px; z-index: 60;
-      display: inline-flex; align-items: center; gap: 10px;
+      display: inline-flex; align-items: center; gap: 12px;
       background: var(--tint-strong); color: #fff; border-radius: 999px;
       padding: 12px 20px 12px 16px; min-height: 56px;
       box-shadow: 0 8px 24px rgba(27, 36, 48, .22);
@@ -816,9 +826,21 @@
       100% { opacity: 0;  transform: scale(1.18); }
     }
     @media (max-width: 640px) {
-      .callfab { inset-block-end: 14px; inset-inline-start: 14px; padding: 10px 16px 10px 12px;
-        min-height: 52px; }
-      .callfab b { font-size: 14px; }
+      /* Measured: the labelled pill is 188px wide and covered the first
+         section heading outright. On a 390px screen there is no margin to
+         put a wide pill in, so it becomes a disc — the label lives in
+         aria-label, where a screen reader still reads it. */
+      /* and it moves to the inline-end corner on a phone. inline-start was
+         chosen so it would not sit on the rails' arrows — but the arrows are
+         hidden at this width, the thumb scrolls instead, so the corner is
+         free. In RTL that puts the disc where a line ENDS rather than where
+         it starts: measured, at inline-start it was covering the first
+         characters of every heading it passed. */
+      .callfab { inset-block-end: 14px; inset-inline-start: auto; inset-inline-end: 14px;
+        padding: 0; width: 56px; height: 56px; min-height: 56px;
+        justify-content: center; gap: 0; }
+      .callfab .fabtext { display: none; }
+      .callfab .ic { width: 24px; height: 24px; }
     }
 
     /* ═══════ footer: the company, the map of the site, the channels ═══════
@@ -836,17 +858,17 @@
     .fcols .fbrand { flex: 1 1 260px; }
     .fcols b.fh { display: block; color: var(--text); font-size: 13.5px; margin-bottom: 8px; }
     /* a link that answers the pointer: it steps toward the RTL start */
-    .fcols nav a { display: block; color: var(--muted); padding: 3px 0;
+    .fcols nav a { display: block; color: var(--muted); padding: 4px 0;
       transition: color .18s ease, transform .18s ease; }
     .fcols nav a:hover { color: var(--tint); transform: translateX(-4px); }
     .fbrand .fmark { display: flex; align-items: center; gap: 8px; }
     .fbrand .logo { width: 36px; height: 36px; color: var(--tint); }
     .fbrand .name { font-weight: 800; color: var(--tint); font-size: 19px; line-height: 1.2; }
-    .fbrand p { margin: 10px 0 0; max-width: 30ch; }
+    .fbrand p { margin: 12px 0 0; max-width: 30ch; }
 
     /* the channels, written out — an icon button alone hides the number */
     .fcontact { display: flex; flex-direction: column; align-items: flex-start;
-      gap: 2px; margin-top: 12px; }
+      gap: 4px; margin-top: 12px; }
     .fcontact a { display: inline-flex; align-items: center; gap: 8px; color: var(--muted);
       padding: 6px 0; min-height: 32px; transition: color .18s ease; }
     .fcontact a:hover { color: var(--tint); }
@@ -862,7 +884,7 @@
     .soc a:hover { transform: translateY(-3px); border-color: var(--tint); background: var(--tint); }
     .soc a:hover .ic { stroke: #fff; color: #fff; }
 
-    .base { border-top: 1px solid var(--border); padding: 14px 20px;
+    .base { border-top: 1px solid var(--border); padding: 16px 20px;
       display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 16px; }
     .base .made { display: inline-flex; align-items: center; gap: 6px; }
     .base .top { display: inline-flex; align-items: center; gap: 6px; color: var(--tint);
@@ -916,7 +938,7 @@
       .fcols { gap: 24px 20px; padding: 24px 12px 20px; }
       .fcols > div, .fcols .fbrand { flex: 1 1 100%; }
       .fcontact a { min-height: 44px; }
-      .base { flex-direction: column; gap: 10px; text-align: center; }
+      .base { flex-direction: column; gap: 12px; text-align: center; }
       :target, section[id], h2.section[id] { scroll-margin-top: 176px; }
       .qform { grid-template-columns: 1fr; padding: 16px; }
       .shape { display: none; }
@@ -1020,7 +1042,7 @@
       <!-- real, verifiable numbers — no invented clients or years -->
       <div class="stats">
         <div class="stat"><b class="num" data-count="4">4</b><span>وحدات في نظام النوخذة</span></div>
-        <div class="stat"><b class="num" data-count="484">484</b><span>فحصاً آلياً قبل كل إصدار</span></div>
+        <div class="stat"><b class="num" data-count="488">488</b><span>فحصاً آلياً قبل كل إصدار</span></div>
         <div class="stat"><b class="num" data-count="0">0</b><span>اعتماديات خارجية</span></div>
         <div class="stat"><b class="num" data-count="100" data-suffix="%">100%</b><span>يعمل دون إنترنت</span></div>
       </div>
@@ -1484,7 +1506,7 @@
      aria-label="اتصل بالبحار — المساعد الصوتي لشركة المهلب">
     <span class="halo" aria-hidden="true"></span>
     <svg class="ic" aria-hidden="true"><use href="#i-mic"/></svg>
-    <span><b>البحار</b><span>مساعد صوتي — كلّمه الآن</span></span>
+    <span class="fabtext"><b>البحار</b><span>مساعد صوتي — كلّمه الآن</span></span>
   </a>
 
   <footer>
@@ -1577,15 +1599,71 @@
       var zones = [document.getElementById("contact"), document.querySelector(".qwrap"),
                    document.querySelector(".channels"), document.querySelector("footer")]
         .filter(Boolean);
-      if (!zones.length || !("IntersectionObserver" in window)) return;
       var near = new Set();
-      var zio = new IntersectionObserver(function (entries) {
-        entries.forEach(function (e) {
-          if (e.isIntersecting) near.add(e.target); else near.delete(e.target);
-        });
-        fab.classList.toggle("away", near.size > 0);
-      }, { threshold: 0 });
-      zones.forEach(function (z) { zio.observe(z); });
+      if (zones.length && "IntersectionObserver" in window) {
+        var zio = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) {
+            if (e.isIntersecting) near.add(e.target); else near.delete(e.target);
+          });
+          place();
+        }, { threshold: 0 });
+        zones.forEach(function (z) { zio.observe(z); });
+      }
+
+      /* Naming zones by hand only protects the zones somebody thought of. A
+         sweep of the whole scroll range found the pill sitting on eleven
+         other things on a phone — a section heading, a product title, card
+         headings — none of them in that list. So the rule is now the thing
+         it always meant: if the pill is on a heading, the pill moves. */
+      /* Headings, and anything you could need to press. Body copy and card
+         labels are deliberately NOT in this list: a small disc in a corner
+         clipping a line is what every floating button does, and dodging all
+         of it left the pill hidden for three quarters of a phone page —
+         which is not a working button either. Measured both ways. */
+      var titles = [].slice.call(document.querySelectorAll(
+        "h1, h2, h3, .btn, button, [role=button]"))
+        /* the pill's own label is a <b>: without this it collides with
+           itself and hides on every pixel of the page */
+        .filter(function (t) { return !fab.contains(t); });
+      /* Measure the pill where it RESTS, not where it currently is: `.away`
+         translates it 16px down, so testing the live rect made the test undo
+         its own result — hide, no longer overlapping, show, overlap again.
+         It is fixed, so one measurement per layout is enough. */
+      var rest = null;
+      function measure() {
+        var away = fab.classList.contains("away");
+        if (away) fab.classList.remove("away");
+        rest = fab.getBoundingClientRect();
+        if (away) fab.classList.add("away");
+      }
+      function hits() {
+        if (!titles.length) return false;
+        if (!rest) measure();
+        var f = rest;
+        for (var i = 0; i < titles.length; i++) {
+          var t = titles[i], r = t.getBoundingClientRect();
+          if (!r.width || !r.height) continue;
+          if (r.bottom < -40 || r.top > innerHeight + 40) continue;   // off screen
+          /* Strict: a heading clipped by six pixels is still a clipped
+             heading. This was affordable only after the self-collision above
+             was fixed — before that, any threshold at all hid the pill on
+             every pixel of the page. Measured after: it is still on screen
+             across 43% of a phone page and 48% of a desktop one. */
+          if (Math.min(f.right, r.right) - Math.max(f.left, r.left) > 2 &&
+              Math.min(f.bottom, r.bottom) - Math.max(f.top, r.top) > 2) return true;
+        }
+        return false;
+      }
+      function place() { fab.classList.toggle("away", near.size > 0 || hits()); }
+      var tick = false;
+      function onScroll() {
+        if (tick) return;
+        tick = true;
+        requestAnimationFrame(function () { tick = false; place(); });
+      }
+      addEventListener("scroll", onScroll, { passive: true });
+      addEventListener("resize", function () { measure(); onScroll(); });
+      measure(); place();
     })();
 
     /* The sliders. The rail is native overflow scroll and stays fully usable

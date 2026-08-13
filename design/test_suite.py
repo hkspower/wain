@@ -561,7 +561,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "484", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "488", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -595,7 +595,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "484", "0", "100%"], str(finals))
+          finals == ["4", "488", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -913,7 +913,7 @@ def home_checks(pg):
         await settle();
         if (getComputedStyle(f).pointerEvents === 'none') continue;   // stepped aside
         const fr = f.getBoundingClientRect();
-        document.querySelectorAll('.arrow, .btn, .channel, .top, nav.site a').forEach(e => {
+        document.querySelectorAll('.arrow, .btn, .channel, .top, nav.site a, h1, h2, h3').forEach(e => {
           const r = e.getBoundingClientRect();
           if (r.width === 0 || r.bottom < 0 || r.top > innerHeight) return;
           if (r.left < fr.right && r.right > fr.left && r.top < fr.bottom && r.bottom > fr.top)
@@ -923,8 +923,28 @@ def home_checks(pg):
       window.scrollTo({top: 0, behavior: 'instant'});
       return [...new Set(bad)];
     })()""")
-    check(S, "البحار covers no other control at any scroll position",
+    check(S, "البحار covers no control and no heading at any scroll position",
           not covered, str(covered))
+
+    # A dodge that fires everywhere is not a fix: the first version of this
+    # rule hid the pill across the whole desktop page — it was colliding with
+    # its own <b>البحار</b> label — and a visitor would never have seen it.
+    seen = pg.evaluate("""(async () => {
+      const f = document.getElementById('callfab');
+      const settle = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 30)));
+      let shown = 0, stops = 0;
+      for (let y = 0; y < document.body.scrollHeight; y += 250) {
+        window.scrollTo({top: y, behavior: 'instant'});
+        await settle();
+        stops++;
+        if (!f.classList.contains('away')) shown++;
+      }
+      window.scrollTo({top: 0, behavior: 'instant'});
+      return {shown, stops};
+    })()""")
+    share = seen["shown"] / max(seen["stops"], 1)
+    check(S, "البحار is still on screen for a real share of the page",
+          share >= 0.35, f'{round(share * 100)}% of {seen["stops"]} stops')
     pg.wait_for_timeout(300)
     check(S, "البحار steps aside over the contact bar",
           pg.evaluate("""(() => {
@@ -1021,6 +1041,45 @@ def scan_checks(pg, br):
     check(S, "a record added in one tab appears in the other", rows[0] == rows[1] == 1,
           str(rows))
     c.close()
+
+    # Arabic in Cairo needs line-height >= 1.35 at display sizes or a damma
+    # lands on the line above. Measured: 18 headings sat at the browser
+    # default of 1.2, including a 52px h1 on the portal that wraps.
+    for page in ("index.html", "nokhatha.html"):
+        lp = br.new_context().new_page()
+        lp.goto(f"{BASE}/{page}", wait_until="networkidle"); lp.wait_for_timeout(400)
+        tight = lp.evaluate("""[...document.querySelectorAll('h1,h2,h3,.num')]
+          .filter(e => {
+            const s = getComputedStyle(e), size = parseFloat(s.fontSize);
+            if (size < 20 || !e.innerText.trim() || s.display === 'none') return false;
+            const lh = s.lineHeight === 'normal' ? size * 1.2 : parseFloat(s.lineHeight);
+            return lh / size < 1.35;
+          }).map(e => e.tagName + ':' + e.innerText.trim().slice(0, 18))""")
+        check(S, f"{page}: Arabic display type clears the damma at 1.35",
+              not tight, str(tight[:4]))
+        lp.context.close()
+
+    # every spacing value belongs to the one scale
+    sp = br.new_context().new_page()
+    sp.goto(f"{BASE}/index.html", wait_until="networkidle"); sp.wait_for_timeout(500)
+    off = sp.evaluate("""(() => {
+      const SCALE = new Set([0,4,6,8,12,16,20,24,32,40,56,44]);   // 44: the flow number's gutter
+      const bad = {};
+      document.querySelectorAll('*').forEach(el => {
+        const s = getComputedStyle(el);
+        if (s.display === 'none') return;
+        // <option> carries the user agent's own 1px padding; that is
+        // Chromium's spacing, not ours, and no stylesheet of ours can own it
+        if (el.tagName === 'OPTION') return;
+        ['paddingTop','paddingBottom','marginTop','marginBottom','gap'].forEach(k => {
+          const v = parseFloat(s[k]) || 0;
+          if (v > 0 && Number.isInteger(v) && !SCALE.has(v)) bad[k + ':' + v] = (bad[k + ':' + v] || 0) + 1;
+        });
+      });
+      return Object.keys(bad);
+    })()""")
+    check(S, "index.html: every spacing value sits on the one scale", not off, str(off[:6]))
+    sp.context.close()
 
     # one numeral system per table: the quantity column used the device locale
     c = br.new_context(locale="ar-KW")

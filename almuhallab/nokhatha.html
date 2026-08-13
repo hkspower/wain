@@ -144,8 +144,11 @@
       display: inline-block; background: var(--panel-2); border: 1px solid var(--border);
       color: var(--sand); border-radius: 999px; padding: 6px 16px; font-size: 13px; font-weight: 700;
     }
-    .hero h1 { font-size: clamp(30px, 6vw, 52px); margin: 16px 0 8px; line-height: 1.2; text-wrap: balance; }
-    .hero h1 .en { color: var(--tint); direction: ltr; display: inline-block; unicode-bidi: isolate; }
+    .hero h1 { font-size: clamp(30px, 6vw, 52px); margin: 16px 0 8px; line-height: 1.4; text-wrap: balance; }
+    .hero h1 .en { color: var(--tint); direction: ltr; display: block; unicode-bidi: isolate;
+      /* the English reads longer than the Arabic at the same size, so it wrapped
+         to two lines and outweighed the line it translates */
+      font-size: .68em; margin-top: 2px; text-wrap: balance; }
     .hero p { color: var(--muted); max-width: 620px; margin: 0 auto 24px; font-size: 16px; line-height: 1.8; }
     .hero .actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 
@@ -164,6 +167,13 @@
     .chip.on { color: var(--tint); border-color: var(--tint-strong); }
     .chip.locked { color: var(--sand); }
 
+
+    /* Arabic in Cairo needs line-height >= 1.35 at display sizes, or a damma
+       collides with the line above. Measured: 18 headings sat at 1.2 — the
+       browser default — including a 52px h1 that wraps to two lines. */
+    h1, h2, h3, .num, h2.section, .product h3, .card h3, .band .fact h3 {
+      line-height: 1.4;
+    }
     h2.section { font-size: 24px; margin: 8px 0 4px; }
     .sub { color: var(--muted); margin: 0 0 16px; line-height: 1.8; }
 
@@ -269,7 +279,7 @@
         </p>
         <div class="actions">
           <a class="btn primary" href="#/register">أنشئ حسابك مجاناً</a>
-          <a class="btn outline" href="#/pricing">شاهد الباقات</a>
+          <a class="btn outline" href="#/pricing">ما يشمله النظام</a>
         </div>
       </div>
 
