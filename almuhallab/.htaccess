@@ -1,4 +1,4 @@
-# Nokha1 — Apache / LiteSpeed config (Hostinger and most shared hosts).
+# النوخذة — Apache / LiteSpeed config (Hostinger and most shared hosts).
 # GitHub Pages ignores this file, so it is safe to ship everywhere.
 
 # ---- Correct MIME types (a wrong type silently breaks PWA install) ----

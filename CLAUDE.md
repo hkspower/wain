@@ -21,7 +21,12 @@ title, filename, or artefact. Write **النوخذة** in Arabic; where a Latin
 filename or key is unavoidable, use `nokhatha` (matching the `nokhatha-*`
 storage keys). The portal lives at `nokhatha.html` (`/nokhatha`); `nokha1.html`
 survives only as an unlinked redirect for links published before the rename.
-`design/test_suite.py` fails if the shorthand reappears on any page.
+`design/test_suite.py` fails if the shorthand reappears in **any authored
+artefact**, not only a page — it was found in `.htaccess`, in `SECURITY.md`'s
+own title, in the HTTP/3 server configs, and printed on the cover of the
+generated PDF sample. Two uses are sanctioned and stay: the `nokha1.html`
+redirect stub, and the `nokha1-admin-*` storage keys the console migrates old
+records *from* — renaming those would strand real data.
 
 ### 🔒 THE ALMUHALLAB STYLE IS FINAL — NEVER CHANGE IT
 
@@ -239,7 +244,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 489 checks covering
+- `python3 design/test_suite.py` is the full system test — 494 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
@@ -303,5 +308,18 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - **Dates in generated filings must be computed in UTC** and anchored to the
   first of the opening month. Local-midnight parsing shifts the date east of
   Greenwich, and subtracting months from a 31st overflows into the wrong month.
+- **The site deploys to GitHub Pages** (`.github/workflows/pages.yml`), which
+  **ignores `.htaccess`** — so every header that file sets is inert in
+  production: `nosniff`, `X-Frame-Options`, `Permissions-Policy`, HSTS. Only
+  `Referrer-Policy` survives, because it is also a `<meta>`. `frame-ancestors`
+  is ignored inside a `<meta>` CSP, so the three pages holding records carry a
+  **frame-buster** instead — hide first, navigate second, because a sandboxed
+  frame can block the navigation. It is a mitigation, not a fix; the fix is a
+  host that reads `.htaccess`. `SECURITY.md` states this in a table.
+- **A formula guard that only knows `= + - @` is not a guard**: Excel strips a
+  leading TAB before deciding what a cell is, and a CR inside a name split the
+  CSV row in half and put its tail on a new line as a fresh first cell. Collapse
+  CR/LF, **trim**, then test — trimming matters because a leading space only
+  saves you until an importer strips whitespace. Pinned with real payloads.
 - Screenshots must be **looked at**, not just asserted on — layout defects
   (orphaned tiles, wrapped values) do not fail a test.

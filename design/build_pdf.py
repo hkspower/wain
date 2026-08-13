@@ -142,7 +142,7 @@ for fn, num, title, ar, url in plates:
 
     dr.line([250, H - 168, W - 250, H - 168], fill=BORDER, width=2)
     ls_text(dr, 250, H - 132, url, furl, MUTED, 2)
-    ls_text(dr, W - 250, H - 132, "NOKHA1 — ALMUHALLAB", font(F_MONO, 30), MUTED, 3, "rt")
+    ls_text(dr, W - 250, H - 132, "NOKHATHA — ALMUHALLAB", font(F_MONO, 30), MUTED, 3, "rt")
     pages.append(im)
 
 # ------------------------------------------------------------------ MOBILE
@@ -168,7 +168,7 @@ for i, (fn, cap) in enumerate(mobiles):
     ar_text(dr, cx, py + nh + 56, cap, 52, TEAL, "mt")
 dr.line([250, H - 168, W - 250, H - 168], fill=BORDER, width=2)
 ls_text(dr, 250, H - 132, "402 × 874 — ADD TO HOME SCREEN", furl, MUTED, 2)
-ls_text(dr, W - 250, H - 132, "NOKHA1 — ALMUHALLAB", font(F_MONO, 30), MUTED, 3, "rt")
+ls_text(dr, W - 250, H - 132, "NOKHATHA — ALMUHALLAB", font(F_MONO, 30), MUTED, 3, "rt")
 pages.append(im)
 
 # ------------------------------------------------------------------ SPEC

@@ -283,6 +283,31 @@ def seo_checks():
 
 
 # ═══════════════════════════════════════════ 1b. IDENTITY — pinned, do not relax
+def shorthand_checks():
+    """The shorthand is the owner's private name for النوخذة and must never
+    appear as a NAME in anything shipped. Two uses are sanctioned and stay:
+    the `nokha1.html` redirect stub (links published before the rename), and
+    the `nokha1-admin-*` storage keys the console migrates old records FROM —
+    renaming those would strand real data."""
+    S = "identity"
+    allowed = re.compile(r"nokha1\.html|nokha1-admin-|\^\(nokhatha\|nokha1|/nokha1 stays")
+    offenders = []
+    for f in sorted(ROOT.glob("*")) + sorted((ROOT.parent / "design").rglob("*")):
+        if not f.is_file() or f.suffix in (".png", ".woff2", ".ico", ".pdf"):
+            continue
+        try:
+            src = f.read_text()
+        except (UnicodeDecodeError, OSError):
+            continue
+        for i, line in enumerate(src.splitlines(), 1):
+            if re.search(r"nokha1", line, re.I) and not allowed.search(line):
+                if f.name == "test_suite.py":
+                    continue
+                offenders.append(f"{f.name}:{i}")
+    check(S, "the private shorthand appears in no shipped artefact",
+          not offenders, ", ".join(offenders[:6]))
+
+
 def identity_checks():
     """The Almuhallab identity is the company's own and is final. These values
     are pinned deliberately: if a change makes them fail, fix the change."""
@@ -561,7 +586,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "489", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "494", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -595,7 +620,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "489", "0", "100%"], str(finals))
+          finals == ["4", "494", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -1080,6 +1105,36 @@ def scan_checks(pg, br):
     })()""")
     check(S, "index.html: every spacing value sits on the one scale", not off, str(off[:6]))
     sp.context.close()
+
+    # A spreadsheet formula guard that only knows = + - @ is not a guard:
+    # Excel strips a leading TAB before deciding what a cell is, and a CR in a
+    # name split the row in half and put its tail on a fresh line as a new
+    # first cell — an injection and a corrupt file at once. Both demonstrated.
+    c = br.new_context(accept_downloads=True)
+    xp = c.new_page()
+    xp.goto(f"{BASE}/nizam.html#/safi", wait_until="networkidle")
+    xp.evaluate("""([k, v]) => localStorage.setItem(k, v)""", ["nokhatha-safi-v1", json.dumps([
+        {"ticker": "AAA", "name": "\t=1+1", "qty": 10, "cost": 100, "price": 110},
+        {"ticker": "BBB", "name": "\r=2+2", "qty": 10, "cost": 100, "price": 110},
+        {"ticker": "CCC", "name": "=cmd|'/c calc'!A1", "qty": 10, "cost": 100, "price": 110},
+    ], ensure_ascii=False)])
+    xp.reload(); xp.wait_for_timeout(500)
+    with xp.expect_download() as dl:
+        xp.click("#safi-export")
+    body = pathlib.Path(dl.value.path()).read_text(encoding="utf-8-sig")
+    rows = [r for r in body.strip().split("\n") if r][1:]
+    check(S, "the CSV export cannot inject a spreadsheet formula",
+          len(rows) == 3 and all(r.split(",", 1)[1].startswith("\"'") for r in rows),
+          str(rows))
+    c.close()
+
+    # frame-ancestors is ignored in a <meta> CSP and X-Frame-Options only
+    # exists as a real header — which .htaccess sets and GitHub Pages, where
+    # this deploys, ignores. The pages holding records defend themselves.
+    for page in ("nokhatha.html", "nizam.html", "admin.html"):
+        src = (ROOT / page).read_text()
+        check(S, f"{page}: refuses to render inside someone else's frame",
+              "self === top" in src and "top.location" in src)
 
     # one numeral system per table: the quantity column used the device locale
     c = br.new_context(locale="ar-KW")
@@ -1812,6 +1867,7 @@ def font_checks(pg):
 static_checks()
 seo_checks()
 identity_checks()
+shorthand_checks()
 browser_checks()
 
 print()

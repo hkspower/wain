@@ -1,9 +1,9 @@
-# Nokha1 over HTTP/3 — Caddy speaks h3 by default, with automatic HTTPS.
+# النوخذة over HTTP/3 — Caddy speaks h3 by default, with automatic HTTPS.
 # Run:  caddy run --config Caddyfile
 # This is the shortest path to a real HTTP/3 deployment.
 
 www.almuhallab-code.com {
-	root * /var/www/nokha1
+	root * /var/www/nokhatha
 	encode zstd gzip
 	file_server
 

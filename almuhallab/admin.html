@@ -213,6 +213,20 @@
       .btn.sm { min-height: 34px; }
     }
   </style>
+<script>
+  /* Clickjacking. `frame-ancestors` is ignored in a <meta> CSP and
+     X-Frame-Options only exists as a real HTTP header — and .htaccess, which
+     sets it, is ignored by GitHub Pages, where this site is deployed. So the
+     only defence a static file can mount is this: refuse to render inside
+     someone else's frame, and leave. It is weaker than a header (a sandboxed
+     frame can block the navigation) — which is why the page hides itself
+     first and navigates second, rather than trusting the navigation. */
+  (function () {
+    if (self === top) return;
+    document.documentElement.style.visibility = "hidden";
+    try { top.location = self.location; } catch (e) { /* sandboxed: stay hidden */ }
+  })();
+</script>
 </head>
 <body>
 

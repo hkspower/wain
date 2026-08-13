@@ -258,6 +258,20 @@
       body { background: #fff; }
     }
   </style>
+<script>
+  /* Clickjacking. `frame-ancestors` is ignored in a <meta> CSP and
+     X-Frame-Options only exists as a real HTTP header — and .htaccess, which
+     sets it, is ignored by GitHub Pages, where this site is deployed. So the
+     only defence a static file can mount is this: refuse to render inside
+     someone else's frame, and leave. It is weaker than a header (a sandboxed
+     frame can block the navigation) — which is why the page hides itself
+     first and navigates second, rather than trusting the navigation. */
+  (function () {
+    if (self === top) return;
+    document.documentElement.style.visibility = "hidden";
+    try { top.location = self.location; } catch (e) { /* sandboxed: stay hidden */ }
+  })();
+</script>
 </head>
 <body>
   <div class="topbar">
@@ -635,8 +649,16 @@
     var lines = ["Ticker,Company,Qty,AvgCostFils,PriceFils,ValueKWD,PLKWD"];
     holdings().forEach(function (h) {
       var value = h.qty * h.price / 1000, pl = value - h.qty * h.cost / 1000;
-      var name = h.name;
-      if (/^[=+\-@]/.test(name)) name = "'" + name;   // spreadsheet formula guard
+      // Spreadsheet formula guard. Excel strips a leading TAB or CR before it
+      // decides what a cell is, so "\t=1+1" is a formula and the old test —
+      // which only looked for = + - @ — waved it through. And a CR or LF inside
+      // a name broke the row in half, which put its tail on a line of its own
+      // as a fresh first cell: both an injection and a corrupt file.
+      // …and trim before testing, so the guard does not rely on a leading
+      // space to save it: some importers strip whitespace first, and then the
+      // formula is back. Collapse the newlines, trim, then decide.
+      var name = String(h.name).replace(/[\r\n]+/g, " ").trim();
+      if (/^[\t=+\-@]/.test(name)) name = "'" + name;
       lines.push([h.ticker, '"' + name.replace(/"/g, '""') + '"', h.qty, h.cost, h.price,
                   value.toFixed(3), pl.toFixed(3)].join(","));
     });

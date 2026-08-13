@@ -1,82 +1,113 @@
-# Security — Almuhallab / Nokha1 (النوخذة)
+# Security — المهلب كود · النوخذة
 
-This document describes the security measures in the static prototype and the
-boundaries that only a real backend can provide.
+What this system does to protect data, what it cannot do, and how to check
+both. Written against the code as it stands; every claim here is either
+enforced by `design/test_suite.py` or marked as a limit.
 
-## Measures implemented (all pages)
+**Reporting an issue:** cs@sporta.com.kw
 
-- **Service worker scope**: the worker (`sw.js`) only intercepts same-origin
-  GET requests and never caches cross-origin responses.
+---
 
-- **Content Security Policy** (`<meta http-equiv="Content-Security-Policy">`):
-  `default-src 'none'`, no external scripts/styles/connections, `base-uri 'none'`,
-  `form-action 'none'` (forms are JS-handled only — a broken script can never
-  leak form data into a URL). The editor additionally allows `img-src *` and
-  `frame-src` for its sandboxed preview only.
-- **Referrer policy**: `no-referrer` on every page.
+## Where the site actually runs, and what that costs
+
+The site is deployed to **GitHub Pages** (`.github/workflows/pages.yml`).
+`almuhallab/.htaccess` exists for Apache/LiteSpeed hosts and **GitHub Pages
+ignores it entirely** — so every header it sets is inert in production:
+
+| Header in `.htaccess` | Live on GitHub Pages? | Covered another way? |
+|---|---|---|
+| `Referrer-Policy: no-referrer` | ❌ | ✅ `<meta name="referrer">` on every page |
+| `X-Content-Type-Options: nosniff` | ❌ | ❌ — no static equivalent |
+| `X-Frame-Options: SAMEORIGIN` | ❌ | ⚠️ frame-buster script (below) |
+| `Permissions-Policy` | ❌ | ❌ — no static equivalent |
+| `Strict-Transport-Security` | ❌ | ⚠️ GitHub Pages sends HSTS when *Enforce HTTPS* is on — **check that setting** |
+
+**If these headers matter to you, move hosting to a server that reads
+`.htaccess`** (the file is already written and correct for that case). On
+GitHub Pages they cannot be delivered from a static file.
+
+### Clickjacking
+
+`frame-ancestors` is **ignored inside a `<meta>` CSP**, and `X-Frame-Options`
+exists only as a real header. So `nokhatha.html`, `nizam.html` and `admin.html`
+carry a frame-buster: if the page finds itself framed it hides itself and
+navigates the top window away. This is weaker than a header — a sandboxed frame
+can block the navigation, which is why the page hides *first* and navigates
+second — and it is a mitigation, not a fix. The fix is a server that sends the
+header.
+
+---
+
+## What is enforced, in the code
+
+- **Content Security Policy** on all nine pages: `default-src 'none'`, no
+  external origin of any kind, `base-uri 'none'`, `form-action 'none'`. Scripts
+  and styles are inline-only, so there is nothing to load and nothing to
+  poison. This is why no CDN, no font host and no analytics can be added
+  without deliberately weakening the policy.
 - **Output encoding**: every user-supplied string rendered into HTML goes
-  through an `esc()` helper (textContent-based encoding); numbers are re-coerced
-  and clamped on read because `localStorage` is user-writable and treated as
-  untrusted input.
-- **Input constraints**: `maxlength`, `pattern`, numeric `min`/`step` on all
-  fields, plus JS-side validation and clamping (never trust HTML validation alone).
+  through `esc()` (textContent-based). Numbers are re-coerced and **clamped**
+  on read: `localStorage` is user-writable and is treated as untrusted input.
+  Verified against hostile payloads — script tags, non-numeric quantities,
+  `1e308`, wrong types, broken JSON, `null` entries — none of which execute,
+  crash the page, or render.
+- **Service worker** (`sw.js`): same-origin GET only; cross-origin responses
+  are never cached.
+- **Redirect stubs** (`safi.html`, `xbrl.html`, `delivery.html`, `nokha1.html`,
+  `404.html`) navigate to **hardcoded** destinations — no parameter reaches
+  `location`, so none of them is an open redirect.
+- **CSV export** neutralises spreadsheet formula injection: a company name
+  beginning `=`, `+`, `-`, `@` or a **TAB** is prefixed with `'`, and CR/LF are
+  collapsed to a space so a name can never break the row and inject a new one.
 
-## Authentication (index.html — the Nokha1 portal)
+## Accounts (`nokhatha.html` — the النوخذة portal)
 
-- Passwords are hashed with **PBKDF2-SHA256, 310,000 iterations, 16-byte random
-  per-user salt** via the Web Crypto API. No plaintext or reversible form is stored.
-- Accounts from the earlier prototype (weak hash) are **transparently upgraded**
-  to PBKDF2 on their next successful login.
-- Hash comparison uses a constant-time loop.
-- **Login throttling**: 5 failed attempts locks that email for 5 minutes.
-- **Sessions expire** after 24 hours.
-- Minimum password length is 8; email format is validated.
+`index.html`, the company page, carries **no account UI at all**.
 
-## Admin console (admin.html)
+- **PBKDF2-SHA256, 310,000 iterations, 16-byte random per-user salt** via Web
+  Crypto. No plaintext, no reversible form.
+- Hash comparison is a **constant-time** XOR loop.
+- **Login throttling**: 5 failures lock that email for 5 minutes.
+- **Sessions expire after 24 hours**, signed out or not.
+- Minimum password length 8; email format validated.
+
+## Admin console (`admin.html`)
 
 - Its own PBKDF2-SHA256 passphrase (310,000 iterations, random salt), stored
   separately from customer records; minimum 10 characters.
-- Sessions expire after **30 minutes** (shorter than the customer session).
-- 5 failed attempts lock the console for 10 minutes.
-- Every mutating action is written to an append-only audit log.
-- Destructive actions (delete, bulk, wipe) require confirmation; wipe requires two.
-- All customer-supplied text is escaped before rendering — the admin views data
-  that customers typed, so it is treated as untrusted.
-- **Limit:** like everything else here, this gate is device-local. It keeps a
-  casual visitor out of the console on a shared machine; it is not server-side
-  authorization, and anyone with devtools can read the same localStorage
-  directly. Real operator access control needs the backend below.
+- Sessions expire after **30 minutes**; 5 failures lock the console for 10.
+- Every mutating action is written to an append-only audit log; destructive
+  actions require confirmation, and a wipe requires two.
 
-## Module-specific
+## The Windows app (`nokhatha_app/`)
 
-- **Editor (editor.html)**: user code runs in an `<iframe sandbox="allow-scripts allow-modals">`
-  — no `allow-same-origin`, so preview code cannot touch the parent page,
-  its localStorage, or cookies.
-- **SAFI (safi.html)**: tickers are whitelisted to `[A-Z0-9.]{1,12}`; CSV export
-  neutralizes leading `= + - @` in text cells (spreadsheet formula-injection guard).
-- **XBRL (xbrl.html)**: all values are XML-escaped before insertion into the
-  generated document; the download filename is sanitized; preview renders via
-  `textContent` (never HTML).
-- **Delivery (delivery.html)**: all rendered fields escaped; phone fields
-  pattern-restricted; amounts clamped to `0..1,000,000`.
+- Passwords: PBKDF2-SHA256, 310,000 iterations, tested against two published
+  RFC 7914 vectors.
+- **No network capability at all** — no network-capable package in the
+  dependency tree and no socket in the code, enforced by
+  `test/supply_chain_test.dart`, which fails the build if either appears.
+- No `Process.run`/`Process.start`; the release build is not obfuscated.
+- Records are written **atomically** (temp file + rename); a corrupt file is
+  kept aside as `.corrupt` rather than destroyed.
+- Every release carries a SHA-256 checksum and a **GitHub-signed build
+  provenance attestation** (`gh attestation verify`).
+- **The records file is not encrypted.** Password hashes are, the records are
+  not: anyone with the disk can read them. See `docs/WINDOWS-TRUST.md`.
 
-## Known limits of a static prototype (need a backend)
+---
 
-These cannot be fixed client-side, by design:
+## Limits that are real, and cannot be fixed client-side
 
-1. **Data lives in each visitor's browser.** Anyone with access to the device
-   (or its devtools) can read/modify their own localStorage, including their own
-   account record. Client-side hashing protects against casual disclosure of a
-   reused password — it is not a substitute for server-side auth.
-2. **No shared accounts, no server-enforced authorization, no real payments.**
-3. **Rate limiting and lockouts are advisory** — they can be cleared by the
-   same user from devtools.
+1. **Data lives in each visitor's own browser.** Anyone with the device or its
+   devtools can read and modify their own records — including their own account
+   record. Client-side hashing protects a reused password from casual
+   disclosure; it is not server-side authentication.
+2. **The lockouts and the admin gate are advisory.** They keep a casual visitor
+   out on a shared machine. They are not authorization, and the same user can
+   clear them from devtools.
+3. **No shared accounts and no server-enforced permissions.** Two people cannot
+   see one dataset, and nothing stops a determined local user.
 
-The production path (documented in README.md): server-side auth with
-bcrypt/argon2 over TLS, a real database, payment-gateway webhooks, and a server
-that enforces plan entitlements. Keep the client-side measures in this document
-anyway — defense in depth.
-
-## Reporting
-
-Found an issue? Email cs@sporta.com.kw.
+Fixing 1–3 needs a backend: server-side auth (argon2/bcrypt) over TLS, a real
+database, and server-enforced permissions. The client-side measures above stay
+regardless — defence in depth — but they are not a substitute.
