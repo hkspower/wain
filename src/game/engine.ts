@@ -544,7 +544,11 @@ export class GameEngine {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // PCF, not PCFSoft: three 0.184 deprecated PCFSoftShadowMap and its
+    // shadow map silently overwrites the type with PCFShadowMap on the
+    // first render. Asking for soft and receiving hard is worse than
+    // asking for what you get — this is the filter that actually runs.
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     // Far plane is matched to the fog, not to the track. FogExp2 at density
     // 0.0009 has hidden everything by ~2,550 m, so anything past that was
     // being rasterised for nothing. Clipping there costs no visible range
