@@ -263,7 +263,7 @@ def seo_checks():
     graph_all = json.loads(ld.group(1))["@graph"] if ld else []
     org2 = next((e for e in graph_all if e["@type"] == "Organization"), {})
     cat = org2.get("hasOfferCatalog", {}).get("itemListElement", [])
-    check(S, "the six services are declared as an offer catalogue", len(cat) == 6, str(len(cat)))
+    check(S, "the seven services are declared as an offer catalogue", len(cat) == 7, str(len(cat)))
     home_txt = pages["index.html"]
     for offer in cat:
         svc = offer["itemOffered"]
@@ -474,7 +474,7 @@ def home_checks(pg):
     check(S, "النوخذة is named as the unified system",
           pg.inner_text("main").count("النظام الموحد") >= 2)
     cards = pg.eval_on_selector_all(".card", "n=>n.length")
-    check(S, "the card sections are all present", cards == 25, f"{cards} cards")
+    check(S, "the card sections are all present", cards == 26, f"{cards} cards")
     check(S, "the three commitments sit in the band, not a grid",
           pg.eval_on_selector_all(".band .fact", "n=>n.length") == 3)
     check(S, "the retired code editor is gone from the page",
@@ -497,7 +497,7 @@ def home_checks(pg):
     rm.close()
     # the card sections slide (owner's request 2026-07-30): one scroll-snap
     # rail per section, all cards on one baseline, genuinely scrollable
-    for sid, n in (("nokhatha", 4), ("services", 6), ("offers", 5), ("edge", 10)):
+    for sid, n in (("nokhatha", 4), ("services", 7), ("offers", 5), ("edge", 10)):
         cnt = pg.eval_on_selector_all(f"#{sid} .rail .card", "n=>n.length")
         check(S, f"{sid}: the rail carries all its cards", cnt == n, f"{cnt} cards")
         tops = set(pg.eval_on_selector_all(f"#{sid} .rail .card",
@@ -561,7 +561,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "488", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "489", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -595,7 +595,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "488", "0", "100%"], str(finals))
+          finals == ["4", "489", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -834,7 +834,7 @@ def home_checks(pg):
                  title: c.querySelector('h3').textContent.trim() };
       });
     })()""")
-    check(S, "all six services carry a drawing", len(svc) == 6
+    check(S, "all seven services carry a drawing", len(svc) == 7
           and all(c["label"] for c in svc), str([c["title"] for c in svc if not c["label"]]))
     check(S, "each service drawing is described for screen readers",
           all(c["role"] == "img" and "رسم" in (c["label"] or "") for c in svc), str(svc))
@@ -856,7 +856,7 @@ def home_checks(pg):
     animated = pg.evaluate("""(() => [...document.querySelectorAll('#services .rail > .card')]
       .filter(c => [...c.querySelectorAll(':scope > svg.scene *')]
         .some(p => getComputedStyle(p).animationName !== 'none')).length)()""")
-    check(S, "every service drawing animates", animated == 6, str(animated))
+    check(S, "every service drawing animates", animated == 7, str(animated))
 
     # البحار ships gated on AGENT_URL: no URL, no button. Test the rule, not
     # today's value — the agent is live now, and a check that only passed while

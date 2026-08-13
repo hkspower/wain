@@ -239,7 +239,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 488 checks covering
+- `python3 design/test_suite.py` is the full system test — 489 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
@@ -282,8 +282,10 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   ever lists one of them. `robots.txt`, `sitemap.xml` (with real git `lastmod`
   dates) and `llms.txt` are **generated** by `design/seo_files.py` — run it
   after adding a page, and `--check` in the suite fails when the committed
-  files have drifted. The company page also declares its six services as an
-  `OfferCatalog`, each asserted to appear verbatim on the page, and the two
+  files have drifted. The company page also declares its **seven** services as an
+  `OfferCatalog` (تطوير المواقع · تطبيقات الجوال · برمجيات مخصّصة · حلول الذكاء
+  الاصطناعي · تصميم UI/UX · الحلول السحابية · **تطوير الألعاب**, added at the
+  owner's request 2026-08-13), each asserted to appear verbatim on the page, and the two
   inner pages carry a `BreadcrumbList`.
 - `design/instagram_covers.py` draws the Instagram highlight covers from the
   page sprite (1080×1080, brown fill, white mark) — `design/instagram/`.
