@@ -2,6 +2,8 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { Track, ROAD_HALF_WIDTH, COAST_U, DRIFT_PLAZA } from "./track";
 import { applyTextureManifest } from "./assets";
+import { flagTexture, kuwaitiFigure, kuwaitiRacer, type RacerLook } from "./characters";
+import { RIVALS } from "./rivals";
 
 /** Drooping palm fronds merged into one geometry (crown sits at trunk top). */
 function palmCrownGeometry(): THREE.BufferGeometry {
@@ -864,121 +866,6 @@ function chevronTexture(pointRight: boolean): THREE.CanvasTexture {
     ctx.closePath();
     ctx.fill();
   }
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-/** The red-and-white check of a Kuwaiti shemagh, tiling. */
-function ghutraCheckTexture(): THREE.CanvasTexture {
-  const c = document.createElement("canvas");
-  c.width = 64;
-  c.height = 64;
-  const ctx = c.getContext("2d")!;
-  ctx.fillStyle = "#f4f2ec";
-  ctx.fillRect(0, 0, 64, 64);
-  ctx.strokeStyle = "#b32428";
-  for (let i = 4; i <= 64; i += 8) {
-    ctx.lineWidth = i % 16 === 4 ? 2.5 : 1;
-    ctx.beginPath();
-    ctx.moveTo(i, 0);
-    ctx.lineTo(i, 64);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, i);
-    ctx.lineTo(64, i);
-    ctx.stroke();
-  }
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  return tex;
-}
-
-/** A spectator in Kuwaiti dress, ~1.75 m tall, low-poly to sit beside
- *  the road furniture. Men wear the white dishdasha with a ghutra
- *  (plain white or red check) held by a black agal; the woman wears an
- *  abaya and hijab. Faces stay simple — these are silhouettes for the
- *  corniche, not portraits. */
-function kuwaitiFigure(kind: "dishdasha" | "abaya", headdress: "white" | "check"): THREE.Group {
-  const g = new THREE.Group();
-  const cloth =
-    kind === "dishdasha"
-      ? new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.85 })
-      : new THREE.MeshStandardMaterial({ color: 0x17171b, roughness: 0.9 });
-  const skin = new THREE.MeshStandardMaterial({ color: 0xb9895f, roughness: 0.75 });
-
-  // Robe: one tapered fall from the shoulders to the ground
-  const robe = new THREE.Mesh(new THREE.CylinderGeometry(0.165, 0.295, 1.3, 10), cloth);
-  robe.position.y = 0.65;
-  g.add(robe);
-  // Shoulders round the top of the robe off
-  const shoulders = new THREE.Mesh(new THREE.SphereGeometry(0.165, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), cloth);
-  shoulders.position.y = 1.3;
-  g.add(shoulders);
-  // Arms resting at the sides
-  for (const side of [-1, 1]) {
-    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.05, 0.56, 6), cloth);
-    arm.position.set(side * 0.2, 1.02, 0);
-    arm.rotation.z = side * 0.13;
-    g.add(arm);
-  }
-
-  const headY = 1.5;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.115, 12, 9), skin);
-  head.position.y = headY;
-  g.add(head);
-
-  if (kind === "dishdasha") {
-    // Ghutra: a cap draped over the crown with a fall down the back,
-    // cinched by the agal
-    const clothTex =
-      headdress === "check"
-        ? new THREE.MeshStandardMaterial({ map: ghutraCheckTexture(), roughness: 0.85 })
-        : new THREE.MeshStandardMaterial({ color: 0xf6f4ee, roughness: 0.85 });
-    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.132, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), clothTex);
-    cap.position.y = headY + 0.005;
-    g.add(cap);
-    const drape = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.34, 10, 1, true), clothTex);
-    drape.position.set(0, headY - 0.1, -0.045);
-    g.add(drape);
-    const agal = new THREE.Mesh(new THREE.TorusGeometry(0.125, 0.017, 6, 14), new THREE.MeshStandardMaterial({ color: 0x0c0c0c, roughness: 0.6 }));
-    agal.rotation.x = Math.PI / 2;
-    agal.position.y = headY + 0.06;
-    g.add(agal);
-  } else {
-    // Hijab: the head wrapped in the abaya's black, the face open
-    const wrap = new THREE.Mesh(new THREE.SphereGeometry(0.128, 12, 9), cloth);
-    wrap.position.y = headY;
-    g.add(wrap);
-    const face = new THREE.Mesh(new THREE.CircleGeometry(0.068, 12), skin);
-    face.position.set(0, headY + 0.01, 0.126);
-    g.add(face);
-  }
-
-  for (const m of g.children) m.castShadow = true;
-  return g;
-}
-
-function flagTexture(): THREE.CanvasTexture {
-  const c = document.createElement("canvas");
-  c.width = 256;
-  c.height = 128;
-  const ctx = c.getContext("2d")!;
-  ctx.fillStyle = "#007a3d";
-  ctx.fillRect(0, 0, 256, 43);
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 43, 256, 42);
-  ctx.fillStyle = "#ce1126";
-  ctx.fillRect(0, 85, 256, 43);
-  ctx.fillStyle = "#000000";
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(72, 43);
-  ctx.lineTo(72, 85);
-  ctx.lineTo(0, 128);
-  ctx.closePath();
-  ctx.fill();
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
@@ -1964,6 +1851,56 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     g.add(pole, flag);
     placeBeside(track, g, 0, -(ROAD_HALF_WIDTH + 4));
     scene.add(g);
+  }
+
+  // The grid crew waiting under that flag: four racers in crew colours,
+  // three men and one woman. Their suits are taken from the roster they
+  // belong to, so recolouring a rival recolours the driver standing at
+  // the line — with fixed fallbacks if the roster ever runs short, since
+  // a silently empty grid would be worse than an off-colour one.
+  {
+    const kuwaitis = RIVALS.filter((r) => r.country === "Kuwait");
+    const women = kuwaitis.filter((r) => r.voice.female);
+    const men = kuwaitis.filter((r) => !r.voice.female);
+    const FALLBACK = [
+      { suitColor: 0xd23a35, accentColor: 0xf2f2ee },
+      { suitColor: 0x1f6f4a, accentColor: 0xffd54a },
+      { suitColor: 0x2456a8, accentColor: 0xf2f2ee },
+      { suitColor: 0xb84dd6, accentColor: 0xffffff },
+    ];
+    const colorOf = (r: (typeof kuwaitis)[number] | undefined, i: number) =>
+      r ? { suitColor: r.bodyColor, accentColor: r.accentColor } : FALLBACK[i];
+
+    const looks: RacerLook[] = [
+      { ...colorOf(men[0], 0), helmet: "carried", headdress: "check" },
+      { ...colorOf(men[1], 1), helmet: "worn" },
+      { ...colorOf(men[2], 2), helmet: "carried", headdress: "white" },
+      { ...colorOf(women[0], 3), helmet: "carried", woman: true },
+    ];
+
+    const crew = new THREE.Group();
+    crew.name = "racers";
+    const p = new THREE.Vector3();
+    const tmp = new THREE.Vector3();
+    // Spread along the shoulder opposite the flag, turned to watch the
+    // road rather than each other.
+    const spots: Array<[number, number]> = [
+      [-9, 2.6],
+      [-4.5, 3.4],
+      [3.5, 2.8],
+      [8.5, 3.6],
+    ];
+    looks.forEach((look, i) => {
+      const fig = kuwaitiRacer(look);
+      const [ds, latPad] = spots[i];
+      track.pose(ds, ROAD_HALF_WIDTH + latPad, p, tmp);
+      fig.position.copy(p);
+      track.pointAt(ds, tmp);
+      fig.lookAt(tmp.x, 0, tmp.z);
+      fig.rotateY((i % 2 === 0 ? 1 : -1) * 0.25);
+      crew.add(fig);
+    });
+    scene.add(crew);
   }
 
   // Area gantry signs at each district boundary
