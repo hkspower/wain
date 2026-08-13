@@ -728,6 +728,8 @@ export class GameEngine {
       spoiler: this.tune.spoiler,
       goldRims: this.tune.goldRims,
       raceKit: this.tune.raceKit,
+      stickers: this.tune.stickers,
+      stickerNumber: this.stickerNumber(),
     });
     this.playerMesh = new THREE.Group();
     this.playerMesh.add(this.carBody);
@@ -1674,6 +1676,14 @@ export class GameEngine {
     previous.dispose();
   }
 
+  /** Racing number for the sticker pack — stable per machine, so the
+   *  Kaiju is always the same car on the door no matter the paint. */
+  private stickerNumber(): number {
+    let h = 0;
+    for (const ch of this.tune.carId) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return (h % 90) + 10;
+  }
+
   private applyLiveReflections(): void {
     const body = this.carBody.userData.bodyMat as THREE.MeshPhysicalMaterial | undefined;
     if (!body) return;
@@ -1686,6 +1696,29 @@ export class GameEngine {
       body.envMapIntensity = 2.1;
     }
     body.needsUpdate = true;
+
+    // The rims, chrome and brake discs mirror the same world the paint
+    // does. These are per-car clones (cars.ts), so pointing them at the
+    // player's probe cannot leak the player's surroundings onto traffic.
+    const metals = this.carBody.userData.reflectMats as
+      | THREE.MeshStandardMaterial[]
+      | undefined;
+    if (metals) {
+      for (const m of metals) {
+        const base = (m.userData.baseEnvIntensity as number) ?? 1.5;
+        if (this.liveReflections) {
+          m.envMap = this.cubeRT.texture;
+          // Higher gain than the paint: the probe is mostly night sky,
+          // and a near-pure metal goes black under it — the lamps it does
+          // carry need amplifying for the alloy to read as alloy.
+          m.envMapIntensity = base * 1.9;
+        } else {
+          m.envMap = null;
+          m.envMapIntensity = base;
+        }
+        m.needsUpdate = true;
+      }
+    }
   }
 
   /** Rebuild the player car after a garage change (new model, paint, mods). */
@@ -1708,6 +1741,8 @@ export class GameEngine {
       spoiler: this.tune.spoiler,
       goldRims: this.tune.goldRims,
       raceKit: this.tune.raceKit,
+      stickers: this.tune.stickers,
+      stickerNumber: this.stickerNumber(),
     });
     this.playerMesh.add(this.carBody);
     this.applyLiveReflections();

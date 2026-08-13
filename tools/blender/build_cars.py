@@ -36,11 +36,12 @@ import bmesh
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 # Sampling density: the runtime SplineCurve resolves to ~31 samples per
-# span (curveSegments 28 × 9 control points over 8 spans); 32 per span
-# meets it along the profile, and 8 bevel steps beat the runtime's 5
-# across the width — the authored shells are never the coarser mesh.
-SAMPLES_PER_SPAN = 32
-BEVEL_STEPS = 8
+# span; 40 exceeds it along the profile, and 12 bevel steps (runtime: 5)
+# are what make the side roll-over read as one continuous highlight
+# instead of a run of flat facets — the bevel is where every specular
+# line on the flank lives.
+SAMPLES_PER_SPAN = 40
+BEVEL_STEPS = 12
 
 
 def catmull_rom_chain(points, samples_per_span):

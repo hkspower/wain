@@ -29,6 +29,11 @@ export interface CarColors {
   /** Full time-attack aero: swan-neck wing, splitter, canards, vented
    *  hood, skirts, diffuser, bronze six-spokes and teal calipers. */
   raceKit?: boolean;
+  /** Rally sticker pack: door roundels, beltline stripes, hood decal,
+   *  Kuwait flags on the rear quarters. */
+  stickers?: boolean;
+  /** Racing number for the roundels; derived from the paint if absent. */
+  stickerNumber?: number;
 }
 
 let goldRimMat: THREE.MeshStandardMaterial | null = null;
@@ -145,7 +150,9 @@ function contactShadowTexture(): THREE.CanvasTexture {
  *  specular line, and that highlight is most of what makes a car read as
  *  a car. Built as a rounded rectangle extruded with a bevel, so the
  *  rounding wraps all three axes. */
-function roundedBox(w: number, h: number, d: number, r = 0.035, seg = 2): THREE.BufferGeometry {
+// seg 3 (was 2): the chamfer is the specular line that sells every panel
+// edge, and one more subdivision rounds it without a visible facet.
+function roundedBox(w: number, h: number, d: number, r = 0.035, seg = 3): THREE.BufferGeometry {
   r = Math.min(r, w / 2 - 1e-3, h / 2 - 1e-3, d / 2 - 1e-3);
   const shape = new THREE.Shape();
   const hw = w / 2;
@@ -394,7 +401,11 @@ const rx7RoofGeo = extrudeProfile(
 const STYLE_SCALE: Record<BodyStyle, number> = {
   sedan: 0.978,
   zx: 0.894,
-  gtr: 0.926,
+  // 0.912 (was 0.926): the R34 measured +11% on height, the worst
+  // residual in the fleet. Trading a little length brings the roof down
+  // to +9% while width lands within 1% — the closest a uniform scale can
+  // get this profile to 4.60 x 1.79 x 1.36.
+  gtr: 0.912,
   rx7: 0.899,
 };
 
@@ -441,6 +452,24 @@ const STYLE_DIMS: Record<BodyStyle, StyleDims> = {
 
 const tireGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.26, 22);
 tireGeo.rotateZ(Math.PI / 2);
+// Hero tire: more segments than traffic will ever need, plus sidewall
+// bulges. The silhouette of a wheel is mostly its tire.
+const tireGeoHi = new THREE.CylinderGeometry(0.36, 0.36, 0.26, 30);
+tireGeoHi.rotateZ(Math.PI / 2);
+const sidewallGeo = new THREE.TorusGeometry(0.3, 0.042, 7, 26);
+sidewallGeo.rotateY(Math.PI / 2);
+// Brake hardware behind the spokes — a wheel with nothing inside it
+// reads as a toy the moment the camera drops low
+const discGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.022, 22);
+discGeo.rotateZ(Math.PI / 2);
+const lugGeo = new THREE.CylinderGeometry(0.016, 0.016, 0.026, 6);
+lugGeo.rotateZ(Math.PI / 2);
+const discMat = new THREE.MeshStandardMaterial({
+  color: 0x9aa0a8,
+  metalness: 0.9,
+  roughness: 0.35,
+  envMapIntensity: 1.2,
+});
 const tireMat = new THREE.MeshStandardMaterial({ color: 0x0b0b0d, roughness: 0.92 });
 
 const rimGeo = new THREE.CylinderGeometry(0.205, 0.205, 0.27, 14);
@@ -569,6 +598,148 @@ function plateTexture(): THREE.CanvasTexture {
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
+// ------------------------------------------------------------- stickers
+// The rally pack. Canvas-drawn, cached, and deliberately brand-free —
+// a roundel, a beltline stripe, an abstract falcon swoosh and the flag.
+
+const roundelCache = new Map<number, THREE.CanvasTexture>();
+function roundelTexture(num: number): THREE.CanvasTexture {
+  const hit = roundelCache.get(num);
+  if (hit) return hit;
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const ctx = c.getContext("2d")!;
+  ctx.clearRect(0, 0, 256, 256);
+  // Classic rally roundel: white disc, dark ring, bold number
+  ctx.beginPath();
+  ctx.arc(128, 128, 118, 0, Math.PI * 2);
+  ctx.fillStyle = "#f4f4f0";
+  ctx.fill();
+  ctx.lineWidth = 10;
+  ctx.strokeStyle = "#15161a";
+  ctx.stroke();
+  ctx.fillStyle = "#15161a";
+  ctx.textAlign = "center";
+  ctx.font = "bold 118px sans-serif";
+  ctx.fillText(String(num), 128, 152);
+  // Arabic-Indic twin, small, under the number — this is Gulf Road
+  const arDigits = "٠١٢٣٤٥٦٧٨٩";
+  const ar = String(num).split("").map((d) => arDigits[+d]).join("");
+  ctx.font = "bold 40px sans-serif";
+  ctx.fillText(ar, 128, 204);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  roundelCache.set(num, tex);
+  return tex;
+}
+
+let beltStripeTex: THREE.CanvasTexture | null = null;
+function beltStripeTexture(): THREE.CanvasTexture {
+  if (beltStripeTex) return beltStripeTex;
+  const c = document.createElement("canvas");
+  c.width = 512;
+  c.height = 64;
+  const ctx = c.getContext("2d")!;
+  ctx.clearRect(0, 0, 512, 64);
+  // Twin racing stripe with a swept tail at both ends
+  const band = (y: number, h: number, col: string) => {
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(26, y);
+    ctx.lineTo(486, y);
+    ctx.lineTo(506, y + h / 2);
+    ctx.lineTo(486, y + h);
+    ctx.lineTo(26, y + h);
+    ctx.lineTo(6, y + h / 2);
+    ctx.closePath();
+    ctx.fill();
+  };
+  band(10, 20, "#f2f4f7");
+  band(38, 14, "#c1121f");
+  beltStripeTex = new THREE.CanvasTexture(c);
+  beltStripeTex.colorSpace = THREE.SRGBColorSpace;
+  beltStripeTex.anisotropy = 8;
+  return beltStripeTex;
+}
+
+let hoodDecalTex: THREE.CanvasTexture | null = null;
+function hoodDecalTexture(): THREE.CanvasTexture {
+  if (hoodDecalTex) return hoodDecalTex;
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 256;
+  const ctx = c.getContext("2d")!;
+  ctx.clearRect(0, 0, 256, 256);
+  // Abstract falcon swoosh — two sweeping wings over a roundel core
+  ctx.fillStyle = "#f2f4f7";
+  for (const dir of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(128, 96);
+    ctx.quadraticCurveTo(128 + dir * 100, 60, 128 + dir * 118, 118);
+    ctx.quadraticCurveTo(128 + dir * 70, 104, 128, 128);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.fillStyle = "#c1121f";
+  ctx.beginPath();
+  ctx.arc(128, 118, 22, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#f2f4f7";
+  ctx.textAlign = "center";
+  ctx.font = "bold 34px sans-serif";
+  ctx.fillText("ليالي الخليج", 128, 188);
+  ctx.font = "bold 20px sans-serif";
+  ctx.fillText("GULF ROAD NIGHTS", 128, 218);
+  hoodDecalTex = new THREE.CanvasTexture(c);
+  hoodDecalTex.colorSpace = THREE.SRGBColorSpace;
+  hoodDecalTex.anisotropy = 8;
+  return hoodDecalTex;
+}
+
+let flagDecalTex: THREE.CanvasTexture | null = null;
+function flagDecalTexture(): THREE.CanvasTexture {
+  if (flagDecalTex) return flagDecalTex;
+  const c = document.createElement("canvas");
+  c.width = 96;
+  c.height = 48;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#007a3d";
+  ctx.fillRect(0, 0, 96, 16);
+  ctx.fillStyle = "#f4f4f4";
+  ctx.fillRect(0, 16, 96, 16);
+  ctx.fillStyle = "#ce1126";
+  ctx.fillRect(0, 32, 96, 16);
+  ctx.fillStyle = "#0a0a0a";
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(28, 16);
+  ctx.lineTo(28, 32);
+  ctx.lineTo(0, 48);
+  ctx.closePath();
+  ctx.fill();
+  flagDecalTex = new THREE.CanvasTexture(c);
+  flagDecalTex.colorSpace = THREE.SRGBColorSpace;
+  flagDecalTex.anisotropy = 8;
+  return flagDecalTex;
+}
+
+/** Sticker plane: lit like paint, slightly emissive so it reads at night,
+ *  polygon-offset so it never z-fights the panel it sits on. */
+function decalMat(map: THREE.CanvasTexture): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    map,
+    transparent: true,
+    roughness: 0.5,
+    metalness: 0.1,
+    emissive: 0xffffff,
+    emissiveMap: map,
+    emissiveIntensity: 0.16,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+  });
+}
+
 let sharedPlateTex: THREE.CanvasTexture | null = null;
 function plateMat(): THREE.MeshStandardMaterial {
   if (!sharedPlateTex) sharedPlateTex = plateTexture();
@@ -577,11 +748,17 @@ function plateMat(): THREE.MeshStandardMaterial {
 
 type WheelFinish = "silver" | "gold" | "bronze";
 
-function buildWheel(finish: WheelFinish = "silver", side = 1): THREE.Group {
+function buildWheel(
+  finish: WheelFinish = "silver",
+  side = 1,
+  opts?: { detailed?: boolean; spokeMat?: THREE.MeshStandardMaterial }
+): THREE.Group {
   const spokeMat =
-    finish === "gold" ? getGoldRimMat() : finish === "bronze" ? bronzeRimMat : rimMat;
+    opts?.spokeMat ??
+    (finish === "gold" ? getGoldRimMat() : finish === "bronze" ? bronzeRimMat : rimMat);
+  const detailed = opts?.detailed ?? false;
   const w = new THREE.Group();
-  w.add(new THREE.Mesh(tireGeo, tireMat));
+  w.add(new THREE.Mesh(detailed ? tireGeoHi : tireGeo, tireMat));
   w.add(new THREE.Mesh(rimGeo, rimDarkMat));
   // Machined lip on the outer face — the ring highlight that makes a
   // wheel read as an alloy instead of a drum
@@ -599,6 +776,26 @@ function buildWheel(finish: WheelFinish = "silver", side = 1): THREE.Group {
     w.add(holder);
   }
   w.add(new THREE.Mesh(hubGeo, spokeMat));
+
+  if (detailed) {
+    // Sidewall bulges at each shoulder — the tire stops being a puck
+    for (const sx of [-0.095, 0.095]) {
+      const wall = new THREE.Mesh(sidewallGeo, tireMat);
+      wall.position.x = sx;
+      w.add(wall);
+    }
+    // Rotor inboard of the spokes; it turns with the wheel, as it should
+    const disc = new THREE.Mesh(discGeo, discMat);
+    disc.position.x = -side * 0.055;
+    w.add(disc);
+    // Five lugs around the hub on the outer face
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 + 0.3;
+      const lug = new THREE.Mesh(lugGeo, rimDarkMat);
+      lug.position.set(side * 0.148, Math.cos(a) * 0.058, Math.sin(a) * 0.058);
+      w.add(lug);
+    }
+  }
   return w;
 }
 
@@ -618,6 +815,25 @@ export function createCar(colors: CarColors): THREE.Group {
     clearcoatRoughness: 0.03, // lacquer: near-mirror
     envMapIntensity: 2.1,
   });
+
+  // Per-car metal clones for everything that should mirror the world.
+  // The shared module materials must stay shared — the live reflection
+  // probe carries the player's own surroundings, and binding it to a
+  // shared material would paint the player's reflections onto every car
+  // on the road. Traffic keeps the shared mats and skips the cost.
+  const spokeBase =
+    colors.raceKit ? bronzeRimMat : colors.goldRims ? getGoldRimMat() : rimMat;
+  const spokeLocal = colors.simple ? undefined : spokeBase.clone();
+  const chromeLocal = colors.simple ? chromeMat : chromeMat.clone();
+  const reflectMats: THREE.MeshStandardMaterial[] = [];
+  if (spokeLocal) {
+    spokeLocal.userData.baseEnvIntensity = spokeLocal.envMapIntensity;
+    reflectMats.push(spokeLocal);
+  }
+  if (chromeLocal !== chromeMat) {
+    chromeLocal.userData.baseEnvIntensity = chromeLocal.envMapIntensity;
+    reflectMats.push(chromeLocal);
+  }
 
   const bCabBack = style === "zx" || style === "rx7";
   const [bGeo, cGeo, rGeo] =
@@ -845,7 +1061,7 @@ export function createCar(colors: CarColors): THREE.Group {
     const grille = new THREE.Mesh(roundedBox(1.05, 0.17, 0.07, 0.02), grilleMat);
     grille.position.set(0, d.grilleY, d.nose);
     group.add(grille);
-    const trim = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.025, 0.08), chromeMat);
+    const trim = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.025, 0.08), chromeLocal);
     trim.position.set(0, d.grilleY + 0.09, d.nose);
     group.add(trim);
   } else {
@@ -862,21 +1078,21 @@ export function createCar(colors: CarColors): THREE.Group {
   if (style === "gtr") {
     // Big single bore each side — the R34 exhausts announce themselves
     for (const sx of [-0.55, 0.55]) {
-      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, 0.22, 12), chromeMat);
+      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, 0.22, 12), chromeLocal);
       pipe.rotation.x = Math.PI / 2;
       pipe.position.set(sx, 0.26, d.tail + 0.02);
       group.add(pipe);
     }
   } else if (style === "rx7") {
     // One big rotary can on the left — the FD announcement
-    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.095, 0.24, 14), chromeMat);
+    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.095, 0.24, 14), chromeLocal);
     pipe.rotation.x = Math.PI / 2;
     pipe.position.set(-0.5, 0.26, d.tail + 0.02);
     group.add(pipe);
   } else if (style === "zx") {
     // Twin round tips together on the left, Z-style
     for (const sx of [-0.55, -0.36]) {
-      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 0.2, 10), chromeMat);
+      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 0.2, 10), chromeLocal);
       pipe.rotation.x = Math.PI / 2;
       pipe.position.set(sx, 0.25, d.tail + 0.02);
       group.add(pipe);
@@ -912,7 +1128,7 @@ export function createCar(colors: CarColors): THREE.Group {
       group.add(fin);
     } else if (style === "zx") {
       // Period-correct power antenna on the rear quarter
-      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, 0.42, 6), chromeMat);
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, 0.42, 6), chromeLocal);
       mast.position.set(0.82, 1.0, -1.86);
       mast.rotation.x = 0.16;
       group.add(mast);
@@ -938,7 +1154,8 @@ export function createCar(colors: CarColors): THREE.Group {
   ]) {
     const wheel = buildWheel(
       colors.raceKit ? "bronze" : colors.goldRims ? "gold" : "silver",
-      Math.sign(wx)
+      Math.sign(wx),
+      { detailed: !colors.simple, spokeMat: spokeLocal }
     );
     wheel.position.set(wx, 0.36, wz);
     group.add(wheel);
@@ -1001,11 +1218,11 @@ export function createCar(colors: CarColors): THREE.Group {
       const crease = new THREE.Mesh(roundedBox(0.035, 0.05, 3.1, 0.016), bodyMat);
       crease.position.set(sx * 1.005, d.creaseY, -0.1);
       group.add(crease);
-      const belt = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.02, 2.7), chromeMat);
+      const belt = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.02, 2.7), chromeLocal);
       belt.position.set(sx, d.beltY, -0.15);
       group.add(belt);
       for (const hz of [0.28, -1.02]) {
-        const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.035, 0.14), chromeMat);
+        const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.035, 0.14), chromeLocal);
         handle.position.set(sx, d.creaseY + 0.08, hz);
         group.add(handle);
       }
@@ -1073,7 +1290,7 @@ export function createCar(colors: CarColors): THREE.Group {
       fin.rotation.x = -0.25;
       group.add(fin);
     }
-    const badge = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.02, 12), chromeMat);
+    const badge = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.02, 12), chromeLocal);
     badge.rotation.x = Math.PI / 2;
     badge.position.set(0, d.noseTopY, d.nose + 0.01);
     group.add(badge);
@@ -1287,6 +1504,48 @@ export function createCar(colors: CarColors): THREE.Group {
     }
   }
 
+  // ------------------------------------------------------------ stickers
+  // The rally pack, hung a centimetre off the panels. Decal planes rather
+  // than UV work because the shells are swapped for Blender geometry at
+  // runtime — planes survive that swap untouched.
+  if (colors.stickers && !colors.simple) {
+    const HALF_W: Record<BodyStyle, number> = { sedan: 0.92, zx: 0.96, gtr: 0.98, rx7: 0.96 };
+    const sideX = HALF_W[style] + 0.014;
+    const num =
+      colors.stickerNumber ??
+      ((((colors.body * 2654435761) >>> 0) % 90) + 10);
+
+    const roundel = decalMat(roundelTexture(num));
+    const stripe = decalMat(beltStripeTexture());
+    const flag = decalMat(flagDecalTexture());
+    for (const sign of [-1, 1]) {
+      // Door roundel with the racing number
+      const r = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.34), roundel);
+      r.position.set(sign * (sideX + 0.008), d.creaseY + 0.02, 0.45);
+      r.rotation.y = sign * (Math.PI / 2);
+      group.add(r);
+      // Beltline stripe running the flank
+      const st = new THREE.Mesh(new THREE.PlaneGeometry(2.7, 0.14), stripe);
+      st.position.set(sign * sideX, d.beltY - 0.16, -0.15);
+      st.rotation.y = sign * (Math.PI / 2);
+      group.add(st);
+      // Kuwait flag on the rear quarter
+      const f = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.12), flag);
+      f.position.set(sign * (sideX + 0.008), d.beltY - 0.1, -1.55);
+      f.rotation.y = sign * (Math.PI / 2);
+      group.add(f);
+    }
+    // Falcon swoosh flat on the hood, nosed toward the windshield
+    const hood = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.85, 0.85),
+      decalMat(hoodDecalTexture())
+    );
+    hood.rotation.x = -Math.PI / 2;
+    hood.rotation.z = Math.PI; // read the right way up from the driver's seat
+    hood.position.set(0, d.hoodY + 0.014, bCabBack ? 1.15 : 1.45);
+    group.add(hood);
+  }
+
   group.userData.wheels = wheels;
   group.userData.tailMat = tailMat;
   group.userData.headMat = headMat;
@@ -1296,6 +1555,9 @@ export function createCar(colors: CarColors): THREE.Group {
   // engine can feed the player's paint a live reflection probe without
   // leaking it onto every car on the road.
   group.userData.bodyMat = bodyMat;
+  // Metals that should mirror the player's actual surroundings — the
+  // engine points these at the live cube probe alongside the paint.
+  group.userData.reflectMats = reflectMats;
   // Brake-glow halos: the engine flares these with the tail lamps
   group.userData.tailGlowMats = tailGlowMats;
 

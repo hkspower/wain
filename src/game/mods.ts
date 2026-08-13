@@ -45,6 +45,7 @@ export const PARTS: Part[] = [
   { id: "nos", cat: "extras", name: "NOS Kit", ar: "نيتروجين", price: 1000, desc: "Hold N for a 3-second shove; recharges slowly" },
   { id: "spoiler", cat: "extras", name: "GT Wing", ar: "جناح", price: 300, desc: "Downforce: steadier at speed" },
   { id: "gold-rims", cat: "extras", name: "Gold Rims", ar: "رنجات ذهب", price: 600, desc: "Pure Salmiya energy" },
+  { id: "stickers", cat: "extras", name: "Rally Sticker Pack", ar: "ملصقات", price: 450, desc: "Door roundels, beltline stripes, hood decal, flag on the quarter" },
   // Paint — exclusive, equip freely once owned
   { id: "paint-white", cat: "paint", name: "Factory Finish", ar: "لون الوكالة", price: 0, desc: "The colour it left the showroom in" },
   { id: "paint-black", cat: "paint", name: "Midnight Black", ar: "أسود", price: 150, desc: "" },
@@ -367,6 +368,8 @@ export interface TuneEffects {
   goldRims: boolean;
   /** Full time-attack aero built into the car (cars.ts raceKit). */
   raceKit: boolean;
+  /** Rally livery: roundels, stripes, hood decal, quarter flags. */
+  stickers: boolean;
   exhaustLevel: number; // 0..1 sound character
   paint: number;
   glow: number | null;
@@ -422,6 +425,7 @@ export function computeEffects(g: GarageState): TuneEffects {
     spoiler: has("spoiler"),
     goldRims: has("gold-rims"),
     raceKit: car.kit === "attack",
+    stickers: has("stickers"),
     exhaustLevel: has("exhaust") ? 1 : 0,
     // An explicitly bought paint wins; otherwise the car's factory colour
     paint:
