@@ -62,6 +62,13 @@ if (points.length !== api.track.controlPoints.length) {
 const half = +src.match(/RoadHalfWidth = ([\d.]+)f/)?.[1];
 if (half !== api.track.roadHalfWidth) fail(`roadHalfWidth ${half} vs ${api.track.roadHalfWidth}`);
 
+const lanes = (src.match(/Lanes = \{ ([^}]+) \}/)?.[1] ?? "")
+  .split(",")
+  .map((v) => parseFloat(v));
+if (lanes.length !== api.track.lanes.length || lanes.some((v, i) => v !== api.track.lanes[i])) {
+  fail(`lanes: [${lanes}] vs [${api.track.lanes}]`);
+}
+
 // ---- rivals ---------------------------------------------------------
 // Each generated entry spans several lines; split on the constructor and
 // pull fields per block so a reordered emitter cannot fool the match.
@@ -76,7 +83,11 @@ const rivals = rivalBlocks.map((b) => ({
   top: +field(b, /TopSpeedKmh = ([\d.]+)f/),
   style: field(b, /Style = BodyStyle\.(\w+)/),
   prize: +field(b, /PrizeKd = (\d+)/),
+  arabic: field(b, /ArabicName = "([^"]*)"/),
+  accent: field(b, /Accent = Hex\(0x([0-9A-F]{6})\)/),
   intro: field(b, /IntroAr = "([^"]*)"/),
+  win: field(b, /WinAr = "([^"]*)"/),
+  lose: field(b, /LoseAr = "([^"]*)"/),
 }));
 
 if (rivals.length !== api.rivals.length) {
@@ -97,10 +108,16 @@ if (rivals.length !== api.rivals.length) {
       fail(`rival ${a.id} body style: ${u.style.toLowerCase()} vs ${a.bodyStyle}`);
     }
     if (u.prize !== a.prizeKd) fail(`rival ${a.id} prize: ${u.prize} vs ${a.prizeKd}`);
+    if (u.arabic !== a.arabicName) fail(`rival ${a.id} Arabic name differs`);
+    if (`#${u.accent.toLowerCase()}` !== a.accentColor) {
+      fail(`rival ${a.id} accent: #${u.accent.toLowerCase()} vs ${a.accentColor}`);
+    }
     // The spoken lines are the whole character; a truncated one is a bug
     if (u.intro !== a.lines.intro) fail(`rival ${a.id} intro line differs`);
+    if (u.win !== a.lines.win) fail(`rival ${a.id} win line differs`);
+    if (u.lose !== a.lines.lose) fail(`rival ${a.id} lose line differs`);
   }
-  if (!failed) ok(`rivals: ${rivals.length} match (id, name, crew, area, colour, speed, body, prize, voice line)`);
+  if (!failed) ok(`rivals: ${rivals.length} match (id, names, crew, area, both colours, speed, body, prize, all 3 voice lines)`);
 }
 
 // ---- cars -----------------------------------------------------------
@@ -113,6 +130,7 @@ const cars = carBlocks.map((b) => ({
   top: +field(b, /TopSpeed = ([\d.]+)f/),
   grip: +field(b, /Grip = ([\d.]+)f/),
   brake: +field(b, /Brake = ([\d.]+)f/),
+  paint: field(b, /Paint = Hex\(0x([0-9A-F]{6})\)/),
   style: field(b, /Style = BodyStyle\.(\w+)/),
   kit: field(b, /AttackKit = (true|false)/) === "true",
 }));
@@ -124,6 +142,7 @@ if (cars.length !== api.cars.length) {
     const u = cars[i];
     const a = api.cars[i];
     if (u.id !== a.id) fail(`car ${i} id: ${u.id} vs ${a.id}`);
+    if (u.name !== a.name) fail(`car ${a.id} name: ${u.name} vs ${a.name}`);
     if (u.price !== a.price) fail(`car ${a.id} price: ${u.price} vs ${a.price}`);
     if (u.power !== a.power) fail(`car ${a.id} power: ${u.power} vs ${a.power}`);
     if (u.top !== a.topSpeed) fail(`car ${a.id} topSpeed: ${u.top} vs ${a.topSpeed}`);
@@ -132,9 +151,12 @@ if (cars.length !== api.cars.length) {
     if (u.style.toLowerCase() !== a.bodyStyle) {
       fail(`car ${a.id} body style: ${u.style.toLowerCase()} vs ${a.bodyStyle}`);
     }
+    if (`#${u.paint.toLowerCase()}` !== a.color) {
+      fail(`car ${a.id} paint: #${u.paint.toLowerCase()} vs ${a.color}`);
+    }
     if (u.kit !== (a.kit === "attack")) fail(`car ${a.id} attack kit: ${u.kit} vs ${a.kit}`);
   }
-  if (!failed) ok(`cars: ${cars.length} match (id, price, power, speed, grip, brake, body, kit)`);
+  if (!failed) ok(`cars: ${cars.length} match (id, name, price, power, speed, grip, brake, body, kit)`);
 }
 
 // ---- handling -------------------------------------------------------
