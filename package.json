@@ -16,7 +16,9 @@
     "build:steam": "NEXT_OUTPUT=export next build && rm -rf desktop/out && cp -r out desktop/out",
     "sync:unreal": "node scripts/export-unreal-data.mjs",
     "check:unreal": "node scripts/check-unreal-sync.mjs",
-    "sync:models": "node scripts/export-car-profiles.mjs && python3 tools/blender/build_cars.py --out public/models"
+    "sync:models": "node scripts/export-car-profiles.mjs && python3 tools/blender/build_cars.py --out public/models",
+    "sync:unity": "node scripts/export-unity-data.mjs",
+    "check:unity": "node scripts/check-unity-sync.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",

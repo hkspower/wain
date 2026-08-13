@@ -7,7 +7,10 @@ using UnityEngine.Rendering;
 public class GameController : MonoBehaviour
 {
     const float PlayerTopSpeed = 92f; // m/s
-    const float FlashRange = 60f;
+    // Handling comes from the generated tables so the browser, UE5 and
+    // Unity all race the same numbers — and so check:unity is verifying
+    // values the game actually reads rather than a parallel copy.
+    const float FlashRange = GRNData.Handling.FlashRangeM;
     static readonly float[] Gears = { 0, 55, 95, 145, 200, 260, 320 };
 
     TrackSpline track;
@@ -65,7 +68,20 @@ public class GameController : MonoBehaviour
         touch = gameObject.AddComponent<TouchControls>();
         MobileTier.Apply(); // trims the render load on phones
 
-        playerCar = CarFactory.Create(new Color(0.95f, 0.96f, 0.97f), new Color(0f, 0.48f, 0.24f));
+        // The player's machine comes from the showroom table (live when the
+        // API answered, generated otherwise) rather than a hardcoded body,
+        // so the two ports and the browser all start you in the same car.
+        if (GRNApi.Instance != null)
+        {
+            GRNApi.Instance.OnReady += OnDataReady;
+            // Already answered before we got here? Take it now; the event
+            // has fired and will not fire again.
+            if (GRNApi.Instance.Ready && GRNApi.Instance.Live) pendingLiveRebuild = true;
+        }
+
+        var startCar = PlayerCar();
+        playerCar = CarFactory.Create(startCar.Paint, new Color(0f, 0.48f, 0.24f),
+            startCar.Style, startCar.AttackKit);
         pLat = TrackSpline.Lanes[1];
 
         var headlight = new GameObject("Headlight").AddComponent<Light>();
@@ -79,7 +95,10 @@ public class GameController : MonoBehaviour
         headlight.shadowStrength = 0.9f;
         headlight.shadowNearPlane = 1.5f;
         headlight.transform.SetParent(playerCar.Root.transform, false);
-        headlight.transform.localPosition = new Vector3(0, 1.2f, 1.8f);
+        // Off the car's real nose, not a fixed offset: the silhouettes run
+        // 4.30 m to 4.70 m, so a constant lands inside the shorter bodies.
+        headlight.transform.localPosition =
+            new Vector3(0, playerCar.LampHeight + 0.45f, playerCar.Length * 0.38f);
 
         // Glow discs at the lamps themselves
         foreach (float gx in new[] { -0.62f, 0.62f })
@@ -88,7 +107,8 @@ public class GameController : MonoBehaviour
             Destroy(glow.GetComponent<Collider>());
             glow.name = "HeadlightGlow";
             glow.transform.SetParent(playerCar.Root.transform, false);
-            glow.transform.localPosition = new Vector3(gx, 0.7f, 2.3f);
+            glow.transform.localPosition =
+                new Vector3(gx, playerCar.LampHeight, playerCar.Length * 0.5f + 0.02f);
             glow.transform.localScale = Vector3.one * 1.6f;
             var gr = glow.GetComponent<MeshRenderer>();
             gr.sharedMaterial = Mats.Additive(new Color(1f, 0.95f, 0.8f, 1f), Mats.Glow());
@@ -166,13 +186,42 @@ public class GameController : MonoBehaviour
         return null;
     }
 
+    /// <summary>
+    /// The starter machine. CARS is ordered richest-first in mods.ts, so
+    /// the last entry is the cheapest one a new player owns.
+    /// </summary>
+    static GRNData.Car PlayerCar()
+    {
+        var cars = GRNApi.Instance != null ? GRNApi.Instance.Cars : GRNData.Cars;
+        return cars[cars.Count - 1];
+    }
+
+    /// <summary>
+    /// The API answers after the world is already up, so without this the
+    /// live tables would only take effect on the NEXT run. Rebuilding the
+    /// spline and respawning the rival on arrival means a live roster
+    /// reaches the race it was fetched for. Guarded on Live so the
+    /// offline path never rebuilds anything.
+    /// </summary>
+    bool pendingLiveRebuild;
+
+    void OnDestroy()
+    {
+        if (GRNApi.Instance != null) GRNApi.Instance.OnReady -= OnDataReady;
+    }
+
+    void OnDataReady(bool live)
+    {
+        if (live) pendingLiveRebuild = true;
+    }
+
     void SpawnRival()
     {
         if (rivalCar != null) Destroy(rivalCar.Root);
         rivalCar = null;
         if (rivalIndex >= RivalDef.All.Length) return;
         rivalDef = RivalDef.All[rivalIndex];
-        rivalCar = CarFactory.Create(rivalDef.Body, rivalDef.Accent);
+        rivalCar = CarFactory.Create(rivalDef.Body, rivalDef.Accent, rivalDef.Style);
         rS = track.Wrap(pS + 260f);
         rLat = rTargetLat = TrackSpline.Lanes[2];
         rSpeed = 27f;
@@ -191,6 +240,16 @@ public class GameController : MonoBehaviour
 
     void Update()
     {
+        // Applied here rather than inside the callback: OnReady can fire
+        // from the fetch coroutine mid-frame, and rebuilding the spline
+        // while UpdatePlayer is walking it is asking for trouble.
+        if (pendingLiveRebuild)
+        {
+            pendingLiveRebuild = false;
+            track = new TrackSpline();
+            SpawnRival();
+        }
+
         float dt = Mathf.Min(Time.deltaTime, 0.05f);
         UpdatePlayer(dt);
         UpdateTraffic(dt);
@@ -227,16 +286,17 @@ public class GameController : MonoBehaviour
         up = throttleAmt > 0.01f;
         down = brakeAmt > 0.01f;
 
-        float accel = throttleAmt * Mathf.Max(0, 19f * (1f - pSpeed / 115f));
+        float accel = throttleAmt * Mathf.Max(0,
+            GRNData.Handling.ThrustK * (1f - pSpeed / GRNData.Handling.Ceiling));
         float braking = brakeAmt * 26f;
-        float drag = 0.0012f * pSpeed * pSpeed + 1.2f;
+        float drag = GRNData.Handling.DragA * pSpeed * pSpeed + GRNData.Handling.DragB;
         pSpeed = Mathf.Max(0, pSpeed + (accel - braking - drag * (up ? 0.35f : 1f)) * dt);
 
-        steerSmooth += (steer - steerSmooth) * Mathf.Min(1f, dt * 7f);
+        steerSmooth += (steer - steerSmooth) * Mathf.Min(1f, dt * GRNData.Handling.SteerSmoothRate);
         float yawRateMax = Mathf.Min(1.6f, 12f / Mathf.Max(pSpeed, 2f));
         heading += steerSmooth * yawRateMax * dt;
-        if (Mathf.Abs(steer) < 0.1f) heading -= heading * Mathf.Min(1f, dt * 2.4f);
-        heading = Mathf.Clamp(heading, -0.45f, 0.45f);
+        if (Mathf.Abs(steer) < 0.1f) heading -= heading * Mathf.Min(1f, dt * GRNData.Handling.CasterRate);
+        heading = Mathf.Clamp(heading, -GRNData.Handling.HeadingClamp, GRNData.Handling.HeadingClamp);
 
         float curvature = track.CurvatureAt(pS);
         float push = Mathf.Clamp(curvature * pSpeed * pSpeed * 0.22f, -8f, 8f);
@@ -262,7 +322,8 @@ public class GameController : MonoBehaviour
 
         pS = track.Wrap(pS + pSpeed * dt);
         PoseCar(playerCar, pS, pLat, -heading * 0.85f);
-        foreach (var w in playerCar.Wheels) w.Rotate(pSpeed / 0.36f * dt * Mathf.Rad2Deg, 0, 0, Space.Self);
+        foreach (var w in playerCar.Wheels)
+            w.Rotate(pSpeed / CarFactory.WheelRadius * dt * Mathf.Rad2Deg, 0, 0, Space.Self);
         playerCar.TailMat.SetColor("_EmissionColor",
             new Color(1f, 0.13f, 0.13f) * (down ? 14f : 3.5f));
 
@@ -319,7 +380,8 @@ public class GameController : MonoBehaviour
         rLat += Mathf.Clamp(rTargetLat - rLat, -6f * dt, 6f * dt);
         rS = track.Wrap(rS + rSpeed * dt);
         PoseCar(rivalCar, rS, rLat, 0);
-        foreach (var w in rivalCar.Wheels) w.Rotate(rSpeed / 0.36f * dt * Mathf.Rad2Deg, 0, 0, Space.Self);
+        foreach (var w in rivalCar.Wheels)
+            w.Rotate(rSpeed / CarFactory.WheelRadius * dt * Mathf.Rad2Deg, 0, 0, Space.Self);
     }
 
     void TryFlash()

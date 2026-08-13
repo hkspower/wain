@@ -5,29 +5,28 @@ using UnityEngine;
 // via a dense lookup table. One unit = one metre.
 public class TrackSpline
 {
-    public const float RoadHalfWidth = 7f;
-    public static readonly float[] Lanes = { -5.25f, -1.75f, 1.75f, 5.25f };
+    // Geometry comes from the generated tables (npm run sync:unity), or
+    // from the live API when GRNApi has answered. It used to be a second
+    // hand-typed copy of src/game/track.ts sitting next to the generated
+    // one — which meant the contract test was cheerfully verifying data
+    // the game never actually read.
+    public static float RoadHalfWidth => GRNData.RoadHalfWidth;
+    public static float[] Lanes => GRNData.Lanes;
 
-    static readonly Vector3[] Control =
+    static Vector3[] ControlPoints()
     {
-        new Vector3(800, 0, 0),    // Ras Ajouza — Kuwait Towers
-        new Vector3(770, 0, -350), // Dasman curve
-        new Vector3(820, 0, -700), // Bneid Al-Gar
-        new Vector3(760, 0, -1100),
-        new Vector3(830, 0, -1500), // Salmiya marina bay
-        new Vector3(760, 0, -1950),
-        new Vector3(800, 0, -2350), // Scientific Center
-        new Vector3(850, 0, -2700),
-        new Vector3(1050, 0, -2950), // Ras Al-Ard point
-        new Vector3(1400, 0, -2900),
-        new Vector3(1650, 0, -2500), // inland return leg
-        new Vector3(1700, 0, -2000),
-        new Vector3(1620, 0, -1400),
-        new Vector3(1700, 0, -800),
-        new Vector3(1650, 0, -300),
-        new Vector3(1400, 0, 150), // city top curve
-        new Vector3(1050, 0, 200),
-    };
+        var live = GRNApi.Instance != null ? GRNApi.Instance.TrackPoints : null;
+        if (live != null && live.Count >= 10)
+        {
+            var v = new Vector3[live.Count];
+            for (int i = 0; i < live.Count; i++) v[i] = new Vector3(live[i].X, 0f, live[i].Z);
+            return v;
+        }
+        var baked = GRNData.ControlPoints;
+        var b = new Vector3[baked.Length];
+        for (int i = 0; i < baked.Length; i++) b[i] = new Vector3(baked[i].X, 0f, baked[i].Z);
+        return b;
+    }
 
     const int Samples = 4096;
     readonly Vector3[] pts = new Vector3[Samples];
@@ -36,6 +35,7 @@ public class TrackSpline
 
     public TrackSpline()
     {
+        var Control = ControlPoints();
         int n = Control.Length;
         for (int i = 0; i < Samples; i++)
         {

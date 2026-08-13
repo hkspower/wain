@@ -21,6 +21,57 @@ art assets, no scene wiring.
 4. Open any empty scene (File → New Scene → Basic) and press **Play**.
    `Bootstrap.cs` spawns the whole game automatically — no scene setup.
 
+## The data connection
+
+The Unity build does not keep its own copy of the game's numbers — it
+**generates** them from the same TypeScript the browser runs, and can
+**fetch** them live at boot.
+
+```bash
+npm run sync:unity      # regenerate unity/Assets/Scripts/GRNData.cs
+npm run check:unity     # prove it matches the live API (needs npm run dev)
+```
+
+`scripts/export-unity-data.mjs` reads `src/game/{track,rivals,mods,handling}.ts`
+and emits `GRNData.cs`: the 17 track control points, the full rival
+roster with colours, speeds, prizes, body styles and spoken lines, the
+whole showroom, and the handling constants. **Never edit `GRNData.cs` by
+hand** — it is build output.
+
+At boot `GRNApi` requests `/api/grn/v1/gamedata` and, on success,
+replaces those tables with live ones. If the fetch fails — offline, LAN,
+a plane, a server mid-deploy — the generated tables stand in and the game
+plays identically. A payload whose `apiVersion` this build does not
+recognise is rejected in favour of the baked data, and a partial payload
+is refused outright: half a roster is worse than none. Point a build
+somewhere else without recompiling:
+
+```
+GulfRoadNights.exe -grnapi=https://your-site -grnhub=http://your-hub:8787
+```
+
+### Why this exists
+
+The roster used to be hand-typed into `Rivals.cs`. By the time this
+pipeline was added it had silently fallen **two rivals and an entire
+14-car showroom** behind the game, and had no body-style concept at all.
+That is what a duplicated table does over time. `npm run check:unity`
+now diffs the generated data against the live API — every rival's
+name, crew, area, colour, top speed, body style, prize and voice line,
+every car's price and handling figures, all 16 handling constants, and
+the API version both sides claim — and exits non-zero on any mismatch,
+so it cannot drift again unnoticed.
+
+Crucially the generated data is **read by the game**, not just verified:
+`TrackSpline` builds the road from `GRNData.ControlPoints`, and the
+handling model reads `GRNData.Handling` rather than its own literals.
+A contract test that green-lights numbers nothing consumes is worse than
+none — it reports safety it cannot deliver.
+
+When the API answers after the world is already up, the controller
+rebuilds the spline and respawns the rival on the next frame boundary, so
+live data reaches the race it was fetched for rather than the one after.
+
 ## The render stack
 
 Everything is procedural — no textures or models ship in the repo.
@@ -36,7 +87,7 @@ Everything is procedural — no textures or models ship in the repo.
 | Headlights | Spot light with **soft real-time shadows** — traffic throws moving shadows up the road |
 | Street lamps | HDR emissive heads + camera-facing coronas, point lights every 4th pole |
 | Road | Procedurally generated asphalt: four octaves of tileable value noise for graded aggregate, tyre-polished wear bands, oil drips, plus a matching normal map from the same height field. 16x anisotropic |
-| Cars | Clearcoat paint, alloy rims, HDR emissive lamps, brake flare, soft contact shadow |
+| Cars | Four silhouettes (saloon, Z-wedge, R34-style coupe, FD) at real-world sizes, clearcoat paint, alloy rims, HDR emissive lamps, brake flare, soft contact shadow |
 
 If you open the project before installing URP, the game still runs on the
 built-in pipeline (materials fall back to `Standard`) and logs a warning
