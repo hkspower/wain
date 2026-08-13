@@ -43,7 +43,16 @@ public class GameController : MonoBehaviour
 
     void Start()
     {
-        Application.targetFrameRate = 120;
+        // Frame pacing. Unlike the web build — where the browser locks
+        // rendering to v-sync with no way to switch it off — this is fully
+        // controllable. vSyncCount 0 hands pacing to targetFrameRate; a cap
+        // a few frames under the panel is what keeps a G-Sync/FreeSync
+        // display inside its variable-refresh window, since crossing the
+        // ceiling drops you back onto v-sync and its queued frame.
+        QualitySettings.vSyncCount = 0;
+        var hz = (float)Screen.currentResolution.refreshRateRatio.value;
+        if (hz < 30f) hz = 60f; // some platforms report 0
+        Application.targetFrameRate = Mathf.Max(30, Mathf.RoundToInt(hz) - 3);
         QualitySettings.shadows = ShadowQuality.All;
         QualitySettings.shadowResolution = ShadowResolution.VeryHigh;
         QualitySettings.shadowDistance = 220f;

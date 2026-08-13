@@ -2,7 +2,7 @@
   "name": "wain",
   "version": "1.0.0",
   "private": true,
-  "description": "Wain (وين) — Discover where to go in Kuwait. A modern place-discovery app.",
+  "description": "Wain (\u0648\u064a\u0646) \u2014 Discover where to go in Kuwait. A modern place-discovery app.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -19,7 +19,8 @@
     "sync:models": "node scripts/export-car-profiles.mjs && python3 tools/blender/build_cars.py --out public/models",
     "sync:unity": "node scripts/export-unity-data.mjs",
     "check:unity": "node scripts/check-unity-sync.mjs",
-    "test:motion": "node tests/motion.mjs"
+    "test:motion": "node tests/motion.mjs",
+    "test:pacing": "node tests/framepacing.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",

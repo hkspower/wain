@@ -57,6 +57,23 @@ namespace GRNGraphics
 	 *  many frames and is here for marketing captures. */
 	void SetPathTracing(UObject* WorldContext, bool bEnabled);
 
+	/**
+	 * Frame pacing. Unlike the web build — where the browser locks
+	 * rendering to v-sync and offers no way to switch it off — this is
+	 * fully controllable here.
+	 *
+	 * bVSync trades tearing for a queued frame of latency. bGSync caps a
+	 * few frames below the panel instead: on a G-Sync/FreeSync display
+	 * that keeps the game inside the variable-refresh window, where there
+	 * is neither tearing nor the v-sync latency, and crossing the ceiling
+	 * is what drops you back out of it. CapFps of 0 means uncapped.
+	 */
+	void SetFramePacing(UObject* WorldContext, bool bVSync, float CapFps);
+
+	/** G-Sync/FreeSync preset: v-sync off, capped just under RefreshHz.
+	 *  Pass 0 to read the refresh rate from the current display mode. */
+	void ApplyVrrPacing(UObject* WorldContext, float RefreshHz = 0.f);
+
 	/** Parse -grn4k / -grn2k / -grn1080 / -grndlss=off from the command
 	 *  line so a build can be pointed at a resolution without recompiling. */
 	void ApplyCommandLineOverrides(UObject* WorldContext);

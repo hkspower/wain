@@ -20,6 +20,14 @@ export interface Settings {
   largeHud: boolean;
   /** Time of day on the corniche. */
   sky: "night" | "dawn";
+  /**
+   * Frame pacing. "display" follows the panel's own refresh rate — the
+   * right default, and on a VRR/G-Sync panel it also keeps the game
+   * inside the variable-refresh window. "vrr" caps a few frames below
+   * refresh, which is the standard G-Sync practice: crossing the ceiling
+   * drops you out of VRR and back onto v-sync's latency.
+   */
+  frameCap: "display" | "vrr" | 30 | 60 | 120 | 144 | 0;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -31,6 +39,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sfxVolume: 0.75,
   largeHud: false,
   sky: "night",
+  frameCap: "display",
 };
 
 const KEY = "gulf-road-nights-settings";

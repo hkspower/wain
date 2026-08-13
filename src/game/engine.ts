@@ -491,6 +491,18 @@ export class GameEngine {
   private grainPass: ShaderPass;
   private fxaaPass: ShaderPass;
   private fpsEma = 60;
+  /**
+   * Frame pacing. The browser hands us requestAnimationFrame, which is
+   * already v-sync locked and cannot be turned off from JS — there is no
+   * web API for v-sync or for G-Sync/VRR. What we CAN do is choose how
+   * often we accept a frame, which is the half of the problem that
+   * actually matters here.
+   */
+  private refreshHz = 0;          // measured panel refresh, 0 until known
+  private refreshSamples: number[] = [];
+  private frameMinMs = 0;         // 0 = accept every frame the browser offers
+  private lastFrameAt = 0;
+  private frameCap: "display" | "vrr" | number = "display";
   private qualityLocked = false; // user took manual control with G
   private startedAt = 0;
   private moonDir = new THREE.Vector3(-300, 500, 200).normalize();
@@ -868,6 +880,15 @@ export class GameEngine {
     const loop = () => {
       if (this.disposed) return;
       this.raf = requestAnimationFrame(loop);
+      const nowMs = performance.now();
+      this.measureRefresh(nowMs);
+      // Frame limiter. The half-millisecond slack matters: without it a
+      // cap set equal to the refresh rate loses the race with itself
+      // every other frame and the game runs at exactly half rate.
+      if (this.frameMinMs > 0) {
+        if (nowMs - this.lastFrameAt < this.frameMinMs - 0.5) return;
+        this.lastFrameAt = nowMs;
+      }
       const raw = this.clock.getDelta();
       if (raw > 0) this.fpsEma = this.fpsEma * 0.95 + (1 / raw) * 0.05;
       this.autoQuality();
@@ -954,14 +975,101 @@ export class GameEngine {
    * once there is headroom. Runs continuously (Auto tier), unlike the
    * one-shot effects governor below.
    */
+  /**
+   * Learn the panel's refresh rate from the frames it gives us. Median of
+   * the first 40 intervals rather than a mean: a single scheduling hitch
+   * during startup would drag a mean far enough to mistake a 120 Hz panel
+   * for a 90 Hz one and cap the game below its display for the session.
+   */
+  private measureRefresh(now: number): void {
+    if (this.refreshHz > 0 || this.lastRefreshSample === 0) {
+      this.lastRefreshSample = now;
+      return;
+    }
+    const gap = now - this.lastRefreshSample;
+    this.lastRefreshSample = now;
+    this.refreshFrames++;
+    // Accept anything from 4 Hz up. A tighter window looks reasonable
+    // until the machine is genuinely slow or the tab is throttled, at
+    // which point every sample is rejected and the probe never resolves
+    // at all — leaving the governors guessing 60 Hz forever.
+    if (gap > 2 && gap < 250) this.refreshSamples.push(gap);
+    // Commit on enough samples, or bail out — bounded by BOTH frames and
+    // wall clock. A frame budget alone is unbounded in time: at the ~1.4 Hz
+    // a throttled tab delivers, 240 frames is nearly three minutes, and the
+    // governors would spend all of it aiming at a guessed rate.
+    if (this.refreshProbeStart === 0) this.refreshProbeStart = now;
+    const elapsed = now - this.refreshProbeStart;
+    if (this.refreshSamples.length < 40 && this.refreshFrames < 240 && elapsed < 2000) return;
+    if (this.refreshSamples.length < 5) {
+      // Nothing usable at all: assume the common case rather than stall.
+      this.refreshHz = 60;
+      this.refreshSamples = [];
+      this.applyFrameCap();
+      return;
+    }
+    const sorted = [...this.refreshSamples].sort((a, b) => a - b);
+    const median = sorted[sorted.length >> 1];
+    // Snap to the common panel rates; anything else is reported as-is
+    const raw = 1000 / median;
+    const known = [30, 48, 50, 60, 72, 75, 90, 100, 120, 144, 165, 240];
+    const near = known.find((h) => Math.abs(h - raw) / h < 0.06);
+    this.refreshHz = near ?? Math.round(raw);
+    this.refreshSamples = [];
+    this.applyFrameCap(); // re-resolve "display"/"vrr" now the rate is known
+  }
+  private lastRefreshSample = 0;
+  private refreshFrames = 0;
+  private refreshProbeStart = 0;
+
+  /** Panel refresh in Hz once measured, else 0. */
+  get displayHz(): number {
+    return this.refreshHz;
+  }
+
+  /** The frame rate the governors are aiming at. */
+  get targetFps(): number {
+    return this.frameMinMs > 0 ? 1000 / this.frameMinMs : this.refreshHz || 60;
+  }
+
+  /**
+   * Choose the pacing. Browser v-sync is always on and not ours to
+   * disable, so the only real lever is how often we accept a frame.
+   */
+  setFrameCap(cap: "display" | "vrr" | number): void {
+    this.frameCap = cap;
+    this.applyFrameCap();
+  }
+
+  private applyFrameCap(): void {
+    const hz = this.refreshHz || 60;
+    let target: number;
+    if (this.frameCap === "display") target = 0; // take every frame offered
+    else if (this.frameCap === "vrr") {
+      // Standard G-Sync/FreeSync practice: sit a few frames under the
+      // ceiling. Crossing it hands you back to v-sync and its queued
+      // frame of latency, which is the thing VRR exists to avoid.
+      target = Math.max(30, hz - 3);
+    } else target = this.frameCap;
+    this.frameMinMs = target > 0 ? 1000 / target : 0;
+    this.lastFrameAt = 0;
+  }
+
   private updateDrs(now: number): void {
     if (!this.drsEnabled || this.paused) return;
     if (now - this.startedAt < 4000 || now - this.drsAt < 1500) return;
-    if (this.fpsEma < 50 && this.renderScale > 0.6) {
+    // Thresholds relative to what we are actually aiming at. Fixed 50/58
+    // numbers silently assumed a 60 Hz panel: on a 144 Hz display,
+    // holding 58 fps is a failure, yet it read as headroom and the
+    // governor would keep pushing resolution up.
+    const target = this.targetFps;
+    const floor = target * 0.83;
+    const ceiling = target * 0.97;
+    if (this.fpsEma < floor && this.renderScale > 0.6) {
       this.drsAt = now;
       this.renderScale = Math.max(0.6, this.renderScale - 0.1);
       this.applyRenderScale();
-    } else if (this.fpsEma > 58 && this.renderScale < 1) {
+    } else if (this.fpsEma > ceiling && this.renderScale < 1) {
       this.drsAt = now;
       this.renderScale = Math.min(1, this.renderScale + 0.05);
       this.applyRenderScale();
@@ -972,7 +1080,9 @@ export class GameEngine {
   private autoQuality(): void {
     if (this.qualityLocked || performance.now() - this.startedAt < 6000) return;
     this.qualityLocked = true;
-    if (this.fpsEma < 32) {
+    // Also relative: 32 fps is a crisis on a 60 Hz panel but merely
+    // half-rate on a 144 Hz one, where the machine is plainly coping.
+    if (this.fpsEma < this.targetFps * 0.53) {
       this.bloomPass.enabled = false;
       this.world.moonLight.castShadow = false;
       this.headlight.castShadow = false;

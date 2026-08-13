@@ -8,6 +8,23 @@ npm run dev            # in one shell
 npm run test:motion    # in another
 ```
 
+## framepacing.mjs — dynamic fps, v-sync, G-Sync
+
+Panel-refresh detection, the frame limiter, the G-Sync-style
+under-refresh cap, and the governors that key off them.
+
+**Browsers lock rendering to v-sync and expose no way to switch it off,
+and no web API reports or controls G-Sync/VRR.** So the web build's only
+real lever is how often it accepts a frame — which it now does against a
+*measured* panel rate rather than an assumed 60 Hz. The UE5 and Unity
+ports drive v-sync and the cap directly, where the platform allows it.
+
+The test asserts the pacing **logic** always — target resolution, frame
+budgets, governor scaling — and only asserts achieved **throughput**
+when the browser can actually deliver it. Headless Chromium throttles
+requestAnimationFrame to about 1.4 Hz with no compositor, so measuring
+frame rates against a cap there would be theatre.
+
 ## motion.mjs — game feel
 
 Covers the two things that make a racing game feel like one, and that

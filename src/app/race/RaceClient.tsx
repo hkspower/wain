@@ -128,6 +128,7 @@ export default function RaceClient() {
       if (k === "sfxVolume") setSfxVolume(next.sfxVolume);
       if (k === "quality") engineRef.current?.applyQualityTier(next.quality);
       if (k === "sky") engineRef.current?.setSky(next.sky);
+      if (k === "frameCap") engineRef.current?.setFrameCap(next.frameCap);
       playSfx("ui-tap", 0.6);
       return next;
     });
@@ -420,6 +421,7 @@ export default function RaceClient() {
     const boot = loadSettings();
     if (boot.quality !== "auto") engine.applyQualityTier(boot.quality);
     if (boot.sky !== "night") engine.setSky(boot.sky);
+    if (boot.frameCap !== "display") engine.setFrameCap(boot.frameCap);
     setPhase("playing");
 
     // Online cruise: connect to the hub and mirror the other drivers.
@@ -1418,6 +1420,41 @@ export default function RaceClient() {
             <p className="mt-2 text-[0.76rem] text-white/45">
               Auto measures your frame rate for six seconds and drops glow and shadows if the
               device can&apos;t hold it. Battery caps the resolution as well.
+            </p>
+
+            {/* Frame pacing */}
+            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-[0.68rem]">
+              Frame rate · معدل الإطارات
+            </h3>
+            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+              {(
+                [
+                  ["display", "Display"],
+                  ["vrr", "G-Sync"],
+                  [144, "144"],
+                  [120, "120"],
+                  [60, "60"],
+                  [30, "30"],
+                ] as const
+              ).map(([v, label]) => (
+                <button
+                  key={String(v)}
+                  onClick={() => updateSetting("frameCap", v)}
+                  className={`tap grn-panel px-2 py-3 text-center transition ${
+                    settings.frameCap === v
+                      ? "border-sodium-400/80 bg-sodium-500/10 text-sodium-400"
+                      : "text-white/70 hover:border-white/30"
+                  }`}
+                >
+                  <span className="grn-display text-sm">{label}</span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-[0.76rem] text-white/45">
+              Display follows your panel&apos;s own refresh rate. G-Sync sits a few frames under
+              it, which is what keeps a variable-refresh screen inside its window instead of
+              falling back to v-sync. Browsers lock rendering to v-sync and offer no way to
+              switch it off, so a cap is the only pacing control there is here.
             </p>
 
             {/* Time of day */}

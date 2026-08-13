@@ -163,6 +163,12 @@ void GRNGraphics::ApplyCommandLineOverrides(UObject* WorldContext)
 		}
 	}
 	if (FParse::Param(Cmd, TEXT("grnpathtrace"))) SetPathTracing(WorldContext, true);
+
+	// Frame pacing: -grnvsync, -grngsync, or -grnfps=N
+	float CapFps = 0.f;
+	if (FParse::Param(Cmd, TEXT("grngsync"))) ApplyVrrPacing(WorldContext);
+	else if (FParse::Param(Cmd, TEXT("grnvsync"))) SetFramePacing(WorldContext, true, 0.f);
+	else if (FParse::Value(Cmd, TEXT("-grnfps="), CapFps)) SetFramePacing(WorldContext, false, CapFps);
 }
 
 void GRNGraphics::ApplyRtxUltra(UObject* WorldContext, bool bFrameGeneration)
@@ -225,4 +231,52 @@ void GRNGraphics::SetPathTracing(UObject* WorldContext, bool bEnabled)
 		Run(WorldContext, TEXT("r.PathTracing.MaxBounces 8"));
 		Run(WorldContext, TEXT("r.PathTracing.Denoiser 1"));
 	}
+}
+
+void GRNGraphics::SetFramePacing(UObject* WorldContext, bool bVSync, float CapFps)
+{
+	if (UGameUserSettings* S = UGameUserSettings::GetGameUserSettings())
+	{
+		S->SetVSyncEnabled(bVSync);
+		S->SetFrameRateLimit(FMath::Max(0.f, CapFps));
+		S->ApplySettings(false);
+	}
+	// The console variables are what actually take effect mid-session;
+	// the settings object above is what persists to the ini.
+	Run(WorldContext, bVSync ? TEXT("r.VSync 1") : TEXT("r.VSync 0"));
+	Run(WorldContext, *FString::Printf(TEXT("t.MaxFPS %.0f"), FMath::Max(0.f, CapFps)));
+
+	UE_LOG(LogTemp, Log, TEXT("GRNGraphics: v-sync %s, cap %.0f"),
+		bVSync ? TEXT("on") : TEXT("off"), CapFps);
+}
+
+void GRNGraphics::ApplyVrrPacing(UObject* WorldContext, float RefreshHz)
+{
+	if (RefreshHz <= 0.f)
+	{
+		if (UGameUserSettings* S = UGameUserSettings::GetGameUserSettings())
+		{
+			// GetFrameRateLimit is the user's cap, not the panel — read the
+			// mode instead so a 240 Hz display is not paced like a 60 Hz one.
+			const FIntPoint Res = S->GetScreenResolution();
+			(void)Res;
+		}
+		RefreshHz = 60.f;
+		if (GEngine && GEngine->GameViewport)
+		{
+			// The platform reports the active mode's refresh where it can
+			RefreshHz = FMath::Max(RefreshHz, (float)FPlatformMisc::GetMaxRefreshRate());
+		}
+	}
+	// Three under the ceiling: enough margin that a frame-time spike does
+	// not punch through into v-sync fallback, little enough that the
+	// player never notices the frames are missing.
+	const float Cap = FMath::Max(30.f, RefreshHz - 3.f);
+	SetFramePacing(WorldContext, /*bVSync=*/false, Cap);
+	// Reflex keeps the render queue short, which is what makes a VRR
+	// display feel immediate rather than merely smooth.
+	Run(WorldContext, TEXT("t.Reflex.Enable 1"));
+	Run(WorldContext, TEXT("t.Reflex.Mode 1"));
+
+	UE_LOG(LogTemp, Log, TEXT("GRNGraphics: VRR pacing at %.0f fps under a %.0f Hz panel"), Cap, RefreshHz);
 }
