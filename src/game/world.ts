@@ -830,6 +830,136 @@ function stripeTexture(colorA: string, colorB: string): THREE.CanvasTexture {
   return tex;
 }
 
+/** Gulf-standard bend board: black chevrons on a yellow panel, pointing
+ *  into the turn. Drawn double-wide so three arrows read at speed. */
+function chevronTexture(pointRight: boolean): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 96;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#f2c400";
+  ctx.fillRect(0, 0, 256, 96);
+  ctx.strokeStyle = "#111111";
+  ctx.lineWidth = 6;
+  ctx.strokeRect(3, 3, 250, 90);
+  ctx.fillStyle = "#111111";
+  for (let i = 0; i < 3; i++) {
+    const x0 = 34 + i * 72;
+    ctx.beginPath();
+    if (pointRight) {
+      ctx.moveTo(x0, 16);
+      ctx.lineTo(x0 + 34, 48);
+      ctx.lineTo(x0, 80);
+      ctx.lineTo(x0 + 16, 80);
+      ctx.lineTo(x0 + 50, 48);
+      ctx.lineTo(x0 + 16, 16);
+    } else {
+      ctx.moveTo(x0 + 50, 16);
+      ctx.lineTo(x0 + 16, 48);
+      ctx.lineTo(x0 + 50, 80);
+      ctx.lineTo(x0 + 34, 80);
+      ctx.lineTo(x0, 48);
+      ctx.lineTo(x0 + 34, 16);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** The red-and-white check of a Kuwaiti shemagh, tiling. */
+function ghutraCheckTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 64;
+  c.height = 64;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#f4f2ec";
+  ctx.fillRect(0, 0, 64, 64);
+  ctx.strokeStyle = "#b32428";
+  for (let i = 4; i <= 64; i += 8) {
+    ctx.lineWidth = i % 16 === 4 ? 2.5 : 1;
+    ctx.beginPath();
+    ctx.moveTo(i, 0);
+    ctx.lineTo(i, 64);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, i);
+    ctx.lineTo(64, i);
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+/** A spectator in Kuwaiti dress, ~1.75 m tall, low-poly to sit beside
+ *  the road furniture. Men wear the white dishdasha with a ghutra
+ *  (plain white or red check) held by a black agal; the woman wears an
+ *  abaya and hijab. Faces stay simple — these are silhouettes for the
+ *  corniche, not portraits. */
+function kuwaitiFigure(kind: "dishdasha" | "abaya", headdress: "white" | "check"): THREE.Group {
+  const g = new THREE.Group();
+  const cloth =
+    kind === "dishdasha"
+      ? new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.85 })
+      : new THREE.MeshStandardMaterial({ color: 0x17171b, roughness: 0.9 });
+  const skin = new THREE.MeshStandardMaterial({ color: 0xb9895f, roughness: 0.75 });
+
+  // Robe: one tapered fall from the shoulders to the ground
+  const robe = new THREE.Mesh(new THREE.CylinderGeometry(0.165, 0.295, 1.3, 10), cloth);
+  robe.position.y = 0.65;
+  g.add(robe);
+  // Shoulders round the top of the robe off
+  const shoulders = new THREE.Mesh(new THREE.SphereGeometry(0.165, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), cloth);
+  shoulders.position.y = 1.3;
+  g.add(shoulders);
+  // Arms resting at the sides
+  for (const side of [-1, 1]) {
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.05, 0.56, 6), cloth);
+    arm.position.set(side * 0.2, 1.02, 0);
+    arm.rotation.z = side * 0.13;
+    g.add(arm);
+  }
+
+  const headY = 1.5;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.115, 12, 9), skin);
+  head.position.y = headY;
+  g.add(head);
+
+  if (kind === "dishdasha") {
+    // Ghutra: a cap draped over the crown with a fall down the back,
+    // cinched by the agal
+    const clothTex =
+      headdress === "check"
+        ? new THREE.MeshStandardMaterial({ map: ghutraCheckTexture(), roughness: 0.85 })
+        : new THREE.MeshStandardMaterial({ color: 0xf6f4ee, roughness: 0.85 });
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.132, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), clothTex);
+    cap.position.y = headY + 0.005;
+    g.add(cap);
+    const drape = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.34, 10, 1, true), clothTex);
+    drape.position.set(0, headY - 0.1, -0.045);
+    g.add(drape);
+    const agal = new THREE.Mesh(new THREE.TorusGeometry(0.125, 0.017, 6, 14), new THREE.MeshStandardMaterial({ color: 0x0c0c0c, roughness: 0.6 }));
+    agal.rotation.x = Math.PI / 2;
+    agal.position.y = headY + 0.06;
+    g.add(agal);
+  } else {
+    // Hijab: the head wrapped in the abaya's black, the face open
+    const wrap = new THREE.Mesh(new THREE.SphereGeometry(0.128, 12, 9), cloth);
+    wrap.position.y = headY;
+    g.add(wrap);
+    const face = new THREE.Mesh(new THREE.CircleGeometry(0.068, 12), skin);
+    face.position.set(0, headY + 0.01, 0.126);
+    g.add(face);
+  }
+
+  for (const m of g.children) m.castShadow = true;
+  return g;
+}
+
 function flagTexture(): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = 256;
@@ -2006,6 +2136,209 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       g.lookAt(p.clone().sub(tmp));
       scene.add(g);
     }
+
+    // Red-and-white kerbing rides the swell on both edges — it follows
+    // halfWidthAt exactly, so the paint stays glued to the physics.
+    {
+      const kerbTex = stripeTexture("#c8342b", "#f2f2ee");
+      kerbTex.wrapS = kerbTex.wrapT = THREE.RepeatWrapping;
+      const kerbMat = new THREE.MeshStandardMaterial({
+        map: kerbTex,
+        roughness: 0.6,
+        emissive: 0x3a2320,
+        emissiveIntensity: 0.35,
+      });
+      const uSpan = (DRIFT_PLAZA.halfSpan + 14) / L;
+      for (const sign of [-1, 1]) {
+        const kerb = new THREE.Mesh(
+          buildRibbon(
+            track,
+            (s) => sign * (track.halfWidthAt(s) + 0.05),
+            (s) => sign * (track.halfWidthAt(s) + 0.45),
+            0.06,
+            2,
+            DRIFT_PLAZA.u - uSpan,
+            DRIFT_PLAZA.u + uSpan
+          ),
+          kerbMat
+        );
+        kerb.name = "plaza-kerb";
+        kerb.receiveShadow = true;
+        scene.add(kerb);
+      }
+    }
+
+    // Floodlight masts ring the circle so the drift arena reads brighter
+    // than the sodium road it interrupts
+    {
+      const mastMat = new THREE.MeshStandardMaterial({ color: 0x343a42, roughness: 0.65 });
+      const headMat = new THREE.MeshStandardMaterial({
+        color: 0xeef2ff,
+        emissive: 0xcfe0ff,
+        emissiveIntensity: 3.4,
+        fog: false,
+      });
+      const poolTex = lightPoolTexture();
+      const poolMat = new THREE.MeshBasicMaterial({
+        map: poolTex,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        fog: false,
+        color: 0x9fb6e8,
+        opacity: 0.5,
+      });
+      const poolGeo = new THREE.CircleGeometry(11, 20);
+      poolGeo.rotateX(-Math.PI / 2);
+      for (const [ds, latPad] of [
+        [-46, 2.4],
+        [0, 3.0],
+        [46, 2.4],
+      ]) {
+        const s = sPlaza + ds;
+        const g = new THREE.Group();
+        g.name = "plaza-floodlight";
+        const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.19, 11.5, 8), mastMat);
+        mast.position.y = 5.75;
+        g.add(mast);
+        for (const dx of [-0.45, 0, 0.45]) {
+          const head = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.2, 0.26), headMat);
+          head.position.set(dx, 11.35, 0.1);
+          head.rotation.x = 0.5;
+          g.add(head);
+        }
+        const pool = new THREE.Mesh(poolGeo, poolMat);
+        pool.position.y = 0.055;
+        g.add(pool);
+        const p = new THREE.Vector3();
+        track.pose(s, track.halfWidthAt(s) + latPad, p, tmp);
+        g.position.copy(p);
+        g.lookAt(islandPos.x, 0, islandPos.z);
+        scene.add(g);
+      }
+    }
+
+    // Spectators on the seaward promenade: three men in dishdasha and
+    // ghutra, one woman in an abaya — a Kuwaiti crowd for the circle
+    {
+      const crowd = new THREE.Group();
+      crowd.name = "spectators";
+      const figures: Array<[THREE.Group, number, number]> = [
+        [kuwaitiFigure("dishdasha", "check"), -24, 3.2],
+        [kuwaitiFigure("dishdasha", "white"), -20.5, 4.1],
+        [kuwaitiFigure("dishdasha", "check"), 21, 3.4],
+        [kuwaitiFigure("abaya", "white"), 24.5, 3.9],
+      ];
+      let seed = 0;
+      for (const [fig, ds, latPad] of figures) {
+        const s = sPlaza + ds;
+        const p = new THREE.Vector3();
+        track.pose(s, track.halfWidthAt(s) + latPad, p, tmp);
+        fig.position.copy(p);
+        fig.scale.setScalar(0.96 + 0.03 * seed);
+        fig.lookAt(islandPos.x, 0, islandPos.z);
+        seed++;
+        crowd.add(fig);
+      }
+      scene.add(crowd);
+    }
+  }
+
+  // --------------------------------------------------- bend furniture
+  // Chevron boards and braking rubber go where the road actually turns.
+  // The geometry is measured, not guessed: the sharpest sweep is the
+  // Ras Al-Ard point at radius ≈178 m, with lesser curves at the Kuwait
+  // Towers hairpin and the city return — so the threshold sits at
+  // R < 260 m and everything gentler stays clean.
+  {
+    const t0 = new THREE.Vector3();
+    const t1 = new THREE.Vector3();
+    const kappaAt = (s: number) => {
+      track.tangentAt(s - 14, t0);
+      track.tangentAt(s + 14, t1);
+      return { k: t0.angleTo(t1) / 28, right: t0.x * t1.z - t0.z * t1.x > 0 };
+    };
+    const THRESH = 1 / 260;
+    type Cluster = { from: number; to: number; right: boolean };
+    const clusters: Cluster[] = [];
+    let cur: Cluster | null = null;
+    for (let s = 0; s < L; s += 10) {
+      const { k, right } = kappaAt(s);
+      if (k <= THRESH) continue;
+      if (cur && s - cur.to <= 40 && cur.right === right) cur.to = s;
+      else clusters.push((cur = { from: s, to: s, right }));
+    }
+    // A bend straddling the lap seam shows up as two clusters — rejoin it
+    if (clusters.length > 1) {
+      const first = clusters[0];
+      const last = clusters[clusters.length - 1];
+      if (first.from <= 40 && L - last.to <= 40 && first.right === last.right) {
+        first.from = last.from - L;
+        clusters.pop();
+      }
+    }
+
+    const chevrons = new THREE.Group();
+    chevrons.name = "bend-chevrons";
+    const postGeo = new THREE.CylinderGeometry(0.07, 0.09, 1.7, 6);
+    const postMat = new THREE.MeshStandardMaterial({ color: 0x4a5058, roughness: 0.6 });
+    const boardGeo = new THREE.PlaneGeometry(1.6, 0.62);
+    const boardMats = {
+      right: new THREE.MeshStandardMaterial({
+        map: chevronTexture(true),
+        emissive: 0x7a6200,
+        emissiveIntensity: 0.55,
+        side: THREE.DoubleSide,
+      }),
+      left: new THREE.MeshStandardMaterial({
+        map: chevronTexture(false),
+        emissive: 0x7a6200,
+        emissiveIntensity: 0.55,
+        side: THREE.DoubleSide,
+      }),
+    };
+    const rubberMat = new THREE.MeshStandardMaterial({
+      color: 0x0a0a0c,
+      roughness: 1,
+      transparent: true,
+      opacity: 0.38,
+    });
+    const p = new THREE.Vector3();
+    const tmp = new THREE.Vector3();
+    for (const c of clusters) {
+      // Boards through the arc, on the outside of the bend, facing
+      // oncoming traffic; the arrows point into the turn.
+      const outside = c.right ? -1 : 1;
+      for (let s = c.from; s <= c.to + 1; s += 26) {
+        const g = new THREE.Group();
+        const post = new THREE.Mesh(postGeo, postMat);
+        post.position.y = 0.85;
+        g.add(post);
+        const board = new THREE.Mesh(boardGeo, c.right ? boardMats.right : boardMats.left);
+        board.position.y = 1.55;
+        g.add(board);
+        track.pose(s, outside * (track.halfWidthAt(s) + 1.9), p, tmp);
+        track.tangentAt(s, tmp);
+        g.position.copy(p);
+        g.lookAt(p.x - tmp.x, p.y, p.z - tmp.z);
+        chevrons.add(g);
+      }
+      // Braking rubber in the two middle lanes on the approach: pairs of
+      // tyre-width streaks that darken toward the turn-in point.
+      for (const lane of [-1.75, 1.75]) {
+        for (const off of [-0.78, 0.78]) {
+          const u0 = (c.from - 68) / L;
+          const u1 = (c.from - 6) / L;
+          const streak = new THREE.Mesh(
+            buildRibbon(track, lane + off - 0.14, lane + off + 0.14, 0.035, 4, u0, u1),
+            rubberMat
+          );
+          streak.name = "brake-rubber";
+          chevrons.add(streak);
+        }
+      }
+    }
+    scene.add(chevrons);
   }
 
   // Kilometre way-markers down the whole road, numbered in Arabic-Indic
