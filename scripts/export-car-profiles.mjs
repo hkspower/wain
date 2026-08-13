@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Regenerates tools/blender/profiles.json from src/game/cars.ts — the
 // single source of truth for the car silhouettes. The Blender build
-// (tools/blender/build_cars.py) lofts these exact profiles, so the
+// (tools/blender/build_assets.py) lofts these exact profiles, so the
 // authored shells land on the same STYLE_DIMS anchors the procedural
 // detailing uses.
 //

@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { upgradeCarShells } from "./models";
+import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { upgradeCarShells, upgradeWheels } from "./models";
 
 // Procedural sedans with a real silhouette: the body and glasshouse are
 // bevel-extruded side profiles (smoothed normals), riding on spoked
@@ -748,6 +748,54 @@ function plateMat(): THREE.MeshStandardMaterial {
 
 type WheelFinish = "silver" | "gold" | "bronze";
 
+/** Hero wheel parts, merged to one geometry per material so a Blender
+ *  build can replace each in a single swap (models.ts) — and so four
+ *  wheels cost five draw calls instead of fifteen. Keyed by spoke count
+ *  and side, since the lip, rotor and lugs sit on the outboard face. */
+const heroWheelCache = new Map<string, Record<string, THREE.BufferGeometry>>();
+
+function heroWheelParts(nSpokes: number, side: number) {
+  const key = `${nSpokes}|${side}`;
+  let parts = heroWheelCache.get(key);
+  if (parts) return parts;
+
+  const at = (geo: THREE.BufferGeometry, x = 0, y = 0, z = 0) => {
+    const g = geo.clone();
+    g.translate(x, y, z);
+    return g;
+  };
+  // Tire: tread barrel plus the two shoulder bulges
+  const tire = mergeGeometries([
+    tireGeoHi.clone(),
+    at(sidewallGeo, -0.095),
+    at(sidewallGeo, 0.095),
+  ])!;
+  // Alloy face: machined lip, spokes, hub — everything wearing the
+  // finish colour
+  const alloyParts: THREE.BufferGeometry[] = [at(lipGeo, side * 0.135), hubGeo.clone()];
+  for (let i = 0; i < nSpokes; i++) {
+    const g = spokeGeo.clone();
+    g.translate(0, 0.1, 0);
+    g.rotateX((i / nSpokes) * Math.PI * 2);
+    alloyParts.push(g);
+  }
+  const alloy = mergeGeometries(alloyParts)!;
+  const lugParts: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + 0.3;
+    lugParts.push(at(lugGeo, side * 0.148, Math.cos(a) * 0.058, Math.sin(a) * 0.058));
+  }
+  parts = {
+    tire,
+    barrel: rimGeo,
+    alloy,
+    rotor: at(discGeo, -side * 0.055),
+    lugs: mergeGeometries(lugParts)!,
+  };
+  heroWheelCache.set(key, parts);
+  return parts;
+}
+
 function buildWheel(
   finish: WheelFinish = "silver",
   side = 1,
@@ -757,16 +805,37 @@ function buildWheel(
     opts?.spokeMat ??
     (finish === "gold" ? getGoldRimMat() : finish === "bronze" ? bronzeRimMat : rimMat);
   const detailed = opts?.detailed ?? false;
+  // Six straight spokes on the forged bronze wheel, five on the street cast
+  const nSpokes = finish === "bronze" ? 6 : 5;
   const w = new THREE.Group();
-  w.add(new THREE.Mesh(detailed ? tireGeoHi : tireGeo, tireMat));
+
+  if (detailed) {
+    // One mesh per material, each tagged for the authored swap. The
+    // geometries are shared module-level merges — never dispose them.
+    const parts = heroWheelParts(nSpokes, side);
+    const mats: Record<string, THREE.Material> = {
+      tire: tireMat,
+      barrel: rimDarkMat,
+      alloy: spokeMat,
+      rotor: discMat,
+      lugs: rimDarkMat,
+    };
+    for (const name of ["tire", "barrel", "alloy", "rotor", "lugs"]) {
+      const mesh = new THREE.Mesh(parts[name], mats[name]);
+      mesh.userData.wheelPart = name;
+      mesh.userData.wheelSide = side;
+      w.add(mesh);
+    }
+    w.userData.spokes = nSpokes;
+    return w;
+  }
+
+  // Traffic wheel: the cheap build, unchanged
+  w.add(new THREE.Mesh(tireGeo, tireMat));
   w.add(new THREE.Mesh(rimGeo, rimDarkMat));
-  // Machined lip on the outer face — the ring highlight that makes a
-  // wheel read as an alloy instead of a drum
   const lip = new THREE.Mesh(lipGeo, spokeMat);
   lip.position.x = side * 0.135;
   w.add(lip);
-  // Six straight spokes on the forged bronze wheel, five on the street cast
-  const nSpokes = finish === "bronze" ? 6 : 5;
   for (let i = 0; i < nSpokes; i++) {
     const holder = new THREE.Group();
     holder.rotation.x = (i / nSpokes) * Math.PI * 2;
@@ -776,26 +845,6 @@ function buildWheel(
     w.add(holder);
   }
   w.add(new THREE.Mesh(hubGeo, spokeMat));
-
-  if (detailed) {
-    // Sidewall bulges at each shoulder — the tire stops being a puck
-    for (const sx of [-0.095, 0.095]) {
-      const wall = new THREE.Mesh(sidewallGeo, tireMat);
-      wall.position.x = sx;
-      w.add(wall);
-    }
-    // Rotor inboard of the spokes; it turns with the wheel, as it should
-    const disc = new THREE.Mesh(discGeo, discMat);
-    disc.position.x = -side * 0.055;
-    w.add(disc);
-    // Five lugs around the hub on the outer face
-    for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * Math.PI * 2 + 0.3;
-      const lug = new THREE.Mesh(lugGeo, rimDarkMat);
-      lug.position.set(side * 0.148, Math.cos(a) * 0.058, Math.sin(a) * 0.058);
-      w.add(lug);
-    }
-  }
   return w;
 }
 
@@ -1580,9 +1629,13 @@ export function createCar(colors: CarColors): THREE.Group {
   // Collision sizes are engine constants and are deliberately untouched.
   group.scale.setScalar(STYLE_SCALE[style]);
 
-  // Swap in the Blender-authored shells when they arrive. Traffic keeps
-  // the cheap procedural extrusions — thirty cars don't need the density.
-  if (!colors.simple) upgradeCarShells(group, style);
+  // Swap in the Blender-authored shells and wheels when they arrive.
+  // Traffic keeps the cheap procedural build — thirty cars don't need
+  // the density, and they never come close enough to the camera to show it.
+  if (!colors.simple) {
+    upgradeCarShells(group, style);
+    upgradeWheels(group);
+  }
 
   if (colors.underglow !== undefined) {
     const glow = new THREE.Mesh(

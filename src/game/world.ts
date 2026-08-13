@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { Track, ROAD_HALF_WIDTH, COAST_U, DRIFT_PLAZA } from "./track";
 import { applyTextureManifest } from "./assets";
+import { upgradePalmCrowns } from "./models";
 import { flagTexture, kuwaitiFigure, kuwaitiRacer, type RacerLook } from "./characters";
 import { RIVALS } from "./rivals";
 
@@ -1640,6 +1641,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const crownMat = new THREE.MeshStandardMaterial({ color: 0x2e5f30, roughness: 1 });
     const crowns = new THREE.InstancedMesh(crownGeo, crownMat, count);
     crowns.castShadow = true;
+    // One authored crown serves all ~130 instances
+    upgradePalmCrowns(crowns);
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();
     const tmp = new THREE.Vector3();

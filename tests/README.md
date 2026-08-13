@@ -8,6 +8,24 @@ npm run dev            # in one shell
 npm run test:motion    # in another
 ```
 
+## assets.mjs — the Blender build reaches the screen
+
+Everything in `public/models` is optional by design: a missing file, a
+renamed node or a swap that never fires all fall back to the procedural
+build in silence. That is the right runtime behaviour and a terrible
+testing story — every failure mode looks like success from the outside.
+
+So this one asserts the authored geometry is *live*: the hero car's
+Body/Canopy/Roof, all five parts of all four wheels (mirrored on the
+left side), and the palm crowns shared across ~130 instances. It also
+re-checks the envelopes the rest of the game is positioned against — a
+0.36 m tire radius and 0.26 m section width — because a prettier tire
+that is 5 mm larger would lift the car off its own shadow.
+
+```bash
+npm run test:assets
+```
+
 ## framepacing.mjs — dynamic fps, v-sync, G-Sync
 
 Panel-refresh detection, the frame limiter, the G-Sync-style

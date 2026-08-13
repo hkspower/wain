@@ -1,0 +1,42 @@
+{
+  "quality": "max",
+  "settings": {
+    "spans": 96,
+    "bevel": 28,
+    "tire_r": 160,
+    "tire_p": 30,
+    "alloy": 96,
+    "leaflets": 13
+  },
+  "assets": {
+    "wheel-5": {
+      "tris": 16500,
+      "kb": 305.1,
+      "parts": [
+        "Alloy",
+        "Barrel",
+        "Lugs",
+        "Rotor",
+        "Tire"
+      ]
+    },
+    "wheel-6": {
+      "tris": 16836,
+      "kb": 311.0,
+      "parts": [
+        "Alloy",
+        "Barrel",
+        "Lugs",
+        "Rotor",
+        "Tire"
+      ]
+    },
+    "palm": {
+      "tris": 1604,
+      "kb": 29.8,
+      "parts": [
+        "Crown"
+      ]
+    }
+  }
+}
