@@ -150,9 +150,9 @@ function contactShadowTexture(): THREE.CanvasTexture {
  *  specular line, and that highlight is most of what makes a car read as
  *  a car. Built as a rounded rectangle extruded with a bevel, so the
  *  rounding wraps all three axes. */
-// seg 3 (was 2): the chamfer is the specular line that sells every panel
-// edge, and one more subdivision rounds it without a visible facet.
-function roundedBox(w: number, h: number, d: number, r = 0.035, seg = 3): THREE.BufferGeometry {
+// seg 4 (was 3): the chamfer is the specular line that sells every panel
+// edge; at 4 subdivisions it reads as a true curve at showroom distance.
+function roundedBox(w: number, h: number, d: number, r = 0.035, seg = 4): THREE.BufferGeometry {
   r = Math.min(r, w / 2 - 1e-3, h / 2 - 1e-3, d / 2 - 1e-3);
   const shape = new THREE.Shape();
   const hw = w / 2;
@@ -393,20 +393,26 @@ const rx7RoofGeo = extrudeProfile(
 );
 
 /**
- * Per-silhouette scale onto real-world dimensions, from the car each
- * shape evokes: a generic saloon (4.70 x 1.80 m), a Z32 300ZX
- * (4.31 x 1.80), an R34 Skyline (4.60 x 1.79) and an FD RX-7
- * (4.30 x 1.76). Applied to the whole group in createCar.
+ * Per-silhouette scale. The RATIOS between styles come from the real
+ * cars each shape evokes — a generic saloon (4.70 x 1.80 m), a Z32
+ * 300ZX (4.31 x 1.80), an R34 Skyline (4.60 x 1.79), an FD RX-7
+ * (4.30 x 1.76) — so the Z still parks visibly shorter than the R34.
+ * The whole fleet then wears a 1.12 presence factor on top: from the
+ * chase camera a spec-sheet car reads small and distant, and every
+ * arcade racer up-sizes its metal for exactly this reason. Applied to
+ * the whole group in createCar; collision constants in the engine were
+ * re-margined for it (traffic hitbox and knock-out spacing).
  */
+const PRESENCE = 1.12;
 const STYLE_SCALE: Record<BodyStyle, number> = {
-  sedan: 0.978,
-  zx: 0.894,
-  // 0.912 (was 0.926): the R34 measured +11% on height, the worst
+  sedan: 0.978 * PRESENCE,
+  zx: 0.894 * PRESENCE,
+  // Base 0.912 (was 0.926): the R34 measured +11% on height, the worst
   // residual in the fleet. Trading a little length brings the roof down
-  // to +9% while width lands within 1% — the closest a uniform scale can
-  // get this profile to 4.60 x 1.79 x 1.36.
-  gtr: 0.912,
-  rx7: 0.899,
+  // while width lands within 1% of proportion — the closest a uniform
+  // scale can get this profile to 4.60 x 1.79 x 1.36.
+  gtr: 0.912 * PRESENCE,
+  rx7: 0.899 * PRESENCE,
 };
 
 /** Per-silhouette anchor points so every detail lands on its body. */
@@ -476,7 +482,7 @@ const rimGeo = new THREE.CylinderGeometry(0.205, 0.205, 0.27, 14);
 rimGeo.rotateZ(Math.PI / 2);
 const hubGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.29, 8);
 hubGeo.rotateZ(Math.PI / 2);
-const spokeGeo = new THREE.BoxGeometry(0.27, 0.3, 0.06);
+const spokeGeo = roundedBox(0.27, 0.3, 0.06, 0.018);
 const rimMat = new THREE.MeshStandardMaterial({
   color: 0xc8cdd4,
   roughness: 0.2,
@@ -1110,7 +1116,7 @@ export function createCar(colors: CarColors): THREE.Group {
     const grille = new THREE.Mesh(roundedBox(1.05, 0.17, 0.07, 0.02), grilleMat);
     grille.position.set(0, d.grilleY, d.nose);
     group.add(grille);
-    const trim = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.025, 0.08), chromeLocal);
+    const trim = new THREE.Mesh(roundedBox(1.05, 0.025, 0.08, 0.008), chromeLocal);
     trim.position.set(0, d.grilleY + 0.09, d.nose);
     group.add(trim);
   } else {
@@ -1120,7 +1126,7 @@ export function createCar(colors: CarColors): THREE.Group {
     group.add(slot);
   }
   for (const z of [d.nose + 0.02, d.tail - 0.03]) {
-    const plate = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.13, 0.02), plateMat());
+    const plate = new THREE.Mesh(roundedBox(0.52, 0.13, 0.02, 0.007), plateMat());
     plate.position.set(0, 0.38, z);
     group.add(plate);
   }
@@ -1171,7 +1177,7 @@ export function createCar(colors: CarColors): THREE.Group {
     }
     if (style === "gtr") {
       // Shark fin at the trailing edge of the roof
-      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.1, 0.22), bodyMat);
+      const fin = new THREE.Mesh(roundedBox(0.035, 0.1, 0.22, 0.012), bodyMat);
       fin.position.set(0, ry + 0.04, rz - 0.42);
       fin.rotation.x = -0.25;
       group.add(fin);
@@ -1233,10 +1239,10 @@ export function createCar(colors: CarColors): THREE.Group {
     rearValance.position.set(0, 0.3, d.tail + 0.02);
     group.add(rearValance);
     for (const sxSign of [-1, 1]) {
-      const amber = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.05, 0.04), amberReflectorMat);
+      const amber = new THREE.Mesh(roundedBox(0.09, 0.05, 0.04, 0.012), amberReflectorMat);
       amber.position.set(sxSign * 0.82, 0.42, d.nose - 0.06);
       group.add(amber);
-      const red = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.05, 0.04), reflectorMat);
+      const red = new THREE.Mesh(roundedBox(0.09, 0.05, 0.04, 0.012), reflectorMat);
       red.position.set(sxSign * 0.8, 0.42, d.tail + 0.05);
       group.add(red);
     }
@@ -1267,15 +1273,15 @@ export function createCar(colors: CarColors): THREE.Group {
       const crease = new THREE.Mesh(roundedBox(0.035, 0.05, 3.1, 0.016), bodyMat);
       crease.position.set(sx * 1.005, d.creaseY, -0.1);
       group.add(crease);
-      const belt = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.02, 2.7), chromeLocal);
+      const belt = new THREE.Mesh(roundedBox(0.015, 0.02, 2.7, 0.006), chromeLocal);
       belt.position.set(sx, d.beltY, -0.15);
       group.add(belt);
       for (const hz of [0.28, -1.02]) {
-        const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.035, 0.14), chromeLocal);
+        const handle = new THREE.Mesh(roundedBox(0.03, 0.035, 0.14, 0.012), chromeLocal);
         handle.position.set(sx, d.creaseY + 0.08, hz);
         group.add(handle);
       }
-      const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 2.7), seamMat);
+      const skirt = new THREE.Mesh(roundedBox(0.06, 0.12, 2.7, 0.02), seamMat);
       skirt.position.set(sx * 0.97, 0.25, -0.1);
       group.add(skirt);
     }
@@ -1325,16 +1331,16 @@ export function createCar(colors: CarColors): THREE.Group {
     }
 
     // Front splitter, rear diffuser fins, antenna, grille badge
-    const splitter = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.05, 0.3), seamMat);
+    const splitter = new THREE.Mesh(roundedBox(1.72, 0.05, 0.3, 0.016), seamMat);
     splitter.position.set(0, 0.2, d.nose + 0.01);
     group.add(splitter);
     for (const fx of style === "gtr" ? [-0.6, -0.2, 0.2, 0.6] : [-0.45, 0, 0.45]) {
-      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.11, 0.28), seamMat);
+      const fin = new THREE.Mesh(roundedBox(0.04, 0.11, 0.28, 0.013), seamMat);
       fin.position.set(fx, 0.21, d.tail + 0.02);
       group.add(fin);
     }
     if (style === "sedan") {
-      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.11, 0.24), bodyMat);
+      const fin = new THREE.Mesh(roundedBox(0.035, 0.11, 0.24, 0.012), bodyMat);
       fin.position.set(0, 1.5, -0.72);
       fin.rotation.x = -0.25;
       group.add(fin);
@@ -1346,22 +1352,22 @@ export function createCar(colors: CarColors): THREE.Group {
 
     // Indicators + reverse lights
     for (const sx of [-0.86, 0.86]) {
-      const ind = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.08, 0.05), indicatorMat);
+      const ind = new THREE.Mesh(roundedBox(0.13, 0.08, 0.05, 0.015), indicatorMat);
       ind.position.set(sx, d.grilleY + 0.06, d.nose - 0.03);
       group.add(ind);
     }
     for (const sx of [-0.55, 0.55]) {
-      const rev = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.06, 0.04), reverseMat);
+      const rev = new THREE.Mesh(roundedBox(0.16, 0.06, 0.04, 0.013), reverseMat);
       rev.position.set(sx, d.tailY - 0.14, d.tail + 0.01);
       group.add(rev);
     }
 
     // Interior silhouettes behind the glass: dashboard + headrests
-    const dash = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.13, 0.34), interiorMat);
+    const dash = new THREE.Mesh(roundedBox(1.45, 0.13, 0.34, 0.03), interiorMat);
     dash.position.set(0, d.dashY, bCabBack ? 0.15 : 0.5);
     group.add(dash);
     for (const sx of [-0.38, 0.38]) {
-      const headrest = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.22, 0.12), interiorMat);
+      const headrest = new THREE.Mesh(roundedBox(0.26, 0.22, 0.12, 0.04), interiorMat);
       headrest.position.set(sx, d.dashY + 0.14, bCabBack ? -0.45 : -0.05);
       group.add(headrest);
     }
@@ -1374,7 +1380,7 @@ export function createCar(colors: CarColors): THREE.Group {
       [0.84, wzR],
     ]) {
       const caliper = new THREE.Mesh(
-        new THREE.BoxGeometry(0.06, 0.17, 0.11),
+        roundedBox(0.06, 0.17, 0.11, 0.02),
         colors.raceKit ? tealCaliperMat : caliperMat
       );
       caliper.position.set(wx * 0.93, 0.42, wz + 0.11);
@@ -1383,7 +1389,7 @@ export function createCar(colors: CarColors): THREE.Group {
 
     // B-pillars split the side glass into door windows
     for (const sxSign of [-1, 1]) {
-      const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.44, 0.07), bodyMat);
+      const pillar = new THREE.Mesh(roundedBox(0.025, 0.44, 0.07, 0.008), bodyMat);
       pillar.position.set(sxSign * d.bPillar[0], d.bPillar[1], d.bPillar[2]);
       group.add(pillar);
     }
@@ -1393,7 +1399,7 @@ export function createCar(colors: CarColors): THREE.Group {
       [-0.35, 0.12],
       [0.28, 0.18],
     ]) {
-      const wiper = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.014, 0.025), seamMat);
+      const wiper = new THREE.Mesh(roundedBox(0.5, 0.014, 0.025, 0.005), seamMat);
       wiper.position.set(wxp, d.hoodY, d.wiperZ);
       wiper.rotation.x = -0.66;
       wiper.rotation.z = rz;
@@ -1402,7 +1408,7 @@ export function createCar(colors: CarColors): THREE.Group {
 
     // Lower intake + fog lights complete the front fascia
     const intake = new THREE.Mesh(
-      new THREE.BoxGeometry(style === "gtr" ? 1.5 : 1.3, style === "gtr" ? 0.2 : 0.13, 0.06),
+      roundedBox(style === "gtr" ? 1.5 : 1.3, style === "gtr" ? 0.2 : 0.13, 0.06, 0.02),
       grilleMat
     );
     intake.position.set(0, style === "gtr" ? 0.4 : 0.34, d.nose + 0.01);
@@ -1416,11 +1422,11 @@ export function createCar(colors: CarColors): THREE.Group {
 
     // Mirror glass + a muffler box feeding the exhaust tips
     for (const sxSign of [-1, 1]) {
-      const mGlass = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.07, 0.012), chromeMat);
+      const mGlass = new THREE.Mesh(roundedBox(0.12, 0.07, 0.012, 0.005), chromeMat);
       mGlass.position.set(sxSign * d.mirror[0], d.mirror[1], d.mirror[2] - 0.1);
       group.add(mGlass);
     }
-    const muffler = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.1, 0.3), grilleMat);
+    const muffler = new THREE.Mesh(roundedBox(1.0, 0.1, 0.3, 0.03), grilleMat);
     muffler.position.set(0, 0.23, -1.92);
     group.add(muffler);
 
@@ -1436,7 +1442,7 @@ export function createCar(colors: CarColors): THREE.Group {
 
     if (style === "gtr") {
       // Rear wiper parked across the hatch glass
-      const rwiper = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.013, 0.022), seamMat);
+      const rwiper = new THREE.Mesh(roundedBox(0.34, 0.013, 0.022, 0.005), seamMat);
       rwiper.position.set(0.12, 1.12, -1.42);
       rwiper.rotation.x = 0.9;
       rwiper.rotation.z = 0.25;
@@ -1452,30 +1458,30 @@ export function createCar(colors: CarColors): THREE.Group {
     // body-colour main plane and big endplates
     const wingY = d.deckY + 0.58;
     for (const sx of [-0.55, 0.55]) {
-      const stay = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.55, 0.22), carbonMat);
+      const stay = new THREE.Mesh(roundedBox(0.05, 0.55, 0.22, 0.016), carbonMat);
       stay.position.set(sx, d.deckY + 0.28, -1.88);
       stay.rotation.x = 0.16; // swept back into the plane
       group.add(stay);
     }
-    const plane = new THREE.Mesh(new THREE.BoxGeometry(1.95, 0.045, 0.5), bodyMat);
+    const plane = new THREE.Mesh(roundedBox(1.95, 0.045, 0.5, 0.015), bodyMat);
     plane.position.set(0, wingY, -2.02);
     plane.rotation.x = -0.18;
     group.add(plane);
     // Gurney flap on the trailing edge + brake strip beneath it
-    const gurney = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.05, 0.02), carbonMat);
+    const gurney = new THREE.Mesh(roundedBox(1.9, 0.05, 0.02, 0.006), carbonMat);
     gurney.position.set(0, wingY + 0.06, -2.25);
     group.add(gurney);
-    const strip = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.028, 0.03), tailMat);
+    const strip = new THREE.Mesh(roundedBox(1.0, 0.028, 0.03, 0.008), tailMat);
     strip.position.set(0, wingY - 0.03, -2.24);
     group.add(strip);
     for (const sx of [-0.99, 0.99]) {
-      const endplate = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.3, 0.54), carbonMat);
+      const endplate = new THREE.Mesh(roundedBox(0.03, 0.3, 0.54, 0.012), carbonMat);
       endplate.position.set(sx, wingY, -2.02);
       group.add(endplate);
     }
 
     // Front splitter jutting past the bumper, low enough to scrape
-    const splitter = new THREE.Mesh(new THREE.BoxGeometry(1.95, 0.035, 0.7), carbonMat);
+    const splitter = new THREE.Mesh(roundedBox(1.95, 0.035, 0.7, 0.012), carbonMat);
     splitter.position.set(0, 0.14, d.nose - 0.18);
     group.add(splitter);
 
@@ -1485,7 +1491,7 @@ export function createCar(colors: CarColors): THREE.Group {
         [0.34, -0.14],
         [0.47, -0.22],
       ]) {
-        const canard = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.018, 0.18), carbonMat);
+        const canard = new THREE.Mesh(roundedBox(0.3, 0.018, 0.18, 0.007), carbonMat);
         canard.position.set(sxSign * 0.85, cy, d.nose + cz);
         canard.rotation.z = sxSign * 0.3;
         canard.rotation.x = -0.25;
@@ -1495,36 +1501,36 @@ export function createCar(colors: CarColors): THREE.Group {
 
     // Vented hood: twin extraction louvres and a pair of intake scoops
     for (const sx of [-0.36, 0.36]) {
-      const louvre = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.025, 0.5), carbonMat);
+      const louvre = new THREE.Mesh(roundedBox(0.34, 0.025, 0.5, 0.009), carbonMat);
       louvre.position.set(sx, d.hoodY + 0.015, 1.15);
       louvre.rotation.x = -0.06; // follows the hood's fall
       group.add(louvre);
-      const scoop = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.07, 0.22), carbonMat);
+      const scoop = new THREE.Mesh(roundedBox(0.16, 0.07, 0.22, 0.02), carbonMat);
       scoop.position.set(sx * 1.4, d.hoodY + 0.05, 0.62);
       group.add(scoop);
     }
 
     // Side skirts hugging the rockers
     for (const sxSign of [-1, 1]) {
-      const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.1, 2.7), carbonMat);
+      const skirt = new THREE.Mesh(roundedBox(0.08, 0.1, 2.7, 0.022), carbonMat);
       skirt.position.set(sxSign * 0.93, 0.16, 0);
       group.add(skirt);
     }
 
     // Rear diffuser kicking up between the exhaust and the bumper
-    const diffuser = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.03, 0.5), carbonMat);
+    const diffuser = new THREE.Mesh(roundedBox(1.7, 0.03, 0.5, 0.01), carbonMat);
     diffuser.position.set(0, 0.18, d.tail + 0.12);
     diffuser.rotation.x = 0.35;
     group.add(diffuser);
     for (const fx of [-0.4, 0, 0.4]) {
-      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.1, 0.4), carbonMat);
+      const fin = new THREE.Mesh(roundedBox(0.02, 0.1, 0.4, 0.007), carbonMat);
       fin.position.set(fx, 0.2, d.tail + 0.1);
       fin.rotation.x = 0.35;
       group.add(fin);
     }
 
     // Red tow hook on the splitter — scrutineering says so
-    const hook = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.035, 0.12), caliperMat);
+    const hook = new THREE.Mesh(roundedBox(0.1, 0.035, 0.12, 0.012), caliperMat);
     hook.position.set(0.45, 0.19, d.nose + 0.08);
     group.add(hook);
   }
@@ -1534,20 +1540,20 @@ export function createCar(colors: CarColors): THREE.Group {
   if (colors.spoiler && !colors.raceKit) {
     const baseY = d.deckY + 0.18;
     for (const sx of [-0.62, 0.62]) {
-      const strut = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.26, 0.16), seamMat);
+      const strut = new THREE.Mesh(roundedBox(0.06, 0.26, 0.16, 0.016), seamMat);
       strut.position.set(sx, baseY, -1.95);
       group.add(strut);
     }
-    const wing = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.04, 0.42), bodyMat);
+    const wing = new THREE.Mesh(roundedBox(1.8, 0.04, 0.42, 0.013), bodyMat);
     wing.position.set(0, baseY + 0.15, -1.98);
     wing.rotation.x = -0.12;
     group.add(wing);
     // Brake strip let into the wing's trailing edge
-    const strip = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.025, 0.03), tailMat);
+    const strip = new THREE.Mesh(roundedBox(0.9, 0.025, 0.03, 0.008), tailMat);
     strip.position.set(0, baseY + 0.13, -2.17);
     group.add(strip);
     for (const sx of [-0.88, 0.88]) {
-      const endplate = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.16, 0.4), seamMat);
+      const endplate = new THREE.Mesh(roundedBox(0.03, 0.16, 0.4, 0.01), seamMat);
       endplate.position.set(sx, baseY + 0.15, -1.98);
       group.add(endplate);
     }

@@ -2374,7 +2374,10 @@ export class GameEngine {
     if (this.bumpCooldown <= 0) {
       for (const t of this.traffic) {
         const ds = this.track.deltaAhead(p.s, t.s);
-        if (Math.abs(ds) < 4.2 && Math.abs(t.lat - p.lat) < 2.0) {
+        // Margins sized to the 1.12x presence scale in cars.ts — the
+        // hitbox stays a touch inside the visual metal (forgiving beats
+        // phantom contact), but not so far that bumpers overlap.
+        if (Math.abs(ds) < 4.4 && Math.abs(t.lat - p.lat) < 2.1) {
           this.bumpCooldown = 1;
           const rel = p.speed - t.speed; // + = we ran into them
           const closing = Math.abs(rel);
@@ -2385,13 +2388,13 @@ export class GameEngine {
             p.speed = Math.max(0, t.speed + rel * (0.4 - 0.25 * sev));
             // Knock the player out of the hitbox, or the cooldown
             // re-bumps forever and glues them to the traffic car's tail.
-            if (ds >= 0) p.s = this.track.wrap(t.s - 4.5);
+            if (ds >= 0) p.s = this.track.wrap(t.s - 5.0);
           } else {
             // They hit us: a rear shunt shoves the car forward by a share
             // of the striker's closing momentum — not to its full speed,
             // which would be a free elastic slingshot off every bumper.
             p.speed += closing * 0.45;
-            if (ds < 0) p.s = this.track.wrap(t.s + 4.5);
+            if (ds < 0) p.s = this.track.wrap(t.s + 5.0);
           }
           // The nose glances off toward the open side and the body gets
           // kicked off line — a shunt is never perfectly square
