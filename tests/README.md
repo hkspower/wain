@@ -52,6 +52,40 @@ the player to its own speed for free.
 npm run test:physics
 ```
 
+## fullrace.mjs — a complete race, played end to end
+
+The integration test the others cannot be: boot a brand-new player,
+drive a full 7.3 km lap of the Gulf Road under autopilot, hunt the rival
+down, flash them with the real F key, accept the challenge card by
+clicking the real button, survive the pre-race film, run the battle out,
+and confirm the result is banked into the career and the garage.
+
+Two techniques make a real-time game testable at speed:
+
+1. A **virtual clock** replaces `performance.now()` before any page
+   script runs and is advanced in lockstep with the simulation. Lap
+   timing, the three-second flash window and the cinematic all read that
+   clock, so they behave exactly as they would in real time — just
+   faster. Without it a stepped lap records a nonsense time.
+2. The sim is **stepped by hand** at a fixed 1/60 s, so a lap is
+   deterministic instead of hostage to headless frame pacing (which
+   throttles to a couple of hertz with no compositor).
+
+Input still travels the real paths: the autopilot steers through
+`setTouchInput` (the touch/gamepad API) and the challenge is triggered
+by genuine keyboard events and a real button click.
+
+Winning is *not* asserted — the autopilot is a lane-holder, not a
+racing driver, and the rival rubber-bands, so either outcome is a pass.
+What must hold is that the lap completes and records a plausible time,
+the challenge becomes a battle, the battle resolves, the result is paid
+out, the renderer still draws a populated scene, and the console stays
+free of errors.
+
+```bash
+npm run test:race
+```
+
 ## framepacing.mjs — dynamic fps, v-sync, G-Sync
 
 Panel-refresh detection, the frame limiter, the G-Sync-style
