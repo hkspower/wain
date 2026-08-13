@@ -47,6 +47,13 @@ public:
 	float DriftRun = 0.f;     // unbanked style points
 	float Boost = 0.f;
 	float NosCharge = 1.f;
+	/** m/s² of engine torque the driven tires could not transmit this
+	 *  frame — drives the visual overspin and power-over drift entry. */
+	float Wheelspin = 0.f;
+	/** Shove off the barrier after a wall hit, decaying (m/s lateral). */
+	float ReboundVel = 0.f;
+	/** One impact per contact: cooldown mirrors the web engine's. */
+	float ScrapeCooldown = 0.f;
 
 	float Sp = 100.f;         // spirit points in a battle
 

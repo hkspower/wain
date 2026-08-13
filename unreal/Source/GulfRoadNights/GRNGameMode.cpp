@@ -99,20 +99,42 @@ void AGRNGameMode::Tick(float Dt)
 
 void AGRNGameMode::UpdateTrafficCollisions(float Dt)
 {
-	// The web build's simple shunt: close enough in S and Lat costs
-	// speed, knocks the player out of the hitbox, and bleeds SP mid-battle
+	// Ported from the web engine: severity comes from the closing speed,
+	// the way it does on a real bumper — matching the flow and tapping a
+	// car is a shunt, arriving 80 km/h faster is a wreck. Margins sized
+	// to the 1.12x presence scale.
 	if (!Player) return;
+	using namespace GRNHandling;
 	for (AGRNTraffic* T : Traffic)
 	{
 		const float DsM = Track->DeltaAhead(Player->S, T->S) / 100.f;
 		const float DLatM = FMath::Abs(T->Lat - Player->Lat) / 100.f;
-		if (FMath::Abs(DsM) < 4.2f && DLatM < 2.0f)
+		if (FMath::Abs(DsM) < 4.4f && DLatM < 2.1f)
 		{
-			Player->SpeedMs = FMath::Min(Player->SpeedMs * 0.55f, T->SpeedMs * 0.9f);
-			if (DsM >= 0.f) Player->S = Track->Wrap(T->S - GRN_M(4.5f));
+			const float Rel = Player->SpeedMs - T->SpeedMs; // + = we ran into them
+			const float Sev = FMath::Min(1.f, FMath::Abs(Rel) / TrafficClosingFull);
+			if (Rel >= 0.f)
+			{
+				// We hit them: the closing speed is mostly shed, harder
+				// hits shed proportionally more of it
+				Player->SpeedMs = FMath::Max(0.f, T->SpeedMs + Rel * (0.4f - 0.25f * Sev));
+				if (DsM >= 0.f) Player->S = Track->Wrap(T->S - GRN_M(5.0f));
+			}
+			else
+			{
+				// They hit us: shoved forward by a share of the striker's
+				// momentum, never slingshotted to its full speed
+				Player->SpeedMs += FMath::Abs(Rel) * 0.45f;
+				if (DsM < 0.f) Player->S = Track->Wrap(T->S + GRN_M(5.0f));
+			}
+			// The nose glances off toward the open side
+			const float Shove = (Player->Lat - T->Lat) >= 0.f ? 1.f : -1.f;
+			Player->Lat += GRN_M(Shove * (0.4f + 0.9f * Sev));
+			Player->Heading += Shove * 0.06f * (0.5f + Sev);
+			Player->DriftYaw = Player->DriftYaw * 0.25f + Shove * 0.12f * Sev;
 			if (Phase == EGRNPhase::Battle)
 			{
-				Player->Sp = FMath::Max(0.f, Player->Sp - 8.f);
+				Player->Sp = FMath::Max(0.f, Player->Sp - FMath::RoundToFloat(4.f + 8.f * Sev));
 			}
 			break;
 		}

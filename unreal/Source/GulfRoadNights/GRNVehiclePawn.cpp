@@ -91,7 +91,8 @@ void AGRNVehiclePawn::Tick(float Dt)
 	Dt = FMath::Min(Dt, 0.05f);
 	UpdateHandling(Dt);
 	UpdateCamera(Dt);
-	GRNCarFactory::SpinWheels(Rig, SpeedMs, Dt);
+	// Lit-up rears visibly overspin the road speed — the launch tell
+	GRNCarFactory::SpinWheels(Rig, SpeedMs + Wheelspin * 0.8f, Dt);
 	GRNCarFactory::SetBraking(Rig, InBrake > 0.f || bInDrift);
 }
 
@@ -110,36 +111,63 @@ void AGRNVehiclePawn::UpdateHandling(float Dt)
 		? FMath::Max(0.f, NosCharge - Dt / 3.f)
 		: FMath::Min(1.f, NosCharge + Dt * 0.06f);
 
-	// Sideways tires can't put all the power down
+	// Tire model, ported verbatim from the web engine: one grip budget
+	// shared by drive, brakes and steering. The engine proposes, the
+	// tires dispose — torque beyond the traction cap becomes wheelspin.
 	const float DriveGrip = 1.f - FMath::Min(0.55f, FMath::Abs(DriftYaw) * DriftDriveLoss);
 	const float Power = PowerMult * (1.f + Boost * BoostMult);
 	const float Ceil = Ceiling + TopSpeedBonus;
+	const float EngineAccel =
+		InThrottle * FMath::Max(0.f, ThrustK * Power * (1.f - SpeedMs / Ceil));
+	const float TractionCap =
+		GripAccel * (TractionBase + (1.f - TractionBase) * FMath::Min(1.f, SpeedMs / TractionRampSpeed));
+	Wheelspin = FMath::Max(0.f, EngineAccel - TractionCap) * DriveGrip;
 	const float Accel =
-		InThrottle * FMath::Max(0.f, ThrustK * Power * (1.f - SpeedMs / Ceil)) * DriveGrip +
-		(bNosActive ? 14.f : 0.f);
-	const float Braking = InBrake * BrakeForce;
+		FMath::Min(EngineAccel, TractionCap) * DriveGrip + (bNosActive ? 14.f : 0.f);
+
+	// Brakes are grip-limited, not pad-limited; friction circle half one:
+	// steering hard leaves less for braking (trail-braking works, both
+	// pedals mid-corner doesn't).
+	const float BrakeCap = GripAccel * BrakeGripK + BrakeForce * BrakePadK;
+	const float LatDemand = FMath::Min(1.f, FMath::Abs(SteerSmooth) * SpeedMs / LatDemandSpeed);
+	const float Braking =
+		FMath::Min(InBrake * BrakeForce, BrakeCap) *
+		FMath::Sqrt(1.f - TrailBrakeK * LatDemand * LatDemand);
 	const float Drag = (DragA * SpeedMs * SpeedMs + DragB) * (InThrottle > 0.f ? 0.35f : 1.f);
 	SpeedMs = FMath::Max(0.f, SpeedMs + (Accel - Braking - Drag) * Dt);
 
-	// Grip steering: yaw authority shrinks with speed
+	// Grip steering: yaw authority shrinks with speed — and friction
+	// circle half two: heavy braking or a lit-up rear axle blunts turn-in
 	SteerSmooth += (InSteer - SteerSmooth) * FMath::Min(1.f, Dt * SteerSmoothRate);
-	const float YawRateMax = FMath::Min(1.6f, GripAccel / FMath::Max(SpeedMs, 2.f));
+	const float LongDemand = FMath::Min(1.f, (Braking + Wheelspin) / FMath::Max(BrakeCap, 1.f));
+	const float YawRateMax =
+		FMath::Min(1.6f, GripAccel / FMath::Max(SpeedMs, 2.f)) * (1.f - UndersteerK * LongDemand);
 	Heading += SteerSmooth * YawRateMax * Dt;
+	// Cornering near the limit scrubs speed
+	SpeedMs *= 1.f - FMath::Abs(Heading) * FMath::Min(1.f, SpeedMs / CornerScrubSpeed) * CornerScrubK * Dt;
 	if (FMath::Abs(InSteer) < 0.1f)
 	{
 		Heading -= Heading * FMath::Min(1.f, Dt * CasterRate);
 	}
 	Heading = FMath::Clamp(Heading, -HeadingClamp, HeadingClamp);
 
-	// Drift: the handbrake breaks the rear loose
-	if (bInDrift && SpeedMs > DriftMinSpeed)
+	// Drift: the handbrake breaks the rear loose — and power-over hangs
+	// the tail out with throttle alone when the rears are lit
+	const bool bPowerOver =
+		Wheelspin > PowerOverSpin &&
+		FMath::Abs(SteerSmooth) > PowerOverSteer &&
+		SpeedMs > PowerOverMinSpeed &&
+		InThrottle > PowerOverThrottle;
+	if ((bInDrift || bPowerOver) && SpeedMs > DriftMinSpeed)
 	{
 		const float SteerDir = FMath::Abs(SteerSmooth) > 0.12f
 			? FMath::Sign(SteerSmooth)
 			: FMath::Sign(DriftYaw);
 		if (SteerDir != 0.f)
 		{
-			const float Cap = DriftAngleBase + DriftAngleSpeedK * FMath::Min(1.f, SpeedMs / 55.f);
+			// Power-over reaches shallower angles than a handbrake entry
+			const float Cap = (DriftAngleBase + DriftAngleSpeedK * FMath::Min(1.f, SpeedMs / 55.f)) *
+				(bInDrift ? 1.f : PowerOverAngleK);
 			const float Target = SteerDir * Cap * FMath::Min(1.f, FMath::Abs(SteerSmooth) + 0.45f);
 			DriftYaw += (Target - DriftYaw) * FMath::Min(1.f, Dt * DriftEngageRate);
 		}
@@ -161,18 +189,37 @@ void AGRNVehiclePawn::UpdateHandling(float Dt)
 		DriftRun += Deg * (SpeedMs * 3.6f / 100.f) * 3.2f * Dt;
 	}
 
-	// Lateral: sideways tires scrub translation while the body hangs out
+	// Lateral: sideways tires scrub translation while the body hangs out,
+	// plus any rebound still carrying the car off a barrier
 	const float Scrub = 1.f - DriftLatScrub * FMath::Min(1.f, FMath::Abs(DriftYaw) / 0.5f);
-	Lat += FMath::Sin(Heading) * GRN_M(SpeedMs) * Scrub * Dt;
+	const float LatVelMs = FMath::Sin(Heading) * SpeedMs * Scrub + ReboundVel;
+	Lat += GRN_M(LatVelMs) * Dt;
+	ReboundVel -= ReboundVel * FMath::Min(1.f, Dt * 2.5f);
+	ScrapeCooldown = FMath::Max(0.f, ScrapeCooldown - Dt);
 
 	const float MaxLat = GRNRoadHalfWidth - GRN_M(1.1f);
 	if (FMath::Abs(Lat) > MaxLat)
 	{
+		// Severity is the speed component INTO the barrier: a shallow rub
+		// grinds the door, a steep arrival is a crash that deflects the
+		// nose, sheds real speed once, and bounces the car back off.
+		const float Side = Lat >= 0.f ? 1.f : -1.f;
+		const float IntoWall = FMath::Max(0.f, LatVelMs * Side);
+		const float Severity = FMath::Min(1.f, IntoWall / CrashLatFull);
 		Lat = FMath::Clamp(Lat, -MaxLat, MaxLat);
-		Heading *= 0.15f;
+		SpeedMs *= 1.f - (0.35f + 1.3f * Severity) * Dt; // sustained rubbing
+		if (FMath::Sign(Heading) == Side)
+		{
+			Heading *= -(0.1f + 0.3f * Severity); // the barrier turns the nose away
+		}
 		DriftYaw *= 0.25f;
 		DriftRun = 0.f; // the wall takes the style points
-		SpeedMs *= 1.f - 0.9f * Dt;
+		if (ScrapeCooldown <= 0.f)
+		{
+			ScrapeCooldown = 0.5f;
+			SpeedMs *= 1.f - CrashSpeedLossK * Severity;   // the impact itself, once
+			ReboundVel = -Side * (1.2f + CrashReboundK * Severity);
+		}
 	}
 
 	S = Track->Wrap(S + GRN_M(SpeedMs) * Dt);
