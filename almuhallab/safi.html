@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests" />
   <meta name="referrer" content="no-referrer" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta http-equiv="refresh" content="0; url=nizam.html#/safi" />
@@ -32,6 +32,21 @@
     a { color: #7a4418; font-weight: 700; }
     h1 { font-size: 16px; font-weight: 500; line-height: 2; }
   </style>
+<script>
+  /* Scheme upgrade. "Enforce HTTPS" is a GitHub Pages repository setting and
+     only that setting can 301 a plaintext request — a static file cannot send
+     a redirect. So if a visitor arrives over http:// (typed it, followed an
+     old link, or the setting is off), leave immediately for https. This runs
+     before anything else on the page, and it cannot protect the first request
+     itself; it stops every request after it. localhost is exempt so the test
+     suite, which serves over http, is not sent somewhere that does not exist. */
+  (function () {
+    var h = location.hostname;
+    if (location.protocol !== "http:") return;
+    if (h === "localhost" || h === "127.0.0.1" || h === "[::1]") return;
+    location.replace("https:" + location.href.slice(location.protocol.length));
+  })();
+</script>
 </head>
 <body>
   <!-- صافي — SAFI is now a tab of the unified system (nizam.html). One implementation,

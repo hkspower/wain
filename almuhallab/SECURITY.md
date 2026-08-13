@@ -22,6 +22,24 @@ ignores it entirely** — so every header it sets is inert in production:
 | `Permissions-Policy` | ❌ | ❌ — no static equivalent |
 | `Strict-Transport-Security` | ❌ | ⚠️ GitHub Pages sends HSTS when *Enforce HTTPS* is on — **check that setting** |
 
+### HTTPS
+
+Only the host can 301 a plaintext request; a static file cannot send a
+redirect. On GitHub Pages that is one checkbox — **Settings → Pages → Enforce
+HTTPS** — and nothing in this repository can set it. Turn it on.
+
+What the pages do themselves, either way:
+
+- **`upgrade-insecure-requests`** in the CSP of all nine pages. Unlike
+  `frame-ancestors`, this directive *is* honoured inside a `<meta>` CSP, so any
+  `http://` subresource is fetched over TLS instead.
+- **A scheme upgrade** at the top of every page: a visitor who arrives over
+  `http://` is sent to `https://` before anything else runs. It cannot protect
+  that first request — nothing client-side can — but it protects every request
+  after it. `localhost` is exempt so local testing still works.
+
+Neither is a substitute for the checkbox. Both are pinned by the suite.
+
 **If these headers matter to you, move hosting to a server that reads
 `.htaccess`** (the file is already written and correct for that case). On
 GitHub Pages they cannot be delivered from a static file.

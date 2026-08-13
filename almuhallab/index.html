@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; worker-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; worker-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests" />
   <meta name="referrer" content="no-referrer" />
   <meta name="theme-color" content="#6f3f1c" />
   <link rel="preload" as="font" type="font/woff2" href="fonts/cairo-400.woff2" crossorigin />
@@ -969,6 +969,21 @@
       html.motion [data-reveal] ol.flow li { opacity: 1 !important; transform: none !important; }
     }
   </style>
+<script>
+  /* Scheme upgrade. "Enforce HTTPS" is a GitHub Pages repository setting and
+     only that setting can 301 a plaintext request — a static file cannot send
+     a redirect. So if a visitor arrives over http:// (typed it, followed an
+     old link, or the setting is off), leave immediately for https. This runs
+     before anything else on the page, and it cannot protect the first request
+     itself; it stops every request after it. localhost is exempt so the test
+     suite, which serves over http, is not sent somewhere that does not exist. */
+  (function () {
+    var h = location.hostname;
+    if (location.protocol !== "http:") return;
+    if (h === "localhost" || h === "127.0.0.1" || h === "[::1]") return;
+    location.replace("https:" + location.href.slice(location.protocol.length));
+  })();
+</script>
 </head>
 <body id="top">
   <!-- icon sprite: defined once, referenced by <use>, never fetched.
@@ -1052,7 +1067,7 @@
       <!-- real, verifiable numbers — no invented clients or years -->
       <div class="stats">
         <div class="stat"><b class="num" data-count="4">4</b><span>وحدات في نظام النوخذة</span></div>
-        <div class="stat"><b class="num" data-count="494">494</b><span>فحصاً آلياً قبل كل إصدار</span></div>
+        <div class="stat"><b class="num" data-count="513">513</b><span>فحصاً آلياً قبل كل إصدار</span></div>
         <div class="stat"><b class="num" data-count="0">0</b><span>اعتماديات خارجية</span></div>
         <div class="stat"><b class="num" data-count="100" data-suffix="%">100%</b><span>يعمل دون إنترنت</span></div>
       </div>

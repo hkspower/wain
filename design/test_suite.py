@@ -586,7 +586,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "494", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "513", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -620,7 +620,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "494", "0", "100%"], str(finals))
+          finals == ["4", "513", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -1135,6 +1135,25 @@ def scan_checks(pg, br):
         src = (ROOT / page).read_text()
         check(S, f"{page}: refuses to render inside someone else's frame",
               "self === top" in src and "top.location" in src)
+
+    # Only the host can 301 a plaintext request, and on GitHub Pages that is a
+    # repository setting nobody here can toggle. What a static file CAN do is
+    # upgrade every subresource (this directive, unlike frame-ancestors, is
+    # honoured in a <meta> CSP) and leave http:// on arrival.
+    for page in list(PAGES) + list(STUBS) + ["404.html"]:
+        src = (ROOT / page).read_text()
+        check(S, f"{page}: the CSP upgrades insecure requests",
+              "upgrade-insecure-requests" in src)
+        check(S, f"{page}: leaves http:// for https://",
+              'location.protocol !== "http:"' in src and "location.replace" in src)
+
+    # …and that exemption must be exact, or the suite's own http server would
+    # bounce every page to a host that does not exist.
+    lp = br.new_context().new_page()
+    lp.goto(f"{BASE}/index.html", wait_until="networkidle")
+    check(S, "the upgrade exempts localhost, so http testing still works",
+          lp.url.startswith("http://127.0.0.1"), lp.url)
+    lp.context.close()
 
     # one numeral system per table: the quantity column used the device locale
     c = br.new_context(locale="ar-KW")
