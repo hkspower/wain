@@ -116,7 +116,7 @@ export default function RaceClient() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [result, setResult] = useState<RaceResult | null>(null);
-  const [cine, setCine] = useState<{ card: DriverCard; stake: number } | null>(null);
+  const [cine, setCine] = useState<{ card: DriverCard; you?: DriverCard; stake: number } | null>(null);
   const [pauseOpen, setPauseOpen] = useState(false);
   const driftRef = useRef<HTMLDivElement>(null);
   const [onboarding, setOnboarding] = useState(false);
@@ -423,8 +423,8 @@ export default function RaceClient() {
           setResult(r);
         },
         onPauseRequest: () => setPauseOpen((p) => !p),
-      onCinematic: (active, rival, stake) => {
-        setCine(active ? { card: rival, stake } : null);
+      onCinematic: (active, rival, stake, you) => {
+        setCine(active ? { card: rival, you, stake } : null);
         if (active) setChallenge(null); // the film replaces the setup card
       },
       onChallengeResult: (accepted, reason) => {
@@ -1644,6 +1644,38 @@ export default function RaceClient() {
               )}
             </div>
           </div>
+          {/* The VS mark, centred over the seam of the lower bar */}
+          <div className="cine-card absolute bottom-[calc(13vh+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 text-center">
+            <div className="grn-display text-[clamp(2rem,7vw,3.4rem)] italic leading-none text-sodium-400 [text-shadow:0_0_26px_rgba(255,170,60,0.55),0_2px_18px_rgba(0,0,0,0.9)]">
+              VS
+            </div>
+            <div className="grn-ar text-[0.8rem] text-white/60">ضد</div>
+          </div>
+
+          {/* Your side of the frame, mirrored on the right bar */}
+          {cine.you && (
+            <div className="cine-card absolute bottom-[calc(11vh+env(safe-area-inset-bottom))] right-[calc(env(safe-area-inset-right)+1.25rem)] text-right">
+              <div className="grn-label text-[0.58rem] text-gulf-300">
+                You · <span className="grn-ar">أنت</span>
+              </div>
+              <div className="grn-display mt-0.5 text-[clamp(1.6rem,6vw,2.6rem)] italic leading-none text-white [text-shadow:0_2px_18px_rgba(0,0,0,0.9)]">
+                {cine.you.name}
+              </div>
+              <div className="mt-1 flex items-center justify-end gap-2 text-[0.75rem] text-white/70">
+                <span>
+                  LV {cine.you.level} {cine.you.flag}
+                </span>
+                <span className="text-white/35">·</span>
+                <span>{cine.you.crew}</span>
+                <span className="text-white/35">·</span>
+                <span>{cine.you.car}</span>
+                <span
+                  className="inline-block size-3 rounded-sm border border-white/25"
+                  style={{ background: `#${cine.you.color.toString(16).padStart(6, "0")}` }}
+                />
+              </div>
+            </div>
+          )}
           <div className="grn-label cine-skip absolute bottom-[calc(3vh+env(safe-area-inset-bottom))] right-[calc(env(safe-area-inset-right)+1.25rem)] text-[0.55rem] text-white/50">
             tap to skip ▸▸
           </div>

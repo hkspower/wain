@@ -23,8 +23,10 @@ import { levelInfo, recordRace, recordLap, loadProfileStats, LevelInfo } from ".
 
 const KMH = 3.6;
 const SMOKE_N = 110;
-/** Pre-battle cinematic length in real seconds (shots at 1.8 / 3.1). */
-const CINE_LEN = 4.2;
+/** Pre-battle cinematic length in real seconds (shots at 1.8 / 3.6):
+ *  the rival's close-up, the side-by-side two-shot at the line, and the
+ *  pull up into the chase as the flag drops. */
+const CINE_LEN = 5.6;
 const PLAYER_TOP_SPEED = 92; // m/s ≈ 331 km/h
 const FLASH_RANGE = 60;
 const SAVE_KEY = "gulf-road-nights-progress";
@@ -129,9 +131,10 @@ export interface EngineEvents {
   onChallengeResult?(accepted: boolean, reason: string): void;
   /** A race ended — drives the full results sequence. */
   onResult?(r: RaceResult): void;
-  /** Pre-battle cinematic begins/ends — drives the letterbox + rival card.
-   *  `stake` is the KD each side has up (0 = pride only). */
-  onCinematic?(active: boolean, rival: DriverCard, stake: number): void;
+  /** Pre-battle cinematic begins/ends — drives the letterbox and the
+   *  versus cards. `stake` is the KD each side has up (0 = pride only);
+   *  `you` is the player's own card for the right side of the VS frame. */
+  onCinematic?(active: boolean, rival: DriverCard, stake: number, you?: DriverCard): void;
   /** The controller's Start button — the UI opens its pause menu. */
   onPauseRequest?(): void;
 }
@@ -1774,7 +1777,7 @@ export class GameEngine {
     this.cine = { start: performance.now(), r };
     // The intro line plays over the film instead of after it
     this.voice.speak(r.def.lines.intro, r.def.voice, `${r.def.id}-intro`);
-    this.events.onCinematic(true, this.rivalCard(r.def), this.wager);
+    this.events.onCinematic(true, this.rivalCard(r.def), this.wager, this.playerCard());
   }
 
   /** UI callback: the player tapped through the intro film. */
@@ -1790,7 +1793,7 @@ export class GameEngine {
     // Snap the chase camera home instead of lerping across the map
     this.camInit = false;
     if (r) {
-      this.events.onCinematic?.(false, this.rivalCard(r.def), this.wager);
+      this.events.onCinematic?.(false, this.rivalCard(r.def), this.wager, this.playerCard());
       this.startBattle(r, true);
     }
   }
@@ -2439,6 +2442,29 @@ export class GameEngine {
     const r = this.rival;
     if (!r) return;
 
+    // During the intro film the rival holds formation on the player's
+    // flank — the two-shot needs both cars filling the frame, not the
+    // rival cruising off on its own errand. AI resumes at the flag.
+    if (this.cine && this.cine.r === r) {
+      const p = this.player;
+      r.speed = p.speed;
+      r.s = this.track.wrap(p.s + 1.2);
+      const lane = THREE.MathUtils.clamp(
+        p.lat > 0 ? p.lat - 3.5 : p.lat + 3.5,
+        -(this.track.halfWidthAt(r.s) - 1.4),
+        this.track.halfWidthAt(r.s) - 1.4
+      );
+      r.lat += (lane - r.lat) * Math.min(1, dt * 6);
+      r.targetLat = lane;
+      this.track.pose(r.s, r.lat, this.v1, this.v2);
+      this.track.tangentAt(r.s, this.v3);
+      r.mesh.position.copy(this.v1);
+      this.v4.copy(this.v1).add(this.v3);
+      r.mesh.lookAt(this.v4);
+      spinWheels(r.mesh, r.speed, dt);
+      return;
+    }
+
     const top = r.def.topSpeedKmh / KMH;
     let targetSpeed: number;
 
@@ -2679,22 +2705,28 @@ export class GameEngine {
       );
       this.v4.set(this.v1.x, this.v1.y + 0.6, this.v1.z);
       this.camera.lookAt(this.v4);
-    } else if (t < 3.1) {
-      const k = ease((t - 1.8) / 1.3);
+    } else if (t < 3.6) {
+      // The two-shot: both machines side by side at speed. The camera
+      // hangs ahead of the pair, low over the asphalt, dollying slowly
+      // back toward them and aimed at the midpoint so player and rival
+      // share the frame with their names on the bars below.
+      const k = ease((t - 1.8) / 1.8);
       this.track.pose(p.s, p.lat, this.v1, this.v2); // v1 = player
+      this.track.pose(c.r.s, c.r.lat, this.v4, this.v2); // v4 = rival
+      const midX = (this.v1.x + this.v4.x) / 2;
+      const midZ = (this.v1.z + this.v4.z) / 2;
+      const midY = (this.v1.y + this.v4.y) / 2;
       this.track.tangentAt(p.s, this.v3);
-      const sx = -this.v3.z;
-      const sz = this.v3.x;
-      const along = 2.2 - 2.8 * k; // slides from ahead of the door to behind it
+      const ahead = 9.5 - 1.6 * k; // dolly drifts back toward the cars
       this.camera.position.set(
-        this.v1.x + sx * 4.6 + this.v3.x * along,
-        this.v1.y + 1.05,
-        this.v1.z + sz * 4.6 + this.v3.z * along
+        midX + this.v3.x * ahead,
+        midY + 0.95,
+        midZ + this.v3.z * ahead
       );
-      this.v4.set(this.v1.x, this.v1.y + 0.55, this.v1.z);
+      this.v4.set(midX, midY + 0.7, midZ);
       this.camera.lookAt(this.v4);
     } else {
-      const k = ease((t - 3.1) / (CINE_LEN - 3.1));
+      const k = ease((t - 3.6) / (CINE_LEN - 3.6));
       this.track.pose(p.s, p.lat, this.v1, this.v2);
       this.track.tangentAt(p.s, this.v3);
       const sx = -this.v3.z;
