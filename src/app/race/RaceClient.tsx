@@ -70,6 +70,32 @@ export default function RaceClient() {
   const flashRef = useRef<HTMLDivElement>(null);
 
   const [phase, setPhase] = useState<Phase>("menu");
+
+  // HUD scale rides the viewport: authored against a ~1500x850 layout,
+  // it enlarges on 1080p/4K screens instead of shrinking into the corner
+  // of a big panel, and gives back a little on small windows. CSS zoom
+  // (not transform) so corner-anchored absolutes keep their anchors.
+  const [hudZoom, setHudZoom] = useState(1);
+  const [isFs, setIsFs] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const compute = () =>
+      setHudZoom(
+        Math.min(2.5, Math.max(0.8, Math.min(window.innerWidth / 1500, window.innerHeight / 850)))
+      );
+    compute();
+    window.addEventListener("resize", compute);
+    const onFs = () => setIsFs(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFs);
+    return () => {
+      window.removeEventListener("resize", compute);
+      document.removeEventListener("fullscreenchange", onFs);
+    };
+  }, []);
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void rootRef.current?.requestFullscreen?.();
+  }, []);
   const [message, setMessage] = useState<{ title: string; sub?: string } | null>(null);
   const [vsRival, setVsRival] = useState<RivalDef | null>(null);
   const [challenge, setChallenge] = useState<{
@@ -189,7 +215,9 @@ export default function RaceClient() {
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
     ctx.strokeStyle = "rgba(255,255,255,0.55)";
-    ctx.lineWidth = 2;
+    // Marks scale with the buffer, which is outsized vs the CSS box —
+    // hardcoded pixel widths would come out hairline-thin.
+    ctx.lineWidth = w / 75;
     ctx.beginPath();
     mapPathRef.current.forEach(([x, y], i) => {
       if (i === 0) ctx.moveTo(x * w, y * h);
@@ -200,12 +228,12 @@ export default function RaceClient() {
     if (d.map.rx >= 0) {
       ctx.fillStyle = "#ff4d4d";
       ctx.beginPath();
-      ctx.arc(d.map.rx * w, d.map.ry * h, 4, 0, Math.PI * 2);
+      ctx.arc(d.map.rx * w, d.map.ry * h, w * 0.027, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.fillStyle = "#4ade80";
     ctx.beginPath();
-    ctx.arc(d.map.px * w, d.map.py * h, 4.5, 0, Math.PI * 2);
+    ctx.arc(d.map.px * w, d.map.py * h, w * 0.03, 0, Math.PI * 2);
     ctx.fill();
   }, []);
 
@@ -600,7 +628,7 @@ export default function RaceClient() {
   const rank = rankTitle(lvl.level);
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black text-white">
+    <div ref={rootRef} className="fixed inset-0 z-[60] bg-black text-white">
       <canvas ref={canvasRef} className="h-full w-full" />
 
       {/* HUD */}
@@ -608,6 +636,7 @@ export default function RaceClient() {
         className={`pointer-events-none absolute inset-0 transition-opacity ${
           phase === "playing" && !cine ? "opacity-100" : "opacity-0"
         }`}
+        style={{ zoom: hudZoom }}
       >
         {/* Area + progress */}
         <div className="hud-safe-t hud-safe-l absolute">
@@ -755,11 +784,20 @@ export default function RaceClient() {
             panels, so they can never overlap at any viewport size and the
             hint disappearing on touch simply closes the gap. */}
         <div className="hud-safe-b hud-safe-r absolute flex flex-col items-end gap-2">
+          <button
+            onClick={toggleFullscreen}
+            className="pointer-events-auto grn-panel px-2.5 py-1 font-display text-[0.72rem] tracking-wide text-white/60 hover:bg-white/10"
+            title={isFs ? "Exit fullscreen" : "Fullscreen"}
+          >
+            {isFs ? "⛶ exit" : "⛶ fullscreen"}
+          </button>
+          {/* Buffer outsized vs its 150px CSS box so the HUD zoom can
+              enlarge it on big screens without going soft */}
           <canvas
             ref={mapRef}
-            width={150}
-            height={150}
-            className="grn-panel p-1"
+            width={320}
+            height={320}
+            className="grn-panel size-[150px] p-1"
           />
           <div
             className={`grn-panel px-3 py-2 text-right font-display text-[0.78rem] leading-5 tracking-wide text-white/60 ${
@@ -1052,7 +1090,10 @@ export default function RaceClient() {
 
       {/* On-screen controls (touch devices) */}
       {padsVisible && (
-        <div className="absolute inset-x-0 bottom-0 z-[5] select-none px-[calc(env(safe-area-inset-left)+1rem)] pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+        <div
+          className="absolute inset-x-0 bottom-0 z-[5] select-none px-[calc(env(safe-area-inset-left)+1rem)] pb-[calc(env(safe-area-inset-bottom)+1rem)]"
+          style={{ zoom: Math.max(1, hudZoom) }} // thumb targets grow, never shrink
+        >
           <div className="flex items-end justify-between gap-4">
             <div className="flex gap-3">
               {([["\u25c0", -1], ["\u25b6", 1]] as const).map(([glyph, dir]) => (

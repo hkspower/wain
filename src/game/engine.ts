@@ -2547,12 +2547,24 @@ export class GameEngine {
    * three.js FOV is vertical, which starves the horizontal view on
    * screens narrower than 16:9 (portrait phones, 4:3 monitors): the road
    * ahead vanishes. Widen the vertical FOV on narrow aspects so the
-   * horizontal field never drops below its 16:9 equivalent; wider
-   * screens keep standard Hor+ behaviour.
+   * horizontal field never drops below its 16:9 equivalent. Wider
+   * screens get standard Hor+ (more world, the ultrawide payoff) up to
+   * ~21.5:9 — past that the horizontal field is held, because on a 32:9
+   * panel uncapped Hor+ stretches the road edges into a fisheye.
    */
   private aspectFov(vFovDeg: number): number {
     const aspect = this.camera.aspect;
-    if (!Number.isFinite(aspect) || aspect >= 16 / 9 - 1e-3) return vFovDeg;
+    if (!Number.isFinite(aspect)) return vFovDeg;
+    const HOR_CAP = 21.5 / 9;
+    if (aspect > HOR_CAP) {
+      const narrowed =
+        2 *
+        Math.atan(
+          Math.tan(THREE.MathUtils.degToRad(vFovDeg) / 2) * (HOR_CAP / aspect)
+        );
+      return THREE.MathUtils.radToDeg(narrowed);
+    }
+    if (aspect >= 16 / 9 - 1e-3) return vFovDeg;
     const widened =
       2 *
       Math.atan(
