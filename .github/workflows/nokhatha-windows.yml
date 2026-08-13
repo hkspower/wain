@@ -32,6 +32,13 @@ jobs:
     # `create` also fires for every new branch; only a tag means a release.
     if: github.event_name != 'create' || github.event.ref_type == 'tag'
     runs-on: windows-latest
+    env:
+      # A step's `if` is evaluated before that step's own `env:` block exists,
+      # so `env.WINDOWS_CERT_BASE64` inside the signing steps was always ''
+      # and signing could never have run — not even with both secrets set.
+      # The flag belongs at job level, which a step `if` can actually read.
+      # (`secrets` is not available in a step-level `if` at all.)
+      SIGNING: ${{ secrets.WINDOWS_CERT_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -77,7 +84,7 @@ jobs:
       # step is inert until the two secrets exist, so the build keeps working
       # in the meantime and starts signing the moment they are added.
       - name: Sign the application
-        if: ${{ env.WINDOWS_CERT_BASE64 != '' }}
+        if: env.SIGNING == 'true'
         env:
           WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
           WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
@@ -100,7 +107,7 @@ jobs:
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=${{ steps.ver.outputs.version }} nokhatha.iss
 
       - name: Sign the installer
-        if: ${{ env.WINDOWS_CERT_BASE64 != '' }}
+        if: env.SIGNING == 'true'
         env:
           WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
           WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
@@ -114,6 +121,25 @@ jobs:
             /tr http://timestamp.digicert.com /td sha256 /fd sha256 `
             nokhatha_app\dist\*.exe
           Remove-Item "$env:RUNNER_TEMP\cert.pfx" -Force
+
+      # signtool exits 0 in cases where the file is not actually left signed,
+      # and an installer that is silently unsigned is the exact thing this
+      # whole section exists to prevent. So verify, and fail loudly.
+      - name: Verify the signature
+        if: env.SIGNING == 'true'
+        shell: pwsh
+        working-directory: nokhatha_app
+        run: |
+          $signtool = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+                       Where-Object { $_.FullName -like "*x64*" } | Select-Object -First 1).FullName
+          # /pa: check it against the Authenticode policy a customer's Windows
+          # will use, not a developer-only policy that trusts more roots.
+          & $signtool verify /pa /v build\windows\x64\runner\Release\nokhatha.exe
+          if ($LASTEXITCODE -ne 0) { throw "the application is not validly signed" }
+          Get-ChildItem dist\*.exe | ForEach-Object {
+            & $signtool verify /pa /v $_.FullName
+            if ($LASTEXITCODE -ne 0) { throw "$($_.Name) is not validly signed" }
+          }
 
       # ── What a customer can check for themselves ──────────────────────────
       - name: Publish checksums and a dependency manifest
