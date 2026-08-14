@@ -15,6 +15,11 @@ const MALE_HINTS = ["male", "majed", "maged", "naayf", "hamed", "tarik", "omar",
 
 export class VoiceBox {
   enabled = true;
+  /** Radio mode: crew and marshal chatter comes through a car speaker,
+   *  not the open air. Bandlimiting it is the entire difference between
+   *  "a voice" and "a voice on the radio". */
+  private radio = false;
+  private radioCtx: AudioContext | null = null;
   private synth: SpeechSynthesis | null = null;
   private male: SpeechSynthesisVoice | null = null;
   private female: SpeechSynthesisVoice | null = null;
@@ -58,6 +63,45 @@ export class VoiceBox {
     if (!this.female) this.female = this.male;
   }
 
+  /**
+   * Speak over the radio: same voice path, but squeezed into a car
+   * speaker's band with a click in and out. Used for crew and marshal
+   * chatter so it never sounds like the rival is in the passenger seat.
+   */
+  radioSpeak(text: string, style: Partial<VoiceStyle> = {}, clipId?: string): void {
+    this.radio = true;
+    // Radio squeeze: the synth path cannot be filtered, so the character
+    // comes from delivery — clipped, quick, and a little higher.
+    this.speak(text, { rate: 1.18, pitch: 1.12, ...style }, clipId);
+    this.radio = false;
+  }
+
+  /** Squeeze a recorded clip into a car speaker: a narrow band, a
+   *  little grit, and no bass at all. */
+  private routeThroughRadio(el: HTMLAudioElement): void {
+    try {
+      this.radioCtx ??= new AudioContext();
+      const ctx = this.radioCtx;
+      const src = ctx.createMediaElementSource(el);
+      const hp = ctx.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 480;
+      const lp = ctx.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 3200;
+      const drive = ctx.createWaveShaper();
+      const curve = new Float32Array(256);
+      for (let i = 0; i < 256; i++) {
+        const x = (i / 255) * 2 - 1;
+        curve[i] = Math.tanh(x * 2.6);
+      }
+      drive.curve = curve as Float32Array<ArrayBuffer>;
+      src.connect(hp).connect(lp).connect(drive).connect(ctx.destination);
+    } catch {
+      // A clip already routed once cannot be re-routed; it just plays dry
+    }
+  }
+
   speak(text: string, style: Partial<VoiceStyle> = {}, clipId?: string): void {
     if (!this.enabled) return;
     // Real ElevenLabs clip takes priority over the synthesizer. Early
@@ -73,6 +117,7 @@ export class VoiceBox {
       this.clipAudio?.pause();
       this.clipAudio = new Audio(`/voices/${clipId}.mp3`);
       this.clipAudio.volume = 0.9;
+      if (this.radio) this.routeThroughRadio(this.clipAudio);
       void this.clipAudio.play().catch(() => {});
       return;
     }

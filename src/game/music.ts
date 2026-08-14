@@ -26,6 +26,7 @@ export class Music {
   private synth: SynthScore | null = null;
 
   private mood: MusicMood = "cruise";
+  private intensity = 0;
   private started = false;
 
   constructor(ctx: AudioContext) {
@@ -97,6 +98,28 @@ export class Music {
     }
   }
 
+  /**
+   * Continuous intensity, 0..1, on top of the mood. A battle you are
+   * winning comfortably and one you are two seconds from losing are the
+   * same "mood" and should not sound the same: this opens the filter,
+   * leans on the bass and pushes the tempo as the fight tightens.
+   */
+  setIntensity(v: number): void {
+    this.intensity = Math.min(Math.max(v, 0), 1);
+    if (this.haveTracks) {
+      // Authored tracks: intensity rides the playback level of the mood
+      // that is already playing, so it swells rather than switching.
+      const g = this.gains.get(this.mood);
+      g?.gain.setTargetAtTime(
+        this.enabled ? 0.75 + this.intensity * 0.25 : 0,
+        this.ctx.currentTime,
+        0.4
+      );
+    } else {
+      this.synth?.setIntensity(this.intensity);
+    }
+  }
+
   toggle(): boolean {
     this.enabled = !this.enabled;
     this.master.gain.setTargetAtTime(
@@ -156,6 +179,7 @@ class SynthScore {
   private timer: ReturnType<typeof setInterval> | null = null;
   private step = 0; // sixteenth counter
   private nextNoteAt = 0; // AudioContext time of the next sixteenth
+  private intensity = 0;
   private mood: MusicMood = "cruise";
 
   private pad: OscillatorNode[] = [];
@@ -211,10 +235,26 @@ class SynthScore {
     this.filter.frequency.setTargetAtTime(mood === "battle" ? 5200 : 1800, t, 0.5);
   }
 
+  /**
+   * Intensity opens the filter and thickens the pad without changing the
+   * key or the pattern — the same track, leaning harder.
+   */
+  setIntensity(v: number): void {
+    this.intensity = v;
+    const t = this.ctx.currentTime;
+    const base = this.mood === "battle" ? 5200 : 1800;
+    this.filter.frequency.setTargetAtTime(base + v * 3200, t, 0.35);
+    this.padGain.gain.setTargetAtTime(
+      (this.mood === "battle" ? 0.07 : 0.045) * (1 + v * 0.55),
+      t,
+      0.4
+    );
+  }
+
   /** Queue every sixteenth that falls inside the lookahead window. */
   private pump(): void {
     if (this.ctx.state !== "running") return;
-    const sixteenth = 60 / BPM[this.mood] / 4;
+    const sixteenth = 60 / (BPM[this.mood] * (1 + this.intensity * 0.06)) / 4;
     const horizon = this.ctx.currentTime + 0.12;
     // A tab left in the background can park the clock far behind; catch
     // up rather than queueing thousands of notes at once.

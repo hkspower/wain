@@ -181,6 +181,29 @@ randomness moved into how big the flame is, which is where it belonged.
 npm run test:vfx
 ```
 
+## audio.mjs — the sound is doing something
+
+Audio is the easiest system to "add" without adding anything: a node
+that exists but never gains, a panner that never moves, a mood that
+never changes. Nothing here is taken on trust — every layer is fed the
+condition that should raise it and read back off live WebAudio state.
+
+- **tire roll** and **wind** rise with speed; the kerb rumble only buzzes
+  when the car is actually running wide;
+- **ambience** cross-fades — surf louder on the corniche, city hum louder
+  inland — and the surf sits at the sea's coordinates, not in the middle
+  of your head;
+- the **rival's engine** is a positioned source at their car's position,
+  and goes quiet when there is no rival;
+- the **listener** rides the camera;
+- the **rev limiter** stutters the engine gain against the governor;
+- a **graze and a full crash** voice differently;
+- **music intensity** opens the filter as a battle turns desperate.
+
+```bash
+npm run test:audio
+```
+
 ## framepacing.mjs — dynamic fps, v-sync, G-Sync
 
 Panel-refresh detection, the frame limiter, the G-Sync-style

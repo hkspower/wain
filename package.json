@@ -28,7 +28,8 @@
     "test:fonts": "node tests/fonts.mjs",
     "test:mods": "node tests/mods.mjs",
     "test:topspeed": "node tests/topspeed.mjs",
-    "test:vfx": "node tests/vfx.mjs"
+    "test:vfx": "node tests/vfx.mjs",
+    "test:audio": "node tests/audio.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",

@@ -5,7 +5,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
-import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA } from "./track";
+import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U } from "./track";
 import { buildWorld, areaAt, WorldHandle } from "./world";
 import { createCar } from "./cars";
 import { RIVALS, RivalDef } from "./rivals";
@@ -436,6 +436,8 @@ export class GameEngine {
   private rival: Rival | null = null;
   private rivalIndex = 0;
   private inBattle = false;
+  /** One critical-SP radio call per battle, not one per frame. */
+  private spWarned = false;
   private locked = false; // input locked after defeat / championship
 
   // Challenge ritual: three headlight flashes inside a rolling window
@@ -1805,12 +1807,15 @@ export class GameEngine {
     this.player.sp = 100;
     r.sp = 100;
     this.bstat = { startAt: performance.now(), dist: 0, topSpeed: 0, contacts: 0, maxLead: 0, driftScore: 0 };
+    this.spWarned = false;
     // Style points earned cruising before the flag don't count in the race
     this.driftRun = 0;
     this.driftFlash = 0;
     if (fromCine) {
       // The film already introduced them — just drop the green flag.
       this.events.onMessage("⚡ GO — يلا!", `"${r.def.taunt}"`);
+      // The crew, over the radio, as the flag drops
+      this.voice.radioSpeak("يلا، خله وراك — روح!", { pitch: 1.05, rate: 1.2 });
     } else {
       this.voice.speak(r.def.lines.intro, r.def.voice, `${r.def.id}-intro`);
       if (this.events.onBattleStart) this.events.onBattleStart(r.def);
@@ -2112,6 +2117,20 @@ export class GameEngine {
     this.updateRemotes(dt);
     if (this.inBattle) this.updateBattle(dt);
     this.music?.setMood(this.inBattle || this.duel || this.cine ? "battle" : "cruise");
+    // Intensity: how fast, how close, how nearly lost. A comfortable
+    // battle and a two-second-from-defeat battle share a mood; they
+    // should not share a temperature.
+    {
+      const speedPart = Math.min(1, this.player.speed / (this.tune.topSpeedKmh / KMH)) * 0.45;
+      let fightPart = 0;
+      if (this.inBattle && this.rival) {
+        const gap = Math.abs(this.track.deltaAhead(this.player.s, this.rival.s));
+        const close = 1 - Math.min(1, gap / 120); // side by side = 1
+        const desperate = 1 - this.player.sp / 100;
+        fightPart = 0.3 * close + 0.35 * desperate;
+      }
+      this.music?.setIntensity(Math.min(1, speedPart + fightPart));
+    }
     this.updateCamera(dt);
     this.updateBeamVisibility();
     this.updateStreaks();
@@ -2351,7 +2370,7 @@ export class GameEngine {
         this.events.onBump();
         if (this.inBattle) this.bstat.contacts++;
         this.spawnSparks(Math.sign(p.lat) || 1, severity);
-        this.sound?.scrape();
+        this.sound?.scrape(severity);
         this.shake = Math.max(this.shake, 0.3 + 0.9 * severity);
         if (this.inBattle)
           p.sp = Math.max(
@@ -2442,7 +2461,7 @@ export class GameEngine {
           this.events.onBump();
           if (this.inBattle) this.bstat.contacts++;
           this.spawnSparks(Math.sign(p.lat - t.lat) || 0, sev);
-          this.sound?.bump();
+          this.sound?.bump(0.5 + sev);
           this.shake = 0.5 + 0.7 * sev;
           if (this.inBattle)
             p.sp = Math.max(
@@ -2603,6 +2622,13 @@ export class GameEngine {
       let drain = 1.7 + Math.min(lead, 160) * 0.04;
       if (lead > 230) drain += 16;
       r.sp = Math.max(0, r.sp - drain * dt);
+    }
+
+    // One radio warning when the fight turns critical — once per battle,
+    // not every frame the bar is low.
+    if (!this.spWarned && this.player.sp < 25 && this.player.sp > 0) {
+      this.spWarned = true;
+      this.voice.radioSpeak("انتبه! نقاطك تروح — قرّب عليه", { rate: 1.22 });
     }
 
     if (r.sp <= 0) this.winBattle();
@@ -3002,6 +3028,35 @@ export class GameEngine {
         Math.abs(this.driftYaw) * (speedKmh / 95) -
         0.22
     );
+    // Against the governor: within a hair of the car's limit on full
+    // throttle is the car fighting its own ECU.
+    const limitMs = this.tune.topSpeedKmh / KMH;
+    const limited =
+      this.throttle > 0.6 && this.player.speed > limitMs - 0.4 ? 1 : 0;
+
+    // Running wide onto the shoulder — the kerb buzz through the floor
+    const edge = this.track.halfWidthAt(this.player.s) - 1.35;
+    const rumble = THREE.MathUtils.clamp(
+      (Math.abs(this.player.lat) - edge) / 0.8,
+      0,
+      1
+    );
+
+    // The ears ride the camera, not the car
+    this.camera.getWorldDirection(this.v3);
+    const cam = this.camera.position;
+
+    // How coastal the road is here, and where the water lies. The sea is
+    // on the left of the coastal leg, which is the Gulf Road's whole
+    // character — it should be audible, not just visible.
+    const u = this.track.wrap(this.player.s) / this.track.length;
+    const coastal =
+      u >= COAST_U.from && u <= COAST_U.to
+        ? 1
+        : Math.max(0, 1 - Math.min(Math.abs(u - COAST_U.to), Math.abs(u - COAST_U.from)) * 12);
+    this.track.pose(this.player.s, -55, this.v1, this.v2); // 55 m to seaward
+
+    const r = this.rival;
     this.sound.update({
       speedKmh,
       throttle: this.throttle,
@@ -3012,6 +3067,25 @@ export class GameEngine {
       nosActive: this.nosActive,
       brake: this.brake,
       driftYaw: this.driftYaw,
+      limited,
+      rumble,
+      listener: {
+        x: cam.x, y: cam.y, z: cam.z,
+        fx: this.v3.x, fy: this.v3.y, fz: this.v3.z,
+        ux: 0, uy: 1, uz: 0,
+      },
+      rival: r
+        ? {
+            x: r.mesh.position.x,
+            y: r.mesh.position.y + 0.5,
+            z: r.mesh.position.z,
+            speedKmh: r.speed * KMH,
+            throttle: r.state === "battle" ? 1 : 0.55,
+          }
+        : null,
+      coast: coastal,
+      seaX: this.v1.x,
+      seaZ: this.v1.z,
     });
   }
 

@@ -20,6 +20,24 @@ export interface SoundFrame {
   nosActive?: boolean;
   brake?: number; // 0..1 pedal pressure — drives disc squeal and pad rumble
   driftYaw?: number; // |body slip| in radians — colours the squeal
+  /** 1 when the governor is holding the car back — the limiter bounce. */
+  limited?: number;
+  /** How far off the racing surface the tires are running, 0..1: the
+   *  kerb and shoulder rumble. */
+  rumble?: number;
+  /** Where the listener is and which way it faces, for the 3D bus. */
+  listener?: {
+    x: number; y: number; z: number;
+    fx: number; fy: number; fz: number;
+    ux: number; uy: number; uz: number;
+  };
+  /** The rival's machine as a positioned source. */
+  rival?: { x: number; y: number; z: number; speedKmh: number; throttle: number } | null;
+  /** 0 = deep inland, 1 = right on the corniche: cross-fades the sea
+   *  against the city. `seaX/seaZ` place the surf on the seaward side. */
+  coast?: number;
+  seaX?: number;
+  seaZ?: number;
 }
 
 function makeNoiseBuffer(ctx: AudioContext): AudioBuffer {
@@ -77,6 +95,23 @@ export class SoundEngine {
   private whineGain: GainNode | null = null;
   private whineMode: "none" | "turbo" | "super" = "none";
   private nosGain: GainNode | null = null;
+
+  // 3D bus — everything positional hangs off these
+  private panners = new Map<string, { panner: PannerNode; gain: GainNode }>();
+  private rivalOsc: OscillatorNode[] = [];
+  private rivalGain: GainNode | null = null;
+  private rivalFilter: BiquadFilterNode | null = null;
+  // Environment
+  private seaGain: GainNode | null = null;
+  private seaFilter: BiquadFilterNode | null = null;
+  private cityGain: GainNode | null = null;
+  // Tire roll on the road surface, and the kerb rumble over it
+  private rollGain: GainNode;
+  private rollFilter: BiquadFilterNode;
+  private rumbleGain: GainNode;
+  private rumbleLfo: OscillatorNode;
+  /** Rev-limiter stutter phase, advanced while the governor holds. */
+  private limiterPhase = 0;
 
   /** Recorded one-shots from public/sfx (ElevenLabs or any authored
    *  audio), decoded at boot. Each event checks here first and falls
@@ -175,6 +210,35 @@ export class SoundEngine {
     this.inductionGain.gain.value = 0;
     this.loopNoise().connect(this.inductionFilter).connect(this.inductionGain).connect(this.master);
 
+    // --- Tire roll: the broad hiss of rubber on asphalt. It is what
+    // makes a car sound like it is on a road rather than in a vacuum,
+    // and it rises with speed independently of engine revs.
+    this.rollFilter = this.ctx.createBiquadFilter();
+    this.rollFilter.type = "bandpass";
+    this.rollFilter.frequency.value = 700;
+    this.rollFilter.Q.value = 0.6;
+    this.rollGain = this.ctx.createGain();
+    this.rollGain.gain.value = 0;
+    this.loopNoise().connect(this.rollFilter).connect(this.rollGain).connect(this.master);
+
+    // --- Kerb/shoulder rumble: the roll noise chopped by a fast LFO, so
+    // running wide over the rumble strip buzzes through the floor.
+    {
+      const f = this.ctx.createBiquadFilter();
+      f.type = "lowpass";
+      f.frequency.value = 260;
+      this.rumbleGain = this.ctx.createGain();
+      this.rumbleGain.gain.value = 0;
+      const depth = this.ctx.createGain();
+      depth.gain.value = 0.85;
+      this.rumbleLfo = this.ctx.createOscillator();
+      this.rumbleLfo.type = "square";
+      this.rumbleLfo.frequency.value = 22;
+      this.rumbleLfo.connect(depth).connect(this.rumbleGain.gain);
+      this.rumbleLfo.start();
+      this.loopNoise().connect(f).connect(this.rumbleGain).connect(this.master);
+    }
+
     // --- Brakes: a low pad-on-rotor rumble plus a high metallic squeal
     // that only appears under real pressure at speed
     this.brakeRumbleFilter = this.ctx.createBiquadFilter();
@@ -208,6 +272,106 @@ export class SoundEngine {
   }
 
   /** The shared AudioContext — the music player rides on this one. */
+  /**
+   * A positioned source on the 3D bus. WebAudio's panner does the
+   * distance law and the stereo placement for us; everything that has a
+   * location in the world goes through one of these rather than being
+   * mixed flat into the master.
+   */
+  private makePanner(name: string, refDistance = 8, rolloff = 1.1): GainNode {
+    const hit = this.panners.get(name);
+    if (hit) return hit.gain;
+    const panner = this.ctx.createPanner();
+    panner.panningModel = "HRTF";
+    panner.distanceModel = "inverse";
+    panner.refDistance = refDistance;
+    panner.rolloffFactor = rolloff;
+    panner.maxDistance = 400;
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0;
+    gain.connect(panner).connect(this.master);
+    this.panners.set(name, { panner, gain });
+    return gain;
+  }
+
+  private setPannerPos(name: string, x: number, y: number, z: number): void {
+    const p = this.panners.get(name);
+    if (!p) return;
+    const t = this.ctx.currentTime;
+    // setPosition is deprecated; the AudioParams glide instead of
+    // jumping, which also stops fast movement from clicking.
+    if (p.panner.positionX) {
+      p.panner.positionX.setTargetAtTime(x, t, 0.02);
+      p.panner.positionY.setTargetAtTime(y, t, 0.02);
+      p.panner.positionZ.setTargetAtTime(z, t, 0.02);
+    } else {
+      (p.panner as unknown as { setPosition(x: number, y: number, z: number): void })
+        .setPosition(x, y, z);
+    }
+  }
+
+  /**
+   * The world outside the car. Surf on the seaward side of the corniche
+   * and a broad city hum inland, cross-faded by how coastal the road is
+   * — the Gulf Road's whole character is that the sea is on your left
+   * for half the lap.
+   */
+  private ensureAmbience(): void {
+    if (this.seaGain) return;
+    // Sea: filtered noise with a slow swell, placed out on the water
+    const seaBus = this.makePanner("sea", 26, 0.5);
+    this.seaFilter = this.ctx.createBiquadFilter();
+    this.seaFilter.type = "lowpass";
+    this.seaFilter.frequency.value = 900;
+    this.seaGain = this.ctx.createGain();
+    this.seaGain.gain.value = 0;
+    const swell = this.ctx.createOscillator();
+    swell.frequency.value = 0.12; // the long breath of surf
+    const swellAmt = this.ctx.createGain();
+    swellAmt.gain.value = 320;
+    swell.connect(swellAmt).connect(this.seaFilter.frequency);
+    swell.start();
+    this.loopNoise().connect(this.seaFilter).connect(this.seaGain).connect(seaBus);
+    seaBus.gain.value = 1;
+
+    // City: a low un-positioned hum — it is everywhere, not somewhere
+    const cityFilter = this.ctx.createBiquadFilter();
+    cityFilter.type = "lowpass";
+    cityFilter.frequency.value = 220;
+    this.cityGain = this.ctx.createGain();
+    this.cityGain.gain.value = 0;
+    this.loopNoise().connect(cityFilter).connect(this.cityGain).connect(this.master);
+  }
+
+  /** The rival's engine, positioned. Hearing them come up behind you is
+   *  half of what makes a chase a chase. */
+  private ensureRival(): void {
+    if (this.rivalGain) return;
+    const bus = this.makePanner("rival", 6, 1.4);
+    bus.gain.value = 1;
+    this.rivalFilter = this.ctx.createBiquadFilter();
+    this.rivalFilter.type = "lowpass";
+    this.rivalFilter.frequency.value = 700;
+    this.rivalGain = this.ctx.createGain();
+    this.rivalGain.gain.value = 0;
+    const shaper = this.ctx.createWaveShaper();
+    shaper.curve = softClipCurve() as Float32Array<ArrayBuffer>;
+    shaper.connect(this.rivalFilter).connect(this.rivalGain).connect(bus);
+    for (const [type, ratio, level] of [
+      ["sawtooth", 1, 0.5],
+      ["square", 0.5, 0.3],
+    ] as Array<[OscillatorType, number, number]>) {
+      const osc = this.ctx.createOscillator();
+      osc.type = type;
+      osc.frequency.value = 60 * ratio;
+      const g = this.ctx.createGain();
+      g.gain.value = level;
+      osc.connect(g).connect(shaper);
+      osc.start();
+      this.rivalOsc.push(osc);
+    }
+  }
+
   get audioContext(): AudioContext {
     return this.ctx;
   }
@@ -333,13 +497,25 @@ export class SoundEngine {
     const rpm = revving ? 0.85 : f.rpmFrac;
     const throttle = revving ? 1 : f.throttle;
 
+    // Rev limiter: when the governor is holding the car at its top
+    // speed, the ECU cuts and restores fuel many times a second. That
+    // stutter is the sound of a car against its limiter, and it is the
+    // only audible difference between "fast" and "as fast as it goes".
+    const limited = Math.min(1, Math.max(0, f.limited ?? 0));
+    this.limiterPhase += limited * 0.55;
+    const limiterCut = limited > 0 ? (Math.sin(this.limiterPhase) > 0.1 ? 1 : 0.45) : 1;
+
     const freq = 42 + rpm * 96 + f.gear * 3;
     this.engOscs[0].frequency.setTargetAtTime(freq, t, 0.04);
     this.engOscs[1].frequency.setTargetAtTime(freq * 2.02, t, 0.04);
     this.engOscs[2].frequency.setTargetAtTime(freq * 0.5, t, 0.04);
     this.engFilter.frequency.setTargetAtTime(280 + throttle * 900 + rpm * 700, t, 0.06);
     const idle = 0.05;
-    this.engGain.gain.setTargetAtTime(idle + throttle * 0.12 + rpm * 0.03, t, 0.05);
+    this.engGain.gain.setTargetAtTime(
+      (idle + throttle * 0.12 + rpm * 0.03) * limiterCut,
+      t,
+      limited > 0 ? 0.012 : 0.05
+    );
 
     this.exhaustFilter.frequency.setTargetAtTime(140 + rpm * 260, t, 0.05);
     this.exhaustGain.gain.setTargetAtTime(throttle * 0.05 + rpm * 0.01, t, 0.06);
@@ -350,9 +526,75 @@ export class SoundEngine {
     this.inductionFilter.frequency.setTargetAtTime(320 + rpm * 900, t, 0.05);
     this.inductionGain.gain.setTargetAtTime(load * 0.055, t, load > 0.3 ? 0.03 : 0.12);
 
+    // Wind: speed-squared roar, with a slow buffet on top so it breathes
+    // instead of sitting as a flat hiss.
     const windAmt = Math.pow(Math.min(f.speedKmh / 330, 1), 2);
+    const buffet = 1 + Math.sin(t * 1.7) * 0.12 + Math.sin(t * 0.41) * 0.08;
     this.windFilter.frequency.setTargetAtTime(300 + f.speedKmh * 7, t, 0.1);
-    this.windGain.gain.setTargetAtTime(windAmt * 0.24, t, 0.1);
+    this.windGain.gain.setTargetAtTime(windAmt * 0.24 * buffet, t, 0.1);
+
+    // Tire roll on asphalt: the ever-present hiss that says "road".
+    const roll = Math.min(f.speedKmh / 190, 1);
+    this.rollFilter.frequency.setTargetAtTime(420 + f.speedKmh * 3.4, t, 0.08);
+    this.rollGain.gain.setTargetAtTime(Math.pow(roll, 1.4) * 0.1, t, 0.08);
+
+    // Kerb strip: buzz frequency tracks how fast the ribs go past
+    const rumble = Math.min(Math.max(f.rumble ?? 0, 0), 1);
+    this.rumbleLfo.frequency.setTargetAtTime(14 + f.speedKmh * 0.55, t, 0.05);
+    this.rumbleGain.gain.setTargetAtTime(rumble * Math.min(1, f.speedKmh / 40) * 0.22, t, 0.04);
+
+    // --- The world: surf to seaward, city hum inland
+    if (f.coast !== undefined) {
+      this.ensureAmbience();
+      const coast = Math.min(Math.max(f.coast, 0), 1);
+      // The car's own noise masks the environment at speed, so duck it
+      const duck = 1 - Math.min(0.75, f.speedKmh / 240);
+      this.seaGain!.gain.setTargetAtTime(coast * 0.5 * duck, t, 0.6);
+      this.cityGain!.gain.setTargetAtTime((1 - coast) * 0.22 * duck, t, 0.6);
+      if (f.seaX !== undefined && f.seaZ !== undefined) {
+        this.setPannerPos("sea", f.seaX, 0, f.seaZ);
+      }
+    }
+
+    // --- The rival, in space
+    if (f.rival) {
+      this.ensureRival();
+      const r = f.rival;
+      this.setPannerPos("rival", r.x, r.y, r.z);
+      const rRpm = Math.min(1, r.speedKmh / 260);
+      for (let i = 0; i < this.rivalOsc.length; i++) {
+        const ratio = i === 0 ? 1 : 0.5;
+        this.rivalOsc[i].frequency.setTargetAtTime((46 + rRpm * 120) * ratio, t, 0.06);
+      }
+      this.rivalFilter!.frequency.setTargetAtTime(300 + r.throttle * 900 + rRpm * 600, t, 0.08);
+      this.rivalGain!.gain.setTargetAtTime(0.1 + r.throttle * 0.1, t, 0.08);
+    } else if (this.rivalGain) {
+      this.rivalGain.gain.setTargetAtTime(0, t, 0.2);
+    }
+
+    // --- Listener: the ears ride the camera, not the car
+    if (f.listener) {
+      const l = this.ctx.listener;
+      const L = f.listener;
+      if (l.positionX) {
+        l.positionX.setTargetAtTime(L.x, t, 0.02);
+        l.positionY.setTargetAtTime(L.y, t, 0.02);
+        l.positionZ.setTargetAtTime(L.z, t, 0.02);
+        l.forwardX.setTargetAtTime(L.fx, t, 0.02);
+        l.forwardY.setTargetAtTime(L.fy, t, 0.02);
+        l.forwardZ.setTargetAtTime(L.fz, t, 0.02);
+        l.upX.setTargetAtTime(L.ux, t, 0.02);
+        l.upY.setTargetAtTime(L.uy, t, 0.02);
+        l.upZ.setTargetAtTime(L.uz, t, 0.02);
+      } else {
+        const legacy = l as unknown as {
+          setPosition(x: number, y: number, z: number): void;
+          setOrientation(fx: number, fy: number, fz: number, ux: number, uy: number, uz: number): void;
+        };
+        legacy.setPosition(L.x, L.y, L.z);
+        legacy.setOrientation(L.fx, L.fy, L.fz, L.ux, L.uy, L.uz);
+      }
+    }
 
     // Tire slide: a hard drift squeals higher and warbles faster than a
     // little scrub, so the ear can tell how far out the back end is.
@@ -483,11 +725,15 @@ export class SoundEngine {
     this.oneShotNoise("lowpass", 700, 0.32 * intensity, 0.16);
   }
 
-  /** Guardrail scrape: metallic hiss. */
-  scrape(): void {
-    if (this.playSample("scrape")) return;
-    this.oneShotNoise("highpass", 2600, 0.2, 0.3);
-    this.oneShotNoise("bandpass", 3400, 0.1, 0.25, 8);
+  /** Guardrail scrape. `severity` is how hard the car went in: a graze
+   *  is a short hiss, a full-lock arrival is a long tearing screech. */
+  scrape(severity = 1): void {
+    const sev = Math.min(Math.max(severity, 0), 1);
+    if (this.playSample("scrape", 0.55 + sev * 0.7)) return;
+    this.oneShotNoise("highpass", 2600, 0.12 + sev * 0.16, 0.18 + sev * 0.3);
+    this.oneShotNoise("bandpass", 3000 + sev * 900, 0.06 + sev * 0.09, 0.15 + sev * 0.25, 8);
+    // A hard hit rings the shell as well as grinding the paint
+    if (sev > 0.45) this.oneShotNoise("lowpass", 420, 0.18 * sev, 0.22);
   }
 
   private shiftHiss(): void {
