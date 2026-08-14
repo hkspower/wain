@@ -124,7 +124,7 @@ public class GRNApi : MonoBehaviour
     {
         public string id, name, color, bodyStyle, kit;
         public int price;
-        public float power, topSpeed, grip, brake;
+        public float power, topSpeedKmh, grip, brake;
     }
 
     bool TryParse(string json)
@@ -178,7 +178,7 @@ public class GRNApi : MonoBehaviour
             c.Add(new GRNData.Car
             {
                 Id = d.id, Name = d.name, Price = d.price,
-                Power = d.power, TopSpeed = d.topSpeed, Grip = d.grip, Brake = d.brake,
+                Power = d.power, TopSpeedKmh = d.topSpeedKmh, Grip = d.grip, Brake = d.brake,
                 Paint = ParseHex(d.color),
                 Style = StyleFrom(d.bodyStyle),
                 AttackKit = d.kit == "attack",

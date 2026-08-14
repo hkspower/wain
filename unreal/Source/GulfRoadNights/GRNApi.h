@@ -44,7 +44,7 @@ struct FGRNRuntimeCar
 	UPROPERTY() FString Name;
 	UPROPERTY() int32 Price = 0;
 	UPROPERTY() float Power = 1.f;
-	UPROPERTY() float TopSpeed = 0.f;
+	UPROPERTY() float TopSpeedKmh = 180.f;
 	UPROPERTY() float Grip = 12.f;
 	UPROPERTY() float Brake = 26.f;
 	UPROPERTY() FColor Paint = FColor::White;

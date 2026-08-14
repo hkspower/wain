@@ -139,6 +139,23 @@ implied and made the *tall* box out-accelerate the close one everywhere.
 npm run test:mods
 ```
 
+## topspeed.mjs — fourteen cars, fourteen governors
+
+Every car is limited at its own number, 180 km/h for the starter through
+400 for the flagship, and the number has to be *true*: the engine solves
+each car's thrust curve so drag meets thrust exactly at its limiter,
+then a hard governor cuts fuel there. So this drives all fourteen flat
+out on a pinned-straight road and checks each settles within 2 km/h of
+what its card claims — a limiter the car cannot reach would be a lie
+printed on a spec sheet.
+
+It also holds NOS and a full twin-turbo build against the governor: a
+modded starter climbs to exactly its raised limit and no further.
+
+```bash
+npm run test:topspeed
+```
+
 ## framepacing.mjs — dynamic fps, v-sync, G-Sync
 
 Panel-refresh detection, the frame limiter, the G-Sync-style

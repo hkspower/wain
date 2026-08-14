@@ -127,7 +127,7 @@ const cars = carBlocks.map((b) => ({
   name: field(b, /Name = "([^"]*)"/),
   price: +field(b, /Price = (\d+)/),
   power: +field(b, /Power = ([\d.]+)f/),
-  top: +field(b, /TopSpeed = ([\d.]+)f/),
+  top: +field(b, /TopSpeedKmh = ([\d.]+)f/),
   grip: +field(b, /Grip = ([\d.]+)f/),
   brake: +field(b, /Brake = ([\d.]+)f/),
   paint: field(b, /Paint = Hex\(0x([0-9A-F]{6})\)/),
@@ -145,7 +145,7 @@ if (cars.length !== api.cars.length) {
     if (u.name !== a.name) fail(`car ${a.id} name: ${u.name} vs ${a.name}`);
     if (u.price !== a.price) fail(`car ${a.id} price: ${u.price} vs ${a.price}`);
     if (u.power !== a.power) fail(`car ${a.id} power: ${u.power} vs ${a.power}`);
-    if (u.top !== a.topSpeed) fail(`car ${a.id} topSpeed: ${u.top} vs ${a.topSpeed}`);
+    if (u.top !== a.topSpeedKmh) fail(`car ${a.id} topSpeedKmh: ${u.top} vs ${a.topSpeedKmh}`);
     if (u.grip !== a.grip) fail(`car ${a.id} grip: ${u.grip} vs ${a.grip}`);
     if (u.brake !== a.brake) fail(`car ${a.id} brake: ${u.brake} vs ${a.brake}`);
     if (u.style.toLowerCase() !== a.bodyStyle) {

@@ -32,9 +32,9 @@ export interface Part {
 
 export const PARTS: Part[] = [
   // Aspiration — exclusive; the heart of the build
-  { id: "turbo", cat: "aspiration", name: "Turbo Kit", ar: "تيربو", price: 1200, desc: "+25% power on boost, spools with throttle, blow-off on lift" },
-  { id: "supercharger", cat: "aspiration", name: "Supercharger", ar: "سوبرتشارج", price: 1500, desc: "+30% power everywhere, instant response, whine included" },
-  { id: "twin-turbo", cat: "aspiration", name: "Twin Turbo", ar: "تيربو مزدوج", price: 2800, desc: "+45% on full boost, fast spool, +12 km/h top end" },
+  { id: "turbo", cat: "aspiration", name: "Turbo Kit", ar: "تيربو", price: 1200, desc: "+25% power on boost, +20 km/h governor, blow-off on lift" },
+  { id: "supercharger", cat: "aspiration", name: "Supercharger", ar: "سوبرتشارج", price: 1500, desc: "+30% power everywhere, +14 km/h governor, whine included" },
+  { id: "twin-turbo", cat: "aspiration", name: "Twin Turbo", ar: "تيربو مزدوج", price: 2800, desc: "+45% on full boost, fast spool, +40 km/h governor" },
   // Internals — additive, always active once owned
   { id: "ecu", cat: "internals", name: "ECU Tune", ar: "برمجة", price: 400, desc: "+8% power" },
   { id: "exhaust", cat: "internals", name: "Race Exhaust", ar: "دبة رياضية", price: 350, desc: "+7% power, deeper voice" },
@@ -49,8 +49,8 @@ export const PARTS: Part[] = [
   { id: "tires-slick", cat: "tires", name: "Slicks", ar: "سليك", price: 1600, desc: "Maximum grip, glued to the corniche" },
   { id: "tires-drift", cat: "tires", name: "Drift Tires", ar: "تواير تفحيط", price: 1100, desc: "Less grip on purpose: bigger angles, slower to snap back, more style points" },
   // Gearbox — exclusive. The same engine, geared for a different fight.
-  { id: "gearbox-close", cat: "gearbox", name: "Close-Ratio Box", ar: "قير قصير", price: 1400, desc: "+20% acceleration everywhere, ~16 km/h off the top — for the corniche, not the straight" },
-  { id: "gearbox-tall", cat: "gearbox", name: "Tall Final Drive", ar: "قير طويل", price: 1400, desc: "−12% acceleration for ~16 km/h more top end — for the long inland run" },
+  { id: "gearbox-close", cat: "gearbox", name: "Close-Ratio Box", ar: "قير قصير", price: 1400, desc: "+20% acceleration, 16 km/h off the governor — for the corniche, not the straight" },
+  { id: "gearbox-tall", cat: "gearbox", name: "Tall Final Drive", ar: "قير طويل", price: 1400, desc: "−12% acceleration for 16 km/h more governor — for the long inland run" },
   // Chassis — additive, always active once fitted. These are the parts
   // that argue with the tire model rather than the engine.
   { id: "lsd", cat: "chassis", name: "Limited-Slip Diff", ar: "دفرنس", price: 1300, desc: "Both rear tires pull: far less wheelspin off the line, and a slide you can steer" },
@@ -107,7 +107,11 @@ export interface CarModel {
   kit?: "attack";
   /** Base handling before garage mods. */
   power: number; // accel multiplier
-  topSpeed: number; // ceiling bonus (km/h-ish units)
+  /** The car's governed top speed in km/h — an absolute limiter, not a
+   *  bonus. Every car in the showroom has its own, 180 through 400, and
+   *  the engine tunes its thrust curve so the number is the real
+   *  terminal speed rather than an advertisement. */
+  topSpeedKmh: number;
   grip: number; // lateral grip m/s²
   brake: number; // braking m/s²
   color: number; // factory paint
@@ -125,7 +129,7 @@ export const CARS: CarModel[] = [
     kit: "attack",
     price: 120000,
     power: 1.66,
-    topSpeed: 27,
+    topSpeedKmh: 400,
     grip: 17.5,
     brake: 44,
     color: 0xf2b90d, // competition yellow
@@ -139,7 +143,7 @@ export const CARS: CarModel[] = [
     style: "zx",
     price: 96000,
     power: 1.62,
-    topSpeed: 26,
+    topSpeedKmh: 385,
     grip: 16.4,
     brake: 42,
     color: 0xb8860b,
@@ -153,7 +157,7 @@ export const CARS: CarModel[] = [
     style: "zx",
     price: 71000,
     power: 1.5,
-    topSpeed: 21,
+    topSpeedKmh: 360,
     grip: 15.8,
     brake: 40,
     color: 0xc1121f,
@@ -166,7 +170,7 @@ export const CARS: CarModel[] = [
     cls: "supercar",
     price: 54000,
     power: 1.4,
-    topSpeed: 17,
+    topSpeedKmh: 335,
     grip: 15.2,
     brake: 38,
     color: 0x1f2933,
@@ -180,7 +184,7 @@ export const CARS: CarModel[] = [
     style: "gtr",
     price: 38000,
     power: 1.34,
-    topSpeed: 15,
+    topSpeedKmh: 310,
     grip: 16.2, // AWD monster — nothing in the class sticks like it
     brake: 38,
     color: 0x3f66c4, // that blue
@@ -194,7 +198,7 @@ export const CARS: CarModel[] = [
     style: "rx7",
     price: 31000,
     power: 1.3,
-    topSpeed: 13,
+    topSpeedKmh: 295,
     grip: 14.8,
     brake: 35,
     color: 0xd7263d, // vintage rotary red
@@ -208,7 +212,7 @@ export const CARS: CarModel[] = [
     style: "zx",
     price: 27000,
     power: 1.26,
-    topSpeed: 12,
+    topSpeedKmh: 275,
     grip: 13.9,
     brake: 34,
     color: 0xc1272d, // golden-era JDM red
@@ -221,7 +225,7 @@ export const CARS: CarModel[] = [
     cls: "sport",
     price: 33000,
     power: 1.28,
-    topSpeed: 13,
+    topSpeedKmh: 285,
     grip: 14.6,
     brake: 35,
     color: 0x2e8f96,
@@ -234,7 +238,7 @@ export const CARS: CarModel[] = [
     cls: "sport",
     price: 24000,
     power: 1.2,
-    topSpeed: 10,
+    topSpeedKmh: 255,
     grip: 13.8,
     brake: 32,
     color: 0xb84dd6,
@@ -247,7 +251,7 @@ export const CARS: CarModel[] = [
     cls: "sport",
     price: 16000,
     power: 1.12,
-    topSpeed: 7,
+    topSpeedKmh: 240,
     grip: 13.2,
     brake: 30,
     color: 0xf5c211,
@@ -260,7 +264,7 @@ export const CARS: CarModel[] = [
     cls: "normal",
     price: 8500,
     power: 1.05,
-    topSpeed: 4,
+    topSpeedKmh: 220,
     grip: 12.6,
     brake: 28,
     color: 0xdfe3e8,
@@ -273,7 +277,7 @@ export const CARS: CarModel[] = [
     cls: "normal",
     price: 6000,
     power: 1.0,
-    topSpeed: 2,
+    topSpeedKmh: 195,
     grip: 12.0,
     brake: 27,
     color: 0x6e7f8d,
@@ -286,7 +290,7 @@ export const CARS: CarModel[] = [
     cls: "normal",
     price: 2200,
     power: 0.98,
-    topSpeed: 1,
+    topSpeedKmh: 205,
     grip: 12.4,
     brake: 27,
     color: 0x16a34a,
@@ -299,7 +303,7 @@ export const CARS: CarModel[] = [
     cls: "normal",
     price: 0,
     power: 1.0,
-    topSpeed: 0,
+    topSpeedKmh: 180,
     grip: 12.0,
     brake: 26,
     color: 0xf2f4f7,
@@ -374,7 +378,9 @@ export interface TuneEffects {
   carId: string;
   carName: string;
   accelMult: number; // multiplies base acceleration
-  topSpeedBonus: number; // added to the accel-curve ceiling (km/h-ish units)
+  /** Governed top speed in km/h after mods — the engine will not let
+   *  the car past it, and tunes its thrust curve to reach it. */
+  topSpeedKmh: number;
   brakeForce: number; // m/s²
   gripAccel: number; // lateral grip for yaw authority (base 12)
   slipMult: number; // scales centrifugal slip (base 1)
@@ -415,13 +421,14 @@ export function computeEffects(g: GarageState): TuneEffects {
   if (has("intake")) accelMult += 0.05;
   if (has("weight")) accelMult += 0.1;
 
+  // Mods move the governor in km/h, so the showroom number and the
+  // garage number are the same units the speedo reads.
   let aspiration: Aspiration = "none";
   let boostMult = 0;
-  let topSpeedBonus = 0;
-  if (eq.aspiration === "turbo") { aspiration = "turbo"; boostMult = 0.25; topSpeedBonus = 6; }
-  else if (eq.aspiration === "supercharger") { aspiration = "super"; accelMult += 0.3; topSpeedBonus = 4; }
-  else if (eq.aspiration === "twin-turbo") { aspiration = "twin"; boostMult = 0.45; topSpeedBonus = 12; }
-  topSpeedBonus += car.topSpeed;
+  let topSpeedKmh = car.topSpeedKmh;
+  if (eq.aspiration === "turbo") { aspiration = "turbo"; boostMult = 0.25; topSpeedKmh += 20; }
+  else if (eq.aspiration === "supercharger") { aspiration = "super"; accelMult += 0.3; topSpeedKmh += 14; }
+  else if (eq.aspiration === "twin-turbo") { aspiration = "twin"; boostMult = 0.45; topSpeedKmh += 40; }
 
   let brakeForce = car.brake;
   if (eq.brakes === "brakes-sport") brakeForce = 32;
@@ -450,8 +457,8 @@ export function computeEffects(g: GarageState): TuneEffects {
   // The ceiling is in m/s, so these numbers are small on purpose: the
   // close box pulls harder at every speed it can still reach, the tall
   // one gives that up for a higher terminal speed.
-  if (eq.gearbox === "gearbox-close") { accelMult *= 1.2; topSpeedBonus -= 6; }
-  else if (eq.gearbox === "gearbox-tall") { accelMult *= 0.88; topSpeedBonus += 12; }
+  if (eq.gearbox === "gearbox-close") { accelMult *= 1.2; topSpeedKmh -= 16; }
+  else if (eq.gearbox === "gearbox-tall") { accelMult *= 0.88; topSpeedKmh += 16; }
 
   // Chassis
   let tractionMult = 1;
@@ -468,7 +475,7 @@ export function computeEffects(g: GarageState): TuneEffects {
     carName: car.name,
     bodyStyle: car.style ?? "sedan",
     accelMult,
-    topSpeedBonus,
+    topSpeedKmh,
     brakeForce,
     gripAccel,
     slipMult,

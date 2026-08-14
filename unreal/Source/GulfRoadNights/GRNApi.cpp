@@ -130,7 +130,7 @@ void UGRNApiSubsystem::ParseGameData(const FString& Json)
 			C.Name = O->GetStringField(TEXT("name"));
 			C.Price = O->GetIntegerField(TEXT("price"));
 			C.Power = (float)O->GetNumberField(TEXT("power"));
-			C.TopSpeed = (float)O->GetNumberField(TEXT("topSpeed"));
+			C.TopSpeedKmh = (float)O->GetNumberField(TEXT("topSpeedKmh"));
 			C.Grip = (float)O->GetNumberField(TEXT("grip"));
 			C.Brake = (float)O->GetNumberField(TEXT("brake"));
 			C.Paint = ColorFromHex(O->GetStringField(TEXT("color")));
@@ -225,7 +225,7 @@ FGRNRuntimeCar UGRNApiSubsystem::GetCar(int32 Index) const
 	C.Name = D.Name;
 	C.Price = D.Price;
 	C.Power = D.Power;
-	C.TopSpeed = D.TopSpeed;
+	C.TopSpeedKmh = D.TopSpeedKmh;
 	C.Grip = D.Grip;
 	C.Brake = D.Brake;
 	C.Paint = D.Paint;

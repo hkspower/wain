@@ -47,17 +47,22 @@ const STYLE_CATS: Array<{ cat: string; label: string }> = [
 /** Spec bar ranges: min hides the floor, max is the best build in the game. */
 const SPECS = [
   { key: "power", label: "POWER", min: 0.8, max: 2.9 },
-  { key: "top", label: "TOP SPEED", min: 300, max: 490 },
+  { key: "top", label: "TOP SPEED", min: 170, max: 460 },
   { key: "brakes", label: "BRAKES", min: 20, max: 50 },
   { key: "grip", label: "GRIP", min: 8, max: 22 },
 ] as const;
 
 /**
- * The speed the build can actually hold flat-out (full boost, no NOS):
- * where engine thrust meets drag in the engine's own model. The ceiling
- * constant alone would overstate every car by ~80 km/h.
+ * What the build will actually reach. The governor is the answer now —
+ * the engine solves its thrust curve so the car meets drag exactly at
+ * that speed — but a build can still fall short of its own limiter if
+ * it lacks the power, so this reports whichever comes first.
  */
-function topSpeedKmh(power: number, ceiling: number): number {
+function topSpeedKmh(power: number, governorKmh: number): number {
+  const limit = governorKmh / 3.6;
+  const dragAtLimit = (0.0012 * limit * limit + 1.2) * 0.35;
+  const headroom = 1 - dragAtLimit / (19 * power);
+  const ceiling = Math.max(115, headroom > 0.08 ? limit / headroom : limit * 12);
   let lo = 0;
   let hi = ceiling;
   for (let i = 0; i < 40; i++) {
@@ -67,7 +72,7 @@ function topSpeedKmh(power: number, ceiling: number): number {
     if (thrust > drag) lo = v;
     else hi = v;
   }
-  return lo * 3.6;
+  return Math.min(lo * 3.6, governorKmh);
 }
 
 function StatBar({
@@ -122,7 +127,7 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
   const car = getCar(garage.car);
   // Effective power counts the blower at full boost — what you feel
   const power = fx.accelMult * (1 + fx.boostMult);
-  const top = topSpeedKmh(power, 115 + fx.topSpeedBonus);
+  const top = topSpeedKmh(power, fx.topSpeedKmh);
   const specValues = {
     power,
     top,

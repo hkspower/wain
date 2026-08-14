@@ -27,6 +27,10 @@ const SMOKE_N = 110;
  *  the rival's close-up, the side-by-side two-shot at the line, and the
  *  pull up into the chase as the flag drops. */
 const CINE_LEN = 5.6;
+/** Fallback normaliser for speed-driven camera effects, used only
+ *  before a tune is applied. The live value follows the car's own
+ *  governor (see topSpeedRef), so a 180 km/h hatch feels as fast at its
+ *  limit as a 400 km/h flagship does at its. */
 const PLAYER_TOP_SPEED = 92; // m/s ≈ 331 km/h
 const FLASH_RANGE = 60;
 const SAVE_KEY = "gulf-road-nights-progress";
@@ -452,6 +456,12 @@ export class GameEngine {
   // body points past the direction of travel; the velocity heading is
   // dragged after it, which is what actually carries the car around.
   private driftYaw = 0;
+  /** The current car's governed speed in m/s — what the camera, FOV and
+   *  rumble normalise against. */
+  private get topSpeedRef(): number {
+    return Math.max(20, (this.tune?.topSpeedKmh ?? PLAYER_TOP_SPEED * KMH) / KMH);
+  }
+
   /** m/s² of engine torque the driven tires could NOT transmit this
    *  frame — the launch-burnout signal for wheels, smoke and power-over. */
   private wheelspin = 0;
@@ -2144,7 +2154,19 @@ export class GameEngine {
 
     const power =
       this.tune.accelMult * (1 + this.boost * this.tune.boostMult);
-    const ceiling = 115 + this.tune.topSpeedBonus;
+    // Every car is governed at its own number (180-400 km/h), and the
+    // thrust curve is solved so that at exactly that speed thrust equals
+    // drag — the limiter is where the car naturally runs out of road,
+    // not a figure printed on a card it never reaches. If a build lacks
+    // the power to hold its governor, the curve simply tops out lower;
+    // the governor is a ceiling, never a promise of thrust.
+    const limitMs = this.tune.topSpeedKmh / KMH;
+    const dragAtLimit = (0.0012 * limitMs * limitMs + 1.2) * 0.35;
+    const headroom = 1 - dragAtLimit / (19 * power);
+    // The curve keeps its old shape (115 m/s asymptote) unless the car's
+    // governor needs more room than that. Tying it *down* to a slow car's
+    // limiter would flatten the mid-range until the tires never lit up.
+    const ceiling = Math.max(115, headroom > 0.08 ? limitMs / headroom : limitMs * 12);
     // Sideways tires can't put all the power down — a slide trades a
     // little speed for the angle, so gripping is always the faster line.
     const driveGrip = 1 - Math.min(0.55, Math.abs(this.driftYaw) * 1.1);
@@ -2178,6 +2200,9 @@ export class GameEngine {
       Math.sqrt(1 - 0.6 * latDemand * latDemand);
     const drag = 0.0012 * p.speed * p.speed + 1.2;
     p.speed = Math.max(0, p.speed + (accel - braking - drag * (this.throttle ? 0.35 : 1)) * dt);
+    // The governor cuts fuel: nitrous and a tow can get you here faster,
+    // but not past it.
+    if (p.speed > limitMs) p.speed = limitMs;
 
     // --- Steering: the car carries a heading relative to the lane.
     // Yaw authority is grip-limited, so it shrinks as speed rises — and
@@ -2670,7 +2695,7 @@ export class GameEngine {
     // the lerped base — never fed back into it, or it compounds
     this.shake = Math.max(0, this.shake - this.shake * 3.5 * dt);
     const t = performance.now() / 1000;
-    const amp = Math.pow(p.speed / PLAYER_TOP_SPEED, 3) * 0.055 + this.shake * 0.32;
+    const amp = Math.pow(p.speed / this.topSpeedRef, 3) * 0.055 + this.shake * 0.32;
     this.camera.position.copy(this.camBase);
     this.camera.position.x += (Math.sin(t * 31.7) + Math.sin(t * 17.3)) * 0.5 * amp;
     this.camera.position.y += (Math.sin(t * 27.1) + Math.sin(t * 13.9)) * 0.5 * amp;
@@ -2684,7 +2709,7 @@ export class GameEngine {
 
     // Lateral-G camera roll
     const rollTarget =
-      THREE.MathUtils.clamp(this.heading * (p.speed / PLAYER_TOP_SPEED), -0.5, 0.5) * 0.14 +
+      THREE.MathUtils.clamp(this.heading * (p.speed / this.topSpeedRef), -0.5, 0.5) * 0.14 +
       THREE.MathUtils.clamp(this.slipVel * 0.012, -0.03, 0.03) +
       this.driftYaw * 0.1;
     this.camRoll += (rollTarget - this.camRoll) * Math.min(1, dt * 4);
@@ -2692,7 +2717,7 @@ export class GameEngine {
 
     // FOV: speed stretch + a launch kick under throttle from low speed
     const launchKick = this.throttle * THREE.MathUtils.clamp(1 - p.speed / 40, 0, 1) * 5;
-    const targetFov = 62 + (p.speed / PLAYER_TOP_SPEED) * 18 + launchKick;
+    const targetFov = 62 + (p.speed / this.topSpeedRef) * 18 + launchKick;
     this.fovCurrent += (targetFov - this.fovCurrent) * Math.min(1, dt * 3);
     this.camera.fov = this.aspectFov(this.fovCurrent);
     this.camera.updateProjectionMatrix();

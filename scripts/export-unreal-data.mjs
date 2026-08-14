@@ -64,7 +64,7 @@ const cars = carsBlock
       name: f(/name: "([^"]+)"/),
       price: +f(/price: (\d+)/),
       power: +f(/power: ([\d.]+)/),
-      top: +f(/topSpeed: ([\d.]+)/),
+      top: +f(/topSpeedKmh: ([\d.]+)/),
       grip: +f(/grip: ([\d.]+)/),
       brake: +f(/brake: ([\d.]+)/),
       color: f(/color: 0x([0-9a-fA-F]{6})/),
@@ -145,7 +145,7 @@ struct FGRNCarDef
 	const TCHAR* Name;
 	int32 Price;
 	float Power;
-	float TopSpeed;
+	float TopSpeedKmh; // governed limit, km/h
 	float Grip;
 	float Brake;
 	FColor Paint;

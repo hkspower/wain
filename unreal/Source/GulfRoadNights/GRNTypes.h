@@ -71,7 +71,7 @@ struct FGRNCarDef
 	const TCHAR* Name;
 	int32 Price;
 	float Power;
-	float TopSpeed;
+	float TopSpeedKmh; // governed limit, km/h
 	float Grip;
 	float Brake;
 	FColor Paint;
@@ -81,20 +81,20 @@ struct FGRNCarDef
 };
 
 static const FGRNCarDef GRNCars[] = {
-	{ TEXT("efreet-rx-kai"), TEXT("Efreet RX Kai"), 120000, 1.66f, 27.0f, 17.5f, 44.0f, FColor(0xF2, 0xB9, 0x0D), EGRNBodyStyle::RX7, true },
-	{ TEXT("sahara-v12"), TEXT("Sahara GT-12"), 96000, 1.62f, 26.0f, 16.4f, 42.0f, FColor(0xB8, 0x86, 0x0B), EGRNBodyStyle::ZX, false },
-	{ TEXT("falcon-720"), TEXT("Falcon 720 Veloce"), 71000, 1.50f, 21.0f, 15.8f, 40.0f, FColor(0xC1, 0x12, 0x1F), EGRNBodyStyle::ZX, false },
-	{ TEXT("storm-s8"), TEXT("Desert Storm S8"), 54000, 1.40f, 17.0f, 15.2f, 38.0f, FColor(0x1F, 0x29, 0x33), EGRNBodyStyle::Sedan, false },
-	{ TEXT("kaiju-r"), TEXT("Kaiju R"), 38000, 1.34f, 15.0f, 16.2f, 38.0f, FColor(0x3F, 0x66, 0xC4), EGRNBodyStyle::GTR, false },
-	{ TEXT("efreet-rx"), TEXT("Efreet RX"), 31000, 1.30f, 13.0f, 14.8f, 35.0f, FColor(0xD7, 0x26, 0x3D), EGRNBodyStyle::RX7, false },
-	{ TEXT("zeta-300"), TEXT("Zeta 300"), 27000, 1.26f, 12.0f, 13.9f, 34.0f, FColor(0xC1, 0x27, 0x2D), EGRNBodyStyle::ZX, false },
-	{ TEXT("gulf-coupe-rs"), TEXT("Gulf Coupe RS"), 33000, 1.28f, 13.0f, 14.6f, 35.0f, FColor(0x2E, 0x8F, 0x96), EGRNBodyStyle::Sedan, false },
-	{ TEXT("salmiya-turbo"), TEXT("Salmiya Turbo GT"), 24000, 1.20f, 10.0f, 13.8f, 32.0f, FColor(0xB8, 0x4D, 0xD6), EGRNBodyStyle::Sedan, false },
-	{ TEXT("hawally-2t"), TEXT("Hawally Sport 2.0T"), 16000, 1.12f, 7.0f, 13.2f, 30.0f, FColor(0xF5, 0xC2, 0x11), EGRNBodyStyle::Sedan, false },
-	{ TEXT("deera-sedan"), TEXT("Deera Sedan"), 8500, 1.05f, 4.0f, 12.6f, 28.0f, FColor(0xDF, 0xE3, 0xE8), EGRNBodyStyle::Sedan, false },
-	{ TEXT("jahra-pickup"), TEXT("Jahra Pickup"), 6000, 1.00f, 2.0f, 12.0f, 27.0f, FColor(0x6E, 0x7F, 0x8D), EGRNBodyStyle::Sedan, false },
-	{ TEXT("sharq-hatch"), TEXT("Sharq Hatch"), 2200, 0.98f, 1.0f, 12.4f, 27.0f, FColor(0x16, 0xA3, 0x4A), EGRNBodyStyle::Sedan, false },
-	{ TEXT("wain-special"), TEXT("Wain Special"), 0, 1.00f, 0.0f, 12.0f, 26.0f, FColor(0xF2, 0xF4, 0xF7), EGRNBodyStyle::Sedan, false },
+	{ TEXT("efreet-rx-kai"), TEXT("Efreet RX Kai"), 120000, 1.66f, 400.0f, 17.5f, 44.0f, FColor(0xF2, 0xB9, 0x0D), EGRNBodyStyle::RX7, true },
+	{ TEXT("sahara-v12"), TEXT("Sahara GT-12"), 96000, 1.62f, 385.0f, 16.4f, 42.0f, FColor(0xB8, 0x86, 0x0B), EGRNBodyStyle::ZX, false },
+	{ TEXT("falcon-720"), TEXT("Falcon 720 Veloce"), 71000, 1.50f, 360.0f, 15.8f, 40.0f, FColor(0xC1, 0x12, 0x1F), EGRNBodyStyle::ZX, false },
+	{ TEXT("storm-s8"), TEXT("Desert Storm S8"), 54000, 1.40f, 335.0f, 15.2f, 38.0f, FColor(0x1F, 0x29, 0x33), EGRNBodyStyle::Sedan, false },
+	{ TEXT("kaiju-r"), TEXT("Kaiju R"), 38000, 1.34f, 310.0f, 16.2f, 38.0f, FColor(0x3F, 0x66, 0xC4), EGRNBodyStyle::GTR, false },
+	{ TEXT("efreet-rx"), TEXT("Efreet RX"), 31000, 1.30f, 295.0f, 14.8f, 35.0f, FColor(0xD7, 0x26, 0x3D), EGRNBodyStyle::RX7, false },
+	{ TEXT("zeta-300"), TEXT("Zeta 300"), 27000, 1.26f, 275.0f, 13.9f, 34.0f, FColor(0xC1, 0x27, 0x2D), EGRNBodyStyle::ZX, false },
+	{ TEXT("gulf-coupe-rs"), TEXT("Gulf Coupe RS"), 33000, 1.28f, 285.0f, 14.6f, 35.0f, FColor(0x2E, 0x8F, 0x96), EGRNBodyStyle::Sedan, false },
+	{ TEXT("salmiya-turbo"), TEXT("Salmiya Turbo GT"), 24000, 1.20f, 255.0f, 13.8f, 32.0f, FColor(0xB8, 0x4D, 0xD6), EGRNBodyStyle::Sedan, false },
+	{ TEXT("hawally-2t"), TEXT("Hawally Sport 2.0T"), 16000, 1.12f, 240.0f, 13.2f, 30.0f, FColor(0xF5, 0xC2, 0x11), EGRNBodyStyle::Sedan, false },
+	{ TEXT("deera-sedan"), TEXT("Deera Sedan"), 8500, 1.05f, 220.0f, 12.6f, 28.0f, FColor(0xDF, 0xE3, 0xE8), EGRNBodyStyle::Sedan, false },
+	{ TEXT("jahra-pickup"), TEXT("Jahra Pickup"), 6000, 1.00f, 195.0f, 12.0f, 27.0f, FColor(0x6E, 0x7F, 0x8D), EGRNBodyStyle::Sedan, false },
+	{ TEXT("sharq-hatch"), TEXT("Sharq Hatch"), 2200, 0.98f, 205.0f, 12.4f, 27.0f, FColor(0x16, 0xA3, 0x4A), EGRNBodyStyle::Sedan, false },
+	{ TEXT("wain-special"), TEXT("Wain Special"), 0, 1.00f, 180.0f, 12.0f, 26.0f, FColor(0xF2, 0xF4, 0xF7), EGRNBodyStyle::Sedan, false },
 };
 static const int32 GRNCarCount = UE_ARRAY_COUNT(GRNCars);
 

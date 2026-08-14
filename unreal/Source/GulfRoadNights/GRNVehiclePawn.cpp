@@ -116,7 +116,15 @@ void AGRNVehiclePawn::UpdateHandling(float Dt)
 	// tires dispose — torque beyond the traction cap becomes wheelspin.
 	const float DriveGrip = 1.f - FMath::Min(0.55f, FMath::Abs(DriftYaw) * DriftDriveLoss);
 	const float Power = PowerMult * (1.f + Boost * BoostMult);
-	const float Ceil = Ceiling + TopSpeedBonus;
+	// Each car is governed at its own km/h number; the thrust curve is
+	// solved so drag meets thrust exactly there, and the governor below
+	// is the hard cut. Mirrors src/game/engine.ts.
+	const float LimitMs = TopSpeedKmh / 3.6f;
+	const float DragAtLimit = (DragA * LimitMs * LimitMs + DragB) * 0.35f;
+	const float Headroom = 1.f - DragAtLimit / (ThrustK * Power);
+	// Old curve shape unless the governor needs more room — see the web
+	// engine: tying it down to a slow car's limiter kills the mid-range.
+	const float Ceil = FMath::Max(Ceiling, Headroom > 0.08f ? LimitMs / Headroom : LimitMs * 12.f);
 	const float EngineAccel =
 		InThrottle * FMath::Max(0.f, ThrustK * Power * (1.f - SpeedMs / Ceil));
 	const float TractionCap =
@@ -135,6 +143,7 @@ void AGRNVehiclePawn::UpdateHandling(float Dt)
 		FMath::Sqrt(1.f - TrailBrakeK * LatDemand * LatDemand);
 	const float Drag = (DragA * SpeedMs * SpeedMs + DragB) * (InThrottle > 0.f ? 0.35f : 1.f);
 	SpeedMs = FMath::Max(0.f, SpeedMs + (Accel - Braking - Drag) * Dt);
+	if (SpeedMs > LimitMs) SpeedMs = LimitMs; // the governor cuts fuel
 
 	// Grip steering: yaw authority shrinks with speed — and friction
 	// circle half two: heavy braking or a lit-up rear axle blunts turn-in

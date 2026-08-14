@@ -34,7 +34,8 @@ public:
 
 	// ------------------------------------------------------------- tuning
 	float PowerMult = 1.f;
-	float TopSpeedBonus = 0.f;
+	/** Governed top speed in km/h — absolute, not a bonus. */
+	float TopSpeedKmh = 180.f;
 	float BrakeForce = 26.f;
 	float GripAccel = 12.f;
 	bool bHasNos = false;

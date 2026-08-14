@@ -132,7 +132,7 @@ public static class GRNData
     {
         public string Id, Name;
         public int Price;
-        public float Power, TopSpeed, Grip, Brake;
+        public float Power, TopSpeedKmh, Grip, Brake;
         public Color Paint;
         public BodyStyle Style;
         /// <summary>Factory time-attack aero (wing, splitter, bronze wheels).</summary>
@@ -143,72 +143,72 @@ public static class GRNData
     {
         new Car {
             Id = "efreet-rx-kai", Name = "Efreet RX Kai", Price = 120000,
-            Power = 1.66f, TopSpeed = 27f, Grip = 17.5f, Brake = 44f,
+            Power = 1.66f, TopSpeedKmh = 400f, Grip = 17.5f, Brake = 44f,
             Paint = Hex(0xF2B90D), Style = BodyStyle.RX7, AttackKit = true,
         },
         new Car {
             Id = "sahara-v12", Name = "Sahara GT-12", Price = 96000,
-            Power = 1.62f, TopSpeed = 26f, Grip = 16.4f, Brake = 42f,
+            Power = 1.62f, TopSpeedKmh = 385f, Grip = 16.4f, Brake = 42f,
             Paint = Hex(0xB8860B), Style = BodyStyle.ZX, AttackKit = false,
         },
         new Car {
             Id = "falcon-720", Name = "Falcon 720 Veloce", Price = 71000,
-            Power = 1.5f, TopSpeed = 21f, Grip = 15.8f, Brake = 40f,
+            Power = 1.5f, TopSpeedKmh = 360f, Grip = 15.8f, Brake = 40f,
             Paint = Hex(0xC1121F), Style = BodyStyle.ZX, AttackKit = false,
         },
         new Car {
             Id = "storm-s8", Name = "Desert Storm S8", Price = 54000,
-            Power = 1.4f, TopSpeed = 17f, Grip = 15.2f, Brake = 38f,
+            Power = 1.4f, TopSpeedKmh = 335f, Grip = 15.2f, Brake = 38f,
             Paint = Hex(0x1F2933), Style = BodyStyle.Sedan, AttackKit = false,
         },
         new Car {
             Id = "kaiju-r", Name = "Kaiju R", Price = 38000,
-            Power = 1.34f, TopSpeed = 15f, Grip = 16.2f, Brake = 38f,
+            Power = 1.34f, TopSpeedKmh = 310f, Grip = 16.2f, Brake = 38f,
             Paint = Hex(0x3F66C4), Style = BodyStyle.GTR, AttackKit = false,
         },
         new Car {
             Id = "efreet-rx", Name = "Efreet RX", Price = 31000,
-            Power = 1.3f, TopSpeed = 13f, Grip = 14.8f, Brake = 35f,
+            Power = 1.3f, TopSpeedKmh = 295f, Grip = 14.8f, Brake = 35f,
             Paint = Hex(0xD7263D), Style = BodyStyle.RX7, AttackKit = false,
         },
         new Car {
             Id = "zeta-300", Name = "Zeta 300", Price = 27000,
-            Power = 1.26f, TopSpeed = 12f, Grip = 13.9f, Brake = 34f,
+            Power = 1.26f, TopSpeedKmh = 275f, Grip = 13.9f, Brake = 34f,
             Paint = Hex(0xC1272D), Style = BodyStyle.ZX, AttackKit = false,
         },
         new Car {
             Id = "gulf-coupe-rs", Name = "Gulf Coupe RS", Price = 33000,
-            Power = 1.28f, TopSpeed = 13f, Grip = 14.6f, Brake = 35f,
+            Power = 1.28f, TopSpeedKmh = 285f, Grip = 14.6f, Brake = 35f,
             Paint = Hex(0x2E8F96), Style = BodyStyle.Sedan, AttackKit = false,
         },
         new Car {
             Id = "salmiya-turbo", Name = "Salmiya Turbo GT", Price = 24000,
-            Power = 1.2f, TopSpeed = 10f, Grip = 13.8f, Brake = 32f,
+            Power = 1.2f, TopSpeedKmh = 255f, Grip = 13.8f, Brake = 32f,
             Paint = Hex(0xB84DD6), Style = BodyStyle.Sedan, AttackKit = false,
         },
         new Car {
             Id = "hawally-2t", Name = "Hawally Sport 2.0T", Price = 16000,
-            Power = 1.12f, TopSpeed = 7f, Grip = 13.2f, Brake = 30f,
+            Power = 1.12f, TopSpeedKmh = 240f, Grip = 13.2f, Brake = 30f,
             Paint = Hex(0xF5C211), Style = BodyStyle.Sedan, AttackKit = false,
         },
         new Car {
             Id = "deera-sedan", Name = "Deera Sedan", Price = 8500,
-            Power = 1.05f, TopSpeed = 4f, Grip = 12.6f, Brake = 28f,
+            Power = 1.05f, TopSpeedKmh = 220f, Grip = 12.6f, Brake = 28f,
             Paint = Hex(0xDFE3E8), Style = BodyStyle.Sedan, AttackKit = false,
         },
         new Car {
             Id = "jahra-pickup", Name = "Jahra Pickup", Price = 6000,
-            Power = 1f, TopSpeed = 2f, Grip = 12f, Brake = 27f,
+            Power = 1f, TopSpeedKmh = 195f, Grip = 12f, Brake = 27f,
             Paint = Hex(0x6E7F8D), Style = BodyStyle.Sedan, AttackKit = false,
         },
         new Car {
             Id = "sharq-hatch", Name = "Sharq Hatch", Price = 2200,
-            Power = 0.98f, TopSpeed = 1f, Grip = 12.4f, Brake = 27f,
+            Power = 0.98f, TopSpeedKmh = 205f, Grip = 12.4f, Brake = 27f,
             Paint = Hex(0x16A34A), Style = BodyStyle.Sedan, AttackKit = false,
         },
         new Car {
             Id = "wain-special", Name = "Wain Special", Price = 0,
-            Power = 1f, TopSpeed = 0f, Grip = 12f, Brake = 26f,
+            Power = 1f, TopSpeedKmh = 180f, Grip = 12f, Brake = 26f,
             Paint = Hex(0xF2F4F7), Style = BodyStyle.Sedan, AttackKit = false,
         },
     };

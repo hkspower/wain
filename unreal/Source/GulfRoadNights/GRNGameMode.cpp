@@ -150,10 +150,10 @@ void AGRNGameMode::ApplyCar(int32 CarIdx)
 		? Api->GetCar(CurrentCarIdx)
 		: [&] { FGRNRuntimeCar C; const FGRNCarDef& D = GRNCars[CurrentCarIdx];
 			C.Id = D.Id; C.Name = D.Name; C.Price = D.Price; C.Power = D.Power;
-			C.TopSpeed = D.TopSpeed; C.Grip = D.Grip; C.Brake = D.Brake;
+			C.TopSpeedKmh = D.TopSpeedKmh; C.Grip = D.Grip; C.Brake = D.Brake;
 			C.Paint = D.Paint; C.Style = D.Style; C.bAttackKit = D.bAttackKit; return C; }();
 	Player->PowerMult = Car.Power;
-	Player->TopSpeedBonus = Car.TopSpeed;
+	Player->TopSpeedKmh = Car.TopSpeedKmh;
 	Player->GripAccel = Car.Grip;
 	Player->BrakeForce = Car.Brake;
 	// Wing only if the GT Wing part is owned — the player's choice

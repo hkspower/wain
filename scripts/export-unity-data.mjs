@@ -73,7 +73,7 @@ const cars = carsBlock
       name: f(/name: "([^"]+)"/),
       price: +f(/price: (\d+)/),
       power: +f(/power: ([\d.]+)/),
-      top: +f(/topSpeed: ([\d.]+)/),
+      top: +f(/topSpeedKmh: ([\d.]+)/),
       grip: +f(/grip: ([\d.]+)/),
       brake: +f(/brake: ([\d.]+)/),
       color: f(/color: 0x([0-9a-fA-F]{6})/),
@@ -174,7 +174,7 @@ ${rivals
     {
         public string Id, Name;
         public int Price;
-        public float Power, TopSpeed, Grip, Brake;
+        public float Power, TopSpeedKmh, Grip, Brake;
         public Color Paint;
         public BodyStyle Style;
         /// <summary>Factory time-attack aero (wing, splitter, bronze wheels).</summary>
@@ -187,7 +187,7 @@ ${cars
   .map(
     (c) => `        new Car {
             Id = "${cs(c.id)}", Name = "${cs(c.name)}", Price = ${c.price},
-            Power = ${f(c.power)}, TopSpeed = ${f(c.top)}, Grip = ${f(c.grip)}, Brake = ${f(c.brake)},
+            Power = ${f(c.power)}, TopSpeedKmh = ${f(c.top)}, Grip = ${f(c.grip)}, Brake = ${f(c.brake)},
             Paint = ${col(c.color)}, Style = ${style(c.style, c.id)}, AttackKit = ${c.kit === "attack" ? "true" : "false"},
         },`
   )

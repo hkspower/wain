@@ -161,13 +161,17 @@ const measure = (owned, equipped, rig) =>
     return {};
   }, [owned, equipped, rig]);
 
-const strip = () => page.evaluate(() => {
+const strip = (car = "wain-special") => page.evaluate((car) => {
   localStorage.setItem("gulf-road-nights-garage", JSON.stringify({
-    car: "wain-special", cars: ["wain-special"], owned: [], kd: 99999,
+    car, cars: [car], owned: [], kd: 99999,
     equipped: { paint: "paint-white", glow: "glow-none" },
   }));
   window.__grnEngine.applyGarage();
-});
+}, car);
+// Gearing is measured on a car whose governor is above the test band:
+// the starter is limited to 180 km/h, so a 180-260 roll-on on it would
+// measure the limiter, not the gearbox.
+const FAST = "falcon-720";
 
 console.log("=== NEW MODS, MEASURED ===\n");
 
@@ -213,13 +217,13 @@ console.log(`Drift tires  drift angle ${(slickDrift.peak * 57.3).toFixed(0)}° o
   check(driftDrift.peak > slickDrift.peak * 1.2, "drift tires do not hang the tail out further"));
 
 // 6/7. Gearboxes — opposite ends of the same road
-await strip();
+await strip(FAST);
 const closeBox = await measure(["x"], { gearbox: "gearbox-close" }, "rollOn");
-await strip();
+await strip(FAST);
 const tallBox = await measure(["x"], { gearbox: "gearbox-tall" }, "rollOn");
-await strip();
+await strip(FAST);
 const closeTop = await measure(["x"], { gearbox: "gearbox-close" }, "topSpeed");
-await strip();
+await strip(FAST);
 const tallTop = await measure(["x"], { gearbox: "gearbox-tall" }, "topSpeed");
 console.log(`Gearboxes    180-260 km/h: close ${closeBox.secs}s vs tall ${tallBox.secs}s  |  top: close ${closeTop.top} vs tall ${tallTop.top} km/h  ` +
   check(closeBox.secs < tallBox.secs, "the close-ratio box is not quicker in the roll-on") + " " +

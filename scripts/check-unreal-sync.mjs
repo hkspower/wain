@@ -88,12 +88,15 @@ if (hCars.length !== api.cars.length) {
     if (h.id !== a.id) fail(`car ${i} id: ${h.id} vs ${a.id}`);
     if (h.price !== a.price) fail(`car ${h.id} price: ${h.price} vs ${a.price}`);
     if (h.power !== a.power) fail(`car ${h.id} power: ${h.power} vs ${a.power}`);
+    // Parsed but never compared until now — and it is the governed top
+    // speed, which is the most visible number a car has.
+    if (h.top !== a.topSpeedKmh) fail(`car ${h.id} topSpeedKmh: ${h.top} vs ${a.topSpeedKmh}`);
     if (h.grip !== a.grip) fail(`car ${h.id} grip: ${h.grip} vs ${a.grip}`);
     if (h.brake !== a.brake) fail(`car ${h.id} brake: ${h.brake} vs ${a.brake}`);
     if (h.style !== a.bodyStyle) fail(`car ${h.id} body style: ${h.style} vs ${a.bodyStyle}`);
     if (h.attack !== (a.kit === "attack")) fail(`car ${h.id} attack kit: ${h.attack} vs ${a.kit}`);
   }
-  if (!process.exitCode) ok(`cars: ${hCars.length} match (id, price, power, grip, brake, body, kit)`);
+  if (!process.exitCode) ok(`cars: ${hCars.length} match (id, price, power, topSpeedKmh, grip, brake, body, kit)`);
 }
 
 // ---- handling -------------------------------------------------------

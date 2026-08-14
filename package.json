@@ -26,7 +26,8 @@
     "sfx": "node tools/elevenlabs/generate-sfx.mjs",
     "test:race": "node tests/fullrace.mjs",
     "test:fonts": "node tests/fonts.mjs",
-    "test:mods": "node tests/mods.mjs"
+    "test:mods": "node tests/mods.mjs",
+    "test:topspeed": "node tests/topspeed.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",

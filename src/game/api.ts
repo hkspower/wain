@@ -59,7 +59,7 @@ export function buildCars() {
     classLabel: CLASS_LABELS[c.cls],
     price: c.price,
     power: c.power,
-    topSpeed: c.topSpeed,
+    topSpeedKmh: c.topSpeedKmh,
     grip: c.grip,
     brake: c.brake,
     color: hex(c.color),
