@@ -520,7 +520,15 @@
     reports: "nokhatha-xbrl-reports-v1"
   };
   function rd(k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v === null ? d : v; } catch (e) { return d; } }
-  function wr(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  /* Returns whether the write actually happened. It used to swallow the
+     failure and return nothing, so a full quota — or private browsing, where
+     the write throws on the first attempt — dropped the record while the toast
+     said it was saved. Demonstrated: added a holding with storage refusing
+     writes, got «تمت إضافة NBK», and the table stayed empty. */
+  function wr(k, v) {
+    try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; }
+  }
+  var STORAGE_FULL = "تعذّر الحفظ على هذا الجهاز — المساحة ممتلئة أو التصفح الخاص مفعّل.";
 
   var STATUSES = ["جديد", "قيد التحضير", "في الطريق", "تم التسليم", "ملغي"];
   var DELIVERED = 3, CANCELLED = 4;
@@ -653,12 +661,14 @@
                   cost: clamp(f.cost.value, 1e7), price: clamp(f.price.value, 1e7) };
     var i = list.findIndex(function (x) { return x.ticker === t; });
     if (i >= 0) list[i] = entry; else list.push(entry);
-    wr(K.safi, list); f.reset(); renderAll(); toast(i >= 0 ? "تم تحديث " + t : "تمت إضافة " + t);
+    if (!wr(K.safi, list)) { toast(STORAGE_FULL); return; }
+    f.reset(); renderAll(); toast(i >= 0 ? "تم تحديث " + t : "تمت إضافة " + t);
   });
   el("safi-rows").addEventListener("click", function (e) {
     var b = e.target.closest("button[data-del-safi]"); if (!b) return;
     var list = holdings(); var gone = list.splice(Number(b.getAttribute("data-del-safi")), 1);
-    wr(K.safi, list); renderAll(); toast("تم حذف " + (gone[0] ? gone[0].ticker : ""));
+    if (!wr(K.safi, list)) { toast(STORAGE_FULL); return; }
+    renderAll(); toast("تم حذف " + (gone[0] ? gone[0].ticker : ""));
   });
   el("safi-export").addEventListener("click", function () {
     var lines = ["Ticker,Company,Qty,AvgCostFils,PriceFils,ValueKWD,PLKWD"];
@@ -886,7 +896,11 @@
                 assets: t.assets, equity: t.eq,
                 revenue: xnum("revenue"), profit: t.net,
                 filedAt: new Date().toISOString() });
-    wr(K.reports, hist.slice(-200));
+    if (!wr(K.reports, hist.slice(-200))) {
+      // the XML still downloads — the file is the deliverable — but the user
+      // must not be told it was filed away when it was not
+      toast(STORAGE_FULL);
+    }
     var a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([xml], { type: "application/xml" }));
     a.download = "xbrl-" + (xf.entity.value.trim().replace(/[^\w؀-ۿ-]+/g, "-").slice(0, 60) || "report") +
@@ -966,18 +980,21 @@
                 address: f.address.value.trim().slice(0, 160), items: f.items.value.trim().slice(0, 160),
                 amount: clamp(f.amount.value, 1e6), courier: f.courier.value, status: 0,
                 createdAt: new Date().toISOString() });
-    wr(K.orders, list); f.reset(); renderAll(); toast("تمت إضافة الطلب ✔");
+    if (!wr(K.orders, list)) { toast(STORAGE_FULL); return; }
+    f.reset(); renderAll(); toast("تمت إضافة الطلب ✔");
   });
   el("del-courier-form").addEventListener("submit", function (e) {
     e.preventDefault();
     var f = e.target, cs = couriers();
     cs.push({ name: f.cname.value.trim().slice(0, 80), phone: f.cphone.value.replace(/[^0-9+ ]/g, "").slice(0, 15) });
-    wr(K.couriers, cs); f.reset(); renderAll(); toast("تمت إضافة المندوب");
+    if (!wr(K.couriers, cs)) { toast(STORAGE_FULL); return; }
+    f.reset(); renderAll(); toast("تمت إضافة المندوب");
   });
   el("del-couriers").addEventListener("click", function (e) {
     var b = e.target.closest("button[data-del-courier]"); if (!b) return;
     var cs = couriers(); cs.splice(Number(b.getAttribute("data-del-courier")), 1);
-    wr(K.couriers, cs); renderAll();
+    if (!wr(K.couriers, cs)) { toast(STORAGE_FULL); return; }
+    renderAll();
   });
   el("del-filters").addEventListener("click", function (e) {
     var b = e.target.closest("button[data-filter]"); if (!b) return;
@@ -990,7 +1007,8 @@
     if (n) { var o = list[Number(n.getAttribute("data-next"))];
              if (o.status < DELIVERED) { o.status += 1; toast(o.id + " → " + STATUSES[o.status]); } }
     else { list[Number(c.getAttribute("data-cancel"))].status = CANCELLED; toast("تم إلغاء الطلب"); }
-    wr(K.orders, list); renderAll();
+    if (!wr(K.orders, list)) { toast(STORAGE_FULL); return; }
+    renderAll();
   });
 
   /* ════════════════════ routing + render ════════════════════ */

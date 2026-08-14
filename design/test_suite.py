@@ -586,7 +586,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "513", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "515", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -620,7 +620,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "513", "0", "100%"], str(finals))
+          finals == ["4", "515", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -1154,6 +1154,44 @@ def scan_checks(pg, br):
     check(S, "the upgrade exempts localhost, so http testing still works",
           lp.url.startswith("http://127.0.0.1"), lp.url)
     lp.context.close()
+
+    # A write that fails silently is worse than one that throws: the record is
+    # gone and the toast says it was saved. Demonstrated on a full quota — and
+    # private browsing throws on the first write, so this is not a rare case.
+    c = br.new_context()
+    c.add_init_script("""(() => {
+      const real = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (k, v) {
+        if (String(k).indexOf('nokhatha-') === 0) {
+          const e = new Error('quota'); e.name = 'QuotaExceededError'; throw e;
+        }
+        return real.call(this, k, v);
+      };
+    })()""")
+    qp = c.new_page()
+    qp.goto(f"{BASE}/nizam.html#/safi", wait_until="networkidle"); qp.wait_for_timeout(300)
+    qp.fill('#safi-form [name="ticker"]', "NBK")
+    qp.fill('#safi-form [name="name"]', "بنك")
+    qp.fill('#safi-form [name="qty"]', "100")
+    qp.fill('#safi-form [name="cost"]', "850")
+    qp.fill('#safi-form [name="price"]', "910")
+    qp.click('#safi-form button[type=submit]'); qp.wait_for_timeout(400)
+    msg = qp.inner_text("#toast")
+    rows = qp.eval_on_selector_all("#safi-rows tr", "r=>r.length")
+    check(S, "a record that could not be saved is never reported as saved",
+          rows == 0 and "تعذّر الحفظ" in msg, f"{rows} rows, toast: {msg}")
+
+    # the portal already refused; keep it that way
+    rp = c.new_page()
+    rp.goto(f"{BASE}/nokhatha.html#/register", wait_until="networkidle"); rp.wait_for_timeout(300)
+    rp.fill('#form-register [name="name"]', "م")
+    rp.fill('#form-register [name="email"]', "a@b.co")
+    rp.fill('#form-register [name="password"]', "correct-horse-2026")
+    rp.click('#form-register button[type=submit]'); rp.wait_for_timeout(700)
+    check(S, "an account that could not be stored does not sign you in",
+          "تعذّر الحفظ" in rp.inner_text("#register-error") and "/dashboard" not in rp.url,
+          rp.url)
+    c.close()
 
     # one numeral system per table: the quantity column used the device locale
     c = br.new_context(locale="ar-KW")

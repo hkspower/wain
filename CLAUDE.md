@@ -19,7 +19,11 @@
 use only**. It must never appear on the live site, in any published page, name,
 title, filename, or artefact. Write **النوخذة** in Arabic; where a Latin
 filename or key is unavoidable, use `nokhatha` (matching the `nokhatha-*`
-storage keys). The portal lives at `nokhatha.html` (`/nokhatha`); `nokha1.html`
+storage keys). The portal lives at `nokhatha.html`; the extensionless `/nokhatha` form is a
+rewrite in `.htaccess`, so it works on an Apache/LiteSpeed host and **not on
+GitHub Pages, where this deploys** — nothing links to it, so treat it as
+available only on the Apache path until someone checks the live host.
+`nokha1.html`
 survives only as an unlinked redirect for links published before the rename.
 `design/test_suite.py` fails if the shorthand reappears in **any authored
 artefact**, not only a page — it was found in `.htaccess`, in `SECURITY.md`'s
@@ -244,7 +248,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 513 checks covering
+- `python3 design/test_suite.py` is the full system test — 515 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
@@ -316,6 +320,12 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   **frame-buster** instead — hide first, navigate second, because a sandboxed
   frame can block the navigation. It is a mitigation, not a fix; the fix is a
   host that reads `.htaccess`. `SECURITY.md` states this in a table.
+- **A storage write that fails silently is data loss with a success message.**
+  `wr()` swallowed the exception and returned nothing, so on a full quota — or
+  in private browsing, where the first write throws — a holding was dropped
+  while the toast said «تمت إضافة NBK». Every write now returns whether it
+  happened and every caller checks before claiming success. Pinned by
+  simulating a refusing `Storage.prototype.setItem`.
 - **A formula guard that only knows `= + - @` is not a guard**: Excel strips a
   leading TAB before deciding what a cell is, and a CR inside a name split the
   CSV row in half and put its tail on a new line as a fresh first cell. Collapse
