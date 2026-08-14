@@ -30,7 +30,8 @@
     "test:topspeed": "node tests/topspeed.mjs",
     "test:vfx": "node tests/vfx.mjs",
     "test:audio": "node tests/audio.mjs",
-    "test:daynight": "node tests/daynight.mjs"
+    "test:daynight": "node tests/daynight.mjs",
+    "test:ik": "node tests/ik.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",

@@ -62,7 +62,7 @@ const SKIN = () => new THREE.MeshStandardMaterial({ color: 0xb9895f, roughness: 
 
 /** Ghutra over the crown with a fall down the back, cinched by the agal.
  *  Added to `g` around a head centred at `headY`. */
-function addGhutra(g: THREE.Group, headY: number, headdress: "white" | "check"): void {
+function addGhutra(g: THREE.Object3D, headY: number, headdress: "white" | "check"): void {
   const clothMat =
     headdress === "check"
       ? new THREE.MeshStandardMaterial({ map: ghutraCheckTexture(), roughness: 0.85 })
@@ -121,24 +121,142 @@ export function kuwaitiFigure(
   }
 
   const headY = 1.5;
+  // The head is a joint, not a ball glued to a robe: the crowd turns to
+  // watch a car go past, and the neck has to be able to do that.
+  const headJoint = new THREE.Object3D();
+  headJoint.position.y = headY;
+  g.add(headJoint);
+  g.userData.head = headJoint;
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.115, 12, 9), skin);
-  head.position.y = headY;
-  g.add(head);
+  headJoint.add(head);
 
   if (kind === "dishdasha") {
-    addGhutra(g, headY, headdress);
+    addGhutra(headJoint, 0, headdress);
   } else {
     // Hijab: the head wrapped in the abaya's black, the face open
     const wrap = new THREE.Mesh(new THREE.SphereGeometry(0.128, 12, 9), cloth);
-    wrap.position.y = headY;
-    g.add(wrap);
+    headJoint.add(wrap);
     const face = new THREE.Mesh(new THREE.CircleGeometry(0.068, 12), skin);
-    face.position.set(0, headY + 0.01, 0.126);
-    g.add(face);
+    face.position.set(0, 0.01, 0.126);
+    headJoint.add(face);
   }
 
-  for (const m of g.children) m.castShadow = true;
+  g.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) o.castShadow = true;
+  });
   return g;
+}
+
+/** The rig an IK solver needs: joints, bone lengths, and the parts a
+ *  caller animates. */
+export interface DriverRig {
+  group: THREE.Group;
+  arms: Array<{
+    shoulder: THREE.Object3D;
+    elbow: THREE.Object3D;
+    hand: THREE.Object3D;
+    upper: number;
+    lower: number;
+    side: number;
+  }>;
+  head: THREE.Object3D;
+  wheel: THREE.Object3D;
+  /** Rim radius, so the caller can put hands at ten-to-two. */
+  wheelRadius: number;
+}
+
+/**
+ * The driver, seated, with arms built as real two-bone chains so IK can
+ * put their hands on the wheel rather than parenting them there. Seen
+ * through the glass and in the versus film, so the pose matters more
+ * than the polygon count.
+ */
+export function kuwaitiDriver(suitColor = 0x1d2026, skinTone = 0xb9895f): DriverRig {
+  const group = new THREE.Group();
+  const suit = new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.7 });
+  const skin = new THREE.MeshStandardMaterial({ color: skinTone, roughness: 0.75 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x101216, roughness: 0.55 });
+
+  // Torso, leaned back into the seat the way a driver sits
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.185, 0.46, 9), suit);
+  torso.position.set(0, 0.23, -0.02);
+  torso.rotation.x = -0.16;
+  group.add(torso);
+
+  const head = new THREE.Object3D();
+  head.position.set(0, 0.52, 0.02);
+  group.add(head);
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.112, 12, 9), skin);
+  head.add(skull);
+  // A helmet, because this is a race and the ghutra is for the pit lane
+  const helmet = new THREE.Mesh(
+    new THREE.SphereGeometry(0.135, 14, 10),
+    new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.2, metalness: 0.3 })
+  );
+  head.add(helmet);
+  const visor = new THREE.Mesh(
+    new THREE.SphereGeometry(0.139, 14, 10, Math.PI * 0.32, Math.PI * 0.36, Math.PI * 0.34, Math.PI * 0.3),
+    new THREE.MeshStandardMaterial({ color: 0x141a26, roughness: 0.08, metalness: 0.85 })
+  );
+  visor.rotation.y = -Math.PI / 2;
+  head.add(visor);
+
+  // The wheel the hands will be solved onto
+  const wheelRadius = 0.16;
+  const wheel = new THREE.Object3D();
+  wheel.position.set(0, 0.44, 0.24);
+  wheel.rotation.x = -0.42; // raked toward the driver, like a real column
+  group.add(wheel);
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(wheelRadius, 0.018, 8, 24),
+    dark
+  );
+  wheel.add(rim);
+  for (let i = 0; i < 3; i++) {
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.022, wheelRadius, 0.012), dark);
+    spoke.position.y = -wheelRadius / 2;
+    const holder = new THREE.Object3D();
+    holder.rotation.z = (i / 3) * Math.PI * 2;
+    holder.add(spoke);
+    wheel.add(holder);
+  }
+
+  // Arms as chains: shoulder → elbow → hand, each bone along -Y so the
+  // solver's default bone axis applies without special cases.
+  // Adult arm: upper 0.29, forearm 0.26. The first pass used 0.20/0.19,
+  // which cannot reach a steering wheel from a seat — the solver
+  // correctly straightened the arm and the hand hung 36 cm short.
+  const upper = 0.29;
+  const lower = 0.26;
+  const arms: DriverRig["arms"] = [];
+  for (const side of [-1, 1]) {
+    const shoulder = new THREE.Object3D();
+    shoulder.position.set(side * 0.16, 0.46, -0.04);
+    group.add(shoulder);
+    const upperMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.042, upper, 6), suit);
+    upperMesh.position.y = -upper / 2;
+    shoulder.add(upperMesh);
+
+    const elbow = new THREE.Object3D();
+    elbow.position.y = -upper;
+    shoulder.add(elbow);
+    const foreMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.036, lower, 6), suit);
+    foreMesh.position.y = -lower / 2;
+    elbow.add(foreMesh);
+
+    const hand = new THREE.Object3D();
+    hand.position.y = -lower;
+    elbow.add(hand);
+    const glove = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), dark);
+    hand.add(glove);
+
+    arms.push({ shoulder, elbow, hand, upper, lower, side });
+  }
+
+  group.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) o.castShadow = true;
+  });
+  return { group, arms, head, wheel, wheelRadius };
 }
 
 export interface RacerLook {

@@ -12,6 +12,8 @@ import { RIVALS, RivalDef } from "./rivals";
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
 import { ParticleSystem, radialSprite } from "./vfx";
+import { solveTwoBone, aimConstrained } from "./ik";
+import type { DriverRig } from "./characters";
 import { Music } from "./music";
 import { GEARS } from "./gears";
 import { loadGarage, saveGarage, computeEffects, addKd, TuneEffects, getCar, CARS } from "./mods";
@@ -2196,6 +2198,12 @@ export class GameEngine {
     this.updateBeamVisibility();
     this.updateStreaks();
     this.updateAudio();
+    this.world.setCrowdFocus(
+      this.playerMesh.position.x,
+      this.playerMesh.position.y + 1,
+      this.playerMesh.position.z,
+      dt
+    );
     this.world.tick(dt);
     this.updateEffects(dt);
     this.emitHud();
@@ -2471,6 +2479,23 @@ export class GameEngine {
     this.carBody.rotation.x = this.pitch;
     // Lit-up rears visibly overspin the road speed — the launch tell
     spinWheels(this.carBody, p.speed + this.wheelspin * 0.8, dt, -this.steerSmooth * 0.3);
+    this.updateDriver(dt);
+    if (typeof window !== "undefined" && !(window as unknown as { __ikSolve?: unknown }).__ikSolve) {
+      // Debug hook: lets the IK test drive the solver directly
+      (window as unknown as { __ikSolve: unknown }).__ikSolve = (
+        arm: { shoulder: THREE.Object3D; elbow: THREE.Object3D; upper: number; lower: number },
+        target: THREE.Vector3,
+        pole: THREE.Vector3
+      ) =>
+        solveTwoBone({
+          root: arm.shoulder,
+          mid: arm.elbow,
+          upper: arm.upper,
+          lower: arm.lower,
+          target,
+          pole,
+        });
+    }
     const brakeLit = this.brake > 0 || this.handbrake;
     (this.carBody.userData.tailMat as THREE.MeshStandardMaterial).emissiveIntensity = brakeLit
       ? 7
@@ -3042,6 +3067,59 @@ export class GameEngine {
         }
       }
     }
+  }
+
+  /**
+   * The driver, solved rather than posed. The wheel turns with the
+   * steering, both hands are IK'd onto the rim where they were gripping
+   * it, and the head looks into the corner — which is what a driver
+   * does, and what makes a figure behind glass read as alive instead of
+   * a mannequin bolted to a seat.
+   */
+  private updateDriver(dt: number): void {
+    const rig = this.carBody.userData.driver as DriverRig | undefined;
+    if (!rig) return;
+
+    // Lock-to-lock is about a turn and a half each way in a road car;
+    // steerSmooth is -1..1, so this is the visible wheel angle.
+    const lock = this.steerSmooth * 2.4;
+    rig.wheel.rotation.z += (-lock - rig.wheel.rotation.z) * Math.min(1, dt * 12);
+
+    // Ten-to-two, carried round with the rim. The grips are points ON
+    // the wheel, so the hands travel with it and the arms must follow.
+    rig.wheel.updateWorldMatrix(true, false);
+    for (const arm of rig.arms) {
+      const grip = arm.side < 0 ? Math.PI * 0.72 : Math.PI * 0.28;
+      const a = grip + rig.wheel.rotation.z;
+      this.v1.set(Math.cos(a) * rig.wheelRadius, Math.sin(a) * rig.wheelRadius, 0);
+      rig.wheel.localToWorld(this.v1);
+
+      // Elbows break outward and down — the pole is what stops a solved
+      // arm from bending like a flamingo's knee.
+      arm.shoulder.updateWorldMatrix(true, false);
+      this.v2.setFromMatrixPosition(arm.shoulder.matrixWorld);
+      this.v2.y -= 0.5;
+      this.v2.x += arm.side * 0.35;
+
+      solveTwoBone({
+        root: arm.shoulder,
+        mid: arm.elbow,
+        upper: arm.upper,
+        lower: arm.lower,
+        target: this.v1,
+        pole: this.v2,
+        weight: 1,
+      });
+    }
+
+    // Eyes up: look where the car is going, not where it is pointing.
+    this.track.pose(this.player.s + 26, this.player.lat * 0.4, this.v1, this.v2);
+    this.v1.y += 1.1;
+    aimConstrained(rig.head, this.v1, {
+      maxYaw: 0.7,
+      maxPitch: 0.28,
+      ease: Math.min(1, dt * 5),
+    });
   }
 
   /**

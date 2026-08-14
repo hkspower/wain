@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { upgradeCarShells, upgradeWheels } from "./models";
 import { arabicUI, latinDisplay } from "./text";
+import { kuwaitiDriver } from "./characters";
 
 // Procedural sedans with a real silhouette: the body and glasshouse are
 // bevel-extruded side profiles (smoothed normals), riding on spoked
@@ -504,13 +505,20 @@ const archMat = new THREE.MeshStandardMaterial({ color: 0x101114, roughness: 0.9
 const wellGeo = new THREE.CircleGeometry(0.44, 16);
 const wellMat = new THREE.MeshBasicMaterial({ color: 0x060708 });
 
+// Tinted glass, not a mirror. The intent here was always to silhouette
+// the interior, but metalness 0.9 made the surface behave like polished
+// chrome: a metal has no diffuse transmission, so the reflection won
+// every pixel and the cabin was a black box with a driver invisible
+// inside it. Glass is a dielectric — metalness near zero, a real index
+// of refraction, and enough transparency to see a shape through.
 const glassMat = new THREE.MeshPhysicalMaterial({
-  color: 0x0c1018,
-  roughness: 0.06,
-  metalness: 0.9,
-  envMapIntensity: 1.6,
+  color: 0x121722,
+  roughness: 0.05,
+  metalness: 0.12,
+  ior: 1.5,
+  envMapIntensity: 1.35,
   transparent: true,
-  opacity: 0.8, // just enough to silhouette the interior
+  opacity: 0.62,
 });
 
 const seamMat = new THREE.MeshStandardMaterial({ color: 0x0a0b0d, roughness: 0.85 });
@@ -1380,6 +1388,13 @@ export function createCar(colors: CarColors): THREE.Group {
       headrest.position.set(sx, d.dashY + 0.14, bCabBack ? -0.45 : -0.05);
       group.add(headrest);
     }
+
+    // Somebody is driving this. Right-hand drive, hands on the wheel by
+    // IK rather than parented to it, so the arms answer the steering.
+    const driver = kuwaitiDriver(0x1d2026);
+    driver.group.position.set(0.38, d.dashY - 0.34, bCabBack ? -0.28 : 0.08);
+    group.add(driver.group);
+    group.userData.driver = driver;
 
     // Brake calipers peeking through the spokes
     for (const [wx, wz] of [

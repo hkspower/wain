@@ -5,6 +5,7 @@ import { applyTextureManifest } from "./assets";
 import { upgradePalmCrowns } from "./models";
 import { textTexture, arabicSign, latinDisplay } from "./text";
 import { flagTexture, kuwaitiFigure, kuwaitiRacer, type RacerLook } from "./characters";
+import { aimConstrained } from "./ik";
 import { RIVALS } from "./rivals";
 
 /** Drooping palm fronds merged into one geometry (crown sits at trunk top). */
@@ -1095,6 +1096,8 @@ export interface WorldHandle {
   setSky(mode: SkyMode): void;
   /** Continuous time of day in hours, 0..24. Drives everything. */
   setTimeOfDay(hours: number): void;
+  /** Turn the roadside crowd to watch the car at this world position. */
+  setCrowdFocus(x: number, y: number, z: number, dt: number): void;
   /** The moon — the engine drives its shadow frustum along with the player. */
   moonLight: THREE.DirectionalLight;
   /** Sky dome, stars and moon disc — re-centred on the camera each frame
@@ -1117,6 +1120,9 @@ function makeBeacon(beacons: THREE.MeshStandardMaterial[]): THREE.Mesh {
 // Hawally tunnel on the inland leg — TXR-style underpass
 const TUNNEL_U = { from: 0.615, to: 0.655 };
 
+const _focus = new THREE.Vector3();
+const _rest = new THREE.Quaternion();
+
 export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // Handles for the night-shimmer tick (assigned in the streetlight block)
   let glintMat: THREE.PointsMaterial | null = null;
@@ -1133,6 +1139,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   let lampPoolMat: THREE.MeshBasicMaterial | null = null;
   /** 0 at noon, 1 after dark — scales everything the streetlights do. */
   let lampLevel = 1;
+  /** Everyone standing at the roadside who turns to watch a car go past:
+   *  the figure (whose body takes over when the neck runs out) and its
+   *  head joint, with the heading each was placed at. */
+  const watchers: Array<{ body: THREE.Object3D; head: THREE.Object3D; baseYaw: number }> = [];
   /**
    * Materials that glow only because the world was authored at night:
    * lane paint, kerbs, sign faces, lit windows. Sunlight lights them for
@@ -1912,6 +1922,9 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       fig.lookAt(tmp.x, 0, tmp.z);
       fig.rotateY((i % 2 === 0 ? 1 : -1) * 0.25);
       crew.add(fig);
+      if (fig.userData.head) {
+        watchers.push({ body: fig, head: fig.userData.head as THREE.Object3D, baseYaw: fig.rotation.y });
+      }
     });
     scene.add(crew);
   }
@@ -2189,6 +2202,9 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         fig.lookAt(islandPos.x, 0, islandPos.z);
         seed++;
         crowd.add(fig);
+        if (fig.userData.head) {
+          watchers.push({ body: fig, head: fig.userData.head as THREE.Object3D, baseYaw: fig.rotation.y });
+        }
       }
       scene.add(crowd);
     }
@@ -2468,6 +2484,36 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       for (const g of nightGlow) g.mat.emissiveIntensity = g.base * lampLevel;
     },
 
+    setCrowdFocus(x: number, y: number, z: number, dt: number) {
+      _focus.set(x, y, z);
+      for (const w of watchers) {
+        // Nobody cranes at a car three streets away
+        const dx = w.body.position.x - x;
+        const dz = w.body.position.z - z;
+        const near = dx * dx + dz * dz < 90 * 90;
+        if (!near) {
+          // Ease back to the way they were standing
+          w.head.quaternion.slerp(_rest, Math.min(1, dt * 1.5));
+          continue;
+        }
+        // The neck goes first, and reports how much of the turn it could
+        // take; the body supplies whatever it could not.
+        const got = aimConstrained(w.head, _focus, {
+          maxYaw: 1.15,
+          maxPitch: 0.3,
+          ease: Math.min(1, dt * 6),
+        });
+        if (got < 0.999) {
+          // Shoulders follow — this is the difference between a crowd
+          // watching and a row of heads on swivels.
+          const want = Math.atan2(x - w.body.position.x, z - w.body.position.z);
+          let delta = want - w.body.rotation.y;
+          while (delta > Math.PI) delta -= Math.PI * 2;
+          while (delta < -Math.PI) delta += Math.PI * 2;
+          w.body.rotation.y += delta * Math.min(1, dt * 1.2) * (1 - got);
+        }
+      }
+    },
     tick(dt: number) {
       time += dt;
       // Slow drift of the wave crests across the bay

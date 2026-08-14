@@ -228,6 +228,33 @@ npm run test:daynight
 GRN_STILLS=1 npm run test:daynight   # also writes /tmp/smoke/tod-*.png
 ```
 
+## ik.mjs — the hands are on the wheel, not near it
+
+IK is one of the few things in a game that is provable: an end effector
+either lands on its target or it does not, and the error is a number in
+metres. This drives the steering to five positions and measures how far
+each hand ends up from the rim point it was solving for, checks an
+unreachable target straightens the arm instead of producing NaN, and
+confirms a spectator's neck stops at its limit and hands the rest of
+the turn to their shoulders.
+
+It earned its keep immediately. The first run measured errors up to
+0.5 m with everything *looking* plausible, and the reason was two real
+bugs: bone lengths are authored in the rig's own units while the target
+and aim are in world space, and this rig sits under the car's 1.12x
+presence scale, so the triangle was being solved for the wrong arm; and
+the elbow was hinging about its own local X with no relationship to the
+plane the shoulder had aimed in, so every joint angle was individually
+correct and the hand still missed. The solver now lifts the bone
+lengths into world units and builds the shoulder as a full basis, so
+the elbow's hinge lands on the bend plane's normal. Error is 0 m at
+every lock.
+
+```bash
+npm run test:ik
+GRN_STILLS=1 npm run test:ik   # also writes /tmp/smoke/ik-driver.png
+```
+
 ## framepacing.mjs — dynamic fps, v-sync, G-Sync
 
 Panel-refresh detection, the frame limiter, the G-Sync-style
