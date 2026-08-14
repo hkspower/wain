@@ -204,6 +204,30 @@ condition that should raise it and read back off live WebAudio state.
 npm run test:audio
 ```
 
+## daynight.mjs — the day actually turns
+
+A day/night cycle is easy to fake with a variable nothing reads, so
+every hour sampled here is checked against the world it should be
+changing: the sky gradient's top colour, the key light's strength, star
+opacity, the streetlights' pools, the headlight beams. Then cycle mode
+is left running for forty seconds of play to confirm the clock advances
+at the rate the 16-minute day implies.
+
+Daylight surfaced something that had been invisible for the whole
+project: the road paint, kerbs, sign faces and city windows are all
+emissive, because the game was authored at night and they had to be
+readable in the dark. At noon they blazed like neon. They are now
+registered by a single rule at build time — a faint emissive is night
+dressing the sun will light for real, a bright one is an actual lamp —
+and dimmed with the photocell. The line sits above lit windows and
+below street lamps, tunnel strips, floodlights and the aircraft
+beacons, which stay on in daylight because they do in life.
+
+```bash
+npm run test:daynight
+GRN_STILLS=1 npm run test:daynight   # also writes /tmp/smoke/tod-*.png
+```
+
 ## framepacing.mjs — dynamic fps, v-sync, G-Sync
 
 Panel-refresh detection, the frame limiter, the G-Sync-style

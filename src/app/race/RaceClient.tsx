@@ -1523,6 +1523,9 @@ export default function RaceClient() {
                 [
                   ["night", "Midnight", "ليل", "Sodium lamps, full stars, the classic run"],
                   ["dawn", "First light", "فجر", "Sunrise band on the horizon, stars fading"],
+                  ["noon", "High sun", "ظهر", "Daylight over the bay, lamps off, hard shadows"],
+                  ["dusk", "Maghrib", "مغرب", "The sun going down behind the towers"],
+                  ["cycle", "Full cycle", "دورة كاملة", "The clock runs — a whole day every 16 minutes"],
                 ] as const
               ).map(([mode, label, ar, desc]) => (
                 <button

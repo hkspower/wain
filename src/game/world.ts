@@ -1093,6 +1093,8 @@ export interface WorldHandle {
   tick(dt: number): void;
   /** Repaint the world for midnight or the first light of dawn. */
   setSky(mode: SkyMode): void;
+  /** Continuous time of day in hours, 0..24. Drives everything. */
+  setTimeOfDay(hours: number): void;
   /** The moon — the engine drives its shadow frustum along with the player. */
   moonLight: THREE.DirectionalLight;
   /** Sky dome, stars and moon disc — re-centred on the camera each frame
@@ -1124,6 +1126,20 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   let starsMatRef: THREE.PointsMaterial | null = null;
   let moonDiscMat: THREE.MeshBasicMaterial | null = null;
   let moonHaloMat: THREE.SpriteMaterial | null = null;
+  // The celestial body: the moon after dark, the sun in daylight — one
+  // disc that crosses the sky, because two would be a lie half the time.
+  let bodyDisc: THREE.Mesh | null = null;
+  let bodyHalo: THREE.Sprite | null = null;
+  let lampPoolMat: THREE.MeshBasicMaterial | null = null;
+  /** 0 at noon, 1 after dark — scales everything the streetlights do. */
+  let lampLevel = 1;
+  /**
+   * Materials that glow only because the world was authored at night:
+   * lane paint, kerbs, sign faces, lit windows. Sunlight lights them for
+   * real, so their emissive has to come off with the dark or noon looks
+   * like a neon rave. Registered with their night value and scaled.
+   */
+  const nightGlow: Array<{ mat: THREE.MeshStandardMaterial; base: number }> = [];
   let hemiRef: THREE.HemisphereLight | null = null;
 
   const L = track.length;
@@ -1189,6 +1205,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // The moon over the Gulf, with a soft halo
     moonDiscMat = new THREE.MeshBasicMaterial({ color: 0xfdf3d3, fog: false, transparent: true });
     const moonDisc = new THREE.Mesh(new THREE.CircleGeometry(70, 32), moonDiscMat);
+    bodyDisc = moonDisc;
     moonDisc.position.set(-980, 640, -200);
     moonDisc.lookAt(0, 0, 0);
     moonDisc.renderOrder = -1;
@@ -1205,6 +1222,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const halo = new THREE.Sprite(moonHaloMat);
     halo.scale.set(520, 520, 1);
     halo.position.copy(moonDisc.position);
+    bodyHalo = halo;
     scene.add(halo);
     skyFollowers.push(halo);
   }
@@ -1547,6 +1565,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       scene.add(glints);
     }
     shimmerLampMat = lampMat;
+    lampPoolMat = poolMat;
   }
 
   // Cat-eye road studs along both edge lines — they sparkle into the
@@ -2311,41 +2330,144 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   }
 
   let time = 0;
+  // Collect the night dressing in a single pass with one rule: a faint
+  // emissive is paint or a sign face that was made readable in the dark,
+  // and sunlight will light it for real; a bright one is an actual lamp
+  // and stays lit. Doing it by rule rather than by hand means a material
+  // added later is covered without anyone remembering to register it.
+  {
+    const seen = new Set<THREE.Material>();
+    scene.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh && !(mesh as unknown as THREE.InstancedMesh).isInstancedMesh) return;
+      for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+        const std = m as THREE.MeshStandardMaterial;
+        if (!std?.isMeshStandardMaterial || seen.has(std)) continue;
+        seen.add(std);
+        const lit = std.emissive && (std.emissive.r + std.emissive.g + std.emissive.b) > 0.01;
+        // The line sits above lit windows (1.6) and below street lamps
+        // (3.2), tunnel strips (3.0), floodlights (3.4) and the aircraft
+        // beacons (2.5) — all of which are on in daylight too.
+        if (lit && std.emissiveIntensity > 0 && std.emissiveIntensity <= 2.0) {
+          nightGlow.push({ mat: std, base: std.emissiveIntensity });
+        }
+      }
+    });
+  }
+
   return {
     moonLight,
     skyFollowers,
     setSky(mode: SkyMode) {
-      const dawn = mode === "dawn";
-      // Fog is the floor the scene fades to — at dawn it warms and lifts
-      // toward the sunrise horizon instead of the black of the bay.
-      (scene.fog as THREE.FogExp2).color.setHex(dawn ? 0x191a2c : 0x02030b);
+      // The old two-state switch, expressed in the language of the
+      // clock: these are the hours those looks actually are.
+      this.setTimeOfDay(mode === "dawn" ? 5.6 : 22.5);
+    },
+
+    /**
+     * The whole sky, as a function of one number: the hour.
+     *
+     * Everything that reads as "time of day" is driven from the sun's
+     * altitude — sky gradient, fog, the key light's direction, colour
+     * and strength, the stars, the visible body, and whether the
+     * streetlights are on. Palettes are keyframed at night, twilight
+     * and noon and interpolated, because the interesting minutes are
+     * the ones between them.
+     */
+    setTimeOfDay(hours: number) {
+      const h = ((hours % 24) + 24) % 24;
+      // Sun altitude, -1 at midnight through +1 at noon
+      const sunAlt = Math.sin(((h - 6) / 24) * Math.PI * 2);
+      // Where it is on the horizon: swings across the bay through the day
+      const az = ((h - 6) / 24) * Math.PI * 2;
+
+      // Blend weights. Twilight is the narrow band around the horizon,
+      // and it is what makes a cycle worth having.
+      const day = THREE.MathUtils.clamp(sunAlt * 3.2, 0, 1);
+      const night = THREE.MathUtils.clamp(-sunAlt * 3.2, 0, 1);
+      const twilight = 1 - day - night;
+
+      const mix3 = (n: number[], t: number[], d: number[]) =>
+        new THREE.Color(
+          n[0] * night + t[0] * twilight + d[0] * day,
+          n[1] * night + t[1] * twilight + d[1] * day,
+          n[2] * night + t[2] * twilight + d[2] * day
+        );
+
+      // Sky gradient: deep bay blue → sunrise ember → daylight blue
       if (skyMatRef) {
         const u = skyMatRef.uniforms;
-        if (dawn) {
-          (u.uTop.value as THREE.Color).setRGB(0.030, 0.048, 0.105);
-          (u.uHorizon.value as THREE.Color).setRGB(0.42, 0.24, 0.16);
-          (u.uGlow.value as THREE.Color).setRGB(0.55, 0.21, 0.07);
-          u.uGlowHeight.value = 0.34; // sunrise light climbs the sky
-        } else {
-          (u.uTop.value as THREE.Color).setRGB(0.004, 0.007, 0.026);
-          (u.uHorizon.value as THREE.Color).setRGB(0.05, 0.066, 0.125);
-          (u.uGlow.value as THREE.Color).setRGB(0.085, 0.046, 0.01);
-          u.uGlowHeight.value = 0.16;
-        }
+        (u.uTop.value as THREE.Color).copy(
+          mix3([0.004, 0.007, 0.026], [0.030, 0.048, 0.105], [0.16, 0.34, 0.72])
+        );
+        (u.uHorizon.value as THREE.Color).copy(
+          mix3([0.05, 0.066, 0.125], [0.42, 0.24, 0.16], [0.62, 0.74, 0.92])
+        );
+        (u.uGlow.value as THREE.Color).copy(
+          mix3([0.085, 0.046, 0.01], [0.55, 0.21, 0.07], [0.36, 0.30, 0.16])
+        );
+        u.uGlowHeight.value = 0.16 * night + 0.34 * twilight + 0.22 * day;
       }
-      // Stars melt away as the sky lightens; the moon fades to a ghost
-      if (starsMatRef) starsMatRef.opacity = dawn ? 0.22 : 1.0;
-      if (moonDiscMat) moonDiscMat.opacity = dawn ? 0.3 : 1.0;
-      if (moonHaloMat) moonHaloMat.opacity = dawn ? 0.15 : 0.5;
-      // Cool moonlight becomes the first warm sun; fill rises with it
-      moonLight.color.setHex(dawn ? 0xffd9b0 : 0xbfd0ff);
-      moonLight.intensity = dawn ? 1.05 : 0.8;
+
+      // Fog is the floor the scene fades to, so it has to move with the
+      // sky or the horizon tears away from the world in front of it.
+      const fog = scene.fog as THREE.FogExp2;
+      fog.color.copy(mix3([0.008, 0.012, 0.043], [0.098, 0.102, 0.172], [0.62, 0.71, 0.85]));
+      fog.density = 0.0009 * night + 0.00075 * twilight + 0.00045 * day;
+
+      // The key light. It is the moon at night and the sun by day, so it
+      // travels: low and warm at the horizon, high and white at noon.
+      const elev = Math.max(0.08, Math.abs(sunAlt));
+      moonLight.position.set(
+        Math.cos(az) * 520,
+        160 + elev * 620,
+        Math.sin(az) * 520 * (sunAlt >= 0 ? 1 : -1)
+      );
+      moonLight.color.copy(
+        mix3([0.75, 0.82, 1.0], [1.0, 0.78, 0.55], [1.0, 0.96, 0.88])
+      );
+      moonLight.intensity = 0.8 * night + 1.05 * twilight + 2.35 * day;
+
       if (hemiRef) {
-        hemiRef.color.setHex(dawn ? 0x5a6a96 : 0x2b3853);
-        hemiRef.groundColor.setHex(dawn ? 0x2b2018 : 0x120e08);
-        hemiRef.intensity = dawn ? 0.52 : 0.36;
+        hemiRef.color.copy(mix3([0.17, 0.22, 0.33], [0.35, 0.42, 0.59], [0.55, 0.68, 0.92]));
+        hemiRef.groundColor.copy(mix3([0.07, 0.055, 0.03], [0.17, 0.13, 0.09], [0.42, 0.36, 0.28]));
+        hemiRef.intensity = 0.36 * night + 0.52 * twilight + 0.85 * day;
       }
+
+      // Stars burn out as the sky lifts; nothing kills a sunrise faster
+      // than a starfield still hanging in it.
+      if (starsMatRef) starsMatRef.opacity = Math.pow(night, 0.7);
+
+      // The visible body rides the same arc as the key light: the moon
+      // while the sun is down, the sun itself once it is up.
+      if (bodyDisc && bodyHalo && moonDiscMat && moonHaloMat) {
+        const sunUp = sunAlt > -0.05;
+        const r = 1150;
+        const y = 120 + Math.max(0.05, Math.abs(sunAlt)) * 900;
+        bodyDisc.position.set(Math.cos(az) * -r, y, Math.sin(az) * -r * (sunUp ? 1 : -1));
+        bodyDisc.lookAt(0, y * 0.2, 0);
+        bodyHalo.position.copy(bodyDisc.position);
+        // A sun is small, fierce and white; a moon is soft and pale
+        bodyDisc.scale.setScalar(sunUp ? 0.55 : 1);
+        moonDiscMat.color.setRGB(
+          1,
+          0.95 * night + 0.88 * twilight + 0.97 * day,
+          0.83 * night + 0.62 * twilight + 0.86 * day
+        );
+        moonDiscMat.opacity = 0.35 + 0.65 * Math.max(night, day);
+        bodyHalo.scale.setScalar(520 * (1 + day * 0.5 + twilight * 0.35));
+        moonHaloMat.opacity = 0.5 * night + 0.75 * twilight + 0.6 * day;
+      }
+
+      // Streetlights are on a photocell, not a clock: they come on as
+      // the light goes, hold through the night, and drop out at dawn.
+      lampLevel = THREE.MathUtils.clamp(1 - day * 1.25, 0, 1);
+      if (lampPoolMat) lampPoolMat.opacity = 0.42 * lampLevel;
+      if (glintMat) glintMat.visible = lampLevel > 0.05;
+      // Paint and sign faces stop glowing once the sun is lighting them
+      for (const g of nightGlow) g.mat.emissiveIntensity = g.base * lampLevel;
     },
+
     tick(dt: number) {
       time += dt;
       // Slow drift of the wave crests across the bay
@@ -2359,10 +2481,11 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // two incommensurate sines so it never reads as a loop
       if (shimmerLampMat) {
         shimmerLampMat.emissiveIntensity =
-          3.2 + Math.sin(time * 7.3) * 0.14 + Math.sin(time * 13.7) * 0.07;
+          (3.2 + Math.sin(time * 7.3) * 0.14 + Math.sin(time * 13.7) * 0.07) * lampLevel;
       }
       if (glintMat) {
-        glintMat.opacity = 0.55 + Math.sin(time * 9.1) * 0.06 + Math.sin(time * 15.9) * 0.04;
+        glintMat.opacity =
+          (0.55 + Math.sin(time * 9.1) * 0.06 + Math.sin(time * 15.9) * 0.04) * lampLevel;
       }
     },
   };

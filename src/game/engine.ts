@@ -417,6 +417,9 @@ export class GameEngine {
   /** Visible beam cones — flared with the lamps during the flash ritual. */
   private beamMat: THREE.MeshBasicMaterial | null = null;
   private beamBaseOpacity = 0.05;
+  /** The night-time values the daylight response scales down from. */
+  private beamBaseOpacityNight = 0.05;
+  private headlightBase = 1;
   private beamCamDir = new THREE.Vector3();
   private beamCarDir = new THREE.Vector3();
   // Live reflection probe: a low-res cube camera rides with the player so
@@ -742,6 +745,7 @@ export class GameEngine {
     this.scene.add(this.playerMesh);
 
     this.headlight = new THREE.SpotLight(0xfff2cc, 90, 90, 0.42, 0.45, 1.4);
+    this.headlightBase = 90;
     this.headlight.position.set(0, 1.1, 1.8);
     this.headlight.target.position.set(0, 0, 40);
     // Your own headlights throw real moving shadows off traffic and rails
@@ -791,6 +795,7 @@ export class GameEngine {
       });
       this.beamMat = beamMat;
       this.beamBaseOpacity = beamMat.opacity;
+      this.beamBaseOpacityNight = beamMat.opacity;
       for (const sx of [-0.7, 0.7]) {
         const beam = new THREE.Mesh(beamGeo, beamMat);
         beam.position.set(sx, 0.8, 8.7);
@@ -1149,8 +1154,50 @@ export class GameEngine {
   }
 
   /** Repaint the world for midnight or dawn (settings screen). */
-  setSky(mode: "night" | "dawn"): void {
-    this.world.setSky(mode);
+  /** Hours 0..24. Fixed looks are hours too; "cycle" lets it run. */
+  private timeHours = 22.5;
+  private timeCycling = false;
+  private skyAccum = 0;
+  /** Minutes of play for a full 24-hour turn. Long enough that a race
+   *  happens in one light, short enough to see the sun move. */
+  private static readonly CYCLE_MINUTES = 16;
+
+  setSky(mode: "night" | "dawn" | "noon" | "dusk" | "cycle"): void {
+    const HOURS: Record<string, number> = {
+      night: 22.5,
+      dawn: 5.6,
+      noon: 12.5,
+      dusk: 18.2,
+    };
+    this.timeCycling = mode === "cycle";
+    // A cycle starts where the eye expects this game to start: dusk,
+    // with the lights just coming on.
+    this.timeHours = this.timeCycling ? 18.2 : HOURS[mode] ?? 22.5;
+    this.world.setTimeOfDay(this.timeHours);
+    this.applyDaylight();
+  }
+
+  /**
+   * How much daylight there is, 0..1 — the sun's altitude, clamped.
+   * Everything that only makes sense in the dark reads this.
+   */
+  private get daylight(): number {
+    const alt = Math.sin(((this.timeHours - 6) / 24) * Math.PI * 2);
+    return THREE.MathUtils.clamp(alt * 3.2, 0, 1);
+  }
+
+  /**
+   * Headlights, beams and lamp glare exist because it is dark. In broad
+   * daylight a spot light throws no visible pool and a volumetric beam
+   * is just a grey cone hanging off the bumper, so both fade out — the
+   * lamps themselves stay lit, which is what Gulf drivers do anyway.
+   */
+  private applyDaylight(): void {
+    const dark = 1 - this.daylight;
+    this.headlight.intensity = this.headlightBase * (0.25 + 0.75 * dark);
+    this.beamBaseOpacity = this.beamBaseOpacityNight * dark;
+    const glows = (this.carBody?.userData.headGlowMats as THREE.SpriteMaterial[]) ?? [];
+    for (const g of glows) g.opacity = 0.9 * dark;
   }
 
   /**
@@ -2110,6 +2157,20 @@ export class GameEngine {
     }
     this.bumpCooldown = Math.max(0, this.bumpCooldown - dt);
     this.scrapeCooldown = Math.max(0, this.scrapeCooldown - dt);
+
+    // The clock. A full day turns in CYCLE_MINUTES of play, so a single
+    // race happens in one light while a session sees the sun come round.
+    if (this.timeCycling) {
+      this.timeHours = (this.timeHours + (24 / (GameEngine.CYCLE_MINUTES * 60)) * dt) % 24;
+      // The sky is a handful of uniform writes; at 4 Hz it is free and
+      // still smooth, because every value it sets is interpolated.
+      this.skyAccum += dt;
+      if (this.skyAccum >= 0.25) {
+        this.skyAccum = 0;
+        this.world.setTimeOfDay(this.timeHours);
+        this.applyDaylight();
+      }
+    }
 
     this.updatePlayer(dt);
     this.updateTraffic(dt);

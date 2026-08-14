@@ -19,7 +19,8 @@ export interface Settings {
   /** Bigger HUD for small screens or low vision. */
   largeHud: boolean;
   /** Time of day on the corniche. */
-  sky: "night" | "dawn";
+  /** A fixed hour, or "cycle" to let the clock run. */
+  sky: "night" | "dawn" | "noon" | "dusk" | "cycle";
   /**
    * Frame pacing. "display" follows the panel's own refresh rate — the
    * right default, and on a VRR/G-Sync panel it also keeps the game
