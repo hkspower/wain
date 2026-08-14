@@ -19,29 +19,25 @@ SIZES = [256, 128, 64, 48, 32, 24, 16]
 
 
 def square_mark() -> str:
-    html = (SITE / "index.html").read_text(encoding="utf-8")
-    m = re.search(r'<symbol id="i-sail" viewBox="([^"]+)">(.*?)</symbol>', html, re.S)
-    if not m:
-        sys.exit("i-sail symbol not found — did the mark move?")
-    return m.group(1), m.group(2)
+    """النوخذة's own mark — the anchor — not the company's boum.
+
+    This used to read `#i-sail` out of the company page, which put المهلب's
+    boum on النوخذة's application: the two are marked differently on purpose,
+    and crossing them is exactly what the identity rule forbids. icon.svg is
+    the product's mark and already carries the brand tile, so the whole file
+    is used as-is rather than re-tiled here.
+    """
+    svg = (SITE / "icon.svg").read_text(encoding="utf-8")
+    if "circle" not in svg:
+        sys.exit("icon.svg does not look like the anchor — did the mark move?")
+    return svg
 
 
 def render(px: int) -> bytes:
     from playwright.sync_api import sync_playwright
-    viewbox, body = square_mark()
-    # The tile matches favicon.svg: the brand gradient, the mark in white,
-    # inset so the hull is not shaved off by the rounded corner.
     page = f"""<!doctype html><html><body style="margin:0">
-      <svg xmlns="http://www.w3.org/2000/svg" width="{px}" height="{px}" viewBox="0 0 512 512">
-        <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="#e3a556"/><stop offset="1" stop-color="#6f3f1c"/>
-        </linearGradient></defs>
-        <rect width="512" height="512" rx="96" fill="url(#g)"/>
-        <!-- color, not fill: the symbol's own paths declare fill="currentColor",
-             which overrides a group fill attribute and resolves to black. The
-             site sets the CSS color property for exactly this reason. -->
-        <g transform="translate(72 72) scale(15.3)" style="color:#ffffff">{body}</g>
-      </svg></body></html>"""
+      <div style="width:{px}px;height:{px}px">{square_mark()}</div>
+      </body></html>"""
     with sync_playwright() as p:
         b = p.chromium.launch(executable_path=CHROME)
         pg = b.new_page(viewport={"width": px, "height": px},

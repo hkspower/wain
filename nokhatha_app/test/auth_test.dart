@@ -11,6 +11,8 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nokhatha/core/auth.dart';
+import 'package:nokhatha/core/models.dart';
+import 'package:nokhatha/core/xbrl.dart';
 import 'package:nokhatha/core/vault.dart';
 import 'package:nokhatha/store.dart';
 
@@ -242,4 +244,78 @@ void main() {
           reason: 'a lockout a restart clears is not a lockout');
     });
   });
+
+  group('the filing the XBRL unit exists to produce', () {
+    late Directory tmp;
+    setUp(() => tmp = Directory.systemTemp.createTempSync('nokhatha-filing'));
+    tearDown(() => tmp.deleteSync(recursive: true));
+
+    // Until the form existed, `updateFiling` was in the store and no screen
+    // ever called it, so none of this could be reached from the app at all.
+    test('typed figures survive a restart and reach the instance', () async {
+      final a = Store(vault: Vault(overridePath: tmp.path));
+      await a.load();
+      await a.register(name: 'م', email: 'a@b.c', password: 'correct-horse-2026');
+      await a.addHolding(const Holding(
+          ticker: 'NBK', name: 'بنك', quantity: 1000, costFils: 850, priceFils: 910));
+      await a.addOrder(customer: 'خالد', phone: '65894110', amountFils: 12500);
+      await a.advance('ORD-0001');
+      await a.advance('ORD-0001');
+      await a.advance('ORD-0001');   // delivered — revenue is counted
+
+      await a.updateFiling(FilingInput(
+        entityName: 'شركة المهلب كود',
+        commercialRegistration: '123456',
+        periodEnd: DateTime.utc(2026, 12, 31),
+        capitalFils: 50000000,
+        cashFils: 12000000,
+        investmentsFils: a.position.portfolio.marketValueFils,
+        revenueFils: a.position.delivery.revenueFils,
+      ));
+
+      final b = Store(vault: Vault(overridePath: tmp.path));
+      await b.load();
+      final f = b.filing;
+      expect(f.input.entityName, 'شركة المهلب كود');
+      expect(f.input.hasPeriodEnd, isTrue);
+      expect(f.input.capitalFils, 50000000);
+      // صافي feeds the investments line: 1000 shares at 910 fils
+      expect(f.nonCurrentAssets, 910000);
+      // التوصيل feeds revenue: the one delivered order
+      expect(f.input.revenueFils, 12500);
+
+      final xml = f.toInstance();
+      expect(xml.contains('123456'), isTrue);
+      expect(xml.contains('2026-12-31'), isTrue);
+      // machine-readable: no thousands separators anywhere in the instance
+      expect(RegExp(r'>\d+,\d').hasMatch(xml), isFalse);
+    });
+
+    test('a correction is possible — a holding can be removed again', () async {
+      final a = Store(vault: Vault(overridePath: tmp.path));
+      await a.load();
+      await a.register(name: 'م', email: 'a@b.c', password: 'correct-horse-2026');
+      await a.addHolding(const Holding(
+          ticker: 'TYPO', name: 'خطأ', quantity: 10, costFils: 100, priceFils: 100));
+      expect(a.holdings.length, 1);
+      await a.removeHolding('TYPO');
+      expect(a.holdings, isEmpty);
+
+      final b = Store(vault: Vault(overridePath: tmp.path));
+      await b.load();
+      expect(b.holdings, isEmpty, reason: 'the removal must survive a restart');
+    });
+
+    test('an order entered by mistake can be cancelled, and stops counting',
+        () async {
+      final a = Store(vault: Vault(overridePath: tmp.path));
+      await a.load();
+      await a.register(name: 'م', email: 'a@b.c', password: 'correct-horse-2026');
+      await a.addOrder(customer: 'سارة', phone: '66112233', amountFils: 30000);
+      await a.cancel('ORD-0001');
+      expect(a.position.delivery.revenueFils, 0);
+      expect(a.orders.first.status, OrderStatus.cancelled);
+    });
+  });
+}
 }

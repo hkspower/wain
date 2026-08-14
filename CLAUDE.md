@@ -302,6 +302,19 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   inner pages carry a `BreadcrumbList`.
 - `design/instagram_covers.py` draws the Instagram highlight covers from the
   page sprite (1080×1080, brown fill, white mark) — `design/instagram/`.
+- **The desktop app is النوخذة, so it wears النوخذة's mark** — the ⚓ anchor from
+  `almuhallab/icon.svg`. `design/windows_icon.py` used to draw the company's
+  boum onto it, which is exactly the crossing the identity rule forbids;
+  `design/macos_icon.py` draws the `.appiconset` from the same anchor.
+- **macOS is built by generating the platform folder, not committing it**:
+  `flutter create --platforms=macos .` runs on a real Mac in CI, then
+  `nokhatha_app/tool/macos_setup.sh` asserts what must be true — the Arabic
+  display name, `com.almuhallab.nokhatha`, the anchor icon, the App Sandbox on,
+  and **no `network.client` entitlement**, because "it cannot phone home" is
+  this app's central claim. The built `.app` is checked again with
+  `codesign -d --entitlements`, since a build can pick up a different file than
+  the script inspected. Hand-writing a `project.pbxproj` is how a build breaks
+  in a way nobody can review.
 - `design/logo_pack.py` builds `design/logo-pack/` — the 39-file delivery pack a
   printer or a partner asks for: SVG in brown/white/black for both forms, the
   gradient tile, PNGs at three grounds, a multi-size `.ico`, and a README fixing

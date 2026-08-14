@@ -1,4 +1,4 @@
-name: النوخذة — Windows build
+name: النوخذة — desktop builds
 
 # A Flutter Windows binary can only be compiled on Windows with the MSVC
 # toolchain; it cannot be cross-compiled from Linux. So the build runs here, on
@@ -190,5 +190,111 @@ jobs:
         with:
           files: |
             nokhatha_app/dist/*.exe
+            nokhatha_app/dist/SHA256SUMS.txt
+          generate_release_notes: true
+
+  # ══ macOS ═══════════════════════════════════════════════════════════════
+  # A .app can only be produced on a Mac, exactly as a .exe can only be
+  # produced on Windows. The Xcode project is generated here by Flutter itself
+  # rather than committed: hand-written project files break in ways nobody can
+  # review, and there is no Flutter toolchain on the machine this repository is
+  # normally edited from. tool/macos_setup.sh then asserts the parts that must
+  # be true — the name, the mark, and above all that the sandbox grants no
+  # network, since "it cannot phone home" is this app's central claim.
+  mac:
+    if: github.event_name != 'create' || github.event.ref_type == 'tag'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version-file: nokhatha_app/pubspec.yaml
+          channel: stable
+          cache: true
+
+      - name: Generate the macOS platform folder
+        working-directory: nokhatha_app
+        run: flutter create --platforms=macos .
+
+      - name: Prepare it — name, mark, entitlements
+        working-directory: nokhatha_app
+        run: bash tool/macos_setup.sh
+
+      - name: Resolve dependencies (locked)
+        working-directory: nokhatha_app
+        run: flutter pub get --enforce-lockfile
+
+      - name: Analyze
+        working-directory: nokhatha_app
+        run: flutter analyze
+
+      - name: Test
+        working-directory: nokhatha_app
+        run: flutter test
+
+      - name: Build the macOS release
+        working-directory: nokhatha_app
+        run: flutter build macos --release
+
+      - name: Read the version from pubspec
+        id: macver
+        run: |
+          v=$(grep '^version:' nokhatha_app/pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      # The entitlement check again, on the BUILT app rather than the source:
+      # what shipped is what matters, and a build can pick up a different
+      # entitlements file than the one the script inspected.
+      - name: Verify the built app grants no network
+        working-directory: nokhatha_app
+        run: |
+          APP=$(find build/macos/Build/Products/Release -maxdepth 1 -name '*.app' | head -1)
+          [ -n "$APP" ] || { echo "::error::no .app was produced"; exit 1; }
+          echo "built: $APP"
+          if codesign -d --entitlements - "$APP" 2>/dev/null | grep -q 'network.client'; then
+            echo "::error::the built app grants outbound network"; exit 1
+          fi
+
+      # A .dmg is what a Mac user expects to download: mount it, drag the app
+      # to Applications, eject. A bare .app in a zip loses its permissions on
+      # some browsers and arrives quarantined in a way that is harder to clear.
+      - name: Package a disk image
+        working-directory: nokhatha_app
+        run: |
+          APP=$(find build/macos/Build/Products/Release -maxdepth 1 -name '*.app' | head -1)
+          mkdir -p dist dmg
+          cp -R "$APP" dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname "النوخذة" -srcfolder dmg -ov -format UDZO \
+            "dist/Nokhatha-${{ steps.macver.outputs.version }}.dmg"
+
+      - name: Publish checksums
+        working-directory: nokhatha_app
+        run: |
+          shasum -a 256 dist/*.dmg | tee dist/SHA256SUMS.txt
+          cp pubspec.lock dist/pubspec.lock.txt
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: nokhatha_app/dist/*.dmg
+
+      - name: Upload the disk image
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nokhatha-macOS-${{ steps.macver.outputs.version }}
+          path: |
+            nokhatha_app/dist/*.dmg
+            nokhatha_app/dist/SHA256SUMS.txt
+            nokhatha_app/dist/pubspec.lock.txt
+          if-no-files-found: error
+
+      - name: Attach the disk image to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            nokhatha_app/dist/*.dmg
             nokhatha_app/dist/SHA256SUMS.txt
           generate_release_notes: true

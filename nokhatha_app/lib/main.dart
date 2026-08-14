@@ -4,7 +4,10 @@
 /// Arabic-first and RTL throughout, white on every device, free in full.
 library;
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'core/models.dart';
 import 'core/xbrl.dart';
@@ -249,13 +252,27 @@ class SafiView extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.w800)),
               subtitle: Text('${h.name} · ${h.quantity} سهم',
                   style: const TextStyle(color: Brand.muted)),
-              trailing: Text(
-                formatKwd(h.profitFils, signed: h.profitFils > 0),
-                textDirection: TextDirection.ltr,
-                style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: h.profitFils < 0 ? Brand.danger : Brand.good),
-              ),
+              // `removeHolding` existed in the store from the start and no
+              // screen ever called it: a typo in a ticker was permanent.
+              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text(
+                  formatKwd(h.profitFils, signed: h.profitFils > 0),
+                  textDirection: TextDirection.ltr,
+                  style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: h.profitFils < 0 ? Brand.danger : Brand.good),
+                ),
+                IconButton(
+                  tooltip: 'حذف ${h.ticker}',
+                  icon: const Icon(Icons.delete_outline, color: Brand.muted),
+                  onPressed: () async {
+                    final ok = await confirmDestructive(context, 'حذف ${h.ticker}؟',
+                        'يُحذف السهم من المحفظة، وتتغيّر معه القيمة السوقية '
+                        'التي تُغذّي الأصول غير المتداولة في الميزانية.');
+                    if (ok) await store.removeHolding(h.ticker);
+                  },
+                ),
+              ]),
             ),
           ),
       ],
@@ -270,9 +287,50 @@ class XbrlView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final f = store.filing;
+    final blocking = f.audit().where((x) => x.level == FindingLevel.error).length;
     return ListView(
       padding: const EdgeInsets.all(Brand.s16),
       children: [
+        // The unit exists to produce a filing. Until this row was here, the
+        // balance-sheet inputs had no screen and `toInstance()` — the file
+        // itself — was never called from anywhere.
+        Panel(
+          title: 'الإيداع',
+          note: 'الاعتماد النهائي يتم عبر بوابة وزارة التجارة والصناعة؛ هذا '
+              'الملف هو ما تُرفقه هناك، وليس هو الإيداع نفسه.',
+          children: [
+            Row(children: [
+              Expanded(
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(backgroundColor: Brand.tintStrong),
+                  onPressed: () => showFilingForm(context, store),
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('بيانات الميزانية'),
+                ),
+              ),
+              const SizedBox(width: Brand.s12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: blocking > 0 || !f.input.hasPeriodEnd
+                      ? null
+                      : () => _saveInstance(context, store),
+                  icon: const Icon(Icons.download_outlined),
+                  label: const Text('توليد ملف XBRL'),
+                ),
+              ),
+            ]),
+            if (blocking > 0 || !f.input.hasPeriodEnd)
+              Padding(
+                padding: const EdgeInsets.only(top: Brand.s8),
+                child: Text(
+                  !f.input.hasPeriodEnd
+                      ? 'أدخل نهاية السنة المالية أولاً — ملف بلا فترة لا يُودَع.'
+                      : 'صحّح الأخطاء أدناه قبل التوليد ($blocking).',
+                  style: const TextStyle(color: Brand.danger, fontSize: 12.5),
+                ),
+              ),
+          ],
+        ),
         Panel(
           title: 'الميزانية السنوية',
           note: 'كل مجموع فرعي يُحسب من البنود، ولا يُكتب يدوياً. الاعتماد '
@@ -328,6 +386,44 @@ class XbrlView extends StatelessWidget {
   }
 }
 
+/// Write the instance next to the records, and say exactly where it went.
+///
+/// No file-picker dependency: this app keeps four direct dependencies so the
+/// tree stays something a person can audit, and a save panel would cost a
+/// fifth. The path is shown in full, and it is selectable, so it can be pasted
+/// into a file manager.
+Future<void> _saveInstance(BuildContext context, Store store) async {
+  final f = store.filing;
+  final end = f.input.periodEnd;
+  final stamp = '${end.year}-${end.month.toString().padLeft(2, '0')}'
+      '-${end.day.toString().padLeft(2, '0')}';
+  final safe = f.input.entityName
+      .replaceAll(RegExp(r'[^\w\u0600-\u06FF-]+'), '-')
+      .replaceAll(RegExp(r'^-+|-+$'), '');
+  String? path;
+  String? failure;
+  try {
+    final dir = await getApplicationDocumentsDirectory();
+    final file = File('${dir.path}${Platform.pathSeparator}'
+        'xbrl-${safe.isEmpty ? 'report' : safe}-$stamp.xml');
+    await file.writeAsString(f.toInstance(), flush: true);
+    path = file.path;
+  } catch (e) {
+    failure = '$e';
+  }
+  if (!context.mounted) return;
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(path != null ? 'تم توليد الملف' : 'تعذّر حفظ الملف'),
+      content: SelectableText(path ?? failure ?? ''),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('تمام')),
+      ],
+    ),
+  );
+}
+
 class DeliveryView extends StatelessWidget {
   const DeliveryView({super.key, required this.store});
   final Store store;
@@ -352,12 +448,27 @@ class DeliveryView extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.w800)),
               subtitle: Text('${o.customer} · ${o.status.arabic}',
                   style: const TextStyle(color: Brand.muted)),
-              trailing: o.status.next == null
-                  ? Text(formatKwd(o.amountFils), textDirection: TextDirection.ltr)
-                  : FilledButton(
-                      onPressed: () => store.advance(o.id),
-                      child: Text(o.status.next!.arabic),
-                    ),
+              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text(formatKwd(o.amountFils), textDirection: TextDirection.ltr),
+                if (o.status.next != null) ...[
+                  const SizedBox(width: Brand.s8),
+                  FilledButton(
+                    onPressed: () => store.advance(o.id),
+                    child: Text(o.status.next!.arabic),
+                  ),
+                  // `cancel` was in the store and unreachable too: an order
+                  // entered by mistake could only ever be marched forward.
+                  IconButton(
+                    tooltip: 'إلغاء ${o.id}',
+                    icon: const Icon(Icons.close, color: Brand.muted),
+                    onPressed: () async {
+                      final ok = await confirmDestructive(context, 'إلغاء ${o.id}؟',
+                          'يُلغى الطلب ولا يُحتسب ضمن الإيراد المسلَّم.');
+                      if (ok) await store.cancel(o.id);
+                    },
+                  ),
+                ],
+              ]),
             ),
           ),
       ],
