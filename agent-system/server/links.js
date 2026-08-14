@@ -99,17 +99,21 @@ function revokeLink(linkId, actor) {
 function resolve(token) {
   const link = db.prepare('SELECT * FROM delivery_links WHERE token=?').get(String(token || ''));
   if (!link) throw notFound('رابط غير معروف', 'link_unknown');
-  if (link.revoked_at) throw forbidden('أُلغي هذا الرابط', 'link_revoked');
-  if (new Date(link.expires_at).getTime() < Date.now()) {
-    throw forbidden('انتهت صلاحية الرابط — اطلب رابطًا جديدًا', 'link_expired');
-  }
 
+  /* حالة الطلب تُفحص **قبل** علم الإلغاء: إنهاء المهمّة يُلغي الرابط تلقائيًا،
+     فلو قُدِّم فحص الإلغاء لرأى الكابتن «أُلغي من الإدارة» بعد تسليمٍ ناجح —
+     رسالة تخالف ما حدث. */
   const order = D.getOrder(link.order_id);
+  if (D.FINAL_STATUSES.includes(order.status)) {
+    throw forbidden('انتهت هذه المهمّة — شكرًا لك', 'link_finished');
+  }
   if (order.agent_id !== link.agent_id) {
     throw forbidden('انتقل الطلب إلى كابتن آخر', 'link_reassigned');
   }
-  if (D.FINAL_STATUSES.includes(order.status)) {
-    throw forbidden('انتهى هذا الطلب', 'link_finished');
+
+  if (link.revoked_at) throw forbidden('أُلغي هذا الرابط', 'link_revoked');
+  if (new Date(link.expires_at).getTime() < Date.now()) {
+    throw forbidden('انتهت صلاحية الرابط — اطلب رابطًا جديدًا', 'link_expired');
   }
 
   const agent = db.prepare('SELECT * FROM agents WHERE id=?').get(link.agent_id);

@@ -284,7 +284,21 @@ test('«تم التسليم» ينقل الحالة ويُبطل الرابط', 
   assert.equal(r.status, 200);
   assert.equal(r.data.changed_status, true);
   assert.equal(r.data.status, 'delivered');
-  assert.equal((await call(null, 'GET', `/api/link/${t}`)).status, 403, 'الرابط انتهى بانتهاء المهمّة');
+
+  // بعد التسليم يجب أن يقرأ الكابتن «انتهت المهمّة» لا «أُلغي من الإدارة»:
+  // الرابط يُلغى تلقائيًا عند الإنهاء، ونسبة الإلغاء للإدارة تخالف ما حدث.
+  const after = await call(null, 'GET', `/api/link/${t}`);
+  assert.equal(after.status, 403);
+  assert.equal(after.data.code, 'link_finished');
+  assert.match(after.data.error, /انتهت هذه المهمّة/);
+});
+
+test('الرابط الملغى من الإدارة يبقى متمايزًا عن المنتهي', async () => {
+  const order = await makeOrder();
+  const link = await newLink(order);
+  await call('admin', 'DELETE', `/api/links/${link.id}`);
+  const r = await call(null, 'GET', `/api/link/${tokenOf(link.url)}`);
+  assert.equal(r.data.code, 'link_revoked', 'الطلب ما زال نشطًا فالسبب هو الإلغاء');
 });
 
 test('«لم يُسلَّم بعد» لا يغيّر الحالة ويبقي الرابط عاملًا', async () => {
