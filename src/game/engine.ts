@@ -11,6 +11,7 @@ import { createCar } from "./cars";
 import { RIVALS, RivalDef } from "./rivals";
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
+import { ParticleSystem, radialSprite } from "./vfx";
 import { Music } from "./music";
 import { GEARS } from "./gears";
 import { loadGarage, saveGarage, computeEffects, addKd, TuneEffects, getCar, CARS } from "./mods";
@@ -538,16 +539,15 @@ export class GameEngine {
   private lightRight = new THREE.Vector3();
   private lightUp = new THREE.Vector3();
 
-  // Scrape/bump sparks
-  private sparks: THREE.Points;
-  // Drift tire smoke (ring buffer; see constructor)
-  private smoke!: THREE.Points;
-  private smokeLife = new Float32Array(SMOKE_N);
-  private smokeVel = new Float32Array(SMOKE_N * 3);
-  private smokeHead = 0;
+  // Drift tire smoke spawn accumulator (see updateEffects)
+  private sparkFx!: ParticleSystem;
+  private smokeFx!: ParticleSystem;
+  private flameFx!: ParticleSystem;
+  /** Brake-rotor temperature, 0..1, per wheel — heat in, heat out. */
+  private rotorHeat = 0;
+  /** Rising edge detector for backfires on throttle lift. */
+  private lastThrottleFx = 0;
   private smokeAcc = 0;
-  private sparkVel = new Float32Array(60 * 3);
-  private sparkLife = 0;
 
   // Minimap
   private mapBounds = { minX: 0, maxX: 1, minZ: 0, maxZ: 1 };
@@ -662,58 +662,42 @@ export class GameEngine {
     this.composer.addPass(this.fxaaPass);
     this.updateFxaaResolution();
 
-    // Spark pool for scrapes and shunts
-    {
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(60 * 3), 3));
-      this.sparks = new THREE.Points(
-        geo,
-        new THREE.PointsMaterial({
-          color: 0xffc46a,
-          size: 0.14,
-          transparent: true,
-          opacity: 0,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        })
-      );
-      this.sparks.visible = false;
-      this.sparks.frustumCulled = false;
-      this.scene.add(this.sparks);
-    }
+    // Sparks: white-hot at birth, ember by death, and they skitter along
+    // the asphalt instead of sinking through it.
+    this.sparkFx = new ParticleSystem(90, {
+      map: radialSprite(0.35, 1.4),
+      colorA: 0xfff2c8,
+      colorB: 0xff5a12,
+      blending: THREE.AdditiveBlending,
+      grow: 0.5, // sparks shrink as they cool
+      opacity: 1,
+      fadeIn: 0.02,
+    });
+    this.scene.add(this.sparkFx.points);
 
-    {
-      // Tire smoke — a small ring buffer of points fed while drifting.
-      // Dead particles park far underground instead of per-point alpha.
-      // A radial sprite keeps the puffs soft; bare points draw as squares.
-      const cv = document.createElement("canvas");
-      cv.width = cv.height = 64;
-      const cx = cv.getContext("2d")!;
-      const grad = cx.createRadialGradient(32, 32, 3, 32, 32, 30);
-      grad.addColorStop(0, "rgba(255,255,255,0.7)");
-      grad.addColorStop(0.55, "rgba(255,255,255,0.28)");
-      grad.addColorStop(1, "rgba(255,255,255,0)");
-      cx.fillStyle = grad;
-      cx.fillRect(0, 0, 64, 64);
-      const geo = new THREE.BufferGeometry();
-      const pos = new Float32Array(SMOKE_N * 3);
-      pos.fill(-9999);
-      geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-      this.smoke = new THREE.Points(
-        geo,
-        new THREE.PointsMaterial({
-          color: 0x878d96,
-          size: 1.6,
-          map: new THREE.CanvasTexture(cv),
-          transparent: true,
-          opacity: 0.3,
-          depthWrite: false,
-        })
-      );
-      this.smoke.visible = false;
-      this.smoke.frustumCulled = false;
-      this.scene.add(this.smoke);
-    }
+    // Tire smoke: each puff expands, turns and thins on its own clock.
+    this.smokeFx = new ParticleSystem(SMOKE_N, {
+      map: radialSprite(0.0, 1.5),
+      colorA: 0xc4c9d2,
+      colorB: 0x3c4148,
+      grow: 2.2,
+      spin: 0.3,
+      opacity: 0.13,
+      fadeIn: 0.12,
+    });
+    this.scene.add(this.smokeFx.points);
+
+    // Exhaust: backfire on lift, and the nitrous flame while it is open.
+    this.flameFx = new ParticleSystem(60, {
+      map: radialSprite(0.25, 1.2),
+      colorA: 0xffd9a0,
+      colorB: 0xff2a00,
+      blending: THREE.AdditiveBlending,
+      grow: 2.2,
+      opacity: 0.9,
+      fadeIn: 0.05,
+    });
+    this.scene.add(this.flameFx.points);
 
     // Wind streaks — motion lines that fade in past ~220 km/h
     {
@@ -995,6 +979,10 @@ export class GameEngine {
     const buf = this.renderer.getDrawingBufferSize(new THREE.Vector2());
     (this.grainPass.uniforms.uTexel.value as THREE.Vector2).set(1 / buf.x, 1 / buf.y);
     this.updateFxaaResolution();
+    const bufH = this.renderer.getDrawingBufferSize(new THREE.Vector2()).y;
+    this.sparkFx?.setPixelScale(bufH);
+    this.smokeFx?.setPixelScale(bufH);
+    this.flameFx?.setPixelScale(bufH);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
   }
@@ -1308,6 +1296,9 @@ export class GameEngine {
     this.challengeTimers = [];
     if (this.padTimer) clearInterval(this.padTimer);
     this.cubeRT?.dispose();
+    this.sparkFx?.dispose();
+    this.smokeFx?.dispose();
+    this.flameFx?.dispose();
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
     window.removeEventListener("blur", this.onBlur);
@@ -2359,7 +2350,7 @@ export class GameEngine {
         this.slipVel = -side * (1.2 + 5 * severity);
         this.events.onBump();
         if (this.inBattle) this.bstat.contacts++;
-        this.spawnSparks();
+        this.spawnSparks(Math.sign(p.lat) || 1, severity);
         this.sound?.scrape();
         this.shake = Math.max(this.shake, 0.3 + 0.9 * severity);
         if (this.inBattle)
@@ -2450,7 +2441,7 @@ export class GameEngine {
           this.driftRun = 0;
           this.events.onBump();
           if (this.inBattle) this.bstat.contacts++;
-          this.spawnSparks();
+          this.spawnSparks(Math.sign(p.lat - t.lat) || 0, sev);
           this.sound?.bump();
           this.shake = 0.5 + 0.7 * sev;
           if (this.inBattle)
@@ -2866,24 +2857,8 @@ export class GameEngine {
       o.position.z = this.camera.position.z + off.z;
     }
 
-    if (this.sparkLife > 0) {
-      this.sparkLife = Math.max(0, this.sparkLife - dt);
-      const pos = this.sparks.geometry.getAttribute("position") as THREE.BufferAttribute;
-      for (let i = 0; i < pos.count; i++) {
-        pos.setXYZ(
-          i,
-          pos.getX(i) + this.sparkVel[i * 3] * dt,
-          Math.max(0.02, pos.getY(i) + this.sparkVel[i * 3 + 1] * dt),
-          pos.getZ(i) + this.sparkVel[i * 3 + 2] * dt
-        );
-        this.sparkVel[i * 3 + 1] -= 18 * dt;
-      }
-      pos.needsUpdate = true;
-      (this.sparks.material as THREE.PointsMaterial).opacity = this.sparkLife / 0.6;
-      this.sparks.visible = true;
-    } else {
-      this.sparks.visible = false;
-    }
+    // --- Sparks: they cool, fall, and skitter along the asphalt
+    this.sparkFx.update(dt, { gravity: 17, drag: 0.7, bounce: 0.42, groundY: 0.03 });
 
     // --- Tire smoke while drifting: pour from both rear arches, rise,
     // spread downwind of the slide, die in about a second. A launch with
@@ -2902,70 +2877,112 @@ export class GameEngine {
       const bz = pz - this.v3.z * 1.6;
       const sx = -this.v3.z;
       const sz = this.v3.x;
-      // Time-budgeted so density is refresh-rate independent and the ring
-      // never wraps onto a still-alive puff (rate * max life < SMOKE_N).
+      // Time-budgeted so density is refresh-rate independent
       this.smokeAcc += (Math.abs(this.driftYaw) > 0.4 ? 85 : 55) * dt;
       const spawn = Math.floor(this.smokeAcc);
       this.smokeAcc -= spawn;
-      const posAttr = this.smoke.geometry.getAttribute("position") as THREE.BufferAttribute;
+      const out = Math.sign(this.driftYaw) || 1;
       for (let n = 0; n < spawn; n++) {
-        const i = this.smokeHead;
-        this.smokeHead = (this.smokeHead + 1) % SMOKE_N;
-        const side = n % 2 === 0 ? 0.85 : -0.85;
-        posAttr.setXYZ(
-          i,
-          bx + sx * side + (Math.random() - 0.5) * 0.3,
-          0.32,
-          bz + sz * side + (Math.random() - 0.5) * 0.3
+        const side = (n % 2 === 0 ? 0.85 : -0.85) + (Math.random() - 0.5) * 0.5;
+        this.smokeFx.spawn(
+          bx + sx * side + (Math.random() - 0.5) * 0.55,
+          0.24 + Math.random() * 0.22,
+          bz + sz * side + (Math.random() - 0.5) * 0.55,
+          sx * out * (1.2 + Math.random()) + (Math.random() - 0.5),
+          1.3 + Math.random() * 1.5,
+          sz * out * (1.2 + Math.random()) + (Math.random() - 0.5),
+          0.95 + Math.random() * 0.55,
+          1.9 + Math.random() * 0.9
         );
-        // Drifts up and toward the outside of the slide
-        const out = Math.sign(this.driftYaw);
-        this.smokeVel[i * 3] = sx * out * (1.2 + Math.random()) + (Math.random() - 0.5);
-        this.smokeVel[i * 3 + 1] = 1.4 + Math.random() * 1.6;
-        this.smokeVel[i * 3 + 2] = sz * out * (1.2 + Math.random()) + (Math.random() - 0.5);
-        this.smokeLife[i] = 0.8 + Math.random() * 0.4;
       }
     }
-    let anySmoke = false;
-    {
-      const posAttr = this.smoke.geometry.getAttribute("position") as THREE.BufferAttribute;
-      for (let i = 0; i < SMOKE_N; i++) {
-        if (this.smokeLife[i] <= 0) continue;
-        this.smokeLife[i] -= dt;
-        if (this.smokeLife[i] <= 0) {
-          posAttr.setY(i, -9999);
-        } else {
-          anySmoke = true;
-          posAttr.setXYZ(
-            i,
-            posAttr.getX(i) + this.smokeVel[i * 3] * dt,
-            posAttr.getY(i) + this.smokeVel[i * 3 + 1] * dt,
-            posAttr.getZ(i) + this.smokeVel[i * 3 + 2] * dt
-          );
-          // Smoke decelerates as it billows out
-          this.smokeVel[i * 3] *= 1 - 1.6 * dt;
-          this.smokeVel[i * 3 + 2] *= 1 - 1.6 * dt;
+    // Billowing smoke sheds its outward speed as it expands
+    this.smokeFx.update(dt, { drag: 1.6, gravity: -0.35 });
+
+    // --- Exhaust. A backfire is unburnt fuel lighting in the pipe on a
+    // hard lift, so it fires on the throttle's falling edge at revs; the
+    // nitrous flame burns continuously while the bottle is open.
+    if (!this.cine && this.carBody.userData.exhaust) {
+      const tips = this.carBody.userData.exhaust as THREE.Vector3[];
+      const lift = this.lastThrottleFx - this.throttle;
+      // A hard lift at revs always pops — the randomness belongs in how
+      // big the flame is, not in whether the car has an exhaust.
+      const backfire = lift > 0.4 && this.player.speed > 14;
+      const nos = this.nosActive;
+      if (backfire || nos) {
+        const n = nos ? 2 : 3 + Math.floor(Math.random() * 4);
+        for (const tip of tips) {
+          // The anchor is car-local; carBody carries the presence scale
+          // and the drift yaw, so ask it for the world position.
+          this.carBody.localToWorld(this.v4.copy(tip));
+          for (let k = 0; k < n; k++) {
+            const back = -(2 + Math.random() * 5);
+            this.track.tangentAt(this.player.s, this.v3);
+            this.flameFx.spawn(
+              this.v4.x + (Math.random() - 0.5) * 0.12,
+              this.v4.y + (Math.random() - 0.5) * 0.08,
+              this.v4.z + (Math.random() - 0.5) * 0.12,
+              this.v3.x * back + (Math.random() - 0.5) * 1.2,
+              0.4 + Math.random() * 0.8,
+              this.v3.z * back + (Math.random() - 0.5) * 1.2,
+              nos ? 0.14 + Math.random() * 0.08 : 0.16 + Math.random() * 0.12,
+              nos ? 0.22 : 0.3
+            );
+          }
         }
       }
-      if (anySmoke || this.smoke.visible) posAttr.needsUpdate = true;
-      this.smoke.visible = anySmoke;
+    }
+    this.lastThrottleFx = this.throttle;
+    this.flameFx.update(dt, { drag: 3.2, gravity: -1.2 });
+
+    // --- Brake rotors glow with the heat they are actually absorbing.
+    // Energy in scales with pedal pressure and road speed; it radiates
+    // away on its own clock, so the discs stay orange down the straight
+    // after a hard stop and cool through the corner.
+    {
+      const heatIn = this.brake * Math.min(1, this.player.speed / 28);
+      this.rotorHeat = THREE.MathUtils.clamp(
+        this.rotorHeat + (heatIn * 1.35 - this.rotorHeat * 0.55) * dt,
+        0,
+        1
+      );
+      const wheels = this.carBody.userData.wheels as THREE.Group[] | undefined;
+      if (wheels) {
+        for (const w of wheels) {
+          const m = w.userData.rotorMat as THREE.MeshStandardMaterial | undefined;
+          // Front discs do most of the work, so they run hotter
+          if (m) m.emissiveIntensity = this.rotorHeat * this.rotorHeat * 2.6;
+        }
+      }
     }
   }
 
-  /** Burst of sparks at the car — wall scrapes and traffic shunts. */
-  private spawnSparks(): void {
-    this.sparkLife = 0.6;
-    const pos = this.sparks.geometry.getAttribute("position") as THREE.BufferAttribute;
+  /**
+   * Burst of sparks at the car. `side` is which flank made contact
+   * (-1 left, +1 right, 0 centre/rear) so the shower comes off the
+   * panel that actually hit something instead of the car's middle.
+   */
+  private spawnSparks(side = 0, intensity = 1): void {
     const p = this.playerMesh.position;
     this.track.tangentAt(this.player.s, this.v3);
-    for (let i = 0; i < pos.count; i++) {
-      pos.setXYZ(i, p.x + (Math.random() - 0.5), 0.3 + Math.random() * 0.4, p.z + (Math.random() - 0.5));
-      const back = -(6 + Math.random() * 10);
-      this.sparkVel[i * 3] = this.v3.x * back + (Math.random() - 0.5) * 6;
-      this.sparkVel[i * 3 + 1] = 2 + Math.random() * 5;
-      this.sparkVel[i * 3 + 2] = this.v3.z * back + (Math.random() - 0.5) * 6;
+    const sx = -this.v3.z;
+    const sz = this.v3.x;
+    const n = Math.round(26 + 34 * intensity);
+    for (let i = 0; i < n; i++) {
+      const along = -0.6 + Math.random() * 1.2;
+      const lat = side * (0.95 + Math.random() * 0.15);
+      const back = -(5 + Math.random() * 12) * (0.6 + intensity * 0.6);
+      this.sparkFx.spawn(
+        p.x + sx * lat + this.v3.x * along,
+        0.22 + Math.random() * 0.3,
+        p.z + sz * lat + this.v3.z * along,
+        this.v3.x * back + sx * side * (1 + Math.random() * 4) + (Math.random() - 0.5) * 3,
+        1.5 + Math.random() * 5,
+        this.v3.z * back + sz * side * (1 + Math.random() * 4) + (Math.random() - 0.5) * 3,
+        0.35 + Math.random() * 0.5,
+        0.09 + Math.random() * 0.07
+      );
     }
-    pos.needsUpdate = true;
   }
 
   private updateAudio(): void {

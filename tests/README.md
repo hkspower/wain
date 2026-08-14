@@ -156,6 +156,31 @@ modded starter climbs to exactly its raised limit and no further.
 npm run test:topspeed
 ```
 
+## vfx.mjs — the effects are effects, not decoration
+
+Particles are the easiest thing in a game to "improve" without changing
+a pixel, so nothing here trusts that a pool exists. Each effect is
+provoked and then measured:
+
+- **smoke** — every puff must have its own age and size (the old
+  `PointsMaterial` pool shared one clock and one opacity across all 110,
+  which is why a drift read as a flickering sheet), and it must spread
+  and rise;
+- **sparks** — thrown from the flank that actually touched the barrier,
+  not the car's centre, and they must *bounce* off the asphalt rather
+  than sinking through it;
+- **brake rotors** — cold before braking, glowing after a hard stop,
+  and cool again down the following straight;
+- **exhaust** — a backfire on the throttle's falling edge at speed.
+
+That last one started life as a 75%-chance effect, which made the test
+flaky by construction. A hard lift at revs now always pops; the
+randomness moved into how big the flame is, which is where it belonged.
+
+```bash
+npm run test:vfx
+```
+
 ## framepacing.mjs — dynamic fps, v-sync, G-Sync
 
 Panel-refresh detection, the frame limiter, the G-Sync-style

@@ -822,11 +822,16 @@ function buildWheel(
     // One mesh per material, each tagged for the authored swap. The
     // geometries are shared module-level merges — never dispose them.
     const parts = heroWheelParts(nSpokes, side);
+    // Rotors get a per-wheel clone: they glow with brake heat, and the
+    // shared material would light up the whole fleet at once.
+    const rotorMat = discMat.clone();
+    rotorMat.emissive = new THREE.Color(0xff3a00);
+    rotorMat.emissiveIntensity = 0;
     const mats: Record<string, THREE.Material> = {
       tire: tireMat,
       barrel: rimDarkMat,
       alloy: spokeMat,
-      rotor: discMat,
+      rotor: rotorMat,
       lugs: rimDarkMat,
     };
     for (const name of ["tire", "barrel", "alloy", "rotor", "lugs"]) {
@@ -836,6 +841,7 @@ function buildWheel(
       w.add(mesh);
     }
     w.userData.spokes = nSpokes;
+    w.userData.rotorMat = rotorMat;
     return w;
   }
 
@@ -1432,6 +1438,11 @@ export function createCar(colors: CarColors): THREE.Group {
     const muffler = new THREE.Mesh(roundedBox(1.0, 0.1, 0.3, 0.03), grilleMat);
     muffler.position.set(0, 0.23, -1.92);
     group.add(muffler);
+    // Where backfire and nitrous flames are born, in car-local space
+    group.userData.exhaust = [
+      new THREE.Vector3(-0.34, 0.23, -2.08),
+      new THREE.Vector3(0.34, 0.23, -2.08),
+    ];
 
     // Fuel filler door on the right rear quarter
     const filler = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.012, 12), bodyMat);
