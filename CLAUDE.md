@@ -252,7 +252,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 527 checks covering
+- `python3 design/test_suite.py` is the full system test — 528 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
@@ -315,6 +315,20 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   `codesign -d --entitlements`, since a build can pick up a different file than
   the script inspected. Hand-writing a `project.pbxproj` is how a build breaks
   in a way nobody can review.
+- `design/design_system.py` builds `design/design-system/` — the design-system
+  bundle, **extracted** from the site rather than written beside it: tokens from
+  the `:root` block, marks from the sprite, component CSS from the stylesheet,
+  contrast computed with the suite's own WCAG maths. Each card carries a
+  first-line `<!-- @dsCard group="…" -->` marker, so the folder uploads to
+  Claude Design unchanged once a design-system authorization exists (it needs
+  `/design-login`, which wants an interactive terminal — not available in the
+  web container). Three traps, all hit while building it: extraction must be
+  scoped to `<style>` blocks or a line of **JavaScript** gets swept in
+  (`ev.target.closest(".btn.primary")` parses as a rule) and one syntax error
+  silently voids every rule after it; a selector must be matched anywhere in
+  the selector *list*, since the base button is written `nav.site a, .btn {`;
+  and `.btn.danger` lives in `admin.html`, not on the company page. Pinned by
+  `--check` in the suite.
 - `design/logo_pack.py` builds `design/logo-pack/` — the 39-file delivery pack a
   printer or a partner asks for: SVG in brown/white/black for both forms, the
   gradient tile, PNGs at three grounds, a multi-size `.ico`, and a README fixing

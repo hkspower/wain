@@ -1,0 +1,66 @@
+<!-- @dsCard group="Components" -->
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>البطاقة — نظام تصميم المهلب كود</title>
+<link rel="stylesheet" href="../tokens.css" />
+<style>.card, .channel { transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease; }
+.card:hover { transform: translateY(-3px); border-color: var(--tint);
+      box-shadow: 0 10px 24px rgba(27, 36, 48, .08); }
+.card:hover .tile, .channel:hover .tile { background: var(--tint); }
+.card:hover .tile .ic, .channel:hover .tile .ic { stroke: #fff; color: #fff; }
+.card:hover .tile .ic, .channel:hover .tile .ic { transform: scale(1.14) rotate(-4deg); }
+/* Arabic in Cairo needs line-height >= 1.35 at display sizes, or a damma
+       collides with the line above. Measured: 18 headings sat at 1.2 — the
+       browser default — including a 52px h1 that wraps to two lines. */
+    h1, h2, h3, .num, h2.section, .product h3, .card h3, .band .fact h3 {
+      line-height: 1.4;
+    }
+.card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+.card h3 { margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+.card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+.card .tile .ic { width: 21px; height: 21px; }
+.card .chip { margin-top: auto; }
+.card:hover ul.feats li { border-color: var(--sand-vivid); }
+/* mini feature cards on the edge rail: icon + claim, nothing else */
+    #edge .card { align-items: flex-start; }
+#edge .card b { font-size: 13.5px; }
+.card.drawn { gap: 12px; }
+.card.drawn b { font-size: 16px; }
+.card.drawn p { font-size: 12.5px; }
+/* ═══════ each service explained by a drawing ═══════
+       Six scenes, one per service card, in the same idiom as the four above:
+       a page whose content fills, a device that installs, blocks that fit
+       together, a model wired to its sources, a pen over an artboard, and a
+       cloud feeding its machines. Every scene is complete at rest — motion
+       only sets already-drawn parts moving — so a reduced-motion visitor,
+       a print, and a screenshot all read the same explanation. */
+    /* the offer cards keep their taller 136px scene — this is the service rail */
+    .card:not(.drawn) > .scene { height: 108px; }</style>
+</head>
+<body>
+  <header class="ds-head">
+    <h1>البطاقة</h1>
+    <p>بطاقة موحّدة برأس أيقوني ورقاقات. هي وحدة البناء في كل شريط شرائح.</p>
+  </header>
+  <main class="ds-body">
+    <div class="ds-row" style="align-items:stretch">
+      <div class="card" style="max-width:280px">
+        <h3>تطوير المواقع</h3>
+        <p>مواقع تُبنى للسرعة ولمحركات البحث.</p>
+        <ul class="feats"><li>مواقع شركات</li><li>متاجر إلكترونية</li></ul>
+      </div>
+      <div class="card" style="max-width:280px">
+        <h3>تطوير الألعاب</h3>
+        <p>ألعاب تُبنى لأجهزة الحاسوب.</p>
+        <ul class="feats"><li>ويندوز</li><li>2D</li><li>3D</li></ul>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

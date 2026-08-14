@@ -1,0 +1,52 @@
+<!-- @dsCard group="Components" -->
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>الأزرار — نظام تصميم المهلب كود</title>
+<link rel="stylesheet" href="../tokens.css" />
+<style>nav.site a, .btn {
+      font-size: 13.5px; font-weight: 600; color: var(--text);
+      padding: 12px 16px; border-radius: 9px; border: 1px solid transparent;
+      cursor: pointer; background: transparent; font-family: var(--sans);
+    }
+nav.site .btn.primary { background: #fff; color: var(--tint-strong); }
+nav.site .btn.primary .ic { stroke: var(--tint-strong); color: var(--tint-strong); }
+.btn.primary { background: var(--tint-strong); color: #fff; }
+.btn.outline { border-color: var(--border); background: var(--panel-2); }
+.btn:hover { opacity: .88; }
+a:focus-visible, .btn:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+.btn { transition: transform .18s ease, opacity .18s ease; }
+.btn:hover { transform: translateY(-1px); }
+/* ripple: a pressed primary button answers where it was touched */
+    .btn.primary { position: relative; overflow: hidden; }
+.hero .actions .btn { will-change: transform; }
+.btn.primary .ic { stroke: #fff; color: #fff; }
+nav.site a, .btn { padding: 12px 16px; min-height: 44px; display: inline-flex; align-items: center; }
+.hero .actions .btn { flex: 1 1 100%; justify-content: center; }
+.btn.danger { color: var(--danger); }
+.on-brown .btn.outline { background: transparent; border-color: #fff; color: #fff; }
+.on-brown .btn.primary { background: #fff; color: var(--tint-strong); }</style>
+</head>
+<body>
+  <header class="ds-head">
+    <h1>الأزرار</h1>
+    <p>مأخوذة من ورقة أنماط الموقع نفسها. كل زر يقيس 44 بكسل ارتفاعاً على الأقل.</p>
+  </header>
+  <main class="ds-body">
+    <div class="ds-panel ds-row">
+      <a class="btn primary" href="#">ابدأ مشروعك</a>
+      <a class="btn" href="#">شاهد أعمالنا</a>
+      <a class="btn outline" href="#">خروج</a>
+      <a class="btn danger" href="#">حذف</a>
+    </div>
+    <div class="ds-panel ds-row on-brown" style="background:var(--tint-strong)">
+      <a class="btn primary" href="#">النوخذة</a>
+      <a class="btn outline" href="#">خروج</a>
+    </div>
+    <p class="ds-note">على الشريط البني ينقلب الحبر: قرص أبيض للنداء الأساسي،
+      ومحدَّد أبيض للخروج. <b>الأحمر ممنوع هناك</b> — يقيس 1.6:1 على هذا البني.</p>
+  </main>
+</body>
+</html>

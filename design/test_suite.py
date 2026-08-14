@@ -264,6 +264,14 @@ def seo_checks():
     check(S, "robots.txt, sitemap.xml and llms.txt are not stale",
           gen.returncode == 0, (gen.stdout + gen.stderr).strip()[:160])
 
+    # The design-system bundle is extracted from the site, so it can only stay
+    # true if it is regenerated. A style guide that drifts is worse than none —
+    # it is read as current.
+    ds = subprocess.run([sys.executable, str(ROOT.parent / "design" / "design_system.py"),
+                         "--check"], capture_output=True, text=True)
+    check(S, "the design-system bundle is not stale",
+          ds.returncode == 0, (ds.stdout + ds.stderr).strip()[:160])
+
     # a services company that declares no services leaves search engines guessing
     graph_all = json.loads(ld.group(1))["@graph"] if ld else []
     org2 = next((e for e in graph_all if e["@type"] == "Organization"), {})
@@ -591,7 +599,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "527", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "528", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -625,7 +633,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "527", "0", "100%"], str(finals))
+          finals == ["4", "528", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
