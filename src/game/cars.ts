@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { upgradeCarShells, upgradeWheels } from "./models";
+import { arabicUI, latinDisplay } from "./text";
 
 // Procedural sedans with a real silhouette: the body and glasshouse are
 // bevel-extruded side profiles (smoothed normals), riding on spoked
@@ -597,7 +598,7 @@ function plateTexture(): THREE.CanvasTexture {
   ctx.strokeStyle = "#888";
   ctx.strokeRect(1, 1, 126, 30);
   ctx.fillStyle = "#16191e";
-  ctx.font = "bold 19px sans-serif";
+  ctx.font = `700 19px ${latinDisplay()}`;
   ctx.textAlign = "center";
   ctx.fillText("KWT 8198", 64, 24);
   const tex = new THREE.CanvasTexture(c);
@@ -626,12 +627,12 @@ function roundelTexture(num: number): THREE.CanvasTexture {
   ctx.stroke();
   ctx.fillStyle = "#15161a";
   ctx.textAlign = "center";
-  ctx.font = "bold 118px sans-serif";
+  ctx.font = `700 118px ${latinDisplay()}`;
   ctx.fillText(String(num), 128, 152);
   // Arabic-Indic twin, small, under the number — this is Gulf Road
   const arDigits = "٠١٢٣٤٥٦٧٨٩";
   const ar = String(num).split("").map((d) => arDigits[+d]).join("");
-  ctx.font = "bold 40px sans-serif";
+  ctx.font = `600 40px ${arabicUI()}`;
   ctx.fillText(ar, 128, 204);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -693,10 +694,12 @@ function hoodDecalTexture(): THREE.CanvasTexture {
   ctx.fill();
   ctx.fillStyle = "#f2f4f7";
   ctx.textAlign = "center";
-  ctx.font = "bold 34px sans-serif";
-  ctx.fillText("ليالي الخليج", 128, 188);
-  ctx.font = "bold 20px sans-serif";
-  ctx.fillText("GULF ROAD NIGHTS", 128, 218);
+  ctx.direction = "rtl";
+  ctx.font = `700 36px ${arabicUI()}`;
+  ctx.fillText("ليالي الخليج", 128, 190);
+  ctx.direction = "ltr";
+  ctx.font = `600 20px ${latinDisplay()}`;
+  ctx.fillText("GULF ROAD NIGHTS", 128, 220);
   hoodDecalTex = new THREE.CanvasTexture(c);
   hoodDecalTex.colorSpace = THREE.SRGBColorSpace;
   hoodDecalTex.anisotropy = 8;

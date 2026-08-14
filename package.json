@@ -24,7 +24,8 @@
     "test:assets": "node tests/assets.mjs",
     "test:physics": "node tests/physics.mjs",
     "sfx": "node tools/elevenlabs/generate-sfx.mjs",
-    "test:race": "node tests/fullrace.mjs"
+    "test:race": "node tests/fullrace.mjs",
+    "test:fonts": "node tests/fonts.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",

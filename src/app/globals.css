@@ -24,9 +24,15 @@
   --color-sand-800: #894825;
   --color-sand-900: #6f3d21;
 
-  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-display), "Barlow Condensed", ui-sans-serif, sans-serif;
-  --font-arabic: var(--font-arabic), "Noto Kufi Arabic", ui-sans-serif, sans-serif;
+  /* Font stacks. next/font publishes each family under its own --ff-*
+     variable; these compose the fallbacks around them. They must be
+     different names: --font-x: var(--font-x), … is a self-reference,
+     which makes the property invalid at computed-value time and throws
+     the whole declared fallback chain away. */
+  --font-sans: var(--ff-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--ff-display), "Barlow Condensed", ui-sans-serif, sans-serif;
+  --font-arabic: var(--ff-arabic), "IBM Plex Sans Arabic", "Noto Sans Arabic",
+    ui-sans-serif, sans-serif;
 
   /* Gulf Road Nights — night-racing UI palette. Warm sodium amber for
      primary actions, gulf cyan for information, emerald/red for the
@@ -40,6 +46,22 @@
   --color-gulf-300: #7fe3ff;
   --color-gulf-400: #38c9ee;
   --color-gulf-500: #1aa7cc;
+}
+
+/* Font stacks, emitted unconditionally. These live outside @theme on
+   purpose: Tailwind v4 tree-shakes theme tokens that no utility class
+   references, and the Arabic faces are used by hand-written rules and
+   by canvas text — never as utilities — so inside @theme they vanish
+   from the stylesheet and every var() read resolves to nothing. */
+:root {
+  --font-arabic: var(--ff-arabic), "IBM Plex Sans Arabic", "Noto Sans Arabic",
+    ui-sans-serif, sans-serif;
+  --font-arabic-display: var(--ff-arabic-display), "Cairo",
+    var(--ff-arabic), ui-sans-serif, sans-serif;
+  --font-arabic-sign: var(--ff-arabic-sign), "Noto Naskh Arabic",
+    "Times New Roman", serif;
+  --font-display-stack: var(--ff-display), "Barlow Condensed", ui-sans-serif,
+    sans-serif;
 }
 
 html {
@@ -117,10 +139,6 @@ body {
   letter-spacing: 0.01em;
 }
 
-.grn-ar {
-  font-family: var(--font-arabic);
-}
-
 /* Small all-caps label — the HUD's connective tissue */
 .grn-label {
   font-family: var(--font-display);
@@ -129,6 +147,38 @@ body {
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: color-mix(in oklab, white 62%, transparent);
+}
+
+/* Arabic type, set as Arabic — not as Latin with different glyphs.
+   Every rule here cancels something the Latin styles impose:
+   letter-spacing prises apart letters that are supposed to join, there
+   is no uppercase to transform to, and a synthesised oblique shears
+   cursive strokes into a smear. Arabic also carries taller ascenders
+   and deeper descenders than the Latin around it, so it needs the
+   leading. `isolate` keeps a right-to-left run from reordering the
+   Latin punctuation that surrounds it. */
+.grn-ar {
+  font-family: var(--font-arabic);
+  font-style: normal;
+  font-synthesis: none;
+  letter-spacing: normal;
+  text-transform: none;
+  line-height: 1.55;
+  direction: rtl;
+  unicode-bidi: isolate;
+}
+
+/* Headline Arabic — the VS card, area names, race banners. */
+.grn-ar-display {
+  font-family: var(--font-arabic-display);
+  font-weight: 900;
+  font-style: normal;
+  font-synthesis: none;
+  letter-spacing: normal;
+  text-transform: none;
+  line-height: 1.35;
+  direction: rtl;
+  unicode-bidi: isolate;
 }
 
 /* Frosted panel: dark glass, hairline top highlight, soft depth */

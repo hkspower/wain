@@ -246,7 +246,18 @@ export default function RaceClient() {
       const rpm = Math.min(1, Math.max(0.12, (d.speedKmh - GEARS[g]) / (GEARS[g + 1] - GEARS[g])));
       if (gearRef.current) gearRef.current.textContent = d.speedKmh < 2 ? "N" : String(g + 1);
       if (rpmRef.current) rpmRef.current.style.width = `${Math.round(rpm * 100)}%`;
-      if (areaRef.current) areaRef.current.textContent = `${d.areaName} · ${d.areaArabic}`;
+      if (areaRef.current) {
+        // Two spans, not one string: the Latin display face carries no
+        // Arabic, so a mixed textContent falls back glyph by glyph and
+        // loses both the chosen face and the Arabic typography rules.
+        const [latin, arabic] = areaRef.current.children as unknown as HTMLElement[];
+        if (latin && arabic) {
+          latin.textContent = d.areaName;
+          arabic.textContent = d.areaArabic;
+        } else {
+          areaRef.current.textContent = `${d.areaName} · ${d.areaArabic}`;
+        }
+      }
       if (progressRef.current)
         progressRef.current.textContent = `Rivals beaten: ${d.defeated} / ${d.total}`;
 
@@ -641,7 +652,10 @@ export default function RaceClient() {
         {/* Area + progress */}
         <div className="hud-safe-t hud-safe-l absolute">
           <div className="grn-plate px-4 py-2">
-            <div ref={areaRef} className="grn-display text-xl leading-tight tracking-wide" />
+            <div ref={areaRef} className="flex items-baseline gap-2 text-xl leading-tight">
+              <span className="grn-display tracking-wide" />
+              <span className="grn-ar-display text-[0.95em] text-white/80" />
+            </div>
             <div ref={progressRef} className="grn-label mt-0.5 text-[0.62rem]" />
           </div>
           {onlineCount !== null && (
@@ -1616,7 +1630,9 @@ export default function RaceClient() {
             </div>
             <div className="grn-display mt-0.5 text-[clamp(1.6rem,6vw,2.6rem)] italic leading-none text-white [text-shadow:0_2px_18px_rgba(0,0,0,0.9)]">
               {cine.card.name}{" "}
-              <span className="grn-ar not-italic text-white/70">{cine.card.arabicName}</span>
+              <span className="grn-ar-display text-[0.9em] not-italic text-white/75">
+                {cine.card.arabicName}
+              </span>
             </div>
             <div className="mt-1 flex items-center gap-2 text-[0.75rem] text-white/70">
               <span
@@ -1649,7 +1665,7 @@ export default function RaceClient() {
             <div className="grn-display text-[clamp(2rem,7vw,3.4rem)] italic leading-none text-sodium-400 [text-shadow:0_0_26px_rgba(255,170,60,0.55),0_2px_18px_rgba(0,0,0,0.9)]">
               VS
             </div>
-            <div className="grn-ar text-[0.8rem] text-white/60">ضد</div>
+            <div className="grn-ar-display text-[0.85rem] text-white/60">ضد</div>
           </div>
 
           {/* Your side of the frame, mirrored on the right bar */}

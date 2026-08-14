@@ -3,6 +3,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { Track, ROAD_HALF_WIDTH, COAST_U, DRIFT_PLAZA } from "./track";
 import { applyTextureManifest } from "./assets";
 import { upgradePalmCrowns } from "./models";
+import { textTexture, arabicSign, latinDisplay } from "./text";
 import { flagTexture, kuwaitiFigure, kuwaitiRacer, type RacerLook } from "./characters";
 import { RIVALS } from "./rivals";
 
@@ -589,9 +590,9 @@ function adTexture(line1: string, line2: string, bg: string, fg: string, accent:
   ctx.strokeRect(6, 6, 500, 212);
   ctx.fillStyle = fg;
   ctx.textAlign = "left";
-  ctx.font = "bold 64px sans-serif";
+  ctx.font = `700 64px ${latinDisplay()}`;
   ctx.fillText(line1, 28, 100);
-  ctx.font = "bold 34px sans-serif";
+  ctx.font = `600 34px ${latinDisplay()}`;
   ctx.globalAlpha = 0.9;
   ctx.fillText(line2, 28, 165);
   ctx.globalAlpha = 1;
@@ -698,28 +699,26 @@ function windowTexture(): THREE.CanvasTexture {
 }
 
 function signTexture(en: string, ar: string, sub?: string): THREE.CanvasTexture {
-  const c = document.createElement("canvas");
-  c.width = 512;
-  c.height = 160;
-  const ctx = c.getContext("2d")!;
-  ctx.fillStyle = "#0a4da3";
-  ctx.fillRect(0, 0, 512, 160);
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 6;
-  ctx.strokeRect(8, 8, 496, 144);
-  ctx.fillStyle = "#ffffff";
-  ctx.textAlign = "center";
-  ctx.font = "bold 52px sans-serif";
-  ctx.fillText(ar, 256, 64);
-  ctx.font = "bold 40px sans-serif";
-  ctx.fillText(en, 256, 116);
-  if (sub) {
-    ctx.font = "24px sans-serif";
-    ctx.fillText(sub, 256, 146);
-  }
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  // Gulf motorway convention: Arabic on top, Latin beneath it.
+  return textTexture(512, 160, (ctx) => {
+    ctx.fillStyle = "#0a4da3";
+    ctx.fillRect(0, 0, 512, 160);
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 6;
+    ctx.strokeRect(8, 8, 496, 144);
+    ctx.fillStyle = "#ffffff";
+    ctx.textAlign = "center";
+    ctx.direction = "rtl";
+    ctx.font = `700 54px ${arabicSign()}`;
+    ctx.fillText(ar, 256, 66);
+    ctx.direction = "ltr";
+    ctx.font = `600 40px ${latinDisplay()}`;
+    ctx.fillText(en, 256, 116);
+    if (sub) {
+      ctx.font = `500 24px ${latinDisplay()}`;
+      ctx.fillText(sub, 256, 146);
+    }
+  });
 }
 
 const ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩";
@@ -732,34 +731,28 @@ const arabicNumber = (n: number) =>
 /** Kuwait-style kilometre way-marker: distance in Arabic-Indic numerals
  *  over the road's Arabic name. */
 function waymarkTexture(km: number): THREE.CanvasTexture {
-  const c = document.createElement("canvas");
-  c.width = 256;
-  c.height = 320;
-  const ctx = c.getContext("2d")!;
-  ctx.fillStyle = "#0a4da3";
-  ctx.fillRect(0, 0, 256, 320);
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 8;
-  ctx.strokeRect(10, 10, 236, 300);
-  ctx.fillStyle = "#ffffff";
-  ctx.textAlign = "center";
-  ctx.font = "bold 30px sans-serif";
-  ctx.fillText("طريق الخليج العربي", 128, 62);
-  ctx.font = "bold 118px sans-serif";
-  ctx.fillText(arabicNumber(km), 128, 205);
-  ctx.font = "bold 44px sans-serif";
-  ctx.fillText("كم", 128, 276);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  return textTexture(256, 320, (ctx) => {
+    ctx.fillStyle = "#0a4da3";
+    ctx.fillRect(0, 0, 256, 320);
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 8;
+    ctx.strokeRect(10, 10, 236, 300);
+    ctx.fillStyle = "#ffffff";
+    ctx.textAlign = "center";
+    ctx.direction = "rtl";
+    const ar = arabicSign();
+    ctx.font = `700 30px ${ar}`;
+    ctx.fillText("طريق الخليج العربي", 128, 62);
+    ctx.font = `700 112px ${ar}`;
+    ctx.fillText(arabicNumber(km), 128, 208);
+    ctx.font = `700 44px ${ar}`;
+    ctx.fillText("كم", 128, 278);
+  });
 }
 
 /** Blue roundabout sign: the three-arrow circle with the plaza's name. */
 function roundaboutSignTexture(): THREE.CanvasTexture {
-  const c = document.createElement("canvas");
-  c.width = 256;
-  c.height = 340;
-  const ctx = c.getContext("2d")!;
+  return textTexture(256, 340, (ctx) => {
   ctx.fillStyle = "#0a4da3";
   ctx.fillRect(0, 0, 256, 340);
   ctx.strokeStyle = "#ffffff";
@@ -795,28 +788,26 @@ function roundaboutSignTexture(): THREE.CanvasTexture {
   ctx.restore();
   ctx.fillStyle = "#ffffff";
   ctx.textAlign = "center";
-  ctx.font = "bold 46px sans-serif";
-  ctx.fillText("دوار شرق", 128, 258);
-  ctx.font = "bold 26px sans-serif";
+  ctx.direction = "rtl";
+  ctx.font = `700 48px ${arabicSign()}`;
+  ctx.fillText("دوار شرق", 128, 260);
+  ctx.direction = "ltr";
+  ctx.font = `600 26px ${latinDisplay()}`;
   ctx.fillText("SHARQ CIRCLE", 128, 302);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  });
 }
 
 /** White thermoplastic road text, transparent everywhere else. */
 function roadTextTexture(text: string): THREE.CanvasTexture {
-  const c = document.createElement("canvas");
-  c.width = 512;
-  c.height = 256;
-  const ctx = c.getContext("2d")!;
-  ctx.fillStyle = "#f2f2ee";
-  ctx.textAlign = "center";
-  ctx.font = "bold 120px sans-serif";
-  ctx.fillText(text, 256, 160);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  return textTexture(512, 256, (ctx) => {
+    ctx.fillStyle = "#f2f2ee";
+    ctx.textAlign = "center";
+    ctx.direction = "rtl";
+    // Thermoplastic road lettering is drawn tall and heavy so it still
+    // reads when foreshortened to almost nothing at the far end
+    ctx.font = `700 118px ${arabicSign()}`;
+    ctx.fillText(text, 256, 170);
+  });
 }
 
 function stripeTexture(colorA: string, colorB: string): THREE.CanvasTexture {

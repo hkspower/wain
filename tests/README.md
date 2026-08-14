@@ -86,6 +86,31 @@ free of errors.
 npm run test:race
 ```
 
+## fonts.mjs — the Arabic actually is the Arabic
+
+Arabic fails quietly. A font that never loads, a variable that resolves
+to nothing, a stack that was tree-shaken out of the stylesheet — all of
+them fall back to something that still *draws*, so the page looks fine
+to anyone not reading it. Worse, the usual fallback has no Arabic
+coverage, so the shaper resolves letters individually and the word comes
+out unjoined: legible-ish, and wrong.
+
+So this asserts the type is real rather than plausible:
+
+- all three stacks (`--font-arabic`, `--font-arabic-display`,
+  `--font-arabic-sign`) resolve to a named family, and those families
+  report as loaded;
+- canvas text measures **differently from a generic fallback** — the
+  only way to know the in-world signage is really drawing in the
+  webfont rather than silently substituting;
+- `.grn-ar` cancels what the Latin styles impose: no letter-spacing
+  (it prises cursive letters apart), no uppercase transform, no
+  synthesised italic, and `direction: rtl`.
+
+```bash
+npm run test:fonts
+```
+
 ## framepacing.mjs — dynamic fps, v-sync, G-Sync
 
 Panel-refresh detection, the frame limiter, the G-Sync-style
