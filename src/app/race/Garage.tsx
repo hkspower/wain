@@ -35,6 +35,8 @@ const PERFORMANCE_CATS: Array<{ cat: string; label: string }> = [
   { cat: "internals", label: "INTERNALS · القطع الداخلية" },
   { cat: "brakes", label: "BRAKES · البريكات" },
   { cat: "tires", label: "TIRES · التواير" },
+  { cat: "gearbox", label: "GEARBOX · القير" },
+  { cat: "chassis", label: "CHASSIS & DIFF · الهيكل" },
   { cat: "extras", label: "EXTRAS & NOS · الإضافات" },
 ];
 const STYLE_CATS: Array<{ cat: string; label: string }> = [

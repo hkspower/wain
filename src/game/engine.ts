@@ -2157,7 +2157,9 @@ export class GameEngine {
     const engineAccel =
       this.throttle * Math.max(0, 19 * power * (1 - p.speed / ceiling));
     const tractionCap =
-      this.tune.gripAccel * (0.8 + 0.2 * Math.min(1, p.speed / 22));
+      this.tune.gripAccel *
+      (0.8 + 0.2 * Math.min(1, p.speed / 22)) *
+      this.tune.tractionMult;
     this.wheelspin = Math.max(0, engineAccel - tractionCap) * driveGrip;
     const accel =
       Math.min(engineAccel, tractionCap) * driveGrip + (this.nosActive ? 14 : 0);
@@ -2182,11 +2184,12 @@ export class GameEngine {
     // friction circle, half two: heavy braking or a spinning rear axle
     // leaves less grip to turn with, so the car pushes wide instead of
     // holding an impossible arc.
-    this.steerSmooth += (this.steer - this.steerSmooth) * Math.min(1, dt * 7);
+    this.steerSmooth +=
+      (this.steer - this.steerSmooth) * Math.min(1, dt * this.tune.steerRate);
     const longDemand = Math.min(1, (braking + this.wheelspin) / (brakeCap || 1));
     const yawRateMax =
       Math.min(1.6, this.tune.gripAccel / Math.max(p.speed, 2)) *
-      (1 - 0.35 * longDemand);
+      (1 - 0.35 * this.tune.understeerMult * longDemand);
     this.heading += this.steerSmooth * yawRateMax * dt;
     // Cornering isn't free: held near the limit, the front tires scrub
     // speed off — the reason real drivers straighten before they send it
@@ -2217,7 +2220,9 @@ export class GameEngine {
           : Math.sign(this.driftYaw); // no wheel input: hold the current slide
       if (steerDir !== 0) {
         const angleCap =
-          (0.38 + 0.28 * Math.min(1, p.speed / 55)) * (this.handbrake ? 1 : 0.6);
+          (0.38 + 0.28 * Math.min(1, p.speed / 55)) *
+          (this.handbrake ? 1 : 0.6) *
+          this.tune.driftAngleMult;
         const target =
           steerDir * angleCap * Math.min(1, Math.abs(this.steerSmooth) + 0.45);
         this.driftYaw += (target - this.driftYaw) * Math.min(1, dt * 3.4);
@@ -2232,13 +2237,17 @@ export class GameEngine {
           ? Math.abs(this.steerSmooth)
           : 0;
       const prev = this.driftYaw;
-      this.driftYaw -= this.driftYaw * Math.min(1, dt * (2.3 + counter * 3.2));
+      // Drift rubber lets go slower, so the angle hangs rather than snaps
+      this.driftYaw -=
+        this.driftYaw *
+        Math.min(1, (dt * (2.3 + counter * 3.2)) / this.tune.driftAngleMult);
       if (Math.abs(prev) > 0.3 && Math.abs(this.driftYaw) <= 0.3 && counter < 0.2) {
         this.shake = Math.max(this.shake, 0.18);
       }
       if (Math.abs(this.driftYaw) < 0.005) this.driftYaw = 0;
     }
-    this.driftYaw = THREE.MathUtils.clamp(this.driftYaw, -0.75, 0.75);
+    const yawClamp = 0.75 * this.tune.driftAngleMult;
+    this.driftYaw = THREE.MathUtils.clamp(this.driftYaw, -yawClamp, yawClamp);
 
     // Style points: angle × speed, banked when the slide ends cleanly.
     const driftDeg = (Math.abs(this.driftYaw) * 180) / Math.PI;
@@ -2319,15 +2328,20 @@ export class GameEngine {
       if (this.scrapeCooldown <= 0) {
         this.scrapeCooldown = 0.5;
         // The impact itself, once per contact: energy loss and a shove
-        // off the barrier, both scaled by how hard it was hit
-        p.speed *= 1 - 0.28 * severity;
+        // off the barrier, both scaled by how hard it was hit — and by
+        // how much of it a cage absorbs
+        p.speed *= 1 - 0.28 * severity * (1 - this.tune.crashResist);
         this.slipVel = -side * (1.2 + 5 * severity);
         this.events.onBump();
         if (this.inBattle) this.bstat.contacts++;
         this.spawnSparks();
         this.sound?.scrape();
         this.shake = Math.max(this.shake, 0.3 + 0.9 * severity);
-        if (this.inBattle) p.sp = Math.max(0, p.sp - Math.round(2 + 8 * severity));
+        if (this.inBattle)
+          p.sp = Math.max(
+            0,
+            p.sp - Math.round((2 + 8 * severity) * (1 - this.tune.crashResist))
+          );
       }
     }
 
@@ -2388,7 +2402,10 @@ export class GameEngine {
           if (rel >= 0) {
             // We hit them: the closing speed is mostly shed, and a harder
             // hit sheds proportionally more of it
-            p.speed = Math.max(0, t.speed + rel * (0.4 - 0.25 * sev));
+            p.speed = Math.max(
+              0,
+              t.speed + rel * (0.4 - 0.25 * sev * (1 - this.tune.crashResist))
+            );
             // Knock the player out of the hitbox, or the cooldown
             // re-bumps forever and glues them to the traffic car's tail.
             if (ds >= 0) p.s = this.track.wrap(t.s - 5.0);
@@ -2411,7 +2428,11 @@ export class GameEngine {
           this.spawnSparks();
           this.sound?.bump();
           this.shake = 0.5 + 0.7 * sev;
-          if (this.inBattle) p.sp = Math.max(0, p.sp - Math.round(4 + 8 * sev));
+          if (this.inBattle)
+            p.sp = Math.max(
+              0,
+              p.sp - Math.round((4 + 8 * sev) * (1 - this.tune.crashResist))
+            );
           break;
         }
       }

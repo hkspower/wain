@@ -2,14 +2,21 @@
 // the tuning effects the engine applies to the handling model.
 // Currency is KD, earned by defeating rivals.
 
-export type ExclusiveCat = "aspiration" | "brakes" | "tires" | "paint" | "glow";
-export type Category = ExclusiveCat | "internals" | "extras";
+export type ExclusiveCat =
+  | "aspiration"
+  | "brakes"
+  | "tires"
+  | "gearbox"
+  | "paint"
+  | "glow";
+export type Category = ExclusiveCat | "internals" | "chassis" | "extras";
 
 /** Slots where equipping one part unequips the previous one. */
 export const EXCLUSIVE_CATS: ReadonlySet<string> = new Set([
   "aspiration",
   "brakes",
   "tires",
+  "gearbox",
   "paint",
   "glow",
 ]);
@@ -40,6 +47,16 @@ export const PARTS: Part[] = [
   { id: "tires-sport", cat: "tires", name: "Sport Tires", ar: "تواير رياضية", price: 400, desc: "More grip, calmer sweepers" },
   { id: "tires-race", cat: "tires", name: "Racing Tires", ar: "تواير سباق", price: 900, desc: "Serious grip" },
   { id: "tires-slick", cat: "tires", name: "Slicks", ar: "سليك", price: 1600, desc: "Maximum grip, glued to the corniche" },
+  { id: "tires-drift", cat: "tires", name: "Drift Tires", ar: "تواير تفحيط", price: 1100, desc: "Less grip on purpose: bigger angles, slower to snap back, more style points" },
+  // Gearbox — exclusive. The same engine, geared for a different fight.
+  { id: "gearbox-close", cat: "gearbox", name: "Close-Ratio Box", ar: "قير قصير", price: 1400, desc: "+20% acceleration everywhere, ~16 km/h off the top — for the corniche, not the straight" },
+  { id: "gearbox-tall", cat: "gearbox", name: "Tall Final Drive", ar: "قير طويل", price: 1400, desc: "−12% acceleration for ~16 km/h more top end — for the long inland run" },
+  // Chassis — additive, always active once fitted. These are the parts
+  // that argue with the tire model rather than the engine.
+  { id: "lsd", cat: "chassis", name: "Limited-Slip Diff", ar: "دفرنس", price: 1300, desc: "Both rear tires pull: far less wheelspin off the line, and a slide you can steer" },
+  { id: "coilovers", cat: "chassis", name: "Coilovers", ar: "مساعدات", price: 900, desc: "Stiffer platform: the nose still turns in under heavy braking" },
+  { id: "cage", cat: "chassis", name: "Roll Cage", ar: "قفص حماية", price: 1500, desc: "Rigid shell: contact costs far less speed and SP — the price is a little weight" },
+  { id: "rack", cat: "chassis", name: "Quick Steering Rack", ar: "دركسون سريع", price: 700, desc: "Faster hands: the car answers the wheel almost immediately" },
   // Extras — additive
   { id: "weight", cat: "extras", name: "Weight Reduction", ar: "تخفيف وزن", price: 800, desc: "+10% power, +3 braking" },
   { id: "nos", cat: "extras", name: "NOS Kit", ar: "نيتروجين", price: 1000, desc: "Hold N for a 3-second shove; recharges slowly" },
@@ -361,6 +378,17 @@ export interface TuneEffects {
   brakeForce: number; // m/s²
   gripAccel: number; // lateral grip for yaw authority (base 12)
   slipMult: number; // scales centrifugal slip (base 1)
+  /** Scales what the driven axle can transmit — an LSD puts both rear
+   *  tires to work, so less torque is wasted as wheelspin. */
+  tractionMult: number;
+  /** Scales how much braking/wheelspin blunts turn-in (base 1). */
+  understeerMult: number;
+  /** Scales the drift angle cap: drift tires let the tail out further. */
+  driftAngleMult: number;
+  /** Steering smoothing rate — higher is a faster-answering rack. */
+  steerRate: number;
+  /** Fraction of impact damage a cage absorbs (0 = none, 1 = all). */
+  crashResist: number;
   aspiration: Aspiration;
   boostMult: number; // extra accel fraction at full boost
   hasNos: boolean;
@@ -403,12 +431,37 @@ export function computeEffects(g: GarageState): TuneEffects {
 
   let gripAccel = car.grip;
   let slipMult = 1;
+  let driftAngleMult = 1;
   if (eq.tires === "tires-sport") { gripAccel += 1.5; slipMult = 0.86; }
   else if (eq.tires === "tires-race") { gripAccel += 3; slipMult = 0.73; }
   else if (eq.tires === "tires-slick") { gripAccel += 4.5; slipMult = 0.59; }
+  else if (eq.tires === "tires-drift") {
+    // Not a worse slick — a different tool. Less grip to hold the line,
+    // much more angle once the tail is out, and it stays out.
+    gripAccel -= 1.2;
+    slipMult = 1.1;
+    driftAngleMult = 1.45;
+  }
   if (has("spoiler")) { gripAccel += 0.5; slipMult *= 0.92; }
   // Real downforce: the attack kit's wing and splitter plant the car
   if (car.kit === "attack") { gripAccel += 1.0; slipMult *= 0.88; }
+
+  // Gearing: the same engine, aimed at a different part of the road.
+  // The ceiling is in m/s, so these numbers are small on purpose: the
+  // close box pulls harder at every speed it can still reach, the tall
+  // one gives that up for a higher terminal speed.
+  if (eq.gearbox === "gearbox-close") { accelMult *= 1.2; topSpeedBonus -= 6; }
+  else if (eq.gearbox === "gearbox-tall") { accelMult *= 0.88; topSpeedBonus += 12; }
+
+  // Chassis
+  let tractionMult = 1;
+  let understeerMult = 1;
+  let steerRate = 7; // HANDLING.steerSmoothRate
+  let crashResist = 0;
+  if (has("lsd")) tractionMult += 0.16;
+  if (has("coilovers")) { understeerMult = 0.55; gripAccel += 0.4; }
+  if (has("cage")) { crashResist = 0.55; gripAccel += 0.3; accelMult *= 0.97; }
+  if (has("rack")) steerRate = 10.5;
 
   return {
     carId: car.id,
@@ -419,6 +472,11 @@ export function computeEffects(g: GarageState): TuneEffects {
     brakeForce,
     gripAccel,
     slipMult,
+    tractionMult,
+    understeerMult,
+    driftAngleMult,
+    steerRate,
+    crashResist,
     aspiration,
     boostMult,
     hasNos: has("nos"),

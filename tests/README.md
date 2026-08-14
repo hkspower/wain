@@ -111,6 +111,34 @@ So this asserts the type is real rather than plausible:
 npm run test:fonts
 ```
 
+## mods.mjs — every part changes the car
+
+A mod that only appears in a shop list is a lie told to the player. Each
+new part is fitted here and metered against the same car without it,
+stepping the sim by hand:
+
+| Part | What it must do |
+| --- | --- |
+| Limited-slip diff | less wheelspin off the line, quicker 0-100 |
+| Coilovers | turn-in survives heavy braking |
+| Quick steering rack | the wheel answers faster |
+| Roll cage | contact costs less speed |
+| Drift tires | bigger angle than slicks, the grip peak |
+| Close-ratio box | quicker roll-on than the tall one |
+| Tall final drive | higher terminal speed than the close one |
+
+Writing it surfaced two things about the tire model worth knowing.
+Below roughly 176 km/h a stock car is **traction-limited**, so engine
+and gearing mods do nothing there until you also buy tires — the first
+version of the gearbox test measured a launch and found both boxes
+identical, correctly. And `topSpeedBonus` is added to a ceiling in m/s,
+not km/h, so the original ±8/18 was a far bigger swing than the copy
+implied and made the *tall* box out-accelerate the close one everywhere.
+
+```bash
+npm run test:mods
+```
+
 ## framepacing.mjs — dynamic fps, v-sync, G-Sync
 
 Panel-refresh detection, the frame limiter, the G-Sync-style
