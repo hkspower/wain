@@ -264,6 +264,32 @@ npm run test:ik
 GRN_STILLS=1 npm run test:ik   # also writes /tmp/smoke/ik-driver.png
 ```
 
+## menu.mjs — the front door
+
+The main menu is the one screen where a broken build looks exactly like
+a working one: a dark rectangle with some buttons on it. So this asserts
+the menu is real. It comes *before* any engine exists, the five items
+are the five items, the turntable behind it is drawing your own car
+(a quarter of a million triangles, angle advancing), arrow keys move the
+selection and wrap off both ends, each item opens the screen it
+advertises, and starting the race disposes the turntable instead of
+leaving it spinning behind the road.
+
+Two things it cannot do the obvious way. The turntable cannot be checked
+by reading its canvas back — WebGL discards the drawing buffer on
+composite, so a scripted `readPixels` gets a screenful of zeros however
+good the picture is; the scene reports its own frame count, triangle
+count and angle instead. And the garage and credits open *over* the
+menu rather than replacing it, so "the menu is gone" proves nothing —
+each is identified by its own content. Frame *rate* is deliberately not
+asserted: this suite runs on a software rasteriser where a detailed car
+costs seconds a frame, so an fps threshold would measure the test box.
+
+```bash
+npm run test:menu
+GRN_STILLS=1 npm run test:menu   # also writes /tmp/smoke/menu.png
+```
+
 ## grade.mjs — the picture controls control the picture
 
 Grading claims are claims about the histogram of the delivered frame,
@@ -283,11 +309,26 @@ that was already white. Measuring contrast at noon, the top end by its
 mean rather than a clip count, and saturation above the shoulder made
 all three discriminate immediately.
 
-The exposure thresholds are deliberately asymmetric, and that is the
-tone curve rather than a fudge: at 0 EV this night scene already has
-its lamps sitting in the filmic shoulder, so a stop more light mostly
-compresses while a stop less falls down the linear part and darkens
-hard. Demanding symmetry would be demanding the shoulder not work.
+The exposure ladder is metered in daylight, and that took three
+attempts to get honest. Measured at night it swung sixty per cent
+between identical runs and failed perhaps one run in three — the
+lamps sit exactly on the bloom threshold at 0 EV, so a four per cent
+lamp shimmer flips a large amount of glow in or out of the frame.
+That is the least stable point in the entire pipeline and it says
+nothing about whether the control works. Two smaller fixture lies came
+out with it: the rival kept cruising through the measurement (parked
+traffic, unparked rival — a lit car drifting into a night frame is
+worth more than half the histogram), and the exposure pass carries
+state between frames, so a single render after a settings change could
+still show the *previous* shot's exposure and the ladder read
+non-monotonic. Parked every frame, rendered until settled, and metered
+at noon, the spread is under one per cent.
+
+The thresholds are deliberately asymmetric, and that is the tone curve
+rather than a fudge: a daylight frame sits up on the filmic shoulder,
+so a stop down is compressed (−14%) while a stop up still has room to
+climb (+52%). At night it is the other way round. Demanding symmetry
+would be demanding the shoulder not work.
 
 ```bash
 npm run test:grade

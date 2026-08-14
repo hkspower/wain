@@ -32,6 +32,7 @@
     "test:audio": "node tests/audio.mjs",
     "test:daynight": "node tests/daynight.mjs",
     "test:ik": "node tests/ik.mjs",
+    "test:menu": "node tests/menu.mjs",
     "test:grade": "node tests/grade.mjs"
   },
   "dependencies": {

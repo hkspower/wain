@@ -13,6 +13,7 @@ import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
 import { ParticleSystem, radialSprite } from "./vfx";
 import { solveTwoBone, aimConstrained } from "./ik";
+import { nightEnvironment } from "./env";
 import { GradeShader, AutoExposure, ExposurePass } from "./grade";
 import type { DriverRig } from "./characters";
 import { Music } from "./music";
@@ -763,64 +764,10 @@ export class GameEngine {
     window.addEventListener("blur", this.onBlur);
   }
 
-  /** The world the paint reflects.
-   *
-   *  Car photography lives on one thing: a bright horizon band that
-   *  sweeps across the bodywork as the car turns, with dark ground below
-   *  and dark sky above. Add the sodium streetlights as discrete hot
-   *  spots and the clearcoat gets those long travelling streaks that
-   *  read as real lacquer. Baked once into a PMREM cubemap. */
+  /** The night the paint reflects — see env.ts. Shared with the main
+   *  menu's turntable so both are lit by the same city. */
   private buildEnvironment(): void {
-    const env = new THREE.Scene();
-
-    // Gradient dome: asphalt below, sodium-lit haze at the horizon,
-    // deep blue night above.
-    const c = document.createElement("canvas");
-    c.width = 16;
-    c.height = 256;
-    const ctx = c.getContext("2d")!;
-    const g = ctx.createLinearGradient(0, 0, 0, 256);
-    g.addColorStop(0.0, "#0a1024"); // zenith
-    g.addColorStop(0.42, "#16233f");
-    g.addColorStop(0.5, "#e8b070"); // the horizon band — the money stripe
-    g.addColorStop(0.56, "#3a2a1c");
-    g.addColorStop(0.72, "#0b0c10");
-    g.addColorStop(1.0, "#050506"); // ground
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 16, 256);
-    const domeTex = new THREE.CanvasTexture(c);
-    domeTex.colorSpace = THREE.SRGBColorSpace;
-    const dome = new THREE.Mesh(
-      new THREE.SphereGeometry(60, 24, 16),
-      new THREE.MeshBasicMaterial({ map: domeTex, side: THREE.BackSide })
-    );
-    env.add(dome);
-
-    // Streetlights: a ring of warm emitters at lamp height, so the
-    // clearcoat picks up travelling highlights instead of one flat sheen.
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      const lamp = new THREE.Mesh(
-        new THREE.SphereGeometry(1.6, 8, 6),
-        new THREE.MeshBasicMaterial({ color: new THREE.Color(9, 6.2, 3.1) })
-      );
-      lamp.position.set(Math.cos(a) * 34, 11 + (i % 3) * 3, Math.sin(a) * 34);
-      env.add(lamp);
-    }
-
-    // The moon, high and cool — a small hard highlight
-    const moon = new THREE.Mesh(
-      new THREE.SphereGeometry(3.4, 12, 10),
-      new THREE.MeshBasicMaterial({ color: new THREE.Color(7, 7.4, 9) })
-    );
-    moon.position.set(-34, 38, -14);
-    env.add(moon);
-
-    const pmrem = new THREE.PMREMGenerator(this.renderer);
-    pmrem.compileEquirectangularShader();
-    this.scene.environment = pmrem.fromScene(env, 0.02).texture;
-    pmrem.dispose();
-    domeTex.dispose();
+    this.scene.environment = nightEnvironment(this.renderer);
   }
 
   // ---------------------------------------------------------------- public
@@ -3087,12 +3034,14 @@ export class GameEngine {
     });
 
     // Ten-to-two, carried round with the rim. The grips are points ON
-    // the wheel, so the hands travel with it and the arms must follow.
+    // the wheel — fixed in its LOCAL frame — so localToWorld carries
+    // them round as it turns. Adding rotation.z to the local angle as
+    // well counts the wheel twice: the hands then orbit at double the
+    // spoke rate and cross over each other at full lock.
     rig.wheel.updateWorldMatrix(true, false);
     for (const arm of rig.arms) {
       const grip = arm.side < 0 ? Math.PI * 0.72 : Math.PI * 0.28;
-      const a = grip + rig.wheel.rotation.z;
-      this.v1.set(Math.cos(a) * rig.wheelRadius, Math.sin(a) * rig.wheelRadius, 0);
+      this.v1.set(Math.cos(grip) * rig.wheelRadius, Math.sin(grip) * rig.wheelRadius, 0);
       rig.wheel.localToWorld(this.v1);
 
       // Elbows break outward and down — the pole is what stops a solved

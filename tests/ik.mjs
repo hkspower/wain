@@ -38,14 +38,28 @@ const hands = await page.evaluate(()=>{
       arm.hand.updateWorldMatrix(true, false);
       const hp = new (e.camera.position.constructor)();
       hp.setFromMatrixPosition(arm.hand.matrixWorld);
-      // Where it was asked to be: the grip point on the rim
+      // Where it was asked to be: a MATERIAL point on the rim, i.e. a
+      // marker parented to the wheel at a fixed local angle. Rebuilding
+      // the engine's own arithmetic here would only prove the test can
+      // copy-paste — it did exactly that, and hid a bug where the
+      // hands orbited at twice the wheel's rate for months.
       const grip = arm.side < 0 ? Math.PI*0.72 : Math.PI*0.28;
-      const a = grip + rig.wheel.rotation.z;
-      const tp = new (e.camera.position.constructor)(
-        Math.cos(a)*rig.wheelRadius, Math.sin(a)*rig.wheelRadius, 0);
-      rig.wheel.updateWorldMatrix(true,false);
-      rig.wheel.localToWorld(tp);
-      out.push({ steer, side: arm.side, err: +hp.distanceTo(tp).toFixed(4) });
+      let marker = rig.wheel.getObjectByName(`grip${arm.side}`);
+      if (!marker) {
+        marker = new (rig.wheel.constructor)();
+        marker.name = `grip${arm.side}`;
+        marker.position.set(Math.cos(grip)*rig.wheelRadius, Math.sin(grip)*rig.wheelRadius, 0);
+        rig.wheel.add(marker);
+      }
+      rig.wheel.updateWorldMatrix(true, true);
+      const tp = new (e.camera.position.constructor)();
+      tp.setFromMatrixPosition(marker.matrixWorld);
+      // The hand's angle in the wheel's own frame: constant if the
+      // hands ride the rim, drifting if the rotation is counted twice.
+      const lp = hp.clone();
+      rig.wheel.worldToLocal(lp);
+      out.push({ steer, side: arm.side, err: +hp.distanceTo(tp).toFixed(4),
+                 localAng: +Math.atan2(lp.y, lp.x).toFixed(3) });
     }
   }
   e.setTouchInput({ steer: 0 });
@@ -54,8 +68,16 @@ const hands = await page.evaluate(()=>{
 if (!hands) { console.log("no driver rig"); process.exit(1); }
 const worst = Math.max(...hands.map(h=>h.err));
 console.log("driver hands on the rim (reach error, metres):");
-for (const h of hands) console.log(`  steer ${String(h.steer).padStart(4)}  ${h.side<0?"left ":"right"}  ${h.err}`);
+for (const h of hands) console.log(`  steer ${String(h.steer).padStart(4)}  ${h.side<0?"left ":"right"}  ${h.err}  grip angle in wheel frame ${h.localAng}`);
 console.log(`worst ${worst} m  ${check(worst < 0.02, `a hand missed the rim by ${worst} m`)}`);
+// Each hand keeps its station on the rim through the whole lock: the
+// grip angle measured in the wheel's own frame must not move.
+for (const side of [-1, 1]) {
+  const angs = hands.filter(h=>h.side===side).map(h=>h.localAng);
+  const drift = Math.max(...angs) - Math.min(...angs);
+  console.log(`  ${side<0?"left ":"right"} hand grip drifts ${drift.toFixed(3)} rad across full lock  ` +
+    check(drift < 0.05, `the ${side<0?"left":"right"} hand slides ${drift.toFixed(2)} rad around the rim as the wheel turns`));
+}
 
 // --- 2. Unreachable target: the arm straightens, it does not explode ---
 const far = await page.evaluate(()=>{
@@ -127,12 +149,19 @@ const rivalIk = await page.evaluate(()=>{
   for (let i=0;i<12;i++) e.update(1/60);
   const V = e.camera.position.constructor;
   const hands = [];
-  rig.wheel.updateWorldMatrix(true,false);
   for (const arm of rig.arms) {
+    // Same material-point marker as the player's rig, not a re-run of
+    // the engine's arithmetic
     const grip = arm.side < 0 ? Math.PI*0.72 : Math.PI*0.28;
-    const a = grip + rig.wheel.rotation.z;
-    const tp = new V(Math.cos(a)*rig.wheelRadius, Math.sin(a)*rig.wheelRadius, 0);
-    rig.wheel.localToWorld(tp);
+    let marker = rig.wheel.getObjectByName(`grip${arm.side}`);
+    if (!marker) {
+      marker = new (rig.wheel.constructor)();
+      marker.name = `grip${arm.side}`;
+      marker.position.set(Math.cos(grip)*rig.wheelRadius, Math.sin(grip)*rig.wheelRadius, 0);
+      rig.wheel.add(marker);
+    }
+    rig.wheel.updateWorldMatrix(true, true);
+    const tp = new V(); tp.setFromMatrixPosition(marker.matrixWorld);
     arm.hand.updateWorldMatrix(true,false);
     const hp = new V(); hp.setFromMatrixPosition(arm.hand.matrixWorld);
     hands.push(+hp.distanceTo(tp).toFixed(4));
@@ -245,8 +274,18 @@ const wave = await page.evaluate(()=>{
   const handPos = () => { arm.hand.updateWorldMatrix(true,false); const p=new V(); p.setFromMatrixPosition(arm.hand.matrixWorld); return p; };
   const restY = handPos().y;
   const p = fig.position;
-  // The car pulls up close: the hand should rise...
-  for (let i=0;i<300;i++) e.world.setCrowdFocus(p.x+6, p.y+1, p.z+4, 1/60);
+  const shoulderPos = () => { arm.shoulder.updateWorldMatrix(true,false); const q=new V(); q.setFromMatrixPosition(arm.shoulder.matrixWorld); return q; };
+  const span = (arm.upper + arm.lower) * fig.scale.x;
+  // The car pulls up close: the hand should rise — and the arm must
+  // stay extended through the whole swing. Blending the hand's
+  // POSITION from hanging to raised drags the target past the
+  // shoulder, folding the arm into the armpit mid-wave; sampling only
+  // the endpoints cannot see that, so sample the transit.
+  let minReach = 1e9;
+  for (let i=0;i<300;i++) {
+    e.world.setCrowdFocus(p.x+6, p.y+1, p.z+4, 1/60);
+    minReach = Math.min(minReach, handPos().distanceTo(shoulderPos()));
+  }
   const upY = handPos().y;
   // ...and wave — the hand travels laterally while the car sits there
   let wag = 0; const first = handPos();
@@ -258,13 +297,17 @@ const wave = await page.evaluate(()=>{
   // The car leaves: the arm settles back where it was built
   for (let i=0;i<700;i++) e.world.setCrowdFocus(p.x+800, 1, p.z+800, 1/60);
   const downY = handPos().y;
-  return { restY:+restY.toFixed(3), upY:+upY.toFixed(3), wag:+wag.toFixed(3), downY:+downY.toFixed(3) };
+  return { restY:+restY.toFixed(3), upY:+upY.toFixed(3), wag:+wag.toFixed(3), downY:+downY.toFixed(3),
+           minReach:+minReach.toFixed(3), span:+span.toFixed(3) };
 });
 if (wave && !wave.noArms) {
   console.log(`wave         hand at ${wave.restY} rest, ${wave.upY} waving (wag ${wave.wag} m), ${wave.downY} after the car has gone`);
+  console.log(`             arm stayed ${wave.minReach} m from the shoulder through the swing (span ${wave.span} m)`);
   check(wave.upY - wave.restY > 0.5, "no hand went up for a car parked alongside");
   check(wave.wag > 0.05, "the raised hand holds still — that is a salute, not a wave");
   check(Math.abs(wave.downY - wave.restY) < 0.12, "the arm never comes back down");
+  check(wave.minReach > wave.span * 0.75,
+    `the arm folded to ${wave.minReach} m of its ${wave.span} m span mid-wave — that is a chicken-wing, not a swing`);
 } else fail.push(wave ? "spectators have no arm chains" : "no spectators found for the wave");
 
 // A look at the driver through the glass

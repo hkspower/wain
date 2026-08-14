@@ -21,6 +21,32 @@ await page.waitForFunction(()=>!!window.__grnDebug,null,{timeout:120000});
 
 const fail=[]; const check=(c,m)=>{if(!c)fail.push(m);return c?"ok":"FAIL";};
 
+// Warm-up before anything is measured. The world finishes assembling
+// after the engine reports ready — authored textures and palm crowns
+// stream in, shadow maps and the reflection probe want frames — and a
+// histogram taken while that is still landing is the histogram of a
+// half-built scene. It showed up as the first shots reading dark and
+// the exposure ladder coming out non-monotonic perhaps one run in
+// three, which reads as a grading bug and is nothing of the kind.
+await page.evaluate(async ()=>{
+  const e = window.__grnEngine;
+  e.setPaused(true);
+  // Pin the resolution. Dynamic resolution scaling reacts to measured
+  // frame rate, and on the software rasteriser this suite runs on it
+  // wanders anywhere between 0.6 and 1.0 before the first measurement
+  // depending on how the machine felt that minute — which moves the
+  // bloom and therefore the histogram. An explicit tier turns DRS off.
+  e.applyQualityTier("high");
+  e.timeHours = 22.5; e.world.setTimeOfDay(22.5); e.applyDaylight();
+  e.player.s = e.track.length * 0.30; e.player.lat = 0; e.player.speed = 32;
+  for (const t of e.traffic) t.s = e.track.wrap(e.player.s + e.track.length/2);
+  for (let i=0;i<60;i++) e.update(1/60);
+  e.composer.render();
+  await new Promise(r=>setTimeout(r, 800)); // let the streamed assets land
+  for (let i=0;i<40;i++) e.update(1/60);
+  e.composer.render();
+});
+
 // Render a frame with the given picture settings and measure it
 const shoot = (setup) => page.evaluate(async (setup)=>{
   const e = window.__grnEngine;
@@ -33,9 +59,27 @@ const shoot = (setup) => page.evaluate(async (setup)=>{
   e.setHighlights(setup.highlights ?? 0);
   e.player.s = e.track.length * 0.30;
   e.player.lat = 0; e.player.speed = 32;
-  for (const t of e.traffic) t.s = e.track.wrap(e.player.s + e.track.length/2);
-  for (let i=0;i<24;i++) e.update(1/60);
-  e.composer.render();
+  // Park everything that moves, every frame — not once before the loop.
+  // The rival keeps cruising through update(), and a lit car with
+  // headlights and underglow drifting into a night frame is worth more
+  // than half the histogram: it made the middle of the exposure ladder
+  // swing 60% between runs while the ends stayed put.
+  const park = () => {
+    const away = e.track.wrap(e.player.s + e.track.length/2);
+    for (const t of e.traffic) t.s = away;
+    if (e.rival) { e.rival.s = away; e.rival.speed = 0; }
+    e.player.s = e.track.length * 0.30;
+    e.player.lat = 0;
+  };
+  park();
+  for (let i=0;i<24;i++) { e.update(1/60); park(); }
+  // Render until the picture settles rather than measuring the first
+  // frame after a settings change. The exposure pass carries state
+  // between frames (that is what makes auto-exposure adapt rather than
+  // pop), so one render after a change can still show the previous
+  // shot's exposure — which made this ladder read non-monotonic and
+  // looked exactly like a grading bug.
+  for (let i=0;i<3;i++) e.composer.render();
 
   const gl = e.renderer.domElement;
   const c = document.createElement("canvas");
@@ -62,17 +106,26 @@ const shoot = (setup) => page.evaluate(async (setup)=>{
 }, setup);
 
 // --- 1. Exposure moves the whole picture ---
-const evDown = await shoot({ ev: -1 });
-const ev0    = await shoot({ ev: 0 });
-const evUp   = await shoot({ ev: +1 });
+// Metered in daylight, for the same reason contrast is below: at night
+// the street lamps sit right on the bloom threshold at 0 EV, so a 4%
+// lamp shimmer flips a large amount of glow in or out of the frame and
+// the middle of the ladder swings 60% between runs while both ends
+// stay put. That is the most unstable point in the whole pipeline, and
+// it says nothing about whether the exposure control works.
+const HOUR = 12.5;
+const evDown = await shoot({ ev: -1, hour: HOUR });
+const ev0    = await shoot({ ev: 0, hour: HOUR });
+const evUp   = await shoot({ ev: +1, hour: HOUR });
 console.log(`exposure    -1 EV mean ${evDown.mean} | 0 EV ${ev0.mean} | +1 EV ${evUp.mean}`);
-// Deliberately asymmetric thresholds. A filmic curve has a shoulder, and
-// at 0 EV this night scene already has its lamps and paint sitting in
-// it, so a stop of extra light mostly compresses instead of raising the
-// mean — while a stop less falls down the linear part and darkens hard.
-// Demanding symmetry here would be demanding the tone curve not work.
-check(evUp.mean > ev0.mean * 1.04, "raising exposure did not brighten the frame at all");
-check(evDown.mean < ev0.mean * 0.7, "lowering exposure did not darken the frame");
+// Deliberately asymmetric thresholds, and they belong to this regime.
+// A daylight frame sits up on the filmic shoulder, where a stop down
+// is compressed (measured -14%, spread under 1% across runs) and a
+// stop up still has room to climb (+52%). At night it is the other way
+// round. Demanding symmetry would be demanding the tone curve not work,
+// so each direction is bounded well clear of the run-to-run spread
+// rather than at some round number.
+check(evUp.mean > ev0.mean * 1.2, "raising exposure did not brighten the frame");
+check(evDown.mean < ev0.mean * 0.92, "lowering exposure did not darken the frame");
 check(evDown.mean < ev0.mean && ev0.mean < evUp.mean, "exposure is not monotonic");
 
 // --- 2. Contrast spreads the histogram, and holds the pivot ---

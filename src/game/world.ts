@@ -1135,6 +1135,9 @@ const _sw = new THREE.Vector3();
 const _out = new THREE.Vector3();
 const _hand = new THREE.Vector3();
 const _pole = new THREE.Vector3();
+const _restDir = new THREE.Vector3();
+const _upDir = new THREE.Vector3();
+const _dir = new THREE.Vector3();
 let _waveT = 0;
 
 export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
@@ -2599,14 +2602,25 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         const len = Math.hypot(_out.x, _out.z) || 1;
         _out.multiplyScalar(1 / len);
         const span = (arm.upper + arm.lower) * w.body.scale.x;
-        // The target slides from "hanging at the side" to "up and out
-        // toward the road" as the lift comes in, with the wag swinging
-        // perpendicular to the line out to the car.
-        const wag = Math.sin(_waveT * 6.5 + w.phase) * 0.17 * w.lift;
-        _hand
-          .copy(_sw)
-          .addScaledVector(_out, 0.12 * w.lift)
-          .add(_pole.set(-_out.z * wag, -span * 0.92 * (1 - w.lift) + 0.4 * w.lift, _out.x * wag));
+
+        // Swing the arm along an ARC, by blending the direction it
+        // points and holding the hand a fixed reach out along it.
+        // Blending the hand's position instead draws a straight line
+        // from hanging to raised that passes within a hand's width of
+        // the shoulder — the solver answers that by folding the arm
+        // into the armpit, so every wave began and ended with a
+        // chicken-wing. Down here the arm stays extended throughout.
+        _restDir
+          .set(Math.sin(w.waveSide * 0.15), -Math.cos(w.waveSide * 0.15), 0)
+          .applyQuaternion(w.body.quaternion);
+        // Raised: up and out toward the car, the wag swinging across
+        // the line out to it.
+        const wag = Math.sin(_waveT * 6.5 + w.phase) * 0.3 * w.lift;
+        _upDir
+          .set(_out.x * 0.45 - _out.z * wag, 0.87, _out.z * 0.45 + _out.x * wag)
+          .normalize();
+        _dir.copy(_restDir).lerp(_upDir, w.lift).normalize();
+        _hand.copy(_sw).addScaledVector(_dir, span * 0.94);
         // Elbow breaks outboard and a little down, in the body's frame
         _pole.set(w.waveSide * 0.6, -0.2, 0.05).applyQuaternion(w.body.quaternion).add(_sw);
         solveTwoBone({

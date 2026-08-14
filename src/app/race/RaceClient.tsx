@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DriverCard, GameEngine, HudData, RaceResult } from "@/game/engine";
 import { playSfx, preloadSfx, setSfxVolume } from "@/game/sfx";
 import Results from "./Results";
@@ -35,6 +35,15 @@ import {
 
 
 type Phase = "menu" | "loading" | "playing" | "champion" | "error";
+
+/** The car on the turntable, named for the footer. */
+function carName(g: GarageState | null): string {
+  try {
+    return getCar((g ?? loadGarage()).car).name;
+  } catch {
+    return "";
+  }
+}
 
 /** Rivals defeated so far, as the engine saves it. */
 function readBeaten(): number {
@@ -124,6 +133,11 @@ export default function RaceClient() {
   const coachRef = useRef<CoachState | null>(null);
   const [career, setCareer] = useState<Profile | null>(null);
   const [beaten, setBeaten] = useState(0);
+  const [creditsOpen, setCreditsOpen] = useState(false);
+  // Main menu: which item the keyboard is on, and the turntable behind it
+  const [menuSel, setMenuSel] = useState(0);
+  const attractRef = useRef<HTMLCanvasElement>(null);
+  const attractScene = useRef<import("@/game/attract").AttractHandle | null>(null);
   const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const boostWrapRef = useRef<HTMLDivElement>(null);
@@ -608,6 +622,58 @@ export default function RaceClient() {
     };
   }, []);
 
+  // The menu's turntable: your own car, rebuilt whenever the garage
+  // changes under it, torn down the moment the race takes the canvas.
+  useEffect(() => {
+    if (phase !== "menu" || !attractRef.current) return;
+    let handle: import("@/game/attract").AttractHandle | null = null;
+    let cancelled = false;
+    const reduced =
+      document.documentElement.dataset.reducedMotion === "1" ||
+      (typeof matchMedia === "function" &&
+        matchMedia("(prefers-reduced-motion: reduce)").matches);
+    (async () => {
+      try {
+        const [{ buildAttract }, { computeEffects }] = await Promise.all([
+          import("@/game/attract"),
+          import("@/game/mods"),
+        ]);
+        if (cancelled || !attractRef.current) return;
+        const tune = computeEffects(garage ?? loadGarage());
+        handle = buildAttract(
+          attractRef.current,
+          {
+            body: tune.paint,
+            accent: 0x007a3d,
+            style: tune.bodyStyle,
+            underglow: tune.glow ?? undefined,
+            spoiler: tune.spoiler,
+            goldRims: tune.goldRims,
+            raceKit: tune.raceKit,
+            stickers: tune.stickers,
+          },
+          reduced
+        );
+        attractScene.current = handle;
+        // Dev handle, same contract as __grnEngine: the turntable cannot
+        // be inspected by reading the canvas back, so it reports itself.
+        (window as unknown as { __grnAttract: unknown }).__grnAttract = handle;
+      } catch {
+        // No WebGL, or the import failed: the menu is still a menu.
+        // It reads perfectly well over the scrim on its own.
+      }
+    })();
+    const onResize = () => handle?.resize();
+    window.addEventListener("resize", onResize);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("resize", onResize);
+      handle?.dispose();
+      attractScene.current = null;
+      delete (window as unknown as { __grnAttract?: unknown }).__grnAttract;
+    };
+  }, [phase, garage]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (
@@ -622,16 +688,20 @@ export default function RaceClient() {
       ) {
         setPauseOpen((p) => !p);
       }
-      // Enter must not fall through a modal and start the race behind it
-      if (
-        phase === "menu" &&
-        e.key === "Enter" &&
-        !e.repeat &&
-        !garageOpen &&
-        !settingsOpen &&
-        !onboarding
-      )
-        startGame();
+      // Menu navigation. Enter must not fall through a modal and start
+      // the race behind it, so every branch is gated on the overlays.
+      const menuLive =
+        phase === "menu" && !garageOpen && !settingsOpen && !onboarding && !creditsOpen;
+      if (menuLive && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+        e.preventDefault();
+        const n = menuItemsRef.current.length;
+        setMenuSel((s) => (s + (e.key === "ArrowDown" ? 1 : n - 1)) % n);
+      }
+      if (menuLive && e.key === "Enter" && !e.repeat) {
+        menuItemsRef.current[menuSel]?.run();
+      }
+      // Escape closes the credits the same way it closes everything else
+      if (creditsOpen && e.key === "Escape") setCreditsOpen(false);
       if (result && result.outcome === "loss" && e.key.toLowerCase() === "r") {
         setResult(null);
         engineRef.current?.setPaused(false);
@@ -640,7 +710,61 @@ export default function RaceClient() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [phase, startGame, result, garageOpen, settingsOpen, onboarding, cine, challenge]);
+  }, [phase, startGame, result, garageOpen, settingsOpen, onboarding, cine, challenge, creditsOpen, menuSel]);
+
+  // The main menu proper: one list, navigable by keyboard or thumb.
+  // The first item keeps the wording the whole game is introduced by —
+  // START ENGINE for a new driver, CONTINUE for a career in progress.
+  const menuItems = useMemo(
+    () => [
+      {
+        key: "start",
+        label: beaten > 0 ? "CONTINUE" : "START ENGINE",
+        ar: "يلا",
+        icon: "🏁",
+        hint: "Take the Gulf Road at midnight",
+        run: () => startGame(),
+      },
+      {
+        key: "garage",
+        label: "GARAGE",
+        ar: "الكراج",
+        icon: "🔧",
+        hint: "Buy, paint and tune the machine",
+        run: () => {
+          setGarage(loadGarage());
+          setGarageOpen(true);
+        },
+      },
+      {
+        key: "settings",
+        label: "SETTINGS",
+        ar: "الإعدادات",
+        icon: "⚙",
+        hint: "Picture, sound and controls",
+        run: () => setSettingsOpen(true),
+      },
+      {
+        key: "howto",
+        label: "HOW TO PLAY",
+        ar: "كيف تلعب",
+        icon: "🎮",
+        hint: "The flash, the battle, the SP bar",
+        run: () => setOnboarding(true),
+      },
+      {
+        key: "credits",
+        label: "CREDITS",
+        ar: "شكر",
+        icon: "★",
+        hint: "Who built this, and what it is built on",
+        run: () => setCreditsOpen(true),
+      },
+    ],
+    [beaten, startGame]
+  );
+  const menuItemsRef = useRef(menuItems);
+  menuItemsRef.current = menuItems;
 
   const lvl = levelInfo(career?.xp ?? 0);
   const rank = rankTitle(lvl.level);
@@ -1214,8 +1338,13 @@ export default function RaceClient() {
 
       {/* Menu */}
       {phase === "menu" && (
-        <div className="safe-pad screen-in absolute inset-0 z-10 overflow-y-auto bg-gradient-to-b from-[#05070f] via-[#0a1226] to-[#05070f]">
-          <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col">
+        <div className="screen-in absolute inset-0 z-10">
+          {/* The turntable: your own car, lit by the night you are about
+              to drive into. Behind a scrim so the menu stays readable. */}
+          <canvas ref={attractRef} className="attract-canvas" aria-hidden />
+          <div className="menu-scrim" aria-hidden />
+          <div className="safe-pad absolute inset-0 overflow-y-auto">
+          <div className="menu-shell relative mx-auto flex min-h-full w-full max-w-3xl flex-col">
             {/* Driver bar — who you are, what you have, how far you are */}
             <div className="grn-panel flex items-center gap-3 px-3 py-2.5">
               <div className="grid size-11 shrink-0 place-items-center rounded-xl border border-sodium-500/50 bg-sodium-500/15">
@@ -1360,41 +1489,140 @@ export default function RaceClient() {
               </div>
             </div>
 
-            {/* Primary actions */}
-            <div className="mt-5 flex flex-col gap-2.5 sm:flex-row">
-              <button
-                onClick={startGame}
-                className="grn-btn grn-btn-primary tap flex-1 whitespace-nowrap px-6 py-4 text-base sm:text-lg"
-              >
-                {beaten > 0 ? "CONTINUE" : "START ENGINE"} <span className="grn-ar">يلا</span> 🏁
-              </button>
-              <button
-                onClick={() => {
-                  setGarage(loadGarage());
-                  setGarageOpen(true);
-                }}
-                className="tap grn-btn grn-btn-ghost whitespace-nowrap px-6 py-4 text-base sm:text-lg"
-              >
-                GARAGE 🔧 <span className="grn-ar">الكراج</span>
-              </button>
+            {/* The menu itself */}
+            <nav className="mt-5 flex flex-col gap-1.5" aria-label="Main menu">
+              {menuItems.map((it, i) => (
+                <button
+                  key={it.key}
+                  onClick={it.run}
+                  onMouseEnter={() => setMenuSel(i)}
+                  onFocus={() => setMenuSel(i)}
+                  aria-current={i === menuSel ? "true" : undefined}
+                  className={`menu-item tap ${i === menuSel ? "is-sel" : ""} ${
+                    i === 0 ? "is-primary" : ""
+                  }`}
+                >
+                  <span className="menu-item-caret" aria-hidden>
+                    ▸
+                  </span>
+                  <span className="menu-item-icon" aria-hidden>
+                    {it.icon}
+                  </span>
+                  <span className="min-w-0 flex-1 text-left">
+                    <span className="menu-item-label">{it.label}</span>{" "}
+                    <span className="grn-ar text-white/50">{it.ar}</span>
+                    <span className="menu-item-hint">{it.hint}</span>
+                  </span>
+                </button>
+              ))}
+            </nav>
+            <div className="grn-label mt-2 text-center text-[0.5rem] text-white/35">
+              ↑ ↓ to choose · Enter to select
             </div>
 
              </div>
             </div>
 
             <div className="mt-auto flex items-center justify-between pt-4">
-              <button
-                onClick={() => setOnboarding(true)}
-                className="grn-label tap px-1 text-[0.55rem] text-white/45 hover:text-white"
-              >
-                How to play
-              </button>
+              <span className="grn-label text-[0.55rem] text-white/30">
+                {carName(garage)} <span className="grn-ar text-white/25">في الكراج</span>
+              </span>
               <a
                 href="/hub"
                 className="grn-label text-[0.55rem] text-gulf-300 underline-offset-4 hover:underline"
               >
                 Online hub →
               </a>
+            </div>
+          </div>
+          </div>
+        </div>
+      )}
+
+      {/* Credits */}
+      {creditsOpen && (
+        <div className="safe-pad absolute inset-0 z-40 overflow-y-auto bg-gradient-to-b from-[#05070f] via-[#0a1226] to-[#05070f]">
+          <div className="mx-auto max-w-xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="grn-label text-[0.72rem] tracking-[0.42em] text-gulf-400">
+                  Credits
+                </div>
+                <h2 className="grn-display mt-1 text-4xl italic">
+                  <span className="grn-ar">شكر وتقدير</span>
+                </h2>
+              </div>
+              <button
+                onClick={() => setCreditsOpen(false)}
+                className="tap grn-btn bg-white px-6 py-2.5 text-sm text-black hover:bg-white/85"
+              >
+                BACK
+              </button>
+            </div>
+
+            <div className="grn-dialog mt-5 p-4 sm:p-5">
+              <div className="grn-display text-2xl italic">
+                GULF ROAD <span className="text-sodium-400">NIGHTS</span>
+              </div>
+              <div className="grn-ar mt-1 text-base text-white/70" dir="rtl">
+                ليالي شارع الخليج
+              </div>
+              <p className="mt-3 text-[0.8rem] leading-relaxed text-white/60">
+                A midnight racer set on Kuwait&apos;s Gulf Road — the corniche from
+                Sharq to Salmiya, its sodium lamps, its water towers and the
+                traffic you have to read your way through. Every car, character
+                and building here is drawn in code: there is no art package to
+                download, and nothing in it is traced from a real marque.
+              </p>
+            </div>
+
+            {[
+              {
+                h: "Built with",
+                ar: "مبني على",
+                rows: [
+                  ["three.js", "WebGL scene graph, post-processing and PMREM lighting"],
+                  ["Next.js + React", "The shell, the HUD and the menus"],
+                  ["Web Audio API", "Every engine, tire, wind and radio voice, synthesised live"],
+                  ["Blender", "The high-resolution wheel and palm meshes, swapped in at runtime"],
+                ],
+              },
+              {
+                h: "Typefaces",
+                ar: "الخطوط",
+                rows: [
+                  ["IBM Plex Sans Arabic", "Interface and HUD"],
+                  ["Cairo", "Display and headings"],
+                  ["Noto Naskh Arabic", "Road signage"],
+                ],
+              },
+              {
+                h: "Ports",
+                ar: "المنافذ",
+                rows: [
+                  ["Unreal Engine 5", "Code-only port, generated from the same handling data"],
+                  ["Unity", "Code-only port, kept in parity by contract tests"],
+                ],
+              },
+            ].map((sec) => (
+              <div key={sec.h} className="grn-dialog mt-3 p-4 sm:p-5">
+                <div className="flex items-baseline justify-between">
+                  <span className="grn-label text-[0.55rem] text-gulf-400">{sec.h}</span>
+                  <span className="grn-ar text-[0.8rem] text-white/35">{sec.ar}</span>
+                </div>
+                <dl className="mt-2 space-y-2">
+                  {sec.rows.map(([k, v]) => (
+                    <div key={k}>
+                      <dt className="grn-display text-base text-white">{k}</dt>
+                      <dd className="text-[0.75rem] text-white/50">{v}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            ))}
+
+            <div className="grn-label mt-5 pb-4 text-center text-[0.5rem] text-white/30">
+              Made for the road between Sharq and Salmiya
             </div>
           </div>
         </div>
