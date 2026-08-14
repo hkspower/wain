@@ -92,7 +92,50 @@ function zip(folder, outFile) {
 const sha256 = (file) =>
   crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex').slice(0, 16);
 
+/* --------------------------- حارس القيم المؤقتة --------------------------- */
+
+/**
+ * يمنع البناء ما دامت قيمة مؤقتة في الموقع. أرقام هاتف وبريد ونطاق تجريبية
+ * تبدو حقيقية تمامًا في الصفحة، فلا يكتشفها أحد إلا بعد الرفع وفقدان عميل
+ * اتصل برقم لا يملكه أحد. الحارس يجعل ذلك مستحيلًا لا مجرد موثّق.
+ *
+ * التجاوز للتجربة المحلية فقط:  --allow-placeholders
+ */
+const PLACEHOLDERS = [
+  { needle: '+96522220000',        what: 'رقم الهاتف' },
+  { needle: '96590000000',          what: 'رقم واتساب' },
+  { needle: 'hello@mawsool.com.kw', what: 'البريد الإلكتروني' },
+  { needle: 'شارع الخليج العربي، مدينة الكويت', what: 'العنوان' },
+];
+
+function guardPlaceholders() {
+  const file = path.join(ROOT, 'website', 'index.html');
+  const html = fs.readFileSync(file, 'utf8');
+  const found = PLACEHOLDERS.filter((p) => html.includes(p.needle));
+  if (DOMAIN === PLACEHOLDER) found.push({ needle: PLACEHOLDER, what: 'النطاق (--domain)' });
+  if (!found.length) return;
+
+  if (process.argv.includes('--allow-placeholders')) {
+    console.log('⚠ قيم مؤقتة باقية (سُمح بها صراحةً):');
+    for (const f of found) console.log(`    ${f.what}: ${f.needle}`);
+    console.log('');
+    return;
+  }
+
+  console.error(`
+تعذّر البناء — قيم مؤقتة ما زالت في الموقع:
+`);
+  for (const f of found) console.error(`  • ${f.what.padEnd(22)} ${f.needle}`);
+  console.error(`
+استبدلها في website/index.html ببياناتكم الحقيقية، ومرّر --domain=نطاقكم،
+ثم أعد البناء. للتجربة المحلية فقط: --allow-placeholders
+`);
+  process.exit(1);
+}
+
 /* ------------------------------- البناء ------------------------------- */
+
+guardPlaceholders();
 
 fs.rmSync(DIST, { recursive: true, force: true });
 fs.mkdirSync(DIST, { recursive: true });
@@ -154,6 +197,6 @@ console.log(`
   mawsool-system.zip    ← فُكّه على الخادم ثم:
                             cd agent-system && npm install --omit=dev
                             cp .env.example .env   ثم املأه
-                            npm run seed && npm start
+                            npm run setup && npm start
 
 التفاصيل كاملة في DEPLOY.md`);

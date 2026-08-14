@@ -192,42 +192,6 @@
     });
   });
 
-  /* --------------------------- تتبع الطلب --------------------------- */
-  var trackForm = document.getElementById('trackForm');
-  var trackInput = document.getElementById('trackInput');
-  var trackMsg = document.getElementById('trackMsg');
-  var timeline = document.getElementById('timeline');
-
-  if (trackForm) {
-    trackForm.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var value = (trackInput.value || '').trim().toUpperCase();
-
-      if (!value) {
-        trackMsg.textContent = 'الرجاء إدخال رقم الطلب.';
-        trackMsg.className = 'form-msg is-bad';
-        timeline.hidden = true;
-        return;
-      }
-
-      if (!/^MW-?\d{3,6}$/i.test(value)) {
-        trackMsg.textContent = 'رقم الطلب يبدأ بـ MW متبوعًا بأرقام — مثال: MW-4821';
-        trackMsg.className = 'form-msg is-bad';
-        timeline.hidden = true;
-        return;
-      }
-
-      var normalized = value.replace(/^MW-?/, 'MW-');
-      trackMsg.textContent = 'تم العثور على الشحنة.';
-      trackMsg.className = 'form-msg is-ok';
-
-      document.getElementById('tOrder').textContent = normalized;
-      document.getElementById('tState').textContent = 'الشحنة في الطريق إليك';
-      timeline.hidden = false;
-      timeline.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
-    });
-  }
-
   /* --------------------------- نموذج الطلب --------------------------- */
   var orderForm = document.getElementById('orderForm');
   var orderMsg = document.getElementById('orderMsg');
@@ -294,13 +258,30 @@
         return;
       }
 
-      // نموذج تجريبي بدون خادم — يُستبدل هنا باستدعاء واجهة برمجية حقيقية
-      var ref = 'MW-' + Math.floor(1000 + Math.random() * 9000);
-      orderMsg.textContent = 'تم استلام طلبك بنجاح ✅ رقم الطلب ' + ref +
-        ' — سيتصل بك فريقنا خلال دقائق لتأكيد التفاصيل.';
+      /* الموقع ثابت بلا خادم، فالطلب يُسلَّم عبر واتساب فعليًا بدل إظهار رسالة
+         نجاح كاذبة ورقم طلب مخترع لا وجود له عند أحد. */
+      var wa = orderForm.dataset.whatsapp || '';
+      var f = orderForm.elements;
+      var val = function (name) {
+        return f[name] && f[name].value ? String(f[name].value).trim() : '';
+      };
+      var rows = [
+        ['الاسم', val('name')],
+        ['الهاتف', val('phone')],
+        ['الاستلام', val('pickup')],
+        ['التسليم', val('dropoff')],
+        ['المركبة', val('vehicle')],
+        ['الموعد', val('when')],
+        ['ملاحظات', val('notes')],
+      ].filter(function (r) { return r[1]; })
+       .map(function (r) { return r[0] + ': ' + r[1]; });
+
+      var text = 'طلب توصيل جديد من الموقع\n\n' + rows.join('\n');
+
+      window.open('https://wa.me/' + wa + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
+
+      orderMsg.textContent = 'فُتحت محادثة واتساب ببيانات طلبك — أرسلها لنا لتأكيد الطلب.';
       orderMsg.className = 'form-msg is-ok';
-      orderForm.reset();
-      required.forEach(function (input) { setError(input, ''); });
     });
   }
 

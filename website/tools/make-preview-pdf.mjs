@@ -33,11 +33,6 @@ await page.evaluate(() => document.getElementById('stats')?.scrollIntoView());
 await page.waitForTimeout(1800);
 await page.evaluate(() => window.scrollTo(0, 0));
 
-// إظهار خط التتبّع الزمني الذي لا يظهر إلا بعد البحث
-await page.fill('#trackInput', 'MW-4821');
-await page.click('#trackForm button[type=submit]');
-await page.waitForTimeout(400);
-
 // فكّ كل ما هو مطويّ أو مخفيّ خلف تأثير الظهور
 await page.evaluate(() => {
   document.querySelectorAll('.reveal').forEach((el) => {
@@ -89,7 +84,7 @@ await page.addStyleTag({ content: `
   .sec-head { margin-bottom: 1.6rem !important; }
 
   /* منع قطع العناصر بين الصفحات */
-  .card, .step, .fleet-card, .plan, .quote, .qa, .stat, .gov,
+  .card, .step, .fleet-card, .plan, .qa, .stat, .gov,
   .coverage__panel, .art-card, .timeline, .order__form, .order__side,
   .sec-head, .hero__copy,
   .track, .why, .coverage, .order, .stats, .footer__grid {
@@ -102,7 +97,6 @@ await page.addStyleTag({ content: `
      ويترك نصف صفحة فارغة — تضييق بسيط يجعلهما يتّسعان معًا. */
   #track.section { padding-block: 1.8rem !important; }
   #track .track { padding-block: 1.2rem !important; }
-  #track .track__form { margin-top: 1.1rem !important; }
   #track .timeline { margin-top: 1rem !important; padding: 1.2rem !important; }
   #track .tl { padding-bottom: .55rem !important; }
 

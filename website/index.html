@@ -620,52 +620,24 @@
       <div class="track__head reveal">
         <p class="eyebrow"><span class="dot"></span> تتبع طلبك</p>
         <h2>أين طلبي الآن؟</h2>
-        <p class="sec-sub">أدخل رقم الطلب الذي وصلك برسالة نصية لعرض حالة الشحنة.</p>
-
-        <form class="track__form" id="trackForm" novalidate>
-          <label class="sr-only" for="trackInput">رقم الطلب</label>
-          <input id="trackInput" name="order" type="text" inputmode="latin" placeholder="مثال: MW-4821" autocomplete="off">
-          <button class="btn btn--primary" type="submit">تتبع</button>
-        </form>
-        <p class="form-msg" id="trackMsg" role="status"></p>
+        <p class="sec-sub">
+          يصلك <b>رابط تتبّع خاص بطلبك</b> على واتساب فور إسناده لكابتن، تتابع منه
+          حالة الشحنة خطوةً خطوة حتى التسليم.
+        </p>
       </div>
 
-      <div class="timeline" id="timeline" hidden>
-        <p class="timeline__title">الطلب <b id="tOrder"></b> — <span id="tState"></span></p>
+      <!-- مثال توضيحي لشكل التتبّع — ليس طلبًا حقيقيًا -->
+      <figure class="timeline">
+        <figcaption class="timeline__title">
+          مثال على شكل التتبّع
+          <span class="timeline__tag">توضيحي</span>
+        </figcaption>
         <ol class="timeline__list">
-          <li class="tl is-done"><span class="tl__dot"></span><div><b>تم استلام الطلب</b><span>٠٩:٤٢ ص، مركز موصول</span></div></li>
-          <li class="tl is-done"><span class="tl__dot"></span><div><b>تم تعيين السائق</b><span>٠٩:٤٨ ص، السائق أحمد ك، سيارة سيدان</span></div></li>
-          <li class="tl is-active"><span class="tl__dot"></span><div><b>الشحنة في الطريق</b><span>١٠:٠٥ ص، يبعد ٤ دقائق عن العنوان</span></div></li>
-          <li class="tl"><span class="tl__dot"></span><div><b>تم التسليم</b><span>بانتظار التسليم</span></div></li>
+          <li class="tl is-done"><span class="tl__dot"></span><div><b>تم استلام الطلب</b><span>سُجّل الطلب وبدأ البحث عن كابتن</span></div></li>
+          <li class="tl is-done"><span class="tl__dot"></span><div><b>تم تعيين الكابتن</b><span>يصلك اسمه ونوع سيارته</span></div></li>
+          <li class="tl is-active"><span class="tl__dot"></span><div><b>الشحنة في الطريق</b><span>موقع الكابتن مباشرةً على الخريطة</span></div></li>
+          <li class="tl"><span class="tl__dot"></span><div><b>تم التسليم</b><span>إشعار فور وصول الشحنة</span></div></li>
         </ol>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ============ آراء العملاء ============ -->
-<section class="section section--tint" id="reviews">
-  <div class="wrap">
-    <header class="sec-head reveal">
-      <p class="eyebrow"><span class="dot"></span> آراء العملاء</p>
-      <h2>لماذا يثقون بنا؟</h2>
-    </header>
-
-    <div class="grid grid--3">
-      <figure class="quote reveal">
-        <div class="stars" aria-label="خمسة من خمسة">★★★★★</div>
-        <blockquote>«نستخدم موصول لتوصيل طلبات المتجر منذ سنة. نسبة التسليم في الوقت ممتازة، والتحصيل يوصلنا بدون تأخير.»</blockquote>
-        <figcaption><b>نورة العجمي</b><span>مالكة متجر «ركن الهدايا»</span></figcaption>
-      </figure>
-      <figure class="quote reveal">
-        <div class="stars" aria-label="خمسة من خمسة">★★★★★</div>
-        <blockquote>«طلبت توصيل وثائق عاجلة من العاصمة إلى الأحمدي ووصلت خلال ساعة. التتبع على الخريطة وفّر عليّ مكالمات كثيرة.»</blockquote>
-        <figcaption><b>عبدالله الرشيد</b><span>مدير مكتب محاماة</span></figcaption>
-      </figure>
-      <figure class="quote reveal">
-        <div class="stars" aria-label="أربعة ونصف من خمسة">★★★★★</div>
-        <blockquote>«السيارات المبرّدة أنقذت مشروع الحلويات عندنا. الطلبات توصل بحالة ممتازة حتى في عزّ الصيف.»</blockquote>
-        <figcaption><b>دلال المطيري</b><span>مؤسِّسة «حلا بيتي»</span></figcaption>
       </figure>
     </div>
   </div>
@@ -687,7 +659,7 @@
         </ul>
       </div>
 
-      <form class="order__form reveal" id="orderForm" novalidate>
+      <form class="order__form reveal" id="orderForm" novalidate data-whatsapp="96590000000">
         <div class="field">
           <label for="name">الاسم الكامل *</label>
           <input id="name" name="name" type="text" required autocomplete="name" placeholder="اكتب اسمك">
@@ -737,7 +709,7 @@
         </div>
 
         <div class="field field--full">
-          <button class="btn btn--accent btn--block btn--lg" type="submit">إرسال الطلب</button>
+          <button class="btn btn--accent btn--block btn--lg" type="submit">إرسال الطلب عبر واتساب</button>
           <p class="form-msg" id="orderMsg" role="status"></p>
         </div>
       </form>
@@ -804,9 +776,7 @@
       <img src="assets/logo-mawsool-light.png" alt="موصول MAWSOOL" width="188" height="58">
       <p>شركة توصيل بالسيارات في دولة الكويت — نوصل طلبات الأفراد والمتاجر والشركات بسرعة وأمان، مع تتبع مباشر لكل شحنة.</p>
       <div class="social">
-        <a href="#" aria-label="إنستغرام"><svg class="ic" aria-hidden="true"><use href="#i-ig"></use></svg></a>
-        <a href="#" aria-label="إكس"><svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg></a>
-        <a href="#" aria-label="واتساب"><svg class="ic" aria-hidden="true"><use href="#i-chat"></use></svg></a>
+        <a href="https://wa.me/96590000000" target="_blank" rel="noopener" aria-label="واتساب"><svg class="ic" aria-hidden="true"><use href="#i-chat"></use></svg></a>
       </div>
     </div>
 
@@ -840,7 +810,7 @@
 
   <div class="wrap footer__bottom">
     <p>© <span id="year">٢٠٢٦</span> موصول للتوصيل — جميع الحقوق محفوظة.</p>
-    <p><a href="#">سياسة الخصوصية</a> — <a href="#">الشروط والأحكام</a></p>
+    
   </div>
 </footer>
 

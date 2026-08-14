@@ -403,9 +403,6 @@ tbody tr:hover { background: #fbfdfe; }
 .login__card h1 { font-size: 1.2rem; margin-bottom: .2em; }
 .login__sub { color: var(--ink-soft); font-size: .89rem; margin-bottom: 1.3rem; }
 .login__card .field { text-align: start; }
-.login__demo { margin-top: 1.2rem; text-align: start; font-size: .82rem; color: var(--ink-soft); }
-.login__demo summary { cursor: pointer; font-weight: 600; color: var(--teal-700); }
-.login__demo p { margin: .5rem 0 0; }
 
 /* ------------------------------ نافذة منبثقة ------------------------------ */
 .modal { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 1rem; }

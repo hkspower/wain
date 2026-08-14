@@ -570,17 +570,17 @@ a.topbar__item:hover { color: #fff; }
     linear-gradient(160deg, var(--teal-50), #fff 58%);
 }
 .track__head { text-align: center; max-width: 58ch; margin-inline: auto; }
-.track__form { display: flex; gap: .6rem; max-width: 480px; margin: 1.5rem auto 0; }
-.track__form input {
-  flex: 1; font-family: var(--font); font-size: var(--fs-md); padding: .85rem 1.2rem;
-  border: 1.5px solid var(--line-str); border-radius: var(--radius-pill); background: #fff; color: var(--ink);
-  transition: border-color .2s var(--ease), box-shadow .2s var(--ease);
-}
-.track__form input:focus { border-color: var(--teal-600); outline: none; box-shadow: var(--ring); }
 
 .timeline { margin-top: 2rem; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: var(--pad-lg); }
 .timeline__title { font-weight: 700; margin-bottom: 1.3rem; font-size: var(--fs-lg); }
 .timeline__title b { color: var(--teal-700); }
+/* وسم يوضّح أن الخط الزمني مثال لا طلب حقيقي */
+.timeline__title { display: flex; align-items: center; gap: .6rem; }
+.timeline__tag {
+  font-size: var(--fs-xs); font-weight: 700; color: var(--ink-soft);
+  border: 1px dashed var(--line-str); border-radius: var(--radius-sm);
+  padding: .05rem .5rem; line-height: 1.9;
+}
 .timeline__list { position: relative; padding-inline-start: 2rem; }
 .timeline__list::before {
   content: ""; position: absolute; inset-inline-start: 8px; inset-block: 12px 26px;
@@ -599,16 +599,6 @@ a.topbar__item:hover { color: #fff; }
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(246, 150, 37, .5); } 100% { box-shadow: 0 0 0 12px rgba(246, 150, 37, 0); } }
 
 /* الآراء */
-.quote {
-  margin: 0; background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
-  padding: var(--pad-xl) var(--pad-lg); box-shadow: var(--shadow-xs);
-  transition: transform .3s var(--ease-out), box-shadow .3s var(--ease);
-}
-.quote:hover { transform: translateY(-5px); box-shadow: var(--shadow); }
-.stars { color: var(--orange-700); letter-spacing: 3px; font-size: 1.05rem; margin-bottom: .7rem; line-height: 1.4; }
-.quote blockquote { margin: 0 0 1.3rem; font-size: var(--fs-md); color: var(--ink-mid); line-height: 2; }
-.quote figcaption b { display: block; font-weight: 700; font-size: var(--fs-md); line-height: 1.7; }
-.quote figcaption span { font-size: var(--fs-sm); color: var(--ink-soft); }
 
 /* نموذج الطلب */
 .order {
