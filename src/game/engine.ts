@@ -13,6 +13,7 @@ import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
 import { ParticleSystem, radialSprite } from "./vfx";
 import { solveTwoBone, aimConstrained } from "./ik";
+import { GradeShader, AutoExposure, ExposurePass } from "./grade";
 import type { DriverRig } from "./characters";
 import { Music } from "./music";
 import { GEARS } from "./gears";
@@ -182,99 +183,6 @@ const TRAFFIC_COLORS = [0x8a96a3, 0x5d6770, 0xb0a890, 0x6e7f8d, 0x4a5560, 0x9c8f
 // Final grade: unsharp crispen, vignette, luminance-weighted grain, then a
 // hard black point. Order matters — the black point runs last so nothing
 // downstream can lift the shadows back up.
-const VignetteGrainShader = {
-  uniforms: {
-    tDiffuse: { value: null as THREE.Texture | null },
-    uTime: { value: 0 },
-    uTexel: { value: new THREE.Vector2(1 / 1280, 1 / 720) },
-    /** Everything below this maps to true zero. Display-referred, so this
-     *  is a literal ~2.5% lift-kill rather than an HDR-space guess. */
-    uBlackPoint: { value: 0.02 },
-    /** Shadow toe: >1 pushes the darks down without touching highlights. */
-    uToe: { value: 1.06 },
-    /** Where the highlight shoulder starts. Below this nothing changes,
-     *  so midtones and the scene's colour intent are untouched. */
-    uKnee: { value: 0.86 },
-    /** Dither amplitude in 8-bit steps. 0 disables it (A/B testing). */
-    uDither: { value: 1.0 },
-  },
-  vertexShader: `
-    varying vec2 vUv;
-    void main() {
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }`,
-  fragmentShader: `
-    uniform sampler2D tDiffuse;
-    uniform float uTime;
-    uniform vec2 uTexel;
-    uniform float uBlackPoint;
-    uniform float uToe;
-    uniform float uKnee;
-    uniform float uDither;
-    varying vec2 vUv;
-    float hash(vec2 p) {
-      return fract(sin(dot(p, vec2(127.1, 311.7)) + uTime * 13.0) * 43758.5453);
-    }
-    void main() {
-      vec4 c = texture2D(tDiffuse, vUv);
-
-      // Unsharp mask against a 4-tap cross blur
-      vec3 blur = 0.25 * (
-        texture2D(tDiffuse, vUv + vec2(uTexel.x, 0.0)).rgb +
-        texture2D(tDiffuse, vUv - vec2(uTexel.x, 0.0)).rgb +
-        texture2D(tDiffuse, vUv + vec2(0.0, uTexel.y)).rgb +
-        texture2D(tDiffuse, vUv - vec2(0.0, uTexel.y)).rgb);
-      c.rgb += (c.rgb - blur) * 0.4;
-
-      float d = distance(vUv, vec2(0.5));
-      c.rgb *= 1.0 - 0.38 * smoothstep(0.38, 0.85, d);
-
-      // Grain scaled by luminance. A flat +/- offset lifts every black
-      // pixel off zero and is what makes a night scene look milky; real
-      // film grain lives in the midtones and dies out in the shadows.
-      float luma = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
-      float grainAmt = 0.02 * sqrt(clamp(luma, 0.0, 1.0));
-      c.rgb += (hash(vUv * vec2(1920.0, 1080.0)) - 0.5) * grainAmt;
-
-      // Shadow toe, then crush the remaining lift to true black and
-      // rescale so highlights keep their range.
-      c.rgb = pow(max(c.rgb, 0.0), vec3(uToe));
-      c.rgb = max(c.rgb - uBlackPoint, 0.0) / max(1.0 - uBlackPoint, 1e-4);
-
-      // Highlight shoulder. Two things push pixels past 1.0 here: the
-      // black-point rescale multiplies everything by 1/(1-bp), and the
-      // unsharp mask overshoots hard at bright edges — a headlamp against
-      // dark asphalt is the worst case. Hitting the clamp flat blows those
-      // to paper white AND bends their colour, because whichever channel
-      // reaches 1.0 first stops while the others keep climbing. This
-      // compresses the top end asymptotically instead: uKnee maps to
-      // itself, everything above approaches 1.0 without ever reaching it,
-      // so lamps keep their warmth as they bloom.
-      vec3 over = max(c.rgb - uKnee, 0.0);
-      c.rgb = min(c.rgb, uKnee) + (1.0 - uKnee) * (over / (over + (1.0 - uKnee)));
-
-      // Triangular-PDF dither, applied last, immediately before the 8-bit
-      // quantisation it exists to hide. The frame buffer is half-float all
-      // the way here, but the display is 8-bit, and a slow gradient across
-      // a dark sky quantises into wide flat bands with visible contour
-      // rings. The luminance-scaled grain above cannot fix that: it is
-      // multiplied by sqrt(luma) precisely so it dies in the shadows, which
-      // is exactly where the banding lives.
-      //
-      // Two summed uniform randoms give a triangular distribution, which
-      // decorrelates the quantisation error from the signal instead of
-      // merely masking it. Amplitude is one 8-bit step and the mean is
-      // zero, so blacks stay black — unlike a flat offset, which is what
-      // makes a night scene look milky.
-      float d1 = hash(vUv + vec2(0.11, 0.37));
-      float d2 = hash(vUv + vec2(0.73, 0.19));
-      c.rgb += (d1 + d2 - 1.0) * uDither / 255.0;
-
-      gl_FragColor = vec4(clamp(c.rgb, 0.0, 1.0), c.a);
-    }`,
-};
-
 /** Spin a car's wheels with road speed; fronts also take a steer angle. */
 function spinWheels(car: THREE.Object3D, speed: number, dt: number, steer = 0): void {
   const wheels = car.userData.wheels as THREE.Group[] | undefined;
@@ -513,6 +421,8 @@ export class GameEngine {
   private composer: EffectComposer;
   private bloomPass: UnrealBloomPass;
   private grainPass: ShaderPass;
+  private autoExp!: AutoExposure;
+  private exposurePass!: ExposurePass;
   private fxaaPass: ShaderPass;
   private fpsEma = 60;
   /**
@@ -602,7 +512,9 @@ export class GameEngine {
       };
     }
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    // Exposure is applied by ExposurePass, in the chain, so the renderer
+    // itself stays neutral — otherwise the two would multiply.
+    this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = true;
     // PCF, not PCFSoft: three 0.184 deprecated PCFSoftShadowMap and its
     // shadow map silently overwrites the type with PCFShadowMap on the
@@ -649,6 +561,14 @@ export class GameEngine {
     // which leaves shadows alone.
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
+    // Exposure sits here on purpose: after the scene, before bloom and
+    // tone mapping. It is the only point in the chain where the numbers
+    // are still scene-referred light rather than picture, and putting it
+    // ahead of the bloom means the bloom thresholds against exposed
+    // light the way a real camera's would.
+    this.autoExp = new AutoExposure();
+    this.exposurePass = new ExposurePass(this.autoExp);
+    this.composer.addPass(this.exposurePass);
     // Comfort-tuned: enough halo to sell the sodium lamps, tight enough
     // that bright edges never smear across dark areas and tire the eye.
     this.bloomPass = new UnrealBloomPass(
@@ -663,7 +583,7 @@ export class GameEngine {
     // emissive above 1 — lamps, taillights and beacons lost their ACES
     // shoulder and the black point was operating in the wrong space.
     this.composer.addPass(new OutputPass());
-    this.grainPass = new ShaderPass(VignetteGrainShader);
+    this.grainPass = new ShaderPass(GradeShader);
     this.composer.addPass(this.grainPass);
     this.fxaaPass = new ShaderPass(FXAAShader);
     this.composer.addPass(this.fxaaPass);
@@ -1156,6 +1076,40 @@ export class GameEngine {
   }
 
   /** Repaint the world for midnight or dawn (settings screen). */
+  /**
+   * The three grading controls, in the order a colourist reaches for
+   * them. Exposure acts before tone mapping because that is where
+   * exposure physically acts; contrast and highlights act on the
+   * picture afterwards.
+   */
+  setExposure(stops: number, auto = true): void {
+    const u = this.autoExp.exposureMat.uniforms;
+    u.uBias.value = THREE.MathUtils.clamp(stops, -2, 2);
+    u.uAuto.value = auto ? 1 : 0;
+    // Manual sits at 1.15, the hand-set exposure this game shipped with,
+    // so zero on the slider is exactly the look it always had.
+    u.uManual.value = 1.15;
+  }
+
+  /** Current exposure and metered luminance. Reads back from the GPU, so
+   *  it is for debug readouts and tests — never per frame. */
+  sampleExposure(): Promise<{ exposure: number; luminance: number }> {
+    return this.autoExp.sample(this.renderer);
+  }
+
+  setContrast(v: number): void {
+    this.grainPass.uniforms.uContrast.value = THREE.MathUtils.clamp(v, 0.7, 1.5);
+  }
+
+  /** -1 recovers the highlights, +1 pushes them toward clipping. */
+  setHighlights(v: number): void {
+    const h = THREE.MathUtils.clamp(v, -1, 1);
+    this.grainPass.uniforms.uHighlights.value = h;
+    // Recovering highlights also brings the shoulder down to meet them,
+    // so the roll starts earlier instead of only shrinking what is above it.
+    this.grainPass.uniforms.uKnee.value = 0.86 - Math.max(0, -h) * 0.16;
+  }
+
   /** Hours 0..24. Fixed looks are hours too; "cycle" lets it run. */
   private timeHours = 22.5;
   private timeCycling = false;
@@ -1356,6 +1310,8 @@ export class GameEngine {
     this.music?.dispose();
     this.sound?.dispose();
     this.voice.dispose();
+    this.exposurePass?.dispose();
+    this.autoExp?.dispose();
     this.composer.dispose();
     this.renderer.dispose();
   }
@@ -2173,6 +2129,10 @@ export class GameEngine {
         this.applyDaylight();
       }
     }
+
+    // The meter and the adaptation run on the GPU inside the pass; it
+    // only needs to know how much time this frame took.
+    this.exposurePass.dt = dt;
 
     this.updatePlayer(dt);
     this.updateTraffic(dt);

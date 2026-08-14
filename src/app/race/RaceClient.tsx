@@ -155,6 +155,10 @@ export default function RaceClient() {
       if (k === "quality") engineRef.current?.applyQualityTier(next.quality);
       if (k === "sky") engineRef.current?.setSky(next.sky);
       if (k === "frameCap") engineRef.current?.setFrameCap(next.frameCap);
+      if (k === "exposure" || k === "autoExposure")
+        engineRef.current?.setExposure(next.exposure, next.autoExposure);
+      if (k === "contrast") engineRef.current?.setContrast(next.contrast);
+      if (k === "highlights") engineRef.current?.setHighlights(next.highlights);
       playSfx("ui-tap", 0.6);
       return next;
     });
@@ -460,6 +464,9 @@ export default function RaceClient() {
     const boot = loadSettings();
     if (boot.quality !== "auto") engine.applyQualityTier(boot.quality);
     if (boot.sky !== "night") engine.setSky(boot.sky);
+    engine.setExposure(boot.exposure, boot.autoExposure);
+    engine.setContrast(boot.contrast);
+    engine.setHighlights(boot.highlights);
     if (boot.frameCap !== "display") engine.setFrameCap(boot.frameCap);
     setPhase("playing");
 
@@ -1518,6 +1525,54 @@ export default function RaceClient() {
             <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-[0.68rem]">
               Sky · السما
             </h3>
+            {/* Picture */}
+            <h3 className="grn-label mt-6 text-[0.68rem] text-white/70">
+              PICTURE · <span className="grn-ar">الصورة</span>
+            </h3>
+            <label className="mt-3 flex items-center justify-between gap-3 text-sm">
+              <span>
+                Auto exposure
+                <span className="block text-[0.68rem] text-white/45">
+                  Meters the scene and adapts, like an eye
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                checked={settings.autoExposure}
+                onChange={(e) => updateSetting("autoExposure", e.target.checked)}
+                className="size-5 accent-sodium-400"
+              />
+            </label>
+            {(
+              [
+                ["exposure", "Exposure", "التعريض", -2, 2, 0.25, (v: number) =>
+                  `${v > 0 ? "+" : ""}${v.toFixed(2)} EV`],
+                ["contrast", "Contrast", "التباين", 0.7, 1.5, 0.05, (v: number) => v.toFixed(2)],
+                ["highlights", "Highlights", "الإضاءات", -1, 1, 0.1, (v: number) =>
+                  v === 0 ? "neutral" : v < 0 ? `recover ${Math.abs(v).toFixed(1)}` : `push ${v.toFixed(1)}`],
+              ] as const
+            ).map(([key, label, ar, min, max, step, fmt]) => (
+              <label key={key} className="mt-3 block text-sm">
+                <span className="flex items-center justify-between">
+                  <span>
+                    {label} <span className="grn-ar text-white/50">{ar}</span>
+                  </span>
+                  <span className="grn-display text-[0.8rem] text-sodium-400">
+                    {fmt(settings[key] as number)}
+                  </span>
+                </span>
+                <input
+                  type="range"
+                  min={min}
+                  max={max}
+                  step={step}
+                  value={settings[key] as number}
+                  onChange={(e) => updateSetting(key, Number(e.target.value))}
+                  className="mt-1.5 w-full accent-sodium-400"
+                />
+              </label>
+            ))}
+
             <div className="mt-3 grid grid-cols-2 gap-2">
               {(
                 [

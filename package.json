@@ -31,7 +31,8 @@
     "test:vfx": "node tests/vfx.mjs",
     "test:audio": "node tests/audio.mjs",
     "test:daynight": "node tests/daynight.mjs",
-    "test:ik": "node tests/ik.mjs"
+    "test:ik": "node tests/ik.mjs",
+    "test:grade": "node tests/grade.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",

@@ -255,6 +255,35 @@ npm run test:ik
 GRN_STILLS=1 npm run test:ik   # also writes /tmp/smoke/ik-driver.png
 ```
 
+## grade.mjs — the picture controls control the picture
+
+Grading claims are claims about the histogram of the delivered frame,
+so this reads frames back and computes that histogram rather than
+trusting a uniform was set. Exposure must move the whole image and stay
+monotonic; contrast must spread the histogram both ways; highlights must
+move the top end **without** moving the shadows (otherwise it is an
+exposure control wearing a different label); the bright end must lose
+saturation as it clips; and auto-exposure must meter noon as brighter
+than midnight and stop down for it.
+
+Three of its first metrics could not tell the controls from no-ops, and
+each was measuring in the wrong place: contrast on a night frame that
+occupies almost none of the range, highlights via a clipped-pixel count
+in a scene with no clipped pixels, and desaturation over a population
+that was already white. Measuring contrast at noon, the top end by its
+mean rather than a clip count, and saturation above the shoulder made
+all three discriminate immediately.
+
+The exposure thresholds are deliberately asymmetric, and that is the
+tone curve rather than a fudge: at 0 EV this night scene already has
+its lamps sitting in the filmic shoulder, so a stop more light mostly
+compresses while a stop less falls down the linear part and darkens
+hard. Demanding symmetry would be demanding the shoulder not work.
+
+```bash
+npm run test:grade
+```
+
 ## framepacing.mjs — dynamic fps, v-sync, G-Sync
 
 Panel-refresh detection, the frame limiter, the G-Sync-style

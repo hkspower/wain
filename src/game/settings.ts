@@ -29,6 +29,15 @@ export interface Settings {
    * drops you out of VRR and back onto v-sync's latency.
    */
   frameCap: "display" | "vrr" | 30 | 60 | 120 | 144 | 165 | 240 | 0;
+  /**
+   * Picture controls. Exposure is in stops over the automatic metering
+   * (or over the shipped default when auto is off); contrast is a gamma
+   * about mid-grey; highlights recovers (-) or pushes (+) the top end.
+   */
+  autoExposure: boolean;
+  exposure: number;
+  contrast: number;
+  highlights: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -41,6 +50,10 @@ export const DEFAULT_SETTINGS: Settings = {
   largeHud: false,
   sky: "night",
   frameCap: "display",
+  autoExposure: true,
+  exposure: 0,
+  contrast: 1,
+  highlights: 0,
 };
 
 const KEY = "gulf-road-nights-settings";
