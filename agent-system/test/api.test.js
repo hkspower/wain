@@ -348,3 +348,47 @@ test('منع الحساب يُنهي جلساته', async () => {
   assert.equal(blocked.status, 200);
   assert.equal((await call('temp1', 'GET', '/api/auth/me')).status, 401);
 });
+
+/* ------------------ حالات تنفيذية على طلب بلا كابتن ------------------ */
+
+test('طلب لم يُسند بعد لا يُنقل إلى حالة تصف عمل كابتن', async () => {
+  const order = await makeOrder();
+  assert.equal(order.status, 'new');
+  assert.equal(order.agent_id, null);
+
+  for (const status of ['assigned', 'accepted', 'picked_up', 'on_the_way', 'delivered', 'returned']) {
+    const res = await call('admin', 'PATCH', `/api/orders/${order.id}/status`, { status, note: 'محاولة' });
+    assert.equal(res.status, 409, `الحالة «${status}» مرّت على طلب بلا كابتن`);
+    assert.match(res.data.error, /أسند الطلب إلى كابتن أولًا/);
+  }
+
+  const after = await call('admin', 'GET', `/api/orders/${order.id}`);
+  assert.equal(after.data.order.status, 'new');
+});
+
+test('اللوحة لا تعرض للمدير إلا الإلغاء على طلب بلا كابتن', async () => {
+  const order = await makeOrder();
+  const { data } = await call('admin', 'GET', `/api/orders/${order.id}`);
+  assert.deepEqual(data.order.allowed_next, ['cancelled']);
+});
+
+test('إلغاء طلب بلا كابتن يبقى متاحًا', async () => {
+  const order = await makeOrder();
+  const res = await call('admin', 'PATCH', `/api/orders/${order.id}/status`, {
+    status: 'cancelled', note: 'العميل تراجع',
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.data.order.status, 'cancelled');
+});
+
+test('بعد الإسناد تعود كل الحالات متاحة للمدير', async () => {
+  const order = await makeOrder();
+  const assigned = await call('admin', 'POST', `/api/orders/${order.id}/assign`, {
+    agent_id: agentId('ag1'),
+  });
+  assert.equal(assigned.status, 200);
+
+  const { data } = await call('admin', 'GET', `/api/orders/${order.id}`);
+  assert.ok(data.order.allowed_next.includes('delivered'));
+  assert.ok(data.order.allowed_next.includes('on_the_way'));
+});

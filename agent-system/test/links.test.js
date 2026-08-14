@@ -161,6 +161,37 @@ test('نقل الطلب لكابتن آخر يُبطل الرابط', async () =
   assert.equal(r.data.code, 'link_reassigned');
 });
 
+test('نقل الطلب يُلغي الرابط في القاعدة لا عند القراءة فقط', async () => {
+  const order = await makeOrder();
+  const link = await newLink(order);
+
+  const before = db.prepare('SELECT revoked_at FROM delivery_links WHERE id=?').get(link.id);
+  assert.equal(before.revoked_at, null);
+
+  await call('admin', 'POST', `/api/orders/${order.id}/assign`, { agent_id: agentId('cap2') });
+
+  // لو بقي غير ملغى لعرضته اللوحة للمدير كرابط سارٍ فينسخه ويرسله وهو ميّت
+  const after = db.prepare('SELECT revoked_at FROM delivery_links WHERE id=?').get(link.id);
+  assert.ok(after.revoked_at, 'الرابط أُلغي فعليًا عند نقل الطلب');
+
+  const shown = (await call('admin', 'GET', `/api/orders/${order.id}/links`)).data.links;
+  assert.ok(shown.every((l) => !l.active), 'لا رابط سارٍ معروض للمدير');
+});
+
+test('قبول التحويل يُلغي رابط الكابتن السابق', async () => {
+  const order = await makeOrder();
+  const link = await newLink(order);
+
+  const t = await call('cap', 'POST', `/api/orders/${order.id}/transfer`, {
+    to_agent_id: agentId('cap2'), reason: 'العنوان أقرب لك',
+  });
+  const transferId = t.data.order.transfers.find((x) => x.status === 'pending').id;
+  await call('admin', 'POST', `/api/transfers/${transferId}/accept`, {});
+
+  const after = db.prepare('SELECT revoked_at FROM delivery_links WHERE id=?').get(link.id);
+  assert.ok(after.revoked_at, 'الرابط أُلغي عند انتقال الطلب بالتحويل');
+});
+
 test('المدير يُلغي الرابط يدويًا', async () => {
   const order = await makeOrder();
   const link = await newLink(order);

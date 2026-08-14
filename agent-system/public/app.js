@@ -1075,7 +1075,7 @@
         <div class="form-grid">
           <label class="field">
             <span>اسم المستخدم</span>
-            <input name="username" dir="ltr" required placeholder="ahmad" pattern="[a-z0-9._-]+">
+            <input name="username" dir="ltr" required placeholder="ahmad" pattern="[a-z0-9._\\-]+">
             <small>حروف لاتينية صغيرة وأرقام فقط</small>
           </label>
           <label class="field"><span>كلمة المرور</span><input name="password" type="password" required minlength="6"></label>

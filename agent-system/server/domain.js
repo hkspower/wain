@@ -70,6 +70,16 @@ const AGENT_TRANSITIONS = {
 
 /* ------------------------- اعتماد المندوبين ------------------------- */
 
+/**
+ * يُلغي روابط المهام السارية على طلب. يُستدعى كلما تغيّر كابتن الطلب:
+ * الرابط مفتاحٌ باسم كابتن بعينه، فإبقاؤه ساريًا بعد انتقال الطلب يجعل اللوحة
+ * تعرضه للمدير كرابط صالح فينسخه ويرسله — وهو ميّت عند الفتح.
+ */
+function revokeLinksFor(orderId) {
+  db.prepare('UPDATE delivery_links SET revoked_at = ? WHERE order_id = ? AND revoked_at IS NULL')
+    .run(now(), orderId);
+}
+
 /** عدد الطلبات النشطة لدى مندوب */
 function activeOrderCount(agentId) {
   return db.prepare(
@@ -166,11 +176,19 @@ function approvalHistory(agentId) {
   ).all(agentId);
 }
 
+/**
+ * الحالات التي لا معنى لها بلا كابتن: كلها تصف ما فعله كابتن بعينه. الإلغاء
+ * وحده يبقى متاحًا لطلب لم يُسند بعد.
+ */
+const NEEDS_AGENT = ['assigned', 'accepted', 'picked_up', 'on_the_way', 'delivered', 'failed', 'returned'];
+
 /** المدير يستطيع الانتقال إلى أي حالة عدا العودة من حالة نهائية */
 function allowedNextStatuses(order, role) {
   if (FINAL_STATUSES.includes(order.status)) return [];
   if (role === 'admin') {
-    return Object.keys(STATUSES).filter((s) => s !== order.status && s !== 'new');
+    // طلب بلا كابتن لا يُقال عنه «مُسند لمندوب» ولا «تم التسليم» — الإسناد أولًا
+    const pool = Object.keys(STATUSES).filter((s) => s !== order.status && s !== 'new');
+    return order.agent_id ? pool : pool.filter((s) => !NEEDS_AGENT.includes(s));
   }
   return AGENT_TRANSITIONS[order.status] || [];
 }
@@ -216,6 +234,12 @@ function changeStatus(orderId, actor, nextStatus, note = '', options = {}) {
 
     if (!Object.hasOwn(STATUSES, nextStatus)) throw badRequest('حالة غير معروفة');
     if (order.status === nextStatus) throw conflict('الطلب في هذه الحالة أصلًا');
+
+    /* الحالات التنفيذية تصف عمل كابتن، فلا تُضبط على طلب لم يُسند بعد: طلب
+       «تم التسليم» بلا كابتن يدخل في العدّادات وفي حساب المستحقّات بلا صاحب. */
+    if (!order.agent_id && NEEDS_AGENT.includes(nextStatus)) {
+      throw conflict(`أسند الطلب إلى كابتن أولًا — «${STATUSES[nextStatus]}» تصف عمل كابتن`);
+    }
 
     /* `allowJump` لرابط المهمّة: الكابتن الذي لا يفتح اللوحة أصلًا لا يستطيع
        تسلّق سُلّم الحالات خطوةً خطوة، فيُسمح له بإغلاق المهمّة مباشرةً.
@@ -293,6 +317,7 @@ function assignOrder(orderId, actor, agentId, note = '') {
 
     db.prepare('UPDATE orders SET agent_id = ?, status = ?, updated_at = ? WHERE id = ?')
       .run(agentId, nextStatus, now(), orderId);
+    revokeLinksFor(orderId);
 
     logEvent({
       orderId, actorId: actor.id, type: 'assigned',
@@ -367,6 +392,7 @@ function acceptTransfer(transferId, actor, note = '') {
 
     db.prepare('UPDATE orders SET agent_id = ?, status = ?, updated_at = ? WHERE id = ?')
       .run(t.to_agent_id, nextStatus, now(), t.order_id);
+    revokeLinksFor(t.order_id);
     db.prepare("UPDATE transfers SET status='accepted', resolved_at=?, response_note=? WHERE id=?")
       .run(now(), note, transferId);
 
@@ -429,6 +455,6 @@ module.exports = {
   APPROVAL, WORKING_APPROVALS, APPROVAL_BLOCK_REASON, PROBATION_MAX_ORDERS,
   ACTIVE_STATUSES, FINAL_STATUSES, AGENT_TRANSITIONS,
   allowedNextStatuses, getOrder, pendingTransferFor,
-  activeOrderCount, assertCanReceiveOrders, setApproval, approvalHistory,
+  activeOrderCount, assertCanReceiveOrders, setApproval, approvalHistory, revokeLinksFor,
   changeStatus, assignOrder, requestTransfer, acceptTransfer, rejectTransfer, cancelTransfer,
 };
