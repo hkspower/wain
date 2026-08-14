@@ -19,11 +19,15 @@
 use only**. It must never appear on the live site, in any published page, name,
 title, filename, or artefact. Write **النوخذة** in Arabic; where a Latin
 filename or key is unavoidable, use `nokhatha` (matching the `nokhatha-*`
-storage keys). The portal lives at `nokhatha.html`; the extensionless `/nokhatha` form is a
-rewrite in `.htaccess`, so it works on an Apache/LiteSpeed host and **not on
-GitHub Pages, where this deploys** — nothing links to it, so treat it as
-available only on the Apache path until someone checks the live host.
-`nokha1.html`
+storage keys). The portal lives at `nokhatha.html`, reachable as `/nokhatha` on **any** host:
+the extensionless form is a rewrite in `.htaccess` for Apache, and a
+`<name>/index.html` stub for GitHub Pages, which ignores that file. The stub is
+a script, not only a `<meta refresh>`, because a **fragment never reaches the
+server** and a refresh would drop it — `/safi#/x` must keep its tab. Each stub
+is `noindex` with a canonical to the `.html`, so a clean URL is an entry point
+and not a second indexable copy. There is deliberately **no `/nokha1/`**: the
+stub file keeps old links alive, but a new directory carrying the shorthand
+would be introducing it afresh. `nokha1.html`
 survives only as an unlinked redirect for links published before the rename.
 `design/test_suite.py` fails if the shorthand reappears in **any authored
 artefact**, not only a page — it was found in `.htaccess`, in `SECURITY.md`'s
@@ -248,7 +252,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 515 checks covering
+- `python3 design/test_suite.py` is the full system test — 527 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
