@@ -322,7 +322,7 @@ Future<void> showFilingForm(BuildContext context, Store store) async {
                         value: EntityKind.kscc,
                         child: Text('مساهمة مقفلة (ك.م.م)')),
                     DropdownMenuItem(
-                        value: EntityKind.kscp,
+                        value: EntityKind.listed,
                         child: Text('مساهمة مدرجة (ش.م.ك.ع)')),
                   ],
                   onChanged: (v) => setLocal(() => kind = v ?? kind),

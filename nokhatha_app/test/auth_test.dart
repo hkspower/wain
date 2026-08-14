@@ -256,8 +256,8 @@ void main() {
       final a = Store(vault: Vault(overridePath: tmp.path));
       await a.load();
       await a.register(name: 'م', email: 'a@b.c', password: 'correct-horse-2026');
-      await a.addHolding(const Holding(
-          ticker: 'NBK', name: 'بنك', quantity: 1000, costFils: 850, priceFils: 910));
+      await a.addHolding(Holding(
+          ticker: 'NBK', name: 'بنك', quantity: 1000, avgCostFils: 850, priceFils: 910));
       await a.addOrder(customer: 'خالد', phone: '65894110', amountFils: 12500);
       await a.advance('ORD-0001');
       await a.advance('ORD-0001');
@@ -295,8 +295,8 @@ void main() {
       final a = Store(vault: Vault(overridePath: tmp.path));
       await a.load();
       await a.register(name: 'م', email: 'a@b.c', password: 'correct-horse-2026');
-      await a.addHolding(const Holding(
-          ticker: 'TYPO', name: 'خطأ', quantity: 10, costFils: 100, priceFils: 100));
+      await a.addHolding(Holding(
+          ticker: 'TYPO', name: 'خطأ', quantity: 10, avgCostFils: 100, priceFils: 100));
       expect(a.holdings.length, 1);
       await a.removeHolding('TYPO');
       expect(a.holdings, isEmpty);
@@ -317,5 +317,4 @@ void main() {
       expect(a.orders.first.status, OrderStatus.cancelled);
     });
   });
-}
 }
