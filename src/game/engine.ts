@@ -156,6 +156,8 @@ interface RemotePlayer {
   snapLat: number;
   snapSpeed: number;
   snapAt: number;
+  /** Smoothed visible steer for the remote car's driver rig. */
+  steerVis: number;
 }
 
 interface TrafficCar {
@@ -174,6 +176,12 @@ interface Rival {
   speed: number;
   sp: number;
   state: "cruise" | "battle" | "defeated";
+  // What the rival's driver is seen doing: smoothed steer and pedal
+  // work derived from the AI's own kinematics, fed to the same IK that
+  // animates the player's driver.
+  steerVis: number;
+  throttleVis: number;
+  brakeVis: number;
 }
 
 const TRAFFIC_COLORS = [0x8a96a3, 0x5d6770, 0xb0a890, 0x6e7f8d, 0x4a5560, 0x9c8f7a];
@@ -1251,6 +1259,7 @@ export class GameEngine {
       snapLat: 0,
       snapSpeed: 0,
       snapAt: 0,
+      steerVis: 0,
     });
   }
 
@@ -1513,6 +1522,9 @@ export class GameEngine {
       speed: 27,
       sp: 100,
       state: "cruise",
+      steerVis: 0,
+      throttleVis: 0,
+      brakeVis: 0,
     };
   }
 
@@ -2564,6 +2576,9 @@ export class GameEngine {
       this.v4.copy(this.v1).add(this.v3);
       r.mesh.lookAt(this.v4);
       spinWheels(r.mesh, r.speed, dt);
+      // Holding formation is still driving: hands on the wheel for the
+      // two-shot, feet steady on a cruise throttle.
+      this.animateRivalDriver(r, 0, dt);
       return;
     }
 
@@ -2589,6 +2604,7 @@ export class GameEngine {
       r.targetLat = ROAD_HALF_WIDTH - 1.4;
     }
 
+    const prevSpeed = r.speed;
     r.speed += THREE.MathUtils.clamp(targetSpeed - r.speed, -22 * dt, 13 * dt);
 
     // Lane choice: dodge traffic ahead.
@@ -2627,6 +2643,7 @@ export class GameEngine {
     this.v4.copy(this.v1).add(this.v3);
     r.mesh.lookAt(this.v4);
     spinWheels(r.mesh, r.speed, dt);
+    this.animateRivalDriver(r, dt > 0 ? (r.speed - prevSpeed) / dt : 0, dt);
   }
 
   private updateRemotes(dt: number): void {
@@ -2647,6 +2664,17 @@ export class GameEngine {
       this.v4.copy(this.v1).add(this.v3);
       r.mesh.lookAt(this.v4);
       spinWheels(r.mesh, r.snapSpeed, dt);
+
+      // Remote cruisers carry drivers too: steer dead-reckoned from the
+      // lane blend, a steady cruise throttle, eyes on the road ahead.
+      const rig = r.mesh.userData.driver as DriverRig | undefined;
+      if (rig) {
+        const steerWant = THREE.MathUtils.clamp((r.snapLat - r.lat) * 0.6, -1, 1);
+        r.steerVis += (steerWant - r.steerVis) * Math.min(1, dt * 4);
+        this.track.pose(r.s + 26, r.lat * 0.4, this.v1, this.v2);
+        this.v1.y += 1.1;
+        this.solveDriverRig(rig, r.steerVis, r.snapSpeed > 0.5 ? 0.3 : 0, 0, this.v1, dt);
+      }
     }
   }
 
@@ -3030,20 +3058,33 @@ export class GameEngine {
   }
 
   /**
-   * The driver, solved rather than posed. The wheel turns with the
-   * steering, both hands are IK'd onto the rim where they were gripping
-   * it, and the head looks into the corner — which is what a driver
-   * does, and what makes a figure behind glass read as alive instead of
-   * a mannequin bolted to a seat.
+   * One driver rig, fully solved: the wheel to the steer angle, both
+   * hands IK'd onto the rim where they grip it, both feet on the pedals
+   * riding the press, eyes on the look target. Shared by every car that
+   * carries a driver — the player's, the rival's, the remote cruisers'
+   * — because a cabin with a mannequin bolted in it reads as an empty
+   * car the moment it pulls alongside.
    */
-  private updateDriver(dt: number): void {
-    const rig = this.carBody.userData.driver as DriverRig | undefined;
-    if (!rig) return;
-
+  private solveDriverRig(
+    rig: DriverRig,
+    steer: number,
+    throttle: number,
+    brake: number,
+    look: THREE.Vector3,
+    dt: number
+  ): void {
     // Lock-to-lock is about a turn and a half each way in a road car;
-    // steerSmooth is -1..1, so this is the visible wheel angle.
-    const lock = this.steerSmooth * 2.4;
+    // steer is -1..1, so this is the visible wheel angle.
+    const lock = steer * 2.4;
     rig.wheel.rotation.z += (-lock - rig.wheel.rotation.z) * Math.min(1, dt * 12);
+
+    // Eyes first: `look` may live in a scratch vector this method is
+    // about to reuse for grips and poles.
+    aimConstrained(rig.head, look, {
+      maxYaw: 0.7,
+      maxPitch: 0.28,
+      ease: Math.min(1, dt * 5),
+    });
 
     // Ten-to-two, carried round with the rim. The grips are points ON
     // the wheel, so the hands travel with it and the arms must follow.
@@ -3055,11 +3096,10 @@ export class GameEngine {
       rig.wheel.localToWorld(this.v1);
 
       // Elbows break outward and down — the pole is what stops a solved
-      // arm from bending like a flamingo's knee.
-      arm.shoulder.updateWorldMatrix(true, false);
-      this.v2.setFromMatrixPosition(arm.shoulder.matrixWorld);
-      this.v2.y -= 0.5;
-      this.v2.x += arm.side * 0.35;
+      // arm from bending like a flamingo's knee. Offset in the rig's
+      // own frame, so the pose holds whichever way the car is heading.
+      this.v2.set(arm.side * 0.51, -0.04, -0.06);
+      rig.group.localToWorld(this.v2);
 
       solveTwoBone({
         root: arm.shoulder,
@@ -3072,14 +3112,69 @@ export class GameEngine {
       });
     }
 
-    // Eyes up: look where the car is going, not where it is pointing.
+    // Feet on the pedals — throttle under the outboard foot in a
+    // right-hand-drive car. The pedal itself sinks with the press and
+    // the foot is solved onto the moving face, so a stab of brake reads
+    // all the way down the driver's leg.
+    for (const leg of rig.legs) {
+      const pedal = leg.side > 0 ? rig.pedals.throttle : rig.pedals.brake;
+      const press = leg.side > 0 ? throttle : brake;
+      pedal.position.z = (pedal.userData.restZ as number) + press * 0.05;
+      pedal.position.y = (pedal.userData.restY as number) - press * 0.015;
+      pedal.updateWorldMatrix(true, false);
+      this.v1.setFromMatrixPosition(pedal.matrixWorld);
+      // Knees break up and forward, not sideways into the tunnel
+      this.v2.set(leg.side * 0.22, 1.1, 0.42);
+      rig.group.localToWorld(this.v2);
+      solveTwoBone({
+        root: leg.shoulder,
+        mid: leg.elbow,
+        upper: leg.upper,
+        lower: leg.lower,
+        target: this.v1,
+        pole: this.v2,
+        weight: 1,
+      });
+    }
+  }
+
+  /**
+   * The player's driver, solved from the real inputs. The head looks
+   * where the car is going, not where it is pointing.
+   */
+  private updateDriver(dt: number): void {
+    const rig = this.carBody.userData.driver as DriverRig | undefined;
+    if (!rig) return;
     this.track.pose(this.player.s + 26, this.player.lat * 0.4, this.v1, this.v2);
     this.v1.y += 1.1;
-    aimConstrained(rig.head, this.v1, {
-      maxYaw: 0.7,
-      maxPitch: 0.28,
-      ease: Math.min(1, dt * 5),
-    });
+    this.solveDriverRig(rig, this.steerSmooth, this.throttle, this.brake, this.v1, dt);
+  }
+
+  /**
+   * The rival's driver, driven off the rival's own kinematics: steer
+   * follows the lane change, the feet follow the speed change, and
+   * within a couple of car lengths the helmet turns to size you up —
+   * the look-over before the headlight flash is half the ritual.
+   */
+  private animateRivalDriver(r: Rival, accel: number, dt: number): void {
+    const rig = r.mesh.userData.driver as DriverRig | undefined;
+    if (!rig) return;
+    const steerWant = THREE.MathUtils.clamp((r.targetLat - r.lat) * 0.45, -1, 1);
+    r.steerVis += (steerWant - r.steerVis) * Math.min(1, dt * 4);
+    const wantThrottle = accel > 0.3 ? Math.min(1, accel / 8) : r.speed > 1 ? 0.2 : 0;
+    const wantBrake = accel < -1 ? Math.min(1, -accel / 10) : 0;
+    r.throttleVis += (wantThrottle - r.throttleVis) * Math.min(1, dt * 6);
+    r.brakeVis += (wantBrake - r.brakeVis) * Math.min(1, dt * 6);
+
+    const gap = this.track.deltaAhead(r.s, this.player.s);
+    if (Math.abs(gap) < 12 && Math.abs(this.player.lat - r.lat) > 1.2) {
+      this.v1.copy(this.playerMesh.position);
+      this.v1.y += 0.6;
+    } else {
+      this.track.pose(r.s + 26, r.lat * 0.4, this.v1, this.v2);
+      this.v1.y += 1.1;
+    }
+    this.solveDriverRig(rig, r.steerVis, r.throttleVis, r.brakeVis, this.v1, dt);
   }
 
   /**

@@ -80,7 +80,107 @@ console.log(`unreachable  arm extends to ${far.reach} m of its ${far.span} m spa
   check(far.finite, "solver produced NaN on an unreachable target") + " " +
   check(Math.abs(far.reach - far.span) < 0.02, "arm did not straighten toward an unreachable target"));
 
-// --- 3. The crowd watches, within the limits of a neck ---
+// --- 3. Feet on the pedals, and the pedals answer the inputs ---
+const feet = await page.evaluate(()=>{
+  const e = window.__grnEngine;
+  const rig = e.carBody.userData.driver;
+  if (!rig.legs || !rig.pedals) return null;
+  const V = e.camera.position.constructor;
+  const measure = () => rig.legs.map((leg)=>{
+    const pedal = leg.side > 0 ? rig.pedals.throttle : rig.pedals.brake;
+    pedal.updateWorldMatrix(true,false);
+    const tp = new V(); tp.setFromMatrixPosition(pedal.matrixWorld);
+    leg.hand.updateWorldMatrix(true,false);
+    const fp = new V(); fp.setFromMatrixPosition(leg.hand.matrixWorld);
+    return { side: leg.side, err: +fp.distanceTo(tp).toFixed(4), z: +pedal.position.z.toFixed(3) };
+  });
+  e.setTouchInput({ throttle: 0, brake: 0, steer: 0 });
+  for (let i=0;i<30;i++) e.update(1/60);
+  const idle = measure();
+  e.setTouchInput({ throttle: 1 });
+  for (let i=0;i<30;i++) e.update(1/60);
+  const wot = measure();
+  e.setTouchInput({ throttle: 0, brake: 1 });
+  for (let i=0;i<30;i++) e.update(1/60);
+  const braking = measure();
+  e.setTouchInput({ throttle: 0, brake: 0 });
+  return { idle, wot, braking };
+});
+if (feet) {
+  const worstFoot = Math.max(...[...feet.idle, ...feet.wot, ...feet.braking].map(f=>f.err));
+  const t = (set)=>set.find(f=>f.side>0), b = (set)=>set.find(f=>f.side<0);
+  console.log(`feet         worst reach error ${worstFoot} m; throttle pedal ${t(feet.idle).z}→${t(feet.wot).z} at WOT, brake ${b(feet.idle).z}→${b(feet.braking).z} braking`);
+  check(worstFoot < 0.02, `a foot missed its pedal by ${worstFoot} m`);
+  check(t(feet.wot).z - t(feet.idle).z > 0.03, "the throttle pedal does not sink under full throttle");
+  check(b(feet.braking).z - b(feet.idle).z > 0.03, "the brake pedal does not sink under braking");
+} else fail.push("driver rig has no legs/pedals");
+
+// --- 4. The rival's driver is solved too, not a mannequin ---
+const rivalIk = await page.evaluate(()=>{
+  const e = window.__grnEngine;
+  const r = e.rival;
+  if (!r) return null;
+  const rig = r.mesh.userData.driver;
+  if (!rig) return { noRig: true };
+  // Push the rival into a lane change so the wheel is off-centre mid-solve
+  r.targetLat = r.lat + 4;
+  for (let i=0;i<12;i++) e.update(1/60);
+  const V = e.camera.position.constructor;
+  const hands = [];
+  rig.wheel.updateWorldMatrix(true,false);
+  for (const arm of rig.arms) {
+    const grip = arm.side < 0 ? Math.PI*0.72 : Math.PI*0.28;
+    const a = grip + rig.wheel.rotation.z;
+    const tp = new V(Math.cos(a)*rig.wheelRadius, Math.sin(a)*rig.wheelRadius, 0);
+    rig.wheel.localToWorld(tp);
+    arm.hand.updateWorldMatrix(true,false);
+    const hp = new V(); hp.setFromMatrixPosition(arm.hand.matrixWorld);
+    hands.push(+hp.distanceTo(tp).toFixed(4));
+  }
+  const feet = rig.legs.map((leg)=>{
+    const pedal = leg.side > 0 ? rig.pedals.throttle : rig.pedals.brake;
+    pedal.updateWorldMatrix(true,false);
+    const tp = new V(); tp.setFromMatrixPosition(pedal.matrixWorld);
+    leg.hand.updateWorldMatrix(true,false);
+    const fp = new V(); fp.setFromMatrixPosition(leg.hand.matrixWorld);
+    return +fp.distanceTo(tp).toFixed(4);
+  });
+  return { hands, feet, wheelZ: +rig.wheel.rotation.z.toFixed(3) };
+});
+if (rivalIk && !rivalIk.noRig) {
+  const worstR = Math.max(...rivalIk.hands, ...rivalIk.feet);
+  console.log(`rival driver hands ${rivalIk.hands.join("/")} m, feet ${rivalIk.feet.join("/")} m off target, wheel at ${rivalIk.wheelZ} rad in a lane change`);
+  check(worstR < 0.02, `the rival driver missed wheel or pedal by ${worstR} m`);
+  check(Math.abs(rivalIk.wheelZ) > 0.02, "the rival's wheel does not turn for a lane change");
+} else fail.push(rivalIk ? "rival car carries no driver rig" : "no rival spawned");
+
+// --- 5. Alongside, the rival looks over at you ---
+const glance = await page.evaluate(()=>{
+  const e = window.__grnEngine;
+  const r = e.rival;
+  if (!r) return null;
+  const rig = r.mesh.userData.driver;
+  // Far behind: eyes on the road
+  e.player.s = e.track.wrap(r.s - 200);
+  for (let i=0;i<40;i++) e.update(1/60);
+  const eyesOnRoad = +rig.head.rotation.y.toFixed(3);
+  // Pull alongside — pinned every frame, before the update, so the AI
+  // cannot drive out of the window while the head is still easing over.
+  for (let i=0;i<40;i++) {
+    e.player.s = e.track.wrap(r.s - 6);
+    e.player.lat = r.lat - 3.4;
+    e.update(1/60);
+  }
+  const alongside = +rig.head.rotation.y.toFixed(3);
+  return { eyesOnRoad, alongside };
+});
+if (glance) {
+  console.log(`rival glance head yaw ${glance.eyesOnRoad} on the road, ${glance.alongside} with you alongside`);
+  check(Math.abs(glance.alongside) > 0.3, "the rival never looks over when you pull alongside");
+  check(Math.abs(glance.alongside - glance.eyesOnRoad) > 0.2, "the rival's glance is indistinguishable from cruising");
+} else fail.push("no rival for the glance test");
+
+// --- 6. The crowd watches, within the limits of a neck ---
 const crowd = await page.evaluate(async ()=>{
   const e = window.__grnEngine;
   let root=e.world.moonLight; while(root.parent) root=root.parent;
@@ -106,6 +206,66 @@ if (crowd) {
   check(Math.abs(crowd.atBehind) <= crowd.limit + 0.01, `a neck turned ${crowd.atBehind} rad, past its ${crowd.limit} limit`);
   check(Math.abs(crowd.rested) < Math.abs(crowd.atBehind) + 0.01, "heads stay craned after the car has gone");
 } else fail.push("no spectators found");
+
+// --- 7. The grid crew have necks too ---
+const crew = await page.evaluate(()=>{
+  const e = window.__grnEngine;
+  let root=e.world.moonLight; while(root.parent) root=root.parent;
+  let group=null; root.traverse((o)=>{ if(o.name==="racers") group=o; });
+  if (!group) return null;
+  const fig = group.children[0];
+  if (!fig.userData.head) return { noHead: true };
+  const head = fig.userData.head;
+  const front = fig.position.clone(); front.x += 8; front.y += 1;
+  const behind = fig.position.clone(); behind.x -= 8; behind.y += 1;
+  for (let i=0;i<80;i++) e.world.setCrowdFocus(front.x, front.y, front.z, 1/60);
+  const atFront = +head.rotation.y.toFixed(3);
+  for (let i=0;i<200;i++) e.world.setCrowdFocus(behind.x, behind.y, behind.z, 1/60);
+  const atBehind = +head.rotation.y.toFixed(3);
+  for (let i=0;i<300;i++) e.world.setCrowdFocus(fig.position.x+500, 1, fig.position.z+500, 1/60);
+  return { atFront, atBehind, hasArms: !!fig.userData.arms };
+});
+if (crew && !crew.noHead) {
+  console.log(`grid crew    head yaw ${crew.atFront} car in front, ${crew.atBehind} car behind`);
+  check(Math.abs(crew.atFront - crew.atBehind) > 0.15, "the grid crew do not turn to follow a run");
+  check(crew.hasArms, "racers carry no arm chains");
+} else fail.push(crew ? "racers have no head joint — they cannot watch" : "no racers group found");
+
+// --- 8. A hand goes up for a passing car, and comes down after ---
+const wave = await page.evaluate(()=>{
+  const e = window.__grnEngine;
+  let root=e.world.moonLight; while(root.parent) root=root.parent;
+  let group=null; root.traverse((o)=>{ if(o.name==="spectators") group=o; });
+  if (!group) return null;
+  const fig = group.children[0];
+  const arms = fig.userData.arms;
+  if (!arms) return { noArms: true };
+  const V = e.camera.position.constructor;
+  const arm = arms.find((a)=>a.side===1); // watcher 0 waves with the right hand
+  const handPos = () => { arm.hand.updateWorldMatrix(true,false); const p=new V(); p.setFromMatrixPosition(arm.hand.matrixWorld); return p; };
+  const restY = handPos().y;
+  const p = fig.position;
+  // The car pulls up close: the hand should rise...
+  for (let i=0;i<300;i++) e.world.setCrowdFocus(p.x+6, p.y+1, p.z+4, 1/60);
+  const upY = handPos().y;
+  // ...and wave — the hand travels laterally while the car sits there
+  let wag = 0; const first = handPos();
+  for (let i=0;i<30;i++) {
+    e.world.setCrowdFocus(p.x+6, p.y+1, p.z+4, 1/60);
+    const q = handPos();
+    wag = Math.max(wag, Math.hypot(q.x-first.x, q.z-first.z));
+  }
+  // The car leaves: the arm settles back where it was built
+  for (let i=0;i<700;i++) e.world.setCrowdFocus(p.x+800, 1, p.z+800, 1/60);
+  const downY = handPos().y;
+  return { restY:+restY.toFixed(3), upY:+upY.toFixed(3), wag:+wag.toFixed(3), downY:+downY.toFixed(3) };
+});
+if (wave && !wave.noArms) {
+  console.log(`wave         hand at ${wave.restY} rest, ${wave.upY} waving (wag ${wave.wag} m), ${wave.downY} after the car has gone`);
+  check(wave.upY - wave.restY > 0.5, "no hand went up for a car parked alongside");
+  check(wave.wag > 0.05, "the raised hand holds still — that is a salute, not a wave");
+  check(Math.abs(wave.downY - wave.restY) < 0.12, "the arm never comes back down");
+} else fail.push(wave ? "spectators have no arm chains" : "no spectators found for the wave");
 
 // A look at the driver through the glass
 const shot = await page.evaluate(()=>{

@@ -238,6 +238,15 @@ unreachable target straightens the arm instead of producing NaN, and
 confirms a spectator's neck stops at its limit and hands the rest of
 the turn to their shoulders.
 
+Since the rig went game-wide the same proof now covers everyone: the
+feet are solved onto pedals that sink with the actual throttle and
+brake inputs; the rival's driver turns their own wheel through a lane
+change and looks over at you when you pull alongside; the grid crew
+have neck joints and follow a run like the corniche crowd; and a
+spectator's hand goes up for a car parked close — solved onto a moving
+wave target, wags while it is there, and settles back to the authored
+rest pose after the car has gone.
+
 It earned its keep immediately. The first run measured errors up to
 0.5 m with everything *looking* plausible, and the reason was two real
 bugs: bone lengths are authored in the rig's own units while the target

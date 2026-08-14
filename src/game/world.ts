@@ -4,8 +4,14 @@ import { Track, ROAD_HALF_WIDTH, COAST_U, DRIFT_PLAZA } from "./track";
 import { applyTextureManifest } from "./assets";
 import { upgradePalmCrowns } from "./models";
 import { textTexture, arabicSign, latinDisplay } from "./text";
-import { flagTexture, kuwaitiFigure, kuwaitiRacer, type RacerLook } from "./characters";
-import { aimConstrained } from "./ik";
+import {
+  flagTexture,
+  kuwaitiFigure,
+  kuwaitiRacer,
+  type ArmChain,
+  type RacerLook,
+} from "./characters";
+import { aimConstrained, solveTwoBone } from "./ik";
 import { RIVALS } from "./rivals";
 
 /** Drooping palm fronds merged into one geometry (crown sits at trunk top). */
@@ -1122,6 +1128,14 @@ const TUNNEL_U = { from: 0.615, to: 0.655 };
 
 const _focus = new THREE.Vector3();
 const _rest = new THREE.Quaternion();
+// Scratch for the crowd's wave solves — world-space shoulder, direction
+// out to the car, the hand target and the elbow pole, plus a clock so
+// the wag keeps its rhythm across frames.
+const _sw = new THREE.Vector3();
+const _out = new THREE.Vector3();
+const _hand = new THREE.Vector3();
+const _pole = new THREE.Vector3();
+let _waveT = 0;
 
 export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // Handles for the night-shimmer tick (assigned in the streetlight block)
@@ -1141,8 +1155,47 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   let lampLevel = 1;
   /** Everyone standing at the roadside who turns to watch a car go past:
    *  the figure (whose body takes over when the neck runs out) and its
-   *  head joint, with the heading each was placed at. */
-  const watchers: Array<{ body: THREE.Object3D; head: THREE.Object3D; baseYaw: number }> = [];
+   *  head joint, with the heading each was placed at — plus their arm
+   *  chains and the as-built rest pose, so a raised hand can settle back
+   *  exactly where it was authored. */
+  interface Watcher {
+    body: THREE.Object3D;
+    head: THREE.Object3D;
+    baseYaw: number;
+    arms?: ArmChain[];
+    /** Shoulder/elbow rest quaternions, two per arm, in arm order. */
+    armRest?: THREE.Quaternion[];
+    /** Which hand goes up for a passing car; 0 for one who never waves. */
+    waveSide: number;
+    phase: number;
+    lift: number;
+  }
+  const watchers: Watcher[] = [];
+
+  /** Arm registration for a watcher. A third of them never wave — a
+   *  crowd in lockstep reads as a stadium routine, not a roadside. */
+  const watcherArms = (
+    fig: THREE.Object3D,
+    side: number,
+    i: number
+  ): Pick<Watcher, "arms" | "armRest" | "waveSide" | "phase" | "lift"> => {
+    const arms = fig.userData.arms as ArmChain[] | undefined;
+    if (!arms) return { waveSide: 0, phase: 0, lift: 0 };
+    const armRest: THREE.Quaternion[] = [];
+    for (const a of arms) armRest.push(a.shoulder.quaternion.clone(), a.elbow.quaternion.clone());
+    return { arms, armRest, waveSide: i % 3 === 2 ? 0 : side, phase: i * 1.9, lift: 0 };
+  };
+
+  /** Ease a watcher's arms back to the pose they were built in. */
+  const settleArms = (w: Watcher, dt: number): void => {
+    if (!w.arms || !w.armRest) return;
+    w.lift = Math.max(0, w.lift - dt * 1.1);
+    const k = Math.min(1, dt * 1.5);
+    w.arms.forEach((a, i) => {
+      a.shoulder.quaternion.slerp(w.armRest![i * 2], k);
+      a.elbow.quaternion.slerp(w.armRest![i * 2 + 1], k);
+    });
+  };
   /**
    * Materials that glow only because the world was authored at night:
    * lane paint, kerbs, sign faces, lit windows. Sunlight lights them for
@@ -1923,7 +1976,13 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       fig.rotateY((i % 2 === 0 ? 1 : -1) * 0.25);
       crew.add(fig);
       if (fig.userData.head) {
-        watchers.push({ body: fig, head: fig.userData.head as THREE.Object3D, baseYaw: fig.rotation.y });
+        // The racer's own free hand — the other keeps hold of the helmet
+        watchers.push({
+          body: fig,
+          head: fig.userData.head as THREE.Object3D,
+          baseYaw: fig.rotation.y,
+          ...watcherArms(fig, (fig.userData.waveSide as number) ?? 1, i),
+        });
       }
     });
     scene.add(crew);
@@ -2200,11 +2259,16 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         fig.position.copy(p);
         fig.scale.setScalar(0.96 + 0.03 * seed);
         fig.lookAt(islandPos.x, 0, islandPos.z);
-        seed++;
         crowd.add(fig);
         if (fig.userData.head) {
-          watchers.push({ body: fig, head: fig.userData.head as THREE.Object3D, baseYaw: fig.rotation.y });
+          watchers.push({
+            body: fig,
+            head: fig.userData.head as THREE.Object3D,
+            baseYaw: fig.rotation.y,
+            ...watcherArms(fig, seed % 2 === 0 ? 1 : -1, seed),
+          });
         }
+        seed++;
       }
       scene.add(crowd);
     }
@@ -2486,14 +2550,16 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
 
     setCrowdFocus(x: number, y: number, z: number, dt: number) {
       _focus.set(x, y, z);
+      _waveT += dt;
       for (const w of watchers) {
         // Nobody cranes at a car three streets away
         const dx = w.body.position.x - x;
         const dz = w.body.position.z - z;
-        const near = dx * dx + dz * dz < 90 * 90;
-        if (!near) {
+        const d2 = dx * dx + dz * dz;
+        if (d2 >= 90 * 90) {
           // Ease back to the way they were standing
           w.head.quaternion.slerp(_rest, Math.min(1, dt * 1.5));
+          settleArms(w, dt);
           continue;
         }
         // The neck goes first, and reports how much of the turn it could
@@ -2512,6 +2578,46 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
           while (delta < -Math.PI) delta += Math.PI * 2;
           w.body.rotation.y += delta * Math.min(1, dt * 1.2) * (1 - got);
         }
+
+        // Inside 45 m a hand goes up: a wave solved onto a moving
+        // target rather than a canned clip, so it tracks wherever the
+        // car actually is and settles home when it has gone.
+        const arm = w.waveSide && w.arms ? w.arms.find((a) => a.side === w.waveSide) : undefined;
+        if (!arm) {
+          settleArms(w, dt);
+          continue;
+        }
+        w.lift = THREE.MathUtils.clamp(w.lift + (d2 < 45 * 45 ? dt * 2.2 : -dt * 1.1), 0, 1);
+        if (w.lift <= 0.01) {
+          settleArms(w, dt);
+          continue;
+        }
+        arm.shoulder.updateWorldMatrix(true, false);
+        _sw.setFromMatrixPosition(arm.shoulder.matrixWorld);
+        // Flattened direction out to the car, for the reach and the wag
+        _out.set(x - _sw.x, 0, z - _sw.z);
+        const len = Math.hypot(_out.x, _out.z) || 1;
+        _out.multiplyScalar(1 / len);
+        const span = (arm.upper + arm.lower) * w.body.scale.x;
+        // The target slides from "hanging at the side" to "up and out
+        // toward the road" as the lift comes in, with the wag swinging
+        // perpendicular to the line out to the car.
+        const wag = Math.sin(_waveT * 6.5 + w.phase) * 0.17 * w.lift;
+        _hand
+          .copy(_sw)
+          .addScaledVector(_out, 0.12 * w.lift)
+          .add(_pole.set(-_out.z * wag, -span * 0.92 * (1 - w.lift) + 0.4 * w.lift, _out.x * wag));
+        // Elbow breaks outboard and a little down, in the body's frame
+        _pole.set(w.waveSide * 0.6, -0.2, 0.05).applyQuaternion(w.body.quaternion).add(_sw);
+        solveTwoBone({
+          root: arm.shoulder,
+          mid: arm.elbow,
+          upper: arm.upper,
+          lower: arm.lower,
+          target: _hand,
+          pole: _pole,
+          weight: 1,
+        });
       }
     },
     tick(dt: number) {

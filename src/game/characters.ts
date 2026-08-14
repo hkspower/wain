@@ -112,13 +112,34 @@ export function kuwaitiFigure(
   );
   shoulders.position.y = 1.3;
   g.add(shoulders);
-  // Arms resting at the sides
+  // Arms as two-bone chains resting at the sides. The crowd does more
+  // than stand now — a hand goes up when the race goes past — and a
+  // cylinder glued to the robe cannot wave.
+  const armUpper = 0.28;
+  const armLower = 0.25;
+  const arms: ArmChain[] = [];
   for (const side of [-1, 1]) {
-    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.05, 0.56, 6), cloth);
-    arm.position.set(side * 0.2, 1.02, 0);
-    arm.rotation.z = side * 0.13;
-    g.add(arm);
+    const shoulder = new THREE.Object3D();
+    shoulder.position.set(side * 0.2, 1.28, 0);
+    shoulder.rotation.z = side * 0.15;
+    g.add(shoulder);
+    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.044, armUpper, 6), cloth);
+    sleeve.position.y = -armUpper / 2;
+    shoulder.add(sleeve);
+    const elbow = new THREE.Object3D();
+    elbow.position.y = -armUpper;
+    shoulder.add(elbow);
+    const fore = new THREE.Mesh(new THREE.CylinderGeometry(0.044, 0.04, armLower, 6), cloth);
+    fore.position.y = -armLower / 2;
+    elbow.add(fore);
+    const hand = new THREE.Object3D();
+    hand.position.y = -armLower;
+    elbow.add(hand);
+    const palm = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), skin);
+    hand.add(palm);
+    arms.push({ shoulder, elbow, hand, upper: armUpper, lower: armLower, side });
   }
+  g.userData.arms = arms;
 
   const headY = 1.5;
   // The head is a joint, not a ball glued to a robe: the crowd turns to
@@ -147,22 +168,34 @@ export function kuwaitiFigure(
   return g;
 }
 
+/** One two-bone limb an IK solver can drive: root → mid → end with the
+ *  bone lengths between them. The field names read as an arm; a leg
+ *  threads hip/knee/foot through the same shape, because the solver
+ *  neither knows nor cares which limb it is straightening. */
+export interface ArmChain {
+  shoulder: THREE.Object3D;
+  elbow: THREE.Object3D;
+  hand: THREE.Object3D;
+  upper: number;
+  lower: number;
+  side: number;
+}
+
 /** The rig an IK solver needs: joints, bone lengths, and the parts a
  *  caller animates. */
 export interface DriverRig {
   group: THREE.Group;
-  arms: Array<{
-    shoulder: THREE.Object3D;
-    elbow: THREE.Object3D;
-    hand: THREE.Object3D;
-    upper: number;
-    lower: number;
-    side: number;
-  }>;
+  arms: ArmChain[];
+  /** Hip → knee → foot, read through the ArmChain field names. */
+  legs: ArmChain[];
   head: THREE.Object3D;
   wheel: THREE.Object3D;
   /** Rim radius, so the caller can put hands at ten-to-two. */
   wheelRadius: number;
+  /** Pedal faces the feet are solved onto. Each remembers its rest
+   *  position in userData (restY/restZ) so a press can sink it and the
+   *  foot can follow the moving face. */
+  pedals: { throttle: THREE.Object3D; brake: THREE.Object3D };
 }
 
 /**
@@ -253,10 +286,57 @@ export function kuwaitiDriver(suitColor = 0x1d2026, skinTone = 0xb9895f): Driver
     arms.push({ shoulder, elbow, hand, upper, lower, side });
   }
 
+  // Pedal box, right-hand drive: throttle outboard, brake inboard. Each
+  // pedal remembers where it sits at rest so the engine can press it in
+  // and the foot's IK target rides the moving face.
+  const mkPedal = (x: number): THREE.Object3D => {
+    const pedal = new THREE.Object3D();
+    pedal.position.set(x, 0.09, 0.46);
+    pedal.rotation.x = -0.55;
+    pedal.userData.restY = pedal.position.y;
+    pedal.userData.restZ = pedal.position.z;
+    const face = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.11, 0.02), dark);
+    pedal.add(face);
+    group.add(pedal);
+    return pedal;
+  };
+  const pedals = { throttle: mkPedal(0.1), brake: mkPedal(-0.08) };
+
+  // Legs: hip → knee → foot, the same two-bone chains as the arms, so
+  // the feet can be solved onto the pedals and follow them as they
+  // press. The rest pose reads as seated even before a solver runs —
+  // garage and film cars are built, not updated every frame.
+  const thigh = 0.27;
+  const shin = 0.27;
+  const legs: ArmChain[] = [];
+  for (const side of [-1, 1]) {
+    const hip = new THREE.Object3D();
+    hip.position.set(side * 0.09, 0.17, 0.05);
+    hip.rotation.x = -1.15;
+    group.add(hip);
+    const thighMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.054, thigh, 7), suit);
+    thighMesh.position.y = -thigh / 2;
+    hip.add(thighMesh);
+    const knee = new THREE.Object3D();
+    knee.position.y = -thigh;
+    knee.rotation.x = 0.95;
+    hip.add(knee);
+    const shinMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.046, shin, 7), suit);
+    shinMesh.position.y = -shin / 2;
+    knee.add(shinMesh);
+    const foot = new THREE.Object3D();
+    foot.position.y = -shin;
+    knee.add(foot);
+    const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.15), dark);
+    shoe.position.set(0, 0, 0.04);
+    foot.add(shoe);
+    legs.push({ shoulder: hip, elbow: knee, hand: foot, upper: thigh, lower: shin, side });
+  }
+
   group.traverse((o) => {
     if ((o as THREE.Mesh).isMesh) o.castShadow = true;
   });
-  return { group, arms, head, wheel, wheelRadius };
+  return { group, arms, legs, head, wheel, wheelRadius, pedals };
 }
 
 export interface RacerLook {
@@ -314,30 +394,51 @@ export function kuwaitiRacer(look: RacerLook): THREE.Group {
   const headY = 1.64;
   const helmetR = 0.145;
 
-  // Arms are rigged as groups pivoting at the shoulder, with the glove
-  // (and the carried helmet) as children at the wrist — placed in world
-  // space they drift off the end of the limb the moment the arm rotates.
+  // Arms as shoulder → elbow → hand chains — the same rig the solver
+  // drives everywhere else, with the glove (and the carried helmet) as
+  // children at the wrist so they stay on the limb however it is posed.
+  // A racer can wave the free arm at a passing run while the other
+  // keeps its hold on the helmet.
   const carrySide = -1;
-  const armPivots: Record<number, THREE.Group> = {};
+  const armUpper = 0.28;
+  const armLower = 0.26;
+  const arms: ArmChain[] = [];
   for (const side of [-1, 1]) {
     const carrying = look.helmet === "carried" && side === carrySide;
-    const pivot = new THREE.Group();
-    pivot.position.set(side * 0.19, 1.4, 0);
-    pivot.rotation.z = side * (carrying ? 0.16 : 0.1);
-    pivot.rotation.x = carrying ? -0.5 : 0;
-    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.044, 0.54, 6), suit);
-    arm.position.y = -0.27;
-    pivot.add(arm);
+    const shoulder = new THREE.Object3D();
+    shoulder.position.set(side * 0.19, 1.4, 0);
+    shoulder.rotation.z = side * (carrying ? 0.16 : 0.1);
+    shoulder.rotation.x = carrying ? -0.5 : 0;
+    g.add(shoulder);
+    const armMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.046, armUpper, 6), suit);
+    armMesh.position.y = -armUpper / 2;
+    shoulder.add(armMesh);
+    const elbow = new THREE.Object3D();
+    elbow.position.y = -armUpper;
+    shoulder.add(elbow);
+    const foreMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.042, armLower, 6), suit);
+    foreMesh.position.y = -armLower / 2;
+    elbow.add(foreMesh);
+    const hand = new THREE.Object3D();
+    hand.position.y = -armLower;
+    elbow.add(hand);
     const glove = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), accent);
-    glove.position.y = -0.56;
-    pivot.add(glove);
-    g.add(pivot);
-    armPivots[side] = pivot;
+    hand.add(glove);
+    arms.push({ shoulder, elbow, hand, upper: armUpper, lower: armLower, side });
   }
+  g.userData.arms = arms;
+  // The helmet hand is spoken for; the wave comes from the other one.
+  g.userData.waveSide = -carrySide;
 
+  // The head is a joint here too — the crew at the line turn to follow
+  // a run exactly like the corniche crowd does, so the skull, helmet
+  // and headdress all have to ride one neck.
+  const headJoint = new THREE.Object3D();
+  headJoint.position.y = headY;
+  g.add(headJoint);
+  g.userData.head = headJoint;
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.115, 12, 9), skin);
-  head.position.y = headY;
-  g.add(head);
+  headJoint.add(head);
 
   const buildHelmet = (): THREE.Group => {
     const h = new THREE.Group();
@@ -378,8 +479,8 @@ export function kuwaitiRacer(look: RacerLook): THREE.Group {
 
   const helmet = buildHelmet();
   if (look.helmet === "worn") {
-    helmet.position.y = headY + 0.022;
-    g.add(helmet);
+    helmet.position.y = 0.022;
+    headJoint.add(helmet);
     if (look.woman) {
       // The hijab worn under the helmet still shows at the neck
       const neck = new THREE.Mesh(
@@ -390,29 +491,29 @@ export function kuwaitiRacer(look: RacerLook): THREE.Group {
       g.add(neck);
     }
   } else {
-    // Held at the hip in the gloved hand, visor turned outward. Hung off
-    // the arm pivot so hand and helmet stay together.
-    helmet.position.set(0, -0.68, 0.05);
+    // Held at the hip in the gloved hand, visor turned outward. Hung
+    // off the wrist joint so hand and helmet stay together whatever the
+    // arm does.
+    helmet.position.set(0, -0.13, 0.05);
     helmet.rotation.y = carrySide * 0.6;
-    armPivots[carrySide].add(helmet);
+    arms.find((a) => a.side === carrySide)!.hand.add(helmet);
     if (look.woman) {
       const wrapMat = new THREE.MeshStandardMaterial({
         color: look.accentColor,
         roughness: 0.88,
       });
       const wrap = new THREE.Mesh(new THREE.SphereGeometry(0.128, 12, 9), wrapMat);
-      wrap.position.y = headY;
-      g.add(wrap);
+      headJoint.add(wrap);
       // The hijab drapes over the shoulders, which is what separates it
       // from a plain skullcap at a glance
       const fall = new THREE.Mesh(new THREE.ConeGeometry(0.185, 0.5, 12, 1, true), wrapMat);
-      fall.position.set(0, headY - 0.18, -0.03);
-      g.add(fall);
+      fall.position.set(0, -0.18, -0.03);
+      headJoint.add(fall);
       const face = new THREE.Mesh(new THREE.CircleGeometry(0.068, 12), skin);
-      face.position.set(0, headY + 0.01, 0.126);
-      g.add(face);
+      face.position.set(0, 0.01, 0.126);
+      headJoint.add(face);
     } else {
-      addGhutra(g, headY, look.headdress ?? "white");
+      addGhutra(headJoint, 0, look.headdress ?? "white");
     }
   }
 
