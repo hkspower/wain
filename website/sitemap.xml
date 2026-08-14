@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  صفحة واحدة بأقسام داخلية، فالخريطة تحوي العنوان الجذر فقط.
+  غيّر النطاق إلى نطاقك الفعلي قبل الرفع (أو مرّر --domain لسكربت البناء).
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://mawsool.com.kw/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>

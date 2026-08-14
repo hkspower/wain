@@ -10,11 +10,17 @@
 <link rel="icon" type="image/png" href="assets/mawsool-mark-512.png">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 
+<!-- النطاق يُستبدل آليًا عند البناء: node tools/build-release.mjs --domain=example.com
+     روابط المشاركة يجب أن تكون مطلقة، فالمسار النسبي لا يعمل خارج الموقع. -->
+<link rel="canonical" href="https://mawsool.com.kw/">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="ar_KW">
+<meta property="og:site_name" content="موصول">
+<meta property="og:url" content="https://mawsool.com.kw/">
 <meta property="og:title" content="موصول | خدمة توصيل الطلبات بالسيارات">
 <meta property="og:description" content="كباتن معتمدون بسيارات حديثة يغطون الكويت — توصيل خلال ساعة مع تتبع مباشر للطلب.">
-<meta property="og:image" content="assets/logo-mawsool.png">
+<meta property="og:image" content="https://mawsool.com.kw/assets/logo-mawsool.png">
+<meta name="twitter:card" content="summary_large_image">
 
 <!-- خط Alexandria المتغيّر مستضاف محليًا — لا اعتماد على شبكة خارجية -->
 <link rel="preload" href="assets/fonts/alexandria-arabic.woff2" as="font" type="font/woff2" crossorigin>

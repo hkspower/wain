@@ -3,6 +3,8 @@
  * خادم نظام موصول — HTTP بلا أطر عمل خارجية.
  * يقدّم واجهة برمجية تحت /api وملفات الواجهة من public/.
  */
+require('./env').load();   // يجب أن يسبق قراءة أي متغيّر بيئة
+
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');

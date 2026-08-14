@@ -1,0 +1,10 @@
+# موصول — https://mawsool.com.kw
+# غيّر النطاق أدناه إلى نطاقك الفعلي قبل الرفع.
+
+User-agent: *
+Allow: /
+
+# صفحات مهام الكباتن خاصة ولا تُفهرس
+Disallow: /l/
+
+Sitemap: https://mawsool.com.kw/sitemap.xml

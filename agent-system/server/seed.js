@@ -4,6 +4,8 @@
  * التشغيل:  npm run seed          (يضيف فقط إذا كانت القاعدة فارغة)
  *           npm run reset         (يمسح كل شيء ويعيد البناء)
  */
+require('./env').load();
+
 const { db, now, logEvent, logAgentEvent } = require('./db');
 const { hashPassword } = require('./auth');
 const ar = require('arabic-kit');
