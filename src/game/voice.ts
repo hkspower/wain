@@ -26,6 +26,12 @@ export class VoiceBox {
   // Pre-rendered ElevenLabs clips (scripts/generate-voices.mjs) — used
   // in preference to speech synthesis whenever a line's clip exists
   private clips = new Set<string>();
+  /** Fired when a line starts and when it finishes, so the owner can
+   *  duck the mix under it. Both an ElevenLabs clip and the fallback
+   *  synthesized voice report through here — the mix must not care
+   *  which one is speaking. */
+  onSpeaking: ((speaking: boolean) => void) | null = null;
+  private speakingCount = 0;
   private clipAudio: HTMLAudioElement | null = null;
   private manifestLoading: Promise<void> | null = null;
 
@@ -102,6 +108,15 @@ export class VoiceBox {
     }
   }
 
+  /** Ref-counted, because lines overlap: the duck lifts when the LAST
+   *  one ends, not when the first does. */
+  private beginSpeaking(): void {
+    if (this.speakingCount++ === 0) this.onSpeaking?.(true);
+  }
+  private endSpeaking(): void {
+    if (this.speakingCount > 0 && --this.speakingCount === 0) this.onSpeaking?.(false);
+  }
+
   speak(text: string, style: Partial<VoiceStyle> = {}, clipId?: string): void {
     if (!this.enabled) return;
     // Real ElevenLabs clip takes priority over the synthesizer. Early
@@ -114,11 +129,26 @@ export class VoiceBox {
     }
     if (clipId && this.clips.has(clipId)) {
       this.synth?.cancel();
-      this.clipAudio?.pause();
-      this.clipAudio = new Audio(`/voices/${clipId}.mp3`);
-      this.clipAudio.volume = 0.9;
-      if (this.radio) this.routeThroughRadio(this.clipAudio);
-      void this.clipAudio.play().catch(() => {});
+      // Whatever was playing is being cut off; release its duck first or
+      // the count never returns to zero and the bed stays down forever.
+      if (this.clipAudio && !this.clipAudio.paused) {
+        this.clipAudio.pause();
+        this.endSpeaking();
+      }
+      const audio = new Audio(`/voices/${clipId}.mp3`);
+      this.clipAudio = audio;
+      audio.volume = 0.9;
+      if (this.radio) this.routeThroughRadio(audio);
+      let released = false;
+      const release = () => {
+        if (released) return;
+        released = true;
+        this.endSpeaking();
+      };
+      audio.addEventListener("ended", release);
+      audio.addEventListener("error", release);
+      this.beginSpeaking();
+      void audio.play().catch(() => release());
       return;
     }
     if (!this.synth) return;
@@ -131,20 +161,38 @@ export class VoiceBox {
     u.pitch = style.pitch ?? 1;
     u.rate = style.rate ?? 1;
     u.volume = 0.9;
+    // The synthesized fallback ducks the mix exactly like a clip does.
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      this.endSpeaking();
+    };
+    u.onend = release;
+    u.onerror = release;
+    this.beginSpeaking();
     this.synth.speak(u);
+  }
+
+  /** Stop everything and lift any duck. cancel() does not reliably fire
+   *  onend across browsers, so the count is reset rather than trusted —
+   *  a duck that never lifts leaves the game quiet for the session. */
+  private silence(): void {
+    this.synth?.cancel();
+    this.clipAudio?.pause();
+    if (this.speakingCount > 0) {
+      this.speakingCount = 0;
+      this.onSpeaking?.(false);
+    }
   }
 
   toggle(): boolean {
     this.enabled = !this.enabled;
-    if (!this.enabled) {
-      this.synth?.cancel();
-      this.clipAudio?.pause();
-    }
+    if (!this.enabled) this.silence();
     return this.enabled;
   }
 
   dispose(): void {
-    this.synth?.cancel();
-    this.clipAudio?.pause();
+    this.silence();
   }
 }

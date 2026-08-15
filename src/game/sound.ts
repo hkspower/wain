@@ -60,6 +60,16 @@ function softClipCurve(): Float32Array {
 export class SoundEngine {
   private ctx: AudioContext;
   private master: GainNode;
+  /** The continuous bed: engine, exhaust, tires, wind, ambience. This is
+   *  what ducks under a voice line — the layers a listener stops needing
+   *  when someone is talking to them. */
+  private bed!: GainNode;
+  /** One-shots and recorded samples. Ducks a little, never to nothing:
+   *  an impact you cannot hear because a rival is talking is a bug. */
+  private sfx!: GainNode;
+  /** Where the bed sits when nothing is ducking it. */
+  private bedLevel = 1;
+  private sfxLevel = 1;
   private noise: AudioBuffer;
   muted = false;
 
@@ -127,6 +137,16 @@ export class SoundEngine {
     this.master = this.ctx.createGain();
     this.master.gain.value = 0.75;
     this.master.connect(this.ctx.destination);
+    // Two sub-buses under the master, so the mix has somewhere to move.
+    // Before this everything connected straight to the master and there
+    // was no way to duck one thing under another — which is the whole
+    // job of a mix.
+    this.bed = this.ctx.createGain();
+    this.bed.gain.value = this.bedLevel;
+    this.bed.connect(this.master);
+    this.sfx = this.ctx.createGain();
+    this.sfx.gain.value = this.sfxLevel;
+    this.sfx.connect(this.master);
     void this.loadSfxManifest();
 
     // --- Engine: saw fundamental + detuned octave + square sub,
@@ -138,7 +158,7 @@ export class SoundEngine {
     this.engFilter.frequency.value = 400;
     this.engGain = this.ctx.createGain();
     this.engGain.gain.value = 0;
-    shaper.connect(this.engFilter).connect(this.engGain).connect(this.master);
+    shaper.connect(this.engFilter).connect(this.engGain).connect(this.bed);
 
     const layers: Array<[OscillatorType, number, number]> = [
       ["sawtooth", 1, 0.5], // fundamental
@@ -163,7 +183,7 @@ export class SoundEngine {
     this.exhaustFilter.Q.value = 1.2;
     this.exhaustGain = this.ctx.createGain();
     this.exhaustGain.gain.value = 0;
-    this.loopNoise().connect(this.exhaustFilter).connect(this.exhaustGain).connect(this.master);
+    this.loopNoise().connect(this.exhaustFilter).connect(this.exhaustGain).connect(this.bed);
 
     // --- Wind / road roar
     this.windFilter = this.ctx.createBiquadFilter();
@@ -171,7 +191,7 @@ export class SoundEngine {
     this.windFilter.frequency.value = 350;
     this.windGain = this.ctx.createGain();
     this.windGain.gain.value = 0;
-    this.loopNoise().connect(this.windFilter).connect(this.windGain).connect(this.master);
+    this.loopNoise().connect(this.windFilter).connect(this.windGain).connect(this.bed);
 
     // --- Tire squeal: warbled bandpass noise. Two bands, because a real
     // slide is a high rotor-like squeal riding on a broad rubber scrub —
@@ -188,7 +208,7 @@ export class SoundEngine {
     this.skidWarble.start();
     this.skidGain = this.ctx.createGain();
     this.skidGain.gain.value = 0;
-    this.loopNoise().connect(this.skidFilter).connect(this.skidGain).connect(this.master);
+    this.loopNoise().connect(this.skidFilter).connect(this.skidGain).connect(this.bed);
 
     // Broad low scrub under the squeal — the tire's contact patch tearing
     const scrubFilter = this.ctx.createBiquadFilter();
@@ -197,7 +217,7 @@ export class SoundEngine {
     scrubFilter.Q.value = 1.4;
     this.scrubGain = this.ctx.createGain();
     this.scrubGain.gain.value = 0;
-    this.loopNoise().connect(scrubFilter).connect(this.scrubGain).connect(this.master);
+    this.loopNoise().connect(scrubFilter).connect(this.scrubGain).connect(this.bed);
 
     // --- Induction: airbox growl. Tracks load rather than road speed, so
     // it separates "pinned throttle" from "coasting at the same revs" —
@@ -208,7 +228,7 @@ export class SoundEngine {
     this.inductionFilter.Q.value = 0.9;
     this.inductionGain = this.ctx.createGain();
     this.inductionGain.gain.value = 0;
-    this.loopNoise().connect(this.inductionFilter).connect(this.inductionGain).connect(this.master);
+    this.loopNoise().connect(this.inductionFilter).connect(this.inductionGain).connect(this.bed);
 
     // --- Tire roll: the broad hiss of rubber on asphalt. It is what
     // makes a car sound like it is on a road rather than in a vacuum,
@@ -219,7 +239,7 @@ export class SoundEngine {
     this.rollFilter.Q.value = 0.6;
     this.rollGain = this.ctx.createGain();
     this.rollGain.gain.value = 0;
-    this.loopNoise().connect(this.rollFilter).connect(this.rollGain).connect(this.master);
+    this.loopNoise().connect(this.rollFilter).connect(this.rollGain).connect(this.bed);
 
     // --- Kerb/shoulder rumble: the roll noise chopped by a fast LFO, so
     // running wide over the rumble strip buzzes through the floor.
@@ -236,7 +256,7 @@ export class SoundEngine {
       this.rumbleLfo.frequency.value = 22;
       this.rumbleLfo.connect(depth).connect(this.rumbleGain.gain);
       this.rumbleLfo.start();
-      this.loopNoise().connect(f).connect(this.rumbleGain).connect(this.master);
+      this.loopNoise().connect(f).connect(this.rumbleGain).connect(this.bed);
     }
 
     // --- Brakes: a low pad-on-rotor rumble plus a high metallic squeal
@@ -249,7 +269,7 @@ export class SoundEngine {
     this.loopNoise()
       .connect(this.brakeRumbleFilter)
       .connect(this.brakeRumbleGain)
-      .connect(this.master);
+      .connect(this.bed);
 
     this.brakeSquealFilter = this.ctx.createBiquadFilter();
     this.brakeSquealFilter.type = "bandpass";
@@ -263,7 +283,7 @@ export class SoundEngine {
     this.loopNoise()
       .connect(this.brakeSquealFilter)
       .connect(this.brakeSquealGain)
-      .connect(this.master);
+      .connect(this.bed);
 
     // Autoplay-policy recovery: contexts created outside a gesture call
     // stack (we start after an async chunk import) can come up suspended,
@@ -289,7 +309,7 @@ export class SoundEngine {
     panner.maxDistance = 400;
     const gain = this.ctx.createGain();
     gain.gain.value = 0;
-    gain.connect(panner).connect(this.master);
+    gain.connect(panner).connect(this.bed);
     this.panners.set(name, { panner, gain });
     return gain;
   }
@@ -340,7 +360,7 @@ export class SoundEngine {
     cityFilter.frequency.value = 220;
     this.cityGain = this.ctx.createGain();
     this.cityGain.gain.value = 0;
-    this.loopNoise().connect(cityFilter).connect(this.cityGain).connect(this.master);
+    this.loopNoise().connect(cityFilter).connect(this.cityGain).connect(this.bed);
   }
 
   /** The rival's engine, positioned. Hearing them come up behind you is
@@ -393,7 +413,7 @@ export class SoundEngine {
     this.whineOsc.frequency.value = 900;
     this.whineGain = this.ctx.createGain();
     this.whineGain.gain.value = 0;
-    this.whineOsc.connect(this.whineGain).connect(this.master);
+    this.whineOsc.connect(this.whineGain).connect(this.bed);
     this.whineOsc.start();
   }
 
@@ -412,7 +432,7 @@ export class SoundEngine {
       const filter = this.ctx.createBiquadFilter();
       filter.type = "highpass";
       filter.frequency.value = 2200;
-      this.loopNoise().connect(filter).connect(this.nosGain).connect(this.master);
+      this.loopNoise().connect(filter).connect(this.nosGain).connect(this.bed);
     }
     this.nosGain.gain.setTargetAtTime(active ? 0.09 : 0, this.ctx.currentTime, 0.04);
   }
@@ -459,7 +479,7 @@ export class SoundEngine {
             this.sampleSkidGain = this.ctx.createGain();
             this.sampleSkidGain.gain.value = 0;
             (this.sampleSkidGain as GainNode & { userData?: unknown }).userData = e.gain ?? 1;
-            src.connect(this.sampleSkidGain).connect(this.master);
+            src.connect(this.sampleSkidGain).connect(this.sfx);
             src.start();
           } else {
             this.samples.set(name, { buf, gain: e.gain ?? 1 });
@@ -474,6 +494,43 @@ export class SoundEngine {
   /** Fire a recorded one-shot; false = caller should use its synth
    *  voice. A few cents of random detune keeps rapid repeats from
    *  machine-gunning the identical waveform. */
+  /**
+   * Duck the mix under a voice line.
+   *
+   * The single most useful move in a game mix: when someone talks to
+   * the player, the bed steps back so the words are intelligible, and
+   * comes back when they stop. The bed drops hard because a listener
+   * stops needing engine detail mid-sentence; the one-shot bus barely
+   * moves, because an impact you cannot hear because a rival is talking
+   * is a bug rather than a mix. setTargetAtTime rather than a ramp, so
+   * overlapping lines re-duck smoothly instead of stepping.
+   */
+  duckForVoice(on: boolean): void {
+    const t = this.ctx.currentTime;
+    // -8 dB on the bed, -2.5 dB on the one-shots
+    this.bed.gain.setTargetAtTime(on ? this.bedLevel * 0.4 : this.bedLevel, t, on ? 0.08 : 0.34);
+    this.sfx.gain.setTargetAtTime(on ? this.sfxLevel * 0.75 : this.sfxLevel, t, on ? 0.08 : 0.34);
+  }
+
+  /** Balance between the recorded/one-shot layer and the synth bed, for
+   *  the settings panel. Both are clamped to something sane. */
+  setMixLevels(bed: number, sfx: number): void {
+    this.bedLevel = Math.max(0, Math.min(1.5, bed));
+    this.sfxLevel = Math.max(0, Math.min(1.5, sfx));
+    const t = this.ctx.currentTime;
+    this.bed.gain.setTargetAtTime(this.bedLevel, t, 0.05);
+    this.sfx.gain.setTargetAtTime(this.sfxLevel, t, 0.05);
+  }
+
+  /** Live bus levels, for the mix test. */
+  get mix(): { bed: number; sfx: number; master: number } {
+    return {
+      bed: +this.bed.gain.value.toFixed(4),
+      sfx: +this.sfx.gain.value.toFixed(4),
+      master: +this.master.gain.value.toFixed(4),
+    };
+  }
+
   private playSample(name: string, gain = 1): boolean {
     const s = this.samples.get(name);
     if (!s) return false;
@@ -482,7 +539,7 @@ export class SoundEngine {
     src.playbackRate.value = 0.96 + Math.random() * 0.08;
     const g = this.ctx.createGain();
     g.gain.value = s.gain * gain;
-    src.connect(g).connect(this.master);
+    src.connect(g).connect(this.sfx);
     src.start();
     return true;
   }
@@ -679,7 +736,7 @@ export class SoundEngine {
       const level = 0.1 + Math.random() * 0.08;
       g.gain.setValueAtTime(level, t);
       g.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
-      src.connect(filter).connect(g).connect(this.master);
+      src.connect(filter).connect(g).connect(this.sfx);
       src.start(t, Math.random());
       src.stop(t + 0.12);
     }
@@ -703,7 +760,7 @@ export class SoundEngine {
     const g = this.ctx.createGain();
     g.gain.setValueAtTime(gain, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + duration);
-    src.connect(filter).connect(g).connect(this.master);
+    src.connect(filter).connect(g).connect(this.sfx);
     src.start(t, Math.random());
     src.stop(t + duration + 0.05);
   }
@@ -719,7 +776,7 @@ export class SoundEngine {
     const g = this.ctx.createGain();
     g.gain.setValueAtTime(0.55 * intensity, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
-    osc.connect(g).connect(this.master);
+    osc.connect(g).connect(this.sfx);
     osc.start(t);
     osc.stop(t + 0.25);
     this.oneShotNoise("lowpass", 700, 0.32 * intensity, 0.16);
@@ -758,7 +815,7 @@ export class SoundEngine {
       g.gain.setValueAtTime(0.0001, t);
       g.gain.exponentialRampToValueAtTime(level, t + 0.02);
       g.gain.exponentialRampToValueAtTime(0.001, t + step * 2.2);
-      osc.connect(g).connect(this.master);
+      osc.connect(g).connect(this.sfx);
       osc.start(t);
       osc.stop(t + step * 2.4);
     });
@@ -787,7 +844,7 @@ export class SoundEngine {
     this.hornGain = this.ctx.createGain();
     this.hornGain.gain.setValueAtTime(0.0001, t);
     this.hornGain.gain.exponentialRampToValueAtTime(0.12, t + 0.02);
-    this.hornGain.connect(this.master);
+    this.hornGain.connect(this.sfx);
     for (const freq of [425, 530]) {
       const osc = this.ctx.createOscillator();
       osc.type = "square";

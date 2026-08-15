@@ -104,6 +104,22 @@ export class Music {
    * same "mood" and should not sound the same: this opens the filter,
    * leans on the bass and pushes the tempo as the fight tightens.
    */
+  /** Step the score back under a voice line and bring it home after.
+   *  Music is the layer that most obscures speech, so it ducks furthest. */
+  duckForVoice(on: boolean): void {
+    if (!this.enabled) return;
+    this.master.gain.setTargetAtTime(
+      on ? this.volume * 0.3 : this.volume,
+      this.ctx.currentTime,
+      on ? 0.08 : 0.4
+    );
+  }
+
+  /** Live master level, for the mix test. */
+  get level(): number {
+    return +this.master.gain.value.toFixed(4);
+  }
+
   setIntensity(v: number): void {
     this.intensity = Math.min(Math.max(v, 0), 1);
     if (this.haveTracks) {
