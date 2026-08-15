@@ -126,3 +126,33 @@ The woman on the roster also gets a woman's voice. `bint-aldeera` is
 marked `female: true` in `rivals.ts` and every one of her lines was
 being rendered with the male voice; the generator now picks
 `ELEVENLABS_VOICE_ID_F` for her.
+
+
+## Race music
+
+```bash
+npm run music -- --check      # key + reachability
+npm run music -- --dry-run    # the musical brief, no key needed
+ELEVENLABS_API_KEY=sk_... npm run music
+```
+
+Two tracks into `public/music/`, because the game has two states and
+crossfades between them on the SP bar: `cruise` is the road when
+nothing is at stake, `battle` is a rival alongside you. `src/game/music.ts`
+picks them up from `public/music/manifest.json` and drops its
+synthesized score the moment they exist.
+
+The brief is rocky techno — a live-sounding kit and distorted guitar
+over a four-on-the-floor techno spine, driving rather than euphoric,
+because this is a road at two in the morning and not a festival.
+
+**Both prompts pin the same key, tempo and kit.** That is the one
+constraint the crossfade cannot survive without: two tracks written
+independently, in different keys or at different tempos, sound like a
+radio being retuned mid-corner every time the SP bar moves. 128 BPM,
+A minor, both of them, stated in the shared half of the prompt rather
+than left to chance.
+
+They also both reserve 80–250 Hz. That band is where a V6 lives, and a
+score that fills it turns the engine — which is the instrument the
+player is actually driving — into mud.
