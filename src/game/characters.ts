@@ -205,7 +205,21 @@ export interface DriverRig {
  * through the glass and in the versus film, so the pose matters more
  * than the polygon count.
  */
-export function kuwaitiDriver(suitColor = 0x1d2026, skinTone = 0xb9895f): DriverRig {
+export function kuwaitiDriver(
+  suitColor = 0x1d2026,
+  skinTone = 0xb9895f,
+  /**
+   * Background cars get a lean build: torso, head, helmet and the two
+   * arms that hold the wheel — no legs, no pedal box, no visor. Those
+   * exist for the cabin you can actually look into. A traffic driver is
+   * a silhouette behind glass at thirty metres, and thirty of them
+   * carrying a full footwell is draw calls spent where no one is
+   * looking. The ARMS stay, because the hands on the wheel are the
+   * whole point: an empty driver's seat in the next lane is what this
+   * change is fixing.
+   */
+  lean = false
+): DriverRig {
   const group = new THREE.Group();
   const suit = new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.7 });
   const skin = new THREE.MeshStandardMaterial({ color: skinTone, roughness: 0.75 });
@@ -229,13 +243,15 @@ export function kuwaitiDriver(suitColor = 0x1d2026, skinTone = 0xb9895f): Driver
   );
   helmet.userData.driverPart = "helmet";
   head.add(helmet);
-  const visor = new THREE.Mesh(
-    new THREE.SphereGeometry(0.139, 14, 10, Math.PI * 0.32, Math.PI * 0.36, Math.PI * 0.34, Math.PI * 0.3),
-    new THREE.MeshStandardMaterial({ color: 0x141a26, roughness: 0.08, metalness: 0.85 })
-  );
-  visor.rotation.y = -Math.PI / 2;
-  visor.userData.driverPart = "visor";
-  head.add(visor);
+  if (!lean) {
+    const visor = new THREE.Mesh(
+      new THREE.SphereGeometry(0.139, 14, 10, Math.PI * 0.32, Math.PI * 0.36, Math.PI * 0.34, Math.PI * 0.3),
+      new THREE.MeshStandardMaterial({ color: 0x141a26, roughness: 0.08, metalness: 0.85 })
+    );
+    visor.rotation.y = -Math.PI / 2;
+    visor.userData.driverPart = "visor";
+    head.add(visor);
+  }
 
   // The wheel the hands will be solved onto
   const wheelRadius = RIG.driver.wheelRadius;
@@ -249,7 +265,10 @@ export function kuwaitiDriver(suitColor = 0x1d2026, skinTone = 0xb9895f): Driver
   );
   rim.userData.driverPart = "wheel";
   wheel.add(rim);
-  for (let i = 0; i < 3; i++) {
+  // Spokes are three draw calls that only read at cabin range. Thirty
+  // background cars carrying them is ninety calls spent on detail no
+  // one can resolve; the rim alone is what the hands need.
+  for (let i = 0; i < (lean ? 0 : 3); i++) {
     const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.022, wheelRadius, 0.012), dark);
     spoke.position.y = -wheelRadius / 2;
     const holder = new THREE.Object3D();
@@ -306,10 +325,9 @@ export function kuwaitiDriver(suitColor = 0x1d2026, skinTone = 0xb9895f): Driver
     group.add(pedal);
     return pedal;
   };
-  const pedals = {
-    throttle: mkPedal(RIG.driver.pedalThrottleX),
-    brake: mkPedal(RIG.driver.pedalBrakeX),
-  };
+  const pedals = lean
+    ? { throttle: new THREE.Object3D(), brake: new THREE.Object3D() }
+    : { throttle: mkPedal(RIG.driver.pedalThrottleX), brake: mkPedal(RIG.driver.pedalBrakeX) };
 
   // Legs: hip → knee → foot, the same two-bone chains as the arms, so
   // the feet can be solved onto the pedals and follow them as they
@@ -318,7 +336,7 @@ export function kuwaitiDriver(suitColor = 0x1d2026, skinTone = 0xb9895f): Driver
   const thigh = RIG.driver.thigh;
   const shin = RIG.driver.shin;
   const legs: ArmChain[] = [];
-  for (const side of [-1, 1]) {
+  for (const side of lean ? [] : [-1, 1]) {
     const hip = new THREE.Object3D();
     hip.position.set(side * RIG.driver.hipX, RIG.driver.hipY, RIG.driver.hipZ);
     hip.rotation.x = RIG.driver.hipPitch;

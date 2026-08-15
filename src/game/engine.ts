@@ -167,6 +167,8 @@ interface TrafficCar {
   s: number;
   lat: number;
   speed: number;
+  /** Smoothed visible steer for this car's driver. */
+  steerVis: number;
 }
 
 interface Rival {
@@ -185,6 +187,10 @@ interface Rival {
   throttleVis: number;
   brakeVis: number;
 }
+
+/** Traffic drivers are solved inside this range, nearest first. */
+const TRAFFIC_DRIVER_RANGE = 120;
+const TRAFFIC_DRIVERS_SOLVED = 6;
 
 const TRAFFIC_COLORS = [0x8a96a3, 0x5d6770, 0xb0a890, 0x6e7f8d, 0x4a5560, 0x9c8f7a];
 
@@ -1526,6 +1532,7 @@ export class GameEngine {
         s: this.track.wrap(120 + (i / count) * this.track.length),
         lat: LANES[i % LANES.length],
         speed: 21 + Math.random() * 9, // 75–108 km/h
+        steerVis: 0,
       });
     }
   }
@@ -2581,6 +2588,60 @@ export class GameEngine {
       this.v4.copy(this.v1).add(this.v3);
       t.mesh.lookAt(this.v4);
       spinWheels(t.mesh, t.speed, dt);
+    }
+    this.solveTrafficDrivers(dt);
+  }
+
+  /**
+   * Pose the traffic's drivers — but only the ones close enough to be
+   * seen doing it.
+   *
+   * Every car on this road carries a driver now, which is thirty rigs.
+   * Solving all of them every frame would spend most of the work on
+   * cars behind the camera or half a kilometre up the road. The nearest
+   * few are solved properly; the rest keep the seated rest pose the rig
+   * is authored in, which is exactly why that rest pose was authored to
+   * read as seated on its own. Nobody can tell the difference at the
+   * distance where it stops.
+   */
+  private solveTrafficDrivers(dt: number): void {
+    const near: TrafficCar[] = [];
+    for (const t of this.traffic) {
+      const rig = t.mesh.userData.driver as DriverRig | undefined;
+      if (!rig) continue;
+      // Signed gap, so a car just behind you counts as close too
+      const gap = Math.abs(this.track.deltaAhead(this.player.s, t.s));
+      if (gap < TRAFFIC_DRIVER_RANGE) near.push(t);
+    }
+    // Cap the count as well as the range: a queue in one lane could put
+    // a dozen cars inside the radius at once.
+    near.sort(
+      (a, b) =>
+        Math.abs(this.track.deltaAhead(this.player.s, a.s)) -
+        Math.abs(this.track.deltaAhead(this.player.s, b.s))
+    );
+    for (let i = 0; i < near.length && i < TRAFFIC_DRIVERS_SOLVED; i++) {
+      const t = near[i];
+      const rig = t.mesh.userData.driver as DriverRig;
+      // Traffic holds its lane, so there is no lane-change signal to
+      // read — but a car following a curving road still holds lock, and
+      // this road curves. Take the steer from the road itself: the
+      // change in tangent heading over the next stretch.
+      this.track.tangentAt(t.s, this.v3);
+      this.track.tangentAt(this.track.wrap(t.s + 30), this.v4);
+      let dHead = Math.atan2(this.v4.x, this.v4.z) - Math.atan2(this.v3.x, this.v3.z);
+      while (dHead > Math.PI) dHead -= Math.PI * 2;
+      while (dHead < -Math.PI) dHead += Math.PI * 2;
+      const steerWant = THREE.MathUtils.clamp(dHead * 2.2, -1, 1);
+      t.steerVis += (steerWant - t.steerVis) * Math.min(1, dt * RIG.rival.steerRate);
+      this.track.pose(
+        t.s + RIG.driver.lookAheadM,
+        t.lat * RIG.driver.lookLatK,
+        this.v1,
+        this.v2
+      );
+      this.v1.y += RIG.driver.lookHeight;
+      this.solveDriverRig(rig, t.steerVis, RIG.rival.cruiseThrottle, 0, this.v1, dt);
     }
   }
 

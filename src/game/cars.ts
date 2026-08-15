@@ -1389,13 +1389,6 @@ export function createCar(colors: CarColors): THREE.Group {
       group.add(headrest);
     }
 
-    // Somebody is driving this. Right-hand drive, hands on the wheel by
-    // IK rather than parented to it, so the arms answer the steering.
-    const driver = kuwaitiDriver(0x1d2026);
-    driver.group.position.set(0.38, d.dashY - 0.34, bCabBack ? -0.28 : 0.08);
-    group.add(driver.group);
-    group.userData.driver = driver;
-
     // Brake calipers peeking through the spokes
     for (const [wx, wz] of [
       [-0.84, wzF],
@@ -1667,6 +1660,19 @@ export function createCar(colors: CarColors): THREE.Group {
   // Swap in the Blender-authored shells and wheels when they arrive.
   // Traffic keeps the cheap procedural build — thirty cars don't need
   // the density, and they never come close enough to the camera to show it.
+  // Somebody is driving this — every car, not just the hero ones.
+  // Right-hand drive, hands on the wheel by IK rather than parented to
+  // it, so the arms answer the steering. Traffic gets the lean build
+  // (torso, head, helmet, two arms) because a background driver is a
+  // silhouette behind glass; what matters is that the seat is not
+  // empty, which is what thirty driverless cars looked like.
+  {
+    const driver = kuwaitiDriver(0x1d2026, undefined, colors.simple === true);
+    driver.group.position.set(0.38, d.dashY - 0.34, bCabBack ? -0.28 : 0.08);
+    group.add(driver.group);
+    group.userData.driver = driver;
+  }
+
   if (!colors.simple) {
     upgradeCarShells(group, style);
     upgradeWheels(group);

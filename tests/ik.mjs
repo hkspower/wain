@@ -371,6 +371,51 @@ console.log(`driver fit   head top ${fit.headTop} m, seat ${fit.seatBottom} m, r
   check(fit.headTop < fit.roof, `the driver's head is ${(fit.headTop-fit.roof).toFixed(2)} m through the roof`) + " " +
   check(fit.seatBottom > -0.1, "the driver is sunk through the floor"));
 
+// --- 9. Every car on the road has a driver, and the near ones solve ---
+// Thirty driverless cars was the last place an empty seat could be
+// seen. They all carry a rig now; only the nearest few are solved, and
+// the rest hold the authored seated rest pose — which is why that pose
+// was authored to read as seated without a solver.
+const traffic = await page.evaluate(async ()=>{
+  const e = window.__grnEngine;
+  e.setPaused(true);
+  const V = e.camera.position.constructor;
+  const withRig = e.traffic.filter((t)=>!!t.mesh.userData.driver).length;
+  // Park a few right next to the player and the rest far away
+  e.player.s = e.track.length * 0.3;
+  e.traffic.forEach((t,i)=>{ t.s = e.track.wrap(e.player.s + (i<4 ? 20+i*12 : 900+i*30)); });
+  for (let i=0;i<40;i++) e.update(1/60);
+  // How far is each near driver's hand from its own wheel rim?
+  const err = [];
+  for (const t of e.traffic.slice(0,4)) {
+    const rig = t.mesh.userData.driver; if (!rig) continue;
+    for (const arm of rig.arms) {
+      const grip = arm.side < 0 ? Math.PI*0.72 : Math.PI*0.28;
+      let m = rig.wheel.getObjectByName(`g${arm.side}`);
+      if (!m) { m = new (rig.wheel.constructor)(); m.name = `g${arm.side}`;
+        m.position.set(Math.cos(grip)*rig.wheelRadius, Math.sin(grip)*rig.wheelRadius, 0);
+        rig.wheel.add(m); }
+      rig.wheel.updateWorldMatrix(true,true);
+      const tp = new V(); tp.setFromMatrixPosition(m.matrixWorld);
+      arm.hand.updateWorldMatrix(true,false);
+      const hp = new V(); hp.setFromMatrixPosition(arm.hand.matrixWorld);
+      err.push(+hp.distanceTo(tp).toFixed(4));
+    }
+  }
+  // A far car must be left in its rest pose, not solved
+  const far = e.traffic[e.traffic.length-1];
+  const farRig = far.mesh.userData.driver;
+  const farElbow = farRig ? +farRig.arms[0].elbow.quaternion.x.toFixed(4) : null;
+  return { total: e.traffic.length, withRig, err,
+           lean: farRig ? farRig.legs.length : -1, farElbow };
+});
+console.log(`traffic      ${traffic.withRig}/${traffic.total} cars carry a driver; lean rig has ${traffic.lean} legs`);
+console.log(`             near drivers' hands off the rim: ${traffic.err.join(", ")} m`);
+check(traffic.withRig === traffic.total, `${traffic.total - traffic.withRig} cars still have an empty seat`);
+check(traffic.err.length > 0 && Math.max(...traffic.err) < 0.02,
+  `a traffic driver missed its wheel by ${Math.max(...traffic.err)} m`);
+check(traffic.lean === 0, "traffic drivers carry legs — the lean build is not being used");
+
 console.log(fail.length?"\nFAILURES:\n - "+fail.join("\n - "):"\nIK solves, clamps and behaves");
 await b.close();
 process.exit(fail.length?1:0);
