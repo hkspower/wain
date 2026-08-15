@@ -4,7 +4,13 @@
   @font-face { font-family:"PlexAr"; src:url("fonts/IBMPlexSansArabic-Bold.woff2") format("woff2"); font-weight:700; }
   @font-face { font-family:"Shoulders"; src:url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/BigShoulders-Bold.ttf"); font-weight:700; }
   @font-face { font-family:"Mono"; src:url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/GeistMono-Regular.ttf"); }
-  @font-face { font-family:"Kana"; src:url("file:///usr/share/fonts/truetype/fonts-japanese-gothic.ttf"); }
+  /* Modern Japanese gothic — see the note in plate.html. local() first
+     so fontconfig picks the JP face out of the .ttc collection. */
+  @font-face {
+    font-family: "Kana";
+    src: local("Noto Sans CJK JP"), local("NotoSansCJKjp-Regular"),
+         url("file:///usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc");
+  }
   * { margin:0; padding:0; box-sizing:border-box; }
   html, body { width:1600px; height:900px; }
   body { background:#05070e; font-family:"Mono",monospace; -webkit-font-smoothing:antialiased; overflow:hidden; }

@@ -3,7 +3,18 @@
 <style>
   @font-face { font-family: "Shoulders"; src: url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/BigShoulders-Bold.ttf"); font-weight: 700; }
   @font-face { font-family: "Mono"; src: url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/GeistMono-Regular.ttf"); }
-  @font-face { font-family: "Kana"; src: url("file:///usr/share/fonts/truetype/fonts-japanese-gothic.ttf"); }
+  /* Modern Japanese gothic. IPA Gothic (2003) was what the container
+     shipped with; its kana are narrow and its strokes uneven at display
+     size, which is exactly where this type is used. Noto Sans CJK JP is
+     the contemporary equivalent — even stroke weight, open counters, and
+     kana proportioned to sit with Latin rather than beside it. local()
+     first so fontconfig picks the JP face out of the .ttc collection
+     rather than whichever member happens to come first. */
+  @font-face {
+    font-family: "Kana";
+    src: local("Noto Sans CJK JP"), local("NotoSansCJKjp-Regular"),
+         url("file:///usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc");
+  }
   @font-face { font-family: "Arab"; src: url("file:///usr/share/fonts/truetype/freefont/FreeSerif.ttf"); }
   * { margin:0; padding:0; box-sizing:border-box; }
   html, body { width:1600px; height:900px; }

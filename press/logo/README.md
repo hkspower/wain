@@ -84,8 +84,8 @@ Gulf Road. The second, set a shade fainter, is 35°37′N 139°46′E — the
 Bayshore Route on Tokyo Bay. Two lit coasts at the same hour, which is
 the whole idea and is never stated anywhere in the artwork.
 
-Typeface: Big Shoulders (display), Geist Mono (annotation), IPA Gothic
-(katakana), FreeSerif (Arabic). Design philosophy in `PHILOSOPHY.md`.
+Typeface: Big Shoulders (display), Geist Mono (annotation), Noto Sans
+CJK JP (katakana and kanji), FreeSerif (Arabic). Design philosophy in `PHILOSOPHY.md`.
 
 ## Rebuilding
 
