@@ -92,6 +92,10 @@ TypeScript source of truth into UE5 in one step.
 | pre-battle cinematic (slow-mo film) | time dilation 0.22× + a real camera flying the same three shots (rival orbit → side pass → chase pull-back), Start/Esc skips |
 | `world.ts` road, rails, cobra-head street lights | `AGRNWorldBuilder` — procedural road ribbon + instanced lights **with real Lumen spot lights per lamp** |
 | `cars.ts` three silhouettes | `GRNCarFactory` — primitive-built sedan / Z-wedge / R34-style coupe with paint MIDs, spinning wheels, brake-flare tail lamps, real headlight beams; wing only when the part is owned |
+| `ik.ts` two-bone solver + constrained aim | `GRNIk::SolveTwoBone` / `GRNIk::AimConstrained` — the same closed-form law of cosines, same pole-plane basis, same world-scale lift |
+| `characters.ts` driver rig, `engine.ts` `solveDriverRig` | `GRNDriverRig::Build` / `::Solve` — hands IK'd onto the rim, feet onto pedals that sink with the inputs, eyes into the corner. Driven for the player (`AGRNVehiclePawn::UpdateDriver`) and the rival (`AGRNRival::UpdateDriver`, including the look-over when you pull alongside) |
+| `world.ts` `setCrowdFocus` — the watching, waving crowd | `AGRNWorldBuilder::BuildCrowd` / `::SetCrowdFocus`, ticked by the game mode with the player's position |
+| `rig.ts` bone lengths, joint offsets, grip angles, neck limits | `namespace GRNRig` in `GRNTypes.h` — generated, and every field compared by `npm run check:unreal` |
 | traffic | `AGRNTraffic` × 30, matching the web build, with its shunt rules (speed clamp, hitbox knock-out, SP cost in battle) |
 | HUD (React) | `AGRNHud` Canvas drawing (swap for UMG in the art pass) |
 | localStorage saves | `UGRNSaveGame` slot "GulfRoadNights" |

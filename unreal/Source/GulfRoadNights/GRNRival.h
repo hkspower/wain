@@ -9,6 +9,7 @@
 #include "GameFramework/Actor.h"
 #include "GRNTypes.h"
 #include "GRNCarFactory.h"
+#include "GRNDriverRig.h"
 #include "GRNRival.generated.h"
 
 class AGRNTrack;
@@ -46,4 +47,16 @@ public:
 	float SpeedMs = 0.f;
 	float Sp = 100.f;
 	FGRNCarRig Rig;
+
+	/** The rival has a driver too, and you pull alongside them. What it
+	 *  is seen doing is derived from this AI's own kinematics — there are
+	 *  no inputs to read — and within a couple of car lengths the helmet
+	 *  turns to size you up, which is half the pre-flash ritual. */
+	FGRNDriverRig Driver;
+	float SteerVis = 0.f;
+	float ThrottleVis = 0.f;
+	float BrakeVis = 0.f;
+
+private:
+	void UpdateDriver(float AccelMs2, float Dt);
 };

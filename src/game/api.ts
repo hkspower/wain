@@ -9,6 +9,7 @@ import { CONTROL_POINTS, LANES, ROAD_HALF_WIDTH, COAST_U } from "./track";
 import { RIVALS } from "./rivals";
 import { CARS, PARTS, PAINT_COLORS, GLOW_COLORS, CLASS_LABELS } from "./mods";
 import { HANDLING } from "./handling";
+import { RIG } from "./rig";
 
 /** Bump when a payload shape changes incompatibly. Clients compare it. */
 export const GRN_API_VERSION = 1;
@@ -92,6 +93,10 @@ export function buildGameData() {
     cars: buildCars(),
     parts: buildParts(),
     handling: HANDLING,
+    // The skeletons every port has to reproduce to pose its people the
+    // same way: bone lengths, joint offsets, grip angles, pedal travel,
+    // and how far a neck turns before the shoulders take over.
+    rig: RIG,
   };
 }
 

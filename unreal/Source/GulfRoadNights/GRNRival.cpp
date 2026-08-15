@@ -33,6 +33,10 @@ void AGRNRival::Init(AGRNTrack* InTrack, AGRNVehiclePawn* InPlayer, int32 RivalI
 		Rig = GRNCarFactory::Build(this, RootComponent, Def.Style,
 			FLinearColor(Def.BodyColor), /*bWing=*/Def.Style == EGRNBodyStyle::GTR);
 	}
+
+	// A legend at the wheel, not an empty car pulling alongside you.
+	Driver = GRNDriverRig::Build(this, RootComponent,
+		FVector(GRN_M(0.08f), GRN_M(0.38f), GRN_M(0.42f)));
 }
 
 FString AGRNRival::DisplayName() const
@@ -85,6 +89,7 @@ void AGRNRival::Tick(float Dt)
 		TargetLat = GRNRoadHalfWidth - GRN_M(1.4f);
 	}
 
+	const float PrevSpeed = SpeedMs;
 	SpeedMs += FMath::Clamp(TargetSpeed - SpeedMs, -22.f * Dt, 13.f * Dt);
 	Lat += (TargetLat - Lat) * FMath::Min(1.f, Dt * 2.f);
 	S = Track->Wrap(S + GRN_M(SpeedMs) * Dt);
@@ -93,4 +98,41 @@ void AGRNRival::Tick(float Dt)
 	Track->Pose(S, Lat, Pos, Rot);
 	SetActorLocationAndRotation(Pos, Rot);
 	GRNCarFactory::SpinWheels(Rig, SpeedMs, Dt);
+	UpdateDriver(Dt > 0.f ? (SpeedMs - PrevSpeed) / Dt : 0.f, Dt);
+}
+
+void AGRNRival::UpdateDriver(float AccelMs2, float Dt)
+{
+	if (!Driver.IsValid() || !Track) return;
+
+	// Steer follows the lane change still to be taken; the feet follow
+	// the speed change. Both smoothed, or the driver twitches.
+	const float SteerWant =
+		FMath::Clamp(((TargetLat - Lat) / 100.f) * GRNRig::RivalSteerPerLat, -1.f, 1.f);
+	SteerVis += (SteerWant - SteerVis) * FMath::Min(1.f, Dt * GRNRig::RivalSteerRate);
+	const float WantThrottle = AccelMs2 > GRNRig::RivalThrottleAccel
+		? FMath::Min(1.f, AccelMs2 / GRNRig::RivalThrottleScale)
+		: (SpeedMs > 1.f ? GRNRig::RivalCruiseThrottle : 0.f);
+	const float WantBrake = AccelMs2 < GRNRig::RivalBrakeAccel
+		? FMath::Min(1.f, -AccelMs2 / GRNRig::RivalBrakeScale) : 0.f;
+	ThrottleVis += (WantThrottle - ThrottleVis) * FMath::Min(1.f, Dt * GRNRig::RivalPedalRate);
+	BrakeVis += (WantBrake - BrakeVis) * FMath::Min(1.f, Dt * GRNRig::RivalPedalRate);
+
+	// Alongside and offset: look over at them. Otherwise, eyes up the road.
+	FVector Look;
+	const bool bAlongside = Player &&
+		FMath::Abs(Track->DeltaAhead(S, Player->S)) < GRN_M(GRNRig::RivalGlanceGapM) &&
+		FMath::Abs(Player->Lat - Lat) > GRN_M(GRNRig::RivalGlanceLatM);
+	if (bAlongside)
+	{
+		Look = Player->GetActorLocation() + FVector(0, 0, GRN_M(0.6f));
+	}
+	else
+	{
+		FRotator Rot;
+		Track->Pose(Track->Wrap(S + GRN_M(GRNRig::DriverLookAheadM)),
+			Lat * GRNRig::DriverLookLatK, Look, Rot);
+		Look.Z += GRN_M(GRNRig::DriverLookHeight);
+	}
+	GRNDriverRig::Solve(Driver, SteerVis, ThrottleVis, BrakeVis, Look, Dt);
 }

@@ -82,6 +82,9 @@ void AGRNVehiclePawn::BuildRig(EGRNBodyStyle Style, FLinearColor Paint, bool bWi
 		if (K != Camera) K->DestroyComponent();
 	}
 	Rig = GRNCarFactory::Build(this, CarRoot, Style, Paint, bWing, bAttackKit);
+	// Right-hand drive, seated behind the wheel. Rebuilt with the car:
+	// the teardown above takes the old driver with the old bodywork.
+	Driver = GRNDriverRig::Build(this, CarRoot, FVector(GRN_M(0.08f), GRN_M(0.38f), GRN_M(0.42f)));
 }
 
 void AGRNVehiclePawn::Tick(float Dt)
@@ -94,6 +97,18 @@ void AGRNVehiclePawn::Tick(float Dt)
 	// Lit-up rears visibly overspin the road speed — the launch tell
 	GRNCarFactory::SpinWheels(Rig, SpeedMs + Wheelspin * 0.8f, Dt);
 	GRNCarFactory::SetBraking(Rig, InBrake > 0.f || bInDrift);
+	UpdateDriver(Dt);
+}
+
+void AGRNVehiclePawn::UpdateDriver(float Dt)
+{
+	if (!Driver.IsValid() || !Track) return;
+	// Eyes up: look where the car is going, not where it is pointing.
+	FVector Pos; FRotator Rot;
+	Track->Pose(Track->Wrap(S + GRN_M(GRNRig::DriverLookAheadM)),
+		Lat * GRNRig::DriverLookLatK, Pos, Rot);
+	Pos.Z += GRN_M(GRNRig::DriverLookHeight);
+	GRNDriverRig::Solve(Driver, SteerSmooth, InThrottle, InBrake, Pos, Dt);
 }
 
 void AGRNVehiclePawn::UpdateHandling(float Dt)

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { upgradeCarShells, upgradeWheels } from "./models";
+import { upgradeCarShells, upgradeWheels, upgradeDriver } from "./models";
 import { arabicUI, latinDisplay } from "./text";
 import { kuwaitiDriver } from "./characters";
 
@@ -1670,6 +1670,10 @@ export function createCar(colors: CarColors): THREE.Group {
   if (!colors.simple) {
     upgradeCarShells(group, style);
     upgradeWheels(group);
+    // The driver too — helmet, visor, gloves, rim and pedal faces. The
+    // rig is a child of this group, so one call covers every car that
+    // carries one: yours, the rival's, and the cruisers online.
+    upgradeDriver(group);
   }
 
   if (colors.underglow !== undefined) {

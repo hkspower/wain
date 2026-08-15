@@ -118,6 +118,46 @@ for (const [cpp, js] of pairs) {
 }
 if (handlingOk) ok(`handling: ${pairs.length} constants match`);
 
+// ---- rig ------------------------------------------------------------
+// Every field, walked from the payload rather than a hand-written list.
+// Twice now a check in this repo has parsed a value and then never
+// compared it, so the list is not allowed to be hand-maintained: if
+// src/game/rig.ts grows a bone, this fails until the header has it too.
+{
+  const rigNs = header.match(/namespace GRNRig\s*\{([\s\S]*?)\n\}/)?.[1];
+  if (!rigNs) {
+    fail("rig: namespace GRNRig missing from header");
+  } else if (!api.rig) {
+    fail("rig: payload carries no rig block");
+  } else {
+    const cpp = new Map(
+      [...rigNs.matchAll(/constexpr float (\w+) = (-?[\d.]+)f;/g)].map(([, k, v]) => [k, +v])
+    );
+    // Same flattening rule as flatRig() in src/game/rig.ts and the
+    // generator: `driver.upperArm` → `DriverUpperArm`.
+    const cap = (s) => s[0].toUpperCase() + s.slice(1);
+    const want = {};
+    for (const [group, fields] of Object.entries(api.rig)) {
+      for (const [k, v] of Object.entries(fields)) want[cap(group) + cap(k)] = v;
+    }
+    let rigOk = true;
+    for (const [k, v] of Object.entries(want)) {
+      if (!cpp.has(k)) { fail(`rig ${k} missing from header`); rigOk = false; }
+      // Tolerance is a hair looser than the handling block's: the header
+      // carries nine significant figures, and Math.PI * 0.72 does not
+      // round-trip through a float literal exactly.
+      else if (Math.abs(cpp.get(k) - v) > 1e-6 * Math.max(1, Math.abs(v))) {
+        fail(`rig ${k}: header ${cpp.get(k)} vs web ${v}`);
+        rigOk = false;
+      }
+    }
+    for (const k of cpp.keys()) {
+      if (!(k in want)) { fail(`rig ${k} is in the header but not the web build`); rigOk = false; }
+    }
+    if (rigOk) ok(`rig: ${Object.keys(want).length} bone and joint constants match`);
+  }
+}
+
 // ---- api version ----------------------------------------------------
 const clientVersion = readFileSync(
   "unreal/Source/GulfRoadNights/GRNApi.h", "utf8"

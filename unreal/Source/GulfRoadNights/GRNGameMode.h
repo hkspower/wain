@@ -69,6 +69,8 @@ public:
 
 private:
 	void BuildWorldAndStart(bool bLiveData);
+	/** Kept so the crowd can be pointed at the player every frame. */
+	UPROPERTY() AGRNWorldBuilder* WorldBuilder = nullptr;
 	void SpawnRival();
 	void StartBattle();
 	void WinBattle();

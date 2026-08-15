@@ -12,6 +12,7 @@ import {
   type RacerLook,
 } from "./characters";
 import { aimConstrained, solveTwoBone } from "./ik";
+import { RIG } from "./rig";
 import { RIVALS } from "./rivals";
 
 /** Drooping palm fronds merged into one geometry (crown sits at trunk top). */
@@ -1186,14 +1187,15 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     if (!arms) return { waveSide: 0, phase: 0, lift: 0 };
     const armRest: THREE.Quaternion[] = [];
     for (const a of arms) armRest.push(a.shoulder.quaternion.clone(), a.elbow.quaternion.clone());
-    return { arms, armRest, waveSide: i % 3 === 2 ? 0 : side, phase: i * 1.9, lift: 0 };
+    const still = i % RIG.crowd.stillEvery === RIG.crowd.stillEvery - 1;
+    return { arms, armRest, waveSide: still ? 0 : side, phase: i * 1.9, lift: 0 };
   };
 
   /** Ease a watcher's arms back to the pose they were built in. */
   const settleArms = (w: Watcher, dt: number): void => {
     if (!w.arms || !w.armRest) return;
-    w.lift = Math.max(0, w.lift - dt * 1.1);
-    const k = Math.min(1, dt * 1.5);
+    w.lift = Math.max(0, w.lift - dt * RIG.crowd.liftDownRate);
+    const k = Math.min(1, dt * RIG.crowd.restRate);
     w.arms.forEach((a, i) => {
       a.shoulder.quaternion.slerp(w.armRest![i * 2], k);
       a.elbow.quaternion.slerp(w.armRest![i * 2 + 1], k);
@@ -2559,18 +2561,18 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         const dx = w.body.position.x - x;
         const dz = w.body.position.z - z;
         const d2 = dx * dx + dz * dz;
-        if (d2 >= 90 * 90) {
+        if (d2 >= RIG.crowd.watchRangeM * RIG.crowd.watchRangeM) {
           // Ease back to the way they were standing
-          w.head.quaternion.slerp(_rest, Math.min(1, dt * 1.5));
+          w.head.quaternion.slerp(_rest, Math.min(1, dt * RIG.crowd.restRate));
           settleArms(w, dt);
           continue;
         }
         // The neck goes first, and reports how much of the turn it could
         // take; the body supplies whatever it could not.
         const got = aimConstrained(w.head, _focus, {
-          maxYaw: 1.15,
-          maxPitch: 0.3,
-          ease: Math.min(1, dt * 6),
+          maxYaw: RIG.crowd.neckYaw,
+          maxPitch: RIG.crowd.neckPitch,
+          ease: Math.min(1, dt * RIG.crowd.neckRate),
         });
         if (got < 0.999) {
           // Shoulders follow — this is the difference between a crowd
@@ -2579,7 +2581,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
           let delta = want - w.body.rotation.y;
           while (delta > Math.PI) delta -= Math.PI * 2;
           while (delta < -Math.PI) delta += Math.PI * 2;
-          w.body.rotation.y += delta * Math.min(1, dt * 1.2) * (1 - got);
+          w.body.rotation.y += delta * Math.min(1, dt * RIG.crowd.bodyRate) * (1 - got);
         }
 
         // Inside 45 m a hand goes up: a wave solved onto a moving
@@ -2590,7 +2592,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
           settleArms(w, dt);
           continue;
         }
-        w.lift = THREE.MathUtils.clamp(w.lift + (d2 < 45 * 45 ? dt * 2.2 : -dt * 1.1), 0, 1);
+        const inWave = d2 < RIG.crowd.waveRangeM * RIG.crowd.waveRangeM;
+        w.lift = THREE.MathUtils.clamp(
+          w.lift + (inWave ? dt * RIG.crowd.liftUpRate : -dt * RIG.crowd.liftDownRate),
+          0,
+          1
+        );
         if (w.lift <= 0.01) {
           settleArms(w, dt);
           continue;
@@ -2610,19 +2617,22 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         // the shoulder — the solver answers that by folding the arm
         // into the armpit, so every wave began and ended with a
         // chicken-wing. Down here the arm stays extended throughout.
-        _restDir
-          .set(Math.sin(w.waveSide * 0.15), -Math.cos(w.waveSide * 0.15), 0)
-          .applyQuaternion(w.body.quaternion);
+        const abduct = w.waveSide * RIG.spectator.armAbduction;
+        _restDir.set(Math.sin(abduct), -Math.cos(abduct), 0).applyQuaternion(w.body.quaternion);
         // Raised: up and out toward the car, the wag swinging across
         // the line out to it.
-        const wag = Math.sin(_waveT * 6.5 + w.phase) * 0.3 * w.lift;
+        const wag = Math.sin(_waveT * RIG.crowd.wagHz + w.phase) * RIG.crowd.wagAmp * w.lift;
+        const outK = RIG.crowd.raiseOut;
         _upDir
-          .set(_out.x * 0.45 - _out.z * wag, 0.87, _out.z * 0.45 + _out.x * wag)
+          .set(_out.x * outK - _out.z * wag, RIG.crowd.raiseUp, _out.z * outK + _out.x * wag)
           .normalize();
         _dir.copy(_restDir).lerp(_upDir, w.lift).normalize();
-        _hand.copy(_sw).addScaledVector(_dir, span * 0.94);
+        _hand.copy(_sw).addScaledVector(_dir, span * RIG.crowd.reach);
         // Elbow breaks outboard and a little down, in the body's frame
-        _pole.set(w.waveSide * 0.6, -0.2, 0.05).applyQuaternion(w.body.quaternion).add(_sw);
+        _pole
+          .set(w.waveSide * RIG.crowd.poleX, RIG.crowd.poleY, RIG.crowd.poleZ)
+          .applyQuaternion(w.body.quaternion)
+          .add(_sw);
         solveTwoBone({
           root: arm.shoulder,
           mid: arm.elbow,

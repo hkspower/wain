@@ -40,6 +40,53 @@ void AGRNWorldBuilder::Build(AGRNTrack* Track)
 	BuildRoad(Track);
 	BuildStreetLights(Track);
 	BuildRails(Track);
+	BuildCrowd(Track);
+}
+
+void AGRNWorldBuilder::BuildCrowd(AGRNTrack* Track)
+{
+	// Spectators along the seaward promenade, and the grid crew standing
+	// by their machines. Each gets a neck joint and two-bone arms, so the
+	// same IK that puts the driver's hands on the wheel turns these heads
+	// and raises these hands.
+	const float L = Track->LapLength();
+	struct FSpot { float S; float LatPad; bool bRacer; };
+	const FSpot Spots[] = {
+		{ 0.28f * L, 3.2f, false }, { 0.28f * L + GRN_M(3.5f), 4.1f, false },
+		{ 0.52f * L, 3.4f, false }, { 0.52f * L + GRN_M(4.0f), 3.9f, false },
+		{ 0.74f * L, 3.6f, false }, { 0.74f * L + GRN_M(3.2f), 2.9f, false },
+		{ Track->Wrap(GRN_M(-9.f)), 2.6f, true },
+		{ Track->Wrap(GRN_M(-4.5f)), 3.4f, true },
+		{ GRN_M(3.5f), 2.8f, true },
+		{ GRN_M(8.5f), 3.6f, true },
+	};
+
+	int32 Index = 0;
+	for (const FSpot& Spot : Spots)
+	{
+		const float SideSign = (Index % 2 == 0) ? 1.f : -1.f;
+		const FVector Side = Track->SideAt(Spot.S) * SideSign;
+		const FVector Base = Track->PointAt(Spot.S) + Side * (GRNRoadHalfWidth + GRN_M(Spot.LatPad));
+
+		USceneComponent* Stand = NewObject<USceneComponent>(this);
+		Stand->RegisterComponent();
+		Stand->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepWorldTransform);
+		Stand->SetWorldLocation(Base);
+		// Facing the road they came to watch
+		Stand->SetWorldRotation((-Side).ToOrientationRotator());
+
+		Watchers.Add(GRNDriverRig::BuildWatcher(this, Stand, Spot.bRacer, Index));
+		Index++;
+	}
+}
+
+void AGRNWorldBuilder::SetCrowdFocus(const FVector& Focus, float Dt)
+{
+	CrowdTime += Dt;
+	for (FGRNWatcher& W : Watchers)
+	{
+		GRNDriverRig::SolveWatcher(W, Focus, CrowdTime, Dt);
+	}
 }
 
 void AGRNWorldBuilder::BuildRoad(AGRNTrack* Track)

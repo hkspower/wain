@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { RIG } from "./rig";
 
 // The people of Gulf Road Nights: spectators on the corniche and the
 // racers who stand beside their machines. Everything here is built from
@@ -115,13 +116,13 @@ export function kuwaitiFigure(
   // Arms as two-bone chains resting at the sides. The crowd does more
   // than stand now — a hand goes up when the race goes past — and a
   // cylinder glued to the robe cannot wave.
-  const armUpper = 0.28;
-  const armLower = 0.25;
+  const armUpper = RIG.spectator.upperArm;
+  const armLower = RIG.spectator.foreArm;
   const arms: ArmChain[] = [];
   for (const side of [-1, 1]) {
     const shoulder = new THREE.Object3D();
-    shoulder.position.set(side * 0.2, 1.28, 0);
-    shoulder.rotation.z = side * 0.15;
+    shoulder.position.set(side * RIG.spectator.shoulderX, RIG.spectator.shoulderY, 0);
+    shoulder.rotation.z = side * RIG.spectator.armAbduction;
     g.add(shoulder);
     const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.044, armUpper, 6), cloth);
     sleeve.position.y = -armUpper / 2;
@@ -141,7 +142,7 @@ export function kuwaitiFigure(
   }
   g.userData.arms = arms;
 
-  const headY = 1.5;
+  const headY = RIG.spectator.headY;
   // The head is a joint, not a ball glued to a robe: the crowd turns to
   // watch a car go past, and the neck has to be able to do that.
   const headJoint = new THREE.Object3D();
@@ -217,7 +218,7 @@ export function kuwaitiDriver(suitColor = 0x1d2026, skinTone = 0xb9895f): Driver
   group.add(torso);
 
   const head = new THREE.Object3D();
-  head.position.set(0, 0.52, 0.02);
+  head.position.set(0, RIG.driver.headY, RIG.driver.headZ);
   group.add(head);
   const skull = new THREE.Mesh(new THREE.SphereGeometry(0.112, 12, 9), skin);
   head.add(skull);
@@ -226,24 +227,27 @@ export function kuwaitiDriver(suitColor = 0x1d2026, skinTone = 0xb9895f): Driver
     new THREE.SphereGeometry(0.135, 14, 10),
     new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.2, metalness: 0.3 })
   );
+  helmet.userData.driverPart = "helmet";
   head.add(helmet);
   const visor = new THREE.Mesh(
     new THREE.SphereGeometry(0.139, 14, 10, Math.PI * 0.32, Math.PI * 0.36, Math.PI * 0.34, Math.PI * 0.3),
     new THREE.MeshStandardMaterial({ color: 0x141a26, roughness: 0.08, metalness: 0.85 })
   );
   visor.rotation.y = -Math.PI / 2;
+  visor.userData.driverPart = "visor";
   head.add(visor);
 
   // The wheel the hands will be solved onto
-  const wheelRadius = 0.16;
+  const wheelRadius = RIG.driver.wheelRadius;
   const wheel = new THREE.Object3D();
-  wheel.position.set(0, 0.44, 0.24);
-  wheel.rotation.x = -0.42; // raked toward the driver, like a real column
+  wheel.position.set(0, RIG.driver.wheelY, RIG.driver.wheelZ);
+  wheel.rotation.x = RIG.driver.wheelRake; // raked toward the driver, like a real column
   group.add(wheel);
   const rim = new THREE.Mesh(
     new THREE.TorusGeometry(wheelRadius, 0.018, 8, 24),
     dark
   );
+  rim.userData.driverPart = "wheel";
   wheel.add(rim);
   for (let i = 0; i < 3; i++) {
     const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.022, wheelRadius, 0.012), dark);
@@ -259,12 +263,12 @@ export function kuwaitiDriver(suitColor = 0x1d2026, skinTone = 0xb9895f): Driver
   // Adult arm: upper 0.29, forearm 0.26. The first pass used 0.20/0.19,
   // which cannot reach a steering wheel from a seat — the solver
   // correctly straightened the arm and the hand hung 36 cm short.
-  const upper = 0.29;
-  const lower = 0.26;
+  const upper = RIG.driver.upperArm;
+  const lower = RIG.driver.foreArm;
   const arms: DriverRig["arms"] = [];
   for (const side of [-1, 1]) {
     const shoulder = new THREE.Object3D();
-    shoulder.position.set(side * 0.16, 0.46, -0.04);
+    shoulder.position.set(side * RIG.driver.shoulderX, RIG.driver.shoulderY, RIG.driver.shoulderZ);
     group.add(shoulder);
     const upperMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.042, upper, 6), suit);
     upperMesh.position.y = -upper / 2;
@@ -281,6 +285,7 @@ export function kuwaitiDriver(suitColor = 0x1d2026, skinTone = 0xb9895f): Driver
     hand.position.y = -lower;
     elbow.add(hand);
     const glove = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), dark);
+    glove.userData.driverPart = "glove";
     hand.add(glove);
 
     arms.push({ shoulder, elbow, hand, upper, lower, side });
@@ -291,35 +296,39 @@ export function kuwaitiDriver(suitColor = 0x1d2026, skinTone = 0xb9895f): Driver
   // and the foot's IK target rides the moving face.
   const mkPedal = (x: number): THREE.Object3D => {
     const pedal = new THREE.Object3D();
-    pedal.position.set(x, 0.09, 0.46);
-    pedal.rotation.x = -0.55;
+    pedal.position.set(x, RIG.driver.pedalY, RIG.driver.pedalZ);
+    pedal.rotation.x = RIG.driver.pedalPitch;
     pedal.userData.restY = pedal.position.y;
     pedal.userData.restZ = pedal.position.z;
     const face = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.11, 0.02), dark);
+    face.userData.driverPart = "pedal";
     pedal.add(face);
     group.add(pedal);
     return pedal;
   };
-  const pedals = { throttle: mkPedal(0.1), brake: mkPedal(-0.08) };
+  const pedals = {
+    throttle: mkPedal(RIG.driver.pedalThrottleX),
+    brake: mkPedal(RIG.driver.pedalBrakeX),
+  };
 
   // Legs: hip → knee → foot, the same two-bone chains as the arms, so
   // the feet can be solved onto the pedals and follow them as they
   // press. The rest pose reads as seated even before a solver runs —
   // garage and film cars are built, not updated every frame.
-  const thigh = 0.27;
-  const shin = 0.27;
+  const thigh = RIG.driver.thigh;
+  const shin = RIG.driver.shin;
   const legs: ArmChain[] = [];
   for (const side of [-1, 1]) {
     const hip = new THREE.Object3D();
-    hip.position.set(side * 0.09, 0.17, 0.05);
-    hip.rotation.x = -1.15;
+    hip.position.set(side * RIG.driver.hipX, RIG.driver.hipY, RIG.driver.hipZ);
+    hip.rotation.x = RIG.driver.hipPitch;
     group.add(hip);
     const thighMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.054, thigh, 7), suit);
     thighMesh.position.y = -thigh / 2;
     hip.add(thighMesh);
     const knee = new THREE.Object3D();
     knee.position.y = -thigh;
-    knee.rotation.x = 0.95;
+    knee.rotation.x = RIG.driver.kneePitch;
     hip.add(knee);
     const shinMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.046, shin, 7), suit);
     shinMesh.position.y = -shin / 2;
@@ -391,7 +400,7 @@ export function kuwaitiRacer(look: RacerLook): THREE.Group {
   patch.position.set(0.055, 1.24, 0.168);
   g.add(patch);
 
-  const headY = 1.64;
+  const headY = RIG.racer.headY;
   const helmetR = 0.145;
 
   // Arms as shoulder → elbow → hand chains — the same rig the solver
@@ -400,13 +409,13 @@ export function kuwaitiRacer(look: RacerLook): THREE.Group {
   // A racer can wave the free arm at a passing run while the other
   // keeps its hold on the helmet.
   const carrySide = -1;
-  const armUpper = 0.28;
-  const armLower = 0.26;
+  const armUpper = RIG.racer.upperArm;
+  const armLower = RIG.racer.foreArm;
   const arms: ArmChain[] = [];
   for (const side of [-1, 1]) {
     const carrying = look.helmet === "carried" && side === carrySide;
     const shoulder = new THREE.Object3D();
-    shoulder.position.set(side * 0.19, 1.4, 0);
+    shoulder.position.set(side * RIG.racer.shoulderX, RIG.racer.shoulderY, 0);
     shoulder.rotation.z = side * (carrying ? 0.16 : 0.1);
     shoulder.rotation.x = carrying ? -0.5 : 0;
     g.add(shoulder);

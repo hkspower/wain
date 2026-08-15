@@ -46,7 +46,7 @@ await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 120000 })
 // condition, not on a guessed delay.
 await page.waitForFunction(() => {
   const e = window.__grnEngine;
-  let shells = 0, authored = 0;
+  let shells = 0, authored = 0, dparts = 0, dauth = 0;
   e.carBody.traverse((o) => {
     if (o.isMesh && o.userData.shell) { shells++; if (o.geometry.userData.authored) authored++; }
   });
@@ -54,8 +54,10 @@ await page.waitForFunction(() => {
   let parts = 0, wauth = 0;
   w?.traverse((o) => {
     if (o.isMesh && o.userData.wheelPart) { parts++; if (o.geometry.userData.authored) wauth++; }
+    if (o.isMesh && o.userData.driverPart) { dparts++; if (o.geometry.userData.authored) dauth++; }
   });
-  return shells > 0 && shells === authored && parts > 0 && parts === wauth;
+  return shells > 0 && shells === authored && parts > 0 && parts === wauth
+    && dparts > 0 && dparts === dauth;
 }, null, { timeout: 90000 }).catch(() => console.log("(timed out waiting for the authored swaps)"));
 
 const r = await page.evaluate(() => {
@@ -94,7 +96,25 @@ const r = await page.evaluate(() => {
     if (o.isInstancedMesh && o.geometry.userData.authored && !palm)
       palm = { count: o.count, tris: (o.geometry.index?.count ?? o.geometry.attributes.position.count) / 3 };
   });
-  return { shells, wheels, palm };
+  // The driver's authored parts, by slot. These hang off joints an IK
+  // solver moves every frame, so it is not enough that they loaded: the
+  // rim has to still be the authored radius, or the solved hands grip
+  // a rim that is not where the geometry is.
+  const driver = {};
+  const rig = e.carBody.userData.driver;
+  (rig ? rig.group : e.carBody).traverse((o) => {
+    if (!o.isMesh || !o.userData.driverPart) return;
+    const g = o.geometry;
+    if (!g.boundingBox) g.computeBoundingBox();
+    const bb = g.boundingBox;
+    driver[o.userData.driverPart] = {
+      authored: !!g.userData.authored,
+      tris: (g.index?.count ?? g.attributes.position.count) / 3,
+      size: [+(bb.max.x - bb.min.x).toFixed(3), +(bb.max.y - bb.min.y).toFixed(3),
+             +(bb.max.z - bb.min.z).toFixed(3)],
+    };
+  });
+  return { shells, wheels, palm, driver, wheelRadius: rig ? rig.wheelRadius : null };
 });
 
 const fail = [];
@@ -124,6 +144,20 @@ for (const [i, w] of r.wheels.entries()) {
 }
 console.log(`\npalm crowns: ${r.palm ? `${r.palm.tris} tris x ${r.palm.count} instances = ${r.palm.tris * r.palm.count} tris` : "NONE"}  ` +
   check(!!r.palm, "palm crowns never upgraded"));
+console.log("\ndriver:");
+for (const slot of ["helmet", "visor", "glove", "wheel", "pedal"]) {
+  const d = r.driver[slot];
+  if (!d) { fail.push(`driver ${slot} missing entirely`); console.log(`  ${slot.padEnd(7)} MISSING`); continue; }
+  console.log(`  ${slot.padEnd(7)} ${d.tris} tris  ${d.size.join(" x ")} m  ` +
+    check(d.authored, `driver ${slot} still procedural`));
+}
+// The rim must match the radius the IK solves its grips against
+if (r.driver.wheel && r.wheelRadius) {
+  const w = Math.max(r.driver.wheel.size[0], r.driver.wheel.size[1]) / 2;
+  console.log(`  rim radius ${w.toFixed(3)} m vs the rig's ${r.wheelRadius} m  ` +
+    check(Math.abs(w - r.wheelRadius) < 0.03,
+      `the authored rim is ${w.toFixed(3)} m but the hands are solved onto ${r.wheelRadius} m`));
+}
 console.log(fail.length ? "\nFAILURES:\n - " + fail.join("\n - ") : "\nauthored geometry is live everywhere");
 await browser.close();
 process.exit(fail.length ? 1 : 0);

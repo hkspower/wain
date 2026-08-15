@@ -52,7 +52,8 @@ void AGRNGameMode::BuildWorldAndStart(bool bLiveData)
 	{
 		Track->RebuildFrom(Api->GetTrackPoints());
 	}
-	World->SpawnActor<AGRNWorldBuilder>()->Build(Track);
+	WorldBuilder = World->SpawnActor<AGRNWorldBuilder>();
+	WorldBuilder->Build(Track);
 
 	Player = Cast<AGRNVehiclePawn>(UGameplayStatics::GetPlayerPawn(this, 0));
 	if (Player)
@@ -95,6 +96,12 @@ void AGRNGameMode::Tick(float Dt)
 	default: break;
 	}
 	if (Phase != EGRNPhase::Cinematic) UpdateTrafficCollisions(Dt);
+	// The corniche watches you go by: necks first, then shoulders, and a
+	// hand up from anyone close enough to see who is driving.
+	if (WorldBuilder && Player)
+	{
+		WorldBuilder->SetCrowdFocus(Player->GetActorLocation(), FMath::Min(Dt, 0.05f));
+	}
 }
 
 void AGRNGameMode::UpdateTrafficCollisions(float Dt)

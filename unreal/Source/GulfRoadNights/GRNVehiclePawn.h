@@ -9,6 +9,7 @@
 #include "GameFramework/Pawn.h"
 #include "GRNTypes.h"
 #include "GRNCarFactory.h"
+#include "GRNDriverRig.h"
 #include "GRNVehiclePawn.generated.h"
 
 class AGRNTrack;
@@ -69,10 +70,14 @@ public:
 	/** Rebuild the visible car (garage swap / respray / wing). */
 	void BuildRig(EGRNBodyStyle Style, FLinearColor Paint, bool bWing, bool bAttackKit = false);
 	FGRNCarRig Rig;
+	/** Somebody is driving this: hands solved onto the wheel, feet onto
+	 *  the pedals, eyes into the corner. See GRNDriverRig.h. */
+	FGRNDriverRig Driver;
 
 private:
 	void UpdateHandling(float Dt);
 	void UpdateCamera(float Dt);
+	void UpdateDriver(float Dt);
 
 	void AxisThrottle(float V) { InThrottle = FMath::Clamp(V, 0.f, 1.f); }
 	void AxisBrake(float V) { InBrake = FMath::Clamp(V, 0.f, 1.f); }

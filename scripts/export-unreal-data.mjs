@@ -90,6 +90,39 @@ const handlingKeys = [...handlingTsU.matchAll(/^\s{2}(\w+):\s*([\d.]+),/gm)].map
 if (handlingKeys.length < 16) throw new Error(`handling parse failed (${handlingKeys.length})`);
 const cppf = (v) => (Number.isInteger(v) ? `${v}.f` : `${v}f`);
 
+// The rig — bone lengths, joint offsets, grip angles, pedal travel, neck
+// limits. Unlike handling this one is nested and carries expressions
+// (`Math.PI * 0.72` says ten-to-two far better than 2.26194671 does), so
+// it is evaluated rather than regexed. The file is a single plain object
+// literal of numbers by construction; anything else here should fail
+// loudly rather than emit a half-populated header.
+const rigSrc = readFileSync("src/game/rig.ts", "utf8");
+const rigBody = rigSrc.match(/export const RIG = (\{[\s\S]*?\n\}) as const;/)?.[1];
+if (!rigBody) throw new Error("rig parse failed: could not find `export const RIG = {...} as const;`");
+const rigObj = new Function(`"use strict"; return ${rigBody};`)();
+/** `driver.upperArm` → `DriverUpperArm`, the C++ constant's name. The
+ *  identical rule lives in flatRig() in src/game/rig.ts and in
+ *  check-unreal-sync.mjs; all three must agree or the contract check
+ *  compares two different sets of names and reports every field twice. */
+const cap = (s) => s[0].toUpperCase() + s.slice(1);
+const flatten = (obj) => {
+  const out = {};
+  for (const [group, fields] of Object.entries(obj)) {
+    for (const [k, v] of Object.entries(fields)) {
+      if (typeof v !== "number" || !Number.isFinite(v)) {
+        throw new Error(`rig ${group}.${k} is not a finite number: ${v}`);
+      }
+      out[cap(group) + cap(k)] = v;
+    }
+  }
+  return out;
+};
+const rigKeys = Object.entries(flatten(rigObj));
+if (rigKeys.length < 40) throw new Error(`rig parse thin (${rigKeys.length} fields)`);
+// Bone lengths need full precision: the solver's law of cosines is
+// exact, so a rounded arm lands the hand somewhere else entirely.
+const cppr = (v) => (Number.isInteger(v) ? `${v}.f` : `${Number(v.toPrecision(9))}f`);
+
 const header = `#pragma once
 
 // GENERATED FILE — do not edit by hand.
@@ -174,9 +207,22 @@ ${handlingKeys
   .map(([k, v]) => `\tconstexpr float ${k[0].toUpperCase()}${k.slice(1)} = ${cppf(v)};`)
   .join("\n")}
 }
+
+// ------------------------------------------------------------------ rigs
+// Mirrors src/game/rig.ts. Every figure in this game is posed by the
+// analytic IK in GRNDriverRig.cpp rather than by an animation asset, and
+// a solver is only as portable as the numbers it solves against. Lengths
+// are metres — multiply by GRN_M for UE centimetres. Angles are radians
+// and rates are per-second, in both engines.
+
+namespace GRNRig
+{
+${rigKeys.map(([k, v]) => `\tconstexpr float ${k} = ${cppr(v)};`).join("\n")}
+}
 `;
 
 writeFileSync("unreal/Source/GulfRoadNights/GRNTypes.h", header);
 console.log(
-  `GRNTypes.h regenerated: ${points.length} track points, ${rivals.length} rivals, ${cars.length} cars.`
+  `GRNTypes.h regenerated: ${points.length} track points, ${rivals.length} rivals, ` +
+    `${cars.length} cars, ${handlingKeys.length} handling constants, ${rigKeys.length} rig constants.`
 );

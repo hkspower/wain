@@ -6,9 +6,46 @@
     "tire_r": 160,
     "tire_p": 30,
     "alloy": 96,
-    "leaflets": 13
+    "leaflets": 13,
+    "driver": 96
   },
   "assets": {
+    "car-sedan": {
+      "tris": 156472,
+      "kb": 2752.8,
+      "parts": [
+        "Body",
+        "Canopy",
+        "Roof"
+      ]
+    },
+    "car-zx": {
+      "tris": 156472,
+      "kb": 2752.8,
+      "parts": [
+        "Body",
+        "Canopy",
+        "Roof"
+      ]
+    },
+    "car-gtr": {
+      "tris": 156472,
+      "kb": 2752.8,
+      "parts": [
+        "Body",
+        "Canopy",
+        "Roof"
+      ]
+    },
+    "car-rx7": {
+      "tris": 90352,
+      "kb": 1587.6,
+      "parts": [
+        "Body",
+        "Canopy",
+        "Roof"
+      ]
+    },
     "wheel-5": {
       "tris": 16500,
       "kb": 305.1,
@@ -36,6 +73,17 @@
       "kb": 29.8,
       "parts": [
         "Crown"
+      ]
+    },
+    "driver": {
+      "tris": 27744,
+      "kb": 443.6,
+      "parts": [
+        "Glove",
+        "Helmet",
+        "Pedal",
+        "Visor",
+        "Wheel"
       ]
     }
   }

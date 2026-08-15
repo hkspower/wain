@@ -139,3 +139,94 @@ namespace GRNHandling
 	constexpr float CrashReboundK = 5.f;
 	constexpr float TrafficClosingFull = 22.f;
 }
+
+// ------------------------------------------------------------------ rigs
+// Mirrors src/game/rig.ts. Every figure in this game is posed by the
+// analytic IK in GRNDriverRig.cpp rather than by an animation asset, and
+// a solver is only as portable as the numbers it solves against. Lengths
+// are metres — multiply by GRN_M for UE centimetres. Angles are radians
+// and rates are per-second, in both engines.
+
+namespace GRNRig
+{
+	constexpr float DriverShoulderX = 0.16f;
+	constexpr float DriverShoulderY = 0.46f;
+	constexpr float DriverShoulderZ = -0.04f;
+	constexpr float DriverUpperArm = 0.29f;
+	constexpr float DriverForeArm = 0.26f;
+	constexpr float DriverHipX = 0.09f;
+	constexpr float DriverHipY = 0.17f;
+	constexpr float DriverHipZ = 0.05f;
+	constexpr float DriverThigh = 0.27f;
+	constexpr float DriverShin = 0.27f;
+	constexpr float DriverHipPitch = -1.15f;
+	constexpr float DriverKneePitch = 0.95f;
+	constexpr float DriverHeadY = 0.52f;
+	constexpr float DriverHeadZ = 0.02f;
+	constexpr float DriverWheelY = 0.44f;
+	constexpr float DriverWheelZ = 0.24f;
+	constexpr float DriverWheelRake = -0.42f;
+	constexpr float DriverWheelRadius = 0.16f;
+	constexpr float DriverGripLeft = 2.26194671f;
+	constexpr float DriverGripRight = 0.879645943f;
+	constexpr float DriverSteerLock = 2.4f;
+	constexpr float DriverWheelRate = 12.f;
+	constexpr float DriverPedalThrottleX = 0.1f;
+	constexpr float DriverPedalBrakeX = -0.08f;
+	constexpr float DriverPedalY = 0.09f;
+	constexpr float DriverPedalZ = 0.46f;
+	constexpr float DriverPedalPitch = -0.55f;
+	constexpr float DriverPedalTravelZ = 0.05f;
+	constexpr float DriverPedalTravelY = 0.015f;
+	constexpr float DriverArmPoleX = 0.51f;
+	constexpr float DriverArmPoleY = -0.04f;
+	constexpr float DriverArmPoleZ = -0.06f;
+	constexpr float DriverLegPoleX = 0.22f;
+	constexpr float DriverLegPoleY = 1.1f;
+	constexpr float DriverLegPoleZ = 0.42f;
+	constexpr float DriverLookAheadM = 26.f;
+	constexpr float DriverLookLatK = 0.4f;
+	constexpr float DriverLookHeight = 1.1f;
+	constexpr float DriverNeckYaw = 0.7f;
+	constexpr float DriverNeckPitch = 0.28f;
+	constexpr float DriverNeckRate = 5.f;
+	constexpr float RivalSteerPerLat = 0.45f;
+	constexpr float RivalSteerRate = 4.f;
+	constexpr float RivalPedalRate = 6.f;
+	constexpr float RivalThrottleAccel = 0.3f;
+	constexpr float RivalThrottleScale = 8.f;
+	constexpr float RivalBrakeAccel = -1.f;
+	constexpr float RivalBrakeScale = 10.f;
+	constexpr float RivalCruiseThrottle = 0.2f;
+	constexpr float RivalGlanceGapM = 12.f;
+	constexpr float RivalGlanceLatM = 1.2f;
+	constexpr float SpectatorShoulderX = 0.2f;
+	constexpr float SpectatorShoulderY = 1.28f;
+	constexpr float SpectatorArmAbduction = 0.15f;
+	constexpr float SpectatorUpperArm = 0.28f;
+	constexpr float SpectatorForeArm = 0.25f;
+	constexpr float SpectatorHeadY = 1.5f;
+	constexpr float RacerShoulderX = 0.19f;
+	constexpr float RacerShoulderY = 1.4f;
+	constexpr float RacerUpperArm = 0.28f;
+	constexpr float RacerForeArm = 0.26f;
+	constexpr float RacerHeadY = 1.64f;
+	constexpr float CrowdWatchRangeM = 90.f;
+	constexpr float CrowdNeckYaw = 1.15f;
+	constexpr float CrowdNeckPitch = 0.3f;
+	constexpr float CrowdNeckRate = 6.f;
+	constexpr float CrowdBodyRate = 1.2f;
+	constexpr float CrowdRestRate = 1.5f;
+	constexpr float CrowdWaveRangeM = 45.f;
+	constexpr float CrowdLiftUpRate = 2.2f;
+	constexpr float CrowdLiftDownRate = 1.1f;
+	constexpr float CrowdWagHz = 6.5f;
+	constexpr float CrowdWagAmp = 0.3f;
+	constexpr float CrowdReach = 0.94f;
+	constexpr float CrowdRaiseUp = 0.87f;
+	constexpr float CrowdRaiseOut = 0.45f;
+	constexpr float CrowdStillEvery = 3.f;
+	constexpr float CrowdPoleX = 0.6f;
+	constexpr float CrowdPoleY = -0.2f;
+	constexpr float CrowdPoleZ = 0.05f;
+}

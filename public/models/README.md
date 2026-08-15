@@ -10,6 +10,7 @@ simply stands — nothing waits and nothing breaks.
 | `car-{sedan,zx,gtr,rx7}.glb` | Body, Canopy, Roof | the bevel-extruded body shells |
 | `wheel-{5,6}.glb` | Tire, Barrel, Alloy, Rotor, Lugs | the hero wheel (5-spoke cast / 6-spoke forged) |
 | `palm.glb` | Crown | the corniche palm crown, one geometry for ~130 instances |
+| `driver.glb` | Helmet, Visor, Glove, Wheel, Pedal | the driver at the wheel. These hang off joints the IK solver moves every frame, so each part is modelled in its own joint's local frame and dimensioned from `src/game/rig.ts` (via the `rig` block in `profiles.json`) — an authored rim at the wrong radius leaves the solved hands gripping thin air |
 
 `build.json` records what the last build produced — quality preset,
 settings and per-file triangle counts.
@@ -23,7 +24,7 @@ npm run sync:models      # profiles.json from cars.ts → Blender → GLBs
 
 Quality is a flag, not a rebuild: `--quality max` (shipped, ~593k
 triangles across the seven files), `high` (roughly half), `draft` (fast,
-for iterating on shapes). `--only cars,wheels,palm` narrows the build.
+for iterating on shapes). `--only cars,wheels,palm,driver` narrows the build.
 
 There is no `.blend` file: the models are *code*.
 `scripts/export-car-profiles.mjs` extracts the side profiles from

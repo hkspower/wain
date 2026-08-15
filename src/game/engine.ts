@@ -14,6 +14,7 @@ import { SoundEngine } from "./sound";
 import { ParticleSystem, radialSprite } from "./vfx";
 import { solveTwoBone, aimConstrained } from "./ik";
 import { nightEnvironment } from "./env";
+import { RIG } from "./rig";
 import { GradeShader, AutoExposure, ExposurePass } from "./grade";
 import type { DriverRig } from "./characters";
 import { Music } from "./music";
@@ -2617,10 +2618,22 @@ export class GameEngine {
       const rig = r.mesh.userData.driver as DriverRig | undefined;
       if (rig) {
         const steerWant = THREE.MathUtils.clamp((r.snapLat - r.lat) * 0.6, -1, 1);
-        r.steerVis += (steerWant - r.steerVis) * Math.min(1, dt * 4);
-        this.track.pose(r.s + 26, r.lat * 0.4, this.v1, this.v2);
-        this.v1.y += 1.1;
-        this.solveDriverRig(rig, r.steerVis, r.snapSpeed > 0.5 ? 0.3 : 0, 0, this.v1, dt);
+        r.steerVis += (steerWant - r.steerVis) * Math.min(1, dt * RIG.rival.steerRate);
+        this.track.pose(
+          r.s + RIG.driver.lookAheadM,
+          r.lat * RIG.driver.lookLatK,
+          this.v1,
+          this.v2
+        );
+        this.v1.y += RIG.driver.lookHeight;
+        this.solveDriverRig(
+          rig,
+          r.steerVis,
+          r.snapSpeed > 0.5 ? RIG.rival.cruiseThrottle * 1.5 : 0,
+          0,
+          this.v1,
+          dt
+        );
       }
     }
   }
@@ -3022,15 +3035,16 @@ export class GameEngine {
   ): void {
     // Lock-to-lock is about a turn and a half each way in a road car;
     // steer is -1..1, so this is the visible wheel angle.
-    const lock = steer * 2.4;
-    rig.wheel.rotation.z += (-lock - rig.wheel.rotation.z) * Math.min(1, dt * 12);
+    const lock = steer * RIG.driver.steerLock;
+    rig.wheel.rotation.z +=
+      (-lock - rig.wheel.rotation.z) * Math.min(1, dt * RIG.driver.wheelRate);
 
     // Eyes first: `look` may live in a scratch vector this method is
     // about to reuse for grips and poles.
     aimConstrained(rig.head, look, {
-      maxYaw: 0.7,
-      maxPitch: 0.28,
-      ease: Math.min(1, dt * 5),
+      maxYaw: RIG.driver.neckYaw,
+      maxPitch: RIG.driver.neckPitch,
+      ease: Math.min(1, dt * RIG.driver.neckRate),
     });
 
     // Ten-to-two, carried round with the rim. The grips are points ON
@@ -3040,14 +3054,14 @@ export class GameEngine {
     // spoke rate and cross over each other at full lock.
     rig.wheel.updateWorldMatrix(true, false);
     for (const arm of rig.arms) {
-      const grip = arm.side < 0 ? Math.PI * 0.72 : Math.PI * 0.28;
+      const grip = arm.side < 0 ? RIG.driver.gripLeft : RIG.driver.gripRight;
       this.v1.set(Math.cos(grip) * rig.wheelRadius, Math.sin(grip) * rig.wheelRadius, 0);
       rig.wheel.localToWorld(this.v1);
 
       // Elbows break outward and down — the pole is what stops a solved
       // arm from bending like a flamingo's knee. Offset in the rig's
       // own frame, so the pose holds whichever way the car is heading.
-      this.v2.set(arm.side * 0.51, -0.04, -0.06);
+      this.v2.set(arm.side * RIG.driver.armPoleX, RIG.driver.armPoleY, RIG.driver.armPoleZ);
       rig.group.localToWorld(this.v2);
 
       solveTwoBone({
@@ -3068,12 +3082,12 @@ export class GameEngine {
     for (const leg of rig.legs) {
       const pedal = leg.side > 0 ? rig.pedals.throttle : rig.pedals.brake;
       const press = leg.side > 0 ? throttle : brake;
-      pedal.position.z = (pedal.userData.restZ as number) + press * 0.05;
-      pedal.position.y = (pedal.userData.restY as number) - press * 0.015;
+      pedal.position.z = (pedal.userData.restZ as number) + press * RIG.driver.pedalTravelZ;
+      pedal.position.y = (pedal.userData.restY as number) - press * RIG.driver.pedalTravelY;
       pedal.updateWorldMatrix(true, false);
       this.v1.setFromMatrixPosition(pedal.matrixWorld);
       // Knees break up and forward, not sideways into the tunnel
-      this.v2.set(leg.side * 0.22, 1.1, 0.42);
+      this.v2.set(leg.side * RIG.driver.legPoleX, RIG.driver.legPoleY, RIG.driver.legPoleZ);
       rig.group.localToWorld(this.v2);
       solveTwoBone({
         root: leg.shoulder,
@@ -3094,8 +3108,13 @@ export class GameEngine {
   private updateDriver(dt: number): void {
     const rig = this.carBody.userData.driver as DriverRig | undefined;
     if (!rig) return;
-    this.track.pose(this.player.s + 26, this.player.lat * 0.4, this.v1, this.v2);
-    this.v1.y += 1.1;
+    this.track.pose(
+      this.player.s + RIG.driver.lookAheadM,
+      this.player.lat * RIG.driver.lookLatK,
+      this.v1,
+      this.v2
+    );
+    this.v1.y += RIG.driver.lookHeight;
     this.solveDriverRig(rig, this.steerSmooth, this.throttle, this.brake, this.v1, dt);
   }
 
@@ -3108,20 +3127,31 @@ export class GameEngine {
   private animateRivalDriver(r: Rival, accel: number, dt: number): void {
     const rig = r.mesh.userData.driver as DriverRig | undefined;
     if (!rig) return;
-    const steerWant = THREE.MathUtils.clamp((r.targetLat - r.lat) * 0.45, -1, 1);
-    r.steerVis += (steerWant - r.steerVis) * Math.min(1, dt * 4);
-    const wantThrottle = accel > 0.3 ? Math.min(1, accel / 8) : r.speed > 1 ? 0.2 : 0;
-    const wantBrake = accel < -1 ? Math.min(1, -accel / 10) : 0;
-    r.throttleVis += (wantThrottle - r.throttleVis) * Math.min(1, dt * 6);
-    r.brakeVis += (wantBrake - r.brakeVis) * Math.min(1, dt * 6);
+    const R = RIG.rival;
+    const steerWant = THREE.MathUtils.clamp((r.targetLat - r.lat) * R.steerPerLat, -1, 1);
+    r.steerVis += (steerWant - r.steerVis) * Math.min(1, dt * R.steerRate);
+    const wantThrottle =
+      accel > R.throttleAccel
+        ? Math.min(1, accel / R.throttleScale)
+        : r.speed > 1
+          ? R.cruiseThrottle
+          : 0;
+    const wantBrake = accel < R.brakeAccel ? Math.min(1, -accel / R.brakeScale) : 0;
+    r.throttleVis += (wantThrottle - r.throttleVis) * Math.min(1, dt * R.pedalRate);
+    r.brakeVis += (wantBrake - r.brakeVis) * Math.min(1, dt * R.pedalRate);
 
     const gap = this.track.deltaAhead(r.s, this.player.s);
-    if (Math.abs(gap) < 12 && Math.abs(this.player.lat - r.lat) > 1.2) {
+    if (Math.abs(gap) < R.glanceGapM && Math.abs(this.player.lat - r.lat) > R.glanceLatM) {
       this.v1.copy(this.playerMesh.position);
       this.v1.y += 0.6;
     } else {
-      this.track.pose(r.s + 26, r.lat * 0.4, this.v1, this.v2);
-      this.v1.y += 1.1;
+      this.track.pose(
+        r.s + RIG.driver.lookAheadM,
+        r.lat * RIG.driver.lookLatK,
+        this.v1,
+        this.v2
+      );
+      this.v1.y += RIG.driver.lookHeight;
     }
     this.solveDriverRig(rig, r.steerVis, r.throttleVis, r.brakeVis, this.v1, dt);
   }

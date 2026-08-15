@@ -131,6 +131,28 @@ export function upgradeWheels(group: THREE.Group): void {
 }
 
 /**
+ * Upgrade the driver at the wheel: helmet, visor, gloves, the rim and
+ * the pedal faces.
+ *
+ * These meshes hang off joints an IK solver is moving every frame, so
+ * the authored parts are modelled in each joint's OWN frame and simply
+ * replace the geometry there — the solve is untouched, and a missing
+ * file leaves the procedural driver in the seat.
+ */
+export function upgradeDriver(group: THREE.Object3D): void {
+  void parts("driver").then((kit) => {
+    if (!kit) return;
+    group.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const slot = mesh.userData.driverPart as string | undefined;
+      const geo = slot ? kit[slot] : undefined;
+      if (geo) mesh.geometry = geo;
+    });
+  });
+}
+
+/**
  * Upgrade the corniche palm crowns. One geometry serves every instance
  * of the InstancedMesh, so this is the cheapest upgrade in the game and
  * the most visible — the crowns line the whole coastal leg.

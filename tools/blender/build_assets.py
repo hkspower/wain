@@ -10,6 +10,8 @@ Produces, at the chosen quality (default `max`):
   car-{sedan,zx,gtr,rx7}.glb   body shells: Body, Canopy, Roof
   wheel-{5,6}.glb              hero wheel: Tire, Barrel, Alloy, Rotor, Lugs
   palm.glb                     corniche palm crown: Crown
+  driver.glb                   the driver at the wheel: Helmet, Visor,
+                               Glove, Wheel, Pedal
 
 Every one of these replaces the *geometry* of meshes the game already
 builds procedurally (src/game/models.ts), so materials, anchors, physics
@@ -52,9 +54,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 #   samples/span, bevel steps, tire radial segs, tire profile segs,
 #   alloy radial segs, palm leaflet pairs
 QUALITY = {
-    "max": dict(spans=96, bevel=28, tire_r=160, tire_p=30, alloy=96, leaflets=13),
-    "high": dict(spans=64, bevel=20, tire_r=96, tire_p=22, alloy=64, leaflets=10),
-    "draft": dict(spans=40, bevel=12, tire_r=48, tire_p=14, alloy=32, leaflets=7),
+    "max": dict(spans=96, bevel=28, tire_r=160, tire_p=30, alloy=96, leaflets=13, driver=96),
+    "high": dict(spans=64, bevel=20, tire_r=96, tire_p=22, alloy=64, leaflets=10, driver=64),
+    "draft": dict(spans=40, bevel=12, tire_r=48, tire_p=14, alloy=32, leaflets=7, driver=28),
 }
 Q = QUALITY["max"]
 
@@ -522,6 +524,99 @@ def build_palm():
     return [crown]
 
 
+# ----------------------------------------------------------------- driver
+# The seated driver's authored parts. Everything here is dimensioned from
+# the rig block in profiles.json — the same numbers src/game/rig.ts hands
+# to the runtime and to the UE5 header — because these meshes hang off
+# joints an IK solver is moving. Author a helmet at the wrong radius and
+# it clips the roof; author the rim at the wrong radius and the solved
+# hands float beside it. Nothing here may be a hand-copied constant.
+#
+# Parts are authored in the joint's OWN local frame, not the car's: the
+# game swaps geometry into meshes that are already children of the
+# shoulder, wrist, column and pedal joints, so a part that bakes in a
+# joint's position would be applied twice.
+
+
+def build_driver(rig):
+    d = rig["driver"]
+    segs = Q["driver"]
+    objs = []
+
+    # Helmet: a sphere with a brow line, sat on the head joint's origin.
+    helmet_r = 0.135
+    prof = []
+    n = segs // 2
+    for i in range(n + 1):
+        a = math.pi * (i / n)
+        prof.append((math.cos(a) * helmet_r, max(1e-4, math.sin(a) * helmet_r)))
+    helmet = revolve("Helmet", prof, segs, closed=False)
+    # Revolve runs about X; the helmet's pole belongs up (+Z in Blender).
+    helmet.rotation_euler = (0.0, math.radians(90.0), 0.0)
+    objs.append(helmet)
+
+    # Visor: a band of a slightly larger sphere across the front. Built
+    # as its own shell so the game can keep its smoked glass material.
+    visor_r = helmet_r + 0.008
+    rings = []
+    for i in range(segs // 3 + 1):
+        # Vertical sweep across the eye line
+        pitch = math.radians(-26.0) + math.radians(38.0) * (i / (segs // 3))
+        ring = []
+        for k in range(segs // 2 + 1):
+            yaw = math.radians(-58.0) + math.radians(116.0) * (k / (segs // 2))
+            cp, sp = math.cos(pitch), math.sin(pitch)
+            ring.append((math.sin(yaw) * cp * visor_r, math.cos(yaw) * cp * visor_r, sp * visor_r))
+        rings.append(ring)
+    objs.append(mesh_from_quads("Visor", rings, close_rings=False, close_loop=False))
+
+    # Glove: a closed fist, at the wrist joint's origin. Slightly ovoid
+    # and rolled toward the rim, which is how a hand on a wheel reads.
+    grip_r = 0.052
+    prof = []
+    for i in range(segs // 2 + 1):
+        a = math.pi * (i / (segs // 2))
+        prof.append((math.cos(a) * grip_r * 1.25, max(1e-4, math.sin(a) * grip_r)))
+    glove = revolve("Glove", prof, segs, closed=False)
+    glove.rotation_euler = (0.0, math.radians(90.0), 0.0)
+    objs.append(glove)
+
+    # Steering wheel rim: a torus at the authored radius, in the column
+    # joint's frame (the rim lies in that joint's own plane).
+    rim_r = d["wheelRadius"]
+    tube_r = 0.019
+    rings = []
+    for i in range(segs):
+        a = (i / segs) * math.tau
+        ca, sa = math.cos(a), math.sin(a)
+        ring = []
+        for k in range(segs // 3):
+            b = (k / (segs // 3)) * math.tau
+            rr = rim_r + math.cos(b) * tube_r
+            ring.append((ca * rr, sa * rr, math.sin(b) * tube_r))
+        rings.append(ring)
+    objs.append(mesh_from_quads("Wheel", rings, close_rings=True, close_loop=True))
+
+    # Pedal face: a dished plate with a lip, in the pedal joint's frame.
+    # It travels with the press, so it is authored about its own origin.
+    pw, ph, pt = 0.035, 0.055, 0.008
+    rings = []
+    steps = max(6, segs // 8)
+    for i in range(steps + 1):
+        v = -1.0 + 2.0 * (i / steps)
+        # A shallow dish: the middle stands slightly proud of the edges
+        dish = (1.0 - v * v) * 0.006
+        rings.append([
+            (-pw, v * ph, pt + dish),
+            (pw, v * ph, pt + dish),
+            (pw, v * ph, -pt),
+            (-pw, v * ph, -pt),
+        ])
+    objs.append(mesh_from_quads("Pedal", rings, close_rings=True, close_loop=False))
+
+    return objs
+
+
 def export_glb(path, objects):
     for o in bpy.context.scene.objects:
         o.select_set(o in objects)
@@ -562,8 +657,8 @@ def main():
     ap.add_argument("--out", default="public/models")
     ap.add_argument("--styles", default="sedan,zx,gtr,rx7")
     ap.add_argument("--quality", default="max", choices=sorted(QUALITY))
-    ap.add_argument("--only", default="cars,wheels,palm",
-                    help="comma-separated subset of cars,wheels,palm")
+    ap.add_argument("--only", default="cars,wheels,palm,driver",
+                    help="comma-separated subset of cars,wheels,palm,driver")
     args = ap.parse_args(sys.argv[1:])
 
     Q = QUALITY[args.quality]
@@ -593,6 +688,10 @@ def main():
     if "palm" in only:
         bpy.ops.wm.read_factory_settings(use_empty=True)
         emit(args.out, "palm", build_palm(), report)
+
+    if "driver" in only:
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+        emit(args.out, "driver", build_driver(profiles["rig"]), report)
 
     total = sum(v["tris"] for v in report.values())
     print(f"\n{len(report)} files, ~{total} tris authored at quality={args.quality}")

@@ -56,12 +56,26 @@ for (const [style, geos] of Object.entries(styles)) {
   }
 }
 
+// The rig goes in the same file. The authored driver parts — helmet,
+// gloves, the wheel rim, the pedal faces — have to land exactly on the
+// joints the IK solves, so Blender reads the bone lengths and joint
+// offsets from src/game/rig.ts rather than carrying its own copy. Same
+// evaluated-literal trick the UE5 generator uses: the file holds
+// expressions (`Math.PI * 0.72`) that a regex cannot read.
+const rigSrc = readFileSync("src/game/rig.ts", "utf8");
+const rigBody = rigSrc.match(/export const RIG = (\{[\s\S]*?\n\}) as const;/)?.[1];
+if (!rigBody) throw new Error("rig parse failed: no `export const RIG = {...} as const;`");
+out.rig = new Function(`"use strict"; return ${rigBody};`)();
+
 mkdirSync("tools/blender", { recursive: true });
 writeFileSync("tools/blender/profiles.json", JSON.stringify(out, null, 1) + "\n");
-const n = Object.values(out).reduce(
-  (a, s) => a + Object.values(s).reduce((b, g) => b + g.points.length, 0),
+// Styles only — `out` also carries the rig block, whose groups have no
+// profile points.
+const n = Object.keys(styles).reduce(
+  (a, style) => a + Object.values(out[style]).reduce((b, g) => b + g.points.length, 0),
   0
 );
 console.log(
-  `profiles.json regenerated: ${Object.keys(out).length} styles, ${n} profile points.`
+  `profiles.json regenerated: ${Object.keys(out).length - 1} styles, ${n} profile points, ` +
+    `${Object.values(out.rig).reduce((a, g) => a + Object.keys(g).length, 0)} rig constants.`
 );
