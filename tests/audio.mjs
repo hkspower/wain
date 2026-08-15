@@ -170,6 +170,78 @@ if (music) {
   console.log("music        (no synth score active in this run)");
 }
 
+// ---- a dropped sample actually plays --------------------------------
+// The whole ElevenLabs path is silent-failing by design: a missing file,
+// a broken file or a malformed manifest all fall back to the synth in
+// silence. That is right at runtime and means every failure mode looks
+// like success from outside, so the consumption path has to be proved
+// rather than assumed. A real audio file is written into public/sfx,
+// the manifest points at it, the page reloads, and the sample voice has
+// to be the one that fires — then it is all removed again.
+//
+// The file is a synthesised WAV rather than an ElevenLabs MP3 because
+// this environment cannot reach the API and has no encoder. It exercises
+// exactly the same code: fetch -> decodeAudioData -> buffer source, and
+// decodeAudioData takes both formats.
+{
+  const { writeFileSync, rmSync, existsSync, readFileSync } = await import("node:fs");
+  const MAN = "public/sfx/manifest.json";
+  const WAV = "public/sfx/__probe.wav";
+  const before = existsSync(MAN) ? readFileSync(MAN, "utf8") : null;
+
+  // 0.25 s of 1 kHz at 44.1 kHz, 16-bit mono — a valid RIFF/WAVE file
+  const rate = 44100, secs = 0.25, n = Math.floor(rate * secs);
+  const data = Buffer.alloc(n * 2);
+  for (let i = 0; i < n; i++) {
+    data.writeInt16LE(Math.round(Math.sin((i / rate) * 2 * Math.PI * 1000) * 12000), i * 2);
+  }
+  const hdr = Buffer.alloc(44);
+  hdr.write("RIFF", 0); hdr.writeUInt32LE(36 + data.length, 4); hdr.write("WAVE", 8);
+  hdr.write("fmt ", 12); hdr.writeUInt32LE(16, 16); hdr.writeUInt16LE(1, 20);
+  hdr.writeUInt16LE(1, 22); hdr.writeUInt32LE(rate, 24); hdr.writeUInt32LE(rate * 2, 28);
+  hdr.writeUInt16LE(2, 32); hdr.writeUInt16LE(16, 34);
+  hdr.write("data", 36); hdr.writeUInt32LE(data.length, 40);
+  writeFileSync(WAV, Buffer.concat([hdr, data]));
+  writeFileSync(MAN, JSON.stringify({ bump: { file: "__probe.wav", gain: 1 } }, null, 2) + "\n");
+
+  try {
+    await page.reload({ waitUntil: "networkidle" });
+    await page.click("text=START ENGINE");
+    await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 120000 });
+    const r = await page.evaluate(async () => {
+      const e = window.__grnEngine;
+      const s = e.sound;
+      // Give the manifest fetch + decode a moment to land
+      // samples is a Map keyed by effect name
+      for (let i = 0; i < 60 && !(s.samples && s.samples.get("bump")); i++) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      const entry = s.samples && s.samples.get("bump");
+      const loaded = !!entry;
+      const dur = loaded ? +entry.buf.duration.toFixed(3) : 0;
+      // Count what the impact actually starts
+      let started = 0;
+      const realSrc = s.audioContext.createBufferSource.bind(s.audioContext);
+      s.audioContext.createBufferSource = function () {
+        started++;
+        return realSrc();
+      };
+      s.bump(1);
+      await new Promise((r) => setTimeout(r, 120));
+      s.audioContext.createBufferSource = realSrc;
+      return { loaded, dur, started };
+    });
+    console.log(`\nsample path  manifest sample decoded=${r.loaded} duration=${r.dur}s, buffer sources started on impact=${r.started}`);
+    check(r.loaded, "the manifest sample never decoded — the ElevenLabs drop would be inert");
+    check(Math.abs(r.dur - 0.25) < 0.02, `decoded duration ${r.dur}s is not the 0.25s written`);
+    check(r.started > 0, "the impact did not play the sample — it fell through to the synth");
+  } finally {
+    rmSync(WAV, { force: true });
+    if (before === null) rmSync(MAN, { force: true });
+    else writeFileSync(MAN, before);
+  }
+}
+
 console.log(fail.length ? "\nFAILURES:\n - " + fail.join("\n - ") : "\nall audio checks passed");
 await browser.close();
 process.exit(fail.length ? 1 : 0);

@@ -90,12 +90,30 @@ const EFFECTS = {
 
 const args = process.argv.slice(2);
 const force = args.includes("--force");
+const dryRun = args.includes("--dry-run");
 const names = args.filter((a) => !a.startsWith("--"));
 const wanted = names.length ? names : Object.keys(EFFECTS);
 
+// --dry-run prints the roster and the exact request each effect would
+// make, without a key and without touching the network. It is how you
+// review the prompts from a machine that cannot reach the API — which,
+// in this repo's cloud sessions, is every machine.
+if (dryRun) {
+  console.log(`Would request ${wanted.length} effect(s) from ${API}\n`);
+  for (const name of wanted) {
+    const def = EFFECTS[name];
+    if (!def) { console.error(`unknown effect "${name}"`); continue; }
+    console.log(`${name}  ->  public/sfx/${def.file}`);
+    console.log(`  ${def.duration}s, gain ${def.gain}${def.loop ? ", looping" : ""}, prompt_influence 0.75`);
+    console.log(`  "${def.prompt}"\n`);
+  }
+  console.log("Nothing was written. Drop --dry-run and set ELEVENLABS_API_KEY to generate.");
+  process.exit(0);
+}
+
 const key = process.env.ELEVENLABS_API_KEY;
 if (!key) {
-  console.error("Set ELEVENLABS_API_KEY first.");
+  console.error("Set ELEVENLABS_API_KEY first (or pass --dry-run to review the prompts).");
   process.exit(2);
 }
 
@@ -130,7 +148,21 @@ const generate = async (name, def) => {
         }),
       });
       if (!res.ok) {
-        console.error(`${name}: HTTP ${res.status} ${(await res.text()).slice(0, 120)}`);
+        const body = await res.text();
+        // The egress proxy answers with a real 403 response rather than
+        // failing the tunnel, and its body names the fix. Say so once
+        // instead of retrying a policy decision four times.
+        if (res.status === 403 && /allowlist|egress/i.test(body)) {
+          console.error(
+            `${name}: blocked by this environment's network policy, not by ElevenLabs.\n` +
+            `        ${body.trim().slice(0, 160)}\n` +
+            `        Fix: add api.elevenlabs.io to the environment's network egress allowlist,\n` +
+            `        or run this script from a machine with direct internet access and commit\n` +
+            `        the resulting public/sfx/ files.`
+          );
+          return false;
+        }
+        console.error(`${name}: HTTP ${res.status} ${body.slice(0, 120)}`);
         if (res.status === 401 || res.status === 422) return false; // no point retrying
         continue;
       }
@@ -140,6 +172,22 @@ const generate = async (name, def) => {
       console.log(`${name.padEnd(8)} ${def.file}  ${(audio.length / 1024).toFixed(0)} KB`);
       return true;
     } catch (e) {
+      // Distinguish "the network refused us" from "the API said no" —
+      // they need completely different fixes, and the raw fetch error
+      // ("fetch failed") says neither.
+      const cause = e.cause?.message || e.message || "";
+      if (/403/.test(cause) || /CONNECT/i.test(cause) || /tunnel/i.test(cause)) {
+        console.error(
+          `${name}: blocked before reaching ElevenLabs — the egress proxy answered 403 to CONNECT.\n` +
+          `        This is a network policy, not an API or key problem. Run this from a machine\n` +
+          `        with direct internet access and commit the resulting public/sfx/ files.`
+        );
+        return false; // retrying a policy denial only wastes time
+      }
+      if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED/.test(cause)) {
+        console.error(`${name}: cannot resolve or reach api.elevenlabs.io (${cause})`);
+        return false;
+      }
       console.error(`${name}: ${e.message}`);
     }
   }
