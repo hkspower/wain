@@ -616,13 +616,22 @@ export class GameEngine {
 
     // Sparks: white-hot at birth, ember by death, and they skitter along
     // the asphalt instead of sinking through it.
+    // Sparks are additive, and sixty of them overlap in the same square
+    // of screen during a scrape — so each one's brightness is not what
+    // reaches the eye, the SUM is. At full opacity with a near-white
+    // core the pile saturated: 210 pixels pinned to pure white on a
+    // single wall hit, before bloom had its turn on them. A spark is the
+    // brightest thing in a night frame and should read that way, but a
+    // white hole with no shape in it is not a shower of sparks.
+    // Held down so a lone spark still punches and a shower stacks into
+    // hot amber instead of flat paper white.
     this.sparkFx = new ParticleSystem(90, {
       map: radialSprite(0.35, 1.4),
-      colorA: 0xfff2c8,
+      colorA: 0xffdf9e, // hot, with headroom left above it
       colorB: 0xff5a12,
       blending: THREE.AdditiveBlending,
       grow: 0.5, // sparks shrink as they cool
-      opacity: 1,
+      opacity: 0.5,
       fadeIn: 0.02,
     });
     this.scene.add(this.sparkFx.points);
