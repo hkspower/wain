@@ -382,13 +382,18 @@
   };
 
   function eventRow(ev) {
+    /* سهم الانتقال: «←» ليس في مجموعة الخط المجتزأة فيسقط على خط النظام
+       ويظهر بوزن مخالف لما حوله. «›» موجود في الخط، والمرآة الثنائية الاتجاه
+       تقلبه في سياق عربي إلى يسار — فيشير من الحالة السابقة إلى التالية كما
+       يقرأ العربي. (فُحص في المتصفّح: «‹» ينقلب إلى يمين، وهو عكس المقصود.) */
+    const ARROW = '\u203A';
     const isTransfer = ev.type.startsWith('transfer');
     const bad = ev.type === 'transfer_rejected' || (ev.type === 'status' && ['failed', 'cancelled'].includes(ev.to_value));
     let detail = '';
     if (ev.type === 'status') {
-      detail = `${state.meta.statuses[ev.from_value] || ev.from_value || '—'} ← ${state.meta.statuses[ev.to_value] || ev.to_value}`;
+      detail = `${state.meta.statuses[ev.from_value] || ev.from_value || '—'} ${ARROW} ${state.meta.statuses[ev.to_value] || ev.to_value}`;
     } else if (ev.from_value || ev.to_value) {
-      detail = `${esc(ev.from_value || '—')} ← ${esc(ev.to_value || '—')}`;
+      detail = `${esc(ev.from_value || '—')} ${ARROW} ${esc(ev.to_value || '—')}`;
     }
     return `
       <li class="tl${isTransfer ? ' tl--transfer' : ''}${bad ? ' tl--bad' : ''}">

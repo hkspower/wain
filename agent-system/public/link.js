@@ -2,6 +2,17 @@
    صفحة مهمّة الكابتن — تُفتح من رابط يُرسل على واتساب، بلا تسجيل دخول.
    ثلاثة أفعال لا رابع: موافقة الموقع، ملاحظة صوتية، بلاغ النتيجة.
    ========================================================================= */
+
+/* أيقونتا النتيجة تُرسمان SVG لا محرفًا نصّيًا: «✓» و«✕» خارج مجموعة الخط
+   المجتزأة، فيرسمهما خط النظام بوزن وشكل مخالفين لما حولهما — وهما أكبر
+   عنصر على الشاشة في أهمّ لحظتين عند الكابتن: تعذّر فتح المهمّة، وتمام
+   البلاغ. الرسم المتجه يجعلهما مطابقين للتصميم على كل جهاز. */
+const ICON_CHECK = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" ' +
+  'stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" ' +
+  'aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+const ICON_X = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" ' +
+  'stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" ' +
+  'aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 (function () {
   'use strict';
 
@@ -164,7 +175,7 @@
     };
     main.innerHTML = `
       <div class="lk-card lk-card--msg">
-        <span class="lk-msg__ic" aria-hidden="true">✕</span>
+        <span class="lk-msg__ic" aria-hidden="true">${ICON_X}</span>
         <h1>تعذّر فتح المهمّة</h1>
         <p>${esc(hints[err.code] || err.message)}</p>
       </div>`;
@@ -451,7 +462,7 @@
     }
     main.innerHTML = `
       <div class="lk-card lk-card--msg">
-        <span class="lk-msg__ic lk-msg__ic--ok" aria-hidden="true">✓</span>
+        <span class="lk-msg__ic lk-msg__ic--ok" aria-hidden="true">${ICON_CHECK}</span>
         <h1>${esc(r.status_label)}</h1>
         <p>وصل بلاغك للإدارة وأُرسل تقرير المهمّة. شكرًا لك.</p>
         <p class="muted">انتهت صلاحية هذا الرابط الآن.</p>
