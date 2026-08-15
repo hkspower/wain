@@ -198,6 +198,24 @@ CREATE TABLE IF NOT EXISTS emails (
   sent_at     TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_emails_status ON emails(status, id DESC);
+
+/* صندوق صادر الأحداث إلى الخارج (n8n مثلًا). يُكتب أولًا ثم يُرسل، بنفس منطق
+   البريد: حدثٌ لم يصل يبقى ظاهرًا بسببه ويُعاد إرساله، ولا يضيع بصمت. */
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id          INTEGER PRIMARY KEY,
+  event       TEXT    NOT NULL,
+  payload     TEXT    NOT NULL,
+  order_id    INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+  url         TEXT    NOT NULL,
+  status      TEXT    NOT NULL DEFAULT 'pending'
+                      CHECK (status IN ('pending', 'sent', 'failed')),
+  http_status INTEGER,
+  error       TEXT    NOT NULL DEFAULT '',
+  attempts    INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT    NOT NULL,
+  sent_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_hooks_status ON webhook_deliveries(status, id DESC);
 `);
 
 /* ---- ترحيلات: أعمدة تُضاف للقواعد القائمة ---- */

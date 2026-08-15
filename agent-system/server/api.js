@@ -7,6 +7,7 @@ const L = require('./location');
 const S = require('./settings');
 const LK = require('./links');
 const M = require('./mailer');
+const HK = require('./hooks');
 const {
   badRequest, unauthorized, forbidden, notFound, conflict,
   str, num, oneOf, id,
@@ -238,8 +239,30 @@ on('PATCH', '/api/agents/:id', async (ctx) => {
 
 on('POST', '/api/orders/:id/link', async (ctx) => {
   requireAdmin(ctx);
-  const link = LK.createLink(id(ctx.params.id, 'معرّف الطلب'), ctx.agent);
-  return { link: publicLink(link, ctx) };
+  const orderId = id(ctx.params.id, 'معرّف الطلب');
+  const link = LK.createLink(orderId, ctx.agent);
+  const pub = publicLink(link, ctx);
+
+  /* يُدفع الحدث إلى الوجهة الخارجية (n8n) لترسل الرابط للكابتن على واتساب.
+     كان المدير ينسخ الرابط ويرسله بيده — خطوة يدوية في أكثر لحظة استعجالًا.
+     الدفع لا يُفشل إنشاء الرابط: لو تعذّر بقي في الصندوق وأُعيدت محاولته. */
+  const order = D.getOrder(orderId);
+  const agent = db.prepare('SELECT name, phone FROM agents WHERE id=?').get(order.agent_id) || {};
+  const hook = await HK.emit('link.created', {
+    link: { url: HK.publicUrl() ? `${HK.publicUrl()}/l/${link.token}` : pub.url,
+            expires_at: link.expires_at },
+    agent: { id: order.agent_id, name: agent.name || '', phone: agent.phone || '' },
+    order: {
+      id: order.id, code: order.code, status: order.status,
+      status_label: D.STATUSES[order.status],
+      customer_name: order.customer_name, customer_phone: order.customer_phone,
+      pickup_address: order.pickup_address, dropoff_address: order.dropoff_address,
+      governorate: order.governorate, cod_amount: order.cod_amount,
+      agent_earning: order.agent_earning, priority: order.priority, notes: order.notes,
+    },
+  }, orderId);
+
+  return { link: pub, hook: hook ? { status: hook.status } : { status: 'off' } };
 });
 
 on('GET', '/api/orders/:id/links', async (ctx) => {
@@ -358,6 +381,22 @@ on('PATCH', '/api/settings', async (ctx) => {
 });
 
 /** معاينة العمولة على رسوم معيّنة قبل حفظ الطلب */
+/* صادر الأحداث — نافذة المدير على ما خرج للوجهة الخارجية وما تعثّر */
+on('GET', '/api/hooks', async (ctx) => {
+  requireAdmin(ctx);
+  return {
+    configured: HK.isConfigured(),
+    url: HK.isConfigured() ? String(process.env.MAWSOOL_WEBHOOK_URL) : '',
+    deliveries: HK.outbox(50),
+  };
+});
+
+on('POST', '/api/hooks/retry', async (ctx) => {
+  requireAdmin(ctx);
+  const results = await HK.retryPending();
+  return { retried: results.length, deliveries: HK.outbox(50) };
+});
+
 on('GET', '/api/settings/commission-preview', async (ctx) => {
   requireAdmin(ctx);
   const fee = num(ctx.query.delivery_fee, 'رسوم التوصيل', { max: 10000 });
