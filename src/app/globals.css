@@ -484,6 +484,11 @@ html[data-large-hud="1"] .hud-scale {
   width: 100%;
   height: 100%;
   display: block;
+  /* The canvas is rendered at device resolution and then laid out at CSS
+     size, so the browser must not resample it with its own filter on the
+     way to the screen — that is a second, softer pass over pixels that
+     were already correct. */
+  image-rendering: auto;
   background:
     radial-gradient(120% 90% at 50% 118%, #101a30 0%, #070b16 55%, #04060d 100%);
 }
@@ -525,6 +530,13 @@ html[data-large-hud="1"] .hud-scale {
      fold. A menu you have to scroll to see all of is not a menu. */
   .menu-shell .menu-wordmark {
     font-size: clamp(2.1rem, 4.4vw, 3.4rem);
+  }
+  /* The wordmark is the biggest type on the screen and the first thing
+     read; give the rasteriser the geometric outline rather than the
+     hinted one, which at this size reads crisper than snapped stems. */
+  .menu-shell .menu-wordmark,
+  .menu-shell .menu-title {
+    text-rendering: geometricPrecision;
   }
 }
 
@@ -583,6 +595,8 @@ html[data-large-hud="1"] .hud-scale {
 }
 .menu-item-label {
   font-family: var(--font-display-stack);
+  /* Legibility over ligature cleverness: this is a menu, not a book. */
+  text-rendering: optimizeLegibility;
   font-style: italic;
   font-size: 1.15rem;
   letter-spacing: 0.02em;

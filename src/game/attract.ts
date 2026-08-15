@@ -64,8 +64,16 @@ export function buildAttract(
     canvas,
     antialias: true,
     alpha: true,
-    powerPreference: "low-power",
+    // The race asks for low-power because it runs for minutes on end.
+    // A menu is a single still-ish frame of one object; ask for the
+    // real GPU and spend it on looking right.
+    powerPreference: "high-performance",
   });
+  // A real contact shadow under the car. Without one the turntable was
+  // a car floating a few centimetres over a painted pool of light —
+  // the single thing that most gave away that it was not a photograph.
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.setClearColor(0x000000, 0);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.15;
@@ -92,6 +100,10 @@ export function buildAttract(
       });
     }
     car = createCar(c);
+    car.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh) m.castShadow = true;
+    });
     // Parked, not running. The headlight halo and diffraction star are
     // sized for an oncoming car at night; at showroom range they blow a
     // white smear across half the menu. Sidelights only.
@@ -112,11 +124,30 @@ export function buildAttract(
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = 0.005;
   scene.add(ground);
+  // The pool of light is unlit basic material and cannot take a shadow,
+  // so the shadow lands on its own catcher just beneath it.
+  const catcher = new THREE.Mesh(
+    new THREE.CircleGeometry(9, 40),
+    new THREE.ShadowMaterial({ opacity: 0.5 })
+  );
+  catcher.rotation.x = -Math.PI / 2;
+  catcher.position.y = 0.004;
+  catcher.receiveShadow = true;
+  scene.add(catcher);
 
   // Lighting: warm sodium key from behind one shoulder, cool gulf fill
   // from the other, and a tight top light to put a line down the roof.
   const key = new THREE.DirectionalLight(0xffcf8a, 2.6);
   key.position.set(-5, 5.5, -3.5);
+  key.castShadow = true;
+  key.shadow.mapSize.set(2048, 2048);
+  // A tight frustum around the car: the whole shadow budget spent on
+  // the only object that casts one.
+  const sc = key.shadow.camera;
+  sc.left = -4; sc.right = 4; sc.top = 4; sc.bottom = -4;
+  sc.near = 0.5; sc.far = 22;
+  key.shadow.bias = -0.0016;
+  key.shadow.normalBias = 0.02;
   scene.add(key);
   const fill = new THREE.DirectionalLight(0x5fc9ee, 1.5);
   fill.position.set(5.5, 2.6, 4.5);
@@ -166,11 +197,17 @@ export function buildAttract(
   const resize = () => {
     const w = canvas.clientWidth || canvas.width || 1;
     const h = canvas.clientHeight || canvas.height || 1;
-    // Capped device ratio: this is a backdrop behind a menu, not the
-    // race, and a 4K menu should not cost more than the game does. The
-    // car is a full detail build — the one you actually own, mods and
-    // all — so the pixels are where the savings have to come from.
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+    // Render at the display's real density, up to 2x.
+    //
+    // This used to cap at 1.25 to save cost, and that cap was the whole
+    // reason the menu looked soft: on any retina panel the turntable was
+    // being drawn at roughly half the resolution of the text sitting on
+    // top of it, so the one 3D thing on the screen was the blurriest
+    // thing on the screen. The menu renders ONE car against a flat
+    // ground with no post chain — it can afford the pixels the race
+    // cannot, and this is the screen a player looks at longest before
+    // deciding what they think of the game.
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(w, h, false);
     const aspect = w / Math.max(1, h);
     camera.aspect = aspect;
