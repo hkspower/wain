@@ -883,6 +883,15 @@ export class SoundEngine {
     });
   }
 
+  /** A slide reversed into another one. The pip climbs with the chain,
+   *  so the multiplier is something you hear while your eyes are on the
+   *  road rather than a number you have to look away to read. */
+  driftLink(chain: number): void {
+    const step = Math.max(0, Math.min(4, chain - 1));
+    const root = 523 * Math.pow(2, step / 12); // a semitone per link
+    this.sting([root, root * 1.5], 0.055, "triangle", 0.055);
+  }
+
   battleSting(): void {
     this.sting([220, 262, 330, 440], 0.09, "sawtooth", 0.07);
     this.oneShotNoise("highpass", 1800, 0.1, 0.5);

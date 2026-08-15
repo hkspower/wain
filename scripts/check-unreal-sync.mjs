@@ -100,23 +100,40 @@ if (hCars.length !== api.cars.length) {
 }
 
 // ---- handling -------------------------------------------------------
-const hConst = (name) => {
-  const m = header.match(new RegExp(`constexpr float ${name} = ([\\d.]+)f;`));
-  return m ? +m[1] : undefined;
-};
-const pairs = [
-  ["Ceiling", "ceiling"], ["ThrustK", "thrustK"], ["DragA", "dragA"], ["DragB", "dragB"],
-  ["FlashRangeM", "flashRangeM"], ["DriftMinSpeed", "driftMinSpeed"],
-  ["DriftYawClamp", "driftYawClamp"], ["DriftDriveLoss", "driftDriveLoss"],
-];
-let handlingOk = true;
-for (const [cpp, js] of pairs) {
-  const h = hConst(cpp);
-  const a = api.handling[js];
-  if (h === undefined) { fail(`handling ${cpp} missing from header`); handlingOk = false; }
-  else if (Math.abs(h - a) > 1e-6) { fail(`handling ${cpp}: ${h} vs ${a}`); handlingOk = false; }
+// Walked from the payload, not from a hand-written list — the same rule
+// the rig block below is written under, and for the same reason. This
+// check used to name eight constants explicitly while the header carried
+// seventy-four, so the drift and brake models could be published wrong
+// in their entirety and every line of this script would still print a
+// tick. A contract test that only tests the part you remembered to list
+// is a contract test that passes for the wrong reason.
+{
+  const hNs = header.match(/namespace GRNHandling\s*\{([\s\S]*?)\n\}/)?.[1];
+  if (!hNs) {
+    fail("handling: namespace GRNHandling missing from header");
+  } else {
+    const cpp = new Map(
+      [...hNs.matchAll(/constexpr float (\w+) = (-?[\d.]+)f;/g)].map(([, k, v]) => [k, +v])
+    );
+    // handling.ts key `driftAngleBase` → header `DriftAngleBase`.
+    const want = {};
+    for (const [k, v] of Object.entries(api.handling)) {
+      want[k[0].toUpperCase() + k.slice(1)] = v;
+    }
+    let handlingOk = true;
+    for (const [k, v] of Object.entries(want)) {
+      if (!cpp.has(k)) { fail(`handling ${k} missing from header`); handlingOk = false; }
+      else if (Math.abs(cpp.get(k) - v) > 1e-6 * Math.max(1, Math.abs(v))) {
+        fail(`handling ${k}: header ${cpp.get(k)} vs web ${v}`);
+        handlingOk = false;
+      }
+    }
+    for (const k of cpp.keys()) {
+      if (!(k in want)) { fail(`handling ${k} is in the header but not the web build`); handlingOk = false; }
+    }
+    if (handlingOk) ok(`handling: ${Object.keys(want).length} constants match`);
+  }
 }
-if (handlingOk) ok(`handling: ${pairs.length} constants match`);
 
 // ---- rig ------------------------------------------------------------
 // Every field, walked from the payload rather than a hand-written list.

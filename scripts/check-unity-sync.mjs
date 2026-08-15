@@ -160,29 +160,38 @@ if (cars.length !== api.cars.length) {
 }
 
 // ---- handling -------------------------------------------------------
-const pairs = [
-  ["Ceiling", "ceiling"], ["ThrustK", "thrustK"], ["DragA", "dragA"], ["DragB", "dragB"],
-  ["SteerSmoothRate", "steerSmoothRate"], ["CasterRate", "casterRate"],
-  ["HeadingClamp", "headingClamp"], ["FlashRangeM", "flashRangeM"],
-  ["DriftMinSpeed", "driftMinSpeed"], ["DriftAngleBase", "driftAngleBase"],
-  ["DriftAngleSpeedK", "driftAngleSpeedK"], ["DriftEngageRate", "driftEngageRate"],
-  ["DriftRecoverRate", "driftRecoverRate"], ["DriftYawClamp", "driftYawClamp"],
-  ["DriftLatScrub", "driftLatScrub"], ["DriftDriveLoss", "driftDriveLoss"],
-];
-let handlingOk = true;
-for (const [cs, js] of pairs) {
-  const v = src.match(new RegExp(`public const float ${cs} = ([\\d.]+)f;`))?.[1];
-  const a = api.handling[js];
-  if (v === undefined) { fail(`handling ${cs} missing from GRNData.cs`); handlingOk = false; }
-  // Without this, a key the API stops publishing compares against
-  // undefined, Math.abs(NaN) > 1e-6 is false, and the check passes.
-  else if (typeof a !== "number") { fail(`handling ${js} missing from the API payload`); handlingOk = false; }
-  else if (Math.abs(+v - a) > 1e-6) {
-    fail(`handling ${cs}: ${v} vs ${a}`);
-    handlingOk = false;
+// Walked from the payload rather than a hand-written list: this used to
+// name sixteen constants while the file carried seventy-four, so a whole
+// physics subsystem could be published wrong and still print a tick.
+{
+  const csNs = src.match(/public static class Handling\s*\{([\s\S]*?)\n {4}\}/)?.[1];
+  if (!csNs) {
+    fail("handling: class Handling missing from GRNData.cs");
+  } else {
+    const cs = new Map(
+      [...csNs.matchAll(/public const float (\w+) = (-?[\d.]+)f;/g)].map(([, k, v]) => [k, +v])
+    );
+    const want = {};
+    for (const [k, v] of Object.entries(api.handling)) {
+      want[k[0].toUpperCase() + k.slice(1)] = v;
+    }
+    let handlingOk = true;
+    for (const [k, v] of Object.entries(want)) {
+      if (!cs.has(k)) { fail(`handling ${k} missing from GRNData.cs`); handlingOk = false; }
+      // Without this, a key the API stops publishing compares against
+      // undefined, Math.abs(NaN) > 1e-6 is false, and the check passes.
+      else if (typeof v !== "number") { fail(`handling ${k} is not a number in the API payload`); handlingOk = false; }
+      else if (Math.abs(cs.get(k) - v) > 1e-6 * Math.max(1, Math.abs(v))) {
+        fail(`handling ${k}: GRNData.cs ${cs.get(k)} vs web ${v}`);
+        handlingOk = false;
+      }
+    }
+    for (const k of cs.keys()) {
+      if (!(k in want)) { fail(`handling ${k} is in GRNData.cs but not the web build`); handlingOk = false; }
+    }
+    if (handlingOk) ok(`handling: ${Object.keys(want).length} constants match`);
   }
 }
-if (handlingOk) ok(`handling: ${pairs.length} constants match`);
 
 if (failed) {
   console.error("\nRun `npm run sync:unity` to regenerate GRNData.cs from the web source.");

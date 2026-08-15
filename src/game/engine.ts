@@ -18,6 +18,19 @@ import { RIG } from "./rig";
 import { GradeShader, AutoExposure, ExposurePass } from "./grade";
 import type { DriverRig } from "./characters";
 import { Music } from "./music";
+import {
+  solveDrift,
+  newDriftState,
+  breakChain,
+  type DriftState,
+} from "./drift";
+import {
+  solveBrakes,
+  newBrakeState,
+  brakeCeiling,
+  type BrakeState,
+  type BrakeResult,
+} from "./brakes";
 import { GEARS } from "./gears";
 import { loadGarage, saveGarage, computeEffects, addKd, TuneEffects, getCar, CARS } from "./mods";
 import { levelInfo, recordRace, recordLap, loadProfileStats, LevelInfo } from "./profile";
@@ -69,8 +82,17 @@ export interface HudData {
   boost: number | null;
   /** NOS charge 0..1, or null when no kit is fitted. */
   nos: number | null;
-  /** Live drift readout — non-null while sliding (and briefly after). */
-  drift: { deg: number; score: number; active: boolean } | null;
+  /** Live drift readout — non-null while sliding (and briefly after).
+   *  `chain` is the link multiplier; `spinning` means it got away. */
+  drift: {
+    deg: number;
+    score: number;
+    active: boolean;
+    chain: number;
+    spinning: boolean;
+  } | null;
+  /** Brake state the driver needs to see: locked wheels, ABS, fade. */
+  brakes: { lock: number; fade: number; abs: boolean };
 }
 
 export interface DriverCard {
@@ -401,7 +423,21 @@ export class GameEngine {
   // Drift: the handbrake breaks the rear loose. driftYaw is how far the
   // body points past the direction of travel; the velocity heading is
   // dragged after it, which is what actually carries the car around.
-  private driftYaw = 0;
+  // The balance that holds it there — and the spin that ends one that got
+  // away — live in drift.ts; this is the state it carries between frames.
+  private ds: DriftState = newDriftState();
+  private bs: BrakeState = newBrakeState();
+  /** Last frame's brake solve, for the HUD, the squeal and the smoke. */
+  private brakeOut: BrakeResult | null = null;
+  /** The angle itself. An accessor rather than a field because the whole
+   *  engine — camera, body pose, smoke, sound, the debug surface — reads
+   *  and writes it, and the solver needs it in one object. */
+  private get driftYaw(): number {
+    return this.ds.angle;
+  }
+  private set driftYaw(v: number) {
+    this.ds.angle = v;
+  }
   /** The current car's governed speed in m/s — what the camera, FOV and
    *  rumble normalise against. */
   private get topSpeedRef(): number {
@@ -412,7 +448,12 @@ export class GameEngine {
    *  frame — the launch-burnout signal for wheels, smoke and power-over. */
   private wheelspin = 0;
   /** Style points for the current, still-unbanked slide. */
-  private driftRun = 0;
+  private get driftRun(): number {
+    return this.ds.run;
+  }
+  private set driftRun(v: number) {
+    this.ds.run = v;
+  }
   /** Seconds the readout lingers after the slide ends. */
   private driftFlash = 0;
 
@@ -1922,7 +1963,7 @@ export class GameEngine {
     this.bstat = { startAt: performance.now(), dist: 0, topSpeed: 0, contacts: 0, maxLead: 0, driftScore: 0 };
     this.spWarned = false;
     // Style points earned cruising before the flag don't count in the race
-    this.driftRun = 0;
+    breakChain(this.ds);
     this.driftFlash = 0;
     if (fromCine) {
       // The film already introduced them — just drop the green flag.
@@ -2336,15 +2377,22 @@ export class GameEngine {
     // Brakes are grip-limited, not pad-limited: pads can out-torque the
     // tire, but the tire cannot out-grip the road. Better pads still pay
     // — they reach the tires' limit and hold it — the tires just set
-    // most of the ceiling.
-    const brakeCap = this.tune.gripAccel * 1.05 + this.tune.brakeForce * 0.25;
-    // Friction circle, half one: front tires steering hard have less
-    // left for braking. Trail-braking works; standing on both pedals
-    // mid-corner doesn't.
+    // most of the ceiling. Everything past that ceiling — locking,
+    // anti-lock, fade, and the rotation a light rear gives up — is
+    // brakes.ts; this is where its answer is applied.
     const latDemand = Math.min(1, (Math.abs(this.steerSmooth) * p.speed) / 40);
-    const braking =
-      Math.min(this.brake * this.tune.brakeForce, brakeCap) *
-      Math.sqrt(1 - 0.6 * latDemand * latDemand);
+    const brakeCap = brakeCeiling(this.tune, latDemand);
+    const bk = solveBrakes(this.bs, {
+      dt,
+      brake: this.brake,
+      speed: p.speed,
+      latDemand,
+      steer: this.steerSmooth,
+      throttle: this.throttle,
+      tune: this.tune,
+    });
+    this.brakeOut = bk;
+    const braking = bk.decel;
     const drag = 0.0012 * p.speed * p.speed + 1.2;
     p.speed = Math.max(0, p.speed + (accel - braking - drag * (this.throttle ? 0.35 : 1)) * dt);
     // The governor cuts fuel: nitrous and a tow can get you here faster,
@@ -2361,7 +2409,11 @@ export class GameEngine {
     const longDemand = Math.min(1, (braking + this.wheelspin) / (brakeCap || 1));
     const yawRateMax =
       Math.min(1.6, this.tune.gripAccel / Math.max(p.speed, 2)) *
-      (1 - 0.35 * this.tune.understeerMult * longDemand);
+      (1 - 0.35 * this.tune.understeerMult * longDemand) *
+      // Locked front tires are erasers: they do not steer at all, which
+      // is why the car that goes straight on into the barrier is nearly
+      // always the one with the pedal buried rather than modulated.
+      bk.steerScale;
     this.heading += this.steerSmooth * yawRateMax * dt;
     // Cornering isn't free: held near the limit, the front tires scrub
     // speed off — the reason real drivers straighten before they send it
@@ -2373,66 +2425,38 @@ export class GameEngine {
     this.heading = THREE.MathUtils.clamp(this.heading, -0.45, 0.45);
 
     // --- Drift. The handbrake breaks the rear tires loose: the body
-    // rotates well past the direction of travel (driftYaw) while the
-    // velocity heading is dragged behind it, so the car goes through the
-    // corner sideways. Throttle sustains the slide, counter-steer (or
-    // just releasing everything) brings the grip back.
-    // Power-over: enough throttle to keep the rears lit mid-corner hangs
-    // the tail out without the handbrake — shallower than a handbrake
-    // entry, but it is how big-power cars change direction.
-    const powerOver =
-      this.wheelspin > 1.2 &&
-      Math.abs(this.steerSmooth) > 0.5 &&
-      p.speed > 18 &&
-      this.throttle > 0.85;
-    if ((this.handbrake || powerOver) && p.speed > 14) {
-      const steerDir =
-        Math.abs(this.steerSmooth) > 0.12
-          ? Math.sign(this.steerSmooth)
-          : Math.sign(this.driftYaw); // no wheel input: hold the current slide
-      if (steerDir !== 0) {
-        const angleCap =
-          (0.38 + 0.28 * Math.min(1, p.speed / 55)) *
-          (this.handbrake ? 1 : 0.6) *
-          this.tune.driftAngleMult;
-        const target =
-          steerDir * angleCap * Math.min(1, Math.abs(this.steerSmooth) + 0.45);
-        this.driftYaw += (target - this.driftYaw) * Math.min(1, dt * 3.4);
-      }
-      // Sideways tires scrub speed; keeping the throttle in feeds it back
-      p.speed *= 1 - (0.05 + Math.abs(this.driftYaw) * 0.24) * (1 - this.throttle * 0.55) * dt;
-    } else if (this.driftYaw !== 0) {
-      // Grip returns. Counter-steering straightens faster and smoother; a
-      // big angle dropped without correction snaps back with a jolt.
-      const counter =
-        Math.sign(this.steerSmooth) === -Math.sign(this.driftYaw)
-          ? Math.abs(this.steerSmooth)
-          : 0;
-      const prev = this.driftYaw;
-      // Drift rubber lets go slower, so the angle hangs rather than snaps
-      this.driftYaw -=
-        this.driftYaw *
-        Math.min(1, (dt * (2.3 + counter * 3.2)) / this.tune.driftAngleMult);
-      if (Math.abs(prev) > 0.3 && Math.abs(this.driftYaw) <= 0.3 && counter < 0.2) {
-        this.shake = Math.max(this.shake, 0.18);
-      }
-      if (Math.abs(this.driftYaw) < 0.005) this.driftYaw = 0;
+    // rotates past the direction of travel (driftYaw) while the velocity
+    // heading is dragged behind it, so the car goes through the corner
+    // sideways. Everything that decides how far it goes, what holds it
+    // there, and what happens when nobody catches it is drift.ts.
+    const dr = solveDrift(this.ds, {
+      dt,
+      speed: p.speed,
+      steer: this.steerSmooth,
+      throttle: this.throttle,
+      handbrake: this.handbrake,
+      wheelspin: this.wheelspin,
+      brakeRotate: bk.rotate,
+      driftAngleMult: this.tune.driftAngleMult,
+    });
+    p.speed *= 1 - dr.scrubRate * dt;
+    if (dr.jolt > 0) this.shake = Math.max(this.shake, dr.jolt);
+    if (dr.spun) {
+      // Losing it is an event, not a slow fade — the camera and the tires
+      // both say so, and the run that was building is gone.
+      this.shake = Math.max(this.shake, 0.55);
+      this.sound?.scrape(0.8);
+      this.driftFlash = 0;
     }
-    const yawClamp = 0.75 * this.tune.driftAngleMult;
-    this.driftYaw = THREE.MathUtils.clamp(this.driftYaw, -yawClamp, yawClamp);
-
-    // Style points: angle × speed, banked when the slide ends cleanly.
-    const driftDeg = (Math.abs(this.driftYaw) * 180) / Math.PI;
-    if (driftDeg > 8 && p.speed > 12) {
-      this.driftRun += driftDeg * (p.speed * KMH / 100) * 3.2 * dt;
-      this.driftFlash = 1.2;
-    } else if (this.driftFlash > 0) {
-      this.driftFlash -= dt;
-      if (this.driftFlash <= 0 && this.driftRun > 0) {
-        if (this.inBattle) this.bstat.driftScore += this.driftRun;
-        this.driftRun = 0;
-      }
+    // A trail-braked entry rotates the car's line as well as its body:
+    // this is the difference between pointing sideways and going there.
+    if (!dr.spinning && Math.abs(bk.rotate) > 0.05) {
+      this.heading += bk.yaw * dt;
     }
+    if (dr.gained > 0) this.driftFlash = 1.2;
+    else if (this.driftFlash > 0) this.driftFlash -= dt;
+    if (dr.banked > 0 && this.inBattle) this.bstat.driftScore += dr.banked;
+    if (dr.linked) this.sound?.driftLink(dr.chain);
 
     // --- Centrifugal push: sweepers shove the car toward the outside,
     // demanding counter-steer at speed.
@@ -2495,8 +2519,10 @@ export class GameEngine {
       }
       this.slipVel *= 0.2;
       // The wall ends the slide — and takes the unbanked style points
+      // and the multiplier with it. A chain you can carry through a
+      // barrier is a chain that rewards bouncing off one.
       this.driftYaw *= 0.25;
-      this.driftRun = 0;
+      breakChain(this.ds);
       if (this.scrapeCooldown <= 0) {
         this.scrapeCooldown = 0.5;
         // The impact itself, once per contact: energy loss and a shove
@@ -2611,7 +2637,7 @@ export class GameEngine {
           p.lat += shove * (0.4 + 0.9 * sev);
           this.heading += shove * 0.06 * (0.5 + sev);
           this.driftYaw = this.driftYaw * 0.25 + shove * 0.12 * sev;
-          this.driftRun = 0;
+          breakChain(this.ds);
           this.events.onBump();
           if (this.inBattle) this.bstat.contacts++;
           this.spawnSparks(Math.sign(p.lat - t.lat) || 0, sev);
@@ -3127,8 +3153,13 @@ export class GameEngine {
     // the rears lit up smokes the same arches before the car is moving
     // fast enough to drift.
     const burnout = this.wheelspin > 3 && this.player.speed < 22;
+    // Locked wheels smoke as surely as spinning ones: same rubber, same
+    // road, and the only difference is which way the mismatch runs.
+    const locked = (this.brakeOut?.lock ?? 0) > 0.4 && this.player.speed > 14;
     const drifting =
-      ((Math.abs(this.driftYaw) > 0.14 && this.player.speed > 12) || burnout) &&
+      ((Math.abs(this.driftYaw) > 0.14 && this.player.speed > 12) ||
+        burnout ||
+        locked) &&
       !this.cine;
     if (drifting) {
       this.track.tangentAt(this.player.s, this.v3);
@@ -3144,15 +3175,26 @@ export class GameEngine {
       const spawn = Math.floor(this.smokeAcc);
       this.smokeAcc -= spawn;
       const out = Math.sign(this.driftYaw) || 1;
+      // A slide throws its smoke sideways because the tyre is travelling
+      // across itself. A locked wheel is travelling straight down the
+      // road, so its smoke just boils up off the patch and gets left
+      // behind — the same particles, thrown a different way.
+      const sideways = Math.min(1, Math.abs(this.driftYaw) / 0.25);
+      const lockOnly = 1 - sideways;
+      // Locked fronts smoke at the front axle, not behind the rears.
+      const ax = bx + this.v3.x * 3.2 * lockOnly;
+      const az = bz + this.v3.z * 3.2 * lockOnly;
       for (let n = 0; n < spawn; n++) {
         const side = (n % 2 === 0 ? 0.85 : -0.85) + (Math.random() - 0.5) * 0.5;
         this.smokeFx.spawn(
-          bx + sx * side + (Math.random() - 0.5) * 0.55,
+          ax + sx * side + (Math.random() - 0.5) * 0.55,
           0.24 + Math.random() * 0.22,
-          bz + sz * side + (Math.random() - 0.5) * 0.55,
-          sx * out * (1.2 + Math.random()) + (Math.random() - 0.5),
+          az + sz * side + (Math.random() - 0.5) * 0.55,
+          (sx * out * (1.2 + Math.random()) + (Math.random() - 0.5)) * sideways -
+            this.v3.x * 2.2 * lockOnly,
           1.3 + Math.random() * 1.5,
-          sz * out * (1.2 + Math.random()) + (Math.random() - 0.5),
+          (sz * out * (1.2 + Math.random()) + (Math.random() - 0.5)) * sideways -
+            this.v3.z * 2.2 * lockOnly,
           0.95 + Math.random() * 0.55,
           1.9 + Math.random() * 0.9
         );
@@ -3395,12 +3437,15 @@ export class GameEngine {
       1,
       Math.max(0.12, (speedKmh - GEARS[gear]) / (GEARS[gear + 1] - GEARS[gear]))
     );
-    // Tires complain when the heading fights the lane at speed
+    // Tires complain when the heading fights the lane at speed — and a
+    // locked wheel is the loudest complaint of all, because it is one
+    // patch of rubber being erased at road speed instead of rolling.
     const skid = Math.max(
       0,
       Math.abs(this.heading) * (speedKmh / 140) +
         Math.abs(this.slipVel) * 0.12 +
-        Math.abs(this.driftYaw) * (speedKmh / 95) -
+        Math.abs(this.driftYaw) * (speedKmh / 95) +
+        (this.brakeOut?.lock ?? 0) * Math.min(1, speedKmh / 60) * 0.85 -
         0.22
     );
     // Against the governor: within a hair of the car's limit on full
@@ -3519,6 +3564,12 @@ export class GameEngine {
       streakOpacity: (this.streaks.material as THREE.LineBasicMaterial).opacity,
       driftYaw: this.driftYaw,
       driftRun: this.driftRun,
+      driftChain: this.ds.chain,
+      spinning: this.ds.spinT > 0,
+      brakeLock: this.brakeOut?.lock ?? 0,
+      brakeTemp: Math.round(this.brakeOut?.temp ?? 0),
+      brakeFade: this.brakeOut?.fade ?? 0,
+      abs: this.brakeOut?.abs ?? false,
       cine: this.cine ? (performance.now() - this.cine.start) / 1000 : null,
       renderScale: this.renderScale,
       fpsEma: Math.round(this.fpsEma),
@@ -3583,8 +3634,15 @@ export class GameEngine {
               deg: Math.round((Math.abs(this.driftYaw) * 180) / Math.PI),
               score: Math.round(this.driftRun),
               active: Math.abs(this.driftYaw) > 0.14,
+              chain: this.ds.chain,
+              spinning: this.ds.spinT > 0,
             }
           : null,
+      brakes: {
+        lock: this.brakeOut?.lock ?? 0,
+        fade: this.brakeOut?.fade ?? 0,
+        abs: this.brakeOut?.abs ?? false,
+      },
     });
   }
 }

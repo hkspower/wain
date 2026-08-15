@@ -382,6 +382,10 @@ export interface TuneEffects {
    *  the car past it, and tunes its thrust curve to reach it. */
   topSpeedKmh: number;
   brakeForce: number; // m/s²
+  /** Heat the discs take before they fade, relative to stock pads. */
+  brakeThermalMult: number;
+  /** Anti-lock fitted: pressure is modulated instead of locking. */
+  hasAbs: boolean;
   gripAccel: number; // lateral grip for yaw authority (base 12)
   slipMult: number; // scales centrifugal slip (base 1)
   /** Scales what the driven axle can transmit — an LSD puts both rear
@@ -430,11 +434,25 @@ export function computeEffects(g: GarageState): TuneEffects {
   else if (eq.aspiration === "supercharger") { aspiration = "super"; accelMult += 0.3; topSpeedKmh += 14; }
   else if (eq.aspiration === "twin-turbo") { aspiration = "twin"; boostMult = 0.45; topSpeedKmh += 40; }
 
+  // Brakes buy three separate things, and the tiers spend differently on
+  // each: how hard they bite, how much heat they take before they stop
+  // biting, and whether they will let a wheel stop turning at all.
   let brakeForce = car.brake;
-  if (eq.brakes === "brakes-sport") brakeForce = 32;
-  else if (eq.brakes === "brakes-race") brakeForce = 38;
-  else if (eq.brakes === "brakes-carbon") brakeForce = 44;
-  if (has("weight")) brakeForce += 3;
+  let brakeThermalMult = 1;
+  // Every road car leaves the factory with anti-lock. Race hardware does
+  // not, on purpose: the extra bite and the heat capacity come at the
+  // price of a pedal that will lock a wheel if you ask it to. Upgrading
+  // past sport is a decision about who is modulating the brakes, you or
+  // the car — which is the only reason the cheaper part stays on the list.
+  let hasAbs = true;
+  if (eq.brakes === "brakes-sport") { brakeForce = 32; brakeThermalMult = 1.4; }
+  else if (eq.brakes === "brakes-race") { brakeForce = 38; brakeThermalMult = 2.1; hasAbs = false; }
+  else if (eq.brakes === "brakes-carbon") { brakeForce = 44; brakeThermalMult = 3.4; hasAbs = false; }
+  if (has("weight")) {
+    // Less car to stop: the same pads bite harder and heat slower.
+    brakeForce += 3;
+    brakeThermalMult *= 1.15;
+  }
 
   let gripAccel = car.grip;
   let slipMult = 1;
@@ -477,6 +495,8 @@ export function computeEffects(g: GarageState): TuneEffects {
     accelMult,
     topSpeedKmh,
     brakeForce,
+    brakeThermalMult,
+    hasAbs,
     gripAccel,
     slipMult,
     tractionMult,

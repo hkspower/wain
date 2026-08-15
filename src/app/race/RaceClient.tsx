@@ -128,6 +128,7 @@ export default function RaceClient() {
   const [cine, setCine] = useState<{ card: DriverCard; you?: DriverCard; stake: number } | null>(null);
   const [pauseOpen, setPauseOpen] = useState(false);
   const driftRef = useRef<HTMLDivElement>(null);
+  const brakeRef = useRef<HTMLDivElement>(null);
   const [onboarding, setOnboarding] = useState(false);
   const [coach, setCoach] = useState<CoachState | null>(null);
   const coachRef = useRef<CoachState | null>(null);
@@ -303,17 +304,42 @@ export default function RaceClient() {
       if (driftRef.current) {
         if (d.drift) {
           driftRef.current.style.opacity = "1";
-          driftRef.current.textContent = d.drift.active
-            ? `DRIFT ${d.drift.deg}° ${"|".repeat(Math.min(14, 1 + (d.drift.score / 60) | 0))}`
-            : `DRIFT +${d.drift.score}`;
-          driftRef.current.style.color = d.drift.active
-            ? d.drift.deg > 26
-              ? "#ffc45c"
-              : "#7fe3ff"
-            : "#a7f3d0";
+          // The multiplier only appears once it is above one — a "×1"
+          // glued to every slide is decoration, not information.
+          const chain = d.drift.chain > 1 ? ` ×${d.drift.chain}` : "";
+          driftRef.current.textContent = d.drift.spinning
+            ? "SPUN OUT"
+            : d.drift.active
+              ? `DRIFT ${d.drift.deg}°${chain} ${"|".repeat(Math.min(14, 1 + ((d.drift.score / 60) | 0)))}`
+              : `DRIFT +${Math.round(d.drift.score)}${chain}`;
+          driftRef.current.style.color = d.drift.spinning
+            ? "#ff7b7b"
+            : d.drift.active
+              ? d.drift.deg > 26
+                ? "#ffc45c"
+                : "#7fe3ff"
+              : "#a7f3d0";
         } else {
           driftRef.current.style.opacity = "0";
         }
+      }
+
+      // Brakes speak up only when something is wrong or working hard.
+      // A gauge that is always lit is a gauge nobody reads.
+      if (brakeRef.current) {
+        const b = d.brakes;
+        const msg =
+          b.lock > 0.35
+            ? "WHEELS LOCKED"
+            : b.fade > 0.12
+              ? `BRAKE FADE ${Math.round(b.fade * 100)}%`
+              : b.abs
+                ? "ABS"
+                : "";
+        brakeRef.current.textContent = msg;
+        brakeRef.current.style.opacity = msg ? "1" : "0";
+        brakeRef.current.style.color =
+          b.lock > 0.35 ? "#ff7b7b" : b.fade > 0.12 ? "#ffc45c" : "#7fe3ff";
       }
 
       // Nearest online driver — the PvP challenge target
@@ -863,6 +889,12 @@ export default function RaceClient() {
           <div
             ref={driftRef}
             className="grn-display text-xl italic tracking-[0.14em] opacity-0 transition-opacity duration-300 [text-shadow:0_0_18px_rgba(56,201,238,0.5),0_2px_10px_rgba(0,0,0,0.9)]"
+          />
+          {/* Brakes, but only when they have something to say: wheels
+              locked, anti-lock working, or pads going away with heat. */}
+          <div
+            ref={brakeRef}
+            className="grn-display mt-1 text-center text-sm tracking-[0.2em] opacity-0 transition-opacity duration-200 [text-shadow:0_2px_10px_rgba(0,0,0,0.9)]"
           />
         </div>
 

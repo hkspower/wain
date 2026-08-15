@@ -77,8 +77,10 @@ const CARDS: Card[] = [
     ar: "التيربو والدرفت",
     body:
       "Turbo spools on throttle and NOS (hold N) is a three-second shove. " +
-      "Hold DRIFT (Space) while turning to kick the tail out — hold the " +
-      "throttle through the slide, counter-steer to catch it. Style pays XP.",
+      "Hold DRIFT (Space) while turning to kick the tail out, then EASE OFF " +
+      "the lock — keep it buried and the car keeps rotating until it spins. " +
+      "Catch it with opposite lock. Reverse a live slide to link it: ×2, ×3, " +
+      "up to ×5. Spin or touch a wall and the multiplier is gone.",
     art: (
       <div className="w-full space-y-2">
         <div className="grn-meter h-3">

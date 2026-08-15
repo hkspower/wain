@@ -132,16 +132,27 @@ const measure = (owned, equipped, rig) =>
       reset();
       e.player.speed = 45;
       let peak = 0;
+      let spun = false;
       for (let i = 0; i < 150; i++) {
         e.player.speed = Math.max(e.player.speed, 35);
-        e.setTouchInput({ throttle: 0.9, steer: 1 });
+        // Half lock, not full. Pinned at full lock both tire types
+        // over-rotated and spun, and this read the spin sweep — an
+        // identical 126° on slicks and on drift rubber, which is the
+        // reading a comparison gives you when neither side is measuring
+        // what it names. Half lock and part throttle is the same input
+        // for both, so the difference between them is the tires — and it
+        // is gentle enough that the angle settles where the entry puts it
+        // instead of creeping toward whichever spin threshold arrives
+        // first, which flattened a real 1.4x difference to 1.1x.
+        e.setTouchInput({ throttle: 0.3, steer: 0.5 });
         e.touch.drift = true;
         e.update(1 / 60);
+        if (e.ds.spinT > 0) spun = true;
         peak = Math.max(peak, Math.abs(e.driftYaw));
         e.player.lat = 0;
       }
       e.touch.drift = false;
-      return { peak: +peak.toFixed(3) };
+      return { peak: +peak.toFixed(3), spun };
     }
 
     if (rig === "crash") {
@@ -215,6 +226,8 @@ await strip();
 const driftDrift = await measure(["x"], { tires: "tires-drift" }, "drift");
 console.log(`Drift tires  drift angle ${(slickDrift.peak * 57.3).toFixed(0)}° on slicks -> ${(driftDrift.peak * 57.3).toFixed(0)}°  ` +
   check(driftDrift.peak > slickDrift.peak * 1.2, "drift tires do not hang the tail out further"));
+check(!slickDrift.spun && !driftDrift.spun,
+  "a slide held on measured lock spun anyway — the angles above are spins, not drift angles");
 
 // 6/7. Gearboxes — opposite ends of the same road
 await strip(FAST);
