@@ -191,6 +191,24 @@ if (probe.liveReflections) {
   console.log("\nprobe       skipped — live reflections are off at this tier");
 }
 
+// ---- the GPU we actually got ----------------------------------------
+// powerPreference is a hint, not a contract: the browser may ignore it,
+// and on a hybrid laptop the NVIDIA card and the integrated one are the
+// difference between the game running well and badly with nothing on
+// screen to say which you got. This cannot assert a discrete GPU — this
+// suite runs on a software rasteriser — but it can prove the game knows
+// the answer and will report it.
+{
+  const gpu = await page.evaluate(() => ({
+    name: window.__grnGpu ?? null,
+    live: window.__grnEngine?.gpuName?.() ?? null,
+  }));
+  console.log(`\ngpu         ${gpu.name}`);
+  check(typeof gpu.name === "string" && gpu.name.length > 0 && gpu.name !== "unknown",
+    "the game cannot report which GPU it is running on");
+  check(gpu.live === gpu.name, "the reported GPU and the live query disagree");
+}
+
 console.log(fail.length ? "\nFAILURES:\n - " + fail.join("\n - ") : "\nall frame pacing checks passed");
 await browser.close();
 process.exit(fail.length ? 1 : 0);

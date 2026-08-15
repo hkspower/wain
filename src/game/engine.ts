@@ -509,7 +509,20 @@ export class GameEngine {
     if (opts?.startS !== undefined && Number.isFinite(opts.startS)) {
       this.player.s = Math.max(0, opts.startS);
     }
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    // Ask for the discrete GPU by name.
+    //
+    // Without this hint the browser picks the "default" adapter, and on
+    // a hybrid laptop — an NVIDIA card alongside the CPU's integrated
+    // graphics, which is most gaming laptops — default frequently means
+    // the integrated one. The game then runs on the weaker GPU while
+    // the NVIDIA card idles, and nothing in the game can tell you that
+    // is happening. It is the single largest performance lever
+    // available to a browser game and it costs one property.
+    this.renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      powerPreference: "high-performance",
+    });
     // Full native resolution — on a 4K panel this renders 4K, not an
     // upscaled 1080p. Adaptive quality drops it if the GPU can't hold up.
     this.baseRatio = Math.min(window.devicePixelRatio, 2);
@@ -1068,6 +1081,27 @@ export class GameEngine {
    * Choose the pacing. Browser v-sync is always on and not ours to
    * disable, so the only real lever is how often we accept a frame.
    */
+  /**
+   * Which GPU the browser actually handed us.
+   *
+   * powerPreference is a HINT. The browser can ignore it, and on a
+   * hybrid laptop the difference between the NVIDIA card and the
+   * integrated one is the difference between the game running well and
+   * badly — with nothing on screen to say which you got. This reads the
+   * driver's own unmasked string so the answer is checkable rather than
+   * assumed.
+   */
+  gpuName(): string {
+    try {
+      const gl = this.renderer.getContext();
+      const ext = gl.getExtension("WEBGL_debug_renderer_info");
+      if (ext) return String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL));
+      return String(gl.getParameter(gl.RENDERER));
+    } catch {
+      return "unknown";
+    }
+  }
+
   setFrameCap(cap: "display" | "vrr" | number): void {
     this.frameCap = cap;
     this.applyFrameCap();
@@ -3452,6 +3486,7 @@ export class GameEngine {
     // Dev handles: the live state snapshot plus the engine itself, so
     // scripted play-tests can stage situations the sim reaches slowly.
     (window as unknown as { __grnEngine: GameEngine }).__grnEngine = this;
+    (window as unknown as { __grnGpu: string }).__grnGpu = this.gpuName();
     (window as unknown as { __grnDebug: object }).__grnDebug = {
       playerSpeed: this.player.speed,
       playerLat: this.player.lat,
