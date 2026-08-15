@@ -123,3 +123,4 @@ for (const shot of list) {
 
 await b.close();
 console.log(`\n${list.length} reference still${list.length === 1 ? "" : "s"} in ${OUT}/`);
+console.log("Contact sheet:  python3 tools/shots/sheet.py");
