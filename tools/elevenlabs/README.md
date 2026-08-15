@@ -95,3 +95,34 @@ close that gap:
   points the manifest at it, reloads the game and asserts the *sample*
   voice fires on an impact rather than the synth — then removes both.
   That is the only test that proves the whole consumption path.
+
+
+## Voice lines
+
+The rivals' Arabic dialogue is a separate generator, because it is
+text-to-speech rather than sound generation:
+
+```bash
+node scripts/generate-voices.mjs --check     # key + reachability
+node scripts/generate-voices.mjs --dry-run   # the whole script, no key
+ELEVENLABS_API_KEY=sk_... node scripts/generate-voices.mjs
+```
+
+It writes `public/voices/<clip-id>.mp3` plus a manifest listing the ids;
+`src/game/voice.ts` plays a clip when one exists and falls back to the
+browser's Arabic speech synthesis when it does not.
+
+**The roster is read from `src/game/rivals.ts`, never copied.** The
+previous version carried a hand-maintained table under the instruction
+"keep this table in sync", and it had already drifted: two rivals —
+`bu-torab` and `al-sayyaf` — had been added to the game with no lines
+here at all, so they alone fell back to speech synthesis while the other
+six spoke in real recorded voices. Nobody would notice until they raced
+the sixth rival. Parsing the source is how the UE5 and Unity generators
+avoid exactly this, and it is now how this one does too: 8 rivals, 27
+clips.
+
+The woman on the roster also gets a woman's voice. `bint-aldeera` is
+marked `female: true` in `rivals.ts` and every one of her lines was
+being rendered with the male voice; the generator now picks
+`ELEVENLABS_VOICE_ID_F` for her.
