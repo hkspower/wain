@@ -25,6 +25,7 @@
     "test:physics": "node tests/physics.mjs",
     "sfx": "node tools/elevenlabs/generate-sfx.mjs",
     "music": "node tools/elevenlabs/generate-music.mjs",
+    "audio:check": "node tools/elevenlabs/check-all.mjs",
     "sfx:verify": "node tools/elevenlabs/verify-sfx.mjs",
     "shots": "node tools/shots/capture.mjs",
     "test:race": "node tests/fullrace.mjs",

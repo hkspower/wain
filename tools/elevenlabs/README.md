@@ -21,6 +21,16 @@ npm run sfx:verify        # check a drop before committing it
 completely different ways and **a key cannot help with a host that is
 not allowlisted**.
 
+## Is it working yet?
+
+```bash
+npm run audio:check
+```
+
+One command, all three pipelines. They hit the same host, so they are
+blocked or working together — checking them separately was three
+commands to learn one fact.
+
 ## If it will not connect
 
 This environment blocks the host. The proxy answers with a real 403 and
@@ -40,6 +50,14 @@ Two ways through:
    network configuration — see
    https://code.claude.com/docs/en/claude-code-on-the-web). Then
    `npm run sfx` works here directly.
+
+   This cannot be fixed from inside the repo or by the agent. The
+   session's own proxy documentation is unambiguous about it: *"The
+   destination host is not allowed by your organization's egress policy
+   for this session. Do not retry or route around it — report the
+   blocked host."* There is no config file here that grants a host;
+   the allowlist lives in the environment, and only its owner can
+   change it.
 2. **Generate elsewhere.** Run the script on any machine with normal
    internet access and commit the resulting `public/sfx/*.mp3` and
    `manifest.json`. Nothing else has to change.
