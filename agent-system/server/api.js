@@ -77,22 +77,21 @@ const on = (method, pattern, handler, opts = {}) =>
 on('POST', '/api/auth/login', async (ctx) => {
   const username = str(ctx.body.username, 'اسم المستخدم', { max: 60 }).toLowerCase();
   const password = str(ctx.body.password, 'كلمة المرور', { max: 200 });
-  const key = `${ctx.ip}|${username}`;
 
-  if (!auth.loginAllowed(key)) {
+  if (!auth.loginAllowed(ctx.ip, username)) {
     throw new (require('./lib/http').HttpError)(429, 'محاولات كثيرة، حاول بعد قليل');
   }
 
   const agent = db.prepare('SELECT * FROM agents WHERE lower(username) = ?').get(username);
   if (!agent || !auth.verifyPassword(password, agent.password_hash)) {
-    auth.recordFailure(key);
+    auth.recordFailure(ctx.ip, username);
     throw unauthorized('اسم المستخدم أو كلمة المرور غير صحيحة');
   }
 
   // سبب المنع يُكشف بعد التحقق من كلمة المرور فقط: صاحب الحساب يستحق معرفة
   // لماذا مُنع، ومن يخمّن كلمة مرور لا يعرف حتى إن كان الحساب موجودًا.
   if (!D.WORKING_APPROVALS.includes(agent.approval)) {
-    auth.recordFailure(key);
+    auth.recordFailure(ctx.ip, username);
     throw new (require('./lib/http').HttpError)(
       403,
       D.APPROVAL_BLOCK_REASON[agent.approval] || 'حسابك غير مفعّل. راجع إدارة العمليات.',
@@ -101,7 +100,7 @@ on('POST', '/api/auth/login', async (ctx) => {
   }
   if (!agent.active) throw unauthorized('حسابك غير مفعّل. راجع إدارة العمليات.');
 
-  auth.clearFailures(key);
+  auth.clearFailures(ctx.ip, username);
   const session = auth.createSession(agent.id);
   db.prepare("UPDATE agents SET availability = 'available' WHERE id = ? AND role = 'agent'").run(agent.id);
 

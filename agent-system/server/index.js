@@ -12,6 +12,7 @@ const { URL } = require('node:url');
 
 const { routes } = require('./api');
 const auth = require('./auth');
+const location = require('./location');
 const H = require('./lib/http');
 
 const PORT = Number(process.env.PORT) || 4000;
@@ -62,6 +63,36 @@ const MIME = {
   '.txt': 'text/plain; charset=utf-8',
 };
 
+/**
+ * ترويسات أمن لصفحات HTML.
+ *
+ * اللوحة تُحمّل ملفّاتها من أصلها وحده — لا سكربت مضمّن في الصفحة ولا مورد
+ * من نطاق خارجي — فسياسة `'self'` صارمة لا تكسر شيئًا. تبقى `style-src`
+ * متساهلة مع المضمّن لأن اللوحة تكتب `style="..."` في مواضع معدودة.
+ *
+ * `frame-ancestors 'none'` تمنع وضع اللوحة داخل إطار في صفحة أخرى، وهي
+ * الحيلة التي تُخدع بها ضغطة المدير فتنفّذ إجراءً لم يقصده.
+ */
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "media-src 'self'",
+  "connect-src 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'none'",
+  "object-src 'none'",
+].join('; ');
+
+const HTML_SECURITY_HEADERS = {
+  'Content-Security-Policy': CSP,
+  'X-Frame-Options': 'DENY',          // للمتصفّحات التي لا تعرف frame-ancestors
+  'Referrer-Policy': 'same-origin',
+  'X-Content-Type-Options': 'nosniff',
+};
+
 function serveStatic(req, res, pathname) {
   const rel = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
   const target = path.resolve(PUBLIC_DIR, rel);
@@ -84,7 +115,8 @@ function serveStatic(req, res, pathname) {
       const fallback = path.join(PUBLIC_DIR, 'index.html');
       return fs.readFile(fallback, (e2, buf) => {
         if (e2) { res.writeHead(404).end('Not Found'); return; }
-        res.writeHead(200, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-cache' });
+        res.writeHead(200, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-cache',
+                             ...HTML_SECURITY_HEADERS });
         res.end(buf);
       });
     }
@@ -96,9 +128,33 @@ function serveStatic(req, res, pathname) {
       'Content-Length': stat.size,
       'Cache-Control': immutable ? 'public, max-age=604800' : 'no-cache',
       'X-Content-Type-Options': 'nosniff',
+      ...(ext === '.html' ? HTML_SECURITY_HEADERS : {}),
     });
     fs.createReadStream(target).pipe(res);
   });
+}
+
+/* ------------------------------ عنوان العميل ------------------------------ */
+
+/**
+ * `X-Forwarded-For` ترويسة يكتبها العميل، ولا تصير موثوقة إلا إذا كان أمام
+ * النظام وسيط يعيد كتابتها. الأخذ بها بلا شرط يُفرغ حدّ محاولات الدخول من
+ * معناه: مفتاح الحدّ هو «العنوان|المستخدم»، فيكفي تغيير الترويسة كل محاولة
+ * ليصير لكل تخمين مفتاح جديد ولا يُحجب أبدًا — تخمين بلا سقف على حساب المدير،
+ * وكل تخمين يكلّف الخادم عملية scrypt كاملة.
+ *
+ * لذلك لا تُقرأ إلا حين يُعلن المشغّل صراحةً أنه خلف وسيط:
+ *   MAWSOOL_TRUST_PROXY=1
+ * وهو ما يصفه DEPLOY.md في إعداد nginx.
+ */
+const TRUST_PROXY = process.env.MAWSOOL_TRUST_PROXY === '1';
+
+function clientIp(req) {
+  if (TRUST_PROXY) {
+    const fwd = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    if (fwd) return fwd;
+  }
+  return req.socket.remoteAddress || '';
 }
 
 /* ------------------------------- الخادم ------------------------------- */
@@ -129,7 +185,7 @@ const server = http.createServer(async (req, res) => {
     body: {},
     token: cookies.mw_session || '',
     agent: null,
-    ip: (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '',
+    ip: clientIp(req),
     setCookie: (name, value, opts) => setCookies.push(H.cookie(name, value, opts)),
   };
 
@@ -186,9 +242,13 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-// تنظيف الجلسات المنتهية كل ساعة
+/* تنظيف دوري كل ساعة.
+   نقاط الموقع كانت تُحذف عرضًا عند فتح شاشة المتابعة فقط. مدة الحفظ وعدٌ
+   للكابتن بألّا يُخزَّن مساره أكثر منها، فلا يصحّ أن يتوقّف الوفاء به على
+   دخول أحد شاشةً بعينها: ليلة بلا متابعة تُبقي مسارات اليوم كلها. */
 const pruner = setInterval(() => {
   try { auth.pruneSessions(); } catch (e) { console.error('فشل تنظيف الجلسات', e); }
+  try { location.purgeExpired(); } catch (e) { console.error('فشل تنظيف نقاط الموقع', e); }
 }, 3600_000);
 pruner.unref();
 

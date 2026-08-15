@@ -59,25 +59,56 @@ function pruneSessions() {
   db.prepare('DELETE FROM sessions WHERE expires_at <= ?').run(now());
 }
 
-/* ---- حدّ محاولات تسجيل الدخول (في الذاكرة) ---- */
+/* ---- حدّ محاولات تسجيل الدخول (في الذاكرة) ----
+ *
+ * حدّان لا حدّ واحد:
+ *   • «العنوان|المستخدم» ضيّق (٨) — يوقف التخمين من مصدر واحد.
+ *   • «المستخدم» وحده واسع (٤٠) — يبقي سقفًا حين يأتي التخمين من عناوين
+ *     كثيرة، وهو ما يحدث فعلًا خلف وسيط أو من شبكة موزّعة.
+ *
+ * الحدّ الثاني واسع عمدًا: لو ضُيِّق لصار سلاح تعطيل — يكفي غريب يخمّن
+ * ثماني مرات ليقفل حساب المدير عن صاحبه. أربعون محاولة في عشر دقائق لا
+ * يبلغها مستخدم حقيقي، وتُبقي التخمين مقيّدًا بدل أن يكون بلا سقف.
+ */
 const attempts = new Map();
 const MAX_ATTEMPTS = 8;
+const MAX_ATTEMPTS_USER = 40;
 const WINDOW_MS = 10 * 60_000;
 
-function loginAllowed(key) {
+/** يُسقط السجلّات المنتهية حتى لا تنمو الخريطة بلا حدّ من مفاتيح ميّتة */
+function sweep() {
+  const cutoff = Date.now() - WINDOW_MS;
+  for (const [k, rec] of attempts) if (rec.first < cutoff) attempts.delete(k);
+}
+
+function allowed(key, max) {
   const rec = attempts.get(key);
   if (!rec) return true;
   if (Date.now() - rec.first > WINDOW_MS) { attempts.delete(key); return true; }
-  return rec.count < MAX_ATTEMPTS;
+  return rec.count < max;
 }
 
-function recordFailure(key) {
+function bump(key) {
   const rec = attempts.get(key);
   if (!rec || Date.now() - rec.first > WINDOW_MS) attempts.set(key, { count: 1, first: Date.now() });
   else rec.count += 1;
 }
 
-function clearFailures(key) { attempts.delete(key); }
+/** يُمرَّر العنوان واسم المستخدم منفصلين ليُفحص المفتاحان معًا */
+function loginAllowed(ip, username) {
+  if (attempts.size > 5000) sweep();
+  return allowed(`${ip}|${username}`, MAX_ATTEMPTS) && allowed(`u|${username}`, MAX_ATTEMPTS_USER);
+}
+
+function recordFailure(ip, username) {
+  bump(`${ip}|${username}`);
+  bump(`u|${username}`);
+}
+
+function clearFailures(ip, username) {
+  attempts.delete(`${ip}|${username}`);
+  attempts.delete(`u|${username}`);
+}
 
 module.exports = {
   hashPassword, verifyPassword, createSession, destroySession,

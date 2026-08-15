@@ -392,3 +392,45 @@ test('بعد الإسناد تعود كل الحالات متاحة للمدير
   assert.ok(data.order.allowed_next.includes('delivered'));
   assert.ok(data.order.allowed_next.includes('on_the_way'));
 });
+
+/* ------------------------ صلابة الواجهة الخلفية ------------------------ */
+
+test('ترويسة X-Forwarded-For لا تُصدَّق ما لم يُعلَن الوسيط', async () => {
+  // مفتاح حدّ المحاولات كان «العنوان|المستخدم» والعنوان يؤخذ من الترويسة بلا
+  // شرط، فتغييرها كل محاولة يعطي مفتاحًا جديدًا ويُلغي الحدّ من أصله.
+  const codes = [];
+  for (let i = 0; i < 12; i++) {
+    const res = await fetch(base + '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': `203.0.113.${i}` },
+      body: JSON.stringify({ username: 'ag3', password: 'خطأ' + i }),
+    });
+    codes.push(res.status);
+  }
+  assert.ok(codes.includes(429), 'التخمين مرّ ١٢ مرة بلا حجب رغم تزييف العنوان');
+});
+
+test('حدّ اسم المستخدم يحجب التخمين الموزّع ولا يقفل الحساب بلا داعٍ', async () => {
+  const auth = require('../server/auth');
+  auth.clearFailures('1.1.1.1', 'quota-user');
+  // دون الحدّ الواسع: مسموح
+  for (let i = 0; i < 30; i++) auth.recordFailure(`9.9.9.${i}`, 'quota-user');
+  assert.equal(auth.loginAllowed('9.9.9.200', 'quota-user'), true);
+  // فوقه: يُحجب
+  for (let i = 0; i < 15; i++) auth.recordFailure(`8.8.8.${i}`, 'quota-user');
+  assert.equal(auth.loginAllowed('8.8.8.200', 'quota-user'), false);
+  // ولا يمسّ حسابًا آخر
+  assert.equal(auth.loginAllowed('8.8.8.200', 'other-user'), true);
+});
+
+test('صفحات HTML تحمل ترويسات أمن ومنع التأطير', async () => {
+  const res = await fetch(base + '/');
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('x-frame-options'), 'DENY');
+  const csp = res.headers.get('content-security-policy') || '';
+  assert.match(csp, /frame-ancestors 'none'/);
+  assert.match(csp, /script-src 'self'/);
+  // الأصول الثابتة لا تحتاجها ولا تُحمَّل بها
+  const js = await fetch(base + '/app.js');
+  assert.equal(js.headers.get('content-security-policy'), null);
+});

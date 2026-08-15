@@ -436,3 +436,36 @@ test('المدير يرسل تقريرًا يدويًا لأي طلب', async ()
   assert.equal(r.status, 200);
   assert.ok(['pending', 'sent', 'failed'].includes(r.data.mail.status));
 });
+
+/* نقطة رفع الصوت مفتوحة بلا جلسة، وحدّها كان يحكم حجم الرسالة الواحدة لا
+   عددها: من يملك الرابط يرفع بحجم الحدّ بلا عدد حتى يمتلئ القرص الذي تجلس
+   عليه قاعدة البيانات. */
+test('الملاحظات الصوتية محدودة العدد على الطلب الواحد', async () => {
+  const LK = require('../server/links');
+  const order = await makeOrder();
+  const t = tokenOf((await newLink(order)).url);
+
+  const send = () => call(null, 'POST', `/api/link/${t}/voice`, null, {
+    raw: fakeAudio(1024), headers: { 'Content-Type': 'audio/webm', 'X-Voice-Seconds': '3' },
+  });
+
+  for (let i = 0; i < LK.VOICE_MAX_PER_ORDER; i++) {
+    assert.equal((await send()).status, 200, `الملاحظة رقم ${i + 1} رُفضت قبل بلوغ السقف`);
+  }
+  const over = await send();
+  assert.equal(over.status, 400);
+  assert.equal(over.data.code, 'voice_quota');
+});
+
+test('نوع الصوت يُخزَّن مطبَّعًا لا كما وصل في الترويسة', async () => {
+  const { db } = require('../server/db');
+  const order = await makeOrder();
+  const t = tokenOf((await newLink(order)).url);
+  const r = await call(null, 'POST', `/api/link/${t}/voice`, null, {
+    raw: fakeAudio(512),
+    headers: { 'Content-Type': 'audio/webm; codecs=opus; ' + 'x'.repeat(400), 'X-Voice-Seconds': '2' },
+  });
+  assert.equal(r.status, 200);
+  const row = db.prepare('SELECT mime FROM voice_notes WHERE id=?').get(r.data.voice_note.id);
+  assert.equal(row.mime, 'audio/webm');
+});

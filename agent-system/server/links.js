@@ -29,6 +29,19 @@ const VOICE_MAX_BYTES = Math.max(64 * 1024, Number(process.env.MAWSOOL_VOICE_MAX
 /** أطول مدة تسجيل مقبولة بالثواني */
 const VOICE_MAX_SECONDS = 180;
 
+/**
+ * سقف الملاحظات الصوتية على الطلب الواحد — عددًا وحجمًا.
+ *
+ * نقطة الرفع مفتوحة بلا جلسة (الرمز هو الإذن)، والحدّ الموجود يحكم حجم
+ * الرسالة الواحدة لا عددها. من يملك الرابط — الكابتن، أو أي أحد أُعيد
+ * توجيه رسالة واتساب إليه — يستطيع رفع ملفات بحجم الحدّ بلا عدد طوال
+ * صلاحية الرابط، فيمتلئ القرص الذي تجلس عليه قاعدة البيانات نفسها.
+ *
+ * عشر ملاحظات في مهمّة توصيل واحدة سقف سخيّ لا يبلغه استعمال حقيقي.
+ */
+const VOICE_MAX_PER_ORDER = Math.max(1, Number(process.env.MAWSOOL_VOICE_MAX_PER_ORDER) || 10);
+const VOICE_MAX_ORDER_BYTES = VOICE_MAX_PER_ORDER * VOICE_MAX_BYTES;
+
 const VOICE_DIR = path.join(DATA_DIR, 'voice');
 fs.mkdirSync(VOICE_DIR, { recursive: true });
 
@@ -193,19 +206,38 @@ function saveVoiceNote(token, buffer, mime, seconds) {
   const { link, order, agent } = resolve(token);
   touch(link);
 
-  const ext = VOICE_MIME[String(mime || '').split(';')[0].trim()];
+  /* النوع يُخزَّن مطبَّعًا لا كما وصل: ترويسة `Content-Type` نصّ يكتبه العميل
+     كما يشاء، وتخزينها خامًا يُدخل نصًّا غير محدود الطول إلى القاعدة. */
+  const baseMime = String(mime || '').split(';')[0].trim().toLowerCase();
+  const ext = VOICE_MIME[baseMime];
   if (!ext) throw badRequest('صيغة صوت غير مدعومة', 'voice_mime');
   if (!buffer || !buffer.length) throw badRequest('التسجيل فارغ', 'voice_empty');
   if (buffer.length > VOICE_MAX_BYTES) throw badRequest('التسجيل أكبر من الحد المسموح', 'voice_too_big');
 
+  const used = db.prepare(
+    'SELECT COUNT(*) AS n, COALESCE(SUM(bytes), 0) AS total FROM voice_notes WHERE order_id = ?'
+  ).get(order.id);
+  if (used.n >= VOICE_MAX_PER_ORDER || used.total + buffer.length > VOICE_MAX_ORDER_BYTES) {
+    throw badRequest('بلغت الحدّ الأقصى للملاحظات الصوتية على هذا الطلب', 'voice_quota');
+  }
+
   const secs = Math.max(0, Math.min(VOICE_MAX_SECONDS, Number(seconds) || 0));
   const filename = `${order.code}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`;
-  fs.writeFileSync(path.join(VOICE_DIR, filename), buffer);
 
+  /* السجلّ يُكتب أولًا ثم الملف: لو فشل الإدخال بعد كتابة الملف لبقي على
+     القرص ملفٌّ لا يعرفه أحد ولا يحذفه شيء. وإن فشلت الكتابة نتراجع عن
+     السجلّ فلا يبقى صفٌّ يشير إلى ملف غير موجود. */
   const info = db.prepare(
     `INSERT INTO voice_notes (order_id, agent_id, link_id, filename, mime, bytes, seconds, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(order.id, agent.id, link.id, filename, mime, buffer.length, secs, now());
+  ).run(order.id, agent.id, link.id, filename, baseMime, buffer.length, secs, now());
+
+  try {
+    fs.writeFileSync(path.join(VOICE_DIR, filename), buffer);
+  } catch (err) {
+    db.prepare('DELETE FROM voice_notes WHERE id = ?').run(info.lastInsertRowid);
+    throw err;
+  }
 
   logEvent({
     orderId: order.id, actorId: agent.id, type: 'voice_note',
@@ -274,7 +306,8 @@ function linksForOrder(orderId) {
 }
 
 module.exports = {
-  LINK_HOURS, VOICE_MAX_BYTES, VOICE_MAX_SECONDS, VOICE_MIME, OUTCOMES, VOICE_DIR,
+  LINK_HOURS, VOICE_MAX_BYTES, VOICE_MAX_SECONDS, VOICE_MAX_PER_ORDER,
+  VOICE_MIME, OUTCOMES, VOICE_DIR,
   createLink, revokeLink, resolve, context, linksForOrder,
   setConsent, setSharing, recordPoint,
   saveVoiceNote, voiceFile, reportOutcome,
