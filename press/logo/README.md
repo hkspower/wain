@@ -1,16 +1,41 @@
-# Gulf Road Nights — identity
+# Identity
 
-Four files, one construction. Everything is drawn in code and rendered
-through Chromium (`node press/logo/render.mjs`), which is the only
-renderer available here that shapes Arabic and Japanese correctly — PIL
-would set both as disconnected letterforms.
+Two marks in one system. **Gulf Road Nights** is the game; **Night
+Racers** is the crew that runs it. Everything is drawn in code and
+rendered through Chromium (`node press/logo/render.mjs`), which is the
+only renderer available here that shapes Arabic and Japanese correctly —
+PIL would set both as disconnected letterforms. Every file is 4K on its
+long edge.
+
+## Gulf Road Nights — the title
 
 | File | Size | Use |
 | --- | --- | --- |
-| `gulf-road-nights-logo.png` | 3200×1800 | the lockup, on the night ground |
-| `gulf-road-nights-logo-transparent.png` | 3200×1800 | the same lockup, no ground |
-| `gulf-road-nights-badge.png` | 1800×1800 | the round mark: avatar, sticker, app icon |
-| `gulf-road-nights-plate.png` | 2400×3200 | the poster plate |
+| `gulf-road-nights-logo.png` | 3840×2160 | the lockup, on the night ground |
+| `gulf-road-nights-logo-transparent.png` | 3840×2160 | the same lockup, no ground |
+| `gulf-road-nights-badge.png` | 3840×3840 | the round mark: avatar, sticker, app icon |
+| `gulf-road-nights-plate.png` | 2880×3840 | the poster plate |
+
+## Night Racers — the crew
+
+| File | Size | Use |
+| --- | --- | --- |
+| `night-racers-logo.png` | 3840×2160 | the lockup, on the night ground |
+| `night-racers-logo-transparent.png` | 3840×2160 | the same lockup, no ground |
+| `night-racers-emblem.png` | 3840×3840 | the crew patch |
+
+Where the title mark is a survey — measured, indexed, annotated — the
+crew mark is a stamp. NIGHT in paper white, RACERS in sodium amber, one
+line, sheared harder than the title at 12°. Above it sits 走り屋
+(*hashiriya*), which is the word Japanese street racers actually use for
+themselves rather than a translation of "racer"; the emblem takes that
+seal, sets it on a lit disc, and graduates the bezel in 72 stations with
+both name arcs left clear of the ticks. ナイトレーサーズ round the top,
+NIGHT RACERS round the bottom.
+
+The two marks share the palette, the shear, and the rule that amber
+means observed and cyan means calculated — so they read as one house
+without either being a recolour of the other.
 
 ## The mark
 

@@ -1,0 +1,78 @@
+<meta charset="utf-8">
+<title>Night Racers — lockup</title>
+<style>
+  @font-face { font-family:"Shoulders"; src:url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/BigShoulders-Bold.ttf"); font-weight:700; }
+  @font-face { font-family:"Mono"; src:url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/GeistMono-Regular.ttf"); }
+  @font-face { font-family:"Kana"; src:url("file:///usr/share/fonts/truetype/fonts-japanese-gothic.ttf"); }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:1600px; height:900px; }
+  body { background:#05070e; font-family:"Mono",monospace; -webkit-font-smoothing:antialiased; overflow:hidden; }
+  body.bare { background:transparent; }
+  body.bare .field, body.bare .vignette { display:none; }
+  #stage { position:relative; width:1600px; height:900px; overflow:hidden; }
+  .field { position:absolute; inset:0;
+    background:
+      radial-gradient(70% 56% at 50% 40%, rgba(255,176,60,0.10) 0%, rgba(0,0,0,0) 64%),
+      linear-gradient(180deg,#070b16 0%,#05070e 54%,#04060c 100%); }
+  .vignette { position:absolute; inset:0;
+    background: radial-gradient(72% 64% at 50% 48%, rgba(0,0,0,0) 40%, rgba(0,0,0,0.58) 100%); }
+  svg.art { position:absolute; inset:0; }
+  .row { position:absolute; left:0; right:0; text-align:center; }
+  /* The seal: the word street racers use for themselves, cut as a stamp. */
+  .seal { font-family:"Kana",sans-serif; font-size:58px; letter-spacing:0.10em; text-indent:0.10em;
+          color:#ffb03c; }
+  .wm { font-family:"Shoulders",sans-serif; font-weight:700; transform:skewX(-12deg);
+        line-height:0.84; text-transform:uppercase; white-space:nowrap; }
+  .wm-main { font-size:172px; letter-spacing:0.006em; }
+  .wm-main .w { color:#e8ecf4; }
+  .wm-main .r { color:#ffb03c; }
+  .kana { font-family:"Kana",sans-serif; font-size:19px; letter-spacing:0.72em; text-indent:0.72em;
+          color:rgba(232,236,244,0.42); }
+  .tag { font-family:"Mono",monospace; font-size:11px; letter-spacing:0.46em; text-indent:0.46em;
+         text-transform:uppercase; color:rgba(232,236,244,0.28); }
+</style>
+<div id="stage">
+  <div class="field"></div>
+  <svg class="art" width="1600" height="900" viewBox="0 0 1600 900" fill="none">
+    <defs>
+      <linearGradient id="hair" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#e8ecf4" stop-opacity="0"/>
+        <stop offset="0.5" stop-color="#e8ecf4" stop-opacity="0.34"/>
+        <stop offset="1" stop-color="#e8ecf4" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="amberRule" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#ffb03c" stop-opacity="0"/>
+        <stop offset="0.5" stop-color="#ffb03c" stop-opacity="0.6"/>
+        <stop offset="1" stop-color="#ffb03c" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <g id="marks"></g>
+  </svg>
+
+  <div class="row" style="top:208px;"><span class="seal">走り屋</span></div>
+  <div class="row" style="top:352px;">
+    <div class="wm wm-main"><span class="w">Night&nbsp;</span><span class="r">Racers</span></div>
+  </div>
+  <div class="row" style="top:614px;"><span class="kana">ナイトレーサーズ</span></div>
+  <div class="row" style="top:678px;"><span class="tag">Gulf Road · 02:00</span></div>
+  <div class="vignette"></div>
+</div>
+<script>
+if (new URLSearchParams(location.search).has("bare")) document.body.classList.add("bare");
+const NS="http://www.w3.org/2000/svg";
+const el=(n,a)=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e;};
+{
+  const g=document.getElementById("marks");
+  // Two rules bracket the mark: the measure the discipline never drops.
+  g.appendChild(el("rect",{x:520,y:288,width:560,height:0.9,fill:"url(#hair)"}));
+  g.appendChild(el("rect",{x:470,y:572,width:660,height:0.9,fill:"url(#amberRule)"}));
+  // Graduations under the amber rule — the same coast, counted not drawn
+  const x0=470,x1=1130,N=45;
+  for(let i=0;i<N;i++){
+    const t=i/(N-1), x=x0+t*(x1-x0), major=i%5===0;
+    const fade=Math.pow(Math.min(1,Math.min(t,1-t)/0.26),0.85);
+    g.appendChild(el("rect",{x:x.toFixed(2),y:574,width:0.9,height:major?9:5,
+      fill:"#ffb03c","fill-opacity":(fade*(major?0.5:0.24)).toFixed(3)}));
+  }
+}
+</script>

@@ -14,12 +14,20 @@ const C = [
 const exe = C.find((p) => existsSync(p));
 if (!exe) { console.error("no chromium"); process.exit(2); }
 
+// Every plate is delivered at 4K on its long edge. The sources are
+// vector and text, so the scale factor costs nothing but pixels — there
+// is no resampling anywhere in this pipeline.
+const LONG_EDGE = 3840;
+
 const jobs = [
-  { file: "plate.html", out: "gulf-road-nights-plate.png", w: 1200, h: 1600, scale: 2 },
-  { file: "lockup.html", out: "gulf-road-nights-logo.png", w: 1600, h: 900, scale: 2 },
-  { file: "lockup.html?bare=1", out: "gulf-road-nights-logo-transparent.png", w: 1600, h: 900, scale: 2, alpha: true },
-  { file: "badge.html", out: "gulf-road-nights-badge.png", w: 900, h: 900, scale: 2, alpha: true },
-];
+  { file: "plate.html", out: "gulf-road-nights-plate.png", w: 1200, h: 1600 },
+  { file: "lockup.html", out: "gulf-road-nights-logo.png", w: 1600, h: 900 },
+  { file: "lockup.html?bare=1", out: "gulf-road-nights-logo-transparent.png", w: 1600, h: 900, alpha: true },
+  { file: "badge.html", out: "gulf-road-nights-badge.png", w: 900, h: 900, alpha: true },
+  { file: "nr-lockup.html", out: "night-racers-logo.png", w: 1600, h: 900 },
+  { file: "nr-lockup.html?bare=1", out: "night-racers-logo-transparent.png", w: 1600, h: 900, alpha: true },
+  { file: "nr-emblem.html", out: "night-racers-emblem.png", w: 900, h: 900, alpha: true },
+].map((j) => ({ ...j, scale: LONG_EDGE / Math.max(j.w, j.h) }));
 
 mkdirSync("press/logo", { recursive: true });
 const b = await chromium.launch({ executablePath: exe, args: ["--no-sandbox", "--disable-dev-shm-usage", "--force-color-profile=srgb"] });
@@ -39,7 +47,7 @@ for (const j of jobs) {
     omitBackground: !!j.alpha,
     clip: { x: 0, y: 0, width: j.w, height: j.h },
   });
-  console.log(`${j.out}  ${j.w * j.scale}x${j.h * j.scale}`);
+  console.log(`${j.out}  ${Math.round(j.w * j.scale)}x${Math.round(j.h * j.scale)}`);
   await page.close();
 }
 await b.close();
