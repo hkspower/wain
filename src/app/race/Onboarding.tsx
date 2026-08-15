@@ -235,7 +235,7 @@ export default function Onboarding({
             ))}
           </div>
           <button onClick={next} className="grn-btn grn-btn-primary tap px-6 py-3 text-sm">
-            {last ? "LET'S GO — يالله" : "NEXT"}
+            {last ? "LET'S GO — يلا" : "NEXT"}
           </button>
         </div>
       </div>

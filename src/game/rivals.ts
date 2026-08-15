@@ -182,7 +182,7 @@ export const RIVALS: RivalDef[] = [
     car: "Sahara GT-12",
     country: "???",
     flag: "🏴",
-    rejectLine: "لست جاهزاً بعد...",
+    rejectLine: "بعدك ما أنت جاهز...",
     name: "Shabah Al-Khaleej",
     arabicName: "شبح الخليج",
     crew: "???",

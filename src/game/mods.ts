@@ -59,7 +59,7 @@ export const PARTS: Part[] = [
   { id: "rack", cat: "chassis", name: "Quick Steering Rack", ar: "دركسون سريع", price: 700, desc: "Faster hands: the car answers the wheel almost immediately" },
   // Extras — additive
   { id: "weight", cat: "extras", name: "Weight Reduction", ar: "تخفيف وزن", price: 800, desc: "+10% power, +3 braking" },
-  { id: "nos", cat: "extras", name: "NOS Kit", ar: "نيتروجين", price: 1000, desc: "Hold N for a 3-second shove; recharges slowly" },
+  { id: "nos", cat: "extras", name: "NOS Kit", ar: "نيترو", price: 1000, desc: "Hold N for a 3-second shove; recharges slowly" },
   { id: "spoiler", cat: "extras", name: "GT Wing", ar: "جناح", price: 300, desc: "Downforce: steadier at speed" },
   { id: "gold-rims", cat: "extras", name: "Gold Rims", ar: "رنجات ذهب", price: 600, desc: "Pure Salmiya energy" },
   { id: "stickers", cat: "extras", name: "Rally Sticker Pack", ar: "ملصقات", price: 450, desc: "Door roundels, beltline stripes, hood decal, flag on the quarter" },
@@ -234,7 +234,7 @@ export const CARS: CarModel[] = [
   {
     id: "salmiya-turbo",
     name: "Salmiya Turbo GT",
-    ar: "توربو السالمية",
+    ar: "تيربو السالمية",
     cls: "sport",
     price: 24000,
     power: 1.2,
