@@ -19,6 +19,7 @@
     "sync:models": "node scripts/export-car-profiles.mjs && python3 tools/blender/build_assets.py --out public/models",
     "sync:unity": "node scripts/export-unity-data.mjs",
     "check:unity": "node scripts/check-unity-sync.mjs",
+    "check:arabic": "node scripts/check-arabic.mjs",
     "test:motion": "node tests/motion.mjs",
     "test:pacing": "node tests/framepacing.mjs",
     "test:assets": "node tests/assets.mjs",

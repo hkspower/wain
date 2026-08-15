@@ -109,7 +109,32 @@ So this asserts the type is real rather than plausible:
 
 ```bash
 npm run test:fonts
+npm run check:arabic   # the text itself, not its rendering
 ```
+
+`check:arabic` is the companion static check. `test:fonts` proves the
+Arabic is *drawn* correctly; this proves it is *written* correctly, and
+it catches the class of fault no reviewer spots by eye:
+
+- **Presentation forms** (U+FB50–FEFF) pasted in where base letters
+  belong. That is what you get copying rendered text out of a PDF or an
+  image: it looks identical and breaks search, selection, and any font
+  without those glyphs.
+- **Invisible bidi controls** left over from a paste, fighting the
+  `direction` and `unicode-bidi` the stylesheet already sets.
+- **Tatweel** (kashida) used to hand-stretch a word — justification is
+  the shaper's job.
+- **Mixed digit systems** inside one Arabic string.
+- **Borrowed words spelled two ways.** This is the one that actually
+  bit: "turbo" was تيربو in the parts list and توربو on a car, and NOS
+  was labelled نيتروجين — nitrogen, which is what goes in the tyres,
+  not the nitrous oxide the part actually is.
+
+The digit rule needed a second pass. Its first version flagged
+`Flash 3× — لوّح بالضو ٣ مرات`, which is correct: the string is
+bilingual and each half uses the digits of its own language. A linter
+that reports correct text as broken teaches people to ignore it, so it
+now only fires on strings with no Latin in them at all.
 
 ## mods.mjs — every part changes the car
 
