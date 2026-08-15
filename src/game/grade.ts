@@ -47,6 +47,10 @@ export const GradeShader = {
      *  clips, which is why the core of a lamp is white and its falloff
      *  carries the hue. */
     uDesatStart: { value: 0.55 },
+    /** Global saturation. 1 leaves the picture as graded; the shipped
+     *  look sits a little above neutral, and the slider spans a washed
+     *  0.6 to an oversaturated 1.4. */
+    uSaturation: { value: 1.0 },
     /** Dither amplitude in 8-bit steps. 0 disables it (A/B testing). */
     uDither: { value: 1.0 },
   },
@@ -68,6 +72,7 @@ export const GradeShader = {
     uniform float uHighlights;
     uniform float uHighlightDesat;
     uniform float uDesatStart;
+    uniform float uSaturation;
     uniform float uDither;
     varying vec2 vUv;
     float hash(vec2 p) {
@@ -126,6 +131,16 @@ export const GradeShader = {
       float l1 = luma(c.rgb);
       float t = smoothstep(uDesatStart, 1.0, l1);
       c.rgb = mix(c.rgb, vec3(l1), t * uHighlightDesat);
+
+      // Global saturation, after the highlight desaturation and before
+      // the dither. Done as a mix toward the pixel's own luminance
+      // rather than in HSV: converting to HSV and scaling S shifts hue
+      // on anything near a primary, and a night scene is mostly sodium
+      // orange and neon cyan, which are exactly the cases that shift.
+      // Rec.709 luma weights, so the grey it collapses toward is the
+      // grey the eye agrees is the same brightness.
+      float lg = luma(c.rgb);
+      c.rgb = max(mix(vec3(lg), c.rgb, uSaturation), 0.0);
 
       // Triangular-PDF dither, applied last, immediately before the 8-bit
       // quantisation it exists to hide. The frame buffer is half-float all

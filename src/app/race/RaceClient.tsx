@@ -173,6 +173,7 @@ export default function RaceClient() {
         engineRef.current?.setExposure(next.exposure, next.autoExposure);
       if (k === "contrast") engineRef.current?.setContrast(next.contrast);
       if (k === "highlights") engineRef.current?.setHighlights(next.highlights);
+      if (k === "saturation") engineRef.current?.setSaturation(next.saturation);
       playSfx("ui-tap", 0.6);
       return next;
     });
@@ -481,6 +482,7 @@ export default function RaceClient() {
     engine.setExposure(boot.exposure, boot.autoExposure);
     engine.setContrast(boot.contrast);
     engine.setHighlights(boot.highlights);
+    engine.setSaturation(boot.saturation);
     if (boot.frameCap !== "display") engine.setFrameCap(boot.frameCap);
     setPhase("playing");
 
@@ -1778,6 +1780,7 @@ export default function RaceClient() {
                 ["contrast", "Contrast", "التباين", 0.7, 1.5, 0.05, (v: number) => v.toFixed(2)],
                 ["highlights", "Highlights", "الإضاءات", -1, 1, 0.1, (v: number) =>
                   v === 0 ? "neutral" : v < 0 ? `recover ${Math.abs(v).toFixed(1)}` : `push ${v.toFixed(1)}`],
+                ["saturation", "Saturation", "التشبع", 0.6, 1.4, 0.02, (v: number) => v.toFixed(2)],
               ] as const
             ).map(([key, label, ar, min, max, step, fmt]) => (
               <label key={key} className="mt-3 block text-sm">

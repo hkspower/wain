@@ -94,6 +94,50 @@ const shots = WRITE_STILLS ? await page.evaluate(async ()=>{
 }) : {};
 for(const [k,v] of Object.entries(shots)) writeFileSync(`/tmp/smoke/tod-${k}.png`, Buffer.from(v.split(",")[1],"base64"));
 if (WRITE_STILLS) console.log("stills:", Object.keys(shots).join(", "));
+// ---- key and fill ---------------------------------------------------
+// A three-point rig is a claim about ratios, not about whether lights
+// exist. The key must dominate at every hour, the fill must sit well
+// under it and be cooler, and the fill must cast nothing: a fill that
+// throws shadows gives the scene a second sun.
+const rig = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  const out = [];
+  for (const h of [0, 6.5, 12.5, 18.5, 22]) {
+    e.timeHours = h; e.world.setTimeOfDay(h); e.applyDaylight();
+    const k = e.world.moonLight, f = e.world.fillLight;
+    const warmth = (c) => c.r - c.b; // >0 warm, <0 cool
+    out.push({
+      h,
+      key: +k.intensity.toFixed(3),
+      fill: +f.intensity.toFixed(3),
+      ratio: +(k.intensity / Math.max(1e-6, f.intensity)).toFixed(2),
+      keyWarm: +warmth(k.color).toFixed(3),
+      fillWarm: +warmth(f.color).toFixed(3),
+      fillShadow: f.castShadow,
+      // Opposition is a horizontal property: both lights come from
+      // above (a fill under the horizon would uplight the scene like a
+      // campfire), so it is the ground-plane bearing that must oppose.
+      opposedXZ: (k.position.x * f.position.x + k.position.z * f.position.z) /
+        Math.max(1e-6, Math.hypot(k.position.x, k.position.z) * Math.hypot(f.position.x, f.position.z)),
+      lower: f.position.y < k.position.y,
+    });
+  }
+  return out;
+});
+console.log("\nkey / fill:");
+for (const r of rig) {
+  console.log(`  ${String(r.h).padStart(4)}h  key ${String(r.key).padEnd(6)} fill ${String(r.fill).padEnd(6)} ` +
+    `ratio ${String(r.ratio).padEnd(5)} warmth key ${r.keyWarm} vs fill ${r.fillWarm}`);
+  check(r.key > r.fill, `at ${r.h}h the fill (${r.fill}) is not weaker than the key (${r.key})`);
+  check(r.ratio >= 2.5 && r.ratio <= 5,
+    `at ${r.h}h the key:fill ratio is ${r.ratio} — outside the 2.5:1..5:1 a key-and-fill rig means`);
+  check(r.fillWarm < r.keyWarm, `at ${r.h}h the fill is not cooler than the key`);
+  check(!r.fillShadow, "the fill casts shadows — that is a second key, not a fill");
+  check(r.opposedXZ < -0.5,
+    `at ${r.h}h the fill is not opposite the key across the ground plane (bearing dot ${r.opposedXZ.toFixed(2)})`);
+  check(r.lower, `at ${r.h}h the fill is higher than the key`);
+}
+
 console.log(fail.length?"\nFAILURES:\n - "+fail.join("\n - "):"\nthe day actually turns");
 await b.close();
 process.exit(fail.length?1:0);

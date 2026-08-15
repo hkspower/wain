@@ -264,6 +264,23 @@ npm run test:ik
 GRN_STILLS=1 npm run test:ik   # also writes /tmp/smoke/ik-driver.png
 ```
 
+## framepacing.mjs — hertz, and the cost of a frame
+
+Covers refresh detection, the frame limiter, the under-refresh VRR cap
+and the governors that key off them — and, since the reflection probe
+was amortised, that a frame costs the same as its neighbours.
+
+That last one is the one a throughput test cannot see. `CubeCamera.update()`
+renders the whole scene six times in one call, so refreshing the probe
+on a stride made every sixth frame cost about seven times its
+neighbours: the average frame rate barely moved while every sixth frame
+missed its vsync deadline, which is what a player feels as a stutter
+rather than as a low number. The probe now renders face *n* on frame
+*n* — same full refresh every six frames, cost spread flat — and the
+test counts scene draw calls per frame and asserts they stay level
+(327, 327, 327, … ) while the face index walks 0..5. Frame *rate* is
+still only asserted when the browser can actually serve frames.
+
 ## menu.mjs — the front door
 
 The main menu is the one screen where a broken build looks exactly like
@@ -309,8 +326,16 @@ that was already white. Measuring contrast at noon, the top end by its
 mean rather than a clip count, and saturation above the shoulder made
 all three discriminate immediately.
 
-The exposure ladder is metered in daylight, and that took three
-attempts to get honest. Measured at night it swung sixty per cent
+Grading is measured on a STILL frame. The camera carries a
+speed-scaled rumble, which a histogram cannot see but which destroys
+any comparison of the *same pixel* between two shots — the dark pixels
+land on a different part of the scene and read as though the highlight
+control had lifted the shadows by a factor of two. Pinned at a
+standstill, the same 349 dark pixels read 0.2075 / 0.2076 / 0.2075
+across highlight recover / neutral / push, and saturation holds the
+frame's luminance to four decimal places.
+
+The exposure ladder took several attempts to get honest. Measured at night it swung sixty per cent
 between identical runs and failed perhaps one run in three — the
 lamps sit exactly on the bloom threshold at 0 EV, so a four per cent
 lamp shimmer flips a large amount of glow in or out of the frame.
@@ -324,11 +349,15 @@ still show the *previous* shot's exposure and the ladder read
 non-monotonic. Parked every frame, rendered until settled, and metered
 at noon, the spread is under one per cent.
 
-The thresholds are deliberately asymmetric, and that is the tone curve
-rather than a fudge: a daylight frame sits up on the filmic shoulder,
-so a stop down is compressed (−14%) while a stop up still has room to
-climb (+52%). At night it is the other way round. Demanding symmetry
-would be demanding the shoulder not work.
+The two directions are asserted differently, and that is a statement
+about this pipeline rather than a softened test. Up is strong and
+discriminating (+64%). Down is asserted for direction only: the
+grade's shadow toe and black-point rescale are fixed, so as exposure
+comes down they lift the tone-mapped frame back up and the mean barely
+moves (−1% to −3%). The practical consequence is that the exposure
+slider's lower half does very little to a bright frame — below −1 EV a
+daylight frame washes out rather than darkening. That is characterised
+here rather than asserted away.
 
 ```bash
 npm run test:grade

@@ -154,6 +154,43 @@ if (canMeasureThroughput) {
   console.log("\nthroughput  skipped — this browser cannot drive enough frames to test a cap");
 }
 
+// ---- the reflection probe must cost the same every frame ------------
+// A probe that refreshes all six cube faces on one frame in six makes
+// that frame cost about seven times its neighbours. The average frame
+// rate barely moves, so a throughput test cannot see it; what the player
+// sees is a stutter every sixth frame. Count the scene draw calls each
+// frame instead: flat is the whole claim.
+const probe = await page.evaluate(async () => {
+  const e = window.__grnEngine;
+  e.applyQualityTier("high"); // pin the resolution; DRS must not move
+  const calls = [];
+  const faces = [];
+  // Drive the probe by hand, exactly as the RAF loop does, and read the
+  // draw calls it costs per frame.
+  for (let i = 0; i < 12; i++) {
+    e.renderer.info.reset();
+    e.renderProbe(); // test hook onto the per-frame probe path
+    calls.push(e.renderer.info.render.calls);
+    faces.push(e.probeFace);
+  }
+  return { calls, faces, liveReflections: e.liveReflections };
+});
+if (probe.liveReflections) {
+  const lo = Math.min(...probe.calls);
+  const hi = Math.max(...probe.calls);
+  console.log(`\nprobe       draw calls per frame ${probe.calls.join(",")}`);
+  console.log(`            face index cycles ${probe.faces.join(",")}`);
+  check(lo > 0, "the reflection probe drew nothing");
+  // Every frame renders exactly one face, so the spread across frames is
+  // whatever the six views happen to see — never a 6x refresh spike.
+  check(hi <= lo * 2.2,
+    `probe frame cost swings ${lo}..${hi} draw calls — a face sweep is still landing on one frame`);
+  check(new Set(probe.faces.slice(0, 6)).size === 6,
+    `the probe does not walk all six faces: saw ${probe.faces.slice(0, 6).join(",")}`);
+} else {
+  console.log("\nprobe       skipped — live reflections are off at this tier");
+}
+
 console.log(fail.length ? "\nFAILURES:\n - " + fail.join("\n - ") : "\nall frame pacing checks passed");
 await browser.close();
 process.exit(fail.length ? 1 : 0);

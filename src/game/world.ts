@@ -331,6 +331,10 @@ function asphaltSurface(): {
   }
   rctx.putImageData(rimg, 0, 0);
   const roughnessMap = new THREE.CanvasTexture(rc);
+  // Data, not colour. This is the default, but it is the default that a
+  // shared texture once silently overrode — the road came out at 0.01
+  // roughness, a black mirror — so it is stated rather than assumed.
+  roughnessMap.colorSpace = THREE.NoColorSpace;
   roughnessMap.wrapS = roughnessMap.wrapT = THREE.RepeatWrapping;
   roughnessMap.anisotropy = 16;
   // no colorSpace assignment on purpose — this is linear data
@@ -360,6 +364,7 @@ function asphaltSurface(): {
   }
   nctx.putImageData(nimg, 0, 0);
   const normalMap = new THREE.CanvasTexture(nc);
+  normalMap.colorSpace = THREE.NoColorSpace; // vectors, not colour
   normalMap.wrapS = normalMap.wrapT = THREE.RepeatWrapping;
   normalMap.anisotropy = 16;
 
@@ -1107,6 +1112,8 @@ export interface WorldHandle {
   setCrowdFocus(x: number, y: number, z: number, dt: number): void;
   /** The moon — the engine drives its shadow frustum along with the player. */
   moonLight: THREE.DirectionalLight;
+  /** The weaker, cooler light opposite the key. Casts nothing. */
+  fillLight: THREE.DirectionalLight;
   /** Sky dome, stars and moon disc — re-centred on the camera each frame
    *  so they can sit inside a tight far plane without ever clipping. */
   skyFollowers: THREE.Object3D[];
@@ -1126,6 +1133,15 @@ function makeBeacon(beacons: THREE.MeshStandardMaterial[]): THREE.Mesh {
 
 // Hawally tunnel on the inland leg — TXR-style underpass
 const TUNNEL_U = { from: 0.615, to: 0.655 };
+
+// The key light's strength through the day, and what the fill runs at
+// relative to it. A fill at a third of the key lifts the shadow side to
+// about a stop and a half under — enough to read, far enough down that
+// the key still does the modelling.
+const KEY_NIGHT = 1.15;
+const KEY_TWILIGHT = 1.5;
+const KEY_DAY = 3.1;
+const FILL_RATIO = 0.3;
 
 const _focus = new THREE.Vector3();
 const _rest = new THREE.Quaternion();
@@ -1226,9 +1242,28 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // flooding them.
   hemiRef = new THREE.HemisphereLight(0x2b3853, 0x120e08, 0.36);
   scene.add(hemiRef);
-  const moonLight = new THREE.DirectionalLight(0xbfd0ff, 0.8);
+
+  // Key and fill, the way a set is lit rather than the way a scene
+  // graph accumulates lights.
+  //
+  // The KEY is the one light that models the subject: it is the moon at
+  // night and the sun by day, it throws the shadows, and it is
+  // deliberately the strongest thing in the rig so surfaces turn
+  // through a real range from lit to unlit.
+  //
+  // The FILL sits roughly opposite and well below it in strength — the
+  // classic ratio is somewhere around three or four to one — and it is
+  // cooler than the key. Its whole job is to keep the shadow side
+  // readable without flattening the form, so it casts nothing: a fill
+  // that throws its own shadows produces a second set of them and the
+  // image reads as two suns.
+  const moonLight = new THREE.DirectionalLight(0xbfd0ff, KEY_NIGHT);
   moonLight.position.set(-300, 500, 200);
   scene.add(moonLight);
+  const fillLight = new THREE.DirectionalLight(0x86a6d8, KEY_NIGHT * FILL_RATIO);
+  fillLight.position.set(300, 220, -200);
+  fillLight.castShadow = false;
+  scene.add(fillLight);
 
   // Gradient night-sky dome with city glow at the horizon
   {
@@ -2442,6 +2477,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
 
   return {
     moonLight,
+    fillLight,
     skyFollowers,
     setSky(mode: SkyMode) {
       // The old two-state switch, expressed in the language of the
@@ -2511,12 +2547,31 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       moonLight.color.copy(
         mix3([0.75, 0.82, 1.0], [1.0, 0.78, 0.55], [1.0, 0.96, 0.88])
       );
-      moonLight.intensity = 0.8 * night + 1.05 * twilight + 2.35 * day;
+      const key = KEY_NIGHT * night + KEY_TWILIGHT * twilight + KEY_DAY * day;
+      moonLight.intensity = key;
 
+      // The fill answers the key from the other side, tracking it so the
+      // ratio holds at every hour instead of only at midnight. It is
+      // cooler than the key at every hour too: warm key, cool fill is
+      // what keeps a night scene from going monochrome blue and a day
+      // scene from going flat.
+      fillLight.position.set(
+        -moonLight.position.x * 0.62,
+        Math.max(120, moonLight.position.y * 0.42),
+        -moonLight.position.z * 0.62
+      );
+      fillLight.color.copy(
+        mix3([0.42, 0.55, 0.82], [0.5, 0.6, 0.86], [0.62, 0.72, 0.95])
+      );
+      fillLight.intensity = key * FILL_RATIO;
+
+      // Ambient is now the third tier, not the fill: with a real fill
+      // doing the shadow-side lifting, the hemisphere only has to keep
+      // the very darkest crevices off absolute black.
       if (hemiRef) {
         hemiRef.color.copy(mix3([0.17, 0.22, 0.33], [0.35, 0.42, 0.59], [0.55, 0.68, 0.92]));
         hemiRef.groundColor.copy(mix3([0.07, 0.055, 0.03], [0.17, 0.13, 0.09], [0.42, 0.36, 0.28]));
-        hemiRef.intensity = 0.36 * night + 0.52 * twilight + 0.85 * day;
+        hemiRef.intensity = 0.2 * night + 0.3 * twilight + 0.5 * day;
       }
 
       // Stars burn out as the sky lifts; nothing kills a sunrise faster

@@ -521,6 +521,15 @@ export class GameEngine {
         cores: navigator.hardwareConcurrency || 4,
       };
     }
+    // Colour management on, explicitly. It has defaulted to on since
+    // three r152, but every material colour in this project is authored
+    // as an sRGB hex and every canvas texture is tagged sRGB — the whole
+    // build assumes the renderer converts those to linear before it
+    // lights them and back on the way out. Leaving that to a library
+    // default is leaving the accuracy of every colour in the game to a
+    // default.
+    THREE.ColorManagement.enabled = true;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     // Exposure is applied by ExposurePass, in the chain, so the renderer
     // itself stays neutral — otherwise the two would multiply.
@@ -798,8 +807,21 @@ export class GameEngine {
       // cap set equal to the refresh rate loses the race with itself
       // every other frame and the game runs at exactly half rate.
       if (this.frameMinMs > 0) {
-        if (nowMs - this.lastFrameAt < this.frameMinMs - 0.5) return;
-        this.lastFrameAt = nowMs;
+        // Frame limiting on a fixed schedule, not on arrival times.
+        //
+        // Re-basing the next deadline on the moment a frame happened to
+        // arrive lets the error accumulate, and when the cap sits near
+        // the panel's own rate the two beat against each other: most
+        // frames pass, then one lands a hair early and is dropped, so a
+        // steady 60 becomes a visible 60/30 judder while the average
+        // still reads 60. Advancing the deadline by whole frame periods
+        // keeps the cadence locked to the target instead.
+        const due = this.lastFrameAt + this.frameMinMs;
+        if (nowMs < due - 0.5) return;
+        // Resync rather than sprint to catch up if we fell more than a
+        // frame behind — a hidden tab or a long stall must not be repaid
+        // with a burst of frames.
+        this.lastFrameAt = nowMs - due > this.frameMinMs ? nowMs : due;
       }
       const raw = this.clock.getDelta();
       if (raw > 0) this.fpsEma = this.fpsEma * 0.95 + (1 / raw) * 0.05;
@@ -809,23 +831,23 @@ export class GameEngine {
       // Polled outside update() so Start still works while paused
       this.pollGamepad();
       if (!this.paused) this.update(dt);
-      // Refresh the paint's reflection probe on a stride. Every face
-      // render would redraw the shadow maps too — freeze them for the
-      // probe (the main render's maps are reused), and re-convolve the
-      // PMREM cache afterwards or the paint keeps the first frame forever.
-      if (this.liveReflections && !this.paused && ++this.cubeFrame % 6 === 0) {
-        const shadowAuto = this.renderer.shadowMap.autoUpdate;
-        this.renderer.shadowMap.autoUpdate = false;
-        this.playerMesh.visible = false;
-        try {
-          this.cubeCam.position.copy(this.playerMesh.position);
-          this.cubeCam.position.y += 1.2;
-          this.cubeCam.update(this.renderer, this.scene);
-          this.cubeRT.texture.needsPMREMUpdate = true;
-        } finally {
-          this.playerMesh.visible = true;
-          this.renderer.shadowMap.autoUpdate = shadowAuto;
-        }
+      // Refresh the paint's reflection probe — ONE cube face per frame.
+      //
+      // CubeCamera.update() renders the whole scene six times in a single
+      // call. Doing that on a stride gave the probe a full refresh every
+      // sixth frame and made that frame cost roughly seven times its
+      // neighbours: the average frame rate looked fine while every sixth
+      // frame missed its vsync deadline, which is what a player feels as
+      // a stutter rather than as a low number. Rendering face n on frame
+      // n keeps exactly the same refresh cadence — all six faces inside
+      // six frames — with the cost spread flat.
+      //
+      // Every face render would redraw the shadow maps too, so freeze
+      // them for the probe (the main render's maps are reused), and
+      // re-convolve the PMREM cache once per completed sweep or the
+      // paint keeps the first frame forever.
+      if (this.liveReflections && !this.paused) {
+        this.renderProbeFace();
       }
       // One pipeline for both quality modes keeps colour grading identical
       this.composer.render();
@@ -876,6 +898,56 @@ export class GameEngine {
     const buf = this.renderer.getDrawingBufferSize(new THREE.Vector2());
     const res = this.fxaaPass.material.uniforms["resolution"].value as THREE.Vector2;
     res.set(1 / buf.x, 1 / buf.y);
+  }
+
+  /**
+   * Render one face of the reflection probe, advancing round the cube.
+   * Mirrors what CubeCamera.update() does per face, minus the five it
+   * would do in the same frame.
+   */
+  /** Test hook: run one frame of the probe exactly as the loop does. */
+  renderProbe(): void {
+    this.renderProbeFace();
+  }
+
+  /** Which cube face the probe will render next, 0..5. */
+  get probeFace(): number {
+    return this.cubeFrame % 6;
+  }
+
+  private renderProbeFace(): void {
+    const cams = this.cubeCam.children as THREE.PerspectiveCamera[];
+    const face = this.cubeFrame % 6;
+    const cam = cams[face];
+    if (!cam) return;
+
+    const shadowAuto = this.renderer.shadowMap.autoUpdate;
+    const prevTarget = this.renderer.getRenderTarget();
+    const prevFace = this.renderer.getActiveCubeFace();
+    const prevMip = this.renderer.getActiveMipmapLevel();
+    // Mipmaps are generated on the last write to the target, so only the
+    // face that completes the sweep may generate them.
+    const genMips = this.cubeRT.texture.generateMipmaps;
+
+    this.renderer.shadowMap.autoUpdate = false;
+    this.playerMesh.visible = false; // the car must not reflect itself
+    try {
+      this.cubeCam.position.copy(this.playerMesh.position);
+      this.cubeCam.position.y += 1.2;
+      this.cubeCam.updateMatrixWorld(true);
+      this.cubeRT.texture.generateMipmaps = face === 5 ? genMips : false;
+      this.renderer.setRenderTarget(this.cubeRT, face);
+      this.renderer.render(this.scene, cam);
+    } finally {
+      this.cubeRT.texture.generateMipmaps = genMips;
+      this.renderer.setRenderTarget(prevTarget, prevFace, prevMip);
+      this.playerMesh.visible = true;
+      this.renderer.shadowMap.autoUpdate = shadowAuto;
+    }
+
+    // A sweep is complete: convolve it once, not once per face.
+    if (face === 5) this.cubeRT.texture.needsPMREMUpdate = true;
+    this.cubeFrame++;
   }
 
   private applyRenderScale(): void {
@@ -1055,6 +1127,11 @@ export class GameEngine {
 
   setContrast(v: number): void {
     this.grainPass.uniforms.uContrast.value = THREE.MathUtils.clamp(v, 0.7, 1.5);
+  }
+
+  /** Global saturation, 0.6 (washed) to 1.4 (poster). */
+  setSaturation(v: number): void {
+    this.grainPass.uniforms.uSaturation.value = THREE.MathUtils.clamp(v, 0.6, 1.4);
   }
 
   /** -1 recovers the highlights, +1 pushes them toward clipping. */

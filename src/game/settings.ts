@@ -38,6 +38,8 @@ export interface Settings {
   exposure: number;
   contrast: number;
   highlights: number;
+  /** Global saturation. Moderate by default — see DEFAULTS. */
+  saturation: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -52,8 +54,15 @@ export const DEFAULT_SETTINGS: Settings = {
   frameCap: "display",
   autoExposure: true,
   exposure: 0,
-  contrast: 1,
+  // Moderate, deliberately. A little contrast over neutral gives the
+  // night some snap without crushing the shadow detail the fill light
+  // exists to put there, and a little saturation over neutral makes
+  // sodium orange and neon read as colours rather than as tints —
+  // stopping well short of the poster look that turns every lamp into a
+  // flat blob of orange.
+  contrast: 1.06,
   highlights: 0,
+  saturation: 1.08,
 };
 
 const KEY = "gulf-road-nights-settings";

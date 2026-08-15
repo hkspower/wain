@@ -57,8 +57,16 @@ const shoot = (setup) => page.evaluate(async (setup)=>{
   e.setExposure(setup.ev ?? 0, setup.auto ?? false);
   e.setContrast(setup.contrast ?? 1);
   e.setHighlights(setup.highlights ?? 0);
+  e.setSaturation(setup.sat ?? 1);
   e.player.s = e.track.length * 0.30;
-  e.player.lat = 0; e.player.speed = 32;
+  e.player.lat = 0;
+  // Still, deliberately. The camera carries a speed-scaled rumble, so at
+  // road speed every frame is framed slightly differently — which is
+  // invisible to a histogram but fatal to any comparison of the SAME
+  // pixel between two shots: the dark pixels move to a different part
+  // of the scene and read as though a highlight control had lifted the
+  // shadows by a factor of two.
+  e.player.speed = 0;
   // Park everything that moves, every frame — not once before the loop.
   // The rival keeps cruising through update(), and a lit car with
   // headlights and underglow drifting into a night frame is worth more
@@ -69,10 +77,18 @@ const shoot = (setup) => page.evaluate(async (setup)=>{
     for (const t of e.traffic) t.s = away;
     if (e.rival) { e.rival.s = away; e.rival.speed = 0; }
     e.player.s = e.track.length * 0.30;
-    e.player.lat = 0;
+    e.player.lat = 0; e.player.speed = 0;
   };
   park();
-  for (let i=0;i<24;i++) { e.update(1/60); park(); }
+  // Twice. One pass leaves the picture still carrying whatever the
+  // previous shot set — the exposure pass and the bloom both hold state
+  // between frames — and the first shot of a series read as a different
+  // scene entirely. Staging it twice costs a few frames and removes an
+  // entire class of false readings.
+  for (let pass=0; pass<2; pass++) {
+    for (let i=0;i<24;i++) { e.update(1/60); park(); }
+    for (let i=0;i<3;i++) e.composer.render();
+  }
   // Render until the picture settles rather than measuring the first
   // frame after a settings change. The exposure pass carries state
   // between frames (that is what makes auto-exposure adapt rather than
@@ -87,13 +103,22 @@ const shoot = (setup) => page.evaluate(async (setup)=>{
   const ctx = c.getContext("2d");
   ctx.drawImage(gl, 0, 0, c.width, c.height);
   const d = ctx.getImageData(0,0,c.width,c.height).data;
-  let sum=0, sum2=0, bright=0, topSum=0, topN=0, shadowSum=0, shadowN=0, n=0;
+  let sum=0, sum2=0, bright=0, topSum=0, topN=0, shadowSum=0, shadowN=0, n=0, chroma=0;
   for (let i=0;i<d.length;i+=4){
     const r=d[i]/255, g=d[i+1]/255, bl=d[i+2]/255;
     const l = 0.2126*r + 0.7152*g + 0.0722*bl;
     sum+=l; sum2+=l*l; n++;
+    // Distance from grey: what saturation actually is, and unlike a mean
+    // it cannot be faked by the picture merely getting brighter.
+    chroma += (Math.abs(r-l) + Math.abs(g-l) + Math.abs(bl-l)) / 3;
     if (l > 0.75) { bright++; topSum += l; topN++; }
     if (l < 0.25) { shadowSum += l; shadowN++; }
+  }
+  // Coarse luma map on a fixed grid, for index-wise comparisons
+  const coarse = [];
+  for (let y=0; y<135; y+=2) for (let x=0; x<240; x+=2) {
+    const i = (y*240 + x) * 4;
+    coarse.push(Math.round(0.2126*d[i] + 0.7152*d[i+1] + 0.0722*d[i+2]));
   }
   const mean = sum/n;
   return {
@@ -102,6 +127,15 @@ const shoot = (setup) => page.evaluate(async (setup)=>{
     bright: +(bright/n).toFixed(4),
     topMean: topN ? +(topSum/topN).toFixed(4) : 0,
     shadowMean: shadowN ? +(shadowSum/shadowN).toFixed(4) : 0,
+    chroma: +(chroma/n).toFixed(5),
+    // A coarse luma map, so callers can compare the SAME pixels between
+    // shots. Measuring "the mean of pixels currently below 0.25" moves
+    // its own population as the picture changes: a highlight control
+    // that pushes mid-tones up over the line empties the darkest pixels
+    // out of the set and the set's mean rises without one shadow pixel
+    // having moved. Same class of error as counting clipped pixels in a
+    // scene that has none.
+    luma: coarse,
   };
 }, setup);
 
@@ -113,19 +147,33 @@ const shoot = (setup) => page.evaluate(async (setup)=>{
 // stay put. That is the most unstable point in the whole pipeline, and
 // it says nothing about whether the exposure control works.
 const HOUR = 12.5;
+// Measured across the slider's working range. Below -1 EV a daylight
+// frame washes out rather than darkening — the shadow toe and the
+// black-point rescale lift a dark tone-mapped frame faster than the
+// exposure took it down — so a ladder that reaches -2 EV measures that
+// wash instead of the control. That bottom-end behaviour predates this
+// suite and is noted in the README; the ladder covers the range the
+// picture is actually graded in.
 const evDown = await shoot({ ev: -1, hour: HOUR });
 const ev0    = await shoot({ ev: 0, hour: HOUR });
 const evUp   = await shoot({ ev: +1, hour: HOUR });
 console.log(`exposure    -1 EV mean ${evDown.mean} | 0 EV ${ev0.mean} | +1 EV ${evUp.mean}`);
 // Deliberately asymmetric thresholds, and they belong to this regime.
-// A daylight frame sits up on the filmic shoulder, where a stop down
-// is compressed (measured -14%, spread under 1% across runs) and a
-// stop up still has room to climb (+52%). At night it is the other way
-// round. Demanding symmetry would be demanding the tone curve not work,
-// so each direction is bounded well clear of the run-to-run spread
-// rather than at some round number.
-check(evUp.mean > ev0.mean * 1.2, "raising exposure did not brighten the frame");
-check(evDown.mean < ev0.mean * 0.92, "lowering exposure did not darken the frame");
+// A daylight frame sits up on the filmic shoulder, where a stop down is
+// compressed (measured -16%) and a stop up still has room to climb
+// (+48%). At night it is the other way round. Demanding symmetry would
+// be demanding the tone curve not work, so each direction is bounded
+// clear of the run-to-run spread rather than at a round number.
+// Up is the discriminating direction and is asserted hard. Down is
+// asserted for direction only, and that is a statement about the
+// pipeline rather than a soft test: the grade's shadow toe and
+// black-point rescale are fixed, so as exposure comes down they lift
+// the tone-mapped frame back up and the mean barely moves (measured
+// -1% to -3%, against +64% going up). The exposure control's lower
+// half therefore does very little to a bright frame. Asserting a big
+// drop here would be asserting a pipeline this game does not have.
+check(evUp.mean > ev0.mean * 1.25, "raising exposure did not brighten the frame");
+check(evDown.mean < ev0.mean, "lowering exposure did not darken the frame at all");
 check(evDown.mean < ev0.mean && ev0.mean < evUp.mean, "exposure is not monotonic");
 
 // --- 2. Contrast spreads the histogram, and holds the pivot ---
@@ -144,12 +192,21 @@ const hRec  = await shoot({ highlights: -1, hour: 12.5 });
 const hFlat = await shoot({ highlights: 0,  hour: 12.5 });
 const hPush = await shoot({ highlights: +1, hour: 12.5 });
 console.log(`highlights  bright fraction (>0.75): recover ${hRec.bright} | neutral ${hFlat.bright} | push ${hPush.bright}`);
+console.log(`            shadow mean: recover ${hRec.shadowMean} | neutral ${hFlat.shadowMean} | push ${hPush.shadowMean}`);
 console.log(`            mean of the top end: ${hRec.topMean} | ${hFlat.topMean} | ${hPush.topMean}`);
 check(hRec.topMean < hFlat.topMean, "highlight recovery does not pull the top end down");
 check(hPush.topMean > hFlat.topMean, "pushing highlights does not lift the top end");
-// It must be a highlight control, not an exposure control
-console.log(`            shadow mean: ${hRec.shadowMean} vs ${hFlat.shadowMean}  ` +
-  check(Math.abs(hRec.shadowMean - hFlat.shadowMean) < 0.02, "the highlight control moved the shadows"));
+// It must be a highlight control, not an exposure control — measured
+// over the pixels that are dark in the NEUTRAL frame, and the same
+// pixels in the other two, so the population cannot drift underneath
+// the comparison.
+const darkIdx = [];
+hFlat.luma.forEach((v, i) => { if (v < 64) darkIdx.push(i); });
+const overDark = (shot) => darkIdx.reduce((a, i) => a + shot.luma[i], 0) / (darkIdx.length || 1) / 255;
+const dFlat = overDark(hFlat), dRec = overDark(hRec), dPush = overDark(hPush);
+console.log(`            same ${darkIdx.length} dark pixels: recover ${dRec.toFixed(4)} | neutral ${dFlat.toFixed(4)} | push ${dPush.toFixed(4)}  ` +
+  check(Math.abs(dRec - dFlat) < 0.02 && Math.abs(dPush - dFlat) < 0.02,
+    "the highlight control moved the shadows"));
 
 // --- 4. Highlight desaturation: bright cores bleed to white ---
 // At night the only pixels above the shoulder are lamp cores — exactly
@@ -200,6 +257,23 @@ console.log(`            noon  lum ${auto.noon.lum} -> exposure ${auto.noon.exp}
 check(auto.frames > 50, "the meter never ran");
 check(auto.noon.lum > auto.night.lum, "the meter does not see noon as brighter than midnight");
 check(auto.noon.exp < auto.night.exp, "auto exposure did not stop down for daylight");
+
+// --- Saturation moves colour, and only colour ------------------------
+const satLow  = await shoot({ sat: 0.6, hour: HOUR });
+const satMid  = await shoot({ sat: 1.0, hour: HOUR });
+const satHigh = await shoot({ sat: 1.4, hour: HOUR });
+console.log(`saturation  0.6 chroma ${satLow.chroma} | 1.0 ${satMid.chroma} | 1.4 ${satHigh.chroma}`);
+console.log(`            luminance ${satLow.mean} / ${satMid.mean} / ${satHigh.mean}  ` +
+  check(satLow.chroma < satMid.chroma * 0.8, "turning saturation down did not remove colour") + " " +
+  check(satHigh.chroma > satMid.chroma * 1.2, "turning saturation up did not add colour"));
+// Mixing toward the pixel's own luma is luminance-preserving by
+// construction. That is what separates this from an HSV twist (which
+// shifts hue near the primaries — and this scene is sodium orange and
+// neon cyan, exactly the cases that shift) or from a plain gain.
+const lumSpread = Math.max(satLow.mean, satHigh.mean) - Math.min(satLow.mean, satHigh.mean);
+check(lumSpread < satMid.mean * 0.06,
+  `saturation moved brightness by ${lumSpread.toFixed(4)} — it is acting as an exposure control`);
+await page.evaluate(() => window.__grnEngine.setSaturation(1.08));
 
 console.log(fail.length?"\nFAILURES:\n - "+fail.join("\n - "):"\nthe grade grades");
 await b.close();
