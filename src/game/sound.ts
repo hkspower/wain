@@ -84,6 +84,15 @@ export class SoundEngine {
   private skidGain: GainNode;
   private skidFilter: BiquadFilterNode;
   private skidWarble: OscillatorNode;
+  /** Second warble at an incommensurate rate — one LFO reads as a siren. */
+  private skidWarble2: OscillatorNode;
+  /** The squeal's harmonic. A slipping tyre is a stick-slip oscillator,
+   *  so it rings at a fundamental AND its overtone, not one band. */
+  private skidHarm: BiquadFilterNode;
+  private skidHarmGain: GainNode;
+  /** Roughness: the tearing amplitude modulation of rubber letting go. */
+  private skidRough: OscillatorNode;
+  private skidRoughAmt: GainNode;
   private scrubGain: GainNode;
   // Induction: the intake growl that swells with load
   private inductionGain: GainNode;
@@ -206,9 +215,45 @@ export class SoundEngine {
     warbleAmt.gain.value = 170;
     this.skidWarble.connect(warbleAmt).connect(this.skidFilter.frequency);
     this.skidWarble.start();
+    // Second warble, deliberately not a multiple of the first. Two
+    // incommensurate rates never line up, so the squeal wanders the way
+    // a real one does; a single LFO reads as a siren within a second.
+    this.skidWarble2 = this.ctx.createOscillator();
+    this.skidWarble2.frequency.value = 13.7;
+    const warbleAmt2 = this.ctx.createGain();
+    warbleAmt2.gain.value = 130;
+    this.skidWarble2.connect(warbleAmt2).connect(this.skidFilter.frequency);
+    this.skidWarble2.start();
+
     this.skidGain = this.ctx.createGain();
     this.skidGain.gain.value = 0;
-    this.loopNoise().connect(this.skidFilter).connect(this.skidGain).connect(this.bed);
+
+    // ROUGHNESS. A tyre at the limit is a stick-slip oscillator: it grips,
+    // tears free, grips again, tens of times a second. That buzz is what
+    // separates a tyre letting go from a kettle, and no amount of filter
+    // tuning produces it — it has to be amplitude modulation. Modulating
+    // around unity rather than from zero keeps the squeal continuous
+    // instead of gating it on and off.
+    this.skidRough = this.ctx.createOscillator();
+    this.skidRough.type = "sawtooth";
+    this.skidRough.frequency.value = 42;
+    this.skidRoughAmt = this.ctx.createGain();
+    this.skidRoughAmt.gain.value = 0;
+    this.skidRough.connect(this.skidRoughAmt).connect(this.skidGain.gain);
+    this.skidRough.start();
+
+    const skidSrc = this.loopNoise();
+    skidSrc.connect(this.skidFilter).connect(this.skidGain).connect(this.bed);
+
+    // The overtone, a fifth above and narrower. Real squeal energy sits
+    // in a stack of peaks; one band alone is a whistle.
+    this.skidHarm = this.ctx.createBiquadFilter();
+    this.skidHarm.type = "bandpass";
+    this.skidHarm.frequency.value = 1650;
+    this.skidHarm.Q.value = 14;
+    this.skidHarmGain = this.ctx.createGain();
+    this.skidHarmGain.gain.value = 0;
+    skidSrc.connect(this.skidHarm).connect(this.skidHarmGain).connect(this.bed);
 
     // Broad low scrub under the squeal — the tire's contact patch tearing
     const scrubFilter = this.ctx.createBiquadFilter();
@@ -657,14 +702,31 @@ export class SoundEngine {
     // little scrub, so the ear can tell how far out the back end is.
     const skid = Math.min(f.skid, 1);
     const yaw = Math.min(Math.abs(f.driftYaw ?? 0) / 0.6, 1);
-    this.skidFilter.frequency.setTargetAtTime(900 + yaw * 700, t, 0.08);
+    const fund = 900 + yaw * 700;
+    this.skidFilter.frequency.setTargetAtTime(fund, t, 0.08);
+    // The overtone tracks the fundamental at a fixed ratio, so the two
+    // peaks move together and stay one voice rather than two.
+    this.skidHarm.frequency.setTargetAtTime(fund * 1.5, t, 0.08);
     this.skidWarble.frequency.setTargetAtTime(7 + yaw * 9, t, 0.1);
+    this.skidWarble2.frequency.setTargetAtTime(13.7 + yaw * 6, t, 0.1);
     // The slide is this game's signature sound — a big drift should sing
     // over the engine, not hide under it. When a recorded skid bed is
     // loaded it carries the slide and the synth squeal ducks to a
     // supporting layer; otherwise the synth sings alone as before.
     const synthShare = this.sampleSkidGain ? 0.35 : 1;
-    this.skidGain.gain.setTargetAtTime(skid * (0.2 + yaw * 0.18) * synthShare, t, 0.05);
+    const tyreSqueal = skid * (0.2 + yaw * 0.18) * synthShare;
+    this.skidGain.gain.setTargetAtTime(tyreSqueal, t, 0.05);
+    // Roughness climbs with the slide: a gentle scrub barely buzzes, a
+    // full slide tears. The modulation adds to the carrier's own gain, so
+    // its depth has to be a FRACTION of that carrier — a fixed depth
+    // against a ducked carrier swings past zero and gates the squeal on
+    // and off, which is a machine gun rather than a tyre.
+    this.skidRough.frequency.setTargetAtTime(34 + yaw * 30, t, 0.12);
+    this.skidRoughAmt.gain.setTargetAtTime(tyreSqueal * (0.3 + yaw * 0.35), t, 0.06);
+    // The overtone only really appears once the tyre is properly over,
+    // which is what makes a big drift sound different in kind from a
+    // scrub rather than merely louder.
+    this.skidHarmGain.gain.setTargetAtTime(skid * yaw * 0.085 * synthShare, t, 0.06);
     this.scrubGain.gain.setTargetAtTime(skid * 0.1 * synthShare, t, 0.05);
     if (this.sampleSkidGain) {
       const bedGain = ((this.sampleSkidGain as GainNode & { userData?: number }).userData ?? 1);

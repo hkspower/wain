@@ -138,13 +138,14 @@ const impacts = await page.evaluate(async () => {
   let n = 0;
   const real = s.ctx.createBufferSource.bind(s.ctx);
   s.ctx.createBufferSource = () => { n++; return real(); };
-  s.scrape(0.1);
-  await new Promise((r) => setTimeout(r, 60));
-  const graze = n;
-  n = 0;
-  s.scrape(1);
-  await new Promise((r) => setTimeout(r, 60));
-  const crash = n;
+  // scrape() lays down all of its voices synchronously, so count across
+  // the call and nothing else. This used to await 60ms after each hit,
+  // which let whatever the live engine happened to fire in that window —
+  // a shift hiss, a backfire — land in the tally, so a graze could tie
+  // a crash and the check would report the two as indistinguishable.
+  const count = (sev) => { n = 0; s.scrape(sev); return n; };
+  const graze = count(0.1);
+  const crash = count(1);
   s.ctx.createBufferSource = real;
   return { graze, crash };
 });
@@ -292,6 +293,72 @@ if (music) {
   check(r.after.music > r.before.music * 0.9, "the score never comes back");
   check(r.lifted.bed > r.before.bed * 0.9,
     "overlapping lines leave the duck stuck down — the ref count never returned to zero");
+}
+
+// ---- the drift squeal has structure, not just level -----------------
+// A slipping tyre is a stick-slip oscillator: it grips, tears free and
+// grips again tens of times a second, ringing at a fundamental and its
+// overtone while the pitch wanders. A single filtered noise band at a
+// single level is a kettle. These are the parts that make it a tyre.
+{
+  const r = await page.evaluate(async () => {
+    const e = window.__grnEngine;
+    const s = e.sound;
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const read = () => ({
+      fund: +s.skidFilter.frequency.value.toFixed(0),
+      harm: +s.skidHarm.frequency.value.toFixed(0),
+      harmGain: +s.skidHarmGain.gain.value.toFixed(4),
+      rough: +s.skidRoughAmt.gain.value.toFixed(4),
+      roughHz: +s.skidRough.frequency.value.toFixed(1),
+      warbleA: +s.skidWarble.frequency.value.toFixed(2),
+      warbleB: +s.skidWarble2.frequency.value.toFixed(2),
+      squeal: +s.skidGain.gain.value.toFixed(4),
+    });
+    // Drive the real engine rather than hand-build a SoundFrame: the
+    // frame has more fields than are obvious and a missing one arrives
+    // as NaN inside setTargetAtTime, which is how the first version of
+    // this test failed.
+    const drive = async (speed, driftYaw) => {
+      e.setPaused(true);
+      e.player.speed = speed;
+      e.driftYaw = driftYaw;
+      for (let i = 0; i < 12; i++) {
+        e.update(1 / 60);
+        e.driftYaw = driftYaw;      // the sim decays it; hold it there
+        e.player.speed = speed;
+      }
+      await wait(420);
+    };
+    await drive(0, 0);
+    const idle = read();
+    await drive(28, 0.12);   // a light scrub
+    const scrub = read();
+    await drive(28, 0.6);    // fully sideways
+    const slide = read();
+    return { idle, scrub, slide };
+  });
+  console.log(`\ndrift        fundamental ${r.scrub.fund} Hz scrub -> ${r.slide.fund} Hz sideways`);
+  console.log(`             overtone ${r.slide.harm} Hz at gain ${r.scrub.harmGain} -> ${r.slide.harmGain}`);
+  const depth = +(r.slide.rough / r.slide.squeal).toFixed(3);
+  console.log(`             roughness ${r.scrub.rough} -> ${r.slide.rough} at ${r.slide.roughHz} Hz` +
+    ` (${Math.round(depth * 100)}% of carrier)`);
+  console.log(`             warble ${r.slide.warbleA} / ${r.slide.warbleB} Hz (incommensurate)`);
+  check(r.slide.fund > r.scrub.fund + 100, "the squeal does not rise as the car goes further sideways");
+  // The overtone is what makes a big slide different in KIND, not level
+  check(r.slide.harmGain > r.scrub.harmGain * 2, "the overtone does not open up with the slide");
+  check(Math.abs(r.slide.harm / r.slide.fund - 1.5) < 0.02, "the overtone does not track the fundamental");
+  // Stick-slip roughness: the buzz that separates a tyre from a kettle
+  check(r.slide.rough > r.scrub.rough, "roughness does not climb with the slide");
+  // The modulation is summed into the carrier's own gain, so what matters
+  // is its depth RELATIVE to that carrier, not its absolute value: at 100%
+  // the trough hits silence and the squeal stutters instead of buzzing.
+  check(depth < 0.9, `roughness is ${Math.round(depth * 100)}% of the carrier — the squeal gates on and off`);
+  check(r.idle.squeal < 0.01, "the tyres squeal while driving straight");
+  // Two LFOs that share a factor lock together and read as a siren
+  const ratio = r.slide.warbleB / r.slide.warbleA;
+  check(Math.abs(ratio - Math.round(ratio)) > 0.05,
+    `warble rates ${r.slide.warbleA}/${r.slide.warbleB} are a whole-number ratio — they will lock`);
 }
 
 console.log(fail.length ? "\nFAILURES:\n - " + fail.join("\n - ") : "\nall audio checks passed");
