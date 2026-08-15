@@ -111,6 +111,39 @@ if (dryRun) {
   process.exit(0);
 }
 
+// --check answers the only two questions that matter before a run, and
+// answers them separately: can this machine reach the API at all, and
+// is there a key. They fail in completely different ways and a key
+// cannot help with a host that is not allowlisted.
+if (args.includes("--check")) {
+  const key0 = process.env.ELEVENLABS_API_KEY;
+  console.log(`key       ${key0 ? `present (${key0.length} chars, ends ${key0.slice(-4)})` : "MISSING — set ELEVENLABS_API_KEY"}`);
+  let reach = "unknown";
+  try {
+    const res = await fetch(`${API}?output_format=mp3_44100_192`, {
+      method: "POST",
+      headers: { "xi-api-key": key0 || "none", "Content-Type": "application/json" },
+      body: JSON.stringify({ text: "test", duration_seconds: 0.5 }),
+    });
+    const body = await res.text();
+    if (res.status === 403 && /allowlist|egress/i.test(body)) {
+      reach = "BLOCKED by this environment's egress policy — api.elevenlabs.io is not allowlisted";
+    } else if (res.status === 401) {
+      reach = "reachable, but the key was rejected (401)";
+    } else if (res.ok) {
+      reach = "reachable, key accepted";
+    } else {
+      reach = `reachable, HTTP ${res.status}: ${body.slice(0, 90)}`;
+    }
+  } catch (e) {
+    reach = `unreachable: ${e.cause?.message || e.message}`;
+  }
+  console.log(`endpoint  ${reach}`);
+  const good = /key accepted/.test(reach);
+  console.log(good ? "\nready — run: npm run sfx" : "\nnot ready; see tools/elevenlabs/README.md");
+  process.exit(good ? 0 : 1);
+}
+
 const key = process.env.ELEVENLABS_API_KEY;
 if (!key) {
   console.error("Set ELEVENLABS_API_KEY first (or pass --dry-run to review the prompts).");

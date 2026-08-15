@@ -12,9 +12,14 @@ npm run sfx -- --force   # regenerate everything
 ```
 
 ```bash
+npm run sfx -- --check    # can we reach the API, and is there a key?
 npm run sfx -- --dry-run  # review the roster and prompts, no key needed
 npm run sfx:verify        # check a drop before committing it
 ```
+
+`--check` answers the two questions separately, because they fail in
+completely different ways and **a key cannot help with a host that is
+not allowlisted**.
 
 ## If it will not connect
 
