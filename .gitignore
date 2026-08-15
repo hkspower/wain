@@ -46,3 +46,7 @@ out/
 desktop/out/
 desktop/dist/
 desktop/node_modules/
+
+# python
+__pycache__/
+*.pyc
