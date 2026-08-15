@@ -27,6 +27,10 @@ const jobs = [
   { file: "nr-lockup.html", out: "night-racers-logo.png", w: 1600, h: 900 },
   { file: "nr-lockup.html?bare=1", out: "night-racers-logo-transparent.png", w: 1600, h: 900, alpha: true },
   { file: "nr-emblem.html", out: "night-racers-emblem.png", w: 900, h: 900, alpha: true },
+  { file: "ar-lockup.html", out: "arabic-title-logo.png", w: 1600, h: 900 },
+  { file: "ar-lockup.html?bare=1", out: "arabic-title-logo-transparent.png", w: 1600, h: 900, alpha: true },
+  { file: "ar-crew.html", out: "arabic-crew-logo.png", w: 1600, h: 900 },
+  { file: "ar-crew.html?bare=1", out: "arabic-crew-logo-transparent.png", w: 1600, h: 900, alpha: true },
 ].map((j) => ({ ...j, scale: LONG_EDGE / Math.max(j.w, j.h) }));
 
 mkdirSync("press/logo", { recursive: true });

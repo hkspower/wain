@@ -33,9 +33,36 @@ seal, sets it on a lit disc, and graduates the bezel in 72 stations with
 both name arcs left clear of the ticks. ナイトレーサーズ round the top,
 NIGHT RACERS round the bottom.
 
-The two marks share the palette, the shear, and the rule that amber
-means observed and cyan means calculated — so they read as one house
-without either being a recolour of the other.
+## Arabic-primary
+
+The same two marks with the script order reversed — Arabic as the hero,
+Latin as the annotation. Not translations bolted underneath: the whole
+hierarchy flips.
+
+| File | Size | Use |
+| --- | --- | --- |
+| `arabic-title-logo.png` | 3840×2160 | ليالي شارع الخليج, the title |
+| `arabic-title-logo-transparent.png` | 3840×2160 | the same, no ground |
+| `arabic-crew-logo.png` | 3840×2160 | متسابقو الليل, the crew |
+| `arabic-crew-logo-transparent.png` | 3840×2160 | the same, no ground |
+
+Set in IBM Plex Sans Arabic Bold — the game's own UI face, vendored
+into `fonts/` rather than read out of `.next/`, which is a build
+directory that gets cleared.
+
+**The Arabic is never sheared.** A synthetic oblique on a cursive
+script breaks the joins and tilts the counters against the pen's own
+angle, which is why the game's stylesheet sets `font-synthesis: none`
+on every Arabic rule it has. The energy that the 11° shear gives the
+Latin comes from weight and from the colour split here instead: the
+amber word leads on the right, where the reader starts — ليالي in the
+title, الليل in the crew mark — mirroring NIGHTS and RACERS.
+
+## One house
+
+Every mark shares the palette, the coast motif, and the rule that amber
+means observed and cyan means calculated — so none of them is a
+recolour of another.
 
 ## The mark
 
