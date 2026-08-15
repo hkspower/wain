@@ -1,0 +1,77 @@
+<meta charset="utf-8">
+<title>Gulf Road Nights — lockup</title>
+<style>
+  @font-face { font-family: "Shoulders"; src: url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/BigShoulders-Bold.ttf"); font-weight: 700; }
+  @font-face { font-family: "Mono"; src: url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/GeistMono-Regular.ttf"); }
+  @font-face { font-family: "Kana"; src: url("file:///usr/share/fonts/truetype/fonts-japanese-gothic.ttf"); }
+  @font-face { font-family: "Arab"; src: url("file:///usr/share/fonts/truetype/freefont/FreeSerif.ttf"); }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:1600px; height:900px; }
+  body { background:#05070e; font-family:"Mono",monospace; -webkit-font-smoothing:antialiased; overflow:hidden; }
+  body.bare { background:transparent; }
+  body.bare .field, body.bare .vignette { display:none; }
+  #stage { position:relative; width:1600px; height:900px; overflow:hidden; }
+  .field { position:absolute; inset:0;
+    background:
+      radial-gradient(85% 62% at 50% 66%, rgba(255,176,60,0.075) 0%, rgba(0,0,0,0) 66%),
+      linear-gradient(180deg,#070b16 0%,#05070e 52%,#04060c 100%); }
+  .vignette { position:absolute; inset:0;
+    background: radial-gradient(74% 66% at 50% 50%, rgba(0,0,0,0) 42%, rgba(0,0,0,0.55) 100%); }
+  svg.art { position:absolute; inset:0; }
+  .row { position:absolute; left:0; right:0; text-align:center; }
+  .wm { font-family:"Shoulders",sans-serif; font-weight:700; transform:skewX(-11deg);
+        line-height:0.82; text-transform:uppercase; }
+  .wm-1 { font-size:150px; letter-spacing:0.004em; color:#e8ecf4; }
+  .wm-2 { font-size:150px; letter-spacing:0.268em; text-indent:0.268em; color:#ffb03c; }
+  .kana { font-family:"Kana",sans-serif; font-size:17px; letter-spacing:0.66em;
+          text-indent:0.66em; color:rgba(232,236,244,0.40); }
+  .arab { font-family:"Arab",serif; direction:rtl; font-size:36px; color:rgba(232,236,244,0.72); }
+  .tag { font-family:"Mono",monospace; font-size:11px; letter-spacing:0.44em; text-indent:0.44em;
+         text-transform:uppercase; color:rgba(232,236,244,0.30); }
+</style>
+<div id="stage">
+  <div class="field"></div>
+  <svg class="art" width="1600" height="900" viewBox="0 0 1600 900" fill="none">
+    <defs>
+      <linearGradient id="rule" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#ffb03c" stop-opacity="0"/>
+        <stop offset="0.5" stop-color="#ffb03c" stop-opacity="0.55"/>
+        <stop offset="1" stop-color="#ffb03c" stop-opacity="0"/>
+      </linearGradient>
+      <filter id="soft"><feGaussianBlur stdDeviation="6"/></filter>
+    </defs>
+    <g id="lamps"></g>
+  </svg>
+  <div class="row" style="top:178px;"><span class="kana">ガルフロード・ナイツ</span></div>
+  <div class="row" style="top:268px;"><div class="wm wm-1">Gulf Road</div></div>
+  <div class="row" style="top:392px;"><div class="wm wm-2">Nights</div></div>
+  <div class="row" style="top:644px;"><span class="arab">ليالي شارع الخليج</span></div>
+  <div class="row" style="top:730px;"><span class="tag">Kuwait Xtreme Racer</span></div>
+  <div class="vignette"></div>
+</div>
+<script>
+if (new URLSearchParams(location.search).has("bare")) document.body.classList.add("bare");
+const NS="http://www.w3.org/2000/svg";
+const el=(n,a)=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e;};
+let seed=20240517; const rnd=()=>(seed=(seed*1664525+1013904223)%4294967296)/4294967296;
+// A single measured run of lamps under the mark: the same coast, quoted.
+{
+  const g=document.getElementById("lamps");
+  const N=88, x0=470, x1=1130, baseY=592, cx=800, cy=-1400, r=1900;
+  g.appendChild(el("rect",{x:x0,y:baseY,width:x1-x0,height:0.8,fill:"url(#rule)"}));
+  for(let i=0;i<N;i++){
+    const t=i/(N-1), x=x0+t*(x1-x0);
+    const dx=x-cx, drop=r-Math.sqrt(Math.max(0,r*r-dx*dx));
+    const y=baseY-drop*0.055;
+    const swell=0.5+0.5*Math.sin(t*Math.PI);
+    const H=(9+swell*26)*(0.9+rnd()*0.2);
+    const edge=Math.min(1,Math.min(t,1-t)/0.2), o=swell*edge;
+    g.appendChild(el("rect",{x:x.toFixed(2),y:(y-H).toFixed(2),width:0.8,height:H.toFixed(2),
+      fill:"#ffb03c","fill-opacity":(o*0.22).toFixed(3)}));
+    g.appendChild(el("circle",{cx:x.toFixed(2),cy:(y-H).toFixed(2),r:1.5,
+      fill:"#ffd7a0","fill-opacity":(0.28+o*0.6).toFixed(3)}));
+    if(i%4===0) g.appendChild(el("circle",{cx:x.toFixed(2),cy:(y-H).toFixed(2),r:8,
+      fill:"#ffb03c","fill-opacity":(o*0.12).toFixed(3),filter:"url(#soft)"}));
+  }
+}
+</script>

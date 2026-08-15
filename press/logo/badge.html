@@ -1,0 +1,81 @@
+<meta charset="utf-8">
+<title>Gulf Road Nights — badge</title>
+<style>
+  @font-face { font-family: "Shoulders"; src: url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/BigShoulders-Bold.ttf"); font-weight:700; }
+  @font-face { font-family: "Mono"; src: url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/GeistMono-Regular.ttf"); }
+  @font-face { font-family: "Kana"; src: url("file:///usr/share/fonts/truetype/fonts-japanese-gothic.ttf"); }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:900px; height:900px; background:transparent; overflow:hidden; }
+</style>
+<svg width="900" height="900" viewBox="0 0 900 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="seam" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#46c9ee" stop-opacity="0.55"/>
+      <stop offset="0.55" stop-color="#ffb03c" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#ffb03c" stop-opacity="0.25"/>
+    </linearGradient>
+    <filter id="soft"><feGaussianBlur stdDeviation="5"/></filter>
+    <path id="topArc" d="M 450 450 m -334 0 a 334 334 0 0 1 668 0" fill="none"/>
+    <path id="botArc" d="M 450 450 m -300 0 a 300 300 0 0 0 600 0" fill="none"/>
+  </defs>
+
+  <!-- the disc: night held inside a struck circle -->
+  <circle cx="450" cy="450" r="372" fill="#05070e"/>
+  <circle cx="450" cy="450" r="372" stroke="url(#seam)" stroke-width="2.2"/>
+  <circle cx="450" cy="450" r="352" stroke="#e8ecf4" stroke-opacity="0.13" stroke-width="0.9"/>
+  <circle cx="450" cy="450" r="286" stroke="#e8ecf4" stroke-opacity="0.07" stroke-width="0.8"/>
+
+  <!-- the graduated rim: sixty stations, the measure of an hour -->
+  <g id="rim"></g>
+  <!-- the coast, struck through the middle -->
+  <g id="coast"></g>
+
+  <text font-family="Kana" font-size="25" letter-spacing="13" fill="#e8ecf4" fill-opacity="0.42">
+    <textPath href="#topArc" startOffset="50%" text-anchor="middle">ガルフロード・ナイツ</textPath>
+  </text>
+  <text font-family="Mono" font-size="20" letter-spacing="9.5" fill="#e8ecf4" fill-opacity="0.36">
+    <textPath href="#botArc" startOffset="50%" text-anchor="middle">29°22′N · 047°58′E</textPath>
+  </text>
+
+  <!-- the monogram, cut with confidence -->
+  <g transform="translate(450 440) skewX(-11)">
+    <text text-anchor="middle" font-family="Shoulders" font-weight="700" font-size="150"
+          letter-spacing="2" fill="#e8ecf4" y="-16">GRN</text>
+    <text text-anchor="middle" font-family="Mono" font-size="15" letter-spacing="10"
+          fill="#ffb03c" fill-opacity="0.9" y="34">NIGHTS</text>
+  </g>
+</svg>
+<script>
+const NS="http://www.w3.org/2000/svg";
+const el=(n,a)=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e;};
+{
+  const g=document.getElementById("rim");
+  for(let i=0;i<60;i++){
+    const a=(i/60)*Math.PI*2-Math.PI/2, major=i%5===0, R=352, L=major?13:7;
+    g.appendChild(el("line",{
+      x1:(450+Math.cos(a)*R).toFixed(2), y1:(450+Math.sin(a)*R).toFixed(2),
+      x2:(450+Math.cos(a)*(R-L)).toFixed(2), y2:(450+Math.sin(a)*(R-L)).toFixed(2),
+      stroke:"#e8ecf4","stroke-opacity":major?0.34:0.16,"stroke-width":major?1.3:0.8}));
+  }
+}
+{
+  // the same coast as the plate, quoted at badge scale
+  const g=document.getElementById("coast");
+  const N=46, x0=214, x1=686, baseY=556, cx=450, cy=-760, r=1160;
+  let seed=7717; const rnd=()=>(seed=(seed*1664525+1013904223)%4294967296)/4294967296;
+  for(let i=0;i<N;i++){
+    const t=i/(N-1), x=x0+t*(x1-x0);
+    const dx=x-cx, drop=r-Math.sqrt(Math.max(0,r*r-dx*dx));
+    const y=baseY-drop*0.10;
+    const swell=0.5+0.5*Math.sin(t*Math.PI);
+    const H=(7+swell*20)*(0.9+rnd()*0.2);
+    const edge=Math.min(1,Math.min(t,1-t)/0.16), o=swell*edge;
+    g.appendChild(el("rect",{x:x.toFixed(2),y:(y-H).toFixed(2),width:0.9,height:H.toFixed(2),
+      fill:"#ffb03c","fill-opacity":(o*0.26).toFixed(3)}));
+    g.appendChild(el("circle",{cx:x.toFixed(2),cy:(y-H).toFixed(2),r:1.6,
+      fill:"#ffd7a0","fill-opacity":(0.3+o*0.6).toFixed(3)}));
+    if(i%4===0) g.appendChild(el("circle",{cx:x.toFixed(2),cy:(y-H).toFixed(2),r:8,
+      fill:"#ffb03c","fill-opacity":(o*0.14).toFixed(3),filter:"url(#soft)"}));
+  }
+}
+</script>

@@ -1,0 +1,287 @@
+<meta charset="utf-8">
+<title>Sodium Cartography — Plate I</title>
+<style>
+  @font-face { font-family: "Shoulders"; src: url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/BigShoulders-Bold.ttf"); font-weight: 700; }
+  @font-face { font-family: "Shoulders"; src: url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/BigShoulders-Regular.ttf"); font-weight: 400; }
+  @font-face { font-family: "Mono"; src: url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/GeistMono-Regular.ttf"); }
+  @font-face { font-family: "MonoB"; src: url("file:///root/.claude/skills/synced/canvas-design/canvas-fonts/GeistMono-Bold.ttf"); }
+  @font-face { font-family: "Kana"; src: url("file:///usr/share/fonts/truetype/fonts-japanese-gothic.ttf"); }
+  @font-face { font-family: "Arab"; src: url("file:///usr/share/fonts/truetype/freefont/FreeSerif.ttf"); }
+
+  :root {
+    --ink: #05070e;        /* the ground */
+    --amber: #ffb03c;      /* observed */
+    --amber-deep: #c9761d;
+    --cyan: #46c9ee;       /* calculated */
+    --paper: #e8ecf4;      /* highest order only */
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1200px; height: 1600px; }
+  body {
+    background: var(--ink);
+    font-family: "Mono", monospace;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  #plate { position: relative; width: 1200px; height: 1600px; overflow: hidden; }
+
+  /* The field: cold night held inside the black, warmed only where the
+     lamps stand. Never decoration — it is the light in the drawing. */
+  .field {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(120% 46% at 50% 62%, rgba(255,176,60,0.085) 0%, rgba(255,176,60,0.022) 38%, rgba(0,0,0,0) 68%),
+      radial-gradient(90% 60% at 50% 8%, rgba(70,201,238,0.05) 0%, rgba(0,0,0,0) 62%),
+      linear-gradient(180deg, #070b16 0%, #05070e 46%, #04060c 100%);
+  }
+  .vignette {
+    position: absolute; inset: 0;
+    background: radial-gradient(78% 62% at 50% 50%, rgba(0,0,0,0) 44%, rgba(0,0,0,0.62) 100%);
+  }
+  .grain { position: absolute; inset: 0; opacity: 0.05; mix-blend-mode: overlay; }
+
+  svg { position: absolute; inset: 0; }
+
+  /* ---- annotation: a surveyor's hand, set small and aligned ---- */
+  .lab {
+    position: absolute;
+    font-family: "Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: rgba(232,236,244,0.42);
+    white-space: nowrap;
+  }
+  .lab.dim { color: rgba(232,236,244,0.24); }
+  .lab.amber { color: rgba(255,176,60,0.72); }
+  .lab.cyan { color: rgba(70,201,238,0.62); }
+  .num { font-family: "Mono", monospace; font-size: 9.5px; letter-spacing: 0.16em; }
+
+  /* ---- the one monumental gesture ---- */
+  .mark { position: absolute; left: 0; right: 0; text-align: center; }
+  .wm {
+    font-family: "Shoulders", sans-serif; font-weight: 700;
+    transform: skewX(-11deg);
+    line-height: 0.82;
+    text-transform: uppercase;
+  }
+  .wm-1 { font-size: 132px; letter-spacing: 0.004em; color: var(--paper); }
+  .wm-2 { font-size: 132px; letter-spacing: 0.268em; text-indent: 0.268em; color: var(--amber); }
+
+  .rule { position: absolute; background: rgba(232,236,244,0.20); }
+  .kana {
+    position: absolute;
+    font-family: "Kana", sans-serif;
+    writing-mode: vertical-rl;
+    font-size: 15px;
+    letter-spacing: 0.42em;
+    color: rgba(232,236,244,0.34);
+  }
+  .arab {
+    font-family: "Arab", serif;
+    direction: rtl;
+    font-size: 34px;
+    color: rgba(232,236,244,0.78);
+  }
+</style>
+
+<div id="plate">
+  <div class="field"></div>
+
+  <!-- ============ the survey ============ -->
+  <svg width="1200" height="1600" viewBox="0 0 1200 1600" fill="none">
+    <defs>
+      <linearGradient id="arcFade" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0"    stop-color="#46c9ee" stop-opacity="0"/>
+        <stop offset="0.18" stop-color="#46c9ee" stop-opacity="0.5"/>
+        <stop offset="0.82" stop-color="#46c9ee" stop-opacity="0.5"/>
+        <stop offset="1"    stop-color="#46c9ee" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="baseFade" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0"    stop-color="#e8ecf4" stop-opacity="0"/>
+        <stop offset="0.14" stop-color="#e8ecf4" stop-opacity="0.30"/>
+        <stop offset="0.86" stop-color="#e8ecf4" stop-opacity="0.30"/>
+        <stop offset="1"    stop-color="#e8ecf4" stop-opacity="0"/>
+      </linearGradient>
+      <filter id="soft"><feGaussianBlur stdDeviation="7"/></filter>
+    </defs>
+
+    <!-- The calculated arc: a measured curve struck from a locatable
+         centre. The centre is marked, and the radius is drawn, because
+         a curve whose construction cannot be reconstructed is a sketch. -->
+    <g id="construction"></g>
+
+    <!-- The observed array: the coastline of lamps -->
+    <g id="array"></g>
+
+    <!-- Fine graticule, barely there -->
+    <g id="graticule"></g>
+  </svg>
+
+  <!-- ============ annotation ============ -->
+  <div class="lab" style="left:96px; top:92px; letter-spacing:0.34em;">Sodium Cartography</div>
+  <div class="lab dim" style="left:96px; top:112px;">Plate&nbsp;I &nbsp;·&nbsp; Survey of a lit coast</div>
+
+  <div class="lab dim" style="right:96px; top:92px; letter-spacing:0.2em;">29°22′14″N &nbsp;047°58′41″E</div>
+  <div class="lab dim" style="right:96px; top:112px; letter-spacing:0.2em; opacity:0.55;">35°37′02″N &nbsp;139°46′11″E</div>
+
+  <!-- vertical index, left rail -->
+  <div class="kana" style="right:104px; top:300px; height:280px;">ガルフロード・ナイツ</div>
+
+  <div class="lab cyan" style="left:202px; top:1246px;">Calculated &nbsp;— &nbsp;shoreline arc, r = 1760</div>
+  <div class="lab amber" style="left:202px; top:1272px;">Observed &nbsp;— &nbsp;174 standards, mean h = 9.4 m</div>
+
+  <div class="lab dim" style="right:96px; bottom:96px; letter-spacing:0.2em;">Ed. I &nbsp;·&nbsp; 01 of 01</div>
+  <div class="lab dim" style="left:96px; bottom:96px; letter-spacing:0.2em;">Lamp interval 42 m &nbsp;·&nbsp; n = 174</div>
+
+  <!-- ============ the gesture ============ -->
+  <div class="mark" style="top:672px;">
+    <div class="wm wm-1">Gulf Road</div>
+  </div>
+  <div class="mark" style="top:786px;">
+    <div class="wm wm-2">Nights</div>
+  </div>
+  <div class="mark" style="top:944px;">
+    <div class="arab">ليالي شارع الخليج</div>
+  </div>
+
+  <div class="vignette"></div>
+  <svg class="grain" width="1200" height="1600">
+    <filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3"/></filter>
+    <rect width="1200" height="1600" filter="url(#n)"/>
+  </svg>
+</div>
+
+<script>
+const NS = "http://www.w3.org/2000/svg";
+const el = (n, a) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
+
+// Deterministic jitter — a plate that redraws differently is not a survey.
+let seed = 20240517;
+const rnd = () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296;
+
+// ---- construction: the arc of the bay, and its centre -----------------
+{
+  const g = document.getElementById("construction");
+  const cx = 600, cy = -1180, r = 1760;          // centre above the field, struck downward
+  const a0 = Math.PI / 2 - 0.262, a1 = Math.PI / 2 + 0.262;
+  const p = (a) => [cx + Math.cos(a) * r, cy + Math.sin(a) * r].map(v => v.toFixed(2));
+  const [x0, y0] = p(a0), [x1, y1] = p(a1);
+  g.appendChild(el("path", {
+    d: `M ${x1} ${y1} A ${r} ${r} 0 0 0 ${x0} ${y0}`,
+    stroke: "url(#arcFade)", "stroke-width": 1.2, fill: "none",
+  }));
+  // radius lines to the two extremes, hairline — the construction shown
+  // The construction shown: hairline radii to the extremes, and the
+  // chord they subtend. A curve whose making cannot be reconstructed
+  // from the plate is a sketch, not a survey.
+  for (const a of [a0, a1]) {
+    const [x, y] = p(a);
+    g.appendChild(el("line", { x1: cx, y1: cy, x2: x, y2: y,
+      stroke: "#46c9ee", "stroke-opacity": 0.10, "stroke-width": 0.7,
+      "stroke-dasharray": "2 8" }));
+  }
+  g.appendChild(el("line", { x1: x0, y1: y0, x2: x1, y2: y1,
+    stroke: "#46c9ee", "stroke-opacity": 0.13, "stroke-width": 0.7,
+    "stroke-dasharray": "2 8" }));
+}
+
+// ---- the array: the coastline of lamps ------------------------------
+// The stems recede and the heads carry the light. An array whose stems
+// compete with its heads reads as a bar chart; only when the stems drop
+// below the heads does it become a row of lamps standing in the dark.
+{
+  const g = document.getElementById("array");
+  const N = 174, x0 = 176, x1 = 1024, baseY = 560;
+  const cx = 600, cy = -1180, r = 1760;
+
+  g.appendChild(el("rect", { x: x0, y: baseY, width: x1 - x0, height: 0.8, fill: "url(#baseFade)" }));
+
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1);
+    const x = x0 + t * (x1 - x0);
+    const dx = x - cx;
+    const drop = r - Math.sqrt(Math.max(0, r * r - dx * dx));
+    const y = baseY - drop * 0.060;                 // the coast curving off
+    // One slow swell down the run — a coast has a shape, not a spectrum
+    const swell = 0.52 + 0.48 * Math.sin(t * Math.PI);
+    const H = (16 + swell * 52) * (0.90 + rnd() * 0.20);
+    const edge = Math.min(1, Math.min(t, 1 - t) / 0.17);
+    const o = swell * edge;
+
+    // stem: a hairline, deliberately faint
+    g.appendChild(el("rect", { x: x.toFixed(2), y: (y - H).toFixed(2), width: 0.8,
+      height: H.toFixed(2), fill: "#ffb03c", "fill-opacity": (o * 0.22).toFixed(3) }));
+    // head: the observation itself
+    g.appendChild(el("circle", { cx: x.toFixed(2), cy: (y - H).toFixed(2), r: 1.7,
+      fill: "#ffd7a0", "fill-opacity": (0.30 + o * 0.65).toFixed(3) }));
+    // halo, on every fourth, so the run glows without smearing
+    if (i % 4 === 0) {
+      g.appendChild(el("circle", { cx: x.toFixed(2), cy: (y - H).toFixed(2), r: 9,
+        fill: "#ffb03c", "fill-opacity": (o * 0.13).toFixed(3), filter: "url(#soft)" }));
+    }
+    // every twelfth is a measured station: a tick below the line, numbered
+    if (i % 12 === 0) {
+      g.appendChild(el("rect", { x: x.toFixed(2), y: (y + 5).toFixed(2), width: 0.8, height: 8,
+        fill: "#e8ecf4", "fill-opacity": 0.20 }));
+      const n = el("text", { x: x.toFixed(2), y: (y + 27).toFixed(2), fill: "#e8ecf4",
+        "fill-opacity": 0.20, "font-family": "Mono", "font-size": 8, "letter-spacing": "0.1em",
+        "text-anchor": "middle" });
+      n.textContent = String(i).padStart(3, "0");
+      g.appendChild(n);
+    }
+  }
+}
+
+// ---- the index: the lower field earns its emptiness ------------------
+// A run of station marks, spaced by the same interval as the lamps and
+// falling away to nothing. The plate closes on measurement rather than
+// on blank paper.
+{
+  const g = document.getElementById("graticule");
+  const y = 1180, x0 = 176, x1 = 1024, N = 58;
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1);
+    const x = x0 + t * (x1 - x0);
+    const major = i % 6 === 0;
+    const fade = Math.pow(Math.min(1, Math.min(t, 1 - t) / 0.3), 0.8);
+    g.appendChild(el("rect", { x: x.toFixed(2), y: y, width: 0.8,
+      height: major ? 12 : 6, fill: "#e8ecf4",
+      "fill-opacity": (fade * (major ? 0.26 : 0.13)).toFixed(3) }));
+  }
+  g.appendChild(el("rect", { x: x0, y: y, width: x1 - x0, height: 0.7,
+    fill: "url(#baseFade)", "fill-opacity": 0.55 }));
+  // the two keys, drawn where the legend names them
+  g.appendChild(el("rect", { x: 176, y: 1243, width: 0.9, height: 9, fill: "#46c9ee", "fill-opacity": 0.7 }));
+  g.appendChild(el("circle", { cx: 176.5, cy: 1274, r: 1.9, fill: "#ffd7a0", "fill-opacity": 0.85 }));
+}
+
+// ---- graticule: the structure the plate could be rebuilt from --------
+{
+  const g = document.getElementById("graticule");
+  for (const x of [150, 1050]) {
+    g.appendChild(el("line", { x1: x, y1: 172, x2: x, y2: 1428,
+      stroke: "#e8ecf4", "stroke-opacity": 0.05, "stroke-width": 0.6 }));
+  }
+  for (const y of [172, 1428]) {
+    g.appendChild(el("line", { x1: 150, y1: y, x2: 1050, y2: y,
+      stroke: "#e8ecf4", "stroke-opacity": 0.05, "stroke-width": 0.6 }));
+  }
+  // corner registration marks — the plate has been handled and trued
+  const corner = (x, y, sx, sy) => {
+    g.appendChild(el("line", { x1: x, y1: y, x2: x + 13 * sx, y2: y,
+      stroke: "#e8ecf4", "stroke-opacity": 0.3, "stroke-width": 0.9 }));
+    g.appendChild(el("line", { x1: x, y1: y, x2: x, y2: y + 13 * sy,
+      stroke: "#e8ecf4", "stroke-opacity": 0.3, "stroke-width": 0.9 }));
+  };
+  corner(150, 172, 1, 1); corner(1050, 172, -1, 1);
+  corner(150, 1428, 1, -1); corner(1050, 1428, -1, -1);
+
+  // scale bar, lower left inside the frame
+  const bx = 150, by = 1390, seg = 36;
+  for (let i = 0; i < 5; i++) {
+    g.appendChild(el("rect", { x: bx + i * seg, y: by, width: seg, height: 2.4,
+      fill: "#e8ecf4", "fill-opacity": i % 2 ? 0.10 : 0.30 }));
+  }
+}
+</script>
