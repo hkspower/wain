@@ -77,55 +77,9 @@ const settings = node({
 
 /* المبالغ بأرقام عربية-هندية وفاصلة عشرية «٫» كبقية النظام، بينما يبقى رمز
    الطلب والهاتف والرابط لاتينيًّا لأنها معرّفات تُنسخ وتُفتح لا تُقرأ. */
-const CODE = [
-  "const hook = $('استقبال حدث موصول').first();",
-  "const h = hook.json.headers || {};",
-  "const ts = Number(h['x-mawsool-timestamp'] || 0);",
-  '',
-  'const rawB64 = hook.binary && hook.binary.data ? hook.binary.data.data : null;',
-  "const raw = rawB64 ? Buffer.from(rawB64, 'base64').toString('utf8') : JSON.stringify(hook.json.body || {});",
-  '',
-  'const fail = (reason) => [{ json: { ok: false, reason } }];',
-  '',
-  "if (!Number.isFinite(ts) || ts <= 0) return fail('الحدث بلا طابع زمني');",
-  "if (Math.abs(Date.now() - ts) > 5 * 60 * 1000) return fail('طابع زمني خارج نافذة خمس دقائق');",
-  '',
-  'let payload;',
-  "try { payload = JSON.parse(raw); } catch (e) { return fail('جسم الطلب ليس JSON صالحًا'); }",
-  "if (payload.event !== 'link.created') return fail('حدث غير متوقّع: ' + payload.event);",
-  '',
-  'const d = payload.data || {};',
-  'const order = d.order || {};',
-  'const agent = d.agent || {};',
-  'const link = d.link || {};',
-  "if (!agent.phone) return fail('الكابتن بلا رقم هاتف مسجَّل');",
-  "if (!link.url) return fail('الحدث بلا رابط مهمّة');",
-  '',
-  "const ARD = '٠١٢٣٤٥٦٧٨٩';",
-  "const kd = (v) => Number(v || 0).toFixed(3).replace('.', '٫').replace(/[0-9]/g, (c) => ARD[+c]);",
-  '',
-  'const lines = [];',
-  "lines.push('مهمّة توصيل جديدة — موصول');",
-  "lines.push('');",
-  "lines.push('الطلب: ' + order.code);",
-  "lines.push('الاستلام: ' + order.pickup_address);",
-  "lines.push('التسليم: ' + order.dropoff_address);",
-  "lines.push('العميل: ' + order.customer_name + ' — ' + order.customer_phone);",
-  "if (Number(order.cod_amount) > 0) lines.push('تحصيل من العميل: ' + kd(order.cod_amount) + ' د.ك');",
-  "lines.push('مستحقّك على هذه المهمّة: ' + kd(order.agent_earning) + ' د.ك');",
-  "if (order.notes) lines.push('ملاحظات: ' + order.notes);",
-  "lines.push('');",
-  "lines.push('افتح المهمّة من هنا:');",
-  'lines.push(link.url);',
-  '',
-  'return [{ json: {',
-  '  ok: true,',
-  "  message: lines.join('\\n'),",
-  "  phone: String(agent.phone).replace(/[^0-9+]/g, ''),",
-  "  agent_name: agent.name || '',",
-  '  order_code: order.code,',
-  '} }];',
-].join('\n');
+// عقدة n8n لا تقبل إلا نصًّا حرفيًّا هنا — مُحلّل الـSDK يمنع تركيب النصّ
+// بدوالّ مثل join، فالشيفرة مكتوبة سطرًا واحدًا بفواصل \n.
+const CODE = "const hook = $('استقبال حدث موصول').first();\nconst h = hook.json.headers || {};\nconst ts = Number(h['x-mawsool-timestamp'] || 0);\n\nconst rawB64 = hook.binary && hook.binary.data ? hook.binary.data.data : null;\nconst raw = rawB64 ? Buffer.from(rawB64, 'base64').toString('utf8') : JSON.stringify(hook.json.body || {});\n\nconst fail = (reason) => [{ json: { ok: false, reason } }];\n\nif (!Number.isFinite(ts) || ts <= 0) return fail('الحدث بلا طابع زمني');\nif (Math.abs(Date.now() - ts) > 5 * 60 * 1000) return fail('طابع زمني خارج نافذة خمس دقائق');\n\nlet payload;\ntry { payload = JSON.parse(raw); } catch (e) { return fail('جسم الطلب ليس JSON صالحًا'); }\nif (payload.event !== 'link.created') return fail('حدث غير متوقّع: ' + payload.event);\n\nconst d = payload.data || {};\nconst order = d.order || {};\nconst agent = d.agent || {};\nconst link = d.link || {};\nif (!agent.phone) return fail('الكابتن بلا رقم هاتف مسجَّل');\nif (!link.url) return fail('الحدث بلا رابط مهمّة');\n\nconst ARD = '٠١٢٣٤٥٦٧٨٩';\nconst kd = (v) => Number(v || 0).toFixed(3).replace('.', '٫').replace(/[0-9]/g, (c) => ARD[+c]);\n\nconst lines = [];\nlines.push('مهمّة توصيل جديدة — موصول');\nlines.push('');\nlines.push('الطلب: ' + order.code);\nlines.push('الاستلام: ' + order.pickup_address);\nlines.push('التسليم: ' + order.dropoff_address);\nlines.push('العميل: ' + order.customer_name + ' — ' + order.customer_phone);\nif (Number(order.cod_amount) > 0) lines.push('تحصيل من العميل: ' + kd(order.cod_amount) + ' د.ك');\nlines.push('مستحقّك على هذه المهمّة: ' + kd(order.agent_earning) + ' د.ك');\nif (order.notes) lines.push('ملاحظات: ' + order.notes);\nlines.push('');\nlines.push('افتح المهمّة من هنا:');\nlines.push(link.url);\n\nreturn [{ json: {\n  ok: true,\n  message: lines.join('\\n'),\n  phone: String(agent.phone).replace(/[^0-9+]/g, ''),\n  agent_name: agent.name || '',\n  order_code: order.code,\n} }];";
 
 const buildMessage = node({
   type: 'n8n-nodes-base.code',
