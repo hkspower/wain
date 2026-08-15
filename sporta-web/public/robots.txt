@@ -1,0 +1,114 @@
+# Sporta — crawler policy. All search + AI engines welcome on the storefront.
+#
+# NOTE ON STRUCTURE: a crawler obeys ONE group — the one matching its own name,
+# or the wildcard group if no name matches. It does not read the wildcard group
+# as well. So the Disallow lines have to be repeated in EVERY group. They were
+# previously only in the wildcard group, which meant every named AI bot below
+# was told "Allow: /" and nothing else, and was free to crawl /backends and the
+# payment endpoints. Add a bot, add its three Disallow lines with it.
+
+User-agent: *
+Allow: /
+Disallow: /backends
+Disallow: /knet/
+Disallow: /pay/
+
+# --- Search + AI answer engines, named explicitly ---------------------------
+
+User-agent: Googlebot
+Allow: /
+Disallow: /backends
+Disallow: /knet/
+Disallow: /pay/
+
+User-agent: Bingbot
+Allow: /
+Disallow: /backends
+Disallow: /knet/
+Disallow: /pay/
+
+User-agent: GPTBot
+Allow: /
+Disallow: /backends
+Disallow: /knet/
+Disallow: /pay/
+
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /backends
+Disallow: /knet/
+Disallow: /pay/
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /backends
+Disallow: /knet/
+Disallow: /pay/
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /backends
+Disallow: /knet/
+Disallow: /pay/
+
+User-agent: Claude-Web
+Allow: /
+Disallow: /backends
+Disallow: /knet/
+Disallow: /pay/
+
+User-agent: anthropic-ai
+Allow: /
+Disallow: /backends
+Disallow: /knet/
+Disallow: /pay/
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /backends
+Disallow: /knet/
+Disallow: /pay/
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /backends
+Disallow: /knet/
+Disallow: /pay/
+
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /backends
+Disallow: /knet/
+Disallow: /pay/
+
+User-agent: Amazonbot
+Allow: /
+Disallow: /backends
+Disallow: /knet/
+Disallow: /pay/
+
+User-agent: CCBot
+Allow: /
+Disallow: /backends
+Disallow: /knet/
+Disallow: /pay/
+
+User-agent: Bytespider
+Allow: /
+Disallow: /backends
+Disallow: /knet/
+Disallow: /pay/
+
+User-agent: cohere-ai
+Allow: /
+Disallow: /backends
+Disallow: /knet/
+Disallow: /pay/
+
+User-agent: Meta-ExternalAgent
+Allow: /
+Disallow: /backends
+Disallow: /knet/
+Disallow: /pay/
+
+Sitemap: https://www.sporta.com.kw/sitemap.xml

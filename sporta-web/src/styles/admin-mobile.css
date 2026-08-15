@@ -1,0 +1,109 @@
+/* admin-mobile.css — mobile layout for the Sporta admin (< 768px).
+ * Desktop layout (sidebar + tables) is unchanged above 768px.
+ * Import AFTER admin.css so these rules win on mobile. */
+
+/* Mobile-only bits are hidden on desktop by default. */
+.m-header,
+.m-tabbar { display: none; }
+
+@media (max-width: 767px) {
+  /* Hide the desktop sidebar on phones. */
+  .admin-sidebar { display: none !important; }
+
+  /* Sticky top header */
+  .m-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    height: 56px;
+    padding: 0 1rem;
+    background: #fff;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .m-header__title { font-weight: 700; color: #1e293b; }
+
+  /* Bottom tab bar */
+  .m-tabbar {
+    display: flex;
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 40;
+    height: 60px;
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    /* The bar SCROLLS. With flex:1 and nine tabs a 390px phone gave each one
+       43px — narrower than a fingertip and too narrow to print "Promotions".
+       Fixed widths plus overflow keeps every target thumb-sized and lets the
+       row of them slide, which is what a phone tab bar does when it outgrows
+       the screen. */
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+  }
+  .m-tabbar::-webkit-scrollbar { display: none; }
+  .m-tabbar__item {
+    flex: 0 0 auto;
+    min-width: 4.75rem;
+    padding-inline: 0.35rem;
+    scroll-snap-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #64748b;
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+  .m-tabbar__item[aria-current='true'] { color: #4f46e5; } /* indigo admin accent */
+  .m-tabbar__icon { font-size: 1.25rem; line-height: 1; }
+
+  /* Give content room so the fixed tab bar doesn't cover it. */
+  .admin-content { padding-bottom: 76px; }
+
+  /* Turn data tables into stacked card rows. */
+  .admin-table { display: none; }
+  .m-list { display: flex; flex-direction: column; gap: 0.75rem; }
+  .m-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.9rem 1rem;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.9rem;
+  }
+  .m-row__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .m-row__title { font-weight: 700; color: #1e293b; }
+  .m-row__meta { font-size: 0.85rem; color: #64748b; }
+  .m-row__badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.15rem 0.55rem;
+    border-radius: 9999px;
+  }
+  .m-row__badge--paid { background: #dcfce7; color: #15803d; }
+  .m-row__badge--pending { background: #fef9c3; color: #a16207; }
+  .m-row__badge--failed { background: #fee2e2; color: #b91c1c; }
+}
+
+/* On desktop, mobile-only list is hidden; the table shows. */
+@media (min-width: 768px) {
+  .m-list { display: none; }
+}

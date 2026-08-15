@@ -1,0 +1,20 @@
+node_modules
+dist
+*.local
+.DS_Store
+
+# Screenshots from scripts/shot.mjs — local previews, not artifacts.
+shots
+shots-co
+shots-co-full
+shots-cart
+
+# Native backend credentials — server-only, like knet/config.php.
+dropin/php-store/config.php
+# Test Tranportal credentials for scripts/knet-test.mjs. Same rule as the real
+# one: a knet config.php never enters the repo, not even a fake one.
+dropin/php-knet/config.php
+dropin/php-cbk/config.php
+
+# Auditioned voice samples — mp3s bought from ElevenLabs, not source.
+scripts/.voice-audition/

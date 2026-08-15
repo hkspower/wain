@@ -1,0 +1,81 @@
+# CBK hosted gateway endpoints — HTTPS-only + protect config/lib/token.
+# Place this folder as /public_html/pay/ so endpoints are:
+#   https://www.sporta.com.kw/pay/pay.php
+#   https://www.sporta.com.kw/pay/callback.php
+
+# Canonical host + HTTPS in a SINGLE 301, matching the storefront and knet/.
+#
+# This file previously redirected to %{HTTP_HOST}, which is the bug knet/
+# already had fixed: a hit on the bare domain stayed on the bare domain, so the
+# payment path answered on a second spelling of the origin — the one thing
+# CLAUDE.md says must never exist. It also redirected whenever %{HTTPS} != on,
+# which loops behind a proxy that reports TLS another way, and Hostinger is one.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTP_HOST} !^www\.sporta\.com\.kw(:[0-9]+)?$ [NC]
+  RewriteRule ^ https://www.sporta.com.kw%{REQUEST_URI} [R=301,L]
+
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  RewriteCond %{HTTP:X-Forwarded-SSL} !=on
+  RewriteCond %{SERVER_PORT} !=443
+  RewriteRule ^ https://www.sporta.com.kw%{REQUEST_URI} [R=301,L]
+
+  # No dotfiles. .cbk_token.json is one, and it holds a live AccessToken.
+  RewriteRule "(?i)(^|/)\.(?!well-known)" - [F,L]
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  Header always unset X-Powered-By
+  Header set X-Content-Type-Options "nosniff"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+
+  # Payment responses carry order state — never store them in any cache, and
+  # keep the endpoints out of search results.
+  #
+  # Inside <FilesMatch ".">, which looks redundant and is not. The storefront's
+  # .htaccess caches .txt/.xml/.json with "public, max-age=3600" from its own
+  # <FilesMatch>, and Apache merges every per-file section AFTER every plain
+  # directory directive — including those from a deeper .htaccess. A plain
+  # Header set here therefore lost to the parent, and any non-PHP file served
+  # from /pay came back carrying BOTH "no-store" and "public, max-age=3600".
+  # Matching a file section here puts this rule in the same merge stage, where
+  # the deeper directory wins. Verified under Apache 2.4: one header, no-store.
+  # unset then always-set, rather than setting both tables: Apache emits
+  # err_headers_out on a 200 as well as an error, so setting both sent the same
+  # header twice. Clearing the inherited headers_out value and setting the
+  # always one covers every status code and emits it exactly once.
+  <FilesMatch ".">
+    Header unset Cache-Control
+    Header always set Cache-Control "no-store, no-cache, must-revalidate, private"
+  </FilesMatch>
+  Header always set X-Robots-Tag "noindex, nofollow"
+
+  # ---- Cookies ----
+  # These endpoints set none today. PHP emits PHPSESSID the moment anything
+  # calls session_start(), though, and no script here reads a cookie — so
+  # unlike the storefront rule, this one forces HttpOnly too.
+  #
+  # SameSite=Lax rather than Strict: the customer arrives back on callback.php
+  # as a cross-site navigation from the bank, and Strict would withhold the
+  # cookie on exactly that request.
+  #
+  # `edit`, not `edit*` (which segfaulted Apache 2.4.58 on any response carrying
+  # a Set-Cookie) and not `always` (that table is err_headers_out; PHP writes
+  # cookies to headers_out, so it would never match).
+  Header edit Set-Cookie "(?i)^((?!.*;\s*Secure).*)$" "$1; Secure"
+  Header edit Set-Cookie "(?i)^((?!.*;\s*HttpOnly).*)$" "$1; HttpOnly"
+  Header edit Set-Cookie "(?i)^((?!.*;\s*SameSite=).*)$" "$1; SameSite=Lax"
+</IfModule>
+
+# Only pay.php and callback.php are entry points. config.php holds the merchant
+# secrets, cbk.php is the library, and the token cache is a bearer credential.
+<FilesMatch "^(config\.php|config\.example\.php|cbk\.php|\.cbk_token\.json)$">
+  Require all denied
+</FilesMatch>
+
+# Any log or cache file, wherever it lands.
+<FilesMatch "(?i)\.(json|log|jsonl)$">
+  Require all denied
+</FilesMatch>

@@ -1,0 +1,724 @@
+/* Tailwind v4 entry. @config loads our legacy JS config (brand colors, font).
+ * Token/admin styles imported after Tailwind so their rules win.
+ * (Paths are relative to this file at src/styles/. In the real project where
+ * index.css sits at src/, use "./styles/theme.css" etc.) */
+@import 'tailwindcss';
+@import './fonts.css';
+@import './theme.css';
+@import './admin.css';
+@import './admin-mobile.css';
+@config '../../tailwind.config.js';
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+
+  /* ---- THE ROOT SIZE, AND WHY IT IS THE ONLY SIZE THAT CHANGES ----
+   *
+   * The site was set at a flat 16px root on a 27-inch monitor and on a
+   * five-inch phone alike, which is a phone's type scale stretched across a
+   * desktop: every heading, price and label reads a size small the further
+   * back you sit.
+   *
+   * This grows the root from 16px to 17px between 480px and 1440px of
+   * viewport, and everything follows, because ALL of it — Tailwind's type
+   * steps, its spacing, our own components — is written in rem. That is the
+   * point of moving this one number instead of a hundred: type and the space
+   * around it grow TOGETHER, so the proportions the design was drawn at
+   * survive. Enlarging only the font sizes is what produces cramped text in
+   * boxes built for smaller text.
+   *
+   * It stops at 17px on purpose, and 6% is not timidity — it is where the
+   * measurements stopped agreeing. See the note on Arabic below.
+   *
+   * clamp() rather than breakpoints so it is continuous: a step at a
+   * breakpoint is visible as a jump when a window is dragged.
+   *
+   * The floor is exactly 16px, so phones stay where they were — which is
+   * where the iOS 16px form-field rule and the measured CLS numbers live.
+   *
+   * DUPLICATED in index.html's inlined critical CSS. It has to be: the
+   * stylesheet deliberately does not block the first paint, so a root size
+   * only declared here would mean the shell paints at the browser's 16px and
+   * the whole page rescales when this file lands. Keep the two in step.
+   */
+  font-size: clamp(16px, 15.5px + 0.104vw, 17px);
+}
+
+body {
+  /* Warm beige canvas like the live site; dark header/hero/footer sections. */
+  @apply bg-sand text-slate-900 antialiased;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-family: 'IBM Plex Sans Arabic', 'Plex Arabic Fallback', system-ui, sans-serif;
+  /* Alexandria is a variable font; let the renderer take its optical size cue
+     from the file rather than drawing every size off one master. */
+  font-optical-sizing: auto;
+  /* 1.5 is a user-interface default, not a reading measure, and this site has
+     real paragraphs on /about, /returns, /privacy and every product page. */
+  line-height: 1.6;
+}
+
+/* ---- Typography system ----
+ * Display: Alexandria — geometric, high-contrast, equally confident in Arabic
+ * and Latin at large sizes, which is what a sportswear headline needs. It
+ * replaced Changa, whose softer, narrower forms read less premium set large,
+ * and it draws Arabic-Indic numerals (٦٠٪) properly — the discount badges and
+ * prices depend on that.
+ * UI/body: IBM Plex Sans Arabic — neutral and highly legible small, so the
+ * pairing is geometric-display over humanist-text rather than two voices
+ * competing.
+ * DISPLAY SIZES USE 900, NOT 800 (`font-black`, in the markup): the hero
+ * titles, the category tiles and the 404. Alexandria is a variable font whose
+ * axis runs 100–900 and the @font-face declares the whole range, so the
+ * heaviest cut is already inside the file the site ships — 900 costs no extra
+ * bytes and no extra request over 800. Sportswear headlines want the weight
+ * and it was sitting there unused.
+ * Section headings (text-3xl and below) deliberately STAY at 800. At that
+ * size 900 stops reading as emphasis and starts reading as shouting, and the
+ * page loses the hierarchy between a hero and a subhead.
+ * Headlines get optical corrections that only make sense at display sizes:
+ * tighter tracking and leading in Latin. Arabic takes NEITHER — negative
+ * tracking breaks the connected letterforms, and Arabic ascenders/descenders
+ * need more leading, not less. */
+h1, h2, h3, .font-display {
+  font-family: 'Alexandria', 'Alexandria Fallback', 'IBM Plex Sans Arabic', 'Plex Arabic Fallback', system-ui, sans-serif;
+  line-height: 1.14;
+  letter-spacing: -0.018em;
+  font-feature-settings: 'kern' 1, 'liga' 1;
+  /* A headline that drops two words onto a second line is the commonest way
+     a good type setting looks amateur, and a bilingual shop invites it: the
+     same heading is four words in one language and seven in the other.
+     `balance` evens the lines instead. Browsers cap it at a few lines, which
+     is exactly the range headings live in, and ignore it where unsupported —
+     nothing to fall back to. */
+  text-wrap: balance;
+}
+
+/* Paragraphs get `pretty`, not `balance`: it leaves the line breaks alone and
+   only refuses the orphan — one word marooned on the last line. `balance` on
+   long copy is the wrong tool, and browsers decline to apply it there. */
+p, li, dd, figcaption {
+  text-wrap: pretty;
+}
+[dir='rtl'] h1,
+[dir='rtl'] h2,
+[dir='rtl'] h3,
+[dir='rtl'] .font-display {
+  letter-spacing: 0;
+  line-height: 1.3;
+}
+/* Display sizes tighten further; small headings must not. */
+.text-4xl, .text-5xl, .text-6xl, .text-7xl, .text-8xl, .text-9xl {
+  letter-spacing: -0.028em;
+}
+[dir='rtl'] .text-4xl,
+[dir='rtl'] .text-5xl,
+[dir='rtl'] .text-6xl,
+[dir='rtl'] .text-7xl,
+[dir='rtl'] .text-8xl,
+[dir='rtl'] .text-9xl {
+  letter-spacing: 0;
+}
+
+/* Arabic body copy needs more leading than Latin at the same size: it has no
+ * capitals to sit under and its meaning lives in dots and strokes above and
+ * below the baseline, which collide at Latin line spacing.
+ *
+ * WHAT IS DELIBERATELY NOT HERE: a larger root size for Arabic. Arabic does
+ * read smaller than Latin at an identical font-size, and setting the RTL root
+ * a step up (17-18px) is the textbook fix. It was written, and it was
+ * reverted, because it is not free here — /shop in Arabic measured CLS 0.027
+ * against a 0.02 budget, a tenfold rise from 0.0018. At the larger root the
+ * product grid's labels reflow as the cards settle. A shop whose Arabic
+ * catalogue visibly moves under the reader's thumb has not been improved by
+ * being set a point larger. If it comes back it comes back with the grid
+ * fixed first, and test:perf is the thing that says so.
+ */
+[dir='rtl'] body {
+  line-height: 1.75;
+}
+
+/* THE SMALLEST LABELS, ONE STEP UP IN ARABIC.
+ *
+ * Arabic reads smaller than Latin at an identical font-size — it has no
+ * capitals and its meaning lives in dots and strokes above and below the
+ * baseline. 12px is a floor in Latin and a squint in Arabic.
+ *
+ * This is the NARROW version of a change that was tried and reverted before.
+ * Raising the RTL ROOT to 17-18px is the textbook fix and it is not free here:
+ * /shop in Arabic measured CLS 0.027 against a 0.02 budget, because the whole
+ * product grid reflows as the cards settle. This touches only text-xs — small
+ * labels, badges and captions, never body copy, never headings, never anything
+ * that sizes a grid cell — so the reflow that killed the root change does not
+ * apply. Measured after: no route moved from its baseline.
+ *
+ * If a future edit widens this beyond text-xs, re-run npm run test:perf and
+ * read /shop [ar] specifically. That is the number that says whether the shop's
+ * Arabic catalogue moves under the reader's thumb.
+ */
+[dir='rtl'] .text-xs {
+  font-size: 0.8125rem;   /* 13px, from 12px */
+}
+
+/* Arabic script must never be letter-spaced — tracking breaks the connected
+ * letterforms. Zero it in RTL wherever tracking utilities are used. */
+[dir='rtl'] .tracking-wide,
+[dir='rtl'] .tracking-widest,
+[dir='rtl'] .uppercase {
+  letter-spacing: 0 !important;
+}
+
+/* Consistent number rendering for prices */
+.tabular-nums, .price {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Accessibility: visible, consistent focus rings (WCAG 2.2) ---- */
+:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+::selection {
+  background: hsl(var(--primary));
+  color: #fff;
+}
+
+/* Respect users who prefer less motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---- Premium design-system primitives ----
+ * In @layer components on purpose. As plain CSS these sat AFTER Tailwind in
+ * source order, so `.btn { display: inline-flex }` beat the `hidden` utility
+ * at equal specificity — `class="btn hidden lg:inline-flex"` stayed visible,
+ * which put two live Pay buttons on the checkout page on every phone.
+ * Inside the components layer, utilities win, which is the whole point of
+ * having layers. */
+@layer components {
+  /* Eyebrow/kicker labels. In the components layer for the reason spelled out
+     above: as plain CSS it would sit after Tailwind and win against utilities
+     at equal specificity, so `class="eyebrow text-sm"` would silently ignore
+     the size. Wide tracking is the whole effect in Latin; Arabic gets none
+     (it breaks the connected letterforms) and a slightly larger size instead,
+     because Arabic has no capitals to give the label its weight. */
+  .eyebrow {
+    font-family: 'Alexandria', 'Alexandria Fallback', 'IBM Plex Sans Arabic', 'Plex Arabic Fallback', system-ui, sans-serif;
+    font-weight: 600;
+    /* 12px is the floor for anything a customer has to read on a phone. This
+       was 0.7rem — 11.2px — which is the smallest text the shop set, on a
+       label that names the brand of the garment. */
+    font-size: 0.75rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    line-height: 1;
+  }
+  [dir='rtl'] .eyebrow {
+    letter-spacing: 0;
+    /* Kept a step above the Latin size, for the reason above the rule: Arabic
+       has no capitals to give a label its weight, so it gets size instead of
+       the tracking it must never have. */
+    font-size: 0.8125rem;
+    font-weight: 700;
+  }
+
+  /* Buttons — 8px-grid padding, smooth press, accessible focus */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: 3rem;
+    padding: 0 1.5rem;
+    border-radius: 9999px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    line-height: 1;
+    transition: transform 0.15s ease, background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn:active {
+    transform: translateY(1px) scale(0.99);
+  }
+  .btn-primary {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    font-weight: 800;
+    box-shadow: 0 8px 20px -8px hsl(var(--primary) / 0.6);
+  }
+  .btn-primary:hover {
+    background: #b8430f;
+    box-shadow: 0 12px 26px -8px hsl(var(--primary) / 0.7);
+  }
+  .btn-light {
+    background: #fff;
+    color: #171a1e;
+    box-shadow: 0 8px 20px -10px rgba(0, 0, 0, 0.4);
+  }
+  .btn-light:hover {
+    background: hsl(var(--primary));
+    /* Near-black, like every other thing sitting on brand orange. White here
+       was 3.81:1 — a button that became LESS readable on hover. */
+    color: hsl(var(--on-brand));
+  }
+  .btn-ghost {
+    background: transparent;
+    border: 1.5px solid currentColor;
+  }
+  .btn-sm {
+    height: 2.25rem;
+    padding: 0 1rem;
+    font-size: 0.85rem;
+  }
+
+  /* Cards — consistent radius + layered premium shadow */
+  .card {
+    background: #fff;
+    border-radius: 1.5rem;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px -12px rgba(16, 24, 40, 0.12);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+
+  /* Skeleton shimmer for loading states */
+  @keyframes shimmer {
+    100% { transform: translateX(100%); }
+  }
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background: #e7e1d5;
+  }
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+    animation: shimmer 1.4s infinite;
+  }
+}
+
+/* Small RTL niceties */
+[dir='rtl'] .flip-x {
+  transform: scaleX(-1);
+}
+/* A logo inside a mirrored svg scene: the mark itself flips back in place
+   (fill-box centre), while its parent keeps the mirrored position. Used by
+   the hero athletes' chest prints. */
+.mark-unflip {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+[dir='rtl'] .mark-unflip {
+  transform: scaleX(-1);
+}
+
+/* ---- Dark mode ----
+ * The palette is surface-driven: we remap the few surface/text utilities the
+ * app uses rather than duplicating every component. Brand orange is unchanged
+ * (it already meets contrast on both canvases). */
+[data-theme='dark'] body {
+  background-color: #171a1e;
+  color: #e8eaed;
+}
+[data-theme='dark'] .bg-sand,
+[data-theme='dark'] .bg-sand-light {
+  background-color: #171a1e !important;
+}
+[data-theme='dark'] .bg-white,
+[data-theme='dark'] .card {
+  background-color: #1b2026 !important;
+  color: #e8eaed;
+}
+[data-theme='dark'] .text-slate-900,
+[data-theme='dark'] .text-slate-800,
+[data-theme='dark'] .text-slate-700 {
+  color: #e8eaed !important;
+}
+[data-theme='dark'] .text-slate-600,
+[data-theme='dark'] .text-slate-500,
+[data-theme='dark'] .text-slate-400 {
+  color: #9aa3ae !important;
+}
+[data-theme='dark'] .border-black\/10,
+[data-theme='dark'] .border-black\/15,
+[data-theme='dark'] .border-slate-100,
+[data-theme='dark'] .border-slate-200,
+[data-theme='dark'] .border-slate-300 {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+/* Image and chip surfaces. bg-slate-50 is the frame behind a product photo and
+   bg-slate-100 is a sold-out size chip; both stayed near-white in dark mode, so
+   an image that had not loaded yet was a white rectangle on charcoal and a
+   sold-out chip glowed brighter than the available ones. */
+[data-theme='dark'] .bg-slate-50,
+[data-theme='dark'] .bg-slate-100 {
+  background-color: #232830 !important;
+}
+/* The guest-checkout notice. Its emerald palette is the one thing on the page
+   the surface remap does not cover: bg-emerald-50/70 over charcoal composites
+   to a pale sage, and emerald-800 text on it measured 3.76:1. Given its own
+   dark pair rather than being converted to slate, because the green IS the
+   message — it is the one reassuring thing on a page about money. */
+[data-theme='dark'] .guest-note {
+  background-color: #12251d !important;
+  border-color: #1f4436 !important;
+}
+[data-theme='dark'] .guest-note .guest-note__title {
+  color: #7ee2b8 !important;
+}
+[data-theme='dark'] .guest-note .guest-note__body,
+[data-theme='dark'] .guest-note a {
+  color: #cfeee0 !important;
+}
+
+[data-theme='dark'] .btn-light {
+  background: #e8eaed;
+  color: #171a1e;
+}
+[data-theme='dark'] .skeleton {
+  background: #232830;
+}
+
+/* Grid-card price. Sits directly on the page canvas rather than in a white
+   box, and it is 14px bold — so it needs the 4.5:1 floor, not 3:1. It used to
+   be a hard-coded #b8430f, which measured 3.97:1 on the beige canvas: a price,
+   the one number on a card that has to be legible, was the least legible thing
+   on it. Now it is the --accent-text role, which flips with the theme on its
+   own. */
+.price-card {
+  color: hsl(var(--accent-text));
+}
+
+/* The cart drawer, in one place.
+
+   height: `inset-y-0` now resolves against the viewport (the drawer is
+   portalled out of the blurred header — see CartDrawer.jsx), so this exists
+   only for dvh: on mobile browsers whose toolbars shrink the visible area, dvh
+   tracks it and vh does not.
+
+   overscroll-behavior: scrolling inside the drawer must not chain to the page
+   behind it — otherwise reaching the end of the drawer starts scrolling the
+   page, and on Android it can trigger pull-to-refresh mid-checkout. */
+.cart-drawer {
+  height: 100dvh;
+  overscroll-behavior: contain;
+}
+
+/* Hero carousel slides. Same family as the category tiles below — charcoal
+   under the START edge where the copy sits, a warm ember at the END edge under
+   the figures — but each slide keeps its own cast so the rotation reads as
+   three scenes, not one background repeated. Radial positions mirror under
+   [dir='rtl'] exactly as the tiles do, since the figures follow the end side. */
+.hero-strength {
+  background:
+    radial-gradient(60% 110% at 78% 100%, rgba(255, 123, 23, 0.32) 0%, transparent 60%),
+    linear-gradient(112deg, #14161a 0%, #1b2026 48%, #35200e 100%);
+}
+.hero-cardio {
+  background:
+    radial-gradient(70% 100% at 72% 100%, rgba(255, 123, 23, 0.26) 0%, transparent 64%),
+    linear-gradient(112deg, #12151a 0%, #1a2028 50%, #2f1d10 100%);
+}
+.hero-arena {
+  background:
+    radial-gradient(55% 110% at 80% 100%, rgba(255, 123, 23, 0.28) 0%, transparent 60%),
+    linear-gradient(112deg, #131519 0%, #171d26 46%, #2c1c10 100%);
+}
+[dir='rtl'] .hero-strength {
+  background:
+    radial-gradient(60% 110% at 22% 100%, rgba(255, 123, 23, 0.32) 0%, transparent 60%),
+    linear-gradient(-112deg, #14161a 0%, #1b2026 48%, #35200e 100%);
+}
+[dir='rtl'] .hero-cardio {
+  background:
+    radial-gradient(70% 100% at 28% 100%, rgba(255, 123, 23, 0.26) 0%, transparent 64%),
+    linear-gradient(-112deg, #12151a 0%, #1a2028 50%, #2f1d10 100%);
+}
+[dir='rtl'] .hero-arena {
+  background:
+    radial-gradient(55% 110% at 20% 100%, rgba(255, 123, 23, 0.28) 0%, transparent 60%),
+    linear-gradient(-112deg, #131519 0%, #171d26 46%, #2c1c10 100%);
+}
+/* Men/women fallback backgrounds, used when the server has no photo for the
+   category. Charcoal under the START edge where the copy sits, with a warm
+   ember at the END edge under the silhouette — never flat orange under orange
+   art. Both radial positions are mirrored under [dir='rtl'] so the ember keeps
+   following the artwork when the start and end sides flip.
+
+   The two are deliberately NOT the same gradient. They sit side by side in the
+   grid, and when they shared one background the pair read as a single tile
+   repeated rather than two categories: men keeps a cool steel cast, women a
+   deeper plum-warm one, both resolving to the same ember at the figure. */
+.tile-men {
+  background:
+    radial-gradient(55% 120% at 80% 100%, rgba(255, 123, 23, 0.3) 0%, transparent 62%),
+    linear-gradient(118deg, #171a1e 0%, #1d2229 45%, #33200f 100%);
+}
+.tile-women {
+  background:
+    radial-gradient(55% 120% at 80% 100%, rgba(255, 123, 23, 0.26) 0%, transparent 62%),
+    linear-gradient(118deg, #1a1620 0%, #221c2a 45%, #3a2213 100%);
+}
+[dir='rtl'] .tile-men {
+  background:
+    radial-gradient(55% 120% at 20% 100%, rgba(255, 123, 23, 0.3) 0%, transparent 62%),
+    linear-gradient(-118deg, #171a1e 0%, #1d2229 45%, #33200f 100%);
+}
+[dir='rtl'] .tile-women {
+  background:
+    radial-gradient(55% 120% at 20% 100%, rgba(255, 123, 23, 0.26) 0%, transparent 62%),
+    linear-gradient(-118deg, #1a1620 0%, #221c2a 45%, #3a2213 100%);
+}
+
+/* Accessories and the outlet carry no silhouette, so they lean on colour —
+   but they stay charcoal at the START edge where the copy is. An earlier pass
+   made accessories orange end to end, which forced near-black text and an
+   inverted chip; once these tiles take a photo they get the same white-on-dark
+   scrim as the others, and having one tile flip its text colour depending on
+   whether a photo had been uploaded yet was a trap. Charcoal under the copy,
+   brand orange at the far edge, white text correct in every state. */
+.tile-acc {
+  background:
+    radial-gradient(60% 130% at 88% 100%, rgba(224, 86, 28, 0.75) 0%, transparent 62%),
+    linear-gradient(118deg, #171a1e 0%, #201a17 55%, #3d1f0c 100%);
+}
+[dir='rtl'] .tile-acc {
+  background:
+    radial-gradient(60% 130% at 12% 100%, rgba(224, 86, 28, 0.75) 0%, transparent 62%),
+    linear-gradient(-118deg, #171a1e 0%, #201a17 55%, #3d1f0c 100%);
+}
+.tile-outlet {
+  background:
+    radial-gradient(60% 130% at 88% 0%, rgba(184, 67, 15, 0.5) 0%, transparent 60%),
+    linear-gradient(118deg, #171a1e 0%, #20252c 60%, #2b1a12 100%);
+}
+[dir='rtl'] .tile-outlet {
+  background:
+    radial-gradient(60% 130% at 12% 0%, rgba(184, 67, 15, 0.5) 0%, transparent 60%),
+    linear-gradient(-118deg, #171a1e 0%, #20252c 60%, #2b1a12 100%);
+}
+
+/* Scrim laid over a category PHOTO only. The photos are supplied by the shop
+   and their brightness is not knowable here — a light studio shot would leave
+   white copy unreadable — so the start edge, where the copy sits, is taken
+   down hard and released across the frame, picking up the brand orange at the
+   far edge. Mirrored for RTL so the dark end always follows the text. */
+/* Lightened once the banners started engineering their own dark zone under
+   the copy — the heavy wash read as a shadow cast over the photography. */
+.cat-scrim {
+  background: linear-gradient(
+    100deg,
+    rgba(10, 11, 13, 0.80) 0%,
+    rgba(10, 11, 13, 0.55) 34%,
+    rgba(10, 11, 13, 0.12) 62%,
+    rgba(10, 11, 13, 0.0) 100%
+  );
+}
+[dir='rtl'] .cat-scrim {
+  background: linear-gradient(
+    -100deg,
+    rgba(10, 11, 13, 0.80) 0%,
+    rgba(10, 11, 13, 0.55) 34%,
+    rgba(10, 11, 13, 0.12) 62%,
+    rgba(10, 11, 13, 0.0) 100%
+  );
+}
+
+/* ==========================================================================
+   Modern phones
+   --------------------------------------------------------------------------
+   The viewport meta now carries viewport-fit=cover, so the page paints edge to
+   edge — under the Dynamic Island / punch-hole at the top and under the
+   home-indicator bar at the bottom. Everything that touches an edge has to
+   pull itself back out with env(safe-area-inset-*), or it sits under hardware.
+
+   `pointer: coarse` rather than a width breakpoint: what matters for hit
+   targets and iOS focus-zoom is that the input device is a finger, not that
+   the screen is narrow. A 344px folded Fold and a 440px Pro Max both qualify.
+   ========================================================================== */
+
+/* Routed through custom properties rather than calling env() at each use.
+   It keeps the values in one place, and it makes them overridable — the
+   mobile test suite sets --sa-top/--sa-bottom to real iPhone inset values to
+   prove the layout actually moves, which cannot be done with a bare env(). */
+:root {
+  --sa-top: env(safe-area-inset-top, 0px);
+  --sa-right: env(safe-area-inset-right, 0px);
+  --sa-bottom: env(safe-area-inset-bottom, 0px);
+  --sa-left: env(safe-area-inset-left, 0px);
+}
+
+/* The sticky header runs up under the status bar; pad it back down. */
+.app-header {
+  padding-top: var(--sa-top);
+}
+
+/* Landscape: the notch moves to a side, so horizontal insets become non-zero
+   and full-bleed rows would otherwise run under it. */
+.app-header > *,
+.app-footer > * {
+  padding-inline: var(--sa-left) var(--sa-right);
+}
+
+.app-footer {
+  padding-bottom: var(--sa-bottom);
+}
+
+/* Anything pinned to the bottom of the viewport clears the home indicator. */
+.safe-bottom {
+  padding-bottom: calc(0.75rem + var(--sa-bottom));
+}
+
+@media (pointer: coarse) {
+  /* iOS Safari zooms the whole page when a focused field's text is under 16px,
+     and never zooms back out. Every field on this site was 14px, so tapping
+     into checkout threw the layout sideways on every iPhone. !important is
+     deliberate: it has to beat Tailwind's text-sm on the elements themselves. */
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* Apple HIG and WCAG 2.5.5 both want ~44px of finger. Form controls were
+     landing at 40–42px, and the qty steppers at 35px. */
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea,
+  .btn,
+  .tap {
+    min-height: 44px;
+  }
+
+  .tap {
+    min-width: 44px;
+  }
+
+  /* A checkbox cannot grow much without looking wrong, so the label around it
+     becomes the target instead. */
+  .tap-row {
+    min-height: 44px;
+    align-items: center;
+  }
+}
+
+/* Sticky mobile action bar (product page, checkout). Frosted so the content
+   scrolling beneath it stays legible. */
+.action-bar {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 30;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+[data-theme='dark'] .action-bar {
+  background: rgba(23, 26, 30, 0.92);
+  border-top-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Auto-hiding header — phones and tablets only. On a desktop there is plenty
+   of vertical room and a moving header is just noise. */
+@media (max-width: 1023px) {
+  .app-header {
+    transition: transform 0.3s ease;
+    will-change: transform;
+  }
+  .app-header.is-hidden {
+    transform: translateY(-100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-header {
+    transition: none !important;
+  }
+}
+
+/* Skip link — the first tab stop, invisible until it has focus.
+   Not `display:none` when unfocused: a hidden element is not focusable, so the
+   link would not exist for the only users it is for. Moved off-screen instead,
+   and brought back on :focus. */
+.skip-link {
+  position: fixed;
+  inset-inline-start: 0.75rem;
+  top: -4rem;
+  z-index: 100;
+  border-radius: 0 0 0.75rem 0.75rem;
+  background: var(--brand, #E0561C);
+  padding: 0.6rem 1.1rem;
+  font-weight: 700;
+  color: #171A1E;
+  transition: top 0.15s ease-out;
+}
+.skip-link:focus {
+  top: 0;
+}
+
+
+/* ---- Printing, and specifically printing the invoice ----
+ * An invoice is a document a customer keeps, forwards, or hands to a company
+ * accounts department. It has to survive leaving the browser.
+ *
+ * DIRECTION SURVIVES PRINT. The Arabic invoice prints right-to-left because
+ * <html dir> is what the print renderer reads too — nothing here overrides it,
+ * and nothing here may, which is why every alignment on the page is logical
+ * (text-start / text-end) rather than left/right. A hard-coded text-right in
+ * the page would print the total under the item names in Arabic.
+ */
+@media print {
+  /* Chrome and Safari drop background colours by default, which turns the
+     PAID badge into black text on nothing. */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* The shop is not part of the document. */
+  .app-header,
+  .app-footer,
+  .action-bar,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .invoice {
+    max-width: none;
+    padding: 0;
+  }
+
+  .invoice article {
+    border: none;
+    padding: 0;
+  }
+
+  /* A line item split across a page break is a line item read twice. */
+  .invoice tr {
+    break-inside: avoid;
+  }
+  .invoice thead {
+    break-inside: avoid;
+    display: table-header-group; /* repeat the header on every page */
+  }
+
+  @page {
+    margin: 14mm;
+  }
+}

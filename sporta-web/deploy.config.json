@@ -1,0 +1,73 @@
+{
+  "_comment": [
+    "Hostinger deploy for www.sporta.com.kw.",
+    "",
+    "WITH SSH OFF (the current state) use FTPS:",
+    "    npm run publish            # build + upload + verify",
+    "    npm run publish:dry        # show what would change, upload nothing",
+    "  Credentials go in .env.deploy (git-ignored): FTP_HOST, FTP_USER, FTP_PASSWORD.",
+    "  Get them from hPanel -> Files -> FTP Accounts.",
+    "",
+    "The SFTP route below needs SSH enabled and is kept for if it ever is.",
+    "",
+    "config.js, api/config.php, knet/config.php and pay/config.php are NEVER",
+    "uploaded and NEVER deleted by either route - they hold the live database and",
+    "bank credentials and exist only on the server."
+  ],
+  "ssh": {
+    "host": "46.202.158.211",
+    "port": 65002,
+    "user": "u130124229",
+    "remoteDir": "/public_html"
+  },
+  "build": {
+    "command": "npm run release",
+    "outputDir": "dist"
+  },
+  "upload": {
+    "mirror": false,
+    "include": [
+      "**/*"
+    ],
+    "exclude": [
+      "**/.DS_Store",
+      "**/*.map",
+      "knet/config.php",
+      "config.js"
+    ],
+    "filePermissions": "644",
+    "dirPermissions": "755",
+    "keep": [
+      "knet/config.php",
+      "config.js"
+    ]
+  },
+  "verify": {
+    "criticalFiles": [
+      "index.html",
+      ".htaccess",
+      "robots.txt",
+      "sitemap.xml",
+      "sitemap-pages.xml",
+      "sitemap-products.xml",
+      "site.webmanifest",
+      "llms.txt",
+      "config.js"
+    ],
+    "htaccess": {
+      "local": "public/.htaccess",
+      "remote": "/public_html/.htaccess",
+      "expectedPermissions": "644"
+    },
+    "healthcheck": {
+      "url": "https://www.sporta.com.kw/",
+      "expectStatus": 200
+    }
+  },
+  "ftp": {
+    "host": "",
+    "user": "",
+    "remoteDir": "/public_html",
+    "_note": "Leave blank here and set FTP_HOST in .env.deploy from hPanel -> Files -> FTP Accounts. ftp.sporta.com.kw does not exist in DNS; Hostinger gives a server hostname like srv1814.hstgr.io or an IP."
+  }
+}

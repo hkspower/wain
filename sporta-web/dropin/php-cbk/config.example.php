@@ -1,0 +1,73 @@
+<?php
+// CBK Hosted KNET & T-Pay — configuration.
+// Copy to config.php and fill with the values CBK sends after activation.
+// Keep config.php OUT of public web access (see .htaccess). Never commit it.
+//
+// NOTE: CBK T-Pay does NOT require you to AES-encrypt anything. ENCRP_KEY and
+// the AccessToken are already-encrypted tokens issued by the bank/gateway —
+// you pass them through as-is.
+
+return [
+    // --- Environment: 'test' or 'production' ---
+    'env' => 'test',
+
+    // Base URLs — the {TestPG} / {ProductionPG} placeholders in the manual.
+    // These are the real CBK hosts, taken from the bank's own integration
+    // screen; the manual itself never prints them, which is why these two
+    // lines used to say PROVIDED_BY_CBK and the dropin could not be pointed
+    // anywhere. Confirm them against your activation email before going live:
+    // if CBK has put you on a different host, this is the one line to change.
+    'test_base'       => 'https://pgtest.cbk.com',  // {TestPG}
+    'production_base' => 'https://pg.cbk.com',      // {ProductionPG}
+
+    // --- Merchant API credentials (server-side only, never to the browser) ---
+    'client_id'     => 'YOUR_CLIENT_ID',      // ClientId  (Merchant API ID)
+    'client_secret' => 'YOUR_CLIENT_SECRET',  // ClientSecret (Merchant API Password)
+    'encrp_key'     => 'YOUR_ENCRP_KEY',      // ENCRP_KEY (Merchant Encrypted account key)
+
+    // --- Your URLs ---
+    // Where CBK sends the customer back (this callback), with ?encrp=...
+    'return_url'      => 'https://www.sporta.com.kw/pay/callback.php',
+    // Final page in your React app the customer lands on after we verify:
+    'result_page_url' => 'https://www.sporta.com.kw/payment/result',
+
+    // Default language for the hosted page: 'en' or 'ar'
+    'lang' => 'en',
+
+    // Payment mode: '' = let customer choose, '1' = KNET only, '2' = T-Pay QR only
+    'pay_type' => '',
+
+    // Where to cache the AccessToken. This file IS a bearer credential: whoever
+    // holds it can call CBK as this merchant until it expires.
+    //
+    // The default used to be __DIR__ . '/.cbk_token.json', which put it inside
+    // the web root at /public_html/pay/. Three .htaccess rules denied it and all
+    // three still do — but a credential in the web root is defended by
+    // configuration, and configuration is the thing that breaks. One directory
+    // up is /public_html/../, outside the document root, where no Apache rule,
+    // no rewrite ordering and no future folder .htaccess can matter. That is
+    // where knet-payments.log already lives, for the same reason.
+    //
+    // Must be writable by PHP. hPanel File Manager can create it next to
+    // public_html; cbk.php creates it on first use if the directory is writable.
+    // Payment audit log (append-only, chmod 600 on first write). Put it
+    // OUTSIDE public_html so it can never be fetched over HTTP. Set '' to
+    // disable — but a payment system with no trail cannot be reconciled.
+    'log_file' => __DIR__ . '/../../cbk-payments.log',
+
+    'token_cache_file' => __DIR__ . '/../../.cbk_token.json',
+
+    // --- ORDERS DATABASE. REQUIRED for a live shop ---
+    //
+    // Gives the SERVER authority over the price: pay.php charges the amount
+    // stored on the order and callback.php refuses to settle when what CBK
+    // captured does not match. Without it there is nothing to charge and
+    // T-Pay refuses every payment.
+    //
+    // Use the SAME four values as knet/config.php and api/config.php: both
+    // gateways settle rows in the one orders table the shop writes.
+    'mysql_host' => 'localhost',
+    'mysql_name' => '',
+    'mysql_user' => '',
+    'mysql_pass' => '',
+];

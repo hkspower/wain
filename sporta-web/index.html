@@ -1,0 +1,462 @@
+<!doctype html>
+<!-- ARABIC IS THE DEFAULT, so the raw HTML says so. The boot script below
+     overwrites both attributes for a visitor who chose English or asked for
+     it with ?lang=en; a crawler that runs no JavaScript reads exactly this,
+     and this is now the language the bare URL is canonical to. -->
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- The tab icon is 16-32px, and this used to point at a 512x512 PNG —
+         29 kB fetched on every page load, more than any category banner now
+         costs and 18% of a phone's whole image budget. Declaring the sizes lets
+         the browser take the 32px file for the tab and leave the big ones for
+         the install prompt, which is what they are for.
+         (A favicon.svg also sat here unreferenced, drawn as a teal-green Arial
+         "S" from some template — the wrong mark in the wrong colour. Deleted.) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <!-- viewport-fit=cover lets the page paint under the Dynamic Island and the
+         home-indicator bar on modern phones; the layout then pulls itself back
+         out of those zones with env(safe-area-inset-*). Without cover, the
+         insets all report 0 and none of that CSS does anything. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+    <!-- Primary meta -->
+    <title>Sporta — Sports &amp; Fitness Store in Kuwait | سبورتا</title>
+    <meta
+      name="description"
+      content="Sporta (سبورتا) is a Kuwait sportswear store — activewear, gym clothing, hoodies, caps, and sports accessories from brands like Gymshark, RHEO &amp; more. Delivery in 24 hours for 1 KWD, free exchange, KNET checkout. Arabic &amp; English."
+    />
+    <meta name="keywords" content="Sporta, سبورتا, sportswear Kuwait, activewear Kuwait, gym clothes Kuwait, fitness apparel, hoodies Kuwait, gym accessories, Gymshark Kuwait, RHEO, Vanquish, sportswear GCC, activewear Middle East, ملابس رياضية الكويت, ملابس جيم, ملابس رياضية نسائية, ملابس رياضية رجالية, هوديز, إكسسوارات رياضية, تسوق اونلاين الكويت, كي نت, ملابس رياضية الخليج, KNET, الكويت" />
+    <meta name="author" content="Sporta" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <!-- Colours the phone's status/URL bar. It has to match the sticky header
+         (charcoal), not the brand orange — with viewport-fit=cover the header
+         now runs right up under the status bar, and an orange strip above a
+         charcoal header is a visible seam. -->
+    <meta name="theme-color" content="#171A1E" />
+
+    <!-- Add to Home Screen -->
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Sporta" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="canonical" href="https://www.sporta.com.kw/" />
+
+    <!-- Geo targeting — Kuwait -->
+    <meta name="geo.region" content="KW" />
+    <meta name="geo.placename" content="Kuwait City" />
+    <meta name="geo.position" content="29.3759;47.9774" />
+    <meta name="ICBM" content="29.3759, 47.9774" />
+
+    <!-- Language alternates.
+         ALL THREE USED TO POINT AT THE SAME URL, which is not an hreflang
+         cluster — it is three annotations Google discards, because a set of
+         alternates whose members are indistinguishable describes no
+         alternatives at all. The Arabic version was therefore invisible as a
+         language target to any pass that did not execute JavaScript, and the
+         sitemap has been emitting the correct pair the whole time, so the two
+         disagreed.
+
+         x-default is ARABIC on purpose. It is what Google falls back to when a
+         searcher matches no listed language, and this is a Kuwaiti shop whose
+         market searches in Arabic. Pointing it at English answered "when in
+         doubt, show English" for a country where doubt should resolve the
+         other way. -->
+    <link rel="alternate" hreflang="ar" href="https://www.sporta.com.kw/" />
+    <link rel="alternate" hreflang="en" href="https://www.sporta.com.kw/?lang=en" />
+    <link rel="alternate" hreflang="x-default" href="https://www.sporta.com.kw/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Sporta" />
+    <meta property="og:title" content="Sporta — Sports &amp; Fitness Store in Kuwait" />
+    <meta property="og:description" content="Kuwait's destination for sports and fitness gear. Shop online in Arabic &amp; English with KNET checkout." />
+    <meta property="og:url" content="https://www.sporta.com.kw/" />
+    <meta property="og:image" content="https://www.sporta.com.kw/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <!-- These must match what the app writes at runtime (en_KW / ar_KW; see
+         the SEO helper under src).
+         They were en_US and ar_AR, which is what a crawler that does NOT run
+         JavaScript reads — and several AI and social crawlers do not. This is
+         a Kuwaiti shop, and ar_AR is not the locale any page renders in. -->
+    <meta property="og:locale" content="ar_KW" />
+    <meta property="og:locale:alternate" content="en_KW" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Sporta — Sports &amp; Fitness Store in Kuwait" />
+    <meta name="twitter:description" content="Kuwait's destination for sports and fitness gear. Arabic &amp; English, KNET checkout." />
+    <meta name="twitter:image" content="https://www.sporta.com.kw/og-image.png" />
+
+    <!-- Structured data for search + AI engines -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "OnlineStore",
+          "@id": "https://www.sporta.com.kw/#store",
+          "name": "Sporta",
+          "alternateName": "سبورتا",
+          "url": "https://www.sporta.com.kw/",
+          "logo": "https://www.sporta.com.kw/logo.png",
+          "image": "https://www.sporta.com.kw/og-image.png",
+          "email": "cs@sporta.com.kw",
+          "telephone": "+965-22091914",
+          "description": "Sporta is a Kuwait sportswear store — activewear, gym clothing, hoodies, caps, and sports accessories from brands like Gymshark, RHEO and its own SPORTA label. Delivery within 24 hours for 1 KWD, free exchange, bilingual Arabic/English with KNET payment.",
+          "currenciesAccepted": "KWD",
+          "paymentAccepted": "KNET, Visa, Mastercard",
+          "priceRange": "KWD 3.500 - KWD 24.000",
+          "areaServed": { "@type": "Country", "name": "Kuwait" },
+          "address": { "@type": "PostalAddress", "addressCountry": "KW", "addressLocality": "Kuwait City" },
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "contactType": "customer service",
+            "telephone": "+965-22091914",
+            "email": "cs@sporta.com.kw",
+            "availableLanguage": ["Arabic", "English"],
+            "areaServed": "KW"
+          },
+          "brand": [
+            { "@type": "Brand", "name": "SPORTA" },
+            { "@type": "Brand", "name": "RHEO" },
+            { "@type": "Brand", "name": "Vanquish" },
+            { "@type": "Brand", "name": "ATE" },
+            { "@type": "Brand", "name": "Gymshark" },
+            { "@type": "Brand", "name": "Eyesportwear" }
+          ],
+          "knowsLanguage": ["ar", "en"],
+          "sameAs": [
+            "https://www.instagram.com/sporta.kw",
+            "https://www.tiktok.com/@sporta.kw"
+          ]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://www.sporta.com.kw/#website",
+          "url": "https://www.sporta.com.kw/",
+          "name": "Sporta",
+          "inLanguage": ["en", "ar"],
+          "publisher": { "@id": "https://www.sporta.com.kw/#store" },
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://www.sporta.com.kw/shop?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        }
+      ]
+    }
+    </script>
+
+    <!-- Site configuration, editable on the server without a rebuild.
+         In <head> and classic (not a module) so it has definitely run before
+         the app bundle: classic scripts execute at parse time, module scripts
+         only after parsing finishes. -->
+    <!-- Language and direction, BEFORE the first paint.
+         ==========================================================
+         Measured on a phone at 390pt: an Arabic visitor's CLS was 0.4448
+         against 0.0058 in English — "poor" by a wide margin, and it hit the
+         half of the customers this shop is built for first. One shift of 0.4128
+         accounted for nearly all of it: this file is served with dir="ltr", and
+         LanguageContext only switched it after React hydrated, so the whole
+         page flipped from left-to-right to right-to-left in front of the reader.
+         It also meant Arabic pulled EIGHT font files instead of four, because
+         the Latin subsets were requested for the first render and the Arabic
+         ones for the second.
+
+         Reading the same localStorage key React reads, here, costs nothing and
+         removes both problems. Wrapped in try/catch because localStorage throws
+         in some privacy modes, and the fallback is exactly today's behaviour.
+
+         The theme is set here too, for the same reason — see below.
+
+         The two font files for that language are preloaded in the same breath.
+         Without it they are discovered only after the stylesheet is parsed,
+         which is one round trip later than it needs to be — and preloading the
+         WRONG language's fonts would be worse than not preloading, which is why
+         this could not be two static <link> tags. -->
+    <script>
+      (function () {
+        try {
+          var el = document.documentElement
+          // THE LANGUAGE DECISION, MADE ONCE, HERE.
+          //
+          // It has to be synchronous: it sets <html dir>, which decides the
+          // whole page layout, and it picks which font files to preload below.
+          // Anything asynchronous — an IP lookup especially — can only land
+          // after the first paint, so every Gulf visitor would watch an
+          // English left-to-right page flip to Arabic right-to-left.
+          //
+          // Order: an explicit saved choice, then ?lang=, then ARABIC. The
+          // reasoning is in the app module i18n/detectLang.js — this is the
+          // same rule, inlined, because it must run before any module loads.
+          // KEEP THE TWO IN STEP; there is a test that asserts they agree.
+          //
+          // The device's language list and its time zone used to sit between
+          // ?lang= and the answer. They are gone on purpose: this URL is the
+          // ARABIC one and says so in its own canonical, so it has to be
+          // Arabic for everyone. A page that renders English for an English
+          // phone at an address whose canonical claims Arabic is a page that
+          // contradicts itself, and Googlebot — which reports en-US — is
+          // exactly the visitor that would have seen the contradiction.
+          var saved = localStorage.getItem('lang')
+          var lang = saved === 'ar' || saved === 'en' ? saved : null
+          if (!lang) {
+            var q = /[?&]lang=([A-Za-z-]{2,10})/.exec(location.search)
+            if (q) {
+              var tag = q[1].toLowerCase().split('-')[0]
+              if (tag === 'ar' || tag === 'en') lang = tag
+            }
+          }
+          if (!lang) lang = 'ar'
+          var ar = lang === 'ar'
+          // NOT written back to localStorage. That key means "the visitor
+          // chose this", and detection is not a choice — persisting it would
+          // freeze a traveller into whichever language they first arrived in
+          // and make the toggle the only way out.
+          window.__SPORTA_LANG = ar ? 'ar' : 'en'
+          el.lang = ar ? 'ar' : 'en'
+          el.dir = ar ? 'rtl' : 'ltr'
+          // Theme, for the same reason and with the same measurement behind it:
+          // ThemeProvider sets data-theme in an effect after hydration, so a
+          // dark-mode visitor got data-theme="(none)" at the first frame and at
+          // DOMContentLoaded, and a flash of the beige light theme on every
+          // single page load. Reading the saved choice — or the OS preference
+          // when there is none — costs nothing here.
+          var t = localStorage.getItem('sporta_theme')
+          if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+          el.dataset.theme = t
+          el.style.colorScheme = t
+          // THE HERO'S HEIGHT, BEFORE THE FIRST PAINT.
+          //
+          // The height is an owner setting that arrives with /api?r=slides —
+          // i.e. AFTER the page has painted. Applying it on arrival resized
+          // the hero and pushed the whole page down: measured 0.042 of layout
+          // shift, all of it from one jump at 3.3s, and it is the single
+          // largest CLS contributor on the site.
+          //
+          // So the last known value is cached and read here, the same way the
+          // theme is two lines above. A visitor gets the right height from the
+          // first frame; a change by the owner is picked up on the next load
+          // rather than by moving the page under whoever is reading it.
+          var HERO_H = { short: ['400px','460px'], tall: ['540px','640px'], full: ['85svh','90svh'] }
+          var h = HERO_H[localStorage.getItem('sporta_hero_size')] || HERO_H.tall
+          el.style.setProperty('--hero-h', h[0])
+          el.style.setProperty('--hero-h-md', h[1])
+
+          // THE HERO BANNER, requested here rather than in the markup above.
+          //
+          // It is the LCP element of the home page, and React does not ask for
+          // it until it has parsed, run and mounted. But which file it is
+          // depends on two things this script is the first to know: the
+          // language (the headline is set INSIDE the picture, so there is an
+          // -en and an -ar) and the viewport (a 2.53:1 desktop banner and a
+          // 0.75:1 phone one). Two static <link rel=preload> tags would
+          // download both languages; matchMedia and the resolved language pick
+          // exactly one.
+          //
+          // Only on the home page. Every other route would be preloading an
+          // image it never shows.
+          if (location.pathname === '/' || location.pathname === '/index.html') {
+            var dev = matchMedia('(min-width: 768px)').matches ? 'desktop' : 'mobile'
+            var b = document.createElement('link')
+            b.rel = 'preload'
+            b.as = 'image'
+            // Slide 1 only. Slides 2 and 3 are off-screen and lazy; preloading
+            // them would triple the hero's cost for two pictures most visitors
+            // never swipe to. `-rtl` is a different COMPOSITION, not a mirror,
+            // so Arabic wants its own file — and if the server has no -rtl the
+            // slide falls back to the base one on error, which costs a second
+            // request only in that case.
+            b.href = '/hero/' + dev + '/strength' + (ar ? '-rtl' : '') + '.webp'
+            b.setAttribute('fetchpriority', 'high')
+            document.head.appendChild(b)
+          }
+
+          var sub = ar ? 'arabic' : 'latin'
+          ;['alexandria-var-' + sub, 'plex-400-' + sub].forEach(function (f) {
+            var k = document.createElement('link')
+            k.rel = 'preload'
+            k.as = 'font'
+            k.type = 'font/woff2'
+            k.crossOrigin = 'anonymous'
+            k.href = '/fonts/' + f + '.woff2'
+            document.head.appendChild(k)
+          })
+        } catch (e) {}
+      })()
+    </script>
+
+    <!-- defer, so this does not block the parser.
+         As a plain blocking script it serialised the critical path: HTML ->
+         config.js (no-cache, so always a real round trip) -> stylesheet and font
+         preloads. Deferred, it still runs before main.jsx — a deferred classic
+         script and a module script both execute in document order after parsing
+         — so window.SPORTA_CONFIG is set before anything reads it, and the CSS
+         is discovered a round trip sooner. -->
+    <script src="/config.js" defer></script>
+
+    <!-- Fonts are self-hosted; the @font-face rules live in the app stylesheet
+         under styles/. The Google Fonts
+         stylesheet used to sit here, which cost a DNS lookup, a TLS handshake
+         and a render-blocking round trip to a third party before any heading
+         could paint. These two preloads are the faces above the fold — the
+         display weight for headings and the UI regular — so they start
+         downloading with the HTML instead of after the CSS parses. The rest
+         load on demand via unicode-range. -->
+    <link rel="preload" as="image" href="/logo-white.webp" fetchpriority="high" />
+    <!-- The hero banner is preloaded by the boot script below, NOT here, and
+         the 29 kB /favicon.png preload that used to sit on this line is gone.
+         Both for the same reason: the home page's largest element changed.
+
+         It used to be the S mark, because the hero was a drawn scene with the
+         mark in the middle of it. The hero is now a photograph, so the mark is
+         no longer above the fold on the home page at all — preloading it was
+         29 kB of a file the page had stopped asking for.
+
+         The banner cannot be preloaded from static markup because WHICH file
+         it is depends on the language, and the language is not known until the
+         boot script has run. Two static preloads would download both. -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+          href="/fonts/alexandria-var-latin.woff2" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+          href="/fonts/plex-400-latin.woff2" />
+    <!-- Critical CSS for the first paint, inlined so the shell below does not
+         wait on the stylesheet (which lands ~1.5s later on a throttled phone).
+         Nothing here is a duplicate of the design system: these are four boxes
+         and two brand colours, and they exist only until React mounts. -->
+    <style>
+      html { background: #171a1e }
+      /* The root type size, duplicated from index.css for the same reason
+         body{margin:0} is below: the stylesheet does not block the paint, so
+         anything NOT here is at the browser's default until it lands — and
+         the root size multiplies every rem in the design. */
+      html { font-size: clamp(16px, 15.5px + 0.104vw, 17px) }
+      /* The stylesheet no longer blocks the paint, so the browser's OWN
+         defaults are in force for the first ~1.5s — including body{margin:8px},
+         which shifted the whole shell sideways and down when the reset landed.
+         Measured: 0.0095 of layout shift, entirely from this. */
+      body { margin: 0 }
+      .boot { min-height: 100vh }
+      .boot-bar  { height: 28px; background: #e0561c }
+      /* The header's REAL height, measured, so the sticky header does not push
+         the hero down when it arrives. Phone: 28px promo bar + 60px logo bar +
+         45px nav = 133. The logo bar grows at 640px and then creeps with the
+         fluid root size, so the reserved box grows with it — measured at
+         134/143/147/151 against 133 reserved, i.e. the shell was 10-18px short
+         on every screen above a phone. (An earlier comment here said
+         "57px + 48px"; neither number was ever right.) */
+      .boot-head { height: 105px; background: #171a1e;
+                   display: flex; align-items: flex-start; justify-content: center }
+      @media (min-width: 640px)  { .boot-head { height: 115px } }
+      @media (min-width: 768px)  { .boot-head { height: 117px } }
+      @media (min-width: 1024px) { .boot-head { height: 119px } }
+      @media (min-width: 1440px) { .boot-head { height: 121px } }
+      /* 8px top = the real logo bar's padding, so the mark does not move. */
+      .boot-head img { height: 32px; width: auto; margin-top: 12px }
+      /* --hero-h is set by the script below, from the size the owner chose,
+         BEFORE anything paints. The skeleton and the real hero read the same
+         variable, so the real one drops into exactly this box. */
+      .boot-hero { height: var(--hero-h, 540px); background: #171a1e }
+      /* Only ever seen when the shell has become permanent — see the note by
+         the <noscript> below. Plain, centred, no dependency on the stylesheet
+         that also did not load. */
+      .boot-msg { position: absolute; inset: 133px 0 auto; padding: 48px 24px;
+                  text-align: center; color: #e2dbce; font: 16px/1.6 system-ui, sans-serif }
+      .boot-msg code { display: block; margin-top: 16px; font-size: 12px;
+                       color: #8a8a8a; word-break: break-all }
+      @media (min-width: 768px) { .boot-hero { height: var(--hero-h-md, 640px) } }
+    </style>
+  </head>
+  <body>
+    <!-- ================================================================
+         THE FIRST PAINT.
+         =================================================================
+         This is a SPA: nothing appears until ~260 kB of JavaScript has been
+         fetched, parsed and executed. Measured on a mid-range phone (4x CPU
+         throttle, 1.6 Mbps), that was 3.4 SECONDS of white screen — the
+         react-vendor chunk alone takes 2.4s to arrive, and the paint waits
+         on it.
+
+         So the shell paints WITHOUT JavaScript. The markup below is the
+         header bar and the hero box at their real sizes and real colours,
+         styled by the handful of inlined rules above rather than by the
+         77 kB stylesheet, so it appears as soon as the HTML is parsed.
+         React replaces it on mount (createRoot clears the container).
+
+         Deliberately NO TEXT in it. Copy here would be a second, untranslated
+         copy of strings that live in the i18n files, and it would be wrong for
+         half the visitors before it was ever wrong for the other half. Shape
+         and colour carry the whole job: the page stops being blank, and
+         because the boxes are already the right height, the real content
+         drops into place without moving anything — this LOWERS layout shift
+         rather than trading it for speed. -->
+    <div id="root">
+      <div class="boot" aria-hidden="true">
+        <div class="boot-bar"></div>
+        <div class="boot-head">
+          <!-- The real header logo, at the size the real header uses. An image
+               is CONTENTFUL where a coloured box is not, so this is what lets
+               First Contentful Paint happen with the shell rather than 1.3s
+               later with React — and it is not a placeholder, it is the same
+               mark, in the same place, that replaces it. -->
+          <img src="/logo-white.webp" alt="" width="132" height="41" fetchpriority="high" />
+        </div>
+        <div class="boot-hero"></div>
+      </div>
+    </div>
+    <!-- WHAT THE SHELL SAYS WHEN IT IS NOT A SHELL ANY MORE.
+         =================================================================
+         Everything above is a placeholder React clears on mount. That is
+         true for about 400ms — and if the bundle never arrives it is not
+         true at all: the shell becomes the whole site, permanently, and a
+         visitor gets an orange bar, a logo, and nothing else, forever. It
+         does not look broken. It looks like a shop with nothing in it.
+
+         So the shell is given a terminal state. This is the ONE place the
+         "no text in the shell" rule is relaxed, and only for text that
+         cannot exist in i18n: the i18n strings live in the bundle that, by
+         the time anyone reads this, did not load. -->
+    <noscript>
+      <div class="boot-msg">
+        <p>This shop needs JavaScript. Please enable it and reload.</p>
+        <p dir="rtl" lang="ar">يحتاج هذا المتجر إلى جافاسكربت. فعّلها ثم أعد التحميل.</p>
+      </div>
+    </noscript>
+    <script>
+      // JavaScript ran but the app never mounted — a different failure from
+      // the one above, and by far the more likely one: index.html and
+      // assets/ disagreeing after a partial upload, so the module 404s.
+      //
+      // Ten seconds, because the budget suite measures LCP under 2s on a
+      // throttled phone and a false alarm here would be its own bug. Paused
+      // tabs are skipped: background timers are throttled, so a tab restored
+      // after a minute would accuse a perfectly good server.
+      (function () {
+        var failed = ''
+        addEventListener('error', function (e) {
+          var t = e.target
+          if (t && (t.src || t.href)) failed = t.src || t.href
+        }, true)
+        setTimeout(function () {
+          if (window.__SPORTA_MOUNTED || document.visibilityState !== 'visible') return
+          var ar = window.__SPORTA_LANG === 'ar'
+          var d = document.createElement('div')
+          d.className = 'boot-msg'
+          d.setAttribute('dir', ar ? 'rtl' : 'ltr')
+          d.innerHTML =
+            '<p>' + (ar ? 'لم تكتمل عملية تحميل الصفحة.' : 'This page did not finish loading.') + '</p>' +
+            '<p>' + (ar ? 'حدّث الصفحة. إذا تكرر ذلك، فقد تكون ملفات الموقع غير مرفوعة بالكامل.'
+                        : 'Refresh the page. If it keeps happening, the site\'s files are probably not all on the server.') + '</p>' +
+            (failed ? '<code>' + failed.replace(/[<&]/g, '') + '</code>' : '')
+          document.getElementById('root').appendChild(d)
+        }, 10000)
+      })()
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

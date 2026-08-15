@@ -1,0 +1,846 @@
+// Bilingual content for Sporta — voice and structure mirror the live
+// sporta.com.kw (Arabic-first, premium sportswear tone).
+// Arabic counts are not English counts with a different word.
+//
+// The language has FIVE cases where English has two, and getting it wrong is
+// the kind of mistake a native reader notices immediately:
+//
+//   0        لا قطعة           (لا النافية للجنس takes the singular)
+//   1        قطعة واحدة        (singular, the noun carries the count)
+//   2        قطعتان            (the DUAL — a separate grammatical number)
+//   3–10     ٣ قطع             (the "plural of paucity", noun in the plural)
+//   11+      ١١ قطعة           (noun back to the SINGULAR after ten)
+//   100, 200, … and x01–x02 follow the same shape as 1 and 2.
+//
+// The old version had two branches, so it wrote "٢ قطع" (should be قطعتان) and
+// "١٥ قطع" (should be "١٥ قطعة"). This is used on the checkout summary and the
+// quick-checkout bar, next to the money — the two places a shopper is already
+// looking for a reason not to trust the total.
+export function arabicCount(n, forms) {
+  const [one, two, few, many] = forms
+  const abs = Math.abs(Number(n) || 0)
+  if (abs === 0) return `لا ${many}`
+  if (abs === 1) return one
+  if (abs === 2) return two
+  const mod100 = abs % 100
+  if (mod100 >= 3 && mod100 <= 10) return `${abs} ${few}`
+  return `${abs} ${many}`
+}
+
+export const translations = {
+  en: {
+    dir: 'ltr',
+    nav: { home: 'Home', shop: 'Shop', about: 'About', contact: 'Contact', cart: 'Bag' },
+    pull: { pull: 'Pull to refresh', release: 'Release to refresh', refreshing: 'Refreshing…' },
+    a11y: {
+      skip: 'Skip to content',
+      close: 'Close',
+      remove: 'Remove',
+      decrease: 'Decrease quantity',
+      increase: 'Increase quantity',
+      saveWishlist: 'Save to wishlist',
+      rated: 'Rated 4.8 out of 5',
+      savedWishlist: 'Saved to wishlist',
+      breadcrumb: 'Breadcrumb',
+      gallery: 'Product images',
+      imageN: 'Image {n} of {total}',
+      homeLink: 'Sporta — home',
+      wishlist: 'Wishlist',
+      bag: 'Bag',
+      search: 'Search',
+      toggleTheme: 'Toggle theme',
+      switchLang: 'Switch language',
+      mainNav: 'Main',
+      loading: 'Loading',
+      instagram: 'Instagram',
+      tiktok: 'TikTok',
+      whatsapp: 'WhatsApp',
+    },
+    ann: 'Delivery within 24 hours in Kuwait · 1 KWD · KNET, cards & cash on delivery',
+    search: { placeholder: 'Search products…', empty: 'No products found.', title: 'Search' },
+    sort: { label: 'Sort', newest: 'Newest', priceAsc: 'Price: low → high', priceDesc: 'Price: high → low' },
+    trust: {
+      delivery: 'Delivery within 24 hours · 1 KWD',
+      pay: 'Secure checkout — KNET, Visa, Mastercard',
+      returns: 'Free 14-day returns',
+      noExchange: 'This item cannot be exchanged',
+    },
+    news: { title: 'Join the Sporta club', sub: 'Offers and new drops — straight to WhatsApp.', cta: 'Message us' },
+    cross: { title: 'Complete the look' },
+    flow: {
+      // A progress indicator across bag -> details -> payment. Kuwaiti shoppers
+      // on a phone see one screen at a time; without this, "checkout" is an
+      // unbounded form with no idea how much is left.
+      bag: 'Bag', details: 'Delivery', pay: 'Payment',
+      step: 'Step {n} of {m}', done: 'done', current: 'current step',
+    },
+    quick: {
+      title: 'Quick checkout',
+      sub: 'Your details are saved on this device. Check them and pay.',
+      deliverTo: 'Deliver to',
+      edit: 'Change',
+      editBag: 'Edit bag',
+      useFull: 'Fill in the form instead',
+      cta: 'Quick checkout',
+      ctaHint: 'Saved address — two taps',
+    },
+    guest: {
+      title: 'No account needed',
+      // Honest about what happens next: there is no customer login anywhere on
+      // this site, and no email is collected, so the ORDER NUMBER is the only
+      // handle a shopper has. Saying so is the point.
+      body: 'Check out as a guest — there is nothing to sign up for. Keep the order number from the confirmation page: that is how you track your order, and we send updates on WhatsApp.',
+      track: 'Track an order',
+    },
+    spec: { fabric: 'Fabric', sku: 'Item code', weight: 'Weight', grams: '{n} g',
+      care: 'Care', careValue: 'Cold machine wash · do not tumble dry · do not iron',
+      soldOut: 'Sold out', lastOne: 'Last one', onlyLeft: 'Only {n} left',
+      sizesShipped: 'Stocked in these sizes only',
+      authentic: 'Authentic · sold by Sporta' },
+    fit: { label: 'Fit', pick: 'Please choose a fit',
+      note: 'How the garment sits on the body.' },
+    colour: { label: 'Colour', note: 'Choosing a colour opens that piece.' },
+    size: { label: 'Size', pick: 'Please choose a size', guide: 'Size guide',
+      note: 'Measurements in cm. If you are between sizes, we recommend the larger one.',
+      notCarried: 'Struck-through sizes are not carried in this piece.',
+      chest: 'Chest', waist: 'Waist', length: 'Length' },
+    invoice: {
+      title: 'Invoice',
+      number: 'Order number',
+      date: 'Date',
+      paid: 'PAID',
+      unpaid: 'Awaiting payment',
+      paidOn: 'Paid on',
+      billTo: 'Billed to',
+      item: 'Item',
+      qty: 'Qty',
+      unitPrice: 'Unit price',
+      lineTotal: 'Total',
+      // The invoice must add up. The API sends subtotal, discount and delivery
+      // for exactly this reason — items summing to 23 under a total of 20 (a
+      // 3 KWD coupon) or 4 of goods under a 5 charge (the delivery fee) reads
+      // as arithmetic the shop got wrong until each line is named.
+      subtotal: 'Subtotal',
+      discount: 'Discount',
+      delivery: 'Delivery',
+      print: 'Print / Save as PDF',
+      seller: 'Sporta Sports Wear · Kuwait · Licence 30199/2023',
+      // The separator between address parts and between size and fit. In
+      // Arabic a Latin comma is a bidi-neutral character and migrates across
+      // an adjacent Latin run; the Arabic comma does not.
+      sep: ', ',
+      taxNote: 'Prices are in Kuwaiti Dinar (KWD). No VAT is applied in Kuwait.',
+      footer: 'Thank you for shopping with Sporta.',
+      view: 'View invoice',
+      payment: 'Payment',
+    },
+    track: { title: 'Track your order', sub: 'Enter the order number from your confirmation.',
+      placeholder: 'e.g. SP1A2B3C', cta: 'Track', notfound: 'No order found with that number.',
+      error: 'Could not check right now. Please try again.',
+      states: { paid: 'Paid', pending: 'Pending payment', failed: 'Failed' } },
+    theme: { light: 'Light mode', dark: 'Dark mode' },
+    wish: { title: 'Wishlist', empty: 'No saved items yet.' },
+    nf: { title: 'Page not found', sub: 'The page you are looking for does not exist.', cta: 'Back to home' },
+    hero: {
+      title: 'Sporta',
+      kicker: 'Pro performance',
+      line1: 'Lift.',
+      line2: 'Ignite.',
+      subtitle: 'Built for those who accept nothing less than the best.',
+      cta: 'Shop the collection',
+    },
+    // The home carousel. Slide 1 doubles as the page's h1, so its title is
+    // written to stand alone as the heading of the whole storefront.
+    // The post-order review page (/review). The name is `rate`, not `review`,
+    // because payment.review already exists and means something else entirely
+    // — a payment being manually confirmed.
+    // SEO copy — the title and description Google actually shows in a result.
+    //
+    // THESE WERE ENGLISH ON THE ARABIC PAGES. `?lang=ar` rendered Arabic
+    // correctly — right lang, right dir, Arabic headings — and then handed the
+    // crawler an English <title> and an English description, which are the two
+    // things a searcher reads. An Arabic query returning an English snippet is
+    // a result nobody clicks, and it is the likeliest single reason a bilingual
+    // shop ranks in one language only.
+    seo: {
+      baseTitle: 'Sporta — Sports & Fitness Store in Kuwait',
+      baseDesc: 'Sporta is a Kuwait sportswear store — activewear, gym clothing, hoodies, caps and sports accessories from Gymshark, RHEO, Vanquish and more. Same-day delivery in Kuwait, 14-day returns, KNET and cash on delivery.',
+      home: 'Premium sportswear in Kuwait. Activewear, gym clothing, hoodies and accessories — same-day delivery for 1 KWD, KNET, cards and cash on delivery.',
+      shop: 'Shop sportswear in Kuwait — activewear, hoodies, leggings, caps and accessories. Prices in Kuwaiti Dinar, KNET checkout, same-day delivery.',
+      about: 'Sporta is a Kuwaiti sportswear store carrying Gymshark, RHEO, Vanquish, ATE and our own SPORTA label.',
+      contact: 'Contact Sporta Kuwait about an order, a size, delivery or a return. WhatsApp, phone and email.',
+      returns: 'Sporta returns and exchanges in Kuwait — 14 days from delivery, free collection.',
+      track: 'Track a Sporta order with your order number. Payment and delivery status in real time.',
+    },
+    rate: {
+      loading: 'One moment…',
+      title: 'How did we do?',
+      titleNamed: 'How did we do, {name}?',
+      subtitle: 'Rate your order and we\u2019ll send you {pct}% off your next one.',
+      ratingLabel: 'Your rating',
+      starLabel: '{n} out of 5',
+      commentLabel: 'Anything you\u2019d like to tell us?',
+      commentPlaceholder: 'The fit, the delivery, the fabric \u2014 whatever stood out.',
+      submit: 'Send review',
+      sending: 'Sending…',
+      // Stated BEFORE they pick a rating. Without it a customer assumes the
+      // usual arrangement and rates up to earn the code, and the shop's own
+      // average stops meaning anything.
+      anyRating: 'Every rating earns the discount \u2014 including a low one. Tell us the truth.',
+      thanksTitle: 'Thank you.',
+      thanksBody: 'We read every one of these.',
+      codeLabel: 'Your code for {pct}% off',
+      codeNote: 'One use, valid for 90 days. Enter it at checkout.',
+      codeFailed: 'Your review is saved, but we could not create your discount code. Please email cs@sporta.com.kw and we will sort it out.',
+      invalidTitle: 'This review link is not valid',
+      invalidBody: 'It may have been mistyped, or the order may have been cancelled. If you think this is wrong, email cs@sporta.com.kw.',
+      // Shown AFTER the review is submitted and the code is already theirs.
+      // Nothing is offered for this and nothing checks whether they go: paying
+      // for a Google review breaks Google's policy and risks the whole profile.
+      googleAsk: 'If you have a moment, a public review helps other people find us.',
+      googleCta: 'Review us on Google',
+      // The shop's Google review link. Empty hides the whole section.
+      // Google Business Profile \u2192 Ask for reviews.
+      googleUrl: '',
+    },
+    assistant: {
+      // سبورتا AI keeps its Arabic name in BOTH languages. It is the shop's
+      // name, and translating a name is how a brand becomes two brands.
+      title: 'سبورتا AI',
+      subtitle: 'Orders, delivery and sizing',
+      open: 'Open the Sporta assistant',
+      close: 'Close',
+      send: 'Send',
+      placeholder: 'Ask about an order, delivery, returns…',
+      greeting: 'Hello. I can check an order, explain delivery and returns, or help you find a size.',
+      thinking: 'Checking…',
+      // Said when /api cannot be reached at all. It points at a person,
+      // because a broken assistant that only apologises is a dead end.
+      failed: 'I could not reach the shop just now. Please try again, or call us on +965 22091914.',
+      tooFast: 'That was a lot of questions at once — give me a moment and ask again.',
+      starters: ['Where is my order?', 'When will it arrive?', 'Can I return an item?', 'How can I pay?'],
+      amount: 'Total',
+      payment: 'Payment',
+      paid: 'Paid',
+      unpaid: 'Not paid',
+      stageLabel: 'Stage',
+      viewOrder: 'Open full order →',
+      // The speaker button. `listen` is the label while silent, `stop` while
+      // playing — the same button, because two buttons for one sound is one
+      // button too many on a phone.
+      listen: 'Listen to this answer',
+      stopAudio: 'Stop',
+      // The microphone. `speak` is the label while idle, `listening` while the
+      // browser is recording — the same button, for the same reason as above.
+      // `micDenied` is said once, in the conversation, when the visitor refuses
+      // the permission: a mic button that silently does nothing reads as a
+      // broken shop rather than as a choice the visitor made.
+      speak: 'Speak to us',
+      listening: 'Listening — tap to stop',
+      micDenied: 'I could not hear you — the microphone is blocked in your browser. You can still type below.',
+      // Hands-free: the reply is spoken aloud automatically when the question
+      // was asked aloud. Off by default for typed questions.
+      handsFree: 'Speak the replies',
+      stages: {
+        unfulfilled: 'Being prepared',
+        packed: 'Packed',
+        shipped: 'With the courier',
+        dispatched: 'With the courier',
+        delivered: 'Delivered',
+        cancelled: 'Cancelled',
+      },
+      addToBag: 'Add to bag',
+      chooseSize: 'Choose size',
+      added: 'Added ✓',
+      // The persistent bar; {n} is the item count.
+      reviewBag: 'Review bag & checkout ({n})',
+    },
+    heroSlides: {
+      aria: 'Highlights',
+      prev: 'Previous slide',
+      next: 'Next slide',
+      goTo: 'Go to slide',
+      pause: 'Pause slideshow',
+      play: 'Play slideshow',
+      slides: [
+        {
+          kicker: 'Strength',
+          title: 'Built by iron.',
+          sub: 'Heavy sessions, heavier standards — gear that works as hard as you lift.',
+          cta: 'Shop training',
+        },
+        {
+          kicker: 'Cardio',
+          title: 'Outrun yesterday.',
+          sub: 'Runs, intervals and everything between — kit that breathes and keeps your pace.',
+          cta: 'Shop cardio',
+        },
+        {
+          kicker: 'Every arena',
+          title: 'Football. Kickboxing. Swim.',
+          sub: 'One wardrobe for every game you play — pitch, ring and pool.',
+          cta: 'Shop the collection',
+        },
+      ],
+    },
+    offer: {
+      badge: 'Exclusive drop',
+      title: 'Summer Offers ’24',
+      cta: 'Discover offers',
+    },
+    cats: {
+      title: 'Shop by category',
+      // `d` is the one-line brief under each category title. Kept to what the
+      // shop actually stocks and actually promises — the brands are the ones
+      // in the catalogue, and same-day delivery and the 14-day window are the
+      // same claims made on /about and /returns.
+      men: {
+        k: 'Performance gear',
+        t: 'Men',
+        d: 'Training tees, compression tops, hoodies and jackets built for the gym and the heat.',
+      },
+      women: {
+        k: 'Move with confidence',
+        t: 'Women',
+        d: 'Seamless sets, high-waist leggings, sports bras and zip tops that hold their shape.',
+      },
+      acc: {
+        k: 'Essential gear',
+        t: 'Accessories',
+        d: 'Caps, bags, backpacks and the small kit that finishes the session.',
+      },
+      outlet: {
+        k: 'Up to 60% off',
+        t: 'Sporta Outlet',
+        d: 'Last sizes and past seasons, reduced while they last.',
+      },
+      discount: 'Up to 60% off',
+    },
+    ess: { kicker: 'Trending now', title: 'Shop the essentials' },
+    services: {
+      delivery: { t: 'Fast delivery', s: 'Within 24–48 hours' },
+      returns: { t: 'Easy returns', s: 'Return within 14 days' },
+    },
+    shop: {
+      h1: 'Shop sportswear in Kuwait',
+      loadMore: 'Show {n} more',
+      showing: 'Showing {shown} of {total}',
+      gridHeading: 'All products',
+      intro:
+        'Women\u2019s and men\u2019s activewear, hoodies and gym accessories \u2014 delivered same day across Kuwait, with KNET checkout in Kuwaiti Dinar.',
+      add: 'Add',
+      buyNow: 'Buy now',
+      notFound: 'Product not found.',
+      backToShop: 'Back to shop',
+      featured: 'Shop the essentials',
+      viewAll: 'View all',
+    },
+    cart: { title: 'Your bag', empty: 'Your bag is empty.', total: 'Total', checkout: 'Checkout',
+            subtotal: 'Subtotal', delivery: 'Delivery' },
+    checkout: {
+      summary: 'Order summary',
+      coupon: 'Discount code',
+      couponPlaceholder: 'Discount code',
+      applyCoupon: 'Apply',
+      couponApplied: 'applied',
+      couponRemove: 'Remove',
+      payWith: 'How would you like to pay?',
+      methodKnet: 'KNET / card',
+      methodKnetHint: 'Pay now on the bank’s secure page.',
+      // NOT "QR". CBK's manual calls tij_MerchPayType=2 the QR option, but the
+      // owner describes T-Pay as an online payment link — so this promises only
+      // what is certain: it is CBK, it is online, and it happens on their page.
+      // Telling a customer to scan something that turns out to be a link is a
+      // support call, and the wording costs nothing to keep neutral.
+      methodTpay: 'T-Pay (CBK)',
+      methodTpayHint: 'Pay online on CBK’s secure page.',
+      methodCod: 'Cash on delivery',
+      methodCodHint: 'Pay the driver when your order arrives.',
+      placeOrder: 'Place order — pay on delivery',
+      codPlaced: 'Order placed. Pay the driver on delivery.',
+      codNote: 'Have the exact amount ready if you can — drivers do not always carry change.',
+      payNow: 'Pay with KNET / CBK',
+      redirecting: 'Redirecting to payment…',
+      securedBy: 'Secured payment — KNET, Kuwait',
+      delivery: 'Delivery details',
+      deliveryHint: 'We deliver across Kuwait. The driver calls this number before arriving.',
+      contact: 'Contact',
+      address: 'Address',
+      name: 'Full name',
+      namePh: 'As it should appear for the driver',
+      phone: 'Mobile number',
+      phoneHint: 'Kuwait mobile — 8 digits starting 5, 6 or 9',
+      governorate: 'Governorate',
+      governoratePick: 'Choose a governorate',
+      area: 'Area',
+      areaPh: 'Choose or type your area',
+      // Shown when nothing in the list matches what they typed. Reassurance,
+      // not an error: an unlisted area is still deliverable.
+      areaFree: 'Not in the list — we will still deliver there.',
+      block: 'Block',
+      street: 'Street',
+      building: 'House / Building',
+      floor: 'Floor',
+      flat: 'Flat',
+      optional: 'optional',
+      note: 'Delivery note',
+      notePh: 'Landmark, gate colour, best time to call…',
+      remember: 'Remember these details on this device',
+      review: 'Review and pay',
+      itemsCount: (n) => (n === 1 ? '1 item' : `${n} items`),
+      fixErrors: 'Please check the highlighted fields.',
+      err: {
+        missing_name: 'Please enter your full name.',
+        missing_area: 'Please enter your area.',
+        missing_block: 'Please enter the block.',
+        missing_street: 'Please enter the street.',
+        missing_building: 'Please enter the house or building number.',
+        invalid_phone: 'Enter a Kuwait mobile number — 8 digits starting 5, 6 or 9.',
+        invalid_governorate: 'Please choose a governorate.',
+        empty_cart: 'Your bag is empty.',
+        // Names the item and the fix, because the checkout has no size picker:
+        // the shopper has to go back to the product to resolve it.
+        sizeRequired: 'Please choose a size for this item — open it from your bag and pick one',
+        cart_too_large: 'That is too many items for one order. Please split it.',
+        invalid_qty: 'One of the quantities is not valid.',
+        zero_amount: 'This order has no payable total. Please contact us.',
+        order_not_pending: 'This order has already been processed. Start a new one.',
+        // A refusal the shopper can act on: pay for this one up front, or wait
+        // for the outstanding deliveries. It never says "you look like a
+        // fraudster" — most people who meet this are simply waiting on orders.
+        too_many_open_cod: 'You already have orders awaiting delivery. Please receive those first, or pay for this one online with KNET.',
+        cod_blocked: 'Cash on delivery is not available for this number. You can still order by paying online with KNET.',
+        customer_blocked: 'We are unable to take this order. Please contact us on +965 22091914 and we will help.',
+        unavailable: 'Sorry — this item is currently unavailable.',
+        unconfigured: 'Online ordering is temporarily unavailable. Please contact us on WhatsApp.',
+        failed: 'We could not start the payment. Please try again.',
+        tooLong: 'That is too long.',
+      },
+    },
+    result: {
+      home: 'Back to home',
+      retry: 'Try again',
+      success: { title: 'Payment successful', msg: 'Your order is confirmed. Thank you!' },
+      cod: {
+        title: 'Order confirmed',
+        msg: 'Pay the driver in cash when your order arrives. We will send delivery updates on WhatsApp.',
+      },
+      failed: { title: 'Payment failed', msg: 'You have not been charged. Please try again.' },
+      cancelled: { title: 'Payment cancelled', msg: 'The payment was cancelled or expired.' },
+      error: { title: 'Something went wrong', msg: 'If you were charged, contact support.' },
+      review: {
+        title: 'Payment received — being confirmed',
+        msg: 'We could not confirm your order automatically. Do not pay again — our team is checking it and will contact you on WhatsApp shortly.',
+      },
+    },
+    about: {
+      title: 'About Sporta — sportswear in Kuwait',
+      body: 'The home of premium sport in Kuwait. Performance gear from the world’s leading sports brands — RHEO, Vanquish, ATE, Gymshark, Eyesportwear and our own SPORTA label.',
+    },
+    contact: {
+      title: 'Contact Sporta Kuwait',
+      body: 'Our team is ready to help — orders, sizes, delivery and returns.',
+      email: 'Email',
+      phone: 'WhatsApp',
+    },
+    footer: {
+      tagline: 'The home of premium sport in Kuwait. Performance gear from the world’s leading sports brands.',
+      navTitle: 'Navigate',
+      infoTitle: 'Information',
+      links: {
+        contact: 'Contact us',
+        shipping: 'Shipping',
+        returns: 'Returns',
+        track: 'Track order',
+        gift: 'Gift cards',
+        about: 'About us',
+        why: 'Why Sporta?',
+        terms: 'Terms',
+        privacy: 'Privacy',
+      },
+      rights: 'All rights reserved.',
+      // The trading entity behind the shop. On the trademark certificate
+      // (KW1671646) and on the CBK merchant nomination for sporta.com.kw.
+      operator: 'Sporta is operated by Al-Muhallab Co. for Designing and Programming Special Software.',
+    },
+    bar: { support: 'Support', account: 'Account', back: 'Back', top: 'Top' },
+  },
+
+  ar: {
+    dir: 'rtl',
+    nav: { home: 'الرئيسية', shop: 'المتجر', about: 'من نحن', contact: 'اتصل بنا', cart: 'الحقيبة' },
+    pull: { pull: 'اسحب للتحديث', release: 'أفلت للتحديث', refreshing: 'جارٍ التحديث…' },
+    a11y: {
+      skip: 'تجاوز إلى المحتوى',
+      close: 'إغلاق',
+      remove: 'إزالة',
+      decrease: 'إنقاص الكمية',
+      increase: 'زيادة الكمية',
+      saveWishlist: 'أضف إلى المفضلة',
+      rated: 'التقييم ٤٫٨ من ٥',
+      savedWishlist: 'محفوظ في المفضلة',
+      breadcrumb: 'مسار التنقل',
+      gallery: 'صور المنتج',
+      imageN: 'صورة {n} من {total}',
+      homeLink: 'سبورتا — الرئيسية',
+      wishlist: 'المفضلة',
+      bag: 'الحقيبة',
+      search: 'بحث',
+      toggleTheme: 'تبديل الوضع الليلي',
+      switchLang: 'تغيير اللغة',
+      mainNav: 'التنقل الرئيسي',
+      loading: 'جارٍ التحميل',
+      instagram: 'إنستغرام',
+      tiktok: 'تيك توك',
+      whatsapp: 'واتساب',
+    },
+    ann: 'التوصيل خلال ٢٤ ساعة داخل الكويت · ١ د.ك · كي نت والبطاقات والدفع عند الاستلام',
+    search: { placeholder: 'ابحث عن المنتجات…', empty: 'لا توجد منتجات.', title: 'بحث' },
+    sort: { label: 'ترتيب', newest: 'الأحدث', priceAsc: 'السعر: من الأقل إلى الأعلى', priceDesc: 'السعر: من الأعلى إلى الأقل' },
+    trust: {
+      delivery: 'التوصيل خلال ٢٤ ساعة · ١ د.ك',
+      pay: 'دفع آمن — كي نت، فيزا، ماستركارد',
+      returns: 'إرجاع مجاني خلال ١٤ يومًا',
+      noExchange: 'هذا المنتج غير قابل للاستبدال',
+    },
+    news: { title: 'انضم لنادي سبورتا', sub: 'العروض والإصدارات الجديدة — مباشرة على واتساب.', cta: 'راسلنا' },
+    cross: { title: 'أكمل إطلالتك' },
+    flow: {
+      bag: 'الحقيبة', details: 'التوصيل', pay: 'الدفع',
+      step: 'الخطوة {n} من {m}', done: 'مكتملة', current: 'الخطوة الحالية',
+    },
+    quick: {
+      title: 'دفع سريع',
+      sub: 'بياناتك محفوظة على هذا الجهاز. راجعها وادفع.',
+      deliverTo: 'التوصيل إلى',
+      edit: 'تغيير',
+      editBag: 'تعديل الحقيبة',
+      useFull: 'تعبئة النموذج بدلًا من ذلك',
+      cta: 'دفع سريع',
+      ctaHint: 'عنوان محفوظ — نقرتان',
+    },
+    guest: {
+      title: 'لا حاجة لإنشاء حساب',
+      body: 'أكمل الشراء كزائر — لا يوجد تسجيل ولا اشتراك. احتفظ برقم الطلب من صفحة التأكيد: تتابع به طلبك، ونرسل لك التحديثات على واتساب.',
+      track: 'تتبع طلب',
+    },
+    spec: { fabric: 'القماش', sku: 'رمز المنتج', weight: 'الوزن', grams: '{n} غرام',
+      care: 'العناية', careValue: 'غسل بماء بارد · بدون مجفّف · بدون كي',
+      soldOut: 'نفذت الكمية', lastOne: 'آخر قطعة', onlyLeft: 'بقي {n} فقط',
+      sizesShipped: 'متوفر بهذه المقاسات فقط',
+      authentic: 'أصلي · بيع سبورتا' },
+    fit: { label: 'القَصّة', pick: 'الرجاء اختيار القَصّة',
+      note: 'كيف تستقر القطعة على الجسم.' },
+    colour: { label: 'اللون', note: 'اختيار لون يفتح صفحة تلك القطعة.' },
+    size: { label: 'المقاس', pick: 'الرجاء اختيار المقاس', guide: 'دليل المقاسات',
+      note: 'القياسات بالسنتيمتر. إذا كنت بين مقاسين، ننصح بالمقاس الأكبر.',
+      notCarried: 'المقاسات المشطوبة غير متوفرة في هذه القطعة.',
+      chest: 'الصدر', waist: 'الخصر', length: 'الطول' },
+    invoice: {
+      title: 'فاتورة',
+      number: 'رقم الطلب',
+      date: 'التاريخ',
+      paid: 'مدفوعة',
+      unpaid: 'بانتظار الدفع',
+      paidOn: 'تاريخ الدفع',
+      billTo: 'فاتورة إلى',
+      item: 'الصنف',
+      qty: 'الكمية',
+      unitPrice: 'سعر الوحدة',
+      lineTotal: 'الإجمالي',
+      subtotal: 'المجموع الفرعي',
+      discount: 'الخصم',
+      delivery: 'التوصيل',
+      print: 'طباعة / حفظ PDF',
+      seller: 'سبورتا سبورتس وير · الكويت · ترخيص ٣٠١٩٩/٢٠٢٣',
+      // The ARABIC comma (U+060C), not a Latin one. A Latin comma between two
+      // Arabic words is bidi-neutral and gets dragged to the wrong end of the
+      // line as soon as a Latin run (a block number) sits next to it.
+      sep: '، ',
+      taxNote: 'الأسعار بالدينار الكويتي (د.ك). لا تُطبَّق ضريبة القيمة المضافة في الكويت.',
+      footer: 'شكرًا لتسوقك مع سبورتا.',
+      view: 'عرض الفاتورة',
+      payment: 'طريقة الدفع',
+    },
+    track: { title: 'تتبع طلبك', sub: 'أدخل رقم الطلب من رسالة التأكيد.',
+      placeholder: 'مثال: SP1A2B3C', cta: 'تتبع', notfound: 'لا يوجد طلب بهذا الرقم.',
+      error: 'تعذر التحقق حاليًا. حاول مرة أخرى.',
+      states: { paid: 'مدفوع', pending: 'بانتظار الدفع', failed: 'فشل' } },
+    theme: { light: 'الوضع الفاتح', dark: 'الوضع الليلي' },
+    wish: { title: 'المفضلة', empty: 'لا توجد منتجات محفوظة بعد.' },
+    nf: { title: 'الصفحة غير موجودة', sub: 'الصفحة التي تبحث عنها غير متوفرة.', cta: 'العودة للرئيسية' },
+    hero: {
+      title: 'سبورتا',
+      kicker: 'أداءُ المحترفين',
+      line1: 'ارفع.',
+      line2: 'اشتعل.',
+      subtitle: 'مصمَّمة لمن لا يقبل بأقل من الأفضل.',
+      cta: 'تسوّق المجموعة',
+    },
+    seo: {
+      // Written as Kuwaiti shoppers actually search: «ملابس رياضية الكويت»،
+      // «توصيل نفس اليوم»، «كي نت». Not a translation of the English — the two
+      // languages are searched with different words, and a rendered English
+      // sentence would rank for nothing.
+      baseTitle: 'سبورتا — متجر الملابس الرياضية في الكويت',
+      baseDesc: 'سبورتا متجر ملابس رياضية في الكويت — ملابس تمارين، هوديز، ليقنز، كابات وإكسسوارات رياضية من جيمشارك وريو وفانكويش وغيرها. توصيل في نفس اليوم داخل الكويت، إرجاع خلال ١٤ يومًا، دفع بكي نت أو عند الاستلام.',
+      home: 'ملابس رياضية فاخرة في الكويت. ملابس تمارين وهوديز وإكسسوارات — توصيل في نفس اليوم بدينار واحد، كي نت وبطاقات ودفع عند الاستلام.',
+      shop: 'تسوّق الملابس الرياضية في الكويت — ملابس تمارين، هوديز، ليقنز، كابات وإكسسوارات. الأسعار بالدينار الكويتي، الدفع بكي نت، وتوصيل في نفس اليوم.',
+      about: 'سبورتا متجر كويتي للملابس الرياضية يقدّم جيمشارك وريو وفانكويش وATE وعلامتنا الخاصة سبورتا.',
+      contact: 'تواصل مع سبورتا الكويت بخصوص طلبك أو المقاس أو التوصيل أو الإرجاع. واتساب وهاتف وبريد إلكتروني.',
+      returns: 'الإرجاع والاستبدال في سبورتا الكويت — خلال ١٤ يومًا من الاستلام، مع استلام مجاني.',
+      track: 'تتبّع طلبك من سبورتا برقم الطلب. حالة الدفع والتوصيل لحظة بلحظة.',
+    },
+    rate: {
+      loading: 'لحظة من فضلك…',
+      title: 'شلون كانت تجربتك؟',
+      titleNamed: 'شلون كانت تجربتك، {name}؟',
+      subtitle: 'قيّم طلبك ونرسل لك خصم {pct}٪ على طلبك الجاي.',
+      ratingLabel: 'تقييمك',
+      starLabel: '{n} من ٥',
+      commentLabel: 'حاب تقول لنا شي؟',
+      commentPlaceholder: 'المقاس، التوصيل، الخامة — أي شي لفت انتباهك.',
+      submit: 'أرسل التقييم',
+      sending: 'جارٍ الإرسال…',
+      anyRating: 'كل تقييم يستحق الخصم — حتى المنخفض. قل لنا الصراحة.',
+      thanksTitle: 'شكرًا لك.',
+      thanksBody: 'نقرأ كل تقييم يوصلنا.',
+      codeLabel: 'كودك لخصم {pct}٪',
+      codeNote: 'يُستخدم مرة واحدة، وصالح ٩٠ يومًا. أدخله عند إتمام الطلب.',
+      codeFailed: 'حُفظ تقييمك، لكن ما قدرنا ننشئ كود الخصم. راسلنا على cs@sporta.com.kw ونحلها لك.',
+      invalidTitle: 'رابط التقييم غير صالح',
+      invalidBody: 'يمكن الرابط ناقص، أو الطلب ملغى. إذا تعتقد أن في خطأ، راسلنا على cs@sporta.com.kw.',
+      googleAsk: 'إذا عندك دقيقة، تقييمك العلني يساعد غيرك يوصل لنا.',
+      googleCta: 'قيّمنا على Google',
+      googleUrl: '',
+    },
+    assistant: {
+      title: 'سبورتا AI',
+      subtitle: 'الطلبات والتوصيل والمقاسات',
+      open: 'افتح مساعد سبورتا',
+      close: 'إغلاق',
+      send: 'إرسال',
+      placeholder: 'اسأل عن طلبك أو التوصيل أو الإرجاع…',
+      greeting: 'أهلًا بك. أقدر أتحقق من طلبك، أو أشرح لك التوصيل والإرجاع، أو أساعدك في اختيار المقاس.',
+      thinking: 'جارٍ التحقق…',
+      failed: 'تعذّر الوصول إلى المتجر الآن. حاول مرة أخرى أو اتصل بنا على 22091914 965+.',
+      tooFast: 'وصلتني أسئلة كثيرة دفعة واحدة — أمهلني لحظة ثم أعد السؤال.',
+      starters: ['وين طلبي؟', 'متى يوصل؟', 'أقدر أرجّع قطعة؟', 'كيف أدفع؟'],
+      amount: 'الإجمالي',
+      payment: 'الدفع',
+      paid: 'مدفوع',
+      unpaid: 'غير مدفوع',
+      stageLabel: 'الحالة',
+      viewOrder: 'عرض الطلب كاملًا ←',
+      listen: 'استمع إلى الإجابة',
+      stopAudio: 'إيقاف',
+      speak: 'كلّمنا',
+      listening: 'أسمعك — اضغط للإيقاف',
+      micDenied: 'ما قدرت أسمعك — المايك محظور في المتصفح. تقدر تكتب سؤالك بالأسفل.',
+      handsFree: 'اقرأ الردود بصوت',
+      stages: {
+        unfulfilled: 'قيد التجهيز',
+        packed: 'تم التغليف',
+        shipped: 'مع المندوب',
+        dispatched: 'مع المندوب',
+        delivered: 'تم التسليم',
+        cancelled: 'ملغى',
+      },
+      addToBag: 'أضف إلى السلة',
+      chooseSize: 'اختر المقاس',
+      added: 'أُضيف ✓',
+      reviewBag: 'مراجعة السلة وإتمام الطلب ({n})',
+    },
+    heroSlides: {
+      aria: 'أبرز العروض',
+      prev: 'الشريحة السابقة',
+      next: 'الشريحة التالية',
+      goTo: 'انتقل إلى الشريحة',
+      pause: 'إيقاف العرض مؤقتًا',
+      play: 'تشغيل العرض',
+      slides: [
+        {
+          kicker: 'قوة',
+          title: 'تُبنى بالحديد.',
+          sub: 'حصص ثقيلة ومعايير أثقل — عتادٌ يجتهد بقدر ما ترفع.',
+          cta: 'تسوّق التدريب',
+        },
+        {
+          kicker: 'كارديو',
+          title: 'اسبق الأمس.',
+          sub: 'جري وتمارين مكثّفة وكل ما بينهما — أطقم تتنفّس معك وتحفظ إيقاعك.',
+          cta: 'تسوّق الكارديو',
+        },
+        {
+          kicker: 'كل الملاعب',
+          title: 'كرة قدم. كيك بوكسينغ. سباحة.',
+          sub: 'خزانة واحدة لكل لعبة تلعبها — من الملعب إلى الحلبة إلى المسبح.',
+          cta: 'تسوّق المجموعة',
+        },
+      ],
+    },
+    offer: {
+      badge: 'وصول حصري',
+      title: 'عروض الصيف ٢٤',
+      cta: 'اكتشف العروض',
+    },
+    cats: {
+      title: 'تسوّق حسب الفئة',
+      men: {
+        k: 'معدات الأداء',
+        t: 'رجالي',
+        d: 'تيشيرتات تدريب وقطع ضاغطة وهوديز وجاكيتات مصمّمة للنادي ولحرّ الصيف.',
+      },
+      women: {
+        k: 'تحركي بثقة',
+        t: 'نسائي',
+        d: 'أطقم بلا خياطة وليقنز عالية الخصر وصدريات رياضية وتوبات بسحّاب تحافظ على شكلها.',
+      },
+      acc: {
+        k: 'معدات أساسية',
+        t: 'إكسسوارات',
+        d: 'كابات وحقائب ظهر وشنط تدريب والقطع الصغيرة التي تكمل تمرينك.',
+      },
+      outlet: {
+        k: 'خصومات تصل إلى ٦٠٪',
+        t: 'سبورتا أوتلت',
+        d: 'آخر المقاسات وموديلات المواسم السابقة بأسعار مخفّضة حتى نفاد الكمية.',
+      },
+      discount: 'خصومات حتى ٦٠٪',
+    },
+    ess: { kicker: 'الأكثر رواجًا', title: 'تسوق الأساسيات' },
+    services: {
+      delivery: { t: 'توصيل سريع', s: 'من ٢٤ إلى ٤٨ ساعة' },
+      returns: { t: 'إرجاع سهل', s: 'إرجاع خلال ١٤ يومًا' },
+    },
+    shop: {
+      h1: 'تسوق الملابس الرياضية في الكويت',
+      loadMore: 'اعرض {n} منتجًا آخر',
+      showing: 'المعروض {shown} من {total}',
+      gridHeading: 'جميع المنتجات',
+      intro:
+        'ملابس رياضية نسائية ورجالية وهوديز وإكسسوارات جيم \u2014 توصيل في نفس اليوم داخل الكويت والدفع عبر كي نت بالدينار الكويتي.',
+      add: 'أضف',
+      buyNow: 'اشترِ الآن',
+      notFound: 'المنتج غير موجود.',
+      backToShop: 'العودة للمتجر',
+      featured: 'تسوق الأساسيات',
+      viewAll: 'عرض الكل',
+    },
+    cart: { title: 'حقيبتك', empty: 'حقيبتك فارغة.', total: 'الإجمالي', checkout: 'إتمام الشراء',
+            subtotal: 'المجموع الفرعي', delivery: 'التوصيل' },
+    checkout: {
+      summary: 'ملخص الطلب',
+      coupon: 'كود الخصم',
+      couponPlaceholder: 'كود الخصم',
+      applyCoupon: 'تطبيق',
+      couponApplied: 'مُفعّل',
+      couponRemove: 'إزالة',
+      payWith: 'كيف تحب تدفع؟',
+      methodKnet: 'كي نت / بطاقة',
+      methodKnetHint: 'ادفع الآن عبر صفحة البنك الآمنة.',
+      methodTpay: 'تي-باي (البنك التجاري)',
+      methodTpayHint: 'ادفع إلكترونيًا عبر صفحة البنك الآمنة.',
+      methodCod: 'الدفع عند الاستلام',
+      methodCodHint: 'ادفع للمندوب عند وصول طلبك.',
+      placeOrder: 'تأكيد الطلب — الدفع عند الاستلام',
+      codPlaced: 'تم تسجيل طلبك. الدفع للمندوب عند الاستلام.',
+      codNote: 'يفضّل تجهيز المبلغ بالضبط، فالمندوب قد لا يحمل فكة.',
+      payNow: 'ادفع عبر كي نت / CBK',
+      redirecting: 'جارٍ التحويل إلى الدفع…',
+      securedBy: 'دفع آمن — كي نت، الكويت',
+      delivery: 'بيانات التوصيل',
+      deliveryHint: 'نوصّل داخل الكويت. يتصل المندوب على هذا الرقم قبل الوصول.',
+      contact: 'بيانات التواصل',
+      address: 'العنوان',
+      name: 'الاسم الكامل',
+      namePh: 'كما يظهر للمندوب',
+      phone: 'رقم الهاتف',
+      phoneHint: 'رقم كويتي من ٨ أرقام يبدأ بـ ٥ أو ٦ أو ٩',
+      governorate: 'المحافظة',
+      governoratePick: 'اختر المحافظة',
+      area: 'المنطقة',
+      areaPh: 'اختر منطقتك أو اكتبها',
+      areaFree: 'غير موجودة في القائمة — سنوصل إليها على أي حال.',
+      block: 'قطعة',
+      street: 'شارع',
+      building: 'منزل / بناية',
+      floor: 'الدور',
+      flat: 'الشقة',
+      optional: 'اختياري',
+      note: 'ملاحظة للتوصيل',
+      notePh: 'علامة مميزة، لون البوابة، أنسب وقت للاتصال…',
+      remember: 'احفظ هذه البيانات على هذا الجهاز',
+      review: 'المراجعة والدفع',
+      itemsCount: (n) => arabicCount(n, ['قطعة واحدة', 'قطعتان', 'قطع', 'قطعة']),
+      fixErrors: 'يرجى مراجعة الحقول المحددة.',
+      err: {
+        missing_name: 'يرجى إدخال الاسم الكامل.',
+        missing_area: 'يرجى إدخال المنطقة.',
+        missing_block: 'يرجى إدخال رقم القطعة.',
+        missing_street: 'يرجى إدخال الشارع.',
+        missing_building: 'يرجى إدخال رقم المنزل أو البناية.',
+        invalid_phone: 'أدخل رقم هاتف كويتي من ٨ أرقام يبدأ بـ ٥ أو ٦ أو ٩.',
+        invalid_governorate: 'يرجى اختيار المحافظة.',
+        empty_cart: 'حقيبتك فارغة.',
+        sizeRequired: 'يرجى اختيار مقاس لهذه القطعة — افتحها من الحقيبة واختر المقاس',
+        cart_too_large: 'عدد القطع كبير على طلب واحد. يرجى تقسيمه.',
+        invalid_qty: 'إحدى الكميات غير صحيحة.',
+        zero_amount: 'لا يوجد مبلغ مستحق لهذا الطلب. يرجى التواصل معنا.',
+        order_not_pending: 'تمت معالجة هذا الطلب سابقًا. ابدأ طلبًا جديدًا.',
+        too_many_open_cod: 'لديك طلبات بانتظار التوصيل. يرجى استلامها أولًا، أو ادفع لهذا الطلب أونلاين عبر كي نت.',
+        cod_blocked: 'الدفع عند الاستلام غير متاح لهذا الرقم. يمكنك الطلب بالدفع أونلاين عبر كي نت.',
+        customer_blocked: 'لا يمكننا استقبال هذا الطلب. يرجى التواصل معنا على ٢٢٠٩١٩١٤ ٩٦٥+ وسنساعدك.',
+        unavailable: 'عذرًا — هذه القطعة غير متوفرة حاليًا.',
+        unconfigured: 'الطلب عبر الموقع غير متاح مؤقتًا. يرجى التواصل معنا على واتساب.',
+        failed: 'تعذّر بدء عملية الدفع. يرجى المحاولة مرة أخرى.',
+        tooLong: 'النص طويل جدًا.',
+      },
+    },
+    result: {
+      home: 'العودة للرئيسية',
+      retry: 'حاول مجددًا',
+      success: { title: 'تم الدفع بنجاح', msg: 'تم تأكيد طلبك. شكرًا لك!' },
+      cod: {
+        title: 'تم تأكيد الطلب',
+        msg: 'ادفع للمندوب نقدًا عند وصول طلبك، وستصلك تحديثات التوصيل عبر واتساب.',
+      },
+      failed: { title: 'فشل الدفع', msg: 'لم يتم خصم أي مبلغ. حاول مرة أخرى.' },
+      cancelled: { title: 'تم إلغاء الدفع', msg: 'تم إلغاء العملية أو انتهت صلاحيتها.' },
+      error: { title: 'حدث خطأ ما', msg: 'إذا تم خصم مبلغ، تواصل مع الدعم.' },
+      review: {
+        title: 'تم استلام الدفع — قيد التأكيد',
+        msg: 'لم نتمكن من تأكيد طلبك تلقائيًا. لا تدفع مرة أخرى — فريقنا يراجع العملية وسيتواصل معك عبر واتساب قريبًا.',
+      },
+    },
+    about: {
+      title: 'عن سبورتا — ملابس رياضية في الكويت',
+      body: 'موطن الرياضة الفاخرة في الكويت. معدات أداء من أبرز ماركات الرياضة عالميًا — ريو، فانكويش، ATE، جيمشارك، آي سبورت وعلامتنا الخاصة سبورتا.',
+    },
+    contact: {
+      title: 'تواصل مع سبورتا الكويت',
+      body: 'فريقنا جاهز لمساعدتك — الطلبات، المقاسات، التوصيل والإرجاع.',
+      email: 'البريد الإلكتروني',
+      phone: 'واتساب',
+    },
+    footer: {
+      tagline: 'موطن الرياضة الفاخرة في الكويت. معدات أداء من أبرز ماركات الرياضة عالميًا.',
+      navTitle: 'التنقل',
+      infoTitle: 'معلومات',
+      links: {
+        contact: 'اتصل بنا',
+        shipping: 'الشحن',
+        returns: 'الإرجاع',
+        track: 'تتبع الطلب',
+        gift: 'بطاقات الهدايا',
+        about: 'من نحن',
+        why: 'لماذا سبورتا؟',
+        terms: 'الشروط',
+        privacy: 'الخصوصية',
+      },
+      rights: 'جميع الحقوق محفوظة.',
+      operator: 'متجر سبورتا تحت إدارة شركة المهلب لتصميم وبرمجة البرمجيات الخاصة.',
+    },
+    bar: { support: 'الدعم', account: 'حسابي', back: 'رجوع', top: 'الأعلى' },
+  },
+}

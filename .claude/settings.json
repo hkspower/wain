@@ -1,5 +1,49 @@
 {
-  "enabledPlugins": {
-    "expo@claude-plugins-official": true
+  "enabledPlugins": {},
+  "permissions": {
+    "allow": [
+      "Bash(npm run publish)",
+      "Bash(npm run publish:dry)",
+      "Bash(npm run release)",
+      "Bash(npm run package)",
+      "Bash(npm run build)",
+      "Bash(npm run seo)",
+      "Bash(npm run ftp:*)",
+      "Bash(npm run audit:*)",
+      "Bash(npm run test:*)",
+      "Bash(node scripts/*)",
+      "Bash(./scan-server-response.sh)",
+      "Bash(./scan-server-response.sh:*)",
+      "Bash(git status)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git fetch:*)",
+      "Bash(git push:*)",
+      "Bash(git checkout:*)",
+      "Bash(git branch:*)",
+      "Read(*)",
+      "Grep(*)",
+      "Glob(*)",
+
+      "mcp__elevenlabs__text_to_speech",
+      "mcp__elevenlabs__text_to_sound_effects",
+      "mcp__elevenlabs__list_models",
+      "mcp__elevenlabs__list_voices",
+      "mcp__elevenlabs__search_voices",
+      "mcp__elevenlabs__search_voice_library",
+      "mcp__elevenlabs__get_voice",
+      "mcp__elevenlabs__play_audio",
+      "mcp__elevenlabs__check_subscription",
+      "mcp__elevenlabs__list_agents",
+      "mcp__elevenlabs__get_agent",
+      "mcp__elevenlabs__list_conversations",
+      "mcp__elevenlabs__get_conversation"
+    ],
+    "ask": [
+      "Bash(git pull:*)"
+    ]
   }
 }
