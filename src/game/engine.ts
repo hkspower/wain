@@ -192,6 +192,20 @@ interface Rival {
 const TRAFFIC_DRIVER_RANGE = 120;
 const TRAFFIC_DRIVERS_SOLVED = 6;
 
+/**
+ * How many civilians share the road.
+ *
+ * Raised from 30. Every one of them now carries a driver rig, and the
+ * measurement that made this safe was that thirty of those cost no draw
+ * calls at all once the steering spokes came off the lean build — so
+ * the ceiling here is not the GPU, it is the O(n^2) scan below where
+ * each car checks every other for the one ahead in its lane. At 46 that
+ * is ~2,100 comparisons a frame against a CPU update budget measured at
+ * 1 ms median, which is room to spare; at a few hundred cars it would
+ * need a lane bucket instead of a nested loop.
+ */
+const TRAFFIC_COUNT = 46;
+
 const TRAFFIC_COLORS = [0x8a96a3, 0x5d6770, 0xb0a890, 0x6e7f8d, 0x4a5560, 0x9c8f7a];
 
 // Unsharp-mask crispening + film vignette + animated grain, in linear
@@ -638,7 +652,7 @@ export class GameEngine {
     // white hole with no shape in it is not a shower of sparks.
     // Held down so a lone spark still punches and a shower stacks into
     // hot amber instead of flat paper white.
-    this.sparkFx = new ParticleSystem(90, {
+    this.sparkFx = new ParticleSystem(140, {
       map: radialSprite(0.35, 1.4),
       colorA: 0xffdf9e, // hot, with headroom left above it
       colorB: 0xff5a12,
@@ -662,7 +676,7 @@ export class GameEngine {
     this.scene.add(this.smokeFx.points);
 
     // Exhaust: backfire on lift, and the nitrous flame while it is open.
-    this.flameFx = new ParticleSystem(60, {
+    this.flameFx = new ParticleSystem(90, {
       map: radialSprite(0.25, 1.2),
       colorA: 0xffd9a0,
       colorB: 0xff2a00,
@@ -792,7 +806,7 @@ export class GameEngine {
       this.playerMesh.add(pool);
     }
 
-    this.spawnTraffic(30);
+    this.spawnTraffic(TRAFFIC_COUNT);
 
     this.rivalIndex = this.loadProgress();
     this.spawnRival();
