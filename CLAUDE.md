@@ -300,8 +300,17 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   الاصطناعي · تصميم UI/UX · الحلول السحابية · **تطوير الألعاب**, added at the
   owner's request 2026-08-13), each asserted to appear verbatim on the page, and the two
   inner pages carry a `BreadcrumbList`.
-- `design/instagram_covers.py` draws the Instagram highlight covers from the
-  page sprite (1080×1080, brown fill, white mark) — `design/instagram/`.
+- `design/instagram_covers.py` draws the whole Instagram set from the page
+  sprite (1080×1080, brown fill, white mark) — `design/instagram/`: twelve
+  highlight covers **and the account's profile picture** (`profile-dp`). The DP
+  is sized differently on purpose — a cover is one of twelve read at ~64px under
+  a title Instagram prints, the DP carries the account alone at ~110px — but it
+  is still kept well inside the crop, because **a square's corners sit 29%
+  further from its centre than its edges**, so anything sized to the square gets
+  shaved by the circle. Measured after generating: zero white pixels fall
+  outside the circle. No wordmark on it: «المهلب» at 110px would be ~9px letters
+  beside a handle Instagram already prints. The contact sheet shows the DP at
+  150/110/44/32px — the four sizes Instagram really renders.
 - **The desktop app is النوخذة, so it wears النوخذة's mark** — the ⚓ anchor from
   `almuhallab/icon.svg`. `design/windows_icon.py` used to draw the company's
   boum onto it, which is exactly the crossing the identity rule forbids;

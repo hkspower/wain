@@ -16,8 +16,16 @@ The icons are lifted verbatim from the site's own <symbol> sprite rather than
 redrawn, so a cover cannot drift from the interface it represents. Run this
 after changing the sprite and the covers follow.
 
+It also draws the account's **profile picture** (`profile-dp.*`). That is a
+different problem from a cover: a cover is one of twelve read at ~64px under a
+title Instagram prints for you, while the DP carries the whole account at
+~110px with nothing beside it. So the mark is set larger — but nowhere near the
+edge, because a square's corners sit 29% further from its centre than its edges
+do, and Instagram's circle crop shaves whatever is sized to the square.
+
 Output: design/instagram/<name>.svg (source) and .png (1080×1080, what you
-upload), plus contact-sheet.png to review the set as a whole.
+upload), plus contact-sheet.png — which shows the DP at 150/110/44/32px, the
+four sizes Instagram actually renders it at, and the covers as circles.
 """
 
 import re
@@ -34,6 +42,15 @@ BROWN = "#6f3f1c"          # --tint-strong, the masthead fill
 
 SIZE = 1080                # Instagram's cover upload size
 ICON = 500                 # icon box, ~46% — comfortably inside the circle crop
+
+# The profile picture is a different problem from a cover. A cover is one of
+# twelve read at ~64px under a printed title; the DP is the account's whole
+# identity, read at ~110px on mobile with nothing beside it. So the mark sits
+# larger — but not to the edge: Instagram crops to a circle, and a square's
+# corners are 29% further from the centre than its edges, so anything sized to
+# the square gets its extremities shaved. 58% keeps the stem and the sail tips
+# inside the inscribed circle with room to spare.
+DP_ICON = 630
 
 # One cover per thing the company actually does or runs. The title under the
 # circle is set in Instagram itself; these names are the file names.
@@ -84,6 +101,26 @@ def cover_svg(view_box: str, body: str) -> str:
 """
 
 
+def dp_svg(view_box: str, body: str) -> str:
+    """The account's profile picture: the company mark, nothing else.
+
+    No wordmark. «المهلب» at 110px inside a circle would be four Arabic letters
+    about nine pixels tall, and Instagram already prints the handle underneath —
+    a name rendered twice, once illegibly, is not a stronger identity.
+    """
+    off = (SIZE - DP_ICON) / 2
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{SIZE}" height="{SIZE}"
+     viewBox="0 0 {SIZE} {SIZE}" role="img" aria-label="المهلب كود">
+  <rect width="{SIZE}" height="{SIZE}" fill="{BROWN}"/>
+  <svg x="{off}" y="{off}" width="{DP_ICON}" height="{DP_ICON}" viewBox="{view_box}"
+       fill="none" stroke="#ffffff" stroke-width="1.7"
+       stroke-linecap="round" stroke-linejoin="round" color="#ffffff">
+    {body}
+  </svg>
+</svg>
+"""
+
+
 def main() -> int:
     html = SPRITE_SRC.read_text()
     symbols = sprite_symbols(html)
@@ -100,6 +137,10 @@ def main() -> int:
         (OUT / f"{name}.svg").write_text(svg)
         written.append((name, title))
 
+    # the profile picture — the square boum, the company's own mark
+    dp_vb, dp_body = symbols["i-sail"]
+    (OUT / "profile-dp.svg").write_text(dp_svg(dp_vb, dp_body))
+
     # Render to PNG through the same Chromium the rest of design/ uses. SVG in,
     # PNG out — no converter dependency, and what you see is what a browser
     # draws, which is what Instagram will receive.
@@ -114,7 +155,7 @@ def main() -> int:
         br = pw.chromium.launch(executable_path=chrome)
         pg = br.new_context(viewport={"width": SIZE, "height": SIZE},
                             device_scale_factor=1).new_page()
-        for name, _ in written:
+        for name, _ in written + [("profile-dp", "")]:
             pg.goto((OUT / f"{name}.svg").as_uri())
             pg.wait_for_timeout(120)
             pg.screenshot(path=str(OUT / f"{name}.png"))
@@ -136,7 +177,18 @@ def main() -> int:
   figcaption {{ font-size: 11px; color: #586981; }}
   h1 {{ font-size: 15px; margin: 0 0 18px; }}
 </style>
-<h1>أبرز الحسابات — المهلب</h1>
+<h1>صورة الحساب — المهلب</h1>
+<div class="row" style="align-items:flex-end">
+  <figure style="width:190px"><img src="profile-dp.png" alt=""
+      style="width:150px;height:150px"><figcaption>150px — الويب</figcaption></figure>
+  <figure style="width:130px"><img src="profile-dp.png" alt=""
+      style="width:110px;height:110px"><figcaption>110px — الجوال</figcaption></figure>
+  <figure style="width:60px"><img src="profile-dp.png" alt=""
+      style="width:44px;height:44px"><figcaption>44px — منشور</figcaption></figure>
+  <figure style="width:48px"><img src="profile-dp.png" alt=""
+      style="width:32px;height:32px"><figcaption>32px — تعليق</figcaption></figure>
+</div>
+<h1 style="margin-top:26px">أبرز الحسابات — المهلب</h1>
 <div class="row">{cells}</div>
 """)
         pg.set_viewport_size({"width": 760, "height": 420})
@@ -146,7 +198,8 @@ def main() -> int:
         sheet.unlink()
         br.close()
 
-    print(f"{len(written)} covers -> {OUT}  ({SIZE}×{SIZE} PNG + SVG source)")
+    print(f"{len(written)} covers + the profile picture -> {OUT}"
+          f"  ({SIZE}×{SIZE} PNG + SVG source)")
     return 0
 
 
