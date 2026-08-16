@@ -720,9 +720,94 @@
     });
   }
 
+  /* أسباب استبعاد الكابتن من الاقتراح، بنصّ يقرأه المدير */
+  const NEAR_REASON = {
+    no_consent: 'لم يوافق على مشاركة موقعه',
+    sharing_off: 'أوقف المشاركة',
+    no_data: 'لا توجد نقطة',
+    stale: 'آخر نقطة قديمة',
+    vehicle: 'مركبته لا تناسب',
+    unavailable: 'غير متفرّغ',
+    not_eligible: 'حسابه لا يستقبل طلبات',
+    same_agent: 'الطلب لديه أصلًا',
+  };
+
+  /**
+   * صندوق «الأقرب» داخل نافذة الإسناد. يقترح ولا يسند: الضغط على مرشّح يملأ
+   * القائمة أسفله، والقرار والزرّ يبقيان للمدير.
+   */
+  async function fillNearest(box, order, select) {
+    const setPin = () => `
+      <p class="near__hint">
+        الصق موقع الزبون (رابط خرائط أو إحداثيتين) ليقترح النظام الأقرب:
+      </p>
+      <div class="near__pin">
+        <input type="text" id="pinInput" placeholder="29.3759, 47.9774 أو رابط خرائط">
+        <button type="button" class="btn btn--quiet btn--sm" id="pinSave">احفظ الموقع</button>
+      </div>
+      <p class="form-msg" id="pinMsg"></p>`;
+
+    if (order.pickup_lat == null) {
+      box.innerHTML = setPin();
+      box.querySelector('#pinSave').addEventListener('click', async () => {
+        const msg = box.querySelector('#pinMsg');
+        const pin = box.querySelector('#pinInput').value.trim();
+        if (!pin) return;
+        msg.textContent = 'جارٍ الحفظ…'; msg.className = 'form-msg';
+        try {
+          const res = await api(`/orders/${order.id}/pickup-pin`, { method: 'PUT', body: { pin } });
+          await fillNearest(box, res.order, select);
+        } catch (err) {
+          msg.textContent = err.message; msg.className = 'form-msg is-bad';
+        }
+      });
+      return;
+    }
+
+    box.innerHTML = '<p class="near__hint">جارٍ ترتيب الكباتن…</p>';
+    let data;
+    try {
+      data = await api(`/orders/${order.id}/nearest`);
+    } catch (err) {
+      box.innerHTML = `<p class="form-msg is-bad">${esc(err.message)}</p>`;
+      return;
+    }
+
+    if (!data.candidates.length) {
+      const why = data.skipped.slice(0, 4)
+        .map((c) => `${esc(c.agent_name)}: ${esc(NEAR_REASON[c.reason] || c.reason_text || '')}`)
+        .join(' · ');
+      box.innerHTML = `
+        <p class="near__hint">لا يوجد كابتن يشارك موقعه الآن ويصلح لهذا الطلب.</p>
+        ${why ? `<p class="near__skipped">${why}</p>` : ''}`;
+      return;
+    }
+
+    box.innerHTML = `
+      <p class="near__hint">الأقرب إلى موقع الزبون — مسافة مستقيمة لا مسافة سياقة:</p>
+      <div class="near__list">
+        ${data.candidates.map((c) => `
+          <button type="button" class="near__item" data-agent="${c.id || c.agent_id}">
+            <b>${esc(c.agent_name)}</b>
+            <span class="near__km">${AR.number(c.straight_km, 1)} كم</span>
+            <span class="near__meta">${AR.describe(c.active_orders, 'order', 'active')} · ${c.age_minutes < 1 ? 'موقعه الآن' : `موقعه قبل ${AR.number(Math.round(c.age_minutes))} د`}</span>
+          </button>`).join('')}
+      </div>
+      ${data.skipped.length ? `<p class="near__skipped">استُبعد ${AR.describe(data.skipped.length, 'agent')}</p>` : ''}`;
+
+    box.querySelectorAll('.near__item').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        select.value = btn.dataset.agent;
+        box.querySelectorAll('.near__item').forEach((b) => b.classList.remove('is-picked'));
+        btn.classList.add('is-picked');
+      });
+    });
+  }
+
   function promptAssign(order) {
     const options = assignableAgents(order.agent_id);
     openModal('إسناد الطلب لمندوب', `
+      <div class="near" id="nearBox"></div>
       <form id="assignForm">
         <label class="field">
           <span>المندوب</span>
@@ -738,6 +823,7 @@
         <p class="form-msg" id="assignMsg"></p>
         <button class="btn btn--primary btn--block" type="submit">إسناد</button>
       </form>`, (body) => {
+      fillNearest(body.querySelector('#nearBox'), order, body.querySelector('[name="agent_id"]'));
       body.querySelector('#assignForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const msg = body.querySelector('#assignMsg');

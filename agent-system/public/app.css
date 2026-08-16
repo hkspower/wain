@@ -587,3 +587,25 @@ tbody tr:hover { background: #fbfdfe; }
 @media (max-width: 720px) {
   .geo-bar { padding-inline: .7rem; font-size: .8rem; gap: .5rem; }
 }
+
+/* ---- اقتراح أقرب كابتن داخل نافذة الإسناد ---- */
+.near { margin-bottom: 1rem; padding-bottom: .9rem; border-bottom: 1px solid var(--line); }
+.near__hint { margin: 0 0 .55rem; font-size: .84rem; color: var(--ink-soft); }
+.near__pin { display: flex; gap: .5rem; }
+.near__pin input {
+  flex: 1; min-width: 0; padding: .55rem .7rem;
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--card); color: var(--ink); font: inherit; font-size: .88rem;
+}
+.near__list { display: grid; gap: .4rem; }
+.near__item {
+  display: grid; grid-template-columns: 1fr auto; gap: .15rem .6rem;
+  padding: .55rem .7rem; text-align: right; cursor: pointer;
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--card); color: var(--ink); font: inherit;
+}
+.near__item:hover { border-color: var(--teal-600); }
+.near__item.is-picked { border-color: var(--teal-600); box-shadow: var(--ring); }
+.near__km { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--teal-600); }
+.near__meta { grid-column: 1 / -1; font-size: .78rem; color: var(--ink-soft); }
+.near__skipped { margin: .5rem 0 0; font-size: .78rem; color: var(--ink-soft); }

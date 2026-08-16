@@ -265,4 +265,6 @@ module.exports = {
   RETENTION_HOURS, STALE_MINUTES, MIN_INTERVAL_MS, ON_DUTY_STATUSES,
   consentState, setConsent, setSharing, purgeOwnHistory,
   recordPoint, purgeExpired, locationOf, liveBoard, trailOf,
+  // يستعملهما بحث «الأقرب» ليخضع لقواعد الخصوصية نفسها لا لنسخة منها
+  latestFor, logView,
 };

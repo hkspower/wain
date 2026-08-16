@@ -8,6 +8,7 @@ const S = require('./settings');
 const LK = require('./links');
 const M = require('./mailer');
 const HK = require('./hooks');
+const N = require('./nearest');
 const {
   badRequest, unauthorized, forbidden, notFound, conflict,
   str, num, oneOf, id,
@@ -502,6 +503,12 @@ on('POST', '/api/orders', async (ctx) => {
     notes: str(ctx.body.notes, 'الملاحظات', { required: false, max: 600 }),
   };
 
+  // دبّوس الزبون اختياري — يُقبل رابط خرائط أو إحداثيتان، ويُرفض ما لا يُفهم
+  // بسبب واضح بدل أن يُحفظ صفرًا يُرسل الكابتن إلى وسط المحيط
+  const pin = ctx.body.pickup_pin ? N.parsePin(ctx.body.pickup_pin) : null;
+  order.pickup_lat = pin ? pin.lat : null;
+  order.pickup_lng = pin ? pin.lng : null;
+
   const agentId = ctx.body.agent_id ? id(ctx.body.agent_id, 'معرّف المندوب') : null;
   if (agentId) {
     const target = db.prepare("SELECT * FROM agents WHERE id=? AND role='agent'").get(agentId);
@@ -516,10 +523,12 @@ on('POST', '/api/orders', async (ctx) => {
     `INSERT INTO orders
       (code, customer_name, customer_phone, pickup_address, dropoff_address, governorate,
        vehicle, cod_amount, delivery_fee, priority, notes, status, agent_id, created_by,
-       commission_type, commission_rate, commission_amount, agent_earning, created_at, updated_at)
+       commission_type, commission_rate, commission_amount, agent_earning,
+       pickup_lat, pickup_lng, created_at, updated_at)
      VALUES (@code, @customer_name, @customer_phone, @pickup_address, @dropoff_address, @governorate,
        @vehicle, @cod_amount, @delivery_fee, @priority, @notes, @status, @agent_id, @created_by,
-       @commission_type, @commission_rate, @commission_amount, @agent_earning, @ts, @ts)`
+       @commission_type, @commission_rate, @commission_amount, @agent_earning,
+       @pickup_lat, @pickup_lng, @ts, @ts)`
   ).run({
     ...order,
     ...commission,
@@ -560,6 +569,40 @@ on('PATCH', '/api/orders/:id/status', async (ctx) => {
     str(ctx.body.note, 'الملاحظة', { required: false, max: 400 })
   );
   return { order: orderWithExtras(order) };
+});
+
+/* ---- موقع الزبون وأقرب كابتن ---- */
+
+/**
+ * ضبط دبّوس الزبون على طلب قائم. الدبّوس يصل غالبًا بعد إنشاء الطلب — الزبون
+ * يرسل موقعه على واتساب حين يُسأل — فلا يُشترط وجوده وقت الإنشاء.
+ */
+on('PUT', '/api/orders/:id/pickup-pin', async (ctx) => {
+  requireAdmin(ctx);
+  const orderId = id(ctx.params.id, 'معرّف الطلب');
+  const order = D.getOrder(orderId);
+  const pin = N.parsePin(ctx.body.pin);
+
+  db.prepare('UPDATE orders SET pickup_lat=?, pickup_lng=?, updated_at=? WHERE id=?')
+    .run(pin.lat, pin.lng, now(), order.id);
+  logEvent({
+    orderId: order.id, actorId: ctx.agent.id, type: 'pickup_pin',
+    to: `${pin.lat},${pin.lng}`,
+  });
+
+  return { order: orderWithExtras(D.getOrder(order.id)) };
+});
+
+/**
+ * ترتيب الكباتن حسب قربهم من الزبون. اقتراحٌ لا إسناد: القرار يبقى للمدير،
+ * والإسناد يمرّ بمساره المعتاد بسجلّه وقواعده.
+ */
+on('GET', '/api/orders/:id/nearest', async (ctx) => {
+  requireAdmin(ctx);
+  return N.nearestForOrder(ctx.agent, id(ctx.params.id, 'معرّف الطلب'), {
+    limit: ctx.query.limit,
+    includeUnavailable: ctx.query.include_unavailable === '1',
+  });
 });
 
 on('POST', '/api/orders/:id/assign', async (ctx) => {

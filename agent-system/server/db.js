@@ -250,6 +250,11 @@ addOrderColumn('commission_rate',   'REAL NOT NULL DEFAULT 0');
 addOrderColumn('commission_amount', 'REAL NOT NULL DEFAULT 0');
 addOrderColumn('agent_earning',     'REAL NOT NULL DEFAULT 0');
 
+/* دبّوس موقع الزبون. اختياري: الطلب يُنشأ ويُسند بلا دبّوس كما كان، والدبّوس
+   يفتح اقتراح الأقرب وحده. القيمة NULL تعني «لم يُلتقط» لا «الصفر». */
+addOrderColumn('pickup_lat', 'REAL');
+addOrderColumn('pickup_lng', 'REAL');
+
 /** الوقت الحالي بصيغة ISO — كل الطوابع الزمنية مخزّنة بتوقيت UTC */
 const now = () => new Date().toISOString();
 

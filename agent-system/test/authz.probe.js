@@ -96,6 +96,8 @@ async function call(as, method, urlPath, body) {
                                           governorate: 'العاصمة', delivery_fee: 1 }],
     ['auth',   'GET',    `/api/orders/${oid}`],
     ['auth',   'PATCH',  `/api/orders/${oid}/status`, { status: 'accepted' }],
+    ['admin',  'PUT',    `/api/orders/${oid}/pickup-pin`, { pin: '29.3759, 47.9774' }],
+    ['admin',  'GET',    `/api/orders/${oid}/nearest`],
     ['admin',  'POST',   `/api/orders/${oid}/assign`, { agent_id: aid('ag2') }],
     ['auth',   'POST',   `/api/orders/${oid}/transfer`, { to_agent_id: aid('ag1') }],
     ['auth',   'GET',    '/api/transfers'],
