@@ -1,11 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  صفحة واحدة بأقسام داخلية، فالخريطة تحوي العنوان الجذر فقط.
-  غيّر النطاق إلى نطاقك الفعلي قبل الرفع (أو مرّر --domain لسكربت البناء).
+  صفحة واحدة بأقسام داخلية، فالخريطة تحوي العنوان الجذر فقط: محرّكات البحث
+  لا تفهرس المرابط (#fragments) كعناوين مستقلّة، فإدراجها يضخّم الخريطة بلا أثر.
+
+  lastmod يُشتقّ من آخر تعديل على الصفحة في سجلّ git لا من تاريخ البناء —
+  إعادة بناء لا تغيّر المحتوى يجب ألّا تدّعي تحديثًا.
+  يُحدَّث بـ: node website/tools/make-sitemap.mjs
+
+  النطاق يُستبدل آليًا عند البناء: --domain=نطاقك
 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://mawsool.com.kw/</loc>
+    <lastmod>2026-08-15</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>

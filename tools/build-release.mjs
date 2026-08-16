@@ -15,6 +15,7 @@
  * وأدوات التطوير، وملفات .env الحقيقية.
  */
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -133,9 +134,36 @@ function guardPlaceholders() {
   process.exit(1);
 }
 
+/**
+ * البيانات المنظّمة وخريطة الموقع يجب أن تطابقا الصفحة.
+ *
+ * جوجل يشترط أن يطابق ما في `FAQPage` ما يراه الزائر، ويعاقب على الاختلاف؛
+ * و`lastmod` كاذب يعلّم الزاحف تجاهل الحقل. وكلاهما يخرب بصمت: تُعدَّل فقرة
+ * في الصفحة ويبقى توأمها في السكيما، فلا يظهر الخلل حتى تُخفَّض الصفحة.
+ * فالبناء يرفض بدل أن يوزّع نسخة مخالفة.
+ */
+function guardSeo() {
+  const checks = [
+    ['website/tools/make-jsonld.mjs', 'البيانات المنظّمة'],
+    ['website/tools/make-sitemap.mjs', 'خريطة الموقع'],
+  ];
+  for (const [script, what] of checks) {
+    const r = spawnSync(process.execPath, [path.join(ROOT, script), '--check'], {
+      cwd: ROOT, encoding: 'utf8',
+    });
+    if (r.status !== 0) {
+      console.error(`\nتعذّر البناء — ${what}:\n`);
+      console.error((r.stderr || r.stdout || '').trim());
+      console.error('');
+      process.exit(1);
+    }
+  }
+}
+
 /* ------------------------------- البناء ------------------------------- */
 
 guardPlaceholders();
+guardSeo();
 
 fs.rmSync(DIST, { recursive: true, force: true });
 fs.mkdirSync(DIST, { recursive: true });
