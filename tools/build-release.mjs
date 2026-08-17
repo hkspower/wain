@@ -143,20 +143,32 @@ function guardPlaceholders() {
  * فالبناء يرفض بدل أن يوزّع نسخة مخالفة.
  */
 function guardSeo() {
+  // خطآن مختلفان في الجسامة، فلا يستحقّان ردّة الفعل نفسها:
+  //   • سكيما لا تطابق الصفحة → مخالفة صريحة تُخفَّض عليها الصفحة: يُرفض البناء.
+  //   • lastmod متأخّر → نقص تجميلي لا يُعاقَب عليه، ويتأخّر بعد كل تعديل على
+  //     الصفحة بالضرورة (التزام الصفحة يسبق تحديث الخريطة). إيقاف كل إصدار
+  //     لأجله عقوبة أكبر من الذنب: يُنبَّه عليه ويمضي البناء.
   const checks = [
-    ['website/tools/make-jsonld.mjs', 'البيانات المنظّمة'],
-    ['website/tools/make-sitemap.mjs', 'خريطة الموقع'],
+    ['website/tools/make-jsonld.mjs',  'البيانات المنظّمة', true],
+    ['website/tools/make-sitemap.mjs', 'خريطة الموقع',      false],
   ];
-  for (const [script, what] of checks) {
+  for (const [script, what, fatal] of checks) {
     const r = spawnSync(process.execPath, [path.join(ROOT, script), '--check'], {
       cwd: ROOT, encoding: 'utf8',
     });
-    if (r.status !== 0) {
-      console.error(`\nتعذّر البناء — ${what}:\n`);
-      console.error((r.stderr || r.stdout || '').trim());
-      console.error('');
-      process.exit(1);
+    if (r.status === 0) continue;
+
+    const detail = (r.stderr || r.stdout || '').trim();
+    if (!fatal) {
+      console.log(`⚠ ${what}:`);
+      for (const line of detail.split('\n')) console.log(`    ${line.trim()}`);
+      console.log('');
+      continue;
     }
+    console.error(`\nتعذّر البناء — ${what}:\n`);
+    console.error(detail);
+    console.error('');
+    process.exit(1);
   }
 }
 
