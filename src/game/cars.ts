@@ -460,6 +460,17 @@ const STYLE_DIMS: Record<BodyStyle, StyleDims> = {
 
 const tireGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.26, 22);
 tireGeo.rotateZ(Math.PI / 2);
+// The traffic tire is a bare barrel with no shoulder bulges, so it reads
+// the tread band of the texture across its whole width. Without this it
+// samples the sidewall bands at its edges and the tread looks smeared.
+// Deferred, because remapV walks the attribute and this module is
+// evaluated before anything asks for a wheel.
+let treadUvDone = false;
+function ensureTreadUvs(): void {
+  if (treadUvDone) return;
+  treadUvDone = true;
+  remapV(tireGeo, 0.2, 0.8);
+}
 // Hero tire: more segments than traffic will ever need, plus sidewall
 // bulges. The silhouette of a wheel is mostly its tire.
 const tireGeoHi = new THREE.CylinderGeometry(0.36, 0.36, 0.26, 30);
@@ -478,7 +489,175 @@ const discMat = new THREE.MeshStandardMaterial({
   roughness: 0.35,
   envMapIntensity: 1.2,
 });
-const tireMat = new THREE.MeshStandardMaterial({ color: 0x0b0b0d, roughness: 0.92 });
+/**
+ * The tire's surface.
+ *
+ * A tire was one flat colour at a single roughness, which at any distance
+ * reads as a black rubber donut. Real rubber differs from that in three
+ * ways, and all three are visible from the chase camera: the tread has a
+ * pattern with actual depth, the sidewall is smoother and glossier than
+ * the tread, and there is a shoulder where the two meet.
+ *
+ * One height field drives colour, roughness and normals together, so the
+ * groove that shows in the picture is the same groove the streetlight
+ * catches — three maps authored separately drift apart and read as dirt
+ * rather than geometry.
+ *
+ * The image is ONE lateral block period wide and the whole tire width
+ * tall, tiled around the circumference. `v` runs across the tire: outer
+ * bands are sidewall, the middle is tread. The wheel's UVs are remapped
+ * to match (see remapV), which is what lets the tread barrel and both
+ * shoulder bulges read from the right part of one image — and so keeps
+ * the tire a single mesh, which the authored-asset swap and the wheel
+ * test both rely on.
+ */
+/** Lateral tread blocks around the tire. At a 2.26 m circumference this
+ *  puts a block every ~12 cm, which is what a road tire actually runs. */
+const TREAD_BLOCKS = 18;
+
+let tireSurfShared: {
+  map: THREE.CanvasTexture;
+  normalMap: THREE.CanvasTexture;
+  roughnessMap: THREE.CanvasTexture;
+} | null = null;
+
+function tireSurface() {
+  if (tireSurfShared) return tireSurfShared;
+  const W = 192;
+  const H = 256;
+  const h = new Float32Array(W * H);
+  // Deterministic hash noise: a tire that is grainy differently on every
+  // reload is a tire whose screenshots never match.
+  const grain = (x: number, y: number) => {
+    const s = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+    return s - Math.floor(s);
+  };
+  const ridge = (t: number, c: number, w: number) => Math.max(0, 1 - Math.abs(t - c) / w);
+
+  for (let y = 0; y < H; y++) {
+    const v = y / (H - 1);
+    for (let x = 0; x < W; x++) {
+      const u = x / W;
+      let e: number;
+      if (v < 0.2 || v > 0.8) {
+        // Sidewall: gently domed, carrying the fine concentric ribbing a
+        // mould leaves, strongest out near the shoulder.
+        const d = v < 0.5 ? v / 0.2 : (1 - v) / 0.2;
+        e = 0.4 + 0.09 * Math.sin(v * 190) * (0.3 + 0.7 * d) + 0.08 * d;
+      } else {
+        // Tread: three circumferential grooves, and one lateral sipe per
+        // tile raked across so the blocks are not a chequerboard.
+        const t = (v - 0.2) / 0.6;
+        e = 0.74;
+        for (const c of [0.22, 0.5, 0.78]) e -= 0.55 * ridge(t, c, 0.055);
+        const raked = (u + (t - 0.5) * 0.14 + 1) % 1;
+        e -= 0.4 * Math.max(0, 1 - Math.abs(raked - 0.5) / 0.07);
+        // Where the tread turns over the edge it breaks into shoulder
+        // blocks — the part you actually see when the car is sideways.
+        if (t < 0.12 || t > 0.88) {
+          e -= 0.2 * Math.max(0, 1 - Math.abs(((u * 2) % 1) - 0.5) / 0.18);
+        }
+      }
+      h[y * W + x] = Math.min(1, Math.max(0, e + (grain(x, y) - 0.5) * 0.05));
+    }
+  }
+
+  const canvas = () => {
+    const c = document.createElement("canvas");
+    c.width = W;
+    c.height = H;
+    return c;
+  };
+  const colC = canvas();
+  const rghC = canvas();
+  const nrmC = canvas();
+  const col = colC.getContext("2d")!.createImageData(W, H);
+  const rgh = rghC.getContext("2d")!.createImageData(W, H);
+  const nrm = nrmC.getContext("2d")!.createImageData(W, H);
+
+  const at = (x: number, y: number) =>
+    h[Math.min(H - 1, Math.max(0, y)) * W + ((x + W) % W)];
+
+  for (let y = 0; y < H; y++) {
+    const v = y / (H - 1);
+    const sidewall = v < 0.2 || v > 0.8;
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      const e = h[y * W + x];
+      // Rubber is never pure black: it sits around 8-12% reflectance with
+      // a faint blue-grey cast. Pure black reads as a hole in the frame.
+      const base = sidewall ? 13 : 10;
+      const lit = base + e * (sidewall ? 15 : 26);
+      col.data[i] = lit * 0.98;
+      col.data[i + 1] = lit;
+      col.data[i + 2] = lit * 1.1;
+      col.data[i + 3] = 255;
+      // Sidewall rubber has a sheen; tread blocks are scuffed matte and
+      // the groove floors, which never touch the road, rougher still.
+      const r = sidewall ? 0.6 + (1 - e) * 0.14 : 0.86 + (1 - e) * 0.12;
+      const rv = Math.round(Math.min(1, r) * 255);
+      rgh.data[i] = rgh.data[i + 1] = rgh.data[i + 2] = rv;
+      rgh.data[i + 3] = 255;
+      // Normals by central difference on the same field.
+      const dx = (at(x + 1, y) - at(x - 1, y)) * 3.2;
+      const dy = (at(x, y + 1) - at(x, y - 1)) * 3.2;
+      const len = Math.hypot(dx, dy, 1);
+      nrm.data[i] = Math.round(((-dx / len) * 0.5 + 0.5) * 255);
+      nrm.data[i + 1] = Math.round(((-dy / len) * 0.5 + 0.5) * 255);
+      nrm.data[i + 2] = Math.round((1 / len) * 0.5 * 255 + 127.5);
+      nrm.data[i + 3] = 255;
+    }
+  }
+  colC.getContext("2d")!.putImageData(col, 0, 0);
+  rghC.getContext("2d")!.putImageData(rgh, 0, 0);
+  nrmC.getContext("2d")!.putImageData(nrm, 0, 0);
+
+  const map = new THREE.CanvasTexture(colC);
+  const roughnessMap = new THREE.CanvasTexture(rghC);
+  const normalMap = new THREE.CanvasTexture(nrmC);
+  map.colorSpace = THREE.SRGBColorSpace;
+  // Linear data, both of them. A roughness or normal map tagged sRGB is
+  // silently decoded through the EOTF and comes out wrong — the same
+  // trap the road surface fell into.
+  roughnessMap.colorSpace = THREE.NoColorSpace;
+  normalMap.colorSpace = THREE.NoColorSpace;
+  for (const t of [map, roughnessMap, normalMap]) {
+    // Around the circumference it tiles; across the width it must not,
+    // or the sidewall wraps onto the opposite shoulder.
+    t.wrapS = THREE.RepeatWrapping;
+    t.wrapT = THREE.ClampToEdgeWrapping;
+    t.repeat.set(TREAD_BLOCKS, 1);
+    t.anisotropy = 8; // read at a glancing angle, always
+  }
+  tireSurfShared = { map, normalMap, roughnessMap };
+  return tireSurfShared;
+}
+
+/** Rewrite a geometry's V coordinates into the [lo, hi] band of the tire
+ *  texture, so tread barrel and shoulders share one image. */
+function remapV(geo: THREE.BufferGeometry, lo: number, hi: number): THREE.BufferGeometry {
+  const uv = geo.attributes.uv as THREE.BufferAttribute;
+  for (let i = 0; i < uv.count; i++) uv.setY(i, lo + uv.getY(i) * (hi - lo));
+  uv.needsUpdate = true;
+  return geo;
+}
+
+let tireMatShared: THREE.MeshStandardMaterial | null = null;
+function getTireMat(): THREE.MeshStandardMaterial {
+  if (tireMatShared) return tireMatShared;
+  const s = tireSurface();
+  tireMatShared = new THREE.MeshStandardMaterial({
+    map: s.map,
+    normalMap: s.normalMap,
+    normalScale: new THREE.Vector2(0.85, 0.85),
+    roughnessMap: s.roughnessMap,
+    color: 0xffffff,
+    roughness: 1, // the map carries the real range
+    metalness: 0,
+    envMapIntensity: 0.55, // rubber picks up the night, faintly
+  });
+  return tireMatShared;
+}
 
 const rimGeo = new THREE.CylinderGeometry(0.205, 0.205, 0.27, 14);
 rimGeo.rotateZ(Math.PI / 2);
@@ -782,10 +961,12 @@ function heroWheelParts(nSpokes: number, side: number) {
     return g;
   };
   // Tire: tread barrel plus the two shoulder bulges
+  // Each piece is remapped into its own band of the tire texture, so one
+  // image covers tread and both shoulders and the tire stays one mesh.
   const tire = mergeGeometries([
-    tireGeoHi.clone(),
-    at(sidewallGeo, -0.095),
-    at(sidewallGeo, 0.095),
+    remapV(tireGeoHi.clone(), 0.2, 0.8),
+    remapV(at(sidewallGeo, -0.095), 0.03, 0.2),
+    remapV(at(sidewallGeo, 0.095), 0.8, 0.97),
   ])!;
   // Alloy face: machined lip, spokes, hub — everything wearing the
   // finish colour
@@ -836,7 +1017,7 @@ function buildWheel(
     rotorMat.emissive = new THREE.Color(0xff3a00);
     rotorMat.emissiveIntensity = 0;
     const mats: Record<string, THREE.Material> = {
-      tire: tireMat,
+      tire: getTireMat(),
       barrel: rimDarkMat,
       alloy: spokeMat,
       rotor: rotorMat,
@@ -854,7 +1035,8 @@ function buildWheel(
   }
 
   // Traffic wheel: the cheap build, unchanged
-  w.add(new THREE.Mesh(tireGeo, tireMat));
+  ensureTreadUvs();
+  w.add(new THREE.Mesh(tireGeo, getTireMat()));
   w.add(new THREE.Mesh(rimGeo, rimDarkMat));
   const lip = new THREE.Mesh(lipGeo, spokeMat);
   lip.position.x = side * 0.135;

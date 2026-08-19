@@ -52,6 +52,93 @@ function parts(file: string): Promise<PartSet | null> {
   return entry;
 }
 
+/**
+ * Cylindrical texture coordinates for an authored tire.
+ *
+ * The Blender wheel is exported without any, because it was modelled
+ * when a tire was one flat colour and did not need them — so the tread
+ * texture had nowhere to land and the authored tire stayed a black
+ * shape no matter what material it was given.
+ *
+ * The mapping is not a guess: the tire is a surface of revolution about
+ * X, so `u` is the angle around the axle and `v` is the position across
+ * the section. That puts the crown in the middle of the image and both
+ * flanks at its edges, which is exactly the tread/sidewall layout of the
+ * texture — because on a real tire section the widest points ARE the
+ * sidewalls, and the crown sits between them.
+ *
+ * The wrap seam is fixed rather than tolerated. A triangle spanning
+ * u≈1 back to u≈0 interpolates backwards across the whole image and
+ * paints one column of the tire with a smear of the entire tread. The
+ * vertices on the low side of such a triangle are duplicated at u+1,
+ * which repeat wrapping then resolves correctly.
+ */
+function addTireUvs(geo: THREE.BufferGeometry, halfWidth = 0.13): void {
+  if (geo.getAttribute("uv")) return;
+  const pos = geo.getAttribute("position") as THREE.BufferAttribute;
+  const n0 = pos.count;
+  const u = new Float64Array(n0);
+  const v = new Float64Array(n0);
+  for (let i = 0; i < n0; i++) {
+    u[i] = Math.atan2(pos.getZ(i), pos.getY(i)) / (Math.PI * 2) + 0.5;
+    v[i] = Math.min(1, Math.max(0, 0.5 + pos.getX(i) / (2 * halfWidth)));
+  }
+
+  const idx = geo.getIndex();
+  const clones: number[] = []; // original vertex index per appended copy
+  if (idx) {
+    const arr = idx.array as Uint16Array | Uint32Array;
+    const dupOf = new Map<number, number>();
+    for (let t = 0; t < arr.length; t += 3) {
+      const a = arr[t], b = arr[t + 1], c = arr[t + 2];
+      const lo = Math.min(u[a], u[b], u[c]);
+      const hi = Math.max(u[a], u[b], u[c]);
+      if (hi - lo <= 0.5) continue; // does not cross the seam
+      for (let k = 0; k < 3; k++) {
+        const vi = arr[t + k];
+        if (u[vi] >= 0.5) continue;
+        let dup = dupOf.get(vi);
+        if (dup === undefined) {
+          dup = n0 + clones.length;
+          clones.push(vi);
+          dupOf.set(vi, dup);
+        }
+        arr[t + k] = dup;
+      }
+    }
+    idx.needsUpdate = true;
+  }
+
+  const n = n0 + clones.length;
+  if (clones.length) {
+    // Every attribute has to grow together, or the copies read another
+    // vertex's normal.
+    for (const [name, attr] of Object.entries(geo.attributes)) {
+      const a = attr as THREE.BufferAttribute;
+      const size = a.itemSize;
+      const next = new Float32Array(n * size);
+      next.set(a.array as ArrayLike<number>);
+      clones.forEach((src, j) => {
+        for (let c = 0; c < size; c++) {
+          next[(n0 + j) * size + c] = (a.array as ArrayLike<number>)[src * size + c];
+        }
+      });
+      geo.setAttribute(name, new THREE.BufferAttribute(next, size));
+    }
+  }
+
+  const uv = new Float32Array(n * 2);
+  for (let i = 0; i < n0; i++) {
+    uv[i * 2] = u[i];
+    uv[i * 2 + 1] = v[i];
+  }
+  clones.forEach((src, j) => {
+    uv[(n0 + j) * 2] = u[src] + 1; // the far side of the seam
+    uv[(n0 + j) * 2 + 1] = v[src];
+  });
+  geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+}
+
 /** Mirror a geometry across the wheel axis, winding and normals with it.
  *  The wheel is authored once, for the right-hand side; scaling the mesh
  *  instead would invert the direction it appears to spin. */
@@ -124,6 +211,10 @@ export function upgradeWheels(group: THREE.Group): void {
         if (!slot || (mesh.parent?.userData.spokes ?? 0) !== spokes) return;
         const geo = kit[slot];
         if (!geo) return;
+        // The tire is the one authored part that carries a texture, and
+        // the export has no coordinates for it. Done here, once, before
+        // the mirrored copy is taken from it.
+        if (slot === "tire") addTireUvs(geo);
         mesh.geometry = (mesh.userData.wheelSide as number) < 0 ? mirrorX(geo) : geo;
       });
     });

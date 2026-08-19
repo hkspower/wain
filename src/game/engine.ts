@@ -237,12 +237,38 @@ const TRAFFIC_COLORS = [0x8a96a3, 0x5d6770, 0xb0a890, 0x6e7f8d, 0x4a5560, 0x9c8f
 // hard black point. Order matters — the black point runs last so nothing
 // downstream can lift the shadows back up.
 /** Spin a car's wheels with road speed; fronts also take a steer angle. */
-function spinWheels(car: THREE.Object3D, speed: number, dt: number, steer = 0): void {
+/**
+ * Roll the wheels.
+ *
+ * The rate is the real one, omega = v / r against the tire's own 0.36 m
+ * radius, but a wheel is not always doing v / r. Two cases matter and
+ * both are things the player is deliberately causing:
+ *
+ *   `lock` — a wheel past the tire's limit under braking has stopped
+ *   turning and is sliding. Everything else already said so — the smoke,
+ *   the squeal, the stopping distance — and four wheels spinning happily
+ *   through a locked stop was the one thing still giving it away.
+ *
+ *   `spin` — torque the driven axle could not put down. Only the REAR
+ *   wheels get it: a burnout with all four spinning is a four-wheel-drive
+ *   car, and none of these are.
+ */
+function spinWheels(
+  car: THREE.Object3D,
+  speed: number,
+  dt: number,
+  steer = 0,
+  lock = 0,
+  spin = 0
+): void {
   const wheels = car.userData.wheels as THREE.Group[] | undefined;
   if (!wheels) return;
-  const dRot = (speed / 0.36) * dt; // tire radius 0.36 m
+  const R = 0.36; // tire radius, metres — matches tireGeo in cars.ts
+  const rolling = speed * (1 - lock);
   for (let i = 0; i < wheels.length; i++) {
-    wheels[i].rotation.x += dRot;
+    const driven = i >= 2; // 0,1 front · 2,3 rear
+    const surface = rolling + (driven ? spin * 0.8 : 0);
+    wheels[i].rotation.x += (surface / R) * dt;
     if (i < 2) wheels[i].rotation.y = steer;
   }
 }
@@ -2581,7 +2607,17 @@ export class GameEngine {
     this.pitch += (pitchTarget - this.pitch) * Math.min(1, dt * 6);
     this.carBody.rotation.x = this.pitch;
     // Lit-up rears visibly overspin the road speed — the launch tell
-    spinWheels(this.carBody, p.speed + this.wheelspin * 0.8, dt, -this.steerSmooth * 0.3);
+    spinWheels(
+      this.carBody,
+      p.speed,
+      dt,
+      // Road wheels turn about 30 degrees at full lock. This was 0.3 rad
+      // — 17 degrees — which reads as a car that never quite commits to
+      // the corner it is visibly taking.
+      -this.steerSmooth * 0.52,
+      this.brakeOut?.lock ?? 0,
+      this.wheelspin
+    );
     this.updateDriver(dt);
     if (typeof window !== "undefined" && !(window as unknown as { __ikSolve?: unknown }).__ikSolve) {
       // Debug hook: lets the IK test drive the solver directly

@@ -257,6 +257,101 @@ const reduced = await page.evaluate(async () => {
 console.log(`  reduced motion  film skipped=${reduced.skipped}  ` +
   check(reduced.skipped !== false, "reduced motion still plays the pre-battle film"));
 
+// 12. The wheels turn at the rate the road is passing — and stop when
+//     the tire does. Everything else in the car already reports a locked
+//     wheel; the wheels themselves were the last thing that did not.
+const wheels = await page.evaluate(async () => {
+  const e = window.__grnEngine;
+  e.setPaused(true);
+  const W = () => e.carBody.userData.wheels;
+  const angles = () => W().map((w) => w.rotation.x);
+  const reset = () => {
+    e.player.lat = 0; e.heading = 0; e.steerSmooth = 0; e.driftYaw = 0;
+    e.ds.spinT = 0; e.bs.lock = 0; e.bs.temp = 0;
+    e.setTouchInput({ throttle: 0, brake: 0, steer: 0 });
+    e.touch.drift = false;
+  };
+  // Turned by the road: a steady roll at v must give omega = v / r.
+  reset();
+  e.player.speed = 30;
+  let a0 = angles();
+  for (let i = 0; i < 30; i++) {
+    e.player.speed = 30;
+    e.setTouchInput({ throttle: 0.35, brake: 0, steer: 0 });
+    e.update(1 / 60);
+  }
+  const rolled = angles()[0] - a0[0];
+  const expected = (30 / 0.36) * 0.5; // v/r over half a second
+
+  // Locked: no anti-lock, pedal buried. The car is still moving; the
+  // wheels must not be.
+  reset();
+  e.tune.hasAbs = false;
+  e.player.speed = 30;
+  for (let i = 0; i < 40; i++) {
+    e.player.speed = 30;
+    e.setTouchInput({ throttle: 0, brake: 1, steer: 0 });
+    e.update(1 / 60);
+  }
+  a0 = angles();
+  for (let i = 0; i < 30; i++) {
+    e.player.speed = 30;
+    e.setTouchInput({ throttle: 0, brake: 1, steer: 0 });
+    e.update(1 / 60);
+  }
+  const locked = angles()[0] - a0[0];
+  const lockAmt = e.bs.lock;
+  e.tune.hasAbs = e.__absStock ?? true;
+
+  // Burnout: the driven axle spins, the front wheels do not.
+  reset();
+  e.player.speed = 2;
+  for (let i = 0; i < 20; i++) {
+    e.player.speed = 2;
+    e.setTouchInput({ throttle: 1, brake: 0, steer: 0 });
+    e.update(1 / 60);
+  }
+  a0 = angles();
+  for (let i = 0; i < 30; i++) {
+    e.player.speed = 2;
+    e.setTouchInput({ throttle: 1, brake: 0, steer: 0 });
+    e.update(1 / 60);
+  }
+  const a1 = angles();
+  const front = a1[0] - a0[0];
+  const rear = a1[2] - a0[2];
+
+  // Steering is on the front axle only.
+  reset();
+  e.player.speed = 8;
+  for (let i = 0; i < 40; i++) {
+    e.player.speed = 8;
+    e.setTouchInput({ throttle: 0.2, brake: 0, steer: 1 });
+    e.update(1 / 60);
+  }
+  const steerFront = Math.abs(W()[0].rotation.y);
+  const steerRear = Math.abs(W()[2].rotation.y);
+  reset();
+  return {
+    rolled: +rolled.toFixed(2), expected: +expected.toFixed(2),
+    locked: +locked.toFixed(3), lockAmt: +lockAmt.toFixed(2),
+    front: +front.toFixed(2), rear: +rear.toFixed(2),
+    steerFront: +steerFront.toFixed(3), steerRear: +steerRear.toFixed(3),
+  };
+});
+console.log(`\n  wheel roll      ${wheels.rolled} rad in 0.5 s, v/r says ${wheels.expected}  ` +
+  check(Math.abs(wheels.rolled - wheels.expected) / wheels.expected < 0.05,
+    `wheels turn at ${wheels.rolled} rad where the road says ${wheels.expected} — they are skating`));
+console.log(`  locked wheel    lock ${wheels.lockAmt}, turned ${wheels.locked} rad in 0.5 s at 30 m/s  ` +
+  check(wheels.lockAmt > 0.9 && Math.abs(wheels.locked) < 1,
+    `a fully locked wheel still turned ${wheels.locked} rad while the car slid`));
+console.log(`  burnout         front ${wheels.front} rad, rear ${wheels.rear} rad  ` +
+  check(wheels.rear > wheels.front * 1.5,
+    "the rear wheels do not outspin the fronts under wheelspin — this is not a four-wheel-drive car"));
+console.log(`  steered axle    front ${wheels.steerFront} rad, rear ${wheels.steerRear} rad  ` +
+  check(wheels.steerFront > 0.25 && wheels.steerRear === 0,
+    `steering angle front ${wheels.steerFront} / rear ${wheels.steerRear} is wrong`));
+
 console.log(fail.length ? "\nFAILURES:\n - " + fail.join("\n - ") : "\nall motion & feedback checks passed");
 await browser.close();
 process.exit(fail.length ? 1 : 0);
