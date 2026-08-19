@@ -206,8 +206,16 @@
     .soc .head .btn { margin-inline-start:auto; }
     .soc .val { font-weight:700; color:var(--tint); direction:ltr; unicode-bidi:isolate; }
     .soc p { margin:0; font-size:13.5px; line-height:1.85; white-space:pre-line; }
-    .soc .tags { font-size:13px; direction:ltr; unicode-bidi:isolate; text-align:start;
-      color:var(--muted); font-family:var(--mono); line-height:1.9; }
+    .soc .tags { font-size:13px; color:var(--muted); line-height:1.9; }
+    /* Only a Latin run gets the mono, LTR treatment. Arabic hashtags set that
+       way came out stretched with the # on the wrong side — the neutral #
+       resolves by what follows it, the same defect that printed «ce1925#». */
+    .soc .tags.ltr { direction:ltr; unicode-bidi:isolate; text-align:start;
+      font-family:var(--mono); }
+    /* A Latin measurement inside an Arabic sentence or cell: without an
+       isolate, «1200×630» is two LTR runs laid out right-to-left and reads
+       back as «630×1200» — a different size. */
+    .ltr { direction:ltr; unicode-bidi:isolate; }
     code { font-family:var(--mono); font-size:12.5px; direction:ltr; unicode-bidi:isolate;
       background:var(--panel-2); border:1px solid var(--border); border-radius:6px; padding: 1px 4px; }
 
@@ -1073,6 +1081,24 @@
      Static reference data. It is deliberately not in localStorage: these are
      the company's facts, not the user's records, and a copy that could be
      edited on one device is a second source of truth. */
+  var PHONE = "+965 6589 4110";
+  /* Renders escaped text with every occurrence of the phone number wrapped in
+     its own bidi isolate. Display only — CLIP holds the raw string, so what is
+     copied is exactly what was written. */
+  function withPhone(t) {
+    return esc(t).split(PHONE).join('<bdi dir="ltr">' + PHONE + "</bdi>");
+  }
+
+  /* A Latin hashtag inside an Arabic set needs its own isolate: the neutral #
+     resolves by what follows it, so «#XBRL» among Arabic tags renders «XBRL#».
+     Each Latin-bearing token is wrapped; the Arabic ones keep the page's
+     direction, where the # already lands at the start. */
+  function tagRun(s) {
+    return s.split(" ").map(function (w) {
+      return /[A-Za-z]/.test(w) ? '<bdi dir="ltr">' + esc(w) + "</bdi>" : esc(w);
+    }).join(" ");
+  }
+
   var CHANNELS = [
     ["واتساب", "+965 6589 4110", "https://wa.me/96565894110", "القناة الأولى — كل نموذج في الموقع ينتهي هنا"],
     ["انستغرام", "@almuhallab.code", "https://www.instagram.com/almuhallab.code/", "صورة الحساب والأغلفة البارزة من مجلد الأصول"],
@@ -1116,7 +1142,7 @@
   var TAGS = [
     ["عام", "#المهلب_كود #برمجة #الكويت #تطوير_مواقع #تطبيقات #شركة_برمجة"],
     ["النوخذة", "#النوخذة #نظام_محاسبي #XBRL #الميزانية_السنوية #وزارة_التجارة #الكويت"],
-    ["تقني", "#software #webdev #flutter #ai #uiux #kuwait #madeinkuwait"]
+    ["تقني", "#software #webdev #flutter #ai #uiux #kuwait #madeinkuwait", true]
   ];
 
   /* One flat list of everything a copy button can put on the clipboard, so a
@@ -1138,18 +1164,19 @@
     }).join("");
 
     el("soc-assets").innerHTML = ASSETS.map(function (a) {
-      return "<tr><td>" + esc(a[0]) + "</td><td>" + esc(a[1]) + "</td><td>" +
+      return "<tr><td>" + esc(a[0]) + '</td><td><span class="ltr">' + esc(a[1]) + "</span></td><td>" +
         esc(a[2]) + '</td><td><code>' + esc(a[3]) + "</code></td></tr>";
     }).join("");
 
     el("soc-copy").innerHTML = COPY.map(function (c) {
       return '<div class="soc"><div class="head"><b>' + esc(c[0]) + "</b>" +
-        clipBtn(c[1], "نسخ النص") + "</div><p>" + esc(c[1]) + "</p></div>";
+        clipBtn(c[1], "نسخ النص") + "</div><p>" + withPhone(c[1]) + "</p></div>";
     }).join("");
 
     el("soc-tags").innerHTML = TAGS.map(function (t) {
       return '<div class="soc"><div class="head"><b>' + esc(t[0]) + "</b>" +
-        clipBtn(t[1]) + '</div><div class="tags">' + esc(t[1]) + "</div></div>";
+        clipBtn(t[1]) + '</div><div class="tags' + (t[2] ? " ltr" : "") + '">' +
+        (t[2] ? esc(t[1]) : tagRun(t[1])) + "</div></div>";
     }).join("");
   }
 
