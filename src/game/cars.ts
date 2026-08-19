@@ -39,6 +39,9 @@ export interface CarColors {
   stickers?: boolean;
   /** Racing number for the roundels; derived from the paint if absent. */
   stickerNumber?: number;
+  /** The car's own name, for the flank wordmark in the sticker pack. */
+  name?: string;
+  nameAr?: string;
 }
 
 let goldRimMat: THREE.MeshStandardMaterial | null = null;
@@ -1027,6 +1030,118 @@ function flagDecalTexture(): THREE.CanvasTexture {
 
 /** Sticker plane: lit like paint, slightly emissive so it reads at night,
  *  polygon-offset so it never z-fights the panel it sits on. */
+let demonMarkTex: THREE.CanvasTexture | null = null;
+/**
+ * The crew mark: a horned skull, drawn here rather than borrowed.
+ *
+ * The fleet is already full of jinn — an Efreet, a Kaiju, a rival called
+ * Bu Torab running with the Dust Devils — so the sticker pack gets a
+ * devil's head to match. Every line of it is a path in this function;
+ * there is no real emblem behind it.
+ */
+function demonMarkTexture(): THREE.CanvasTexture {
+  if (demonMarkTex) return demonMarkTex;
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const ctx = c.getContext("2d")!;
+  ctx.clearRect(0, 0, 256, 256);
+  const INK = "#14121a";
+  const EMBER = "#ff5a1f";
+
+  // Horns first, so the skull sits over their roots and they read as
+  // growing out of it rather than being stuck on the sides.
+  const horn = (s: number) => {
+    ctx.beginPath();
+    ctx.moveTo(128 + s * 46, 106);
+    ctx.quadraticCurveTo(128 + s * 124, 88, 128 + s * 116, 18);
+    ctx.quadraticCurveTo(128 + s * 88, 60, 128 + s * 60, 76);
+    ctx.closePath();
+  };
+  // Skull: heavy brow, hard cheekbones, a long jaw
+  const skull = () => {
+    ctx.beginPath();
+    ctx.moveTo(128, 238);
+    ctx.lineTo(72, 160);
+    ctx.lineTo(56, 102);
+    ctx.quadraticCurveTo(128, 58, 200, 102);
+    ctx.lineTo(184, 160);
+    ctx.closePath();
+  };
+  // Stroked in ember before it is filled in ink. The mark goes on paint
+  // that is often nearly black at night, and an all-ink silhouette on
+  // dark paint is a hole rather than a badge.
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = EMBER;
+  ctx.lineWidth = 9;
+  for (const s of [-1, 1]) { horn(s); ctx.stroke(); }
+  skull();
+  ctx.stroke();
+  ctx.fillStyle = INK;
+  for (const s of [-1, 1]) { horn(s); ctx.fill(); }
+  skull();
+  ctx.fill();
+
+  // Eyes: angled slits, lit from inside
+  ctx.fillStyle = EMBER;
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(128 + s * 26, 114);
+    ctx.lineTo(128 + s * 74, 130);
+    ctx.lineTo(128 + s * 68, 152);
+    ctx.lineTo(128 + s * 30, 134);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // A row of teeth rather than a drawn smile — a curve at this size
+  // turns to mush, and the sawtooth still reads at a car's length.
+  ctx.beginPath();
+  ctx.moveTo(98, 176);
+  for (let i = 0; i < 6; i++) {
+    ctx.lineTo(98 + (i + 0.5) * 10, 194);
+    ctx.lineTo(98 + (i + 1) * 10, 176);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  demonMarkTex = new THREE.CanvasTexture(c);
+  demonMarkTex.colorSpace = THREE.SRGBColorSpace;
+  demonMarkTex.anisotropy = 8;
+  return demonMarkTex;
+}
+
+const nameDecalCache = new Map<string, THREE.CanvasTexture>();
+/** The car's own name, laid out as a flank wordmark: Latin over Arabic. */
+function nameDecalTexture(name: string, ar?: string): THREE.CanvasTexture {
+  const key = `${name}|${ar ?? ""}`;
+  const hit = nameDecalCache.get(key);
+  if (hit) return hit;
+  const c = document.createElement("canvas");
+  c.width = 512;
+  c.height = 128;
+  const ctx = c.getContext("2d")!;
+  ctx.clearRect(0, 0, 512, 128);
+  ctx.textAlign = "center";
+  // Letter-spaced caps, because a wordmark on a flank is read side-on at
+  // speed and tight tracking closes up to a smear.
+  ctx.letterSpacing = "6px";
+  ctx.fillStyle = "#f2f4f7";
+  ctx.font = `700 54px ${latinDisplay()}`;
+  ctx.fillText(name.toUpperCase(), 256, 58);
+  ctx.letterSpacing = "0px";
+  ctx.fillStyle = "#ff5a1f";
+  ctx.fillRect(150, 70, 212, 3);
+  if (ar) {
+    ctx.direction = "rtl";
+    ctx.font = `600 38px ${arabicUI()}`;
+    ctx.fillText(ar, 256, 110);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  nameDecalCache.set(key, tex);
+  return tex;
+}
+
 function decalMat(map: THREE.CanvasTexture): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
     map,
@@ -1216,6 +1331,17 @@ export function createCar(colors: CarColors): THREE.Group {
   // car of a silhouette.
   bGeo.computeBoundingBox();
   const flankX = bGeo.boundingBox!.max.x;
+  /**
+   * The painted top skin at a point along the car, on the centreline.
+   *
+   * `hoodY` and `deckY` are the profile's top LINE. The extrusion's
+   * bevel carries the actual surface 20 to 160 mm above it, depending on
+   * the body — so everything that lies on the hood was lying inside it.
+   * Measured on all four silhouettes: the sticker pack's hood decal was
+   * 23 mm under the skin on the gtr and 170 mm under it on the rx7, and
+   * had therefore never been seen on any car in the game.
+   */
+  const skinY = (z: number, fallback: number): number => deckY(bGeo, style, z) ?? fallback;
   const canopyShell = new THREE.Mesh(cGeo, glassMat);
   canopyShell.userData.shell = "canopy";
   group.add(canopyShell);
@@ -1223,13 +1349,51 @@ export function createCar(colors: CarColors): THREE.Group {
   roofShell.userData.shell = "roof";
   group.add(roofShell);
 
+  /** Top of the bonnet stripe at a point along it, when the car wears one. */
+  let hoodStripeTop: ((z: number) => number) | null = null;
   if (colors.accent !== undefined && style === "sedan") {
-    const stripe = new THREE.Mesh(
-      roundedBox(0.46, 0.03, 4.3, 0.012),
-      new THREE.MeshStandardMaterial({ color: colors.accent, roughness: 0.35 })
-    );
-    stripe.position.y = 1.0;
-    group.add(stripe);
+    // A bonnet-and-boot stripe, seated on the panels it lies on. It was
+    // one 4.3 m bar held at a fixed height for the whole length of the
+    // car, which is a straight line laid through a curved body: it broke
+    // the surface over the nose, sank into the hood, ran under the
+    // cabin, and never reached the boot. On screen it read as a green
+    // rectangle stuck to the bumper.
+    const accentMat = new THREE.MeshStandardMaterial({ color: colors.accent, roughness: 0.35 });
+    // Each run is laid in short pieces rather than as one long board.
+    // A panel is not a ramp: levelled against its two ends only, a 0.9 m
+    // stripe sinks into the crown between them, which broke the boot
+    // stripe into two green patches with the middle missing.
+    const PIECES = 4;
+    for (const [zRear, zFront] of [
+      [0.95, 2.14],
+      [-2.16, -1.22],
+    ]) {
+      const step = (zFront - zRear) / PIECES;
+      for (let i = 0; i < PIECES; i++) {
+        const a = zRear + i * step;
+        const b = a + step;
+        const mid = (a + b) / 2;
+        const yA = skinY(a, d.hoodY);
+        const yB = skinY(b, d.hoodY);
+        // 12 mm thick, not 30: this is paint, and a stripe standing 3 cm
+        // off the bonnet is a spoiler.
+        const seg = new THREE.Mesh(roundedBox(0.46, 0.012, step * 1.02, 0.005), accentMat);
+        seg.position.set(0, (yA + yB) / 2 + 0.009, mid);
+        seg.rotation.x = Math.asin(Math.min(0.6, (yA - yB) / step));
+        group.add(seg);
+        // The hood decal has to clear whichever piece it lands on, or
+        // the stripe covers the falcon's middle. Measured at the decal's
+        // own z: the pieces are pitched, so the height at the centre of
+        // one is a centimetre off the height where the decal sits.
+        if (zFront > 0) {
+          const y0 = seg.position.y;
+          const sinA = Math.sin(seg.rotation.x);
+          const prev: ((z: number) => number) | null = hoodStripeTop;
+          hoodStripeTop = (z: number): number =>
+            Math.max(y0 + (mid - z) * sinA + 0.011, prev ? prev(z) : -Infinity);
+        }
+      }
+    }
   }
 
   // Lights: lens strips front and rear. The head material is cloned per
@@ -1703,25 +1867,27 @@ export function createCar(colors: CarColors): THREE.Group {
 
     // Hood and trunk shut lines across the top surfaces
     const hoodGap = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.012, 0.016), gapMat);
-    hoodGap.position.set(0, d.hoodY + 0.01, bCabBack ? 0.65 : 1.06);
+    const hoodGapZ = bCabBack ? 0.65 : 1.06;
+    hoodGap.position.set(0, skinY(hoodGapZ, d.hoodY) + 0.002, hoodGapZ);
     group.add(hoodGap);
     const trunkGap = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.012, 0.016), gapMat);
-    trunkGap.position.set(0, d.deckY + 0.005, -1.42);
+    trunkGap.position.set(0, skinY(-1.42, d.deckY) + 0.002, -1.42);
     group.add(trunkGap);
     for (const sx of [-0.86, 0.86]) {
       const hoodSide = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.012, 1.0), gapMat);
-      hoodSide.position.set(sx, d.hoodY, bCabBack ? 1.2 : 1.55);
+      const hsZ = bCabBack ? 1.2 : 1.55;
+      hoodSide.position.set(sx, skinY(hsZ, d.hoodY) + 0.002, hsZ);
       group.add(hoodSide);
     }
 
     if (style === "gtr") {
       // Power bulge and the NACA-ish vents either side of it
       const bulge = new THREE.Mesh(roundedBox(0.72, 0.06, 1.0, 0.03), bodyMat);
-      bulge.position.set(0, d.hoodY, 1.55);
+      bulge.position.set(0, skinY(1.55, d.hoodY) + 0.02, 1.55);
       group.add(bulge);
       for (const sx of [-0.55, 0.55]) {
         const vent = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.015, 0.4), gapMat);
-        vent.position.set(sx, d.hoodY + 0.005, 1.5);
+        vent.position.set(sx, skinY(1.5, d.hoodY) + 0.004, 1.5);
         group.add(vent);
       }
       // Boxed fender flares over all four arches
@@ -1740,7 +1906,7 @@ export function createCar(colors: CarColors): THREE.Group {
       // Cooling slats let into the long hood
       for (const sx of [-0.5, 0.5]) {
         const slat = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.014, 0.5), gapMat);
-        slat.position.set(sx, d.hoodY + 0.005, 1.45);
+        slat.position.set(sx, skinY(1.45, d.hoodY) + 0.004, 1.45);
         group.add(slat);
       }
     }
@@ -1815,7 +1981,7 @@ export function createCar(colors: CarColors): THREE.Group {
       [0.28, 0.18],
     ]) {
       const wiper = new THREE.Mesh(roundedBox(0.5, 0.014, 0.025, 0.005), seamMat);
-      wiper.position.set(wxp, d.hoodY, d.wiperZ);
+      wiper.position.set(wxp, skinY(d.wiperZ, d.hoodY) + 0.008, d.wiperZ);
       wiper.rotation.x = -0.66;
       wiper.rotation.z = rz;
       group.add(wiper);
@@ -1926,11 +2092,11 @@ export function createCar(colors: CarColors): THREE.Group {
     // Vented hood: twin extraction louvres and a pair of intake scoops
     for (const sx of [-0.36, 0.36]) {
       const louvre = new THREE.Mesh(roundedBox(0.34, 0.025, 0.5, 0.009), carbonMat);
-      louvre.position.set(sx, d.hoodY + 0.015, 1.15);
+      louvre.position.set(sx, skinY(1.15, d.hoodY) + 0.015, 1.15);
       louvre.rotation.x = -0.06; // follows the hood's fall
       group.add(louvre);
       const scoop = new THREE.Mesh(roundedBox(0.16, 0.07, 0.22, 0.02), carbonMat);
-      scoop.position.set(sx * 1.4, d.hoodY + 0.05, 0.62);
+      scoop.position.set(sx * 1.4, skinY(0.62, d.hoodY) + 0.05, 0.62);
       group.add(scoop);
     }
 
@@ -1959,6 +2125,30 @@ export function createCar(colors: CarColors): THREE.Group {
     group.add(hook);
   }
 
+  // The zx leaves the factory with a rear wing on the hatch — a low
+  // two-post blade, not a bolt-on GT plank. Without it the tail is a
+  // bare sheet from the glass to the bumper, which is the one thing that
+  // made this silhouette read as unfinished from behind. It steps aside
+  // for either aftermarket wing rather than stacking with them.
+  if (style === "zx" && !colors.spoiler && !colors.raceKit) {
+    const wz = -1.98;
+    const deck = deckY(bGeo, style, wz) ?? d.deckY + 0.12;
+    for (const sx of [-0.66, 0.66]) {
+      const post = new THREE.Mesh(roundedBox(0.07, 0.13, 0.2, 0.02), bodyMat);
+      post.position.set(sx, deck + 0.05, wz);
+      group.add(post);
+    }
+    const blade = new THREE.Mesh(roundedBox(1.66, 0.045, 0.36, 0.016), bodyMat);
+    blade.position.set(0, deck + 0.125, wz - 0.02);
+    blade.rotation.x = -0.07;
+    group.add(blade);
+    // A lip turned up at the trailing edge, which is what the real ones
+    // have and what stops the blade reading as a shelf.
+    const lip = new THREE.Mesh(roundedBox(1.62, 0.05, 0.02, 0.008), bodyMat);
+    lip.position.set(0, deck + 0.15, wz - 0.19);
+    group.add(lip);
+  }
+
   // GT wing — always the player's choice: equip the part or run clean
   // (the attack kit brings its own swan-neck; don't stack two wings)
   if (colors.spoiler && !colors.raceKit) {
@@ -1972,9 +2162,11 @@ export function createCar(colors: CarColors): THREE.Group {
     wing.position.set(0, baseY + 0.15, -1.98);
     wing.rotation.x = -0.12;
     group.add(wing);
-    // Brake strip let into the wing's trailing edge
-    const strip = new THREE.Mesh(roundedBox(0.9, 0.025, 0.03, 0.008), tailMat);
-    strip.position.set(0, baseY + 0.13, -2.17);
+    // Brake strip on the wing's trailing edge — behind it and just under
+    // it, not inside it. At z -2.17 it sat within the blade's own depth
+    // and never showed on any car that fitted this wing.
+    const strip = new THREE.Mesh(roundedBox(0.9, 0.025, 0.09, 0.008), tailMat);
+    strip.position.set(0, baseY + 0.155, -2.245);
     group.add(strip);
     for (const sx of [-0.88, 0.88]) {
       const endplate = new THREE.Mesh(roundedBox(0.03, 0.16, 0.4, 0.01), seamMat);
@@ -1988,8 +2180,10 @@ export function createCar(colors: CarColors): THREE.Group {
   // than UV work because the shells are swapped for Blender geometry at
   // runtime — planes survive that swap untouched.
   if (colors.stickers && !colors.simple) {
-    const HALF_W: Record<BodyStyle, number> = { sedan: 0.92, zx: 0.96, gtr: 0.98, rx7: 0.96 };
-    const sideX = HALF_W[style] + 0.014;
+    // Off the shell's measured flank, not a hand-kept table of the four
+    // half-widths. The table happened to be right, but it was a second
+    // place to remember when a body changes.
+    const sideX = flankX + 0.014;
     const num =
       colors.stickerNumber ??
       ((((colors.body * 2654435761) >>> 0) % 90) + 10);
@@ -1997,31 +2191,72 @@ export function createCar(colors: CarColors): THREE.Group {
     const roundel = decalMat(roundelTexture(num));
     const stripe = decalMat(beltStripeTexture());
     const flag = decalMat(flagDecalTexture());
+    const demon = decalMat(demonMarkTexture());
+    const nameDecal = colors.name
+      ? decalMat(nameDecalTexture(colors.name, colors.nameAr))
+      : null;
+    // Four decals and a stripe on one flank need lanes, or they land on
+    // each other: the wordmark went straight under the roundel and the
+    // horned mark disappeared into the stripe's tail. Front fender, door,
+    // rear quarter — and the stripe stops before the quarter so the mark
+    // has clean paint to sit on. The roundel is the deliberate exception,
+    // interrupting the stripe the way a rally door number does.
     for (const sign of [-1, 1]) {
-      // Door roundel with the racing number
-      const r = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.34), roundel);
-      r.position.set(sign * (sideX + 0.008), d.creaseY + 0.02, 0.45);
-      r.rotation.y = sign * (Math.PI / 2);
-      group.add(r);
-      // Beltline stripe running the flank
-      const st = new THREE.Mesh(new THREE.PlaneGeometry(2.7, 0.14), stripe);
-      st.position.set(sign * sideX, d.beltY - 0.16, -0.15);
-      st.rotation.y = sign * (Math.PI / 2);
+      const x = sign * (sideX + 0.008);
+      const flipY = sign * (Math.PI / 2);
+      // Beltline stripe: the spine everything else is placed around
+      const st = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.14), stripe);
+      st.position.set(sign * sideX, d.beltY - 0.16, -0.05);
+      st.rotation.y = flipY;
       group.add(st);
-      // Kuwait flag on the rear quarter
+      // Kuwait flag on the front fender, behind the arch
       const f = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.12), flag);
-      f.position.set(sign * (sideX + 0.008), d.beltY - 0.1, -1.55);
-      f.rotation.y = sign * (Math.PI / 2);
+      f.position.set(x, d.creaseY - 0.06, 1.0);
+      f.rotation.y = flipY;
       group.add(f);
+      // Door: racing number over the car's own name
+      const r = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.34), roundel);
+      r.position.set(x, d.creaseY + 0.12, 0.35);
+      r.rotation.y = flipY;
+      group.add(r);
+      if (colors.name) {
+        const word = new THREE.Mesh(new THREE.PlaneGeometry(0.86, 0.215), nameDecal!);
+        word.position.set(sign * (sideX + 0.004), d.creaseY - 0.22, 0.35);
+        word.rotation.y = flipY;
+        group.add(word);
+      }
+      // The crew's horned mark on the rear quarter, clear of the stripe
+      const mark = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.32), demon);
+      mark.position.set(x, d.beltY - 0.02, -1.45);
+      mark.rotation.y = flipY;
+      group.add(mark);
     }
     // Falcon swoosh flat on the hood, nosed toward the windshield
     const hood = new THREE.Mesh(
       new THREE.PlaneGeometry(0.85, 0.85),
       decalMat(hoodDecalTexture())
     );
-    hood.rotation.x = -Math.PI / 2;
+    // Laid ON the hood, which is a slope and not a table. A flat plane
+    // set to the skin height at its centre has its back half inside the
+    // bonnet and its front half floating: 0.85 m of decal spans 100 mm
+    // of fall on the long-nosed bodies. Both ends are measured and the
+    // plane is pitched to match.
+    const hoodDecalZ = bCabBack ? 1.15 : 1.45;
+    const HALF = 0.425;
+    const yBack = skinY(hoodDecalZ - HALF, d.hoodY);
+    const yFront = skinY(hoodDecalZ + HALF, d.hoodY);
     hood.rotation.z = Math.PI; // read the right way up from the driver's seat
-    hood.position.set(0, d.hoodY + 0.014, bCabBack ? 1.15 : 1.45);
+    hood.rotation.x = -Math.PI / 2 + Math.asin(Math.min(0.6, (yBack - yFront) / (2 * HALF)));
+    // A little more than a decal's clearance, because the bonnet bows
+    // between the two points this is levelled against.
+    hood.position.set(
+      0,
+      Math.max(
+        (yBack + yFront) / 2 + 0.022,
+        hoodStripeTop ? hoodStripeTop(hoodDecalZ) + 0.005 : -Infinity
+      ),
+      hoodDecalZ
+    );
     group.add(hood);
   }
 

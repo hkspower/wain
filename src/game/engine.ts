@@ -807,6 +807,8 @@ export class GameEngine {
       raceKit: this.tune.raceKit,
       stickers: this.tune.stickers,
       stickerNumber: this.stickerNumber(),
+      name: this.tune.carName,
+      nameAr: this.tune.carNameAr,
       exhaust: this.tune.exhaust,
     }));
     this.playerMesh = new THREE.Group();
@@ -2016,6 +2018,8 @@ export class GameEngine {
         raceKit: this.tune.raceKit,
         stickers: this.tune.stickers,
         stickerNumber: this.stickerNumber(),
+        name: this.tune.carName,
+        nameAr: this.tune.carNameAr,
         exhaust: this.tune.exhaust,
       })
     );

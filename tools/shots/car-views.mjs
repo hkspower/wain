@@ -44,6 +44,7 @@ await page.click("text=START ENGINE");
 await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 180000 });
 await page.waitForTimeout(3000);
 await page.evaluate(() => { window.__grnEngine.setPaused(true); });
+await page.evaluate((p) => { window.__grnViewParts = p; }, process.env.PARTS ?? "");
 
 mkdirSync("press/views", { recursive: true });
 
@@ -52,6 +53,12 @@ const VIEWS = {
   rear: [0.18, 0.22, -1],
   front: [0.18, 0.22, 1],
   top: [0.05, 1, 0.02],
+  // Close in on the driver's window. The interior is the one part of a
+  // car that no exterior elevation shows, and it is where the rig lives.
+  cabin: [1, 0.34, 0.55, 0.42],
+  // The rear quarter and the door, close enough to read a decal on.
+  quarter: [1, 0.12, -0.5, 0.36],
+  door: [1, 0.1, 0.16, 0.36],
 };
 
 for (const c of list) {
@@ -60,8 +67,11 @@ for (const c of list) {
       async ([carId, dir]) => {
         const THREE = window.__grnThree;
         const e = window.__grnEngine;
+        // PARTS=stickers,spoiler fits those before the render, so the
+        // decals and aero can be looked at rather than assumed.
+        const parts = (window.__grnViewParts || "").split(",").filter(Boolean);
         localStorage.setItem("gulf-road-nights-garage", JSON.stringify({
-          car: carId, cars: [carId], owned: [], kd: 99999,
+          car: carId, cars: [carId], owned: parts, kd: 99999,
           equipped: { paint: "paint-white", glow: "glow-none" },
         }));
         e.applyGarage();
@@ -84,10 +94,14 @@ for (const c of list) {
         const bb = new THREE.Box3().setFromObject(car);
         const size = bb.getSize(new THREE.Vector3());
         const centre = bb.getCenter(new THREE.Vector3());
-        const R = Math.max(size.x, size.y, size.z) * 2.2;
+        // A fourth number, when present, is how close to pull in — 1 is
+        // the full-car framing, smaller crops to a detail.
+        const R = Math.max(size.x, size.y, size.z) * 2.2 * (dir[3] ?? 1);
         const v = new THREE.Vector3(dir[0], dir[1], dir[2]).normalize().multiplyScalar(R);
-        cam.position.copy(centre).add(v);
-        cam.lookAt(centre);
+        const aim = centre.clone();
+        if (dir[3]) aim.y += size.y * 0.22; // look at the glasshouse, not the sills
+        cam.position.copy(aim).add(v);
+        cam.lookAt(aim);
         // Enough light to read a shape by: a strong key, a weaker fill
         // opposite it, and a rim behind so the silhouette separates.
         // The environment matters more than any of them — these are

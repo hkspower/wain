@@ -58,13 +58,21 @@ await page.click("text=START ENGINE");
 await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 180000 });
 await page.waitForTimeout(3000);
 await page.evaluate(() => { window.__grnEngine.setPaused(true); });
+await page.evaluate(
+  (p) => { window.__grnAuditParts = p; },
+  (process.env.PARTS ?? "").split(",").filter(Boolean)
+);
 
 const auditOne = (carId) =>
   page.evaluate(async (carId) => {
     const THREE = window.__grnThree;
     const e = window.__grnEngine;
+    // PARTS=stickers,spoiler audits the car with those fitted. Running
+    // only the bare car meant the sticker pack was never looked at, and
+    // its hood decal had been buried inside the bonnet on all four
+    // bodies since the day it was written.
     localStorage.setItem("gulf-road-nights-garage", JSON.stringify({
-      car: carId, cars: [carId], owned: [], kd: 99999,
+      car: carId, cars: [carId], owned: window.__grnAuditParts ?? [], kd: 99999,
       equipped: { paint: "paint-white", glow: "glow-none" },
     }));
     e.applyGarage();

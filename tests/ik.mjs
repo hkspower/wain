@@ -337,39 +337,77 @@ if (process.env.GRN_STILLS === "1") {
   console.log("saved /tmp/smoke/ik-driver.png");
 }
 
-// Does the driver actually fit in the cabin, or is a head through the roof?
-const fit = await page.evaluate(()=>{
+// Does the driver actually fit in the cabin, or is a head through the
+// roof? Asked of EVERY silhouette, not just whichever car happened to be
+// in the garage: the four bodies differ by 210 mm of roofline and the
+// driver is seated off one anchor, so a fit measured on the saloon says
+// nothing about the fastbacks. Checking one car passed for months while
+// the lowest-roofed car in the fleet wore its driver's head outside.
+const measureFit = (carId) => page.evaluate(async (carId)=>{
   const e = window.__grnEngine;
-  const rig = e.carBody.userData.driver;
+  if (carId) {
+    localStorage.setItem("gulf-road-nights-garage", JSON.stringify({
+      car: carId, cars: [carId], owned: [], kd: 99999,
+      equipped: { paint: "paint-white", glow: "glow-none" },
+    }));
+    e.applyGarage();
+    await new Promise(r=>setTimeout(r,150));
+  }
+  const car = e.carBody;
+  const rig = car.userData.driver;
   const V = e.camera.position.constructor;
-  rig.group.updateWorldMatrix(true,true);
+  car.updateWorldMatrix(true,true);
+  // Everything in the CAR's own frame. Measured in world space, "the
+  // column above the driver" is a box filter on world x and z, and the
+  // car has a heading — so which of the roof's vertices fall inside it
+  // depends on which way the car happens to be pointing. That reported
+  // the Efreet's driver 0.17 m through a roof he in fact clears by 0.16.
+  const inv = car.matrixWorld.clone().invert();
+  const toCar = (o, v) => v.applyMatrix4(o.matrixWorld).applyMatrix4(inv);
   let hi=-1e9, lo=1e9;
   rig.group.traverse((o)=>{
     if(!o.isMesh) return;
-    o.updateWorldMatrix(true,false);
     const g=o.geometry; if(!g.boundingBox) g.computeBoundingBox();
     for (const cy of [g.boundingBox.min.y, g.boundingBox.max.y])
       for (const cx of [g.boundingBox.min.x, g.boundingBox.max.x])
         for (const cz of [g.boundingBox.min.z, g.boundingBox.max.z]) {
-          const v = new V(cx, cy, cz).applyMatrix4(o.matrixWorld);
+          const v = toCar(o, new V(cx, cy, cz));
           hi = Math.max(hi, v.y); lo = Math.min(lo, v.y);
         }
   });
-  // The roofline: highest point of the car's own shell meshes
+  // The roof OVER THE DRIVER, not the highest point anywhere on the
+  // shell: on a fastback the roof falls away behind the cabin, so its
+  // peak is nowhere near the head. Taken over all three shells and off
+  // their vertices — an extruded shell has no vertices across the middle
+  // of its width, only at the bevel rings, so a narrow column can come
+  // up empty on one shell and has to be allowed to.
+  const seat = new V().setFromMatrixPosition(rig.group.matrixWorld).applyMatrix4(inv);
   let roof=-1e9;
-  e.carBody.traverse((o)=>{
+  car.traverse((o)=>{
     if(!o.isMesh || !o.userData.shell) return;
-    o.updateWorldMatrix(true,false);
-    const g=o.geometry; if(!g.boundingBox) g.computeBoundingBox();
-    const v = new V(0, g.boundingBox.max.y, 0).applyMatrix4(o.matrixWorld);
-    roof = Math.max(roof, v.y);
+    const pos = o.geometry.attributes.position;
+    const v = new V();
+    for (let i=0;i<pos.count;i++){
+      toCar(o, v.fromBufferAttribute(pos,i));
+      if (Math.abs(v.z-seat.z) > 0.4 || Math.abs(v.x-seat.x) > 0.4) continue;
+      roof = Math.max(roof, v.y);
+    }
   });
-  const carY = e.playerMesh.position.y;
-  return { headTop:+(hi-carY).toFixed(2), seatBottom:+(lo-carY).toFixed(2), roof:+(roof-carY).toFixed(2) };
-});
-console.log(`driver fit   head top ${fit.headTop} m, seat ${fit.seatBottom} m, roofline ${fit.roof} m  ` +
-  check(fit.headTop < fit.roof, `the driver's head is ${(fit.headTop-fit.roof).toFixed(2)} m through the roof`) + " " +
-  check(fit.seatBottom > -0.1, "the driver is sunk through the floor"));
+  return { headTop:+hi.toFixed(2), seatBottom:+lo.toFixed(2), roof:+roof.toFixed(2) };
+}, carId);
+
+{
+  const cars = await page.evaluate(()=>fetch("/api/grn/v1/cars").then(r=>r.json()));
+  // One car per silhouette is enough — the fit is a property of the body.
+  const bySilhouette = new Map();
+  for (const c of cars.cars) if (!bySilhouette.has(c.bodyStyle)) bySilhouette.set(c.bodyStyle, c);
+  for (const [style, c] of bySilhouette) {
+    const fit = await measureFit(c.id);
+    console.log(`driver fit   ${(c.name+" ("+style+")").padEnd(24)} head ${fit.headTop} m, seat ${fit.seatBottom} m, roof over him ${fit.roof} m  ` +
+      check(fit.headTop < fit.roof, `${c.name}: the driver's head is ${(fit.headTop-fit.roof).toFixed(2)} m through the roof`) + " " +
+      check(fit.seatBottom > -0.1, `${c.name}: the driver is sunk through the floor`));
+  }
+}
 
 // --- 9. Every car on the road has a driver, and the near ones solve ---
 // Thirty driverless cars was the last place an empty seat could be

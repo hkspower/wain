@@ -430,6 +430,8 @@ export type Aspiration = "none" | "turbo" | "super" | "twin";
 export interface TuneEffects {
   carId: string;
   carName: string;
+  /** The car's name in Arabic, for the flank wordmark decal. */
+  carNameAr: string;
   accelMult: number; // multiplies base acceleration
   /** Governed top speed in km/h after mods — the engine will not let
    *  the car past it, and tunes its thrust curve to reach it. */
@@ -546,6 +548,7 @@ export function computeEffects(g: GarageState): TuneEffects {
   return {
     carId: car.id,
     carName: car.name,
+    carNameAr: car.ar,
     bodyStyle: car.style ?? "sedan",
     accelMult,
     topSpeedKmh,
