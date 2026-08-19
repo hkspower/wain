@@ -246,6 +246,27 @@ const auditOne = (carId) =>
     };
     const wheels = (car.userData.wheels ?? []).map((w) => localGroup(w));
     const trackOuter = Math.max(...wheels.map((b) => Math.max(Math.abs(b.min.x), Math.abs(b.max.x))));
+    // How far the tyre stands proud of the black arch opening behind it.
+    // The opening is drawn on the body surface and the wheels used to be
+    // pinned to one x for every body, so on the wide shells the opening
+    // came up flush with the tyre — 5 mm on the zx, and 15 mm IN FRONT of
+    // it on the gtr. The wheel then reads as an alloy floating on a flat
+    // black hole with no tyre and no depth, which no count of invisible
+    // meshes can see: every part of it is still being drawn.
+    let tyreProud = null;
+    {
+      let tyreX = 0;
+      for (const w of car.userData.wheels ?? []) {
+        w.traverse((o) => {
+          if (o.isMesh && o.userData.wheelPart === "tire") tyreX = Math.max(tyreX, local(o).max.x);
+        });
+      }
+      let wellX = 0;
+      car.traverse((o) => {
+        if (o.isMesh && o.userData.archWell) wellX = Math.max(wellX, local(o).max.x);
+      });
+      if (tyreX && wellX) tyreProud = +(tyreX - wellX).toFixed(3);
+    }
     // The flank at the front wheel's z, sampled off the shell's own
     // vertices. Comparing the track against the widest thing on the car
     // compares it against the door mirrors, which every car then "fails".
@@ -287,6 +308,7 @@ const auditOne = (carId) =>
       shellHalf: +Math.max(Math.abs(shell.x[0]), Math.abs(shell.x[1])).toFixed(3),
       bodyHalf,
       trackOuter: +trackOuter.toFixed(3),
+      tyreProud,
       dbg,
       floorY: +floor.toFixed(3),
       wheelBottomY: +wheelBottom.toFixed(3),
@@ -303,7 +325,8 @@ for (const c of only ? cars.cars.slice(0, only) : cars.cars) {
   console.log(
     `${c.name.padEnd(20)} ${String(r.meshes).padStart(3)} meshes  ` +
       `${String(r.invisible.length).padStart(2)} never visible (${inv} tris)  ` +
-      `track ${r.trackOuter} vs body ${r.bodyHalf}  ride ${(r.floorY - r.wheelBottomY).toFixed(3)}`
+      `track ${r.trackOuter} vs body ${r.bodyHalf}  ride ${(r.floorY - r.wheelBottomY).toFixed(3)}  ` +
+      `tyre ${r.tyreProud === null ? "?" : r.tyreProud} proud of arch`
   );
   if (process.env.DBG) console.log("      dbg", JSON.stringify(r.dbg));
   // Every one of them. Printing the first four hid two thirds of the
@@ -315,6 +338,15 @@ for (const c of only ? cars.cars.slice(0, only) : cars.cars) {
 
 const totalInv = results.reduce((a, r) => a + r.invisible.length, 0);
 console.log(`\n${totalInv} invisible meshes across ${results.length} cars`);
+// A tyre that does not clear the arch opening leaves the wheel with no
+// depth at all, however many of its parts are technically visible.
+const flush = results.filter((r) => r.tyreProud !== null && r.tyreProud < 0.02);
+if (flush.length) {
+  console.log(
+    `\nwheels flush with the arch (no tyre showing): ` +
+      flush.map((r) => `${r.name} ${r.tyreProud}`).join(", ")
+  );
+}
 const narrow = results.filter((r) => r.trackOuter < r.bodyHalf);
 if (narrow.length) {
   console.log(`\nwheels inside the bodywork (no track): ${narrow.map((r) => r.name).join(", ")}`);

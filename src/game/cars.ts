@@ -1800,11 +1800,27 @@ export function createCar(colors: CarColors): THREE.Group {
     return [Math.max(0.2, front - back), (front + back) / 2];
   };
 
+  /**
+   * How far out the wheels sit.
+   *
+   * This was 0.84 on every body, which is the number the SALOON wants.
+   * The arch opening is drawn on the body's own surface, so on the wider
+   * shells it moved outboard with the paint while the wheels stayed put,
+   * and the black arch interior came up flush with the tyre: 45 mm of
+   * tyre stood proud of it on the saloon, 5 mm on the zx, and on the gtr
+   * the opening was 15 mm IN FRONT of the tyre. That is why the Zeta's
+   * wheels read as an alloy floating on a flat black hole — there was no
+   * tyre left to see, and nothing to give the arch any depth.
+   *
+   * Held 80 mm inboard of the flank, every car keeps the saloon's
+   * relationship: tyre 45 mm proud of the opening, alloy 68 mm proud.
+   */
+  const wheelX = flankX - 0.08;
   for (const [wx, wz] of [
-    [-0.84, wzF],
-    [0.84, wzF],
-    [-0.84, wzR],
-    [0.84, wzR],
+    [-wheelX, wzF],
+    [wheelX, wzF],
+    [-wheelX, wzR],
+    [wheelX, wzR],
   ]) {
     const wheel = buildWheel(
       colors.raceKit ? "bronze" : colors.goldRims ? "gold" : "silver",
@@ -1822,6 +1838,7 @@ export function createCar(colors: CarColors): THREE.Group {
     const well = new THREE.Mesh(front ? archWellGeoF : archWellGeo, wellMat);
     well.rotation.y = side > 0 ? Math.PI / 2 : -Math.PI / 2;
     well.position.set(side * (flankX + ARCH_OUT), 0.4, wz);
+    well.userData.archWell = true;
     group.add(well);
 
     // Body-coloured, so it reads as the panel's own edge rather than as

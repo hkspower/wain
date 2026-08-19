@@ -59,12 +59,15 @@ const VIEWS = {
   // The rear quarter and the door, close enough to read a decal on.
   quarter: [1, 0.12, -0.5, 0.36],
   door: [1, 0.1, 0.16, 0.36],
+  // Square on the front wheel: an alloy is a mirror, and how much of it
+  // you can actually see is not a question a 3/4 press shot answers.
+  wheel: [1, 0.06, 0.5, 0.22],
 };
 
 for (const c of list) {
   for (const [name, dir] of Object.entries(VIEWS)) {
     const b64 = await page.evaluate(
-      async ([carId, dir]) => {
+      async ([carId, dir, name]) => {
         const THREE = window.__grnThree;
         const e = window.__grnEngine;
         // PARTS=stickers,spoiler fits those before the render, so the
@@ -100,6 +103,15 @@ for (const c of list) {
         const v = new THREE.Vector3(dir[0], dir[1], dir[2]).normalize().multiplyScalar(R);
         const aim = centre.clone();
         if (dir[3]) aim.y += size.y * 0.22; // look at the glasshouse, not the sills
+        if (name === "wheel") {
+          // At the front wheel itself. Framed off the body's centre it
+          // pointed at the door mirror, which is not the subject.
+          const fw = (car.userData.wheels ?? []).reduce(
+            (a, b) => (!a || b.position.z > a.position.z ? b : a),
+            null
+          );
+          if (fw) aim.set(0, fw.position.y * car.scale.y, fw.position.z * car.scale.z);
+        }
         cam.position.copy(aim).add(v);
         cam.lookAt(aim);
         // Enough light to read a shape by: a strong key, a weaker fill
@@ -146,7 +158,7 @@ for (const c of list) {
         ctx.putImageData(img, 0, 0);
         return cv.toDataURL("image/png").split(",")[1];
       },
-      [c.id, dir]
+      [c.id, dir, name]
     );
     const out = `press/views/${c.id}-${name}.png`;
     writeFileSync(out, Buffer.from(b64, "base64"));
