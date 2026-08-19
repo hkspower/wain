@@ -39,7 +39,8 @@
     "test:ik": "node tests/ik.mjs",
     "test:menu": "node tests/menu.mjs",
     "test:grade": "node tests/grade.mjs",
-    "test:streets": "node tests/streets.mjs"
+    "test:streets": "node tests/streets.mjs",
+    "shots:cars": "node tools/shots/cars.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",

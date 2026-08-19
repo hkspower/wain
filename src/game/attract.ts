@@ -28,6 +28,12 @@ export interface AttractHandle {
   readonly triangles: number;
   /** Turntable angle, for a test that wants to see it actually turn. */
   readonly angle: number;
+  /** Freeze the turntable at a fixed angle, or pass null to let it sweep
+   *  again. The showroom capture uses this so all fourteen cars are
+   *  caught at the same three-quarter view instead of at fourteen
+   *  different moments of the same sweep, which is the difference
+   *  between a comparison and a set of unrelated photographs. */
+  park(angle: number | null): void;
   dispose(): void;
 }
 
@@ -183,6 +189,8 @@ export function buildAttract(
 
   let raf = 0;
   let frames = 0;
+  /** Non-null while the turntable is held still — see park(). */
+  let parked: number | null = null;
   let disposed = false;
   let t = 0;
   let last = 0;
@@ -225,7 +233,7 @@ export function buildAttract(
     t += dt;
     // A slow three-quarter sweep, easing at the ends rather than
     // spinning like a display stand in a shop window.
-    table.rotation.y = 0.55 + Math.sin(t * 0.12) * 0.85;
+    table.rotation.y = parked ?? (0.55 + Math.sin(t * 0.12) * 0.85);
     // The camera breathes a little so the shot is never dead still
     const h = 1.9 + Math.sin(t * 0.19) * 0.12;
     camera.position.set(offsetX * 0.35, h, dist + Math.sin(t * 0.09) * 0.4);
@@ -262,6 +270,10 @@ export function buildAttract(
     },
     get angle() {
       return table.rotation.y;
+    },
+    park(angle) {
+      parked = angle;
+      if (reduced) draw(0); // a single-frame turntable must be redrawn
     },
     dispose() {
       disposed = true;
