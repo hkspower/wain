@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { haptic, HAPTIC } from "@/game/settings";
 import { RIVALS } from "@/game/rivals";
+import { IconCrown } from "./Icons";
 
 /**
  * First-run onboarding.
@@ -109,7 +110,7 @@ const CARDS: Card[] = [
           <div className="rival-bar h-full w-[34%] bg-gradient-to-r from-rose-700 to-amber-300" />
         </div>
         <p className="grn-display pt-1 text-center text-xs tracking-[0.2em] text-gulf-300">
-          FLASH 3× ⚡ ●●○
+          FLASH 3&times; &middot; two of three
         </p>
       </div>
     ),
@@ -153,7 +154,7 @@ const CARDS: Card[] = [
             }`}
           />
         ))}
-        <span className="ml-1 text-lg leading-none">👑</span>
+        <IconCrown size={18} className="ml-1 text-sodium-400" />
       </div>
     ),
   },

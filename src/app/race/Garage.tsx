@@ -15,6 +15,7 @@ import {
 } from "@/game/mods";
 import { haptic, HAPTIC, loadSettings } from "@/game/settings";
 import { playSfx } from "@/game/sfx";
+import { ICONS } from "./Icons";
 
 /**
  * The garage, rebuilt as three rooms instead of one long corridor:
@@ -275,9 +276,9 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
         <div className="mx-auto mt-2.5 flex w-full max-w-4xl gap-1.5" role="tablist">
           {(
             [
-              ["showroom", "SHOWROOM", "🏎"],
-              ["performance", "PERFORMANCE", "🔧"],
-              ["style", "STYLE", "🎨"],
+              ["showroom", "SHOWROOM", "car"],
+              ["performance", "PERFORMANCE", "wrench"],
+              ["style", "STYLE", "paint"],
             ] as const
           ).map(([t, label, icon]) => (
             <button
@@ -291,7 +292,13 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
                   : "border border-white/15 text-white/65 hover:bg-white/10"
               }`}
             >
-              {icon} {label}
+              <span className="inline-flex items-center justify-center gap-1.5">
+                {(() => {
+                  const Ico = ICONS[icon];
+                  return <Ico size={16} />;
+                })()}
+                {label}
+              </span>
             </button>
           ))}
         </div>

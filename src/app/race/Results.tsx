@@ -5,6 +5,7 @@ import type { RaceResult } from "@/game/engine";
 import { rankTitle } from "@/game/profile";
 import { haptic, HAPTIC } from "@/game/settings";
 import { playSfx } from "@/game/sfx";
+import { ICONS, type IconName } from "./Icons";
 
 /**
  * Post-race results sequence.
@@ -146,7 +147,7 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
                 : "0 0 40px rgba(244,63,94,0.4), 0 4px 20px rgba(0,0,0,0.9)",
             }}
           >
-            {result.champion ? "👑 CHAMPION" : won ? "1ST — VICTORY" : "2ND — DEFEAT"}
+            {result.champion ? "CHAMPION" : won ? "1ST — VICTORY" : "2ND — DEFEAT"}
           </div>
           <p className="grn-label mt-1.5 text-[0.66rem]">
             {won ? "vs" : "beaten by"} {result.rival.name}{" "}
@@ -183,7 +184,7 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
             </span>
             {levelUp && (
               <span className="grn-display text-[0.72rem] tracking-[0.18em] text-sodium-400">
-                LEVEL UP ★
+                LEVEL UP
               </span>
             )}
           </div>
@@ -252,7 +253,12 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
                   className="reward-pop grn-panel flex items-center gap-3 px-3 py-2"
                   style={{ ["--d" as string]: beat >= 3 ? `${i * 130}ms` : "0ms" }}
                 >
-                  <span className="text-xl leading-none">{r.icon}</span>
+                  <span className="leading-none text-sodium-400">
+                    {(() => {
+                      const Ico = ICONS[r.icon as IconName] ?? ICONS.star;
+                      return <Ico size={22} />;
+                    })()}
+                  </span>
                   <span className="min-w-0">
                     <span className="grn-display block truncate text-sm text-white">{r.title}</span>
                     <span className="block truncate text-[0.68rem] text-white/55">{r.sub}</span>
@@ -334,7 +340,7 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
                 won ? "grn-btn-primary" : "grn-btn-ghost"
               }`}
             >
-              {result.champion ? "CELEBRATE 👑" : won ? "NEXT RACE →" : "KEEP CRUISING"}
+              {result.champion ? "CELEBRATE" : won ? "NEXT RACE →" : "KEEP CRUISING"}
             </button>
           </div>
         </div>

@@ -230,7 +230,7 @@ export default function HubLobby() {
                 href="/race?online=1"
                 className="grn-btn grn-btn-primary mt-6 block py-3.5 text-center text-lg"
               >
-                ENTER THE CRUISE 🏁
+                ENTER THE CRUISE
               </Link>
               <p className="mt-2 text-center text-[11px] text-white/40">
                 {myTeam
@@ -246,7 +246,7 @@ export default function HubLobby() {
               </h2>
               <div className="mt-3 h-64 flex-1 space-y-1.5 overflow-y-auto pr-1 text-sm">
                 {chat.length === 0 && (
-                  <p className="text-white/30">No messages yet — say salam 👋</p>
+                  <p className="text-white/30">No messages yet — say salam</p>
                 )}
                 {chat.map((m) => (
                   <p key={m.key} className="leading-5">

@@ -40,7 +40,8 @@
     "test:menu": "node tests/menu.mjs",
     "test:grade": "node tests/grade.mjs",
     "test:streets": "node tests/streets.mjs",
-    "shots:cars": "node tools/shots/cars.mjs"
+    "shots:cars": "node tools/shots/cars.mjs",
+    "check:ui": "node scripts/check-ui-glyphs.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",

@@ -5,6 +5,7 @@ import type { DriverCard, GameEngine, HudData, RaceResult } from "@/game/engine"
 import { playSfx, preloadSfx, setSfxVolume } from "@/game/sfx";
 import Results from "./Results";
 import Onboarding, { CoachHint, CoachState, hasOnboarded } from "./Onboarding";
+import { ICONS, IconFlash, IconCrown, IconGear, IconFlagKW, type IconName } from "./Icons";
 import Garage from "./Garage";
 import { GEARS } from "@/game/gears";
 import { RIVALS, RivalDef } from "@/game/rivals";
@@ -58,6 +59,16 @@ interface FeedMsg {
   name: string;
   text: string;
   key: number;
+}
+
+/** Draw the flag when we have artwork for it; otherwise show whatever
+ *  the data carried, so a roster that grows a new nationality degrades
+ *  to the old behaviour rather than to nothing. */
+function Flag({ code }: { code?: string }) {
+  if (code === "\u{1F1F0}\u{1F1FC}") {
+    return <IconFlagKW size={13} className="inline-block align-[-0.1em]" />;
+  }
+  return <>{code}</>;
 }
 
 export default function RaceClient() {
@@ -128,6 +139,9 @@ export default function RaceClient() {
   const [cine, setCine] = useState<{ card: DriverCard; you?: DriverCard; stake: number } | null>(null);
   const [pauseOpen, setPauseOpen] = useState(false);
   const driftRef = useRef<HTMLDivElement>(null);
+  const driftTextRef = useRef<HTMLSpanElement>(null);
+  const driftBarRef = useRef<HTMLElement>(null);
+  const pipsRef = useRef<HTMLSpanElement>(null);
   const brakeRef = useRef<HTMLDivElement>(null);
   const [onboarding, setOnboarding] = useState(false);
   const [coach, setCoach] = useState<CoachState | null>(null);
@@ -295,9 +309,15 @@ export default function RaceClient() {
       // override an inline opacity toggle
       if (flashRef.current) {
         flashRef.current.style.visibility = d.canFlash ? "visible" : "hidden";
-        // "○○○" filling to "●●○" as the three challenge flashes land
-        const dots = "●".repeat(d.flashCount) + "○".repeat(Math.max(0, 3 - d.flashCount));
-        flashRef.current.textContent = `FLASH 3× TO CHALLENGE ⚡ ${dots}`;
+        // Three drawn pips fill as the flashes land. This was "○○○"
+        // becoming "●●○" — typography standing in for a control, which
+        // renders at whatever weight the text font felt like.
+        const pips = pipsRef.current?.children;
+        if (pips) {
+          for (let i = 0; i < pips.length; i++) {
+            (pips[i] as HTMLElement).classList.toggle("on", i < d.flashCount);
+          }
+        }
       }
 
       // Drift readout: angle while sliding, banked score lingering after
@@ -307,11 +327,24 @@ export default function RaceClient() {
           // The multiplier only appears once it is above one — a "×1"
           // glued to every slide is decoration, not information.
           const chain = d.drift.chain > 1 ? ` ×${d.drift.chain}` : "";
-          driftRef.current.textContent = d.drift.spinning
-            ? "SPUN OUT"
-            : d.drift.active
-              ? `DRIFT ${d.drift.deg}°${chain} ${"|".repeat(Math.min(14, 1 + ((d.drift.score / 60) | 0)))}`
-              : `DRIFT +${Math.round(d.drift.score)}${chain}`;
+          if (driftTextRef.current) {
+            driftTextRef.current.textContent = d.drift.spinning
+              ? "SPUN OUT"
+              : d.drift.active
+                ? `DRIFT ${d.drift.deg}°${chain}`
+                : `DRIFT +${Math.round(d.drift.score)}${chain}`;
+          }
+          // A drawn bar rather than a run of pipe characters. The scale
+          // is the same fourteen steps it always was; it is just no
+          // longer being spelled out in punctuation.
+          if (driftBarRef.current) {
+            const steps = d.drift.active
+              ? Math.min(14, 1 + ((d.drift.score / 60) | 0))
+              : 0;
+            driftBarRef.current.style.width = `${(steps / 14) * 100}%`;
+            driftBarRef.current.parentElement!.style.opacity =
+              d.drift.active && !d.drift.spinning ? "1" : "0";
+          }
           driftRef.current.style.color = d.drift.spinning
             ? "#ff7b7b"
             : d.drift.active
@@ -543,7 +576,7 @@ export default function RaceClient() {
           onDuelStart: (opponent, w) => {
             duelRef.current = true;
             setInvite(null);
-            showMessage(`⚔ DUEL — ${opponent}`, w > 0 ? `${w} KD on the line` : "Pride only");
+            showMessage(`DUEL — ${opponent}`, w > 0 ? `${w} KD on the line` : "Pride only");
           },
           onDuelSp: (you, them, gap) => {
             const opp = nearbyRef.current?.name ?? "Rival";
@@ -583,7 +616,7 @@ export default function RaceClient() {
 
   // A controller is welcomed the moment it wakes up
   useEffect(() => {
-    const hello = () => showMessage("Controller connected 🎮", "Stick steer · RT gas · LT brake · B drift · X flash · A NOS");
+    const hello = () => showMessage("Controller connected", "Stick steer · RT gas · LT brake · B drift · X flash · A NOS");
     window.addEventListener("gamepadconnected", hello);
     return () => window.removeEventListener("gamepadconnected", hello);
   }, [showMessage]);
@@ -749,7 +782,7 @@ export default function RaceClient() {
         key: "start",
         label: beaten > 0 ? "CONTINUE" : "START ENGINE",
         ar: "يلا",
-        icon: "🏁",
+        icon: "flag" as IconName,
         hint: "Take the Gulf Road at midnight",
         run: () => startGame(),
       },
@@ -757,7 +790,7 @@ export default function RaceClient() {
         key: "garage",
         label: "GARAGE",
         ar: "الكراج",
-        icon: "🔧",
+        icon: "wrench" as IconName,
         hint: "Buy, paint and tune the machine",
         run: () => {
           setGarage(loadGarage());
@@ -768,7 +801,7 @@ export default function RaceClient() {
         key: "settings",
         label: "SETTINGS",
         ar: "الإعدادات",
-        icon: "⚙",
+        icon: "gear" as IconName,
         hint: "Picture, sound and controls",
         run: () => setSettingsOpen(true),
       },
@@ -776,7 +809,7 @@ export default function RaceClient() {
         key: "howto",
         label: "HOW TO PLAY",
         ar: "كيف تلعب",
-        icon: "🎮",
+        icon: "pad" as IconName,
         hint: "The flash, the battle, the SP bar",
         run: () => setOnboarding(true),
       },
@@ -784,7 +817,7 @@ export default function RaceClient() {
         key: "credits",
         label: "CREDITS",
         ar: "شكر",
-        icon: "★",
+        icon: "star" as IconName,
         hint: "Who built this, and what it is built on",
         run: () => setCreditsOpen(true),
       },
@@ -878,9 +911,15 @@ export default function RaceClient() {
           />
           <div
             ref={flashRef}
-            className="grn-display invisible mt-1.5 animate-pulse text-lg tracking-[0.14em] text-gulf-300 [text-shadow:0_0_16px_rgba(56,201,238,0.7),0_2px_10px_rgba(0,0,0,0.9)]"
+            className="grn-display invisible mt-1.5 flex animate-pulse items-center justify-center gap-2.5 text-lg tracking-[0.14em] text-gulf-300 [text-shadow:0_0_16px_rgba(56,201,238,0.7),0_2px_10px_rgba(0,0,0,0.9)]"
           >
-            FLASH 3× TO CHALLENGE ⚡ ○○○
+            <IconFlash size={20} />
+            <span>FLASH 3&times; TO CHALLENGE</span>
+            <span className="flash-pips" ref={pipsRef}>
+              <i />
+              <i />
+              <i />
+            </span>
           </div>
         </div>
 
@@ -888,8 +927,13 @@ export default function RaceClient() {
         <div className="pointer-events-none absolute left-1/2 top-[66%] -translate-x-1/2">
           <div
             ref={driftRef}
-            className="grn-display text-xl italic tracking-[0.14em] opacity-0 transition-opacity duration-300 [text-shadow:0_0_18px_rgba(56,201,238,0.5),0_2px_10px_rgba(0,0,0,0.9)]"
-          />
+            className="grn-display flex flex-col items-center gap-1.5 text-xl italic tracking-[0.14em] opacity-0 transition-opacity duration-300 [text-shadow:0_0_18px_rgba(56,201,238,0.5),0_2px_10px_rgba(0,0,0,0.9)]"
+          >
+            <span ref={driftTextRef} />
+            <span className="drift-meter">
+              <i ref={driftBarRef} />
+            </span>
+          </div>
           {/* Brakes, but only when they have something to say: wheels
               locked, anti-lock working, or pads going away with heat. */}
           <div
@@ -984,7 +1028,7 @@ export default function RaceClient() {
             }`}
           >
             W/↑ accelerate · S/↓ brake · A D steer · Space drift · N nitro
-            <br />F flash · Esc pause · M mute · B music · V voices · 🎮 supported
+            <br />F flash · Esc pause · M mute · B music · V voices · gamepad supported
           </div>
         </div>
       </div>
@@ -1016,7 +1060,7 @@ export default function RaceClient() {
                 onClick={() => hubRef.current?.challengePlayer(nearby.id, wager)}
                 className="pointer-events-auto grn-btn grn-btn-ghost px-4 py-1.5 text-xs"
               >
-                CHALLENGE ⚔ {wager > 0 ? `${wager} KD` : "PRIDE"}
+                CHALLENGE {wager > 0 ? `${wager} KD` : "PRIDE"}
               </button>
             </div>
           </div>
@@ -1124,7 +1168,7 @@ export default function RaceClient() {
                   <div className="flex items-baseline justify-between">
                     <span className="grn-label text-[0.58rem]">Country</span>
                     <span className="font-semibold">
-                      {d.flag} {d.country}
+                      <Flag code={d.flag} /> {d.country}
                     </span>
                   </div>
                   <div className="flex items-baseline justify-between gap-3">
@@ -1413,9 +1457,9 @@ export default function RaceClient() {
               <button
                 onClick={() => setSettingsOpen(true)}
                 aria-label="Settings"
-                className="tap grid shrink-0 place-items-center rounded-xl border border-white/15 text-lg text-white/70 hover:bg-white/10"
+                className="tap grid shrink-0 place-items-center rounded-xl border border-white/15 text-white/70 hover:bg-white/10"
               >
-                ⚙
+                <IconGear size={18} />
               </button>
             </div>
 
@@ -1469,7 +1513,7 @@ export default function RaceClient() {
               </div>
               {beaten >= RIVALS.length ? (
                 <div className="mt-2 flex items-center gap-3">
-                  <span className="text-3xl">👑</span>
+                  <IconCrown size={30} className="text-sodium-400" />
                   <div>
                     <div className="grn-display text-xl text-sodium-400">King of Gulf Road</div>
                     <div className="text-[0.75rem] text-white/55">
@@ -1540,7 +1584,10 @@ export default function RaceClient() {
                     ▸
                   </span>
                   <span className="menu-item-icon" aria-hidden>
-                    {it.icon}
+                    {(() => {
+                      const Ico = ICONS[it.icon];
+                      return <Ico size={24} />;
+                    })()}
                   </span>
                   <span className="min-w-0 flex-1 text-left">
                     <span className="menu-item-label">{it.label}</span>{" "}
@@ -1912,7 +1959,7 @@ export default function RaceClient() {
       {phase === "champion" && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 px-6 backdrop-blur-sm">
           <div className="grn-dialog w-full max-w-xl px-10 py-10 text-center">
-            <div className="text-6xl">👑</div>
+            <div className="text-sodium-400"><IconCrown size={64} /></div>
             <div className="grn-display mt-4 text-5xl italic text-sodium-400 [text-shadow:0_0_34px_rgba(245,165,36,0.75)] sm:text-6xl">
               KING OF GULF ROAD
             </div>
@@ -1920,7 +1967,7 @@ export default function RaceClient() {
               ملك شارع الخليج
             </div>
             <div className="mx-auto mt-4 max-w-md text-[0.95rem] leading-6 text-white/65">
-              Every legend on the roster defeated — from Salmiya to Jahra, the street is yours. Mabrook! 🇰🇼
+              Every legend on the roster defeated — from Salmiya to Jahra, the street is yours. Mabrook!
             </div>
             <button
               onClick={() => {
@@ -1965,7 +2012,7 @@ export default function RaceClient() {
               <span>{cine.card.crew}</span>
               <span className="text-white/35">·</span>
               <span>
-                LV {cine.card.level} {cine.card.flag}
+                LV {cine.card.level} <Flag code={cine.card.flag} />
               </span>
             </div>
             <div className="grn-display mt-1.5 text-[0.8rem] tracking-[0.12em] text-sodium-400">
@@ -2000,7 +2047,7 @@ export default function RaceClient() {
               </div>
               <div className="mt-1 flex items-center justify-end gap-2 text-[0.75rem] text-white/70">
                 <span>
-                  LV {cine.you.level} {cine.you.flag}
+                  LV {cine.you.level} <Flag code={cine.you.flag} />
                 </span>
                 <span className="text-white/35">·</span>
                 <span>{cine.you.crew}</span>
@@ -2047,13 +2094,13 @@ export default function RaceClient() {
                 }}
                 className="grn-btn grn-btn-ghost tap w-full px-6 py-3 text-sm"
               >
-                GARAGE 🔧
+                GARAGE
               </button>
               <button
                 onClick={() => setSettingsOpen(true)}
                 className="grn-btn grn-btn-ghost tap w-full px-6 py-3 text-sm"
               >
-                SETTINGS ⚙
+                SETTINGS
               </button>
               <button
                 onClick={exitToMenu}
@@ -2063,7 +2110,7 @@ export default function RaceClient() {
               </button>
             </div>
             <p className="grn-label mt-4 text-[0.52rem] text-white/40">
-              Esc / 🎮 Start to resume · progress is saved
+              Esc / gamepad Start to resume · progress is saved
             </p>
           </div>
         </div>
@@ -2097,7 +2144,7 @@ export default function RaceClient() {
       {phase === "error" && (
         <div className="safe-pad absolute inset-0 z-30 flex items-center justify-center bg-night-950/95 px-6">
           <div className="grn-dialog w-[min(460px,92vw)] p-6 text-center">
-            <div className="text-4xl">⚠️</div>
+            <div className="grn-display text-3xl italic text-sodium-400">!</div>
             <h2 className="grn-display mt-3 text-2xl">ENGINE WOULD NOT START</h2>
             <p className="mt-2 text-sm leading-6 text-white/65">
               The 3D renderer could not be created. This usually means WebGL is

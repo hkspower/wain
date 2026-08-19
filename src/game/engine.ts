@@ -110,6 +110,8 @@ export interface DriverCard {
 
 /** One line of the post-race reward reel. */
 export interface RewardLine {
+  /** An icon NAME the UI draws (see race/Icons.tsx), never a glyph:
+   *  an emoji here is artwork chosen by the operating system. */
   icon: string;
   title: string;
   sub: string;
@@ -1542,16 +1544,16 @@ export class GameEngine {
     if (k === "f") this.tryFlash();
     if (k === "m" && !e.repeat && this.sound) {
       const muted = this.sound.toggleMute();
-      this.events.onMessage(muted ? "Sound off 🔇" : "Sound on 🔊");
+      this.events.onMessage(muted ? "Sound off" : "Sound on");
     }
     if (k === "h" && !e.repeat) this.sound?.hornOn();
     if (k === "b" && !e.repeat && this.music) {
       const on = this.music.toggle();
-      this.events.onMessage(on ? "Music on 🎵" : "Music off");
+      this.events.onMessage(on ? "Music on" : "Music off");
     }
     if (k === "v" && !e.repeat) {
       const on = this.voice.toggle();
-      this.events.onMessage(on ? "Voices on — الأصوات شغالة 🗣️" : "Voices off");
+      this.events.onMessage(on ? "Voices on — الأصوات شغالة" : "Voices off");
       if (on) this.voice.speak("الأصوات شغالة", {}, "voices-on");
     }
     if (k === "g" && !e.repeat) {
@@ -1563,7 +1565,7 @@ export class GameEngine {
       this.liveReflections = this.bloomPass.enabled;
       this.applyLiveReflections();
       this.events.onMessage(
-        this.bloomPass.enabled ? "Glow & shadows on ✨" : "Glow & shadows off"
+        this.bloomPass.enabled ? "Glow & shadows on" : "Glow & shadows off"
       );
     }
   };
@@ -2067,13 +2069,13 @@ export class GameEngine {
     this.driftFlash = 0;
     if (fromCine) {
       // The film already introduced them — just drop the green flag.
-      this.events.onMessage("⚡ GO — يلا!", `"${r.def.taunt}"`);
+      this.events.onMessage("GO — يلا!", `"${r.def.taunt}"`);
       // The crew, over the radio, as the flag drops
       this.voice.radioSpeak("يلا، خله وراك — روح!", { pitch: 1.05, rate: 1.2 });
     } else {
       this.voice.speak(r.def.lines.intro, r.def.voice, `${r.def.id}-intro`);
       if (this.events.onBattleStart) this.events.onBattleStart(r.def);
-      else this.events.onMessage(`⚡ BATTLE — ${r.def.name} ${r.def.arabicName}`, `"${r.def.taunt}"`);
+      else this.events.onMessage(`BATTLE — ${r.def.name} ${r.def.arabicName}`, `"${r.def.taunt}"`);
     }
   }
 
@@ -2169,7 +2171,7 @@ export class GameEngine {
     const lvlAfter = levelInfo(after.xp);
     if (lvlAfter.level > lvlBefore.level) {
       rewards.push({
-        icon: "★",
+        icon: "star",
         title: `Level ${lvlAfter.level}`,
         sub: "Driver level up — مستوى جديد",
       });
@@ -2178,14 +2180,14 @@ export class GameEngine {
       const next = RIVALS[this.rivalIndex];
       if (next) {
         rewards.push({
-          icon: "⚑",
+          icon: "flag",
           title: `${next.name} unlocked`,
           sub: next.crew,
         });
       }
     }
     if (champion) {
-      rewards.push({ icon: "👑", title: "King of Gulf Road", sub: "ملك شارع الخليج" });
+      rewards.push({ icon: "crown", title: "King of Gulf Road", sub: "ملك شارع الخليج" });
     }
     // Anything newly affordable is worth telling them about — it is the
     // difference between "I won money" and "I can buy the GT-R now".
@@ -2195,13 +2197,13 @@ export class GameEngine {
     ).sort((a, b) => b.price - a.price)[0];
     if (unlockable) {
       rewards.push({
-        icon: "🔑",
+        icon: "key",
         title: `${unlockable.name} affordable`,
         sub: `${unlockable.price.toLocaleString()} KD in the showroom`,
       });
     }
     if (after.streak >= 3 && outcome === "win") {
-      rewards.push({ icon: "🔥", title: `${after.streak}-race streak`, sub: "On a run — ما يوقف" });
+      rewards.push({ icon: "streak", title: `${after.streak}-race streak`, sub: "On a run — ما يوقف" });
     }
 
     return {
@@ -2275,7 +2277,7 @@ export class GameEngine {
     }
     // Fallback for hosts without a results screen (e.g. the Unity shim).
     if (champion) {
-      this.events.onMessage("👑 KING OF GULF ROAD", "كل الشوارع لك — every street is yours");
+      this.events.onMessage("KING OF GULF ROAD", "كل الشوارع لك — every street is yours");
       setTimeout(() => this.events.onChampion(), 1800);
     } else {
       this.events.onMessage(`VICTORY — ${r.def.name} defeated`, `+${payout} KD · balance ${balance} KD`);
