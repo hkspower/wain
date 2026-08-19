@@ -457,9 +457,23 @@ const GRADIENT_DIRECTION = [
   "bg-gradient-to-bl",
 ] as const;
 
-/** Category hues with a per-place direction, so same-category cards differ. */
+/**
+ * The place hero, monochrome. Measured against the rest of the site the
+ * category hues were the one thing pulling these pages out of the family:
+ * every other route reads 0–7 levels of channel spread, while the coloured
+ * heroes ran 13–37 — and disagreed with each other, since the ramps were not
+ * equally saturated (Grand Mosque 13, Mais Alghanim 37).
+ *
+ * Ink instead of a hue. CategoryArt is drawn entirely in white, so the scene
+ * survives untouched and only the ground behind it changes. The dark ground
+ * also gives these pages a real black point — they were measuring 60–83,
+ * meaning nothing on screen was properly dark.
+ *
+ * Category identity has not gone anywhere: it is carried by the scene itself,
+ * the category chip, and the coloured chips in the nearby dial.
+ */
 export function placeGradient(place: Pick<Place, "slug" | "category">): string {
-  return `${GRADIENT_DIRECTION[placeVariant(place.slug)]} ${categoryGradient(place.category)}`;
+  return `${GRADIENT_DIRECTION[placeVariant(place.slug)]} from-ink-700 via-ink-800 to-ink-900`;
 }
 
 export function getCategory(id: CategoryId): Category | undefined {
