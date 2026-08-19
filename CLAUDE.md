@@ -72,7 +72,14 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   the first version's own components: wide `.product` rows for the systems the
   company built, `ol.steps` for how we work, and the `.contact` bar.
 - `nokhatha.html` — the النوخذة portal · `nizam.html` (the unified system: المركز المالي · صافي ·
-  XBRL · التوصيل in four tabs over one data core) ·
+  XBRL · التوصيل in four tabs over one data core, plus **التواصل** — the social
+  media centre, a fifth tab that is a reference desk and not a publishing tool:
+  the real channels, the generated brand assets with the size each platform
+  actually renders them at, and copy written only from facts already on the
+  site. It stores nothing — those are the company's facts, not the user's
+  records, and an editable copy would be a second source of truth. No follower
+  counts and no engagement figures: the page cannot measure either without
+  inventing it) ·
   `admin.html` · `sw.js` · `manifest.webmanifest` (its `start_url` is
   `nokhatha.html` — the installable app is النوخذة, not the company brochure)
 - `safi.html`, `xbrl.html`, `delivery.html` are **redirect stubs** to

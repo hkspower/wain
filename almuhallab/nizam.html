@@ -195,6 +195,22 @@
     .order .amount { font-weight:800; font-variant-numeric:tabular-nums; }
     .orders { display:flex; flex-direction:column; gap: 12px; }
 
+    /* social centre: a card that carries a block of copyable text. Only a
+       handle or a path is set LTR-isolated — Arabic copy keeps the page's own
+       direction, and a bidi-neutral character at the edge of a Latin run
+       otherwise resolves against it. */
+    .soc { background:var(--panel); border:1px solid var(--border); border-radius:14px;
+      padding: 16px; display:flex; flex-direction:column; gap: 8px; }
+    .soc .head { display:flex; align-items:center; gap: 8px; flex-wrap:wrap; }
+    .soc .head b { font-size:15px; }
+    .soc .head .btn { margin-inline-start:auto; }
+    .soc .val { font-weight:700; color:var(--tint); direction:ltr; unicode-bidi:isolate; }
+    .soc p { margin:0; font-size:13.5px; line-height:1.85; white-space:pre-line; }
+    .soc .tags { font-size:13px; direction:ltr; unicode-bidi:isolate; text-align:start;
+      color:var(--muted); font-family:var(--mono); line-height:1.9; }
+    code { font-family:var(--mono); font-size:12.5px; direction:ltr; unicode-bidi:isolate;
+      background:var(--panel-2); border:1px solid var(--border); border-radius:6px; padding: 1px 4px; }
+
     /* the link between modules, stated rather than implied */
     .flow { background:var(--panel); border:1px solid var(--border); border-radius:14px;
       padding: 16px 16px; margin-top: 12px; }
@@ -306,6 +322,7 @@
     <button data-tab="safi">📊 صافي</button>
     <button data-tab="xbrl">🧾 XBRL</button>
     <button data-tab="delivery">🛵 التوصيل</button>
+    <button data-tab="social">📣 التواصل</button>
     </nav>
   </div>
 
@@ -496,6 +513,47 @@
       <div class="row" id="del-filters"></div>
       <div class="orders" id="del-orders"></div>
       <div class="empty" id="del-empty">لا توجد طلبات بعد.</div>
+    </section>
+
+    <!-- ═══════════ social media centre ═══════════
+         A reference desk, not a publishing tool: the company's real channels,
+         the generated brand assets with the size each platform actually
+         renders them at, and copy written only from facts already on the site.
+         It stores nothing — these are the company's facts, not the user's
+         records, and an editable copy would be a second source of truth. No
+         follower counts and no engagement figures: this page cannot measure
+         either without inventing it. -->
+    <section class="tab" id="tab-social">
+      <h2>القنوات</h2>
+      <p class="note">
+        هذه قنوات الشركة الحقيقية، وهي المصدر الوحيد. لا تُنشر قناة غيرها ولا
+        يُستبدل رقم بآخر «مؤقت» — الأرقام هنا هي نفسها الظاهرة في الموقع وفي
+        بطاقة المشاركة.
+      </p>
+      <div class="orders" id="soc-channels"></div>
+
+      <h2>الأصول البصرية</h2>
+      <p class="note">
+        كلها مرسومة من رمز الموقع نفسه (<code>&lt;symbol&gt;</code>) عبر مولّدات
+        <code>design/</code>، فلا يمكن أن تنحرف عن الهوية. أعد تشغيل المولّد بعد
+        أي تغيير في الشعار.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>الأصل</th><th>المقاس</th><th>أين يُستخدم</th><th>المولّد</th></tr></thead>
+          <tbody id="soc-assets"></tbody>
+        </table>
+      </div>
+
+      <h2>نصوص جاهزة</h2>
+      <p class="note">
+        كل سطر هنا حقيقة موجودة في الموقع: الخدمات السبع، النوخذة مجاني بلا
+        باقات، والقنوات أعلاه. لا أسعار مُختلقة ولا عملاء ولا نِسب.
+      </p>
+      <div class="orders" id="soc-copy"></div>
+
+      <h2>هاشتاقات</h2>
+      <div class="orders" id="soc-tags"></div>
     </section>
   </main>
 
@@ -1011,8 +1069,119 @@
     renderAll();
   });
 
+  /* ════════════════════ social centre ════════════════════
+     Static reference data. It is deliberately not in localStorage: these are
+     the company's facts, not the user's records, and a copy that could be
+     edited on one device is a second source of truth. */
+  var CHANNELS = [
+    ["واتساب", "+965 6589 4110", "https://wa.me/96565894110", "القناة الأولى — كل نموذج في الموقع ينتهي هنا"],
+    ["انستغرام", "@almuhallab.code", "https://www.instagram.com/almuhallab.code/", "صورة الحساب والأغلفة البارزة من مجلد الأصول"],
+    ["البريد", "hello@almuhallab-code.com", "mailto:hello@almuhallab-code.com", "للعروض والملفات الرسمية"]
+  ];
+
+  var ASSETS = [
+    ["صورة الحساب", "1080×1080", "انستغرام — تُقصّ دائرية وتُعرض عند 110 بكسل", "design/instagram_covers.py"],
+    ["12 غلافاً بارزاً", "1080×1080", "الأبرز في انستغرام — تُعرض عند 64 بكسل تحت عنوان", "design/instagram_covers.py"],
+    ["بطاقة المشاركة", "1200×630", "واتساب · انستغرام · لينكدإن · نتائج البحث", "design/og_image.py"],
+    ["حزمة الشعار", "SVG · PNG · ICO", "الشركاء والمطابع — بنّي وأبيض وأسود، بالشكلين", "design/logo_pack.py"],
+    ["أيقونة التطبيق", "512×512", "النوخذة على ويندوز وماك — المرساة لا البوم", "design/windows_icon.py"]
+  ];
+
+  var COPY = [
+    ["السيرة (bio)",
+     "المهلب كود — شركة برمجة وأنظمة في الكويت.\n" +
+     "مواقع · تطبيقات · برمجيات مخصّصة · ذكاء اصطناعي · UI/UX · حلول سحابية · تطوير ألعاب.\n" +
+     "النوخذة: نظامنا الموحد للمحفظة والميزانية وملف XBRL والتوصيل — مجاناً."],
+    ["منشور تعريفي",
+     "نبني الأنظمة التي تُشغّل عملك، لا صفحات تعرضه فقط.\n" +
+     "سبع خدمات تحت سقف واحد: تطوير المواقع، تطبيقات الجوال، برمجيات مخصّصة، " +
+     "حلول الذكاء الاصطناعي، تصميم UI/UX، الحلول السحابية، وتطوير الألعاب.\n" +
+     "تواصل معنا على واتساب +965 6589 4110"],
+    ["منشور — النوخذة",
+     "النوخذة: النظام الموحد.\n" +
+     "المركز المالي · صافي للمحفظة · ملف XBRL للميزانية السنوية · التوصيل — " +
+     "أربع وحدات على نواة بيانات واحدة، تعمل بلا إنترنت وبلا خادم.\n" +
+     "مجاني بالكامل: خطة واحدة، كل الوحدات مفتوحة، ولا شيء يُشترى."],
+    ["منشور — ملف XBRL",
+     "الميزانية السنوية الكويتية كما تطلبها وزارة التجارة:\n" +
+     "المجاميع تُحسب من البنود ولا تُكتب، ومراجعة آلية تُظهر ما يمنع التقديم، " +
+     "وما يخالف قانون الشركات، ومقترحات بالمبالغ — الاحتياطي القانوني 10% والزكاة 1%.\n" +
+     "التقديم النهائي يتم عبر بوابة وزارة التجارة."],
+    ["ردّ جاهز — كم السعر؟",
+     "النوخذة مجاني — خطة واحدة وكل الوحدات مفتوحة.\n" +
+     "أما المشاريع الخاصة فسعرها يتبع نطاقها؛ أرسل لنا فكرتك على واتساب " +
+     "+965 6589 4110 ونرجع لك بعرض مكتوب."]
+  ];
+
+  var TAGS = [
+    ["عام", "#المهلب_كود #برمجة #الكويت #تطوير_مواقع #تطبيقات #شركة_برمجة"],
+    ["النوخذة", "#النوخذة #نظام_محاسبي #XBRL #الميزانية_السنوية #وزارة_التجارة #الكويت"],
+    ["تقني", "#software #webdev #flutter #ai #uiux #kuwait #madeinkuwait"]
+  ];
+
+  /* One flat list of everything a copy button can put on the clipboard, so a
+     button carries an index and never the text itself — a data attribute
+     holding a multi-line string is one quote away from breaking the markup. */
+  var CLIP = [];
+  function clipBtn(text, label) {
+    CLIP.push(text);
+    return '<button class="btn sm" data-clip="' + (CLIP.length - 1) + '">' + esc(label || "نسخ") + "</button>";
+  }
+
+  function renderSocial() {
+    CLIP = [];
+    el("soc-channels").innerHTML = CHANNELS.map(function (c) {
+      return '<div class="soc"><div class="head"><b>' + esc(c[0]) + '</b>' +
+        '<span class="val">' + esc(c[1]) + "</span>" + clipBtn(c[1]) + "</div>" +
+        '<p class="note" style="margin:0">' + esc(c[3]) + "</p>" +
+        '<div><a class="btn sm" href="' + esc(c[2]) + '" target="_blank" rel="noopener noreferrer">فتح القناة</a></div></div>';
+    }).join("");
+
+    el("soc-assets").innerHTML = ASSETS.map(function (a) {
+      return "<tr><td>" + esc(a[0]) + "</td><td>" + esc(a[1]) + "</td><td>" +
+        esc(a[2]) + '</td><td><code>' + esc(a[3]) + "</code></td></tr>";
+    }).join("");
+
+    el("soc-copy").innerHTML = COPY.map(function (c) {
+      return '<div class="soc"><div class="head"><b>' + esc(c[0]) + "</b>" +
+        clipBtn(c[1], "نسخ النص") + "</div><p>" + esc(c[1]) + "</p></div>";
+    }).join("");
+
+    el("soc-tags").innerHTML = TAGS.map(function (t) {
+      return '<div class="soc"><div class="head"><b>' + esc(t[0]) + "</b>" +
+        clipBtn(t[1]) + '</div><div class="tags">' + esc(t[1]) + "</div></div>";
+    }).join("");
+  }
+
+  /* navigator.clipboard is absent over plain http and in older engines, so the
+     fallback is the one that has always worked. Either way the toast only
+     claims success when the copy actually happened. */
+  function copyText(s) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(s).then(function () { toast("تم النسخ ✔"); },
+        function () { legacyCopy(s); });
+      return;
+    }
+    legacyCopy(s);
+  }
+  function legacyCopy(s) {
+    var t = document.createElement("textarea");
+    t.value = s; t.setAttribute("readonly", "");
+    t.style.position = "fixed"; t.style.opacity = "0";
+    document.body.appendChild(t); t.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(t);
+    toast(ok ? "تم النسخ ✔" : "تعذّر النسخ — حدّد النص وانسخه يدوياً");
+  }
+  el("tab-social").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-clip]"); if (!b) return;
+    var i = Number(b.getAttribute("data-clip"));
+    if (i >= 0 && i < CLIP.length) copyText(CLIP[i]);
+  });
+
   /* ════════════════════ routing + render ════════════════════ */
-  var TABS = ["position", "safi", "xbrl", "delivery"];
+  var TABS = ["position", "safi", "xbrl", "delivery", "social"];
   function route() {
     var t = (location.hash || "#/position").slice(2);
     if (TABS.indexOf(t) < 0) t = "position";
@@ -1027,7 +1196,7 @@
   });
   window.addEventListener("hashchange", route);
 
-  function renderAll() { renderPosition(); renderSafi(); renderDelivery(); renderXbrlHistory(); }
+  function renderAll() { renderPosition(); renderSafi(); renderDelivery(); renderXbrlHistory(); renderSocial(); }
 
   // Another tab of the same system is the same records, not a second copy.
   // Without this, a holding added in one tab left the other tab's table

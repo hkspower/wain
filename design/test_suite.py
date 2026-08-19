@@ -431,6 +431,7 @@ def browser_checks():
         integration_checks(pg)
         xbrl_checks(pg)
         delivery_checks(pg)
+        social_checks(pg)
         timezone_checks(br)
         auth_checks(pg, ctx)
         tamper_checks(pg)
@@ -1622,6 +1623,56 @@ def delivery_checks(pg):
     order("عميل ٤", 5.0)
     ids2 = pg.evaluate("JSON.parse(localStorage.getItem('nokhatha-delivery-orders-v1')).map(o=>o.id)")
     check(S, "ids continue after a cancellation", ids2[-1] == "ORD-0004", str(ids2[-1]))
+
+# ───────────────────────────── social media centre
+def social_checks(pg):
+    """The centre is a reference desk. Its whole value is that every fact on it
+    is the company's real one, so the checks are about truth, not arithmetic:
+    the channels are the published ones, nothing claims a metric the page
+    cannot measure, and the copy still says النوخذة is free."""
+    S = "social"
+    pg.goto(f"{BASE}/nizam.html#/social", wait_until="networkidle")
+    check(S, "the التواصل tab opens from its own hash", pg.is_visible("#tab-social"))
+    check(S, "its tab button is the selected one",
+          pg.get_attribute('button[data-tab="social"]', "class") == "on")
+
+    txt = pg.inner_text("#tab-social")
+    for want in ("+965 6589 4110", "@almuhallab.code", "hello@almuhallab-code.com"):
+        check(S, f"channel {want} is the real one", want in txt)
+
+    # Nothing here may quietly become a second, editable copy of the facts.
+    check(S, "the centre writes nothing to storage",
+          pg.evaluate("Object.keys(localStorage).filter(k=>k.indexOf('social')>=0).length") == 0)
+
+    # An invented follower count or engagement rate is the same defect as an
+    # invented client: a number on the page that nothing can check.
+    for bad in ("متابع", "تفاعل", "وصول شهري"):
+        check(S, f"no unmeasurable metric «{bad}»", bad not in txt)
+
+    check(S, "the copy still says النوخذة is free", "مجان" in txt)
+    check(S, "no price appears in the ready-made copy",
+          "د.ك" not in txt and "دينار" not in txt)
+
+    # Every asset row names the generator that draws it, so a stale asset is
+    # traceable to the script that must be re-run.
+    rows = pg.eval_on_selector_all("#soc-assets tr", "rs => rs.map(r => r.cells[3].innerText)")
+    check(S, "every asset names its generator",
+          len(rows) >= 5 and all(r.startswith("design/") for r in rows), str(rows))
+
+    # The copy buttons carry an index, never the text — a multi-line string in
+    # a data attribute is one quote away from breaking the markup.
+    idx = pg.eval_on_selector_all("#tab-social button[data-clip]",
+                                  "bs => bs.map(b => b.getAttribute('data-clip'))")
+    check(S, "copy buttons carry an index, not the text",
+          len(idx) >= 8 and all(i.isdigit() for i in idx), str(idx[:4]))
+
+    # WCAG 2.2 target size, the rule three pages have already broken.
+    small = pg.eval_on_selector_all(
+        "#tab-social button, #tab-social a",
+        "es => es.map(e => e.getBoundingClientRect())"
+        ".filter(r => r.width && (r.height < 24 || r.width < 24)).length")
+    check(S, "every control in the centre clears 24px", small == 0, f"{small} too small")
+
 
 # ───────────────────────────── portal auth
 def auth_checks(pg, ctx):
