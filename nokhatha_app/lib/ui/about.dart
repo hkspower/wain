@@ -91,7 +91,11 @@ Future<void> showAboutNokhatha(BuildContext context) => showDialog<void>(
     );
 
 class _Row extends StatelessWidget {
-  const _Row(this.label, this.value, {super.key, this.ltr = false});
+  // No `super.key`: this is private and nothing ever passes one, which the
+  // analyzer reports as unused_element_parameter — a warning, and warnings
+  // are fatal here. The use_key_in_widget_constructors lint that asks for it
+  // applies to public widgets only.
+  const _Row(this.label, this.value, {this.ltr = false});
 
   final String label;
   final String value;
