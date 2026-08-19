@@ -18,7 +18,7 @@ export default function Navbar() {
           <span className="text-xl font-extrabold tracking-tight text-slate-900">
             Wain<span className="text-brand-600">?</span>
           </span>
-          <span className="hidden text-sm font-medium text-slate-400 sm:inline" dir="rtl">
+          <span className="hidden text-sm font-medium text-slate-400 sm:inline" dir="rtl" lang="ar">
             وين؟
           </span>
         </Link>

@@ -150,7 +150,7 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
           </div>
           <p className="grn-label mt-1.5 text-[0.66rem]">
             {won ? "vs" : "beaten by"} {result.rival.name}{" "}
-            <span className="grn-ar text-white/70">{result.rival.arabicName}</span> ·{" "}
+            <span className="grn-ar text-white/70" lang="ar">{result.rival.arabicName}</span> ·{" "}
             {result.rival.crew}
           </p>
         </div>
@@ -162,7 +162,7 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
           <div className="flex items-end justify-between">
             <span className="grn-label text-[0.62rem]">
               Driver level {shownLevel} · {rank.en}{" "}
-              <span className="grn-ar text-white/50">{rank.ar}</span>
+              <span className="grn-ar text-white/50" lang="ar">{rank.ar}</span>
             </span>
             <span className="grn-display tnum text-lg text-gulf-300">+{xp} XP</span>
           </div>
@@ -309,7 +309,7 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
             <p className="mb-2.5 text-center text-[0.75rem] text-white/65">
               Next up:{" "}
               <span className="grn-display text-white">{result.nextRival.name}</span>{" "}
-              <span className="grn-ar text-white/60">{result.nextRival.arabicName}</span> ·{" "}
+              <span className="grn-ar text-white/60" lang="ar">{result.nextRival.arabicName}</span> ·{" "}
               {result.nextRival.crew}
             </p>
           )}
@@ -319,7 +319,7 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
                 onClick={onRetry}
                 className="grn-btn grn-btn-primary tap min-w-[7.5rem] flex-1 px-4 py-3 text-sm"
               >
-                REMATCH <span className="grn-ar">مرة ثانية</span>
+                REMATCH <span className="grn-ar" lang="ar">مرة ثانية</span>
               </button>
             )}
             <button

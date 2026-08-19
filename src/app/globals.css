@@ -29,10 +29,29 @@
      different names: --font-x: var(--font-x), … is a self-reference,
      which makes the property invalid at computed-value time and throws
      the whole declared fallback chain away. */
-  --font-sans: var(--ff-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--ff-display), "Barlow Condensed", ui-sans-serif, sans-serif;
+  /* The Latin faces carry NO Arabic glyphs, and font fallback in a
+     browser is per-glyph rather than per-element: a run of Arabic in an
+     element set to Plus Jakarta Sans does not fail, it silently falls
+     through to whatever Arabic face the operating system happens to
+     offer — a different one on every machine, and never the one this
+     project chose. That is what was happening to every Arabic string
+     outside the game UI: the navbar's وين؟, the place-card subtitles,
+     the home and about pages. Measured, they set 14% wider than the
+     same words in the intended face.
+     Naming the Arabic families at the END of the Latin stacks costs
+     Latin text nothing — it never reaches them, because the first face
+     already covers those codepoints — and it means Arabic anywhere in
+     the app lands on IBM Plex Sans Arabic whether or not somebody
+     remembered to add a class. */
+  --font-sans: var(--ff-sans), var(--ff-arabic), "IBM Plex Sans Arabic",
+    ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--ff-display), "Barlow Condensed",
+    var(--ff-arabic-display), "Cairo", ui-sans-serif, sans-serif;
+  /* Kept byte-identical to the :root copy below — see the note there.
+     Two definitions of one token that quietly disagree is worse than
+     either of them being wrong. */
   --font-arabic: var(--ff-arabic), "IBM Plex Sans Arabic", "Noto Sans Arabic",
-    ui-sans-serif, sans-serif;
+    var(--ff-sans), ui-sans-serif, sans-serif;
 
   /* Gulf Road Nights — night-racing UI palette. Warm sodium amber for
      primary actions, gulf cyan for information, emerald/red for the
@@ -54,14 +73,22 @@
    by canvas text — never as utilities — so inside @theme they vanish
    from the stylesheet and every var() read resolves to nothing. */
 :root {
+  /* And the mirror of the note above. These faces are loaded with the
+     ARABIC subset only, so a Latin word or an ASCII digit inside an
+     Arabic element — a lap time, a car name, a "3x" — is not covered by
+     the first family either, and fell through to a generic system sans
+     rather than to the brand face sitting right next to it. Naming the
+     Latin family before the generics pairs the two scripts properly in
+     both directions. No cycle: these read the raw next/font --ff-*
+     variables, never the composed --font-* ones. */
   --font-arabic: var(--ff-arabic), "IBM Plex Sans Arabic", "Noto Sans Arabic",
-    ui-sans-serif, sans-serif;
+    var(--ff-sans), ui-sans-serif, sans-serif;
   --font-arabic-display: var(--ff-arabic-display), "Cairo",
-    var(--ff-arabic), ui-sans-serif, sans-serif;
+    var(--ff-arabic), var(--ff-display), ui-sans-serif, sans-serif;
   --font-arabic-sign: var(--ff-arabic-sign), "Noto Naskh Arabic",
     "Times New Roman", serif;
-  --font-display-stack: var(--ff-display), "Barlow Condensed", ui-sans-serif,
-    sans-serif;
+  --font-display-stack: var(--ff-display), "Barlow Condensed",
+    var(--ff-arabic-display), "Cairo", ui-sans-serif, sans-serif;
 }
 
 html {

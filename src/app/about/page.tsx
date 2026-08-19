@@ -16,7 +16,7 @@ export default function AboutPage() {
       <div className="mt-8 space-y-6 text-lg leading-relaxed text-slate-600">
         <p>
           <strong className="text-slate-900">Wain</strong>{" "}
-          (<span dir="rtl">وين</span>) means <em>&ldquo;where?&rdquo;</em> in Kuwaiti
+          (<span dir="rtl" lang="ar">وين</span>) means <em>&ldquo;where?&rdquo;</em> in Kuwaiti
           Arabic — as in the question asked in every family WhatsApp group, every
           Thursday night, since the dawn of time:{" "}
           <strong className="text-brand-700">wain nrooh? — where shall we go?</strong>

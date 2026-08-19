@@ -15,6 +15,7 @@ import { ParticleSystem, radialSprite } from "./vfx";
 import { solveTwoBone, aimConstrained } from "./ik";
 import { nightEnvironment } from "./env";
 import { RIG } from "./rig";
+import { textTexture, arabicUI } from "./text";
 import { GradeShader, AutoExposure, ExposurePass } from "./grade";
 import type { DriverRig } from "./characters";
 import { Music } from "./music";
@@ -322,23 +323,31 @@ function beamGradientTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-/** Floating name banner above an online player's car. */
+/**
+ * Floating name banner above an online player's car.
+ *
+ * Players on a Kuwaiti server type their names in Arabic, and this drew
+ * them in a bare `sans-serif` on a raw canvas — the exact failure
+ * text.ts was written to prevent. Two things went wrong at once: the
+ * generic face has no Arabic coverage, so the shaper fell back per
+ * glyph and the letters came out unjoined; and a raw canvas is painted
+ * once and uploaded to the GPU, so even after the real face loaded the
+ * texture kept whatever it had. textTexture() repaints when the fonts
+ * land, and the Arabic stack now carries the Latin face after it, so
+ * one call covers a name in either script or a name in both.
+ */
 function makeNameTag(name: string): THREE.Sprite {
-  const c = document.createElement("canvas");
-  c.width = 256;
-  c.height = 64;
-  const ctx = c.getContext("2d")!;
-  ctx.fillStyle = "rgba(0,0,0,0.55)";
-  ctx.beginPath();
-  ctx.roundRect(8, 10, 240, 44, 12);
-  ctx.fill();
-  ctx.fillStyle = "#7ee8ff";
-  ctx.font = "bold 28px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(name.slice(0, 16), 128, 33);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
+  const tex = textTexture(256, 64, (ctx) => {
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.beginPath();
+    ctx.roundRect(8, 10, 240, 44, 12);
+    ctx.fill();
+    ctx.fillStyle = "#7ee8ff";
+    ctx.font = `700 28px ${arabicUI()}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(name.slice(0, 16), 128, 33);
+  });
   const sprite = new THREE.Sprite(
     new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false })
   );

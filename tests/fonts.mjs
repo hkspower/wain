@@ -64,6 +64,62 @@ check(r.rules.textTransform === "none", "uppercase transform still applied to Ar
 check(r.rules.fontStyle === "normal", "Arabic still inheriting a synthetic italic");
 check(r.rules.direction === "rtl", "Arabic not set right-to-left");
 check(r.stacks.arabic.includes("IBM") || r.stacks.arabic.includes("Plex") || /^__/.test(r.stacks.arabic), "arabic stack not wired");
+// ---- every Arabic run in the DOM, not just the ones with a class -----
+//
+// The stacks above being right does not mean the page uses them. Arabic
+// inside an element set to a Latin family does not fail loudly: the
+// browser falls back per GLYPH, quietly, to whatever Arabic face the
+// operating system happens to carry — a different one on every machine.
+// That is exactly what every Arabic string outside the game UI was
+// doing, and nothing here would have caught it, because the class-based
+// probe above only ever looked at elements that already had the class.
+//
+// So: sweep the real DOM, find the Arabic, and ask two questions of each
+// run — is an Arabic family anywhere in the stack it will actually
+// resolve against, and does the markup say what language it is.
+const AR_FAMILIES = ["Plex", "Cairo", "Naskh", "Arabic"];
+const sweep = async (url, label) => {
+  await page.goto(url, { waitUntil: "networkidle" });
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(600);
+  const runs = await page.evaluate(() => {
+    const AR = /[؀-ۿݐ-ݿ]/;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const out = [];
+    const seen = new Set();
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const t = n.textContent.trim();
+      if (!t || !AR.test(t)) continue;
+      const el = n.parentElement;
+      if (!el || seen.has(el)) continue;
+      seen.add(el);
+      const cs = getComputedStyle(el);
+      if (cs.display === "none" || cs.visibility === "hidden") continue;
+      out.push({
+        text: t.slice(0, 20),
+        stack: cs.fontFamily,
+        lang: el.closest("[lang]")?.getAttribute("lang") ?? "",
+      });
+    }
+    return out;
+  });
+  const noFace = runs.filter((r) => !AR_FAMILIES.some((f) => r.stack.includes(f)));
+  const noLang = runs.filter((r) => r.lang !== "ar");
+  console.log(`\n${label}: ${runs.length} Arabic runs on screen`);
+  console.log(`  with an Arabic family in the stack: ${runs.length - noFace.length}/${runs.length}  ` +
+    check(noFace.length === 0,
+      `${label}: ${noFace.length} Arabic runs set in a Latin-only stack — e.g. "${noFace[0]?.text}" in ${noFace[0]?.stack.split(",")[0]}`));
+  console.log(`  marked lang="ar": ${runs.length - noLang.length}/${runs.length}  ` +
+    check(noLang.length === 0,
+      `${label}: ${noLang.length} Arabic runs not marked lang="ar" — e.g. "${noLang[0]?.text}" is announced as ${noLang[0]?.lang || "untagged"}`));
+  return runs.length;
+};
+// The marketing pages are where this was broken; the race UI is where
+// the Arabic type was designed. Both have to hold.
+const home = await sweep("http://localhost:3000/", "home");
+check(home > 0, "no Arabic found on the home page at all — the sweep is not reading anything");
+await sweep("http://localhost:3000/places/kuwait-towers", "place page");
+
 console.log(fail.length?"\nFAILURES:\n - "+fail.join("\n - "):"\nall font checks passed");
 await b.close();
 process.exit(fail.length?1:0);

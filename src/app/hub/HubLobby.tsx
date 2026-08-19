@@ -148,7 +148,7 @@ export default function HubLobby() {
           <h1 className="grn-display mt-2 text-5xl italic leading-[0.95] sm:text-6xl">
             THE GULF ROAD <span className="text-sodium-400">CRUISE</span>
           </h1>
-          <div className="grn-ar mt-2 text-xl text-white/75" dir="rtl">
+          <div className="grn-ar mt-2 text-xl text-white/75" dir="rtl" lang="ar">
             تجمع شارع الخليج
           </div>
         </div>
@@ -157,7 +157,7 @@ export default function HubLobby() {
         {status !== "online" && (
           <div className="grn-panel mx-auto mt-8 max-w-md p-7">
             <label className="grn-label text-[0.64rem]">
-              Driver name — <span className="grn-ar">اسم السائق</span>
+              Driver name — <span className="grn-ar" lang="ar">اسم السائق</span>
             </label>
             <input
               value={name}
@@ -168,7 +168,7 @@ export default function HubLobby() {
               className="mt-2 w-full rounded-lg border border-white/15 bg-black/45 px-4 py-3 text-base font-semibold outline-none transition focus:border-gulf-400 focus:ring-2 focus:ring-gulf-400/30"
             />
             <label className="grn-label mt-6 block text-[0.64rem]">
-              Car colour — <span className="grn-ar">لون السيارة</span>
+              Car colour — <span className="grn-ar" lang="ar">لون السيارة</span>
             </label>
             <div className="mt-2 flex flex-wrap gap-2">
               {CAR_COLORS.map((c) => (
@@ -190,7 +190,7 @@ export default function HubLobby() {
               disabled={!name.trim() || status === "connecting"}
               className="grn-btn grn-btn-primary mt-7 w-full py-3.5 text-lg disabled:opacity-40 disabled:hover:translate-y-0"
             >
-              {status === "connecting" ? "CONNECTING…" : <>JOIN THE HUB — <span className="grn-ar">يلا</span></>}
+              {status === "connecting" ? "CONNECTING…" : <>JOIN THE HUB — <span className="grn-ar" lang="ar">يلا</span></>}
             </button>
             {status === "offline" && (
               <p className="mt-4 text-center text-xs leading-5 text-red-300">
@@ -242,7 +242,7 @@ export default function HubLobby() {
             {/* Chat */}
             <div className="grn-panel flex flex-col p-5">
               <h2 className="grn-label border-b border-white/10 pb-2 text-[0.66rem]">
-                Diwaniya chat — <span className="grn-ar">الديوانية</span>
+                Diwaniya chat — <span className="grn-ar" lang="ar">الديوانية</span>
               </h2>
               <div className="mt-3 h-64 flex-1 space-y-1.5 overflow-y-auto pr-1 text-sm">
                 {chat.length === 0 && (
@@ -278,7 +278,7 @@ export default function HubLobby() {
             <div className="grn-panel p-5 lg:col-span-3">
               <div className="flex items-center justify-between">
                 <h2 className="grn-label text-[0.66rem]">
-                  Crews — <span className="grn-ar">الفرق</span>
+                  Crews — <span className="grn-ar" lang="ar">الفرق</span>
                 </h2>
                 {myTeam ? (
                   <button
@@ -427,7 +427,7 @@ export default function HubLobby() {
                       disabled={!teamName.trim() || !sanitizeTag(teamTag)}
                       className="grn-btn grn-btn-primary mt-4 px-6 py-2.5 text-sm disabled:opacity-40"
                     >
-                      FOUND THE CREW — <span className="grn-ar">أسس فريقك</span>
+                      FOUND THE CREW — <span className="grn-ar" lang="ar">أسس فريقك</span>
                     </button>
                   </div>
                 </div>
@@ -476,7 +476,7 @@ export default function HubLobby() {
             {/* Leaderboard */}
             <div className="grn-panel p-5">
               <h2 className="grn-label border-b border-white/10 pb-2 text-[0.66rem]">
-                Best laps — <span className="grn-ar">أفضل اللفات</span>
+                Best laps — <span className="grn-ar" lang="ar">أفضل اللفات</span>
               </h2>
               <p className="mt-1 text-[11px] text-white/35">
                 Full 7.3 km Gulf Road laps, this session

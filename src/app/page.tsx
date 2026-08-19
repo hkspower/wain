@@ -21,7 +21,7 @@ export default function HomePage() {
             </span>
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-lg text-slate-500">
-            <span dir="rtl" className="font-semibold text-slate-700">
+            <span dir="rtl" lang="ar" className="font-semibold text-slate-700">
               وين نروح؟
             </span>{" "}
             — the question every group chat asks. Wain answers it with the best

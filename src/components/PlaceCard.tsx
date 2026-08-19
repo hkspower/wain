@@ -24,7 +24,7 @@ export default function PlaceCard({ place }: { place: Place }) {
             <h3 className="font-bold text-slate-900 group-hover:text-brand-700">
               {place.name}
             </h3>
-            <p className="text-sm text-slate-400" dir="rtl">
+            <p className="text-sm text-slate-400" dir="rtl" lang="ar">
               {place.nameAr}
             </p>
           </div>

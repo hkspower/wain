@@ -184,7 +184,7 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
             )}
             {p.name}
           </span>
-          <span className="grn-ar text-[0.8rem] text-white/60">{p.ar}</span>
+          <span className="grn-ar text-[0.8rem] text-white/60" lang="ar">{p.ar}</span>
         </div>
         {p.desc && <div className="mt-1.5 text-[0.76rem] leading-5 text-white/55">{p.desc}</div>}
         <div className="grn-label mt-2.5 text-[0.6rem]">
@@ -219,7 +219,7 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
               The Garage
             </div>
             <h2 className="grn-display truncate text-2xl italic leading-tight">
-              <span className="grn-ar">الكراج</span>{" "}
+              <span className="grn-ar" lang="ar">الكراج</span>{" "}
               <span className="text-sodium-400">TUNING</span>
             </h2>
           </div>
@@ -234,7 +234,7 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
               onClick={onClose}
               className="grn-btn grn-btn-primary tap px-5 py-2.5 text-sm"
             >
-              DONE — <span className="grn-ar">يلا</span>
+              DONE — <span className="grn-ar" lang="ar">يلا</span>
             </button>
           </div>
         </div>
@@ -249,7 +249,7 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
                   style={{ backgroundColor: `#${fx.paint.toString(16).padStart(6, "0")}` }}
                 />
                 <span className="grn-display truncate text-base leading-tight">
-                  {car.name} <span className="grn-ar text-white/55">{car.ar}</span>
+                  {car.name} <span className="grn-ar text-white/55" lang="ar">{car.ar}</span>
                 </span>
               </div>
               <span className="grn-label shrink-0 text-[0.5rem] text-white/45">
@@ -337,7 +337,7 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
                           <div className="flex items-start justify-between gap-2">
                             <div>
                               <div className="grn-display text-lg leading-tight">{c.name}</div>
-                              <div className="grn-ar text-[0.78rem] text-white/55">{c.ar}</div>
+                              <div className="grn-ar text-[0.78rem] text-white/55" lang="ar">{c.ar}</div>
                             </div>
                             <span
                               className="mt-1 size-5 shrink-0 rounded-full border border-white/40"

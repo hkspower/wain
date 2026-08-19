@@ -89,6 +89,35 @@ for (const c of CANON) {
   }
 }
 
+// Input filters must not silently delete Arabic.
+//
+// The crew tag is sanitised in two places — the client and the hub
+// server — and both used to strip everything outside A-Z0-9. In a game
+// whose menus, rivals and street signs are all Arabic, that meant a crew
+// could not write its own name in Arabic: the tag came back empty and
+// the server then dropped the whole team without an error. Two copies of
+// one rule is the shape of that bug, so the rule is checked rather than
+// trusted: both must allow Arabic, and both must say the same thing.
+{
+  const client = readFileSync("src/game/teams.ts", "utf8");
+  const server = readFileSync("server/hub-server.mjs", "utf8");
+  const grab = (src) => src.match(/\.replace\(\/\[\^([^\]]*)\]\/g, ""\)/)?.[1];
+  const a = grab(client);
+  const b = grab(server);
+  if (!a || !b) {
+    fail.push("crew tag: could not find the character filter in teams.ts or hub-server.mjs");
+  } else {
+    if (a !== b) {
+      fail.push(`crew tag filters disagree — teams.ts allows [^${a}], hub-server.mjs allows [^${b}]`);
+    }
+    // ء-ي is the Arabic letter block; without it a tag typed in
+    // Arabic is erased character by character.
+    if (!a.includes("u0621")) {
+      fail.push("crew tag: teams.ts strips Arabic letters, so an Arabic crew tag becomes empty");
+    }
+  }
+}
+
 console.log(`${strings.length} Arabic string literals across ${new Set(strings.map((s) => s.file)).size} files`);
 if (fail.length) {
   console.error(`\n${fail.length} problem${fail.length === 1 ? "" : "s"}:\n`);

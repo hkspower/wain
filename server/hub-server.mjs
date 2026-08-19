@@ -316,9 +316,13 @@ wss.on("connection", (ws) => {
       if (teams.size >= MAX_TEAMS) return;
       if (teamOf(p.name)) return; // one crew at a time
       const tname = String(msg.name ?? "").slice(0, MAX_TEAM_NAME).trim();
+      // Must match sanitizeTag() in src/game/teams.ts. Arabic letters and
+      // Arabic-Indic digits are tag characters here too — stripping them
+      // left the tag empty, and the guard below then discarded the team
+      // silently, so an Arabic crew name simply never created a crew.
       const tag = String(msg.tag ?? "")
         .toUpperCase()
-        .replace(/[^A-Z0-9]/g, "")
+        .replace(/[^A-Z0-9\u0621-\u064A\u0660-\u0669]/g, "")
         .slice(0, 4);
       if (!tname || !tag) return;
       const team = {

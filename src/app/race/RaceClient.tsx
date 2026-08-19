@@ -813,7 +813,7 @@ export default function RaceClient() {
           <div className="grn-plate px-4 py-2">
             <div ref={areaRef} className="flex items-baseline gap-2 text-xl leading-tight">
               <span className="grn-display tracking-wide" />
-              <span className="grn-ar-display text-[0.95em] text-white/80" />
+              <span className="grn-ar-display text-[0.95em] text-white/80" lang="ar" />
             </div>
             <div ref={progressRef} className="grn-label mt-0.5 text-[0.62rem]" />
           </div>
@@ -846,7 +846,7 @@ export default function RaceClient() {
         >
           <div className="mb-1.5 flex items-end justify-between">
             <span className="grn-label text-[0.66rem] text-emerald-300 [text-shadow:0_0_10px_rgba(52,211,153,0.8)]">
-              ▲ SP <span className="grn-ar">أنت</span>
+              ▲ SP <span className="grn-ar" lang="ar">أنت</span>
             </span>
             <span className="grn-label rival-ink text-[0.66rem] text-rose-300 [text-shadow:0_0_10px_rgba(251,113,133,0.8)]">
               ▼ Rival SP
@@ -1043,7 +1043,7 @@ export default function RaceClient() {
                 onClick={() => hubRef.current?.answerDuel(true)}
                 className="grn-btn grn-btn-primary flex-1 py-3 text-lg"
               >
-                ACCEPT — <span className="grn-ar">يلا</span>
+                ACCEPT — <span className="grn-ar" lang="ar">يلا</span>
               </button>
               <button
                 onClick={() => {
@@ -1087,7 +1087,7 @@ export default function RaceClient() {
       {challenge && phase === "playing" && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center overflow-y-auto bg-black/70 px-4 py-6">
           <div className="grn-label text-[0.7rem] tracking-[0.42em] text-gulf-300 [text-shadow:0_0_18px_rgba(56,201,238,0.6)]">
-            Headlights flashed ×3 — <span className="grn-ar">التحدي</span>
+            Headlights flashed ×3 — <span className="grn-ar" lang="ar">التحدي</span>
           </div>
           <div className="mt-4 flex w-full max-w-3xl items-stretch justify-center gap-4">
             {[challenge.player, challenge.rival].map((d, i) => (
@@ -1114,7 +1114,7 @@ export default function RaceClient() {
                 </div>
                 <div className="grn-display mt-2 text-3xl italic leading-none">{d.name}</div>
                 {d.arabicName && (
-                  <div className="grn-ar mt-1 text-lg text-white/75">{d.arabicName}</div>
+                  <div className="grn-ar mt-1 text-lg text-white/75" lang="ar">{d.arabicName}</div>
                 )}
                 <div className="mt-4 space-y-1.5 border-t border-white/10 pt-3 text-sm">
                   <div className="flex items-baseline justify-between">
@@ -1148,7 +1148,7 @@ export default function RaceClient() {
               <div className="grn-panel px-5 py-4 text-left">
                 {/* Pick the machine */}
                 <div className="grn-label text-[0.6rem]">
-                  Your car — <span className="grn-ar">اختر سيارتك</span>
+                  Your car — <span className="grn-ar" lang="ar">اختر سيارتك</span>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {(garage?.cars ?? ["wain-special"]).map((id) => {
@@ -1173,7 +1173,7 @@ export default function RaceClient() {
 
                 {/* Pick the purse */}
                 <div className="grn-label mt-4 text-[0.6rem]">
-                  Stake — <span className="grn-ar">مبلغ السباق</span>
+                  Stake — <span className="grn-ar" lang="ar">مبلغ السباق</span>
                   <span className="ml-2 text-white/40">
                     winner takes both · max {challenge.maxWager} KD
                   </span>
@@ -1202,7 +1202,7 @@ export default function RaceClient() {
                     }}
                     className="pointer-events-auto grn-btn grn-btn-primary flex-1 py-3 text-lg"
                   >
-                    SEND CHALLENGE — <span className="grn-ar">تحداه</span>
+                    SEND CHALLENGE — <span className="grn-ar" lang="ar">تحداه</span>
                   </button>
                   <button
                     onClick={() => {
@@ -1217,12 +1217,12 @@ export default function RaceClient() {
               </div>
             ) : challenge.answer === null ? (
               <div className="grn-label animate-pulse text-base text-white/80">
-                Awaiting response… <span className="grn-ar">ينتظر الرد</span>
+                Awaiting response… <span className="grn-ar" lang="ar">ينتظر الرد</span>
               </div>
             ) : challenge.answer.accepted ? (
               <div>
                 <div className="grn-display text-4xl italic text-emerald-400 [text-shadow:0_0_26px_rgba(52,211,153,0.85)]">
-                  ACCEPTED — <span className="grn-ar">قبل التحدي</span> ✓
+                  ACCEPTED — <span className="grn-ar" lang="ar">قبل التحدي</span> ✓
                 </div>
                 <div className="grn-label mt-1.5 text-[0.66rem] text-sodium-400">
                   {challenge.answer.reason}
@@ -1231,7 +1231,7 @@ export default function RaceClient() {
             ) : (
               <div>
                 <div className="grn-display text-4xl italic text-rose-500 [text-shadow:0_0_26px_rgba(244,63,94,0.85)]">
-                  REJECTED — <span className="grn-ar">رفض</span> ✕
+                  REJECTED — <span className="grn-ar" lang="ar">رفض</span> ✕
                 </div>
                 <div className="mt-1.5 text-sm font-semibold text-white/70">
                   {challenge.answer.reason}
@@ -1249,7 +1249,7 @@ export default function RaceClient() {
             <div className="grn-display text-6xl italic text-emerald-300 [text-shadow:0_0_28px_rgba(52,211,153,0.85)] sm:text-7xl">
               YOU
             </div>
-            <div className="grn-ar mt-1 text-xl text-white/75" dir="rtl">
+            <div className="grn-ar mt-1 text-xl text-white/75" dir="rtl" lang="ar">
               أنت
             </div>
           </div>
@@ -1260,7 +1260,7 @@ export default function RaceClient() {
             <div className="grn-display text-5xl italic text-rose-400 [text-shadow:0_0_28px_rgba(244,63,94,0.85)] sm:text-6xl">
               {vsRival.name}
             </div>
-            <div className="grn-ar mt-1 text-xl text-white/80">{vsRival.arabicName}</div>
+            <div className="grn-ar mt-1 text-xl text-white/80" lang="ar">{vsRival.arabicName}</div>
             <div className="grn-label mt-2 text-[0.66rem]">{vsRival.crew}</div>
             <div className="mt-2.5 text-sm italic text-white/70">&quot;{vsRival.taunt}&quot;</div>
           </div>
@@ -1390,7 +1390,7 @@ export default function RaceClient() {
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="grn-display truncate text-sm text-white">
                     {rank.en}{" "}
-                    <span className="grn-ar hidden text-white/50 sm:inline">{rank.ar}</span>
+                    <span className="grn-ar hidden text-white/50 sm:inline" lang="ar">{rank.ar}</span>
                   </span>
                   <span className="grn-label tnum shrink-0 text-[0.52rem] text-white/45">
                     {lvl.into}/{lvl.need} XP
@@ -1429,7 +1429,7 @@ export default function RaceClient() {
               <h1 className="grn-display menu-wordmark mt-1.5 text-[clamp(2.4rem,12vw,5rem)] italic leading-[0.88]">
                 GULF ROAD <span className="text-sodium-400">NIGHTS</span>
               </h1>
-              <div className="grn-ar mt-1.5 text-lg text-white/70" dir="rtl">
+              <div className="grn-ar mt-1.5 text-lg text-white/70" dir="rtl" lang="ar">
                 ليالي شارع الخليج
               </div>
             </div>
@@ -1490,7 +1490,7 @@ export default function RaceClient() {
                   <div className="min-w-0">
                     <div className="grn-display truncate text-xl text-white">
                       {RIVALS[beaten].name}{" "}
-                      <span className="grn-ar text-white/60">{RIVALS[beaten].arabicName}</span>
+                      <span className="grn-ar text-white/60" lang="ar">{RIVALS[beaten].arabicName}</span>
                     </div>
                     <div className="truncate text-[0.75rem] text-white/55">
                       {RIVALS[beaten].crew} · {RIVALS[beaten].area}
@@ -1544,7 +1544,7 @@ export default function RaceClient() {
                   </span>
                   <span className="min-w-0 flex-1 text-left">
                     <span className="menu-item-label">{it.label}</span>{" "}
-                    <span className="grn-ar text-white/50">{it.ar}</span>
+                    <span className="grn-ar text-white/50" lang="ar">{it.ar}</span>
                     <span className="menu-item-hint">{it.hint}</span>
                   </span>
                 </button>
@@ -1559,7 +1559,7 @@ export default function RaceClient() {
 
             <div className="mt-auto flex items-center justify-between pt-4">
               <span className="grn-label text-[0.55rem] text-white/30">
-                {carName(garage)} <span className="grn-ar text-white/25">في الكراج</span>
+                {carName(garage)} <span className="grn-ar text-white/25" lang="ar">في الكراج</span>
               </span>
               <a
                 href="/hub"
@@ -1583,7 +1583,7 @@ export default function RaceClient() {
                   Credits
                 </div>
                 <h2 className="grn-display mt-1 text-4xl italic">
-                  <span className="grn-ar">شكر وتقدير</span>
+                  <span className="grn-ar" lang="ar">شكر وتقدير</span>
                 </h2>
               </div>
               <button
@@ -1598,7 +1598,7 @@ export default function RaceClient() {
               <div className="grn-display text-2xl italic">
                 GULF ROAD <span className="text-sodium-400">NIGHTS</span>
               </div>
-              <div className="grn-ar mt-1 text-base text-white/70" dir="rtl">
+              <div className="grn-ar mt-1 text-base text-white/70" dir="rtl" lang="ar">
                 ليالي شارع الخليج
               </div>
               <p className="mt-3 text-[0.8rem] leading-relaxed text-white/60">
@@ -1642,7 +1642,7 @@ export default function RaceClient() {
               <div key={sec.h} className="grn-dialog mt-3 p-4 sm:p-5">
                 <div className="flex items-baseline justify-between">
                   <span className="grn-label text-[0.55rem] text-gulf-400">{sec.h}</span>
-                  <span className="grn-ar text-[0.8rem] text-white/35">{sec.ar}</span>
+                  <span className="grn-ar text-[0.8rem] text-white/35" lang="ar">{sec.ar}</span>
                 </div>
                 <dl className="mt-2 space-y-2">
                   {sec.rows.map(([k, v]) => (
@@ -1672,7 +1672,7 @@ export default function RaceClient() {
                   Settings
                 </div>
                 <h2 className="grn-display mt-1 text-4xl italic">
-                  <span className="grn-ar">الإعدادات</span>
+                  <span className="grn-ar" lang="ar">الإعدادات</span>
                 </h2>
               </div>
               <button
@@ -1789,7 +1789,7 @@ export default function RaceClient() {
             </h3>
             {/* Picture */}
             <h3 className="grn-label mt-6 text-[0.68rem] text-white/70">
-              PICTURE · <span className="grn-ar">الصورة</span>
+              PICTURE · <span className="grn-ar" lang="ar">الصورة</span>
             </h3>
             <label className="mt-3 flex items-center justify-between gap-3 text-sm">
               <span>
@@ -1818,7 +1818,7 @@ export default function RaceClient() {
               <label key={key} className="mt-3 block text-sm">
                 <span className="flex items-center justify-between">
                   <span>
-                    {label} <span className="grn-ar text-white/50">{ar}</span>
+                    {label} <span className="grn-ar text-white/50" lang="ar">{ar}</span>
                   </span>
                   <span className="grn-display text-[0.8rem] text-sodium-400">
                     {fmt(settings[key] as number)}
@@ -1856,7 +1856,7 @@ export default function RaceClient() {
                   }`}
                 >
                   <span className="grn-display block text-base">
-                    {label} <span className="grn-ar text-white/55">{ar}</span>
+                    {label} <span className="grn-ar text-white/55" lang="ar">{ar}</span>
                   </span>
                   <span className="block text-[0.7rem] text-white/50">{desc}</span>
                 </button>
@@ -1916,7 +1916,7 @@ export default function RaceClient() {
             <div className="grn-display mt-4 text-5xl italic text-sodium-400 [text-shadow:0_0_34px_rgba(245,165,36,0.75)] sm:text-6xl">
               KING OF GULF ROAD
             </div>
-            <div className="grn-ar mt-3 text-2xl text-white/85" dir="rtl">
+            <div className="grn-ar mt-3 text-2xl text-white/85" dir="rtl" lang="ar">
               ملك شارع الخليج
             </div>
             <div className="mx-auto mt-4 max-w-md text-[0.95rem] leading-6 text-white/65">
@@ -1929,7 +1929,7 @@ export default function RaceClient() {
               }}
               className="grn-btn grn-btn-primary mt-8 w-full px-8 py-3.5 text-lg"
             >
-              RUN IT BACK — <span className="grn-ar">من جديد</span>
+              RUN IT BACK — <span className="grn-ar" lang="ar">من جديد</span>
             </button>
           </div>
         </div>
@@ -1951,7 +1951,7 @@ export default function RaceClient() {
             </div>
             <div className="grn-display mt-0.5 text-[clamp(1.6rem,6vw,2.6rem)] italic leading-none text-white [text-shadow:0_2px_18px_rgba(0,0,0,0.9)]">
               {cine.card.name}{" "}
-              <span className="grn-ar-display text-[0.9em] not-italic text-white/75">
+              <span className="grn-ar-display text-[0.9em] not-italic text-white/75" lang="ar">
                 {cine.card.arabicName}
               </span>
             </div>
@@ -1972,11 +1972,11 @@ export default function RaceClient() {
               {cine.stake > 0 ? (
                 <>
                   {cine.stake.toLocaleString()} KD EACH — ON THE LINE{" "}
-                  <span className="grn-ar">على المحك</span>
+                  <span className="grn-ar" lang="ar">على المحك</span>
                 </>
               ) : (
                 <>
-                  PRIDE ONLY <span className="grn-ar">على الشرف</span>
+                  PRIDE ONLY <span className="grn-ar" lang="ar">على الشرف</span>
                 </>
               )}
             </div>
@@ -1986,14 +1986,14 @@ export default function RaceClient() {
             <div className="grn-display text-[clamp(2rem,7vw,3.4rem)] italic leading-none text-sodium-400 [text-shadow:0_0_26px_rgba(255,170,60,0.55),0_2px_18px_rgba(0,0,0,0.9)]">
               VS
             </div>
-            <div className="grn-ar-display text-[0.85rem] text-white/60">ضد</div>
+            <div className="grn-ar-display text-[0.85rem] text-white/60" lang="ar">ضد</div>
           </div>
 
           {/* Your side of the frame, mirrored on the right bar */}
           {cine.you && (
             <div className="cine-card absolute bottom-[calc(11vh+env(safe-area-inset-bottom))] right-[calc(env(safe-area-inset-right)+1.25rem)] text-right">
               <div className="grn-label text-[0.58rem] text-gulf-300">
-                You · <span className="grn-ar">أنت</span>
+                You · <span className="grn-ar" lang="ar">أنت</span>
               </div>
               <div className="grn-display mt-0.5 text-[clamp(1.6rem,6vw,2.6rem)] italic leading-none text-white [text-shadow:0_2px_18px_rgba(0,0,0,0.9)]">
                 {cine.you.name}
@@ -2030,14 +2030,14 @@ export default function RaceClient() {
           <div className="grn-dialog screen-in w-[min(400px,92vw)] p-6 text-center">
             <div className="grn-label text-[0.6rem] tracking-[0.4em] text-gulf-400">Paused</div>
             <div className="grn-display mt-1 text-4xl italic">
-              PIT STOP <span className="grn-ar not-italic text-white/60">وقفة</span>
+              PIT STOP <span className="grn-ar not-italic text-white/60" lang="ar">وقفة</span>
             </div>
             <div className="mt-6 flex flex-col gap-2.5">
               <button
                 onClick={() => setPauseOpen(false)}
                 className="grn-btn grn-btn-primary tap w-full px-6 py-3.5 text-base"
               >
-                RESUME — <span className="grn-ar">كمّل</span>
+                RESUME — <span className="grn-ar" lang="ar">كمّل</span>
               </button>
               <button
                 onClick={() => {
@@ -2078,7 +2078,7 @@ export default function RaceClient() {
           <div className="grn-display mt-2 text-[clamp(1.4rem,6vw,2.2rem)] italic">
             BUILDING THE CORNICHE
           </div>
-          <div className="grn-ar mt-1 text-sm text-white/50">جاري تجهيز الشارع</div>
+          <div className="grn-ar mt-1 text-sm text-white/50" lang="ar">جاري تجهيز الشارع</div>
           <div className="grn-meter mt-5 h-2 w-[min(320px,70vw)]">
             <div className="h-full w-1/3 animate-pulse bg-gradient-to-r from-gulf-500 to-gulf-300" />
           </div>

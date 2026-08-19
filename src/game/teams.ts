@@ -4,6 +4,8 @@
 // few bytes and can be redrawn at any size: lobby card, roster row, or
 // a decal baked onto the car's roof.
 
+import { arabicUI } from "./fonts";
+
 export type LogoShape = "shield" | "circle" | "hex" | "diamond";
 
 export interface TeamLogo {
@@ -112,7 +114,7 @@ export function drawTeamLogo(
 
   if (tag) {
     ctx.fillStyle = logo.fg;
-    ctx.font = `700 ${Math.round(size * 0.17)}px sans-serif`;
+    ctx.font = `700 ${Math.round(size * 0.17)}px ${arabicUI()}`;
     ctx.fillText(tag.toUpperCase().slice(0, 4), size / 2, size * 0.74);
   }
 }
@@ -128,8 +130,16 @@ export function teamLogoDataUrl(logo: TeamLogo, size = 128, tag?: string): strin
 }
 
 export function sanitizeTag(raw: string): string {
+  // Arabic letters and Arabic-Indic digits count as tag characters.
+  //
+  // This used to strip everything but A-Z0-9, which meant a crew in a
+  // game set on the Gulf Road, whose menus and rivals are all in Arabic,
+  // could not write its own name in Arabic: the tag came back empty, and
+  // the server — which applies the same rule and then drops any team
+  // with an empty tag — threw the whole creation away without saying so.
+  // toUpperCase is a no-op on Arabic, which has no letter case.
   return raw
     .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
+    .replace(/[^A-Z0-9\u0621-\u064A\u0660-\u0669]/g, "")
     .slice(0, 4);
 }

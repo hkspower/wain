@@ -58,7 +58,7 @@ export default async function PlacePage({ params }: Props) {
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
             {place.name}
           </h1>
-          <p className="mt-1 text-xl text-slate-400" dir="rtl">
+          <p className="mt-1 text-xl text-slate-400" dir="rtl" lang="ar">
             {place.nameAr}
           </p>
         </div>

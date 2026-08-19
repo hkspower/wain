@@ -218,7 +218,7 @@ export default function Onboarding({
           <h2 className="grn-display text-[clamp(1.5rem,6vw,2rem)] leading-tight text-white">
             {c.title}
           </h2>
-          <p className="grn-ar mt-0.5 text-base text-sodium-400/90">{c.ar}</p>
+          <p className="grn-ar mt-0.5 text-base text-sodium-400/90" lang="ar">{c.ar}</p>
           <div className="my-4 flex min-h-[86px] items-center justify-center rounded-xl border border-white/10 bg-black/40 p-4">
             {c.art}
           </div>

@@ -15,26 +15,12 @@ import * as THREE from "three";
 // So every text texture here registers its paint function and repaints
 // itself once the fonts have actually loaded.
 
-/** Read a composed font stack from the CSS custom properties in
- *  globals.css, so canvas and DOM always name the same families. */
-function stack(name: string, fallback: string): string {
-  if (typeof document === "undefined") return fallback;
-  const v = getComputedStyle(document.body || document.documentElement)
-    .getPropertyValue(name)
-    .trim();
-  return v || fallback;
-}
-
-/** Arabic for HUD-like surfaces (car decals, plates). */
-export const arabicUI = () => stack("--font-arabic", "sans-serif");
-/** Arabic for road signage — naskh, like real Gulf street furniture. */
-export const arabicSign = () => stack("--font-arabic-sign", "serif");
-/** The Latin racing face, for the bilingual halves of the same signs. */
-export const latinDisplay = () =>
-  // --font-display is a Tailwind theme token and only reaches the
-  // stylesheet while a utility still references it; --font-display-stack
-  // is emitted unconditionally beside the Arabic ones.
-  stack("--font-display-stack", stack("--font-display", "sans-serif"));
+// The stacks themselves live in fonts.ts, which imports no THREE — so a
+// module that wants only a font name does not drag the 3D engine in
+// behind it. Re-exported here because every canvas caller already asks
+// this module for both halves of the job.
+import { arabicUI, arabicSign, latinDisplay } from "./fonts";
+export { arabicUI, arabicSign, latinDisplay };
 
 type Repaint = { tex: THREE.CanvasTexture; paint: () => void };
 const waiting: Repaint[] = [];
