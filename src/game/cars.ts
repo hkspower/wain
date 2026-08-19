@@ -731,6 +731,12 @@ const archWellGeoF = new THREE.CircleGeometry(0.485, 22);
 const archLipGeo = new THREE.TorusGeometry(0.475, 0.016, 8, 28, Math.PI);
 archLipGeo.rotateY(Math.PI / 2);
 const archLipGeoF = new THREE.TorusGeometry(0.5, 0.021, 8, 30, Math.PI);
+// The outer edge of each arch — the lip's radius plus its tube — and the
+// height its centre sits at. Anything running along the flank has to
+// stop here, so the numbers are named rather than repeated.
+const ARCH_EDGE_F = 0.5 + 0.021;
+const ARCH_EDGE_R = 0.475 + 0.016;
+const ARCH_Y = 0.4;
 archLipGeoF.rotateY(Math.PI / 2);
 const wellMat = new THREE.MeshBasicMaterial({ color: 0x060708 });
 
@@ -1707,8 +1713,16 @@ export function createCar(colors: CarColors): THREE.Group {
   // the last place the car still looked like a toy from above.
   {
     const [rz, ry] = d.roof;
+    const sunroofZ = rz + (bCabBack ? 0.28 : 0.18);
     const sunroof = new THREE.Mesh(roundedBox(0.72, 0.02, 0.62, 0.015), glassMat);
-    sunroof.position.set(0, ry + 0.005, rz + (bCabBack ? 0.28 : 0.18));
+    // On the roof's measured surface, like the rails below it. Seated on
+    // the roof ANCHOR — the profile's top line — the glass sat 26 mm
+    // under the paint on the saloons and never appeared.
+    sunroof.position.set(
+      0,
+      (deckY(rGeo, style, sunroofZ, "roof") ?? ry) - 0.008,
+      sunroofZ
+    );
     group.add(sunroof);
     // Roof rails, and only on the saloon roof. They were pinned to the
     // roof anchor, which is the profile's top line — the extrusion's
@@ -1756,6 +1770,36 @@ export function createCar(colors: CarColors): THREE.Group {
   const wheels: THREE.Group[] = [];
   const wzF = style === "zx" ? 1.52 : style === "gtr" || style === "rx7" ? 1.45 : 1.42;
   const wzR = style === "zx" ? -1.48 : style === "gtr" || style === "rx7" ? -1.45 : -1.42;
+
+  /**
+   * How long a feature running along the flank is allowed to be.
+   *
+   * The character line, the beltline and the rocker are panel features:
+   * they run between the wheel arches and butt into them. They were
+   * fixed at 2.7 and 3.1 m regardless of where the wheels are, so on the
+   * short-wheelbase bodies they carried straight on across the arches —
+   * 0.41 m into the Zeta's front arch and 0.62 m into its rear one,
+   * which is what made the car look like it had two rails bolted down
+   * its side.
+   *
+   * An arch is a circle, so where it starts depends on the height of the
+   * feature meeting it: the rocker runs into it half a metre from the
+   * wheel centre, the beltline only a quarter of one — and on the taller
+   * saloon the beltline clears the arches entirely and is free to run
+   * almost the whole flank. One rule gives all three of those.
+   */
+  const archReach = (edge: number, y: number): number => {
+    const dy = Math.abs(y - ARCH_Y);
+    return dy >= edge ? 0 : Math.sqrt(edge * edge - dy * dy);
+  };
+  const FLANK_GAP = 0.03; // panel gap where the feature meets the arch
+  /** [length, centre z] for a flank feature at height y. */
+  const flankRun = (y: number): [number, number] => {
+    const back = wzR + archReach(ARCH_EDGE_R, y) + FLANK_GAP;
+    const front = wzF - archReach(ARCH_EDGE_F, y) - FLANK_GAP;
+    return [Math.max(0.2, front - back), (front + back) / 2];
+  };
+
   for (const [wx, wz] of [
     [-0.84, wzF],
     [0.84, wzF],
@@ -1840,7 +1884,11 @@ export function createCar(colors: CarColors): THREE.Group {
     // pinned to 0.925 — five millimetres outside the SEDAN's skin, and
     // 35 to 55 mm inside the skin of the four wide silhouettes. Offsets
     // from the shell's own half-width keep the same relationship to the
-    // panel on all of them.
+    // panel on all of them. Their LENGTHS come from the arches — see
+    // flankRun — so each one ends where the wheel opening starts.
+    const [creaseLen, creaseZ] = flankRun(d.creaseY);
+    const [beltLen, beltZ] = flankRun(d.beltY);
+    const [rockerLen, rockerZ] = flankRun(0.25);
     for (const sxSign of [-1, 1]) {
       for (const sz of [0.62, -0.72]) {
         const seam = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.5, 0.012), gapMat);
@@ -1849,19 +1897,19 @@ export function createCar(colors: CarColors): THREE.Group {
       }
       // Character line — the crease that runs the flank of every modern
       // car and catches a long highlight as the world slides past
-      const crease = new THREE.Mesh(roundedBox(0.035, 0.05, 3.1, 0.016), bodyMat);
-      crease.position.set(sxSign * (flankX + 0.01), d.creaseY, -0.1);
+      const crease = new THREE.Mesh(roundedBox(0.035, 0.05, creaseLen, 0.016), bodyMat);
+      crease.position.set(sxSign * (flankX + 0.01), d.creaseY, creaseZ);
       group.add(crease);
-      const belt = new THREE.Mesh(roundedBox(0.015, 0.02, 2.7, 0.006), chromeLocal);
-      belt.position.set(sxSign * (flankX + 0.005), d.beltY, -0.15);
+      const belt = new THREE.Mesh(roundedBox(0.015, 0.02, beltLen, 0.006), chromeLocal);
+      belt.position.set(sxSign * (flankX + 0.005), d.beltY, beltZ);
       group.add(belt);
       for (const hz of [0.28, -1.02]) {
         const handle = new THREE.Mesh(roundedBox(0.03, 0.035, 0.14, 0.012), chromeLocal);
         handle.position.set(sxSign * (flankX + 0.005), d.creaseY + 0.08, hz);
         group.add(handle);
       }
-      const skirt = new THREE.Mesh(roundedBox(0.06, 0.12, 2.7, 0.02), seamMat);
-      skirt.position.set(sxSign * (flankX - 0.023), 0.25, -0.1);
+      const skirt = new THREE.Mesh(roundedBox(0.06, 0.12, rockerLen, 0.02), seamMat);
+      skirt.position.set(sxSign * (flankX - 0.023), 0.25, rockerZ);
       group.add(skirt);
     }
 
@@ -2102,8 +2150,9 @@ export function createCar(colors: CarColors): THREE.Group {
 
     // Side skirts hugging the rockers
     for (const sxSign of [-1, 1]) {
-      const skirt = new THREE.Mesh(roundedBox(0.08, 0.1, 2.7, 0.022), carbonMat);
-      skirt.position.set(sxSign * (flankX + 0.01), 0.16, 0);
+      const [kitLen, kitZ] = flankRun(0.16);
+      const skirt = new THREE.Mesh(roundedBox(0.08, 0.1, kitLen, 0.022), carbonMat);
+      skirt.position.set(sxSign * (flankX + 0.01), 0.16, kitZ);
       group.add(skirt);
     }
 
@@ -2201,12 +2250,15 @@ export function createCar(colors: CarColors): THREE.Group {
     // rear quarter — and the stripe stops before the quarter so the mark
     // has clean paint to sit on. The roundel is the deliberate exception,
     // interrupting the stripe the way a rally door number does.
+    const [stripeLen, stripeZ] = flankRun(d.beltY - 0.16);
     for (const sign of [-1, 1]) {
       const x = sign * (sideX + 0.008);
       const flipY = sign * (Math.PI / 2);
-      // Beltline stripe: the spine everything else is placed around
-      const st = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.14), stripe);
-      st.position.set(sign * sideX, d.beltY - 0.16, -0.05);
+      // Beltline stripe: the spine everything else is placed around. It
+      // stops at the arches like the panel features do, rather than
+      // running over a wheel opening.
+      const st = new THREE.Mesh(new THREE.PlaneGeometry(stripeLen, 0.14), stripe);
+      st.position.set(sign * sideX, d.beltY - 0.16, stripeZ);
       st.rotation.y = flipY;
       group.add(st);
       // Kuwait flag on the front fender, behind the arch
