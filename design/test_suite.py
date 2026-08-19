@@ -502,6 +502,41 @@ def home_checks(pg):
     S = "home"
     pg.goto(f"{BASE}/index.html", wait_until="networkidle")
     pg.wait_for_timeout(300)
+
+    # The hero's claim, and the drawing that repeats it. The drawing is
+    # decorative — the sentence above it already says the same thing, so it
+    # carries no name a screen reader would have to hear twice — and every
+    # part of it is at full opacity at rest, so a visitor who asks for less
+    # motion is left with the diagram rather than with nothing.
+    check(S, "the hero states what the company builds",
+          "أنظمة كاملة" in pg.inner_text(".hero .lead")
+          and "لا مجرّد مواقع" in pg.inner_text(".hero .lead"))
+    art = pg.evaluate("""() => {
+      const a = document.querySelector('.claimart');
+      if (!a) return null;
+      const parts = [...a.querySelectorAll('rect, path, circle, ellipse')];
+      return {
+        hidden: a.getAttribute('aria-hidden'),
+        named: !!a.querySelector('svg[aria-label], svg title'),
+        parts: parts.length,
+        faded: parts.filter(p => +getComputedStyle(p).opacity < 1).length,
+        flowing: getComputedStyle(a.querySelector('.flow path')).animationName,
+        absolute: getComputedStyle(a).position === 'absolute',
+        overflows: a.getBoundingClientRect().right > innerWidth + 1
+                || a.getBoundingClientRect().left < -1
+      };
+    }""")
+    check(S, "the hero drawing exists", art is not None)
+    check(S, "it is decorative, not a second copy of the sentence",
+          art and art["hidden"] == "true" and not art["named"], str(art))
+    check(S, "nothing in it is left invisible waiting for motion",
+          art and art["faded"] == 0 and art["parts"] >= 12, str(art))
+    check(S, "its current animates when motion is allowed",
+          art and art["flowing"] == "current", str(art))
+    # `.shape` is the hero's floating geometry and is absolutely positioned:
+    # a card class that collided with it once stacked a whole rail in one cell
+    check(S, "the drawing is in the flow, not absolutely positioned",
+          art and not art["absolute"] and not art["overflows"], str(art))
     for heading in ("النوخذة — النظام الموحد", "خدماتنا", "من أعمالنا", "كيف نعمل",
                     "ما نبنيه لعملك",
                     "لماذا المهلب كود", "تواصل معنا", "أتمتة سير العمل",
@@ -533,6 +568,10 @@ def home_checks(pg):
     check(S, "reduced motion stills the animated icons",
           rp2.eval_on_selector("#services .ic .spin",
                                "e=>getComputedStyle(e).animationName") == "none")
+    check(S, "reduced motion stills the hero drawing, and leaves it visible",
+          rp2.eval_on_selector(".claimart .flow path",
+                               "e=>getComputedStyle(e).animationName") == "none"
+          and rp2.eval_on_selector(".claimart", "e=>+getComputedStyle(e).opacity") == 1)
     rm.close()
     # the card sections slide (owner's request 2026-07-30): one scroll-snap
     # rail per section, all cards on one baseline, genuinely scrollable
@@ -600,7 +639,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "547", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "554", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -634,7 +673,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "547", "0", "100%"], str(finals))
+          finals == ["4", "554", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",

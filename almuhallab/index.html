@@ -457,7 +457,8 @@
     .hero .kicker { animation: rise .5s ease both .05s; }
     .hero h1      { animation: rise .5s ease both .14s; }
     .hero .lead   { animation: rise .5s ease both .22s; }
-    .hero .actions{ animation: rise .5s ease both .3s; }
+    .hero .claimart{ animation: rise .5s ease both .27s; }
+    .hero .actions{ animation: rise .5s ease both .34s; }
     .hero .stats  { animation: rise .5s ease both .4s; }
 
     /* the flagship row catches the light once on arrival, then stays still */
@@ -547,6 +548,38 @@
     .hero h1 .en { color: var(--tint); direction: ltr; display: inline-block; unicode-bidi: isolate;
       letter-spacing: -.5px; font-size: .62em; }
     .hero .lead { color: var(--muted); max-width: 620px; margin: 0 auto 16px; font-size: 15.5px; line-height: 1.8; }
+    /* ═══════ the hero claim, drawn ═══════
+       One screen on the reading start, the parts that run the work on the
+       other end, and current flowing between them. Two stroke weights only,
+       the same brown ink as everything else, and nothing here is hidden at
+       rest — the animation adds a travelling pulse and takes nothing away. */
+    .claimart { margin: 0 auto 16px; max-width: 300px; }
+    .claimart svg { width: 100%; height: auto; display: block; overflow: visible; }
+    .claimart .site rect, .claimart .mods rect { fill: #fff; stroke: var(--border); stroke-width: 1.4; }
+    .claimart .site path, .claimart .site circle { fill: var(--border); stroke: none; }
+    .claimart .site path { stroke: var(--border); stroke-width: 1.4; fill: none; stroke-linecap: round; }
+    .claimart .glyph { fill: none; stroke: var(--tint); stroke-width: 1.4;
+      stroke-linecap: round; stroke-linejoin: round; }
+    .claimart .glyph ellipse { fill: none; }
+    .claimart .wires path { fill: none; stroke: var(--border); stroke-width: 1.4; }
+    .claimart .hub { fill: var(--tint); }
+    /* the current: one short dash per wire, crossing it from the site outwards.
+       999 as the gap keeps a single dash on the path whatever its length. */
+    .claimart .flow path { fill: none; stroke: var(--tint); stroke-width: 2.2;
+      stroke-linecap: round; stroke-dasharray: 7 999; stroke-dashoffset: 60; }
+    html.motion .claimart .flow path { animation: current 2.6s linear infinite; }
+    html.motion .claimart .flow path:nth-child(2) { animation-delay: .5s; }
+    html.motion .claimart .flow path:nth-child(3) { animation-delay: .68s; }
+    html.motion .claimart .flow path:nth-child(4) { animation-delay: .86s; }
+    @keyframes current { from { stroke-dashoffset: 60; } to { stroke-dashoffset: -60; } }
+    html.motion .claimart .mods rect { animation: modon 2.6s ease-in-out infinite; }
+    html.motion .claimart .mods rect:nth-child(2) { animation-delay: .18s; }
+    html.motion .claimart .mods rect:nth-child(3) { animation-delay: .36s; }
+    @keyframes modon {
+      0%, 26%, 100% { stroke: var(--border); }
+      34%, 52%      { stroke: var(--tint); }
+    }
+
     .hero .actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
     .hero .actions .btn { will-change: transform; }
 
@@ -929,6 +962,11 @@
       .hero { padding: 24px 0 32px; min-height: 0; }
       h2.section { margin-top: 24px; }
       .hero .lead { font-size: 15px; }
+      /* The hero has no min-height on a phone, so everything in it pushes the
+         scroll cue down. Measured: at 236px the drawing put the cue 28px below
+         a 390×844 fold, which is the one thing the cue must never be. It is
+         sized against the viewport instead, and its margin comes off. */
+      .claimart { max-width: min(236px, 44vw); margin-bottom: 8px; }
       .hero .actions .btn { flex: 1 1 100%; justify-content: center; }
       .stats { gap: 16px; }
       .stat { min-width: 40%; }
@@ -1059,7 +1097,52 @@
       </div>
       <span class="kicker"><svg class="ic sm" aria-hidden="true"><use href="#i-code"/></svg> شركة برمجة كويتية · الكويت</span>
       <h1>نبني حلولاً رقمية قوية<br /><span class="en">We Build Powerful Digital Solutions</span></h1>
-      <p class="lead">أتمتة، تصميم، تطبيقات، وأنظمة تُبنى على مقاسك.</p>
+      <p class="lead">نبني <b>أنظمة كاملة</b>، لا مجرّد مواقع.</p>
+      <!-- The claim, drawn: a site is one screen; a system is that screen
+           wired to the parts that actually run the work — بيانات، جوال،
+           تقارير. Decorative on purpose: the sentence above already says it
+           in words, so the drawing carries no meaning a reader could miss,
+           and it is aria-hidden rather than given a name that would repeat
+           the line above to a screen reader. Standing still it is the same
+           diagram; the motion only sends current down the wires, and the
+           global reduced-motion rule stops it without leaving anything
+           invisible — every part is at full opacity at rest. -->
+      <div class="claimart" aria-hidden="true">
+        <svg viewBox="0 0 190 80">
+          <g class="mods">
+            <rect x="32" y="8"  width="30" height="20" rx="6"/>
+            <rect x="32" y="32" width="30" height="20" rx="6"/>
+            <rect x="32" y="56" width="30" height="20" rx="6"/>
+          </g>
+          <g class="glyph">
+            <ellipse cx="47" cy="14.4" rx="6" ry="2.2"/>
+            <path d="M41 14.4v6.2c0 1.2 2.7 2.2 6 2.2s6-1 6-2.2v-6.2"/>
+            <rect x="42.5" y="35.5" width="9" height="13" rx="2"/>
+            <path d="M45.5 46.5h3"/>
+            <path d="M40.5 70 45 66 49.5 68 54 62"/>
+          </g>
+          <g class="wires">
+            <path id="w0" d="M126 42H96"/>
+            <path id="w1" d="M96 42C82 42 78 18 62 18"/>
+            <path id="w2" d="M96 42H62"/>
+            <path id="w3" d="M96 42C82 42 78 66 62 66"/>
+          </g>
+          <g class="flow">
+            <path d="M126 42H96"/>
+            <path d="M96 42C82 42 78 18 62 18"/>
+            <path d="M96 42H62"/>
+            <path d="M96 42C82 42 78 66 62 66"/>
+          </g>
+          <circle class="hub" cx="96" cy="42" r="3"/>
+          <g class="site">
+            <rect x="126" y="16" width="60" height="52" rx="8"/>
+            <path d="M126 29h60"/>
+            <circle cx="133" cy="22.5" r="1.4"/><circle cx="139" cy="22.5" r="1.4"/>
+            <circle cx="145" cy="22.5" r="1.4"/>
+            <path d="M134 40h44M134 49h30M134 58h38"/>
+          </g>
+        </svg>
+      </div>
       <div class="actions">
         <a class="btn primary" href="#contact" data-magnet>ابدأ مشروعك</a>
         <a class="btn outline" href="#products" data-magnet>شاهد أعمالنا</a>
@@ -1067,7 +1150,7 @@
       <!-- real, verifiable numbers — no invented clients or years -->
       <div class="stats">
         <div class="stat"><b class="num" data-count="4">4</b><span>وحدات في نظام النوخذة</span></div>
-        <div class="stat"><b class="num" data-count="547">547</b><span>فحصاً آلياً قبل كل إصدار</span></div>
+        <div class="stat"><b class="num" data-count="554">554</b><span>فحصاً آلياً قبل كل إصدار</span></div>
         <div class="stat"><b class="num" data-count="0">0</b><span>اعتماديات خارجية</span></div>
         <div class="stat"><b class="num" data-count="100" data-suffix="%">100%</b><span>يعمل دون إنترنت</span></div>
       </div>
