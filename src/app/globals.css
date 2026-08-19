@@ -60,6 +60,22 @@
   --color-night-900: #070b16;
   --color-night-800: #0c1322;
   --color-night-700: #141d31;
+  /* Dark silver — the HUD's own chrome.
+     The instruments used to be cut from the same deep navy as the night
+     behind them, which made the readouts look painted onto the sky
+     rather than fitted to a car, and put white type on a near-black
+     ground — measured off the delivered frame, white on the old panel
+     ran about 19.6:1, the contrast that halates and tires the eye after
+     a few laps. Brushed dark metal is both what these parts would
+     actually be made of and gentler to read: the panel now measures
+     rgb(45,47,49) once the blur and the sheen have had their say, which
+     is 13.4:1 — a third off, and still three times the 4.5:1 legibility
+     floor. Neutral with a hair of cool in it (blue four points above
+     red) so it reads as silver rather than brown or navy. */
+  --color-steel-900: #1c1e21;
+  --color-steel-800: #282a2d;
+  --color-steel-700: #2a2c2f;
+  --color-steel-600: #303337;
   --color-sodium-400: #ffc45c;
   --color-sodium-500: #f5a524;
   --color-gulf-300: #7fe3ff;
@@ -252,9 +268,9 @@ body {
 /* Frosted panel: dark glass, hairline top highlight, soft depth */
 .grn-panel {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)),
-    rgba(7, 11, 22, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)),
+    color-mix(in srgb, var(--color-steel-700) 90%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 0.85rem;
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.12) inset,
@@ -265,7 +281,11 @@ body {
 /* Angled HUD plate with an accent spine on the leading edge */
 .grn-plate {
   position: relative;
-  background: linear-gradient(90deg, rgba(7, 11, 22, 0.88), rgba(7, 11, 22, 0.55));
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-steel-800) 93%, transparent),
+    color-mix(in srgb, var(--color-steel-800) 50%, transparent)
+  );
   border-left: 3px solid var(--color-sodium-500);
   border-radius: 0 0.5rem 0.5rem 0;
   box-shadow: 0 10px 30px -14px rgba(0, 0, 0, 0.95);
@@ -275,9 +295,15 @@ body {
 /* Popup dialogs (defeat, champion) share one dramatic frame */
 .grn-dialog {
   background:
-    radial-gradient(120% 90% at 50% 0%, rgba(56, 201, 238, 0.12), transparent 60%),
-    linear-gradient(180deg, rgba(12, 19, 34, 0.96), rgba(4, 6, 13, 0.97));
-  border: 1px solid rgba(255, 255, 255, 0.16);
+    /* A hint of cyan at the crown, not a wash of it: at 0.12 the whole
+       dialog took a blue cast, which is the thing being moved away from. */
+    radial-gradient(120% 90% at 50% 0%, rgba(56, 201, 238, 0.05), transparent 62%),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-steel-600) 96.5%, transparent),
+      color-mix(in srgb, var(--color-steel-900) 97.5%, transparent)
+    );
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 1.25rem;
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.14) inset,
@@ -288,8 +314,8 @@ body {
 .grn-meter {
   position: relative;
   overflow: hidden;
-  background: rgba(0, 0, 0, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: color-mix(in srgb, var(--color-steel-900) 62%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 0.2rem;
 }
 .grn-meter::after {

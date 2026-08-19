@@ -887,10 +887,10 @@ export default function RaceClient() {
           className="absolute left-1/2 top-4 w-[min(560px,90vw)] -translate-x-1/2 opacity-0 transition-opacity"
         >
           <div className="mb-1.5 flex items-end justify-between">
-            <span className="grn-label text-[0.66rem] text-emerald-300 [text-shadow:0_0_10px_rgba(52,211,153,0.8)]">
+            <span className="grn-label text-[0.66rem] text-emerald-300 [text-shadow:0_0_8px_rgba(52,211,153,0.45)]">
               ▲ SP <span className="grn-ar" lang="ar">أنت</span>
             </span>
-            <span className="grn-label rival-ink text-[0.66rem] text-rose-300 [text-shadow:0_0_10px_rgba(251,113,133,0.8)]">
+            <span className="grn-label rival-ink text-[0.66rem] text-rose-300 [text-shadow:0_0_8px_rgba(251,113,133,0.45)]">
               ▼ Rival SP
             </span>
           </div>
@@ -920,7 +920,7 @@ export default function RaceClient() {
           />
           <div
             ref={flashRef}
-            className="grn-display invisible mt-1.5 flex animate-pulse items-center justify-center gap-2.5 text-lg tracking-[0.14em] text-gulf-300 [text-shadow:0_0_16px_rgba(56,201,238,0.7),0_2px_10px_rgba(0,0,0,0.9)]"
+            className="grn-display invisible mt-1.5 flex animate-pulse items-center justify-center gap-2.5 text-lg tracking-[0.14em] text-gulf-300 [text-shadow:0_0_11px_rgba(56,201,238,0.4),0_2px_10px_rgba(0,0,0,0.9)]"
           >
             <IconFlash size={20} />
             <span>FLASH 3&times; TO CHALLENGE</span>
@@ -936,7 +936,7 @@ export default function RaceClient() {
         <div className="pointer-events-none absolute left-1/2 top-[66%] -translate-x-1/2">
           <div
             ref={driftRef}
-            className="grn-display flex flex-col items-center gap-1.5 text-xl italic tracking-[0.14em] opacity-0 transition-opacity duration-300 [text-shadow:0_0_18px_rgba(56,201,238,0.5),0_2px_10px_rgba(0,0,0,0.9)]"
+            className="grn-display flex flex-col items-center gap-1.5 text-xl italic tracking-[0.14em] opacity-0 transition-opacity duration-300 [text-shadow:0_0_12px_rgba(56,201,238,0.32),0_2px_10px_rgba(0,0,0,0.9)]"
           >
             <span ref={driftTextRef} />
             <span className="drift-meter">
@@ -965,7 +965,7 @@ export default function RaceClient() {
           <div className="flex items-end gap-3.5">
             <span
               ref={speedRef}
-              className="grn-display block text-[3.9rem] italic leading-[0.8] tabular-nums text-white [text-shadow:0_0_24px_rgba(56,201,238,0.35),0_4px_16px_rgba(0,0,0,0.95)]"
+              className="grn-display block text-[3.9rem] italic leading-[0.8] tabular-nums text-[#e6e9ec] [text-shadow:0_0_14px_rgba(56,201,238,0.22),0_3px_12px_rgba(0,0,0,0.9)]"
             >
               0
             </span>
@@ -975,7 +975,7 @@ export default function RaceClient() {
                 <span className="grn-label text-[0.6rem]">Gear</span>
                 <span
                   ref={gearRef}
-                  className="grn-display text-2xl italic leading-none text-sodium-400 [text-shadow:0_0_16px_rgba(245,165,36,0.6)]"
+                  className="grn-display text-2xl italic leading-none text-sodium-400 [text-shadow:0_0_11px_rgba(245,165,36,0.35)]"
                 >
                   N
                 </span>
@@ -1119,8 +1119,8 @@ export default function RaceClient() {
             <div
               className={`grn-display text-6xl italic ${
                 duelResult.won
-                  ? "text-emerald-400 [text-shadow:0_0_30px_rgba(52,211,153,0.8)]"
-                  : "text-rose-500 [text-shadow:0_0_30px_rgba(244,63,94,0.8)]"
+                  ? "text-emerald-400 [text-shadow:0_0_20px_rgba(52,211,153,0.45)]"
+                  : "text-rose-500 [text-shadow:0_0_20px_rgba(244,63,94,0.45)]"
               }`}
             >
               {duelResult.won ? "DUEL WON" : "DUEL LOST"}
@@ -1139,7 +1139,7 @@ export default function RaceClient() {
       {/* Challenge cards — both drivers revealed, rival answers */}
       {challenge && phase === "playing" && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center overflow-y-auto bg-black/70 px-4 py-6">
-          <div className="grn-label text-[0.7rem] tracking-[0.42em] text-gulf-300 [text-shadow:0_0_18px_rgba(56,201,238,0.6)]">
+          <div className="grn-label text-[0.7rem] tracking-[0.42em] text-gulf-300 [text-shadow:0_0_12px_rgba(56,201,238,0.36)]">
             Headlights flashed ×3 — <span className="grn-ar" lang="ar">التحدي</span>
           </div>
           <div className="mt-4 flex w-full max-w-3xl items-stretch justify-center gap-4">
@@ -1274,7 +1274,7 @@ export default function RaceClient() {
               </div>
             ) : challenge.answer.accepted ? (
               <div>
-                <div className="grn-display text-4xl italic text-emerald-400 [text-shadow:0_0_26px_rgba(52,211,153,0.85)]">
+                <div className="grn-display text-4xl italic text-emerald-400 [text-shadow:0_0_18px_rgba(52,211,153,0.5)]">
                   ACCEPTED — <span className="grn-ar" lang="ar">قبل التحدي</span> ✓
                 </div>
                 <div className="grn-label mt-1.5 text-[0.66rem] text-sodium-400">
@@ -1283,7 +1283,7 @@ export default function RaceClient() {
               </div>
             ) : (
               <div>
-                <div className="grn-display text-4xl italic text-rose-500 [text-shadow:0_0_26px_rgba(244,63,94,0.85)]">
+                <div className="grn-display text-4xl italic text-rose-500 [text-shadow:0_0_18px_rgba(244,63,94,0.5)]">
                   REJECTED — <span className="grn-ar" lang="ar">رفض</span> ✕
                 </div>
                 <div className="mt-1.5 text-sm font-semibold text-white/70">
@@ -1299,7 +1299,7 @@ export default function RaceClient() {
       {vsRival && phase === "playing" && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center overflow-hidden bg-black/55">
           <div className="vs-slide-left w-[38%] text-right">
-            <div className="grn-display text-6xl italic text-emerald-300 [text-shadow:0_0_28px_rgba(52,211,153,0.85)] sm:text-7xl">
+            <div className="grn-display text-6xl italic text-emerald-300 [text-shadow:0_0_19px_rgba(52,211,153,0.5)] sm:text-7xl">
               YOU
             </div>
             <div className="grn-ar mt-1 text-xl text-white/75" dir="rtl" lang="ar">
