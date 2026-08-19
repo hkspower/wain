@@ -58,7 +58,7 @@ export default function HomePage() {
             </h2>
             <Link
               href="/explore"
-              className="flex items-center gap-1.5 rounded-full bg-white/95 px-4 py-2 text-sm font-bold text-sea-800 shadow-sm transition hover:bg-white"
+              className="flex min-h-11 items-center gap-1.5 rounded-full bg-white/95 px-4 py-2 text-sm font-bold text-sea-800 shadow-sm transition hover:bg-white"
             >
               شوف الكل
               <IconGo className="size-4" />
@@ -109,7 +109,7 @@ export default function HomePage() {
             </div>
             <Link
               href="/explore"
-              className="group flex items-center gap-1.5 text-sm font-bold text-coral-700 transition hover:text-coral-800"
+              className="group flex min-h-11 items-center gap-1.5 text-sm font-bold text-coral-700 transition hover:text-coral-800"
             >
               شوف الكل
               <IconGo className="size-4 transition group-hover:-translate-x-0.5" />

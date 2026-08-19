@@ -127,7 +127,7 @@ export default function SearchClient() {
             type="button"
             onClick={() => setQ("")}
             aria-label="مسح البحث"
-            className="absolute inset-y-0 end-3 my-auto grid size-8 place-items-center rounded-full text-ink-500 transition hover:bg-sand-200 hover:text-ink-800"
+            className="absolute inset-y-0 end-3 my-auto grid size-11 place-items-center rounded-full text-ink-500 transition hover:bg-sand-200 hover:text-ink-800"
           >
             <IconClose className="size-4" />
           </button>

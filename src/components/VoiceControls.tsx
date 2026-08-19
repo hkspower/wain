@@ -73,7 +73,7 @@ export function SpeakButton({ parts, label }: { parts: SpeechPart[]; label: stri
       type="button"
       onClick={() => (speaking ? stop() : speak(parts))}
       aria-pressed={speaking}
-      className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition ${
+      className={`inline-flex min-h-11 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition ${
         speaking
           ? "bg-coral-600 text-white hover:bg-coral-700"
           : "bg-ink-900 text-white hover:bg-ink-800"
