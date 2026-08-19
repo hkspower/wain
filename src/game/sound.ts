@@ -79,6 +79,10 @@ export class SoundEngine {
   private engFilter: BiquadFilterNode;
   private exhaustGain: GainNode;
   private exhaustFilter: BiquadFilterNode;
+  /** The fitted system's voice, against stock. Set by setExhaust(). */
+  private exPitch = 1;
+  private exRasp = 1;
+  private exLoud = 1;
   private windGain: GainNode;
   private windFilter: BiquadFilterNode;
   private skidGain: GainNode;
@@ -463,6 +467,48 @@ export class SoundEngine {
   }
 
   /** Turbo blow-off — the psshh on throttle lift at boost. */
+  /**
+   * Fit an exhaust system.
+   *
+   * Until now the catalogue sold a "deeper voice" that no code read: the
+   * tune carried an exhaustLevel nobody consumed, so every car sounded
+   * identical whatever was bolted to the back of it.
+   */
+  setExhaust(pitch: number, rasp: number, loud: number): void {
+    this.exPitch = pitch;
+    this.exRasp = rasp;
+    this.exLoud = loud;
+  }
+
+  /**
+   * The crack on a hard lift.
+   *
+   * Unburnt fuel lighting in a hot pipe: a sharp low thump with a spit of
+   * high noise over it. The flame has been drawn at the tips for a while
+   * with nothing to hear, which is the one thing a straight pipe is
+   * bought for. `strength` is the system's pop, 1 stock to about 2.4.
+   */
+  backfire(strength = 1): void {
+    if (this.ctx.state !== "running") return;
+    const s = Math.min(2.6, Math.max(0.5, strength));
+    if (this.playSample("backfire", 0.5 * s)) return;
+    const t = this.ctx.currentTime;
+    // The thump: a short body resonance falling as the pressure leaves.
+    const osc = this.ctx.createOscillator();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(150 * (1 + (s - 1) * 0.12), t);
+    osc.frequency.exponentialRampToValueAtTime(46, t + 0.11);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.16 * s, t);
+    g.gain.exponentialRampToValueAtTime(0.0008, t + 0.16);
+    osc.connect(g).connect(this.sfx);
+    osc.start(t);
+    osc.stop(t + 0.18);
+    // The spit over the top: bigger systems crack harder and brighter.
+    this.oneShotNoise("highpass", 1500 + s * 700, 0.07 * s, 0.07 + s * 0.02);
+    this.oneShotNoise("bandpass", 420, 0.05 * s, 0.12, 3);
+  }
+
   blowOff(): void {
     if (this.playSample("blowoff")) return;
     this.oneShotNoise("bandpass", 1500, 0.22, 0.35, 3);
@@ -619,8 +665,15 @@ export class SoundEngine {
       limited > 0 ? 0.012 : 0.05
     );
 
-    this.exhaustFilter.frequency.setTargetAtTime(140 + rpm * 260, t, 0.05);
-    this.exhaustGain.gain.setTargetAtTime(throttle * 0.05 + rpm * 0.01, t, 0.06);
+    // The fitted system colours all three: where the band sits, how
+    // resonant it is, and how much of it reaches the bed.
+    this.exhaustFilter.frequency.setTargetAtTime((140 + rpm * 260) * this.exPitch, t, 0.05);
+    this.exhaustFilter.Q.setTargetAtTime(1.2 * this.exRasp, t, 0.09);
+    this.exhaustGain.gain.setTargetAtTime(
+      (throttle * 0.05 + rpm * 0.01) * this.exLoud,
+      t,
+      0.06
+    );
 
     // Induction growl: load × revs. Attacks fast and decays slower, so
     // stabbing the throttle barks and lifting off falls away naturally.

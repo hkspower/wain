@@ -229,6 +229,78 @@ console.log(`Drift tires  drift angle ${(slickDrift.peak * 57.3).toFixed(0)}° o
 check(!slickDrift.spun && !driftDrift.spun,
   "a slide held on measured lock spun anyway — the angles above are spins, not drift angles");
 
+// 8. Exhaust systems — audible, visible, and each tier its own thing
+//
+// The old catalogue sold "+7% power, deeper voice" and carried an
+// exhaustLevel that nothing in the codebase read, so the voice half of
+// that sentence was never true. Every field is checked against something
+// that consumes it.
+const exhaustOf = (equipped) =>
+  page.evaluate(async (eq) => {
+    localStorage.setItem("gulf-road-nights-garage", JSON.stringify({
+      car: "wain-special", cars: ["wain-special"], owned: Object.values(eq), kd: 99999,
+      equipped: { paint: "paint-white", glow: "glow-none", ...eq },
+    }));
+    const e = window.__grnEngine;
+    e.applyGarage();
+    await new Promise((r) => setTimeout(r, 120));
+    const tips = e.carBody.userData.exhaustTips ?? [];
+    // The tip finish, read off the material the pipes were actually built
+    // with rather than off the spec that asked for it.
+    let finish = null;
+    let pipes = 0;
+    e.carBody.traverse((o) => {
+      if (!o.isMesh || !o.userData.exhaustPipe) return;
+      pipes++;
+      finish = o.material.color.getHexString();
+    });
+    return {
+      spec: e.tune.exhaust,
+      power: e.tune.accelMult,
+      tips: tips.length,
+      // Backfire is born at the tips; both must sit behind the tail.
+      tipZ: tips.length ? +Math.min(...tips.map((t) => t.z)).toFixed(2) : null,
+      finish,
+      pipes,
+    };
+  }, equipped);
+
+await strip();
+const exStock = await exhaustOf({});
+await strip();
+const exSport = await exhaustOf({ exhaust: "exhaust" });
+await strip();
+const exRace = await exhaustOf({ exhaust: "exhaust-race" });
+await strip();
+const exTi = await exhaustOf({ exhaust: "exhaust-ti" });
+
+console.log(`Exhaust      stock ${exStock.tips} tips  ->  sport ${exSport.tips}  race ${exRace.tips}  titanium ${exTi.tips}`);
+console.log(`             power ${exStock.power.toFixed(2)} -> ${exSport.power.toFixed(2)} -> ${exRace.power.toFixed(2)} -> ${exTi.power.toFixed(2)}`);
+console.log(`             voice pitch ${exStock.spec.pitch} -> ${exSport.spec.pitch} -> ${exRace.spec.pitch}, rasp ${exStock.spec.rasp} -> ${exTi.spec.rasp}`);
+console.log(`             tip finish ${exStock.finish} / ${exSport.finish} / ${exRace.finish} / ${exTi.finish}`);
+check(exSport.power > exStock.power && exRace.power > exSport.power && exTi.power > exRace.power,
+  "the exhaust tiers do not step on power");
+check(exSport.spec.pitch < 1 && exRace.spec.pitch < exSport.spec.pitch,
+  "the aftermarket systems are no deeper than the factory one");
+check(exTi.spec.rasp > exRace.spec.rasp, "the titanium system is not the raspiest");
+check(exRace.spec.pop > exSport.spec.pop && exSport.spec.pop > exStock.spec.pop,
+  "the systems do not bark progressively harder");
+check(exTi.tips === 4, `the titanium quad has ${exTi.tips} tips`);
+const finishes = [exStock.finish, exSport.finish, exRace.finish, exTi.finish];
+check(finishes.every((f) => typeof f === "string"),
+  `a tier built no exhaust pipes at all: ${JSON.stringify(finishes)}`);
+check(new Set(finishes).size >= 3, `the tips only come in ${new Set(finishes).size} finishes`);
+check(exStock.pipes === exStock.tips && exTi.pipes === exTi.tips,
+  `pipes built (${exStock.pipes}/${exTi.pipes}) do not match the flame anchors (${exStock.tips}/${exTi.tips})`);
+// The flame comes out of the pipe, not the boot floor: the anchors used
+// to be hardcoded at z -2.08 while the tail sits at -2.4.
+for (const [name, r] of [["stock", exStock], ["sport", exSport], ["race", exRace], ["titanium", exTi]]) {
+  check(r.tips > 0 && r.tipZ < -2.3,
+    `${name} backfire spawns at z ${r.tipZ}, which is inside the car`);
+}
+console.log(`             flame origin z ${exStock.tipZ} / ${exSport.tipZ} / ${exRace.tipZ} / ${exTi.tipZ}  ` +
+  check(true, ""));
+
 // 6/7. Gearboxes — opposite ends of the same road
 await strip(FAST);
 const closeBox = await measure(["x"], { gearbox: "gearbox-close" }, "rollOn");

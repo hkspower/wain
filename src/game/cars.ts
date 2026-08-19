@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { EXHAUSTS, type ExhaustSpec } from "./mods";
 import { upgradeCarShells, upgradeWheels, upgradeDriver } from "./models";
 import { arabicUI, latinDisplay } from "./text";
 import { kuwaitiDriver } from "./characters";
@@ -26,6 +27,8 @@ export interface CarColors {
   simple?: boolean;
   /** GT wing on the trunk (garage mod). */
   spoiler?: boolean;
+  /** The fitted exhaust system: sets the tips and where flame comes out. */
+  exhaust?: ExhaustSpec;
   /** Gold rims (garage mod). */
   goldRims?: boolean;
   /** Full time-attack aero: swan-neck wing, splitter, canards, vented
@@ -664,6 +667,19 @@ rimGeo.rotateZ(Math.PI / 2);
 const hubGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.29, 8);
 hubGeo.rotateZ(Math.PI / 2);
 const spokeGeo = roundedBox(0.27, 0.3, 0.06, 0.018);
+/** Ceramic-coated race tip: matte black, soot-dulled. */
+const ceramicTipMat = new THREE.MeshStandardMaterial({
+  color: 0x1a1a1c,
+  roughness: 0.62,
+  metalness: 0.35,
+});
+/** Titanium, burnt blue-violet at the tip the way heat leaves it. */
+const titaniumTipMat = new THREE.MeshStandardMaterial({
+  color: 0x6b7ea8,
+  roughness: 0.3,
+  metalness: 0.95,
+  envMapIntensity: 1.4,
+});
 const rimMat = new THREE.MeshStandardMaterial({
   color: 0xc8cdd4,
   roughness: 0.2,
@@ -1329,35 +1345,67 @@ export function createCar(colors: CarColors): THREE.Group {
     plate.position.set(0, 0.38, z);
     group.add(plate);
   }
-  if (style === "gtr") {
-    // Big single bore each side — the R34 exhausts announce themselves
-    for (const sx of [-0.55, 0.55]) {
-      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, 0.22, 12), chromeLocal);
-      pipe.rotation.x = Math.PI / 2;
-      pipe.position.set(sx, 0.26, d.tail + 0.02);
-      group.add(pipe);
+  // --- Exhaust.
+  //
+  // Stock keeps whatever arrangement the body style was drawn with — the
+  // R34's big bores, the FD's single rotary can, the Z's pair on the left.
+  // An aftermarket system replaces all of that with its own, because a
+  // system you can hear and not see is half a purchase.
+  //
+  // The tips also decide where the backfire comes from. That used to be a
+  // hardcoded pair at x +-0.34, z -2.08 — which is not where any of these
+  // styles put a pipe, and 30 cm forward of the bumper besides, so the
+  // flame lit up underneath the boot floor.
+  {
+    const ex = colors.exhaust ?? EXHAUSTS.stock;
+    let xs: number[];
+    let r: number;
+    let len: number;
+    let y: number;
+    let mat: THREE.Material;
+    if (ex.id !== "stock") {
+      xs =
+        ex.tips === 4
+          ? [-0.64, -0.42, 0.42, 0.64]
+          : ex.tips === 1
+            ? [-0.5]
+            : [-0.5, 0.5];
+      r = ex.bore;
+      len = 0.24;
+      y = 0.26;
+      mat =
+        ex.finish === "chrome"
+          ? chromeLocal
+          : ex.finish === "ceramic"
+            ? ceramicTipMat
+            : ex.finish === "titanium"
+              ? titaniumTipMat
+              : grilleMat;
+    } else if (style === "gtr") {
+      xs = [-0.55, 0.55]; r = 0.08; len = 0.22; y = 0.26; mat = chromeLocal;
+    } else if (style === "rx7") {
+      xs = [-0.5]; r = 0.09; len = 0.24; y = 0.26; mat = chromeLocal;
+    } else if (style === "zx") {
+      xs = [-0.55, -0.36]; r = 0.057; len = 0.2; y = 0.25; mat = chromeLocal;
+    } else {
+      xs = [-0.45, 0.45]; r = 0.052; len = 0.18; y = 0.27; mat = grilleMat;
     }
-  } else if (style === "rx7") {
-    // One big rotary can on the left — the FD announcement
-    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.095, 0.24, 14), chromeLocal);
-    pipe.rotation.x = Math.PI / 2;
-    pipe.position.set(-0.5, 0.26, d.tail + 0.02);
-    group.add(pipe);
-  } else if (style === "zx") {
-    // Twin round tips together on the left, Z-style
-    for (const sx of [-0.55, -0.36]) {
-      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 0.2, 10), chromeLocal);
+    const z = d.tail + 0.02;
+    const origins: THREE.Vector3[] = [];
+    for (const sx of xs) {
+      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.1, len, 14), mat);
       pipe.rotation.x = Math.PI / 2;
-      pipe.position.set(sx, 0.25, d.tail + 0.02);
+      pipe.position.set(sx, y, z);
+      // Tagged so the mod test can read the finish off the mesh that was
+      // actually built, rather than fishing for a cylinder of the right
+      // height — which missed the stock pipes entirely and reported their
+      // finish as null.
+      pipe.userData.exhaustPipe = true;
       group.add(pipe);
+      // Just outside the exit face, which is the tail-most end of the pipe.
+      origins.push(new THREE.Vector3(sx, y, z - len / 2 - 0.04));
     }
-  } else {
-    for (const sx of [-0.45, 0.45]) {
-      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.055, 0.18, 10), grilleMat);
-      pipe.rotation.x = Math.PI / 2;
-      pipe.position.set(sx, 0.27, d.tail + 0.01);
-      group.add(pipe);
-    }
+    group.userData.exhaustTips = origins;
   }
 
   // --- Roof furniture: a glass sunroof inset, slim side rails along the
@@ -1628,11 +1676,8 @@ export function createCar(colors: CarColors): THREE.Group {
     const muffler = new THREE.Mesh(roundedBox(1.0, 0.1, 0.3, 0.03), grilleMat);
     muffler.position.set(0, 0.23, -1.92);
     group.add(muffler);
-    // Where backfire and nitrous flames are born, in car-local space
-    group.userData.exhaust = [
-      new THREE.Vector3(-0.34, 0.23, -2.08),
-      new THREE.Vector3(0.34, 0.23, -2.08),
-    ];
+    // Where backfire and nitrous flames are born, in car-local space:
+    // the tips themselves, recorded when they were built.
 
     // Fuel filler door on the right rear quarter
     const filler = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.012, 12), bodyMat);

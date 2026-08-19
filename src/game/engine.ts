@@ -807,6 +807,7 @@ export class GameEngine {
       raceKit: this.tune.raceKit,
       stickers: this.tune.stickers,
       stickerNumber: this.stickerNumber(),
+      exhaust: this.tune.exhaust,
     }));
     this.playerMesh = new THREE.Group();
     this.playerMesh.add(this.carBody);
@@ -918,6 +919,13 @@ export class GameEngine {
       this.sound = new SoundEngine();
       this.sound.configureAspiration(
         this.tune.aspiration === "super" ? "super" : this.tune.boostMult > 0 ? "turbo" : "none"
+      );
+      // The system that is already bolted on when the engine first fires,
+      // not only the one fitted later in the garage.
+      this.sound.setExhaust(
+        this.tune.exhaust.pitch,
+        this.tune.exhaust.rasp,
+        this.tune.exhaust.loud
       );
       this.sound.revStart();
       this.music = new Music(this.sound.audioContext);
@@ -2008,6 +2016,7 @@ export class GameEngine {
         raceKit: this.tune.raceKit,
         stickers: this.tune.stickers,
         stickerNumber: this.stickerNumber(),
+        exhaust: this.tune.exhaust,
       })
     );
     this.playerMesh.add(this.carBody);
@@ -2016,6 +2025,8 @@ export class GameEngine {
     this.sound?.configureAspiration(
       this.tune.aspiration === "super" ? "super" : this.tune.boostMult > 0 ? "turbo" : "none"
     );
+    const ex = this.tune.exhaust;
+    this.sound?.setExhaust(ex.pitch, ex.rasp, ex.loud);
   }
 
   /**
@@ -3318,15 +3329,21 @@ export class GameEngine {
     // --- Exhaust. A backfire is unburnt fuel lighting in the pipe on a
     // hard lift, so it fires on the throttle's falling edge at revs; the
     // nitrous flame burns continuously while the bottle is open.
-    if (!this.cine && this.carBody.userData.exhaust) {
-      const tips = this.carBody.userData.exhaust as THREE.Vector3[];
+    if (!this.cine && this.carBody.userData.exhaustTips) {
+      const tips = this.carBody.userData.exhaustTips as THREE.Vector3[];
+      const pop = this.tune.exhaust.pop;
       const lift = this.lastThrottleFx - this.throttle;
       // A hard lift at revs always pops — the randomness belongs in how
       // big the flame is, not in whether the car has an exhaust.
       const backfire = lift > 0.4 && this.player.speed > 14;
       const nos = this.nosActive;
+      if (backfire && this.sound) this.sound.backfire(pop);
       if (backfire || nos) {
-        const n = nos ? 2 : 3 + Math.floor(Math.random() * 4);
+        // A straight pipe throws a bigger flame than a cat-back, and both
+        // throw more than the factory system.
+        const n = nos
+          ? 2
+          : Math.round((3 + Math.random() * 4) * (0.6 + pop * 0.45));
         for (const tip of tips) {
           // The anchor is car-local; carBody carries the presence scale
           // and the drift yaw, so ask it for the world position.
@@ -3341,7 +3358,9 @@ export class GameEngine {
               this.v3.x * back + (Math.random() - 0.5) * 1.2,
               0.4 + Math.random() * 0.8,
               this.v3.z * back + (Math.random() - 0.5) * 1.2,
-              nos ? 0.14 + Math.random() * 0.08 : 0.16 + Math.random() * 0.12,
+              nos
+                ? 0.14 + Math.random() * 0.08
+                : (0.16 + Math.random() * 0.12) * (0.8 + pop * 0.22),
               nos ? 0.22 : 0.3
             );
           }

@@ -34,6 +34,7 @@ type Tab = "showroom" | "performance" | "style";
 const PERFORMANCE_CATS: Array<{ cat: string; label: string }> = [
   { cat: "aspiration", label: "ENGINE — TURBO & SUPERCHARGER · المكينة" },
   { cat: "internals", label: "INTERNALS · القطع الداخلية" },
+  { cat: "exhaust", label: "EXHAUST · الدبة" },
   { cat: "brakes", label: "BRAKES · البريكات" },
   { cat: "tires", label: "TIRES · التواير" },
   { cat: "gearbox", label: "GEARBOX · القير" },

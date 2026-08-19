@@ -5,6 +5,7 @@
 export type ExclusiveCat =
   | "aspiration"
   | "brakes"
+  | "exhaust"
   | "tires"
   | "gearbox"
   | "paint"
@@ -15,6 +16,7 @@ export type Category = ExclusiveCat | "internals" | "chassis" | "extras";
 export const EXCLUSIVE_CATS: ReadonlySet<string> = new Set([
   "aspiration",
   "brakes",
+  "exhaust",
   "tires",
   "gearbox",
   "paint",
@@ -37,7 +39,11 @@ export const PARTS: Part[] = [
   { id: "twin-turbo", cat: "aspiration", name: "Twin Turbo", ar: "تيربو مزدوج", price: 2800, desc: "+45% on full boost, fast spool, +40 km/h governor" },
   // Internals — additive, always active once owned
   { id: "ecu", cat: "internals", name: "ECU Tune", ar: "برمجة", price: 400, desc: "+8% power" },
-  { id: "exhaust", cat: "internals", name: "Race Exhaust", ar: "دبة رياضية", price: 350, desc: "+7% power, deeper voice" },
+  // Exhaust — exclusive tiers. Every one of them is audible before it is
+  // visible, which is the point of buying one.
+  { id: "exhaust", cat: "exhaust", name: "Sport Cat-Back", ar: "دبة رياضية", price: 350, desc: "+7% power. Drops the voice and lets it bark on a lift" },
+  { id: "exhaust-race", cat: "exhaust", name: "Race Straight-Pipe", ar: "دبة سباق", price: 900, desc: "+11% power. No silencer left: raw, loud, and it spits flame" },
+  { id: "exhaust-ti", cat: "exhaust", name: "Titanium Quad", ar: "دبة تيتانيوم", price: 1800, desc: "+14% power. Four burnt-blue tips and a hard metallic rasp" },
   { id: "intake", cat: "internals", name: "Cold Intake", ar: "فلتر مفتوح", price: 250, desc: "+5% power" },
   // Brakes — exclusive tiers
   { id: "brakes-sport", cat: "brakes", name: "Sport Brakes", ar: "بريك رياضي", price: 500, desc: "Braking 26 → 32" },
@@ -75,6 +81,46 @@ export const PARTS: Part[] = [
   { id: "glow-green", cat: "glow", name: "Green Glow", ar: "أخضر", price: 200, desc: "" },
   { id: "glow-purple", cat: "glow", name: "Purple Glow", ar: "بنفسجي", price: 200, desc: "" },
 ];
+
+/**
+ * An exhaust system, as the car and the ear see it.
+ *
+ * Every field here is consumed somewhere: `tips`/`bore`/`finish` by the
+ * geometry in cars.ts, `pitch`/`rasp`/`loud` by the exhaust voice in
+ * sound.ts, `pop` by the backfire — its crack and the size of the flame.
+ * The old build had a single `exhaustLevel: 0 | 1` that nothing read at
+ * all, so the part that advertised "+7% power, deeper voice" delivered
+ * the power and none of the voice.
+ */
+export interface ExhaustSpec {
+  id: "stock" | "sport" | "race" | "titanium";
+  /** Tips out the back, and how wide each bore is in metres. */
+  tips: number;
+  bore: number;
+  finish: "steel" | "chrome" | "ceramic" | "titanium";
+  /** Multiplier on the exhaust band's centre frequency. Under one is a
+   *  deeper car; a straight pipe drops further than a cat-back can. */
+  pitch: number;
+  /** Resonance and level of the rasp, against stock. */
+  rasp: number;
+  loud: number;
+  /** How hard it barks on a lift: the crack, and the flame with it. */
+  pop: number;
+  /** Power, as a fraction added to the accel multiplier. */
+  power: number;
+}
+
+export const EXHAUSTS: Record<string, ExhaustSpec> = {
+  stock: { id: "stock", tips: 2, bore: 0.05, finish: "steel", pitch: 1, rasp: 1, loud: 1, pop: 1, power: 0 },
+  // A cat-back keeps the catalyst and the silencer: deeper and louder,
+  // still civil.
+  exhaust: { id: "sport", tips: 2, bore: 0.068, finish: "chrome", pitch: 0.88, rasp: 1.35, loud: 1.3, pop: 1.45, power: 0.07 },
+  // Nothing left in the pipe to quieten it. Biggest bore, hardest bark.
+  "exhaust-race": { id: "race", tips: 2, bore: 0.09, finish: "ceramic", pitch: 0.76, rasp: 1.9, loud: 1.7, pop: 2.2, power: 0.11 },
+  // Four thin-wall tips. Lighter than the race system and higher-strung
+  // with it — the rasp is metallic rather than deep.
+  "exhaust-ti": { id: "titanium", tips: 4, bore: 0.058, finish: "titanium", pitch: 0.86, rasp: 2.3, loud: 1.75, pop: 2.4, power: 0.14 },
+};
 
 export const PAINT_COLORS: Record<string, number> = {
   "paint-white": 0xf2f4f7,
@@ -342,6 +388,13 @@ export function loadGarage(): GarageState {
       const g = JSON.parse(raw) as GarageState;
       if (typeof g.kd === "number" && Array.isArray(g.owned)) {
         g.equipped = g.equipped ?? {};
+        // The exhaust used to be an always-on internals part; it is an
+        // exclusive slot now. A player who bought the old one keeps it,
+        // fitted, rather than finding their car quiet and their money
+        // gone.
+        if (g.owned.includes("exhaust") && !g.equipped.exhaust) {
+          g.equipped.exhaust = "exhaust";
+        }
         // Saves from before the dealership existed start in the freebie
         if (!Array.isArray(g.cars) || g.cars.length === 0) g.cars = ["wain-special"];
         if (!g.car || !g.cars.includes(g.car)) g.car = g.cars[0];
@@ -408,7 +461,8 @@ export interface TuneEffects {
   raceKit: boolean;
   /** Rally livery: roundels, stripes, hood decal, quarter flags. */
   stickers: boolean;
-  exhaustLevel: number; // 0..1 sound character
+  /** The fitted system — geometry, voice and bark in one object. */
+  exhaust: ExhaustSpec;
   paint: number;
   glow: number | null;
   bodyStyle: "sedan" | "zx" | "gtr" | "rx7";
@@ -421,7 +475,8 @@ export function computeEffects(g: GarageState): TuneEffects {
 
   let accelMult = car.power;
   if (has("ecu")) accelMult += 0.08;
-  if (has("exhaust")) accelMult += 0.07;
+  const exhaust = EXHAUSTS[eq.exhaust ?? ""] ?? EXHAUSTS.stock;
+  accelMult += exhaust.power;
   if (has("intake")) accelMult += 0.05;
   if (has("weight")) accelMult += 0.1;
 
@@ -511,7 +566,7 @@ export function computeEffects(g: GarageState): TuneEffects {
     goldRims: has("gold-rims"),
     raceKit: car.kit === "attack",
     stickers: has("stickers"),
-    exhaustLevel: has("exhaust") ? 1 : 0,
+    exhaust,
     // An explicitly bought paint wins; otherwise the car's factory colour
     paint:
       eq.paint && eq.paint !== "paint-white"
