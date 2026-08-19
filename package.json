@@ -2,7 +2,7 @@
   "name": "wain",
   "version": "1.0.0",
   "private": true,
-  "description": "Wain (\u0648\u064a\u0646) \u2014 Discover where to go in Kuwait. A modern place-discovery app.",
+  "description": "Wain (وين) — Discover where to go in Kuwait. A modern place-discovery app.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -38,7 +38,8 @@
     "test:daynight": "node tests/daynight.mjs",
     "test:ik": "node tests/ik.mjs",
     "test:menu": "node tests/menu.mjs",
-    "test:grade": "node tests/grade.mjs"
+    "test:grade": "node tests/grade.mjs",
+    "test:streets": "node tests/streets.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",

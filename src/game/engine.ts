@@ -6,7 +6,7 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U } from "./track";
-import { buildWorld, areaAt, WorldHandle } from "./world";
+import { buildWorld, areaAt, STREETS, WorldHandle } from "./world";
 import { createCar } from "./cars";
 import { RIVALS, RivalDef } from "./rivals";
 import { VoiceBox } from "./voice";
@@ -3555,6 +3555,13 @@ export class GameEngine {
     // scripted play-tests can stage situations the sim reaches slowly.
     (window as unknown as { __grnEngine: GameEngine }).__grnEngine = this;
     (window as unknown as { __grnGpu: string }).__grnGpu = this.gpuName();
+    // THREE itself and the layout constants, so a test can raycast the
+    // world it is looking at rather than re-derive where things ought to
+    // be — the street-network test walks the city with these.
+    (window as unknown as { __grnThree: typeof THREE }).__grnThree = THREE;
+    (window as unknown as { __grnStreets: typeof STREETS }).__grnStreets = STREETS;
+    (window as unknown as { __grnCoastU: typeof COAST_U }).__grnCoastU = COAST_U;
+    (window as unknown as { __grnRoadHalf: number }).__grnRoadHalf = ROAD_HALF_WIDTH;
     (window as unknown as { __grnDebug: object }).__grnDebug = {
       playerSpeed: this.player.speed,
       playerLat: this.player.lat,

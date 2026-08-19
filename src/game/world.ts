@@ -42,6 +42,34 @@ function palmCrownGeometry(): THREE.BufferGeometry {
 // and the Ras Al-Ard light — with the city skyline and water towers on
 // the inland return leg.
 
+/**
+ * The city's street grid.
+ *
+ * The whole network is laid out in ROAD SPACE — `s` along the lap, `lat`
+ * across it — and mapped into the world through `track.pose()`. That is
+ * what makes it a network rather than a set of separate roads: an avenue
+ * is a line of constant `lat`, a cross street is a line of constant `s`,
+ * so the two meet at every crossing BY CONSTRUCTION instead of being
+ * placed near each other and hoping. It also means the grid follows the
+ * corniche around every bend for nothing, the way a real coastal city's
+ * blocks do — the blocks nearest the water are the ones that bend.
+ */
+export const STREETS = {
+  /** Half-width of a side street. Two lanes and a bit of shoulder. */
+  half: 5,
+  /** Avenues parallel to the highway, at these distances from its
+   *  centreline. The first clears the shoulder, the lamps and the
+   *  guardrail; the spacing after that is a city block deep. */
+  avenues: [30, 74, 126, 188],
+  /** A cross street every this many metres of lap — one city block long. */
+  crossEvery: 118,
+  /** Streets sit under the highway surface (0.02) so the junction reads
+   *  as the highway crossing them, and cross streets sit a hair above
+   *  the avenues so the two do not z-fight where they meet. */
+  yAvenue: 0.014,
+  yCross: 0.016,
+};
+
 // Districts in lap order: down the coast, around the point, back inland.
 export const AREAS = [
   { name: "Sharq", arabic: "شرق" },
@@ -1430,7 +1458,107 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     roadMat
   );
   road.receiveShadow = true;
+  // Named so the street-network test can ask what a downward ray landed
+  // on: pavement you can trace from the highway to any block, or a gap.
+  road.name = "road";
   scene.add(road);
+
+  // ------------------------------------------------- the street network
+  //
+  // Avenues running with the highway, cross streets running out from it,
+  // joined at every intersection. See STREETS at the top of this file for
+  // why building it in road space is what makes it connect.
+  //
+  // Which side of the highway has city on it changes around the lap: the
+  // Gulf is on the left of the whole coastal leg, so out there the grid
+  // is one-sided and the seaward blocks are water. Everywhere else the
+  // city is on both sides.
+  {
+    const streetMat = roadMat.clone();
+    // The same asphalt, read a step down from the highway so the route
+    // you are actually racing stays the brightest line in the scene.
+    streetMat.color = new THREE.Color(0xb4b4b4);
+    const parts: THREE.BufferGeometry[] = [];
+    const outer = STREETS.avenues[STREETS.avenues.length - 1];
+
+    // Avenues. The inland side runs the whole lap; the seaward side only
+    // exists once the coast is behind us.
+    for (const d of STREETS.avenues) {
+      parts.push(
+        buildRibbon(track, d - STREETS.half, d + STREETS.half, STREETS.yAvenue, 10)
+      );
+      parts.push(
+        buildRibbon(
+          track,
+          -(d + STREETS.half),
+          -(d - STREETS.half),
+          STREETS.yAvenue,
+          10,
+          COAST_U.to,
+          1
+        )
+      );
+    }
+
+    // Cross streets: a straight run from the highway's edge out past the
+    // last avenue, perpendicular to the road at that point. Because the
+    // avenue's centre at this same `s` is exactly `pose(s, d)`, and this
+    // strip passes through every `lat` on its way out, it crosses each
+    // avenue precisely on the avenue.
+    const cp = new THREE.Vector3();
+    const cside = new THREE.Vector3();
+    const ctan = new THREE.Vector3();
+    const crossQuad = (s: number, latA: number, latB: number) => {
+      track.pointAt(s, cp);
+      track.sideAt(s, cside);
+      track.tangentAt(s, ctan);
+      const pos = new Float32Array(12);
+      const uv = new Float32Array(8);
+      let i = 0;
+      for (const lat of [latA, latB]) {
+        for (const along of [-STREETS.half, STREETS.half]) {
+          pos[i * 3] = cp.x + cside.x * lat + ctan.x * along;
+          pos[i * 3 + 1] = STREETS.yCross;
+          pos[i * 3 + 2] = cp.z + cside.z * lat + ctan.z * along;
+          uv[i * 2] = along > 0 ? 1 : 0;
+          uv[i * 2 + 1] = lat / 14;
+          i++;
+        }
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+      // Wound to face UP. The obvious vertex order here produces a
+      // downward normal — `side` is tangent x UP, which makes (lat,
+      // along) a left-handed pair — and a ground quad facing down is
+      // backface-culled: the cross streets were not merely untested,
+      // they were not being drawn at all.
+      g.setIndex([0, 2, 1, 1, 2, 3]);
+      g.computeVertexNormals();
+      return g;
+    };
+
+    const crossCount = Math.round(L / STREETS.crossEvery);
+    for (let i = 0; i < crossCount; i++) {
+      // Spaced by an exact division of the lap so the last block closes
+      // onto the first instead of leaving a short stub at the seam.
+      const s = (i / crossCount) * L;
+      const u = track.wrap(s) / L;
+      const onCoast = u >= COAST_U.from && u <= COAST_U.to;
+      // Start at the highway's own edge, which is wider at the plaza.
+      const edge = track.halfWidthAt(s);
+      parts.push(crossQuad(s, edge, outer + STREETS.half));
+      if (!onCoast) parts.push(crossQuad(s, -(outer + STREETS.half), -edge));
+    }
+
+    // One mesh for the entire network: ~70 pieces would otherwise be ~70
+    // draw calls for a few thousand triangles of flat ground.
+    const streets = new THREE.Mesh(mergeGeometries(parts)!, streetMat);
+    streets.name = "streets";
+    streets.receiveShadow = true;
+    scene.add(streets);
+    for (const g of parts) g.dispose();
+  }
 
   // The Sharq plaza island's mosaic face — declared here beside the road
   // material because both register with the texture manifest below, and
@@ -1713,30 +1841,78 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const q = new THREE.Quaternion();
     const scale = new THREE.Vector3();
     const tint = new THREE.Color();
+    /** Instances actually written — see the skip below. */
+    let placed = 0;
     // Facade variety: concrete grey to warm beige to blue glass
     const palette = [0x8a8f99, 0x9c937e, 0x7c828e, 0x6e7686, 0xa39a85];
+    // The blocks the street grid cuts the city into.
+    //
+    // Each entry is the band of `lat` between one street's far kerb and
+    // the next street's near kerb — the buildable depth of a block. The
+    // last one is the deep skyline beyond the outermost avenue, which is
+    // scenery rather than street frontage.
+    const rings: Array<[number, number]> = [];
+    {
+      let prev = ROAD_HALF_WIDTH + 4; // clear of the shoulder and the lamps
+      for (const d of STREETS.avenues) {
+        rings.push([prev, d - STREETS.half]);
+        prev = d + STREETS.half;
+      }
+      rings.push([prev, prev + 130]);
+    }
+    const crossCount = Math.round(L / STREETS.crossEvery);
+    const blockLen = L / crossCount;
+
     for (let i = 0; i < count; i++) {
-      const s = Math.random() * L;
+      // Pick a block: which segment between cross streets, and which
+      // band between avenues. Buildings used to be dropped at a random
+      // distance out and spun to a random angle, which is why the city
+      // read as scattered boxes — several of them standing inside each
+      // other, none of them facing anything.
+      const blockIndex = Math.floor(Math.random() * crossCount);
+      const [lo, hi] = rings[Math.floor(Math.random() * rings.length)];
+      const depth = Math.min(hi - lo - 5, 12 + Math.random() * 20);
+      const width = 12 + Math.random() * 20;
+      // Along the block, clear of the cross street at either end.
+      const room = blockLen - 2 * STREETS.half - width;
+      // A band too thin to build in, or a footprint too long for the
+      // block. Skipping has to advance a WRITE cursor rather than the
+      // loop counter: an instance whose matrix is never set keeps the
+      // identity, which is a 1 m cube sitting at the world origin.
+      if (depth < 6 || room < 2) continue;
+      const s =
+        blockIndex * blockLen + STREETS.half + width / 2 + Math.random() * room;
       const u = track.wrap(s) / L;
       // Never on the sea side of the corniche; both sides inland.
       const onCoast = u >= COAST_U.from && u <= COAST_U.to;
       const sideSign = onCoast ? 1 : Math.random() < 0.5 ? 1 : -1;
-      const dist = 32 + Math.random() * 230; // deeper skyline for the longer view
-      track.pose(s, sideSign * dist, p, tmp);
-      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.random() * Math.PI);
+      // Set against the near kerb, so the block has a street frontage
+      // and a soft interior rather than one row of floating towers.
+      const inset = 2 + Math.random() * Math.max(0, hi - lo - depth - 4);
+      track.pose(s, sideSign * (lo + inset + depth / 2), p, tmp);
+      // Square to the street. Local +Z runs along the road, so the box's
+      // Z extent is its frontage and its X extent is its depth.
+      track.tangentAt(s, tmp);
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(tmp.x, tmp.z));
       // Taller skyline near the city at the top of the lap
       const cityBoost = u > 0.88 || u < 0.06 ? 2.1 : 1;
       const h = (10 + Math.random() * Math.random() * 55) * cityBoost;
-      scale.set(12 + Math.random() * 20, h, 12 + Math.random() * 20);
+      scale.set(depth, h, width);
       m.compose(p, q, scale);
-      blocks.setMatrixAt(i, m);
+      blocks.setMatrixAt(placed, m);
       tint.setHex(palette[i % palette.length]).multiplyScalar(0.85 + Math.random() * 0.3);
-      blocks.setColorAt(i, tint);
+      blocks.setColorAt(placed, tint);
+      placed++;
     }
+    // Draw only what was written; the tail of the buffer is untouched.
+    blocks.count = placed;
     blocks.instanceMatrix.needsUpdate = true;
     if (blocks.instanceColor) blocks.instanceColor.needsUpdate = true;
     blocks.castShadow = true;
     blocks.receiveShadow = true;
+    // Named for the street test, which otherwise has to guess which
+    // instanced box mesh in the scene is the city — and guessed wrong.
+    blocks.name = "cityBlocks";
     scene.add(blocks);
   }
 
