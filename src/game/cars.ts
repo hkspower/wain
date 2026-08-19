@@ -694,10 +694,36 @@ const rimDarkMat = new THREE.MeshStandardMaterial({
 
 const lipGeo = new THREE.TorusGeometry(0.195, 0.014, 6, 20);
 lipGeo.rotateY(Math.PI / 2);
-const archGeo = new THREE.TorusGeometry(0.46, 0.055, 8, 16, Math.PI);
-const archMat = new THREE.MeshStandardMaterial({ color: 0x101114, roughness: 0.9 });
-// Dark disc behind each wheel fakes the cut-out wheel well
-const wellGeo = new THREE.CircleGeometry(0.44, 16);
+/**
+ * Wheel arches.
+ *
+ * The body is one extruded shell with no opening cut in it, so the arch
+ * has to be built ON its surface: a dark disc that reads as the shadowed
+ * recess, and a body-coloured lip standing proud of it that reads as the
+ * formed edge of the fender. The wheel's outer face sits at 0.97, past
+ * both, which is what sells the opening.
+ *
+ * All of this used to be drawn at the WHEEL's centre rather than at the
+ * body's surface: the lip spanned x 0.785-0.895 and the well sat at
+ * 0.756, against a shell 0.92 wide. Every car in the game carried two
+ * hidden meshes on each of its four corners, and the wheel read as a
+ * hubcap glued to a flat painted wall.
+ *
+ * The front arch is the larger of the two and carries a flare, the way a
+ * front fender is a wider panel than the rear quarter it runs back into.
+ */
+const ARCH_X = 0.925; // just outside the shell's 0.92
+const LIP_X = 0.929;
+const archWellGeo = new THREE.CircleGeometry(0.46, 22);
+const archWellGeoF = new THREE.CircleGeometry(0.485, 22);
+// A rolled panel edge, not a hoop. The first pass used a 0.03-0.038 tube
+// standing 18 mm proud and it read as a roll bar bolted over the wheel;
+// a real arch lip is a few millimetres of turned-over steel that catches
+// one thin highlight.
+const archLipGeo = new THREE.TorusGeometry(0.475, 0.016, 8, 28, Math.PI);
+archLipGeo.rotateY(Math.PI / 2);
+const archLipGeoF = new THREE.TorusGeometry(0.5, 0.021, 8, 30, Math.PI);
+archLipGeoF.rotateY(Math.PI / 2);
 const wellMat = new THREE.MeshBasicMaterial({ color: 0x060708 });
 
 // Tinted glass, not a mirror. The intent here was always to silhouette
@@ -1463,16 +1489,26 @@ export function createCar(colors: CarColors): THREE.Group {
     group.add(wheel);
     wheels.push(wheel);
 
-    const arch = new THREE.Mesh(archGeo, archMat);
-    arch.rotation.y = Math.PI / 2;
-    arch.position.set(wx, 0.4, wz);
-    group.add(arch);
-
-    // Wheel well: dark disc facing outward so the wheel reads as inset
-    const well = new THREE.Mesh(wellGeo, wellMat);
-    well.rotation.y = wx > 0 ? Math.PI / 2 : -Math.PI / 2;
-    well.position.set(wx * 0.9, 0.38, wz);
+    // The opening, then the lip around it — both on the body's surface,
+    // not at the wheel's centre where they were invisible.
+    const front = wz > 0;
+    const side = Math.sign(wx);
+    const well = new THREE.Mesh(front ? archWellGeoF : archWellGeo, wellMat);
+    well.rotation.y = side > 0 ? Math.PI / 2 : -Math.PI / 2;
+    well.position.set(side * ARCH_X, 0.4, wz);
     group.add(well);
+
+    // Body-coloured, so it reads as the panel's own edge rather than as
+    // a black ring stuck around the wheel.
+    const lip = new THREE.Mesh(front ? archLipGeoF : archLipGeo, bodyMat);
+    lip.position.set(side * LIP_X, 0.4, wz);
+    group.add(lip);
+    lip.userData.archLip = true;
+
+    // No separate flare box. A rounded box laid over the arch does not
+    // follow it — it sits across the top with two hard ends and reads as
+    // scaffolding. The front fender's extra width is in the lip's own
+    // radius instead, which is the shape a flare actually has.
   }
 
   // --- Bumper assemblies: a black lower valance front and rear so the
