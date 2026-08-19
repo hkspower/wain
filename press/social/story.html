@@ -1,0 +1,217 @@
+<meta charset="utf-8">
+<title>Gulf Road Nights — Instagram story</title>
+<!--
+  1080 x 1920, the Instagram story canvas.
+
+  Built from the game's own design tokens rather than a poster look
+  invented for the occasion: the night palette out of src/app/globals.css,
+  the same three faces the site loads through next/font, and the HUD's own
+  vocabulary — the district chip, the speed cluster, the drift readout with
+  the pipe bar it actually draws, the duel bars. Everything on this canvas
+  is something the player sees while driving.
+
+  Instagram covers roughly the top 250 px with the profile row and the
+  bottom 250 px with the reply bar, so nothing that has to be read lives
+  there. The image bleeds through both; the type does not.
+
+  Render:  node press/social/render.mjs
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;1,600;1,700&family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap">
+<style>
+  /* The game's palette, verbatim. */
+  :root {
+    --night-950: #04060d;
+    --night-900: #070b16;
+    --night-800: #0c1322;
+    --night-700: #141d31;
+    --sodium-500: #f5a524;
+    --sodium-400: #ffc45c;
+    --gulf-400: #38c9ee;
+    --gulf-300: #7fe3ff;
+    --ink: #e9eef8;
+    --muted: #8d9bb8;
+    --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+    --sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+    --ar: "IBM Plex Sans Arabic", "Plus Jakarta Sans", sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; }
+  body {
+    background: var(--night-950);
+    color: var(--ink);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    position: relative;
+  }
+
+  /* Sodium haze behind the lockup — the streetlight bloom the game
+     spends most of its frame budget on. */
+  .haze {
+    position: absolute; left: 50%; top: 980px;
+    width: 1500px; height: 900px; transform: translateX(-50%);
+    background: radial-gradient(ellipse at center,
+      rgba(245,165,36,0.20) 0%, rgba(245,165,36,0.07) 38%, rgba(4,6,13,0) 68%);
+    pointer-events: none;
+  }
+
+  .frame { position: relative; height: 1920px; display: flex; flex-direction: column; }
+
+  /* ---- top: district chip, exactly as the HUD sets it -------------- */
+  .top { padding: 196px 72px 0; display: flex; align-items: center; gap: 22px; }
+  .chip {
+    border-left: 4px solid var(--sodium-500);
+    background: rgba(7,11,22,0.82);
+    border-top: 1px solid rgba(255,255,255,0.10);
+    border-right: 1px solid rgba(255,255,255,0.10);
+    border-bottom: 1px solid rgba(255,255,255,0.10);
+    padding: 14px 22px 16px;
+  }
+  .chip .name { font-family: var(--display); font-size: 38px; font-weight: 600; line-height: 1; }
+  .chip .name span { font-family: var(--ar); font-size: 32px; font-weight: 600; margin-inline-start: 14px; }
+  .chip .sub {
+    font-family: var(--display); font-size: 20px; letter-spacing: 0.24em;
+    color: var(--muted); margin-top: 6px;
+  }
+  .live {
+    margin-inline-start: auto; font-family: var(--display); font-size: 22px;
+    letter-spacing: 0.26em; color: var(--gulf-300);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .live::before {
+    content: ""; width: 12px; height: 12px; border-radius: 50%;
+    background: var(--gulf-400); box-shadow: 0 0 16px var(--gulf-400);
+  }
+
+  /* ---- hero -------------------------------------------------------- */
+  .hero { position: relative; margin-top: 34px; }
+  .hero img { display: block; width: 1080px; height: 596px; object-fit: cover; }
+  /* Feather both edges into the ground so the photograph has no seam. */
+  .hero::after {
+    content: ""; position: absolute; inset: 0;
+    background:
+      linear-gradient(to bottom, var(--night-950) 0%, rgba(4,6,13,0) 16%,
+                      rgba(4,6,13,0) 62%, var(--night-950) 99%);
+  }
+
+  /* ---- the lockup -------------------------------------------------- */
+  .lockup { padding: 0 72px; margin-top: -64px; position: relative; }
+  h1 {
+    font-family: var(--display); font-style: italic; font-weight: 700;
+    font-size: 126px; line-height: 0.84; letter-spacing: 0.005em;
+    text-transform: uppercase;
+    text-shadow: 0 0 60px rgba(245,165,36,0.28), 0 6px 24px rgba(0,0,0,0.9);
+  }
+  h1 .b { display: block; color: var(--sodium-400); }
+  .ar-title {
+    font-family: var(--ar); font-size: 52px; font-weight: 700;
+    color: var(--ink); opacity: 0.92; margin-top: 18px;
+    direction: rtl; text-align: left;
+  }
+  .rule {
+    margin-top: 28px; height: 3px; width: 100%;
+    background: linear-gradient(90deg, var(--sodium-500), rgba(245,165,36,0.05));
+    box-shadow: 0 0 22px rgba(245,165,36,0.5);
+  }
+  .lede {
+    margin-top: 26px; font-size: 30px; line-height: 1.46; color: var(--muted);
+    max-width: 27ch;
+  }
+  .lede b { color: var(--ink); font-weight: 600; }
+
+  /* ---- the HUD strip: real readouts, real numbers ------------------ */
+  .hud {
+    margin-top: 32px; padding: 24px 30px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.015)),
+                rgba(7,11,22,0.86);
+    border: 1px solid rgba(255,255,255,0.13);
+    border-radius: 18px;
+    display: grid; grid-template-columns: auto 1fr; gap: 30px; align-items: center;
+  }
+  .speed { display: flex; align-items: baseline; gap: 14px; }
+  .speed .n {
+    font-family: var(--display); font-style: italic; font-weight: 700;
+    font-size: 96px; line-height: 0.8; font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 26px rgba(56,201,238,0.35);
+  }
+  .speed .u {
+    font-family: var(--display); font-size: 22px; letter-spacing: 0.28em;
+    color: var(--muted);
+  }
+  .readouts { display: grid; gap: 14px; }
+  .drift {
+    font-family: var(--display); font-style: italic; font-size: 34px;
+    letter-spacing: 0.1em; color: var(--gulf-300);
+  }
+  .drift .x { color: var(--sodium-400); }
+  .drift .bars { letter-spacing: 0.02em; opacity: 0.85; }
+  .meter { height: 12px; border-radius: 6px; background: var(--night-800); overflow: hidden; }
+  .meter i { display: block; height: 100%; }
+  .you i { width: 78%; background: linear-gradient(90deg, #0f8f5a, #34d399); }
+  .them i { width: 31%; background: linear-gradient(90deg, #9f1239, #fbbf24); }
+  .meter-row { display: grid; grid-template-columns: 84px 1fr; gap: 16px; align-items: center; }
+  .meter-row span {
+    font-family: var(--display); font-size: 21px; letter-spacing: 0.2em; color: var(--muted);
+  }
+
+  /* ---- call to action, clear of the reply bar ---------------------- */
+  .cta { margin-top: auto; padding: 0 72px 268px; }
+  .cta .line {
+    height: 1px; background: rgba(255,255,255,0.14); margin-bottom: 28px;
+  }
+  .cta .go {
+    font-family: var(--display); font-style: italic; font-weight: 700;
+    font-size: 58px; line-height: 0.95; text-transform: uppercase;
+  }
+  .cta .go em { font-style: italic; color: var(--sodium-400); }
+  .cta .where {
+    margin-top: 16px; display: flex; align-items: center; gap: 18px;
+    font-family: var(--display); font-size: 28px; letter-spacing: 0.26em;
+    color: var(--gulf-300); text-transform: uppercase;
+  }
+  .cta .where .ar {
+    font-family: var(--ar); font-size: 26px; letter-spacing: normal;
+    color: var(--muted); direction: rtl;
+  }
+</style>
+
+<div class="haze"></div>
+<div class="frame">
+  <div class="top">
+    <div class="chip">
+      <div class="name">Bneid Al-Gar <span lang="ar" dir="rtl">بنيد القار</span></div>
+      <div class="sub">RIVALS BEATEN&nbsp;&nbsp;0 / 8</div>
+    </div>
+    <div class="live">TONIGHT</div>
+  </div>
+
+  <div class="hero"><img src="./hero.png" alt="The Gulf Road corniche at night"></div>
+
+  <div class="lockup">
+    <h1>Gulf Road<span class="b">Nights</span></h1>
+    <div class="ar-title" lang="ar" dir="rtl">ليالي شارع الخليج</div>
+    <div class="rule"></div>
+    <p class="lede">
+      <b>7.3 km of the real corniche.</b><br>Fourteen cars. Eight rivals.
+    </p>
+
+    <div class="hud">
+      <div class="speed"><span class="n">284</span><span class="u">KM/H</span></div>
+      <div class="readouts">
+        <div class="drift">DRIFT 47° <span class="x">×3</span> <span class="bars">||||||||||</span></div>
+        <div class="meter-row"><span>YOU</span><div class="meter you"><i></i></div></div>
+        <div class="meter-row"><span>RIVAL</span><div class="meter them"><i></i></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cta">
+    <div class="line"></div>
+    <div class="go">Flash your headlights<br><em>three times.</em></div>
+    <div class="where">
+      Play free — link in bio
+      <span class="ar" lang="ar" dir="rtl">يلا نتسابق</span>
+    </div>
+  </div>
+</div>
