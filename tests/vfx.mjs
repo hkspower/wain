@@ -187,6 +187,90 @@ const flames = await page.evaluate(() => {
 console.log(`exhaust    flame particles on lift: ${flames.before} -> ${flames.peak}  ` +
   check(flames.peak > 0, "no backfire when the throttle is dropped at speed"));
 
+// --- sparks stay near the panel that made them ---------------------
+// Grinding steel along a barrier throws sparks out and back along the
+// flank. They should skip down the car and die on the asphalt, not arc
+// over its roof — which is what they were doing, to 1.48 m.
+const sparkHeight = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  e.setPaused(true);
+  e.player.s = e.track.length * 0.62;
+  e.player.lat = 0;
+  e.player.speed = 45;
+  e.heading = 0.42;
+  e.driftYaw = 0;
+  e.sparkFx.update(3, { gravity: 17, drag: 0.7, bounce: 0.42, groundY: 0.03 });
+  let maxY = 0, above = 0, n = 0;
+  for (let f = 0; f < 150; f++) {
+    e.setTouchInput({ throttle: 0.6 });
+    e.heading = 0.42;
+    e.update(1 / 60);
+    const g = e.sparkFx.points.geometry;
+    const pos = g.getAttribute("position"), life = g.getAttribute("aLife");
+    for (let i = 0; i < life.count; i++) {
+      if (life.getX(i) <= 0) continue;
+      const y = pos.getY(i);
+      if (y > maxY) maxY = y;
+      if (y > 1) above++;
+      n++;
+    }
+  }
+  return { maxY: +maxY.toFixed(2), abovePct: n ? +(100 * above / n).toFixed(1) : 0, n };
+});
+console.log(`spark arc  peak ${sparkHeight.maxY} m, ${sparkHeight.abovePct}% of the shower above 1 m  ` +
+  check(sparkHeight.n > 100, "no sparks to measure") + " " +
+  check(sparkHeight.maxY < 1.0, `sparks reach ${sparkHeight.maxY} m — they are arcing over the car`) + " " +
+  check(sparkHeight.abovePct < 1, `${sparkHeight.abovePct}% of the shower is above roof height`));
+
+// --- every car reflects the same world, the same way ----------------
+// The player's paint used to be the only thing dressed with the live
+// probe; rivals, traffic and other players ran on the materials' own
+// defaults against the baked environment. The two do not land in the
+// same place — swapping only these settings on one car under one camera
+// moved it 11% brighter and clipped five times as many pixels — so the
+// hero car was the only one on the street that was not blown out.
+//
+// Checked as identity rather than by eye: whatever the policy is, every
+// car must be wearing it. A new kind of car that nobody remembered to
+// dress fails here rather than in a screenshot months later.
+const reflect = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  const cars = [];
+  const push = (label, group) => {
+    if (!group) return;
+    const body = group.userData.bodyMat;
+    if (!body) return;
+    cars.push({
+      label,
+      envMap: body.envMap ? body.envMap.uuid : null,
+      bodyI: +body.envMapIntensity.toFixed(3),
+      metals: (group.userData.reflectMats ?? []).map((m) => ({
+        envMap: m.envMap ? m.envMap.uuid : null,
+        ratio: +(m.envMapIntensity / (m.userData.baseEnvIntensity ?? 1.5)).toFixed(3),
+      })),
+    });
+  };
+  push("player", e.carBody);
+  if (e.rival) push("rival", e.rival.mesh);
+  e.traffic.slice(0, 3).forEach((t, i) => push(`traffic${i}`, t.mesh));
+  const probe = e.cubeRT?.texture?.uuid ?? null;
+  return { cars, probe, live: e.liveReflections };
+});
+{
+  const maps = new Set(reflect.cars.map((c) => c.envMap));
+  const bodies = new Set(reflect.cars.map((c) => c.bodyI));
+  const ratios = new Set(reflect.cars.flatMap((c) => c.metals.map((m) => m.ratio)));
+  console.log(`reflections ${reflect.cars.length} cars: ${reflect.cars.map((c) => `${c.label} i=${c.bodyI}`).join(", ")}`);
+  console.log(`            env sources ${maps.size}, body gains ${bodies.size}, metal gains ${ratios.size}  ` +
+    check(maps.size === 1, `cars reflect ${maps.size} different environments — they will not match`) + " " +
+    check(bodies.size === 1, `paint runs at ${bodies.size} different gains across the cars: ${[...bodies].join(", ")}`) + " " +
+    check(ratios.size <= 1, `metals run at ${ratios.size} different gains across the cars`));
+  if (reflect.live) {
+    check(reflect.cars.every((c) => c.envMap === reflect.probe),
+      "the live probe is on but some cars are still reflecting the baked environment");
+  }
+}
+
 console.log(fail.length ? "\nFAILURES:\n - " + fail.join("\n - ") : "\nall VFX checks passed");
 await browser.close();
 process.exit(fail.length ? 1 : 0);

@@ -423,6 +423,9 @@ export class GameEngine {
   // streetlights, towers and neon actually sweep across the paint.
   private cubeRT!: THREE.WebGLCubeRenderTarget;
   private cubeCam!: THREE.CubeCamera;
+  /** Every car in the scene — player, rival, traffic, other players — so
+   *  one reflection policy dresses all of them. See dressReflections. */
+  private carGroups = new Set<THREE.Object3D>();
   private cubeFrame = 0;
   private liveReflections = true;
   // Dynamic resolution: a continuous governor scales the internal render
@@ -728,13 +731,21 @@ export class GameEngine {
     // white hole with no shape in it is not a shower of sparks.
     // Held down so a lone spark still punches and a shower stacks into
     // hot amber instead of flat paper white.
+    //
+    // Metered since: a full-severity scrape run twice, once with the
+    // sparks drawn and once with them hidden, moves about ten pixels of
+    // a 129,600-pixel frame across the clipping point. They are not
+    // blowing the picture out — what makes them read hot is that they
+    // are the only thing in a night frame at full luminance, and the
+    // bloom threshold sits below them. Stepped down once more here
+    // rather than reaching for the bloom, which the sodium lamps share.
     this.sparkFx = new ParticleSystem(140, {
       map: radialSprite(0.35, 1.4),
       colorA: 0xffdf9e, // hot, with headroom left above it
       colorB: 0xff5a12,
       blending: THREE.AdditiveBlending,
       grow: 0.5, // sparks shrink as they cool
-      opacity: 0.5,
+      opacity: 0.4,
       fadeIn: 0.02,
     });
     this.scene.add(this.sparkFx.points);
@@ -784,7 +795,7 @@ export class GameEngine {
     }
 
     // Player car — Kuwait flag colours: white body, green stripe
-    this.carBody = createCar({
+    this.carBody = this.trackCar(createCar({
       body: this.tune.paint,
       accent: 0x007a3d,
       style: this.tune.bodyStyle,
@@ -794,7 +805,7 @@ export class GameEngine {
       raceKit: this.tune.raceKit,
       stickers: this.tune.stickers,
       stickerNumber: this.stickerNumber(),
-    });
+    }));
     this.playerMesh = new THREE.Group();
     this.playerMesh.add(this.carBody);
     // The contact blob must stay flat on the road — carBody pitches and
@@ -1056,6 +1067,22 @@ export class GameEngine {
 
     this.renderer.shadowMap.autoUpdate = false;
     this.playerMesh.visible = false; // the car must not reflect itself
+    // And nor may any of the others, now that all of them sample this
+    // cube. A car drawn INTO the target its own material is reading is a
+    // framebuffer feedback loop, and the renderer resolves it by dropping
+    // the object — which made the probe's per-face cost lurch between 348
+    // draw calls and 132 depending on when the convolution landed. That
+    // unevenness is exactly what the frame-pacing check exists to catch.
+    // No loss: at probe resolution the rest of the fleet is a few dark
+    // smears, and the world — road, lamps, towers, sky — is what a
+    // reflection is for.
+    const hidden: THREE.Object3D[] = [];
+    for (const g of this.carGroups) {
+      if (g.visible) {
+        g.visible = false;
+        hidden.push(g);
+      }
+    }
     try {
       this.cubeCam.position.copy(this.playerMesh.position);
       this.cubeCam.position.y += 1.2;
@@ -1067,6 +1094,9 @@ export class GameEngine {
       this.cubeRT.texture.generateMipmaps = genMips;
       this.renderer.setRenderTarget(prevTarget, prevFace, prevMip);
       this.playerMesh.visible = true;
+      // Restore only what this call hid: a remote player waiting on its
+      // first snapshot is invisible on purpose.
+      for (const g of hidden) g.visible = true;
       this.renderer.shadowMap.autoUpdate = shadowAuto;
     }
 
@@ -1417,7 +1447,7 @@ export class GameEngine {
   upsertRemote(id: number, name: string, color: string): void {
     this.removeRemote(id);
     const hex = new THREE.Color(color).getHex();
-    const mesh = createCar({ body: hex, underglow: hex });
+    const mesh = this.trackCar(createCar({ body: hex, underglow: hex }));
     mesh.add(makeNameTag(name));
     mesh.visible = false; // until the first state snapshot lands
     this.scene.add(mesh);
@@ -1451,6 +1481,7 @@ export class GameEngine {
   removeRemote(id: number): void {
     const r = this.remotes.get(id);
     if (!r) return;
+    this.untrackCar(r.mesh);
     this.scene.remove(r.mesh);
     this.remotes.delete(id);
   }
@@ -1658,7 +1689,9 @@ export class GameEngine {
 
   private spawnTraffic(count: number): void {
     for (let i = 0; i < count; i++) {
-      const mesh = createCar({ body: TRAFFIC_COLORS[i % TRAFFIC_COLORS.length], simple: true });
+      const mesh = this.trackCar(
+        createCar({ body: TRAFFIC_COLORS[i % TRAFFIC_COLORS.length], simple: true })
+      );
       this.scene.add(mesh);
       this.traffic.push({
         mesh,
@@ -1672,18 +1705,21 @@ export class GameEngine {
 
   private spawnRival(): void {
     if (this.rival) {
+      this.untrackCar(this.rival.mesh);
       this.scene.remove(this.rival.mesh);
       this.rival = null;
     }
     if (this.rivalIndex >= RIVALS.length) return;
     const def = RIVALS[this.rivalIndex];
-    const mesh = createCar({
-      body: def.bodyColor,
-      accent: def.accentColor,
-      style: def.bodyStyle,
-      spoiler: def.bodyStyle === "gtr",
-      underglow: def.accentColor,
-    });
+    const mesh = this.trackCar(
+      createCar({
+        body: def.bodyColor,
+        accent: def.accentColor,
+        style: def.bodyStyle,
+        spoiler: def.bodyStyle === "gtr",
+        underglow: def.accentColor,
+      })
+    );
     this.scene.add(mesh);
     this.rival = {
       def,
@@ -1882,41 +1918,67 @@ export class GameEngine {
     return (h % 90) + 10;
   }
 
-  private applyLiveReflections(): void {
-    const body = this.carBody.userData.bodyMat as THREE.MeshPhysicalMaterial | undefined;
-    if (!body) return;
-    if (this.liveReflections) {
-      body.envMap = this.cubeRT.texture;
-      // The live probe carries real HDR lamps — rein the gain back in
-      body.envMapIntensity = 1.35;
-    } else {
-      body.envMap = null; // falls back to scene.environment
-      body.envMapIntensity = 2.1;
+  /**
+   * Dress one car's paint and metal with the current reflection policy.
+   *
+   * Every car on the road gets the SAME source and the same gains, which
+   * is the only way they can be guaranteed to match. Only the player's
+   * car used to be dressed at all; rivals, traffic and other players ran
+   * on the materials' own defaults against the baked environment, and
+   * the two setups do not land in the same place. Measured on one car
+   * under one camera, swapping only these settings: the player's tuned
+   * pair clipped 14 pixels of the frame, the untuned one every other car
+   * was wearing clipped 72 and sat 11% brighter overall. The hero car
+   * was the only one on the street that was not blown out.
+   *
+   * Sharing the player's probe with traffic reflects the player's
+   * surroundings on a car fifty metres away, which is wrong in principle
+   * and invisible in practice: it is the same road, the same lamps and
+   * the same sky, at a resolution where the paint shows a smear of
+   * sodium rather than a picture of anything.
+   */
+  private dressReflections(group: THREE.Object3D): void {
+    // The player's car is built before the probe exists, so this runs
+    // once with nothing to point at; applyLiveReflections dresses every
+    // car again as soon as the target is up.
+    const env = this.liveReflections && this.cubeRT ? this.cubeRT.texture : null;
+    const body = group.userData.bodyMat as THREE.MeshPhysicalMaterial | undefined;
+    if (body) {
+      body.envMap = env;
+      // The live probe carries real HDR lamps — rein the gain back in.
+      body.envMapIntensity = this.liveReflections ? 1.35 : 2.1;
+      body.needsUpdate = true;
     }
-    body.needsUpdate = true;
-
     // The rims, chrome and brake discs mirror the same world the paint
-    // does. These are per-car clones (cars.ts), so pointing them at the
-    // player's probe cannot leak the player's surroundings onto traffic.
-    const metals = this.carBody.userData.reflectMats as
+    // does. Higher gain than the paint: the probe is mostly night sky,
+    // and a near-pure metal goes black under it — the lamps it does
+    // carry need amplifying for the alloy to read as alloy.
+    const metals = group.userData.reflectMats as
       | THREE.MeshStandardMaterial[]
       | undefined;
-    if (metals) {
-      for (const m of metals) {
-        const base = (m.userData.baseEnvIntensity as number) ?? 1.5;
-        if (this.liveReflections) {
-          m.envMap = this.cubeRT.texture;
-          // Higher gain than the paint: the probe is mostly night sky,
-          // and a near-pure metal goes black under it — the lamps it does
-          // carry need amplifying for the alloy to read as alloy.
-          m.envMapIntensity = base * 1.9;
-        } else {
-          m.envMap = null;
-          m.envMapIntensity = base;
-        }
-        m.needsUpdate = true;
-      }
+    for (const m of metals ?? []) {
+      const base = (m.userData.baseEnvIntensity as number) ?? 1.5;
+      m.envMap = env;
+      m.envMapIntensity = this.liveReflections ? base * 1.9 : base;
+      m.needsUpdate = true;
     }
+  }
+
+  /** Start dressing this car, and dress it now. */
+  private trackCar<T extends THREE.Object3D>(group: T): T {
+    this.carGroups.add(group);
+    this.dressReflections(group);
+    return group;
+  }
+
+  /** Stop dressing a car that is being disposed — its materials are
+   *  about to go, and a policy change must not reach into them. */
+  private untrackCar(group: THREE.Object3D | null | undefined): void {
+    if (group) this.carGroups.delete(group);
+  }
+
+  private applyLiveReflections(): void {
+    for (const g of this.carGroups) this.dressReflections(g);
   }
 
   /** Rebuild the player car after a garage change (new model, paint, mods). */
@@ -1928,22 +1990,25 @@ export class GameEngine {
     // The old car is gone for good — release its per-car materials, or a
     // player cycling paints leaks a shader program per visit. Geometries
     // and module-shared materials stay (other cars still use them).
+    // Out of the reflection registry before its materials are released.
+    this.untrackCar(this.carBody);
     for (const key of ["bodyMat", "tailMat", "headMat"] as const) {
       (this.carBody.userData[key] as THREE.Material | undefined)?.dispose();
     }
-    this.carBody = createCar({
-      body: this.tune.paint,
-      accent: 0x007a3d,
-      style: this.tune.bodyStyle,
-      underglow: this.tune.glow ?? undefined,
-      spoiler: this.tune.spoiler,
-      goldRims: this.tune.goldRims,
-      raceKit: this.tune.raceKit,
-      stickers: this.tune.stickers,
-      stickerNumber: this.stickerNumber(),
-    });
+    this.carBody = this.trackCar(
+      createCar({
+        body: this.tune.paint,
+        accent: 0x007a3d,
+        style: this.tune.bodyStyle,
+        underglow: this.tune.glow ?? undefined,
+        spoiler: this.tune.spoiler,
+        goldRims: this.tune.goldRims,
+        raceKit: this.tune.raceKit,
+        stickers: this.tune.stickers,
+        stickerNumber: this.stickerNumber(),
+      })
+    );
     this.playerMesh.add(this.carBody);
-    this.applyLiveReflections();
     const newContact = this.carBody.userData.contact as THREE.Object3D | undefined;
     if (newContact) this.playerMesh.add(newContact);
     this.sound?.configureAspiration(
@@ -3465,7 +3530,15 @@ export class GameEngine {
         0.22 + Math.random() * 0.3,
         p.z + sz * lat + this.v3.z * along,
         this.v3.x * back + sx * side * (1 + Math.random() * 4) + (Math.random() - 0.5) * 3,
-        1.5 + Math.random() * 5,
+        // Upward throw. This was 1.5-6.5 m/s, which against the 17 m/s^2
+        // the spark system pulls puts the apex 1.2 m ABOVE the sill it
+        // came off: measured, sparks reached 1.48 m and a tenth of them
+        // spent their life above a metre — arcing over the roof of the
+        // car that made them. Grinding steel on a barrier throws sparks
+        // out and back along the panel, not into the air. 0.5-3.5 m/s
+        // tops out around 0.36 m of climb, so they skip along the flank
+        // and die on the asphalt where they belong.
+        0.5 + Math.random() * 3,
         this.v3.z * back + sz * side * (1 + Math.random() * 4) + (Math.random() - 0.5) * 3,
         0.35 + Math.random() * 0.5,
         0.09 + Math.random() * 0.07
