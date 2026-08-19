@@ -31,7 +31,7 @@ export default function HomePage() {
               </h1>
               <span
                 aria-hidden="true"
-                className="absolute -right-6 -top-3 text-coral-600 sm:-right-8 sm:-top-4"
+                className="absolute -start-6 -top-3 text-coral-600 sm:-start-8 sm:-top-4"
               >
                 <IconPinSolid className="size-9 sm:size-12" />
               </span>

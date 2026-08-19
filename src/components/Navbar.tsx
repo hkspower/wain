@@ -31,7 +31,11 @@ export default function Navbar() {
           >
             <WainLogo className="size-10" />
           </span>
-          <span className="font-display text-2xl font-bold leading-none text-ink-900">
+          {/* Below 360px the brand, the search button and both nav links need
+              338px of a 288px content box, so "عن وين" was clipped off the
+              edge and unreachable. The mark alone carries the brand there —
+              it is still the link home, with the same aria-label. */}
+          <span className="font-display text-2xl font-bold leading-none text-ink-900 max-[359px]:hidden">
             وين<span className="text-coral-600">؟</span>
           </span>
         </Link>

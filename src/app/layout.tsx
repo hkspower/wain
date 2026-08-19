@@ -79,14 +79,19 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // The font variable belongs on <html>, not <body>. @theme declares
+  // --font-sans and --font-display on :root as var(--font-arabic), … — and a
+  // custom property that references an undefined variable is invalid at
+  // computed-value time, so defining --font-arabic any lower left both of them
+  // empty on :root, body inherited the invalid value, and every
+  // font-sans/font-display element silently fell back to the default
+  // ui-sans-serif stack with the webfont never requested at all.
   return (
-    <html lang="ar" dir="rtl">
-      <body
-        className={`${plex.variable} flex min-h-screen flex-col font-sans`}
-      >
+    <html lang="ar" dir="rtl" className={plex.variable}>
+      <body className="flex min-h-screen flex-col font-sans">
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:absolute focus:right-4 focus:top-4 focus:z-[100] focus:rounded-xl focus:bg-ink-900 focus:px-4 focus:py-2 focus:font-semibold focus:text-white focus:shadow-lg"
+          className="sr-only focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-[100] focus:rounded-xl focus:bg-ink-900 focus:px-4 focus:py-2 focus:font-semibold focus:text-white focus:shadow-lg"
         >
           تخطَّ إلى المحتوى
         </a>
