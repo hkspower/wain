@@ -197,11 +197,33 @@ console.log(`challenge card raised: ${pending}  ${check(pending === true, "three
 // Accept it through the real UI button
 await page.click("text=SEND CHALLENGE", { timeout: 8000 }).catch(() => {});
 console.log("clicked SEND CHALLENGE — waiting for the rival's answer");
-// The acceptance timer is a real 2.2 s setTimeout; keep the sim moving
-for (let i = 0; i < 16; i++) {
-  await page.evaluate(() => window.__drive(30, {}));
-  await page.waitForTimeout(200);
-}
+// The rival's answer is a real 2.2 s setTimeout inside the engine, and
+// timers in this headless browser run two to three and a half times slow
+// — a 1500 ms timeout measures 3400-5100 ms here — so 2.2 s of game time
+// is five to eight seconds of wall clock.
+//
+// This used to wait a fixed sixteen iterations, about 3.2 s, which raced
+// that timer and lost often enough to fail roughly one run in three, on a
+// change that had touched nothing but colours. Wait for the STATE rather
+// than for a budget of wall clock; the small drive per poll only keeps
+// the game moving, since a setTimeout does not need the sim to advance.
+const answerT0 = Date.now();
+const answered = await page
+  .waitForFunction(
+    () => {
+      window.__drive(8, {});
+      const e = window.__grnEngine;
+      return !!e.cine || e.inBattle;
+    },
+    null,
+    { timeout: 40000, polling: 200 }
+  )
+  .then(() => true)
+  .catch(() => false);
+console.log(
+  `  rival answered after ${((Date.now() - answerT0) / 1000).toFixed(1)}s of wall clock` +
+    (answered ? "" : " — TIMED OUT at 40s")
+);
 const battleState = await page.evaluate(() => {
   const e = window.__grnEngine;
   return { cine: !!e.cine, inBattle: e.inBattle, sp: e.player.sp, rivalSp: e.rival?.sp };
