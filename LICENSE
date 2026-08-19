@@ -1,0 +1,52 @@
+# الترخيص وحقوق النشر · Licence and copyright
+
+**النوخذة — النظام الموحد**, the Almuhallab Code website, and everything else in
+this repository are the property of **المهلب كود — Almuhallab Code**, Kuwait.
+
+    Copyright © 2026 Almuhallab Code (المهلب كود). All rights reserved.
+    حقوق النشر © 2026 المهلب كود. جميع الحقوق محفوظة.
+
+    الكويت · https://www.almuhallab-code.com · hello@almuhallab-code.com
+
+## ما لا يجوز دون إذن كتابي · What needs written permission
+
+No part of this work — source, design, the boum mark, the wordmark, the
+generated brand assets, or the compiled applications — may be copied,
+redistributed, sold, sublicensed, reverse-engineered, or used to produce a
+derivative work, in whole or in part, without the prior written permission of
+Almuhallab Code.
+
+لا يجوز نسخ أي جزء من هذا العمل — الشيفرة أو التصميم أو رمز البوم أو الاسم
+المرسوم أو الأصول المولّدة أو التطبيقات المُصرَّفة — ولا إعادة توزيعه أو بيعه أو
+ترخيصه من الباطن أو عكس هندسته أو اشتقاق عمل منه، كلياً أو جزئياً، دون إذن
+كتابي مسبق من المهلب كود.
+
+## ما يجوز · What is allowed
+
+Running the published applications, and reading this repository where the owner
+has published it.
+
+## الأعمال المضمَّنة · Third-party components
+
+These carry their own licences, which survive this notice — the terms below
+govern those components, not this work:
+
+| Component | Where | Licence |
+|---|---|---|
+| **Cairo** (the Arabic typeface) | the website only, in `almuhallab/fonts/` — the desktop app bundles no font and uses the platform's own Arabic face | SIL Open Font License 1.1 — the full text sits beside the files in `almuhallab/fonts/LICENSE-Cairo.txt` and must stay with any copy of them |
+| **Flutter** and the Dart SDK | the desktop app's toolchain | BSD 3-Clause, © Google LLC |
+| **Inno Setup** | builds the Windows installer | Inno Setup License, © Jordan Russell |
+
+The Cairo licence is not ours to waive: the OFL requires its text to travel
+with the font files, and it does.
+
+## علامات الآخرين · Names that belong to others
+
+iOS, Android, Windows and macOS are named in this work as the platforms the
+software runs on — nominative use. Their logos are not reproduced anywhere here,
+and their owners are not affiliated with Almuhallab Code and do not endorse it.
+
+## التواصل · Contact
+
+Permission requests, and anything else: **hello@almuhallab-code.com** ·
+واتساب **+965 6589 4110**

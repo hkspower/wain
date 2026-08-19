@@ -89,13 +89,20 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.almuhallab" "\0"
-            VALUE "FileDescription", "nokhatha" "\0"
+            // What Windows shows in the file's Properties → Details, and what
+            // SmartScreen names as the source. It said "com.almuhallab" — a
+            // bundle identifier, not a company — so the one place a stranger
+            // looks to see who made this named nobody. Latin only: this block
+            // is declared English/1252, and `nokhatha` is the sanctioned Latin
+            // form of النوخذة, which the installer and the app itself carry in
+            // Arabic.
+            VALUE "CompanyName", "Almuhallab Code" "\0"
+            VALUE "FileDescription", "Nokhatha — Almuhallab Code" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "nokhatha" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.almuhallab. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright © 2026 Almuhallab Code. All rights reserved." "\0"
             VALUE "OriginalFilename", "nokhatha.exe" "\0"
-            VALUE "ProductName", "nokhatha" "\0"
+            VALUE "ProductName", "Nokhatha" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

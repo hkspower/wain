@@ -11,6 +11,7 @@
 #define AppNameLatin "Nokhatha"
 #define AppPublisher "المهلب كود — Almuhallab Code"
 #define AppUrl "https://www.almuhallab-code.com/"
+#define AppCopyright "Copyright © 2026 Almuhallab Code. All rights reserved."
 #ifndef AppVersion
   #define AppVersion "0.1.0"
 #endif
@@ -23,6 +24,16 @@ AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
 AppPublisherURL={#AppUrl}
 AppSupportURL={#AppUrl}
+AppUpdatesURL={#AppUrl}
+; Ownership, in the three places Windows reads it from: the Programs list,
+; Setup.exe's own file properties, and the uninstall entry. Without these the
+; installer inherits Inno's defaults and names nobody as its author.
+AppCopyright={#AppCopyright}
+VersionInfoCompany={#AppPublisher}
+VersionInfoCopyright={#AppCopyright}
+VersionInfoProductName={#AppName} ({#AppNameLatin})
+VersionInfoDescription={#AppNameLatin} Setup — {#AppPublisher}
+VersionInfoVersion={#AppVersion}
 DefaultDirName={autopf}\{#AppNameLatin}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
@@ -52,6 +63,12 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; \
 ; The whole Flutter release bundle: the exe, its DLLs, and the data folder.
 Source: "..\..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; \
   Flags: ignoreversion recursesubdirs createallsubdirs
+; Ownership travels with the install, not only with the download page. No font
+; licence is shipped here on purpose: this app bundles no typeface — it uses
+; the platform's own Arabic face — and carrying the OFL beside no font would
+; claim something untrue about what was installed.
+Source: "..\..\..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; \
+  Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\nokhatha.exe"

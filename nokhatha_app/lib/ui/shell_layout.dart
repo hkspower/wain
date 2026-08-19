@@ -8,6 +8,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import 'about.dart';
 import 'brand.dart';
 
 /// Below this width the bottom bar wins; at or above it, the rail does.
@@ -48,13 +49,25 @@ class AdaptiveShell extends StatelessWidget {
         ),
       );
 
+  /// Who made this. On a downloaded binary that is not a footnote: the
+  /// installer and the file properties say it, but neither is reachable once
+  /// the window is open — and a macOS build has no installer at all.
+  Widget _about() => Builder(
+        builder: (context) => IconButton(
+          tooltip: 'عن النوخذة',
+          icon: const Icon(Icons.info_outline),
+          onPressed: () => showAboutNokhatha(context),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width >= kRailBreakpoint;
 
     if (!wide) {
       return Scaffold(
-        appBar: AppBar(toolbarHeight: 78, title: title, actions: [_signOut()]),
+        appBar: AppBar(
+            toolbarHeight: 78, title: title, actions: [_about(), _signOut()]),
         floatingActionButton: action,
         body: body,
         bottomNavigationBar: NavigationBar(
@@ -71,7 +84,8 @@ class AdaptiveShell extends StatelessWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(toolbarHeight: 68, title: title, actions: [_signOut()]),
+      appBar: AppBar(
+          toolbarHeight: 68, title: title, actions: [_about(), _signOut()]),
       floatingActionButton: action,
       body: Row(
         children: [

@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 
 import '../core/auth.dart';
 import '../store.dart';
+import 'about.dart';
 import 'brand.dart';
 
 class AuthGate extends StatefulWidget {
@@ -176,6 +177,16 @@ class _AuthGateState extends State<AuthGate> {
                     'أما السجلات نفسها فغير مشفَّرة: من يصل إلى القرص يقرؤها.',
                     style: const TextStyle(
                         color: Brand.muted, fontSize: 12, height: 1.8),
+                  ),
+                  const SizedBox(height: Brand.s16),
+                  // Who made it, on the first screen — before anyone types a
+                  // password into a binary they downloaded. The About dialog
+                  // says the same thing, but it lives behind this gate.
+                  const Text(
+                    '$kOwner\n$kCopyright',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: Brand.muted, fontSize: 11.5, height: 1.9),
                   ),
                 ],
               ),
