@@ -707,36 +707,71 @@ function coronaPoints(positions: THREE.Vector3[], color: number, size: number): 
   return pts;
 }
 
-function windowTexture(): THREE.CanvasTexture {
-  const c = document.createElement("canvas");
-  c.width = 128;
-  c.height = 256;
-  const ctx = c.getContext("2d")!;
-  ctx.fillStyle = "#0a0d13";
-  ctx.fillRect(0, 0, 128, 256);
-  // Per-floor life: dark floors, sleepy floors, the odd lit-up office
+/**
+ * A tower's skin, as two maps drawn from one pass of the same dice.
+ *
+ * There used to be one texture doing both jobs, and its background was
+ * #0a0d13 — so the FACADE was painted near-black and every building in
+ * the city was a black slab at every hour of the day, tint or no tint.
+ * Measured at noon: half the building pixels at 0/255 and a ceiling of
+ * 211. A lit window was a pale patch in the albedo, which at night is a
+ * pale patch standing in shadow rather than a light.
+ *
+ *   facade   concrete, banded by floor, with the glass a shade darker.
+ *            This is what the sun lights and what the palette tints.
+ *   lit      black except for the windows that are on. This drives
+ *            emission, so those windows are sources after dark.
+ */
+function windowTextures(): { facade: THREE.CanvasTexture; lit: THREE.CanvasTexture } {
+  const mk = () => {
+    const c = document.createElement("canvas");
+    c.width = 128;
+    c.height = 256;
+    return [c, c.getContext("2d")!] as const;
+  };
+  const [fc, fx] = mk();
+  const [lc, lx] = mk();
+  // Concrete, with a faint band per floor so a facade has some tone of
+  // its own before anything lights it.
+  fx.fillStyle = "#8d9199";
+  fx.fillRect(0, 0, 128, 256);
+  lx.fillStyle = "#000000";
+  lx.fillRect(0, 0, 128, 256);
   for (let y = 6; y < 250; y += 10) {
+    fx.fillStyle = "rgba(0,0,0,0.10)";
+    fx.fillRect(0, y + 6, 128, 3); // spandrel between floors
     const floorVibe = Math.random();
     const litChance = floorVibe < 0.18 ? 0.85 : floorVibe < 0.5 ? 0.12 : 0.38;
     const warm = Math.random() < 0.7;
     for (let x = 5; x < 122; x += 9) {
+      // Glass reads darker than concrete in daylight whether or not
+      // anything is on behind it.
+      fx.fillStyle = "#4a525e";
+      fx.fillRect(x, y, 6, 5);
       if (Math.random() < litChance) {
-        ctx.fillStyle = warm || Math.random() < 0.6 ? "#ffd27f" : "#9ad1ff";
-        ctx.globalAlpha = 0.45 + Math.random() * 0.55;
-        ctx.fillRect(x, y, 6, 5);
+        const col = warm || Math.random() < 0.6 ? "#ffd27f" : "#9ad1ff";
+        lx.fillStyle = col;
+        lx.globalAlpha = 0.45 + Math.random() * 0.55;
+        lx.fillRect(x, y, 6, 5);
         // Curtain-glow spill on bright windows
         if (Math.random() < 0.25) {
-          ctx.globalAlpha = 0.12;
-          ctx.fillRect(x - 1, y - 1, 8, 7);
+          lx.globalAlpha = 0.12;
+          lx.fillRect(x - 1, y - 1, 8, 7);
         }
+        lx.globalAlpha = 1;
+        // A lit pane is a little paler in daylight too
+        fx.fillStyle = "#5d6674";
+        fx.fillRect(x, y, 6, 5);
       }
     }
   }
-  ctx.globalAlpha = 1;
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
-  return tex;
+  const wrap = (canvas: HTMLCanvasElement) => {
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    return tex;
+  };
+  return { facade: wrap(fc), lit: wrap(lc) };
 }
 
 function signTexture(en: string, ar: string, sub?: string): THREE.CanvasTexture {
@@ -1160,16 +1195,30 @@ function waterTowers(stripes: THREE.CanvasTexture): THREE.Group {
   return g;
 }
 
-function liberationTower(windows: THREE.CanvasTexture): THREE.Group {
+type Skin = { facade: THREE.CanvasTexture; lit: THREE.CanvasTexture };
+
+/** A glazed tower's material: concrete by day, lit windows after dark.
+ *  The caller keeps the material so the hour can drive its emission. */
+function glazedMat(skin: Skin, color: number, roughness: number): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    map: skin.facade,
+    emissiveMap: skin.lit,
+    emissive: 0xffffff,
+    emissiveIntensity: 1.15,
+    color,
+    roughness,
+  });
+}
+
+function liberationTower(skin: Skin, lit: THREE.MeshStandardMaterial[]): THREE.Group {
   const g = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({ color: 0xb9bfc7, roughness: 0.6 });
   const shaft = new THREE.Mesh(new THREE.CylinderGeometry(5.5, 7, 95, 12), mat);
   shaft.position.y = 47.5;
   g.add(shaft);
-  const disc = new THREE.Mesh(
-    new THREE.CylinderGeometry(12, 12, 7, 14),
-    new THREE.MeshStandardMaterial({ map: windows, color: 0xffffff, roughness: 0.5 })
-  );
+  const discMat = glazedMat(skin, 0xffffff, 0.5);
+  lit.push(discMat);
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(12, 12, 7, 14), discMat);
   disc.position.y = 72;
   g.add(disc);
   const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.8, 38, 6), mat);
@@ -1178,12 +1227,9 @@ function liberationTower(windows: THREE.CanvasTexture): THREE.Group {
   return g;
 }
 
-function alHamra(windows: THREE.CanvasTexture): THREE.Mesh {
-  const mat = new THREE.MeshStandardMaterial({
-    map: windows,
-    color: 0xdddddd,
-    roughness: 0.4,
-  });
+function alHamra(skin: Skin, lit: THREE.MeshStandardMaterial[]): THREE.Mesh {
+  const mat = glazedMat(skin, 0xdddddd, 0.4);
+  lit.push(mat);
   const tower = new THREE.Mesh(new THREE.BoxGeometry(26, 118, 24), mat);
   tower.position.y = 59;
   return tower;
@@ -1388,6 +1434,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   let shimmerLampMat: THREE.MeshStandardMaterial | null = null;
   // Handles the time-of-day switch repaints
   let skyMatRef: THREE.ShaderMaterial | null = null;
+  // Everything whose windows come on after dark, so one place drives them.
+  const litFacades: THREE.MeshStandardMaterial[] = [];
   let starsMatRef: THREE.PointsMaterial | null = null;
   let moonDiscMat: THREE.MeshBasicMaterial | null = null;
   let moonHaloMat: THREE.SpriteMaterial | null = null;
@@ -1526,6 +1574,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     });
     skyMatRef = skyMat;
     const sky = new THREE.Mesh(new THREE.SphereGeometry(1900, 24, 12), skyMat);
+    // Named for the levels tool, which measures the delivered picture per
+    // surface and otherwise has to guess which of the sky followers is
+    // the dome rather than the moon, its halo or the stars.
+    sky.name = "sky";
     sky.renderOrder = -2;
     scene.add(sky);
     skyFollowers.push(sky);
@@ -1777,14 +1829,23 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     emissiveIntensity: 0.5,
     roughness: 0.5,
   });
-  scene.add(new THREE.Mesh(
-    buildRibbon(track, (s) => -(track.halfWidthAt(s) - 0.35), (s) => -(track.halfWidthAt(s) - 0.15), 0.03, 4),
-    lineMat
-  ));
-  scene.add(new THREE.Mesh(
-    buildRibbon(track, (s) => track.halfWidthAt(s) - 0.35, (s) => track.halfWidthAt(s) - 0.15, 0.03, 4),
-    lineMat
-  ));
+  // The paint is named alongside the asphalt it sits on. It is the
+  // brightest thing on the road surface, so a levels reading that leaves
+  // it out understates the road's ceiling by most of what it has.
+  for (const edge of [-1, 1]) {
+    const line = new THREE.Mesh(
+      buildRibbon(
+        track,
+        (s) => edge * (track.halfWidthAt(s) - (edge < 0 ? 0.35 : 0.15)),
+        (s) => edge * (track.halfWidthAt(s) - (edge < 0 ? 0.15 : 0.35)),
+        0.03,
+        4
+      ),
+      lineMat
+    );
+    line.name = "road-line";
+    scene.add(line);
+  }
 
   {
     const dashGeo = new THREE.PlaneGeometry(0.14, 3);
@@ -1818,6 +1879,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       }
     }
     dashes.instanceMatrix.needsUpdate = true;
+    dashes.name = "road-dash";
     scene.add(dashes);
   }
 
@@ -2025,12 +2087,20 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   }
 
   // City blocks with lit windows
-  const windows = windowTexture();
+  const windows = windowTextures();
   {
     const count = 340; // more blocks now that they are visible much further
     const geo = new THREE.BoxGeometry(1, 1, 1);
     geo.translate(0, 0.5, 0);
-    const mat = new THREE.MeshStandardMaterial({ map: windows, color: 0xffffff, roughness: 0.8 });
+    // The lit windows were painted into the ALBEDO and nothing else, so
+    // after dark a "lit" window was a pale diffuse patch standing in
+    // shadow: buildings measured 85% of their pixels at 0/255 with a
+    // ceiling of 194, which is a black cut-out with a moonlit edge. The
+    // same texture drives emission, so the windows are light sources.
+    // Intensity rides the hour — see setTimeOfDay — because a window
+    // that glows at noon reads as a mistake.
+    const mat = glazedMat(windows, 0xffffff, 0.8);
+    litFacades.push(mat);
     const blocks = new THREE.InstancedMesh(geo, mat, count);
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();
@@ -2311,14 +2381,14 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   m2.rotation.y = Math.PI / 3;
   scene.add(m2);
 
-  const lib = liberationTower(windows);
+  const lib = liberationTower(windows, litFacades);
   placeBeside(track, lib, L * 0.9, 130); // city centre, inland of the top curve
   const libBeacon = makeBeacon(beacons);
   libBeacon.position.y = 134;
   lib.add(libBeacon);
   scene.add(lib);
 
-  const hamra = alHamra(windows);
+  const hamra = alHamra(windows, litFacades);
   placeBeside(track, hamra, L * 0.96, 80); // Sharq skyline by the start
   const hamraBeacon = makeBeacon(beacons);
   hamraBeacon.position.y = 60; // local to the 118 m box, centred at 59
@@ -2896,8 +2966,22 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // Sky gradient: deep bay blue → sunrise ember → daylight blue
       if (skyMatRef) {
         const u = skyMatRef.uniforms;
+        // The night zenith is four times what it was. At the old value it
+        // arrived at the grade as 0.017 and the black point subtracted it
+        // to exactly zero: two thirds of every sky pixel was 0/255, the
+        // gradient existed only in the horizon band, and the stars sat on
+        // a dead field. A city this size throws enough light back at its
+        // own sky that the top of it is a deep navy, not a hole.
+        // The day palette is deliberately left alone. Dimming it to a
+        // quarter less DOES unblow the noon sky — measured 17.4% of it at
+        // 250/255 or above, down to 10.6% — but it also inverts the
+        // bottom of the exposure ladder at noon, where the margin was
+        // only 5.8% to begin with: a stop down came out BRIGHTER than a
+        // stop at zero. Half a fix is not worth an exposure control that
+        // runs backwards, and what still clips is the sun's own corner of
+        // the sky. Noted in the levels tool's output instead.
         (u.uTop.value as THREE.Color).copy(
-          mix3([0.004, 0.007, 0.026], [0.030, 0.048, 0.105], [0.16, 0.34, 0.72])
+          mix3([0.016, 0.028, 0.104], [0.030, 0.048, 0.105], [0.16, 0.34, 0.72])
         );
         (u.uHorizon.value as THREE.Color).copy(
           mix3([0.05, 0.066, 0.125], [0.42, 0.24, 0.16], [0.62, 0.74, 0.92])
@@ -2949,8 +3033,18 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       if (hemiRef) {
         hemiRef.color.copy(mix3([0.17, 0.22, 0.33], [0.35, 0.42, 0.59], [0.55, 0.68, 0.92]));
         hemiRef.groundColor.copy(mix3([0.07, 0.055, 0.03], [0.17, 0.13, 0.09], [0.42, 0.36, 0.28]));
-        hemiRef.intensity = 0.2 * night + 0.3 * twilight + 0.5 * day;
+        // Night ambient up from 0.2. It is the only thing lighting the
+        // asphalt away from a lamp and the shadow side of a facade, and
+        // at 0.2 both of those sat on the floor. A city at night throws
+        // a lot of light back at itself.
+        hemiRef.intensity = 0.3 * night + 0.3 * twilight + 0.5 * day;
       }
+
+      // Office windows: full after dark, fading through twilight, out by
+      // day. They are the only thing giving a building any top end at
+      // night, and the only thing that reads as a city rather than as a
+      // row of dark slabs.
+      for (const m of litFacades) m.emissiveIntensity = 1.15 * night + 0.45 * twilight;
 
       // Stars burn out as the sky lifts; nothing kills a sunrise faster
       // than a starfield still hanging in it.

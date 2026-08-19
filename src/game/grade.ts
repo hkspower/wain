@@ -26,8 +26,15 @@ export const GradeShader = {
     uTime: { value: 0 },
     uTexel: { value: new THREE.Vector2(1 / 1280, 1 / 720) },
     /** Everything below this maps to true zero. Display-referred, so this
-     *  is a literal ~2.5% lift-kill rather than an HDR-space guess. */
-    uBlackPoint: { value: 0.02 },
+     *  is a literal lift-kill rather than an HDR-space guess.
+     *
+     *  It was 0.02 — five 8-bit steps — which is more than a night sky
+     *  is worth. Measured: the zenith arrives here at 0.017 after the
+     *  toe, so the subtraction took the entire upper sky to exactly zero
+     *  and 63-68% of every sky pixel with it. The lift this exists to
+     *  kill is the grain and the dither, and both are already an 8-bit
+     *  step or less, so it only needs to be about that big. */
+    uBlackPoint: { value: 0.006 },
     /** Shadow toe: >1 pushes the darks down without touching highlights. */
     uToe: { value: 1.06 },
     /** Where the highlight shoulder starts. Below this nothing changes,
@@ -202,6 +209,13 @@ const AdaptShader = {
     // night frame back at ~1.15 — the hand-set exposure this game had
     // before it could meter — and lets daylight stop down from there.
     uKey: { value: 0.017 },
+    // The meter sits on this floor at nearly every hour, which makes it
+    // close to a fixed exposure — and that is deliberate, not an
+    // oversight to open up. Tried at 0.34: the meter then chased the
+    // brighter city and stopped the NIGHT down to 0.446, which put 55%
+    // of the road at 0/255 — worse than before any of this work. A night
+    // racer wants its nights pinned, not metered away. Daylight's blown
+    // sky is fixed where it is made, in the sky's own palette.
     uRange: { value: new THREE.Vector2(0.55, 1.25) },
     uRates: { value: new THREE.Vector2(2.2, 0.7) }, // down (fast), up (slow)
   },
