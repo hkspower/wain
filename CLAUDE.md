@@ -177,9 +177,10 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   `prefers-reduced-motion` switches all of it off. Sections reveal as whole
   blocks — staggering siblings puts cards of one row on different baselines.
 - **«ما نبنيه لعملك» is drawn, not written** (owner's request, 2026-08-01:
-  «قلل الكتابة واجعل بدل كتابة أشكال»): four SVG scenes — gears that turn,
-  a pen that draws, two devices labelled iOS/Android whose screens fill, and
-  code that types itself — each under a two-word label. No Apple or Android
+  «قلل الكتابة واجعل بدل كتابة أشكال»): five SVG scenes — gears that turn,
+  a pen that draws, two devices labelled iOS/Android whose screens fill,
+  code that types itself, and the logo drawn as فكرة → بناء → روح (below) —
+  each under a two-word label. No Apple or Android
   logo is drawn: the platform names are set as text, which is nominative use;
   reproducing their marks is not ours to do. **Never name a card class
   `.shape`** — that is the hero's floating geometry and carries
@@ -192,9 +193,9 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   neutral one — the company's own sail is never used as a sample of client
   work, and the suite fails if that scene ever `<use>`s the sprite.
 - **«من أعمالنا» is delivered work; «ما نبنيه لعملك» is offers.** النوخذة is a
-  system the company built and runs, so it keeps the flagship row. The four
-  offers (موظف ذكاء اصطناعي · برمجيات خاصة · برنامج مساعد داخل موقعك · تطوير
-  موقعك الحالي) sit in their own rail beneath it. Do not merge the two: filing
+  system the company built and runs, so it keeps the flagship row. The five
+  offers (أتمتة · تصميم · تطبيقات · برمجة خاصة · شعار وهوية) sit in their own
+  rail beneath it, and the sub-line counts them — «خمسة نبدأ بها عادةً». Do not merge the two: filing
   an offer under "our work" presents it as something already delivered.
 - **One numeral system across the whole site**, not just the company page:
   placeholders read «٨ أحرف» and the not-found page was titled ٤٠٤ while every

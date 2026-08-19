@@ -600,7 +600,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "546", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "547", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -634,7 +634,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "546", "0", "100%"], str(finals))
+          finals == ["4", "547", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -1327,6 +1327,21 @@ def scan_checks(pg, br):
 # ───────────── النوخذة is free: one plan, no price, nothing to upgrade to
 def pricing_checks(pg):
     S = "pricing"
+    # The fleet cards' status chips are the cards' footers. A wrapped title
+    # used to push XBRL's chip 68px below its neighbours', inside cards that
+    # all end at the same height — the kind of raggedness only a rendered
+    # screenshot shows, so it is measured here instead.
+    pg.goto(f"{BASE}/nokhatha.html", wait_until="networkidle")
+    pg.wait_for_timeout(300)
+    # only the chips on the screen that is actually showing — the portal is one
+    # document with every view in it, and a hidden view measures 0
+    tops = pg.eval_on_selector_all(
+        ".grid .card > .chip",
+        "cs => cs.map(c => c.getBoundingClientRect())"
+        ".filter(r => r.height > 0).map(r => Math.round(r.top))")
+    check(S, "every fleet card's status chip sits on one baseline",
+          len(tops) >= 4 and max(tops) - min(tops) <= 1, str(tops))
+
     pg.goto(f"{BASE}/nokhatha.html#/pricing", wait_until="networkidle")
     pg.wait_for_timeout(300)
     txt = pg.inner_text("#page-pricing")

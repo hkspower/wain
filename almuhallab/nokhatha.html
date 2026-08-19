@@ -164,6 +164,12 @@
       background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
       align-self: flex-start;
     }
+    /* The status chip is the card's footer, so it sits on the card's floor and
+       not directly under a title that happened to wrap. Measured before this:
+       XBRL's title takes two lines, and the four «متاحة» chips landed on three
+       different baselines — 700, 678 and 746 — inside cards that all end at
+       the same height. */
+    .grid .card > .chip { margin-top: auto; }
     .chip.on { color: var(--tint); border-color: var(--tint-strong); }
     .chip.locked { color: var(--sand); }
 
