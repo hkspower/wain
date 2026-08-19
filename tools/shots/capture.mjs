@@ -44,6 +44,8 @@ const SHOTS = [
   { name: "dusk", hour: 18.2, u: 0.30 },
   { name: "coast", hour: 22.5, u: 0.62 },   // the seaward leg
   { name: "city", hour: 22.5, u: 0.08 },    // towers behind the road
+  { name: "towers", hour: 22.5, u: 0.985 },  // Kuwait Towers on the approach
+  { name: "towersday", hour: 16.5, u: 0.985 }, // same frame by day, so the pair compares
   { name: "drift", hour: 22.5, u: 0.30, drift: true },
 ];
 

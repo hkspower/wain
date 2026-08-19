@@ -904,42 +904,239 @@ function chevronTexture(pointRight: boolean): THREE.CanvasTexture {
   return tex;
 }
 
+/**
+ * The enamelled steel discs that clad the spheres.
+ *
+ * This is the thing that makes Kuwait Towers recognisable, and it is not
+ * a colour: it is roughly forty-one thousand small enamelled steel discs
+ * in eight shades of blue, green and grey, set in offset rows so the
+ * surface shifts as you drive past. A plain teal ball reads as a water
+ * tank, which is what these were before.
+ *
+ * One patch of the grid is drawn and then tiled rather than painting a
+ * whole sphere, so a few thousand discs cost a quarter-megabyte image.
+ */
+function discCladdingTexture(): THREE.CanvasTexture {
+  // Eight shades, which is what the real cladding uses: blues through
+  // greens to grey rather than eight steps of one teal, or the whole
+  // sphere reads as painted metal instead of a mosaic.
+  const SHADES = [
+    "#2b6f8f", "#3f8fa8", "#57a49c", "#74b7a4",
+    "#93c4b6", "#aec6c4", "#6e8ea3", "#c6d1d2",
+  ];
+  const N = 16;
+  const CELL = 32;
+  const c = document.createElement("canvas");
+  c.width = c.height = N * CELL;
+  const ctx = c.getContext("2d")!;
+  // The mounting behind the discs. It shows as a grid between them and,
+  // at a distance, it is most of what you see — a near-black ground and
+  // a small disc turned the spheres into disco balls, so the ground is a
+  // mid slate and the discs nearly touch.
+  ctx.fillStyle = "#41535c";
+  ctx.fillRect(0, 0, c.width, c.height);
+  // A fixed shuffle rather than Math.random: the pattern is then the
+  // same on every run, so two screenshots of this tower can be compared.
+  let seed = 0x9e3779b9;
+  const rnd = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 0x100000000;
+  };
+  const r = CELL * 0.48;
+  // Drawn at the wrap as well as in place. Offset rows put half a disc
+  // over the right edge, and without its other half at the left edge the
+  // tiling shows a seam straight down the sphere.
+  const disc = (cx: number, cy: number, shade: string) => {
+    for (const x of [cx - c.width, cx, cx + c.width]) {
+      ctx.fillStyle = shade;
+      ctx.beginPath();
+      ctx.arc(x, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      // Enamel is glossy. A small off-centre highlight sells that from
+      // the road far better than a specular map would.
+      ctx.fillStyle = "rgba(255,255,255,0.26)";
+      ctx.beginPath();
+      ctx.arc(x - r * 0.3, cy - r * 0.32, r * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  };
+  for (let row = 0; row < N; row++) {
+    for (let col = 0; col < N; col++) {
+      disc(
+        (col + (row % 2 ? 0.5 : 0)) * CELL + CELL / 2,
+        row * CELL + CELL / 2,
+        SHADES[Math.floor(rnd() * SHADES.length)]
+      );
+    }
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+/**
+ * Kuwait Towers, on the Ras Ajouza promontory off Arabian Gulf Street.
+ *
+ * Three towers, not three aerials: 187 m with two spheres, 147 m with
+ * one, and 113 m with none — the short one is a lighting mast that
+ * floodlights the other two, which is why it has no sphere and why it
+ * reads as a mistake if you give it one. On the main tower the lower
+ * sphere sits at 82 m (a restaurant over a water tank) and the smaller
+ * upper one at 123 m (the revolving viewing sphere). Those ratios are
+ * the whole silhouette, so they are held to one scale factor here and
+ * the main tower keeps the height it already had in this skyline.
+ */
 function kuwaitTowers(): THREE.Group {
   const g = new THREE.Group();
-  const spireMat = new THREE.MeshStandardMaterial({ color: 0xcfd6dd, roughness: 0.5 });
-  const ballMat = new THREE.MeshStandardMaterial({
-    color: 0x2e8f96,
-    roughness: 0.35,
-    metalness: 0.3,
-    emissive: 0x0e4a50,
-    emissiveIntensity: 0.7,
-  });
+  const S = 113 / 187; // main tower unchanged against the rest of the skyline
+  const H1 = 187 * S;
+  const H2 = 147 * S;
+  const H3 = 113 * S;
 
+  // Pale board-marked concrete, warmed a little because at night these
+  // are lit from below by the third tower and never read as cold white.
+  const shaftMat = new THREE.MeshStandardMaterial({
+    color: 0xd3d8dc,
+    roughness: 0.72,
+    emissive: 0x2a2115,
+    emissiveIntensity: 0.35,
+  });
+  const glassMat = new THREE.MeshStandardMaterial({
+    color: 0x0d1a22,
+    roughness: 0.15,
+    metalness: 0.6,
+    emissive: 0xffcc88,
+    emissiveIntensity: 0.55,
+  });
+  const cladding = discCladdingTexture();
+
+  // One disc is about 0.9 m across whatever sphere it is on, so the
+  // texture repeat comes from the radius. The horizontal repeat has to
+  // be a whole number or the tiling does not close where u wraps.
+  const DISC = 0.9;
+  const sphere = (radius: number): THREE.Mesh => {
+    const map = cladding.clone();
+    map.needsUpdate = true;
+    const ru = Math.max(3, Math.round((2 * Math.PI * radius) / (16 * DISC)));
+    map.repeat.set(ru, ru / 2);
+    return new THREE.Mesh(
+      new THREE.SphereGeometry(radius, 36, 24),
+      new THREE.MeshStandardMaterial({
+        map,
+        // The same discs drive the glow, so each one lights in its own
+        // colour rather than the whole ball washing to one tint.
+        emissiveMap: map,
+        emissive: 0xffffff,
+        emissiveIntensity: 0.4,
+        // Enamel over steel, not bare steel: mostly diffuse with a sheen.
+        // At 0.45 metalness they went black in daylight, because there is
+        // nothing in the sky for a metal to reflect.
+        roughness: 0.45,
+        metalness: 0.2,
+      })
+    );
+  };
+  /** The glazed gallery band around a sphere. One storey of windows, so
+   *  it has to stay thin — at 3.4 m on a 10 m sphere it read as a stripe
+   *  painted round the middle rather than as a floor with a view out. */
+  const gallery = (radius: number, height: number): THREE.Mesh =>
+    new THREE.Mesh(new THREE.CylinderGeometry(radius * 1.008, radius * 1.008, height, 36, 1, true), glassMat);
+
+  // --- Main tower: 187 m, two spheres
   const main = new THREE.Group();
-  const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 3.2, 113, 10), spireMat);
-  spire.position.y = 56.5;
-  main.add(spire);
-  const bigBall = new THREE.Mesh(new THREE.SphereGeometry(11, 18, 14), ballMat);
-  bigBall.position.y = 58;
-  main.add(bigBall);
-  const smallBall = new THREE.Mesh(new THREE.SphereGeometry(6.5, 16, 12), ballMat);
-  smallBall.position.y = 88;
-  main.add(smallBall);
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 3.4, H1, 14), shaftMat);
+  shaft.position.y = H1 / 2;
+  main.add(shaft);
+
+  const rLow = 10.4;
+  const lower = sphere(rLow);
+  lower.position.y = 82 * S;
+  main.add(lower);
+  const lowerGlass = gallery(rLow, 2.0);
+  lowerGlass.position.y = 82 * S + rLow * 0.3;
+  main.add(lowerGlass);
+
+  const rUp = 5.7;
+  const upper = sphere(rUp);
+  upper.position.y = 123 * S;
+  main.add(upper);
+  const upperGlass = gallery(rUp, 1.6);
+  upperGlass.position.y = 123 * S;
+  main.add(upperGlass);
   g.add(main);
 
+  // --- Second tower: 147 m, one sphere, all of it water storage
   const second = new THREE.Group();
-  const spire2 = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 2.6, 92, 10), spireMat);
-  spire2.position.y = 46;
-  second.add(spire2);
-  const ball2 = new THREE.Mesh(new THREE.SphereGeometry(8.5, 16, 12), ballMat);
-  ball2.position.y = 62;
+  const shaft2 = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 2.8, H2, 12), shaftMat);
+  shaft2.position.y = H2 / 2;
+  second.add(shaft2);
+  const rMid = 9.2;
+  const ball2 = sphere(rMid);
+  ball2.position.y = H2 * 0.6;
   second.add(ball2);
-  second.position.set(-34, 0, 14);
+  second.position.set(5, 0, -33);
   g.add(second);
 
-  const third = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 2.2, 76, 10), spireMat);
-  third.position.set(-62, 38, 30);
+  // --- Third tower: 113 m, no sphere. It is a lighting mast, so it gets
+  // the floodlights instead — a ring of them near the top, aimed back at
+  // the other two.
+  const third = new THREE.Group();
+  const shaft3 = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 2.2, H3, 12), shaftMat);
+  shaft3.position.y = H3 / 2;
+  third.add(shaft3);
+  const lampMat = new THREE.MeshStandardMaterial({
+    color: 0x1a1a18,
+    emissive: 0xfff0cc,
+    emissiveIntensity: 2.2,
+    roughness: 0.4,
+  });
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.5, 8), lampMat);
+    lamp.rotation.z = Math.PI / 2;
+    lamp.rotation.y = -a;
+    lamp.position.set(Math.cos(a) * 1.5, H3 - 5, Math.sin(a) * 1.5);
+    third.add(lamp);
+  }
+  third.position.set(11, 0, -62);
   g.add(third);
+
+  // --- The base. The towers stand on a stepped plinth with a low
+  // entrance podium under the main one; without it they look pushed into
+  // the ground like posts.
+  const plinthMat = new THREE.MeshStandardMaterial({ color: 0xbfae8a, roughness: 0.9 });
+  for (const [x, z, r] of [
+    [0, 0, 11],
+    [5, -33, 9],
+    [11, -62, 7],
+  ]) {
+    const plinth = new THREE.Mesh(new THREE.CylinderGeometry(r, r + 1.6, 2.2, 16), plinthMat);
+    plinth.position.set(x, 1.1, z);
+    g.add(plinth);
+  }
+  const podium = new THREE.Mesh(new THREE.CylinderGeometry(19, 21, 5.5, 20), plinthMat);
+  podium.position.set(-3, 2.75, 8);
+  g.add(podium);
+
+  // Ras Ajouza itself. The headland belongs to the group rather than to
+  // the caller: laid out separately it was a 72 m disc dropped 52 m off
+  // the road, which reached twenty metres PAST the centreline and put
+  // sand over the carriageway. Built here it turns with the towers and
+  // its size can be checked against the layout it actually has to cover.
+  const sandMat = new THREE.MeshStandardMaterial({ color: 0x8a7a55, roughness: 1 });
+  const land = new THREE.Mesh(new THREE.CylinderGeometry(1, 1.06, 2.6, 32), sandMat);
+  land.scale.set(38, 1, 62);
+  land.position.set(4, 1.3, -30);
+  g.add(land);
+  const wall = new THREE.Mesh(
+    new THREE.CylinderGeometry(1, 1, 1.2, 32, 1, true),
+    new THREE.MeshStandardMaterial({ color: 0x6f6a5e, roughness: 0.95 })
+  );
+  wall.scale.set(38.4, 1, 62.4);
+  wall.position.set(4, 2.6, -30);
+  g.add(wall);
 
   return g;
 }
@@ -2066,18 +2263,23 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   }
 
   // Landmarks, in real Gulf Road order heading south down the coast
-  const towers = kuwaitTowers();
-  placeBeside(track, towers, L * 0.016, -52); // Ras Ajouza promontory, ahead of the spawn
-  const towersBeacon = makeBeacon(beacons);
-  towersBeacon.position.y = 114;
-  towers.add(towersBeacon);
-  scene.add(towers);
-  const towersPad = new THREE.Mesh(
-    new THREE.CylinderGeometry(70, 75, 0.8, 20),
-    new THREE.MeshStandardMaterial({ color: 0x8a7a55, roughness: 1 })
-  );
-  towersPad.position.copy(towers.position).setY(0.1);
-  scene.add(towersPad);
+  // Kuwait Towers on the Ras Ajouza headland, seaward of the corniche and
+  // ahead of the spawn. Far enough out that the headland clears the beach
+  // ribbon (which runs to 55 m) and turned to the road, so the three
+  // towers line up along the coast the way they do from Arabian Gulf
+  // Street rather than at whatever angle the world axes happen to give.
+  {
+    const towers = kuwaitTowers();
+    const s = L * 0.016;
+    placeBeside(track, towers, s, -95);
+    const tan = new THREE.Vector3();
+    track.tangentAt(s, tan);
+    towers.rotation.y = Math.atan2(tan.x, tan.z);
+    const towersBeacon = makeBeacon(beacons);
+    towersBeacon.position.y = 114;
+    towers.add(towersBeacon);
+    scene.add(towers);
+  }
 
   const grandMosque = mosque();
   placeBeside(track, grandMosque, L * 0.02, 55); // opposite Souq Sharq
