@@ -50,3 +50,6 @@ desktop/node_modules/
 # python
 __pycache__/
 *.pyc
+
+# car elevations rendered on demand by tools/shots/car-views.mjs
+/press/views/

@@ -712,8 +712,13 @@ lipGeo.rotateY(Math.PI / 2);
  * The front arch is the larger of the two and carries a flare, the way a
  * front fender is a wider panel than the rear quarter it runs back into.
  */
-const ARCH_X = 0.925; // just outside the shell's 0.92
-const LIP_X = 0.929;
+// How far outside the shell's own flank the opening and its lip sit.
+// These were absolute numbers taken from the sedan's 0.92 half-width,
+// which put both of them INSIDE the flank on the four wide silhouettes —
+// the zx, rx7 and gtr shells run 0.96 to 0.98. Offsets from the shell's
+// measured width work on every body.
+const ARCH_OUT = 0.005;
+const LIP_OUT = 0.009;
 const archWellGeo = new THREE.CircleGeometry(0.46, 22);
 const archWellGeoF = new THREE.CircleGeometry(0.485, 22);
 // A rolled panel edge, not a hoop. The first pass used a 0.03-0.038 tube
@@ -725,6 +730,64 @@ archLipGeo.rotateY(Math.PI / 2);
 const archLipGeoF = new THREE.TorusGeometry(0.5, 0.021, 8, 30, Math.PI);
 archLipGeoF.rotateY(Math.PI / 2);
 const wellMat = new THREE.MeshBasicMaterial({ color: 0x060708 });
+
+/**
+ * Where the painted skin actually is.
+ *
+ * A style's anchors are the control points of its 2D profile. The
+ * extrusion then bevels that profile, and the spline bows between the
+ * points, so the surface ends up tens of millimetres away from the
+ * anchor — outward at the nose, upward over the deck. Detail placed by
+ * eye at "anchor, minus a bit" therefore kept landing inside the
+ * bodywork: the Z32's entire headlight bar, both pop-up lamps and their
+ * doors on the FD, the cooling slot on both cab-back noses, the third
+ * brake light on the fastbacks, the front plate on the FD.
+ *
+ * So stop guessing and ask the geometry. Fire one ray at the shell from
+ * outside the car; the first hit is the skin. Memoised on the geometry
+ * and the ray, because the shells are module-level and shared — this
+ * runs a handful of times for the life of the process, not once per car.
+ */
+const surfaceCache = new Map<string, number | null>();
+function shellSurface(
+  geo: THREE.BufferGeometry,
+  key: string,
+  from: [number, number, number],
+  dir: [number, number, number]
+): number | null {
+  const cached = surfaceCache.get(key);
+  if (cached !== undefined) return cached;
+  const probe = new THREE.Mesh(geo);
+  probe.updateMatrixWorld(true);
+  const ray = new THREE.Raycaster(
+    new THREE.Vector3(from[0], from[1], from[2]),
+    new THREE.Vector3(dir[0], dir[1], dir[2]).normalize()
+  );
+  const hit = ray.intersectObject(probe, false)[0];
+  // A miss means the caller aimed off the body, which is its bug to fix.
+  // Returning null lets it fall back to the old constant rather than
+  // flinging the part to infinity.
+  const at = hit
+    ? dir[1] !== 0
+      ? hit.point.y
+      : dir[2] !== 0
+        ? hit.point.z
+        : hit.point.x
+    : null;
+  surfaceCache.set(key, at);
+  return at;
+}
+/** The body's outer face at a height, on the centreline, front or rear. */
+function noseFaceZ(geo: THREE.BufferGeometry, style: BodyStyle, y: number, front: boolean): number | null {
+  const far = front ? 6 : -6;
+  return shellSurface(geo, `${style}:z${front ? "+" : "-"}${y}`, [0, y, far], [0, 0, front ? -1 : 1]);
+}
+/** A panel's upper surface at a point along the car, on the centreline.
+ *  `tag` names which panel, so the roof and the body do not share a
+ *  cache entry when they are asked about the same z. */
+function deckY(geo: THREE.BufferGeometry, style: BodyStyle, z: number, tag = "body"): number | null {
+  return shellSurface(geo, `${style}:${tag}:y${z}`, [0, 6, z], [0, -1, 0]);
+}
 
 // Tinted glass, not a mirror. The intent here was always to silhouette
 // the interior, but metalness 0.9 made the surface behave like polished
@@ -1145,6 +1208,14 @@ export function createCar(colors: CarColors): THREE.Group {
   const bodyShell = new THREE.Mesh(bGeo, bodyMat);
   bodyShell.userData.shell = "body";
   group.add(bodyShell);
+  // The shell's own half-width. Everything that mounts on the flank —
+  // arch openings, arch lips, side markers — is an offset from this
+  // rather than from the sedan's 0.92, which is what the wide bodies
+  // were being measured against while their skin sat 40-60 mm further
+  // out. Cheap: extrudeProfile caches its bounding box after the first
+  // car of a silhouette.
+  bGeo.computeBoundingBox();
+  const flankX = bGeo.boundingBox!.max.x;
   const canopyShell = new THREE.Mesh(cGeo, glassMat);
   canopyShell.userData.shell = "canopy";
   group.add(canopyShell);
@@ -1206,24 +1277,30 @@ export function createCar(colors: CarColors): THREE.Group {
   };
 
   if (style === "zx") {
-    // Z32 signature: one flush light bar across the whole nose
+    // Z32 signature: one flush light bar across the whole nose. Pinned
+    // 80 mm behind the nose anchor it was 100 mm inside the bumper — the
+    // three cars on this silhouette had no headlights on screen at all.
+    const barY = d.noseTopY + 0.03;
+    const barZ = (noseFaceZ(bGeo, style, barY, true) ?? d.nose) - 0.018;
     const bar = new THREE.Mesh(roundedBox(1.56, 0.1, 0.07, 0.03), headMat);
-    bar.position.set(0, d.noseTopY + 0.03, d.nose - 0.08);
+    bar.position.set(0, barY, barZ);
     bar.rotation.x = -0.09; // gently raked, flush with the hood line
     group.add(bar);
-    for (const sx of [-0.5, 0.5]) addHeadGlare(sx, d.noseTopY + 0.03, d.nose - 0.08, 0.95);
+    for (const sx of [-0.5, 0.5]) addHeadGlare(sx, barY, barZ, 0.95);
   } else if (style === "rx7") {
     // Pop-up headlights, up for the night run: a body-colour door tilted
-    // out of the hood with the lamp shining from under it
+    // out of the hood with the lamp shining from under it. Both sat
+    // under the hood skin, so the FD ran dark as well.
+    const hood = deckY(bGeo, style, d.nose - 0.4) ?? d.noseTopY + 0.08;
     for (const sx of [-0.58, 0.58]) {
       const door = new THREE.Mesh(roundedBox(0.44, 0.05, 0.3, 0.02), bodyMat);
-      door.position.set(sx, d.noseTopY + 0.15, d.nose - 0.42);
+      door.position.set(sx, hood + 0.075, d.nose - 0.42);
       door.rotation.x = -0.62;
       group.add(door);
       const lamp = new THREE.Mesh(roundedBox(0.36, 0.12, 0.08, 0.03), headMat);
-      lamp.position.set(sx, d.noseTopY + 0.07, d.nose - 0.36);
+      lamp.position.set(sx, hood + 0.05, d.nose - 0.36);
       group.add(lamp);
-      addHeadGlare(sx, d.noseTopY + 0.07, d.nose - 0.32, 0.9);
+      addHeadGlare(sx, hood + 0.05, d.nose - 0.32, 0.9);
     }
   } else {
     for (const sx of [-0.62, 0.62]) {
@@ -1247,6 +1324,16 @@ export function createCar(colors: CarColors): THREE.Group {
     emissive: 0xff2222,
     emissiveIntensity: 2.0,
   });
+  // The hot element inside each lamp. It used to share tailMat with the
+  // lens, which made it invisible twice over: the same flat emissive
+  // colour, and geometry sitting wholly inside the lens. Now it is a
+  // hotter, oranger red and it stands proud, so it reads as the filament
+  // rather than as more of the same red plastic.
+  const tailCoreMat = new THREE.MeshStandardMaterial({
+    color: 0x330000,
+    emissive: 0xff7048,
+    emissiveIntensity: 3.2,
+  });
   // The rear lamps are built as assemblies — smoked housing, outer lens,
   // and a hotter inner core — with additive glow halos hung behind them
   // that the engine flares when the brakes bite.
@@ -1269,24 +1356,31 @@ export function createCar(colors: CarColors): THREE.Group {
     tailGlowMats.push(m);
   };
 
+  // Every lamp assembly is a stack: a smoked outer housing, a lens
+  // inside it, a hotter core inside that. Each element is SMALLER than
+  // the one around it, so each must sit FURTHER OUT or it is swallowed
+  // whole. All four silhouettes had the stack the other way round —
+  // outer piece deepest, core shallowest — which put the core inside the
+  // lens on every car in the fleet. The offsets below step outward by
+  // 12–20 mm a layer; the mesh audit checks they still do.
   if (style === "gtr") {
     // The R34 calling card: four round afterburners, each a dark ring
     // with a hot core — the classic double-circle look.
     const garnish = new THREE.Mesh(roundedBox(1.72, 0.3, 0.05, 0.02), grilleMat);
-    garnish.position.set(0, d.tailY, d.tail - 0.005);
+    garnish.position.set(0, d.tailY, d.tail + 0.005);
     group.add(garnish);
     for (const sx of [-0.72, -0.44, 0.44, 0.72]) {
       const bezel = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.115, 0.04, 16), housingMat);
       bezel.rotation.x = Math.PI / 2;
-      bezel.position.set(sx, d.tailY, d.tail - 0.03);
+      bezel.position.set(sx, d.tailY, d.tail - 0.022);
       group.add(bezel);
       const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.095, 0.05, 16), tailMat);
       ring.rotation.x = Math.PI / 2;
-      ring.position.set(sx, d.tailY, d.tail - 0.02);
+      ring.position.set(sx, d.tailY, d.tail - 0.03);
       group.add(ring);
-      const core = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.06, 10), tailMat);
+      const core = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.06, 10), tailCoreMat);
       core.rotation.x = Math.PI / 2;
-      core.position.set(sx, d.tailY, d.tail - 0.015);
+      core.position.set(sx, d.tailY, d.tail - 0.042);
       group.add(core);
     }
     addTailGlow(-0.58, d.tailY, d.tail, 0.75, 0.45);
@@ -1295,16 +1389,16 @@ export function createCar(colors: CarColors): THREE.Group {
     // The FD tail: a full-width smoked garnish with twin round lamps at
     // each corner, tucked tight in pairs
     const frame = new THREE.Mesh(roundedBox(1.8, 0.2, 0.05, 0.04), housingMat);
-    frame.position.set(0, d.tailY, d.tail - 0.03);
+    frame.position.set(0, d.tailY, d.tail - 0.015);
     group.add(frame);
     for (const sx of [-0.76, -0.52, 0.52, 0.76]) {
       const bezel = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.095, 0.04, 14), housingMat);
       bezel.rotation.x = Math.PI / 2;
-      bezel.position.set(sx, d.tailY, d.tail - 0.025);
+      bezel.position.set(sx, d.tailY, d.tail - 0.032);
       group.add(bezel);
-      const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.055, 14), tailMat);
+      const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.055, 14), tailCoreMat);
       lamp.rotation.x = Math.PI / 2;
-      lamp.position.set(sx, d.tailY, d.tail - 0.015);
+      lamp.position.set(sx, d.tailY, d.tail - 0.045);
       group.add(lamp);
     }
     addTailGlow(-0.64, d.tailY, d.tail, 0.7, 0.42);
@@ -1313,13 +1407,13 @@ export function createCar(colors: CarColors): THREE.Group {
     // Full-width assembly under the fastback glass: smoked housing frame,
     // the band, and a hotter inner strip running its length
     const frame = new THREE.Mesh(roundedBox(1.86, 0.19, 0.05, 0.03), housingMat);
-    frame.position.set(0, d.tailY, d.tail - 0.03);
+    frame.position.set(0, d.tailY, d.tail - 0.015);
     group.add(frame);
     const band = new THREE.Mesh(roundedBox(1.78, 0.13, 0.06, 0.025), tailMat);
-    band.position.set(0, d.tailY, d.tail - 0.02);
+    band.position.set(0, d.tailY, d.tail - 0.028);
     group.add(band);
-    const core = new THREE.Mesh(roundedBox(1.6, 0.045, 0.065, 0.02), tailMat);
-    core.position.set(0, d.tailY, d.tail - 0.015);
+    const core = new THREE.Mesh(roundedBox(1.6, 0.045, 0.065, 0.02), tailCoreMat);
+    core.position.set(0, d.tailY, d.tail - 0.045);
     group.add(core);
     addTailGlow(-0.6, d.tailY, d.tail, 0.8, 0.4);
     addTailGlow(0.6, d.tailY, d.tail, 0.8, 0.4);
@@ -1327,13 +1421,13 @@ export function createCar(colors: CarColors): THREE.Group {
     // Two wrap-around housings with lens + core, split by the plate
     for (const sxSign of [-1, 1]) {
       const housing = new THREE.Mesh(roundedBox(0.78, 0.17, 0.05, 0.03), housingMat);
-      housing.position.set(sxSign * 0.52, d.tailY, d.tail - 0.02);
+      housing.position.set(sxSign * 0.52, d.tailY, d.tail - 0.005);
       group.add(housing);
       const lens = new THREE.Mesh(roundedBox(0.7, 0.11, 0.06, 0.02), tailMat);
-      lens.position.set(sxSign * 0.52, d.tailY, d.tail - 0.01);
+      lens.position.set(sxSign * 0.52, d.tailY, d.tail - 0.015);
       group.add(lens);
-      const core = new THREE.Mesh(roundedBox(0.62, 0.04, 0.065, 0.015), tailMat);
-      core.position.set(sxSign * 0.52, d.tailY, d.tail - 0.005);
+      const core = new THREE.Mesh(roundedBox(0.62, 0.04, 0.05, 0.015), tailCoreMat);
+      core.position.set(sxSign * 0.52, d.tailY, d.tail - 0.032);
       group.add(core);
       addTailGlow(sxSign * 0.52, d.tailY, d.tail, 0.7, 0.4);
     }
@@ -1343,8 +1437,12 @@ export function createCar(colors: CarColors): THREE.Group {
   // for the gtr a second element in the wing itself; zx on the fastback.
   {
     const cherry = new THREE.Mesh(roundedBox(0.5, 0.035, 0.05, 0.015), tailMat);
-    if (style === "zx") cherry.position.set(0, 0.86, -1.98);
-    else if (style === "rx7") cherry.position.set(0, 0.8, -1.86);
+    // On the fastbacks it sits on the bodywork itself, which arches
+    // 100-160 mm above the profile line it was pinned to; on the sedan
+    // and gtr it sits at the base of the rear glass, well above the
+    // shell, so those two keep their measured heights.
+    if (style === "zx") cherry.position.set(0, (deckY(bGeo, style, -1.98) ?? 0.86) + 0.02, -1.98);
+    else if (style === "rx7") cherry.position.set(0, (deckY(bGeo, style, -1.86) ?? 0.8) + 0.02, -1.86);
     else if (style === "gtr") cherry.position.set(0, d.deckY + 0.05, -1.7);
     else cherry.position.set(0, 1.36, -1.28);
     cherry.rotation.x = bCabBack ? -0.5 : -0.2;
@@ -1363,10 +1461,16 @@ export function createCar(colors: CarColors): THREE.Group {
   } else {
     // Just a thin cooling slot low in the bumper
     const slot = new THREE.Mesh(roundedBox(1.3, 0.07, 0.06, 0.02), grilleMat);
-    slot.position.set(0, d.grilleY, d.nose - 0.02);
+    slot.position.set(0, d.grilleY, (noseFaceZ(bGeo, style, d.grilleY, true) ?? d.nose) - 0.015);
     group.add(slot);
   }
-  for (const z of [d.nose + 0.02, d.tail - 0.03]) {
+  // Plates hang on the bumper faces. The anchors are the profile's
+  // corner points, and the bumper bows out past them by up to 40 mm, so
+  // "anchor plus 20" left the front plate inside the FD's nose.
+  for (const front of [true, false]) {
+    const face = noseFaceZ(bGeo, style, 0.38, front);
+    const z =
+      face !== null ? face + (front ? 0.008 : -0.008) : front ? d.nose + 0.02 : d.tail - 0.03;
     const plate = new THREE.Mesh(roundedBox(0.52, 0.13, 0.02, 0.007), plateMat());
     plate.position.set(0, 0.38, z);
     group.add(plate);
@@ -1442,11 +1546,25 @@ export function createCar(colors: CarColors): THREE.Group {
     const sunroof = new THREE.Mesh(roundedBox(0.72, 0.02, 0.62, 0.015), glassMat);
     sunroof.position.set(0, ry + 0.005, rz + (bCabBack ? 0.28 : 0.18));
     group.add(sunroof);
-    const railLen = bCabBack ? 0.72 : 1.0;
-    for (const sxSign of [-1, 1]) {
-      const rail = new THREE.Mesh(roundedBox(0.035, 0.025, railLen, 0.012), housingMat);
-      rail.position.set(sxSign * (bCabBack ? 0.62 : 0.64), ry, rz);
-      group.add(rail);
+    // Roof rails, and only on the saloon roof. They were pinned to the
+    // roof anchor, which is the profile's top line — the extrusion's
+    // bevel lifts the painted surface ~50 mm above it, so they sat
+    // inside the paint on every car in the fleet. Seating them on the
+    // measured surface fixes the saloon; on the three sports bodies it
+    // makes the problem visible instead, because a fastback roof falls
+    // away under a straight rail and it ends up hovering over the glass.
+    // A Z32, an FD and an R34 do not have roof rails. So they don't now.
+    if (style === "sedan") {
+      rGeo.computeBoundingBox();
+      const roofBox = rGeo.boundingBox!;
+      // Sampled at the rail's own midpoint rather than at the roof's
+      // highest point, which is not the same place on a curved panel.
+      const seat = deckY(rGeo, style, rz, "roof") ?? roofBox.max.y;
+      for (const sxSign of [-1, 1]) {
+        const rail = new THREE.Mesh(roundedBox(0.035, 0.025, 1.0, 0.012), housingMat);
+        rail.position.set(sxSign * (roofBox.max.x - 0.075), seat + 0.006, rz);
+        group.add(rail);
+      }
     }
     if (style === "gtr") {
       // Shark fin at the trailing edge of the roof
@@ -1495,13 +1613,13 @@ export function createCar(colors: CarColors): THREE.Group {
     const side = Math.sign(wx);
     const well = new THREE.Mesh(front ? archWellGeoF : archWellGeo, wellMat);
     well.rotation.y = side > 0 ? Math.PI / 2 : -Math.PI / 2;
-    well.position.set(side * ARCH_X, 0.4, wz);
+    well.position.set(side * (flankX + ARCH_OUT), 0.4, wz);
     group.add(well);
 
     // Body-coloured, so it reads as the panel's own edge rather than as
     // a black ring stuck around the wheel.
     const lip = new THREE.Mesh(front ? archLipGeoF : archLipGeo, bodyMat);
-    lip.position.set(side * LIP_X, 0.4, wz);
+    lip.position.set(side * (flankX + LIP_OUT), 0.4, wz);
     group.add(lip);
     lip.userData.archLip = true;
 
@@ -1521,12 +1639,21 @@ export function createCar(colors: CarColors): THREE.Group {
     const rearValance = new THREE.Mesh(roundedBox(1.66, 0.1, 0.1, 0.03), seamMat);
     rearValance.position.set(0, 0.3, d.tail + 0.02);
     group.add(rearValance);
+    // Corner markers. These were mounted on the nose and tail faces at a
+    // fixed inset from the anchor, which buried them 30–60 mm inside the
+    // bumper on every silhouette: four meshes per car, on fourteen cars,
+    // that never painted a pixel. They are side markers now — out on the
+    // flank ahead of the front arch and behind the rear one, where the
+    // body runs at full width, which is both where a real car carries
+    // them and a place that can be derived from the shell's own bounds
+    // instead of guessed per style.
+    const markerGeo = roundedBox(0.016, 0.07, 0.16, 0.006);
     for (const sxSign of [-1, 1]) {
-      const amber = new THREE.Mesh(roundedBox(0.09, 0.05, 0.04, 0.012), amberReflectorMat);
-      amber.position.set(sxSign * 0.82, 0.42, d.nose - 0.06);
+      const amber = new THREE.Mesh(markerGeo, amberReflectorMat);
+      amber.position.set(sxSign * (flankX + 0.002), 0.5, d.nose - 0.34);
       group.add(amber);
-      const red = new THREE.Mesh(roundedBox(0.09, 0.05, 0.04, 0.012), reflectorMat);
-      red.position.set(sxSign * 0.8, 0.42, d.tail + 0.05);
+      const red = new THREE.Mesh(markerGeo, reflectorMat);
+      red.position.set(sxSign * (flankX + 0.002), 0.5, d.tail + 0.34);
       group.add(red);
     }
   }
@@ -1545,27 +1672,32 @@ export function createCar(colors: CarColors): THREE.Group {
   if (!colors.simple) {
     // Shut lines: hood, doors and trunk. Real panel gaps are dark slots
     // between two lit chamfers, so they get their own near-black material.
-    for (const sx of [-0.925, 0.925]) {
+    // Every one of these rides on the flank, and every one of them was
+    // pinned to 0.925 — five millimetres outside the SEDAN's skin, and
+    // 35 to 55 mm inside the skin of the four wide silhouettes. Offsets
+    // from the shell's own half-width keep the same relationship to the
+    // panel on all of them.
+    for (const sxSign of [-1, 1]) {
       for (const sz of [0.62, -0.72]) {
         const seam = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.5, 0.012), gapMat);
-        seam.position.set(sx, 0.58, sz);
+        seam.position.set(sxSign * (flankX + 0.005), 0.58, sz);
         group.add(seam);
       }
       // Character line — the crease that runs the flank of every modern
       // car and catches a long highlight as the world slides past
       const crease = new THREE.Mesh(roundedBox(0.035, 0.05, 3.1, 0.016), bodyMat);
-      crease.position.set(sx * 1.005, d.creaseY, -0.1);
+      crease.position.set(sxSign * (flankX + 0.01), d.creaseY, -0.1);
       group.add(crease);
       const belt = new THREE.Mesh(roundedBox(0.015, 0.02, 2.7, 0.006), chromeLocal);
-      belt.position.set(sx, d.beltY, -0.15);
+      belt.position.set(sxSign * (flankX + 0.005), d.beltY, -0.15);
       group.add(belt);
       for (const hz of [0.28, -1.02]) {
         const handle = new THREE.Mesh(roundedBox(0.03, 0.035, 0.14, 0.012), chromeLocal);
-        handle.position.set(sx, d.creaseY + 0.08, hz);
+        handle.position.set(sxSign * (flankX + 0.005), d.creaseY + 0.08, hz);
         group.add(handle);
       }
       const skirt = new THREE.Mesh(roundedBox(0.06, 0.12, 2.7, 0.02), seamMat);
-      skirt.position.set(sx * 0.97, 0.25, -0.1);
+      skirt.position.set(sxSign * (flankX - 0.023), 0.25, -0.1);
       group.add(skirt);
     }
 
@@ -1694,12 +1826,14 @@ export function createCar(colors: CarColors): THREE.Group {
       roundedBox(style === "gtr" ? 1.5 : 1.3, style === "gtr" ? 0.2 : 0.13, 0.06, 0.02),
       grilleMat
     );
-    intake.position.set(0, style === "gtr" ? 0.4 : 0.34, d.nose + 0.01);
+    intake.position.set(0, style === "gtr" ? 0.4 : 0.34, d.nose - 0.01);
     group.add(intake);
     for (const sx of [-0.66, 0.66]) {
+      // In front of the intake, not level with it. Sharing the intake's
+      // z put each 30 mm lamp wholly inside the 60 mm grille box.
       const fog = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 10), reverseMat);
       fog.rotation.x = Math.PI / 2;
-      fog.position.set(sx, 0.36, d.nose + 0.01);
+      fog.position.set(sx, 0.36, d.nose + 0.035);
       group.add(fog);
     }
 
@@ -1756,8 +1890,13 @@ export function createCar(colors: CarColors): THREE.Group {
     const gurney = new THREE.Mesh(roundedBox(1.9, 0.05, 0.02, 0.006), carbonMat);
     gurney.position.set(0, wingY + 0.06, -2.25);
     group.add(gurney);
-    const strip = new THREE.Mesh(roundedBox(1.0, 0.028, 0.03, 0.008), tailMat);
-    strip.position.set(0, wingY - 0.03, -2.24);
+    // Brake strip on the wing's trailing edge. Slung under the main
+    // plane it was in the plane's own shadow from every angle above the
+    // car — which is every angle the game is ever seen from. It tucks
+    // under the gurney and projects past the trailing edge instead, so a
+    // following car actually sees it light up.
+    const strip = new THREE.Mesh(roundedBox(1.0, 0.028, 0.09, 0.008), tailMat);
+    strip.position.set(0, wingY + 0.028, -2.285);
     group.add(strip);
     for (const sx of [-0.99, 0.99]) {
       const endplate = new THREE.Mesh(roundedBox(0.03, 0.3, 0.54, 0.012), carbonMat);
@@ -1798,7 +1937,7 @@ export function createCar(colors: CarColors): THREE.Group {
     // Side skirts hugging the rockers
     for (const sxSign of [-1, 1]) {
       const skirt = new THREE.Mesh(roundedBox(0.08, 0.1, 2.7, 0.022), carbonMat);
-      skirt.position.set(sxSign * 0.93, 0.16, 0);
+      skirt.position.set(sxSign * (flankX + 0.01), 0.16, 0);
       group.add(skirt);
     }
 
@@ -1888,6 +2027,7 @@ export function createCar(colors: CarColors): THREE.Group {
 
   group.userData.wheels = wheels;
   group.userData.tailMat = tailMat;
+  group.userData.tailCoreMat = tailCoreMat;
   group.userData.headMat = headMat;
   // Flashed with the lamps by the engine's challenge ritual
   group.userData.headGlowMats = headGlowMats;

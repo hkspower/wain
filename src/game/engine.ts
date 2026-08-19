@@ -2002,7 +2002,7 @@ export class GameEngine {
     // and module-shared materials stay (other cars still use them).
     // Out of the reflection registry before its materials are released.
     this.untrackCar(this.carBody);
-    for (const key of ["bodyMat", "tailMat", "headMat"] as const) {
+    for (const key of ["bodyMat", "tailMat", "tailCoreMat", "headMat"] as const) {
       (this.carBody.userData[key] as THREE.Material | undefined)?.dispose();
     }
     this.carBody = this.trackCar(
@@ -2717,6 +2717,10 @@ export class GameEngine {
     (this.carBody.userData.tailMat as THREE.MeshStandardMaterial).emissiveIntensity = brakeLit
       ? 7
       : 2;
+    // The hot inner element flares with the lens, a step brighter, so the
+    // lamp has a centre rather than being one even slab of red.
+    const tailCore = this.carBody.userData.tailCoreMat as THREE.MeshStandardMaterial | undefined;
+    if (tailCore) tailCore.emissiveIntensity = brakeLit ? 10 : 3.2;
     // The glow halos behind the lenses flare with them
     const tailGlows = this.carBody.userData.tailGlowMats as THREE.MeshBasicMaterial[] | undefined;
     if (tailGlows) {
