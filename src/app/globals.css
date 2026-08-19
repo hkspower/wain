@@ -422,6 +422,29 @@ html[data-cvd="1"] .rival-ink {
   color: var(--color-rival-1) !important;
 }
 
+/* The keyboard reference in the corner is onboarding, not an
+   instrument: you read it once. It was the biggest box on the HUD —
+   360 px wide, the widest thing in the bottom-right cluster — and it sat
+   there for the whole session. It fades out after twelve seconds and the
+   pause screen carries it from then on.
+
+   The countdown is driven from React rather than an animation delay,
+   because the HUD is mounted the whole time and only faded — a CSS delay
+   starts at page load and runs out while the player is still reading the
+   menu, which is exactly what the first version did.
+
+   Reduced motion gets the same result without the dissolve. */
+.hud-hint {
+  transition: opacity 900ms ease, visibility 0s linear 900ms;
+}
+.hud-hint-gone {
+  opacity: 0;
+  visibility: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hud-hint { transition-duration: 1ms; }
+}
+
 /* Large HUD: one knob that scales the readouts without touching layout. */
 html[data-large-hud="1"] {
   --hud-scale: 1.22;

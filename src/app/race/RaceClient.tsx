@@ -827,6 +827,15 @@ export default function RaceClient() {
   const menuItemsRef = useRef(menuItems);
   menuItemsRef.current = menuItems;
 
+  // The corner's keyboard reference retires twelve seconds into the
+  // first race, not twelve seconds after the page loaded.
+  const [hintDone, setHintDone] = useState(false);
+  useEffect(() => {
+    if (phase !== "playing") return;
+    const t = setTimeout(() => setHintDone(true), 12000);
+    return () => clearTimeout(t);
+  }, [phase]);
+
   const lvl = levelInfo(career?.xp ?? 0);
   const rank = rankTitle(lvl.level);
 
@@ -956,7 +965,7 @@ export default function RaceClient() {
           <div className="flex items-end gap-3.5">
             <span
               ref={speedRef}
-              className="grn-display block text-[5.5rem] italic leading-[0.78] tabular-nums text-white [text-shadow:0_0_28px_rgba(56,201,238,0.35),0_4px_18px_rgba(0,0,0,0.95)]"
+              className="grn-display block text-[3.9rem] italic leading-[0.8] tabular-nums text-white [text-shadow:0_0_24px_rgba(56,201,238,0.35),0_4px_16px_rgba(0,0,0,0.95)]"
             >
               0
             </span>
@@ -966,14 +975,14 @@ export default function RaceClient() {
                 <span className="grn-label text-[0.6rem]">Gear</span>
                 <span
                   ref={gearRef}
-                  className="grn-display text-3xl italic leading-none text-sodium-400 [text-shadow:0_0_16px_rgba(245,165,36,0.6)]"
+                  className="grn-display text-2xl italic leading-none text-sodium-400 [text-shadow:0_0_16px_rgba(245,165,36,0.6)]"
                 >
                   N
                 </span>
               </div>
             </div>
           </div>
-          <div className="grn-meter mt-2 h-2.5 w-64 -skew-x-12">
+          <div className="grn-meter mt-2 h-2 w-52 -skew-x-12">
             <div
               ref={rpmRef}
               className="h-full bg-gradient-to-r from-cyan-400 via-amber-400 to-red-500"
@@ -982,7 +991,7 @@ export default function RaceClient() {
           </div>
           <div ref={boostWrapRef} className="mt-1 items-center gap-2" style={{ display: "none" }}>
             <span className="grn-label w-11 text-[0.58rem] text-gulf-300">Boost</span>
-            <div className="grn-meter h-2 w-52 -skew-x-12">
+            <div className="grn-meter h-1.5 w-44 -skew-x-12">
               <div
                 ref={boostRef}
                 className="h-full bg-gradient-to-r from-gulf-500 to-gulf-300 shadow-[0_0_12px_rgba(56,201,238,0.8)]"
@@ -992,7 +1001,7 @@ export default function RaceClient() {
           </div>
           <div ref={nosWrapRef} className="mt-1 items-center gap-2" style={{ display: "none" }}>
             <span className="grn-label w-11 text-[0.58rem] text-indigo-300">NOS</span>
-            <div className="grn-meter h-2 w-52 -skew-x-12">
+            <div className="grn-meter h-1.5 w-44 -skew-x-12">
               <div
                 ref={nosRef}
                 className="h-full bg-gradient-to-r from-indigo-500 to-sky-300 shadow-[0_0_12px_rgba(129,140,248,0.8)]"
@@ -1020,15 +1029,15 @@ export default function RaceClient() {
             ref={mapRef}
             width={320}
             height={320}
-            className="grn-panel size-[150px] p-1"
+            className="grn-panel size-[124px] p-1"
           />
           <div
-            className={`grn-panel px-3 py-2 text-right font-display text-[0.78rem] leading-5 tracking-wide text-white/60 ${
+            className={`grn-panel hud-hint px-3 py-2 text-right font-display text-[0.72rem] leading-[1.35] tracking-wide text-white/55 ${
               isTouch ? "hidden" : ""
-            }`}
+            } ${hintDone ? "hud-hint-gone" : ""}`}
           >
             W/↑ accelerate · S/↓ brake · A D steer · Space drift · N nitro
-            <br />F flash · Esc pause · M mute · B music · V voices · gamepad supported
+            <br />F flash · Esc pause · M mute · B music · V voices
           </div>
         </div>
       </div>
@@ -1403,7 +1412,7 @@ export default function RaceClient() {
       {/* Center message toast */}
       {message && phase === "playing" && (
         <div className="pointer-events-none absolute left-1/2 top-1/3 w-[min(640px,92vw)] -translate-x-1/2 text-center">
-          <div className="grn-display text-3xl leading-tight [text-shadow:0_4px_20px_rgba(0,0,0,0.95)] sm:text-4xl">
+          <div className="grn-display text-xl leading-tight [text-shadow:0_4px_20px_rgba(0,0,0,0.95)] sm:text-3xl">
             {message.title}
           </div>
           {message.sub && (
@@ -2076,8 +2085,16 @@ export default function RaceClient() {
         >
           <div className="grn-dialog screen-in w-[min(400px,92vw)] p-6 text-center">
             <div className="grn-label text-[0.6rem] tracking-[0.4em] text-gulf-400">Paused</div>
-            <div className="grn-display mt-1 text-4xl italic">
+            <div className="grn-display mt-1 text-3xl italic">
               PIT STOP <span className="grn-ar not-italic text-white/60" lang="ar">وقفة</span>
+            </div>
+            {/* The controls live here now. The corner of the screen used
+                to carry them for the whole session, which made the
+                busiest box on the HUD a thing you read once. */}
+            <div className="mt-4 font-display text-[0.72rem] leading-[1.5] tracking-wide text-white/45">
+              W/↑ accelerate · S/↓ brake · A D steer
+              <br />Space drift · N nitro · F flash
+              <br />M mute · B music · V voices · gamepad supported
             </div>
             <div className="mt-6 flex flex-col gap-2.5">
               <button
