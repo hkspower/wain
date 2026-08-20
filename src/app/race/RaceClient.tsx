@@ -89,6 +89,7 @@ export default function RaceClient() {
   const rivalBarRef = useRef<HTMLDivElement>(null);
   const battleNameRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
+  const clockRef = useRef<HTMLDivElement>(null);
   const flashRef = useRef<HTMLDivElement>(null);
 
   const [phase, setPhase] = useState<Phase>("menu");
@@ -303,6 +304,25 @@ export default function RaceClient() {
       }
       if (progressRef.current)
         progressRef.current.textContent = `Rivals beaten: ${d.defeated} / ${d.total}`;
+
+      if (clockRef.current) {
+        const [time, state] = clockRef.current.children as unknown as HTMLElement[];
+        const h = Math.floor(d.hour);
+        const m = Math.floor((d.hour - h) * 60);
+        const stamp = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+        if (time && time.textContent !== stamp) time.textContent = stamp;
+        if (state) {
+          const label = d.racingOpen ? "RACING" : "ROLLING";
+          if (state.textContent !== label) {
+            state.textContent = label;
+            state.className = `rounded-sm px-1.5 py-px text-[0.55rem] ${
+              d.racingOpen
+                ? "bg-sodium-500/25 text-sodium-400"
+                : "bg-white/10 text-white/55"
+            }`;
+          }
+        }
+      }
 
       if (rivalInfoRef.current) {
         if (d.battle === null && d.rivalDist !== null) {
@@ -920,6 +940,15 @@ export default function RaceClient() {
               <span className="grn-ar-display text-[0.95em] text-white/80" lang="ar" />
             </div>
             <div ref={progressRef} className="grn-label mt-0.5 text-[0.62rem]" />
+            {/* The clock, and whether the night is still open.
+                Racing runs midnight to 05:50 and nothing else on screen
+                would tell you that — a player who flashes at a rival at
+                six in the morning and gets nothing deserves to have been
+                able to see why. */}
+            <div ref={clockRef} className="grn-label mt-1 flex items-center gap-1.5 text-[0.62rem]">
+              <span className="tnum text-white/80" />
+              <span className="rounded-sm px-1.5 py-px text-[0.55rem]" />
+            </div>
           </div>
           {onlineCount !== null && (
             <div className="grn-panel mt-2 inline-flex items-center gap-1.5 px-3 py-1">

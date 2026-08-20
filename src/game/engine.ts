@@ -81,6 +81,11 @@ export interface HudData {
   speedKmh: number;
   areaName: string;
   areaArabic: string;
+  /** The game clock, 0..24, and whether a race can be started right
+   *  now. The window is the rule the whole night runs on, so the HUD
+   *  has to be able to say it. */
+  hour: number;
+  racingOpen: boolean;
   rivalDist: number | null;
   canFlash: boolean;
   battle: BattleHud | null;
@@ -1597,16 +1602,48 @@ export class GameEngine {
   }
 
   /** Hours 0..24. Fixed looks are hours too; "cycle" lets it run. */
-  private timeHours = 22.5;
-  private timeCycling = false;
+  /** Half past midnight: the night has just opened. */
+  private timeHours = 0.5;
+  private timeCycling = true;
+  /** Set once the window has closed, so the message fires once. */
+  private nightClosed = false;
   private skyAccum = 0;
   /** Minutes of play for a full 24-hour turn. Long enough that a race
    *  happens in one light, short enough to see the sun move. */
   private static readonly CYCLE_MINUTES = 16;
 
+  /**
+   * THE NIGHT.
+   *
+   * Racing on the corniche is a thing that happens between midnight and
+   * the call to fajr, and the game is now built that way rather than
+   * merely lit that way: the clock opens at 00:00 and racing closes at
+   * 05:50. Outside those hours the world is still there and the car
+   * still drives — you are just rolling.
+   *
+   * A race already under way when the clock runs out is allowed to
+   * finish. The window gates STARTING one; taking a win away from
+   * somebody two corners from the end because a number crossed a
+   * threshold would be a rule enforcing itself against the point of
+   * having it.
+   */
+  static readonly RACE_OPEN_H = 0;
+  static readonly RACE_CLOSE_H = 5 + 50 / 60;
+  /** Minutes of play the racing window lasts. The clock keeps running
+   *  afterwards — the sun comes up, and you can stay out in it. */
+  private static readonly NIGHT_MINUTES = 40;
+
+  /** Whether a new race can be started right now. */
+  racingOpen(): boolean {
+    return (
+      this.timeHours >= GameEngine.RACE_OPEN_H && this.timeHours < GameEngine.RACE_CLOSE_H
+    );
+  }
+
   setSky(mode: "night" | "dawn" | "noon" | "dusk" | "cycle"): void {
     const HOURS: Record<string, number> = {
-      night: 22.5,
+      // Inside the racing window, because that is when this game happens.
+      night: 0.5,
       dawn: 5.6,
       noon: 12.5,
       dusk: 18.2,
@@ -1614,7 +1651,8 @@ export class GameEngine {
     this.timeCycling = mode === "cycle";
     // A cycle starts where the eye expects this game to start: dusk,
     // with the lights just coming on.
-    this.timeHours = this.timeCycling ? 18.2 : HOURS[mode] ?? 22.5;
+    this.timeHours = this.timeCycling ? GameEngine.RACE_OPEN_H : HOURS[mode] ?? 0.5;
+    this.nightClosed = false;
     this.world.setTimeOfDay(this.timeHours);
     this.applyDaylight();
   }
@@ -2041,6 +2079,17 @@ export class GameEngine {
   private tryFlash(): void {
     const r = this.rival;
     if (!r || this.inBattle || this.locked || this.challengePending || this.cine) return;
+    if (!this.racingOpen()) {
+      // Flashing outside the hours does what flashing at a stranger on a
+      // motorway does: the lamps blink and nothing else happens.
+      this.flashHeadlights();
+      this.events.onMessage(
+        this.timeHours < GameEngine.RACE_CLOSE_H
+          ? "Nobody races before midnight."
+          : "The night is over — racing opens again at midnight."
+      );
+      return;
+    }
     // A live duel is refereed on the wall clock by the hub — pausing into
     // the setup card + film mid-duel would forfeit it.
     if (this.duel) return;
@@ -2750,7 +2799,22 @@ export class GameEngine {
     // The clock. A full day turns in CYCLE_MINUTES of play, so a single
     // race happens in one light while a session sees the sun come round.
     if (this.timeCycling) {
-      this.timeHours = (this.timeHours + (24 / (GameEngine.CYCLE_MINUTES * 60)) * dt) % 24;
+      // Inside the window the clock runs at the NIGHT rate, so the five
+      // hours and fifty minutes of racing take a session rather than
+      // four minutes. Once the window has closed it reverts to the old
+      // full-day rate, so the sun comes up at a watchable speed for
+      // anyone who stays out in it.
+      const perSecond = this.racingOpen()
+        ? (GameEngine.RACE_CLOSE_H - GameEngine.RACE_OPEN_H) /
+          (GameEngine.NIGHT_MINUTES * 60)
+        : 24 / (GameEngine.CYCLE_MINUTES * 60);
+      const wasOpen = this.racingOpen();
+      this.timeHours = (this.timeHours + perSecond * dt) % 24;
+      if (wasOpen && !this.racingOpen() && !this.nightClosed) {
+        this.nightClosed = true;
+        this.events.onMessage("05:50 — the night is over. Roll home.");
+      }
+      if (this.timeHours < GameEngine.RACE_CLOSE_H) this.nightClosed = false;
       // The sky is a handful of uniform writes; at 4 Hz it is free and
       // still smooth, because every value it sets is interpolated.
       this.skyAccum += dt;
@@ -4305,6 +4369,8 @@ export class GameEngine {
       speedKmh: this.player.speed * KMH,
       areaName: area.name,
       areaArabic: area.arabic,
+      hour: this.timeHours,
+      racingOpen: this.racingOpen(),
       rivalDist,
       canFlash,
       battle:

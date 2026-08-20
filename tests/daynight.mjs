@@ -64,19 +64,35 @@ check(night.lampPool > 0.3 && noon.lampPool < 0.05, "streetlights do not switch 
 check(noon.beam < night.beam * 0.5, "headlight beams still hang in broad daylight");
 check(dawn.top[0] > night.top[0], "dawn does not warm the sky");
 
-// The clock must actually run in cycle mode
+// The clock must actually run — at two rates, on purpose.
+//
+// Racing runs midnight to 05:50, and those five hours and fifty minutes
+// are given a whole session: about forty minutes of play. Once the
+// window shuts the clock reverts to the old sixteen-minute day so the
+// sun comes up at a watchable speed for anyone who stays out in it. One
+// rate for both would mean either a night that is over in four minutes
+// or a sunrise that takes an hour to arrive.
 const ran = await page.evaluate(async ()=>{
   const e = window.__grnEngine;
   e.setSky("cycle");
-  const t0 = e.timeHours;
   e.setPaused(true);
-  for (let i=0;i<60*40;i++) e.update(1/60); // 40 s of play
-  return { t0: +t0.toFixed(2), t1: +e.timeHours.toFixed(2), cycling: e.timeCycling };
+  const run = (from) => {
+    e.timeHours = from;
+    const t0 = e.timeHours;
+    for (let i=0;i<60*40;i++) e.update(1/60); // 40 s of play
+    return ((e.timeHours - t0) + 24) % 24;
+  };
+  const night = run(2);
+  const day = run(9);
+  return { night: +night.toFixed(3), day: +day.toFixed(3), cycling: e.timeCycling };
 });
-const advanced = ((ran.t1 - ran.t0) + 24) % 24;
-console.log(`\ncycle: ${ran.t0}h -> ${ran.t1}h after 40 s of play (${advanced.toFixed(2)} h)  ` +
+console.log(`\ncycle: 40 s of play moves the clock ${ran.night.toFixed(2)} h inside the ` +
+  `racing window and ${ran.day.toFixed(2)} h outside it  ` +
   check(ran.cycling, "cycle mode did not engage") + " " +
-  check(advanced > 0.5 && advanced < 3, `clock advanced ${advanced.toFixed(2)} h in 40 s — off the 16-minute day`));
+  check(ran.night > 0.03 && ran.night < 0.3,
+    `the clock advanced ${ran.night.toFixed(2)} h in 40 s at night — off the 40-minute racing window`) + " " +
+  check(ran.day > 0.5 && ran.day < 3,
+    `the clock advanced ${ran.day.toFixed(2)} h in 40 s after dawn — off the 16-minute day`));
 
 // Stills across the day
 const WRITE_STILLS = process.env.GRN_STILLS === "1";

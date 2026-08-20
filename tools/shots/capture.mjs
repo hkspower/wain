@@ -34,6 +34,11 @@ const wanted = argv.filter((a) => !a.startsWith("--") && a !== String(W));
 const OUT = "press/shots";
 mkdirSync(OUT, { recursive: true });
 
+// The night hours are 02:30, not 22:30. Racing runs midnight to 05:50
+// now, so half past two is the game's own hour — the one the HUD reads
+// RACING at — and a press shot taken at half ten at night is a shot of
+// the game with racing shut.
+//
 // Each shot is a name, an hour, and where on the lap to stand. `m` is
 // METRES from the start line, not a fraction of the lap: the lap got
 // 1.15 km longer when the invented inland leg became the Second Ring
@@ -43,19 +48,19 @@ mkdirSync(OUT, { recursive: true });
 // half the map from any water.
 const SHOTS = [
   { name: "menu", menu: true },
-  { name: "night", hour: 22.5, m: 2203 },
+  { name: "night", hour: 2.5, m: 2203 },
   { name: "dawn", hour: 5.6, m: 2203 },
   { name: "noon", hour: 12.5, m: 2203 },
   { name: "dusk", hour: 18.2, m: 2203 },
-  { name: "coast", hour: 22.5, m: 1300 },   // the seaward leg, water on the left
-  { name: "city", hour: 22.5, m: 587 },     // towers behind the road
-  { name: "signal", hour: 22.5, m: 197 },   // on the approach to a signalised junction
-  { name: "ring", hour: 22.5, m: 5400 },    // the Second Ring through Mansuriya
-  { name: "station", hour: 22.5, m: 3888 }, // pulling up to the pumps in Shuwaikh
-  { name: "love", hour: 22.5, m: 6155 },    // Love Street, at its own sign
-  { name: "towers", hour: 22.5, m: -110 },  // Kuwait Towers on the approach
+  { name: "coast", hour: 2.5, m: 1300 },   // the seaward leg, water on the left
+  { name: "city", hour: 2.5, m: 587 },     // towers behind the road
+  { name: "signal", hour: 2.5, m: 197 },   // on the approach to a signalised junction
+  { name: "ring", hour: 2.5, m: 5400 },    // the Second Ring through Mansuriya
+  { name: "station", hour: 2.5, m: 3888 }, // pulling up to the pumps in Shuwaikh
+  { name: "love", hour: 2.5, m: 6155 },    // Love Street, at its own sign
+  { name: "towers", hour: 2.5, m: -110 },  // Kuwait Towers on the approach
   { name: "towersday", hour: 16.5, m: -110 }, // same frame by day, so the pair compares
-  { name: "drift", hour: 22.5, m: 2203, drift: true },
+  { name: "drift", hour: 2.5, m: 2203, drift: true },
 ];
 
 const list = wanted.length ? SHOTS.filter((s) => wanted.includes(s.name)) : SHOTS;
