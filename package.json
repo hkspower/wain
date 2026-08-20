@@ -10,7 +10,8 @@
     "lint": "next lint",
     "fahad:brief": "node scripts/fahad-brief.mjs",
     "check:cache": "node scripts/check-cache-safety.mjs",
-    "db:schema": "node scripts/gen-schema.mjs"
+    "db:schema": "node scripts/gen-schema.mjs",
+    "og": "node scripts/gen-og.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.1",

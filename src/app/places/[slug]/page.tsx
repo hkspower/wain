@@ -46,7 +46,18 @@ export async function generateMetadata({
       description: place.taglineAr,
       url: `/places/${place.slug}/`,
       type: "article",
-      images: [{ url: "/og.jpg", width: 1200, height: 630, alt: place.nameAr }],
+      // Each place has its own card (scripts/gen-og.mjs). Sharing seventeen
+      // different places used to put the same picture in every preview.
+      images: [{ url: `/og/${place.slug}.jpg`, width: 1200, height: 630, alt: place.nameAr }],
+    },
+    // The layout sets twitter.images site-wide, and that wins here unless it
+    // is restated — without this, X would keep showing the generic card while
+    // WhatsApp showed the right one.
+    twitter: {
+      card: "summary_large_image",
+      title: `${place.nameAr} | وين؟`,
+      description: place.taglineAr,
+      images: [`/og/${place.slug}.jpg`],
     },
   };
 }
