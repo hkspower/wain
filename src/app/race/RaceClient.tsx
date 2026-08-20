@@ -7,7 +7,7 @@ import Results from "./Results";
 import Onboarding, { CoachHint, CoachState, hasOnboarded } from "./Onboarding";
 import { ICONS, IconFlash, IconCrown, IconGear, IconFlagKW, type IconName } from "./Icons";
 import Garage from "./Garage";
-import { GEARS } from "@/game/gears";
+import { gearAt, revFraction } from "@/game/gears";
 import { RIVALS, RivalDef } from "@/game/rivals";
 import { HubClient, DuelInvite, loadProfile, formatLap } from "@/game/net";
 import {
@@ -281,9 +281,8 @@ export default function RaceClient() {
     (d: HudData) => {
       if (speedRef.current) speedRef.current.textContent = String(Math.round(d.speedKmh));
       // Gear + in-gear RPM fraction
-      let g = 0;
-      while (g < GEARS.length - 2 && d.speedKmh >= GEARS[g + 1]) g++;
-      const rpm = Math.min(1, Math.max(0.12, (d.speedKmh - GEARS[g]) / (GEARS[g + 1] - GEARS[g])));
+      const g = gearAt(d.speedKmh);
+      const rpm = revFraction(d.speedKmh);
       if (gearRef.current) gearRef.current.textContent = d.speedKmh < 2 ? "N" : String(g + 1);
       if (rpmRef.current) rpmRef.current.style.width = `${Math.round(rpm * 100)}%`;
       if (areaRef.current) {

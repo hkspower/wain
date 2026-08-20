@@ -2,7 +2,10 @@
 // the tuning effects the engine applies to the handling model.
 // Currency is KD, earned by defeating rivals.
 
+import { EngineId, EngineSpec, getEngine } from "./engines";
+
 export type ExclusiveCat =
+  | "engine"
   | "aspiration"
   | "brakes"
   | "exhaust"
@@ -14,6 +17,7 @@ export type Category = ExclusiveCat | "internals" | "chassis" | "extras";
 
 /** Slots where equipping one part unequips the previous one. */
 export const EXCLUSIVE_CATS: ReadonlySet<string> = new Set([
+  "engine",
   "aspiration",
   "brakes",
   "exhaust",
@@ -33,6 +37,18 @@ export interface Part {
 }
 
 export const PARTS: Part[] = [
+  // Engine — exclusive, and the deepest choice in the garage. Written
+  // out rather than generated from ENGINES: a spread is invisible to
+  // every static tool that reads this file, and check:parts caught
+  // exactly that — five parts in the catalogue that it could not see and
+  // therefore could not tell you were unreachable. The drift risk that
+  // buys is covered instead by an assertion, in check-catalogue.mjs,
+  // that these ids and engines.ts agree in both directions.
+  { id: "engine-i4-16", cat: "engine", name: "Sadu 1.6 VTC · I4", ar: "سدو ١٫٦", price: 900, desc: "4 cylinders, 1.6L, 8,400 rpm. Dead below half revs, then it screams — keep it on the cam or it does nothing at all" },
+  { id: "engine-i4-20t", cat: "engine", name: "Bahri 2.0T · I4", ar: "بحري ٢٫٠ تيربو", price: 2200, desc: "4 cylinders, 2.0L, 6,800 rpm. A hard shove through the middle of every gear and nothing left up top" },
+  { id: "engine-f6-25", cat: "engine", name: "Nejma Flat-Six · F6", ar: "نجمة ٢٫٥", price: 3800, desc: "6 cylinders, 2.5L, 7,800 rpm. Pulls from the middle and keeps going — and sits lower in the car than anything else here" },
+  { id: "engine-i6-30tt", cat: "engine", name: "Sahil 3.0 TT · I6", ar: "ساحل ٣٫٠", price: 5200, desc: "6 cylinders, 3.0L, 7,000 rpm. Flat as a table from 2,000 to the limiter — no gear is the wrong gear" },
+  { id: "engine-v8-57", cat: "engine", name: "Ghazi 5.7 V8 · V8", ar: "غازي ٥٫٧", price: 6500, desc: "8 cylinders, 5.7L, 6,200 rpm. Torque from idle, done by 6,200, and it lopes at every traffic light on the corniche" },
   // Aspiration — exclusive; the heart of the build
   { id: "turbo", cat: "aspiration", name: "Turbo Kit", ar: "تيربو", price: 1200, desc: "+25% power on boost, +20 km/h governor, blow-off on lift" },
   { id: "supercharger", cat: "aspiration", name: "Supercharger", ar: "سوبرتشارج", price: 1500, desc: "+30% power everywhere, +14 km/h governor, whine included" },
@@ -151,6 +167,10 @@ export interface CarModel {
   /** Factory-fitted time-attack aero: swan wing, splitter, canards,
    *  vented hood, bronze wheels. Not a garage part — the car IS the kit. */
   kit?: "attack";
+  /** What the car left the factory with. Every machine on the corniche
+   *  has a heart before anybody opens the bonnet, and the showroom is
+   *  where you meet it. */
+  engine: EngineId;
   /** Base handling before garage mods. */
   power: number; // accel multiplier
   /** The car's governed top speed in km/h — an absolute limiter, not a
@@ -174,12 +194,13 @@ export const CARS: CarModel[] = [
     style: "rx7",
     kit: "attack",
     price: 120000,
+    engine: "i6-30tt",
     power: 1.66,
     topSpeedKmh: 400,
     grip: 17.5,
     brake: 44,
     color: 0xf2b90d, // competition yellow
-    desc: "One-off rotary time-attack build — swan-neck wing, canards, bronze forged wheels. The rarest machine on Gulf Road.",
+    desc: "One-off time-attack build on the twin-turbo six — swan-neck wing, canards, bronze forged wheels. The rarest machine on Gulf Road.",
   },
   {
     id: "sahara-v12",
@@ -188,12 +209,13 @@ export const CARS: CarModel[] = [
     cls: "supercar",
     style: "zx",
     price: 96000,
+    engine: "v8-57",
     power: 1.62,
     topSpeedKmh: 385,
     grip: 16.4,
     brake: 42,
     color: 0xb8860b,
-    desc: "V12 hypercar. Nothing on the corniche pulls harder.",
+    desc: "Quad-cam V8 hypercar. Nothing on the corniche leaves a corner harder.",
   },
   {
     id: "falcon-720",
@@ -202,12 +224,13 @@ export const CARS: CarModel[] = [
     cls: "supercar",
     style: "zx",
     price: 71000,
+    engine: "v8-57",
     power: 1.5,
     topSpeedKmh: 360,
     grip: 15.8,
     brake: 40,
     color: 0xc1121f,
-    desc: "Mid-engine, feather light, screams past 300.",
+    desc: "Mid-engine V8, feather light, screams past 300.",
   },
   {
     id: "storm-s8",
@@ -215,6 +238,7 @@ export const CARS: CarModel[] = [
     ar: "عاصفة",
     cls: "supercar",
     price: 54000,
+    engine: "i6-30tt",
     power: 1.4,
     topSpeedKmh: 335,
     grip: 15.2,
@@ -229,6 +253,7 @@ export const CARS: CarModel[] = [
     cls: "sport",
     style: "gtr",
     price: 38000,
+    engine: "i6-30tt",
     power: 1.34,
     topSpeedKmh: 310,
     grip: 16.2, // AWD monster — nothing in the class sticks like it
@@ -243,12 +268,13 @@ export const CARS: CarModel[] = [
     cls: "sport",
     style: "rx7",
     price: 31000,
+    engine: "f6-25",
     power: 1.3,
     topSpeedKmh: 295,
     grip: 14.8,
     brake: 35,
     color: 0xd7263d, // vintage rotary red
-    desc: "Rotary-hearted curves — pop-ups up, first light on the horizon, nothing else on the road.",
+    desc: "Flat-six curves — pop-ups up, first light on the horizon, nothing else on the road.",
   },
   {
     id: "zeta-300",
@@ -257,6 +283,7 @@ export const CARS: CarModel[] = [
     cls: "sport",
     style: "zx",
     price: 27000,
+    engine: "i6-30tt",
     power: 1.26,
     topSpeedKmh: 275,
     grip: 13.9,
@@ -271,6 +298,7 @@ export const CARS: CarModel[] = [
     cls: "sport",
     style: "hatch",
     price: 33000,
+    engine: "i4-20t",
     power: 1.28,
     topSpeedKmh: 285,
     grip: 14.6,
@@ -285,6 +313,7 @@ export const CARS: CarModel[] = [
     ar: "تيربو السالمية",
     cls: "sport",
     price: 24000,
+    engine: "i4-20t",
     power: 1.2,
     topSpeedKmh: 255,
     grip: 13.8,
@@ -298,6 +327,7 @@ export const CARS: CarModel[] = [
     ar: "حولي سبورت",
     cls: "sport",
     price: 16000,
+    engine: "i4-20t",
     power: 1.12,
     topSpeedKmh: 240,
     grip: 13.2,
@@ -311,6 +341,7 @@ export const CARS: CarModel[] = [
     ar: "سيدان الديرة",
     cls: "normal",
     price: 8500,
+    engine: "i4-20t",
     power: 1.05,
     topSpeedKmh: 220,
     grip: 12.6,
@@ -324,6 +355,7 @@ export const CARS: CarModel[] = [
     ar: "ونيت الجهراء",
     cls: "normal",
     price: 6000,
+    engine: "v8-57",
     power: 1.0,
     topSpeedKmh: 195,
     grip: 12.0,
@@ -337,6 +369,7 @@ export const CARS: CarModel[] = [
     ar: "شرق هاتش",
     cls: "normal",
     price: 2200,
+    engine: "i4-16",
     power: 0.98,
     topSpeedKmh: 205,
     grip: 12.4,
@@ -350,6 +383,7 @@ export const CARS: CarModel[] = [
     ar: "وين سبيشال",
     cls: "normal",
     price: 0,
+    engine: "i4-16",
     power: 1.0,
     topSpeedKmh: 180,
     grip: 12.0,
@@ -514,6 +548,9 @@ export interface TuneEffects {
   steerRate: number;
   /** Fraction of impact damage a cage absorbs (0 = none, 1 = all). */
   crashResist: number;
+  /** The fitted engine. The sim reads its torque curve every frame and
+   *  the sound engine reads its cylinder count — see engines.ts. */
+  engine: EngineSpec;
   aspiration: Aspiration;
   boostMult: number; // extra accel fraction at full boost
   hasNos: boolean;
@@ -539,7 +576,16 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
   const eq = build.equipped;
   const car = getCar(carId);
 
-  let accelMult = car.power;
+  // The block itself, before anything is bolted to it. A swap replaces
+  // the car's factory engine; with nothing bought, you race what it came
+  // with.
+  const engine = getEngine(eq.engine?.replace(/^engine-/, "") ?? car.engine);
+  // Engine mass, against the 2.0T benchmark. A hundred and fifteen kilos
+  // of V8 over the front axle is not free, and the tyres and the brakes
+  // are where it gets charged. Small numbers on purpose — this is a tax
+  // on the big engines, not a reason to avoid them.
+  const massTax = 1 - engine.massKg / 4000;
+  let accelMult = car.power * engine.powerMult;
   if (has("ecu")) accelMult += 0.08;
   const exhaust = EXHAUSTS[eq.exhaust ?? ""] ?? EXHAUSTS.stock;
   accelMult += exhaust.power;
@@ -574,6 +620,7 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     brakeForce += 3;
     brakeThermalMult *= 1.15;
   }
+  brakeForce *= massTax; // the same kilos, charged again where they stop
 
   let gripAccel = car.grip;
   let slipMult = 1;
@@ -589,6 +636,7 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     driftAngleMult = 1.45;
   }
   if (has("spoiler")) { gripAccel += 0.5; slipMult *= 0.92; }
+  gripAccel *= massTax;
   // Real downforce: the attack kit's wing and splitter plant the car
   if (car.kit === "attack") { gripAccel += 1.0; slipMult *= 0.88; }
 
@@ -626,6 +674,7 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     driftAngleMult,
     steerRate,
     crashResist,
+    engine,
     aspiration,
     boostMult,
     hasNos: has("nos"),

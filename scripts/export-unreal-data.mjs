@@ -16,6 +16,7 @@ const read = (p) => readFileSync(p, "utf8");
 const trackTs = read("src/game/track.ts");
 const rivalsTs = read("src/game/rivals.ts");
 const modsTs = read("src/game/mods.ts");
+const enginesTs = read("src/game/engines.ts");
 
 // ---------------------------------------------------------------- track
 const cpBlock = trackTs.match(/const CONTROL_POINTS[^=]*=\s*\[([^;]*)\];/s)[1];
@@ -70,10 +71,80 @@ const cars = carsBlock
       color: f(/color: 0x([0-9a-fA-F]{6})/),
       style: f(/style: "(\w+)"/) ?? "sedan",
       kit: f(/kit: "(\w+)"/) ?? null,
+      engine: f(/engine: "([^"]+)"/),
     };
   })
   .filter(Boolean);
 if (cars.length < 5) throw new Error(`car parse failed (${cars.length})`);
+for (const c of cars) {
+  if (!c.engine) throw new Error(`${c.id}: no stock engine — every car has one`);
+}
+
+// -------------------------------------------------------------- engines
+// Parsed rather than hand-copied, like everything else here. A port that
+// ships the cars without these builds fourteen machines that all pull
+// the same way, which is the one thing the engines exist to prevent.
+const engBlock = enginesTs.match(/export const ENGINES[^=]*=\s*\[(.*?)\n\];/s)[1];
+const engines = engBlock
+  .split(/\n  \{\n/)
+  .slice(1)
+  .map((b) => {
+    const f = (re) => b.match(re)?.[1];
+    const id = f(/id: "([^"]+)"/);
+    if (!id) return null;
+    return {
+      id,
+      name: f(/name: "([^"]+)"/),
+      cylinders: +f(/cylinders: (\d+)/),
+      layout: f(/layout: "(\w+)"/),
+      litres: +f(/litres: ([\d.]+)/),
+      idle: +f(/idleRpm: (\d+)/),
+      redline: +f(/redlineRpm: (\d+)/),
+      peakAt: +f(/peakAt: ([\d.]+)/),
+      breadth: +f(/breadth: ([\d.]+)/),
+      floor: +f(/floor: ([\d.]+)/),
+      powerMult: +f(/powerMult: ([\d.]+)/),
+      massKg: +f(/massKg: (-?[\d.]+)/),
+      subMix: +f(/subMix: ([\d.]+)/),
+      lopeDepth: +f(/lopeDepth: ([\d.]+)/),
+      price: +f(/price: (\d+)/),
+    };
+  })
+  .filter(Boolean);
+if (engines.length !== 5) throw new Error(`engine parse failed (${engines.length}, want 5)`);
+const layoutEnumMap = {
+  inline: "EGRNEngineLayout::Inline",
+  flat: "EGRNEngineLayout::Flat",
+  vee: "EGRNEngineLayout::Vee",
+};
+/** Same guard as `style` below: an unknown layout must stop the build
+ *  rather than write `undefined` into a header and report success. */
+const layoutEnum = (l, who) => {
+  const v = layoutEnumMap[l];
+  if (!v) throw new Error(`${who}: unknown engine layout "${l}" — add it to layoutEnumMap and to EGRNEngineLayout`);
+  return v;
+};
+/** The mean of the raw curve over [MIN_REV_FRACTION, 1], which is what
+ *  normalises every engine to the same average. Computed here so the
+ *  header can carry a constant instead of integrating at runtime — the
+ *  identical sum runs in engines.ts, and check-unreal-sync compares the
+ *  two. */
+const normOf = (e) => {
+  const N = 256;
+  const MIN = 0.12;
+  let sum = 0;
+  for (let i = 0; i < N; i++) {
+    const r = MIN + ((1 - MIN) * (i + 0.5)) / N;
+    const d = r - e.peakAt;
+    sum += e.floor + (1 - e.floor) * Math.exp(-(d * d) / (2 * e.breadth * e.breadth));
+  }
+  return sum / N;
+};
+const engIndex = (id, who) => {
+  const i = engines.findIndex((e) => e.id === id);
+  if (i < 0) throw new Error(`${who}: unknown engine "${id}" — it is not in engines.ts`);
+  return i;
+};
 
 // ------------------------------------------------------------- emit C++
 const styleEnum = {
@@ -190,6 +261,77 @@ ${rivals
 };
 static const int32 GRNRivalCount = UE_ARRAY_COUNT(GRNRivals);
 
+// -------------------------------------------------------------- engines
+// Two fours, two sixes and a V8. The curve is a Gaussian bump on a floor,
+// normalised so every engine's mean torque across the usable rev range is
+// exactly 1.0 — see GRNEngineTorque below, and src/game/engines.ts for
+// why that normalisation is the whole design.
+
+enum class EGRNEngineLayout : uint8 { Inline, Flat, Vee };
+
+struct FGRNEngineDef
+{
+	const TCHAR* Id;
+	const TCHAR* Name;
+	int32 Cylinders;
+	EGRNEngineLayout Layout;
+	float Litres;
+	float IdleRpm;
+	float RedlineRpm;
+	/** Torque curve, in rev-range fraction: where it peaks, how wide that
+	 *  peak is, and what is left down at idle. */
+	float PeakAt;
+	float Breadth;
+	float Floor;
+	float PowerMult;
+	float MassKg;
+	/** How much of the note sits on the sub-octave. */
+	float SubMix;
+	/** Cross-plane half-order lope. Non-zero on the V8 alone. */
+	float LopeDepth;
+	int32 Price;
+};
+
+static const FGRNEngineDef GRNEngines[] = {
+${engines
+  .map(
+    (e) =>
+      `\t{ TEXT("${e.id}"), TEXT("${e.name}"), ${e.cylinders}, ${layoutEnum(e.layout, e.id)}, ${e.litres.toFixed(1)}f, ${e.idle.toFixed(1)}f, ${e.redline.toFixed(1)}f, ${e.peakAt.toFixed(2)}f, ${e.breadth.toFixed(2)}f, ${e.floor.toFixed(2)}f, ${e.powerMult.toFixed(2)}f, ${e.massKg.toFixed(1)}f, ${e.subMix.toFixed(2)}f, ${e.lopeDepth.toFixed(2)}f, ${e.price} },`
+  )
+  .join("\n")}
+};
+static const int32 GRNEngineCount = UE_ARRAY_COUNT(GRNEngines);
+
+/** Lowest rev fraction the gearbox ever asks for — the curve is
+ *  normalised over [this, 1], not [0, 1]. */
+static const float GRNMinRevFraction = 0.12f;
+
+/** Mean raw torque over the usable range, so the shape can be normalised
+ *  without integrating it at runtime. Computed by the generator from the
+ *  same numbers above. */
+static const float GRNEngineNorm[] = {
+${engines.map((e) => `\t${normOf(e).toFixed(6)}f,`).join("\n")}
+};
+
+/** Torque multiplier at a point in the rev range. Averages to exactly
+ *  1.0 for every engine: a swap redistributes power, it never adds any. */
+static FORCEINLINE float GRNEngineTorque(int32 EngineIndex, float Rev)
+{
+	const FGRNEngineDef& E = GRNEngines[EngineIndex];
+	const float R = FMath::Clamp(Rev, 0.0f, 1.0f);
+	const float D = R - E.PeakAt;
+	const float Raw = E.Floor + (1.0f - E.Floor) * FMath::Exp(-(D * D) / (2.0f * E.Breadth * E.Breadth));
+	return Raw / GRNEngineNorm[EngineIndex];
+}
+
+/** The note: a four-stroke fires Cylinders/2 times per crank revolution. */
+static FORCEINLINE float GRNEngineFiringHz(int32 EngineIndex, float Rev)
+{
+	const FGRNEngineDef& E = GRNEngines[EngineIndex];
+	const float Rpm = E.IdleRpm + (E.RedlineRpm - E.IdleRpm) * FMath::Clamp(Rev, 0.0f, 1.0f);
+	return (Rpm / 60.0f) * (E.Cylinders * 0.5f);
+}
+
 // ------------------------------------------------------------- showroom
 
 struct FGRNCarDef
@@ -205,13 +347,15 @@ struct FGRNCarDef
 	EGRNBodyStyle Style;
 	/** Factory time-attack aero (wing, splitter, bronze wheels). */
 	bool bAttackKit;
+	/** Index into GRNEngines — what the car left the factory with. */
+	int32 Engine;
 };
 
 static const FGRNCarDef GRNCars[] = {
 ${cars
   .map(
     (c) =>
-      `\t{ TEXT("${c.id}"), TEXT("${c.name}"), ${c.price}, ${c.power.toFixed(2)}f, ${c.top.toFixed(1)}f, ${c.grip.toFixed(1)}f, ${c.brake.toFixed(1)}f, ${col(c.color)}, ${style(c.style, c.id)}, ${c.kit === "attack" ? "true" : "false"} },`
+      `\t{ TEXT("${c.id}"), TEXT("${c.name}"), ${c.price}, ${c.power.toFixed(2)}f, ${c.top.toFixed(1)}f, ${c.grip.toFixed(1)}f, ${c.brake.toFixed(1)}f, ${col(c.color)}, ${style(c.style, c.id)}, ${c.kit === "attack" ? "true" : "false"}, ${engIndex(c.engine, c.id)} },`
   )
   .join("\n")}
 };
@@ -244,5 +388,6 @@ ${rigKeys.map(([k, v]) => `\tconstexpr float ${k} = ${cppr(v)};`).join("\n")}
 writeFileSync("unreal/Source/GulfRoadNights/GRNTypes.h", header);
 console.log(
   `GRNTypes.h regenerated: ${points.length} track points, ${rivals.length} rivals, ` +
-    `${cars.length} cars, ${handlingKeys.length} handling constants, ${rigKeys.length} rig constants.`
+    `${engines.length} engines, ${cars.length} cars, ${handlingKeys.length} handling constants, ` +
+    `${rigKeys.length} rig constants.`
 );

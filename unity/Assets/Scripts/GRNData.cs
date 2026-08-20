@@ -127,6 +127,93 @@ public static class GRNData
         },
     };
 
+    public enum EngineLayout { Inline, Flat, Vee }
+
+    /// <summary>One of the five. The curve is a Gaussian bump on a floor,
+    /// normalised so every engine's mean torque over the usable rev range
+    /// is exactly 1.0 — see src/game/engines.ts for why.</summary>
+    public class Engine
+    {
+        public string Id, Name;
+        public int Cylinders;
+        public EngineLayout Layout;
+        public float Litres, IdleRpm, RedlineRpm;
+        public float PeakAt, Breadth, Floor, PowerMult, MassKg;
+        public float SubMix, LopeDepth;
+        public int Price;
+        /// <summary>Mean of the raw curve over the usable range, baked by
+        /// the generator so nothing has to integrate it at runtime.</summary>
+        public float Norm;
+    }
+
+    public static readonly Engine[] Engines =
+    {
+        new Engine {
+            Id = "i4-16", Name = "Sadu 1.6 VTC", Cylinders = 4, Layout = EngineLayout.Inline,
+            Litres = 1.6f, IdleRpm = 850f, RedlineRpm = 8400f,
+            PeakAt = 0.88f, Breadth = 0.24f, Floor = 0.26f,
+            PowerMult = 0.93f, MassKg = -42f,
+            SubMix = 0.2f, LopeDepth = 0f, Price = 900,
+            Norm = 0.609410f,
+        },
+        new Engine {
+            Id = "i4-20t", Name = "Bahri 2.0T", Cylinders = 4, Layout = EngineLayout.Inline,
+            Litres = 2f, IdleRpm = 800f, RedlineRpm = 6800f,
+            PeakAt = 0.5f, Breadth = 0.3f, Floor = 0.5f,
+            PowerMult = 1f, MassKg = 0f,
+            SubMix = 0.3f, LopeDepth = 0f, Price = 2200,
+            Norm = 0.862994f,
+        },
+        new Engine {
+            Id = "f6-25", Name = "Nejma Flat-Six", Cylinders = 6, Layout = EngineLayout.Flat,
+            Litres = 2.5f, IdleRpm = 900f, RedlineRpm = 7800f,
+            PeakAt = 0.72f, Breadth = 0.34f, Floor = 0.44f,
+            PowerMult = 1.05f, MassKg = 12f,
+            SubMix = 0.34f, LopeDepth = 0f, Price = 3800,
+            Norm = 0.850061f,
+        },
+        new Engine {
+            Id = "i6-30tt", Name = "Sahil 3.0 TT", Cylinders = 6, Layout = EngineLayout.Inline,
+            Litres = 3f, IdleRpm = 750f, RedlineRpm = 7000f,
+            PeakAt = 0.58f, Breadth = 0.46f, Floor = 0.66f,
+            PowerMult = 1.1f, MassKg = 48f,
+            SubMix = 0.38f, LopeDepth = 0f, Price = 5200,
+            Norm = 0.954355f,
+        },
+        new Engine {
+            Id = "v8-57", Name = "Ghazi 5.7 V8", Cylinders = 8, Layout = EngineLayout.Vee,
+            Litres = 5.7f, IdleRpm = 700f, RedlineRpm = 6200f,
+            PeakAt = 0.24f, Breadth = 0.36f, Floor = 0.46f,
+            PowerMult = 1.12f, MassKg = 115f,
+            SubMix = 0.5f, LopeDepth = 0.24f, Price = 6500,
+            Norm = 0.799539f,
+        },
+    };
+
+    /// <summary>Lowest rev fraction the gearbox ever asks for.</summary>
+    public const float MinRevFraction = 0.12f;
+
+    /// <summary>Torque multiplier at a point in the rev range. Averages to
+    /// exactly 1.0 for every engine: a swap redistributes power, never
+    /// adds any.</summary>
+    public static float EngineTorque(int engineIndex, float rev)
+    {
+        var e = Engines[engineIndex];
+        float r = Mathf.Clamp01(rev);
+        float d = r - e.PeakAt;
+        float raw = e.Floor + (1f - e.Floor) * Mathf.Exp(-(d * d) / (2f * e.Breadth * e.Breadth));
+        return raw / e.Norm;
+    }
+
+    /// <summary>The note: a four-stroke fires Cylinders/2 times per crank
+    /// revolution.</summary>
+    public static float EngineFiringHz(int engineIndex, float rev)
+    {
+        var e = Engines[engineIndex];
+        float rpm = e.IdleRpm + (e.RedlineRpm - e.IdleRpm) * Mathf.Clamp01(rev);
+        return (rpm / 60f) * (e.Cylinders * 0.5f);
+    }
+
     public class Car
     {
         public string Id, Name;
@@ -136,6 +223,8 @@ public static class GRNData
         public BodyStyle Style;
         /// <summary>Factory time-attack aero (wing, splitter, bronze wheels).</summary>
         public bool AttackKit;
+        /// <summary>Index into Engines — what the car left the factory with.</summary>
+        public int Engine;
     }
 
     public static readonly Car[] Cars =
@@ -144,71 +233,85 @@ public static class GRNData
             Id = "efreet-rx-kai", Name = "Efreet RX Kai", Price = 120000,
             Power = 1.66f, TopSpeedKmh = 400f, Grip = 17.5f, Brake = 44f,
             Paint = Hex(0xF2B90D), Style = BodyStyle.RX7, AttackKit = true,
+            Engine = 3,
         },
         new Car {
             Id = "sahara-v12", Name = "Sahara GT-12", Price = 96000,
             Power = 1.62f, TopSpeedKmh = 385f, Grip = 16.4f, Brake = 42f,
             Paint = Hex(0xB8860B), Style = BodyStyle.ZX, AttackKit = false,
+            Engine = 4,
         },
         new Car {
             Id = "falcon-720", Name = "Falcon 720 Veloce", Price = 71000,
             Power = 1.5f, TopSpeedKmh = 360f, Grip = 15.8f, Brake = 40f,
             Paint = Hex(0xC1121F), Style = BodyStyle.ZX, AttackKit = false,
+            Engine = 4,
         },
         new Car {
             Id = "storm-s8", Name = "Desert Storm S8", Price = 54000,
             Power = 1.4f, TopSpeedKmh = 335f, Grip = 15.2f, Brake = 38f,
             Paint = Hex(0x1F2933), Style = BodyStyle.Sedan, AttackKit = false,
+            Engine = 3,
         },
         new Car {
             Id = "kaiju-r", Name = "Kaiju R", Price = 38000,
             Power = 1.34f, TopSpeedKmh = 310f, Grip = 16.2f, Brake = 38f,
             Paint = Hex(0x3F66C4), Style = BodyStyle.GTR, AttackKit = false,
+            Engine = 3,
         },
         new Car {
             Id = "efreet-rx", Name = "Efreet RX", Price = 31000,
             Power = 1.3f, TopSpeedKmh = 295f, Grip = 14.8f, Brake = 35f,
             Paint = Hex(0xD7263D), Style = BodyStyle.RX7, AttackKit = false,
+            Engine = 2,
         },
         new Car {
             Id = "zeta-300", Name = "Zeta 300", Price = 27000,
             Power = 1.26f, TopSpeedKmh = 275f, Grip = 13.9f, Brake = 34f,
             Paint = Hex(0xC1272D), Style = BodyStyle.ZX, AttackKit = false,
+            Engine = 3,
         },
         new Car {
             Id = "gulf-coupe-rs", Name = "Gulf Coupe RS", Price = 33000,
             Power = 1.28f, TopSpeedKmh = 285f, Grip = 14.6f, Brake = 35f,
             Paint = Hex(0xCB2027), Style = BodyStyle.Hatch, AttackKit = false,
+            Engine = 1,
         },
         new Car {
             Id = "salmiya-turbo", Name = "Salmiya Turbo GT", Price = 24000,
             Power = 1.2f, TopSpeedKmh = 255f, Grip = 13.8f, Brake = 32f,
             Paint = Hex(0xB84DD6), Style = BodyStyle.Sedan, AttackKit = false,
+            Engine = 1,
         },
         new Car {
             Id = "hawally-2t", Name = "Hawally Sport 2.0T", Price = 16000,
             Power = 1.12f, TopSpeedKmh = 240f, Grip = 13.2f, Brake = 30f,
             Paint = Hex(0xF5C211), Style = BodyStyle.Sedan, AttackKit = false,
+            Engine = 1,
         },
         new Car {
             Id = "deera-sedan", Name = "Deera Sedan", Price = 8500,
             Power = 1.05f, TopSpeedKmh = 220f, Grip = 12.6f, Brake = 28f,
             Paint = Hex(0xDFE3E8), Style = BodyStyle.Sedan, AttackKit = false,
+            Engine = 1,
         },
         new Car {
             Id = "jahra-pickup", Name = "Jahra Pickup", Price = 6000,
             Power = 1f, TopSpeedKmh = 195f, Grip = 12f, Brake = 27f,
             Paint = Hex(0x6E7F8D), Style = BodyStyle.Sedan, AttackKit = false,
+            Engine = 4,
         },
         new Car {
             Id = "sharq-hatch", Name = "Sharq Hatch", Price = 2200,
             Power = 0.98f, TopSpeedKmh = 205f, Grip = 12.4f, Brake = 27f,
             Paint = Hex(0x16A34A), Style = BodyStyle.Sedan, AttackKit = false,
+            Engine = 0,
         },
         new Car {
             Id = "wain-special", Name = "Wain Special", Price = 0,
             Power = 1f, TopSpeedKmh = 180f, Grip = 12f, Brake = 26f,
             Paint = Hex(0xF2F4F7), Style = BodyStyle.Sedan, AttackKit = false,
+            Engine = 0,
         },
     };
 

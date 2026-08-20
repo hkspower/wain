@@ -120,6 +120,56 @@ if (rivals.length !== api.rivals.length) {
   if (!failed) ok(`rivals: ${rivals.length} match (id, names, crew, area, both colours, speed, body, prize, all 3 voice lines)`);
 }
 
+// ---- engines --------------------------------------------------------
+// Every parameter of the curve, because the curve IS the engine. One
+// stale hundredth of `breadth` and this port is racing a different car.
+const engineBlocks = src.split("new Engine {").slice(1);
+const engines = engineBlocks.map((b) => ({
+  id: field(b, /Id = "([^"]*)"/),
+  cylinders: +field(b, /Cylinders = (\d+)/),
+  layout: field(b, /Layout = EngineLayout\.(\w+)/).toLowerCase(),
+  litres: +field(b, /Litres = ([\d.]+)f/),
+  idleRpm: +field(b, /IdleRpm = ([\d.]+)f/),
+  redlineRpm: +field(b, /RedlineRpm = ([\d.]+)f/),
+  peakAt: +field(b, /PeakAt = ([\d.]+)f/),
+  breadth: +field(b, /Breadth = ([\d.]+)f/),
+  floor: +field(b, /Floor = ([\d.]+)f/),
+  powerMult: +field(b, /PowerMult = ([\d.]+)f/),
+  massKg: +field(b, /MassKg = (-?[\d.]+)f/),
+  subMix: +field(b, /SubMix = ([\d.]+)f/),
+  lopeDepth: +field(b, /LopeDepth = ([\d.]+)f/),
+  price: +field(b, /Price = (\d+)/),
+  norm: +field(b, /Norm = ([\d.]+)f/),
+}));
+if (engines.length !== api.engines.length) {
+  fail(`engines: Unity ${engines.length} vs api ${api.engines.length}`);
+} else {
+  const FIELDS = ["cylinders", "layout", "litres", "idleRpm", "redlineRpm", "peakAt",
+    "breadth", "floor", "powerMult", "massKg", "subMix", "lopeDepth", "price"];
+  for (let i = 0; i < engines.length; i++) {
+    const u = engines[i];
+    const a = api.engines[i];
+    if (u.id !== a.id) fail(`engine ${i} id: ${u.id} vs ${a.id}`);
+    for (const k of FIELDS) {
+      if (u[k] !== a[k]) fail(`engine ${a.id} ${k}: ${u[k]} vs ${a[k]}`);
+    }
+    // Norm is derived, so it is recomputed here rather than trusted.
+    const N = 256, MIN = 0.12;
+    let sum = 0;
+    for (let j = 0; j < N; j++) {
+      const r = MIN + ((1 - MIN) * (j + 0.5)) / N;
+      const d = r - a.peakAt;
+      sum += a.floor + (1 - a.floor) * Math.exp(-(d * d) / (2 * a.breadth * a.breadth));
+    }
+    if (Math.abs(u.norm - sum / N) > 5e-6) {
+      fail(`engine ${a.id} norm: Unity ${u.norm} vs ${(sum / N).toFixed(6)}`);
+    }
+  }
+  if (!failed) {
+    ok(`engines: ${engines.length} match (13 fields each, plus the baked curve normalisation)`);
+  }
+}
+
 // ---- cars -----------------------------------------------------------
 const carBlocks = src.split("new Car {").slice(1);
 const cars = carBlocks.map((b) => ({
@@ -133,6 +183,7 @@ const cars = carBlocks.map((b) => ({
   paint: field(b, /Paint = Hex\(0x([0-9A-F]{6})\)/),
   style: field(b, /Style = BodyStyle\.(\w+)/),
   kit: field(b, /AttackKit = (true|false)/) === "true",
+  engine: +field(b, /Engine = (\d+)/),
 }));
 
 if (cars.length !== api.cars.length) {
@@ -151,12 +202,15 @@ if (cars.length !== api.cars.length) {
     if (u.style.toLowerCase() !== a.bodyStyle) {
       fail(`car ${a.id} body style: ${u.style.toLowerCase()} vs ${a.bodyStyle}`);
     }
+    if (api.engines[u.engine]?.id !== a.engine) {
+      fail(`car ${a.id} engine: Unity index ${u.engine} (${api.engines[u.engine]?.id}) vs ${a.engine}`);
+    }
     if (`#${u.paint.toLowerCase()}` !== a.color) {
       fail(`car ${a.id} paint: #${u.paint.toLowerCase()} vs ${a.color}`);
     }
     if (u.kit !== (a.kit === "attack")) fail(`car ${a.id} attack kit: ${u.kit} vs ${a.kit}`);
   }
-  if (!failed) ok(`cars: ${cars.length} match (id, name, price, power, speed, grip, brake, body, kit)`);
+  if (!failed) ok(`cars: ${cars.length} match (id, name, price, power, speed, grip, brake, body, kit, engine)`);
 }
 
 // ---- handling -------------------------------------------------------

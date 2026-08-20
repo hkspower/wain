@@ -14,6 +14,7 @@ import {
   computeEffects,
   getCar,
 } from "@/game/mods";
+import { getEngine, layoutTag } from "@/game/engines";
 import { haptic, HAPTIC, loadSettings } from "@/game/settings";
 import { playSfx } from "@/game/sfx";
 import { ICONS } from "./Icons";
@@ -33,7 +34,8 @@ import { ICONS } from "./Icons";
 type Tab = "showroom" | "performance" | "style";
 
 const PERFORMANCE_CATS: Array<{ cat: string; label: string }> = [
-  { cat: "aspiration", label: "ENGINE — TURBO & SUPERCHARGER · المكينة" },
+  { cat: "engine", label: "ENGINE — THE BLOCK ITSELF · المكينة" },
+  { cat: "aspiration", label: "FORCED INDUCTION · التيربو" },
   { cat: "internals", label: "INTERNALS · القطع الداخلية" },
   { cat: "exhaust", label: "EXHAUST · الدبة" },
   { cat: "brakes", label: "BRAKES · البريكات" },
@@ -136,6 +138,7 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
   const fx = useMemo(() => computeEffects(garage, ramp), [garage, ramp]);
   const car = getCar(ramp);
   const build = buildOf(garage, ramp);
+  const stockEngine = getEngine(car.engine);
   // Effective power counts the blower at full boost — what you feel
   const power = fx.accelMult * (1 + fx.boostMult);
   const top = topSpeedKmh(power, fx.topSpeedKmh);
@@ -403,9 +406,12 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
                           <div className="mt-2 text-[0.76rem] leading-5 text-white/55">
                             {c.desc}
                           </div>
-                          <div className="mt-2.5 grid grid-cols-3 gap-1 border-t border-white/10 pt-2 text-center">
+                          <div className="mt-2.5 grid grid-cols-4 gap-1 border-t border-white/10 pt-2 text-center">
                             {(
                               [
+                                // What is under the bonnet, on the card,
+                                // next to the numbers it explains.
+                                ["ENGINE", layoutTag(getEngine(c.engine))],
                                 ["PWR", c.power.toFixed(2) + "×"],
                                 ["GRIP", c.grip.toFixed(1)],
                                 ["BRK", String(c.brake)],
@@ -458,6 +464,23 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
                   <h3 className="grn-label border-b border-white/10 pb-2 text-[0.66rem]">
                     {label}
                   </h3>
+                  {cat === "engine" && (
+                    // Every other slot is empty until you buy something.
+                    // This one never is — the car arrived with an engine
+                    // in it — so the shop has to say which, or a player
+                    // cannot tell what they are being offered instead of.
+                    <p className="mt-2 text-[0.76rem] leading-5 text-white/50">
+                      {car.name} came with the{" "}
+                      <span className="text-white/80">
+                        {stockEngine.name} · {layoutTag(stockEngine)}
+                      </span>{" "}
+                      — {stockEngine.cylinders} cylinders,{" "}
+                      {stockEngine.redlineRpm.toLocaleString("en-US")} rpm. Buy
+                      nothing here and that is what you race. Every engine
+                      makes the same power on average; where it makes it is
+                      the whole decision.
+                    </p>
+                  )}
                   <div className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                     {PARTS.filter((p) => p.cat === cat).map(partCard)}
                   </div>

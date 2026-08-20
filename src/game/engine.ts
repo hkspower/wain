@@ -32,7 +32,8 @@ import {
   type BrakeState,
   type BrakeResult,
 } from "./brakes";
-import { GEARS } from "./gears";
+import { gearAt, revFraction } from "./gears";
+import { ENGINES, torqueShape, firingHz } from "./engines";
 import { loadGarage, saveGarage, computeEffects, addKd, TuneEffects, getCar, CARS } from "./mods";
 import { levelInfo, recordRace, recordLap, loadProfileStats, LevelInfo } from "./profile";
 
@@ -566,6 +567,9 @@ export class GameEngine {
   // Garage tuning (loaded once at engine start; edit in the menu garage)
   private tune: TuneEffects = computeEffects(loadGarage());
   private boost = 0; // turbo spool 0..1
+  /** Where the needle sat this frame, 0..1 of the rev range. Shared by
+   *  the torque curve, the sound and the HUD so they cannot disagree. */
+  private revFrac = 0.12;
   private nosCharge = 1; // 0..1, drains while N is held
   private nosActive = false;
   // Handling model: heading relative to the track tangent, smoothed
@@ -969,6 +973,7 @@ export class GameEngine {
   start(): void {
     try {
       this.sound = new SoundEngine();
+      this.sound.setEngine(this.tune.engine);
       this.sound.configureAspiration(
         this.tune.aspiration === "super" ? "super" : this.tune.boostMult > 0 ? "turbo" : "none"
       );
@@ -2147,6 +2152,7 @@ export class GameEngine {
     this.playerMesh.add(this.carBody);
     const newContact = this.carBody.userData.contact as THREE.Object3D | undefined;
     if (newContact) this.playerMesh.add(newContact);
+    this.sound?.setEngine(this.tune.engine);
     this.sound?.configureAspiration(
       this.tune.aspiration === "super" ? "super" : this.tune.boostMult > 0 ? "turbo" : "none"
     );
@@ -2584,8 +2590,36 @@ export class GameEngine {
     else this.nosCharge = Math.min(1, this.nosCharge + dt * 0.06);
     this.sound?.setNos(this.nosActive);
 
+    // Where the needle is, and therefore what the engine is willing to
+    // give. A 1.6 at a quarter revs and a 5.7 at a quarter revs are not
+    // the same machine, and this is the line that makes that true.
+    //
+    // The shape averages exactly 1.0 across the usable rev range, so it
+    // redistributes the car's power rather than adding any — and it is
+    // folded into `power` HERE, above the ceiling solve, on purpose. The
+    // governor works by solving a thrust curve that meets drag exactly
+    // at the limiter; scale the thrust after that solve and every car
+    // quietly asymptotes below its own governor instead of reaching it.
+    // The clutch, which this model otherwise does not have.
+    //
+    // revFraction() is a pure gearbox function: at a standstill it
+    // reports the bottom of first, 12% of the rev range. That is where
+    // the needle sits when you are ROLLING slowly — and it is not where
+    // anybody launches from. A standing start is a slipping clutch
+    // holding the engine up near its own torque peak, which is why a
+    // 1.6 can chirp its tyres at all. Without this the peaky engines
+    // make 0.4x torque off the line, cannot break traction, and the
+    // starter car quietly stops being able to spin its wheels — which
+    // is exactly what test:motion caught.
+    //
+    // Scaled by throttle so it is a launch and not a permanent lie, and
+    // faded out by 24 km/h, where the clutch is home.
+    const gearRev = revFraction(p.speed * KMH);
+    const launch = Math.max(0, 1 - (p.speed * KMH) / 24) * this.throttle;
+    this.revFrac = gearRev + (this.tune.engine.peakAt - gearRev) * launch;
+    const torque = torqueShape(this.tune.engine, this.revFrac);
     const power =
-      this.tune.accelMult * (1 + this.boost * this.tune.boostMult);
+      this.tune.accelMult * torque * (1 + this.boost * this.tune.boostMult);
     // Every car is governed at its own number (180-400 km/h), and the
     // thrust curve is solved so that at exactly that speed thrust equals
     // drag — the limiter is where the car naturally runs out of road,
@@ -3705,12 +3739,11 @@ export class GameEngine {
   private updateAudio(): void {
     if (!this.sound) return;
     const speedKmh = this.player.speed * 3.6;
-    let gear = 0;
-    while (gear < GEARS.length - 2 && speedKmh >= GEARS[gear + 1]) gear++;
-    const rpmFrac = Math.min(
-      1,
-      Math.max(0.12, (speedKmh - GEARS[gear]) / (GEARS[gear + 1] - GEARS[gear]))
-    );
+    const gear = gearAt(speedKmh);
+    // The same needle the torque curve read this frame, clutch and all —
+    // so flooring it from rest sounds like a car being launched rather
+    // than one idling away from a light.
+    const rpmFrac = this.revFrac;
     // Tires complain when the heading fights the lane at speed — and a
     // locked wheel is the loudest complaint of all, because it is one
     // patch of rubber being erased at road speed instead of rolling.
@@ -3831,6 +3864,19 @@ export class GameEngine {
     // the road test can check the lap against the real Kuwait rather
     // than against a second copy of the same guess.
     (window as unknown as { __grnAreas: typeof AREAS }).__grnAreas = AREAS;
+    // The engine roster and its maths. A test that re-implements the
+    // torque curve to check the torque curve proves only that it can
+    // copy an equation, so it gets the real function instead.
+    (window as unknown as { __grnEngines: typeof ENGINES }).__grnEngines = ENGINES;
+    // The real tune for any car in the showroom, so a test can race the
+    // machine the game would hand over instead of inventing a plausible
+    // set of numbers and then measuring its own invention.
+    (
+      window as unknown as { __grnTuneFor: (carId: string) => TuneEffects }
+    ).__grnTuneFor = (carId: string) => computeEffects(loadGarage(), carId);
+    (
+      window as unknown as { __grnEngineMath: { torqueShape: typeof torqueShape; firingHz: typeof firingHz } }
+    ).__grnEngineMath = { torqueShape, firingHz };
     (window as unknown as { __grnLandmarks: typeof LANDMARK_S }).__grnLandmarks = LANDMARK_S;
     (window as unknown as { __grnDebug: object }).__grnDebug = {
       playerSpeed: this.player.speed,

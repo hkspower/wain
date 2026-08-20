@@ -75,6 +75,21 @@ export class SoundEngine {
 
   // Engine layers
   private engOscs: OscillatorNode[] = [];
+  /** Per-layer gains, kept so a swap can re-voice the mix: a big engine
+   *  is carried by its sub-octave, a small one by its fundamental. */
+  private engLayerGains: GainNode[] = [];
+  /** The fitted engine's voice. A four-stroke fires cylinders/2 times
+   *  per crank revolution, so this is what sets the pitch — not the
+   *  engine speed, and not a curve fitted by ear. */
+  private engCylinders = 4;
+  private engIdleRpm = 800;
+  private engRedlineRpm = 6800;
+  private engSubMix = 0.3;
+  /** Cross-plane lope: half-order amplitude modulation of the exhaust.
+   *  Zero for everything that is not a cross-plane V8. */
+  private lopeOsc: OscillatorNode | null = null;
+  private lopeAmt: GainNode | null = null;
+  private lopeDepth = 0;
   private engGain: GainNode;
   private engFilter: BiquadFilterNode;
   private exhaustGain: GainNode;
@@ -187,6 +202,7 @@ export class SoundEngine {
       osc.connect(g).connect(shaper);
       osc.start();
       this.engOscs.push(osc);
+      this.engLayerGains.push(g);
     }
 
     // --- Exhaust rasp
@@ -197,6 +213,27 @@ export class SoundEngine {
     this.exhaustGain = this.ctx.createGain();
     this.exhaustGain.gain.value = 0;
     this.loopNoise().connect(this.exhaustFilter).connect(this.exhaustGain).connect(this.bed);
+
+    // --- Cross-plane lope.
+    //
+    // A cross-plane V8 does not fire evenly within a bank: two of its
+    // eight pulses land on the wrong side of the beat, and the half-crank-
+    // order thump that produces IS the burble. At idle it is about six
+    // beats a second and unmistakable; at road speed it climbs into the
+    // note as roughness. Both come out of the same one oscillator,
+    // because both are the same phenomenon.
+    //
+    // Summed into the exhaust gain rather than multiplied through a
+    // second stage: an oscillator connected to an AudioParam adds to it,
+    // so a depth of d swings the exhaust between (1-d) and (1+d) of its
+    // level and costs one node.
+    this.lopeOsc = this.ctx.createOscillator();
+    this.lopeOsc.type = "sine";
+    this.lopeOsc.frequency.value = 6;
+    this.lopeAmt = this.ctx.createGain();
+    this.lopeAmt.gain.value = 0;
+    this.lopeOsc.connect(this.lopeAmt).connect(this.exhaustGain.gain);
+    this.lopeOsc.start();
 
     // --- Wind / road roar
     this.windFilter = this.ctx.createBiquadFilter();
@@ -450,6 +487,36 @@ export class SoundEngine {
     if (this.ctx.state === "suspended") void this.ctx.resume().catch(() => {});
   }
 
+  /**
+   * Fit an engine. Cylinder count, rev range and voicing — everything
+   * that makes a four sound like a four.
+   *
+   * The layer mix moves with the engine because the same three
+   * oscillators have to carry a 1.6 that lives on its fundamental and a
+   * 5.7 that is felt on the octave below it. A single fixed mix makes
+   * every engine the same engine at a different pitch.
+   */
+  setEngine(e: {
+    cylinders: number;
+    idleRpm: number;
+    redlineRpm: number;
+    subMix: number;
+    lopeDepth: number;
+  }): void {
+    this.engCylinders = e.cylinders;
+    this.engIdleRpm = e.idleRpm;
+    this.engRedlineRpm = e.redlineRpm;
+    this.engSubMix = e.subMix;
+    this.lopeDepth = e.lopeDepth;
+    // Fundamental gives up what the sub takes, so the total stays put and
+    // a swap changes the colour rather than the volume.
+    if (this.engLayerGains.length === 3) {
+      this.engLayerGains[0].gain.value = 0.85 - e.subMix;
+      this.engLayerGains[1].gain.value = 0.25;
+      this.engLayerGains[2].gain.value = e.subMix;
+    }
+  }
+
   /** Wire up the whistle/whine layer for the equipped aspiration mod. */
   configureAspiration(mode: "none" | "turbo" | "super"): void {
     this.whineMode = mode;
@@ -653,7 +720,16 @@ export class SoundEngine {
     this.limiterPhase += limited * 0.55;
     const limiterCut = limited > 0 ? (Math.sin(this.limiterPhase) > 0.1 ? 1 : 0.45) : 1;
 
-    const freq = 42 + rpm * 96 + f.gear * 3;
+    // The note is the FIRING rate, not the crank rate: a four-stroke
+    // fires cylinders/2 times per revolution. At the same rpm a V8
+    // therefore sounds an octave above a four — and still reads as the
+    // deeper engine on the road, because it gets there at 6,200 rpm
+    // while the little four is at 8,400 and because half its energy is
+    // sitting on the sub-octave. Both of those fall out of this one
+    // line and the mix above it, which is the argument for using the
+    // real formula instead of a curve fitted by ear.
+    const crankRpm = this.engIdleRpm + (this.engRedlineRpm - this.engIdleRpm) * rpm;
+    const freq = (crankRpm / 60) * (this.engCylinders / 2);
     this.engOscs[0].frequency.setTargetAtTime(freq, t, 0.04);
     this.engOscs[1].frequency.setTargetAtTime(freq * 2.02, t, 0.04);
     this.engOscs[2].frequency.setTargetAtTime(freq * 0.5, t, 0.04);
@@ -669,11 +745,16 @@ export class SoundEngine {
     // resonant it is, and how much of it reaches the bed.
     this.exhaustFilter.frequency.setTargetAtTime((140 + rpm * 260) * this.exPitch, t, 0.05);
     this.exhaustFilter.Q.setTargetAtTime(1.2 * this.exRasp, t, 0.09);
-    this.exhaustGain.gain.setTargetAtTime(
-      (throttle * 0.05 + rpm * 0.01) * this.exLoud,
-      t,
-      0.06
-    );
+    const exLevel = (throttle * 0.05 + rpm * 0.01) * this.exLoud;
+    this.exhaustGain.gain.setTargetAtTime(exLevel, t, 0.06);
+    // Lope at half crank order — 700 rpm idle is 5.8 beats a second,
+    // which is the burble; 6,000 rpm is 50 Hz, which is the roughness
+    // the same engine has at the top of a gear. Depth rides the exhaust
+    // level so it cannot modulate a silent bus into audibility.
+    if (this.lopeOsc && this.lopeAmt) {
+      this.lopeOsc.frequency.setTargetAtTime(Math.max(1, crankRpm / 120), t, 0.08);
+      this.lopeAmt.gain.setTargetAtTime(exLevel * this.lopeDepth, t, 0.08);
+    }
 
     // Induction growl: load × revs. Attacks fast and decays slower, so
     // stabbing the throttle barks and lifting off falls away naturally.

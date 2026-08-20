@@ -71,13 +71,70 @@ if (hRivals.length !== api.rivals.length) {
   if (!process.exitCode) ok(`rivals: ${hRivals.length} match (name, crew, colour, top speed, body)`);
 }
 
+// ---- engines --------------------------------------------------------
+// The curve shape is the whole feature, so every parameter of it is
+// compared. A port whose `breadth` is stale by a hundredth is a port
+// where one of the five engines is quietly a different engine.
+const hEngines = [...header.matchAll(
+  /\{ TEXT\("([^"]+)"\), TEXT\("[^"]+"\), (\d+), EGRNEngineLayout::(\w+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, (-?[\d.]+)f, ([\d.]+)f, ([\d.]+)f, (\d+) \},/g
+)].map(([, id, cyl, layout, litres, idle, redline, peakAt, breadth, floor, powerMult, massKg, subMix, lopeDepth, price]) => ({
+  id, cylinders: +cyl, layout: layout.toLowerCase(), litres: +litres,
+  idleRpm: +idle, redlineRpm: +redline, peakAt: +peakAt, breadth: +breadth,
+  floor: +floor, powerMult: +powerMult, massKg: +massKg, subMix: +subMix,
+  lopeDepth: +lopeDepth, price: +price,
+}));
+if (hEngines.length !== api.engines.length) {
+  fail(`engines: header ${hEngines.length} vs api ${api.engines.length}`);
+} else {
+  const FIELDS = ["cylinders", "layout", "litres", "idleRpm", "redlineRpm", "peakAt",
+    "breadth", "floor", "powerMult", "massKg", "subMix", "lopeDepth", "price"];
+  for (let i = 0; i < hEngines.length; i++) {
+    const h = hEngines[i];
+    const a = api.engines[i];
+    if (h.id !== a.id) fail(`engine ${i} id: ${h.id} vs ${a.id}`);
+    for (const k of FIELDS) {
+      if (h[k] !== a[k]) fail(`engine ${h.id} ${k}: ${h[k]} vs ${a[k]}`);
+    }
+  }
+  // The baked normalisation constant is derived, not copied, so it gets
+  // its own check: recompute it from the API's own numbers and compare.
+  // Scoped to the block by name. A bare "one float per line" match would
+  // happily pick up any other such table that appears later and then
+  // compare the wrong numbers.
+  const normBlock = header.match(/GRNEngineNorm\[\] = \{([^}]*)\}/)?.[1] ?? "";
+  const hNorm = [...normBlock.matchAll(/([\d.]+)f,/g)].map((m) => +m[1]);
+  const wantNorm = api.engines.map((e) => {
+    const N = 256, MIN = 0.12;
+    let sum = 0;
+    for (let i = 0; i < N; i++) {
+      const r = MIN + ((1 - MIN) * (i + 0.5)) / N;
+      const d = r - e.peakAt;
+      sum += e.floor + (1 - e.floor) * Math.exp(-(d * d) / (2 * e.breadth * e.breadth));
+    }
+    return sum / N;
+  });
+  if (hNorm.length !== wantNorm.length) {
+    fail(`engine norms: header has ${hNorm.length}, want ${wantNorm.length}`);
+  } else {
+    for (let i = 0; i < hNorm.length; i++) {
+      if (Math.abs(hNorm[i] - wantNorm[i]) > 5e-6) {
+        fail(`engine ${api.engines[i].id} norm: header ${hNorm[i]} vs ${wantNorm[i].toFixed(6)}`);
+      }
+    }
+  }
+  if (!process.exitCode) {
+    ok(`engines: ${hEngines.length} match (13 fields each, plus the baked curve normalisation)`);
+  }
+}
+
 // ---- cars -----------------------------------------------------------
 const hCars = [...header.matchAll(
-  /\{ TEXT\("([^"]+)"\), TEXT\("([^"]+)"\), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, FColor\([^)]*\), EGRNBodyStyle::(\w+), (true|false) \},/g
-)].map(([, id, name, price, power, top, grip, brake, style, kit]) => ({
+  /\{ TEXT\("([^"]+)"\), TEXT\("([^"]+)"\), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, FColor\([^)]*\), EGRNBodyStyle::(\w+), (true|false), (\d+) \},/g
+)].map(([, id, name, price, power, top, grip, brake, style, kit, engine]) => ({
   id, name, price: +price, power: +power, top: +top, grip: +grip, brake: +brake,
   style: style.toLowerCase(),
   attack: kit === "true",
+  engine: +engine,
 }));
 if (hCars.length !== api.cars.length) {
   fail(`cars: header ${hCars.length} vs api ${api.cars.length}`);
@@ -95,8 +152,12 @@ if (hCars.length !== api.cars.length) {
     if (h.brake !== a.brake) fail(`car ${h.id} brake: ${h.brake} vs ${a.brake}`);
     if (h.style !== a.bodyStyle) fail(`car ${h.id} body style: ${h.style} vs ${a.bodyStyle}`);
     if (h.attack !== (a.kit === "attack")) fail(`car ${h.id} attack kit: ${h.attack} vs ${a.kit}`);
+    // The header stores an index into GRNEngines; the API stores the id.
+    if (api.engines[h.engine]?.id !== a.engine) {
+      fail(`car ${h.id} engine: header index ${h.engine} (${api.engines[h.engine]?.id}) vs ${a.engine}`);
+    }
   }
-  if (!process.exitCode) ok(`cars: ${hCars.length} match (id, price, power, topSpeedKmh, grip, brake, body, kit)`);
+  if (!process.exitCode) ok(`cars: ${hCars.length} match (id, price, power, topSpeedKmh, grip, brake, body, kit, engine)`);
 }
 
 // ---- handling -------------------------------------------------------

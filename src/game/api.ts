@@ -8,6 +8,7 @@
 import { CONTROL_POINTS, LANES, ROAD_HALF_WIDTH, COAST_U } from "./track";
 import { RIVALS } from "./rivals";
 import { CARS, PARTS, PAINT_COLORS, GLOW_COLORS, CLASS_LABELS } from "./mods";
+import { ENGINES } from "./engines";
 import { HANDLING } from "./handling";
 import { RIG } from "./rig";
 
@@ -51,6 +52,31 @@ export function buildRivals() {
   }));
 }
 
+/** The five engines, with the shape of each torque curve. A port that
+ *  has the cars and not these builds every machine with the same
+ *  personality. */
+export function buildEngines() {
+  return ENGINES.map((e) => ({
+    id: e.id,
+    name: e.name,
+    arabicName: e.ar,
+    cylinders: e.cylinders,
+    layout: e.layout,
+    litres: e.litres,
+    idleRpm: e.idleRpm,
+    redlineRpm: e.redlineRpm,
+    peakAt: e.peakAt,
+    breadth: e.breadth,
+    floor: e.floor,
+    powerMult: e.powerMult,
+    massKg: e.massKg,
+    subMix: e.subMix,
+    lopeDepth: e.lopeDepth,
+    price: e.price,
+    desc: e.desc,
+  }));
+}
+
 export function buildCars() {
   return CARS.map((c) => ({
     id: c.id,
@@ -66,6 +92,7 @@ export function buildCars() {
     color: hex(c.color),
     bodyStyle: c.style ?? "sedan",
     kit: c.kit ?? null,
+    engine: c.engine,
     desc: c.desc,
   }));
 }
@@ -90,6 +117,7 @@ export function buildGameData() {
     generatedAt: null as string | null, // static payload: no build stamp
     track: buildTrack(),
     rivals: buildRivals(),
+    engines: buildEngines(),
     cars: buildCars(),
     parts: buildParts(),
     handling: HANDLING,
