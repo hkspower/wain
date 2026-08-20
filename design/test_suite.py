@@ -505,6 +505,7 @@ def browser_checks():
         xbrl_checks(pg)
         delivery_checks(pg)
         social_checks(pg)
+        preload_checks(pg)
         timezone_checks(br)
         auth_checks(pg, ctx)
         tamper_checks(pg)
@@ -712,7 +713,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "549", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "557", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -747,7 +748,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "549", "0", "100%"], str(finals))
+          finals == ["4", "557", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -818,17 +819,19 @@ def home_checks(pg):
     # pixels off the compact one, on a page that measures 253 → 173 when the
     # states are actually waited for.
     def settled_header():
-        """The bar's height is animated, so a fixed sleep measures whatever
-        frame it lands on — it read 177px, then 190px, for a bar that rests at
-        253. Poll until two readings agree instead of guessing a duration."""
-        last = None
-        for _ in range(40):
-            h = pg.eval_on_selector("header", "e=>e.getBoundingClientRect().height")
-            if last is not None and abs(h - last) < 0.5:
-                return h
-            last = h
-            pg.wait_for_timeout(100)
-        return last
+        """Wait for the bar's own transitions to finish, then measure.
+
+        Polling the height was not enough: the easing plateaus, so two readings
+        100ms apart agreed at 185px on a bar that rests at 253 — the mark was
+        still at its compact 42px when the check believed it had settled. The
+        animations know when they are done; ask them."""
+        pg.evaluate("""async () => {
+          const h = document.querySelector('header');
+          await Promise.all(h.getAnimations({subtree: true})
+                             .map(a => a.finished.catch(() => {})));
+          await new Promise(r => requestAnimationFrame(() => r()));
+        }""")
+        return pg.eval_on_selector("header", "e=>e.getBoundingClientRect().height")
 
     pg.evaluate("window.scrollTo({top:0,behavior:'instant'})")
     pg.wait_for_function("() => !document.documentElement.classList.contains('scrolled')")
@@ -1737,6 +1740,50 @@ def delivery_checks(pg):
     check(S, "ids continue after a cancellation", ids2[-1] == "ORD-0004", str(ids2[-1]))
 
 # ───────────────────────────── social media centre
+def preload_checks(pg):
+    """Every font weight the first screen renders must be preloaded.
+
+    A weight that is only declared in the inline CSS cannot be discovered until
+    the browser has parsed some 220 lines of it, so on a high-latency link each
+    file starts a full round trip late and the text repaints in the fallback
+    face first. Measured on a server delaying 150ms per request: with only
+    cairo-400 preloaded the four files finished at 404ms; preloading the four
+    the first screen uses brought that to 321ms. It saves no bytes — the same
+    files are fetched either way."""
+    S = "preload"
+    for page in ("index.html", "nokhatha.html", "nizam.html", "admin.html"):
+        pg.goto(f"{BASE}/{page}", wait_until="networkidle")
+        pg.wait_for_timeout(900)
+        used = pg.evaluate("""() => {
+          const w = new Set();
+          const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+          let n;
+          while ((n = walk.nextNode())) {
+            const t = n.nodeValue.trim(); if (!t) continue;
+            const el = n.parentElement; if (!el.offsetParent) continue;
+            const r = el.getBoundingClientRect();
+            if (r.top < innerHeight && r.bottom > 0 && r.width) {
+              // 600 has no file of its own — the 500 face serves that slot
+              const fw = getComputedStyle(el).fontWeight;
+              w.add(fw === '600' ? '500' : fw);
+            }
+          }
+          return [...w];
+        }""")
+        links = pg.eval_on_selector_all(
+            'link[rel="preload"][as="font"]', "n=>n.map(e=>e.getAttribute('href'))")
+        missing = [w for w in used
+                   if not any(f"cairo-{w}.woff2" in (h or "") for h in links)]
+        check(S, f"{page}: every weight on the first screen is preloaded",
+              not missing, f"missing {missing} · has {links}")
+        # and nothing is preloaded that the page never uses — an unused preload
+        # is bytes fetched at the highest priority for nothing
+        spare = [h for h in links
+                 if not any(f"cairo-{w}.woff2" in h for w in used)]
+        check(S, f"{page}: nothing is preloaded that it does not render",
+              not spare, str(spare))
+
+
 def social_checks(pg):
     """The centre is a reference desk. Its whole value is that every fact on it
     is the company's real one, so the checks are about truth, not arithmetic:

@@ -7,7 +7,16 @@
   <meta name="referrer" content="no-referrer" />
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="theme-color" content="#6f3f1c" />
+  <!-- Preload every weight the masthead and the first screen actually render,
+       measured rather than assumed. Without this the browser cannot know a
+       font exists until it has parsed ~220 lines of inline CSS, so each file
+       starts a full round trip late and the text repaints in the fallback
+       face first. This saves no bytes at all — the same four files are
+       fetched either way — it only starts them sooner. -->
   <link rel="preload" as="font" type="font/woff2" href="fonts/cairo-400.woff2" crossorigin />
+  <link rel="preload" as="font" type="font/woff2" href="fonts/cairo-500.woff2" crossorigin />
+  <link rel="preload" as="font" type="font/woff2" href="fonts/cairo-700.woff2" crossorigin />
+  <link rel="preload" as="font" type="font/woff2" href="fonts/cairo-800.woff2" crossorigin />
   <link rel="canonical" href="https://www.almuhallab-code.com/nokhatha.html" />
   <!-- Share card: every link to this site that lands in واتساب — the company's
        main channel — Instagram, LinkedIn or a rich search result renders this.
