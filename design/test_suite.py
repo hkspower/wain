@@ -506,6 +506,7 @@ def browser_checks():
         delivery_checks(pg)
         social_checks(pg)
         preload_checks(pg)
+        drawing_contrast_checks(pg)
         timezone_checks(br)
         auth_checks(pg, ctx)
         tamper_checks(pg)
@@ -713,7 +714,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "557", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "563", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -748,7 +749,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "557", "0", "100%"], str(finals))
+          finals == ["4", "563", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -1749,6 +1750,52 @@ def delivery_checks(pg):
     check(S, "ids continue after a cancellation", ids2[-1] == "ORD-0004", str(ids2[-1]))
 
 # ───────────────────────────── social media centre
+def drawing_contrast_checks(pg):
+    """Every line that carries a drawing must be visible enough to be seen.
+
+    The structure of each drawing — the window frame, the chart axis, the
+    delivery route, the wires — was stroked in --border, which measures 1.31:1
+    against the panel it sits on and 1.45:1 against white. That is below even
+    the 2:1 this project sets for chart marks, so half of every picture was
+    barely there and the eye had to assemble it. They are drawn in
+    --border-input now: 3.04:1, the value already solved for this site's
+    boundary rule. The brand ink stays at 7.14:1, so the hierarchy holds —
+    subject first, setting second."""
+    S = "drawing"
+    pg.goto(f"{BASE}/index.html", wait_until="networkidle")
+    pg.wait_for_timeout(1500)
+    parts = pg.evaluate("""() => {
+      const bgOf = e => { let n = e;
+        while (n && n !== document.documentElement) {
+          const c = getComputedStyle(n).backgroundColor;
+          if (c && !c.includes('rgba(0, 0, 0, 0)') && !c.endsWith(', 0)')) return c;
+          n = n.parentElement; }
+        return 'rgb(255, 255, 255)'; };
+      const out = [];
+      const seen = new Set();
+      document.querySelectorAll('svg.scene .soft, .claimart .site *, .claimart .mods rect, .claimart .wires path')
+        .forEach(e => {
+          const cs = getComputedStyle(e);
+          const ink = cs.stroke !== 'none' ? cs.stroke : cs.fill;
+          if (!ink || ink === 'none') return;
+          const bg = bgOf(e.closest('svg') || e);
+          const k = ink + '|' + bg;
+          if (seen.has(k)) return;
+          seen.add(k);
+          out.push({ ink, bg, where: (e.closest('.claimart') ? 'hero' : 'card') });
+        });
+      return out;
+    }""")
+    check(S, "the drawings actually have structural parts to measure",
+          len(parts) >= 2, str(parts))
+    for p_ in parts:
+        ink = tuple(int(x) for x in re.findall(r"\d+", p_["ink"])[:3])
+        bg = tuple(int(x) for x in re.findall(r"\d+", p_["bg"])[:3])
+        r = contrast("#%02x%02x%02x" % ink, "#%02x%02x%02x" % bg)
+        check(S, f"{p_['where']} drawing: its structure clears the 3:1 floor",
+              r >= 3.0, f"{r:.2f}:1  {p_['ink']} on {p_['bg']}")
+
+
 def preload_checks(pg):
     """Every font weight the first screen renders must be preloaded.
 
