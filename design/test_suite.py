@@ -475,7 +475,7 @@ def identity_checks():
     check(S, "the product is named النوخذة", "النوخذة" in shown["index.html"])
 
     check(S, "the first version's components are still the layout",
-          'class="product lead"' in home and "<ol class=\"steps\">" in home
+          'class="product lead"' in home and '<ol class="flow">' in home
           and 'class="channels"' in home)
 
 # ═══════════════════════════════════════════ browser sections
@@ -611,9 +611,7 @@ def home_checks(pg):
     check(S, "the drawing is in the flow, not absolutely positioned",
           art and not art["absolute"] and not art["overflows"], str(art))
     for heading in ("النوخذة — النظام الموحد", "خدماتنا", "من أعمالنا", "كيف نعمل",
-                    "ما نبنيه لعملك",
-                    "لماذا المهلب كود", "تواصل معنا", "أتمتة سير العمل",
-                    "مزايا تحصل عليها", "التقنيات"):
+                    "لماذا المهلب كود", "تواصل معنا", "التقنيات"):
         check(S, f"the page still carries: {heading}", heading in pg.inner_text("main"))
     # المهلب is the company; النوخذة is the unified system it built and runs
     check(S, "the masthead names the company, not the product",
@@ -621,7 +619,9 @@ def home_checks(pg):
     check(S, "النوخذة is named as the unified system",
           pg.inner_text("main").count("النظام الموحد") >= 2)
     cards = pg.eval_on_selector_all(".card", "n=>n.length")
-    check(S, "the card sections are all present", cards == 26, f"{cards} cards")
+    # four النوخذة units and seven services: «ما نبنيه لعملك» (5) and «مزايا
+    # تحصل عليها» (10) were removed at the owner's word, 2026-08-20
+    check(S, "the card sections are all present", cards == 11, f"{cards} cards")
     check(S, "the three commitments sit in the band, not a grid",
           pg.eval_on_selector_all(".band .fact", "n=>n.length") == 3)
     check(S, "the retired code editor is gone from the page",
@@ -648,7 +648,7 @@ def home_checks(pg):
     rm.close()
     # the card sections slide (owner's request 2026-07-30): one scroll-snap
     # rail per section, all cards on one baseline, genuinely scrollable
-    for sid, n in (("nokhatha", 4), ("services", 7), ("offers", 5), ("edge", 10)):
+    for sid, n in (("nokhatha", 4), ("services", 7)):
         cnt = pg.eval_on_selector_all(f"#{sid} .rail .card", "n=>n.length")
         check(S, f"{sid}: the rail carries all its cards", cnt == n, f"{cnt} cards")
         tops = set(pg.eval_on_selector_all(f"#{sid} .rail .card",
@@ -712,7 +712,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "572", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "549", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -723,21 +723,22 @@ def home_checks(pg):
           pg.eval_on_selector_all(".product", "n=>n.length") == 1)
     check(S, "the lead product is marked as the flagship",
           pg.eval_on_selector_all(".product.lead", "n=>n.length") == 1)
-    check(S, "how-we-work is the eight-step timeline",
-          pg.eval_on_selector_all("ol.steps li", "n=>n.length") == 8)
-    # eight steps never fit a desktop: the timeline must be driven like every
-    # other rail, or three of them are unreachable with no affordance at all
-    check(S, "the timeline is a slider, not a silent overflow",
-          pg.eval_on_selector_all("#process .arrow", "n=>n.length") == 2
-          and pg.eval_on_selector_all("#process .dots span", "n=>n.length") >= 2)
-    sbefore = pg.eval_on_selector("#process ol.steps", "e=>e.scrollLeft")
-    pg.click("#process .arrow.next"); pg.wait_for_timeout(700)
-    check(S, "the timeline's next arrow advances it",
-          pg.eval_on_selector("#process ol.steps", "e=>e.scrollLeft") < sbefore - 40)
-    check(S, "the timeline is reachable by keyboard",
-          pg.eval_on_selector("#process ol.steps", "e=>e.getAttribute('tabindex')") == "0")
-    pg.eval_on_selector("#process ol.steps", "e=>e.scrollTo({left:0})"); pg.wait_for_timeout(300)
-    check(S, "the automation flow runs its seven stations",
+    # One process section, not two. «أتمتة سير العمل» and «كيف نعمل» told the
+    # same story in two components with different step counts, so a reader met
+    # التطوير · الاختبار · الإطلاق twice on one page and had to work out
+    # whether they were the same thing. The spine survives; the eight-step
+    # slider does not, and neither does its component.
+    check(S, "the process is told once, not twice",
+          pg.eval_on_selector_all("ol.steps", "n=>n.length") == 0
+          and pg.eval_on_selector_all("ol.flow", "n=>n.length") == 1)
+    check(S, "it runs from the request to the aftercare",
+          pg.eval_on_selector_all("#process ol.flow li b",
+                                  "n=>n.map(e=>e.textContent.trim())")
+          == ["طلب العميل", "التحليل والتخطيط", "التصميم", "التطوير",
+              "الاختبار", "الإطلاق", "الدعم والصيانة"],
+          str(pg.eval_on_selector_all("#process ol.flow li b",
+                                      "n=>n.map(e=>e.textContent.trim())")))
+    check(S, "the flow runs its seven stations",
           pg.eval_on_selector_all("ol.flow li", "n=>n.length") == 7)
     check(S, "the technology cloud floats all fifteen",
           pg.eval_on_selector_all(".cloud .tech", "n=>n.length") == 15)
@@ -746,7 +747,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "572", "0", "100%"], str(finals))
+          finals == ["4", "549", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -811,11 +812,31 @@ def home_checks(pg):
     # it must actually stay put, and shrink rather than eat the viewport.
     # measure the full state from the top: earlier checks in this section
     # scroll the page, and the bar is compact whenever it is scrolled
-    pg.evaluate("window.scrollTo({top:0,behavior:'instant'})"); pg.wait_for_timeout(500)
-    tall = pg.eval_on_selector("header", "e=>e.getBoundingClientRect().height")
-    pg.evaluate("window.scrollTo({top:600,behavior:'instant'})"); pg.wait_for_timeout(500)
+    # Wait for the state, do not assume it: the bar carries `scrolled` on the
+    # root, and a fixed sleep after scrolling measured whatever the previous
+    # check happened to leave behind — it read 177px for the full bar, four
+    # pixels off the compact one, on a page that measures 253 → 173 when the
+    # states are actually waited for.
+    def settled_header():
+        """The bar's height is animated, so a fixed sleep measures whatever
+        frame it lands on — it read 177px, then 190px, for a bar that rests at
+        253. Poll until two readings agree instead of guessing a duration."""
+        last = None
+        for _ in range(40):
+            h = pg.eval_on_selector("header", "e=>e.getBoundingClientRect().height")
+            if last is not None and abs(h - last) < 0.5:
+                return h
+            last = h
+            pg.wait_for_timeout(100)
+        return last
+
+    pg.evaluate("window.scrollTo({top:0,behavior:'instant'})")
+    pg.wait_for_function("() => !document.documentElement.classList.contains('scrolled')")
+    tall = settled_header()
+    pg.evaluate("window.scrollTo({top:600,behavior:'instant'})")
+    pg.wait_for_function("() => document.documentElement.classList.contains('scrolled')")
+    short = settled_header()
     stuck = pg.eval_on_selector("header", "e=>e.getBoundingClientRect().top")
-    short = pg.eval_on_selector("header", "e=>e.getBoundingClientRect().height")
     check(S, "the masthead stays at the top when the page scrolls",
           abs(stuck) < 2, str(stuck))
     check(S, "the masthead compacts once scrolled", short < tall - 20, f"{tall}->{short}")
@@ -887,7 +908,7 @@ def home_checks(pg):
 
     # a sticky bar covers whatever an anchor jumps to unless every target keeps
     # headroom: before scroll-margin-top, "خدماتنا" landed under the masthead
-    for sel in ("#services", "#contact", "#automation", "#process", "#tech"):
+    for sel in ("#services", "#contact", "#process", "#tech"):
         # scrollIntoView honours scroll-margin-top and lands deterministically,
         # where a hash navigation races the page's smooth-scroll animation
         pg.evaluate("(s) => document.querySelector(s).scrollIntoView({behavior:'instant'})", sel)
@@ -935,44 +956,11 @@ def home_checks(pg):
 
     # البحار, the voice assistant. Unconfigured it must not render at all — a
     # sticky button that opens nothing is worse than no button.
-    # the four drawn scenes: pictures carry «ما نبنيه لعملك», not paragraphs
-    scenes = pg.eval_on_selector_all("#offers .scene", "n=>n.map(e=>e.getAttribute('aria-label'))")
-    check(S, "the five works are drawn, not written", len(scenes) == 5, str(len(scenes)))
-    check(S, "each drawing is described for screen readers",
-          all(s_ and "رسم" in s_ for s_ in scenes), str(scenes))
-    labels = pg.eval_on_selector_all("#offers .card.drawn > b", "n=>n.map(e=>e.textContent.trim())")
-    check(S, "the works are أتمتة · تصميم · تطبيقات · برمجة خاصة · شعار وهوية",
-          labels == ["أتمتة", "تصميم", "تطبيقات", "برمجة خاصة", "شعار وهوية"], str(labels))
-    check(S, "the app scene names both platforms",
-          "iOS" in pg.inner_text("#offers") and "Android" in pg.inner_text("#offers"))
-    # every card must lay out in the rail — a card that inherits position:absolute
-    # from a same-named class stacks all four in one cell and the rail stops
-    # sliding, which is exactly what .shape (the hero's floating geometry) did
-    stacked = pg.evaluate("""(() => {
-      const cards = [...document.querySelectorAll('#offers .rail > .card')];
-      const lefts = new Set(cards.map(c => Math.round(c.getBoundingClientRect().left)));
-      const abs = cards.filter(c => getComputedStyle(c).position === 'absolute').length;
-      return { distinct: lefts.size, abs };
-    })()""")
-    check(S, "each drawn card takes its own column",
-          stacked["distinct"] == 5 and stacked["abs"] == 0, str(stacked))
-    # the logo offer says what a logo is made of, and never shows the company's
-    # own sail as if it were a sample of client work
-    logo = pg.evaluate("""(() => {
-      const c = [...document.querySelectorAll('#offers .card.drawn')]
-        .find(e => e.querySelector('b').textContent.trim() === 'شعار وهوية');
-      if (!c) return null;
-      const s = c.querySelector('svg.scene');
-      return { beats: [...s.querySelectorAll('text')].map(t => t.textContent.trim()),
-               borrows: !!s.querySelector('use') };
-    })()""")
-    check(S, "the logo offer is told as فكرة · بناء · روح",
-          logo and logo["beats"] == ["فكرة", "بناء", "روح"], str(logo))
-    check(S, "the logo offer draws a neutral mark, not the company's own",
-          logo and not logo["borrows"], str(logo))
-
-    check(S, "the drawings animate, and stop under reduced motion",
-          pg.eval_on_selector("#offers .scene .ga", "e=>getComputedStyle(e).animationName") != "none")
+    # «ما نبنيه لعملك» and «مزايا تحصل عليها» were removed at the owner's word
+    # (2026-08-20): eleven sections were too many, and those two repeated what
+    # خدماتنا and «لماذا المهلب كود» already say. The drawn-card checks went
+    # with them — what they taught is kept below, where the services still use
+    # the same idiom.
 
     # every service explains itself with a drawing, in the same idiom
     svc = pg.evaluate("""(() => {
@@ -989,11 +977,8 @@ def home_checks(pg):
           and all(c["label"] for c in svc), str([c["title"] for c in svc if not c["label"]]))
     check(S, "each service drawing is described for screen readers",
           all(c["role"] == "img" and "رسم" in (c["label"] or "") for c in svc), str(svc))
-    # the service scene is the short one; the offer scenes must keep their height
     check(S, "service scenes are drawn at the service height",
           all(100 <= c["h"] <= 116 for c in svc), str([c["h"] for c in svc]))
-    check(S, "the offer scenes keep their own taller height",
-          pg.eval_on_selector("#offers .scene", "e=>Math.round(e.getBoundingClientRect().height)") >= 130)
     # motion is additive: the parts move, but nothing is hidden until it moves,
     # so reduced motion, print and a screenshot all read the same explanation
     hidden = pg.evaluate("""(() => {

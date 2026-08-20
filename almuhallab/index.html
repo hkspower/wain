@@ -354,7 +354,7 @@
     .rail:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 8px; }
     #nokhatha .rail { grid-auto-columns: min(84vw, 320px); }
     #services .rail { grid-auto-columns: min(84vw, 312px); }
-    #edge .rail { grid-auto-columns: min(56vw, 190px); }
+
     /* the white fade marks the edge that still hides content; JS clears the
        fade on the exhausted side via at-start / at-end. Gated behind html.js
        like the arrows: without the script nothing maintains the classes, and
@@ -646,8 +646,8 @@
     .card:hover ul.feats li { border-color: var(--sand-vivid); }
 
     /* mini feature cards on the edge rail: icon + claim, nothing else */
-    #edge .card { align-items: flex-start; }
-    #edge .card b { font-size: 13.5px; }
+
+
 
     /* The flagship product gets a wide card of its own — النوخذة is a system we
        built and run, not one service tile among six. This, the numbered steps
@@ -701,20 +701,14 @@
        slides horizontally on wide screens (eight will not fit on any desktop,
        so it is driven by the same rail arrows and dots as the card sections)
        and stacks vertically on a phone */
-    ol.steps { counter-reset: s; list-style: none; margin: 0; padding: 8px 4px 12px;
-      display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
-      scroll-padding-inline: 4px; scrollbar-width: none; }
-    ol.steps::-webkit-scrollbar { display: none; }
-    ol.steps:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; border-radius: 8px; }
-    ol.steps li { counter-increment: s; flex: 0 0 190px; position: relative;
-      scroll-snap-align: start; color: var(--muted); font-size: 13px; line-height: 1.7; }
-    ol.steps li::before { content: counter(s); display: grid; place-items: center;
-      width: 32px; height: 32px; border-radius: 50%; background: var(--tint); color: #fff;
-      font-weight: 800; font-size: 14px; }
-    ol.steps li::after { content: ""; position: absolute; top: 15px;
-      inset-inline-start: 40px; inset-inline-end: -8px; height: 2px; background: var(--border); }
-    ol.steps li:last-child::after { display: none; }
-    ol.steps li b { display: block; color: var(--text); font-size: 15px; margin: 8px 0 4px; }
+
+
+
+
+
+
+
+
 
     /* the technologies float — each chip bobs on its own beat */
     .cloud { display: flex; flex-wrap: wrap; gap: 8px 12px; justify-content: center;
@@ -789,11 +783,21 @@
       background: var(--panel-2); stroke: var(--tint); color: var(--tint); fill: none;
       stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
     .scene .soft { stroke: var(--border); }
+    /* the band's facts are drawn small: a third of a row each, above one line
+       of text, so the drawing explains and the sentence only names */
+    .scene.sm { height: 84px; background: none; }
+    /* the flagship row is wide, so its drawing is too — and it carries the
+       unit names inside itself, which is why the row needs no chip list */
+    .scene.wide { height: 150px; margin-top: 12px; max-width: 620px; }
+    .scene .tab { font-size: 9px; }
+    .scene .tab.on { fill: var(--tint); }
+    .scene .ok { stroke: var(--good); }
+    .scene .cut { stroke: var(--danger); }
     .scene text { fill: var(--muted); stroke: none; font-family: var(--sans);
       font-size: 11px; font-weight: 700; }
-    .card.drawn { gap: 12px; }
-    .card.drawn b { font-size: 16px; }
-    .card.drawn p { font-size: 12.5px; }
+
+
+
 
     @keyframes gearA { to { transform: rotate(360deg); } }
     @keyframes gearB { to { transform: rotate(-360deg); } }
@@ -821,7 +825,7 @@
        only sets already-drawn parts moving — so a reduced-motion visitor,
        a print, and a screenshot all read the same explanation. */
     /* the offer cards keep their taller 136px scene — this is the service rail */
-    .card:not(.drawn) > .scene { height: 108px; }
+    .card > .scene { height: 108px; }
     @keyframes fitIn   { 0%, 10% { transform: translate(15px, -11px); opacity: .3; }
                          45%, 100% { transform: none; opacity: 1; } }
     @keyframes pulseIn { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
@@ -976,12 +980,11 @@
       .band { flex-direction: column; gap: 16px; padding: 16px; }
       .band .fact + .fact { border-inline-start: 0; padding-inline-start: 0;
         border-top: 1px solid var(--border); padding-top: 16px; }
-      ol.steps { flex-direction: column; gap: 16px; overflow: visible; padding: 8px 0 0; }
-      ol.steps li { flex: 0 0 auto; padding-inline-start: 44px; }
-      ol.steps li::before { position: absolute; inset-inline-start: 0; top: 0; }
-      ol.steps li::after { top: 36px; bottom: -16px; height: auto; width: 2px;
-        inset-inline-start: 15px; inset-inline-end: auto; }
-      ol.steps li b { margin-top: 4px; }
+
+
+
+
+
       .channels { flex-direction: column; }
       .fcols { gap: 24px 20px; padding: 24px 12px 20px; }
       .fcols > div, .fcols .fbrand { flex: 1 1 100%; }
@@ -1150,7 +1153,7 @@
       <!-- real, verifiable numbers — no invented clients or years -->
       <div class="stats">
         <div class="stat"><b class="num" data-count="4">4</b><span>وحدات في نظام النوخذة</span></div>
-        <div class="stat"><b class="num" data-count="572">572</b><span>فحصاً آلياً قبل كل إصدار</span></div>
+        <div class="stat"><b class="num" data-count="549">549</b><span>فحصاً آلياً قبل كل إصدار</span></div>
         <div class="stat"><b class="num" data-count="0">0</b><span>اعتماديات خارجية</span></div>
         <div class="stat"><b class="num" data-count="100" data-suffix="%">100%</b><span>يعمل دون إنترنت</span></div>
       </div>
@@ -1208,21 +1211,56 @@
       <div class="railwrap">
         <div class="rail" tabindex="0" role="group" aria-label="وحدات النوخذة">
           <div class="card">
+            <svg class="scene" viewBox="0 0 240 116" role="img" aria-label="رسم: قيمة محفظة ترتفع فوق أعمدة الأسهم">
+              <path class="soft" d="M28 96h184M28 20v76"/>
+              <rect class="bar" x="48" y="66" width="20" height="30" rx="3"/>
+              <rect class="bar" x="84" y="54" width="20" height="42" rx="3"/>
+              <rect class="bar" x="120" y="72" width="20" height="24" rx="3"/>
+              <rect class="bar" x="156" y="40" width="20" height="56" rx="3"/>
+              <path class="pen" d="M48 74 88 60 128 66 176 32"/>
+              <path d="M164 32h14v14"/>
+            </svg>
             <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg></span> صافي</h3>
             <p>محفظتك: القيمة السوقية والربح لحظياً.</p>
             <span class="chip on">المصدر الأول</span>
           </div>
           <div class="card">
+            <svg class="scene" viewBox="0 0 240 116" role="img" aria-label="رسم: طلب يسير على طريق حتى دبوس التسليم">
+              <path class="soft wire2" d="M34 84C74 84 74 40 118 40s44 44 88 44"/>
+              <rect x="30" y="52" width="26" height="22" rx="4"/>
+              <path d="M30 60h26M43 52v22"/>
+              <path d="M198 40a12 12 0 1 0-24 0c0 9 12 22 12 22s12-13 12-22Z"/>
+              <circle cx="186" cy="40" r="4"/>
+            </svg>
             <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-delivery"/></svg></span> التوصيل</h3>
             <p>طلبات تُتابَع حتى التسليم، وإيراد من المسلَّم فقط.</p>
             <span class="chip on">المصدر الثاني</span>
           </div>
           <div class="card">
+            <svg class="scene" viewBox="0 0 240 116" role="img" aria-label="رسم: ميزانية سنوية تُختم جاهزة للإيداع">
+              <rect class="soft" x="56" y="12" width="112" height="92" rx="9"/>
+              <path class="soft" d="M56 38h112"/>
+              <rect class="bar" x="72" y="50" width="52" height="8" rx="4"/>
+              <rect class="bar" x="72" y="66" width="80" height="8" rx="4"/>
+              <path d="M124 82h28"/>
+              <circle cx="172" cy="86" r="16"/>
+              <path d="M165 86l5 5 10-11"/>
+            </svg>
             <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-report"/></svg></span> XBRL</h3>
             <p>ميزانية سنوية وفق إطار وزارة التجارة، بمجاميع محسوبة.</p>
             <span class="chip on">الوجهة</span>
           </div>
           <div class="card">
+            <svg class="scene" viewBox="0 0 240 116" role="img" aria-label="رسم: ثلاث وحدات تصبّ في نواة بيانات واحدة">
+              <rect class="soft" x="24" y="14" width="34" height="24" rx="6"/>
+              <rect class="soft" x="24" y="46" width="34" height="24" rx="6"/>
+              <rect class="soft" x="24" y="78" width="34" height="24" rx="6"/>
+              <path class="soft wire2" d="M58 26C92 26 96 58 122 58M58 58h64M58 90C92 90 96 58 122 58"/>
+              <circle cx="140" cy="58" r="18"/>
+              <path d="M140 48v20M132 55h16"/>
+              <path class="soft" d="M158 58h30"/>
+              <rect class="soft" x="188" y="44" width="28" height="28" rx="6"/>
+            </svg>
             <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-anchor"/></svg></span> المركز المالي</h3>
             <p>تبويب واحد يجمعها كلها، ثم ملف XBRL بمعيار IFRS.</p>
             <span class="chip on">النتيجة</span>
@@ -1350,19 +1388,24 @@
       </div>
     </section>
 
-    <h2 class="section" id="automation">أتمتة سير العمل</h2>
-    <p class="sub">من طلبك إلى نظام يعمل.</p>
-    <div data-reveal>
+    <!-- One section, not two. «أتمتة سير العمل» and «كيف نعمل» told the same
+         story twice — request to running system — in two components with
+         different step counts, so a reader met التطوير · الاختبار · الإطلاق
+         twice on one page and had to work out whether they were the same
+         thing. The spine survives; the eight-step slider is gone. -->
+    <section class="proc" id="process" data-reveal>
+      <h2 class="section">كيف نعمل</h2>
+      <p class="sub">من طلبك إلى نظام يعمل.</p>
       <ol class="flow">
         <li><b>طلب العميل</b></li>
-        <li><b>تحليل بالذكاء الاصطناعي</b></li>
+        <li><b>التحليل والتخطيط</b></li>
         <li><b>التصميم</b></li>
         <li><b>التطوير</b></li>
         <li><b>الاختبار</b></li>
         <li><b>الإطلاق</b></li>
-        <li><b>الصيانة</b></li>
+        <li><b>الدعم والصيانة</b></li>
       </ol>
-    </div>
+    </section>
 
     <h2 class="section" id="products">من أعمالنا</h2>
     <p class="sub">بنيناه ونشغّله — جرّبه.</p>
@@ -1371,189 +1414,75 @@
       <div>
         <h3><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-anchor"/></svg></span> النوخذة — النظام الموحد
           <span class="live" aria-hidden="true"></span></h3>
-        <p>محافظ وتقارير مالية وتوصيل فوق نواة واحدة. مجاني، يعمل بلا إنترنت، ويُثبَّت على الجوال.</p>
-        <div class="units">
-          <span class="chip on"><svg class="ic sm" aria-hidden="true"><use href="#i-chart"/></svg> صافي — المحافظ</span>
-          <span class="chip on"><svg class="ic sm" aria-hidden="true"><use href="#i-report"/></svg> XBRL — التقارير المالية</span>
-          <span class="chip on"><svg class="ic sm" aria-hidden="true"><use href="#i-delivery"/></svg> التوصيل</span>
-          <span class="chip">المركز المالي الموحد</span>
-        </div>
+        <!-- The system, drawn rather than described: one window with its four
+             tabs named inside the drawing, and the phone it installs on. The
+             sentence and the four chips that used to sit here said the same
+             thing in words the picture already carries. -->
+        <svg class="scene wide" viewBox="0 0 320 132" role="img"
+             aria-label="رسم: نافذة النوخذة بأربعة تبويبات — المركز المالي وصافي وXBRL والتوصيل — وإلى جوارها التطبيق على الجوال">
+          <rect class="soft" x="8" y="10" width="232" height="112" rx="10"/>
+          <path class="soft" d="M8 38h232"/>
+          <text class="tab on" x="232" y="29" text-anchor="end">المركز</text>
+          <text class="tab" x="176" y="29" text-anchor="end">صافي</text>
+          <text class="tab" x="126" y="29" text-anchor="end">XBRL</text>
+          <text class="tab" x="70" y="29" text-anchor="end">التوصيل</text>
+          <path class="soft" d="M28 104h96M28 56v48"/>
+          <path class="pen" d="M28 92 52 82 76 88 100 62 124 70"/>
+          <rect class="bar" x="140" y="76" width="84" height="7" rx="3.5"/>
+          <rect class="bar" x="140" y="90" width="60" height="7" rx="3.5"/>
+          <rect class="bar" x="140" y="104" width="72" height="7" rx="3.5"/>
+          <rect x="262" y="26" width="46" height="80" rx="8"/>
+          <path d="M277 98h16"/>
+          <path class="bar" d="M272 46h26M272 58h18M272 70h22"/>
+        </svg>
       </div>
       <a class="btn primary go" href="nokhatha.html">ادخل النظام ←</a>
     </div>
 
-    <!-- What we build for a client, kept distinct from the row above: النوخذة is
-         a system we built and run, these four are offers. Filing offers under
-         "من أعمالنا" would present them as delivered work. -->
-    <section class="slider" id="offers" data-reveal>
-      <div class="rowhead">
-        <div>
-          <h2 class="section">ما نبنيه لعملك</h2>
-          <p class="sub">خمسة نبدأ بها عادةً.</p>
-        </div>
-        <div class="railnav">
-          <button type="button" class="arrow prev" aria-label="السابق"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></button>
-          <button type="button" class="arrow next" aria-label="التالي"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></button>
-        </div>
-      </div>
-      <div class="railwrap">
-        <div class="rail" tabindex="0" role="group" aria-label="ما نبنيه لعملك">
-          <div class="card drawn">
-            <svg class="scene" viewBox="0 0 240 136" role="img" aria-label="رسم: تروس تدور — الأتمتة">
-              <g class="ga"><circle cx="86" cy="62" r="17"/><circle cx="86" cy="62" r="6.5"/><path d="M86 34v10M86 80v10M114 62h-10M68 62H58M106 42l-7 7M73 75l-7 7M106 82l-7-7M73 49l-7-7"/></g>
-              <g class="gb"><circle cx="140" cy="94" r="11"/><circle cx="140" cy="94" r="4.2"/><path d="M140 76v7M140 105v7M158 94h-7M129 94h-7M153 81l-4.5 4.5M131.5 102.5 127 107M153 107l-4.5-4.5M131.5 85.5 127 81"/></g>
-              <path class="soft wire2" d="M206 62H124"/>
-              <path class="soft wire2" d="M42 94h56"/>
-              <rect class="soft" x="196" y="50" width="26" height="24" rx="5"/>
-              <rect class="soft" x="20" y="82" width="26" height="24" rx="5"/>
-            </svg>
-            <b>أتمتة</b>
-            <p>خطواتك المتكررة تُنفَّذ وحدها.</p>
-          </div>
-          <div class="card drawn">
-            <svg class="scene" viewBox="0 0 240 136" role="img" aria-label="رسم: قلم يرسم على لوح — التصميم">
-              <rect class="soft" x="44" y="22" width="152" height="78" rx="8"/>
-              <path class="soft" d="M44 40h152"/>
-              <circle class="soft" cx="58" cy="31" r="2.6"/>
-              <path class="pen" d="M64 84c16-30 30 8 46-14s28 16 44-6 24 8 24 8"/>
-              <path d="m176 96 12-12 8 8-12 12-10 2z"/>
-              <circle cx="76" cy="118" r="7"/><circle cx="98" cy="118" r="7"/><circle cx="120" cy="118" r="7"/>
-            </svg>
-            <b>تصميم</b>
-            <p>واجهة تُرسم قبل أن تُبنى.</p>
-          </div>
-          <div class="card drawn">
-            <svg class="scene" viewBox="0 0 240 136" role="img" aria-label="رسم: جهازان — تطبيقات iOS و Android">
-              <rect x="60" y="16" width="52" height="88" rx="9"/>
-              <path d="M78 24h16"/>
-              <rect class="bar" x="68" y="42" width="36" height="7" rx="3.5"/>
-              <rect class="bar" x="68" y="56" width="36" height="7" rx="3.5"/>
-              <rect class="bar" x="68" y="70" width="24" height="7" rx="3.5"/>
-              <text x="86" y="122" text-anchor="middle" direction="ltr">iOS</text>
-              <rect x="130" y="24" width="52" height="80" rx="9"/>
-              <path d="M148 32h16"/>
-              <rect class="bar" x="138" y="48" width="36" height="7" rx="3.5"/>
-              <rect class="bar" x="138" y="62" width="36" height="7" rx="3.5"/>
-              <rect class="bar" x="138" y="76" width="24" height="7" rx="3.5"/>
-              <text x="156" y="122" text-anchor="middle" direction="ltr">Android</text>
-            </svg>
-            <b>تطبيقات</b>
-            <p>آيفون وأندرويد.</p>
-          </div>
-          <div class="card drawn">
-            <svg class="scene" viewBox="0 0 240 136" role="img" aria-label="رسم: كود يُكتب — برمجة خاصة">
-              <path d="M62 44 40 68l22 24"/>
-              <path d="m178 44 22 24-22 24"/>
-              <rect class="bar" x="76" y="52" width="44" height="7" rx="3.5"/>
-              <rect class="bar" x="88" y="66" width="52" height="7" rx="3.5"/>
-              <rect class="bar" x="76" y="80" width="34" height="7" rx="3.5"/>
-              <path class="caret" d="M150 78v14"/>
-            </svg>
-            <b>برمجة خاصة</b>
-            <p>نظام على مقاسك أنت.</p>
-          </div>
-          <!-- a logo is not a picture we pick: it starts as an idea, is built on
-               geometry, and only then carries a soul. The scene is those three
-               beats, left to right, and the mark drawn in it is a neutral one —
-               the company's own sail is never used as a sample of client work -->
-          <div class="card drawn">
-            <svg class="scene" viewBox="0 0 240 136" role="img" aria-label="رسم: فكرة تصير هندسة ثم شعاراً له روح">
-              <circle cx="44" cy="50" r="13"/>
-              <path d="M44 50v8"/>
-              <path d="M37 68h14M39 73h10"/>
-              <path class="soft" d="M44 28v-6M25 50h-6M30.5 36.5 26 32M57.5 36.5 62 32"/>
-              <path class="soft wire2" d="M86 54H70"/>
-              <circle class="soft" cx="110" cy="54" r="26"/>
-              <path class="soft" d="M110 24v60M80 54h60"/>
-              <path class="pen" d="M96 66 110 42l14 24M102 58h16"/>
-              <path class="soft wire2" d="M170 54h-34"/>
-              <circle class="soft pulse" cx="196" cy="54" r="27"/>
-              <path fill="currentColor" stroke="none" d="M196 38l16 28h-9.5l-6.5-11.4-6.5 11.4H180z"/>
-              <path fill="currentColor" stroke="none" d="M187 58h18l3.4 6H183.6z"/>
-              <text x="44" y="112" text-anchor="middle">فكرة</text>
-              <text x="110" y="112" text-anchor="middle">بناء</text>
-              <text x="196" y="112" text-anchor="middle">روح</text>
-            </svg>
-            <b>شعار وهوية</b>
-            <p>فكرة تُبنى بالهندسة وتخرج بروح.</p>
-          </div>
-        </div>
-        <div class="dots" aria-hidden="true"></div>
-      </div>
-    </section>
-
-    <h2 class="section">لماذا المهلب كود</h2>
+        <h2 class="section">لماذا المهلب كود</h2>
     <p class="sub">ثلاثة يمكنك التحقق منها.</p>
+    <!-- Three facts, each drawn before it is written: a run of checks that all
+         pass, a paragraph that starts at the right, and a device still working
+         with the cloud cut off. The sentence under each is one line — the
+         drawing carries the rest. -->
     <div class="band" data-reveal>
       <div class="fact">
+        <svg class="scene sm" viewBox="0 0 200 84" role="img" aria-label="رسم: سلسلة فحوص آلية تخضرّ واحداً بعد الآخر">
+          <path class="soft" d="M30 22h84M30 42h84M30 62h60"/>
+          <circle class="ok" cx="18" cy="22" r="7"/><path class="ok" d="M14.5 22l2.6 2.6L22 19.6"/>
+          <circle class="ok" cx="18" cy="42" r="7"/><path class="ok" d="M14.5 42l2.6 2.6L22 39.6"/>
+          <circle class="ok" cx="18" cy="62" r="7"/><path class="ok" d="M14.5 62l2.6 2.6L22 59.6"/>
+        </svg>
         <h3><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg> مُختبَر لا موصوف</h3>
-        <p>لا يُسلَّم إصدار حتى تخضرّ كل الفحوص الآلية.</p>
+        <p>لا يُسلَّم إصدار حتى تخضرّ كل الفحوص.</p>
       </div>
       <div class="fact">
+        <svg class="scene sm" viewBox="0 0 200 84" role="img" aria-label="رسم: نص يبدأ من اليمين، لا نص مقلوب">
+          <rect class="soft" x="24" y="12" width="152" height="60" rx="8"/>
+          <rect class="bar" x="96" y="26" width="64" height="7" rx="3.5"/>
+          <rect class="bar" x="60" y="40" width="100" height="7" rx="3.5"/>
+          <rect class="bar" x="110" y="54" width="50" height="7" rx="3.5"/>
+          <path d="M52 33 40 40l12 7"/>
+        </svg>
         <h3><svg class="ic" aria-hidden="true"><use href="#i-globe"/></svg> عربي أولاً، لا مُعرَّب</h3>
-        <p>RTL من أول سطر، بخط عربي مرفق مع الموقع.</p>
+        <p>RTL من أول سطر، بخط عربي مرفق.</p>
       </div>
       <div class="fact">
+        <svg class="scene sm" viewBox="0 0 200 84" role="img" aria-label="رسم: جهاز يعمل والسحابة مقطوعة عنه">
+          <rect x="78" y="14" width="44" height="60" rx="7"/>
+          <path d="M92 66h16"/>
+          <path class="bar" d="M88 32h24M88 44h16"/>
+          <g transform="translate(200,0) scale(-1,1)">
+            <path class="soft" d="M150 30a11 11 0 0 1 0 22h-14a9 9 0 0 1 0-18 13 13 0 0 1 14-4Z"/>
+            <path class="cut" d="M128 24l34 34"/>
+          </g>
+        </svg>
         <h3><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg> يعمل بلا إنترنت</h3>
-        <p>يُثبَّت على الجوال، بكلمات مرور مُعمّاة وسياسة محتوى صارمة.</p>
+        <p>يُثبَّت على الجوال ويعمل بلا شبكة.</p>
       </div>
     </div>
 
-    <section class="slider" id="edge" data-reveal>
-      <div class="rowhead">
-        <div>
-          <h2 class="section">مزايا تحصل عليها</h2>
-          <p class="sub">في كل مشروع.</p>
-        </div>
-        <div class="railnav">
-          <button type="button" class="arrow prev" aria-label="السابق"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></button>
-          <button type="button" class="arrow next" aria-label="التالي"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></button>
-        </div>
-      </div>
-      <div class="railwrap">
-        <div class="rail" tabindex="0" role="group" aria-label="مزايا تحصل عليها">
-          <div class="card"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg></span><b>تسليم سريع</b></div>
-          <div class="card"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-shield"/></svg></span><b>أمان مؤسسي</b></div>
-          <div class="card"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-gauge"/></svg></span><b>أداء عالٍ</b></div>
-          <div class="card"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg></span><b>جاهز لمحركات البحث</b></div>
-          <div class="card"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-devices"/></svg></span><b>تصميم متجاوب</b></div>
-          <div class="card"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg></span><b>تكامل ذكاء اصطناعي</b></div>
-          <div class="card"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-layers"/></svg></span><b>بنية قابلة للتوسّع</b></div>
-          <div class="card"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-pen"/></svg></span><b>واجهات حديثة</b></div>
-          <div class="card"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-headset"/></svg></span><b>دعم مخصّص</b></div>
-          <div class="card"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg></span><b>تحديثات مستمرة</b></div>
-        </div>
-        <div class="dots" aria-hidden="true"></div>
-      </div>
-    </section>
-
-    <section class="slider" id="process" data-reveal>
-      <div class="rowhead">
-        <div>
-          <h2 class="section">كيف نعمل</h2>
-          <p class="sub">ثماني خطوات.</p>
-        </div>
-        <div class="railnav">
-          <button type="button" class="arrow prev" aria-label="السابق"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></button>
-          <button type="button" class="arrow next" aria-label="التالي"><svg class="ic" aria-hidden="true"><use href="#i-chev"/></svg></button>
-        </div>
-      </div>
-      <div class="railwrap">
-    <ol class="steps">
-      <li><b>الاستكشاف</b></li>
-      <li><b>التخطيط</b></li>
-      <li><b>تصميم التجربة</b></li>
-      <li><b>تصميم الواجهة</b></li>
-      <li><b>التطوير</b></li>
-      <li><b>الاختبار</b></li>
-      <li><b>الإطلاق</b></li>
-      <li><b>الدعم</b></li>
-    </ol>
-        <div class="dots" aria-hidden="true"></div>
-      </div>
-    </section>
-
-    <h2 class="section" id="tech">التقنيات</h2>
+            <h2 class="section" id="tech">التقنيات</h2>
     <p class="sub">الأداة على قدر المشروع.</p>
     <div class="cloud" data-reveal>
       <span class="tech">React</span><span class="tech">Next.js</span><span class="tech">Vue</span>
@@ -1564,8 +1493,7 @@
     </div>
 
     <h2 class="section" id="contact">تواصل معنا</h2>
-    <p class="sub">عندك مشروع؟ احكِ لنا عنه — أو راسلنا مباشرة على أي قناة.
-      وإن فضّلت الكلام، <b>البحار</b> مساعدنا الصوتي يردّ عليك بالعربية في أي وقت.</p>
+    <p class="sub">احكِ لنا عن مشروعك — أو راسلنا مباشرة.</p>
 
     <div class="qwrap" data-reveal>
       <form class="qform" id="quote" novalidate>
@@ -1652,8 +1580,6 @@
         <nav aria-label="روابط الشركة">
           <a href="#services">خدماتنا</a>
           <a href="#products">أعمالنا</a>
-          <a href="#offers">ما نبنيه لعملك</a>
-          <a href="#automation">أتمتة سير العمل</a>
           <a href="#process">كيف نعمل</a>
           <a href="#tech">التقنيات</a>
           <a href="#contact">تواصل معنا</a>
@@ -1801,11 +1727,10 @@
       var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       var sliders = document.querySelectorAll("section.slider");
       for (var i = 0; i < sliders.length; i++) (function (sec) {
-        /* the track is a .rail of cards, or the process timeline's own <ol> —
-           eight steps never fit a desktop, so it is driven the same way */
-        var rail = sec.querySelector(".rail, ol.steps");
-        /* the timeline's own <ol> becomes a focusable scroll region only once
-           the script is running — the markup stays a plain ordered list */
+        /* every slider on the page carries its cards in a .rail */
+        var rail = sec.querySelector(".rail");
+        /* the rail becomes a focusable scroll region only once the script is
+           running — the markup stays plain */
         if (!rail.hasAttribute("tabindex")) {
           rail.setAttribute("tabindex", "0");
           rail.setAttribute("role", "group");

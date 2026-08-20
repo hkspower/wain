@@ -27,12 +27,6 @@
 .card .tile .ic { width: 21px; height: 21px; }
 .card .chip { margin-top: auto; }
 .card:hover ul.feats li { border-color: var(--sand-vivid); }
-/* mini feature cards on the edge rail: icon + claim, nothing else */
-    #edge .card { align-items: flex-start; }
-#edge .card b { font-size: 13.5px; }
-.card.drawn { gap: 12px; }
-.card.drawn b { font-size: 16px; }
-.card.drawn p { font-size: 12.5px; }
 /* ═══════ each service explained by a drawing ═══════
        Six scenes, one per service card, in the same idiom as the four above:
        a page whose content fills, a device that installs, blocks that fit
@@ -41,7 +35,7 @@
        only sets already-drawn parts moving — so a reduced-motion visitor,
        a print, and a screenshot all read the same explanation. */
     /* the offer cards keep their taller 136px scene — this is the service rail */
-    .card:not(.drawn) > .scene { height: 108px; }</style>
+    .card > .scene { height: 108px; }</style>
 </head>
 <body>
   <header class="ds-head">
