@@ -12,6 +12,16 @@ DirectoryIndex index.html
   Require all denied
 </Files>
 
+# Directories without an index.html — /_next/static/chunks/ and friends —
+# must not answer with a file listing. Usually off at the host, but "usually"
+# is not a setting.
+Options -Indexes
+
+# Dotfiles are never content here.
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+
 # ---------------------------------------------------------------------------
 # Caching
 #
@@ -118,4 +128,35 @@ DirectoryIndex index.html
   Header set Referrer-Policy "strict-origin-when-cross-origin"
   # فهد needs the microphone; nothing else on the site needs these features.
   Header set Permissions-Policy "camera=(), geolocation=(self), microphone=(self)"
+
+  # Nobody has any business framing this site. /admin is a real session behind
+  # this, so being framable is a clickjacking route into it. frame-ancestors is
+  # the modern control; X-Frame-Options covers browsers that predate it.
+  Header set X-Frame-Options "DENY"
+
+  # The site is HTTPS-only on Hostinger. Deliberately without includeSubDomains
+  # and without preload: both are hard to walk back, and a subdomain that is
+  # not yet on HTTPS would become unreachable for a year. Add them once every
+  # subdomain is confirmed HTTPS.
+  Header always set Strict-Transport-Security "max-age=31536000"
+
+  # Content Security Policy.
+  #
+  # Honest about its limits: 'unsafe-inline' has to stay in script-src because
+  # Next.js inlines its hydration payload and a static export has no server to
+  # mint a per-request nonce. So this is not a strong defence against injected
+  # inline script. What it does buy, and what the site actually needs:
+  #
+  #   * script-src pins executable code to this origin and unpkg (فهد's widget)
+  #     — nothing else can be loaded, whatever ends up in the DOM.
+  #   * frame-ancestors 'none' blocks clickjacking of /admin.
+  #   * form-action 'self' stops an injected form posting credentials offsite.
+  #   * base-uri 'self' stops a <base> tag re-pointing every relative URL.
+  #   * object-src 'none' removes the plugin surface entirely.
+  #   * connect-src names Supabase and ElevenLabs explicitly, so exfiltration
+  #     to an arbitrary host is blocked rather than merely unlikely.
+  #
+  # frame-src is openstreetmap.org for the maps. If فهد or the voice stop
+  # working after a change here, the browser console names the directive.
+  Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://unpkg.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://unpkg.com https://api.elevenlabs.io https://api.us.elevenlabs.io wss://api.elevenlabs.io wss://api.us.elevenlabs.io; frame-src https://www.openstreetmap.org; media-src 'self' blob: https://api.elevenlabs.io; worker-src 'self' blob:; manifest-src 'self'"
 </IfModule>

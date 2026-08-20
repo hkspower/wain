@@ -54,6 +54,9 @@ export default function PlaceMap({
             src={embed}
             title={`خريطة ${place.nameAr}`}
             loading="lazy"
+            // See SearchMap: scripts only, no same-origin, no top navigation.
+            sandbox="allow-scripts"
+            referrerPolicy="no-referrer"
             className="absolute inset-0 block h-full w-full border-0"
           />
         </div>

@@ -209,6 +209,12 @@ export default function SearchMap({ places }: { places: Place[] }) {
             loading="lazy"
             tabIndex={-1}
             aria-hidden="true"
+            // Third-party frame. allow-scripts is what the map needs to draw;
+            // withholding allow-same-origin, allow-popups, allow-forms and
+            // allow-top-navigation means it cannot reach its own cookies,
+            // open windows, or navigate the page out from under the visitor.
+            sandbox="allow-scripts"
+            referrerPolicy="no-referrer"
             className="pointer-events-none absolute inset-0 block h-full w-full border-0"
           />
         )}

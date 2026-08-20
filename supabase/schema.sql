@@ -18,9 +18,21 @@ create table if not exists public.admins (
 );
 alter table public.admins enable row level security;
 
-create policy "admins can see the admin list"
+-- Matched directly on the row, NOT via "is the asker an admin?" — a policy on
+-- admins that queries admins recurses, and PostgreSQL refuses:
+--   ERROR: infinite recursion detected in policy for relation "admins"
+-- That error does not stay local. Every policy on places and submissions asks
+-- this table whether the user is an admin, so the recursive version took the
+-- whole admin panel down with it while the public site kept working.
+-- Verified against PostgreSQL 16, both the failure and this fix.
+--
+-- Consequence worth knowing: an admin sees only their own row here, not the
+-- full list. The panel only ever asks about itself, and one admin does not
+-- need to enumerate the others.
+drop policy if exists "admins can see the admin list" on public.admins;
+create policy "an admin can see their own row"
   on public.admins for select
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using (user_id = auth.uid());
 
 -- ---------------------------------------------------------------------------
 -- Places
@@ -134,7 +146,12 @@ create table if not exists public.submissions (
   -- how to reach the business publicly
   phone          text not null default '' check (length(phone) <= 40),
   instagram      text not null default '' check (length(instagram) <= 80),
-  website        text not null default '' check (length(website) <= 200),
+  -- Scheme-checked at rest. Nothing renders this today, but the day someone
+  -- puts it in an href, a stored 'javascript:…' becomes stored XSS. Rejecting
+  -- it here means that day is safe by default rather than by remembering.
+  website        text not null default ''
+                   check (website = '' or
+                          (length(website) <= 200 and website ~* '^https?://[^[:space:]]{3,}$')),
 
   -- how to reach whoever submitted it (never shown on the site)
   contact_name   text not null check (length(btrim(contact_name)) between 2 and 120),
