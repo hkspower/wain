@@ -14,7 +14,9 @@ import {
   type PlaceRow,
 } from "@/lib/supabase";
 import PlaceForm, { type EditablePlace } from "@/components/admin/PlaceForm";
+import MediaReview from "@/components/admin/MediaReview";
 import Submissions, { submissionToPlace } from "@/components/admin/Submissions";
+import { discardPending, publishMedia } from "@/lib/media";
 import type { SubmissionRow } from "@/lib/submissions";
 
 type View = { mode: "list" } | { mode: "edit"; place?: EditablePlace };
@@ -36,6 +38,10 @@ export default function AdminApp() {
   // saving the place can close the submission out in the same step. Without it
   // an approved business would sit in the queue forever, looking unhandled.
   const [approving, setApproving] = useState<SubmissionRow | null>(null);
+  // Nothing is approved by default — a photo goes public because someone chose
+  // it, not because nobody looked.
+  const [approvedLogo, setApprovedLogo] = useState(false);
+  const [approvedImages, setApprovedImages] = useState<string[]>([]);
 
   // ---- auth ---------------------------------------------------------------
   useEffect(() => {
@@ -105,7 +111,33 @@ export default function AdminApp() {
     if (!sb) return;
     setBusy(true);
     setError("");
-    const payload = placeToRow(p);
+
+    // Approved media is copied into the public bucket first, so the place row
+    // is written with URLs that already resolve. Doing it the other way round
+    // publishes a page pointing at images that are not there yet.
+    let media: { logoUrl?: string; imageUrls?: string[] } = {};
+    if (approving) {
+      const failures: string[] = [];
+      if (approvedLogo && approving.logo_path) {
+        const r = await publishMedia(approving.logo_path, p.slug, "logo");
+        if (r.ok) media.logoUrl = r.url;
+        else failures.push(r.message);
+      }
+      const urls: string[] = [];
+      for (let i = 0; i < approvedImages.length; i++) {
+        const r = await publishMedia(approvedImages[i], p.slug, `photo-${i + 1}`);
+        if (r.ok) urls.push(r.url);
+        else failures.push(r.message);
+      }
+      if (urls.length) media.imageUrls = urls;
+      if (failures.length) {
+        setBusy(false);
+        setError(`ما قدرنا ننشر كل الصور: ${failures[0]}`);
+        return;
+      }
+    }
+
+    const payload = placeToRow({ ...p, ...media });
     const res = p.id
       ? await sb.from("places").update(payload).eq("id", p.id)
       : await sb.from("places").insert(payload);
@@ -126,7 +158,17 @@ export default function AdminApp() {
           reviewed_by: session?.user.id ?? null,
         })
         .eq("id", approving.id);
+
+      // The private originals have served their purpose. Rejected ones go too
+      // — keeping photos nobody approved is the kind of thing that quietly
+      // becomes a data-protection problem.
+      await discardPending(
+        [approving.logo_path, ...(approving.image_paths ?? [])].filter(Boolean) as string[]
+      );
+
       setApproving(null);
+      setApprovedLogo(false);
+      setApprovedImages([]);
       if (e) {
         // The place saved; only the bookkeeping failed. Say exactly that rather
         // than implying the whole thing went wrong.
@@ -243,11 +285,25 @@ export default function AdminApp() {
             رجوع للقائمة
           </button>
           {approving && (
-            <p className="mb-4 rounded-2xl bg-sun-50 px-4 py-3 text-sm text-sun-900">
-              مراجعة طلب من <strong>{approving.contact_name}</strong> (
-              <span dir="ltr">{approving.contact_email}</span>). عبّي التقييم
-              والرابط، وبعد الحفظ ينقفل الطلب تلقائياً.
-            </p>
+            <>
+              <p className="mb-4 rounded-2xl bg-sun-50 px-4 py-3 text-sm text-sun-900">
+                مراجعة طلب من <strong>{approving.contact_name}</strong> (
+                <span dir="ltr">{approving.contact_email}</span>). عبّي التقييم
+                والرابط، وبعد الحفظ ينقفل الطلب تلقائياً.
+              </p>
+              {(approving.logo_path || approving.image_paths?.length > 0) && (
+                <div className="mb-5 rounded-2xl border border-sand-200 bg-sand-100/60 p-4">
+                  <MediaReview
+                    logoPath={approving.logo_path}
+                    imagePaths={approving.image_paths ?? []}
+                    selected={approvedImages}
+                    onSelected={setApprovedImages}
+                    logoApproved={approvedLogo}
+                    onLogoApproved={setApprovedLogo}
+                  />
+                </div>
+              )}
+            </>
           )}
           <h2 className="mb-5 font-display text-xl font-semibold text-ink-900">
             {approving

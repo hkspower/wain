@@ -38,6 +38,10 @@ export function submissionToPlace(s: SubmissionRow): EditablePlace {
     emoji: "📍",
     taglineAr: s.tagline_ar,
     descriptionAr: s.description_ar || s.tagline_ar,
+    bioAr: s.bio_ar || undefined,
+    // Media is attached on save, after the admin has picked what to publish.
+    logoUrl: undefined,
+    imageUrls: undefined,
     highlightsAr: [],
     bestTimeAr: "",
     featured: false,

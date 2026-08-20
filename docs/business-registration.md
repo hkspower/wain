@@ -23,6 +23,50 @@ live from Supabase. Its own `/places/<slug>/` page is generated at build time,
 so it becomes reachable after the next deploy — the same as any place added
 in the admin.
 
+## Logo, bio and photos
+
+A business can send a brand mark, a bio in its own words, and up to eight
+photos. None of it is public until an admin has looked at it.
+
+**Two buckets, because "approved" has to be a property of where a file lives,
+not a flag someone remembers to check:**
+
+| bucket | who writes | who reads |
+|---|---|---|
+| `business-pending` | anyone | admins only (short-lived signed URLs) |
+| `business-media` | admins only | everyone |
+
+An unreviewed photo of someone's shop is not public just because its URL is
+hard to guess, so pending uploads go in a private bucket. Approving copies the
+bytes across. A file being publicly readable therefore *is* the record that a
+human approved it.
+
+Approval is per image. Nothing starts selected — a photo goes public because
+someone chose it, not because nobody looked. The admin also decides on the
+logo separately. Once the submission is closed, the pending originals are
+deleted, approved and rejected alike: keeping photos nobody approved is the
+kind of thing that quietly becomes a data-protection problem.
+
+Both buckets are capped at 5MB per file and restricted to JPEG, PNG and WebP
+at the bucket level, so a rejection holds even if the form is bypassed. The
+form checks the same limits first, so the visitor gets a sentence they can act
+on rather than a storage error.
+
+Files upload only after the rest of the form validates. Uploading as they are
+picked would push megabytes into storage for submissions that are never
+created. Stored filenames are generated, never the visitor's — an uploaded
+filename is untrusted text, and letting it become a storage path invites
+traversal and collisions.
+
+On the place page: the logo sits beside the name, the bio is rendered as a
+quotation and labelled as the owner's words (the description above it is the
+site speaking), and the photos become a gallery whose first image leads at
+double width. All three are optional and absent on the seeded places, so those
+pages are unchanged.
+
+**Note for `.htaccess`:** the CSP's `img-src` must include
+`https://*.supabase.co`, or approved images are blocked. It does.
+
 ## Why it is safe to let anonymous visitors insert
 
 `submissions` is the one table the anon key can write to. The RLS policies are

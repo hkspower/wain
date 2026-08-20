@@ -23,6 +23,11 @@ export interface SubmissionInput {
   priceLevel: 1 | 2 | 3;
   taglineAr: string;
   descriptionAr: string;
+  /** The business in its own words. */
+  bioAr: string;
+  /** Storage paths in the private bucket, filled in after upload. */
+  logoPath: string | null;
+  imagePaths: string[];
   phone: string;
   instagram: string;
   website: string;
@@ -44,6 +49,9 @@ export interface SubmissionRow extends Record<string, unknown> {
   price_level: 1 | 2 | 3;
   tagline_ar: string;
   description_ar: string;
+  bio_ar: string;
+  logo_path: string | null;
+  image_paths: string[];
   phone: string;
   instagram: string;
   website: string;
@@ -103,6 +111,9 @@ export async function submitBusiness(input: SubmissionInput): Promise<SubmitResu
     price_level: input.priceLevel,
     tagline_ar: input.taglineAr.trim(),
     description_ar: input.descriptionAr.trim(),
+    bio_ar: input.bioAr.trim(),
+    logo_path: input.logoPath,
+    image_paths: input.imagePaths,
     phone: input.phone.trim(),
     instagram: normaliseInstagram(input.instagram),
     website: input.website.trim(),

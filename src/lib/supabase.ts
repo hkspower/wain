@@ -46,6 +46,9 @@ export interface PlaceRow {
   description_ar: string;
   highlights_ar: string[];
   best_time_ar: string;
+  logo_url: string | null;
+  bio_ar: string | null;
+  image_urls: string[] | null;
   featured: boolean;
   published: boolean;
   sort_order: number;
@@ -69,6 +72,9 @@ export function rowToPlace(r: PlaceRow): Place {
     highlightsAr: r.highlights_ar ?? [],
     bestTimeAr: r.best_time_ar,
     featured: r.featured,
+    logoUrl: r.logo_url ?? undefined,
+    bioAr: r.bio_ar || undefined,
+    imageUrls: r.image_urls?.length ? r.image_urls : undefined,
   };
 }
 
@@ -89,6 +95,9 @@ export function placeToRow(p: Place & { published?: boolean; sortOrder?: number 
     description_ar: p.descriptionAr,
     highlights_ar: p.highlightsAr,
     best_time_ar: p.bestTimeAr,
+    logo_url: p.logoUrl ?? null,
+    bio_ar: p.bioAr ?? "",
+    image_urls: p.imageUrls ?? [],
     featured: !!p.featured,
     published: p.published ?? true,
     sort_order: p.sortOrder ?? 0,

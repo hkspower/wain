@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { BusinessBio, BusinessBrand, BusinessGallery } from "@/components/BusinessProfile";
 import CategoryArt from "@/components/CategoryArt";
 import PlaceCard from "@/components/PlaceCard";
 import PlaceMap from "@/components/PlaceMap";
@@ -106,7 +107,9 @@ export default async function PlacePage({
 
       {/* Header */}
       <div className="mt-7 flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="flex items-start gap-4">
+          <BusinessBrand place={place} />
+          <div>
           <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
             {place.nameAr}
           </h1>
@@ -115,6 +118,7 @@ export default async function PlacePage({
               {place.name}
             </span>
           </p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {category && (
@@ -147,6 +151,9 @@ export default async function PlacePage({
       </p>
 
       <p className="mt-6 text-lg leading-relaxed text-ink-600">{place.descriptionAr}</p>
+
+      <BusinessBio place={place} />
+      <BusinessGallery place={place} />
 
       {/* Details */}
       <div className="mt-9 grid gap-4 standalone:mt-5 standalone:gap-3 sm:grid-cols-2">

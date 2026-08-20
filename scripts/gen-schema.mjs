@@ -82,6 +82,10 @@ create table if not exists public.places (
   description_ar text not null,
   highlights_ar  text[] not null default '{}',
   best_time_ar   text not null,
+  -- Business profile. Null on the seeded places, so their pages are unchanged.
+  logo_url       text,
+  bio_ar         text not null default '',
+  image_urls     text[] not null default '{}',
   featured       boolean not null default false,
   published      boolean not null default true,
   sort_order     integer not null default 0,
@@ -184,6 +188,14 @@ create table if not exists public.submissions (
   contact_email  text not null check (contact_email ~ '^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$'),
   contact_phone  text not null default '' check (length(contact_phone) <= 40),
 
+  -- what the business sent, as storage paths in the private bucket. Nothing
+  -- here is public: an admin approves images one by one, and only the approved
+  -- ones are copied into the public bucket.
+  logo_path      text,
+  image_paths    text[] not null default '{}' check (array_length(image_paths, 1) is null
+                                                     or array_length(image_paths, 1) <= 8),
+  bio_ar         text not null default '' check (length(bio_ar) <= 800),
+
   -- moderation
   admin_note     text not null default '',
   reviewed_at    timestamptz,
@@ -230,6 +242,65 @@ drop policy if exists "admins delete submissions" on public.submissions;
 create policy "admins delete submissions"
   on public.submissions for delete
   using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+
+-- ---------------------------------------------------------------------------
+-- Business media — logos and photos
+--
+-- Two buckets, because "approved" has to be a property of where a file lives,
+-- not a flag someone remembers to check:
+--
+--   business-pending : PRIVATE. Anyone may upload here, nobody but an admin
+--                      can read it. An unreviewed photo of someone's shop is
+--                      not public just because its URL is hard to guess.
+--   business-media   : PUBLIC. Only admins may write. A file is here only
+--                      because a human approved it, so anything the site
+--                      renders has been seen.
+--
+-- Approving copies the bytes across and records the public URL on the place.
+-- ---------------------------------------------------------------------------
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values
+  ('business-pending', 'business-pending', false, 5242880,
+   array['image/jpeg','image/png','image/webp']),
+  ('business-media',   'business-media',   true,  5242880,
+   array['image/jpeg','image/png','image/webp'])
+on conflict (id) do update
+  set public = excluded.public,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "anyone may upload media for review" on storage.objects;
+create policy "anyone may upload media for review"
+  on storage.objects for insert
+  to anon, authenticated
+  with check (bucket_id = 'business-pending');
+
+drop policy if exists "admins read pending media" on storage.objects;
+create policy "admins read pending media"
+  on storage.objects for select
+  using (bucket_id = 'business-pending'
+         and exists (select 1 from public.admins a where a.user_id = auth.uid()));
+
+drop policy if exists "admins delete pending media" on storage.objects;
+create policy "admins delete pending media"
+  on storage.objects for delete
+  using (bucket_id = 'business-pending'
+         and exists (select 1 from public.admins a where a.user_id = auth.uid()));
+
+-- The public bucket serves reads without consulting policies; these govern who
+-- may put something in it, which is the part that matters.
+drop policy if exists "admins publish media" on storage.objects;
+create policy "admins publish media"
+  on storage.objects for insert
+  to authenticated
+  with check (bucket_id = 'business-media'
+              and exists (select 1 from public.admins a where a.user_id = auth.uid()));
+
+drop policy if exists "admins remove published media" on storage.objects;
+create policy "admins remove published media"
+  on storage.objects for delete
+  using (bucket_id = 'business-media'
+         and exists (select 1 from public.admins a where a.user_id = auth.uid()));
 
 -- ---------------------------------------------------------------------------
 -- Seed: the ${rows.length} places the site ships with today.

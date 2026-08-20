@@ -37,6 +37,17 @@ export interface Place {
   highlightsAr: string[];
   bestTimeAr: string;
   featured?: boolean;
+
+  /* --- Business profile. Absent on the places the site ships with, so those
+     pages render exactly as before; filled in when a business registers and an
+     admin approves what it sent. --- */
+
+  /** Public URL of the brand mark. */
+  logoUrl?: string;
+  /** The business in its own words, as opposed to descriptionAr, which is ours. */
+  bioAr?: string;
+  /** Public URLs of photos an admin has approved. Never shown unapproved. */
+  imageUrls?: string[];
 }
 
 /** Ordered the way the category rail reads on the home page. */

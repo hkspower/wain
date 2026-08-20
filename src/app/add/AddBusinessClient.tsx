@@ -4,7 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import CategoryIcon from "@/components/CategoryIcon";
 import { IconCheck, IconLocate, IconPinSolid, IconSparkle } from "@/components/icons";
+import MediaUploader from "@/components/MediaUploader";
 import { categories, type CategoryId } from "@/lib/places";
+import { newDraftId, uploadPending, type PickedFile } from "@/lib/media";
 import { inKuwait, submitBusiness, type SubmissionInput } from "@/lib/submissions";
 import { supabaseEnabled } from "@/lib/supabase";
 
@@ -16,6 +18,7 @@ const hint = "mt-1 text-xs text-ink-500";
 const EMPTY: SubmissionInput = {
   name: "", nameAr: "", category: "restaurants", areaAr: "", addressAr: "",
   lat: null, lng: null, priceLevel: 2, taglineAr: "", descriptionAr: "",
+  bioAr: "", logoPath: null, imagePaths: [],
   phone: "", instagram: "", website: "",
   contactName: "", contactEmail: "", contactPhone: "",
 };
@@ -47,6 +50,9 @@ export default function AddBusinessClient() {
   const [failure, setFailure] = useState("");
   const [done, setDone] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [logo, setLogo] = useState<PickedFile | null>(null);
+  const [photos, setPhotos] = useState<PickedFile[]>([]);
+  const [uploading, setUploading] = useState("");
 
   const set = <K extends keyof SubmissionInput>(k: K, val: SubmissionInput[K]) => {
     setV((p) => ({ ...p, [k]: val }));
@@ -81,7 +87,34 @@ export default function AddBusinessClient() {
       return;
     }
     setBusy(true);
-    const res = await submitBusiness(v);
+
+    // Files go up only now, after the rest of the form is known good. Uploading
+    // as they are picked would push megabytes into storage for submissions that
+    // never get created.
+    let logoPath: string | null = null;
+    const imagePaths: string[] = [];
+    if (logo || photos.length) {
+      const draftId = newDraftId();
+      const total = (logo ? 1 : 0) + photos.length;
+      let done_ = 0;
+      const step = () => setUploading(`نرفع الصور… ${++done_}/${total}`);
+
+      if (logo) {
+        const r = await uploadPending(draftId, "logo", logo.file);
+        if (!r.ok) { setBusy(false); setUploading(""); setFailure(r.message); return; }
+        logoPath = r.path;
+        step();
+      }
+      for (let i = 0; i < photos.length; i++) {
+        const r = await uploadPending(draftId, "photo", photos[i].file, i);
+        if (!r.ok) { setBusy(false); setUploading(""); setFailure(r.message); return; }
+        imagePaths.push(r.path);
+        step();
+      }
+      setUploading("");
+    }
+
+    const res = await submitBusiness({ ...v, logoPath, imagePaths });
     setBusy(false);
     if (res.ok) setDone(true);
     else setFailure(res.message);
@@ -260,6 +293,32 @@ export default function AddBusinessClient() {
           />
           <p className={hint}>اختياري — بس يساعدنا نكتب صفحة أحلى لمكانك.</p>
         </div>
+
+        <div className="mt-4">
+          <label htmlFor="f-bio" className={label}>نبذة بكلامكم</label>
+          <textarea
+            id="f-bio" rows={3} maxLength={800} className={field} value={v.bioAr}
+            onChange={(e) => set("bioAr", e.target.value)}
+            placeholder="من متى فتحتوا؟ شنو قصّة المكان؟"
+          />
+          <p className={hint}>
+            هذي تنكتب باسمكم في الصفحة — الوصف اللي فوق نكتبه إحنا.
+          </p>
+        </div>
+      </fieldset>
+
+      {/* ---- brand and photos ------------------------------------------ */}
+      <fieldset className="rounded-3xl border border-sand-200 bg-white p-5 shadow-sm">
+        <legend className="px-2 font-display text-lg font-semibold text-ink-900">
+          الشعار والصور
+        </legend>
+        <MediaUploader
+          logo={logo}
+          photos={photos}
+          onLogo={setLogo}
+          onPhotos={setPhotos}
+          disabled={busy}
+        />
       </fieldset>
 
       {/* ---- where ----------------------------------------------------- */}
@@ -387,7 +446,7 @@ export default function AddBusinessClient() {
           className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-ink-900 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-ink-800 disabled:opacity-60"
         >
           <IconSparkle className="size-4" />
-          {busy ? "نرسل الطلب…" : "سجّل مكاني — مجاناً"}
+          {uploading || (busy ? "نرسل الطلب…" : "سجّل مكاني — مجاناً")}
         </button>
         <p className="flex items-center gap-1.5 text-xs text-ink-500">
           <IconPinSolid className="size-3.5 text-coral-600/70" />
