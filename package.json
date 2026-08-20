@@ -40,6 +40,7 @@
     "test:menu": "node tests/menu.mjs",
     "test:grade": "node tests/grade.mjs",
     "test:streets": "node tests/streets.mjs",
+    "test:nos": "node tests/nos.mjs",
     "shots:cars": "node tools/shots/cars.mjs",
     "check:ui": "node scripts/check-ui-glyphs.mjs",
     "check:parts": "node scripts/check-catalogue.mjs",

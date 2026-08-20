@@ -82,7 +82,8 @@ export interface HudData {
   /** Turbo boost 0..1, or null when no turbo is fitted. */
   boost: number | null;
   /** NOS charge 0..1, or null when no kit is fitted. */
-  nos: number | null;
+  /** null when no NOS is fitted. `charge` is 1 full, 0 spent. */
+  nos: { charge: number; firing: boolean; ready: boolean } | null;
   /** Live drift readout — non-null while sliding (and briefly after).
    *  `chain` is the link multiplier; `spinning` means it got away. */
   drift: {
@@ -3907,7 +3908,12 @@ export class GameEngine {
       total: RIVALS.length,
       map,
       boost: this.tune.boostMult > 0 ? this.boost : null,
-      nos: this.tune.hasNos ? this.nosCharge : null,
+      // Charge alone cannot drive a gauge that has to read "firing",
+      // "ready" and "too empty to fire" as three different things — the
+      // last two are both a partly-full bar.
+      nos: this.tune.hasNos
+        ? { charge: this.nosCharge, firing: this.nosActive, ready: this.nosCharge > 0.02 }
+        : null,
       drift:
         this.driftFlash > 0 || Math.abs(this.driftYaw) > 0.06
           ? {

@@ -161,6 +161,8 @@ export default function RaceClient() {
   const boostRef = useRef<HTMLDivElement>(null);
   const nosWrapRef = useRef<HTMLDivElement>(null);
   const nosRef = useRef<HTMLDivElement>(null);
+  const nosTrackRef = useRef<HTMLDivElement>(null);
+  const nosPctRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     setGarage(loadGarage()); // client-only: reads localStorage
@@ -405,8 +407,23 @@ export default function RaceClient() {
       if (boostRef.current && d.boost !== null)
         boostRef.current.style.width = `${Math.round(d.boost * 100)}%`;
       if (nosWrapRef.current) nosWrapRef.current.style.display = d.nos === null ? "none" : "flex";
-      if (nosRef.current && d.nos !== null)
-        nosRef.current.style.width = `${Math.round(d.nos * 100)}%`;
+      if (d.nos !== null) {
+        const pct = Math.round(d.nos.charge * 100);
+        // Sub-1% is not "0%" while the bottle can still fire, and it is
+        // not "1%" once it cannot: the readout and the colour have to
+        // agree with the button, not with each other.
+        if (nosRef.current) nosRef.current.style.width = `${d.nos.charge * 100}%`;
+        if (nosTrackRef.current)
+          nosTrackRef.current.dataset.state = d.nos.firing
+            ? "firing"
+            : d.nos.ready
+              ? "charged"
+              : "spent";
+        if (nosPctRef.current) {
+          const label = d.nos.ready ? `${Math.max(1, pct)}%` : "EMPTY";
+          if (nosPctRef.current.textContent !== label) nosPctRef.current.textContent = label;
+        }
+      }
 
       if (battleRef.current && !d.duel) {
         battleRef.current.style.opacity = d.battle ? "1" : "0";
@@ -1003,15 +1020,21 @@ export default function RaceClient() {
               />
             </div>
           </div>
+          {/* Nitrous. Taller than the boost bar on purpose: boost is
+              something the car does to itself, NOS is a resource the
+              player spends, and the one you can run out of is the one
+              that has to be readable without looking away from the road. */}
           <div ref={nosWrapRef} className="mt-1 items-center gap-2" style={{ display: "none" }}>
             <span className="grn-label w-11 text-[0.58rem] text-indigo-300">NOS</span>
-            <div className="grn-meter h-1.5 w-44 -skew-x-12">
-              <div
-                ref={nosRef}
-                className="h-full bg-gradient-to-r from-indigo-500 to-sky-300 shadow-[0_0_12px_rgba(129,140,248,0.8)]"
-                style={{ width: "0%" }}
-              />
+            <div ref={nosTrackRef} className="nos-meter h-2.5 w-44 -skew-x-12" data-state="charged">
+              <div ref={nosRef} className="nos-fill" style={{ width: "100%" }} />
             </div>
+            <span
+              ref={nosPctRef}
+              className="grn-label w-12 text-right text-[0.58rem] tabular-nums text-indigo-200"
+            >
+              100%
+            </span>
           </div>
         </div>
 

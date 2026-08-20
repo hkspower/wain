@@ -817,3 +817,61 @@ html[data-large-hud="1"] .hud-scale {
 .coach-ring {
   animation: coach-ring 1.8s var(--ease-in-out) infinite;
 }
+
+/* ---------------------------------------------------------------- NOS
+ *
+ * A nitrous gauge has to answer three questions at a glance while the
+ * player is doing something else: how much is left, is it firing right
+ * now, and is there enough to bother pressing the button. A smooth bar
+ * answers the first and neither of the others, which is what this was.
+ *
+ * Segments answer "how much" far better than a continuous edge — you
+ * read a count, not a length. The dividers therefore belong to the
+ * TRACK, not to the fill: a fill that carries its own dividers rescales
+ * them as it shrinks, so twelve segments are still twelve segments at
+ * every level and the count says nothing. Ruled on the track, an
+ * emptying bottle visibly gives up one segment at a time.
+ */
+.nos-meter {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--color-steel-900) 70%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 0.2rem;
+}
+.nos-meter::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 calc(100% / 12 - 2px),
+    rgba(0, 0, 0, 0.6) calc(100% / 12 - 2px) calc(100% / 12)
+  );
+}
+.nos-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4f46e5, #38bdf8);
+  box-shadow: 0 0 12px rgba(129, 140, 248, 0.8);
+  transition: background 120ms linear, box-shadow 120ms linear;
+}
+/* Not enough left to fire. The bar is not empty, so it must not look
+   usable either — this is the state a plain bar cannot express. */
+.nos-meter[data-state="spent"] .nos-fill {
+  background: linear-gradient(90deg, #4b5563, #6b7280);
+  box-shadow: none;
+}
+/* Firing: the drain is three seconds, and it should look like it. */
+.nos-meter[data-state="firing"] .nos-fill {
+  background: linear-gradient(90deg, #a5f3fc, #fef08a);
+  box-shadow: 0 0 18px rgba(165, 243, 252, 0.95);
+  animation: nos-pulse 260ms steps(2, end) infinite alternate;
+}
+@keyframes nos-pulse {
+  from { filter: brightness(1); }
+  to { filter: brightness(1.45); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nos-meter[data-state="firing"] .nos-fill { animation: none; }
+}
