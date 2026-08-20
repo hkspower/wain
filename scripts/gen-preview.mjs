@@ -98,11 +98,27 @@ for (const s of SCREENS) {
   if (!r.ok()) throw new Error(`capture ${s.id}: ${r.status()}`);
   await pp.evaluate(() => document.fonts.ready);
   await pp.waitForTimeout(700);
-  if (s.id === 'search') {
-    // The results map is an OpenStreetMap iframe. On a build box with no route
-    // to OSM it renders as an empty grey box, so frame the screen on its
-    // results list instead of shipping a broken-looking map.
+  if (s.id === 'place' || s.id === 'search') {
+    // Both screens embed an OpenStreetMap iframe, and a build box has no route
+    // to OSM — it captures as an empty grey box with a broken-image glyph.
+    // Drop it rather than ship a screenshot of a failure.
     await pp.evaluate(() => document.querySelectorAll('iframe').forEach((f) => f.closest('div')?.remove()));
+    await pp.waitForTimeout(300);
+  }
+  if (s.id === 'place') {
+    // Scroll to the detail panels — highlights, best time, and الجو والموسم.
+    // The hero art is already on the cover and across the explore grid; what
+    // has never been in the deck is the part that answers "should I go now".
+    // behavior:'instant' matters — the site sets scroll-behavior:smooth, so a
+    // default scrollIntoView animates and the screenshot lands mid-flight,
+    // which silently produced an unscrolled capture.
+    const y = await pp.evaluate(() => {
+      const h = [...document.querySelectorAll('h2')].find((x) => x.textContent.includes('أبرز ما فيه'));
+      const top = h?.closest('div')?.getBoundingClientRect().top ?? 0;
+      window.scrollTo({ top: window.scrollY + top - 72, behavior: 'instant' });
+      return window.scrollY;
+    });
+    if (y < 100) throw new Error(`capture place: expected to scroll to the detail panels, got scrollY ${y}`);
     await pp.waitForTimeout(400);
   }
   await pp.screenshot({ path: join(WORK, `${s.id}.png`) });
@@ -163,7 +179,7 @@ const CAPTIONS = {
   home:    ['الرئيسية', 'قرص «إلى وين؟» يقترح أماكن قريبة بضغطة وحدة'],
   explore: ['استكشف', 'كل الأماكن، مرتّبة بالتصنيف ولون لكل فئة'],
   search:  ['البحث والخريطة', 'نتائج فورية بلون التصنيف — والخريطة فوقها على نفس الشاشة'],
-  place:   ['صفحة المكان', 'صورة، تقييم، أوقات الزيارة، وخريطة الموقع'],
+  place:   ['صفحة المكان', 'أبرز ما فيه، أحسن وقت، والجو والموسم'],
   place2:  ['مكان ثاني', 'نفس التصميم بلون التصنيف — حدائق وشواطئ'],
   add:     ['سجّل نشاطك', 'تسجيل مجاني لأي نشاط في الكويت'],
   about:   ['عن وين', 'الفكرة والفريق'],
