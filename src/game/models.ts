@@ -177,7 +177,13 @@ function mirrorX(geo: THREE.BufferGeometry): THREE.BufferGeometry {
  * The procedural geometries are module-shared constants in cars.ts (the
  * traffic fleet keeps using them), so they are never disposed here.
  */
+/** Silhouettes with a Blender-authored shell on disk. Asking for one
+ *  that was never built is a 404 per car per load, which shows up as a
+ *  runtime error in the race test and tells the player nothing. */
+const AUTHORED_SHELLS: ReadonlySet<BodyStyle> = new Set<BodyStyle>(["sedan", "zx", "gtr", "rx7"]);
+
 export function upgradeCarShells(group: THREE.Group, style: BodyStyle): void {
+  if (!AUTHORED_SHELLS.has(style)) return;
   void parts(`car-${style}`).then((shells) => {
     if (!shells) return;
     group.traverse((o) => {

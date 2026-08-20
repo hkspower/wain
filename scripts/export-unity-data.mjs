@@ -102,7 +102,7 @@ for (const k of needed) {
 const apiVersion = +read("src/game/api.ts").match(/GRN_API_VERSION = (\d+)/)[1];
 
 // --------------------------------------------------------------- emit C#
-const styleEnum = { sedan: "BodyStyle.Sedan", zx: "BodyStyle.ZX", gtr: "BodyStyle.GTR", rx7: "BodyStyle.RX7" };
+const styleEnum = { sedan: "BodyStyle.Sedan", zx: "BodyStyle.ZX", gtr: "BodyStyle.GTR", rx7: "BodyStyle.RX7", hatch: "BodyStyle.Hatch" };
 /** A style the map does not know must stop the build. Emitting
  *  `Style = undefined` would produce C# that does not compile, and the
  *  failure would surface in Unity rather than here. */

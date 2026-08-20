@@ -14,7 +14,7 @@ import { kuwaitiDriver } from "./characters";
 
 /** Silhouette family. "zx" is the long-nose fastback wedge of a Z32
  *  300ZX; "gtr" is the boxy, high-decked muscle of an R34 Skyline. */
-export type BodyStyle = "sedan" | "zx" | "gtr" | "rx7";
+export type BodyStyle = "sedan" | "zx" | "gtr" | "rx7" | "hatch";
 
 export interface CarColors {
   body: number;
@@ -400,6 +400,56 @@ const rx7RoofGeo = extrudeProfile(
   0.05
 );
 
+// ---- Hot hatch: the shape a fast three-door has had for fifty years.
+// Everything that makes it read as a hatch rather than as a short saloon
+// is at the two ends — almost no overhang past either axle, and a
+// tailgate that comes down nearly vertically instead of running out into
+// a boot. The cabin sits tall and upright over it, which is why these
+// cars look small and roomy at the same time.
+const hatchBodyGeo = extrudeProfile(
+  [
+    [2.02, 0.34],
+    [2.12, 0.68], // blunt, upright bumper face — the overhang is tiny
+    [1.98, 0.84],
+    [1.52, 0.94], // the bonnet is SHORT and climbs fast
+    [1.04, 1.0], // cowl, well forward — this is what makes it a hatch
+    [-1.38, 1.0], // beltline dead flat the length of the cabin
+    [-1.94, 0.97], // haunch over the rear axle
+    [-2.08, 0.64], // tailgate drops away almost vertically
+    [-2.0, 0.34],
+    [-1.7, 0.22],
+    [1.7, 0.22],
+  ],
+  1.84,
+  0.13
+);
+// The cabin sits FORWARD. Authored first with the screen base back at
+// z 0.74 it came out with a long bonnet and the glasshouse pushed over
+// the rear axle, which is coupe proportion — the shape read as a short
+// muscle car rather than a hatch. A hot hatch puts its windscreen where
+// a saloon puts the back of its bonnet, and spends everything it saves
+// on roof.
+const hatchCanopyGeo = extrudeProfile(
+  [
+    [1.02, 0.99],
+    [0.40, 1.44], // short, steep screen
+    [-0.95, 1.46], // long flat roof
+    [-1.86, 1.04], // hatch glass, raked but still upright
+  ],
+  1.58,
+  0.1
+);
+const hatchRoofGeo = extrudeProfile(
+  [
+    [0.34, 1.44],
+    [0.24, 1.5],
+    [-0.82, 1.49],
+    [-0.92, 1.43],
+  ],
+  1.44,
+  0.05
+);
+
 /**
  * Per-silhouette scale. The RATIOS between styles come from the real
  * cars each shape evokes — a generic saloon (4.70 x 1.80 m), a Z32
@@ -421,6 +471,11 @@ const STYLE_SCALE: Record<BodyStyle, number> = {
   // scale can get this profile to 4.60 x 1.79 x 1.36.
   gtr: 0.912 * PRESENCE,
   rx7: 0.899 * PRESENCE,
+  // A hot hatch is the small car in this fleet and has to park like one:
+  // 4.28 x 1.79 x 1.47 m, which is 40 cm shorter than the saloon and
+  // 10 cm taller. The profile is authored close to those numbers, so the
+  // factor here is near one.
+  hatch: 0.968 * PRESENCE,
 };
 
 /** Per-silhouette anchor points so every detail lands on its body. */
@@ -461,6 +516,13 @@ const STYLE_DIMS: Record<BodyStyle, StyleDims> = {
     nose: 2.46, tail: -2.4, roof: [-0.18, 1.51], noseTopY: 0.76, grilleY: 0.5, beltY: 0.99,
     hoodY: 1.0, tailY: 0.84, deckY: 0.98, mirror: [1.03, 1.08, 0.85],
     dashY: 1.02, wiperZ: 0.95, bPillar: [0.79, 1.16, -0.16], creaseY: 0.76,
+  },
+  // The lamps sit high and the cabin sits forward: a hatch puts its
+  // windscreen where a saloon puts its bonnet.
+  hatch: {
+    nose: 2.18, tail: -2.12, roof: [-0.3, 1.47], noseTopY: 0.76, grilleY: 0.56, beltY: 1.0,
+    hoodY: 0.96, tailY: 0.84, deckY: 0.99, mirror: [0.95, 1.1, 0.86],
+    dashY: 1.06, wiperZ: 1.12, bPillar: [0.78, 1.22, -0.32], creaseY: 0.76,
   },
 };
 
@@ -739,6 +801,15 @@ const ARCH_EDGE_R = 0.475 + 0.016;
 const ARCH_Y = 0.4;
 archLipGeoF.rotateY(Math.PI / 2);
 const wellMat = new THREE.MeshBasicMaterial({ color: 0x060708 });
+// The hot-hatch nose stripe: painted red, not a lamp, but it carries a
+// little glow so it still reads at night when nothing is lighting the
+// bumper directly.
+const hotStripeMat = new THREE.MeshStandardMaterial({
+  color: 0xc8102e,
+  roughness: 0.35,
+  emissive: 0x3a0409,
+  emissiveIntensity: 0.6,
+});
 
 /**
  * Where the painted skin actually is.
@@ -1323,7 +1394,9 @@ export function createCar(colors: CarColors): THREE.Group {
         ? [rx7BodyGeo, rx7CanopyGeo, rx7RoofGeo]
         : style === "gtr"
           ? [gtrBodyGeo, gtrCanopyGeo, gtrRoofGeo]
-          : [bodyGeo, canopyGeo, roofGeo];
+          : style === "hatch"
+            ? [hatchBodyGeo, hatchCanopyGeo, hatchRoofGeo]
+            : [bodyGeo, canopyGeo, roofGeo];
   // The three shells are tagged so models.ts can swap in Blender-authored
   // geometry (same profiles, denser sampling) once it loads.
   const bodyShell = new THREE.Mesh(bGeo, bodyMat);
@@ -1587,6 +1660,27 @@ export function createCar(colors: CarColors): THREE.Group {
     group.add(core);
     addTailGlow(-0.6, d.tailY, d.tail, 0.8, 0.4);
     addTailGlow(0.6, d.tailY, d.tail, 0.8, 0.4);
+  } else if (style === "hatch") {
+    // A hatch wears its lamps in the corners of the tailgate opening,
+    // standing tall rather than lying wide: they wrap the D-pillar and
+    // they are most of what you recognise the car by from behind.
+    for (const sxSign of [-1, 1]) {
+      const housing = new THREE.Mesh(roundedBox(0.34, 0.3, 0.05, 0.035), housingMat);
+      housing.position.set(sxSign * 0.7, d.tailY, d.tail - 0.005);
+      group.add(housing);
+      const lens = new THREE.Mesh(roundedBox(0.28, 0.24, 0.06, 0.03), tailMat);
+      lens.position.set(sxSign * 0.7, d.tailY, d.tail - 0.015);
+      group.add(lens);
+      // The lit element is an L: a bar across the top and one down the
+      // outboard edge, which is the shape these have carried for decades.
+      const bar = new THREE.Mesh(roundedBox(0.24, 0.05, 0.05, 0.016), tailCoreMat);
+      bar.position.set(sxSign * 0.7, d.tailY + 0.08, d.tail - 0.032);
+      group.add(bar);
+      const post = new THREE.Mesh(roundedBox(0.05, 0.2, 0.05, 0.016), tailCoreMat);
+      post.position.set(sxSign * 0.79, d.tailY - 0.02, d.tail - 0.032);
+      group.add(post);
+      addTailGlow(sxSign * 0.7, d.tailY, d.tail, 0.5, 0.5);
+    }
   } else {
     // Two wrap-around housings with lens + core, split by the plate
     for (const sxSign of [-1, 1]) {
@@ -1628,6 +1722,14 @@ export function createCar(colors: CarColors): THREE.Group {
     const trim = new THREE.Mesh(roundedBox(1.05, 0.025, 0.08, 0.008), chromeLocal);
     trim.position.set(0, d.grilleY + 0.09, d.nose);
     group.add(trim);
+    if (style === "hatch") {
+      // The stripe across the nose. Every fast version of a hatch has
+      // worn one since the seventies, and it is the single cue that
+      // separates the quick one from the shopping one at a distance.
+      const stripe = new THREE.Mesh(roundedBox(1.44, 0.035, 0.05, 0.012), hotStripeMat);
+      stripe.position.set(0, d.grilleY + 0.09, (noseFaceZ(bGeo, style, d.grilleY + 0.09, true) ?? d.nose) - 0.008);
+      group.add(stripe);
+    }
   } else {
     // Just a thin cooling slot low in the bumper
     const slot = new THREE.Mesh(roundedBox(1.3, 0.07, 0.06, 0.02), grilleMat);
@@ -2196,6 +2298,26 @@ export function createCar(colors: CarColors): THREE.Group {
   // bare sheet from the glass to the bumper, which is the one thing that
   // made this silhouette read as unfinished from behind. It steps aside
   // for either aftermarket wing rather than stacking with them.
+  // A hatch's spoiler is a lip off the roof's trailing edge, over the
+  // glass — not a plank on a boot it does not have. Seated on the roof
+  // panel's own measured surface so it sits ON the car whatever the
+  // extrusion's bevel does.
+  if (style === "hatch" && !colors.spoiler && !colors.raceKit) {
+    const [rz] = d.roof;
+    const lipZ = rz - 0.62;
+    const seat = deckY(rGeo, style, Math.min(lipZ + 0.1, rz), "roof") ?? d.roof[1];
+    const lip = new THREE.Mesh(roundedBox(1.42, 0.05, 0.34, 0.018), bodyMat);
+    lip.position.set(0, seat - 0.02, lipZ);
+    lip.rotation.x = 0.32; // follows the hatch glass down
+    group.add(lip);
+    for (const sx of [-0.66, 0.66]) {
+      const fin = new THREE.Mesh(roundedBox(0.05, 0.09, 0.26, 0.016), bodyMat);
+      fin.position.set(sx, seat - 0.05, lipZ - 0.02);
+      fin.rotation.x = 0.32;
+      group.add(fin);
+    }
+  }
+
   if (style === "zx" && !colors.spoiler && !colors.raceKit) {
     const wz = -1.98;
     const deck = deckY(bGeo, style, wz) ?? d.deckY + 0.12;

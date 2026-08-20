@@ -179,7 +179,7 @@ public static class GRNData
         new Car {
             Id = "gulf-coupe-rs", Name = "Gulf Coupe RS", Price = 33000,
             Power = 1.28f, TopSpeedKmh = 285f, Grip = 14.6f, Brake = 35f,
-            Paint = Hex(0x2E8F96), Style = BodyStyle.Sedan, AttackKit = false,
+            Paint = Hex(0xCB2027), Style = BodyStyle.Hatch, AttackKit = false,
         },
         new Car {
             Id = "salmiya-turbo", Name = "Salmiya Turbo GT", Price = 24000,

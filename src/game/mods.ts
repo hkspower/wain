@@ -147,7 +147,7 @@ export interface CarModel {
   cls: CarClass;
   price: number;
   /** Body silhouette (cars.ts): sedan, zx wedge, gtr coupe, or rx7. */
-  style?: "sedan" | "zx" | "gtr" | "rx7";
+  style?: "sedan" | "zx" | "gtr" | "rx7" | "hatch";
   /** Factory-fitted time-attack aero: swan wing, splitter, canards,
    *  vented hood, bronze wheels. Not a garage part — the car IS the kit. */
   kit?: "attack";
@@ -269,13 +269,15 @@ export const CARS: CarModel[] = [
     name: "Gulf Coupe RS",
     ar: "كوبيه الخليج",
     cls: "sport",
+    style: "hatch",
     price: 33000,
     power: 1.28,
     topSpeedKmh: 285,
     grip: 14.6,
     brake: 35,
-    color: 0x2e8f96,
-    desc: "Track-bred coupe. Rewards a clean line.",
+    // The colour a fast three-door is supposed to be.
+    color: 0xcb2027,
+    desc: "Three-door hot hatch: short, upright, red stripe across the nose. Small car, big hurry."
   },
   {
     id: "salmiya-turbo",
@@ -525,7 +527,7 @@ export interface TuneEffects {
   exhaust: ExhaustSpec;
   paint: number;
   glow: number | null;
-  bodyStyle: "sedan" | "zx" | "gtr" | "rx7";
+  bodyStyle: "sedan" | "zx" | "gtr" | "rx7" | "hatch";
 }
 
 /** The numbers a car actually races with: its own base, plus the parts

@@ -133,6 +133,10 @@ const auditOne = (carId) =>
 
     const bbAll = new THREE.Box3();
     for (const o of meshes) bbAll.union(local(o));
+    // What the car actually measures, in metres, after the style scale.
+    // "It looks too big" is a question with an answer, and every car in
+    // this fleet is evoking a real one whose numbers are known.
+    const dims = bbAll.getSize(new THREE.Vector3()).multiplyScalar(car.scale.x);
     const size = bbAll.getSize(new THREE.Vector3());
     const centre = bbAll.getCenter(new THREE.Vector3());
     const R = Math.max(size.x, size.y, size.z) * 1.6;
@@ -308,6 +312,7 @@ const auditOne = (carId) =>
       shellHalf: +Math.max(Math.abs(shell.x[0]), Math.abs(shell.x[1])).toFixed(3),
       bodyHalf,
       trackOuter: +trackOuter.toFixed(3),
+      dims: [+dims.z.toFixed(2), +dims.x.toFixed(2), +dims.y.toFixed(2)],
       tyreProud,
       dbg,
       floorY: +floor.toFixed(3),
@@ -328,6 +333,7 @@ for (const c of only ? cars.cars.slice(0, only) : cars.cars) {
       `track ${r.trackOuter} vs body ${r.bodyHalf}  ride ${(r.floorY - r.wheelBottomY).toFixed(3)}  ` +
       `tyre ${r.tyreProud === null ? "?" : r.tyreProud} proud of arch`
   );
+  console.log(`      ${r.dims[0]} x ${r.dims[1]} x ${r.dims[2]} m  (L x W x H, over everything)`);
   if (process.env.DBG) console.log("      dbg", JSON.stringify(r.dbg));
   // Every one of them. Printing the first four hid two thirds of the
   // fleet's buried geometry behind a tidy-looking list.

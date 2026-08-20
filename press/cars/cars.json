@@ -129,10 +129,10 @@
     "topSpeedKmh": 285,
     "grip": 14.6,
     "brake": 35,
-    "color": "#2e8f96",
-    "bodyStyle": "sedan",
+    "color": "#cb2027",
+    "bodyStyle": "hatch",
     "kit": null,
-    "desc": "Track-bred coupe. Rewards a clean line.",
+    "desc": "Three-door hot hatch: short, upright, red stripe across the nose. Small car, big hurry.",
     "image": "gulf-coupe-rs.png"
   },
   {

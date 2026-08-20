@@ -76,7 +76,27 @@ const cars = carsBlock
 if (cars.length < 5) throw new Error(`car parse failed (${cars.length})`);
 
 // ------------------------------------------------------------- emit C++
-const styleEnum = { sedan: "EGRNBodyStyle::Sedan", zx: "EGRNBodyStyle::ZX", gtr: "EGRNBodyStyle::GTR", rx7: "EGRNBodyStyle::RX7" };
+const styleEnum = {
+  sedan: "EGRNBodyStyle::Sedan",
+  zx: "EGRNBodyStyle::ZX",
+  gtr: "EGRNBodyStyle::GTR",
+  rx7: "EGRNBodyStyle::RX7",
+  hatch: "EGRNBodyStyle::Hatch",
+};
+/**
+ * A style this map does not know has to stop the build.
+ *
+ * It did not. Adding a fifth silhouette to the web build wrote
+ * `..., undefined, false },` into the header and this script reported
+ * success — C++ that cannot compile, delivered by a generator that said
+ * it had worked. The Unity exporter beside this one has always thrown on
+ * exactly this case; this is that guard, late.
+ */
+const style = (s, who) => {
+  const v = styleEnum[s];
+  if (!v) throw new Error(`${who}: unknown bodyStyle "${s}" — add it to styleEnum and to EGRNBodyStyle below`);
+  return v;
+};
 const col = (hex) =>
   `FColor(0x${hex.slice(0, 2).toUpperCase()}, 0x${hex.slice(2, 4).toUpperCase()}, 0x${hex.slice(4, 6).toUpperCase()})`;
 
@@ -147,7 +167,7 @@ ${points.map((p) => `\t{ ${p.x}, ${p.z} },`).join("\n")}
 
 // ------------------------------------------------------------- rivals
 
-enum class EGRNBodyStyle : uint8 { Sedan, ZX, GTR, RX7 };
+enum class EGRNBodyStyle : uint8 { Sedan, ZX, GTR, RX7, Hatch };
 
 struct FGRNRivalDef
 {
@@ -164,7 +184,7 @@ static const FGRNRivalDef GRNRivals[] = {
 ${rivals
   .map(
     (r) =>
-      `\t{ TEXT("${r.name}"), TEXT("${r.arabic}"), TEXT("${r.crew}"), TEXT("${r.area}"), ${col(r.color)}, ${r.top.toFixed(1)}f, ${styleEnum[r.style]} },`
+      `\t{ TEXT("${r.name}"), TEXT("${r.arabic}"), TEXT("${r.crew}"), TEXT("${r.area}"), ${col(r.color)}, ${r.top.toFixed(1)}f, ${style(r.style, r.name)} },`
   )
   .join("\n")}
 };
@@ -191,7 +211,7 @@ static const FGRNCarDef GRNCars[] = {
 ${cars
   .map(
     (c) =>
-      `\t{ TEXT("${c.id}"), TEXT("${c.name}"), ${c.price}, ${c.power.toFixed(2)}f, ${c.top.toFixed(1)}f, ${c.grip.toFixed(1)}f, ${c.brake.toFixed(1)}f, ${col(c.color)}, ${styleEnum[c.style]}, ${c.kit === "attack" ? "true" : "false"} },`
+      `\t{ TEXT("${c.id}"), TEXT("${c.name}"), ${c.price}, ${c.power.toFixed(2)}f, ${c.top.toFixed(1)}f, ${c.grip.toFixed(1)}f, ${c.brake.toFixed(1)}f, ${col(c.color)}, ${style(c.style, c.id)}, ${c.kit === "attack" ? "true" : "false"} },`
   )
   .join("\n")}
 };
