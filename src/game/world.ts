@@ -1807,6 +1807,125 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     streets.receiveShadow = true;
     scene.add(streets);
     for (const g of parts) g.dispose();
+
+    // ----------------------------------------------- markings
+    //
+    // The grid was bare asphalt. The highway has had edge lines and lane
+    // dashes since the beginning and the streets crossing it had nothing
+    // at all, which is what made them read as grey ribbons laid over the
+    // ground rather than as roads.
+    //
+    // Built in road space for the same reason the streets themselves
+    // are: a dash placed at (s, lat) is on the street at (s, lat), so
+    // the centre line follows every bend without anyone solving for it.
+    //
+    // Paint on a side street is worn and lit by nothing but a passing
+    // headlight, so it is dimmer than the highway's — the route you are
+    // racing stays the brightest line in the scene.
+    const streetLineMat = new THREE.MeshStandardMaterial({
+      color: 0xdedcd2,
+      emissive: 0x6f6e68,
+      emissiveIntensity: 0.35,
+      roughness: 0.7,
+    });
+    const blockLen = L / Math.round(L / STREETS.crossEvery);
+    /** How close to a junction paint stops. A centre line that runs
+     *  straight through an intersection is the single thing that makes a
+     *  grid look printed on rather than built. */
+    const CLEAR = STREETS.half + 2.2;
+    const nearCross = (s: number) => {
+      const off = ((s % blockLen) + blockLen) % blockLen;
+      return Math.min(off, blockLen - off) < CLEAR;
+    };
+    const nearAvenue = (lat: number) =>
+      STREETS.avenues.some((d) => Math.abs(Math.abs(lat) - d) < CLEAR);
+
+    const DASH = { len: 2.4, gap: 13 };
+    const dashGeo = new THREE.PlaneGeometry(0.12, DASH.len);
+    dashGeo.rotateX(-Math.PI / 2);
+    // Sits above the street surface but below the highway's own paint,
+    // so nothing z-fights where the grid passes the road.
+    const paintY = STREETS.yCross + 0.006;
+
+    const mats: THREE.Matrix4[] = [];
+    const mp = new THREE.Vector3();
+    const mside = new THREE.Vector3();
+    const mtan = new THREE.Vector3();
+    const mq = new THREE.Quaternion();
+    const FWD = new THREE.Vector3(0, 0, 1);
+    const one = new THREE.Vector3(1, 1, 1);
+    const put = (pos: THREE.Vector3, along: THREE.Vector3) => {
+      mq.setFromUnitVectors(FWD, along);
+      mats.push(new THREE.Matrix4().compose(pos.clone().setY(paintY), mq, one));
+    };
+
+    // Centre line down every avenue, both sides of the highway. The
+    // seaward half only exists past the coast, exactly where its asphalt
+    // does — paint hanging over the Gulf would be worse than none.
+    for (const d of STREETS.avenues) {
+      for (const sign of [1, -1]) {
+        for (let s = 0; s < L; s += DASH.gap) {
+          if (nearCross(s)) continue;
+          if (sign < 0) {
+            const u = track.wrap(s) / L;
+            if (u < COAST_U.to) continue;
+          }
+          track.pose(s, sign * d, mp, mside);
+          track.tangentAt(s, mtan);
+          put(mp, mtan);
+        }
+      }
+    }
+
+    // Centre line out along every cross street, from the highway's edge
+    // to the far kerb of the outermost avenue.
+    for (let i = 0; i < crossCount; i++) {
+      const s = (i / crossCount) * L;
+      const u = track.wrap(s) / L;
+      const onCoast = u >= COAST_U.from && u <= COAST_U.to;
+      const edge = track.halfWidthAt(s);
+      track.sideAt(s, mside);
+      for (const sign of [1, -1]) {
+        if (sign < 0 && onCoast) continue;
+        for (let lat = edge + CLEAR; lat < outer + STREETS.half; lat += DASH.gap) {
+          if (nearAvenue(lat)) continue;
+          track.pose(s, sign * lat, mp, mtan);
+          put(mp, mside);
+        }
+      }
+    }
+
+    const dashes = new THREE.InstancedMesh(dashGeo, streetLineMat, mats.length);
+    mats.forEach((m, i) => dashes.setMatrixAt(i, m));
+    dashes.instanceMatrix.needsUpdate = true;
+    dashes.name = "street-dash";
+    dashes.receiveShadow = true;
+    scene.add(dashes);
+
+    // A stop bar where each cross street meets the highway — the one
+    // junction the player drives past close enough to read.
+    const barGeo = new THREE.PlaneGeometry(0.45, STREETS.half * 1.7);
+    barGeo.rotateX(-Math.PI / 2);
+    const bars: THREE.Matrix4[] = [];
+    for (let i = 0; i < crossCount; i++) {
+      const s = (i / crossCount) * L;
+      const u = track.wrap(s) / L;
+      const onCoast = u >= COAST_U.from && u <= COAST_U.to;
+      const edge = track.halfWidthAt(s);
+      track.tangentAt(s, mtan);
+      for (const sign of [1, -1]) {
+        if (sign < 0 && onCoast) continue;
+        track.pose(s, sign * (edge + 2.6), mp, mside);
+        mq.setFromUnitVectors(FWD, mtan);
+        bars.push(new THREE.Matrix4().compose(mp.clone().setY(paintY), mq, one));
+      }
+    }
+    const stopBars = new THREE.InstancedMesh(barGeo, streetLineMat, bars.length);
+    bars.forEach((m, i) => stopBars.setMatrixAt(i, m));
+    stopBars.instanceMatrix.needsUpdate = true;
+    stopBars.name = "street-stop";
+    stopBars.receiveShadow = true;
+    scene.add(stopBars);
   }
 
   // The Sharq plaza island's mosaic face — declared here beside the road
