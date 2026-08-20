@@ -27,6 +27,9 @@ const EMPTY: EditablePlace = {
   descriptionAr: "",
   highlightsAr: [],
   bestTimeAr: "",
+  setting: "mixed",
+  seasonAr: "",
+  tagsAr: [],
   featured: false,
   published: true,
   sortOrder: 0,
@@ -137,6 +140,38 @@ export default function PlaceForm({
           className={input}
           value={p.highlightsAr.join("\n")}
           onChange={(e) => set("highlightsAr", e.target.value.split("\n").map((s) => s.trim()).filter(Boolean))}
+        />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className={label} htmlFor="f-setting">داخلي ولا برا؟</label>
+          <select
+            id="f-setting"
+            className={input}
+            value={p.setting}
+            onChange={(e) => set("setting", e.target.value as "indoor" | "outdoor" | "mixed")}
+          >
+            <option value="indoor">مكيّف / داخلي</option>
+            <option value="outdoor">برا / مكشوف</option>
+            <option value="mixed">الاثنين</option>
+          </select>
+        </div>
+        <div>
+          <label className={label} htmlFor="f-season">الموسم المناسب</label>
+          <input id="f-season" className={input} value={p.seasonAr}
+            onChange={(e) => set("seasonAr", e.target.value)} placeholder="من أكتوبر لأبريل" />
+        </div>
+      </div>
+
+      <div>
+        <label className={label} htmlFor="f-tags">كلمات البحث — سطر لكل وحدة</label>
+        <textarea
+          id="f-tags"
+          rows={3}
+          className={input}
+          value={p.tagsAr.join("\n")}
+          onChange={(e) => set("tagsAr", e.target.value.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 30))}
         />
       </div>
 

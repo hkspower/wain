@@ -34,6 +34,10 @@ export const GENERIC_LINES = {
     "ما لقيت شي بهالكلمة. قل لي الجو اللي تبيه — قهوة، بحر، مطعم، ولا طلعة عيال.",
   "suggest-intro": "أقترح عليك:",
   "related-intro": "وإذا تبي غيره:",
+  // Added when she recommends an open-air place in the Kuwaiti summer. Without
+  // it she would cheerfully send someone to a beach at two in the afternoon in
+  // August, which is the one piece of advice a local guide would never give.
+  "summer-outdoor": "بس هذي أيام حر — لا تروح إلا بعد المغرب.",
 } as const;
 
 export function helloLine(nameAr: string): string {
@@ -46,7 +50,18 @@ type PlaceLite = {
   areaAr: string;
   taglineAr: string;
   bestTimeAr: string;
+  setting: "indoor" | "outdoor" | "mixed";
+  summerOk?: boolean;
 };
+
+/**
+ * June to September in Kuwait — daytime highs around 45–50°C, when an open-air
+ * recommendation stops being a recommendation. Months are 0-based, as from
+ * Date#getMonth.
+ */
+export function isSummerMonth(month: number): boolean {
+  return month >= 5 && month <= 8;
+}
 
 export function placeSuggestLine(p: PlaceLite): string {
   return `${p.nameAr}، في ${p.areaAr}. ${p.taglineAr}`;
@@ -117,7 +132,7 @@ type SuggestHit = { doc: { id: string; kind: string; title: string; subtitle: st
 export function answerParts(
   hits: SuggestHit[],
   places: PlaceLite[],
-  opts: { asked?: string } = {}
+  opts: { asked?: string; month?: number } = {}
 ): SpeechPart[] {
   const asked = opts.asked?.trim();
   const echo: SpeechPart[] = asked ? [{ text: `${asked}؟`, optional: true }] : [];
@@ -139,6 +154,15 @@ export function answerParts(
     { key: `place-${top.slug}`, text: placeSuggestLine(top) },
     { key: `best-${top.slug}`, text: placeBestTimeLine(top) },
   ];
+
+  if (
+    top.setting === "outdoor" &&
+    !top.summerOk &&
+    opts.month !== undefined &&
+    isSummerMonth(opts.month)
+  ) {
+    parts.push({ key: "summer-outdoor", text: GENERIC_LINES["summer-outdoor"] });
+  }
 
   const next = places[1];
   if (next) {

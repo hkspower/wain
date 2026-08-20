@@ -124,7 +124,14 @@ export default function SearchClient() {
         const signature = `${hits[0]?.doc.id ?? "none"}|${hits.length}`;
         if (signature === lastSpokenRef.current) return;
         lastSpokenRef.current = signature;
-        speak(answerParts(hits, hitPlaces, { asked: spokenQuestion ?? undefined }));
+        speak(
+          answerParts(hits, hitPlaces, {
+            asked: spokenQuestion ?? undefined,
+            // Read at speaking time, not at module load: an installed app can
+            // sit open across midnight, and across the end of a month.
+            month: new Date().getMonth(),
+          })
+        );
       },
       spokenQuestion ? 220 : 900
     );

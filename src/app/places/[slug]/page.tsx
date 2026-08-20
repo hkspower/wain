@@ -14,6 +14,7 @@ import {
   IconPinSolid,
   IconSparkle,
   IconStar,
+  IconSun,
 } from "@/components/icons";
 import {
   distanceKm,
@@ -63,6 +64,13 @@ export async function generateMetadata({
 }
 
 const priceLabel = ["", "اقتصادي", "متوسط", "راقي"];
+
+const SETTING_LABEL = { indoor: "مكيّف", outdoor: "برا", mixed: "داخلي وبرا" } as const;
+const SETTING_TONE = {
+  indoor: "bg-sea-50 text-sea-700",
+  outdoor: "bg-palm-500/12 text-palm-700",
+  mixed: "bg-sand-100 text-sand-800",
+} as const;
 
 export default async function PlacePage({
   params,
@@ -205,6 +213,19 @@ export default async function PlacePage({
             مستوى الأسعار
           </h2>
           <p className="mt-2.5 text-sm text-ink-600">{priceLabel[place.priceLevel]}</p>
+
+          {/* Kuwait's weather decides most outings for a third of the year, so
+              it belongs on the page and not only in the search index. */}
+          <h2 className="mt-6 flex items-center gap-2 font-display text-lg font-semibold text-ink-900">
+            <IconSun className="size-5 text-sun-600" />
+            الجو والموسم
+          </h2>
+          <p className="mt-2.5 flex flex-wrap items-center gap-2 text-sm text-ink-600">
+            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${SETTING_TONE[place.setting]}`}>
+              {SETTING_LABEL[place.setting]}
+            </span>
+            {place.seasonAr}
+          </p>
         </div>
       </div>
 

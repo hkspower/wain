@@ -48,6 +48,11 @@ export function submissionToPlace(s: SubmissionRow): EditablePlace {
     imageUrls: undefined,
     highlightsAr: [],
     bestTimeAr: "",
+    // A registration form cannot sensibly ask "is your place air-conditioned
+    // in August"; the admin sets it while reviewing, like the rating.
+    setting: "mixed",
+    seasonAr: "",
+    tagsAr: [],
     featured: false,
     published: false,
     sortOrder: 0,

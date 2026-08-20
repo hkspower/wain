@@ -184,6 +184,24 @@ export interface SearchIndex {
  * ways to ask — used to return nothing at all. These turn them into the words
  * people actually type.
  */
+/**
+ * The words people reach for when the weather is the real question.
+ *
+ * Derived from `setting` rather than written per place, so a place can never
+ * be tagged "مكيّف" while being an open-air zoo. This is what makes «طلعة
+ * بالصيف» stop returning the hottest places on the list: indoor places carry
+ * the summer words, outdoor ones carry the winter words, and the ranking
+ * follows without any special-casing in the scorer.
+ */
+const SETTING_WORDS: Record<"indoor" | "outdoor" | "mixed", string[]> = {
+  indoor: ["مكيّف", "مكيف", "داخلي", "صيف", "بارد", "برد", "حر", "مغلق"],
+  outdoor: ["برا", "خارجي", "شتاء", "هوا", "طبيعة", "مكشوف"],
+  // Deliberately thinner than either pure set. A mall with a waterfront is a
+  // fair answer to both "صيف" and "برا", but it should not outrank a park for
+  // "برا بالشتاء" merely by claiming every word on both sides.
+  mixed: ["مكيّف", "برا"],
+};
+
 const PRICE_WORDS: Record<number, string> = {
   1: "رخيص اقتصادي بسيط",
   2: "متوسط معقول",
@@ -213,10 +231,18 @@ export function buildDocs(list: Place[] = snapshot): SearchDoc[] {
       subtitle: `${cat?.ar ?? ""}، ${p.areaAr}`,
       url: `/places/${p.slug}/`,
       category: p.category,
-      keywords: [p.name, p.area, cat?.ar ?? "", cat?.en ?? "", ...p.highlightsAr],
+      keywords: [
+        p.name,
+        p.area,
+        cat?.ar ?? "",
+        cat?.en ?? "",
+        ...p.highlightsAr,
+        ...p.tagsAr,
+        ...SETTING_WORDS[p.setting],
+      ],
       // Price and rating sit in the body rather than keywords: they should
       // let a place be *found* by "رخيص", not outrank a name match for it.
-      body: `${p.taglineAr} ${p.descriptionAr} ${p.bestTimeAr} ${
+      body: `${p.taglineAr} ${p.descriptionAr} ${p.bestTimeAr} ${p.seasonAr} ${
         PRICE_WORDS[p.priceLevel] ?? ""
       } ${ratingWords(p.rating)}`,
     };
@@ -320,13 +346,19 @@ const B = 0.75;
 
 /** Resolve one query token to index terms: exact, then prefix, then fuzzy. */
 function candidates(term: string, index: SearchIndex): { term: string; boost: number }[] {
-  if (index.postings.has(term)) return [{ term, boost: 1 }];
-
-  // Try the word without its glued function letters before guessing at
-  // prefixes or typos — «بالسالمية» is a spelling of a real term, not a typo.
+  // The glued and unglued readings are both wanted, and taking the glued one
+  // alone is not a shortcut — it is a bug. «بالشتاء» appears verbatim in two
+  // places' season text, which put it in the index and so ended the search
+  // there: every place that legitimately matched «شتاء» was dropped, and
+  // «برا بالشتاء» returned two waterfront malls and no park at all. Whether a
+  // prose field happens to spell a word glued must not decide what the query
+  // means, so both readings are searched whenever both exist.
+  const found: { term: string; boost: number }[] = [];
+  if (index.postings.has(term)) found.push({ term, boost: 1 });
   for (const stripped of declitic(term)) {
-    if (index.postings.has(stripped)) return [{ term: stripped, boost: 0.95 }];
+    if (index.postings.has(stripped)) found.push({ term: stripped, boost: 0.95 });
   }
+  if (found.length) return found;
 
   const prefix = index.terms.filter((t) => t.startsWith(term));
   if (prefix.length) return prefix.slice(0, 12).map((t) => ({ term: t, boost: 0.82 }));

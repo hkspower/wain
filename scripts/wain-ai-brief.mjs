@@ -5,7 +5,19 @@
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 
-const src = readFileSync("src/lib/places.ts", "utf8");
+/**
+ * Only the data, never the type that describes it.
+ *
+ * The Place interface declares `priceLevel: 1 | 2 | 3` and
+ * `setting: "indoor" | "outdoor" | "mixed"`, and both matched the same
+ * patterns as a real record — so the first "place" scraped out of the file was
+ * the interface itself, and every value after it was attributed to the place
+ * before. شوق had been told the wrong price level for all 33 places.
+ */
+const whole = readFileSync("src/lib/places.ts", "utf8");
+const start = whole.indexOf("export const places");
+if (start < 0) throw new Error("gen-brief: could not find the places array");
+const src = whole.slice(start);
 const grab = (re) => [...src.matchAll(re)].map((m) => m[1]);
 
 const slugs = grab(/slug: "([^"]+)"/g);
@@ -16,6 +28,10 @@ const areaAr = grab(/areaAr: "([^"]+)"/g);
 const tag = grab(/taglineAr: "([^"]+)"/g);
 const best = grab(/bestTimeAr: "([^"]+)"/g);
 const price = grab(/priceLevel: (\d)/g);
+const setting = grab(/setting: "([a-z]+)"/g);
+const season = grab(/seasonAr: "([^"]+)"/g);
+const tags = [...src.matchAll(/tagsAr: \[([^\]]*)\]/g)]
+  .map((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((t) => t[1]).join("، "));
 
 const catAr = {
   landmarks: "معالم الكويت", restaurants: "مطاعم", fastfood: "وجبات سريعة",
@@ -23,15 +39,28 @@ const catAr = {
   culture: "ثقافة", family: "عائلة",
 };
 const priceAr = ["", "اقتصادي", "متوسط", "راقي"];
+const settingAr = { indoor: "مكيّف/داخلي", outdoor: "برا/مكشوف", mixed: "داخلي وبرا" };
 
 const rows = slugs
   .map(
     (s, i) => `- **${nameAr[i]}** (${name[i]}) — ${catAr[cat[i]]} · ${areaAr[i]} · ${priceAr[price[i]]}
   ${tag[i]}
-  أحسن وقت: ${best[i]}
+  أحسن وقت: ${best[i]} · ${settingAr[setting[i]]} · ${season[i]}
+  يناسب: ${tags[i]}
   slug: \`${s}\` · الرابط: https://www.wainkw.com/places/${s}/`
   )
   .join("\n");
+
+// Every field must yield exactly one value per place, or the columns have
+// silently slipped against each other again.
+for (const [label, arr] of Object.entries({ nameAr, name, cat, areaAr, tag, best, price, setting, season, tags })) {
+  if (arr.length !== slugs.length) {
+    throw new Error(
+      `gen-brief: ${label} produced ${arr.length} values for ${slugs.length} places — ` +
+        `the fields are misaligned and the knowledge base would be wrong.`
+    );
+  }
+}
 
 const doc = `# شوق — وين AI، الدليلة الصوتية لوين
 
@@ -90,6 +119,15 @@ const doc = `# شوق — وين AI، الدليلة الصوتية لوين
 **مثال على رد رديء** (لا تسوين جذي)
 > «لقيت لك ٥ نتائج. أحلى نتيجة: مقاهي المباركية، تصنيف قهوة، مدينة الكويت.»
 > ← عدّت النتائج، وكررت اللي على الشاشة، وما قالت ليش ولا متى.
+
+**الحر — أهم قاعدة محلية**
+من يونيو لسبتمبر الجو في الكويت ٤٥–٥٠ درجة، والطلعة برا نهاراً مو ممكنة.
+كل مكان في قاعدة معرفتك مكتوب عنده «مكيّف/داخلي» أو «برا/مكشوف» أو
+«داخلي وبرا» مع الموسم المناسب — استخدميها:
+- بالصيف رشّحي المكيّف أول، وإذا رشّحتي مكان برا قولي له صراحة يروح بعد
+  المغرب.
+- بالشتاء (أكتوبر–أبريل) الأماكن اللي برا هي الأحلى — رشّحيها بثقة.
+لا ترشّحين شاطئ ولا حديقة نهاراً في أغسطس أبداً.
 
 - إذا سألك سؤال ما له علاقة بالأماكن، ردّي بجملة وحدة ورجّعيه للموضوع:
   «هذي مو تخصصي، بس إذا تبي طلعة حلوة أنا حاضرة.»

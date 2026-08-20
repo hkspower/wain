@@ -182,7 +182,17 @@ export function spreadPins(
 ): { x: number; y: number }[] {
   const out = pts.map((p) => ({ x: p.x, y: p.y / aspect }));
   const home = out.map((p) => ({ ...p }));
-  const maxShift = size / 2;
+  /**
+   * How far a pin may be pushed from where the place actually is.
+   *
+   * Half a pin was too tight to finish the job: the relaxation below needs
+   * room to separate a dense cluster, and clamping every pin at 16px pulled
+   * them back into overlap as soon as a query matched eleven coastal places
+   * instead of ten. A full pin-width still keeps a pin visibly on its own
+   * stretch of coast, and the results list beside the map remains the precise
+   * index — while overlapping pins cannot be tapped apart at all.
+   */
+  const maxShift = size;
 
   for (let pass = 0; pass < 12; pass++) {
     let moved = false;

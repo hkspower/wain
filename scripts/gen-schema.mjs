@@ -18,10 +18,15 @@ const q = (s) => "'" + String(s).replace(/'/g, "''") + "'";
 const field = (b, k) => (b.match(new RegExp(`${k}:\\s*"((?:[^"\\\\]|\\\\.)*)"`)) || [])[1];
 const num = (b, k) => (b.match(new RegExp(`${k}: ([-\\d.]+)`)) || [])[1];
 
+/** A TS string-array literal for one key, as a SQL text[] constructor. */
+const arrayOf = (b, k) => {
+  const raw = (b.match(new RegExp(`${k}: \\[([^\\]]*)\\]`)) || [])[1] || "";
+  const items = [...raw.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => q(m[1]));
+  return `ARRAY[${items.join(", ")}]::text[]`;
+};
+
 const rows = blocks.map((b, i) => {
-  const arr = (b.match(/highlightsAr: \[([^\]]*)\]/) || [])[1] || "";
-  const items = [...arr.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => q(m[1]));
-  return `  (${q(field(b,'slug'))}, ${q(field(b,'name'))}, ${q(field(b,'nameAr'))}, ${q(field(b,'category'))}, ${q(field(b,'area'))}, ${q(field(b,'areaAr'))}, ${num(b,'lat')}, ${num(b,'lng')}, ${num(b,'rating')}, ${num(b,'priceLevel')}, ${q(field(b,'emoji'))}, ${q(field(b,'taglineAr'))}, ${q(field(b,'descriptionAr'))}, ARRAY[${items.join(", ")}]::text[], ${q(field(b,'bestTimeAr'))}, ${/featured: true/.test(b)}, ${i * 10})`;
+  return `  (${q(field(b,'slug'))}, ${q(field(b,'name'))}, ${q(field(b,'nameAr'))}, ${q(field(b,'category'))}, ${q(field(b,'area'))}, ${q(field(b,'areaAr'))}, ${num(b,'lat')}, ${num(b,'lng')}, ${num(b,'rating')}, ${num(b,'priceLevel')}, ${q(field(b,'emoji'))}, ${q(field(b,'taglineAr'))}, ${q(field(b,'descriptionAr'))}, ${arrayOf(b,'highlightsAr')}, ${q(field(b,'bestTimeAr'))}, ${q(field(b,'setting'))}, ${q(field(b,'seasonAr'))}, ${arrayOf(b,'tagsAr')}, ${/featured: true/.test(b)}, ${i * 10})`;
 });
 
 const sql = `-- Wain — database schema for the admin panel.
@@ -83,6 +88,12 @@ create table if not exists public.places (
   description_ar text not null,
   highlights_ar  text[] not null default '{}',
   best_time_ar   text not null,
+  -- Whether the place works at 48°C, and who it suits. See src/lib/places.ts.
+  setting        text not null default 'mixed'
+                   check (setting in ('indoor','outdoor','mixed')),
+  season_ar      text not null default '',
+  tags_ar        text[] not null default '{}' check (array_length(tags_ar, 1) is null
+                                                     or array_length(tags_ar, 1) <= 30),
   -- Business profile. Null on the seeded places, so their pages are unchanged.
   logo_url       text,
   bio_ar         text not null default '',
@@ -124,6 +135,9 @@ create trigger places_touch before update on public.places
 -- A database created before these columns existed gets them on re-run;
 -- "create table if not exists" alone would silently skip them.
 alter table public.places
+  add column if not exists setting     text not null default 'mixed',
+  add column if not exists season_ar   text not null default '',
+  add column if not exists tags_ar     text[] not null default '{}',
   add column if not exists phone       text not null default '',
   add column if not exists instagram   text not null default '',
   add column if not exists website     text not null default '',
@@ -336,7 +350,8 @@ create policy "admins remove published media"
 -- ---------------------------------------------------------------------------
 insert into public.places
   (slug, name, name_ar, category, area, area_ar, lat, lng, rating, price_level,
-   emoji, tagline_ar, description_ar, highlights_ar, best_time_ar, featured, sort_order)
+   emoji, tagline_ar, description_ar, highlights_ar, best_time_ar,
+   setting, season_ar, tags_ar, featured, sort_order)
 values
 ${rows.join(",\n")}
 on conflict (slug) do nothing;
