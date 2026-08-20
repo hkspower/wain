@@ -1428,6 +1428,8 @@ let _waveT = 0;
 export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // Handles for the night-shimmer tick (assigned in the streetlight block)
   let glintMat: THREE.PointsMaterial | null = null;
+  /** Advances the traffic signals; assigned in the signal block. */
+  let signalTick: ((t: number) => void) | null = null;
   let shimmerLampMat: THREE.MeshStandardMaterial | null = null;
   // Handles the time-of-day switch repaints
   let skyMatRef: THREE.ShaderMaterial | null = null;
@@ -2175,6 +2177,157 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     }
     shimmerLampMat = lampMat;
     lampPoolMat = poolMat;
+  }
+
+  // ------------------------------------------------- traffic signals
+  //
+  // The junctions grew stop bars when the grid was painted and nothing
+  // to obey. A signal head on a mast arm over the carriageway, at every
+  // other cross street — signalising all sixty-two would put a gantry
+  // every 118 m, which is denser than any real arterial and would make
+  // the road read as a car park.
+  //
+  // The three aspects are one instanced mesh of lenses coloured per
+  // instance. An emissive material cannot vary per instance in three,
+  // so a shared one would light every red in the city at the same
+  // moment; an unlit lens tinted through instanceColor can differ
+  // junction by junction, and a lit lamp lens is close to unlit anyway.
+  {
+    const crossCount = Math.round(L / STREETS.crossEvery);
+    const every = 2; // signalised junctions, in cross streets
+    const sides = 2;
+    const heads: number[] = []; // s values, one per signalised approach
+    const junctions: Array<{ s: number; sideSign: number }> = [];
+    for (let i = 0; i < crossCount; i += every) {
+      const s2 = (i / crossCount) * L;
+      const u2 = track.wrap(s2) / L;
+      if (u2 > TUNNEL_U.from - 0.01 && u2 < TUNNEL_U.to + 0.01) continue;
+      for (let k = 0; k < sides; k++) junctions.push({ s: s2, sideSign: k === 0 ? 1 : -1 });
+      heads.push(s2);
+    }
+    const n = junctions.length;
+    const steel = new THREE.MeshStandardMaterial({ color: 0x2f343a, roughness: 0.65 });
+
+    const poleGeo = new THREE.CylinderGeometry(0.11, 0.17, 6.4, 8);
+    const armGeo = new THREE.CylinderGeometry(0.085, 0.105, 4.6, 6);
+    armGeo.rotateZ(Math.PI / 2); // lies along local X
+    const boxGeo = new THREE.BoxGeometry(0.42, 1.22, 0.3);
+    const visorGeo = new THREE.BoxGeometry(0.5, 1.3, 0.05);
+    const poles = new THREE.InstancedMesh(poleGeo, steel, n);
+    const arms = new THREE.InstancedMesh(armGeo, steel, n);
+    const boxes = new THREE.InstancedMesh(boxGeo, steel, n);
+    // A backboard behind the head, which is what makes a signal legible
+    // against a lit city — the reason real ones have them.
+    const visors = new THREE.InstancedMesh(visorGeo, steel, n);
+
+    const lensGeo = new THREE.SphereGeometry(0.17, 10, 8);
+    const lensMat = new THREE.MeshBasicMaterial({ fog: false, toneMapped: false });
+    const lenses = new THREE.InstancedMesh(lensGeo, lensMat, n * 3);
+    // A halo on the lit aspect, facing the traffic it is stopping. A
+    // 0.17 m lens on a dark housing against a dark sky is six pixels at
+    // forty metres — the head was in exactly the right place and could
+    // not be seen, which is not much of a traffic light.
+    const haloGeo = new THREE.PlaneGeometry(0.95, 0.95);
+    const haloMat = new THREE.MeshBasicMaterial({
+      map: pointGlowTexture(),
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+      toneMapped: false,
+    });
+    const halos = new THREE.InstancedMesh(haloGeo, haloMat, n * 3);
+
+    const m = new THREE.Matrix4();
+    const p = new THREE.Vector3();
+    const tmp = new THREE.Vector3();
+    const tan = new THREE.Vector3();
+    const inward = new THREE.Vector3();
+    const q = new THREE.Quaternion();
+    const xAxis = new THREE.Vector3(1, 0, 0);
+    const zAxis = new THREE.Vector3(0, 0, 1);
+    const faceQ = new THREE.Quaternion();
+    const one = new THREE.Vector3(1, 1, 1);
+    const headPos: THREE.Vector3[] = [];
+
+    junctions.forEach(({ s: js, sideSign }, i) => {
+      track.tangentAt(js, tan);
+      tan.y = 0;
+      tan.normalize();
+      inward.set(tan.z * sideSign, 0, -tan.x * sideSign).normalize();
+      q.setFromUnitVectors(xAxis, inward);
+
+      // The pole stands back behind the kerb; the head hangs over the
+      // inside lane, a little short of the stop bar so you can still see
+      // it from behind the line.
+      track.pose(js, sideSign * (ROAD_HALF_WIDTH + 1.2), p, tmp);
+      m.makeTranslation(p.x, 3.2, p.z);
+      poles.setMatrixAt(i, m);
+
+      track.pose(js, sideSign * (ROAD_HALF_WIDTH - 2.4), p, tmp);
+      const hx = p.x, hz = p.z;
+      track.pose(js, sideSign * (ROAD_HALF_WIDTH - 0.6), p, tmp);
+      p.set((p.x + hx) / 2, 6.3, (p.z + hz) / 2);
+      m.compose(p, q, one);
+      arms.setMatrixAt(i, m);
+
+      p.set(hx, 5.45, hz);
+      m.compose(p, q, one);
+      boxes.setMatrixAt(i, m);
+      // Backboard a hair behind the head, on the away side
+      p.set(hx + inward.x * 0.17, 5.45, hz + inward.z * 0.17);
+      m.compose(p, q, one);
+      visors.setMatrixAt(i, m);
+
+      // Red on top, amber, green — the order everywhere in the world.
+      // The halo squares up to the traffic rather than to the head, so
+      // it reads as a light coming at you down the road.
+      faceQ.setFromUnitVectors(zAxis, tmp.copy(tan).multiplyScalar(-1));
+      for (let a = 0; a < 3; a++) {
+        p.set(hx - inward.x * 0.17, 5.45 + 0.4 - a * 0.4, hz - inward.z * 0.17);
+        m.compose(p, q, one);
+        lenses.setMatrixAt(i * 3 + a, m);
+        p.addScaledVector(tan, -0.12);
+        m.compose(p, faceQ, one);
+        halos.setMatrixAt(i * 3 + a, m);
+      }
+      headPos.push(new THREE.Vector3(hx, 5.45, hz));
+    });
+    for (const im of [poles, arms, boxes, visors, lenses, halos]) im.instanceMatrix.needsUpdate = true;
+    poles.castShadow = true;
+    scene.add(poles, arms, boxes, visors, lenses, halos);
+
+    // Each junction runs its own clock. Coordinating them would be a
+    // green wave, which is a nicer thing and a much bigger one; running
+    // them in lockstep would be worse than either, because a whole city
+    // changing colour at once is the one arrangement that never happens.
+    const CYCLE = 19;
+    const offsets = junctions.map((_, i) => ((i * 7.31) % CYCLE));
+    const DARK = new THREE.Color(0x14161a);
+    const BLACK = new THREE.Color(0x000000);
+    const LIT = [new THREE.Color(0xff2a1e), new THREE.Color(0xffab12), new THREE.Color(0x2be561)];
+    const col = new THREE.Color();
+    signalTick = (t: number) => {
+      for (let i = 0; i < n; i++) {
+        const phase = (t + offsets[i]) % CYCLE;
+        // green 8, amber 2, red 9 — and the red is longest because it
+        // has to cover the cross street's green plus both clearances.
+        const on = phase < 8 ? 2 : phase < 10 ? 1 : 0;
+        for (let a = 0; a < 3; a++) {
+          const lit = a === on;
+          col.copy(lit ? LIT[a] : DARK);
+          lenses.setColorAt(i * 3 + a, col);
+          // The halo is only there for the aspect that is showing; the
+          // other two have to be fully off, not merely dim, or every
+          // head wears three ghosts.
+          col.copy(lit ? LIT[a] : BLACK);
+          halos.setColorAt(i * 3 + a, col);
+        }
+      }
+      if (lenses.instanceColor) lenses.instanceColor.needsUpdate = true;
+      if (halos.instanceColor) halos.instanceColor.needsUpdate = true;
+    };
+    signalTick(0);
   }
 
   // Cat-eye road studs along both edge lines — they sparkle into the
@@ -3302,7 +3455,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       beacons.forEach((b, i) => {
         b.emissiveIntensity = 0.25 + 2.75 * Math.max(0, Math.sin(time * 1.8 + i * 2.1));
       });
-      // Sodium lamps hum: a barely-there shimmer on every head + glint —
+      signalTick?.(time);
+      // Lamps hum: a barely-there shimmer on every head + glint —
       // two incommensurate sines so it never reads as a loop
       if (shimmerLampMat) {
         shimmerLampMat.emissiveIntensity =
