@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import SearchMap from "@/components/SearchMap";
 import SearchResults from "@/components/SearchResults";
 import VoiceControls from "@/components/VoiceControls";
 import { IconClose, IconCompass, IconSearch } from "@/components/icons";
@@ -38,6 +39,17 @@ export default function SearchClient() {
     () => search(q, index, { limit: 40, kinds: kind === "all" ? undefined : [kind] }),
     [q, index, kind]
   );
+
+  // The place hits, in result order, resolved back to full records so the map
+  // can plot them. Only places carry coordinates — categories, areas and pages
+  // have nothing to pin.
+  const hitPlaces = useMemo(() => {
+    const bySlug = new Map(places.map((p) => [p.slug, p]));
+    return hits
+      .filter((h) => h.doc.kind === "place")
+      .map((h) => bySlug.get(h.doc.id.replace(/^place:/, "")))
+      .filter((p): p is NonNullable<typeof p> => Boolean(p));
+  }, [hits, places]);
 
   // Keep ?q= in step with the box so a search can be shared or bookmarked,
   // replacing rather than pushing so Back leaves the page instead of
@@ -182,6 +194,7 @@ export default function SearchClient() {
             <p className="mb-4 text-sm text-ink-500">
               {toArabicDigits(hits.length)} نتيجة
             </p>
+            <SearchMap places={hitPlaces} />
             <SearchResults hits={hits} />
           </>
         ) : (
