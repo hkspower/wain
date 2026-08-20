@@ -384,6 +384,48 @@ function makeNameTag(name: string): THREE.Sprite {
   return sprite;
 }
 
+/**
+ * What each moment of the game looks like.
+ *
+ * Tints are normalised against their own luma before use, so a look
+ * changes the COLOUR of the frame and not its exposure — otherwise
+ * "cool for a battle" would also mean "darker for a battle", and the
+ * player would read it as the sun going in.
+ */
+export type Situation = "cruise" | "challenge" | "battle" | "win" | "lose";
+
+interface Look {
+  tint: THREE.Vector3;
+  sat: number;
+  contrast: number;
+}
+const balance = (r: number, g: number, b: number): THREE.Vector3 => {
+  const v = new THREE.Vector3(r, g, b);
+  const l = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return v.multiplyScalar(1 / l);
+};
+const SITUATION_LOOKS: Record<Situation, Look> = {
+  // The road at night, as graded. Everything else is a departure from
+  // this and comes back to it.
+  cruise: { tint: balance(1, 1, 1), sat: 1, contrast: 1 },
+  // A rival has looked at you. Warmer and a touch harder — the sodium
+  // comes up, the moment leans in.
+  challenge: { tint: balance(1.05, 1.0, 0.95), sat: 1.06, contrast: 1.04 },
+  // The fight. Cool and hard, with the colour pulled back: the street
+  // stops being scenery and becomes the thing you are working against.
+  // Measured, not guessed: at sat 0.88 with a stronger cast the frame's
+  // chroma did not move at all, because a blue wash ADDS distance from
+  // grey at the same rate the desaturation removed it. The cast is
+  // gentler now and the drain deeper, so the street's sodium actually
+  // recedes instead of merely turning blue.
+  battle: { tint: balance(0.96, 0.99, 1.07), sat: 0.74, contrast: 1.13 },
+  // Won. Warm and open, the one moment in the game that is allowed to
+  // look generous.
+  win: { tint: balance(1.09, 1.02, 0.93), sat: 1.18, contrast: 0.99 },
+  // Lost. The colour goes out of it. Not dark — drained, which is worse.
+  lose: { tint: balance(0.98, 0.99, 1.02), sat: 0.5, contrast: 0.92 },
+};
+
 export class GameEngine {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -1314,12 +1356,80 @@ export class GameEngine {
   }
 
   setContrast(v: number): void {
-    this.grainPass.uniforms.uContrast.value = THREE.MathUtils.clamp(v, 0.7, 1.5);
+    this.baseContrast = THREE.MathUtils.clamp(v, 0.7, 1.5);
+    this.applyLook();
   }
 
   /** Global saturation, 0.6 (washed) to 1.4 (poster). */
   setSaturation(v: number): void {
-    this.grainPass.uniforms.uSaturation.value = THREE.MathUtils.clamp(v, 0.6, 1.4);
+    this.baseSaturation = THREE.MathUtils.clamp(v, 0.6, 1.4);
+    this.applyLook();
+  }
+
+  // ------------------------------------------------------- the situation
+  //
+  // The music has always known what is happening — setMood switches it
+  // between cruise and battle — and the picture never did. A challenge
+  // was raised, a fight was won or lost, and the frame looked exactly
+  // the same throughout.
+  //
+  // Each situation is a colour balance, a saturation and a contrast, and
+  // they are MULTIPLIERS on whatever the player has set in the picture
+  // menu rather than absolute values. Writing the uniforms directly
+  // would have a battle quietly overwrite a slider the player moved, and
+  // the setting would never come back.
+  private baseContrast = 1;
+  private baseSaturation = 1;
+  private look: Situation = "cruise";
+  /** Where the blend has actually reached, so a change part-way through
+   *  a transition carries on from here instead of snapping. */
+  private lookTint = new THREE.Vector3(1, 1, 1);
+  private lookSat = 1;
+  private lookCon = 1;
+
+  /** Latched by a win or a loss, cleared when the player moves on. The
+   *  frame-by-frame derivation below cannot express these: both happen
+   *  with inBattle already false, and both have to hold while the result
+   *  card is up. */
+  private resultLook: "win" | "lose" | null = null;
+  /** Overrides everything, for the grade suite. Nothing in the game
+   *  calls it. It exists because the situation is otherwise derived from
+   *  private state every frame — the first version of this was a public
+   *  setter that update() silently overwrote a sixteenth of a second
+   *  later, so a battle grade could be asked for and never arrived. */
+  setSituation(s: Situation | null): void {
+    this.forcedLook = s;
+  }
+  private forcedLook: Situation | null = null;
+
+  /** What the moment is, from what is actually happening. */
+  private deriveLook(): Situation {
+    if (this.forcedLook) return this.forcedLook;
+    if (this.resultLook) return this.resultLook;
+    if (this.inBattle || this.duel) return "battle";
+    if (this.cine || this.challengePending) return "challenge";
+    return "cruise";
+  }
+
+  /** Push base x situation into the shader. */
+  private applyLook(): void {
+    const u = this.grainPass.uniforms;
+    u.uContrast.value = THREE.MathUtils.clamp(this.baseContrast * this.lookCon, 0.6, 1.7);
+    u.uSaturation.value = THREE.MathUtils.clamp(this.baseSaturation * this.lookSat, 0.2, 1.6);
+    (u.uTint.value as THREE.Vector3).copy(this.lookTint);
+  }
+
+  /** Walk the live grade toward the current situation's. */
+  private stepLook(dt: number): void {
+    const want = SITUATION_LOOKS[this.look];
+    // Exponential approach: fast enough to land inside a second, slow
+    // enough that a hard cut is never visible. A battle that snapped its
+    // grade on would read as a rendering glitch, not as a change of key.
+    const k = 1 - Math.exp(-dt * 4.5);
+    this.lookTint.lerp(want.tint, k);
+    this.lookSat += (want.sat - this.lookSat) * k;
+    this.lookCon += (want.contrast - this.lookCon) * k;
+    this.applyLook();
   }
 
   /** -1 recovers the highlights, +1 pushes them toward clipping. */
@@ -1438,6 +1548,9 @@ export class GameEngine {
     this.player.sp = 100;
     this.locked = false;
     this.inBattle = false;
+    // Off the result look and back to the road; the derivation takes it
+    // from here, and finds "battle" again when the fight is on.
+    this.resultLook = null;
     this.spawnRival();
     const r = this.rival!;
     this.events.onMessage(`Rematch — ${r.def.name}`, "Catch up and press F to flash");
@@ -2264,6 +2377,7 @@ export class GameEngine {
     const r = this.rival!;
     r.state = "defeated";
     this.inBattle = false;
+    this.resultLook = "win";
     // Prize money scales with the roster depth, plus the staked purse
     const payout = 400 + this.rivalIndex * 300 + this.wager;
     const balance = addKd(payout);
@@ -2307,6 +2421,7 @@ export class GameEngine {
   resumeAfterResult(): void {
     if (this.disposed) return;
     this.setPaused(false);
+    this.resultLook = null;
     if (this.rivalIndex >= RIVALS.length) {
       this.events.onChampion();
       return;
@@ -2331,6 +2446,7 @@ export class GameEngine {
     r.state = "cruise";
     this.inBattle = false;
     this.locked = true;
+    this.resultLook = "lose";
     const staked = this.wager;
     let balance = loadGarage().kd;
     if (staked > 0) {
@@ -2406,6 +2522,9 @@ export class GameEngine {
     this.updateRemotes(dt);
     if (this.inBattle) this.updateBattle(dt);
     this.music?.setMood(this.inBattle || this.duel || this.cine ? "battle" : "cruise");
+    // The picture follows the same moment the music does.
+    this.look = this.deriveLook();
+    this.stepLook(dt);
     // Intensity: how fast, how close, how nearly lost. A comfortable
     // battle and a two-second-from-defeat battle share a mood; they
     // should not share a temperature.

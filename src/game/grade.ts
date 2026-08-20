@@ -58,6 +58,16 @@ export const GradeShader = {
      *  look sits a little above neutral, and the slider spans a washed
      *  0.6 to an oversaturated 1.4. */
     uSaturation: { value: 1.0 },
+    /** Colour balance, as a per-channel gain. 1,1,1 is neutral.
+     *
+     *  This is what the situation grade steers: cool and hard for a
+     *  battle, warm for a win, drained for a loss. It is a gain rather
+     *  than a mix so it behaves like a white balance — it moves the
+     *  whole picture's colour without touching what is neutral about a
+     *  headlight. The engine normalises whatever it sets against its own
+     *  luma, so a tint changes the colour of the frame and not its
+     *  exposure. */
+    uTint: { value: new THREE.Vector3(1, 1, 1) },
     /** Dither amplitude in 8-bit steps. 0 disables it (A/B testing). */
     uDither: { value: 1.0 },
   },
@@ -80,6 +90,7 @@ export const GradeShader = {
     uniform float uHighlightDesat;
     uniform float uDesatStart;
     uniform float uSaturation;
+    uniform vec3 uTint;
     uniform float uDither;
     varying vec2 vUv;
     float hash(vec2 p) {
@@ -111,6 +122,12 @@ export const GradeShader = {
       // rescale so highlights keep their range.
       c.rgb = pow(max(c.rgb, 0.0), vec3(uToe));
       c.rgb = max(c.rgb - uBlackPoint, 0.0) / max(1.0 - uBlackPoint, 1e-4);
+
+      // Colour balance, before contrast and the shoulder, which is where
+      // a colourist puts it: everything downstream then works on the
+      // balanced picture rather than arguing with it. After the black
+      // point, so a tint cannot lift a black off zero.
+      c.rgb *= uTint;
 
       // Contrast as a gamma about a pivot: p * (c/p)^k. A plain
       // (c - 0.5) * k + 0.5 would drag the whole image's exposure around

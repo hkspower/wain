@@ -275,6 +275,81 @@ check(lumSpread < satMid.mean * 0.06,
   `saturation moved brightness by ${lumSpread.toFixed(4)} — it is acting as an exposure control`);
 await page.evaluate(() => window.__grnEngine.setSaturation(1.08));
 
+// --- 6. The picture knows what is happening ---
+// The music has always switched mood for a battle and the image never
+// did. Measured off the delivered frame: chroma is distance from grey,
+// which a mere brightness change cannot fake, and the blue-minus-red
+// balance says which way the tint went.
+const situ = await page.evaluate(async () => {
+  const e = window.__grnEngine;
+  e.setPaused(true);
+  e.timeHours = 22.5; e.world.setTimeOfDay(22.5); e.applyDaylight();
+  e.setExposure(0, false);
+  e.player.s = e.track.length * 0.30; e.player.lat = 0; e.player.speed = 0;
+  const park = () => {
+    const away = e.track.wrap(e.player.s + e.track.length / 2);
+    for (const t of e.traffic) t.s = away;
+    if (e.rival) { e.rival.s = away; e.rival.speed = 0; }
+    e.player.s = e.track.length * 0.30; e.player.lat = 0; e.player.speed = 0;
+  };
+  const shoot = (situation) => {
+    e.setSituation(situation);
+    // The blend is exponential and lands inside a second; give it two.
+    for (let i = 0; i < 120; i++) { e.update(1 / 60); park(); }
+    for (let i = 0; i < 3; i++) e.composer.render();
+    const gl = e.renderer.domElement;
+    const c = document.createElement("canvas"); c.width = 320; c.height = 180;
+    const ctx = c.getContext("2d"); ctx.drawImage(gl, 0, 0, c.width, c.height);
+    const d = ctx.getImageData(0, 0, c.width, c.height).data;
+    let chroma = 0, devR = 0, devB = 0, lum = 0, n = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i] / 255, g = d[i + 1] / 255, b = d[i + 2] / 255;
+      const l = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      chroma += (Math.abs(r - l) + Math.abs(g - l) + Math.abs(b - l)) / 3;
+      devR += r - l;
+      devB += b - l;
+      lum += l;
+      n++;
+    }
+    const ch = chroma / n;
+    // Tint DIRECTION, normalised by how much colour there is at all.
+    // Plain mean(r - b) cannot separate the two controls: desaturating
+    // pulls every pixel toward its own grey, which drags an already-blue
+    // night frame toward zero and reads as "warmer" even while the tint
+    // is cooling it. Dividing by chroma cancels the desaturation — it
+    // scales every pixel's colour vector by the same factor — and leaves
+    // the direction the balance actually pushed.
+    return {
+      chroma: +ch.toFixed(5),
+      warm: +(((devR - devB) / n) / (ch || 1e-6)).toFixed(4),
+      lum: +(lum / n).toFixed(4),
+    };
+  };
+  const cruise = shoot("cruise");
+  const battle = shoot("battle");
+  const win = shoot("win");
+  const lose = shoot("lose");
+  const back = shoot("cruise");
+  e.setSituation(null); // hand the grade back to the game
+  return { cruise, battle, win, lose, back };
+});
+console.log(`situation   cruise chroma ${situ.cruise.chroma} warm ${situ.cruise.warm} lum ${situ.cruise.lum}`);
+console.log(`            battle ${situ.battle.chroma} / ${situ.battle.warm}  |  win ${situ.win.chroma} / ${situ.win.warm}  |  lose ${situ.lose.chroma} / ${situ.lose.warm}`);
+console.log(`            back to cruise ${situ.back.chroma} / ${situ.back.warm}  ` +
+  check(situ.battle.chroma < situ.cruise.chroma * 0.95, "a battle does not pull the colour back") + " " +
+  check(situ.battle.warm < situ.cruise.warm, "a battle does not cool the picture") + " " +
+  check(situ.win.chroma > situ.cruise.chroma * 1.05, "a win does not lift the colour") + " " +
+  check(situ.win.warm > situ.cruise.warm, "a win does not warm the picture") + " " +
+  check(situ.lose.chroma < situ.battle.chroma, "losing is not the most drained the picture gets") + " " +
+  check(Math.abs(situ.back.chroma - situ.cruise.chroma) < situ.cruise.chroma * 0.06,
+    `the grade does not come back to cruise (${situ.back.chroma} vs ${situ.cruise.chroma})`));
+// A situation must not be a brightness control in disguise: the tints
+// are luma-normalised, so the frame's exposure has to hold across all
+// four of them.
+const lums = [situ.cruise.lum, situ.battle.lum, situ.win.lum, situ.lose.lum];
+console.log(`            luminance across the four: ${lums.join(" / ")}  ` +
+  check(Math.max(...lums) - Math.min(...lums) < 0.045, "a situation moved the exposure, not just the colour"));
+
 console.log(fail.length?"\nFAILURES:\n - "+fail.join("\n - "):"\nthe grade grades");
 await b.close();
 process.exit(fail.length?1:0);

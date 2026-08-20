@@ -248,7 +248,18 @@ const MIN_PX = 2000;
 const BARS = [
   // surface, statistic, limit, what it means
   ["sky", "crush", 0.05, "the sky has crushed to black"],
-  ["building", "crush", 0.10, "the buildings have crushed to black"],
+  // 25%, not the 10% this was first set to. The city is placed with
+  // Math.random() at world build, so a different skyline stands in front
+  // of the camera on every load: the coast bucket has measured 4,805 px
+  // at 1.0% crush and 13,636 px at 10.5% on the same code, and a bar
+  // drawn round the first sample fails on the second for no reason
+  // anyone can act on. The defect this guards was facades at 80-87% with
+  // a ceiling of 31; 25% still catches that several times over.
+  //
+  // The real fix is a seeded world, which would make every visual check
+  // in this repo reproducible. That is a bigger change than a threshold
+  // and it belongs in its own pass.
+  ["building", "crush", 0.25, "the buildings have crushed to black"],
   ["road", "crush", 0.25, "the road has crushed to black"],
   ["all", "crush", 0.22, "half the frame is sitting on black"],
 ];
