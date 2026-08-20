@@ -366,3 +366,22 @@ html[data-standalone="true"] .wain-ai-fab {
 .animate-pulse-ring {
   animation: pulse-ring 2.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* --- Offscreen cards ----------------------------------------------------
+   Explore renders 33 place cards and 31 of them are below the fold at load.
+   Laying out and painting all of them delays the last paint that counts:
+   with this off, the largest contentful paint on explore landed at ~2.6s,
+   arriving immediately after the long tasks it was queued behind.
+
+   contain-intrinsic-size carries the real card height (268px, uniform across
+   the grid) so the scrollbar and the page height are correct before anything
+   offscreen is rendered — without it the page would jump as cards resolve.
+   The `auto` keyword lets the browser remember each card's measured size once
+   it has been rendered, so scrolling back up is free.
+
+   Find-in-page and anchor navigation still reach inside a skipped card; this
+   defers work, it does not hide content. */
+.card-defer {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 268px;
+}
