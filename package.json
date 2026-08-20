@@ -12,7 +12,8 @@
     "db:schema": "node scripts/gen-schema.mjs",
     "og": "node scripts/gen-og.mjs",
     "ai:brief": "node scripts/wain-ai-brief.mjs",
-    "test:shouq": "node tests/run-shouq.mjs"
+    "test:shouq": "node tests/run-shouq.mjs",
+    "audit:places": "node scripts/audit-places.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.1",

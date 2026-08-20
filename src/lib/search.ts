@@ -84,6 +84,7 @@ const SYNONYMS: Record<string, string[]> = {
   اكل: ["مطاعم", "مطعم"],
   عشاء: ["مطاعم", "عشا"],
   غداء: ["مطاعم", "غدا"],
+  فطور: ["مطاعم", "فطار"],
   برجر: ["وجبات", "سريعه"],
   بحر: ["شواطئ", "شاطئ", "ساحل", "بحري"],
   سباحه: ["شواطئ", "شاطئ"],
@@ -101,12 +102,49 @@ const SYNONYMS: Record<string, string[]> = {
   رخيص: ["اقتصادي"],
   غالي: ["راقي"],
   طلعه: ["مكان", "زياره"],
+
+  // «كافيه» reached one beach, because the word appears in its description
+  // while every actual coffee place is tagged «كافيهات». Both forms now lead
+  // to the same set.
+  كافيه: ["قهوه", "كافيهات", "مقاهي"],
+  كافيهات: ["قهوه", "مقاهي"],
+  مقاهي: ["قهوه", "كافيهات"],
+
+  // Kuwaitis ask with the verb, not the noun — «وين نتعشى» found nothing at
+  // all, and «نتغدى» likewise. These are the forms people actually say.
+  نتعشى: ["عشا", "مطاعم", "مطعم"],
+  تعشى: ["عشا", "مطاعم"],
+  نتغدى: ["غدا", "مطاعم", "مطعم"],
+  تغدى: ["غدا", "مطاعم"],
+  نفطر: ["فطور", "مطاعم"],
+  نشرب: ["قهوه", "كافيهات"],
+  نروح: ["مكان", "طلعه"],
+  نطلع: ["مكان", "طلعه"],
+  سمچ: ["سمك"],
+  حلويات: ["حلا"],
 };
+
+/**
+ * The synonym table, keyed the way lookups actually arrive.
+ *
+ * Query tokens are normalised before they get here — ى folds to ي, ة to ه —
+ * so a key written «مقهى» could never be found, and that entry sat dead in the
+ * table. Normalising the keys once at load closes the whole class rather than
+ * the one instance, and merges any entries that collide once folded.
+ */
+const SYNONYM_LOOKUP: Map<string, string[]> = (() => {
+  const m = new Map<string, string[]>();
+  for (const [key, values] of Object.entries(SYNONYMS)) {
+    const k = normalise(key);
+    m.set(k, [...new Set([...(m.get(k) ?? []), ...values.map(normalise)])]);
+  }
+  return m;
+})();
 
 /** A typed token plus its synonyms, kept grouped under the token they came
  * from so scoring can tell which *query word* a match satisfies. */
 function variantsOf(token: string): string[] {
-  return [...new Set([token, ...(SYNONYMS[token] ?? []).map(normalise)])];
+  return [...new Set([token, ...(SYNONYM_LOOKUP.get(token) ?? [])])];
 }
 
 /**
