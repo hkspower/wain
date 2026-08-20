@@ -1471,7 +1471,18 @@ export function createCar(colors: CarColors): THREE.Group {
   // properly whichever way it is pointing. Traffic skips them: thirty
   // background cars do not need sixty extra additive sprites.
   const headGlowMats: THREE.SpriteMaterial[] = [];
+  /** Where this shell's lamps actually are, in body space.
+   *
+   *  Recorded so the engine can put its light sources at the lamps
+   *  rather than at an average guess: every silhouette carries them at a
+   *  different height and a different point in the nose, and a beam that
+   *  starts somewhere other than the lamp it is supposed to be coming
+   *  out of is the thing that makes headlights look painted on. */
+  const lampPositions: THREE.Vector3[] = [];
   const addHeadGlare = (x: number, y: number, z: number, size = 1) => {
+    // Recorded before the early return: traffic cars skip the sprites,
+    // and they still have headlamps.
+    lampPositions.push(new THREE.Vector3(x, y, z));
     if (colors.simple) return;
     const halo = new THREE.SpriteMaterial({
       map: pointGlowTexture(),
@@ -2444,6 +2455,7 @@ export function createCar(colors: CarColors): THREE.Group {
   group.userData.headMat = headMat;
   // Flashed with the lamps by the engine's challenge ritual
   group.userData.headGlowMats = headGlowMats;
+  group.userData.lampPositions = lampPositions;
   // The paint is per-car (glass/chrome/rims are shared modules), so the
   // engine can feed the player's paint a live reflection probe without
   // leaking it onto every car on the road.

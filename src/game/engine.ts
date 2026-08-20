@@ -480,6 +480,37 @@ export class GameEngine {
   private playerMesh: THREE.Group;
   private carBody: THREE.Group;
   private headlight: THREE.SpotLight;
+  /** The off-side lamp. No shadow map — one caster is plenty and two
+   *  sources are what make the pair visibly diverge and cross. */
+  private headlightR!: THREE.SpotLight;
+  /**
+   * What the lamps are bolted to.
+   *
+   * The lights, their targets and the visible cones all used to hang off
+   * playerMesh, which is the ROAD frame — it sits on the track and looks
+   * down the tangent. The car's own attitude lives on carBody: its yaw
+   * (including how far the tail is out), its dive under braking, its
+   * roll in a corner. So the beams pointed down the road no matter what
+   * the car was doing. Sideways at forty degrees of drift, the lamps
+   * still lit the lane ahead.
+   *
+   * This node carries carBody's rotation and nothing else, so everything
+   * on it is bolted to the shell the way a headlamp is. It is a sibling
+   * of carBody rather than a child of it because applyGarage() destroys
+   * and rebuilds carBody on every car change, and anything parented to
+   * it would go with it.
+   */
+  private lampRig!: THREE.Group;
+  /** The light on the asphalt. Stays flat on the road — it is where the
+   *  beam LANDS, not part of the car — but follows the aim. */
+  private poolPivot!: THREE.Group;
+  private pool!: THREE.Mesh;
+  /** Adaptive front lighting: how far the lamps have swivelled into the
+   *  corner, in target-metres of lateral offset. Damped, so it leans
+   *  rather than twitches. */
+  private lampSwivel = 0;
+  /** The two visible cones, so they can be moved onto the car's lamps. */
+  private beams: THREE.Mesh[] = [];
   /** Visible beam cones — flared with the lamps during the flash ritual. */
   private beamMat: THREE.MeshBasicMaterial | null = null;
   private beamBaseOpacity = 0.05;
@@ -904,10 +935,20 @@ export class GameEngine {
     if (contact) this.playerMesh.add(contact);
     this.scene.add(this.playerMesh);
 
-    this.headlight = new THREE.SpotLight(0xfff2cc, 90, 90, 0.42, 0.45, 1.4);
+    this.lampRig = new THREE.Group();
+    this.playerMesh.add(this.lampRig);
+
+    // Narrower than it was (0.42 rad, a 48-degree spread) because that
+    // much cone spreads the same light over twice the road and gives a
+    // pool with no edge to it. A dipped beam is a wide, shallow, sharply
+    // cut thing; 0.32 with a soft penumbra is much closer.
+    this.headlight = new THREE.SpotLight(0xfff2cc, 90, 95, 0.32, 0.55, 1.4);
     this.headlightBase = 90;
-    this.headlight.position.set(0, 1.1, 1.8);
-    this.headlight.target.position.set(0, 0, 40);
+    // Aimed slightly DOWN — a real dipped beam meets the road, it does
+    // not shine at the horizon. Source height and this target height
+    // together set the cutoff distance; fitLampsToCar() puts the source
+    // at the car's own lamps.
+    this.headlight.target.position.set(0, -0.55, 42);
     // Your own headlights throw real moving shadows off traffic and rails
     this.headlight.castShadow = true;
     this.headlight.shadow.mapSize.set(1024, 1024);
@@ -937,7 +978,14 @@ export class GameEngine {
     this.cubeCam = new THREE.CubeCamera(0.5, 420, this.cubeRT);
     this.scene.add(this.cubeCam);
     this.applyLiveReflections();
-    this.playerMesh.add(this.headlight, this.headlight.target);
+    this.headlightR = new THREE.SpotLight(0xfff2cc, 54, 95, 0.34, 0.6, 1.4);
+    this.headlightR.target.position.set(0, -0.55, 42);
+    this.lampRig.add(
+      this.headlight,
+      this.headlight.target,
+      this.headlightR,
+      this.headlightR.target
+    );
 
     // Visible beam cones + a splash of light on the road ahead
     {
@@ -956,13 +1004,15 @@ export class GameEngine {
       this.beamMat = beamMat;
       this.beamBaseOpacity = beamMat.opacity;
       this.beamBaseOpacityNight = beamMat.opacity;
-      for (const sx of [-0.7, 0.7]) {
+      this.beams = [];
+      for (const sx of [-1, 1]) {
         const beam = new THREE.Mesh(beamGeo, beamMat);
-        beam.position.set(sx, 0.8, 8.7);
+        beam.position.set(sx * 0.66, 0.66, 8.7);
         // Splay each beam outward a touch so the pair diverges down the
         // road instead of running as two parallel tubes
-        beam.rotation.y = sx > 0 ? -0.035 : 0.035;
-        this.playerMesh.add(beam);
+        beam.rotation.y = -sx * 0.035;
+        this.lampRig.add(beam);
+        this.beams.push(beam);
       }
       const pool = new THREE.Mesh(
         new THREE.PlaneGeometry(8, 17),
@@ -980,8 +1030,18 @@ export class GameEngine {
       // the texture's near-edge cut lands at the bumper end.
       pool.rotation.z = Math.PI;
       pool.position.set(0, 0.07, 10.5);
-      this.playerMesh.add(pool);
+      // On a pivot rather than straight onto the car. The pool is where
+      // the beam LANDS, so it has to swing with the aim — but it also
+      // has to stay flat on the asphalt, which it would not if it
+      // inherited the body's roll and pitch. The pivot takes the yaw and
+      // leaves the rest.
+      this.pool = pool;
+      this.poolPivot = new THREE.Group();
+      this.poolPivot.add(pool);
+      this.playerMesh.add(this.poolPivot);
     }
+
+    this.fitLampsToCar();
 
     this.spawnTraffic(TRAFFIC_COUNT);
 
@@ -991,6 +1051,44 @@ export class GameEngine {
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
     window.addEventListener("blur", this.onBlur);
+  }
+
+  /**
+   * Put the lights where this car's lamps actually are.
+   *
+   * Every silhouette carries its lamps somewhere different — the wedge's
+   * are a light bar low across the nose, the coupe's are pop-ups on top
+   * of it — and cars.ts records the positions it built them at. A beam
+   * that starts somewhere other than the lamp it is supposed to come out
+   * of is most of what makes headlights look painted on, and the old rig
+   * started every beam from a fixed point 1.1 m up, which is roof height
+   * on all fourteen of them.
+   *
+   * Called again after every garage change, because the shell those
+   * positions came from is rebuilt from scratch each time.
+   */
+  private fitLampsToCar(): void {
+    const raw = (this.carBody?.userData.lampPositions as THREE.Vector3[]) ?? [];
+    // Left-most and right-most, so a car with a light bar (which records
+    // two) and one with pop-ups plus indicators (which records more)
+    // both give the outer pair.
+    const sorted = [...raw].sort((a, b) => a.x - b.x);
+    const left = sorted[0] ?? new THREE.Vector3(-0.66, 0.66, 1.9);
+    const right = sorted[sorted.length - 1] ?? new THREE.Vector3(0.66, 0.66, 1.9);
+    // A hair proud of the lens so the source is not inside its own glass.
+    const out = 0.06;
+    this.headlight.position.set(left.x, left.y, left.z + out);
+    this.headlightR.position.set(right.x, right.y, right.z + out);
+    this.headlight.target.position.set(left.x * 0.35, -0.55, 42);
+    this.headlightR.target.position.set(right.x * 0.35, -0.55, 42);
+    if (this.beams.length === 2) {
+      this.beams[0].position.set(left.x, left.y, left.z + 6.9);
+      this.beams[1].position.set(right.x, right.y, right.z + 6.9);
+    }
+    // The shadow camera's near plane has to clear the car's own nose or
+    // the bumper shadows the road immediately in front of it.
+    this.headlight.shadow.camera.near = 1.2;
+    this.headlight.shadow.camera.updateProjectionMatrix?.();
   }
 
   /** The night the paint reflects — see env.ts. Shared with the main
@@ -2275,6 +2373,7 @@ export class GameEngine {
     this.playerMesh.add(this.carBody);
     const newContact = this.carBody.userData.contact as THREE.Object3D | undefined;
     if (newContact) this.playerMesh.add(newContact);
+    this.fitLampsToCar();
     this.sound?.setEngine(this.tune.engine);
     this.sound?.configureAspiration(
       this.tune.aspiration === "super" ? "super" : this.tune.boostMult > 0 ? "turbo" : "none"
@@ -2993,6 +3092,28 @@ export class GameEngine {
     const pitchTarget = this.brake * 0.035 * Math.min(1, p.speed / 20) - this.throttle * 0.014;
     this.pitch += (pitchTarget - this.pitch) * Math.min(1, dt * 6);
     this.carBody.rotation.x = this.pitch;
+
+    // The lamps, bolted on. One copy of the body's attitude and the
+    // beams dive under braking, lift under power, roll into a corner and
+    // — the one that shows most — sweep across the scenery as the tail
+    // steps out, because driftYaw is part of that rotation.
+    this.lampRig.rotation.copy(this.carBody.rotation);
+
+    // Adaptive front lighting. Real swivelling lamps lead the car into a
+    // corner by up to about fifteen degrees; this leads by eight at full
+    // lock, damped so it leans rather than twitches on every correction.
+    const swivelTarget = this.steerSmooth * 5.5;
+    this.lampSwivel += (swivelTarget - this.lampSwivel) * Math.min(1, dt * 4);
+    this.headlight.target.position.x = this.lampSwivel + this.headlight.position.x * 0.35;
+    this.headlightR.target.position.x = this.lampSwivel + this.headlightR.position.x * 0.35;
+
+    // The pool on the asphalt follows the aim but stays flat: it is
+    // where the light lands, not part of the car. Yaw from the body,
+    // reach from the pitch — brake hard and the lit patch pulls in
+    // toward the bumper, which is exactly what a diving nose does to it.
+    this.poolPivot.rotation.y = this.carBody.rotation.y;
+    this.pool.position.x = this.lampSwivel * 0.5;
+    this.pool.position.z = 10.5 - this.pitch * 62;
     // Lit-up rears visibly overspin the road speed — the launch tell
     spinWheels(
       this.carBody,
