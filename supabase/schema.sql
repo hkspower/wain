@@ -98,27 +98,118 @@ create policy "admins delete places"
   using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
 
 -- ---------------------------------------------------------------------------
+-- Business submissions — "سجّل مكانك"
+--
+-- Anyone in Kuwait can submit their business from /add/, free, without an
+-- account. That means this is the one table the anon key may write to, so the
+-- policies are the security boundary and are deliberately narrow:
+--
+--   * insert only. There is no anon select policy, so a submitter cannot read
+--     back this table — not their own row, not anyone else's. Submissions carry
+--     phone numbers and emails, and an open select would publish the lot.
+--   * the insert check pins status to 'pending' and review fields to null, so
+--     nobody can post a row that is already approved.
+--   * a submission is NOT a place. Nothing here reaches the site until an admin
+--     approves it, which copies the fields into public.places.
+-- ---------------------------------------------------------------------------
+create table if not exists public.submissions (
+  id             uuid primary key default gen_random_uuid(),
+  status         text not null default 'pending'
+                   check (status in ('pending','approved','rejected')),
+
+  -- the business
+  name           text not null check (length(btrim(name)) between 2 and 120),
+  name_ar        text not null check (length(btrim(name_ar)) between 2 and 120),
+  category       text not null check (category in
+                   ('landmarks','restaurants','fastfood','coffee',
+                    'outdoors','shopping','culture','family')),
+  area_ar        text not null check (length(btrim(area_ar)) between 2 and 80),
+  address_ar     text not null default '' check (length(address_ar) <= 300),
+  lat            double precision check (lat between 28.5 and 30.2),
+  lng            double precision check (lng between 46.5 and 48.6),
+  price_level    smallint not null default 2 check (price_level between 1 and 3),
+  tagline_ar     text not null check (length(btrim(tagline_ar)) between 4 and 160),
+  description_ar text not null default '' check (length(description_ar) <= 1200),
+
+  -- how to reach the business publicly
+  phone          text not null default '' check (length(phone) <= 40),
+  instagram      text not null default '' check (length(instagram) <= 80),
+  website        text not null default '' check (length(website) <= 200),
+
+  -- how to reach whoever submitted it (never shown on the site)
+  contact_name   text not null check (length(btrim(contact_name)) between 2 and 120),
+  contact_email  text not null check (contact_email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'),
+  contact_phone  text not null default '' check (length(contact_phone) <= 40),
+
+  -- moderation
+  admin_note     text not null default '',
+  reviewed_at    timestamptz,
+  reviewed_by    uuid references auth.users (id) on delete set null,
+  published_slug text,
+
+  created_at     timestamptz not null default now()
+);
+
+create index if not exists submissions_status_idx on public.submissions (status, created_at desc);
+
+-- The same business submitted twice while the first is still pending is almost
+-- always a double-tap on the button, not a second business.
+create unique index if not exists submissions_pending_unique
+  on public.submissions (lower(btrim(name_ar)), lower(btrim(area_ar)))
+  where status = 'pending';
+
+alter table public.submissions enable row level security;
+
+drop policy if exists "anyone may submit a business" on public.submissions;
+create policy "anyone may submit a business"
+  on public.submissions for insert
+  to anon, authenticated
+  with check (
+    status = 'pending'
+    and reviewed_at is null
+    and reviewed_by is null
+    and published_slug is null
+    and admin_note = ''
+  );
+
+drop policy if exists "admins read submissions" on public.submissions;
+create policy "admins read submissions"
+  on public.submissions for select
+  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+
+drop policy if exists "admins update submissions" on public.submissions;
+create policy "admins update submissions"
+  on public.submissions for update
+  using (exists (select 1 from public.admins a where a.user_id = auth.uid()))
+  with check (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+
+drop policy if exists "admins delete submissions" on public.submissions;
+create policy "admins delete submissions"
+  on public.submissions for delete
+  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+
+-- ---------------------------------------------------------------------------
 -- Seed: the 17 places the site ships with today.
 -- ---------------------------------------------------------------------------
 insert into public.places
   (slug, name, name_ar, category, area, area_ar, lat, lng, rating, price_level,
    emoji, tagline_ar, description_ar, highlights_ar, best_time_ar, featured, sort_order)
 values
-  ('kuwait-towers', 'Kuwait Towers', 'أبراج الكويت', 'landmarks', 'Kuwait City', 'مدينة الكويت', 29.3897, 48.0022, 4.7, 2, '🗼', 'أيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.', 'undefined', ARRAY['كرة المشاهدة ٣٦٠°', 'مطعم دوّار', 'ممشى على البحر']::text[], 'وقت الغروب، لمّا تضوّي الأبراج', true, 0),
-  ('souq-al-mubarakiya', 'Souq Al-Mubarakiya', 'سوق المباركية', 'shopping', 'Kuwait City', 'مدينة الكويت', 29.3759, 47.9774, 4.8, 1, '🏮', 'قرنين من التجارة والبهارات والحكايات.', 'undefined', ARRAY['أكل كويتي أصيل', 'سوق البهارات والذهب', 'أحواش تراثية']::text[], 'بالليل، بعد الخامسة', true, 10),
-  ('al-shaheed-park', 'Al Shaheed Park', 'حديقة الشهيد', 'outdoors', 'Kuwait City', 'مدينة الكويت', 29.3689, 47.9884, 4.6, 1, '🌳', 'الرئة الخضراء للعاصمة.', 'undefined', ARRAY['حدائق نباتية', 'متحف الحبيتات ومتحف الذاكرة', 'مسار مشي حول البحيرة']::text[], 'الصبح بدري أو بعد المغرب', true, 20),
-  ('mais-alghanim', 'Mais Alghanim', 'ميس الغانم', 'restaurants', 'Gulf Road', 'شارع الخليج', 29.3665, 48.0003, 4.6, 2, '🍢', 'مطعم كويتي عريق على شارع الخليج.', 'undefined', ARRAY['مشاوي ومقبّلات', 'إطلالة على شارع الخليج', 'مناسب للعوائل']::text[], 'العشاء، ويفضّل الحجز', true, 30),
-  ('freej-swaileh', 'Freej Swaileh', 'فريج صويلح', 'restaurants', 'Salmiya', 'السالمية', 29.3339, 48.0709, 4.5, 2, '🍛', 'أكل كويتي في أجواء الفريج القديم.', 'undefined', ARRAY['مچبوس ومرقوق', 'ديكور تراثي', 'أجواء كويتية']::text[], 'الغدا، خصوصاً نهاية الأسبوع', false, 40),
-  ('mubarakiya-tea-houses', 'Mubarakiya Tea Houses', 'مقاهي المباركية', 'coffee', 'Kuwait City', 'مدينة الكويت', 29.3765, 47.9781, 4.7, 1, '☕', 'چاي وقهوة عربية في حوش السوق.', 'undefined', ARRAY['چاي كرك', 'قهوة عربية وهيل', 'جلسات شعبية']::text[], 'العصر وبعد المغرب', true, 50),
-  ('salem-al-mubarak-street', 'Salem Al Mubarak Street', 'شارع سالم المبارك', 'fastfood', 'Salmiya', 'السالمية', 29.3369, 48.0664, 4.3, 1, '🍔', 'شارع الأكل السريع والسهرات في السالمية.', 'undefined', ARRAY['برجر ووجبات سريعة', 'محلات حلا وآيس كريم', 'مفتوح لوقت متأخر']::text[], 'بالليل، بعد الثامنة', false, 60),
-  ('the-avenues', 'The Avenues', 'الأفنيوز', 'shopping', 'Al Rai', 'الري', 29.3025, 47.937, 4.7, 3, '🛍️', 'مدينة داخل مدينة — أكبر مول في الخليج.', 'undefined', ARRAY['مناطق تسوّق متنوّعة', 'مطاعم عالمية', 'ممشى داخلي مكيّف']::text[], 'الصبح في أيام الدوام، عشان الزحمة', false, 70),
-  ('souq-sharq', 'Souq Sharq', 'سوق شرق', 'shopping', 'Kuwait City', 'مدينة الكويت', 29.3811, 47.9903, 4.4, 2, '⛵', 'مول على البحر مع مارينا وقوارب.', 'undefined', ARRAY['إطلالة على المارينا', 'كافيهات على البحر', 'ممشى بحري']::text[], 'العصر، قبل الغروب', false, 80),
-  ('grand-mosque', 'The Grand Mosque', 'المسجد الكبير', 'culture', 'Kuwait City', 'مدينة الكويت', 29.3759, 47.986, 4.9, 1, '🕌', 'أكبر مساجد الكويت، وتحفة في الفن الإسلامي.', 'undefined', ARRAY['جولات مجانية بمرشد', 'خط عربي وقبة مذهلة', 'أحواش هادية']::text[], 'مواعيد الجولات الصباحية', false, 90),
-  ('marina-beach', 'Marina Beach & Crescent', 'شاطئ المارينا', 'outdoors', 'Salmiya', 'السالمية', 29.3411, 48.0673, 4.5, 1, '🏖️', 'رمل ناعم ومطاعم على بحر السالمية.', 'undefined', ARRAY['سباحة وكاياك', 'كافيهات على الواجهة', 'ممشى المارينا كرسنت']::text[], 'العصر المتأخر', true, 100),
-  ('jacc', 'Sheikh Jaber Cultural Centre', 'مركز الشيخ جابر الثقافي', 'culture', 'Kuwait City', 'مدينة الكويت', 29.3662, 47.9885, 4.8, 2, '🎭', 'دار الأوبرا في الخليج.', 'undefined', ARRAY['عروض عالمية', 'معمار مميّز', 'إضاءة مسائية']::text[], 'ليالي العروض — احجز مقدّماً', false, 110),
-  ('failaka-island', 'Failaka Island', 'جزيرة فيلكا', 'outdoors', 'Arabian Gulf', 'الخليج العربي', 29.4457, 48.3318, 4.4, 2, '⛵', 'آثار يونانية قديمة، على بعد رحلة عبّارة.', 'undefined', ARRAY['آثار هلنستية', 'رحلات عبّارة يومية', 'شواطئ هادية']::text[], 'الربيع والشتاء، نهاية الأسبوع', false, 120),
-  ('mirror-house', 'The Mirror House', 'بيت المرايا', 'culture', 'Qadsiya', 'القادسية', 29.3486, 47.9932, 4.6, 1, '🪞', 'بيت مغطّى بالمرايا من داخله وخارجه.', 'undefined', ARRAY['غرف فسيفساء المرايا', 'جولة مع عائلة الفنانة', 'تجربة فريدة في الخليج']::text[], 'بموعد مسبق', false, 130),
-  ('aqua-park', 'Aqua Park Kuwait', 'أكوا بارك', 'family', 'Kuwait City', 'مدينة الكويت', 29.3856, 47.9958, 4.3, 2, '🎢', 'أول مدينة ألعاب مائية في الخليج، جنب الأبراج.', 'undefined', ARRAY['مسبح أمواج وزحاليق', 'مناطق ألعاب للصغار', 'موقع على البحر']::text[], 'الصبح في أيام الدوام صيفاً', false, 140),
-  ('tareq-rajab-museum', 'Tareq Rajab Museum', 'متحف طارق رجب', 'culture', 'Jabriya', 'الجابرية', 29.3222, 48.0231, 4.7, 1, '🏺', 'كنز خاص من الفن الإسلامي.', 'undefined', ARRAY['خط عربي نادر', 'مجوهرات ذهب وفضة', 'قصة مذهلة']::text[], 'عصر أيام الدوام', false, 150),
-  ('green-island', 'Green Island', 'الجزيرة الخضراء', 'family', 'Gulf Road', 'شارع الخليج', 29.3652, 48.0076, 4.2, 1, '🏝️', 'جزيرة صناعية فيها حدائق وبحيرات.', 'undefined', ARRAY['بحيرة سباحة', 'برج مشاهدة', 'مساحات خضراء للتنزّه']::text[], 'الأشهر الباردة، وقت العصر', false, 160)
+  ('kuwait-towers', 'Kuwait Towers', 'أبراج الكويت', 'landmarks', 'Kuwait City', 'مدينة الكويت', 29.389, 48.0034, 4.7, 2, '🗼', 'أيقونة الكويت، على ارتفاع ١٨٧ متر فوق الخليج.', 'الأبراج الثلاثة على ساحل الخليج العربي هي أشهر معلم في الكويت. اطلع للكرة الدوّارة وشوف المدينة والبحر من ٣٦٠ درجة، وإذا جيت وقت المغرب بتشوف الأبراج وهي تضوّي.', ARRAY['كرة المشاهدة ٣٦٠°', 'مطعم دوّار', 'ممشى على البحر']::text[], 'وقت الغروب، لمّا تضوّي الأبراج', true, 0),
+  ('souq-al-mubarakiya', 'Souq Al-Mubarakiya', 'سوق المباركية', 'shopping', 'Kuwait City', 'مدينة الكويت', 29.3741, 47.9788, 4.8, 1, '🏮', 'قرنين من التجارة والبهارات والحكايات.', 'من أقدم أسواق الكويت. أزقّة مليانة بسطات بهارات ودكاكين ذهب وبياعين تمر ومطاعم صغيرة. يا ليتك تجي وأنت جوعان، وتختم السهرة بچاي في الحوش القديم.', ARRAY['أكل كويتي أصيل', 'سوق البهارات والذهب', 'أحواش تراثية']::text[], 'بالليل، بعد الخامسة', true, 10),
+  ('al-shaheed-park', 'Al Shaheed Park', 'حديقة الشهيد', 'outdoors', 'Kuwait City', 'مدينة الكويت', 29.3648, 47.9906, 4.6, 1, '🌳', 'الرئة الخضراء للعاصمة.', 'أكبر حديقة في الكويت، فيها حدائق نباتية وبحيرات ومتحفين ومسارات مشي وحفلات في الهواء الطلق. مكان ممتاز لمشية عصرية في قلب المدينة.', ARRAY['حدائق نباتية', 'متحف الحبيتات ومتحف الذاكرة', 'مسار مشي حول البحيرة']::text[], 'الصبح بدري أو بعد المغرب', true, 20),
+  ('mais-alghanim', 'Mais Alghanim', 'ميس الغانم', 'restaurants', 'Gulf Road', 'شارع الخليج', 29.3665, 48.0003, 4.6, 2, '🍢', 'مطعم كويتي عريق على شارع الخليج.', 'من أقدم وأشهر المطاعم الكويتية، معروف بالمشاوي والمقبّلات والأكل الشامي والكويتي. مكان يعرفه كل أهل الكويت، ومناسب للعزايم العائلية.', ARRAY['مشاوي ومقبّلات', 'إطلالة على شارع الخليج', 'مناسب للعوائل']::text[], 'العشاء، ويفضّل الحجز', true, 30),
+  ('freej-swaileh', 'Freej Swaileh', 'فريج صويلح', 'restaurants', 'Salmiya', 'السالمية', 29.3339, 48.0709, 4.5, 2, '🍛', 'أكل كويتي في أجواء الفريج القديم.', 'مطعم كويتي بديكور تراثي يرجّعك للفريج القديم. القائمة كويتية أصيلة من مچبوس ومرقوق وتشريب، والجلسة نفسها جزء من التجربة.', ARRAY['مچبوس ومرقوق', 'ديكور تراثي', 'أجواء كويتية']::text[], 'الغدا، خصوصاً نهاية الأسبوع', false, 40),
+  ('mubarakiya-tea-houses', 'Mubarakiya Tea Houses', 'مقاهي المباركية', 'coffee', 'Kuwait City', 'مدينة الكويت', 29.3746, 47.9783, 4.7, 1, '☕', 'چاي وقهوة عربية في حوش السوق.', 'في قلب المباركية أحواش وجلسات شعبية تقدّم الچاي والقهوة العربية والكرك. أرخص وأصدق تجربة قهوة في الكويت، وأحلى مكان تقعد فيه بعد جولة السوق.', ARRAY['چاي كرك', 'قهوة عربية وهيل', 'جلسات شعبية']::text[], 'العصر وبعد المغرب', true, 50),
+  ('salem-al-mubarak-street', 'Salem Al Mubarak Street', 'شارع سالم المبارك', 'fastfood', 'Salmiya', 'السالمية', 29.3369, 48.0664, 4.3, 1, '🍔', 'شارع الأكل السريع والسهرات في السالمية.', 'أشهر شارع في السالمية، مليان مطاعم وجبات سريعة ومحلات حلا وكافيهات. مكان الطلعة السريعة إذا تبي تاكل شي على الماشي وتتمشى بعدها.', ARRAY['برجر ووجبات سريعة', 'محلات حلا وآيس كريم', 'مفتوح لوقت متأخر']::text[], 'بالليل، بعد الثامنة', false, 60),
+  ('the-avenues', 'The Avenues', 'الأفنيوز', 'shopping', 'Al Rai', 'الري', 29.3025, 47.937, 4.7, 3, '🛍️', 'مدينة داخل مدينة — أكبر مول في الخليج.', 'أكثر من ١١٠٠ محل موزّعة على مناطق مختلفة، كل وحدة لها طابعها. من الماركات العالمية في البرستيج إلى الجراند أفنيو اللي يشبه السوق المفتوح. يوم كامل ما يكفيه.', ARRAY['مناطق تسوّق متنوّعة', 'مطاعم عالمية', 'ممشى داخلي مكيّف']::text[], 'الصبح في أيام الدوام، عشان الزحمة', false, 70),
+  ('souq-sharq', 'Souq Sharq', 'سوق شرق', 'shopping', 'Kuwait City', 'مدينة الكويت', 29.3838, 47.9925, 4.4, 2, '⛵', 'مول على البحر مع مارينا وقوارب.', 'مول على الواجهة البحرية مع مارينا وقوارب راسية وكافيهات مطلّة على الماء. مكان هادي للتسوّق ومشية على البحر في نفس الطلعة.', ARRAY['إطلالة على المارينا', 'كافيهات على البحر', 'ممشى بحري']::text[], 'العصر، قبل الغروب', false, 80),
+  ('grand-mosque', 'The Grand Mosque', 'المسجد الكبير', 'culture', 'Kuwait City', 'مدينة الكويت', 29.3792, 47.9857, 4.9, 1, '🕌', 'أكبر مساجد الكويت، وتحفة في الفن الإسلامي.', 'على مساحة ٤٥ ألف متر مربع، المسجد الكبير يبهرك بالخط العربي والزخارف الأندلسية والقبة الضخمة والأحواش الهادية. فيه جولات مجانية بمرشد لكل الزوّار.', ARRAY['جولات مجانية بمرشد', 'خط عربي وقبة مذهلة', 'أحواش هادية']::text[], 'مواعيد الجولات الصباحية', false, 90),
+  ('marina-beach', 'Marina Beach & Crescent', 'شاطئ المارينا', 'outdoors', 'Salmiya', 'السالمية', 29.3411, 48.0673, 4.5, 1, '🏖️', 'رمل ناعم ومطاعم على بحر السالمية.', 'شاطئ نظيف ومناسب للعوائل، مربوط بمول المارينا بجسر مشاة. اسبح أو استأجر كاياك، أو بس تمشّى على الكرسنت وقت الذهبي واختر كافيه على البحر.', ARRAY['سباحة وكاياك', 'كافيهات على الواجهة', 'ممشى المارينا كرسنت']::text[], 'العصر المتأخر', true, 100),
+  ('jacc', 'Sheikh Jaber Cultural Centre', 'مركز الشيخ جابر الثقافي', 'culture', 'Kuwait City', 'مدينة الكويت', 29.3589, 48.0004, 4.8, 2, '🎭', 'دار الأوبرا في الخليج.', 'مجمّع مسارح وقاعات موسيقية بتصميم مغطّى بزخارف هندسية إسلامية. احضر أوبرا أو حفل سيمفوني، أو بس تعال شوف المعمار وهو ينعكس على المسطحات المائية.', ARRAY['عروض عالمية', 'معمار مميّز', 'إضاءة مسائية']::text[], 'ليالي العروض — احجز مقدّماً', false, 110),
+  ('failaka-island', 'Failaka Island', 'جزيرة فيلكا', 'outdoors', 'Arabian Gulf', 'الخليج العربي', 29.4457, 48.3318, 4.4, 2, '⛵', 'آثار يونانية قديمة، على بعد رحلة عبّارة.', 'كانت موطن حضارة من العصر البرونزي وفيها قلعة هلنستية. فيلكا تجمع بين الآثار والشواطئ الهادية. خذ العبّارة من السالمية، لف على الآثار، واقعد لشواء على البحر.', ARRAY['آثار هلنستية', 'رحلات عبّارة يومية', 'شواطئ هادية']::text[], 'الربيع والشتاء، نهاية الأسبوع', false, 120),
+  ('mirror-house', 'The Mirror House', 'بيت المرايا', 'culture', 'Qadsiya', 'القادسية', 29.3486, 47.9932, 4.6, 1, '🪞', 'بيت مغطّى بالمرايا من داخله وخارجه.', 'الفنانة ليديا القطان قضت عقود وهي تغطّي كل سطح في بيت عائلتها بفسيفساء المرايا. النتيجة وحدة من أغرب المتاحف في الشرق الأوسط، والزيارة بموعد مسبق ومع جولة شخصية.', ARRAY['غرف فسيفساء المرايا', 'جولة مع عائلة الفنانة', 'تجربة فريدة في الخليج']::text[], 'بموعد مسبق', false, 130),
+  ('aqua-park', 'Aqua Park Kuwait', 'أكوا بارك', 'family', 'Kuwait City', 'مدينة الكويت', 29.3878, 48.0004, 4.3, 2, '🎢', 'أول مدينة ألعاب مائية في الخليج، جنب الأبراج.', 'زحاليق ومسابح أمواج وأنهار كسولة ممتدة على الواجهة البحرية. طلعة عائلية سهلة، مع أماكن أكل وجلسات مظلّلة، وكلها جنب أبراج الكويت.', ARRAY['مسبح أمواج وزحاليق', 'مناطق ألعاب للصغار', 'موقع على البحر']::text[], 'الصبح في أيام الدوام صيفاً', false, 140),
+  ('tareq-rajab-museum', 'Tareq Rajab Museum', 'متحف طارق رجب', 'culture', 'Jabriya', 'الجابرية', 29.3222, 48.0231, 4.7, 1, '🏺', 'كنز خاص من الفن الإسلامي.', 'آلاف القطع من الخط العربي والخزف والمجوهرات والآلات الموسيقية، مجموعة على مدى خمسين سنة. متحف هادي ومنسّق بعناية، ومعروف إنه نجا من الغزو وهو مخبّى خلف جدار وهمي.', ARRAY['خط عربي نادر', 'مجوهرات ذهب وفضة', 'قصة مذهلة']::text[], 'عصر أيام الدوام', false, 150),
+  ('green-island', 'Green Island', 'الجزيرة الخضراء', 'family', 'Gulf Road', 'شارع الخليج', 29.3699, 48.0092, 4.2, 1, '🏝️', 'جزيرة صناعية فيها حدائق وبحيرات.', 'أول جزيرة صناعية في الخليج، مربوطة بالكورنيش بممشى. مساحات خضراء وبحيرة سباحة وبرج مشاهدة ومدرّج، تكفي لنص يوم مع العيال.', ARRAY['بحيرة سباحة', 'برج مشاهدة', 'مساحات خضراء للتنزّه']::text[], 'الأشهر الباردة، وقت العصر', false, 160)
 on conflict (slug) do nothing;

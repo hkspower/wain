@@ -10,7 +10,12 @@ const body = src.slice(src.indexOf("export const places"));
 const blocks = body.split(/\n  \{\n/).slice(1);
 
 const q = (s) => "'" + String(s).replace(/'/g, "''") + "'";
-const field = (b, k) => (b.match(new RegExp(`${k}: "((?:[^"\\\\]|\\\\.)*)"`)) || [])[1];
+// \s* after the colon, because a long value wraps onto its own line:
+//   descriptionAr:
+//     "الأبراج الثلاثة …",
+// Without it every description matched nothing and every seeded row went in
+// carrying the literal string 'undefined'.
+const field = (b, k) => (b.match(new RegExp(`${k}:\\s*"((?:[^"\\\\]|\\\\.)*)"`)) || [])[1];
 const num = (b, k) => (b.match(new RegExp(`${k}: ([-\\d.]+)`)) || [])[1];
 
 const rows = blocks.map((b, i) => {
@@ -116,6 +121,97 @@ create policy "admins update places"
 drop policy if exists "admins delete places" on public.places;
 create policy "admins delete places"
   on public.places for delete
+  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+
+-- ---------------------------------------------------------------------------
+-- Business submissions — "سجّل مكانك"
+--
+-- Anyone in Kuwait can submit their business from /add/, free, without an
+-- account. That means this is the one table the anon key may write to, so the
+-- policies are the security boundary and are deliberately narrow:
+--
+--   * insert only. There is no anon select policy, so a submitter cannot read
+--     back this table — not their own row, not anyone else's. Submissions carry
+--     phone numbers and emails, and an open select would publish the lot.
+--   * the insert check pins status to 'pending' and review fields to null, so
+--     nobody can post a row that is already approved.
+--   * a submission is NOT a place. Nothing here reaches the site until an admin
+--     approves it, which copies the fields into public.places.
+-- ---------------------------------------------------------------------------
+create table if not exists public.submissions (
+  id             uuid primary key default gen_random_uuid(),
+  status         text not null default 'pending'
+                   check (status in ('pending','approved','rejected')),
+
+  -- the business
+  name           text not null check (length(btrim(name)) between 2 and 120),
+  name_ar        text not null check (length(btrim(name_ar)) between 2 and 120),
+  category       text not null check (category in
+                   ('landmarks','restaurants','fastfood','coffee',
+                    'outdoors','shopping','culture','family')),
+  area_ar        text not null check (length(btrim(area_ar)) between 2 and 80),
+  address_ar     text not null default '' check (length(address_ar) <= 300),
+  lat            double precision check (lat between 28.5 and 30.2),
+  lng            double precision check (lng between 46.5 and 48.6),
+  price_level    smallint not null default 2 check (price_level between 1 and 3),
+  tagline_ar     text not null check (length(btrim(tagline_ar)) between 4 and 160),
+  description_ar text not null default '' check (length(description_ar) <= 1200),
+
+  -- how to reach the business publicly
+  phone          text not null default '' check (length(phone) <= 40),
+  instagram      text not null default '' check (length(instagram) <= 80),
+  website        text not null default '' check (length(website) <= 200),
+
+  -- how to reach whoever submitted it (never shown on the site)
+  contact_name   text not null check (length(btrim(contact_name)) between 2 and 120),
+  contact_email  text not null check (contact_email ~ '^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$'),
+  contact_phone  text not null default '' check (length(contact_phone) <= 40),
+
+  -- moderation
+  admin_note     text not null default '',
+  reviewed_at    timestamptz,
+  reviewed_by    uuid references auth.users (id) on delete set null,
+  published_slug text,
+
+  created_at     timestamptz not null default now()
+);
+
+create index if not exists submissions_status_idx on public.submissions (status, created_at desc);
+
+-- The same business submitted twice while the first is still pending is almost
+-- always a double-tap on the button, not a second business.
+create unique index if not exists submissions_pending_unique
+  on public.submissions (lower(btrim(name_ar)), lower(btrim(area_ar)))
+  where status = 'pending';
+
+alter table public.submissions enable row level security;
+
+drop policy if exists "anyone may submit a business" on public.submissions;
+create policy "anyone may submit a business"
+  on public.submissions for insert
+  to anon, authenticated
+  with check (
+    status = 'pending'
+    and reviewed_at is null
+    and reviewed_by is null
+    and published_slug is null
+    and admin_note = ''
+  );
+
+drop policy if exists "admins read submissions" on public.submissions;
+create policy "admins read submissions"
+  on public.submissions for select
+  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+
+drop policy if exists "admins update submissions" on public.submissions;
+create policy "admins update submissions"
+  on public.submissions for update
+  using (exists (select 1 from public.admins a where a.user_id = auth.uid()))
+  with check (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+
+drop policy if exists "admins delete submissions" on public.submissions;
+create policy "admins delete submissions"
+  on public.submissions for delete
   using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
 
 -- ---------------------------------------------------------------------------

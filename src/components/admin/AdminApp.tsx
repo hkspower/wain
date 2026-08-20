@@ -14,8 +14,11 @@ import {
   type PlaceRow,
 } from "@/lib/supabase";
 import PlaceForm, { type EditablePlace } from "@/components/admin/PlaceForm";
+import Submissions, { submissionToPlace } from "@/components/admin/Submissions";
+import type { SubmissionRow } from "@/lib/submissions";
 
 type View = { mode: "list" } | { mode: "edit"; place?: EditablePlace };
+type Tab = "places" | "submissions";
 
 export default function AdminApp() {
   const [session, setSession] = useState<Session | null>(null);
@@ -27,6 +30,12 @@ export default function AdminApp() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [q, setQ] = useState("");
+  const [tab, setTab] = useState<Tab>("places");
+  const [pendingCount, setPendingCount] = useState(0);
+  // Set while an approved submission is being reviewed in the place editor, so
+  // saving the place can close the submission out in the same step. Without it
+  // an approved business would sit in the queue forever, looking unhandled.
+  const [approving, setApproving] = useState<SubmissionRow | null>(null);
 
   // ---- auth ---------------------------------------------------------------
   useEffect(() => {
@@ -105,6 +114,34 @@ export default function AdminApp() {
       setError(res.error.message);
       return;
     }
+    // If this save came from approving a submission, close that submission out
+    // now — same click, so the queue cannot drift from reality.
+    if (approving) {
+      const { error: e } = await sb
+        .from("submissions")
+        .update({
+          status: "approved",
+          published_slug: p.slug,
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: session?.user.id ?? null,
+        })
+        .eq("id", approving.id);
+      setApproving(null);
+      if (e) {
+        // The place saved; only the bookkeeping failed. Say exactly that rather
+        // than implying the whole thing went wrong.
+        setError(`أضفنا المكان، بس ما قدرنا نقفل الطلب: ${e.message}`);
+        setView({ mode: "list" });
+        void load();
+        return;
+      }
+      setNotice(`تم اعتماد «${p.nameAr}» وإضافته. الصفحة تطلع بعد النشر.`);
+      setView({ mode: "list" });
+      setTab("submissions");
+      void load();
+      return;
+    }
+
     setNotice(p.id ? "تم الحفظ." : "تمت الإضافة. الصفحة الخاصة فيه تطلع بعد النشر.");
     setView({ mode: "list" });
     void load();
@@ -167,26 +204,71 @@ export default function AdminApp() {
       {error && <Banner tone="error" onClose={() => setError("")}>{error}</Banner>}
       {notice && <Banner tone="ok" onClose={() => setNotice("")}>{notice}</Banner>}
 
+      {view.mode !== "edit" && (
+        <div className="mb-6 flex flex-wrap gap-2" role="tablist" aria-label="أقسام اللوحة">
+          {([["places", "الأماكن"], ["submissions", "طلبات التسجيل"]] as const).map(([id, text]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={tab === id}
+              onClick={() => setTab(id)}
+              className={`flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold transition ${
+                tab === id
+                  ? "bg-ink-900 text-white"
+                  : "border border-sand-200 bg-white text-ink-600 hover:border-sea-300"
+              }`}
+            >
+              {text}
+              {id === "submissions" && pendingCount > 0 && (
+                <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${
+                  tab === id ? "bg-white/20 text-white" : "bg-sun-100 text-sun-900"
+                }`}>
+                  {toArabicDigits(pendingCount)}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
       {view.mode === "edit" ? (
         <section className="rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
           <button
             type="button"
-            onClick={() => setView({ mode: "list" })}
+            onClick={() => { setApproving(null); setView({ mode: "list" }); }}
             className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-ink-600 transition hover:text-coral-700"
           >
             <IconBack className="size-4" />
             رجوع للقائمة
           </button>
+          {approving && (
+            <p className="mb-4 rounded-2xl bg-sun-50 px-4 py-3 text-sm text-sun-900">
+              مراجعة طلب من <strong>{approving.contact_name}</strong> (
+              <span dir="ltr">{approving.contact_email}</span>). عبّي التقييم
+              والرابط، وبعد الحفظ ينقفل الطلب تلقائياً.
+            </p>
+          )}
           <h2 className="mb-5 font-display text-xl font-semibold text-ink-900">
-            {view.place ? `تعديل: ${view.place.nameAr}` : "إضافة مكان جديد"}
+            {approving
+              ? `اعتماد: ${approving.name_ar}`
+              : view.place ? `تعديل: ${view.place.nameAr}` : "إضافة مكان جديد"}
           </h2>
           <PlaceForm
             initial={view.place}
             busy={busy}
             onSave={save}
-            onCancel={() => setView({ mode: "list" })}
+            onCancel={() => { setApproving(null); setView({ mode: "list" }); }}
           />
         </section>
+      ) : tab === "submissions" ? (
+        <Submissions
+          onCountChange={setPendingCount}
+          onApprove={(s) => {
+            setApproving(s);
+            setView({ mode: "edit", place: submissionToPlace(s) });
+          }}
+        />
       ) : (
         <>
           <div className="mb-5 flex flex-wrap items-center gap-3">
