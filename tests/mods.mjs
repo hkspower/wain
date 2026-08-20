@@ -42,9 +42,13 @@ const check = (c, m) => { if (!c) fail.push(m); return c ? "ok" : "FAIL"; };
 const measure = (owned, equipped, rig) =>
   page.evaluate(([owned, equipped, rig]) => {
     const e = window.__grnEngine;
+    // Builds are per car now, so a part has to be fitted to the car that
+    // is about to be measured rather than to the player.
     const g = JSON.parse(localStorage.getItem("gulf-road-nights-garage") ?? "{}");
-    g.owned = [...new Set([...(g.owned ?? []), ...owned])];
-    g.equipped = { ...(g.equipped ?? {}), ...equipped };
+    g.builds = g.builds ?? {};
+    const b = (g.builds[g.car] = g.builds[g.car] ?? { owned: [], equipped: {} });
+    b.owned = [...new Set([...(b.owned ?? []), ...owned])];
+    b.equipped = { ...(b.equipped ?? {}), ...equipped };
     localStorage.setItem("gulf-road-nights-garage", JSON.stringify(g));
     e.applyGarage();
 
@@ -174,8 +178,8 @@ const measure = (owned, equipped, rig) =>
 
 const strip = (car = "wain-special") => page.evaluate((car) => {
   localStorage.setItem("gulf-road-nights-garage", JSON.stringify({
-    car, cars: [car], owned: [], kd: 99999,
-    equipped: { paint: "paint-white", glow: "glow-none" },
+    car, cars: [car], kd: 99999,
+    builds: { [car]: { owned: [], equipped: { paint: "paint-white", glow: "glow-none" } } },
   }));
   window.__grnEngine.applyGarage();
 }, car);
@@ -313,6 +317,63 @@ const tallTop = await measure(["x"], { gearbox: "gearbox-tall" }, "topSpeed");
 console.log(`Gearboxes    180-260 km/h: close ${closeBox.secs}s vs tall ${tallBox.secs}s  |  top: close ${closeTop.top} vs tall ${tallTop.top} km/h  ` +
   check(closeBox.secs < tallBox.secs, "the close-ratio box is not quicker in the roll-on") + " " +
   check(tallTop.top > closeTop.top + 5, "the tall final drive gains no top end"));
+
+// 8. A build belongs to a car, not to the player.
+// One owned list used to follow the driver into whatever he sat in, so
+// the first turbo upgraded the whole driveway and every car bought after
+// the first arrived fully built. This is the check that it does not.
+//
+// B is compared against B — its OWN stock numbers — not against A. The
+// first version of this compared B's total against A's and passed even
+// with builds forced global, because B's base is 140 km/h slower than
+// A's and swallowed the whole inherited build.
+const perCar = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  const A = "falcon-720", B = "deera-sedan";
+  const FITTED = { owned: ["twin-turbo", "weight", "ecu"], equipped: { aspiration: "twin-turbo" } };
+  const read = (car, builds, cars) => {
+    localStorage.setItem("gulf-road-nights-garage", JSON.stringify({ car, cars, kd: 99999, builds }));
+    e.applyGarage();
+    return { accel: +e.tune.accelMult.toFixed(3), top: e.tune.topSpeedKmh };
+  };
+  return {
+    // A alone, stock and built: the parts must do something at all.
+    bareA: read(A, { [A]: { owned: [], equipped: {} } }, [A]),
+    builtA: read(A, { [A]: FITTED }, [A]),
+    // B alone, stock — the reference.
+    bareB: read(B, { [B]: { owned: [], equipped: {} } }, [B]),
+    // B in a driveway where A is fully built. B must be untouched.
+    bWithBuiltA: read(B, { [A]: FITTED, [B]: { owned: [], equipped: {} } }, [A, B]),
+  };
+});
+console.log(
+  `per-car      A stock ${perCar.bareA.accel}/${perCar.bareA.top} -> built ${perCar.builtA.accel}/${perCar.builtA.top}  |  ` +
+    `B alone ${perCar.bareB.accel}/${perCar.bareB.top} -> beside a built A ${perCar.bWithBuiltA.accel}/${perCar.bWithBuiltA.top}  ` +
+    check(perCar.builtA.accel > perCar.bareA.accel, "the parts fitted to A did nothing to A") + " " +
+    check(
+      perCar.bWithBuiltA.accel === perCar.bareB.accel && perCar.bWithBuiltA.top === perCar.bareB.top,
+      `B inherited A's build: ${perCar.bWithBuiltA.accel}/${perCar.bWithBuiltA.top} against its own stock ${perCar.bareB.accel}/${perCar.bareB.top}`
+    )
+);
+
+// 9. An old save keeps what it paid for.
+// Saves written before builds were per-car carry one owned list at the
+// top level. It has to land on the car that was being driven, or every
+// player loses their whole build the day this ships.
+const migrated = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  localStorage.setItem("gulf-road-nights-garage", JSON.stringify({
+    car: "falcon-720", cars: ["falcon-720", "deera-sedan"], kd: 4242,
+    owned: ["twin-turbo", "weight"], equipped: { aspiration: "twin-turbo" },
+  }));
+  e.applyGarage();
+  const driven = { accel: +e.tune.accelMult.toFixed(3), top: e.tune.topSpeedKmh };
+  const g = JSON.parse(localStorage.getItem("gulf-road-nights-garage"));
+  return { driven, kd: g.kd, stillLegacy: Array.isArray(g.owned) };
+});
+console.log(`migration    old save -> driven car accel ${migrated.driven.accel} top ${migrated.driven.top}, ${migrated.kd} KD kept  ` +
+  check(migrated.driven.top > 360, "an old save lost the parts it had bought") + " " +
+  check(migrated.kd === 4242, "an old save lost its money"));
 
 console.log(fail.length ? "\nFAILURES:\n - " + fail.join("\n - ") : "\nevery new mod changes the car");
 await browser.close();

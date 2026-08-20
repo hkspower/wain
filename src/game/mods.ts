@@ -370,13 +370,54 @@ export function getCar(id: string): CarModel {
 /** Stake tiers offered before a race; higher rivals allow bigger money. */
 export const WAGERS = [250, 500, 1000, 2500, 5000, 10000, 25000];
 
-export interface GarageState {
-  kd: number;
+/**
+ * What has been bought for ONE car, and what that car is wearing.
+ *
+ * Parts belong to a machine, not to a player. A turbo in the Zeta is not
+ * a turbo in the Deera — you buy it again, for that car, the way you
+ * would have to. The garage used to hold a single owned list that
+ * followed you into whatever you drove, so the first turbo upgraded all
+ * fourteen cars at once and every car after your first arrived fully
+ * built. That left the shop with nothing to sell and the driveway with
+ * no reason to hold more than one machine.
+ */
+export interface CarBuild {
   owned: string[];
   equipped: Partial<Record<ExclusiveCat, string>>;
+}
+
+export interface GarageState {
+  kd: number;
   /** Cars in the driveway, and the one currently being driven. */
   cars: string[];
   car: string;
+  /** One build per car, keyed by car id. */
+  builds: Record<string, CarBuild>;
+}
+
+/** A car as it leaves the lot: factory paint, no glow, nothing fitted. */
+export function freshBuild(): CarBuild {
+  return {
+    owned: ["paint-white", "glow-none"],
+    equipped: { paint: "paint-white", glow: "glow-none" },
+  };
+}
+
+/** A car's build, for reading. Never writes: the shop asks about cars it
+ *  has not bought yet, and a read should not conjure a driveway entry. */
+export function buildOf(g: GarageState, carId: string = g.car): CarBuild {
+  return g.builds[carId] ?? freshBuild();
+}
+
+/** The stored build, created on demand — for code that is about to
+ *  change it, so a newly bought machine needs no special case. */
+export function editBuild(g: GarageState, carId: string = g.car): CarBuild {
+  let b = g.builds[carId];
+  if (!b) {
+    b = freshBuild();
+    g.builds[carId] = b;
+  }
+  return b;
 }
 
 const KEY = "gulf-road-nights-garage";
@@ -386,18 +427,36 @@ export function loadGarage(): GarageState {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const g = JSON.parse(raw) as GarageState;
-      if (typeof g.kd === "number" && Array.isArray(g.owned)) {
-        g.equipped = g.equipped ?? {};
-        // The exhaust used to be an always-on internals part; it is an
-        // exclusive slot now. A player who bought the old one keeps it,
-        // fitted, rather than finding their car quiet and their money
-        // gone.
-        if (g.owned.includes("exhaust") && !g.equipped.exhaust) {
-          g.equipped.exhaust = "exhaust";
-        }
+      // A save from before builds were per-car carried one owned list at
+      // the top level. It belongs to whatever was being driven when it
+      // was written — nobody loses a part they paid for, and the rest of
+      // the driveway starts clean, which is what it should have been.
+      const legacy = g as unknown as Partial<CarBuild>;
+      if (typeof g.kd === "number" && (Array.isArray(legacy.owned) || g.builds)) {
         // Saves from before the dealership existed start in the freebie
         if (!Array.isArray(g.cars) || g.cars.length === 0) g.cars = ["wain-special"];
         if (!g.car || !g.cars.includes(g.car)) g.car = g.cars[0];
+        g.builds = g.builds ?? {};
+        if (Array.isArray(legacy.owned)) {
+          g.builds[g.car] = {
+            owned: legacy.owned,
+            equipped: legacy.equipped ?? {},
+          };
+          delete legacy.owned;
+          delete legacy.equipped;
+        }
+        for (const id of g.cars) editBuild(g, id);
+        for (const b of Object.values(g.builds)) {
+          b.owned = b.owned ?? [];
+          b.equipped = b.equipped ?? {};
+          // The exhaust used to be an always-on internals part; it is an
+          // exclusive slot now. A player who bought the old one keeps it,
+          // fitted, rather than finding their car quiet and their money
+          // gone.
+          if (b.owned.includes("exhaust") && !b.equipped.exhaust) {
+            b.equipped.exhaust = "exhaust";
+          }
+        }
         return g;
       }
     }
@@ -405,10 +464,9 @@ export function loadGarage(): GarageState {
   return {
     // Enough to leave the dealership with the cheapest car after one win
     kd: 2500,
-    owned: ["paint-white", "glow-none"],
-    equipped: { paint: "paint-white", glow: "glow-none" },
     cars: ["wain-special"],
     car: "wain-special",
+    builds: { "wain-special": freshBuild() },
   };
 }
 
@@ -470,10 +528,14 @@ export interface TuneEffects {
   bodyStyle: "sedan" | "zx" | "gtr" | "rx7";
 }
 
-export function computeEffects(g: GarageState): TuneEffects {
-  const has = (id: string) => g.owned.includes(id);
-  const eq = g.equipped;
-  const car = getCar(g.car);
+/** The numbers a car actually races with: its own base, plus the parts
+ *  bought for IT. Pass a carId to price up a machine you are not
+ *  currently sitting in. */
+export function computeEffects(g: GarageState, carId: string = g.car): TuneEffects {
+  const build = buildOf(g, carId);
+  const has = (id: string) => build.owned.includes(id);
+  const eq = build.equipped;
+  const car = getCar(carId);
 
   let accelMult = car.power;
   if (has("ecu")) accelMult += 0.08;

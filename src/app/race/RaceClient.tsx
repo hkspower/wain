@@ -28,6 +28,8 @@ import {
   EXCLUSIVE_CATS,
   Part,
   GarageState,
+  CarBuild,
+  editBuild,
   loadGarage,
   saveGarage,
   getCar,
@@ -207,20 +209,22 @@ export default function RaceClient() {
     setGarage(g);
   }, []);
 
-  const buyOrEquip = useCallback((p: Part) => {
+  // Parts are bought for the car on the ramp, not for the player.
+  const buyOrEquip = useCallback((p: Part, carId?: string) => {
     const g = loadGarage();
-    const owned = g.owned.includes(p.id);
+    const build = editBuild(g, carId ?? g.car);
+    const owned = build.owned.includes(p.id);
     const exclusive = EXCLUSIVE_CATS.has(p.cat);
     if (!owned) {
       if (g.kd < p.price) return;
       g.kd -= p.price;
-      g.owned.push(p.id);
-      if (exclusive) g.equipped[p.cat as keyof GarageState["equipped"]] = p.id;
+      build.owned.push(p.id);
+      if (exclusive) build.equipped[p.cat as keyof CarBuild["equipped"]] = p.id;
     } else if (exclusive) {
-      const key = p.cat as keyof GarageState["equipped"];
+      const key = p.cat as keyof CarBuild["equipped"];
       // Tap the equipped part again to run stock in that slot
-      if (g.equipped[key] === p.id) delete g.equipped[key];
-      else g.equipped[key] = p.id;
+      if (build.equipped[key] === p.id) delete build.equipped[key];
+      else build.equipped[key] = p.id;
     }
     saveGarage(g);
     setGarage(g);

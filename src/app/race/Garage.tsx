@@ -7,6 +7,7 @@ import {
   CarClass,
   EXCLUSIVE_CATS,
   GarageState,
+  buildOf,
   PAINT_COLORS,
   PARTS,
   Part,
@@ -111,11 +112,18 @@ interface Props {
   garage: GarageState;
   onClose(): void;
   onBuyCar(id: string): void;
-  onBuyPart(p: Part): void;
+  onBuyPart(p: Part, carId: string): void;
 }
 
 export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) {
   const [tab, setTab] = useState<Tab>("showroom");
+  // The machine on the ramp. Parts are bought FOR a car, so the shop has
+  // to say which one — and let you build a car you are not driving,
+  // which is the whole reason to own more than one.
+  const [ramp, setRamp] = useState<string>(garage.car);
+  useEffect(() => {
+    if (!garage.cars.includes(ramp)) setRamp(garage.car);
+  }, [garage.cars, garage.car, ramp]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -125,8 +133,9 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const fx = useMemo(() => computeEffects(garage), [garage]);
-  const car = getCar(garage.car);
+  const fx = useMemo(() => computeEffects(garage, ramp), [garage, ramp]);
+  const car = getCar(ramp);
+  const build = buildOf(garage, ramp);
   // Effective power counts the blower at full boost — what you feel
   const power = fx.accelMult * (1 + fx.boostMult);
   const top = topSpeedKmh(power, fx.topSpeedKmh);
@@ -149,11 +158,48 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
     setTab(t);
   };
 
+  /**
+   * Which machine the parts are going on.
+   *
+   * A build belongs to a car, so the shop cannot just quietly use
+   * whichever one you last drove — it has to name it, and it has to let
+   * you work on a car you are not sitting in. Cars you do not own yet
+   * are not here; buy them in the showroom first.
+   */
+  const rampPicker = (
+    <div className="grn-panel mb-4 p-3">
+      <div className="grn-label text-[0.55rem]">
+        Working on <span className="text-sodium-400">{car.name}</span> · parts are
+        bought for this car
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {CARS.filter((c) => garage.cars.includes(c.id)).map((c) => (
+          <button
+            key={c.id}
+            onClick={() => {
+              haptic(HAPTIC.tap, loadSettings().haptics);
+              playSfx("ui-tap", 0.5);
+              setRamp(c.id);
+            }}
+            className={`grn-btn tap px-2.5 py-1.5 text-[0.72rem] ${
+              ramp === c.id
+                ? "grn-btn-primary"
+                : "border border-white/15 text-white/65 hover:bg-white/10"
+            }`}
+          >
+            {c.name}
+            {garage.car === c.id && <span className="ml-1 text-[0.6rem] opacity-70">· driving</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   const partCard = (p: Part) => {
-    const owned = garage.owned.includes(p.id);
+    const owned = build.owned.includes(p.id);
     const equipped =
       EXCLUSIVE_CATS.has(p.cat) &&
-      garage.equipped[p.cat as keyof GarageState["equipped"]] === p.id;
+      build.equipped[p.cat as keyof typeof build.equipped] === p.id;
     const affordable = garage.kd >= p.price;
     const swatch =
       p.cat === "paint"
@@ -164,7 +210,7 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
     return (
       <button
         key={p.id}
-        onClick={() => onBuyPart(p)}
+        onClick={() => onBuyPart(p, ramp)}
         disabled={!owned && !affordable}
         className={`grn-panel tap p-3.5 text-left transition ${
           equipped
@@ -255,7 +301,7 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
                 </span>
               </div>
               <span className="grn-label shrink-0 text-[0.5rem] text-white/45">
-                {CLASS_LABELS[car.cls]}
+                {ramp === garage.car ? CLASS_LABELS[car.cls] : "ON THE RAMP"}
               </span>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-4">
@@ -401,6 +447,7 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
 
           {tab === "performance" && (
             <div key="performance" className="reveal">
+              {rampPicker}
               <p className="max-w-2xl text-[0.8rem] leading-6 text-white/50">
                 Parts here change how the car drives — most move the spec bars
                 above the moment they bolt on. Tap an equipped part to run stock
@@ -421,6 +468,7 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
 
           {tab === "style" && (
             <div key="style" className="reveal">
+              {rampPicker}
               <p className="max-w-2xl text-[0.8rem] leading-6 text-white/50">
                 Zero horsepower, maximum presence. Paint and glow apply the
                 moment you equip them.
