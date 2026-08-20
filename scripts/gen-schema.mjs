@@ -260,9 +260,9 @@ create policy "admins delete submissions"
 -- ---------------------------------------------------------------------------
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values
-  ('business-pending', 'business-pending', false, 5242880,
+  ('business-pending', 'business-pending', false, 12582912,
    array['image/jpeg','image/png','image/webp']),
-  ('business-media',   'business-media',   true,  5242880,
+  ('business-media',   'business-media',   true,  12582912,
    array['image/jpeg','image/png','image/webp'])
 on conflict (id) do update
   set public = excluded.public,

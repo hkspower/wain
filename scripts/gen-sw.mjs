@@ -11,7 +11,7 @@
  * Runs after `next build`; see package.json.
  */
 import { createHash } from "node:crypto";
-import { readdirSync, statSync, writeFileSync, existsSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, writeFileSync, existsSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const OUT = "out";
@@ -29,15 +29,45 @@ const files = [];
   }
 })(OUT);
 
-// Precache the whole shell: every route's HTML plus the hashed JS/CSS/fonts
-// they need. Skip things that are large, rarely needed offline, or would go
-// stale badly (share image, brand source art, voice clips — those stream on
+/**
+ * Which place pages are worth paying for up front.
+ *
+ * Precaching every place page made the install cost grow with the catalogue:
+ * at seventeen places it was already most of the payload, and each new place
+ * charged every visitor for a page almost none of them would open. That is
+ * the wrong thing to scale — the site is meant to grow.
+ *
+ * The featured places are the ones the home page puts in front of a first-time
+ * visitor, so they are the pages most likely to be opened, and they stay a
+ * fixed handful however large the catalogue gets. Everything else is cached
+ * the moment it is actually visited: the navigation handler below is
+ * network-first and writes each successful response into the same cache, so a
+ * place a visitor has opened is available offline afterwards regardless.
+ */
+const featured = new Set(
+  [...readFileSync("src/lib/places.ts", "utf8").matchAll(/slug: "([a-z0-9-]+)"[\s\S]*?(?=\n  \{|\n\];)/g)]
+    .filter((m) => m[0].includes("featured: true"))
+    .map((m) => m[1])
+);
+if (featured.size === 0) {
+  console.error("gen-sw: found no featured places — refusing to ship a shell with no place pages.");
+  process.exit(1);
+}
+
+// Precache the shell: every non-place route's HTML plus the hashed JS/CSS/
+// fonts they need. Skip things that are large, rarely needed offline, or would
+// go stale badly (share image, brand source art, voice clips — those stream on
 // demand and fall back to the browser voice).
 const PRECACHE = files.filter((f) => {
   if (f === "/sw.js" || f.endsWith(".htaccess")) return false;
   if (f.startsWith("/brand/") || f.startsWith("/voice/")) return false;
   if (f === "/og.jpg") return false;
+  if (f.startsWith("/og/")) return false;
   if (f.endsWith(".txt") || f.endsWith(".xml")) return false;
+
+  const place = f.match(/^\/places\/([a-z0-9-]+)\/index\.html$/);
+  if (place) return featured.has(place[1]);
+
   return (
     f.endsWith(".html") ||
     f.startsWith("/_next/static/") ||

@@ -7,6 +7,7 @@ import { toArabicDigits } from "@/lib/places";
 import {
   ACCEPT_ATTR,
   MAX_PHOTOS,
+  MAX_SIZE_AR,
   describeSize,
   rejectReason,
   type PickedFile,
@@ -17,8 +18,8 @@ import {
  *
  * Nothing uploads here. Files are held with local previews and handed to the
  * form, which uploads them only once the rest of the submission is valid —
- * otherwise a visitor who fails validation has already pushed five megabytes
- * into storage for a row that was never created.
+ * otherwise a visitor who fails validation has already pushed a submission's
+ * worth of photos into storage for a row that was never created.
  */
 
 function useObjectUrls() {
@@ -135,7 +136,7 @@ export default function MediaUploader({
           </div>
         </div>
         <p className="mt-1 text-xs text-ink-500">
-          مربّع أحسن. JPG أو PNG أو WebP، لين ٥ ميجا.
+          مربّع أحسن. JPG أو PNG أو WebP، لين {MAX_SIZE_AR}.
         </p>
       </div>
 
@@ -164,7 +165,7 @@ export default function MediaUploader({
             اسحب الصور هني، أو اضغط للاختيار
           </span>
           <span className="text-xs text-ink-500">
-            لين {toArabicDigits(MAX_PHOTOS)} صور، كل وحدة ٥ ميجا
+            لين {toArabicDigits(MAX_PHOTOS)} صور، كل وحدة {MAX_SIZE_AR}
           </span>
           <input
             type="file" accept={ACCEPT_ATTR} multiple className="sr-only" disabled={disabled}

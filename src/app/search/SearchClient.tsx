@@ -168,7 +168,10 @@ export default function SearchClient() {
                     : "border border-line-control bg-white text-ink-600 hover:border-sea-300"
                 }`}
               >
-                {f.label} {n > 0 && <span className="opacity-70">{toArabicDigits(n)}</span>}
+                {/* opacity-70 put the count at 3.97:1 on white — it reads as a
+                    dimmed detail but it is the number the reader is choosing
+                    by, so it has to clear 4.5:1 like any other text. */}
+                {f.label} {n > 0 && <span className="opacity-80">{toArabicDigits(n)}</span>}
               </button>
             );
           })}

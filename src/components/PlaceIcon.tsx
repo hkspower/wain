@@ -1,4 +1,6 @@
 import type { CSSProperties, SVGProps } from "react";
+import CategoryIcon from "@/components/CategoryIcon";
+import { getCategory, places } from "@/lib/places";
 
 /**
  * One bespoke line icon per place.
@@ -342,17 +344,22 @@ function Art({ slug }: { slug: string }) {
 
     /* Fallback: a pin, so a newly added place still gets a mark. */
     default:
-      return (
-        <>
-          <path {...F} d="M24 6a12 12 0 0 0-12 12c0 9 12 24 12 24s12-15 12-24A12 12 0 0 0 24 6Z" />
-          <path d="M24 6a12 12 0 0 0-12 12c0 9 12 24 12 24s12-15 12-24A12 12 0 0 0 24 6Z" />
-          <circle cx="24" cy="18" r="4.5" />
-        </>
-      );
+      return null;
   }
 }
 
 export default function PlaceIcon({ slug, className = "size-10", style, ...rest }: Props) {
+  // A place with no drawing of its own shows what kind of place it is. The
+  // fallback used to be one generic pin, which was fine while every place had
+  // bespoke art — but the moment the catalogue grew past the drawn set, a
+  // results list turned into a column of identical pins that told the reader
+  // nothing. The category mark at least separates a mosque from a beach.
+  if (Art({ slug }) === null) {
+    const category = places.find((p) => p.slug === slug)?.category;
+    const icon = category ? (getCategory(category)?.icon ?? "all") : "all";
+    return <CategoryIcon name={icon} className={className} />;
+  }
+
   const w = strokeFor(renderedPx(className));
   return (
     <svg

@@ -21,9 +21,26 @@ export const PUBLIC_BUCKET = "business-media";
  *  with a sentence the visitor can act on rather than as a storage error. */
 export const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 export const ACCEPT_ATTR = ACCEPTED_TYPES.join(",");
-/** Matches the bucket's file_size_limit. */
-export const MAX_BYTES = 5 * 1024 * 1024;
-export const MAX_PHOTOS = 8;
+/**
+ * Matches the bucket's file_size_limit in scripts/gen-schema.mjs. These two
+ * numbers must move together: the browser check is a courtesy, the bucket
+ * limit is the real one, and a browser limit above it turns a clear Arabic
+ * "too big" message into an opaque upload failure after the whole file has
+ * been sent.
+ *
+ * 5MB rejected ordinary phone photos — a 12MP JPEG off a recent iPhone or
+ * Galaxy routinely lands between 4 and 9MB, so a business photographing its
+ * own shop hit the limit on pictures it had no idea were large.
+ */
+export const MAX_BYTES = 12 * 1024 * 1024;
+export const MAX_PHOTOS = 12;
+
+/**
+ * The size limit as it appears in Arabic copy. Three separate strings used to
+ * spell out "٥ ميجا" by hand, so raising MAX_BYTES left the interface quoting
+ * a limit that was no longer true. Derived here so that cannot happen again.
+ */
+export const MAX_SIZE_AR = `${toArabicDigits(Math.round(MAX_BYTES / (1024 * 1024)))} ميجا`;
 
 export interface PickedFile {
   file: File;
@@ -53,7 +70,7 @@ export function rejectReason(file: File): string | null {
     return `«${file.name}» مو صورة مدعومة. المدعوم: JPG أو PNG أو WebP.`;
   }
   if (file.size > MAX_BYTES) {
-    return `«${file.name}» حجمها ${describeSize(file.size)} — الحد ٥ ميجا.`;
+    return `«${file.name}» حجمها ${describeSize(file.size)} — الحد ${MAX_SIZE_AR}.`;
   }
   if (file.size === 0) return `«${file.name}» فاضية.`;
   return null;
