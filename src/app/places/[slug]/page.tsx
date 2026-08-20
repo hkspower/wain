@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { BusinessBio, BusinessBrand, BusinessGallery } from "@/components/BusinessProfile";
 import CategoryArt from "@/components/CategoryArt";
+import PlaceArt, { hasPlaceArt } from "@/components/PlaceArt";
 import PlaceCard from "@/components/PlaceCard";
 import PlaceMap from "@/components/PlaceMap";
 import {
@@ -91,11 +92,18 @@ export default async function PlacePage({
       <div
         className={`relative flex h-56 items-center justify-center overflow-hidden rounded-3xl shadow-lg standalone:h-40 sm:h-64 ${placeGradient(place)}`}
       >
-        <CategoryArt
-          category={place.category}
-          variant={placeVariant(place.slug)}
-          className="absolute inset-0 h-full w-full"
-        />
+        {/* A famous place gets its own picture; anything else falls back to
+            its category, which is the right answer when the category IS the
+            identity — a restaurant is a restaurant. */}
+        {hasPlaceArt(place.slug) ? (
+          <PlaceArt place={place} className="absolute inset-0 h-full w-full" />
+        ) : (
+          <CategoryArt
+            category={place.category}
+            variant={placeVariant(place.slug)}
+            className="absolute inset-0 h-full w-full"
+          />
+        )}
         <span
           className="absolute start-4 top-4 flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-sm font-semibold text-ink-800 shadow-sm backdrop-blur"
           aria-label={`التقييم ${place.rating} من ٥`}
