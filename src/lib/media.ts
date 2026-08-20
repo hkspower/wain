@@ -1,6 +1,7 @@
 "use client";
 
 import { loadSupabase } from "@/lib/supabase";
+import { toArabicDigits } from "@/lib/places";
 
 /**
  * Business media: a logo and photos, uploaded by whoever is registering the
@@ -31,9 +32,19 @@ export interface PickedFile {
   id: string;
 }
 
+/**
+ * A file size in the same numerals as the sentence around it.
+ *
+ * This read "٧.٢MB — الحد ٥ ميجا": Western digits and a Latin unit sitting
+ * inside an Arabic sentence that then gives the limit in Arabic-Indic. The
+ * decimal separator is the Arabic one too, since ٧٫٢ with a Latin dot reads
+ * as a thousands mark.
+ */
 export function describeSize(bytes: number): string {
   const mb = bytes / (1024 * 1024);
-  return mb >= 1 ? `${mb.toFixed(1)}MB` : `${Math.round(bytes / 1024)}KB`;
+  return mb >= 1
+    ? `${toArabicDigits(mb.toFixed(1)).replace(".", "٫")} ميجا`
+    : `${toArabicDigits(Math.round(bytes / 1024))} كيلو`;
 }
 
 /** Why this file cannot be used, in words the visitor can act on. */

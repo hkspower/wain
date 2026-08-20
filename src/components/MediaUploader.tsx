@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { IconClose, IconSparkle } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
+import { toArabicDigits } from "@/lib/places";
 import {
   ACCEPT_ATTR,
   MAX_PHOTOS,
@@ -80,7 +81,9 @@ export default function MediaUploader({
 
     const room = MAX_PHOTOS - photos.length;
     if (good.length > room) {
-      problems.push(`الحد ${MAX_PHOTOS} صور — أخذنا أول ${room > 0 ? room : 0}.`);
+      problems.push(
+        `الحد ${toArabicDigits(MAX_PHOTOS)} صور — أخذنا أول ${toArabicDigits(room > 0 ? room : 0)}.`
+      );
       good.splice(Math.max(room, 0));
     }
     setErrors(problems);
@@ -141,7 +144,7 @@ export default function MediaUploader({
         <span className="mb-1.5 block text-sm font-semibold text-ink-700">
           صور المكان
           <span className="ms-1 font-normal text-ink-500">
-            ({photos.length}/{MAX_PHOTOS})
+            ({toArabicDigits(photos.length)}/{toArabicDigits(MAX_PHOTOS)})
           </span>
         </span>
 
@@ -160,7 +163,9 @@ export default function MediaUploader({
           <span className="text-sm font-semibold text-ink-700">
             اسحب الصور هني، أو اضغط للاختيار
           </span>
-          <span className="text-xs text-ink-500">لين {MAX_PHOTOS} صور، كل وحدة ٥ ميجا</span>
+          <span className="text-xs text-ink-500">
+            لين {toArabicDigits(MAX_PHOTOS)} صور، كل وحدة ٥ ميجا
+          </span>
           <input
             type="file" accept={ACCEPT_ATTR} multiple className="sr-only" disabled={disabled}
             onChange={(e) => { acceptPhotos(e.target.files); e.target.value = ""; }}

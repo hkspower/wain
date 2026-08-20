@@ -106,7 +106,7 @@ export default function HomePage() {
           <div className="mb-7 flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="font-display text-2xl font-bold text-ink-900 sm:text-3xl">
-                وين شنو فيه؟ 🇰🇼
+                وين؟ شنو فيه 🇰🇼
               </h2>
               <p className="mt-1 text-ink-500">أماكن ما تنقال عنها لا.</p>
             </div>
