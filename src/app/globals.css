@@ -307,9 +307,11 @@ body {
      for a reason no amount of neutral paint on the panel could fix.
      Draining the saturation on the way through is both what frosted
      glass actually does to what it scatters and the only way this screen
-     can be see-through and neutral at the same time. */
-  -webkit-backdrop-filter: blur(18px) saturate(0.45);
-  backdrop-filter: blur(18px) saturate(0.45);
+     can be see-through and neutral at the same time.
+     This one number governs the WHOLE pause screen, panel included —
+     see the note on .grn-dialog-glass. */
+  -webkit-backdrop-filter: blur(18px) saturate(0.12);
+  backdrop-filter: blur(18px) saturate(0.12);
 }
 
 /* The panel itself: a second, brighter pane sitting on the scrim. Its
@@ -326,8 +328,20 @@ body {
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.5) inset,
     0 30px 60px -24px rgba(0, 0, 0, 0.75);
-  -webkit-backdrop-filter: blur(22px) saturate(0.5);
-  backdrop-filter: blur(22px) saturate(0.5);
+  /* This element's own saturate() does NOT govern its colour, and that
+     is worth knowing before anyone turns this knob expecting something
+     to happen.
+     A backdrop-filter inside another element that already has one does
+     not compose the way it reads: taking this to saturate(0) — fully
+     neutral glass — moved the delivered panel from a cast of 8 to 8.
+     Nothing. What the panel actually shows is the SCRIM behind it, seen
+     through this white film, so the scrim's saturation is the control
+     for both. Dropping the scrim to 0.12 took the panel to 3 and the
+     whole pause frame with it.
+     The blur here is real and does work. The saturate is kept only so
+     the declaration says what the panel is meant to be. */
+  -webkit-backdrop-filter: blur(22px) saturate(0);
+  backdrop-filter: blur(22px) saturate(0);
 }
 /* Glass has no opinion about what is behind it, so the type on it needs
    its own shadow to stay readable when a pair of headlights sweeps

@@ -231,11 +231,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     for (let i = 0; i < 20; i++) e.update(1 / 60);
   });
   await page.waitForTimeout(600);
-  // Escape is read by the engine's own key handler, which listens on the
-  // window — so the key has to land on the page rather than on whatever
-  // Playwright last clicked. Pressing it on the body does that; the
-  // first version of this pressed it into the void and then measured the
-  // night sky, reported a cast of 35, and called it a menu.
   await step(
     "pause",
     async () => {
@@ -249,17 +244,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       // the app's own. Four keypresses that silently did nothing is how
       // this tool spent three runs reporting the night sky as a menu.
       await page.evaluate(() => window.__grnEngine.events.onPauseRequest());
-      await page.waitForSelector("[aria-label='Paused']", { timeout: 8000 });
+      await page.waitForSelector("[aria-label='Paused']", { timeout: 20000 });
     },
     null
   );
-
-  console.log("menu       background   cast(B-R)   luminance");
-  for (const s of shots) {
-    console.log(
-      `${s.name.padEnd(10)} ${hex(s.bg)}      ${String(s.cast).padStart(4)}      ${s.lum.toFixed(3)}`
-    );
-  }
 
   // The glass panel, and whether the type on it still reads.
   //
@@ -274,10 +262,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if (panel) {
     const box = await panel.boundingBox();
     const img = decodePng(await page.screenshot());
-    const strip = { x: box.x + 6, y: box.y + 40, width: 14, height: box.height - 80 };
+    // Well inside the panel. At +6 the strip straddled the panel's own
+    // 1px border and the scrim outside it, which put the scrim's cast
+    // into a reading that is supposed to be about the panel.
+    const strip = { x: box.x + 20, y: box.y + 44, width: 12, height: box.height - 90 };
     const bg = medianColour(img, strip);
     const over = (alpha) => bg.map((c) => Math.round(alpha * 255 + (1 - alpha) * c));
-    console.log(`\nglass panel  ${hex(bg)}  luminance ${relLuminance(bg).toFixed(3)}`);
+    console.log(
+      `\nglass panel  ${hex(bg)}  cast ${bg[2] - bg[0]}  luminance ${relLuminance(bg).toFixed(3)}`
+    );
     // Every text colour the panel actually renders, read off the live
     // elements. A hardcoded list of "the colours we think are in there"
     // is a list that goes stale the first time somebody edits the
@@ -335,6 +328,22 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     }
   } else {
     console.log("\nglass panel  not on screen — the pause menu never opened");
+  }
+
+  // The hub lobby is a page of its own and was never in this list.
+  try {
+    await page.goto("http://localhost:3000/hub", { waitUntil: "networkidle" });
+    await page.waitForTimeout(1500);
+    await grab("hub");
+  } catch (err) {
+    console.log(`hub        SKIPPED — ${String(err.message).split("\n")[0]}`);
+  }
+
+  console.log("\nmenu       background   cast(B-R)   luminance");
+  for (const s of shots) {
+    console.log(
+      `${s.name.padEnd(10)} ${hex(s.bg)}      ${String(s.cast).padStart(4)}      ${s.lum.toFixed(3)}`
+    );
   }
   console.log("\npress/menus/*.png");
   await browser.close();
