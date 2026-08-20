@@ -11,7 +11,7 @@ from PIL import Image, ImageDraw, ImageFont
 import os
 
 F = "/root/.claude/skills/synced/canvas-design/canvas-fonts"
-SHOTS = ["menu", "night", "dawn", "noon", "dusk", "coast", "city", "drift"]
+SHOTS = ["menu", "night", "dawn", "noon", "dusk", "coast", "city", "ring", "love", "drift"]
 CAPS = {
     "menu": "MAIN MENU · your car on the turntable",
     "night": "NIGHT 22:30 · the shipped look",
@@ -20,6 +20,8 @@ CAPS = {
     "dusk": "DUSK 18:12 · the key light low and warm",
     "coast": "COAST · the seaward leg",
     "city": "CITY · towers behind the road",
+    "ring": "SECOND RING · through Mansuriya",
+    "love": "LOVE STREET · شارع الحب, Da'iya into Dasma",
     "drift": "DRIFT · full lock",
 }
 # Anything still known to be wrong is called out in amber rather than

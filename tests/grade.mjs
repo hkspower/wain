@@ -38,7 +38,7 @@ await page.evaluate(async ()=>{
   // bloom and therefore the histogram. An explicit tier turns DRS off.
   e.applyQualityTier("high");
   e.timeHours = 22.5; e.world.setTimeOfDay(22.5); e.applyDaylight();
-  e.player.s = e.track.length * 0.30; e.player.lat = 0; e.player.speed = 32;
+  e.player.s = 2203; e.player.lat = 0; e.player.speed = 32;
   for (const t of e.traffic) t.s = e.track.wrap(e.player.s + e.track.length/2);
   for (let i=0;i<60;i++) e.update(1/60);
   e.composer.render();
@@ -58,7 +58,7 @@ const shoot = (setup) => page.evaluate(async (setup)=>{
   e.setContrast(setup.contrast ?? 1);
   e.setHighlights(setup.highlights ?? 0);
   e.setSaturation(setup.sat ?? 1);
-  e.player.s = e.track.length * 0.30;
+  e.player.s = 2203;
   e.player.lat = 0;
   // Still, deliberately. The camera carries a speed-scaled rumble, so at
   // road speed every frame is framed slightly differently — which is
@@ -76,7 +76,7 @@ const shoot = (setup) => page.evaluate(async (setup)=>{
     const away = e.track.wrap(e.player.s + e.track.length/2);
     for (const t of e.traffic) t.s = away;
     if (e.rival) { e.rival.s = away; e.rival.speed = 0; }
-    e.player.s = e.track.length * 0.30;
+    e.player.s = 2203;
     e.player.lat = 0; e.player.speed = 0;
   };
   park();
@@ -285,12 +285,12 @@ const situ = await page.evaluate(async () => {
   e.setPaused(true);
   e.timeHours = 22.5; e.world.setTimeOfDay(22.5); e.applyDaylight();
   e.setExposure(0, false);
-  e.player.s = e.track.length * 0.30; e.player.lat = 0; e.player.speed = 0;
+  e.player.s = 2203; e.player.lat = 0; e.player.speed = 0;
   const park = () => {
     const away = e.track.wrap(e.player.s + e.track.length / 2);
     for (const t of e.traffic) t.s = away;
     if (e.rival) { e.rival.s = away; e.rival.speed = 0; }
-    e.player.s = e.track.length * 0.30; e.player.lat = 0; e.player.speed = 0;
+    e.player.s = 2203; e.player.lat = 0; e.player.speed = 0;
   };
   const shoot = (situation) => {
     e.setSituation(situation);

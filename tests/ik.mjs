@@ -420,7 +420,7 @@ const traffic = await page.evaluate(async ()=>{
   const V = e.camera.position.constructor;
   const withRig = e.traffic.filter((t)=>!!t.mesh.userData.driver).length;
   // Park a few right next to the player and the rest far away
-  e.player.s = e.track.length * 0.3;
+  e.player.s = 2203;
   e.traffic.forEach((t,i)=>{ t.s = e.track.wrap(e.player.s + (i<4 ? 20+i*12 : 900+i*30)); });
   for (let i=0;i<40;i++) e.update(1/60);
   // How far is each near driver's hand from its own wheel rim?

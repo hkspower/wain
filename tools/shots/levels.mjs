@@ -78,7 +78,7 @@ const measure = (hour, u) => page.evaluate(async ([hour, u]) => {
     const away = e.track.wrap(e.player.s + e.track.length / 2);
     for (const t of e.traffic) t.s = away;
     if (e.rival) { e.rival.s = away; e.rival.speed = 0; }
-    e.player.s = e.track.length * u;
+    e.player.s = u;
     e.player.lat = 0;
     e.player.speed = 0;
   };
@@ -231,10 +231,13 @@ const row = (name, s) =>
 // Two places on the lap: the coast leg is sky and road with almost no
 // city, the city leg is the opposite. One of them alone describes half
 // the game.
-// u 0.62 is inside the Hawally tunnel (TUNNEL_U 0.615-0.655), which is
-// lit like a showroom and has neither sky nor buildings in it — the
-// first run of this tool measured "the coast" and was reading a tunnel.
-const SPOTS = [["coast", 0.45], ["city", 0.08]];
+// Both stops are METRES from the start line, not lap fractions. The
+// original pair were fractions, and 0.62 of the lap landed inside the
+// underpass — lit like a showroom, with neither sky nor buildings in it
+// — so the first run of this tool measured "the coast" and was reading a
+// tunnel. Fractions moved again when the return leg became the Second
+// Ring Road and the lap grew by 1.15 km; metres did not.
+const SPOTS = [["coast", 3304], ["city", 587]]; // metres from the line
 
 // The bars, and what each one is protecting.
 //

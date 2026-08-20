@@ -54,7 +54,7 @@ const measure = (owned, equipped, rig) =>
 
     e.setPaused(true);
     const reset = () => {
-      e.player.s = e.track.length * 0.62;
+      e.player.s = 2400;
       e.player.lat = 0;
       e.player.speed = 0;
       e.heading = 0; e.steerSmooth = 0; e.driftYaw = 0; e.slipVel = 0; e.shake = 0;

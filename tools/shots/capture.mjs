@@ -34,20 +34,27 @@ const wanted = argv.filter((a) => !a.startsWith("--") && a !== String(W));
 const OUT = "press/shots";
 mkdirSync(OUT, { recursive: true });
 
-// Each shot is a name, an hour, and where on the lap to stand. `u` is a
-// fraction of the lap — chosen for what is actually in frame there.
+// Each shot is a name, an hour, and where on the lap to stand. `m` is
+// METRES from the start line, not a fraction of the lap: the lap got
+// 1.15 km longer when the invented inland leg became the Second Ring
+// Road, and every fraction here would have framed a different place
+// while still looking like a valid still. The old "coast" shot was
+// already proof of that — at u=0.62 it was standing on the inland leg,
+// half the map from any water.
 const SHOTS = [
   { name: "menu", menu: true },
-  { name: "night", hour: 22.5, u: 0.30 },
-  { name: "dawn", hour: 5.6, u: 0.30 },
-  { name: "noon", hour: 12.5, u: 0.30 },
-  { name: "dusk", hour: 18.2, u: 0.30 },
-  { name: "coast", hour: 22.5, u: 0.62 },   // the seaward leg
-  { name: "city", hour: 22.5, u: 0.08 },    // towers behind the road
-  { name: "signal", hour: 22.5, u: 0.0268 }, // on the approach to a signalised junction
-  { name: "towers", hour: 22.5, u: 0.985 },  // Kuwait Towers on the approach
-  { name: "towersday", hour: 16.5, u: 0.985 }, // same frame by day, so the pair compares
-  { name: "drift", hour: 22.5, u: 0.30, drift: true },
+  { name: "night", hour: 22.5, m: 2203 },
+  { name: "dawn", hour: 5.6, m: 2203 },
+  { name: "noon", hour: 12.5, m: 2203 },
+  { name: "dusk", hour: 18.2, m: 2203 },
+  { name: "coast", hour: 22.5, m: 1300 },   // the seaward leg, water on the left
+  { name: "city", hour: 22.5, m: 587 },     // towers behind the road
+  { name: "signal", hour: 22.5, m: 197 },   // on the approach to a signalised junction
+  { name: "ring", hour: 22.5, m: 5400 },    // the Second Ring through Mansuriya
+  { name: "love", hour: 22.5, m: 6155 },    // Love Street, at its own sign
+  { name: "towers", hour: 22.5, m: -110 },  // Kuwait Towers on the approach
+  { name: "towersday", hour: 16.5, m: -110 }, // same frame by day, so the pair compares
+  { name: "drift", hour: 22.5, m: 2203, drift: true },
 ];
 
 const list = wanted.length ? SHOTS.filter((s) => wanted.includes(s.name)) : SHOTS;
@@ -95,7 +102,8 @@ for (const shot of list) {
       e.timeHours = s.hour;
       e.world.setTimeOfDay(s.hour);
       e.applyDaylight();
-      e.player.s = e.track.length * s.u;
+      const at = s.m < 0 ? e.track.length + s.m : s.m; // negative = before the line
+      e.player.s = at;
       e.player.lat = 0;
       e.player.speed = 0;                    // a rumbling camera reframes every still
       e.setTouchInput({ steer: s.drift ? 0.7 : 0, throttle: 0, brake: 0 });
@@ -109,7 +117,7 @@ for (const shot of list) {
         for (let i = 0; i < 40; i++) {
           e.update(1 / 60);
           away();
-          e.player.s = e.track.length * s.u;
+          e.player.s = at;
           e.player.lat = 0;
           e.player.speed = 0;
         }

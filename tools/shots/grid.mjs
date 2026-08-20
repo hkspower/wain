@@ -2,7 +2,7 @@
 //
 //   npm run dev
 //   node tools/shots/grid.mjs           # from 220 m up
-//   node tools/shots/grid.mjs 60 0.30   # 60 m up, at this point on the lap
+//   node tools/shots/grid.mjs 60 2203  # 60 m up, this many metres along the lap
 //
 // It renders at night regardless of the hour it is told — see the note
 // in the body. The markings read either way, which is what it is for.
@@ -26,7 +26,7 @@ const exe = C.find((p) => existsSync(p));
 if (!exe) { console.error("no chromium"); process.exit(2); }
 
 const height = Number(process.argv[2] ?? 220);
-const u = Number(process.argv[3] ?? 0.08);
+const u = Number(process.argv[3] ?? 587); // metres from the start line
 
 const browser = await chromium.launch({
   executablePath: exe,
@@ -62,7 +62,7 @@ const b64 = await page.evaluate(async ([height, u]) => {
   e.timeHours = 12.5;
   e.world.setTimeOfDay(12.5);
   e.applyDaylight();
-  e.player.s = e.track.length * u;
+  e.player.s = u; // metres from the line
   e.player.lat = 0;
   e.player.speed = 0;
   for (const t of e.traffic) t.s = e.track.wrap(e.player.s + e.track.length / 2);

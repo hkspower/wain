@@ -52,7 +52,7 @@ for (const situation of ["cruise", "challenge", "battle", "win", "lose"]) {
       const away = e.track.wrap(e.player.s + e.track.length / 2);
       for (const t of e.traffic) t.s = away;
       if (e.rival) { e.rival.s = away; e.rival.speed = 0; }
-      e.player.s = e.track.length * 0.08;
+      e.player.s = 587;
       e.player.lat = 0;
       e.player.speed = 0;
     };

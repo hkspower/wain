@@ -47,7 +47,7 @@ const check = (c, m) => { if (!c) fail.push(m); return c ? "ok" : "FAIL"; };
 const stage = () => page.evaluate(() => {
   const e = window.__grnEngine;
   e.setPaused(true);
-  e.player.s = e.track.length * 0.62; // straight, far from the plaza
+  e.player.s = 2400; // metres from the line: straight, far from the plaza
   e.player.lat = 0;
   e.player.speed = 0;
   e.heading = 0; e.steerSmooth = 0; e.driftYaw = 0; e.slipVel = 0;
@@ -200,7 +200,7 @@ await stage();
 const crash = await page.evaluate(() => {
   const e = window.__grnEngine;
   const hit = (heading) => {
-    e.player.s = e.track.length * 0.62;
+    e.player.s = 2400;
     e.player.speed = 40;
     e.player.lat = 0;
     e.heading = heading; e.steerSmooth = 0; e.slipVel = 0; e.driftYaw = 0;

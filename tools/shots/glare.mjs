@@ -49,7 +49,7 @@ mkdirSync("press/glare", { recursive: true });
 // Two places worth measuring: a lit street (lamps overhead, the worst
 // case for halo bloat) and the open coast (the moon and the car's own
 // lights, the worst case for a specular on paint).
-const SPOTS = [["city", 0.08], ["coast", 0.45]];
+const SPOTS = [["city", 587], ["coast", 3304]]; // metres from the line
 for (const [where, u] of SPOTS) {
   const r = await page.evaluate(async ([u]) => {
     const e = window.__grnEngine;
@@ -63,7 +63,7 @@ for (const [where, u] of SPOTS) {
       const away = e.track.wrap(e.player.s + e.track.length / 2);
       for (const t of e.traffic) t.s = away;
       if (e.rival) { e.rival.s = away; e.rival.speed = 0; }
-      e.player.s = e.track.length * u;
+      e.player.s = u;
       e.player.lat = 0;
       e.player.speed = 0;
     };

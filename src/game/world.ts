@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { pointGlowTexture } from "./glow";
-import { Track, ROAD_HALF_WIDTH, COAST_U, DRIFT_PLAZA } from "./track";
+import { Track, ROAD_HALF_WIDTH, COAST_U, COAST_END_M, LAP_LENGTH, DRIFT_PLAZA } from "./track";
 import { applyTextureManifest } from "./assets";
 import { upgradePalmCrowns } from "./models";
 import { textTexture, arabicSign, latinDisplay } from "./text";
@@ -71,19 +71,40 @@ export const STREETS = {
   yCross: 0.016,
 };
 
-// Districts in lap order: down the coast, around the point, back inland.
+// Districts in lap order: down Gulf Road, around the Ras Al-Ard point,
+// then back through the Second Ring Road's own districts.
+//
+// `to` is metres from the start line, and every boundary is a real one:
+// the coastal four are where the corniche actually passes out of one
+// district into the next, and the ring's five are its control points,
+// which were placed AT the district boundaries for exactly this reason.
+// These were equal sixths of the lap before, which put "Salmiya" on the
+// Kuwait City waterfront and moved every boundary whenever the track
+// changed length.
 export const AREAS = [
-  { name: "Sharq", arabic: "شرق" },
-  { name: "Bneid Al-Gar", arabic: "بنيد القار" },
-  { name: "Salmiya", arabic: "السالمية" },
-  { name: "Ras Al-Ard", arabic: "رأس الأرض" },
-  { name: "Hawally", arabic: "حولي" },
-  { name: "Kuwait City", arabic: "مدينة الكويت" },
+  { name: "Sharq", arabic: "شرق", to: 709 },
+  { name: "Bneid Al-Gar", arabic: "بنيد القار", to: 1522 },
+  { name: "Salmiya", arabic: "السالمية", to: 2736 },
+  { name: "Ras Al-Ard", arabic: "رأس الأرض", to: 3423 },
+  // --- Second Ring Road, in the order you pass them driving it back
+  // toward Bneid Al-Gar ---
+  { name: "Shuwaikh Residential", arabic: "الشويخ السكنية", to: 4209 },
+  { name: "Shamiya", arabic: "الشامية", to: 5000 },
+  { name: "Mansuriya", arabic: "المنصورية", to: 5789 },
+  { name: "Da'iya", arabic: "الدعية", to: 6580 },
+  { name: "Dasma", arabic: "الدسمة", to: 7369 },
+  { name: "Kuwait City", arabic: "مدينة الكويت", to: Infinity },
 ];
 
+/** شارع الحب — what the stretch of the Second Ring between Da'iya and
+ *  Dasma is called by everyone who drives it. Straddles the boundary at
+ *  6580 m, because that is where the name comes from. */
+export const LOVE_STREET = { from: 6180, to: 7000 };
+
 export function areaAt(track: Track, s: number) {
-  const u = track.wrap(s) / track.length;
-  return AREAS[Math.min(AREAS.length - 1, Math.floor(u * AREAS.length))];
+  const m = track.wrap(s);
+  for (const a of AREAS) if (m < a.to) return a;
+  return AREAS[AREAS.length - 1];
 }
 
 /** Lateral offset: a constant, or a function of s for widths that follow
@@ -802,8 +823,10 @@ const arabicNumber = (n: number) =>
     .join("");
 
 /** Kuwait-style kilometre way-marker: distance in Arabic-Indic numerals
- *  over the road's Arabic name. */
-function waymarkTexture(km: number): THREE.CanvasTexture {
+ *  over the road's Arabic name. A reassurance marker names the road you
+ *  are on and counts from THAT road's start, so the lap carries two
+ *  independent runs of them — one down Gulf Road, one round the ring. */
+function waymarkTexture(km: number, road: string): THREE.CanvasTexture {
   return textTexture(256, 320, (ctx) => {
     ctx.fillStyle = "#0a4da3";
     ctx.fillRect(0, 0, 256, 320);
@@ -815,7 +838,7 @@ function waymarkTexture(km: number): THREE.CanvasTexture {
     ctx.direction = "rtl";
     const ar = arabicSign();
     ctx.font = `700 30px ${ar}`;
-    ctx.fillText("طريق الخليج العربي", 128, 62);
+    ctx.fillText(road, 128, 62);
     ctx.font = `700 112px ${ar}`;
     ctx.fillText(arabicNumber(km), 128, 208);
     ctx.font = `700 44px ${ar}`;
@@ -1359,12 +1382,30 @@ function lighthouse(): THREE.Group {
 }
 
 /** Place an object beside the track: distance s along, `offset` metres right (+) or left (-). */
-function placeBeside(track: Track, obj: THREE.Object3D, s: number, offset: number) {
+/**
+ * Where each named landmark was placed, in metres from the start line.
+ *
+ * Recorded at build time rather than worked out afterwards from the
+ * mesh: a landmark sits perpendicular to the road at an offset, so
+ * recovering its `s` from its world position is a search that answers to
+ * within a few metres and gets worse the further out the object is.
+ * Green Island is 200 m offshore. Tests need the number that was USED.
+ */
+export const LANDMARK_S: Record<string, number> = {};
+
+function placeBeside(
+  track: Track,
+  obj: THREE.Object3D,
+  s: number,
+  offset: number,
+  name?: string
+) {
   const p = new THREE.Vector3();
   const side = new THREE.Vector3();
   track.pointAt(s, p);
   track.sideAt(s, side);
   obj.position.set(p.x + side.x * offset, 0, p.z + side.z * offset);
+  if (name) LANDMARK_S[name] = s;
 }
 
 export type SkyMode = "night" | "dawn";
@@ -1399,8 +1440,15 @@ function makeBeacon(beacons: THREE.MeshStandardMaterial[]): THREE.Mesh {
   return new THREE.Mesh(new THREE.SphereGeometry(0.9, 8, 6), mat);
 }
 
-// Hawally tunnel on the inland leg — TXR-style underpass
-const TUNNEL_U = { from: 0.615, to: 0.655 };
+// Underpass on the Second Ring, TXR-style. It sits under the Shamiya
+// junction at 5000 m rather than anywhere convenient: the ring's
+// junctions really are grade-separated, and the through lanes really do
+// dive under the cross traffic. Metres in, fraction out — the fraction
+// is what the ribbon and wall builders take, and it has to be recomputed
+// from the lap rather than typed in, or the tunnel walks off its
+// junction the next time the track changes length.
+const TUNNEL_S = { from: 4855, to: 5145 };
+const TUNNEL_U = { from: TUNNEL_S.from / LAP_LENGTH, to: TUNNEL_S.to / LAP_LENGTH };
 
 // The key light's strength through the day, and what the fill runs at
 // relative to it. A fill at a third of the key lifts the shadow side to
@@ -2183,7 +2231,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   //
   // The junctions grew stop bars when the grid was painted and nothing
   // to obey. A signal head on a mast arm over the carriageway, at every
-  // other cross street — signalising all sixty-two would put a gantry
+  // other cross street — signalising all seventy-two would put a gantry
   // every 118 m, which is denser than any real arterial and would make
   // the road read as a car park.
   //
@@ -2589,21 +2637,21 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // with distinctly Kuwaiti advertisers
   {
     const ads: Array<[string, string, string, string, string, number, number]> = [
-      // line1, line2, bg, fg, accent, u, side offset
-      ["وين؟ WAIN", "wain nrooh? — يلا", "#0f4f4a", "#eafff9", "#2e978e", 0.035, 24],
-      ["بو مجبوس", "BU MACHBOOS · best machboos on the Gulf", "#7a2d08", "#ffe9d4", "#e8641b", 0.09, 26],
-      ["SAQER ⚡ صقر", "ENERGY — hunt the night", "#1a0a0a", "#ffd2c2", "#c1121f", 0.155, 24],
-      ["AL-DABOOS", "كراج الدبوس · TUNING & DYNO", "#1c1c10", "#ffe9a3", "#f5c211", 0.225, 26],
-      ["بنك الديرة", "BANK AL-DEERA · drive now, pay later", "#0a2a52", "#dcebff", "#3b82d4", 0.3, 25],
-      ["ليالي السالمية", "SALMIYA NIGHTS — open till fajer", "#2a0a3a", "#f3dcff", "#b84dd6", 0.36, 24],
-      ["قهوة GAHWA", "first cup free for racers ☕", "#3a2510", "#ffeeda", "#c98a3d", 0.43, 22],
-      ["دروازة مول", "DARWAZA MALL · 200 shops", "#0d3a1e", "#dcffe9", "#16a34a", 0.56, 28],
-      ["GULF ROAD", "NIGHTS · ليالي شارع الخليج 🏁", "#101728", "#dceaff", "#38e8ff", 0.7, 26],
-      ["حولي موترز", "HAWALLY MOTORS · JDM imports", "#252525", "#f2f2f2", "#888888", 0.78, 25],
+      // line1, line2, bg, fg, accent, metres from the line, side offset
+      ["وين؟ WAIN", "wain nrooh? — يلا", "#0f4f4a", "#eafff9", "#2e978e", 257, 24],
+      ["بو مجبوس", "BU MACHBOOS · best machboos on the Gulf", "#7a2d08", "#ffe9d4", "#e8641b", 661, 26],
+      ["SAQER ⚡ صقر", "ENERGY — hunt the night", "#1a0a0a", "#ffd2c2", "#c1121f", 1138, 24],
+      ["AL-DABOOS", "كراج الدبوس · TUNING & DYNO", "#1c1c10", "#ffe9a3", "#f5c211", 1652, 26],
+      ["بنك الديرة", "BANK AL-DEERA · drive now, pay later", "#0a2a52", "#dcebff", "#3b82d4", 2203, 25],
+      ["ليالي السالمية", "SALMIYA NIGHTS — open till fajer", "#2a0a3a", "#f3dcff", "#b84dd6", 2643, 24],
+      ["قهوة GAHWA", "first cup free for racers ☕", "#3a2510", "#ffeeda", "#c98a3d", 3157, 22],
+      ["دروازة مول", "DARWAZA MALL · 200 shops", "#0d3a1e", "#dcffe9", "#16a34a", 4400, 28],
+      ["GULF ROAD", "NIGHTS · ليالي شارع الخليج 🏁", "#101728", "#dceaff", "#38e8ff", 5500, 26],
+      ["حولي موترز", "HAWALLY MOTORS · JDM imports", "#252525", "#f2f2f2", "#888888", 6900, 25],
     ];
-    for (const [l1, l2, bg, fg, accent, u, off] of ads) {
-      const sideSign = u < 0.46 ? 1 : Math.random() < 0.5 ? 1 : -1; // never in the sea
-      scene.add(billboard(track, u * L, sideSign * off, adTexture(l1, l2, bg, fg, accent)));
+    for (const [l1, l2, bg, fg, accent, s, off] of ads) {
+      const sideSign = s < COAST_END_M ? 1 : Math.random() < 0.5 ? 1 : -1; // never in the sea
+      scene.add(billboard(track, s, sideSign * off, adTexture(l1, l2, bg, fg, accent)));
     }
   }
 
@@ -2615,8 +2663,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // Street rather than at whatever angle the world axes happen to give.
   {
     const towers = kuwaitTowers();
-    const s = L * 0.016;
-    placeBeside(track, towers, s, -95);
+    const s = 117; // metres from the line, not a lap fraction — see AREAS
+    placeBeside(track, towers, s, -95, "kuwait-towers");
     const tan = new THREE.Vector3();
     track.tangentAt(s, tan);
     towers.rotation.y = Math.atan2(tan.x, tan.z);
@@ -2627,44 +2675,46 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   }
 
   const grandMosque = mosque();
-  placeBeside(track, grandMosque, L * 0.02, 55); // opposite Souq Sharq
+  placeBeside(track, grandMosque, 147, 55); // opposite Souq Sharq
   grandMosque.rotation.y = Math.PI / 5;
   scene.add(grandMosque);
 
   const island = greenIsland();
-  placeBeside(track, island, L * 0.1, -200); // Green Island, out in the water
+  placeBeside(track, island, 734, -200, "green-island"); // out in the water
   scene.add(island);
 
   const marina = marinaBoats();
-  placeBeside(track, marina, L * 0.27, -38); // Salmiya marina bay
+  placeBeside(track, marina, 1982, -38, "salmiya-marina");
   scene.add(marina);
 
   const sciCenter = scientificCenter();
-  placeBeside(track, sciCenter, L * 0.385, -48); // the sail on the waterfront
+  placeBeside(track, sciCenter, 2827, -48, "scientific-center"); // the sail
   scene.add(sciCenter);
 
   const rasLight = lighthouse();
-  placeBeside(track, rasLight, L * 0.465, -28); // Ras Al-Ard point
+  placeBeside(track, rasLight, 3414, -28, "ras-al-ard-light");
   scene.add(rasLight);
 
   const wt = waterTowers(stripeTexture("#7ec8e3", "#ffffff"));
-  placeBeside(track, wt, L * 0.62, 65); // inland leg, Hawally side
+  placeBeside(track, wt, 4600, 65); // Shamiya, outside the ring
   scene.add(wt);
 
   const m2 = mosque();
-  placeBeside(track, m2, L * 0.75, -60);
+  placeBeside(track, m2, 5400, -60); // Mansuriya, inside the ring
   m2.rotation.y = Math.PI / 3;
   scene.add(m2);
 
   const lib = liberationTower(windows, litFacades);
-  placeBeside(track, lib, L * 0.9, 130); // city centre, inland of the top curve
+  // Liberation Tower stands in Mirqab, which is INSIDE the ring — so it
+  // sits on the left of the road here, the side the arc curves toward.
+  placeBeside(track, lib, 7000, -150, "liberation-tower");
   const libBeacon = makeBeacon(beacons);
   libBeacon.position.y = 134;
   lib.add(libBeacon);
   scene.add(lib);
 
   const hamra = alHamra(windows, litFacades);
-  placeBeside(track, hamra, L * 0.96, 80); // Sharq skyline by the start
+  placeBeside(track, hamra, L - 294, 80, "al-hamra"); // Sharq skyline, before the line
   const hamraBeacon = makeBeacon(beacons);
   hamraBeacon.position.y = 60; // local to the 118 m box, centred at 59
   hamra.add(hamraBeacon);
@@ -2751,9 +2801,14 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     scene.add(crew);
   }
 
-  // Area gantry signs at each district boundary
+  // Area gantry signs at each district boundary. The sign for a district
+  // goes just INSIDE its start — where the previous one ends — so it
+  // reads as "you are now entering", which is what a real boundary sign
+  // does. Sharq's start is the finish line, so its sign hangs at the end
+  // of the lap rather than in the first metre of it.
   AREAS.forEach((area, i) => {
-    const s = (i / AREAS.length) * L;
+    const start = i === 0 ? 0 : AREAS[i - 1].to;
+    const s = i === 0 ? L - 60 : start + 25;
     const g = new THREE.Group();
     const postMat = new THREE.MeshStandardMaterial({ color: 0x4a5058, roughness: 0.6 });
     for (const sideSign of [-1, 1]) {
@@ -2795,12 +2850,45 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     scene.add(g);
   });
 
+  // شارع الحب — Love Street. Not an official name and not on any map:
+  // it is what the Da'iya-to-Dasma stretch of the Second Ring has been
+  // called for decades, by the people who cruise it at night. A game
+  // about cruising a Kuwaiti road at night can hardly leave it out. One
+  // board at each end of the stretch, facing the traffic that is about
+  // to drive it.
+  for (const s of [LOVE_STREET.from, LOVE_STREET.to]) {
+    const g = new THREE.Group();
+    const post = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.11, 0.14, 4.0, 8),
+      new THREE.MeshStandardMaterial({ color: 0x4a5058, roughness: 0.6 })
+    );
+    post.position.y = 2.0;
+    g.add(post);
+    const board = new THREE.Mesh(
+      new THREE.PlaneGeometry(5.0, 1.56),
+      new THREE.MeshStandardMaterial({
+        map: signTexture("LOVE STREET", "شارع الحب", "2ND RING RD"),
+        emissive: 0x555555,
+      })
+    );
+    board.position.y = 4.2;
+    g.add(board);
+    const p = new THREE.Vector3();
+    const tmp2 = new THREE.Vector3();
+    track.pose(s, ROAD_HALF_WIDTH + 2.0, p, tmp2);
+    track.tangentAt(s, tmp2);
+    g.position.copy(p);
+    g.lookAt(p.clone().sub(tmp2));
+    g.name = "love-street-sign";
+    scene.add(g);
+  }
+
   // ------------------------------------------------- the Sharq drift circle
   // The corniche swells into a round plaza (the physics follows
   // track.halfWidthAt), with a kerbed island to slide around, a painted
   // drift ring, and Arabic wayfinding leading in.
   {
-    const sPlaza = DRIFT_PLAZA.u * L;
+    const sPlaza = DRIFT_PLAZA.s;
     const islandPos = new THREE.Vector3();
     const tmp = new THREE.Vector3();
     track.pose(sPlaza, DRIFT_PLAZA.islandLat, islandPos, tmp);
@@ -2942,8 +3030,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
             (s) => sign * (track.halfWidthAt(s) + 0.45),
             0.06,
             2,
-            DRIFT_PLAZA.u - uSpan,
-            DRIFT_PLAZA.u + uSpan
+            DRIFT_PLAZA.s / L - uSpan,
+            DRIFT_PLAZA.s / L + uSpan
           ),
           kerbMat
         );
@@ -3137,9 +3225,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // Kilometre way-markers down the whole road, numbered in Arabic-Indic
   // numerals like the real Gulf Road reassurance signs
   {
-    const COUNT = 12;
-    for (let i = 1; i <= COUNT; i++) {
-      const s = (i / COUNT) * L;
+    const marks: number[] = [];
+    for (let m = 1000; m < COAST_END_M; m += 1000) marks.push(m);
+    for (let m = COAST_END_M + 1000; m < L; m += 1000) marks.push(m);
+    for (const s of marks) {
       const g = new THREE.Group();
       const post = new THREE.Mesh(
         new THREE.CylinderGeometry(0.07, 0.09, 2.6, 8),
@@ -3150,7 +3239,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       const board = new THREE.Mesh(
         new THREE.PlaneGeometry(1.05, 1.3),
         new THREE.MeshStandardMaterial({
-          map: waymarkTexture(Math.round((s / L) * 7.3 * 10) / 10),
+          map:
+            s < COAST_END_M
+              ? waymarkTexture(Math.round(s / 100) / 10, "طريق الخليج العربي")
+              : waymarkTexture(Math.round((s - COAST_END_M) / 100) / 10, "الدائري الثاني"),
           emissive: 0x444444,
         })
       );

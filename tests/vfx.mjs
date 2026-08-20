@@ -41,7 +41,7 @@ const check = (c, m) => { if (!c) fail.push(m); return c ? "ok" : "FAIL"; };
 const stage = () => page.evaluate(() => {
   const e = window.__grnEngine;
   e.setPaused(true);
-  e.player.s = e.track.length * 0.62;
+  e.player.s = 2400;
   e.player.lat = 0; e.player.speed = 0;
   e.heading = 0; e.steerSmooth = 0; e.driftYaw = 0; e.slipVel = 0; e.shake = 0;
   e.scrapeCooldown = 0; e.rotorHeat = 0;
@@ -194,7 +194,7 @@ console.log(`exhaust    flame particles on lift: ${flames.before} -> ${flames.pe
 const sparkHeight = await page.evaluate(() => {
   const e = window.__grnEngine;
   e.setPaused(true);
-  e.player.s = e.track.length * 0.62;
+  e.player.s = 2400;
   e.player.lat = 0;
   e.player.speed = 45;
   e.heading = 0.42;

@@ -70,7 +70,7 @@ const hold = async (input, steps, extra = {}) =>
     const e = window.__grnEngine;
     e.setPaused(true);
     if (ex.stage !== false) {
-      e.player.s = e.track.length * 0.62;
+      e.player.s = 2400;
       e.player.lat = 0;
       e.heading = 0;
       e.steerSmooth = 0;

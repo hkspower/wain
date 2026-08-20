@@ -51,7 +51,7 @@ const rows = await page.evaluate(async () => {
     };
     localStorage.setItem("gulf-road-nights-garage", JSON.stringify(g));
     e.applyGarage();
-    e.player.s = e.track.length * 0.62;
+    e.player.s = 2400;
     e.player.lat = 0;
     e.player.speed = 0;
     e.heading = 0; e.steerSmooth = 0; e.driftYaw = 0; e.slipVel = 0;
@@ -98,7 +98,7 @@ const modded = await page.evaluate(async () => {
   }));
   e.applyGarage();
   const limit = e.tune.topSpeedKmh;
-  e.player.s = e.track.length * 0.62;
+  e.player.s = 2400;
   e.player.speed = 0; e.heading = 0; e.slipVel = 0; e.player.lat = 0;
   let peak = 0;
   for (let i = 0; i < 60 * 150; i++) {

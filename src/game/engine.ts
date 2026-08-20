@@ -6,7 +6,7 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U } from "./track";
-import { buildWorld, areaAt, STREETS, WorldHandle } from "./world";
+import { buildWorld, areaAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
 import { createCar } from "./cars";
 import { RIVALS, RivalDef } from "./rivals";
 import { VoiceBox } from "./voice";
@@ -2729,7 +2729,7 @@ export class GameEngine {
 
     // The plaza island is solid too: push out radially in (s, lat) space
     {
-      const ds = this.track.deltaAhead(DRIFT_PLAZA.u * this.track.length, p.s);
+      const ds = this.track.deltaAhead(DRIFT_PLAZA.s, p.s);
       if (Math.abs(ds) < DRIFT_PLAZA.islandRadius + 4) {
         const dLat = p.lat - DRIFT_PLAZA.islandLat;
         const dist = Math.hypot(ds, dLat);
@@ -3827,6 +3827,11 @@ export class GameEngine {
     (window as unknown as { __grnStreets: typeof STREETS }).__grnStreets = STREETS;
     (window as unknown as { __grnCoastU: typeof COAST_U }).__grnCoastU = COAST_U;
     (window as unknown as { __grnRoadHalf: number }).__grnRoadHalf = ROAD_HALF_WIDTH;
+    // The district table and where each landmark was actually placed, so
+    // the road test can check the lap against the real Kuwait rather
+    // than against a second copy of the same guess.
+    (window as unknown as { __grnAreas: typeof AREAS }).__grnAreas = AREAS;
+    (window as unknown as { __grnLandmarks: typeof LANDMARK_S }).__grnLandmarks = LANDMARK_S;
     (window as unknown as { __grnDebug: object }).__grnDebug = {
       playerSpeed: this.player.speed,
       playerLat: this.player.lat,

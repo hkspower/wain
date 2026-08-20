@@ -33,12 +33,11 @@ public static class GRNData
         new TrackPoint { X = 850f, Z = -2700f },
         new TrackPoint { X = 1050f, Z = -2950f },
         new TrackPoint { X = 1400f, Z = -2900f },
-        new TrackPoint { X = 1650f, Z = -2500f },
-        new TrackPoint { X = 1700f, Z = -2000f },
-        new TrackPoint { X = 1620f, Z = -1400f },
-        new TrackPoint { X = 1700f, Z = -800f },
-        new TrackPoint { X = 1650f, Z = -300f },
-        new TrackPoint { X = 1400f, Z = 150f },
+        new TrackPoint { X = 2115f, Z = -2583f },
+        new TrackPoint { X = 2586f, Z = -1958f },
+        new TrackPoint { X = 2696f, Z = -1184f },
+        new TrackPoint { X = 2416f, Z = -453f },
+        new TrackPoint { X = 1818f, Z = 50f },
         new TrackPoint { X = 1050f, Z = 200f },
     };
 
