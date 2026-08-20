@@ -51,7 +51,7 @@ export default function Navbar() {
                 key={link.href}
                 href={link.href}
                 aria-current={active ? "page" : undefined}
-                className={`flex min-h-11 items-center whitespace-nowrap rounded-full px-4 text-sm font-bold transition ${
+                className={`flex min-h-11 items-center whitespace-nowrap rounded-full px-4 text-sm font-semibold transition ${
                   active
                     ? "bg-ink-900 text-white shadow-sm"
                     : "text-ink-600 hover:bg-sand-100 hover:text-ink-900"

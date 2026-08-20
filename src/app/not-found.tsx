@@ -18,7 +18,7 @@ export default function NotFound() {
       </p>
       <Link
         href="/explore"
-        className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-ink-900 px-6 py-3 font-display text-lg font-bold text-white shadow-md transition hover:bg-ink-800 active:scale-[0.98]"
+        className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-ink-900 px-6 py-3 font-display text-lg font-semibold text-white shadow-md transition hover:bg-ink-800 active:scale-[0.98]"
       >
         دوّر على مكان
         <IconGo className="size-5" />

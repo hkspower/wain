@@ -83,7 +83,7 @@ function PlaceMeta({ id }: { id: string }) {
   return (
     <span className="hidden shrink-0 items-center gap-3 sm:flex">
       <span
-        className="flex items-center gap-1 text-xs font-bold text-ink-700"
+        className="flex items-center gap-1 text-xs font-semibold text-ink-700"
         aria-label={`التقييم ${place.rating} من ٥`}
       >
         <IconStar className="size-3.5 text-sun-500" />
@@ -135,7 +135,7 @@ export default function SearchResults({
             <Thumb hit={hit} />
             <span className="min-w-0 flex-1">
               <span className="flex flex-wrap items-center gap-2">
-                <span className="truncate font-bold text-ink-900">
+                <span className="truncate font-semibold text-ink-900">
                   <Marked text={hit.doc.title} matched={hit.matched} />
                 </span>
                 <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${KIND_TONE[hit.doc.kind]}`}>

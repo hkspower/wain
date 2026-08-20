@@ -131,13 +131,13 @@ export default function NearbyDial() {
           className="relative grid size-60 place-items-center rounded-full border-[6px] border-white bg-gradient-to-b from-sun-200 to-sun-400 px-6 text-center shadow-[0_18px_40px_-12px_rgba(180,120,10,0.55)] transition hover:from-sun-100 hover:to-sun-300 focus-visible:ring-offset-4 sm:size-72"
         >
           <span className="flex flex-col items-center gap-1">
-            <span className="font-display text-4xl font-bold leading-none text-ink-900 sm:text-5xl">
+            <span className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
               إلى وين؟
             </span>
             <span className="text-sm font-semibold text-sun-900">
               اضغط ودوّر حواليك
             </span>
-            <span className="mt-2 rounded-full bg-ink-900 px-5 py-2 text-sm font-bold text-sun-100 shadow-sm">
+            <span className="mt-2 rounded-full bg-ink-900 px-5 py-2 text-sm font-semibold text-sun-100 shadow-sm">
               ابحث
             </span>
             <span className="mt-1 text-xs font-semibold text-sun-900">
@@ -150,7 +150,7 @@ export default function NearbyDial() {
       {opened && (
         <div className="mt-6 w-full max-w-xl rounded-3xl border border-sand-200 bg-white/95 p-4 shadow-lg backdrop-blur">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-bold text-ink-800">
+            <p className="text-sm font-semibold text-ink-800">
               {/* "حواليك" is a preposition, so it agrees with every count
                   form — unlike an adjective, which would need to inflect. */}
               {nearby.length > 0
@@ -195,7 +195,7 @@ export default function NearbyDial() {
                     <CategoryIcon name={getCategory(p.category)?.icon ?? "all"} className="size-6" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-bold text-ink-900">{p.nameAr}</span>
+                    <span className="block truncate font-semibold text-ink-900">{p.nameAr}</span>
                     <span className="block truncate text-xs text-ink-500">{p.areaAr}</span>
                   </span>
                   <span className="shrink-0 rounded-full bg-sea-50 px-2.5 py-1 text-xs font-semibold text-sea-700">
@@ -208,7 +208,7 @@ export default function NearbyDial() {
 
           <Link
             href="/explore"
-            className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-ink-900 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-ink-800"
+            className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-ink-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-ink-800"
           >
             شوف كل الأماكن
             <IconGo className="size-4" />

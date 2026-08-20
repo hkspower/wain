@@ -13,6 +13,8 @@ export default function Footer() {
               <span aria-hidden="true">
                 <WainLogo className="size-9" />
               </span>
+              {/* The wordmark, not a heading — it stays bold to match the one
+                  in the navbar. The weight sweep caught it by size. */}
               <span className="font-display text-xl font-bold text-ink-900">
                 وين<span className="text-coral-600">؟</span>
               </span>
@@ -24,7 +26,7 @@ export default function Footer() {
 
           {/* Categories */}
           <nav aria-label="التصنيفات" className="standalone:hidden">
-            <h2 className="text-sm font-bold text-ink-800">التصنيفات</h2>
+            <h2 className="text-sm font-semibold text-ink-800">التصنيفات</h2>
             <ul className="mt-1 grid grid-cols-2 gap-x-4">
               {categories.slice(0, 6).map((cat) => (
                 <li key={cat.id}>
@@ -41,7 +43,7 @@ export default function Footer() {
 
           {/* Links */}
           <nav aria-label="روابط" className="standalone:hidden">
-            <h2 className="text-sm font-bold text-ink-800">روابط</h2>
+            <h2 className="text-sm font-semibold text-ink-800">روابط</h2>
             <ul className="mt-1">
               <li>
                 <Link href="/explore" className="inline-flex min-h-11 items-center text-sm text-ink-500 transition hover:text-coral-700">

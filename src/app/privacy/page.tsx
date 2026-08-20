@@ -30,7 +30,7 @@ export default function PrivacyPage() {
 
       {/* No cookies */}
       <section className="mt-10 rounded-3xl border border-palm-500/25 bg-palm-500/5 p-6">
-        <h2 className="font-display text-xl font-bold text-ink-900">
+        <h2 className="font-display text-xl font-semibold text-ink-900">
           ما نستخدم كوكيز — أبداً
         </h2>
         <ul className="mt-4 space-y-2.5">
@@ -49,7 +49,7 @@ export default function PrivacyPage() {
 
       {/* Location */}
       <section className="mt-6 rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
-        <h2 className="flex items-center gap-2 font-display text-xl font-bold text-ink-900">
+        <h2 className="flex items-center gap-2 font-display text-xl font-semibold text-ink-900">
           <IconLocate className="size-5 text-sea-600" />
           موقعك
         </h2>
@@ -68,7 +68,7 @@ export default function PrivacyPage() {
 
       {/* فهد */}
       <section className="mt-6 rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
-        <h2 className="font-display text-xl font-bold text-ink-900">
+        <h2 className="font-display text-xl font-semibold text-ink-900">
           {FAHAD_COPY.name} — المساعد الصوتي
         </h2>
         <div className="mt-3 space-y-3 text-sm leading-relaxed text-ink-600">
@@ -88,7 +88,7 @@ export default function PrivacyPage() {
 
       {/* صوت وين */}
       <section className="mt-6 rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
-        <h2 className="font-display text-xl font-bold text-ink-900">
+        <h2 className="font-display text-xl font-semibold text-ink-900">
           صوت وين — الاقتراح الصوتي
         </h2>
         <div className="mt-3 space-y-3 text-sm leading-relaxed text-ink-600">
@@ -108,7 +108,7 @@ export default function PrivacyPage() {
 
       {/* Hosting */}
       <section className="mt-6 rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
-        <h2 className="font-display text-xl font-bold text-ink-900">الاستضافة</h2>
+        <h2 className="font-display text-xl font-semibold text-ink-900">الاستضافة</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-600">
           وين موقع ثابت (static)، يعني ما فيه قاعدة بيانات ولا حسابات ولا تسجيل
           دخول. مزوّد الاستضافة — مثل أي استضافة — يسجّل طلبات الخوادم العادية
@@ -119,7 +119,7 @@ export default function PrivacyPage() {
       <div className="mt-10 text-center">
         <Link
           href="/explore"
-          className="inline-flex items-center gap-2 rounded-2xl bg-ink-900 px-6 py-3 font-display text-lg font-bold text-white shadow-md transition hover:bg-ink-800 active:scale-[0.98]"
+          className="inline-flex items-center gap-2 rounded-2xl bg-ink-900 px-6 py-3 font-display text-lg font-semibold text-white shadow-md transition hover:bg-ink-800 active:scale-[0.98]"
         >
           رجوع للأماكن
           <IconGo className="size-5" />

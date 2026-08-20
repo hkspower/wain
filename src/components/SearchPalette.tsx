@@ -132,7 +132,7 @@ export default function SearchPalette() {
                   close();
                   router.push(`/search?q=${encodeURIComponent(q.trim())}`);
                 }}
-                className="block w-full border-t border-sand-200 bg-sand-100 px-4 py-3 text-center text-sm font-bold text-ink-700 transition hover:bg-sand-200"
+                className="block w-full border-t border-sand-200 bg-sand-100 px-4 py-3 text-center text-sm font-semibold text-ink-700 transition hover:bg-sand-200"
               >
                 شوف كل النتائج
               </button>

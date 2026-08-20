@@ -30,7 +30,7 @@ const EMPTY: EditablePlace = {
   sortOrder: 0,
 };
 
-const label = "block text-sm font-bold text-ink-800";
+const label = "block text-sm font-semibold text-ink-800";
 const input =
   "mt-1.5 w-full rounded-xl border border-sand-200 bg-white px-3 py-2 text-sm text-ink-800 outline-none transition focus:border-sea-400 focus:ring-4 focus:ring-sea-100";
 
@@ -168,11 +168,11 @@ export default function PlaceForm({
       </div>
 
       <div className="flex flex-wrap gap-5">
-        <label className="flex items-center gap-2 text-sm font-bold text-ink-800">
+        <label className="flex items-center gap-2 text-sm font-semibold text-ink-800">
           <input type="checkbox" className="size-4 accent-coral-600" checked={!!p.featured} onChange={(e) => set("featured", e.target.checked)} />
           مميّز في الصفحة الرئيسية
         </label>
-        <label className="flex items-center gap-2 text-sm font-bold text-ink-800">
+        <label className="flex items-center gap-2 text-sm font-semibold text-ink-800">
           <input type="checkbox" className="size-4 accent-palm-600" checked={p.published !== false} onChange={(e) => set("published", e.target.checked)} />
           منشور
         </label>
@@ -182,14 +182,14 @@ export default function PlaceForm({
         <button
           type="submit"
           disabled={busy}
-          className="rounded-xl bg-ink-900 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-ink-800 disabled:opacity-60"
+          className="rounded-xl bg-ink-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-ink-800 disabled:opacity-60"
         >
           {busy ? "نحفظ…" : "حفظ"}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-xl border border-sand-300 bg-white px-5 py-2.5 text-sm font-bold text-ink-700 transition hover:border-sea-300"
+          className="rounded-xl border border-sand-300 bg-white px-5 py-2.5 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
         >
           إلغاء
         </button>

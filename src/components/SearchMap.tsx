@@ -177,7 +177,7 @@ export default function SearchMap({ places }: { places: Place[] }) {
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2
           id="search-map-heading"
-          className="flex items-center gap-2 text-sm font-bold text-ink-700"
+          className="flex items-center gap-2 text-sm font-semibold text-ink-700"
         >
           <IconMap className="size-4 text-sea-600" />
           {toArabicDigits(places.length)} على الخريطة
@@ -186,7 +186,7 @@ export default function SearchMap({ places }: { places: Place[] }) {
           href={big}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex min-h-11 items-center text-xs font-bold text-sea-700 underline-offset-2 hover:underline"
+          className="flex min-h-11 items-center text-xs font-semibold text-sea-700 underline-offset-2 hover:underline"
         >
           افتح الخريطة الكبيرة
         </a>
@@ -235,7 +235,7 @@ export default function SearchMap({ places }: { places: Place[] }) {
             >
               <PlaceIcon slug={p.slug} className="size-5" />
               <span
-                className={`pointer-events-none absolute bottom-full mb-1.5 whitespace-nowrap rounded-lg bg-ink-900 px-2 py-1 text-[11px] font-bold text-white shadow-lg transition ${
+                className={`pointer-events-none absolute bottom-full mb-1.5 whitespace-nowrap rounded-lg bg-ink-900 px-2 py-1 text-[11px] font-semibold text-white shadow-lg transition ${
                   on ? "opacity-100" : "opacity-0"
                 }`}
               >

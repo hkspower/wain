@@ -158,7 +158,7 @@ export default function SearchClient() {
                 onClick={() => setKind(f.id)}
                 aria-pressed={kind === f.id}
                 disabled={n === 0}
-                className={`min-h-11 rounded-full px-4 text-sm font-bold transition disabled:opacity-40 ${
+                className={`min-h-11 rounded-full px-4 text-sm font-semibold transition disabled:opacity-40 ${
                   kind === f.id
                     ? "bg-ink-900 text-white"
                     : "border border-sand-200 bg-white text-ink-600 hover:border-sea-300"
@@ -174,7 +174,7 @@ export default function SearchClient() {
       <div className="mt-7">
         {!q.trim() ? (
           <section>
-            <h2 className="mb-3 text-sm font-bold text-ink-600">جرّب تدوّر عن</h2>
+            <h2 className="mb-3 text-sm font-semibold text-ink-600">جرّب تدوّر عن</h2>
             <ul className="flex flex-wrap gap-2">
               {SUGGESTIONS.map((s) => (
                 <li key={s}>
@@ -205,7 +205,7 @@ export default function SearchClient() {
             >
               <IconCompass className="size-9" />
             </span>
-            <h2 className="mt-4 font-display text-xl font-bold text-ink-900">
+            <h2 className="mt-4 font-display text-xl font-semibold text-ink-900">
               ما لقينا شي عن «{q.trim()}»
             </h2>
             <p className="mt-1 text-sm text-ink-500">
@@ -213,7 +213,7 @@ export default function SearchClient() {
             </p>
             <Link
               href="/explore"
-              className="mt-6 inline-block rounded-xl bg-ink-900 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-ink-800"
+              className="mt-6 inline-block rounded-xl bg-ink-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-ink-800"
             >
               تصفّح الأماكن
             </Link>

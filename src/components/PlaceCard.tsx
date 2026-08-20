@@ -27,7 +27,7 @@ export default function PlaceCard({ place }: { place: Place }) {
 
       <div className="flex flex-1 flex-col p-4 standalone:p-3">
         <div className="flex items-start justify-between gap-3">
-          <h3 className="font-display text-lg font-bold leading-snug text-ink-900 transition group-hover:text-coral-700">
+          <h3 className="font-display text-lg font-semibold leading-snug text-ink-900 transition group-hover:text-coral-700">
             {place.nameAr}
           </h3>
           <span
@@ -54,7 +54,7 @@ export default function PlaceCard({ place }: { place: Place }) {
 
         <div className="mt-3 flex items-center gap-2 text-xs">
           {category && (
-            <span className="rounded-full bg-sea-50 px-2.5 py-1 font-bold text-sea-700">
+            <span className="rounded-full bg-sea-50 px-2.5 py-1 font-semibold text-sea-700">
               {category.ar}
             </span>
           )}

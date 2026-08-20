@@ -57,7 +57,7 @@ export default function AboutPage() {
             <span className={`grid size-10 place-items-center rounded-2xl ${item.tone}`} aria-hidden="true">
               {item.icon}
             </span>
-            <h2 className="mt-2 font-display text-lg font-bold text-ink-900">{item.title}</h2>
+            <h2 className="mt-2 font-display text-lg font-semibold text-ink-900">{item.title}</h2>
             <p className="mt-1 text-sm leading-relaxed text-ink-500">{item.text}</p>
           </div>
         ))}
@@ -73,7 +73,7 @@ export default function AboutPage() {
       <div className="mt-10 text-center">
         <Link
           href="/explore"
-          className="inline-flex items-center gap-2 rounded-2xl bg-ink-900 px-6 py-3 font-display text-lg font-bold text-white shadow-md transition hover:bg-ink-800 active:scale-[0.98]"
+          className="inline-flex items-center gap-2 rounded-2xl bg-ink-900 px-6 py-3 font-display text-lg font-semibold text-white shadow-md transition hover:bg-ink-800 active:scale-[0.98]"
         >
           يالله نبدأ
           <IconGo className="size-5" />

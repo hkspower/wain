@@ -150,14 +150,14 @@ export default function AdminApp() {
         <div className="flex items-center gap-2">
           <Link
             href="/"
-            className="rounded-xl border border-sand-300 bg-white px-4 py-2 text-sm font-bold text-ink-700 transition hover:border-sea-300"
+            className="rounded-xl border border-sand-300 bg-white px-4 py-2 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
           >
             الموقع
           </Link>
           <button
             type="button"
             onClick={() => getSupabase()?.auth.signOut()}
-            className="rounded-xl bg-ink-900 px-4 py-2 text-sm font-bold text-white transition hover:bg-ink-800"
+            className="rounded-xl bg-ink-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-ink-800"
           >
             خروج
           </button>
@@ -172,12 +172,12 @@ export default function AdminApp() {
           <button
             type="button"
             onClick={() => setView({ mode: "list" })}
-            className="mb-5 inline-flex items-center gap-2 text-sm font-bold text-ink-600 transition hover:text-coral-700"
+            className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-ink-600 transition hover:text-coral-700"
           >
             <IconBack className="size-4" />
             رجوع للقائمة
           </button>
-          <h2 className="mb-5 font-display text-xl font-bold text-ink-900">
+          <h2 className="mb-5 font-display text-xl font-semibold text-ink-900">
             {view.place ? `تعديل: ${view.place.nameAr}` : "إضافة مكان جديد"}
           </h2>
           <PlaceForm
@@ -205,7 +205,7 @@ export default function AdminApp() {
             <button
               type="button"
               onClick={() => setView({ mode: "edit" })}
-              className="rounded-xl bg-coral-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-coral-700"
+              className="rounded-xl bg-coral-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-coral-700"
             >
               + مكان جديد
             </button>
@@ -225,7 +225,7 @@ export default function AdminApp() {
                   {p.emoji}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate font-bold text-ink-900">{p.nameAr}</span>
+                  <span className="block truncate font-semibold text-ink-900">{p.nameAr}</span>
                   <span className="block truncate text-xs text-ink-500">
                     {getCategory(p.category)?.ar} · {p.areaAr}
                   </span>
@@ -347,7 +347,7 @@ function NotAllowed({ email }: { email: string }) {
       <button
         type="button"
         onClick={() => getSupabase()?.auth.signOut()}
-        className="mt-6 rounded-xl bg-ink-900 px-5 py-2.5 text-sm font-bold text-white"
+        className="mt-6 rounded-xl bg-ink-900 px-5 py-2.5 text-sm font-semibold text-white"
       >
         خروج
       </button>
@@ -382,7 +382,7 @@ function SignIn({ error, onError }: { error: string; onError: (s: string) => voi
           <p className="rounded-xl border border-coral-200 bg-coral-50 p-3 text-sm text-coral-800">{error}</p>
         )}
         <div>
-          <label className="block text-sm font-bold text-ink-800" htmlFor="a-email">البريد</label>
+          <label className="block text-sm font-semibold text-ink-800" htmlFor="a-email">البريد</label>
           <input
             id="a-email"
             type="email"
@@ -395,7 +395,7 @@ function SignIn({ error, onError }: { error: string; onError: (s: string) => voi
           />
         </div>
         <div>
-          <label className="block text-sm font-bold text-ink-800" htmlFor="a-pass">كلمة السر</label>
+          <label className="block text-sm font-semibold text-ink-800" htmlFor="a-pass">كلمة السر</label>
           <input
             id="a-pass"
             type="password"
@@ -409,7 +409,7 @@ function SignIn({ error, onError }: { error: string; onError: (s: string) => voi
         <button
           type="submit"
           disabled={busy}
-          className="w-full rounded-xl bg-ink-900 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-ink-800 disabled:opacity-60"
+          className="w-full rounded-xl bg-ink-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-ink-800 disabled:opacity-60"
         >
           {busy ? "ندخّلك…" : "دخول"}
         </button>

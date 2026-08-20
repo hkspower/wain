@@ -26,7 +26,10 @@ export default function HomePage() {
           {/* Wordmark */}
           <div className="text-center">
             <span className="relative inline-block">
-              <h1 className="font-display text-7xl font-bold leading-none text-ink-900 sm:text-8xl">
+              {/* 72/96px was shouting. leading-none is dropped with it: the
+                  theme's Arabic line-heights exist precisely so ن and ي have
+                  somewhere to go, and overriding them to 1 clipped that. */}
+              <h1 className="font-display text-5xl font-bold text-ink-900 sm:text-6xl">
                 وين
               </h1>
               <span
@@ -58,7 +61,7 @@ export default function HomePage() {
             </h2>
             <Link
               href="/explore"
-              className="flex min-h-11 items-center gap-1.5 rounded-full bg-white/95 px-4 py-2 text-sm font-bold text-sea-800 shadow-sm transition hover:bg-white"
+              className="flex min-h-11 items-center gap-1.5 rounded-full bg-white/95 px-4 py-2 text-sm font-semibold text-sea-800 shadow-sm transition hover:bg-white"
             >
               شوف الكل
               <IconGo className="size-4" />
@@ -73,7 +76,7 @@ export default function HomePage() {
                 className="flex h-full flex-col items-center justify-center gap-2 rounded-2xl bg-sun-300 p-4 text-center text-ink-900 shadow-sm transition hover:-translate-y-0.5 hover:bg-sun-200"
               >
                 <CategoryIcon name="all" />
-                <span className="text-sm font-bold">الكل</span>
+                <span className="text-sm font-semibold">الكل</span>
                 <span className="text-[11px] font-semibold text-sun-900">
                   {countAr(places.length, PLACES_COUNT)}
                 </span>
@@ -86,7 +89,7 @@ export default function HomePage() {
                   className="flex h-full flex-col items-center justify-center gap-2 rounded-2xl bg-white/12 p-4 text-center text-white ring-1 ring-white/20 backdrop-blur-sm transition hover:-translate-y-0.5 hover:bg-white/20"
                 >
                   <CategoryIcon name={cat.icon} />
-                  <span className="text-sm font-bold leading-tight">{cat.ar}</span>
+                  <span className="text-sm font-semibold leading-tight">{cat.ar}</span>
                   <span className="text-[11px] font-semibold text-white">
                     {countAr(countByCategory(cat.id), PLACES_COUNT)}
                   </span>
@@ -109,7 +112,7 @@ export default function HomePage() {
             </div>
             <Link
               href="/explore"
-              className="group flex min-h-11 items-center gap-1.5 text-sm font-bold text-coral-700 transition hover:text-coral-800"
+              className="group flex min-h-11 items-center gap-1.5 text-sm font-semibold text-coral-700 transition hover:text-coral-800"
             >
               شوف الكل
               <IconGo className="size-4 transition group-hover:-translate-x-0.5" />
@@ -158,8 +161,8 @@ export default function HomePage() {
                 <span className="absolute -top-5 start-6 grid size-11 place-items-center rounded-2xl bg-gradient-to-b from-coral-500 to-coral-700 text-white shadow-md shadow-coral-600/30 transition duration-300 group-hover:scale-105">
                   {step.icon}
                 </span>
-                <span className="font-display text-sm font-bold text-sand-700">{step.n}</span>
-                <h3 className="mt-1 font-display text-lg font-bold text-ink-900">{step.title}</h3>
+                <span className="font-display text-sm font-semibold text-sand-700">{step.n}</span>
+                <h3 className="mt-1 font-display text-lg font-semibold text-ink-900">{step.title}</h3>
                 <p className="mt-1.5 text-sm leading-relaxed text-ink-500">{step.text}</p>
               </div>
             ))}
@@ -187,7 +190,7 @@ export default function HomePage() {
             </p>
             <Link
               href="/explore"
-              className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-sun-300 px-7 py-3 font-display text-lg font-bold text-ink-900 shadow-lg transition hover:bg-sun-200 active:scale-[0.98]"
+              className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-sun-300 px-7 py-3 font-display text-lg font-semibold text-ink-900 shadow-lg transition hover:bg-sun-200 active:scale-[0.98]"
             >
               استكشف الأماكن
               <IconGo className="size-5" />

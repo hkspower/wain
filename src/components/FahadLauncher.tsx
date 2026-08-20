@@ -98,7 +98,7 @@ export default function FahadLauncher() {
             className="absolute -end-0.5 -top-0.5 size-2.5 rounded-full bg-sun-300 ring-2 ring-coral-600"
           />
         </span>
-        <span className="font-display text-base font-bold">{FAHAD_COPY.launcher}</span>
+        <span className="font-display text-base font-semibold">{FAHAD_COPY.launcher}</span>
       </button>
 
       {/* Panel */}
@@ -115,7 +115,7 @@ export default function FahadLauncher() {
               <FahadMark className="size-6" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block font-display text-lg font-bold leading-tight">
+              <span className="block font-display text-lg font-semibold leading-tight">
                 {FAHAD_COPY.name}
               </span>
               <span className="flex items-center gap-1 text-xs text-coral-50">

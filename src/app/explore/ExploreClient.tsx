@@ -82,7 +82,7 @@ export default function ExploreClient() {
           type="button"
           onClick={() => setCategory("all")}
           aria-pressed={category === "all"}
-          className={`flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-bold transition ${
+          className={`flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition ${
             category === "all"
               ? "bg-ink-900 text-white shadow-sm"
               : "border border-sand-200 bg-white text-ink-600 hover:border-sea-300 hover:text-sea-700"
@@ -97,7 +97,7 @@ export default function ExploreClient() {
             type="button"
             onClick={() => setCategory(cat.id)}
             aria-pressed={category === cat.id}
-            className={`flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-bold transition ${
+            className={`flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition ${
               category === cat.id
                 ? "bg-ink-900 text-white shadow-sm"
                 : "border border-sand-200 bg-white text-ink-600 hover:border-sea-300 hover:text-sea-700"
@@ -126,7 +126,7 @@ export default function ExploreClient() {
           <span className="mx-auto grid size-16 place-items-center rounded-3xl bg-sand-100 text-sand-600" aria-hidden="true">
             <IconCompass className="size-9" />
           </span>
-          <h2 className="mt-4 font-display text-xl font-bold text-ink-900">ما لقينا شي</h2>
+          <h2 className="mt-4 font-display text-xl font-semibold text-ink-900">ما لقينا شي</h2>
           <p className="mt-1 text-ink-500">جرّب بحث ثاني أو تصنيف ثاني — الكويت فيها وايد.</p>
           <button
             type="button"
@@ -134,7 +134,7 @@ export default function ExploreClient() {
               setQuery("");
               setCategory("all");
             }}
-            className="mt-6 rounded-xl bg-ink-900 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-ink-800"
+            className="mt-6 rounded-xl bg-ink-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-ink-800"
           >
             امسح الفلاتر
           </button>
