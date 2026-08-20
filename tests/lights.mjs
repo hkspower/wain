@@ -79,9 +79,18 @@ const probe = (state) =>
       e.player.s = 2400;
       e.player.lat = 0;
     };
+    if (st.holdSpeed === false) {
+      // Let the car actually accelerate. Pitch comes from what the car is
+      // DOING now, not from where the pedals are, so pinning the speed
+      // every frame means zero acceleration and a nose that never moves —
+      // which is how this file first reported the dive as broken on a
+      // rig that dives correctly.
+      e.player.speed = st.speed;
+      e.prevSpeed = st.speed;
+    }
     for (let i = 0; i < 40; i++) {
       park();
-      e.player.speed = st.speed;
+      if (st.holdSpeed !== false) e.player.speed = st.speed;
       if (st.driftYaw !== undefined) e.driftYaw = st.driftYaw;
       if (st.heading !== undefined) e.heading = st.heading;
       e.setTouchInput({
@@ -167,8 +176,8 @@ console.log(
 );
 
 // --- 2. Dive -------------------------------------------------------
-const braking = await probe({ speed: 40, brake: 1 });
-const power = await probe({ speed: 40, throttle: 1 });
+const braking = await probe({ speed: 40, brake: 1, holdSpeed: false });
+const power = await probe({ speed: 8, throttle: 1, holdSpeed: false });
 console.log(
   `dive      ${check(
     braking.reach !== null && power.reach !== null && braking.reach < power.reach - 1.5,

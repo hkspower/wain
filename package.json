@@ -44,6 +44,7 @@
     "test:road": "node tests/road.mjs",
     "test:engines": "node tests/engines.mjs",
     "test:lights": "node tests/lights.mjs",
+    "test:body": "node tests/body.mjs",
     "test:fuel": "node tests/fuel.mjs",
     "test:community": "node tests/community.mjs",
     "shots:cars": "node tools/shots/cars.mjs",

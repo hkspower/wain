@@ -78,7 +78,12 @@ const hold = async (input, steps, extra = {}) =>
       e.slipVel = 0;
     }
     const peak = { shake: 0, pitch: 0, roll: 0, camRoll: 0, fov: 0, driftYaw: 0,
-                   camJitter: 0, heading: 0, rollAtPeak: 0, driftAtPeak: 0, camRollAtPeak: 0 };
+                   camJitter: 0, heading: 0, rollAtPeak: 0, driftAtPeak: 0, camRollAtPeak: 0,
+                   latAtPeak: 0 };
+    if (ex.startSpeed !== undefined) {
+      e.player.speed = ex.startSpeed;
+      e.prevSpeed = ex.startSpeed;
+    }
     for (let i = 0; i < n; i++) {
       if (ex.speed !== undefined) e.player.speed = ex.speed;
       e.setTouchInput(inp);
@@ -96,6 +101,7 @@ const hold = async (input, steps, extra = {}) =>
         peak.rollAtPeak = e.carBody.rotation.z;
         peak.driftAtPeak = e.driftYaw;
         peak.camRollAtPeak = e.camRoll;
+        peak.latAtPeak = +e.latAccel.toFixed(3);
       }
     }
     e.setPaused(false);
@@ -108,6 +114,7 @@ const hold = async (input, steps, extra = {}) =>
       rollAtPeak: +peak.rollAtPeak.toFixed(5),
       driftAtPeak: +peak.driftAtPeak.toFixed(4),
       camRollAtPeak: +peak.camRollAtPeak.toFixed(5),
+      latAtPeak: +peak.latAtPeak.toFixed(3),
       pitchSigned: +e.pitch.toFixed(4),
       speed: +e.player.speed.toFixed(1),
     };
@@ -140,29 +147,38 @@ console.log(`  speed stretch   fov=${fast.fov} at ${fast.speed} m/s vs idle ${id
 console.log(`  speed rumble    jitter ${idle.camJitter} -> ${fast.camJitter}  ${check(fast.camJitter > idle.camJitter, "no speed rumble")}`);
 
 // 4. Weight transfer: braking pitches nose-down (positive), throttle lifts
+//
+// The speed is SET here and then left alone, where every other case in
+// this file pins it every frame. Pitch now comes from what the car is
+// actually doing rather than from where the pedals are — a car pinned at
+// 40 m/s is, by definition, not accelerating — so holding the speed
+// still made both cases read zero and the check failed on a model that
+// had just become more correct, not less.
 await reset();
-const braking = await hold({ throttle: 0, brake: 1 }, 54, { speed: 40 });
+const braking = await hold({ throttle: 0, brake: 1 }, 54, { startSpeed: 40 });
 await reset();
-const onGas = await hold({ throttle: 1, brake: 0 }, 54, { speed: 40 });
+const onGas = await hold({ throttle: 1, brake: 0 }, 54, { startSpeed: 8 });
 console.log(`  weight transfer brake pitch=${braking.pitchSigned}  throttle pitch=${onGas.pitchSigned}  ` +
   check(braking.pitchSigned > onGas.pitchSigned, "braking does not pitch the nose differently from throttle"));
 
 // 5. Body roll + camera roll in a turn
 await reset();
 const turning = await hold({ throttle: 0.8, steer: 1 }, 108, { speed: 45 });
-// Body roll is heading * 0.06, and heading clamps at 0.45 — so full
-// lock is only 0.027 rad (1.5 deg). Deliberately subtle; the threshold
-// has to respect that rather than expect an arcade lean.
-// heading is measured against the TRACK, so its magnitude depends on
-// where the lap the turn happens — steering into an existing bend builds
-// almost none. Assert the mechanism (roll = heading*0.06 + drift*0.1)
-// rather than a magnitude that varies with track position.
-const expectedRoll = turning.heading * 0.06 + turning.driftAtPeak * 0.1;
-const rollErr = Math.abs(turning.rollAtPeak - expectedRoll);
+// Body roll used to be `heading * 0.06 + driftYaw * 0.1` and this check
+// asserted exactly that formula to five decimal places — which meant it
+// was pinning the implementation rather than the behaviour, and it
+// failed the moment the implementation became correct. Roll now comes
+// from lateral acceleration through a spring, so what is asserted here
+// is that a turn leans the car at all and leans it OUT; the shape of the
+// model is tests/body.mjs's job.
 console.log(`  body roll       heading=${turning.heading} -> roll=${turning.rollAtPeak} ` +
-  `(expected ${expectedRoll.toFixed(5)}, err ${rollErr.toFixed(6)})  ` +
+  `at ${turning.latAtPeak} m/s2  ` +
   check(Math.abs(turning.heading) > 0.005, "steering built no heading at all") + " " +
-  check(rollErr < 1e-4, "body roll does not track heading"));
+  check(Math.abs(turning.rollAtPeak) > 1e-4, "a turn does not lean the car at all") + " " +
+  check(
+    turning.latAtPeak === 0 || Math.sign(turning.rollAtPeak) === -Math.sign(turning.latAtPeak),
+    "the car leans INTO the corner"
+  ));
 // camRoll targets heading*(speed/top)*0.14 + slip + drift*0.1, so at a
 // modest heading it is inherently a fraction of a degree. Check that it
 // responds and leans the correct way, not that it hits a magnitude the

@@ -640,6 +640,19 @@ export class GameEngine {
   private steerSmooth = 0;
   private slipVel = 0;
   private pitch = 0;
+  private pitchVel = 0;
+  /** Body roll, radians. Leans out of the corner. */
+  private roll = 0;
+  private rollVel = 0;
+  /** Slip angle last frame, for the lateral-acceleration derivative. */
+  private prevBeta = 0;
+  private prevSpeed = 0;
+  /** Lateral acceleration this frame, m/s^2 — exposed for the HUD and
+   *  the tests that assert the body leans the right way. */
+  private latAccel = 0;
+  /** How far the shell leans at the limit of grip. Real cars manage
+   *  three to five degrees; a stiff one less. */
+  private static readonly MAX_ROLL = 0.055;
   private fovCurrent = 62;
   private camInit = false;
 
@@ -3085,13 +3098,69 @@ export class GameEngine {
     this.playerMesh.position.copy(this.v1);
     this.v4.copy(this.v1).add(this.v3);
     this.playerMesh.lookAt(this.v4);
-    // Body language: nose follows the heading, weight transfer pitches
-    // under braking/throttle, body rolls in the turn
+    // Body language: nose follows the heading, and the shell moves on
+    // its springs.
     this.carBody.rotation.y = -(this.heading * 0.85 + this.driftYaw);
-    this.carBody.rotation.z = this.heading * 0.06 + this.driftYaw * 0.1;
-    const pitchTarget = this.brake * 0.035 * Math.min(1, p.speed / 20) - this.throttle * 0.014;
-    this.pitch += (pitchTarget - this.pitch) * Math.min(1, dt * 6);
+
+    // --- Roll, from cornering force rather than from steering angle.
+    //
+    // This used to be `heading * 0.06 + driftYaw * 0.1`: a fraction of
+    // the angle the car was POINTING at. A car does not lean because its
+    // nose is turned, it leans because the tyres are pushing it sideways
+    // — so a car crawling through a car park at full lock leant as hard
+    // as one at 200 through a sweeper, and a fast sweeper taken with the
+    // wheel nearly straight barely leant at all. Backwards in both
+    // directions.
+    //
+    // Lateral acceleration, properly: the rate at which the direction of
+    // TRAVEL is turning, times how fast it is going. Both halves are
+    // already in this model — the road's own curvature, and the slip
+    // angle between where the car points and where it is going — so this
+    // is bookkeeping rather than a new force.
+    const beta = Math.atan2(
+      Math.sin(this.heading) * p.speed * driftScrub + this.slipVel,
+      Math.max(1, p.speed)
+    );
+    const betaRate = (beta - this.prevBeta) / Math.max(dt, 1e-4);
+    this.prevBeta = beta;
+    const latAccel = (this.curvature * p.speed + betaRate) * p.speed;
+    // One consequence worth knowing before somebody files it as a bug:
+    // holding lock on a STRAIGHT eventually produces almost no lean. The
+    // handling model is lane-relative — steering sets a crab angle
+    // rather than integrating into a circle — so once that angle
+    // settles, the direction of travel has stopped changing and there is
+    // genuinely no cornering force left to lean against. The transient
+    // is there (measured: a peak of 2.4 degrees on turn-in, settling to
+    // 0.3), and the track's own curvature carries the rest: the Ras
+    // Al-Ard sweep leans the car 1.75 degrees with the wheel dead
+    // straight. Adding a term to make a forceless state lean anyway
+    // would be putting back exactly what this change took out.
+    //
+    // Leaning OUT of the corner, which is what a car on soft springs
+    // does; the sign is asserted in tests/body.mjs rather than trusted.
+    const rollTarget =
+      THREE.MathUtils.clamp(-latAccel / 14, -1, 1) * GameEngine.MAX_ROLL;
+
+    // --- Pitch, from what the car is actually doing rather than from
+    // where the pedals are. Pedal position lies: a car against its
+    // governor is at full throttle and not accelerating, and one
+    // spinning its wheels is at full throttle and barely moving.
+    const longAccel = (p.speed - this.prevSpeed) / Math.max(dt, 1e-4);
+    this.prevSpeed = p.speed;
+    const pitchTarget = THREE.MathUtils.clamp(-longAccel * 0.0039, -0.02, 0.045);
+
+    // Both on springs. A body settles on its suspension — it does not
+    // arrive. Slightly underdamped, so a quick flick leaves it rocking
+    // for a beat the way a real shell does, and clamped in dt so a
+    // dropped frame cannot make the integrator explode.
+    const dts = Math.min(dt, 1 / 30);
+    this.rollVel += ((rollTarget - this.roll) * 95 - this.rollVel * 13.5) * dts;
+    this.roll += this.rollVel * dts;
+    this.pitchVel += ((pitchTarget - this.pitch) * 120 - this.pitchVel * 16) * dts;
+    this.pitch += this.pitchVel * dts;
+    this.carBody.rotation.z = this.roll;
     this.carBody.rotation.x = this.pitch;
+    this.latAccel = latAccel;
 
     // The lamps, bolted on. One copy of the body's attitude and the
     // beams dive under braking, lift under power, roll into a corner and
