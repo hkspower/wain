@@ -24,6 +24,7 @@ import {
 import { aimConstrained, solveTwoBone } from "./ik";
 import { RIG } from "./rig";
 import { RIVALS } from "./rivals";
+import { rand, resetWorldRng } from "./rand";
 
 /** Drooping palm fronds merged into one geometry (crown sits at trunk top). */
 function palmCrownGeometry(): THREE.BufferGeometry {
@@ -305,16 +306,16 @@ function asphaltSurface(): {
 
   // Patched repairs with ragged edges
   for (let i = 0; i < 4; i++) {
-    const w = 90 + Math.random() * 240;
-    const hgt = 80 + Math.random() * 200;
-    const x = Math.random() * (S - w);
-    const y = Math.random() * (S - hgt);
+    const w = 90 + rand() * 240;
+    const hgt = 80 + rand() * 200;
+    const x = rand() * (S - w);
+    const y = rand() * (S - hgt);
     ctx.fillStyle = "rgba(14,15,19,0.7)";
     ctx.beginPath();
     ctx.moveTo(x, y);
-    for (let k = 0; k <= 12; k++) ctx.lineTo(x + (w * k) / 12, y + (Math.random() - 0.5) * 9);
-    for (let k = 0; k <= 12; k++) ctx.lineTo(x + w + (Math.random() - 0.5) * 9, y + (hgt * k) / 12);
-    for (let k = 12; k >= 0; k--) ctx.lineTo(x + (w * k) / 12, y + hgt + (Math.random() - 0.5) * 9);
+    for (let k = 0; k <= 12; k++) ctx.lineTo(x + (w * k) / 12, y + (rand() - 0.5) * 9);
+    for (let k = 0; k <= 12; k++) ctx.lineTo(x + w + (rand() - 0.5) * 9, y + (hgt * k) / 12);
+    for (let k = 12; k >= 0; k--) ctx.lineTo(x + (w * k) / 12, y + hgt + (rand() - 0.5) * 9);
     ctx.closePath();
     ctx.fill();
   }
@@ -330,26 +331,26 @@ function asphaltSurface(): {
     let a = angle;
     const steps = 8;
     for (let i = 0; i < steps; i++) {
-      a += (Math.random() - 0.5) * 0.6;
+      a += (rand() - 0.5) * 0.6;
       cx += Math.cos(a) * (len / steps);
       cy += Math.sin(a) * (len / steps);
       ctx.lineTo(cx, cy);
     }
     ctx.stroke();
-    if (depth < 2 && Math.random() < 0.8) {
-      crack(cx, cy, len * 0.55, a + (Math.random() < 0.5 ? 0.9 : -0.9), depth + 1);
+    if (depth < 2 && rand() < 0.8) {
+      crack(cx, cy, len * 0.55, a + (rand() < 0.5 ? 0.9 : -0.9), depth + 1);
     }
   };
   for (let i = 0; i < 10; i++) {
-    crack(Math.random() * S, Math.random() * S, 110 + Math.random() * 240, Math.random() * 6.28, 0);
+    crack(rand() * S, rand() * S, 110 + rand() * 240, rand() * 6.28, 0);
   }
 
   // Sealed tar seams
   for (let i = 0; i < 3; i++) {
     ctx.strokeStyle = "rgba(6,6,8,0.8)";
-    ctx.lineWidth = 4 + Math.random() * 4;
+    ctx.lineWidth = 4 + rand() * 4;
     ctx.beginPath();
-    const y0 = Math.random() * S;
+    const y0 = rand() * S;
     ctx.moveTo(0, y0);
     for (let x = 0; x <= S; x += 48) ctx.lineTo(x, y0 + Math.sin(x * 0.02) * 6);
     ctx.stroke();
@@ -357,9 +358,9 @@ function asphaltSurface(): {
 
   // Oil drips down the lane centres
   for (let i = 0; i < 20; i++) {
-    const x = [0.25, 0.5, 0.75][i % 3] * S + (Math.random() - 0.5) * 60;
-    const y = Math.random() * S;
-    const r = 6 + Math.random() * 22;
+    const x = [0.25, 0.5, 0.75][i % 3] * S + (rand() - 0.5) * 60;
+    const y = rand() * S;
+    const r = 6 + rand() * 22;
     const g = ctx.createRadialGradient(x, y, 0, x, y, r);
     g.addColorStop(0, "rgba(4,4,6,0.5)");
     g.addColorStop(1, "rgba(4,4,6,0)");
@@ -439,16 +440,16 @@ function seaTexture(): THREE.CanvasTexture {
   ctx.fillRect(0, 0, 256, 256);
   // Wave crests catching the moon
   for (let i = 0; i < 420; i++) {
-    const a = 0.04 + Math.random() * 0.12;
-    ctx.strokeStyle = `rgba(${140 + Math.random() * 60},${190 + Math.random() * 40},${
-      215 + Math.random() * 40
+    const a = 0.04 + rand() * 0.12;
+    ctx.strokeStyle = `rgba(${140 + rand() * 60},${190 + rand() * 40},${
+      215 + rand() * 40
     },${a})`;
-    ctx.lineWidth = 0.8 + Math.random() * 1.4;
-    const x = Math.random() * 256;
-    const y = Math.random() * 256;
+    ctx.lineWidth = 0.8 + rand() * 1.4;
+    const x = rand() * 256;
+    const y = rand() * 256;
     ctx.beginPath();
     ctx.moveTo(x, y);
-    ctx.quadraticCurveTo(x + 14, y + (Math.random() - 0.5) * 5, x + 22 + Math.random() * 22, y);
+    ctx.quadraticCurveTo(x + 14, y + (rand() - 0.5) * 5, x + 22 + rand() * 22, y);
     ctx.stroke();
   }
   const tex = new THREE.CanvasTexture(c);
@@ -549,15 +550,15 @@ function concreteTexture(): THREE.CanvasTexture {
   ctx.fillStyle = "#73767c";
   ctx.fillRect(0, 0, 256, 256);
   for (let i = 0; i < 5000; i++) {
-    const g = 96 + Math.random() * 50;
-    ctx.fillStyle = `rgba(${g},${g + 2},${g + 6},${0.2 + Math.random() * 0.4})`;
-    ctx.fillRect(Math.random() * 256, Math.random() * 256, 1.5, 1.5);
+    const g = 96 + rand() * 50;
+    ctx.fillStyle = `rgba(${g},${g + 2},${g + 6},${0.2 + rand() * 0.4})`;
+    ctx.fillRect(rand() * 256, rand() * 256, 1.5, 1.5);
   }
   // Streaky weathering
   for (let i = 0; i < 22; i++) {
-    ctx.fillStyle = `rgba(40,42,46,${0.05 + Math.random() * 0.1})`;
-    const x = Math.random() * 256;
-    ctx.fillRect(x, 0, 2 + Math.random() * 7, 256);
+    ctx.fillStyle = `rgba(40,42,46,${0.05 + rand() * 0.1})`;
+    const x = rand() * 256;
+    ctx.fillRect(x, 0, 2 + rand() * 7, 256);
   }
   // Panel seams
   ctx.strokeStyle = "rgba(30,32,36,0.7)";
@@ -603,9 +604,9 @@ function paverTexture(): THREE.CanvasTexture {
     }
   }
   for (let i = 0; i < 900; i++) {
-    const g = 70 + Math.random() * 40;
+    const g = 70 + rand() * 40;
     ctx.fillStyle = `rgba(${g},${g - 6},${g - 14},0.35)`;
-    ctx.fillRect(Math.random() * 128, Math.random() * 128, 1.5, 1.5);
+    ctx.fillRect(rand() * 128, rand() * 128, 1.5, 1.5);
   }
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
@@ -626,9 +627,9 @@ function sandTexture(): THREE.CanvasTexture {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 256, 128);
   for (let i = 0; i < 6000; i++) {
-    const g = 90 + Math.random() * 70;
-    ctx.fillStyle = `rgba(${g},${g - 14},${g - 38},${0.15 + Math.random() * 0.3})`;
-    ctx.fillRect(Math.random() * 256, Math.random() * 128, 1, 1);
+    const g = 90 + rand() * 70;
+    ctx.fillStyle = `rgba(${g},${g - 14},${g - 38},${0.15 + rand() * 0.3})`;
+    ctx.fillRect(rand() * 256, rand() * 128, 1, 1);
   }
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = THREE.ClampToEdgeWrapping;
@@ -749,11 +750,46 @@ function coronaPoints(positions: THREE.Vector3[], color: number, size: number): 
  *   lit      black except for the windows that are on. This drives
  *            emission, so those windows are sources after dark.
  */
+/**
+ * The facade skin: concrete with a window grid, and the same grid again
+ * as an emissive map so lit windows are light sources rather than pale
+ * paint.
+ *
+ * WHY IT IS THIS SIZE AND FILTERED THIS WAY
+ *
+ * This was 128x256, stretched over an entire building with no repeat and
+ * magnified with the default linear filter. On a twenty-metre facade
+ * that is about four screen pixels per texel, so every one of a window's
+ * six-pixel edges was interpolated across four pixels of screen — and a
+ * window with a four-pixel gradient on each side is not a window, it is
+ * a glowing smudge. That is what "the buildings are blurry" was: not
+ * fog, not depth of field, not the post chain. A small texture,
+ * magnified, smoothly.
+ *
+ * Three things fix it, and all three are needed:
+ *
+ *   size      four times the resolution in each axis, so the grid has
+ *             room for a frame and a mullion instead of being six pixels
+ *             of flat colour.
+ *   magFilter NEAREST. A window is a hard-edged rectangle and should
+ *             arrive as one. This is the single biggest change; linear
+ *             magnification is what was doing the smearing.
+ *   aniso     16, up from 4. A facade is almost always seen at a
+ *             grazing angle from a car, which is precisely the case
+ *             anisotropic filtering exists for.
+ *
+ * minFilter stays trilinear: NEAREST minification on a window grid
+ * crawls horribly as the camera moves, and a distant tower should go
+ * smooth rather than sparkle.
+ */
 function windowTextures(): { facade: THREE.CanvasTexture; lit: THREE.CanvasTexture } {
+  const S = 4; // texels per old pixel
+  const W = 128 * S;
+  const H = 256 * S;
   const mk = () => {
     const c = document.createElement("canvas");
-    c.width = 128;
-    c.height = 256;
+    c.width = W;
+    c.height = H;
     return [c, c.getContext("2d")!] as const;
   };
   const [fc, fx] = mk();
@@ -761,41 +797,68 @@ function windowTextures(): { facade: THREE.CanvasTexture; lit: THREE.CanvasTextu
   // Concrete, with a faint band per floor so a facade has some tone of
   // its own before anything lights it.
   fx.fillStyle = "#8d9199";
-  fx.fillRect(0, 0, 128, 256);
+  fx.fillRect(0, 0, W, H);
   lx.fillStyle = "#000000";
-  lx.fillRect(0, 0, 128, 256);
-  for (let y = 6; y < 250; y += 10) {
+  lx.fillRect(0, 0, W, H);
+  for (let y = 6 * S; y < 250 * S; y += 10 * S) {
     fx.fillStyle = "rgba(0,0,0,0.10)";
-    fx.fillRect(0, y + 6, 128, 3); // spandrel between floors
-    const floorVibe = Math.random();
+    fx.fillRect(0, y + 6 * S, W, 3 * S); // spandrel between floors
+    // A hard shadow line under each spandrel. At the old resolution
+    // there was nowhere to put one; it is most of what tells the eye
+    // this is a stack of floors rather than a pattern.
+    fx.fillStyle = "rgba(0,0,0,0.22)";
+    fx.fillRect(0, y + 6 * S, W, Math.max(1, S / 2));
+    const floorVibe = rand();
     const litChance = floorVibe < 0.18 ? 0.85 : floorVibe < 0.5 ? 0.12 : 0.38;
-    const warm = Math.random() < 0.7;
-    for (let x = 5; x < 122; x += 9) {
+    const warm = rand() < 0.7;
+    for (let x = 5 * S; x < 122 * S; x += 9 * S) {
+      const ww = 6 * S;
+      const wh = 5 * S;
+      // The reveal: a window is set INTO a facade, so it carries a dark
+      // frame. Two rectangles instead of one, which is only affordable
+      // now there are twenty-four texels across a pane instead of six.
+      fx.fillStyle = "#6f747d";
+      fx.fillRect(x - S / 2, y - S / 2, ww + S, wh + S);
       // Glass reads darker than concrete in daylight whether or not
       // anything is on behind it.
       fx.fillStyle = "#4a525e";
-      fx.fillRect(x, y, 6, 5);
-      if (Math.random() < litChance) {
-        const col = warm || Math.random() < 0.6 ? "#ffd27f" : "#9ad1ff";
+      fx.fillRect(x, y, ww, wh);
+      // Mullion down the middle of the pane.
+      fx.fillStyle = "#3d434d";
+      fx.fillRect(x + ww / 2 - Math.max(1, S / 4), y, Math.max(1, S / 2), wh);
+      if (rand() < litChance) {
+        const col = warm || rand() < 0.6 ? "#ffd27f" : "#9ad1ff";
         lx.fillStyle = col;
-        lx.globalAlpha = 0.45 + Math.random() * 0.55;
-        lx.fillRect(x, y, 6, 5);
+        lx.globalAlpha = 0.45 + rand() * 0.55;
+        lx.fillRect(x, y, ww, wh);
+        // The mullion is opaque, so it stays dark in a lit window too —
+        // a pane split in half reads as a window; a solid rectangle of
+        // light reads as a lamp.
+        lx.globalAlpha = 1;
+        lx.fillStyle = "#000000";
+        lx.fillRect(x + ww / 2 - Math.max(1, S / 4), y, Math.max(1, S / 2), wh);
         // Curtain-glow spill on bright windows
-        if (Math.random() < 0.25) {
+        if (rand() < 0.25) {
+          lx.fillStyle = col;
           lx.globalAlpha = 0.12;
-          lx.fillRect(x - 1, y - 1, 8, 7);
+          lx.fillRect(x - S, y - S, ww + 2 * S, wh + 2 * S);
         }
         lx.globalAlpha = 1;
         // A lit pane is a little paler in daylight too
         fx.fillStyle = "#5d6674";
-        fx.fillRect(x, y, 6, 5);
+        fx.fillRect(x, y, ww, wh);
       }
     }
   }
   const wrap = (canvas: HTMLCanvasElement) => {
     const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = 4;
+    tex.anisotropy = 16;
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.generateMipmaps = true;
     return tex;
   };
   return { facade: wrap(fc), lit: wrap(lc) };
@@ -1228,6 +1291,70 @@ type Skin = { facade: THREE.CanvasTexture; lit: THREE.CanvasTexture };
 
 /** A glazed tower's material: concrete by day, lit windows after dark.
  *  The caller keeps the material so the hour can drive its emission. */
+
+/**
+ * One tile of facade, in metres: thirteen window bays across and
+ * twenty-five floors up, at three metres a bay and three-point-four a
+ * floor. Real dimensions, so a building's UVs can be worked out from
+ * its size instead of the texture being stretched to fit whatever it
+ * happens to be.
+ */
+const FACADE_TILE_M = { x: 39, y: 85 };
+
+/**
+ * Scale a facade's UVs by the size of the instance wearing them.
+ *
+ * The blocks are one InstancedMesh with one material, so every building
+ * had the same UVs — 0 to 1 across whatever it was — and two things
+ * followed from that, both visible.
+ *
+ * The blur: a typical block is about 22 m wide and 24 m tall, and the
+ * texture is 512 x 1024, so it delivered 23 texels per metre across and
+ * 43 up. Nearly twice as coarse horizontally as vertically, which is
+ * exactly what the smearing was — window rows melting into horizontal
+ * bands while the floors above and below them stayed separate.
+ *
+ * The other thing: every building had twenty-five floors. A ten-metre
+ * shop and a hundred-and-thirty-metre tower, both twenty-five floors,
+ * one with floors forty centimetres high and the other with floors five
+ * metres high.
+ *
+ * Both go away if the UVs are scaled by the instance's own size, which
+ * is sitting right there in instanceMatrix. Guarded on USE_INSTANCING so
+ * the same material still compiles for the handful of non-instanced
+ * meshes that wear it.
+ */
+function facadeUvScaling(mat: THREE.MeshStandardMaterial): void {
+  mat.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace(
+      "#include <uv_vertex>",
+      `#include <uv_vertex>
+      #ifdef USE_INSTANCING
+        vec3 grnScale = vec3(
+          length(instanceMatrix[0].xyz),
+          length(instanceMatrix[1].xyz),
+          length(instanceMatrix[2].xyz));
+        vec3 grnN = abs(normal);
+        // Which two of the box's three extents this face actually spans.
+        vec2 grnSpan;
+        if (grnN.y > 0.5) grnSpan = vec2(grnScale.x, grnScale.z);
+        else if (grnN.x > 0.5) grnSpan = vec2(grnScale.z, grnScale.y);
+        else grnSpan = vec2(grnScale.x, grnScale.y);
+        vec2 grnTile = grnSpan / vec2(${FACADE_TILE_M.x.toFixed(1)}, ${FACADE_TILE_M.y.toFixed(1)});
+        #ifdef USE_MAP
+          vMapUv *= grnTile;
+        #endif
+        #ifdef USE_EMISSIVEMAP
+          vEmissiveMapUv *= grnTile;
+        #endif
+      #endif`
+    );
+  };
+  // Without this the two compilations — instanced and not — share a
+  // cache entry and whichever compiles first wins for both.
+  mat.customProgramCacheKey = () => "grn-facade-uv";
+}
+
 function glazedMat(skin: Skin, color: number, roughness: number): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
     map: skin.facade,
@@ -1713,6 +1840,13 @@ const _dir = new THREE.Vector3();
 let _waveT = 0;
 
 export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
+  // Same seed, same Kuwait. Every scatter below this line — building
+  // heights, which windows are lit, where the palms stand, which side a
+  // billboard faces — comes from one stream started here, so a
+  // screenshot taken today is comparable with one taken before a change
+  // rather than being a picture of a different city. See rand.ts.
+  resetWorldRng();
+
   // Handles for the night-shimmer tick (assigned in the streetlight block)
   let glintMat: THREE.PointsMaterial | null = null;
   /** Advances the traffic signals; assigned in the signal block. */
@@ -1898,8 +2032,8 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const n = 700;
     const pos = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const e = Math.random() * Math.PI * 0.45 + 0.08;
+      const a = rand() * Math.PI * 2;
+      const e = rand() * Math.PI * 0.45 + 0.08;
       const r = 1750;
       pos[i * 3] = Math.cos(a) * Math.cos(e) * r;
       pos[i * 3 + 1] = Math.sin(e) * r * 0.5;
@@ -2659,6 +2793,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // Intensity rides the hour — see setTimeOfDay — because a window
     // that glows at noon reads as a mistake.
     const mat = glazedMat(windows, 0xffffff, 0.8);
+    facadeUvScaling(mat);
     litFacades.push(mat);
     const blocks = new THREE.InstancedMesh(geo, mat, count);
     const m = new THREE.Matrix4();
@@ -2695,10 +2830,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // distance out and spun to a random angle, which is why the city
       // read as scattered boxes — several of them standing inside each
       // other, none of them facing anything.
-      const blockIndex = Math.floor(Math.random() * crossCount);
-      const [lo, hi] = rings[Math.floor(Math.random() * rings.length)];
-      const depth = Math.min(hi - lo - 5, 12 + Math.random() * 20);
-      const width = 12 + Math.random() * 20;
+      const blockIndex = Math.floor(rand() * crossCount);
+      const [lo, hi] = rings[Math.floor(rand() * rings.length)];
+      const depth = Math.min(hi - lo - 5, 12 + rand() * 20);
+      const width = 12 + rand() * 20;
       // Along the block, clear of the cross street at either end.
       const room = blockLen - 2 * STREETS.half - width;
       // A band too thin to build in, or a footprint too long for the
@@ -2707,7 +2842,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // identity, which is a 1 m cube sitting at the world origin.
       if (depth < 6 || room < 2) continue;
       const s =
-        blockIndex * blockLen + STREETS.half + width / 2 + Math.random() * room;
+        blockIndex * blockLen + STREETS.half + width / 2 + rand() * room;
       // Not on a forecourt. The station occupies the first band of the
       // block — the one between the shoulder and the first avenue — and
       // the block picker has no idea it is there, so a tower would go up
@@ -2725,10 +2860,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       const u = track.wrap(s) / L;
       // Never on the sea side of the corniche; both sides inland.
       const onCoast = u >= COAST_U.from && u <= COAST_U.to;
-      const sideSign = onCoast ? 1 : Math.random() < 0.5 ? 1 : -1;
+      const sideSign = onCoast ? 1 : rand() < 0.5 ? 1 : -1;
       // Set against the near kerb, so the block has a street frontage
       // and a soft interior rather than one row of floating towers.
-      const inset = 2 + Math.random() * Math.max(0, hi - lo - depth - 4);
+      const inset = 2 + rand() * Math.max(0, hi - lo - depth - 4);
       track.pose(s, sideSign * (lo + inset + depth / 2), p, tmp);
       // Square to the street. Local +Z runs along the road, so the box's
       // Z extent is its frontage and its X extent is its depth.
@@ -2736,11 +2871,11 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(tmp.x, tmp.z));
       // Taller skyline near the city at the top of the lap
       const cityBoost = u > 0.88 || u < 0.06 ? 2.1 : 1;
-      const h = (10 + Math.random() * Math.random() * 55) * cityBoost;
+      const h = (10 + rand() * rand() * 55) * cityBoost;
       scale.set(depth, h, width);
       m.compose(p, q, scale);
       blocks.setMatrixAt(placed, m);
-      tint.setHex(palette[i % palette.length]).multiplyScalar(0.85 + Math.random() * 0.3);
+      tint.setHex(palette[i % palette.length]).multiplyScalar(0.85 + rand() * 0.3);
       blocks.setColorAt(placed, tint);
       placed++;
     }
@@ -2780,13 +2915,13 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // Sea-side walkway edge, with the occasional inland palm
       const lateral =
         i % 5 === 4
-          ? ROAD_HALF_WIDTH + 3 + Math.random() * 4
+          ? ROAD_HALF_WIDTH + 3 + rand() * 4
           : -(ROAD_HALF_WIDTH + 2.6);
-      track.pose(s + Math.random() * 6, lateral, p, tmp);
+      track.pose(s + rand() * 6, lateral, p, tmp);
       m.makeTranslation(p.x, 0, p.z);
       trunks.setMatrixAt(i, m);
       // Random spin per crown so the frond pattern doesn't repeat
-      m.makeRotationY(Math.random() * Math.PI * 2).setPosition(p.x, 0, p.z);
+      m.makeRotationY(rand() * Math.PI * 2).setPosition(p.x, 0, p.z);
       crowns.setMatrixAt(i, m);
     }
     trunks.instanceMatrix.needsUpdate = true;
@@ -2903,7 +3038,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       ["حولي موترز", "HAWALLY MOTORS · JDM imports", "#252525", "#f2f2f2", "#888888", 6900, 25],
     ];
     for (const [l1, l2, bg, fg, accent, s, off] of ads) {
-      const sideSign = s < COAST_END_M ? 1 : Math.random() < 0.5 ? 1 : -1; // never in the sea
+      const sideSign = s < COAST_END_M ? 1 : rand() < 0.5 ? 1 : -1; // never in the sea
       scene.add(billboard(track, s, sideSign * off, adTexture(l1, l2, bg, fg, accent)));
     }
   }

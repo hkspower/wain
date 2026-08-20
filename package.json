@@ -46,13 +46,15 @@
     "test:lights": "node tests/lights.mjs",
     "test:body": "node tests/body.mjs",
     "test:night": "node tests/night.mjs",
+    "test:world": "node tests/world.mjs",
     "test:fuel": "node tests/fuel.mjs",
     "test:community": "node tests/community.mjs",
     "shots:cars": "node tools/shots/cars.mjs",
     "check:ui": "node scripts/check-ui-glyphs.mjs",
     "check:parts": "node scripts/check-catalogue.mjs",
     "test:levels": "node tools/shots/levels.mjs",
-    "check:menus": "node tools/shots/menus.mjs"
+    "check:menus": "node tools/shots/menus.mjs",
+    "check:sharp": "node tools/shots/sharpness.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",
