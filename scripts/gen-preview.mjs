@@ -23,6 +23,7 @@
  */
 
 import { chromium } from 'playwright';
+import sharp from 'sharp';
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -47,6 +48,7 @@ const arabicDigits = (n) => String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨�
 const OUT = join(ROOT, 'out');
 const WORK = join(ROOT, '.preview-cache');
 const PDF = join(ROOT, 'docs', 'wain-app-preview.pdf');
+const IMG = join(ROOT, 'docs', 'preview-pages');
 const PORT = 4178;
 const EXEC = process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium';
 
@@ -147,7 +149,11 @@ await pp.screenshot({ path: join(WORK, 'ai.png') });
 
 await phoneCtx.close();
 
-const deskCtx = await browser.newContext({ viewport: { width: 1440, height: 1010 }, deviceScaleFactor: 2, locale: 'ar-KW' });
+// deviceScaleFactor 3, not 2: this plate is placed 257mm wide, which at
+// 300dpi wants 3035px. At dsf 2 it captured 2880px and the page raster was
+// upscaling it slightly — the one asset in the deck that was not comfortably
+// above its printed size.
+const deskCtx = await browser.newContext({ viewport: { width: 1440, height: 1010 }, deviceScaleFactor: 3, locale: 'ar-KW' });
 const dp = await deskCtx.newPage();
 await dp.goto(base + '/explore/', { waitUntil: 'networkidle' });
 await dp.evaluate(() => document.fonts.ready);
@@ -375,14 +381,59 @@ await pdfPage.pdf({
   preferCSSPageSize: true,          // honours @page, so no scaling is applied
   margin: { top: 0, right: 0, bottom: 0, left: 0 },
 });
-// A raster of each page next to the PDF, so the result can be checked without
-// a PDF viewer — and so a broken page is visible before it ships.
-await pdfPage.setViewportSize({ width: 1123, height: 794 });
-const pageCount = await pdfPage.locator('.page').count();
+/**
+ * A PNG of every page beside the PDF — both to check the result without a PDF
+ * viewer, and because the pages are wanted on their own for slides, posts and
+ * print.
+ *
+ * 300dpi, and not more, is a deliberate ceiling. The deck's largest embedded
+ * asset is the desktop plate, captured at 4320px and placed 257mm wide; 300dpi
+ * asks 3035px of it, so nothing in the page is enlarged past what was actually
+ * captured. At 450dpi it would want 4553px and the export would start
+ * inventing detail — a bigger file that is not a better picture.
+ *
+ * The deck is laid out at 96dpi (1123px = 297mm), so the scale factor is
+ * 300/96 = 3.125.
+ */
+const EXPORT_DPI = 300;
+const SCALE = EXPORT_DPI / 96;
+const PAGE_PX = { w: Math.round(1123 * SCALE), h: Math.round(794 * SCALE) };
+const shotCtx = await browser.newContext({
+  viewport: { width: 1123, height: 794 },
+  deviceScaleFactor: SCALE,
+});
+const shotPage = await shotCtx.newPage();
+await shotPage.setContent(html, { waitUntil: 'load' });
+await shotPage.evaluate(() => document.fonts.ready);
+await shotPage.waitForTimeout(1200);
+
+mkdirSync(IMG, { recursive: true });
+const pageCount = await shotPage.locator('.page').count();
+const written = [];
 for (let i = 0; i < pageCount; i++) {
-  await pdfPage.locator('.page').nth(i).screenshot({ path: join(WORK, `page-${i + 1}.png`) });
+  const file = join(IMG, `wain-preview-${i + 1}.png`);
+  const raw = await shotPage.locator('.page').nth(i).screenshot();
+  // Element screenshots round fractionally, so the pages came out 2481 or
+  // 2484px tall depending on where each sat on the strip. A set of pages that
+  // are not the same size is a set that will not place cleanly, so crop every
+  // one to the exact page rectangle. The trim is 3px of the bottom margin.
+  // Stamp the real density. A browser screenshot carries no pHYs chunk, so
+  // every print tool reads it as 72dpi and places a 3509px page at 1.2 metres
+  // wide — the pixels were right and the document was wrong. With this it
+  // drops in at 297mm.
+  await sharp(raw)
+    .extract({ left: 0, top: 0, width: PAGE_PX.w, height: PAGE_PX.h })
+    .withMetadata({ density: EXPORT_DPI })
+    .png({ compressionLevel: 9 })
+    .toFile(file);
+  written.push(file);
 }
+await shotCtx.close();
 
 await browser.close();
 server.close();
 console.log(`gen-preview: docs/wain-app-preview.pdf (${(readFileSync(PDF).length / 1e6).toFixed(2)} MB) ✓`);
+for (const f of written) {
+  const { width, height } = { width: Math.round(1123 * SCALE), height: Math.round(794 * SCALE) };
+  console.log(`  ${f.replace(ROOT + '/', '')}  ${width}×${height}  ${EXPORT_DPI}dpi  ${(readFileSync(f).length / 1e6).toFixed(2)} MB`);
+}
