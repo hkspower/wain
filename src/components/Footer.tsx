@@ -4,7 +4,7 @@ import { categories } from "@/lib/places";
 
 export default function Footer() {
   return (
-    <footer className="mt-auto border-t border-sand-200 bg-sand-100">
+    <footer className="mt-auto border-t border-line bg-sand-100">
       <div className="mx-auto max-w-6xl px-4 py-10 standalone:px-3 standalone:py-5 sm:px-6 sm:py-12">
         <div className="grid gap-8 standalone:gap-4 sm:grid-cols-3">
           {/* Brand */}
@@ -72,7 +72,7 @@ export default function Footer() {
           </nav>
         </div>
 
-        <p className="mt-10 border-t border-sand-200 pt-6 text-center text-xs text-ink-500">
+        <p className="mt-10 border-t border-line pt-6 text-center text-xs text-ink-500">
           © {new Date().getFullYear()} وين. صُنع بحب في الكويت 🇰🇼
         </p>
       </div>

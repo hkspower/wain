@@ -156,7 +156,7 @@ export default function HomePage() {
             ].map((step) => (
               <div
                 key={step.n}
-                className="group relative rounded-3xl border border-sand-200 bg-white p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg"
+                className="group relative rounded-3xl border border-line bg-white p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg"
               >
                 <span className="absolute -top-5 start-6 grid size-11 place-items-center rounded-2xl bg-gradient-to-b from-coral-500 to-coral-700 text-white shadow-md shadow-coral-600/30 transition duration-300 group-hover:scale-105">
                   {step.icon}

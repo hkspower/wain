@@ -32,9 +32,9 @@ export default function PlaceMap({
         <IconMap className="size-6 text-sea-600" />
         وينه بالضبط؟
       </h2>
-      <div className="overflow-hidden rounded-3xl border border-sand-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-3xl border border-line bg-white shadow-sm">
         <PlaceMapFrame place={place} related={related} />
-        <div className="flex flex-wrap items-center gap-3 border-t border-sand-200 p-4">
+        <div className="flex flex-wrap items-center gap-3 border-t border-line p-4">
           <a
             href={gmapsPoi}
             target="_blank"
@@ -48,7 +48,7 @@ export default function PlaceMap({
             href={gmapsDirections}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-sand-300 bg-white px-4 py-2.5 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-line-control bg-white px-4 py-2.5 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
           >
             <IconGo className="size-4" />
             الاتجاهات
@@ -64,7 +64,7 @@ export default function PlaceMap({
         </div>
 
         {/* صوت وين — spoken suggestion for this spot and what's around it */}
-        <div className="flex flex-wrap items-center gap-3 border-t border-sand-200 bg-sand-100 p-4">
+        <div className="flex flex-wrap items-center gap-3 border-t border-line bg-sand-100 p-4">
           <SpeakButton parts={suggestParts} label="اسمع الاقتراح" />
           <VoiceControls />
         </div>

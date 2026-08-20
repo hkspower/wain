@@ -108,7 +108,7 @@ export default function FahadLauncher() {
           ref={panelRef}
           role="dialog"
           aria-label={`${FAHAD_COPY.name} — ${FAHAD_COPY.role}`}
-          className="fixed bottom-24 start-5 z-50 w-[min(22rem,calc(100vw-2.5rem))] overflow-hidden rounded-3xl border border-sand-200 bg-white shadow-2xl"
+          className="fixed bottom-24 start-5 z-50 w-[min(22rem,calc(100vw-2.5rem))] overflow-hidden rounded-3xl border border-line bg-white shadow-2xl"
         >
           <header className="flex items-center gap-3 bg-gradient-to-l from-coral-700 to-coral-500 p-4 text-white">
             <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-white/20">

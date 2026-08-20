@@ -30,7 +30,7 @@ export default function VoiceControls() {
         className={`flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold transition ${
           enabled
             ? "bg-coral-600 text-white shadow-sm hover:bg-coral-700"
-            : "border border-sand-300 bg-white text-ink-600 hover:border-coral-300 hover:text-coral-700"
+            : "border border-line-control bg-white text-ink-600 hover:border-coral-300 hover:text-coral-700"
         }`}
       >
         {enabled ? <IconSpeaker className="size-4" /> : <IconSpeakerOff className="size-4" />}
@@ -38,7 +38,7 @@ export default function VoiceControls() {
       </button>
 
       {enabled && (
-        <div className="flex items-center gap-1 rounded-full border border-sand-200 bg-white p-1" role="group" aria-label="اختر الصوت">
+        <div className="flex items-center gap-1 rounded-full border border-line bg-white p-1" role="group" aria-label="اختر الصوت">
           {PERSONA_ORDER.map((id) => (
             <button
               key={id}

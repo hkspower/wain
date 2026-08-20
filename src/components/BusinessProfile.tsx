@@ -17,7 +17,7 @@ import type { Place } from "@/lib/places";
 export function BusinessBrand({ place }: { place: Place }) {
   if (!place.logoUrl) return null;
   return (
-    <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-sand-200 bg-white shadow-sm sm:size-20">
+    <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-line bg-white shadow-sm sm:size-20">
       {/* eslint-disable-next-line @next/next/no-img-element -- remote URL, static export */}
       <img
         src={place.logoUrl}
@@ -33,7 +33,7 @@ export function BusinessBrand({ place }: { place: Place }) {
 export function BusinessBio({ place }: { place: Place }) {
   if (!place.bioAr?.trim()) return null;
   return (
-    <section className="mt-8 rounded-3xl border border-sand-200 bg-sand-100/70 p-5 standalone:mt-5 standalone:rounded-2xl standalone:p-4 sm:p-6">
+    <section className="mt-8 rounded-3xl border border-line bg-sand-100/70 p-5 standalone:mt-5 standalone:rounded-2xl standalone:p-4 sm:p-6">
       <h2 className="flex items-center gap-2 text-sm font-semibold text-ink-700">
         <IconSparkle className="size-4 text-sun-600" />
         بكلامهم
@@ -64,7 +64,7 @@ export function BusinessGallery({ place }: { place: Place }) {
         {images.map((url, i) => (
           <li
             key={url}
-            className={`overflow-hidden rounded-2xl border border-sand-200 bg-sand-100 ${
+            className={`overflow-hidden rounded-2xl border border-line bg-sand-100 ${
               i === 0 && images.length > 1 ? "col-span-2 row-span-2" : ""
             }`}
           >

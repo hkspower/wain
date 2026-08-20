@@ -75,11 +75,11 @@ export default function SearchPalette() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="بحث"
-        className="flex min-h-11 items-center gap-2 rounded-full border border-sand-200 bg-white/80 px-4 text-sm font-semibold text-ink-500 transition hover:border-sea-300 hover:text-ink-700"
+        className="flex min-h-11 items-center gap-2 rounded-full border border-line-control bg-white/80 px-4 text-sm font-semibold text-ink-500 transition hover:border-sea-300 hover:text-ink-700"
       >
         <IconSearch className="size-4" />
         <span className="hidden sm:inline">بحث</span>
-        <kbd className="hidden rounded border border-sand-300 bg-sand-100 px-1.5 text-[10px] font-semibold text-ink-500 lg:inline" dir="ltr">
+        <kbd className="hidden rounded border border-line-strong bg-sand-100 px-1.5 text-[10px] font-semibold text-ink-500 lg:inline" dir="ltr">
           ⌘K
         </kbd>
       </button>
@@ -96,9 +96,9 @@ export default function SearchPalette() {
             role="dialog"
             aria-modal="true"
             aria-label="بحث"
-            className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-sand-200 bg-white shadow-2xl"
+            className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-line bg-white shadow-2xl"
           >
-            <div className="relative border-b border-sand-200">
+            <div className="relative border-b border-line">
               <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 start-4 flex items-center text-ink-500">
                 <IconSearch className="size-5" />
               </span>
@@ -132,7 +132,7 @@ export default function SearchPalette() {
                   close();
                   router.push(`/search?q=${encodeURIComponent(q.trim())}`);
                 }}
-                className="block w-full border-t border-sand-200 bg-sand-100 px-4 py-3 text-center text-sm font-semibold text-ink-700 transition hover:bg-sand-200"
+                className="block w-full border-t border-line bg-sand-100 px-4 py-3 text-center text-sm font-semibold text-ink-700 transition hover:bg-sand-200"
               >
                 شوف كل النتائج
               </button>

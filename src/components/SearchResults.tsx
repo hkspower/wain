@@ -84,21 +84,21 @@ function PlaceMeta({ id }: { id: string }) {
     <span className="hidden shrink-0 items-center gap-3 sm:flex">
       <span
         className="flex items-center gap-1 text-xs font-semibold text-ink-700"
-        aria-label={`التقييم ${place.rating} من ٥`}
+        aria-label={`التقييم ${toArabicDigits(place.rating.toFixed(1))} من ٥`}
       >
         <IconStar className="size-3.5 text-sun-500" />
         {toArabicDigits(place.rating.toFixed(1))}
       </span>
       <span
         className="flex items-center gap-1 text-[11px] font-semibold text-sand-700"
-        aria-label={`مستوى السعر ${place.priceLevel} من ٣`}
+        aria-label={`مستوى السعر ${toArabicDigits(place.priceLevel)} من ٣`}
       >
         <span className="flex gap-0.5" aria-hidden="true">
           {[1, 2, 3].map((i) => (
             <span
               key={i}
               className={`size-1.5 rounded-full ${
-                i <= place.priceLevel ? "bg-sand-600" : "bg-sand-300"
+                i <= place.priceLevel ? "bg-sand-700" : "bg-sand-300"
               }`}
             />
           ))}
@@ -143,7 +143,7 @@ export default function SearchResults({
                 ? "border-sea-300 bg-sea-50/60 ring-2 ring-sea-100"
                 : linked
                   ? "border-sea-300 bg-sea-50/40"
-                  : "border-sand-200 bg-white hover:border-sand-300 hover:bg-sand-100"
+                  : "border-line bg-white hover:border-line-strong hover:bg-sand-100"
             }`}
           >
             <Thumb hit={hit} />

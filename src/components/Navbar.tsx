@@ -14,7 +14,7 @@ export default function Navbar() {
   const pathname = usePathname();
 
   return (
-    <header className="app-chrome sticky top-0 z-50 border-b border-sand-200/70 bg-sand-50/85 pt-[env(safe-area-inset-top)] shadow-[0_1px_0_rgba(255,255,255,0.6)_inset] backdrop-blur-xl">
+    <header className="app-chrome sticky top-0 z-50 border-b border-line/70 bg-sand-50/85 pt-[env(safe-area-inset-top)] shadow-[0_1px_0_rgba(255,255,255,0.6)_inset] backdrop-blur-xl">
       <nav
         className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6"
         aria-label="التنقّل الرئيسي"
@@ -43,7 +43,7 @@ export default function Navbar() {
         {/* Links */}
         <div className="flex shrink-0 items-center gap-2">
           <SearchPalette />
-          <div className="standalone-hidden flex items-center gap-1 rounded-full bg-white/70 p-1 ring-1 ring-sand-200/80 backdrop-blur">
+          <div className="standalone-hidden flex items-center gap-1 rounded-full bg-white/70 p-1 ring-1 ring-line/80 backdrop-blur">
           {links.map((link) => {
             const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
             return (

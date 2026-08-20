@@ -66,7 +66,7 @@ export default function MediaReview({
         <div>
           <p className="mb-2 text-xs font-semibold text-ink-500">الشعار</p>
           <div className="flex items-center gap-3">
-            <span className="grid size-20 place-items-center overflow-hidden rounded-2xl border border-sand-200 bg-sand-100">
+            <span className="grid size-20 place-items-center overflow-hidden rounded-2xl border border-line bg-sand-100">
               {urls[logoPath] ? (
                 // eslint-disable-next-line @next/next/no-img-element -- signed URL
                 <img src={urls[logoPath]} alt="" className="size-full object-contain" />
@@ -81,7 +81,7 @@ export default function MediaReview({
               className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl px-4 text-sm font-semibold transition ${
                 logoApproved
                   ? "bg-palm-600 text-white"
-                  : "border border-sand-300 bg-white text-ink-600 hover:border-palm-400"
+                  : "border border-line-control bg-white text-ink-600 hover:border-palm-400"
               }`}
             >
               {logoApproved ? <IconCheck className="size-4" /> : <IconClose className="size-4" />}
@@ -124,7 +124,7 @@ export default function MediaReview({
                     onClick={() => toggle(p)}
                     aria-pressed={on}
                     className={`relative block aspect-square w-full overflow-hidden rounded-xl border-2 transition ${
-                      on ? "border-palm-600" : "border-sand-200 opacity-60 hover:opacity-100"
+                      on ? "border-palm-600" : "border-line opacity-60 hover:opacity-100"
                     }`}
                   >
                     {urls[p] ? (

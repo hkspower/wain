@@ -148,7 +148,7 @@ export default function NearbyDial() {
       </div>
 
       {opened && (
-        <div className="mt-6 w-full max-w-xl rounded-3xl border border-sand-200 bg-white/95 p-4 shadow-lg backdrop-blur">
+        <div className="mt-6 w-full max-w-xl rounded-3xl border border-line bg-white/95 p-4 shadow-lg backdrop-blur">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-semibold text-ink-800">
               {/* "حواليك" is a preposition, so it agrees with every count
@@ -186,7 +186,7 @@ export default function NearbyDial() {
               <li key={p.slug}>
                 <Link
                   href={`/places/${p.slug}`}
-                  className="flex items-center gap-3 rounded-2xl border border-transparent p-2.5 transition hover:border-sand-200 hover:bg-sand-100"
+                  className="flex items-center gap-3 rounded-2xl border border-transparent p-2.5 transition hover:border-line hover:bg-sand-100"
                 >
                   <span
                     aria-hidden="true"

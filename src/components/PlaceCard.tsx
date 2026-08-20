@@ -9,16 +9,16 @@ export default function PlaceCard({ place }: { place: Place }) {
   return (
     <Link
       href={`/places/${place.slug}`}
-      className="group flex flex-col overflow-hidden rounded-3xl border border-sand-200 bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-sand-300 hover:shadow-xl hover:shadow-ink-900/10"
+      className="group flex flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-line-strong hover:shadow-xl hover:shadow-ink-900/10"
     >
-      <div className="relative flex h-36 items-center justify-center overflow-hidden border-b border-sand-200 bg-sand-200/60 standalone:h-24">
+      <div className="relative flex h-36 items-center justify-center overflow-hidden border-b border-line bg-sand-200/60 standalone:h-24">
         <PlaceIcon
           slug={place.slug}
           className="size-20 text-ink-700 transition duration-500 group-hover:scale-105 standalone:size-14"
         />
         <span
           className="absolute start-3 top-3 flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-ink-800 shadow-sm backdrop-blur"
-          aria-label={`التقييم ${place.rating} من ٥`}
+          aria-label={`التقييم ${toArabicDigits(place.rating.toFixed(1))} من ٥`}
         >
           <IconStar className="size-3.5 text-sun-500" />
           {toArabicDigits(place.rating.toFixed(1))}
@@ -32,14 +32,14 @@ export default function PlaceCard({ place }: { place: Place }) {
           </h3>
           <span
             className="flex shrink-0 items-center gap-1.5 pt-1 text-xs font-semibold text-sand-700"
-            aria-label={`مستوى السعر ${place.priceLevel} من ٣`}
+            aria-label={`مستوى السعر ${toArabicDigits(place.priceLevel)} من ٣`}
           >
             <span className="flex gap-0.5" aria-hidden="true">
               {[1, 2, 3].map((i) => (
                 <span
                   key={i}
                   className={`size-1.5 rounded-full ${
-                    i <= place.priceLevel ? "bg-sand-600" : "bg-sand-300"
+                    i <= place.priceLevel ? "bg-sand-700" : "bg-sand-300"
                   }`}
                 />
               ))}

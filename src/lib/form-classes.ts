@@ -11,7 +11,7 @@
  */
 
 const FIELD_BASE =
-  "w-full rounded-xl border border-sand-200 bg-white text-ink-800 shadow-sm outline-none " +
+  "w-full rounded-xl border border-line-control bg-white text-ink-800 shadow-sm outline-none " +
   "transition placeholder:text-ink-500/50 focus:border-sea-400 focus:ring-4 focus:ring-sea-100";
 
 /** Public forms: roomy enough to fill in on a phone. */

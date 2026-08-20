@@ -53,7 +53,7 @@ export default function AboutPage() {
             text: "نرتّب الأماكن حسب قربها من موقعك.",
           },
         ].map((item) => (
-          <div key={item.title} className="rounded-3xl border border-sand-200 bg-white p-5 shadow-sm">
+          <div key={item.title} className="rounded-3xl border border-line bg-white p-5 shadow-sm">
             <span className={`grid size-10 place-items-center rounded-2xl ${item.tone}`} aria-hidden="true">
               {item.icon}
             </span>

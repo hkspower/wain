@@ -110,7 +110,7 @@ export default function SearchMap({
         // The shape comes from the results, so it has to be inline. It must
         // stay exactly the aspect the bbox was grown to, or every pin shifts.
         style={{ aspectRatio: String(f.aspect) }}
-        className="relative w-full overflow-hidden rounded-3xl border border-sand-200 bg-sand-100 shadow-sm standalone:rounded-2xl"
+        className="relative w-full overflow-hidden rounded-3xl border border-line bg-sand-100 shadow-sm standalone:rounded-2xl"
       >
         {/* Ground for before the tiles paint — and for offline, where the pins
             still carry the answer on their own. */}

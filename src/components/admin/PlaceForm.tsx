@@ -192,7 +192,7 @@ export default function PlaceForm({
         </label>
       </div>
 
-      <div className="flex gap-3 border-t border-sand-200 pt-5">
+      <div className="flex gap-3 border-t border-line pt-5">
         <button
           type="submit"
           disabled={busy}
@@ -203,7 +203,7 @@ export default function PlaceForm({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-xl border border-sand-300 bg-white px-5 py-2.5 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
+          className="rounded-xl border border-line-control bg-white px-5 py-2.5 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
         >
           إلغاء
         </button>

@@ -117,7 +117,7 @@ export default async function PlacePage({
         )}
         <span
           className="absolute start-4 top-4 flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-sm font-semibold text-ink-800 shadow-sm backdrop-blur"
-          aria-label={`التقييم ${place.rating} من ٥`}
+          aria-label={`التقييم ${toArabicDigits(place.rating.toFixed(1))} من ٥`}
         >
           <IconStar className="size-4 text-sun-500" />
           {toArabicDigits(place.rating.toFixed(1))}
@@ -147,7 +147,7 @@ export default async function PlacePage({
           )}
           <span
             className="flex items-center gap-1.5 rounded-full bg-sand-100 px-3 py-1.5 text-sm font-semibold text-sand-800"
-            aria-label={`مستوى السعر ${place.priceLevel} من ٣`}
+            aria-label={`مستوى السعر ${toArabicDigits(place.priceLevel)} من ٣`}
           >
             <span className="flex gap-0.5" aria-hidden="true">
               {[1, 2, 3].map((i) => (
@@ -176,7 +176,7 @@ export default async function PlacePage({
 
       {/* Details */}
       <div className="mt-9 grid gap-4 standalone:mt-5 standalone:gap-3 sm:grid-cols-2">
-        <div className="rounded-3xl border border-sand-200 bg-white p-6 shadow-sm standalone:p-4">
+        <div className="rounded-3xl border border-line bg-white p-6 shadow-sm standalone:p-4">
           <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-ink-900">
             <IconSparkle className="size-5 text-sun-600" />
             أبرز ما فيه
@@ -191,7 +191,7 @@ export default async function PlacePage({
           </ul>
         </div>
 
-        <div className="rounded-3xl border border-sand-200 bg-white p-6 shadow-sm standalone:p-4">
+        <div className="rounded-3xl border border-line bg-white p-6 shadow-sm standalone:p-4">
           <h2 className="flex items-center gap-2 font-display text-lg font-semibold text-ink-900">
             <IconClock className="size-5 text-sea-600" />
             أحسن وقت للزيارة
@@ -225,7 +225,7 @@ export default async function PlacePage({
       <div className="mt-12 text-center">
         <Link
           href="/explore"
-          className="inline-flex items-center gap-2 rounded-xl border border-sand-300 bg-white px-6 py-3 font-semibold text-ink-700 shadow-sm transition hover:border-sea-300 hover:text-sea-700"
+          className="inline-flex items-center gap-2 rounded-xl border border-line-control bg-white px-6 py-3 font-semibold text-ink-700 shadow-sm transition hover:border-sea-300 hover:text-sea-700"
         >
           <IconBack className="size-4" />
           رجوع للاستكشاف

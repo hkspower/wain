@@ -48,7 +48,7 @@ export default function PrivacyPage() {
       </section>
 
       {/* Location */}
-      <section className="mt-6 rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
+      <section className="mt-6 rounded-3xl border border-line bg-white p-6 shadow-sm">
         <h2 className="flex items-center gap-2 font-display text-xl font-semibold text-ink-900">
           <IconLocate className="size-5 text-sea-600" />
           موقعك
@@ -67,7 +67,7 @@ export default function PrivacyPage() {
       </section>
 
       {/* فهد */}
-      <section className="mt-6 rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
+      <section className="mt-6 rounded-3xl border border-line bg-white p-6 shadow-sm">
         <h2 className="font-display text-xl font-semibold text-ink-900">
           {FAHAD_COPY.name} — المساعد الصوتي
         </h2>
@@ -87,7 +87,7 @@ export default function PrivacyPage() {
       </section>
 
       {/* صوت وين */}
-      <section className="mt-6 rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
+      <section className="mt-6 rounded-3xl border border-line bg-white p-6 shadow-sm">
         <h2 className="font-display text-xl font-semibold text-ink-900">
           صوت وين — الاقتراح الصوتي
         </h2>
@@ -107,7 +107,7 @@ export default function PrivacyPage() {
       </section>
 
       {/* Hosting */}
-      <section className="mt-6 rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
+      <section className="mt-6 rounded-3xl border border-line bg-white p-6 shadow-sm">
         <h2 className="font-display text-xl font-semibold text-ink-900">الاستضافة</h2>
         <p className="mt-3 text-sm leading-relaxed text-ink-600">
           وين موقع ثابت (static)، يعني ما فيه قاعدة بيانات ولا حسابات ولا تسجيل

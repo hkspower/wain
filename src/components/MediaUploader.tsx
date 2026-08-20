@@ -102,7 +102,7 @@ export default function MediaUploader({
         <div className="flex flex-wrap items-center gap-4">
           <span
             aria-hidden="true"
-            className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-2xl border border-sand-200 bg-sand-100 text-sand-600"
+            className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-2xl border border-line bg-sand-100 text-sand-600"
           >
             {logo ? (
               // eslint-disable-next-line @next/next/no-img-element -- local object URL, never optimised
@@ -112,7 +112,7 @@ export default function MediaUploader({
             )}
           </span>
           <div className="flex flex-wrap items-center gap-2">
-            <label className="inline-flex min-h-11 cursor-pointer items-center rounded-xl border border-sand-300 bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300">
+            <label className="inline-flex min-h-11 cursor-pointer items-center rounded-xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300">
               {logo ? "بدّل الشعار" : "اختر شعار"}
               <input
                 type="file" accept={ACCEPT_ATTR} className="sr-only" disabled={disabled}
@@ -154,7 +154,7 @@ export default function MediaUploader({
             acceptPhotos(e.dataTransfer.files);
           }}
           className={`flex min-h-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed px-4 py-5 text-center transition ${
-            dragging ? "border-sea-400 bg-sea-50" : "border-sand-300 bg-sand-100/60 hover:border-sea-300"
+            dragging ? "border-sea-400 bg-sea-50" : "border-line-strong bg-sand-100/60 hover:border-sea-300"
           }`}
         >
           <span className="text-sm font-semibold text-ink-700">
@@ -170,7 +170,7 @@ export default function MediaUploader({
         {photos.length > 0 && (
           <ul className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
             {photos.map((p) => (
-              <li key={p.id} className="group relative aspect-square overflow-hidden rounded-xl border border-sand-200">
+              <li key={p.id} className="group relative aspect-square overflow-hidden rounded-xl border border-line">
                 {/* eslint-disable-next-line @next/next/no-img-element -- local object URL */}
                 <img src={p.preview} alt="" className="size-full object-cover" />
                 <button

@@ -1,4 +1,4 @@
-import type { SVGProps } from "react";
+import type { CSSProperties, SVGProps } from "react";
 
 /**
  * One bespoke line icon per place.
@@ -9,9 +9,9 @@ import type { SVGProps } from "react";
  * exact when a card renders it at 100px+.
  *
  * Every icon is a single colour: stroke and fill both inherit currentColor, so
- * one class on the parent sets the whole set. Shared geometry — 2.6 stroke,
- * round caps and joins, a common 4px margin and a 40px baseline — keeps
- * seventeen different subjects reading as one family.
+ * one class on the parent sets the whole set. Shared geometry — a size-aware
+ * stroke (see below), round caps and joins, a common 4px margin and a 40px
+ * baseline — keeps seventeen different subjects reading as one family.
  */
 type Props = SVGProps<SVGSVGElement> & { slug: string; className?: string };
 
@@ -19,15 +19,51 @@ const S = {
   viewBox: "0 0 48 48",
   fill: "none",
   stroke: "currentColor",
-  strokeWidth: 2.6,
   strokeLinecap: "round" as const,
   strokeLinejoin: "round" as const,
 };
 
+/**
+ * Optical stroke weight.
+ *
+ * Stroke width is in viewBox units, so a fixed value means the rendered
+ * weight is a fixed *fraction* of the display size. The UI set draws 1.8 on a
+ * 24 grid — 0.075 of the size. This set drew 2.4 on a 48 grid — 0.050. Same
+ * apparent size, two-thirds the weight: at size-4 the marks came out 0.80
+ * device pixels against 1.20 for every icon beside them, which is a hairline,
+ * not a light touch. In a search result row that put a starved mark next to a
+ * normal one.
+ *
+ * So the weight follows the size instead of being constant. Small marks match
+ * the UI family exactly; the weight eases off as the mark grows, which is what
+ * optical sizing means and keeps the 80px hero at the 2.4 it was drawn for.
+ */
+const HERO_PX = 80;
+const SMALL_PX = 16;
+
+/** Tailwind `size-N` is N × 4px. */
+function renderedPx(className: string): number {
+  const m = /(?:^|[\s:])size-(\d+(?:\.\d+)?)(?:\s|$)/.exec(className);
+  return m ? parseFloat(m[1]) * 4 : 40;
+}
+
+function strokeFor(px: number): number {
+  const t = Math.min(1, Math.max(0, (px - SMALL_PX) / (HERO_PX - SMALL_PX)));
+  // 3.6 == 0.075 × 48, the UI family's ratio. 2.4 is the hero's drawn weight.
+  return +(3.6 - t * 1.2).toFixed(3);
+}
+
+/**
+ * Secondary detail lines sit at 2.2/2.4 of the main weight, at every size.
+ * Presentation attributes can't resolve var(), so these ride on `style`.
+ */
+const DETAIL_RATIO = 2.2 / 2.4;
+const DETAIL = { strokeWidth: "var(--w2)" } as const;
+
 /** Soft tint used for volumes, so the marks read as objects not wireframes. */
 const F = { fill: "currentColor", fillOpacity: 0.14, stroke: "none" } as const;
 
-const GROUND = <path d="M6 40h36" strokeWidth={2.6} opacity={0.45} />;
+const GROUND = <path d="M6 40h36" opacity={0.45} />;
 
 function Art({ slug }: { slug: string }) {
   switch (slug) {
@@ -71,12 +107,12 @@ function Art({ slug }: { slug: string }) {
           <path {...F} d="M14 22a11 8 0 0 1 22 0 9 7 0 0 1-3 5H17a9 7 0 0 1-3-5Z" />
           <path d="M14 22a11 8 0 0 1 22 0" />
           <path d="M16 27a10 7 0 0 0 18 0" />
-          <path d="M14.5 22h21" opacity={0.5} strokeWidth={2.2} />
+          <path d="M14.5 22h21" opacity={0.5} style={DETAIL} />
           <path d="M25 27v13" />
-          <path d="M25 33l-4.5-4M25 36l4.5-4" strokeWidth={2.2} />
+          <path d="M25 33l-4.5-4M25 36l4.5-4" style={DETAIL} />
           <path {...F} d="M6 30a5 4 0 0 1 10 0 4 3 0 0 1-1.5 2.5h-7A4 3 0 0 1 6 30Z" />
           <path d="M6 30a5 4 0 0 1 10 0" />
-          <path d="M7.5 32.5a4.5 3 0 0 0 7 0M11 32.5V40" strokeWidth={2.2} />
+          <path d="M7.5 32.5a4.5 3 0 0 0 7 0M11 32.5V40" style={DETAIL} />
           {GROUND}
         </>
       );
@@ -88,13 +124,13 @@ function Art({ slug }: { slug: string }) {
           <path {...F} d="M10 26h28l-2.5 10a4 4 0 0 1-4 3H16.5a4 4 0 0 1-4-3Z" />
           <path d="M10 26h28l-2.5 10a4 4 0 0 1-4 3H16.5a4 4 0 0 1-4-3Z" />
           <path d="M7 26h34" />
-          <path d="M17 21V9M24 21V7M31 21V9" strokeWidth={2.2} />
+          <path d="M17 21V9M24 21V7M31 21V9" style={DETAIL} />
           <circle {...F} cx="17" cy="15" r="2.6" />
           <circle {...F} cx="24" cy="13" r="2.6" />
           <circle {...F} cx="31" cy="15" r="2.6" />
-          <circle cx="17" cy="15" r="2.6" strokeWidth={2.2} />
-          <circle cx="24" cy="13" r="2.6" strokeWidth={2.2} />
-          <circle cx="31" cy="15" r="2.6" strokeWidth={2.2} />
+          <circle cx="17" cy="15" r="2.6" style={DETAIL} />
+          <circle cx="24" cy="13" r="2.6" style={DETAIL} />
+          <circle cx="31" cy="15" r="2.6" style={DETAIL} />
         </>
       );
 
@@ -127,7 +163,7 @@ function Art({ slug }: { slug: string }) {
           <path d="M30.4 21.5c3.4.6 5.6 2.5 5.6 5.2 0 2-1.4 3.6-3.8 4.3" />
           <path d="M13.6 21.5C10.6 20.4 9 18.2 9 15.6" />
           <path {...F} d="M34 34h8v3a4 4 0 0 1-8 0Z" />
-          <path d="M34 34h8v3a4 4 0 0 1-8 0ZM33 41h10" strokeWidth={2.2} />
+          <path d="M34 34h8v3a4 4 0 0 1-8 0ZM33 41h10" style={DETAIL} />
         </>
       );
 
@@ -144,7 +180,7 @@ function Art({ slug }: { slug: string }) {
           <path d="M41 40V16" />
           <circle {...F} cx="41" cy="12.5" r="3.5" />
           <circle cx="41" cy="12.5" r="3.5" />
-          <path d="M28 34h5" strokeWidth={2.2} />
+          <path d="M28 34h5" style={DETAIL} />
           {GROUND}
         </>
       );
@@ -155,10 +191,10 @@ function Art({ slug }: { slug: string }) {
         <>
           <path {...F} d="M7 22a17 17 0 0 1 34 0v18H7Z" />
           <path d="M7 40V22a17 17 0 0 1 34 0v18" />
-          <path d="M7 27h34M16 22.5V40M32 22.5V40" opacity={0.6} strokeWidth={2.2} />
+          <path d="M7 27h34M16 22.5V40M32 22.5V40" opacity={0.6} style={DETAIL} />
           <path {...F} d="M19 40v-9h10v9Z" />
           <path d="M19 40v-9h10v9" />
-          <path d="M24 31v9" strokeWidth={2.2} />
+          <path d="M24 31v9" style={DETAIL} />
           {GROUND}
         </>
       );
@@ -172,7 +208,7 @@ function Art({ slug }: { slug: string }) {
           <path d="M4 19h20M10 26h2M16 26h2" />
           <path {...F} d="M28 30 38 12v18Z" />
           <path d="M38 12v18M38 12 28 30h10" />
-          <path d="M41 16v14" strokeWidth={2.2} />
+          <path d="M41 16v14" style={DETAIL} />
           <path d="M4 34c4 0 4 3 8 3s4-3 8-3 4 3 8 3 4-3 8-3 4 3 8 3" opacity={0.8} />
           <path d="M8 40c4 0 4 2.5 8 2.5" opacity={0} />
           <path d="M4 40c4 0 4 3 8 3s4-3 8-3 4 3 8 3 4-3 8-3 4 3 8 3" opacity={0.4} />
@@ -206,7 +242,7 @@ function Art({ slug }: { slug: string }) {
           <path d="M22 22v13" />
           <path d="M22 9V6" />
           <circle {...F} cx="38" cy="12" r="5" />
-          <circle cx="38" cy="12" r="5" strokeWidth={2.2} />
+          <circle cx="38" cy="12" r="5" style={DETAIL} />
           <path d="M4 31c4 0 4 3 8 3s4-3 8-3 4 3 8 3 4-3 8-3 4 3 8 3" />
           <path d="M4 39c4 0 4 3 8 3s4-3 8-3 4 3 8 3 4-3 8-3 4 3 8 3" opacity={0.45} />
         </>
@@ -220,10 +256,10 @@ function Art({ slug }: { slug: string }) {
           <path d="M5 37c0-9 5-16 12-16s12 7 12 16" />
           <path {...F} d="M19 37c0-11 6-19 14-19s10 8 10 19Z" />
           <path d="M19 37c0-11 6-19 14-19s10 8 10 19" />
-          <path d="M26 22.5V37" opacity={0.5} strokeWidth={2.2} />
+          <path d="M26 22.5V37" opacity={0.5} style={DETAIL} />
           <path d="M33 18v-4" />
           <path d="M17 21v-3" />
-          <path d="M4 40h40" strokeWidth={2.6} opacity={0.45} />
+          <path d="M4 40h40" opacity={0.45} />
         </>
       );
 
@@ -234,7 +270,7 @@ function Art({ slug }: { slug: string }) {
           <path {...F} d="M11 14h26v-3.5H11Z" />
           <path d="M10 14h20M10 10.5h20" />
           <path d="M14 14v18M22 14v18M30 14v13" />
-          <path d="M13 32h3M21 32h3" opacity={0.6} strokeWidth={2.2} />
+          <path d="M13 32h3M21 32h3" opacity={0.6} style={DETAIL} />
           <path d="M34 20v12" opacity={0.55} />
           <path {...F} d="M8 32h32v3a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2Z" />
           <path d="M8 32h32" />
@@ -248,9 +284,9 @@ function Art({ slug }: { slug: string }) {
         <>
           <path {...F} d="M10 40V21l14-10 14 10v19Z" />
           <path d="M10 40V21l14-10 14 10v19" />
-          <path d="M10 21 24 31l14-10" opacity={0.6} strokeWidth={2.2} />
-          <path d="M24 31v9" opacity={0.6} strokeWidth={2.2} />
-          <path d="M17 26.5 20 40M31 26.5 28 40" opacity={0.35} strokeWidth={2.2} />
+          <path d="M10 21 24 31l14-10" opacity={0.6} style={DETAIL} />
+          <path d="M24 31v9" opacity={0.6} style={DETAIL} />
+          <path d="M17 26.5 20 40M31 26.5 28 40" opacity={0.35} style={DETAIL} />
           <path d="M40 8.5 41 6l1 2.5 2.5 1-2.5 1L41 13l-1-2.5-2.5-1Z" />
           {GROUND}
         </>
@@ -264,7 +300,7 @@ function Art({ slug }: { slug: string }) {
           <path {...F} d="M22 21c9 0 9 8 0 8s-9 8 0 8h14v3H22c-13 0-13-11 0-11 4 0 4-5 0-5Z" />
           <path d="M22 21c9 0 9 8 0 8s-9 8 0 8h14" />
           <path d="M9 40h6" />
-          <path d="M38 34v6" strokeWidth={2.2} />
+          <path d="M38 34v6" style={DETAIL} />
           <path d="M4 43c4 0 4 2.5 8 2.5" opacity={0} />
           <path d="M4 41c4 0 4 3 8 3s4-3 8-3 4 3 8 3 4-3 8-3 4 3 8 3" opacity={0.45} />
         </>
@@ -280,8 +316,8 @@ function Art({ slug }: { slug: string }) {
           <path d="M24 14V9" />
           <path {...F} d="M19 32c0-4-2-5-2-8a7 7 0 0 1 14 0c0 3-2 4-2 8Z" />
           <path d="M19 32c0-4-2-5-2-8a7 7 0 0 1 14 0c0 3-2 4-2 8" />
-          <path d="M18 32h12" strokeWidth={2.2} />
-          <path d="M24 20v5M21.5 22.5h5" opacity={0.55} strokeWidth={2.2} />
+          <path d="M18 32h12" style={DETAIL} />
+          <path d="M24 20v5M21.5 22.5h5" opacity={0.55} style={DETAIL} />
         </>
       );
 
@@ -316,9 +352,18 @@ function Art({ slug }: { slug: string }) {
   }
 }
 
-export default function PlaceIcon({ slug, className = "size-10", ...rest }: Props) {
+export default function PlaceIcon({ slug, className = "size-10", style, ...rest }: Props) {
+  const w = strokeFor(renderedPx(className));
   return (
-    <svg {...S} className={className} aria-hidden="true" focusable="false" {...rest}>
+    <svg
+      {...S}
+      className={className}
+      strokeWidth={w}
+      style={{ ["--w2"]: +(w * DETAIL_RATIO).toFixed(3), ...style } as CSSProperties}
+      aria-hidden="true"
+      focusable="false"
+      {...rest}
+    >
       <Art slug={slug} />
     </svg>
   );

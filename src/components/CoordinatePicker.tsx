@@ -105,7 +105,7 @@ export default function CoordinatePicker({
             type="button"
             onClick={() => setFrame((f) => zoomFrame(f, 0.5))}
             aria-label="تكبير"
-            className="grid size-11 place-items-center rounded-xl border border-sand-300 bg-white text-lg font-bold text-ink-700 transition hover:border-sea-300"
+            className="grid size-11 place-items-center rounded-xl border border-line-control bg-white text-lg font-bold text-ink-700 transition hover:border-sea-300"
           >
             +
           </button>
@@ -113,14 +113,14 @@ export default function CoordinatePicker({
             type="button"
             onClick={() => setFrame((f) => zoomFrame(f, 2))}
             aria-label="تصغير"
-            className="grid size-11 place-items-center rounded-xl border border-sand-300 bg-white text-lg font-bold text-ink-700 transition hover:border-sea-300"
+            className="grid size-11 place-items-center rounded-xl border border-line-control bg-white text-lg font-bold text-ink-700 transition hover:border-sea-300"
           >
             −
           </button>
           <button
             type="button"
             onClick={useMyLocation}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-sand-300 bg-white px-3 text-xs font-semibold text-ink-700 transition hover:border-sea-300"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3 text-xs font-semibold text-ink-700 transition hover:border-sea-300"
           >
             <IconLocate className="size-4" />
             موقعي
@@ -132,7 +132,7 @@ export default function CoordinatePicker({
         ref={boxRef}
         onClick={pick}
         style={{ aspectRatio: String(frame.aspect) }}
-        className="relative w-full cursor-crosshair overflow-hidden rounded-2xl border border-sand-200 bg-sand-100"
+        className="relative w-full cursor-crosshair overflow-hidden rounded-2xl border border-line bg-sand-100"
       >
         {online && (
           <iframe

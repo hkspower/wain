@@ -27,6 +27,21 @@
   --color-sand-100: #f6f5f3;
   --color-sand-200: #e6e4e0;
   --color-sand-300: #d4d1cb;
+  /* Lines have a different job from surfaces, so they get their own tokens.
+     Card borders were sand-200 — the same value as a fill — which measured
+     1.27:1 against white and 1.17:1 against sand-100. At 4× magnification the
+     border did no work at all: cards were defined by their media panel's fill,
+     not by their edge. These are a step darker, enough to draw the shape
+     without turning a hairline into a rule. */
+  /* Three weights of edge, chosen by how much work the edge does.
+     A card border only has to hint at a seam — the fill already draws the
+     shape — so it stays quiet. A form control has nothing else: the border IS
+     the "type here", which is why WCAG 1.4.11 asks for 3:1 on the boundary of
+     a control and not on decorative lines. */
+  --color-line: #dbd8d2; /* 1.42:1 on white, 1.31:1 on sand-100 — cards, dividers */
+  --color-line-strong: #cdc9c2; /* 1.65:1 — dashed empty states, kbd, card hover */
+  --color-line-control: #928d84; /* 3.30:1 on white, 3.03:1 on sand-100 — inputs, bare buttons */
+
   --color-sand-400: #dcc287;
   --color-sand-500: #c9a55f;
   --color-sand-600: #ad8544;

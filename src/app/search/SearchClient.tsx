@@ -136,7 +136,7 @@ export default function SearchClient() {
           onChange={(e) => setQ(e.target.value)}
           aria-label="ابحث في كل محتوى وين"
           placeholder="اكتب اسم مكان، منطقة، أو جو…"
-          className="w-full rounded-2xl border border-sand-200 bg-white py-4 pe-4 ps-12 text-lg text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/60 focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
+          className="w-full rounded-2xl border border-line-control bg-white py-4 pe-4 ps-12 text-lg text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/60 focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
         />
         {q && (
           <button
@@ -165,7 +165,7 @@ export default function SearchClient() {
                 className={`min-h-11 rounded-full px-4 text-sm font-semibold transition disabled:opacity-40 ${
                   kind === f.id
                     ? "bg-ink-900 text-white"
-                    : "border border-sand-200 bg-white text-ink-600 hover:border-sea-300"
+                    : "border border-line-control bg-white text-ink-600 hover:border-sea-300"
                 }`}
               >
                 {f.label} {n > 0 && <span className="opacity-70">{toArabicDigits(n)}</span>}
@@ -185,7 +185,7 @@ export default function SearchClient() {
                   <button
                     type="button"
                     onClick={() => setQ(s)}
-                    className="flex min-h-11 items-center rounded-full border border-sand-200 bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
+                    className="flex min-h-11 items-center rounded-full border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 hover:text-sea-700"
                   >
                     {s}
                   </button>
@@ -202,7 +202,7 @@ export default function SearchClient() {
             <SearchResults hits={hits} activeSlug={activeSlug} onActiveSlug={setActiveSlug} />
           </>
         ) : (
-          <div className="rounded-3xl border border-dashed border-sand-300 bg-sand-100/70 py-16 text-center">
+          <div className="rounded-3xl border border-dashed border-line-strong bg-sand-100/70 py-16 text-center">
             <span
               aria-hidden="true"
               className="mx-auto grid size-16 place-items-center rounded-3xl bg-sand-100 text-sand-600"

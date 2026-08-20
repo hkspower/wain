@@ -6,7 +6,7 @@ import CategoryIcon from "@/components/CategoryIcon";
 import { IconCheck, IconLocate, IconPinSolid, IconSparkle } from "@/components/icons";
 import CoordinatePicker from "@/components/CoordinatePicker";
 import MediaUploader from "@/components/MediaUploader";
-import { categories, type CategoryId } from "@/lib/places";
+import { categories, toArabicDigits, type CategoryId } from "@/lib/places";
 import { newDraftId, uploadPending, type PickedFile } from "@/lib/media";
 import { inKuwait, submitBusiness, type SubmissionInput } from "@/lib/submissions";
 import { fieldClass, hintClass, labelClass } from "@/lib/form-classes";
@@ -125,7 +125,7 @@ export default function AddBusinessClient() {
 
   if (done) {
     return (
-      <div className="rounded-3xl border border-sand-200 bg-white p-8 text-center shadow-sm">
+      <div className="rounded-3xl border border-line bg-white p-8 text-center shadow-sm">
         <span
           aria-hidden="true"
           className="mx-auto grid size-14 place-items-center rounded-2xl bg-palm-500/12 text-palm-600"
@@ -147,7 +147,7 @@ export default function AddBusinessClient() {
           <button
             type="button"
             onClick={() => { setV(EMPTY); setDone(false); }}
-            className="inline-flex min-h-11 items-center rounded-xl border border-sand-300 bg-white px-5 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
+            className="inline-flex min-h-11 items-center rounded-xl border border-line-control bg-white px-5 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
           >
             سجّل مكان ثاني
           </button>
@@ -166,7 +166,7 @@ export default function AddBusinessClient() {
       )}
 
       {/* ---- the business -------------------------------------------- */}
-      <fieldset className="rounded-3xl border border-sand-200 bg-white p-5 shadow-sm standalone:rounded-2xl standalone:p-4">
+      <fieldset className="rounded-3xl border border-line bg-white p-5 shadow-sm standalone:rounded-2xl standalone:p-4">
         <legend className="px-2 font-display text-lg font-semibold text-ink-900">
           معلومات المكان
         </legend>
@@ -212,7 +212,7 @@ export default function AddBusinessClient() {
                 className={`flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition ${
                   v.category === c.id
                     ? "bg-ink-900 text-white"
-                    : "border border-sand-200 bg-white text-ink-600 hover:border-sea-300"
+                    : "border border-line bg-white text-ink-600 hover:border-sea-300"
                 }`}
               >
                 <CategoryIcon name={c.icon} className="size-4" />
@@ -245,11 +245,11 @@ export default function AddBusinessClient() {
                   role="radio"
                   aria-checked={v.priceLevel === n}
                   onClick={() => { haptic("tap"); set("priceLevel", n); }}
-                  aria-label={`مستوى السعر ${n} من ٣`}
+                  aria-label={`مستوى السعر ${toArabicDigits(n)} من ٣`}
                   className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl text-sm font-semibold transition ${
                     v.priceLevel === n
                       ? "bg-ink-900 text-white"
-                      : "border border-sand-200 bg-white text-ink-600 hover:border-sea-300"
+                      : "border border-line bg-white text-ink-600 hover:border-sea-300"
                   }`}
                 >
                   {/* Filled dots, the same reading the place cards use.
@@ -311,7 +311,7 @@ export default function AddBusinessClient() {
       </fieldset>
 
       {/* ---- brand and photos ------------------------------------------ */}
-      <fieldset className="rounded-3xl border border-sand-200 bg-white p-5 shadow-sm standalone:rounded-2xl standalone:p-4">
+      <fieldset className="rounded-3xl border border-line bg-white p-5 shadow-sm standalone:rounded-2xl standalone:p-4">
         <legend className="px-2 font-display text-lg font-semibold text-ink-900">
           الشعار والصور
         </legend>
@@ -325,7 +325,7 @@ export default function AddBusinessClient() {
       </fieldset>
 
       {/* ---- where ----------------------------------------------------- */}
-      <fieldset className="rounded-3xl border border-sand-200 bg-white p-5 shadow-sm standalone:rounded-2xl standalone:p-4">
+      <fieldset className="rounded-3xl border border-line bg-white p-5 shadow-sm standalone:rounded-2xl standalone:p-4">
         <legend className="px-2 font-display text-lg font-semibold text-ink-900">
           وين مكانه بالضبط؟
         </legend>
@@ -364,7 +364,7 @@ export default function AddBusinessClient() {
             type="button"
             onClick={useMyLocation}
             disabled={locating}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-sand-300 bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 disabled:opacity-60"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300 disabled:opacity-60"
           >
             <IconLocate className="size-4" />
             {locating ? "نحدّد موقعك…" : "خذها من موقعي"}
@@ -391,7 +391,7 @@ export default function AddBusinessClient() {
       </fieldset>
 
       {/* ---- contact ---------------------------------------------------- */}
-      <fieldset className="rounded-3xl border border-sand-200 bg-white p-5 shadow-sm standalone:rounded-2xl standalone:p-4">
+      <fieldset className="rounded-3xl border border-line bg-white p-5 shadow-sm standalone:rounded-2xl standalone:p-4">
         <legend className="px-2 font-display text-lg font-semibold text-ink-900">
           التواصل
         </legend>

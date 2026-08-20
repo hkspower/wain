@@ -247,7 +247,7 @@ export default function AdminApp() {
         <div className="flex items-center gap-2">
           <Link
             href="/"
-            className="rounded-xl border border-sand-300 bg-white px-4 py-2 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
+            className="rounded-xl border border-line-control bg-white px-4 py-2 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
           >
             الموقع
           </Link>
@@ -276,7 +276,7 @@ export default function AdminApp() {
               className={`flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold transition ${
                 tab === id
                   ? "bg-ink-900 text-white"
-                  : "border border-sand-200 bg-white text-ink-600 hover:border-sea-300"
+                  : "border border-line-control bg-white text-ink-600 hover:border-sea-300"
               }`}
             >
               {text}
@@ -293,7 +293,7 @@ export default function AdminApp() {
       )}
 
       {view.mode === "edit" ? (
-        <section className="rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
+        <section className="rounded-3xl border border-line bg-white p-6 shadow-sm">
           <button
             type="button"
             onClick={() => { setApproving(null); setView({ mode: "list" }); }}
@@ -310,7 +310,7 @@ export default function AdminApp() {
                 والرابط، وبعد الحفظ ينقفل الطلب تلقائياً.
               </p>
               {(approving.logo_path || approving.image_paths?.length > 0) && (
-                <div className="mb-5 rounded-2xl border border-sand-200 bg-sand-100/60 p-4">
+                <div className="mb-5 rounded-2xl border border-line bg-sand-100/60 p-4">
                   <MediaReview
                     logoPath={approving.logo_path}
                     imagePaths={approving.image_paths ?? []}
@@ -355,7 +355,7 @@ export default function AdminApp() {
                 onChange={(e) => setQ(e.target.value)}
                 aria-label="ابحث في الأماكن"
                 placeholder="ابحث…"
-                className="w-full rounded-xl border border-sand-200 bg-white py-2.5 pe-3 ps-10 text-sm outline-none focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
+                className="w-full rounded-xl border border-line-control bg-white py-2.5 pe-3 ps-10 text-sm outline-none focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
               />
             </div>
             <button
@@ -375,7 +375,7 @@ export default function AdminApp() {
             {filtered.map((p) => (
               <li
                 key={p.id}
-                className="flex flex-wrap items-center gap-3 rounded-2xl border border-sand-200 bg-white p-3 shadow-sm"
+                className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-white p-3 shadow-sm"
               >
                 <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-xl bg-sand-100 text-xl">
                   {p.emoji}
@@ -403,7 +403,7 @@ export default function AdminApp() {
                 <button
                   type="button"
                   onClick={() => setView({ mode: "edit", place: p })}
-                  className="rounded-lg border border-sand-300 px-3 py-1.5 text-xs font-semibold text-ink-700 transition hover:border-sea-300"
+                  className="rounded-lg border border-line-control px-3 py-1.5 text-xs font-semibold text-ink-700 transition hover:border-sea-300"
                 >
                   تعديل
                 </button>
@@ -533,7 +533,7 @@ function SignIn({ error, onError }: { error: string; onError: (s: string) => voi
         <WainLogo className="size-14" />
         <h1 className="font-display text-2xl font-bold text-ink-900">لوحة التحكّم</h1>
       </div>
-      <form onSubmit={submit} className="space-y-4 rounded-3xl border border-sand-200 bg-white p-6 shadow-sm">
+      <form onSubmit={submit} className="space-y-4 rounded-3xl border border-line bg-white p-6 shadow-sm">
         {error && (
           <p className="rounded-xl border border-coral-200 bg-coral-50 p-3 text-sm text-coral-800">{error}</p>
         )}
@@ -547,7 +547,7 @@ function SignIn({ error, onError }: { error: string; onError: (s: string) => voi
             autoComplete="username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1.5 w-full rounded-xl border border-sand-200 px-3 py-2 text-sm outline-none focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
+            className="mt-1.5 w-full rounded-xl border border-line-control px-3 py-2 text-sm outline-none focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
           />
         </div>
         <div>
@@ -559,7 +559,7 @@ function SignIn({ error, onError }: { error: string; onError: (s: string) => voi
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1.5 w-full rounded-xl border border-sand-200 px-3 py-2 text-sm outline-none focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
+            className="mt-1.5 w-full rounded-xl border border-line-control px-3 py-2 text-sm outline-none focus:border-sea-400 focus:ring-4 focus:ring-sea-100"
           />
         </div>
         <button
