@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { IconCheck, IconClose, IconPinSolid } from "@/components/icons";
 import { getCategory, toArabicDigits } from "@/lib/places";
-import { getSupabase } from "@/lib/supabase";
+import { loadSupabase } from "@/lib/supabase";
 import type { SubmissionRow } from "@/lib/submissions";
 import type { EditablePlace } from "@/components/admin/PlaceForm";
 
@@ -71,7 +71,7 @@ export default function Submissions({
   const [open, setOpen] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const sb = getSupabase();
+    const sb = await loadSupabase();
     if (!sb) return;
     setLoading(true);
     let query = sb.from("submissions").select("*").order("created_at", { ascending: false });
@@ -86,21 +86,24 @@ export default function Submissions({
 
   // The badge counts what still needs a decision, regardless of the filter.
   useEffect(() => {
-    const sb = getSupabase();
-    if (!sb || !onCountChange) return;
+    if (!onCountChange) return;
+    let cancelled = false;
     void (async () => {
+      const sb = await loadSupabase();
+      if (cancelled || !sb) return;
       const { count } = await sb
         .from("submissions")
         .select("id", { count: "exact", head: true })
         .eq("status", "pending");
-      onCountChange(count ?? 0);
+      if (!cancelled) onCountChange(count ?? 0);
     })();
+    return () => { cancelled = true; };
   }, [rows, onCountChange]);
 
   async function reject(s: SubmissionRow) {
     const note = window.prompt(`سبب رفض «${s.name_ar}»؟ (اختياري)`, "");
     if (note === null) return;
-    const sb = getSupabase();
+    const sb = await loadSupabase();
     if (!sb) return;
     const { error: e } = await sb
       .from("submissions")

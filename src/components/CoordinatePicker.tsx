@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { IconLocate, IconPinSolid } from "@/components/icons";
+import { haptic } from "@/lib/haptics";
 import {
   centreFrame,
   embedUrl,
@@ -78,6 +79,7 @@ export default function CoordinatePicker({
     const x = (e.clientX - box.left) / box.width;
     const y = (e.clientY - box.top) / box.height;
     const at = unproject(frame, x, y);
+    haptic("select");
     onPick({ lat: +at.lat.toFixed(5), lng: +at.lng.toFixed(5) });
   }
 

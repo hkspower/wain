@@ -1,6 +1,6 @@
 "use client";
 
-import { getSupabase } from "@/lib/supabase";
+import { loadSupabase } from "@/lib/supabase";
 
 /**
  * Business media: a logo and photos, uploaded by whoever is registering the
@@ -70,7 +70,7 @@ export async function uploadPending(
   file: File,
   index = 0
 ): Promise<{ ok: true; path: string } | { ok: false; message: string }> {
-  const sb = getSupabase();
+  const sb = await loadSupabase();
   if (!sb) return { ok: false, message: "رفع الصور مو متاح حالياً." };
 
   const reason = rejectReason(file);
@@ -89,17 +89,10 @@ export async function uploadPending(
 
 /** A short-lived URL so an admin can look at something not yet public. */
 export async function signedPendingUrl(path: string, seconds = 600): Promise<string | null> {
-  const sb = getSupabase();
+  const sb = await loadSupabase();
   if (!sb) return null;
   const { data } = await sb.storage.from(PENDING_BUCKET).createSignedUrl(path, seconds);
   return data?.signedUrl ?? null;
-}
-
-/** The permanent URL of an approved file. */
-export function publicUrl(path: string): string | null {
-  const sb = getSupabase();
-  if (!sb) return null;
-  return sb.storage.from(PUBLIC_BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
 /**
@@ -115,7 +108,7 @@ export async function publishMedia(
   slug: string,
   name: string
 ): Promise<{ ok: true; url: string } | { ok: false; message: string }> {
-  const sb = getSupabase();
+  const sb = await loadSupabase();
   if (!sb) return { ok: false, message: "التخزين مو مهيّأ." };
 
   const { data: blob, error: dlError } = await sb.storage
@@ -139,7 +132,7 @@ export async function publishMedia(
 
 /** Drop a whole submission's pending folder once it has been dealt with. */
 export async function discardPending(paths: string[]): Promise<void> {
-  const sb = getSupabase();
+  const sb = await loadSupabase();
   if (!sb || paths.length === 0) return;
   await sb.storage.from(PENDING_BUCKET).remove(paths);
 }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { IconCompass, IconHome, IconSearch } from "@/components/icons";
+import { haptic } from "@/lib/haptics";
 
 const TABS = [
   { href: "/", label: "الرئيسية", icon: IconHome, exact: true },
@@ -32,6 +33,7 @@ export default function AppTabBar() {
           const active = exact ? pathname === href : pathname.startsWith(href);
           return (
             <Link
+              onClick={() => haptic("tap")}
               key={href}
               href={href}
               aria-current={active ? "page" : undefined}

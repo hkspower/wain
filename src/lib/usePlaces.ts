@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { places as snapshot, type Place } from "@/lib/places";
-import { getSupabase, rowToPlace, supabaseEnabled, type PlaceRow } from "@/lib/supabase";
+import { loadSupabase, rowToPlace, supabaseEnabled, type PlaceRow } from "@/lib/supabase";
 
 /**
  * Places for the public site.
@@ -21,12 +21,15 @@ export function usePlaces(): { places: Place[]; live: boolean } {
   const [live, setLive] = useState(false);
 
   useEffect(() => {
+    // The early return matters more than it looks: with no URL and key
+    // configured this never touches loadSupabase, so the 60KB client chunk is
+    // never even requested.
     if (!supabaseEnabled) return;
-    const sb = getSupabase();
-    if (!sb) return;
     let cancelled = false;
 
-    (async () => {
+    void (async () => {
+      const sb = await loadSupabase();
+      if (cancelled || !sb) return;
       const { data: rows, error } = await sb
         .from("places")
         .select("*")

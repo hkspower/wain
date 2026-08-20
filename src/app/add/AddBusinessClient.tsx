@@ -11,6 +11,7 @@ import { newDraftId, uploadPending, type PickedFile } from "@/lib/media";
 import { inKuwait, submitBusiness, type SubmissionInput } from "@/lib/submissions";
 import { fieldClass, hintClass, labelClass } from "@/lib/form-classes";
 import { supabaseEnabled } from "@/lib/supabase";
+import { haptic } from "@/lib/haptics";
 
 const field = fieldClass;
 const label = labelClass;
@@ -84,6 +85,7 @@ export default function AddBusinessClient() {
     const found = validate(v);
     setErrors(found);
     if (Object.keys(found).length) {
+      haptic("error");
       document.querySelector<HTMLElement>("[data-invalid='true']")?.focus();
       return;
     }
@@ -117,8 +119,8 @@ export default function AddBusinessClient() {
 
     const res = await submitBusiness({ ...v, logoPath, imagePaths });
     setBusy(false);
-    if (res.ok) setDone(true);
-    else setFailure(res.message);
+    if (res.ok) { haptic("success"); setDone(true); }
+    else { haptic("error"); setFailure(res.message); }
   }
 
   if (done) {
@@ -206,7 +208,7 @@ export default function AddBusinessClient() {
                 type="button"
                 role="radio"
                 aria-checked={v.category === c.id}
-                onClick={() => set("category", c.id as CategoryId)}
+                onClick={() => { haptic("tap"); set("category", c.id as CategoryId); }}
                 className={`flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition ${
                   v.category === c.id
                     ? "bg-ink-900 text-white"
@@ -242,7 +244,7 @@ export default function AddBusinessClient() {
                   type="button"
                   role="radio"
                   aria-checked={v.priceLevel === n}
-                  onClick={() => set("priceLevel", n)}
+                  onClick={() => { haptic("tap"); set("priceLevel", n); }}
                   aria-label={`مستوى السعر ${n} من ٣`}
                   className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl text-sm font-semibold transition ${
                     v.priceLevel === n

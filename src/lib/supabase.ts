@@ -1,6 +1,6 @@
 "use client";
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CategoryId, Place } from "@/lib/places";
 
 /**
@@ -18,14 +18,35 @@ const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 export const supabaseEnabled = URL_.length > 0 && ANON.length > 0;
 
-let client: SupabaseClient | null = null;
+/**
+ * Loaded on demand, never at import time.
+ *
+ * supabase-js is about 60KB gzipped. Importing it statically put all of that
+ * into /explore, /search and /add whether or not the site was configured to
+ * use it — and with no URL and key set, every one of those bytes was
+ * downloaded, parsed, and never called. Behind a dynamic import it becomes a
+ * separate chunk that is only ever fetched when there is something to talk to.
+ *
+ * The promise is cached rather than the client, so two callers racing on the
+ * first load share one import and one client instead of creating two.
+ */
+let clientPromise: Promise<SupabaseClient> | null = null;
 
-export function getSupabase(): SupabaseClient | null {
+export async function loadSupabase(): Promise<SupabaseClient | null> {
   if (!supabaseEnabled) return null;
-  client ??= createClient(URL_, ANON, {
-    auth: { persistSession: true, autoRefreshToken: true },
-  });
-  return client;
+  clientPromise ??= import("@supabase/supabase-js").then(({ createClient }) =>
+    createClient(URL_, ANON, {
+      auth: { persistSession: true, autoRefreshToken: true },
+    })
+  );
+  try {
+    return await clientPromise;
+  } catch {
+    // A failed chunk fetch must not wedge the app in a broken state — let the
+    // next call try again rather than caching the failure forever.
+    clientPromise = null;
+    return null;
+  }
 }
 
 /** Shape of a row in public.places. */

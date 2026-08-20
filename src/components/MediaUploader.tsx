@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { IconClose, IconSparkle } from "@/components/icons";
+import { haptic } from "@/lib/haptics";
 import {
   ACCEPT_ATTR,
   MAX_PHOTOS,
@@ -56,8 +57,9 @@ export default function MediaUploader({
     const file = list?.[0];
     if (!file) return;
     const bad = rejectReason(file);
-    if (bad) return setErrors([bad]);
+    if (bad) { haptic("error"); return setErrors([bad]); }
     setErrors([]);
+    haptic("select");
     if (logo) urls.drop(logo.preview);
     onLogo({ file, preview: urls.make(file), id: `${file.name}-${file.lastModified}` });
   }
@@ -82,6 +84,7 @@ export default function MediaUploader({
       good.splice(Math.max(room, 0));
     }
     setErrors(problems);
+    haptic(problems.length && !good.length ? "error" : "select");
     if (good.length) onPhotos([...photos, ...good]);
   }
 

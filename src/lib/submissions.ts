@@ -1,6 +1,6 @@
 "use client";
 
-import { getSupabase, supabaseEnabled } from "@/lib/supabase";
+import { loadSupabase, supabaseEnabled } from "@/lib/supabase";
 import type { CategoryId } from "@/lib/places";
 
 /**
@@ -95,7 +95,7 @@ export async function submitBusiness(input: SubmissionInput): Promise<SubmitResu
       message: "التسجيل مو متاح حالياً. راسلنا وبنضيف مكانك يدوياً.",
     };
   }
-  const sb = getSupabase();
+  const sb = await loadSupabase();
   if (!sb) {
     return { ok: false, reason: "disabled", message: "التسجيل مو متاح حالياً." };
   }

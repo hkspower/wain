@@ -12,6 +12,7 @@ import { usePlaces } from "@/lib/usePlaces";
 import { buildIndex, search, type DocKind } from "@/lib/search";
 import { searchSummaryParts } from "@/lib/voice-lines";
 import { speak, stop as stopVoice, useVoice } from "@/lib/voice";
+import { haptic } from "@/lib/haptics";
 
 const FILTERS: { id: DocKind | "all"; label: string }[] = [
   { id: "all", label: "الكل" },
@@ -158,7 +159,7 @@ export default function SearchClient() {
               <button
                 key={f.id}
                 type="button"
-                onClick={() => setKind(f.id)}
+                onClick={() => { haptic("select"); setKind(f.id); }}
                 aria-pressed={kind === f.id}
                 disabled={n === 0}
                 className={`min-h-11 rounded-full px-4 text-sm font-semibold transition disabled:opacity-40 ${

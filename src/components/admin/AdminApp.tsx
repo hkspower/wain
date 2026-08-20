@@ -7,7 +7,7 @@ import WainLogo from "@/components/WainLogo";
 import { IconBack, IconCheck, IconSearch } from "@/components/icons";
 import { getCategory, toArabicDigits } from "@/lib/places";
 import {
-  getSupabase,
+  loadSupabase,
   placeToRow,
   rowToPlace,
   supabaseEnabled,
@@ -45,36 +45,54 @@ export default function AdminApp() {
 
   // ---- auth ---------------------------------------------------------------
   useEffect(() => {
-    const sb = getSupabase();
-    if (!sb) {
-      setChecking(false);
-      return;
-    }
-    sb.auth.getSession().then(({ data }) => {
+    // The client is now fetched on demand, so this has to await it. The
+    // subscription is captured in a ref-like local, since the cleanup runs
+    // whether or not the load finished.
+    let subscription: { unsubscribe: () => void } | null = null;
+    let cancelled = false;
+    void (async () => {
+      const sb = await loadSupabase();
+      if (cancelled) return;
+      if (!sb) {
+        setChecking(false);
+        return;
+      }
+      const { data } = await sb.auth.getSession();
+      if (cancelled) return;
       setSession(data.session);
       setChecking(false);
-    });
-    const { data: sub } = sb.auth.onAuthStateChange((_e, s) => setSession(s));
-    return () => sub.subscription.unsubscribe();
+      subscription = sb.auth.onAuthStateChange((_e, s) => setSession(s)).data.subscription;
+      if (cancelled) subscription.unsubscribe();
+    })();
+    return () => {
+      cancelled = true;
+      subscription?.unsubscribe();
+    };
   }, []);
 
   // Being signed in is not the same as being allowed to edit; the admins table
   // is the authority, and RLS enforces it server-side regardless of this check.
   useEffect(() => {
-    const sb = getSupabase();
-    if (!sb || !session) {
-      setIsAdmin(null);
-      return;
-    }
-    sb.from("admins")
-      .select("user_id")
-      .eq("user_id", session.user.id)
-      .maybeSingle()
-      .then(({ data }) => setIsAdmin(!!data));
+    let cancelled = false;
+    void (async () => {
+      const sb = await loadSupabase();
+      if (cancelled) return;
+      if (!sb || !session) {
+        setIsAdmin(null);
+        return;
+      }
+      const { data } = await sb
+        .from("admins")
+        .select("user_id")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+      if (!cancelled) setIsAdmin(!!data);
+    })();
+    return () => { cancelled = true; };
   }, [session]);
 
   const load = useCallback(async () => {
-    const sb = getSupabase();
+    const sb = await loadSupabase();
     if (!sb) return;
     const { data, error: e } = await sb
       .from("places")
@@ -107,7 +125,7 @@ export default function AdminApp() {
 
   // ---- actions ------------------------------------------------------------
   async function save(p: EditablePlace) {
-    const sb = getSupabase();
+    const sb = await loadSupabase();
     if (!sb) return;
     setBusy(true);
     setError("");
@@ -190,7 +208,7 @@ export default function AdminApp() {
   }
 
   async function remove(p: EditablePlace) {
-    const sb = getSupabase();
+    const sb = await loadSupabase();
     if (!sb || !p.id) return;
     if (!confirm(`تبي تحذف «${p.nameAr}»؟ ما تقدر ترجعه.`)) return;
     const { error: e } = await sb.from("places").delete().eq("id", p.id);
@@ -202,7 +220,7 @@ export default function AdminApp() {
   }
 
   async function togglePublished(p: EditablePlace) {
-    const sb = getSupabase();
+    const sb = await loadSupabase();
     if (!sb || !p.id) return;
     const { error: e } = await sb
       .from("places")
@@ -235,7 +253,7 @@ export default function AdminApp() {
           </Link>
           <button
             type="button"
-            onClick={() => getSupabase()?.auth.signOut()}
+            onClick={() => void loadSupabase().then((sb) => sb?.auth.signOut())}
             className="rounded-xl bg-ink-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-ink-800"
           >
             خروج
@@ -484,7 +502,7 @@ function NotAllowed({ email }: { email: string }) {
       </p>
       <button
         type="button"
-        onClick={() => getSupabase()?.auth.signOut()}
+        onClick={() => void loadSupabase().then((sb) => sb?.auth.signOut())}
         className="mt-6 rounded-xl bg-ink-900 px-5 py-2.5 text-sm font-semibold text-white"
       >
         خروج
@@ -500,7 +518,7 @@ function SignIn({ error, onError }: { error: string; onError: (s: string) => voi
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const sb = getSupabase();
+    const sb = await loadSupabase();
     if (!sb) return;
     setBusy(true);
     onError("");

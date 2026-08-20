@@ -13,6 +13,7 @@ import {
   type CategoryId,
 } from "@/lib/places";
 import { usePlaces } from "@/lib/usePlaces";
+import { haptic } from "@/lib/haptics";
 
 /** Strip Arabic diacritics and normalise alef/ya/ta-marbuta so search is forgiving. */
 function normalise(value: string): string {
@@ -80,7 +81,7 @@ export default function ExploreClient() {
       <div className="mb-8 flex flex-wrap gap-2" role="group" aria-label="تصفية حسب التصنيف">
         <button
           type="button"
-          onClick={() => setCategory("all")}
+          onClick={() => { haptic("select"); setCategory("all"); }}
           aria-pressed={category === "all"}
           className={`flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition ${
             category === "all"
@@ -95,7 +96,7 @@ export default function ExploreClient() {
           <button
             key={cat.id}
             type="button"
-            onClick={() => setCategory(cat.id)}
+            onClick={() => { haptic("select"); setCategory(cat.id); }}
             aria-pressed={category === cat.id}
             className={`flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition ${
               category === cat.id
