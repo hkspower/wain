@@ -5,10 +5,19 @@
 // what the browser is playing. `scripts/export-unreal-data.mjs` bakes the
 // same values into GRNTypes.h for offline play; the API is the live path.
 
-import { CONTROL_POINTS, LANES, ROAD_HALF_WIDTH, COAST_U } from "./track";
+import { CONTROL_POINTS, LANES, ROAD_HALF_WIDTH, COAST_U, STATIONS, FORECOURT } from "./track";
 import { RIVALS } from "./rivals";
 import { CARS, PARTS, PAINT_COLORS, GLOW_COLORS, CLASS_LABELS } from "./mods";
-import { ENGINES } from "./engines";
+import {
+  ENGINES,
+  FUEL_RATE,
+  FUEL_FILS_PER_LITRE,
+  PUMP_LITRES_PER_SEC,
+  PUMP_MAX_KMH,
+  AIR_G_PER_L,
+  AFR,
+  FUEL_G_PER_L,
+} from "./engines";
 import { HANDLING } from "./handling";
 import { RIG } from "./rig";
 
@@ -24,6 +33,11 @@ export function buildTrack() {
     roadHalfWidth: ROAD_HALF_WIDTH,
     lanes: LANES,
     coast: COAST_U,
+    /** Petrol stations: metres from the line, and how far off the
+     *  centreline the apron sits. The road opens by `forecourt` at each
+     *  one, which is what makes them drivable. */
+    stations: STATIONS.map((st) => ({ s: st.s, lat: st.lat })),
+    forecourt: FORECOURT,
     controlPoints: CONTROL_POINTS.map(([x, y, z]) => ({ x, y, z })),
   };
 }
@@ -89,6 +103,7 @@ export function buildCars() {
     topSpeedKmh: c.topSpeedKmh,
     grip: c.grip,
     brake: c.brake,
+    tankLitres: c.tankLitres,
     color: hex(c.color),
     bodyStyle: c.style ?? "sedan",
     kit: c.kit ?? null,
@@ -121,6 +136,19 @@ export function buildGameData() {
     cars: buildCars(),
     parts: buildParts(),
     handling: HANDLING,
+    /** Everything about burning and buying petrol that a port has to
+     *  agree with. The burn model itself is displacement x revs x
+     *  throttle — see engines.ts — so only its scaling and its price
+     *  need publishing. */
+    fuel: {
+      rateMultiplier: FUEL_RATE,
+      filsPerLitre: FUEL_FILS_PER_LITRE,
+      pumpLitresPerSecond: PUMP_LITRES_PER_SEC,
+      pumpMaxKmh: PUMP_MAX_KMH,
+      airGramsPerLitre: AIR_G_PER_L,
+      airFuelRatio: AFR,
+      petrolGramsPerLitre: FUEL_G_PER_L,
+    },
     // The skeletons every port has to reproduce to pose its people the
     // same way: bone lengths, joint offsets, grip angles, pedal travel,
     // and how far a neck turns before the shoulders take over.

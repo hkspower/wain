@@ -184,6 +184,7 @@ const cars = carBlocks.map((b) => ({
   style: field(b, /Style = BodyStyle\.(\w+)/),
   kit: field(b, /AttackKit = (true|false)/) === "true",
   engine: +field(b, /Engine = (\d+)/),
+  tank: +field(b, /TankLitres = ([\d.]+)f/),
 }));
 
 if (cars.length !== api.cars.length) {
@@ -202,6 +203,7 @@ if (cars.length !== api.cars.length) {
     if (u.style.toLowerCase() !== a.bodyStyle) {
       fail(`car ${a.id} body style: ${u.style.toLowerCase()} vs ${a.bodyStyle}`);
     }
+    if (u.tank !== a.tankLitres) fail(`car ${a.id} tankLitres: ${u.tank} vs ${a.tankLitres}`);
     if (api.engines[u.engine]?.id !== a.engine) {
       fail(`car ${a.id} engine: Unity index ${u.engine} (${api.engines[u.engine]?.id}) vs ${a.engine}`);
     }
@@ -210,7 +212,45 @@ if (cars.length !== api.cars.length) {
     }
     if (u.kit !== (a.kit === "attack")) fail(`car ${a.id} attack kit: ${u.kit} vs ${a.kit}`);
   }
-  if (!failed) ok(`cars: ${cars.length} match (id, name, price, power, speed, grip, brake, body, kit, engine)`);
+  if (!failed) ok(`cars: ${cars.length} match (id, name, price, power, speed, grip, brake, body, kit, engine, tank)`);
+}
+
+// ---- fuel and forecourts --------------------------------------------
+{
+  const uFuel = {
+    rateMultiplier: +field(src, /RateMultiplier = ([\d.]+)f/),
+    filsPerLitre: +field(src, /FilsPerLitre = (\d+)/),
+    pumpLitresPerSecond: +field(src, /PumpLitresPerSecond = ([\d.]+)f/),
+    pumpMaxKmh: +field(src, /PumpMaxKmh = ([\d.]+)f/),
+    airGramsPerLitre: +field(src, /AirGramsPerLitre = ([\d.]+)f/),
+    airFuelRatio: +field(src, /AirFuelRatio = ([\d.]+)f/),
+    petrolGramsPerLitre: +field(src, /PetrolGramsPerLitre = ([\d.]+)f/),
+  };
+  const before = failed;
+  for (const [k, v] of Object.entries(api.fuel)) {
+    if (uFuel[k] !== v) fail(`fuel ${k}: Unity ${uFuel[k]} vs api ${v}`);
+  }
+  const uStations = [...src.matchAll(/new Station \{ S = ([\d.]+)f, Lat = ([\d.]+)f \}/g)].map(
+    ([, s2, lat]) => ({ s: +s2, lat: +lat })
+  );
+  if (uStations.length !== api.track.stations.length) {
+    fail(`stations: Unity ${uStations.length} vs api ${api.track.stations.length}`);
+  } else {
+    for (let i = 0; i < uStations.length; i++) {
+      const a = api.track.stations[i];
+      if (uStations[i].s !== a.s || uStations[i].lat !== a.lat) {
+        fail(`station ${i}: Unity ${JSON.stringify(uStations[i])} vs api ${JSON.stringify(a)}`);
+      }
+    }
+  }
+  const uSpan = +field(src, /ForecourtHalfSpan = ([\d.]+)f/);
+  const uWide = +field(src, /ForecourtExtraWidth = ([\d.]+)f/);
+  if (uSpan !== api.track.forecourt.halfSpan || uWide !== api.track.forecourt.extraWidth) {
+    fail(`forecourt: Unity ${uSpan}/${uWide} vs api ${api.track.forecourt.halfSpan}/${api.track.forecourt.extraWidth}`);
+  }
+  if (failed === before) {
+    ok(`fuel: 7 constants match, ${uStations.length} stations, forecourt ${uSpan} x ${uWide} m`);
+  }
 }
 
 // ---- handling -------------------------------------------------------

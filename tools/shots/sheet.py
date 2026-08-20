@@ -11,7 +11,7 @@ from PIL import Image, ImageDraw, ImageFont
 import os
 
 F = "/root/.claude/skills/synced/canvas-design/canvas-fonts"
-SHOTS = ["menu", "night", "dawn", "noon", "dusk", "coast", "city", "ring", "love", "drift"]
+SHOTS = ["menu", "night", "dawn", "noon", "dusk", "coast", "city", "ring", "love", "station", "drift"]
 CAPS = {
     "menu": "MAIN MENU · your car on the turntable",
     "night": "NIGHT 22:30 · the shipped look",
@@ -21,6 +21,7 @@ CAPS = {
     "coast": "COAST · the seaward leg",
     "city": "CITY · towers behind the road",
     "ring": "SECOND RING · through Mansuriya",
+    "station": "FORECOURT · محطة وقود, 85 fils a litre",
     "love": "LOVE STREET · شارع الحب, Da'iya into Dasma",
     "drift": "DRIFT · full lock",
 }

@@ -5,7 +5,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
-import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U } from "./track";
+import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, STATIONS, FORECOURT } from "./track";
 import { buildWorld, areaAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
 import { createCar } from "./cars";
 import { RIVALS, RivalDef } from "./rivals";
@@ -33,8 +33,18 @@ import {
   type BrakeResult,
 } from "./brakes";
 import { gearAt, revFraction } from "./gears";
-import { ENGINES, torqueShape, firingHz } from "./engines";
-import { loadGarage, saveGarage, computeEffects, addKd, TuneEffects, getCar, CARS } from "./mods";
+import {
+  ENGINES,
+  torqueShape,
+  firingHz,
+  fuelLitresPerSecond,
+  fuelLitresPerHour,
+  FUEL_RATE,
+  FUEL_FILS_PER_LITRE,
+  PUMP_LITRES_PER_SEC,
+  PUMP_MAX_KMH,
+} from "./engines";
+import { loadGarage, saveGarage, computeEffects, addKd, fuelOf, setFuel, TuneEffects, getCar, CARS } from "./mods";
 import { levelInfo, recordRace, recordLap, loadProfileStats, LevelInfo } from "./profile";
 
 // Tokyo-Xtreme-Racer-style rules, Kuwait edition: cruise the loop, find the
@@ -85,6 +95,11 @@ export interface HudData {
   /** NOS charge 0..1, or null when no kit is fitted. */
   /** null when no NOS is fitted. `charge` is 1 full, 0 spent. */
   nos: { charge: number; firing: boolean; ready: boolean } | null;
+  /** The tank: litres left, litres it holds, and whether the engine has
+   *  already stopped for want of any. */
+  fuel: { litres: number; capacity: number; dry: boolean };
+  /** Set while the car is on a forecourt slow enough to fill up. */
+  pump: { litres: number; capacity: number; costKd: number; filling: boolean } | null;
   /** Live drift readout — non-null while sliding (and briefly after).
    *  `chain` is the link multiplier; `spinning` means it got away. */
   drift: {
@@ -570,6 +585,21 @@ export class GameEngine {
   /** Where the needle sat this frame, 0..1 of the rev range. Shared by
    *  the torque curve, the sound and the HUD so they cannot disagree. */
   private revFrac = 0.12;
+  /** Litres in the tank. Loaded from the car's save, written back when
+   *  the session ends and every time the pump runs. */
+  private fuel = fuelOf(loadGarage());
+  /** Litres burned this session — what the HUD's trip figure reports. */
+  private fuelBurned = 0;
+  /** True once the tank is dry: the throttle stops meaning anything
+   *  until there is fuel in it again. */
+  private outOfFuel = false;
+  /** The forecourt the car is standing on, if any, and what filling up
+   *  from here would cost. Null anywhere else. */
+  private pumpState: HudData["pump"] = null;
+  /** KD owed for fuel already pumped this visit but not yet charged.
+   *  Billed in whole fils as it flows rather than in one lump, so
+   *  driving off mid-fill costs exactly what went in. */
+  private pumpOwed = 0;
   private nosCharge = 1; // 0..1, drains while N is held
   private nosActive = false;
   // Handling model: heading relative to the track tangent, smoothed
@@ -1644,6 +1674,9 @@ export class GameEngine {
   }
 
   dispose(): void {
+    // Write the tank back before anything else is torn down: what is
+    // left in it is the whole reason the pump is worth driving to.
+    this.saveFuel();
     this.disposed = true;
     cancelAnimationFrame(this.raf);
     for (const t of this.challengeTimers) clearTimeout(t);
@@ -1722,6 +1755,12 @@ export class GameEngine {
 
   private get throttle(): number {
     if (this.locked || this.cine) return 0;
+    // A dry tank is not a penalty on the car, it is an engine that has
+    // stopped running: no thrust, no note above idle, and no fuel burned
+    // either, since there is none to burn. Cutting it here rather than
+    // at the thrust means every consumer agrees — the sim, the sound and
+    // the tacho all see a driver whose right foot has stopped mattering.
+    if (this.outOfFuel) return 0;
     const key = this.keys.has("arrowup") || this.keys.has("w") ? 1 : 0;
     return Math.max(key, this.touch.throttle, this.pad.throttle);
   }
@@ -2120,8 +2159,82 @@ export class GameEngine {
   }
 
   /** Rebuild the player car after a garage change (new model, paint, mods). */
+  /**
+   * The pumps.
+   *
+   * A forecourt fills the car if it is standing on one, off the through
+   * lanes and slow enough to be stopping rather than passing. No button:
+   * a petrol station is a place you go, and arriving is the input.
+   *
+   * Petrol is charged in fils as it flows — Kuwait's 91 at 85 fils a
+   * litre — rather than billed in a lump at the end, so pulling away
+   * half-full costs exactly the half tank that went in. A full 60-litre
+   * tank is about five KD, which against a rival purse of several
+   * hundred is what it should be: an errand, not a tax.
+   */
+  private updatePump(dt: number): void {
+    const p = this.player;
+    const near = STATIONS.find(
+      (st) => Math.abs(this.track.deltaAhead(st.s, p.s)) < FORECOURT.halfSpan
+    );
+    // On the apron: past the through lanes, and slow.
+    const onApron = !!near && p.lat > ROAD_HALF_WIDTH - 0.5;
+    const stopped = p.speed * KMH < PUMP_MAX_KMH;
+    if (!near || !onApron) {
+      if (this.pumpOwed > 0) this.chargeForFuel();
+      this.pumpState = null;
+      return;
+    }
+    const capacity = this.tune.tankLitres;
+    let filling = false;
+    if (stopped && this.fuel < capacity - 0.01) {
+      const litres = Math.min(PUMP_LITRES_PER_SEC * dt, capacity - this.fuel);
+      this.fuel += litres;
+      this.pumpOwed += litres * FUEL_FILS_PER_LITRE * 0.001;
+      filling = true;
+      if (this.outOfFuel && this.fuel > 0.5) {
+        this.outOfFuel = false;
+        this.events.onMessage("Fuelled — عبّينا", "Back on the road");
+      }
+    }
+    this.pumpState = {
+      litres: this.fuel,
+      capacity,
+      costKd: (capacity - this.fuel) * FUEL_FILS_PER_LITRE * 0.001,
+      filling,
+    };
+    // Bank the bill once a whole fils has accumulated, so a long fill
+    // does not write to storage sixty times a second.
+    if (this.pumpOwed >= 0.05) this.chargeForFuel();
+  }
+
+  private chargeForFuel(): void {
+    const owed = this.pumpOwed;
+    this.pumpOwed = 0;
+    if (owed <= 0) return;
+    this.saveFuel();
+    addKd(-owed);
+  }
+
+  /** Persist the tank against the car that burned it. */
+  private saveFuel(): void {
+    try {
+      setFuel(this.fuel, this.tune.carId);
+    } catch {}
+  }
+
   private applyGarage(): void {
-    this.tune = computeEffects(loadGarage());
+    // Bank what the car being put away has left, before the new one's
+    // tank is read. `this.tune` is still the old machine at this point,
+    // which is exactly why this line goes first.
+    this.saveFuel();
+    const g = loadGarage();
+    this.tune = computeEffects(g);
+    // A different car is a different tank. Reading it here — rather than
+    // carrying the old car's litres across — is what stops a swap into
+    // the pickup from inheriting the hatchback's range.
+    this.fuel = fuelOf(g);
+    this.outOfFuel = this.fuel <= 0;
     const contact = this.carBody.userData.contact as THREE.Object3D | undefined;
     if (contact) this.playerMesh.remove(contact);
     this.playerMesh.remove(this.carBody);
@@ -2580,6 +2693,8 @@ export class GameEngine {
       if (target < this.boost - 0.4 && this.boost > 0.5) this.sound?.blowOff();
       this.boost += (target - this.boost) * Math.min(1, dt * spoolRate);
     }
+    this.updatePump(dt);
+
     // NOS: hold N for a shove; the bottle refills slowly
     this.nosActive =
       this.tune.hasNos &&
@@ -2617,6 +2732,25 @@ export class GameEngine {
     const gearRev = revFraction(p.speed * KMH);
     const launch = Math.max(0, 1 - (p.speed * KMH) / 24) * this.throttle;
     this.revFrac = gearRev + (this.tune.engine.peakAt - gearRev) * launch;
+
+    // Fuel. An engine is an air pump and the burn follows the air it
+    // moved, so the thirst of each of the five falls straight out of its
+    // displacement and the revs it is turning — see engines.ts. A dry
+    // tank is not a penalty applied to the car; it is an engine that has
+    // stopped running, so the throttle simply stops meaning anything and
+    // the car coasts to whatever it can reach.
+    if (!this.cine) {
+      const burn =
+        fuelLitresPerSecond(this.tune.engine, this.throttle, this.revFrac) * FUEL_RATE * dt;
+      this.fuel = Math.max(0, this.fuel - burn);
+      this.fuelBurned += Math.min(burn, this.fuel + burn);
+      const dry = this.fuel <= 0;
+      if (dry !== this.outOfFuel) {
+        this.outOfFuel = dry;
+        if (dry) this.events.onMessage("Out of fuel — بنزين خلص", "Coast to a station and fill up");
+      }
+    }
+
     const torque = torqueShape(this.tune.engine, this.revFrac);
     const power =
       this.tune.accelMult * torque * (1 + this.boost * this.tune.boostMult);
@@ -3875,8 +4009,17 @@ export class GameEngine {
       window as unknown as { __grnTuneFor: (carId: string) => TuneEffects }
     ).__grnTuneFor = (carId: string) => computeEffects(loadGarage(), carId);
     (
-      window as unknown as { __grnEngineMath: { torqueShape: typeof torqueShape; firingHz: typeof firingHz } }
-    ).__grnEngineMath = { torqueShape, firingHz };
+      window as unknown as {
+        __grnEngineMath: {
+          torqueShape: typeof torqueShape;
+          firingHz: typeof firingHz;
+          fuelLitresPerHour: typeof fuelLitresPerHour;
+        };
+      }
+    ).__grnEngineMath = { torqueShape, firingHz, fuelLitresPerHour };
+    // Where the pumps are, so the fuel test can drive to one rather than
+    // be told where it is.
+    (window as unknown as { __grnStations: typeof STATIONS }).__grnStations = STATIONS;
     (window as unknown as { __grnLandmarks: typeof LANDMARK_S }).__grnLandmarks = LANDMARK_S;
     (window as unknown as { __grnDebug: object }).__grnDebug = {
       playerSpeed: this.player.speed,
@@ -3965,6 +4108,12 @@ export class GameEngine {
       nos: this.tune.hasNos
         ? { charge: this.nosCharge, firing: this.nosActive, ready: this.nosCharge > 0.02 }
         : null,
+      fuel: {
+        litres: this.fuel,
+        capacity: this.tune.tankLitres,
+        dry: this.outOfFuel,
+      },
+      pump: this.pumpState,
       drift:
         this.driftFlash > 0 || Math.abs(this.driftYaw) > 0.06
           ? {

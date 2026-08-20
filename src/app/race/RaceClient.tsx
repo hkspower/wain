@@ -163,6 +163,10 @@ export default function RaceClient() {
   const nosRef = useRef<HTMLDivElement>(null);
   const nosTrackRef = useRef<HTMLDivElement>(null);
   const nosPctRef = useRef<HTMLSpanElement>(null);
+  const fuelTrackRef = useRef<HTMLDivElement>(null);
+  const fuelRef = useRef<HTMLDivElement>(null);
+  const fuelLabelRef = useRef<HTMLSpanElement>(null);
+  const pumpRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setGarage(loadGarage()); // client-only: reads localStorage
@@ -421,6 +425,44 @@ export default function RaceClient() {
         if (nosPctRef.current) {
           const label = d.nos.ready ? `${Math.max(1, pct)}%` : "EMPTY";
           if (nosPctRef.current.textContent !== label) nosPctRef.current.textContent = label;
+        }
+      }
+
+      // Fuel. Litres, not a percentage: a quarter of a tank means
+      // something different in the pickup and the hatchback, and the
+      // number the driver needs is how far they can go — which is
+      // litres, against a capacity they can see next to it.
+      {
+        const f = d.fuel;
+        const frac = f.capacity > 0 ? f.litres / f.capacity : 0;
+        if (fuelRef.current) fuelRef.current.style.width = `${frac * 100}%`;
+        if (fuelTrackRef.current) {
+          fuelTrackRef.current.dataset.state = d.pump?.filling
+            ? "filling"
+            : f.dry
+              ? "dry"
+              : frac < 0.25
+                ? "low"
+                : "ok";
+        }
+        if (fuelLabelRef.current) {
+          const label = f.dry ? "DRY" : `${f.litres.toFixed(1)} / ${Math.round(f.capacity)} L`;
+          if (fuelLabelRef.current.textContent !== label) {
+            fuelLabelRef.current.textContent = label;
+          }
+          fuelLabelRef.current.classList.toggle("fuel-warn", f.dry);
+        }
+        if (pumpRef.current) {
+          const on = d.pump !== null;
+          pumpRef.current.style.opacity = on ? "1" : "0";
+          if (on && d.pump) {
+            const msg = d.pump.filling
+              ? `FILLING · ${d.pump.litres.toFixed(0)} L`
+              : d.pump.costKd > 0.01
+                ? `STOP TO FILL · ${d.pump.costKd.toFixed(2)} KD`
+                : "TANK FULL";
+            if (pumpRef.current.textContent !== msg) pumpRef.current.textContent = msg;
+          }
         }
       }
 
@@ -1035,6 +1077,27 @@ export default function RaceClient() {
               100%
             </span>
           </div>
+          {/* Fuel. Always shown — every car has a tank, unlike the two
+              gauges above it, which appear only once the parts are
+              bought. It reads in litres because that is the unit the
+              pump charges in and the unit the driver has to think in. */}
+          <div className="mt-1 flex items-center gap-2">
+            <span className="grn-label w-11 text-[0.58rem] text-emerald-300">Fuel</span>
+            <div ref={fuelTrackRef} className="nos-meter h-2.5 w-44 -skew-x-12" data-state="ok">
+              <div ref={fuelRef} className="fuel-fill" style={{ width: "100%" }} />
+            </div>
+            <span
+              ref={fuelLabelRef}
+              className="grn-label w-20 text-right text-[0.58rem] tabular-nums text-emerald-200"
+            >
+              — L
+            </span>
+          </div>
+          <div
+            ref={pumpRef}
+            className="grn-label mt-1 text-[0.6rem] tracking-wide text-cyan-300 transition-opacity"
+            style={{ opacity: 0 }}
+          />
         </div>
 
         {/* Bottom-right stack: minimap pinned above the controls hint.

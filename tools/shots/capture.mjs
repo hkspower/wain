@@ -51,6 +51,7 @@ const SHOTS = [
   { name: "city", hour: 22.5, m: 587 },     // towers behind the road
   { name: "signal", hour: 22.5, m: 197 },   // on the approach to a signalised junction
   { name: "ring", hour: 22.5, m: 5400 },    // the Second Ring through Mansuriya
+  { name: "station", hour: 22.5, m: 3888 }, // pulling up to the pumps in Shuwaikh
   { name: "love", hour: 22.5, m: 6155 },    // Love Street, at its own sign
   { name: "towers", hour: 22.5, m: -110 },  // Kuwait Towers on the approach
   { name: "towersday", hour: 16.5, m: -110 }, // same frame by day, so the pair compares

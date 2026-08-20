@@ -258,3 +258,103 @@ export function layoutTag(e: EngineSpec): string {
   const letter = e.layout === "inline" ? "I" : e.layout === "flat" ? "F" : "V";
   return `${letter}${e.cylinders}`;
 }
+
+/**
+ * FUEL
+ *
+ * An engine is an air pump. A four-stroke swallows half its displacement
+ * every crank revolution, and at the mixture a petrol engine actually
+ * runs — roughly fourteen and a half parts air to one of fuel by mass —
+ * the fuel it burns follows directly from the air it moved. So there is
+ * nothing to invent here: displacement and revs are already on the spec
+ * sheet above, and the throttle says how much of that swallow is air
+ * rather than vacuum.
+ *
+ * That matters because it makes the V8's torque cost something. Flat
+ * out, the 5.7 pulls about 107 litres an hour against the 1.6's 42 —
+ * two and a half times the thirst for the privilege of all that shove
+ * off the bottom, which is exactly the trade a driver should be making
+ * when they choose it. None of that is balanced by hand; it falls out of
+ * 5.7 divided by 1.6 and the revs each one is turning.
+ */
+
+/** Air density at the sort of temperature Kuwait manages at night, g/L. */
+export const AIR_G_PER_L = 1.2;
+/** Stoichiometric air-fuel ratio for petrol, by mass. */
+export const AFR = 14.7;
+/** Petrol, g/L. */
+export const FUEL_G_PER_L = 745;
+
+/**
+ * Volumetric efficiency: how much of each swallow is actually air.
+ *
+ * A closed throttle is mostly vacuum, which is why an idling engine
+ * burns about a litre an hour instead of thirty. Wide open it is most of
+ * the way to full, and it tails off at the very top where the engine
+ * cannot breathe fast enough — which is a real reason the 1.6 does not
+ * simply drink forever as it revs.
+ */
+function volumetricEfficiency(throttle: number, rev: number): number {
+  const open = 0.22 + 0.73 * Math.min(1, Math.max(0, throttle));
+  return open * (1 - 0.12 * Math.max(0, rev - 0.75));
+}
+
+/**
+ * Real-time fuel burn, litres per second, before the game's own scaling.
+ * `rev` is the rev fraction the sim is running at.
+ */
+export function fuelLitresPerSecond(e: EngineSpec, throttle: number, rev: number): number {
+  const revsPerSecond = rpmAt(e, rev) / 60;
+  // Half the displacement per revolution: that is what "four-stroke"
+  // means — one intake stroke every two turns of the crank.
+  const airLitres = (e.litres / 2) * revsPerSecond * volumetricEfficiency(throttle, rev);
+  return (airLitres * AIR_G_PER_L) / (AFR * FUEL_G_PER_L);
+}
+
+/**
+ * How much faster the game burns fuel than the world does.
+ *
+ * Real consumption puts a 50-litre tank about seventy-five minutes away
+ * from empty at full throttle, which in a game means a gauge nobody ever
+ * looks at and a petrol station nobody ever visits. At eight times life
+ * a tank is a session: roughly ten minutes of hard driving, half an hour
+ * of cruising, and a decision on the way past a forecourt.
+ *
+ * Stated as one number in one place rather than smuggled into the
+ * physics, so the model above stays honest and this stays a game-design
+ * choice that can be argued with.
+ */
+export const FUEL_RATE = 8;
+
+/** Litres per hour at a given throttle and revs — the number a spec
+ *  sheet would quote, before FUEL_RATE. */
+export function fuelLitresPerHour(e: EngineSpec, throttle: number, rev: number): number {
+  return fuelLitresPerSecond(e, throttle, rev) * 3600;
+}
+
+/**
+ * What petrol costs, in fils per litre.
+ *
+ * 85 fils is Kuwait's 91-octane pump price — the grade on the green
+ * hose that almost everybody uses. A thousand fils to the dinar, so a
+ * dry 60-litre tank refills for a little over five KD. Against a rival
+ * purse of several hundred that is deliberately trivial: fuel is meant
+ * to be an errand that interrupts a lap, not a second economy.
+ */
+export const FUEL_FILS_PER_LITRE = 85;
+
+/**
+ * Pump flow, litres per second.
+ *
+ * A real forecourt pump manages about three quarters of a litre a
+ * second, which would park the player for eighty seconds to fill a
+ * tank. Eight litres a second fills the same tank in under ten — long
+ * enough to be a stop, short enough to be worth making. Compressed for
+ * the same reason FUEL_RATE is, and stated here rather than hidden in
+ * the sim for the same reason.
+ */
+export const PUMP_LITRES_PER_SEC = 8;
+
+/** Fast enough to be leaving, slow enough to be arriving. Above this
+ *  the forecourt is something you drove past. */
+export const PUMP_MAX_KMH = 12;

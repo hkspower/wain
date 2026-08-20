@@ -72,6 +72,7 @@ const cars = carsBlock
       style: f(/style: "(\w+)"/) ?? "sedan",
       kit: f(/kit: "(\w+)"/) ?? null,
       engine: f(/engine: "([^"]+)"/),
+      tank: +f(/tankLitres: ([\d.]+)/),
     };
   })
   .filter(Boolean);
@@ -140,6 +141,33 @@ const normOf = (e) => {
   }
   return sum / N;
 };
+/** The fuel constants, read out of engines.ts and track.ts rather than
+ *  copied. A port whose pump price has drifted sells petrol at a
+ *  different rate to the same player on the same save. */
+const num = (src, name) => {
+  const m = src.match(new RegExp(`export const ${name} = (-?[\\d.]+)`));
+  if (!m) throw new Error(`fuel constant ${name} not found`);
+  return +m[1];
+};
+const fuel = {
+  rate: num(enginesTs, "FUEL_RATE"),
+  fils: num(enginesTs, "FUEL_FILS_PER_LITRE"),
+  pumpLps: num(enginesTs, "PUMP_LITRES_PER_SEC"),
+  pumpMaxKmh: num(enginesTs, "PUMP_MAX_KMH"),
+  air: num(enginesTs, "AIR_G_PER_L"),
+  afr: num(enginesTs, "AFR"),
+  petrol: num(enginesTs, "FUEL_G_PER_L"),
+};
+const stationBlock = trackTs.match(/export const STATIONS[^=]*=\s*\[(.*?)\n\];/s)[1];
+const stations = [...stationBlock.matchAll(/\{\s*s:\s*(\d+),\s*lat:\s*(-?[\d.]+)\s*\}/g)].map(
+  ([, st, lat]) => ({ s: +st, lat: +lat })
+);
+if (!stations.length) throw new Error("station parse failed");
+const forecourt = {
+  halfSpan: +trackTs.match(/FORECOURT = \{ halfSpan: ([\d.]+)/)[1],
+  extraWidth: +trackTs.match(/extraWidth: ([\d.]+) \}/)[1],
+};
+
 const engIndex = (id, who) => {
   const i = engines.findIndex((e) => e.id === id);
   if (i < 0) throw new Error(`${who}: unknown engine "${id}" — it is not in engines.ts`);
@@ -349,17 +377,75 @@ struct FGRNCarDef
 	bool bAttackKit;
 	/** Index into GRNEngines — what the car left the factory with. */
 	int32 Engine;
+	/** Tank, litres. */
+	float TankLitres;
 };
 
 static const FGRNCarDef GRNCars[] = {
 ${cars
   .map(
     (c) =>
-      `\t{ TEXT("${c.id}"), TEXT("${c.name}"), ${c.price}, ${c.power.toFixed(2)}f, ${c.top.toFixed(1)}f, ${c.grip.toFixed(1)}f, ${c.brake.toFixed(1)}f, ${col(c.color)}, ${style(c.style, c.id)}, ${c.kit === "attack" ? "true" : "false"}, ${engIndex(c.engine, c.id)} },`
+      `\t{ TEXT("${c.id}"), TEXT("${c.name}"), ${c.price}, ${c.power.toFixed(2)}f, ${c.top.toFixed(1)}f, ${c.grip.toFixed(1)}f, ${c.brake.toFixed(1)}f, ${col(c.color)}, ${style(c.style, c.id)}, ${c.kit === "attack" ? "true" : "false"}, ${engIndex(c.engine, c.id)}, ${c.tank.toFixed(1)}f },`
   )
   .join("\n")}
 };
 static const int32 GRNCarCount = UE_ARRAY_COUNT(GRNCars);
+
+// ------------------------------------------------------------------ fuel
+//
+// An engine is an air pump: it swallows half its displacement every
+// crank revolution, and at stoichiometric the petrol follows from the
+// air. Nothing here is a thirst figure typed in per engine — the V8
+// drinks two and a half times what the 1.6 does because it is two and a
+// half times the pump, and for no other reason.
+
+namespace GRNFuel
+{
+	/** How much faster the game burns than the world does. A tank is a
+	 *  session rather than an afternoon. */
+	constexpr float RateMultiplier = ${cppf(fuel.rate)};
+	/** Kuwait's 91-octane pump price. A thousand fils to the dinar. */
+	constexpr int32 FilsPerLitre = ${fuel.fils};
+	constexpr float PumpLitresPerSecond = ${cppf(fuel.pumpLps)};
+	/** Above this the forecourt is something you drove past. */
+	constexpr float PumpMaxKmh = ${cppf(fuel.pumpMaxKmh)};
+	constexpr float AirGramsPerLitre = ${cppf(fuel.air)};
+	constexpr float AirFuelRatio = ${cppf(fuel.afr)};
+	constexpr float PetrolGramsPerLitre = ${cppf(fuel.petrol)};
+}
+
+/** How much of each swallow is actually air. A closed throttle is mostly
+ *  vacuum, which is why an idling engine burns a litre an hour. */
+static FORCEINLINE float GRNVolumetricEfficiency(float Throttle, float Rev)
+{
+	const float Open = 0.22f + 0.73f * FMath::Clamp(Throttle, 0.0f, 1.0f);
+	return Open * (1.0f - 0.12f * FMath::Max(0.0f, Rev - 0.75f));
+}
+
+/** Litres per second, before RateMultiplier. */
+static FORCEINLINE float GRNFuelLitresPerSecond(int32 EngineIndex, float Throttle, float Rev)
+{
+	const FGRNEngineDef& E = GRNEngines[EngineIndex];
+	const float Rpm = E.IdleRpm + (E.RedlineRpm - E.IdleRpm) * FMath::Clamp(Rev, 0.0f, 1.0f);
+	const float AirLitres = (E.Litres * 0.5f) * (Rpm / 60.0f) * GRNVolumetricEfficiency(Throttle, Rev);
+	return (AirLitres * GRNFuel::AirGramsPerLitre) /
+		(GRNFuel::AirFuelRatio * GRNFuel::PetrolGramsPerLitre);
+}
+
+// --------------------------------------------------------------- forecourts
+// Both are on the Second Ring: widening the road opens the barrier on
+// both sides, which inland means more tarmac and on the corniche would
+// mean a lane of asphalt over the beach.
+
+struct FGRNStation { float S; float Lat; };
+static const FGRNStation GRNStations[] = {
+${stations.map((st) => `\t{ ${cppf(st.s)}, ${cppf(st.lat)} },`).join("\n")}
+};
+static const int32 GRNStationCount = UE_ARRAY_COUNT(GRNStations);
+/** How far a forecourt reaches along the road, and how much wider it
+ *  makes the carriageway. */
+constexpr float GRNForecourtHalfSpan = ${cppf(forecourt.halfSpan)};
+constexpr float GRNForecourtExtraWidth = ${cppf(forecourt.extraWidth)};
 
 // -------------------------------------------------------- handling model
 // Mirrors src/game/handling.ts — parsed from it, never hand-copied. If a
@@ -388,6 +474,7 @@ ${rigKeys.map(([k, v]) => `\tconstexpr float ${k} = ${cppr(v)};`).join("\n")}
 writeFileSync("unreal/Source/GulfRoadNights/GRNTypes.h", header);
 console.log(
   `GRNTypes.h regenerated: ${points.length} track points, ${rivals.length} rivals, ` +
-    `${engines.length} engines, ${cars.length} cars, ${handlingKeys.length} handling constants, ` +
+    `${engines.length} engines, ${cars.length} cars, ${stations.length} stations, ` +
+    `${handlingKeys.length} handling constants, ` +
     `${rigKeys.length} rig constants.`
 );

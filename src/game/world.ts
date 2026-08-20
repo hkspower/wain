@@ -1,7 +1,16 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { pointGlowTexture } from "./glow";
-import { Track, ROAD_HALF_WIDTH, COAST_U, COAST_END_M, LAP_LENGTH, DRIFT_PLAZA } from "./track";
+import { pointGlowTexture, poolGlowTexture } from "./glow";
+import {
+  Track,
+  ROAD_HALF_WIDTH,
+  COAST_U,
+  COAST_END_M,
+  LAP_LENGTH,
+  DRIFT_PLAZA,
+  STATIONS,
+  FORECOURT,
+} from "./track";
 import { applyTextureManifest } from "./assets";
 import { upgradePalmCrowns } from "./models";
 import { textTexture, arabicSign, latinDisplay } from "./text";
@@ -1364,6 +1373,236 @@ function scientificCenter(): THREE.Group {
   return g;
 }
 
+/**
+ * The price board every Kuwaiti forecourt has by the road: the grade in
+ * Arabic-Indic numerals over what it costs, in fils per litre.
+ *
+ * 91 and 95 are the two grades that matter — عادي and ممتاز, the ones
+ * every pump on the corniche offers — and 85 and 105 fils are what they
+ * cost. Real numbers rather than invented ones, because the whole point
+ * of the board is that a Kuwaiti player has read it a thousand times
+ * and knows at a glance what it should say.
+ */
+function pumpPriceTexture(): THREE.CanvasTexture {
+  return textTexture(256, 512, (ctx) => {
+    ctx.fillStyle = "#07321f";
+    ctx.fillRect(0, 0, 256, 512);
+    ctx.strokeStyle = "#e8f6ee";
+    ctx.lineWidth = 7;
+    ctx.strokeRect(9, 9, 238, 494);
+    ctx.textAlign = "center";
+    ctx.direction = "rtl";
+    const ar = arabicSign();
+    ctx.fillStyle = "#e8f6ee";
+    ctx.font = `700 34px ${ar}`;
+    ctx.fillText("محطة وقود", 128, 58);
+    ctx.strokeStyle = "rgba(232,246,238,0.45)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(24, 76);
+    ctx.lineTo(232, 76);
+    ctx.stroke();
+    const row = (y: number, grade: string, fils: number, tint: string) => {
+      ctx.fillStyle = tint;
+      ctx.font = `700 76px ${ar}`;
+      ctx.fillText(arabicNumber(+grade), 76, y);
+      ctx.fillStyle = "#fff6cf";
+      ctx.font = `700 84px ${ar}`;
+      ctx.fillText(arabicNumber(fils), 176, y);
+    };
+    row(180, "91", 85, "#8fe3b0");
+    row(300, "95", 105, "#ffd27a");
+    ctx.fillStyle = "rgba(232,246,238,0.8)";
+    ctx.font = `600 30px ${ar}`;
+    ctx.fillText("فلس / لتر", 128, 372);
+    ctx.direction = "ltr";
+    ctx.fillStyle = "rgba(232,246,238,0.55)";
+    ctx.font = `600 26px ${latinDisplay()}`;
+    ctx.fillText("FILS PER LITRE", 128, 412);
+    ctx.fillText("24 HOURS", 128, 456);
+  });
+}
+
+/**
+ * A petrol station.
+ *
+ * Built the way the ones on the ring roads are: a wide concrete apron
+ * set back off the carriageway, a flat canopy on four columns with its
+ * whole underside lit, two pump islands beneath it, a kiosk at the back,
+ * and the price board out at the kerb where you can read it in time to
+ * decide.
+ *
+ * The lit soffit is the part that matters at night. A forecourt is the
+ * brightest thing on a dark road by a wide margin — that is what makes
+ * one visible from far enough away to be a decision rather than a
+ * surprise — so the canopy underside is emissive rather than lit, and it
+ * throws a pool onto the apron.
+ *
+ * None of these materials is registered anywhere by hand. buildWorld
+ * already walks the scene and sorts emissive materials into two buckets
+ * by intensity: at or below 2.0 is a lamp that follows the sun, above it
+ * is something lit around the clock. The soffit sits at 2.2 because a
+ * Kuwaiti forecourt canopy genuinely is lit at noon, and the pumps, the
+ * price board and the kiosk window sit below the line because they are
+ * not. Pushing them into the window-lighting list as well — which is
+ * what the first version did — hands the soffit to a second controller
+ * that pins it to 1.15 after dark, and the brightest thing on the road
+ * quietly stops being bright.
+ *
+ * Laid out with +Z along the road and +X out toward the kerb — which is
+ * to say the pumps sit at positive X and the kiosk behind them at
+ * negative X, furthest from the traffic.
+ *
+ * That sign is worth stating because it is not the obvious one. Rotating
+ * a group by atan2(tangent.x, tangent.z) maps its local +X onto the
+ * LEFT of travel, not the right: `sideAt` is tangent x up, and the
+ * rotation sends (1,0,0) to the negative of it. Built the intuitive way
+ * round, the station comes out mirrored — the kiosk between the road and
+ * the pumps, and the price board hidden behind the canopy where nobody
+ * can read it. Which is exactly how it first came out.
+ */
+function fuelStation(skin: Skin): THREE.Group {
+  const g = new THREE.Group();
+  const concrete = new THREE.MeshStandardMaterial({
+    map: concreteTexture(),
+    color: 0x9a9a94,
+    roughness: 0.92,
+  });
+  const steel = new THREE.MeshStandardMaterial({ color: 0xd8dade, roughness: 0.45, metalness: 0.35 });
+  const trim = new THREE.MeshStandardMaterial({ color: 0x0f6b3f, roughness: 0.5 });
+
+  // Apron. Sits a hair above the ground plane so it reads as poured
+  // concrete rather than z-fighting with the sand.
+  const apron = new THREE.Mesh(new THREE.BoxGeometry(22, 0.16, 40), concrete);
+  apron.position.y = 0.08;
+  apron.receiveShadow = true;
+  g.add(apron);
+
+  // Canopy: roof slab, fascia band, and a soffit that is the light.
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(16, 0.7, 24), steel);
+  roof.position.set(2.5, 6.6, 0);
+  g.add(roof);
+  const fascia = new THREE.Mesh(new THREE.BoxGeometry(16.4, 1.1, 24.4), trim);
+  fascia.position.set(2.5, 5.95, 0);
+  g.add(fascia);
+  const soffitMat = new THREE.MeshStandardMaterial({
+    color: 0xf6f9ff,
+    emissive: 0xdfeaff,
+    emissiveIntensity: 2.2,
+    roughness: 0.9,
+  });
+  const soffit = new THREE.Mesh(new THREE.PlaneGeometry(15.4, 23.4), soffitMat);
+  soffit.rotation.x = Math.PI / 2;
+  soffit.position.set(2.5, 6.2, 0);
+  g.add(soffit);
+  // The pool the canopy throws down. Additive, so it brightens the
+  // concrete instead of painting a grey disc onto it.
+  const pool = new THREE.Mesh(
+    new THREE.PlaneGeometry(18, 25),
+    new THREE.MeshBasicMaterial({
+      map: poolGlowTexture(),
+      color: 0xdfeaff,
+      transparent: true,
+      opacity: 0.5,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+    })
+  );
+  pool.rotation.x = -Math.PI / 2;
+  pool.position.set(2.5, 0.2, 0);
+  g.add(pool);
+  for (const [cx, cz] of [
+    [9.4, -9.8],
+    [9.4, 9.8],
+    [-4.4, -9.8],
+    [-4.4, 9.8],
+  ]) {
+    const col = new THREE.Mesh(new THREE.BoxGeometry(0.85, 6, 0.85), steel);
+    col.position.set(cx, 3, cz);
+    col.castShadow = true;
+    g.add(col);
+  }
+
+  // Two pump islands, three pumps a side.
+  const pumpBody = new THREE.MeshStandardMaterial({ color: 0xe9ecef, roughness: 0.55 });
+  const pumpFace = new THREE.MeshStandardMaterial({
+    color: 0x123a2a,
+    emissive: 0x1d6a48,
+    emissiveIntensity: 0.9,
+    roughness: 0.4,
+  });
+  for (const ix of [7, 1.5]) {
+    const kerb = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.28, 15), concrete);
+    kerb.position.set(ix, 0.3, 0);
+    g.add(kerb);
+    for (const pz of [-5.4, 0, 5.4]) {
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.9, 1.5), pumpBody);
+      body.position.set(ix, 1.39, pz);
+      body.castShadow = true;
+      g.add(body);
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.62), pumpFace);
+      face.position.set(ix + 0.56, 1.72, pz);
+      face.rotation.y = Math.PI / 2;
+      g.add(face);
+      const back = face.clone();
+      back.position.x = ix - 0.56;
+      back.rotation.y = -Math.PI / 2;
+      g.add(back);
+    }
+  }
+
+  // Kiosk at the back of the apron, glazed toward the pumps.
+  const kiosk = new THREE.Group();
+  const shell = new THREE.Mesh(
+    new THREE.BoxGeometry(5.4, 4.2, 14),
+    new THREE.MeshStandardMaterial({ color: 0xe4e6ea, roughness: 0.8 })
+  );
+  shell.position.y = 2.1;
+  shell.castShadow = true;
+  kiosk.add(shell);
+  const glassMat = new THREE.MeshStandardMaterial({
+    map: skin.lit,
+    color: 0xfff3d8,
+    emissive: 0xffe7ae,
+    emissiveIntensity: 1.5,
+    roughness: 0.25,
+  });
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(12, 2.4), glassMat);
+  glass.position.set(2.73, 2.2, 0);
+  glass.rotation.y = Math.PI / 2;
+  kiosk.add(glass);
+  const parapet = new THREE.Mesh(new THREE.BoxGeometry(5.8, 0.7, 14.4), trim);
+  parapet.position.y = 4.4;
+  kiosk.add(parapet);
+  kiosk.position.set(-8, 0.16, 0);
+  g.add(kiosk);
+
+  // Price board at the kerb, facing oncoming traffic on both sides.
+  const board = new THREE.Group();
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 4.4, 8), steel);
+  post.position.y = 2.2;
+  board.add(post);
+  const priceMat = new THREE.MeshStandardMaterial({
+    map: pumpPriceTexture(),
+    emissive: 0x8a8a8a,
+    roughness: 0.6,
+  });
+  const plate = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 4.6), priceMat);
+  plate.position.y = 6.1;
+  board.add(plate);
+  const plateBack = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 4.6), priceMat);
+  plateBack.position.y = 6.1;
+  plateBack.rotation.y = Math.PI;
+  board.add(plateBack);
+  board.position.set(10.2, 0.16, -13);
+  board.rotation.y = Math.PI / 2;
+  g.add(board);
+
+  g.name = "fuel-station";
+  return g;
+}
+
 function lighthouse(): THREE.Group {
   const g = new THREE.Group();
   const body = new THREE.Mesh(
@@ -2469,6 +2708,20 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       if (depth < 6 || room < 2) continue;
       const s =
         blockIndex * blockLen + STREETS.half + width / 2 + Math.random() * room;
+      // Not on a forecourt. The station occupies the first band of the
+      // block — the one between the shoulder and the first avenue — and
+      // the block picker has no idea it is there, so a tower would go up
+      // through the canopy about one time in twenty.
+      if (
+        STATIONS.some(
+          (st) =>
+            Math.abs(track.deltaAhead(st.s, s)) < FORECOURT.halfSpan + width / 2 + 6 &&
+            lo < st.lat + 13 &&
+            hi > st.lat - 13
+        )
+      ) {
+        continue;
+      }
       const u = track.wrap(s) / L;
       // Never on the sea side of the corniche; both sides inland.
       const onCoast = u >= COAST_U.from && u <= COAST_U.to;
@@ -2697,6 +2950,19 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
 
   const wt = waterTowers(stripeTexture("#7ec8e3", "#ffffff"));
   placeBeside(track, wt, 4600, 65); // Shamiya, outside the ring
+
+  // Petrol stations. The forecourt is the brightest thing on the road at
+  // night, which is what makes one a decision you can see coming rather
+  // than a turning you have already missed.
+  STATIONS.forEach((st, i) => {
+    const station = fuelStation(windows);
+    placeBeside(track, station, st.s, st.lat, `fuel-station-${i}`);
+    const tan = new THREE.Vector3();
+    track.tangentAt(st.s, tan);
+    // Square to the road: local +Z runs along it, +X out to the kerb.
+    station.rotation.y = Math.atan2(tan.x, tan.z);
+    scene.add(station);
+  });
   scene.add(wt);
 
   const m2 = mosque();

@@ -129,12 +129,13 @@ if (hEngines.length !== api.engines.length) {
 
 // ---- cars -----------------------------------------------------------
 const hCars = [...header.matchAll(
-  /\{ TEXT\("([^"]+)"\), TEXT\("([^"]+)"\), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, FColor\([^)]*\), EGRNBodyStyle::(\w+), (true|false), (\d+) \},/g
-)].map(([, id, name, price, power, top, grip, brake, style, kit, engine]) => ({
+  /\{ TEXT\("([^"]+)"\), TEXT\("([^"]+)"\), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, FColor\([^)]*\), EGRNBodyStyle::(\w+), (true|false), (\d+), ([\d.]+)f \},/g
+)].map(([, id, name, price, power, top, grip, brake, style, kit, engine, tank]) => ({
   id, name, price: +price, power: +power, top: +top, grip: +grip, brake: +brake,
   style: style.toLowerCase(),
   attack: kit === "true",
   engine: +engine,
+  tank: +tank,
 }));
 if (hCars.length !== api.cars.length) {
   fail(`cars: header ${hCars.length} vs api ${api.cars.length}`);
@@ -153,11 +154,56 @@ if (hCars.length !== api.cars.length) {
     if (h.style !== a.bodyStyle) fail(`car ${h.id} body style: ${h.style} vs ${a.bodyStyle}`);
     if (h.attack !== (a.kit === "attack")) fail(`car ${h.id} attack kit: ${h.attack} vs ${a.kit}`);
     // The header stores an index into GRNEngines; the API stores the id.
+    if (h.tank !== a.tankLitres) fail(`car ${h.id} tankLitres: ${h.tank} vs ${a.tankLitres}`);
     if (api.engines[h.engine]?.id !== a.engine) {
       fail(`car ${h.id} engine: header index ${h.engine} (${api.engines[h.engine]?.id}) vs ${a.engine}`);
     }
   }
-  if (!process.exitCode) ok(`cars: ${hCars.length} match (id, price, power, topSpeedKmh, grip, brake, body, kit, engine)`);
+  if (!process.exitCode) ok(`cars: ${hCars.length} match (id, price, power, topSpeedKmh, grip, brake, body, kit, engine, tank)`);
+}
+
+// ---- fuel and forecourts --------------------------------------------
+// Petrol is an economy and a distance, so a port that disagrees about
+// the pump price or the burn multiplier is a port where the same save
+// runs out of money and road at different times.
+{
+  const hFuel = {
+    rateMultiplier: +(header.match(/RateMultiplier = ([\d.]+)f/)?.[1] ?? NaN),
+    filsPerLitre: +(header.match(/FilsPerLitre = (\d+)/)?.[1] ?? NaN),
+    pumpLitresPerSecond: +(header.match(/PumpLitresPerSecond = ([\d.]+)f/)?.[1] ?? NaN),
+    pumpMaxKmh: +(header.match(/PumpMaxKmh = ([\d.]+)f/)?.[1] ?? NaN),
+    airGramsPerLitre: +(header.match(/AirGramsPerLitre = ([\d.]+)f/)?.[1] ?? NaN),
+    airFuelRatio: +(header.match(/AirFuelRatio = ([\d.]+)f/)?.[1] ?? NaN),
+    petrolGramsPerLitre: +(header.match(/PetrolGramsPerLitre = ([\d.]+)f/)?.[1] ?? NaN),
+  };
+  let bad = 0;
+  for (const [k, v] of Object.entries(api.fuel)) {
+    if (hFuel[k] !== v) { fail(`fuel ${k}: header ${hFuel[k]} vs api ${v}`); bad++; }
+  }
+  const hStations = [...header.matchAll(/^\t\{ ([\d.]+)f, ([\d.]+)f \},$/gm)].map(
+    ([, s2, lat]) => ({ s: +s2, lat: +lat })
+  );
+  if (hStations.length !== api.track.stations.length) {
+    fail(`stations: header ${hStations.length} vs api ${api.track.stations.length}`);
+    bad++;
+  } else {
+    for (let i = 0; i < hStations.length; i++) {
+      const a = api.track.stations[i];
+      if (hStations[i].s !== a.s || hStations[i].lat !== a.lat) {
+        fail(`station ${i}: header ${JSON.stringify(hStations[i])} vs api ${JSON.stringify(a)}`);
+        bad++;
+      }
+    }
+  }
+  const hSpan = +(header.match(/GRNForecourtHalfSpan = ([\d.]+)f/)?.[1] ?? NaN);
+  const hWide = +(header.match(/GRNForecourtExtraWidth = ([\d.]+)f/)?.[1] ?? NaN);
+  if (hSpan !== api.track.forecourt.halfSpan || hWide !== api.track.forecourt.extraWidth) {
+    fail(`forecourt: header ${hSpan}/${hWide} vs api ${api.track.forecourt.halfSpan}/${api.track.forecourt.extraWidth}`);
+    bad++;
+  }
+  if (!bad) {
+    ok(`fuel: 7 constants match, ${hStations.length} stations, forecourt ${hSpan} x ${hWide} m`);
+  }
 }
 
 // ---- handling -------------------------------------------------------

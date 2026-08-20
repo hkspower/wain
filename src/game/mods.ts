@@ -171,6 +171,12 @@ export interface CarModel {
    *  has a heart before anybody opens the bonnet, and the showroom is
    *  where you meet it. */
   engine: EngineId;
+  /** Tank, litres. Real sizes for the shape of car: a three-door
+   *  carries forty-odd, a pickup eighty. With the burn model in
+   *  engines.ts this is what decides how far the machine goes between
+   *  forecourts — and it is why the V8 pickup is not the free lunch its
+   *  torque curve makes it look. */
+  tankLitres: number;
   /** Base handling before garage mods. */
   power: number; // accel multiplier
   /** The car's governed top speed in km/h — an absolute limiter, not a
@@ -195,6 +201,7 @@ export const CARS: CarModel[] = [
     kit: "attack",
     price: 120000,
     engine: "i6-30tt",
+    tankLitres: 55,
     power: 1.66,
     topSpeedKmh: 400,
     grip: 17.5,
@@ -210,6 +217,7 @@ export const CARS: CarModel[] = [
     style: "zx",
     price: 96000,
     engine: "v8-57",
+    tankLitres: 90,
     power: 1.62,
     topSpeedKmh: 385,
     grip: 16.4,
@@ -225,6 +233,7 @@ export const CARS: CarModel[] = [
     style: "zx",
     price: 71000,
     engine: "v8-57",
+    tankLitres: 72,
     power: 1.5,
     topSpeedKmh: 360,
     grip: 15.8,
@@ -239,6 +248,7 @@ export const CARS: CarModel[] = [
     cls: "supercar",
     price: 54000,
     engine: "i6-30tt",
+    tankLitres: 68,
     power: 1.4,
     topSpeedKmh: 335,
     grip: 15.2,
@@ -254,6 +264,7 @@ export const CARS: CarModel[] = [
     style: "gtr",
     price: 38000,
     engine: "i6-30tt",
+    tankLitres: 74,
     power: 1.34,
     topSpeedKmh: 310,
     grip: 16.2, // AWD monster — nothing in the class sticks like it
@@ -269,6 +280,7 @@ export const CARS: CarModel[] = [
     style: "rx7",
     price: 31000,
     engine: "f6-25",
+    tankLitres: 60,
     power: 1.3,
     topSpeedKmh: 295,
     grip: 14.8,
@@ -284,6 +296,7 @@ export const CARS: CarModel[] = [
     style: "zx",
     price: 27000,
     engine: "i6-30tt",
+    tankLitres: 70,
     power: 1.26,
     topSpeedKmh: 275,
     grip: 13.9,
@@ -299,6 +312,7 @@ export const CARS: CarModel[] = [
     style: "hatch",
     price: 33000,
     engine: "i4-20t",
+    tankLitres: 50,
     power: 1.28,
     topSpeedKmh: 285,
     grip: 14.6,
@@ -314,6 +328,7 @@ export const CARS: CarModel[] = [
     cls: "sport",
     price: 24000,
     engine: "i4-20t",
+    tankLitres: 60,
     power: 1.2,
     topSpeedKmh: 255,
     grip: 13.8,
@@ -328,6 +343,7 @@ export const CARS: CarModel[] = [
     cls: "sport",
     price: 16000,
     engine: "i4-20t",
+    tankLitres: 55,
     power: 1.12,
     topSpeedKmh: 240,
     grip: 13.2,
@@ -342,6 +358,7 @@ export const CARS: CarModel[] = [
     cls: "normal",
     price: 8500,
     engine: "i4-20t",
+    tankLitres: 60,
     power: 1.05,
     topSpeedKmh: 220,
     grip: 12.6,
@@ -356,6 +373,7 @@ export const CARS: CarModel[] = [
     cls: "normal",
     price: 6000,
     engine: "v8-57",
+    tankLitres: 80,
     power: 1.0,
     topSpeedKmh: 195,
     grip: 12.0,
@@ -370,6 +388,7 @@ export const CARS: CarModel[] = [
     cls: "normal",
     price: 2200,
     engine: "i4-16",
+    tankLitres: 42,
     power: 0.98,
     topSpeedKmh: 205,
     grip: 12.4,
@@ -384,6 +403,7 @@ export const CARS: CarModel[] = [
     cls: "normal",
     price: 0,
     engine: "i4-16",
+    tankLitres: 50,
     power: 1.0,
     topSpeedKmh: 180,
     grip: 12.0,
@@ -420,6 +440,14 @@ export const WAGERS = [250, 500, 1000, 2500, 5000, 10000, 25000];
 export interface CarBuild {
   owned: string[];
   equipped: Partial<Record<ExclusiveCat, string>>;
+  /** Litres left in the tank, saved with the car.
+   *
+   * Fuel that resets on every load is fuel nobody has to think about,
+   * and a petrol station nobody has to visit. Saved, it is a thing you
+   * left in a state — which is the point of having it at all.
+   *
+   * Undefined means "never driven": a car leaves the lot full. */
+  fuel?: number;
 }
 
 export interface GarageState {
@@ -437,6 +465,33 @@ export function freshBuild(): CarBuild {
     owned: ["paint-white", "glow-none"],
     equipped: { paint: "paint-white", glow: "glow-none" },
   };
+}
+
+/**
+ * Litres in the tank right now.
+ *
+ * The floor is the kind part. A car saved bone dry would load stranded
+ * on the hard shoulder with no way to reach a pump and no way to earn
+ * the KD for one — a save file that has locked itself. Anything below a
+ * tenth of a tank comes back with a tenth, which is a few kilometres:
+ * enough to reach a forecourt and not enough to pretend nothing
+ * happened.
+ */
+export function fuelOf(g: GarageState, carId: string = g.car): number {
+  const car = getCar(carId);
+  const saved = buildOf(g, carId).fuel;
+  if (saved === undefined) return car.tankLitres;
+  return Math.max(car.tankLitres * 0.1, Math.min(car.tankLitres, saved));
+}
+
+/** Write the tank back. Called when a race ends and at the pump. */
+export function setFuel(litres: number, carId?: string): number {
+  const g = loadGarage();
+  const id = carId ?? g.car;
+  const capped = Math.max(0, Math.min(getCar(id).tankLitres, litres));
+  editBuild(g, id).fuel = capped;
+  saveGarage(g);
+  return capped;
 }
 
 /** A car's build, for reading. Never writes: the shop asks about cars it
@@ -551,6 +606,8 @@ export interface TuneEffects {
   /** The fitted engine. The sim reads its torque curve every frame and
    *  the sound engine reads its cylinder count — see engines.ts. */
   engine: EngineSpec;
+  /** Tank size, litres — the car's, not the engine's. */
+  tankLitres: number;
   aspiration: Aspiration;
   boostMult: number; // extra accel fraction at full boost
   hasNos: boolean;
@@ -675,6 +732,7 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     steerRate,
     crashResist,
     engine,
+    tankLitres: car.tankLitres,
     aspiration,
     boostMult,
     hasNos: has("nos"),

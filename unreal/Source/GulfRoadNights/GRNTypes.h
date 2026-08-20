@@ -153,25 +153,84 @@ struct FGRNCarDef
 	bool bAttackKit;
 	/** Index into GRNEngines — what the car left the factory with. */
 	int32 Engine;
+	/** Tank, litres. */
+	float TankLitres;
 };
 
 static const FGRNCarDef GRNCars[] = {
-	{ TEXT("efreet-rx-kai"), TEXT("Efreet RX Kai"), 120000, 1.66f, 400.0f, 17.5f, 44.0f, FColor(0xF2, 0xB9, 0x0D), EGRNBodyStyle::RX7, true, 3 },
-	{ TEXT("sahara-v12"), TEXT("Sahara GT-12"), 96000, 1.62f, 385.0f, 16.4f, 42.0f, FColor(0xB8, 0x86, 0x0B), EGRNBodyStyle::ZX, false, 4 },
-	{ TEXT("falcon-720"), TEXT("Falcon 720 Veloce"), 71000, 1.50f, 360.0f, 15.8f, 40.0f, FColor(0xC1, 0x12, 0x1F), EGRNBodyStyle::ZX, false, 4 },
-	{ TEXT("storm-s8"), TEXT("Desert Storm S8"), 54000, 1.40f, 335.0f, 15.2f, 38.0f, FColor(0x1F, 0x29, 0x33), EGRNBodyStyle::Sedan, false, 3 },
-	{ TEXT("kaiju-r"), TEXT("Kaiju R"), 38000, 1.34f, 310.0f, 16.2f, 38.0f, FColor(0x3F, 0x66, 0xC4), EGRNBodyStyle::GTR, false, 3 },
-	{ TEXT("efreet-rx"), TEXT("Efreet RX"), 31000, 1.30f, 295.0f, 14.8f, 35.0f, FColor(0xD7, 0x26, 0x3D), EGRNBodyStyle::RX7, false, 2 },
-	{ TEXT("zeta-300"), TEXT("Zeta 300"), 27000, 1.26f, 275.0f, 13.9f, 34.0f, FColor(0xC1, 0x27, 0x2D), EGRNBodyStyle::ZX, false, 3 },
-	{ TEXT("gulf-coupe-rs"), TEXT("Gulf Coupe RS"), 33000, 1.28f, 285.0f, 14.6f, 35.0f, FColor(0xCB, 0x20, 0x27), EGRNBodyStyle::Hatch, false, 1 },
-	{ TEXT("salmiya-turbo"), TEXT("Salmiya Turbo GT"), 24000, 1.20f, 255.0f, 13.8f, 32.0f, FColor(0xB8, 0x4D, 0xD6), EGRNBodyStyle::Sedan, false, 1 },
-	{ TEXT("hawally-2t"), TEXT("Hawally Sport 2.0T"), 16000, 1.12f, 240.0f, 13.2f, 30.0f, FColor(0xF5, 0xC2, 0x11), EGRNBodyStyle::Sedan, false, 1 },
-	{ TEXT("deera-sedan"), TEXT("Deera Sedan"), 8500, 1.05f, 220.0f, 12.6f, 28.0f, FColor(0xDF, 0xE3, 0xE8), EGRNBodyStyle::Sedan, false, 1 },
-	{ TEXT("jahra-pickup"), TEXT("Jahra Pickup"), 6000, 1.00f, 195.0f, 12.0f, 27.0f, FColor(0x6E, 0x7F, 0x8D), EGRNBodyStyle::Sedan, false, 4 },
-	{ TEXT("sharq-hatch"), TEXT("Sharq Hatch"), 2200, 0.98f, 205.0f, 12.4f, 27.0f, FColor(0x16, 0xA3, 0x4A), EGRNBodyStyle::Sedan, false, 0 },
-	{ TEXT("wain-special"), TEXT("Wain Special"), 0, 1.00f, 180.0f, 12.0f, 26.0f, FColor(0xF2, 0xF4, 0xF7), EGRNBodyStyle::Sedan, false, 0 },
+	{ TEXT("efreet-rx-kai"), TEXT("Efreet RX Kai"), 120000, 1.66f, 400.0f, 17.5f, 44.0f, FColor(0xF2, 0xB9, 0x0D), EGRNBodyStyle::RX7, true, 3, 55.0f },
+	{ TEXT("sahara-v12"), TEXT("Sahara GT-12"), 96000, 1.62f, 385.0f, 16.4f, 42.0f, FColor(0xB8, 0x86, 0x0B), EGRNBodyStyle::ZX, false, 4, 90.0f },
+	{ TEXT("falcon-720"), TEXT("Falcon 720 Veloce"), 71000, 1.50f, 360.0f, 15.8f, 40.0f, FColor(0xC1, 0x12, 0x1F), EGRNBodyStyle::ZX, false, 4, 72.0f },
+	{ TEXT("storm-s8"), TEXT("Desert Storm S8"), 54000, 1.40f, 335.0f, 15.2f, 38.0f, FColor(0x1F, 0x29, 0x33), EGRNBodyStyle::Sedan, false, 3, 68.0f },
+	{ TEXT("kaiju-r"), TEXT("Kaiju R"), 38000, 1.34f, 310.0f, 16.2f, 38.0f, FColor(0x3F, 0x66, 0xC4), EGRNBodyStyle::GTR, false, 3, 74.0f },
+	{ TEXT("efreet-rx"), TEXT("Efreet RX"), 31000, 1.30f, 295.0f, 14.8f, 35.0f, FColor(0xD7, 0x26, 0x3D), EGRNBodyStyle::RX7, false, 2, 60.0f },
+	{ TEXT("zeta-300"), TEXT("Zeta 300"), 27000, 1.26f, 275.0f, 13.9f, 34.0f, FColor(0xC1, 0x27, 0x2D), EGRNBodyStyle::ZX, false, 3, 70.0f },
+	{ TEXT("gulf-coupe-rs"), TEXT("Gulf Coupe RS"), 33000, 1.28f, 285.0f, 14.6f, 35.0f, FColor(0xCB, 0x20, 0x27), EGRNBodyStyle::Hatch, false, 1, 50.0f },
+	{ TEXT("salmiya-turbo"), TEXT("Salmiya Turbo GT"), 24000, 1.20f, 255.0f, 13.8f, 32.0f, FColor(0xB8, 0x4D, 0xD6), EGRNBodyStyle::Sedan, false, 1, 60.0f },
+	{ TEXT("hawally-2t"), TEXT("Hawally Sport 2.0T"), 16000, 1.12f, 240.0f, 13.2f, 30.0f, FColor(0xF5, 0xC2, 0x11), EGRNBodyStyle::Sedan, false, 1, 55.0f },
+	{ TEXT("deera-sedan"), TEXT("Deera Sedan"), 8500, 1.05f, 220.0f, 12.6f, 28.0f, FColor(0xDF, 0xE3, 0xE8), EGRNBodyStyle::Sedan, false, 1, 60.0f },
+	{ TEXT("jahra-pickup"), TEXT("Jahra Pickup"), 6000, 1.00f, 195.0f, 12.0f, 27.0f, FColor(0x6E, 0x7F, 0x8D), EGRNBodyStyle::Sedan, false, 4, 80.0f },
+	{ TEXT("sharq-hatch"), TEXT("Sharq Hatch"), 2200, 0.98f, 205.0f, 12.4f, 27.0f, FColor(0x16, 0xA3, 0x4A), EGRNBodyStyle::Sedan, false, 0, 42.0f },
+	{ TEXT("wain-special"), TEXT("Wain Special"), 0, 1.00f, 180.0f, 12.0f, 26.0f, FColor(0xF2, 0xF4, 0xF7), EGRNBodyStyle::Sedan, false, 0, 50.0f },
 };
 static const int32 GRNCarCount = UE_ARRAY_COUNT(GRNCars);
+
+// ------------------------------------------------------------------ fuel
+//
+// An engine is an air pump: it swallows half its displacement every
+// crank revolution, and at stoichiometric the petrol follows from the
+// air. Nothing here is a thirst figure typed in per engine — the V8
+// drinks two and a half times what the 1.6 does because it is two and a
+// half times the pump, and for no other reason.
+
+namespace GRNFuel
+{
+	/** How much faster the game burns than the world does. A tank is a
+	 *  session rather than an afternoon. */
+	constexpr float RateMultiplier = 8.f;
+	/** Kuwait's 91-octane pump price. A thousand fils to the dinar. */
+	constexpr int32 FilsPerLitre = 85;
+	constexpr float PumpLitresPerSecond = 8.f;
+	/** Above this the forecourt is something you drove past. */
+	constexpr float PumpMaxKmh = 12.f;
+	constexpr float AirGramsPerLitre = 1.2f;
+	constexpr float AirFuelRatio = 14.7f;
+	constexpr float PetrolGramsPerLitre = 745.f;
+}
+
+/** How much of each swallow is actually air. A closed throttle is mostly
+ *  vacuum, which is why an idling engine burns a litre an hour. */
+static FORCEINLINE float GRNVolumetricEfficiency(float Throttle, float Rev)
+{
+	const float Open = 0.22f + 0.73f * FMath::Clamp(Throttle, 0.0f, 1.0f);
+	return Open * (1.0f - 0.12f * FMath::Max(0.0f, Rev - 0.75f));
+}
+
+/** Litres per second, before RateMultiplier. */
+static FORCEINLINE float GRNFuelLitresPerSecond(int32 EngineIndex, float Throttle, float Rev)
+{
+	const FGRNEngineDef& E = GRNEngines[EngineIndex];
+	const float Rpm = E.IdleRpm + (E.RedlineRpm - E.IdleRpm) * FMath::Clamp(Rev, 0.0f, 1.0f);
+	const float AirLitres = (E.Litres * 0.5f) * (Rpm / 60.0f) * GRNVolumetricEfficiency(Throttle, Rev);
+	return (AirLitres * GRNFuel::AirGramsPerLitre) /
+		(GRNFuel::AirFuelRatio * GRNFuel::PetrolGramsPerLitre);
+}
+
+// --------------------------------------------------------------- forecourts
+// Both are on the Second Ring: widening the road opens the barrier on
+// both sides, which inland means more tarmac and on the corniche would
+// mean a lane of asphalt over the beach.
+
+struct FGRNStation { float S; float Lat; };
+static const FGRNStation GRNStations[] = {
+	{ 3900.f, 19.f },
+	{ 6900.f, 19.f },
+};
+static const int32 GRNStationCount = UE_ARRAY_COUNT(GRNStations);
+/** How far a forecourt reaches along the road, and how much wider it
+ *  makes the carriageway. */
+constexpr float GRNForecourtHalfSpan = 30.f;
+constexpr float GRNForecourtExtraWidth = 10.f;
 
 // -------------------------------------------------------- handling model
 // Mirrors src/game/handling.ts — parsed from it, never hand-copied. If a

@@ -875,3 +875,53 @@ html[data-large-hud="1"] .hud-scale {
 @media (prefers-reduced-motion: reduce) {
   .nos-meter[data-state="firing"] .nos-fill { animation: none; }
 }
+
+/* --------------------------------------------------------------- FUEL
+ *
+ * The same instrument as the NOS gauge next to it, and deliberately so:
+ * a player learns one bar and can then read both. It shares the track,
+ * the segment rule and the geometry, and differs only in what the colour
+ * means — because what it is telling you is different.
+ *
+ * NOS empties in three seconds and refills on its own, so its states are
+ * about right now. Fuel empties over a quarter of an hour and does not
+ * come back without a decision, so its states are about how much road
+ * you have left: full is unremarkable, a quarter is a plan, and empty is
+ * a car that has stopped.
+ */
+.fuel-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0f6b3f, #34d399);
+  box-shadow: 0 0 10px rgba(52, 211, 153, 0.55);
+  transition: background 200ms linear, box-shadow 200ms linear;
+}
+/* Under a quarter of a tank: the point at which a real car lights its
+   own warning lamp, and the point at which a forecourt stops being
+   somebody else's problem. */
+.nos-meter[data-state="low"] .fuel-fill {
+  background: linear-gradient(90deg, #b45309, #fbbf24);
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.8);
+}
+.nos-meter[data-state="dry"] .fuel-fill {
+  background: linear-gradient(90deg, #7f1d1d, #ef4444);
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.9);
+}
+/* Filling: the bar is climbing on its own, so it says so. */
+.nos-meter[data-state="filling"] .fuel-fill {
+  background: linear-gradient(90deg, #0e7490, #67e8f9);
+  box-shadow: 0 0 18px rgba(103, 232, 249, 0.9);
+  animation: nos-pulse 420ms steps(2, end) infinite alternate;
+}
+/* The empty warning has to be visible without being read, because the
+   player is busy coasting. */
+.fuel-warn {
+  animation: fuel-warn 900ms var(--ease-in-out) infinite;
+}
+@keyframes fuel-warn {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nos-meter[data-state="filling"] .fuel-fill { animation: none; }
+  .fuel-warn { animation: none; }
+}

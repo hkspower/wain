@@ -93,6 +93,33 @@ export const CONTROL_POINTS: Array<[number, number, number]> = [
 
 const UP = new THREE.Vector3(0, 1, 0);
 
+/**
+ * Petrol stations, as metres from the start line.
+ *
+ * Both are on the Second Ring, and that is a decision rather than an
+ * accident. Widening the road makes the barrier open on BOTH sides —
+ * halfWidthAt is one number, not one per side — which on the ring means
+ * a bit more tarmac in a city block and on the corniche would mean a
+ * gap in the sea wall and a lane of asphalt over the beach. A forecourt
+ * on Gulf Road needs a side-aware road width first; until then they go
+ * where the geometry is honest.
+ *
+ * `lat` is the apron's centre, out on the inland side.
+ */
+export const STATIONS: Array<{ s: number; lat: number }> = [
+  { s: 3900, lat: 19 }, // Shuwaikh Residential, just off the junction
+  { s: 6900, lat: 19 }, // Dasma, at the far end of Love Street
+];
+
+/** How far a forecourt reaches along the road, and how wide it opens
+ *  the carriageway. 7 m becomes 17 m: two through lanes plus room to
+ *  pull off them and stop. */
+export const FORECOURT = { halfSpan: 30, extraWidth: 10 };
+
+/** Everywhere the road is wider than four lanes, in one list, so
+ *  halfWidthAt has a single rule to follow. */
+const SWELLS: Array<{ s: number; halfSpan: number; extraWidth: number }> = [];
+
 /** Where Gulf Road hands over to the Second Ring: metres from the start
  *  line, at the junction control point [1400, 0, -2900]. Everything
  *  before this has the sea on its left. */
@@ -120,6 +147,15 @@ export const LAP_LENGTH = (() => {
 /** Fraction of the lap that runs along the coast (sea on the left).
  *  Derived, never typed in — see LAP_LENGTH. */
 export const COAST_U = { from: 0.0, to: COAST_END_M / LAP_LENGTH };
+
+SWELLS.push({
+  s: DRIFT_PLAZA.s,
+  halfSpan: DRIFT_PLAZA.halfSpan,
+  extraWidth: DRIFT_PLAZA.extraWidth,
+});
+for (const st of STATIONS) {
+  SWELLS.push({ s: st.s, halfSpan: FORECOURT.halfSpan, extraWidth: FORECOURT.extraWidth });
+}
 
 export class Track {
   readonly curve: THREE.CatmullRomCurve3;
@@ -173,13 +209,29 @@ export class Track {
     return outPos.addScaledVector(tmp, lateral);
   }
 
-  /** Drivable half-width at `s`: the constant four-lane road everywhere
-   *  except the Sharq plaza, where it swells smoothly into the circle. */
+  /**
+   * Drivable half-width at `s`: the constant four-lane road, plus
+   * anywhere the tarmac widens out of it.
+   *
+   * Two things widen it, and they are the same shape. The Sharq plaza
+   * swells the corniche into a circle to slide around; a forecourt
+   * widens the ring road so a car can actually pull off the through
+   * lanes and up to a pump. Both are smoothstepped in and out, because
+   * a step change in drivable width is a wall that appears in front of
+   * a car at road speed.
+   *
+   * The widest wins where two overlap, rather than the sum: two swells
+   * that happened to meet would otherwise open a hole in the barrier
+   * twice as wide as either of them asked for.
+   */
   halfWidthAt(s: number): number {
-    const d = Math.abs(this.deltaAhead(DRIFT_PLAZA.s, s));
-    if (d >= DRIFT_PLAZA.halfSpan) return ROAD_HALF_WIDTH;
-    const t = 1 - d / DRIFT_PLAZA.halfSpan;
-    const w = t * t * (3 - 2 * t); // smoothstep swell, no kink at the ends
-    return ROAD_HALF_WIDTH + DRIFT_PLAZA.extraWidth * w;
+    let w = ROAD_HALF_WIDTH;
+    for (const swell of SWELLS) {
+      const d = Math.abs(this.deltaAhead(swell.s, s));
+      if (d >= swell.halfSpan) continue;
+      const t = 1 - d / swell.halfSpan;
+      w = Math.max(w, ROAD_HALF_WIDTH + swell.extraWidth * t * t * (3 - 2 * t));
+    }
+    return w;
   }
 }

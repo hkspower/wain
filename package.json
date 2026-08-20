@@ -43,6 +43,7 @@
     "test:nos": "node tests/nos.mjs",
     "test:road": "node tests/road.mjs",
     "test:engines": "node tests/engines.mjs",
+    "test:fuel": "node tests/fuel.mjs",
     "shots:cars": "node tools/shots/cars.mjs",
     "check:ui": "node scripts/check-ui-glyphs.mjs",
     "check:parts": "node scripts/check-catalogue.mjs",

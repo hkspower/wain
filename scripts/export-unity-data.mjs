@@ -91,6 +91,29 @@ const engines = engBlock
   })
   .filter(Boolean);
 if (engines.length !== 5) throw new Error(`engine parse failed (${engines.length}, want 5)`);
+const num = (src, name) => {
+  const m = src.match(new RegExp(`export const ${name} = (-?[\\d.]+)`));
+  if (!m) throw new Error(`fuel constant ${name} not found`);
+  return +m[1];
+};
+const fuel = {
+  rate: num(enginesTs, "FUEL_RATE"),
+  fils: num(enginesTs, "FUEL_FILS_PER_LITRE"),
+  pumpLps: num(enginesTs, "PUMP_LITRES_PER_SEC"),
+  pumpMaxKmh: num(enginesTs, "PUMP_MAX_KMH"),
+  air: num(enginesTs, "AIR_G_PER_L"),
+  afr: num(enginesTs, "AFR"),
+  petrol: num(enginesTs, "FUEL_G_PER_L"),
+};
+const stationBlock = trackTs.match(/export const STATIONS[^=]*=\s*\[(.*?)\n\];/s)[1];
+const stations = [...stationBlock.matchAll(/\{\s*s:\s*(\d+),\s*lat:\s*(-?[\d.]+)\s*\}/g)].map(
+  ([, st, lat]) => ({ s: +st, lat: +lat })
+);
+if (!stations.length) throw new Error("station parse failed");
+const forecourt = {
+  halfSpan: +trackTs.match(/FORECOURT = \{ halfSpan: ([\d.]+)/)[1],
+  extraWidth: +trackTs.match(/extraWidth: ([\d.]+) \}/)[1],
+};
 const layoutMap = { inline: "EngineLayout.Inline", flat: "EngineLayout.Flat", vee: "EngineLayout.Vee" };
 const layoutCs = (l, who) => {
   const v = layoutMap[l];
@@ -137,6 +160,7 @@ const cars = carsBlock
       style: f(/style: "(\w+)"/) ?? "sedan",
       kit: f(/kit: "(\w+)"/) ?? null,
       engine: f(/engine: "([^"]+)"/),
+      tank: +f(/tankLitres: ([\d.]+)/),
     };
   })
   .filter(Boolean);
@@ -301,6 +325,8 @@ ${engines
         public bool AttackKit;
         /// <summary>Index into Engines — what the car left the factory with.</summary>
         public int Engine;
+        /// <summary>Tank, litres.</summary>
+        public float TankLitres;
     }
 
     public static readonly Car[] Cars =
@@ -311,11 +337,60 @@ ${cars
             Id = "${cs(c.id)}", Name = "${cs(c.name)}", Price = ${c.price},
             Power = ${f(c.power)}, TopSpeedKmh = ${f(c.top)}, Grip = ${f(c.grip)}, Brake = ${f(c.brake)},
             Paint = ${col(c.color)}, Style = ${style(c.style, c.id)}, AttackKit = ${c.kit === "attack" ? "true" : "false"},
-            Engine = ${engIndex(c.engine, c.id)},
+            Engine = ${engIndex(c.engine, c.id)}, TankLitres = ${f(c.tank)},
         },`
   )
   .join("\n")}
     };
+
+    /// <summary>Burning and buying petrol. An engine is an air pump: it
+    /// swallows half its displacement per crank revolution, and at
+    /// stoichiometric the fuel follows from the air. No engine here
+    /// carries a thirst figure — the V8 drinks more because it is a
+    /// bigger pump.</summary>
+    public static class Fuel
+    {
+        /// <summary>Game burn against real burn: a tank is a session.</summary>
+        public const float RateMultiplier = ${f(fuel.rate)};
+        /// <summary>Kuwait's 91-octane price. A thousand fils to the dinar.</summary>
+        public const int FilsPerLitre = ${fuel.fils};
+        public const float PumpLitresPerSecond = ${f(fuel.pumpLps)};
+        /// <summary>Above this the forecourt is something you drove past.</summary>
+        public const float PumpMaxKmh = ${f(fuel.pumpMaxKmh)};
+        public const float AirGramsPerLitre = ${f(fuel.air)};
+        public const float AirFuelRatio = ${f(fuel.afr)};
+        public const float PetrolGramsPerLitre = ${f(fuel.petrol)};
+    }
+
+    /// <summary>How much of each swallow is actually air.</summary>
+    public static float VolumetricEfficiency(float throttle, float rev)
+    {
+        float open = 0.22f + 0.73f * Mathf.Clamp01(throttle);
+        return open * (1f - 0.12f * Mathf.Max(0f, rev - 0.75f));
+    }
+
+    /// <summary>Litres per second, before RateMultiplier.</summary>
+    public static float FuelLitresPerSecond(int engineIndex, float throttle, float rev)
+    {
+        var e = Engines[engineIndex];
+        float rpm = e.IdleRpm + (e.RedlineRpm - e.IdleRpm) * Mathf.Clamp01(rev);
+        float airLitres = (e.Litres * 0.5f) * (rpm / 60f) * VolumetricEfficiency(throttle, rev);
+        return (airLitres * Fuel.AirGramsPerLitre) / (Fuel.AirFuelRatio * Fuel.PetrolGramsPerLitre);
+    }
+
+    /// <summary>Petrol stations: metres from the line, and how far off the
+    /// centreline the apron sits. Both on the Second Ring — widening the
+    /// road opens the barrier on both sides, which on the corniche would
+    /// mean a lane of asphalt over the beach.</summary>
+    public struct Station { public float S, Lat; }
+
+    public static readonly Station[] Stations =
+    {
+${stations.map((st) => `        new Station { S = ${f(st.s)}, Lat = ${f(st.lat)} },`).join("\n")}
+    };
+
+    public const float ForecourtHalfSpan = ${f(forecourt.halfSpan)};
+    public const float ForecourtExtraWidth = ${f(forecourt.extraWidth)};
 
     /// <summary>Mirrors src/game/handling.ts. The contract test proves the
     /// values here match what the browser is actually racing.</summary>
@@ -332,6 +407,7 @@ ${Object.keys(handling).map((k) => `        public const float ${k[0].toUpperCas
 writeFileSync("unity/Assets/Scripts/GRNData.cs", out);
 console.log(
   `GRNData.cs regenerated: ${points.length} track points, ${rivals.length} rivals, ` +
-    `${engines.length} engines, ${cars.length} cars, ${Object.keys(handling).length} handling constants, ` +
+    `${engines.length} engines, ${cars.length} cars, ${stations.length} stations, ` +
+    `${Object.keys(handling).length} handling constants, ` +
     `apiVersion ${apiVersion}.`
 );

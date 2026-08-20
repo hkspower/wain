@@ -225,6 +225,8 @@ public static class GRNData
         public bool AttackKit;
         /// <summary>Index into Engines — what the car left the factory with.</summary>
         public int Engine;
+        /// <summary>Tank, litres.</summary>
+        public float TankLitres;
     }
 
     public static readonly Car[] Cars =
@@ -233,87 +235,137 @@ public static class GRNData
             Id = "efreet-rx-kai", Name = "Efreet RX Kai", Price = 120000,
             Power = 1.66f, TopSpeedKmh = 400f, Grip = 17.5f, Brake = 44f,
             Paint = Hex(0xF2B90D), Style = BodyStyle.RX7, AttackKit = true,
-            Engine = 3,
+            Engine = 3, TankLitres = 55f,
         },
         new Car {
             Id = "sahara-v12", Name = "Sahara GT-12", Price = 96000,
             Power = 1.62f, TopSpeedKmh = 385f, Grip = 16.4f, Brake = 42f,
             Paint = Hex(0xB8860B), Style = BodyStyle.ZX, AttackKit = false,
-            Engine = 4,
+            Engine = 4, TankLitres = 90f,
         },
         new Car {
             Id = "falcon-720", Name = "Falcon 720 Veloce", Price = 71000,
             Power = 1.5f, TopSpeedKmh = 360f, Grip = 15.8f, Brake = 40f,
             Paint = Hex(0xC1121F), Style = BodyStyle.ZX, AttackKit = false,
-            Engine = 4,
+            Engine = 4, TankLitres = 72f,
         },
         new Car {
             Id = "storm-s8", Name = "Desert Storm S8", Price = 54000,
             Power = 1.4f, TopSpeedKmh = 335f, Grip = 15.2f, Brake = 38f,
             Paint = Hex(0x1F2933), Style = BodyStyle.Sedan, AttackKit = false,
-            Engine = 3,
+            Engine = 3, TankLitres = 68f,
         },
         new Car {
             Id = "kaiju-r", Name = "Kaiju R", Price = 38000,
             Power = 1.34f, TopSpeedKmh = 310f, Grip = 16.2f, Brake = 38f,
             Paint = Hex(0x3F66C4), Style = BodyStyle.GTR, AttackKit = false,
-            Engine = 3,
+            Engine = 3, TankLitres = 74f,
         },
         new Car {
             Id = "efreet-rx", Name = "Efreet RX", Price = 31000,
             Power = 1.3f, TopSpeedKmh = 295f, Grip = 14.8f, Brake = 35f,
             Paint = Hex(0xD7263D), Style = BodyStyle.RX7, AttackKit = false,
-            Engine = 2,
+            Engine = 2, TankLitres = 60f,
         },
         new Car {
             Id = "zeta-300", Name = "Zeta 300", Price = 27000,
             Power = 1.26f, TopSpeedKmh = 275f, Grip = 13.9f, Brake = 34f,
             Paint = Hex(0xC1272D), Style = BodyStyle.ZX, AttackKit = false,
-            Engine = 3,
+            Engine = 3, TankLitres = 70f,
         },
         new Car {
             Id = "gulf-coupe-rs", Name = "Gulf Coupe RS", Price = 33000,
             Power = 1.28f, TopSpeedKmh = 285f, Grip = 14.6f, Brake = 35f,
             Paint = Hex(0xCB2027), Style = BodyStyle.Hatch, AttackKit = false,
-            Engine = 1,
+            Engine = 1, TankLitres = 50f,
         },
         new Car {
             Id = "salmiya-turbo", Name = "Salmiya Turbo GT", Price = 24000,
             Power = 1.2f, TopSpeedKmh = 255f, Grip = 13.8f, Brake = 32f,
             Paint = Hex(0xB84DD6), Style = BodyStyle.Sedan, AttackKit = false,
-            Engine = 1,
+            Engine = 1, TankLitres = 60f,
         },
         new Car {
             Id = "hawally-2t", Name = "Hawally Sport 2.0T", Price = 16000,
             Power = 1.12f, TopSpeedKmh = 240f, Grip = 13.2f, Brake = 30f,
             Paint = Hex(0xF5C211), Style = BodyStyle.Sedan, AttackKit = false,
-            Engine = 1,
+            Engine = 1, TankLitres = 55f,
         },
         new Car {
             Id = "deera-sedan", Name = "Deera Sedan", Price = 8500,
             Power = 1.05f, TopSpeedKmh = 220f, Grip = 12.6f, Brake = 28f,
             Paint = Hex(0xDFE3E8), Style = BodyStyle.Sedan, AttackKit = false,
-            Engine = 1,
+            Engine = 1, TankLitres = 60f,
         },
         new Car {
             Id = "jahra-pickup", Name = "Jahra Pickup", Price = 6000,
             Power = 1f, TopSpeedKmh = 195f, Grip = 12f, Brake = 27f,
             Paint = Hex(0x6E7F8D), Style = BodyStyle.Sedan, AttackKit = false,
-            Engine = 4,
+            Engine = 4, TankLitres = 80f,
         },
         new Car {
             Id = "sharq-hatch", Name = "Sharq Hatch", Price = 2200,
             Power = 0.98f, TopSpeedKmh = 205f, Grip = 12.4f, Brake = 27f,
             Paint = Hex(0x16A34A), Style = BodyStyle.Sedan, AttackKit = false,
-            Engine = 0,
+            Engine = 0, TankLitres = 42f,
         },
         new Car {
             Id = "wain-special", Name = "Wain Special", Price = 0,
             Power = 1f, TopSpeedKmh = 180f, Grip = 12f, Brake = 26f,
             Paint = Hex(0xF2F4F7), Style = BodyStyle.Sedan, AttackKit = false,
-            Engine = 0,
+            Engine = 0, TankLitres = 50f,
         },
     };
+
+    /// <summary>Burning and buying petrol. An engine is an air pump: it
+    /// swallows half its displacement per crank revolution, and at
+    /// stoichiometric the fuel follows from the air. No engine here
+    /// carries a thirst figure — the V8 drinks more because it is a
+    /// bigger pump.</summary>
+    public static class Fuel
+    {
+        /// <summary>Game burn against real burn: a tank is a session.</summary>
+        public const float RateMultiplier = 8f;
+        /// <summary>Kuwait's 91-octane price. A thousand fils to the dinar.</summary>
+        public const int FilsPerLitre = 85;
+        public const float PumpLitresPerSecond = 8f;
+        /// <summary>Above this the forecourt is something you drove past.</summary>
+        public const float PumpMaxKmh = 12f;
+        public const float AirGramsPerLitre = 1.2f;
+        public const float AirFuelRatio = 14.7f;
+        public const float PetrolGramsPerLitre = 745f;
+    }
+
+    /// <summary>How much of each swallow is actually air.</summary>
+    public static float VolumetricEfficiency(float throttle, float rev)
+    {
+        float open = 0.22f + 0.73f * Mathf.Clamp01(throttle);
+        return open * (1f - 0.12f * Mathf.Max(0f, rev - 0.75f));
+    }
+
+    /// <summary>Litres per second, before RateMultiplier.</summary>
+    public static float FuelLitresPerSecond(int engineIndex, float throttle, float rev)
+    {
+        var e = Engines[engineIndex];
+        float rpm = e.IdleRpm + (e.RedlineRpm - e.IdleRpm) * Mathf.Clamp01(rev);
+        float airLitres = (e.Litres * 0.5f) * (rpm / 60f) * VolumetricEfficiency(throttle, rev);
+        return (airLitres * Fuel.AirGramsPerLitre) / (Fuel.AirFuelRatio * Fuel.PetrolGramsPerLitre);
+    }
+
+    /// <summary>Petrol stations: metres from the line, and how far off the
+    /// centreline the apron sits. Both on the Second Ring — widening the
+    /// road opens the barrier on both sides, which on the corniche would
+    /// mean a lane of asphalt over the beach.</summary>
+    public struct Station { public float S, Lat; }
+
+    public static readonly Station[] Stations =
+    {
+        new Station { S = 3900f, Lat = 19f },
+        new Station { S = 6900f, Lat = 19f },
+    };
+
+    public const float ForecourtHalfSpan = 30f;
+    public const float ForecourtExtraWidth = 10f;
 
     /// <summary>Mirrors src/game/handling.ts. The contract test proves the
     /// values here match what the browser is actually racing.</summary>
