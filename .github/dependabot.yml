@@ -1,0 +1,35 @@
+# Pinning an action to a commit SHA stops a moved tag from running someone
+# else's code in a job that can publish releases and sign attestations. It also
+# freezes that action at the day it was pinned — a pin with nothing watching it
+# is a vulnerability kept deliberately. This is the other half: Dependabot
+# proposes the new SHA, with the release notes, and a person decides.
+#
+# Only the two ecosystems this repository actually has. The website has no
+# package manager at all — no build step, no dependencies, by design — so
+# there is nothing else here to watch.
+version: 2
+updates:
+  # The workflows that build the downloadable app and publish the live site.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "ci"
+    labels:
+      - dependencies
+
+  # النوخذة's Flutter dependencies. The app's central claim is that it cannot
+  # phone home, and test/supply_chain_test.dart fails the build if a
+  # network-capable package ever enters the tree — so a bump that would break
+  # that claim cannot merge silently.
+  - package-ecosystem: pub
+    directory: /nokhatha_app
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "deps"
+    labels:
+      - dependencies

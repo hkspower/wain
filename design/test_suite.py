@@ -7,6 +7,7 @@ Run:  python3 design/test_suite.py
 """
 import http.server, socketserver, threading, functools, time, json, re, pathlib, sys
 import subprocess
+import yaml
 import xml.etree.ElementTree as ET
 from playwright.sync_api import sync_playwright
 
@@ -41,6 +42,78 @@ def contrast(a, b):
     la, lb = lum(a), lum(b); hi, lo = max(la, lb), min(la, lb); return (hi+0.05)/(lo+0.05)
 
 # ═══════════════════════════════════════════ 1. STATIC
+def supply_chain_checks():
+    """The build is part of the attack surface. Two jobs in this repository can
+    publish a release and sign a provenance attestation in the company's name;
+    whatever runs inside them is trusted by everyone who downloads النوخذة."""
+    S = "supply-chain"
+    wf = pathlib.Path("/home/user/wain/.github/workflows")
+    files = sorted(wf.glob("*.yml"))
+    check(S, "the workflows are where they are expected", len(files) >= 2, str(files))
+
+    for f in files:
+        src = f.read_text()
+        data = yaml.safe_load(src)
+        # Read the steps from the parsed document, not with a regex over the
+        # text: the first version of this check matched the word `uses:` inside
+        # a comment explaining the pinning and reported the backtick as an
+        # unpinned action.
+        uses = [st["uses"] for job in data["jobs"].values()
+                for st in job.get("steps", []) if isinstance(st, dict) and "uses" in st]
+        check(S, f"{f.name}: it uses actions at all", bool(uses))
+
+        # A tag is a moveable pointer. Whoever can move it runs their code in a
+        # job holding contents:write and attestations:write — and provenance an
+        # attacker can mint is worse than none, because the download asks a
+        # stranger to trust exactly that.
+        unpinned = [u for u in uses if not re.fullmatch(r"[^@]+@[0-9a-f]{40}", u)]
+        check(S, f"{f.name}: every action is pinned to a commit SHA",
+              not unpinned, ", ".join(unpinned))
+
+        # the tag each SHA came from, so a human can read what is pinned
+        unlabelled = [u for u in uses
+                      if not re.search(r"#\s*v[0-9]",
+                                       next((l for l in src.splitlines() if u in l), ""))]
+        check(S, f"{f.name}: every pin says which tag it came from",
+              not unlabelled, ", ".join(u.split("@")[0] for u in unlabelled))
+
+        # `contents: write` is the one that lets a job push code or publish a
+        # release, so it is never a default a later job can inherit. Deploy
+        # scopes (pages, id-token) are a different matter — pages.yml needs
+        # them and has exactly one job — so this does not demand them away.
+        top = (data.get("permissions") or {})
+        check(S, f"{f.name}: the default does not include contents: write",
+              top.get("contents") != "write", str(top))
+
+    # the job that can publish a release must ask for that itself
+    desktop = yaml.safe_load((wf / "nokhatha-windows.yml").read_text())
+    for name, job in desktop["jobs"].items():
+        perms = job.get("permissions") or {}
+        check(S, f"the {name} job declares its own write scopes",
+              perms.get("contents") == "write" and perms.get("attestations") == "write",
+              str(perms))
+
+    # a pin nobody updates is a version frozen at its last known bug
+    dep = pathlib.Path("/home/user/wain/.github/dependabot.yml")
+    check(S, "something watches the pinned versions for updates", dep.exists())
+    if dep.exists():
+        d = yaml.safe_load(dep.read_text())
+        eco = {u.get("package-ecosystem") for u in d.get("updates", [])}
+        check(S, "the actions themselves are watched", "github-actions" in eco, str(eco))
+        check(S, "the app's packages are watched", "pub" in eco, str(eco))
+
+    # GitHub only shows a "report a vulnerability" path if this file is at the
+    # root, in docs/, or in .github/ — the real document is one level down
+    root_sec = pathlib.Path("/home/user/wain/SECURITY.md")
+    check(S, "a security policy sits where GitHub looks for it", root_sec.exists())
+    if root_sec.exists():
+        t = root_sec.read_text()
+        check(S, "it names a way to report", "cs@sporta.com.kw" in t)
+        check(S, "it points at the detailed policy", "almuhallab/SECURITY.md" in t)
+        # the one claim that must never quietly become a lie
+        check(S, "it still says the binaries are unsigned", "not code-signed" in t)
+
+
 def static_checks():
     S = "static"
     texts = {p: (ROOT / p).read_text() for p in PAGES}
@@ -639,7 +712,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "554", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "572", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -673,7 +746,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "554", "0", "100%"], str(finals))
+          finals == ["4", "572", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -2095,6 +2168,7 @@ def font_checks(pg):
 
 # ═══════════════════════════════════════════ run
 static_checks()
+supply_chain_checks()
 seo_checks()
 identity_checks()
 shorthand_checks()

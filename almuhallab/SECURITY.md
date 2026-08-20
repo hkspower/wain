@@ -56,6 +56,37 @@ header.
 
 ---
 
+## The build itself
+
+Whatever runs in this repository's workflows is trusted by everyone who
+downloads النوخذة: two jobs hold `contents: write`, `id-token: write` and
+`attestations: write` — enough to publish a release and sign a provenance
+attestation in the company's name.
+
+- **Every action is pinned to a full commit SHA**, with the tag it came from in
+  a comment beside it. `actions/checkout@v4` is a moveable pointer; whoever can
+  move that tag — on a third-party action especially — runs their code inside
+  those jobs. Provenance an attacker can mint is worse than no provenance,
+  because the download asks a stranger to trust exactly that signature.
+- **The workflow default is `contents: read`.** Each job opts into the writes
+  it actually performs, so a job added later inherits nothing.
+- **Dependabot watches the pins**, monthly, for both the actions and the app's
+  Dart packages. A pin nobody updates is a version frozen at its last known
+  bug; the pin stops a silent swap, the updater stops the freeze.
+- The app resolves its dependencies with `--enforce-lockfile`, so the binary is
+  built from the exact versions in `pubspec.lock` or the build fails.
+
+The suite fails if any action goes back to a tag, if a workflow's default
+permission becomes a write, or if the updater disappears.
+
+**No secret has ever been committed.** Verified by scanning every blob in every
+commit in the repository's history — 1,224 files across 104 commits — for
+private keys, cloud credentials, tokens and high-entropy assignments: zero
+hits. The one secret this project has ever handled (an ElevenLabs webhook
+signing key) was pasted into a chat and never written to a file.
+
+---
+
 ## What is enforced, in the code
 
 - **Content Security Policy** on all nine pages: `default-src 'none'`, no

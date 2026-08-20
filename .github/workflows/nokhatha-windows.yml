@@ -22,16 +22,30 @@ on:
   create:
   workflow_dispatch:
 
+# Every `uses:` above and below is pinned to a full commit SHA, with the tag it
+# was resolved from in the comment. A tag is a moveable pointer: whoever can
+# move `v2` on a third-party action can run their code inside a job that holds
+# `contents: write`, `id-token: write` and `attestations: write` — which is to
+# say, can publish a release and sign a provenance attestation in this
+# company's name. Provenance that an attacker can mint is worse than none,
+# because it is the thing this download asks a stranger to trust.
+# To update one: `git ls-remote --tags https://github.com/<owner>/<repo> \
+# 'refs/tags/<tag>^{}'` and paste the peeled commit.
+#
+# The default here is read. Each job opts into exactly the writes it performs,
+# so a job added later inherits nothing it did not ask for.
 permissions:
-  contents: write   # attach the installer to a release
-  id-token: write   # sign the build provenance attestation
-  attestations: write
+  contents: read
 
 jobs:
   build:
     # `create` also fires for every new branch; only a tag means a release.
     if: github.event_name != 'create' || github.event.ref_type == 'tag'
     runs-on: windows-latest
+    permissions:
+      contents: write        # attach the installer to a release on a tag
+      id-token: write        # mint the provenance attestation's signing token
+      attestations: write    # write the attestation itself
     env:
       # A step's `if` is evaluated before that step's own `env:` block exists,
       # so `env.WINDOWS_CERT_BASE64` inside the signing steps was always ''
@@ -40,9 +54,9 @@ jobs:
       # (`secrets` is not available in a step-level `if` at all.)
       SIGNING: ${{ secrets.WINDOWS_CERT_BASE64 != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2   # v2
         with:
           flutter-version-file: nokhatha_app/pubspec.yaml
           channel: stable
@@ -161,12 +175,12 @@ jobs:
       # can verify it with `gh attestation verify`. This is the part that makes
       # "it is genuinely ours" checkable rather than merely asserted.
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be   # v2
         with:
           subject-path: nokhatha_app/dist/*.exe
 
       - name: Upload the installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4
         with:
           name: Nokhatha-Setup-${{ steps.ver.outputs.version }}
           path: |
@@ -178,7 +192,7 @@ jobs:
       # The portable folder is the answer for anyone who cannot install
       # software on their machine — unzip and run, no installer involved.
       - name: Upload the portable build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4
         with:
           name: Nokhatha-portable-${{ steps.ver.outputs.version }}
           path: nokhatha_app/build/windows/x64/runner/Release/
@@ -186,7 +200,7 @@ jobs:
 
       - name: Attach the installer to the release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65   # v2
         with:
           files: |
             nokhatha_app/dist/*.exe
@@ -204,10 +218,14 @@ jobs:
   mac:
     if: github.event_name != 'create' || github.event.ref_type == 'tag'
     runs-on: macos-latest
+    permissions:
+      contents: write        # attach the installer to a release on a tag
+      id-token: write        # mint the provenance attestation's signing token
+      attestations: write    # write the attestation itself
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2   # v2
         with:
           flutter-version-file: nokhatha_app/pubspec.yaml
           channel: stable
@@ -276,12 +294,12 @@ jobs:
           cp pubspec.lock dist/pubspec.lock.txt
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be   # v2
         with:
           subject-path: nokhatha_app/dist/*.dmg
 
       - name: Upload the disk image
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02   # v4
         with:
           name: Nokhatha-macOS-${{ steps.macver.outputs.version }}
           path: |
@@ -292,7 +310,7 @@ jobs:
 
       - name: Attach the disk image to the release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65   # v2
         with:
           files: |
             nokhatha_app/dist/*.dmg
