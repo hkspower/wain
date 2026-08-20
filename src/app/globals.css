@@ -105,6 +105,71 @@
   --color-ink-800: #221f1b;
   --color-ink-900: #14120f;
 
+  /* Hero grounds — one hue per category, built rather than picked.
+
+     These pages used to take the category's own ramp, and the ramps were not
+     comparable: coral sat at chroma 0.21 while sea sat at 0.086, so the same
+     design read twice as loud on a restaurant as on a landmark. That is what
+     the monochrome pass was fixing, and it fixed it by removing the hue.
+
+     Here the hue is the only thing that varies. Every ramp is generated at
+     the SAME three OKLCH lightnesses — the exact values of ink-700/800/900,
+     so the black point the monochrome pass established is kept — and at the
+     same chroma at each step (0.070 / 0.060 / 0.048, easing off as the ramp
+     darkens), clamped into sRGB per hue. That is a third of the old
+     saturation and identical across categories by construction.
+
+     White strokes measure 12.8–13.5:1 on stop 1 against 13.1:1 for the ink
+     ground they replace, so the art reads exactly as it did. */
+  --color-hero-landmarks-1: #023550;
+  --color-hero-landmarks-2: #002238;
+  --color-hero-landmarks-3: #001425;
+  --color-hero-restaurants-1: #4f2022;
+  --color-hero-restaurants-2: #371213;
+  --color-hero-restaurants-3: #240809;
+  --color-hero-fastfood-1: #4d240f;
+  --color-hero-fastfood-2: #361404;
+  --color-hero-fastfood-3: #230a01;
+  --color-hero-coffee-1: #422c00;
+  --color-hero-coffee-2: #2d1c00;
+  --color-hero-coffee-3: #1d0f00;
+  --color-hero-outdoors-1: #113a1d;
+  --color-hero-outdoors-2: #04270f;
+  --color-hero-outdoors-3: #011806;
+  --color-hero-shopping-1: #48213c;
+  --color-hero-shopping-2: #321328;
+  --color-hero-shopping-3: #200919;
+  --color-hero-culture-1: #312a52;
+  --color-hero-culture-2: #20193a;
+  --color-hero-culture-3: #120e26;
+  --color-hero-family-1: #003939;
+  --color-hero-family-2: #002626;
+  --color-hero-family-3: #001717;
+
+  /* Category tints — the small end of the same idea.
+     The place marks were locked to one ink colour, so a thumbnail told you
+     WHICH place only after you had read the name. tint is the tile, ink is
+     the mark; built at one lightness and one chroma per role with hue the
+     only variable, exactly like the heroes. Every pair measures 4.5:1+ on
+     its own tile and 5.2:1+ on white, so they clear the graphic bar with
+     room to spare and stay safe if they ever carry text. */
+  --color-cat-landmarks-tint: #dcf0ff;
+  --color-cat-landmarks-ink: #1870a1;
+  --color-cat-restaurants-tint: #ffe6e5;
+  --color-cat-restaurants-ink: #9e4c4e;
+  --color-cat-fastfood-tint: #ffe7dd;
+  --color-cat-fastfood-ink: #9c522e;
+  --color-cat-coffee-tint: #f8ebd7;
+  --color-cat-coffee-ink: #896100;
+  --color-cat-outdoors-tint: #dff3e2;
+  --color-cat-outdoors-ink: #317a45;
+  --color-cat-shopping-tint: #fce5f3;
+  --color-cat-shopping-ink: #924d7d;
+  --color-cat-culture-tint: #eceaff;
+  --color-cat-culture-ink: #695ca3;
+  --color-cat-family-tint: #d7f4f3;
+  --color-cat-family-ink: #007879;
+
   /* One family, two roles. font-display keeps working everywhere it is
      already used — it now selects weight, not a different typeface. */
   --font-display: var(--font-arabic), system-ui, sans-serif;

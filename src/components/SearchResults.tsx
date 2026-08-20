@@ -4,7 +4,7 @@ import Link from "next/link";
 import CategoryIcon from "@/components/CategoryIcon";
 import PlaceIcon from "@/components/PlaceIcon";
 import { IconCompass, IconGo, IconPinSolid, IconStar } from "@/components/icons";
-import { getCategory, places, toArabicDigits } from "@/lib/places";
+import { categoryTint, getCategory, places, toArabicDigits } from "@/lib/places";
 import { highlight, type DocKind, type SearchHit } from "@/lib/search";
 
 const KIND_LABEL: Record<DocKind, string> = {
@@ -41,12 +41,18 @@ function Marked({ text, matched }: { text: string; matched: string[] }) {
 function Thumb({ hit }: { hit: SearchHit }) {
   const { doc } = hit;
   if (doc.kind === "place") {
+    const slug = doc.id.replace(/^place:/, "");
+    // The tile takes the place's category, so a list of results is scannable
+    // by colour before any of it has been read.
+    const cat = places.find((p) => p.slug === slug)?.category;
     return (
       <span
         aria-hidden="true"
-        className="grid size-11 shrink-0 place-items-center rounded-xl bg-sand-100 text-ink-700"
+        className={`grid size-11 shrink-0 place-items-center rounded-xl ${
+          cat ? categoryTint(cat) : "bg-sand-100 text-ink-700"
+        }`}
       >
-        <PlaceIcon slug={doc.id.replace(/^place:/, "")} className="size-7" />
+        <PlaceIcon slug={slug} className="size-7" />
       </span>
     );
   }

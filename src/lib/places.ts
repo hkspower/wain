@@ -469,22 +469,56 @@ const GRADIENT_DIRECTION = [
 ] as const;
 
 /**
- * The place hero, monochrome. Measured against the rest of the site the
- * category hues were the one thing pulling these pages out of the family:
- * every other route reads 0–7 levels of channel spread, while the coloured
- * heroes ran 13–37 — and disagreed with each other, since the ramps were not
- * equally saturated (Grand Mosque 13, Mais Alghanim 37).
+ * The place hero: one hue per category, on the ink ramp's own lightnesses.
  *
- * Ink instead of a hue. CategoryArt is drawn entirely in white, so the scene
- * survives untouched and only the ground behind it changes. The dark ground
- * also gives these pages a real black point — they were measuring 60–83,
- * meaning nothing on screen was properly dark.
+ * The first version of this took each category's ramp directly, and the ramps
+ * were not comparable — coral sits at chroma 0.21, sea at 0.086 — so the same
+ * hero read twice as loud on a restaurant as on a landmark, and the heroes as
+ * a group ran far more saturated than any other route. Dropping to ink fixed
+ * the inconsistency by removing the variable.
  *
- * Category identity has not gone anywhere: it is carried by the scene itself,
- * the category chip, and the coloured chips in the nearby dial.
+ * These ramps are generated instead of picked (see --color-hero-* in
+ * globals.css): identical lightness and identical chroma at every step, hue
+ * the only difference. So the black point and the white-stroke contrast the
+ * monochrome pass established both survive, and a category is once again
+ * recognisable before you have read anything.
+ *
+ * Written out in full because Tailwind scans for literal class names — built
+ * from a template these would never be emitted.
  */
+const HERO_GRADIENT: Record<CategoryId, string> = {
+  landmarks: "from-hero-landmarks-1 via-hero-landmarks-2 to-hero-landmarks-3",
+  restaurants: "from-hero-restaurants-1 via-hero-restaurants-2 to-hero-restaurants-3",
+  fastfood: "from-hero-fastfood-1 via-hero-fastfood-2 to-hero-fastfood-3",
+  coffee: "from-hero-coffee-1 via-hero-coffee-2 to-hero-coffee-3",
+  outdoors: "from-hero-outdoors-1 via-hero-outdoors-2 to-hero-outdoors-3",
+  shopping: "from-hero-shopping-1 via-hero-shopping-2 to-hero-shopping-3",
+  culture: "from-hero-culture-1 via-hero-culture-2 to-hero-culture-3",
+  family: "from-hero-family-1 via-hero-family-2 to-hero-family-3",
+};
+
 export function placeGradient(place: Pick<Place, "slug" | "category">): string {
-  return `${GRADIENT_DIRECTION[placeVariant(place.slug)]} from-ink-700 via-ink-800 to-ink-900`;
+  return `${GRADIENT_DIRECTION[placeVariant(place.slug)]} ${HERO_GRADIENT[place.category]}`;
+}
+
+/**
+ * Tile and mark colour for a place's icon, so a thumbnail carries its
+ * category before the name has been read. Literal strings for the same
+ * reason as HERO_GRADIENT — Tailwind only emits classes it can see.
+ */
+const CATEGORY_TINT: Record<CategoryId, string> = {
+  landmarks: "bg-cat-landmarks-tint text-cat-landmarks-ink",
+  restaurants: "bg-cat-restaurants-tint text-cat-restaurants-ink",
+  fastfood: "bg-cat-fastfood-tint text-cat-fastfood-ink",
+  coffee: "bg-cat-coffee-tint text-cat-coffee-ink",
+  outdoors: "bg-cat-outdoors-tint text-cat-outdoors-ink",
+  shopping: "bg-cat-shopping-tint text-cat-shopping-ink",
+  culture: "bg-cat-culture-tint text-cat-culture-ink",
+  family: "bg-cat-family-tint text-cat-family-ink",
+};
+
+export function categoryTint(id: CategoryId): string {
+  return CATEGORY_TINT[id];
 }
 
 export function getCategory(id: CategoryId): Category | undefined {

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import PlaceIcon from "@/components/PlaceIcon";
 import { IconGo, IconPinSolid, IconStar } from "@/components/icons";
-import { getCategory, toArabicDigits, type Place } from "@/lib/places";
+import { categoryTint, getCategory, toArabicDigits, type Place } from "@/lib/places";
 
 export default function PlaceCard({ place }: { place: Place }) {
   const category = getCategory(place.category);
@@ -11,10 +11,12 @@ export default function PlaceCard({ place }: { place: Place }) {
       href={`/places/${place.slug}`}
       className="group flex flex-col overflow-hidden rounded-3xl border border-line bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-line-strong hover:shadow-xl hover:shadow-ink-900/10"
     >
-      <div className="relative flex h-36 items-center justify-center overflow-hidden border-b border-line bg-sand-200/60 standalone:h-24">
+      <div
+        className={`relative flex h-36 items-center justify-center overflow-hidden border-b border-line standalone:h-24 ${categoryTint(place.category)}`}
+      >
         <PlaceIcon
           slug={place.slug}
-          className="size-20 text-ink-700 transition duration-500 group-hover:scale-105 standalone:size-14"
+          className="size-20 transition duration-500 group-hover:scale-105 standalone:size-14"
         />
         <span
           className="absolute start-3 top-3 flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-ink-800 shadow-sm backdrop-blur"
