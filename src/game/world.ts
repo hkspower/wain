@@ -433,9 +433,18 @@ function lightPoolTexture(): THREE.CanvasTexture {
   c.height = 128;
   const ctx = c.getContext("2d")!;
   const g = ctx.createRadialGradient(64, 64, 4, 64, 64, 64);
-  g.addColorStop(0, "rgba(255,190,110,0.62)");
-  g.addColorStop(0.5, "rgba(255,165,80,0.24)");
-  g.addColorStop(1, "rgba(255,150,60,0)");
+  // LED white, faintly cool. The sodium orange these used to be is what
+  // made the whole night frame amber; the lamps are white now and the
+  // only warm light left on the road comes from windows and tail lamps,
+  // which is what a Gulf Road retrofit actually looks like.
+  // Brighter than the sodium it replaced, which is the actual reason a
+  // city pays to retrofit: measured at the old alpha the coast lost its
+  // fill entirely — 46% of the ground at 0/255 against 24% before — and
+  // a verge with no detail in it is not what a new lamp buys you.
+  g.addColorStop(0, "rgba(232,240,255,0.74)");
+  g.addColorStop(0.34, "rgba(216,229,250,0.4)");
+  g.addColorStop(0.62, "rgba(206,220,246,0.15)");
+  g.addColorStop(1, "rgba(198,214,242,0)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 128, 128);
   const tex = new THREE.CanvasTexture(c);
@@ -452,9 +461,9 @@ function lightStreakTexture(): THREE.CanvasTexture {
   // Hot near the lamp, trailing off along the road; soft lateral falloff.
   // Canvas-bottom is the +Z (lamp-side) end of the rotated plane.
   const along = ctx.createLinearGradient(0, 128, 0, 0);
-  along.addColorStop(0, "rgba(255,205,130,0.85)");
-  along.addColorStop(0.35, "rgba(255,175,90,0.35)");
-  along.addColorStop(1, "rgba(255,150,60,0)");
+  along.addColorStop(0, "rgba(236,243,255,0.8)");
+  along.addColorStop(0.35, "rgba(206,220,246,0.32)");
+  along.addColorStop(1, "rgba(192,208,238,0)");
   ctx.fillStyle = along;
   ctx.fillRect(0, 0, 32, 128);
   const across = ctx.createLinearGradient(0, 0, 32, 0);
@@ -2007,23 +2016,25 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const poleGeo = new THREE.CylinderGeometry(0.14, 0.2, 8.4, 6);
     const poleMat = new THREE.MeshStandardMaterial({ color: 0x3c4148, roughness: 0.7 });
     const poles = new THREE.InstancedMesh(poleGeo, poleMat, count);
-    // Cobra arm reaching from the pole top out over the carriageway —
-    // real street lamps hang their heads over the road, not the kerb
-    const armGeo = new THREE.CylinderGeometry(0.055, 0.075, 3.0, 6);
-    armGeo.rotateZ(Math.PI / 2); // along X, oriented per instance
-    const arms = new THREE.InstancedMesh(armGeo, poleMat, count);
-    const headGeo = new THREE.BoxGeometry(0.55, 0.12, 0.3);
-    const heads = new THREE.InstancedMesh(headGeo, poleMat, count);
-    const lampGeo = new THREE.SphereGeometry(0.34, 8, 6);
+    // A vertical post-top luminaire, not a cobra arm reaching out over
+    // the carriageway. The LED is a standing blade at the head of the
+    // pole with a dark shroud behind it, which is the shape the Gulf
+    // Road's own columns were retrofitted to.
+    const shroudGeo = new THREE.BoxGeometry(0.24, 1.72, 0.24);
+    const shrouds = new THREE.InstancedMesh(shroudGeo, poleMat, count);
+    const lampGeo = new THREE.BoxGeometry(0.2, 1.44, 0.2);
     const lampMat = new THREE.MeshStandardMaterial({
-      color: 0xffc873,
-      emissive: 0xffaa40,
-      emissiveIntensity: 3.2,
+      // Cool white LED. Not paper white — a real 5000 K head still reads
+      // faintly blue against a warm window, and that contrast is the
+      // whole point of the change.
+      color: 0xf4f8ff,
+      emissive: 0xdfeaff,
+      emissiveIntensity: 3.0,
       fog: false,
     });
     const lamps = new THREE.InstancedMesh(lampGeo, lampMat, count);
     // Warm pool of lamplight thrown onto the asphalt below each lamp
-    const poolGeo = new THREE.CircleGeometry(8.5, 20);
+    const poolGeo = new THREE.CircleGeometry(10.5, 20);
     poolGeo.rotateX(-Math.PI / 2);
     const poolMat = new THREE.MeshBasicMaterial({
       map: lightPoolTexture(),
@@ -2050,8 +2061,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       if (u > TUNNEL_U.from - 0.004 && u < TUNNEL_U.to + 0.004) {
         // No street poles inside the tunnel
         poles.setMatrixAt(i, hidden);
-        arms.setMatrixAt(i, hidden);
-        heads.setMatrixAt(i, hidden);
+        shrouds.setMatrixAt(i, hidden);
         lamps.setMatrixAt(i, hidden);
         pools.setMatrixAt(i, hidden);
         continue;
@@ -2061,26 +2071,26 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       m.makeTranslation(p.x, 4.2, p.z);
       poles.setMatrixAt(i, m);
 
-      // Head hangs over the road edge; the arm bridges pole top → head
-      track.pose(s, sideSign * (ROAD_HALF_WIDTH - 1.2), p, tmp);
-      const hx = p.x;
-      const hz = p.z;
+      // The blade stands on the pole itself. Everything is square to the
+      // road so the shroud hides the emitter from behind and the light
+      // faces the carriageway.
       track.tangentAt(s, tanV);
       tanV.y = 0;
       tanV.normalize();
-      // Unit vector for +lat is (-Tz, 0, Tx); the arm points inward
+      // Unit vector for +lat is (-Tz, 0, Tx)
       sideV.set(tanV.z * sideSign, 0, -tanV.x * sideSign).normalize();
       armQ.setFromUnitVectors(xAxis, sideV);
-      track.pose(s, sideSign * (ROAD_HALF_WIDTH + 0.4), p, tmp);
-      armMid.set((p.x + hx) / 2, 8.42, (p.z + hz) / 2);
+      track.pose(s, sideSign * (ROAD_HALF_WIDTH + 1.6), p, tmp);
+      const hx = p.x;
+      const hz = p.z;
+      armMid.set(hx, 9.15, hz);
       m.compose(armMid, armQ, unitV);
-      arms.setMatrixAt(i, m);
-      armMid.set(hx, 8.45, hz);
+      shrouds.setMatrixAt(i, m);
+      // The emitter sits proud of the shroud on the road side of it.
+      armMid.set(hx + sideV.x * 0.09, 9.1, hz + sideV.z * 0.09);
       m.compose(armMid, armQ, unitV);
-      heads.setMatrixAt(i, m);
-      m.makeTranslation(hx, 8.32, hz);
       lamps.setMatrixAt(i, m);
-      lampPositions.push(new THREE.Vector3(hx, 8.32, hz));
+      lampPositions.push(new THREE.Vector3(armMid.x, 9.1, armMid.z));
 
       // The pool lands under the head and spills toward the road centre
       // (the head's optic faces down-and-in, not straight down)
@@ -2088,8 +2098,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       m.makeTranslation(p.x, 0.045, p.z);
       pools.setMatrixAt(i, m);
     }
-    arms.instanceMatrix.needsUpdate = true;
-    heads.instanceMatrix.needsUpdate = true;
+    shrouds.instanceMatrix.needsUpdate = true;
     // Wet-look smears: each lamp drags a long reflection down the road
     // surface — the single cheapest thing that sells night asphalt.
     const streakGeo = new THREE.PlaneGeometry(1.4, 12);
@@ -2134,9 +2143,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     lamps.instanceMatrix.needsUpdate = true;
     pools.instanceMatrix.needsUpdate = true;
     poles.castShadow = true;
-    scene.add(poles, arms, heads, lamps, pools, streaks);
-    // Sodium coronas around every lamp head
-    scene.add(coronaPoints(lampPositions, 0xffb15c, 5.5));
+    scene.add(poles, shrouds, lamps, pools, streaks);
+    // LED coronas around every blade
+    // Tight. A 4.6 m round corona around a 0.15 m-wide blade is all you
+    // see — the luminaire is vertical and reads as a blob anyway, which
+    // defeats the point of standing it up.
+    scene.add(coronaPoints(lampPositions, 0xdbe7ff, 2.8));
     // Star glints: the sparkle each bright source throws at the lens
     {
       const geo = new THREE.BufferGeometry();
@@ -2149,7 +2161,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
       glintMat = new THREE.PointsMaterial({
         map: glintTexture(),
-        color: 0xffd9a0,
+        color: 0xe6eeff,
         size: 2.6,
         transparent: true,
         opacity: 0.55,
@@ -2376,9 +2388,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // Ceiling strip lights + their glow on the road
     const stripCount = Math.floor(((TUNNEL_U.to - TUNNEL_U.from) * L) / 12);
     const stripGeo = new THREE.BoxGeometry(0.5, 0.12, 2.6);
+    // White too. These share lightPoolTexture with the street columns, so
+    // leaving them sodium would put warm strips over cool pools — the one
+    // combination that reads as a bug rather than as a choice.
     const stripMat = new THREE.MeshStandardMaterial({
-      color: 0xfff1cf,
-      emissive: 0xffd9a0,
+      color: 0xf4f8ff,
+      emissive: 0xdfeaff,
       emissiveIntensity: 3.0,
       fog: false,
     });
@@ -2414,7 +2429,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     strips.instanceMatrix.needsUpdate = true;
     tpools.instanceMatrix.needsUpdate = true;
     scene.add(strips, tpools);
-    scene.add(coronaPoints(stripPositions, 0xffdba6, 2.6));
+    scene.add(coronaPoints(stripPositions, 0xdbe7ff, 2.6));
   }
 
   // Illuminated billboards — the TXR night-expressway signature,

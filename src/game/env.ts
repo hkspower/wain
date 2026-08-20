@@ -45,7 +45,10 @@ export function nightEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
     const a = (i / 8) * Math.PI * 2;
     const lamp = new THREE.Mesh(
       new THREE.SphereGeometry(1.6, 8, 6),
-      new THREE.MeshBasicMaterial({ color: new THREE.Color(9, 6.2, 3.1) })
+      // White LED, matching the columns the world actually builds. Left
+      // warm, every chrome and clearcoat in the game kept reflecting a
+      // sodium street that is no longer there.
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(8.2, 8.6, 9.4) })
     );
     lamp.position.set(Math.cos(a) * 34, 11 + (i % 3) * 3, Math.sin(a) * 34);
     env.add(lamp);
