@@ -55,7 +55,8 @@
     "check:parts": "node scripts/check-catalogue.mjs",
     "test:levels": "node tools/shots/levels.mjs",
     "check:menus": "node tools/shots/menus.mjs",
-    "check:sharp": "node tools/shots/sharpness.mjs"
+    "check:sharp": "node tools/shots/sharpness.mjs",
+    "check:paint": "node tools/shots/paint.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",

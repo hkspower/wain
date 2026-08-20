@@ -966,6 +966,39 @@ const chromeMat = new THREE.MeshStandardMaterial({
   envMapIntensity: 1.6,
 });
 
+
+/*
+ * METALLIC FLAKE AND ORANGE PEEL: TRIED, MEASURED, REMOVED.
+ *
+ * Both were built — a sparse platelet field for the flake, value noise
+ * for the peel, each turned into a normal map by finite difference — and
+ * both did precisely nothing, which took four measurements to establish
+ * and is worth writing down so nobody builds them again.
+ *
+ * With the maps on and off, the mean luma gradient across the body
+ * panels was 7.93 and 7.94. Forcing the normal scale from 0.28 to 4 —
+ * fourteen times — moved it from 8.64 to 8.65. Coarsening the flake
+ * repeat from 38 to 3, in case minification was averaging it away,
+ * moved it to 8.59. And forcing the body colour to red moved it from
+ * 8.63 to 5.37, which is how it is known that the override path worked
+ * and the maps were the thing doing nothing.
+ *
+ * The reason is the same one that made the buildings blurry, seen from
+ * the other side: a mirror can only show you detail that exists in what
+ * it is reflecting. This car is lit almost entirely by an image-based
+ * environment which is a smooth gradient dome plus eight small lamps.
+ * Perturbing a surface normal by a fraction of a degree samples a
+ * near-identical part of a near-uniform image, so nothing changes.
+ * Flake sparkles in real life because the world is full of small hard
+ * light sources; here there are eight, and they are 34 m away.
+ *
+ * No micro-surface trick can fix that — roughness variation integrates a
+ * constant over a wider lobe and gets the same constant back. What would
+ * fix it is a busier environment, which is a much larger change than a
+ * texture, and not one to make by accident while adjusting paint.
+ */
+
+
 function plateTexture(): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = 128;
@@ -1364,13 +1397,39 @@ export function createCar(colors: CarColors): THREE.Group {
   // Automotive paint is two layers: a metallic basecoat with flake, and a
   // hard clearcoat over it. The clearcoat is what throws the sharp
   // reflection of the world; the basecoat carries the colour and sparkle.
+  // Two coats, and they are different materials doing different jobs.
+  //
+  // The basecoat is aluminium flake in a tinted binder: rough, so its
+  // lobe is broad and dim, and it is what gives the car its colour. The
+  // clearcoat is smooth dielectric lacquer, and it is what gives the car
+  // its highlight — a small, white, near-mirror reflection of whatever
+  // is actually there.
+  //
+  // At roughness 0.34 and metalness 0.9 a quarter of every panel sat
+  // inside the highlight — measured, 23.7% of body pixels above half the
+  // peak. That is a satin sheen, not gloss: gloss is a SMALL bright
+  // thing on a DARKER field, and this was a large medium thing on a
+  // medium field.
+  //
+  // The first attempt at fixing it went the wrong way, on the theory
+  // that a real basecoat is rough and the clearcoat should carry the
+  // highlight. Roughness 0.52 and metalness 0.78 took the highlight from
+  // 23.7% of the panel to 43.4% and the contrast from 3.1 to 2.1 — more
+  // diffuse, brighter, flatter, worse in every direction. Scanning five
+  // settings against the same frame settled it: tighter and more
+  // metallic is what gloss is here. 0.18/0.95 gives 18.6% and 3.7.
+  //
+  // clearcoatRoughness comes UP slightly all the same. 0.03 is optically
+  // perfect, which nothing sprayed by a human has ever been, and a
+  // flawless mirror is a large part of why a rendered highlight reads as
+  // a neon strip rather than as a reflection of one.
   const bodyMat = new THREE.MeshPhysicalMaterial({
     color: colors.body,
-    roughness: 0.34, // basecoat: flake scatter, not a mirror
-    metalness: 0.9,
+    roughness: 0.18, // basecoat: tight, so the flake catches points
+    metalness: 0.95,
     clearcoat: 1,
-    clearcoatRoughness: 0.03, // lacquer: near-mirror
-    envMapIntensity: 2.1,
+    clearcoatRoughness: 0.05, // lacquer: near-mirror, not a laser mirror
+    envMapIntensity: 2.4,
   });
 
   // Per-car metal clones for everything that should mirror the world.
