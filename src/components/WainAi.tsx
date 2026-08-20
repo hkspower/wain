@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { IconClose, IconPinSolid } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
-import { setEnabled as setVoiceEnabled } from "@/lib/voice";
+import { primeAudio, setEnabled as setVoiceEnabled } from "@/lib/voice";
 import {
   WAIN_AI_AGENT_ENABLED,
   WAIN_AI_AGENT_ID,
@@ -137,6 +137,15 @@ export default function WainAi() {
       // (quietly — the search page's own summary is the reply) and let the
       // search screen show the matching places on its map.
       setVoiceEnabled(true, { greet: false });
+      // Hand the question across so she can repeat what she heard and answer
+      // without the typing debounce. Session storage rather than a query
+      // parameter: ?q= is shared and bookmarked, and this is about one spoken
+      // moment, not part of the search.
+      try {
+        sessionStorage.setItem("wain:asked", q);
+      } catch {
+        /* private mode — she just answers without the echo */
+      }
       setPhase("idle");
       setTranscript("");
       router.push(`/search?q=${encodeURIComponent(q)}`);
@@ -245,6 +254,10 @@ export default function WainAi() {
   /* ---- the hold gesture --------------------------------------------------- */
   const activate = useCallback(() => {
     haptic("success");
+    // Spend the gesture's audio permission now — see primeAudio(). By the time
+    // شوق has an answer we are a navigation and a fetch away from here, and
+    // iOS will not start audio then.
+    primeAudio();
     if (WAIN_AI_AGENT_ENABLED) setPhase("agent");
     else startListening();
   }, [startListening]);

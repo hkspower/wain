@@ -1,4 +1,3 @@
-import { countAr, RESULTS_COUNT } from "@/lib/places";
 
 /**
  * صوت وين — the sentences the voice personas say, in one place.
@@ -26,27 +25,50 @@ export const PERSONAS: Record<
 };
 
 export const GENERIC_LINES = {
-  "search-empty": "ما لقينا شي عن هالبحث. جرّب كلمة ثانية أو أقصر.",
-  "suggest-intro": "أحلى نتيجة طلعت لنا:",
-  "related-intro": "وإذا حاب تغيّر الجو، شوف بعد:",
+  // Said when nothing matched. The old line ("ما لقينا شي عن هالبحث. جرّب كلمة
+  // ثانية أو أقصر.") told the visitor they had failed without telling them what
+  // would work — and after a *spoken* question the likeliest cause is that
+  // recognition misheard, so naming the four things she is good at gives them
+  // something to say next.
+  "search-empty":
+    "ما لقيت شي بهالكلمة. قل لي الجو اللي تبيه — قهوة، بحر، مطعم، ولا طلعة عيال.",
+  "suggest-intro": "أقترح عليك:",
+  "related-intro": "وإذا تبي غيره:",
 } as const;
 
 export function helloLine(nameAr: string): string {
   return `هلا! أنا ${nameAr}. من الحين، لما تدوّر أقول لك وش أحلى الأماكن بصوتي.`;
 }
 
-type PlaceLite = { slug: string; nameAr: string; areaAr: string; taglineAr: string };
+type PlaceLite = {
+  slug: string;
+  nameAr: string;
+  areaAr: string;
+  taglineAr: string;
+  bestTimeAr: string;
+};
 
 export function placeSuggestLine(p: PlaceLite): string {
   return `${p.nameAr}، في ${p.areaAr}. ${p.taglineAr}`;
 }
 
 export function placeNameLine(p: PlaceLite): string {
-  return `${p.nameAr} في ${p.areaAr}`;
+  // "كافيهات شارع الخليج في شارع الخليج" — several places are named after the
+  // area they sit in, and appending it again reads as a stutter out loud.
+  // Full stops matter here: these lines are concatenated into one utterance,
+  // and without them the synthesiser runs "…وبعد المغرب وإذا تبي غيره" together
+  // as a single breathless clause.
+  return p.nameAr.includes(p.areaAr) ? `${p.nameAr}.` : `${p.nameAr} في ${p.areaAr}.`;
 }
 
-/** Everything one persona needs recorded: greeting, connectors, and both a
- * full suggestion and a short name for every place. */
+/** When to go — the single most useful thing to add to a recommendation, and
+ *  fixed per place, so it can be a recorded clip rather than synthetic. */
+export function placeBestTimeLine(p: PlaceLite): string {
+  return `أحلى وقت: ${p.bestTimeAr}.`;
+}
+
+/** Everything one persona needs recorded: greeting, connectors, and the full
+ * suggestion, short name and best time for every place. */
 export function buildClipLines(
   persona: PersonaId,
   list: PlaceLite[]
@@ -58,6 +80,7 @@ export function buildClipLines(
   for (const p of list) {
     lines[`place-${p.slug}`] = placeSuggestLine(p);
     lines[`name-${p.slug}`] = placeNameLine(p);
+    lines[`best-${p.slug}`] = placeBestTimeLine(p);
   }
   return lines;
 }
@@ -68,31 +91,61 @@ export function helloParts(persona: PersonaId): SpeechPart[] {
 
 type SuggestHit = { doc: { id: string; kind: string; title: string; subtitle: string } };
 
-/** What to say once a search settles: the count (fallback only, it changes
- * with every query) and the strongest place suggestion.
+/**
+ * The spoken answer to a search.
  *
- * `total` can disagree with `hits.length` — the caller counts across every
- * kind while hits may be filtered to one — so emptiness is decided by the
- * hits themselves. Trusting `total` here dereferenced hits[0] on an empty
- * array and threw. */
-export function searchSummaryParts(hits: SuggestHit[], total: number): SpeechPart[] {
-  if (total === 0 || hits.length === 0) {
-    return [{ key: "search-empty", text: GENERIC_LINES["search-empty"] }];
+ * This used to read the index back: "لقينا لك ٥ نتائج. أحلى نتيجة طلعت لنا:
+ * مقاهي المباركية، قهوة، مدينة الكويت." — a count nobody asked for, followed
+ * by a category and an area. Everything in it was already on the screen, and
+ * none of it answered the question.
+ *
+ * A guide answers instead: what to go to, why it suits, and when to go —
+ * then one alternative. The count is dropped precisely because the screen
+ * already shows it; speech is the expensive channel and should carry what the
+ * screen cannot.
+ *
+ * `asked` is the question as it was actually heard, echoed back before the
+ * answer. It is not decoration: speech recognition mishears, and hearing
+ * "قهوة هادية؟" is what tells the visitor why the results look the way they
+ * do. It stays `optional` so the pre-rendered clip path — which has no
+ * recording of a sentence nobody has said yet — simply skips it.
+ *
+ * `places` are the full records behind the place hits, in result order.
+ * `hits` is still needed for the case where a query matches only categories,
+ * areas or pages, which carry no place to recommend.
+ */
+export function answerParts(
+  hits: SuggestHit[],
+  places: PlaceLite[],
+  opts: { asked?: string } = {}
+): SpeechPart[] {
+  const asked = opts.asked?.trim();
+  const echo: SpeechPart[] = asked ? [{ text: `${asked}؟`, optional: true }] : [];
+
+  if (hits.length === 0) {
+    return [...echo, { key: "search-empty", text: GENERIC_LINES["search-empty"] }];
   }
+
+  const top = places[0];
+  if (!top) {
+    // Categories, areas or pages only — there is nothing to recommend, so say
+    // what was matched rather than inventing a recommendation.
+    return [...echo, { text: `أقرب شي لطلبك: ${hits[0].doc.title}.` }];
+  }
+
   const parts: SpeechPart[] = [
-    { text: `لقينا لك ${countAr(total, RESULTS_COUNT)}.`, optional: true },
+    ...echo,
+    { key: "suggest-intro", text: GENERIC_LINES["suggest-intro"] },
+    { key: `place-${top.slug}`, text: placeSuggestLine(top) },
+    { key: `best-${top.slug}`, text: placeBestTimeLine(top) },
   ];
-  const top = hits.find((h) => h.doc.kind === "place");
-  if (top) {
+
+  const next = places[1];
+  if (next) {
     parts.push(
-      { key: "suggest-intro", text: GENERIC_LINES["suggest-intro"] },
-      {
-        key: `place-${top.doc.id.slice("place:".length)}`,
-        text: `${top.doc.title}، ${top.doc.subtitle}.`,
-      }
+      { key: "related-intro", text: GENERIC_LINES["related-intro"] },
+      { key: `name-${next.slug}`, text: placeNameLine(next) }
     );
-  } else {
-    parts.push({ text: `أقرب شي لطلبك: ${hits[0].doc.title}.` });
   }
   return parts;
 }

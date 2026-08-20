@@ -128,6 +128,51 @@ function playNext() {
   });
 }
 
+/**
+ * Unlock audio while a user gesture is still on the stack.
+ *
+ * iOS Safari will only let an <audio> element or speechSynthesis start from
+ * inside a user gesture — and "inside" means the same task, not merely "some
+ * time after a tap". Everything this module speaks goes through speak(),
+ * which awaits the clip manifest first, so by the time it plays, the gesture
+ * is long over and iOS refuses.
+ *
+ * That was survivable while the only entry point was the voice toggle, whose
+ * greeting was itself the unlock. وين AI deliberately skips the greeting — it
+ * is about to navigate to an answer that speaks for itself — which left the
+ * assistant silent on iPhones. So the gesture handler calls this instead: a
+ * muted zero-length play and an empty utterance, both synchronous, purely to
+ * spend the gesture's permission before it expires.
+ */
+export function primeAudio() {
+  if (typeof window === "undefined") return;
+  try {
+    const el = ensureAudio();
+    el.muted = true;
+    const p = el.play();
+    // Older Safari returns undefined rather than a promise here.
+    void p?.then(
+      () => {
+        el.pause();
+        el.muted = false;
+      },
+      () => {
+        el.muted = false;
+      }
+    );
+  } catch {
+    /* nothing to unlock */
+  }
+  try {
+    // Same trick for the synthetic path: an empty utterance is inaudible but
+    // still counts as the gesture-initiated first speak() Safari waits for.
+    const synth = window.speechSynthesis;
+    if (synth) synth.speak(new SpeechSynthesisUtterance(""));
+  } catch {
+    /* no speech synthesis */
+  }
+}
+
 function ensureAudio(): HTMLAudioElement {
   if (!audio) {
     audio = new Audio();

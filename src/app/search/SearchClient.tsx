@@ -10,7 +10,7 @@ import { IconClose, IconCompass, IconSearch } from "@/components/icons";
 import { toArabicDigits } from "@/lib/places";
 import { usePlaces } from "@/lib/usePlaces";
 import { buildIndex, search, type DocKind } from "@/lib/search";
-import { searchSummaryParts } from "@/lib/voice-lines";
+import { answerParts } from "@/lib/voice-lines";
 import { speak, stop as stopVoice, useVoice } from "@/lib/voice";
 import { haptic } from "@/lib/haptics";
 
@@ -89,6 +89,21 @@ export default function SearchClient() {
     if (kind !== "all" && counts[kind] === 0 && counts.all > 0) setKind("all");
   }, [kind, counts]);
 
+  // A question asked out loud, handed over by وين AI. Read once: it belongs to
+  // the arrival, not to every later edit of the query box.
+  const [asked, setAsked] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const value = sessionStorage.getItem("wain:asked");
+      if (value) {
+        sessionStorage.removeItem("wain:asked");
+        setAsked(value);
+      }
+    } catch {
+      /* private mode — no echo */
+    }
+  }, []);
+
   // صوت وين: once a search settles, say the best suggestion out loud —
   // only while the visitor has the voice toggle on, and never twice for the
   // same outcome.
@@ -100,14 +115,21 @@ export default function SearchClient() {
       lastSpokenRef.current = "";
       return;
     }
-    const t = setTimeout(() => {
-      const signature = `${hits[0]?.doc.id ?? "none"}|${hits.length}`;
-      if (signature === lastSpokenRef.current) return;
-      lastSpokenRef.current = signature;
-      speak(searchSummaryParts(hits, hits.length));
-    }, 900);
+    // The 900ms wait exists to let typing settle. A spoken question is already
+    // finished when it arrives, so waiting only leaves the visitor listening
+    // to silence after they have stopped talking.
+    const spokenQuestion = asked && asked === q.trim() ? asked : null;
+    const t = setTimeout(
+      () => {
+        const signature = `${hits[0]?.doc.id ?? "none"}|${hits.length}`;
+        if (signature === lastSpokenRef.current) return;
+        lastSpokenRef.current = signature;
+        speak(answerParts(hits, hitPlaces, { asked: spokenQuestion ?? undefined }));
+      },
+      spokenQuestion ? 220 : 900
+    );
     return () => clearTimeout(t);
-  }, [q, hits, voiceEnabled]);
+  }, [q, hits, hitPlaces, voiceEnabled, asked]);
 
   // Leaving the page shouldn't leave a voice talking.
   useEffect(() => () => stopVoice(), []);
