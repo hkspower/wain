@@ -4266,6 +4266,10 @@ export class GameEngine {
     // torque curve to check the torque curve proves only that it can
     // copy an equation, so it gets the real function instead.
     (window as unknown as { __grnEngines: typeof ENGINES }).__grnEngines = ENGINES;
+    // The car factory and the showroom, so a test can build all fourteen
+    // shells and measure them without driving fourteen garage purchases.
+    (window as unknown as { __grnBuildCar: typeof createCar }).__grnBuildCar = createCar;
+    (window as unknown as { __grnCars: typeof CARS }).__grnCars = CARS;
     // The real tune for any car in the showroom, so a test can race the
     // machine the game would hand over instead of inventing a plausible
     // set of numbers and then measuring its own invention.

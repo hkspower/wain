@@ -934,10 +934,29 @@ const amberReflectorMat = new THREE.MeshStandardMaterial({
   emissiveIntensity: 0.4,
 });
 
+/**
+ * The lens. Deliberately calmer than it was.
+ *
+ * At 2.6 every headlamp on every car clipped to flat white and then
+ * bloomed, so the shape of the lamp — which is most of what tells one
+ * car's face from another's — was gone before it reached the screen.
+ * The tail lamps were rebuilt as three-layer assemblies a while back and
+ * carry their lens at 2.0 with a hotter core inside it; this brings the
+ * heads to the same standard rather than leaving one end of every car
+ * built to a different one.
+ */
 const headlightMat = new THREE.MeshStandardMaterial({
   color: 0xffffff,
   emissive: 0xfff6cf,
-  emissiveIntensity: 2.6,
+  emissiveIntensity: 1.7,
+});
+/** The projector inside the lens: small, hot, and the only part that is
+ *  allowed to blow out. A lamp with a focal point reads as a lamp; a
+ *  uniform slab reads as a strip of tape. */
+const headCoreMat = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  emissive: 0xffffff,
+  emissiveIntensity: 4.2,
 });
 const grilleMat = new THREE.MeshStandardMaterial({ color: 0x0e0f12, roughness: 0.6 });
 const chromeMat = new THREE.MeshStandardMaterial({
@@ -1517,17 +1536,60 @@ export function createCar(colors: CarColors): THREE.Group {
     headGlowMats.push(starMat);
   };
 
+  // Every headlamp is an assembly, the way the tail lamps already were:
+  // a dark housing set into the bodywork, a lens inside it, and a hot
+  // projector inside that. Each piece is SMALLER than the one around it
+  // and therefore sits FURTHER OUT, or it is swallowed whole — the same
+  // stacking rule the rear lamps are built to.
+  //
+  // Before this, every headlamp on every car was a single emissive box
+  // at intensity 2.6. It clipped to flat white, bloomed, and arrived on
+  // screen as a featureless glowing slab stuck to the nose: no bezel, no
+  // lens, no focal point, and no way to tell one car's face from
+  // another's. Four silhouettes, four different slabs, all identical
+  // once lit.
+  //
+  // `bulb` is the piece that is allowed to blow out. Everything else has
+  // to keep its shape.
+  const bulb = (x: number, y: number, z: number, r = 0.042, len = 0.05) => {
+    const core = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.86, len, 14), headCoreMat);
+    core.rotation.x = Math.PI / 2;
+    core.position.set(x, y, z);
+    core.name = "lamp-core";
+    group.add(core);
+  };
+
   if (style === "zx") {
     // Z32 signature: one flush light bar across the whole nose. Pinned
     // 80 mm behind the nose anchor it was 100 mm inside the bumper — the
     // three cars on this silhouette had no headlights on screen at all.
     const barY = d.noseTopY + 0.03;
     const barZ = (noseFaceZ(bGeo, style, barY, true) ?? d.nose) - 0.018;
-    const bar = new THREE.Mesh(roundedBox(1.56, 0.1, 0.07, 0.03), headMat);
-    bar.position.set(0, barY, barZ);
-    bar.rotation.x = -0.09; // gently raked, flush with the hood line
-    group.add(bar);
-    for (const sx of [-0.5, 0.5]) addHeadGlare(sx, barY, barZ, 0.95);
+    // The housing first: a dark channel the bar sits down inside.
+    const channel = new THREE.Mesh(roundedBox(1.62, 0.14, 0.06, 0.03), housingMat);
+    channel.position.set(0, barY, barZ - 0.014);
+    channel.rotation.x = -0.09;
+    channel.name = "lamp-housing";
+    group.add(channel);
+    // Then the bar itself, SEGMENTED. A continuous strip of emissive is
+    // a fluorescent tube; a row of elements with the housing showing
+    // between them is a light bar. This is the whole difference on this
+    // silhouette.
+    const SEGS = 6;
+    const segW = 1.5 / SEGS - 0.028;
+    for (let i = 0; i < SEGS; i++) {
+      const cx = -0.75 + (1.5 / SEGS) * (i + 0.5);
+      const seg = new THREE.Mesh(roundedBox(segW, 0.078, 0.06, 0.022), headMat);
+      seg.position.set(cx, barY + Math.sin(-0.09) * 0, barZ + 0.004);
+      seg.rotation.x = -0.09;
+      seg.name = "lamp-lens";
+      group.add(seg);
+    }
+    // Two projectors in the bar, where the main beams actually come from.
+    for (const sx of [-0.5, 0.5]) {
+      bulb(sx, barY, barZ + 0.03, 0.03, 0.045);
+      addHeadGlare(sx, barY, barZ, 0.95);
+    }
   } else if (style === "rx7") {
     // Pop-up headlights, up for the night run: a body-colour door tilted
     // out of the hood with the lamp shining from under it. Both sat
@@ -1538,25 +1600,60 @@ export function createCar(colors: CarColors): THREE.Group {
       door.position.set(sx, hood + 0.075, d.nose - 0.42);
       door.rotation.x = -0.62;
       group.add(door);
-      const lamp = new THREE.Mesh(roundedBox(0.36, 0.12, 0.08, 0.03), headMat);
-      lamp.position.set(sx, hood + 0.05, d.nose - 0.36);
-      group.add(lamp);
+      // The bucket the lamp sits in, then a round lens, then the bulb.
+      // A pop-up is a round sealed beam in a black pan, and the pan is
+      // what makes it read as one.
+      const pan = new THREE.Mesh(roundedBox(0.4, 0.15, 0.07, 0.03), housingMat);
+      pan.position.set(sx, hood + 0.05, d.nose - 0.375);
+      pan.name = "lamp-housing";
+      group.add(pan);
+      const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.062, 0.05, 18), headMat);
+      lens.rotation.x = Math.PI / 2;
+      lens.position.set(sx, hood + 0.05, d.nose - 0.345);
+      lens.name = "lamp-lens";
+      group.add(lens);
+      // Far enough forward to clear the raised door above it. The mesh
+      // audit is what caught this: the bulb was proud of its lens and
+      // still painted nothing, because the pop-up door tilted up over
+      // the top of it.
+      bulb(sx, hood + 0.05, d.nose - 0.295, 0.03, 0.04);
       addHeadGlare(sx, hood + 0.05, d.nose - 0.32, 0.9);
     }
   } else {
     for (const sx of [-0.62, 0.62]) {
-      const head = new THREE.Mesh(roundedBox(0.52, 0.13, 0.07, 0.02), headMat);
-      head.position.set(sx, d.noseTopY, d.nose - 0.01);
+      // Housing, deepest and widest.
+      const pod = new THREE.Mesh(roundedBox(0.58, 0.175, 0.07, 0.03), housingMat);
+      pod.position.set(sx, d.noseTopY, d.nose - 0.03);
+      pod.name = "lamp-housing";
+      group.add(pod);
+      // Lens, inset all round and stepped out.
+      const head = new THREE.Mesh(roundedBox(0.5, 0.115, 0.065, 0.02), headMat);
+      head.position.set(sx, d.noseTopY, d.nose - 0.008);
+      head.name = "lamp-lens";
       group.add(head);
+      // The projector, set toward the inboard end where a real one is.
+      bulb(sx - Math.sign(sx) * 0.13, d.noseTopY, d.nose + 0.03);
       addHeadGlare(sx, d.noseTopY, d.nose + 0.02);
     }
     if (style === "gtr") {
-      // Inner projector eyes beside the main lamps
+      // Inner projector eyes beside the main lamps, each in its own dark
+      // bezel so they read as a second pair rather than as two more
+      // bright dots on the paint.
       for (const sx of [-0.3, 0.3]) {
+        const bezel = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.072, 0.072, 0.04, 16),
+          housingMat
+        );
+        bezel.rotation.x = Math.PI / 2;
+        bezel.position.set(sx, d.noseTopY, d.nose - 0.022);
+        bezel.name = "lamp-housing";
+        group.add(bezel);
         const eye = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.04, 12), headMat);
         eye.rotation.x = Math.PI / 2;
         eye.position.set(sx, d.noseTopY, d.nose - 0.005);
+        eye.name = "lamp-lens";
         group.add(eye);
+        bulb(sx, d.noseTopY, d.nose + 0.026, 0.026, 0.035);
       }
     }
   }
