@@ -655,6 +655,9 @@ export class GameEngine {
   /** Lateral acceleration this frame, m/s^2 — exposed for the HUD and
    *  the tests that assert the body leans the right way. */
   private latAccel = 0;
+  /** Longitudinal acceleration this frame, m/s^2 — the driver leans on
+   *  this too. */
+  private longAccel = 0;
   /** How far the shell leans at the limit of grip. Real cars manage
    *  three to five degrees; a stiff one less. */
   private static readonly MAX_ROLL = 0.055;
@@ -3211,6 +3214,7 @@ export class GameEngine {
     // spinning its wheels is at full throttle and barely moving.
     const longAccel = (p.speed - this.prevSpeed) / Math.max(dt, 1e-4);
     this.prevSpeed = p.speed;
+    this.longAccel = longAccel;
     const pitchTarget = THREE.MathUtils.clamp(-longAccel * 0.0039, -0.02, 0.045);
 
     // Both on springs. A body settles on its suspension — it does not
@@ -3973,8 +3977,29 @@ export class GameEngine {
     throttle: number,
     brake: number,
     look: THREE.Vector3,
-    dt: number
+    dt: number,
+    /** What the car is pulling, m/s^2: sideways, and along. The driver
+     *  is a mass in a seat and this is what moves them. */
+    gLat = 0,
+    gLong = 0
   ): void {
+    // The body first, because everything else is solved onto targets and
+    // will follow it. Lean away from the cornering force and fold
+    // forward under braking — the two things a driver's body does that
+    // a parented pose can never show.
+    //
+    // The limbs are the point. Hands are solved onto grips ON the wheel
+    // and feet onto the pedal faces, both of which are bolted to the car
+    // and do not move with the driver, so leaning the torso makes the
+    // arms and legs re-solve to stay where they are gripping. That is
+    // what IK is for, and until now nothing had asked it for anything
+    // except steering.
+    const D = RIG.driver;
+    const wantLean = THREE.MathUtils.clamp(-gLat / 14, -1, 1) * D.leanPerG;
+    const wantFold = THREE.MathUtils.clamp(-gLong / 10, -1, 1) * D.foldPerG;
+    const k = Math.min(1, dt * D.leanRate);
+    rig.lean.rotation.z += (wantLean - rig.lean.rotation.z) * k;
+    rig.lean.rotation.x += (wantFold - rig.lean.rotation.x) * k;
     // Lock-to-lock is about a turn and a half each way in a road car;
     // steer is -1..1, so this is the visible wheel angle.
     const lock = steer * RIG.driver.steerLock;
@@ -3988,6 +4013,11 @@ export class GameEngine {
       maxPitch: RIG.driver.neckPitch,
       ease: Math.min(1, dt * RIG.driver.neckRate),
     });
+    // The neck fights the lean. A driver's head stays closer to level
+    // than their shoulders do, which is why a helmet cam is watchable —
+    // so take a fraction of the body's roll back off the head. After the
+    // aim, because the aim sets yaw and pitch and this is roll.
+    rig.head.rotation.z = -rig.lean.rotation.z * D.headCounter;
 
     // Ten-to-two, carried round with the rim. The grips are points ON
     // the wheel — fixed in its LOCAL frame — so localToWorld carries
@@ -4057,7 +4087,16 @@ export class GameEngine {
       this.v2
     );
     this.v1.y += RIG.driver.lookHeight;
-    this.solveDriverRig(rig, this.steerSmooth, this.throttle, this.brake, this.v1, dt);
+    this.solveDriverRig(
+      rig,
+      this.steerSmooth,
+      this.throttle,
+      this.brake,
+      this.v1,
+      dt,
+      this.latAccel,
+      this.longAccel
+    );
   }
 
   /**
@@ -4095,7 +4134,19 @@ export class GameEngine {
       );
       this.v1.y += RIG.driver.lookHeight;
     }
-    this.solveDriverRig(rig, r.steerVis, r.throttleVis, r.brakeVis, this.v1, dt);
+    // The rival's g comes from their own kinematics: how fast they are
+    // crossing the lane, and the acceleration the caller measured.
+    const rivalLat = ((r.targetLat - r.lat) * R.steerPerLat) * r.speed * 0.35;
+    this.solveDriverRig(
+      rig,
+      r.steerVis,
+      r.throttleVis,
+      r.brakeVis,
+      this.v1,
+      dt,
+      rivalLat,
+      accel
+    );
   }
 
   /**
@@ -4270,6 +4321,7 @@ export class GameEngine {
     // shells and measure them without driving fourteen garage purchases.
     (window as unknown as { __grnBuildCar: typeof createCar }).__grnBuildCar = createCar;
     (window as unknown as { __grnCars: typeof CARS }).__grnCars = CARS;
+    (window as unknown as { __grnRig: typeof RIG }).__grnRig = RIG;
     // The real tune for any car in the showroom, so a test can race the
     // machine the game would hand over instead of inventing a plausible
     // set of numbers and then measuring its own invention.

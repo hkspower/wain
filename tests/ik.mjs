@@ -454,6 +454,173 @@ check(traffic.err.length > 0 && Math.max(...traffic.err) < 0.02,
   `a traffic driver missed its wheel by ${Math.max(...traffic.err)} m`);
 check(traffic.lean === 0, "traffic drivers carry legs — the lean build is not being used");
 
+// ---- the body answers to g, and the limbs keep hold ------------------
+//
+// The car rolls and pitches on its springs; until now the driver inside
+// it sat rigid, which is the one thing a mannequin does that a person
+// does not. They now lean away from the cornering force and fold forward
+// under braking.
+//
+// The half that matters is the second one. Hands are solved onto grips
+// ON the wheel and feet onto the pedal faces, and neither moves with the
+// driver — so leaning the torso is only correct if the arms and legs
+// re-solve to stay where they are gripping. That is the whole reason to
+// have IK rather than a parented pose, and nothing had ever asked it for
+// anything but steering.
+{
+  const r = await page.evaluate(async () => {
+    const THREE = window.__grnThree;
+    const e = window.__grnEngine;
+    e.setPaused(true);
+    const rig = e.carBody.userData.driver;
+    const park = () => {
+      const away = e.track.wrap(2400 + e.track.length / 2);
+      for (const t of e.traffic) t.s = away;
+      if (e.rival) { e.rival.s = away; e.rival.speed = 0; }
+      e.player.s = 2400;
+      e.player.lat = 0;
+    };
+    // Hand and foot error against the things they are supposed to be
+    // holding, in world space.
+    const hold = () => {
+      rig.wheel.updateWorldMatrix(true, true);
+      let hands = 0;
+      for (const arm of rig.arms) {
+        const grip = arm.side < 0 ? window.__grnRig.driver.gripLeft : window.__grnRig.driver.gripRight;
+        const want = new THREE.Vector3(
+          Math.cos(grip) * rig.wheelRadius,
+          Math.sin(grip) * rig.wheelRadius,
+          0
+        );
+        rig.wheel.localToWorld(want);
+        const got = arm.hand.getWorldPosition(new THREE.Vector3());
+        hands = Math.max(hands, got.distanceTo(want));
+      }
+      let feet = 0;
+      for (const leg of rig.legs) {
+        const pedal = leg.side > 0 ? rig.pedals.throttle : rig.pedals.brake;
+        pedal.updateWorldMatrix(true, false);
+        const want = new THREE.Vector3().setFromMatrixPosition(pedal.matrixWorld);
+        const got = leg.hand.getWorldPosition(new THREE.Vector3());
+        feet = Math.max(feet, got.distanceTo(want));
+      }
+      return { hands: +hands.toFixed(4), feet: +feet.toFixed(4) };
+    };
+    // Where the car actually is matters. Holding lock on a STRAIGHT
+    // settles into a constant crab angle, which is not a turn and
+    // generates no cornering force at all — the first version of this
+    // measured there and reported the lean as 0.013 rad in both
+    // directions, which is not a bug in the driver, it is a question
+    // asked in a place with no answer.
+    //
+    // So: the peak is captured at the frame of peak load, and the sign
+    // of the lean is compared against the sign of the force AT THAT
+    // FRAME. That is well defined wherever the car is, and it does not
+    // care whether the load is a transient or a steady state.
+    const run = (steer, brake, speed, at, frames = 150) => {
+      e.roll = 0; e.rollVel = 0; e.pitch = 0; e.pitchVel = 0;
+      e.heading = 0; e.driftYaw = 0; e.prevBeta = 0;
+      rig.lean.rotation.set(0, 0, 0);
+      e.player.speed = speed;
+      e.prevSpeed = speed;
+      let peak = { lat: 0, lean: 0, head: 0 };
+      let fold = 0;
+      let worst = { hands: 0, feet: 0 };
+      for (let i = 0; i < frames; i++) {
+        const away = e.track.wrap(at + e.track.length / 2);
+        for (const t of e.traffic) t.s = away;
+        if (e.rival) { e.rival.s = away; e.rival.speed = 0; }
+        e.player.s = at;
+        e.player.lat = 0;
+        if (brake === 0) e.player.speed = speed;
+        e.setTouchInput({ throttle: 0, brake, steer });
+        e.update(1 / 60);
+        e.scene.updateMatrixWorld(true);
+        // Sampled at peak LEAN, not peak force. The body is damped —
+        // it takes about a fifth of a second to be pushed — so at the
+        // instant of peak load it has barely started to move, and
+        // reading there understates the lean by a factor of five. What
+        // matters is the moment the driver is most displaced and which
+        // way the force was pushing them then.
+        if (Math.abs(rig.lean.rotation.z) > Math.abs(peak.lean)) {
+          peak = {
+            lat: e.latAccel,
+            lean: rig.lean.rotation.z,
+            head: rig.head.rotation.z,
+          };
+        }
+        if (Math.abs(rig.lean.rotation.x) > Math.abs(fold)) fold = rig.lean.rotation.x;
+        const h = hold();
+        worst = { hands: Math.max(worst.hands, h.hands), feet: Math.max(worst.feet, h.feet) };
+      }
+      return {
+        lean: +peak.lean.toFixed(4),
+        lat: +peak.lat.toFixed(2),
+        headRoll: +peak.head.toFixed(4),
+        fold: +fold.toFixed(4),
+        hands: +worst.hands.toFixed(4),
+        feet: +worst.feet.toFixed(4),
+      };
+    };
+    return {
+      // 3060 is the Ras Al-Ard sweep, the tightest corner on the lap.
+      straight: run(0, 0, 36, 2400),
+      left: run(-0.9, 0, 40, 2400),
+      right: run(0.9, 0, 40, 2400),
+      sweeper: run(0, 0, 36, 3060),
+      braking: run(0, 1, 44, 2400, 40),
+    };
+  });
+
+  console.log(
+    `\ndriver lean  peak: left ${r.left.lean} rad at ${r.left.lat} m/s2, ` +
+      `right ${r.right.lean} at ${r.right.lat}, sweeper ${r.sweeper.lean} at ${r.sweeper.lat}; ` +
+      `braking folds ${r.braking.fold}`
+  );
+  check(
+    Math.abs(r.sweeper.lean) > 0.01,
+    `the tightest corner on the lap leans the driver ${r.sweeper.lean} rad — they are still a mannequin`
+  );
+  // Every loaded case has to lean AWAY from the force, and there have to
+  // be cases of both signs — otherwise "it leans the right way" is a
+  // claim about one direction that the other has never been asked about.
+  const loaded = [r.left, r.right, r.sweeper].filter((x) => Math.abs(x.lat) > 5);
+  const wrongWay = loaded.filter((x) => Math.sign(x.lean) !== -Math.sign(x.lat));
+  check(
+    loaded.length >= 2 &&
+      new Set(loaded.map((x) => Math.sign(x.lat))).size === 2,
+    `the cases only ever loaded the car one way (${loaded.map((x) => x.lat).join(", ")} m/s2) — ` +
+      `the other direction has never been tested`
+  );
+  check(
+    wrongWay.length === 0,
+    `the driver leans INTO the corner in ${wrongWay.length} case(s): ` +
+      wrongWay.map((x) => `${x.lean} rad at ${x.lat} m/s2`).join(", ")
+  );
+  check(r.braking.fold > 0.005, `braking folds the driver ${r.braking.fold} rad — the belts do it all`);
+  // The neck fights the lean, so the head stays closer to level.
+  check(
+    Math.abs(r.left.headRoll) > 1e-4 &&
+      Math.sign(r.left.headRoll) === -Math.sign(r.left.lean),
+    `the head rolls with the body (${r.left.headRoll} against ${r.left.lean}) instead of resisting it`
+  );
+
+  const all = [r.straight, r.left, r.right, r.sweeper, r.braking];
+  const worstHands = Math.max(...all.map((x) => x.hands));
+  const worstFeet = Math.max(...all.map((x) => x.feet));
+  console.log(
+    `             through all of it hands stay ${worstHands} m off the rim, feet ${worstFeet} m off the pedals`
+  );
+  check(
+    worstHands < 0.02,
+    `leaning pulls a hand ${worstHands} m off the wheel — the arms are not re-solving`
+  );
+  check(
+    worstFeet < 0.02,
+    `leaning pulls a foot ${worstFeet} m off the pedal — the legs are not re-solving`
+  );
+}
+
 console.log(fail.length?"\nFAILURES:\n - "+fail.join("\n - "):"\nIK solves, clamps and behaves");
 await b.close();
 process.exit(fail.length?1:0);

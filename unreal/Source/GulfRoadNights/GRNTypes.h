@@ -340,6 +340,10 @@ namespace GRNRig
 	constexpr float DriverWheelY = 0.44f;
 	constexpr float DriverWheelZ = 0.24f;
 	constexpr float DriverWheelRake = -0.42f;
+	constexpr float DriverLeanPerG = 0.115f;
+	constexpr float DriverFoldPerG = 0.075f;
+	constexpr float DriverLeanRate = 5.5f;
+	constexpr float DriverHeadCounter = 0.45f;
 	constexpr float DriverWheelRadius = 0.16f;
 	constexpr float DriverGripLeft = 2.26194671f;
 	constexpr float DriverGripRight = 0.879645943f;

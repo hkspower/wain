@@ -186,6 +186,10 @@ export interface ArmChain {
  *  caller animates. */
 export interface DriverRig {
   group: THREE.Group;
+  /** The driver's body, minus the wheel and pedals they are holding.
+   *  Rotating this leans the whole person and lets the IK put their
+   *  hands and feet back where they were. */
+  lean: THREE.Group;
   arms: ArmChain[];
   /** Hip → knee → foot, read through the ArmChain field names. */
   legs: ArmChain[];
@@ -221,6 +225,22 @@ export function kuwaitiDriver(
   lean = false
 ): DriverRig {
   const group = new THREE.Group();
+  /**
+   * The person, as distinct from the car parts they are touching.
+   *
+   * The wheel and the pedal box live on `group` because they are bolted
+   * to the car; the torso, head, shoulders and hips live in here because
+   * they are not. Under cornering load a driver moves and the wheel does
+   * not, and with the two on the same node there was no way to say so.
+   *
+   * Leaning THIS is what makes the whole body answer to g: the arms and
+   * legs are solved by IK onto world-space targets on the wheel and the
+   * pedals, so moving their roots makes the limbs re-solve to stay where
+   * they are gripping. That is the entire reason to have IK rather than
+   * a parented pose, and until now nothing had ever asked it for that.
+   */
+  const body = new THREE.Group();
+  group.add(body);
   const suit = new THREE.MeshStandardMaterial({ color: suitColor, roughness: 0.7 });
   const skin = new THREE.MeshStandardMaterial({ color: skinTone, roughness: 0.75 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x101216, roughness: 0.55 });
@@ -229,11 +249,11 @@ export function kuwaitiDriver(
   const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.185, 0.46, 9), suit);
   torso.position.set(0, 0.23, -0.02);
   torso.rotation.x = -0.16;
-  group.add(torso);
+  body.add(torso);
 
   const head = new THREE.Object3D();
   head.position.set(0, RIG.driver.headY, RIG.driver.headZ);
-  group.add(head);
+  body.add(head);
   const skull = new THREE.Mesh(new THREE.SphereGeometry(0.112, 12, 9), skin);
   // Sealed inside the helmet below, which is what a helmet is for. The
   // mesh audit looks for geometry that never paints a pixel; this is the
@@ -293,7 +313,7 @@ export function kuwaitiDriver(
   for (const side of [-1, 1]) {
     const shoulder = new THREE.Object3D();
     shoulder.position.set(side * RIG.driver.shoulderX, RIG.driver.shoulderY, RIG.driver.shoulderZ);
-    group.add(shoulder);
+    body.add(shoulder);
     const upperMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.042, upper, 6), suit);
     upperMesh.position.y = -upper / 2;
     shoulder.add(upperMesh);
@@ -345,7 +365,7 @@ export function kuwaitiDriver(
     const hip = new THREE.Object3D();
     hip.position.set(side * RIG.driver.hipX, RIG.driver.hipY, RIG.driver.hipZ);
     hip.rotation.x = RIG.driver.hipPitch;
-    group.add(hip);
+    body.add(hip);
     const thighMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.054, thigh, 7), suit);
     thighMesh.position.y = -thigh / 2;
     hip.add(thighMesh);
@@ -368,7 +388,7 @@ export function kuwaitiDriver(
   group.traverse((o) => {
     if ((o as THREE.Mesh).isMesh) o.castShadow = true;
   });
-  return { group, arms, legs, head, wheel, wheelRadius, pedals };
+  return { group, lean: body, arms, legs, head, wheel, wheelRadius, pedals };
 }
 
 export interface RacerLook {

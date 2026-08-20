@@ -44,6 +44,20 @@ export const RIG = {
     wheelY: 0.44,
     wheelZ: 0.24,
     wheelRake: -0.42,
+    /** How far the driver is thrown sideways at the limit of grip, in
+     *  radians of body lean. A belted driver in a road seat moves a few
+     *  degrees; a stiff bucket less. Away from the corner, because that
+     *  is the direction the force pushes them. */
+    leanPerG: 0.115,
+    /** And forward under braking. Smaller, because the belts take it. */
+    foldPerG: 0.075,
+    /** How fast the body follows the load. A person is not a spring on
+     *  a car's timescale — they brace. */
+    leanRate: 5.5,
+    /** The head stays more upright than the torso, because a driver's
+     *  neck fights the lean to keep their eyes level. A fraction of the
+     *  body's roll, taken back off the head. */
+    headCounter: 0.45,
     wheelRadius: 0.16,
     /** Where each hand grips the rim, as an angle in the wheel's own
      *  frame — ten-to-two. Fixed in LOCAL space: the wheel's transform
