@@ -37,6 +37,70 @@ export const GradeShader = {
     uBlackPoint: { value: 0.006 },
     /** Shadow toe: >1 pushes the darks down without touching highlights. */
     uToe: { value: 1.06 },
+    /**
+     * Shadow lift — a gamma, but only where the picture is already dark.
+     *
+     * Below 1 this raises what it touches. Applied through the same
+     * weight as uLift below, so it fades out by uLiftRange and daylight
+     * never sees it at all.
+     *
+     * Both of those properties were learned the hard way. A flat OFFSET
+     * lift broke the exposure ladder outright: as exposure came down the
+     * lift grew to fill in exactly what had been removed, and the frame
+     * stopped darkening. Replacing it with a GLOBAL gamma broke it
+     * again, in the other regime — a daylight frame sits up on the
+     * filmic shoulder, and a gamma of 0.84 there compresses the whole
+     * upper range toward white and flattens the response to a stop.
+     * Measured on a night frame the same gamma was perfectly healthy:
+     * -15% for a stop down, +112% for a stop up.
+     *
+     * So it is proportional (black still maps to black, and the mapping
+     * is strictly increasing, which is what keeps exposure working) and
+     * it is confined to the shadows (which is where the missing picture
+     * was).
+     */
+    uShadowLift: { value: 0.8 },
+    /**
+     * Lift — light grey poured into the floor.
+     *
+     * The game reads too dark: measured at 22:30 on the corniche, 37.6%
+     * of every road pixel sat at 2/255 or below, which is not shadow, it
+     * is missing picture. This is the control that fixes that, and it is
+     * display-referred like everything else here, so 0.03 puts the
+     * darkest pixel at about 8/255.
+     *
+     * It is deliberately NOT a flat offset. A constant added everywhere
+     * is what makes a night scene look milky — the same reason the grain
+     * above is scaled by luminance rather than added flat. This one
+     * fades out by uLiftRange, so it fills the dead shadows and leaves
+     * the midtones and every light in the frame exactly where they were.
+     *
+     * Small on purpose. The proportional work is done by uToe above;
+     * this exists only to put a floor under the literal blacks, which a
+     * gamma cannot do because it maps zero to zero. At 0.008 that floor
+     * is about two 8-bit steps — enough that nothing in the frame is
+     * dead, little enough that it cannot argue with the exposure.
+     */
+    uLift: { value: 0.008 },
+    /**
+     * How much of a night this is, 0..1 — driven from the sun's altitude
+     * by applyDaylight(), and the master switch on both lifts above.
+     *
+     * The lift exists to rescue a NIGHT frame, and a daylight frame not
+     * only does not need it but cannot afford it: sitting up on the
+     * filmic shoulder, daylight has almost no downward exposure response
+     * left (measured -1% to -3% for a whole stop), so a lift that grows
+     * as the frame dims is enough to reverse it outright. It did: a stop
+     * DOWN came back 6% brighter, which is an exposure control that has
+     * stopped being one.
+     *
+     * Gating on the sun rather than on the metered frame luminance on
+     * purpose. Auto-exposure is a GPU feedback loop; hanging a look
+     * control off its output makes the look part of the loop.
+     */
+    uNight: { value: 1 },
+    /** Luma at which the lift has faded to nothing. */
+    uLiftRange: { value: 0.3 },
     /** Where the highlight shoulder starts. Below this nothing changes,
      *  so midtones and the scene's colour intent are untouched. */
     uKnee: { value: 0.86 },
@@ -83,6 +147,10 @@ export const GradeShader = {
     uniform vec2 uTexel;
     uniform float uBlackPoint;
     uniform float uToe;
+    uniform float uLift;
+    uniform float uLiftRange;
+    uniform float uShadowLift;
+    uniform float uNight;
     uniform float uKnee;
     uniform float uContrast;
     uniform float uPivot;
@@ -109,7 +177,10 @@ export const GradeShader = {
       c.rgb += (c.rgb - blur) * 0.4;
 
       float d = distance(vUv, vec2(0.5));
-      c.rgb *= 1.0 - 0.38 * smoothstep(0.38, 0.85, d);
+      // Vignette. This was 0.38 — the corners delivered at 62% of what
+      // was rendered there, which on a night frame is most of a stop and
+      // a real part of why the game reads dark.
+      c.rgb *= 1.0 - 0.26 * smoothstep(0.38, 0.85, d);
 
       // Grain scaled by luminance. A flat +/- offset lifts every black
       // pixel off zero and is what makes a night scene look milky; real
@@ -128,6 +199,21 @@ export const GradeShader = {
       // balanced picture rather than arguing with it. After the black
       // point, so a tint cannot lift a black off zero.
       c.rgb *= uTint;
+
+      // The lift, after the tint so the grey it pours in stays grey: a
+      // battle's cool balance should change the colour of the picture,
+      // not the colour of its floor.
+      //
+      // One weight drives both halves: full in the blacks, nothing by
+      // uLiftRange, so everything below is opened up and everything a
+      // headlight has already lit is left exactly where it was.
+      float lLift = luma(c.rgb);
+      float wLift = (1.0 - smoothstep(0.0, max(uLiftRange, 1e-4), lLift)) * uNight;
+      // Proportional first — this is the part that does the work.
+      c.rgb = mix(c.rgb, pow(max(c.rgb, 0.0), vec3(uShadowLift)), wLift);
+      // Then a floor under the literal blacks, which a gamma cannot give
+      // because it maps zero to zero.
+      c.rgb += uLift * wLift;
 
       // Contrast as a gamma about a pivot: p * (c/p)^k. A plain
       // (c - 0.5) * k + 0.5 would drag the whole image's exposure around

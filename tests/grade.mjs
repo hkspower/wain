@@ -350,6 +350,40 @@ const lums = [situ.cruise.lum, situ.battle.lum, situ.win.lum, situ.lose.lum];
 console.log(`            luminance across the four: ${lums.join(" / ")}  ` +
   check(Math.max(...lums) - Math.min(...lums) < 0.045, "a situation moved the exposure, not just the colour"));
 
+// ---- the shadow lift is a NIGHT look, and knows it ------------------
+// The lift is what took the road from 37.6% of its pixels sitting on
+// black to none of them. It is also, applied in daylight, enough to
+// reverse the exposure control — a stop DOWN came back 6% brighter —
+// so it is gated on the sun. That gate is one line in applyDaylight()
+// and nothing else would notice if it stopped working: the night would
+// quietly go back to being crushed. This is the line that notices.
+{
+  const r = await page.evaluate(async () => {
+    const e = window.__grnEngine;
+    const u = e.grainPass.material.uniforms;
+    const at = (h) => {
+      e.timeHours = h;
+      e.world.setTimeOfDay(h);
+      e.applyDaylight();
+      return +u.uNight.value.toFixed(3);
+    };
+    const out = { night: at(22.5), noon: at(12.5), dusk: at(18.2), dawn: at(5.6) };
+    e.timeHours = 22.5;
+    e.world.setTimeOfDay(22.5);
+    e.applyDaylight();
+    return out;
+  });
+  console.log(
+    `night gate  22:30 ${r.night} | 12:30 ${r.noon} | 18:12 ${r.dusk} | 05:36 ${r.dawn}`
+  );
+  check(r.night > 0.9, `the shadow lift is only ${r.night} at 22:30 — the night stays crushed`);
+  check(r.noon < 0.05, `the shadow lift is ${r.noon} at midday — it will flatten daylight`);
+  check(
+    r.dusk > 0.05 && r.dusk < 0.9,
+    `twilight reads ${r.dusk}, which is either full night or full day rather than dusk`
+  );
+}
+
 console.log(fail.length?"\nFAILURES:\n - "+fail.join("\n - "):"\nthe grade grades");
 await b.close();
 process.exit(fail.length?1:0);

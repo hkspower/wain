@@ -1525,6 +1525,15 @@ export class GameEngine {
    */
   private applyDaylight(): void {
     const dark = 1 - this.daylight;
+    // The grade's shadow lift is a night look and is switched by the same
+    // sun that switches the headlights. Twilight gets a fraction of it,
+    // which is what dusk on the corniche actually wants.
+    const alt = Math.sin(((this.timeHours - 6) / 24) * Math.PI * 2);
+    this.grainPass.material.uniforms.uNight.value = THREE.MathUtils.clamp(
+      (0.05 - alt) / 0.4,
+      0,
+      1
+    );
     this.headlight.intensity = this.headlightBase * (0.25 + 0.75 * dark);
     this.beamBaseOpacity = this.beamBaseOpacityNight * dark;
     const glows = (this.carBody?.userData.headGlowMats as THREE.SpriteMaterial[]) ?? [];
