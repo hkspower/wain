@@ -4,7 +4,12 @@ Everything below is measured, not remembered — the suite states are from
 a full run, and each entry says what is actually wrong, what it costs,
 and what I would do about it. Ordered by what I would fix first.
 
-Last checked against commit `9d5252d`.
+Last checked against commit `108e21c`.
+
+> **Item 2 is done.** The world is seeded now (`src/game/rand.ts`), which
+> also fixed the `test:streets` flake — three consecutive runs, 339
+> blocks, none in a street. It is left below with its reasoning intact,
+> because the argument for doing it is the argument for not undoing it.
 
 ## The suite, right now
 
@@ -14,7 +19,7 @@ clean. Three things are not green:
 | | state |
 |---|---|
 | `test:assets`, `test:race` | **failing**, same single cause: `public/models/driver.glb` is missing |
-| `test:streets` | **intermittent**, about one run in three |
+| `test:streets` | **fixed** — was intermittent, the world is seeded now |
 | `test:levels` | passes, but takes over ten minutes |
 
 ---
@@ -56,7 +61,8 @@ through world generation. Every visual check becomes reproducible and
 this entire class of flake disappears. Roughly an hour, and it makes
 every future visual measurement trustworthy.
 
-**Strongly recommended.** This is the highest-value item on the list.
+**Done**, in commit `fdb3778`. `tests/world.mjs` pins it: two loads, one
+city, compared on the instance matrices rather than on screenshots.
 
 ## 3. "Full open world" is not what the world is
 
@@ -142,10 +148,9 @@ request.
 
 ## What I would do next, in order
 
-1. **Seed the world** (item 2). Everything else that is measured
-   visually gets more trustworthy the moment this lands.
+1. ~~Seed the world~~ — done.
 2. **Decide the driver model** (item 1). One decision turns two suites
-   green permanently.
+   green permanently, and it is yours to make rather than mine.
 3. **The hydration warning** (item 6), because it is twenty minutes.
 4. Then either the mods-page preview (item 9) or scope the road network
    (item 3) — but the road network deserves its own run at it.
