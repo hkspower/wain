@@ -1,5 +1,6 @@
+import PlaceMapFrame from "@/components/PlaceMapFrame";
 import VoiceControls, { SpeakButton } from "@/components/VoiceControls";
-import { IconMap, IconGo, IconPinSolid } from "@/components/icons";
+import { IconMap, IconGo } from "@/components/icons";
 import type { Place } from "@/lib/places";
 import { placeSuggestParts } from "@/lib/voice-lines";
 
@@ -19,11 +20,6 @@ export default function PlaceMap({
 }) {
   const { lat, lng } = place;
   const suggestParts = placeSuggestParts(place, related);
-  // A box tight enough to show the surrounding streets and landmarks.
-  const bbox = [lng - 0.008, lat - 0.005, lng + 0.008, lat + 0.005].join(",");
-  const embed = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(
-    bbox
-  )}&layer=mapnik&marker=${lat}%2C${lng}`;
   const osmLink = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`;
   const gmapsPoi = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
     `${place.name}, ${place.area}, Kuwait`
@@ -37,29 +33,7 @@ export default function PlaceMap({
         وينه بالضبط؟
       </h2>
       <div className="overflow-hidden rounded-3xl border border-sand-200 bg-white shadow-sm">
-        {/* The iframe is transparent until OpenStreetMap paints, so give it a
-            deliberate ground: a soft sand field with a pin, instead of a
-            stark white void while tiles load. */}
-        <div className="relative h-72 w-full bg-sand-100 standalone:h-52 sm:h-96">
-          <span
-            aria-hidden="true"
-            className="absolute inset-0 grid place-items-center text-sand-700"
-          >
-            <span className="flex flex-col items-center gap-2">
-              <IconPinSolid className="size-10" />
-              <span className="text-xs font-semibold">الخريطة تحمّل…</span>
-            </span>
-          </span>
-          <iframe
-            src={embed}
-            title={`خريطة ${place.nameAr}`}
-            loading="lazy"
-            // See SearchMap: scripts only, no same-origin, no top navigation.
-            sandbox="allow-scripts"
-            referrerPolicy="no-referrer"
-            className="absolute inset-0 block h-full w-full border-0"
-          />
-        </div>
+        <PlaceMapFrame place={place} related={related} />
         <div className="flex flex-wrap items-center gap-3 border-t border-sand-200 p-4">
           <a
             href={gmapsPoi}

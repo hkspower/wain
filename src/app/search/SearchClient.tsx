@@ -30,6 +30,9 @@ export default function SearchClient() {
 
   const [q, setQ] = useState(params.get("q") ?? "");
   const [kind, setKind] = useState<DocKind | "all">("all");
+  // Shared between the map and the list: pointing at either end highlights the
+  // other, so the two read as one view of the same results.
+  const [activeSlug, setActiveSlug] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Rebuilt whenever the place data changes (admin edits arrive live).
@@ -194,8 +197,8 @@ export default function SearchClient() {
             <p className="mb-4 text-sm text-ink-500">
               {toArabicDigits(hits.length)} نتيجة
             </p>
-            <SearchMap places={hitPlaces} />
-            <SearchResults hits={hits} />
+            <SearchMap places={hitPlaces} active={activeSlug} onActive={setActiveSlug} />
+            <SearchResults hits={hits} activeSlug={activeSlug} onActiveSlug={setActiveSlug} />
           </>
         ) : (
           <div className="rounded-3xl border border-dashed border-sand-300 bg-sand-100/70 py-16 text-center">

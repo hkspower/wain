@@ -113,23 +113,37 @@ export default function SearchResults({
   hits,
   activeIndex = -1,
   onNavigate,
+  activeSlug = null,
+  onActiveSlug,
 }: {
   hits: SearchHit[];
   activeIndex?: number;
   onNavigate?: () => void;
+  /** Slug currently highlighted on the map, so the pair reads as one view. */
+  activeSlug?: string | null;
+  onActiveSlug?: (slug: string | null) => void;
 }) {
   return (
     <ul className="space-y-2">
-      {hits.map((hit, i) => (
+      {hits.map((hit, i) => {
+        const slug = hit.doc.kind === "place" ? hit.doc.id.replace(/^place:/, "") : null;
+        const linked = !!slug && slug === activeSlug;
+        return (
         <li key={hit.doc.id}>
           <Link
             href={hit.doc.url}
             onClick={onNavigate}
             data-result-index={i}
+            onMouseEnter={() => slug && onActiveSlug?.(slug)}
+            onMouseLeave={() => slug && onActiveSlug?.(null)}
+            onFocus={() => slug && onActiveSlug?.(slug)}
+            onBlur={() => slug && onActiveSlug?.(null)}
             className={`group flex items-center gap-3 rounded-2xl border p-3 transition ${
               i === activeIndex
                 ? "border-sea-300 bg-sea-50/60 ring-2 ring-sea-100"
-                : "border-sand-200 bg-white hover:border-sand-300 hover:bg-sand-100"
+                : linked
+                  ? "border-sea-300 bg-sea-50/40"
+                  : "border-sand-200 bg-white hover:border-sand-300 hover:bg-sand-100"
             }`}
           >
             <Thumb hit={hit} />
@@ -150,7 +164,8 @@ export default function SearchResults({
             <IconGo className="size-4 shrink-0 text-sand-400 transition group-hover:-translate-x-1 group-hover:text-coral-600" />
           </Link>
         </li>
-      ))}
+        );
+      })}
     </ul>
   );
 }
