@@ -35,7 +35,12 @@
        only sets already-drawn parts moving — so a reduced-motion visitor,
        a print, and a screenshot all read the same explanation. */
     /* the offer cards keep their taller 136px scene — this is the service rail */
-    .card > .scene { height: 108px; }</style>
+    .card > .scene { height: 108px; }
+/* Measured on a 390×844 phone: one card filled a third of the fold,
+         and the flagship row's drawing took 150 of its 302px. The drawings
+         come down; nothing they explain is lost, because each still sits
+         above the line of text that names it. */
+      .card > .scene { height: 88px; }</style>
 </head>
 <body>
   <header class="ds-head">

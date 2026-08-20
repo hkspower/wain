@@ -833,6 +833,15 @@ def home_checks(pg):
         }""")
         return pg.eval_on_selector("header", "e=>e.getBoundingClientRect().height")
 
+    # Scroll down first, then up. The bar is toggled by a scroll listener, and
+    # scrollTo({top:0}) when the page is ALREADY at 0 fires no scroll event —
+    # so a `scrolled` class left over from an earlier check never cleared. That
+    # is what made this check read 177px, then 190px, then 185px for a bar that
+    # rests at 253: it was measuring the compact bar and calling it the full
+    # one. Driving both directions makes each state actually happen.
+    pg.evaluate("window.scrollTo({top:800,behavior:'instant'})")
+    pg.wait_for_function("() => document.documentElement.classList.contains('scrolled')")
+    settled_header()
     pg.evaluate("window.scrollTo({top:0,behavior:'instant'})")
     pg.wait_for_function("() => !document.documentElement.classList.contains('scrolled')")
     tall = settled_header()

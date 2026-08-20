@@ -794,7 +794,7 @@
     .scene .soft { stroke: var(--border); }
     /* the band's facts are drawn small: a third of a row each, above one line
        of text, so the drawing explains and the sentence only names */
-    .scene.sm { height: 84px; background: none; }
+    .scene.sm { height: 60px; background: none; }
     /* the flagship row is wide, so its drawing is too — and it carries the
        unit names inside itself, which is why the row needs no chip list */
     .scene.wide { height: 150px; margin-top: 12px; max-width: 620px; }
@@ -882,6 +882,12 @@
       100% { opacity: 0;  transform: scale(1.18); }
     }
     @media (max-width: 640px) {
+      /* Measured on a 390×844 phone: one card filled a third of the fold,
+         and the flagship row's drawing took 150 of its 302px. The drawings
+         come down; nothing they explain is lost, because each still sits
+         above the line of text that names it. */
+      .card > .scene { height: 88px; }
+      .scene.wide { height: 110px; }
       /* Measured: the labelled pill is 188px wide and covered the first
          section heading outright. On a 390px screen there is no margin to
          put a wide pill in, so it becomes a disc — the label lives in
