@@ -28,6 +28,22 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+/**
+ * Counted from the data, never typed into the deck.
+ *
+ * The cover said "سبعة عشر مكان" and "١٧" in three places. The catalogue has
+ * since doubled, and a preview that misstates the size of the product is worse
+ * than no preview — so the numbers are read from the source they describe.
+ */
+const placesSrc = readFileSync(join(ROOT, 'src/lib/places.ts'), 'utf8');
+const PLACES_N = (placesSrc.slice(placesSrc.indexOf('export const places')).match(/^    slug: /gm) || []).length;
+const CATS_N = (placesSrc.match(/^    id: "[a-z]+",$/gm) || []).length;
+if (PLACES_N < 5 || CATS_N < 3) {
+  console.error(`gen-preview: read ${PLACES_N} places and ${CATS_N} categories — refusing to print that.`);
+  process.exit(1);
+}
+const arabicDigits = (n) => String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[+d]);
 const OUT = join(ROOT, 'out');
 const WORK = join(ROOT, '.preview-cache');
 const PDF = join(ROOT, 'docs', 'wain-app-preview.pdf');
@@ -91,6 +107,28 @@ for (const s of SCREENS) {
   }
   await pp.screenshot({ path: join(WORK, `${s.id}.png`) });
 }
+
+// وين AI, caught mid-listen. There is no microphone on a build box, and the
+// panel only reaches this state from a real three-second hold, so the
+// recogniser is stubbed and the gesture driven directly. Everything rendered
+// is the real component in its real state.
+await pp.addInitScript(() => {
+  class FakeRec {
+    constructor() { this.onresult = null; this.onerror = null; this.onend = null; }
+    start() { setTimeout(() => this.onresult?.({ results: [[{ transcript: 'قهوة هادية' }]] }), 250); }
+    stop() {} abort() {}
+  }
+  window.SpeechRecognition = FakeRec;
+});
+await pp.goto(base + '/', { waitUntil: 'networkidle' });
+await pp.evaluate(() => document.fonts.ready);
+const fab = pp.locator('button[aria-label*="وين AI"]');
+await fab.dispatchEvent('pointerdown', { pointerType: 'touch', button: 0, pointerId: 1 });
+await pp.waitForTimeout(3400);
+await pp.waitForSelector('#wain-ai-panel', { timeout: 5000 });
+await pp.waitForTimeout(600);
+await pp.screenshot({ path: join(WORK, 'ai.png') });
+
 await phoneCtx.close();
 
 const deskCtx = await browser.newContext({ viewport: { width: 1440, height: 1010 }, deviceScaleFactor: 2, locale: 'ar-KW' });
@@ -129,6 +167,7 @@ const CAPTIONS = {
   place2:  ['مكان ثاني', 'نفس التصميم بلون التصنيف — حدائق وشواطئ'],
   add:     ['سجّل نشاطك', 'تسجيل مجاني لأي نشاط في الكويت'],
   about:   ['عن وين', 'الفكرة والفريق'],
+  ai:      ['وين AI', 'اضغط ٣ ثواني وقل وش تبي — شوق ترد بصوتها'],
 };
 
 const PHONE_W = 58;              // mm
@@ -253,12 +292,12 @@ ${page('cover', `
     <div class="label">معاينة التطبيق · ٢٠٢٦</div>
     <h1 class="h1" style="margin-top:5mm">دليل الأماكن في الكويت،<br>بالعربي وباللهجة الكويتية</h1>
     <p class="body" style="margin-top:6mm">
-      تطبيق ويب يشتغل على الجوال بدون إنترنت بعد أول زيارة. سبعة عشر مكان،
-      خريطة بحث دقيقة، وتسجيل مجاني لأصحاب الأنشطة.
+      تطبيق ويب يشتغل على الجوال بدون إنترنت بعد أول زيارة. ${arabicDigits(PLACES_N)} مكان،
+      مساعدة صوتية بالكويتي، خريطة بحث دقيقة، وتسجيل مجاني لأصحاب الأنشطة.
     </p>
     <div style="margin-top:9mm;display:flex;gap:9mm">
-      <div><div style="font-weight:700;font-size:17pt;color:#14120f">١٧</div><div class="body" style="font-size:8pt">مكان</div></div>
-      <div><div style="font-weight:700;font-size:17pt;color:#14120f">٨</div><div class="body" style="font-size:8pt">تصنيفات</div></div>
+      <div><div style="font-weight:700;font-size:17pt;color:#14120f">${arabicDigits(PLACES_N)}</div><div class="body" style="font-size:8pt">مكان</div></div>
+      <div><div style="font-weight:700;font-size:17pt;color:#14120f">${arabicDigits(CATS_N)}</div><div class="body" style="font-size:8pt">تصنيفات</div></div>
       <div><div style="font-weight:700;font-size:17pt;color:#14120f">١٠٠٪</div><div class="body" style="font-size:8pt">عربي</div></div>
     </div>
   </div>
@@ -275,8 +314,8 @@ ${page('', `
 `)}
 
 ${page('', `
-  <div class="head"><h2 class="h2">المكان والتسجيل</h2><span class="label">٢ / ٣</span></div>
-  <div class="row">${phone('place')}${phone('place2')}${phone('add')}</div>
+  <div class="head"><h2 class="h2">اسأل بصوتك، وسجّل نشاطك</h2><span class="label">٢ / ٣</span></div>
+  <div class="row">${phone('ai')}${phone('place')}${phone('add')}</div>
   <div class="foot-rule"><span>وين؟ — معاينة التطبيق</span><span>٣</span></div>
 `)}
 
@@ -320,6 +359,14 @@ await pdfPage.pdf({
   preferCSSPageSize: true,          // honours @page, so no scaling is applied
   margin: { top: 0, right: 0, bottom: 0, left: 0 },
 });
+// A raster of each page next to the PDF, so the result can be checked without
+// a PDF viewer — and so a broken page is visible before it ships.
+await pdfPage.setViewportSize({ width: 1123, height: 794 });
+const pageCount = await pdfPage.locator('.page').count();
+for (let i = 0; i < pageCount; i++) {
+  await pdfPage.locator('.page').nth(i).screenshot({ path: join(WORK, `page-${i + 1}.png`) });
+}
+
 await browser.close();
 server.close();
 console.log(`gen-preview: docs/wain-app-preview.pdf (${(readFileSync(PDF).length / 1e6).toFixed(2)} MB) ✓`);
