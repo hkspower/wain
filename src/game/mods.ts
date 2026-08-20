@@ -7,6 +7,7 @@ import { EngineId, EngineSpec, getEngine } from "./engines";
 export type ExclusiveCat =
   | "engine"
   | "aspiration"
+  | "intake"
   | "brakes"
   | "exhaust"
   | "tires"
@@ -19,6 +20,7 @@ export type Category = ExclusiveCat | "internals" | "chassis" | "extras";
 export const EXCLUSIVE_CATS: ReadonlySet<string> = new Set([
   "engine",
   "aspiration",
+  "intake",
   "brakes",
   "exhaust",
   "tires",
@@ -60,7 +62,13 @@ export const PARTS: Part[] = [
   { id: "exhaust", cat: "exhaust", name: "Sport Cat-Back", ar: "دبة رياضية", price: 350, desc: "+7% power. Drops the voice and lets it bark on a lift" },
   { id: "exhaust-race", cat: "exhaust", name: "Race Straight-Pipe", ar: "دبة سباق", price: 900, desc: "+11% power. No silencer left: raw, loud, and it spits flame" },
   { id: "exhaust-ti", cat: "exhaust", name: "Titanium Quad", ar: "دبة تيتانيوم", price: 1800, desc: "+14% power. Four burnt-blue tips and a hard metallic rasp" },
-  { id: "intake", cat: "internals", name: "Cold Intake", ar: "فلتر مفتوح", price: 250, desc: "+5% power" },
+  // Intake — exclusive tiers. The basic one is free and comes fitted to
+  // every new car, so the very first thing a player sees in the shop is
+  // something they already own rather than a wall of things they cannot
+  // afford. It also gives the Cold Intake something to be better THAN,
+  // which a lone 250 KD part never had.
+  { id: "intake-basic", cat: "intake", name: "Panel Filter", ar: "فلتر عادي", price: 0, desc: "+2% power. The basic panel filter, fitted from new — yours already" },
+  { id: "intake", cat: "intake", name: "Cold Intake", ar: "فلتر مفتوح", price: 250, desc: "+5% power. Open cone, cold feed, and an induction growl you can hear" },
   // Brakes — exclusive tiers
   { id: "brakes-sport", cat: "brakes", name: "Sport Brakes", ar: "بريك رياضي", price: 500, desc: "Braking 26 → 32" },
   { id: "brakes-race", cat: "brakes", name: "Racing Brakes", ar: "بريك سباق", price: 1000, desc: "Braking 26 → 38" },
@@ -462,8 +470,9 @@ export interface GarageState {
 /** A car as it leaves the lot: factory paint, no glow, nothing fitted. */
 export function freshBuild(): CarBuild {
   return {
-    owned: ["paint-white", "glow-none"],
-    equipped: { paint: "paint-white", glow: "glow-none" },
+    // The basic panel filter comes with the car, like the paint does.
+    owned: ["paint-white", "glow-none", "intake-basic"],
+    equipped: { paint: "paint-white", glow: "glow-none", intake: "intake-basic" },
   };
 }
 
@@ -511,6 +520,11 @@ export function editBuild(g: GarageState, carId: string = g.car): CarBuild {
   return b;
 }
 
+/** What a new save starts with, in KD. Also the referral bonus — see
+ *  REFERRAL_KD — because doubling a new player's money is a real
+ *  welcome and 10 KD to somebody with 4,000 is not. */
+export const STARTING_KD = 10;
+
 const KEY = "gulf-road-nights-garage";
 
 export function loadGarage(): GarageState {
@@ -547,14 +561,31 @@ export function loadGarage(): GarageState {
           if (b.owned.includes("exhaust") && !b.equipped.exhaust) {
             b.equipped.exhaust = "exhaust";
           }
+          // The same thing has now happened to the intake: it was an
+          // always-on internals part and is an exclusive tier now. A
+          // player who paid 250 KD for the Cold Intake keeps it fitted;
+          // everybody else gets the free basic filter they would have
+          // started with, so no existing save is left with an empty
+          // slot and less power than a brand new one.
+          if (!b.owned.includes("intake-basic")) b.owned.push("intake-basic");
+          if (!b.equipped.intake) {
+            b.equipped.intake = b.owned.includes("intake") ? "intake" : "intake-basic";
+          }
         }
         return g;
       }
     }
   } catch {}
   return {
-    // Enough to leave the dealership with the cheapest car after one win
-    kd: 2500,
+    // Ten dinars and the car you showed up in.
+    //
+    // It used to be 2,500, which bought the cheapest machine in the
+    // showroom and a set of tyres before the player had turned a wheel —
+    // and a game that hands you the shop on the first screen has spent
+    // its progression before the first race. Ten buys nothing at all.
+    // The first rival is worth 400, which is the point: the money comes
+    // from the road.
+    kd: STARTING_KD,
     cars: ["wain-special"],
     car: "wain-special",
     builds: { "wain-special": freshBuild() },
@@ -646,7 +677,8 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
   if (has("ecu")) accelMult += 0.08;
   const exhaust = EXHAUSTS[eq.exhaust ?? ""] ?? EXHAUSTS.stock;
   accelMult += exhaust.power;
-  if (has("intake")) accelMult += 0.05;
+  if (eq.intake === "intake") accelMult += 0.05;
+  else if (eq.intake === "intake-basic") accelMult += 0.02;
   if (has("weight")) accelMult += 0.1;
 
   // Mods move the governor in km/h, so the showroom number and the

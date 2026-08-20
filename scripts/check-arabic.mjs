@@ -101,7 +101,16 @@ for (const c of CANON) {
 {
   const client = readFileSync("src/game/teams.ts", "utf8");
   const server = readFileSync("server/hub-server.mjs", "utf8");
-  const grab = (src) => src.match(/\.replace\(\/\[\^([^\]]*)\]\/g, ""\)/)?.[1];
+  // The filter that keeps Arabic, specifically — not merely the first
+  // character filter in the file. The server has more than one now (an
+  // invite code is deliberately Latin and deliberately narrower), and
+  // taking whichever came first made this check compare the tag rule
+  // against the referral rule and report a disagreement that did not
+  // exist. A filter is identified by what it is FOR: the tag filters are
+  // the ones that admit the Arabic ranges, and a file that has none is
+  // the failure this was written to catch.
+  const grab = (src) =>
+    src.match(/\.replace\(\/\[\^([^\]]*\\u0621[^\]]*)\]\/g, ""\)/)?.[1];
   const a = grab(client);
   const b = grab(server);
   if (!a || !b) {

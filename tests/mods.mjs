@@ -375,6 +375,132 @@ console.log(`migration    old save -> driven car accel ${migrated.driven.accel} 
   check(migrated.driven.top > 360, "an old save lost the parts it had bought") + " " +
   check(migrated.kd === 4242, "an old save lost its money"));
 
+// 10. What a brand new save is handed.
+// Ten dinars and a free panel filter — the money buys nothing, which is
+// the point, and the filter means the first thing in the shop is
+// something already owned rather than a wall of prices.
+const fresh = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  localStorage.removeItem("gulf-road-nights-garage");
+  e.applyGarage();
+  const g = JSON.parse(localStorage.getItem("gulf-road-nights-garage") ?? "null");
+  // applyGarage only reads; force the default to be written.
+  const loaded = window.__grnLoadGarage();
+  const b = loaded.builds[loaded.car];
+  return {
+    kd: loaded.kd,
+    car: loaded.car,
+    owns: b.owned.includes("intake-basic"),
+    fitted: b.equipped.intake,
+    accel: +e.tune.accelMult.toFixed(4),
+    wrote: g !== null,
+  };
+});
+console.log(
+  `new save     ${fresh.kd} KD, driving the ${fresh.car}, intake fitted: ${fresh.fitted}  ` +
+    check(fresh.kd === 10, `a new save starts with ${fresh.kd} KD, not 10`) + " " +
+    check(fresh.owns && fresh.fitted === "intake-basic", "the free panel filter is not fitted from new")
+);
+// The free filter has to be worth something, or it is a label.
+//
+// There is no "no intake" state to compare against, and that is correct
+// rather than a gap: loadGarage fits the basic filter to any save that
+// lacks one, so every car in the game has at least that. So the worth is
+// proved against the car's own bare figure — power x the engine's
+// multiplier — which is what accelMult would be with nothing in the
+// slot at all.
+const intakeTiers = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  const set = (id) => {
+    const g = window.__grnLoadGarage();
+    const b = g.builds[g.car];
+    if (!b.owned.includes(id)) b.owned.push(id);
+    b.equipped.intake = id;
+    window.__grnSaveGarage(g);
+    e.applyGarage();
+    return +e.tune.accelMult.toFixed(4);
+  };
+  const basic = set("intake-basic");
+  const cold = set("intake");
+  const bare = +(e.tune.engine.powerMult * 1.0).toFixed(4); // wain-special, power 1.0
+  return { bare, basic, cold };
+});
+console.log(
+  `intake       bare ${intakeTiers.bare} -> basic ${intakeTiers.basic} -> cold ${intakeTiers.cold}  ` +
+    check(
+      Math.abs(intakeTiers.basic - (intakeTiers.bare + 0.02)) < 1e-3,
+      `the free filter is worth ${(intakeTiers.basic - intakeTiers.bare).toFixed(3)}, not the 0.02 it claims`
+    ) + " " +
+    check(
+      Math.abs(intakeTiers.cold - (intakeTiers.bare + 0.05)) < 1e-3,
+      `the Cold Intake is worth ${(intakeTiers.cold - intakeTiers.bare).toFixed(3)}, not the 0.05 it claims`
+    )
+);
+// And an old save that paid 250 KD for the Cold Intake keeps it fitted
+// rather than finding an empty slot where its part used to be.
+const intakeMigration = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  localStorage.setItem("gulf-road-nights-garage", JSON.stringify({
+    car: "deera-sedan", cars: ["deera-sedan"], kd: 900,
+    builds: { "deera-sedan": { owned: ["intake"], equipped: {} } },
+  }));
+  const g = window.__grnLoadGarage();
+  const b = g.builds["deera-sedan"];
+  e.applyGarage();
+  return { fitted: b.equipped.intake, owns: b.owned.includes("intake-basic") };
+});
+console.log(
+  `intake save  an owned Cold Intake migrates to fitted: ${intakeMigration.fitted}  ` +
+    check(intakeMigration.fitted === "intake", "a paid-for Cold Intake came unfitted") + " " +
+    check(intakeMigration.owns, "an old save did not get the free basic filter")
+);
+
+// 11. The invite code.
+// Six characters from an alphabet with no O/0 or I/1/L in it, stable for
+// a given save, and different for different saves. This is asserted
+// rather than looked at because the first version rendered
+// "XundefinedundefinedKundefined5" — thirty characters, three of them
+// the word "undefined" — and nothing anywhere threw.
+const codes = await page.evaluate(() => {
+  const c = window.__grnCommunity;
+  const ids = [
+    "d3d94468-2f0b-4b4a-9a0a-000000000001",
+    "d3d94468-2f0b-4b4a-9a0a-000000000002",
+    "totally-different-save",
+  ];
+  const made = ids.map((id) => c.inviteCode(id));
+  return {
+    made,
+    stable: c.inviteCode(ids[0]) === made[0],
+    mine: c.inviteCode(c.playerId()),
+    shaped: made.every((x) => c.isCodeShaped(x)),
+    tidy: c.normaliseCode(" ab-c2 34 "),
+    empty: c.inviteCode(""),
+  };
+});
+const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+console.log(
+  `invite code  ${codes.made.join(" / ")} (mine ${codes.mine})  ` +
+    check(
+      codes.made.every((x) => x.length === 6),
+      `a code came out ${codes.made.map((x) => x.length).join("/")} characters long, not 6`
+    ) + " " +
+    check(
+      codes.made.every((x) => [...x].every((ch) => ALPHABET.includes(ch))),
+      `a code used a character outside the unambiguous alphabet: ${codes.made.join(",")}`
+    )
+);
+check(codes.stable, "the same save produced two different codes");
+check(
+  new Set(codes.made).size === codes.made.length,
+  `different saves collided: ${codes.made.join(",")}`
+);
+check(codes.made[0] !== codes.made[1], "two ids differing in one character share a code");
+check(codes.shaped, "a generated code does not pass the game's own shape check");
+check(codes.tidy === "ABC234", `a typed code tidied to "${codes.tidy}", not "ABC234"`);
+check(codes.empty === "", "a save with no id still produced a code");
+check(codes.mine.length === 6, `this save's own code is ${codes.mine.length} characters`);
+
 console.log(fail.length ? "\nFAILURES:\n - " + fail.join("\n - ") : "\nevery new mod changes the car");
 await browser.close();
 process.exit(fail.length ? 1 : 0);

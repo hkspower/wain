@@ -33,6 +33,7 @@ import {
   type BrakeResult,
 } from "./brakes";
 import { gearAt, revFraction } from "./gears";
+import { playerId, inviteCode, normaliseCode, isCodeShaped } from "./community";
 import {
   ENGINES,
   torqueShape,
@@ -4020,6 +4021,25 @@ export class GameEngine {
     // Where the pumps are, so the fuel test can drive to one rather than
     // be told where it is.
     (window as unknown as { __grnStations: typeof STATIONS }).__grnStations = STATIONS;
+    // The garage's own reader and writer, so a test can set up a save the
+    // way the game does — including every migration — instead of writing
+    // localStorage by hand and then testing its own JSON.
+    (window as unknown as { __grnLoadGarage: typeof loadGarage }).__grnLoadGarage = loadGarage;
+    // The invite-code machinery, so its output can be checked rather
+    // than eyeballed on a lobby screen — which is how the first version
+    // of it shipped a thirty-character code reading "undefined" three
+    // times.
+    (
+      window as unknown as {
+        __grnCommunity: {
+          playerId: typeof playerId;
+          inviteCode: typeof inviteCode;
+          normaliseCode: typeof normaliseCode;
+          isCodeShaped: typeof isCodeShaped;
+        };
+      }
+    ).__grnCommunity = { playerId, inviteCode, normaliseCode, isCodeShaped };
+    (window as unknown as { __grnSaveGarage: typeof saveGarage }).__grnSaveGarage = saveGarage;
     (window as unknown as { __grnLandmarks: typeof LANDMARK_S }).__grnLandmarks = LANDMARK_S;
     (window as unknown as { __grnDebug: object }).__grnDebug = {
       playerSpeed: this.player.speed,

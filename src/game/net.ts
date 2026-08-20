@@ -1,4 +1,5 @@
 import type { Team, TeamLogo } from "./teams";
+import { playerId, inviteCode } from "./community";
 
 // WebSocket client for the online hub (server/hub-server.mjs).
 // Used by the /hub lobby page and by the race in online mode.
@@ -21,6 +22,25 @@ export interface DuelInvite {
   wager: number;
 }
 
+/** A reward the server says this save has earned and not yet banked. */
+export interface ReferralReward {
+  token: string;
+  kd: number;
+  why: string;
+}
+
+/** The server's account of this save's invites. The client never works
+ *  any of this out for itself — it asks. */
+export interface ReferralState {
+  /** The code this save publishes, as the server has it registered. */
+  code: string | null;
+  /** How many people have joined on it. */
+  invited: number;
+  /** Whether this save has already redeemed somebody's code. */
+  used: boolean;
+  owed: ReferralReward[];
+}
+
 export interface HubEvents {
   onTeams?(teams: Team[]): void;
   onMyTeam?(team: Team | null): void;
@@ -38,6 +58,12 @@ export interface HubEvents {
   onStates?(states: Array<[number, number, number, number]>): void; // [id, s, lat, speed]
   onChat?(name: string, text: string): void;
   onLeaderboard?(entries: LapEntry[]): void;
+  /** The server's view of this save's referrals, sent on join and again
+   *  whenever it changes — including when a friend redeems your code
+   *  while you are sitting in the lobby. */
+  onReferralState?(state: ReferralState): void;
+  /** The answer to a code this player just entered. */
+  onReferralResult?(ok: boolean, reason: string): void;
   onClose?(): void;
   onError?(): void;
 }
@@ -51,7 +77,12 @@ export class HubClient {
 
   constructor(events: HubEvents, name: string, color: string, url = DEFAULT_HUB_URL) {
     this.ws = new WebSocket(url);
-    this.ws.onopen = () => this.send({ t: "join", name, color });
+    // The save's id and its invite code go up with the join, so the
+    // server can recognise a returning player and answer questions about
+    // a code that belongs to them. Both are empty when storage is off,
+    // and the server treats that as "no community features".
+    this.ws.onopen = () =>
+      this.send({ t: "join", name, color, pid: playerId(), code: inviteCode() });
     this.ws.onclose = () => events.onClose?.();
     this.ws.onerror = () => events.onError?.();
     this.ws.onmessage = (e) => {
@@ -109,6 +140,17 @@ export class HubClient {
         case "leaderboard":
           events.onLeaderboard?.(msg.entries);
           break;
+        case "ref-state":
+          events.onReferralState?.({
+            code: msg.code ?? null,
+            invited: msg.invited ?? 0,
+            used: !!msg.used,
+            owed: Array.isArray(msg.owed) ? msg.owed : [],
+          });
+          break;
+        case "ref-result":
+          events.onReferralResult?.(!!msg.ok, msg.reason ?? "");
+          break;
       }
     };
   }
@@ -127,6 +169,20 @@ export class HubClient {
 
   sendChat(text: string): void {
     this.send({ t: "chat", text });
+  }
+
+  /** Redeem a friend's invite code. The server answers with
+   *  onReferralResult and then a fresh onReferralState. */
+  claimInvite(code: string): void {
+    this.send({ t: "ref-claim", code });
+  }
+
+  /** Tell the server these rewards have been paid into the save, so it
+   *  stops offering them. Sent AFTER the KD has landed: a bonus the
+   *  server has forgotten and the client never banked is money nobody
+   *  can get back. */
+  bankRewards(tokens: string[]): void {
+    if (tokens.length) this.send({ t: "ref-banked", tokens });
   }
 
   sendLap(ms: number): void {

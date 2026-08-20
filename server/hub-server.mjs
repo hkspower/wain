@@ -19,8 +19,16 @@
 //                    {t:"duel-invite",from,name,tag,wager}
 //                    {t:"duel-start",opponent} {t:"duel-sp",you,them,gap}
 //                    {t:"duel-end",won,reason,wager} {t:"duel-declined"}
+//
+//   Referrals (see the ledger below):
+//   client → server: {t:"join",...,pid,code}   {t:"ref-claim",code}
+//                    {t:"ref-banked",tokens:[...]}
+//   server → client: {t:"ref-state",code,invited,owed:[{token,kd,why}]}
+//                    {t:"ref-result",ok,reason}
 
 import { WebSocketServer } from "ws";
+import { readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 
 const PORT = Number(process.env.HUB_PORT || 8787);
 const TICK_MS = 100;
@@ -34,10 +42,182 @@ const httpServer = http.createServer((req, res) => handleRest(req, res));
 const wss = new WebSocketServer({ server: httpServer });
 let nextId = 1;
 
-/** id -> { ws, name, color, state: {s,lat,speed} | null, lastChatAt } */
+/** id -> { ws, name, color, state: {s,lat,speed} | null, lastChatAt, pid } */
 const players = new Map();
 /** name -> best lap ms */
 const bestLaps = new Map();
+
+// ---------------------------------------------------------------- referrals
+//
+// The one part of this server that has to survive a restart.
+//
+// Everything else here is a session: who is online, what the fastest lap
+// of the evening was, which duel is running. Losing that on a restart is
+// fine, because none of it is a promise. A referral is a promise — "your
+// friend joined, here is your ten dinars" — and a promise that a process
+// restart forgets is worse than not making it.
+//
+// What the server is the authority on, and what it is not:
+//
+//   IT DECIDES  whether a code belongs to anybody, whether it is your
+//               own, whether you have already claimed one, and whether a
+//               reward has already been paid out. All four are the parts
+//               that involve another person, and a client cannot mint
+//               them for itself.
+//
+//   IT CANNOT   stop somebody editing their own save. The wallet is a
+//               number in the player's browser. This ledger makes the
+//               referral honest; it does not make the economy secure,
+//               and it was never going to.
+//
+// The store is a small JSON file rather than a database because it holds
+// one row per player and is written a handful of times an hour. Written
+// atomically — temp file, then rename — so a crash mid-write leaves the
+// previous ledger rather than half of the new one.
+
+const LEDGER_PATH = process.env.HUB_LEDGER || "server/data/referrals.json";
+
+/** code -> pid, first come first served. */
+const codeOwner = new Map();
+/**
+ * pid -> {
+ *   code,            the invite code this save published
+ *   usedCode,        the code this save redeemed, if any — once only
+ *   invited: [pid],  saves that redeemed this one's code
+ *   owed: [{token, kd, why}],   earned, not yet banked by the client
+ *   paid: [token],              banked
+ * }
+ */
+const referrals = new Map();
+
+function ledgerEntry(pid) {
+  let e = referrals.get(pid);
+  if (!e) {
+    e = { code: null, usedCode: null, invited: [], owed: [], paid: [] };
+    referrals.set(pid, e);
+  }
+  return e;
+}
+
+function loadLedger() {
+  try {
+    const raw = JSON.parse(readFileSync(LEDGER_PATH, "utf8"));
+    for (const [pid, e] of Object.entries(raw.referrals ?? {})) {
+      referrals.set(pid, {
+        code: e.code ?? null,
+        usedCode: e.usedCode ?? null,
+        invited: e.invited ?? [],
+        owed: e.owed ?? [],
+        paid: e.paid ?? [],
+      });
+      if (e.code) codeOwner.set(e.code, pid);
+    }
+    console.log(`[hub] referral ledger: ${referrals.size} saves, ${codeOwner.size} codes`);
+  } catch (err) {
+    if (err.code !== "ENOENT") console.warn(`[hub] could not read the ledger: ${err.message}`);
+  }
+}
+
+let ledgerDirty = false;
+function saveLedger() {
+  if (!ledgerDirty) return;
+  ledgerDirty = false;
+  try {
+    mkdirSync(dirname(LEDGER_PATH), { recursive: true });
+    const out = { referrals: Object.fromEntries(referrals) };
+    const tmp = `${LEDGER_PATH}.tmp`;
+    writeFileSync(tmp, JSON.stringify(out));
+    renameSync(tmp, LEDGER_PATH);
+  } catch (err) {
+    console.warn(`[hub] could not write the ledger: ${err.message}`);
+    ledgerDirty = true;
+  }
+}
+
+/** The bonus, in KD. Kept in step with REFERRAL_KD in the web build. */
+const REFERRAL_KD = 10;
+
+/** Register the code a save publishes. First claim on a code wins; a
+ *  collision is a one-in-a-billion event and the loser simply keeps a
+ *  code nobody can look up, which is better than two saves answering to
+ *  the same one. */
+function registerCode(pid, code) {
+  if (!pid || !code) return;
+  const e = ledgerEntry(pid);
+  const owner = codeOwner.get(code);
+  if (owner && owner !== pid) return;
+  if (e.code !== code) {
+    if (e.code) codeOwner.delete(e.code);
+    e.code = code;
+    ledgerDirty = true;
+  }
+  codeOwner.set(code, pid);
+}
+
+function refState(pid) {
+  const e = ledgerEntry(pid);
+  return {
+    t: "ref-state",
+    code: e.code,
+    invited: e.invited.length,
+    used: !!e.usedCode,
+    owed: e.owed,
+  };
+}
+
+/**
+ * Redeem somebody's code.
+ *
+ * Every refusal here is a rule about other people, which is why they
+ * live on this side of the wire: your own code is not an invitation,
+ * a code nobody published is not a code, and a save gets to be new
+ * exactly once.
+ */
+function claimReferral(pid, rawCode) {
+  const code = String(rawCode ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+  const e = ledgerEntry(pid);
+  if (!code) return { ok: false, reason: "That is not a code." };
+  if (e.usedCode) return { ok: false, reason: "You have already used an invite." };
+  if (e.code === code) return { ok: false, reason: "That is your own code." };
+  const owner = codeOwner.get(code);
+  if (!owner) return { ok: false, reason: "Nobody is using that code." };
+  if (owner === pid) return { ok: false, reason: "That is your own code." };
+
+  const host = ledgerEntry(owner);
+  e.usedCode = code;
+  e.owed.push({ token: `joined:${code}:${pid}`, kd: REFERRAL_KD, why: "Joined on an invite" });
+  if (!host.invited.includes(pid)) host.invited.push(pid);
+  host.owed.push({ token: `invited:${pid}`, kd: REFERRAL_KD, why: "A friend joined on your code" });
+  ledgerDirty = true;
+  saveLedger();
+
+  // If the friend who invited them is online, tell them now.
+  for (const [, other] of players) {
+    if (other.pid === owner) send(other.ws, refState(owner));
+  }
+  return { ok: true, reason: `Invite accepted — ${REFERRAL_KD} KD each.` };
+}
+
+/** The client banked these rewards into its own save; stop offering
+ *  them. A token it was never owed is ignored rather than argued with. */
+function bankReferrals(pid, tokens) {
+  const e = ledgerEntry(pid);
+  const wanted = new Set(Array.isArray(tokens) ? tokens.map(String) : []);
+  const before = e.owed.length;
+  e.owed = e.owed.filter((o) => {
+    if (!wanted.has(o.token)) return true;
+    if (!e.paid.includes(o.token)) e.paid.push(o.token);
+    return false;
+  });
+  if (e.owed.length !== before) {
+    ledgerDirty = true;
+    saveLedger();
+  }
+}
+
+loadLedger();
+setInterval(saveLedger, 10_000).unref?.();
+
 /** teamId -> { id, name, tag, logo, founder, members: Map<name, id|null> } */
 const teams = new Map();
 let nextTeamId = 1;
@@ -278,7 +458,13 @@ wss.on("connection", (ws) => {
     if (msg.t === "join" && !joined) {
       const name = String(msg.name ?? "racer").slice(0, MAX_NAME).trim() || "racer";
       const color = /^#[0-9a-fA-F]{6}$/.test(String(msg.color)) ? msg.color : "#f2f4f7";
-      players.set(id, { ws, name, color, state: null, lastChatAt: 0 });
+      // The save's own id, so a returning player is the same player.
+      // Absent for clients that predate this or have no storage; they
+      // simply get no community features rather than an error.
+      const pid = typeof msg.pid === "string" ? msg.pid.slice(0, 64) : "";
+      const code = typeof msg.code === "string" ? msg.code.slice(0, 8).toUpperCase() : "";
+      if (pid && code) registerCode(pid, code);
+      players.set(id, { ws, name, color, state: null, lastChatAt: 0, pid });
       joined = true;
       syncTeamPresence();
       const mine = teamOf(name);
@@ -290,6 +476,7 @@ wss.on("connection", (ws) => {
         teams: teamList(),
         team: mine ? teamView(mine) : null,
       });
+      if (pid) send(ws, refState(pid));
       if (mine) broadcastTeams();
       broadcast({ t: "joined", id, name, color }, id);
       console.log(`[hub] ${name}#${id} joined (${players.size} online)`);
@@ -396,6 +583,19 @@ wss.on("connection", (ws) => {
       if (duelId === undefined) return;
       const d = duels.get(duelId);
       endDuel(duelId, d.a === id ? d.b : d.a, "opponent quit");
+    } else if (msg.t === "ref-claim") {
+      if (!p.pid) {
+        send(ws, { t: "ref-result", ok: false, reason: "This save has no id — storage is off." });
+        return;
+      }
+      const r = claimReferral(p.pid, msg.code);
+      send(ws, { t: "ref-result", ...r });
+      send(ws, refState(p.pid));
+    } else if (msg.t === "ref-banked") {
+      if (p.pid) {
+        bankReferrals(p.pid, msg.tokens);
+        send(ws, refState(p.pid));
+      }
     } else if (msg.t === "lap") {
       const ms = Number(msg.ms);
       // Sanity: a 7.3 km lap takes at least ~80 s flat out

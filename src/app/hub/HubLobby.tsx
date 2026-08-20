@@ -21,6 +21,18 @@ import {
   saveProfile,
   formatLap,
 } from "@/game/net";
+import {
+  inviteCode,
+  inviteLink,
+  isCodeShaped,
+  markReferralPaid,
+  normaliseCode,
+  paidReferrals,
+  playerId,
+  REFERRAL_KD,
+} from "@/game/community";
+import { addKd } from "@/game/mods";
+import type { ReferralState } from "@/game/net";
 
 const CAR_COLORS = [
   "#f2f4f7", // pearl white
@@ -55,6 +67,11 @@ export default function HubLobby() {
   const [teamName, setTeamName] = useState("");
   const [teamTag, setTeamTag] = useState("");
   const [logo, setLogo] = useState<TeamLogo>(DEFAULT_LOGO);
+  const [referral, setReferral] = useState<ReferralState | null>(null);
+  const [codeDraft, setCodeDraft] = useState("");
+  const [refMsg, setRefMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [myCode, setMyCode] = useState("");
 
   const clientRef = useRef<HubClient | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -64,6 +81,15 @@ export default function HubLobby() {
     const p = loadProfile();
     setName(p.name);
     if (CAR_COLORS.includes(p.color)) setColor(p.color);
+    // The code is derived from an id in local storage, so it exists
+    // before the socket does and survives every reload.
+    setMyCode(inviteCode(playerId()));
+    // An invite link drops the friend's code straight into the box, so
+    // the only thing left to do is press the button.
+    try {
+      const fromLink = new URLSearchParams(location.search).get("invite");
+      if (fromLink) setCodeDraft(normaliseCode(fromLink));
+    } catch {}
     return () => {
       clientRef.current?.close();
       clientRef.current = null;
@@ -91,6 +117,25 @@ export default function HubLobby() {
         onChat: (from, text) =>
           setChat((prev) => [...prev.slice(-60), { name: from, text, key: chatKey.current++ }]),
         onLeaderboard: setLeaderboard,
+        // The server keeps the ledger; this only banks what it says is
+        // owed. Rewards are paid into the save FIRST and acknowledged
+        // afterwards — acknowledge first and a reload in the wrong
+        // half-second loses somebody ten dinars that nothing can give
+        // back. Paying twice is the failure this cannot have, so the
+        // token list in local storage is checked as well.
+        onReferralState: (st) => {
+          setReferral(st);
+          const already = paidReferrals();
+          const fresh = st.owed.filter((o) => !already.includes(o.token));
+          if (fresh.length) {
+            const total = fresh.reduce((sum, o) => sum + o.kd, 0);
+            addKd(total);
+            for (const o of fresh) markReferralPaid(o.token);
+            setRefMsg({ ok: true, text: `+${total} KD — ${fresh[0].why}` });
+          }
+          if (st.owed.length) clientRef.current?.bankRewards(st.owed.map((o) => o.token));
+        },
+        onReferralResult: (ok, reason) => setRefMsg({ ok, text: reason }),
         onTeams: setTeams,
         onMyTeam: (t) => {
           setMyTeam(t);
@@ -473,13 +518,106 @@ export default function HubLobby() {
               </div>
             </div>
 
+            {/* Community — invite a friend, both of you get paid.
+                Every number here comes off the socket. The client keeps
+                no count of its own: a referral tally a player can edit
+                is not a referral tally. */}
+            <div className="grn-panel p-5">
+              <h2 className="grn-label border-b border-white/10 pb-2 text-[0.66rem]">
+                Community — <span className="grn-ar" lang="ar">المجتمع</span>
+              </h2>
+              <p className="mt-1 text-[11px] leading-5 text-white/35">
+                Send a friend your code. When they use it, you both get{" "}
+                {REFERRAL_KD} KD — which is a whole starting balance each.
+              </p>
+
+              <div className="mt-4">
+                <div className="grn-label text-[0.58rem] text-white/45">Your code</div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <code className="grn-display flex-1 rounded border border-white/15 bg-black/30 px-3 py-2 text-lg tracking-[0.3em] text-sodium-400">
+                    {myCode || "—"}
+                  </code>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard?.writeText(inviteLink(myCode)).then(
+                        () => {
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 1800);
+                        },
+                        () => setRefMsg({ ok: false, text: "Could not reach the clipboard." })
+                      );
+                    }}
+                    disabled={!myCode}
+                    className="grn-btn-primary shrink-0 px-3 py-2 text-[0.7rem] disabled:opacity-40"
+                  >
+                    {copied ? "Copied ✓" : "Copy link"}
+                  </button>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-[11px] text-white/40">
+                  <span>
+                    {referral === null
+                      ? "Connecting…"
+                      : `${referral.invited} friend${referral.invited === 1 ? "" : "s"} joined`}
+                  </span>
+                  {referral !== null && referral.invited > 0 && (
+                    <span className="text-emerald-300">
+                      {referral.invited * REFERRAL_KD} KD earned
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Redeeming is once per save, so once it is done the box
+                  goes away rather than sitting there refusing. */}
+              {referral?.used ? (
+                <p className="mt-4 rounded border border-emerald-400/30 bg-emerald-400/5 px-3 py-2 text-[11px] text-emerald-200">
+                  You joined on a friend&apos;s invite. That one is spent — yours still works.
+                </p>
+              ) : (
+                <div className="mt-4">
+                  <div className="grn-label text-[0.58rem] text-white/45">
+                    Got a friend&apos;s code?
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <input
+                      value={codeDraft}
+                      onChange={(e) => setCodeDraft(normaliseCode(e.target.value))}
+                      placeholder="ABC234"
+                      maxLength={6}
+                      className="grn-display w-full rounded border border-white/15 bg-black/30 px-3 py-2 text-lg tracking-[0.3em] uppercase outline-none focus:border-gulf-400"
+                    />
+                    <button
+                      onClick={() => {
+                        setRefMsg(null);
+                        clientRef.current?.claimInvite(codeDraft);
+                      }}
+                      disabled={!isCodeShaped(codeDraft) || status !== "online"}
+                      className="grn-btn-primary shrink-0 px-3 py-2 text-[0.7rem] disabled:opacity-40"
+                    >
+                      Redeem
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {refMsg && (
+                <p
+                  className={`mt-3 text-[11px] ${
+                    refMsg.ok ? "text-emerald-300" : "text-red-300"
+                  }`}
+                >
+                  {refMsg.text}
+                </p>
+              )}
+            </div>
+
             {/* Leaderboard */}
             <div className="grn-panel p-5">
               <h2 className="grn-label border-b border-white/10 pb-2 text-[0.66rem]">
                 Best laps — <span className="grn-ar" lang="ar">أفضل اللفات</span>
               </h2>
               <p className="mt-1 text-[11px] text-white/35">
-                Full 7.3 km Gulf Road laps, this session
+                Full 8.5 km laps — Gulf Road out, the Second Ring back
               </p>
               <ol className="mt-3 space-y-2">
                 {leaderboard.length === 0 && (

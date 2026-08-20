@@ -36,6 +36,7 @@ type Tab = "showroom" | "performance" | "style";
 const PERFORMANCE_CATS: Array<{ cat: string; label: string }> = [
   { cat: "engine", label: "ENGINE — THE BLOCK ITSELF · المكينة" },
   { cat: "aspiration", label: "FORCED INDUCTION · التيربو" },
+  { cat: "intake", label: "INTAKE · الفلتر" },
   { cat: "internals", label: "INTERNALS · القطع الداخلية" },
   { cat: "exhaust", label: "EXHAUST · الدبة" },
   { cat: "brakes", label: "BRAKES · البريكات" },
