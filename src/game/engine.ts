@@ -291,10 +291,17 @@ function headlightPoolTexture(): THREE.CanvasTexture {
     ctx.save();
     ctx.translate(cx, cy);
     ctx.scale(rx, ry);
+    // Sampled, not three stops. At 0.42 of peak still 45% of the way
+    // out, each lobe was a plateau with a soft rim, and the pair read as
+    // a hard-edged wedge painted on the road rather than as light
+    // falling on it. This is broader than a point source — it is light
+    // landing on tarmac — but it still has to decay the whole way.
     const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
-    g.addColorStop(0, `rgba(255,248,222,${a})`);
-    g.addColorStop(0.45, `rgba(255,242,205,${a * 0.42})`);
-    g.addColorStop(1, "rgba(255,236,190,0)");
+    for (let i = 0; i <= 10; i++) {
+      const t = i / 10;
+      const f = (1 - t * t) ** 1.9;
+      g.addColorStop(t, `rgba(255,${Math.round(248 - 12 * t)},${Math.round(222 - 32 * t)},${(a * f).toFixed(4)})`);
+    }
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.arc(0, 0, 1, 0, Math.PI * 2);

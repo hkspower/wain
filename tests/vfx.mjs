@@ -271,6 +271,57 @@ const reflect = await page.evaluate(() => {
   }
 }
 
+// --- Glare falloff: a light must decay, not plateau ---
+// Every glow in the game is drawn ADDITIVELY, and an additive sprite
+// whose alpha is still a quarter of its peak a third of the way out does
+// not read as a light — it reads as a flat white disc with a soft edge.
+// That is what every street lamp looked like, and it is what "too much
+// flare" actually was: the wrong shape, not too much brightness. The old
+// curve held 0.25 of 0.85 (29%) at t=0.35 and 0.3 of 0.85 (35%) at 0.55.
+const falloff = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  // Any material carrying the shared point glow will do; they all use
+  // the one texture.
+  let canvas = null;
+  e.scene.traverse((o) => {
+    if (canvas) return;
+    const mats = [].concat(o.material ?? []);
+    for (const m of mats) {
+      const img = m?.map?.image;
+      if (img && typeof img.getContext === "function" && img.width === 128 && m.blending === 2) {
+        canvas = img;
+        return;
+      }
+    }
+  });
+  if (!canvas) return null;
+  const ctx = canvas.getContext("2d");
+  const d = ctx.getImageData(0, 0, 128, 128).data;
+  // Walk out along the horizontal radius from the centre.
+  const alphaAt = (t) => {
+    const x = Math.min(127, Math.round(64 + t * 63));
+    return d[(64 * 128 + x) * 4 + 3] / 255;
+  };
+  const peak = alphaAt(0);
+  return {
+    peak: +peak.toFixed(3),
+    at15: +(alphaAt(0.15) / peak).toFixed(3),
+    at35: +(alphaAt(0.35) / peak).toFixed(3),
+    at55: +(alphaAt(0.55) / peak).toFixed(3),
+    edge: +(alphaAt(0.99) / peak).toFixed(3),
+  };
+});
+if (!falloff) {
+  console.log("glare       no additive glow sprite found to measure  FAIL");
+  fail.push("no additive glow sprite found");
+} else {
+  console.log(`glare       peak ${falloff.peak}; of that ${falloff.at15} at 15% of the radius, ` +
+    `${falloff.at35} at 35%, ${falloff.at55} at 55%, ${falloff.edge} at the rim  ` +
+    check(falloff.at35 < 0.12, `the glow plateaus: still ${falloff.at35} of peak a third of the way out`) + " " +
+    check(falloff.at55 < 0.05, `the glow's tail is a slab: ${falloff.at55} of peak past halfway`) + " " +
+    check(falloff.edge < 0.01, "the glow does not reach zero at the sprite's edge, so the quad shows"));
+}
+
 console.log(fail.length ? "\nFAILURES:\n - " + fail.join("\n - ") : "\nall VFX checks passed");
 await browser.close();
 process.exit(fail.length ? 1 : 0);

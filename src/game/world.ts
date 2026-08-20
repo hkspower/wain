@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { pointGlowTexture } from "./glow";
 import { Track, ROAD_HALF_WIDTH, COAST_U, DRIFT_PLAZA } from "./track";
 import { applyTextureManifest } from "./assets";
 import { upgradePalmCrowns } from "./models";
@@ -498,21 +499,8 @@ function glintTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-function glowTexture(r: number, g: number, b: number): THREE.CanvasTexture {
-  const c = document.createElement("canvas");
-  c.width = 128;
-  c.height = 128;
-  const ctx = c.getContext("2d")!;
-  const grad = ctx.createRadialGradient(64, 64, 2, 64, 64, 64);
-  grad.addColorStop(0, `rgba(${r},${g},${b},0.85)`);
-  grad.addColorStop(0.35, `rgba(${r},${g},${b},0.25)`);
-  grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 128, 128);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
+// Point-source coronas come from glow.ts now — see the note there on
+// why a lamp needs a different falloff from a pool of light on tarmac.
 
 function concreteTexture(): THREE.CanvasTexture {
   const c = document.createElement("canvas");
@@ -693,7 +681,7 @@ function coronaPoints(positions: THREE.Vector3[], color: number, size: number): 
   const pts = new THREE.Points(
     geo,
     new THREE.PointsMaterial({
-      map: glowTexture(255, 255, 255),
+      map: pointGlowTexture(),
       color,
       size,
       transparent: true,
@@ -1592,7 +1580,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     scene.add(moonDisc);
     skyFollowers.push(moonDisc);
     moonHaloMat = new THREE.SpriteMaterial({
-      map: glowTexture(225, 220, 195),
+      map: pointGlowTexture(225, 220, 195),
       transparent: true,
       blending: THREE.AdditiveBlending,
       depthWrite: false,

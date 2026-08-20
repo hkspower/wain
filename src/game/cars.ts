@@ -4,6 +4,7 @@ import { EXHAUSTS, type ExhaustSpec } from "./mods";
 import { upgradeCarShells, upgradeWheels, upgradeDriver } from "./models";
 import { arabicUI, latinDisplay } from "./text";
 import { kuwaitiDriver } from "./characters";
+import { pointGlowTexture, poolGlowTexture } from "./glow";
 
 // Procedural sedans with a real silhouette: the body and glasshouse are
 // bevel-extruded side profiles (smoothed normals), riding on spoked
@@ -104,22 +105,8 @@ function headlightStarTexture(): THREE.CanvasTexture {
   return starTexShared;
 }
 
-let glowTexShared: THREE.CanvasTexture | null = null;
-function underglowTexture(): THREE.CanvasTexture {
-  if (glowTexShared) return glowTexShared;
-  const c = document.createElement("canvas");
-  c.width = 128;
-  c.height = 128;
-  const ctx = c.getContext("2d")!;
-  const g = ctx.createRadialGradient(64, 64, 6, 64, 64, 64);
-  g.addColorStop(0, "rgba(255,255,255,0.85)");
-  g.addColorStop(0.55, "rgba(255,255,255,0.3)");
-  g.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 128, 128);
-  glowTexShared = new THREE.CanvasTexture(c);
-  return glowTexShared;
-}
+// Glow shapes live in glow.ts: a lamp seen directly and a pool of neon
+// on the tarmac need opposite falloffs, and they used to share one.
 
 // Soft dark blob under every car — grounds it on the asphalt even where
 // the moon shadow falls subtle. Geometry/material shared across all cars
@@ -1487,7 +1474,7 @@ export function createCar(colors: CarColors): THREE.Group {
   const addHeadGlare = (x: number, y: number, z: number, size = 1) => {
     if (colors.simple) return;
     const halo = new THREE.SpriteMaterial({
-      map: underglowTexture(),
+      map: pointGlowTexture(),
       color: 0xfff2cc,
       transparent: true,
       opacity: 0.5,
@@ -1583,7 +1570,7 @@ export function createCar(colors: CarColors): THREE.Group {
   const tailGlowMats: THREE.MeshBasicMaterial[] = [];
   const addTailGlow = (x: number, y: number, z: number, w = 0.55, h = 0.4) => {
     const m = new THREE.MeshBasicMaterial({
-      map: underglowTexture(),
+      map: pointGlowTexture(),
       color: 0xff2222,
       transparent: true,
       opacity: 0.3,
@@ -2515,7 +2502,7 @@ export function createCar(colors: CarColors): THREE.Group {
     const glow = new THREE.Mesh(
       new THREE.PlaneGeometry(4, 5.6),
       new THREE.MeshBasicMaterial({
-        map: underglowTexture(),
+        map: poolGlowTexture(),
         color: colors.underglow,
         transparent: true,
         opacity: 0.6,
