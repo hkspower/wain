@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import CoordinatePicker from "@/components/CoordinatePicker";
+import { fieldDenseClass, labelClass } from "@/lib/form-classes";
 import { categories, type CategoryId, type Place } from "@/lib/places";
 
 export interface EditablePlace extends Place {
@@ -30,9 +32,8 @@ const EMPTY: EditablePlace = {
   sortOrder: 0,
 };
 
-const label = "block text-sm font-semibold text-ink-800";
-const input =
-  "mt-1.5 w-full rounded-xl border border-sand-200 bg-white px-3 py-2 text-sm text-ink-800 outline-none transition focus:border-sea-400 focus:ring-4 focus:ring-sea-100";
+const label = labelClass;
+const input = fieldDenseClass;
 
 /** Validation mirrors the database CHECK constraints so errors surface here. */
 export function validate(p: EditablePlace): string[] {
@@ -66,6 +67,9 @@ export default function PlaceForm({
   const [errs, setErrs] = useState<string[]>([]);
   const set = <K extends keyof EditablePlace>(k: K, v: EditablePlace[K]) =>
     setP((prev) => ({ ...prev, [k]: v }));
+  /** Both coordinates at once — setting them one at a time would move the pin
+   *  through a location that is not either of them. */
+  const setAll = (patch: Partial<EditablePlace>) => setP((prev) => ({ ...prev, ...patch }));
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -152,6 +156,16 @@ export default function PlaceForm({
         <div>
           <label className={label} htmlFor="f-lng">خط الطول (lng)</label>
           <input id="f-lng" dir="ltr" type="number" step="0.0001" className={input} value={p.lng} onChange={(e) => set("lng", Number(e.target.value))} />
+        </div>
+        <div className="sm:col-span-2">
+          {/* Two numbers nobody can sanity-check by reading them is how a pin
+              ends up a kilometre out. The map is the check. */}
+          <CoordinatePicker
+            lat={p.lat}
+            lng={p.lng}
+            onPick={(at) => setAll({ lat: at.lat, lng: at.lng })}
+            label="اضغط على الخريطة لضبط الموقع بدقّة"
+          />
         </div>
         <div>
           <label className={label} htmlFor="f-rating">التقييم (٠–٥)</label>

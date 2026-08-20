@@ -92,7 +92,7 @@ export default function MediaUploader({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 standalone:space-y-4">
       {/* ---- logo ---- */}
       <div>
         <span className="mb-1.5 block text-sm font-semibold text-ink-700">شعار المكان</span>

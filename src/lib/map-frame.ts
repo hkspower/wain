@@ -130,6 +130,40 @@ export function project(f: MapFrame, p: LatLng): { x: number; y: number } {
 }
 
 /**
+ * The inverse of `project`: which coordinate is under this point in the frame.
+ *
+ * This is what makes picking a location by clicking the map trustworthy. The
+ * bbox and the frame are the same shape by construction, so a click maps back
+ * to a real coordinate rather than an approximation.
+ */
+export function unproject(f: MapFrame, x: number, y: number): LatLng {
+  return {
+    lng: deg(f.cx - f.hx + x * 2 * f.hx),
+    lat: invMercY(f.cy + f.hy - y * 2 * f.hy),
+  };
+}
+
+/** Same centre, zoomed by a factor — >1 zooms out, <1 zooms in. */
+export function zoomFrame(f: MapFrame, factor: number): MapFrame {
+  const hx = Math.max(f.hx * factor, MIN_HALF_SPAN / 4);
+  const hy = hx / f.aspect;
+  return {
+    ...f, hx, hy,
+    bbox: [deg(f.cx - hx), invMercY(f.cy - hy), deg(f.cx + hx), invMercY(f.cy + hy)].join(","),
+  };
+}
+
+/** Re-centre on a coordinate, keeping the current zoom and shape. */
+export function centreFrame(f: MapFrame, at: LatLng): MapFrame {
+  const cx = rad(at.lng);
+  const cy = mercY(at.lat);
+  return {
+    ...f, cx, cy, centre: at,
+    bbox: [deg(cx - f.hx), invMercY(cy - f.hy), deg(cx + f.hx), invMercY(cy + f.hy)].join(","),
+  };
+}
+
+/**
  * Nudge overlapping pins apart until each one is clickable, then keep them
  * inside the frame.
  *

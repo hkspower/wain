@@ -33,7 +33,7 @@ export function BusinessBrand({ place }: { place: Place }) {
 export function BusinessBio({ place }: { place: Place }) {
   if (!place.bioAr?.trim()) return null;
   return (
-    <section className="mt-8 rounded-3xl border border-sand-200 bg-sand-100/70 p-5 sm:p-6">
+    <section className="mt-8 rounded-3xl border border-sand-200 bg-sand-100/70 p-5 standalone:mt-5 standalone:rounded-2xl standalone:p-4 sm:p-6">
       <h2 className="flex items-center gap-2 text-sm font-semibold text-ink-700">
         <IconSparkle className="size-4 text-sun-600" />
         بكلامهم
@@ -60,7 +60,7 @@ export function BusinessGallery({ place }: { place: Place }) {
       <h2 className="mb-4 font-display text-2xl font-bold text-ink-900">صور المكان</h2>
       {/* First image leads at double width where there is room, so a gallery of
           three does not read as a row of thumbnails. */}
-      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <ul className="grid grid-cols-2 gap-3 standalone:gap-2 sm:grid-cols-3">
         {images.map((url, i) => (
           <li
             key={url}

@@ -4,16 +4,17 @@ import { useState } from "react";
 import Link from "next/link";
 import CategoryIcon from "@/components/CategoryIcon";
 import { IconCheck, IconLocate, IconPinSolid, IconSparkle } from "@/components/icons";
+import CoordinatePicker from "@/components/CoordinatePicker";
 import MediaUploader from "@/components/MediaUploader";
 import { categories, type CategoryId } from "@/lib/places";
 import { newDraftId, uploadPending, type PickedFile } from "@/lib/media";
 import { inKuwait, submitBusiness, type SubmissionInput } from "@/lib/submissions";
+import { fieldClass, hintClass, labelClass } from "@/lib/form-classes";
 import { supabaseEnabled } from "@/lib/supabase";
 
-const field =
-  "w-full rounded-xl border border-sand-200 bg-white px-3 py-2.5 text-ink-800 shadow-sm outline-none transition placeholder:text-ink-500/50 focus:border-sea-400 focus:ring-4 focus:ring-sea-100";
-const label = "mb-1.5 block text-sm font-semibold text-ink-700";
-const hint = "mt-1 text-xs text-ink-500";
+const field = fieldClass;
+const label = labelClass;
+const hint = hintClass;
 
 const EMPTY: SubmissionInput = {
   name: "", nameAr: "", category: "restaurants", areaAr: "", addressAr: "",
@@ -154,7 +155,7 @@ export default function AddBusinessClient() {
   }
 
   return (
-    <form onSubmit={onSubmit} noValidate className="space-y-6">
+    <form onSubmit={onSubmit} noValidate className="space-y-6 standalone:space-y-4">
       {!supabaseEnabled && (
         <p className="rounded-2xl border border-sun-300 bg-sun-50 px-4 py-3 text-sm font-semibold text-sun-900">
           التسجيل مو موصول بقاعدة البيانات بعد، فالزر ما بيرسل شي. لو تشوف هذي
@@ -163,7 +164,7 @@ export default function AddBusinessClient() {
       )}
 
       {/* ---- the business -------------------------------------------- */}
-      <fieldset className="rounded-3xl border border-sand-200 bg-white p-5 shadow-sm">
+      <fieldset className="rounded-3xl border border-sand-200 bg-white p-5 shadow-sm standalone:rounded-2xl standalone:p-4">
         <legend className="px-2 font-display text-lg font-semibold text-ink-900">
           معلومات المكان
         </legend>
@@ -308,7 +309,7 @@ export default function AddBusinessClient() {
       </fieldset>
 
       {/* ---- brand and photos ------------------------------------------ */}
-      <fieldset className="rounded-3xl border border-sand-200 bg-white p-5 shadow-sm">
+      <fieldset className="rounded-3xl border border-sand-200 bg-white p-5 shadow-sm standalone:rounded-2xl standalone:p-4">
         <legend className="px-2 font-display text-lg font-semibold text-ink-900">
           الشعار والصور
         </legend>
@@ -322,7 +323,7 @@ export default function AddBusinessClient() {
       </fieldset>
 
       {/* ---- where ----------------------------------------------------- */}
-      <fieldset className="rounded-3xl border border-sand-200 bg-white p-5 shadow-sm">
+      <fieldset className="rounded-3xl border border-sand-200 bg-white p-5 shadow-sm standalone:rounded-2xl standalone:p-4">
         <legend className="px-2 font-display text-lg font-semibold text-ink-900">
           وين مكانه بالضبط؟
         </legend>
@@ -370,13 +371,25 @@ export default function AddBusinessClient() {
         {errors.lat
           ? <p className="mt-1 text-xs font-semibold text-coral-700">{errors.lat}</p>
           : <p className={hint}>
-              اختياري. لو كنت واقف في المكان، اضغط «خذها من موقعي» — أو خذ
-              الإحداثيات من خرائط جوجل. بدونها بنحددها بأنفسنا من العنوان.
+              اختياري. أسهل طريقة: اضغط على الخريطة تحت على مكانك بالضبط.
+              بدونها بنحددها بأنفسنا من العنوان.
             </p>}
+
+        <div className="mt-4">
+          <CoordinatePicker
+            lat={v.lat}
+            lng={v.lng}
+            onPick={(at) => {
+              setV((prev) => ({ ...prev, lat: at.lat, lng: at.lng }));
+              setErrors((prev) => ({ ...prev, lat: undefined }));
+            }}
+            label="اضغط على مكانك بالضبط"
+          />
+        </div>
       </fieldset>
 
       {/* ---- contact ---------------------------------------------------- */}
-      <fieldset className="rounded-3xl border border-sand-200 bg-white p-5 shadow-sm">
+      <fieldset className="rounded-3xl border border-sand-200 bg-white p-5 shadow-sm standalone:rounded-2xl standalone:p-4">
         <legend className="px-2 font-display text-lg font-semibold text-ink-900">
           التواصل
         </legend>
