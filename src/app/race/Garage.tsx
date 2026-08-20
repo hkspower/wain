@@ -262,7 +262,7 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
   };
 
   return (
-    <div className="screen-in absolute inset-0 z-20 flex flex-col bg-gradient-to-b from-[#05070f] via-[#0a1226] to-[#05070f]">
+    <div className="screen-in absolute inset-0 z-20 flex flex-col menu-backdrop">
       {/* Sticky header: identity, money, exit — never scrolls away */}
       <div className="safe-pad shrink-0 border-b border-white/10 bg-night-950/80 !pb-2.5 !pt-[calc(var(--safe-t)+0.6rem)] backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3">

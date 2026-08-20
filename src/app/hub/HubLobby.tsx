@@ -175,7 +175,7 @@ export default function HubLobby() {
   }, [draft]);
 
   return (
-    <div className="fixed inset-0 z-[60] overflow-y-auto bg-gradient-to-b from-[#05070f] via-[#0a1226] to-[#05070f] text-white">
+    <div className="fixed inset-0 z-[60] overflow-y-auto menu-backdrop text-white">
       <div className="mx-auto max-w-5xl px-6 py-8">
         <div className="flex items-center justify-between">
           <Link href="/" className="text-sm text-white/50 transition hover:text-white">

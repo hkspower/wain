@@ -1626,7 +1626,7 @@ export default function RaceClient() {
                     style={{
                       background: `linear-gradient(140deg, #${RIVALS[beaten].bodyColor
                         .toString(16)
-                        .padStart(6, "0")}, #0a0e18)`,
+                        .padStart(6, "0")}, #141416)`,
                     }}
                   />
                   <div className="min-w-0">
@@ -1720,7 +1720,7 @@ export default function RaceClient() {
 
       {/* Credits */}
       {creditsOpen && (
-        <div className="safe-pad absolute inset-0 z-40 overflow-y-auto bg-gradient-to-b from-[#05070f] via-[#0a1226] to-[#05070f]">
+        <div className="safe-pad absolute inset-0 z-40 overflow-y-auto menu-backdrop">
           <div className="mx-auto max-w-xl">
             <div className="flex items-center justify-between">
               <div>
@@ -1809,7 +1809,7 @@ export default function RaceClient() {
 
       {/* Settings */}
       {settingsOpen && settings && (
-        <div className="safe-pad absolute inset-0 z-30 overflow-y-auto bg-gradient-to-b from-[#05070f] via-[#0a1226] to-[#05070f]">
+        <div className="safe-pad absolute inset-0 z-30 overflow-y-auto menu-backdrop">
           <div className="mx-auto max-w-xl">
             <div className="flex items-center justify-between">
               <div>
@@ -2167,12 +2167,12 @@ export default function RaceClient() {
       {/* Pause menu — Escape or the controller's Start button */}
       {pauseOpen && phase === "playing" && !garageOpen && !settingsOpen && !result && (
         <div
-          className="absolute inset-0 z-[28] flex items-center justify-center bg-night-950/85 backdrop-blur-md"
+          className="glass-scrim absolute inset-0 z-[28] flex items-center justify-center"
           role="dialog"
           aria-modal="true"
           aria-label="Paused"
         >
-          <div className="grn-dialog screen-in w-[min(400px,92vw)] p-6 text-center">
+          <div className="grn-dialog-glass screen-in w-[min(400px,92vw)] p-6 text-center">
             <div className="grn-label text-[0.6rem] tracking-[0.4em] text-gulf-400">Paused</div>
             <div className="grn-display mt-1 text-3xl italic">
               PIT STOP <span className="grn-ar not-italic text-white/60" lang="ar">وقفة</span>
@@ -2224,7 +2224,7 @@ export default function RaceClient() {
 
       {/* Loading — the engine build takes a beat on a phone */}
       {phase === "loading" && (
-        <div className="safe-pad absolute inset-0 z-20 flex flex-col items-center justify-center bg-gradient-to-b from-[#05070f] via-[#0a1226] to-[#05070f]">
+        <div className="safe-pad absolute inset-0 z-20 flex flex-col items-center justify-center menu-backdrop">
           <div className="grn-label text-[0.6rem] tracking-[0.45em] text-gulf-400">
             Warming up
           </div>

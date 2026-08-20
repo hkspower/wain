@@ -55,11 +55,23 @@
 
   /* Gulf Road Nights — night-racing UI palette. Warm sodium amber for
      primary actions, gulf cyan for information, emerald/red for the
-     player/rival duality, all on a deep navy glass. */
-  --color-night-950: #04060d;
-  --color-night-900: #070b16;
-  --color-night-800: #0c1322;
-  --color-night-700: #141d31;
+     player/rival duality, all on brushed dark glass. */
+  /* The menu greys.
+   *
+   * These were navy — #04060d through #141d31, which carry 9 to 29 more
+   * blue than red. Measured off the delivered frame that put a cast of
+   * 13 on the main menu, 20 on settings and 21 on the garage: not a
+   * colour anybody chose, just a tint sitting on top of every screen in
+   * the game. The night SKY is allowed to be blue. A menu is furniture,
+   * and furniture should be the colour of furniture.
+   *
+   * Neutral now, with a single point of blue over red at the darkest end
+   * so the screens read cool rather than sepia. The names stay: these are
+   * still the night surfaces, they have just stopped being navy. */
+  --color-night-950: #08080a;
+  --color-night-900: #0d0d0f;
+  --color-night-800: #141416;
+  --color-night-700: #1d1d20;
   /* Dark silver — the HUD's own chrome.
      The instruments used to be cut from the same deep navy as the night
      behind them, which made the readouts look painted onto the sky
@@ -266,6 +278,98 @@ body {
 }
 
 /* Frosted panel: dark glass, hairline top highlight, soft depth */
+/* ------------------------------------------------------- glass overlays
+ *
+ * For the menus that open OVER the running game, where there is a road
+ * behind the panel worth seeing. A near-opaque black scrim throws that
+ * away and makes pausing feel like leaving; frosted glass keeps you in
+ * the car with the engine idling.
+ *
+ * Built as a white film over a heavy blur rather than a dark one at low
+ * alpha, because those are not the same thing: a dark scrim removes
+ * light, and glass scatters it. The film is what makes the road behind
+ * go milky instead of merely dim.
+ *
+ * On brightness: the film stops where it does because of contrast, not
+ * taste. The scene under it measures about 10/255 at night; every point
+ * of alpha adds roughly two and a half to the composite. Past about 45%
+ * the panel climbs through 120/255, and white type on it drops under the
+ * 4.5:1 legibility floor — at which point the whole interface would have
+ * to turn dark-on-light to stay readable. These values sit where the
+ * glass is unmistakably light and see-through and the type is still
+ * comfortably above the floor.
+ */
+.glass-scrim {
+  background: rgba(255, 255, 255, 0.1);
+  /* Desaturating, not enriching. Glass over a night sky transmits a
+     night sky, and the delivered pause screen measured a blue cast of 35
+     — bluer than the navy menus this change exists to get rid of, and
+     for a reason no amount of neutral paint on the panel could fix.
+     Draining the saturation on the way through is both what frosted
+     glass actually does to what it scatters and the only way this screen
+     can be see-through and neutral at the same time. */
+  -webkit-backdrop-filter: blur(18px) saturate(0.45);
+  backdrop-filter: blur(18px) saturate(0.45);
+}
+
+/* The panel itself: a second, brighter pane sitting on the scrim. Its
+   own blur is what gives the edge that lensing look where it crosses a
+   headlight. */
+.grn-dialog-glass {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.19),
+    rgba(255, 255, 255, 0.1)
+  );
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 30px 60px -24px rgba(0, 0, 0, 0.75);
+  -webkit-backdrop-filter: blur(22px) saturate(0.5);
+  backdrop-filter: blur(22px) saturate(0.5);
+}
+/* Glass has no opinion about what is behind it, so the type on it needs
+   its own shadow to stay readable when a pair of headlights sweeps
+   past. */
+.grn-dialog-glass :where(h1, h2, h3, p, span, div, button) {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+
+/* Every grey in this dialog was picked against a near-black panel, where
+   white at 60% is a comfortable 12:1. Measured on the glass it is 2.95:1
+   — a menu you cannot read with the engine idling behind it. Raising the
+   muted whites to full white is the fix that keeps the panel light; the
+   alternative was darkening the glass until the old greys worked, which
+   is just the old panel with extra steps.
+   Scoped to white-alpha utilities so the amber button and the accents
+   keep their own colours. */
+.grn-dialog-glass [class*="text-white/"] {
+  color: #fff;
+}
+/* The two accents that fail here fail for the same reason: they are
+   DARKER than the panel now. The lighter tint of each is the same colour
+   to look at and clears the floor. */
+.grn-dialog-glass .text-gulf-400 {
+  color: var(--color-gulf-300);
+}
+.grn-dialog-glass .text-rose-300 {
+  color: #fecdd3;
+}
+
+/* The full-screen backdrop behind a menu page: garage, settings, how to
+   play, the champion screen. This was the same three-stop gradient
+   pasted into four components, which is how one of them drifted a shade
+   bluer than the others and why nobody noticed. */
+.menu-backdrop {
+  background: linear-gradient(
+    180deg,
+    var(--color-night-950),
+    var(--color-night-800) 50%,
+    var(--color-night-950)
+  );
+}
+
 .grn-panel {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)),
@@ -606,26 +710,31 @@ html[data-large-hud="1"] .hud-scale {
      way to the screen — that is a second, softer pass over pixels that
      were already correct. */
   image-rendering: auto;
+  /* The pool of light the car sits in. This was #101a30 at the centre —
+     thirty-two more blue than red — and since it fills most of the title
+     screen it, not the panels, was what made the main menu read navy.
+     The tokens do the work now so there is one place to change it. */
   background:
-    radial-gradient(120% 90% at 50% 118%, #101a30 0%, #070b16 55%, #04060d 100%);
+    radial-gradient(120% 90% at 50% 118%, #1e1e22 0%,
+      var(--color-night-900) 55%, var(--color-night-950) 100%);
 }
 .menu-scrim {
   position: absolute;
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(105deg, rgba(4, 6, 13, 0.94) 0%, rgba(5, 8, 18, 0.82) 38%,
-      rgba(6, 10, 22, 0.42) 66%, rgba(6, 10, 22, 0.24) 100%),
-    linear-gradient(to bottom, rgba(4, 6, 13, 0.8) 0%, rgba(4, 6, 13, 0) 26%,
-      rgba(4, 6, 13, 0) 62%, rgba(4, 6, 13, 0.85) 100%);
+    linear-gradient(105deg, rgba(8, 8, 10, 0.94) 0%, rgba(11, 11, 13, 0.82) 38%,
+      rgba(14, 14, 16, 0.42) 66%, rgba(14, 14, 16, 0.24) 100%),
+    linear-gradient(to bottom, rgba(8, 8, 10, 0.8) 0%, rgba(8, 8, 10, 0) 26%,
+      rgba(8, 8, 10, 0) 62%, rgba(8, 8, 10, 0.85) 100%);
 }
 /* On a narrow screen the car has nowhere to hide behind a column of
    text, so it retreats further under the scrim instead. */
 @media (max-width: 700px) {
   .menu-scrim {
     background:
-      linear-gradient(to bottom, rgba(4, 6, 13, 0.9) 0%, rgba(4, 6, 13, 0.72) 45%,
-        rgba(4, 6, 13, 0.8) 72%, rgba(4, 6, 13, 0.95) 100%);
+      linear-gradient(to bottom, rgba(8, 8, 10, 0.9) 0%, rgba(8, 8, 10, 0.72) 45%,
+        rgba(8, 8, 10, 0.8) 72%, rgba(8, 8, 10, 0.95) 100%);
   }
 }
 
