@@ -37,5 +37,5 @@ next-env.d.ts
 
 # Seeded design canvas — 2.2MB of bundled editor code, regenerated from the
 # .dc.html artboards beside it. The artboards are the source; this is output.
-design/*.html
-!design/*.dc.html
+design/**/*.html
+!design/**/*.dc.html

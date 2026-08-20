@@ -1,0 +1,13 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1120, "h": 720, "title": "All seventeen" },
+    { "file": "Culture.dc.html", "x": 1200, "y": 0, "w": 900, "h": 620, "title": "The four that collided" },
+    { "file": "Souqs.dc.html", "x": 1200, "y": 700, "w": 900, "h": 470, "title": "Souq, mall, marina" },
+    { "file": "Water.dc.html", "x": 0, "y": 800, "w": 900, "h": 620, "title": "Water and green" },
+    { "file": "SafeBox.dc.html", "x": 1200, "y": 1250, "w": 900, "h": 560, "title": "Where art may go" }
+  ],
+  "annotations": [
+    { "id": "why", "x": 0, "y": -170, "w": 460, "text": "Kuwait's famous places\n\nThe hero used to draw the CATEGORY's scene, so four of the most distinctive buildings in the country shared one picture — while the 20px card icon was already place-specific.\n\nTwelve places have their own drawing now. The five still on a category scene are each alone in their category, except two restaurants." }
+  ],
+  "launch": { "view": "canvas" }
+}

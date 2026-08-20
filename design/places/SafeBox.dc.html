@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: "IBM Plex Sans Arabic", system-ui, sans-serif; }
+    a { color: #1e6092; } a:hover { color: #1d5179; }
+  </style>
+</helmet>
+
+<div style="width: 900px; height: 560px; background: #ffffff; box-sizing: border-box; padding: 40px 44px; display: flex; flex-direction: column; gap: 20px;">
+
+  <div style="display: flex; flex-direction: column; gap: 6px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #6b6357;">Where art may go</span>
+    <span style="font-size: 14px; color: #585044; line-height: 1.6;">
+      The hero fills its frame by cropping, and it crops on a different axis at each width. Only the overlap is safe.
+    </span>
+  </div>
+
+  <!-- 400×160 viewBox at 2× so the numbers stay readable -->
+  <div style="position: relative; width: 800px; height: 320px; border: 1px solid #d4d1cb; border-radius: 10px; background: #f6f5f3;">
+
+    <!-- desktop keeps y 20–140 -> 40..280 at 2x -->
+    <div style="position: absolute; left: 0; right: 0; top: 40px; height: 240px; background: rgba(34,119,180,0.13); border-top: 2px solid #2277b4; border-bottom: 2px solid #2277b4;"></div>
+    <!-- mobile keeps x 72–328 -> 144..656 at 2x -->
+    <div style="position: absolute; top: 0; bottom: 0; left: 144px; width: 512px; background: rgba(220,47,37,0.13); border-left: 2px solid #dc2f25; border-right: 2px solid #dc2f25;"></div>
+    <!-- the intersection: the only region both keep -->
+    <div style="position: absolute; left: 144px; top: 40px; width: 512px; height: 240px; background: rgba(47,138,78,0.18); border: 2px solid #2f8a4e; display: grid; place-items: center;">
+      <span style="font-size: 13px; font-weight: 700; color: #1b5832; background: #ffffff; padding: 5px 12px; border-radius: 999px;">safe — x 72–328, y 20–140</span>
+    </div>
+
+    <span style="position: absolute; left: 8px; top: 8px; font-size: 11px; color: #6b6357;">viewBox 0 0 400 160</span>
+    <span style="position: absolute; right: 10px; top: 46px; font-size: 11px; font-weight: 600; color: #1e6092;">desktop keeps this band</span>
+    <span style="position: absolute; left: 150px; bottom: 8px; font-size: 11px; font-weight: 600; color: #b9241b;">mobile keeps this column</span>
+  </div>
+
+  <div style="display: flex; gap: 30px;">
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <span style="font-size: 12px; font-weight: 600; color: #1e6092;">desktop 848×256</span>
+      <span style="font-size: 12px; color: #585044;">wider than the art, so it fills by width and cuts top and bottom</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <span style="font-size: 12px; font-weight: 600; color: #b9241b;">mobile 358×224</span>
+      <span style="font-size: 12px; color: #585044;">taller in proportion, so it fills by height and cuts the sides</span>
+    </div>
+  </div>
+
+  <p style="margin: 0; font-size: 12px; color: #585044; line-height: 1.7; max-width: 720px;">
+    The first draft put ground lines at y&nbsp;160 and sea at y&nbsp;140–156 — following what the existing category scenes do. None of it is visible on a desktop hero, and nothing warns you. Ground now sits at y&nbsp;134 and water above y&nbsp;136.
+  </p>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
