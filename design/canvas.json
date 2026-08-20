@@ -1,0 +1,12 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 880, "h": 560, "title": "Primary lockup" },
+    { "file": "AppMark.dc.html", "x": 940, "y": 0, "w": 760, "h": 560, "title": "App mark" },
+    { "file": "Mono.dc.html", "x": 0, "y": 640, "w": 760, "h": 520, "title": "One colour" },
+    { "file": "Placements.dc.html", "x": 820, "y": 640, "w": 820, "h": 520, "title": "Placements" }
+  ],
+  "annotations": [
+    { "id": "brief", "x": 0, "y": -150, "w": 420, "text": "وين؟ — map + pin + ؟\n\nBuilt from the existing mark in src/components/WainLogo.tsx, not redrawn from scratch: same Kuwait silhouette, same pin geometry.\n\nWhat changed: flat fills instead of gradients, so it holds at 24px." }
+  ],
+  "launch": { "view": "canvas" }
+}

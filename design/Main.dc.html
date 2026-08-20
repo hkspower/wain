@@ -1,0 +1,76 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: "IBM Plex Sans Arabic", system-ui, sans-serif; }
+    a { color: #1e6092; } a:hover { color: #1d5179; }
+  </style>
+</helmet>
+
+<div style="width: 880px; height: 560px; background: #ffffff; display: flex; flex-direction: column; justify-content: space-between; padding: 56px 64px; box-sizing: border-box;">
+
+  <div style="display: flex; flex-direction: column; gap: 8px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #6b6357;">Primary lockup</span>
+    <span style="font-size: 14px; color: #585044;">The mark answers the name: a pin planted on Kuwait, its head carrying the ؟ of «وين؟».</span>
+  </div>
+
+  <!-- Horizontal lockup: mark, then wordmark. RTL, so the mark sits right. -->
+  <div dir="rtl" style="display: flex; align-items: center; gap: 22px;">
+    <svg viewBox="18 10 84 88" style="width: 132px; height: 138px;" aria-hidden="true">
+      <path d="M 31 24 Q 27.4 24.4 27.2 28 L 25.2 78 Q 25 82 28.8 82.8 L 70 90.5 Q 74 91.2 75.8 87.6 L 84.6 70 Q 86 66.8 84.6 63.6 L 79.6 53.4 Q 78 50 74.2 50.6 L 66.5 51.7 Q 61 52.5 61 47.8 Q 61 43.4 66.5 43 L 72.8 42.6 Q 76.6 42.3 77.6 38.6 L 79.6 31.4 Q 80.4 28.6 83 27.2 L 86.4 25.4 Q 89.6 23.6 88.2 20.4 Q 86.9 17.4 83.6 18 L 74.4 19.6 Q 72.4 20 70.4 20.2 L 31 24 Z"
+        fill="#2277b4"></path>
+      <path d="M 58 54.5 C 50.5 44 45.5 38.5 45.5 30 C 45.5 22 51 16.5 58 16.5 C 65 16.5 70.5 22 70.5 30 C 70.5 38.5 65.5 44 58 54.5 Z"
+        fill="#dc2f25" stroke="#ffffff" stroke-width="3.6" stroke-linejoin="round"></path>
+      <g transform="translate(58 27.4) scale(-1 1)" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M -4.6 -4.4 A 5.1 5.1 0 1 1 0 2.1 L 0 3.9"></path>
+      </g>
+      <circle cx="58" cy="37.2" r="2.05" fill="#ffffff"></circle>
+    </svg>
+
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <span style="font-size: 84px; font-weight: 700; line-height: 1; color: #14120f;">وين<span style="color: #dc2f25;">؟</span></span>
+      <span style="font-size: 17px; font-weight: 600; color: #b9241b;">وين الطلعة اليوم؟</span>
+    </div>
+  </div>
+
+  <!-- The palette this is built from, straight off the site's tokens. -->
+  <div style="display: flex; gap: 28px; align-items: flex-end;">
+    <div style="display: flex; gap: 10px;">
+      <div style="display: flex; flex-direction: column; gap: 6px; align-items: center;">
+        <span style="width: 46px; height: 46px; border-radius: 12px; background: #2277b4;"></span>
+        <span style="font-size: 10px; color: #6b6357;">#2277b4</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px; align-items: center;">
+        <span style="width: 46px; height: 46px; border-radius: 12px; background: #dc2f25;"></span>
+        <span style="font-size: 10px; color: #6b6357;">#dc2f25</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px; align-items: center;">
+        <span style="width: 46px; height: 46px; border-radius: 12px; background: #fbb724;"></span>
+        <span style="font-size: 10px; color: #6b6357;">#fbb724</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px; align-items: center;">
+        <span style="width: 46px; height: 46px; border-radius: 12px; background: #14120f;"></span>
+        <span style="font-size: 10px; color: #6b6357;">#14120f</span>
+      </div>
+    </div>
+    <span style="font-size: 12px; color: #6b6357; max-width: 380px; line-height: 1.6;">
+      Flat fills, not gradients — the mark has to hold at 24px in the navbar, where a gradient only muddies it. Sun yellow stays out of the mark and earns its place elsewhere.
+    </span>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

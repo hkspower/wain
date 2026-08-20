@@ -1,0 +1,93 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: "IBM Plex Sans Arabic", system-ui, sans-serif; }
+    a { color: #1e6092; } a:hover { color: #1d5179; }
+  </style>
+</helmet>
+
+<div style="width: 760px; height: 560px; background: #ffffff; display: flex; flex-direction: column; gap: 30px; padding: 48px 56px; box-sizing: border-box;">
+
+  <div style="display: flex; flex-direction: column; gap: 8px;">
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #6b6357;">App mark</span>
+    <span style="font-size: 14px; color: #585044;">Same mark, cropped tighter and set on a tile. Shown at the sizes it actually ships at.</span>
+  </div>
+
+  <!-- Rounded tile, the way iOS and Android will mask it. -->
+  <div style="display: flex; align-items: flex-end; gap: 26px;">
+    <div style="display: flex; flex-direction: column; gap: 8px; align-items: center;">
+      <span style="width: 152px; height: 152px; border-radius: 34px; background: #f6f5f3; border: 1px solid #e6e4e0; display: grid; place-items: center;">
+        <svg viewBox="22 12 76 78" style="width: 112px; height: 115px;" aria-hidden="true">
+          <path d="M 31 24 Q 27.4 24.4 27.2 28 L 25.2 78 Q 25 82 28.8 82.8 L 70 90.5 Q 74 91.2 75.8 87.6 L 84.6 70 Q 86 66.8 84.6 63.6 L 79.6 53.4 Q 78 50 74.2 50.6 L 66.5 51.7 Q 61 52.5 61 47.8 Q 61 43.4 66.5 43 L 72.8 42.6 Q 76.6 42.3 77.6 38.6 L 79.6 31.4 Q 80.4 28.6 83 27.2 L 86.4 25.4 Q 89.6 23.6 88.2 20.4 Q 86.9 17.4 83.6 18 L 74.4 19.6 Q 72.4 20 70.4 20.2 L 31 24 Z" fill="#2277b4"></path>
+          <path d="M 58 54.5 C 50.5 44 45.5 38.5 45.5 30 C 45.5 22 51 16.5 58 16.5 C 65 16.5 70.5 22 70.5 30 C 70.5 38.5 65.5 44 58 54.5 Z" fill="#dc2f25" stroke="#f6f5f3" stroke-width="3.6" stroke-linejoin="round"></path>
+          <g transform="translate(58 27.4) scale(-1 1)" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M -4.6 -4.4 A 5.1 5.1 0 1 1 0 2.1 L 0 3.9"></path>
+          </g>
+          <circle cx="58" cy="37.2" r="2.05" fill="#ffffff"></circle>
+        </svg>
+      </span>
+      <span style="font-size: 11px; color: #6b6357;">on sand</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 8px; align-items: center;">
+      <span style="width: 152px; height: 152px; border-radius: 34px; background: #14120f; display: grid; place-items: center;">
+        <svg viewBox="22 12 76 78" style="width: 112px; height: 115px;" aria-hidden="true">
+          <path d="M 31 24 Q 27.4 24.4 27.2 28 L 25.2 78 Q 25 82 28.8 82.8 L 70 90.5 Q 74 91.2 75.8 87.6 L 84.6 70 Q 86 66.8 84.6 63.6 L 79.6 53.4 Q 78 50 74.2 50.6 L 66.5 51.7 Q 61 52.5 61 47.8 Q 61 43.4 66.5 43 L 72.8 42.6 Q 76.6 42.3 77.6 38.6 L 79.6 31.4 Q 80.4 28.6 83 27.2 L 86.4 25.4 Q 89.6 23.6 88.2 20.4 Q 86.9 17.4 83.6 18 L 74.4 19.6 Q 72.4 20 70.4 20.2 L 31 24 Z" fill="#57b0e3"></path>
+          <path d="M 58 54.5 C 50.5 44 45.5 38.5 45.5 30 C 45.5 22 51 16.5 58 16.5 C 65 16.5 70.5 22 70.5 30 C 70.5 38.5 65.5 44 58 54.5 Z" fill="#ef4d43" stroke="#14120f" stroke-width="3.6" stroke-linejoin="round"></path>
+          <g transform="translate(58 27.4) scale(-1 1)" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M -4.6 -4.4 A 5.1 5.1 0 1 1 0 2.1 L 0 3.9"></path>
+          </g>
+          <circle cx="58" cy="37.2" r="2.05" fill="#ffffff"></circle>
+        </svg>
+      </span>
+      <span style="font-size: 11px; color: #6b6357;">on ink</span>
+    </div>
+
+    <span style="font-size: 12px; color: #6b6357; max-width: 200px; line-height: 1.6;">
+      On ink the fills step one stop lighter — the darker pair goes muddy against black.
+    </span>
+  </div>
+
+  <!-- The real test: does it survive the small sizes it ships at? -->
+  <div style="display: flex; flex-direction: column; gap: 10px;">
+    <span style="font-size: 12px; font-weight: 600; color: #35302a;">At size</span>
+    <div style="display: flex; align-items: flex-end; gap: 22px;">
+      <div style="display: flex; flex-direction: column; gap: 6px; align-items: center;">
+        <svg viewBox="22 12 76 78" style="width: 16px; height: 16px;" aria-hidden="true"><path d="M 31 24 Q 27.4 24.4 27.2 28 L 25.2 78 Q 25 82 28.8 82.8 L 70 90.5 Q 74 91.2 75.8 87.6 L 84.6 70 Q 86 66.8 84.6 63.6 L 79.6 53.4 Q 78 50 74.2 50.6 L 66.5 51.7 Q 61 52.5 61 47.8 Q 61 43.4 66.5 43 L 72.8 42.6 Q 76.6 42.3 77.6 38.6 L 79.6 31.4 Q 80.4 28.6 83 27.2 L 86.4 25.4 Q 89.6 23.6 88.2 20.4 Q 86.9 17.4 83.6 18 L 74.4 19.6 Q 72.4 20 70.4 20.2 L 31 24 Z" fill="#2277b4"></path><path d="M 58 54.5 C 50.5 44 45.5 38.5 45.5 30 C 45.5 22 51 16.5 58 16.5 C 65 16.5 70.5 22 70.5 30 C 70.5 38.5 65.5 44 58 54.5 Z" fill="#dc2f25" stroke="#ffffff" stroke-width="3.6" stroke-linejoin="round"></path><g transform="translate(58 27.4) scale(-1 1)" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round"><path d="M -4.6 -4.4 A 5.1 5.1 0 1 1 0 2.1 L 0 3.9"></path></g><circle cx="58" cy="37.2" r="2.05" fill="#ffffff"></circle></svg>
+        <span style="font-size: 10px; color: #6b6357;">16</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px; align-items: center;">
+        <svg viewBox="22 12 76 78" style="width: 24px; height: 24px;" aria-hidden="true"><path d="M 31 24 Q 27.4 24.4 27.2 28 L 25.2 78 Q 25 82 28.8 82.8 L 70 90.5 Q 74 91.2 75.8 87.6 L 84.6 70 Q 86 66.8 84.6 63.6 L 79.6 53.4 Q 78 50 74.2 50.6 L 66.5 51.7 Q 61 52.5 61 47.8 Q 61 43.4 66.5 43 L 72.8 42.6 Q 76.6 42.3 77.6 38.6 L 79.6 31.4 Q 80.4 28.6 83 27.2 L 86.4 25.4 Q 89.6 23.6 88.2 20.4 Q 86.9 17.4 83.6 18 L 74.4 19.6 Q 72.4 20 70.4 20.2 L 31 24 Z" fill="#2277b4"></path><path d="M 58 54.5 C 50.5 44 45.5 38.5 45.5 30 C 45.5 22 51 16.5 58 16.5 C 65 16.5 70.5 22 70.5 30 C 70.5 38.5 65.5 44 58 54.5 Z" fill="#dc2f25" stroke="#ffffff" stroke-width="3.6" stroke-linejoin="round"></path><g transform="translate(58 27.4) scale(-1 1)" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round"><path d="M -4.6 -4.4 A 5.1 5.1 0 1 1 0 2.1 L 0 3.9"></path></g><circle cx="58" cy="37.2" r="2.05" fill="#ffffff"></circle></svg>
+        <span style="font-size: 10px; color: #6b6357;">24</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px; align-items: center;">
+        <svg viewBox="22 12 76 78" style="width: 40px; height: 40px;" aria-hidden="true"><path d="M 31 24 Q 27.4 24.4 27.2 28 L 25.2 78 Q 25 82 28.8 82.8 L 70 90.5 Q 74 91.2 75.8 87.6 L 84.6 70 Q 86 66.8 84.6 63.6 L 79.6 53.4 Q 78 50 74.2 50.6 L 66.5 51.7 Q 61 52.5 61 47.8 Q 61 43.4 66.5 43 L 72.8 42.6 Q 76.6 42.3 77.6 38.6 L 79.6 31.4 Q 80.4 28.6 83 27.2 L 86.4 25.4 Q 89.6 23.6 88.2 20.4 Q 86.9 17.4 83.6 18 L 74.4 19.6 Q 72.4 20 70.4 20.2 L 31 24 Z" fill="#2277b4"></path><path d="M 58 54.5 C 50.5 44 45.5 38.5 45.5 30 C 45.5 22 51 16.5 58 16.5 C 65 16.5 70.5 22 70.5 30 C 70.5 38.5 65.5 44 58 54.5 Z" fill="#dc2f25" stroke="#ffffff" stroke-width="3.6" stroke-linejoin="round"></path><g transform="translate(58 27.4) scale(-1 1)" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round"><path d="M -4.6 -4.4 A 5.1 5.1 0 1 1 0 2.1 L 0 3.9"></path></g><circle cx="58" cy="37.2" r="2.05" fill="#ffffff"></circle></svg>
+        <span style="font-size: 10px; color: #6b6357;">40</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px; align-items: center;">
+        <svg viewBox="22 12 76 78" style="width: 64px; height: 64px;" aria-hidden="true"><path d="M 31 24 Q 27.4 24.4 27.2 28 L 25.2 78 Q 25 82 28.8 82.8 L 70 90.5 Q 74 91.2 75.8 87.6 L 84.6 70 Q 86 66.8 84.6 63.6 L 79.6 53.4 Q 78 50 74.2 50.6 L 66.5 51.7 Q 61 52.5 61 47.8 Q 61 43.4 66.5 43 L 72.8 42.6 Q 76.6 42.3 77.6 38.6 L 79.6 31.4 Q 80.4 28.6 83 27.2 L 86.4 25.4 Q 89.6 23.6 88.2 20.4 Q 86.9 17.4 83.6 18 L 74.4 19.6 Q 72.4 20 70.4 20.2 L 31 24 Z" fill="#2277b4"></path><path d="M 58 54.5 C 50.5 44 45.5 38.5 45.5 30 C 45.5 22 51 16.5 58 16.5 C 65 16.5 70.5 22 70.5 30 C 70.5 38.5 65.5 44 58 54.5 Z" fill="#dc2f25" stroke="#ffffff" stroke-width="3.6" stroke-linejoin="round"></path><g transform="translate(58 27.4) scale(-1 1)" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round"><path d="M -4.6 -4.4 A 5.1 5.1 0 1 1 0 2.1 L 0 3.9"></path></g><circle cx="58" cy="37.2" r="2.05" fill="#ffffff"></circle></svg>
+        <span style="font-size: 10px; color: #6b6357;">64</span>
+      </div>
+      <span style="font-size: 12px; color: #b9241b; max-width: 250px; line-height: 1.6; padding-bottom: 6px;">
+        At 16px the ؟ closes up. If you want a favicon, the pin alone reads better than the full mark.
+      </span>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
