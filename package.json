@@ -8,10 +8,10 @@
     "build": "next build && node scripts/gen-sw.mjs && node scripts/check-cache-safety.mjs",
     "start": "next start",
     "lint": "next lint",
-    "fahad:brief": "node scripts/fahad-brief.mjs",
     "check:cache": "node scripts/check-cache-safety.mjs",
     "db:schema": "node scripts/gen-schema.mjs",
-    "og": "node scripts/gen-og.mjs"
+    "og": "node scripts/gen-og.mjs",
+    "ai:brief": "node scripts/wain-ai-brief.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.1",

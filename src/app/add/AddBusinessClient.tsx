@@ -20,7 +20,7 @@ const hint = hintClass;
 const EMPTY: SubmissionInput = {
   name: "", nameAr: "", category: "restaurants", areaAr: "", addressAr: "",
   lat: null, lng: null, priceLevel: 2, taglineAr: "", descriptionAr: "",
-  bioAr: "", logoPath: null, imagePaths: [],
+  bioAr: "", productsAr: [], logoPath: null, imagePaths: [],
   phone: "", instagram: "", website: "",
   contactName: "", contactEmail: "", contactPhone: "",
 };
@@ -306,6 +306,19 @@ export default function AddBusinessClient() {
           />
           <p className={hint}>
             هذي تنكتب باسمكم في الصفحة — الوصف اللي فوق نكتبه إحنا.
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="f-products" className={label}>المنتجات والخدمات</label>
+          <textarea
+            id="f-products" rows={4} className={field}
+            value={v.productsAr.join("\n")}
+            onChange={(e) => set("productsAr", e.target.value.split("\n").slice(0, 20))}
+            placeholder={"قهوة مختصة\nحلويات فرنسية\nتوصيل داخل الكويت"}
+          />
+          <p className={hint}>
+            سطر لكل منتج أو خدمة — تطلع على صفحتكم بعد الاعتماد. لين ٢٠ سطر.
           </p>
         </div>
       </fieldset>

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { IconCheck, IconGo, IconLocate } from "@/components/icons";
-import { FAHAD_COPY } from "@/lib/fahad";
+import { WAIN_AI_COPY } from "@/lib/wain-ai";
 
 export const metadata: Metadata = {
   title: "الخصوصية والكوكيز",
@@ -66,23 +66,31 @@ export default function PrivacyPage() {
         </div>
       </section>
 
-      {/* فهد */}
+      {/* وين AI */}
       <section className="mt-6 rounded-3xl border border-line bg-white p-6 shadow-sm">
         <h2 className="font-display text-xl font-semibold text-ink-900">
-          {FAHAD_COPY.name} — المساعد الصوتي
+          وين AI — المساعدة الصوتية
         </h2>
         <div className="mt-3 space-y-3 text-sm leading-relaxed text-ink-600">
           <p>
-            فهد ما يشتغل إلا إذا فتحته أنت. قبل جذي ما يتحمّل شي منه ولا يصير أي
-            اتصال خارجي.
+            {WAIN_AI_COPY.name} ما تشتغل إلا إذا فتحتها أنت — بالضغط المطوّل على
+            زر «وين AI». قبل جذي ما يتحمّل شي منها ولا يصير أي اتصال خارجي.
           </p>
           <p>
-            لمّا تفتحه، يتحمّل من{" "}
+            إذا ما كانت خدمة المحادثة مفعّلة، الزر يستخدم{" "}
+            <strong className="text-ink-900">التعرف على الصوت في متصفحك</strong>:
+            سؤالك الصوتي يتحوّل لنص، والبحث نفسه يصير داخل جهازك. في أغلب
+            المتصفحات تحويل الصوت لنص يمرّ على خدمة الشركة المطوّرة للمتصفح
+            (قوقل في كروم، آبل في سفاري) حسب سياساتهم — وما نرسل إحنا شي عنك
+            لأي مكان.
+          </p>
+          <p>
+            لمّا تفتحها في وضع المحادثة، تتحمّل من{" "}
             <strong className="text-ink-900">ElevenLabs</strong> عشان يشتغل الصوت،
             ووقتها ينطبق عليه سياسة الخصوصية الخاصة فيهم — وممكن يحفظ بيانات في
             متصفحك تخصّ المحادثة. المايك ما يشتغل إلا بعد ما تعطي الإذن.
           </p>
-          <p>إذا ما فتحت فهد، ما راح يوصل أي شي عنك لأي طرف ثاني.</p>
+          <p>إذا ما فتحت وين AI، ما راح يوصل أي شي عنك لأي طرف ثاني.</p>
         </div>
       </section>
 

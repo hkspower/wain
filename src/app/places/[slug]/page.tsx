@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { BusinessBio, BusinessBrand, BusinessGallery } from "@/components/BusinessProfile";
+import { BusinessBio, BusinessBrand, BusinessContact, BusinessGallery, BusinessProducts } from "@/components/BusinessProfile";
 import CategoryArt from "@/components/CategoryArt";
 import PlaceArt, { hasPlaceArt } from "@/components/PlaceArt";
 import PlaceCard from "@/components/PlaceCard";
@@ -172,6 +172,8 @@ export default async function PlacePage({
       <p className="mt-6 text-lg leading-relaxed text-ink-600">{place.descriptionAr}</p>
 
       <BusinessBio place={place} />
+      <BusinessContact place={place} />
+      <BusinessProducts place={place} />
       <BusinessGallery place={place} />
 
       {/* Details */}

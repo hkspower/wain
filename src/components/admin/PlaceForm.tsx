@@ -140,6 +140,32 @@ export default function PlaceForm({
         />
       </div>
 
+      <div>
+        <label className={label} htmlFor="f-products">المنتجات والخدمات — سطر لكل وحدة</label>
+        <textarea
+          id="f-products"
+          rows={3}
+          className={input}
+          value={(p.productsAr ?? []).join("\n")}
+          onChange={(e) => set("productsAr", e.target.value.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 20))}
+        />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div>
+          <label className={label} htmlFor="f-phone">تلفون المكان</label>
+          <input id="f-phone" dir="ltr" className={input} value={p.phone ?? ""} onChange={(e) => set("phone", e.target.value || undefined)} />
+        </div>
+        <div>
+          <label className={label} htmlFor="f-insta">إنستقرام</label>
+          <input id="f-insta" dir="ltr" className={input} value={p.instagram ?? ""} onChange={(e) => set("instagram", e.target.value.replace(/^@/, "") || undefined)} />
+        </div>
+        <div>
+          <label className={label} htmlFor="f-web">الموقع الإلكتروني</label>
+          <input id="f-web" dir="ltr" className={input} value={p.website ?? ""} onChange={(e) => set("website", e.target.value || undefined)} />
+        </div>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className={label} htmlFor="f-best">أحسن وقت للزيارة</label>

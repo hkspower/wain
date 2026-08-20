@@ -25,6 +25,8 @@ export interface SubmissionInput {
   descriptionAr: string;
   /** The business in its own words. */
   bioAr: string;
+  /** What it sells or offers, one short line each. Capped at 20 by the table. */
+  productsAr: string[];
   /** Storage paths in the private bucket, filled in after upload. */
   logoPath: string | null;
   imagePaths: string[];
@@ -50,6 +52,7 @@ export interface SubmissionRow extends Record<string, unknown> {
   tagline_ar: string;
   description_ar: string;
   bio_ar: string;
+  products_ar: string[];
   logo_path: string | null;
   image_paths: string[];
   phone: string;
@@ -112,6 +115,7 @@ export async function submitBusiness(input: SubmissionInput): Promise<SubmitResu
     tagline_ar: input.taglineAr.trim(),
     description_ar: input.descriptionAr.trim(),
     bio_ar: input.bioAr.trim(),
+    products_ar: input.productsAr.map((x) => x.trim()).filter(Boolean).slice(0, 20),
     logo_path: input.logoPath,
     image_paths: input.imagePaths,
     phone: input.phone.trim(),

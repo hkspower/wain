@@ -39,6 +39,10 @@ export function submissionToPlace(s: SubmissionRow): EditablePlace {
     taglineAr: s.tagline_ar,
     descriptionAr: s.description_ar || s.tagline_ar,
     bioAr: s.bio_ar || undefined,
+    phone: s.phone || undefined,
+    instagram: s.instagram || undefined,
+    website: s.website || undefined,
+    productsAr: s.products_ar?.length ? s.products_ar : undefined,
     // Media is attached on save, after the admin has picked what to publish.
     logoUrl: undefined,
     imageUrls: undefined,
@@ -237,6 +241,7 @@ export default function Submissions({
                     <Row k="تلفون المكان" v={s.phone} ltr />
                     <Row k="إنستقرام" v={s.instagram ? `@${s.instagram}` : ""} ltr />
                     <Row k="الموقع" v={s.website} ltr />
+                    <Row k="المنتجات والخدمات" v={(s.products_ar ?? []).join("، ")} />
                     <Row k="مقدّم الطلب" v={s.contact_name} />
                     <Row k="إيميله" v={s.contact_email} ltr />
                     <Row k="تلفونه" v={s.contact_phone} ltr />

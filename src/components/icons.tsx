@@ -29,6 +29,36 @@ function base(props: IconProps) {
 const DUO = { fill: "currentColor", opacity: 0.15, stroke: "none" } as const;
 
 
+export function IconPhone(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path {...DUO} d="M5 4h4l1.8 4.2-2.2 1.9a12.5 12.5 0 0 0 5.3 5.3l1.9-2.2L20 15v4a1.5 1.5 0 0 1-1.6 1.5C10.4 20 4 13.6 3.5 5.6A1.5 1.5 0 0 1 5 4Z" />
+      <path d="M5 4h4l1.8 4.2-2.2 1.9a12.5 12.5 0 0 0 5.3 5.3l1.9-2.2L20 15v4a1.5 1.5 0 0 1-1.6 1.5C10.4 20 4 13.6 3.5 5.6A1.5 1.5 0 0 1 5 4Z" />
+    </svg>
+  );
+}
+
+export function IconInstagram(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <rect {...DUO} x="3.5" y="3.5" width="17" height="17" rx="4.5" />
+      <rect x="3.5" y="3.5" width="17" height="17" rx="4.5" />
+      <circle cx="12" cy="12" r="3.6" />
+      <circle cx="16.8" cy="7.2" r="0.4" fill="currentColor" stroke="currentColor" />
+    </svg>
+  );
+}
+
+export function IconGlobe(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <circle {...DUO} cx="12" cy="12" r="8.5" />
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M3.5 12h17M12 3.5c2.4 2.2 3.6 5 3.6 8.5s-1.2 6.3-3.6 8.5c-2.4-2.2-3.6-5-3.6-8.5s1.2-6.3 3.6-8.5Z" />
+    </svg>
+  );
+}
+
 export function IconPinSolid(props: IconProps) {
   const { className = "size-5", ...rest } = props;
   return (

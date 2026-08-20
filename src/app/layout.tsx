@@ -4,7 +4,7 @@ import AppShell from "@/components/AppShell";
 import AppTabBar from "@/components/AppTabBar";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import FahadLauncher from "@/components/FahadLauncher";
+import WainAi from "@/components/WainAi";
 import "./globals.css";
 
 /**
@@ -100,7 +100,7 @@ export default function RootLayout({
           {children}
         </main>
         <Footer />
-        <FahadLauncher />
+        <WainAi />
         <AppTabBar />
         <AppShell />
       </body>

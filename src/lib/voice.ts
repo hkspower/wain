@@ -192,13 +192,15 @@ export function stop() {
 
 // --- Preferences -----------------------------------------------------------
 
-export function setEnabled(enabled: boolean) {
+export function setEnabled(enabled: boolean, opts?: { greet?: boolean }) {
   writePref(PREF_ENABLED, enabled ? "1" : "0");
   update({ enabled });
   if (enabled) {
     // The greeting doubles as the audio unlock (we're inside a click) and as
-    // a preview of the chosen voice.
-    speak(helloParts(snapshot.persona));
+    // a preview of the chosen voice. وين AI passes greet:false — it is about
+    // to navigate to an answer that speaks for itself, and the greeting would
+    // be cut off mid-word by that answer's own stop().
+    if (opts?.greet !== false) speak(helloParts(snapshot.persona));
   } else {
     stop();
   }

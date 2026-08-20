@@ -265,7 +265,7 @@ input[type="search"]::-webkit-search-decoration {
   .standalone-hidden {
     display: none;
   }
-  .fahad-launcher {
+  .wain-ai-fab {
     bottom: 5.5rem;
   }
 }
@@ -279,7 +279,7 @@ html[data-standalone="true"] body {
 html[data-standalone="true"] .standalone-hidden {
   display: none;
 }
-html[data-standalone="true"] .fahad-launcher {
+html[data-standalone="true"] .wain-ai-fab {
   bottom: 5.5rem;
 }
 

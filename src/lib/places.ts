@@ -48,6 +48,17 @@ export interface Place {
   bioAr?: string;
   /** Public URLs of photos an admin has approved. Never shown unapproved. */
   imageUrls?: string[];
+
+  /* How to reach the business. These are the PLACE's public channels, given by
+     the owner for display — entirely separate from the submitter's personal
+     contact details, which never leave the submissions table. */
+  phone?: string;
+  /** Bare handle, no @ and no URL. */
+  instagram?: string;
+  /** http(s) URL — scheme-checked at the database so it is safe in an href. */
+  website?: string;
+  /** What the business sells or offers, one short line each. */
+  productsAr?: string[];
 }
 
 /** Ordered the way the category rail reads on the home page. */

@@ -56,6 +56,7 @@ alter table public.admins enable row level security;
 -- full list. The panel only ever asks about itself, and one admin does not
 -- need to enumerate the others.
 drop policy if exists "admins can see the admin list" on public.admins;
+drop policy if exists "an admin can see their own row" on public.admins;
 create policy "an admin can see their own row"
   on public.admins for select
   using (user_id = auth.uid());
@@ -86,6 +87,15 @@ create table if not exists public.places (
   logo_url       text,
   bio_ar         text not null default '',
   image_urls     text[] not null default '{}',
+  -- The place's public channels, shown on its page. Website is scheme-checked
+  -- so a stored value is always safe to put in an href.
+  phone          text not null default '' check (length(phone) <= 40),
+  instagram      text not null default '' check (length(instagram) <= 80),
+  website        text not null default ''
+                   check (website = '' or
+                          (length(website) <= 200 and website ~* '^https?://[^[:space:]]{3,}$')),
+  products_ar    text[] not null default '{}' check (array_length(products_ar, 1) is null
+                                                     or array_length(products_ar, 1) <= 20),
   featured       boolean not null default false,
   published      boolean not null default true,
   sort_order     integer not null default 0,
@@ -111,6 +121,13 @@ create trigger places_touch before update on public.places
 -- Visitors read published rows with the anon key and can do nothing else.
 -- Every write requires an authenticated session that is also in admins.
 -- ---------------------------------------------------------------------------
+-- A database created before these columns existed gets them on re-run;
+-- "create table if not exists" alone would silently skip them.
+alter table public.places
+  add column if not exists phone       text not null default '',
+  add column if not exists instagram   text not null default '',
+  add column if not exists website     text not null default '',
+  add column if not exists products_ar text[] not null default '{}';
 alter table public.places enable row level security;
 
 drop policy if exists "anyone can read published places" on public.places;
@@ -193,8 +210,10 @@ create table if not exists public.submissions (
   -- ones are copied into the public bucket.
   logo_path      text,
   image_paths    text[] not null default '{}' check (array_length(image_paths, 1) is null
-                                                     or array_length(image_paths, 1) <= 8),
+                                                     or array_length(image_paths, 1) <= 12),
   bio_ar         text not null default '' check (length(bio_ar) <= 800),
+  products_ar    text[] not null default '{}' check (array_length(products_ar, 1) is null
+                                                     or array_length(products_ar, 1) <= 20),
 
   -- moderation
   admin_note     text not null default '',
@@ -212,6 +231,16 @@ create index if not exists submissions_status_idx on public.submissions (status,
 create unique index if not exists submissions_pending_unique
   on public.submissions (lower(btrim(name_ar)), lower(btrim(area_ar)))
   where status = 'pending';
+
+alter table public.submissions
+  add column if not exists products_ar text[] not null default '{}';
+
+-- The photo cap was raised from 8 to 12; a database created under the old
+-- cap keeps its old CHECK unless it is replaced (Postgres auto-names the
+-- inline constraint <table>_<column>_check).
+alter table public.submissions drop constraint if exists submissions_image_paths_check;
+alter table public.submissions add constraint submissions_image_paths_check
+  check (array_length(image_paths, 1) is null or array_length(image_paths, 1) <= 12);
 
 alter table public.submissions enable row level security;
 

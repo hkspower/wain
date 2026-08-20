@@ -70,6 +70,10 @@ export interface PlaceRow {
   logo_url: string | null;
   bio_ar: string | null;
   image_urls: string[] | null;
+  phone: string | null;
+  instagram: string | null;
+  website: string | null;
+  products_ar: string[] | null;
   featured: boolean;
   published: boolean;
   sort_order: number;
@@ -96,6 +100,10 @@ export function rowToPlace(r: PlaceRow): Place {
     logoUrl: r.logo_url ?? undefined,
     bioAr: r.bio_ar || undefined,
     imageUrls: r.image_urls?.length ? r.image_urls : undefined,
+    phone: r.phone || undefined,
+    instagram: r.instagram || undefined,
+    website: r.website || undefined,
+    productsAr: r.products_ar?.length ? r.products_ar : undefined,
   };
 }
 
@@ -119,6 +127,10 @@ export function placeToRow(p: Place & { published?: boolean; sortOrder?: number 
     logo_url: p.logoUrl ?? null,
     bio_ar: p.bioAr ?? "",
     image_urls: p.imageUrls ?? [],
+    phone: p.phone ?? "",
+    instagram: p.instagram ?? "",
+    website: p.website ?? "",
+    products_ar: p.productsAr ?? [],
     featured: !!p.featured,
     published: p.published ?? true,
     sort_order: p.sortOrder ?? 0,
