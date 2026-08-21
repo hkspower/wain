@@ -2804,6 +2804,33 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     const tint = new THREE.Color();
     /** Instances actually written — see the skip below. */
     let placed = 0;
+    /**
+     * Every placed building's footprint, kept so the roof can be built
+     * after the fact.
+     *
+     * A block was one BoxGeometry scaled per instance: a featureless
+     * extrusion with a dead flat top, and a skyline made of them is a row
+     * of rectangles cut out of the sky. Real buildings are a stack — a
+     * shaft, a parapet capping it, plant on the roof, and a setback where
+     * they get tall — and it is the stack that makes a silhouette.
+     *
+     * Recorded rather than recomputed because the placement loop skips
+     * blocks that would land on a forecourt or in too thin a band, so the
+     * instance index and the loop index are not the same number, and the
+     * seeded stream cannot be replayed to find out where they went.
+     */
+    const massing: Array<{
+      p: THREE.Vector3;
+      q: THREE.Quaternion;
+      depth: number;
+      width: number;
+      h: number;
+      setback: boolean;
+      plant: boolean;
+      mast: boolean;
+      tint: THREE.Color;
+      r: number[];
+    }> = [];
     // Facade variety: concrete grey to warm beige to blue glass
     const palette = [0x8a8f99, 0x9c937e, 0x7c828e, 0x6e7686, 0xa39a85];
     // The blocks the street grid cuts the city into.
@@ -2864,7 +2891,21 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // Set against the near kerb, so the block has a street frontage
       // and a soft interior rather than one row of floating towers.
       const inset = 2 + rand() * Math.max(0, hi - lo - depth - 4);
-      track.pose(s, sideSign * (lo + inset + depth / 2), p, tmp);
+      const lat = lo + inset + depth / 2;
+      // How wide the road is HERE, not how wide it usually is.
+      //
+      // The bands above start at ROAD_HALF_WIDTH + 4, a constant — and
+      // the road is not a constant width. It swells from 7 m to 19 m at
+      // the Sharq drift plaza, so a band that clears the highway
+      // everywhere else runs straight across the plaza, and a building
+      // landed on it: measured at s=540, lat 18.02, with the road's own
+      // half-width 18.00 at that point.
+      //
+      // It only showed up when the seeding made the city repeatable and
+      // this change shifted which blocks got placed. Before that it was
+      // a coin flip nobody could reproduce.
+      if (lat - depth / 2 < track.halfWidthAt(s) + 4) continue;
+      track.pose(s, sideSign * lat, p, tmp);
       // Square to the street. Local +Z runs along the road, so the box's
       // Z extent is its frontage and its X extent is its depth.
       track.tangentAt(s, tmp);
@@ -2877,6 +2918,21 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       blocks.setMatrixAt(placed, m);
       tint.setHex(palette[i % palette.length]).multiplyScalar(0.85 + rand() * 0.3);
       blocks.setColorAt(placed, tint);
+      // What the roof needs, worked out here where the footprint and the
+      // orientation are still in hand. A building is a stack, not a box —
+      // see the massing block below.
+      massing.push({
+        p: p.clone(),
+        q: q.clone(),
+        depth,
+        width,
+        h,
+        setback: h > 52 && rand() < 0.75,
+        plant: rand() < 0.55,
+        mast: h > 70 && rand() < 0.5,
+        tint: tint.clone(),
+        r: [rand(), rand(), rand(), rand()],
+      });
       placed++;
     }
     // Draw only what was written; the tail of the buffer is untouched.
@@ -2888,6 +2944,155 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // Named for the street test, which otherwise has to guess which
     // instanced box mesh in the scene is the city — and guessed wrong.
     blocks.name = "cityBlocks";
+
+    // ------------------------------------------------------- the massing
+    //
+    // Four instanced meshes, built from the footprints recorded above, so
+    // a building stops being an extrusion and becomes a building:
+    //
+    //   parapet  the lip every flat roof has, standing proud of the
+    //            facade. It is the single cheapest thing that stops a
+    //            block reading as a cut-out — a roof edge catches light
+    //            from a different angle than the wall under it, and
+    //            without one a facade simply ends.
+    //   setback  tall blocks step in as they rise, which is what makes a
+    //            skyline a skyline rather than a bar chart. Wearing the
+    //            same lit-window facade as the shaft, so the upper floors
+    //            are lit too.
+    //   plant    the lift motor room, the tanks, the ducting. Every flat
+    //            roof in the world has a shed on it and almost no
+    //            rendered one does.
+    //   mast     an aerial on the tallest, which is what actually breaks
+    //            the horizontal on a distant skyline.
+    //
+    // All four instanced, so the whole thing costs four draw calls for
+    // three hundred and thirty-nine buildings.
+    {
+      const capGeo = new THREE.BoxGeometry(1, 1, 1);
+      capGeo.translate(0, 0.5, 0);
+      const concrete = new THREE.MeshStandardMaterial({
+        color: 0x8d9199,
+        roughness: 0.92,
+      });
+      const plantMat = new THREE.MeshStandardMaterial({
+        color: 0x70747c,
+        roughness: 0.95,
+      });
+      const mastMat = new THREE.MeshStandardMaterial({
+        color: 0x4a4f57,
+        roughness: 0.7,
+        metalness: 0.5,
+      });
+
+      // Which shaft each piece belongs to, published rather than left to
+      // be guessed from geometry later.
+      //
+      // Buildings are allowed to overlap each other's footprints, so
+      // "the shaft nearest this roof piece" and "the shaft whose bounds
+      // contain it" are both wrong often enough to matter — a test that
+      // guessed reported a parapet floating 0.286 m above its roof and a
+      // plant room hanging off a roof it was sitting in the middle of.
+      // The builder knows the answer exactly, so it says so.
+      const setbackOf: number[] = [];
+      const plantOf: number[] = [];
+      const mastOf: number[] = [];
+      const setbacks: typeof massing = [];
+      const plants: typeof massing = [];
+      const masts: typeof massing = [];
+      massing.forEach((b, i) => {
+        if (b.setback) { setbacks.push(b); setbackOf.push(i); }
+        if (b.plant) { plants.push(b); plantOf.push(i); }
+        if (b.mast) { masts.push(b); mastOf.push(i); }
+      });
+
+      const parapetMesh = new THREE.InstancedMesh(capGeo, concrete, massing.length);
+      const setbackMesh = new THREE.InstancedMesh(capGeo, mat, Math.max(1, setbacks.length));
+      const plantMesh = new THREE.InstancedMesh(capGeo, plantMat, Math.max(1, plants.length));
+      const mastMesh = new THREE.InstancedMesh(
+        new THREE.CylinderGeometry(0.18, 0.3, 1, 6),
+        mastMat,
+        Math.max(1, masts.length)
+      );
+
+      const mm = new THREE.Matrix4();
+      const pos = new THREE.Vector3();
+      const sc = new THREE.Vector3();
+      /** A point on the roof, in the building's own frame. */
+      const onRoof = (b: (typeof massing)[number], dx: number, dz: number, y: number) => {
+        pos.set(dx, 0, dz).applyQuaternion(b.q).add(b.p);
+        pos.y = b.p.y + y;
+        return pos;
+      };
+
+      massing.forEach((b, i) => {
+        // Parapet: 30 cm proud of the facade all round, 90 cm tall,
+        // sitting ON the roof rather than replacing its top.
+        sc.set(b.depth + 0.6, 0.9, b.width + 0.6);
+        mm.compose(onRoof(b, 0, 0, b.h), b.q, sc);
+        parapetMesh.setMatrixAt(i, mm);
+        parapetMesh.setColorAt(i, b.tint);
+      });
+
+      setbacks.forEach((b, i) => {
+        // The upper block steps in on all four sides and takes a third
+        // of the height with it.
+        const inset = 0.22 + b.r[0] * 0.16;
+        const up = b.h * (0.24 + b.r[1] * 0.2);
+        sc.set(b.depth * (1 - inset), up, b.width * (1 - inset));
+        mm.compose(onRoof(b, 0, 0, b.h + 0.9), b.q, sc);
+        setbackMesh.setMatrixAt(i, mm);
+        setbackMesh.setColorAt(i, b.tint);
+      });
+
+      plants.forEach((b, i) => {
+        // Off-centre, because a plant room is where the lift shaft is and
+        // a lift shaft is never in the middle.
+        const pw = b.depth * (0.2 + b.r[2] * 0.22);
+        const pd = b.width * (0.2 + b.r[3] * 0.22);
+        const ph = 2.2 + b.r[0] * 2.6;
+        const dx = (b.r[1] - 0.5) * (b.depth - pw) * 0.7;
+        const dz = (b.r[2] - 0.5) * (b.width - pd) * 0.7;
+        // On top of the setback if there is one, or on the main roof.
+        const base = b.setback ? b.h + 0.9 + b.h * (0.24 + b.r[1] * 0.2) : b.h + 0.9;
+        sc.set(pw, ph, pd);
+        mm.compose(onRoof(b, dx, dz, base), b.q, sc);
+        plantMesh.setMatrixAt(i, mm);
+      });
+
+      masts.forEach((b, i) => {
+        const mh = 6 + b.r[3] * 12;
+        const base = b.setback ? b.h + 0.9 + b.h * (0.24 + b.r[1] * 0.2) : b.h + 0.9;
+        sc.set(1, mh, 1);
+        mm.compose(onRoof(b, 0, 0, base + mh / 2), b.q, sc);
+        mastMesh.setMatrixAt(i, mm);
+      });
+
+      for (const im of [parapetMesh, setbackMesh, plantMesh, mastMesh]) {
+        im.instanceMatrix.needsUpdate = true;
+        if (im.instanceColor) im.instanceColor.needsUpdate = true;
+        im.castShadow = true;
+        im.receiveShadow = true;
+        scene.add(im);
+      }
+      parapetMesh.count = massing.length;
+      setbackMesh.count = setbacks.length;
+      plantMesh.count = plants.length;
+      mastMesh.count = masts.length;
+      // Named so the building tests can find them, and so the ID pass in
+      // the sharpness tool counts a roof as part of its building.
+      parapetMesh.name = "cityParapets";
+      setbackMesh.name = "citySetbacks";
+      plantMesh.name = "cityPlant";
+      mastMesh.name = "cityMasts";
+      // Instance i of each of these stands on instance ownerOf[i] of
+      // cityBlocks. A parapet is one per shaft, so its map is the
+      // identity.
+      parapetMesh.userData.ownerOf = massing.map((_, i) => i);
+      setbackMesh.userData.ownerOf = setbackOf;
+      plantMesh.userData.ownerOf = plantOf;
+      mastMesh.userData.ownerOf = mastOf;
+      litFacades.push(concrete);
+    }
     scene.add(blocks);
   }
 

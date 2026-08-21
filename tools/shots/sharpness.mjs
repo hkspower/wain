@@ -126,8 +126,19 @@ for (const [where, m] of SPOTS) {
         fog: false,
       });
     const mats = [idMat(false), idMat(true)];
+    // A building is a stack now — shaft, parapet, setback, plant, mast —
+    // and every piece of it is a separate InstancedMesh. Counting only
+    // the shaft would leave the roof out of the mask and measure the
+    // sharpness of a building with its top cropped off.
+    const CITY = new Set([
+      "cityBlocks",
+      "cityParapets",
+      "citySetbacks",
+      "cityPlant",
+      "cityMasts",
+    ]);
     const isBuilding = (o) => {
-      for (let n = o; n; n = n.parent) if (n.name === "cityBlocks") return true;
+      for (let n = o; n; n = n.parent) if (CITY.has(n.name)) return true;
       return false;
     };
     e.scene.traverse((o) => {

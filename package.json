@@ -49,6 +49,7 @@
     "test:world": "node tests/world.mjs",
     "test:lamps": "node tests/lamps.mjs",
     "test:size": "node tests/size.mjs",
+    "test:buildings": "node tests/buildings.mjs",
     "test:fuel": "node tests/fuel.mjs",
     "test:community": "node tests/community.mjs",
     "shots:cars": "node tools/shots/cars.mjs",
