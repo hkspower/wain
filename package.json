@@ -17,7 +17,8 @@
     "test:orders": "node tests/run-orders.mjs",
     "test:net": "node tests/run-net.mjs",
     "audit:icons": "node scripts/audit-icons.mjs",
-    "audit:type": "node scripts/audit-type.mjs"
+    "audit:type": "node scripts/audit-type.mjs",
+    "test:journey": "node tests/run-journey.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.1",
