@@ -332,8 +332,9 @@
     if (!form) return;
 
     const EXAMPLES = state.me.role === 'admin'
-      ? ['كم طلب سُلّم اليوم؟', 'مين متاح الآن؟', 'الطلبات بانتظار الإسناد', 'المتعثّرة']
-      : ['طلباتي النشطة', 'كم طلب سلّمت اليوم؟', 'التحويلات'];
+      ? ['كم سلّمنا هذا الأسبوع؟', 'مين متاح الآن؟', 'الطلبات بانتظار الإسناد',
+         'كم العمولة؟', 'شنو شروط الكابتن؟']
+      : ['طلباتي النشطة', 'كم سلّمت هذا الأسبوع؟', 'دورة الصرف', 'التحويلات'];
     chips.innerHTML = EXAMPLES.map((e) => `<button type="button" class="chip" data-ask="${esc(e)}">${esc(e)}</button>`).join('');
     chips.addEventListener('click', (e) => {
       const b = e.target.closest('[data-ask]');
@@ -346,6 +347,21 @@
       const d = r.data || {};
       const body = [];
 
+      /* السياسة تُعرض بمصدرها وبما إن كان النظام يفرضها.
+         «مفروض» يعني أن النظام يحرسه، و«غير مفروض» يعني أن حراسته على
+         الموظّف — ولو خُلط الاثنان ترك الحراسة ظنًّا أنها مكفولة. */
+      if (d.policy) {
+        body.push(`<div class="ask__pol">
+          ${d.policy.enforced
+            ? '<span class="ask__pol-on">النظام يفرض هذا</span>'
+            : `<span class="ask__pol-off">النظام لا يفرض هذا</span>
+               <p>${esc(d.policy.why_not || '')}</p>`}
+          <small>المصدر: ${esc(d.policy.source)}</small>
+        </div>`);
+      }
+      if (d.audited) {
+        body.push('<p class="ask__audit">سُجِّل اطّلاعك على أرقام هذا الكابتن في سجلّ حسابه.</p>');
+      }
       if (d.rows) {
         body.push(`<dl class="ask__stats">${d.rows
           .map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`);

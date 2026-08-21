@@ -29,6 +29,9 @@ const D = require('./domain');
 const AREA = require('./areas');
 const V = require('./voice-order');
 const SIM = require('./similar');
+const POL = require('./policy');
+const PER = require('./periods');
+const S = require('./settings');
 
 /* ------------------------------ المطابقة ------------------------------ */
 
@@ -137,38 +140,32 @@ const INTENTS = [
   },
 
   {
-    id: 'stats_today',
-    keys: ['اليوم', 'احصاءات', 'الاحصاءات', 'وضع اليوم', 'ملخص اليوم', 'كم عمولة', 'العمولة', 'التحصيل', 'كم سلمنا'],
+    id: 'stats',
+    keys: ['اليوم', 'امس', 'الاسبوع', 'اسبوعيا', 'الشهر', 'شهريا',
+           'احصاءات', 'الاحصاءات', 'ملخص', 'التحصيل', 'كم سلمنا', 'كم سلم'],
     run: (ctx) => {
-      const from = startOfToday();
-      const s = scopeFor(ctx.viewer);
-      const t = db.prepare(
-        `SELECT COUNT(*) AS delivered,
-                COALESCE(SUM(o.cod_amount), 0) AS cod,
-                COALESCE(SUM(o.delivery_fee), 0) AS fees,
-                COALESCE(SUM(o.commission_amount), 0) AS commission,
-                COALESCE(SUM(o.agent_earning), 0) AS earning
-           FROM orders o WHERE o.status='delivered' AND o.delivered_at >= ?${s.sql}`
-      ).get(from, ...s.args);
+      /* اسمُ كابتنٍ في سؤال إحصائيّ يحوّله من إحصاء الشركة إلى أداء صاحبه:
+         «كم سلّم بدر هذا الأسبوع» سؤالٌ عن بدر لا عن الجميع. */
+      const cap = ctx.isAdmin ? findCaptain(ctx.words) : null;
+      return cap ? captainStats(ctx, cap) : periodStats(ctx);
+    },
+  },
 
-      const active = countOrders(ctx.viewer, `o.status IN (${q(D.ACTIVE_STATUSES)})`, D.ACTIVE_STATUSES);
-      const waiting = ctx.isAdmin ? countOrders(ctx.viewer, "o.status = 'new'", []) : 0;
-
-      const rows = [
-        ['المُسلَّم اليوم', nOrders(t.delivered)],
-        ['النشط الآن', nOrders(active)],
-        ['تحصيل اليوم', ar.money(t.cod)],
-      ];
-      if (ctx.isAdmin) {
-        rows.push(['بانتظار الإسناد', nOrders(waiting)]);
-        rows.push(['عمولة الوساطة اليوم', ar.money(t.commission)]);
-        rows.push(['مستحقّ الكباتن اليوم', ar.money(t.earning)]);
-      }
+  {
+    id: 'policy',
+    keys: POL.POLICIES.flatMap((x) => x.q),
+    /* «كم عمولة الأسبوع» رقمٌ لفترة، و«كم العمولة» قاعدةٌ ثابتة — تفرّقهما
+       كلمة الزمن. فإن ذُكرت فترة فالسؤال إحصاء لا سياسة. */
+    skipIf: (ctx) => ctx.hasPeriod,
+    run: (ctx) => {
+      const hit = POL.POLICIES.find((x) => x.q.some((k) => hasPhrase(ctx.words, k)));
+      const live = { commission: S.describeCommission().text };   /* النصّ لا الكائن */
+      const a = POL.answer(hit, live);
       return {
-        kind: 'stats',
-        say: `اليوم: ${dOrders(t.delivered, ADJ.delivered)}، و${dOrders(active, 'active')} الآن.`,
-        data: { rows },
-        actions: [{ label: 'كل الطلبات', href: '#/orders' }],
+        kind: 'policy',
+        say: a.text,
+        data: { policy: a },
+        actions: a.id === 'commission' ? [{ label: 'إعدادات العمولة', href: '#/settings' }] : [],
       };
     },
   },
@@ -271,13 +268,116 @@ const INTENTS = [
   },
 ];
 
+/* ------------------------ إحصاء على فترة ------------------------ */
+
+function periodStats(ctx) {
+  const sc = scopeFor(ctx.viewer);
+  const w = PER.sqlFor(ctx.period, 'o.delivered_at');
+  const t = db.prepare(
+    `SELECT COUNT(*) AS delivered,
+            COALESCE(SUM(o.cod_amount), 0) AS cod,
+            COALESCE(SUM(o.delivery_fee), 0) AS fees,
+            COALESCE(SUM(o.commission_amount), 0) AS commission,
+            COALESCE(SUM(o.agent_earning), 0) AS earning
+       FROM orders o WHERE o.status='delivered' AND ${w.sql}${sc.sql}`
+  ).get(...w.args, ...sc.args);
+
+  const active = countOrders(ctx.viewer, `o.status IN (${q(D.ACTIVE_STATUSES)})`, D.ACTIVE_STATUSES);
+  const P = ctx.period.label;
+  const rows = [
+    [`المُسلَّم ${P}`, nOrders(t.delivered)],
+    ['النشط الآن', nOrders(active)],
+    [`تحصيل ${P}`, ar.money(t.cod)],
+  ];
+  if (ctx.isAdmin) {
+    rows.push(['بانتظار الإسناد', nOrders(countOrders(ctx.viewer, "o.status = 'new'", []))]);
+    rows.push([`عمولة الوساطة ${P}`, ar.money(t.commission)]);
+    rows.push([`مستحقّ الكباتن ${P}`, ar.money(t.earning)]);
+  }
+  return {
+    kind: 'stats',
+    say: `${P}: ${dOrders(t.delivered, ADJ.delivered)}، و${dOrders(active, 'active')} الآن.`,
+    data: { rows, period: ctx.period.id },
+    actions: [{ label: 'كل الطلبات', href: '#/orders' }],
+  };
+}
+
+/* ------------------------ أداء كابتن بعينه ------------------------ */
+
+/** الكابتن المذكور بالاسم في السؤال — كلمتان متتاليتان أو كلمة واحدة */
+function findCaptain(words) {
+  const list = db.prepare("SELECT id, name, approval, availability FROM agents WHERE role='agent'").all();
+  for (const a of list) {
+    const parts = norm(a.name).split(' ').filter(Boolean);
+    /* الاسم كاملًا أوّلًا، ثمّ أوّله وحده — و«بدر» تكفي إن لم يشاركه فيها أحد */
+    if (hasPhrase(words, a.name)) return a;
+  }
+  const firsts = new Map();
+  for (const a of list) {
+    const f = norm(a.name).split(' ')[0];
+    firsts.set(f, (firsts.get(f) || 0) + 1);
+  }
+  for (const a of list) {
+    const f = norm(a.name).split(' ')[0];
+    if (firsts.get(f) === 1 && hasPhrase(words, f)) return a;
+  }
+  return null;
+}
+
+/**
+ * أداء كابتن على فترة.
+ *
+ * **ويُسجَّل الاطّلاع.** النظام يسجّل كل اطّلاع على موقع كابتن حمايةً
+ * لخصوصيته، وأرقام أدائه ليست أهون: يُبنى عليها قرار اعتماد أو إنهاء.
+ * فيُكتب في سجلّ الحساب من اطّلع ومتى وعلى أي فترة — يراه صاحبه في صفحته،
+ * ولا يكون الاطّلاع بابًا لا يُعرف من دخله.
+ */
+function captainStats(ctx, cap) {
+  const w = PER.sqlFor(ctx.period, 'o.delivered_at');
+  const done = db.prepare(
+    `SELECT COUNT(*) AS n, COALESCE(SUM(o.agent_earning),0) AS earning, COALESCE(SUM(o.cod_amount),0) AS cod
+       FROM orders o WHERE o.agent_id=? AND o.status='delivered' AND ${w.sql}`
+  ).get(cap.id, ...w.args);
+  const wf = PER.sqlFor(ctx.period, 'o.updated_at');
+  const failed = db.prepare(
+    `SELECT COUNT(*) AS n FROM orders o WHERE o.agent_id=? AND o.status IN ('failed','returned') AND ${wf.sql}`
+  ).get(cap.id, ...wf.args).n;
+  const active = db.prepare(
+    `SELECT COUNT(*) AS n FROM orders o WHERE o.agent_id=? AND o.status IN (${q(D.ACTIVE_STATUSES)})`
+  ).get(cap.id, ...D.ACTIVE_STATUSES).n;
+
+  db.prepare(
+    `INSERT INTO agent_events (agent_id, actor_id, type, from_value, to_value, note, created_at)
+     VALUES (?, ?, 'performance_view', '', ?, ?, datetime('now'))`
+  ).run(cap.id, ctx.viewer.id, ctx.period.id,
+        `اطّلع ${ctx.viewer.name} على أرقام الأداء (${ctx.period.label})`);
+
+  const P = ctx.period.label;
+  return {
+    kind: 'stats',
+    say: `${cap.name} — ${P}: ${dOrders(done.n, ADJ.delivered)}${failed ? `، و${dOrders(failed, ADJ.failed)}` : ''}.`,
+    data: {
+      rows: [
+        [`المُسلَّم ${P}`, nOrders(done.n)],
+        [`المتعثّر ${P}`, nOrders(failed)],
+        ['النشط الآن', nOrders(active)],
+        [`مستحقّه ${P}`, ar.money(done.earning)],
+        ['حالة الحساب', D.APPROVAL[cap.approval] || cap.approval],
+        ['التوفّر', D.AVAILABILITY[cap.availability] || cap.availability],
+      ],
+      audited: true,
+    },
+    actions: [{ label: 'صفحة المندوب', href: `#/agents` }],
+  };
+}
+
 const EXAMPLES = [
-  'كم طلب سُلّم اليوم؟',
+  'كم سلّمنا هذا الأسبوع؟',
   'مين متاح الآن؟',
   'الطلبات بانتظار الإسناد',
-  'وين طلب MW-4001؟',
+  'كم العمولة؟',
+  'شنو شروط الكابتن؟',
   'طلبات حولي',
-  'ألصق طلبًا جديدًا…',
 ];
 
 const q = (arr) => arr.map(() => '?').join(',');
@@ -339,8 +439,10 @@ function ask(viewer, text) {
     return { understood: false, intent: 'empty', kind: 'unknown', say: 'اكتب سؤالك أو تكلّم به.', data: { examples: EXAMPLES } };
   }
 
-  const ctx = { viewer, isAdmin: viewer.role === 'admin', text: raw };
   const words = norm(raw).split(' ');
+  const period = PER.readPeriod(words);
+  const hasPeriod = PER.PERIODS.some((x) => x.keys.some((k) => hasPhrase(words, k)));
+  const ctx = { viewer, isAdmin: viewer.role === 'admin', text: raw, words, period, hasPeriod };
 
   /* ١ — طلب جديد؟ يُحوَّل إلى النموذج مملوءًا، ولا يُنشأ هنا.
      العلامة الفارقة أن النصّ فيه ما يكفي لطلب: منطقتان، أو منطقة وهاتف. */
@@ -383,6 +485,7 @@ function ask(viewer, text) {
   let best = null;
   for (const intent of INTENTS) {
     if (intent.admin && !ctx.isAdmin) continue;
+    if (intent.skipIf && intent.skipIf(ctx)) continue;
     const score = intent.keys.reduce((n, k) => n + (hasPhrase(words, k) ? norm(k).split(' ').length : 0), 0);
     if (score > 0 && (!best || score > best.score)) best = { intent, score };
   }
@@ -391,7 +494,13 @@ function ask(viewer, text) {
     return { understood: true, intent: best.intent.id, ...out };
   }
 
-  /* ٤ — مكان أو حالة: بحث في الطلبات */
+  /* ٤ — كابتن بعينه: أرقام أدائه، ويُسجَّل الاطّلاع (خيار الإدارة) */
+  if (ctx.isAdmin) {
+    const cap = findCaptain(words);
+    if (cap) return { understood: true, intent: 'captain_stats', ...captainStats(ctx, cap) };
+  }
+
+  /* ٥ — مكان أو حالة: بحث في الطلبات */
   const place = findPlace(raw);
   const status = findStatus(raw);
   if (place || status) {
@@ -419,7 +528,7 @@ function ask(viewer, text) {
     };
   }
 
-  /* ٥ — بحث نصّي على الاسم والهاتف والعنوان */
+  /* ٦ — بحث نصّي على الاسم والهاتف والعنوان */
   const term = raw.replace(/[؟?]/g, '').trim();
   if (term.length >= 3) {
     const like = `%${term}%`;
@@ -434,7 +543,7 @@ function ask(viewer, text) {
     }
   }
 
-  /* ٦ — لا يخمّن، ولا يصمت.
+  /* ٧ — لا يخمّن، ولا يصمت.
      من كتب «السالمي» يعرف قصده، والنظام يعرف أن «السالمية» على بُعد حرف.
      فلا يُملأ شيء ولا يُفترض شيء — بل يُسأل صاحبه ويُترك له الجواب. */
   const near = SIM.closestInText(raw, VOCAB());

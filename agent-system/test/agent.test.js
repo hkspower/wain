@@ -144,7 +144,7 @@ test('المسار يحتاج جلسة', async () => {
 
 test('يجيب عن اليوم بأرقام النظام نفسها', async () => {
   const r = await ask('admin', 'كم طلب سُلّم اليوم؟');
-  assert.equal(r.intent, 'stats_today');
+  assert.equal(r.intent, 'stats');
   const stats = (await call('admin', 'GET', '/api/stats')).data;
   const row = r.data.rows.find(([k]) => k === 'المُسلَّم اليوم');
   assert.ok(row, 'لا سطر للمُسلَّم');
@@ -254,4 +254,87 @@ test('البحث الذي يجد لا يُثقَل باقتراح', async () => 
   const r = await ask('admin', 'طلبات حولي');
   assert.ok(r.data.orders.length);
   assert.equal(r.data.suggest, undefined);
+});
+
+/* --------------------------- الفترات --------------------------- */
+
+test('يجيب على الفترة المذكورة لا على اليوم دائمًا', async () => {
+  for (const [q, want] of [['كم سلّمنا اليوم', 'today'], ['كم سلّمنا أمس', 'yesterday'],
+                           ['كم سلّمنا هذا الأسبوع', 'week'], ['اسبوعيا', 'week'],
+                           ['كم هذا الشهر', 'month']]) {
+    const r = await ask('admin', q);
+    assert.equal(r.data.period, want, `«${q}» أعطت ${r.data.period}`);
+  }
+});
+
+test('بلا ذكر فترة يُفهم اليوم — أضيق الاحتمالات لا أوسعها', async () => {
+  assert.equal((await ask('admin', 'الإحصاءات')).data.period, 'today');
+});
+
+test('الأسبوع يبدأ الأحد كأسبوع العمل في الكويت', () => {
+  const PER = require('../server/periods');
+  for (const d of ['2026-08-16', '2026-08-20', '2026-08-22']) {   // أحد · خميس · سبت
+    const r = PER.readPeriod(['الاسبوع'], new Date(d + 'T10:00:00'));
+    assert.equal(r.from.getDay(), 0, `${d}: الأسبوع لا يبدأ الأحد`);
+  }
+});
+
+/* ------------------------ أداء الكابتن ------------------------ */
+
+test('أداء الكابتن يُجاب للمدير، ويُسجَّل الاطّلاع كما يُسجَّل الموقع', async () => {
+  const before = db.prepare("SELECT COUNT(*) n FROM agent_events WHERE type='performance_view'").get().n;
+  const r = await ask('admin', 'كم سلّم بدر هذا الأسبوع');
+  assert.equal(r.intent, 'stats');
+  assert.match(r.say, /بدر العنزي/);
+  assert.equal(r.data.audited, true, 'لم يُعلَّم الجواب بأنه مُسجَّل');
+
+  const rows = db.prepare(
+    "SELECT * FROM agent_events WHERE type='performance_view' ORDER BY id DESC"
+  ).all();
+  assert.equal(rows.length, before + 1, 'لم يُسجَّل الاطّلاع');
+  assert.equal(rows[0].agent_id, ids.badr, 'سُجِّل على غير صاحبه');
+  assert.equal(rows[0].actor_id, ids.admin, 'لم يُسمَّ المطّلِع');
+  assert.equal(rows[0].to_value, 'week', 'لم تُسجَّل الفترة');
+  assert.match(rows[0].note, /سعود المدير/);
+});
+
+test('المندوب لا يرى أداء زميله ولا يُسجَّل له اطّلاع', async () => {
+  const before = db.prepare("SELECT COUNT(*) n FROM agent_events WHERE type='performance_view'").get().n;
+  const r = await ask('badr', 'كم سلّم أحمد الكندري');
+  assert.ok(!/أحمد الكندري —/.test(r.say), `سرّب أداء زميله: ${r.say}`);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM agent_events WHERE type='performance_view'").get().n,
+    before, 'سجّل اطّلاعًا لمن لا يُجاب');
+});
+
+/* ------------------------ السياسات ------------------------ */
+
+test('يجيب عن السياسات، ويقول من أين أخذ', async () => {
+  const c = await ask('admin', 'كم العمولة');
+  assert.equal(c.intent, 'policy');
+  assert.match(c.say, /٪|د\.ك/, 'لم يُذكر المضبوط الآن');
+  assert.equal(c.data.policy.source, 'الإعدادات وملفّ السياسات');
+});
+
+test('ما ليس مفروضًا في النظام يُقال إنه ليس مفروضًا', async () => {
+  for (const [q, id] of [['شنو شروط الكابتن', 'captain_car'], ['المقابلة', 'interview'], ['دورة الصرف', 'payout']]) {
+    const r = await ask('admin', q);
+    assert.equal(r.data.policy.id, id, `«${q}» أعطت ${r.data.policy.id}`);
+    assert.equal(r.data.policy.enforced, false, `«${q}» ادّعت أن النظام يفرضها`);
+    assert.ok(r.data.policy.why_not, `«${q}» بلا سبب لعدم الفرض`);
+  }
+});
+
+test('العمولة الحيّة تُقرأ ولا تُنسخ — تتغيّر بتغيّر الإعدادات', async () => {
+  const S = require('../server/settings');
+  const before = (await ask('admin', 'كم العمولة')).say;
+  S.setCommission({ type: 'fixed', rate: 0.75 }, { id: ids.admin, name: 'سعود المدير' }, 'اختبار');
+  const after = (await ask('admin', 'كم العمولة')).say;
+  assert.notEqual(before, after, 'الجواب لم يتبع الإعدادات');
+  assert.match(after, /٠٫٧٥٠/);
+});
+
+test('«كم عمولة هذا الأسبوع» رقمٌ لفترة لا قاعدةٌ ثابتة', async () => {
+  const r = await ask('admin', 'كم عمولة هذا الأسبوع');
+  assert.equal(r.intent, 'stats', 'خطفتها السياسة');
+  assert.equal(r.data.period, 'week');
 });

@@ -820,3 +820,15 @@ tbody tr:hover { background: #fbfdfe; }
 /* الجواب: الجملة سطرٌ قائد، وما تحته بيانات */
 .ask__answer { padding: .9rem 1.05rem; }
 .ask__answer.is-loading { background: var(--card); }
+
+/* ---- جواب السياسة: مفروض أم على الموظّف حراسته ---- */
+.ask__pol { margin-top: .7rem; font-size: var(--t-sm); }
+.ask__pol p { margin: .3rem 0 0; color: var(--warn-fg); }
+.ask__pol small { display: block; margin-top: .4rem; font-size: var(--t-2xs); color: var(--ink-soft); }
+.ask__pol-on, .ask__pol-off {
+  display: inline-block; padding: .1rem .5rem; border-radius: 3px;
+  font-size: var(--t-2xs); font-weight: 700;
+}
+.ask__pol-on { background: var(--ok-bg); color: var(--ok-fg); }
+.ask__pol-off { background: var(--warn-bg); color: var(--warn-fg); }
+.ask__audit { margin: .7rem 0 0; font-size: var(--t-xs); color: var(--ink-soft); }
