@@ -4,7 +4,7 @@ Everything below is measured, not remembered — the suite states are from
 a full run, and each entry says what is actually wrong, what it costs,
 and what I would do about it. Ordered by what I would fix first.
 
-Last checked against commit `aa24a1d`.
+Last checked against commit `45ba263`, with a full suite run behind it.
 
 > **Nine of the eleven items this file used to list are done.** They are
 > kept below, struck through, with their reasoning intact: the argument
@@ -14,14 +14,37 @@ Last checked against commit `aa24a1d`.
 
 ## The suite, right now
 
-Twenty-four suites and five static checks pass. `npx tsc --noEmit` is
-clean. Nothing is red.
+Thirty-three suites, five static checks and two audit tools. Every one
+of them passes, `npx tsc --noEmit` is clean, and the race reports zero
+page errors for the first time. Nothing is red.
 
 | | state |
 |---|---|
 | `test:assets`, `test:race` | **fixed** — the manifest decides what must be authored, and the driver is procedural |
 | `test:streets` | **fixed** — the world is seeded |
 | `test:levels` | **fixed** — night by default, `--sweep` for the rest |
+| `test:grade` | **fixed** — the downward exposure ladder is measured at night, where the control actually works |
+| `check:gutters` | 0 problems across five window sizes and four screens |
+| `check:fleet` | fifteen cars, no part class missing from one of them |
+
+Two of those suites failed on the full run and both turned out to be
+the test rather than the game, which is worth writing down because
+both had been quietly wrong for a while:
+
+- **`test:grade`** asserted that a stop down darkens a NOON frame. It
+  does not — the black-point rescale gives the exposure back and then
+  stretches it, measured as the bright fraction going from 0.098 to
+  0.27. The assertion was riding on a 1–3% drop that the toe was
+  already cancelling, so a loaded box tipped it. The downward half is
+  measured at night now, pixel against matching pixel, where it moves
+  6,373 pixels down and 1,414 up.
+- **`test:race`** clicked SEND CHALLENGE with an eight-second budget and
+  `.catch(() => {})`. On a box rendering 1.5 M triangles in software the
+  click ran out of budget in its hit-target check, the failure was
+  discarded, and the suite reported "the challenge never became a
+  battle" forty seconds later — a symptom two steps downstream of a
+  cause it had thrown away. The click is checked now, and given sixty
+  seconds.
 
 ---
 

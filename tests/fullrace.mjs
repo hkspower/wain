@@ -195,8 +195,27 @@ const pending = await page.evaluate(() => window.__grnEngine.challengePending);
 console.log(`challenge card raised: ${pending}  ${check(pending === true, "three flashes did not issue a challenge")}`);
 
 // Accept it through the real UI button
-await page.click("text=SEND CHALLENGE", { timeout: 8000 }).catch(() => {});
-console.log("clicked SEND CHALLENGE — waiting for the rival's answer");
+// Sixty seconds, not eight, and the result is CHECKED rather than
+// swallowed.
+//
+// Both halves of that mattered. This click used to be
+// `.catch(() => {})` on an eight-second budget, and on a box rendering
+// 1.5 M triangles through a software rasteriser it silently missed:
+// Playwright resolved the button, found it visible, enabled, stable and
+// the top thing under its own centre, and then ran out of budget in the
+// hit-target check. The test carried on, waited forty seconds for a
+// challenge nobody had sent, and reported "the challenge never became a
+// battle" — a failure two steps downstream of the actual event, with
+// the real one thrown away. A click that does not happen has to say so.
+const clicked = await page
+  .click("text=SEND CHALLENGE", { timeout: 60000 })
+  .then(() => true)
+  .catch((e) => {
+    console.log("  SEND CHALLENGE never landed:", String(e).split("\n")[0]);
+    return false;
+  });
+check(clicked, "the SEND CHALLENGE button could not be clicked");
+console.log("waiting for the rival's answer");
 // The rival's answer is a real 2.2 s setTimeout inside the engine, and
 // timers in this headless browser run two to three and a half times slow
 // — a 1500 ms timeout measures 3400-5100 ms here — so 2.2 s of game time

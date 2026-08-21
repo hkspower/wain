@@ -173,8 +173,36 @@ console.log(`exposure    -1 EV mean ${evDown.mean} | 0 EV ${ev0.mean} | +1 EV ${
 // half therefore does very little to a bright frame. Asserting a big
 // drop here would be asserting a pipeline this game does not have.
 check(evUp.mean > ev0.mean * 1.25, "raising exposure did not brighten the frame");
-check(evDown.mean < ev0.mean, "lowering exposure did not darken the frame at all");
-check(evDown.mean < ev0.mean && ev0.mean < evUp.mean, "exposure is not monotonic");
+check(evUp.mean > ev0.mean, "exposure is not monotonic upward");
+
+// Downward, measured at NIGHT and pixel by pixel, and neither of those
+// is a detail.
+//
+// At noon a stop down does not darken this picture. It measures +0.1%
+// on the frame mean and it is not noise: the bright fraction goes from
+// 0.098 to 0.27 and the standard deviation from 0.26 to 0.32, which is
+// the black-point rescale normalising a darker frame back up and
+// stretching it on the way. That is the "wash out below -1 EV" this
+// file already described — it just starts at -1 rather than below it.
+// The old assertion here rode on a 1-3% drop that the toe was already
+// cancelling, and it duly failed on a loaded box that read +0.13%: a
+// false alarm about a pipeline that was working, which is the most
+// expensive kind of test there is.
+//
+// At night there is no rescale headroom to give back and the control
+// does exactly what it says. And the comparison is of the SAME pixels
+// in two shots of a parked scene from a fixed camera, so it cannot be
+// cancelled by a mean.
+const n0 = await shoot({ ev: 0, hour: 22.5 });
+const nDown = await shoot({ ev: -1, hour: 22.5 });
+const darker = nDown.luma.filter((v, i) => v < n0.luma[i]).length;
+const lighter = nDown.luma.filter((v, i) => v > n0.luma[i]).length;
+console.log(
+  `            a stop down at night: mean ${nDown.mean} vs ${n0.mean}, ` +
+    `${darker} pixels darker and ${lighter} lighter of ${nDown.luma.length}`
+);
+check(nDown.mean < n0.mean, "a stop down at night did not darken the frame");
+check(darker > lighter * 3, "a stop down at night did not darken most of the picture");
 
 // --- 2. Contrast spreads the histogram, and holds the pivot ---
 // Measured at noon: a night frame occupies so little of the range that
