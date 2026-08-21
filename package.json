@@ -40,7 +40,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test:art": "node scripts/art-test.mjs"
+    "test:art": "node scripts/art-test.mjs",
+    "preview": "node scripts/preview-pdf.mjs"
   },
   "private": true
 }
