@@ -50,17 +50,46 @@ for (const raw of texts) {
   let t = raw.replace(/&[a-z]+;|&#\d+;/gi, ' ');
   for (const re of ALLOWED) t = t.replace(re, ' ');
   const hit = t.match(/[A-Za-z]{2,}/g);
-  if (hit) problems.push({ found: [...new Set(hit)].join('، '), ctx: raw.trim().replace(/\s+/g, ' ').slice(0, 72) });
+  if (hit) problems.push({ kind: 'latin', found: [...new Set(hit)].join('، '), ctx: raw.trim().replace(/\s+/g, ' ').slice(0, 72) });
+}
+
+/* ── وحدة المصطلح ──────────────────────────────────────────────────────
+   الموقع كان يسمّي الشخص نفسه «سائقًا» في سبعة عشر موضعًا و«كابتن» في تسعة
+   عشر — والتناقض يظهر داخل الشاشة الواحدة: زرّ «اطلب سائق» فوق فقرة تبدأ
+   بـ«كباتن معتمدون». ونموذج العمل يقول «كابتن» حصرًا، فوُحّد عليه.
+
+   وهذا يخصّ المعروض فقط: مفاتيح المطابقة في المساعد تُبقي «سائق» لأن الزبون
+   يكتبها، وفهم ما يكتبه الزائر شيء وما نعرضه عليه شيء آخر. */
+const BANNED = [
+  [/سائق|سائقون|سائقين|كسائق/, 'سائق', 'كابتن — وهو مصطلح نموذج العمل'],
+];
+for (const raw of texts) {
+  for (const [re, word, want] of BANNED) {
+    if (re.test(raw)) problems.push({ kind: 'term', found: `${word} ← ${want}`, ctx: raw.trim().replace(/\s+/g, ' ').slice(0, 72) });
+  }
 }
 
 if (problems.length) {
-  console.error(`\nتعذّر البناء — نصّ لاتيني يقرؤه الزائر (${problems.length}):\n`);
-  for (const p of problems) console.error(`  • «${p.found}» في: ${p.ctx}`);
-  console.error(`
-إن كان مصطلحًا فاكتبه بالعربية. وإن كان معرّفًا يُنسخ (هاتف، بريد، رابط،
-رمز طلب) فأضفه إلى ALLOWED في هذا الملف مع سبب بقائه.
+  const latin = problems.filter((p) => p.kind === 'latin');
+  const term  = problems.filter((p) => p.kind === 'term');
+  console.error('');
+  if (latin.length) {
+    console.error(`تعذّر البناء — نصّ لاتيني يقرؤه الزائر (${latin.length}):\n`);
+    for (const p of latin) console.error(`  • «${p.found}» في: ${p.ctx}`);
+    console.error(`
+اكتبه بالعربية، أو — إن كان معرّفًا يُنسخ (هاتف، بريد، رابط، رمز طلب) —
+أضفه إلى ALLOWED في هذا الملف مع سبب بقائه.
 `);
+  }
+  if (term.length) {
+    console.error(`تعذّر البناء — مصطلح غير موحّد (${term.length}):\n`);
+    for (const p of term) console.error(`  • ${p.found}  في: ${p.ctx}`);
+    console.error(`
+الموقع يسمّي الشخص الواحد باسم واحد. عدّل النصّ، أو — إن تغيّر القرار —
+عدّل BANNED في هذا الملف.
+`);
+  }
   process.exit(1);
 }
 
-console.log(`✓ لا حرف لاتيني في نصّ الزائر — ${texts.length} مقطعًا نصّيًّا`);
+console.log(`✓ نصّ الزائر عربي وموحّد المصطلح — ${texts.length} مقطعًا نصّيًّا`);
