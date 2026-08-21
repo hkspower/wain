@@ -151,6 +151,8 @@ function guardSeo() {
   const checks = [
     ['website/tools/make-jsonld.mjs',  'البيانات المنظّمة', true],
     ['website/tools/make-sitemap.mjs', 'خريطة الموقع',      false],
+    // المساعد يخاطب الزبائن مباشرةً، ورقم في جوابه يصير وعدًا: يُرفض البناء
+    ['website/tools/check-assistant.mjs', 'مساعد موصول',     true],
   ];
   for (const [script, what, fatal] of checks) {
     const r = spawnSync(process.execPath, [path.join(ROOT, script), '--check'], {
