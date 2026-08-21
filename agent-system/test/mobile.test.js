@@ -322,3 +322,36 @@ test('العناوين ٧٠٠ لا ٨٠٠ — عيون الحروف العربي
     /h1, h2, h3 \{[^}]*font-weight: var\(--w-bold\)/,
     'العناوين رجعت إلى الأثقل');
 });
+
+/* ------------------------------- دلالات HTML ------------------------------- */
+
+test('النافذة عنصر <dialog> لا <div> — الحبس والتعطيل من المتصفّح', () => {
+  const html = read('index.html');
+  assert.match(html, /<dialog\b[^>]*id="modal"/, 'النافذة ليست <dialog>');
+  assert.ok(!/class="modal__backdrop"/.test(html), 'ما زال ظهر النافذة عنصرًا مرسومًا بيدنا');
+
+  const js = read('app.js');
+  assert.match(js, /el\.modal\.showModal\(\)/, 'تُفتح بلا showModal فلا حبسَ للتنقّل');
+  assert.match(js, /el\.modal\.close\(\)/, 'تُغلق بلا close');
+  /* Esc تغلقها من المتصفّح، فالتنظيف يكون على `close` لا في دالّة الإغلاق */
+  assert.match(js, /addEventListener\('close'/, 'التنظيف لا يقع عند الإغلاق بـEsc');
+
+  assert.match(read('app.css'), /\.modal::backdrop/, 'الظهر بلا ::backdrop');
+});
+
+test('بطاقة الطلب <article> ووقتها <time> بتاريخ مقروء آليًّا', () => {
+  const js = read('app.js');
+  assert.match(js, /<article class="order/, 'البطاقة ليست <article>');
+  assert.match(js, /<time class="order__time" datetime="/, 'الوقت بلا <time datetime>');
+  assert.match(js, /<a class="order__code num" href="#\/orders\//, 'الرمز ليس رابطًا');
+});
+
+test('الرابط الممدود يُقاس على البطاقة لا على نفسه', () => {
+  const css = read('app.css');
+  assert.match(css, /\.order \{[^}]*position: relative/, 'البطاقة غير موضوعة فلا يمتدّ عليها شيء');
+  assert.match(css, /\.order__code::after \{[^}]*position: absolute;\s*inset: 0/, 'لا طبقة ممدودة');
+  /* لو وُضع الرابط نفسه لامتدّت الطبقة عليه هو، فلا تُضغط البطاقة */
+  const rule = css.match(/\.order__code \{([^}]*)\}/);
+  assert.ok(rule && !/position:\s*(relative|absolute)/.test(rule[1]),
+    'الرابط موضوع، فالطبقة تمتدّ عليه لا على البطاقة');
+});

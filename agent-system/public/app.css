@@ -280,7 +280,17 @@ a.stat:hover { border-color: var(--teal-600); }
   color: inherit; position: relative;
   transition: transform .2s var(--ease), box-shadow .2s var(--ease), border-color .2s var(--ease);
 }
+/* البطاقة `<article>` والرابط على رمز الطلب وحده، ثمّ يُمدّ ليغطّيها.
+   كانت `<a>` تبتلع البطاقة كلّها، فلا يُنتقى نصّ ولا يُنسخ عنوانٌ منها —
+   والموظّف ينسخ العنوان ليرسله على واتساب. */
 .order:hover { border-color: var(--teal-600); }   /* الحدّ يكفي: بلا رفع ولا ظلّ */
+.order__code::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+/* بلا `position` على الرابط نفسه: الطبقة الممدودة تُقاس على أقرب سلفٍ
+   موضوع، فلو وُضع الرابط لامتدّت عليه هو لا على البطاقة. */
+.order__code { text-decoration: none; }
+/* ولا يُرفع شيء فوق الرابط الممدود: رفعتُ النصّ ليُنتقى فامتنع الضغط على
+   جسم البطاقة — والضغط عليها أكثر ما يُفعل بها. فالبطاقة كلّها رابط كما
+   كانت، وانتقاء العنوان يبقى في صفحة الطلب. */
 .order.is-urgent { border-inline-start: var(--bw-mark) solid var(--alert-600); }
 .order__top { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; margin-bottom: var(--s-1); }
 /* الوقت في طرف السطر العلوي: بيانٌ ثانويّ لا يزاحم البيانات في سطر واحد */
@@ -400,7 +410,7 @@ a.stat:hover { border-color: var(--teal-600); }
   .kv { grid-template-columns: max-content 1fr max-content 1fr; column-gap: var(--s-5); }
 }
 .kv dt { color: var(--ink-soft); font-size: var(--t-sm); }
-.kv dd { margin: 0; font-weight: var(--w-medium); font-size: var(--t-base); }
+.kv dd { margin: 0; font-weight: var(--w-medium); font-size: var(--t-base); user-select: text; }
 
 .timeline { position: relative; padding-inline-start: var(--s-5); }
 .timeline::before {
@@ -487,8 +497,15 @@ tbody tr:hover { background: #fbfdfe; }
 .login__card .field { text-align: start; }
 
 /* ------------------------------ نافذة منبثقة ------------------------------ */
-.modal { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: var(--s-4); }
-.modal__backdrop { position: absolute; inset: 0; background: rgba(6,40,46,.62); }
+/* `<dialog>` تأتي بتنسيق افتراضي (حدّ وحشو وعرض محدود) فيُصفَّر، والظهر
+   يُرسم بـ::backdrop لا بعنصرٍ نضعه نحن. */
+.modal {
+  position: fixed; inset: 0; z-index: 200; display: grid; place-items: center;
+  padding: var(--s-4); max-width: 100%; max-height: 100%; width: 100%; height: 100%;
+  border: 0; background: transparent; overflow: auto;
+}
+.modal:not([open]) { display: none; }
+.modal::backdrop { background: rgba(6,40,46,.62); }
 .modal__card {
   position: relative; width: min(520px, 100%); max-height: 88dvh; overflow: auto;
   background: #fff; border-radius: var(--radius); border: var(--bw) solid var(--line-str);
@@ -815,7 +832,11 @@ tbody tr:hover { background: #fbfdfe; }
 /* ---- تغذية راجعة: ما ملأه الوكيل، وما يقترحه ---- */
 /* الحقل المملوء آليًّا يُعلَّم حتى تقع عليه عين المراجع، ثم تزول العلامة
    عند أول تعديل يدويّ: صار الحقل حينها حقلَه هو. */
-.is-filled { border-color: var(--teal-600) !important; background: var(--teal-50) !important; }
+/* خصوصية أعلى بدل `!important`: القاعدة تنافس `.field input` فتُكتب بمثل
+   وزنها لا بقوّةٍ تتخطّى الترتيب كلّه. */
+.field .is-filled, .addr .is-filled, input.is-filled, select.is-filled, textarea.is-filled {
+  border-color: var(--teal-600); background: var(--teal-50);
+}
 .field:has(.is-filled) > span { display: flex; align-items: center; gap: var(--s-1); flex-wrap: nowrap; }
 .field:has(.is-filled) > span::after {
   content: "آليًّا"; font-size: var(--t-2xs); font-weight: var(--w-bold); white-space: nowrap;

@@ -92,24 +92,29 @@
 
   /* ------------------------------- النافذة ------------------------------- */
 
+  /* `showModal()` تتكفّل بحبس التنقّل وتعطيل ما خلفها وإغلاقها بـEsc، فلا
+     يبقى لنا إلّا المحتوى. وكان ذلك كلّه مكتوبًا بيدنا — ناقصًا حبسَ التنقّل. */
   function openModal(title, html, onMount) {
     el.modalTitle.textContent = title;
     el.modalBody.innerHTML = html;
-    el.modal.hidden = false;
-    document.body.style.overflow = 'hidden';
+    el.modal.showModal();
     if (onMount) onMount(el.modalBody);
     const first = el.modalBody.querySelector('input, select, textarea, button');
     if (first) first.focus();
   }
 
   function closeModal() {
-    el.modal.hidden = true;
-    el.modalBody.innerHTML = '';
-    document.body.style.overflow = '';
+    if (el.modal.open) el.modal.close();
   }
 
-  el.modal.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) closeModal(); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !el.modal.hidden) closeModal(); });
+  /* التنظيف على `close` لا في `closeModal`: النافذة تُغلق بـEsc أيضًا وبضغطة
+     خارجها، وكلاهما لا يمرّ بدالّتنا. */
+  el.modal.addEventListener('close', () => { el.modalBody.innerHTML = ''; });
+  el.modal.addEventListener('click', (e) => {
+    /* الضغط على ظهر النافذة: الحدث يقع على `<dialog>` نفسها لأن البطاقة
+       تغطّي ما عداه. */
+    if (e.target === el.modal || e.target.closest('[data-close]')) closeModal();
+  });
 
   /* ------------------------------ مكوّنات ------------------------------ */
 
@@ -121,13 +126,13 @@
   function orderCard(o) {
     const urgent = o.priority === 'urgent';
     return `
-      <a class="order${urgent ? ' is-urgent' : ''}" href="#/orders/${o.id}">
+      <article class="order${urgent ? ' is-urgent' : ''}">
         <div class="order__top">
-          <span class="order__code num">${esc(o.code)}</span>
+          <a class="order__code num" href="#/orders/${o.id}">${esc(o.code)}</a>
           ${statusBadge(o.status)}
           ${urgent ? '<span class="badge badge--urgent">عاجل</span>' : ''}
           ${o.has_pending_transfer ? '<span class="badge badge--transfer">تحويل معلّق</span>' : ''}
-          <span class="order__time">${esc(relTime(o.updated_at))}</span>
+          <time class="order__time" datetime="${esc(o.updated_at || '')}">${esc(relTime(o.updated_at))}</time>
         </div>
         <div class="order__customer">${esc(o.customer_name)}</div>
         <div class="order__route">
@@ -140,7 +145,7 @@
           ${o.cod_amount > 0 ? `<span>تحصيل <b class="num">${money(o.cod_amount)}</b> د.ك</span>` : ''}
           ${o.agent_name ? `<span>المندوب: ${esc(o.agent_name)}</span>` : '<span>غير مُسند</span>'}
         </div>
-      </a>`;
+      </article>`;
   }
 
   const emptyState = (title, sub) => `
@@ -469,7 +474,7 @@
         ${isAdmin ? '<a class="btn btn--accent" href="#/new">+ طلب جديد</a>' : ''}
       </div>
 
-      <div class="filters">
+      <search class="filters">
         <input id="fq" type="search" placeholder="ابحث برقم الطلب أو اسم العميل أو العنوان" value="${esc(f.q)}"
                enterkeyhint="search" autocapitalize="off" autocorrect="off" spellcheck="false">
         <select id="fgov">
@@ -491,7 +496,7 @@
         ].map(([v, label]) =>
           `<button class="chip${f.scope === v ? ' is-on' : ''}" data-scope="${v}" type="button">${esc(label)}</button>`).join('')}
         </div>
-      </div>
+      </search>
 
       <div id="ordersList">${skeleton(4)}</div>`;
 
@@ -587,7 +592,7 @@
           <h1>الطلب <span class="num">${esc(order.code)}</span></h1>
           <p>${statusBadge(order.status)}
              ${order.priority === 'urgent' ? '<span class="badge badge--urgent">عاجل</span>' : ''}
-             <span style="color:var(--ink-soft)">آخر تحديث ${esc(relTime(order.updated_at))}</span></p>
+             <time class="muted" datetime="${esc(order.updated_at || '')}">آخر تحديث ${esc(relTime(order.updated_at))}</time></p>
         </div>
         <a class="btn btn--ghost btn--sm" href="#/orders">رجوع للقائمة</a>
       </div>
