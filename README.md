@@ -1,65 +1,70 @@
-# Wain? — وين؟ (Native App)
+# Sporta — native app
 
-**Wain** (وين, "where?" in Kuwaiti Arabic) answers the eternal group-chat question: **wain nrooh? — where shall we go?**
+سبورتا, the Kuwaiti sportswear shop, as a real native app: Expo + React Native,
+one codebase for iOS, Android and web.
 
-A full **native mobile app** for iPhone and Android (with web support as a bonus), built with Expo and React Native. Curated landmarks, food, beaches, shopping, culture, and family spots across Kuwait — each with highlights, the best time to visit, and a price level.
-
-## Tech stack
-
-- [Expo SDK 57](https://expo.dev) + [React Native](https://reactnative.dev) (TypeScript)
-- [Expo Router](https://docs.expo.dev/router/introduction/) — file-based navigation with native tabs and stack
-- Light & dark mode, English & Arabic content
-- Fully offline — no database or API keys needed to run
-
-## Getting started
-
-```bash
+```
 npm install
-npm start
+npm run ios      # or: npm run android, npm run web
 ```
 
-Then:
+## What is here
 
-- Press **i** for the iOS simulator, **a** for Android, or **w** for web
-- Or scan the QR code with the [Expo Go](https://expo.dev/go) app on your phone
+| Screen | Route | What it does |
+|---|---|---|
+| Home | `/` | Hero, the four categories full width, best sellers |
+| Shop | `/shop` | Category and sort filters that stay put while the grid scrolls |
+| Product | `/product/[slug]` | Sizes with real stock, pinned add-to-cart |
+| Cart | `/cart` | Quantity steppers capped by stock, totals above the tab bar |
+| Checkout | `/checkout` | Kuwaiti address, KNET / card / cash, spinner inside the button |
+| Order | `/order/[ref]` | The order number, selectable |
+| Account | `/account` | Language, contact, and an honest note when offline |
 
-## Project structure
+## The decisions worth knowing
+
+**Arabic is the default.** This is a Kuwaiti shop. The language switch is on the
+Account tab and takes effect instantly — layout direction comes from React state
+(`row`, `text` in `lib/i18n.tsx`), not from `I18nManager.forceRTL`, which needs an
+app reload and would throw the customer's basket away mid-shop.
+
+**Money is integer fils.** 1 KWD = 1000 fils, and nothing is ever a float —
+`lib/money.ts`. Arabic prices render in Eastern Arabic numerals with the Arabic
+decimal separator, mapped by hand because Hermes ships a cut-down ICU on Android.
+
+**The shop works offline.** `lib/api.ts` fetches the live catalogue from the same
+PHP backend the website uses and falls back to the catalogue bundled in
+`lib/catalog.ts`. Placing an order deliberately does NOT fall back: an order that
+silently failed is worse than an error, so the basket is kept and the failure is
+shown.
+
+**Stock is capped in one place.** Every path that can raise a quantity goes
+through `add`/`setQty` in `lib/cart.tsx`, which returns `false` when it capped, so
+the screen can say why instead of ignoring the tap.
+
+**Tap targets are 48pt.** `TapTarget` in `constants/theme.ts`; every pressable is
+sized against it rather than against its own text.
+
+## Pointing it at your shop
+
+`app.json` → `expo.extra.apiBase`. It defaults to `https://www.sporta.com.kw/api`.
+For a one-off run, `EXPO_PUBLIC_API_BASE=... npm run web`.
+
+The client expects two endpoints:
+
+- `GET  {apiBase}/store.php?r=catalogue` → `{ products: Product[], categories?: Category[] }`
+- `POST {apiBase}/store.php?r=order` → `{ ref: string, payUrl?: string }`
+
+`Product` and `Category` are the types in `lib/catalog.ts`; `payUrl` is the hosted
+KNET/card page, opened in the system browser sheet so the customer sees the real
+bank URL.
+
+## Tab icons
+
+`assets/images/tabIcons/*.png` are generated, not drawn:
 
 ```
-src/
-├── app/
-│   ├── _layout.tsx           # Root stack (tabs + detail + about)
-│   ├── (tabs)/
-│   │   ├── _layout.tsx       # Native bottom tabs (Home, Explore)
-│   │   ├── index.tsx         # Home — hero, categories, featured
-│   │   └── explore.tsx       # Search + category filters
-│   ├── place/[slug].tsx      # Place detail screen
-│   └── about.tsx             # About Wain
-├── components/
-│   ├── app-tabs.tsx          # Native tabs (iOS/Android)
-│   ├── app-tabs.web.tsx      # Web tab bar
-│   ├── place-card.tsx
-│   ├── category-pill.tsx
-│   ├── themed-text.tsx
-│   └── themed-view.tsx
-├── constants/theme.ts        # Wain colors (light/dark), spacing, fonts
-├── hooks/                    # Color-scheme + theme hooks
-└── lib/places.ts             # Place data, categories, and helpers
+python3 scripts/make-tab-icons.py
 ```
 
-## Adding a place
-
-Add an entry to the `places` array in `src/lib/places.ts` — the explore list, category filters, and the detail screen at `/place/<slug>` all pick it up automatically.
-
-## Building for the stores
-
-This project uses [Expo](https://docs.expo.dev/build/setup/), so production builds are one command with EAS:
-
-```bash
-npx eas build --platform ios
-npx eas build --platform android
-```
-
----
-
-Made with ❤️ in Kuwait 🇰🇼
+They are alpha masks rendered from signed distance functions at @1x/@2x/@3x.
+Edit the geometry in the script, never the PNGs.

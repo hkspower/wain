@@ -1,115 +1,88 @@
-import { Link, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PlaceCard } from '@/components/place-card';
+import { ProductCard } from '@/components/product-card';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { BottomTabInset, MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { categories, getFeaturedPlaces } from '@/lib/places';
+import { useCart } from '@/lib/cart';
+import { categoryKicker, categoryName } from '@/lib/catalog';
+import { useLang } from '@/lib/i18n';
 
 export default function HomeScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const featured = getFeaturedPlaces();
+  const { t, lang, row, text } = useLang();
+  const { products, categories } = useCart();
+  const featured = products.filter((p) => p.featured).slice(0, 4);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: BottomTabInset + Spacing.five }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: BottomTabInset + Spacing.five },
+        ]}
         showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          {/* Hero */}
-          <View style={styles.hero}>
-            <ThemedView type="tintSoft" style={styles.heroBadge}>
-              <ThemedText type="small" themeColor="tint">
-                🇰🇼 Your guide to Kuwait
-              </ThemedText>
-            </ThemedView>
-            <ThemedText type="subtitle" style={styles.heroTitle}>
-              Wain nrooh?{'\n'}
-              <Text style={{ color: theme.tint }}>We know where.</Text>
+          {/* Hero. Charcoal panel, ember button — the storefront's own
+              proportions: the picture is the product grid below, not the
+              banner, so the banner stays quiet. */}
+          <ThemedView type="inkSilver" style={styles.hero}>
+            <ThemedText type="small" style={[styles.heroKicker, text]}>
+              {t.home.heroKicker}
             </ThemedText>
-            <ThemedText themeColor="textSecondary" style={styles.heroText}>
-              وين نروح؟ — the question every group chat asks. Wain answers it with
-              the best landmarks, food, beaches, and hidden gems across Kuwait.
-            </ThemedText>
+            <Text style={[styles.heroTitle, text]}>{t.home.heroTitle}</Text>
+            <Text style={[styles.heroText, text]}>{t.home.heroText}</Text>
             <Pressable
-              onPress={() => router.push('/explore')}
+              accessibilityRole="button"
+              onPress={() => router.push('/shop')}
               style={({ pressed }) => [
                 styles.heroButton,
                 { backgroundColor: theme.tint },
                 pressed && styles.pressed,
               ]}>
-              <Text style={styles.heroButtonText}>Start exploring →</Text>
+              <Text style={styles.heroButtonText}>{t.home.shopNow}</Text>
             </Pressable>
-          </View>
+          </ThemedView>
 
-          {/* Categories */}
-          <ThemedText type="smallBold" style={styles.sectionTitle}>
-            Browse by mood
+          {/* Categories — FULL WIDTH, one per row. They carry the shop's four
+              doors and a half-width tile makes each one a thumbnail. */}
+          <ThemedText type="smallBold" style={[styles.sectionTitle, text]}>
+            {t.home.categories}
           </ThemedText>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoryRow}>
+          <View style={styles.categoryList}>
             {categories.map((cat) => (
               <Pressable
-                key={cat.name}
-                onPress={() =>
-                  router.push({ pathname: '/explore', params: { category: cat.name } })
-                }
+                key={cat.id}
+                accessibilityRole="button"
+                accessibilityLabel={categoryName(cat, lang)}
+                onPress={() => router.push({ pathname: '/shop', params: { category: cat.id } })}
                 style={({ pressed }) => pressed && styles.pressed}>
-                <ThemedView
-                  type="backgroundElement"
-                  style={[styles.categoryCard, { borderColor: theme.border }]}>
+                <View style={[styles.categoryTile, row, { backgroundColor: cat.color }]}>
+                  <View style={styles.categoryCopy}>
+                    <Text style={[styles.categoryKicker, text]}>{categoryKicker(cat, lang)}</Text>
+                    <Text style={[styles.categoryName, text]}>{categoryName(cat, lang)}</Text>
+                  </View>
                   <Text style={styles.categoryEmoji}>{cat.emoji}</Text>
-                  <ThemedText type="smallBold">{cat.name}</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {cat.blurb}
-                  </ThemedText>
-                </ThemedView>
+                </View>
               </Pressable>
             ))}
-          </ScrollView>
+          </View>
 
           {/* Featured */}
-          <View style={styles.featuredHeader}>
-            <ThemedText type="smallBold" style={styles.sectionTitle}>
-              Featured this week
-            </ThemedText>
-            <Link href="/explore" asChild>
-              <Pressable style={({ pressed }) => pressed && styles.pressed}>
-                <ThemedText type="small" themeColor="tint">
-                  View all →
-                </ThemedText>
-              </Pressable>
-            </Link>
-          </View>
-          <View style={styles.featuredList}>
-            {featured.map((place) => (
-              <PlaceCard key={place.slug} place={place} />
+          <ThemedText type="smallBold" style={[styles.sectionTitle, text]}>
+            {t.home.featured}
+          </ThemedText>
+          <View style={styles.grid}>
+            {featured.map((p) => (
+              <View key={p.slug} style={styles.gridItem}>
+                <ProductCard product={p} />
+              </View>
             ))}
           </View>
-
-          {/* About link */}
-          <Link href="/about" asChild>
-            <Pressable style={({ pressed }) => pressed && styles.pressed}>
-              <ThemedView
-                type="backgroundElement"
-                style={[styles.aboutCard, { borderColor: theme.border }]}>
-                <Text style={styles.aboutEmoji}>🧭</Text>
-                <View style={styles.aboutTextWrap}>
-                  <ThemedText type="smallBold">What is Wain?</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    The story behind the app — and the question it answers.
-                  </ThemedText>
-                </View>
-                <ThemedText themeColor="tint">→</ThemedText>
-              </ThemedView>
-            </Pressable>
-          </Link>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -121,85 +94,92 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    alignItems: 'center',
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.three,
   },
   content: {
     width: '100%',
     maxWidth: MaxContentWidth,
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.four,
+    alignSelf: 'center',
+    gap: Spacing.three,
   },
   hero: {
-    alignItems: 'flex-start',
-    gap: Spacing.three,
-    marginBottom: Spacing.five,
+    borderRadius: Spacing.four,
+    padding: Spacing.four,
+    gap: Spacing.two,
   },
-  heroBadge: {
-    borderRadius: 999,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one,
+  heroKicker: {
+    color: '#ff7b17',
+    fontWeight: '700',
+    letterSpacing: 1,
   },
   heroTitle: {
-    fontSize: 34,
+    color: '#ffffff',
+    fontSize: 32,
     lineHeight: 42,
+    fontWeight: '700',
   },
   heroText: {
+    color: 'rgba(255,255,255,0.86)',
     fontSize: 15,
-    lineHeight: 22,
+    lineHeight: 24,
   },
   heroButton: {
+    marginTop: Spacing.two,
+    minHeight: TapTarget,
     borderRadius: Spacing.three,
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.three,
   },
   heroButtonText: {
     color: '#ffffff',
+    fontSize: 16,
     fontWeight: '700',
-    fontSize: 15,
-  },
-  pressed: {
-    opacity: 0.8,
   },
   sectionTitle: {
-    fontSize: 18,
-    marginBottom: Spacing.three,
+    marginTop: Spacing.two,
+    fontSize: 16,
   },
-  categoryRow: {
+  categoryList: {
     gap: Spacing.two,
-    paddingBottom: Spacing.five,
   },
-  categoryCard: {
-    width: 170,
+  categoryTile: {
     borderRadius: Spacing.three,
-    borderWidth: 1,
-    padding: Spacing.three,
-    gap: Spacing.one,
-  },
-  categoryEmoji: {
-    fontSize: 26,
-  },
-  featuredHeader: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
+    padding: Spacing.four,
+    minHeight: 104,
+    alignItems: 'center',
     justifyContent: 'space-between',
   },
-  featuredList: {
-    gap: Spacing.three,
-    marginBottom: Spacing.five,
-  },
-  aboutCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    borderRadius: Spacing.three,
-    borderWidth: 1,
-    padding: Spacing.three,
-  },
-  aboutEmoji: {
-    fontSize: 26,
-  },
-  aboutTextWrap: {
+  categoryCopy: {
     flex: 1,
     gap: Spacing.half,
+  },
+  categoryKicker: {
+    color: 'rgba(255,255,255,0.82)',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  categoryName: {
+    color: '#ffffff',
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  categoryEmoji: {
+    fontSize: 40,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.three,
+  },
+  gridItem: {
+    // Two per row with one gap between them. The percentage is written out
+    // rather than computed so it stays readable: (100% - gap) / 2.
+    width: `${(100 - 4) / 2}%`,
+  },
+  pressed: {
+    opacity: 0.85,
   },
 });
