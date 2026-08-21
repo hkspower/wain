@@ -439,12 +439,18 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
                           <div className="mt-2 text-[0.76rem] leading-5 text-white/55">
                             {c.desc}
                           </div>
-                          <div className="mt-2.5 grid grid-cols-4 gap-1 border-t border-white/10 pt-2 text-center">
+                          <div className="mt-2.5 grid grid-cols-5 gap-1 border-t border-white/10 pt-2 text-center">
                             {(
                               [
                                 // What is under the bonnet, on the card,
                                 // next to the numbers it explains.
                                 ["ENGINE", layoutTag(getEngine(c.engine))],
+                                // How long the car actually is. It is a
+                                // real measurement now rather than a
+                                // scale factor nobody could read, and it
+                                // is the fastest way to tell a pickup
+                                // from a supermini on a card.
+                                ["LENGTH", c.lengthM.toFixed(2) + " m"],
                                 ["PWR", c.power.toFixed(2) + "×"],
                                 ["GRIP", c.grip.toFixed(1)],
                                 ["BRK", String(c.brake)],

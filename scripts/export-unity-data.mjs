@@ -161,6 +161,7 @@ const cars = carsBlock
       kit: f(/kit: "(\w+)"/) ?? null,
       engine: f(/engine: "([^"]+)"/),
       tank: +f(/tankLitres: ([\d.]+)/),
+      lengthM: +f(/lengthM: ([\d.]+)/),
       lockedRivals: +(f(/locked: \{ rivals: (\d+) \}/) ?? 0),
       factoryBuild: (b.match(/factoryBuild: \[(.*?)\]/s)?.[1] ?? "")
         .split(",")
@@ -332,6 +333,9 @@ ${engines
         public int Engine;
         /// <summary>Tank, litres.</summary>
         public float TankLitres;
+        /// <summary>Overall length, metres. The shell is scaled until it
+        /// measures this — see createCar in src/game/cars.ts.</summary>
+        public float LengthM;
         /// <summary>Legends that must be beaten before the showroom will
         /// sell it. 0 for everything money can buy.</summary>
         public int LockedRivals;
@@ -347,7 +351,7 @@ ${cars
             Id = "${cs(c.id)}", Name = "${cs(c.name)}", Price = ${c.price},
             Power = ${f(c.power)}, TopSpeedKmh = ${f(c.top)}, Grip = ${f(c.grip)}, Brake = ${f(c.brake)},
             Paint = ${col(c.color)}, Style = ${style(c.style, c.id)}, AttackKit = ${c.kit === "attack" ? "true" : "false"},
-            Engine = ${engIndex(c.engine, c.id)}, TankLitres = ${f(c.tank)},
+            Engine = ${engIndex(c.engine, c.id)}, TankLitres = ${f(c.tank)}, LengthM = ${f(c.lengthM)},
             LockedRivals = ${c.lockedRivals},
             FactoryBuild = new[] { ${c.factoryBuild.map((x) => `"${x}"`).join(", ")} },
         },`

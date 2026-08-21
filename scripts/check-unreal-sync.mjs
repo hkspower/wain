@@ -129,13 +129,14 @@ if (hEngines.length !== api.engines.length) {
 
 // ---- cars -----------------------------------------------------------
 const hCars = [...header.matchAll(
-  /\{ TEXT\("([^"]+)"\), TEXT\("([^"]+)"\), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, FColor\([^)]*\), EGRNBodyStyle::(\w+), (true|false), (\d+), ([\d.]+)f, (\d+), TEXT\("([^"]*)"\) \},/g
-)].map(([, id, name, price, power, top, grip, brake, style, kit, engine, tank, locked, factory]) => ({
+  /\{ TEXT\("([^"]+)"\), TEXT\("([^"]+)"\), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, FColor\([^)]*\), EGRNBodyStyle::(\w+), (true|false), (\d+), ([\d.]+)f, ([\d.]+)f, (\d+), TEXT\("([^"]*)"\) \},/g
+)].map(([, id, name, price, power, top, grip, brake, style, kit, engine, tank, lengthM, locked, factory]) => ({
   id, name, price: +price, power: +power, top: +top, grip: +grip, brake: +brake,
   style: style.toLowerCase(),
   attack: kit === "true",
   engine: +engine,
   tank: +tank,
+  lengthM: +lengthM,
   lockedRivals: +locked,
   factoryBuild: factory ? factory.split(",") : [],
 }));
@@ -159,6 +160,7 @@ if (hCars.length !== api.cars.length) {
     if (h.tank !== a.tankLitres) fail(`car ${h.id} tankLitres: ${h.tank} vs ${a.tankLitres}`);
     // The rule that makes the rarest car rare, and the build it is sold
     // with. A port that drops either sells a different game.
+    if (h.lengthM !== a.lengthM) fail(`car ${h.id} lengthM: ${h.lengthM} vs ${a.lengthM}`);
     if (h.lockedRivals !== a.lockedRivals) {
       fail(`car ${h.id} lockedRivals: ${h.lockedRivals} vs ${a.lockedRivals}`);
     }
@@ -169,7 +171,7 @@ if (hCars.length !== api.cars.length) {
       fail(`car ${h.id} engine: header index ${h.engine} (${api.engines[h.engine]?.id}) vs ${a.engine}`);
     }
   }
-  if (!process.exitCode) ok(`cars: ${hCars.length} match (id, price, power, topSpeedKmh, grip, brake, body, kit, engine, tank, lock, factory build)`);
+  if (!process.exitCode) ok(`cars: ${hCars.length} match (id, price, power, topSpeedKmh, grip, brake, body, kit, engine, tank, length, lock, factory build)`);
 }
 
 // ---- fuel and forecourts --------------------------------------------

@@ -104,6 +104,9 @@ export function buildCars() {
     grip: c.grip,
     brake: c.brake,
     tankLitres: c.tankLitres,
+    /** Overall length, metres. The shell is fitted to this number, so a
+     *  port that ignores it ships a fleet of different cars. */
+    lengthM: c.lengthM,
     color: hex(c.color),
     bodyStyle: c.style ?? "sedan",
     kit: c.kit ?? null,

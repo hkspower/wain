@@ -92,6 +92,10 @@ const shot = async (car) => {
       accent: 0x007a3d,
       style: c.bodyStyle ?? "sedan",
       raceKit: c.kit === "attack",
+      // At its real length, or the card shows a silhouette rather than a
+      // car: the fleet runs from a 3.95 m supermini to a 5.35 m pickup
+      // and three of them share the saloon profile.
+      lengthM: c.lengthM,
     });
   }, car);
   // Park the turntable at a fixed three-quarter so every car is caught

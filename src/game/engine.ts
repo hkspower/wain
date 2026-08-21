@@ -971,6 +971,7 @@ export class GameEngine {
       stickerNumber: this.stickerNumber(),
       name: this.tune.carName,
       nameAr: this.tune.carNameAr,
+      lengthM: this.tune.lengthM,
       crew: this.tune.crew ?? undefined,
       exhaust: this.tune.exhaust,
     }));
@@ -2157,6 +2158,11 @@ export class GameEngine {
         style: def.bodyStyle,
         spoiler: def.bodyStyle === "gtr",
         underglow: def.accentColor,
+        // The machine they actually bring, at the length it actually is.
+        // A rival's car is named on their card and sold in the showroom;
+        // building it a different size from the one you can buy is two
+        // answers to the same question.
+        lengthM: CARS.find((c) => c.name === def.car)?.lengthM,
       })
     );
     this.scene.add(mesh);
@@ -2532,6 +2538,7 @@ export class GameEngine {
         stickerNumber: this.stickerNumber(),
         name: this.tune.carName,
         nameAr: this.tune.carNameAr,
+        lengthM: this.tune.lengthM,
         crew: this.tune.crew ?? undefined,
         exhaust: this.tune.exhaust,
       })
@@ -2587,9 +2594,55 @@ export class GameEngine {
     }
   }
 
+  /**
+   * Line the pair up for the drop: level, abreast, matched.
+   *
+   * The green flag used to fall wherever the two cars happened to be.
+   * The rival is spawned 260 m up the road and cruises; you catch them,
+   * flash, sit through the film, and the fight begins from whatever gap
+   * that left — sometimes half a length up, sometimes six lengths back,
+   * and it decided the race before the flag did.
+   *
+   * A street race starts rolling and abreast. Both cars are put level on
+   * the track, one lane apart, at the same speed, and it is a race from
+   * the first metre. The rival takes the lane on the side of the road
+   * with more room, so the pair is never lined up with one of them
+   * against the barrier.
+   */
+  /**
+   * The lane a car should hold alongside the player: one lane over,
+   * toward the middle of the road, and never against the barrier.
+   *
+   * One function because two callers need the same answer. The intro
+   * film's formation and the green flag each worked this out for
+   * themselves, with different margins — 1.4 m and 2.2 m off the
+   * barrier — so on the narrow sections the rival changed lane at the
+   * exact moment the flag dropped.
+   */
+  private abreastLane(atS: number, playerLat: number): number {
+    const half = this.track.halfWidthAt(atS);
+    const toward = playerLat > 0 ? -1 : 1;
+    return THREE.MathUtils.clamp(playerLat + toward * 3.5, -(half - 2.2), half - 2.2);
+  }
+
+  private lineUpAbreast(r: Rival): void {
+    const p = this.player;
+    // Level, and by moving the RIVAL: moving the player at the green
+    // flag is moving the car under the driver's hands, which is the one
+    // thing a start must never do.
+    r.s = p.s;
+    const lane = this.abreastLane(p.s, p.lat);
+    r.lat = lane;
+    r.targetLat = lane;
+    // Matched, and never from a standstill: a rolling start is rolling.
+    r.speed = Math.max(p.speed, 14);
+    p.speed = Math.max(p.speed, 14);
+  }
+
   private startBattle(r: Rival, fromCine = false): void {
     this.inBattle = true;
     r.state = "battle";
+    this.lineUpAbreast(r);
     this.player.sp = 100;
     r.sp = 100;
     this.bstat = { startAt: performance.now(), dist: 0, topSpeed: 0, contacts: 0, maxLead: 0, driftScore: 0 };
@@ -3539,12 +3592,10 @@ export class GameEngine {
     if (this.cine && this.cine.r === r) {
       const p = this.player;
       r.speed = p.speed;
+      // Half a car ahead for the shot — a dead-level two-shot is a flat
+      // one — and level again at the flag, which lineUpAbreast does.
       r.s = this.track.wrap(p.s + 1.2);
-      const lane = THREE.MathUtils.clamp(
-        p.lat > 0 ? p.lat - 3.5 : p.lat + 3.5,
-        -(this.track.halfWidthAt(r.s) - 1.4),
-        this.track.halfWidthAt(r.s) - 1.4
-      );
+      const lane = this.abreastLane(r.s, p.lat);
       r.lat += (lane - r.lat) * Math.min(1, dt * 6);
       r.targetLat = lane;
       this.track.pose(r.s, r.lat, this.v1, this.v2);

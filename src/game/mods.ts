@@ -180,6 +180,18 @@ export interface CarModel {
    *  has a heart before anybody opens the bonnet, and the showroom is
    *  where you meet it. */
   engine: EngineId;
+  /**
+   * Overall length, in metres. Nose to tail, the way a spec sheet
+   * quotes it.
+   *
+   * This is DATA, not decoration: the shell is scaled until it measures
+   * this, so the number on the card and the car in the mirror are the
+   * same car. It replaced a hand-tuned scale factor per silhouette plus
+   * a flat 1.12 "presence" multiplier over the whole fleet — which made
+   * every machine in the game 12% longer than the one it evokes, and
+   * meant the only way to know how long a car was was to measure it.
+   */
+  lengthM: number;
   /** Tank, litres. Real sizes for the shape of car: a three-door
    *  carries forty-odd, a pickup eighty. With the burn model in
    *  engines.ts this is what decides how far the machine goes between
@@ -241,6 +253,7 @@ export const CARS: CarModel[] = [
     price: 240000,
     locked: { rivals: 8 },
     engine: "i6-30tt",
+    lengthM: 4.53,
     tankLitres: 70,
     power: 1.7,
     topSpeedKmh: 405,
@@ -277,6 +290,7 @@ export const CARS: CarModel[] = [
     kit: "attack",
     price: 120000,
     engine: "i6-30tt",
+    lengthM: 4.42,
     tankLitres: 55,
     power: 1.66,
     topSpeedKmh: 400,
@@ -293,6 +307,7 @@ export const CARS: CarModel[] = [
     style: "zx",
     price: 96000,
     engine: "v8-57",
+    lengthM: 4.62,
     tankLitres: 90,
     power: 1.62,
     topSpeedKmh: 385,
@@ -309,6 +324,7 @@ export const CARS: CarModel[] = [
     style: "zx",
     price: 71000,
     engine: "v8-57",
+    lengthM: 4.54,
     tankLitres: 72,
     power: 1.5,
     topSpeedKmh: 360,
@@ -324,6 +340,7 @@ export const CARS: CarModel[] = [
     cls: "supercar",
     price: 54000,
     engine: "i6-30tt",
+    lengthM: 4.8,
     tankLitres: 68,
     power: 1.4,
     topSpeedKmh: 335,
@@ -340,6 +357,7 @@ export const CARS: CarModel[] = [
     style: "gtr",
     price: 38000,
     engine: "i6-30tt",
+    lengthM: 4.6,
     tankLitres: 74,
     power: 1.34,
     topSpeedKmh: 310,
@@ -356,6 +374,7 @@ export const CARS: CarModel[] = [
     style: "rx7",
     price: 31000,
     engine: "f6-25",
+    lengthM: 4.3,
     tankLitres: 60,
     power: 1.3,
     topSpeedKmh: 295,
@@ -372,6 +391,7 @@ export const CARS: CarModel[] = [
     style: "zx",
     price: 27000,
     engine: "i6-30tt",
+    lengthM: 4.31,
     tankLitres: 70,
     power: 1.26,
     topSpeedKmh: 275,
@@ -388,6 +408,7 @@ export const CARS: CarModel[] = [
     style: "hatch",
     price: 33000,
     engine: "i4-20t",
+    lengthM: 4.28,
     tankLitres: 50,
     power: 1.28,
     topSpeedKmh: 285,
@@ -404,6 +425,7 @@ export const CARS: CarModel[] = [
     cls: "sport",
     price: 24000,
     engine: "i4-20t",
+    lengthM: 4.64,
     tankLitres: 60,
     power: 1.2,
     topSpeedKmh: 255,
@@ -419,6 +441,7 @@ export const CARS: CarModel[] = [
     cls: "sport",
     price: 16000,
     engine: "i4-20t",
+    lengthM: 4.56,
     tankLitres: 55,
     power: 1.12,
     topSpeedKmh: 240,
@@ -434,6 +457,7 @@ export const CARS: CarModel[] = [
     cls: "normal",
     price: 8500,
     engine: "i4-20t",
+    lengthM: 4.7,
     tankLitres: 60,
     power: 1.05,
     topSpeedKmh: 220,
@@ -449,6 +473,7 @@ export const CARS: CarModel[] = [
     cls: "normal",
     price: 6000,
     engine: "v8-57",
+    lengthM: 5.35,
     tankLitres: 80,
     power: 1.0,
     topSpeedKmh: 195,
@@ -460,10 +485,16 @@ export const CARS: CarModel[] = [
   {
     id: "sharq-hatch",
     name: "Sharq Hatch",
+    // It is called a hatch and it was built as a saloon. The hatch
+    // profile is authored shorter and proportionally wider, which is
+    // also the only way a 3.95 m car comes out 1.65 m wide instead of
+    // 1.51 — a uniform scale carries width along with length.
+    style: "hatch",
     ar: "شرق هاتش",
     cls: "normal",
     price: 2200,
     engine: "i4-16",
+    lengthM: 3.95,
     tankLitres: 42,
     power: 0.98,
     topSpeedKmh: 205,
@@ -479,6 +510,7 @@ export const CARS: CarModel[] = [
     cls: "normal",
     price: 0,
     engine: "i4-16",
+    lengthM: 4.45,
     tankLitres: 50,
     power: 1.0,
     topSpeedKmh: 180,
@@ -754,6 +786,8 @@ export interface TuneEffects {
   engine: EngineSpec;
   /** Tank size, litres — the car's, not the engine's. */
   tankLitres: number;
+  /** Overall length in metres — the shell is fitted to it. */
+  lengthM: number;
   aspiration: Aspiration;
   boostMult: number; // extra accel fraction at full boost
   hasNos: boolean;
@@ -884,6 +918,7 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     crashResist,
     engine,
     tankLitres: car.tankLitres,
+    lengthM: car.lengthM,
     aspiration,
     boostMult,
     hasNos: has("nos"),

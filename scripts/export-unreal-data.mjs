@@ -73,6 +73,7 @@ const cars = carsBlock
       kit: f(/kit: "(\w+)"/) ?? null,
       engine: f(/engine: "([^"]+)"/),
       tank: +f(/tankLitres: ([\d.]+)/),
+      lengthM: +f(/lengthM: ([\d.]+)/),
       lockedRivals: +(f(/locked: \{ rivals: (\d+) \}/) ?? 0),
       factoryBuild: (b.match(/factoryBuild: \[(.*?)\]/s)?.[1] ?? "")
         .split(",")
@@ -384,6 +385,9 @@ struct FGRNCarDef
 	int32 Engine;
 	/** Tank, litres. */
 	float TankLitres;
+	/** Overall length, metres. The shell is scaled until it measures
+	 *  this — see createCar in src/game/cars.ts. */
+	float LengthM;
 	/** Legends that must be beaten before the showroom will sell it.
 	 *  0 for everything money can buy. */
 	int32 LockedRivals;
@@ -395,7 +399,7 @@ static const FGRNCarDef GRNCars[] = {
 ${cars
   .map(
     (c) =>
-      `\t{ TEXT("${c.id}"), TEXT("${c.name}"), ${c.price}, ${c.power.toFixed(2)}f, ${c.top.toFixed(1)}f, ${c.grip.toFixed(1)}f, ${c.brake.toFixed(1)}f, ${col(c.color)}, ${style(c.style, c.id)}, ${c.kit === "attack" ? "true" : "false"}, ${engIndex(c.engine, c.id)}, ${c.tank.toFixed(1)}f, ${c.lockedRivals}, TEXT("${c.factoryBuild.join(",")}") },`
+      `\t{ TEXT("${c.id}"), TEXT("${c.name}"), ${c.price}, ${c.power.toFixed(2)}f, ${c.top.toFixed(1)}f, ${c.grip.toFixed(1)}f, ${c.brake.toFixed(1)}f, ${col(c.color)}, ${style(c.style, c.id)}, ${c.kit === "attack" ? "true" : "false"}, ${engIndex(c.engine, c.id)}, ${c.tank.toFixed(1)}f, ${c.lengthM.toFixed(2)}f, ${c.lockedRivals}, TEXT("${c.factoryBuild.join(",")}") },`
   )
   .join("\n")}
 };

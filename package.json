@@ -58,6 +58,7 @@
     "test:resolution": "node tests/resolution.mjs",
     "test:spin": "node tests/spin.mjs",
     "test:decals": "node tests/decals.mjs",
+    "test:start": "node tests/start.mjs",
     "test:taillights": "node tests/taillights.mjs",
     "shots:cars": "node tools/shots/cars.mjs",
     "check:ui": "node scripts/check-ui-glyphs.mjs",

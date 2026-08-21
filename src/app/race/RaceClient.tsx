@@ -33,6 +33,7 @@ import {
   editBuild,
   loadGarage,
   saveGarage,
+  CARS,
   getCar,
   lockedBy,
   rivalsBeaten,
@@ -907,6 +908,7 @@ export default function RaceClient() {
             goldRims: tune.goldRims,
             raceKit: tune.raceKit,
             stickers: tune.stickers,
+            lengthM: tune.lengthM,
             crew: tune.crew ?? undefined,
           },
           reduced,
@@ -923,12 +925,14 @@ export default function RaceClient() {
                   style: prize.style,
                   raceKit: true,
                   spoiler: false,
+                  lengthM: prize.lengthM,
                 }
               : {
                   body: next.bodyColor,
                   accent: next.accentColor,
                   style: next.bodyStyle,
                   underglow: next.accentColor,
+                  lengthM: CARS.find((c) => c.name === next.car)?.lengthM,
                 },
           }
         );

@@ -3,29 +3,29 @@
 //   npm run dev
 //   node tests/size.mjs
 //
-// The fleet measured 2.25 to 2.44 m wide. Real cars are 1.75 to 1.95,
-// and the widest thing on a European road that is not a truck is 2.55 m
-// including its mirrors. On a 3.5 m lane that put a saloon across 70% of
-// its own lane, which is what "the cars are wide" looks like from the
-// driver's seat.
+// Sizing drifted twice, both times invisibly, because nothing asserted
+// on it — one pass left a comment claiming every car was "within ~5% on
+// all three axes" while the fleet sat 11 to 14% over on width. And on
+// top of whatever the profiles measured there was a flat 1.12 "presence"
+// multiplier over the entire fleet, so every machine in the game was
+// 12% longer than the one it evokes and the only way to find out how
+// long a car was was to measure it.
 //
-// Sizing has now drifted twice, both times invisibly, because nothing
-// asserted on it — the last pass left a comment claiming every car was
-// "within ~5% on all three axes" while the fleet sat 11 to 14% over on
-// width. So this measures the built shells against the real machines
-// they evoke, which are the same numbers the silhouettes were authored
-// from:
+// Length is DATA now. Every car in the showroom publishes a length in
+// metres and the shell is scaled until it measures that, which makes the
+// length exact by construction rather than exact until somebody edits a
+// profile. What is left to check is that the fit really happened, and
+// that everything the fit carries along with it — width, height, tyres,
+// mirrors — landed somewhere a car lands:
 //
-//   body     the painted bodyside, which is a car's real width
+//   fitted   the built shell measures the length on its own card
+//   ratio    length over body width, which is the proportion the eye
+//            reads and the one a uniform scale cannot fix: it is a
+//            property of the authored profile
+//   width    what that ratio implies, against the real machine
 //   mirrors  over-mirror width, the number that decides whether you fit
-//   ratio    length over body width. This is the one the eye reads. A
-//            uniform scale cannot fix it — it is a property of the
-//            authored profile — so it is the check most likely to catch
-//            a fix that only looks like one.
-//
-// PRESENCE is not a fudge factor here. It is a deliberate 1.12 up-size
-// applied to the whole fleet so a spec-sheet car does not read small
-// from the chase camera, and the targets below include it.
+//   spread   and the fleet covers the range it claims to, from a
+//            supermini to a pickup
 import { chromium } from "playwright-core";
 import { existsSync } from "node:fs";
 
@@ -42,8 +42,10 @@ if (!exe) {
   process.exit(2);
 }
 
-/** The real machines each silhouette evokes: length, width, height, in
- *  metres, before the presence factor. */
+/** The real machines each silhouette evokes. Only the PROPORTION is used
+ *  now — length over width — because each car carries its own length and
+ *  the width follows it through a uniform scale. The heights are here to
+ *  say where the proportions came from. */
 const REAL = {
   sedan: { name: "a saloon", l: 4.7, w: 1.8, h: 1.47 },
   zx: { name: "a Z32 300ZX", l: 4.31, w: 1.8, h: 1.26 },
@@ -51,7 +53,6 @@ const REAL = {
   rx7: { name: "an FD RX-7", l: 4.3, w: 1.76, h: 1.23 },
   hatch: { name: "a hot hatch", l: 4.28, w: 1.79, h: 1.47 },
 };
-const PRESENCE = 1.12;
 
 const browser = await chromium.launch({
   executablePath: exe,
@@ -75,15 +76,20 @@ await page.waitForTimeout(3000);
 const fail = [];
 const check = (c, m) => { if (!c) fail.push(m); return c ? "ok" : "FAIL"; };
 
-const cars = await page.evaluate(() => {
+const cars = await page.evaluate(async () => {
   const THREE = window.__grnThree;
+  const res = await fetch("/api/grn/v1/cars").then((r) => r.json()).catch(() => null);
+  const list = res?.cars ?? res ?? [];
   const out = [];
-  const seen = new Set();
-  for (const car of window.__grnCars) {
-    const style = car.style ?? "sedan";
-    if (seen.has(style)) continue;
-    seen.add(style);
-    const g = window.__grnBuildCar({ body: car.color, style, kit: car.kit === "attack" });
+  for (const car of list) {
+    const style = car.bodyStyle ?? "sedan";
+    const g = window.__grnBuildCar({
+      body: parseInt(String(car.color).replace("#", ""), 16),
+      style,
+      kit: car.kit === "attack",
+      raceKit: car.kit === "attack",
+      lengthM: car.lengthM,
+    });
     g.updateMatrixWorld(true);
     const paint = g.userData.bodyMat;
     let bodyHalf = 0;
@@ -124,7 +130,10 @@ const cars = await page.evaluate(() => {
       }
     });
     out.push({
+      id: car.id,
+      name: car.name,
       style,
+      want: car.lengthM,
       scale: +g.scale.x.toFixed(4),
       length: +(lenMax - lenMin).toFixed(3),
       body: +(bodyHalf * 2).toFixed(3),
@@ -138,68 +147,81 @@ const cars = await page.evaluate(() => {
   return out;
 });
 
-console.log("silhouette   length   doors  metal  mirrors  height |  target  ratio  (real)");
+console.log(
+  "car                     card    built   doors  metal  mirrors  height |  ratio  (profile)"
+);
+let offFit = 0;
 for (const c of cars) {
   const real = REAL[c.style];
   if (!real) {
     check(false, `no real-world reference for the "${c.style}" silhouette`);
     continue;
   }
-  // A car's quoted width is over its widest BODYWORK, not over its door
-  // skin — which matters here because one silhouette is deliberately a
-  // widebody. The gtr's boxed arches are its whole calling card and they
-  // are what you would measure with a tape.
-  const wantBody = real.w * PRESENCE;
   const wantRatio = real.l / real.w;
   const ratio = c.length / c.flares;
-  const bodyErr = (c.flares / wantBody - 1) * 100;
   const ratioErr = (ratio / wantRatio - 1) * 100;
+  const fitErr = (c.length / c.want - 1) * 100;
+  if (Math.abs(fitErr) > 1) offFit++;
   console.log(
-    `  ${c.style.padEnd(9)} ${String(c.length).padStart(6)} ${String(c.body).padStart(6)} ` +
-      `${String(c.flares).padStart(6)} ${String(c.mirrors).padStart(8)} ${String(c.height).padStart(7)} |  ` +
-      `${wantBody.toFixed(2)} ${bodyErr >= 0 ? "+" : ""}${bodyErr.toFixed(1)}%   ` +
+    `  ${c.name.padEnd(20)} ${c.want.toFixed(2)}   ${String(c.length).padStart(6)} ` +
+      `${String(c.body).padStart(6)} ${String(c.flares).padStart(6)} ` +
+      `${String(c.mirrors).padStart(8)} ${String(c.height).padStart(7)} |  ` +
       `${ratio.toFixed(2)} vs ${wantRatio.toFixed(2)} ${ratioErr >= 0 ? "+" : ""}${ratioErr.toFixed(1)}%  ${real.name}`
   );
 
+  // The one that matters most, and the one that is now exact by
+  // construction rather than by a hand-tuned table.
   check(
-    Math.abs(bodyErr) <= 6,
-    `${c.style} is ${c.flares} m over its widest metal against ${wantBody.toFixed(2)} ` +
-      `for ${real.name} (${bodyErr >= 0 ? "+" : ""}${bodyErr.toFixed(1)}%)`
+    Math.abs(fitErr) <= 1,
+    `${c.name} is built ${c.length} m long against the ${c.want} m on its own card ` +
+      `(${fitErr >= 0 ? "+" : ""}${fitErr.toFixed(1)}%)`
   );
   // The proportion the eye reads, and the one a uniform scale cannot fix.
   check(
     Math.abs(ratioErr) <= 10,
-    `${c.style} is ${ratio.toFixed(2)} long for its width against ${wantRatio.toFixed(2)} ` +
+    `${c.name} is ${ratio.toFixed(2)} long for its width against ${wantRatio.toFixed(2)} ` +
       `for ${real.name} — it reads ${ratioErr < 0 ? "squat and wide" : "stretched"}`
   );
   // A flare is allowed to be wider than the door it sits over, but only
   // by the amount an arch actually flares.
   check(
     c.flares - c.body <= 0.2,
-    `${c.style} arches stand ${((c.flares - c.body) / 2).toFixed(3)} m proud of the doors per ` +
+    `${c.name} arches stand ${((c.flares - c.body) / 2).toFixed(3)} m proud of the doors per ` +
       `side — that is a body kit, not an arch`
   );
   // Mirrors stick out; they do not double the car.
   const stalk = c.mirrors - c.flares;
   check(
     stalk >= 0 && stalk <= 0.28,
-    `${c.style} mirrors add ${stalk.toFixed(3)} m over the widest metal — a real pair adds about 0.2`
+    `${c.name} mirrors add ${stalk.toFixed(3)} m over the widest metal — a real pair adds about 0.2`
   );
   // And nothing on a road car is wider than a truck.
   check(
     c.mirrors <= 2.3,
-    `${c.style} measures ${c.mirrors} m over its mirrors, which is wider than a delivery van`
+    `${c.name} measures ${c.mirrors} m over its mirrors, which is wider than a delivery van`
   );
   // Tyres sit inside the arches, or close to it.
   check(
     c.wheels <= c.flares + 0.12,
-    `${c.style} tyres stand ${((c.wheels - c.flares) / 2).toFixed(3)} m proud of the arches per side`
+    `${c.name} tyres stand ${((c.wheels - c.flares) / 2).toFixed(3)} m proud of the arches per side`
   );
 }
 
 console.log(
-  `\nfleet     ${check(cars.length === 5, `${cars.length} silhouettes built, expected 5`)}  ` +
-    `${cars.length} silhouettes, widest ${Math.max(...cars.map((c) => c.mirrors)).toFixed(2)} m over mirrors`
+  `\nfitted    ${check(offFit === 0, `${offFit} car(s) are not the length their card claims`)}  ` +
+    `${cars.length} cars, every one built to the metre on its own card`
+);
+const shortest = cars.reduce((a, b) => (a.length < b.length ? a : b));
+const longest = cars.reduce((a, b) => (a.length > b.length ? a : b));
+console.log(
+  `spread    ${check(
+    cars.length === 15 && longest.length - shortest.length > 1.2,
+    cars.length !== 15
+      ? `${cars.length} cars measured, expected 15`
+      : `the whole fleet is within ${(longest.length - shortest.length).toFixed(2)} m of itself — ` +
+        `a supermini and a pickup should not be the same car`
+  )}  ${shortest.name} ${shortest.length} m to ${longest.name} ${longest.length} m, ` +
+    `widest ${Math.max(...cars.map((c) => c.mirrors)).toFixed(2)} m over mirrors`
 );
 
 await browser.close();
@@ -208,4 +230,4 @@ if (fail.length) {
   for (const f of fail) console.log(`  - ${f}`);
   process.exit(1);
 }
-console.log("\nthe cars are the size of cars.");
+console.log("\nthe cars are the size of the cars on their cards.");

@@ -44,6 +44,9 @@ export interface CarColors {
   /** The car's own name, for the flank wordmark in the sticker pack. */
   name?: string;
   nameAr?: string;
+  /** Overall length in metres. When given, the shell is SCALED until it
+   *  measures this — see the fit at the end of createCar. */
+  lengthM?: number;
   /** The crew this car runs for: emblem and name on the roof.
    *  Absent means a privateer, which is what every car was until now. */
   crew?: { name: string; tag: string; logo: TeamLogo };
@@ -498,7 +501,14 @@ const hatchRoofGeo = extrudeProfile(
  * the whole group in createCar; collision constants in the engine were
  * re-margined for it (traffic hitbox and knock-out spacing).
  */
-const PRESENCE = 1.12;
+// Was 1.12: a flat up-size over the whole fleet so a spec-sheet car did
+// not read small from the chase camera. It is 1 now, because every car
+// in the showroom carries a real length in metres and is fitted to it —
+// see the scale at the end of createCar — and a car that is 12% longer
+// than the machine it evokes is not that machine. What is left below is
+// the fallback for a shell built without a length: traffic, and the
+// showroom capture tool.
+const PRESENCE = 1;
 const STYLE_SCALE: Record<BodyStyle, number> = {
   sedan: 0.934 * PRESENCE,
   zx: 0.825 * PRESENCE,
@@ -2896,7 +2906,39 @@ export function createCar(colors: CarColors): THREE.Group {
   // ~5% on all three axes, with tyres at a correct 0.64-0.70 m.
   //
   // Collision sizes are engine constants and are deliberately untouched.
-  group.scale.setScalar(STYLE_SCALE[style]);
+  //
+  // A car with a published length is FITTED to it rather than scaled by
+  // a table: the shell is measured nose to tail exactly the way the size
+  // test measures it — solid, shadow-casting bodywork, no glass and no
+  // contact blob — and scaled until that measurement is the number on
+  // the card. Two things follow from doing it this way. The length is
+  // exact by construction rather than exact until somebody edits a
+  // profile, and the WIDTH lands on the real machine's width for free,
+  // because the extrusion depths were tuned to be right at a scale that
+  // carried the 1.12 presence factor and this scale is that one divided
+  // by 1.12.
+  let scale = STYLE_SCALE[style];
+  if (colors.lengthM && colors.lengthM > 1) {
+    // World boxes, not local ones. Plenty of this car is nested — the
+    // wheels are groups, the driver is a rig — and a child's own matrix
+    // is relative to its parent, so measuring with it puts a wheel at
+    // the origin and a bumper somewhere it is not.
+    group.updateMatrixWorld(true);
+    const box = new THREE.Box3();
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+    group.traverse((o) => {
+      if (!(o instanceof THREE.Mesh) || o.userData.noShadow) return;
+      const m = Array.isArray(o.material) ? o.material[0] : o.material;
+      if (m && (m.transparent || (m.opacity ?? 1) < 1)) return;
+      box.setFromObject(o);
+      if (box.min.z < minZ) minZ = box.min.z;
+      if (box.max.z > maxZ) maxZ = box.max.z;
+    });
+    const raw = maxZ - minZ;
+    if (raw > 1) scale = colors.lengthM / raw;
+  }
+  group.scale.setScalar(scale);
 
   // Swap in the Blender-authored shells and wheels when they arrive.
   // Traffic keeps the cheap procedural build — thirty cars don't need
