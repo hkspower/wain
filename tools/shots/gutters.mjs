@@ -139,15 +139,58 @@ const measure = `() => {
    *  between "these two boxes overlap" and "these two words overlap" —
    *  and a display face set with tight leading has line boxes that
    *  overlap by design while its letters never touch. */
+  /** One 2D context, for asking a font where its ink actually is. */
+  const probe = document.createElement("canvas").getContext("2d");
+
+  /** A range rect, tightened to the INK.
+   *
+   *  Range.getClientRects returns the font's em box — ascent plus
+   *  descent, whatever the letters in it happen to do — so a display
+   *  face's descent box and the Arabic line under it can overlap by a
+   *  couple of pixels with a clear band of background between them. Two
+   *  pixels of nothing is not a gutter problem, and reporting it as one
+   *  is how a tool gets ignored. measureText knows the difference:
+   *  fontBoundingBox* is the em box the rect was built from, and
+   *  actualBoundingBox* is where the ink of THIS string starts and
+   *  stops. */
+  const ink = (r, text, cs) => {
+    try {
+      // Built by concatenation, not by a template literal: this whole
+      // function is itself a template literal in the file above.
+      probe.font = cs.font ||
+        cs.fontStyle + " " + cs.fontWeight + " " + cs.fontSize + " " + cs.fontFamily;
+      const m = probe.measureText(text);
+      const fa = m.fontBoundingBoxAscent;
+      const fd = m.fontBoundingBoxDescent;
+      if (!(fa + fd > 0)) return r;
+      // Where the baseline sits inside the rect the browser handed us.
+      const base = r.top + r.height * (fa / (fa + fd));
+      const top = base - m.actualBoundingBoxAscent;
+      const bottom = base + m.actualBoundingBoxDescent;
+      if (!(bottom > top)) return r;
+      return {
+        left: r.left,
+        right: r.right,
+        top: Math.max(r.top, top),
+        bottom: Math.min(r.bottom, bottom),
+        width: r.width,
+        height: Math.min(r.bottom, bottom) - Math.max(r.top, top),
+      };
+    } catch {
+      return r;
+    }
+  };
+
   const textRects = (el, boxes) => {
     const rects = [];
+    const cs = getComputedStyle(el);
     for (const n of el.childNodes) {
       if (n.nodeType !== 3 || !n.textContent.trim()) continue;
       const range = document.createRange();
       range.selectNodeContents(n);
-      for (const r of range.getClientRects()) {
-        if (r.width < 1 || r.height < 1) continue;
-        const c = clip(r, boxes);
+      for (const raw of range.getClientRects()) {
+        if (raw.width < 1 || raw.height < 1) continue;
+        const c = clip(ink(raw, n.textContent.trim(), cs), boxes);
         if (c) rects.push(c);
       }
       range.detach?.();
@@ -176,17 +219,48 @@ const measure = `() => {
     const rects = textRects(el, boxes);
     if (!rects.length) continue;
 
-    // And is it actually the thing under those pixels? A word behind a
-    // full-screen overlay is not on screen however solid its own styles
-    // are. Sampled on the glyph boxes, at three points across each,
-    // because a letter's own gap can miss on a single one.
+    // And is it actually the thing under those pixels?
+    //
+    // Two different questions hide in that one, and answering them the
+    // same way is how this tool spent a round reporting nothing at all.
+    //
+    //   Hidden      the page shell sitting behind a full-screen game,
+    //               a screen the game has faded out. Not on the screen,
+    //               and not a gutter problem.
+    //   Covered     a label with another label on top of it. That IS
+    //               the gutter problem, and rejecting it as "not
+    //               visible" deletes the finding: shove every label in
+    //               the garage down eleven pixels and this reported
+    //               twenty-nine FEWER elements and zero overlaps.
+    //
+    // The difference is what is on top. Something with an opaque
+    // background covers what is under it and there is nothing to
+    // report; text over text covers nothing, and is the whole point. So
+    // walk the stack down to the element and reject only on a solid
+    // layer above it.
+    const solid = (n) => {
+      const cs = getComputedStyle(n);
+      if (cs.backgroundImage !== "none") return true;
+      const m = cs.backgroundColor.match(/[\\d.]+/g);
+      // rgb() is three numbers and opaque; rgba() carries the alpha.
+      return !!m && (m.length < 4 || parseFloat(m[3]) > 0.5);
+    };
     let seen = false;
     for (const r of rects) {
       for (const fx of [0.5, 0.15, 0.85]) {
         const px = Math.min(vw - 1, Math.max(0, r.x + r.w * fx));
         const py = Math.min(vh - 1, Math.max(0, r.y + r.h * 0.5));
-        const hit = document.elementFromPoint(px, py);
-        if (hit && (hit === el || el.contains(hit) || hit.contains(el))) { seen = true; break; }
+        const stack = document.elementsFromPoint(px, py);
+        const mine = stack.findIndex((n) => n === el || el.contains(n));
+        if (mine < 0) continue;
+        let covered = false;
+        for (let k = 0; k < mine; k++) {
+          // An ancestor is not a cover — it is what the element is
+          // painted inside.
+          if (stack[k].contains(el)) continue;
+          if (solid(stack[k])) { covered = true; break; }
+        }
+        if (!covered) { seen = true; break; }
       }
       if (seen) break;
     }
@@ -269,7 +343,25 @@ const screens = [
     go: async (page) => {
       await page.click("text=START ENGINE");
       await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 240000 });
-      await page.waitForTimeout(2500);
+      // A race opens on the challenger's cinematic, and the whole HUD is
+      // held at opacity 0 behind it. Measuring at a fixed delay caught
+      // that every time: eighteen live readouts, two of them visible,
+      // and the one screen this tool exists for reporting nothing wrong
+      // because there was nothing on it. Skip the film, then WAIT FOR
+      // the gauges rather than guessing how long the fade takes.
+      await page.waitForTimeout(1200);
+      await page.evaluate(() => window.__grnEngine?.skipCinematic?.());
+      await page.waitForFunction(
+        () =>
+          [...document.querySelectorAll("span,div")].some(
+            (e) =>
+              e.textContent === "km/h" &&
+              e.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+          ),
+        null,
+        { timeout: 60000 }
+      );
+      await page.waitForTimeout(600);
     },
   },
 ];

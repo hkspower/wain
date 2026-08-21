@@ -4,67 +4,53 @@ Everything below is measured, not remembered — the suite states are from
 a full run, and each entry says what is actually wrong, what it costs,
 and what I would do about it. Ordered by what I would fix first.
 
-Last checked against commit `108e21c`.
+Last checked against commit `aa24a1d`.
 
-> **Item 2 is done.** The world is seeded now (`src/game/rand.ts`), which
-> also fixed the `test:streets` flake — three consecutive runs, 339
-> blocks, none in a street. It is left below with its reasoning intact,
-> because the argument for doing it is the argument for not undoing it.
+> **Nine of the eleven items this file used to list are done.** They are
+> kept below, struck through, with their reasoning intact: the argument
+> for doing a thing is usually also the argument for not undoing it, and
+> the two that are left are the two that were always going to need their
+> own run at them.
 
 ## The suite, right now
 
-Twenty-one suites and five static checks pass. `npx tsc --noEmit` is
-clean. Three things are not green:
+Twenty-four suites and five static checks pass. `npx tsc --noEmit` is
+clean. Nothing is red.
 
 | | state |
 |---|---|
-| `test:assets`, `test:race` | **failing**, same single cause: `public/models/driver.glb` is missing |
-| `test:streets` | **fixed** — was intermittent, the world is seeded now |
-| `test:levels` | passes, but takes over ten minutes |
+| `test:assets`, `test:race` | **fixed** — the manifest decides what must be authored, and the driver is procedural |
+| `test:streets` | **fixed** — the world is seeded |
+| `test:levels` | **fixed** — night by default, `--sweep` for the rest |
 
 ---
 
-## 1. `public/models/driver.glb` — two suites red on one missing file
+## 1. ~~`public/models/driver.glb` — two suites red on one missing file~~
 
-`build.json` and both suites expect an authored driver model. The file is
-gitignored, it is not in the repo, and it cannot be regenerated here:
-`tools/blender/build_assets.py` needs Blender, which this container does
-not have. So `/models/driver.glb` 404s on every page load, `test:race`
-reports two runtime errors, and `test:assets` reports five parts of the
-driver "still procedural".
+**Done**, in `aa24a1d`.
 
-Nothing is broken for a player. The procedural driver builds, poses and
-solves — `test:ik` passes on it.
+The file was gitignored, absent, and unbuildable in this container, so
+two suites were permanently red over something nobody could produce.
+That is the worst kind of red: it cannot be cleared by fixing the code,
+so it teaches everyone to skim past a failing suite.
 
-**What I would do:** drop the expectation and let the procedural driver
-be the shipped one. A gitignored asset that two suites require is a
-permanent red that trains everyone to ignore a red suite, which is worth
-more than the asset. If the authored model is genuinely wanted, it
-belongs committed (or in LFS), not gitignored.
+`build.json` records what the Blender build shipped, which makes it the
+manifest — so `models.ts` reads it as one and never requests a file that
+is not in it, and `tests/assets.mjs` asserts *authored* for what the
+manifest names and *present* for what it does not. Ship a driver and
+both flip back on their own. `driver.glb` is whitelisted in
+`public/models/.gitignore` now, because an asset the game expects has to
+be in the repo or it is not an asset the game has.
 
-**This is your call, not mine** — it is a question about what the game
-ships with. It has been flagged several times and never decided.
+## 2. ~~The world is generated with `Math.random()`~~
 
-## 2. The world is generated with `Math.random()` — four flakes and counting
-
-`world.ts` builds the city from an unseeded PRNG, so every load is a
-different world. Across this session that has broken four separate
-checks that were each, at the time, indistinguishable from a real bug:
-
-- `test:streets` — "1 building standing in the middle of a street",
-  about one run in three. Confirmed pre-existing: it fails at the same
-  rate on the commit before any of this session's work.
-- three earlier checks, each of which cost a round of investigation.
-
-**What I would do:** seed it. One PRNG seeded from a constant, threaded
-through world generation. Every visual check becomes reproducible and
-this entire class of flake disappears. Roughly an hour, and it makes
-every future visual measurement trustworthy.
-
-**Done**, in commit `fdb3778`. `tests/world.mjs` pins it: two loads, one
-city, compared on the instance matrices rather than on screenshots.
+**Done**, in `fdb3778`. One seeded PRNG threaded through world
+generation. `tests/world.mjs` pins it: two loads, one city, compared on
+the instance matrices rather than on screenshots.
 
 ## 3. "Full open world" is not what the world is
+
+**Still open, and still its own project.**
 
 The track is a single closed Catmull-Rom loop, and `(s, lat)` — distance
 along that one curve, plus lateral offset — is the entire spatial model.
@@ -84,6 +70,8 @@ change.
 
 ## 4. The Second Ring Road's geometry is reconstructed, not surveyed
 
+**Still open, and blocked on something outside the repo.**
+
 Overpass, OpenStreetMap and Wikipedia are all blocked by this
 environment's egress policy, so no real coordinates could be fetched.
 The centreline is built from the road's published route and proportions
@@ -96,6 +84,8 @@ they do, it needs either egress to a map API or an exported file dropped
 into the repo.
 
 ## 5. The referral system is server-enforced; the wallet is not
+
+**Open by decision, not by omission.**
 
 Invites are the hub server's business — one claim per save, no
 self-referral, persisted across restarts, and the client cannot mint its
@@ -112,74 +102,91 @@ the wallet it pays into would be securing the front door of a tent. If
 KD ever needs to be authoritative, that is an accounts-and-server
 question, not a referral question.
 
-## 6. A hydration warning on every load with a saved car
+## 6. ~~A hydration warning on every load with a saved car~~
 
-`carName()` in `RaceClient.tsx` reads the saved garage during render
-rather than in an effect, so the server renders the default car's name
-and the client renders the saved one. React logs a hydration mismatch
-and re-renders that subtree. Harmless in effect, but it is a real
-console error for every returning player.
+**Done**, in `aa24a1d`.
 
-**What I would do:** fix it — it is small. The name should come from the
-state that is already loaded in an effect.
+`carName()` read the saved garage during render, so the server rendered
+the default and the browser rendered the save on its very first pass.
+It now takes the name from the state that is loaded in an effect, and
+shows nothing until that arrives — which is exactly what the server
+said.
+
+The reason this survived so long is worth keeping: it only happens to
+people who have PLAYED. Every check anyone ran began by clearing local
+storage, and on a clear save the two sides agree. `tests/hydration.mjs`
+plants a save first, and fails on the old code.
 
 ## 7. `tools/shots/grid.mjs` renders at night whatever hour it is asked for
 
-Documented in the file. The same three calls in the same order give
-`capture.mjs` a correct noon. The cause was never established, so the
-note in the file is a note and not a fix. It does not affect what the
-tool is for — road markings are legible either way — but no lighting
-conclusion should be read off it.
+**Still open.** Documented in the file. The same three calls in the same
+order give `capture.mjs` a correct noon. The cause was never
+established, so the note in the file is a note and not a fix. It does
+not affect what the tool is for — road markings are legible either way —
+but no lighting conclusion should be read off it.
 
-## 8. `test:levels` takes over ten minutes
+## 8. ~~`test:levels` takes over ten minutes~~
 
-It renders several hours at two positions at high quality, twice each.
-It is not broken, it is slow, and it is slow enough that it gets skipped.
+**Done**, in `aa24a1d`. It measures the hour the game is played (night)
+by default, which is two renders instead of eight; `--sweep`, or
+`npm run test:levels:all`, still takes dawn, noon and dusk. Ten minutes
+was long enough that it got skipped, and a check nobody runs protects
+nothing.
 
-**What I would do:** default it to one hour and take the full sweep on
-request.
+## 9. ~~A hub restart still empties every crew's roster~~
 
-## 9. A hub restart still empties every crew's roster
+**Done**, in `aa24a1d`. Crews go in the ledger beside the referrals —
+names only, because a player id is per-connection and writing one down
+would persist a lie about who is online. `team-create` re-adopts the
+crew you are already in instead of answering an existing member with
+silence, and refuses a name that is somebody else's rather than quietly
+founding a twin. That last part matters more than it did: a twin used to
+last until the next restart, and now it would last forever.
 
-A crew is now a local identity: it is built in the garage, saved beside
-the save, and worn on the car whether or not anything is listening on a
-socket. Going online republishes it, so your own crew survives a hub
-restart. What does not survive is everyone ELSE in it — the server keeps
-`teams` in a `Map` and nothing else, so a restart drops the membership
-and each member only reappears as they reconnect and re-found their own
-crew, which the server then refuses as a duplicate name.
+`tests/crews.mjs` starts a real hub, founds a crew, kills the process,
+starts it again on the same ledger and asks whether the crew is there.
 
-**What I would do:** persist teams the way referrals already are (an
-atomic tmp-and-rename ledger, `LEDGER_PATH` in `server/hub-server.mjs`),
-and let `team-create` re-adopt an existing crew whose founder matches
-instead of dropping it on the floor.
+## 10. ~~The menu intro is a loop, not a place~~
 
-## 10. The menu intro is a loop, not a place
+**Done**, in `aa24a1d`.
 
-The rolling intro is a scrolling strip: a straight road, ten lamps a
-side, recycled. It reads correctly and costs a fraction of a frame, but
-it is not the corniche — no sea, no towers, no traffic, and it never
-turns. Anyone who plays for five minutes and comes back to the menu will
-notice that the road they were just on is not this one.
+It is still a loop — the cars stand still and the world scrolls past,
+which is what keeps it at a fraction of a frame — but it is the corniche
+now. The Gulf on the seaward side with the moon broken across it, the
+city painted on a backdrop hung past the fog (Kuwait Towers, the
+Liberation Tower, the Sharq waterfront), palms down the promenade, and
+traffic coming the other way at twice the closing speed. Every period in
+it still divides the twelve seconds, so there is still no seam.
 
-**What I would do:** nothing yet. The cheap version is a few silhouettes
-of the Kuwait Towers and a kerb line, which is twenty minutes; the
-honest version is rendering the real track from `track.ts` at a fixed
-point, which costs the whole world build on the menu and is the reason
-this scene exists separately in the first place.
+The backdrop is painted rather than built for a reason: the menu's road
+is 300 m of strip and the fog closes it at 186, so a skyline a mile out
+would be either inside the fog or outside the far plane. Everything on
+it is sized by the angle it subtends from where the camera actually
+stands, which is the only way to keep a backdrop from reading as a
+cutout twenty metres up the road.
 
-## 11. Asked for earlier and never done
+## 11. ~~Asked for earlier and never done: "improve ik for mods page"~~
 
-- **"improve ik for mods page"** — the garage's car preview. Asked for
-  some time ago, never picked up.
+**Done**, in `aa24a1d`.
+
+The cause turned out to be structural rather than a missing feature.
+`solveDriverRig` was a private method on the race engine, so the only
+cars in the game with hands on the wheel were the ones with an engine
+running — the menu and the showroom seated a fully rigged driver and
+never asked it for a pose. It is `src/game/driver.ts` now, a free
+function that needs nothing but the rig and the numbers, and the menu
+solves both of its drivers every frame with the lane wander as the
+steering input.
 
 ---
 
 ## What I would do next, in order
 
-1. ~~Seed the world~~ — done.
-2. **Decide the driver model** (item 1). One decision turns two suites
-   green permanently, and it is yours to make rather than mine.
-3. **The hydration warning** (item 6), because it is twenty minutes.
-4. Then either the mods-page preview (item 11) or scope the road network
-   (item 3) — but the road network deserves its own run at it.
+1. **Scope the road network** (item 3). It is the only thing left that
+   changes what the game IS rather than how well it does what it does,
+   and it deserves a run at it on its own.
+2. **`grid.mjs`'s hour** (item 7), if anyone wants a lighting
+   measurement out of that tool. Small, and currently a footnote.
+3. Nothing else is outstanding. Items 4 and 5 are open by decision:
+   one needs egress this environment does not have, and the other is
+   a claim I would rather not make than half-make.
