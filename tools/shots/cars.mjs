@@ -67,6 +67,10 @@ await page.evaluate(() => {
   localStorage.setItem("gulf-road-nights-onboarded", "2");
   localStorage.setItem("gulf-road-nights-coach", "3");
 });
+// The menu itself is a rolling two-car loop now. A card wants one car
+// held still at a fixed three-quarter, so the capture asks for the old
+// turntable stage by name.
+await page.evaluate(() => localStorage.setItem("gulf-road-nights-attract", "turntable"));
 await page.reload({ waitUntil: "networkidle" });
 // Stay on the menu — the turntable only exists here.
 await page.waitForFunction(() => !!window.__grnAttract, null, { timeout: 180000 });

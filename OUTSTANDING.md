@@ -154,7 +154,21 @@ atomic tmp-and-rename ledger, `LEDGER_PATH` in `server/hub-server.mjs`),
 and let `team-create` re-adopt an existing crew whose founder matches
 instead of dropping it on the floor.
 
-## 10. Asked for earlier and never done
+## 10. The menu intro is a loop, not a place
+
+The rolling intro is a scrolling strip: a straight road, ten lamps a
+side, recycled. It reads correctly and costs a fraction of a frame, but
+it is not the corniche — no sea, no towers, no traffic, and it never
+turns. Anyone who plays for five minutes and comes back to the menu will
+notice that the road they were just on is not this one.
+
+**What I would do:** nothing yet. The cheap version is a few silhouettes
+of the Kuwait Towers and a kerb line, which is twenty minutes; the
+honest version is rendering the real track from `track.ts` at a fixed
+point, which costs the whole world build on the menu and is the reason
+this scene exists separately in the first place.
+
+## 11. Asked for earlier and never done
 
 - **"improve ik for mods page"** — the garage's car preview. Asked for
   some time ago, never picked up.
@@ -167,5 +181,5 @@ instead of dropping it on the floor.
 2. **Decide the driver model** (item 1). One decision turns two suites
    green permanently, and it is yours to make rather than mine.
 3. **The hydration warning** (item 6), because it is twenty minutes.
-4. Then either the mods-page preview (item 10) or scope the road network
+4. Then either the mods-page preview (item 11) or scope the road network
    (item 3) — but the road network deserves its own run at it.

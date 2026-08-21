@@ -33,6 +33,8 @@ import {
   loadGarage,
   saveGarage,
   getCar,
+  lockedBy,
+  rivalsBeaten,
   WAGERS,
 } from "@/game/mods";
 
@@ -48,13 +50,23 @@ function carName(g: GarageState | null): string {
   }
 }
 
-/** Rivals defeated so far, as the engine saves it. */
-function readBeaten(): number {
+/** Which stage the menu builds. "rolling" for players; a capture tool
+ *  sets the key to get the turntable back. */
+function attractMode(): "rolling" | "turntable" {
   try {
-    return Math.min(RIVALS.length, Number(localStorage.getItem("gulf-road-nights-progress") ?? "0"));
+    return localStorage.getItem("gulf-road-nights-attract") === "turntable"
+      ? "turntable"
+      : "rolling";
   } catch {
-    return 0;
+    return "rolling";
   }
+}
+
+/** Rivals defeated so far, as the engine saves it. This file used to
+ *  spell the storage key out for itself, which made three copies of it
+ *  across the codebase; mods.ts holds it now. */
+function readBeaten(): number {
+  return Math.min(RIVALS.length, rivalsBeaten());
 }
 
 interface FeedMsg {
@@ -203,13 +215,40 @@ export default function RaceClient() {
     });
   }, []);
 
+  // The showroom's rules, where the showroom is. The engine publishes
+  // its own internals for the same reason: a greyed-out button is what
+  // the player sees, and this is what actually decides — a test that can
+  // only read the button cannot tell the difference between a rule and a
+  // disabled attribute.
+  useEffect(() => {
+    const w = window as unknown as {
+      __grnShowroom?: { lockedBy(id: string): number; beaten(): number };
+    };
+    w.__grnShowroom = {
+      lockedBy: (id: string) => lockedBy(getCar(id)),
+      beaten: rivalsBeaten,
+    };
+    return () => {
+      delete w.__grnShowroom;
+    };
+  }, []);
+
   const buyOrDrive = useCallback((carId: string) => {
     const g = loadGarage();
     const car = getCar(carId);
     if (!g.cars.includes(carId)) {
+      // Money is not the only gate any more. The showroom greys the
+      // locked car out, but the button is not the rule — this is.
+      if (lockedBy(car) > 0) return;
       if (g.kd < car.price) return;
       g.kd -= car.price;
       g.cars.push(carId);
+      // Write the build the car is delivered with into the save, rather
+      // than leaving it to be reconstructed on every read. It matters
+      // for exactly one machine — the GTR arrives with twelve parts
+      // fitted — and a save that does not record what was handed over
+      // is a save that cannot be looked at to find out.
+      editBuild(g, carId);
     }
     g.car = carId; // buying it also puts you behind the wheel
     saveGarage(g);
@@ -765,7 +804,8 @@ export default function RaceClient() {
     };
   }, []);
 
-  // The menu's turntable: your own car, rebuilt whenever the garage
+  // The menu's rolling intro: your own car and the next legend's,
+  // abreast on the corniche. Rebuilt whenever the garage or the career
   // changes under it, torn down the moment the race takes the canvas.
   useEffect(() => {
     if (phase !== "menu" || !attractRef.current) return;
@@ -783,6 +823,12 @@ export default function RaceClient() {
         ]);
         if (cancelled || !attractRef.current) return;
         const tune = computeEffects(garage ?? loadGarage());
+        // Who is alongside: the legend you have to beat next, in their
+        // own colours. Finish the roster and the car that pulls up next
+        // to you is the one the roster was for.
+        const next = RIVALS[Math.min(beaten, RIVALS.length - 1)];
+        const done = beaten >= RIVALS.length;
+        const prize = getCar("zeta-300-gtr");
         handle = buildAttract(
           attractRef.current,
           {
@@ -796,7 +842,28 @@ export default function RaceClient() {
             stickers: tune.stickers,
             crew: tune.crew ?? undefined,
           },
-          reduced
+          reduced,
+          {
+            // The showroom capture needs one car held at a fixed
+            // three-quarter so fifteen cards are comparable, which a
+            // road going past cannot give it. Tools ask for the old
+            // stage by name rather than the menu carrying a second
+            // code path for their benefit.
+            mode: attractMode(),
+            second: done
+              ? {
+                  body: prize.color,
+                  style: prize.style,
+                  raceKit: true,
+                  spoiler: false,
+                }
+              : {
+                  body: next.bodyColor,
+                  accent: next.accentColor,
+                  style: next.bodyStyle,
+                  underglow: next.accentColor,
+                },
+          }
         );
         attractScene.current = handle;
         // Dev handle, same contract as __grnEngine: the turntable cannot
@@ -816,7 +883,9 @@ export default function RaceClient() {
       attractScene.current = null;
       delete (window as unknown as { __grnAttract?: unknown }).__grnAttract;
     };
-  }, [phase, garage]);
+    // `beaten` is in here because the car alongside is the next legend's:
+    // win a battle and the machine in the next lane changes with it.
+  }, [phase, garage, beaten]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

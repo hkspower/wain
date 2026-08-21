@@ -13,6 +13,8 @@ import {
   Part,
   computeEffects,
   getCar,
+  lockedBy,
+  rivalsBeaten,
 } from "@/game/mods";
 import { getEngine, layoutTag } from "@/game/engines";
 import {
@@ -59,12 +61,16 @@ const STYLE_CATS: Array<{ cat: string; label: string }> = [
   { cat: "glow", label: "UNDERGLOW · الليتات" },
 ];
 
-/** Spec bar ranges: min hides the floor, max is the best build in the game. */
+/** Spec bar ranges: min hides the floor, max is the best build in the
+ *  game — measured, not guessed. The Zeta 300 GTR as it is delivered
+ *  reads 3.15x on boost, 445 km/h, 46.4 braking and 23.9 grip, and a bar
+ *  that pins at 100% two thirds of the way up the range stops being a
+ *  comparison. */
 const SPECS = [
-  { key: "power", label: "POWER", min: 0.8, max: 2.9 },
+  { key: "power", label: "POWER", min: 0.8, max: 3.2 },
   { key: "top", label: "TOP SPEED", min: 170, max: 460 },
   { key: "brakes", label: "BRAKES", min: 20, max: 50 },
-  { key: "grip", label: "GRIP", min: 8, max: 22 },
+  { key: "grip", label: "GRIP", min: 8, max: 24 },
 ] as const;
 
 /**
@@ -147,9 +153,14 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
 
   // The crew this save flies. Read after mount, not during render: it
   // lives in localStorage and the garage is server-rendered first.
+  // Career progress, read after mount for the same reason the crew is.
+  const [beaten, setBeaten] = useState(0);
   const [crew, setCrew] = useState<Crew | null>(null);
   const [draft, setDraft] = useState<Crew | null>(null);
-  useEffect(() => setCrew(loadCrew()), []);
+  useEffect(() => {
+    setCrew(loadCrew());
+    setBeaten(rivalsBeaten());
+  }, []);
 
   const fx = useMemo(() => computeEffects(garage, ramp), [garage, ramp]);
   const car = getCar(ramp);
@@ -392,19 +403,25 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
                       const owned = garage.cars.includes(c.id);
                       const driving = garage.car === c.id;
                       const affordable = garage.kd >= c.price;
+                      // Legends still standing between the player and
+                      // this machine. Shown rather than hidden: a car
+                      // you cannot see is not rare, it is absent.
+                      const toGo = owned ? 0 : lockedBy(c, beaten);
                       return (
                         <button
                           key={c.id}
                           onClick={() => onBuyCar(c.id)}
-                          disabled={!owned && !affordable}
+                          disabled={!owned && (!affordable || toGo > 0)}
                           className={`grn-panel tap p-3.5 text-left transition ${
                             driving
                               ? "border-sodium-400/80 bg-sodium-500/10 shadow-[0_0_30px_-10px_rgba(245,165,36,0.7)]"
                               : owned
                                 ? "border-emerald-400/45 hover:border-emerald-400/70"
-                                : affordable
-                                  ? "hover:border-white/30 hover:bg-white/[0.09]"
-                                  : "cursor-not-allowed opacity-45"
+                                : toGo > 0
+                                  ? "cursor-not-allowed border-sodium-400/35 bg-sodium-500/[0.06] opacity-80"
+                                  : affordable
+                                    ? "hover:border-white/30 hover:bg-white/[0.09]"
+                                    : "cursor-not-allowed opacity-45"
                           }`}
                         >
                           <div className="flex items-start justify-between gap-2">
@@ -444,6 +461,12 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
                               <span className="text-sodium-400">Driving now ✓</span>
                             ) : owned ? (
                               <span className="text-emerald-300">Owned — tap to drive</span>
+                            ) : toGo > 0 ? (
+                              <span className="text-sodium-300">
+                                Not for sale — beat{" "}
+                                <span className="tnum">{toGo}</span> more{" "}
+                                {toGo === 1 ? "legend" : "legends"}
+                              </span>
                             ) : affordable ? (
                               <span className="grn-display text-base tracking-normal text-gulf-300">
                                 {c.price.toLocaleString()} KD

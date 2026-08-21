@@ -227,93 +227,134 @@ public static class GRNData
         public int Engine;
         /// <summary>Tank, litres.</summary>
         public float TankLitres;
+        /// <summary>Legends that must be beaten before the showroom will
+        /// sell it. 0 for everything money can buy.</summary>
+        public int LockedRivals;
+        /// <summary>Parts fitted at the factory. Empty for most.</summary>
+        public string[] FactoryBuild;
     }
 
     public static readonly Car[] Cars =
     {
         new Car {
+            Id = "zeta-300-gtr", Name = "Zeta 300 GTR", Price = 240000,
+            Power = 1.7f, TopSpeedKmh = 405f, Grip = 18f, Brake = 46f,
+            Paint = Hex(0x3B2A5A), Style = BodyStyle.ZX, AttackKit = true,
+            Engine = 3, TankLitres = 70f,
+            LockedRivals = 8,
+            FactoryBuild = new[] { "twin-turbo", "intake", "ecu", "exhaust-ti", "brakes-carbon", "tires-slick", "lsd", "coilovers", "cage", "rack", "weight", "nos" },
+        },
+        new Car {
             Id = "efreet-rx-kai", Name = "Efreet RX Kai", Price = 120000,
             Power = 1.66f, TopSpeedKmh = 400f, Grip = 17.5f, Brake = 44f,
             Paint = Hex(0xF2B90D), Style = BodyStyle.RX7, AttackKit = true,
             Engine = 3, TankLitres = 55f,
+            LockedRivals = 0,
+            FactoryBuild = new[] {  },
         },
         new Car {
             Id = "sahara-v12", Name = "Sahara GT-12", Price = 96000,
             Power = 1.62f, TopSpeedKmh = 385f, Grip = 16.4f, Brake = 42f,
             Paint = Hex(0xB8860B), Style = BodyStyle.ZX, AttackKit = false,
             Engine = 4, TankLitres = 90f,
+            LockedRivals = 0,
+            FactoryBuild = new[] {  },
         },
         new Car {
             Id = "falcon-720", Name = "Falcon 720 Veloce", Price = 71000,
             Power = 1.5f, TopSpeedKmh = 360f, Grip = 15.8f, Brake = 40f,
             Paint = Hex(0xC1121F), Style = BodyStyle.ZX, AttackKit = false,
             Engine = 4, TankLitres = 72f,
+            LockedRivals = 0,
+            FactoryBuild = new[] {  },
         },
         new Car {
             Id = "storm-s8", Name = "Desert Storm S8", Price = 54000,
             Power = 1.4f, TopSpeedKmh = 335f, Grip = 15.2f, Brake = 38f,
             Paint = Hex(0x1F2933), Style = BodyStyle.Sedan, AttackKit = false,
             Engine = 3, TankLitres = 68f,
+            LockedRivals = 0,
+            FactoryBuild = new[] {  },
         },
         new Car {
             Id = "kaiju-r", Name = "Kaiju R", Price = 38000,
             Power = 1.34f, TopSpeedKmh = 310f, Grip = 16.2f, Brake = 38f,
             Paint = Hex(0x3F66C4), Style = BodyStyle.GTR, AttackKit = false,
             Engine = 3, TankLitres = 74f,
+            LockedRivals = 0,
+            FactoryBuild = new[] {  },
         },
         new Car {
             Id = "efreet-rx", Name = "Efreet RX", Price = 31000,
             Power = 1.3f, TopSpeedKmh = 295f, Grip = 14.8f, Brake = 35f,
             Paint = Hex(0xD7263D), Style = BodyStyle.RX7, AttackKit = false,
             Engine = 2, TankLitres = 60f,
+            LockedRivals = 0,
+            FactoryBuild = new[] {  },
         },
         new Car {
             Id = "zeta-300", Name = "Zeta 300", Price = 27000,
             Power = 1.26f, TopSpeedKmh = 275f, Grip = 13.9f, Brake = 34f,
             Paint = Hex(0xC1272D), Style = BodyStyle.ZX, AttackKit = false,
             Engine = 3, TankLitres = 70f,
+            LockedRivals = 0,
+            FactoryBuild = new[] {  },
         },
         new Car {
             Id = "gulf-coupe-rs", Name = "Gulf Coupe RS", Price = 33000,
             Power = 1.28f, TopSpeedKmh = 285f, Grip = 14.6f, Brake = 35f,
             Paint = Hex(0xCB2027), Style = BodyStyle.Hatch, AttackKit = false,
             Engine = 1, TankLitres = 50f,
+            LockedRivals = 0,
+            FactoryBuild = new[] {  },
         },
         new Car {
             Id = "salmiya-turbo", Name = "Salmiya Turbo GT", Price = 24000,
             Power = 1.2f, TopSpeedKmh = 255f, Grip = 13.8f, Brake = 32f,
             Paint = Hex(0xB84DD6), Style = BodyStyle.Sedan, AttackKit = false,
             Engine = 1, TankLitres = 60f,
+            LockedRivals = 0,
+            FactoryBuild = new[] {  },
         },
         new Car {
             Id = "hawally-2t", Name = "Hawally Sport 2.0T", Price = 16000,
             Power = 1.12f, TopSpeedKmh = 240f, Grip = 13.2f, Brake = 30f,
             Paint = Hex(0xF5C211), Style = BodyStyle.Sedan, AttackKit = false,
             Engine = 1, TankLitres = 55f,
+            LockedRivals = 0,
+            FactoryBuild = new[] {  },
         },
         new Car {
             Id = "deera-sedan", Name = "Deera Sedan", Price = 8500,
             Power = 1.05f, TopSpeedKmh = 220f, Grip = 12.6f, Brake = 28f,
             Paint = Hex(0xDFE3E8), Style = BodyStyle.Sedan, AttackKit = false,
             Engine = 1, TankLitres = 60f,
+            LockedRivals = 0,
+            FactoryBuild = new[] {  },
         },
         new Car {
             Id = "jahra-pickup", Name = "Jahra Pickup", Price = 6000,
             Power = 1f, TopSpeedKmh = 195f, Grip = 12f, Brake = 27f,
             Paint = Hex(0x6E7F8D), Style = BodyStyle.Sedan, AttackKit = false,
             Engine = 4, TankLitres = 80f,
+            LockedRivals = 0,
+            FactoryBuild = new[] {  },
         },
         new Car {
             Id = "sharq-hatch", Name = "Sharq Hatch", Price = 2200,
             Power = 0.98f, TopSpeedKmh = 205f, Grip = 12.4f, Brake = 27f,
             Paint = Hex(0x16A34A), Style = BodyStyle.Sedan, AttackKit = false,
             Engine = 0, TankLitres = 42f,
+            LockedRivals = 0,
+            FactoryBuild = new[] {  },
         },
         new Car {
             Id = "wain-special", Name = "Wain Special", Price = 0,
             Power = 1f, TopSpeedKmh = 180f, Grip = 12f, Brake = 26f,
             Paint = Hex(0xF2F4F7), Style = BodyStyle.Sedan, AttackKit = false,
             Engine = 0, TankLitres = 50f,
+            LockedRivals = 0,
+            FactoryBuild = new[] {  },
         },
     };
 

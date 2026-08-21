@@ -45,7 +45,7 @@ import {
   PUMP_LITRES_PER_SEC,
   PUMP_MAX_KMH,
 } from "./engines";
-import { loadGarage, saveGarage, computeEffects, addKd, fuelOf, setFuel, TuneEffects, getCar, CARS } from "./mods";
+import { loadGarage, saveGarage, computeEffects, addKd, fuelOf, setFuel, TuneEffects, getCar, CARS, rivalsBeaten, saveRivalsBeaten } from "./mods";
 import { levelInfo, recordRace, recordLap, loadProfileStats, LevelInfo } from "./profile";
 
 // Tokyo-Xtreme-Racer-style rules, Kuwait edition: cruise the loop, find the
@@ -65,7 +65,6 @@ const CINE_LEN = 5.6;
  *  limit as a 400 km/h flagship does at its. */
 const PLAYER_TOP_SPEED = 92; // m/s ≈ 331 km/h
 const FLASH_RANGE = 60;
-const SAVE_KEY = "gulf-road-nights-progress";
 
 export interface BattleHud {
   playerSp: number;
@@ -2769,19 +2768,14 @@ export class GameEngine {
   }
 
   private saveProgress(): void {
-    try {
-      localStorage.setItem(SAVE_KEY, String(this.rivalIndex));
-    } catch {}
+    saveRivalsBeaten(this.rivalIndex);
   }
 
   private loadProgress(): number {
-    try {
-      // RIVALS.length (one past the roster) is a persisted championship.
-      const v = parseInt(localStorage.getItem(SAVE_KEY) ?? "0", 10);
-      return Number.isFinite(v) ? Math.min(Math.max(v, 0), RIVALS.length) : 0;
-    } catch {
-      return 0;
-    }
+    // RIVALS.length (one past the roster) is a persisted championship.
+    // The key itself lives in mods.ts, beside the showroom, because the
+    // showroom now gates a car on this number.
+    return Math.min(rivalsBeaten(), RIVALS.length);
   }
 
   // ---------------------------------------------------------------- update

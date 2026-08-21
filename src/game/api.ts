@@ -108,6 +108,12 @@ export function buildCars() {
     bodyStyle: c.style ?? "sedan",
     kit: c.kit ?? null,
     engine: c.engine,
+    // A car nobody can buy yet is a rule, not a decoration, so it
+    // travels with the car. A port that ships the showroom without this
+    // sells the one machine the career exists to earn.
+    lockedRivals: c.locked?.rivals ?? 0,
+    // Parts fitted before it leaves the lot, in catalogue order.
+    factoryBuild: c.factoryBuild ?? [],
     desc: c.desc,
   }));
 }

@@ -1,10 +1,10 @@
 // The main menu is the first thing anyone sees, and it is the one
 // screen where a broken build looks exactly like a working one: a
 // black rectangle with buttons on it. This checks the menu is real —
-// that it comes BEFORE the game, that the turntable behind it is
+// that it comes BEFORE the game, that the intro scene behind it is
 // actually drawing your own car, that the list navigates by keyboard,
 // that every item opens what it says it does, and that starting the
-// race tears the turntable down instead of leaving it spinning behind
+// race tears the intro down instead of leaving it running behind
 // the road.
 import { chromium } from "playwright-core";
 import { existsSync, writeFileSync } from "node:fs";
@@ -16,7 +16,7 @@ const exe = C.find(p=>existsSync(p));
 if (!exe) { console.error("No Chromium found. Set CHROME_PATH, or run: npx playwright install chromium"); process.exit(2); }
 const b = await chromium.launch({executablePath:exe,args:["--use-gl=angle","--enable-webgl","--no-sandbox","--disable-dev-shm-usage"],headless:true});
 // Headless Chromium forces prefers-reduced-motion, which is exactly how
-// the turntable is told to draw one frame and stop. Override it, or
+// the intro is told to draw one frame and stop. Override it, or
 // this test can only ever prove the still-frame path works.
 const page = await b.newPage({viewport:{width:1280,height:800},reducedMotion:"no-preference"});
 page.setDefaultTimeout(120000);
@@ -41,10 +41,14 @@ console.log(`menu         ${landed.items.join(" / ")}`);
 check(landed.items[0] === "START ENGINE", `first item is "${landed.items[0]}", not START ENGINE`);
 check(landed.items.length === 5, `${landed.items.length} menu items, expected 5`);
 check(!landed.engine, "the game engine was built before the player chose to start");
-check(landed.attract, "no turntable canvas behind the menu");
+check(landed.attract, "no intro canvas behind the menu");
 
-// --- 2. The turntable is live: frames accumulate, the car is in shot,
-// and it actually turns. The canvas cannot be read back for this —
+// --- 2. The intro is live: frames accumulate, the cars are in shot,
+// and it is actually moving. What that means changed under this check —
+// the menu is a rolling two-car loop now rather than a turntable, so
+// `angle` is the loop phase instead of a heading — but the question is
+// the same one and tests/intro.mjs asks the rest of it. The canvas
+// cannot be read back for any of this —
 // WebGL discards the drawing buffer on composite, so a scripted
 // readPixels sees zeros however good the picture is — so the scene
 // reports its own render stats instead.
@@ -61,12 +65,12 @@ const turntable = await page.evaluate(async ()=>{
 // rasteriser where a quarter-million triangles costs whole seconds a
 // frame, so a fps threshold would measure the test box and not the
 // menu. What has to be true is that it is animating at all.
-console.log(`turntable    frames ${turntable.s1.frames}→${turntable.s2.frames} (${((turntable.s2.frames-turntable.s1.frames)/1.2).toFixed(1)} fps on software GL), ${turntable.s2.tris} triangles, angle ${turntable.s1.ang}→${turntable.s2.ang}`);
+console.log(`intro        frames ${turntable.s1.frames}→${turntable.s2.frames} (${((turntable.s2.frames-turntable.s1.frames)/1.2).toFixed(1)} fps on software GL), ${turntable.s2.tris} triangles, angle ${turntable.s1.ang}→${turntable.s2.ang}`);
 check(turntable.s2.frames > turntable.s1.frames,
-  "the turntable stopped drawing — it is a frozen still, not a live scene");
+  "the intro stopped drawing — it is a frozen still, not a live scene");
 check(turntable.s2.tris > 5000,
-  `only ${turntable.s2.tris} triangles rendered — the car is missing from the shot`);
-check(Math.abs(turntable.s2.ang - turntable.s1.ang) > 0.001, "the turntable does not turn");
+  `only ${turntable.s2.tris} triangles rendered — the cars are missing from the shot`);
+check(Math.abs(turntable.s2.ang - turntable.s1.ang) > 0.001, "the intro does not move");
 
 // --- 3. Keyboard navigation moves the selection and wraps ---
 const nav = await page.evaluate(async ()=>{
@@ -136,7 +140,7 @@ const after = await page.evaluate(()=>({
   attract: !!document.querySelector("canvas.attract-canvas"),
   engine: !!window.__grnEngine,
 }));
-console.log(`start        menu gone=${!after.menu} turntable disposed=${!after.attract} engine live=${after.engine}  ` +
+console.log(`start        menu gone=${!after.menu} intro disposed=${!after.attract} engine live=${after.engine}  ` +
   check(!after.menu && !after.attract && after.engine, "starting the race did not hand the screen over cleanly"));
 
 check(errors.length === 0, `page errors: ${errors.join(" | ")}`);

@@ -189,7 +189,7 @@ export interface CarModel {
   /** Base handling before garage mods. */
   power: number; // accel multiplier
   /** The car's governed top speed in km/h — an absolute limiter, not a
-   *  bonus. Every car in the showroom has its own, 180 through 400, and
+   *  bonus. Every car in the showroom has its own, 180 through 405, and
    *  the engine tunes its thrust curve so the number is the real
    *  terminal speed rather than an advertisement. */
   topSpeedKmh: number;
@@ -197,10 +197,77 @@ export interface CarModel {
   brake: number; // braking m/s²
   color: number; // factory paint
   desc: string;
+  /**
+   * Legends you have to beat before the showroom will sell it.
+   *
+   * Rarity had exactly one meaning here until now, and that meaning was
+   * "expensive" — every machine on the corniche was for sale on the
+   * first screen to anyone with the money, so the rarest car in the game
+   * was a number with more zeros on it. A car nobody can have yet is a
+   * different thing from a car nobody can afford yet.
+   */
+  locked?: { rivals: number };
+  /**
+   * Parts fitted before it leaves the lot, on top of the factory basics.
+   *
+   * For a machine that is sold already built. Bought, not free: the
+   * price of the car IS the price of the build, which is why the one car
+   * that has this costs more than the two next most expensive combined.
+   */
+  factoryBuild?: string[];
 }
 
 /** The showroom, richest metal first. */
 export const CARS: CarModel[] = [
+  {
+    // THE ONE YOU CANNOT BUY
+    //
+    // The GTR homologation of the Zeta 300: the same long-nose wedge,
+    // rebuilt around the twin-turbo six with the whole outside of the
+    // car turned into aerodynamics — swan-neck wing, splitter, canards,
+    // dive planes, skirts and a diffuser — and delivered with the full
+    // house already bolted in. Nothing else in the game is quicker,
+    // stops harder or holds on longer.
+    //
+    // Its price is not what makes it rare. The showroom will not sell it
+    // at any price until every legend on the roster has been beaten,
+    // which is the only thing in this game that money cannot buy.
+    id: "zeta-300-gtr",
+    name: "Zeta 300 GTR",
+    ar: "زيتا ٣٠٠ جي تي آر",
+    cls: "supercar",
+    style: "zx",
+    kit: "attack",
+    price: 240000,
+    locked: { rivals: 8 },
+    engine: "i6-30tt",
+    tankLitres: 70,
+    power: 1.7,
+    topSpeedKmh: 405,
+    grip: 18,
+    brake: 46,
+    color: 0x3b2a5a, // midnight purple, and only ever midnight purple
+    desc: "The homologation car. Full aero shell, twin-turbo six, and the entire catalogue fitted at the factory. Beat every legend on the road and it is yours to buy — until then it is not for sale.",
+    // Everything that is strictly an upgrade. Both gearboxes are
+    // deliberately absent: close-ratio trades 16 km/h of governor for
+    // acceleration and tall trades the other way, so neither is an
+    // improvement on a car built to do both — they are choices, and
+    // this one is delivered with the factory's.
+    factoryBuild: [
+      "twin-turbo",
+      "intake",
+      "ecu",
+      "exhaust-ti",
+      "brakes-carbon",
+      "tires-slick",
+      "lsd",
+      "coilovers",
+      "cage",
+      "rack",
+      "weight",
+      "nos",
+    ],
+  },
   {
     id: "efreet-rx-kai",
     name: "Efreet RX Kai",
@@ -216,7 +283,7 @@ export const CARS: CarModel[] = [
     grip: 17.5,
     brake: 44,
     color: 0xf2b90d, // competition yellow
-    desc: "One-off time-attack build on the twin-turbo six — swan-neck wing, canards, bronze forged wheels. The rarest machine on Gulf Road.",
+    desc: "One-off time-attack build on the twin-turbo six — swan-neck wing, canards, bronze forged wheels. The fastest thing on Gulf Road that money alone can buy.",
   },
   {
     id: "sahara-v12",
@@ -432,6 +499,38 @@ export function getCar(id: string): CarModel {
   return CARS.find((c) => c.id === id) ?? CARS[CARS.length - 1];
 }
 
+/**
+ * How far the career has got — the number of legends beaten.
+ *
+ * The engine has owned this key since the day it was written and kept it
+ * to itself, which was fine while nothing else needed to know. The
+ * showroom needs to know now, and two files each holding their own copy
+ * of a storage key is how a save ends up with two answers to the same
+ * question. It lives here, next to the cars it gates.
+ */
+export const PROGRESS_KEY = "gulf-road-nights-progress";
+
+export function rivalsBeaten(): number {
+  try {
+    const v = parseInt(localStorage.getItem(PROGRESS_KEY) ?? "0", 10);
+    return Number.isFinite(v) && v > 0 ? v : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function saveRivalsBeaten(n: number): void {
+  try {
+    localStorage.setItem(PROGRESS_KEY, String(n));
+  } catch {}
+}
+
+/** How many more legends stand between the player and this car, or 0 if
+ *  the showroom will sell it. */
+export function lockedBy(car: CarModel, beaten = rivalsBeaten()): number {
+  return Math.max(0, (car.locked?.rivals ?? 0) - beaten);
+}
+
 /** Stake tiers offered before a race; higher rivals allow bigger money. */
 export const WAGERS = [250, 500, 1000, 2500, 5000, 10000, 25000];
 
@@ -468,13 +567,28 @@ export interface GarageState {
   builds: Record<string, CarBuild>;
 }
 
-/** A car as it leaves the lot: factory paint, no glow, nothing fitted. */
-export function freshBuild(): CarBuild {
-  return {
+/** A car as it leaves the lot: factory paint, no glow, nothing fitted —
+ *  unless the car is sold already built, in which case its factory kit
+ *  is bolted in and equipped here rather than left as a list somebody
+ *  has to remember to apply. */
+export function freshBuild(carId?: string): CarBuild {
+  const build: CarBuild = {
     // The basic panel filter comes with the car, like the paint does.
     owned: ["paint-white", "glow-none", "intake-basic"],
     equipped: { paint: "paint-white", glow: "glow-none", intake: "intake-basic" },
   };
+  const factory = carId ? CARS.find((c) => c.id === carId)?.factoryBuild : undefined;
+  for (const id of factory ?? []) {
+    const part = PARTS.find((p) => p.id === id);
+    if (!part || build.owned.includes(id)) continue;
+    build.owned.push(id);
+    // An exclusive part is not fitted by owning it, which is exactly the
+    // trap here: a "fully built" car whose parts were all in the boot.
+    if (EXCLUSIVE_CATS.has(part.cat)) {
+      build.equipped[part.cat as keyof CarBuild["equipped"]] = id;
+    }
+  }
+  return build;
 }
 
 /**
@@ -507,7 +621,7 @@ export function setFuel(litres: number, carId?: string): number {
 /** A car's build, for reading. Never writes: the shop asks about cars it
  *  has not bought yet, and a read should not conjure a driveway entry. */
 export function buildOf(g: GarageState, carId: string = g.car): CarBuild {
-  return g.builds[carId] ?? freshBuild();
+  return g.builds[carId] ?? freshBuild(carId);
 }
 
 /** The stored build, created on demand — for code that is about to
@@ -515,7 +629,7 @@ export function buildOf(g: GarageState, carId: string = g.car): CarBuild {
 export function editBuild(g: GarageState, carId: string = g.car): CarBuild {
   let b = g.builds[carId];
   if (!b) {
-    b = freshBuild();
+    b = freshBuild(carId);
     g.builds[carId] = b;
   }
   return b;
@@ -589,7 +703,7 @@ export function loadGarage(): GarageState {
     kd: STARTING_KD,
     cars: ["wain-special"],
     car: "wain-special",
-    builds: { "wain-special": freshBuild() },
+    builds: { "wain-special": freshBuild("wain-special") },
   };
 }
 

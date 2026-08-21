@@ -129,13 +129,15 @@ if (hEngines.length !== api.engines.length) {
 
 // ---- cars -----------------------------------------------------------
 const hCars = [...header.matchAll(
-  /\{ TEXT\("([^"]+)"\), TEXT\("([^"]+)"\), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, FColor\([^)]*\), EGRNBodyStyle::(\w+), (true|false), (\d+), ([\d.]+)f \},/g
-)].map(([, id, name, price, power, top, grip, brake, style, kit, engine, tank]) => ({
+  /\{ TEXT\("([^"]+)"\), TEXT\("([^"]+)"\), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, FColor\([^)]*\), EGRNBodyStyle::(\w+), (true|false), (\d+), ([\d.]+)f, (\d+), TEXT\("([^"]*)"\) \},/g
+)].map(([, id, name, price, power, top, grip, brake, style, kit, engine, tank, locked, factory]) => ({
   id, name, price: +price, power: +power, top: +top, grip: +grip, brake: +brake,
   style: style.toLowerCase(),
   attack: kit === "true",
   engine: +engine,
   tank: +tank,
+  lockedRivals: +locked,
+  factoryBuild: factory ? factory.split(",") : [],
 }));
 if (hCars.length !== api.cars.length) {
   fail(`cars: header ${hCars.length} vs api ${api.cars.length}`);
@@ -155,11 +157,19 @@ if (hCars.length !== api.cars.length) {
     if (h.attack !== (a.kit === "attack")) fail(`car ${h.id} attack kit: ${h.attack} vs ${a.kit}`);
     // The header stores an index into GRNEngines; the API stores the id.
     if (h.tank !== a.tankLitres) fail(`car ${h.id} tankLitres: ${h.tank} vs ${a.tankLitres}`);
+    // The rule that makes the rarest car rare, and the build it is sold
+    // with. A port that drops either sells a different game.
+    if (h.lockedRivals !== a.lockedRivals) {
+      fail(`car ${h.id} lockedRivals: ${h.lockedRivals} vs ${a.lockedRivals}`);
+    }
+    if (h.factoryBuild.join(",") !== a.factoryBuild.join(",")) {
+      fail(`car ${h.id} factoryBuild: [${h.factoryBuild}] vs [${a.factoryBuild}]`);
+    }
     if (api.engines[h.engine]?.id !== a.engine) {
       fail(`car ${h.id} engine: header index ${h.engine} (${api.engines[h.engine]?.id}) vs ${a.engine}`);
     }
   }
-  if (!process.exitCode) ok(`cars: ${hCars.length} match (id, price, power, topSpeedKmh, grip, brake, body, kit, engine, tank)`);
+  if (!process.exitCode) ok(`cars: ${hCars.length} match (id, price, power, topSpeedKmh, grip, brake, body, kit, engine, tank, lock, factory build)`);
 }
 
 // ---- fuel and forecourts --------------------------------------------

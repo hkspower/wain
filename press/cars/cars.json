@@ -1,5 +1,39 @@
 [
   {
+    "id": "zeta-300-gtr",
+    "name": "Zeta 300 GTR",
+    "arabicName": "زيتا ٣٠٠ جي تي آر",
+    "cls": "supercar",
+    "classLabel": "SUPERCARS · سوبر كار",
+    "price": 240000,
+    "power": 1.7,
+    "topSpeedKmh": 405,
+    "grip": 18,
+    "brake": 46,
+    "tankLitres": 70,
+    "color": "#3b2a5a",
+    "bodyStyle": "zx",
+    "kit": "attack",
+    "engine": "i6-30tt",
+    "lockedRivals": 8,
+    "factoryBuild": [
+      "twin-turbo",
+      "intake",
+      "ecu",
+      "exhaust-ti",
+      "brakes-carbon",
+      "tires-slick",
+      "lsd",
+      "coilovers",
+      "cage",
+      "rack",
+      "weight",
+      "nos"
+    ],
+    "desc": "The homologation car. Full aero shell, twin-turbo six, and the entire catalogue fitted at the factory. Beat every legend on the road and it is yours to buy — until then it is not for sale.",
+    "image": "zeta-300-gtr.png"
+  },
+  {
     "id": "efreet-rx-kai",
     "name": "Efreet RX Kai",
     "arabicName": "كبير العفاريت",
@@ -15,7 +49,9 @@
     "bodyStyle": "rx7",
     "kit": "attack",
     "engine": "i6-30tt",
-    "desc": "One-off time-attack build on the twin-turbo six — swan-neck wing, canards, bronze forged wheels. The rarest machine on Gulf Road.",
+    "lockedRivals": 0,
+    "factoryBuild": [],
+    "desc": "One-off time-attack build on the twin-turbo six — swan-neck wing, canards, bronze forged wheels. The fastest thing on Gulf Road that money alone can buy.",
     "image": "efreet-rx-kai.png"
   },
   {
@@ -34,6 +70,8 @@
     "bodyStyle": "zx",
     "kit": null,
     "engine": "v8-57",
+    "lockedRivals": 0,
+    "factoryBuild": [],
     "desc": "Quad-cam V8 hypercar. Nothing on the corniche leaves a corner harder.",
     "image": "sahara-v12.png"
   },
@@ -53,6 +91,8 @@
     "bodyStyle": "zx",
     "kit": null,
     "engine": "v8-57",
+    "lockedRivals": 0,
+    "factoryBuild": [],
     "desc": "Mid-engine V8, feather light, screams past 300.",
     "image": "falcon-720.png"
   },
@@ -72,6 +112,8 @@
     "bodyStyle": "sedan",
     "kit": null,
     "engine": "i6-30tt",
+    "lockedRivals": 0,
+    "factoryBuild": [],
     "desc": "All-wheel-drive missile. Launches like a catapult.",
     "image": "storm-s8.png"
   },
@@ -91,6 +133,8 @@
     "bodyStyle": "gtr",
     "kit": null,
     "engine": "i6-30tt",
+    "lockedRivals": 0,
+    "factoryBuild": [],
     "desc": "Four round tails, boxed arches, AWD bite. Add the GT Wing to complete the legend.",
     "image": "kaiju-r.png"
   },
@@ -110,6 +154,8 @@
     "bodyStyle": "rx7",
     "kit": null,
     "engine": "f6-25",
+    "lockedRivals": 0,
+    "factoryBuild": [],
     "desc": "Flat-six curves — pop-ups up, first light on the horizon, nothing else on the road.",
     "image": "efreet-rx.png"
   },
@@ -129,6 +175,8 @@
     "bodyStyle": "zx",
     "kit": null,
     "engine": "i6-30tt",
+    "lockedRivals": 0,
+    "factoryBuild": [],
     "desc": "Twin-turbo wedge from the golden era — one light bar, no grille, all nose.",
     "image": "zeta-300.png"
   },
@@ -148,6 +196,8 @@
     "bodyStyle": "hatch",
     "kit": null,
     "engine": "i4-20t",
+    "lockedRivals": 0,
+    "factoryBuild": [],
     "desc": "Three-door hot hatch: short, upright, red stripe across the nose. Small car, big hurry.",
     "image": "gulf-coupe-rs.png"
   },
@@ -167,6 +217,8 @@
     "bodyStyle": "sedan",
     "kit": null,
     "engine": "i4-20t",
+    "lockedRivals": 0,
+    "factoryBuild": [],
     "desc": "The street favourite. Boost from every corner exit.",
     "image": "salmiya-turbo.png"
   },
@@ -186,6 +238,8 @@
     "bodyStyle": "sedan",
     "kit": null,
     "engine": "i4-20t",
+    "lockedRivals": 0,
+    "factoryBuild": [],
     "desc": "Cheap thrills with a real chassis under them.",
     "image": "hawally-2t.png"
   },
@@ -205,6 +259,8 @@
     "bodyStyle": "sedan",
     "kit": null,
     "engine": "i4-20t",
+    "lockedRivals": 0,
+    "factoryBuild": [],
     "desc": "Comfortable, quiet, quicker than it looks.",
     "image": "deera-sedan.png"
   },
@@ -224,6 +280,8 @@
     "bodyStyle": "sedan",
     "kit": null,
     "engine": "v8-57",
+    "lockedRivals": 0,
+    "factoryBuild": [],
     "desc": "Heavy, honest, and it never dies.",
     "image": "jahra-pickup.png"
   },
@@ -243,6 +301,8 @@
     "bodyStyle": "sedan",
     "kit": null,
     "engine": "i4-16",
+    "lockedRivals": 0,
+    "factoryBuild": [],
     "desc": "Tiny, tossable, easy on the wallet.",
     "image": "sharq-hatch.png"
   },
@@ -262,6 +322,8 @@
     "bodyStyle": "sedan",
     "kit": null,
     "engine": "i4-16",
+    "lockedRivals": 0,
+    "factoryBuild": [],
     "desc": "The car you showed up in. It owes you nothing.",
     "image": "wain-special.png"
   }

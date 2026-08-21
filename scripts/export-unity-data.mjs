@@ -161,6 +161,11 @@ const cars = carsBlock
       kit: f(/kit: "(\w+)"/) ?? null,
       engine: f(/engine: "([^"]+)"/),
       tank: +f(/tankLitres: ([\d.]+)/),
+      lockedRivals: +(f(/locked: \{ rivals: (\d+) \}/) ?? 0),
+      factoryBuild: (b.match(/factoryBuild: \[(.*?)\]/s)?.[1] ?? "")
+        .split(",")
+        .map((x) => x.trim().replace(/^"|"$/g, ""))
+        .filter(Boolean),
     };
   })
   .filter(Boolean);
@@ -327,6 +332,11 @@ ${engines
         public int Engine;
         /// <summary>Tank, litres.</summary>
         public float TankLitres;
+        /// <summary>Legends that must be beaten before the showroom will
+        /// sell it. 0 for everything money can buy.</summary>
+        public int LockedRivals;
+        /// <summary>Parts fitted at the factory. Empty for most.</summary>
+        public string[] FactoryBuild;
     }
 
     public static readonly Car[] Cars =
@@ -338,6 +348,8 @@ ${cars
             Power = ${f(c.power)}, TopSpeedKmh = ${f(c.top)}, Grip = ${f(c.grip)}, Brake = ${f(c.brake)},
             Paint = ${col(c.color)}, Style = ${style(c.style, c.id)}, AttackKit = ${c.kit === "attack" ? "true" : "false"},
             Engine = ${engIndex(c.engine, c.id)}, TankLitres = ${f(c.tank)},
+            LockedRivals = ${c.lockedRivals},
+            FactoryBuild = new[] { ${c.factoryBuild.map((x) => `"${x}"`).join(", ")} },
         },`
   )
   .join("\n")}

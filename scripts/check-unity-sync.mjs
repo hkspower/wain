@@ -185,6 +185,9 @@ const cars = carBlocks.map((b) => ({
   kit: field(b, /AttackKit = (true|false)/) === "true",
   engine: +field(b, /Engine = (\d+)/),
   tank: +field(b, /TankLitres = ([\d.]+)f/),
+  lockedRivals: +(b.match(/LockedRivals = (\d+)/)?.[1] ?? 0),
+  factoryBuild: [...(b.match(/FactoryBuild = new\[\] \{([^}]*)\}/)?.[1] ?? "")
+    .matchAll(/"([^"]+)"/g)].map((m) => m[1]),
 }));
 
 if (cars.length !== api.cars.length) {
@@ -211,8 +214,16 @@ if (cars.length !== api.cars.length) {
       fail(`car ${a.id} paint: #${u.paint.toLowerCase()} vs ${a.color}`);
     }
     if (u.kit !== (a.kit === "attack")) fail(`car ${a.id} attack kit: ${u.kit} vs ${a.kit}`);
+    // The rule that makes the rarest car rare, and the build it is sold
+    // with. A port that drops either sells a different game.
+    if (u.lockedRivals !== a.lockedRivals) {
+      fail(`car ${a.id} lockedRivals: ${u.lockedRivals} vs ${a.lockedRivals}`);
+    }
+    if (u.factoryBuild.join(",") !== a.factoryBuild.join(",")) {
+      fail(`car ${a.id} factoryBuild: [${u.factoryBuild}] vs [${a.factoryBuild}]`);
+    }
   }
-  if (!failed) ok(`cars: ${cars.length} match (id, name, price, power, speed, grip, brake, body, kit, engine, tank)`);
+  if (!failed) ok(`cars: ${cars.length} match (id, name, price, power, speed, grip, brake, body, kit, engine, tank, lock, factory build)`);
 }
 
 // ---- fuel and forecourts --------------------------------------------
