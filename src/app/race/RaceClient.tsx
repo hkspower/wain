@@ -452,7 +452,7 @@ export default function RaceClient() {
           const chain = d.drift.chain > 1 ? ` ×${d.drift.chain}` : "";
           if (driftTextRef.current) {
             driftTextRef.current.textContent = d.drift.spinning
-              ? "SPUN OUT"
+              ? `SPUN OUT ${d.drift.deg}°`
               : d.drift.active
                 ? `DRIFT ${d.drift.deg}°${chain}`
                 : `DRIFT +${Math.round(d.drift.score)}${chain}`;

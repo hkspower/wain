@@ -55,8 +55,17 @@ export interface DriftState {
   run: number;
   /** 1..driftChainMax — steps on every link, resets on spin or crash. */
   chain: number;
-  /** Seconds left of an unrecoverable spin, 0 when in control. */
+  /** Seconds this spin has been running, 0 when in control. It counts
+   *  UP now: a spin ends when the car stops rotating, not when a clock
+   *  runs out, so there is no "left" to count down. */
   spinT: number;
+  /** Yaw rate (rad/s, signed) while the car is away. This is the spin —
+   *  everything else about it follows from how fast it is turning and
+   *  what the tyres do to that. */
+  spinRate: number;
+  /** Radians swept since this spin began, for the readout that tells you
+   *  how far round you went. */
+  spinSwept: number;
   /** Seconds since the angle last left the scoring band, for linking. */
   sinceSlide: number;
   /** Which way the last scoring slide pointed: -1, 0 or +1. */
@@ -84,6 +93,11 @@ export interface DriftResult {
   linked: boolean;
   /** Camera jolt: a big angle dropped without correction snaps back. */
   jolt: number;
+  /** How fast the car is rotating while it is away, rad/s. 0 otherwise. */
+  spinRate: number;
+  /** Degrees swept so far in this spin — what "how far did I go round"
+   *  means, and the difference between a half spin and a 540. */
+  spinDeg: number;
   /** What is holding the slide up, for the HUD and the coach. */
   entry: "" | "handbrake" | "power" | "brake" | "feint";
 }
@@ -94,11 +108,23 @@ export function newDriftState(): DriftState {
     run: 0,
     chain: 1,
     spinT: 0,
+    spinRate: 0,
+    spinSwept: 0,
     sinceSlide: 99,
     lastSide: 0,
     lastSteer: 0,
     feintT: 0,
   };
+}
+
+/** Fold an angle into (-pi, pi]. Where the car is pointing, rather than
+ *  how many times it went round to get there. */
+function normaliseAngle(a: number): number {
+  const TAU = Math.PI * 2;
+  let x = ((a + Math.PI) % TAU + TAU) % TAU - Math.PI;
+  // (-pi, pi] rather than [-pi, pi): exactly backwards is one answer.
+  if (x === -Math.PI) x = Math.PI;
+  return x;
 }
 
 /** Lose the run and the multiplier — a wall, a spin, a wreck. */
@@ -122,6 +148,8 @@ export function solveDrift(s: DriftState, i: DriftInput): DriftResult {
     banked: 0,
     linked: false,
     jolt: 0,
+    spinRate: 0,
+    spinDeg: 0,
     entry: "",
   };
 
@@ -144,16 +172,53 @@ export function solveDrift(s: DriftState, i: DriftInput): DriftResult {
   if (reversed) s.feintT = H.driftFeintWindow;
   else s.feintT = Math.max(0, s.feintT - dt);
 
-  // --- A spin is not a state you steer out of. It runs its course.
+  // --- A spin is not a state you steer out of. It runs its course —
+  // and the course is momentum against friction, not a clock.
+  //
+  // Once the rear has gone at an angle the fronts cannot answer, the car
+  // is a mass with angular momentum and four tyres sliding underneath
+  // it. It keeps turning until they have taken the rotation back out.
+  // That is why a spin at 300 goes round twice and a spin at 40 is a
+  // half turn and a stall: it is the same physics reading two very
+  // different amounts of energy.
   if (s.spinT > 0) {
-    s.spinT -= dt;
-    const dir = Math.sign(s.angle) || 1;
-    s.angle += dir * H.driftSpinRate * dt;
-    if (Math.abs(s.angle) > H.driftSpinSweep) s.angle = dir * H.driftSpinSweep;
+    s.spinT += dt;
+    const dir = Math.sign(s.spinRate) || Math.sign(s.angle) || 1;
+    // Coulomb friction from four sliding contact patches: near enough
+    // constant torque, so the rate falls linearly and the spin has a
+    // definite end rather than an asymptote. It bites harder as the car
+    // slows, because there is less and less energy left to turn it.
+    const slow = 1 + H.driftSpinSlowK * (1 - Math.min(1, i.speed / H.driftSpinEntryRef));
+    const brakeRate = H.driftSpinFriction * slow + Math.abs(s.spinRate) * H.driftSpinDamp;
+    s.spinRate -= dir * brakeRate * dt;
+    // Overshoot means it has stopped, not that it has changed direction.
+    if (Math.sign(s.spinRate) !== dir) s.spinRate = 0;
+    const step = s.spinRate * dt;
+    s.angle += step;
+    s.spinSwept += Math.abs(step);
+
     out.angle = s.angle;
     out.spinning = true;
-    out.scrubRate = H.driftSpinDrag;
+    out.spinRate = s.spinRate;
+    out.spinDeg = (s.spinSwept * 180) / Math.PI;
+    // What a spin costs. Sideways tyres scrub; a car that has come round
+    // to face backwards has them pointing along its own travel again and
+    // scrubs much less, which is why this is |sin| and not a constant.
+    out.scrubRate =
+      H.driftSpinDragBase + H.driftSpinDragK * Math.abs(Math.sin(s.angle));
     out.chain = s.chain;
+
+    if (Math.abs(s.spinRate) < H.driftSpinEndRate || s.spinT > H.driftSpinMaxTime) {
+      s.spinT = 0;
+      s.spinRate = 0;
+      // Where the car ended up, not how far it travelled to get there.
+      // Carrying 7 radians out of the spin would have the recovery
+      // unwind the whole rotation backwards; a car that has been round
+      // once is facing forwards and a car that has been round one and a
+      // half is facing backwards, and those are the two answers that
+      // exist.
+      s.angle = normaliseAngle(s.angle);
+    }
     return out;
   }
 
@@ -238,13 +303,32 @@ export function solveDrift(s: DriftState, i: DriftInput): DriftResult {
 
   // --- Gone. Past the spin angle there is no counter-steer left that
   // would help, which is exactly why it is a threshold and not a clamp.
-  if (Math.abs(s.angle) > H.driftSpinAngle * mult) {
-    s.spinT = H.driftSpinTime;
+  // Still leaving, not merely out there. `rate` is this frame's yaw, so
+  // a body that is already coming back — under counter-steer, or under
+  // grip after a spin has set it down facing the wrong way — is not
+  // spinning however far round it happens to be pointing.
+  const leaving =
+    Math.sign(rate) === Math.sign(s.angle) && Math.abs(rate) > H.driftSpinTripRate;
+  if (leaving && Math.abs(s.angle) > H.driftSpinAngle * mult) {
+    const dir = Math.sign(s.angle) || 1;
+    // What the car leaves with. Two things decide it, and both are
+    // things the driver did: how fast the body was already rotating when
+    // it went — a slide you provoked violently spins harder than one you
+    // slid into — and how much speed there was to turn into rotation.
+    s.spinRate =
+      dir *
+      (Math.abs(rate) +
+        H.driftSpinEntryRate +
+        H.driftSpinEntrySpeedK * Math.min(1, i.speed / H.driftSpinEntryRef));
+    s.spinT = dt || 1e-3;
+    s.spinSwept = 0;
     breakChain(s);
     out.spun = true;
     out.spinning = true;
     out.angle = s.angle;
-    out.scrubRate = H.driftSpinDrag;
+    out.spinRate = s.spinRate;
+    out.scrubRate =
+      H.driftSpinDragBase + H.driftSpinDragK * Math.abs(Math.sin(s.angle));
     out.chain = 1;
     return out;
   }

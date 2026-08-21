@@ -49,15 +49,54 @@ export const HANDLING = {
   driftCriticalAngle: 0.72,
   /** How hard it runs away past critical, per rad of excess. */
   driftRunawayRate: 1.6,
-  /** Past this angle (rad) it is a spin and no input will save it. */
+  /** Past this angle (rad) it is a spin and no input will save it —
+   *  provided the car is still being rotated further out. Angle alone is
+   *  not enough: a spin ends with the body normalised to where it is
+   *  actually pointing, which is often still well past this, and on that
+   *  rule alone the car tripped straight into another spin and then
+   *  another. What makes it a spin is that it is still going. */
   driftSpinAngle: 1.05,
-  /** Seconds a spin runs before control returns. */
-  driftSpinTime: 1.15,
-  /** Fraction of speed a spin sheds per second. */
-  driftSpinDrag: 0.85,
-  /** rad/s the body keeps rotating through a spin, and how far it goes. */
-  driftSpinRate: 2.4,
-  driftSpinSweep: 2.2,
+  /** rad/s of yaw, in the direction the body is already out, under which
+   *  a big angle is a car sitting sideways rather than one leaving. */
+  driftSpinTripRate: 0.05,
+
+  // A spin is momentum, not a timer.
+  //
+  // It used to be a fixed sweep on a clock: 2.4 rad/s to a 2.2 rad stop,
+  // held 1.15 s, and measuring it showed the consequence — losing it at
+  // 300 km/h and losing it at 40 produced the identical event, 64
+  // degrees of rotation in 1.15 seconds costing the same fraction of
+  // speed. The car never went round. What follows is the rotation
+  // itself: how much of it the car leaves with, what the sliding tyres
+  // take back out, and what it costs while it lasts.
+  /** rad/s a spin leaves with before speed is counted. */
+  driftSpinEntryRate: 2.6,
+  /** ...plus up to this much more, reached at driftSpinEntryRef. */
+  driftSpinEntrySpeedK: 5.0,
+  /** m/s at which the speed term is fully paid — about 280 km/h. Set
+   *  from the measured ladder: at 56 the top two thirds of the speed
+   *  range all saturated it, so losing it at 220 and losing it at 300
+   *  came out within a tenth of a rotation of each other. */
+  driftSpinEntryRef: 78,
+  /** rad/s² the sliding tyres take back out of the rotation. Coulomb,
+   *  so it decays linearly and the spin has a definite end. */
+  driftSpinFriction: 1.5,
+  /** ...times up to this much more as the car comes to a stop: there is
+   *  less and less energy left to keep it turning. */
+  driftSpinSlowK: 2.2,
+  /** Extra damping per rad/s of yaw, so a violent spin sheds its first
+   *  turn faster than its last. */
+  driftSpinDamp: 0.16,
+  /** Below this yaw rate (rad/s) the car has stopped rotating. */
+  driftSpinEndRate: 0.5,
+  /** Fraction of speed a spin sheds per second: a base for being out of
+   *  control at all, plus this much scaled by how sideways the body
+   *  actually is. A car pointing backwards down the road has its tyres
+   *  aligned with where it is going and scrubs far less than one at 90. */
+  driftSpinDragBase: 0.18,
+  driftSpinDragK: 1.35,
+  /** A spin cannot run for ever, whatever the arithmetic says. */
+  driftSpinMaxTime: 6,
   /** Sideways scrub: fraction of speed lost per second, plus per rad. */
   driftScrubBase: 0.05,
   driftScrubK: 0.24,

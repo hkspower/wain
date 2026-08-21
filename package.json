@@ -56,6 +56,7 @@
     "test:intro": "node tests/intro.mjs",
     "test:gtr": "node tests/gtr.mjs",
     "test:resolution": "node tests/resolution.mjs",
+    "test:spin": "node tests/spin.mjs",
     "shots:cars": "node tools/shots/cars.mjs",
     "check:ui": "node scripts/check-ui-glyphs.mjs",
     "check:parts": "node scripts/check-catalogue.mjs",

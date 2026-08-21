@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { pixelRatioFor, bufferFor, type Resolution } from "./render";
+import { HANDLING } from "./handling";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
@@ -3346,10 +3347,19 @@ export class GameEngine {
     this.poolPivot.rotation.y = this.carBody.rotation.y;
     this.pool.position.x = this.lampSwivel * 0.5;
     this.pool.position.z = 10.5 - this.pitch * 62;
-    // Lit-up rears visibly overspin the road speed — the launch tell
+    // Lit-up rears visibly overspin the road speed — the launch tell.
+    //
+    // The wheels roll at the component of travel along the car's OWN
+    // axis, not at road speed. Sideways they turn slower than the car is
+    // moving; at ninety degrees they stop turning altogether while the
+    // car is still doing a hundred; past ninety, in a spin that has come
+    // round, they turn backwards. It is the same cos that decides how
+    // much of the velocity the tyre can roll off and how much it has to
+    // scrub, and until now the wheels were spinning merrily at road
+    // speed through the middle of a spin.
     spinWheels(
       this.carBody,
-      p.speed,
+      p.speed * Math.cos(this.driftYaw),
       dt,
       // Road wheels turn about 30 degrees at full lock. This was 0.3 rad
       // — 17 degrees — which reads as a car that never quite commits to
@@ -3775,11 +3785,20 @@ export class GameEngine {
     this.v4.y += 1.4;
     this.camera.lookAt(this.v4);
 
-    // Lateral-G camera roll
+    // Lateral-G camera roll.
+    //
+    // The drift term is clamped like the other two, and it has to be:
+    // it was written when the body angle could not exceed about 1.3 rad,
+    // which made its most extreme contribution seven degrees of horizon.
+    // A spin that goes round now reaches eight or nine radians, and the
+    // same line was quietly rolling the camera fifty degrees over —
+    // which looked, in the screenshots, like the car had left the road
+    // and gone over a bank. A slide leans the shot. A spin should not
+    // put the horizon on its ear.
     const rollTarget =
       THREE.MathUtils.clamp(this.heading * (p.speed / this.topSpeedRef), -0.5, 0.5) * 0.14 +
       THREE.MathUtils.clamp(this.slipVel * 0.012, -0.03, 0.03) +
-      this.driftYaw * 0.1;
+      THREE.MathUtils.clamp(this.driftYaw * 0.1, -0.13, 0.13);
     this.camRoll += (rollTarget - this.camRoll) * Math.min(1, dt * 4);
     this.camera.rotateZ(this.camRoll + Math.sin(t * 23.7) * this.shake * 0.02);
 
@@ -3959,8 +3978,15 @@ export class GameEngine {
       const bz = pz - this.v3.z * 1.6;
       const sx = -this.v3.z;
       const sz = this.v3.x;
-      // Time-budgeted so density is refresh-rate independent
-      this.smokeAcc += (Math.abs(this.driftYaw) > 0.4 ? 85 : 55) * dt;
+      // Time-budgeted so density is refresh-rate independent. A spin is
+      // four tyres sliding rather than two, so it pours accordingly —
+      // this is the difference between a slide and having lost it, and
+      // it should be visible from the first frame.
+      const spinning = this.ds.spinT > 0;
+      // 120 rather than more: past about that the plume closes over the
+      // car, and the one thing a player needs during a spin is to see
+      // which way they are pointing so they can catch the exit.
+      this.smokeAcc += (spinning ? 120 : Math.abs(this.driftYaw) > 0.4 ? 85 : 55) * dt;
       const spawn = Math.floor(this.smokeAcc);
       this.smokeAcc -= spawn;
       const out = Math.sign(this.driftYaw) || 1;
@@ -3975,10 +4001,14 @@ export class GameEngine {
       const az = bz + this.v3.z * 3.2 * lockOnly;
       for (let n = 0; n < spawn; n++) {
         const side = (n % 2 === 0 ? 0.85 : -0.85) + (Math.random() - 0.5) * 0.5;
+        // In a spin every corner is sliding, so half of it comes off the
+        // front axle. Alternating rather than random: two arches and two
+        // arches, which is what four wheels look like.
+        const axle = spinning && n % 4 >= 2 ? 3.2 : 0;
         this.smokeFx.spawn(
-          ax + sx * side + (Math.random() - 0.5) * 0.55,
+          ax + this.v3.x * axle + sx * side + (Math.random() - 0.5) * 0.55,
           0.24 + Math.random() * 0.22,
-          az + sz * side + (Math.random() - 0.5) * 0.55,
+          az + this.v3.z * axle + sz * side + (Math.random() - 0.5) * 0.55,
           (sx * out * (1.2 + Math.random()) + (Math.random() - 0.5)) * sideways -
             this.v3.x * 2.2 * lockOnly,
           1.3 + Math.random() * 1.5,
@@ -4454,6 +4484,23 @@ export class GameEngine {
       }
     ).__grnCommunity = { playerId, inviteCode, normaliseCode, isCodeShaped };
     (window as unknown as { __grnSaveGarage: typeof saveGarage }).__grnSaveGarage = saveGarage;
+    // The drift solver and its constants, on their own.
+    //
+    // A spin is a model, and a model is best measured by itself: driving
+    // it through the whole engine mixes in the heading scrub, the
+    // centrifugal push, the wall and the traction solver, and the number
+    // that comes out the other end is the game rather than the model. It
+    // is also the only practical way to sweep a constant — the alternative
+    // is rebuilding and reloading once per value.
+    (
+      window as unknown as {
+        __grnDriftModel: {
+          solveDrift: typeof solveDrift;
+          newDriftState: typeof newDriftState;
+          HANDLING: typeof HANDLING;
+        };
+      }
+    ).__grnDriftModel = { solveDrift, newDriftState, HANDLING };
     // The resolution arithmetic itself, so a test can walk every window
     // shape against every rung of the ladder in one page load instead of
     // booting the whole city twenty-five times to check twenty-five
@@ -4562,7 +4609,13 @@ export class GameEngine {
       drift:
         this.driftFlash > 0 || Math.abs(this.driftYaw) > 0.06
           ? {
-              deg: Math.round((Math.abs(this.driftYaw) * 180) / Math.PI),
+              // While it is away, the number that matters is not where
+              // the body is pointing but how far round it has been —
+              // the difference between a half spin and a 540.
+              deg:
+                this.ds.spinT > 0
+                  ? Math.round((this.ds.spinSwept * 180) / Math.PI)
+                  : Math.round((Math.abs(this.driftYaw) * 180) / Math.PI),
               score: Math.round(this.driftRun),
               active: Math.abs(this.driftYaw) > 0.14,
               chain: this.ds.chain,
