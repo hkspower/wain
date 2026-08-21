@@ -68,37 +68,23 @@ export default function HomeScreen() {
                   ground={cat.color}
                   emoji={cat.emoji}
                   emojiSize={40}
-                  // The compositions stand their subject on one side and leave
-                  // the other quiet for the copy, so the crop is anchored to
-                  // the subject's side: a narrow phone trims backdrop rather
-                  // than the model.
+                  // The shipped compositions stand their subject on one side
+                  // and leave the other quiet for the copy. Anchoring the crop
+                  // to that side means a narrow phone trims backdrop rather
+                  // than the model — the same call the website's tiles make.
                   focus={dir === 'rtl' ? 'start' : 'end'}
                   style={styles.categoryTile}>
-                  {/* Copy on the reading side, sitting straight on the
-                      artwork. No plate: the tiles the owner sent are composed
-                      dark under the text, and a box drawn over them is a
-                      different design. The ground under the picture is
-                      charcoal for the same reason — see catalog.ts. */}
+                  {/* A PLATE BEHIND THE WORDS, not a wash over the picture.
+                      The copy sits ON the artwork, and once a real photograph
+                      can land here its brightness is not knowable from this
+                      file — white-on-white is exactly how the website's tiles
+                      failed. The darkening is confined to the text's own
+                      column so the part of the shot worth seeing is untouched. */}
                   <View style={[styles.categoryInner, row]}>
                     <View style={styles.categoryCopy}>
-                      {cat.badge ? (
-                        <View style={styles.categoryBadge}>
-                          <Text style={styles.categoryBadgeText}>{categoryKicker(cat, lang)}</Text>
-                        </View>
-                      ) : (
-                        <Text style={[styles.categoryKicker, text]}>
-                          {categoryKicker(cat, lang)}
-                        </Text>
-                      )}
+                      <Text style={[styles.categoryKicker, text]}>{categoryKicker(cat, lang)}</Text>
                       <Text style={[styles.categoryName, text]}>{categoryName(cat, lang)}</Text>
                     </View>
-                  </View>
-
-                  {/* The arrow chip, in the corner opposite the copy. It points
-                      the way the language reads — up-and-forward — so it is
-                      mirrored rather than rotated. */}
-                  <View style={[styles.arrowChip, dir === 'rtl' ? styles.arrowStart : styles.arrowEnd]}>
-                    <Text style={styles.arrowGlyph}>{dir === 'rtl' ? '↖' : '↗'}</Text>
                   </View>
                 </RemoteArt>
               </Pressable>
@@ -178,62 +164,34 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   categoryTile: {
-    // 1.69:1, measured off the tiles the owner sent. Tall enough for a standing
-    // figure to be a figure rather than a band across the middle.
-    borderRadius: Spacing.four,
+    borderRadius: Spacing.three,
     overflow: 'hidden',
-    minHeight: 212,
+    minHeight: 132,
   },
   categoryInner: {
     flex: 1,
-    paddingHorizontal: Spacing.four,
+    padding: Spacing.four,
     alignItems: 'center',
   },
   categoryCopy: {
-    // Just over half: the rest is where the subject stands, and copy running
-    // under it is what makes a tile unreadable.
-    maxWidth: '55%',
-    gap: Spacing.one,
+    // 62%, not the whole width: the remaining third is where the subject
+    // stands, and copy running under it is what makes a tile unreadable.
+    maxWidth: '62%',
+    gap: Spacing.half,
+    backgroundColor: 'rgba(20,22,26,0.55)',
+    borderRadius: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
   },
   categoryKicker: {
-    color: 'rgba(255,255,255,0.78)',
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
-  categoryBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#e0561c',
-    borderRadius: 999,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one,
-  },
-  categoryBadgeText: {
-    color: '#ffffff',
-    fontSize: 13,
+    color: 'rgba(255,255,255,0.82)',
+    fontSize: 12,
     fontWeight: '700',
+    letterSpacing: 1,
   },
   categoryName: {
     color: '#ffffff',
-    fontSize: 30,
-    lineHeight: 40,
-    fontWeight: '700',
-  },
-  arrowChip: {
-    position: 'absolute',
-    bottom: Spacing.three,
-    width: 44,
-    height: 44,
-    borderRadius: 999,
-    backgroundColor: '#e0561c',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  arrowStart: { start: Spacing.three },
-  arrowEnd: { end: Spacing.three },
-  arrowGlyph: {
-    color: '#ffffff',
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700',
   },
   grid: {

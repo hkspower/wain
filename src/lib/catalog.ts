@@ -19,11 +19,9 @@ export interface Category {
   nameAr: string;
   kicker: string;
   kickerAr: string;
-  /** Tile background, showing until the photograph loads and if it never does. */
+  /** Tile background, in brand palette. */
   color: string;
   emoji: string;
-  /** Outlet wears its line as an orange pill rather than as plain copy. */
-  badge?: boolean;
 }
 
 export interface Variant {
@@ -51,16 +49,11 @@ export interface Product {
   featured?: boolean;
 }
 
-// GROUNDS TAKEN FROM THE LIVE TILES, which the owner sent as the reference.
-// They are charcoal because the photographs are charcoal: this layer shows
-// while the picture decodes and instead of it when there is none, so a bright
-// ground would mean the tile changes character the moment the shop is
-// reachable. White copy sits on all four at better than 10:1.
 export const categories: Category[] = [
-  { id: 'men', name: 'Men', nameAr: 'رجالي', kicker: 'Performance gear', kickerAr: 'معدات الأداء', color: '#26292e', emoji: '🏋️' },
-  { id: 'women', name: 'Women', nameAr: 'نسائي', kicker: 'Move with confidence', kickerAr: 'تحرّكي بثقة', color: '#2e2622', emoji: '🤸' },
-  { id: 'accessories', name: 'Accessories', nameAr: 'إكسسوارات', kicker: 'Everyday essentials', kickerAr: 'معدات أساسية', color: '#2b3138', emoji: '🧢' },
-  { id: 'outlet', name: 'Outlet', nameAr: 'سبورتا أوتلت', kicker: 'Up to 60% off', kickerAr: 'خصومات حتى ٦٠٪', color: '#24262a', emoji: '🏷️', badge: true },
+  { id: 'men', name: 'Men', nameAr: 'رجالي', kicker: 'Performance gear', kickerAr: 'معدات الأداء', color: '#c8490f', emoji: '🏋️' },
+  { id: 'women', name: 'Women', nameAr: 'نسائي', kicker: 'Move with confidence', kickerAr: 'تحرّكي بثقة', color: '#8a3ca8', emoji: '🤸' },
+  { id: 'accessories', name: 'Accessories', nameAr: 'إكسسوارات', kicker: 'The small things', kickerAr: 'التفاصيل الصغيرة', color: '#2b3138', emoji: '🧢' },
+  { id: 'outlet', name: 'Outlet', nameAr: 'أوتلت', kicker: 'Up to 60% off', kickerAr: 'خصم حتى ٦٠٪', color: '#8a6a4f', emoji: '🏷️' },
 ];
 
 const S_M_L = (stock: number[]): Variant[] =>
