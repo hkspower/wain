@@ -125,6 +125,49 @@ for (const vp of VIEWPORTS) {
 await browser.close();
 server.close();
 
+/**
+ * Images only a crawler ever asks for.
+ *
+ * Opening every page cannot find these: og:image and twitter:image are read by
+ * WhatsApp, Twitter and Facebook when a link is shared, and never fetched by
+ * the browser rendering the page — so a missing card is invisible to every
+ * check above and to anyone testing the site by using it.
+ *
+ * It had gone wrong exactly that way. Place pages advertise /og/<slug>.jpg
+ * unconditionally, the generator that makes those cards was broken (it needed
+ * a server nothing started), and 19 of 36 places were pointing at a 404. Not a
+ * fallback image — no preview at all, on more than half the catalogue.
+ */
+const shared = new Set();
+function socialImages(dir = OUT) {
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) socialImages(full);
+    else if (name.endsWith(".html")) {
+      const html = readFileSync(full, "utf8");
+      for (const m of html.matchAll(
+        /(?:og:image|twitter:image)"\s+content="([^"]+)"/g
+      )) {
+        shared.add(m[1]);
+      }
+    }
+  }
+}
+socialImages();
+const brokenCards = [...shared].filter((url) => {
+  const path = url.replace(/^https?:\/\/[^/]+/, "");
+  if (!path.startsWith("/")) return false;
+  return !existsSync(join(OUT, decodeURIComponent(path)));
+});
+console.log(`\n${shared.size} distinct share image(s) advertised to crawlers.`);
+if (brokenCards.length) {
+  console.log(`${brokenCards.length} of them do not exist in the build:`);
+  brokenCards.slice(0, 20).forEach((u) => console.log("    " + u));
+  problems += brokenCards.length;
+} else {
+  console.log("  Every one exists — a shared link shows a picture.");
+}
+
 if (missed.size) {
   console.log(`\n${missed.size} request(s) for files the build did not produce:`);
   [...missed].slice(0, 20).forEach((m) => console.log("    " + m));

@@ -15,7 +15,10 @@
  *   then the JPEG encode. That is the part a designer would do in Photoshop,
  *   and it is what stops seventeen flat exports looking like screenshots.
  *
- * Run: npm run og   (after a build — it reads the built site)
+ * Run: npm run build && npm run og
+ *
+ * It reads the built site, and serves out/ itself to do so. Set OG_BASE to
+ * point it at a server you are already running instead.
  */
 import sharp from "sharp";
 
@@ -35,9 +38,12 @@ try {
   );
   process.exit(1);
 }
-import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import { createServer } from "node:http";
+import { join, extname } from "node:path";
 
-const BASE = process.env.OG_BASE ?? "http://localhost:4173";
+const SITE = join(process.cwd(), "out");
+const OG_PORT = 4173;
 const OUT = "public/og";
 const W = 1200;
 const H = 630;
@@ -99,6 +105,34 @@ function card({ nameAr, name, areaAr, rating, art }) {
 </div>`;
 }
 
+/**
+ * Monochrome gaussian grain from a fixed seed.
+ *
+ * xorshift32 for the uniforms and Box–Muller to shape them — the second
+ * Box–Muller value is discarded, which costs nothing at this size and keeps
+ * the loop readable. Grey (128) is the no-op for an overlay blend, so the
+ * grain only ever nudges a pixel either side of what is underneath it.
+ */
+function grainPixels(w, h, sigma, seed = 0x7761696e /* "wain" */) {
+  let s = seed >>> 0;
+  const rnd = () => {
+    s ^= s << 13; s >>>= 0;
+    s ^= s >>> 17;
+    s ^= s << 5; s >>>= 0;
+    return s / 4294967296;
+  };
+  const px = Buffer.allocUnsafe(w * h * 3);
+  for (let i = 0; i < w * h; i++) {
+    const u = Math.max(rnd(), 1e-9);
+    const g = 128 + sigma * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd());
+    const c = g < 0 ? 0 : g > 255 ? 255 : Math.round(g);
+    px[i * 3] = c;
+    px[i * 3 + 1] = c;
+    px[i * 3 + 2] = c;
+  }
+  return px;
+}
+
 /** Vignette + grain + a small levels lift. The Photoshop half. */
 async function finish(png) {
   const vignette = Buffer.from(
@@ -109,9 +143,15 @@ async function finish(png) {
   );
   // Gaussian grain, kept low — enough to stop flat gradients banding on the
   // heavy JPEG compression these get served under, not enough to see.
-  const grain = await sharp({
-    create: { width: W, height: H, channels: 3, background: "#808080",
-      noise: { type: "gaussian", mean: 128, sigma: 9 } },
+  //
+  // Generated here rather than by libvips, which reseeds its noise on every
+  // call: identical input produced different bytes each run, so re-running
+  // this script rewrote all 36 JPEGs whether anything had changed or not. A
+  // generator whose output churns for no reason cannot be checked against what
+  // is committed, and 36 binary files of pure noise is a diff nobody can read.
+  // Seeded, the same card is the same file, and a diff means a real change.
+  const grain = await sharp(grainPixels(W, H, 9), {
+    raw: { width: W, height: H, channels: 3 },
   }).png().toBuffer();
 
   return sharp(png)
@@ -141,6 +181,40 @@ const places = src
     areaAr: str(b, "areaAr"),
     rating: num(b, "rating"),
   }));
+
+/**
+ * Serve out/ ourselves, unless someone has already pointed OG_BASE somewhere.
+ *
+ * The line above used to say "Run: npm run og (after a build)", and following
+ * it exactly gave ERR_CONNECTION_REFUSED: the script read the built site over
+ * HTTP but started nothing to serve it, and the port it expected was written
+ * down in no document. Every sibling script here — audit:runtime, audit:color,
+ * test:shouq, test:journey — starts its own server, so this one now does too.
+ */
+async function serveOut() {
+  if (process.env.OG_BASE) return { base: process.env.OG_BASE, stop: () => {} };
+  if (!existsSync(join(SITE, "index.html"))) {
+    console.error("gen-og: out/ is missing — run npm run build first.");
+    process.exit(1);
+  }
+  const MIME = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript",
+    ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg",
+    ".svg": "image/svg+xml", ".woff2": "font/woff2", ".ico": "image/x-icon",
+    ".webmanifest": "application/manifest+json", ".txt": "text/plain", ".xml": "application/xml" };
+  const server = createServer((req, res) => {
+    let p = decodeURIComponent(req.url.split("?")[0]);
+    if (p.endsWith("/")) p += "index.html";
+    let f = join(SITE, p);
+    if (!existsSync(f) && existsSync(f + ".html")) f += ".html";
+    if (!existsSync(f) || !f.startsWith(SITE)) { res.writeHead(404); return res.end("not found"); }
+    res.writeHead(200, { "content-type": MIME[extname(f)] ?? "application/octet-stream" });
+    res.end(readFileSync(f));
+  });
+  await new Promise((r) => server.listen(OG_PORT, "127.0.0.1", r));
+  return { base: `http://127.0.0.1:${OG_PORT}`, stop: () => server.close() };
+}
+
+const { base: BASE, stop: stopServer } = await serveOut();
 
 mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch({
@@ -175,6 +249,7 @@ for (const p of places) {
 }
 
 await browser.close();
+stopServer();
 console.log(`gen-og: ${made} cards written to ${OUT}/ ✓`);
 if (made !== places.length) {
   console.warn(`gen-og: expected ${places.length} — check the warnings above`);
