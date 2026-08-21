@@ -609,3 +609,38 @@ tbody tr:hover { background: #fbfdfe; }
 .near__km { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--teal-600); }
 .near__meta { grid-column: 1 / -1; font-size: .78rem; color: var(--ink-soft); }
 .near__skipped { margin: .5rem 0 0; font-size: .78rem; color: var(--ink-soft); }
+
+/* ---- العنوان المهيكل: محافظة ← منطقة ← قطعة ---- */
+.addr {
+  grid-column: 1 / -1; margin: 0 0 .85rem; padding: .85rem .9rem .1rem;
+  border: 1.5px solid var(--line); border-radius: var(--radius); background: var(--teal-50);
+}
+.addr legend { padding: 0 .45rem; font-size: .82rem; font-weight: 700; color: var(--teal-700); }
+/* الثلاثة في سطر: المحافظة والمنطقة تحتاجان عرضًا، والقطعة رقم قصير */
+.addr__row { display: grid; grid-template-columns: 1fr 1fr 6.5rem; gap: 0 .7rem; }
+.addr .field--full { grid-column: 1 / -1; }
+@media (max-width: 720px) { .addr__row { grid-template-columns: 1fr; } }
+
+/* ---- الطلب المنطوق ---- */
+.vo { border: 1.5px solid var(--teal-100); }
+.vo__head h2 { margin: 0 0 .15rem; font-size: 1rem; }
+.vo__head p { margin: 0 0 .8rem; font-size: .84rem; color: var(--ink-soft); }
+.vo__head b { color: var(--ink); }
+.vo__bar { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .8rem; }
+.vo #voText { min-height: 0; }
+
+/* الزرّ ينبض ما دام يُنصت — الحالة يجب أن تُرى لا أن تُخمَّن */
+#voMic.is-live { background: var(--orange-600); border-color: var(--orange-600); }
+#voMic.is-live::before {
+  content: ""; width: .5rem; height: .5rem; border-radius: 50%;
+  background: #fff; margin-inline-end: .45rem; animation: voPulse 1.1s var(--ease) infinite;
+}
+@keyframes voPulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { #voMic.is-live::before { animation: none; } }
+
+.vo__heard, .vo__missing { margin-top: .7rem; font-size: .85rem; border-radius: var(--radius-sm); padding: .6rem .8rem; }
+.vo__heard { background: var(--ok-bg); color: var(--ok-fg); }
+.vo__missing { background: var(--warn-bg); color: var(--warn-fg); }
+.vo__heard ul, .vo__missing ul { margin: .3rem 0 0; padding-inline-start: 1.1rem; }
+.vo__heard li, .vo__missing li { margin: .15rem 0; }
+.vo__none { margin: .7rem 0 0; font-size: .85rem; color: var(--ink-soft); }

@@ -9,6 +9,7 @@ const LK = require('./links');
 const M = require('./mailer');
 const HK = require('./hooks');
 const N = require('./nearest');
+const V = require('./voice-order');
 const AREA = require('./areas');
 const {
   badRequest, unauthorized, forbidden, notFound, conflict,
@@ -653,6 +654,19 @@ on('GET', '/api/orders/:id/nearest', async (ctx) => {
     limit: ctx.query.limit,
     includeUnavailable: ctx.query.include_unavailable === '1',
   });
+});
+
+/**
+ * الطلب المنطوق ← حقول مقترحة. **يقرأ ولا يكتب**: لا ينشئ طلبًا ولا يمسّ
+ * القاعدة، والموظّف يراجع ثم يضغط زرّ الإنشاء المعتاد بقواعده كلّها.
+ *
+ * ولهذا لا يقبل هذا المسار إلّا نصًّا: لو أنشأ طلبًا لصار للإنشاء بابان،
+ * أحدهما يتخطّى ما يفرضه الآخر.
+ */
+on('POST', '/api/voice-orders/parse', async (ctx) => {
+  requireAdmin(ctx);
+  const transcript = str(ctx.body.transcript, 'نصّ الطلب', { max: 2000 });
+  return V.parseOrder(transcript);
 });
 
 on('POST', '/api/orders/:id/assign', async (ctx) => {

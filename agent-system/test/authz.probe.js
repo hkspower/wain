@@ -98,6 +98,7 @@ async function call(as, method, urlPath, body) {
     ['auth',   'PATCH',  `/api/orders/${oid}/status`, { status: 'accepted' }],
     ['admin',  'PUT',    `/api/orders/${oid}/pickup-pin`, { pin: '29.3759, 47.9774' }],
     ['admin',  'GET',    `/api/orders/${oid}/nearest`],
+    ['admin',  'POST',   '/api/voice-orders/parse', { transcript: 'من حولي إلى السالمية' }],
     ['admin',  'POST',   `/api/orders/${oid}/assign`, { agent_id: aid('ag2') }],
     ['auth',   'POST',   `/api/orders/${oid}/transfer`, { to_agent_id: aid('ag1') }],
     ['auth',   'GET',    '/api/transfers'],

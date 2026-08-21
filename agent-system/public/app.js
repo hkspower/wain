@@ -1234,6 +1234,29 @@
 
     el.view.innerHTML = `
       <div class="page-head"><div><h1>طلب جديد</h1><p>سجّل شحنة جديدة وأسندها لمندوب مباشرةً أو اتركها بانتظار الإسناد.</p></div></div>
+
+      <div class="card vo">
+        <div class="card__body">
+          <div class="vo__head">
+            <h2>الطلب المنطوق</h2>
+            <p>تكلّم بالطلب أو ألصق نصّه، فتُملأ الحقول تحت. <b>راجعها قبل الإنشاء</b> — الوكيل يقترح ولا ينشئ.</p>
+          </div>
+          <div class="vo__bar">
+            <button type="button" class="btn btn--primary" id="voMic" hidden>
+              <span id="voMicLabel">تكلّم بالطلب</span>
+            </button>
+            <button type="button" class="btn btn--quiet" id="voRead">اقرأ النصّ</button>
+            <button type="button" class="btn btn--quiet" id="voClear">امسح</button>
+          </div>
+          <label class="field field--full">
+            <span>نصّ الطلب</span>
+            <textarea id="voText" rows="2"
+              placeholder="من السالمية قطعة ٤ إلى الفحيحيل قطعة ٧، اسمي منى ورقمي ٩٩٨٨٧٧٦٦"></textarea>
+          </label>
+          <div id="voOut"></div>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card__body">
           <form id="orderForm">
@@ -1351,6 +1374,93 @@
         const clean = AR.toLatin(box.value).replace(/[^0-9]/g, '');
         if (clean !== box.value) { box.value = clean; try { box.setSelectionRange(at, at); } catch { /* لا يهمّ */ } }
       });
+    }
+
+    /* ---------------------- الطلب المنطوق ---------------------- */
+
+    /* التعرّف على الكلام يجري في المتصفّح نفسه: لا يخرج صوت الزبون إلى خدمة
+       خارجية، ولا يحتاج النظام مفتاحًا مدفوعًا ليعمل. وما لا يدعمه المتصفّح
+       يُقال صراحةً ويبقى اللصق طريقًا كاملًا — لا زرٌّ ميّت بلا تفسير. */
+    const voText = document.getElementById('voText');
+    const voOut = document.getElementById('voOut');
+    const voMic = document.getElementById('voMic');
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    function voFill(res) {
+      const set = (name, value) => {
+        const f = document.querySelector(`#orderForm [name="${name}"]`);
+        if (!f || value === undefined || value === null) return false;
+        f.value = value;
+        f.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      };
+
+      /* المحافظة قبل المنطقة: قائمة المناطق لا تُملأ إلّا بعد اختيار محافظتها */
+      set('governorate', res.fields.governorate);
+      set('dropoff_governorate', res.fields.dropoff_governorate);
+      for (const [k, v] of Object.entries(res.fields)) {
+        if (k === 'governorate' || k === 'dropoff_governorate') continue;
+        set(k, v);
+      }
+
+      voOut.innerHTML = `
+        ${res.heard.length ? `<div class="vo__heard"><b>فُهم:</b><ul>${
+          res.heard.map((h) => `<li>${esc(h)}</li>`).join('')}</ul></div>` : ''}
+        ${res.missing.length ? `<div class="vo__missing"><b>لم يُذكر — اسأل عنه:</b><ul>${
+          res.missing.map((m) => `<li>${esc(m.why)}</li>`).join('')}</ul></div>` : ''}
+        ${!res.heard.length ? '<p class="vo__none">لم يُفهم شيء من هذا النصّ. اكتب الحقول بيدك.</p>' : ''}`;
+    }
+
+    async function voParse() {
+      const transcript = voText.value.trim();
+      if (!transcript) { voOut.innerHTML = ''; return; }
+      try {
+        voFill(await api('/voice-orders/parse', { method: 'POST', body: { transcript } }));
+      } catch (err) {
+        voOut.innerHTML = `<p class="vo__none">${esc(err.message)}</p>`;
+      }
+    }
+
+    document.getElementById('voRead').addEventListener('click', voParse);
+    document.getElementById('voClear').addEventListener('click', () => {
+      voText.value = ''; voOut.innerHTML = '';
+    });
+
+    if (SR) {
+      voMic.hidden = false;
+      const rec = new SR();
+      rec.lang = 'ar-KW';
+      rec.interimResults = true;
+      rec.continuous = true;
+      let on = false;
+
+      const label = (t) => { document.getElementById('voMicLabel').textContent = t; };
+      rec.addEventListener('result', (e) => {
+        let out = '';
+        for (const r of e.results) out += r[0].transcript;
+        voText.value = out.trim();
+      });
+      rec.addEventListener('error', (e) => {
+        on = false; label('تكلّم بالطلب'); voMic.classList.remove('is-live');
+        voOut.innerHTML = `<p class="vo__none">${esc(
+          e.error === 'not-allowed' ? 'المتصفّح منع استعمال الميكروفون — اسمح به أو ألصق النصّ.'
+          : e.error === 'no-speech' ? 'لم يصل كلام. حاول ثانيةً أو ألصق النصّ.'
+          : 'تعذّر التعرّف على الكلام. ألصق النصّ.')}</p>`;
+      });
+      rec.addEventListener('end', () => {
+        if (!on) return;
+        on = false; label('تكلّم بالطلب'); voMic.classList.remove('is-live');
+        voParse();
+      });
+
+      voMic.addEventListener('click', () => {
+        if (on) { on = false; rec.stop(); label('تكلّم بالطلب'); voMic.classList.remove('is-live'); voParse(); return; }
+        voText.value = ''; voOut.innerHTML = '';
+        on = true; label('أنصت… اضغط للإيقاف'); voMic.classList.add('is-live');
+        try { rec.start(); } catch { /* جارٍ أصلًا */ }
+      });
+    } else {
+      voOut.innerHTML = '<p class="vo__none">هذا المتصفّح لا يدعم التعرّف على الكلام — ألصق نصّ الطلب واضغط «اقرأ النصّ».</p>';
     }
 
     document.getElementById('orderForm').addEventListener('submit', async (e) => {
