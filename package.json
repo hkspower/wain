@@ -18,7 +18,10 @@
     "test:net": "node tests/run-net.mjs",
     "audit:icons": "node scripts/audit-icons.mjs",
     "audit:type": "node scripts/audit-type.mjs",
-    "test:journey": "node tests/run-journey.mjs"
+    "test:journey": "node tests/run-journey.mjs",
+    "audit:schema": "node scripts/audit-schema-use.mjs",
+    "audit:runtime": "node scripts/audit-runtime.mjs",
+    "scan": "npm run lint && npm run audit:schema && npm run audit:runtime && npm run audit:places && npm run audit:icons && npm run audit:type"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.1",
