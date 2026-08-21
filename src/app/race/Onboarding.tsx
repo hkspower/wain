@@ -295,8 +295,8 @@ export function CoachHint({ state }: { state: CoachState | null }) {
 
   return (
     <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 translate-y-[3.2rem]">
-      <div className="grn-panel coach-ring reveal px-4 py-2">
-        <span className="grn-display text-[0.82rem] tracking-[0.1em] text-sodium-300">{text}</span>
+      <div className="grn-info coach-ring reveal px-4 py-2">
+        <span className="grn-display text-[0.86rem] tracking-[0.08em]">{text}</span>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { pixelRatioFor, bufferFor, type Resolution } from "./render";
 import { HANDLING } from "./handling";
+import { nextView, viewSpec, type CameraView } from "./views";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
@@ -88,6 +89,8 @@ export interface HudData {
   hour: number;
   racingOpen: boolean;
   rivalDist: number | null;
+  /** True when there is a driver close enough to read — the prompt. */
+  canSizeUp: boolean;
   canFlash: boolean;
   battle: BattleHud | null;
   defeated: number;
@@ -131,6 +134,43 @@ export interface DriverCard {
   /** Machine on the line. */
   car: string;
 }
+
+/**
+ * Everything the game knows about a rival, for the player who wants to
+ * know it BEFORE committing.
+ *
+ * All of this already existed on the challenge card — and the challenge
+ * card only appears after you have already flashed. Sizing somebody up
+ * is what the ritual is for: you pull alongside, you have a look, and
+ * then you decide.
+ */
+export interface RivalDossier {
+  name: string;
+  arabicName: string;
+  crew: string;
+  area: string;
+  country: string;
+  flag: string;
+  car: string;
+  /** Overall length of the machine they bring, metres, when it is one
+   *  the showroom also sells. */
+  lengthM: number | null;
+  topSpeedKmh: number;
+  /** Where they sit on the roster, and how long the roster is. */
+  order: number;
+  total: number;
+  beaten: boolean;
+  taunt: string;
+  color: number;
+  accent: number;
+  /** Metres up the road, signed: negative means they are behind you. */
+  gap: number;
+}
+
+/** How close you have to be to read a driver: about fifteen car lengths.
+ *  Close enough that you are plainly alongside, far enough that it is
+ *  not a knife fight. */
+const SIZE_UP_RANGE = 60;
 
 /** One line of the post-race reward reel. */
 export interface RewardLine {
@@ -452,7 +492,16 @@ const SITUATION_LOOKS: Record<Situation, Look> = {
   battle: { tint: balance(0.96, 0.99, 1.07), sat: 0.74, contrast: 1.13 },
   // Won. Warm and open, the one moment in the game that is allowed to
   // look generous.
-  win: { tint: balance(1.09, 1.02, 0.93), sat: 1.18, contrast: 0.99 },
+  //
+  // The saturation went from 1.18 to 1.30 when the contrast curve
+  // changed shape. These looks were tuned against a one-sided gamma
+  // about a mid-grey pivot, which ran bright pixels past 1.0 and let the
+  // knee compress them — and a compressed highlight has lost chroma, so
+  // a warm cast had plenty of room to put some back. The S-curve lands
+  // those pixels below 1.0 with their colour intact, so the same cast
+  // adds less: measured, the win's lift over cruise fell from a clear
+  // step to 2%. This is that step, restored against the new curve.
+  win: { tint: balance(1.11, 1.02, 0.91), sat: 1.3, contrast: 0.99 },
   // Lost. The colour goes out of it. Not dark — drained, which is worse.
   lose: { tint: balance(0.98, 0.99, 1.02), sat: 0.5, contrast: 0.92 },
 };
@@ -742,6 +791,15 @@ export class GameEngine {
   private shake = 0; // impact jolt energy, decays
   private camBase = new THREE.Vector3(); // lerped chase position, pre-shake
   private camRoll = 0;
+  /** Which shot the player is watching from. */
+  private view: CameraView = "chase";
+  /** Where a car-mounted camera sits and what it aims at, both children
+   *  of the shell so they inherit its yaw, its dive and its lean. */
+  private camAnchor: THREE.Object3D | null = null;
+  private camTarget: THREE.Object3D | null = null;
+  /** Scratch, like v1..v4 — allocating a quaternion a frame is how a
+   *  driving game acquires a stutter it cannot find. */
+  private q1 = new THREE.Quaternion();
   private curvature = 0; // signed, from the handling model
   private streaks!: THREE.LineSegments;
   private streakData: Array<{ s: number; lat: number; y: number; len: number }> = [];
@@ -2244,6 +2302,41 @@ export class GameEngine {
     };
   }
 
+  /**
+   * The driver alongside, in full — or null when there is nobody close
+   * enough to read, which is what greys the prompt out.
+   *
+   * Deliberately unavailable in a battle: mid-race is not when you size
+   * somebody up, and a full-screen card over a duel is a pause button
+   * with extra steps.
+   */
+  sizeUpRival(): RivalDossier | null {
+    const r = this.rival;
+    if (!r || this.inBattle || this.cine || this.locked) return null;
+    const gap = this.track.deltaAhead(this.player.s, r.s);
+    if (Math.abs(gap) > SIZE_UP_RANGE) return null;
+    const def = r.def;
+    const machine = CARS.find((c) => c.name === def.car);
+    return {
+      name: def.name,
+      arabicName: def.arabicName,
+      crew: def.crew,
+      area: def.area,
+      country: def.country ?? "Kuwait",
+      flag: def.flag ?? "🇰🇼",
+      car: def.car ?? "Street Tuned",
+      lengthM: machine?.lengthM ?? null,
+      topSpeedKmh: def.topSpeedKmh,
+      order: RIVALS.indexOf(def) + 1,
+      total: RIVALS.length,
+      beaten: this.rivalIndex > RIVALS.indexOf(def),
+      taunt: def.taunt,
+      color: def.bodyColor,
+      accent: def.accentColor,
+      gap: Math.round(gap),
+    };
+  }
+
   private rivalCard(def: RivalDef): DriverCard {
     return {
       name: def.name,
@@ -2546,6 +2639,8 @@ export class GameEngine {
     this.playerMesh.add(this.carBody);
     const newContact = this.carBody.userData.contact as THREE.Object3D | undefined;
     if (newContact) this.playerMesh.add(newContact);
+    // The in-car rig hung off the old shell and went with it.
+    this.buildViewRig();
     this.fitLampsToCar();
     this.sound?.setEngine(this.tune.engine);
     this.sound?.configureAspiration(
@@ -3800,21 +3895,129 @@ export class GameEngine {
     this.beamMat.opacity = this.beamBaseOpacity * (1 - hide);
   }
 
+  /** Which shot is live. */
+  get cameraView(): CameraView {
+    return this.view;
+  }
+
+  /** Move to a named shot, or round the ring with no argument. */
+  setView(v?: CameraView): CameraView {
+    this.view = v ?? nextView(this.view);
+    this.buildViewRig();
+    // A car-mounted camera starts where it is bolted; a road-mounted one
+    // should not lerp across the map from wherever the last shot ended.
+    this.camInit = false;
+    return this.view;
+  }
+
+  /**
+   * Hang the in-car rig off the shell.
+   *
+   * Two empties parented to the BODY, not to the road node: the body is
+   * what yaws past the direction of travel, dives under braking and
+   * leans in a corner, and inheriting all three is the entire difference
+   * between an in-car view and a chase camera moved forward.
+   *
+   * Rebuilt whenever the car is, because the old one went with it.
+   */
+  private buildViewRig(): void {
+    const spec = viewSpec(this.view);
+    if (this.camAnchor) this.camAnchor.parent?.remove(this.camAnchor);
+    if (this.camTarget) this.camTarget.parent?.remove(this.camTarget);
+    this.camAnchor = null;
+    this.camTarget = null;
+    // The driver's head is in front of the driver's eyes. Put it back
+    // first, in case the last view was the cockpit.
+    const rig = this.carBody?.userData.driver as DriverRig | undefined;
+    if (rig?.head) rig.head.visible = true;
+    if (!spec.mounted || !this.carBody) return;
+
+    const d = this.carBody.userData.dims as
+      | { nose: number; hoodY: number; dashY: number; wiperZ: number }
+      | undefined;
+    if (!d) return;
+    const seat = (this.carBody.userData.driver as DriverRig | undefined)?.group.position;
+    let pos: [number, number, number];
+    if (this.view === "bumper") pos = [0, 0.44, d.nose - 0.08];
+    else if (this.view === "bonnet") pos = [0, d.hoodY + 0.16, d.nose - 0.95];
+    else {
+      // Cockpit: measured off the STEERING WHEEL, not off the seat node.
+      //
+      // Hung off the seat it came out level with the top of the bonnet
+      // and pointing over it — a roof cam, not a driver's eye line, and
+      // with nothing of the car in frame to say otherwise. Every rig in
+      // this game already holds a wheel at the height its hands are; the
+      // eyes are a hand above it and a forearm behind it, and that is a
+      // measurement rather than a guess.
+      // Measured off the glasshouse the head is inside, not off the seat
+      // node and not off the wheel. Hung off the seat it came out level
+      // with the top of the bonnet and pointing over it — a roof cam;
+      // hung off the wheel it came out lower still. A driver's eyes are
+      // a head's height below the roof lining and just ahead of the
+      // seat, and the canopy shell is the only thing on this car that
+      // knows where the roof lining is.
+      // Right behind the screen, a third of a metre over the bonnet line.
+      //
+      // Three placements were tried and looked at. Off the seat node it
+      // came out level with the top of the bonnet and pointing over it —
+      // a roof cam. Off the steering wheel it came out lower still. Off
+      // the roof lining it was the right height and too far back, so the
+      // whole bonnet and both mirrors filled the lower half of the frame
+      // and the road was a strip above them.
+      //
+      // The honest constraint is that these shells have no interior to
+      // speak of — a dash box, two seats and a wheel — so a view that
+      // frames a cabin has nothing to frame. What reads is a dash cam:
+      // eyes just behind the screen, a sliver of bonnet at the bottom,
+      // the mirrors at the edges of vision where they actually are.
+      let eyeY = d.hoodY + 0.35;
+      let canopy: THREE.Mesh | null = null;
+      this.carBody.traverse((o) => {
+        if ((o as THREE.Mesh).isMesh && o.userData.shell === "canopy") canopy = o as THREE.Mesh;
+      });
+      if (canopy) {
+        const g = (canopy as THREE.Mesh).geometry;
+        g.computeBoundingBox();
+        // Never through the roof, whatever the bonnet line says.
+        eyeY = Math.min(eyeY, g.boundingBox!.max.y - 0.24);
+      }
+      pos = [seat ? seat.x : 0.38, eyeY, d.wiperZ - 0.15];
+      if (rig?.head) rig.head.visible = false;
+    }
+    const anchor = new THREE.Object3D();
+    anchor.position.set(pos[0], pos[1], pos[2]);
+    this.carBody.add(anchor);
+    const target = new THREE.Object3D();
+    target.position.set(pos[0], pos[1] - 0.05, pos[2] + spec.look);
+    this.carBody.add(target);
+    this.camAnchor = anchor;
+    this.camTarget = target;
+  }
+
   private updateCamera(dt: number): void {
     if (this.cine) {
       this.updateCineCamera();
       return;
     }
     const p = this.player;
+    const spec = viewSpec(this.view);
     this.track.pose(p.s, p.lat, this.v1, this.v2);
     this.track.tangentAt(p.s, this.v3);
 
-    // Chase position pulls back and rises with speed
-    const dist = 9.5 + p.speed * 0.02;
+    if (spec.mounted && this.camAnchor && this.camTarget) {
+      this.updateMountedCamera(dt, spec);
+      return;
+    }
+
+    // Chase position pulls back and rises with speed. "Close" is the
+    // same rig tucked in: same road frame, same behaviour through a
+    // slide, a shorter arm.
+    const reach = this.view === "close" ? 0.62 : 1;
+    const dist = (9.5 + p.speed * 0.02) * reach;
     this.v4
       .copy(this.v1)
       .addScaledVector(this.v3, -dist)
-      .add(this.v2.set(0, 3.4 + p.speed * 0.007, 0));
+      .add(this.v2.set(0, (3.4 + p.speed * 0.007) * (this.view === "close" ? 0.66 : 1), 0));
     if (!this.camInit) {
       this.camInit = true;
       this.camBase.copy(this.v4);
@@ -3834,7 +4037,7 @@ export class GameEngine {
     // Look ahead into the curve so sweepers read like sweepers
     const lookAside = THREE.MathUtils.clamp(this.curvature * p.speed * p.speed * 0.045, -4, 4);
     this.track.sideAt(p.s, this.v2);
-    this.v4.copy(this.v1).addScaledVector(this.v3, 14).addScaledVector(this.v2, lookAside);
+    this.v4.copy(this.v1).addScaledVector(this.v3, spec.look).addScaledVector(this.v2, lookAside);
     this.v4.y += 1.4;
     this.camera.lookAt(this.v4);
 
@@ -3856,11 +4059,54 @@ export class GameEngine {
     this.camera.rotateZ(this.camRoll + Math.sin(t * 23.7) * this.shake * 0.02);
 
     // FOV: speed stretch + a launch kick under throttle from low speed
+    this.applyFov(dt, spec.fov);
+  }
+
+  private applyFov(dt: number, base: number): void {
+    const p = this.player;
     const launchKick = this.throttle * THREE.MathUtils.clamp(1 - p.speed / 40, 0, 1) * 5;
-    const targetFov = 62 + (p.speed / this.topSpeedRef) * 18 + launchKick;
+    const targetFov = base + (p.speed / this.topSpeedRef) * 18 + launchKick;
     this.fovCurrent += (targetFov - this.fovCurrent) * Math.min(1, dt * 3);
     this.camera.fov = this.aspectFov(this.fovCurrent);
     this.camera.updateProjectionMatrix();
+  }
+
+  /**
+   * A camera bolted to the car.
+   *
+   * No lerp on the position: a rigid mount is rigid, and easing it turns
+   * a bonnet cam into a chase cam on a short arm. What IS smoothed is
+   * nothing at all — the shell already moves on its springs, and that
+   * motion is the shot.
+   *
+   * The lateral-G roll the chase camera applies is deliberately absent:
+   * the body is already leaning, the camera is on the body, and adding
+   * the roll again would lean the horizon twice.
+   */
+  private updateMountedCamera(dt: number, spec: ReturnType<typeof viewSpec>): void {
+    const p = this.player;
+    this.carBody.updateMatrixWorld(true);
+    this.camAnchor!.getWorldPosition(this.camBase);
+    this.camInit = true;
+    this.shake = Math.max(0, this.shake - this.shake * 3.5 * dt);
+    const t = performance.now() / 1000;
+    // Half the chase camera's rumble. Mounted on the shell, every bump
+    // is already coming through the springs; doubling it is a headache
+    // rather than a sensation.
+    const amp = (Math.pow(p.speed / this.topSpeedRef, 3) * 0.055 + this.shake * 0.32) * 0.5;
+    this.camera.position.copy(this.camBase);
+    this.camera.position.x += (Math.sin(t * 31.7) + Math.sin(t * 17.3)) * 0.5 * amp;
+    this.camera.position.y += (Math.sin(t * 27.1) + Math.sin(t * 13.9)) * 0.5 * amp;
+    this.camTarget!.getWorldPosition(this.v4);
+    this.camera.up.set(0, 1, 0);
+    this.camera.lookAt(this.v4);
+    // Roll comes from the shell: read the body's own lean off its world
+    // matrix rather than recomputing it, so the two can never disagree.
+    this.carBody.getWorldQuaternion(this.q1);
+    this.v2.set(1, 0, 0).applyQuaternion(this.q1);
+    const roll = Math.asin(THREE.MathUtils.clamp(this.v2.y, -1, 1));
+    this.camera.rotateZ(-roll + Math.sin(t * 23.7) * this.shake * 0.02);
+    this.applyFov(dt, spec.fov);
   }
 
   /**
@@ -4635,6 +4881,8 @@ export class GameEngine {
       hour: this.timeHours,
       racingOpen: this.racingOpen(),
       rivalDist,
+      canSizeUp: !!this.rival && !this.inBattle && !this.cine && !this.locked &&
+        Math.abs(this.track.deltaAhead(this.player.s, this.rival.s)) <= SIZE_UP_RANGE,
       canFlash,
       battle:
         this.inBattle && r

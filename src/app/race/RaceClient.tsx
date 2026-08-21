@@ -25,6 +25,7 @@ import {
   HAPTIC,
 } from "@/game/settings";
 import { RESOLUTIONS, formatBuffer } from "@/game/render";
+import { VIEWS, viewSpec } from "@/game/views";
 import {
   EXCLUSIVE_CATS,
   Part,
@@ -208,6 +209,10 @@ export default function RaceClient() {
   const brakeRef = useRef<HTMLDivElement>(null);
   const [onboarding, setOnboarding] = useState(false);
   const [coach, setCoach] = useState<CoachState | null>(null);
+  /** Somebody is close enough to read, and the card if it is open. */
+  const [canSizeUp, setCanSizeUp] = useState(false);
+  const sizeUpRef = useRef(false);
+  const [dossier, setDossier] = useState<import("@/game/engine").RivalDossier | null>(null);
   const coachRef = useRef<CoachState | null>(null);
   const [career, setCareer] = useState<Profile | null>(null);
   const [beaten, setBeaten] = useState(0);
@@ -251,6 +256,7 @@ export default function RaceClient() {
       haptic(HAPTIC.tap, next.haptics);
       if (k === "sfxVolume") setSfxVolume(next.sfxVolume);
       if (k === "quality") engineRef.current?.applyQualityTier(next.quality);
+      if (k === "cameraView") engineRef.current?.setView(next.cameraView);
       if (k === "resolution") {
         engineRef.current?.setResolution(next.resolution);
         // The menu reads the ladder on resize rather than at build time,
@@ -595,6 +601,12 @@ export default function RaceClient() {
         rivalDist: d.rivalDist ?? 0,
         inBattle: d.battle !== null,
       };
+      // The prompt is a React state change, so it is only written when
+      // the answer actually flips — the HUD feed runs every frame.
+      if (d.canSizeUp !== sizeUpRef.current) {
+        sizeUpRef.current = d.canSizeUp;
+        setCanSizeUp(d.canSizeUp);
+      }
       drawMap(d);
     },
     [drawMap]
@@ -720,6 +732,7 @@ export default function RaceClient() {
     engine.setHighlights(boot.highlights);
     engine.setSaturation(boot.saturation);
     if (boot.resolution !== "native") engine.setResolution(boot.resolution);
+    if (boot.cameraView !== "chase") engine.setView(boot.cameraView);
     if (boot.frameCap !== "display") engine.setFrameCap(boot.frameCap);
     setPhase("playing");
 
@@ -826,8 +839,8 @@ export default function RaceClient() {
   // settings screen); the garage and results manage their own pause.
   useEffect(() => {
     if (phase !== "playing" || garageOpen || result) return;
-    engineRef.current?.setPaused(pauseOpen || settingsOpen);
-  }, [pauseOpen, settingsOpen, phase, garageOpen, result]);
+    engineRef.current?.setPaused(pauseOpen || settingsOpen || !!dossier);
+  }, [pauseOpen, settingsOpen, phase, garageOpen, result, dossier]);
 
   // While the settings screen is open, keep the resolution readout live.
   // Cheap — two integers off a DOM node once a second — and it is the
@@ -972,6 +985,42 @@ export default function RaceClient() {
       ) {
         setPauseOpen((p) => !p);
       }
+      // C cycles the shot. Live during the race and nothing else — a key
+      // that changed the camera under a menu would be a key that changed
+      // the camera by accident.
+      if (
+        e.key.toLowerCase() === "c" &&
+        !e.repeat &&
+        phase === "playing" &&
+        !garageOpen &&
+        !settingsOpen &&
+        !onboarding &&
+        !result &&
+        !cine
+      ) {
+        const v = engineRef.current?.setView();
+        if (v) {
+          updateSetting("cameraView", v);
+          showMessage(viewSpec(v).label.toUpperCase(), viewSpec(v).hint);
+        }
+      }
+      // Tab reads the driver alongside. Held to the same gates as the
+      // camera key: a hotkey that fires under a menu is a hotkey that
+      // fires by accident.
+      if (
+        e.key === "Tab" &&
+        !e.repeat &&
+        phase === "playing" &&
+        !garageOpen &&
+        !settingsOpen &&
+        !onboarding &&
+        !result &&
+        !cine
+      ) {
+        e.preventDefault();
+        setDossier((cur) => (cur ? null : engineRef.current?.sizeUpRival() ?? null));
+      }
+      if (e.key === "Escape" && dossier) setDossier(null);
       // Menu navigation. Enter must not fall through a modal and start
       // the race behind it, so every branch is gated on the overlays.
       const menuLive =
@@ -994,7 +1043,7 @@ export default function RaceClient() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [phase, startGame, result, garageOpen, settingsOpen, onboarding, cine, challenge, creditsOpen, menuSel]);
+  }, [phase, startGame, result, garageOpen, settingsOpen, onboarding, cine, challenge, creditsOpen, menuSel, updateSetting, showMessage, dossier]);
 
   // The main menu proper: one list, navigable by keyboard or thumb.
   // The first item keeps the wording the whole game is introduced by —
@@ -1291,15 +1340,101 @@ export default function RaceClient() {
             className="grn-panel size-[124px] p-1"
           />
           <div
-            className={`grn-panel hud-hint px-3 py-2 text-right font-display text-[0.72rem] leading-[1.35] tracking-wide text-white/55 ${
+            className={`grn-info hud-hint px-3 py-2 text-right font-display text-[0.72rem] leading-[1.35] ${
               isTouch ? "hidden" : ""
             } ${hintDone ? "hud-hint-gone" : ""}`}
           >
             W/↑ accelerate · S/↓ brake · A D steer · Space drift · N nitro
-            <br />F flash · Esc pause · M mute · B music · V voices
+            <br />F flash · C camera · Esc pause · M mute · B music · V voices
+            <br />Tab · size up the driver alongside
           </div>
         </div>
       </div>
+
+      {/* Size up the driver alongside — everything the game knows about
+          them, before you commit to anything. Square, white, black: the
+          one thing on this screen that is meant to be read rather than
+          glanced at. */}
+      {phase === "playing" && canSizeUp && !dossier && !cine && !result && (
+        <div className="pointer-events-none absolute left-1/2 top-24 z-[6] -translate-x-1/2">
+          <button
+            onClick={() => setDossier(engineRef.current?.sizeUpRival() ?? null)}
+            className="grn-info pointer-events-auto px-3 py-1.5 font-display text-[0.7rem] tracking-[0.08em]"
+          >
+            TAB · SIZE UP THE DRIVER
+          </button>
+        </div>
+      )}
+      {dossier && (
+        <div
+          className="absolute inset-0 z-[24] flex items-center justify-center bg-black/55 px-4"
+          onClick={() => setDossier(null)}
+        >
+          <div
+            className="grn-info reveal w-full max-w-md p-5"
+            onClick={(ev) => ev.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="grn-info-key text-[0.55rem]">
+                  Legend {dossier.order} of {dossier.total} · {dossier.country}
+                </div>
+                <div className="grn-display truncate text-3xl leading-none">{dossier.name}</div>
+                <div className="grn-ar mt-1 text-lg leading-none" lang="ar">
+                  {dossier.arabicName}
+                </div>
+              </div>
+              <span
+                className="mt-1 size-8 shrink-0 border-2 border-black"
+                style={{ backgroundColor: `#${dossier.color.toString(16).padStart(6, "0")}` }}
+              />
+            </div>
+
+            <div className="grn-info-rule mt-4 grid grid-cols-2 gap-x-5 gap-y-3 border-t pt-4">
+              {(
+                [
+                  ["Crew", dossier.crew],
+                  ["Turf", dossier.area],
+                  ["Machine", dossier.car],
+                  [
+                    "Length",
+                    dossier.lengthM ? `${dossier.lengthM.toFixed(2)} m` : "—",
+                  ],
+                  ["Top speed", `${dossier.topSpeedKmh} km/h`],
+                  [
+                    "Where",
+                    `${Math.abs(dossier.gap)} m ${dossier.gap >= 0 ? "ahead" : "behind"}`,
+                  ],
+                ] as const
+              ).map(([k, v]) => (
+                <div key={k}>
+                  <div className="grn-info-key text-[0.5rem]">{k}</div>
+                  <div className="grn-display text-base leading-tight">{v}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grn-info-rule mt-4 border-t pt-3 text-[0.82rem] leading-6">
+              &ldquo;{dossier.taunt}&rdquo;
+            </div>
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <span className="grn-info-key text-[0.55rem]">
+                {dossier.beaten ? (
+                  <span className="grn-info-accent">Beaten — rematch any time</span>
+                ) : (
+                  "Flash three times to challenge"
+                )}
+              </span>
+              <button
+                onClick={() => setDossier(null)}
+                className="grn-btn tap border-2 border-black px-4 py-1.5 text-[0.72rem] font-bold text-black hover:bg-black hover:text-white"
+              >
+                CLOSE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* PvP: challenge the nearest online driver */}
       {phase === "playing" && nearby && !invite && !duelResult && !cine && (
@@ -2138,6 +2273,35 @@ export default function RaceClient() {
               4K really is 2160 lines whatever size the window is: pick it above your display to
               supersample, below it to buy frames. A chosen resolution is held exactly and the
               frame-rate governor will not move it.
+            </p>
+
+            {/* Camera */}
+            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-[0.68rem]">
+              Camera · الكاميرا
+            </h3>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {VIEWS.map((v) => (
+                <button
+                  key={v.value}
+                  onClick={() => updateSetting("cameraView", v.value)}
+                  className={`tap grn-panel px-3 py-3 text-center transition ${
+                    settings.cameraView === v.value
+                      ? "border-sodium-400/80 bg-sodium-500/10 text-sodium-400"
+                      : "text-white/70 hover:border-white/30"
+                  }`}
+                >
+                  <span className="grn-display block text-base leading-tight">{v.label}</span>
+                  <span className="mt-0.5 block text-[0.6rem] leading-tight text-white/40">
+                    {v.hint}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-[0.76rem] text-white/45">
+              Press <span className="text-white/75">C</span> during a race to cycle. Chase and
+              Close follow the road, so the car yaws inside the shot and you can see what it is
+              doing; Bonnet, Bumper and Cockpit are bolted to the shell and go where it goes —
+              they dive under braking and point where the car points, not where it is travelling.
             </p>
 
             {/* Frame pacing */}

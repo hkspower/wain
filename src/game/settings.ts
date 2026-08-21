@@ -5,6 +5,7 @@
 // so a returning player never has to set them twice.
 
 import type { Resolution } from "./render";
+import type { CameraView } from "./views";
 
 export interface Settings {
   /** Kill non-essential animation (OS setting is also honoured). */
@@ -31,6 +32,9 @@ export interface Settings {
   sfxVolume: number;
   /** Bigger HUD for small screens or low vision. */
   largeHud: boolean;
+  /** Where the camera sits. Chase is road-mounted and shows what the car
+   *  is doing; the in-car views are bolted to the shell. */
+  cameraView: CameraView;
   /** Time of day on the corniche. */
   /** A fixed hour, or "cycle" to let the clock run. */
   sky: "night" | "dawn" | "noon" | "dusk" | "cycle";
@@ -68,6 +72,7 @@ export const DEFAULT_SETTINGS: Settings = {
   musicVolume: 0.32,
   sfxVolume: 0.75,
   largeHud: false,
+  cameraView: "chase",
   sky: "night",
   frameCap: "display",
   autoExposure: true,
@@ -78,7 +83,13 @@ export const DEFAULT_SETTINGS: Settings = {
   // sodium orange and neon read as colours rather than as tints —
   // stopping well short of the poster look that turns every lamp into a
   // flat blob of orange.
-  contrast: 1.06,
+  // 1.06 with a mid-grey pivot did almost nothing: the pivot sat above
+  // 95% of a night frame, so the curve only had a darkening side to
+  // work on. With the pivot moved down to where this game's pictures
+  // actually live, 1.18 opens the lit road and the lamp falloff — the
+  // 95th percentile goes from 81 to 90 — while the bottom of the frame
+  // stays where the shadow lift put it.
+  contrast: 1.18,
   highlights: 0,
   saturation: 1.08,
 };

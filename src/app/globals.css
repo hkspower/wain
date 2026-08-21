@@ -396,6 +396,46 @@ body {
   backdrop-filter: blur(10px);
 }
 
+/*
+ * THE INFO PLATE
+ *
+ * Everything in this HUD is a translucent dark panel with light grey
+ * type on it, which is the right treatment for a readout you glance at
+ * and the wrong one for a fact you have to READ. At night, over a dark
+ * road, at speed, grey-on-dark at 0.72rem is the least legible thing on
+ * the screen.
+ *
+ * So information gets its own treatment, and it is the opposite one:
+ * square corners, a white ground, black bold type. No blur, no gradient,
+ * no translucency — none of those help a word be read, and all three
+ * cost contrast. It is deliberately the only white thing in the game, so
+ * that when it appears you look at it.
+ */
+.grn-info {
+  background: #f4f5f7;
+  color: #0a0b0d;
+  border: 2px solid #0a0b0d;
+  /* Square. A rounded corner is a decoration and this is not decorated. */
+  border-radius: 0;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.85);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.grn-info .grn-info-key {
+  color: #4a4f57;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.grn-info .grn-info-rule {
+  border-color: rgba(10, 11, 13, 0.16);
+}
+/* An accent that survives on white. The sodium the rest of the HUD uses
+   is a light on a dark ground; on paper it is unreadable. */
+.grn-info .grn-info-accent {
+  color: #9a3412;
+}
+
 /* Angled HUD plate with an accent spine on the leading edge */
 .grn-plate {
   position: relative;

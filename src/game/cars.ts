@@ -2872,6 +2872,11 @@ export function createCar(colors: CarColors): THREE.Group {
     group.add(hood);
   }
 
+  // The body's own anchor points, so a camera bolted to this shell can
+  // sit on ITS bonnet and behind ITS screen rather than at an average of
+  // five silhouettes. Unscaled, like everything else on the car — the
+  // rig is a child of the body and inherits the fit.
+  group.userData.dims = d;
   group.userData.wheels = wheels;
   group.userData.tailMat = tailMat;
   group.userData.tailCoreMat = tailCoreMat;

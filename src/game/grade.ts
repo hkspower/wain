@@ -106,8 +106,22 @@ export const GradeShader = {
     uKnee: { value: 0.86 },
     /** Gamma about the pivot. 1 = untouched. */
     uContrast: { value: 1.0 },
-    /** The grey that does not move when contrast changes. */
-    uPivot: { value: 0.42 },
+    /**
+     * The grey that does not move when contrast changes.
+     *
+     * 0.42 — a photographic mid-grey — and wrong for this game, which is
+     * a game about night. Measured on the corniche at 22:30 the median
+     * pixel is 20/255 and the 95th percentile is 87, so a pivot at 107
+     * sat above almost the entire picture: every real pixel was on the
+     * darkening side of the curve and the contrast slider was a
+     * brightness slider pointing the wrong way.
+     *
+     * 0.22 is where this picture's upper midtones actually are — the
+     * lit road, a lamp's falloff, a wall catching sodium — so turning
+     * contrast up now deepens the shadows AND opens the lights, which
+     * is what the control is for.
+     */
+    uPivot: { value: 0.22 },
     /** -1 recovers highlights, +1 pushes them. 0 = untouched. */
     uHighlights: { value: 0.0 },
     /** How completely the top end bleeds to white as it clips. */
@@ -215,11 +229,28 @@ export const GradeShader = {
       // because it maps zero to zero.
       c.rgb += uLift * wLift;
 
-      // Contrast as a gamma about a pivot: p * (c/p)^k. A plain
-      // (c - 0.5) * k + 0.5 would drag the whole image's exposure around
-      // as you turn it, and clip both ends while it did so. This holds
-      // the pivot exactly and never leaves the 0..1 range.
-      c.rgb = uPivot * pow(max(c.rgb / uPivot, 1e-5), vec3(uContrast));
+      // Contrast as an S-curve about a pivot, not a one-sided gamma.
+      //
+      // It was p * (c/p)^k, which holds the pivot and never clips — but
+      // it only ever darkens what is below the pivot, and above it the
+      // curve runs away past 1.0 and lands on the knee. With the pivot
+      // where it was, that made "more contrast" mean "darker": measured
+      // on a night frame the median pixel sits at 20/255 and the pivot
+      // was at 107, so ninety-five per cent of the picture was on the
+      // darkening side of the curve and turning the knob up took the
+      // standard deviation DOWN.
+      //
+      // Mirrored, it is a real S: the same gamma below the pivot and its
+      // reflection above, so 0 maps to 0, 1 maps to 1, the pivot holds,
+      // and the slope through the middle is what the knob controls. Both
+      // ends are safe by construction rather than by the knee catching
+      // an overshoot.
+      {
+        vec3 lo = uPivot * pow(max(c.rgb / uPivot, 1e-5), vec3(uContrast));
+        vec3 hi = 1.0 - (1.0 - uPivot) *
+          pow(max((1.0 - c.rgb) / (1.0 - uPivot), 1e-5), vec3(uContrast));
+        c.rgb = mix(lo, hi, step(uPivot, c.rgb));
+      }
 
       // Highlights: how much there is above the shoulder, then the
       // shoulder itself. Two things push pixels past 1.0 here — the
