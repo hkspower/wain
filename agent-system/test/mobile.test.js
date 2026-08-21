@@ -173,3 +173,74 @@ test('لا تباعد بين الحروف على نصّ عربيّ — يفصل 
     }
   }
 });
+
+/* ----------------------------- نظام اللون ----------------------------- */
+
+/** درجة اللون (٠–٣٦٠) لأي لون في التنسيق، أو null للرماديّ */
+function hueOf(css) {
+  const hex = css.match(/#([0-9a-f]{6}|[0-9a-f]{3})\b/i);
+  const rgb = css.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
+  let r, g, b;
+  if (hex) {
+    const h = hex[1].length === 3 ? hex[1].split('').map((c) => c + c).join('') : hex[1];
+    [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+  } else if (rgb) { [r, g, b] = [1, 2, 3].map((i) => +rgb[i]); } else return null;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  if (d < 12) return null;                            // رماديّ: لا درجة له
+  let h = mx === r ? ((g - b) / d + (g < b ? 6 : 0)) : mx === g ? ((b - r) / d + 2) : ((r - g) / d + 4);
+  return (h * 60 + 360) % 360;
+}
+
+test('درجتان لا قوس قزح — الهوية والتنبيه، ولا ذهب ولا برونز', () => {
+  /* كل لون في الملفّين يجب أن يقع في إحدى نافذتين: الأزرق المخضرّ
+     (١٦٠–٢١٠) أو الصدئ (٣٤٠–٢٠). وما بينهما — الذهبيّ والبرونزيّ
+     والأخضر والأزرق والبنفسجيّ — خارج النظام. */
+  const stray = [];
+  for (const file of ['app.css', 'link.css']) {
+    for (const m of read(file).matchAll(/(#[0-9a-fA-F]{3,6}\b|rgba?\([^)]+\))/g)) {
+      const h = hueOf(m[1]);
+      if (h === null) continue;                       // رماديّ مقبول
+      const brand = h >= 160 && h <= 210;
+      const alert = h >= 340 || h <= 20;
+      if (!brand && !alert) stray.push(`${file}: ${m[1]} (درجة ${Math.round(h)}°)`);
+    }
+  }
+  assert.deepEqual(stray, [], 'ألوان خارج الدرجتين');
+});
+
+test('بلا تدرّجات لونية على الأسطح — الصلب هو النظام', () => {
+  /* التدرّجات الباقية تقنيات رسم لا ألوان: سهم القائمة، وخطوط الخريطة،
+     وهيكل التحميل. وما عداها يُمنع. */
+  const ALLOWED = ['#cfe7ea', '--mute-bg', '#eaf4f5', '--teal-100'];
+  const bad = [];
+  for (const file of ['app.css', 'link.css']) {
+    for (const m of read(file).matchAll(/linear-gradient\([^;]*/g)) {
+      if (!ALLOWED.some((a) => m[0].includes(a))) bad.push(`${file}: ${m[0].slice(0, 60)}`);
+    }
+  }
+  assert.deepEqual(bad, [], 'تدرّج لونيّ على سطح');
+});
+
+test('بلا رموز تعبيرية في ما يراه المستخدم', () => {
+  const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/u;
+  for (const file of ['app.js', 'link.js', 'index.html', 'link.html']) {
+    /* التعليقات تُنزع: بعضها يشرح لماذا رُسمت الأيقونة متجهةً لا محرفًا */
+    const code = read(file).replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->/g, '');
+    const hit = code.match(EMOJI);
+    assert.equal(hit, null, `${file} فيه رمز تعبيريّ «${hit && hit[0]}»`);
+  }
+});
+
+test('الظلّ للطبقات العائمة لا للأسطح المستوية', () => {
+  const css = read('app.css');
+  /* البطاقة والإحصاءة والطلب مستوية: حدُّها يكفي. والنافذة والتنبيه
+     والشريط السفلي تعلو الصفحة فظلّها يقول ذلك. */
+  for (const sel of ['.card {', '.stat {', '.order {']) {
+    const at = css.indexOf(sel);
+    assert.ok(at > 0, `لا قاعدة ${sel}`);
+    const block = css.slice(at, css.indexOf('}', at));
+    /* `transition: … box-shadow …` ليست ظلًّا بل إعلانُ انتقال — يُستثنى */
+    const decl = block.replace(/transition:[^;]*;/g, '');
+    assert.ok(!/box-shadow\s*:/.test(decl), `${sel} ما زال يحمل ظلًّا`);
+  }
+});

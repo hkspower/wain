@@ -351,7 +351,7 @@ const ICON_X = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" ' +
 
     box.innerHTML = `
       <button class="btn btn--accent btn--block" id="lkStart" type="button">
-        🎙️ ابدأ التسجيل</button>`;
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M9 21h6"/></svg> ابدأ التسجيل</button>`;
     document.getElementById('lkStart').addEventListener('click', startRec);
   }
 
@@ -397,7 +397,7 @@ const ICON_X = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" ' +
     if (!ctx.voice_notes.length) { list.innerHTML = ''; return; }
     list.innerHTML = ctx.voice_notes.map((v) => `
       <li>
-        <span class="lk-voice__ic" aria-hidden="true">🎧</span>
+        <span class="lk-voice__ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 14v-2a8 8 0 0 1 16 0v2"/><path fill="currentColor" d="M3 14h3v6H4.5A1.5 1.5 0 0 1 3 18.5V14ZM18 14h3v4.5a1.5 1.5 0 0 1-1.5 1.5H18v-6Z"/></svg></span>
         <span>ملاحظة ${esc(AR.plural(Math.round(v.seconds), 'second'))}</span>
         <span class="muted">${esc(AR.since(v.created_at))}</span>
       </li>`).join('');

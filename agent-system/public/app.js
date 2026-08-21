@@ -248,7 +248,7 @@
     el.view.innerHTML = `
       <div class="page-head">
         <div>
-          <h1>أهلًا ${esc(state.me.name.split(' ')[0])} 👋</h1>
+          <h1>أهلًا ${esc(state.me.name.split(' ')[0])}</h1>
           <p>${isAdmin ? 'ملخّص عمليات اليوم عبر كل المندوبين.' : 'هذه طلباتك النشطة وما يخصّك اليوم.'}</p>
         </div>
         ${isAdmin ? '<a class="btn btn--accent" href="#/new">+ طلب جديد</a>' : ''}
