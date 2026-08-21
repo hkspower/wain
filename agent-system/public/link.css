@@ -9,44 +9,44 @@
 }
 
 .lk-top {
-  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-4);
   background: var(--teal-900);
-  color: #eaf6f7; padding: .8rem 1rem;
+  color: #eaf6f7; padding: var(--s-3) var(--s-4);
   padding-top: calc(.8rem + env(safe-area-inset-top));
   border-bottom: 1px solid rgba(255,255,255,.16);
 }
 .lk-top img { height: 30px; width: auto; display: block; }
 .lk-top__who { font-size: var(--t-sm); font-weight: 700; color: #cfe7ea; }
 
-.lk-main { width: min(620px, 100% - 1.6rem); margin-inline: auto; padding: 1rem 0 2.5rem; }
+.lk-main { width: min(620px, 100% - 1.6rem); margin-inline: auto; padding: var(--s-4) 0 var(--s-7); }
 
 .lk-card {
   background: var(--card); border: 1px solid var(--line);
   border-radius: var(--radius); padding: var(--pad-md);
-  box-shadow: var(--shadow-xs); margin-bottom: .9rem;
+  box-shadow: var(--shadow-xs); margin-bottom: var(--s-4);
 }
 
-.lk-h { font-size: var(--t-base); font-weight: 800; margin: 0 0 .3rem; color: var(--teal-800); }
-.lk-sub { font-size: var(--t-sm); color: var(--ink-mid); line-height: var(--lh-base); margin: 0 0 .8rem; }
+.lk-h { font-size: var(--t-base); font-weight: 800; margin: 0 0 var(--s-1); color: var(--teal-800); }
+.lk-sub { font-size: var(--t-sm); color: var(--ink-mid); line-height: var(--lh-base); margin: 0 0 var(--s-3); }
 
 /* --------------------------- رأس الطلب --------------------------- */
 
-.lk-head { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; margin-bottom: .8rem; }
+.lk-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-bottom: var(--s-3); }
 .lk-code { font-weight: 800; font-size: var(--t-md); color: var(--teal-700); letter-spacing: .02em; }
 
-.lk-route { display: flex; flex-direction: column; gap: .55rem; margin-bottom: .9rem; }
-.lk-route__row { display: flex; gap: .6rem; align-items: flex-start; }
+.lk-route { display: flex; flex-direction: column; gap: var(--s-2); margin-bottom: var(--s-4); }
+.lk-route__row { display: flex; gap: var(--s-2); align-items: flex-start; }
 .lk-route__row div { display: flex; flex-direction: column; line-height: var(--lh-base); }
 .lk-route__row b { font-size: var(--t-xs); color: var(--ink-soft); font-weight: 600; }
 .lk-route__row span { font-size: var(--t-base); font-weight: 600; }
 .lk-dot {
-  width: 11px; height: 11px; border-radius: 50%; margin-top: .55rem; flex: none;
+  width: 11px; height: 11px; border-radius: 50%; margin-top: var(--s-2); flex: none;
   border: 2px solid var(--teal-600);
 }
 .lk-dot--from { background: #fff; }
 .lk-dot--to { background: var(--alert-600); border-color: var(--alert-600); }
 
-.lk-kv { display: grid; grid-template-columns: max-content 1fr; gap: .35rem .9rem; margin: 0; }
+.lk-kv { display: grid; grid-template-columns: max-content 1fr; gap: var(--s-1) var(--s-4); margin: 0; }
 .lk-kv dt { color: var(--ink-soft); font-size: var(--t-xs); }
 .lk-kv dd { margin: 0; font-size: var(--t-base); font-weight: 600; }
 /* الهاتف جزيرة لاتينية داخل عمود عربيّ: `start` فيها يعني اليسار، فينفصل
@@ -56,15 +56,15 @@
 .lk-strong { color: var(--teal-700); font-weight: 800; }
 
 .lk-notes {
-  margin: .8rem 0 0; font-size: var(--t-sm); line-height: var(--lh-base); color: var(--ink-mid);
-  border-inline-start: 2px solid var(--line-str); padding-inline-start: .7rem;
+  margin: var(--s-3) 0 0; font-size: var(--t-sm); line-height: var(--lh-base); color: var(--ink-mid);
+  border-inline-start: 2px solid var(--line-str); padding-inline-start: var(--s-3);
 }
 
 /* ---------------------------- الموقع ---------------------------- */
 
 .lk-state {
-  display: flex; align-items: center; gap: .5rem; font-size: var(--t-base);
-  padding: .6rem .8rem; margin-bottom: .8rem;
+  display: flex; align-items: center; gap: var(--s-2); font-size: var(--t-base);
+  padding: var(--s-2) var(--s-3); margin-bottom: var(--s-3);
   border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--mute-bg);
 }
 .lk-state__dot { width: 9px; height: 9px; border-radius: 50%; background: var(--mute-fg); flex: none; }
@@ -79,15 +79,15 @@
 .lk-warn {
   margin: 0; font-size: var(--t-sm); line-height: var(--lh-base);
   background: var(--warn-bg); color: var(--warn-fg);
-  border: 1px solid var(--alert-600); border-radius: var(--radius-sm); padding: .7rem .85rem;
+  border: 1px solid var(--alert-600); border-radius: var(--radius-sm); padding: var(--s-3) var(--s-3);
 }
 
 /* --------------------------- التسجيل --------------------------- */
 
 .lk-recbar {
-  display: flex; align-items: center; gap: .7rem; font-size: var(--t-base);
+  display: flex; align-items: center; gap: var(--s-3); font-size: var(--t-base);
   border: 1px solid var(--line); border-radius: var(--radius-sm);
-  padding: .6rem .8rem; background: var(--teal-50);
+  padding: var(--s-2) var(--s-3); background: var(--teal-50);
 }
 .lk-recbar.is-live { background: var(--bad-bg); border-color: #f3cdc7; color: var(--bad-fg); }
 .lk-recbar button { margin-inline-start: auto; }
@@ -100,21 +100,21 @@
   100% { box-shadow: 0 0 0 10px rgba(211,58,36,0); }
 }
 
-.lk-voice { margin: .7rem 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: .35rem; }
+.lk-voice { margin: var(--s-3) 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--s-1); }
 .lk-voice li {
-  display: flex; align-items: center; gap: .5rem; font-size: var(--t-sm);
-  border: 1px dashed var(--line-str); border-radius: var(--radius-sm); padding: .45rem .7rem;
+  display: flex; align-items: center; gap: var(--s-2); font-size: var(--t-sm);
+  border: 1px dashed var(--line-str); border-radius: var(--radius-sm); padding: var(--s-2) var(--s-3);
 }
 .lk-voice .muted { margin-inline-start: auto; }
 
 /* ---------------------------- النتيجة ---------------------------- */
 
-.lk-outcomes { display: grid; gap: .5rem; margin-bottom: .8rem; }
+.lk-outcomes { display: grid; gap: var(--s-2); margin-bottom: var(--s-3); }
 .lk-out {
-  display: flex; flex-direction: column; align-items: flex-start; gap: .1rem;
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-0);
   font-family: var(--font); text-align: start; cursor: pointer;
   border: 1.5px solid var(--line-str); border-radius: var(--radius-sm);
-  background: #fff; padding: .7rem .9rem;
+  background: #fff; padding: var(--s-3) var(--s-4);
   transition: border-color .2s var(--ease), background .2s var(--ease);
 }
 .lk-out b { font-size: var(--t-base); font-weight: 800; line-height: var(--lh-snug); }
@@ -125,13 +125,13 @@
 .lk-out--bad.is-on  { border-color: #d33a24; background: var(--bad-bg); }
 .lk-out.is-on b { color: inherit; }
 
-.lk-outform { margin-top: .2rem; }
+.lk-outform { margin-top: var(--s-1); }
 
 /* ---------------------------- حالات ---------------------------- */
 
-.lk-card--msg { text-align: center; padding: 2rem var(--pad-md); }
-.lk-card--msg h1 { font-size: var(--t-md); margin: .6rem 0 .3rem; }
-.lk-card--msg p { font-size: var(--t-base); color: var(--ink-mid); margin: 0 0 .3rem; }
+.lk-card--msg { text-align: center; padding: var(--s-6) var(--pad-md); }
+.lk-card--msg h1 { font-size: var(--t-md); margin: var(--s-2) 0 var(--s-1); }
+.lk-card--msg p { font-size: var(--t-base); color: var(--ink-mid); margin: 0 0 var(--s-1); }
 .lk-msg__ic {
   display: inline-flex; align-items: center; justify-content: center;
   width: 52px; height: 52px; border-radius: 50%; font-size: var(--t-lg); font-weight: 800;
@@ -140,8 +140,8 @@
 .lk-msg__ic--ok { background: var(--ok-bg); color: var(--ok-fg); }
 
 .lk-loading {
-  display: flex; align-items: center; justify-content: center; gap: .6rem;
-  padding: 3rem 1rem; color: var(--ink-soft); font-size: var(--t-base);
+  display: flex; align-items: center; justify-content: center; gap: var(--s-2);
+  padding: var(--s-7) var(--s-4); color: var(--ink-soft); font-size: var(--t-base);
 }
 .lk-spin {
   width: 16px; height: 16px; border-radius: 50%; flex: none;
@@ -150,7 +150,7 @@
 }
 @keyframes lkSpin { to { transform: rotate(360deg); } }
 
-.lk-foot { text-align: center; font-size: var(--t-xs); color: var(--ink-soft); margin: 1rem 0 0; }
+.lk-foot { text-align: center; font-size: var(--t-xs); color: var(--ink-soft); margin: var(--s-4) 0 0; }
 
 @media (prefers-reduced-motion: reduce) {
   .lk-spin, .lk-recdot, .lk-state.is-on .lk-state__dot { animation: none; }

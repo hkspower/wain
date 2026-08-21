@@ -244,3 +244,37 @@ test('الظلّ للطبقات العائمة لا للأسطح المستوي�
     assert.ok(!/box-shadow\s*:/.test(decl), `${sel} ما زال يحمل ظلًّا`);
   }
 });
+
+/* ----------------------------- مقياس التباعد ----------------------------- */
+
+test('التباعد من المقياس لا أرقامًا متناثرة', () => {
+  /* كانت أكثر من عشرين قيمة: ‎.32‎ و‎.35‎ و‎.38‎ و‎.45‎ و‎.55‎ و‎.62‎ —
+     اختيرت كلٌّ في لحظتها فلا إيقاع بينها. */
+  const PROPS = /\b(padding|margin|gap|row-gap|column-gap|(?:padding|margin)-(?:top|bottom|left|right|block|inline)(?:-(?:start|end))?):\s*([^;]+);/g;
+  const loose = [];
+  for (const file of ['app.css', 'link.css']) {
+    for (const m of read(file).matchAll(PROPS)) {
+      /* ما فيه calc أو env أو max متروك: قيمٌ محسوبة لا خطوات سلّم */
+      if (/calc|env\(|max\(|min\(/.test(m[2])) continue;
+      for (const part of m[2].trim().split(/\s+/)) {
+        if (/^[\d.]+rem$/.test(part)) loose.push(`${file}: ${m[1]}: ${m[2].trim()}`);
+      }
+    }
+  }
+  assert.deepEqual([...new Set(loose)], [], 'تباعد خارج المقياس');
+});
+
+test('لا عمود شبكة أعرض من الشاشة الضيّقة', () => {
+  /* `minmax(26rem, 1fr)` يفرض أدنى مطلقًا فيخرج عن شاشة ٣٩٠ بكسل بدل أن
+     ينكمش. و`min(26rem, 100%)` يجعله يملأ ما وُجد. */
+  const bad = [];
+  for (const file of ['app.css', 'link.css']) {
+    for (const m of read(file).matchAll(/minmax\(\s*([^,]+?)\s*,/g)) {
+      const v = m[1].trim();
+      if (v.startsWith('min(') || v === 'auto' || v === '0') continue;
+      const px = /^([\d.]+)rem$/.test(v) ? parseFloat(v) * 16 : /^([\d.]+)px$/.test(v) ? parseFloat(v) : 0;
+      if (px > 340) bad.push(`${file}: minmax(${v}, …)`);
+    }
+  }
+  assert.deepEqual(bad, [], 'عمود لا ينكمش على الشاشة الضيّقة');
+});

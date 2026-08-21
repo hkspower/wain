@@ -127,6 +127,7 @@
           ${statusBadge(o.status)}
           ${urgent ? '<span class="badge badge--urgent">عاجل</span>' : ''}
           ${o.has_pending_transfer ? '<span class="badge badge--transfer">تحويل معلّق</span>' : ''}
+          <span class="order__time">${esc(relTime(o.updated_at))}</span>
         </div>
         <div class="order__customer">${esc(o.customer_name)}</div>
         <div class="order__route">
@@ -138,7 +139,6 @@
           <span>${esc(vehicleName(o.vehicle))}</span>
           ${o.cod_amount > 0 ? `<span>تحصيل <b class="num">${money(o.cod_amount)}</b> د.ك</span>` : ''}
           ${o.agent_name ? `<span>المندوب: ${esc(o.agent_name)}</span>` : '<span>غير مُسند</span>'}
-          <span>${esc(relTime(o.updated_at))}</span>
         </div>
       </a>`;
   }
@@ -482,18 +482,18 @@
           ${state.agents.filter((a) => a.role === 'agent').map((a) =>
             `<option value="${a.id}"${String(f.agent_id) === String(a.id) ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}
         </select>` : ''}
-      </div>
 
-      <div class="chips" id="scopeChips">
+      <div class="chips toolbar__chips" id="scopeChips">
         ${[
           ['active', 'نشطة'], ['done', 'منتهية'],
           ...(isAdmin ? [['unassigned', 'بانتظار الإسناد']] : []),
           ['', 'الكل'],
         ].map(([v, label]) =>
           `<button class="chip${f.scope === v ? ' is-on' : ''}" data-scope="${v}" type="button">${esc(label)}</button>`).join('')}
+        </div>
       </div>
 
-      <div id="ordersList" style="margin-top:1rem">${skeleton(4)}</div>`;
+      <div id="ordersList">${skeleton(4)}</div>`;
 
     const load = async () => {
       const params = new URLSearchParams();
@@ -2085,7 +2085,7 @@
           <div class="card__body" id="mailBox">${skeleton(1)}</div>
         </div>
 
-        <div class="card">
+        <div class="card detail__full">
           <div class="card__head"><h2>سجل تغييرات العمولة</h2></div>
           <div class="card__body">
             <ol class="approval__log">
