@@ -254,6 +254,28 @@
         ${isAdmin ? '<a class="btn btn--accent" href="#/new">+ طلب جديد</a>' : ''}
       </div>
 
+      <div class="card ask">
+        <div class="card__body">
+          <form class="ask__bar" id="askForm">
+            <input id="askText" autocomplete="off" enterkeyhint="search"
+                   placeholder="اسأل موصول… «كم طلب سُلّم اليوم؟» أو ألصق طلبًا جديدًا">
+            <button type="button" class="btn btn--quiet ask__mic" id="askMic" hidden
+                    aria-label="تكلّم بالسؤال" title="تكلّم بالسؤال">
+              <!-- رسمة لا حرفًا: خطوط الموقع عربية ولا تحمل الرموز التعبيرية،
+                   فالحرف يسقط إلى مربّع فارغ على أجهزة كثيرة. -->
+              <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false">
+                <path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Z"/>
+                <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                      d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M9 21h6"/>
+              </svg>
+            </button>
+            <button type="submit" class="btn btn--primary">اسأل</button>
+          </form>
+          <div class="ask__chips" id="askChips"></div>
+          <div id="askOut" aria-live="polite"></div>
+        </div>
+      </div>
+
       <div class="stat-grid">
         <div class="stat"><b class="num">${ar(s.active)}</b><span>طلبات نشطة</span></div>
         <div class="stat"><b class="num">${ar(s.delivered_today)}</b><span>سُلّمت اليوم</span></div>
@@ -292,6 +314,118 @@
       </div>`;
 
     bindTransferActions(el.view);
+    bindAsk();
+  }
+
+  /* ---- وكيل موصول على الصفحة الرئيسية ---- */
+
+  /**
+   * الوكيل **يقرأ ويقترح ولا يكتب**. الجواب يظهر فوق اللوحة، واللوحة تبقى
+   * تحته: من لم يسأل شيئًا يرى ما كان يراه، ولا تُبدَّل شاشةٌ تعمل بمربّع
+   * فارغ.
+   */
+  function bindAsk() {
+    const form = document.getElementById('askForm');
+    const box = document.getElementById('askText');
+    const out = document.getElementById('askOut');
+    const chips = document.getElementById('askChips');
+    if (!form) return;
+
+    const EXAMPLES = state.me.role === 'admin'
+      ? ['كم طلب سُلّم اليوم؟', 'مين متاح الآن؟', 'الطلبات بانتظار الإسناد', 'المتعثّرة']
+      : ['طلباتي النشطة', 'كم طلب سلّمت اليوم؟', 'التحويلات'];
+    chips.innerHTML = EXAMPLES.map((e) => `<button type="button" class="chip" data-ask="${esc(e)}">${esc(e)}</button>`).join('');
+    chips.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-ask]');
+      if (!b) return;
+      box.value = b.dataset.ask;
+      form.requestSubmit();
+    });
+
+    function answerHTML(r) {
+      const d = r.data || {};
+      const body = [];
+
+      if (d.rows) {
+        body.push(`<dl class="ask__stats">${d.rows
+          .map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`);
+      }
+      if (d.orders?.length) body.push(`<div class="orders">${d.orders.map(orderCard).join('')}</div>`);
+      if (d.agents?.length) {
+        body.push(`<ul class="ask__agents">${d.agents.map((a) =>
+          `<li><b>${esc(a.name)}</b><span>${esc(a.vehicle_label)} · ${esc(a.governorate)}</span></li>`).join('')}</ul>`);
+      }
+      if (d.parsed?.heard?.length) {
+        body.push(`<ul class="ask__heard">${d.parsed.heard.map((h) => `<li>${esc(h)}</li>`).join('')}</ul>`);
+      }
+      if (d.examples?.length) {
+        body.push(`<div class="ask__chips">${d.examples
+          .map((e) => `<button type="button" class="chip" data-ask="${esc(e)}">${esc(e)}</button>`).join('')}</div>`);
+      }
+
+      const acts = (r.actions || []).map((a) => `<a class="btn btn--sm ${a.primary ? 'btn--primary' : 'btn--ghost'}"
+        href="${esc(a.href)}"${a.carry ? ` data-carry="${esc(a.carry)}"` : ''}>${esc(a.label)}</a>`).join('');
+
+      return `<div class="ask__answer${r.understood ? '' : ' is-unknown'}">
+        <p class="ask__say">${esc(r.say)}</p>
+        ${body.join('')}
+        ${acts ? `<div class="ask__acts">${acts}</div>` : ''}
+      </div>`;
+    }
+
+    async function run(text) {
+      out.innerHTML = '<div class="ask__answer"><p class="ask__say">…</p></div>';
+      try {
+        const r = await api('/agent/ask', { method: 'POST', body: { text } });
+        out.innerHTML = answerHTML(r);
+        /* «افتح النموذج مملوءًا» يحمل النصّ معه، فيُقرأ هناك ويُراجَع ويُنشأ
+           بالمسار المعتاد — ولا يصير للإنشاء بابان. */
+        const carry = out.querySelector('[data-carry]');
+        if (carry) carry.addEventListener('click', () => { state.carryOrderText = carry.dataset.carry; });
+        out.querySelectorAll('[data-ask]').forEach((b) =>
+          b.addEventListener('click', () => { box.value = b.dataset.ask; form.requestSubmit(); }));
+      } catch (err) {
+        out.innerHTML = `<div class="ask__answer is-unknown"><p class="ask__say">${esc(err.message)}</p></div>`;
+      }
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = box.value.trim();
+      if (text) run(text);
+    });
+
+    /* الصوت في المتصفّح نفسه — لا يغادر الجهاز، ولا مفتاح مدفوعًا */
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const mic = document.getElementById('askMic');
+    if (!SR) return;
+    mic.hidden = false;
+    const rec = new SR();
+    rec.lang = 'ar-KW';
+    rec.interimResults = true;
+    let live = false;
+    rec.addEventListener('result', (e) => {
+      let t = '';
+      for (const r of e.results) t += r[0].transcript;
+      box.value = t.trim();
+    });
+    rec.addEventListener('error', (e) => {
+      live = false; mic.classList.remove('is-live');
+      out.innerHTML = `<div class="ask__answer is-unknown"><p class="ask__say">${esc(
+        e.error === 'not-allowed' ? 'المتصفّح منع الميكروفون — اسمح به أو اكتب سؤالك.'
+        : e.error === 'no-speech' ? 'لم يصل كلام. حاول ثانيةً أو اكتب سؤالك.'
+        : 'تعذّر التعرّف على الكلام. اكتب سؤالك.')}</p></div>`;
+    });
+    rec.addEventListener('end', () => {
+      if (!live) return;
+      live = false; mic.classList.remove('is-live');
+      if (box.value.trim()) form.requestSubmit();
+    });
+    mic.addEventListener('click', () => {
+      if (live) { live = false; rec.stop(); mic.classList.remove('is-live'); return; }
+      box.value = ''; live = true; mic.classList.add('is-live');
+      try { rec.start(); } catch { /* جارٍ أصلًا */ }
+    });
   }
 
   /* ---- قائمة الطلبات ---- */
@@ -1456,6 +1590,15 @@
       voTimer = setTimeout(voParse, ms);
     };
     voText.addEventListener('paste', () => { setTimeout(voGrow, 0); voSoon(60); });
+
+    /* نصٌّ جاء من الوكيل في الصفحة الرئيسية: يُقرأ هنا ويُراجَع ويُنشأ
+       بالمسار المعتاد. ويُمسح بعد أخذه فلا يعود على طلبٍ تالٍ. */
+    if (state.carryOrderText) {
+      voText.value = state.carryOrderText;
+      state.carryOrderText = null;
+      voGrow();
+      voParse();
+    }
     voText.addEventListener('input', () => { voGrow(); voSoon(700); });
 
     document.getElementById('voClear').addEventListener('click', () => {

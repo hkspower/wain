@@ -10,6 +10,7 @@ const M = require('./mailer');
 const HK = require('./hooks');
 const N = require('./nearest');
 const V = require('./voice-order');
+const AG = require('./agent');
 const AREA = require('./areas');
 const {
   badRequest, unauthorized, forbidden, notFound, conflict,
@@ -663,6 +664,18 @@ on('GET', '/api/orders/:id/nearest', async (ctx) => {
  * ولهذا لا يقبل هذا المسار إلّا نصًّا: لو أنشأ طلبًا لصار للإنشاء بابان،
  * أحدهما يتخطّى ما يفرضه الآخر.
  */
+/**
+ * وكيل موصول على الصفحة الرئيسية. **يقرأ ويقترح ولا يكتب**: لا ينشئ ولا
+ * يُسند ولا يغيّر حالة. وما يحتاج كتابةً يحوّله إلى الشاشة التي تفعله.
+ *
+ * وهو مفتوح للمندوب كما للمدير — والنطاق داخل الوكيل: المندوب يرى طلباته
+ * وحده، والنوايا الإدارية محجوبة عنه أصلًا.
+ */
+on('POST', '/api/agent/ask', async (ctx) => {
+  const text = str(ctx.body.text, 'السؤال', { max: 2000 });
+  return AG.ask(ctx.agent, text);
+});
+
 on('POST', '/api/voice-orders/parse', async (ctx) => {
   requireAdmin(ctx);
   const transcript = str(ctx.body.transcript, 'نصّ الطلب', { max: 2000 });

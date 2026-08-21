@@ -448,20 +448,13 @@ tbody tr:hover { background: #fbfdfe; }
 @media (max-width: 900px) {
   .detail { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
-}
 
-@media (max-width: 720px) {
-  body { font-size: 14.5px; }
+  /* الشريط العلوي يحمل الشعار والتنقّل والاسم وزرّ الخروج، ومجموعها يتجاوز
+     العرض قبل ٩٠٠ بكسل بكثير — فكان الاسم وزرّ الخروج يخرجان من الشاشة بين
+     ٧٢٠ و٩٠٠. التنقّل ينتقل إلى الشريط السفلي هنا لا عند ٧٢٠. */
   .topbar__nav { display: none; }
-  .topbar__inner { width: calc(100% - 1.4rem); gap: .6rem; }
-  /* الاسم كان يلتفّ على سطرين فيتجاوز ارتفاع الشريط الثابت */
-  .who span { display: none; }
-  .who b { font-size: .82rem; white-space: nowrap; max-width: 112px; overflow: hidden; text-overflow: ellipsis; }
-  .topbar__brand img { height: 29px; }
-  .availability select { max-width: 92px; padding-inline: 1.5rem .55rem; font-size: .78rem; }
-  #logoutBtn { padding: .38rem .7rem; font-size: .8rem; }
-  .page { width: calc(100% - 1.4rem); padding-bottom: 5.5rem; }
-
+  .page { padding-bottom: 5.5rem; }
+  .toasts { inset-block-end: 4.6rem; }
   .tabbar {
     display: flex; position: fixed; inset-block-end: 0; inset-inline: 0; z-index: 70;
     background: #fff; border-top: 1.5px solid var(--line-str);
@@ -478,8 +471,21 @@ tbody tr:hover { background: #fbfdfe; }
     min-width: 17px; padding: 0 .25rem; background: var(--orange-600); color: #2b1a05;
     border-radius: 3px; font-size: .68rem; font-weight: 800; line-height: 1.6;
   }
+}
+
+@media (max-width: 720px) {
+  body { font-size: 14.5px; }
+  .topbar__inner { width: calc(100% - 1.4rem); gap: .6rem; }
+  /* الاسم كان يلتفّ على سطرين فيتجاوز ارتفاع الشريط الثابت */
+  .who span { display: none; }
+  .who b { font-size: .82rem; white-space: nowrap; max-width: 112px; overflow: hidden; text-overflow: ellipsis; }
+  .topbar__brand img { height: 29px; }
+  .availability select { max-width: 92px; padding-inline: 1.5rem .55rem; font-size: .78rem; }
+  #logoutBtn { padding: .38rem .7rem; font-size: .8rem; }
+  .page { width: calc(100% - 1.4rem); }
+  .toasts { inset-inline: .8rem; }
+
   .filters input { min-width: 0; flex: 1; }
-  .toasts { inset-block-end: 4.6rem; inset-inline: .8rem; }
   .toast { max-width: none; }
 }
 
@@ -645,3 +651,45 @@ tbody tr:hover { background: #fbfdfe; }
 .vo__heard li, .vo__missing li { margin: .15rem 0; }
 .vo__none { margin: .7rem 0 0; font-size: .85rem; color: var(--ink-soft); }
 .vo__auto { align-self: center; font-size: .82rem; color: var(--teal-700); font-weight: 600; }
+
+/* ---- وكيل موصول على الصفحة الرئيسية ---- */
+.ask { border: 1.5px solid var(--teal-100); }
+.ask__bar { display: flex; gap: .5rem; }
+.ask__bar input {
+  flex: 1; min-width: 0; font-family: var(--font); font-size: .95rem; color: var(--ink);
+  padding: .68rem .95rem; border: 1.5px solid var(--line-str); border-radius: var(--radius-sm);
+  background: #fff; transition: border-color .2s var(--ease), box-shadow .2s var(--ease);
+}
+.ask__bar input:focus { outline: none; border-color: var(--teal-600); box-shadow: var(--ring); }
+.ask__bar input::placeholder { color: #7f9ba1; }
+.ask__mic { display: inline-flex; align-items: center; justify-content: center; padding-inline: .75rem; }
+.ask__mic.is-live { background: var(--orange-600); border-color: var(--orange-600); color: #fff; }
+
+.ask__chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .7rem; }
+.ask__chips .chip { cursor: pointer; }
+
+.ask__answer { margin-top: .9rem; padding: .85rem 1rem; border-radius: var(--radius);
+  background: var(--teal-50); border: 1px solid var(--teal-100); }
+.ask__answer.is-unknown { background: var(--warn-bg); border-color: #f3d9b4; }
+.ask__say { margin: 0; font-size: .95rem; font-weight: 600; color: var(--ink); }
+.ask__answer .orders { margin-top: .8rem; }
+.ask__acts { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .8rem; }
+
+.ask__stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: .55rem; margin: .8rem 0 0; }
+.ask__stats > div { background: #fff; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: .55rem .7rem; }
+.ask__stats dt { font-size: .78rem; color: var(--ink-soft); }
+.ask__stats dd { margin: .15rem 0 0; font-size: .95rem; font-weight: 700; color: var(--teal-700); }
+
+.ask__agents { list-style: none; margin: .8rem 0 0; padding: 0; display: grid; gap: .4rem; }
+.ask__agents li { display: flex; justify-content: space-between; gap: .6rem; flex-wrap: wrap;
+  background: #fff; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: .5rem .7rem; font-size: .88rem; }
+.ask__agents span { color: var(--ink-soft); font-size: .8rem; }
+
+.ask__heard { margin: .7rem 0 0; padding-inline-start: 1.1rem; font-size: .85rem; color: var(--ok-fg); }
+.ask__heard li { margin: .15rem 0; }
+
+@media (max-width: 520px) {
+  .ask__bar { flex-wrap: wrap; }
+  .ask__bar input { flex: 1 1 100%; }
+}
