@@ -153,6 +153,8 @@ function guardSeo() {
     ['website/tools/make-sitemap.mjs', 'خريطة الموقع',      false],
     // المساعد يخاطب الزبائن مباشرةً، ورقم في جوابه يصير وعدًا: يُرفض البناء
     ['website/tools/check-assistant.mjs', 'مساعد موصول',     true],
+    // الموقع عربي لجمهور عربي: لا حرف لاتيني في نصّ يقرؤه الزائر
+    ['website/tools/check-arabic.mjs',    'عربية الموقع',     true],
   ];
   for (const [script, what, fatal] of checks) {
     const r = spawnSync(process.execPath, [path.join(ROOT, script), '--check'], {
