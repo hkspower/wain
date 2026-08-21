@@ -61,7 +61,9 @@ export const PARTS: Part[] = [
   // Exhaust — exclusive tiers. Every one of them is audible before it is
   // visible, which is the point of buying one.
   { id: "exhaust", cat: "exhaust", name: "Sport Cat-Back", ar: "دبة رياضية", price: 350, desc: "+7% power. Drops the voice and lets it bark on a lift" },
+  { id: "exhaust-square", cat: "exhaust", name: "Square Twin-Tip", ar: "دبة مربعة", price: 520, desc: "+8% power. Two squared-off tips — a different car from behind" },
   { id: "exhaust-race", cat: "exhaust", name: "Race Straight-Pipe", ar: "دبة سباق", price: 900, desc: "+11% power. No silencer left: raw, loud, and it spits flame" },
+  { id: "exhaust-twin", cat: "exhaust", name: "Twin-Tube Split", ar: "دبة مزدوجة", price: 1350, desc: "+12% power. One straight-through split into four: two tubes a side, and it barks" },
   { id: "exhaust-ti", cat: "exhaust", name: "Titanium Quad", ar: "دبة تيتانيوم", price: 1800, desc: "+14% power. Four burnt-blue tips and a hard metallic rasp" },
   // Intake — exclusive tiers. The basic one is free and comes fitted to
   // every new car, so the very first thing a player sees in the shop is
@@ -118,10 +120,27 @@ export const PARTS: Part[] = [
  * the power and none of the voice.
  */
 export interface ExhaustSpec {
-  id: "stock" | "sport" | "race" | "titanium";
+  id: "stock" | "sport" | "race" | "titanium" | "square" | "twin";
   /** Tips out the back, and how wide each bore is in metres. */
   tips: number;
   bore: number;
+  /**
+   * The shape of the tip itself.
+   *
+   * Every exhaust in this game used to be a round cylinder and only the
+   * count, the bore and the finish changed — which is not how exhausts
+   * differ. A squared-off quad and a stack of round tubes read as
+   * completely different cars from ten metres behind, and that view is
+   * the one a rival spends the whole race looking at.
+   */
+  shape: "round" | "square" | "oval";
+  /**
+   * Tubes per exit. One is a tip; two is a pair clustered on each side
+   * of the car, the way a straight-through system that has been split
+   * comes out. `tips` is the total, so four tips at two per side is two
+   * clusters and not four separate holes across the bumper.
+   */
+  perSide: number;
   finish: "steel" | "chrome" | "ceramic" | "titanium";
   /** Multiplier on the exhaust band's centre frequency. Under one is a
    *  deeper car; a straight pipe drops further than a cat-back can. */
@@ -136,15 +155,25 @@ export interface ExhaustSpec {
 }
 
 export const EXHAUSTS: Record<string, ExhaustSpec> = {
-  stock: { id: "stock", tips: 2, bore: 0.05, finish: "steel", pitch: 1, rasp: 1, loud: 1, pop: 1, power: 0 },
+  stock: { id: "stock", tips: 2, perSide: 1, bore: 0.05, shape: "round", finish: "steel", pitch: 1, rasp: 1, loud: 1, pop: 1, power: 0 },
   // A cat-back keeps the catalyst and the silencer: deeper and louder,
   // still civil.
-  exhaust: { id: "sport", tips: 2, bore: 0.068, finish: "chrome", pitch: 0.88, rasp: 1.35, loud: 1.3, pop: 1.45, power: 0.07 },
+  exhaust: { id: "sport", tips: 2, perSide: 1, bore: 0.068, shape: "round", finish: "chrome", pitch: 0.88, rasp: 1.35, loud: 1.3, pop: 1.45, power: 0.07 },
+  // Squared tips, one a side. A different car from the back for the
+  // same money as the round one, which is the point of it — the tone is
+  // a cat-back's tone because the plumbing ahead of the tip is a
+  // cat-back's plumbing.
+  "exhaust-square": { id: "square", tips: 2, perSide: 1, bore: 0.082, shape: "square", finish: "chrome", pitch: 0.86, rasp: 1.4, loud: 1.35, pop: 1.5, power: 0.08 },
   // Nothing left in the pipe to quieten it. Biggest bore, hardest bark.
-  "exhaust-race": { id: "race", tips: 2, bore: 0.09, finish: "ceramic", pitch: 0.76, rasp: 1.9, loud: 1.7, pop: 2.2, power: 0.11 },
+  "exhaust-race": { id: "race", tips: 2, perSide: 1, bore: 0.09, shape: "round", finish: "ceramic", pitch: 0.76, rasp: 1.9, loud: 1.7, pop: 2.2, power: 0.11 },
+  // Twin tubes each side: one straight-through split into two, so four
+  // holes in two clusters. Two smaller bores flow like one big one and
+  // resonate higher, which is why a twin-tube system barks rather than
+  // booms.
+  "exhaust-twin": { id: "twin", tips: 4, perSide: 2, bore: 0.062, shape: "round", finish: "chrome", pitch: 0.82, rasp: 2.0, loud: 1.6, pop: 2.0, power: 0.12 },
   // Four thin-wall tips. Lighter than the race system and higher-strung
   // with it — the rasp is metallic rather than deep.
-  "exhaust-ti": { id: "titanium", tips: 4, bore: 0.058, finish: "titanium", pitch: 0.86, rasp: 2.3, loud: 1.75, pop: 2.4, power: 0.14 },
+  "exhaust-ti": { id: "titanium", tips: 4, perSide: 1, bore: 0.058, shape: "round", finish: "titanium", pitch: 0.86, rasp: 2.3, loud: 1.75, pop: 2.4, power: 0.14 },
 };
 
 export const PAINT_COLORS: Record<string, number> = {

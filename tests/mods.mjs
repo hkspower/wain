@@ -253,10 +253,16 @@ const exhaustOf = (equipped) =>
     // with rather than off the spec that asked for it.
     let finish = null;
     let pipes = 0;
+    const shapes = new Set();
+    const xs = new Set();
+    const ys = new Set();
     e.carBody.traverse((o) => {
       if (!o.isMesh || !o.userData.exhaustPipe) return;
       pipes++;
       finish = o.material.color.getHexString();
+      shapes.add(o.userData.tipShape ?? "round");
+      xs.add(+o.position.x.toFixed(3));
+      ys.add(+o.position.y.toFixed(3));
     });
     return {
       spec: e.tune.exhaust,
@@ -266,6 +272,14 @@ const exhaustOf = (equipped) =>
       tipZ: tips.length ? +Math.min(...tips.map((t) => t.z)).toFixed(2) : null,
       finish,
       pipes,
+      shapes: [...shapes],
+      // How many places across the car the pipes come out of, and how
+      // many heights they sit at. A twin-tube system is FOUR pipes at
+      // TWO positions, stacked — which is a different car from four
+      // pipes spread across the bumper, and the counts are how you tell
+      // them apart without looking.
+      clusters: xs.size,
+      levels: ys.size,
     };
   }, equipped);
 
@@ -277,6 +291,10 @@ await strip();
 const exRace = await exhaustOf({ exhaust: "exhaust-race" });
 await strip();
 const exTi = await exhaustOf({ exhaust: "exhaust-ti" });
+await strip();
+const exSquare = await exhaustOf({ exhaust: "exhaust-square" });
+await strip();
+const exTwin = await exhaustOf({ exhaust: "exhaust-twin" });
 
 console.log(`Exhaust      stock ${exStock.tips} tips  ->  sport ${exSport.tips}  race ${exRace.tips}  titanium ${exTi.tips}`);
 console.log(`             power ${exStock.power.toFixed(2)} -> ${exSport.power.toFixed(2)} -> ${exRace.power.toFixed(2)} -> ${exTi.power.toFixed(2)}`);
@@ -296,6 +314,28 @@ check(finishes.every((f) => typeof f === "string"),
 check(new Set(finishes).size >= 3, `the tips only come in ${new Set(finishes).size} finishes`);
 check(exStock.pipes === exStock.tips && exTi.pipes === exTi.tips,
   `pipes built (${exStock.pipes}/${exTi.pipes}) do not match the flame anchors (${exStock.tips}/${exTi.tips})`);
+// --- Shape and clustering -------------------------------------------
+//
+// Every system in this game used to be a round cylinder, and only the
+// count, the bore and the finish changed — which is not how exhausts
+// differ. The two added here are the two that read differently from ten
+// metres behind, which is the view a rival has for the whole race.
+console.log(`             square ${exSquare.pipes} pipes, shape ${exSquare.shapes.join("/")}; ` +
+  `twin ${exTwin.pipes} pipes in ${exTwin.clusters} clusters at ${exTwin.levels} heights`);
+check(exSquare.shapes.length === 1 && exSquare.shapes[0] === "square",
+  `the square system built ${exSquare.shapes.join("/")} tips`);
+check(exSport.shapes[0] === "round" && exRace.shapes[0] === "round",
+  "a round system stopped being round");
+// Four pipes, two positions, two heights: one exit split in two, stacked.
+check(exTwin.pipes === 4, `the twin-tube system built ${exTwin.pipes} pipes`);
+check(exTwin.clusters === 2, `the twin-tube system spread its pipes across ${exTwin.clusters} positions, not 2`);
+check(exTwin.levels === 2, `the twin-tube system's pipes all sit at ${exTwin.levels} height(s) — they are meant to stack`);
+// ...against the quad, which IS four holes across the bumper.
+check(exTi.clusters === 4, `the titanium quad clustered into ${exTi.clusters} positions instead of 4`);
+check(exTi.levels === 1, `the titanium quad's tips sit at ${exTi.levels} heights, not one`);
+check(exSquare.power > exSport.power && exTwin.power > exRace.power,
+  "the two new systems do not sit where their prices put them on power");
+
 // The flame comes out of the pipe, not the boot floor: the anchors used
 // to be hardcoded at z -2.08 while the tail sits at -2.4.
 for (const [name, r] of [["stock", exStock], ["sport", exSport], ["race", exRace], ["titanium", exTi]]) {

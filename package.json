@@ -52,6 +52,7 @@
     "test:lamps": "node tests/lamps.mjs",
     "test:size": "node tests/size.mjs",
     "test:buildings": "node tests/buildings.mjs",
+    "test:bridges": "node tests/bridges.mjs",
     "test:fuel": "node tests/fuel.mjs",
     "test:community": "node tests/community.mjs",
     "test:crew": "node tests/crew.mjs",

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import type { BodyStyle } from "./cars";
+import { CROWN, crownShell, type BodyStyle } from "./cars";
 
 // Blender-authored graphics.
 //
@@ -212,6 +212,13 @@ function mirrorX(geo: THREE.BufferGeometry): THREE.BufferGeometry {
  *  runtime error in the race test and tells the player nothing. */
 const AUTHORED_SHELLS: ReadonlySet<BodyStyle> = new Set<BodyStyle>(["sedan", "zx", "gtr", "rx7"]);
 
+/** Crowned once per file, not once per car. The GLBs are fetched and
+ *  cached per session and the surfacing pass is a walk over every
+ *  vertex; doing it inside the swap would redo it for the player's car,
+ *  the rival's, and every traffic car that happens to share a
+ *  silhouette. */
+const crowned = new WeakSet<THREE.BufferGeometry>();
+
 export function upgradeCarShells(group: THREE.Group, style: BodyStyle): void {
   if (!AUTHORED_SHELLS.has(style)) return;
   void parts(`car-${style}`).then((shells) => {
@@ -221,7 +228,23 @@ export function upgradeCarShells(group: THREE.Group, style: BodyStyle): void {
       if (!mesh.isMesh) return;
       const slot = mesh.userData.shell as string | undefined;
       const geo = slot ? shells[slot] : undefined;
-      if (geo) mesh.geometry = geo;
+      if (!geo) return;
+      // The authored shells are lofted by tools/blender/build_assets.py
+      // from the same profiles, with the same bevel — and therefore with
+      // the same flat flanks. Crowning them here rather than only in
+      // cars.ts is what stops the four styles that HAVE an authored
+      // shell from showing a flat hero car in front of curved traffic.
+      //
+      // The Blender loft should grow this when it is next run; until
+      // then this is where the surface is decided, and it is decided
+      // once for both builds because both call the same function.
+      if (!crowned.has(geo)) {
+        crowned.add(geo);
+        const spec =
+          slot === "canopy" ? CROWN.canopy : slot === "roof" ? CROWN.roof : CROWN.body;
+        crownShell(geo, spec);
+      }
+      mesh.geometry = geo;
     });
   });
 }

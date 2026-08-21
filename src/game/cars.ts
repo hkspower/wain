@@ -230,6 +230,158 @@ function roundedBox(w: number, h: number, d: number, r = 0.035, seg = 4): THREE.
 }
 
 /**
+ * CROWNING — the pass that makes an extrusion look like bodywork.
+ *
+ * Every shell in this game is an ExtrudeGeometry: a side profile pushed
+ * across the car's width with a bevel round the edge. That gives a
+ * rounded EDGE around a perfectly FLAT slab, and a flat slab is what a
+ * bar of soap looks like. Real bodywork has none of it:
+ *
+ *   the roof and the bonnet are CROWNED across, by two or three
+ *   centimetres over a metre and a half — which is what puts the long
+ *   highlight down the middle of a bonnet instead of a flat grey field;
+ *
+ *   the flanks BULGE at the shoulder and TUCK at the rocker, so a
+ *   cross-section is closer to an egg than to a rectangle;
+ *
+ *   and the glasshouse leans IN above the belt, which is why a car
+ *   photographed head-on is narrower at the roof than at the doors.
+ *
+ * All three come out of one pass over the vertices, and it works in the
+ * car\'s own frame (x across, y up, z along) so the same function can be
+ * applied to an authored GLB shell after it loads — see models.ts. If
+ * only the procedural build were crowned, the four styles with authored
+ * shells would show a flat hero car and curved traffic.
+ *
+ * The widest point is DELIBERATELY left where it was. Everything hung
+ * on the flanks — mirrors, arch lips, side markers, the flag, a crew\'s
+ * decal — is anchored against the half-width the profile tables were
+ * written with, so a section that bulged outward would leave every one
+ * of them sunk inside the paint. Pulling in above and below the
+ * shoulder gets the same curvature and can only ever leave a detail a
+ * few millimetres proud, which is invisible.
+ */
+export interface CrownSpec {
+  /** How much the section pulls IN at the top and bottom, as a fraction
+   *  of the half-width. The shoulder keeps its full width. */
+  tuck: number;
+  /** How far down the top surface falls at its edges, in metres. */
+  roof: number;
+  /** Where the widest point sits, 0 at the bottom of the shell and 1 at
+   *  the top. A door\'s shoulder is a little above the middle. */
+  shoulder: number;
+}
+
+export const CROWN: Record<"body" | "canopy" | "roof", CrownSpec> = {
+  // The body: bulging doors, tucked rocker, a crowned bonnet and boot.
+  body: { tuck: 0.055, roof: 0.03, shoulder: 0.62 },
+  // The glasshouse leans in hard — tumblehome is most of what makes a
+  // greenhouse read as glass rather than as a box.
+  canopy: { tuck: 0.085, roof: 0.026, shoulder: 0.25 },
+  // A roof panel is nearly all crown and barely any tuck.
+  roof: { tuck: 0.03, roof: 0.034, shoulder: 0.5 },
+};
+
+/**
+ * Reshape a shell\'s cross-section in place. Car frame: x across, y up,
+ * z along the length.
+ *
+ * Stationed along the length rather than applied globally, because the
+ * shell\'s height changes from nose to tail: doming "the top" by a fixed
+ * amount would dome the bonnet and the roof by the same absolute drop
+ * even though one is half the width of the other. Each station gets its
+ * own half-width and its own top, and the crown is measured against
+ * those.
+ */
+export function crownShell(geo: THREE.BufferGeometry, c: CrownSpec): THREE.BufferGeometry {
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  const n = pos.count;
+  if (!n) return geo;
+
+  geo.computeBoundingBox();
+  const bb = geo.boundingBox!;
+  const z0 = bb.min.z;
+  const z1 = bb.max.z;
+  const span = z1 - z0;
+  if (!(span > 1e-4)) return geo;
+
+  // Thirty-two stations along the car: fine enough that a windscreen
+  // base and a roof do not share one, coarse enough that a single stray
+  // vertex cannot define a station on its own.
+  const N = 32;
+  const maxX = new Float32Array(N).fill(1e-4);
+  const maxY = new Float32Array(N).fill(-1e9);
+  const minY = new Float32Array(N).fill(1e9);
+  const station = (z: number) =>
+    Math.min(N - 1, Math.max(0, Math.floor(((z - z0) / span) * N)));
+
+  for (let i = 0; i < n; i++) {
+    const k = station(pos.getZ(i));
+    const ax = Math.abs(pos.getX(i));
+    if (ax > maxX[k]) maxX[k] = ax;
+    const y = pos.getY(i);
+    if (y > maxY[k]) maxY[k] = y;
+    if (y < minY[k]) minY[k] = y;
+  }
+  // Smooth the station profile. A station that happened to catch only
+  // the inside of a wheel arch reports a half-width of nothing, and an
+  // unsmoothed pass would pinch the car\'s waist there.
+  const sm = (a: Float32Array, fill: number) => {
+    const out = new Float32Array(N);
+    for (let k = 0; k < N; k++) {
+      let sum = 0;
+      let w = 0;
+      for (let d = -1; d <= 1; d++) {
+        const j = k + d;
+        if (j < 0 || j >= N) continue;
+        if (!Number.isFinite(a[j]) || a[j] === fill) continue;
+        sum += a[j];
+        w++;
+      }
+      out[k] = w ? sum / w : a[k];
+    }
+    return out;
+  };
+  const halfW = sm(maxX, 1e-4);
+  const topY = sm(maxY, -1e9);
+  const botY = sm(minY, 1e9);
+
+  for (let i = 0; i < n; i++) {
+    const k = station(pos.getZ(i));
+    const hw = halfW[k];
+    const hi = topY[k];
+    const lo = botY[k];
+    if (!(hw > 1e-3) || !(hi - lo > 1e-3)) continue;
+
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const u = Math.min(1, Math.abs(x) / hw);                  // across
+    const t = Math.min(1, Math.max(0, (y - lo) / (hi - lo))); // up
+
+    // Flank: full width at the shoulder, pulled in above and below it.
+    // Cosine rather than a sine bump so the widest point is a smooth
+    // maximum instead of a crease.
+    const d = (t - c.shoulder) / (t >= c.shoulder ? 1 - c.shoulder : c.shoulder || 1);
+    const pull = c.tuck * (1 - Math.cos(Math.min(1, Math.abs(d)) * Math.PI)) * 0.5;
+    pos.setX(i, x * (1 - pull));
+
+    // Top surface: dome it. Weighted by how near the top of ITS OWN
+    // station the vertex is, so the rocker is untouched and the roof
+    // takes the full drop, and by u squared so the fall is a parabola
+    // across the car — which is the shape a stamped panel actually is.
+    if (t > 0.5) {
+      const w = (t - 0.5) / 0.5;
+      pos.setY(i, y - c.roof * u * u * w * w);
+    }
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  geo.computeBoundingBox();
+  geo.computeBoundingSphere();
+  return geo;
+}
+
+/**
  * Extrude a side profile (x = length, y = height) across the car's width.
  *
  * Sheet metal is never a polyline: the whole top run — nose, hood,
@@ -242,7 +394,11 @@ function extrudeProfile(
   points: Array<[number, number]>,
   width: number,
   bevel: number,
-  bottomPoints = 2
+  bottomPoints = 2,
+  /** Which crown to give the finished section. Omitted leaves the old
+   *  flat-sided extrusion, which is right for anything that genuinely
+   *  is a slab. */
+  crown?: CrownSpec
 ): THREE.BufferGeometry {
   const shape = new THREE.Shape();
   const top = points.slice(0, points.length - bottomPoints);
@@ -257,16 +413,27 @@ function extrudeProfile(
     bevelEnabled: true,
     bevelThickness: bevel,
     bevelSize: bevel,
-    bevelSegments: 5,
+    // 9, not 5. The bevel IS the panel edge, and the panel edge is
+    // where the specular line lives — at 5 segments a headlight sweeping
+    // along a flank walks across the facets one at a time instead of
+    // running along them. These geometries are shared by every instance
+    // of a silhouette, player car and thirty traffic cars alike, so the
+    // extra vertices are paid once each rather than once per car.
+    bevelSegments: 9,
     // The spline spans the whole body top, so it needs real sampling
     // density or the curve degenerates back into a polyline.
     curveSegments: 28,
   });
   geo.translate(0, 0, -(width - bevel * 2) / 2);
+  // Merged BEFORE crowning, not after. Crowning moves vertices by a few
+  // millimetres, and a 1e-3 weld applied afterwards would fuse pairs the
+  // crown had just pushed apart — which shows up as a torn normal along
+  // the shoulder line.
   geo = mergeVertices(geo, 1e-3);
-  geo.computeVertexNormals();
   // Profile length axis (x) onto the car's forward axis (+Z)
   geo.rotateY(-Math.PI / 2);
+  if (crown) crownShell(geo, crown);
+  else geo.computeVertexNormals();
   return geo;
 }
 
@@ -286,7 +453,9 @@ const bodyGeo = extrudeProfile(
     [1.85, 0.24],
   ],
   1.840,
-  0.14
+  0.14,
+  2,
+  CROWN.body,
 );
 
 // Raked glasshouse: windshield, roofline, rear window
@@ -299,7 +468,8 @@ const canopyGeo = extrudeProfile(
   ],
   1.600,
   0.1,
-  0
+  0,
+  CROWN.canopy,
 );
 
 // Painted roof panel over the glass
@@ -312,7 +482,8 @@ const roofGeo = extrudeProfile(
   ],
   1.420,
   0.06,
-  0
+  0,
+  CROWN.roof,
 );
 
 // ---- Z32-style wedge: long flat nose, cab-back glasshouse, fastback
@@ -332,7 +503,9 @@ const zxBodyGeo = extrudeProfile(
     [1.95, 0.2],
   ],
   2.080,
-  0.15
+  0.15,
+  2,
+  CROWN.body,
 );
 const zxCanopyGeo = extrudeProfile(
   [
@@ -343,7 +516,8 @@ const zxCanopyGeo = extrudeProfile(
   ],
   1.776,
   0.1,
-  0
+  0,
+  CROWN.canopy,
 );
 const zxRoofGeo = extrudeProfile(
   [
@@ -354,7 +528,8 @@ const zxRoofGeo = extrudeProfile(
   ],
   1.582,
   0.05,
-  0
+  0,
+  CROWN.roof,
 );
 
 // ---- R34-style coupe: short deck up high, upright glasshouse, thick
@@ -374,7 +549,9 @@ const gtrBodyGeo = extrudeProfile(
     [1.88, 0.22],
   ],
   1.985,
-  0.13
+  0.13,
+  2,
+  CROWN.body,
 );
 const gtrCanopyGeo = extrudeProfile(
   [
@@ -385,7 +562,8 @@ const gtrCanopyGeo = extrudeProfile(
   ],
   1.701,
   0.1,
-  0
+  0,
+  CROWN.canopy,
 );
 const gtrRoofGeo = extrudeProfile(
   [
@@ -396,7 +574,8 @@ const gtrRoofGeo = extrudeProfile(
   ],
   1.500,
   0.06,
-  0
+  0,
+  CROWN.roof,
 );
 
 // ---- FD-style curves: a low pop-up nose, a bubble glasshouse and
@@ -417,7 +596,9 @@ const rx7BodyGeo = extrudeProfile(
     [1.88, 0.2],
   ],
   1.961,
-  0.17 // the fattest bevel in the fleet — everything rolls
+  0.17, // the fattest bevel in the fleet — everything rolls
+  2,
+  CROWN.body,
 );
 const rx7CanopyGeo = extrudeProfile(
   [
@@ -427,7 +608,9 @@ const rx7CanopyGeo = extrudeProfile(
     [-1.68, 0.78], // long rounded hatch glass
   ],
   1.635,
-  0.12
+  0.12,
+  2,
+  CROWN.canopy,
 );
 const rx7RoofGeo = extrudeProfile(
   [
@@ -437,7 +620,9 @@ const rx7RoofGeo = extrudeProfile(
     [-0.68, 1.25],
   ],
   1.429,
-  0.05
+  0.05,
+  2,
+  CROWN.roof,
 );
 
 // ---- Hot hatch: the shape a fast three-door has had for fifty years.
@@ -461,7 +646,9 @@ const hatchBodyGeo = extrudeProfile(
     [1.7, 0.22],
   ],
   1.811,
-  0.13
+  0.13,
+  2,
+  CROWN.body,
 );
 // The cabin sits FORWARD. Authored first with the screen base back at
 // z 0.74 it came out with a long bonnet and the glasshouse pushed over
@@ -477,7 +664,9 @@ const hatchCanopyGeo = extrudeProfile(
     [-1.86, 1.04], // hatch glass, raked but still upright
   ],
   1.556,
-  0.1
+  0.1,
+  2,
+  CROWN.canopy,
 );
 const hatchRoofGeo = extrudeProfile(
   [
@@ -487,7 +676,9 @@ const hatchRoofGeo = extrudeProfile(
     [-0.92, 1.43],
   ],
   1.418,
-  0.05
+  0.05,
+  2,
+  CROWN.roof,
 );
 
 /**
@@ -2108,16 +2299,26 @@ export function createCar(colors: CarColors): THREE.Group {
     let len: number;
     let y: number;
     let mat: THREE.Material;
+    let shape: "round" | "square" | "oval" = "round";
+    let perSide = 1;
     if (ex.id !== "stock") {
+      // Where the CLUSTERS sit, not where the tubes sit. A twin-tube
+      // system is one exit split in two, so it hangs two pipes off each
+      // of two positions rather than punching four separate holes
+      // across the bumper — which is the difference between a car with
+      // a split system and a car with four exhausts.
+      const clusters = ex.tips / ex.perSide;
       xs =
-        ex.tips === 4
+        clusters === 4
           ? [-0.64, -0.42, 0.42, 0.64]
-          : ex.tips === 1
+          : clusters === 1
             ? [-0.5]
             : [-0.5, 0.5];
       r = ex.bore;
       len = 0.24;
       y = 0.26;
+      shape = ex.shape;
+      perSide = ex.perSide;
       mat =
         ex.finish === "chrome"
           ? chromeLocal
@@ -2137,18 +2338,46 @@ export function createCar(colors: CarColors): THREE.Group {
     }
     const z = d.tail + 0.02;
     const origins: THREE.Vector3[] = [];
-    for (const sx of xs) {
-      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.1, len, 14), mat);
-      pipe.rotation.x = Math.PI / 2;
-      pipe.position.set(sx, y, z);
+    /**
+     * One tip. Round is a cylinder; square is the same tube with four
+     * sides and a chamfer instead of a radius, which is what a squared
+     * tip actually is — a rolled edge on a rectangular section, not a
+     * box stuck on a pipe. Oval is a cylinder squashed on one axis.
+     */
+    const tip = (px: number, py: number): void => {
+      let geo: THREE.BufferGeometry;
+      if (shape === "square") {
+        // A rounded box, so the mouth catches the same specular line a
+        // real rolled edge does. Slightly wider than tall, like every
+        // squared tip ever fitted to anything.
+        geo = roundedBox(r * 2.1, r * 1.55, len, Math.min(r * 0.34, 0.022), 3);
+      } else {
+        geo = new THREE.CylinderGeometry(r, r * 1.1, len, shape === "oval" ? 18 : 14);
+        geo.rotateX(Math.PI / 2);
+        if (shape === "oval") geo.scale(1.5, 0.72, 1);
+      }
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(px, py, z);
       // Tagged so the mod test can read the finish off the mesh that was
       // actually built, rather than fishing for a cylinder of the right
       // height — which missed the stock pipes entirely and reported their
       // finish as null.
-      pipe.userData.exhaustPipe = true;
-      group.add(pipe);
+      m.userData.exhaustPipe = true;
+      m.userData.tipShape = shape;
+      group.add(m);
       // Just outside the exit face, which is the tail-most end of the pipe.
-      origins.push(new THREE.Vector3(sx, y, z - len / 2 - 0.04));
+      origins.push(new THREE.Vector3(px, py, z - len / 2 - 0.04));
+    };
+    for (const sx of xs) {
+      if (perSide === 2) {
+        // Stacked rather than side by side: a split system runs one tube
+        // over the other out of a single hanger, and stacked is also the
+        // only way two tubes fit behind a bumper cut for one.
+        tip(sx, y + r * 1.15);
+        tip(sx, y - r * 1.15);
+      } else {
+        tip(sx, y);
+      }
     }
     group.userData.exhaustTips = origins;
   }

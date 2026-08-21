@@ -10,7 +10,7 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, STATIONS, FORECOURT } from "./track";
 import { buildWorld, areaAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
-import { createCar, TAIL } from "./cars";
+import { createCar, crownShell, CROWN, TAIL } from "./cars";
 import { RIVALS, RivalDef } from "./rivals";
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
@@ -4802,6 +4802,13 @@ export class GameEngine {
         };
       }
     ).__grnGrip = { newLoadState, solveLoad, gripAtSpeed, HANDLING };
+    // The surfacing pass, so a test can ask the FUNCTION what it does to
+    // a section instead of inferring it from a screenshot of a car.
+    (
+      window as unknown as {
+        __grnCrown: { crownShell: typeof crownShell; CROWN: typeof CROWN };
+      }
+    ).__grnCrown = { crownShell, CROWN };
     (window as unknown as { __grnLandmarks: typeof LANDMARK_S }).__grnLandmarks = LANDMARK_S;
     (window as unknown as { __grnDebug: object }).__grnDebug = {
       playerSpeed: this.player.speed,

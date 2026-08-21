@@ -206,6 +206,91 @@ console.log(
     `${(Math.abs(governed.pitch) * DEG).toFixed(2)} deg of level`
 );
 
+// --- The panels are crowned -------------------------------------------
+//
+// Every shell in this game is an ExtrudeGeometry: a side profile pushed
+// across the width with a bevel round the edge, which gives a rounded
+// EDGE around a perfectly FLAT slab. Real bodywork has none of that —
+// the roof and bonnet dome across, the flanks bulge at the shoulder and
+// tuck at the rocker, the glasshouse leans in.
+//
+// Asked of the FUNCTION rather than of a car. Whether a particular
+// silhouette happens to look curved in a screenshot is a fact about the
+// screenshot; what the surfacing pass does to a section is a fact about
+// the surfacing pass, and it is the one that has to hold for all
+// fifteen.
+const crown = await page.evaluate(() => {
+  const THREE = window.__grnThree;
+  const { crownShell, CROWN } = window.__grnCrown;
+  // A plain box, 2 m across and 1 m tall: a slab with no curvature
+  // anywhere, which is exactly what the shells were.
+  const box = new THREE.BoxGeometry(2, 1, 4, 24, 24, 24);
+  const before = { halfW: [], top: [] };
+  const after = { halfW: [], top: [] };
+  // Half-width at three heights, and the top surface's height at the
+  // centre against its height at the edge.
+  const sample = (geo, out) => {
+    const p = geo.attributes.position;
+    const bands = [0.2, 0.55, 0.9];
+    for (const b of bands) {
+      let w = 0;
+      for (let i = 0; i < p.count; i++) {
+        const t = p.getY(i) + 0.5;              // 0..1 up the box
+        if (Math.abs(t - b) > 0.06) continue;
+        w = Math.max(w, Math.abs(p.getX(i)));
+      }
+      out.halfW.push(+w.toFixed(4));
+    }
+    // The top surface: highest vertex near the centre line, and highest
+    // near the edge.
+    let mid = -9, edge = -9;
+    for (let i = 0; i < p.count; i++) {
+      const x = Math.abs(p.getX(i));
+      const y = p.getY(i);
+      if (x < 0.12) mid = Math.max(mid, y);
+      if (x > 0.85) edge = Math.max(edge, y);
+    }
+    out.top.push(+mid.toFixed(4), +edge.toFixed(4));
+  };
+  sample(box, before);
+  crownShell(box, CROWN.body);
+  sample(box, after);
+  return { before, after, spec: CROWN.body };
+});
+const [bLow, bMid, bHigh] = crown.before.halfW;
+const [aLow, aMid, aHigh] = crown.after.halfW;
+console.log(
+  `\ncrown     a flat 2 m slab, half-width at 20/55/90% height: ` +
+    `${bLow}/${bMid}/${bHigh} -> ${aLow}/${aMid}/${aHigh} m`
+);
+console.log(
+  `tumblehome ${check(aHigh < aMid - 0.008,
+    `the section is ${aHigh} m at the roof against ${aMid} at the shoulder — it is still a slab`)}  ` +
+    `${((1 - aHigh / aMid) * 100).toFixed(1)}% narrower at the roof than at the shoulder`
+);
+console.log(
+  `rocker     ${check(aLow < aMid - 0.004,
+    `the section is ${aLow} m at the rocker against ${aMid} at the shoulder`)}  ` +
+    `${((1 - aLow / aMid) * 100).toFixed(1)}% narrower at the rocker`
+);
+// And nothing got WIDER. Every detail on the flanks — mirrors, arch
+// lips, side markers, the flag, a crew's decal — is anchored against the
+// half-width the profile tables were written with, so a section that
+// bulged outward would leave all of them sunk inside the paint.
+console.log(
+  `no bulge   ${check(Math.max(aLow, aMid, aHigh) <= Math.max(bLow, bMid, bHigh) + 1e-6,
+    `the crown pushed the section out to ${Math.max(aLow, aMid, aHigh)} m from ${Math.max(bLow, bMid, bHigh)}`)}  ` +
+    `widest point unmoved at ${Math.max(aLow, aMid, aHigh)} m — nothing on the flanks sinks`
+);
+const [bTopMid, bTopEdge] = crown.before.top;
+const [aTopMid, aTopEdge] = crown.after.top;
+console.log(
+  `dome       ${check(aTopMid - aTopEdge > 0.012,
+    `the top falls ${(aTopMid - aTopEdge).toFixed(4)} m from centre to edge (was ${(bTopMid - bTopEdge).toFixed(4)})`)}  ` +
+    `the top falls ${((aTopMid - aTopEdge) * 1000).toFixed(0)} mm from centre line to edge ` +
+    `(flat slab: ${((bTopMid - bTopEdge) * 1000).toFixed(0)} mm)`
+);
+
 await browser.close();
 if (fail.length) {
   console.log(`\n${fail.length} problem${fail.length === 1 ? "" : "s"}:`);

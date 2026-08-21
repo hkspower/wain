@@ -1787,6 +1787,270 @@ function lighthouse(): THREE.Group {
  */
 export const LANDMARK_S: Record<string, number> = {};
 
+/**
+ * FLYOVERS — the road running under something.
+ *
+ * A Kuwaiti dual carriageway is not a ribbon between landmarks. The
+ * Ring Roads cross each other and cross Gulf Road on bridges, and the
+ * experience of driving one at night is punctuated by them: the world
+ * closes over you for a second and a half, the lamps stop, the sound
+ * changes, and then it opens again. The game had none — the road ran
+ * from one landmark to the next with nothing above it at all — and
+ * flat-out down a straight the absence reads as a road with no depth.
+ *
+ * Everything here is built for the ONE angle a driver ever sees it
+ * from: the approach and the pass underneath. Nobody in this game will
+ * ever look at a flyover from above, so the deck's top is a suggestion
+ * and the SOFFIT — the underside, with its girder lines and its
+ * expansion joint — is where the detail goes, because that is the face
+ * that sweeps over the windscreen.
+ *
+ * The deck is skewed across the road rather than square to it, because
+ * a grade separation almost never crosses at ninety degrees, and a
+ * square one reads as a garden gate.
+ */
+const FLYOVERS: ReadonlyArray<{
+  /** Metres along the lap. */
+  s: number;
+  /** Crossing angle, radians off perpendicular. */
+  skew: number;
+  /** How wide the crossing road's deck is, in metres. */
+  deck: number;
+  /**
+   * A deeper structure: thicker deck, deeper girders, a warning beacon.
+   *
+   * This started life as `centrePier`, on the reasoning that a wide
+   * crossing needs its span broken — which is true, and which put a
+   * two-metre concrete column in the middle of a fourteen-metre
+   * carriageway, because this road has no central reserve to put one
+   * in. The car cannot hit it (the physics holds inside halfWidthAt and
+   * scenery has no collider), so it would simply have driven through a
+   * bridge pier at 200 km/h, five times a lap, for ever.
+   *
+   * A single span over a road this wide is carried on depth instead.
+   */
+  deep: boolean;
+}> = [
+  // Sharq, where the ring road drops onto the corniche.
+  { s: 640, skew: 0.32, deck: 13, deep: false },
+  // Salmiya, approaching the marina.
+  { s: 2180, skew: -0.24, deck: 11, deep: false },
+  // Shuwaikh, the industrial crossing — the widest of them.
+  { s: 4180, skew: 0.18, deck: 19, deep: true },
+  // Jahra Road, inland.
+  { s: 6250, skew: -0.36, deck: 15, deep: true },
+  // ...and one on the run back down to the line.
+  { s: 7720, skew: 0.27, deck: 12, deep: false },
+];
+
+/** How far either side of a flyover the street lighting stops. A lamp
+ *  column is 8.4 m tall and a deck soffit is at 6.4 — a pole under a
+ *  bridge goes through it. Real lighting stops short of a structure and
+ *  the structure carries its own. */
+const FLYOVER_CLEAR = 30;
+
+/** True if `s` is close enough to a flyover that a street pole would
+ *  foul the deck. */
+function underFlyover(track: Track, s: number): boolean {
+  for (const f of FLYOVERS) {
+    if (Math.abs(track.deltaAhead(f.s, s)) < FLYOVER_CLEAR) return true;
+  }
+  return false;
+}
+
+function flyover(
+  track: Track,
+  spec: (typeof FLYOVERS)[number],
+  concrete: THREE.CanvasTexture,
+  beacons: THREE.MeshStandardMaterial[]
+): THREE.Group {
+  const g = new THREE.Group();
+  const hw = track.halfWidthAt(spec.s);
+
+  // Clearance to the soffit. 6.4 m: above every legal load and well
+  // above the tallest thing in this game that can get under it, and low
+  // enough that it fills the windscreen on the approach — which is the
+  // whole effect.
+  const SOFFIT = 6.4;
+  // A longer clear span needs a deeper section to carry it, and depth is
+  // the only lever left once a pier in the road is off the table.
+  const THICK = spec.deep ? 1.7 : 1.15;
+
+  // The deck has to clear the carriageway plus the verges plus the
+  // piers, measured ALONG the skewed axis — a crossing at 20 degrees is
+  // 6% longer than the road is wide, and cutting it to the road's width
+  // leaves the deck ending in mid-air over the hard shoulder.
+  const reach = (hw + 13) / Math.cos(spec.skew);
+
+  const deckMat = new THREE.MeshStandardMaterial({
+    map: concrete,
+    color: 0x8a8f96,
+    roughness: 0.92,
+    metalness: 0.02,
+  });
+  // The underside is its own material and darker, because it is: a
+  // soffit is in permanent shade and stained by fifty years of exhaust,
+  // and giving it the deck's own concrete makes the bridge read like a
+  // white plank floating over the road.
+  const soffitMat = new THREE.MeshStandardMaterial({
+    map: concrete,
+    color: 0x4c5158,
+    roughness: 1,
+    metalness: 0,
+  });
+  const pierMat = new THREE.MeshStandardMaterial({
+    map: concrete,
+    color: 0x70757c,
+    roughness: 0.95,
+  });
+
+  const cross = new THREE.Group();
+  cross.rotation.y = spec.skew;
+  g.add(cross);
+
+  // --- The deck, and the soffit under it -------------------------------
+  const deck = new THREE.Mesh(
+    new THREE.BoxGeometry(reach * 2, THICK, spec.deck),
+    deckMat
+  );
+  deck.position.y = SOFFIT + THICK / 2;
+  deck.castShadow = true;
+  deck.receiveShadow = true;
+  cross.add(deck);
+
+  // Girder lines: what you actually look at going under. Ribs running
+  // the length of the span, spaced across the deck — more of them and
+  // deeper on the wide crossings, which is how a single span over a
+  // fourteen-metre carriageway is actually carried.
+  const ribs = spec.deep ? 6 : 4;
+  const ribDepth = spec.deep ? 0.95 : 0.62;
+  for (let i = 0; i < ribs; i++) {
+    const t = (i + 0.5) / ribs - 0.5;
+    const rib = new THREE.Mesh(
+      new THREE.BoxGeometry(reach * 2, ribDepth, spec.deck * (spec.deep ? 0.1 : 0.13)),
+      soffitMat
+    );
+    rib.position.set(0, SOFFIT - ribDepth / 2, t * spec.deck * 0.84);
+    cross.add(rib);
+  }
+  // The expansion joint: one dark line straight down the middle of the
+  // soffit, and the single detail that makes a bridge read as two spans
+  // meeting rather than as one slab.
+  const joint = new THREE.Mesh(
+    new THREE.BoxGeometry(0.34, 0.1, spec.deck),
+    new THREE.MeshStandardMaterial({ color: 0x22262b, roughness: 1 })
+  );
+  joint.position.set(0, SOFFIT - 0.04, 0);
+  cross.add(joint);
+
+  // --- Parapets, and the crossing road's own lighting -------------------
+  for (const side of [-1, 1]) {
+    const parapet = new THREE.Mesh(
+      new THREE.BoxGeometry(reach * 2, 1.05, 0.42),
+      deckMat
+    );
+    parapet.position.set(0, SOFFIT + THICK + 0.52, (side * spec.deck) / 2 - side * 0.21);
+    cross.add(parapet);
+  }
+  // Columns along the deck, seen edge-on from below as a row of lights
+  // crossing the sky. Sparse: five over the whole span.
+  {
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x3c4148, roughness: 0.7 });
+    const headMat = new THREE.MeshStandardMaterial({
+      color: 0xf4f8ff,
+      emissive: 0xdfeaff,
+      emissiveIntensity: 2.6,
+      fog: false,
+    });
+    for (let i = 0; i < 5; i++) {
+      const x = (i / 4 - 0.5) * reach * 1.7;
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.15, 6, 6), poleMat);
+      pole.position.set(x, SOFFIT + THICK + 3, spec.deck / 2 - 0.5);
+      cross.add(pole);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.1, 0.18), headMat);
+      head.position.set(x, SOFFIT + THICK + 6.3, spec.deck / 2 - 0.5);
+      cross.add(head);
+    }
+  }
+
+  // --- Piers -----------------------------------------------------------
+  //
+  // Outside the drivable width by a clear margin, because the physics
+  // holds the car inside `halfWidthAt` and anything beyond it is scenery
+  // the car can never reach. A pier the player could hit would need a
+  // collider, and a bridge is not worth a new collision case.
+  const pierX = (hw + 5.5) / Math.cos(spec.skew);
+  const makePier = (x: number) => {
+    const column = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.95, 1.15, SOFFIT - 0.55, 12),
+      pierMat
+    );
+    column.position.set(x, (SOFFIT - 0.55) / 2, 0);
+    column.castShadow = true;
+    cross.add(column);
+    // The cap the deck sits on, wider than the column and slightly
+    // proud of the deck edge.
+    const cap = new THREE.Mesh(
+      new THREE.BoxGeometry(3.4, 0.55, spec.deck + 0.8),
+      pierMat
+    );
+    cap.position.set(x, SOFFIT - 0.28, 0);
+    cross.add(cap);
+    // A plinth, so the column meets the ground on something rather than
+    // growing out of the sand.
+    const plinth = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.5, 3.2), pierMat);
+    plinth.position.set(x, 0.25, 0);
+    cross.add(plinth);
+  };
+  makePier(-pierX);
+  makePier(pierX);
+
+  // --- What a driver actually sees on the approach ----------------------
+  //
+  // Hazard chevrons on the pier faces turned toward oncoming traffic,
+  // and a height gauge on the leading edge of the deck. Both are the
+  // things that catch a headlight from three hundred metres out, and
+  // both are on real bridges for exactly that reason.
+  {
+    const chev = (pointRight: boolean) =>
+      new THREE.MeshStandardMaterial({
+        map: chevronTexture(pointRight),
+        emissive: 0x555555,
+        roughness: 0.7,
+      });
+    for (const side of [-1, 1]) {
+      const board = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.5), chev(side > 0));
+      // On the pier, on the face the driver is coming AT. The group is
+      // turned so +z is the direction of travel, which puts the
+      // approach side at -z — the first version hung both boards on the
+      // back of the piers, where they were visible to nobody but the
+      // rival's mirrors.
+      board.position.set(side * pierX * Math.cos(spec.skew), 2.3, -(spec.deck / 2 + 1.4));
+      board.rotation.y = Math.PI;
+      g.add(board);
+    }
+    // The deck's leading edge, painted. A black-and-yellow band on the
+    // beam is the last thing in frame before you are under it.
+    const band = new THREE.Mesh(
+      new THREE.BoxGeometry(reach * 2, 0.34, 0.1),
+      new THREE.MeshStandardMaterial({ color: 0xf5b301, emissive: 0x3a2a00, roughness: 0.6 })
+    );
+    band.position.set(0, SOFFIT + 0.18, -(spec.deck / 2 + 0.06));
+    cross.add(band);
+  }
+
+  // An aircraft-warning beacon on the tallest crossings, which is what
+  // a lighting column on a bridge over a road near an airport carries.
+  if (spec.deep) {
+    const b = makeBeacon(beacons);
+    b.position.set(0, SOFFIT + THICK + 7.2, spec.deck / 2 - 0.5);
+    cross.add(b);
+  }
+
+  g.name = "flyover";
+  return g;
+}
+
 function placeBeside(
   track: Track,
   obj: THREE.Object3D,
@@ -2509,8 +2773,15 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     for (let i = 0; i < count; i++) {
       const s = i * spacing;
       const u = s / L;
-      if (u > TUNNEL_U.from - 0.004 && u < TUNNEL_U.to + 0.004) {
-        // No street poles inside the tunnel
+      // No street poles inside the tunnel — and none under a flyover
+      // either. A column is 8.4 m tall and a deck soffit is at 6.4, so
+      // an unfiltered pole grows straight through the bridge; real
+      // lighting stops short of a structure and the structure carries
+      // its own, which is what flyover() puts on the parapet.
+      if (
+        (u > TUNNEL_U.from - 0.004 && u < TUNNEL_U.to + 0.004) ||
+        underFlyover(track, s)
+      ) {
         poles.setMatrixAt(i, hidden);
         shrouds.setMatrixAt(i, hidden);
         lamps.setMatrixAt(i, hidden);
@@ -3293,6 +3564,22 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     towersBeacon.position.y = 114;
     towers.add(towersBeacon);
     scene.add(towers);
+  }
+
+  // The flyovers. Placed with the landmarks because that is what they
+  // are: the five points on a lap where the road runs under something,
+  // and the only structures in this world a driver passes THROUGH
+  // rather than beside.
+  for (const spec of FLYOVERS) {
+    const f = flyover(track, spec, concreteTexture(), beacons);
+    const p = new THREE.Vector3();
+    const tan = new THREE.Vector3();
+    track.pointAt(spec.s, p);
+    track.tangentAt(spec.s, tan);
+    f.position.copy(p);
+    // Square to the road first; the deck's own skew is inside the group.
+    f.rotation.y = Math.atan2(tan.x, tan.z);
+    scene.add(f);
   }
 
   const grandMosque = mosque();
