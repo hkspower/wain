@@ -54,7 +54,7 @@ export default function Footer() {
               <li>
                 <Link href="/add" className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-ink-700 transition hover:text-coral-700">
                   سجّل مكانك
-                  <span className="rounded-full bg-palm-500/12 px-1.5 py-0.5 text-[11px] font-semibold text-palm-700">
+                  <span className="rounded-full bg-palm-500/12 px-1.5 py-0.5 text-xs font-semibold text-palm-700">
                     مجاناً
                   </span>
                 </Link>

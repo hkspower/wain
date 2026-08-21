@@ -297,21 +297,21 @@ export default function AdminApp() {
             >
               {text}
               {id === "orders" && openOrders > 0 && (
-                <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${
+                <span className={`rounded-full px-1.5 py-0.5 text-xs font-semibold ${
                   tab === id ? "bg-white/20 text-white" : "bg-sun-100 text-sun-900"
                 }`}>
                   {toArabicDigits(openOrders)}
                 </span>
               )}
               {id === "queue" && waitingInQueue > 0 && (
-                <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${
+                <span className={`rounded-full px-1.5 py-0.5 text-xs font-semibold ${
                   tab === id ? "bg-white/20 text-white" : "bg-sun-100 text-sun-900"
                 }`}>
                   {toArabicDigits(waitingInQueue)}
                 </span>
               )}
               {id === "submissions" && pendingCount > 0 && (
-                <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${
+                <span className={`rounded-full px-1.5 py-0.5 text-xs font-semibold ${
                   tab === id ? "bg-white/20 text-white" : "bg-sun-100 text-sun-900"
                 }`}>
                   {toArabicDigits(pendingCount)}
@@ -421,12 +421,12 @@ export default function AdminApp() {
                   </span>
                 </span>
                 {p.featured && (
-                  <span className="rounded-full bg-sun-100 px-2.5 py-1 text-[11px] font-semibold text-sun-800">مميّز</span>
+                  <span className="rounded-full bg-sun-100 px-2.5 py-1 text-xs font-semibold text-sun-800">مميّز</span>
                 )}
                 <button
                   type="button"
                   onClick={() => togglePublished(p)}
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
                     p.published !== false
                       ? "bg-palm-500/15 text-palm-700 hover:bg-palm-500/25"
                       : "bg-sand-200 text-ink-600 hover:bg-sand-300"

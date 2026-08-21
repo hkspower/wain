@@ -301,7 +301,7 @@ export default function OrderPanel({ place }: { place: Place }) {
       >
         {busy ? "نرسل الطلب…" : "أرسل الطلب"}
       </button>
-      <p className="mt-2 text-center text-[11px] leading-relaxed text-ink-500">
+      <p className="mt-2 text-center text-2xs leading-relaxed text-ink-500">
         ما تدفع شي هنا. الطلب يوصل للمكان وتدفع لهم وقت الاستلام.
         {place.orderNoteAr ? ` ${place.orderNoteAr}` : ""}
       </p>

@@ -176,7 +176,7 @@ function OrderCard({ order, onForget }: { order: TrackedOrder; onForget: () => v
                     }`}
                   />
                 </span>
-                <span className={`text-center text-[11px] leading-tight ${done ? "font-semibold text-ink-800" : "text-ink-500"}`}>
+                <span className={`text-center text-2xs leading-tight ${done ? "font-semibold text-ink-800" : "text-ink-500"}`}>
                   {step.labelAr}
                   {done && at && <span className="block font-normal text-ink-500">{agoAr(at)}</span>}
                 </span>

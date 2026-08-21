@@ -58,7 +58,7 @@ export default function AppTabBar() {
               key={href}
               href={href}
               aria-current={active ? "page" : undefined}
-              className={`flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold transition ${
+              className={`flex flex-col items-center gap-1 py-2.5 text-2xs font-semibold transition ${
                 active ? "text-coral-700" : "text-ink-500 hover:text-ink-700"
               }`}
             >

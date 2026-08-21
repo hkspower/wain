@@ -71,7 +71,7 @@ export default function MediaReview({
                 // eslint-disable-next-line @next/next/no-img-element -- signed URL
                 <img src={urls[logoPath]} alt="" className="size-full object-contain" />
               ) : (
-                <span className="text-[11px] text-ink-500">تعذّر</span>
+                <span className="text-2xs text-ink-500">تعذّر</span>
               )}
             </span>
             <button
@@ -131,7 +131,7 @@ export default function MediaReview({
                       // eslint-disable-next-line @next/next/no-img-element -- signed URL
                       <img src={urls[p]} alt="" className="size-full object-cover" />
                     ) : (
-                      <span className="grid size-full place-items-center text-[11px] text-ink-500">
+                      <span className="grid size-full place-items-center text-2xs text-ink-500">
                         تعذّر
                       </span>
                     )}

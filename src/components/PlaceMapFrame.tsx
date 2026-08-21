@@ -132,7 +132,7 @@ export default function PlaceMapFrame({
             <span className="grid place-items-center" style={{ width: NEAR_PIN_PX, height: NEAR_PIN_PX }}>
               <PlaceIcon slug={p.slug} className="size-4" />
             </span>
-            <span className="pointer-events-none absolute bottom-full mb-1.5 whitespace-nowrap rounded-lg bg-ink-900 px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow-lg transition group-hover:opacity-100 group-focus-visible:opacity-100">
+            <span className="pointer-events-none absolute bottom-full mb-1.5 whitespace-nowrap rounded-lg bg-ink-900 px-2 py-1 text-2xs font-semibold text-white opacity-0 shadow-lg transition group-hover:opacity-100 group-focus-visible:opacity-100">
               {p.nameAr}
             </span>
           </Link>

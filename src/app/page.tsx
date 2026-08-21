@@ -77,7 +77,7 @@ export default function HomePage() {
               >
                 <CategoryIcon name="all" />
                 <span className="text-sm font-semibold">الكل</span>
-                <span className="text-[11px] font-semibold text-sun-900">
+                <span className="text-2xs font-semibold text-sun-900">
                   {countAr(places.length, PLACES_COUNT)}
                 </span>
               </Link>
@@ -90,7 +90,7 @@ export default function HomePage() {
                 >
                   <CategoryIcon name={cat.icon} />
                   <span className="text-sm font-semibold leading-tight">{cat.ar}</span>
-                  <span className="text-[11px] font-semibold text-white">
+                  <span className="text-2xs font-semibold text-white">
                     {countAr(countByCategory(cat.id), PLACES_COUNT)}
                   </span>
                 </Link>

@@ -480,7 +480,7 @@ export default function WainAi() {
               </>
             )}
 
-            <p className="mt-3 text-center text-[11px] leading-relaxed text-ink-500">
+            <p className="mt-3 text-center text-2xs leading-relaxed text-ink-500">
               {WAIN_AI_COPY.micNote}{" "}
               <Link href="/privacy" className="underline hover:text-coral-700">
                 الخصوصية

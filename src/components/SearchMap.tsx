@@ -155,7 +155,7 @@ export default function SearchMap({
             >
               <PlaceIcon slug={p.slug} className="size-5" />
               <span
-                className={`pointer-events-none absolute bottom-full mb-1.5 whitespace-nowrap rounded-lg bg-ink-900 px-2 py-1 text-[11px] font-semibold text-white shadow-lg transition ${
+                className={`pointer-events-none absolute bottom-full mb-1.5 whitespace-nowrap rounded-lg bg-ink-900 px-2 py-1 text-2xs font-semibold text-white shadow-lg transition ${
                   on ? "opacity-100" : "opacity-0"
                 }`}
               >

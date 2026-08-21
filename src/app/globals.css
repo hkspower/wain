@@ -180,6 +180,21 @@
      has deep descenders (ج ح خ ع م ن ي س ص ق ل) plus dots above and below,
      so a two-line heading collides. Loosened per step, staying tighter as
      the type grows the way a type scale should. */
+  /* The step below text-xs, declared rather than improvised.
+
+     It was already a step — twenty-two `text-2xs` scattered across the
+     components, because people kept wanting "a bit smaller than xs" and had
+     nowhere to say it. Written down here it is one decision instead of
+     twenty-two, and the next person reaching for a badge size has something to
+     reach for other than a number.
+
+     It is the floor. Arabic carries meaning in dots and short connecting
+     strokes — ب ت ث ن ي differ by dots alone — and those are the first thing
+     to go as the size drops, so 10px Latin is small where 10px Arabic is
+     ambiguous. Nothing on the site goes below this. */
+  --text-2xs: 0.6875rem; /* 11px — badges, counts, tab labels */
+  --text-2xs--line-height: 1.45;
+
   --text-lg--line-height: 1.6;
   --text-xl--line-height: 1.5;
   --text-2xl--line-height: 1.4;

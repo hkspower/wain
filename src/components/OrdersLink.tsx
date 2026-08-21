@@ -62,7 +62,7 @@ export function QueueLink() {
         className="inline-flex min-h-11 items-center gap-1.5 text-sm text-ink-500 transition hover:text-coral-700"
       >
         دوري
-        <span className="rounded-full bg-sea-50 px-1.5 py-0.5 text-[11px] font-semibold text-sea-700">
+        <span className="rounded-full bg-sea-50 px-1.5 py-0.5 text-xs font-semibold text-sea-700">
           {toArabicDigits(count)}
         </span>
       </Link>
@@ -81,7 +81,7 @@ export default function OrdersLink() {
         className="inline-flex min-h-11 items-center gap-1.5 text-sm text-ink-500 transition hover:text-coral-700"
       >
         طلباتي
-        <span className="rounded-full bg-sea-50 px-1.5 py-0.5 text-[11px] font-semibold text-sea-700">
+        <span className="rounded-full bg-sea-50 px-1.5 py-0.5 text-xs font-semibold text-sea-700">
           {toArabicDigits(count)}
         </span>
       </Link>

@@ -187,7 +187,7 @@ export default function MediaUploader({
                 >
                   <IconClose className="size-3.5" />
                 </button>
-                <span className="absolute inset-x-0 bottom-0 truncate bg-ink-900/70 px-1.5 py-0.5 text-[10px] text-white">
+                <span className="absolute inset-x-0 bottom-0 truncate bg-ink-900/70 px-1.5 py-0.5 text-2xs text-white">
                   {describeSize(p.file.size)}
                 </span>
               </li>

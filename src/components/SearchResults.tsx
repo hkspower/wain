@@ -96,7 +96,7 @@ function PlaceMeta({ id }: { id: string }) {
         {toArabicDigits(place.rating.toFixed(1))}
       </span>
       <span
-        className="flex items-center gap-1 text-[11px] font-semibold text-sand-700"
+        className="flex items-center gap-1 text-2xs font-semibold text-sand-700"
         aria-label={`مستوى السعر ${toArabicDigits(place.priceLevel)} من ٣`}
       >
         <span className="flex gap-0.5" aria-hidden="true">
@@ -158,7 +158,7 @@ export default function SearchResults({
                 <span className="truncate font-semibold text-ink-900">
                   <Marked text={hit.doc.title} matched={hit.matched} />
                 </span>
-                <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${KIND_TONE[hit.doc.kind]}`}>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${KIND_TONE[hit.doc.kind]}`}>
                   {KIND_LABEL[hit.doc.kind]}
                 </span>
               </span>

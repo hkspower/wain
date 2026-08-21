@@ -200,11 +200,11 @@ export default function Submissions({
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-display text-lg font-semibold text-ink-900">{s.name_ar}</h3>
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS_TONE[s.status]}`}>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_TONE[s.status]}`}>
                         {STATUS_LABEL[s.status]}
                       </span>
                       {cat && (
-                        <span className="rounded-full bg-sea-50 px-2 py-0.5 text-[11px] font-semibold text-sea-700">
+                        <span className="rounded-full bg-sea-50 px-2 py-0.5 text-xs font-semibold text-sea-700">
                           {cat.ar}
                         </span>
                       )}
