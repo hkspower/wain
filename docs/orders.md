@@ -94,6 +94,12 @@ Losing the device's storage loses the list. That is the honest cost of not
 asking anyone to sign up, so the reference is shown large enough to read out
 and the business can always find the order by it.
 
+### Sending twice
+
+A stable `OrderAttempt` id means pressing «أرسل الطلب» again after a lost reply
+collides with the row already written rather than adding a second one. See
+[network.md](network.md) — the reasoning is the same for every write.
+
 ### A bug this fixed
 
 The first version of `submitOrder` did `.insert(...).select("id").single()`.

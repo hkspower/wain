@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { IconCheck, IconClock, IconClose, IconPhone } from "@/components/icons";
 import { loadSupabase } from "@/lib/supabase";
+import { describeNetError } from "@/lib/net";
+import { useLatestRequest } from "@/lib/useLatest";
 import { toArabicDigits } from "@/lib/places";
 import { formatKwd, orderReference, orderTotal, type OrderLine } from "@/lib/orders";
 
@@ -57,28 +59,41 @@ export default function Orders({ onCountChange }: { onCountChange?: (n: number) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAll, setShowAll] = useState(false);
+  const { run } = useLatestRequest();
 
   const load = useCallback(async () => {
     setLoading(true);
-    const sb = await loadSupabase();
-    if (!sb) { setError("لوحة التحكّم غير مربوطة بقاعدة بيانات."); setLoading(false); return; }
-    const { data, error: e } = await sb
-      .from("orders")
-      // Named columns, not *: track_token is the customer's key to their own
-      // order and the queue has no use for it, so it never leaves the database.
-      .select(
-        "id,status,place_slug,place_name_ar,lines,total_fils,pickup_at,customer_name,customer_phone,note_ar,created_at"
-      )
-      .order("created_at", { ascending: false })
-      .limit(200);
-    if (e) setError(`ما قدرنا نقرأ الطلبات: ${e.message}`);
-    else {
-      const list = (data ?? []) as OrderRow[];
-      setRows(list);
-      onCountChange?.(list.filter((r) => r.status === "placed").length);
-    }
-    setLoading(false);
-  }, [onCountChange]);
+    await run(
+      async (signal) => {
+        const sb = await loadSupabase();
+        if (!sb) return { fatal: "لوحة التحكّم غير مربوطة بقاعدة بيانات." } as const;
+        return await sb
+          .from("orders")
+          // Named columns, not *: track_token is the customer's key to their
+          // own order and the queue has no use for it, so it never leaves the
+          // database.
+          .select(
+            "id,status,place_slug,place_name_ar,lines,total_fils,pickup_at,customer_name,customer_phone,note_ar,created_at"
+          )
+          .order("created_at", { ascending: false })
+          .limit(200)
+          .abortSignal(signal);
+      },
+      (result) => {
+        setLoading(false);
+        if ("fatal" in result) return setError(result.fatal);
+        const { data, error: e } = result;
+        if (e) {
+          setError(describeNetError(e, `ما قدرنا نقرأ الطلبات: ${e.message}`));
+          return;
+        }
+        setError("");
+        const list = (data ?? []) as OrderRow[];
+        setRows(list);
+        onCountChange?.(list.filter((r) => r.status === "placed").length);
+      }
+    );
+  }, [onCountChange, run]);
 
   useEffect(() => { void load(); }, [load]);
 

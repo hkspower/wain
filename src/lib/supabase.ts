@@ -1,6 +1,7 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { deadlineFetch } from "@/lib/net";
 import type { CategoryId, Place } from "@/lib/places";
 
 /**
@@ -37,6 +38,12 @@ export async function loadSupabase(): Promise<SupabaseClient | null> {
   clientPromise ??= import("@supabase/supabase-js").then(({ createClient }) =>
     createClient(URL_, ANON, {
       auth: { persistSession: true, autoRefreshToken: true },
+      // Every request the client makes — queries, RPC, auth refreshes, storage
+      // uploads — goes through one fetch with a deadline on it. Without this,
+      // nothing in the app could fail from taking too long: a phone leaving
+      // Wi-Fi mid-request leaves the promise pending and the spinner turning
+      // forever. See src/lib/net.ts.
+      global: { fetch: deadlineFetch },
     })
   );
   try {

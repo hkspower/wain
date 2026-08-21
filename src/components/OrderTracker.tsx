@@ -1,15 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { IconCheck, IconClock, IconClose, IconGo } from "@/components/icons";
 import { toArabicDigits } from "@/lib/places";
+import { usePoll } from "@/lib/usePoll";
+import { supabaseEnabled } from "@/lib/supabase";
 import {
   fetchOrderState,
   forgetOrder,
   formatKwd,
+  isTerminalStatus,
   listOrders,
   type OrderState,
+  type OrderStateResult,
   type OrderStatus,
   type TrackedOrder,
 } from "@/lib/orders";
@@ -63,24 +67,32 @@ function agoAr(iso: string | null): string {
   return `من ${toArabicDigits(hours)} ${hours === 1 ? "ساعة" : hours === 2 ? "ساعتين" : "ساعات"}`;
 }
 
+/** A pre-order is a short errand, so a slow poll catches "ready" soon enough
+ *  without keeping the radio busy. usePoll pauses it in a hidden tab and
+ *  refreshes the moment the customer looks again. */
+const POLL_MS = 45_000;
+
 function OrderCard({ order, onForget }: { order: TrackedOrder; onForget: () => void }) {
-  const [state, setState] = useState<OrderState | null>(null);
-  const [checked, setChecked] = useState(false);
+  const { value, settled, failures } = usePoll<OrderStateResult>(
+    (signal) => fetchOrderState(order.id, order.token, signal),
+    {
+      intervalMs: POLL_MS,
+      enabled: supabaseEnabled,
+      // Collected and cancelled never change again, so stop asking entirely
+      // rather than re-reading the same row until the tab closes.
+      isFinal: (r) => r.ok && !!r.state && isTerminalStatus(r.state.status),
+    }
+  );
 
-  const refresh = useCallback(async () => {
-    const s = await fetchOrderState(order.id, order.token);
-    setState(s);
-    setChecked(true);
-  }, [order.id, order.token]);
-
-  useEffect(() => {
-    void refresh();
-    // A pre-order is a short errand, so a slow poll is enough to catch "ready"
-    // without hammering anything. Cleared on unmount so a backgrounded tab
-    // stops asking.
-    const t = setInterval(() => void refresh(), 45000);
-    return () => clearInterval(t);
-  }, [refresh]);
+  const state: OrderState | null = value?.ok ? value.state : null;
+  // Not asking and asking without an answer come to the same thing for the
+  // person reading the screen: we cannot tell them the status, and saying so
+  // is better than a progress line they might read as confirmed.
+  const unreachable =
+    !supabaseEnabled || (settled && (failures > 0 || (!!value && !value.ok)));
+  // Answered, and the order genuinely is not there — a different thing from
+  // not being able to ask, and worth saying differently.
+  const missing = !!value && value.ok && value.state === null;
 
   const status: OrderStatus = state?.status ?? "placed";
   const stepIndex = STEPS.findIndex((s) => s.id === status);
@@ -179,9 +191,14 @@ function OrderCard({ order, onForget }: { order: TrackedOrder; onForget: () => v
         </button>
       </div>
 
-      {checked && !state && (
+      {unreachable && (
         <p className="mt-2 text-xs text-ink-500">
-          ما قدرنا نتأكد من الحالة الحين — الطلب محفوظ، جرّب بعد شوي.
+          ما قدرنا نتأكد من الحالة الحين — الطلب محفوظ، وبنحدّثها أول ما يرجع الاتصال.
+        </p>
+      )}
+      {missing && (
+        <p className="mt-2 text-xs text-ink-500">
+          ما لقينا هذا الطلب عند المكان. اتصل فيهم ومعك الرقم <span dir="ltr">{order.reference}</span>.
         </p>
       )}
     </li>

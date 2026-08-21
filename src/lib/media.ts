@@ -1,6 +1,7 @@
 "use client";
 
 import { loadSupabase } from "@/lib/supabase";
+import { describeNetError } from "@/lib/net";
 import { toArabicDigits } from "@/lib/places";
 
 /**
@@ -110,7 +111,13 @@ export async function uploadPending(
     upsert: true,
   });
   if (error) {
-    return { ok: false, message: `ما قدرنا نرفع «${file.name}». جرّب مرة ثانية.` };
+    // A photo can be several megabytes over a phone connection, so "the
+    // network went away" is the likeliest reason by far — worth saying,
+    // because it tells the person to move rather than to pick another file.
+    return {
+      ok: false,
+      message: describeNetError(error, `ما قدرنا نرفع «${file.name}». جرّب مرة ثانية.`),
+    };
   }
   return { ok: true, path };
 }

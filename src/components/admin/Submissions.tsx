@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { IconCheck, IconClose, IconPinSolid } from "@/components/icons";
 import { getCategory, toArabicDigits } from "@/lib/places";
 import { loadSupabase } from "@/lib/supabase";
+import { describeNetError } from "@/lib/net";
+import { useLatestRequest } from "@/lib/useLatest";
 import type { SubmissionRow } from "@/lib/submissions";
 import type { EditablePlace } from "@/components/admin/PlaceForm";
 
@@ -78,18 +80,30 @@ export default function Submissions({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [open, setOpen] = useState<string | null>(null);
+  const { run } = useLatestRequest();
 
   const load = useCallback(async () => {
-    const sb = await loadSupabase();
-    if (!sb) return;
     setLoading(true);
-    let query = sb.from("submissions").select("*").order("created_at", { ascending: false });
-    if (filter === "pending") query = query.eq("status", "pending");
-    const { data, error: e } = await query;
-    setLoading(false);
-    if (e) { setError(e.message); return; }
-    setRows((data ?? []) as SubmissionRow[]);
-  }, [filter]);
+    await run(
+      async (signal) => {
+        const sb = await loadSupabase();
+        if (!sb) return null;
+        let query = sb.from("submissions").select("*").order("created_at", { ascending: false });
+        if (filter === "pending") query = query.eq("status", "pending");
+        return await query.abortSignal(signal);
+      },
+      (result) => {
+        setLoading(false);
+        if (!result) return;
+        if (result.error) {
+          setError(describeNetError(result.error, result.error.message));
+          return;
+        }
+        setError("");
+        setRows((result.data ?? []) as SubmissionRow[]);
+      }
+    );
+  }, [filter, run]);
 
   useEffect(() => { void load(); }, [load]);
 

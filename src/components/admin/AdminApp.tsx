@@ -13,6 +13,8 @@ import {
   supabaseEnabled,
   type PlaceRow,
 } from "@/lib/supabase";
+import { describeNetError } from "@/lib/net";
+import { useLatestRequest } from "@/lib/useLatest";
 import PlaceForm, { type EditablePlace } from "@/components/admin/PlaceForm";
 import MediaReview from "@/components/admin/MediaReview";
 import Orders from "@/components/admin/Orders";
@@ -36,6 +38,7 @@ export default function AdminApp() {
   const [tab, setTab] = useState<Tab>("places");
   const [openOrders, setOpenOrders] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
+  const { run } = useLatestRequest();
   // Set while an approved submission is being reviewed in the place editor, so
   // saving the place can close the submission out in the same step. Without it
   // an approved business would sit in the queue forever, looking unhandled.
@@ -94,25 +97,34 @@ export default function AdminApp() {
   }, [session]);
 
   const load = useCallback(async () => {
-    const sb = await loadSupabase();
-    if (!sb) return;
-    const { data, error: e } = await sb
-      .from("places")
-      .select("*")
-      .order("sort_order", { ascending: true });
-    if (e) {
-      setError(e.message);
-      return;
-    }
-    setRows(
-      (data as PlaceRow[]).map((r) => ({
-        ...rowToPlace(r),
-        id: r.id,
-        published: r.published,
-        sortOrder: r.sort_order,
-      }))
+    await run(
+      async (signal) => {
+        const sb = await loadSupabase();
+        if (!sb) return null;
+        return await sb
+          .from("places")
+          .select("*")
+          .order("sort_order", { ascending: true })
+          .abortSignal(signal);
+      },
+      (result) => {
+        if (!result) return;
+        if (result.error) {
+          setError(describeNetError(result.error, result.error.message));
+          return;
+        }
+        setError("");
+        setRows(
+          ((result.data ?? []) as PlaceRow[]).map((r) => ({
+            ...rowToPlace(r),
+            id: r.id,
+            published: r.published,
+            sortOrder: r.sort_order,
+          }))
+        );
+      }
     );
-  }, []);
+  }, [run]);
 
   useEffect(() => {
     if (isAdmin) void load();

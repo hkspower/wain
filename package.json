@@ -14,7 +14,8 @@
     "ai:brief": "node scripts/wain-ai-brief.mjs",
     "test:shouq": "node tests/run-shouq.mjs",
     "audit:places": "node scripts/audit-places.mjs",
-    "test:orders": "node tests/run-orders.mjs"
+    "test:orders": "node tests/run-orders.mjs",
+    "test:net": "node tests/run-net.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.1",

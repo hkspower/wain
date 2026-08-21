@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { IconCheck, IconClock, IconClose, IconCoins, IconGo } from "@/components/icons";
 import { fieldClass, hintClass, labelClass } from "@/lib/form-classes";
@@ -10,11 +10,12 @@ import {
   MAX_QTY_PER_ITEM,
   acceptsOrders,
   formatKwd,
-  orderReference,
+  newOrderAttempt,
   orderTotal,
   pickupSlots,
   submitOrder,
   validateOrder,
+  type OrderAttempt,
   type OrderLine,
 } from "@/lib/orders";
 
@@ -54,6 +55,29 @@ export default function OrderPanel({ place }: { place: Place }) {
   const total = orderTotal(lines);
   const count = lines.reduce((n, l) => n + l.qty, 0);
 
+  /**
+   * The identity this basket is being sent under.
+   *
+   * Held across presses of «أرسل الطلب», and replaced only when what is being
+   * ordered actually changes. Same basket, same time, pressed twice because
+   * the first reply never came back — that is one order, and the stable id
+   * makes the database say so. A different basket is a different order and
+   * gets a new id, because pretending otherwise would leave someone collecting
+   * a coffee they had already removed.
+   *
+   * Name, phone and note are not part of the signature: correcting a typo in
+   * your own phone number is not a second order.
+   */
+  const signature = JSON.stringify([lines, pickupAt]);
+  const attemptRef = useRef<{ signature: string; attempt: OrderAttempt } | null>(null);
+  if (attemptRef.current?.signature !== signature) {
+    attemptRef.current = { signature, attempt: newOrderAttempt() };
+  }
+
+  // A customer who navigates away mid-send is not waiting for the answer.
+  const inFlight = useRef<AbortController | null>(null);
+  useEffect(() => () => inFlight.current?.abort(), []);
+
   if (!acceptsOrders(place)) return null;
 
   const bump = (id: string, by: number) => {
@@ -82,7 +106,15 @@ export default function OrderPanel({ place }: { place: Place }) {
     }
     setErrors([]);
     setBusy(true);
-    const result = await submitOrder(input);
+    // One send at a time. Without this, an impatient double-tap put two
+    // requests on the wire and the slower one's answer overwrote the faster
+    // one's — the classic pair of racing XHRs.
+    inFlight.current?.abort();
+    const controller = new AbortController();
+    inFlight.current = controller;
+    const result = await submitOrder(input, attemptRef.current!.attempt, controller.signal);
+    if (controller.signal.aborted) return;
+    inFlight.current = null;
     setBusy(false);
     if (result.ok) {
       haptic("success");

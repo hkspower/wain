@@ -1,6 +1,12 @@
 "use client";
 
 import { loadSupabase, supabaseEnabled } from "@/lib/supabase";
+import {
+  describeNetError,
+  isDefinitelyOffline,
+  isRetryableSupabaseError,
+  retry,
+} from "@/lib/net";
 import { toArabicDigits, type Place } from "@/lib/places";
 
 /**
@@ -134,6 +140,27 @@ export function newTrackToken(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * The identity of one attempt to place one basket.
+ *
+ * Minted once, when the panel opens, and reused for every press of «أرسل
+ * الطلب» — which is the whole point. A phone that loses signal after the row
+ * has been written but before the response comes back leaves the customer
+ * looking at «ما وصل الطلب» beside a button. They press it again. With a fresh
+ * id each time, that is a second order, and the shop makes two coffees for one
+ * person. With a stable id it is the *same* row: the database refuses the
+ * duplicate primary key, and a refused duplicate is proof that the first
+ * attempt worked.
+ */
+export interface OrderAttempt {
+  id: string;
+  token: string;
+}
+
+export function newOrderAttempt(): OrderAttempt {
+  return { id: newOrderId(), token: newTrackToken() };
+}
+
 export type OrderStatus = "placed" | "ready" | "collected" | "cancelled";
 
 /** What the device remembers so the customer can come back to an order. */
@@ -198,33 +225,79 @@ export interface OrderState {
 }
 
 /**
+ * Answered, or not answered.
+ *
+ * These used to be the same thing: fetchOrderState returned null both when the
+ * order was genuinely not there and when the request never made it out of the
+ * building, so the screen could not tell "this order is gone" from "your train
+ * is in a tunnel". `ok` separates them, and the tracker says something
+ * different for each.
+ */
+export type OrderStateResult =
+  | { ok: true; state: OrderState | null }
+  | { ok: false; offline: boolean };
+
+/**
  * The live state of one order.
  *
  * Goes through order_status(), which reaches past the deny-all SELECT policy
  * but only for a caller holding both the id and the token. It returns nothing
  * that identifies the customer — no name, no phone — so even a leaked token
  * discloses only what its holder already knew.
+ *
+ * Retried: the function is declared `stable` and reads one row, so asking
+ * twice costs a round trip and changes nothing.
  */
-export async function fetchOrderState(id: string, token: string): Promise<OrderState | null> {
-  if (!supabaseEnabled) return null;
+export async function fetchOrderState(
+  id: string,
+  token: string,
+  signal?: AbortSignal | null
+): Promise<OrderStateResult> {
+  if (!supabaseEnabled) return { ok: false, offline: false };
   const sb = await loadSupabase();
-  if (!sb) return null;
-  const { data, error } = await sb.rpc("order_status", { p_id: id, p_token: token });
-  if (error || !Array.isArray(data) || data.length === 0) return null;
+  if (!sb) return { ok: false, offline: false };
+
+  let result;
+  try {
+    result = await retry(
+      // Awaited inside, not returned: the query builder is a thenable rather
+      // than a real Promise, so handing it straight back loses .catch().
+      async () => {
+        const q = sb.rpc("order_status", { p_id: id, p_token: token });
+        return await (signal ? q.abortSignal(signal) : q);
+      },
+      { signal, shouldRetry: (r) => isRetryableSupabaseError(r.error) }
+    );
+  } catch {
+    return { ok: false, offline: isDefinitelyOffline() };
+  }
+
+  const { data, error } = result;
+  if (error) return { ok: false, offline: isDefinitelyOffline() };
+  if (!Array.isArray(data) || data.length === 0) return { ok: true, state: null };
+
   const r = data[0] as Record<string, unknown>;
   return {
-    status: r.status as OrderStatus,
-    placeSlug: String(r.place_slug ?? ""),
-    placeNameAr: String(r.place_name_ar ?? ""),
-    lines: Array.isArray(r.lines) ? (r.lines as OrderLine[]) : [],
-    totalFils: Number(r.total_fils ?? 0),
-    pickupAt: String(r.pickup_at ?? ""),
-    noteAr: String(r.note_ar ?? ""),
-    createdAt: String(r.created_at ?? ""),
-    readyAt: (r.ready_at as string) ?? null,
-    collectedAt: (r.collected_at as string) ?? null,
-    cancelledAt: (r.cancelled_at as string) ?? null,
+    ok: true,
+    state: {
+      status: r.status as OrderStatus,
+      placeSlug: String(r.place_slug ?? ""),
+      placeNameAr: String(r.place_name_ar ?? ""),
+      lines: Array.isArray(r.lines) ? (r.lines as OrderLine[]) : [],
+      totalFils: Number(r.total_fils ?? 0),
+      pickupAt: String(r.pickup_at ?? ""),
+      noteAr: String(r.note_ar ?? ""),
+      createdAt: String(r.created_at ?? ""),
+      readyAt: (r.ready_at as string) ?? null,
+      collectedAt: (r.collected_at as string) ?? null,
+      cancelledAt: (r.cancelled_at as string) ?? null,
+    },
   };
+}
+
+/** Nothing will change after these, so there is nothing left to poll for. */
+export function isTerminalStatus(status: OrderStatus): boolean {
+  return status === "collected" || status === "cancelled";
 }
 
 export interface OrderInput {
@@ -270,7 +343,19 @@ export function validateOrder(input: OrderInput): string[] {
   return errs;
 }
 
-export async function submitOrder(input: OrderInput): Promise<OrderResult> {
+/**
+ * Send one basket.
+ *
+ * `attempt` carries the id and token, and the caller keeps it across retries —
+ * see OrderAttempt. That is what makes this safe to send more than once: the
+ * insert is keyed on an id the device chose, so a repeat either writes the row
+ * or collides with the row it already wrote. Both mean the order exists.
+ */
+export async function submitOrder(
+  input: OrderInput,
+  attempt: OrderAttempt = newOrderAttempt(),
+  signal?: AbortSignal | null
+): Promise<OrderResult> {
   const problems = validateOrder(input);
   if (problems.length) return { ok: false, reason: "invalid", message: problems[0] };
 
@@ -285,50 +370,75 @@ export async function submitOrder(input: OrderInput): Promise<OrderResult> {
   if (!sb) return { ok: false, reason: "disabled", message: "الطلب المسبق مو متاح حالياً." };
 
   const phone = normalisePhone(input.customerPhone);
-  const id = newOrderId();
-  const token = newTrackToken();
-  // No .select() here on purpose — see newOrderId(). Asking for the row back
-  // makes PostgreSQL apply the SELECT policy to it, and anon has none, so the
-  // insert would roll back and the order would never exist.
-  const { error } = await sb
-    .from("orders")
-    .insert({
-      id,
-      track_token: token,
-      place_slug: input.placeSlug,
-      place_name_ar: input.placeNameAr,
-      // The line prices are stored as sent, so the business sees exactly what
-      // the customer was shown — a mismatch with its own menu is visible to a
-      // human rather than silently reconciled.
-      lines: input.lines,
-      total_fils: orderTotal(input.lines),
-      pickup_at: input.pickupAt,
-      customer_name: input.customerName.trim(),
-      customer_phone: phone,
-      note_ar: input.noteAr.trim(),
-      status: "placed",
-    });
+  const { id, token } = attempt;
+  const totalFils = orderTotal(input.lines);
 
-  if (!error) {
+  const succeed = (): OrderResult => {
     const tracked: TrackedOrder = {
       id,
       token,
       reference: orderReference(id),
       placeSlug: input.placeSlug,
       placeNameAr: input.placeNameAr,
-      totalFils: orderTotal(input.lines),
+      totalFils,
       pickupAt: input.pickupAt,
       placedAt: new Date().toISOString(),
     };
     rememberOrder(tracked);
     return { ok: true, reference: tracked.reference, tracked };
+  };
+
+  let result;
+  try {
+    result = await retry(
+      async () => {
+        // No .select() here on purpose — see newOrderId(). Asking for the row
+        // back makes PostgreSQL apply the SELECT policy to it, and anon has
+        // none, so the insert would roll back and the order would never exist.
+        const q = sb.from("orders").insert({
+          id,
+          track_token: token,
+          place_slug: input.placeSlug,
+          place_name_ar: input.placeNameAr,
+          // The line prices are stored as sent, so the business sees exactly
+          // what the customer was shown — a mismatch with its own menu is
+          // visible to a human rather than silently reconciled.
+          lines: input.lines,
+          total_fils: totalFils,
+          pickup_at: input.pickupAt,
+          customer_name: input.customerName.trim(),
+          customer_phone: phone,
+          note_ar: input.noteAr.trim(),
+          status: "placed",
+        });
+        return await (signal ? q.abortSignal(signal) : q);
+      },
+      { signal, shouldRetry: (r) => isRetryableSupabaseError(r.error) }
+    );
+  } catch (err) {
+    return {
+      ok: false,
+      reason: "network",
+      message: describeNetError(err, "ما وصل الطلب. تأكد من الاتصال وجرّب مرة ثانية."),
+    };
   }
-  if (error?.code === "23514")
+
+  const { error } = result;
+  if (!error) return succeed();
+
+  // 23505 is unique_violation on the primary key: this exact order is already
+  // in the table. The first attempt landed and only its reply was lost, so
+  // this is a success — and reporting it as one is what stops a customer with
+  // a bad signal from pressing send until the shop has four of everything.
+  if (error.code === "23505") return succeed();
+
+  if (error.code === "23514")
     return { ok: false, reason: "invalid", message: "في معلومة مو مضبوطة. راجع الطلب." };
+
   return {
     ok: false,
     reason: "network",
-    message: "ما وصل الطلب. تأكد من الاتصال وجرّب مرة ثانية.",
+    message: describeNetError(error, "ما وصل الطلب. تأكد من الاتصال وجرّب مرة ثانية."),
   };
 }
 

@@ -26,15 +26,20 @@ export function usePlaces(): { places: Place[]; live: boolean } {
     // never even requested.
     if (!supabaseEnabled) return;
     let cancelled = false;
+    const controller = new AbortController();
 
     void (async () => {
       const sb = await loadSupabase();
       if (cancelled || !sb) return;
+      // Aborted on unmount so a slow reply cannot land on a component that is
+      // gone. Not wrapped in retry(): this is a GET, and postgrest-js already
+      // retries those — see the note in net.ts about not stacking.
       const { data: rows, error } = await sb
         .from("places")
         .select("*")
         .eq("published", true)
-        .order("sort_order", { ascending: true });
+        .order("sort_order", { ascending: true })
+        .abortSignal(controller.signal);
       // On any failure keep the snapshot: stale data beats an empty site.
       if (cancelled || error || !rows?.length) return;
       setData((rows as PlaceRow[]).map(rowToPlace));
@@ -43,6 +48,7 @@ export function usePlaces(): { places: Place[]; live: boolean } {
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, []);
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { loadSupabase, supabaseEnabled } from "@/lib/supabase";
+import { describeNetError } from "@/lib/net";
 import type { CategoryId } from "@/lib/places";
 
 /**
@@ -153,6 +154,6 @@ export async function submitBusiness(input: SubmissionInput): Promise<SubmitResu
   return {
     ok: false,
     reason: "network",
-    message: "ما وصل الطلب. تأكد من الاتصال وجرّب مرة ثانية.",
+    message: describeNetError(error, "ما وصل الطلب. تأكد من الاتصال وجرّب مرة ثانية."),
   };
 }
