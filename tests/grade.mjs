@@ -58,6 +58,7 @@ const shoot = (setup) => page.evaluate(async (setup)=>{
   e.setContrast(setup.contrast ?? 1);
   e.setHighlights(setup.highlights ?? 0);
   e.setSaturation(setup.sat ?? 1);
+  e.setBrightness(setup.brightness ?? 1);
   e.player.s = 2203;
   e.player.lat = 0;
   // Still, deliberately. The camera carries a speed-scaled rumble, so at
@@ -203,6 +204,109 @@ console.log(
 );
 check(nDown.mean < n0.mean, "a stop down at night did not darken the frame");
 check(darker > lighter * 3, "a stop down at night did not darken most of the picture");
+
+// --- 1b. There is white in the picture ------------------------------
+//
+// There was not. The shoulder above the knee was an asymptote —
+// over/(over + headroom) — which approaches 1.0 and never arrives, and
+// tone mapping hands this pass values that top out around 1.0. So the
+// brightest pixel the game could physically produce came out at 0.930:
+// 237 of 255. Not the moon, not a lamp core, not a specular hit off a
+// wet panel. A picture with no white in it reads flat however much
+// contrast is poured into the middle of it.
+//
+// Asked of the CURVE rather than of a frame. Whether tonight's drive
+// happens to contain a bright enough lamp is a fact about the drive;
+// whether the curve can reach white at all is a fact about the grade.
+const white = await page.evaluate(() => {
+  const e = window.__grnEngine;
+  const u = e.grainPass.uniforms;
+  const K = u.uKnee.value;
+  const W = u.uWhitePoint.value;
+  // The shader's shoulder, in JS. One expression, copied deliberately:
+  // a test that re-derives it is testing its own arithmetic.
+  const shoulder = (c, h = 0) => {
+    const white = Math.max(K + 1e-3, W * (1 - h * 0.18));
+    const A = white - K;
+    const B = 1 - K;
+    const k = A / Math.max(B, 1e-4);
+    if (c < K) return c;
+    const s = Math.min(1, Math.max(0, (c - K) / A));
+    return K + B * (((k - 2) * s + (3 - 2 * k)) * s * s + k * s);
+  };
+  const out = {};
+  for (const c of [0.5, 0.8, K, 0.95, 1.0, W, 1.4]) out[c.toFixed(3)] = +shoulder(c).toFixed(4);
+  return {
+    knee: K, whitePoint: W, curve: out,
+    atWhite: shoulder(W), justUnder: shoulder(K + (W - K) * 0.5),
+    // Slope either side of the knee: it has to leave at 1 or the join
+    // is visible as a crease across every bright falloff in the game.
+    slopeBelow: (shoulder(K - 1e-4) - shoulder(K - 2e-4)) / 1e-4,
+    slopeAbove: (shoulder(K + 2e-4) - shoulder(K + 1e-4)) / 1e-4,
+    recover: shoulder(1.0, -1),
+    push: shoulder(1.0, 1),
+    // Monotone the whole way, which the cubic only is while the
+    // shoulder is at most three times the headroom above the knee.
+    monotone: (() => {
+      let prev = -1;
+      for (let c = 0; c <= 1.6; c += 0.001) {
+        const v = shoulder(c);
+        if (v < prev - 1e-9) return false;
+        prev = v;
+      }
+      return true;
+    })(),
+  };
+});
+console.log(
+  `\nwhite      knee ${white.knee} -> white point ${white.whitePoint}; ` +
+    Object.entries(white.curve).map(([k, v]) => `${k}->${v}`).join(" ")
+);
+console.log(
+  `reaches    ${check(white.atWhite >= 0.999,
+    `the white point maps to ${white.atWhite.toFixed(4)}, not to white`)}  ` +
+    `${white.whitePoint} in becomes ${(white.atWhite * 255).toFixed(0)}/255`
+);
+console.log(
+  `no crease  ${check(Math.abs(white.slopeAbove - white.slopeBelow) < 0.02,
+    `the curve's slope jumps from ${white.slopeBelow.toFixed(3)} to ${white.slopeAbove.toFixed(3)} at the knee`)}  ` +
+    `slope ${white.slopeBelow.toFixed(3)} below the knee, ${white.slopeAbove.toFixed(3)} above`
+);
+console.log(
+  `monotone   ${check(white.monotone, "the shoulder is not monotone — a brighter input comes out darker")}  ` +
+    `brighter in is never darker out`
+);
+console.log(
+  `controls   ${check(white.recover < white.push - 0.005,
+    `recover ${white.recover.toFixed(4)} and push ${white.push.toFixed(4)} do not straddle neutral`)}  ` +
+    `at 1.0 in: recover ${(white.recover * 255).toFixed(0)}, push ${(white.push * 255).toFixed(0)} of 255`
+);
+
+// --- 1c. Brightness lifts the floor and leaves white alone -----------
+//
+// A gamma about black, not a gain, because the thing that needs moving
+// in a night game is the bottom of the range: the asphalt between the
+// lamps, which is what the driver actually has to read. A gain would
+// push the lamps through the roof to get there. The two halves of that
+// claim are what is measured — the dark end moves, the top end does
+// not.
+const bDim = await shoot({ brightness: 1.0, hour: 22.5 });
+const bUp = await shoot({ brightness: 1.3, hour: 22.5 });
+const darkLift = bUp.luma.filter((v, i) => v > bDim.luma[i] + 1).length;
+console.log(
+  `\nbrightness 1.0 mean ${bDim.mean} -> 1.3 mean ${bUp.mean}; ` +
+    `top end ${bDim.topMean} -> ${bUp.topMean}; ${darkLift} of ${bUp.luma.length} pixels lifted`
+);
+console.log(
+  `lifts      ${check(bUp.mean > bDim.mean * 1.15 && darkLift > bUp.luma.length * 0.5,
+    `brightness moved the mean ${bDim.mean} -> ${bUp.mean} and lifted ${darkLift} pixels`)}  ` +
+    `the picture comes up, ${((darkLift / bUp.luma.length) * 100).toFixed(0)}% of pixels with it`
+);
+console.log(
+  `keeps white ${check(bUp.topMean < bDim.topMean * 1.06,
+    `the top end went ${bDim.topMean} -> ${bUp.topMean} — brightness is acting as a gain`)}  ` +
+    `the top end holds at ${bUp.topMean} against ${bDim.topMean}`
+);
 
 // --- 2. Contrast spreads the histogram, and holds the pivot ---
 // Measured at noon: a night frame occupies so little of the range that

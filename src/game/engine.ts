@@ -53,6 +53,7 @@ import {
   FUEL_FILS_PER_LITRE,
   PUMP_LITRES_PER_SEC,
   PUMP_MAX_KMH,
+  rpmAt,
 } from "./engines";
 import { loadGarage, saveGarage, computeEffects, addKd, fuelOf, setFuel, TuneEffects, getCar, CARS, rivalsBeaten, saveRivalsBeaten } from "./mods";
 import { levelInfo, recordRace, recordLap, loadProfileStats, LevelInfo } from "./profile";
@@ -127,6 +128,29 @@ export interface HudData {
   } | null;
   /** Brake state the driver needs to see: locked wheels, ABS, fade. */
   brakes: { lock: number; fade: number; abs: boolean };
+  /**
+   * The rev counter, from the engine's own needle.
+   *
+   * The HUD used to work its own revs out of the speed with
+   * `revFraction()`, which is the pure gearbox function and knows
+   * nothing about the clutch: at a standing launch it read zero while
+   * the engine was screaming at the torque peak. This is the SAME
+   * fraction the torque curve integrated this frame, turned into rpm
+   * against this car's own idle and redline, so a four-cylinder that
+   * spins to 8,400 and a V8 that stops at 6,200 get different dials
+   * rather than the same bar with different numbers on it.
+   */
+  tach: {
+    rpm: number;
+    idle: number;
+    redline: number;
+    /** 0..1 across the rev range — what the needle sweeps. */
+    frac: number;
+    /** 1-based, or 0 for neutral at a standstill. */
+    gear: number;
+    /** True inside the last of the range, where you should be shifting. */
+    shift: boolean;
+  };
 }
 
 export interface DriverCard {
@@ -1690,6 +1714,20 @@ export class GameEngine {
   setContrast(v: number): void {
     this.baseContrast = THREE.MathUtils.clamp(v, 0.7, 1.5);
     this.applyLook();
+  }
+
+  /**
+   * Brightness, 0.7 (dim) to 1.5 (bright). A gamma about black, so it
+   * lifts the asphalt between the lamps without touching white.
+   *
+   * A player control rather than a tuning constant. The one fact that
+   * decides the right value here is the one the game cannot know: what
+   * screen this is and how much light is in the room. A night game
+   * graded for a dark room is unreadable in a bright one, and graded
+   * for a bright one it is a grey film in a dark one.
+   */
+  setBrightness(v: number): void {
+    this.grainPass.uniforms.uBrightness.value = THREE.MathUtils.clamp(v, 0.7, 1.5);
   }
 
   /** Global saturation, 0.6 (washed) to 1.4 (poster). */
@@ -4840,6 +4878,18 @@ export class GameEngine {
       duel: this.duel,
       flashCount: performance.now() > this.flashWindowUntil ? 0 : this.flashCount,
       speedKmh: this.player.speed * KMH,
+      tach: (() => {
+        const eng = this.tune.engine;
+        const frac = Math.min(1, Math.max(0, this.revFrac));
+        return {
+          rpm: rpmAt(eng, frac),
+          idle: eng.idleRpm,
+          redline: eng.redlineRpm,
+          frac,
+          gear: this.player.speed * KMH < 2 ? 0 : gearAt(this.player.speed * KMH) + 1,
+          shift: frac > 0.93,
+        };
+      })(),
       areaName: area.name,
       areaArabic: area.arabic,
       hour: this.timeHours,

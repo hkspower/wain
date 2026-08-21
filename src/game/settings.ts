@@ -53,6 +53,10 @@ export interface Settings {
    */
   autoExposure: boolean;
   exposure: number;
+  /** A gamma about black: lifts the asphalt between the lamps without
+   *  moving white. The one control here whose right value depends on
+   *  something the game cannot see — the screen, and the room. */
+  brightness: number;
   contrast: number;
   highlights: number;
   /** Global saturation. Moderate by default — see DEFAULTS. */
@@ -77,6 +81,26 @@ export const DEFAULT_SETTINGS: Settings = {
   frameCap: "display",
   autoExposure: true,
   exposure: 0,
+  // 1.12, picked off a sweep rather than by eye. Measured per surface on
+  // the corniche at 22:30 (tools/shots/levels.mjs --brightness):
+  //
+  //   brightness   road p50   sky p50   road crush
+  //     1.00          18         37        0.62%
+  //     1.12          26         48        0.07%
+  //     1.20          31         55        0.00%
+  //
+  // The trade is the whole decision: brightness lifts the asphalt
+  // between the lamps, which is what a driver has to read, and it lifts
+  // the night sky with it, which is what makes the night a night. At
+  // 1.00 the road's median sits at 18 of 255 — under the point most
+  // panels in a lit room separate from black, so half the surface the
+  // player is steering on is invisible. By 1.20 the sky is at 55 and
+  // reading grey. 1.12 clears the road and leaves the sky under fifty.
+  //
+  // Anyone playing in a dark room should take it back down, and that is
+  // exactly why this is a slider: the fact that settles it is the one
+  // the game cannot see.
+  brightness: 1.12,
   // Moderate, deliberately. A little contrast over neutral gives the
   // night some snap without crushing the shadow detail the fill light
   // exists to put there, and a little saturation over neutral makes

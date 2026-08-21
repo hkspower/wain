@@ -104,6 +104,25 @@ export const GradeShader = {
     /** Where the highlight shoulder starts. Below this nothing changes,
      *  so midtones and the scene's colour intent are untouched. */
     uKnee: { value: 0.86 },
+    /**
+     * Brightness, as a gamma about black. 1 leaves the picture alone.
+     *
+     * A gamma rather than a gain, because this is a game set between
+     * midnight and ten to six and the thing a player needs to move is
+     * the BOTTOM of the range. Measured on the corniche at 22:30 the
+     * road's median pixel is 17 of 255 and its 99th percentile is 155:
+     * a very high-contrast frame whose bulk sits in the part of the
+     * range a screen in a lit room simply does not show. A gain would
+     * push the lamps through the roof to fix that. A gamma lifts the
+     * asphalt and leaves white where it is, because 1^k is 1 whatever k
+     * is — which is also why this can sit before the shoulder without
+     * ever threatening the white point.
+     *
+     * It is a player control and not a tuning constant, because the one
+     * fact that decides the right value is the one the game cannot
+     * know: what screen this is, and how much light is in the room.
+     */
+    uBrightness: { value: 1.0 },
     /** Gamma about the pivot. 1 = untouched. */
     uContrast: { value: 1.0 },
     /**
@@ -122,6 +141,30 @@ export const GradeShader = {
      * is what the control is for.
      */
     uPivot: { value: 0.22 },
+    /**
+     * The scene level that comes out PURE WHITE.
+     *
+     * The grade had a black point and no white point, and the shoulder
+     * above uKnee was an asymptote: `over / (over + (1 - knee))`, which
+     * approaches 1.0 and never arrives. Tone mapping hands this pass
+     * values that top out around 1.0, so the brightest pixel the game
+     * could physically produce landed at 0.930 — 237 of 255. Nothing in
+     * the picture was ever white. Not the moon, not a lamp core, not a
+     * specular hit off a wet panel; every one of them a light grey, and
+     * a picture with no white in it reads flat however much contrast is
+     * poured into the middle.
+     *
+     * The shoulder lands now: a cubic that leaves uKnee with slope 1,
+     * arrives at uWhitePoint with slope 0, and clamps there. Below the
+     * knee nothing is touched, which is the same promise as before.
+     *
+     * Just above 1 rather than at it, because the black-point rescale
+     * multiplies everything by 1/(1-bp) and the unsharp mask overshoots
+     * hard at bright edges — so the things that SHOULD be white already
+     * arrive a little over unity, and the things that merely got close
+     * do not.
+     */
+    uWhitePoint: { value: 1.02 },
     /** -1 recovers highlights, +1 pushes them. 0 = untouched. */
     uHighlights: { value: 0.0 },
     /** How completely the top end bleeds to white as it clips. */
@@ -160,6 +203,8 @@ export const GradeShader = {
     uniform float uTime;
     uniform vec2 uTexel;
     uniform float uBlackPoint;
+    uniform float uWhitePoint;
+    uniform float uBrightness;
     uniform float uToe;
     uniform float uLift;
     uniform float uLiftRange;
@@ -229,6 +274,12 @@ export const GradeShader = {
       // because it maps zero to zero.
       c.rgb += uLift * wLift;
 
+      // Brightness, before contrast so the S-curve still pivots on the
+      // picture rather than on the slider. Skipped entirely at 1.
+      if (abs(uBrightness - 1.0) > 0.001) {
+        c.rgb = pow(max(c.rgb, 0.0), vec3(1.0 / max(uBrightness, 0.05)));
+      }
+
       // Contrast as an S-curve about a pivot, not a one-sided gamma.
       //
       // It was p * (c/p)^k, which holds the pivot and never clips — but
@@ -252,17 +303,44 @@ export const GradeShader = {
         c.rgb = mix(lo, hi, step(uPivot, c.rgb));
       }
 
-      // Highlights: how much there is above the shoulder, then the
-      // shoulder itself. Two things push pixels past 1.0 here — the
-      // black-point rescale multiplies everything by 1/(1-bp), and the
-      // unsharp mask overshoots hard at bright edges (a headlamp against
-      // dark asphalt is the worst case). Clamping flat blows those to
+      // The shoulder, and where it lands.
+      //
+      // Two things push pixels past 1.0 here: the black-point rescale
+      // multiplies everything by 1/(1-bp), and the unsharp mask
+      // overshoots hard at bright edges — a headlamp against dark
+      // asphalt is the worst case. Clamping those flat blows them to
       // paper white AND bends their colour, because whichever channel
-      // reaches 1.0 first stops while the others keep climbing. This
-      // compresses asymptotically instead: uKnee maps to itself and
-      // everything above approaches 1.0 without reaching it.
-      vec3 over = max(c.rgb - uKnee, 0.0) * (1.0 + uHighlights * 0.6);
-      c.rgb = min(c.rgb, uKnee) + (1.0 - uKnee) * (over / (over + (1.0 - uKnee)));
+      // reaches 1.0 first stops while the others keep climbing. So
+      // there is a shoulder.
+      //
+      // It used to be an asymptote: over / (over + headroom), which is
+      // safe by construction and unable to reach white by the same
+      // construction. Tone mapping delivers this pass values that top
+      // out around 1.0, so the brightest pixel the game could physically
+      // produce came out at 0.930 — 237 of 255. There was no white in
+      // this picture at all: not the moon, not a lamp core, not a
+      // specular hit off a wet panel.
+      //
+      // A cubic Hermite instead: leaves the knee with slope 1 so
+      // nothing below it can tell the difference, arrives at the white
+      // point with slope 0 so it lands softly rather than clipping, and
+      // is flat above it. Monotone as long as the shoulder is no longer
+      // than three times the headroom above the knee, which the default
+      // is comfortably inside.
+      //
+      // The highlight control moves the white point rather than
+      // stretching the overshoot: recovering pushes white further away
+      // so less of the frame reaches it, pushing brings it closer.
+      // Which is what the words mean.
+      {
+        float white = max(uKnee + 1e-3, uWhitePoint * (1.0 - uHighlights * 0.18));
+        float A = white - uKnee;          // input range of the shoulder
+        float B = 1.0 - uKnee;            // output range
+        float k = A / max(B, 1e-4);       // slope-1 entry condition
+        vec3 s = clamp((c.rgb - uKnee) / A, 0.0, 1.0);
+        vec3 g = ((k - 2.0) * s + (3.0 - 2.0 * k)) * s * s + k * s;
+        c.rgb = mix(c.rgb, uKnee + B * g, step(uKnee, c.rgb));
+      }
 
       // Highlight desaturation. A sensor's channels clip one at a time,
       // so a bright coloured source loses its colour as it saturates —

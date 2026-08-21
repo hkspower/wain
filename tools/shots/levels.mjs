@@ -79,7 +79,7 @@ await page.evaluate(() => {
 });
 await page.waitForTimeout(4000);
 
-const measure = (hour, u) => page.evaluate(async ([hour, u]) => {
+const measure = (hour, u, opts = {}) => page.evaluate(async ([hour, u, opts]) => {
   const THREE = window.__grnThree;
   const e = window.__grnEngine;
   e.setPaused(true);
@@ -87,6 +87,10 @@ const measure = (hour, u) => page.evaluate(async ([hour, u]) => {
   e.world.setTimeOfDay(hour);
   e.applyDaylight();
   e.setExposure(0, true);
+  // Only when the sweep asks. Left alone, the engine keeps whatever
+  // settings.ts shipped — and a levels report taken at a brightness
+  // nobody plays at is a report about a picture nobody sees.
+  if (opts.brightness) e.setBrightness?.(opts.brightness);
   // Still and empty. The camera rumbles with speed, and a lit rival
   // drifting into frame is worth more than half a night histogram.
   const park = () => {
@@ -234,7 +238,7 @@ const measure = (hour, u) => page.evaluate(async ([hour, u]) => {
   out.beautyPng = png(beauty);
   out.idPng = png(ids);
   return out;
-}, [hour, u]);
+}, [hour, u, opts]);
 
 const row = (name, s) =>
   s
@@ -281,6 +285,25 @@ const BARS = [
   ["road", "crush", 0.25, "the road has crushed to black"],
   ["all", "crush", 0.22, "half the frame is sitting on black"],
 ];
+
+// A brightness sweep, for setting the default from what the picture
+// measures rather than from what it looks like on this machine's
+// screen. The question it answers is narrow and specific: how far can
+// the road's median be lifted before the sky stops being night?
+const SWEEP_B = process.argv.slice(2).find((a) => a.startsWith("--brightness"));
+if (SWEEP_B) {
+  console.log("\nbrightness  road p50   sky p50   all p50   road crush   clip");
+  for (const b of [0.95, 1.0, 1.05, 1.1, 1.12, 1.15, 1.2, 1.3]) {
+    const r = await measure(22.5, 3304, { brightness: b });
+    console.log(
+      `  ${b.toFixed(2)}      ${String(r.road.p50).padStart(6)}    ` +
+        `${String(r.sky.p50).padStart(6)}    ${String(r.all.p50).padStart(6)}    ` +
+        `${(r.road.crush * 100).toFixed(2)}%       ${(r.all.clip * 100).toFixed(2)}%`
+    );
+  }
+  await browser.close();
+  process.exit(0);
+}
 
 const fail = [];
 for (const hour of hours) {

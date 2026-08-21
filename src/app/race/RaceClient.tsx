@@ -7,7 +7,7 @@ import Results from "./Results";
 import Onboarding, { CoachHint, CoachState, hasOnboarded } from "./Onboarding";
 import { ICONS, IconFlash, IconCrown, IconGear, IconFlagKW, type IconName } from "./Icons";
 import Garage from "./Garage";
-import { gearAt, revFraction } from "@/game/gears";
+import { gearAt } from "@/game/gears";
 import { RIVALS, RivalDef } from "@/game/rivals";
 import { HubClient, DuelInvite, loadProfile, formatLap } from "@/game/net";
 import {
@@ -41,6 +41,132 @@ import {
   WAGERS,
 } from "@/game/mods";
 
+
+/**
+ * The rev counter.
+ *
+ * The tach used to be a skewed gradient bar, which tells you a fraction
+ * and nothing else. A driver does not read a fraction — they read where
+ * the needle is against the red, and they read it without looking
+ * away from the road, which is the whole reason instruments are round:
+ * an angle is legible in peripheral vision and a bar length is not.
+ *
+ * So: a real dial, with the speed and the gear inside it the way a
+ * modern cluster puts them. Drawn in SVG rather than canvas because it
+ * is vector at any pixel ratio, needs no draw loop of its own, and the
+ * only thing that changes per frame is one transform and a couple of
+ * text nodes — which is why everything below is driven through refs.
+ *
+ * The scale is the ENGINE'S, not a constant. A 1.6 that spins to 8,400
+ * and a 5.7 that stops at 6,200 get different dials, with the redline
+ * where that engine's redline actually is.
+ */
+// Degrees clockwise from twelve o'clock. 234 is about seven o'clock and
+// the 252-degree sweep ends at 126, about five — symmetric about the top
+// with the gap at the bottom, which is where every rev counter puts it
+// because the bottom of the dial is the part a driver's hand covers.
+const TACH_START = 234;
+const TACH_SWEEP = 252;
+
+function tachAngle(frac: number): number {
+  return TACH_START + TACH_SWEEP * Math.min(1, Math.max(0, frac));
+}
+
+/** A point on the dial, in the 100x100 viewBox. */
+function tachPoint(frac: number, radius: number): [number, number] {
+  const a = ((tachAngle(frac) - 90) * Math.PI) / 180;
+  return [50 + Math.cos(a) * radius, 50 + Math.sin(a) * radius];
+}
+
+/** An SVG arc path along the dial between two fractions. */
+function tachArc(from: number, to: number, radius: number): string {
+  const [x0, y0] = tachPoint(from, radius);
+  const [x1, y1] = tachPoint(to, radius);
+  const large = TACH_SWEEP * (to - from) > 180 ? 1 : 0;
+  return `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${radius} ${radius} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+}
+
+function RevCounter({
+  needleRef,
+  ringRef,
+  ticksRef,
+  redlineRef,
+  rpmRef,
+  speedRef,
+  gearRef,
+  size,
+}: {
+  needleRef: React.RefObject<SVGGElement | null>;
+  ringRef: React.RefObject<SVGCircleElement | null>;
+  ticksRef: React.RefObject<SVGGElement | null>;
+  redlineRef: React.RefObject<SVGPathElement | null>;
+  rpmRef: React.RefObject<HTMLSpanElement | null>;
+  speedRef: React.RefObject<HTMLSpanElement | null>;
+  gearRef: React.RefObject<HTMLSpanElement | null>;
+  size: number;
+}) {
+  return (
+    <div className="relative select-none" style={{ width: size, height: size }}>
+      <svg data-tach="dial" viewBox="0 0 100 100" className="absolute inset-0 size-full overflow-visible">
+        {/* The face. Dark and slightly translucent so the road shows
+            through it — this sits over the game, not beside it. */}
+        <circle cx="50" cy="50" r="46" fill="rgba(8,11,16,0.55)" />
+        {/* The sweep, unlit: what the needle has not reached yet. */}
+        <path d={tachArc(0, 1, 41)} fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth="3.2" strokeLinecap="round" />
+        {/* The redline arc. Its start is set per engine at runtime. */}
+        <path ref={redlineRef} d={tachArc(0.88, 1, 41)} fill="none" stroke="#ff3b30" strokeWidth="3.2" strokeLinecap="round" opacity="0.85" />
+        {/* Ticks, laid out at runtime because how many there are depends
+            on how far the engine spins. */}
+        <g data-tach="ticks" ref={ticksRef} />
+        {/* The shift ring: lights the whole rim rather than adding one
+            more small thing to look at. */}
+        <circle
+          ref={ringRef}
+          cx="50" cy="50" r="46"
+          fill="none" stroke="#ff3b30" strokeWidth="2.5"
+          opacity="0"
+          style={{ filter: "drop-shadow(0 0 6px rgba(255,59,48,0.9))" }}
+        />
+        {/* The needle. One transform per frame. */}
+        <g data-tach="needle" ref={needleRef} style={{ transformOrigin: "50px 50px" }}>
+          <path d="M 50 8.5 L 52.4 50 L 47.6 50 Z" fill="#ff5a4f" />
+          <circle cx="50" cy="50" r="4.2" fill="#12161d" stroke="rgba(255,255,255,0.35)" strokeWidth="1" />
+        </g>
+      </svg>
+      {/* The middle of the dial: what a cluster puts there. */}
+      {/* The middle. Everything here has to clear the rpm labels, which
+          sit on a 29.5 radius — so the speed is sized to fit inside
+          that circle rather than to fill the dial. */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span
+          ref={speedRef}
+          className="grn-display block italic leading-[0.78] tabular-nums text-[#e9edf1] [text-shadow:0_0_14px_rgba(56,201,238,0.25),0_3px_12px_rgba(0,0,0,0.9)]"
+          style={{ fontSize: size * 0.205 }}
+        >
+          0
+        </span>
+        <span className="grn-label text-white/50" style={{ fontSize: size * 0.058, marginTop: size * 0.008 }}>
+          km/h
+        </span>
+        <span
+          className="flex items-baseline justify-center gap-[0.4em]"
+          style={{ marginTop: size * 0.03 }}
+        >
+          <span
+            ref={gearRef}
+            className="grn-display italic leading-none text-sodium-400 [text-shadow:0_0_11px_rgba(245,165,36,0.35)]"
+            style={{ fontSize: size * 0.125 }}
+          >
+            N
+          </span>
+          <span data-tach="rpm" ref={rpmRef} className="grn-label tabular-nums text-white/45" style={{ fontSize: size * 0.058 }}>
+            0
+          </span>
+        </span>
+      </div>
+    </div>
+  );
+}
 
 type Phase = "menu" | "loading" | "playing" | "champion" | "error";
 
@@ -139,8 +265,17 @@ export default function RaceClient() {
   const mapPathRef = useRef<Array<[number, number]>>([]);
 
   const speedRef = useRef<HTMLSpanElement>(null);
-  const gearRef = useRef<HTMLDivElement>(null);
-  const rpmRef = useRef<HTMLDivElement>(null);
+  const gearRef = useRef<HTMLSpanElement>(null);
+  // The rev counter's moving parts. Refs rather than state: this is
+  // sixty updates a second and React has no business in that loop.
+  const needleRef = useRef<SVGGElement>(null);
+  const shiftRingRef = useRef<SVGCircleElement>(null);
+  const ticksRef = useRef<SVGGElement>(null);
+  const redlineRef = useRef<SVGPathElement>(null);
+  const rpmTextRef = useRef<HTMLSpanElement>(null);
+  /** The redline the ticks were last laid out for — an engine swap in
+   *  the garage changes the dial, and nothing else does. */
+  const dialFor = useRef(0);
   const areaRef = useRef<HTMLDivElement>(null);
   const rivalInfoRef = useRef<HTMLDivElement>(null);
   const battleRef = useRef<HTMLDivElement>(null);
@@ -280,6 +415,7 @@ export default function RaceClient() {
       if (k === "frameCap") engineRef.current?.setFrameCap(next.frameCap);
       if (k === "exposure" || k === "autoExposure")
         engineRef.current?.setExposure(next.exposure, next.autoExposure);
+      if (k === "brightness") engineRef.current?.setBrightness(next.brightness);
       if (k === "contrast") engineRef.current?.setContrast(next.contrast);
       if (k === "highlights") engineRef.current?.setHighlights(next.highlights);
       if (k === "saturation") engineRef.current?.setSaturation(next.saturation);
@@ -397,11 +533,53 @@ export default function RaceClient() {
   const onHud = useCallback(
     (d: HudData) => {
       if (speedRef.current) speedRef.current.textContent = String(Math.round(d.speedKmh));
-      // Gear + in-gear RPM fraction
-      const g = gearAt(d.speedKmh);
-      const rpm = revFraction(d.speedKmh);
-      if (gearRef.current) gearRef.current.textContent = d.speedKmh < 2 ? "N" : String(g + 1);
-      if (rpmRef.current) rpmRef.current.style.width = `${Math.round(rpm * 100)}%`;
+      // The rev counter, off the engine's own needle rather than worked
+      // back out of the speed: at a standing launch the gearbox function
+      // says zero while the engine is at its torque peak.
+      const t = d.tach;
+      if (gearRef.current) gearRef.current.textContent = t.gear === 0 ? "N" : String(t.gear);
+      if (rpmTextRef.current)
+        rpmTextRef.current.textContent = `${(t.rpm / 1000).toFixed(1)}k`;
+      if (needleRef.current)
+        needleRef.current.style.transform = `rotate(${tachAngle(t.frac).toFixed(2)}deg)`;
+      if (shiftRingRef.current)
+        shiftRingRef.current.style.opacity = t.shift ? "0.95" : "0";
+      // Lay the dial out once per engine. The scale is the engine's own,
+      // so a swap in the garage rebuilds it and nothing else does.
+      if (ticksRef.current && dialFor.current !== t.redline) {
+        dialFor.current = t.redline;
+        const svgns = "http://www.w3.org/2000/svg";
+        const g2 = ticksRef.current;
+        while (g2.firstChild) g2.removeChild(g2.firstChild);
+        const redFrom = (t.redline * 0.895 - t.idle) / (t.redline - t.idle);
+        if (redlineRef.current)
+          redlineRef.current.setAttribute("d", tachArc(Math.max(0, redFrom), 1, 41));
+        // One tick per thousand rpm, labelled. Where the numbers stop is
+        // where this engine stops, which is the point of the dial.
+        for (let rpm = Math.ceil(t.idle / 1000) * 1000; rpm <= t.redline; rpm += 1000) {
+          const f = (rpm - t.idle) / (t.redline - t.idle);
+          const [x0, y0] = tachPoint(f, 37.5);
+          const [x1, y1] = tachPoint(f, 33);
+          const line = document.createElementNS(svgns, "line");
+          line.setAttribute("x1", x0.toFixed(2));
+          line.setAttribute("y1", y0.toFixed(2));
+          line.setAttribute("x2", x1.toFixed(2));
+          line.setAttribute("y2", y1.toFixed(2));
+          line.setAttribute("stroke", rpm >= t.redline * 0.895 ? "#ff6b60" : "rgba(255,255,255,0.55)");
+          line.setAttribute("stroke-width", "1.4");
+          line.setAttribute("stroke-linecap", "round");
+          g2.appendChild(line);
+          const [tx, ty] = tachPoint(f, 29.5);
+          const label = document.createElementNS(svgns, "text");
+          label.setAttribute("x", tx.toFixed(2));
+          label.setAttribute("y", (ty + 2.4).toFixed(2));
+          label.setAttribute("text-anchor", "middle");
+          label.setAttribute("font-size", "7");
+          label.setAttribute("fill", rpm >= t.redline * 0.895 ? "#ff8a80" : "rgba(255,255,255,0.6)");
+          label.textContent = String(rpm / 1000);
+          g2.appendChild(label);
+        }
+      }
       if (areaRef.current) {
         // Two spans, not one string: the Latin display face carries no
         // Arabic, so a mixed textContent falls back glyph by glyph and
@@ -739,6 +917,7 @@ export default function RaceClient() {
     if (boot.quality !== "auto") engine.applyQualityTier(boot.quality);
     if (boot.sky !== "night") engine.setSky(boot.sky);
     engine.setExposure(boot.exposure, boot.autoExposure);
+    engine.setBrightness(boot.brightness);
     engine.setContrast(boot.contrast);
     engine.setHighlights(boot.highlights);
     engine.setSaturation(boot.saturation);
@@ -1254,33 +1433,16 @@ export default function RaceClient() {
               : "bottom-[calc(env(safe-area-inset-bottom)+1.75rem)]"
           }`}
         >
-          <div className="flex items-end gap-3.5">
-            <span
-              ref={speedRef}
-              className="grn-display block text-[3.9rem] italic leading-[0.8] tabular-nums text-[#e6e9ec] [text-shadow:0_0_14px_rgba(56,201,238,0.22),0_3px_12px_rgba(0,0,0,0.9)]"
-            >
-              0
-            </span>
-            <div className="pb-1">
-              <div className="grn-label text-[0.62rem]">km/h</div>
-              <div className="mt-1.5 flex items-baseline gap-1.5">
-                <span className="grn-label text-[0.6rem]">Gear</span>
-                <span
-                  ref={gearRef}
-                  className="grn-display text-2xl italic leading-none text-sodium-400 [text-shadow:0_0_11px_rgba(245,165,36,0.35)]"
-                >
-                  N
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="grn-meter mt-2 h-2 w-52 -skew-x-12">
-            <div
-              ref={rpmRef}
-              className="h-full bg-gradient-to-r from-cyan-400 via-amber-400 to-red-500"
-              style={{ width: "0%" }}
-            />
-          </div>
+          <RevCounter
+            needleRef={needleRef}
+            ringRef={shiftRingRef}
+            ticksRef={ticksRef}
+            redlineRef={redlineRef}
+            rpmRef={rpmTextRef}
+            speedRef={speedRef}
+            gearRef={gearRef}
+            size={200}
+          />
           <div ref={boostWrapRef} className="mt-1 items-center gap-2" style={{ display: "none" }}>
             <span className="grn-label w-11 text-[0.58rem] text-gulf-300">Boost</span>
             <div className="grn-meter h-1.5 w-44 -skew-x-12">
@@ -2383,6 +2545,7 @@ export default function RaceClient() {
               [
                 ["exposure", "Exposure", "التعريض", -2, 2, 0.25, (v: number) =>
                   `${v > 0 ? "+" : ""}${v.toFixed(2)} EV`],
+                ["brightness", "Brightness", "السطوع", 0.7, 1.5, 0.02, (v: number) => v.toFixed(2)],
                 ["contrast", "Contrast", "التباين", 0.7, 1.5, 0.05, (v: number) => v.toFixed(2)],
                 ["highlights", "Highlights", "الإضاءات", -1, 1, 0.1, (v: number) =>
                   v === 0 ? "neutral" : v < 0 ? `recover ${Math.abs(v).toFixed(1)}` : `push ${v.toFixed(1)}`],
