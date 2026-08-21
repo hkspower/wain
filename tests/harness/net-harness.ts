@@ -10,12 +10,18 @@
  */
 import * as net from "@/lib/net";
 import * as orders from "@/lib/orders";
+import * as queue from "@/lib/queue";
 import { loadSupabase } from "@/lib/supabase";
 
 declare global {
   interface Window {
     wain: typeof net & typeof orders & { loadSupabase: typeof loadSupabase };
+    q: typeof queue;
   }
 }
 
 window.wain = { ...net, ...orders, loadSupabase };
+// Kept separate: queue.ts and orders.ts both export normalisePhone, and
+// spreading them together would let one silently shadow the other — which is
+// exactly the kind of thing a test suite should not be quietly wrong about.
+window.q = queue;

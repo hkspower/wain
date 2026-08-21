@@ -18,12 +18,13 @@ import { useLatestRequest } from "@/lib/useLatest";
 import PlaceForm, { type EditablePlace } from "@/components/admin/PlaceForm";
 import MediaReview from "@/components/admin/MediaReview";
 import Orders from "@/components/admin/Orders";
+import Queue from "@/components/admin/Queue";
 import Submissions, { submissionToPlace } from "@/components/admin/Submissions";
 import { discardPending, publishMedia } from "@/lib/media";
 import type { SubmissionRow } from "@/lib/submissions";
 
 type View = { mode: "list" } | { mode: "edit"; place?: EditablePlace };
-type Tab = "places" | "submissions" | "orders";
+type Tab = "places" | "submissions" | "orders" | "queue";
 
 export default function AdminApp() {
   const [session, setSession] = useState<Session | null>(null);
@@ -37,6 +38,7 @@ export default function AdminApp() {
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<Tab>("places");
   const [openOrders, setOpenOrders] = useState(0);
+  const [waitingInQueue, setWaitingInQueue] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   const { run } = useLatestRequest();
   // Set while an approved submission is being reviewed in the place editor, so
@@ -280,7 +282,7 @@ export default function AdminApp() {
 
       {view.mode !== "edit" && (
         <div className="mb-6 flex flex-wrap gap-2" role="tablist" aria-label="أقسام اللوحة">
-          {([["places", "الأماكن"], ["submissions", "طلبات التسجيل"], ["orders", "الطلبات المسبقة"]] as const).map(([id, text]) => (
+          {([["places", "الأماكن"], ["submissions", "طلبات التسجيل"], ["orders", "الطلبات المسبقة"], ["queue", "الطابور"]] as const).map(([id, text]) => (
             <button
               key={id}
               type="button"
@@ -299,6 +301,13 @@ export default function AdminApp() {
                   tab === id ? "bg-white/20 text-white" : "bg-sun-100 text-sun-900"
                 }`}>
                   {toArabicDigits(openOrders)}
+                </span>
+              )}
+              {id === "queue" && waitingInQueue > 0 && (
+                <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${
+                  tab === id ? "bg-white/20 text-white" : "bg-sun-100 text-sun-900"
+                }`}>
+                  {toArabicDigits(waitingInQueue)}
                 </span>
               )}
               {id === "submissions" && pendingCount > 0 && (
@@ -358,6 +367,8 @@ export default function AdminApp() {
         </section>
       ) : tab === "orders" ? (
         <Orders onCountChange={setOpenOrders} />
+      ) : tab === "queue" ? (
+        <Queue onCountChange={setWaitingInQueue} />
       ) : tab === "submissions" ? (
         <Submissions
           onCountChange={setPendingCount}

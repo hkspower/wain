@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconBag, IconCompass, IconHome, IconSearch } from "@/components/icons";
-import { useOrderCount } from "@/components/OrdersLink";
+import { IconBag, IconClock, IconCompass, IconHome, IconSearch } from "@/components/icons";
+import { useOrderCount, useTicketCount } from "@/components/OrdersLink";
 import { haptic } from "@/lib/haptics";
 
 const TABS = [
@@ -13,6 +13,15 @@ const TABS = [
 ];
 
 const ORDERS_TAB = { href: "/orders", label: "طلباتي", icon: IconBag, exact: false };
+const QUEUE_TAB = { href: "/queue", label: "دوري", icon: IconClock, exact: false };
+
+// Written out rather than interpolated: Tailwind reads these class names out of
+// the source at build time, so `grid-cols-${n}` would produce no CSS at all.
+const COLUMNS: Record<number, string> = {
+  3: "grid-cols-3",
+  4: "grid-cols-4",
+  5: "grid-cols-5",
+};
 
 /**
  * The app version's bottom navigation.
@@ -25,17 +34,22 @@ const ORDERS_TAB = { href: "/orders", label: "طلباتي", icon: IconBag, exac
  */
 export default function AppTabBar() {
   const pathname = usePathname();
-  // The orders tab exists only while this device has an order to look at, so
-  // the bar is three tabs for most people and four for someone mid-errand.
+  // These two exist only while this device has something live to look at, so
+  // the bar is three tabs for most people and grows for someone mid-errand.
   const orderCount = useOrderCount();
-  const tabs = orderCount > 0 ? [...TABS, ORDERS_TAB] : TABS;
+  const ticketCount = useTicketCount();
+  const tabs = [
+    ...TABS,
+    ...(orderCount > 0 ? [ORDERS_TAB] : []),
+    ...(ticketCount > 0 ? [QUEUE_TAB] : []),
+  ];
 
   return (
     <nav
       aria-label="تنقّل التطبيق"
       className="app-chrome fixed inset-x-0 bottom-0 z-50 hidden border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur standalone:block"
     >
-      <div className={`mx-auto grid max-w-md ${tabs.length === 4 ? "grid-cols-4" : "grid-cols-3"}`}>
+      <div className={`mx-auto grid max-w-md ${COLUMNS[tabs.length] ?? "grid-cols-3"}`}>
         {tabs.map(({ href, label, icon: Icon, exact }) => {
           const active = exact ? pathname === href : pathname.startsWith(href);
           return (

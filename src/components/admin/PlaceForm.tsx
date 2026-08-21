@@ -6,10 +6,14 @@ import { fieldDenseClass, hintClass, labelClass } from "@/lib/form-classes";
 import { formatKwd, orderTotal, parseKwd, type MenuItem } from "@/lib/orders";
 import {
   DEFAULT_PREP_MINUTES,
+  DEFAULT_SERVICE_MINUTES,
   MAX_PREP_MINUTES,
+  MAX_SERVICE_MINUTES,
   MIN_PREP_MINUTES,
+  MIN_SERVICE_MINUTES,
   categories,
   clampPrepMinutes,
+  clampServiceMinutes,
   toArabicDigits,
   type CategoryId,
   type Place,
@@ -292,6 +296,61 @@ export default function PlaceForm({
           onChange={(e) => set("orderNoteAr", e.target.value || undefined)}
           placeholder="الاستلام من الكاشير، ونحتاج ١٥ دقيقة."
         />
+      </div>
+
+      {/* --- الطابور ---------------------------------------------------- */}
+      <div className="rounded-2xl border border-line bg-sand-100/50 p-4">
+        <label className={label} htmlFor="f-salonkind">نوع الصالون</label>
+        <select
+          id="f-salonkind"
+          className={input}
+          value={p.salonKind ?? ""}
+          onChange={(e) =>
+            set("salonKind", (e.target.value || undefined) as Place["salonKind"])
+          }
+        >
+          <option value="">مو صالون</option>
+          <option value="men">صالون رجالي</option>
+          <option value="women">صالون نسائي</option>
+        </select>
+        <p className={hint}>
+          الصالون رجالي أو نسائي، مو الاثنين — والزبون يشوف النوع قبل ما ياخذ دور.
+        </p>
+
+        <label className="mt-4 flex items-center gap-2 text-sm font-semibold text-ink-800">
+          <input
+            type="checkbox"
+            checked={!!p.takesQueue}
+            disabled={!p.salonKind}
+            onChange={(e) => set("takesQueue", e.target.checked)}
+            className="size-4 accent-ink-900 disabled:opacity-40"
+          />
+          يستقبل أدوار (طابور)
+        </label>
+        <p className={hint}>
+          {p.salonKind
+            ? "الزبون ياخذ رقم من صفحة الصالون ويتابع دوره، وانت تضيف اللي يجي للمحل من تبويب «الطابور»."
+            : "اختر نوع الصالون أول — الطابور للصالونات."}
+        </p>
+
+        <label className={label} htmlFor="f-service" style={{ marginTop: "0.75rem" }}>
+          كم ياخذ الزبون الواحد؟ (بالدقائق)
+        </label>
+        <input
+          id="f-service"
+          type="number"
+          inputMode="numeric"
+          min={MIN_SERVICE_MINUTES}
+          max={MAX_SERVICE_MINUTES}
+          step={5}
+          className={input}
+          value={p.queueServiceMinutes ?? DEFAULT_SERVICE_MINUTES}
+          onChange={(e) => set("queueServiceMinutes", clampServiceMinutes(Number(e.target.value)))}
+        />
+        <p className={hint}>
+          يُستخدم بس لتقدير الانتظار، ودايماً يُعرض كتقريب مو كوعد. الافتراضي{" "}
+          {toArabicDigits(DEFAULT_SERVICE_MINUTES)} دقيقة.
+        </p>
       </div>
 
       <div>

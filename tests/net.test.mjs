@@ -238,6 +238,98 @@ const terminal = await p.evaluate(() => ({
 ok('placed and ready are not final', !terminal.placed && !terminal.ready, JSON.stringify(terminal));
 ok('collected and cancelled are', terminal.collected && terminal.cancelled, JSON.stringify(terminal));
 
+console.log('\n── taking a number ──');
+const JOIN = { placeSlug: 'salon-x', placeNameAr: 'صالون', salonKind: 'men', customerName: 'سالم', customerPhone: '51234567' };
+
+reset([{ kind: 'ok', status: 200, body: '7' }]);
+r = await p.evaluate(async (input) => {
+  const res = await window.q.joinQueue(input, window.q.newQueueAttempt());
+  return { ok: res.ok, number: res.number, day: res.ticket?.day };
+}, JOIN);
+ok('the number comes back from the database', r.ok === true && r.number === 7, JSON.stringify(r));
+ok('and the ticket is stamped with Kuwait\'s day', /^\d{4}-\d{2}-\d{2}$/.test(r.day ?? ''), String(r.day));
+
+reset([{ kind: 'ok', status: 409, body: JSON.stringify({ code: '23505', message: 'duplicate key' }) }]);
+r = await p.evaluate(async (input) => {
+  const res = await window.q.joinQueue(input, window.q.newQueueAttempt());
+  return { ok: res.ok, reason: res.reason, message: res.message };
+}, JOIN);
+ok('a second ticket for the same phone is refused', r.ok === false, JSON.stringify(r));
+ok('and it is called a duplicate, not a failure', r.reason === 'duplicate', JSON.stringify(r));
+ok('the message points at the existing turn', r.message.includes('دوري'), r.message);
+
+reset([{ kind: 'ok', status: 400, body: JSON.stringify({ code: '23514', message: 'queue is not open here' }) }]);
+r = await p.evaluate(async (input) => {
+  const res = await window.q.joinQueue(input, window.q.newQueueAttempt());
+  return { ok: res.ok, reason: res.reason };
+}, JOIN);
+ok('a closed queue says so', r.ok === false && r.reason === 'closed', JSON.stringify(r));
+
+reset([{ kind: 'fail' }]);
+r = await p.evaluate(async (input) => {
+  const res = await window.q.joinQueue(input, window.q.newQueueAttempt());
+  return { ok: res.ok, reason: res.reason };
+}, JOIN);
+ok('a failed join is a network failure, not a silent success', r.ok === false && r.reason === 'network', JSON.stringify(r));
+ok('and it is not retried into a second person in the line',
+  seen.filter((s) => s.method === 'POST').length === 1, `${seen.length}`);
+
+console.log('\n── where am I in the line ──');
+reset([{ kind: 'ok', status: 200, body: JSON.stringify([{ status: 'waiting', number: 7, ahead: 3, now_serving: 4, place_slug: 'salon-x', place_name_ar: 'صالون', service_minutes: 20, day: '2026-08-21', created_at: '2026-08-21T09:00:00Z', called_at: null, served_at: null, ended_at: null }]) }]);
+r = await p.evaluate(async () => {
+  const res = await window.q.fetchTicketState('11111111-1111-4111-8111-111111111111', 'a'.repeat(32));
+  return { ok: res.ok, ahead: res.state?.ahead, nowServing: res.state?.nowServing, number: res.state?.number };
+});
+ok('the position comes through', r.ok === true && r.ahead === 3, JSON.stringify(r));
+ok('so does who they are serving now', r.nowServing === 4, JSON.stringify(r));
+
+reset([{ kind: 'ok', status: 200, body: '[]' }]);
+r = await p.evaluate(async () => {
+  const res = await window.q.fetchTicketState('11111111-1111-4111-8111-111111111111', 'f'.repeat(32));
+  return { ok: res.ok, state: res.state };
+});
+ok('a wrong token finds nothing, and says so as "not there"', r.ok === true && r.state === null, JSON.stringify(r));
+
+reset([{ kind: 'fail' }, { kind: 'ok', status: 200, body: JSON.stringify([{ status: 'called', number: 7, ahead: 0, now_serving: 7, place_slug: 'salon-x', place_name_ar: 'صالون', service_minutes: 20, day: '2026-08-21', created_at: '2026-08-21T09:00:00Z', called_at: '2026-08-21T09:40:00Z', served_at: null, ended_at: null }]) }]);
+r = await p.evaluate(async () => {
+  const res = await window.q.fetchTicketState('11111111-1111-4111-8111-111111111111', 'a'.repeat(32));
+  return { ok: res.ok, status: res.state?.status };
+});
+ok('a blip is retried away — the read is a stable one-row lookup',
+  r.ok === true && r.status === 'called', JSON.stringify(r));
+
+console.log('\n── giving up your place ──');
+reset([{ kind: 'ok', status: 200, body: '"left"' }]);
+r = await p.evaluate(async () => {
+  const res = await window.q.leaveQueue('11111111-1111-4111-8111-111111111111', 'a'.repeat(32));
+  return { ok: res.ok };
+});
+ok('a waiting turn can be given up', r.ok === true, JSON.stringify(r));
+
+reset([{ kind: 'ok', status: 200, body: '"served"' }]);
+r = await p.evaluate(async () => {
+  const res = await window.q.leaveQueue('11111111-1111-4111-8111-111111111111', 'a'.repeat(32));
+  return { ok: res.ok, reason: res.reason, message: res.message };
+});
+ok('a finished turn cannot', r.ok === false && r.reason === 'too-late', JSON.stringify(r));
+ok('and it says so plainly', r.message.includes('خلص'), r.message);
+
+reset([{ kind: 'ok', status: 200, body: 'null' }]);
+r = await p.evaluate(async () => {
+  const res = await window.q.leaveQueue('11111111-1111-4111-8111-111111111111', 'f'.repeat(32));
+  return { ok: res.ok, reason: res.reason };
+});
+ok('a token matching nothing is not reported as left', r.ok === false && r.reason === 'unknown', JSON.stringify(r));
+
+console.log('\n── how busy is it, before you commit ──');
+reset([{ kind: 'ok', status: 200, body: JSON.stringify([{ waiting: 4, now_serving: 3, service_minutes: 15 }]) }]);
+r = await p.evaluate(async () => await window.q.fetchQueueSize('salon-x'));
+ok('the queue length is readable by anyone', r?.waiting === 4, JSON.stringify(r));
+ok('with the salon\'s own service time', r?.serviceMinutes === 15, JSON.stringify(r));
+ok('and nothing about the people in it',
+  !('customer_name' in (r ?? {})) && Object.keys(r ?? {}).join() === 'waiting,nowServing,serviceMinutes',
+  Object.keys(r ?? {}).join());
+
 ok('no page errors in the network harness', errors.length === 0, errors.join(' | '));
 
 // ---------------------------------------------------------------- polling --

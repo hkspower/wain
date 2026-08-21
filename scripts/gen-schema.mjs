@@ -114,6 +114,16 @@ create table if not exists public.places (
                    check (jsonb_typeof(menu_ar) = 'array' and jsonb_array_length(menu_ar) <= 60),
   accepts_orders boolean not null default false,
   order_note_ar  text not null default '' check (length(order_note_ar) <= 300),
+  -- الطابور. A salon is men's or women's, never both: they are separate
+  -- premises with separate staff, so this is one value per business and the
+  -- customer is shown it before joining anything.
+  salon_kind     text not null default ''
+                   check (salon_kind in ('', 'men', 'women')),
+  takes_queue    boolean not null default false,
+  -- Roughly how long one customer takes, used only to estimate a wait. Never
+  -- presented as a promise.
+  queue_service_minutes integer not null default 20
+                   check (queue_service_minutes between 5 and 180),
   -- How long the business needs before an order can be collected. Bounded so
   -- a typo cannot push every slot past closing time or offer food instantly.
   order_prep_minutes integer not null default 30
@@ -150,6 +160,9 @@ alter table public.places
   add column if not exists accepts_orders boolean not null default false,
   add column if not exists order_note_ar  text not null default '',
   add column if not exists order_prep_minutes integer not null default 30,
+  add column if not exists salon_kind     text not null default '',
+  add column if not exists takes_queue    boolean not null default false,
+  add column if not exists queue_service_minutes integer not null default 20,
   add column if not exists setting     text not null default 'mixed',
   add column if not exists season_ar   text not null default '',
   add column if not exists tags_ar     text[] not null default '{}',
@@ -163,6 +176,12 @@ alter table public.places
 alter table public.places drop constraint if exists places_order_prep_minutes_check;
 alter table public.places add constraint places_order_prep_minutes_check
   check (order_prep_minutes between 5 and 240);
+alter table public.places drop constraint if exists places_salon_kind_check;
+alter table public.places add constraint places_salon_kind_check
+  check (salon_kind in ('', 'men', 'women'));
+alter table public.places drop constraint if exists places_queue_service_minutes_check;
+alter table public.places add constraint places_queue_service_minutes_check
+  check (queue_service_minutes between 5 and 180);
 alter table public.places enable row level security;
 
 drop policy if exists "anyone can read published places" on public.places;
@@ -546,6 +565,306 @@ $$;
 
 revoke all on function public.cancel_order(uuid, text) from public;
 grant execute on function public.cancel_order(uuid, text) to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- الطابور — take your turn at the salon
+--
+-- A ticket is a place in a line, not a booking. The customer takes a number
+-- from wain or is added at the counter when they walk in, and both land in the
+-- same queue — which is the only way the number can mean anything. A queue
+-- that only counts the people who used the app would tell everybody a
+-- position that the room disagrees with.
+--
+-- Numbers restart each day and are scoped to one salon, so «رقم ٧» is the
+-- seventh customer at that salon today and nothing else.
+-- ---------------------------------------------------------------------------
+create table if not exists public.queue_tickets (
+  -- Client-supplied, like orders: anon has no SELECT policy, and PostgreSQL
+  -- applies it to anything INSERT ... RETURNING hands back, so a row that
+  -- reports its own id cannot be inserted by an anonymous caller at all.
+  id             uuid primary key,
+  track_token    text not null check (length(track_token) between 20 and 64),
+  place_slug     text not null check (place_slug ~ '^[a-z0-9-]+$'),
+  place_name_ar  text not null check (length(btrim(place_name_ar)) between 2 and 120),
+  -- Asia/Kuwait, not UTC: a day that turns over at 3am would restart the
+  -- numbering in the middle of a late shift.
+  day            date not null default (now() at time zone 'Asia/Kuwait')::date,
+  -- Assigned by join_queue() under a lock, never by the caller.
+  number         integer not null check (number between 1 and 9999),
+  status         text not null default 'waiting'
+                   check (status in ('waiting', 'called', 'served', 'no_show', 'left')),
+  source         text not null default 'online' check (source in ('online', 'walk_in')),
+  customer_name  text not null check (length(btrim(customer_name)) between 2 and 80),
+  -- A walk-in added at the counter may not want to give a number, so this can
+  -- be empty — but if it is given it has to be a real Kuwaiti mobile.
+  customer_phone text not null default '' check (customer_phone = '' or customer_phone ~ '^[569][0-9]{7}$'),
+  called_at      timestamptz,
+  served_at      timestamptz,
+  ended_at       timestamptz,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+
+-- One salon, one day, one number. This is the constraint that makes the
+-- advisory lock in join_queue() a correctness guarantee rather than a hope:
+-- if two callers ever did race, the second insert fails instead of handing two
+-- customers the same ticket.
+create unique index if not exists queue_tickets_number_idx
+  on public.queue_tickets (place_slug, day, number);
+create index if not exists queue_tickets_open_idx
+  on public.queue_tickets (place_slug, day, status, number);
+
+-- One live ticket per phone per salon per day. Without it, a customer who taps
+-- twice is two people in the line and everybody behind them waits for a chair
+-- that nobody sits in.
+create unique index if not exists queue_tickets_one_live_idx
+  on public.queue_tickets (place_slug, day, customer_phone)
+  where status in ('waiting', 'called') and customer_phone <> '';
+
+alter table public.queue_tickets enable row level security;
+
+-- A database created before the queue existed.
+alter table public.queue_tickets
+  add column if not exists source text not null default 'online',
+  add column if not exists ended_at timestamptz;
+
+grant insert on public.queue_tickets to anon, authenticated;
+grant select, update on public.queue_tickets to authenticated;
+
+drop trigger if exists queue_tickets_touch on public.queue_tickets;
+create trigger queue_tickets_touch before update on public.queue_tickets
+  for each row execute function public.touch_updated_at();
+
+-- Anon inserts nothing directly: join_queue() is the only way in, because the
+-- number has to be assigned by the database. There is deliberately no INSERT
+-- policy for anon here even though the grant exists — the security definer
+-- function bypasses RLS, and a caller reaching the table directly gets
+-- nothing.
+drop policy if exists "admins read the queue" on public.queue_tickets;
+create policy "admins read the queue"
+  on public.queue_tickets for select
+  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+
+drop policy if exists "admins update the queue" on public.queue_tickets;
+create policy "admins update the queue"
+  on public.queue_tickets for update
+  using (exists (select 1 from public.admins a where a.user_id = auth.uid()))
+  with check (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+
+-- Times are stamped from the database, so a client cannot claim it was called
+-- an hour ago.
+create or replace function public.stamp_queue_status() returns trigger
+  language plpgsql
+  set search_path = public, pg_temp
+as $$
+begin
+  if new.status is distinct from old.status then
+    if new.status = 'called' then new.called_at := now(); end if;
+    if new.status = 'served' then new.served_at := now(); end if;
+    if new.status in ('served', 'no_show', 'left') then new.ended_at := now(); end if;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists queue_tickets_stamp on public.queue_tickets;
+create trigger queue_tickets_stamp before update on public.queue_tickets
+  for each row execute function public.stamp_queue_status();
+
+-- ---------------------------------------------------------------------------
+-- Taking a number
+--
+-- The number cannot come from the device. Two people tapping at once would
+-- pick the same one, and a queue where two customers are both «رقم ٧» is
+-- worse than no queue. So this runs in the database, takes a transaction-scoped
+-- advisory lock keyed on the salon and the day, and hands back the number it
+-- assigned.
+--
+-- The lock is held only for the length of this statement, and it is per salon:
+-- two different salons never wait on each other.
+-- ---------------------------------------------------------------------------
+create or replace function public.join_queue(
+  p_id uuid,
+  p_token text,
+  p_place_slug text,
+  p_place_name_ar text,
+  p_customer_name text,
+  p_customer_phone text default '',
+  p_source text default 'online'
+)
+  returns integer
+  language plpgsql
+  security definer
+  set search_path = public, pg_temp
+  volatile
+as $$
+declare
+  the_day date := (now() at time zone 'Asia/Kuwait')::date;
+  next_number integer;
+begin
+  -- Only a salon that has switched the queue on, and only a published one.
+  if not exists (
+    select 1 from public.places p
+    where p.slug = p_place_slug and p.published and p.takes_queue
+  ) then
+    raise exception 'queue is not open here' using errcode = 'check_violation';
+  end if;
+
+  -- Walk-ins are added by staff, who are signed in. An anonymous caller
+  -- claiming to be a walk-in would be inserting a customer who is not there.
+  if p_source = 'walk_in' and not exists (
+    select 1 from public.admins a where a.user_id = auth.uid()
+  ) then
+    raise exception 'only staff can add a walk-in' using errcode = 'insufficient_privilege';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext(p_place_slug || the_day::text));
+
+  select coalesce(max(q.number), 0) + 1 into next_number
+  from public.queue_tickets q
+  where q.place_slug = p_place_slug and q.day = the_day;
+
+  insert into public.queue_tickets
+    (id, track_token, place_slug, place_name_ar, day, number, customer_name,
+     customer_phone, source)
+  values
+    (p_id, p_token, p_place_slug, p_place_name_ar, the_day, next_number,
+     btrim(p_customer_name), coalesce(p_customer_phone, ''),
+     case when p_source = 'walk_in' then 'walk_in' else 'online' end);
+
+  return next_number;
+end;
+$$;
+
+revoke all on function public.join_queue(uuid, text, text, text, text, text, text) from public;
+grant execute on function public.join_queue(uuid, text, text, text, text, text, text)
+  to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Where am I in the line?
+--
+-- Same bargain as order_status: the id and the token together are the whole
+-- authorisation, and nothing that identifies the customer comes back — so a
+-- leaked token discloses only what its holder already knew.
+--
+-- "ahead" counts people still waiting with a lower number, which is what the
+-- customer actually wants to know. It is not number minus now_serving: that
+-- would count everyone who has already been served, left, or not turned up.
+-- ---------------------------------------------------------------------------
+create or replace function public.queue_status(p_id uuid, p_token text)
+  returns table (
+    status text,
+    number integer,
+    ahead integer,
+    now_serving integer,
+    place_slug text,
+    place_name_ar text,
+    service_minutes integer,
+    day date,
+    created_at timestamptz,
+    called_at timestamptz,
+    served_at timestamptz,
+    ended_at timestamptz
+  )
+  language sql
+  security definer
+  set search_path = public, pg_temp
+  stable
+as $$
+  select
+    t.status,
+    t.number,
+    (select count(*)::integer
+       from public.queue_tickets o
+      where o.place_slug = t.place_slug
+        and o.day = t.day
+        and o.status = 'waiting'
+        and o.number < t.number)                                as ahead,
+    (select max(c.number)
+       from public.queue_tickets c
+      where c.place_slug = t.place_slug
+        and c.day = t.day
+        and c.status in ('called', 'served'))                   as now_serving,
+    t.place_slug,
+    t.place_name_ar,
+    coalesce((select p.queue_service_minutes from public.places p
+               where p.slug = t.place_slug), 20)                as service_minutes,
+    t.day,
+    t.created_at, t.called_at, t.served_at, t.ended_at
+  from public.queue_tickets t
+  where t.id = p_id and t.track_token = p_token
+  limit 1;
+$$;
+
+revoke all on function public.queue_status(uuid, text) from public;
+grant execute on function public.queue_status(uuid, text) to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Giving up your place
+--
+-- Allowed while waiting and also once called — somebody who has been called
+-- and is not going to make it should be able to say so, and that is better for
+-- the salon than a no-show. Returns the resulting status so the caller can
+-- tell "you are out" from "too late".
+-- ---------------------------------------------------------------------------
+create or replace function public.leave_queue(p_id uuid, p_token text)
+  returns text
+  language plpgsql
+  security definer
+  set search_path = public, pg_temp
+  volatile
+as $$
+declare
+  current_status text;
+begin
+  select t.status into current_status
+  from public.queue_tickets t
+  where t.id = p_id and t.track_token = p_token
+  for update;
+
+  -- Wrong token or no such ticket: say nothing at all, or this becomes a way
+  -- to ask "does this id exist?" one guess at a time.
+  if current_status is null then return null; end if;
+  if current_status = 'left' then return 'left'; end if;
+  if current_status not in ('waiting', 'called') then return current_status; end if;
+
+  update public.queue_tickets set status = 'left' where id = p_id;
+  return 'left';
+end;
+$$;
+
+revoke all on function public.leave_queue(uuid, text) from public;
+grant execute on function public.leave_queue(uuid, text) to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- How busy is it right now?
+--
+-- Read before joining, so somebody can see the wait before they commit rather
+-- than after. It exposes a count and nothing else — no names, no numbers, no
+-- way to learn anything about the people in the line.
+-- ---------------------------------------------------------------------------
+create or replace function public.queue_size(p_place_slug text)
+  returns table (waiting integer, now_serving integer, service_minutes integer)
+  language sql
+  security definer
+  set search_path = public, pg_temp
+  stable
+as $$
+  select
+    (select count(*)::integer from public.queue_tickets q
+      where q.place_slug = p_place_slug
+        and q.day = (now() at time zone 'Asia/Kuwait')::date
+        and q.status = 'waiting'),
+    (select max(c.number) from public.queue_tickets c
+      where c.place_slug = p_place_slug
+        and c.day = (now() at time zone 'Asia/Kuwait')::date
+        and c.status in ('called', 'served')),
+    coalesce((select p.queue_service_minutes from public.places p
+               where p.slug = p_place_slug and p.published), 20);
+$$;
+
+revoke all on function public.queue_size(text) from public;
+grant execute on function public.queue_size(text) to anon, authenticated;
 
 -- Business media — logos and photos
 --

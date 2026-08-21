@@ -118,6 +118,18 @@ export interface Place {
    * around waiting.
    */
   orderPrepMinutes?: number;
+
+  /* --- الطابور. Take your turn at the salon. See src/lib/queue.ts --- */
+
+  /**
+   * A salon is men's or women's, never both — they are separate premises with
+   * separate staff. Unset on anything that is not a salon.
+   */
+  salonKind?: "men" | "women";
+  /** The salon's own switch, the same bargain as acceptsOrders. */
+  takesQueue?: boolean;
+  /** Roughly how long one customer takes. Used only to estimate a wait. */
+  queueServiceMinutes?: number;
 }
 
 export const DEFAULT_PREP_MINUTES = 30;
@@ -135,6 +147,18 @@ export const MAX_PREP_MINUTES = 240;
 export function clampPrepMinutes(value: number | undefined | null): number {
   if (!Number.isFinite(value ?? NaN)) return DEFAULT_PREP_MINUTES;
   return Math.min(MAX_PREP_MINUTES, Math.max(MIN_PREP_MINUTES, Math.round(value as number)));
+}
+
+export const DEFAULT_SERVICE_MINUTES = 20;
+export const MIN_SERVICE_MINUTES = 5;
+export const MAX_SERVICE_MINUTES = 180;
+
+/** Matches the CHECK on places.queue_service_minutes. Here for the same reason
+ *  as clampPrepMinutes: supabase.ts maps the row and must not depend on
+ *  queue.ts, which depends on supabase.ts. */
+export function clampServiceMinutes(value: number | undefined | null): number {
+  if (!Number.isFinite(value ?? NaN)) return DEFAULT_SERVICE_MINUTES;
+  return Math.min(MAX_SERVICE_MINUTES, Math.max(MIN_SERVICE_MINUTES, Math.round(value as number)));
 }
 
 /** Ordered the way the category rail reads on the home page. */

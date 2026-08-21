@@ -56,15 +56,22 @@ async function serve(port) {
 
 let failed = 0;
 
-console.log("\n════ money and order rules ════");
 const tmp = mkdtempSync(join(tmpdir(), "wain-orders-"));
-const bundle = join(tmp, "orders.mjs");
-if ((await run("npx", ["-y", "esbuild", "tests/orders.test.mjs", "--bundle", "--format=esm",
-      `--alias:@=${join(ROOT, "src")}`, `--outfile=${bundle}`, "--log-level=error"])) !== 0) {
-  console.error("could not bundle the order tests");
-  process.exit(1);
+
+/** Bundled, because these import from src/ through the @ alias. */
+async function runLogic(entry, outName, title) {
+  console.log(`\n════ ${title} ════`);
+  const bundle = join(tmp, outName);
+  if ((await run("npx", ["-y", "esbuild", entry, "--bundle", "--format=esm",
+        `--alias:@=${join(ROOT, "src")}`, `--outfile=${bundle}`, "--log-level=error"])) !== 0) {
+    console.error(`could not bundle ${entry}`);
+    process.exit(1);
+  }
+  return (await run("node", [bundle])) === 0 ? 0 : 1;
 }
-failed += (await run("node", [bundle])) === 0 ? 0 : 1;
+
+failed += await runLogic("tests/orders.test.mjs", "orders.mjs", "money and order rules");
+failed += await runLogic("tests/queue.test.mjs", "queue.mjs", "the queue's own rules");
 rmSync(tmp, { recursive: true, force: true });
 
 console.log("\n════ the order panel in a browser ════");
@@ -80,6 +87,8 @@ if (!existsSync(join(ROOT, "out", "index.html"))) {
   failed += (await run("node", ["tests/order-flow.test.mjs"], { env })) === 0 ? 0 : 1;
   console.log("\n════ طلباتي — tracking ════");
   failed += (await run("node", ["tests/order-tracking.test.mjs"], { env })) === 0 ? 0 : 1;
+  console.log("\n════ دوري — the queue screen ════");
+  failed += (await run("node", ["tests/queue-page.test.mjs"], { env })) === 0 ? 0 : 1;
   stop();
 }
 
