@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { IconClose, IconPinSolid } from "@/components/icons";
+import { IconClose, IconPhone, IconPinSolid } from "@/components/icons";
 import { haptic } from "@/lib/haptics";
 import { primeAudio, setEnabled as setVoiceEnabled } from "@/lib/voice";
+import { callDuration, connected, hangup, ringback } from "@/lib/call-tones";
 import {
   WAIN_AI_AGENT_ENABLED,
   WAIN_AI_AGENT_ID,
@@ -14,33 +15,46 @@ import {
 } from "@/lib/wain-ai";
 
 /**
- * The وين AI button: hold it three seconds and talk.
+ * وين AI — a call to شوق. Tap the button and the call starts.
  *
- * Why hold rather than tap: a voice session takes over the audio output and
- * asks for the microphone, which is far too much for a pocket-tap. Three
- * deliberate seconds — with the ring filling so the wait is visibly *going*
- * somewhere — is the difference between "I asked for this" and "what just
- * happened". A quick tap gets a hint instead of a session.
+ * It used to be a three-second hold. The reasoning was sound: a voice session
+ * seizes the microphone and the audio output, and that is far too much to
+ * happen from a pocket-tap. But the hold had to be explained on the button
+ * itself, and an instruction on a button is a sign the button is wrong.
  *
- * Held to the pointer only: keyboard and switch-control users cannot
- * comfortably hold, so for them Enter/Space activates immediately. That is
- * not a loophole, it is the accessible path (WCAG 2.5.1 — no gesture may be
- * the only way in).
+ * A call solves the same problem the way phones already solved it. The tap
+ * opens a call that is *ringing* — nothing is seized yet, the ring-back is
+ * telling you it is going somewhere, and the red button is right there. By the
+ * time the microphone is live the visitor has watched it happen. That is
+ * consent through a familiar sequence rather than through a novel gesture, and
+ * it costs one tap instead of three seconds.
  *
- * Two session modes, picked by configuration — see src/lib/wain-ai.ts.
+ * Two ways the call is served, picked by configuration — see lib/wain-ai.ts:
+ *
+ *   Agent mode  — the ElevenLabs widget, a real duplex conversation. She can
+ *                 also put places on screen mid-call through the client tools
+ *                 registered below.
+ *   Local mode  — the browser's own speech recognition takes the question,
+ *                 وين's search answers it, and صوت وين reads the answer aloud
+ *                 on the results page. One question per call, and the call
+ *                 ends when she answers, because she has.
+ *
  * In local mode the spoken question goes through the browser's speech
  * recognition, which on most engines is processed by the browser vendor's
- * speech service — said plainly in the panel and on the privacy page.
+ * speech service — said plainly in the call sheet and on the privacy page.
  */
-
-const HOLD_MS = 3000;
 
 type Phase =
   | "idle"
-  | "holding"
-  | "listening" // local mode: recognition running
-  | "agent" // agent mode: convai panel open
+  | "ringing" // dialling: waiting on the microphone, or on the widget
+  | "live" // connected — she is listening
+  | "answering" // local mode: she has the question and is replying
+  | "ended" // hung up, showing how long it lasted
   | "error";
+
+/** How long «شوق ترد…» shows before the results replace the call. Long enough
+ *  to read, short enough that it is not a spinner. */
+const ANSWER_MS = 700;
 
 /* Minimal typings for the vendor-prefixed Web Speech recognition API. */
 interface SpeechRecognitionLike {
@@ -50,6 +64,9 @@ interface SpeechRecognitionLike {
   start(): void;
   stop(): void;
   abort(): void;
+  /** Fires once the engine is actually listening — which is only after the
+   *  microphone has been granted. That is the moment the call connects. */
+  onstart: (() => void) | null;
   onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
   onerror: ((e: { error: string }) => void) | null;
   onend: (() => void) | null;
@@ -89,53 +106,130 @@ function VoiceMark({ className = "size-6" }: { className?: string }) {
 export default function WainAi() {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("idle");
-  const [hint, setHint] = useState<string | null>(null);
   const [transcript, setTranscript] = useState("");
   const [errorText, setErrorText] = useState("");
+  const [seconds, setSeconds] = useState(0);
   const [agentReady, setAgentReady] = useState(false);
   const [agentFailed, setAgentFailed] = useState(false);
 
-  const holdTimer = useRef<number | null>(null);
-  const hintTimer = useRef<number | null>(null);
-  const holding = phase === "holding";
   const recRef = useRef<SpeechRecognitionLike | null>(null);
   const slotRef = useRef<HTMLDivElement>(null);
+  const answerTimer = useRef<number | null>(null);
+  // Stops the ring-back. Held in a ref rather than state because it has to be
+  // callable from cleanup, from every failure path, and from the moment the
+  // call connects — none of which should wait for a render.
+  const stopRing = useRef<(() => void) | null>(null);
   // The transcript as of the last result event, so onend can act on what was
   // actually heard even when the final-result event never fires.
   const heardRef = useRef("");
 
-  /* ---- shared: leave any session ---------------------------------------- */
-  const close = useCallback(() => {
+  // The phase as of right now, for the handlers that have to *decide*
+  // something from it. Reading it inside a setPhase updater would be the
+  // obvious way and the wrong one: React is free to run an updater more than
+  // once, so a tone or a haptic in there fires twice.
+  const phaseRef = useRef<Phase>(phase);
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+
+  const silenceRing = useCallback(() => {
+    stopRing.current?.();
+    stopRing.current = null;
+  }, []);
+
+  /* ---- the call is over -------------------------------------------------- */
+  /** Tear down whatever the call was using. Safe to call twice. */
+  const teardown = useCallback(() => {
+    silenceRing();
     recRef.current?.abort();
     recRef.current = null;
-    setPhase("idle");
+    if (answerTimer.current !== null) {
+      window.clearTimeout(answerTimer.current);
+      answerTimer.current = null;
+    }
+  }, [silenceRing]);
+
+  /** Was there a call in progress to end? */
+  const inCall = (p: Phase) => p === "live" || p === "ringing" || p === "answering";
+
+  /**
+   * The red button. Hangs up and stays, showing how long it lasted — that
+   * summary is the point of pressing it deliberately.
+   */
+  const endCall = useCallback(() => {
+    const was = phaseRef.current;
+    teardown();
     setTranscript("");
     setErrorText("");
-  }, []);
+    if (inCall(was)) {
+      haptic("tap");
+      hangup();
+      setPhase("ended");
+    } else {
+      setPhase("idle");
+    }
+  }, [teardown]);
+
+  /**
+   * The × and Escape. Both mean "get me out", so they hang up *and* close —
+   * one press, out, with the tone that says the line is down. Leaving a
+   * dialog open after Escape is the thing screen-reader users are entitled
+   * not to have happen.
+   */
+  const closeSheet = useCallback(() => {
+    const was = phaseRef.current;
+    teardown();
+    if (inCall(was)) {
+      haptic("tap");
+      hangup();
+    }
+    setTranscript("");
+    setErrorText("");
+    setSeconds(0);
+    setPhase("idle");
+  }, [teardown]);
 
   useEffect(() => {
     if (phase === "idle") return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape") closeSheet();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [phase, close]);
+  }, [phase, closeSheet]);
 
-  /* ---- local mode: listen, search, speak --------------------------------- */
+  /* ---- the call timer ----------------------------------------------------- */
+  // Ticks only while connected. The elapsed value is derived from a start
+  // timestamp rather than counted up, so a tab that was backgrounded — where
+  // timers are throttled to once a minute — comes back showing the real
+  // duration instead of however many ticks it was allowed to run.
+  useEffect(() => {
+    if (phase !== "live") return;
+    const startedAt = Date.now();
+    setSeconds(0);
+    const id = window.setInterval(() => {
+      setSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [phase]);
+
+  /* ---- local mode: listen, then answer ------------------------------------ */
   const finishWith = useCallback(
     (spoken: string) => {
       const q = spoken.trim();
       recRef.current = null;
+      silenceRing();
       if (!q) {
         setErrorText(WAIN_AI_COPY.noSpeech);
         setPhase("error");
         return;
       }
       haptic("success");
+      setPhase("answering");
       // The visitor asked out loud, so the answer speaks too: turn صوت وين on
       // (quietly — the search page's own summary is the reply) and let the
-      // search screen show the matching places on its map.
+      // search screen show the matching places on its map. She carries on
+      // talking there, which is why the call ending here is not her stopping.
       setVoiceEnabled(true, { greet: false });
       // Hand the question across so she can repeat what she heard and answer
       // without the typing debounce. Session storage rather than a query
@@ -146,11 +240,14 @@ export default function WainAi() {
       } catch {
         /* private mode — she just answers without the echo */
       }
-      setPhase("idle");
-      setTranscript("");
-      router.push(`/search?q=${encodeURIComponent(q)}`);
+      answerTimer.current = window.setTimeout(() => {
+        answerTimer.current = null;
+        setPhase("idle");
+        setTranscript("");
+        router.push(`/search?q=${encodeURIComponent(q)}`);
+      }, ANSWER_MS);
     },
-    [router]
+    [router, silenceRing]
   );
 
   const startListening = useCallback(() => {
@@ -158,6 +255,7 @@ export default function WainAi() {
     if (!rec) {
       // No speech input in this browser — the search box is the same brain
       // with typed input, so go there rather than dead-ending.
+      silenceRing();
       setVoiceEnabled(true, { greet: false });
       router.push("/search");
       setErrorText(WAIN_AI_COPY.unsupported);
@@ -168,6 +266,16 @@ export default function WainAi() {
     rec.lang = "ar-KW";
     rec.interimResults = true;
     rec.maxAlternatives = 1;
+    // The call connects when the engine starts listening, not when the button
+    // was tapped: everything between the two is the microphone prompt, and
+    // that is exactly the part the ring-back is covering.
+    rec.onstart = () => {
+      if (recRef.current !== rec) return;
+      silenceRing();
+      connected();
+      haptic("success");
+      setPhase("live");
+    };
     rec.onresult = (e) => {
       const parts: string[] = [];
       for (let i = 0; i < e.results.length; i++) parts.push(e.results[i][0]?.transcript ?? "");
@@ -177,6 +285,7 @@ export default function WainAi() {
     };
     rec.onerror = (e) => {
       recRef.current = null;
+      silenceRing();
       setErrorText(e.error === "not-allowed" ? WAIN_AI_COPY.micDenied : WAIN_AI_COPY.noSpeech);
       setPhase("error");
     };
@@ -186,17 +295,17 @@ export default function WainAi() {
       if (recRef.current === rec) finishWith(heardRef.current);
     };
     recRef.current = rec;
-    setPhase("listening");
     try {
       rec.start();
     } catch {
       recRef.current = null;
-      setErrorText(WAIN_AI_COPY.failed);
+      silenceRing();
+      setErrorText(WAIN_AI_COPY.callFailed);
       setPhase("error");
     }
-  }, [router, finishWith]);
+  }, [router, finishWith, silenceRing]);
 
-  /* ---- agent mode: the ElevenLabs panel ---------------------------------- */
+  /* ---- agent mode: the ElevenLabs call ------------------------------------ */
 
   // The agent can put places on the visitor's screen instead of only naming
   // them: its tool definition (docs/wain-ai-agent.md) calls show_places with
@@ -226,8 +335,10 @@ export default function WainAi() {
     return () => window.removeEventListener("elevenlabs-convai:call", register);
   }, [router]);
 
+  const dialling = phase === "ringing" || phase === "live";
+
   useEffect(() => {
-    if (phase !== "agent" || agentReady || agentFailed) return;
+    if (!WAIN_AI_AGENT_ENABLED || !dialling || agentReady || agentFailed) return;
     const existing = document.querySelector<HTMLScriptElement>(
       `script[src="${WAIN_AI_WIDGET_SRC}"]`
     );
@@ -241,117 +352,77 @@ export default function WainAi() {
     script.onload = () => setAgentReady(true);
     script.onerror = () => setAgentFailed(true);
     document.body.appendChild(script);
-  }, [phase, agentReady, agentFailed]);
+  }, [dialling, agentReady, agentFailed]);
 
   useEffect(() => {
     const slot = slotRef.current;
-    if (phase !== "agent" || !agentReady || !slot || slot.childElementCount > 0) return;
-    const el = document.createElement("elevenlabs-convai");
-    el.setAttribute("agent-id", WAIN_AI_AGENT_ID);
-    slot.appendChild(el);
-  }, [phase, agentReady]);
+    if (!WAIN_AI_AGENT_ENABLED || !dialling || !agentReady || !slot) return;
+    if (slot.childElementCount === 0) {
+      const el = document.createElement("elevenlabs-convai");
+      el.setAttribute("agent-id", WAIN_AI_AGENT_ID);
+      slot.appendChild(el);
+    }
+    // The widget is mounted and owns the microphone from here: that is the
+    // call connecting, so stop ringing and start the clock.
+    if (phaseRef.current !== "ringing") return;
+    silenceRing();
+    connected();
+    setPhase("live");
+  }, [dialling, agentReady, silenceRing]);
 
-  /* ---- the hold gesture --------------------------------------------------- */
-  const activate = useCallback(() => {
-    haptic("success");
+  // A widget that never loads is a call that never connects — say so rather
+  // than ringing for ever.
+  useEffect(() => {
+    if (!agentFailed || phase !== "ringing") return;
+    silenceRing();
+    setErrorText(WAIN_AI_COPY.callFailed);
+    setPhase("error");
+  }, [agentFailed, phase, silenceRing]);
+
+  /* ---- placing the call --------------------------------------------------- */
+  const startCall = useCallback(() => {
+    if (phase !== "idle" && phase !== "ended" && phase !== "error") return;
+    haptic("tap");
     // Spend the gesture's audio permission now — see primeAudio(). By the time
     // شوق has an answer we are a navigation and a fetch away from here, and
     // iOS will not start audio then.
     primeAudio();
-    if (WAIN_AI_AGENT_ENABLED) setPhase("agent");
-    else startListening();
-  }, [startListening]);
+    setErrorText("");
+    setTranscript("");
+    setSeconds(0);
+    setAgentFailed(false);
+    silenceRing();
+    stopRing.current = ringback();
+    setPhase("ringing");
+    if (!WAIN_AI_AGENT_ENABLED) startListening();
+  }, [phase, startListening, silenceRing]);
 
-  const cancelHold = useCallback(() => {
-    if (holdTimer.current !== null) {
-      window.clearTimeout(holdTimer.current);
-      holdTimer.current = null;
-    }
-    setPhase((p) => (p === "holding" ? "idle" : p));
-  }, []);
+  useEffect(() => () => teardown(), [teardown]);
 
-  const onPointerDown = useCallback(
-    (e: React.PointerEvent<HTMLButtonElement>) => {
-      if (phase !== "idle") return;
-      // Mouse: primary button only.
-      if (e.pointerType === "mouse" && e.button !== 0) return;
-      try {
-        // Keeps the hold alive when the finger drifts off the button. Throws
-        // on pointers that are already gone (and in some browsers on touch
-        // ids it no longer tracks) — losing capture just means a drifting
-        // finger cancels, so it is not worth failing the gesture over.
-        e.currentTarget.setPointerCapture(e.pointerId);
-      } catch {
-        /* gesture continues uncaptured */
-      }
-      haptic("tap");
-      setHint(null);
-      setPhase("holding");
-      holdTimer.current = window.setTimeout(() => {
-        holdTimer.current = null;
-        activate();
-      }, HOLD_MS);
-    },
-    [phase, activate]
-  );
+  const open = phase !== "idle";
 
-  const onPointerUp = useCallback(() => {
-    if (holdTimer.current !== null) {
-      // Released early — explain the gesture briefly.
-      cancelHold();
-      setHint(WAIN_AI_COPY.holdHint);
-      if (hintTimer.current !== null) window.clearTimeout(hintTimer.current);
-      hintTimer.current = window.setTimeout(() => setHint(null), 2200);
-    }
-  }, [cancelHold]);
-
-  // Keyboard and assistive tech: activate on the click event, no hold. A
-  // pointer session never reaches here because pointerup already consumed the
-  // gesture (holdTimer null → click after a real hold is ignored via phase).
-  const onKeyActivate = useCallback(
-    (e: React.KeyboardEvent<HTMLButtonElement>) => {
-      if ((e.key === "Enter" || e.key === " ") && phase === "idle") {
-        e.preventDefault();
-        activate();
-      }
-    },
-    [phase, activate]
-  );
-
-  useEffect(
-    () => () => {
-      if (holdTimer.current !== null) window.clearTimeout(holdTimer.current);
-      if (hintTimer.current !== null) window.clearTimeout(hintTimer.current);
-      recRef.current?.abort();
-    },
-    []
-  );
-
-  const open = phase === "listening" || phase === "agent" || phase === "error";
+  /** The line under her name: what the call is doing right now. */
+  const status =
+    phase === "ringing"
+      ? WAIN_AI_COPY.ringing
+      : phase === "live"
+        ? `${WAIN_AI_COPY.onCall} · ${callDuration(seconds)}`
+        : phase === "answering"
+          ? WAIN_AI_COPY.answering
+          : phase === "ended"
+            ? `${WAIN_AI_COPY.ended} · ${callDuration(seconds)}`
+            : WAIN_AI_COPY.role;
 
   return (
     <>
-      {/* ---- the button ---- */}
+      {/* ---- the call button ---- */}
       <div className="wain-ai-fab fixed bottom-5 start-5 z-50 flex flex-col items-start gap-2">
-        {hint && (
-          <span
-            role="status"
-            className="rounded-full bg-ink-900/90 px-3 py-1.5 text-xs font-semibold text-white shadow-lg"
-          >
-            {hint}
-          </span>
-        )}
         <button
           type="button"
-          onPointerDown={onPointerDown}
-          onPointerUp={onPointerUp}
-          onPointerCancel={cancelHold}
-          onKeyDown={onKeyActivate}
-          onContextMenu={(e) => e.preventDefault()}
-          aria-label={`${WAIN_AI_COPY.launcher} — ${WAIN_AI_COPY.holdHint}`}
+          onClick={startCall}
+          aria-label={`${WAIN_AI_COPY.launcher} — ${WAIN_AI_COPY.callHint}`}
           aria-expanded={open}
           aria-controls="wain-ai-panel"
-          style={{ touchAction: "none" }}
           // The gradient starts at coral-600, not coral-500: white at 16px on
           // coral-500 measures 3.61:1, under the 4.5 AA needs, and the top of
           // this button is where the label sits. coral-600 gives 4.69:1 with
@@ -359,27 +430,19 @@ export default function WainAi() {
           className="group relative flex select-none items-center gap-2.5 rounded-full bg-gradient-to-b from-coral-600 to-coral-800 py-3 pe-5 ps-4 text-white shadow-xl shadow-coral-700/30 transition duration-300 hover:-translate-y-0.5 hover:shadow-2xl active:translate-y-0"
         >
           <span className="relative grid size-9 place-items-center">
-            {/* Progress ring: sweeps once around over the three seconds. */}
-            <svg viewBox="0 0 36 36" className="absolute inset-0 size-9 -rotate-90" aria-hidden="true">
-              <circle cx="18" cy="18" r="16" fill="rgba(255,255,255,.2)" />
-              <circle
-                cx="18"
-                cy="18"
-                r="16"
-                fill="none"
-                stroke="#fff"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeDasharray={2 * Math.PI * 16}
-                strokeDashoffset={holding ? 0 : 2 * Math.PI * 16}
-                style={{
-                  transition: holding
-                    ? `stroke-dashoffset ${HOLD_MS}ms linear`
-                    : "none",
-                }}
+            <span
+              aria-hidden="true"
+              className="absolute inset-0 rounded-full bg-white/20"
+            />
+            {/* While the call rings, the handset pulses — the button itself
+                shows the call is live even when the sheet is scrolled away. */}
+            {phase === "ringing" && (
+              <span
+                aria-hidden="true"
+                className="absolute inset-0 animate-ping rounded-full bg-white/40 motion-reduce:animate-none"
               />
-            </svg>
-            <VoiceMark className="relative size-5" />
+            )}
+            <IconPhone className="relative size-5" />
             <span
               aria-hidden="true"
               className="absolute -end-0.5 -top-0.5 size-2.5 rounded-full bg-sun-300 ring-2 ring-coral-600"
@@ -391,32 +454,37 @@ export default function WainAi() {
         </button>
       </div>
 
-      {/* ---- the panel ---- */}
+      {/* ---- the call sheet ---- */}
       {open && (
         <div
           id="wain-ai-panel"
           role="dialog"
-          aria-label={`${WAIN_AI_COPY.name} — ${WAIN_AI_COPY.role}`}
+          aria-label={`${WAIN_AI_COPY.centre} — ${WAIN_AI_COPY.name}`}
           className="wain-ai-panel fixed bottom-24 start-5 z-50 w-[min(22rem,calc(100vw-2.5rem))] overflow-hidden rounded-3xl border border-line bg-white shadow-2xl"
         >
           {/* Same reason as the launcher: the coral-500 end of this gradient
               cannot carry white body text at AA. */}
           <header className="flex items-center gap-3 bg-gradient-to-l from-coral-800 to-coral-600 p-4 text-white">
-            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-white/20">
+            <span className="relative grid size-11 shrink-0 place-items-center rounded-2xl bg-white/20">
               <VoiceMark className="size-6" />
             </span>
             <span className="min-w-0 flex-1">
               <span className="block font-display text-lg font-semibold leading-tight">
                 {WAIN_AI_COPY.name}
               </span>
-              <span className="flex items-center gap-1 text-xs text-coral-50">
+              {/* The status is the one thing that changes without the visitor
+                  touching anything, so it is the thing that gets announced. */}
+              <span
+                className="flex items-center gap-1 text-xs text-coral-50"
+                aria-live="polite"
+              >
                 <IconPinSolid className="size-3" />
-                {WAIN_AI_COPY.role}
+                {status}
               </span>
             </span>
             <button
               type="button"
-              onClick={close}
+              onClick={closeSheet}
               aria-label={WAIN_AI_COPY.close}
               className="grid size-8 shrink-0 place-items-center rounded-full bg-white/15 transition hover:bg-white/25"
             >
@@ -425,24 +493,76 @@ export default function WainAi() {
           </header>
 
           <div className="p-4">
-            {phase === "listening" && (
+            {(phase === "ringing" || phase === "live" || phase === "answering") && (
               <div className="text-center">
                 <span className="relative mx-auto grid size-16 place-items-center">
-                  <span className="absolute inset-0 animate-ping rounded-full bg-coral-200 motion-reduce:animate-none" />
+                  {phase !== "answering" && (
+                    <span className="absolute inset-0 animate-ping rounded-full bg-coral-200 motion-reduce:animate-none" />
+                  )}
                   <span className="relative grid size-14 place-items-center rounded-full bg-coral-600 text-white">
                     <VoiceMark className="size-7" />
                   </span>
                 </span>
+
                 <p className="mt-3 font-display text-lg font-semibold text-ink-900" aria-live="polite">
-                  {transcript || WAIN_AI_COPY.listening}
+                  {phase === "ringing"
+                    ? WAIN_AI_COPY.ringing
+                    : phase === "answering"
+                      ? WAIN_AI_COPY.answering
+                      : transcript || WAIN_AI_COPY.listening}
                 </p>
-                <p className="mt-1 text-xs text-ink-500">{WAIN_AI_COPY.listeningExamples}</p>
+                {/* Ringing is the one moment with nothing to hear and nothing
+                    to do, so it carries what she is for; once she is on the
+                    line, the short examples are enough. */}
+                {phase === "ringing" && (
+                  <p className="mt-1 text-xs leading-relaxed text-ink-500">
+                    {WAIN_AI_COPY.greeting}
+                  </p>
+                )}
+                {phase === "live" && !transcript && (
+                  <p className="mt-1 text-xs text-ink-500">{WAIN_AI_COPY.listeningExamples}</p>
+                )}
+
+                {/* Agent mode puts the conversation itself here. */}
+                {WAIN_AI_AGENT_ENABLED && (
+                  <div className="mt-4 min-h-24 rounded-2xl bg-sand-100 p-3">
+                    {agentReady ? (
+                      <div ref={slotRef} />
+                    ) : (
+                      <p className="py-4 text-center text-sm font-semibold text-ink-500">
+                        {WAIN_AI_COPY.loading}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* One red button, on every path, meaning exactly one thing. */}
                 <button
                   type="button"
-                  onClick={() => recRef.current?.stop()}
-                  className="mt-4 min-h-11 rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800"
+                  onClick={endCall}
+                  className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-coral-700 px-5 text-sm font-semibold text-white transition hover:bg-coral-800"
                 >
-                  خلصت
+                  <IconPhone className="size-4 rotate-[135deg]" />
+                  {WAIN_AI_COPY.hangUp}
+                </button>
+              </div>
+            )}
+
+            {phase === "ended" && (
+              <div className="text-center">
+                <p className="py-2 font-display text-lg font-semibold text-ink-900">
+                  {WAIN_AI_COPY.ended}
+                </p>
+                <p className="text-sm text-ink-500" dir="ltr">
+                  {callDuration(seconds)}
+                </p>
+                <button
+                  type="button"
+                  onClick={startCall}
+                  className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800"
+                >
+                  <IconPhone className="size-4" />
+                  {WAIN_AI_COPY.callAgain}
                 </button>
               </div>
             )}
@@ -454,36 +574,13 @@ export default function WainAi() {
                 </p>
                 <button
                   type="button"
-                  onClick={() => {
-                    setErrorText("");
-                    if (WAIN_AI_AGENT_ENABLED) setPhase("agent");
-                    else startListening();
-                  }}
-                  className="mt-2 min-h-11 rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800"
+                  onClick={startCall}
+                  className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800"
                 >
-                  جرّب مرة ثانية
+                  <IconPhone className="size-4" />
+                  {WAIN_AI_COPY.callAgain}
                 </button>
               </div>
-            )}
-
-            {phase === "agent" && (
-              <>
-                <p className="text-sm leading-relaxed text-ink-600">{WAIN_AI_COPY.greeting}</p>
-                <p className="mt-2 text-xs leading-relaxed text-ink-500">{WAIN_AI_COPY.hint}</p>
-                <div className="mt-4 min-h-24 rounded-2xl bg-sand-100 p-3">
-                  {agentFailed ? (
-                    <p className="py-4 text-center text-sm font-semibold text-ink-600">
-                      {WAIN_AI_COPY.failed}
-                    </p>
-                  ) : agentReady ? (
-                    <div ref={slotRef} />
-                  ) : (
-                    <p className="py-4 text-center text-sm font-semibold text-ink-500">
-                      {WAIN_AI_COPY.loading}
-                    </p>
-                  )}
-                </div>
-              </>
             )}
 
             <p className="mt-3 text-center text-2xs leading-relaxed text-ink-500">

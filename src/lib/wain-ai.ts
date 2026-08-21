@@ -36,18 +36,45 @@ export const WAIN_AI_COPY = {
   name: "شوق",
   role: "دليلتك في الكويت",
   launcher: "وين AI",
-  holdHint: "اضغطي أو اضغط ٣ ثواني",
+  /**
+   * The button is a call button now, and the label says so.
+   *
+   * It used to say «اضغطي أو اضغط ٣ ثواني» — hold three seconds — because a
+   * voice session seizes the microphone and the audio output, and that is too
+   * much for a pocket-tap. The call replaces that guard with a better one: the
+   * tap opens a call that is *ringing*, and hanging up is one tap away, which
+   * is exactly how every phone anyone owns already behaves. Nobody has to be
+   * taught it, and nothing is seized before they can stop it.
+   */
+  callHint: "اضغط عشان تكلّم شوق",
   // «قول» not «قل»: the imperative of قال is قول in Kuwaiti and قل in MSA, and
   // شوق is «صوت كويتي شبابي». The two spellings were mixed — «قول وش تبي» two
   // lines down against «قل لي» here — which is the kind of slip that is
   // invisible on screen and unmistakable out loud.
+  /**
+   * Shown while the call rings — the seconds when there is nothing to hear yet
+   * and nothing to do. It says what she is for, so the visitor knows what to
+   * say the moment she picks up instead of working it out on the line.
+   */
   greeting: "هلا! أنا شوق. قول لي وش تبي — قهوة، بحر، طلعة عيال — وأدلّك.",
-  hint: "كلّمها عن الجو اللي تبيه — «أبي قهوة هادية» أو «وين أطلع مع العيال؟»",
   listening: "قول وش تبي…",
   listeningExamples: "«قهوة هادية» · «مطعم للعائلة» · «بحر»",
-  processing: "ثواني…",
   loading: "نجهّز شوق…",
   close: "إغلاق",
+
+  // ---- the call ----------------------------------------------------------
+  centre: "مركز اتصال وين",
+  ringing: "يرن…",
+  onCall: "متصل",
+  answering: "شوق ترد…",
+  hangUp: "إنهاء المكالمة",
+  callAgain: "اتصل مرة ثانية",
+  ended: "انتهت المكالمة",
+  callFailed: "ما قدرنا نوصلك بشوق — جرّب مرة ثانية.",
+  // Deliberately no mute button. In agent mode the microphone belongs to the
+  // ElevenLabs widget and this component cannot honestly switch it off, so a
+  // mute control would work on one path and lie on the other. Hanging up is
+  // unambiguous on both.
   micNote: "يحتاج إذن المايك عشان تكلّمها.",
   micDenied: "ما وصلنا صوتك — تأكد إن المايك مسموح للموقع.",
   noSpeech: "ما سمعناك — جرّب مرة ثانية وتكلم بعد الإشارة.",

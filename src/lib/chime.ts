@@ -18,48 +18,15 @@
  * the title is still there. Nothing here throws.
  */
 
-let ctx: AudioContext | null = null;
-
-function context(): AudioContext | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const Ctor =
-      window.AudioContext ??
-      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!Ctor) return null;
-    ctx ??= new Ctor();
-    return ctx;
-  } catch {
-    return null;
-  }
-}
+import { audioContext, tone } from "@/lib/audio-context";
 
 /** Two rising notes — recognisable across a room, over in half a second. */
 export function chime(): void {
-  const audio = context();
+  const audio = audioContext();
   if (!audio) return;
   try {
-    // Suspended is the normal state before the first gesture, and after the
-    // browser has parked a background tab.
-    if (audio.state === "suspended") void audio.resume();
-    const now = audio.currentTime;
-    [
-      { hz: 660, at: 0 },
-      { hz: 880, at: 0.16 },
-    ].forEach(({ hz, at }) => {
-      const osc = audio.createOscillator();
-      const gain = audio.createGain();
-      osc.type = "sine";
-      osc.frequency.value = hz;
-      // Ramped rather than switched: a square edge on a gain node is an
-      // audible click, which sounds like a fault rather than a notification.
-      gain.gain.setValueAtTime(0.0001, now + at);
-      gain.gain.exponentialRampToValueAtTime(0.18, now + at + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + at + 0.28);
-      osc.connect(gain).connect(audio.destination);
-      osc.start(now + at);
-      osc.stop(now + at + 0.3);
-    });
+    tone(audio, { hz: 660, at: 0, seconds: 0.28 });
+    tone(audio, { hz: 880, at: 0.16, seconds: 0.28 });
   } catch {
     /* no sound is a small loss; the count in the title still tells them */
   }

@@ -12,7 +12,7 @@ npm run test:shouq
 | **the question battery** | whether the answer is *right*, not merely well-formed |
 | **the knowledge base** | that the brief matches the data and covers what the site can do |
 | **the voice** | the iOS unlock, voice selection, and that closing her silences her |
-| **the button and the flow** | the three-second hold and every way it fails |
+| **the button and the flow** | the call — tap, ring, connect, hang up — and every way it fails |
 | **agent mode** | the ElevenLabs path and the two client tools |
 
 ## Why the battery exists separately

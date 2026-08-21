@@ -48,19 +48,24 @@ const p = await ctx.newPage();
 const errors = [];
 p.on('pageerror', (e) => errors.push(e.message));
 
-console.log('\n── with an agent configured, the hold opens her instead of the recogniser ──');
+console.log('\n── with an agent configured, the call goes to her, not the recogniser ──');
 await p.goto(B + '/', { waitUntil: 'networkidle' });
 const fab = p.locator('button[aria-label*="وين AI"]');
-await fab.dispatchEvent('pointerdown', { pointerType: 'touch', button: 0, pointerId: 1 });
-await p.waitForTimeout(3400);
+await fab.click();
 await p.waitForSelector('#wain-ai-panel', { timeout: 6000 });
-ok('the panel opens', true);
+ok('one tap places the call', true);
 ok('it stays put rather than searching', !p.url().includes('/search'));
 
 const panel = await p.locator('#wain-ai-panel').textContent();
 ok('she introduces herself as شوق', panel.includes('شوق'));
-ok('she explains what to say', panel.includes('كلّمها') || panel.includes('أبي قهوة'));
+// Which of the two appears depends on whether the stubbed widget has finished
+// loading yet — the greeting carries the ringing seconds, the examples take
+// over once she is on the line. Either is her telling you what to say; which
+// one is a race this assertion has no business caring about.
+ok('she tells the visitor what to say',
+  panel.includes('قول لي وش تبي') || panel.includes('قهوة هادية'), panel.slice(0, 120));
 ok('the microphone note is shown', panel.includes('المايك'));
+ok('and the call can be hung up', panel.includes('إنهاء المكالمة'));
 // next.config sets trailingSlash, so the rendered href is "/privacy/".
 ok('the privacy page is one tap away', (await p.locator('#wain-ai-panel a[href^="/privacy"]').count()) === 1);
 
@@ -70,6 +75,16 @@ ok('the bundle is fetched only after she is opened', requested.length === 1, req
 ok('the URL is version-pinned, not floating', /convai-widget-embed@\d/.test(requested[0]), requested[0]);
 await p.waitForFunction(() => !!window.__convaiAgentId, null, { timeout: 8000 });
 ok('the element is created with the configured agent', (await p.evaluate(() => window.__convaiAgentId)) === 'agent_test_0123456789');
+
+// The widget owning the microphone IS the call connecting — until then the
+// sheet must still be ringing, or the timer would start before she can hear
+// anything.
+await p.waitForFunction(
+  () => document.querySelector('#wain-ai-panel')?.textContent.includes('متصل'),
+  null, { timeout: 8000 }
+);
+ok('the call reports itself connected once the widget is up', true);
+ok('and the timer is running', /[٠-٩]{2}:[٠-٩]{2}/.test(await p.locator('#wain-ai-panel').textContent()));
 
 console.log('\n── the agent can drive the interface ──');
 const tools = await p.evaluate(() => Object.keys(window.__convaiConfig?.clientTools ?? {}));
