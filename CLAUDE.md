@@ -34,3 +34,15 @@ it — local commits included. That has already happened once in this project.
 
 Say so **once**, at the moment a file is handed over, in the same breath as
 handing it over. It is not a note to append to every reply.
+
+## Do not redesign without approval
+
+The visual design is the owner's, not something to improve on the way past. Do
+not change layout, colour, type, spacing, or the shape of a component because it
+looks better — change it because it was asked for, or because it is measurably
+broken (unreadable contrast, a control that cannot be tapped, a page that
+scrolls sideways).
+
+When a design decision is genuinely needed and no reference exists, ask, and say
+what the options are. A screenshot from the owner **is** the approval: match it,
+including the parts that would not have been the first choice.
