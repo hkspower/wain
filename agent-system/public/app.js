@@ -258,7 +258,7 @@
         <div class="card__body">
           <form class="ask__bar" id="askForm">
             <input id="askText" autocomplete="off" enterkeyhint="search"
-                   placeholder="اسأل موصول… «كم طلب سُلّم اليوم؟» أو ألصق طلبًا جديدًا">
+                   placeholder="اسأل موصول أو ألصق طلبًا…">
             <button type="button" class="btn btn--quiet ask__mic" id="askMic" hidden
                     aria-label="تكلّم بالسؤال" title="تكلّم بالسؤال">
               <!-- رسمة لا حرفًا: خطوط الموقع عربية ولا تحمل الرموز التعبيرية،
@@ -441,7 +441,8 @@
       </div>
 
       <div class="filters">
-        <input id="fq" type="search" placeholder="ابحث برقم الطلب أو اسم العميل أو العنوان" value="${esc(f.q)}">
+        <input id="fq" type="search" placeholder="ابحث برقم الطلب أو اسم العميل أو العنوان" value="${esc(f.q)}"
+               enterkeyhint="search" autocapitalize="off" autocorrect="off" spellcheck="false">
         <select id="fgov">
           <option value="">كل المحافظات</option>
           ${state.meta.governorates.map((g) => `<option value="${esc(g)}"${f.governorate === g ? ' selected' : ''}>${esc(g)}</option>`).join('')}
@@ -876,7 +877,8 @@
         الصق موقع الزبون (رابط خرائط أو إحداثيتين) ليقترح النظام الأقرب:
       </p>
       <div class="near__pin">
-        <input type="text" id="pinInput" placeholder="29.3759, 47.9774 أو رابط خرائط">
+        <input type="text" id="pinInput" placeholder="29.3759, 47.9774 أو رابط خرائط"
+           autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
         <button type="button" class="btn btn--quiet btn--sm" id="pinSave">احفظ الموقع</button>
       </div>
       <p class="form-msg" id="pinMsg"></p>`;
@@ -1273,8 +1275,8 @@
   function agentFormFields(a = {}) {
     return `
       <div class="form-grid">
-        <label class="field"><span>الاسم الكامل</span><input name="name" required value="${esc(a.name || '')}"></label>
-        <label class="field"><span>رقم الهاتف</span><input name="phone" dir="ltr" value="${esc(a.phone || '')}"></label>
+        <label class="field"><span>الاسم الكامل</span><input name="name" required autocomplete="name" value="${esc(a.name || '')}"></label>
+        <label class="field"><span>رقم الهاتف</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" dir="ltr" value="${esc(a.phone || '')}"></label>
         <label class="field">
           <span>نوع المركبة</span>
           <select name="vehicle">
@@ -1300,7 +1302,8 @@
         <div class="form-grid">
           <label class="field">
             <span>اسم المستخدم</span>
-            <input name="username" dir="ltr" required placeholder="ahmad" pattern="[a-z0-9._\\-]+">
+            <input name="username" dir="ltr" required placeholder="ahmad" pattern="[a-z0-9._\\-]+"
+                   autocapitalize="off" autocorrect="off" spellcheck="false">
             <small>حروف لاتينية صغيرة وأرقام فقط</small>
           </label>
           <label class="field"><span>كلمة المرور</span><input name="password" type="password" required minlength="6"></label>
@@ -1401,8 +1404,9 @@
         <div class="card__body">
           <form id="orderForm">
             <div class="form-grid">
-              <label class="field"><span>اسم العميل</span><input name="customer_name" required></label>
-              <label class="field"><span>هاتف العميل</span><input name="customer_phone" dir="ltr" required placeholder="+965…"></label>
+              <label class="field"><span>اسم العميل</span><input name="customer_name" required autocomplete="name" enterkeyhint="next"></label>
+              <label class="field"><span>هاتف العميل</span><input name="customer_phone" type="tel" inputmode="tel" autocomplete="tel"
+                dir="ltr" required placeholder="+965…" enterkeyhint="next"></label>
               <fieldset class="addr field--full">
                 <legend>الاستلام</legend>
                 <div class="addr__row">
@@ -1424,7 +1428,8 @@
                 </div>
                 <label class="field field--full">
                   <span>الشارع والمبنى</span>
-                  <input name="pickup_street" placeholder="شارع سالم المبارك، مبنى ١٢">
+                  <input name="pickup_street" placeholder="شارع سالم المبارك، مبنى ١٢"
+                         autocorrect="off" autocomplete="off">
                 </label>
               </fieldset>
 
@@ -1449,7 +1454,8 @@
                 </div>
                 <label class="field field--full">
                   <span>الشارع والمبنى</span>
-                  <input name="dropoff_street" placeholder="شارع تونس، مبنى ٣">
+                  <input name="dropoff_street" placeholder="شارع تونس، مبنى ٣"
+                         autocorrect="off" autocomplete="off">
                 </label>
               </fieldset>
               <label class="field">
@@ -1458,8 +1464,8 @@
                   ${Object.entries(state.meta.vehicles).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}
                 </select>
               </label>
-              <label class="field"><span>المبلغ المطلوب تحصيله (د.ك)</span><input name="cod_amount" type="number" step="0.001" min="0" value="0" dir="ltr"></label>
-              <label class="field"><span>رسوم التوصيل (د.ك)</span><input name="delivery_fee" type="number" step="0.001" min="0" value="1.5" dir="ltr"></label>
+              <label class="field"><span>المبلغ المطلوب تحصيله (د.ك)</span><input name="cod_amount" type="text" inputmode="decimal" data-money value="0" dir="ltr"></label>
+              <label class="field"><span>رسوم التوصيل (د.ك)</span><input name="delivery_fee" type="text" inputmode="decimal" data-money value="1.5" dir="ltr"></label>
               <label class="field">
                 <span>الأولوية</span>
                 <select name="priority">
@@ -1512,6 +1518,20 @@
       box.addEventListener('input', () => {
         const at = box.selectionStart;
         const clean = AR.toLatin(box.value).replace(/[^0-9]/g, '');
+        if (clean !== box.value) { box.value = clean; try { box.setSelectionRange(at, at); } catch { /* لا يهمّ */ } }
+      });
+    }
+
+    /* المبالغ كالقطعة: كانت `type=number` فتفتح على الجوال لوحةً بلا فاصلة
+       عشرية في بعض اللغات، وتغيّر قيمتها إن مرّ الإصبع فوقها. وصارت نصًّا
+       بلوحة أرقام عشرية (`inputmode=decimal`) تقبل «٢٫٥» و«2.5» سواءً —
+       والخادم يبقى هو الحكم على المدى. */
+    for (const box of document.querySelectorAll('[data-money]')) {
+      box.addEventListener('input', () => {
+        const at = box.selectionStart;
+        let clean = AR.toLatin(box.value).replace(/[^0-9.]/g, '');
+        const dot = clean.indexOf('.');            // فاصلة واحدة لا أكثر
+        if (dot >= 0) clean = clean.slice(0, dot + 1) + clean.slice(dot + 1).replace(/\./g, '');
         if (clean !== box.value) { box.value = clean; try { box.setSelectionRange(at, at); } catch { /* لا يهمّ */ } }
       });
     }
@@ -2240,6 +2260,16 @@
       e.target.reset();
       await showApp();
     });
+  });
+
+  /* أثناء الكتابة يختفي الشريط السفلي (انظر app.css). الحدثان يصعدان من أي
+     حقل مهما أُعيد رسم الصفحة، فلا يحتاج الأمر ربطًا في كل شاشة. */
+  const TYPEABLE = /^(INPUT|TEXTAREA|SELECT)$/;
+  document.addEventListener('focusin', (e) => {
+    if (TYPEABLE.test(e.target.tagName)) document.body.classList.add('is-typing');
+  });
+  document.addEventListener('focusout', (e) => {
+    if (TYPEABLE.test(e.target.tagName)) document.body.classList.remove('is-typing');
   });
 
   window.addEventListener('hashchange', router);

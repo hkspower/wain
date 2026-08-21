@@ -693,3 +693,39 @@ tbody tr:hover { background: #fbfdfe; }
   .ask__bar { flex-wrap: wrap; }
   .ask__bar input { flex: 1 1 100%; }
 }
+
+/* ------------------------ الكتابة على الجوال ------------------------ */
+/*
+ * ١٦ بكسل عتبةُ سفاري: أي حقل أصغر منها يجعل iPhone **يكبّر الصفحة** لحظة
+ * لمس الحقل — ولا يعيدها بعد الكتابة، فيبقى الموظّف يسحب الشاشة يمينًا
+ * وشمالًا بين كل حقلين. كانت حقول النظام كلّها عند ١٤٫٩ بكسل، فكانت تكبّر
+ * كلّها. والقياس هنا بالبكسل لا بالـrem عمدًا: العتبة نفسها بالبكسل.
+ *
+ * ويُطبَّق على «المؤشّر الخشن» (اللمس) وعلى الشاشات الضيّقة معًا، لأن
+ * اللوح يلمس ولو كان عريضًا.
+ */
+@media (pointer: coarse), (max-width: 900px) {
+  input, select, textarea,
+  .field input, .field select, .field textarea,
+  .filters input, .filters select,
+  .ask__bar input, .near__pin input, .vo #voText,
+  .availability select {
+    font-size: 16px;
+  }
+
+  /* هدف اللمس: ما دون ٤٤ بكسل يُخطئه الإصبع */
+  .field input, .field select, .filters input, .filters select,
+  .ask__bar input, .ask__bar .btn, .near__pin input { min-height: 44px; }
+  /* الشريط العلوي ٦٢ بكسل، فيسع ٤٤ وحوله فسحة */
+  .availability select, #logoutBtn { min-height: 44px; }
+  .tabbar a { min-height: 44px; display: flex; flex-direction: column; justify-content: center; }
+
+  /*
+   * الشريط السفلي يختفي أثناء الكتابة. لوحة المفاتيح ترفع أسفل الشاشة،
+   * فيقف الشريط الثابت فوقها حاجبًا الحقل الذي يُكتب فيه أو عائمًا في وسط
+   * الشاشة. وإخفاؤه أثناء الكتابة وحدها يردّ المساحة للحقل ولا يُفقد
+   * التنقّل: يعود فور انتهاء الكتابة.
+   */
+  body.is-typing .tabbar { display: none; }
+  body.is-typing { padding-bottom: 0; }
+}
