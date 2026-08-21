@@ -126,7 +126,7 @@ Options -Indexes
 <IfModule mod_headers.c>
   Header set X-Content-Type-Options "nosniff"
   Header set Referrer-Policy "strict-origin-when-cross-origin"
-  # فهد needs the microphone; nothing else on the site needs these features.
+  # شوق needs the microphone; nothing else on the site needs these features.
   Header set Permissions-Policy "camera=(), geolocation=(self), microphone=(self)"
 
   # Nobody has any business framing this site. /admin is a real session behind
@@ -147,7 +147,7 @@ Options -Indexes
   # mint a per-request nonce. So this is not a strong defence against injected
   # inline script. What it does buy, and what the site actually needs:
   #
-  #   * script-src pins executable code to this origin and unpkg (فهد's widget)
+  #   * script-src pins executable code to this origin and unpkg (شوق's widget)
   #     — nothing else can be loaded, whatever ends up in the DOM.
   #   * frame-ancestors 'none' blocks clickjacking of /admin.
   #   * form-action 'self' stops an injected form posting credentials offsite.
@@ -156,7 +156,7 @@ Options -Indexes
   #   * connect-src names Supabase and ElevenLabs explicitly, so exfiltration
   #     to an arbitrary host is blocked rather than merely unlikely.
   #
-  # frame-src is openstreetmap.org for the maps. If فهد or the voice stop
+  # frame-src is openstreetmap.org for the maps. If شوق or the voice stop
   # working after a change here, the browser console names the directive.
   Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob: https://*.supabase.co; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://unpkg.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://unpkg.com https://api.elevenlabs.io https://api.us.elevenlabs.io wss://api.elevenlabs.io wss://api.us.elevenlabs.io; frame-src https://www.openstreetmap.org; media-src 'self' blob: https://api.elevenlabs.io; worker-src 'self' blob:; manifest-src 'self'"
 </IfModule>

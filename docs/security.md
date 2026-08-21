@@ -128,13 +128,15 @@ The duplicate guard also normalises whitespace and case, so `' مقهى '` and
   ElevenLabs so exfiltration to an arbitrary host is blocked, `form-action`
   stops an injected form posting offsite, `base-uri` stops a `<base>` tag
   re-pointing every relative URL, and `object-src 'none'` removes plugins.
-- **فهد's widget is loaded unversioned** from
-  `https://unpkg.com/@elevenlabs/convai-widget-embed`. unpkg resolves that to
-  whatever is newest at request time, so any future or compromised publish
-  executes on the page with full DOM access — including the admin's session in
-  localStorage. **Pin an exact version** (`…/convai-widget-embed@X.Y.Z`) and
-  add an `integrity` hash if the artifact allows. This is inert until
-  `NEXT_PUBLIC_ELEVENLABS_AGENT_ID` is set, so it costs nothing to fix first.
+- **شوق's widget is pinned to a major version, not an exact one** —
+  `https://unpkg.com/@elevenlabs/convai-widget-embed@1`. This entry used to say
+  the URL carried no version at all, which stopped being true when the `@1` was
+  added; unpkg can no longer serve a v2 with a changed API. It does still float
+  within v1, so a future or compromised 1.x publish would execute on the page
+  with full DOM access — including the admin's session in localStorage.
+  **Pin an exact version** (`…/convai-widget-embed@X.Y.Z`) and add an
+  `integrity` hash if the artifact allows. Inert until
+  `NEXT_PUBLIC_ELEVENLABS_AGENT_ID` is set.
 - **The admin session lives in localStorage** (supabase-js `persistSession`).
   Standard, but it means any XSS on `/admin` can lift the JWT. Given the CSP
   caveat above, treat `/admin` as the sensitive surface it is.
