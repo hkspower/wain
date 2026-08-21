@@ -24,7 +24,7 @@
 
 import { chromium } from 'playwright';
 import sharp from 'sharp';
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
+import { readFileSync, mkdirSync, existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -38,8 +38,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
  * than no preview — so the numbers are read from the source they describe.
  */
 const placesSrc = readFileSync(join(ROOT, 'src/lib/places.ts'), 'utf8');
-const PLACES_N = (placesSrc.slice(placesSrc.indexOf('export const places')).match(/^    slug: /gm) || []).length;
-const CATS_N = (placesSrc.match(/^    id: "[a-z]+",$/gm) || []).length;
+const PLACES_N = (placesSrc.slice(placesSrc.indexOf('export const places')).match(/^ {4}slug: /gm) || []).length;
+const CATS_N = (placesSrc.match(/^ {4}id: "[a-z]+",$/gm) || []).length;
 if (PLACES_N < 5 || CATS_N < 3) {
   console.error(`gen-preview: read ${PLACES_N} places and ${CATS_N} categories — refusing to print that.`);
   process.exit(1);

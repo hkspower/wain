@@ -40,7 +40,7 @@ const src = whole.slice(start);
  * fields: anything nested inside an array or object literal is indented
  * further, or is not at a line start at all.
  */
-const blocks = src.split(/\n  \{\n/).slice(1);
+const blocks = src.split(/\n {2}\{\n/).slice(1);
 const field = (b, k) =>
   (b.match(new RegExp(`^    ${k}:\\s*"((?:[^"\\\\]|\\\\.)*)"`, "m")) || [])[1];
 const numField = (b, k) => (b.match(new RegExp(`^    ${k}: (\\d+)`, "m")) || [])[1];
@@ -56,7 +56,7 @@ const price = blocks.map((b) => numField(b, "priceLevel"));
 const setting = blocks.map((b) => field(b, "setting"));
 const season = blocks.map((b) => field(b, "seasonAr"));
 const tags = blocks.map((b) => {
-  const raw = (b.match(/^    tagsAr: \[([^\]]*)\]/m) || [])[1] || "";
+  const raw = (b.match(/^ {4}tagsAr: \[([^\]]*)\]/m) || [])[1] || "";
   return [...raw.matchAll(/"([^"]+)"/g)].map((t) => t[1]).join("، ");
 });
 
@@ -100,7 +100,7 @@ const orderSection = orderList.length
 والدفع عند الاستلام في المكان نفسه. وين ما تمسك أي فلوس ولا تاخذ بطاقة.
 
 الأماكن اللي تستقبل طلبات حالياً:
-${orderList.map((sg, n) => `- ${nameAr[slugs.indexOf(sg)]} — \`${sg}\``).join("\n")}
+${orderList.map((sg) => `- ${nameAr[slugs.indexOf(sg)]} — \`${sg}\``).join("\n")}
 
 إذا رشّحتي واحد منها وكان الزبون يبي ياخذ طلبه ويمشي، قوليله يقدر يطلب
 مقدّماً من صفحة المكان. لا تقولين «مدفوع» أبداً — الدفع يصير عندهم.`

@@ -38,7 +38,7 @@ const dir = mkdtempSync(join(tmpdir(), "wain-net-"));
 
 const bundle = (entry, outfile) =>
   run("npx", [
-    "-y", "esbuild", entry,
+    "esbuild", entry,
     "--bundle", "--format=iife", "--jsx=automatic",
     `--alias:@=${join(ROOT, "src")}`,
     `--define:process.env.NEXT_PUBLIC_SUPABASE_URL="${SUPABASE_URL}"`,

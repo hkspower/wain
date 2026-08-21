@@ -8,7 +8,7 @@ import { toArabicDigits } from "@/lib/places";
 import { loadSupabase, supabaseEnabled } from "@/lib/supabase";
 import { useLatestRequest } from "@/lib/useLatest";
 import { usePoll } from "@/lib/usePoll";
-import { SALON_LABEL, newQueueAttempt, normalisePhone, type TicketStatus } from "@/lib/queue";
+import { newQueueAttempt, normalisePhone, type TicketStatus } from "@/lib/queue";
 
 /**
  * الطابور — the salon's side of the line.

@@ -28,7 +28,7 @@ const run = (cmd, args) =>
 
 const dir = mkdtempSync(join(tmpdir(), "wain-icons-"));
 const code = await run("npx", [
-  "-y", "esbuild", "tests/harness/icons-harness.tsx",
+  "esbuild", "tests/harness/icons-harness.tsx",
   "--bundle", "--format=iife", "--jsx=automatic",
   `--alias:@=${join(ROOT, "src")}`,
   '--define:process.env.NODE_ENV="production"',

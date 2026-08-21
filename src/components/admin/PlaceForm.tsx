@@ -3,7 +3,7 @@
 import { useState } from "react";
 import CoordinatePicker from "@/components/CoordinatePicker";
 import { fieldDenseClass, hintClass, labelClass } from "@/lib/form-classes";
-import { formatKwd, orderTotal, parseKwd, type MenuItem } from "@/lib/orders";
+import { formatKwd, parseKwd, type MenuItem } from "@/lib/orders";
 import {
   DEFAULT_PREP_MINUTES,
   DEFAULT_SERVICE_MINUTES,

@@ -30,8 +30,12 @@ import {
  * approximate, because the business's till is the authority on the price and
  * this is a message, not a receipt.
  */
+/** One shared empty array, so a place with no menu does not hand out a fresh
+ *  one on every render and defeat the memo below. */
+const NO_MENU: NonNullable<Place["menuAr"]> = [];
+
 export default function OrderPanel({ place }: { place: Place }) {
-  const menu = place.menuAr ?? [];
+  const menu = place.menuAr ?? NO_MENU;
   const [qty, setQty] = useState<Record<string, number>>({});
   const [pickupAt, setPickupAt] = useState("");
   const [name, setName] = useState("");

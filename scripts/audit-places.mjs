@@ -12,7 +12,6 @@
  * Errors fail the run. Warnings are printed and do not, because they are
  * judgement calls about the shape of the catalogue rather than defects.
  */
-import { readFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

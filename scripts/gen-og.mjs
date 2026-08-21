@@ -132,7 +132,7 @@ const str = (b, k) => (b.match(new RegExp(`${k}:\\s*"((?:[^"\\\\]|\\\\.)*)"`)) |
 const num = (b, k) => (b.match(new RegExp(`${k}:\\s*([-\\d.]+)`)) || [])[1];
 const places = src
   .slice(src.indexOf("export const places"))
-  .split(/\n  \{\n/)
+  .split(/\n {2}\{\n/)
   .slice(1)
   .map((b) => ({
     slug: str(b, "slug"),

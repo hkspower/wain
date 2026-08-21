@@ -149,7 +149,7 @@ export default function AdminApp() {
     // Approved media is copied into the public bucket first, so the place row
     // is written with URLs that already resolve. Doing it the other way round
     // publishes a page pointing at images that are not there yet.
-    let media: { logoUrl?: string; imageUrls?: string[] } = {};
+    const media: { logoUrl?: string; imageUrls?: string[] } = {};
     if (approving) {
       const failures: string[] = [];
       if (approvedLogo && approving.logo_path) {

@@ -41,7 +41,15 @@ export default function CoordinatePicker({
   label?: string;
 }) {
   const has = lat !== null && lng !== null && Number.isFinite(lat) && Number.isFinite(lng);
-  const point = has ? { lat: lat as number, lng: lng as number } : DEFAULT_CENTRE;
+  // Memoised so the object identity is stable while the numbers are. Built
+  // fresh each render it was a new object every time, which the marker's
+  // useMemo below had to work around by depending on point.lat and point.lng
+  // instead of point — correct, but only as long as nothing else in the object
+  // ever matters, and not something the compiler can check.
+  const point = useMemo(
+    () => (has ? { lat: lat as number, lng: lng as number } : DEFAULT_CENTRE),
+    [has, lat, lng]
+  );
 
   const [frame, setFrame] = useState<MapFrame>(() =>
     // A single point gives a street-level view; a wide one would make a click
@@ -71,7 +79,7 @@ export default function CoordinatePicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the pair
   }, [key]);
 
-  const marker = useMemo(() => (has ? project(frame, point) : null), [frame, has, point.lat, point.lng]);
+  const marker = useMemo(() => (has ? project(frame, point) : null), [frame, has, point]);
 
   function pick(e: React.MouseEvent<HTMLDivElement>) {
     const box = boxRef.current?.getBoundingClientRect();

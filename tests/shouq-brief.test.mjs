@@ -136,7 +136,7 @@ console.log("\n── the fields cannot slip against each other ──");
   // which shifted every value by one and told شوق the wrong price for all of
   // them. It throws on misalignment now; this proves the guard still fires.
   const broken = join(tmp, "places-broken.ts");
-  writeFileSync(broken, places.replace(/  category: "coffee",\n/, ""));
+  writeFileSync(broken, places.replace(/ {2}category: "coffee",\n/, ""));
   let threw = false;
   try { regenerate(broken); } catch { threw = true; }
   ok("a place missing a field stops the build instead of shifting the columns", threw);

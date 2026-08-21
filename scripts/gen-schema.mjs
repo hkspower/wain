@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 
 const src = readFileSync("src/lib/places.ts", "utf8");
 const body = src.slice(src.indexOf("export const places"));
-const blocks = body.split(/\n  \{\n/).slice(1);
+const blocks = body.split(/\n {2}\{\n/).slice(1);
 
 const q = (s) => "'" + String(s).replace(/'/g, "''") + "'";
 // \s* after the colon, because a long value wraps onto its own line:

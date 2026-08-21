@@ -13,11 +13,11 @@
  * (no business has registered yet). It skips cleanly when the fixture is
  * absent rather than reporting a false pass or a false failure.
  */
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CHROMIUM = process.env.CHROMIUM_PATH || "/opt/pw-browsers/chromium";
@@ -62,7 +62,7 @@ const tmp = mkdtempSync(join(tmpdir(), "wain-orders-"));
 async function runLogic(entry, outName, title) {
   console.log(`\n════ ${title} ════`);
   const bundle = join(tmp, outName);
-  if ((await run("npx", ["-y", "esbuild", entry, "--bundle", "--format=esm",
+  if ((await run("npx", ["esbuild", entry, "--bundle", "--format=esm",
         `--alias:@=${join(ROOT, "src")}`, `--outfile=${bundle}`, "--log-level=error"])) !== 0) {
     console.error(`could not bundle ${entry}`);
     process.exit(1);

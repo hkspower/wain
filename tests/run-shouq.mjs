@@ -91,7 +91,7 @@ let failed = 0;
 console.log("\n════ شوق: what she says ════");
 const tmp = mkdtempSync(join(tmpdir(), "shouq-"));
 const bundle = join(tmp, "answers.mjs");
-if (await run("npx", ["-y", "esbuild", "tests/shouq-answers.test.mjs", "--bundle", "--format=esm",
+if (await run("npx", ["esbuild", "tests/shouq-answers.test.mjs", "--bundle", "--format=esm",
                 `--alias:@=${join(ROOT, "src")}`, `--outfile=${bundle}`, "--log-level=error"]) !== 0) {
   console.error("could not bundle the answer tests"); process.exit(1);
 }
@@ -100,7 +100,7 @@ failed += (await run("node", [bundle])) === 0 ? 0 : 1;
 /* 1b — is the answer right, not just well-formed. */
 console.log("\n════ شوق: the question battery ════");
 const battery = join(tmp, "battery.mjs");
-if (await run("npx", ["-y", "esbuild", "tests/shouq-battery.test.mjs", "--bundle", "--format=esm",
+if (await run("npx", ["esbuild", "tests/shouq-battery.test.mjs", "--bundle", "--format=esm",
                 `--alias:@=${join(ROOT, "src")}`, `--outfile=${battery}`, "--log-level=error"]) !== 0) {
   console.error("could not bundle the question battery"); process.exit(1);
 }
@@ -115,7 +115,7 @@ failed += (await run("node", ["tests/shouq-brief.test.mjs"])) === 0 ? 0 : 1;
 console.log("\n════ شوق: the voice ════");
 {
   const vtmp = mkdtempSync(join(tmpdir(), "shouq-voice-"));
-  const okBundle = await run("npx", ["-y", "esbuild", "tests/harness/voice-harness.ts",
+  const okBundle = await run("npx", ["esbuild", "tests/harness/voice-harness.ts",
     "--bundle", "--format=iife", `--alias:@=${join(ROOT, "src")}`,
     '--define:process.env.NODE_ENV="production"',
     `--outfile=${join(vtmp, "voice.js")}`, "--log-level=error"]);

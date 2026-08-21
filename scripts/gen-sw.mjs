@@ -45,7 +45,7 @@ const files = [];
  * place a visitor has opened is available offline afterwards regardless.
  */
 const featured = new Set(
-  [...readFileSync("src/lib/places.ts", "utf8").matchAll(/slug: "([a-z0-9-]+)"[\s\S]*?(?=\n  \{|\n\];)/g)]
+  [...readFileSync("src/lib/places.ts", "utf8").matchAll(/slug: "([a-z0-9-]+)"[\s\S]*?(?=\n {2}\{|\n\];)/g)]
     .filter((m) => m[0].includes("featured: true"))
     .map((m) => m[1])
 );
