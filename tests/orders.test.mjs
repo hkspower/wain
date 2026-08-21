@@ -9,7 +9,14 @@ import {
   validateOrder,
   orderReference,
   acceptsOrders,
+  isTerminalStatus,
 } from "@/lib/orders";
+import {
+  DEFAULT_PREP_MINUTES,
+  MAX_PREP_MINUTES,
+  MIN_PREP_MINUTES,
+  clampPrepMinutes,
+} from "@/lib/places";
 import { parseMenu, menuToText } from "@/components/admin/PlaceForm";
 
 let pass = 0;
@@ -82,6 +89,35 @@ console.log("\n── pickup slots ──");
   ok("asking for four gives four", slots.length === 4);
   // Same input, same output — the panel must not re-roll slots on re-render.
   ok("it is deterministic", JSON.stringify(pickupSlots(at, 4)) === JSON.stringify(slots));
+}
+
+console.log("\n── how long the business needs ──");
+{
+  const at = new Date("2026-08-20T18:05:00");
+  const quick = pickupSlots(at, 4, 10);
+  const slow = pickupSlots(at, 4, 90);
+  ok("a ten-minute lead time offers a sooner first slot", quick[0].value < slow[0].value,
+    `${quick[0].value} vs ${slow[0].value}`);
+  ok("a ninety-minute lead time pushes past the hour", slow[0].value >= "19:30", slow[0].value);
+  ok("the default matches the old blanket half hour",
+    JSON.stringify(pickupSlots(at, 4)) === JSON.stringify(pickupSlots(at, 4, 30)));
+
+  ok("nothing is clamped below the floor", clampPrepMinutes(1) === MIN_PREP_MINUTES);
+  ok("nor above the ceiling", clampPrepMinutes(9999) === MAX_PREP_MINUTES);
+  ok("a missing value falls back to the default", clampPrepMinutes(undefined) === DEFAULT_PREP_MINUTES);
+  ok("so does nonsense", clampPrepMinutes(NaN) === DEFAULT_PREP_MINUTES);
+  ok("a sensible value is left alone", clampPrepMinutes(45) === 45);
+  // The clamp and the CHECK on places.order_prep_minutes have to agree, or the
+  // form accepts a number the database then refuses.
+  ok("the bounds match the database CHECK", MIN_PREP_MINUTES === 5 && MAX_PREP_MINUTES === 240);
+}
+
+console.log("\n── what is final and what is not ──");
+{
+  ok("a placed order is still moving", !isTerminalStatus("placed"));
+  ok("a ready order is still moving", !isTerminalStatus("ready"));
+  ok("a collected order is done", isTerminalStatus("collected"));
+  ok("a cancelled order is done", isTerminalStatus("cancelled"));
 }
 
 console.log("\n── the order is checked before it is sent ──");

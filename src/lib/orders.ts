@@ -7,7 +7,12 @@ import {
   isRetryableSupabaseError,
   retry,
 } from "@/lib/net";
-import { toArabicDigits, type Place } from "@/lib/places";
+import {
+  DEFAULT_PREP_MINUTES,
+  clampPrepMinutes,
+  toArabicDigits,
+  type Place,
+} from "@/lib/places";
 
 /**
  * طلب مسبق — order ahead, pay when you collect.
@@ -91,13 +96,19 @@ export function orderTotal(lines: OrderLine[]): number {
  * twice across a render is how a slot becomes bookable one moment and gone
  * the next.
  */
-export function pickupSlots(from: Date, count = 8): { value: string; labelAr: string }[] {
+export function pickupSlots(
+  from: Date,
+  count = 8,
+  prepMinutes: number = DEFAULT_PREP_MINUTES
+): { value: string; labelAr: string }[] {
   const out: { value: string; labelAr: string }[] = [];
   const t = new Date(from);
-  // The soonest sensible collection: round up to the next half hour, plus a
-  // half hour for the business to actually make it.
+  // The soonest sensible collection: the time the business says it needs,
+  // rounded up to the next half hour. A blanket half hour was wrong in both
+  // directions — too long for a karak somebody wants on the way past, and
+  // nowhere near enough for a grill.
   t.setSeconds(0, 0);
-  t.setMinutes(t.getMinutes() + 30);
+  t.setMinutes(t.getMinutes() + clampPrepMinutes(prepMinutes));
   t.setMinutes(t.getMinutes() <= 30 ? 30 : 60, 0, 0);
   for (let i = 0; i < count; i++) {
     const h = t.getHours();
@@ -298,6 +309,66 @@ export async function fetchOrderState(
 /** Nothing will change after these, so there is nothing left to poll for. */
 export function isTerminalStatus(status: OrderStatus): boolean {
   return status === "collected" || status === "cancelled";
+}
+
+export type CancelResult =
+  | { ok: true }
+  /** The business already started: the food exists, so this is a phone call. */
+  | { ok: false; reason: "too-late"; status: OrderStatus; message: string }
+  | { ok: false; reason: "unknown" | "network"; message: string };
+
+/**
+ * Call the order off.
+ *
+ * Not retried. cancel_order is `volatile` and takes a row lock, and while a
+ * repeat would be harmless — cancelling twice returns 'cancelled' — a write
+ * that has not been proven safe to repeat is not repeated here. One attempt,
+ * and the customer can press again.
+ */
+export async function cancelOrder(
+  id: string,
+  token: string,
+  signal?: AbortSignal | null
+): Promise<CancelResult> {
+  if (!supabaseEnabled) {
+    return { ok: false, reason: "network", message: "ما نقدر نلغي الحين. اتصل بالمكان." };
+  }
+  const sb = await loadSupabase();
+  if (!sb) return { ok: false, reason: "network", message: "ما نقدر نلغي الحين. اتصل بالمكان." };
+
+  const q = sb.rpc("cancel_order", { p_id: id, p_token: token });
+  const { data, error } = await (signal ? q.abortSignal(signal) : q);
+
+  if (error) {
+    return {
+      ok: false,
+      reason: "network",
+      message: describeNetError(error, "ما وصل الإلغاء. جرّب مرة ثانية."),
+    };
+  }
+
+  // null means no row matched the id and token pair — which for a device that
+  // is holding both should not happen, so it is reported rather than hidden.
+  if (data === null || data === undefined) {
+    return {
+      ok: false,
+      reason: "unknown",
+      message: "ما لقينا الطلب. اتصل بالمكان عشان يلغونه.",
+    };
+  }
+
+  const status = String(data) as OrderStatus;
+  if (status === "cancelled") return { ok: true };
+
+  return {
+    ok: false,
+    reason: "too-late",
+    status,
+    message:
+      status === "collected"
+        ? "الطلب متسلّم أصلاً."
+        : "المكان بدأ يجهّز طلبك، فما نقدر نلغيه من هني. اتصل فيهم لو تبي تلغي.",
+  };
 }
 
 export interface OrderInput {

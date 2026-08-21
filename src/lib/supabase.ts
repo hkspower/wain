@@ -2,7 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { deadlineFetch } from "@/lib/net";
-import type { CategoryId, Place } from "@/lib/places";
+import { clampPrepMinutes, type CategoryId, type Place } from "@/lib/places";
 
 /**
  * Supabase is optional. With no URL/key configured the site runs exactly as it
@@ -87,6 +87,7 @@ export interface PlaceRow {
   menu_ar: unknown;
   accepts_orders: boolean | null;
   order_note_ar: string | null;
+  order_prep_minutes: number | null;
   featured: boolean;
   published: boolean;
   sort_order: number;
@@ -123,6 +124,7 @@ export function rowToPlace(r: PlaceRow): Place {
     menuAr: Array.isArray(r.menu_ar) && r.menu_ar.length ? (r.menu_ar as Place["menuAr"]) : undefined,
     acceptsOrders: r.accepts_orders ?? undefined,
     orderNoteAr: r.order_note_ar || undefined,
+    orderPrepMinutes: r.order_prep_minutes ?? undefined,
   };
 }
 
@@ -156,6 +158,7 @@ export function placeToRow(p: Place & { published?: boolean; sortOrder?: number 
     menu_ar: p.menuAr ?? [],
     accepts_orders: !!p.acceptsOrders,
     order_note_ar: p.orderNoteAr ?? "",
+    order_prep_minutes: clampPrepMinutes(p.orderPrepMinutes),
     featured: !!p.featured,
     published: p.published ?? true,
     sort_order: p.sortOrder ?? 0,

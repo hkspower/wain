@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { IconCheck, IconClock, IconClose, IconCoins, IconGo } from "@/components/icons";
+import { CollectionDetails, OrderLines } from "@/components/OrderSummary";
 import { fieldClass, hintClass, labelClass } from "@/lib/form-classes";
 import { haptic } from "@/lib/haptics";
 import { toArabicDigits, type Place } from "@/lib/places";
@@ -43,7 +44,7 @@ export default function OrderPanel({ place }: { place: Place }) {
   // One clock reading for the life of the panel: reading it again on each
   // render would let a slot the customer is looking at expire underneath them
   // between choosing it and sending.
-  const slots = useMemo(() => pickupSlots(new Date()), []);
+  const slots = useMemo(() => pickupSlots(new Date(), 8, place.orderPrepMinutes), [place.orderPrepMinutes]);
 
   const lines: OrderLine[] = useMemo(
     () =>
@@ -137,9 +138,16 @@ export default function OrderPanel({ place }: { place: Place }) {
           — قوله لهم عند الاستلام.
         </p>
         <p className="mt-1 text-sm font-semibold text-ink-700">
-          الدفع عند الاستلام في {place.nameAr}.
+          الدفع عند الاستلام في {place.nameAr}
+          {pickupAt && <> الساعة {slots.find((s) => s.value === pickupAt)?.labelAr}</>}.
         </p>
         {place.orderNoteAr && <p className={hintClass}>{place.orderNoteAr}</p>}
+
+        {/* What they just ordered. It used to say only the reference, which is
+            the one thing they cannot check against. */}
+        <OrderLines lines={lines} totalFils={total} />
+        <CollectionDetails slug={place.slug} />
+
         {/* The device is the only thing holding this order's key, so the way
             back to it is a link and not an account. Said here, once, while the
             customer is still looking at the screen. */}

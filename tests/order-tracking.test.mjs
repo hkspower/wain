@@ -62,6 +62,23 @@ ok('it defaults to «بانتظار التجهيز», not to ready', body.includ
 ok('an unreachable status is admitted, not guessed', body.includes('ما قدرنا نتأكد من الحالة'));
 ok('the place name links to the place', (await p.locator('a[href="/places/kuwait-towers/"]').count()) > 0);
 
+console.log('\n── it says where to collect from ──');
+// Collecting in person is the one kind of order that needs directions and a
+// phone number, and the card carried neither.
+const directions = p.locator('a[href*="google.com/maps/dir"]');
+ok('there is a link to the directions', (await directions.count()) >= 1);
+ok('pointed at the place, not a search box',
+  (await directions.first().getAttribute('href')).includes('destination='),
+  await directions.first().getAttribute('href'));
+ok('and a way back to the place page', (await p.locator('a[href="/places/kuwait-towers/"]').count()) >= 1);
+
+console.log('\n── cancelling is offered only while it is true ──');
+// With no database the status cannot be read, so the card shows its remembered
+// state: placed. That is exactly when cancelling should be on offer.
+ok('a placed order offers a cancel', (await p.locator('button:has-text("ألغِ الطلب")').count()) === 1);
+ok('and it is not presented as deleting the record',
+  (await p.locator('button:has-text("احذفه من القائمة")').count()) === 1);
+
 console.log('\n── it still never claims payment ──');
 ok('the word «مدفوع» appears nowhere', !body.includes('مدفوع'));
 ok('it repeats that payment is on collection', body.includes('الدفع عند الاستلام'));

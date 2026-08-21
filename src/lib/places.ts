@@ -111,6 +111,30 @@ export interface Place {
   acceptsOrders?: boolean;
   /** Anything the customer should know before collecting. */
   orderNoteAr?: string;
+  /**
+   * How long the business needs before an order can be collected, in minutes.
+   * Defaults to 30 when unset. A karak is ready in ten minutes; a mixed grill
+   * is not, and offering it in half an hour only sets the customer up to stand
+   * around waiting.
+   */
+  orderPrepMinutes?: number;
+}
+
+export const DEFAULT_PREP_MINUTES = 30;
+export const MIN_PREP_MINUTES = 5;
+export const MAX_PREP_MINUTES = 240;
+
+/**
+ * Matches the CHECK on places.order_prep_minutes, so the form and the database
+ * agree about what is allowed rather than differing by one.
+ *
+ * Lives here rather than in orders.ts because supabase.ts needs it to map a
+ * row, and orders.ts needs supabase.ts — putting it there made an import cycle
+ * out of a pure arithmetic function.
+ */
+export function clampPrepMinutes(value: number | undefined | null): number {
+  if (!Number.isFinite(value ?? NaN)) return DEFAULT_PREP_MINUTES;
+  return Math.min(MAX_PREP_MINUTES, Math.max(MIN_PREP_MINUTES, Math.round(value as number)));
 }
 
 /** Ordered the way the category rail reads on the home page. */

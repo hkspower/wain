@@ -110,6 +110,59 @@ is asked for back. Related: `public.orders` had no explicit `GRANT` at all and
 relied on Supabase's default privileges being untouched — the grants are now
 written out in `schema.sql`.
 
+## Calling it off
+
+There was no way out at all: place an order, change your plans, and the shop
+still made it. `cancel_order(p_id, p_token)` takes the same two values as
+`order_status` and cancels — **but only while the order is still `placed`.**
+
+That limit is a choice, not a technical one. Once the business marks the order
+ready the food exists and somebody paid for the ingredients, so the honest
+thing is to send the customer to the phone rather than let them wave it away
+from a screen. The function returns the status it ended on, so «ألغيناه» and
+«فات الأوان» are told apart without a second round trip, and the cancel button
+only appears while it would actually work — a button that quietly fails is
+worse than no button. Cancelling twice is not an error.
+
+Verified against PostgreSQL 16: a wrong token cancels nothing and returns
+nothing, another customer's id with this token cancels nothing, a `ready` order
+comes back `ready`, and `cancelled_at` is stamped by the trigger rather than by
+the caller.
+
+## How long the business needs
+
+`order_prep_minutes` on the place, 5 to 240, default 30. The first collection
+slot starts after it.
+
+A blanket half hour was wrong in both directions — too long for a karak
+somebody wants on the way past, nowhere near enough for a mixed grill, and
+offering a grill in thirty minutes only sets the customer up to stand around
+waiting. The bounds are the same number in `clampPrepMinutes` and in the
+column's CHECK, and a test asserts they still match, because a form that
+accepts what the database refuses is a silent failure at save time.
+
+## Being told an order arrived
+
+The queue used to load once and sit there. An order placed while the tab was
+open never appeared, and the first anybody knew of it was the customer turning
+up to collect something nobody had made.
+
+It now re-reads itself every 30 seconds, **and does not pause while the tab is
+hidden** — unlike everything else that polls, because a shop keeps this open in
+a background tab all day and that is exactly when the alert has to land. A new
+order marks the row «وصل الحين», puts a count in the tab title, and plays a
+two-note chime.
+
+The chime is synthesised, not a downloaded file, and it is deliberately not a
+browser notification: asking a shop for notification permission the moment they
+open the queue is the behaviour browsers now penalise, and a sound reaches
+somebody in a back room just as well without asking. It is on by default and
+can be switched off — a shop that misses an order because nobody found the
+sound switch has been let down by us.
+
+Orders outstanding when the queue is first opened do not set off the alarm.
+Only ids that appear afterwards count as new.
+
 ## What still needs you
 
 Nothing in this feature works until `supabase/schema.sql` has been run — the
@@ -124,9 +177,16 @@ order form says so plainly rather than pretending to send. Once it is:
 npm run test:orders
 ```
 
-58 checks on the money and the order rules, the panel driven in a browser, and
-22 more on «طلباتي». The panel layer needs a place with a menu; with none it
-skips rather than reporting a false pass.
+71 checks on the money and the order rules, the panel driven in a browser, and
+27 more on «طلباتي». `npm run test:net` covers the rest — cancelling, and what
+happens to an order on a bad network.
+
+**The panel layer skips, and will keep skipping until a business turns ordering
+on.** No shipped place has a menu, because inventing a price list for a real
+café and showing it to customers who will be charged at that café's counter is
+not something wain should do. The fixture has to come from a business, through
+the admin editor. Until then the browser layer says it skipped rather than
+reporting a false pass.
 
 The tracking tests run against a static build with no Supabase, which is the
 case worth testing hardest: with the network silent the screen must still show

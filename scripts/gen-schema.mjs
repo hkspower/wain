@@ -114,6 +114,10 @@ create table if not exists public.places (
                    check (jsonb_typeof(menu_ar) = 'array' and jsonb_array_length(menu_ar) <= 60),
   accepts_orders boolean not null default false,
   order_note_ar  text not null default '' check (length(order_note_ar) <= 300),
+  -- How long the business needs before an order can be collected. Bounded so
+  -- a typo cannot push every slot past closing time or offer food instantly.
+  order_prep_minutes integer not null default 30
+                   check (order_prep_minutes between 5 and 240),
   featured       boolean not null default false,
   published      boolean not null default true,
   sort_order     integer not null default 0,
@@ -145,6 +149,7 @@ alter table public.places
   add column if not exists menu_ar        jsonb not null default '[]'::jsonb,
   add column if not exists accepts_orders boolean not null default false,
   add column if not exists order_note_ar  text not null default '',
+  add column if not exists order_prep_minutes integer not null default 30,
   add column if not exists setting     text not null default 'mixed',
   add column if not exists season_ar   text not null default '',
   add column if not exists tags_ar     text[] not null default '{}',
@@ -152,6 +157,12 @@ alter table public.places
   add column if not exists instagram   text not null default '',
   add column if not exists website     text not null default '',
   add column if not exists products_ar text[] not null default '{}';
+-- ADD COLUMN IF NOT EXISTS brings the default but not the CHECK, so an
+-- upgraded database would accept a lead time the fresh one refuses. Stated
+-- separately, and dropped first so re-running is not an error.
+alter table public.places drop constraint if exists places_order_prep_minutes_check;
+alter table public.places add constraint places_order_prep_minutes_check
+  check (order_prep_minutes between 5 and 240);
 alter table public.places enable row level security;
 
 drop policy if exists "anyone can read published places" on public.places;
@@ -481,6 +492,60 @@ $$;
 
 revoke all on function public.order_status(uuid, text) from public;
 grant execute on function public.order_status(uuid, text) to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Cancelling your own order
+--
+-- Without this there is no way out at all: place an order, change your plans,
+-- and the shop still makes it. Somebody has to be able to say "never mind",
+-- and the only person who can is the one holding the token.
+--
+-- It refuses once the order is 'ready'. That is not a technical limit — by
+-- then the food exists and somebody paid for the ingredients, so the honest
+-- thing is to send the customer to the phone rather than let them wave it away
+-- from a screen. It returns the resulting status so the caller can tell
+-- "cancelled" from "too late" without a second round trip, and a wrong token
+-- returns nothing at all rather than admitting the order exists.
+-- ---------------------------------------------------------------------------
+create or replace function public.cancel_order(p_id uuid, p_token text)
+  returns text
+  language plpgsql
+  security definer
+  set search_path = public, pg_temp
+  volatile
+as $$
+declare
+  current_status text;
+begin
+  select o.status into current_status
+  from public.orders o
+  where o.id = p_id and o.track_token = p_token
+  for update;
+
+  -- No row, or the wrong token: say nothing. An error here would be a way to
+  -- ask "does this order id exist?" one guess at a time.
+  if current_status is null then
+    return null;
+  end if;
+
+  -- Cancelling twice is not an error; the customer gets the answer they want.
+  if current_status = 'cancelled' then
+    return 'cancelled';
+  end if;
+
+  if current_status <> 'placed' then
+    return current_status;
+  end if;
+
+  -- cancelled_at is left to the trigger, so the time comes from the database
+  -- rather than from whoever called this.
+  update public.orders set status = 'cancelled' where id = p_id;
+  return 'cancelled';
+end;
+$$;
+
+revoke all on function public.cancel_order(uuid, text) from public;
+grant execute on function public.cancel_order(uuid, text) to anon, authenticated;
 
 -- Business media — logos and photos
 --

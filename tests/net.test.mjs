@@ -186,6 +186,48 @@ r = await p.evaluate(async () => {
 });
 ok('one failure then an answer still reads the order', r.ok === true && r.status === 'ready', JSON.stringify(r));
 
+console.log('\n── calling the order off ──');
+// cancel_order answers with the status the order ended up in, so the screen can
+// tell "cancelled" from "too late" without a second round trip.
+reset([{ kind: 'ok', status: 200, body: '"cancelled"' }]);
+r = await p.evaluate(async () => {
+  const res = await window.wain.cancelOrder('11111111-1111-4111-8111-111111111111', 'a'.repeat(32));
+  return { ok: res.ok, reason: res.reason };
+});
+ok('a placed order cancels', r.ok === true, JSON.stringify(r));
+
+reset([{ kind: 'ok', status: 200, body: '"ready"' }]);
+r = await p.evaluate(async () => {
+  const res = await window.wain.cancelOrder('11111111-1111-4111-8111-111111111111', 'a'.repeat(32));
+  return { ok: res.ok, reason: res.reason, status: res.status, message: res.message };
+});
+ok('a ready order does not cancel', r.ok === false, JSON.stringify(r));
+ok('and it is called too-late, not a failure', r.reason === 'too-late', JSON.stringify(r));
+ok('the message sends them to the phone', r.message.includes('اتصل'), r.message);
+
+reset([{ kind: 'ok', status: 200, body: '"collected"' }]);
+r = await p.evaluate(async () => {
+  const res = await window.wain.cancelOrder('11111111-1111-4111-8111-111111111111', 'a'.repeat(32));
+  return { ok: res.ok, message: res.message };
+});
+ok('a collected order says so plainly', r.ok === false && r.message.includes('متسلّم'), JSON.stringify(r));
+
+reset([{ kind: 'ok', status: 200, body: 'null' }]);
+r = await p.evaluate(async () => {
+  const res = await window.wain.cancelOrder('11111111-1111-4111-8111-111111111111', 'f'.repeat(32));
+  return { ok: res.ok, reason: res.reason };
+});
+ok('a token that matches nothing is not reported as cancelled', r.ok === false, JSON.stringify(r));
+ok('it is called unknown, not a network problem', r.reason === 'unknown', JSON.stringify(r));
+
+reset([{ kind: 'fail' }]);
+r = await p.evaluate(async () => {
+  const res = await window.wain.cancelOrder('11111111-1111-4111-8111-111111111111', 'a'.repeat(32));
+  return { ok: res.ok, reason: res.reason };
+});
+ok('a failed cancel is a network failure, not a silent success', r.ok === false && r.reason === 'network', JSON.stringify(r));
+ok('and a write is not replayed on its own', seen.filter((s) => s.method === 'POST').length === 1, `${seen.length}`);
+
 console.log('\n── terminal statuses are recognised ──');
 const terminal = await p.evaluate(() => ({
   placed: window.wain.isTerminalStatus('placed'),

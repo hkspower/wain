@@ -34,6 +34,16 @@ export interface PollOptions<T> {
   isFinal?: (value: T) => boolean;
   /** Skip the network entirely — e.g. nothing is configured to talk to. */
   enabled?: boolean;
+  /**
+   * Stop polling while the tab is not being looked at. True for anything whose
+   * only purpose is to be read, since nobody is reading it.
+   *
+   * False for the order queue, and the difference matters: a shop leaves the
+   * queue open in a background tab all day, and that is precisely when a new
+   * order must still be noticed. Pausing there would mean the alert only ever
+   * arrived once somebody had already looked.
+   */
+  pauseWhenHidden?: boolean;
 }
 
 export interface PollState<T> {
@@ -50,7 +60,7 @@ const MAX_BACKOFF_MULTIPLE = 8;
 
 export function usePoll<T>(
   fetcher: (signal: AbortSignal) => Promise<T>,
-  { intervalMs, isFinal, enabled = true }: PollOptions<T>
+  { intervalMs, isFinal, enabled = true, pauseWhenHidden = true }: PollOptions<T>
 ): PollState<T> {
   const [value, setValue] = useState<T | undefined>(undefined);
   const [settled, setSettled] = useState(false);
@@ -109,10 +119,13 @@ export function usePoll<T>(
       timer.current = setTimeout(tick, intervalMs * multiple);
     };
 
+    const hidden = () =>
+      pauseWhenHidden && typeof document !== "undefined" && document.hidden;
+
     const tick = async () => {
       // Nothing is gained by polling a tab nobody can see; the visibility
       // listener below catches up the moment it is looked at again.
-      if (typeof document !== "undefined" && document.hidden) return schedule();
+      if (hidden()) return schedule();
       await run();
       schedule();
     };
@@ -120,8 +133,7 @@ export function usePoll<T>(
     void tick();
 
     const onWake = () => {
-      if (doneRef.current) return;
-      if (typeof document !== "undefined" && document.hidden) return;
+      if (doneRef.current || hidden()) return;
       void tick();
     };
 
@@ -137,7 +149,7 @@ export function usePoll<T>(
       removeEventListener("online", onWake);
       removeEventListener("focus", onWake);
     };
-  }, [enabled, intervalMs, run]);
+  }, [enabled, intervalMs, pauseWhenHidden, run]);
 
   const refresh = useCallback(() => {
     void run();

@@ -4,7 +4,16 @@ import { useState } from "react";
 import CoordinatePicker from "@/components/CoordinatePicker";
 import { fieldDenseClass, hintClass, labelClass } from "@/lib/form-classes";
 import { formatKwd, orderTotal, parseKwd, type MenuItem } from "@/lib/orders";
-import { categories, type CategoryId, type Place } from "@/lib/places";
+import {
+  DEFAULT_PREP_MINUTES,
+  MAX_PREP_MINUTES,
+  MIN_PREP_MINUTES,
+  categories,
+  clampPrepMinutes,
+  toArabicDigits,
+  type CategoryId,
+  type Place,
+} from "@/lib/places";
 
 export interface EditablePlace extends Place {
   id?: string;
@@ -250,6 +259,26 @@ export default function PlaceForm({
         <p className={hint}>
           السعر بالدينار بثلاث خانات (٠٫٢٥٠). اكتب «خلص» بعد السعر إذا الصنف
           مو متوفر اليوم. {menuPreview}
+        </p>
+
+        <label className={label} htmlFor="f-prep" style={{ marginTop: "0.75rem" }}>
+          كم تحتاج وقت لتجهيز الطلب؟ (بالدقائق)
+        </label>
+        <input
+          id="f-prep"
+          type="number"
+          inputMode="numeric"
+          min={MIN_PREP_MINUTES}
+          max={MAX_PREP_MINUTES}
+          step={5}
+          className={input}
+          value={p.orderPrepMinutes ?? DEFAULT_PREP_MINUTES}
+          onChange={(e) => set("orderPrepMinutes", clampPrepMinutes(Number(e.target.value)))}
+        />
+        <p className={hint}>
+          أول وقت استلام يُعرض على الزبون يبدأ بعد هذي المدة. الافتراضي{" "}
+          {toArabicDigits(DEFAULT_PREP_MINUTES)} دقيقة، والمسموح بين{" "}
+          {toArabicDigits(MIN_PREP_MINUTES)} و {toArabicDigits(MAX_PREP_MINUTES)}.
         </p>
 
         <label className={label} htmlFor="f-ordernote" style={{ marginTop: "0.75rem" }}>

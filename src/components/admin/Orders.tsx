@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { IconCheck, IconClock, IconClose, IconPhone } from "@/components/icons";
-import { loadSupabase } from "@/lib/supabase";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { IconCheck, IconClock, IconClose, IconPhone, IconSpeaker, IconSpeakerOff } from "@/components/icons";
+import { loadSupabase, supabaseEnabled } from "@/lib/supabase";
+import { chime, chimeEnabled, setChimeEnabled } from "@/lib/chime";
 import { describeNetError } from "@/lib/net";
 import { useLatestRequest } from "@/lib/useLatest";
+import { usePoll } from "@/lib/usePoll";
 import { toArabicDigits } from "@/lib/places";
 import { formatKwd, orderReference, orderTotal, type OrderLine } from "@/lib/orders";
 
@@ -54,57 +56,119 @@ function timeAr(hhmm: string): string {
   return `${toArabicDigits(h12)}:${toArabicDigits(String(m).padStart(2, "0"))} ${period}`;
 }
 
+/** Often enough that a customer walking over does not beat the alert, rarely
+ *  enough to be nothing on a shop's connection. */
+const QUEUE_POLL_MS = 30_000;
+
+type QueueResult = { fatal: string } | { data: unknown; error: { message: string } | null };
+
 export default function Orders({ onCountChange }: { onCountChange?: (n: number) => void }) {
-  const [rows, setRows] = useState<OrderRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showAll, setShowAll] = useState(false);
+  const [sound, setSound] = useState(true);
+  const [freshIds, setFreshIds] = useState<Set<string>>(new Set());
   const { run } = useLatestRequest();
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    await run(
-      async (signal) => {
-        const sb = await loadSupabase();
-        if (!sb) return { fatal: "لوحة التحكّم غير مربوطة بقاعدة بيانات." } as const;
-        return await sb
-          .from("orders")
-          // Named columns, not *: track_token is the customer's key to their
-          // own order and the queue has no use for it, so it never leaves the
-          // database.
-          .select(
-            "id,status,place_slug,place_name_ar,lines,total_fils,pickup_at,customer_name,customer_phone,note_ar,created_at"
-          )
-          .order("created_at", { ascending: false })
-          .limit(200)
-          .abortSignal(signal);
-      },
-      (result) => {
-        setLoading(false);
-        if ("fatal" in result) return setError(result.fatal);
-        const { data, error: e } = result;
-        if (e) {
-          setError(describeNetError(e, `ما قدرنا نقرأ الطلبات: ${e.message}`));
-          return;
-        }
-        setError("");
-        const list = (data ?? []) as OrderRow[];
-        setRows(list);
-        onCountChange?.(list.filter((r) => r.status === "placed").length);
-      }
-    );
-  }, [onCountChange, run]);
+  useEffect(() => setSound(chimeEnabled()), []);
 
-  useEffect(() => { void load(); }, [load]);
+  /**
+   * The queue reads itself.
+   *
+   * Before this it loaded once and then sat there: an order placed while the
+   * tab was open simply never appeared, and the first anybody knew of it was
+   * the customer arriving to collect something nobody had made. Polling is not
+   * paused while the tab is hidden, because a shop keeps this open in the
+   * background all day and that is exactly when the alert has to land.
+   */
+  const { value, settled, refresh } = usePoll<QueueResult>(
+    async (signal) => {
+      const sb = await loadSupabase();
+      if (!sb) return { fatal: "لوحة التحكّم غير مربوطة بقاعدة بيانات." };
+      return await sb
+        .from("orders")
+        // Named columns, not *: track_token is the customer's key to their own
+        // order and the queue has no use for it, so it never leaves the
+        // database.
+        .select(
+          "id,status,place_slug,place_name_ar,lines,total_fils,pickup_at,customer_name,customer_phone,note_ar,created_at"
+        )
+        .order("created_at", { ascending: false })
+        .limit(200)
+        .abortSignal(signal);
+    },
+    { intervalMs: QUEUE_POLL_MS, enabled: supabaseEnabled, pauseWhenHidden: false }
+  );
+
+  const rows: OrderRow[] = useMemo(() => {
+    if (!value || "fatal" in value || value.error) return [];
+    return (value.data ?? []) as OrderRow[];
+  }, [value]);
+
+  const openIds = useMemo(
+    () => rows.filter((r) => r.status === "placed").map((r) => r.id),
+    [rows]
+  );
+  const openCount = openIds.length;
+
+  useEffect(() => {
+    if (!value) return;
+    if ("fatal" in value) return setError(value.fatal);
+    if (value.error) return setError(describeNetError(value.error, `ما قدرنا نقرأ الطلبات: ${value.error.message}`));
+    setError("");
+  }, [value]);
+
+  useEffect(() => { onCountChange?.(openCount); }, [openCount, onCountChange]);
+
+  /**
+   * Sound and a mark on anything that turned up since the last look.
+   *
+   * `seen` starts as whatever was outstanding on the very first read, so
+   * opening the queue to four waiting orders does not set off an alarm about
+   * orders that arrived yesterday. Only ids that appear after that are new.
+   */
+  const seen = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!settled || !value || "fatal" in value || value.error) return;
+    if (seen.current === null) {
+      seen.current = new Set(openIds);
+      return;
+    }
+    const fresh = openIds.filter((id) => !seen.current!.has(id));
+    openIds.forEach((id) => seen.current!.add(id));
+    if (fresh.length === 0) return;
+    setFreshIds((prev) => new Set([...prev, ...fresh]));
+    if (chimeEnabled()) chime();
+  }, [openIds, settled, value]);
+
+  /**
+   * The count in the tab title.
+   *
+   * The one part of this that reaches somebody working in another tab, which
+   * is where a shop's browser actually is most of the day.
+   */
+  useEffect(() => {
+    const base = "لوحة التحكّم — وين؟";
+    document.title = openCount > 0 ? `(${toArabicDigits(openCount)}) ${base}` : base;
+    return () => { document.title = base; };
+  }, [openCount]);
 
   async function setStatus(row: OrderRow, status: OrderRow["status"]) {
     const sb = await loadSupabase();
     if (!sb) return;
-    const { error: e } = await sb.from("orders").update({ status }).eq("id", row.id);
-    if (e) setError(`ما قدرنا نحدّث الطلب: ${e.message}`);
-    else void load();
+    await run(
+      async (signal) => await sb.from("orders").update({ status }).eq("id", row.id).abortSignal(signal),
+      ({ error: e }) => {
+        if (e) setError(describeNetError(e, `ما قدرنا نحدّث الطلب: ${e.message}`));
+        else {
+          // Acted on, so it is no longer new to anybody.
+          setFreshIds((prev) => { const next = new Set(prev); next.delete(row.id); return next; });
+          refresh();
+        }
+      }
+    );
   }
 
+  const loading = !settled;
   const visible = showAll ? rows : rows.filter((r) => r.status === "placed" || r.status === "ready");
 
   if (loading) return <p className="py-10 text-center text-sm text-ink-500">نحمّل الطلبات…</p>;
@@ -121,13 +185,35 @@ export default function Orders({ onCountChange }: { onCountChange?: (n: number) 
         <p className="text-sm text-ink-500">
           الطلبات المسبقة — الدفع يتم عند الاستلام، وين ما تمسك أي مبلغ.
         </p>
-        <button
-          type="button"
-          onClick={() => setShowAll((v) => !v)}
-          className="min-h-11 rounded-xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
-        >
-          {showAll ? "المفتوحة بس" : "كل الطلبات"}
-        </button>
+        <span className="flex items-center gap-2">
+          {/* The chime is on by default and can be turned off, rather than off
+              by default and easy to never find. A shop that misses an order
+              because nobody switched the sound on has been let down by us. */}
+          <button
+            type="button"
+            aria-pressed={sound}
+            onClick={() => {
+              const next = !sound;
+              setSound(next);
+              setChimeEnabled(next);
+              // Play it when switching on, so they know what to listen for —
+              // and so the click that enables it is also the gesture that lets
+              // the browser make a sound at all.
+              if (next) chime();
+            }}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-line-control bg-white px-3 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
+          >
+            {sound ? <IconSpeaker className="size-4 text-palm-600" /> : <IconSpeakerOff className="size-4 text-ink-400" />}
+            {sound ? "الصوت شغّال" : "الصوت مقفل"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowAll((v) => !v)}
+            className="min-h-11 rounded-xl border border-line-control bg-white px-4 text-sm font-semibold text-ink-700 transition hover:border-sea-300"
+          >
+            {showAll ? "المفتوحة بس" : "كل الطلبات"}
+          </button>
+        </span>
       </div>
 
       {visible.length === 0 ? (
@@ -142,8 +228,14 @@ export default function Orders({ onCountChange }: { onCountChange?: (n: number) 
             // person behind the counter should see that, not have it hidden.
             const recomputed = orderTotal(row.lines ?? []);
             const mismatch = recomputed !== row.total_fils;
+            const isFresh = freshIds.has(row.id);
             return (
-              <li key={row.id} className="rounded-3xl border border-line bg-white p-4 shadow-sm">
+              <li
+                key={row.id}
+                className={`rounded-3xl border bg-white p-4 shadow-sm ${
+                  isFresh ? "border-sea-400 ring-2 ring-sea-200" : "border-line"
+                }`}
+              >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -153,6 +245,14 @@ export default function Orders({ onCountChange }: { onCountChange?: (n: number) 
                       <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_TONE[row.status]}`}>
                         {STATUS_LABEL[row.status]}
                       </span>
+                      {isFresh && (
+                        <span
+                          role="status"
+                          className="rounded-full bg-sea-600 px-2.5 py-1 text-xs font-semibold text-white"
+                        >
+                          وصل الحين
+                        </span>
+                      )}
                     </div>
                     <p className="mt-1 text-sm font-semibold text-ink-700">{row.place_name_ar}</p>
                   </div>

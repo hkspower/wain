@@ -3,10 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { IconCheck, IconClock, IconClose, IconGo } from "@/components/icons";
+import { CollectionDetails, OrderLines } from "@/components/OrderSummary";
+import { haptic } from "@/lib/haptics";
 import { toArabicDigits } from "@/lib/places";
 import { usePoll } from "@/lib/usePoll";
 import { supabaseEnabled } from "@/lib/supabase";
 import {
+  cancelOrder,
   fetchOrderState,
   forgetOrder,
   formatKwd,
@@ -73,7 +76,10 @@ function agoAr(iso: string | null): string {
 const POLL_MS = 45_000;
 
 function OrderCard({ order, onForget }: { order: TrackedOrder; onForget: () => void }) {
-  const { value, settled, failures } = usePoll<OrderStateResult>(
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState("");
+
+  const { value, settled, failures, refresh } = usePoll<OrderStateResult>(
     (signal) => fetchOrderState(order.id, order.token, signal),
     {
       intervalMs: POLL_MS,
@@ -97,6 +103,19 @@ function OrderCard({ order, onForget }: { order: TrackedOrder; onForget: () => v
   const status: OrderStatus = state?.status ?? "placed";
   const stepIndex = STEPS.findIndex((s) => s.id === status);
   const cancelled = status === "cancelled";
+
+  async function cancel() {
+    if (!window.confirm(`تبي تلغي الطلب ${order.reference}؟`)) return;
+    setCancelError("");
+    setCancelling(true);
+    const result = await cancelOrder(order.id, order.token);
+    setCancelling(false);
+    haptic(result.ok ? "success" : "error");
+    // Either way the truth is now on the server, so the card is repainted from
+    // it rather than from what this function hoped happened.
+    refresh();
+    if (!result.ok) setCancelError(result.message);
+  }
 
   return (
     <li className="rounded-3xl border border-line bg-white p-5 shadow-sm standalone:p-4">
@@ -173,23 +192,57 @@ function OrderCard({ order, onForget }: { order: TrackedOrder; onForget: () => v
         </p>
       )}
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
-        <span className="text-sm text-ink-600">
+      {/* What is actually in the order. These lines were being fetched and
+          discarded, so the screen could tell you a total but not what it was
+          the total of. */}
+      {state?.lines?.length ? (
+        <OrderLines lines={state.lines} totalFils={state.totalFils} />
+      ) : (
+        <p className="mt-4 text-sm text-ink-600">
           المجموع التقريبي{" "}
           <strong className="font-display text-base text-ink-900">
-            {formatKwd(state?.totalFils ?? order.totalFils)}
+            {formatKwd(order.totalFils)}
           </strong>
-          <span className="ms-1 text-ink-500">· الدفع عند الاستلام</span>
+        </p>
+      )}
+
+      {state?.noteAr && <p className="mt-2 text-sm text-ink-600">ملاحظتك: {state.noteAr}</p>}
+
+      {!cancelled && <CollectionDetails slug={order.placeSlug} />}
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
+        <span className="text-sm text-ink-500">الدفع عند الاستلام</span>
+        <span className="flex flex-wrap items-center gap-1">
+          {/* Cancelling is only offered while it is still true. Once the
+              business marks the order ready the food exists, and a button that
+              quietly fails is worse than no button — that case sends them to
+              the phone instead. */}
+          {status === "placed" && (
+            <button
+              type="button"
+              onClick={cancel}
+              disabled={cancelling}
+              className="inline-flex min-h-11 items-center gap-1 rounded-xl px-3 text-sm font-semibold text-ink-500 transition hover:text-coral-700 disabled:opacity-50"
+            >
+              <IconClose className="size-4" />
+              {cancelling ? "نلغي…" : "ألغِ الطلب"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => { forgetOrder(order.id); onForget(); }}
+            className="inline-flex min-h-11 items-center gap-1 rounded-xl px-3 text-sm font-semibold text-ink-500 transition hover:text-coral-700"
+          >
+            احذفه من القائمة
+          </button>
         </span>
-        <button
-          type="button"
-          onClick={() => { forgetOrder(order.id); onForget(); }}
-          className="inline-flex min-h-11 items-center gap-1 rounded-xl px-3 text-sm font-semibold text-ink-500 transition hover:text-coral-700"
-        >
-          <IconClose className="size-4" />
-          احذفه من القائمة
-        </button>
       </div>
+
+      {cancelError && (
+        <p className="mt-2 rounded-2xl bg-sun-100 p-3 text-sm font-semibold text-sun-900" role="alert">
+          {cancelError}
+        </p>
+      )}
 
       {unreachable && (
         <p className="mt-2 text-xs text-ink-500">
