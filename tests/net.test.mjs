@@ -34,6 +34,21 @@ await p.route('**/sb/**', async (route) => {
 });
 const reset = (steps = []) => { seen.length = 0; plan = steps; };
 
+/**
+ * Wait until the fake server has actually seen `n` requests.
+ *
+ * Needed because a phase can finish before its own traffic has been recorded.
+ * The abort test is the case: it cancels the request the instant it is made,
+ * so `evaluate` resolves and the next phase calls `reset()` — and then the
+ * route handler finally runs and pushes into the freshly-cleared list, failing
+ * whichever assertion came next. That made "no request was put on the wire"
+ * fail perhaps one run in three, on a phase that had done nothing wrong.
+ */
+const settle = async (n = 1, ms = 3000) => {
+  const started = Date.now();
+  while (seen.length < n && Date.now() - started < ms) await p.waitForTimeout(25);
+};
+
 await p.goto(B + '/net.html', { waitUntil: 'load' });
 await p.waitForFunction(() => !!window.wain);
 
@@ -71,6 +86,8 @@ r = await p.evaluate(async (u) => {
   catch (e) { return e.name; }
 }, process.env.WAIN_SB);
 ok('an abort by the caller stays an AbortError, not a timeout', r === 'AbortError', String(r));
+// Let this phase's own request be recorded before the next one clears the log.
+await settle();
 
 console.log('\n── offline is answered without touching the network ──');
 reset();
@@ -82,7 +99,7 @@ r = await p.evaluate(async (u) => {
 }, process.env.WAIN_SB);
 const offlineMs = Date.now() - startedOffline;
 ok('it says offline, not "network"', r === 'offline', String(r));
-ok('no request was put on the wire', seen.length === 0, `saw ${seen.length}`);
+ok('no request was put on the wire', seen.length === 0, `saw ${seen.length}: ${seen.map((x) => x.url).join(' | ')}`);
 ok('and it did not wait for the deadline first', offlineMs < 12000, `${offlineMs}ms`);
 await p.evaluate(() => Object.defineProperty(navigator, 'onLine', { value: true, configurable: true }));
 

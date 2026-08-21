@@ -15,7 +15,8 @@
     "test:shouq": "node tests/run-shouq.mjs",
     "audit:places": "node scripts/audit-places.mjs",
     "test:orders": "node tests/run-orders.mjs",
-    "test:net": "node tests/run-net.mjs"
+    "test:net": "node tests/run-net.mjs",
+    "audit:icons": "node scripts/audit-icons.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.1",
