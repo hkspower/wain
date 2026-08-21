@@ -8,9 +8,12 @@
  *   node scripts/gen-preview.mjs            # expects `npm run build` first
  *
  * Quality: phones are captured at deviceScaleFactor 3 (1170x2532) and placed
- * 58mm wide, which is ~512dpi; the desktop plate lands at ~320dpi. Type is NOT
- * rasterised — the page is printed through Chromium with preferCSSPageSize, so
- * Arabic stays live, selectable, subsetted vector text in the PDF.
+ * 58mm wide, which is ~512dpi; the desktop plate lands at ~320dpi. The page
+ * PNGs export at 3840px on the long edge — 4K UHD, about 328dpi for A4 — and a
+ * guard below refuses to write them if that would enlarge any embedded asset
+ * past what was captured. Type is NOT rasterised — the page is printed through
+ * Chromium with preferCSSPageSize, so Arabic stays live, selectable, subsetted
+ * vector text in the PDF.
  *
  * Fonts come from the build's own IBM Plex Sans Arabic woff2 files, embedded as
  * data URIs. Adobe Fonts serves the same family, but its CDN is not reachable
@@ -149,8 +152,8 @@ await pp.screenshot({ path: join(WORK, 'ai.png') });
 
 await phoneCtx.close();
 
-// deviceScaleFactor 3, not 2: this plate is placed 257mm wide, which at
-// 300dpi wants 3035px. At dsf 2 it captured 2880px and the page raster was
+// deviceScaleFactor 3, not 2: this plate is placed 257mm wide, which at the
+// export's 328dpi wants 3319px. At dsf 2 it captured 2880px and the page raster was
 // upscaling it slightly — the one asset in the deck that was not comfortably
 // above its printed size.
 const deskCtx = await browser.newContext({ viewport: { width: 1440, height: 1010 }, deviceScaleFactor: 3, locale: 'ar-KW' });
@@ -386,18 +389,64 @@ await pdfPage.pdf({
  * viewer, and because the pages are wanted on their own for slides, posts and
  * print.
  *
- * 300dpi, and not more, is a deliberate ceiling. The deck's largest embedded
- * asset is the desktop plate, captured at 4320px and placed 257mm wide; 300dpi
- * asks 3035px of it, so nothing in the page is enlarged past what was actually
- * captured. At 450dpi it would want 4553px and the export would start
- * inventing detail — a bigger file that is not a better picture.
+ * The long edge is 3840px — 4K UHD — which for a 297mm page works out at
+ * about 328dpi.
  *
- * The deck is laid out at 96dpi (1123px = 297mm), so the scale factor is
- * 300/96 = 3.125.
+ * The rule that governs this has not changed: **nothing may be enlarged past
+ * what was actually captured.** More pixels than the source holds is a bigger
+ * file that is not a better picture. What changed is that the rule is now
+ * checked rather than asserted in a comment, because the old ceiling of 300dpi
+ * turned out to be far more cautious than the captures required — there was
+ * most of a stop of headroom sitting unused.
+ *
+ * The binding asset is not the desktop plate, as the comment here used to
+ * claim. It is the cover's hero phone, placed at 1.28× the normal phone width:
+ *
+ *   cover hero phone   1170px captured, 74.2mm placed  → ceiling 400dpi
+ *   desktop plate      4320px captured, 257mm placed   → ceiling 427dpi
+ *   phone plate        1170px captured, 58mm placed    → ceiling 512dpi
+ *
+ * So 4K sits comfortably inside the ceiling, and every asset is still being
+ * downsampled into the page rather than stretched.
  */
-const EXPORT_DPI = 300;
-const SCALE = EXPORT_DPI / 96;
-const PAGE_PX = { w: Math.round(1123 * SCALE), h: Math.round(794 * SCALE) };
+const TARGET_LONG_EDGE = 3840; // 4K UHD
+const PAGE_CSS_W = 1123;       // 297mm at the 96dpi the deck is laid out in
+const SCALE = TARGET_LONG_EDGE / PAGE_CSS_W;
+const EXPORT_DPI = Math.round(SCALE * 96);
+const PAGE_PX = { w: TARGET_LONG_EDGE, h: Math.round(794 * SCALE) };
+
+/**
+ * The no-upscaling rule, executable.
+ *
+ * Each entry is an image the deck embeds: how many pixels were captured, and
+ * how wide it is placed on the page. If the chosen DPI asks for more pixels
+ * than were captured, the export would be inventing detail, and this refuses
+ * to write it rather than quietly producing a soft page.
+ */
+const PLACED = [
+  { what: "cover hero phone", capturedPx: 1170, placedMm: PHONE_W * 1.28 },
+  { what: "phone plate", capturedPx: 1170, placedMm: PHONE_W },
+  { what: "desktop plate", capturedPx: 4320, placedMm: 257 },
+];
+const upscaled = [];
+console.log(`\ngen-preview: exporting pages at ${PAGE_PX.w}×${PAGE_PX.h} (${EXPORT_DPI}dpi)`);
+for (const a of PLACED) {
+  const needed = Math.ceil((a.placedMm / 25.4) * EXPORT_DPI);
+  const headroom = a.capturedPx / needed;
+  console.log(
+    `  ${a.what.padEnd(18)} needs ${String(needed).padStart(4)}px, has ${String(a.capturedPx).padStart(4)}px` +
+      `  (${headroom >= 1 ? `${headroom.toFixed(2)}× headroom` : "UPSCALED"})`
+  );
+  if (needed > a.capturedPx) upscaled.push(`${a.what}: needs ${needed}px, captured ${a.capturedPx}px`);
+}
+if (upscaled.length) {
+  console.error(
+    `\ngen-preview: ${EXPORT_DPI}dpi would enlarge assets past their capture:\n  ` +
+      upscaled.join("\n  ") +
+      `\nRaise the deviceScaleFactor on those captures, or lower TARGET_LONG_EDGE.`
+  );
+  process.exit(1);
+}
 const shotCtx = await browser.newContext({
   viewport: { width: 1123, height: 794 },
   deviceScaleFactor: SCALE,
@@ -413,12 +462,12 @@ const written = [];
 for (let i = 0; i < pageCount; i++) {
   const file = join(IMG, `wain-preview-${i + 1}.png`);
   const raw = await shotPage.locator('.page').nth(i).screenshot();
-  // Element screenshots round fractionally, so the pages came out 2481 or
-  // 2484px tall depending on where each sat on the strip. A set of pages that
+  // Element screenshots round fractionally, so the pages came out a pixel or
+  // three apart depending on where each sat on the strip. A set of pages that
   // are not the same size is a set that will not place cleanly, so crop every
   // one to the exact page rectangle. The trim is 3px of the bottom margin.
   // Stamp the real density. A browser screenshot carries no pHYs chunk, so
-  // every print tool reads it as 72dpi and places a 3509px page at 1.2 metres
+  // every print tool reads it as 72dpi and places a 3840px page at 1.35 metres
   // wide — the pixels were right and the document was wrong. With this it
   // drops in at 297mm.
   await sharp(raw)
