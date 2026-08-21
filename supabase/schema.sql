@@ -76,6 +76,13 @@ create table if not exists public.places (
                           (length(website) <= 200 and website ~* '^https?://[^[:space:]]{3,}$')),
   products_ar    text[] not null default '{}' check (array_length(products_ar, 1) is null
                                                      or array_length(products_ar, 1) <= 20),
+  -- طلب مسبق. menu_ar is [{ id, nameAr, priceFils, noteAr?, soldOut? }].
+  -- accepts_orders is the business's own switch: publishing a menu is not
+  -- consent to take orders, and turning ordering off must not delete it.
+  menu_ar        jsonb not null default '[]'::jsonb
+                   check (jsonb_typeof(menu_ar) = 'array' and jsonb_array_length(menu_ar) <= 60),
+  accepts_orders boolean not null default false,
+  order_note_ar  text not null default '' check (length(order_note_ar) <= 300),
   featured       boolean not null default false,
   published      boolean not null default true,
   sort_order     integer not null default 0,
@@ -104,6 +111,9 @@ create trigger places_touch before update on public.places
 -- A database created before these columns existed gets them on re-run;
 -- "create table if not exists" alone would silently skip them.
 alter table public.places
+  add column if not exists menu_ar        jsonb not null default '[]'::jsonb,
+  add column if not exists accepts_orders boolean not null default false,
+  add column if not exists order_note_ar  text not null default '',
   add column if not exists setting     text not null default 'mixed',
   add column if not exists season_ar   text not null default '',
   add column if not exists tags_ar     text[] not null default '{}',
@@ -256,6 +266,78 @@ create policy "admins delete submissions"
   using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
 
 -- ---------------------------------------------------------------------------
+-- ---------------------------------------------------------------------------
+-- طلبات مسبقة — order ahead, pay on collection
+--
+-- Deliberately not a payment record. wain never takes a card and never holds
+-- anyone's money: a row here is a message to a business saying "have this
+-- ready at this time", and the money changes hands at their till. So there is
+-- no paid flag, no amount captured, and no reconciliation to get wrong — and
+-- a tampered total costs nobody anything, because the business charges from
+-- its own menu and can see every line the customer was shown.
+--
+-- The anon key may insert and nothing else, exactly like submissions: one
+-- customer must never be able to read another's phone number back out.
+-- ---------------------------------------------------------------------------
+create table if not exists public.orders (
+  id             uuid primary key default gen_random_uuid(),
+  status         text not null default 'placed'
+                   check (status in ('placed','ready','collected','cancelled')),
+
+  place_slug     text not null check (place_slug ~ '^[a-z0-9-]+$'),
+  -- Denormalised on purpose: the order should still read correctly if the
+  -- place is later renamed, and a business reading its own orders should not
+  -- need a join to know which of its branches they are for.
+  place_name_ar  text not null check (length(btrim(place_name_ar)) between 2 and 120),
+
+  -- [{ id, nameAr, priceFils, qty }] as the customer was shown them.
+  lines          jsonb not null check (jsonb_typeof(lines) = 'array'
+                                       and jsonb_array_length(lines) between 1 and 20),
+  -- Integer fils. The dinar has three decimal places, so money is never a
+  -- float here; 50 KWD is a generous ceiling for an order collected by hand.
+  total_fils     integer not null check (total_fils between 0 and 50000),
+
+  pickup_at      text not null check (pickup_at ~ '^[0-2][0-9]:[0-5][0-9]$'),
+  customer_name  text not null check (length(btrim(customer_name)) between 2 and 80),
+  -- Kuwaiti mobile: eight digits starting 5, 6 or 9, stored bare.
+  customer_phone text not null check (customer_phone ~ '^[569][0-9]{7}$'),
+  note_ar        text not null default '' check (length(note_ar) <= 200),
+
+  admin_note     text not null default '',
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+
+create index if not exists orders_place_idx on public.orders (place_slug, created_at desc);
+create index if not exists orders_status_idx on public.orders (status, created_at desc);
+
+alter table public.orders enable row level security;
+
+drop policy if exists "anyone may place an order" on public.orders;
+create policy "anyone may place an order"
+  on public.orders for insert
+  to anon, authenticated
+  -- A new order is 'placed' and nothing else: without this an anon caller
+  -- could insert a row already marked collected.
+  with check (status = 'placed' and admin_note = '');
+
+drop policy if exists "admins read every order" on public.orders;
+create policy "admins read every order"
+  on public.orders for select
+  to authenticated
+  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+
+drop policy if exists "admins update orders" on public.orders;
+create policy "admins update orders"
+  on public.orders for update
+  to authenticated
+  using (exists (select 1 from public.admins a where a.user_id = auth.uid()))
+  with check (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+
+drop trigger if exists orders_touch on public.orders;
+create trigger orders_touch before update on public.orders
+  for each row execute function public.touch_updated_at();
+
 -- Business media — logos and photos
 --
 -- Two buckets, because "approved" has to be a property of where a file lives,

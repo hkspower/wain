@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import CoordinatePicker from "@/components/CoordinatePicker";
-import { fieldDenseClass, labelClass } from "@/lib/form-classes";
+import { fieldDenseClass, hintClass, labelClass } from "@/lib/form-classes";
+import { formatKwd, orderTotal, parseKwd, type MenuItem } from "@/lib/orders";
 import { categories, type CategoryId, type Place } from "@/lib/places";
 
 export interface EditablePlace extends Place {
@@ -37,6 +38,43 @@ const EMPTY: EditablePlace = {
 
 const label = labelClass;
 const input = fieldDenseClass;
+const hint = hintClass;
+
+/**
+ * The menu as one editable block: "اسم الصنف | 0.250", one per line, with an
+ * optional "خلص" to mark something unavailable today.
+ *
+ * A line whose price will not parse is dropped rather than saved as zero — a
+ * silent free item is worse than a missing one, and the preview underneath
+ * shows the count and total so a dropped line is visible immediately.
+ */
+export function parseMenu(text: string): MenuItem[] {
+  const out: MenuItem[] = [];
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    const [namePart, pricePart = ""] = line.split("|");
+    const nameAr = namePart.trim();
+    if (!nameAr) continue;
+    const soldOut = /خلص|نفد/.test(pricePart);
+    const priceFils = parseKwd(pricePart.replace(/خلص|نفد/g, ""));
+    if (priceFils === null) continue;
+    out.push({
+      id: `m${out.length + 1}`,
+      nameAr: nameAr.slice(0, 80),
+      priceFils,
+      ...(soldOut ? { soldOut: true } : {}),
+    });
+    if (out.length >= 60) break;
+  }
+  return out;
+}
+
+export function menuToText(menu: MenuItem[] | undefined): string {
+  return (menu ?? [])
+    .map((m) => `${m.nameAr} | ${(m.priceFils / 1000).toFixed(3)}${m.soldOut ? " خلص" : ""}`)
+    .join("\n");
+}
 
 /** Validation mirrors the database CHECK constraints so errors surface here. */
 export function validate(p: EditablePlace): string[] {
@@ -68,6 +106,12 @@ export default function PlaceForm({
 }) {
   const [p, setP] = useState<EditablePlace>(initial ?? EMPTY);
   const [errs, setErrs] = useState<string[]>([]);
+  const [menuText, setMenuText] = useState(() => menuToText(initial?.menuAr));
+  const parsedMenu = parseMenu(menuText);
+  const menuPreview =
+    menuText.trim() === ""
+      ? ""
+      : `— ${parsedMenu.length} صنف، أغلى واحد ${formatKwd(Math.max(0, ...parsedMenu.map((m) => m.priceFils)))}`;
   const set = <K extends keyof EditablePlace>(k: K, v: EditablePlace[K]) =>
     setP((prev) => ({ ...prev, [k]: v }));
   /** Both coordinates at once — setting them one at a time would move the pin
@@ -172,6 +216,52 @@ export default function PlaceForm({
           className={input}
           value={p.tagsAr.join("\n")}
           onChange={(e) => set("tagsAr", e.target.value.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 30))}
+        />
+      </div>
+
+      {/* --- طلب مسبق ------------------------------------------------- */}
+      <div className="rounded-2xl border border-line bg-sand-100/50 p-4">
+        <label className="flex items-center gap-2 text-sm font-semibold text-ink-800">
+          <input
+            type="checkbox"
+            checked={!!p.acceptsOrders}
+            onChange={(e) => set("acceptsOrders", e.target.checked)}
+            className="size-4 accent-ink-900"
+          />
+          يستقبل طلبات مسبقة (الدفع عند الاستلام)
+        </label>
+        <p className={hint}>
+          وين ما تمسك أي مبلغ — الطلب يوصل للمكان والزبون يدفع لهم وقت الاستلام.
+        </p>
+
+        <label className={label} htmlFor="f-menu" style={{ marginTop: "1rem" }}>
+          القائمة — سطر لكل صنف: الاسم | السعر
+        </label>
+        <textarea
+          id="f-menu"
+          rows={5}
+          dir="rtl"
+          className={input}
+          value={menuText}
+          onChange={(e) => setMenuText(e.target.value)}
+          onBlur={() => set("menuAr", parseMenu(menuText))}
+          placeholder={"چاي كرك | 0.250\nقهوة عربية | 0.500\nكيك | 1.750"}
+        />
+        <p className={hint}>
+          السعر بالدينار بثلاث خانات (٠٫٢٥٠). اكتب «خلص» بعد السعر إذا الصنف
+          مو متوفر اليوم. {menuPreview}
+        </p>
+
+        <label className={label} htmlFor="f-ordernote" style={{ marginTop: "0.75rem" }}>
+          ملاحظة للزبون عند الطلب
+        </label>
+        <input
+          id="f-ordernote"
+          className={input}
+          value={p.orderNoteAr ?? ""}
+          maxLength={300}
+          onChange={(e) => set("orderNoteAr", e.target.value || undefined)}
+          placeholder="الاستلام من الكاشير، ونحتاج ١٥ دقيقة."
         />
       </div>
 

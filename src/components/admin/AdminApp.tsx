@@ -15,12 +15,13 @@ import {
 } from "@/lib/supabase";
 import PlaceForm, { type EditablePlace } from "@/components/admin/PlaceForm";
 import MediaReview from "@/components/admin/MediaReview";
+import Orders from "@/components/admin/Orders";
 import Submissions, { submissionToPlace } from "@/components/admin/Submissions";
 import { discardPending, publishMedia } from "@/lib/media";
 import type { SubmissionRow } from "@/lib/submissions";
 
 type View = { mode: "list" } | { mode: "edit"; place?: EditablePlace };
-type Tab = "places" | "submissions";
+type Tab = "places" | "submissions" | "orders";
 
 export default function AdminApp() {
   const [session, setSession] = useState<Session | null>(null);
@@ -33,6 +34,7 @@ export default function AdminApp() {
   const [notice, setNotice] = useState("");
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<Tab>("places");
+  const [openOrders, setOpenOrders] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   // Set while an approved submission is being reviewed in the place editor, so
   // saving the place can close the submission out in the same step. Without it
@@ -266,7 +268,7 @@ export default function AdminApp() {
 
       {view.mode !== "edit" && (
         <div className="mb-6 flex flex-wrap gap-2" role="tablist" aria-label="أقسام اللوحة">
-          {([["places", "الأماكن"], ["submissions", "طلبات التسجيل"]] as const).map(([id, text]) => (
+          {([["places", "الأماكن"], ["submissions", "طلبات التسجيل"], ["orders", "الطلبات المسبقة"]] as const).map(([id, text]) => (
             <button
               key={id}
               type="button"
@@ -280,6 +282,13 @@ export default function AdminApp() {
               }`}
             >
               {text}
+              {id === "orders" && openOrders > 0 && (
+                <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${
+                  tab === id ? "bg-white/20 text-white" : "bg-sun-100 text-sun-900"
+                }`}>
+                  {toArabicDigits(openOrders)}
+                </span>
+              )}
               {id === "submissions" && pendingCount > 0 && (
                 <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${
                   tab === id ? "bg-white/20 text-white" : "bg-sun-100 text-sun-900"
@@ -335,6 +344,8 @@ export default function AdminApp() {
             onCancel={() => { setApproving(null); setView({ mode: "list" }); }}
           />
         </section>
+      ) : tab === "orders" ? (
+        <Orders onCountChange={setOpenOrders} />
       ) : tab === "submissions" ? (
         <Submissions
           onCountChange={setPendingCount}

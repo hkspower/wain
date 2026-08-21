@@ -13,7 +13,8 @@
     "og": "node scripts/gen-og.mjs",
     "ai:brief": "node scripts/wain-ai-brief.mjs",
     "test:shouq": "node tests/run-shouq.mjs",
-    "audit:places": "node scripts/audit-places.mjs"
+    "audit:places": "node scripts/audit-places.mjs",
+    "test:orders": "node tests/run-orders.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.1",

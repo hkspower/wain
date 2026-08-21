@@ -77,6 +77,9 @@ export interface PlaceRow {
   instagram: string | null;
   website: string | null;
   products_ar: string[] | null;
+  menu_ar: unknown;
+  accepts_orders: boolean | null;
+  order_note_ar: string | null;
   featured: boolean;
   published: boolean;
   sort_order: number;
@@ -110,6 +113,9 @@ export function rowToPlace(r: PlaceRow): Place {
     instagram: r.instagram || undefined,
     website: r.website || undefined,
     productsAr: r.products_ar?.length ? r.products_ar : undefined,
+    menuAr: Array.isArray(r.menu_ar) && r.menu_ar.length ? (r.menu_ar as Place["menuAr"]) : undefined,
+    acceptsOrders: r.accepts_orders ?? undefined,
+    orderNoteAr: r.order_note_ar || undefined,
   };
 }
 
@@ -140,6 +146,9 @@ export function placeToRow(p: Place & { published?: boolean; sortOrder?: number 
     instagram: p.instagram ?? "",
     website: p.website ?? "",
     products_ar: p.productsAr ?? [],
+    menu_ar: p.menuAr ?? [],
+    accepts_orders: !!p.acceptsOrders,
+    order_note_ar: p.orderNoteAr ?? "",
     featured: !!p.featured,
     published: p.published ?? true,
     sort_order: p.sortOrder ?? 0,

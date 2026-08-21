@@ -1,3 +1,5 @@
+import type { MenuItem } from "@/lib/orders";
+
 export type CategoryId =
   | "landmarks"
   | "restaurants"
@@ -92,6 +94,23 @@ export interface Place {
   website?: string;
   /** What the business sells or offers, one short line each. */
   productsAr?: string[];
+
+  /* --- طلب مسبق. Order ahead, pay on collection. See src/lib/orders.ts --- */
+
+  /**
+   * Priced items a customer can order ahead. Separate from productsAr, which
+   * is a description of what the place does and carries no price: a barber
+   * lists "حلاقة" as a service without wanting a shopping cart attached to it.
+   */
+  menuAr?: MenuItem[];
+  /**
+   * The business's own switch. A menu alone is not consent to take orders —
+   * it can be published for reading while ordering stays off, and turning it
+   * off must never delete the menu.
+   */
+  acceptsOrders?: boolean;
+  /** Anything the customer should know before collecting. */
+  orderNoteAr?: string;
 }
 
 /** Ordered the way the category rail reads on the home page. */
