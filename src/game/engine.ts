@@ -9,7 +9,7 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, STATIONS, FORECOURT } from "./track";
 import { buildWorld, areaAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
-import { createCar } from "./cars";
+import { createCar, TAIL } from "./cars";
 import { RIVALS, RivalDef } from "./rivals";
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
@@ -3386,17 +3386,19 @@ export class GameEngine {
         });
     }
     const brakeLit = this.brake > 0 || this.handbrake;
+    // The levels live in cars.ts (TAIL) beside the materials they are
+    // set on, rather than as six unnamed numbers split across two files.
     (this.carBody.userData.tailMat as THREE.MeshStandardMaterial).emissiveIntensity = brakeLit
-      ? 7
-      : 2;
+      ? TAIL.lensBrake
+      : TAIL.lensIdle;
     // The hot inner element flares with the lens, a step brighter, so the
     // lamp has a centre rather than being one even slab of red.
     const tailCore = this.carBody.userData.tailCoreMat as THREE.MeshStandardMaterial | undefined;
-    if (tailCore) tailCore.emissiveIntensity = brakeLit ? 10 : 3.2;
+    if (tailCore) tailCore.emissiveIntensity = brakeLit ? TAIL.coreBrake : TAIL.coreIdle;
     // The glow halos behind the lenses flare with them
     const tailGlows = this.carBody.userData.tailGlowMats as THREE.MeshBasicMaterial[] | undefined;
     if (tailGlows) {
-      for (const g of tailGlows) g.opacity = brakeLit ? 0.85 : 0.3;
+      for (const g of tailGlows) g.opacity = brakeLit ? TAIL.glowBrake : TAIL.glowIdle;
     }
 
     // Traffic collisions. Severity comes from the closing speed, the way
@@ -4501,6 +4503,9 @@ export class GameEngine {
         };
       }
     ).__grnDriftModel = { solveDrift, newDriftState, HANDLING };
+    // The rear lamp levels, so their effect on the picture can be swept
+    // rather than guessed one rebuild at a time.
+    (window as unknown as { __grnTail: typeof TAIL }).__grnTail = TAIL;
     // The resolution arithmetic itself, so a test can walk every window
     // shape against every rung of the ladder in one page load instead of
     // booting the whole city twenty-five times to check twenty-five

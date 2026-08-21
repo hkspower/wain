@@ -57,6 +57,8 @@
     "test:gtr": "node tests/gtr.mjs",
     "test:resolution": "node tests/resolution.mjs",
     "test:spin": "node tests/spin.mjs",
+    "test:decals": "node tests/decals.mjs",
+    "test:taillights": "node tests/taillights.mjs",
     "shots:cars": "node tools/shots/cars.mjs",
     "check:ui": "node scripts/check-ui-glyphs.mjs",
     "check:parts": "node scripts/check-catalogue.mjs",

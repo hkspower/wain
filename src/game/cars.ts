@@ -49,6 +49,52 @@ export interface CarColors {
   crew?: { name: string; tag: string; logo: TeamLogo };
 }
 
+/**
+ * How hard the rear lamps burn, in one place.
+ *
+ * These were six numbers spread across two files: three baked into the
+ * materials here and three assigned every frame by the engine's brake
+ * flare, with nothing naming them and nothing to stop the two drifting
+ * apart. They are also the numbers most likely to be wrong, because
+ * emissive intensity is not brightness — it is input to ACES and then to
+ * the bloom, and both of them have opinions.
+ *
+ * Measured from behind the car at night, the old set put 15 to 21% of
+ * the lit pixels of a braking lamp at a saturation under 0.3: a red lamp
+ * reading white, which is what "too much shine on the back light" looks
+ * like from the driver's seat. A brake light is a saturated red source
+ * behind a red lens and it should never be white at any distance.
+ *
+ * The brake step is still a step — that is the whole job of a brake
+ * light — it is just a step between two reds now.
+ */
+export const TAIL = {
+  /** Pure red, and it has to be. ACES walks every bright colour toward
+   *  white, so the only headroom a lamp has is whatever its green and
+   *  blue start at: 0xff2222 begins at 13% of each and was reading
+   *  (255, 211, 172) at the old brake intensity. Starting at zero is the
+   *  difference between a lamp that goes orange as it brightens and one
+   *  that goes white. */
+  lensColor: 0xff0000,
+  lensIdle: 0.55,
+  lensBrake: 1.7,
+  /** The filament behind it. A shade hotter, not a different colour:
+   *  there is no white-hot element visible through a red lens, because
+   *  the lens is red glass and everything behind it comes out red. The
+   *  old core was 0xff7048 at intensity 10 and measured (255, 248, 234),
+   *  which is not a red lamp at all — it is a white one. */
+  coreColor: 0xff1a05,
+  coreIdle: 0.9,
+  coreBrake: 2.8,
+  /** The additive halo hung behind each lens. This is the piece that
+   *  grows the lamp's footprint under braking, so it is the piece that
+   *  decides whether the back of the car is a pair of lamps or one
+   *  bright smear. */
+  glowColor: 0xff2a0a,
+  glowIdle: 0.16,
+  glowBrake: 0.5,
+} as const;
+
 let goldRimMat: THREE.MeshStandardMaterial | null = null;
 function getGoldRimMat(): THREE.MeshStandardMaterial {
   if (!goldRimMat) {
@@ -1125,29 +1171,57 @@ function hoodDecalTexture(): THREE.CanvasTexture {
 }
 
 let flagDecalTex: THREE.CanvasTexture | null = null;
+/**
+ * The flag of Kuwait, drawn to its own construction.
+ *
+ * It was 96 by 48 — four `fillRect`s and a quadrilateral — on a plane
+ * 240 mm long. That is 400 texels to the metre, and the one edge in the
+ * flag that is not horizontal is the hoist trapezoid's, which at that
+ * size is a nine-pixel staircase softened into a smear by the mipmap
+ * before it ever reaches the screen. It read as three coloured stripes
+ * with a dark blob at one end.
+ *
+ * This is the 1961 construction: two by one, three equal horizontal
+ * bands of green, white and red, and a black trapezoid at the hoist
+ * whose base is a QUARTER of the length — the old one used 29%, which is
+ * close enough to look right and wrong enough to be wrong — with its
+ * slanted edges meeting the band boundaries at a third and two thirds of
+ * the height.
+ */
 function flagDecalTexture(): THREE.CanvasTexture {
   if (flagDecalTex) return flagDecalTex;
+  const W = 1024;
+  const H = 512;
   const c = document.createElement("canvas");
-  c.width = 96;
-  c.height = 48;
+  c.width = W;
+  c.height = H;
   const ctx = c.getContext("2d")!;
+  const third = H / 3;
   ctx.fillStyle = "#007a3d";
-  ctx.fillRect(0, 0, 96, 16);
+  ctx.fillRect(0, 0, W, third);
   ctx.fillStyle = "#f4f4f4";
-  ctx.fillRect(0, 16, 96, 16);
+  ctx.fillRect(0, third, W, third);
   ctx.fillStyle = "#ce1126";
-  ctx.fillRect(0, 32, 96, 16);
+  ctx.fillRect(0, third * 2, W, H - third * 2);
   ctx.fillStyle = "#0a0a0a";
   ctx.beginPath();
   ctx.moveTo(0, 0);
-  ctx.lineTo(28, 16);
-  ctx.lineTo(28, 32);
-  ctx.lineTo(0, 48);
+  ctx.lineTo(W / 4, third);
+  ctx.lineTo(W / 4, third * 2);
+  ctx.lineTo(0, H);
   ctx.closePath();
   ctx.fill();
+  // A printed decal has an edge. Without one the white band runs
+  // straight into white paint and the flag loses its top and bottom on
+  // exactly the cars the sticker pack is most often bought for.
+  ctx.strokeStyle = "#15161a";
+  ctx.lineWidth = W * 0.008;
+  ctx.strokeRect(ctx.lineWidth / 2, ctx.lineWidth / 2, W - ctx.lineWidth, H - ctx.lineWidth);
   flagDecalTex = new THREE.CanvasTexture(c);
   flagDecalTex.colorSpace = THREE.SRGBColorSpace;
-  flagDecalTex.anisotropy = 8;
+  // Anisotropy is what keeps the hoist edge from smearing when the flank
+  // is seen at a glancing angle, which on a car's side is nearly always.
+  flagDecalTex.anisotropy = 16;
   return flagDecalTex;
 }
 
@@ -1782,8 +1856,8 @@ export function createCar(colors: CarColors): THREE.Group {
   }
   const tailMat = new THREE.MeshStandardMaterial({
     color: 0x550000,
-    emissive: 0xff2222,
-    emissiveIntensity: 2.0,
+    emissive: TAIL.lensColor,
+    emissiveIntensity: TAIL.lensIdle,
   });
   // The hot element inside each lamp. It used to share tailMat with the
   // lens, which made it invisible twice over: the same flat emissive
@@ -1792,8 +1866,8 @@ export function createCar(colors: CarColors): THREE.Group {
   // rather than as more of the same red plastic.
   const tailCoreMat = new THREE.MeshStandardMaterial({
     color: 0x330000,
-    emissive: 0xff7048,
-    emissiveIntensity: 3.2,
+    emissive: TAIL.coreColor,
+    emissiveIntensity: TAIL.coreIdle,
   });
   // The rear lamps are built as assemblies — smoked housing, outer lens,
   // and a hotter inner core — with additive glow halos hung behind them
@@ -1802,9 +1876,9 @@ export function createCar(colors: CarColors): THREE.Group {
   const addTailGlow = (x: number, y: number, z: number, w = 0.55, h = 0.4) => {
     const m = new THREE.MeshBasicMaterial({
       map: pointGlowTexture(),
-      color: 0xff2222,
+      color: TAIL.glowColor,
       transparent: true,
-      opacity: 0.3,
+      opacity: TAIL.glowIdle,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       fog: false,
@@ -2678,7 +2752,42 @@ export function createCar(colors: CarColors): THREE.Group {
     // rear quarter — and the stripe stops before the quarter so the mark
     // has clean paint to sit on. The roundel is the deliberate exception,
     // interrupting the stripe the way a rally door number does.
-    const [stripeLen, stripeZ] = flankRun(d.beltY - 0.16);
+    // The beltline stripe and the flag share the front of this run, and
+    // the stripe gives way to it.
+    //
+    // The flag is 440 mm now rather than 240, and there is nowhere else
+    // for it to go: measured on all five bodies, the band below the
+    // stripe is already the wordmark's, and the clear flank at that
+    // lower height stops 130 mm sooner than it does at the belt, because
+    // a wheel arch is widest at the bottom. So the flag takes the front
+    // of the beltline run and the stripe stops short of it — which is
+    // what the stripe already does at the other end for the crew mark,
+    // and reads as rally livery rather than as two decals fighting.
+    const stripeY = d.beltY - 0.16;
+    const [beltRun, beltCtr] = flankRun(stripeY);
+    const runFront = beltCtr + beltRun / 2;
+    const runBack = beltCtr - beltRun / 2;
+    // How tall a flag the fender will actually take.
+    //
+    // A flank is not a blank panel. The character crease is a 35 mm
+    // moulding 50 mm tall standing proud of the paint, and the chrome
+    // belt is another above it, and a flat decal cannot follow either of
+    // them — put a 220 mm flag across the crease and the crease draws
+    // over its bottom third, which is exactly how the first bigger
+    // version came out. So the flag is sized to the CLEAR BAND between
+    // the two mouldings, with a 15 mm margin off each, and comes out
+    // 310 to 370 mm long depending on the body. That is a third to a
+    // half again on the 240 mm it was, and it is as big as the panel
+    // will honestly carry.
+    const bandBot = d.creaseY + 0.025 + 0.015;
+    const bandTop = d.beltY - 0.01 - 0.015;
+    const FLAG_H = Math.min(0.2, bandTop - bandBot);
+    const FLAG_L = FLAG_H * 2;
+    const flagY = (bandBot + bandTop) / 2;
+    const flagZ = runFront - 0.04 - FLAG_L / 2;
+    const stripeFront = flagZ - FLAG_L / 2 - 0.06;
+    const stripeLen = Math.max(0.3, stripeFront - runBack);
+    const stripeZ = (stripeFront + runBack) / 2;
     for (const sign of [-1, 1]) {
       const x = sign * (sideX + 0.008);
       const flipY = sign * (Math.PI / 2);
@@ -2686,22 +2795,35 @@ export function createCar(colors: CarColors): THREE.Group {
       // stops at the arches like the panel features do, rather than
       // running over a wheel opening.
       const st = new THREE.Mesh(new THREE.PlaneGeometry(stripeLen, 0.14), stripe);
-      st.position.set(sign * sideX, d.beltY - 0.16, stripeZ);
+      st.position.set(sign * sideX, stripeY, stripeZ);
       st.rotation.y = flipY;
       group.add(st);
-      // Kuwait flag on the front fender, behind the arch
-      const f = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.12), flag);
-      f.position.set(x, d.creaseY - 0.06, 1.0);
+      // Kuwait flag on the front fender, behind the arch. 440 mm long
+      // rather than 240: a flag on a rally car is a flag, and at the old
+      // size it was a coloured smudge you had to be told about.
+      //
+      // Its height is measured DOWN FROM THE BELTLINE STRIPE rather than
+      // taken off the crease, so it cannot collide with the stripe by
+      // construction. At the new size, hung off the crease, it did on
+      // every silhouette in the fleet — the sedan by a centimetre, the
+      // FD by three.
+      const f = new THREE.Mesh(new THREE.PlaneGeometry(FLAG_L, FLAG_H), flag);
+      f.position.set(x, flagY, flagZ);
       f.rotation.y = flipY;
       group.add(f);
-      // Door: racing number over the car's own name
+      // Door: racing number over the car's own name. Its z is held
+      // behind whatever the stripe now ends at, so on the shortest flank
+      // in the fleet — the FD's, where the run gives the flag 130 mm
+      // less to work with — the number slides back rather than ending up
+      // under the flag's trailing edge.
+      const roundelZ = Math.min(0.35, stripeFront - 0.19);
       const r = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.34), roundel);
-      r.position.set(x, d.creaseY + 0.12, 0.35);
+      r.position.set(x, d.creaseY + 0.12, roundelZ);
       r.rotation.y = flipY;
       group.add(r);
       if (colors.name) {
         const word = new THREE.Mesh(new THREE.PlaneGeometry(0.86, 0.215), nameDecal!);
-        word.position.set(sign * (sideX + 0.004), d.creaseY - 0.22, 0.35);
+        word.position.set(sign * (sideX + 0.004), d.creaseY - 0.22, roundelZ);
         word.rotation.y = flipY;
         group.add(word);
       }
