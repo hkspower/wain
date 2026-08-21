@@ -232,7 +232,7 @@ const bodyGeo = extrudeProfile(
     [-1.85, 0.24],
     [1.85, 0.24],
   ],
-  1.84,
+  1.840,
   0.14
 );
 
@@ -244,7 +244,7 @@ const canopyGeo = extrudeProfile(
     [-0.78, 1.42],
     [-1.5, 0.94],
   ],
-  1.6,
+  1.600,
   0.1,
   0
 );
@@ -257,7 +257,7 @@ const roofGeo = extrudeProfile(
     [-0.68, 1.48],
     [-0.76, 1.42],
   ],
-  1.42,
+  1.420,
   0.06,
   0
 );
@@ -278,7 +278,7 @@ const zxBodyGeo = extrudeProfile(
     [-1.9, 0.2],
     [1.95, 0.2],
   ],
-  1.92,
+  2.080,
   0.15
 );
 const zxCanopyGeo = extrudeProfile(
@@ -288,7 +288,7 @@ const zxCanopyGeo = extrudeProfile(
     [-0.95, 1.19],
     [-2.0, 0.78], // fastback all the way down
   ],
-  1.64,
+  1.776,
   0.1,
   0
 );
@@ -299,7 +299,7 @@ const zxRoofGeo = extrudeProfile(
     [-0.82, 1.25],
     [-0.9, 1.2],
   ],
-  1.46,
+  1.582,
   0.05,
   0
 );
@@ -320,7 +320,7 @@ const gtrBodyGeo = extrudeProfile(
     [-1.88, 0.22],
     [1.88, 0.22],
   ],
-  1.96,
+  1.985,
   0.13
 );
 const gtrCanopyGeo = extrudeProfile(
@@ -330,7 +330,7 @@ const gtrCanopyGeo = extrudeProfile(
     [-0.66, 1.44],
     [-1.32, 0.99],
   ],
-  1.68,
+  1.701,
   0.1,
   0
 );
@@ -341,7 +341,7 @@ const gtrRoofGeo = extrudeProfile(
     [-0.56, 1.5],
     [-0.64, 1.44],
   ],
-  1.48,
+  1.500,
   0.06,
   0
 );
@@ -363,7 +363,7 @@ const rx7BodyGeo = extrudeProfile(
     [-1.82, 0.2],
     [1.88, 0.2],
   ],
-  1.92,
+  1.961,
   0.17 // the fattest bevel in the fleet — everything rolls
 );
 const rx7CanopyGeo = extrudeProfile(
@@ -373,7 +373,7 @@ const rx7CanopyGeo = extrudeProfile(
     [-0.72, 1.24],
     [-1.68, 0.78], // long rounded hatch glass
   ],
-  1.6,
+  1.635,
   0.12
 );
 const rx7RoofGeo = extrudeProfile(
@@ -383,7 +383,7 @@ const rx7RoofGeo = extrudeProfile(
     [-0.6, 1.3],
     [-0.68, 1.25],
   ],
-  1.4,
+  1.429,
   0.05
 );
 
@@ -407,7 +407,7 @@ const hatchBodyGeo = extrudeProfile(
     [-1.7, 0.22],
     [1.7, 0.22],
   ],
-  1.84,
+  1.811,
   0.13
 );
 // The cabin sits FORWARD. Authored first with the screen base back at
@@ -423,7 +423,7 @@ const hatchCanopyGeo = extrudeProfile(
     [-0.95, 1.46], // long flat roof
     [-1.86, 1.04], // hatch glass, raked but still upright
   ],
-  1.58,
+  1.556,
   0.1
 );
 const hatchRoofGeo = extrudeProfile(
@@ -433,7 +433,7 @@ const hatchRoofGeo = extrudeProfile(
     [-0.82, 1.49],
     [-0.92, 1.43],
   ],
-  1.44,
+  1.418,
   0.05
 );
 
@@ -450,19 +450,19 @@ const hatchRoofGeo = extrudeProfile(
  */
 const PRESENCE = 1.12;
 const STYLE_SCALE: Record<BodyStyle, number> = {
-  sedan: 0.978 * PRESENCE,
-  zx: 0.894 * PRESENCE,
+  sedan: 0.934 * PRESENCE,
+  zx: 0.825 * PRESENCE,
   // Base 0.912 (was 0.926): the R34 measured +11% on height, the worst
   // residual in the fleet. Trading a little length brings the roof down
   // while width lands within 1% of proportion — the closest a uniform
   // scale can get this profile to 4.60 x 1.79 x 1.36.
-  gtr: 0.912 * PRESENCE,
-  rx7: 0.899 * PRESENCE,
+  gtr: 0.895 * PRESENCE,
+  rx7: 0.853 * PRESENCE,
   // A hot hatch is the small car in this fleet and has to park like one:
   // 4.28 x 1.79 x 1.47 m, which is 40 cm shorter than the saloon and
   // 10 cm taller. The profile is authored close to those numbers, so the
   // factor here is near one.
-  hatch: 0.968 * PRESENCE,
+  hatch: 0.935 * PRESENCE,
 };
 
 /** Per-silhouette anchor points so every detail lands on its body. */
@@ -477,6 +477,9 @@ interface StyleDims {
   hoodY: number; // hood surface (shut lines, wipers)
   tailY: number; // tail light centre height
   deckY: number; // trunk deck (wing base)
+  /** Side mirror: how far PROUD of the flank, then its height and how
+   *  far forward. The first number used to be an absolute x, which meant
+   *  it had to be re-derived by hand every time a body changed width. */
   mirror: [number, number, number];
   dashY: number;
   wiperZ: number;
@@ -486,29 +489,29 @@ interface StyleDims {
 const STYLE_DIMS: Record<BodyStyle, StyleDims> = {
   sedan: {
     nose: 2.37, tail: -2.38, roof: [-0.2, 1.49], noseTopY: 0.7, grilleY: 0.52, beltY: 0.94,
-    hoodY: 0.98, tailY: 0.78, deckY: 0.96, mirror: [1.0, 1.04, 0.82],
+    hoodY: 0.98, tailY: 0.78, deckY: 0.96, mirror: [0.03, 1.04, 0.82],
     dashY: 1.0, wiperZ: 0.93, bPillar: [0.77, 1.14, -0.2], creaseY: 0.72,
   },
   zx: {
     nose: 2.5, tail: -2.44, roof: [-0.53, 1.3], noseTopY: 0.56, grilleY: 0.42, beltY: 0.85,
-    hoodY: 0.82, tailY: 0.66, deckY: 0.79, mirror: [1.02, 0.92, 0.4],
+    hoodY: 0.82, tailY: 0.66, deckY: 0.79, mirror: [0.03, 0.92, 0.4],
     dashY: 0.9, wiperZ: 0.5, bPillar: [0.8, 1.02, -0.75], creaseY: 0.6,
   },
   rx7: {
     nose: 2.44, tail: -2.32, roof: [-0.31, 1.34], noseTopY: 0.5, grilleY: 0.38,
-    beltY: 0.8, hoodY: 0.72, tailY: 0.6, deckY: 0.76, mirror: [1.0, 0.9, 0.35],
+    beltY: 0.8, hoodY: 0.72, tailY: 0.6, deckY: 0.76, mirror: [0.03, 0.9, 0.35],
     dashY: 0.86, wiperZ: 0.45, bPillar: [0.78, 0.98, -0.6], creaseY: 0.55,
   },
   gtr: {
     nose: 2.46, tail: -2.4, roof: [-0.18, 1.51], noseTopY: 0.76, grilleY: 0.5, beltY: 0.99,
-    hoodY: 1.0, tailY: 0.84, deckY: 0.98, mirror: [1.03, 1.08, 0.85],
+    hoodY: 1.0, tailY: 0.84, deckY: 0.98, mirror: [0.03, 1.08, 0.85],
     dashY: 1.02, wiperZ: 0.95, bPillar: [0.79, 1.16, -0.16], creaseY: 0.76,
   },
   // The lamps sit high and the cabin sits forward: a hatch puts its
   // windscreen where a saloon puts its bonnet.
   hatch: {
     nose: 2.18, tail: -2.12, roof: [-0.3, 1.47], noseTopY: 0.76, grilleY: 0.56, beltY: 1.0,
-    hoodY: 0.96, tailY: 0.84, deckY: 0.99, mirror: [0.95, 1.1, 0.86],
+    hoodY: 0.96, tailY: 0.84, deckY: 0.99, mirror: [0.03, 1.1, 0.86],
     dashY: 1.06, wiperZ: 1.12, bPillar: [0.78, 1.22, -0.32], creaseY: 0.76,
   },
 };
@@ -2015,10 +2018,18 @@ export function createCar(colors: CarColors): THREE.Group {
     }
   }
 
-  // Side mirrors
+  // Side mirrors.
+  //
+  // Anchored to the flank rather than to an absolute number. The x in
+  // StyleDims is now how far PROUD of the bodyside the mirror sits, not
+  // where it is — so narrowing a body brings its mirrors in with it
+  // instead of leaving them hanging in space, and every silhouette gets
+  // the same 90 mm of stalk whatever its width. Over-mirror width is
+  // what a driver actually has to thread through a gap, and it was the
+  // widest thing on every car in the fleet.
   for (const sxSign of [-1, 1]) {
     const mirror = new THREE.Mesh(roundedBox(0.16, 0.1, 0.2, 0.035), bodyMat);
-    mirror.position.set(sxSign * d.mirror[0], d.mirror[1], d.mirror[2]);
+    mirror.position.set(sxSign * (flankX + d.mirror[0]), d.mirror[1], d.mirror[2]);
     group.add(mirror);
   }
 
@@ -2326,8 +2337,13 @@ export function createCar(colors: CarColors): THREE.Group {
 
     // Mirror glass + a muffler box feeding the exhaust tips
     for (const sxSign of [-1, 1]) {
+      // Same anchor as the housing it sits in. When d.mirror[0] changed
+      // from an absolute x to an offset from the flank, this line kept
+      // reading it as an absolute — so both mirror glasses moved to
+      // within 30 mm of the centreline and sat inside the bodywork. The
+      // mesh audit found them; nothing else would have.
       const mGlass = new THREE.Mesh(roundedBox(0.12, 0.07, 0.012, 0.005), chromeMat);
-      mGlass.position.set(sxSign * d.mirror[0], d.mirror[1], d.mirror[2] - 0.1);
+      mGlass.position.set(sxSign * (flankX + d.mirror[0]), d.mirror[1], d.mirror[2] - 0.1);
       group.add(mGlass);
     }
     const muffler = new THREE.Mesh(roundedBox(1.0, 0.1, 0.3, 0.03), grilleMat);
