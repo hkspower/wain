@@ -3,18 +3,20 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ProductCard } from '@/components/product-card';
+import { RemoteArt } from '@/components/remote-art';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useCart } from '@/lib/cart';
+import { categoryArt } from '@/lib/assets';
 import { categoryKicker, categoryName } from '@/lib/catalog';
 import { useLang } from '@/lib/i18n';
 
 export default function HomeScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { t, lang, row, text } = useLang();
+  const { t, lang, dir, row, text } = useLang();
   const { products, categories } = useCart();
   const featured = products.filter((p) => p.featured).slice(0, 4);
 
@@ -61,13 +63,30 @@ export default function HomeScreen() {
                 accessibilityLabel={categoryName(cat, lang)}
                 onPress={() => router.push({ pathname: '/shop', params: { category: cat.id } })}
                 style={({ pressed }) => pressed && styles.pressed}>
-                <View style={[styles.categoryTile, row, { backgroundColor: cat.color }]}>
-                  <View style={styles.categoryCopy}>
-                    <Text style={[styles.categoryKicker, text]}>{categoryKicker(cat, lang)}</Text>
-                    <Text style={[styles.categoryName, text]}>{categoryName(cat, lang)}</Text>
+                <RemoteArt
+                  uri={categoryArt(cat.id)}
+                  ground={cat.color}
+                  emoji={cat.emoji}
+                  emojiSize={40}
+                  // The shipped compositions stand their subject on one side
+                  // and leave the other quiet for the copy. Anchoring the crop
+                  // to that side means a narrow phone trims backdrop rather
+                  // than the model — the same call the website's tiles make.
+                  focus={dir === 'rtl' ? 'start' : 'end'}
+                  style={styles.categoryTile}>
+                  {/* A PLATE BEHIND THE WORDS, not a wash over the picture.
+                      The copy sits ON the artwork, and once a real photograph
+                      can land here its brightness is not knowable from this
+                      file — white-on-white is exactly how the website's tiles
+                      failed. The darkening is confined to the text's own
+                      column so the part of the shot worth seeing is untouched. */}
+                  <View style={[styles.categoryInner, row]}>
+                    <View style={styles.categoryCopy}>
+                      <Text style={[styles.categoryKicker, text]}>{categoryKicker(cat, lang)}</Text>
+                      <Text style={[styles.categoryName, text]}>{categoryName(cat, lang)}</Text>
+                    </View>
                   </View>
-                  <Text style={styles.categoryEmoji}>{cat.emoji}</Text>
-                </View>
+                </RemoteArt>
               </Pressable>
             ))}
           </View>
@@ -146,14 +165,23 @@ const styles = StyleSheet.create({
   },
   categoryTile: {
     borderRadius: Spacing.three,
+    overflow: 'hidden',
+    minHeight: 132,
+  },
+  categoryInner: {
+    flex: 1,
     padding: Spacing.four,
-    minHeight: 104,
     alignItems: 'center',
-    justifyContent: 'space-between',
   },
   categoryCopy: {
-    flex: 1,
+    // 62%, not the whole width: the remaining third is where the subject
+    // stands, and copy running under it is what makes a tile unreadable.
+    maxWidth: '62%',
     gap: Spacing.half,
+    backgroundColor: 'rgba(20,22,26,0.55)',
+    borderRadius: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
   },
   categoryKicker: {
     color: 'rgba(255,255,255,0.82)',
@@ -165,9 +193,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 24,
     fontWeight: '700',
-  },
-  categoryEmoji: {
-    fontSize: 40,
   },
   grid: {
     flexDirection: 'row',

@@ -2,10 +2,12 @@ import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Price } from '@/components/price';
+import { RemoteArt } from '@/components/remote-art';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { productPhoto } from '@/lib/assets';
 import { inStock, productName, type Product } from '@/lib/catalog';
 import { useLang } from '@/lib/i18n';
 
@@ -21,14 +23,18 @@ export function ProductCard({ product }: { product: Product }) {
         accessibilityLabel={productName(product, lang)}
         style={({ pressed }) => [styles.press, pressed && styles.pressed]}>
         <ThemedView type="backgroundElement" style={[styles.card, { borderColor: theme.border }]}>
-          <View style={[styles.banner, { backgroundColor: product.color }]}>
-            <Text style={styles.emoji}>{product.emoji}</Text>
+          <RemoteArt
+            uri={productPhoto(product.slug)}
+            ground={product.color}
+            emoji={product.emoji}
+            emojiSize={56}
+            style={styles.banner}>
             {!available && (
               <View style={styles.soldOut}>
                 <Text style={styles.soldOutText}>{t.product.soldOut}</Text>
               </View>
             )}
-          </View>
+          </RemoteArt>
 
           <View style={styles.body}>
             <ThemedText type="smallBold" numberOfLines={2} style={text}>
@@ -59,12 +65,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   banner: {
+    // A FIXED HEIGHT, not an aspect ratio derived from the photograph. The
+    // grid puts two of these side by side and they must line up whether the
+    // picture has loaded, failed, or never existed.
     height: 132,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emoji: {
-    fontSize: 56,
+    justifyContent: 'flex-end',
   },
   soldOut: {
     position: 'absolute',

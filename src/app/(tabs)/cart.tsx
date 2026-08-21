@@ -3,11 +3,13 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { QtyStepper } from '@/components/qty-stepper';
+import { RemoteArt } from '@/components/remote-art';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { FREE_DELIVERY_OVER, useCart } from '@/lib/cart';
+import { productPhoto } from '@/lib/assets';
 import { productName, stockFor } from '@/lib/catalog';
 import { useLang } from '@/lib/i18n';
 import { formatPrice } from '@/lib/money';
@@ -62,9 +64,13 @@ export default function CartScreen() {
                 key={`${l.slug}-${l.size}`}
                 type="backgroundElement"
                 style={[styles.line, row, { borderColor: theme.border }]}>
-                <View style={[styles.thumb, { backgroundColor: p.color }]}>
-                  <Text style={styles.thumbEmoji}>{p.emoji}</Text>
-                </View>
+                <RemoteArt
+                  uri={productPhoto(p.slug)}
+                  ground={p.color}
+                  emoji={p.emoji}
+                  emojiSize={36}
+                  style={styles.thumb}
+                />
 
                 <View style={styles.lineBody}>
                   <ThemedText type="smallBold" numberOfLines={2} style={text}>
@@ -175,11 +181,7 @@ const styles = StyleSheet.create({
     width: 84,
     height: 84,
     borderRadius: Spacing.two,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  thumbEmoji: {
-    fontSize: 36,
+    overflow: 'hidden',
   },
   lineBody: {
     flex: 1,

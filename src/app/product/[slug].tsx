@@ -4,11 +4,13 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Price } from '@/components/price';
+import { RemoteArt } from '@/components/remote-art';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useCart } from '@/lib/cart';
+import { productPhoto } from '@/lib/assets';
 import { productBlurb, productDetails, productName } from '@/lib/catalog';
 import { useLang } from '@/lib/i18n';
 
@@ -46,9 +48,13 @@ export default function ProductScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={[styles.banner, { backgroundColor: product.color }]}>
-          <Text style={styles.emoji}>{product.emoji}</Text>
-        </View>
+        <RemoteArt
+          uri={productPhoto(product.slug)}
+          ground={product.color}
+          emoji={product.emoji}
+          emojiSize={96}
+          style={styles.banner}
+        />
 
         <View style={styles.content}>
           <ThemedText type="small" themeColor="textSecondary" style={text}>
@@ -182,11 +188,6 @@ const styles = StyleSheet.create({
   },
   banner: {
     height: 260,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emoji: {
-    fontSize: 96,
   },
   content: {
     width: '100%',
