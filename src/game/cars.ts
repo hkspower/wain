@@ -601,7 +601,7 @@ const discGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.022, 22);
 discGeo.rotateZ(Math.PI / 2);
 const lugGeo = new THREE.CylinderGeometry(0.016, 0.016, 0.026, 6);
 lugGeo.rotateZ(Math.PI / 2);
-const discMat = new THREE.MeshStandardMaterial({
+const discMat = new THREE.MeshStandardMaterial({ name: "disc",
   color: 0x9aa0a8,
   metalness: 0.9,
   roughness: 0.35,
@@ -783,25 +783,25 @@ const hubGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.29, 8);
 hubGeo.rotateZ(Math.PI / 2);
 const spokeGeo = roundedBox(0.27, 0.3, 0.06, 0.018);
 /** Ceramic-coated race tip: matte black, soot-dulled. */
-const ceramicTipMat = new THREE.MeshStandardMaterial({
+const ceramicTipMat = new THREE.MeshStandardMaterial({ name: "exhaust-tip-ceramic",
   color: 0x1a1a1c,
   roughness: 0.62,
   metalness: 0.35,
 });
 /** Titanium, burnt blue-violet at the tip the way heat leaves it. */
-const titaniumTipMat = new THREE.MeshStandardMaterial({
+const titaniumTipMat = new THREE.MeshStandardMaterial({ name: "exhaust-tip-titanium",
   color: 0x6b7ea8,
   roughness: 0.3,
   metalness: 0.95,
   envMapIntensity: 1.4,
 });
-const rimMat = new THREE.MeshStandardMaterial({
+const rimMat = new THREE.MeshStandardMaterial({ name: "rim",
   color: 0xc8cdd4,
   roughness: 0.2,
   metalness: 0.95,
   envMapIntensity: 1.5,
 });
-const rimDarkMat = new THREE.MeshStandardMaterial({
+const rimDarkMat = new THREE.MeshStandardMaterial({ name: "rim-dark",
   color: 0x23262b,
   roughness: 0.5,
   metalness: 0.6,
@@ -850,11 +850,11 @@ const ARCH_EDGE_F = 0.5 + 0.021;
 const ARCH_EDGE_R = 0.475 + 0.016;
 const ARCH_Y = 0.4;
 archLipGeoF.rotateY(Math.PI / 2);
-const wellMat = new THREE.MeshBasicMaterial({ color: 0x060708 });
+const wellMat = new THREE.MeshBasicMaterial({ name: "arch-well", color: 0x060708 });
 // The hot-hatch nose stripe: painted red, not a lamp, but it carries a
 // little glow so it still reads at night when nothing is lighting the
 // bumper directly.
-const hotStripeMat = new THREE.MeshStandardMaterial({
+const hotStripeMat = new THREE.MeshStandardMaterial({ name: "hot-stripe",
   color: 0xc8102e,
   roughness: 0.35,
   emissive: 0x3a0409,
@@ -925,7 +925,7 @@ function deckY(geo: THREE.BufferGeometry, style: BodyStyle, z: number, tag = "bo
 // every pixel and the cabin was a black box with a driver invisible
 // inside it. Glass is a dielectric — metalness near zero, a real index
 // of refraction, and enough transparency to see a shape through.
-const glassMat = new THREE.MeshPhysicalMaterial({
+const glassMat = new THREE.MeshPhysicalMaterial({ name: "glass",
   color: 0x121722,
   roughness: 0.05,
   metalness: 0.12,
@@ -935,38 +935,43 @@ const glassMat = new THREE.MeshPhysicalMaterial({
   opacity: 0.62,
 });
 
-const seamMat = new THREE.MeshStandardMaterial({ color: 0x0a0b0d, roughness: 0.85 });
+const seamMat = new THREE.MeshStandardMaterial({ name: "seam", color: 0x0a0b0d, roughness: 0.85 });
 // Panel gaps read almost black and swallow light — that contrast against
 // the lit chamfer beside them is what sells a shut line.
-const gapMat = new THREE.MeshStandardMaterial({ color: 0x050506, roughness: 1 });
-const interiorMat = new THREE.MeshStandardMaterial({ color: 0x14161a, roughness: 0.95 });
-const indicatorMat = new THREE.MeshStandardMaterial({
+const gapMat = new THREE.MeshStandardMaterial({ name: "panel-gap", color: 0x050506, roughness: 1 });
+const interiorMat = new THREE.MeshStandardMaterial({ name: "interior", color: 0x14161a, roughness: 0.95 });
+const indicatorMat = new THREE.MeshStandardMaterial({ name: "indicator",
   color: 0xffa020,
   emissive: 0xff8c1a,
   emissiveIntensity: 0.8,
 });
-const reverseMat = new THREE.MeshStandardMaterial({
+const reverseMat = new THREE.MeshStandardMaterial({ name: "reverse-lamp",
   color: 0xd8d8d8,
   emissive: 0xbbbbbb,
   emissiveIntensity: 0.3,
 });
-const caliperMat = new THREE.MeshStandardMaterial({ color: 0xb01818, roughness: 0.5 });
+const caliperMat = new THREE.MeshStandardMaterial({ name: "caliper", color: 0xb01818, roughness: 0.5 });
+const towHookMat = new THREE.MeshStandardMaterial({
+  name: "tow-hook",
+  color: 0xc42020,
+  roughness: 0.45,
+});
 // Big-brake teal — the time-attack kit's signature peeking through bronze
-const tealCaliperMat = new THREE.MeshStandardMaterial({
+const tealCaliperMat = new THREE.MeshStandardMaterial({ name: "caliper-race",
   color: 0x18b09a,
   roughness: 0.4,
   emissive: 0x073b33,
   emissiveIntensity: 0.3,
 });
 // Forged bronze, matte like a shot-peened TE37 — not jewellery gold
-const bronzeRimMat = new THREE.MeshStandardMaterial({
+const bronzeRimMat = new THREE.MeshStandardMaterial({ name: "rim-bronze",
   color: 0x9c6b2f,
   roughness: 0.45,
   metalness: 0.85,
   envMapIntensity: 1.2,
 });
 // Dry carbon for the aero: near-black, a hint of weave sheen
-const carbonMat = new THREE.MeshStandardMaterial({
+const carbonMat = new THREE.MeshStandardMaterial({ name: "carbon",
   color: 0x101215,
   roughness: 0.35,
   metalness: 0.55,
@@ -976,21 +981,21 @@ const carbonMat = new THREE.MeshStandardMaterial({
 // Smoked lamp housing: the dark bezel the lenses live in. The contrast
 // between this and the lit lens is what makes a lamp read as an assembly
 // instead of a painted-on rectangle.
-const housingMat = new THREE.MeshStandardMaterial({
+const housingMat = new THREE.MeshStandardMaterial({ name: "lamp-housing",
   color: 0x17090b,
   roughness: 0.25,
   metalness: 0.5,
   envMapIntensity: 1.2,
 });
 // Passive rear reflectors: catch light, never emit
-const reflectorMat = new THREE.MeshStandardMaterial({
+const reflectorMat = new THREE.MeshStandardMaterial({ name: "reflector",
   color: 0x7a1016,
   roughness: 0.25,
   metalness: 0.3,
   emissive: 0x30060a,
   emissiveIntensity: 0.4,
 });
-const amberReflectorMat = new THREE.MeshStandardMaterial({
+const amberReflectorMat = new THREE.MeshStandardMaterial({ name: "reflector-amber",
   color: 0xa66414,
   roughness: 0.25,
   emissive: 0x5a3208,
@@ -1008,7 +1013,7 @@ const amberReflectorMat = new THREE.MeshStandardMaterial({
  * heads to the same standard rather than leaving one end of every car
  * built to a different one.
  */
-const headlightMat = new THREE.MeshStandardMaterial({
+const headlightMat = new THREE.MeshStandardMaterial({ name: "headlamp-lens",
   color: 0xffffff,
   emissive: 0xfff6cf,
   emissiveIntensity: 1.7,
@@ -1016,13 +1021,13 @@ const headlightMat = new THREE.MeshStandardMaterial({
 /** The projector inside the lens: small, hot, and the only part that is
  *  allowed to blow out. A lamp with a focal point reads as a lamp; a
  *  uniform slab reads as a strip of tape. */
-const headCoreMat = new THREE.MeshStandardMaterial({
+const headCoreMat = new THREE.MeshStandardMaterial({ name: "headlamp-core",
   color: 0xffffff,
   emissive: 0xffffff,
   emissiveIntensity: 4.2,
 });
-const grilleMat = new THREE.MeshStandardMaterial({ color: 0x0e0f12, roughness: 0.6 });
-const chromeMat = new THREE.MeshStandardMaterial({
+const grilleMat = new THREE.MeshStandardMaterial({ name: "grille", color: 0x0e0f12, roughness: 0.6 });
+const chromeMat = new THREE.MeshStandardMaterial({ name: "chrome",
   color: 0xd8dde3,
   roughness: 0.12,
   metalness: 1,
@@ -1408,6 +1413,7 @@ function crewDecalTexture(logo: TeamLogo, tag: string, name: string): THREE.Canv
 
 function decalMat(map: THREE.CanvasTexture): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
+    name: "decal",
     map,
     transparent: true,
     roughness: 0.5,
@@ -1423,7 +1429,7 @@ function decalMat(map: THREE.CanvasTexture): THREE.MeshStandardMaterial {
 let sharedPlateTex: THREE.CanvasTexture | null = null;
 function plateMat(): THREE.MeshStandardMaterial {
   if (!sharedPlateTex) sharedPlateTex = plateTexture();
-  return new THREE.MeshStandardMaterial({ map: sharedPlateTex, roughness: 0.5 });
+  return new THREE.MeshStandardMaterial({ name: "plate", map: sharedPlateTex, roughness: 0.5 });
 }
 
 type WheelFinish = "silver" | "gold" | "bronze";
@@ -1572,6 +1578,7 @@ export function createCar(colors: CarColors): THREE.Group {
   // flawless mirror is a large part of why a rendered highlight reads as
   // a neon strip rather than as a reflection of one.
   const bodyMat = new THREE.MeshPhysicalMaterial({
+    name: "paint",
     color: colors.body,
     roughness: 0.18, // basecoat: tight, so the flake catches points
     metalness: 0.95,
@@ -1589,6 +1596,7 @@ export function createCar(colors: CarColors): THREE.Group {
     colors.raceKit ? bronzeRimMat : colors.goldRims ? getGoldRimMat() : rimMat;
   const spokeLocal = colors.simple ? undefined : spokeBase.clone();
   const chromeLocal = colors.simple ? chromeMat : chromeMat.clone();
+  chromeLocal.name = "chrome";
   const reflectMats: THREE.MeshStandardMaterial[] = [];
   if (spokeLocal) {
     spokeLocal.userData.baseEnvIntensity = spokeLocal.envMapIntensity;
@@ -1643,23 +1651,44 @@ export function createCar(colors: CarColors): THREE.Group {
 
   /** Top of the bonnet stripe at a point along it, when the car wears one. */
   let hoodStripeTop: ((z: number) => number) | null = null;
-  if (colors.accent !== undefined && style === "sedan") {
+  if (colors.accent !== undefined) {
     // A bonnet-and-boot stripe, seated on the panels it lies on. It was
     // one 4.3 m bar held at a fixed height for the whole length of the
     // car, which is a straight line laid through a curved body: it broke
     // the surface over the nose, sank into the hood, ran under the
     // cabin, and never reached the boot. On screen it read as a green
     // rectangle stuck to the bumper.
-    const accentMat = new THREE.MeshStandardMaterial({ color: colors.accent, roughness: 0.35 });
+    const accentMat = new THREE.MeshStandardMaterial({
+      name: "accent-stripe",
+      color: colors.accent,
+      roughness: 0.35,
+    });
     // Each run is laid in short pieces rather than as one long board.
     // A panel is not a ramp: levelled against its two ends only, a 0.9 m
     // stripe sinks into the crown between them, which broke the boot
     // stripe into two green patches with the middle missing.
     const PIECES = 4;
-    for (const [zRear, zFront] of [
-      [0.95, 2.14],
-      [-2.16, -1.22],
-    ]) {
+    // Where the stripe runs, derived from the body rather than typed in.
+    //
+    // Both runs were hardcoded saloon numbers, and the whole block was
+    // gated on `style === "sedan"` — so nine of the fifteen cars in the
+    // showroom accepted an accent colour and drew nothing with it. Found
+    // by counting the fleet against itself: accent-stripe came out on
+    // six cars and absent from nine, and the nine had one thing in
+    // common, which was not being a saloon.
+    //
+    // The bonnet run is the same on every body: from just ahead of the
+    // wiper line to just short of the nose. The BOOT run is not — a
+    // fastback has no boot lid to put a stripe on, its glass runs to the
+    // tail — so it is only laid where the profile actually has a deck,
+    // and the fastbacks get the bonnet alone. That is what those cars
+    // look like with a stripe on them, rather than a green rectangle
+    // stuck across a rear window.
+    const runs: Array<[number, number]> = [[d.wiperZ + 0.06, d.nose - 0.23]];
+    if (style === "sedan" || style === "gtr") {
+      runs.push([d.tail + 0.22, d.roof[0] - 0.9]);
+    }
+    for (const [zRear, zFront] of runs) {
       const step = (zFront - zRear) / PIECES;
       for (let i = 0; i < PIECES; i++) {
         const a = zRear + i * step;
@@ -1865,6 +1894,7 @@ export function createCar(colors: CarColors): THREE.Group {
     }
   }
   const tailMat = new THREE.MeshStandardMaterial({
+    name: "taillamp-lens",
     color: 0x550000,
     emissive: TAIL.lensColor,
     emissiveIntensity: TAIL.lensIdle,
@@ -1875,6 +1905,7 @@ export function createCar(colors: CarColors): THREE.Group {
   // hotter, oranger red and it stands proud, so it reads as the filament
   // rather than as more of the same red plastic.
   const tailCoreMat = new THREE.MeshStandardMaterial({
+    name: "taillamp-core",
     color: 0x330000,
     emissive: TAIL.coreColor,
     emissiveIntensity: TAIL.coreIdle,
@@ -1941,9 +1972,19 @@ export function createCar(colors: CarColors): THREE.Group {
       bezel.rotation.x = Math.PI / 2;
       bezel.position.set(sx, d.tailY, d.tail - 0.032);
       group.add(bezel);
-      const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.055, 14), tailCoreMat);
+      // The red lens. It was not here: this was the only tail in the
+      // fleet built as bezel-then-core with nothing between them, so
+      // the FD's four lamps were a hot orange element sitting in a
+      // smoked ring with no red around it, while every other silhouette
+      // has three layers. Found by counting the fleet against itself —
+      // taillamp-lens came out 0 on this body and 1 to 5 on the rest.
+      const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.078, 0.078, 0.05, 14), tailMat);
+      lens.rotation.x = Math.PI / 2;
+      lens.position.set(sx, d.tailY, d.tail - 0.044);
+      group.add(lens);
+      const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.056, 0.056, 0.055, 14), tailCoreMat);
       lamp.rotation.x = Math.PI / 2;
-      lamp.position.set(sx, d.tailY, d.tail - 0.045);
+      lamp.position.set(sx, d.tailY, d.tail - 0.056);
       group.add(lamp);
     }
     addTailGlow(-0.64, d.tailY, d.tail, 0.7, 0.42);
@@ -2660,8 +2701,11 @@ export function createCar(colors: CarColors): THREE.Group {
       group.add(fin);
     }
 
-    // Red tow hook on the splitter — scrutineering says so
-    const hook = new THREE.Mesh(roundedBox(0.1, 0.035, 0.12, 0.012), caliperMat);
+    // Red tow hook on the splitter — scrutineering says so. Its own
+    // material rather than the caliper's: it was borrowing that one for
+    // the colour, which made every kit car read as having five brake
+    // calipers on four wheels to anything counting parts.
+    const hook = new THREE.Mesh(roundedBox(0.1, 0.035, 0.12, 0.012), towHookMat);
     hook.position.set(0.45, 0.19, d.nose + 0.08);
     group.add(hook);
   }

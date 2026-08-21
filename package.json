@@ -67,7 +67,9 @@
     "test:levels": "node tools/shots/levels.mjs",
     "check:menus": "node tools/shots/menus.mjs",
     "check:sharp": "node tools/shots/sharpness.mjs",
-    "check:paint": "node tools/shots/paint.mjs"
+    "check:paint": "node tools/shots/paint.mjs",
+    "check:fleet": "node tools/shots/fleet.mjs",
+    "check:gutters": "node tools/shots/gutters.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",

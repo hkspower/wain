@@ -280,9 +280,20 @@ function asphaltSurface(): {
   const img = ctx.createImageData(S, S);
   for (let i = 0; i < S * S; i++) {
     const h = height[i];
-    // dark binder with lighter stones poking through
+    // Dark binder with lighter stones poking through.
+    //
+    // The binder was 22/255, an albedo of 0.086 — fresh-laid asphalt,
+    // and darker than any road anybody drives on. It mattered because of
+    // what happened when the city went dark: measured on the corniche at
+    // 22:30, unlit buildings deliver a median of 11 and the road
+    // delivered 12, so on the coastal leg — where there are far fewer
+    // lamps than in Sharq — the road and the towers behind it were the
+    // same tone and the horizon had no floor. Aged asphalt is 0.12 to
+    // 0.18; this is the bottom of that, which puts the road clear of the
+    // city's silhouette without touching the stones that catch a
+    // headlight.
     const stone = Math.max(0, h - 0.52) * 2.1;
-    const v = 22 + h * 26 + stone * 74;
+    const v = 34 + h * 30 + stone * 74;
     img.data[i * 4] = v;
     img.data[i * 4 + 1] = v + 1;
     img.data[i * 4 + 2] = v + 5;
@@ -796,7 +807,24 @@ function windowTextures(): { facade: THREE.CanvasTexture; lit: THREE.CanvasTextu
   const [lc, lx] = mk();
   // Concrete, with a faint band per floor so a facade has some tone of
   // its own before anything lights it.
-  fx.fillStyle = "#8d9199";
+  // Concrete, and a darker concrete than it was.
+  //
+  // Measured through the per-surface levels tool on the corniche at
+  // 22:30: buildings delivered a median of 21/255, the sky 37 and the
+  // road 12. Three surfaces inside twenty-five 8-bit steps of each other
+  // is three surfaces that merge — the skyline had an edge only where a
+  // window happened to be lit, and the city read as one grey mass
+  // between a grey sky and a grey road.
+  //
+  // A night skyline is a BLACK silhouette against a glowing sky, and
+  // that is the separation this buys: the city goes to the bottom of the
+  // range, the sky keeps the middle, the lit road takes the top. It is
+  // the opposite of the fix this file used to carry — the background was
+  // once #0a0d13, near-black, which made every building a black slab at
+  // NOON as well and put half the building pixels at 0/255 in daylight.
+  // This is a real concrete grey, a third down from where it was, so it
+  // still has somewhere to go when the sun is on it.
+  fx.fillStyle = "#5f646b";
   fx.fillRect(0, 0, W, H);
   lx.fillStyle = "#000000";
   lx.fillRect(0, 0, W, H);
