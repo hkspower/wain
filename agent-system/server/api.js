@@ -9,6 +9,7 @@ const LK = require('./links');
 const M = require('./mailer');
 const HK = require('./hooks');
 const N = require('./nearest');
+const AREA = require('./areas');
 const {
   badRequest, unauthorized, forbidden, notFound, conflict,
   str, num, oneOf, id,
@@ -130,6 +131,7 @@ on('GET', '/api/meta', async () => ({
   availability: D.AVAILABILITY,
   roles: D.ROLES,
   governorates: D.GOVERNORATES,
+  areas: AREA.AREAS,
   approval: D.APPROVAL,
   working_approvals: D.WORKING_APPROVALS,
   probation_max_orders: D.PROBATION_MAX_ORDERS,
@@ -493,8 +495,8 @@ on('POST', '/api/orders', async (ctx) => {
     code: nextOrderCode(),
     customer_name: str(ctx.body.customer_name, 'اسم العميل', { min: 2, max: 80 }),
     customer_phone: str(ctx.body.customer_phone, 'هاتف العميل', { min: 6, max: 25 }),
-    pickup_address: str(ctx.body.pickup_address, 'عنوان الاستلام', { min: 4, max: 300 }),
-    dropoff_address: str(ctx.body.dropoff_address, 'عنوان التسليم', { min: 4, max: 300 }),
+    pickup_address: str(ctx.body.pickup_address, 'عنوان الاستلام', { required: false, max: 300 }),
+    dropoff_address: str(ctx.body.dropoff_address, 'عنوان التسليم', { required: false, max: 300 }),
     governorate: oneOf(ctx.body.governorate, 'المحافظة', D.GOVERNORATES),
     vehicle: oneOf(ctx.body.vehicle || 'sedan', 'نوع المركبة', Object.keys(D.VEHICLES)),
     cod_amount: num(ctx.body.cod_amount, 'المبلغ المطلوب تحصيله', { max: 100000 }),
@@ -502,6 +504,52 @@ on('POST', '/api/orders', async (ctx) => {
     priority: oneOf(ctx.body.priority || 'normal', 'الأولوية', Object.keys(D.PRIORITIES)),
     notes: str(ctx.body.notes, 'الملاحظات', { required: false, max: 600 }),
   };
+
+  /* العنوان المهيكل اختياري: من أرسل منطقةً وقطعةً تحقّقنا منهما وبنينا منهما
+     نصّ العنوان؛ ومن أرسل نصًّا حرًّا فقط بقي على ما كان. */
+  const structured = (prefix, gov) => {
+    const area = str(ctx.body[`${prefix}_area`], 'المنطقة', { required: false, max: 60 });
+    const blockRaw = ctx.body[`${prefix}_block`];
+    if (!area && (blockRaw === undefined || blockRaw === '')) return { area: null, block: null };
+    if (!area) throw badRequest('القطعة بلا منطقة — اختر المنطقة أولًا');
+    if (!AREA.areaBelongsTo(area, gov)) {
+      throw badRequest(`«${area}» ليست من مناطق محافظة ${gov}`);
+    }
+    let block = null;
+    if (blockRaw !== undefined && blockRaw !== '') {
+      const read = AREA.readBlock(blockRaw, area);
+      if (!read.ok) throw badRequest(read.message);
+      block = read.block;
+    }
+    return { area, block: block === null ? null : String(block) };
+  };
+
+  const dropGov = ctx.body.dropoff_governorate
+    ? oneOf(ctx.body.dropoff_governorate, 'محافظة التسليم', D.GOVERNORATES)
+    : order.governorate;
+
+  const pick = structured('pickup', order.governorate);
+  const drop = structured('dropoff', dropGov);
+
+  order.pickup_area = pick.area;
+  order.pickup_block = pick.block;
+  order.dropoff_governorate = pick.area || drop.area ? dropGov : null;
+  order.dropoff_area = drop.area;
+  order.dropoff_block = drop.block;
+
+  /* العنوان المكتوب يُبنى من الأجزاء حين تتوفّر، فلا يفترق النصّ عن الحقول.
+     وطريقان مقبولان لا واحد: منطقة مختارة، أو نصّ حرّ لمن يكتبه بيده. */
+  if (pick.area) {
+    order.pickup_address = AREA.composeAddress({ ...pick, street: ctx.body.pickup_street });
+  }
+  if (drop.area) {
+    order.dropoff_address = AREA.composeAddress({ ...drop, street: ctx.body.dropoff_street });
+  }
+  for (const [label, addr] of [['الاستلام', order.pickup_address], ['التسليم', order.dropoff_address]]) {
+    if (!addr || addr.trim().length < 4) {
+      throw badRequest(`عنوان ${label} ناقص — اختر المنطقة أو اكتب العنوان`);
+    }
+  }
 
   // دبّوس الزبون اختياري — يُقبل رابط خرائط أو إحداثيتان، ويُرفض ما لا يُفهم
   // بسبب واضح بدل أن يُحفظ صفرًا يُرسل الكابتن إلى وسط المحيط
@@ -524,10 +572,12 @@ on('POST', '/api/orders', async (ctx) => {
       (code, customer_name, customer_phone, pickup_address, dropoff_address, governorate,
        vehicle, cod_amount, delivery_fee, priority, notes, status, agent_id, created_by,
        commission_type, commission_rate, commission_amount, agent_earning,
+       pickup_area, pickup_block, dropoff_governorate, dropoff_area, dropoff_block,
        pickup_lat, pickup_lng, created_at, updated_at)
      VALUES (@code, @customer_name, @customer_phone, @pickup_address, @dropoff_address, @governorate,
        @vehicle, @cod_amount, @delivery_fee, @priority, @notes, @status, @agent_id, @created_by,
        @commission_type, @commission_rate, @commission_amount, @agent_earning,
+       @pickup_area, @pickup_block, @dropoff_governorate, @dropoff_area, @dropoff_block,
        @pickup_lat, @pickup_lng, @ts, @ts)`
   ).run({
     ...order,

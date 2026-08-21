@@ -252,6 +252,14 @@ addOrderColumn('agent_earning',     'REAL NOT NULL DEFAULT 0');
 
 /* دبّوس موقع الزبون. اختياري: الطلب يُنشأ ويُسند بلا دبّوس كما كان، والدبّوس
    يفتح اقتراح الأقرب وحده. القيمة NULL تعني «لم يُلتقط» لا «الصفر». */
+/* العنوان المهيكل: المنطقة والقطعة تُختاران من قائمة، والشارع يبقى حرًّا.
+   النصّ الكامل يبقى في pickup_address كما كان، فلا تنكسر الطلبات القديمة. */
+addOrderColumn('pickup_area',        'TEXT');
+addOrderColumn('pickup_block',       'TEXT');
+addOrderColumn('dropoff_governorate','TEXT');
+addOrderColumn('dropoff_area',       'TEXT');
+addOrderColumn('dropoff_block',      'TEXT');
+
 addOrderColumn('pickup_lat', 'REAL');
 addOrderColumn('pickup_lng', 'REAL');
 

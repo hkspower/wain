@@ -24,9 +24,8 @@ const PRIORITIES = { normal: 'عادي', urgent: 'عاجل' };
 const AVAILABILITY = { available: 'متاح', busy: 'مشغول', offline: 'غير متصل' };
 const ROLES = { admin: 'مدير عمليات', agent: 'مندوب توصيل' };
 
-const GOVERNORATES = [
-  'العاصمة', 'حولي', 'الفروانية', 'مبارك الكبير', 'الأحمدي', 'الجهراء',
-];
+/* المحافظات من ملفّ المناطق نفسه — قائمتان تفترقان يوم تُضاف محافظة */
+const { GOVERNORATES } = require('./areas');
 
 /**
  * حالة اعتماد الحساب — دورة حياة المندوب لدى الإدارة.

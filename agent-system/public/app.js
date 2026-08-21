@@ -1240,15 +1240,55 @@
             <div class="form-grid">
               <label class="field"><span>اسم العميل</span><input name="customer_name" required></label>
               <label class="field"><span>هاتف العميل</span><input name="customer_phone" dir="ltr" required placeholder="+965…"></label>
-              <label class="field field--full"><span>عنوان الاستلام</span><input name="pickup_address" required placeholder="المنطقة، القطعة، الشارع، المبنى"></label>
-              <label class="field field--full"><span>عنوان التسليم</span><input name="dropoff_address" required placeholder="المنطقة، القطعة، الشارع، المبنى"></label>
-              <label class="field">
-                <span>المحافظة</span>
-                <select name="governorate" required>
-                  <option value="">اختر…</option>
-                  ${state.meta.governorates.map((g) => `<option value="${esc(g)}">${esc(g)}</option>`).join('')}
-                </select>
-              </label>
+              <fieldset class="addr field--full">
+                <legend>الاستلام</legend>
+                <div class="addr__row">
+                  <label class="field">
+                    <span>المحافظة</span>
+                    <select name="governorate" data-areas="pickup_area" required>
+                      <option value="">اختر…</option>
+                      ${state.meta.governorates.map((g) => `<option value="${esc(g)}">${esc(g)}</option>`).join('')}
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>المنطقة</span>
+                    <select name="pickup_area"><option value="">اختر المحافظة أولًا</option></select>
+                  </label>
+                  <label class="field">
+                    <span>القطعة</span>
+                    <input name="pickup_block" type="text" inputmode="numeric" data-block dir="ltr" placeholder="٤">
+                  </label>
+                </div>
+                <label class="field field--full">
+                  <span>الشارع والمبنى</span>
+                  <input name="pickup_street" placeholder="شارع سالم المبارك، مبنى ١٢">
+                </label>
+              </fieldset>
+
+              <fieldset class="addr field--full">
+                <legend>التسليم</legend>
+                <div class="addr__row">
+                  <label class="field">
+                    <span>المحافظة</span>
+                    <select name="dropoff_governorate" data-areas="dropoff_area">
+                      <option value="">مثل الاستلام</option>
+                      ${state.meta.governorates.map((g) => `<option value="${esc(g)}">${esc(g)}</option>`).join('')}
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>المنطقة</span>
+                    <select name="dropoff_area"><option value="">اختر المحافظة أولًا</option></select>
+                  </label>
+                  <label class="field">
+                    <span>القطعة</span>
+                    <input name="dropoff_block" type="text" inputmode="numeric" data-block dir="ltr" placeholder="٧">
+                  </label>
+                </div>
+                <label class="field field--full">
+                  <span>الشارع والمبنى</span>
+                  <input name="dropoff_street" placeholder="شارع تونس، مبنى ٣">
+                </label>
+              </fieldset>
               <label class="field">
                 <span>نوع المركبة</span>
                 <select name="vehicle">
@@ -1280,11 +1320,44 @@
         </div>
       </div>`;
 
+    /* المنطقة تتبع المحافظة: اختيار محافظة يملأ قائمة مناطقها. وقائمة التسليم
+       تتبع محافظة التسليم إن اختيرت، وإلّا فمحافظة الاستلام — كما يفترض
+       الخادم تمامًا، فلا يعرض النموذج خيارًا يرفضه. */
+    function fillAreas(gov, targetName) {
+      const sel = document.querySelector(`[name="${targetName}"]`);
+      if (!sel) return;
+      const keep = sel.value;
+      const list = (state.meta.areas || {})[gov] || [];
+      sel.innerHTML = list.length
+        ? '<option value="">بلا تحديد</option>' + list.map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join('')
+        : '<option value="">اختر المحافظة أولًا</option>';
+      if (keep && list.includes(keep)) sel.value = keep;
+    }
+
+    const govPick = document.querySelector('[name="governorate"]');
+    const govDrop = document.querySelector('[name="dropoff_governorate"]');
+    const syncDrop = () => fillAreas(govDrop.value || govPick.value, 'dropoff_area');
+    govPick.addEventListener('change', () => { fillAreas(govPick.value, 'pickup_area'); syncDrop(); });
+    govDrop.addEventListener('change', syncDrop);
+
+    /* القطعة تُكتب بالعربية كما تُقرأ.
+       كان الحقل `type=number`، والمتصفّح يرفض «٤» بصمت: يكتبها الموظّف على
+       لوحة مفاتيح عربية فلا يظهر شيء ولا يقول له أحد لماذا. فصار نصًّا
+       يقبل الرقمين ويحوّل العربيّ إلى لاتينيّ قبل الإرسال — والخادم يبقى
+       هو الحكم على المدى. */
+    for (const box of document.querySelectorAll('[data-block]')) {
+      box.addEventListener('input', () => {
+        const at = box.selectionStart;
+        const clean = AR.toLatin(box.value).replace(/[^0-9]/g, '');
+        if (clean !== box.value) { box.value = clean; try { box.setSelectionRange(at, at); } catch { /* لا يهمّ */ } }
+      });
+    }
+
     document.getElementById('orderForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const msg = document.getElementById('orderMsg');
       const fd = Object.fromEntries(new FormData(e.target));
-      if (!fd.agent_id) delete fd.agent_id;
+      for (const k of Object.keys(fd)) if (fd[k] === '') delete fd[k];
       await submit(e.target, msg, async () => {
         const { order } = await api('/orders', { method: 'POST', body: fd });
         toast(`تم إنشاء الطلب ${order.code}`, 'ok');
