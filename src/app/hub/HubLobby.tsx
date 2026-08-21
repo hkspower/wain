@@ -70,6 +70,8 @@ export default function HubLobby() {
   const [crew, setCrew] = useState<Crew>({ name: "", tag: "", logo: DEFAULT_LOGO });
   /** Whether the hub has ever said we are in a crew on this connection. */
   const hadTeam = useRef(false);
+  /** The hub refused the name — somebody founded it first. */
+  const [crewMsg, setCrewMsg] = useState<string | null>(null);
   useEffect(() => {
     const saved = loadCrew();
     if (saved) setCrew(saved);
@@ -144,8 +146,13 @@ export default function HubLobby() {
         },
         onReferralResult: (ok, reason) => setRefMsg({ ok, text: reason }),
         onTeams: setTeams,
+        onTeamTaken: (name, tag) => {
+          setCrewMsg(`"${name}" [${tag}] is already somebody's crew — pick another name.`);
+          setShowCreate(true);
+        },
         onMyTeam: (t) => {
           setMyTeam(t);
+          setCrewMsg(null);
           setShowCreate(false);
           if (t) {
             // The crew the hub says you are in is the crew this save
@@ -411,6 +418,7 @@ export default function HubLobby() {
                       // message, the hub may restart, and the crew is
                       // still yours and still on the car either way.
                       saveCrew({ name: n, tag: tg, logo: crew.logo });
+                      setCrewMsg(null);
                       clientRef.current?.createTeam(n, tg, crew.logo);
                     }}
                     disabled={!crew.name.trim() || !sanitizeTag(crew.tag)}
@@ -418,6 +426,9 @@ export default function HubLobby() {
                   >
                     FOUND THE CREW — <span className="grn-ar" lang="ar">أسس فريقك</span>
                   </button>
+                  {crewMsg && (
+                    <p className="mt-3 text-sm text-red-300">{crewMsg}</p>
+                  )}
                 </div>
               )}
 

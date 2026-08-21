@@ -22,34 +22,64 @@ type PartSet = Partial<Record<string, THREE.BufferGeometry>>;
 /** One fetch per file per session, shared by everything that wants it. */
 const cache = new Map<string, Promise<PartSet | null>>();
 
+/**
+ * What the build actually shipped.
+ *
+ * `build.json` is written by the Blender build and lists every file it
+ * produced, so it is already the manifest — this just reads it as one.
+ * The point is the file that is NOT there: asking for a model that was
+ * never shipped works fine (the procedural version stands) but costs a
+ * 404 on every page load and a loader error in the console, which is
+ * indistinguishable from a real broken asset to anyone reading the log.
+ *
+ * If the manifest itself cannot be read, every file is assumed shipped:
+ * a missing manifest must not silently downgrade a build that has all
+ * its geometry.
+ */
+let manifest: Promise<Set<string> | null> | null = null;
+function shipped(): Promise<Set<string> | null> {
+  manifest ??= fetch("/models/build.json")
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => (j?.assets ? new Set(Object.keys(j.assets)) : null))
+    .catch(() => null);
+  return manifest;
+}
+
 function parts(file: string): Promise<PartSet | null> {
   let entry = cache.get(file);
   if (!entry) {
-    entry = new Promise((resolve) => {
-      new GLTFLoader().load(
-        `/models/${file}.glb`,
-        (gltf) => {
-          const out: PartSet = {};
-          gltf.scene.updateMatrixWorld(true);
-          gltf.scene.traverse((o) => {
-            const mesh = o as THREE.Mesh;
-            if (!mesh.isMesh) return;
-            const geo = mesh.geometry.clone();
-            // Bake the node transform so the geometry lives in the same
-            // local frame the procedural build uses
-            geo.applyMatrix4(mesh.matrixWorld);
-            geo.userData.authored = true;
-            out[mesh.name.toLowerCase()] = geo;
-          });
-          resolve(out);
-        },
-        undefined,
-        () => resolve(null) // 404 / parse failure → procedural stands
-      );
+    entry = shipped().then((have) => {
+      if (have && !have.has(file)) return null;
+      return load(file);
     });
     cache.set(file, entry);
   }
   return entry;
+}
+
+function load(file: string): Promise<PartSet | null> {
+  return new Promise((resolve) => {
+    new GLTFLoader().load(
+      `/models/${file}.glb`,
+      (gltf) => {
+        const out: PartSet = {};
+        gltf.scene.updateMatrixWorld(true);
+        gltf.scene.traverse((o) => {
+          const mesh = o as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          const geo = mesh.geometry.clone();
+          // Bake the node transform so the geometry lives in the same
+          // local frame the procedural build uses
+          geo.applyMatrix4(mesh.matrixWorld);
+          geo.userData.authored = true;
+          out[mesh.name.toLowerCase()] = geo;
+        });
+        resolve(out);
+      },
+      undefined,
+      () => resolve(null) // 404 / parse failure → procedural stands
+    );
+  });
 }
 
 /**

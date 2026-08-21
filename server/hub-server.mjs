@@ -1,8 +1,10 @@
 // Gulf Road Nights — online hub server.
 //
 // A single shared room ("the Gulf Road cruise"): relays player positions
-// at 10 Hz, chat, and keeps a session best-lap leaderboard. In-memory
-// only — restart wipes it. Run with: npm run hub  (default port 8787)
+// at 10 Hz, chat, and keeps a session best-lap leaderboard. Positions,
+// chat and the leaderboard are in-memory and a restart wipes them —
+// they describe a moment. Referrals and crews are on disk, because they
+// describe a promise. Run with: npm run hub  (default port 8787)
 //
 // Protocol (JSON over WebSocket):
 //   client → server: {t:"join",name,color} {t:"state",s,lat,speed}
@@ -16,6 +18,7 @@
 //                    {t:"states",players:[[id,s,lat,speed],...]}
 //                    {t:"chat",name,text}       {t:"leaderboard",entries}
 //                    {t:"teams",teams}          {t:"team-you",team}
+//                    {t:"team-taken",name,tag}
 //                    {t:"duel-invite",from,name,tag,wager}
 //                    {t:"duel-start",opponent} {t:"duel-sp",you,them,gap}
 //                    {t:"duel-end",won,reason,wager} {t:"duel-declined"}
@@ -99,6 +102,22 @@ function ledgerEntry(pid) {
   return e;
 }
 
+/**
+ * The crews, and who is in them.
+ *
+ * teamId -> { id, name, tag, logo, founder, members: Map<name, id|null> }
+ *
+ * Declared up here rather than beside the rest of the team code because
+ * it goes in the ledger, and the ledger is read before anything else
+ * runs. A crew used to live only in this Map, which meant a restart
+ * dropped every roster: your own crew came back — the client keeps it
+ * beside the save and republishes on connect — but everyone else in it
+ * did not, and each of them re-founding their crew on reconnect hit the
+ * "one crew at a time" guard and got silence back.
+ */
+const teams = new Map();
+let nextTeamId = 1;
+
 function loadLedger() {
   try {
     const raw = JSON.parse(readFileSync(LEDGER_PATH, "utf8"));
@@ -112,7 +131,30 @@ function loadLedger() {
       });
       if (e.code) codeOwner.set(e.code, pid);
     }
-    console.log(`[hub] referral ledger: ${referrals.size} saves, ${codeOwner.size} codes`);
+    // Members come back offline, every one of them: a connection is the
+    // only thing that makes somebody online, and the ledger is not a
+    // connection. syncTeamPresence() lights them up as they arrive.
+    for (const t of raw.teams ?? []) {
+      if (!t?.id || !t.name || !t.tag) continue;
+      teams.set(String(t.id), {
+        id: String(t.id),
+        name: String(t.name),
+        tag: String(t.tag),
+        logo: sanitizeLogo(t.logo),
+        founder: String(t.founder ?? ""),
+        members: new Map((t.members ?? []).map((n) => [String(n), null])),
+      });
+    }
+    // Past the highest id that was ever handed out, so a restart cannot
+    // mint an id a persisted crew already owns.
+    nextTeamId = Math.max(
+      Number(raw.nextTeamId) || 1,
+      ...[...teams.keys()].map((k) => (Number(String(k).replace(/^t/, "")) || 0) + 1)
+    );
+    console.log(
+      `[hub] ledger: ${referrals.size} saves, ${codeOwner.size} codes, ` +
+        `${teams.size} crew${teams.size === 1 ? "" : "s"}`
+    );
   } catch (err) {
     if (err.code !== "ENOENT") console.warn(`[hub] could not read the ledger: ${err.message}`);
   }
@@ -124,7 +166,21 @@ function saveLedger() {
   ledgerDirty = false;
   try {
     mkdirSync(dirname(LEDGER_PATH), { recursive: true });
-    const out = { referrals: Object.fromEntries(referrals) };
+    const out = {
+      referrals: Object.fromEntries(referrals),
+      // Names only. Player ids are per-connection and mean nothing after
+      // a restart; writing them down would persist a lie about who is
+      // online.
+      teams: [...teams.values()].map((t) => ({
+        id: t.id,
+        name: t.name,
+        tag: t.tag,
+        logo: t.logo,
+        founder: t.founder,
+        members: [...t.members.keys()],
+      })),
+      nextTeamId,
+    };
     const tmp = `${LEDGER_PATH}.tmp`;
     writeFileSync(tmp, JSON.stringify(out));
     renameSync(tmp, LEDGER_PATH);
@@ -132,6 +188,12 @@ function saveLedger() {
     console.warn(`[hub] could not write the ledger: ${err.message}`);
     ledgerDirty = true;
   }
+}
+
+/** A crew changed. Persist it, not in a minute — a restart is not polite. */
+function teamsChanged() {
+  ledgerDirty = true;
+  saveLedger();
 }
 
 /** The bonus, in KD. Kept in step with REFERRAL_KD in the web build. */
@@ -217,10 +279,6 @@ function bankReferrals(pid, tokens) {
 
 loadLedger();
 setInterval(saveLedger, 10_000).unref?.();
-
-/** teamId -> { id, name, tag, logo, founder, members: Map<name, id|null> } */
-const teams = new Map();
-let nextTeamId = 1;
 
 /**
  * Live player-vs-player duels. The server is the referee: it owns the SP
@@ -500,8 +558,6 @@ wss.on("connection", (ws) => {
       const text = String(msg.text ?? "").slice(0, MAX_CHAT).trim();
       if (text) broadcast({ t: "chat", name: p.name, text });
     } else if (msg.t === "team-create") {
-      if (teams.size >= MAX_TEAMS) return;
-      if (teamOf(p.name)) return; // one crew at a time
       const tname = String(msg.name ?? "").slice(0, MAX_TEAM_NAME).trim();
       // Must match sanitizeTag() in src/game/teams.ts. Arabic letters and
       // Arabic-Indic digits are tag characters here too — stripping them
@@ -512,6 +568,55 @@ wss.on("connection", (ws) => {
         .replace(/[^A-Z0-9\u0621-\u064A\u0660-\u0669]/g, "")
         .slice(0, 4);
       if (!tname || !tag) return;
+
+      // Re-adopt before founding.
+      //
+      // A crew is built in the garage and republished on every connect,
+      // so "create" is what an existing member sends too — and the old
+      // handler answered that with silence, because they were already in
+      // a crew or a crew of that name already stood. The result was a
+      // player looking at their own crew badge while the hub behaved as
+      // though they had none.
+      //
+      // The crew you get back is yours if you are already in it, or if
+      // it carries your name and tag and you founded it. Anything else
+      // stays somebody else's crew.
+      const mineAlready = teamOf(p.name);
+      const sameName = [...teams.values()].find(
+        (t) => t.name === tname && t.tag === tag
+      );
+      const adopt =
+        mineAlready && (!sameName || sameName === mineAlready)
+          ? mineAlready
+          : sameName && !mineAlready && sameName.founder === p.name
+            ? sameName
+            : null;
+      if (adopt) {
+        adopt.members.set(p.name, id);
+        // The founder may have restyled the badge in the garage since.
+        if (adopt.founder === p.name) {
+          adopt.name = tname;
+          adopt.tag = tag;
+          adopt.logo = sanitizeLogo(msg.logo);
+        }
+        console.log(`[hub] ${p.name} rejoined "${adopt.name}" [${adopt.tag}]`);
+        send(ws, { t: "team-you", team: teamView(adopt) });
+        teamsChanged();
+        broadcastTeams();
+        return;
+      }
+      if (mineAlready) return; // one crew at a time
+      // Somebody else's crew, and now a permanent somebody else's: the
+      // roster is on disk, so two crews sharing a name and tag would
+      // share them forever. Say so rather than founding a twin — a
+      // silent refusal and a successful creation looked identical from
+      // the lobby.
+      if (sameName) {
+        send(ws, { t: "team-taken", name: tname, tag });
+        return;
+      }
+      if (teams.size >= MAX_TEAMS) return;
+
       const team = {
         id: "t" + nextTeamId++,
         name: tname,
@@ -523,12 +628,14 @@ wss.on("connection", (ws) => {
       teams.set(team.id, team);
       console.log(`[hub] team "${tname}" [${tag}] founded by ${p.name}`);
       send(ws, { t: "team-you", team: teamView(team) });
+      teamsChanged();
       broadcastTeams();
     } else if (msg.t === "team-join") {
       const team = teams.get(String(msg.id));
       if (!team || teamOf(p.name)) return;
       team.members.set(p.name, id);
       send(ws, { t: "team-you", team: teamView(team) });
+      teamsChanged();
       broadcastTeams();
     } else if (msg.t === "team-leave") {
       const team = teamOf(p.name);
@@ -536,6 +643,7 @@ wss.on("connection", (ws) => {
       team.members.delete(p.name);
       // A crew with nobody left folds
       if (team.members.size === 0) teams.delete(team.id);
+      teamsChanged();
       send(ws, { t: "team-you", team: null });
       broadcastTeams();
     } else if (msg.t === "duel-challenge") {

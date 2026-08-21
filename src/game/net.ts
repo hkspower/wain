@@ -44,6 +44,11 @@ export interface ReferralState {
 export interface HubEvents {
   onTeams?(teams: Team[]): void;
   onMyTeam?(team: Team | null): void;
+  /** The name and tag are already somebody else's crew. Rosters are on
+   *  disk now, so that is permanent rather than "until the hub restarts"
+   *  — and a refusal the player never sees is a button that does
+   *  nothing. */
+  onTeamTaken?(name: string, tag: string): void;
   /** Someone wants to race you. */
   onDuelInvite?(invite: DuelInvite): void;
   /** Both sides agreed — the duel is live. */
@@ -104,6 +109,9 @@ export class HubClient {
           break;
         case "team-you":
           events.onMyTeam?.(msg.team ?? null);
+          break;
+        case "team-taken":
+          events.onTeamTaken?.(msg.name ?? "", msg.tag ?? "");
           break;
         case "duel-invite":
           events.onDuelInvite?.({

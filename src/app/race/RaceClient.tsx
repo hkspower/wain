@@ -44,10 +44,21 @@ import {
 
 type Phase = "menu" | "loading" | "playing" | "champion" | "error";
 
-/** The car on the turntable, named for the footer. */
+/**
+ * The car on the turntable, named for the footer.
+ *
+ * Only from the state, never from storage. The `?? loadGarage()` this
+ * used to have looked like a harmless fallback and was a hydration bug:
+ * the server has no localStorage so it rendered nothing, the browser
+ * read the save on its very first render and put a name there, and React
+ * threw a mismatch warning at every returning player. The state is
+ * loaded in an effect a tick later; until then this is empty, which is
+ * exactly what the server said.
+ */
 function carName(g: GarageState | null): string {
+  if (!g) return "";
   try {
-    return getCar((g ?? loadGarage()).car).name;
+    return getCar(g.car).name;
   } catch {
     return "";
   }
@@ -2009,7 +2020,12 @@ export default function RaceClient() {
 
             <div className="mt-auto flex items-center justify-between pt-4">
               <span className="grn-label text-[0.55rem] text-white/30">
-                {carName(garage)} <span className="grn-ar text-white/25" lang="ar">في الكراج</span>
+                {carName(garage) && (
+                  <>
+                    {carName(garage)}{" "}
+                    <span className="grn-ar text-white/25" lang="ar">في الكراج</span>
+                  </>
+                )}
               </span>
               <a
                 href="/hub"

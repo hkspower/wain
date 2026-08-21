@@ -9,10 +9,27 @@
 // and on the palm crowns, and that each piece still occupies the
 // envelope the rest of the game is positioned against.
 //
+// What it asserts is authored comes from public/models/build.json, not
+// from a list written here. Those are different claims: the manifest
+// says what the build produced, and a list in a test says what somebody
+// once hoped it would. When they disagreed, this suite spent months red
+// over `driver.glb` — a file that was gitignored, absent, and could not
+// be produced without Blender. A test that cannot go green by fixing
+// the code is not testing the code. Every part the manifest names must
+// be authored and land in its envelope; every part it does not name
+// must still be THERE, procedurally, because that is the fallback the
+// whole module is built around.
+//
 //   npm run dev            # in another shell
 //   npm run test:assets
 import { chromium } from "playwright-core";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+
+/** What the Blender build actually shipped. */
+const manifest = JSON.parse(readFileSync("public/models/build.json", "utf8"));
+const ships = (f) =>
+  !!manifest.assets?.[f] && existsSync(`public/models/${f}.glb`);
+const SHIPS_DRIVER = ships("driver");
 
 const CANDIDATES = [
   process.env.CHROME_PATH,
@@ -44,7 +61,7 @@ await page.click("text=START ENGINE");
 await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 120000 });
 // The swaps are async fetches of multi-megabyte files: wait on the
 // condition, not on a guessed delay.
-await page.waitForFunction(() => {
+await page.waitForFunction((wantDriver) => {
   const e = window.__grnEngine;
   let shells = 0, authored = 0, dparts = 0, dauth = 0;
   e.carBody.traverse((o) => {
@@ -57,8 +74,8 @@ await page.waitForFunction(() => {
     if (o.isMesh && o.userData.driverPart) { dparts++; if (o.geometry.userData.authored) dauth++; }
   });
   return shells > 0 && shells === authored && parts > 0 && parts === wauth
-    && dparts > 0 && dparts === dauth;
-}, null, { timeout: 90000 }).catch(() => console.log("(timed out waiting for the authored swaps)"));
+    && (!wantDriver || (dparts > 0 && dparts === dauth));
+}, SHIPS_DRIVER, { timeout: 90000 }).catch(() => console.log("(timed out waiting for the authored swaps)"));
 
 const r = await page.evaluate(() => {
   const e = window.__grnEngine;
@@ -144,12 +161,16 @@ for (const [i, w] of r.wheels.entries()) {
 }
 console.log(`\npalm crowns: ${r.palm ? `${r.palm.tris} tris x ${r.palm.count} instances = ${r.palm.tris * r.palm.count} tris` : "NONE"}  ` +
   check(!!r.palm, "palm crowns never upgraded"));
-console.log("\ndriver:");
+console.log(`\ndriver: ${SHIPS_DRIVER ? "authored (driver.glb is shipped)" : "procedural (no driver.glb in the build)"}`);
 for (const slot of ["helmet", "visor", "glove", "wheel", "pedal"]) {
   const d = r.driver[slot];
+  // Present is the assertion in both worlds. Authored is the assertion
+  // only when the build says it shipped one.
   if (!d) { fail.push(`driver ${slot} missing entirely`); console.log(`  ${slot.padEnd(7)} MISSING`); continue; }
   console.log(`  ${slot.padEnd(7)} ${d.tris} tris  ${d.size.join(" x ")} m  ` +
-    check(d.authored, `driver ${slot} still procedural`));
+    (SHIPS_DRIVER
+      ? check(d.authored, `driver ${slot} still procedural`)
+      : check(!d.authored, `driver ${slot} is authored, but build.json does not ship a driver — the manifest is stale`)));
 }
 // The rim must match the radius the IK solves its grips against
 if (r.driver.wheel && r.wheelRadius) {

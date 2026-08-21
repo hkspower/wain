@@ -35,8 +35,23 @@ const C = [
 const exe = C.find((p) => existsSync(p));
 if (!exe) { console.error("no chromium"); process.exit(2); }
 
+// What to measure, and how long you are willing to wait for it.
+//
+// Every hour costs two full high-quality renders plus their ID passes,
+// and the sweep of four took this past ten minutes — which meant it got
+// skipped, and a check nobody runs protects nothing. So the default is
+// the hour the game is actually played: night, when the race is on and
+// when the picture is hardest to get right. `--sweep` still measures
+// dawn, noon and dusk, and explicit hours still override both.
+//
+//   node tools/shots/levels.mjs            # night, ~2 min
+//   node tools/shots/levels.mjs --sweep    # all four, ~10 min
+//   node tools/shots/levels.mjs 12.5       # just noon
+const SWEEP = process.argv.slice(2).some((a) => a === "--sweep" || a === "--all");
 const HOURS = process.argv.slice(2).map(Number).filter((n) => !Number.isNaN(n));
-const hours = HOURS.length ? HOURS : [22.5, 5.6, 12.5, 18.2];
+const hours = HOURS.length ? HOURS : SWEEP ? [22.5, 5.6, 12.5, 18.2] : [22.5];
+if (!HOURS.length && !SWEEP)
+  console.log("night only (22.5h). --sweep for dawn, noon and dusk as well.");
 
 const browser = await chromium.launch({
   executablePath: exe,
@@ -295,4 +310,7 @@ if (fail.length) {
   console.log(`\nFAILURES:\n${fail.map((f) => ` - ${f}`).join("\n")}`);
   process.exit(1);
 }
-console.log("\nblack and white levels hold at every hour");
+console.log(
+  `\nblack and white levels hold at ${hours.length === 1 ? `${hours[0]}h` : "every hour"}` +
+    (hours.length === 1 && !HOURS.length ? " — run with --sweep for the daylight hours" : "")
+);

@@ -24,6 +24,10 @@
 //              does not divide the loop
 //   recycled   a lamp only ever jumps forward, and only behind the
 //              camera where nobody can see it happen
+//   corniche   the menu is on the road the game is on: water on one
+//              side, the city skyline and Kuwait Towers across it,
+//              palms down the promenade, traffic the other way — and
+//              every one of those recycling on the same twelve seconds
 //   still      prefers-reduced-motion gets one frame and silence
 //   showroom   the turntable is still there for the capture tool, which
 //              needs fifteen cars held at the same angle
@@ -321,6 +325,134 @@ console.log(
       ? "no lamp ever recycled over a whole loop — the road runs out instead of repeating"
       : `${visibleJump} lamp(s) jumped forward while still in front of the camera`
   )}  ${forwardJumps} recycles over one loop, none of them in shot`
+);
+
+// --- It is the corniche, not a road in a void. -----------------------
+//
+// The menu used to be two lanes and ten lamps with black either side.
+// What makes Gulf Road recognisable is the water on one side and the
+// city across it, and a player who has driven the game and come back to
+// the menu can tell in a second whether the menu is the same place.
+//
+// The traffic is checked the same way the lamps are — it has to
+// recycle, and it has to close rather than drift, or it is scenery
+// pretending to be a road in use.
+const place = await page.evaluate(() => {
+  const a = window.__grnAttract;
+  a.park(0);
+  a.scene.updateMatrixWorld(true);
+  const names = {};
+  let skyline = null;
+  // No THREE here: window.__grnThree is published by the engine, and
+  // the menu is the screen that exists precisely because the engine is
+  // not running yet. The geometry's own parameters say the same thing.
+  a.scene.traverse((o) => {
+    if (o.name) names[o.name] = (names[o.name] ?? 0) + 1;
+    if (o.name === "skyline") {
+      skyline = {
+        z: +o.position.z.toFixed(1),
+        y: +o.position.y.toFixed(2),
+        fog: o.material.fog,
+        w: o.geometry.parameters.width,
+        far: +a.camera.far.toFixed(0),
+      };
+    }
+  });
+  // The water: a big, low, shiny plane on the seaward side.
+  let sea = null;
+  a.scene.traverse((o) => {
+    if (!o.isMesh || o.name || !o.geometry.parameters) return;
+    const p = o.geometry.parameters;
+    if (p.width > 300 && o.position.y < 0 && o.position.x < 0) {
+      sea = { x: +o.position.x.toFixed(1), y: +o.position.y.toFixed(2), w: p.width };
+    }
+  });
+  const onZ = (phase) => {
+    a.park(phase);
+    const zs = [];
+    a.scene.traverse((o) => { if (o.name === "oncoming") zs.push(o.position.z); });
+    return zs;
+  };
+  const z0 = onZ(0);
+  const z1 = onZ(0.02);
+  a.park(null);
+  return { names, skyline, sea, z0, z1 };
+});
+console.log(
+  `sea       ${check(!!place.sea && place.sea.x < 0,
+    "no water on the seaward side of the menu road")}  ` +
+    (place.sea ? `${place.sea.w} m wide at x ${place.sea.x}, ${place.sea.y} m down` : "none")
+);
+console.log(
+  `skyline   ${check(
+    !!place.skyline && place.skyline.fog === false && place.skyline.z < place.skyline.far,
+    !place.skyline
+      ? "no city across the water"
+      : place.skyline.fog !== false
+        ? "the skyline is inside the fog, which will erase it"
+        : `the skyline sits at ${place.skyline.z} m, past the camera's ${place.skyline.far} m far plane`
+  )}  ${place.skyline ? `${place.skyline.w} m wide at ${place.skyline.z} m, fog off` : "none"}`
+);
+console.log(
+  `palms     ${check((place.names.palm ?? 0) >= 6,
+    `${place.names.palm ?? 0} palms down the promenade`)}  ${place.names.palm ?? 0}`
+);
+// Traffic the other way: every one of them moved TOWARD the camera over
+// the same step in which the lamps moved away from it.
+const closing = place.z0.map((z, i) => z - place.z1[i]).filter((d) => Math.abs(d) < SPAN / 2);
+console.log(
+  `traffic   ${check(
+    (place.names.oncoming ?? 0) >= 2 && closing.length > 0 && closing.every((d) => d > 0),
+    (place.names.oncoming ?? 0) < 2
+      ? "no oncoming traffic — the menu road is closed"
+      : "the oncoming traffic is drifting away rather than closing"
+  )}  ${place.names.oncoming ?? 0} closing at ` +
+    `${closing.length ? (closing[0] / (0.02 * s0.loop)).toFixed(0) : "?"} m/s`
+);
+
+// --- And somebody is driving. ----------------------------------------
+//
+// createCar rigs a driver into every car it builds, and until now
+// nothing on the menu ever asked that rig for a pose: the solver was a
+// private method on the race engine, so the two cars a player looks at
+// longest were driven by a mannequin with its arms at rest. The check
+// is the one thing a pose has to get right — both hands ON the rim,
+// at the radius the rig says the rim is.
+const hands = await page.evaluate(() => {
+  const a = window.__grnAttract;
+  a.park(0.25);
+  a.scene.updateMatrixWorld(true);
+  const out = [];
+  for (const car of a.cars) {
+    const rig = car.userData.driver;
+    if (!rig) { out.push(null); continue; }
+    const c = new (Object.getPrototypeOf(rig.wheel.position).constructor)();
+    rig.wheel.getWorldPosition(c);
+    const grips = rig.arms.map((arm) => {
+      const h = new (Object.getPrototypeOf(rig.wheel.position).constructor)();
+      arm.hand.getWorldPosition(h);
+      return +Math.hypot(h.x - c.x, h.y - c.y, h.z - c.z).toFixed(3);
+    });
+    // The rim radius is in the car's own frame; the car is scaled to
+    // its real length, so compare in world units.
+    const s = car.getWorldScale(new (Object.getPrototypeOf(rig.wheel.position).constructor)());
+    out.push({ grips, radius: +(rig.wheelRadius * s.x).toFixed(3) });
+  }
+  a.park(null);
+  return out;
+});
+const posed = hands.filter(Boolean);
+const onRim = posed.every(
+  (h) => h.grips.length >= 2 && h.grips.every((g) => Math.abs(g - h.radius) < 0.06)
+);
+console.log(
+  `driver    ${check(
+    posed.length === hands.length && posed.length > 0 && onRim,
+    posed.length !== hands.length
+      ? "a car on the menu has no driver rig in it"
+      : `a hand is off the rim: ${JSON.stringify(posed[0])}`
+  )}  ${posed.length} driver(s), hands at ` +
+    `${posed.map((h) => h.grips.join("/")).join("  ")} against a ${posed[0]?.radius} m rim`
 );
 
 await page.close();
