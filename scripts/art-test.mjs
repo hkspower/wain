@@ -78,28 +78,51 @@ if (MODE === 'served') {
   check((await seen(p.getByText('🏋️')).count()) > 0, 'the tile falls back to its emoji')
 }
 
-// The copy has to survive whatever is behind it, in BOTH modes.
-// Climbing from the kicker rather than guessing which div carries the plate:
-// React Native Web renders a stack of wrappers and the painted one is not the
-// one holding the text.
-const plate = await p.evaluate(() => {
-  // From the LEAF that holds the kicker. Searching for a div whose text merely
-  // starts with it matches an outer wrapper, and climbing from there walks
-  // straight past the plate to the tile's own ground — which is how this check
-  // first reported a missing plate that was there all along.
-  let el = [...document.querySelectorAll('*')].find(
-    (d) => d.children.length === 0 && d.textContent?.trim() === 'معدات الأداء',
+// THE COPY SITS STRAIGHT ON THE ARTWORK — no plate. That is the design the
+// owner sent, and it puts the burden on two other things instead, both checked
+// here: the title must be white, and the ground under the picture must be dark
+// enough to carry white on its own for the state where no photograph loads.
+const copy = await p.evaluate(() => {
+  const leaf = [...document.querySelectorAll('*')].find(
+    (d) => d.children.length === 0 && d.textContent?.trim() === 'رجالي',
   )
+  if (!leaf) return null
+  const colour = getComputedStyle(leaf).color
+  let el = leaf
+  let ground = null
   for (let i = 0; el && i < 6; i++, el = el.parentElement) {
     const m = getComputedStyle(el).backgroundColor.match(/[\d.]+/g)
-    if (!m) continue
-    const a = m[3] === undefined ? 1 : +m[3]
-    if (a > 0) return { r: +m[0], g: +m[1], b: +m[2], a }
+    if (m && (m[3] === undefined || +m[3] > 0)) {
+      ground = { r: +m[0], g: +m[1], b: +m[2] }
+      break
+    }
   }
-  return null
+  return { colour, ground }
 })
-check(!!plate && plate.a > 0.3 && plate.r < 90 && plate.g < 90 && plate.b < 90,
-  `the copy sits on a dark plate, not bare on the picture (${JSON.stringify(plate)})`)
+const lum = (c) => {
+  const f = (v) => {
+    const s = v / 255
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+  }
+  return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b)
+}
+check(copy?.colour === 'rgb(255, 255, 255)', `the title is white (${copy?.colour})`)
+const contrast = copy?.ground ? 1.05 / (lum(copy.ground) + 0.05) : 0
+check(contrast >= 4.5,
+  `white on the tile ground clears AA for the no-photograph case (${contrast.toFixed(2)}:1)`)
+
+// The arrow chip, in the corner away from the copy.
+const arrow = await p.evaluate(() => {
+  const leaf = [...document.querySelectorAll('*')].find(
+    (d) => d.children.length === 0 && ['↖', '↗'].includes(d.textContent?.trim() ?? ''),
+  )
+  if (!leaf) return null
+  const r = leaf.getBoundingClientRect()
+  return { glyph: leaf.textContent.trim(), x: Math.round(r.x), rtl: document.dir === 'rtl' }
+})
+check(!!arrow, 'the tile has its arrow chip')
+check(arrow?.glyph === '↖', `the arrow points the way Arabic reads (${arrow?.glyph})`)
+check((arrow?.x ?? 999) < 195, `the chip sits away from the copy (x=${arrow?.x})`)
 
 await p.screenshot({ path: `/tmp/art-${MODE}.png` })
 await b.close()
