@@ -199,8 +199,17 @@ function speakFallback(text: string) {
   if (!synth) return;
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "ar-KW";
-  const voice = pickArabicVoice();
-  if (voice) utterance.voice = voice;
+  // Guarded because the failure mode is total silence, not merely the wrong
+  // accent: this assignment throws if the engine rejects the voice object —
+  // a stale entry from a getVoices() list the browser has since replaced is
+  // the realistic way that happens — and an exception here means she says
+  // nothing at all. Better her default voice than no voice.
+  try {
+    const voice = pickArabicVoice();
+    if (voice) utterance.voice = voice;
+  } catch {
+    /* the engine keeps its default */
+  }
   utterance.rate = 1.02;
   utterance.onend = () => update({ speaking: false });
   utterance.onerror = () => update({ speaking: false });

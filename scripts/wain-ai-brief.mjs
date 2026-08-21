@@ -4,6 +4,7 @@
  * Run: npm run ai:brief
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 
 /**
  * Only the data, never the type that describes it.
@@ -14,24 +15,65 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
  * the interface itself, and every value after it was attributed to the place
  * before. شوق had been told the wrong price level for all 33 places.
  */
-const whole = readFileSync("src/lib/places.ts", "utf8");
+// WAIN_PLACES_FILE lets the test suite run this against a fixture. The
+// "no place offers this yet" branch is the one that ships today, so without a
+// way to feed it places that do, the other branch would go out unproven.
+const PLACES_FILE = process.env.WAIN_PLACES_FILE || "src/lib/places.ts";
+const OUT_FILE = process.env.WAIN_BRIEF_OUT || "docs/wain-ai-agent.md";
+const whole = readFileSync(PLACES_FILE, "utf8");
 const start = whole.indexOf("export const places");
 if (start < 0) throw new Error("gen-brief: could not find the places array");
 const src = whole.slice(start);
-const grab = (re) => [...src.matchAll(re)].map((m) => m[1]);
 
-const slugs = grab(/slug: "([^"]+)"/g);
-const nameAr = grab(/nameAr: "([^"]+)"/g);
-const name = grab(/  name: "([^"]+)"/g);
-const cat = grab(/category: "([^"]+)"/g);
-const areaAr = grab(/areaAr: "([^"]+)"/g);
-const tag = grab(/taglineAr: "([^"]+)"/g);
-const best = grab(/bestTimeAr: "([^"]+)"/g);
-const price = grab(/priceLevel: (\d)/g);
-const setting = grab(/setting: "([a-z]+)"/g);
-const season = grab(/seasonAr: "([^"]+)"/g);
-const tags = [...src.matchAll(/tagsAr: \[([^\]]*)\]/g)]
-  .map((m) => [...m[1].matchAll(/"([^"]+)"/g)].map((t) => t[1]).join("، "));
+/**
+ * One block per place, and every field read from inside its own block.
+ *
+ * This used to scan the whole file for each field and zip the results
+ * together, which works exactly as long as no field name ever appears twice.
+ * `menuAr: [{ id: "m1", nameAr: "چاي", priceFils: 250 }]` breaks that: the
+ * menu item's own nameAr is scraped as a thirty-seventh place name, and the
+ * alignment guard below stops the build. So the first business to add a menu
+ * through the admin — the entire point of the feature — would have broken
+ * `npm run ai:brief` outright.
+ *
+ * Anchoring to four spaces at the start of a line keeps it to the place's own
+ * fields: anything nested inside an array or object literal is indented
+ * further, or is not at a line start at all.
+ */
+const blocks = src.split(/\n  \{\n/).slice(1);
+const field = (b, k) =>
+  (b.match(new RegExp(`^    ${k}:\\s*"((?:[^"\\\\]|\\\\.)*)"`, "m")) || [])[1];
+const numField = (b, k) => (b.match(new RegExp(`^    ${k}: (\\d+)`, "m")) || [])[1];
+
+const slugs = blocks.map((b) => field(b, "slug"));
+const nameAr = blocks.map((b) => field(b, "nameAr"));
+const name = blocks.map((b) => field(b, "name"));
+const cat = blocks.map((b) => field(b, "category"));
+const areaAr = blocks.map((b) => field(b, "areaAr"));
+const tag = blocks.map((b) => field(b, "taglineAr"));
+const best = blocks.map((b) => field(b, "bestTimeAr"));
+const price = blocks.map((b) => numField(b, "priceLevel"));
+const setting = blocks.map((b) => field(b, "setting"));
+const season = blocks.map((b) => field(b, "seasonAr"));
+const tags = blocks.map((b) => {
+  const raw = (b.match(/^    tagsAr: \[([^\]]*)\]/m) || [])[1] || "";
+  return [...raw.matchAll(/"([^"]+)"/g)].map((t) => t[1]).join("، ");
+});
+
+/**
+ * Optional fields, read per place rather than with grab().
+ *
+ * grab() collects one array per field and relies on every place having that
+ * field, which is why there is an alignment guard below. acceptsOrders and
+ * takesQueue are on a handful of places at most, so a flat scan would return
+ * three values for thirty-six places and attribute them to whichever three
+ * came first. Splitting into blocks keeps each answer with its own place.
+ */
+const salonKind = blocks.map((b) => (b.match(/salonKind: "(men|women)"/) || [])[1]);
+// A menu without the switch is not consent to take orders, and the switch
+// without a menu has nothing to sell — the site requires both, so does this.
+const takesOrders = blocks.map((b) => /acceptsOrders: true/.test(b) && /menuAr:/.test(b));
+const takesTurns = blocks.map((b, i) => /takesQueue: true/.test(b) && !!salonKind[i]);
 
 const catAr = {
   landmarks: "معالم الكويت", restaurants: "مطاعم", fastfood: "وجبات سريعة",
@@ -40,6 +82,43 @@ const catAr = {
 };
 const priceAr = ["", "اقتصادي", "متوسط", "راقي"];
 const settingAr = { indoor: "مكيّف/داخلي", outdoor: "برا/مكشوف", mixed: "داخلي وبرا" };
+
+const salonAr = { men: "رجالي", women: "نسائي" };
+const orderList = slugs.filter((_, i) => takesOrders[i]);
+const queueList = slugs.filter((_, i) => takesTurns[i]);
+
+/**
+ * What شوق may offer, and — when nothing offers it — what she must not.
+ *
+ * Generated rather than written, because the honest answer changes the day a
+ * business switches ordering on. Told in prose that no place accepts orders,
+ * an agent will still cheerfully suggest ordering ahead; told the list is
+ * empty and that offering it is forbidden, she will not.
+ */
+const orderSection = orderList.length
+  ? `بعض الأماكن تستقبل **طلب مسبق** — الزبون يختار من القائمة ووقت الاستلام،
+والدفع عند الاستلام في المكان نفسه. وين ما تمسك أي فلوس ولا تاخذ بطاقة.
+
+الأماكن اللي تستقبل طلبات حالياً:
+${orderList.map((sg, n) => `- ${nameAr[slugs.indexOf(sg)]} — \`${sg}\``).join("\n")}
+
+إذا رشّحتي واحد منها وكان الزبون يبي ياخذ طلبه ويمشي، قوليله يقدر يطلب
+مقدّماً من صفحة المكان. لا تقولين «مدفوع» أبداً — الدفع يصير عندهم.`
+  : `**ما فيه أي مكان يستقبل طلب مسبق حالياً.** لا تعرضين على أحد يطلب
+مقدّماً ولا تقولين إن الخدمة متوفرة — الخدمة موجودة بالموقع، بس ما فيه محل
+شغّلها بعد. إذا سأل عن الطلب المسبق، قولي: «للحين ما فيه محل مفعّلها، بس
+تقدر تتصل فيهم مباشرة.»`;
+
+const queueSection = queueList.length
+  ? `بعض الصالونات تشغّل **طابور** — الزبون ياخذ رقم من صفحة الصالون ويتابع
+كم واحد قدامه بدل ما ينتظر بالمحل. كل صالون رجالي أو نسائي، مو الاثنين.
+
+الصالونات اللي تشغّل الطابور حالياً:
+${queueList.map((sg) => `- ${nameAr[slugs.indexOf(sg)]} (${salonAr[salonKind[slugs.indexOf(sg)]]}) — \`${sg}\``).join("\n")}
+
+الوقت اللي يطلع للزبون تقديري — لا تقولين له رقم دقيق ولا تعدينه بوقت.`
+  : `**ما فيه أي صالون مشغّل الطابور حالياً.** لا تعرضين على أحد ياخذ دور.
+إذا سأل، قولي: «للحين ما فيه صالون مفعّلها.»`;
 
 const rows = slugs
   .map(
@@ -51,15 +130,30 @@ const rows = slugs
   )
   .join("\n");
 
-// Every field must yield exactly one value per place, or the columns have
-// silently slipped against each other again.
-for (const [label, arr] of Object.entries({ nameAr, name, cat, areaAr, tag, best, price, setting, season, tags })) {
-  if (arr.length !== slugs.length) {
+/**
+ * Every place must yield every field.
+ *
+ * The old guard compared array lengths, which was the right check when each
+ * field was scraped from the whole file and zipped together — a short array
+ * meant the columns had slipped. Reading each field from inside its own place
+ * block makes slipping impossible, but it turns a missing field into a quiet
+ * `undefined` in the middle of the knowledge base instead. So the check moves
+ * with the code: name the place and the field, and refuse to write the file.
+ */
+const REQUIRED = { nameAr, name, cat, areaAr, tag, best, price, setting, season };
+for (const [label, arr] of Object.entries(REQUIRED)) {
+  const missing = arr
+    .map((v, i) => (v === undefined || v === "" ? slugs[i] ?? `#${i}` : null))
+    .filter(Boolean);
+  if (missing.length) {
     throw new Error(
-      `gen-brief: ${label} produced ${arr.length} values for ${slugs.length} places — ` +
-        `the fields are misaligned and the knowledge base would be wrong.`
+      `gen-brief: ${label} is missing for ${missing.join(", ")} — ` +
+        `شوق would be briefed with a gap where that should be.`
     );
   }
+}
+if (slugs.some((s) => !s)) {
+  throw new Error("gen-brief: a place block has no slug; refusing to write the brief.");
 }
 
 const doc = `# شوق — وين AI، الدليلة الصوتية لوين
@@ -175,6 +269,16 @@ const doc = `# شوق — وين AI، الدليلة الصوتية لوين
 
 ---
 
+## الخدمات — شنو تقدر شوق تعرضه
+
+### طلب مسبق
+${orderSection}
+
+### الطابور (الصالونات)
+${queueSection}
+
+---
+
 ## Knowledge base — الأماكن (${slugs.length} مكان)
 
 ${rows}
@@ -195,6 +299,6 @@ ${Object.values(catAr).map((c) => "- " + c).join("\n")}
 - «وين أقرب مكان لي الحين؟» ← وجّهيه لزر «إلى وين؟» في الصفحة الرئيسية
 `;
 
-mkdirSync("docs", { recursive: true });
-writeFileSync("docs/wain-ai-agent.md", doc);
+mkdirSync(dirname(OUT_FILE), { recursive: true });
+writeFileSync(OUT_FILE, doc);
 console.log(`docs/wain-ai-agent.md regenerated — ${slugs.length} places`);

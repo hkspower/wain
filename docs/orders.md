@@ -163,6 +163,15 @@ sound switch has been let down by us.
 Orders outstanding when the queue is first opened do not set off the alarm.
 Only ids that appear afterwards count as new.
 
+## شوق does not offer this yet
+
+The agent brief is generated with the place data, and today it tells شوق
+plainly that **no business accepts pre-orders** and that she must not offer
+it. The moment one switches ordering on, `npm run ai:brief` flips that section
+to name the place instead. Told merely that the list is empty, an agent will
+still cheerfully suggest ordering ahead — so the brief forbids it rather than
+describing it. Both branches are covered by `npm run test:shouq`.
+
 ## What still needs you
 
 Nothing in this feature works until `supabase/schema.sql` has been run — the

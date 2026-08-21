@@ -112,11 +112,22 @@ const SYNONYMS: Record<string, string[]> = {
 
   // Kuwaitis ask with the verb, not the noun — «وين نتعشى» found nothing at
   // all, and «نتغدى» likewise. These are the forms people actually say.
+  //
+  // Both persons, because both get said. The «we» forms were here and the
+  // «I» forms were not, so «أبي أتغدى» — as ordinary a sentence as exists —
+  // returned nothing at all while «وين نتغدى» worked. The hamza folds to a
+  // bare alif in normalise(), so one key covers أتغدى and اتغدى alike.
   نتعشى: ["عشا", "مطاعم", "مطعم"],
+  أتعشى: ["عشا", "مطاعم", "مطعم"],
   تعشى: ["عشا", "مطاعم"],
   نتغدى: ["غدا", "مطاعم", "مطعم"],
+  أتغدى: ["غدا", "مطاعم", "مطعم"],
   تغدى: ["غدا", "مطاعم"],
   نفطر: ["فطور", "مطاعم"],
+  أفطر: ["فطور", "مطاعم"],
+  // «أتقهوى» is the Kuwaiti verb for going out for coffee.
+  نتقهوى: ["قهوه", "كافيهات", "مقاهي"],
+  أتقهوى: ["قهوه", "كافيهات", "مقاهي"],
   نشرب: ["قهوه", "كافيهات"],
   نروح: ["مكان", "طلعه"],
   نطلع: ["مكان", "طلعه"],

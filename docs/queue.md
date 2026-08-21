@@ -114,6 +114,13 @@ ticket marks the row «وصل الحين» and plays the same chime.
 «نادِ التالي» is at the top, because calling the next person is the one action
 a counter repeats all day.
 
+## شوق does not offer this yet
+
+The agent brief is generated from the place data, and today it tells شوق
+plainly that **no salon runs a queue** and that she must not offer a turn.
+`npm run ai:brief` flips that section to name the salon and its kind the
+moment one switches it on. Both branches are covered by `npm run test:shouq`.
+
 ## What still needs you
 
 1. Run `supabase/schema.sql` — it now carries the queue.

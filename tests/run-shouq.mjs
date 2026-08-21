@@ -23,7 +23,7 @@
  * already in out/.
  */
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,6 +33,7 @@ const SKIP_AGENT = process.argv.includes("--skip-agent");
 const CHROMIUM = process.env.CHROMIUM_PATH || "/opt/pw-browsers/chromium";
 const PORT_FLOW = 4189;
 const PORT_AGENT = 4190;
+const PORT_VOICE = 4197;
 
 /**
  * Async on purpose. The static server below runs in this same process, so a
@@ -95,9 +96,50 @@ if (await run("npx", ["-y", "esbuild", "tests/shouq-answers.test.mjs", "--bundle
   console.error("could not bundle the answer tests"); process.exit(1);
 }
 failed += (await run("node", [bundle])) === 0 ? 0 : 1;
+
+/* 1b — is the answer right, not just well-formed. */
+console.log("\n════ شوق: the question battery ════");
+const battery = join(tmp, "battery.mjs");
+if (await run("npx", ["-y", "esbuild", "tests/shouq-battery.test.mjs", "--bundle", "--format=esm",
+                `--alias:@=${join(ROOT, "src")}`, `--outfile=${battery}`, "--log-level=error"]) !== 0) {
+  console.error("could not bundle the question battery"); process.exit(1);
+}
+failed += (await run("node", [battery])) === 0 ? 0 : 1;
 rmSync(tmp, { recursive: true, force: true });
 
-/* 2 — the button and the local voice path, against the shipping build. */
+/* 2 — the knowledge base the agent is briefed on. No browser, no build. */
+console.log("\n════ شوق: the knowledge base ════");
+failed += (await run("node", ["tests/shouq-brief.test.mjs"])) === 0 ? 0 : 1;
+
+/* 3 — the voice module, with the browser's audio APIs instrumented. */
+console.log("\n════ شوق: the voice ════");
+{
+  const vtmp = mkdtempSync(join(tmpdir(), "shouq-voice-"));
+  const okBundle = await run("npx", ["-y", "esbuild", "tests/harness/voice-harness.ts",
+    "--bundle", "--format=iife", `--alias:@=${join(ROOT, "src")}`,
+    '--define:process.env.NODE_ENV="production"',
+    `--outfile=${join(vtmp, "voice.js")}`, "--log-level=error"]);
+  if (okBundle !== 0) { console.error("could not bundle the voice harness"); process.exit(1); }
+  writeFileSync(join(vtmp, "voice.html"),
+    `<!doctype html><meta charset="utf-8"><title>voice</title><script src="./voice.js"></script>`);
+
+  const { createServer } = await import("node:http");
+  const { readFileSync } = await import("node:fs");
+  const srv = createServer((req, res) => {
+    const name = req.url === "/" ? "/voice.html" : req.url.split("?")[0];
+    const f = join(vtmp, name);
+    if (!f.startsWith(vtmp) || !existsSync(f)) { res.writeHead(404); return res.end("nope"); }
+    res.writeHead(200, { "content-type": f.endsWith(".js") ? "text/javascript" : "text/html; charset=utf-8" });
+    res.end(readFileSync(f));
+  });
+  await new Promise((r) => srv.listen(PORT_VOICE, "127.0.0.1", r));
+  failed += (await run("node", ["tests/shouq-voice.test.mjs"],
+    { env: { ...process.env, WAIN_URL: `http://127.0.0.1:${PORT_VOICE}` } })) === 0 ? 0 : 1;
+  srv.close();
+  rmSync(vtmp, { recursive: true, force: true });
+}
+
+/* 4 — the button and the local voice path, against the shipping build. */
 if (!existsSync(join(ROOT, "out", "index.html"))) build({});
 console.log("\n════ شوق: the button and the voice flow ════");
 {
@@ -106,7 +148,7 @@ console.log("\n════ شوق: the button and the voice flow ════")
   stop();
 }
 
-/* 3 — agent mode, which needs the id compiled in. */
+/* 5 — agent mode, which needs the id compiled in. */
 if (!SKIP_AGENT) {
   build({ NEXT_PUBLIC_ELEVENLABS_AGENT_ID: "agent_test_0123456789" });
   console.log("\n════ شوق: agent mode ════");
