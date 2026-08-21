@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { pixelRatioFor, bufferFor, type Resolution } from "./render";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
@@ -534,10 +535,25 @@ export class GameEngine {
   private liveReflections = true;
   // Dynamic resolution: a continuous governor scales the internal render
   // resolution to hold frame rate; the tier sets the ceiling.
-  private baseRatio = 1;
+  //
+  // The ratio is DERIVED now rather than assigned. It used to be written
+  // in three places — the constructor, the quality tier and the auto
+  // governor — and each of them owned it until the next one ran, so a
+  // window resize silently reverted whatever the last one had decided.
+  // resize() computes it from the three things that actually determine
+  // it: the chosen resolution, the tier's ceiling, and the governor.
+  private resolution: Resolution = "native";
+  /** The quality tier's ceiling on NATIVE. An explicit resolution is not
+   *  subject to it — see pixelRatioFor. */
+  private tierRatioCap = 2;
+  /** Ultra supersamples: render above the panel and let the downsample
+   *  do the anti-aliasing. Multiplies the native ratio only. */
+  private tierRatioBoost = 1;
   private renderScale = 1;
   private drsEnabled = true;
   private drsAt = 0;
+  /** Biggest buffer the GL stack will allocate, either axis. */
+  private maxBuffer = 4096;
 
   private traffic: TrafficCar[] = [];
   private rival: Rival | null = null;
@@ -754,14 +770,18 @@ export class GameEngine {
       antialias: true,
       powerPreference: "high-performance",
     });
-    // Full native resolution — on a 4K panel this renders 4K, not an
-    // upscaled 1080p. Adaptive quality drops it if the GPU can't hold up.
-    this.baseRatio = Math.min(window.devicePixelRatio, 2);
-    this.renderer.setPixelRatio(this.baseRatio);
-    this.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
     {
       const gl = this.renderer.getContext();
       const nav = navigator as Navigator & { deviceMemory?: number };
+      // Asked before the first setSize, because it is the ceiling on it.
+      // A colour target and a depth buffer at the requested size have to
+      // fit, and past this they simply fail to allocate: the picture
+      // goes black and nothing says why — on exactly the wide, high
+      // resolution setups most likely to reach it.
+      this.maxBuffer = Math.max(
+        2048,
+        (gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) as number) || 4096
+      );
       this.caps = {
         maxTexture: gl.getParameter(gl.MAX_TEXTURE_SIZE) as number,
         maxCube: gl.getParameter(gl.MAX_CUBE_MAP_TEXTURE_SIZE) as number,
@@ -771,6 +791,11 @@ export class GameEngine {
         cores: navigator.hardwareConcurrency || 4,
       };
     }
+    // Native by default: on a 4K panel this renders 4K, not an upscaled
+    // 1080p. Adaptive quality drops it if the GPU cannot hold up, and
+    // the resolution setting overrides both — see setResolution.
+    this.renderer.setPixelRatio(this.currentRatio());
+    this.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
     // Colour management on, explicitly. It has defaulted to on since
     // three r152, but every material colour in this project is authored
     // as an sRGB hex and every canvas texture is tagged sRGB — the whole
@@ -1229,11 +1254,80 @@ export class GameEngine {
     this.sound?.setPaused(p);
   }
 
+  /**
+   * The pixel ratio the current settings ask for, right now.
+   *
+   * Derived rather than remembered. A pinned resolution is a line count,
+   * so it depends on the height of the window and has to be recomputed
+   * every time the window changes — which is exactly the case the old
+   * "assign it in three places" arrangement got wrong: pin 1080p, resize
+   * the window, and the buffer silently went back to native.
+   */
+  private currentRatio(): number {
+    const c = this.renderer.domElement;
+    const base = pixelRatioFor(
+      this.resolution,
+      c.clientWidth || 1,
+      c.clientHeight || 1,
+      (window.devicePixelRatio || 1) * this.tierRatioBoost,
+      this.maxBuffer,
+      this.tierRatioCap
+    );
+    // The frame-rate governor only ever moves NATIVE. Asking for 4K and
+    // being quietly given 2.6K is the game lying about the one number
+    // the player set by hand; if it cannot hold the frame rate, the
+    // effects governor still has bloom, shadows and the paint probe to
+    // give up first.
+    return this.resolution === "native" ? base * this.renderScale : base;
+  }
+
+  /** What the game is rendering at, for the settings screen and for a
+   *  test that has to check the buffer rather than trust the setting. */
+  renderInfo(): {
+    resolution: Resolution;
+    ratio: number;
+    buffer: [number, number];
+    css: [number, number];
+    display: [number, number];
+    pinned: boolean;
+    maxBuffer: number;
+  } {
+    const c = this.renderer.domElement;
+    const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    const dpr = window.devicePixelRatio || 1;
+    return {
+      resolution: this.resolution,
+      ratio: this.renderer.getPixelRatio(),
+      buffer: [size.x, size.y],
+      css: [c.clientWidth, c.clientHeight],
+      display: [Math.round(screen.width * dpr), Math.round(screen.height * dpr)],
+      pinned: this.resolution !== "native",
+      maxBuffer: this.maxBuffer,
+    };
+  }
+
+  /** Player-chosen render resolution. Takes effect on the next frame. */
+  setResolution(res: Resolution): void {
+    this.resolution = res;
+    // A pin is a pin: hand the governor's scale back to 1 so leaving the
+    // ladder does not strand the picture at whatever it had wound down
+    // to while the pin was holding it still.
+    if (res !== "native") this.renderScale = 1;
+    this.resize();
+  }
+
   resize(): void {
     const c = this.renderer.domElement;
     const w = c.clientWidth;
     const h = c.clientHeight;
     if (w === 0 || h === 0) return;
+    // Ratio first, then size: three multiplies one by the other, and a
+    // pinned line count is a function of the height that just changed.
+    const ratio = this.currentRatio();
+    if (Math.abs(ratio - this.renderer.getPixelRatio()) > 1e-6) {
+      this.renderer.setPixelRatio(ratio);
+      this.composer.setPixelRatio(ratio);
+    }
     this.renderer.setSize(w, h, false);
     this.composer.setSize(w, h);
     const buf = this.renderer.getDrawingBufferSize(new THREE.Vector2());
@@ -1322,10 +1416,9 @@ export class GameEngine {
     this.cubeFrame++;
   }
 
+  /** Push whatever the settings now imply onto the renderer. resize()
+   *  is the only place that touches the ratio, so this is just it. */
   private applyRenderScale(): void {
-    const r = this.baseRatio * this.renderScale;
-    this.renderer.setPixelRatio(r);
-    this.composer.setPixelRatio(r);
     this.resize();
   }
 
@@ -1460,6 +1553,11 @@ export class GameEngine {
 
   private updateDrs(now: number): void {
     if (!this.drsEnabled || this.paused) return;
+    // A pinned resolution is not the governor's to move. It can still
+    // run — leaving the ladder should not need the governor restarted —
+    // but currentRatio() ignores its scale while a pin is held, so
+    // spending frames recomputing a ratio nothing will use is waste.
+    if (this.resolution !== "native") return;
     if (now - this.startedAt < 4000 || now - this.drsAt < 1500) return;
     // Thresholds relative to what we are actually aiming at. Fixed 50/58
     // numbers silently assumed a 60 Hz panel: on a 144 Hz display,
@@ -1701,7 +1799,8 @@ export class GameEngine {
       this.qualityLocked = false;
       this.drsEnabled = true;
       this.renderScale = 1;
-      this.baseRatio = Math.min(window.devicePixelRatio, 2);
+      this.tierRatioCap = 2;
+      this.tierRatioBoost = 1;
       this.applyRenderScale();
       this.startedAt = performance.now(); // give the governors a fresh window
       return;
@@ -1723,13 +1822,13 @@ export class GameEngine {
     // the only way further up is supersampling: render above the panel and
     // let the downsample do the anti-aliasing, which resolves the lamp
     // filaments and lane edges that even TSR-class upscalers soften.
-    this.baseRatio = ultra
-      ? Math.min(window.devicePixelRatio * 1.5, 2)
-      : tier === "high"
-        ? Math.min(window.devicePixelRatio, 2)
-        : balanced
-          ? Math.min(window.devicePixelRatio, 1.5)
-          : 1;
+    //
+    // These are the tier's ceiling on NATIVE, not the ratio itself. A
+    // player who has picked 4K from the resolution ladder has said what
+    // they want more plainly than a tier can, and Battery pulling that
+    // back to 1080p behind their back is the game overruling them.
+    this.tierRatioBoost = ultra ? 1.5 : 1;
+    this.tierRatioCap = ultra || tier === "high" ? 2 : balanced ? 1.5 : 1;
     // Sharper shadow cascades to match the extra pixels
     const shadowSize = this.budget(ultra ? 4096 : 1024);
     if (this.headlight.shadow.mapSize.x !== shadowSize) {
@@ -4355,6 +4454,15 @@ export class GameEngine {
       }
     ).__grnCommunity = { playerId, inviteCode, normaliseCode, isCodeShaped };
     (window as unknown as { __grnSaveGarage: typeof saveGarage }).__grnSaveGarage = saveGarage;
+    // The resolution arithmetic itself, so a test can walk every window
+    // shape against every rung of the ladder in one page load instead of
+    // booting the whole city twenty-five times to check twenty-five
+    // multiplications.
+    (
+      window as unknown as {
+        __grnRender: { pixelRatioFor: typeof pixelRatioFor; bufferFor: typeof bufferFor };
+      }
+    ).__grnRender = { pixelRatioFor, bufferFor };
     (window as unknown as { __grnLandmarks: typeof LANDMARK_S }).__grnLandmarks = LANDMARK_S;
     (window as unknown as { __grnDebug: object }).__grnDebug = {
       playerSpeed: this.player.speed,

@@ -24,6 +24,7 @@ import {
   haptic,
   HAPTIC,
 } from "@/game/settings";
+import { RESOLUTIONS, formatBuffer } from "@/game/render";
 import {
   EXCLUSIVE_CATS,
   Part,
@@ -48,6 +49,39 @@ function carName(g: GarageState | null): string {
   } catch {
     return "";
   }
+}
+
+/**
+ * What the game is actually putting on the screen, right now.
+ *
+ * Read off the canvas, not off the setting. The setting is the request;
+ * this is the answer, and the two are different often enough to matter —
+ * the window is smaller than the panel unless you are in fullscreen, the
+ * GL stack has a ceiling on how big a buffer it will hand out, and a
+ * ratio lands on whole pixels only after a floor. A resolution setting
+ * that shows you what you asked for rather than what you got is a
+ * resolution setting you cannot check.
+ */
+function readRenderInfo(): {
+  buffer: [number, number];
+  css: [number, number];
+  display: [number, number];
+  fullscreen: boolean;
+} | null {
+  if (typeof document === "undefined") return null;
+  const live = ([...document.querySelectorAll("canvas")] as HTMLCanvasElement[])
+    .filter((c) => c.width > 0 && c.clientWidth > 0)
+    // The biggest live buffer on the page is the one being looked at:
+    // the race canvas while racing, the intro canvas on the menu.
+    .sort((a, b) => b.width * b.height - a.width * a.height)[0];
+  if (!live) return null;
+  const dpr = window.devicePixelRatio || 1;
+  return {
+    buffer: [live.width, live.height],
+    css: [live.clientWidth, live.clientHeight],
+    display: [Math.round(screen.width * dpr), Math.round(screen.height * dpr)],
+    fullscreen: !!document.fullscreenElement,
+  };
 }
 
 /** Which stage the menu builds. "rolling" for players; a capture tool
@@ -112,6 +146,8 @@ export default function RaceClient() {
   // (not transform) so corner-anchored absolutes keep their anchors.
   const [hudZoom, setHudZoom] = useState(1);
   const [isFs, setIsFs] = useState(false);
+  /** The buffer the game is drawing into, as read off the canvas. */
+  const [renderInfo, setRenderInfo] = useState<ReturnType<typeof readRenderInfo>>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const compute = () =>
@@ -119,11 +155,22 @@ export default function RaceClient() {
         Math.min(2.5, Math.max(0.8, Math.min(window.innerWidth / 1500, window.innerHeight / 850)))
       );
     compute();
-    window.addEventListener("resize", compute);
-    const onFs = () => setIsFs(!!document.fullscreenElement);
+    setRenderInfo(readRenderInfo());
+    const onResize = () => {
+      compute();
+      // A beat behind the layout: the renderer resizes on its own
+      // listener, and reading the canvas in the same tick reads the
+      // buffer it is about to replace.
+      setTimeout(() => setRenderInfo(readRenderInfo()), 60);
+    };
+    window.addEventListener("resize", onResize);
+    const onFs = () => {
+      setIsFs(!!document.fullscreenElement);
+      setRenderInfo(readRenderInfo());
+    };
     document.addEventListener("fullscreenchange", onFs);
     return () => {
-      window.removeEventListener("resize", compute);
+      window.removeEventListener("resize", onResize);
       document.removeEventListener("fullscreenchange", onFs);
     };
   }, []);
@@ -203,6 +250,14 @@ export default function RaceClient() {
       haptic(HAPTIC.tap, next.haptics);
       if (k === "sfxVolume") setSfxVolume(next.sfxVolume);
       if (k === "quality") engineRef.current?.applyQualityTier(next.quality);
+      if (k === "resolution") {
+        engineRef.current?.setResolution(next.resolution);
+        // The menu reads the ladder on resize rather than at build time,
+        // so this is all it takes to keep the intro behind the settings
+        // screen at the same resolution as the race in front of it.
+        attractScene.current?.resize();
+        setRenderInfo(readRenderInfo());
+      }
       if (k === "sky") engineRef.current?.setSky(next.sky);
       if (k === "frameCap") engineRef.current?.setFrameCap(next.frameCap);
       if (k === "exposure" || k === "autoExposure")
@@ -663,6 +718,7 @@ export default function RaceClient() {
     engine.setContrast(boot.contrast);
     engine.setHighlights(boot.highlights);
     engine.setSaturation(boot.saturation);
+    if (boot.resolution !== "native") engine.setResolution(boot.resolution);
     if (boot.frameCap !== "display") engine.setFrameCap(boot.frameCap);
     setPhase("playing");
 
@@ -771,6 +827,17 @@ export default function RaceClient() {
     if (phase !== "playing" || garageOpen || result) return;
     engineRef.current?.setPaused(pauseOpen || settingsOpen);
   }, [pauseOpen, settingsOpen, phase, garageOpen, result]);
+
+  // While the settings screen is open, keep the resolution readout live.
+  // Cheap — two integers off a DOM node once a second — and it is the
+  // only way a player can see the difference between what they asked the
+  // game for and what the window, the panel and the GL stack allowed.
+  useEffect(() => {
+    if (!settingsOpen) return;
+    setRenderInfo(readRenderInfo());
+    const t = setInterval(() => setRenderInfo(readRenderInfo()), 1000);
+    return () => clearInterval(t);
+  }, [settingsOpen]);
 
   // The garage is a full-screen overlay: freeze the race behind it, and
   // rebuild the car with whatever was bought on the way out.
@@ -1987,7 +2054,86 @@ export default function RaceClient() {
             </div>
             <p className="mt-2 text-[0.76rem] text-white/45">
               Auto measures your frame rate for six seconds and drops glow and shadows if the
-              device can&apos;t hold it. Battery caps the resolution as well.
+              device can&apos;t hold it; Balanced and Battery also cap Native. This tier is the
+              effects — the resolution below is the pixels, and a resolution you choose there is
+              held whatever the tier would have done.
+            </p>
+
+            {/* Resolution */}
+            <h3 className="grn-label mt-7 border-b border-white/10 pb-2 text-[0.68rem]">
+              Resolution · الدقة
+            </h3>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {RESOLUTIONS.map((r) => (
+                <button
+                  key={String(r.value)}
+                  onClick={() => updateSetting("resolution", r.value)}
+                  className={`tap grn-panel px-3 py-3 text-center transition ${
+                    settings.resolution === r.value
+                      ? "border-sodium-400/80 bg-sodium-500/10 text-sodium-400"
+                      : "text-white/70 hover:border-white/30"
+                  }`}
+                >
+                  <span className="grn-display block text-base leading-tight">{r.label}</span>
+                  <span className="mt-0.5 block text-[0.6rem] leading-tight text-white/40">
+                    {r.hint}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {/* What you actually got, which is not always what you asked
+                for: the window is smaller than the panel outside
+                fullscreen, and every GL stack has a ceiling. */}
+            {renderInfo && (
+              <div className="grn-panel mt-3 p-3.5">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                  <span className="grn-label text-[0.55rem]">Rendering at</span>
+                  <span className="grn-display tnum text-lg leading-none text-sodium-400">
+                    {formatBuffer(renderInfo.buffer[0], renderInfo.buffer[1])}
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[0.72rem] text-white/45">
+                  <span>
+                    Window{" "}
+                    <span className="tnum text-white/70">
+                      {formatBuffer(renderInfo.css[0], renderInfo.css[1])}
+                    </span>
+                  </span>
+                  <span>
+                    Display{" "}
+                    <span className="tnum text-white/70">
+                      {formatBuffer(renderInfo.display[0], renderInfo.display[1])}
+                    </span>
+                  </span>
+                  <span>
+                    <span className="tnum text-white/70">
+                      {(
+                        (renderInfo.buffer[0] * renderInfo.buffer[1]) /
+                        1e6
+                      ).toFixed(1)}
+                    </span>{" "}
+                    megapixels a frame
+                  </span>
+                </div>
+                {!renderInfo.fullscreen &&
+                  renderInfo.buffer[1] < renderInfo.display[1] &&
+                  settings.resolution === "native" && (
+                    <button
+                      onClick={toggleFullscreen}
+                      className="grn-btn tap mt-3 border border-white/15 px-4 py-2 text-[0.75rem] text-white/75 hover:bg-white/10"
+                    >
+                      Go fullscreen for the panel&apos;s full{" "}
+                      <span className="tnum">{renderInfo.display[1]}</span> lines
+                    </button>
+                  )}
+              </div>
+            )}
+            <p className="mt-2 text-[0.76rem] text-white/45">
+              Native is one rendered pixel per pixel of your display — 4K on a 4K panel, and only
+              in fullscreen. The rest are fixed line counts fitted to your window&apos;s shape, so
+              4K really is 2160 lines whatever size the window is: pick it above your display to
+              supersample, below it to buy frames. A chosen resolution is held exactly and the
+              frame-rate governor will not move it.
             </p>
 
             {/* Frame pacing */}

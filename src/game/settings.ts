@@ -4,6 +4,8 @@
 // without React re-rendering the whole HUD, and mirrored to localStorage
 // so a returning player never has to set them twice.
 
+import type { Resolution } from "./render";
+
 export interface Settings {
   /** Kill non-essential animation (OS setting is also honoured). */
   reducedMotion: boolean;
@@ -13,6 +15,17 @@ export interface Settings {
   haptics: boolean;
   /** Render tier: auto follows measured frame rate. */
   quality: "auto" | "ultra" | "high" | "balanced" | "battery";
+  /**
+   * What the game renders at, as a line count — 2160 is 4K, 1080 is Full
+   * HD — or "native" for one buffer pixel per display pixel.
+   *
+   * A separate axis from `quality` on purpose. They were the same knob:
+   * dropping to Battery to buy frames also took bloom, shadows and the
+   * paint probe with it, and there was no way to say "keep the effects,
+   * render fewer pixels" or the reverse. This is the pixels; that is the
+   * effects.
+   */
+  resolution: Resolution;
   /** 0..1 master levels. */
   musicVolume: number;
   sfxVolume: number;
@@ -47,6 +60,11 @@ export const DEFAULT_SETTINGS: Settings = {
   colorBlindSafe: false,
   haptics: true,
   quality: "auto",
+  // The display's own pixels, which is what a player who has not been
+  // asked expects. The ladder is for the two cases the default cannot
+  // serve: a window smaller than the GPU can fill, and a panel larger
+  // than the GPU can hold.
+  resolution: "native",
   musicVolume: 0.32,
   sfxVolume: 0.75,
   largeHud: false,

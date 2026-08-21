@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { createCar, type CarColors } from "./cars";
 import { nightEnvironment } from "./env";
+import { pixelRatioFor } from "./render";
+import { loadSettings } from "./settings";
 
 // The main menu's turntable.
 //
@@ -434,11 +436,24 @@ export function buildAttract(
     // reason the menu looked soft: on any retina panel the turntable was
     // being drawn at roughly half the resolution of the text sitting on
     // top of it, so the one 3D thing on the screen was the blurriest
-    // thing on the screen. The menu renders ONE car against a flat
-    // ground with no post chain — it can afford the pixels the race
-    // cannot, and this is the screen a player looks at longest before
-    // deciding what they think of the game.
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    // thing on the screen. The menu renders two cars against a flat road
+    // with no post chain — it can afford the pixels the race cannot, and
+    // this is the screen a player looks at longest before deciding what
+    // they think of the game.
+    //
+    // It follows the resolution ladder for the same reason: a player who
+    // has set the game to 4K and finds the menu behind their 4K race
+    // rendering at window size has been given two different answers to
+    // one question. Read live rather than captured at build time, so
+    // changing it in settings takes on the next resize.
+    const gl = renderer.getContext();
+    const maxBuffer = Math.max(
+      2048,
+      (gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) as number) || 4096
+    );
+    renderer.setPixelRatio(
+      pixelRatioFor(loadSettings().resolution, w, h, window.devicePixelRatio || 1, maxBuffer)
+    );
     renderer.setSize(w, h, false);
     const aspect = w / Math.max(1, h);
     camera.aspect = aspect;
