@@ -108,27 +108,65 @@ const gAvg = (36.1 * 36.1) / (2 * brake.dist) / 9.81;
 console.log(`braking     130-0 in ${brake.dist} m (${brake.secs}s, avg ${gAvg.toFixed(2)}g)`);
 check(gAvg > 0.8 && gAvg < 2.4, `average braking ${gAvg.toFixed(2)}g out of band`);
 
-// --- 3. Friction circle: braking while steering stops shorter than nothing, longer than straight ---
+// --- 3. Friction circle: one tyre, one budget ---
+//
+// Two claims, and the second one is the stronger:
+//
+//   Braking at full lock takes longer than braking straight, because
+//   tyres asked to steer have less left to stop with.
+//
+//   And the total deceleration while turning NEVER exceeds what the same
+//   car manages braking flat out in a straight line — because that is
+//   the tyre's whole budget, and cornering spends from it rather than
+//   adding to it.
+//
+// The second went unasserted and was quietly false: cornering scrub and
+// the slide's own scrub were both applied on top of an undiminished
+// brake, so a car at full lock decelerated at 21.3 m/s² where the same
+// car braking straight could only manage 20.2. The tyre was billed
+// twice, and the distance check hid it because the two errors pointed
+// opposite ways.
+//
+// The distance margin is 0.5 m rather than the 1 m it was. That is not
+// the bar being lowered to fit: putting both scrubs on the budget cut
+// the double-count out of the turning run, and load transfer now makes
+// the car turn in 22% harder on the brakes and therefore rotate — and
+// scrub — more. Measured, the gap is 0.98 m against a run-to-run spread
+// of about 0.02, so 0.5 is still twenty times the noise.
 await stage();
 const circle = await page.evaluate(() => {
   const e = window.__grnEngine;
   const run = (steer) => {
     e.player.speed = 36.1;
     e.heading = 0; e.steerSmooth = 0;
-    let dist = 0, frames = 0;
+    let dist = 0, frames = 0, peak = 0;
     while (e.player.speed > 0.4 && frames < 60 * 15) {
+      const before = e.player.speed;
       e.setTouchInput({ brake: 1, throttle: 0, steer });
       e.update(1 / 60);
+      // Sampled after the first few frames: the brakes take a moment to
+      // build and the opening transient is not the steady state.
+      if (frames > 12) peak = Math.max(peak, (before - e.player.speed) * 60);
       dist += e.player.speed / 60;
       frames++;
       e.player.lat = 0; // keep it off the wall; we only meter the speed
     }
-    return dist;
+    return { dist, peak };
   };
-  return { straight: +run(0).toFixed(1), turning: +run(1).toFixed(1) };
+  const straight = run(0);
+  const turning = run(1);
+  return {
+    straight: +straight.dist.toFixed(1),
+    turning: +turning.dist.toFixed(1),
+    peakStraight: +straight.peak.toFixed(2),
+    peakTurning: +turning.peak.toFixed(2),
+  };
 });
 console.log(`friction    130-0 straight ${circle.straight} m, at full lock ${circle.turning} m  ` +
-  check(circle.turning > circle.straight + 1, "steering does not cost any braking distance"));
+  check(circle.turning > circle.straight + 0.5, "steering does not cost any braking distance"));
+console.log(`one budget  peak decel straight ${circle.peakStraight} m/s², at full lock ${circle.peakTurning}  ` +
+  check(circle.peakTurning <= circle.peakStraight + 0.05,
+    `cornering decelerates HARDER than braking flat out: ${circle.peakTurning} vs ${circle.peakStraight} m/s²`));
 
 // --- 4. Understeer: heading builds slower under heavy braking ---
 await stage();

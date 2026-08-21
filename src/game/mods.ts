@@ -769,6 +769,11 @@ export interface TuneEffects {
   /** Anti-lock fitted: pressure is modulated instead of locking. */
   hasAbs: boolean;
   gripAccel: number; // lateral grip for yaw authority (base 12)
+  /** Aerodynamic grip, in m/s² delivered at HANDLING.downforceRefSpeed
+   *  (70 m/s, about 250 km/h) and scaling with v² either side of it.
+   *  Quoted at a speed rather than as a coefficient so the number in the
+   *  catalogue means something you can check against a corner. */
+  downforce: number;
   slipMult: number; // scales centrifugal slip (base 1)
   /** Scales what the driven axle can transmit — an LSD puts both rear
    *  tires to work, so less torque is wasted as wheelspin. */
@@ -877,10 +882,17 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     slipMult = 1.1;
     driftAngleMult = 1.45;
   }
-  if (has("spoiler")) { gripAccel += 0.5; slipMult *= 0.92; }
+  // Aero is a v² term now, not a constant. The GT wing used to add a
+  // flat +0.5 m/s² of grip — the same +0.5 parked in the garage as at
+  // 300 km/h, which is not a wing. Sized so it delivers roughly the old
+  // figure at 200 km/h, nothing at walking pace, and twice as much on
+  // the coastal sweepers. A splitter does a little mechanical work at
+  // any speed, and that little is what is left flat.
+  let downforce = 0;
+  if (has("spoiler")) { gripAccel += 0.1; downforce += 0.8; slipMult *= 0.92; }
   gripAccel *= massTax;
   // Real downforce: the attack kit's wing and splitter plant the car
-  if (car.kit === "attack") { gripAccel += 1.0; slipMult *= 0.88; }
+  if (car.kit === "attack") { gripAccel += 0.2; downforce += 1.6; slipMult *= 0.88; }
 
   // Gearing: the same engine, aimed at a different part of the road.
   // The ceiling is in m/s, so these numbers are small on purpose: the
@@ -910,6 +922,7 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     brakeThermalMult,
     hasAbs,
     gripAccel,
+    downforce,
     slipMult,
     tractionMult,
     understeerMult,

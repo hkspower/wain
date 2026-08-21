@@ -156,6 +156,53 @@ export const HANDLING = {
   /** Engine braking off-throttle, m/s². */
   engineBrakeK: 2.4,
 
+  // Weight transfer (src/game/grip.ts). The car pitches, the load moves,
+  // and the grip goes with it: dive under braking presses the front
+  // tyres in and lifts the rear off, squat under power does the reverse.
+  // This is the difference between a car and a point mass with a grip
+  // number, and none of it was modelled.
+  /** Centre of gravity height and wheelbase, metres. Their ratio is the
+   *  fraction of the car's weight that moves per g. */
+  cgHeightM: 0.52,
+  wheelbaseM: 2.62,
+  /** Static split: a front-engined rear-driver carries a little more on
+   *  the nose standing still. */
+  staticFrontLoad: 0.53,
+  /** How fast load actually moves, 1/s. This is the suspension, not a
+   *  smoothing convenience — it is why trail braking is a technique and
+   *  not a switch. */
+  loadLagRate: 6.5,
+  /** Most of the car's weight one axle may be given. Past this a wheel
+   *  is off the ground and this is the wrong model for what happens. */
+  loadClamp: 0.82,
+  /** Grip goes as load^exp, sub-linear: a tyre carrying twice as much
+   *  does not hold twice as much. */
+  tyreLoadExp: 0.85,
+  steerLoadExp: 0.6,
+  /** Bounds on what transfer may do. Deliberately tight: uncapped, squat
+   *  feeds traction feeds acceleration feeds squat, and that loop
+   *  settles at a 1.7 g launch on road tyres. Load transfer is meant to
+   *  change the BALANCE of the car, not its performance. */
+  steerScaleMin: 0.8,
+  steerScaleMax: 1.22,
+  driveScaleMin: 0.7,
+  driveScaleMax: 1.12,
+
+  // Aerodynamic downforce (src/game/grip.ts).
+  /** The speed at which a part's quoted downforce figure is delivered,
+   *  m/s — about 250 km/h. It scales with v² either side of that. */
+  downforceRefSpeed: 70,
+  /** Ceiling on the aero contribution, m/s². A design limit rather than
+   *  an aerodynamic one: past here the car stops sliding at all. */
+  downforceMax: 6,
+
+  /** Lift-off oversteer: rear unloading past this counts as an entry,
+   *  and it reaches this fraction of the handbrake's angle. Smaller than
+   *  a trail-braked entry, because closing the throttle transfers less
+   *  than standing on the middle pedal. */
+  driftLiftEntry: 0.18,
+  driftLiftAngleK: 0.3,
+
   // Tire model: one grip budget shared by drive, brakes and steering.
   /** Fraction of gripAccel the driven axle transmits at rest… */
   tractionBase: 0.8,

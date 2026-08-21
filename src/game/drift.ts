@@ -43,6 +43,12 @@ export interface DriftInput {
   wheelspin: number;
   /** Yaw impulse handed over by the brake solver — the trail-brake entry. */
   brakeRotate: number;
+  /** How much lighter than static the rear axle is, 0..1, from the load
+   *  solver. A closed throttle mid-corner transfers weight forward and
+   *  takes it off the rear tyres, and a rear that light lets go: this is
+   *  lift-off oversteer, and it is the entry every driver has used by
+   *  accident before they ever used it on purpose. */
+  rearLight?: number;
   /** Scales every angle in the model: drift tyres let the tail further out. */
   driftAngleMult: number;
 }
@@ -99,7 +105,7 @@ export interface DriftResult {
    *  means, and the difference between a half spin and a 540. */
   spinDeg: number;
   /** What is holding the slide up, for the HUD and the coach. */
-  entry: "" | "handbrake" | "power" | "brake" | "feint";
+  entry: "" | "handbrake" | "power" | "brake" | "feint" | "lift";
 }
 
 export function newDriftState(): DriftState {
@@ -240,12 +246,29 @@ export function solveDrift(s: DriftState, i: DriftInput): DriftResult {
   const trail =
     Math.abs(i.brakeRotate) > H.driftBrakeEntry && i.speed > H.driftMinSpeed;
   const feint = s.feintT > 0 && i.speed > H.driftFeintMinSpeed;
+  // Lift-off. Ranked BELOW the trail-brake entry rather than beside it,
+  // and that ordering is the whole distinction: standing on the brakes
+  // also unloads the rear, so without it every trail-braked corner
+  // would report itself as a lift. What is left when the brake entry
+  // has taken its share is the real thing — a closed throttle, no
+  // pedal, and the tail coming round on its own.
+  const lift =
+    (i.rearLight ?? 0) > H.driftLiftEntry &&
+    i.throttle < 0.1 &&
+    Math.abs(i.steer) > 0.2 &&
+    i.speed > H.driftMinSpeed;
 
   let entryScale = 0;
   if (i.handbrake) { entryScale = 1; out.entry = "handbrake"; }
   else if (powerOver) { entryScale = H.powerOverAngleK; out.entry = "power"; }
   else if (trail) { entryScale = H.driftBrakeAngleK; out.entry = "brake"; }
   else if (feint) { entryScale = H.driftFeintAngleK; out.entry = "feint"; }
+  else if (lift) {
+    // Scaled by how light the rear actually is, so a gentle lift is a
+    // hint of rotation and a snapped throttle is a moment.
+    entryScale = H.driftLiftAngleK * Math.min(1, (i.rearLight ?? 0) / 0.4);
+    out.entry = "lift";
+  }
 
   let rate = 0;
   if (entryScale > 0 && i.speed > H.driftMinSpeed) {

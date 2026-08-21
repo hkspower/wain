@@ -25,6 +25,8 @@ import type { DriverRig } from "./characters";
 // and the showroom put a rigged driver in the seat too, and a private
 // method is only available to whoever already has an engine running.
 import { solveDriverRig } from "./driver";
+import { verticalFov, chaseDolly } from "./aspect";
+import { gripAtSpeed, newLoadState, solveLoad, type LoadResult } from "./grip";
 import { Music } from "./music";
 import {
   solveDrift,
@@ -691,6 +693,11 @@ export class GameEngine {
   /** Where the needle sat this frame, 0..1 of the rev range. Shared by
    *  the torque curve, the sound and the HUD so they cannot disagree. */
   private revFrac = 0.12;
+  /** The suspension's memory: how much load has moved, and where it is.
+   *  Read a frame after it is written, which is the physical order —
+   *  springs take a couple of tenths to compress. */
+  private readonly ls = newLoadState();
+  private load: LoadResult = solveLoad(newLoadState(), { dt: 1, aLong: 0 });
   /** Litres in the tank. Loaded from the car's save, written back when
    *  the session ends and every time the pump runs. */
   private fuel = fuelOf(loadGarage());
@@ -3215,10 +3222,23 @@ export class GameEngine {
     // teleporting.
     const engineAccel =
       this.throttle * Math.max(0, 19 * power * (1 - p.speed / ceiling));
+    // Grip, as it is at this speed. The tyres are a constant; the aero
+    // is not — a wing works on air and there is four times as much of it
+    // at twice the speed. Everything grip-limited below reads this one
+    // number: what the driven axle can put down, what the brakes can
+    // reach, and how hard the car can be turned.
+    const grip = gripAtSpeed(this.tune.gripAccel, this.tune.downforce, p.speed);
+    // ...and where that grip IS. The load solver ran last frame, on last
+    // frame's acceleration, which is the physically correct order: load
+    // lags the pedal by the time the springs take to compress.
+    const load = this.load;
     const tractionCap =
-      this.tune.gripAccel *
+      grip *
       (0.8 + 0.2 * Math.min(1, p.speed / 22)) *
-      this.tune.tractionMult;
+      this.tune.tractionMult *
+      // Squat presses the driven axle into the road. Bounded tightly —
+      // see grip.ts — because uncapped this feeds itself.
+      load.driveScale;
     this.wheelspin = Math.max(0, engineAccel - tractionCap) * driveGrip;
     const accel =
       Math.min(engineAccel, tractionCap) * driveGrip + (this.nosActive ? 14 : 0);
@@ -3230,12 +3250,13 @@ export class GameEngine {
     // anti-lock, fade, and the rotation a light rear gives up — is
     // brakes.ts; this is where its answer is applied.
     const latDemand = Math.min(1, (Math.abs(this.steerSmooth) * p.speed) / 40);
-    const brakeCap = brakeCeiling(this.tune, latDemand);
+    const brakeCap = brakeCeiling(this.tune, latDemand, grip);
     const bk = solveBrakes(this.bs, {
       dt,
       brake: this.brake,
       speed: p.speed,
       latDemand,
+      grip,
       steer: this.steerSmooth,
       throttle: this.throttle,
       tune: this.tune,
@@ -3248,6 +3269,13 @@ export class GameEngine {
     // but not past it.
     if (p.speed > limitMs) p.speed = limitMs;
 
+    // What the car actually did this frame, fed back into the springs so
+    // next frame's grip is where this frame's pedals put it.
+    this.load = solveLoad(this.ls, {
+      dt,
+      aLong: accel - braking - drag * (this.throttle ? 0.35 : 1),
+    });
+
     // --- Steering: the car carries a heading relative to the lane.
     // Yaw authority is grip-limited, so it shrinks as speed rises — and
     // friction circle, half two: heavy braking or a spinning rear axle
@@ -3257,16 +3285,32 @@ export class GameEngine {
       (this.steer - this.steerSmooth) * Math.min(1, dt * this.tune.steerRate);
     const longDemand = Math.min(1, (braking + this.wheelspin) / (brakeCap || 1));
     const yawRateMax =
-      Math.min(1.6, this.tune.gripAccel / Math.max(p.speed, 2)) *
+      Math.min(1.6, grip / Math.max(p.speed, 2)) *
       (1 - 0.35 * this.tune.understeerMult * longDemand) *
+      // Steering comes off the FRONT axle, and how much is on it
+      // depends on what the driver is doing with the other two pedals.
+      // Dive under braking loads the nose and the car turns in; squat
+      // under power unloads it and the car pushes wide. This one term is
+      // most of what "the car has dynamics" means, and it was missing.
+      load.steerScale *
       // Locked front tires are erasers: they do not steer at all, which
       // is why the car that goes straight on into the barrier is nearly
       // always the one with the pedal buried rather than modulated.
       bk.steerScale;
     this.heading += this.steerSmooth * yawRateMax * dt;
     // Cornering isn't free: held near the limit, the front tires scrub
-    // speed off — the reason real drivers straighten before they send it
-    p.speed *= 1 - Math.abs(this.heading) * Math.min(1, p.speed / 40) * 0.3 * dt;
+    // speed off — the reason real drivers straighten before they send it.
+    //
+    // ...and it comes out of the SAME grip budget the brakes are
+    // spending, which it did not used to. The brake ceiling already
+    // gives up its share to lateral demand; this is the other leg of
+    // that circle, and without it a car at full lock on the brakes got
+    // a reduced brake AND an undiminished scrub — the tyre billed
+    // twice. It hid until load transfer arrived and made the car turn
+    // in 22% harder on the brakes, at which point a full-lock stop came
+    // out the same length as a straight one, which no tyre can do.
+    const latAvail = Math.sqrt(Math.max(0, 1 - 0.6 * longDemand * longDemand));
+    p.speed *= 1 - Math.abs(this.heading) * Math.min(1, p.speed / 40) * 0.3 * latAvail * dt;
     // Caster self-centering when the wheel is released
     if (Math.abs(this.steer) < 0.1) {
       this.heading -= this.heading * Math.min(1, dt * 2.4);
@@ -3286,9 +3330,17 @@ export class GameEngine {
       handbrake: this.handbrake,
       wheelspin: this.wheelspin,
       brakeRotate: bk.rotate,
+      rearLight: load.rearLight,
       driftAngleMult: this.tune.driftAngleMult,
     });
-    p.speed *= 1 - dr.scrubRate * dt;
+    // The slide's own scrub, on the same budget as everything else.
+    // Sideways scrub is lateral tyre work, and a tyre already spending
+    // its grip on the brakes has less of it to spend sideways — the
+    // same circle the brake ceiling is drawn from, read the other way
+    // round. Without this, a car at full lock on the brakes decelerated
+    // HARDER than the same car braking flat out in a straight line,
+    // which is not a thing a tyre can do.
+    p.speed *= 1 - dr.scrubRate * latAvail * dt;
     if (dr.jolt > 0) this.shake = Math.max(this.shake, dr.jolt);
     if (dr.spun) {
       // Losing it is an event, not a slow fade — the camera and the tires
@@ -3849,34 +3901,16 @@ export class GameEngine {
   }
 
   /**
-   * three.js FOV is vertical, which starves the horizontal view on
-   * screens narrower than 16:9 (portrait phones, 4:3 monitors): the road
-   * ahead vanishes. Widen the vertical FOV on narrow aspects so the
-   * horizontal field never drops below its 16:9 equivalent. Wider
-   * screens get standard Hor+ (more world, the ultrawide payoff) up to
-   * ~21.5:9 — past that the horizontal field is held, because on a 32:9
-   * panel uncapped Hor+ stretches the road edges into a fisheye.
+   * The vertical FOV to hand three.js for the window we actually have.
+   *
+   * The reasoning, the curve and the numbers are `aspect.ts` — it is
+   * arithmetic with one degree of freedom and it belongs somewhere a
+   * test can reach it without a WebGL context.
    */
   private aspectFov(vFovDeg: number): number {
-    const aspect = this.camera.aspect;
-    if (!Number.isFinite(aspect)) return vFovDeg;
-    const HOR_CAP = 21.5 / 9;
-    if (aspect > HOR_CAP) {
-      const narrowed =
-        2 *
-        Math.atan(
-          Math.tan(THREE.MathUtils.degToRad(vFovDeg) / 2) * (HOR_CAP / aspect)
-        );
-      return THREE.MathUtils.radToDeg(narrowed);
-    }
-    if (aspect >= 16 / 9 - 1e-3) return vFovDeg;
-    const widened =
-      2 *
-      Math.atan(
-        Math.tan(THREE.MathUtils.degToRad(vFovDeg) / 2) * ((16 / 9) / aspect)
-      );
-    return Math.min(108, THREE.MathUtils.radToDeg(widened));
+    return verticalFov(vFovDeg, this.camera.aspect);
   }
+
 
   /**
    * A light shaft is air made visible, and air only shows when you look
@@ -4016,8 +4050,17 @@ export class GameEngine {
     // Chase position pulls back and rises with speed. "Close" is the
     // same rig tucked in: same road frame, same behaviour through a
     // slide, a shorter arm.
+    //
+    // ...and on a window narrower than 16:9 it walks back further still.
+    // A narrow screen loses horizontal field, and there are only two
+    // ways to get world back into frame: a wider lens, or more distance.
+    // The lens runs out first — holding a 16:9 horizontal field on a
+    // portrait phone needs 133 degrees of vertical, which is a peephole,
+    // not a camera — so aspect.ts gives back what it safely can and
+    // hands the rest here. Only the road-mounted views can take it: a
+    // bumper cam is bolted to the shell and has nowhere to go.
     const reach = this.view === "close" ? 0.62 : 1;
-    const dist = (9.5 + p.speed * 0.02) * reach;
+    const dist = (9.5 + p.speed * 0.02) * reach * chaseDolly(spec.fov, this.camera.aspect);
     this.v4
       .copy(this.v1)
       .addScaledVector(this.v3, -dist)
@@ -4707,10 +4750,36 @@ export class GameEngine {
         __grnRender: { pixelRatioFor: typeof pixelRatioFor; bufferFor: typeof bufferFor };
       }
     ).__grnRender = { pixelRatioFor, bufferFor };
+    // The grip model, swept the same way the drift model is: what the
+    // load solver does is a function of one number and a dt, and running
+    // a lap of the corniche to find out what a stop on the brakes does
+    // to the front axle measures the game rather than the model.
+    (
+      window as unknown as {
+        __grnGrip: {
+          newLoadState: typeof newLoadState;
+          solveLoad: typeof solveLoad;
+          gripAtSpeed: typeof gripAtSpeed;
+          HANDLING: typeof HANDLING;
+        };
+      }
+    ).__grnGrip = { newLoadState, solveLoad, gripAtSpeed, HANDLING };
     (window as unknown as { __grnLandmarks: typeof LANDMARK_S }).__grnLandmarks = LANDMARK_S;
     (window as unknown as { __grnDebug: object }).__grnDebug = {
       playerSpeed: this.player.speed,
       playerLat: this.player.lat,
+      // Where the weight is, and what the air is doing. Live, so a test
+      // can watch the balance shift under the pedals rather than infer
+      // it from a lap time.
+      loadFront: this.load.front,
+      loadRear: this.load.rear,
+      rearLight: this.load.rearLight,
+      steerScale: this.load.steerScale,
+      driveScale: this.load.driveScale,
+      pitchG: this.load.pitchG,
+      downforce: this.tune.downforce,
+      gripNow: gripAtSpeed(this.tune.gripAccel, this.tune.downforce, this.player.speed),
+      gripStatic: this.tune.gripAccel,
       rivalSpeed: r?.speed,
       rivalState: r?.state,
       gap: r ? this.track.deltaAhead(this.player.s, r.s) : null,

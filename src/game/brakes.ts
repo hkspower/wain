@@ -59,6 +59,9 @@ export interface BrakeInput {
   speed: number;
   /** 0..1 — how much of the tyre is already spoken for by cornering. */
   latDemand: number;
+  /** Lateral grip at this instant, aero included. Optional: without it
+   *  the solver falls back to the car's static figure. */
+  grip?: number;
   /** Smoothed steering, -1..1 — which way the rotation points. */
   steer: number;
   /** 0..1. Off-throttle in gear, the engine helps slow the car. */
@@ -98,8 +101,17 @@ export function newBrakeState(): BrakeState {
  * how much of the grip budget braking is using, and a second copy of
  * this expression is a second thing to keep in step.
  */
-export function brakeCeiling(tune: BrakeTune, latDemand: number): number {
-  const flat = tune.gripAccel * H.brakeGripK + tune.brakeForce * H.brakePadK;
+export function brakeCeiling(
+  tune: BrakeTune,
+  latDemand: number,
+  /** Lateral grip as it is RIGHT NOW rather than as the car was built:
+   *  aero presses the tyres down harder the faster you are going, and a
+   *  wing that helps a car corner helps it stop. Defaults to the static
+   *  figure, which is what it was before there was any aero to speak of. */
+  gripNow?: number
+): number {
+  const grip = gripNow ?? tune.gripAccel;
+  const flat = grip * H.brakeGripK + tune.brakeForce * H.brakePadK;
   // Friction circle: front tyres steering hard have less left to stop with.
   return flat * Math.sqrt(1 - H.trailBrakeK * latDemand * latDemand);
 }
@@ -107,7 +119,7 @@ export function brakeCeiling(tune: BrakeTune, latDemand: number): number {
 export function solveBrakes(s: BrakeState, i: BrakeInput): BrakeResult {
   const { dt, tune } = i;
   const brake = Math.min(Math.max(i.brake, 0), 1);
-  const ceiling = brakeCeiling(tune, Math.min(1, Math.max(0, i.latDemand)));
+  const ceiling = brakeCeiling(tune, Math.min(1, Math.max(0, i.latDemand)), i.grip);
 
   // --- Fade. Heat is what the discs absorbed; it leaves with the air
   // over them, so a car that keeps moving cools and a car crawling on
