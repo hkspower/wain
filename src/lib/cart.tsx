@@ -18,7 +18,6 @@
  * is all we have" instead of silently ignoring the tap.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   createContext,
   useCallback,
@@ -38,6 +37,7 @@ import {
   type Product,
 } from '@/lib/catalog';
 import type { Fils } from '@/lib/money';
+import { KEYS, readJson, writeJson } from '@/lib/storage';
 
 export interface Line {
   slug: string;
@@ -45,11 +45,24 @@ export interface Line {
   qty: number;
 }
 
+/**
+ * The guard the stored basket is read through. Storage is not a trusted input:
+ * it survives app upgrades that change this shape, and a malformed basket must
+ * not be allowed to take the shop down on launch.
+ */
+const isLines = (value: unknown): value is Line[] =>
+  Array.isArray(value) &&
+  value.every(
+    (l) =>
+      !!l &&
+      typeof (l as Line).slug === 'string' &&
+      typeof (l as Line).size === 'string' &&
+      Number.isFinite((l as Line).qty),
+  );
+
 /** Free delivery over 20 KD; below it, 1.500 KD. Both in fils. */
 export const FREE_DELIVERY_OVER: Fils = 20_000;
 export const DELIVERY_FEE: Fils = 1_500;
-
-const STORAGE_KEY = 'sporta.cart.v1';
 
 type Ctx = {
   products: Product[];
@@ -92,25 +105,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let alive = true;
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((raw) => {
-        if (!alive || !raw) return;
-        const parsed: unknown = JSON.parse(raw);
-        // Storage is not a trusted input: it survives app upgrades that change
-        // this shape, and a malformed basket must not take the shop down.
-        if (Array.isArray(parsed)) {
-          setLines(
-            parsed.filter(
-              (l): l is Line =>
-                !!l &&
-                typeof (l as Line).slug === 'string' &&
-                typeof (l as Line).size === 'string' &&
-                Number.isFinite((l as Line).qty),
-            ),
-          );
-        }
-      })
-      .catch(() => {})
+    readJson(KEYS.cart, isLines, [])
+      .then((lines) => alive && setLines(lines))
       .finally(() => alive && setRestored(true));
     return () => {
       alive = false;
@@ -119,7 +115,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!restored) return;
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(lines)).catch(() => {});
+    writeJson(KEYS.cart, lines);
   }, [lines, restored]);
 
   useEffect(() => {

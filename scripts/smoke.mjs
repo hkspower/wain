@@ -54,10 +54,26 @@ check((await seen(p.getByText('رجالي')).count()) > 0, 'category tiles rende
 const shot = async (name) => p.screenshot({ path: `/tmp/sporta-${name}.png`, fullPage: false })
 await shot('home-ar')
 
+// --- the grid is two across, not one -------------------------------------
+// It ran as a single column for three commits: 48% + 48% + a 16px gap is
+// 100.5% of the row, so every card wrapped. Nothing in the suite noticed,
+// because a one-column grid still lists every product and still filters.
+const cardsPerRow = () =>
+  p.evaluate(() => {
+    const cards = [...document.querySelectorAll('a[href^="/product/"]')]
+    if (!cards.length) return 0
+    const top = Math.round(cards[0].getBoundingClientRect().top)
+    return cards.filter((c) => Math.abs(Math.round(c.getBoundingClientRect().top) - top) < 4).length
+  })
+check((await cardsPerRow()) === 2, 'the home grid is two cards across')
+
 // --- shop, filtering -----------------------------------------------------
 await go('/shop')
 const before = await p.locator('a[href^="/product/"]').count()
 check(before > 0, `shop lists products (${before})`)
+// Checked on BOTH screens: they carry the same grid written out twice, and
+// mutating only the shop's copy left the home check green.
+check((await cardsPerRow()) === 2, 'the shop grid is two cards across')
 await p.getByRole('button', { name: 'إكسسوارات' }).first().click()
 await p.waitForTimeout(500)
 const after = await p.locator('a[href^="/product/"]').count()

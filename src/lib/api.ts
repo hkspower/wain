@@ -15,25 +15,19 @@
  *      forever rather than falling back.
  */
 
-import Constants from 'expo-constants';
-
-import { categories as bundledCategories, products as bundledProducts, type Category, type Product } from '@/lib/catalog';
+import { API_BASE } from '@/lib/config';
+import {
+  categories as bundledCategories,
+  products as bundledProducts,
+  type Category,
+  type Product,
+} from '@/lib/catalog';
 import type { Fils } from '@/lib/money';
 
-/**
- * Point the app at a shop. `extra.apiBase` in app.json is the shipped setting;
- * EXPO_PUBLIC_API_BASE overrides it for one build.
- *
- * The environment variable is checked FIRST, and the order is the whole point:
- * app.json always has a value, so reading it first meant the override could
- * never win and every build went to production — including the test rig, which
- * then reported the panel broken when it was merely pointed at a host it
- * cannot reach.
- */
-export const API_BASE: string =
-  process.env.EXPO_PUBLIC_API_BASE ??
-  (Constants.expoConfig?.extra as { apiBase?: string } | undefined)?.apiBase ??
-  'https://www.sporta.com.kw/api';
+// Re-exported because callers have always imported it from here, and moving a
+// constant is not a reason to touch every call site. lib/config.ts is where it
+// is decided.
+export { API_BASE };
 
 const TIMEOUT_MS = 8000;
 

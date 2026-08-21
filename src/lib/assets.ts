@@ -1,19 +1,13 @@
 /**
  * Where the shop's pictures live.
  *
- * Derived from API_BASE rather than configured separately, because they are the
- * same host in every deployment and two settings that must agree are one
- * setting people can get wrong. `/api` is stripped: the API answers at
- * https://host/api and the pictures sit at https://host/cats/... beside it.
- *
- * EXPO_PUBLIC_ASSET_BASE overrides it outright, which is what the test rig
- * uses to serve a known image from localhost.
+ * The base itself is resolved in lib/config.ts; this file only knows the shape
+ * of the paths under it.
  */
 
-import { API_BASE } from '@/lib/api';
+import { ASSET_BASE } from '@/lib/config';
 
-export const ASSET_BASE: string =
-  process.env.EXPO_PUBLIC_ASSET_BASE ?? API_BASE.replace(/\/api\/?$/, '');
+export { ASSET_BASE };
 
 /** Category artwork: /cats/art-<id>.jpg on the server. */
 export const categoryArt = (id: string) => `${ASSET_BASE}/cats/art-${id}.jpg`;

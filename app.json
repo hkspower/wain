@@ -42,7 +42,8 @@
       "reactCompiler": true
     },
     "extra": {
-      "apiBase": "https://www.sporta.com.kw/api"
+      "apiBase": "https://www.sporta.com.kw/api",
+      "assetBase": "https://www.sporta.com.kw"
     }
   }
 }

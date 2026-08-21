@@ -17,13 +17,11 @@
  *      password that was never the problem.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-import { API_BASE } from '@/lib/api';
+import { API_BASE } from '@/lib/config';
+import { KEYS, readString, remove, writeString } from '@/lib/storage';
 import type { Fils } from '@/lib/money';
 
 const TIMEOUT_MS = 10_000;
-export const TOKEN_KEY = 'sporta.admin.token.v1';
 
 export type OrderStatus = 'new' | 'paid' | 'packing' | 'shipped' | 'delivered' | 'cancelled';
 
@@ -142,6 +140,6 @@ export const adminApi = {
     call<{ ok: true }>('stock', { token, body: { slug, size, stock } }),
 };
 
-export const saveToken = (t: string) => AsyncStorage.setItem(TOKEN_KEY, t).catch(() => {});
-export const loadToken = () => AsyncStorage.getItem(TOKEN_KEY).catch(() => null);
-export const clearToken = () => AsyncStorage.removeItem(TOKEN_KEY).catch(() => {});
+export const saveToken = (t: string) => writeString(KEYS.adminToken, t);
+export const loadToken = () => readString(KEYS.adminToken);
+export const clearToken = () => remove(KEYS.adminToken);

@@ -152,14 +152,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: Spacing.three,
   },
+  // TWO PER ROW, and it was one. `width: 48%` twice plus a 16px gap comes to
+  // 100.5% of a 358px column — half a per cent over, so every card wrapped onto
+  // its own line and the grid ran as a single column with half the page empty
+  // beside it. The arithmetic was written as `(100 - 4) / 2`, which assumed the
+  // gap was 4% of the row; at this width it is 4.5%.
+  //
+  // flexBasis with flexGrow, rather than a width: the cards then divide
+  // whatever the row actually has, so the gap can change without anyone
+  // recomputing a percentage. The gap is 8px because two 48% cards plus 8px is
+  // 351 of 358 — it fits with room to spare, and it is the last time this needs
+  // to be a calculation at all.
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.three,
+    gap: Spacing.two,
     marginTop: Spacing.one,
   },
   gridItem: {
-    width: `${(100 - 4) / 2}%`,
+    flexGrow: 1,
+    flexBasis: '48%',
+    maxWidth: '48%',
   },
   empty: {
     marginTop: Spacing.five,
