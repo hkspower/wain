@@ -214,3 +214,44 @@ test('يقول عن نفسه إنه يقرأ ولا ينفّذ حين لا يف�
   const r = await ask('admin', 'سوّي لي شي غريب');
   assert.match(r.say, /لا أنفّذ/);
 });
+
+/* --------------------------- «هل تقصد…؟» --------------------------- */
+
+test('يقترح الاسم القريب بدل أن يصمت — ولا يبحث به من تلقائه', async () => {
+  const r = await ask('admin', 'طلبات السالمي');
+  assert.equal(r.intent, 'did_you_mean');
+  assert.equal(r.understood, false, 'عدّ الاقتراح فهمًا');
+  assert.match(r.say, /السالمي/);
+  assert.match(r.say, /هل تقصد «السالمية»؟/);
+  assert.equal(r.data.suggest, 'طلبات السالمية', 'الاقتراح ليس السؤال مصحّحًا');
+  assert.equal(r.data.orders, undefined, 'بحث بالاقتراح بدل أن يعرضه');
+});
+
+test('الاقتراح المضغوط يعمل عمل السؤال الصحيح', async () => {
+  const first = await ask('admin', 'طلبات الفحيحل');
+  assert.equal(first.intent, 'did_you_mean');
+  const then = await ask('admin', first.data.suggest);
+  assert.equal(then.intent, 'search_orders');
+  assert.ok(then.data.orders.length, 'الاقتراح المصحّح لم يجد شيئًا');
+});
+
+test('لا اقتراح لما ليس قريبًا — البعيد أسوأ من لا شيء', async () => {
+  for (const q of ['اطبخ لي عشاء', 'زززز', 'ما رأيك في الطقس']) {
+    const r = await ask('admin', q);
+    assert.equal(r.intent, 'unknown', `«${q}» أُعطي اقتراحًا`);
+    assert.equal(r.data.suggest, undefined);
+  }
+});
+
+test('البحث الفارغ يقول أين يُبحث بعده', async () => {
+  const r = await ask('admin', 'طلبات الجهراء');
+  assert.equal(r.intent, 'search_orders');
+  assert.equal(r.data.orders.length, 0);
+  assert.equal(r.data.suggest, 'الطلبات النشطة', 'صفرٌ بلا خطوة تالية');
+});
+
+test('البحث الذي يجد لا يُثقَل باقتراح', async () => {
+  const r = await ask('admin', 'طلبات حولي');
+  assert.ok(r.data.orders.length);
+  assert.equal(r.data.suggest, undefined);
+});

@@ -28,6 +28,7 @@ const { db } = require('./db');
 const D = require('./domain');
 const AREA = require('./areas');
 const V = require('./voice-order');
+const SIM = require('./similar');
 
 /* ------------------------------ المطابقة ------------------------------ */
 
@@ -397,17 +398,24 @@ function ask(viewer, text) {
     const where = [];
     const args = [];
     if (place?.governorate) { where.push('o.governorate = ?'); args.push(place.governorate); }
-    if (place?.area) { where.push('(o.pickup_area = ? OR o.dropoff_area = ?)'); args.push(place.area, place.area); }
+    if (place?.area) {
+      /* الحقول المهيكلة والنصّ معًا: الطلبات القديمة وما كُتب عنوانه بحرّية
+         بلا منطقة مختارة لا تُرى في الحقول، فيقول الوكيل «لا طلبات» وهي
+         موجودة. وجوابٌ خاطئ بالنفي أسوأ من بحثٍ أوسع قليلًا. */
+      where.push('(o.pickup_area = ? OR o.dropoff_area = ? OR o.pickup_address LIKE ? OR o.dropoff_address LIKE ?)');
+      args.push(place.area, place.area, `%${place.area}%`, `%${place.area}%`);
+    }
     if (status) { where.push('o.status = ?'); args.push(status); }
     const sql = where.join(' AND ');
     const orders = queryOrders(viewer, sql, args);
     const n = countOrders(viewer, sql, args);
     const what = [place?.governorate && `محافظة ${place.governorate}`, place?.area, status && D.STATUSES[status]]
       .filter(Boolean).join(' · ');
+    /* الصفر ليس جوابًا كاملًا: من بحث ولم يجد يريد أن يعرف أين يبحث بعدها */
     return {
       understood: true, intent: 'search_orders', kind: 'orders',
       say: n ? `${nOrders(n)} — ${what}.` : `لا طلبات — ${what}.`,
-      data: { orders },
+      data: n ? { orders } : { orders, suggest: 'الطلبات النشطة', suggestLabel: 'كل الطلبات النشطة' },
     };
   }
 
@@ -426,12 +434,33 @@ function ask(viewer, text) {
     }
   }
 
-  /* ٦ — لا يخمّن */
+  /* ٦ — لا يخمّن، ولا يصمت.
+     من كتب «السالمي» يعرف قصده، والنظام يعرف أن «السالمية» على بُعد حرف.
+     فلا يُملأ شيء ولا يُفترض شيء — بل يُسأل صاحبه ويُترك له الجواب. */
+  const near = SIM.closestInText(raw, VOCAB());
+  if (near) {
+    const fixed = raw.replace(near.word, near.name);
+    return {
+      understood: false, intent: 'did_you_mean', kind: 'suggest',
+      say: `لم أجد «${near.word}» — هل تقصد «${near.name}»؟`,
+      data: { suggest: fixed, suggestLabel: `نعم، ${near.name}`, examples: EXAMPLES.slice(0, 3) },
+    };
+  }
+
   return {
     understood: false, intent: 'unknown', kind: 'unknown',
     say: 'لم أفهم هذا. أنا أقرأ وأجيب ولا أنفّذ — اسألني عن اليوم أو الطلبات أو الكباتن.',
     data: { examples: EXAMPLES },
   };
+}
+
+/** ما يعرفه الوكيل من أسماء — تُبنى مرّةً عند أول حاجة */
+let VOCAB_CACHE = null;
+function VOCAB() {
+  if (!VOCAB_CACHE) {
+    VOCAB_CACHE = [...AREA.ALL_AREAS, ...D.GOVERNORATES, ...Object.values(D.STATUSES)];
+  }
+  return VOCAB_CACHE;
 }
 
 const FIELDS = { gender: 'm', human: false, zero: 'لا حقول', one: 'حقل واحد', two: 'حقلان',

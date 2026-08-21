@@ -287,3 +287,28 @@ test('الملصوق يمرّ إلى الطلب كاملًا — المبالغ 
   assert.equal(o.delivery_fee, 2);
   assert.equal(o.notes, 'اتصل قبل الوصول');
 });
+
+/* --------------------------- «هل تقصد…؟» --------------------------- */
+
+test('المنطقة القريبة تُقترح ولا تُملأ', () => {
+  const r = V.parseOrder('الاستلام: السالمي ق٤\nالتسليم: حولي');
+  assert.ok(!('pickup_area' in r.fields), 'ملأ المنطقة من اقتراح');
+  const m = r.missing.find((x) => x.field === 'pickup_area');
+  assert.ok(m, 'لا سطر عن منطقة الاستلام');
+  assert.equal(m.hint, 'السالمية');
+  assert.match(m.why, /هل تقصد «السالمية»؟/);
+});
+
+test('ما ليس قريبًا لا يُقترح له شيء', () => {
+  const r = V.parseOrder('الاستلام: مكان مجهول تمامًا');
+  const m = r.missing.find((x) => x.field === 'pickup_area');
+  assert.equal(m.hint, undefined, 'اخترع اقتراحًا لما ليس قريبًا');
+  assert.match(m.why, /ليست من مناطق الكويت/);
+});
+
+test('المكتوب صحيحًا لا يُقترح له بديل', () => {
+  const r = V.parseOrder('الاستلام: السالميه ق٤\nالتسليم: الفحيحيل ق٧');
+  assert.equal(r.fields.pickup_area, 'السالمية');
+  /* الاسم والهاتف ناقصان فعلًا في هذا النصّ — المقصود ألّا يبقى نقصٌ في المكان */
+  assert.deepEqual(r.missing.filter((m) => /area|block/.test(m.field)), []);
+});

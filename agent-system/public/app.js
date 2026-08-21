@@ -358,6 +358,11 @@
       if (d.parsed?.heard?.length) {
         body.push(`<ul class="ask__heard">${d.parsed.heard.map((h) => `<li>${esc(h)}</li>`).join('')}</ul>`);
       }
+      /* الاقتراح سؤال يُضغط، لا قيمة طُبّقت — فيُعرض زرًّا بارزًا يسبق الأمثلة */
+      if (d.suggest) {
+        body.push(`<div class="ask__chips"><button type="button" class="chip chip--yes"
+          data-ask="${esc(d.suggest)}">${esc(d.suggestLabel || d.suggest)}</button></div>`);
+      }
       if (d.examples?.length) {
         body.push(`<div class="ask__chips">${d.examples
           .map((e) => `<button type="button" class="chip" data-ask="${esc(e)}">${esc(e)}</button>`).join('')}</div>`);
@@ -1547,11 +1552,20 @@
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
     function voFill(res) {
+      /* الحقل الذي ملأه الوكيل يُعلَّم.
+         ثلاثة عشر حقلًا تُملأ في لحظة، ومطالبةُ الموظّف بمراجعتها بلا دليل
+         على أيّها تغيّر مطالبةٌ بلا معنى: يمرّ بعينه على النموذج فلا يعرف ما
+         كتبه هو وما كتبه الوكيل. والعلامة تزول عند أول تعديل يدويّ — صار
+         الحقل حينها حقلَه هو. */
+      for (const f of document.querySelectorAll('#orderForm .is-filled')) f.classList.remove('is-filled');
+
       const set = (name, value) => {
         const f = document.querySelector(`#orderForm [name="${name}"]`);
         if (!f || value === undefined || value === null) return false;
         f.value = value;
         f.dispatchEvent(new Event('change', { bubbles: true }));
+        f.classList.add('is-filled');
+        f.addEventListener('input', () => f.classList.remove('is-filled'), { once: true });
         return true;
       };
 
@@ -1567,8 +1581,33 @@
         ${res.heard.length ? `<div class="vo__heard"><b>فُهم:</b><ul>${
           res.heard.map((h) => `<li>${esc(h)}</li>`).join('')}</ul></div>` : ''}
         ${res.missing.length ? `<div class="vo__missing"><b>لم يُذكر — اسأل عنه:</b><ul>${
-          res.missing.map((m) => `<li>${esc(m.why)}</li>`).join('')}</ul></div>` : ''}
+          res.missing.map((m) => `<li>${esc(m.why)}${m.hint
+            ? ` <button type="button" class="chip chip--yes" data-fix="${esc(m.field)}"
+                 data-val="${esc(m.hint)}" data-from="${esc(m.hintFrom || '')}">ضع «${esc(m.hint)}»</button>` : ''}</li>`).join('')}</ul></div>` : ''}
         ${!res.heard.length ? '<p class="vo__none">لم يُفهم شيء من هذا النصّ. اكتب الحقول بيدك.</p>' : ''}`;
+
+      /* الاقتراح لا يُطبَّق إلّا بضغطة الموظّف. والمحافظة تُضبط قبل المنطقة،
+         وإلّا كانت قائمة المناطق فارغةً فلا يقع الاختيار. */
+      for (const b of voOut.querySelectorAll('[data-fix]')) {
+        b.addEventListener('click', () => {
+          /* المحافظة تُعكس من `meta.areas` الموجودة أصلًا، فلا تُضاف خريطة
+             ثانية إلى الواجهة البرمجية تفترق عن الأولى يوم تُعدَّل. */
+          const govName = Object.keys(state.meta.areas || {})
+            .find((g) => state.meta.areas[g].includes(b.dataset.val));
+          const isDrop = b.dataset.fix.startsWith('dropoff');
+          if (govName) set(isDrop ? 'dropoff_governorate' : 'governorate', govName);
+          set(b.dataset.fix, b.dataset.val);
+
+          /* الكلمة المخطئة كانت قد سقطت في «الشارع» لأنها لم تُعرف منطقةً،
+             فتخرج منه الآن — وإلّا صار العنوان «السالمية، السالمي». */
+          const street = document.querySelector(`#orderForm [name="${isDrop ? 'dropoff' : 'pickup'}_street"]`);
+          if (b.dataset.from && street) {
+            const left = street.value.replace(b.dataset.from, '').replace(/\s+/g, ' ').trim();
+            if (left !== street.value) set(`${isDrop ? 'dropoff' : 'pickup'}_street`, left);
+          }
+          b.closest('li').remove();
+        });
+      }
     }
 
     const voAuto = document.getElementById('voAuto');

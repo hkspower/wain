@@ -729,3 +729,25 @@ tbody tr:hover { background: #fbfdfe; }
   body.is-typing .tabbar { display: none; }
   body.is-typing { padding-bottom: 0; }
 }
+
+/* ---- تغذية راجعة: ما ملأه الوكيل، وما يقترحه ---- */
+/* الحقل المملوء آليًّا يُعلَّم حتى تقع عليه عين المراجع، ثم تزول العلامة
+   عند أول تعديل يدويّ: صار الحقل حينها حقلَه هو. */
+.is-filled { border-color: var(--teal-600) !important; background: var(--teal-50) !important; }
+.field:has(.is-filled) > span { display: flex; align-items: center; gap: .35rem; flex-wrap: nowrap; }
+.field:has(.is-filled) > span::after {
+  content: "آليًّا"; font-size: .66rem; font-weight: 700; white-space: nowrap;
+  color: var(--teal-700); background: var(--teal-100); border-radius: 3px; padding: .05rem .3rem;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .is-filled { animation: filledIn .5s var(--ease); }
+  @keyframes filledIn { from { background: var(--orange-100); } }
+}
+
+/* الاقتراح زرّ يُضغط، لا قيمة طُبّقت */
+.chip--yes {
+  cursor: pointer; border-color: var(--teal-600); color: var(--teal-700);
+  background: var(--teal-50); font-weight: 700;
+}
+.chip--yes:hover { background: var(--teal-100); }
+.vo__missing .chip--yes { font-size: .76rem; padding: .1rem .45rem; vertical-align: middle; }
