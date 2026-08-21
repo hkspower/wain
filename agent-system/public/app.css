@@ -751,3 +751,48 @@ tbody tr:hover { background: #fbfdfe; }
 }
 .chip--yes:hover { background: var(--teal-100); }
 .vo__missing .chip--yes { font-size: .76rem; padding: .1rem .45rem; vertical-align: middle; }
+
+/* ------------------------ تنسيق سطح الوكيل ------------------------ */
+
+/* عمودان على العريض: النصّ يمينًا وما فُهم منه يسارَه. المراجعة مقارنة بين
+   الاثنين، فوضعُهما فوق بعض يُصعّد المراجع وينزّله ويدفع النموذج خارج الشاشة. */
+.vo__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1.1rem; align-items: start; }
+/* وقبل اللصق لا شيء في العمود الثاني، فيبقى الصندوق على العرض كلّه بدل
+   أن يجلس في نصفه ونصفُه الآخر فراغ. */
+.vo__grid:has(.vo__out:empty) { grid-template-columns: 1fr; }
+.vo__in .field { margin-bottom: .6rem; }
+.vo__out:empty { display: none; }
+@media (max-width: 720px) { .vo__grid { grid-template-columns: 1fr; } }
+
+/* لوحتا «فُهم» و«لم يُذكر» تبدآن مع أعلى الصندوق لا تحته */
+.vo__out .vo__heard:first-child, .vo__out .vo__missing:first-child { margin-top: 0; }
+.vo__bar { align-items: center; }
+.vo__auto { margin-inline-start: auto; }   /* العدّاد إلى طرف الصفّ لا وسطه */
+
+/* السؤال فوق جوابه */
+.ask__q {
+  margin: 0 0 .3rem; font-size: .8rem; font-weight: 600; color: var(--ink-soft);
+}
+.ask__q:empty { display: none; }
+.ask__q::before { content: "س: "; color: var(--teal-600); font-weight: 800; }
+
+/* «جارٍ» بلا كلمة تُقرأ جوابًا */
+.ask__bar-skel {
+  display: block; height: .95rem; width: min(16rem, 60%); border-radius: 4px;
+  background: linear-gradient(90deg, var(--teal-100), #fff, var(--teal-100));
+  background-size: 200% 100%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ask__bar-skel { animation: skel 1.1s linear infinite; }
+  @keyframes skel { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+}
+
+/* البطاقات داخل الجواب تملأ العرض بدل عمود واحد وفراغٍ إلى جانبه */
+/* عرض العمود يُختار على قدر ما تحمله البطاقة: أضيق منه يلتفّ السطر مرارًا
+   فيطول الجواب، وأوسع منه يمتدّ سطرٌ قصير على عرض الشاشة كلّه. */
+.ask__answer .orders { grid-template-columns: repeat(auto-fill, minmax(26rem, 1fr)); }
+.ask__agents { grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); }
+
+/* الجواب: الجملة سطرٌ قائد، وما تحته بيانات */
+.ask__answer { padding: .9rem 1.05rem; }
+.ask__answer.is-loading { background: var(--card); }

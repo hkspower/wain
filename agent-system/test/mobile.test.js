@@ -110,3 +110,28 @@ test('لا حقل مرئي بقياس أصغر من العتبة في التنس
   assert.deepEqual(smaller.map((m) => m[1]), [],
     'قاعدة بعد استعلام اللمس تعيد حقلًا إلى ما دون ١٦ بكسل');
 });
+
+/* --------------------------- تنسيق سطح الوكيل --------------------------- */
+
+test('صندوق اللصق عمودان على العريض وعمود على الضيّق', () => {
+  const css = read('app.css');
+  assert.match(css, /\.vo__grid \{[^}]*grid-template-columns:\s*1fr 1fr/, 'لا عمودين على العريض');
+  assert.match(css, /@media \(max-width: 720px\) \{ \.vo__grid \{ grid-template-columns: 1fr; \} \}/,
+    'لا يعود عمودًا واحدًا على الضيّق');
+  /* وقبل اللصق لا شيء في العمود الثاني، فلا يجلس الصندوق في نصف البطاقة */
+  assert.match(css, /\.vo__grid:has\(\.vo__out:empty\) \{ grid-template-columns: 1fr; \}/,
+    'الصندوق يبقى نصفًا قبل اللصق');
+});
+
+test('بطاقات الجواب تملأ العرض بأعمدة لا بعمود واحد', () => {
+  const css = read('app.css');
+  assert.match(css, /\.ask__answer \.orders \{ grid-template-columns: repeat\(auto-fill, minmax\(/, 'طلبات الجواب عمود واحد');
+  assert.match(css, /\.ask__agents \{ grid-template-columns: repeat\(auto-fill, minmax\(/, 'كباتن الجواب عمود واحد');
+});
+
+test('السؤال يظهر فوق جوابه، وصفّ رقائق واحد لا صفّان', () => {
+  const js = read('app.js');
+  assert.match(js, /class="ask__q"/, 'الجواب بلا سؤاله');
+  assert.match(js, /r\.asked = text/, 'السؤال لا يُحفظ مع الجواب');
+  assert.match(js, /chips\.hidden = !!out\.querySelector\('\.ask__chips'\)/, 'صفّا رقائق معًا');
+});

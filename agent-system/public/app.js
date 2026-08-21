@@ -371,7 +371,10 @@
       const acts = (r.actions || []).map((a) => `<a class="btn btn--sm ${a.primary ? 'btn--primary' : 'btn--ghost'}"
         href="${esc(a.href)}"${a.carry ? ` data-carry="${esc(a.carry)}"` : ''}>${esc(a.label)}</a>`).join('');
 
+      /* السؤال يبقى فوق جوابه: بعد ضغط اقتراح أو رقاقة يتغيّر السؤال بلا أن
+         يكتبه أحد، فلولا عرضُه لقرأ الموظّف جوابًا لا يعرف عمّ هو. */
       return `<div class="ask__answer${r.understood ? '' : ' is-unknown'}">
+        <p class="ask__q">${esc(r.asked || '')}</p>
         <p class="ask__say">${esc(r.say)}</p>
         ${body.join('')}
         ${acts ? `<div class="ask__acts">${acts}</div>` : ''}
@@ -379,10 +382,15 @@
     }
 
     async function run(text) {
-      out.innerHTML = '<div class="ask__answer"><p class="ask__say">…</p></div>';
+      /* «…» في مكان الجواب تُقرأ جوابًا. الهيكل يقول «جارٍ» بلا كلمة */
+      out.innerHTML = `<div class="ask__answer is-loading">
+        <p class="ask__q">${esc(text)}</p><span class="ask__bar-skel"></span></div>`;
       try {
         const r = await api('/agent/ask', { method: 'POST', body: { text } });
+        r.asked = text;
         out.innerHTML = answerHTML(r);
+        /* صفّ رقائق واحد لا صفّان: رقائق الجواب أقرب إلى العين وأخصّ بالسياق */
+        chips.hidden = !!out.querySelector('.ask__chips');
         /* «افتح النموذج مملوءًا» يحمل النصّ معه، فيُقرأ هناك ويُراجَع ويُنشأ
            بالمسار المعتاد — ولا يصير للإنشاء بابان. */
         const carry = out.querySelector('[data-carry]');
@@ -1384,24 +1392,31 @@
             <p>ألصق كلام الزبون كما وصلك — أو تكلّم به — فتُملأ الحقول تحت وحدها.
                <b>راجعها قبل الإنشاء</b>: الوكيل يقترح ولا ينشئ.</p>
           </div>
-          <label class="field field--full">
-            <span>نصّ الطلب</span>
-            <textarea id="voText" rows="5" placeholder="الاسم: منى الصباح
+          <!-- عمودان على الشاشة العريضة: النصّ الملصوق يمينًا وما فُهم منه
+               يسارَه. والمراجعة مقارنة بين الاثنين، فوضعُهما فوق بعض يجعل
+               المراجع يصعد وينزل بينهما، ويدفع النموذج نفسه خارج الشاشة. -->
+          <div class="vo__grid">
+            <div class="vo__in">
+              <label class="field field--full">
+                <span>نصّ الطلب</span>
+                <textarea id="voText" rows="5" placeholder="الاسم: منى الصباح
 الهاتف: ٩٩٨٨٧٧٦٦
 الاستلام: السالمية ق٤ ش سالم المبارك
 التسليم: الفحيحيل ق٧
 المبلغ: ١٢٫٥٠٠
 
 — أو بلا عناوين: «من السالمية قطعة ٤ إلى الفحيحيل قطعة ٧»"></textarea>
-          </label>
-          <div class="vo__bar">
-            <button type="button" class="btn btn--primary" id="voMic" hidden>
-              <span id="voMicLabel">تكلّم بالطلب</span>
-            </button>
-            <button type="button" class="btn btn--quiet" id="voClear">امسح</button>
-            <span class="vo__auto" id="voAuto"></span>
+              </label>
+              <div class="vo__bar">
+                <button type="button" class="btn btn--primary" id="voMic" hidden>
+                  <span id="voMicLabel">تكلّم بالطلب</span>
+                </button>
+                <button type="button" class="btn btn--quiet" id="voClear">امسح</button>
+                <span class="vo__auto" id="voAuto"></span>
+              </div>
+            </div>
+            <div id="voOut" class="vo__out"></div>
           </div>
-          <div id="voOut"></div>
         </div>
       </div>
 
