@@ -76,9 +76,10 @@ if (!existsSync(join(ROOT, "out", "index.html"))) {
   failed += 1;
 } else {
   const stop = await serve(PORT);
-  failed += (await run("node", ["tests/order-flow.test.mjs"], {
-    env: { ...process.env, WAIN_URL: `http://localhost:${PORT}` },
-  })) === 0 ? 0 : 1;
+  const env = { ...process.env, WAIN_URL: `http://localhost:${PORT}` };
+  failed += (await run("node", ["tests/order-flow.test.mjs"], { env })) === 0 ? 0 : 1;
+  console.log("\n════ طلباتي — tracking ════");
+  failed += (await run("node", ["tests/order-tracking.test.mjs"], { env })) === 0 ? 0 : 1;
   stop();
 }
 

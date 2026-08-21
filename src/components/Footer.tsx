@@ -1,4 +1,5 @@
 import Link from "next/link";
+import OrdersLink from "@/components/OrdersLink";
 import WainLogo from "@/components/WainLogo";
 import { categories } from "@/lib/places";
 
@@ -58,6 +59,8 @@ export default function Footer() {
                   </span>
                 </Link>
               </li>
+              {/* Shows up only on a device that has an order in flight. */}
+              <OrdersLink />
               <li>
                 <Link href="/about" className="inline-flex min-h-11 items-center text-sm text-ink-500 transition hover:text-coral-700">
                   عن وين

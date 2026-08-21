@@ -64,7 +64,11 @@ export default function Orders({ onCountChange }: { onCountChange?: (n: number) 
     if (!sb) { setError("لوحة التحكّم غير مربوطة بقاعدة بيانات."); setLoading(false); return; }
     const { data, error: e } = await sb
       .from("orders")
-      .select("*")
+      // Named columns, not *: track_token is the customer's key to their own
+      // order and the queue has no use for it, so it never leaves the database.
+      .select(
+        "id,status,place_slug,place_name_ar,lines,total_fils,pickup_at,customer_name,customer_phone,note_ar,created_at"
+      )
       .order("created_at", { ascending: false })
       .limit(200);
     if (e) setError(`ما قدرنا نقرأ الطلبات: ${e.message}`);

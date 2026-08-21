@@ -311,7 +311,16 @@ create policy "admins delete submissions"
 -- customer must never be able to read another's phone number back out.
 -- ---------------------------------------------------------------------------
 create table if not exists public.orders (
-  id             uuid primary key default gen_random_uuid(),
+  -- Supplied by the client, not defaulted here. Anon has no SELECT policy, and
+  -- PostgreSQL checks the SELECT policy on any row an INSERT ... RETURNING
+  -- hands back — so asking the database for the id it just generated made the
+  -- whole insert roll back, and no order could ever be placed. The customer
+  -- brings its own id and keeps it.
+  id             uuid primary key,
+  -- The customer's proof that this order is theirs. Unguessable, generated on
+  -- their device, never shown to anyone else, and the only thing that lets
+  -- them read the order back through order_status() below.
+  track_token    text not null check (length(track_token) between 20 and 64),
   status         text not null default 'placed'
                    check (status in ('placed','ready','collected','cancelled')),
 
@@ -335,6 +344,11 @@ create table if not exists public.orders (
   note_ar        text not null default '' check (length(note_ar) <= 200),
 
   admin_note     text not null default '',
+  -- When each step happened, so the customer sees "جاهز من ٥ دقايق" rather
+  -- than a status with no history behind it.
+  ready_at       timestamptz,
+  collected_at   timestamptz,
+  cancelled_at   timestamptz,
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
@@ -344,13 +358,46 @@ create index if not exists orders_status_idx on public.orders (status, created_a
 
 alter table public.orders enable row level security;
 
+-- Supabase's default privileges normally hand anon and authenticated a grant
+-- on every new table in public, and everything above quietly depends on that.
+-- Saying it here as well costs nothing and makes this file work on a project
+-- where those defaults were tightened. A grant only opens the door; the
+-- policies above are still the whole of the authorization.
+grant select                         on public.places      to anon, authenticated;
+grant select, insert, update, delete on public.places      to authenticated;
+grant select                         on public.admins      to authenticated;
+grant insert                         on public.submissions to anon, authenticated;
+grant select,         update, delete on public.submissions to authenticated;
+grant insert                         on public.orders      to anon, authenticated;
+grant select,         update         on public.orders      to authenticated;
+
+-- Upgrading a database created before tracking. The column arrives with an
+-- empty default, which the length CHECK would reject, so existing rows are
+-- given a real token first and the constraint is applied after — in that
+-- order, or the ALTER fails on its own default.
+alter table public.orders
+  add column if not exists track_token  text not null default '',
+  add column if not exists ready_at     timestamptz,
+  add column if not exists collected_at timestamptz,
+  add column if not exists cancelled_at timestamptz;
+update public.orders set track_token = md5(random()::text || clock_timestamp()::text || id::text)
+  where length(track_token) < 20;
+alter table public.orders drop constraint if exists orders_track_token_check;
+alter table public.orders add constraint orders_track_token_check
+  check (length(track_token) between 20 and 64);
+-- The id is supplied by the client now; a leftover default is harmless but
+-- misleading about where it comes from.
+alter table public.orders alter column id drop default;
+
+
 drop policy if exists "anyone may place an order" on public.orders;
 create policy "anyone may place an order"
   on public.orders for insert
   to anon, authenticated
   -- A new order is 'placed' and nothing else: without this an anon caller
   -- could insert a row already marked collected.
-  with check (status = 'placed' and admin_note = '');
+  with check (status = 'placed' and admin_note = ''
+              and ready_at is null and collected_at is null and cancelled_at is null);
 
 drop policy if exists "admins read every order" on public.orders;
 create policy "admins read every order"
@@ -368,6 +415,72 @@ create policy "admins update orders"
 drop trigger if exists orders_touch on public.orders;
 create trigger orders_touch before update on public.orders
   for each row execute function public.touch_updated_at();
+
+-- The moment a status changes is recorded here rather than trusted from
+-- whoever sent the update.
+create or replace function public.stamp_order_status() returns trigger
+  language plpgsql as $$
+begin
+  if new.status is distinct from old.status then
+    if new.status = 'ready'     then new.ready_at     := now(); end if;
+    if new.status = 'collected' then new.collected_at := now(); end if;
+    if new.status = 'cancelled' then new.cancelled_at := now(); end if;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists orders_stamp on public.orders;
+create trigger orders_stamp before update on public.orders
+  for each row execute function public.stamp_order_status();
+
+-- ---------------------------------------------------------------------------
+-- Order tracking
+--
+-- The customer must be able to see their own order and nobody else's, without
+-- an account and without opening the table up. So SELECT stays admin-only and
+-- this function reaches past it — but only for someone holding both the id and
+-- the token that were generated on their device when they placed the order.
+--
+-- It returns the state of the order and nothing that identifies the customer:
+-- name and phone are deliberately absent, so even a leaked token discloses
+-- only what the holder already knew.
+--
+-- search_path is pinned because a security definer function that resolves
+-- names through the caller's search_path is a privilege escalation waiting to
+-- happen.
+-- ---------------------------------------------------------------------------
+create or replace function public.order_status(p_id uuid, p_token text)
+  returns table (
+    status text,
+    place_slug text,
+    place_name_ar text,
+    lines jsonb,
+    total_fils integer,
+    pickup_at text,
+    note_ar text,
+    created_at timestamptz,
+    ready_at timestamptz,
+    collected_at timestamptz,
+    cancelled_at timestamptz
+  )
+  language sql
+  security definer
+  set search_path = public, pg_temp
+  stable
+as $$
+  select o.status, o.place_slug, o.place_name_ar, o.lines, o.total_fils,
+         o.pickup_at, o.note_ar, o.created_at, o.ready_at, o.collected_at,
+         o.cancelled_at
+  from public.orders o
+  where o.id = p_id
+    -- Constant-time-ish comparison is overkill for a 32-character random
+    -- token, but an exact match on both columns is the whole check.
+    and o.track_token = p_token
+  limit 1;
+$$;
+
+revoke all on function public.order_status(uuid, text) from public;
+grant execute on function public.order_status(uuid, text) to anon, authenticated;
 
 -- Business media — logos and photos
 --

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconCompass, IconHome, IconSearch } from "@/components/icons";
+import { IconBag, IconCompass, IconHome, IconSearch } from "@/components/icons";
+import { useOrderCount } from "@/components/OrdersLink";
 import { haptic } from "@/lib/haptics";
 
 const TABS = [
@@ -10,6 +11,8 @@ const TABS = [
   { href: "/explore", label: "استكشف", icon: IconCompass, exact: false },
   { href: "/search", label: "بحث", icon: IconSearch, exact: false },
 ];
+
+const ORDERS_TAB = { href: "/orders", label: "طلباتي", icon: IconBag, exact: false };
 
 /**
  * The app version's bottom navigation.
@@ -22,14 +25,18 @@ const TABS = [
  */
 export default function AppTabBar() {
   const pathname = usePathname();
+  // The orders tab exists only while this device has an order to look at, so
+  // the bar is three tabs for most people and four for someone mid-errand.
+  const orderCount = useOrderCount();
+  const tabs = orderCount > 0 ? [...TABS, ORDERS_TAB] : TABS;
 
   return (
     <nav
       aria-label="تنقّل التطبيق"
       className="app-chrome fixed inset-x-0 bottom-0 z-50 hidden border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur standalone:block"
     >
-      <div className="mx-auto grid max-w-md grid-cols-3">
-        {TABS.map(({ href, label, icon: Icon, exact }) => {
+      <div className={`mx-auto grid max-w-md ${tabs.length === 4 ? "grid-cols-4" : "grid-cols-3"}`}>
+        {tabs.map(({ href, label, icon: Icon, exact }) => {
           const active = exact ? pathname === href : pathname.startsWith(href);
           return (
             <Link

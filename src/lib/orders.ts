@@ -107,6 +107,126 @@ export function pickupSlots(from: Date, count = 8): { value: string; labelAr: st
   return out;
 }
 
+/**
+ * The order's id and the secret that proves it is yours.
+ *
+ * Both are made here, on the customer's device, and that is not a stylistic
+ * choice. Anon has no SELECT policy on orders, and PostgreSQL checks the
+ * SELECT policy on any row an `INSERT ... RETURNING` hands back — so asking
+ * the database for the id it had just generated made the entire insert roll
+ * back, and no order could be placed at all. The customer brings its own id,
+ * keeps it, and uses it with the token to read the order's state back through
+ * a function that is allowed to look.
+ */
+export function newOrderId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  // Older Safari. Only needs to be unique, not unguessable — that is the
+  // token's job.
+  const h = () => Math.floor(Math.random() * 65536).toString(16).padStart(4, "0");
+  return `${h()}${h()}-${h()}-4${h().slice(1)}-a${h().slice(1)}-${h()}${h()}${h()}`;
+}
+
+/** 32 hex characters of real randomness. The database requires 20 to 64. */
+export function newTrackToken(): string {
+  const bytes = new Uint8Array(16);
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) crypto.getRandomValues(bytes);
+  else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export type OrderStatus = "placed" | "ready" | "collected" | "cancelled";
+
+/** What the device remembers so the customer can come back to an order. */
+export interface TrackedOrder {
+  id: string;
+  token: string;
+  reference: string;
+  placeSlug: string;
+  placeNameAr: string;
+  totalFils: number;
+  pickupAt: string;
+  placedAt: string;
+}
+
+const STORE_KEY = "wain:orders";
+const KEEP = 20;
+
+export function rememberOrder(order: TrackedOrder): void {
+  try {
+    const all = [order, ...listOrders().filter((o) => o.id !== order.id)].slice(0, KEEP);
+    localStorage.setItem(STORE_KEY, JSON.stringify(all));
+  } catch {
+    /* private mode — the order is still placed, it just is not remembered */
+  }
+}
+
+export function listOrders(): TrackedOrder[] {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (o): o is TrackedOrder =>
+        !!o && typeof o.id === "string" && typeof o.token === "string" && typeof o.reference === "string"
+    );
+  } catch {
+    return [];
+  }
+}
+
+export function forgetOrder(id: string): void {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(listOrders().filter((o) => o.id !== id)));
+  } catch {
+    /* nothing to forget */
+  }
+}
+
+export interface OrderState {
+  status: OrderStatus;
+  placeSlug: string;
+  placeNameAr: string;
+  lines: OrderLine[];
+  totalFils: number;
+  pickupAt: string;
+  noteAr: string;
+  createdAt: string;
+  readyAt: string | null;
+  collectedAt: string | null;
+  cancelledAt: string | null;
+}
+
+/**
+ * The live state of one order.
+ *
+ * Goes through order_status(), which reaches past the deny-all SELECT policy
+ * but only for a caller holding both the id and the token. It returns nothing
+ * that identifies the customer — no name, no phone — so even a leaked token
+ * discloses only what its holder already knew.
+ */
+export async function fetchOrderState(id: string, token: string): Promise<OrderState | null> {
+  if (!supabaseEnabled) return null;
+  const sb = await loadSupabase();
+  if (!sb) return null;
+  const { data, error } = await sb.rpc("order_status", { p_id: id, p_token: token });
+  if (error || !Array.isArray(data) || data.length === 0) return null;
+  const r = data[0] as Record<string, unknown>;
+  return {
+    status: r.status as OrderStatus,
+    placeSlug: String(r.place_slug ?? ""),
+    placeNameAr: String(r.place_name_ar ?? ""),
+    lines: Array.isArray(r.lines) ? (r.lines as OrderLine[]) : [],
+    totalFils: Number(r.total_fils ?? 0),
+    pickupAt: String(r.pickup_at ?? ""),
+    noteAr: String(r.note_ar ?? ""),
+    createdAt: String(r.created_at ?? ""),
+    readyAt: (r.ready_at as string) ?? null,
+    collectedAt: (r.collected_at as string) ?? null,
+    cancelledAt: (r.cancelled_at as string) ?? null,
+  };
+}
+
 export interface OrderInput {
   placeSlug: string;
   placeNameAr: string;
@@ -118,7 +238,7 @@ export interface OrderInput {
 }
 
 export type OrderResult =
-  | { ok: true; reference: string }
+  | { ok: true; reference: string; tracked: TrackedOrder }
   | { ok: false; reason: "disabled" | "invalid" | "network"; message: string };
 
 /** Short, readable, and said out loud at a counter without confusion. */
@@ -165,9 +285,16 @@ export async function submitOrder(input: OrderInput): Promise<OrderResult> {
   if (!sb) return { ok: false, reason: "disabled", message: "الطلب المسبق مو متاح حالياً." };
 
   const phone = normalisePhone(input.customerPhone);
-  const { data, error } = await sb
+  const id = newOrderId();
+  const token = newTrackToken();
+  // No .select() here on purpose — see newOrderId(). Asking for the row back
+  // makes PostgreSQL apply the SELECT policy to it, and anon has none, so the
+  // insert would roll back and the order would never exist.
+  const { error } = await sb
     .from("orders")
     .insert({
+      id,
+      track_token: token,
       place_slug: input.placeSlug,
       place_name_ar: input.placeNameAr,
       // The line prices are stored as sent, so the business sees exactly what
@@ -180,11 +307,22 @@ export async function submitOrder(input: OrderInput): Promise<OrderResult> {
       customer_phone: phone,
       note_ar: input.noteAr.trim(),
       status: "placed",
-    })
-    .select("id")
-    .single();
+    });
 
-  if (!error && data) return { ok: true, reference: orderReference(String(data.id)) };
+  if (!error) {
+    const tracked: TrackedOrder = {
+      id,
+      token,
+      reference: orderReference(id),
+      placeSlug: input.placeSlug,
+      placeNameAr: input.placeNameAr,
+      totalFils: orderTotal(input.lines),
+      pickupAt: input.pickupAt,
+      placedAt: new Date().toISOString(),
+    };
+    rememberOrder(tracked);
+    return { ok: true, reference: tracked.reference, tracked };
+  }
   if (error?.code === "23514")
     return { ok: false, reason: "invalid", message: "في معلومة مو مضبوطة. راجع الطلب." };
   return {

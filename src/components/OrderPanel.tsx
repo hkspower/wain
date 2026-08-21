@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { IconCheck, IconClock, IconClose, IconCoins } from "@/components/icons";
+import Link from "next/link";
+import { IconCheck, IconClock, IconClose, IconCoins, IconGo } from "@/components/icons";
 import { fieldClass, hintClass, labelClass } from "@/lib/form-classes";
 import { haptic } from "@/lib/haptics";
 import { toArabicDigits, type Place } from "@/lib/places";
@@ -107,6 +108,19 @@ export default function OrderPanel({ place }: { place: Place }) {
           الدفع عند الاستلام في {place.nameAr}.
         </p>
         {place.orderNoteAr && <p className={hintClass}>{place.orderNoteAr}</p>}
+        {/* The device is the only thing holding this order's key, so the way
+            back to it is a link and not an account. Said here, once, while the
+            customer is still looking at the screen. */}
+        <Link
+          href="/orders"
+          className="mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-ink-900 px-4 text-sm font-semibold text-white transition hover:bg-ink-800 active:scale-[0.98]"
+        >
+          تابع طلبك
+          <IconGo className="size-4" />
+        </Link>
+        <p className="mt-2 text-xs text-ink-500">
+          تلقاه في «طلباتي» على هذا الجهاز، وتشوف فيه إذا صار جاهز.
+        </p>
       </section>
     );
   }
