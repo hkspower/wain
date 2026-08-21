@@ -278,3 +278,47 @@ test('لا عمود شبكة أعرض من الشاشة الضيّقة', () => {
   }
   assert.deepEqual(bad, [], 'عمود لا ينكمش على الشاشة الضيّقة');
 });
+
+/* --------------------------- الحواف والحدود والأوزان --------------------------- */
+
+test('الحواف من الرموز، ولا اسمَ يَعِد بما لا يعطي', () => {
+  for (const file of ['app.css', 'link.css']) {
+    const css = read(file);
+    const loose = [...css.matchAll(/border-radius:\s*([^;]+);/g)]
+      .map((m) => m[1].trim())
+      .filter((v) => v.split(/\s+/).some((part) => /^[\d.]+(px|rem)$/.test(part)));
+    assert.deepEqual(loose, [], `${file}: حافّة خارج الرموز`);
+    /* `--radius-pill` كان يعطي ٦ بكسل — اسمٌ يَعِد بكبسولة ولا يعطيها.
+       والتعليقات تُنزع: أحدها يشرح لماذا أُزيل الاسم. */
+    const code = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.ok(!code.includes('--radius-pill'), `${file}: اسم حافّة مضلِّل`);
+  }
+});
+
+test('عرض الحدود عددٌ صحيح — ‎1.5px‎ تخرج ضبابية على شاشة ١×', () => {
+  for (const file of ['app.css', 'link.css']) {
+    /* الفحص على إعلانات الحدود وحدها: ‎14.5px‎ في قياس الخطّ على الجوال
+       كسريّة عن قصد ولا علاقة لها بشبكة البكسل في الحدود. */
+    const css = read(file);
+    const loose = [...css.matchAll(/\bborder(?:-(?:top|bottom|left|right|inline|block)(?:-(?:start|end))?)?(?:-width)?:\s*([^;]+);/g)]
+      .map((m) => m[1].trim())
+      .filter((v) => /^[\d.]+px\b/.test(v));
+    assert.deepEqual(loose, [], `${file}: عرض حدّ خارج الرموز`);
+  }
+});
+
+test('الأوزان من الرموز الأربعة لا خمسة أرقام متناثرة', () => {
+  for (const file of ['app.css', 'link.css']) {
+    const loose = [...read(file).matchAll(/font-weight:\s*([^;]+);/g)]
+      .map((m) => m[1].trim())
+      /* مدى `@font-face` («100 900») ليس وزنًا بل إعلانُ محور */
+      .filter((v) => /^\d+$/.test(v));
+    assert.deepEqual(loose, [], `${file}: وزن خارج الرموز`);
+  }
+});
+
+test('العناوين ٧٠٠ لا ٨٠٠ — عيون الحروف العربية تضيق عند الأثقل', () => {
+  assert.match(read('app.css'),
+    /h1, h2, h3 \{[^}]*font-weight: var\(--w-bold\)/,
+    'العناوين رجعت إلى الأثقل');
+});

@@ -13,51 +13,51 @@
   background: var(--teal-900);
   color: #eaf6f7; padding: var(--s-3) var(--s-4);
   padding-top: calc(.8rem + env(safe-area-inset-top));
-  border-bottom: 1px solid rgba(255,255,255,.16);
+  border-bottom: var(--bw) solid rgba(255,255,255,.16);
 }
 .lk-top img { height: 30px; width: auto; display: block; }
-.lk-top__who { font-size: var(--t-sm); font-weight: 700; color: #cfe7ea; }
+.lk-top__who { font-size: var(--t-sm); font-weight: var(--w-bold); color: #cfe7ea; }
 
 .lk-main { width: min(620px, 100% - 1.6rem); margin-inline: auto; padding: var(--s-4) 0 var(--s-7); }
 
 .lk-card {
-  background: var(--card); border: 1px solid var(--line);
+  background: var(--card); border: var(--bw) solid var(--line);
   border-radius: var(--radius); padding: var(--pad-md);
   box-shadow: var(--shadow-xs); margin-bottom: var(--s-4);
 }
 
-.lk-h { font-size: var(--t-base); font-weight: 800; margin: 0 0 var(--s-1); color: var(--teal-800); }
+.lk-h { font-size: var(--t-base); font-weight: var(--w-bold); margin: 0 0 var(--s-1); color: var(--teal-800); }
 .lk-sub { font-size: var(--t-sm); color: var(--ink-mid); line-height: var(--lh-base); margin: 0 0 var(--s-3); }
 
 /* --------------------------- رأس الطلب --------------------------- */
 
 .lk-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-bottom: var(--s-3); }
-.lk-code { font-weight: 800; font-size: var(--t-md); color: var(--teal-700); letter-spacing: .02em; }
+.lk-code { font-weight: var(--w-heavy); font-size: var(--t-md); color: var(--teal-700); letter-spacing: .02em; }
 
 .lk-route { display: flex; flex-direction: column; gap: var(--s-2); margin-bottom: var(--s-4); }
 .lk-route__row { display: flex; gap: var(--s-2); align-items: flex-start; }
 .lk-route__row div { display: flex; flex-direction: column; line-height: var(--lh-base); }
-.lk-route__row b { font-size: var(--t-xs); color: var(--ink-soft); font-weight: 600; }
-.lk-route__row span { font-size: var(--t-base); font-weight: 600; }
+.lk-route__row b { font-size: var(--t-xs); color: var(--ink-soft); font-weight: var(--w-medium); }
+.lk-route__row span { font-size: var(--t-base); font-weight: var(--w-medium); }
 .lk-dot {
-  width: 11px; height: 11px; border-radius: 50%; margin-top: var(--s-2); flex: none;
-  border: 2px solid var(--teal-600);
+  width: 11px; height: 11px; border-radius: var(--radius-full); margin-top: var(--s-2); flex: none;
+  border: var(--bw-thick) solid var(--teal-600);
 }
 .lk-dot--from { background: #fff; }
 .lk-dot--to { background: var(--alert-600); border-color: var(--alert-600); }
 
 .lk-kv { display: grid; grid-template-columns: max-content 1fr; gap: var(--s-1) var(--s-4); margin: 0; }
 .lk-kv dt { color: var(--ink-soft); font-size: var(--t-xs); }
-.lk-kv dd { margin: 0; font-size: var(--t-base); font-weight: 600; }
+.lk-kv dd { margin: 0; font-size: var(--t-base); font-weight: var(--w-medium); }
 /* الهاتف جزيرة لاتينية داخل عمود عربيّ: `start` فيها يعني اليسار، فينفصل
    عن اسم صاحبه ويتدلّى في طرف السطر. يُجعل كتلةً محاذيةً لنهايته — والنهاية
    في اللاتينية اليمين، وهو ما يوازي بداية العمود العربيّ. */
-.lk-kv dd a[dir="ltr"] { display: block; text-align: end; font-weight: 700; }
-.lk-strong { color: var(--teal-700); font-weight: 800; }
+.lk-kv dd a[dir="ltr"] { display: block; text-align: end; font-weight: var(--w-bold); }
+.lk-strong { color: var(--teal-700); font-weight: var(--w-heavy); }
 
 .lk-notes {
   margin: var(--s-3) 0 0; font-size: var(--t-sm); line-height: var(--lh-base); color: var(--ink-mid);
-  border-inline-start: 2px solid var(--line-str); padding-inline-start: var(--s-3);
+  border-inline-start: var(--bw-thick) solid var(--line-str); padding-inline-start: var(--s-3);
 }
 
 /* ---------------------------- الموقع ---------------------------- */
@@ -65,9 +65,9 @@
 .lk-state {
   display: flex; align-items: center; gap: var(--s-2); font-size: var(--t-base);
   padding: var(--s-2) var(--s-3); margin-bottom: var(--s-3);
-  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--mute-bg);
+  border: var(--bw) solid var(--line); border-radius: var(--radius-sm); background: var(--mute-bg);
 }
-.lk-state__dot { width: 9px; height: 9px; border-radius: 50%; background: var(--mute-fg); flex: none; }
+.lk-state__dot { width: 9px; height: 9px; border-radius: var(--radius-full); background: var(--mute-fg); flex: none; }
 .lk-state.is-on { background: var(--ok-bg); border-color: var(--teal-600); color: var(--ok-fg); }
 .lk-state.is-on .lk-state__dot { background: var(--teal-600); animation: lkPulse 1.8s ease-out infinite; }
 
@@ -79,20 +79,20 @@
 .lk-warn {
   margin: 0; font-size: var(--t-sm); line-height: var(--lh-base);
   background: var(--warn-bg); color: var(--warn-fg);
-  border: 1px solid var(--alert-600); border-radius: var(--radius-sm); padding: var(--s-3) var(--s-3);
+  border: var(--bw) solid var(--alert-600); border-radius: var(--radius-sm); padding: var(--s-3) var(--s-3);
 }
 
 /* --------------------------- التسجيل --------------------------- */
 
 .lk-recbar {
   display: flex; align-items: center; gap: var(--s-3); font-size: var(--t-base);
-  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  border: var(--bw) solid var(--line); border-radius: var(--radius-sm);
   padding: var(--s-2) var(--s-3); background: var(--teal-50);
 }
 .lk-recbar.is-live { background: var(--bad-bg); border-color: #f3cdc7; color: var(--bad-fg); }
 .lk-recbar button { margin-inline-start: auto; }
 .lk-recdot {
-  width: 11px; height: 11px; border-radius: 50%; background: #d33a24; flex: none;
+  width: 11px; height: 11px; border-radius: var(--radius-full); background: #d33a24; flex: none;
   animation: lkPulseRed 1.2s ease-out infinite;
 }
 @keyframes lkPulseRed {
@@ -103,7 +103,7 @@
 .lk-voice { margin: var(--s-3) 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--s-1); }
 .lk-voice li {
   display: flex; align-items: center; gap: var(--s-2); font-size: var(--t-sm);
-  border: 1px dashed var(--line-str); border-radius: var(--radius-sm); padding: var(--s-2) var(--s-3);
+  border: var(--bw) dashed var(--line-str); border-radius: var(--radius-sm); padding: var(--s-2) var(--s-3);
 }
 .lk-voice .muted { margin-inline-start: auto; }
 
@@ -113,11 +113,11 @@
 .lk-out {
   display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-0);
   font-family: var(--font); text-align: start; cursor: pointer;
-  border: 1.5px solid var(--line-str); border-radius: var(--radius-sm);
+  border: var(--bw) solid var(--line-str); border-radius: var(--radius-sm);
   background: #fff; padding: var(--s-3) var(--s-4);
   transition: border-color .2s var(--ease), background .2s var(--ease);
 }
-.lk-out b { font-size: var(--t-base); font-weight: 800; line-height: var(--lh-snug); }
+.lk-out b { font-size: var(--t-base); font-weight: var(--w-bold); line-height: var(--lh-snug); }
 .lk-out span { font-size: var(--t-xs); color: var(--ink-soft); }
 .lk-out:hover { border-color: var(--teal-600); }
 .lk-out--ok.is-on   { border-color: var(--teal-600); background: var(--ok-bg); }
@@ -134,8 +134,8 @@
 .lk-card--msg p { font-size: var(--t-base); color: var(--ink-mid); margin: 0 0 var(--s-1); }
 .lk-msg__ic {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 52px; height: 52px; border-radius: 50%; font-size: var(--t-lg); font-weight: 800;
-  background: var(--bad-bg); color: var(--bad-fg); border: 2px solid currentColor;
+  width: 52px; height: 52px; border-radius: var(--radius-full); font-size: var(--t-lg); font-weight: var(--w-heavy);
+  background: var(--bad-bg); color: var(--bad-fg); border: var(--bw-thick) solid currentColor;
 }
 .lk-msg__ic--ok { background: var(--ok-bg); color: var(--ok-fg); }
 
@@ -144,8 +144,8 @@
   padding: var(--s-7) var(--s-4); color: var(--ink-soft); font-size: var(--t-base);
 }
 .lk-spin {
-  width: 16px; height: 16px; border-radius: 50%; flex: none;
-  border: 2px solid var(--line-str); border-top-color: var(--teal-600);
+  width: 16px; height: 16px; border-radius: var(--radius-full); flex: none;
+  border: var(--bw-thick) solid var(--line-str); border-top-color: var(--teal-600);
   animation: lkSpin .8s linear infinite;
 }
 @keyframes lkSpin { to { transform: rotate(360deg); } }
