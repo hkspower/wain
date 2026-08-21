@@ -94,6 +94,34 @@ void main() {
       expect(b.iterations, a.iterations);
     });
 
+    // The salt and the hash are hex strings read back from a file on the
+    // user's own disk — editable, truncatable by a full disk, and writable by
+    // an older version. Any of those can leave a valid JSON string that is not
+    // hex, and int.parse throws on the first bad pair. That throw happened
+    // inside sign-in, so one stray character made the app impossible to open
+    // rather than the account impossible to verify.
+    test('a record with unreadable hex refuses the password, and does not throw',
+        () {
+      final good = Account.create(
+          name: 'م', email: 'a@b.c', password: 'correct-horse-2026');
+      // the JSON keys are 'salt' and 'hash', not the field names — writing the
+      // field names here would have left the good values in place and tested
+      // a valid record four times over
+      for (final bad in <Map<String, dynamic>>[
+        {'salt': 'zzzz'},
+        {'hash': 'not-hex-at-all'},
+        {'salt': 'abc'},             // odd length
+        {'salt': 'gg', 'hash': 'gg'},
+      ]) {
+        final json = Map<String, dynamic>.of(good.toJson())..addAll(bad);
+        final acc = Account.fromJson(json);
+        if (acc == null) continue;   // refused at parse: also correct
+        expect(() => acc.verify('correct-horse-2026'), returnsNormally);
+        expect(acc.verify('correct-horse-2026'), isFalse,
+            reason: 'a record we cannot read must not verify anyone');
+      }
+    });
+
     test('a tampered record is refused rather than trusted', () {
       expect(Account.fromJson({'email': 'a@b.c'}), isNull); // no hash
       expect(Account.fromJson('not a map'), isNull);

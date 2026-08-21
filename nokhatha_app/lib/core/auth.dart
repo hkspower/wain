@@ -63,10 +63,23 @@ Uint8List pbkdf2({
 String _hex(List<int> bytes) =>
     bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 
+/// Decode hex, or give back nothing.
+///
+/// The salt and the hash come out of a JSON file on the user's own disk. That
+/// file can be edited, truncated by a full disk, or written by an older
+/// version — and any of those can leave a value that is a perfectly good JSON
+/// string and not hex at all. int.parse throws on the first bad pair, and this
+/// runs inside sign-in, so a single stray character in that file made the app
+/// impossible to open rather than the account impossible to verify. An empty
+/// result cannot match any derived key, so verify() answers false, which is
+/// the correct answer for a record we cannot read.
 Uint8List _unhex(String s) {
+  if (s.length.isOdd) return Uint8List(0);
   final out = Uint8List(s.length ~/ 2);
   for (var i = 0; i < out.length; i++) {
-    out[i] = int.parse(s.substring(i * 2, i * 2 + 2), radix: 16);
+    final byte = int.tryParse(s.substring(i * 2, i * 2 + 2), radix: 16);
+    if (byte == null) return Uint8List(0);
+    out[i] = byte;
   }
   return out;
 }

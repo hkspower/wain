@@ -30,6 +30,28 @@ void main() {
       expect(RegExp(r'^[0-9,.−+]+$').hasMatch(formatKwd(1234567)), isTrue);
     });
 
+    // Found by auditing for crashes rather than by a report: the field's
+    // formatter allows digits and nothing capped the count, so twenty of them
+    // reached int.parse, which throws past 2^63 — inside a validator, while
+    // the person is still typing. Not tampering, not a strange input: leaning
+    // on a key.
+    test('a number too long for an int is refused, not thrown', () {
+      expect(parseKwdToFils('9' * 19), isNull);
+      expect(parseKwdToFils('9' * 40), isNull);
+      expect(parseKwdToFils('٩' * 25), isNull, reason: 'Arabic-Indic too');
+      expect(parseKwdToFils('-' + '9' * 30), isNull);
+      expect(parseKwdToFils('9' * 19 + '.500'), isNull);
+    });
+
+    test('an amount that would wrap past 64 bits is refused', () {
+      // 1e12 dinars is the ceiling; a dinar over it must not come back as a
+      // negative number, which is what the multiplication used to produce
+      final ok = parseKwdToFils('1000000000000');
+      expect(ok, isNotNull);
+      expect(ok! > 0, isTrue);
+      expect(parseKwdToFils('1000000000001'), isNull);
+    });
+
     test('parses what an Arabic keyboard actually produces', () {
       expect(parseKwdToFils('12.500'), 12500);
       expect(parseKwdToFils('12'), 12000);

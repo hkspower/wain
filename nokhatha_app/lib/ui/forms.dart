@@ -38,6 +38,10 @@ class MoneyField extends StatelessWidget {
           // Arabic-Indic digits are allowed through: an Arabic keyboard emits
           // them, and parseKwdToFils understands them.
           FilteringTextInputFormatter.allow(RegExp(r'[0-9٠-٩.,٫]')),
+          // The parser refuses anything past kMaxKwd rather than throwing, so
+          // this is not what keeps the app up — it just stops a person typing
+          // a number that can only ever be rejected.
+          LengthLimitingTextInputFormatter(18),
         ],
         decoration: InputDecoration(
             labelText: label, border: const OutlineInputBorder()),
@@ -100,7 +104,10 @@ Future<void> showAddHolding(BuildContext context, Store store) async {
               controller: qty,
               textDirection: TextDirection.ltr,
               keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9٠-٩]'))],
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9٠-٩]')),
+                LengthLimitingTextInputFormatter(12),
+              ],
               decoration: const InputDecoration(
                   labelText: 'الكمية', border: OutlineInputBorder()),
               validator: (v) {
