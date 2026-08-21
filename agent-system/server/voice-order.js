@@ -204,6 +204,87 @@ function findPriority(normText) {
 
 /* ------------------------------ القراءة ------------------------------ */
 
+/* ------------------------- السطور المعنونة ------------------------- */
+
+/**
+ * الطلب يصل ملصوقًا من واتساب في سطور معنونة أكثر ممّا يصل جملةً واحدة:
+ *
+ *     الاسم: منى الصباح
+ *     الهاتف: ٩٩٨٨٧٧٦٦
+ *     الاستلام: السالمية ق٤ ش سالم المبارك
+ *     المبلغ: ١٢٫٥٠٠
+ *
+ * والعنوان أوثق من أي استنتاج: من كتب «الاسم:» قال ما بعدها اسمٌ صراحةً.
+ * فتُقرأ السطور المعنونة أولًا، ويبقى الاستنتاج الحرّ لما لم يُعنون.
+ *
+ * لكنّ العنوان **لا يتخطّى التحقّق**: «الهاتف: ٤» عنوانٌ صريح وقيمةٌ ليست
+ * هاتفًا، فتُهمل. العنوان يقترح، والمدقّق يحكم.
+ */
+const LABELS = [
+  ['customer_name', ['الاسم', 'اسم العميل', 'اسم الزبون', 'العميل', 'الزبون', 'المستلم']],
+  ['customer_phone', ['الهاتف', 'التلفون', 'الجوال', 'الموبايل', 'رقم العميل', 'الرقم', 'رقم']],
+  ['pickup', ['الاستلام', 'موقع الاستلام', 'عنوان الاستلام', 'من', 'الاستقبال', 'المصدر']],
+  ['dropoff', ['التسليم', 'موقع التسليم', 'عنوان التسليم', 'الى', 'التوصيل', 'الوجهه', 'العنوان']],
+  ['cod_amount', ['المبلغ', 'التحصيل', 'المبلغ المطلوب تحصيله', 'المطلوب تحصيله', 'قيمه الطلب', 'المبلغ المطلوب']],
+  ['delivery_fee', ['رسوم التوصيل', 'الرسوم', 'اجره التوصيل', 'الاجره', 'التوصيله']],
+  ['notes', ['ملاحظات', 'ملاحظه', 'الملاحظات', 'تفاصيل', 'التفاصيل']],
+  ['vehicle', ['المركبه', 'نوع المركبه', 'السياره']],
+  ['priority', ['الاولويه', 'الاستعجال']],
+];
+
+/** يقسم النصّ إلى `{ عنوان: قيمة }` وما بقي بلا عنوان */
+function splitLabelled(text) {
+  const found = {};
+  const rest = [];
+  /* السطر، أو ما بين فاصلتين — الملصوق يأتي بالسطور وبالفواصل معًا */
+  for (const piece of String(text).split(/[\n\r]+|(?<=\S)\s*[،,]\s*(?=[^\s:،,]{2,12}\s*:)/)) {
+    const m = piece.match(/^\s*([^:：\n]{2,24})\s*[:：]\s*(.+)$/);
+    if (!m) { rest.push(piece); continue; }
+    const key = ar.normalize(m[1]).trim().toLowerCase().replace(/^ال(?=.{3})/, 'ال');
+    const hit = LABELS.find(([, names]) => names.some((n) => ar.normalize(n).toLowerCase() === key));
+    if (!hit) { rest.push(piece); continue; }
+    if (found[hit[0]] === undefined) found[hit[0]] = m[2].trim();
+    else rest.push(piece);
+  }
+  return { found, rest: rest.join('\n') };
+}
+
+/** يقرأ مبلغًا بالدينار — «١٢٫٥٠٠» و«12.5» و«٣ د.ك» سواء */
+function readMoney(text) {
+  const m = ar.toLatin(String(text || '')).match(/-?\d+(?:\.\d+)?/);
+  if (!m) return null;
+  const n = Number(m[0]);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/**
+ * يقرأ عنوانًا مكتوبًا في سطر واحد: «السالمية ق٤ ش سالم المبارك».
+ * ما ليس منطقةً ولا قطعةً هو الشارع والمبنى — لا تُحصر أسماء الشوارع.
+ */
+function parseAddressValue(value) {
+  const text = String(value || '');
+  const norm = ar.normalize(text).toLowerCase().replace(/\s+/g, ' ');
+  const hit = findAreas(norm)[0] || null;
+
+  /* «قطعة ٤» و«ق٤» و«ق ٤» — والاختصار شائع في الملصوق */
+  const bm = norm.match(/(?:قطعه|ق)\s*[.:]?\s*(\S+(?:\s+\S+)?)/);
+  const block = bm ? readNumber(bm[1]) : null;
+
+  /* الشارع = ما بقي بعد نزع اسم المنطقة وعبارة القطعة */
+  let street = text;
+  if (hit) {
+    const at = norm.indexOf(ar.normalize(hit.name).toLowerCase());
+    if (at >= 0) street = street.slice(0, at) + ' ' + street.slice(at + hit.name.length);
+  }
+  street = street
+    .replace(/(?:قطعه|قطعة|ق)\s*[.:]?\s*[٠-٩0-9]+/g, ' ')
+    .replace(/^[\s،,.\-–—]+|[\s،,.\-–—]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return { area: hit?.name || null, block, street: street.length >= 2 ? street : null };
+}
+
 const FROM_WORDS = ['من'];
 const TO_WORDS = ['الى', 'ل', 'لين', 'حق', 'عند'];
 
@@ -244,7 +325,11 @@ function parseOrder(transcript) {
     };
   }
 
-  const norm = ar.normalize(text).toLowerCase().replace(/[،,.؟?!]/g, ' ').replace(/\s+/g, ' ');
+  /* المعنون أولًا، ثمّ الاستنتاج الحرّ على ما بقي بلا عنوان */
+  const { found, rest } = splitLabelled(text);
+  const free = found.pickup !== undefined || found.dropoff !== undefined ? rest : text;
+
+  const norm = ar.normalize(free).toLowerCase().replace(/[،,.؟?!]/g, ' ').replace(/\s+/g, ' ');
   const areas = findAreas(norm);
 
   /* الاتجاه من كلمة «من»/«إلى» قبل المنطقة. وبلا كلمات: الأولى استلام
@@ -254,22 +339,30 @@ function parseOrder(transcript) {
   for (let i = 0; i < areas.length; i++) {
     const dir = directionBefore(norm, areas[i].at);
     const block = blockNear(norm, areas[i].at, areas[i + 1]?.at);
-    const entry = { area: areas[i].name, block };
+    const entry = { area: areas[i].name, block, street: null };
     if (dir === 'from' && !pickup) pickup = entry;
     else if (dir === 'to' && !dropoff) dropoff = entry;
     else if (!pickup) pickup = entry;
     else if (!dropoff) dropoff = entry;
   }
 
+  /* العنوان الصريح يغلب المستنتج */
+  if (found.pickup !== undefined) pickup = parseAddressValue(found.pickup);
+  if (found.dropoff !== undefined) dropoff = parseAddressValue(found.dropoff);
+
   const fields = {};
   const heard = [];
   const missing = [];
 
-  const name = findName(text);
+  const name = found.customer_name || findName(text);
   if (name) { fields.customer_name = name; heard.push(`الاسم: ${name}`); }
   else missing.push({ field: 'customer_name', why: 'لم يُذكر اسم الزبون' });
 
-  const phone = findPhone(text);
+  /* العنوان يقترح والمدقّق يحكم: «الهاتف: ٤» عنوانٌ صريح وقيمةٌ ليست هاتفًا،
+     فتُهمل ولا تُملأ. ولا يُبحث عن هاتف في النصّ كلّه إلّا إن لم يُعنون. */
+  const phone = found.customer_phone !== undefined
+    ? findPhone(found.customer_phone)
+    : findPhone(text);
   /* الهاتف يُعلَّم يسارَ الاتجاه، وإلّا قفزت «+» إلى آخر الرقم في سطر عربي */
   if (phone) { fields.customer_phone = phone; heard.push(`الهاتف: ${ar.ltr(ar.digits(phone))}`); }
   else missing.push({ field: 'customer_phone', why: 'لم يُذكر رقم هاتف كويتي واضح' });
@@ -282,6 +375,19 @@ function parseOrder(transcript) {
       missing.push({ field: `${prefix}_area`, why: `لم تُذكر منطقة ${label} بين مناطق الكويت` });
       continue;
     }
+
+    /* سطرٌ معنون بمنطقة لا تُعرف. الشارع يُحفظ — فيه معلومة — أمّا المنطقة
+       فتبقى فارغة ويُقال ذلك: أسوأ ما يقع أن يمرّ سطرٌ كُتب فيه مكانٌ ولم
+       يُفهم، فلا يُملأ حقلٌ ولا يُنبَّه أحد. */
+    if (!got.area) {
+      if (got.street) { fields[`${prefix}_street`] = got.street; heard.push(`شارع ${label}: ${got.street}`); }
+      missing.push({
+        field: `${prefix}_area`,
+        why: `منطقة ${label} غير معروفة — «${String(found[side] || '').trim()}» ليست من مناطق الكويت`,
+      });
+      continue;
+    }
+
     fields[`${prefix}_area`] = got.area;
     const gov = AREA.AREA_TO_GOV[got.area];
     if (side === 'pickup') fields.governorate = gov;
@@ -301,15 +407,43 @@ function parseOrder(transcript) {
         missing.push({ field: `${prefix}_block`, why: read.message });
       }
     }
+
+    if (got.street) {
+      fields[`${prefix}_street`] = got.street;
+      heard.push(`شارع ${label}: ${got.street}`);
+    }
   }
 
-  const vehicle = findVehicle(norm);
+  /* المبالغ لا تُلتقط إلّا معنونةً.
+     في «قطعة ٤ شارع ١٢» ثلاثة أرقام لا علاقة لها بالمال، وأيّها اخترتُ
+     كمبلغٍ كنتُ مخطئًا. وخطأ المال يُصرف من جيب أحدهم قبل أن ينتبه له
+     أحد — بخلاف خطأ العنوان الذي يظهر ساعة التسليم. فلا تخمين هنا. */
+  for (const [key, label, hint] of [
+    ['cod_amount', 'المبلغ المطلوب تحصيله', 'المبلغ'],
+    ['delivery_fee', 'رسوم التوصيل', 'الرسوم'],
+  ]) {
+    if (found[key] === undefined) continue;
+    const money = readMoney(found[key]);
+    if (money === null) {
+      missing.push({ field: key, why: `«${hint}» مكتوب ولم يُفهم منه مبلغ` });
+      continue;
+    }
+    fields[key] = money;
+    heard.push(`${label}: ${ar.money ? ar.money(money) : ar.digits(money)}`);
+  }
+
+  if (found.notes) { fields.notes = found.notes; heard.push(`ملاحظات: ${found.notes}`); }
+
+  const vehicle = found.vehicle ? findVehicle(ar.normalize(found.vehicle).toLowerCase()) : findVehicle(norm);
   if (vehicle) { fields.vehicle = vehicle; heard.push(`المركبة: ${D.VEHICLES[vehicle]}`); }
 
-  const priority = findPriority(norm);
+  const priority = findPriority(ar.normalize(text).toLowerCase());
   if (priority) { fields.priority = priority; heard.push(`الأولوية: ${D.PRIORITIES[priority]}`); }
 
   return { transcript: text, fields, heard, missing };
 }
 
-module.exports = { parseOrder, readNumber, findPhone, findName, findAreas, AREA_INDEX };
+module.exports = {
+  parseOrder, readNumber, readMoney, findPhone, findName, findAreas,
+  splitLabelled, parseAddressValue, LABELS, AREA_INDEX,
+};

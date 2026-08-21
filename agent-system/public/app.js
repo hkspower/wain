@@ -1238,21 +1238,27 @@
       <div class="card vo">
         <div class="card__body">
           <div class="vo__head">
-            <h2>الطلب المنطوق</h2>
-            <p>تكلّم بالطلب أو ألصق نصّه، فتُملأ الحقول تحت. <b>راجعها قبل الإنشاء</b> — الوكيل يقترح ولا ينشئ.</p>
+            <h2>ألصق الطلب هنا</h2>
+            <p>ألصق كلام الزبون كما وصلك — أو تكلّم به — فتُملأ الحقول تحت وحدها.
+               <b>راجعها قبل الإنشاء</b>: الوكيل يقترح ولا ينشئ.</p>
           </div>
+          <label class="field field--full">
+            <span>نصّ الطلب</span>
+            <textarea id="voText" rows="5" placeholder="الاسم: منى الصباح
+الهاتف: ٩٩٨٨٧٧٦٦
+الاستلام: السالمية ق٤ ش سالم المبارك
+التسليم: الفحيحيل ق٧
+المبلغ: ١٢٫٥٠٠
+
+— أو بلا عناوين: «من السالمية قطعة ٤ إلى الفحيحيل قطعة ٧»"></textarea>
+          </label>
           <div class="vo__bar">
             <button type="button" class="btn btn--primary" id="voMic" hidden>
               <span id="voMicLabel">تكلّم بالطلب</span>
             </button>
-            <button type="button" class="btn btn--quiet" id="voRead">اقرأ النصّ</button>
             <button type="button" class="btn btn--quiet" id="voClear">امسح</button>
+            <span class="vo__auto" id="voAuto"></span>
           </div>
-          <label class="field field--full">
-            <span>نصّ الطلب</span>
-            <textarea id="voText" rows="2"
-              placeholder="من السالمية قطعة ٤ إلى الفحيحيل قطعة ٧، اسمي منى ورقمي ٩٩٨٨٧٧٦٦"></textarea>
-          </label>
           <div id="voOut"></div>
         </div>
       </div>
@@ -1411,19 +1417,52 @@
         ${!res.heard.length ? '<p class="vo__none">لم يُفهم شيء من هذا النصّ. اكتب الحقول بيدك.</p>' : ''}`;
     }
 
+    const voAuto = document.getElementById('voAuto');
+    /* «حقل» ليس في قاموس الحزمة، وصيغه تُمرَّر كما تسمح الحزمة صراحةً */
+    const VO_FIELD = {
+      gender: 'm', human: false, zero: 'لا حقول', one: 'حقل واحد', two: 'حقلان',
+      twoOblique: 'حقلين', few: 'حقول', many: 'حقلًا', other: 'حقل',
+    };
+
     async function voParse() {
       const transcript = voText.value.trim();
-      if (!transcript) { voOut.innerHTML = ''; return; }
+      if (!transcript) { voOut.innerHTML = ''; voAuto.textContent = ''; return; }
+      voAuto.textContent = 'يقرأ…';
       try {
-        voFill(await api('/voice-orders/parse', { method: 'POST', body: { transcript } }));
+        const res = await api('/voice-orders/parse', { method: 'POST', body: { transcript } });
+        voFill(res);
+        voAuto.textContent = res.heard.length
+          ? 'مُلئ ' + AR.plural(Object.keys(res.fields).length, VO_FIELD)
+          : '';
       } catch (err) {
+        voAuto.textContent = '';
         voOut.innerHTML = `<p class="vo__none">${esc(err.message)}</p>`;
       }
     }
 
-    document.getElementById('voRead').addEventListener('click', voParse);
+    /* اللصق يملأ وحده — لا زرّ بينهما.
+       الزرّ خطوة يدوية بلا فائدة: من ألصق النصّ يريد قراءته، وإن نُسي الزرّ
+       ظنّ أن الوكيل لا يعمل. والكتابة تُمهَل قليلًا حتى لا يُقرأ نصف سطر. */
+    /* الصندوق يكبر بما فيه: من ألصق طلبًا كاملًا يريد أن يراه كلّه ليقارنه
+       بما فُهم، لا أن يمرّره سطرين سطرين. وله سقف حتى لا يدفع النموذج بعيدًا. */
+    const voGrow = () => {
+      voText.style.height = 'auto';
+      voText.style.height = Math.min(voText.scrollHeight + 2, 340) + 'px';
+    };
+
+    let voTimer = null;
+    const voSoon = (ms) => {
+      clearTimeout(voTimer);
+      voTimer = setTimeout(voParse, ms);
+    };
+    voText.addEventListener('paste', () => { setTimeout(voGrow, 0); voSoon(60); });
+    voText.addEventListener('input', () => { voGrow(); voSoon(700); });
+
     document.getElementById('voClear').addEventListener('click', () => {
-      voText.value = ''; voOut.innerHTML = '';
+      clearTimeout(voTimer);
+      voText.value = ''; voOut.innerHTML = ''; voAuto.textContent = '';
+      voText.style.height = '';
+      voText.focus();
     });
 
     if (SR) {

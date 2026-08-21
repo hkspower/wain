@@ -627,7 +627,7 @@ tbody tr:hover { background: #fbfdfe; }
 .vo__head p { margin: 0 0 .8rem; font-size: .84rem; color: var(--ink-soft); }
 .vo__head b { color: var(--ink); }
 .vo__bar { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .8rem; }
-.vo #voText { min-height: 0; }
+.vo #voText { min-height: 118px; font-size: .9rem; line-height: 1.9; }
 
 /* الزرّ ينبض ما دام يُنصت — الحالة يجب أن تُرى لا أن تُخمَّن */
 #voMic.is-live { background: var(--orange-600); border-color: var(--orange-600); }
@@ -644,3 +644,4 @@ tbody tr:hover { background: #fbfdfe; }
 .vo__heard ul, .vo__missing ul { margin: .3rem 0 0; padding-inline-start: 1.1rem; }
 .vo__heard li, .vo__missing li { margin: .15rem 0; }
 .vo__none { margin: .7rem 0 0; font-size: .85rem; color: var(--ink-soft); }
+.vo__auto { align-self: center; font-size: .82rem; color: var(--teal-700); font-weight: 600; }

@@ -158,6 +158,86 @@ test('يلتقط المركبة والاستعجال حين يُذكران فق�
   assert.equal(plain.fields.priority, undefined);
 });
 
+/* --------------------------- النصّ الملصوق --------------------------- */
+
+const PASTE = [
+  'الاسم: منى الصباح',
+  'الهاتف: 99887766',
+  'الاستلام: السالمية ق٤ ش سالم المبارك',
+  'التسليم: الفحيحيل قطعة ٧ منزل ١٢',
+  'المبلغ: ١٢٫٥٠٠',
+  'رسوم التوصيل: ٢',
+  'ملاحظات: اتصل قبل الوصول',
+].join('\n');
+
+test('النصّ الملصوق المعنون يُملأ كلّه — لا حقل يبقى للموظّف', () => {
+  const f = V.parseOrder(PASTE).fields;
+  assert.equal(f.customer_name, 'منى الصباح');
+  assert.equal(f.customer_phone, '+96599887766');
+  assert.equal(f.pickup_area, 'السالمية');
+  assert.equal(f.pickup_block, '4');
+  assert.equal(f.pickup_street, 'ش سالم المبارك');
+  assert.equal(f.dropoff_area, 'الفحيحيل');
+  assert.equal(f.dropoff_block, '7');
+  assert.equal(f.dropoff_street, 'منزل ١٢');
+  assert.equal(f.cod_amount, 12.5);
+  assert.equal(f.delivery_fee, 2);
+  assert.equal(f.notes, 'اتصل قبل الوصول');
+  assert.deepEqual(V.parseOrder(PASTE).missing, []);
+});
+
+test('«ق٤» اختصارًا كـ«قطعة ٤»', () => {
+  for (const v of ['السالمية ق٤', 'السالمية ق ٤', 'السالمية قطعة ٤', 'السالمية قطعه 4']) {
+    assert.equal(V.parseAddressValue(v).block, 4, `فشل على «${v}»`);
+  }
+});
+
+test('العنوان الصريح يغلب الاستنتاج من ترتيب الكلام', () => {
+  /* «من» في السطر تقول الاستلام، ولو جاء اسمه ثانيًا في النصّ */
+  const f = V.parseOrder('التسليم: حولي\nالاستلام: مشرف').fields;
+  assert.equal(f.pickup_area, 'مشرف');
+  assert.equal(f.dropoff_area, 'حولي');
+});
+
+test('العنوان لا يتخطّى المدقّق — قيمة ليست هاتفًا تُهمل', () => {
+  const r = V.parseOrder('الهاتف: ٤\nالاستلام: حولي');
+  assert.equal(r.fields.customer_phone, undefined, 'ملأ هاتفًا من قيمة ليست هاتفًا');
+  assert.ok(r.missing.some((m) => m.field === 'customer_phone'));
+});
+
+test('منطقة معنونة غير معروفة تُقال ولا تُملأ فارغةً', () => {
+  const r = V.parseOrder('الاستلام: مكان مجهول ش ٥\nالتسليم: حولي');
+  assert.ok(!('pickup_area' in r.fields), 'وضع منطقةً فارغة بدل أن يقول');
+  assert.equal(r.fields.pickup_street, 'مكان مجهول ش ٥', 'أضاع الشارع وفيه معلومة');
+  assert.ok(r.missing.some((m) => m.field === 'pickup_area' && /غير معروفة/.test(m.why)));
+});
+
+test('المال لا يُلتقط إلّا معنونًا — أرقام القطع والشوارع ليست مبالغ', () => {
+  const f = V.parseOrder('من السالمية قطعة ٤ شارع ١٢ إلى الفحيحيل قطعة ٧').fields;
+  assert.equal(f.cod_amount, undefined, 'خمّن مبلغًا من رقم ليس مالًا');
+  assert.equal(f.delivery_fee, undefined);
+});
+
+test('مبلغ معنون لا يُفهم يُقال ولا يُملأ', () => {
+  const r = V.parseOrder('الاستلام: حولي\nالمبلغ: لاحقًا');
+  assert.equal(r.fields.cod_amount, undefined);
+  assert.ok(r.missing.some((m) => m.field === 'cod_amount'));
+});
+
+test('النصّ الحرّ بلا عناوين يبقى مفهومًا كما كان', () => {
+  const f = V.parseOrder('أبغى توصيل من السالمية قطعة أربعة إلى الفحيحيل قطعة سبعة').fields;
+  assert.equal(f.pickup_area, 'السالمية');
+  assert.equal(f.pickup_block, '4');
+  assert.equal(f.dropoff_block, '7');
+});
+
+test('يقرأ المبلغ بالفاصلة العربية واللاتينية', () => {
+  assert.equal(V.readMoney('١٢٫٥٠٠'), 12.5);
+  assert.equal(V.readMoney('12.5 د.ك'), 12.5);
+  assert.equal(V.readMoney('٣'), 3);
+  assert.equal(V.readMoney('لاحقًا'), null);
+});
+
 /* ------------------------- المسار: يقرأ ولا يكتب ------------------------- */
 
 test('المسار يقترح ولا ينشئ طلبًا مهما كان النصّ', async () => {
@@ -192,4 +272,18 @@ test('الحقول المقترحة تُقبل كما هي في إنشاء ال�
   assert.equal(made.data.order.pickup_address, 'السالمية، قطعة ٤');
   assert.equal(made.data.order.dropoff_address, 'الفحيحيل، قطعة ٧');
   assert.equal(made.data.order.customer_phone, '+96599887766');
+});
+
+test('الملصوق يمرّ إلى الطلب كاملًا — المبالغ والشارع والملاحظات معه', async () => {
+  const parsed = await call('admin', 'POST', '/api/voice-orders/parse', { transcript: PASTE });
+  assert.deepEqual(parsed.data.missing, [], 'بقي ناقص في نصّ كامل');
+
+  const made = await call('admin', 'POST', '/api/orders', parsed.data.fields);
+  assert.equal(made.status, 200, JSON.stringify(made.data));
+  const o = made.data.order;
+  assert.equal(o.pickup_address, 'السالمية، قطعة ٤، ش سالم المبارك');
+  assert.equal(o.dropoff_address, 'الفحيحيل، قطعة ٧، منزل ١٢');
+  assert.equal(o.cod_amount, 12.5);
+  assert.equal(o.delivery_fee, 2);
+  assert.equal(o.notes, 'اتصل قبل الوصول');
 });
