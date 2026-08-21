@@ -13,6 +13,8 @@
     "og": "node scripts/gen-og.mjs",
     "ai:brief": "node scripts/wain-ai-brief.mjs",
     "test:shouq": "node tests/run-shouq.mjs",
+    "voice:sample": "node scripts/gen-voice.mjs --sample",
+    "voice:fixture": "node scripts/gen-voice-fixture.mjs",
     "audit:places": "node scripts/audit-places.mjs",
     "test:orders": "node tests/run-orders.mjs",
     "test:net": "node tests/run-net.mjs",

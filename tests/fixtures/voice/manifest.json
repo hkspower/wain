@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "model": "espeak-ng-placeholder",
+  "clips": {
+    "shouq/hello": "/voice/shouq/hello.mp3",
+    "shouq/suggest-intro": "/voice/shouq/suggest-intro.mp3",
+    "shouq/related-intro": "/voice/shouq/related-intro.mp3",
+    "shouq/search-empty": "/voice/shouq/search-empty.mp3",
+    "shouq/place-kuwait-towers": "/voice/shouq/place-kuwait-towers.mp3",
+    "shouq/best-kuwait-towers": "/voice/shouq/best-kuwait-towers.mp3",
+    "shouq/name-souq-al-mubarakiya": "/voice/shouq/name-souq-al-mubarakiya.mp3"
+  }
+}

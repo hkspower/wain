@@ -30,8 +30,11 @@ export const GENERIC_LINES = {
   // would work — and after a *spoken* question the likeliest cause is that
   // recognition misheard, so naming the four things she is good at gives them
   // something to say next.
+  // «قول لي», not the MSA «قل لي» — see the note in wain-ai.ts. This one is
+  // spoken aloud after a misheard question, which is the worst moment for her
+  // to slip out of the register she is introduced in.
   "search-empty":
-    "ما لقيت شي بهالكلمة. قل لي الجو اللي تبيه — قهوة، بحر، مطعم، ولا طلعة عيال.",
+    "ما لقيت شي بهالكلمة. قول لي الجو اللي تبيه — قهوة، بحر، مطعم، ولا طلعة عيال.",
   "suggest-intro": "أقترح عليك:",
   "related-intro": "وإذا تبي غيره:",
   // Added when she recommends an open-air place in the Kuwaiti summer. Without

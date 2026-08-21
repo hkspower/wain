@@ -37,7 +37,11 @@ export const WAIN_AI_COPY = {
   role: "دليلتك في الكويت",
   launcher: "وين AI",
   holdHint: "اضغطي أو اضغط ٣ ثواني",
-  greeting: "هلا! أنا شوق. قل لي وش تبي — قهوة، بحر، طلعة عيال — وأدلّك.",
+  // «قول» not «قل»: the imperative of قال is قول in Kuwaiti and قل in MSA, and
+  // شوق is «صوت كويتي شبابي». The two spellings were mixed — «قول وش تبي» two
+  // lines down against «قل لي» here — which is the kind of slip that is
+  // invisible on screen and unmistakable out loud.
+  greeting: "هلا! أنا شوق. قول لي وش تبي — قهوة، بحر، طلعة عيال — وأدلّك.",
   hint: "كلّمها عن الجو اللي تبيه — «أبي قهوة هادية» أو «وين أطلع مع العيال؟»",
   listening: "قول وش تبي…",
   listeningExamples: "«قهوة هادية» · «مطعم للعائلة» · «بحر»",

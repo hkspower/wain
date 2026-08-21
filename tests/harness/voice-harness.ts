@@ -16,6 +16,10 @@ interface Spy {
    *  whole point of the unlock is that it makes no sound. */
   playedMuted: boolean[];
   pauseCalls: number;
+  /** Every src handed to the element, in order — the clip path's whole output.
+   *  Without this there was no way to tell a recorded answer from a synthetic
+   *  one, or to see that the queue advanced past its first clip. */
+  played: string[];
   spoken: string[];
   cancelCalls: number;
   voicesAsked: number;
@@ -32,19 +36,27 @@ declare global {
     setVoices: (list: { name: string; lang: string }[]) => void;
     /** Take speechSynthesis away entirely, as an older browser would. */
     removeSynth: () => void;
+    /** Whether a played clip reports itself finished. Real playback always
+     *  ends; a test that wants to interrupt mid-queue turns this off. */
+    setAutoEnd: (on: boolean) => void;
   }
 }
 
 const spy: Spy = {
-  playCalls: 0, playedMuted: [], pauseCalls: 0,
+  playCalls: 0, playedMuted: [], pauseCalls: 0, played: [],
   spoken: [], cancelCalls: 0, voicesAsked: 0, lastLang: "", lastVoice: "",
 };
 window.spy = spy;
 window.resetSpy = () => {
-  spy.playCalls = 0; spy.playedMuted = []; spy.pauseCalls = 0;
+  spy.playCalls = 0; spy.playedMuted = []; spy.pauseCalls = 0; spy.played = [];
   spy.spoken = []; spy.cancelCalls = 0; spy.voicesAsked = 0;
   spy.lastLang = ""; spy.lastVoice = "";
 };
+
+let autoEnd = true;
+window.setAutoEnd = (on) => { autoEnd = on; };
+
+const PAUSED = Symbol("paused");
 
 // Chromium in this container has no audio device, so play() would reject on
 // its own. Stubbed so the test measures the module's intent rather than the
@@ -52,11 +64,33 @@ window.resetSpy = () => {
 HTMLMediaElement.prototype.play = function play(this: HTMLMediaElement) {
   spy.playCalls += 1;
   spy.playedMuted.push(this.muted);
+  (this as unknown as Record<symbol, unknown>)[PAUSED] = false;
+  const src = this.getAttribute("src") ?? this.src ?? "";
+  if (src) spy.played.push(new URL(src, location.href).pathname);
+  // A clip that never reports itself finished would leave the queue stuck on
+  // its first entry, and "she played one clip" would look identical to "she
+  // played all of them". Ending it is what makes playNext's chaining visible.
+  if (autoEnd && src) setTimeout(() => this.onended?.(new Event("ended")), 5);
   return Promise.resolve();
 };
 HTMLMediaElement.prototype.pause = function pause(this: HTMLMediaElement) {
   spy.pauseCalls += 1;
+  (this as unknown as Record<symbol, unknown>)[PAUSED] = true;
 };
+
+/**
+ * `paused` has to follow the stubs, or stop() cannot work here.
+ *
+ * stop() only pauses when `!audio.paused`, and with play() stubbed the real
+ * property stays true for ever — nothing was ever really played — so the guard
+ * short-circuits and the pause never happens. That is an artefact of the
+ * harness, not of the module: in a browser, play() clears the flag. Tracking it
+ * lets the guard be exercised instead of quietly skipped.
+ */
+Object.defineProperty(HTMLMediaElement.prototype, "paused", {
+  configurable: true,
+  get(this: Record<symbol, unknown>) { return this[PAUSED] !== false; },
+});
 
 /**
  * SpeechSynthesisVoice cannot be constructed, and `utterance.voice = {...}`

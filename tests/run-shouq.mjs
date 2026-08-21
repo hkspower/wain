@@ -25,7 +25,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, dirname } from "node:path";
+import { join, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -111,6 +111,11 @@ rmSync(tmp, { recursive: true, force: true });
 console.log("\n════ شوق: the knowledge base ════");
 failed += (await run("node", ["tests/shouq-brief.test.mjs"])) === 0 ? 0 : 1;
 
+/* 2b — the clip generator, against a stub ElevenLabs. No browser, no build,
+   no paid API calls: what is under test is which clips get re-recorded. */
+console.log("\n════ شوق: the clip pipeline ════");
+failed += (await run("node", ["tests/voice-pipeline.test.mjs"])) === 0 ? 0 : 1;
+
 /* 3 — the voice module, with the browser's audio APIs instrumented. */
 console.log("\n════ شوق: the voice ════");
 {
@@ -125,16 +130,28 @@ console.log("\n════ شوق: the voice ════");
 
   const { createServer } = await import("node:http");
   const { readFileSync } = await import("node:fs");
+  // /voice/* comes from the fixtures rather than the temp bundle dir, so the
+  // browser reaches a real manifest and real MP3s at exactly the URLs the
+  // shipping site uses. Without this the manifest fetch 404s, every utterance
+  // falls back to synthetic speech, and the clip path — the one that actually
+  // runs once clips exist — is never executed by any test.
+  const FIXTURES = join(ROOT, "tests/fixtures/voice");
+  const TYPES = { ".js": "text/javascript", ".json": "application/json",
+    ".mp3": "audio/mpeg", ".html": "text/html; charset=utf-8" };
   const srv = createServer((req, res) => {
-    const name = req.url === "/" ? "/voice.html" : req.url.split("?")[0];
-    const f = join(vtmp, name);
-    if (!f.startsWith(vtmp) || !existsSync(f)) { res.writeHead(404); return res.end("nope"); }
-    res.writeHead(200, { "content-type": f.endsWith(".js") ? "text/javascript" : "text/html; charset=utf-8" });
+    const url = req.url === "/" ? "/voice.html" : req.url.split("?")[0];
+    const [base, name] = url.startsWith("/voice/")
+      ? [FIXTURES, url.slice("/voice".length)]
+      : [vtmp, url];
+    const f = join(base, name);
+    if (!f.startsWith(base) || !existsSync(f)) { res.writeHead(404); return res.end("nope"); }
+    res.writeHead(200, { "content-type": TYPES[extname(f)] ?? "application/octet-stream" });
     res.end(readFileSync(f));
   });
   await new Promise((r) => srv.listen(PORT_VOICE, "127.0.0.1", r));
-  failed += (await run("node", ["tests/shouq-voice.test.mjs"],
-    { env: { ...process.env, WAIN_URL: `http://127.0.0.1:${PORT_VOICE}` } })) === 0 ? 0 : 1;
+  const voiceEnv = { ...process.env, WAIN_URL: `http://127.0.0.1:${PORT_VOICE}` };
+  failed += (await run("node", ["tests/shouq-voice.test.mjs"], { env: voiceEnv })) === 0 ? 0 : 1;
+  failed += (await run("node", ["tests/shouq-clips.test.mjs"], { env: voiceEnv })) === 0 ? 0 : 1;
   srv.close();
   rmSync(vtmp, { recursive: true, force: true });
 }
