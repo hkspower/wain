@@ -179,6 +179,22 @@ Win32Window::MessageHandler(HWND hwnd,
                             WPARAM const wparam,
                             LPARAM const lparam) noexcept {
   switch (message) {
+    // A floor under the window. Below roughly this size the layout has nowhere
+    // to go: the navigation rail and a statement column stop fitting, and at
+    // the extreme a user can drag the window down to a few pixels and lose
+    // the app entirely with no way back except the taskbar. The figure is in
+    // logical pixels and scaled to the monitor's DPI, so it means the same
+    // thing on a 4K laptop as on a 1080p desk monitor.
+    case WM_GETMINMAXINFO: {
+      auto* info = reinterpret_cast<MINMAXINFO*>(lparam);
+      // the same call Create() uses, so one DPI story for the whole file
+      HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+      const double scale = FlutterDesktopGetDpiForMonitor(monitor) / 96.0;
+      info->ptMinTrackSize.x = Scale(560, scale);
+      info->ptMinTrackSize.y = Scale(480, scale);
+      return 0;
+    }
+
     case WM_DESTROY:
       window_handle_ = nullptr;
       Destroy();

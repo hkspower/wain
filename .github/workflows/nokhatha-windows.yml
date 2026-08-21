@@ -274,6 +274,29 @@ jobs:
             echo "::error::the built app grants outbound network"; exit 1
           fi
 
+      # Which Macs this actually runs on. A Flutter release build is universal
+      # by default — arm64 for Apple Silicon, x86_64 for Intel — but "by
+      # default" is not a guarantee anyone should ship on: a toolchain change
+      # or a stray --target-platform would quietly cut every Intel Mac out,
+      # and the DMG would still build, still install, and fail to open.
+      - name: Verify the app runs on both Apple Silicon and Intel
+        working-directory: nokhatha_app
+        run: |
+          APP=$(find build/macos/Build/Products/Release -maxdepth 1 -name '*.app' | head -1)
+          BIN="$APP/Contents/MacOS/$(basename "$APP" .app)"
+          [ -f "$BIN" ] || { echo "::error::no executable inside $APP"; exit 1; }
+          ARCHS=$(lipo -archs "$BIN")
+          echo "architectures: $ARCHS"
+          case "$ARCHS" in
+            *arm64*) ;; *) echo "::error::no arm64 slice — will not run on Apple Silicon"; exit 1 ;;
+          esac
+          case "$ARCHS" in
+            *x86_64*) echo "universal ✔" ;;
+            *) echo "::warning::no x86_64 slice — Intel Macs cannot run this build" ;;
+          esac
+          # and the oldest macOS it will start on, stated rather than assumed
+          otool -l "$BIN" | awk '/LC_BUILD_VERSION/{f=1} f&&/minos/{print "minimum macOS: "$2; exit}'
+
       # A .dmg is what a Mac user expects to download: mount it, drag the app
       # to Applications, eject. A bare .app in a zip loses its permissions on
       # some browsers and arrives quarantined in a way that is harder to clear.

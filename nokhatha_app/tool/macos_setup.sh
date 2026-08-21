@@ -71,8 +71,22 @@ s = open(p).read()
 s = s.replace(
     "let windowFrame = self.frame",
     "var windowFrame = self.frame\n    windowFrame.size = NSSize(width: 1180, height: 800)")
+# A floor, matching the Windows build's WM_GETMINMAXINFO. Below this the rail
+# and a statement column stop fitting, and a window dragged down to a few
+# points is an app the user has lost.
+s = s.replace(
+    "self.setFrame(windowFrame, display: true)",
+    "self.contentMinSize = NSSize(width: 560, height: 480)\n    self.setFrame(windowFrame, display: true)")
 open(p, "w").write(s)
 PY
 fi
 
 echo "macOS platform prepared: النوخذة / com.almuhallab.nokhatha, sandboxed, no network entitlement"
+
+# ── say which macOS this build actually supports ─────────────────────────────
+# The deployment target is whatever `flutter create` wrote, and it moves with
+# the Flutter version. Printing it in the build log means a toolchain bump
+# that drops a customer's Mac is visible, not silent.
+DEP=$(grep -m1 MACOSX_DEPLOYMENT_TARGET macos/Runner.xcodeproj/project.pbxproj \
+      | grep -oE '[0-9]+(\.[0-9]+)?' || true)
+echo "macOS deployment target: ${DEP:-unset}"
