@@ -16,7 +16,7 @@
   border-bottom: 1px solid rgba(255,255,255,.16);
 }
 .lk-top img { height: 30px; width: auto; display: block; }
-.lk-top__who { font-size: .88rem; font-weight: 700; color: #cfe7ea; }
+.lk-top__who { font-size: var(--t-sm); font-weight: 700; color: #cfe7ea; }
 
 .lk-main { width: min(620px, 100% - 1.6rem); margin-inline: auto; padding: 1rem 0 2.5rem; }
 
@@ -26,19 +26,19 @@
   box-shadow: var(--shadow-xs); margin-bottom: .9rem;
 }
 
-.lk-h { font-size: .98rem; font-weight: 800; margin: 0 0 .3rem; color: var(--teal-800); }
-.lk-sub { font-size: .86rem; color: var(--ink-mid); line-height: 1.85; margin: 0 0 .8rem; }
+.lk-h { font-size: var(--t-base); font-weight: 800; margin: 0 0 .3rem; color: var(--teal-800); }
+.lk-sub { font-size: var(--t-sm); color: var(--ink-mid); line-height: var(--lh-base); margin: 0 0 .8rem; }
 
 /* --------------------------- رأس الطلب --------------------------- */
 
 .lk-head { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; margin-bottom: .8rem; }
-.lk-code { font-weight: 800; font-size: 1.05rem; color: var(--teal-700); letter-spacing: .02em; }
+.lk-code { font-weight: 800; font-size: var(--t-md); color: var(--teal-700); letter-spacing: .02em; }
 
 .lk-route { display: flex; flex-direction: column; gap: .55rem; margin-bottom: .9rem; }
 .lk-route__row { display: flex; gap: .6rem; align-items: flex-start; }
-.lk-route__row div { display: flex; flex-direction: column; line-height: 1.7; }
-.lk-route__row b { font-size: .76rem; color: var(--ink-soft); font-weight: 600; }
-.lk-route__row span { font-size: .94rem; font-weight: 600; }
+.lk-route__row div { display: flex; flex-direction: column; line-height: var(--lh-base); }
+.lk-route__row b { font-size: var(--t-xs); color: var(--ink-soft); font-weight: 600; }
+.lk-route__row span { font-size: var(--t-base); font-weight: 600; }
 .lk-dot {
   width: 11px; height: 11px; border-radius: 50%; margin-top: .55rem; flex: none;
   border: 2px solid var(--teal-600);
@@ -47,19 +47,23 @@
 .lk-dot--to { background: var(--orange-600); border-color: var(--orange-600); }
 
 .lk-kv { display: grid; grid-template-columns: max-content 1fr; gap: .35rem .9rem; margin: 0; }
-.lk-kv dt { color: var(--ink-soft); font-size: .82rem; }
-.lk-kv dd { margin: 0; font-size: .9rem; font-weight: 600; }
+.lk-kv dt { color: var(--ink-soft); font-size: var(--t-xs); }
+.lk-kv dd { margin: 0; font-size: var(--t-base); font-weight: 600; }
+/* الهاتف جزيرة لاتينية داخل عمود عربيّ: `start` فيها يعني اليسار، فينفصل
+   عن اسم صاحبه ويتدلّى في طرف السطر. يُجعل كتلةً محاذيةً لنهايته — والنهاية
+   في اللاتينية اليمين، وهو ما يوازي بداية العمود العربيّ. */
+.lk-kv dd a[dir="ltr"] { display: block; text-align: end; font-weight: 700; }
 .lk-strong { color: var(--teal-700); font-weight: 800; }
 
 .lk-notes {
-  margin: .8rem 0 0; font-size: .86rem; line-height: 1.8; color: var(--ink-mid);
+  margin: .8rem 0 0; font-size: var(--t-sm); line-height: var(--lh-base); color: var(--ink-mid);
   border-inline-start: 2px solid var(--line-str); padding-inline-start: .7rem;
 }
 
 /* ---------------------------- الموقع ---------------------------- */
 
 .lk-state {
-  display: flex; align-items: center; gap: .5rem; font-size: .9rem;
+  display: flex; align-items: center; gap: .5rem; font-size: var(--t-base);
   padding: .6rem .8rem; margin-bottom: .8rem;
   border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--mute-bg);
 }
@@ -73,7 +77,7 @@
 }
 
 .lk-warn {
-  margin: 0; font-size: .86rem; line-height: 1.85;
+  margin: 0; font-size: var(--t-sm); line-height: var(--lh-base);
   background: var(--warn-bg); color: var(--warn-fg);
   border: 1px solid #e8c9a0; border-radius: var(--radius-sm); padding: .7rem .85rem;
 }
@@ -81,7 +85,7 @@
 /* --------------------------- التسجيل --------------------------- */
 
 .lk-recbar {
-  display: flex; align-items: center; gap: .7rem; font-size: .92rem;
+  display: flex; align-items: center; gap: .7rem; font-size: var(--t-base);
   border: 1px solid var(--line); border-radius: var(--radius-sm);
   padding: .6rem .8rem; background: var(--teal-50);
 }
@@ -98,7 +102,7 @@
 
 .lk-voice { margin: .7rem 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: .35rem; }
 .lk-voice li {
-  display: flex; align-items: center; gap: .5rem; font-size: .84rem;
+  display: flex; align-items: center; gap: .5rem; font-size: var(--t-sm);
   border: 1px dashed var(--line-str); border-radius: var(--radius-sm); padding: .45rem .7rem;
 }
 .lk-voice .muted { margin-inline-start: auto; }
@@ -113,8 +117,8 @@
   background: #fff; padding: .7rem .9rem;
   transition: border-color .2s var(--ease), background .2s var(--ease);
 }
-.lk-out b { font-size: .96rem; font-weight: 800; }
-.lk-out span { font-size: .8rem; color: var(--ink-soft); }
+.lk-out b { font-size: var(--t-base); font-weight: 800; line-height: var(--lh-snug); }
+.lk-out span { font-size: var(--t-xs); color: var(--ink-soft); }
 .lk-out:hover { border-color: var(--teal-600); }
 .lk-out--ok.is-on   { border-color: #12a05f; background: var(--ok-bg); }
 .lk-out--wait.is-on { border-color: var(--orange-600); background: var(--warn-bg); }
@@ -126,18 +130,18 @@
 /* ---------------------------- حالات ---------------------------- */
 
 .lk-card--msg { text-align: center; padding: 2rem var(--pad-md); }
-.lk-card--msg h1 { font-size: 1.2rem; margin: .6rem 0 .3rem; }
-.lk-card--msg p { font-size: .9rem; color: var(--ink-mid); margin: 0 0 .3rem; }
+.lk-card--msg h1 { font-size: var(--t-md); margin: .6rem 0 .3rem; }
+.lk-card--msg p { font-size: var(--t-base); color: var(--ink-mid); margin: 0 0 .3rem; }
 .lk-msg__ic {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 52px; height: 52px; border-radius: 50%; font-size: 1.5rem; font-weight: 800;
+  width: 52px; height: 52px; border-radius: 50%; font-size: var(--t-lg); font-weight: 800;
   background: var(--bad-bg); color: var(--bad-fg); border: 2px solid currentColor;
 }
 .lk-msg__ic--ok { background: var(--ok-bg); color: var(--ok-fg); }
 
 .lk-loading {
   display: flex; align-items: center; justify-content: center; gap: .6rem;
-  padding: 3rem 1rem; color: var(--ink-soft); font-size: .92rem;
+  padding: 3rem 1rem; color: var(--ink-soft); font-size: var(--t-base);
 }
 .lk-spin {
   width: 16px; height: 16px; border-radius: 50%; flex: none;
@@ -146,7 +150,7 @@
 }
 @keyframes lkSpin { to { transform: rotate(360deg); } }
 
-.lk-foot { text-align: center; font-size: .8rem; color: var(--ink-soft); margin: 1rem 0 0; }
+.lk-foot { text-align: center; font-size: var(--t-xs); color: var(--ink-soft); margin: 1rem 0 0; }
 
 @media (prefers-reduced-motion: reduce) {
   .lk-spin, .lk-recdot, .lk-state.is-on .lk-state__dot { animation: none; }

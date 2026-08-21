@@ -105,7 +105,9 @@ test('لا حقل مرئي بقياس أصغر من العتبة في التنس
   const css = read('app.css');
   const touchAt = css.indexOf('@media (pointer: coarse), (max-width: 900px)');
   const after = css.slice(touchAt);
-  const smaller = [...after.matchAll(/([.#][\w-]+(?:\s+[\w.#-]+)*)\s*\{[^}]*font-size:\s*(0?\.\d+)rem/g)]
+  /* يُلتقط الرقم الصريح والتوكن معًا: بعد توحيد المقياس صارت الأحجام
+     `var(--t-…)`، وكلّها دون ١٦ بكسل، فقاعدةٌ بها على حقلٍ تنقض العتبة. */
+  const smaller = [...after.matchAll(/([.#][\w-]+(?:\s+[\w.#-]+)*)\s*\{[^}]*font-size:\s*(0?\.\d+rem|var\(--t-[\w-]+\))/g)]
     .filter(([, sel]) => /input|select|textarea/.test(sel));
   assert.deepEqual(smaller.map((m) => m[1]), [],
     'قاعدة بعد استعلام اللمس تعيد حقلًا إلى ما دون ١٦ بكسل');
@@ -134,4 +136,40 @@ test('السؤال يظهر فوق جوابه، وصفّ رقائق واحد ل�
   assert.match(js, /class="ask__q"/, 'الجواب بلا سؤاله');
   assert.match(js, /r\.asked = text/, 'السؤال لا يُحفظ مع الجواب');
   assert.match(js, /chips\.hidden = !!out\.querySelector\('\.ask__chips'\)/, 'صفّا رقائق معًا');
+});
+
+/* ----------------------------- المقياس الطباعي ----------------------------- */
+
+test('الأحجام من المقياس لا أرقامًا متناثرة', () => {
+  /* كانت في الملفّين تسعة وعشرون حجمًا: ‎.84‎ و‎.85‎ و‎.86‎ لا تفرّقها عين
+     لكنها ثلاث قيم تتكاثر. القيم الصريحة الباقية مقصودة ومعدودة. */
+  const ALLOWED_PX = ['15px', '16px', '14.5px'];   // الجذر، وعتبة اللمس، وجوال
+  for (const file of ['app.css', 'link.css']) {
+    const loose = [...read(file).matchAll(/font-size:\s*([^;]+);/g)]
+      .map((m) => m[1].trim())
+      /* «rem» تنتهي بـ«em» — فيُستثنى النسبيّ الحقيقي وحده لا كل وحدة */
+      .filter((v) => !v.startsWith('var(--t-') && !/^[\d.]+em$/.test(v) && !ALLOWED_PX.includes(v));
+    assert.deepEqual(loose, [], `${file} فيه أحجام خارج المقياس`);
+  }
+});
+
+test('عناصر النماذج لها ارتفاع سطر مصرَّح به — العربية تُقصّ بلا ذلك', () => {
+  /* المتصفّح يفرض `normal` (نحو ١٫٢) على الأزرار والحقول، وهو يكفي
+     اللاتينية ويقصّ الضمّة فوق الشدّة في «لم يُسلَّم». */
+  assert.match(read('app.css'),
+    /button, input, select, textarea, optgroup \{ line-height: var\(--lh-/,
+    'عناصر النماذج بلا ارتفاع سطر مصرَّح به');
+});
+
+test('لا تباعد بين الحروف على نصّ عربيّ — يفصل الحرف عن أخيه', () => {
+  for (const file of ['app.css', 'link.css']) {
+    for (const m of read(file).matchAll(/([^{}]+)\{[^}]*letter-spacing:\s*([^;]+);/g)) {
+      const [, sel, val] = m;
+      const positive = parseFloat(val) > 0;
+      /* الموجب يُقبل على اللاتينيّ وحده — ورمز الطلب لاتينيّ */
+      if (positive) {
+        assert.match(sel, /lk-code/, `${file}: تباعد موجب على «${sel.trim()}»`);
+      }
+    }
+  }
 });

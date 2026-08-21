@@ -207,8 +207,7 @@ const ICON_X = '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" ' +
 
         <dl class="lk-kv">
           <dt>العميل</dt>
-          <dd>${esc(o.customer_name)} —
-            <a href="tel:${esc(o.customer_phone)}" dir="ltr">${esc(o.customer_phone)}</a></dd>
+          <dd>${esc(o.customer_name)}<a href="tel:${esc(o.customer_phone)}" dir="ltr">${esc(o.customer_phone)}</a></dd>
           <dt>المحافظة</dt><dd>${esc(o.governorate)}</dd>
           ${o.cod_amount > 0
             ? `<dt>تحصيل من العميل</dt><dd class="num lk-strong">${money(o.cod_amount)} د.ك</dd>` : ''}
