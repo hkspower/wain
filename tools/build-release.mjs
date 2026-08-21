@@ -155,6 +155,8 @@ function guardSeo() {
     ['website/tools/check-assistant.mjs', 'مساعد موصول',     true],
     // الموقع عربي لجمهور عربي: لا حرف لاتيني في نصّ يقرؤه الزائر
     ['website/tools/check-arabic.mjs',    'عربية الموقع',     true],
+    // نسخة الموقع من حزمة اللغة تتبع الأصل — انحرافها صامت لا يكسر شيئًا
+    ["website/tools/sync-kit.mjs",        "حزمة اللغة",       true],
   ];
   for (const [script, what, fatal] of checks) {
     const r = spawnSync(process.execPath, [path.join(ROOT, script), '--check'], {

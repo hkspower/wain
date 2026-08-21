@@ -19,15 +19,21 @@
 (function () {
   'use strict';
 
-  /* تطبيع عربي: يزيل التشكيل ويوحّد الألف والياء والتاء المربوطة، فيطابق
-     «كم السعر» و«كم السّعر؟» و«چم السعر» بلا قوائم إملاء طويلة. */
+  /**
+   * التطبيع العربي من حزمة اللغة، لا نسخة منها.
+   *
+   * كنتُ كتبتُ تطبيعًا خاصًّا هنا، وكان يخالفها في حرفين: يردّ «ؤ» و«ئ» إلى
+   * «ء» بينما تردّهما الحزمة إلى «و» و«ي». والفرق ليس شكليًّا — من يكتب
+   * «مومنه» تفهمه الحزمة ولا تفهمه نسختي. فالحزمة هي المرجع، وما يخصّ
+   * المطابقة وحدها (إسقاط الترقيم وضمّ الفراغ) يُبنى فوقها لا بدلًا منها.
+   */
+  var KIT = (typeof module === 'object' && module.exports)
+    ? require('../arabic-kit/index.js')
+    : (typeof window !== 'undefined' ? window.arabicKit : null);
+
   function normalize(s) {
-    return String(s || '')
-      .replace(/[ً-ْـ]/g, '')
-      .replace(/[أإآٱ]/g, 'ا')
-      .replace(/ى/g, 'ي')
-      .replace(/ة/g, 'ه')
-      .replace(/[ؤئ]/g, 'ء')
+    var base = KIT ? KIT.normalize(String(s || '')) : String(s || '');
+    return base
       .replace(/چ/g, 'ج')
       .replace(/[^ء-يa-zA-Z\s]/g, ' ')
       .replace(/\s+/g, ' ')

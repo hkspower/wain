@@ -20,8 +20,11 @@ const FILE = path.join(SITE, 'assistant.js');
 /* الملف يُصدّر بياناته عند تحميله في Node، ويعمل كما هو في المتصفّح */
 const require = createRequire(import.meta.url);
 const src = fs.readFileSync(FILE, 'utf8');
-const sandbox = { module: { exports: {} }, document: undefined };
-new Function('module', 'document', src)(sandbox.module, undefined);
+const sandbox = { module: { exports: {} } };
+// المساعد يستدعي حزمة اللغة، فنمرّرها له كما يمرّرها المتصفّح
+new Function('module', 'document', 'require', src)(
+  sandbox.module, undefined, () => require('../../arabic-kit/index.js')
+);
 const { TOPICS, FALLBACK, match } = sandbox.module.exports;
 
 const DIGITS = /[0-9٠-٩۰-۹]/;
