@@ -21,12 +21,18 @@ import { categories as bundledCategories, products as bundledProducts, type Cate
 import type { Fils } from '@/lib/money';
 
 /**
- * Point the app at a shop. Set `extra.apiBase` in app.json (or EXPO_PUBLIC_API_BASE
- * for a one-off run) — no rebuild of this file required.
+ * Point the app at a shop. `extra.apiBase` in app.json is the shipped setting;
+ * EXPO_PUBLIC_API_BASE overrides it for one build.
+ *
+ * The environment variable is checked FIRST, and the order is the whole point:
+ * app.json always has a value, so reading it first meant the override could
+ * never win and every build went to production — including the test rig, which
+ * then reported the panel broken when it was merely pointed at a host it
+ * cannot reach.
  */
 export const API_BASE: string =
-  (Constants.expoConfig?.extra as { apiBase?: string } | undefined)?.apiBase ??
   process.env.EXPO_PUBLIC_API_BASE ??
+  (Constants.expoConfig?.extra as { apiBase?: string } | undefined)?.apiBase ??
   'https://www.sporta.com.kw/api';
 
 const TIMEOUT_MS = 8000;

@@ -20,6 +20,58 @@ npm run ios      # or: npm run android, npm run web
 | Order | `/order/[ref]` | The order number, selectable |
 | Account | `/account` | Language, contact, and an honest note when offline |
 
+## The backend panel
+
+`/backends` — the same address the website's panel answers on, and outside the
+tabs, because it is not a fifth thing a customer browses.
+
+| Screen | What it does |
+|---|---|
+| Sign in | Email + password; only the returned token is stored, never the password |
+| Today | Orders and takings today, how many are waiting, what is running out |
+| Orders | Status filters; one card per order, not a table |
+| Order | Address and items, and only the status moves that order is allowed |
+| Stock | Per-variant counts, edited one row at a time |
+
+Built for a phone first: cards instead of a seven-column table, 48pt targets,
+and the panel is LTR in both languages — it is a screen of order references,
+phone numbers and amounts, all of which read left to right even in Arabic, and
+the website's panel made the same call.
+
+**It never invents data.** The storefront falls back to a bundled catalogue when
+the shop is unreachable; the panel does the opposite and says it could not load.
+An order list that shows stale or made-up orders is how stock gets shipped twice.
+
+Endpoints, all under `{apiBase}/admin.php?r=`:
+
+| Route | Method | Returns |
+|---|---|---|
+| `login` | POST | `{ token, name }` |
+| `summary` | GET | `{ todayOrders, todayRevenue, pending, lowStock[] }` |
+| `orders[&status=]` | GET | `{ orders[] }` |
+| `order&id=` | GET | `{ order }` |
+| `order-status` | POST | `{ ok, status }` — the server's status, not the requested one |
+| `stock` | GET / POST | `{ items[] }` / `{ ok }` |
+
+Everything but `login` takes `Authorization: Bearer <token>`; a 401 or 403 signs
+the panel out.
+
+## Tests
+
+```
+npx expo export --platform web
+python3 scripts/serve-dist.py &
+node scripts/smoke.mjs          # the shop, 15 checks
+
+python3 scripts/mock-admin.py 8899 &
+EXPO_PUBLIC_API_BASE=http://127.0.0.1:8899 npx expo export --platform web
+node scripts/admin-smoke.mjs    # the panel, 16 checks
+```
+
+`scripts/mock-admin.py` is a test fixture standing in for `admin.php` — the panel
+has no offline fallback by design, so there is no way to exercise it without a
+server. It is not a reference implementation.
+
 ## The decisions worth knowing
 
 **Arabic is the default.** This is a Kuwaiti shop. The language switch is on the
