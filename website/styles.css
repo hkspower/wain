@@ -882,3 +882,48 @@ a.topbar__item:hover { color: #fff; }
   .section { padding: 1rem 0; }
   .section--dark, .cta, .footer, .stats { background: #fff !important; color: #000 !important; }
 }
+
+/* ---- خريطة التتبّع التوضيحية ---- */
+.track__grid { display: grid; gap: 1.4rem; margin-top: 2rem; }
+@media (min-width: 900px) { .track__grid { grid-template-columns: 1.15fr 1fr; align-items: start; } }
+.track__grid .timeline { margin-top: 0; }
+
+.tmap {
+  margin: 0; background: #fff; border: 1px solid var(--line);
+  border-radius: var(--radius); padding: var(--pad-lg);
+}
+.tmap__title {
+  display: flex; align-items: center; gap: .6rem;
+  font-weight: 700; margin-bottom: 1.1rem; font-size: var(--fs-lg);
+}
+.tmap__svg {
+  display: block; width: 100%; height: auto;
+  border: 1px solid var(--teal-100); border-radius: var(--radius-sm); overflow: hidden;
+}
+.tmap__lbl {
+  font: 700 21px var(--font); fill: var(--ink-mid);
+  text-anchor: middle; paint-order: stroke; stroke: #fff; stroke-width: 5px;
+}
+.tmap__note { margin: .9rem 0 0; font-size: var(--fs-sm); color: var(--ink-soft); }
+.tmap__note b { color: var(--teal-700); }
+
+/* المسار المقطوع والسيارة يتحرّكان بالتوقيت نفسه، فيتطابق رأس الخطّ مع السيارة.
+   كلاهما CSS لا SMIL، ليشملهما تعطيل الحركة في تفضيلات النظام. */
+.tmap__done {
+  stroke-dasharray: 100; stroke-dashoffset: 100;
+  animation: tmapDraw 9s cubic-bezier(.45,.05,.55,.95) infinite;
+}
+.tmap__car {
+  offset-path: path("M498 352 L498 268 Q498 256 486 256 L322 256 Q310 256 310 244 L310 156 Q310 144 298 144 L146 144");
+  offset-rotate: 0deg; offset-distance: 0%;
+  animation: tmapDrive 9s cubic-bezier(.45,.05,.55,.95) infinite;
+  filter: drop-shadow(0 2px 4px rgba(10, 63, 71, .22));
+}
+@keyframes tmapDraw  { 0%,4% { stroke-dashoffset: 100 } 88%,100% { stroke-dashoffset: 0 } }
+@keyframes tmapDrive { 0%,4% { offset-distance: 0% }   88%,100% { offset-distance: 100% } }
+
+/* بلا حركة: تُعرض الرحلة مكتملة والسيارة عند وجهتها بدل تجمّدها في البداية */
+@media (prefers-reduced-motion: reduce) {
+  .tmap__done { stroke-dashoffset: 0; animation: none; }
+  .tmap__car  { offset-distance: 100%; animation: none; }
+}

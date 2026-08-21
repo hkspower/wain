@@ -804,6 +804,89 @@
         </p>
       </div>
 
+      <div class="track__grid">
+      <!-- خريطة توضيحية: الوعد بالتتبّع كان مكتوبًا بلا صورة تسنده -->
+      <figure class="tmap">
+        <figcaption class="tmap__title">
+          مسار الشحنة على الخريطة
+          <span class="timeline__tag">توضيحي</span>
+        </figcaption>
+
+        <svg class="tmap__svg" viewBox="0 0 600 430" role="img"
+             aria-label="خريطة توضيحية: سيارة الكابتن تتحرّك على المسار من نقطة الاستلام إلى نقطة التسليم">
+          <defs>
+            <linearGradient id="gSea" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#a8d6e0"/><stop offset="1" stop-color="#cbe8ee"/>
+            </linearGradient>
+            <linearGradient id="gLand" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#f7fbfc"/><stop offset="1" stop-color="#eef5f7"/>
+            </linearGradient>
+          </defs>
+
+          <rect width="600" height="430" rx="14" fill="url(#gLand)"/>
+
+          <!-- الخليج: يثبّت المشهد في الكويت بدل خريطة بلا مكان -->
+          <path d="M600 0 L600 214 C534 232 486 196 430 206 C372 216 342 178 322 122 C310 88 302 40 300 0 Z"
+                fill="url(#gSea)"/>
+          <path d="M300 0 C302 40 310 88 322 122 C342 178 372 216 430 206 C486 196 534 232 600 214"
+                fill="none" stroke="#7fb6c4" stroke-width="2.5"/>
+
+          <!-- الشوارع -->
+          <g class="tmap__streets" fill="#dce8eb">
+            <rect x="0" y="140" width="600" height="10" rx="5"/>
+            <rect x="0" y="252" width="600" height="10" rx="5"/>
+            <rect x="0" y="356" width="600" height="10" rx="5"/>
+            <rect x="140" y="0" width="10" height="430" rx="5"/>
+            <rect x="304" y="0" width="10" height="430" rx="5"/>
+            <rect x="492" y="0" width="10" height="430" rx="5"/>
+          </g>
+          <g fill="#e8f1f3">
+            <rect x="30" y="176" width="86" height="52" rx="8"/>
+            <rect x="180" y="290" width="98" height="44" rx="8"/>
+            <rect x="352" y="176" width="110" height="50" rx="8"/>
+            <rect x="352" y="292" width="72" height="42" rx="8"/>
+          </g>
+
+          <!-- المسار: رمادي متقطّع لما بقي، وفيروزي مصمت لما قُطع -->
+          <path id="tmapRoute" class="tmap__rest"
+                d="M498 352 L498 268 Q498 256 486 256 L322 256 Q310 256 310 244 L310 156 Q310 144 298 144 L146 144"
+                fill="none" stroke="#b9ccd1" stroke-width="6" stroke-linecap="round"
+                stroke-linejoin="round" stroke-dasharray="2 14"/>
+          <path class="tmap__done" pathLength="100"
+                d="M498 352 L498 268 Q498 256 486 256 L322 256 Q310 256 310 244 L310 156 Q310 144 298 144 L146 144"
+                fill="none" stroke="#1A8E9B" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+
+          <!-- نقطة الاستلام -->
+          <g class="tmap__pin">
+            <path d="M486 334 L498 352 L510 334 Z" fill="#F69625"/>
+            <circle cx="498" cy="322" r="16" fill="#F69625"/>
+            <circle cx="498" cy="322" r="6" fill="#fff"/>
+            <text x="498" y="382" class="tmap__lbl">الاستلام</text>
+          </g>
+          <!-- نقطة التسليم -->
+          <g class="tmap__pin">
+            <path d="M134 126 L146 144 L158 126 Z" fill="#0f6b76"/>
+            <circle cx="146" cy="114" r="16" fill="#0f6b76"/>
+            <circle cx="146" cy="114" r="6" fill="#fff"/>
+            <text x="146" y="76" class="tmap__lbl">التسليم</text>
+          </g>
+
+          <!-- سيارة الكابتن: نفس شكل السيدان المستعمل في الموقع -->
+          <g class="tmap__car">
+            <g transform="translate(-25 -25)">
+              <circle cx="25" cy="25" r="24" fill="#fff" stroke="#1A8E9B" stroke-width="2.5"/>
+              <g transform="translate(4.2 15.5) scale(.0685)">
+                <use href="#pSedan" fill="#15818e"/>
+              </g>
+            </g>
+          </g>
+        </svg>
+
+        <p class="tmap__note">
+          <b>يصل خلال ٨ دقائق</b> — الرابط يتحدّث لحظيًا، ولا يعمل إلا ما دامت الشحنة في الطريق.
+        </p>
+      </figure>
+
       <!-- مثال توضيحي لشكل التتبّع — ليس طلبًا حقيقيًا -->
       <figure class="timeline">
         <figcaption class="timeline__title">
@@ -817,6 +900,7 @@
           <li class="tl"><span class="tl__dot"></span><div><b>تم التسليم</b><span>إشعار فور وصول الشحنة</span></div></li>
         </ol>
       </figure>
+      </div>
     </div>
   </div>
 </section>
