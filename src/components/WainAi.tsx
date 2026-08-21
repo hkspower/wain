@@ -352,7 +352,11 @@ export default function WainAi() {
           aria-expanded={open}
           aria-controls="wain-ai-panel"
           style={{ touchAction: "none" }}
-          className="group relative flex select-none items-center gap-2.5 rounded-full bg-gradient-to-b from-coral-500 to-coral-700 py-3 pe-5 ps-4 text-white shadow-xl shadow-coral-700/30 transition duration-300 hover:-translate-y-0.5 hover:shadow-2xl active:translate-y-0"
+          // The gradient starts at coral-600, not coral-500: white at 16px on
+          // coral-500 measures 3.61:1, under the 4.5 AA needs, and the top of
+          // this button is where the label sits. coral-600 gives 4.69:1 with
+          // the same hue and the same 200-step spread.
+          className="group relative flex select-none items-center gap-2.5 rounded-full bg-gradient-to-b from-coral-600 to-coral-800 py-3 pe-5 ps-4 text-white shadow-xl shadow-coral-700/30 transition duration-300 hover:-translate-y-0.5 hover:shadow-2xl active:translate-y-0"
         >
           <span className="relative grid size-9 place-items-center">
             {/* Progress ring: sweeps once around over the three seconds. */}
@@ -395,7 +399,9 @@ export default function WainAi() {
           aria-label={`${WAIN_AI_COPY.name} — ${WAIN_AI_COPY.role}`}
           className="wain-ai-panel fixed bottom-24 start-5 z-50 w-[min(22rem,calc(100vw-2.5rem))] overflow-hidden rounded-3xl border border-line bg-white shadow-2xl"
         >
-          <header className="flex items-center gap-3 bg-gradient-to-l from-coral-700 to-coral-500 p-4 text-white">
+          {/* Same reason as the launcher: the coral-500 end of this gradient
+              cannot carry white body text at AA. */}
+          <header className="flex items-center gap-3 bg-gradient-to-l from-coral-800 to-coral-600 p-4 text-white">
             <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-white/20">
               <VoiceMark className="size-6" />
             </span>

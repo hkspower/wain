@@ -4,8 +4,8 @@
 npm run scan
 ```
 
-Runs the linter and five audits in one go: schema use, runtime, place data,
-icons, type. All clean.
+Runs the linter and six audits in one go: schema use, runtime, place data,
+icons, type, colour. All clean.
 
 ## What the scan is for
 
@@ -52,6 +52,20 @@ drive the paths somebody thought to test; this opens everything.
 Third-party hosts are listed separately rather than counted as failures. A
 sandbox with no route to openstreetmap.org would otherwise report two failures
 on every run until people stopped reading the output.
+
+### `audit:color` — is the text readable, and is the palette still the palette?
+
+Measured in the browser rather than read from the stylesheet, because a token at
+12% opacity, a gradient stop and "whatever is three elements up the tree" are all
+invisible to anything that only reads CSS. Every visible text node against the
+surface behind it, WCAG AA. Full notes in [color.md](color.md).
+
+It found one real failure — white at 16px on the coral-500 end of the وين AI
+launcher, 3.61:1 against a 4.5 requirement — and three that were bugs in the
+checker itself. Both classes are documented there, because the checker bugs are
+the more instructive half: a colour parser that silently skips `oklab()` reports
+the colour *behind* a translucent surface, which reads as a confident, specific,
+completely wrong finding.
 
 ## What this scan found
 
