@@ -19,6 +19,29 @@ import 'package:nokhatha/store.dart';
 String hex(List<int> b) =>
     b.map((x) => x.toRadixString(16).padLeft(2, '0')).join();
 
+/// Overwrite fields in a record, refusing to overwrite one that is not there.
+///
+/// The first version of the test below spelled the keys 'saltHex' and
+/// 'hashHex' — the Dart field names. The JSON keys are 'salt' and 'hash', so
+/// addAll simply appended two ignored entries and left the good values in
+/// place: four cases, seven green assertions, and a corrupt record never
+/// actually tested. A test that cannot fail is worse than a missing one,
+/// because it is counted.
+///
+/// Any tamper test that overwrites by key should go through this.
+Map<String, dynamic> _corrupting(
+    Map<String, dynamic> original, Map<String, dynamic> changes) {
+  for (final key in changes.keys) {
+    if (!original.containsKey(key)) {
+      fail('this test corrupts "$key", which is not a field of the record it '
+          'is corrupting — the record would have been left valid and the test '
+          'would have passed while proving nothing. Real keys: '
+          '${original.keys.join(", ")}');
+    }
+  }
+  return Map<String, dynamic>.of(original)..addAll(changes);
+}
+
 void main() {
   group('PBKDF2-HMAC-SHA256', () {
     test('matches a published vector', () {
@@ -100,20 +123,29 @@ void main() {
     // hex, and int.parse throws on the first bad pair. That throw happened
     // inside sign-in, so one stray character made the app impossible to open
     // rather than the account impossible to verify.
+    // The guard itself, proved rather than assumed: if _corrupting ever stops
+    // rejecting an unknown key, every tamper test in this file goes quietly
+    // vacuous and nothing else would say so.
+    test('corrupting a field that does not exist is itself a failure', () {
+      final good = Account.create(
+          name: 'م', email: 'a@b.c', password: 'correct-horse-2026');
+      expect(() => _corrupting(good.toJson(), {'saltHex': 'zz'}),
+          throwsA(isA<TestFailure>()),
+          reason: 'the field is called salt in JSON — this must not pass');
+      expect(() => _corrupting(good.toJson(), {'salt': 'zz'}), returnsNormally);
+    });
+
     test('a record with unreadable hex refuses the password, and does not throw',
         () {
       final good = Account.create(
           name: 'م', email: 'a@b.c', password: 'correct-horse-2026');
-      // the JSON keys are 'salt' and 'hash', not the field names — writing the
-      // field names here would have left the good values in place and tested
-      // a valid record four times over
       for (final bad in <Map<String, dynamic>>[
         {'salt': 'zzzz'},
         {'hash': 'not-hex-at-all'},
         {'salt': 'abc'},             // odd length
         {'salt': 'gg', 'hash': 'gg'},
       ]) {
-        final json = Map<String, dynamic>.of(good.toJson())..addAll(bad);
+        final json = _corrupting(good.toJson(), bad);
         final acc = Account.fromJson(json);
         if (acc == null) continue;   // refused at parse: also correct
         expect(() => acc.verify('correct-horse-2026'), returnsNormally);

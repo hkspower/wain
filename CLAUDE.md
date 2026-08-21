@@ -257,6 +257,30 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 
 ## Working practice
 
+- **Run `python3 design/repo_state.py` before touching anything.** This
+  container reverts its checkout between turns — it has happened at least seven
+  times here, and it looks exactly like a normal working tree. The costs are
+  real and all invisible at the time: work rebuilt from scratch, an audit run
+  against code that is not the code that ships, and once a commit written on a
+  fifteen-commit-old base that would have reverted all fifteen had the push not
+  been refused. The script fetches, compares HEAD to origin, and prints the
+  recovery command; exit 1 means do not start.
+- **A scan that reports nothing is indistinguishable from a broken scan.** An
+  ad-hoc `grep` once reported النوخذة clean of null assertions — the bracket
+  expression had closed early on an escaped `]`, and the file had twenty. So
+  the crash audit is a script with its own fixtures:
+  `python3 design/dart_audit.py` refuses to report at all unless every rule
+  first proves, against a line it must flag and a line it must not, that it can
+  still see. Its own self-test caught the replacement rule flagging `is!`.
+  Findings are questions, never verdicts: a `!` inside `if (x != null)` is
+  correct and no regex can tell.
+- **A test that cannot fail is worse than a missing one, because it is
+  counted.** A tamper test once overrode `saltHex`/`hashHex` when the JSON
+  keys are `salt`/`hash`: `addAll` appended two ignored entries, the record
+  stayed valid, and four cases passed while testing nothing. Tamper tests go
+  through `_corrupting()` in `test/auth_test.dart`, which fails if asked to
+  corrupt a field the record does not have — and that guard has its own test,
+  because otherwise it is the next thing to go quietly blind.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
