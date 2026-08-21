@@ -114,6 +114,64 @@ def supply_chain_checks():
         check(S, "it still says the binaries are unsigned", "not code-signed" in t)
 
 
+def https_checks():
+    """What the site says about HTTPS, and the ordering the preload list needs."""
+    S = "https"
+    ht = (ROOT / ".htaccess").read_text()
+
+    hsts = re.search(r'Strict-Transport-Security "([^"]+)"', ht)
+    check(S, "an HSTS header is set at all", hsts is not None)
+    if hsts:
+        value = hsts.group(1)
+        age = re.search(r"max-age=(\d+)", value)
+        check(S, "HSTS lasts at least a year",
+              age and int(age.group(1)) >= 31536000, value)
+        check(S, "it covers subdomains", "includeSubDomains" in value, value)
+        check(S, "and is eligible for the preload list", "preload" in value, value)
+
+    # The preload list requires http://<bare> to reach https://<bare> — the
+    # SAME host — before any redirect to www. Putting the canonical-host rule
+    # first would send it straight to https://www and disqualify the domain,
+    # and nothing about the site would look wrong.
+    force = ht.find("RewriteCond %{HTTPS} !=on")
+    canon = ht.find("RewriteCond %{HTTP_HOST} ^almuhallab-code")
+    check(S, "the HTTPS rule runs before the www rule",
+          force > 0 and canon > 0 and force < canon, f"force@{force} canon@{canon}")
+
+    # preload is a claim in a header; the list only acts on a submission. This
+    # repository must never be the thing that submits it — that is the owner's
+    # decision, and it is close to irreversible.
+    doc = ROOT / "docs" / "HTTPS.md"
+    check(S, "the preload trade-off is written down", doc.exists())
+    if doc.exists():
+        t = doc.read_text()
+        check(S, "it says the domain has not been submitted",
+              "لم يُقدّم النطاق" in t)
+        check(S, "it says Enforce HTTPS is still the owner's click",
+              "Enforce HTTPS" in t)
+
+    wf = pathlib.Path("/home/user/wain/.github/workflows/nokhatha-windows.yml").read_text()
+    data = yaml.safe_load(wf)
+    env = data["jobs"]["build"].get("env", {})
+    # Both signing routes must be inert until their secrets exist, or a build
+    # with no certificate fails instead of shipping unsigned-but-working.
+    check(S, "the .pfx signing route is gated on its secret",
+          "WINDOWS_CERT_BASE64" in str(env.get("SIGNING", "")), str(env))
+    check(S, "the Azure signing route is gated on its secret",
+          "AZURE_CLIENT_ID" in str(env.get("AZ_SIGNING", "")), str(env))
+    # and only one may run: signing a file twice is not better than once
+    azure_steps = [st for st in data["jobs"]["build"]["steps"]
+                   if "trusted-signing" in str(st.get("uses", ""))]
+    check(S, "the Azure route is wired in", len(azure_steps) == 2, str(len(azure_steps)))
+    check(S, "the two routes cannot both run",
+          all("SIGNING != 'true'" in st.get("if", "") for st in azure_steps),
+          str([st.get("if") for st in azure_steps]))
+    check(S, "whichever route signs, the signature is verified",
+          any(st.get("name", "").startswith("Verify the signature")
+              and "AZ_SIGNING" in st.get("if", "")
+              for st in data["jobs"]["build"]["steps"]))
+
+
 def static_checks():
     S = "static"
     texts = {p: (ROOT / p).read_text() for p in PAGES}
@@ -714,7 +772,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "563", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "576", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -749,7 +807,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "563", "0", "100%"], str(finals))
+          finals == ["4", "576", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -2256,6 +2314,7 @@ def font_checks(pg):
 
 # ═══════════════════════════════════════════ run
 static_checks()
+https_checks()
 supply_chain_checks()
 seo_checks()
 identity_checks()

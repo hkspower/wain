@@ -26,7 +26,19 @@ AddType font/woff2               .woff2
   Header always set X-Frame-Options "SAMEORIGIN"
   Header always set Referrer-Policy "no-referrer"
   Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(), interest-cohort=()"
-  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" env=HTTPS
+  # A year, every subdomain, and eligible for the preload list.
+  #
+  # `preload` is a claim, not a switch: it only means anything once the domain
+  # is SUBMITTED at hstspreload.org, and this repository deliberately does not
+  # do that. Submission is close to irreversible — every subdomain must then be
+  # HTTPS forever, on every visitor's browser, and removal takes months to
+  # propagate through a Chrome release cycle. That is the owner's decision, and
+  # docs/HTTPS.md sets out what to check before making it.
+  #
+  # The three preload conditions are already met by the rules below: http on
+  # the bare host redirects to https on the SAME host first (not straight to
+  # www, which would disqualify it), and only then to the canonical www.
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" env=HTTPS
 
   # ---- The service worker must never be cached, or updates never reach users ----
   <FilesMatch "^sw\.js$">

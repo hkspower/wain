@@ -52,7 +52,17 @@ jobs:
       # and signing could never have run — not even with both secrets set.
       # The flag belongs at job level, which a step `if` can actually read.
       # (`secrets` is not available in a step-level `if` at all.)
+      # Two signing routes, both inert until their secrets exist, so the build
+      # stays green in the meantime and starts signing the moment either is
+      # configured. A step's `if` cannot read that step's own env, and the
+      # `secrets` context is not available in a step-level `if` at all — hence
+      # both flags at job level.
       SIGNING: ${{ secrets.WINDOWS_CERT_BASE64 != '' }}
+      # Azure Trusted Signing: the key never leaves Microsoft's vault, so there
+      # is no .pfx to carry and nothing a compromised runner could steal. This
+      # is the route to buy — since June 2023 no public CA issues a carryable
+      # key for a new certificate anyway.
+      AZ_SIGNING: ${{ secrets.AZURE_CLIENT_ID != '' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4
 
@@ -115,6 +125,31 @@ jobs:
             nokhatha_app\build\windows\x64\runner\Release\nokhatha.exe
           Remove-Item "$env:RUNNER_TEMP\cert.pfx" -Force
 
+      # ── Azure Trusted Signing ─────────────────────────────────────────────
+      # Needs, as repository secrets: AZURE_CLIENT_ID, AZURE_TENANT_ID and
+      # AZURE_CLIENT_SECRET for a service principal granted the
+      # "Trusted Signing Certificate Profile Signer" role, plus the account
+      # and profile names below. docs/WINDOWS-TRUST.md has the walkthrough.
+      - name: Sign the application (Azure Trusted Signing)
+        if: env.AZ_SIGNING == 'true' && env.SIGNING != 'true'
+        uses: azure/trusted-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82   # v2
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT || 'https://weu.codesigning.azure.net/' }}
+          trusted-signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_SIGNING_PROFILE }}
+          files-folder: ${{ github.workspace }}\nokhatha_app\build\windows\x64\runner\Release
+          files-folder-filter: exe
+          file-digest: SHA256
+          # A timestamp is what keeps the signature valid after the certificate
+          # expires. Trusted Signing certificates are short-lived by design —
+          # days, not years — so without this every build would "go bad" almost
+          # immediately.
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
       - name: Build the installer
         working-directory: nokhatha_app/windows/installer
         run: |
@@ -136,11 +171,27 @@ jobs:
             nokhatha_app\dist\*.exe
           Remove-Item "$env:RUNNER_TEMP\cert.pfx" -Force
 
+      - name: Sign the installer (Azure Trusted Signing)
+        if: env.AZ_SIGNING == 'true' && env.SIGNING != 'true'
+        uses: azure/trusted-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82   # v2
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT || 'https://weu.codesigning.azure.net/' }}
+          trusted-signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_SIGNING_PROFILE }}
+          files-folder: ${{ github.workspace }}\nokhatha_app\dist
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
       # signtool exits 0 in cases where the file is not actually left signed,
       # and an installer that is silently unsigned is the exact thing this
       # whole section exists to prevent. So verify, and fail loudly.
       - name: Verify the signature
-        if: env.SIGNING == 'true'
+        if: env.SIGNING == 'true' || env.AZ_SIGNING == 'true'
         shell: pwsh
         working-directory: nokhatha_app
         run: |
