@@ -3,6 +3,7 @@
 // Currency is KD, earned by defeating rivals.
 
 import { EngineId, EngineSpec, getEngine } from "./engines";
+import { loadCrew, type Crew } from "./teams";
 
 export type ExclusiveCat =
   | "engine"
@@ -648,6 +649,10 @@ export interface TuneEffects {
   raceKit: boolean;
   /** Rally livery: roundels, stripes, hood decal, quarter flags. */
   stickers: boolean;
+  /** The crew this save flies, or null for a privateer. Not a bought
+   *  part and not per-car — it is who you are, so every car you own
+   *  wears it. The car build reads it for the roof livery. */
+  crew: Crew | null;
   /** The fitted system — geometry, voice and bark in one object. */
   exhaust: ExhaustSpec;
   paint: number;
@@ -772,6 +777,11 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     goldRims: has("gold-rims"),
     raceKit: car.kit === "attack",
     stickers: has("stickers"),
+    // Read here rather than passed in, because a crew is not part of a
+    // car build: it is saved beside the garage and belongs to the save,
+    // so every caller that asks what this car races with gets it without
+    // having to know it exists.
+    crew: loadCrew(),
     exhaust,
     // An explicitly bought paint wins; otherwise the car's factory colour
     paint:

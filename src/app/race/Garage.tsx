@@ -15,6 +15,15 @@ import {
   getCar,
 } from "@/game/mods";
 import { getEngine, layoutTag } from "@/game/engines";
+import {
+  DEFAULT_LOGO,
+  loadCrew,
+  sanitizeTag,
+  saveCrew,
+  teamLogoDataUrl,
+  type Crew,
+} from "@/game/teams";
+import CrewBuilder from "@/components/CrewBuilder";
 import { haptic, HAPTIC, loadSettings } from "@/game/settings";
 import { playSfx } from "@/game/sfx";
 import { ICONS } from "./Icons";
@@ -135,6 +144,12 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  // The crew this save flies. Read after mount, not during render: it
+  // lives in localStorage and the garage is server-rendered first.
+  const [crew, setCrew] = useState<Crew | null>(null);
+  const [draft, setDraft] = useState<Crew | null>(null);
+  useEffect(() => setCrew(loadCrew()), []);
 
   const fx = useMemo(() => computeEffects(garage, ramp), [garage, ramp]);
   const car = getCar(ramp);
@@ -497,6 +512,106 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
                 Zero horsepower, maximum presence. Paint and glow apply the
                 moment you equip them.
               </p>
+
+              {/* CREW — the one thing here that is not bought.
+                  It costs nothing and it is not per-car: found a crew and
+                  every machine you own carries its colours on the roof. */}
+              <div className="mt-5">
+                <h3 className="grn-label border-b border-white/10 pb-2 text-[0.66rem]">
+                  CREW · <span className="grn-ar" lang="ar">الفريق</span>
+                </h3>
+                {draft ? (
+                  <div className="mt-3">
+                    <CrewBuilder value={draft} onChange={setDraft} size={112} />
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        onClick={() => {
+                          const next: Crew = {
+                            name: draft.name.trim().slice(0, 24),
+                            tag: sanitizeTag(draft.tag),
+                            logo: draft.logo,
+                          };
+                          if (!next.name || !next.tag) return;
+                          saveCrew(next);
+                          setCrew(next);
+                          setDraft(null);
+                          haptic(HAPTIC.reward, loadSettings().haptics);
+                          playSfx("ui-confirm");
+                        }}
+                        disabled={!draft.name.trim() || !sanitizeTag(draft.tag)}
+                        className="grn-btn grn-btn-primary tap px-6 py-2.5 text-sm disabled:opacity-40"
+                      >
+                        {crew ? "SAVE COLOURS" : "FOUND THE CREW"} —{" "}
+                        <span className="grn-ar" lang="ar">أسس فريقك</span>
+                      </button>
+                      <button
+                        onClick={() => setDraft(null)}
+                        className="grn-btn tap border border-white/15 px-5 py-2.5 text-sm text-white/65 hover:bg-white/10"
+                      >
+                        CANCEL
+                      </button>
+                    </div>
+                    <p className="mt-2 max-w-2xl text-[0.72rem] leading-5 text-white/40">
+                      The emblem goes on the roof of whatever you are driving,
+                      with the crew&apos;s name under it. A crew car has no
+                      sunroof — the panel is not big enough for both.
+                    </p>
+                  </div>
+                ) : crew ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-4">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={teamLogoDataUrl(crew.logo, 160, crew.tag)}
+                      alt={`${crew.name} emblem`}
+                      className="size-20 shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <div className="grn-display truncate text-2xl italic leading-none">
+                        {crew.name}
+                      </div>
+                      <div className="grn-label mt-1 text-[0.6rem] text-sodium-400">
+                        [{crew.tag}] · on the roof of every car you own
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setDraft(crew)}
+                        className="grn-btn tap border border-white/15 px-4 py-2 text-[0.78rem] text-white/75 hover:bg-white/10"
+                      >
+                        EDIT COLOURS
+                      </button>
+                      <button
+                        onClick={() => {
+                          saveCrew(null);
+                          setCrew(null);
+                          haptic(HAPTIC.tap, loadSettings().haptics);
+                        }}
+                        className="grn-btn tap border border-white/15 px-4 py-2 text-[0.78rem] text-white/55 hover:bg-white/10"
+                      >
+                        RACE SOLO
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 flex flex-wrap items-center gap-4">
+                    <p className="max-w-md flex-1 text-[0.8rem] leading-6 text-white/50">
+                      Racing for nobody. Found a crew and its emblem and name
+                      go on the roof of every car in this garage — and the
+                      same colours are what the lobby publishes when you take
+                      it online.
+                    </p>
+                    <button
+                      onClick={() =>
+                        setDraft({ name: "", tag: "", logo: { ...DEFAULT_LOGO } })
+                      }
+                      className="grn-btn grn-btn-primary tap px-6 py-2.5 text-sm"
+                    >
+                      FOUND A CREW
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {STYLE_CATS.map(({ cat, label }) => (
                 <div key={cat} className="mt-5">
                   <h3 className="grn-label border-b border-white/10 pb-2 text-[0.66rem]">

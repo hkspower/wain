@@ -794,6 +794,7 @@ export default function RaceClient() {
             goldRims: tune.goldRims,
             raceKit: tune.raceKit,
             stickers: tune.stickers,
+            crew: tune.crew ?? undefined,
           },
           reduced
         );

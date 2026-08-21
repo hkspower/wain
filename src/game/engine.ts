@@ -946,6 +946,7 @@ export class GameEngine {
       stickerNumber: this.stickerNumber(),
       name: this.tune.carName,
       nameAr: this.tune.carNameAr,
+      crew: this.tune.crew ?? undefined,
       exhaust: this.tune.exhaust,
     }));
     this.playerMesh = new THREE.Group();
@@ -2432,6 +2433,7 @@ export class GameEngine {
         stickerNumber: this.stickerNumber(),
         name: this.tune.carName,
         nameAr: this.tune.carNameAr,
+        crew: this.tune.crew ?? undefined,
         exhaust: this.tune.exhaust,
       })
     );

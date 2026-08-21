@@ -52,6 +52,7 @@
     "test:buildings": "node tests/buildings.mjs",
     "test:fuel": "node tests/fuel.mjs",
     "test:community": "node tests/community.mjs",
+    "test:crew": "node tests/crew.mjs",
     "shots:cars": "node tools/shots/cars.mjs",
     "check:ui": "node scripts/check-ui-glyphs.mjs",
     "check:parts": "node scripts/check-catalogue.mjs",

@@ -4,14 +4,14 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Team,
-  TeamLogo,
+  Crew,
   DEFAULT_LOGO,
-  LOGO_SHAPES,
-  LOGO_SYMBOLS,
-  LOGO_COLORS,
+  loadCrew,
+  saveCrew,
   teamLogoDataUrl,
   sanitizeTag,
 } from "@/game/teams";
+import CrewBuilder from "@/components/CrewBuilder";
 import {
   HubClient,
   HubPlayer,
@@ -64,9 +64,16 @@ export default function HubLobby() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [myTeam, setMyTeam] = useState<Team | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [teamName, setTeamName] = useState("");
-  const [teamTag, setTeamTag] = useState("");
-  const [logo, setLogo] = useState<TeamLogo>(DEFAULT_LOGO);
+  // The form starts from the crew this save already flies — built in the
+  // garage, most likely — so taking your own colours online is publishing
+  // them, not designing them a second time from scratch.
+  const [crew, setCrew] = useState<Crew>({ name: "", tag: "", logo: DEFAULT_LOGO });
+  /** Whether the hub has ever said we are in a crew on this connection. */
+  const hadTeam = useRef(false);
+  useEffect(() => {
+    const saved = loadCrew();
+    if (saved) setCrew(saved);
+  }, []);
   const [referral, setReferral] = useState<ReferralState | null>(null);
   const [codeDraft, setCodeDraft] = useState("");
   const [refMsg, setRefMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -140,15 +147,32 @@ export default function HubLobby() {
         onMyTeam: (t) => {
           setMyTeam(t);
           setShowCreate(false);
-          // Mirror the crew into the local profile so the race scene can
-          // decal the car and show the tag while playing solo
-          const p = loadProfile();
-          saveProfile({
-            ...p,
-            teamTag: t?.tag,
-            teamName: t?.name,
-            teamLogo: t?.logo,
-          });
+          if (t) {
+            // The crew the hub says you are in is the crew this save
+            // flies, so it goes where the game reads it from — one
+            // store, which the car's livery and the garage both use.
+            hadTeam.current = true;
+            const c = { name: t.name, tag: t.tag, logo: t.logo };
+            saveCrew(c);
+            setCrew(c);
+            return;
+          }
+          // No crew, according to the hub — and that is two completely
+          // different things. The server sends this on every welcome,
+          // so treating it as "you have no crew" would delete a crew
+          // built in the garage the moment the player opened the lobby.
+          if (hadTeam.current) {
+            hadTeam.current = false;
+            saveCrew(null);
+            return;
+          }
+          // Otherwise the hub has simply never heard of your crew —
+          // fresh connection, or the process restarted and took its
+          // in-memory roster with it. Publish it again. This is what
+          // makes a crew survive a hub restart from the only side that
+          // actually remembers it.
+          const mine = loadCrew();
+          if (mine) clientRef.current?.createTeam(mine.name, mine.tag, mine.logo);
         },
         onClose: () => {
           clientRef.current = null;
@@ -376,105 +400,24 @@ export default function HubLobby() {
 
               {/* Create form */}
               {showCreate && !myTeam && (
-                <div className="mt-4 grid gap-5 border-b border-white/10 pb-5 sm:grid-cols-[auto_1fr]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={teamLogoDataUrl(logo, 160, teamTag || "TAG")}
-                    alt="crew emblem preview"
-                    className="size-28"
-                  />
-                  <div>
-                    <div className="flex flex-wrap gap-3">
-                      <div className="min-w-[12rem] flex-1">
-                        <label className="grn-label text-[0.58rem]">Crew name</label>
-                        <input
-                          value={teamName}
-                          onChange={(e) => setTeamName(e.target.value)}
-                          maxLength={28}
-                          placeholder="Salmiya Street Kings"
-                          className="mt-1 w-full rounded-lg border border-white/15 bg-black/45 px-3 py-2 text-sm font-semibold outline-none focus:border-gulf-400"
-                        />
-                      </div>
-                      <div className="w-24">
-                        <label className="grn-label text-[0.58rem]">Tag</label>
-                        <input
-                          value={teamTag}
-                          onChange={(e) => setTeamTag(sanitizeTag(e.target.value))}
-                          placeholder="SSK"
-                          className="grn-display mt-1 w-full rounded-lg border border-white/15 bg-black/45 px-3 py-2 text-center text-sm outline-none focus:border-gulf-400"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap items-center gap-4">
-                      <div>
-                        <label className="grn-label text-[0.55rem]">Shape</label>
-                        <div className="mt-1 flex gap-1.5">
-                          {LOGO_SHAPES.map((sh) => (
-                            <button
-                              key={sh}
-                              onClick={() => setLogo({ ...logo, shape: sh })}
-                              className={`rounded-md border px-2.5 py-1 text-[0.7rem] capitalize transition ${
-                                logo.shape === sh
-                                  ? "border-gulf-400 text-gulf-300"
-                                  : "border-white/15 text-white/60 hover:border-white/35"
-                              }`}
-                            >
-                              {sh}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="grn-label text-[0.55rem]">Colours</label>
-                        <div className="mt-1 flex gap-1.5">
-                          {LOGO_COLORS.slice(0, 6).map((c) => (
-                            <button
-                              key={c}
-                              onClick={() => setLogo({ ...logo, fg: c })}
-                              aria-label={`accent ${c}`}
-                              className={`size-6 rounded-full border-2 transition ${
-                                logo.fg === c ? "scale-110 border-white" : "border-white/25"
-                              }`}
-                              style={{ backgroundColor: c }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-3">
-                      <label className="grn-label text-[0.55rem]">Emblem</label>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {LOGO_SYMBOLS.map((sym) => (
-                          <button
-                            key={sym}
-                            onClick={() => setLogo({ ...logo, symbol: sym })}
-                            className={`rounded-md border px-2 py-1 text-base transition ${
-                              logo.symbol === sym
-                                ? "border-gulf-400 bg-gulf-500/15"
-                                : "border-white/10 hover:border-white/30"
-                            }`}
-                          >
-                            {sym}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        const n = teamName.trim();
-                        const tg = sanitizeTag(teamTag);
-                        if (!n || !tg) return;
-                        clientRef.current?.createTeam(n, tg, logo);
-                      }}
-                      disabled={!teamName.trim() || !sanitizeTag(teamTag)}
-                      className="grn-btn grn-btn-primary mt-4 px-6 py-2.5 text-sm disabled:opacity-40"
-                    >
-                      FOUND THE CREW — <span className="grn-ar" lang="ar">أسس فريقك</span>
-                    </button>
-                  </div>
+                <div className="mt-4 border-b border-white/10 pb-5">
+                  <CrewBuilder value={crew} onChange={setCrew} size={112} />
+                  <button
+                    onClick={() => {
+                      const n = crew.name.trim();
+                      const tg = sanitizeTag(crew.tag);
+                      if (!n || !tg) return;
+                      // Saved locally first. The socket may drop the
+                      // message, the hub may restart, and the crew is
+                      // still yours and still on the car either way.
+                      saveCrew({ name: n, tag: tg, logo: crew.logo });
+                      clientRef.current?.createTeam(n, tg, crew.logo);
+                    }}
+                    disabled={!crew.name.trim() || !sanitizeTag(crew.tag)}
+                    className="grn-btn grn-btn-primary mt-4 px-6 py-2.5 text-sm disabled:opacity-40"
+                  >
+                    FOUND THE CREW — <span className="grn-ar" lang="ar">أسس فريقك</span>
+                  </button>
                 </div>
               )}
 

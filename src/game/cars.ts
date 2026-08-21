@@ -5,6 +5,7 @@ import { upgradeCarShells, upgradeWheels, upgradeDriver } from "./models";
 import { arabicUI, latinDisplay } from "./text";
 import { kuwaitiDriver } from "./characters";
 import { pointGlowTexture, poolGlowTexture } from "./glow";
+import { drawTeamLogo, type TeamLogo } from "./teams";
 
 // Procedural sedans with a real silhouette: the body and glasshouse are
 // bevel-extruded side profiles (smoothed normals), riding on spoked
@@ -43,6 +44,9 @@ export interface CarColors {
   /** The car's own name, for the flank wordmark in the sticker pack. */
   name?: string;
   nameAr?: string;
+  /** The crew this car runs for: emblem and name on the roof.
+   *  Absent means a privateer, which is what every car was until now. */
+  crew?: { name: string; tag: string; logo: TeamLogo };
 }
 
 let goldRimMat: THREE.MeshStandardMaterial | null = null;
@@ -1261,6 +1265,63 @@ function nameDecalTexture(name: string, ar?: string): THREE.CanvasTexture {
   return tex;
 }
 
+/** The crew's roof livery: emblem over the crew's name.
+ *
+ *  Drawn by teams.ts so the emblem on the car is the same emblem as the
+ *  one on the lobby card — one description of a logo, one routine that
+ *  draws it, at whatever size is asked for. The name band underneath is
+ *  laid out here because only the roof needs it. */
+const crewDecalCache = new Map<string, THREE.CanvasTexture>();
+function crewDecalTexture(logo: TeamLogo, tag: string, name: string): THREE.CanvasTexture {
+  const key = `${logo.shape}|${logo.symbol}|${logo.bg}|${logo.fg}|${tag}|${name}`;
+  const cached = crewDecalCache.get(key);
+  if (cached) return cached;
+  const W = 256;
+  const H = 320;
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const ctx = c.getContext("2d")!;
+  ctx.clearRect(0, 0, W, H);
+  drawTeamLogo(ctx, logo, W, tag);
+  // The crew's own name under the shield. An Arabic name is set with the
+  // Arabic stack and laid out right-to-left; the tag inside the shield
+  // already goes through the same sanitiser both scripts share.
+  const ar = /[؀-ۿ]/.test(name);
+  const label = name.trim().slice(0, 18).toUpperCase();
+  if (label) {
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.direction = ar ? "rtl" : "ltr";
+    // Shrink to fit rather than run off the panel — a long crew name is
+    // a normal thing to pick and it should not be cropped to "AL MUB".
+    let px = 46;
+    ctx.font = `700 ${px}px ${ar ? arabicUI() : latinDisplay()}`;
+    while (px > 18 && ctx.measureText(label).width > W - 24) {
+      px -= 2;
+      ctx.font = `700 ${px}px ${ar ? arabicUI() : latinDisplay()}`;
+    }
+    // A dark plate behind it, because the paint under the roof decal is
+    // whatever colour the player chose and white-on-white is nothing.
+    const tw = ctx.measureText(label).width;
+    ctx.fillStyle = logo.bg;
+    ctx.strokeStyle = logo.fg;
+    ctx.lineWidth = 4;
+    const bw = Math.min(W - 8, tw + 30);
+    ctx.beginPath();
+    ctx.roundRect((W - bw) / 2, W + 6, bw, H - W - 14, 10);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = logo.fg;
+    ctx.fillText(label, W / 2, W + 6 + (H - W - 14) / 2 + 1);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  crewDecalCache.set(key, tex);
+  return tex;
+}
+
 function decalMat(map: THREE.CanvasTexture): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
     map,
@@ -1973,16 +2034,25 @@ export function createCar(colors: CarColors): THREE.Group {
   {
     const [rz, ry] = d.roof;
     const sunroofZ = rz + (bCabBack ? 0.28 : 0.18);
-    const sunroof = new THREE.Mesh(roundedBox(0.72, 0.02, 0.62, 0.015), glassMat);
-    // On the roof's measured surface, like the rails below it. Seated on
-    // the roof ANCHOR — the profile's top line — the glass sat 26 mm
-    // under the paint on the saloons and never appeared.
-    sunroof.position.set(
-      0,
-      (deckY(rGeo, style, sunroofZ, "roof") ?? ry) - 0.008,
-      sunroofZ
-    );
-    group.add(sunroof);
+    // A crew car wears its colours on the roof, and the roof is not big
+    // enough for both. Measured: the panel runs 0.88 m on a Z32 and
+    // 1.10 m on an R34, the sunroof eats 0.62 of it, and the R34 puts a
+    // shark fin in the 0.22 m behind that — which leaves 0.12 m for an
+    // emblem, i.e. a postage stamp. Racing a crew's colours is a choice
+    // the player makes deliberately, so it takes the whole panel and the
+    // glass roof is what it costs.
+    if (!colors.crew || colors.simple) {
+      const sunroof = new THREE.Mesh(roundedBox(0.72, 0.02, 0.62, 0.015), glassMat);
+      // On the roof's measured surface, like the rails below it. Seated on
+      // the roof ANCHOR — the profile's top line — the glass sat 26 mm
+      // under the paint on the saloons and never appeared.
+      sunroof.position.set(
+        0,
+        (deckY(rGeo, style, sunroofZ, "roof") ?? ry) - 0.008,
+        sunroofZ
+      );
+      group.add(sunroof);
+    }
     // Roof rails, and only on the saloon roof. They were pinned to the
     // roof anchor, which is the profile's top line — the extrusion's
     // bevel lifts the painted surface ~50 mm above it, so they sat
@@ -2003,18 +2073,67 @@ export function createCar(colors: CarColors): THREE.Group {
         group.add(rail);
       }
     }
+    /** The forward face of anything already standing on the roof. */
+    let roofClutterZ = -Infinity;
     if (style === "gtr") {
       // Shark fin at the trailing edge of the roof
       const fin = new THREE.Mesh(roundedBox(0.035, 0.1, 0.22, 0.012), bodyMat);
       fin.position.set(0, ry + 0.04, rz - 0.42);
       fin.rotation.x = -0.25;
       group.add(fin);
+      // Measured, not derived. The fin leans back 0.25 rad and carries a
+      // 12 mm bevel, so where its nose actually ends is not rz - 0.42
+      // plus half of anything — and 6 mm was all the room the crew decal
+      // had left beside it when that was assumed rather than asked.
+      fin.updateMatrix();
+      fin.geometry.computeBoundingBox();
+      roofClutterZ = fin.geometry.boundingBox!.clone().applyMatrix4(fin.matrix).max.z;
     } else if (style === "zx") {
       // Period-correct power antenna on the rear quarter
       const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, 0.42, 6), chromeLocal);
       mast.position.set(0.82, 1.0, -1.86);
       mast.rotation.x = 0.16;
       group.add(mast);
+    }
+
+    // --- The crew's colours.
+    //
+    // The top of teams.ts has promised "a decal baked onto the car's
+    // roof" since the file was written, and it had never been built: a
+    // crew lived in the hub server's memory, showed up on one lobby
+    // card, and no part of the game the player actually drives had heard
+    // of it. This is that decal.
+    if (colors.crew && !colors.simple) {
+      rGeo.computeBoundingBox();
+      const roofBox = rGeo.boundingBox!;
+      // Fitted to the clear run of panel it lies on rather than to a
+      // fixed number: the roofs are 0.88 to 1.40 m long, and on the R34
+      // the shark fin takes the back of one. 4:5, emblem over name.
+      const rear = Math.max(roofBox.min.z + 0.07, roofClutterZ + 0.04);
+      const front = roofBox.max.z - 0.07;
+      const depth = Math.min(0.72, front - rear, (roofBox.max.x - 0.05) * 2 * 1.25);
+      const width = depth * 0.8;
+      const zc = (rear + front) / 2;
+      const HALF = depth / 2;
+      // A roof crowns across AND along. Levelled against its own two
+      // ends, the same way the bonnet decal is, or it sinks into the
+      // middle of the panel at one end and lifts off it at the other.
+      const yBack = deckY(rGeo, style, zc - HALF, "roof") ?? ry;
+      const yFront = deckY(rGeo, style, zc + HALF, "roof") ?? ry;
+      const yMid = deckY(rGeo, style, zc, "roof") ?? ry;
+      const plaque = new THREE.Mesh(
+        new THREE.PlaneGeometry(width, depth),
+        decalMat(crewDecalTexture(colors.crew.logo, colors.crew.tag, colors.crew.name))
+      );
+      plaque.rotation.z = Math.PI; // reads upright from the chase camera
+      plaque.rotation.x = -Math.PI / 2 + Math.asin(Math.min(0.6, (yBack - yFront) / depth));
+      plaque.position.set(
+        0,
+        Math.max((yBack + yFront) / 2, yMid) + 0.006,
+        zc
+      );
+      group.add(plaque);
+      group.userData.crewDecal = plaque;
     }
   }
 

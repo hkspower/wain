@@ -139,7 +139,22 @@ It is not broken, it is slow, and it is slow enough that it gets skipped.
 **What I would do:** default it to one hour and take the full sweep on
 request.
 
-## 9. Asked for earlier and never done
+## 9. A hub restart still empties every crew's roster
+
+A crew is now a local identity: it is built in the garage, saved beside
+the save, and worn on the car whether or not anything is listening on a
+socket. Going online republishes it, so your own crew survives a hub
+restart. What does not survive is everyone ELSE in it — the server keeps
+`teams` in a `Map` and nothing else, so a restart drops the membership
+and each member only reappears as they reconnect and re-found their own
+crew, which the server then refuses as a duplicate name.
+
+**What I would do:** persist teams the way referrals already are (an
+atomic tmp-and-rename ledger, `LEDGER_PATH` in `server/hub-server.mjs`),
+and let `team-create` re-adopt an existing crew whose founder matches
+instead of dropping it on the floor.
+
+## 10. Asked for earlier and never done
 
 - **"improve ik for mods page"** — the garage's car preview. Asked for
   some time ago, never picked up.
@@ -152,5 +167,5 @@ request.
 2. **Decide the driver model** (item 1). One decision turns two suites
    green permanently, and it is yours to make rather than mine.
 3. **The hydration warning** (item 6), because it is twenty minutes.
-4. Then either the mods-page preview (item 9) or scope the road network
+4. Then either the mods-page preview (item 10) or scope the road network
    (item 3) — but the road network deserves its own run at it.

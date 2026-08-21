@@ -143,3 +143,84 @@ export function sanitizeTag(raw: string): string {
     .replace(/[^A-Z0-9\u0621-\u064A\u0660-\u0669]/g, "")
     .slice(0, 4);
 }
+
+/**
+ * YOUR CREW, KEPT LOCALLY
+ *
+ * A team used to exist in exactly one place: the hub server's memory. It
+ * followed that you could not have a crew unless a hub was running and
+ * you were connected to it, that your crew vanished when that process
+ * restarted, and that nothing in the actual game — not the car, not the
+ * HUD, not the garage — had ever heard of it. The emblem this file goes
+ * to the trouble of drawing was visible on one lobby page and nowhere
+ * else, including "a decal baked onto the car's roof", which is written
+ * at the top of this file and had never been built.
+ *
+ * So the crew is a LOCAL identity now, saved beside the garage. You
+ * build one in the garage, it goes on your car, and it is there whether
+ * or not anything is listening on a socket. The hub is how a crew gets
+ * SHARED — it publishes what you already have and gathers the members —
+ * rather than the only place one can exist.
+ */
+export interface Crew {
+  name: string;
+  tag: string;
+  logo: TeamLogo;
+}
+
+const CREW_KEY = "gulf-road-nights-crew";
+/** Where the hub used to mirror a crew: three loose fields on the
+ *  profile, written on every team update and read by nothing. Kept only
+ *  so a save made before this file owned the crew still has one. */
+const LEGACY_PROFILE_KEY = "gulf-road-nights-profile";
+
+/** The crew this save is flying, or null for a privateer. */
+export function loadCrew(): Crew | null {
+  try {
+    const raw = localStorage.getItem(CREW_KEY) ?? legacyCrewJson();
+    if (!raw) return null;
+    const c = JSON.parse(raw) as Crew;
+    if (!c || typeof c.name !== "string" || typeof c.tag !== "string") return null;
+    if (!c.logo || typeof c.logo.shape !== "string") return null;
+    // A crew with an empty tag is one the hub would silently throw away,
+    // so it is not a crew here either.
+    const tag = sanitizeTag(c.tag);
+    if (!tag || !c.name.trim()) return null;
+    return { name: c.name.slice(0, 24), tag, logo: c.logo };
+  } catch {
+    return null;
+  }
+}
+
+function legacyCrewJson(): string | null {
+  try {
+    const raw = localStorage.getItem(LEGACY_PROFILE_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as { teamName?: string; teamTag?: string; teamLogo?: TeamLogo };
+    if (!p?.teamName || !p?.teamTag || !p?.teamLogo) return null;
+    return JSON.stringify({ name: p.teamName, tag: p.teamTag, logo: p.teamLogo });
+  } catch {
+    return null;
+  }
+}
+
+export function saveCrew(c: Crew | null): void {
+  try {
+    if (c) {
+      localStorage.setItem(CREW_KEY, JSON.stringify(c));
+      return;
+    }
+    localStorage.removeItem(CREW_KEY);
+    // Leaving a crew has to clear the old mirror too, or the migration
+    // above hands it straight back on the next read and "race solo" is a
+    // button that does nothing.
+    const raw = localStorage.getItem(LEGACY_PROFILE_KEY);
+    if (!raw) return;
+    const p = JSON.parse(raw) as Record<string, unknown>;
+    if (p.teamName === undefined && p.teamTag === undefined && p.teamLogo === undefined) return;
+    delete p.teamName;
+    delete p.teamTag;
+    delete p.teamLogo;
+    localStorage.setItem(LEGACY_PROFILE_KEY, JSON.stringify(p));
+  } catch {}
+}

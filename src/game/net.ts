@@ -229,10 +229,10 @@ export interface Profile {
   color: string;
   country?: string;
   flag?: string;
-  /** Crew identity, mirrored locally so solo play can show it too. */
-  teamTag?: string;
-  teamName?: string;
-  teamLogo?: TeamLogo;
+  // A crew used to be mirrored here as three loose fields, written on
+  // every hub update and read by nowhere — the comment said it was so
+  // "the race scene can decal the car", which it never did. The crew has
+  // one home now, teams.ts, which the car and the garage both read.
 }
 
 export function loadProfile(): Profile {
