@@ -43,7 +43,6 @@ import { textTexture, arabicUI } from "./text";
 export type FlagId =
   | "bh" // Bahrain
   | "eg" // Egypt
-  | "ir" // Iran
   | "iq" // Iraq
   | "jo" // Jordan
   | "kw" // Kuwait
@@ -179,34 +178,6 @@ function script(
   ctx.restore();
 }
 
-/** A serrated hoist band: `points` triangles biting into the field.
- *  Bahrain has five, Qatar has nine, and that is how you tell them
- *  apart from a hundred metres away. */
-function serration(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  bandW: number,
-  points: number,
-  bandColour: string
-): void {
-  ctx.fillStyle = bandColour;
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(bandW * 0.62, 0);
-  for (let i = 0; i < points; i++) {
-    const y0 = (h * i) / points;
-    const y1 = (h * (i + 0.5)) / points;
-    const y2 = (h * (i + 1)) / points;
-    ctx.lineTo(bandW, y1 - (h / points) * 0.5 + (y1 - y0));
-    ctx.lineTo(bandW * 0.62, y2);
-    void y0;
-  }
-  ctx.lineTo(0, h);
-  ctx.closePath();
-  ctx.fill();
-}
-
 // ------------------------------------------------------------ the flags
 
 export const FLAGS: Record<FlagId, FlagSpec> = {
@@ -323,88 +294,6 @@ export const FLAGS: Record<FlagId, FlagSpec> = {
       ctx.quadraticCurveTo(cx, cy + s2 * 1.44, cx - s2 * 0.78, cy + s2 * 1.2);
       ctx.closePath();
       ctx.fill();
-    },
-  },
-
-  // Iran — 4:7. The emblem, and the takbir repeated along both band
-  // edges — eleven times on each, twenty-two in all.
-  ir: {
-    name: "Iran",
-    nameAr: "ایران",
-    ratio: 7 / 4,
-    script: true,
-    draw(ctx, w, h) {
-      bands(ctx, w, h, ["#239f40", WHITE, "#da0000"]);
-      // The takbir, eleven along the foot of the green and eleven along
-      // the head of the red, facing the white — twenty-two in all, for
-      // the date of the revolution.
-      const n = 11;
-      for (let i = 0; i < n; i++) {
-        const x = (w * (i + 0.5)) / n;
-        script(ctx, "الله اکبر", x, h * 0.297, (w / n) * 0.66, h * 0.062, WHITE);
-        script(ctx, "الله اکبر", x, h * 0.703, (w / n) * 0.66, h * 0.062, WHITE);
-      }
-
-      // The emblem: four crescents around a central sword, the whole
-      // reading as a tulip, with a shadda bar across the top.
-      //
-      // Two rewrites. The first filled into one red lobe; the second was
-      // five separate strokes that did not agree on a centre. This one
-      // is built the way the emblem is actually composed — a vertical
-      // axis, then mirrored pairs stepped OUTWARD and DOWNWARD from it,
-      // each a closed crescent with its own opening. The gaps between
-      // the five elements are as much of the shape as the elements.
-      const cx = w * 0.5, cy = h * 0.5, s2 = h * 0.185;
-      ctx.fillStyle = "#da0000";
-      // Central blade: a long isosceles rising to a point.
-      ctx.beginPath();
-      ctx.moveTo(cx, cy - s2 * 1.28);
-      ctx.lineTo(cx + s2 * 0.155, cy - s2 * 0.5);
-      ctx.lineTo(cx + s2 * 0.155, cy + s2 * 0.86);
-      ctx.lineTo(cx - s2 * 0.155, cy + s2 * 0.86);
-      ctx.lineTo(cx - s2 * 0.155, cy - s2 * 0.5);
-      ctx.closePath();
-      ctx.fill();
-      // The shadda: a bar across the blade, above centre.
-      ctx.fillRect(cx - s2 * 0.56, cy - s2 * 0.62, s2 * 1.12, s2 * 0.17);
-      // Four crescents.
-      //
-      // Third attempt, and the fault each time was the same: the tips
-      // pointed UP. A crescent that rises vertically beside a vertical
-      // sword is a spike, and four spikes around a fifth is a comb, not
-      // a tulip. The emblem's crescents lean OUTWARD — each one leaves
-      // the base heading sideways and only then turns up, so the pair
-      // opens away from the axis and the gap between them is a curve.
-      //
-      // `out` is how far the tip lies from the axis, `up` how high it
-      // gets. Keeping out comparable to up is the whole shape.
-      const petal = (side: number, base: number, out: number, up: number, thick: number): void => {
-        const bx = cx + side * s2 * base;
-        const by = cy + s2 * 0.84;
-        const tx = cx + side * s2 * out;
-        const ty = cy - s2 * up;
-        ctx.beginPath();
-        ctx.moveTo(bx, by);
-        // Outer edge: away from the axis first, then up to the tip.
-        ctx.bezierCurveTo(
-          cx + side * s2 * (base + thick * 1.5), cy + s2 * 0.2,
-          cx + side * s2 * (out + thick * 0.75), cy - s2 * (up * 0.45),
-          tx, ty
-        );
-        // Inner edge: back down, hugging the axis, leaving a crescent's
-        // hollow between this petal and its neighbour.
-        ctx.bezierCurveTo(
-          cx + side * s2 * (out - thick * 0.15), cy - s2 * (up * 0.5),
-          cx + side * s2 * (base + thick * 0.35), cy + s2 * 0.1,
-          bx + side * s2 * thick * 0.5, by
-        );
-        ctx.closePath();
-        ctx.fill();
-      };
-      for (const side of [-1, 1]) {
-        petal(side, 0.26, 0.72, 0.98, 0.3);   // inner: tall, close in
-        petal(side, 0.66, 1.34, 0.52, 0.32);  // outer: low and far out
-      }
     },
   },
 
@@ -810,8 +699,6 @@ export function flagIdFor(country: string | undefined): FlagId | null {
     "saudi": "sa",
     turkey: "tr",
     türkiye: "tr",
-    persia: "ir",
-    "iran": "ir",
   };
   return alias[want] ?? null;
 }
