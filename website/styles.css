@@ -353,26 +353,22 @@ a.topbar__item:hover { color: #fff; }
 
 /* رسم السيارة */
 .hero__art { position: relative; }
+/* البطاقة كانت إطارًا حول رسمٍ شفّاف، فحشوها غير المتساوي (٢rem رأسيًّا
+   و١٫٥ أفقيًّا) لم يكن يُلاحَظ. صار المحتوى مشهدًا مصمتًا، فالحشو يصير
+   حاشيةً مرئية: نُسوّيها ونُدوّر أركان المشهد لتتبع أركان البطاقة.
+   ويبقى `overflow: visible` لأنّ البطاقتين العائمتين تخرجان عن حدودها. */
 .art-card {
   position: relative; overflow: visible; background: linear-gradient(160deg, var(--teal-50), #fff 62%);
   border: 1px solid var(--teal-100); border-radius: var(--radius-lg);
-  padding: var(--pad-xl) var(--pad-md); box-shadow: var(--shadow-lg);
+  padding: 12px; box-shadow: var(--shadow-lg);
 }
+.art-card .scene { border-radius: 6px; }
 .vdefs { position: absolute; width: 0; height: 0; overflow: hidden; }
 
-.car { width: 100%; height: auto; display: block; overflow: visible; }
-.car__body { animation: bob 3.6s ease-in-out infinite; transform-origin: center; }
-/* دوران العجلات — نقطة الدوران مركز مربّع الرسم نفسه */
-.spin { transform-box: fill-box; transform-origin: 50% 50%; animation: spin 1.15s linear infinite; }
-.speed rect { animation: dash 1.5s linear infinite; }
-.speed rect:nth-child(2) { animation-delay: .2s; }
-.speed rect:nth-child(3) { animation-delay: .4s; }
-.dashes rect { animation: road 1.1s linear infinite; }
-
-@keyframes bob  { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
-@keyframes spin { to { transform: rotate(-360deg); } }
-@keyframes dash { 0% { opacity: .2; transform: translateX(-14px); } 50% { opacity: 1; } 100% { opacity: .2; transform: translateX(14px); } }
-@keyframes road { 0% { transform: translateX(0); } 100% { transform: translateX(90px); } }
+/* مشهد المقدّمة: مركبة ساكنة على شارع الخليج العربي.
+   لا حركة فيه — لا اهتزاز جسم، ولا دوران عجلات، ولا خطوط سرعة، ولا طريق
+   ينزلق. المركبة واقفة كما تُرى في صورة. */
+.scene { width: 100%; height: auto; display: block; }
 
 .art-chip {
   position: absolute; display: flex; align-items: center; gap: .7rem;
@@ -953,25 +949,17 @@ a.topbar__item:hover { color: #fff; }
 .tmap__note { margin: .9rem 0 0; font-size: var(--fs-sm); color: var(--ink-soft); }
 .tmap__note b { color: var(--teal-700); }
 
-/* المسار المقطوع والسيارة يتحرّكان بالتوقيت نفسه، فيتطابق رأس الخطّ مع السيارة.
-   كلاهما CSS لا SMIL، ليشملهما تعطيل الحركة في تفضيلات النظام. */
-.tmap__done {
-  stroke-dasharray: 100; stroke-dashoffset: 100;
-  animation: tmapDraw 9s cubic-bezier(.45,.05,.55,.95) infinite;
-}
+/* المسار مرسومٌ كاملًا والسيارة عند وجهتها: الرحلة تُعرض منتهية.
+   كانت السيارة تقطع المسار في تسع ثوانٍ ويُرسم الخطّ خلفها بالتوقيت نفسه؛
+   أُزيلت الحركتان معًا — لا تُترك سيارةٌ تسير بعد إيقاف حركة المركبات. */
+.tmap__done { stroke-dasharray: none; stroke-dashoffset: 0; }
 .tmap__car {
   offset-path: path("M498 352 L498 268 Q498 256 486 256 L322 256 Q310 256 310 244 L310 156 Q310 144 298 144 L146 144");
-  offset-rotate: 0deg; offset-distance: 0%;
-  animation: tmapDrive 9s cubic-bezier(.45,.05,.55,.95) infinite;
+  /* ٧٨٪ لا ١٠٠٪: عند نهاية المسار تمامًا تقف السيارة فوق دبوس التسليم
+     فيتراكب الشكلان، والنصّ تحتها يقول إنها تصل بعد ثماني دقائق — فمكانها
+     على الطريق قبل الوجهة لا عندها. */
+  offset-rotate: 0deg; offset-distance: 78%;
   filter: drop-shadow(0 2px 4px rgba(10, 63, 71, .22));
-}
-@keyframes tmapDraw  { 0%,4% { stroke-dashoffset: 100 } 88%,100% { stroke-dashoffset: 0 } }
-@keyframes tmapDrive { 0%,4% { offset-distance: 0% }   88%,100% { offset-distance: 100% } }
-
-/* بلا حركة: تُعرض الرحلة مكتملة والسيارة عند وجهتها بدل تجمّدها في البداية */
-@media (prefers-reduced-motion: reduce) {
-  .tmap__done { stroke-dashoffset: 0; animation: none; }
-  .tmap__car  { offset-distance: 100%; animation: none; }
 }
 
 /* ---- مساعد موصول ---- */
