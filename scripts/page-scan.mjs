@@ -191,11 +191,14 @@ for (const route of ROUTES) {
   const head = await p.evaluate(() => ({
     title: document.title.trim(),
     lang: document.documentElement.lang,
-    dir: document.documentElement.getAttribute('dir'),
   }))
   if (!head.title) note(`${label} the served HTML has no <title>`)
   if (!head.lang) note(`${label} the served HTML has no lang=`)
-  if (!head.dir) note(`${label} the served HTML has no dir=`)
+  // dir= is NOT checked. This app sets direction per element, because there
+  // is no way to force RTL on native without a reload, and a document-level
+  // dir fights that: it flips which end of a horizontal list a scroll-to-end
+  // lands on, and it put the shop's first filter chip off the left edge of
+  // the screen. See app/+html.tsx.
 }
 
 await ctx.close()

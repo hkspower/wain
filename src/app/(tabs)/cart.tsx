@@ -83,7 +83,7 @@ export default function CartScreen() {
                 type="backgroundElement"
                 style={[styles.line, row, { borderColor: theme.border }]}>
                 <RemoteArt
-                  uri={productPhoto(p.slug)}
+                  uri={productPhoto(p)}
                   ground={p.color}
                   emoji={p.emoji}
                   emojiSize={36}

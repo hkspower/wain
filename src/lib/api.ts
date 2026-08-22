@@ -63,6 +63,9 @@ interface LiveProduct {
   category: string;
   brand_name_en: string | null;
   featured: boolean;
+  /** Relative to the API directory, e.g. "api.php?r=product_image&id=7&v=…",
+   *  or null when the shop has no photograph of this product. */
+  image: string | null;
 }
 
 interface LiveStock {
@@ -82,6 +85,23 @@ const KNOWN_CATEGORY = (id: string): id is Product['category'] =>
  * catalogue that silently loses products is worse than one showing an
  * unavailable one.
  */
+/**
+ * The catalogue reports an image as a path relative to the API directory,
+ * because that is where api.php sits and that is what the website's own
+ * <img src> needs. This app fetches from wherever API_BASE points, which is a
+ * different origin in development and the same one in production, so the
+ * relative path has to be resolved against it rather than against the page.
+ *
+ * An absolute URL is passed through: the shop may one day serve its pictures
+ * from somewhere else, and that is its decision to make, not this app's to
+ * override.
+ */
+function photoUrl(image: string | null): string | undefined {
+  if (!image) return undefined;
+  if (/^https?:\/\//i.test(image)) return image;
+  return `${API_BASE}/${image.replace(/^\.?\//, '')}`;
+}
+
 function adapt(products: LiveProduct[], stock: LiveStock[]): Product[] {
   const bySlug = new Map<string, LiveStock[]>();
   for (const row of stock) {
@@ -100,6 +120,7 @@ function adapt(products: LiveProduct[], stock: LiveStock[]): Product[] {
     was: p.on_sale && p.list_price && p.list_price > p.price ? toFils(p.list_price) : undefined,
     emoji: '🛍️',
     color: '#2b3138',
+    photo: photoUrl(p.image),
     blurb: p.desc_en ?? '',
     blurbAr: p.desc_ar ?? '',
     details: [],

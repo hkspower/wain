@@ -42,7 +42,10 @@ export function RemoteArt({
   style,
   children,
 }: {
-  uri: string;
+  /** The photograph on the server. Undefined when the shop has none — the
+   *  remote layer is then not rendered at all, rather than requesting a URL
+   *  nobody expects to answer. */
+  uri?: string;
   /** A `require`d image that ships with the app; painted under the remote one. */
   bundled?: number;
   ground: string;
@@ -70,7 +73,7 @@ export function RemoteArt({
           }
         />
       )}
-      {!failed && (
+      {uri && !failed && (
         <Image
           source={{ uri }}
           // Decorative: the tile's own Pressable already carries the category
@@ -86,7 +89,12 @@ export function RemoteArt({
           onError={() => setFailed(true)}
         />
       )}
-      {failed && bundled === undefined && emoji ? (
+      {/* No picture at all: none on the server, or the one there refused to
+          load, and nothing bundled underneath. `!uri` counts the same as a
+          failure — a product the shop has no photograph of should show its
+          emoji immediately rather than waiting for a request that is never
+          made. */}
+      {(failed || !uri) && bundled === undefined && emoji ? (
         <View style={styles.emojiWrap} pointerEvents="none">
           <Text style={{ fontSize: emojiSize }}>{emoji}</Text>
         </View>

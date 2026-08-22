@@ -62,7 +62,9 @@ await shot('home-ar')
 // fails to register falls back silently to the system face, and the page still
 // looks fine at a glance while being a different shop.
 const offScale = await p.evaluate(() =>
-  [...document.querySelectorAll('*')]
+  // document.body, not document: <title> is text in a typeface nobody sees,
+  // and counting it reported the tab's name as an unstyled line on the page.
+  [...document.body.querySelectorAll('*')]
     .filter((el) => el.children.length === 0 && el.textContent?.trim() && !['STYLE', 'SCRIPT'].includes(el.tagName))
     .map((el) => ({
       family: getComputedStyle(el).fontFamily.split(',')[0].replace(/"/g, ''),

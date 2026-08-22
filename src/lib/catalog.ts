@@ -43,6 +43,9 @@ export interface Product {
   was?: Fils;
   emoji: string;
   color: string;
+  /** The photograph's URL, as the shop gave it. Absent on the bundled
+   *  catalogue, which ships its pictures inside the app. */
+  photo?: string;
   blurb: string;
   blurbAr: string;
   details: string[];

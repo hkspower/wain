@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
+import { useHydrated } from '@/hooks/use-hydrated';
 import { useTheme } from '@/hooks/use-theme';
 import { useLang } from '@/lib/i18n';
 
@@ -17,6 +18,13 @@ export default function OrderScreen() {
   const router = useRouter();
   const { t } = useLang();
   const { ref } = useLocalSearchParams<{ ref: string }>();
+  const hydrated = useHydrated();
+
+  // The order number is in the URL, so the prerendered HTML has none and the
+  // client has one — see hooks/use-hydrated.
+  if (!hydrated) {
+    return <Screen edges={['bottom']} scroll={false} contentStyle={styles.centred}>{null}</Screen>;
+  }
 
   return (
     <Screen edges={['bottom']} scroll={false} contentStyle={styles.centred}>

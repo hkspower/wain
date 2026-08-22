@@ -9,8 +9,26 @@ import { ASSET_BASE } from '@/lib/config';
 
 export { ASSET_BASE };
 
-/** Category artwork: /cats/art-<id>.jpg on the server. */
-export const categoryArt = (id: string) => `${ASSET_BASE}/cats/art-${id}.jpg`;
+/**
+ * Category artwork.
+ *
+ * /cats/mobile/, not /cats/. The shop keeps two crops of every tile — a tall
+ * one for phones and a wide one for desktop — and the bare /cats/art-men.jpg
+ * this asked for before is not a file on the server. It 404'd on every home
+ * page load since the app was written, silently: RemoteArt paints the bundled
+ * photograph underneath, so the only symptom was that uploading a new tile to
+ * the shop never changed anything in the app.
+ */
+export const categoryArt = (id: string) => `${ASSET_BASE}/cats/mobile/art-${id}.jpg`;
 
-/** Product photography: /products/<slug>.jpg on the server. */
-export const productPhoto = (slug: string) => `${ASSET_BASE}/products/${slug}.jpg`;
+/**
+ * Product photography, as the shop reports it.
+ *
+ * There is no /products/ directory on the server and there never was. Product
+ * pictures live in the database and are served by api.php?r=product_image,
+ * which is why the catalogue carries a URL — and why this takes the product
+ * rather than its slug: the address is the shop's to decide, not this app's to
+ * guess. Undefined when the shop has no photograph, which is the signal
+ * RemoteArt needs to skip its remote layer instead of requesting a 404.
+ */
+export const productPhoto = (product: { photo?: string }) => product.photo;

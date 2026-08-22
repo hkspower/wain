@@ -27,7 +27,7 @@ export function ProductCard({ product }: { product: Product }) {
         style={press(false, styles.press)}>
         <ThemedView type="backgroundElement" style={[styles.card, { borderColor: theme.border }]}>
           <RemoteArt
-            uri={productPhoto(product.slug)}
+            uri={productPhoto(product)}
             ground={product.color}
             emoji={product.emoji}
             emojiSize={56}

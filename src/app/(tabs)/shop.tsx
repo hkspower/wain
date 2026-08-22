@@ -36,7 +36,14 @@ export default function ShopScreen() {
    */
   const startAtReadingEdge = useCallback(
     (ref: React.RefObject<ScrollView | null>) => () => {
-      if (dir === 'rtl') ref.current?.scrollToEnd({ animated: false });
+      if (dir !== 'rtl') return;
+      ref.current?.scrollToEnd({ animated: false });
+      // And again after the frame settles. The row lays out more than once —
+      // the chips' 48pt hit areas resize it after the first pass — and a
+      // scroll issued against the old width lands short, which puts the first
+      // chip back off the screen. Cheap, idempotent, and it is the difference
+      // between the filter row opening on "All" and opening on nothing.
+      requestAnimationFrame(() => ref.current?.scrollToEnd({ animated: false }));
     },
     [dir],
   );
@@ -72,7 +79,11 @@ export default function ShopScreen() {
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       onPress={onPress}
-      style={press()}>
+      // The pill is 36pt because that is how the filter row is meant to look.
+      // The thing you TAP is this, and it is 48 — measured at 36 before, which
+      // is under the 44 a phone is expected to offer and small enough to miss
+      // with a thumb on a moving bus. The pill inside is unchanged.
+      style={press(false, styles.chipHit)}>
       <ThemedView
         type={active ? 'backgroundSelected' : 'backgroundElement'}
         style={[styles.chip, { borderColor: active ? theme.tint : theme.border }]}>
@@ -156,6 +167,7 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     paddingVertical: Spacing.one,
   },
+  chipHit: { minHeight: TapTarget, justifyContent: 'center' },
   chip: {
     minHeight: TapTarget - 12,
     justifyContent: 'center',

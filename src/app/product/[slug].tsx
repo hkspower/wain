@@ -11,6 +11,7 @@ import { ContentColumn, Screen } from '@/components/ui/screen';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
+import { useHydrated } from '@/hooks/use-hydrated';
 import { useTheme } from '@/hooks/use-theme';
 import { useCart } from '@/lib/cart';
 import { productPhoto } from '@/lib/assets';
@@ -25,11 +26,19 @@ export default function ProductScreen() {
   const { productFor, add } = useCart();
   const { slug } = useLocalSearchParams<{ slug: string }>();
 
+  const hydrated = useHydrated();
   const product = productFor(String(slug));
   const [size, setSize] = useState<string | null>(null);
   // One piece of state for the whole confirmation, so the message and the
   // "look in your cart" affordance can never disagree.
   const [said, setSaid] = useState<'added' | 'capped' | 'pick' | null>(null);
+
+  // Before hydration there is no slug to look up — see hooks/use-hydrated.
+  // Showing 404 in the prerendered HTML would also be the wrong thing for a
+  // crawler or a shared link to read about a product that exists.
+  if (!hydrated) {
+    return <Screen edges={['bottom']} scroll={false}>{null}</Screen>;
+  }
 
   if (!product) {
     return (
@@ -55,7 +64,7 @@ export default function ProductScreen() {
       contentStyle={styles.column}
       bleed={
         <RemoteArt
-            uri={productPhoto(product.slug)}
+            uri={productPhoto(product)}
             ground={product.color}
             emoji={product.emoji}
             emojiSize={96}

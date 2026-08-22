@@ -215,14 +215,23 @@ export default function CheckoutScreen() {
                       accessibilityRole="button"
                       accessibilityState={{ selected: active }}
                       onPress={() => set('governorate')(g.id)}
-                      style={press(false, styles.gov,
-                        {
-                          borderColor: active ? theme.tint : theme.border,
-                          backgroundColor: active ? theme.tintSoft : theme.backgroundElement,
-                        })}>
-                      <ThemedText type="label" themeColor={active ? 'tintText' : 'text'}>
-                        {label}
-                      </ThemedText>
+                      // 48pt to tap, 40pt of pill inside it. Six of these sit
+                      // in a wrapped row and they were 40 tall — under the 44
+                      // a phone expects, on the screen where a mistap costs
+                      // the customer their address.
+                      style={press(false, styles.govHit)}>
+                      <View
+                        style={[
+                          styles.gov,
+                          {
+                            borderColor: active ? theme.tint : theme.border,
+                            backgroundColor: active ? theme.tintSoft : theme.backgroundElement,
+                          },
+                        ]}>
+                        <ThemedText type="label" themeColor={active ? 'tintText' : 'text'}>
+                          {label}
+                        </ThemedText>
+                      </View>
                     </Pressable>
                   );
                 })}
@@ -300,6 +309,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   govRow: { flexWrap: 'wrap', gap: Spacing.two },
+  govHit: { minHeight: TapTarget, justifyContent: 'center' },
   gov: {
     minHeight: TapTarget - 8,
     justifyContent: 'center',
