@@ -8,14 +8,12 @@ import { ProductBadge } from '@/components/product-badge';
 import { RemoteArt } from '@/components/remote-art';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { Elevation, Radius, Spacing } from '@/constants/theme';
 import { productPhoto } from '@/lib/assets';
 import { inStock, productName, type Product } from '@/lib/catalog';
 import { useLang } from '@/lib/i18n';
 
 export function ProductCard({ product }: { product: Product }) {
-  const theme = useTheme();
   const { lang, t, text } = useLang();
   const available = inStock(product);
 
@@ -25,7 +23,14 @@ export function ProductCard({ product }: { product: Product }) {
         accessibilityRole="link"
         accessibilityLabel={productName(product, lang)}
         style={press(false, styles.press)}>
-        <ThemedView type="backgroundElement" style={[styles.card, { borderColor: theme.border }]}>
+        {/* TWO VIEWS, not one. The shadow is on the outer; the rounded corners
+            and the overflow clip that keeps the photograph inside them are on
+            the inner. iOS clips a view's shadow to its own bounds when that
+            view also hides its overflow, so a card that does both loses the
+            shadow entirely — and does it only on the phone, which is the one
+            place nobody would see it in a browser. */}
+        <ThemedView type="backgroundElement" style={[styles.card, Elevation.card]}>
+          <View style={styles.clip}>
           <RemoteArt
             uri={productPhoto(product)}
             ground={product.color}
@@ -48,6 +53,7 @@ export function ProductCard({ product }: { product: Product }) {
             </ThemedText>
             <Price price={product.price} was={product.was} />
           </View>
+          </View>
         </ThemedView>
       </Pressable>
     </Link>
@@ -60,8 +66,11 @@ const styles = StyleSheet.create({
   },
   card: {
     flex: 1,
-    borderRadius: Spacing.three,
-    borderWidth: 1,
+    borderRadius: Radius.card,
+  },
+  clip: {
+    flex: 1,
+    borderRadius: Radius.card,
     overflow: 'hidden',
   },
   // A sold-out card is dimmed as well as badged. The badge says why; the wash

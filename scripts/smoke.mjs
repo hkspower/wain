@@ -260,6 +260,51 @@ await go('/checkout')
 await p.getByRole('button', { name: 'تأكيد الطلب' }).or(p.getByRole('button', { name: 'ادفع الآن' })).first().click()
 await p.waitForTimeout(400)
 check((await seen(p.getByText('هذا الحقل مطلوب')).count()) > 0, 'empty checkout is refused per field')
+
+// Nothing on this form draws over anything else. The governorate pills wrap
+// onto a second row, and a `flex: 1` on the block that holds them collapsed it
+// to nothing — the second row landed on top of the next field's label, which
+// looks like a rendering glitch and is a customer typing into the wrong box.
+const collisions = await p.evaluate(() => {
+  // Inside the SCROLLING form only. The totals bar is pinned in front of the
+  // page on purpose — content passing under it is the feature, not a clash.
+  const scroller = [...document.querySelectorAll('*')].find((el) => {
+    const o = getComputedStyle(el).overflowY
+    return (o === 'auto' || o === 'scroll') && el.scrollHeight > el.clientHeight
+  })
+  if (!scroller) return ['no scroll container found — the check did not run']
+  const boxes = [...scroller.querySelectorAll('*')]
+    .filter((el) => [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()))
+    .map((el) => ({ text: el.textContent.trim().slice(0, 14), r: el.getBoundingClientRect() }))
+    .filter((b) => b.r.width > 0 && b.r.height > 0)
+  const hits = []
+  for (let i = 0; i < boxes.length; i++)
+    for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i].r, b = boxes[j].r
+      // Overlapping in BOTH axes by more than a hair. Text inside its own
+      // container overlaps it by definition, so only leaves are compared and
+      // a 2px tolerance covers line-height rounding.
+      const x = Math.min(a.right, b.right) - Math.max(a.left, b.left)
+      const y = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)
+      if (x > 2 && y > 2) hits.push(`"${boxes[i].text}" over "${boxes[j].text}"`)
+    }
+  return hits
+})
+check(collisions.length === 0,
+  `no two lines of the form sit on top of each other${collisions.length ? ` — ${collisions[0]}` : ''}`)
+
+// --- the blocks are lifted, not outlined ---------------------------------
+// The owner asked for soft elevation in place of the hairline borders on the
+// shop's cards and on the cart, checkout and order blocks. A shadow that
+// silently stops rendering — an overflow:hidden on the wrong view is enough
+// on iOS — takes the whole change with it and looks like nothing happened.
+await go('/shop')
+await p.waitForTimeout(700)
+const lifted = await p.evaluate(() => {
+  const cards = [...document.querySelectorAll('a[href^="/product/"] > *')]
+  return cards.map((c) => getComputedStyle(c).boxShadow).filter((s) => s && s !== 'none').length
+})
+check(lifted > 0, `product cards are lifted off the page (${lifted} with a shadow)`)
 await shot('checkout-ar')
 
 // --- language switch, live ----------------------------------------------

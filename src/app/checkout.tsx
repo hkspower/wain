@@ -16,7 +16,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { ContentColumn, Screen } from '@/components/ui/screen';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing, TapTarget } from '@/constants/theme';
+import { Elevation, Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { placeOrder, type OrderDraft } from '@/lib/api';
 import { useCart } from '@/lib/cart';
@@ -172,8 +172,11 @@ export default function CheckoutScreen() {
     <Screen
       edges={['bottom']}
       avoidKeyboard
+      // White for the same reason the cart's totals are: a lifted bar in the
+      // page's own grey reads as the end of the page rather than as something
+      // in front of it.
       actionBar={
-        <ThemedView type="background" style={[styles.actionBar, { borderColor: theme.border }]}>
+        <ThemedView type="backgroundElement" style={[styles.actionBar, Elevation.bar]}>
           <ContentColumn>
             <View style={[styles.totalRow, row]}>
               <ThemedText type="labelBold">{t.cart.total}</ThemedText>
@@ -275,12 +278,17 @@ export default function CheckoutScreen() {
                     accessibilityRole="radio"
                     accessibilityState={{ selected: active }}
                     onPress={() => setPayment(id)}
+                    // The BORDER IS THE SELECTION, and only that now. An
+                    // unpicked method is a lifted white row with no outline; the
+                    // picked one draws the ember ring and fills. Dropping the
+                    // border from both states would have left the choice being
+                    // made by a pale tint alone, which is exactly the sort of
+                    // thing that reads fine on a desk and vanishes outdoors.
                     style={press(false, styles.pay,
                       row,
-                      {
-                        borderColor: active ? theme.tint : theme.border,
-                        backgroundColor: active ? theme.tintSoft : theme.backgroundElement,
-                      })}>
+                      active
+                        ? { borderColor: theme.tint, borderWidth: 1, backgroundColor: theme.tintSoft }
+                        : { backgroundColor: theme.backgroundElement, ...Elevation.card })}>
                     <Text style={styles.payIcon}>{icon}</Text>
                     <ThemedText type="labelBold" themeColor={active ? 'tintText' : 'text'}>
                       {label}
@@ -300,7 +308,12 @@ export default function CheckoutScreen() {
 }
 
 const styles = StyleSheet.create({
-  field: { gap: Spacing.half, flex: 1 },
+  // NO flex: 1. In a column that is flexBasis 0 — the block collapses to
+  // nothing and its contents draw over whatever follows. It showed up on the
+  // governorate pills, whose second row of six was landing on top of the next
+  // field's label; the three-up row gets its equal thirds from styles.third,
+  // which is where that flex belongs and already was.
+  field: { gap: Spacing.half },
   input: {
     minHeight: TapTarget,
     borderWidth: 1,
@@ -326,11 +339,13 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     minHeight: TapTarget + 8,
     paddingHorizontal: Spacing.three,
-    borderWidth: 1,
-    borderRadius: Spacing.three,
+    borderRadius: Radius.card,
   },
   payIcon: { fontSize: 22 },
-  actionBar: { borderTopWidth: 1, paddingVertical: Spacing.three },
+  // Lifted, not ruled off — the form scrolls under it. The INPUTS keep their
+  // borders: a text field with no outline gives a customer nothing to aim at,
+  // and this screen is where a mistake costs an order.
+  actionBar: { paddingVertical: Spacing.three },
   totalRow: { justifyContent: 'space-between', alignItems: 'center' },
   primary: { marginTop: Spacing.two },
   primaryText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },

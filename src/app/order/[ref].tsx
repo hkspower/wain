@@ -8,13 +8,11 @@ import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
+import { Elevation, MaxContentWidth, Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useHydrated } from '@/hooks/use-hydrated';
-import { useTheme } from '@/hooks/use-theme';
 import { useLang } from '@/lib/i18n';
 
 export default function OrderScreen() {
-  const theme = useTheme();
   const router = useRouter();
   const { t } = useLang();
   const { ref } = useLocalSearchParams<{ ref: string }>();
@@ -37,7 +35,7 @@ export default function OrderScreen() {
         {t.order.willCall}
       </ThemedText>
 
-      <ThemedView type="backgroundElement" style={[styles.refBox, { borderColor: theme.border }]}>
+      <ThemedView type="backgroundElement" style={[styles.refBox, Elevation.card]}>
         <ThemedText type="label" themeColor="textSecondary">
           {t.order.ref}
         </ThemedText>
@@ -66,8 +64,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.three,
     alignItems: 'center',
     gap: Spacing.half,
-    borderWidth: 1,
-    borderRadius: Spacing.three,
+    borderRadius: Radius.card,
     paddingVertical: Spacing.three,
     paddingHorizontal: Spacing.five,
   },

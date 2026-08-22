@@ -10,8 +10,7 @@ import { RemoteArt } from '@/components/remote-art';
 import { ContentColumn, Screen } from '@/components/ui/screen';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { BottomTabInset, Elevation, MaxContentWidth, Radius, Spacing, TapTarget } from '@/constants/theme';
 import { FREE_DELIVERY_OVER, useCart } from '@/lib/cart';
 import { productPhoto } from '@/lib/assets';
 import { productName, stockFor } from '@/lib/catalog';
@@ -19,7 +18,6 @@ import { useLang } from '@/lib/i18n';
 import { formatPrice } from '@/lib/money';
 
 export default function CartScreen() {
-  const theme = useTheme();
   const router = useRouter();
   const { t, lang, row, text } = useLang();
   const { lines, productFor, setQty, remove, subtotal, delivery, total } = useCart();
@@ -43,13 +41,18 @@ export default function CartScreen() {
     <Screen
       tabBar
       contentStyle={styles.column}
+      // WHITE, not the page's grey. With the hairline gone, a bar the same
+      // colour as the page behind it is not a bar — it is the bottom of the
+      // page. The lift has to come from somewhere, and a surface plainly in
+      // front is what an upward shadow falls from.
+      //
       // Totals and the checkout button ride above the tab bar, so the amount
       // is visible while the basket is being edited rather than only at the
       // bottom of a long list.
       actionBar={
         <ThemedView
-          type="background"
-          style={[styles.summary, { borderColor: theme.border, paddingBottom: BottomTabInset }]}>
+          type="backgroundElement"
+          style={[styles.summary, Elevation.bar, { paddingBottom: BottomTabInset }]}>
           <ContentColumn>
             <View style={[styles.totalRow, row]}>
               <ThemedText type="label" themeColor="textSecondary">
@@ -81,7 +84,7 @@ export default function CartScreen() {
               <ThemedView
                 key={`${l.slug}-${l.size}`}
                 type="backgroundElement"
-                style={[styles.line, row, { borderColor: theme.border }]}>
+                style={[styles.line, row, Elevation.card]}>
                 <RemoteArt
                   uri={productPhoto(p)}
                   ground={p.color}
@@ -140,8 +143,7 @@ export default function CartScreen() {
 const styles = StyleSheet.create({
   column: { gap: Spacing.two },
   line: {
-    borderRadius: Spacing.three,
-    borderWidth: 1,
+    borderRadius: Radius.card,
     padding: Spacing.two,
     gap: Spacing.three,
   },
@@ -167,7 +169,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
   },
   summary: {
-    borderTopWidth: 1,
+    // Lifted rather than ruled off. The basket scrolls UNDER this bar, and a
+    // shadow says that where a hairline only said "something ends here".
     paddingTop: Spacing.three,
     gap: Spacing.one,
   },

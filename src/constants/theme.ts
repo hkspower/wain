@@ -169,6 +169,47 @@ export const Radius = {
 } as const;
 
 /**
+ * ELEVATION. A block lifted off the page instead of outlined on it.
+ *
+ * This reverses what this app did before — a 1px hairline round everything
+ * and no shadow anywhere — for the shop's product cards and for the cart,
+ * checkout and order blocks. The owner asked for it; the category tiles and
+ * the admin panel keep their borders, so the two live side by side and the
+ * difference is deliberate rather than drift.
+ *
+ * Three ways of saying the same thing, because the three platforms each want
+ * their own and RN maps none of them onto the others:
+ *
+ *   shadow*   iOS, and react-native-web turns it into a CSS box-shadow.
+ *   elevation Android, which draws its own shape from a single number and
+ *             ignores colour, offset and radius entirely.
+ *
+ * The offset is DOWNWARD ONLY and the opacity is low. A shadow that spreads
+ * evenly in all directions reads as a glow; what makes a card look lifted is
+ * light coming from above, which is one direction.
+ */
+export const Elevation = {
+  /** A card in a grid, a line in a list. Barely there, on purpose. */
+  card: {
+    shadowColor: '#0b0e12',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  /** A bar that sits ABOVE the page rather than in it: the cart's totals, the
+   *  checkout's Pay bar. Higher, because it has to read as being in front of
+   *  content that scrolls under it. */
+  bar: {
+    shadowColor: '#0b0e12',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+} as const;
+
+/**
  * What a press looks like. Fifteen files had their own `pressed: { opacity }`
  * and three different values between them.
  */
