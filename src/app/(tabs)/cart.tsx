@@ -1,16 +1,16 @@
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { press } from '@/components/ui/press';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { QtyStepper } from '@/components/qty-stepper';
 import { Button } from '@/components/ui/button';
 import { RemoteArt } from '@/components/remote-art';
+import { CentredMessage } from '@/components/ui/centred-message';
 import { ContentColumn, Screen } from '@/components/ui/screen';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, Elevation, MaxContentWidth, Radius, Spacing, TapTarget } from '@/constants/theme';
+import { BottomTabInset, Elevation, Radius, Spacing, TapTarget } from '@/constants/theme';
 import { FREE_DELIVERY_OVER, useCart } from '@/lib/cart';
 import { productPhoto } from '@/lib/assets';
 import { productName, stockFor } from '@/lib/catalog';
@@ -24,16 +24,9 @@ export default function CartScreen() {
 
   if (lines.length === 0) {
     return (
-      <Screen tabBar scroll={false} contentStyle={styles.emptyWrap}>
-          <Text style={styles.emptyEmoji}>🛒</Text>
-          <ThemedText type="labelBold" style={styles.center}>
-            {t.cart.empty}
-          </ThemedText>
-          <ThemedText type="label" themeColor="textSecondary" style={styles.center}>
-            {t.cart.emptyText}
-          </ThemedText>
-          <Button label={t.cart.browse} onPress={() => router.push('/shop')} style={styles.primary} />
-      </Screen>
+      <CentredMessage tabBar glyph="🛒" title={t.cart.empty} text={t.cart.emptyText}>
+        <Button label={t.cart.browse} onPress={() => router.push('/shop')} />
+      </CentredMessage>
     );
   }
 
@@ -177,17 +170,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primary: { marginTop: Spacing.two },
-  emptyWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.two,
-    padding: Spacing.four,
-  },
-  emptyEmoji: {
-    fontSize: 64,
-  },
-  center: {
-    textAlign: 'center',
-  },
 });

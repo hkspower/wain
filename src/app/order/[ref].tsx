@@ -1,16 +1,15 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 
-import { press } from '@/components/ui/press';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
+import { CentredMessage } from '@/components/ui/centred-message';
 import { Screen } from '@/components/ui/screen';
 import { ThemedView } from '@/components/themed-view';
-import { Elevation, MaxContentWidth, Radius, Spacing, TapTarget } from '@/constants/theme';
+import { Elevation, Radius, Spacing } from '@/constants/theme';
 import { useHydrated } from '@/hooks/use-hydrated';
 import { fetchOrderStatus, type OrderStatus } from '@/lib/api';
 import { useLang } from '@/lib/i18n';
@@ -66,33 +65,30 @@ export default function OrderScreen() {
   // The order number is in the URL, so the prerendered HTML has none and the
   // client has one — see hooks/use-hydrated.
   if (!hydrated) {
-    return <Screen edges={['bottom']} scroll={false} contentStyle={styles.centred}>{null}</Screen>;
+    return <Screen edges={['bottom']} scroll={false}>{null}</Screen>;
   }
 
   return (
-    <Screen edges={['bottom']} scroll={false} contentStyle={styles.centred}>
+    // The tick is the PAYMENT's, on an order that had one to make. Showing it
+    // while the bank has not answered is telling somebody their money arrived
+    // on no evidence whatsoever.
+    <CentredMessage
+      edges={['bottom']}
+      glyph={banked && !status?.paid ? '⏳' : '✅'}
+      title={t.order.thanks}
+      text={
+        banked && !status?.paid
+          ? asking
+            ? t.checkout.working
+            : t.order.pendingText
+          : t.order.willCall
+      }>
       <Stack.Screen options={{ title: t.order.title }} />
-      {/* The tick is the PAYMENT's, on an order that had one to make. Showing
-          it while the bank has not answered is telling somebody their money
-          arrived on no evidence whatsoever. */}
-      <Text style={styles.tick}>{banked && !status?.paid ? '⏳' : '✅'}</Text>
-      <ThemedText type="display" style={styles.center}>
-        {t.order.thanks}
-      </ThemedText>
-      {banked && !status?.paid ? (
-        <ThemedText themeColor="textSecondary" style={styles.center}>
-          {asking ? t.checkout.working : t.order.pendingText}
-        </ThemedText>
-      ) : (
-        <ThemedText themeColor="textSecondary" style={styles.center}>
-          {t.order.willCall}
-        </ThemedText>
-      )}
       {banked ? (
         <ThemedText
           type="labelBold"
           themeColor={status?.paid ? 'success' : 'textSecondary'}
-          style={styles.center}
+          style={styles.centre}
           accessibilityLiveRegion="polite">
           {status?.paid ? t.order.paid : asking ? '' : t.order.pending}
         </ThemedText>
@@ -130,27 +126,21 @@ export default function OrderScreen() {
         onPress={() => router.replace('/')}
         style={styles.primary}
       />
-    </Screen>
+    </CentredMessage>
   );
 }
 
 const styles = StyleSheet.create({
-  centred: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.two,
-  },
-  tick: { fontSize: 64 },
-  center: { textAlign: 'center' },
+  centre: { textAlign: 'center' },
   refBox: {
-    marginTop: Spacing.three,
     alignItems: 'center',
     gap: Spacing.half,
     borderRadius: Radius.card,
-    paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.five,
+    // 24, like every other block. It was 16 by 32 — a box a third wider in
+    // its padding than anything else on any screen, next to a button that
+    // stretched past both of its edges.
+    padding: Spacing.four,
   },
   ref: { fontSize: 20, letterSpacing: 1 },
-  primary: { marginTop: Spacing.four, alignSelf: 'stretch' },
+  primary: { alignSelf: 'stretch' },
 });

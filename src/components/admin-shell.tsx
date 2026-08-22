@@ -85,7 +85,12 @@ export function AdminShell({
                   accessibilityRole="link"
                   accessibilityState={{ selected: active }}
                   onPress={() => router.replace(href as never)}
-                  style={press()}>
+                  // 48 to tap, 36 of pill inside it — the same shape the
+                  // shop's filter chips carry. The panel's were 36 all the
+                  // way through, which is under what a thumb needs, and no
+                  // rig had ever measured them because they only exist behind
+                  // a login.
+                  style={press(false, styles.navHit)}>
                   <ThemedView
                     type={active ? 'backgroundSelected' : 'backgroundElement'}
                     style={[styles.navItem, { borderColor: active ? theme.tint : theme.border }]}>
@@ -200,7 +205,10 @@ const styles = StyleSheet.create({
   signOutText: { color: '#ff7b17', fontWeight: '700' },
   nav: { borderBottomWidth: 1 },
   navRow: {
-    width: '100%',
+    // NO width: '100%'. This is a horizontal ScrollView's content, which has
+    // to size to its children; pinning it to the viewport width put the last
+    // chip at x=389 on a 390pt screen — hard against the glass, while every
+    // other thing on the page stopped at 374.
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
     paddingHorizontal: Spacing.three,
@@ -208,6 +216,7 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     flexDirection: 'row',
   },
+  navHit: { minHeight: TapTarget, justifyContent: 'center' },
   navItem: {
     minHeight: TapTarget - 12,
     justifyContent: 'center',
@@ -221,7 +230,10 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
     paddingHorizontal: Spacing.three,
-    gap: Spacing.two,
+    // 16 between blocks, which is what the customer's app uses. The panel sat
+    // at 8 — the same shop, twice as dense on the screens the owner spends
+    // the most time in.
+    gap: Spacing.three,
   },
   title: { fontSize: 24, lineHeight: 32 },
   centre: { paddingVertical: Spacing.six, alignItems: 'center' },

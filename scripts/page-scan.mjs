@@ -184,6 +184,67 @@ for (const route of ROUTES) {
   check(small.length === 0,
     `${label} every control is 44pt tall${small.length ? ` — ${small.length}, e.g. ${small[0]}` : ''}`)
 
+  // ALIGNMENT. Every block in a column starts and ends on the same two lines.
+  //
+  // A column exists so that a page has ONE left edge and ONE right edge; a
+  // block that stops short of either is a ragged edge, and the eye finds it
+  // long before anybody can say what is wrong. The order screen had exactly
+  // that — a reference box hugging its content next to a button stretched
+  // past both of its sides, on the screen a customer sees after paying.
+  //
+  // A horizontally scrolling row is exempt: its content is MEANT to run past
+  // the edge, which is how you can tell there is more of it.
+  const ragged = await p.evaluate(() => {
+    const bad = []
+    for (const col of document.querySelectorAll('*')) {
+      const colCs = getComputedStyle(col)
+      if (colCs.maxWidth !== '800px') continue
+      // A ROW is not a column. The top bar puts its wordmark and its four
+      // links side by side inside the same 800pt frame, and they are supposed
+      // to sit at different x — that is what a row is.
+      if (colCs.flexDirection.startsWith('row')) continue
+      const box = col.getBoundingClientRect()
+      const kids = [...col.children].filter((k) => {
+        const r = k.getBoundingClientRect()
+        if (r.height === 0 || r.width === 0) return false
+        const cs = getComputedStyle(k)
+        return cs.overflowX !== 'auto' && cs.overflowX !== 'scroll'
+      })
+      if (kids.length < 2) continue
+      const pad = parseFloat(getComputedStyle(col).paddingLeft) || 0
+      const left = Math.round(box.left + pad)
+      const right = Math.round(box.right - pad)
+      for (const k of kids) {
+        const r = k.getBoundingClientRect()
+        if (Math.abs(Math.round(r.left) - left) > 1 || Math.abs(Math.round(r.right) - right) > 1)
+          bad.push(`${Math.round(r.left)}..${Math.round(r.right)} vs ${left}..${right} "${(k.innerText || '').trim().slice(0, 18)}"`)
+      }
+    }
+    return bad
+  })
+  check(ragged.length === 0,
+    `${label} every block runs the full width of its column${ragged.length ? ` — ${ragged.length}, e.g. ${ragged[0]}` : ''}`)
+
+  // PADDING, off a scale rather than off a ruler. Spacing is 2/4/8/16/24/32/64
+  // and nothing in between; a 12 or an 18 is a number somebody typed once.
+  // Expo's own unmatched-route screen is not this project's to style.
+  const offScale = route === '/+not-found' ? [] : await p.evaluate(() => {
+    const SCALE = [0, 2, 4, 8, 16, 24, 32, 64]
+    const bad = []
+    for (const el of document.body.querySelectorAll('*')) {
+      if (!el.getBoundingClientRect().height) continue
+      const cs = getComputedStyle(el)
+      for (const prop of ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'rowGap', 'columnGap']) {
+        const v = parseFloat(cs[prop])
+        if (v && !SCALE.includes(v))
+          bad.push(`${prop}:${v}px "${(el.innerText || '').trim().slice(0, 16)}"`)
+      }
+    }
+    return bad
+  })
+  check(offScale.length === 0,
+    `${label} spacing comes off the scale${offScale.length ? ` — ${offScale.length}, e.g. ${offScale[0]}` : ''}`)
+
   // ONE STYLE, MEASURED. Three radii in the whole app and no more: 24 on a
   // block, 16 on anything you press or type into, 999 on a pill. A fourth
   // number is how "the same shop on every screen" quietly stops being true —
