@@ -23,6 +23,9 @@ Colour rules that are not obvious:
   same hue one step darker and clears AA. Buttons, chips and badges keep `tint`.
 - **The page is grey and cards are white**, so a card separates without a shadow.
   There are no shadows in this app.
+- **`silver` / `silverSoft`, not sand.** The warm pair was the last beige in the
+  app — a brown notice on a beige panel, on a neutral grey page, which read as a
+  stain rather than a surface. Besides the ember, this palette is neutral.
 - `npm run test:contrast` measures every pair in both themes, plus that a card is
   distinguishable from the page. It needs no browser.
 

@@ -44,11 +44,13 @@ export const Colors = {
     // tintSoft, 5.49 on a card — without touching a single filled surface.
     tintText: '#b8420d',
     tintSoft: '#fdeee4',
-    // One step darker than it was: at #8a6a4f it measured 4.33:1 on its own
-    // soft tint, which is the pairing the account screen's offline notice
-    // actually uses. That was under AA before the page changed colour too.
-    sand: '#836349',
-    sandSoft: '#f6efe6',
+    // SILVER, NOT SAND. The warm pair was the last beige left in the app —
+    // a brown notice on a beige panel, sitting on a neutral grey page, which
+    // read as a stain rather than as a surface. Slate on light silver instead:
+    // it belongs to the same neutral family as the page and the borders, and
+    // it is the only tone besides the ember that this palette needs.
+    silver: '#55606b',
+    silverSoft: '#e6eaee',
     // Follows the surfaces neutral. A warm border on a neutral grey page is
     // the one place the old cast would still have shown.
     border: '#e2e4e8',
@@ -70,8 +72,8 @@ export const Colors = {
     // dark ground, and measures 6.9:1 on the page.
     tintText: '#ff7b17',
     tintSoft: '#3a2417',
-    sand: '#d9a47e',
-    sandSoft: '#2a231d',
+    silver: '#b3bcc6',
+    silverSoft: '#232a31',
     border: '#363d45',
     ink: '#0d0f12',
     inkSilver: '#2b3138',

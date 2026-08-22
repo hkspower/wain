@@ -84,8 +84,8 @@ export default function AccountScreen() {
           bundled one, a product the customer was sent a link to may not be
           in it, and they are entitled to know why. */}
       {source === 'bundled' && (
-        <ThemedView type="sandSoft" style={[styles.notice, { borderColor: theme.border }]}>
-          <ThemedText type="small" themeColor="sand" style={text}>
+        <ThemedView type="silverSoft" style={[styles.notice, { borderColor: theme.border }]}>
+          <ThemedText type="small" themeColor="silver" style={text}>
             {t.account.offline}
           </ThemedText>
         </ThemedView>

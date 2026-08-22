@@ -41,18 +41,28 @@ const PAIRS = [
   ['backgroundElement', 'text'],
   ['backgroundElement', 'textSecondary'],
   ['backgroundElement', 'tintText'],
-  ['backgroundElement', 'sand'],
+  ['backgroundElement', 'silver'],
   ['backgroundElement', 'success'],
   ['backgroundElement', 'danger'],
   ['backgroundSelected', 'tintText'],
   ['tintSoft', 'tintText'],
-  ['sandSoft', 'sand'],
+  ['silverSoft', 'silver'],
 ]
 
 let fails = 0
 for (const mode of ['light', 'dark']) {
   const c = palette[mode]
   for (const [bg, fg] of PAIRS) {
+    // A renamed or deleted token used to crash this script inside the
+    // luminance maths, with a stack trace and no clue which pair was at fault.
+    // Naming it is the difference between a two-second fix and a hunt.
+    for (const key of [bg, fg]) {
+      if (!c[key]) {
+        console.log(`FAIL ${mode.padEnd(5)} no such colour: ${key}`)
+        fails++
+      }
+    }
+    if (!c[bg] || !c[fg]) continue
     const r = ratio(c[bg], c[fg])
     const ok = r >= 4.5
     if (!ok) fails++

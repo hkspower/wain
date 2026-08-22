@@ -92,7 +92,7 @@ export default function OrderScreen() {
               {order.house}
             </ThemedText>
             {order.notes ? (
-              <ThemedText type="small" themeColor="sand">
+              <ThemedText type="small" themeColor="silver">
                 “{order.notes}”
               </ThemedText>
             ) : null}
