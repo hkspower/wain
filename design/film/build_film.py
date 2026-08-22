@@ -106,9 +106,10 @@ def scenes():
           <use href="#i-boum"/></svg>
         <div class="word" style="{a('rise', t+1.2, 0.9)}">النوخذة</div>
         <div class="sub"  style="{a('fade', t+2.0, 0.9, 'ease')}">
-          النظام الموحّد — من <b>المهلب كود</b></div>"""
+          منصّة تُنجز مهمّات رجال الأعمال — من <b>المهلب كود</b></div>"""
     S.append(("title", 8.0, [
-        (0.6, 6.8, "النوخذة نظام موحّد، بنته وتشغّله شركة المهلب كود."),
+        (0.6, 6.8, "النوخذة منصّة تُنجز مهمّات رجال الأعمال."),
+        (7.0, 12.0, "المهمّة التي تأخذ أسبوعاً، تأخذ هنا ضغطة زر."),
     ], title))
 
     # 2 ─ what it replaces
@@ -132,6 +133,27 @@ def scenes():
         (5.6, 10.6, "ثلاثة مصادر للحقيقة، ولا يعرف أحدها الآخر."),
     ], problem))
 
+    # 6 ─ the annual filing
+    def xbrl(t):
+        rows = "".join([
+            row("الإيرادات", "249.750", t + 1.4),
+            row("الاستثمارات بالقيمة السوقيّة", "4,205.750", t + 1.8),
+            row("مجموع الموجودات", "4,455.500", t + 2.6, total=True),
+        ])
+        return f"""
+        <div class="kicker" style="{a('fade', t+0.3, 0.6, 'ease')}">المهمّة الأولى</div>
+        <h2 style="{a('rise', t+0.6, 0.8)}">الميزانية السنوية · ملف XBRL</h2>
+        <div class="rows">{rows}</div>
+        <div class="cards" style="margin-top:44px">
+          {card('i-report', 'يُحسب ولا يُكتب', 'كل مجموع مبني من سطوره', t+4.2)}
+          {card('i-shield', 'تدقيق قبل الإيداع', 'ما يمنع الإيداع، وما ينبّه فقط', t+4.5)}
+          {card('i-globe', 'الإيداع في البوّابة', 'عبر بوّابة وزارة التجارة', t+4.8)}
+        </div>"""
+    S.append(("xbrl", 12.0, [
+        (0.5, 5.6, "الميزانية السنوية: تُدخل أرقامك مرّة، وتُحسب الإجماليات من سطورها."),
+        (5.8, 11.6, "ويُبنى ملف XBRL جاهزاً لبوابة وزارة التجارة، بتدقيق يسبق الإيداع."),
+    ], xbrl))
+
     # 3 ─ صافي
     def safi(t):
         heights = [120, 168, 96, 210, 250, 186, 274]
@@ -145,14 +167,14 @@ def scenes():
             row("القيمة السوقيّة", "4,205.750", t + 3.7, total=True),
         ])
         return f"""
-        <div class="kicker" style="{a('fade', t+0.3, 0.6, 'ease')}">الوحدة الأولى</div>
+        <div class="kicker" style="{a('fade', t+0.3, 0.6, 'ease')}">المهمّة الثانية</div>
         <h2 style="{a('rise', t+0.6, 0.8)}">صافي — محفظتك</h2>
         <div style="display:flex;gap:80px;align-items:flex-end;margin-top:20px">
           <div class="bars">{bars}</div>
           <div class="rows" style="width:840px;margin-top:0">{rows}</div>
         </div>"""
     S.append(("safi", 11.0, [
-        (0.5, 5.6, "صافي يحفظ محفظتك: كل صفقة، وسعر السوق، والربح والخسارة."),
+        (0.5, 5.6, "وصافي يحفظ محفظتك: كل صفقة، وسعر السوق، والربح والخسارة."),
         (5.8, 10.6, "بالدينار الكويتي، وبأرقام تُحسب ولا تُكتب."),
     ], safi))
 
@@ -169,7 +191,7 @@ def scenes():
             row("إجمالي الطلبات", "249.750", t + 3.1, total=True),
         ])
         return f"""
-        <div class="kicker" style="{a('fade', t+0.3, 0.6, 'ease')}">الوحدة الثانية</div>
+        <div class="kicker" style="{a('fade', t+0.3, 0.6, 'ease')}">المهمّة الثالثة</div>
         <h2 style="{a('rise', t+0.6, 0.8)}">التوصيل — طلباتك</h2>
         <div class="rows">{rows}</div>"""
     S.append(("delivery", 11.0, [
@@ -195,31 +217,9 @@ def scenes():
           <div class="core" style="{a('pop', t+3.0, 0.9)}">نواة<br>بيانات<br>واحدة</div>
         </div>"""
     S.append(("core", 10.0, [
-        (0.5, 5.0, "الوحدتان تكتبان في نواة بيانات واحدة."),
+        (0.5, 5.0, "والوحدات كلّها تكتب في نواة بيانات واحدة."),
         (5.2, 9.6, "لا نسخة ثانية، ولا رقم يُنقل باليد من جدول إلى جدول."),
     ], core))
-
-    # 6 ─ the annual filing
-    def xbrl(t):
-        rows = "".join([
-            row("الإيرادات", "249.750", t + 1.4),
-            row("الاستثمارات بالقيمة السوقيّة", "4,205.750", t + 1.8),
-            row("مجموع الموجودات", "4,455.500", t + 2.6, total=True),
-        ])
-        return f"""
-        <div class="kicker" style="{a('fade', t+0.3, 0.6, 'ease')}">من النواة نفسها</div>
-        <h2 style="{a('rise', t+0.6, 0.8)}">الميزانية السنوية · ملف XBRL</h2>
-        <div class="rows">{rows}</div>
-        <div class="cards" style="margin-top:44px">
-          {card('i-report', 'يُحسب ولا يُكتب', 'كل مجموع مبني من سطوره', t+4.2)}
-          {card('i-shield', 'تدقيق قبل الإيداع', 'ما يمنع الإيداع، وما ينبّه فقط', t+4.5)}
-          {card('i-globe', 'الإيداع في البوّابة', 'عبر بوّابة وزارة التجارة', t+4.8)}
-        </div>"""
-    S.append(("xbrl", 12.0, [
-        (0.5, 5.6, "ومن النواة نفسها تُبنى الميزانية السنوية، ويُبنى ملف XBRL."),
-        (5.8, 11.6, "الإجماليات تُحسب من سطورها، والتدقيق يكشف ما يمنع الإيداع قبل أن تودعه."),
-    ], xbrl))
-
     # 7 ─ the three facts that matter, each one checkable
     def facts(t):
         return f"""
@@ -234,7 +234,7 @@ def scenes():
           {card('i-bolt', 'بلا اعتماديات', 'صفحات ثابتة، بلا مكتبات', t+3.7)}
         </div>"""
     S.append(("facts", 9.0, [
-        (0.5, 4.4, "النوخذة مجاني بالكامل، وكل وحداته مفتوحة."),
+        (0.5, 4.4, "والنوخذة مجاني بالكامل، وكل وحداته مفتوحة."),
         (4.6, 8.6, "يعمل بلا إنترنت، وسجلاتك لا تغادر جهازك."),
     ], facts))
 
@@ -275,10 +275,18 @@ SCENE_TAIL = 1.0   # after the last line, before the scene changes
 
 
 def voiced_timings(scene_lines, voiced, index):
-    """Lay a scene's lines out end to end at their measured spoken length."""
+    """Lay a scene's lines out end to end at their measured spoken length.
+
+    Returns None if any line of this scene has no recording yet, so the scene
+    keeps its authored timing instead of the build dying. A script that has
+    grown a line since the last recording session is a normal state to be in —
+    it should show you which line is missing, not a KeyError on its number."""
+    if any(str(index + i + 1) not in voiced for i in range(len(scene_lines))):
+        return None
     out, cursor = [], LEAD_IN
     for i, (_, _, text) in enumerate(scene_lines):
-        dur = voiced[str(index + i + 1)]
+        # time the picture to the speech, not to the file
+        dur = voiced[str(index + i + 1)]["speech"]
         if i:
             cursor += GAP
         out.append((round(cursor, 2), round(cursor + dur + TAIL, 2), text))
@@ -294,11 +302,17 @@ def build():
         voiced = json.loads(vp.read_text())
 
     html_scenes, captions, timing = [], [], []
+    unrecorded = []
     t = 0.0
     spoken = 0
     for name, dur, lines, body in S:
         if voiced:
-            lines, dur = voiced_timings(lines, voiced, spoken)
+            timed = voiced_timings(lines, voiced, spoken)
+            if timed:
+                lines, dur = timed
+            else:
+                unrecorded.extend(
+                    range(spoken + 1, spoken + len(lines) + 1))
             spoken += len(lines)
         # a scene that moves a camera needs to know how long it is on screen,
         # and that length comes from the recording — never from a number
@@ -354,6 +368,10 @@ def build():
 
     print(f"  film.html          {total}s, {len(S)} scenes"
           + ("  (timed to the recorded voice)" if voiced else "  (timed by ear)"))
+    if unrecorded:
+        print(f"  ⚠ lines {unrecorded} have no recording yet — their scenes keep")
+        print("    the authored timing, and the film will not be in step with")
+        print("    the voice until those lines are recorded and re-measured.")
     print(f"  narration-ar.txt   {len(timing)} lines")
     print("  narration.srt")
     print("  narration-plain.txt")
