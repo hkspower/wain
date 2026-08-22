@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { EXHAUSTS, type ExhaustSpec } from "./mods";
+import { EXHAUSTS, kitAtLeast, type ExhaustSpec, type KitLevel } from "./mods";
 import { upgradeCarShells, upgradeWheels, upgradeDriver } from "./models";
 import { arabicUI, latinDisplay } from "./text";
 import { kuwaitiDriver } from "./characters";
@@ -34,8 +34,20 @@ export interface CarColors {
   /** Gold rims (garage mod). */
   goldRims?: boolean;
   /** Full time-attack aero: swan-neck wing, splitter, canards, vented
-   *  hood, skirts, diffuser, bronze six-spokes and teal calipers. */
+   *  hood, skirts, diffuser, bronze six-spokes and teal calipers.
+   *  Equivalent to `kit: "attack"`, and kept because most callers only
+   *  ever asked the yes/no question. */
   raceKit?: boolean;
+  /**
+   * How far this car is built: street, sport or attack. Absent means
+   * street, which is the weakest step rather than "stock" — there is no
+   * stock step, because nothing on this road at two in the morning is
+   * stock.
+   *
+   * Drives the arch flares and the track width, and gates the aero that
+   * is not part of the full attack kit.
+   */
+  kit?: KitLevel;
   /** Rally sticker pack: door roundels, beltline stripes, hood decal,
    *  Kuwait flags on the rear quarters. */
   stickers?: boolean;
@@ -1076,6 +1088,89 @@ const ARCH_EDGE_R = 0.475 + 0.016;
 const ARCH_Y = 0.4;
 archLipGeoF.rotateY(Math.PI / 2);
 const wellMat = new THREE.MeshBasicMaterial({ name: "arch-well", color: 0x060708 });
+
+/**
+ * The wide-body kit: over-fenders, and the track to fill them.
+ *
+ * A wide body is not a re-stamped door skin. Nobody widens a car by
+ * making the doors wider — they rivet a flare over the arch and run more
+ * wheel offset, and the door between the arches is the panel it always
+ * was. That is exactly what this build wants to hear, because `flankX`
+ * is measured off the shell (see the comment where it is taken) and
+ * every detail on the flank is an offset from it. Widen the shell and
+ * all of that has to be re-measured; bolt a flare over the arch and
+ * none of it moves.
+ *
+ * `proud` is how far the flare's outermost paint stands past the door
+ * skin, per side. The ceiling is not taste, it is measured:
+ * tests/size.mjs allows an arch 0.1 m proud of the doors per side and
+ * requires the mirrors to stay the widest thing on the car, and the
+ * mirrors sit at flankX + 0.11. So 0.086 is the widest arch this game
+ * can have without the mirrors disappearing inside the bodywork.
+ *
+ * `track` pushes each wheel outward to fill the new arch. It cannot
+ * simply match `proud` — the same test requires the tyre to stay inside
+ * the arch within 0.12 m, and the wheel already stands 0.068 proud of
+ * the flank at its lugs. Half the flare is about right and leaves the
+ * tyre tucked under the lip, which is what a fitted arch looks like.
+ *
+ * The tube radius is what does the standing-proud, so the flare is
+ * positioned inboard of its own outer face by exactly that.
+ */
+export interface WideSpec {
+  /** Outermost paint, past the door skin, per side (metres). */
+  proud: number;
+  /** How much further out each wheel sits (metres). */
+  track: number;
+  /** Rivets around each arch. Zero for a moulded street flare, which is
+   *  bonded and painted rather than bolted on. */
+  rivets: number;
+}
+
+export const WIDE: Record<KitLevel, WideSpec> = {
+  // A street flare is a modest bonded lip — the arch looks fuller and
+  // nothing about the car says workshop.
+  street: { proud: 0.034, track: 0.012, rivets: 0 },
+  // A sport arch is a bolt-on with the fasteners showing.
+  sport: { proud: 0.06, track: 0.028, rivets: 7 },
+  // And the attack arch is as wide as the rules of this game allow.
+  attack: { proud: 0.086, track: 0.044, rivets: 9 },
+};
+
+/** How much of `proud` is the tube itself. The rest is standoff, so the
+ *  flare reads as a separate piece sitting over the arch rather than as
+ *  a fat lip growing out of it. */
+const FLARE_TUBE_FRAC = 0.62;
+
+/**
+ * A flare traces the SAME arc as the arch lip it sits over — same radius,
+ * same half-turn — just fatter and further out. Tracing a different curve
+ * is what made the first attempt at this read as scaffolding: two arches
+ * over one wheel, disagreeing about where the wheel was.
+ *
+ * Six of them (three kit levels x front/rear), built once and shared,
+ * the way every other shell in this file is.
+ */
+const flareGeoCache = new Map<string, THREE.BufferGeometry>();
+function flareGeo(kit: KitLevel, front: boolean): THREE.BufferGeometry {
+  const key = `${kit}:${front ? "f" : "r"}`;
+  const hit = flareGeoCache.get(key);
+  if (hit) return hit;
+  const tube = WIDE[kit].proud * FLARE_TUBE_FRAC;
+  const geo = new THREE.TorusGeometry(
+    front ? 0.5 : 0.475,
+    tube,
+    8,
+    front ? 30 : 28,
+    Math.PI
+  );
+  geo.rotateY(Math.PI / 2);
+  flareGeoCache.set(key, geo);
+  return geo;
+}
+
+/** One rivet head. Shared across every arch on every car. */
+const rivetGeo = new THREE.SphereGeometry(0.011, 6, 5);
 // The hot-hatch nose stripe: painted red, not a lamp, but it carries a
 // little glow so it still reads at night when nothing is lighting the
 // bumper directly.
@@ -1772,6 +1867,20 @@ export function createCar(colors: CarColors): THREE.Group {
   const group = new THREE.Group();
   const style: BodyStyle = colors.style ?? "sedan";
   const d = STYLE_DIMS[style];
+  // How far this one is built. `raceKit` is the old yes/no form of the
+  // same question and still wins if a caller only set that — the menu
+  // hardcodes it for the prize car, and the showroom capture reads it
+  // straight off the roster.
+  //
+  // Validated rather than trusted. Two suites were passing
+  // `kit: car.kit === "attack"` — a boolean — which was silently ignored
+  // while CarColors had no `kit` field, and became a hard crash the
+  // moment it had one: WIDE[false] is undefined and every car in the
+  // game stopped building. A caller getting this wrong should get the
+  // weakest kit, not a broken scene.
+  const asked = colors.kit;
+  const kit: KitLevel =
+    asked && asked in WIDE ? asked : colors.raceKit ? "attack" : "street";
 
   // Automotive paint is two layers: a metallic basecoat with flake, and a
   // hard clearcoat over it. The clearcoat is what throws the sharp
@@ -2588,8 +2697,14 @@ export function createCar(colors: CarColors): THREE.Group {
    *
    * Held 80 mm inboard of the flank, every car keeps the saloon's
    * relationship: tyre 45 mm proud of the opening, alloy 68 mm proud.
+   *
+   * The kit then pushes it back out to fill the arch it just gained. A
+   * wide arch over a standard track is the one way to make a car look
+   * WORSE than it did before the kit: the flare hangs over nothing and
+   * the tyre sits at the bottom of a tunnel.
    */
-  const wheelX = flankX - 0.08;
+  const wide = WIDE[kit];
+  const wheelX = flankX - 0.08 + wide.track;
   for (const [wx, wz] of [
     [-wheelX, wzF],
     [wheelX, wzF],
@@ -2622,10 +2737,39 @@ export function createCar(colors: CarColors): THREE.Group {
     group.add(lip);
     lip.userData.archLip = true;
 
-    // No separate flare box. A rounded box laid over the arch does not
-    // follow it — it sits across the top with two hard ends and reads as
-    // scaffolding. The front fender's extra width is in the lip's own
-    // radius instead, which is the shape a flare actually has.
+    // The over-fender.
+    //
+    // Still not a box. A rounded box laid over the arch does not follow
+    // it — it sits across the top with two hard ends and reads as
+    // scaffolding. So the flare is the lip's own shape again: the same
+    // radius, the same half-turn, a fatter tube and further out. Two
+    // arcs that agree about where the wheel is read as one fender with
+    // an edge rolled over it, which is what a flare is.
+    const tube = wide.proud * FLARE_TUBE_FRAC;
+    const flare = new THREE.Mesh(flareGeo(kit, front), bodyMat);
+    flare.position.set(side * (flankX + wide.proud - tube), 0.4, wz);
+    flare.userData.archFlare = true;
+    group.add(flare);
+
+    // Rivets, on the kits that bolt their arches on rather than bonding
+    // them. They are the tell: a moulded flare is smooth and a riveted
+    // one is a row of heads following the curve, and at ten metres the
+    // row is the only part of it you can actually see.
+    if (wide.rivets && !colors.simple) {
+      const R = front ? 0.5 : 0.475;
+      for (let i = 0; i < wide.rivets; i++) {
+        // Inset from both ends: a rivet on the very end of the arc sits
+        // where the flare has already died back into the door.
+        const a = ((i + 0.5) / wide.rivets) * Math.PI;
+        const rivet = new THREE.Mesh(rivetGeo, seamMat);
+        rivet.position.set(
+          side * (flankX + wide.proud - tube * 0.15),
+          0.4 + R * Math.sin(a),
+          wz - R * Math.cos(a)
+        );
+        group.add(rivet);
+      }
+    }
   }
 
   // --- Bumper assemblies: a black lower valance front and rear so the
@@ -2729,17 +2873,12 @@ export function createCar(colors: CarColors): THREE.Group {
         vent.position.set(sx, skinY(1.5, d.hoodY) + 0.004, 1.5);
         group.add(vent);
       }
-      // Boxed fender flares over all four arches
-      for (const [fx, fz] of [
-        [-0.96, wzF],
-        [0.96, wzF],
-        [-0.96, wzR],
-        [0.96, wzR],
-      ]) {
-        const flare = new THREE.Mesh(roundedBox(0.09, 0.1, 1.02, 0.035), bodyMat);
-        flare.position.set(fx, 0.68, fz);
-        group.add(flare);
-      }
+      // The boxed fender flares that used to live here are gone: every
+      // car in the game wears a real arch flare now, traced on the arch
+      // itself, and these sat across the top of the same four wheels at
+      // a hardcoded ±0.96 — inboard of this silhouette's own 0.9925
+      // flank. Two flares over one wheel, one of them sunk in the paint.
+      // The gtr keeps its calling card by being in the widest band.
     }
     if (style === "zx") {
       // Cooling slats let into the long hood
@@ -2792,12 +2931,19 @@ export function createCar(colors: CarColors): THREE.Group {
       group.add(headrest);
     }
 
-    // Brake calipers peeking through the spokes
+    // Brake calipers peeking through the spokes.
+    //
+    // Taken from wheelX rather than the sedan's old 0.84, because a
+    // caliper lives inside a wheel and the wheels are not where they
+    // were: the wide kits push the track out by up to 44 mm, and on the
+    // zx the flank is 120 mm outboard of that constant to begin with. A
+    // caliper that does not follow its own wheel is a caliper floating
+    // in the middle of the car.
     for (const [wx, wz] of [
-      [-0.84, wzF],
-      [0.84, wzF],
-      [-0.84, wzR],
-      [0.84, wzR],
+      [-wheelX, wzF],
+      [wheelX, wzF],
+      [-wheelX, wzR],
+      [wheelX, wzR],
     ]) {
       const caliper = new THREE.Mesh(
         roundedBox(0.06, 0.17, 0.11, 0.02),
@@ -2882,6 +3028,62 @@ export function createCar(colors: CarColors): THREE.Group {
   // Time-attack aero — the whole catalogue at once, factory-fitted.
   // Modelled on the classic yellow FD time-attack formula: swan-neck GT
   // wing, front splitter, canards, vented hood, skirts and a diffuser.
+  // --- The sport kit: a real wing, a splitter and skirts.
+  //
+  // Everything between the street flare and the full attack build. It is
+  // its own step rather than "attack minus some parts" because the two
+  // are different intentions: this is a fast road car that has been got
+  // at, and the attack kit is a car built to a regulation. A post wing
+  // and a lip splitter say the first; canards and a swan neck say the
+  // second, and putting canards on a Salmiya Turbo says neither.
+  //
+  // Skipped on traffic, which never gets closer than a lane away.
+  if (kitAtLeast(kit, "sport") && !colors.raceKit && !colors.simple) {
+    // A two-post wing on the deck: taller and wider than the factory
+    // blade, nothing like the swan-neck plank the attack cars carry.
+    const wingY = d.deckY + 0.3;
+    for (const sx of [-0.6, 0.6]) {
+      const post = new THREE.Mesh(roundedBox(0.045, 0.26, 0.14, 0.014), carbonMat);
+      post.position.set(sx, d.deckY + 0.14, -1.92);
+      group.add(post);
+    }
+    const plane = new THREE.Mesh(roundedBox(1.62, 0.042, 0.36, 0.014), bodyMat);
+    plane.position.set(0, wingY, -1.95);
+    plane.rotation.x = -0.14;
+    group.add(plane);
+    for (const sx of [-0.81, 0.81]) {
+      const endplate = new THREE.Mesh(roundedBox(0.026, 0.2, 0.4, 0.01), carbonMat);
+      endplate.position.set(sx, wingY, -1.95);
+      group.add(endplate);
+    }
+    // Lip splitter — a blade off the bumper, not the full undertray.
+    const lip = new THREE.Mesh(roundedBox(1.74, 0.03, 0.34, 0.011), carbonMat);
+    lip.position.set(0, 0.17, d.nose - 0.02);
+    group.add(lip);
+    // Side skirts, seated on the same flank run the attack skirts use so
+    // they stop at the arches instead of running through them.
+    for (const sxSign of [-1, 1]) {
+      const [kitLen, kitZ] = flankRun(0.17);
+      const skirt = new THREE.Mesh(roundedBox(0.06, 0.08, kitLen, 0.018), carbonMat);
+      skirt.position.set(sxSign * (flankX + 0.012), 0.17, kitZ);
+      group.add(skirt);
+    }
+  }
+
+  // --- The street kit: a boot lip and nothing that needs a spanner.
+  //
+  // The cheapest cars in the game are still built — they just are not
+  // built LOUD. A ducktail lip and the arches are the whole of it, which
+  // is what a first car on this road actually looks like.
+  if (kit === "street" && !colors.spoiler && !colors.simple) {
+    const lipZ = d.tail + 0.34;
+    const seat = skinY(lipZ, d.deckY);
+    const duck = new THREE.Mesh(roundedBox(1.44, 0.055, 0.26, 0.02), bodyMat);
+    duck.position.set(0, seat + 0.03, lipZ);
+    duck.rotation.x = -0.22;
+    group.add(duck);
+  }
+
   if (colors.raceKit) {
     // Swan-neck GT wing, twice the garage part: tall carbon stays, a
     // body-colour main plane and big endplates
@@ -2926,7 +3128,11 @@ export function createCar(colors: CarColors): THREE.Group {
         [0.47, -0.22],
       ]) {
         const canard = new THREE.Mesh(roundedBox(0.3, 0.018, 0.18, 0.007), carbonMat);
-        canard.position.set(sxSign * 0.85, cy, d.nose + cz);
+        // On the bumper's own corner, not at the sedan's old 0.85 —
+        // which is 190 mm inside the front of a zx and hangs off a
+        // hatch. A canard bites the air coming off the corner; put it
+        // anywhere else and it is a carbon shelf.
+        canard.position.set(sxSign * (flankX - 0.06), cy, d.nose + cz);
         canard.rotation.z = sxSign * 0.3;
         canard.rotation.x = -0.25;
         group.add(canard);
@@ -3047,7 +3253,14 @@ export function createCar(colors: CarColors): THREE.Group {
   // The rally pack, hung a centimetre off the panels. Decal planes rather
   // than UV work because the shells are swapped for Blender geometry at
   // runtime — planes survive that swap untouched.
-  if (colors.stickers && !colors.simple) {
+  // A livery comes with the kit from the sport step up. The Rally
+  // Sticker Pack is still a garage part and still the only way a BASIC
+  // car gets one — which is the point of it: on the bottom shelf a
+  // livery is something you chose, and further up it is what the car
+  // came wearing. Buying the pack for a car that already has one is
+  // idempotent rather than doubled, because this is one flag.
+  const wearsLivery = colors.stickers || (kitAtLeast(kit, "sport") && !colors.simple);
+  if (wearsLivery && !colors.simple) {
     // Off the shell's measured flank, not a hand-kept table of the four
     // half-widths. The table happened to be right, but it was a second
     // place to remember when a body changes.

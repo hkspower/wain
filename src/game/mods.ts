@@ -194,6 +194,39 @@ export const GLOW_COLORS: Record<string, number> = {
 
 export type CarClass = "supercar" | "sport" | "normal";
 
+/**
+ * How far a car is built. One step per band, and every car has one.
+ *
+ * - `street` — the basic shelf. A lip, a modest set of over-fenders,
+ *   a stripe and a number. What a first car looks like after a month.
+ * - `sport` — high performance. A real wing on posts, a splitter,
+ *   skirts, arches you can see from the front, and a full livery.
+ * - `attack` — supercars. The time-attack build: swan-neck wing,
+ *   splitter, canards, vented hood, diffuser, the widest arches in the
+ *   game, bronze wheels and teal calipers.
+ *
+ * Ordered, and the order is used — `kitAtLeast` compares by index rather
+ * than by a chain of string equalities, so a part that belongs on sport
+ * AND attack is written once.
+ */
+export type KitLevel = "street" | "sport" | "attack";
+
+/** The ladder, weakest first. Index is the comparison. */
+export const KIT_ORDER: KitLevel[] = ["street", "sport", "attack"];
+
+/** Is `kit` at least `want`? The whole reason KitLevel is ordered. */
+export function kitAtLeast(kit: KitLevel, want: KitLevel): boolean {
+  return KIT_ORDER.indexOf(kit) >= KIT_ORDER.indexOf(want);
+}
+
+/** The kit a band wears. The band IS the kit level — that is what makes
+ *  the showroom ladder mean something rather than being a price list. */
+export const KIT_FOR_CLASS: Record<CarClass, KitLevel> = {
+  normal: "street",
+  sport: "sport",
+  supercar: "attack",
+};
+
 export interface CarModel {
   id: string;
   name: string;
@@ -202,9 +235,17 @@ export interface CarModel {
   price: number;
   /** Body silhouette (cars.ts): sedan, zx wedge, gtr coupe, or rx7. */
   style?: "sedan" | "zx" | "gtr" | "rx7" | "hatch";
-  /** Factory-fitted time-attack aero: swan wing, splitter, canards,
-   *  vented hood, bronze wheels. Not a garage part — the car IS the kit. */
-  kit?: "attack";
+  /**
+   * How far the car is built, as a body kit. Every machine on this road
+   * has been got at — nobody on the corniche at two in the morning is
+   * driving something the way it left the showroom — so this is not
+   * optional and there is no "stock" step in it.
+   *
+   * The three steps are the three bands, and they read from ten metres
+   * away, which is the point: you should be able to tell what class of
+   * thing has pulled alongside you before you can read its badge.
+   */
+  kit: KitLevel;
   /** What the car left the factory with. Every machine on the corniche
    *  has a heart before anybody opens the bonnet, and the showroom is
    *  where you meet it. */
@@ -277,8 +318,8 @@ export const CARS: CarModel[] = [
     name: "Zeta 300 GTR",
     ar: "زيتا ٣٠٠ جي تي آر",
     cls: "supercar",
-    style: "zx",
     kit: "attack",
+    style: "zx",
     price: 240000,
     locked: { rivals: 8 },
     engine: "i6-30tt",
@@ -315,8 +356,8 @@ export const CARS: CarModel[] = [
     name: "Efreet RX Kai",
     ar: "كبير العفاريت",
     cls: "supercar",
-    style: "rx7",
     kit: "attack",
+    style: "rx7",
     price: 120000,
     engine: "i6-30tt",
     lengthM: 4.42,
@@ -333,6 +374,7 @@ export const CARS: CarModel[] = [
     name: "Sahara GT-12",
     ar: "صحارى",
     cls: "supercar",
+    kit: "attack",
     style: "zx",
     price: 96000,
     engine: "v8-57",
@@ -350,6 +392,7 @@ export const CARS: CarModel[] = [
     name: "Falcon 720 Veloce",
     ar: "الصقر ٧٢٠",
     cls: "supercar",
+    kit: "attack",
     style: "zx",
     price: 71000,
     engine: "v8-57",
@@ -367,6 +410,7 @@ export const CARS: CarModel[] = [
     name: "Desert Storm S8",
     ar: "عاصفة",
     cls: "supercar",
+    kit: "attack",
     price: 54000,
     engine: "i6-30tt",
     lengthM: 4.8,
@@ -383,6 +427,7 @@ export const CARS: CarModel[] = [
     name: "Kaiju R",
     ar: "كايجو",
     cls: "supercar",
+    kit: "attack",
     style: "gtr",
     price: 38000,
     engine: "i6-30tt",
@@ -400,6 +445,7 @@ export const CARS: CarModel[] = [
     name: "Efreet RX",
     ar: "عفريت",
     cls: "sport",
+    kit: "sport",
     style: "rx7",
     price: 31000,
     engine: "f6-25",
@@ -417,6 +463,7 @@ export const CARS: CarModel[] = [
     name: "Zeta 300",
     ar: "زيتا ٣٠٠",
     cls: "sport",
+    kit: "sport",
     style: "zx",
     price: 27000,
     engine: "i6-30tt",
@@ -434,6 +481,7 @@ export const CARS: CarModel[] = [
     name: "Gulf Coupe RS",
     ar: "كوبيه الخليج",
     cls: "sport",
+    kit: "sport",
     style: "hatch",
     price: 33000,
     engine: "i4-20t",
@@ -452,6 +500,7 @@ export const CARS: CarModel[] = [
     name: "Salmiya Turbo GT",
     ar: "تيربو السالمية",
     cls: "sport",
+    kit: "sport",
     price: 24000,
     engine: "i4-20t",
     lengthM: 4.64,
@@ -468,6 +517,7 @@ export const CARS: CarModel[] = [
     name: "Hawally Sport 2.0T",
     ar: "حولي سبورت",
     cls: "normal",
+    kit: "street",
     price: 16000,
     engine: "i4-20t",
     lengthM: 4.56,
@@ -484,6 +534,7 @@ export const CARS: CarModel[] = [
     name: "Deera Sedan",
     ar: "سيدان الديرة",
     cls: "normal",
+    kit: "street",
     price: 8500,
     engine: "i4-20t",
     lengthM: 4.7,
@@ -500,6 +551,7 @@ export const CARS: CarModel[] = [
     name: "Jahra Pickup",
     ar: "ونيت الجهراء",
     cls: "normal",
+    kit: "street",
     price: 6000,
     engine: "v8-57",
     lengthM: 5.35,
@@ -521,6 +573,7 @@ export const CARS: CarModel[] = [
     style: "hatch",
     ar: "شرق هاتش",
     cls: "normal",
+    kit: "street",
     price: 2200,
     engine: "i4-16",
     lengthM: 3.95,
@@ -537,6 +590,7 @@ export const CARS: CarModel[] = [
     name: "Wain Special",
     ar: "وين سبيشال",
     cls: "normal",
+    kit: "street",
     price: 0,
     engine: "i4-16",
     lengthM: 4.45,
@@ -840,8 +894,14 @@ export interface TuneEffects {
   hasNos: boolean;
   spoiler: boolean;
   goldRims: boolean;
-  /** Full time-attack aero built into the car (cars.ts raceKit). */
+  /** Full time-attack aero built into the car (cars.ts raceKit). Kept
+   *  as a boolean because a lot of call sites only ever asked "is this
+   *  the full kit"; `kit` below is the real answer. */
   raceKit: boolean;
+  /** How far this car is built, as a body kit — street, sport or
+   *  attack. Comes from the car, not from the garage: a body kit is
+   *  what the machine IS, the way its silhouette is. */
+  kit: KitLevel;
   /** Rally livery: roundels, stripes, hood decal, quarter flags. */
   stickers: boolean;
   /** The crew this save flies, or null for a privateer. Not a bought
@@ -980,6 +1040,7 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     spoiler: has("spoiler"),
     goldRims: has("gold-rims"),
     raceKit: car.kit === "attack",
+    kit: car.kit,
     stickers: has("stickers"),
     // Read here rather than passed in, because a crew is not part of a
     // car build: it is saved beside the garage and belongs to the save,

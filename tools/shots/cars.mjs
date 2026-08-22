@@ -92,6 +92,15 @@ const shot = async (car) => {
       accent: 0x007a3d,
       style: c.bodyStyle ?? "sedan",
       raceKit: c.kit === "attack",
+      // The card has to show the car the showroom sells, and what the
+      // showroom sells is a built car: arches, aero and a livery, as far
+      // as its band goes. Five fields used to reach this call and three
+      // of the things that decide what a car LOOKS like were not among
+      // them, so every card in press/cars was a stripped version of a
+      // machine you can never actually buy in that state.
+      kit: c.kit,
+      stickers: true,
+      goldRims: false,
       // At its real length, or the card shows a silhouette rather than a
       // car: the fleet runs from a 3.95 m supermini to a 5.35 m pickup
       // and three of them share the saloon profile.

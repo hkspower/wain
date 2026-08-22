@@ -68,7 +68,7 @@ const cars = await page.evaluate(async () => {
     const group = window.__grnBuildCar({
       body: car.color,
       style: car.style ?? "sedan",
-      kit: car.kit === "attack",
+      kit: car.kit,
     });
     group.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(group);

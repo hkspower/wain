@@ -86,7 +86,11 @@ const cars = await page.evaluate(async () => {
     const g = window.__grnBuildCar({
       body: parseInt(String(car.color).replace("#", ""), 16),
       style,
-      kit: car.kit === "attack",
+      // The kit itself, not a yes/no about the top one. This read
+      // `car.kit === "attack"` — a boolean — which was harmless while
+      // CarColors had no `kit` field and became a crash the moment it
+      // did, because WIDE[false] is undefined.
+      kit: car.kit,
       raceKit: car.kit === "attack",
       lengthM: car.lengthM,
     });

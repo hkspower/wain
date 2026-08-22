@@ -63,8 +63,16 @@ const fleet = await page.evaluate(async () => {
       accent: 0x007a3d,
       style: car.bodyStyle ?? "sedan",
       raceKit: car.kit === "attack",
+      // The kit, not just "is it the top kit". Passing only raceKit
+      // built every sport-band car as a street one, so this audit spent
+      // its time counting the parts of a car the game does not contain:
+      // four machines came back with 143 meshes where the road gives
+      // them a wing, a splitter, skirts and twenty-eight rivets.
+      kit: car.kit,
       lengthM: car.lengthM,
       spoiler: false,
+      // Not bought — but the sport and attack kits come wearing a livery
+      // of their own, which is the state the showroom sells them in.
       stickers: false,
     });
     g.updateMatrixWorld(true);
@@ -128,7 +136,7 @@ const fleet = await page.evaluate(async () => {
       id: car.id,
       name: car.name,
       style: car.bodyStyle ?? "sedan",
-      kit: car.kit === "attack",
+      kit: car.kit,
       parts,
       meshes: boxes.length,
       wheels: wheels.length,

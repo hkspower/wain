@@ -1099,6 +1099,7 @@ export class GameEngine {
       spoiler: this.tune.spoiler,
       goldRims: this.tune.goldRims,
       raceKit: this.tune.raceKit,
+        kit: this.tune.kit,
       stickers: this.tune.stickers,
       stickerNumber: this.stickerNumber(),
       name: this.tune.carName,
@@ -2339,6 +2340,11 @@ export class GameEngine {
     }
     if (this.rivalIndex >= RIVALS.length) return;
     const def = RIVALS[this.rivalIndex];
+    // The showroom entry for the machine they brought. It was already
+    // being looked up for the length; it carries the body kit too, and a
+    // rival turning up in an unmodified version of a car the showroom
+    // sells with arches on it is the wrong car.
+    const rivalCar = CARS.find((c) => c.name === def.car);
     const mesh = this.trackCar(
       createCar({
         body: def.bodyColor,
@@ -2346,11 +2352,22 @@ export class GameEngine {
         style: def.bodyStyle,
         spoiler: def.bodyStyle === "gtr",
         underglow: def.accentColor,
+        // Built as far as its class is built — arches, aero and all.
+        // These are the cars you spend the game looking at from a metre
+        // away at 200 km/h, and until now they were the only cars in the
+        // game wearing nothing at all.
+        kit: rivalCar?.kit,
+        raceKit: rivalCar?.kit === "attack",
+        // A rival runs a livery. Racing numbers come from the roster
+        // position so two rivals never wear the same one.
+        stickers: true,
+        stickerNumber: 20 + this.rivalIndex,
+        name: def.car,
         // The machine they actually bring, at the length it actually is.
         // A rival's car is named on their card and sold in the showroom;
         // building it a different size from the one you can buy is two
         // answers to the same question.
-        lengthM: CARS.find((c) => c.name === def.car)?.lengthM,
+        lengthM: rivalCar?.lengthM,
       })
     );
     this.scene.add(mesh);
@@ -2757,6 +2774,7 @@ export class GameEngine {
         spoiler: this.tune.spoiler,
         goldRims: this.tune.goldRims,
         raceKit: this.tune.raceKit,
+        kit: this.tune.kit,
         stickers: this.tune.stickers,
         stickerNumber: this.stickerNumber(),
         name: this.tune.carName,
@@ -3848,7 +3866,16 @@ export class GameEngine {
         this.v2
       );
       this.v1.y += RIG.driver.lookHeight;
-      solveDriverRig(rig, t.steerVis, RIG.rival.cruiseThrottle, 0, this.v1, dt);
+      // Traffic leans too. The g is the road's, not the driver's: a car
+      // holding its lane through a bend is still pulling v-squared over
+      // the radius, and dHead over 30 m IS that radius. Solved with a
+      // zero brake and a steady throttle because that is what a cruising
+      // car is doing — but a body that never answers the corner is the
+      // difference between a person driving and a mannequin being
+      // carried along, and traffic is what the player spends the night
+      // threading between.
+      const tLat = (dHead / 30) * t.speed * t.speed;
+      solveDriverRig(rig, t.steerVis, RIG.rival.cruiseThrottle, 0, this.v1, dt, tLat, 0);
     }
   }
 
@@ -3976,13 +4003,19 @@ export class GameEngine {
           this.v2
         );
         this.v1.y += RIG.driver.lookHeight;
+        // A remote player's driver gets the same treatment: their lane
+        // blend is the only kinematics we have off the wire, so the lean
+        // comes from how fast they are crossing it.
+        const remLat = (r.snapLat - r.lat) * 0.6 * r.snapSpeed * 0.35;
         solveDriverRig(
           rig,
           r.steerVis,
           r.snapSpeed > 0.5 ? RIG.rival.cruiseThrottle * 1.5 : 0,
           0,
           this.v1,
-          dt
+          dt,
+          remLat,
+          0
         );
       }
     }

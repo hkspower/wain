@@ -1268,6 +1268,7 @@ export default function RaceClient() {
             spoiler: tune.spoiler,
             goldRims: tune.goldRims,
             raceKit: tune.raceKit,
+            kit: tune.kit,
             stickers: tune.stickers,
             lengthM: tune.lengthM,
             crew: tune.crew ?? undefined,
@@ -1285,6 +1286,7 @@ export default function RaceClient() {
                   body: prize.color,
                   style: prize.style,
                   raceKit: true,
+                  kit: "attack" as const,
                   spoiler: false,
                   lengthM: prize.lengthM,
                 }
@@ -1293,6 +1295,12 @@ export default function RaceClient() {
                   accent: next.accentColor,
                   style: next.bodyStyle,
                   underglow: next.accentColor,
+                  // Built as far as its class is built, the same as it
+                  // will be when you meet it on the road. The rolling
+                  // two-shot in the menu is a promise about the car you
+                  // are about to race; it should not be a smaller one.
+                  kit: CARS.find((c) => c.name === next.car)?.kit,
+                  stickers: true,
                   lengthM: CARS.find((c) => c.name === next.car)?.lengthM,
                 },
           }
