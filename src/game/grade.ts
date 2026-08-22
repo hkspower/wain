@@ -254,10 +254,29 @@ export const GradeShader = {
       c.rgb += (c.rgb - blur) * 0.4;
 
       float d = distance(vUv, vec2(0.5));
-      // Vignette. This was 0.38 — the corners delivered at 62% of what
-      // was rendered there, which on a night frame is most of a stop and
-      // a real part of why the game reads dark.
-      c.rgb *= 1.0 - 0.26 * smoothstep(0.38, 0.85, d);
+      // Vignette. This was 0.38, then 0.26 — the corners delivered at
+      // 62%, then 80%, of what was rendered there, which on a night
+      // frame is a real part of why the game reads dark.
+      //
+      // 0.18 now — one more step along the same argument, and worth
+      // being exact about how much it bought, because it is less than
+      // it first looked.
+      //
+      // tools/shots/dark.mjs tiles the frame and asks, per tile,
+      // whether there is anything a stop and a half of exposure would
+      // reveal that the player cannot see. On an early run every
+      // remaining failure sat in a corner, which pointed straight here.
+      // Taking 0.26 to 0.18 then moved the worst corner tile from 0.0185
+      // to 0.0201 — about 8% — and did NOT clear it, so the corners were
+      // not mainly the vignette's doing. The real cause turned out to be
+      // road lighting, and is fixed in world.ts.
+      //
+      // It stays at 0.18 anyway: a frame still reads as framed there,
+      // and there is no argument for spending a fifth of a stop on the
+      // part of the picture already closest to the floor. But it is a
+      // small win, not the fix, and the comment should not pretend
+      // otherwise.
+      c.rgb *= 1.0 - 0.18 * smoothstep(0.4, 0.88, d);
 
       // Grain scaled by luminance. A flat +/- offset lifts every black
       // pixel off zero and is what makes a night scene look milky; real

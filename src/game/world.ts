@@ -1992,6 +1992,65 @@ function flyover(
   joint.position.set(0, SOFFIT - 0.04, 0);
   cross.add(joint);
 
+  // --- Under-deck lighting ---------------------------------------------
+  //
+  // FLYOVER_CLEAR stops the street columns 30 m either side of a deck,
+  // because an 8.4 m pole under a 6.4 m soffit grows through the bridge.
+  // The comment there says "the structure carries its own". It did not,
+  // and the result was the darkest place on the lap:
+  //
+  //   tools/shots/dark.mjs, standing under the Sharq crossing —
+  //   36 of 160 tiles below the readable floor, median tile 0.073
+  //   against 0.18 on open road, and the soffit itself an unbroken
+  //   black band across the top third of the frame. The ribs and the
+  //   expansion joint above are modelled in detail that nobody has
+  //   ever seen, because nothing in this world lit them.
+  //
+  // A real underpass carries luminaires on the soffit, and they run
+  // around the clock — an underpass is dark at noon. So this is a real
+  // light rather than an emissive dressed up as one: emissive fixtures
+  // would have put four bright rectangles on a black ceiling and left
+  // the concrete, the piers and the road under them exactly as dark.
+  //
+  // One light per crossing. Five in the world, no shadows, static: the
+  // shader cost of a light is paid by every material in the scene, and
+  // a second one per bridge bought nothing the first had not.
+  {
+    const lampY = SOFFIT - ribDepth - 0.22;
+    const fixtureMat = new THREE.MeshStandardMaterial({
+      color: 0xf4f8ff,
+      emissive: 0xdfeaff,
+      emissiveIntensity: 1.5,
+      fog: false,
+    });
+    // Four fixtures in a line ACROSS the road under the deck, which is
+    // where you look when you are under one.
+    for (let i = 0; i < 4; i++) {
+      const t = (i + 0.5) / 4 - 0.5;
+      const fix = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.13, 0.3), fixtureMat);
+      fix.position.set(t * reach * 1.5, lampY, 0);
+      cross.add(fix);
+    }
+    // Kept SHORT. At 130 over 42 m the first version reached 53 m up the
+    // road to the previous viewpoint, and the auto-exposure — which
+    // meters the whole frame — stopped down for it: the corniche
+    // approach went from zero dark tiles to thirty-five, with nothing
+    // about the corniche changed. An underpass light that is visible
+    // from outside the underpass is not lighting the underpass, it is
+    // moving the eye.
+    const under = new THREE.PointLight(0xdce6ff, 62, 26, 1.7);
+    under.position.set(0, lampY - 0.3, 0);
+    g.add(under);
+    // No painted pool on the asphalt under it, and that is a decision
+    // rather than an omission. The street columns use one because their
+    // light is faked — there is no point light on a lamp post in this
+    // world, only a billboard. Here there IS a real light, and adding
+    // the billboard on top of it laid a flat pale wash across the whole
+    // lower frame that swallowed the lane markings and read as fog on
+    // the road. Two overlapping additive circles cannot do falloff; the
+    // light already does.
+  }
+
   // --- Parapets, and the crossing road's own lighting -------------------
   for (const side of [-1, 1]) {
     const parapet = new THREE.Mesh(
@@ -2840,8 +2899,34 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       fog: false,
     });
     const lamps = new THREE.InstancedMesh(lampGeo, lampMat, count);
-    // Warm pool of lamplight thrown onto the asphalt below each lamp
-    const poolGeo = new THREE.CircleGeometry(10.5, 20);
+    // The pool of lamplight thrown onto the asphalt below each lamp.
+    //
+    // 10.5 m was too small to be road lighting. Columns stand every 42 m
+    // on ALTERNATING sides, so a 10.5 m pool leaves most of the
+    // carriageway between two columns lit by nothing at all — and
+    // tools/shots/dark.mjs found exactly that: the near-field asphalt
+    // beside the car metering 4 of 255, with doubling the pool opacity
+    // changing it by nothing, because the car was not standing in a pool
+    // to begin with.
+    //
+    // Real road lighting is designed to a UNIFORMITY ratio rather than
+    // to a peak: the point of the spacing is that adjacent pools overlap
+    // and the driver never crosses a dark patch. 17 m does that here —
+    // two columns 42 m apart on opposite verges throw overlapping 34 m
+    // circles. The texture is a radial falloff, so widening it spreads
+    // the skirt without making the centre any brighter.
+    //
+    // Not spacing/2, which is where the geometry says continuous cover
+    // starts and which was tried. It is the wrong rule for a SOFT pool:
+    // this texture is already down to 15% alpha at 62% of its radius, so
+    // r = 21 does not light the last gap, it just pours another 23% onto
+    // the middle of the road. Measured, that took the inland frame's
+    // median tile from 0.184 to 0.227 — the night going milky — and
+    // made things WORSE two viewpoints away, because auto-exposure is a
+    // loop: light the road harder and the eye stops down, and whatever
+    // was genuinely dark goes darker. 17 m cleared four fifths of the
+    // dark tiles and left the median where it was.
+    const poolGeo = new THREE.CircleGeometry(17, 26);
     poolGeo.rotateX(-Math.PI / 2);
     const poolMat = new THREE.MeshBasicMaterial({
       map: lightPoolTexture(),
@@ -4462,11 +4547,25 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       if (hemiRef) {
         hemiRef.color.copy(mix3([0.17, 0.22, 0.33], [0.35, 0.42, 0.59], [0.55, 0.68, 0.92]));
         hemiRef.groundColor.copy(mix3([0.07, 0.055, 0.03], [0.17, 0.13, 0.09], [0.42, 0.36, 0.28]));
-        // Night ambient up from 0.2. It is the only thing lighting the
-        // asphalt away from a lamp and the shadow side of a facade, and
-        // at 0.2 both of those sat on the floor. A city at night throws
-        // a lot of light back at itself.
-        hemiRef.intensity = 0.3 * night + 0.3 * twilight + 0.5 * day;
+        // Night ambient, up from 0.2 and then from 0.3.
+        //
+        // The comment here used to claim this was "the only thing
+        // lighting the asphalt away from a lamp". It is not, and that
+        // mattered: measured, doubling this moved the darkest road pixel
+        // by 1%, while trebling the scene's environment probe moved it
+        // by 270%. The road away from a beam is lit by the IBL probe,
+        // and this term was a rounding error next to it — which is why
+        // raising it from 0.2 to 0.3 last time did not fix the asphalt
+        // it was raised to fix.
+        //
+        // 0.55 is a real contribution rather than a gesture. It is still
+        // the THIRD tier behind key and fill, and it is deliberately not
+        // pushed further: this term lights the shadow side of every
+        // facade in the city as well as the road, and a night sky that
+        // fills its own shadows is a night that has stopped reading as
+        // one. The rest of the fix is in the lamp pools, which is where
+        // road light actually comes from.
+        hemiRef.intensity = 0.55 * night + 0.45 * twilight + 0.5 * day;
       }
 
       // Office windows: full after dark, fading through twilight, out by
