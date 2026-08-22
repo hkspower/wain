@@ -32,6 +32,7 @@ tabs, because it is not a fifth thing a customer browses.
 | Orders | Status filters; one card per order, not a table |
 | Order | Address and items, and only the status moves that order is allowed |
 | Stock | Per-variant counts, edited one row at a time |
+| Promotions | Codes and automatic rules: value, minimum, window, usage limit, pause |
 
 Built for a phone first: cards instead of a seven-column table, 48pt targets,
 and the panel is LTR in both languages — it is a screen of order references,
@@ -52,6 +53,10 @@ Endpoints, all under `{apiBase}/admin.php?r=`:
 | `order&id=` | GET | `{ order }` |
 | `order-status` | POST | `{ ok, status }` — the server's status, not the requested one |
 | `stock` | GET / POST | `{ items[] }` / `{ ok }` |
+| `discounts` | GET | `{ discounts[] }` |
+| `discount-save` | POST | `{ ok, discount }` — 409 if the code exists |
+| `discount-active` | POST | `{ ok, active }` |
+| `discount-delete` | POST | `{ ok }` — 409 once it has been redeemed |
 
 Everything but `login` takes `Authorization: Bearer <token>`; a 401 or 403 signs
 the panel out.

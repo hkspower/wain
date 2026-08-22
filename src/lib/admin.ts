@@ -74,6 +74,41 @@ export interface Summary {
   lowStock: { slug: string; name: string; size: string; stock: number }[];
 }
 
+/**
+ * A discount, shaped exactly like the `discounts` table the storefront already
+ * has — kind, code, type, value, window, limit — so the panel manages the same
+ * rows the website's checkout reads, rather than a parallel idea of a promotion.
+ *
+ * `value` is FILS when type is 'fixed' and a whole percent when it is
+ * 'percent'. One field with two meanings is not ideal, and it is what the
+ * schema does; splitting it here would mean translating in both directions and
+ * getting it wrong once.
+ */
+export interface Discount {
+  id: number;
+  kind: 'code' | 'auto';
+  /** Uppercase and unique. Null for an automatic rule. */
+  code: string | null;
+  label: string;
+  type: 'percent' | 'fixed';
+  value: number;
+  /** Minimum order subtotal in fils. 0 = no minimum. */
+  minOrder: Fils;
+  /** One category id, or null for the whole shop. */
+  category: string | null;
+  /** ISO dates, or null for "no limit at this end". */
+  startsAt: string | null;
+  endsAt: string | null;
+  /** 0 = unlimited. */
+  usageLimit: number;
+  usedCount: number;
+  active: boolean;
+}
+
+/** What the panel sends when creating or editing. The server assigns id and
+ *  owns usedCount — a panel that could set it could rewrite history. */
+export type DiscountDraft = Omit<Discount, 'id' | 'usedCount'> & { id?: number };
+
 export interface StockItem {
   slug: string;
   name: string;
@@ -138,6 +173,19 @@ export const adminApi = {
 
   setStock: (token: string, slug: string, size: string, stock: number) =>
     call<{ ok: true }>('stock', { token, body: { slug, size, stock } }),
+
+  discounts: (token: string) => call<{ discounts: Discount[] }>('discounts', { token }),
+
+  saveDiscount: (token: string, draft: DiscountDraft) =>
+    call<{ ok: true; discount: Discount }>('discount-save', { token, body: draft }),
+
+  /** Active/paused is its own route rather than a full save: it is the one
+   *  change made in a hurry, usually because a promotion is costing money. */
+  setDiscountActive: (token: string, id: number, active: boolean) =>
+    call<{ ok: true; active: boolean }>('discount-active', { token, body: { id, active } }),
+
+  deleteDiscount: (token: string, id: number) =>
+    call<{ ok: true }>('discount-delete', { token, body: { id } }),
 };
 
 export const saveToken = (t: string) => writeString(KEYS.adminToken, t);

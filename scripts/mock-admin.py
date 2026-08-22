@@ -54,6 +54,23 @@ def _fresh_orders():
     ]
 
 
+def _fresh_discounts():
+    return [
+        {'id': 1, 'kind': 'code', 'code': 'SUMMER24', 'label': 'Summer 24',
+         'type': 'percent', 'value': 15, 'minOrder': 10_000, 'category': None,
+         'startsAt': '2026-06-01', 'endsAt': '2026-09-01',
+         'usageLimit': 100, 'usedCount': 37, 'active': True},
+        {'id': 2, 'kind': 'auto', 'code': None, 'label': 'Free delivery over 20',
+         'type': 'fixed', 'value': 1_500, 'minOrder': 20_000, 'category': None,
+         'startsAt': None, 'endsAt': None,
+         'usageLimit': 0, 'usedCount': 212, 'active': True},
+        {'id': 3, 'kind': 'code', 'code': 'EID10', 'label': 'Eid 10%',
+         'type': 'percent', 'value': 10, 'minOrder': 0, 'category': 'outlet',
+         'startsAt': '2026-03-20', 'endsAt': '2026-03-30',
+         'usageLimit': 50, 'usedCount': 50, 'active': False},
+    ]
+
+
 def _fresh_stock():
     return [
         {'slug': 'core-compression-tee', 'name': 'Core compression tee', 'size': 'M', 'stock': 9},
@@ -69,6 +86,7 @@ def _fresh_stock():
 # happened.
 ORDERS = _fresh_orders()
 STOCK = _fresh_stock()
+DISCOUNTS = _fresh_discounts()
 
 ALLOWED = {
     'new': {'paid', 'packing', 'cancelled'},
@@ -134,6 +152,9 @@ class Handler(BaseHTTPRequestHandler):
         if route == 'stock':
             return self._send(200, {'items': STOCK})
 
+        if route == 'discounts':
+            return self._send(200, {'discounts': DISCOUNTS})
+
         return self._send(404, {'error': f'unknown route {route}'})
 
     def do_POST(self):
@@ -145,8 +166,8 @@ class Handler(BaseHTTPRequestHandler):
             # Fixture-only, and unauthenticated on purpose: it exists so the
             # test can start from a known state. There is no equivalent in the
             # real admin.php and there must never be.
-            global ORDERS, STOCK
-            ORDERS, STOCK = _fresh_orders(), _fresh_stock()
+            global ORDERS, STOCK, DISCOUNTS
+            ORDERS, STOCK, DISCOUNTS = _fresh_orders(), _fresh_stock(), _fresh_discounts()
             return self._send(200, {'ok': True})
 
         if route == 'login':
@@ -167,6 +188,45 @@ class Handler(BaseHTTPRequestHandler):
             if want in ALLOWED[order['status']]:
                 order['status'] = want
             return self._send(200, {'ok': True, 'status': order['status']})
+
+        if route == 'discount-save':
+            code = (body.get('code') or '').upper() or None
+            if body.get('kind') == 'code' and not code:
+                return self._send(400, {'error': 'a code discount needs a code'})
+            clash = next((d for d in DISCOUNTS
+                          if code and d['code'] == code and d['id'] != body.get('id')), None)
+            if clash:
+                return self._send(409, {'error': f'{code} already exists'})
+            row = next((d for d in DISCOUNTS if d['id'] == body.get('id')), None)
+            if row:
+                # usedCount is the server's: a panel that could set it could
+                # rewrite what customers have already redeemed.
+                row.update({k: v for k, v in body.items() if k != 'usedCount'})
+                row['code'] = code
+            else:
+                row = {**body, 'id': max([d['id'] for d in DISCOUNTS], default=0) + 1,
+                       'code': code, 'usedCount': 0}
+                DISCOUNTS.append(row)
+            return self._send(200, {'ok': True, 'discount': row})
+
+        if route == 'discount-active':
+            row = next((d for d in DISCOUNTS if d['id'] == body.get('id')), None)
+            if not row:
+                return self._send(404, {'error': 'no such discount'})
+            row['active'] = bool(body.get('active'))
+            return self._send(200, {'ok': True, 'active': row['active']})
+
+        if route == 'discount-delete':
+            row = next((d for d in DISCOUNTS if d['id'] == body.get('id')), None)
+            if not row:
+                return self._send(404, {'error': 'no such discount'})
+            # Refused once it has been redeemed: the orders that took it hold a
+            # snapshot of the label, but the rule itself is what a manager will
+            # look for when a customer asks why they were charged that.
+            if row['usedCount'] > 0:
+                return self._send(409, {'error': 'it has been used — pause it instead'})
+            DISCOUNTS.remove(row)
+            return self._send(200, {'ok': True})
 
         if route == 'stock':
             for s in STOCK:

@@ -52,6 +52,7 @@ export function AdminShell({
     ['/backends', 'Today'],
     ['/backends/orders', 'Orders'],
     ['/backends/stock', 'Stock'],
+    ['/backends/promos', 'Promotions'],
   ];
 
   return (

@@ -96,6 +96,46 @@ await p.waitForTimeout(900)
 check((await seen(p.getByText('Saved')).count()) > 0, 'a valid stock saves')
 await shot('stock')
 
+// --- promotions ----------------------------------------------------------
+await p.getByRole('link', { name: 'Promotions' }).click()
+await p.waitForTimeout(900)
+check((await seen(p.getByText('SUMMER24')).count()) > 0, 'the promotions list loads')
+check((await seen(p.getByText('used up')).count()) > 0,
+  'a promotion at its usage limit is marked used up, not live')
+
+// Pausing is the change made in a hurry, usually because a promotion is
+// costing money — so it is one tap from the list, not inside an edit form.
+await p.getByRole('button', { name: 'Pause' }).first().click()
+await p.waitForTimeout(900)
+check((await seen(p.getByText('paused')).count()) > 0, 'a live promotion can be paused')
+
+// Deleting one that customers have already redeemed is refused: the rule is
+// what a manager looks for when asked why an order was charged that.
+await p.getByRole('button', { name: 'delete SUMMER24' }).click()
+await p.waitForTimeout(900)
+check((await seen(p.getByText(/has been used/)).count()) > 0,
+  'a redeemed promotion cannot be deleted')
+
+// A new one, through the form.
+await p.getByRole('button', { name: 'New promotion' }).click()
+await p.waitForTimeout(600)
+await p.getByLabel('Code').fill('WINTER26')
+await p.getByRole('button', { name: 'Save' }).click()
+await p.waitForTimeout(600)
+check((await seen(p.getByText(/Give it a label/)).count()) > 0,
+  'a promotion with no label is refused before it reaches the server')
+await p.getByLabel('Label (shown on the order)').fill('Winter 26')
+await p.getByLabel('Percent off (1–90)').fill('120')
+await p.getByRole('button', { name: 'Save' }).click()
+await p.waitForTimeout(600)
+check((await seen(p.getByText(/between 1 and 90/)).count()) > 0,
+  'a percentage over 90 is refused')
+await p.getByLabel('Percent off (1–90)').fill('20')
+await p.getByRole('button', { name: 'Save' }).click()
+await p.waitForTimeout(1200)
+check((await seen(p.getByText('WINTER26')).count()) > 0, 'the new promotion is saved and listed')
+await shot('promos')
+
 // --- it persists, and it drops a dead token ------------------------------
 await p.goto(BASE + '/backends', { waitUntil: 'networkidle' })
 await p.waitForTimeout(900)
