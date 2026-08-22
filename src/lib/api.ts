@@ -15,7 +15,7 @@
  *      forever rather than falling back.
  */
 
-import { API_BASE } from '@/lib/config';
+import { API_BASE, SITE_BASE } from '@/lib/config';
 import {
   categories as bundledCategories,
   products as bundledProducts,
@@ -200,7 +200,16 @@ export interface OrderDraft {
   street: string;
   house: string;
   notes?: string;
-  payment: 'knet' | 'card' | 'cod';
+  /**
+   * What the shop calls them, not what this app used to call them. `card` was
+   * never a payment method the server accepts — the list is knet, tpay, cod —
+   * so every card checkout from this app came back `invalid_payment_method`
+   * and no card order has ever been placed through it.
+   *
+   * `tpay` is CBK's T-Pay: the card and QR half of the same Commercial Bank of
+   * Kuwait gateway that serves KNET, on the same hosted page.
+   */
+  payment: 'knet' | 'tpay' | 'cod';
   lines: OrderLine[];
   /** Fils. Kept for the caller's own display; the shop prices the basket
    *  itself from the slugs, which is the only safe place to do it. */
@@ -210,8 +219,41 @@ export interface OrderDraft {
 
 export interface OrderPlaced {
   ref: string;
-  /** Present for knet/card: the hosted payment page to open. */
+  /** Absolute URL of the bank's hosted page. Present for knet and tpay,
+   *  absent for cash on delivery — which has nothing to open, not a link that
+   *  failed to build. */
   payUrl?: string;
+  /** What the shop says the order costs, in fils. The basket's own total is
+   *  not authoritative and never was: the price comes from the products table
+   *  and the delivery rule, both of them server-side. */
+  amount?: Fils;
+}
+
+/** What the shop knows about an order's money, after the bank has answered. */
+export interface OrderStatus {
+  paid: boolean;
+  /** 'pending' until the bank calls back, then 'paid' or 'failed'. */
+  payment: string;
+  method: string;
+  amount: Fils;
+}
+
+/**
+ * The pay URL arrives RELATIVE — "/pay/pay.php?trackid=..." — because that is
+ * what the website's own checkout needs and the shop has no idea which host
+ * this app was pointed at. It is resolved here against the site rather than
+ * against the API, which lives one directory down at /api.
+ *
+ * An absolute URL is passed through untouched, so the shop can move its
+ * payment pages to another host without a release. Anything that is neither
+ * is dropped rather than guessed at: a malformed payment link should send the
+ * customer nowhere, not somewhere.
+ */
+export function payUrlFor(raw: unknown): string | undefined {
+  if (typeof raw !== 'string' || raw === '') return undefined;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (!raw.startsWith('/')) return undefined;
+  return `${SITE_BASE}${raw}`;
 }
 
 /**
@@ -254,10 +296,14 @@ export async function placeOrder(draft: OrderDraft): Promise<OrderPlaced> {
       signal: ctl.signal,
     });
     const body = (await res.json().catch(() => null)) as
-      | { track_id?: string; amount?: number; pay_url?: string; error?: string }
+      | { track_id?: string; amount?: number; pay_url?: string | null; error?: string }
       | null;
     if (!res.ok || !body?.track_id) throw new Error(body?.error ?? `order: HTTP ${res.status}`);
-    return { ref: body.track_id, payUrl: body.pay_url };
+    return {
+      ref: body.track_id,
+      payUrl: payUrlFor(body.pay_url),
+      amount: typeof body.amount === 'number' ? toFils(body.amount) : undefined,
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -265,3 +311,36 @@ export async function placeOrder(draft: OrderDraft): Promise<OrderPlaced> {
 
 /** KWD out of the app's fils, for anything the shop wants in dinars. */
 export const asKwd = toKwd;
+
+
+/**
+ * Has the bank answered yet?
+ *
+ * The customer comes back from the hosted page and the app cannot tell from
+ * that alone whether they paid: the browser sheet closes the same way whether
+ * they completed the payment, cancelled it, or gave up. Only the shop knows,
+ * and only after CBK has called its callback — so the app asks the shop rather
+ * than believing the customer's return.
+ *
+ * Returns null when the shop cannot be reached or does not know the order.
+ * That is deliberately not the same as "not paid": the caller must not tell
+ * somebody their payment failed on the strength of a dropped connection.
+ */
+export async function fetchOrderStatus(track: string): Promise<OrderStatus | null> {
+  try {
+    const row = await get<{
+      payment_status?: string;
+      payment_method?: string;
+      amount?: number;
+    } | null>(`api.php?r=status&id=${encodeURIComponent(track)}`);
+    if (!row?.payment_status) return null;
+    return {
+      paid: row.payment_status === 'paid',
+      payment: row.payment_status,
+      method: row.payment_method ?? '',
+      amount: toFils(row.amount ?? 0),
+    };
+  } catch {
+    return null;
+  }
+}

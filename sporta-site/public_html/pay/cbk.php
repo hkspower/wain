@@ -20,6 +20,17 @@ function cbk_require_https(): void
     }
 }
 
+// Stop, say so, and say NOTHING else. No path, no file name, no PHP notice —
+// a shopper cannot act on any of it and an attacker can. What went wrong
+// belongs in the server's error log, which is where this puts it.
+function cbk_fail_closed(string $message): never
+{
+    error_log('cbk: ' . $message . ' (expected ' . __DIR__ . '/config.php)');
+    http_response_code(503);
+    header('Content-Type: text/plain; charset=utf-8');
+    exit($message);
+}
+
 function cbk_base(array $cfg): string
 {
     return rtrim($cfg['env'] === 'production' ? $cfg['production_base'] : $cfg['test_base'], '/');
@@ -48,8 +59,26 @@ function cbk_db_configured(array $cfg): bool
 // full reasoning; it is not repeated here so the two cannot drift.
 function cbk_config(): array
 {
-    $cfg = require __DIR__ . '/config.php';
-    if (!is_array($cfg)) return [];
+    // A MISSING config.php IS A CONFIGURATION FAULT, NOT A CRASH.
+    //
+    // `require` on a file that is not there is a fatal error, and a fatal on a
+    // payment endpoint is a blank 500 for the shopper and — wherever
+    // display_errors is on, which is the default on plenty of shared hosting —
+    // the server's absolute filesystem path printed on a public page.
+    //
+    // This is not hypothetical for THIS file. config.php is deliberately never
+    // committed and never in the zip, so a deploy that copies the repo and
+    // forgets that one step lands exactly here, on the busiest possible page.
+    // Measured in this sandbox: /pay/pay.php answered 500 with
+    // "Failed opening required '/home/.../pay/config.php'" in the body.
+    $file = __DIR__ . '/config.php';
+    if (!is_file($file)) {
+        cbk_fail_closed('Payment is not configured on this server.');
+    }
+    $cfg = require $file;
+    if (!is_array($cfg)) {
+        cbk_fail_closed('Payment configuration is unreadable.');
+    }
     if (cbk_db_configured($cfg)) return $cfg;
 
     $api = __DIR__ . '/../api/config.php';

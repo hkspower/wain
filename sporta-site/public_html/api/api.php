@@ -758,6 +758,11 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $method = strtolower(trim((string)($b['payment_method'] ?? 'knet')));
     if (!in_array($method, STORE_PAY_METHODS, true)) store_fail('invalid_payment_method');
 
+    // Which language the bank's own page should open in. Arabic is this shop's
+    // default everywhere else and is the default here too; a customer who was
+    // reading Arabic a screen ago should not meet an English bank page.
+    $lang = ($b['lang'] ?? '') === 'en' ? 'en' : 'ar';
+
     // Idempotency FIRST: a double tap or a bank-page retry returns the pending
     // order it already created instead of a second one. The storefront's
     // attemptTrackId() keeps the id stable per attempt; this is the other half.
@@ -774,7 +779,11 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         // collect. Nothing here writes, so the row is the truth; say the truth.
         store_out(['order_id' => (int)$existing['id'], 'track_id' => $track,
                    'amount' => (float)$existing['amount'],
-                   'payment_method' => (string)$existing['payment_method']]);
+                   'payment_method' => (string)$existing['payment_method'],
+                   // Of the STORED method, for the same reason the method
+                   // itself is: a retry must be sent to the bank the order was
+                   // created against, not to the one this request asked for.
+                   'pay_url' => store_pay_url((string)$existing['payment_method'], $track, $lang)]);
     }
 
     $items = $b['items'] ?? null;
@@ -962,7 +971,8 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $q->execute([$track]);
         if ($row = $q->fetch()) {
             store_out(['order_id' => (int)$row['id'], 'track_id' => $track,
-                       'amount' => (float)$row['amount'], 'payment_method' => $method]);
+                       'amount' => (float)$row['amount'], 'payment_method' => $method,
+                       'pay_url' => store_pay_url($method, $track, $lang)]);
         }
         store_fail('failed', 500);
     }
@@ -970,7 +980,10 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     store_out(['order_id' => $orderId, 'track_id' => $track,
                'amount' => (float)$amount, 'subtotal' => (float)store_kwd($subtotalFils),
                'discount' => (float)store_kwd($discountFils),
-               'delivery' => (float)store_kwd($deliveryFils), 'payment_method' => $method]);
+               'delivery' => (float)store_kwd($deliveryFils), 'payment_method' => $method,
+               // null for cash on delivery, and the caller must treat it as
+               // "nothing more to do" rather than as a failure to build a link.
+               'pay_url' => store_pay_url($method, $track, $lang)]);
 }
 
 store_fail('not_found', 404);

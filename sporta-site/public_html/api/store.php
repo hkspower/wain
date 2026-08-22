@@ -149,6 +149,36 @@ const STORE_SIZES        = ['S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', 'ON
 const STORE_FITS         = ['normal', 'slim', 'loose', 'oversize', 'boxy', 'tank'];
 const STORE_PAY_METHODS  = ['knet', 'tpay', 'cod'];
 
+// Where a shopper is sent to pay, per method.
+//
+// The dropins have always been reachable from the website, which walks the
+// customer to /knet/pay.php or /pay/pay.php itself after the order is written.
+// The NATIVE APP cannot do that — it has no page to redirect and no knowledge
+// of the site's layout — so it asked the order endpoint for a `pay_url` and
+// the order endpoint never sent one. A card order in the app therefore created
+// a pending row, took no money, and told the customer it was placed.
+//
+// Only the track id goes in the link. Both dropins look the amount up
+// themselves and refuse anything the database cannot confirm, so a link that
+// leaks, is shared, or is edited still cannot change what is charged.
+//
+//   paytype  '' the customer chooses at CBK, '1' KNET only, '2' T-Pay QR only.
+//            T-Pay is the card/QR half of the same CBK gateway, so a `tpay`
+//            order is pinned to 2 rather than left on the chooser — the
+//            customer already chose, in this app, one screen ago.
+function store_pay_url(string $method, string $track, string $lang = 'ar'): ?string
+{
+    $lang = $lang === 'en' ? 'en' : 'ar';
+    $track = rawurlencode($track);
+    return match ($method) {
+        'knet' => "/knet/pay.php?trackid={$track}&lang={$lang}",
+        'tpay' => "/pay/pay.php?trackid={$track}&lang={$lang}&paytype=2",
+        // Cash has no page to visit. Returning null rather than an empty
+        // string so a caller cannot accidentally send a customer to "/".
+        default => null,
+    };
+}
+
 // DELIVERY IS 1 KWD, FLAT, EVERY GOVERNORATE, EVERY PAYMENT METHOD.
 //
 // In FILS, like every other amount in this file: KWD has exactly three decimal

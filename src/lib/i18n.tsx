@@ -86,7 +86,8 @@ const COPY = {
       notes: 'ملاحظات للسائق (اختياري)',
       payment: 'طريقة الدفع',
       knet: 'كي نت',
-      card: 'بطاقة',
+      // بطاقات فيزا وماستركارد عبر خدمة تي-باي من البنك التجاري الكويتي.
+      tpay: 'بطاقة (تي-باي)',
       cod: 'الدفع عند الاستلام',
       place: 'تأكيد الطلب',
       pay: 'ادفع الآن',
@@ -100,6 +101,11 @@ const COPY = {
       ref: 'رقم الطلب',
       willCall: 'سنتواصل معك لتأكيد التوصيل.',
       home: 'العودة للرئيسية',
+      // بعد العودة من صفحة البنك. الدفع لم يُلغَ — البنك قد يتأخر في الرد.
+      paid: 'تم استلام الدفعة',
+      pending: 'لم يصلنا تأكيد الدفع بعد',
+      pendingText: 'إذا كنت قد أتممت الدفع فسيصلك التأكيد خلال دقائق. طلبك محفوظ برقمه أعلاه.',
+      retry: 'إعادة محاولة الدفع',
     },
     account: {
       title: 'حسابي',
@@ -186,7 +192,8 @@ const COPY = {
       notes: 'Notes for the driver (optional)',
       payment: 'Payment',
       knet: 'KNET',
-      card: 'Card',
+      /** Visa and Mastercard, through the Commercial Bank of Kuwait's T-Pay. */
+      tpay: 'Card (T-Pay)',
       cod: 'Cash on delivery',
       place: 'Place order',
       pay: 'Pay now',
@@ -200,6 +207,11 @@ const COPY = {
       ref: 'Order number',
       willCall: "We'll call you to confirm delivery.",
       home: 'Back to home',
+      paid: 'Payment received',
+      pending: 'No payment confirmation yet',
+      pendingText:
+        'If you completed the payment, confirmation usually arrives within a few minutes. Your order is saved under the number above.',
+      retry: 'Try the payment again',
     },
     account: {
       title: 'Account',

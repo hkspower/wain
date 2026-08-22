@@ -41,7 +41,9 @@ const GOVERNORATES = [
 const newTrackId = () =>
   'SP' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 6).toUpperCase();
 
-type Payment = 'knet' | 'card' | 'cod';
+// The shop's own names. `card` was this app's invention and the server has
+// never accepted it — see lib/api.ts. tpay is CBK's T-Pay.
+type Payment = 'knet' | 'tpay' | 'cod';
 
 export default function CheckoutScreen() {
   const theme = useTheme();
@@ -104,16 +106,24 @@ export default function CheckoutScreen() {
 
     try {
       const placed = await placeOrder(draft);
-      // KNET and card hand off to a hosted page. It opens in the system
+      // KNET and T-Pay hand off to CBK's hosted page. It opens in the system
       // browser sheet rather than a WebView: the customer needs to see the
       // real bank URL and padlock, and a WebView hides both.
+      //
+      // openBrowserAsync RESOLVES when the sheet closes, and that is all it
+      // tells us — the same result whether they paid, cancelled, or gave up.
+      // Whether the money arrived is the shop's to say, and the order screen
+      // asks it.
       if (placed.payUrl) {
         await WebBrowser.openBrowserAsync(placed.payUrl);
       }
       // Kept for the Wallet card, which needs a phone and one of its orders.
       remember({ ref: placed.ref, phone: phoneDigits });
       clear();
-      router.replace({ pathname: '/order/[ref]', params: { ref: placed.ref } });
+      router.replace({
+        pathname: '/order/[ref]',
+        params: { ref: placed.ref, pay: payment, payUrl: placed.payUrl ?? '' },
+      });
     } catch (e) {
       // The basket is NOT cleared here. An order that failed to reach the shop
       // must leave the customer exactly where they were.
@@ -267,7 +277,7 @@ export default function CheckoutScreen() {
               {(
                 [
                   ['knet', t.checkout.knet, '💳'],
-                  ['card', t.checkout.card, '🏦'],
+                  ['tpay', t.checkout.tpay, '🏦'],
                   ['cod', t.checkout.cod, '💵'],
                 ] as [Payment, string, string][]
               ).map(([id, label, icon]) => {

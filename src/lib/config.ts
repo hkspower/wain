@@ -37,13 +37,16 @@ export const API_BASE: string = clean(
 );
 
 /**
- * Pictures sit beside the API, not inside it: the API answers at
- * https://host/api and the artwork at https://host/cats/... — so the default is
- * derived rather than configured, because two settings that must agree are one
- * setting people get wrong.
+ * The shop's own origin — everything that is not the API. The API answers at
+ * https://host/api; the artwork sits at https://host/cats/..., and the bank
+ * dropins at https://host/pay/... and https://host/knet/..., which is why this
+ * is derived from API_BASE rather than configured separately: two settings
+ * that must agree are one setting people get wrong.
  */
+export const SITE_BASE: string = clean(API_BASE.replace(/\/api$/, ''));
+
 export const ASSET_BASE: string = clean(
-  process.env.EXPO_PUBLIC_ASSET_BASE ?? extra.assetBase ?? API_BASE.replace(/\/api$/, ''),
+  process.env.EXPO_PUBLIC_ASSET_BASE ?? extra.assetBase ?? SITE_BASE,
 );
 
 /** True when this build is talking to the real shop. Used by nothing yet; it is
