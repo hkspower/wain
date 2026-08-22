@@ -1,4 +1,4 @@
-import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -7,6 +7,7 @@ import { press } from '@/components/ui/press';
 import { Screen } from '@/components/ui/screen';
 import { Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { API_BASE } from '@/lib/config';
 import { useCart } from '@/lib/cart';
 import { useLang, type Lang } from '@/lib/i18n';
 
@@ -55,6 +56,38 @@ export default function AccountScreen() {
           );
         })}
       </View>
+
+      {/* iOS ONLY, and shown rather than disabled elsewhere would be worse:
+          Apple Wallet does not exist on Android, and a button that opens
+          nothing is a promise the app cannot keep. Android's equivalent is
+          Google Wallet, which needs a different pass format and a different
+          account — when that exists this becomes a choice, not a hidden
+          button. */}
+      {Platform.OS === 'ios' && (
+        <>
+          <ThemedText type="labelBold" style={[styles.label, text]}>
+            {t.account.wallet}
+          </ThemedText>
+          <ThemedText type="label" themeColor="textSecondary" style={text}>
+            {t.account.walletWhat}
+          </ThemedText>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={t.account.walletAdd}
+            // Opened with the system browser, not fetched: iOS recognises the
+            // application/vnd.apple.pkpass response and hands it to Wallet
+            // itself. Downloading the bytes in-app would leave us holding a
+            // file with nothing able to install it.
+            onPress={() => Linking.openURL(`${API_BASE}/wallet.php?r=pass`)}
+            style={press()}>
+            <View style={[styles.walletButton, row]}>
+              <ThemedText type="labelBold" style={styles.walletText}>
+                {t.account.walletAdd}
+              </ThemedText>
+            </View>
+          </Pressable>
+        </>
+      )}
 
       <ThemedText type="labelBold" style={[styles.label, text]}>
         {t.account.contact}
@@ -113,6 +146,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: Spacing.three,
   },
+  // Apple's own guidance is a black button with white text; a branded orange
+  // one reads as an advert rather than as the system affordance people already
+  // recognise.
+  walletButton: {
+    minHeight: TapTarget,
+    borderRadius: Radius.card,
+    backgroundColor: '#000000',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  walletText: { color: '#ffffff' },
   notice: {
     marginTop: Spacing.three,
     borderWidth: 1,

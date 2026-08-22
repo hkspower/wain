@@ -49,3 +49,10 @@ example
 sporta-site/public_html/api/config.php
 sporta-site/public_html/knet/config.php
 sporta-site/public_html/pay/config.php
+
+# Wallet signing material and built passes — the certificate is the shop's
+# identity to Apple and must never be in a repository.
+wallet/certs/
+wallet/.build/
+wallet/*.pkpass
+wallet/*-UNSIGNED.zip
