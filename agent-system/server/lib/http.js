@@ -1,6 +1,8 @@
 'use strict';
 /** أدوات مساعدة لخادم HTTP: قراءة الجسم، الردود، الكوكيز، والأخطاء */
 
+const ar = require('arabic-kit');
+
 const MAX_BODY = 256 * 1024; // 256 ك.ب
 
 class HttpError extends Error {
@@ -94,12 +96,35 @@ function str(value, field, { required = true, min = 0, max = 500 } = {}) {
   return v;
 }
 
+/*
+ * `Number('٢٥')` تعطي NaN، و«٢٫٥» كذلك — الفاصلة العربية ليست نقطة. فكل
+ * رقمٍ يصل الخادم بالعربية كان يُردّ «يجب أن يكون رقمًا». الواجهة تُطبّع
+ * قبل الإرسال، لكن الخادم يُطرق من غيرها: رابط الكابتن، والتكاملات،
+ * والطلب المنطوق. والقاعدة في هذا النظام أن **الخادم هو الحكم** — كما في
+ * رقم القطعة — لا أن يعتمد على تهذيب الواجهة.
+ */
+/*
+ * الهاتف يُكتب بأرقام عربية على لوحة عربية، فيُخزَّن «٩٩٨٨٧٧٦٦» كما هو.
+ * والرقم بعدها يدخل في `tel:` وفي رسالة واتساب وفي البحث — فلا يتّصل به
+ * هاتف، ولا يطابقه بحث، ويصل الكابتن رابطٌ لا يعمل. تحويلُ الأرقام ليس
+ * تخمينًا: هو الرقم نفسه بحروف أخرى. أمّا مفتاح الدولة فلا يُخترع — من
+ * كتب بلا مفتاح فقد قصد ما كتب.
+ */
+function phone(value, field, opts = {}) {
+  const raw = str(value, field, opts);
+  if (!raw) return raw;
+  const latin = ar.toLatin(raw);
+  // تُحذف الفراغات والشرطات والأقواس، ويبقى «+» في أوّله إن وُجد
+  const plus = /^\s*\+/.test(latin) ? '+' : '';
+  return plus + latin.replace(/[^0-9]/g, '');
+}
+
 function num(value, field, { min = 0, max = 1e9, required = false } = {}) {
   if (value == null || value === '') {
     if (required) throw badRequest(`الحقل «${field}» مطلوب`);
     return 0;
   }
-  const n = Number(value);
+  const n = Number(typeof value === 'string' ? ar.toLatin(value).trim() : value);
   if (!Number.isFinite(n)) throw badRequest(`الحقل «${field}» يجب أن يكون رقمًا`);
   if (n < min || n > max) throw badRequest(`قيمة «${field}» خارج النطاق المسموح`);
   return n;
@@ -118,6 +143,7 @@ function id(value, field = 'المعرّف') {
 }
 
 module.exports = {
+  phone,
   HttpError, badRequest, unauthorized, forbidden, notFound, conflict,
   readBody, readRawBody, sendJson, parseCookies, cookie,
   str, num, oneOf, id, MAX_BODY,

@@ -538,3 +538,73 @@ test('كل قياس بـdvh له احتياط بـvh — القاعدة تُسق
     }
   }
 });
+
+/* --------------------------- الشيفرة تُصرَّف --------------------------- */
+
+test('ملفّات الواجهة تُصرَّف — خطأ نحويّ فيها يُعطّل التطبيق كلّه', () => {
+  /*
+   * الحُرّاس كلّها تقرأ هذه الملفّات **نصًّا** ولا تُصرّفها، فمرّت ٢٧٩
+   * اختبارًا وفيها خطأ نحويّ واحد يمنع التطبيق من الإقلاع أصلًا: علامة
+   * خلفية داخل تعليق HTML داخل قالب نصّيّ تُنهي القالب.
+   */
+  const vm = require('node:vm');
+  for (const file of ['app.js', 'link.js']) {
+    const src = read(file);
+    assert.doesNotThrow(() => new vm.Script(src, { filename: file }),
+      `${file}: خطأ نحويّ — التطبيق لا يُقلع`);
+  }
+});
+
+test('لا علامة خلفية داخل تعليق HTML — تُنهي القالب النصّيّ حولها', () => {
+  for (const file of ['app.js', 'link.js']) {
+    const bad = [...read(file).matchAll(/<!--[\s\S]*?-->/g)]
+      .filter((m) => m[0].includes('`'))
+      .map((m) => m[0].slice(0, 60));
+    assert.deepEqual(bad, [], `${file}: علامة خلفية في تعليق HTML`);
+  }
+});
+
+/* ------------------------ تجربة الكتابة ------------------------ */
+
+test('المؤشّر يبقى مكانه بعد تنقية ما كُتب', () => {
+  const js = read('app.js');
+  /* إعادة رقم المؤشّر تصحّ ما دام الطول لم يتغيّر، وتخطئ متى حُذف حرف:
+     يقف المؤشّر **بعد الحرف التالي**، فما يُكتب بعده يقع في غير موضعه.
+     الصواب عدُّ ما بقي ممّا كان قبله. قِيس: المتوقّع ١ والواقع كان ٢. */
+  assert.match(js, /function normalise\(box, clean\)/, 'لا دالّة تنقية موحّدة');
+  assert.match(js, /const kept = clean\(AR\.toLatin\(raw\.slice\(0, at\)\)\)\.length;/,
+    'المؤشّر يُعاد برقمه لا بعدّ ما بقي قبله');
+  /* ولا يبقى في الملفّ ربطٌ قديم يعيد الرقم كما كان */
+  assert.ok(!/setSelectionRange\(at, at\)/.test(js), 'ما زال موضع المؤشّر يُعاد برقمه');
+});
+
+test('تطبيع الأرقام مفوَّض على المستند — لا يُنسى في شاشة', () => {
+  const js = read('app.js');
+  /* كان مربوطًا داخل «طلب جديد» وحدها، فحقل نسبة العمولة يحمل السمة
+     **بلا مستمع**: تُكتب فيه «٢٥» فتبقى عربية وتُرسل كما هي. */
+  assert.match(js, /document\.addEventListener\('input'[\s\S]{0,400}data-money/,
+    'التطبيع ليس مفوَّضًا على المستند');
+  assert.ok(!/querySelectorAll\('\[data-money\]'\)/.test(js), 'ما زال يُربط لكل شاشة');
+});
+
+test('حقل نسبة العمولة كبقيّة المبالغ — لا type=number', () => {
+  const js = read('app.js');
+  const tag = js.match(/<input name="commission_rate"[^>]*>/s);
+  assert.ok(tag, 'حقل النسبة غير موجود');
+  /* `type=number` **يرفض «٢٥» بصمت**: يفرغ الحقل ولا يقول لماذا. قِيس. */
+  assert.ok(!/type="number"/.test(tag[0]), 'رجع إلى type=number فيرفض الأرقام العربية');
+  assert.match(tag[0], /inputmode="decimal"/, 'بلا لوحة عشرية');
+  assert.match(tag[0], /data-money/, 'بلا تطبيع الأرقام العربية');
+});
+
+test('مفتاح الإدخال يُحسب ويفي بما يعد — والسطر الجديد يبقى للنصّ', () => {
+  const js = read('app.js');
+  assert.match(js, /function hintEnterKeys\(form\)/, 'لا حساب لمفتاح الإدخال');
+  assert.match(js, /i === fields\.length - 1 \? 'send' : 'next'/, 'المفتاح لا يعرف موضع الحقل');
+  /* الوسم بلا انتقال وعدٌ لا وفاء له: يُكتب «التالي» ولا تالي */
+  assert.match(js, /if \(at < 0 \|\| at === fields\.length - 1\) return;[\s\S]{0,120}fields\[at \+ 1\]\.focus\(\)/,
+    'Enter لا ينقل التركيز');
+  /* والسطر الجديد داخل مربّع النصّ حقٌّ لكاتبه */
+  assert.match(js, /if \(f\.tagName === 'TEXTAREA'\) return;/, 'مربّع النصّ يأخذ وسمًا لا يليق به');
+  assert.match(js, /el\.tagName === 'TEXTAREA'\) return;/, 'Enter يُختطف من مربّع النصّ');
+});

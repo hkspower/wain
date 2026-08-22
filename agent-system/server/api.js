@@ -15,7 +15,7 @@ const AREA = require('./areas');
 const P = require('./perms');
 const {
   badRequest, unauthorized, forbidden, notFound, conflict,
-  str, num, oneOf, id,
+  str, num, oneOf, id, phone: tel,
 } = require('./lib/http');
 
 /* ------------------------------- مساعدات ------------------------------- */
@@ -195,7 +195,7 @@ on('POST', '/api/agents', async (ctx) => {
     throw badRequest('اسم المستخدم يقبل الحروف اللاتينية والأرقام والنقطة والشرطة فقط');
   }
   const password = str(ctx.body.password, 'كلمة المرور', { min: 6, max: 200 });
-  const phone = str(ctx.body.phone, 'رقم الهاتف', { required: false, max: 25 });
+  const phone = tel(ctx.body.phone, 'رقم الهاتف', { required: false, max: 25 });
   const role = oneOf(ctx.body.role || 'agent', 'الدور', Object.keys(D.ROLES));
   const vehicle = oneOf(ctx.body.vehicle || 'sedan', 'نوع المركبة', Object.keys(D.VEHICLES));
   const governorate = str(ctx.body.governorate, 'المحافظة', { required: false, max: 40 });
@@ -240,7 +240,7 @@ on('PATCH', '/api/agents/:id', async (ctx) => {
   const fields = [];
   const values = [];
   if (ctx.body.name != null)        { fields.push('name = ?');        values.push(str(ctx.body.name, 'الاسم', { min: 3, max: 80 })); }
-  if (ctx.body.phone != null)       { fields.push('phone = ?');       values.push(str(ctx.body.phone, 'رقم الهاتف', { required: false, max: 25 })); }
+  if (ctx.body.phone != null)       { fields.push('phone = ?');       values.push(tel(ctx.body.phone, 'رقم الهاتف', { required: false, max: 25 })); }
   if (ctx.body.vehicle != null)     { fields.push('vehicle = ?');     values.push(oneOf(ctx.body.vehicle, 'نوع المركبة', Object.keys(D.VEHICLES))); }
   if (ctx.body.governorate != null) { fields.push('governorate = ?'); values.push(str(ctx.body.governorate, 'المحافظة', { required: false, max: 40 })); }
   if (ctx.body.password) {
@@ -524,7 +524,7 @@ on('POST', '/api/orders', async (ctx) => {
   const order = {
     code: nextOrderCode(),
     customer_name: str(ctx.body.customer_name, 'اسم العميل', { min: 2, max: 80 }),
-    customer_phone: str(ctx.body.customer_phone, 'هاتف العميل', { min: 6, max: 25 }),
+    customer_phone: tel(ctx.body.customer_phone, 'هاتف العميل', { min: 6, max: 25 }),
     pickup_address: str(ctx.body.pickup_address, 'عنوان الاستلام', { required: false, max: 300 }),
     dropoff_address: str(ctx.body.dropoff_address, 'عنوان التسليم', { required: false, max: 300 }),
     governorate: oneOf(ctx.body.governorate, 'المحافظة', D.GOVERNORATES),

@@ -262,6 +262,29 @@
    */
   const has = (perm) => !!(state.perms && state.perms.includes(perm));
 
+  /*
+   * تنقية ما يُكتب مع **حفظ موضع المؤشّر**.
+   *
+   * كانت النسخة السابقة تُعيد المؤشّر إلى موضعه الرقميّ قبل التنقية. وهذا
+   * يصحّ ما دام الطول لم يتغيّر (الرقم العربيّ يصير لاتينيًّا حرفًا بحرف)،
+   * ويخطئ متى حُذف شيء: «12» ومؤشّرٌ بين الرقمين، يكتب الموظّف حرفًا
+   * مرفوضًا فيُحذف، ويبقى المؤشّر عند ٢ — أي **بعد الرقم التالي**. فالحرف
+   * الذي يكتبه بعده يقع في غير موضعه. قِيس: المتوقّع ١ والواقع ٢.
+   *
+   * الصواب أن يُعدّ ما بقي من الأحرف **قبل** المؤشّر لا أن يُنقل رقمه.
+   */
+  function normalise(box, clean) {
+    const raw = box.value;
+    const at = box.selectionStart ?? raw.length;
+    const out = clean(AR.toLatin(raw));
+    if (out === raw) return;
+
+    // كم حرفًا نجا ممّا كان قبل المؤشّر؟ هناك يقع المؤشّر الجديد.
+    const kept = clean(AR.toLatin(raw.slice(0, at))).length;
+    box.value = out;
+    try { box.setSelectionRange(kept, kept); } catch { /* حقل لا يدعم التحديد */ }
+  }
+
   async function refreshPerms() {
     try {
       const r = await api('/me/permissions');
@@ -1627,27 +1650,14 @@
        لوحة مفاتيح عربية فلا يظهر شيء ولا يقول له أحد لماذا. فصار نصًّا
        يقبل الرقمين ويحوّل العربيّ إلى لاتينيّ قبل الإرسال — والخادم يبقى
        هو الحكم على المدى. */
-    for (const box of document.querySelectorAll('[data-block]')) {
-      box.addEventListener('input', () => {
-        const at = box.selectionStart;
-        const clean = AR.toLatin(box.value).replace(/[^0-9]/g, '');
-        if (clean !== box.value) { box.value = clean; try { box.setSelectionRange(at, at); } catch { /* لا يهمّ */ } }
-      });
-    }
+    /* التطبيع صار مفوَّضًا على المستند (انظر `MONEY_RE` أدنى الملفّ) فلا
+       يحتاج ربطًا في كل شاشة — وهو ما نسي شاشةَ الإعدادات. */
 
     /* المبالغ كالقطعة: كانت `type=number` فتفتح على الجوال لوحةً بلا فاصلة
        عشرية في بعض اللغات، وتغيّر قيمتها إن مرّ الإصبع فوقها. وصارت نصًّا
        بلوحة أرقام عشرية (`inputmode=decimal`) تقبل «٢٫٥» و«2.5» سواءً —
        والخادم يبقى هو الحكم على المدى. */
-    for (const box of document.querySelectorAll('[data-money]')) {
-      box.addEventListener('input', () => {
-        const at = box.selectionStart;
-        let clean = AR.toLatin(box.value).replace(/[^0-9.]/g, '');
-        const dot = clean.indexOf('.');            // فاصلة واحدة لا أكثر
-        if (dot >= 0) clean = clean.slice(0, dot + 1) + clean.slice(dot + 1).replace(/\./g, '');
-        if (clean !== box.value) { box.value = clean; try { box.setSelectionRange(at, at); } catch { /* لا يهمّ */ } }
-      });
-    }
+
 
     /* ---------------------- الطلب المنطوق ---------------------- */
 
@@ -2275,6 +2285,10 @@
 
     const s = data.settings;
     const isPercent = s.commission_type === 'percent';
+    /* حقل النسبة كان `type=number`، وهو **يرفض «٢٥» بصمت**: يكتبها المدير
+       على لوحة عربية فيفرغ الحقل ولا يقول له أحد لماذا. وهي العلّة نفسها
+       التي صُحّحت في المال والقطعة وبقيت هنا. قِيست: القيمة بعد كتابة
+       «٢٥» صارت فارغة. صار نصًّا بلوحة عشرية ومُطبِّعٍ كبقيّة المبالغ. */
     // مثال حيّ على رسوم شائعة حتى يرى المدير أثر العمولة قبل أن يحفظها
     const sample = 1.5;
 
@@ -2307,8 +2321,8 @@
                 </label>
                 <label class="field">
                   <span id="cLabel">${isPercent ? 'النسبة (٪)' : 'المبلغ (د.ك)'}</span>
-                  <input name="commission_rate" id="cRate" type="number" dir="ltr"
-                         step="${isPercent ? '0.5' : '0.05'}" min="0" max="100"
+                  <input name="commission_rate" id="cRate" type="text" dir="ltr"
+                         inputmode="decimal" data-money enterkeyhint="done"
                          value="${esc(s.commission_rate)}" required>
                 </label>
                 <label class="field field--full">
@@ -2359,9 +2373,10 @@
     function paint() {
       const percent = typeSel.value === 'percent';
       document.getElementById('cLabel').textContent = percent ? 'النسبة (٪)' : 'المبلغ (د.ك)';
-      rateInp.step = percent ? '0.5' : '0.05';
+      /* `step` لا معنى له على حقل نصّيّ — والخطوة كانت زينةً على أيّ حال:
+         النسبة تُكتب ولا تُزحلق. */
 
-      const rate = Math.min(100, Math.max(0, Number(rateInp.value) || 0));
+      const rate = Math.min(100, Math.max(0, Number(AR.toLatin(rateInp.value)) || 0));
       const raw = percent ? sample * (rate / 100) : rate;
       const commission = Math.round(Math.min(sample, Math.max(0, raw)) * 1000) / 1000;
       const earning = Math.round((sample - commission) * 1000) / 1000;
@@ -2871,11 +2886,104 @@
   /* أثناء الكتابة يختفي الشريط السفلي (انظر app.css). الحدثان يصعدان من أي
      حقل مهما أُعيد رسم الصفحة، فلا يحتاج الأمر ربطًا في كل شاشة. */
   const TYPEABLE = /^(INPUT|TEXTAREA|SELECT)$/;
+
+  /*
+   * تطبيع الأرقام مفوَّضٌ على المستند لا مربوطٌ في كل شاشة.
+   *
+   * كان يُربط داخل «طلب جديد» وحدها، فحقل نسبة العمولة في الإعدادات يحمل
+   * `data-money` **بلا مستمع**: تُكتب فيه «٢٥» فتبقى عربيةً كما هي. الربط
+   * في مكان واحد يعني أن أي شاشة تُضاف غدًا تأخذه بلا أن يتذكّرها أحد.
+   */
+  const oneDot = (v) => {
+    const at = v.indexOf('.');
+    return at < 0 ? v : v.slice(0, at + 1) + v.slice(at + 1).replace(/\./g, '');
+  };
+  document.addEventListener('input', (e) => {
+    const el = e.target;
+    if (!el.matches) return;
+    if (el.matches('[data-block]')) normalise(el, (v) => v.replace(/[^0-9]/g, ''));
+    else if (el.matches('[data-money]')) normalise(el, (v) => oneDot(v.replace(/[^0-9.]/g, '')));
+  });
+
+  /*
+   * الشريط يعود **بعد مهلة قصيرة** لا في اللحظة نفسها.
+   *
+   * كان يعود على `focusout` فورًا، و`focusout` تقع عند **ضغط** الزرّ لا عند
+   * رفعه: فيظهر الشريط الثابت بين الضغطة والرفعة، فتقع الرفعة عليه هو لا
+   * على الزرّ، ولا يُولَد حدث النقر أصلًا. أي أن الموظّف يكتب النسبة ثم
+   * يلمس «حفظ» **فلا يقع شيء**. قِيس: `mousedown` و`focus` يصلان الزرّ،
+   * ثم لا `mouseup` ولا `click`.
+   *
+   * والمهلة تُلغى إن انتقل التركيز إلى حقل آخر، فلا يرفّ الشريط بين حقلين.
+   */
+  /*
+   * الحقل الرقميّ ذو القيمة الافتراضية يُحدَّد كلُّه عند أوّل لمسة.
+   *
+   * «رسوم التوصيل» تأتي بـ«1.5» و«التحصيل» بـ«0». يلمس الموظّف الحقل
+   * ويكتب «٢٢٫٧٥» فتصير **«022.75»**، و«١٫٥» تصير **«1.515»** — رقمٌ
+   * معقول المظهر يُرسل ولا يُنتبه له. والقيمة الافتراضية نافعة (١٫٥ هي
+   * الشائعة) فلا تُحذف، لكن أوّلَ ما يُكتب يحلّ محلّها لا يلتصق بها.
+   */
   document.addEventListener('focusin', (e) => {
-    if (TYPEABLE.test(e.target.tagName)) document.body.classList.add('is-typing');
+    const el = e.target;
+    if (!el.matches || !el.matches('[data-money], [data-block]')) return;
+    if (!el.value) return;
+    const pick = () => { if (document.activeElement === el) try { el.select(); } catch { /* لا يدعم */ } };
+    pick();          // للانتقال بلوحة المفاتيح: لا مؤشّر يُوضع بعده
+    setTimeout(pick, 0);   // وللّمس: المتصفّح يضع المؤشّر عند موضع اللمسة بعد `focus`
+  });
+
+  let typingOff = null;
+  document.addEventListener('focusin', (e) => {
+    if (!TYPEABLE.test(e.target.tagName)) return;
+    clearTimeout(typingOff);
+    document.body.classList.add('is-typing');
+    hintEnterKeys(e.target.form);
   });
   document.addEventListener('focusout', (e) => {
-    if (TYPEABLE.test(e.target.tagName)) document.body.classList.remove('is-typing');
+    if (!TYPEABLE.test(e.target.tagName)) return;
+    clearTimeout(typingOff);
+    typingOff = setTimeout(() => document.body.classList.remove('is-typing'), 320);
+  });
+
+  /*
+   * مفتاح الإدخال على لوحة الجوال.
+   *
+   * كان سبعة عشر حقلًا في نموذج الطلب بلا `enterkeyhint` إلّا اثنين: مفتاحٌ
+   * لا يقول ما يفعل، وضغطُه لا يفعل شيئًا. والوسم وحده **وعدٌ لا وفاء له**
+   * إن لم ينتقل التركيز فعلًا، فيُكتب عليه «التالي» ولا تالي.
+   *
+   * فالوسم يُحسب من موضع الحقل في نموذجه — آخرُ حقلٍ «إرسال» وما قبله
+   * «التالي» — والضغط ينفّذ ما يعد به.
+   */
+  const fieldsOf = (form) => [...form.elements].filter((e) =>
+    TYPEABLE.test(e.tagName) && e.type !== 'hidden' && !e.disabled && !e.readOnly && e.offsetParent);
+
+  function hintEnterKeys(form) {
+    if (!form || form.dataset.enterHinted) return;
+    form.dataset.enterHinted = '1';
+    const fields = fieldsOf(form);
+    fields.forEach((f, i) => {
+      /* السطر الجديد داخل مربّع النصّ حقٌّ لكاتبه: لا يُختطف Enter منه */
+      if (f.tagName === 'TEXTAREA') return;
+      if (!f.hasAttribute('enterkeyhint')) {
+        f.setAttribute('enterkeyhint', i === fields.length - 1 ? 'send' : 'next');
+      }
+    });
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+    const el = e.target;
+    if (!TYPEABLE.test(el.tagName) || el.tagName === 'TEXTAREA') return;
+    const form = el.form;
+    if (!form) return;
+    const fields = fieldsOf(form);
+    const at = fields.indexOf(el);
+    if (at < 0 || at === fields.length - 1) return;   // الأخير يُرسل كالعادة
+    e.preventDefault();
+    fields[at + 1].focus();
+    if (fields[at + 1].select) try { fields[at + 1].select(); } catch { /* ليس نصًّا */ }
   });
 
   window.addEventListener('hashchange', router);
