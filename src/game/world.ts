@@ -3035,7 +3035,18 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // all. Standing it above the beam's top edge means nothing can
     // occlude it from any angle, and it is also where half the real ones
     // are fitted: a small tab on a bracket, clear of the rail.
-    const refGeo = new THREE.BoxGeometry(0.03, 0.14, 0.07);
+    //
+    // Sized from a measurement, not from taste. With the tab standing
+    // clear of the beam, a sweep of emissive intensity from 1.9 to 14 —
+    // a seven-fold range — moved the pixels these own in the frame from
+    // 33 to 40. Intensity was not the lever at all: at 30 x 140 mm they
+    // were about five pixels each at 19 m, which is a faint dot rather
+    // than the cue that shows you where a curve goes.
+    //
+    // 60 x 250 mm is a real roadside delineator panel — Gulf columns
+    // carry them at that size and larger — and doubling the linear
+    // dimension is four times the pixels.
+    const refGeo = new THREE.BoxGeometry(0.03, 0.25, 0.06);
     const refMat = new THREE.MeshStandardMaterial({
       color: edge < 0 ? 0xff3a2a : 0xffb02a,
       emissive: edge < 0 ? 0xd42618 : 0xe08a10,
