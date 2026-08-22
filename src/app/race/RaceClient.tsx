@@ -7,6 +7,7 @@ import Results from "./Results";
 import Onboarding, { CoachHint, CoachState, hasOnboarded } from "./Onboarding";
 import { ICONS, IconFlash, IconCrown, IconGear, IconFlagKW, type IconName } from "./Icons";
 import Garage from "./Garage";
+import KuwaitClock from "./KuwaitClock";
 import { gearAt } from "@/game/gears";
 import { RIVALS, RivalDef } from "@/game/rivals";
 import { HubClient, DuelInvite, loadProfile, formatLap } from "@/game/net";
@@ -1496,6 +1497,12 @@ export default function RaceClient() {
         }`}
         style={{ zoom: hudZoom, "--hud-inset-x": `${hudInsetX}px` } as React.CSSProperties}
       >
+        {/* Kuwait wall clock — the real hour on the corniche, which is
+            not the game's own time of day. */}
+        <div className="hud-safe-t hud-safe-r absolute">
+          <KuwaitClock />
+        </div>
+
         {/* Area + progress */}
         <div className="hud-safe-t hud-safe-l absolute">
           <div className="grn-plate px-4 py-2">
