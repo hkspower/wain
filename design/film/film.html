@@ -102,6 +102,31 @@
                        to   { transform: none; opacity: 1; } }
   @keyframes count { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
 
+
+  /* ── the camera on the flow map ─────────────────────────────────────────
+     The map is the one scene that is a diagram rather than a list, and it
+     was the one scene where nothing moved once the wires had drawn: two
+     cards, two lines, a circle, then eleven seconds of stillness.
+
+     So a camera. It opens wide enough to show that there are two sources,
+     pushes in on the core as the wires reach it — the point being made at
+     exactly that moment — holds there while the second line is spoken, then
+     pulls back out to leave the whole shape standing.
+
+     The origin is off-centre towards the core, so the push travels toward
+     the thing it is about instead of just growing. Scale only, on one
+     element: composited, so it costs the same as not moving. And the extent
+     is bounded — 1.06, not 1.2 — because the scene's content already very
+     nearly fills the safe area, and a camera that pushes its own subject off
+     the bottom of the frame is worse than no camera. --stills measures it. */
+  .cam { transform-origin: 34% 50%; will-change: transform; }
+  @keyframes camera {
+    0%   { transform: scale(.92); }
+    34%  { transform: scale(1.06); }
+    70%  { transform: scale(1.06); }
+    100% { transform: scale(.99); }
+  }
+
   .cards { display: flex; gap: 32px; margin-top: 40px; }
   .card {
     width: 340px; padding: 26px; border: 2px solid var(--border);
@@ -199,7 +224,8 @@
         <div class="rows"><div class="row" style="animation: slidein 0.55s cubic-bezier(.2,.7,.3,1) 35.96s both;"><span>طلب رقم 1042 — سُلِّم</span><span class="amt ltr">78.500</span></div><div class="row" style="animation: slidein 0.55s cubic-bezier(.2,.7,.3,1) 36.36s both;"><span>طلب رقم 1043 — في الطريق</span><span class="amt ltr">126.000</span></div><div class="row" style="animation: slidein 0.55s cubic-bezier(.2,.7,.3,1) 36.76s both;"><span>طلب رقم 1044 — جاهز</span><span class="amt ltr">45.250</span></div><div class="row total" style="animation: slidein 0.55s cubic-bezier(.2,.7,.3,1) 37.46s both;"><span>إجمالي الطلبات</span><span class="amt ltr">249.750</span></div></div></section>
   <section class="sc" data-scene="core" style="animation: scene 11.61s linear 46.56s both;">
         <h2 style="animation: rise 0.8s cubic-bezier(.2,.7,.3,1) 46.96s both;">نواةُ بياناتٍ واحدة</h2>
-        <div style="display:flex;align-items:center;gap:80px;margin-top:72px">
+        <div class="cam" style="display:flex;align-items:center;gap:80px;
+             margin-top:72px;animation: camera 10.209999999999999s cubic-bezier(.4,0,.2,1) 47.160000000000004s both;">
           <div style="display:flex;flex-direction:column;gap:36px">
             <div class="card" style="animation: rise 0.8s cubic-bezier(.2,.7,.3,1) 47.56s both;"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-chart"/></svg></span><b>صافي</b><p>المحفظة والقيمة السوقيّة</p></div>
             <div class="card" style="animation: rise 0.8s cubic-bezier(.2,.7,.3,1) 47.86s both;"><span class="tile"><svg class="ic" aria-hidden="true"><use href="#i-delivery"/></svg></span><b>التوصيل</b><p>الطلبات والمُسلَّم منها</p></div>

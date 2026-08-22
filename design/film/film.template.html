@@ -102,6 +102,31 @@
                        to   { transform: none; opacity: 1; } }
   @keyframes count { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
 
+
+  /* ── the camera on the flow map ─────────────────────────────────────────
+     The map is the one scene that is a diagram rather than a list, and it
+     was the one scene where nothing moved once the wires had drawn: two
+     cards, two lines, a circle, then eleven seconds of stillness.
+
+     So a camera. It opens wide enough to show that there are two sources,
+     pushes in on the core as the wires reach it — the point being made at
+     exactly that moment — holds there while the second line is spoken, then
+     pulls back out to leave the whole shape standing.
+
+     The origin is off-centre towards the core, so the push travels toward
+     the thing it is about instead of just growing. Scale only, on one
+     element: composited, so it costs the same as not moving. And the extent
+     is bounded — 1.06, not 1.2 — because the scene's content already very
+     nearly fills the safe area, and a camera that pushes its own subject off
+     the bottom of the frame is worse than no camera. --stills measures it. */
+  .cam { transform-origin: 34% 50%; will-change: transform; }
+  @keyframes camera {
+    0%   { transform: scale(.92); }
+    34%  { transform: scale(1.06); }
+    70%  { transform: scale(1.06); }
+    100% { transform: scale(.99); }
+  }
+
   .cards { display: flex; gap: 32px; margin-top: 40px; }
   .card {
     width: 340px; padding: 26px; border: 2px solid var(--border);

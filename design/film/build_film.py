@@ -23,6 +23,7 @@ through the Ministry of Commerce portal. No invented customers, no invented
 numbers, no claim the product cannot make.
 """
 
+import inspect
 import json
 import pathlib
 import re
@@ -177,10 +178,11 @@ def scenes():
     ], delivery))
 
     # 5 ─ one data core
-    def core(t):
+    def core(t, dur=10.0):
         return f"""
         <h2 style="{a('rise', t+0.4, 0.8)}">نواةُ بياناتٍ واحدة</h2>
-        <div style="display:flex;align-items:center;gap:80px;margin-top:72px">
+        <div class="cam" style="display:flex;align-items:center;gap:80px;
+             margin-top:72px;{a('camera', t+0.6, dur-1.4, 'cubic-bezier(.4,0,.2,1)')}">
           <div style="display:flex;flex-direction:column;gap:36px">
             {card('i-chart', 'صافي', 'المحفظة والقيمة السوقيّة', t+1.0)}
             {card('i-delivery', 'التوصيل', 'الطلبات والمُسلَّم منها', t+1.3)}
@@ -298,9 +300,15 @@ def build():
         if voiced:
             lines, dur = voiced_timings(lines, voiced, spoken)
             spoken += len(lines)
+        # a scene that moves a camera needs to know how long it is on screen,
+        # and that length comes from the recording — never from a number
+        # written beside the drawing, which would fall out of step the first
+        # time a line was re-recorded
+        want = len(inspect.signature(body).parameters)
         html_scenes.append(
             f'<section class="sc" data-scene="{name}" '
-            f'style="{a("scene", t, dur, "linear")}">{body(t)}</section>')
+            f'style="{a("scene", t, dur, "linear")}">'
+            f'{body(t, dur) if want == 2 else body(t)}</section>')
         for start, end, text in lines:
             captions.append(
                 f'<span style="{a("line", t+start, end-start, "linear")}">{text}</span>')
