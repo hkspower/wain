@@ -12,6 +12,7 @@
  */
 const { db, now } = require('./db');
 const { badRequest, forbidden, notFound } = require('./lib/http');
+const P = require('./perms');
 
 /** مدة الاحتفاظ بالنقاط بالساعات */
 const RETENTION_HOURS = Number(process.env.MAWSOOL_LOCATION_RETENTION_HOURS) || 24;
@@ -265,7 +266,7 @@ function logView(viewerId, agentId) {
 function locationOf(viewer, agentId) {
   const agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId);
   if (!agent) throw notFound('المندوب غير موجود');
-  if (viewer.role !== 'admin' && viewer.id !== agent.id) {
+  if (!P.can(viewer, 'locations.view') && viewer.id !== agent.id) {
     throw forbidden('لا تملك صلاحية الاطّلاع على موقع مندوب آخر');
   }
 
@@ -290,7 +291,7 @@ function locationOf(viewer, agentId) {
 
 /** آخر موقع لكل مندوب مشارِك — للوحة المدير */
 function liveBoard(viewer) {
-  if (viewer.role !== 'admin') throw forbidden('اللوحة المباشرة متاحة لمدير العمليات فقط');
+  P.require(viewer, 'locations.view', 'اللوحة المباشرة');
   purgeExpired();
 
   const agents = db.prepare(
@@ -332,7 +333,7 @@ function liveBoard(viewer) {
 function trailOf(viewer, agentId, minutes = 120) {
   const agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(agentId);
   if (!agent) throw notFound('المندوب غير موجود');
-  if (viewer.role !== 'admin' && viewer.id !== agent.id) {
+  if (!P.can(viewer, 'locations.view') && viewer.id !== agent.id) {
     throw forbidden('لا تملك صلاحية الاطّلاع على مسار مندوب آخر');
   }
   if (!agent.location_consent) return { points: [], reason: 'no_consent' };

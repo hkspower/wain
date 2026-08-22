@@ -26,6 +26,7 @@ const ROLES = { admin: 'مدير عمليات', agent: 'مندوب توصيل' }
 
 /* المحافظات من ملفّ المناطق نفسه — قائمتان تفترقان يوم تُضاف محافظة */
 const { GOVERNORATES } = require('./areas');
+const P = require('./perms');
 
 /**
  * حالة اعتماد الحساب — دورة حياة المندوب لدى الإدارة.
@@ -120,7 +121,7 @@ function assertCanReceiveOrders(agent) {
  *  • المنع يُنهي جلسات الحساب فورًا.
  */
 function setApproval(agentId, actor, approval, note = '') {
-  if (actor.role !== 'admin') throw forbidden('إدارة اعتماد الحسابات متاحة لمدير العمليات فقط');
+  P.require(actor, 'accounts.manage', 'إدارة اعتماد الحسابات');
   if (!APPROVAL[approval]) throw badRequest('حالة اعتماد غير معروفة');
 
   const run = db.transaction(() => {
@@ -220,7 +221,7 @@ function pendingTransferFor(orderId) {
 
 /** يتحقق أن المستخدم يملك الطلب (أو أنه مدير) */
 function assertCanTouch(order, actor) {
-  if (actor.role === 'admin') return;
+  if (P.can(actor, 'orders.view_all')) return;
   if (order.agent_id !== actor.id) throw forbidden('هذا الطلب غير مُسند إليك');
 }
 
@@ -290,7 +291,7 @@ function changeStatus(orderId, actor, nextStatus, note = '', options = {}) {
 /* ------------------------------- الإسناد -------------------------------- */
 
 function assignOrder(orderId, actor, agentId, note = '') {
-  if (actor.role !== 'admin') throw forbidden('الإسناد المباشر متاح لمدير العمليات فقط');
+  P.require(actor, 'orders.assign', 'الإسناد المباشر');
 
   const run = db.transaction(() => {
     const order = getOrder(orderId);
@@ -375,7 +376,7 @@ function acceptTransfer(transferId, actor, note = '') {
     const t = db.prepare('SELECT * FROM transfers WHERE id = ?').get(transferId);
     if (!t) throw notFound('طلب التحويل غير موجود');
     if (t.status !== 'pending') throw conflict('تمت معالجة طلب التحويل مسبقًا');
-    if (actor.role !== 'admin' && t.to_agent_id !== actor.id) {
+    if (!P.can(actor, 'orders.view_all') && t.to_agent_id !== actor.id) {
       throw forbidden('طلب التحويل هذا ليس موجّهًا إليك');
     }
 
@@ -414,7 +415,7 @@ function rejectTransfer(transferId, actor, note = '') {
   const t = db.prepare('SELECT * FROM transfers WHERE id = ?').get(transferId);
   if (!t) throw notFound('طلب التحويل غير موجود');
   if (t.status !== 'pending') throw conflict('تمت معالجة طلب التحويل مسبقًا');
-  if (actor.role !== 'admin' && t.to_agent_id !== actor.id) {
+  if (!P.can(actor, 'orders.view_all') && t.to_agent_id !== actor.id) {
     throw forbidden('طلب التحويل هذا ليس موجّهًا إليك');
   }
 
@@ -438,7 +439,7 @@ function cancelTransfer(transferId, actor, note = '') {
   const t = db.prepare('SELECT * FROM transfers WHERE id = ?').get(transferId);
   if (!t) throw notFound('طلب التحويل غير موجود');
   if (t.status !== 'pending') throw conflict('تمت معالجة طلب التحويل مسبقًا');
-  if (actor.role !== 'admin' && t.from_agent_id !== actor.id) {
+  if (!P.can(actor, 'orders.view_all') && t.from_agent_id !== actor.id) {
     throw forbidden('لا يمكنك سحب طلب تحويل لم تنشئه');
   }
 

@@ -12,6 +12,7 @@ const N = require('./nearest');
 const V = require('./voice-order');
 const AG = require('./agent');
 const AREA = require('./areas');
+const P = require('./perms');
 const {
   badRequest, unauthorized, forbidden, notFound, conflict,
   str, num, oneOf, id,
@@ -23,14 +24,18 @@ const publicAgent = (a) => ({
   id: a.id, name: a.name, username: a.username, phone: a.phone, role: a.role,
   vehicle: a.vehicle, governorate: a.governorate, availability: a.availability,
   active: !!a.active, created_at: a.created_at,
+  group_id: a.group_id || null,
   approval: a.approval, approval_note: a.approval_note || '',
   approval_at: a.approval_at || null,
   location_consent: !!a.location_consent, location_sharing: !!a.location_sharing,
 });
 
-function requireAdmin(ctx) {
-  if (ctx.agent.role !== 'admin') throw forbidden('هذا الإجراء متاح لمدير العمليات فقط');
-}
+/*
+ * كان حارسًا واحدًا لكل شيء: «مديرٌ أو لا». صار كل مسار يطلب صلاحيته
+ * باسمها، فيمكن أن يكون في المكتب موظّف إسناد لا يمسّ العمولة ولا الحسابات.
+ * والاسم في الرسالة صلاحيةٌ لا رتبة، فيعرف الموظّف ما ينقصه بالضبط.
+ */
+const need = (ctx, perm, what) => P.require(ctx.agent, perm, what);
 
 /** الرابط كما يُعرض للمدير — مع العنوان الكامل الجاهز للإرسال على واتساب */
 function publicLink(link, ctx) {
@@ -126,6 +131,14 @@ on('GET', '/api/auth/me', async (ctx) => ({ agent: publicAgent(ctx.agent) }));
 
 /* ---- بيانات ثابتة يشاركها الخادم والواجهة ---- */
 
+/* الواجهة لا تُخمّن ما يملكه المستخدم: تسأل. وهذا للعرض لا للحراسة —
+   الحراسة في الخادم عند كل مسار، وإخفاء زرٍّ ليس منعًا. */
+on('GET', '/api/me/permissions', async (ctx) => {
+  const g = P.groupOf(ctx.agent);
+  return { group: g ? { id: g.id, key: g.key, name: g.name, builtin: g.builtin } : null,
+           perms: g ? g.perms : [] };
+});
+
 on('GET', '/api/meta', async () => ({
   statuses: D.STATUSES,
   vehicles: D.VEHICLES,
@@ -137,6 +150,7 @@ on('GET', '/api/meta', async () => ({
   approval: D.APPROVAL,
   working_approvals: D.WORKING_APPROVALS,
   probation_max_orders: D.PROBATION_MAX_ORDERS,
+  permissions: P.PERMISSIONS,
   active_statuses: D.ACTIVE_STATUSES,
   final_statuses: D.FINAL_STATUSES,
 }), { auth: false });
@@ -144,8 +158,8 @@ on('GET', '/api/meta', async () => ({
 /* ---- المندوبون ---- */
 
 on('GET', '/api/agents', async (ctx) => {
-  // المندوب لا يرى إلا الزملاء القادرين على العمل — لا قائمة الحسابات الممنوعة
-  const isAdmin = ctx.agent.role === 'admin';
+  // من لا يملك إدارة الحسابات لا يرى إلا الزملاء القادرين على العمل
+  const isAdmin = P.can(ctx.agent, 'accounts.manage');
   const approvalFilter = ctx.query.approval
     ? oneOf(ctx.query.approval, 'حالة الاعتماد', Object.keys(D.APPROVAL))
     : '';
@@ -174,7 +188,7 @@ on('GET', '/api/agents', async (ctx) => {
 });
 
 on('POST', '/api/agents', async (ctx) => {
-  requireAdmin(ctx);
+  need(ctx, 'accounts.manage', 'إنشاء حساب');
   const name = str(ctx.body.name, 'الاسم', { min: 3, max: 80 });
   const username = str(ctx.body.username, 'اسم المستخدم', { min: 3, max: 40 }).toLowerCase();
   if (!/^[a-z0-9._-]+$/.test(username)) {
@@ -208,11 +222,17 @@ on('POST', '/api/agents', async (ctx) => {
     type: 'created', to: approval,
   });
 
+  /* لكل حساب مجموعة منذ لحظته الأولى: مجموعة دوره افتراضًا، أو ما طُلب
+     صراحةً بقواعده. حسابٌ بلا مجموعة حسابٌ بلا صلاحيات معروفة. */
+  const born = db.prepare('SELECT * FROM agents WHERE id=?').get(info.lastInsertRowid);
+  if (ctx.body.group_id != null) P.assignGroup(ctx.agent, born, id(ctx.body.group_id, 'معرّف المجموعة'));
+  else db.prepare('UPDATE agents SET group_id = (SELECT id FROM groups WHERE key = ?) WHERE id = ?').run(role, born.id);
+
   return { agent: publicAgent(db.prepare('SELECT * FROM agents WHERE id=?').get(info.lastInsertRowid)) };
 });
 
 on('PATCH', '/api/agents/:id', async (ctx) => {
-  requireAdmin(ctx);
+  need(ctx, 'accounts.manage', 'تعديل حساب');
   const agentId = id(ctx.params.id, 'معرّف المندوب');
   const agent = db.prepare('SELECT * FROM agents WHERE id=?').get(agentId);
   if (!agent) throw notFound('المندوب غير موجود');
@@ -232,7 +252,15 @@ on('PATCH', '/api/agents/:id', async (ctx) => {
   if (ctx.body.approval != null || ctx.body.active != null) {
     throw badRequest('استخدم PATCH /api/agents/:id/approval لتغيير حالة الاعتماد', 'use_approval_endpoint');
   }
-  if (!fields.length) throw badRequest('لا يوجد ما يُحدَّث');
+  /* المجموعة تمرّ بقواعدها هي (لا يمنح أحدٌ ما لا يملك، ولا يُغلق الباب على
+     أهله)، فلا تُكتب مع بقية الحقول في جملة واحدة. */
+  if (ctx.body.group_id != null) {
+    P.assignGroup(ctx.agent, agent, id(ctx.body.group_id, 'معرّف المجموعة'));
+  }
+  if (!fields.length) {
+    if (ctx.body.group_id != null) return { agent: publicAgent(db.prepare('SELECT * FROM agents WHERE id=?').get(agentId)) };
+    throw badRequest('لا يوجد ما يُحدَّث');
+  }
 
   values.push(agentId);
   db.prepare(`UPDATE agents SET ${fields.join(', ')} WHERE id = ?`).run(...values);
@@ -243,7 +271,7 @@ on('PATCH', '/api/agents/:id', async (ctx) => {
 /* ---- روابط المهام: صفحة الكابتن بلا تسجيل دخول ---- */
 
 on('POST', '/api/orders/:id/link', async (ctx) => {
-  requireAdmin(ctx);
+  need(ctx, 'links.manage', 'إنشاء رابط مهمّة');
   const orderId = id(ctx.params.id, 'معرّف الطلب');
   const link = LK.createLink(orderId, ctx.agent);
   const pub = publicLink(link, ctx);
@@ -271,13 +299,13 @@ on('POST', '/api/orders/:id/link', async (ctx) => {
 });
 
 on('GET', '/api/orders/:id/links', async (ctx) => {
-  requireAdmin(ctx);
+  need(ctx, 'links.manage', 'عرض روابط المهمّة');
   const orderId = id(ctx.params.id, 'معرّف الطلب');
   return { links: LK.linksForOrder(orderId).map((l) => publicLink(l, ctx)) };
 });
 
 on('DELETE', '/api/links/:id', async (ctx) => {
-  requireAdmin(ctx);
+  need(ctx, 'links.manage', 'إلغاء رابط');
   return { link: publicLink(LK.revokeLink(id(ctx.params.id, 'معرّف الرابط'), ctx.agent), ctx) };
 });
 
@@ -335,25 +363,25 @@ on('GET', '/api/voice/:id', async (ctx) => {
 });
 
 on('GET', '/api/emails', async (ctx) => {
-  requireAdmin(ctx);
+  need(ctx, 'mail.view', 'صندوق البريد');
   return { emails: M.outbox(50), configured: M.isConfigured(), to: M.mailTo() };
 });
 
 on('GET', '/api/emails/:id', async (ctx) => {
-  requireAdmin(ctx);
+  need(ctx, 'mail.view', 'قراءة رسالة');
   const row = M.getEmail(id(ctx.params.id, 'معرّف الرسالة'));
   if (!row) throw notFound('الرسالة غير موجودة');
   return { email: row };
 });
 
 on('POST', '/api/emails/retry', async (ctx) => {
-  requireAdmin(ctx);
+  need(ctx, 'mail.view', 'إعادة الإرسال');
   const results = await M.retryPending();
   return { results, emails: M.outbox(50), configured: M.isConfigured() };
 });
 
 on('POST', '/api/orders/:id/report', async (ctx) => {
-  requireAdmin(ctx);
+  need(ctx, 'mail.view', 'إرسال تقرير المهمّة');
   const mail = await M.sendOrderReport(id(ctx.params.id, 'معرّف الطلب'), ctx.body.to);
   return { mail, configured: M.isConfigured() };
 });
@@ -361,7 +389,7 @@ on('POST', '/api/orders/:id/report', async (ctx) => {
 /* ---- الإعدادات: عمولة الوساطة وغيرها ---- */
 
 on('GET', '/api/settings', async (ctx) => {
-  requireAdmin(ctx);
+  need(ctx, 'settings.manage', 'قراءة الإعدادات');
   return {
     settings: S.all(),
     commission: S.describeCommission(),
@@ -371,7 +399,7 @@ on('GET', '/api/settings', async (ctx) => {
 });
 
 on('PATCH', '/api/settings', async (ctx) => {
-  requireAdmin(ctx);
+  need(ctx, 'settings.manage', 'تعديل الإعدادات');
   const note = str(ctx.body.note, 'سبب التغيير', { required: false, max: 300 });
 
   if (ctx.body.commission_type == null && ctx.body.commission_rate == null) {
@@ -388,7 +416,7 @@ on('PATCH', '/api/settings', async (ctx) => {
 /** معاينة العمولة على رسوم معيّنة قبل حفظ الطلب */
 /* صادر الأحداث — نافذة المدير على ما خرج للوجهة الخارجية وما تعثّر */
 on('GET', '/api/hooks', async (ctx) => {
-  requireAdmin(ctx);
+  need(ctx, 'settings.manage', 'سجلّ الخطّافات');
   return {
     configured: HK.isConfigured(),
     url: HK.isConfigured() ? String(process.env.MAWSOOL_WEBHOOK_URL) : '',
@@ -397,13 +425,13 @@ on('GET', '/api/hooks', async (ctx) => {
 });
 
 on('POST', '/api/hooks/retry', async (ctx) => {
-  requireAdmin(ctx);
+  need(ctx, 'settings.manage', 'إعادة إرسال خطّاف');
   const results = await HK.retryPending();
   return { retried: results.length, deliveries: HK.outbox(50) };
 });
 
 on('GET', '/api/settings/commission-preview', async (ctx) => {
-  requireAdmin(ctx);
+  need(ctx, 'settings.manage', 'معاينة العمولة');
   const fee = num(ctx.query.delivery_fee, 'رسوم التوصيل', { max: 10000 });
   return { preview: S.commissionFor(fee) };
 });
@@ -411,7 +439,7 @@ on('GET', '/api/settings/commission-preview', async (ctx) => {
 /* ---- اعتماد المندوبين: معتمد · تحت التجربة · غير مقبول · محظور ---- */
 
 on('PATCH', '/api/agents/:id/approval', async (ctx) => {
-  requireAdmin(ctx);
+  need(ctx, 'accounts.manage', 'قرار الاعتماد');
   const agentId = id(ctx.params.id, 'معرّف المندوب');
   const approval = oneOf(ctx.body.approval, 'حالة الاعتماد', Object.keys(D.APPROVAL));
   const note = str(ctx.body.note, 'سبب القرار', { required: false, max: 400 });
@@ -421,7 +449,7 @@ on('PATCH', '/api/agents/:id/approval', async (ctx) => {
 });
 
 on('GET', '/api/agents/:id/approval', async (ctx) => {
-  requireAdmin(ctx);
+  need(ctx, 'accounts.manage', 'سجلّ الاعتماد');
   const agentId = id(ctx.params.id, 'معرّف المندوب');
   const agent = db.prepare('SELECT * FROM agents WHERE id=?').get(agentId);
   if (!agent) throw notFound('المندوب غير موجود');
@@ -444,8 +472,8 @@ on('GET', '/api/orders', async (ctx) => {
   const where = [];
   const args = [];
 
-  // المندوب لا يرى إلا طلباته
-  if (ctx.agent.role !== 'admin') {
+  // من لا يملك رؤية الكل لا يرى إلا طلباته
+  if (!P.can(ctx.agent, 'orders.view_all')) {
     where.push('o.agent_id = ?');
     args.push(ctx.agent.id);
   } else if (ctx.query.agent_id) {
@@ -492,7 +520,7 @@ on('GET', '/api/orders', async (ctx) => {
 });
 
 on('POST', '/api/orders', async (ctx) => {
-  requireAdmin(ctx);
+  need(ctx, 'orders.create', 'إنشاء طلب');
   const order = {
     code: nextOrderCode(),
     customer_name: str(ctx.body.customer_name, 'اسم العميل', { min: 2, max: 80 }),
@@ -601,7 +629,7 @@ on('POST', '/api/orders', async (ctx) => {
 
 on('GET', '/api/orders/:id', async (ctx) => {
   const order = D.getOrder(id(ctx.params.id, 'معرّف الطلب'));
-  if (ctx.agent.role !== 'admin') {
+  if (!P.can(ctx.agent, 'orders.view_all')) {
     const involved = order.agent_id === ctx.agent.id
       || db.prepare('SELECT 1 FROM transfers WHERE order_id=? AND (from_agent_id=? OR to_agent_id=?)')
            .get(order.id, ctx.agent.id, ctx.agent.id);
@@ -609,7 +637,14 @@ on('GET', '/api/orders/:id', async (ctx) => {
   }
   const full = orderWithExtras(order);
   full.allowed_next = D.allowedNextStatuses(order, ctx.agent.role);
-  full.driver_location = order.agent_id ? L.locationOf(ctx.agent, order.agent_id) : null;
+  /*
+   * موقع الكابتن جزءٌ من التفاصيل لا شرطٌ لها: من لا يملك «مواقع الكباتن»
+   * يرى الطلب كاملًا بلا لوحة الموقع. وكان استدعاؤه بلا فحص يرمي ٤٠٣
+   * فيسقط **الطلب كلّه** لمن يملك رؤيته — منعُ جزءٍ لا يكون منعَ الكلّ.
+   */
+  full.driver_location = (order.agent_id && (P.can(ctx.agent, 'locations.view') || order.agent_id === ctx.agent.id))
+    ? L.locationOf(ctx.agent, order.agent_id)
+    : null;
   return { order: full };
 });
 
@@ -630,7 +665,7 @@ on('PATCH', '/api/orders/:id/status', async (ctx) => {
  * يرسل موقعه على واتساب حين يُسأل — فلا يُشترط وجوده وقت الإنشاء.
  */
 on('PUT', '/api/orders/:id/pickup-pin', async (ctx) => {
-  requireAdmin(ctx);
+  need(ctx, 'orders.create', 'تحديد دبّوس الاستلام');
   const orderId = id(ctx.params.id, 'معرّف الطلب');
   const order = D.getOrder(orderId);
   const pin = N.parsePin(ctx.body.pin);
@@ -650,7 +685,7 @@ on('PUT', '/api/orders/:id/pickup-pin', async (ctx) => {
  * والإسناد يمرّ بمساره المعتاد بسجلّه وقواعده.
  */
 on('GET', '/api/orders/:id/nearest', async (ctx) => {
-  requireAdmin(ctx);
+  need(ctx, 'orders.assign', 'اقتراح أقرب كابتن');
   return N.nearestForOrder(ctx.agent, id(ctx.params.id, 'معرّف الطلب'), {
     limit: ctx.query.limit,
     includeUnavailable: ctx.query.include_unavailable === '1',
@@ -677,7 +712,7 @@ on('POST', '/api/agent/ask', async (ctx) => {
 });
 
 on('POST', '/api/voice-orders/parse', async (ctx) => {
-  requireAdmin(ctx);
+  need(ctx, 'orders.create', 'قراءة الطلب المنطوق');
   const transcript = str(ctx.body.transcript, 'نصّ الطلب', { max: 2000 });
   return V.parseOrder(transcript);
 });
@@ -705,7 +740,7 @@ on('POST', '/api/orders/:id/transfer', async (ctx) => {
 
 on('GET', '/api/transfers', async (ctx) => {
   const box = ctx.query.box === 'outbox' ? 'from_agent_id' : 'to_agent_id';
-  const where = ctx.agent.role === 'admin' && ctx.query.box === 'all'
+  const where = P.can(ctx.agent, 'orders.view_all') && ctx.query.box === 'all'
     ? '1 = 1'
     : `t.${box} = @me`;
   const status = ctx.query.status ? oneOf(ctx.query.status, 'الحالة', ['pending', 'accepted', 'rejected', 'cancelled']) : null;
@@ -767,10 +802,29 @@ on('GET', '/api/agents/:id/trail', async (ctx) =>
 
 on('GET', '/api/locations/live', async (ctx) => ({ agents: L.liveBoard(ctx.agent) }));
 
+/* ---- مجموعات الصلاحيات ---- */
+
+on('GET', '/api/groups', async (ctx) => {
+  need(ctx, 'groups.manage', 'عرض المجموعات');
+  return { groups: P.listGroups(), permissions: P.PERMISSIONS };
+});
+
+on('POST', '/api/groups', async (ctx) => ({
+  group: P.createGroup(ctx.agent, { name: ctx.body.name, perms: ctx.body.perms }),
+}));
+
+on('PATCH', '/api/groups/:id', async (ctx) => ({
+  group: P.updateGroup(ctx.agent, id(ctx.params.id, 'معرّف المجموعة'),
+    { name: ctx.body.name, perms: ctx.body.perms }),
+}));
+
+on('DELETE', '/api/groups/:id', async (ctx) =>
+  P.deleteGroup(ctx.agent, id(ctx.params.id, 'معرّف المجموعة')));
+
 /* ---- الإحصاءات ---- */
 
 on('GET', '/api/stats', async (ctx) => {
-  const isAdmin = ctx.agent.role === 'admin';
+  const isAdmin = P.can(ctx.agent, 'orders.view_all');
   const scope = isAdmin ? '' : 'AND agent_id = @me';
   const args = { me: ctx.agent.id };
 

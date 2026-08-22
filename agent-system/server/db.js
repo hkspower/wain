@@ -218,11 +218,34 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
 CREATE INDEX IF NOT EXISTS ix_hooks_status ON webhook_deliveries(status, id DESC);
 `);
 
+/*
+ * مجموعات الصلاحيات.
+ *
+ * كان في النظام دورَان فقط: مدير عمليات يملك **كل شيء**، ومندوب لا يملك
+ * شيئًا من الإدارة. فمن أراد موظّف إسناد يوزّع الطلبات ولا يمسّ العمولة ولا
+ * يفتح الحسابات، لم يكن أمامه إلّا أن يجعله مديرًا كاملًا.
+ *
+ * المجموعة تحمل قائمة صلاحيات، والحساب ينتمي إلى مجموعة. ومجموعتان
+ * **مدمجتان** لا تُعدَّلان ولا تُحذفان تحفظان السلوك القديم كما هو:
+ * «مدير عمليات» بكل الصلاحيات، و«كابتن» بلا صلاحية إدارية.
+ */
+db.exec(`
+CREATE TABLE IF NOT EXISTS groups (
+  id         INTEGER PRIMARY KEY,
+  key        TEXT    NOT NULL UNIQUE,
+  name       TEXT    NOT NULL,
+  builtin    INTEGER NOT NULL DEFAULT 0,
+  perms      TEXT    NOT NULL DEFAULT '',
+  created_at TEXT    NOT NULL
+);
+`);
+
 /* ---- ترحيلات: أعمدة تُضاف للقواعد القائمة ---- */
 const agentCols = db.prepare('PRAGMA table_info(agents)').all().map((c) => c.name);
 const addColumn = (name, ddl) => {
   if (!agentCols.includes(name)) db.exec(`ALTER TABLE agents ADD COLUMN ${name} ${ddl}`);
 };
+addColumn('group_id', 'INTEGER REFERENCES groups(id) ON DELETE SET NULL');
 addColumn('location_consent',    'INTEGER NOT NULL DEFAULT 0');
 addColumn('location_consent_at', 'TEXT');
 addColumn('location_sharing',    'INTEGER NOT NULL DEFAULT 0');

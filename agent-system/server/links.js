@@ -19,6 +19,7 @@ const { db, now, logEvent, DATA_DIR } = require('./db');
 const { badRequest, notFound, conflict, forbidden } = require('./lib/http');
 const D = require('./domain');
 const L = require('./location');
+const P = require('./perms');
 
 /** مدة صلاحية الرابط — مهمّة توصيل تنتهي في يومها */
 const LINK_HOURS = Math.max(1, Number(process.env.MAWSOOL_LINK_HOURS) || 12);
@@ -64,7 +65,7 @@ const OUTCOMES = {
 
 /** ينشئ رابط مهمّة للطلب وكابتنه الحالي، ويُلغي أي رابط سابق سارٍ عليه */
 function createLink(orderId, actor) {
-  if (actor.role !== 'admin') throw forbidden('إنشاء روابط المهام لمدير العمليات فقط');
+  P.require(actor, 'links.manage', 'إنشاء روابط المهام');
 
   const run = db.transaction(() => {
     const order = D.getOrder(orderId);
@@ -96,7 +97,7 @@ function createLink(orderId, actor) {
 
 /** يُلغي رابطًا يدويًا */
 function revokeLink(linkId, actor) {
-  if (actor.role !== 'admin') throw forbidden('إلغاء روابط المهام لمدير العمليات فقط');
+  P.require(actor, 'links.manage', 'إلغاء روابط المهام');
   const link = db.prepare('SELECT * FROM delivery_links WHERE id=?').get(linkId);
   if (!link) throw notFound('الرابط غير موجود');
   if (link.revoked_at) throw conflict('الرابط ملغى أصلًا');
@@ -252,7 +253,7 @@ function saveVoiceNote(token, buffer, mime, seconds) {
 function voiceFile(voiceId, viewer) {
   const row = db.prepare('SELECT * FROM voice_notes WHERE id=?').get(voiceId);
   if (!row) throw notFound('الملاحظة الصوتية غير موجودة');
-  if (viewer.role !== 'admin' && row.agent_id !== viewer.id) {
+  if (!P.can(viewer, 'links.manage') && row.agent_id !== viewer.id) {
     throw forbidden('لا تملك صلاحية سماع هذه الملاحظة');
   }
   const full = path.join(VOICE_DIR, row.filename);

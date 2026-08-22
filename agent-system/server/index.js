@@ -12,6 +12,11 @@ const { URL } = require('node:url');
 
 const { routes } = require('./api');
 const auth = require('./auth');
+const perms = require('./perms');
+
+/* المجموعتان المدمجتان تُنشآن عند الإقلاع، والحسابات القائمة تُلحق بمجموعة
+   دورها — فلا يتغيّر لأحد شيء بمجرّد الترقية. */
+perms.ensureGroups();
 const location = require('./location');
 const H = require('./lib/http');
 

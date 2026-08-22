@@ -356,6 +356,38 @@ a.stat:hover { border-color: var(--teal-600); }
 .badge--ap-rejected   { color: var(--mute-fg); }
 .badge--ap-blocked    { color: var(--bad-fg); border-width: var(--bw-thick); }
 
+/* ---------------------- مجموعات الصلاحيات ---------------------- */
+
+.groups { display: grid; gap: var(--s-2); }
+.group {
+  border: var(--bw) solid var(--line); border-radius: var(--radius);
+  padding: var(--s-3) var(--pad-sm);
+}
+.group__top { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+.group__top b { font-size: var(--t-base); }
+.group__acts { display: flex; gap: var(--s-2); margin-inline-start: auto; }
+.group__perms { display: flex; flex-wrap: wrap; gap: var(--s-1); margin: var(--s-2) 0 0; }
+
+.perms { display: grid; gap: var(--s-1); margin-bottom: var(--s-3); }
+.perm {
+  display: flex; align-items: flex-start; gap: var(--s-3);
+  padding: var(--s-2) var(--s-3); border: var(--bw) solid var(--line);
+  border-radius: var(--radius-sm); cursor: pointer;
+}
+.perm:hover { border-color: var(--teal-600); }
+.perm input { margin-block-start: .25em; flex: none; }
+.perm span b { display: block; font-size: var(--t-base); font-weight: var(--w-medium); }
+.perm span small { display: block; color: var(--ink-soft); line-height: var(--lh-snug); }
+/* ما لا يملكه المحرّر يُعطَّل ولا يُخفى: إخفاؤه يُوهم أن الصلاحية غير
+   موجودة، وإظهاره معطّلًا يقول «موجودة ولا تملكها» — وهو الصدق. */
+.perm--locked { cursor: not-allowed; opacity: .68; }
+.perm--locked:hover { border-color: var(--line); }
+.perm__no {
+  margin-inline-start: auto; align-self: center; white-space: nowrap;
+  font-size: var(--t-2xs); font-weight: var(--w-bold); color: var(--warn-fg);
+  border: var(--bw) solid currentColor; border-radius: var(--radius-xs); padding: 0 var(--s-1);
+}
+
 /* ---------------------- اعتماد المندوبين ---------------------- */
 
 /* الحسابات الممنوعة تُخفَّف بصريًا، ما عدا الاسم وحالة الاعتماد */

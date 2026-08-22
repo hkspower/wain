@@ -10,6 +10,8 @@
     meta: null,
     agents: [],
     stats: null,
+    perms: [],
+    group: null,
     ordersFilter: { scope: 'active', q: '', status: '', governorate: '', agent_id: '' },
     loc: null,
   };
@@ -220,14 +222,16 @@
       { href: '#/orders', key: 'orders', label: 'الطلبات' },
       { href: '#/transfers', key: 'transfers', label: 'التحويلات', pill: inbox },
     ];
+    if (has('locations.view')) items.push({ href: '#/live', key: 'live', label: 'المباشر' });
+    if (has('accounts.manage')) items.push({ href: '#/agents', key: 'agents', label: 'المندوبون' });
     if (state.me.role === 'admin') {
-      items.push({ href: '#/live', key: 'live', label: 'المباشر' });
-      items.push({ href: '#/agents', key: 'agents', label: 'المندوبون' });
       /* «طلب جديد» فعلٌ لا مكان. سبعة عناصر لا تسع شاشة ٣٢٠، وكان هذا هو
          الذي يُعصر إلى ٣٤ بكسلًا على سطرين. يبقى في الشريط العلوي وزرًّا
          بارزًا في أعلى الرئيسية والطلبات، ويغيب عن شريط التنقّل السفلي. */
-      items.push({ href: '#/new', key: 'new', label: 'طلب جديد', topOnly: true });
-      items.push({ href: '#/settings', key: 'settings', label: 'الإعدادات' });
+      if (has('orders.create')) items.push({ href: '#/new', key: 'new', label: 'طلب جديد', topOnly: true });
+      if (has('settings.manage') || has('groups.manage')) {
+        items.push({ href: '#/settings', key: 'settings', label: 'الإعدادات' });
+      }
     } else {
       items.push({ href: '#/location', key: 'location', label: 'موقعي' });
     }
@@ -251,6 +255,21 @@
 
   /* ------------------------------ الصفحات ------------------------------ */
 
+  /*
+   * الواجهة تسأل عن صلاحياتها ولا تستنتجها من الدور. وهذا **للعرض لا
+   * للحراسة**: الحراسة في الخادم عند كل مسار، وإخفاء زرٍّ ليس منعًا —
+   * لكنّ إظهار زرٍّ يردّ ٤٠٣ عند ضغطه إهانةٌ للمستخدم لا حماية.
+   */
+  const has = (perm) => !!(state.perms && state.perms.includes(perm));
+
+  async function refreshPerms() {
+    try {
+      const r = await api('/me/permissions');
+      state.perms = r.perms || [];
+      state.group = r.group || null;
+    } catch { state.perms = []; state.group = null; }
+  }
+
   async function refreshShared() {
     const [stats, agents] = await Promise.all([api('/stats'), api('/agents')]);
     state.stats = stats;
@@ -265,7 +284,7 @@
     await refreshShared();
 
     const s = state.stats;
-    const isAdmin = state.me.role === 'admin';
+    const isAdmin = has('orders.view_all');
 
     const [active, transfersIn] = await Promise.all([
       api('/orders?scope=active&limit=8'),
@@ -278,7 +297,7 @@
           <h1>أهلًا ${esc(state.me.name.split(' ')[0])}</h1>
           <p>${isAdmin ? 'ملخّص عمليات اليوم عبر كل المندوبين.' : 'هذه طلباتك النشطة وما يخصّك اليوم.'}</p>
         </div>
-        ${isAdmin ? '<a class="btn btn--accent" href="#/new">+ طلب جديد</a>' : ''}
+        ${has('orders.create') ? '<a class="btn btn--accent" href="#/new">+ طلب جديد</a>' : ''}
       </div>
 
       <div class="card ask">
@@ -488,7 +507,7 @@
 
   async function renderOrders() {
     const f = state.ordersFilter;
-    const isAdmin = state.me.role === 'admin';
+    const isAdmin = has('orders.view_all');
 
     el.view.innerHTML = `
       <div class="page-head">
@@ -599,7 +618,7 @@
   async function renderOrderDetail(orderId) {
     el.view.innerHTML = skeleton(2);
     const { order } = await api('/orders/' + encodeURIComponent(orderId));
-    const isAdmin = state.me.role === 'admin';
+    const isAdmin = has('orders.view_all');
     const mine = order.agent_id === state.me.id;
     const pending = order.pending_transfer;
 
@@ -672,10 +691,10 @@
                   `<button class="btn ${['delivered'].includes(s) ? 'btn--primary' : ['failed', 'cancelled'].includes(s) ? 'btn--danger' : 'btn--ghost'} btn--sm"
                            data-status="${s}">${esc(state.meta.statuses[s])}</button>`).join('')}
                 ${canTransfer ? '<button class="btn btn--accent btn--sm" data-open="transfer">تحويل لزميل</button>' : ''}
-                ${isAdmin ? '<button class="btn btn--quiet btn--sm" data-open="assign">إسناد لمندوب</button>' : ''}
-                ${isAdmin && order.agent_id && !state.meta.final_statuses.includes(order.status)
+                ${has('orders.assign') ? '<button class="btn btn--quiet btn--sm" data-open="assign">إسناد لمندوب</button>' : ''}
+                ${has('links.manage') && order.agent_id && !state.meta.final_statuses.includes(order.status)
                   ? '<button class="btn btn--ghost btn--sm" data-open="link">رابط للكابتن</button>' : ''}
-                ${isAdmin ? '<button class="btn btn--quiet btn--sm" data-open="report">إرسال التقرير بريدًا</button>' : ''}
+                ${has('mail.view') ? '<button class="btn btn--quiet btn--sm" data-open="report">إرسال التقرير بريدًا</button>' : ''}
               </div>
               ${!canAct && !canTransfer && !isAdmin ? '<p style="margin:.6rem 0 0;color:var(--ink-soft)">لا توجد إجراءات متاحة على هذا الطلب.</p>' : ''}
             </div>
@@ -1037,8 +1056,8 @@
 
   function transferCard(t) {
     const isIncoming = t.to_agent_id === state.me.id;
-    const canRespond = t.status === 'pending' && (isIncoming || state.me.role === 'admin');
-    const canCancel = t.status === 'pending' && (t.from_agent_id === state.me.id || state.me.role === 'admin');
+    const canRespond = t.status === 'pending' && (isIncoming || has('orders.view_all'));
+    const canCancel = t.status === 'pending' && (t.from_agent_id === state.me.id || has('orders.view_all'));
     return `
       <div class="order" style="cursor:default">
         <div class="order__top">
@@ -1062,7 +1081,7 @@
         ${t.response_note ? `<div class="order__route">الردّ: «${esc(t.response_note)}»</div>` : ''}
         ${(canRespond || canCancel) ? `
           <div class="btn-row" style="margin-top:.7rem">
-            ${canRespond && isIncoming || (canRespond && state.me.role === 'admin') ? `
+            ${canRespond && isIncoming || (canRespond && has('orders.view_all')) ? `
               <button class="btn btn--primary btn--sm" data-transfer="accept" data-id="${t.id}">قبول</button>
               <button class="btn btn--danger btn--sm" data-transfer="reject" data-id="${t.id}">رفض</button>` : ''}
             ${canCancel ? `<button class="btn btn--quiet btn--sm" data-transfer="cancel" data-id="${t.id}">سحب</button>` : ''}
@@ -1160,13 +1179,26 @@
   const assignableAgents = (excludeId) => state.agents.filter((a) =>
     a.role === 'agent' && a.active && canWork(a) && !atProbationCap(a) && a.id !== excludeId);
 
+  /* المجموعة صارت أدقّ من الدور: «موظّف إسناد» لا «مدير عمليات». والمدمجتان
+     اسمهما اسم الدور نفسه، فلا يضيع شيء على من لا يدير المجموعات. */
+  let groupNames = null;
+  const groupName = (a) => (groupNames && groupNames.get(a.group_id))
+    || state.meta.roles[a.role] || '';
+
+  async function loadGroupNames() {
+    if (!has('groups.manage')) { groupNames = null; return; }
+    try {
+      groupNames = new Map((await api('/groups')).groups.map((g) => [g.id, g.name]));
+    } catch { groupNames = null; }
+  }
+
   /** لاحقة توضّح أن المندوب تحت التجربة داخل القوائم المنسدلة */
   const probationTag = (a) => (a.approval === 'under_test' ? ' — تحت التجربة' : '');
 
   async function renderAgents() {
-    if (state.me.role !== 'admin') { location.hash = '#/'; return; }
+    if (!has('accounts.manage')) { location.hash = '#/'; return; }
     el.view.innerHTML = `<div class="page-head"><div><h1>المندوبون</h1></div></div>${skeleton(2)}`;
-    await refreshShared();
+    await Promise.all([refreshShared(), loadGroupNames()]);
 
     const filter = state.agentsFilter || '';
     const shown = filter ? state.agents.filter((a) => a.approval === filter) : state.agents;
@@ -1206,7 +1238,7 @@
             <table>
               <thead>
                 <tr>
-                  <th>الاسم</th><th>الاعتماد</th><th>اسم المستخدم</th><th>الدور</th>
+                  <th>الاسم</th><th>الاعتماد</th><th>اسم المستخدم</th><th>المجموعة</th>
                   <th>المركبة</th><th>المنطقة</th><th>التوفّر</th><th>طلبات نشطة</th>
                   <th>الهاتف</th><th></th>
                 </tr>
@@ -1222,7 +1254,7 @@
                     </td>
                     <td data-label="الاعتماد">${approvalBadge(a)}</td>
                     <td data-label="اسم المستخدم"><span dir="ltr">${esc(a.username)}</span></td>
-                    <td data-label="الدور">${esc(state.meta.roles[a.role])}</td>
+                    <td data-label="المجموعة">${esc(groupName(a))}</td>
                     <td data-label="المركبة">${esc(vehicleName(a.vehicle))}</td>
                     <td data-label="المنطقة">${esc(a.governorate || '—')}</td>
                     <td data-label="التوفّر">${canWork(a)
@@ -1388,11 +1420,26 @@
     });
   }
 
-  function promptEditAgent(a) {
+  /* المجموعات الإدارية لحسابات المكتب وحدها: الكابتن تحكمه قواعد الاعتماد
+     والتوفّر والموقع، وهي مبنيّة على دوره لا على صلاحياته. */
+  async function groupOptions(a) {
+    if (a.role !== 'admin' || !has('groups.manage')) return '';
+    let groups = [];
+    try { groups = (await api('/groups')).groups.filter((g) => g.key !== 'agent'); } catch { return ''; }
+    return `<label class="field"><span>المجموعة</span>
+      <select name="group_id">
+        ${groups.map((g) => `<option value="${g.id}"${a.group_id === g.id ? ' selected' : ''}>${esc(g.name)}</option>`).join('')}
+      </select>
+      <small>الصلاحيات تأتي من المجموعة، وتسري فورًا بلا إعادة دخول.</small></label>`;
+  }
+
+  async function promptEditAgent(a) {
     if (!a) return;
+    const groupField = await groupOptions(a);
     openModal(`تعديل: ${a.name}`, `
       <form id="agentForm">
         ${agentFormFields(a)}
+        ${groupField}
         <label class="field">
           <span>كلمة مرور جديدة (اتركها فارغة لعدم التغيير)</span>
           <input name="password" type="password" minlength="6" autocomplete="new-password">
@@ -1409,10 +1456,13 @@
         const msg = body.querySelector('#agentMsg');
         const fd = Object.fromEntries(new FormData(e.target));
         if (!fd.password) delete fd.password;
+        if (fd.group_id) fd.group_id = Number(fd.group_id);
         await submit(e.target, msg, async () => {
           await api('/agents/' + a.id, { method: 'PATCH', body: fd });
           closeModal();
           toast('تم حفظ التعديلات', 'ok');
+          /* لو غيّر المستخدم مجموعةَ نفسه، صلاحياته تتغيّر فورًا */
+          if (a.id === state.me.id) { await refreshPerms(); renderNav(); }
           await renderAgents();
         });
       });
@@ -1422,7 +1472,7 @@
   /* ---- طلب جديد (للمدير) ---- */
 
   async function renderNewOrder() {
-    if (state.me.role !== 'admin') { location.hash = '#/'; return; }
+    if (!has('orders.create')) { location.hash = '#/'; return; }
     await refreshShared();
 
     el.view.innerHTML = `
@@ -2094,9 +2144,126 @@
 
   /* ------------------------- الإعدادات: العمولة ------------------------- */
 
+  /* ---- مجموعات الصلاحيات ---- */
+
+  /*
+   * المجموعة صلاحياتٌ تُمنح، لا رتبةٌ تُفترض. والشاشة تُظهر ما لا يملكه
+   * المحرّر **معطّلًا لا مخفيًّا**: إخفاؤه يجعله يظنّ الصلاحية غير موجودة،
+   * وإظهاره معطّلًا يقول له «هذه موجودة ولا تملكها» — وهو الصدق.
+   */
+  async function paintGroups(host) {
+    host.innerHTML = `<div class="card"><div class="card__head"><h2>مجموعات الصلاحيات</h2></div>
+      <div class="card__body">${skeleton(1)}</div></div>`;
+    let data;
+    try { data = await api('/groups'); } catch (err) {
+      host.innerHTML = `<div class="card"><div class="card__body">${emptyState('تعذّر تحميل المجموعات', err.message)}</div></div>`;
+      return;
+    }
+    const PERMS = data.permissions;
+
+    host.innerHTML = `
+      <div class="card">
+        <div class="card__head">
+          <h2>مجموعات الصلاحيات</h2>
+          <button class="btn btn--ghost btn--sm" id="newGroup" type="button">+ مجموعة</button>
+        </div>
+        <div class="card__body">
+          <p class="hint">
+            كل حساب في مجموعة، والمجموعة تحمل صلاحياتها. المجموعتان المدمجتان
+            لا تُعدَّلان: «مدير عمليات» تملك كل شيء، و«كابتن» لا تملك شيئًا من
+            الإدارة — بهما يبقى السلوك الأصلي كما هو.
+          </p>
+          <div class="groups">
+            ${data.groups.map((g) => `
+              <article class="group" data-group="${g.id}">
+                <div class="group__top">
+                  <b>${esc(g.name)}</b>
+                  ${g.builtin ? '<span class="badge badge--offline">مدمجة</span>' : ''}
+                  <span class="muted">${AR.plural(g.members, 'account')}</span>
+                  ${g.builtin ? '' : `
+                    <span class="group__acts">
+                      <button class="btn btn--ghost btn--sm" data-edit-group="${g.id}" type="button">تعديل</button>
+                      <button class="btn btn--danger btn--sm" data-del-group="${g.id}" type="button">حذف</button>
+                    </span>`}
+                </div>
+                <p class="group__perms">${
+                  g.perms.length
+                    ? g.perms.map((p) => `<span class="badge badge--assigned">${esc(PERMS[p] ? PERMS[p].label : p)}</span>`).join(' ')
+                    : '<span class="muted">لا صلاحية إدارية</span>'}</p>
+              </article>`).join('')}
+          </div>
+        </div>
+      </div>`;
+
+    const permBoxes = (checked) => Object.entries(PERMS).map(([key, p]) => {
+      const mine = has(key);
+      return `<label class="perm${mine ? '' : ' perm--locked'}">
+        <input type="checkbox" name="perms" value="${key}"
+               ${checked.includes(key) ? 'checked' : ''} ${mine ? '' : 'disabled'}>
+        <span><b>${esc(p.label)}</b><small>${esc(p.hint)}</small></span>
+        ${mine ? '' : '<span class="perm__no">لا تملكها</span>'}
+      </label>`;
+    }).join('');
+
+    const openForm = (g) => {
+      openModal(g ? `تعديل: ${g.name}` : 'مجموعة جديدة', `
+        <form id="groupForm" novalidate>
+          <label class="field"><span>اسم المجموعة</span>
+            <input name="name" value="${g ? esc(g.name) : ''}" required minlength="2" maxlength="40"
+                   autocapitalize="off" autocorrect="off"></label>
+          <div class="perms">${permBoxes(g ? g.perms : [])}</div>
+          <p class="form-msg" id="groupMsg"></p>
+          <button class="btn btn--primary btn--block" type="submit">${g ? 'حفظ' : 'إنشاء'}</button>
+        </form>`, (body) => {
+        body.querySelector('#groupForm').addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const msg = body.querySelector('#groupMsg');
+          const perms = [...body.querySelectorAll('input[name=perms]:checked')].map((i) => i.value);
+          await submit(e.target, msg, async () => {
+            const name = e.target.name.value.trim();
+            if (g) await api('/groups/' + g.id, { method: 'PATCH', body: { name, perms } });
+            else await api('/groups', { method: 'POST', body: { name, perms } });
+            closeModal();
+            toast(g ? 'حُفظت المجموعة' : 'أُنشئت المجموعة', 'ok');
+            await paintGroups(host);
+            await refreshPerms();
+            renderNav();
+          });
+        });
+      });
+    };
+
+    host.querySelector('#newGroup').addEventListener('click', () => openForm(null));
+    for (const b of host.querySelectorAll('[data-edit-group]')) {
+      b.addEventListener('click', () => openForm(data.groups.find((g) => g.id === Number(b.dataset.editGroup))));
+    }
+    for (const b of host.querySelectorAll('[data-del-group]')) {
+      b.addEventListener('click', async () => {
+        const g = data.groups.find((x) => x.id === Number(b.dataset.delGroup));
+        if (!confirm(`حذف مجموعة «${g.name}»؟`)) return;
+        try {
+          await api('/groups/' + g.id, { method: 'DELETE' });
+          toast('حُذفت المجموعة', 'ok');
+          await paintGroups(host);
+        } catch (err) { toast(err.message, 'bad'); }
+      });
+    }
+  }
+
   async function renderSettings() {
-    if (state.me.role !== 'admin') { location.hash = '#/'; return; }
+    if (!has('settings.manage') && !has('groups.manage')) { location.hash = '#/'; return; }
     el.view.innerHTML = `<div class="page-head"><div><h1>الإعدادات</h1></div></div>${skeleton(2)}`;
+
+    /* من يملك «إدارة المجموعات» وحدها لا يُطلب له `/settings` أصلًا: طلبٌ
+       يردّ ٤٠٣ ثم شاشةُ خطأ، بدل صفحةٍ فيها ما يملكه. */
+    if (!has('settings.manage')) {
+      el.view.innerHTML = `
+        <div class="page-head"><div><h1>الإعدادات</h1>
+          <p>ما تملك صلاحيته من الإعدادات.</p></div></div>
+        <div id="groupsHost"></div>`;
+      await paintGroups(document.getElementById('groupsHost'));
+      return;
+    }
 
     let data;
     try {
@@ -2209,6 +2376,12 @@
     rateInp.addEventListener('input', paint);
     paint();
     paintMailbox();
+
+    if (has('groups.manage')) {
+      const host = document.createElement('div');
+      el.view.appendChild(host);
+      await paintGroups(host);
+    }
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -2562,7 +2735,7 @@
   }
 
   async function renderLive() {
-    if (state.me.role !== 'admin') { location.hash = '#/'; return; }
+    if (!has('locations.view')) { location.hash = '#/'; return; }
     el.view.innerHTML = `<div class="page-head"><div><h1>المواقع المباشرة</h1></div></div>${skeleton(3)}`;
     const { agents } = await api('/locations/live');
 
@@ -2639,8 +2812,12 @@
     el.login.hidden = true;
     el.app.hidden = false;
 
+    /* الصلاحيات **قبل** كل شيء: التنقّل والصفحات تُبنى عليها */
+    await refreshPerms();
+
     el.whoName.textContent = state.me.name;
-    el.whoRole.textContent = state.meta.roles[state.me.role];
+    /* اسم المجموعة أدقّ من اسم الدور: «موظّف إسناد» لا «مدير عمليات» */
+    el.whoRole.textContent = (state.group && state.group.name) || state.meta.roles[state.me.role];
 
     const isAgent = state.me.role === 'agent';
     el.availWrap.hidden = !isAgent;

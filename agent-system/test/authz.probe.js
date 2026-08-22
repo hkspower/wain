@@ -48,12 +48,25 @@ async function call(as, method, urlPath, body) {
   ins.run('المدير', 'admin', hashPassword('pass1234'), 'admin');
   ins.run('مندوب أ', 'ag1', hashPassword('pass1234'), 'agent');
   ins.run('مندوب ب', 'ag2', hashPassword('pass1234'), 'agent');
+  /* موظّف مكتب في مجموعة محدودة: يوزّع الطلبات ويرى الكل، ولا يمسّ
+     العمولة ولا الحسابات ولا الروابط ولا البريد ولا المواقع. وجودُه هو
+     الفرق بين «مدير أو لا» وبين صلاحياتٍ حقيقية. */
+  ins.run('موظّف إسناد', 'disp', hashPassword('pass1234'), 'admin');
 
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   base = `http://127.0.0.1:${server.address().port}`;
   await call('admin', 'POST', '/api/auth/login', { username: 'admin', password: 'pass1234' });
   await call('ag1', 'POST', '/api/auth/login', { username: 'ag1', password: 'pass1234' });
   await call('ag2', 'POST', '/api/auth/login', { username: 'ag2', password: 'pass1234' });
+
+  const perms = require('../server/perms');
+  perms.ensureGroups();
+  const admin = db.prepare('SELECT * FROM agents WHERE username=?').get('admin');
+  const limited = perms.createGroup(admin, {
+    name: 'إسناد فقط', perms: ['orders.assign', 'orders.view_all', 'orders.create'],
+  });
+  db.prepare('UPDATE agents SET group_id = ? WHERE username = ?').run(limited.id, 'disp');
+  await call('disp', 'POST', '/api/auth/login', { username: 'disp', password: 'pass1234' });
 
   const aid = (u) => db.prepare('SELECT id FROM agents WHERE username=?').get(u).id;
 
@@ -113,7 +126,36 @@ async function call(as, method, urlPath, body) {
     ['admin',  'GET',    '/api/locations/live'],
     ['auth',   'GET',    '/api/stats'],
     ['auth',   'GET',    '/api/voice/1'],
+    ['admin',  'GET',    '/api/groups'],
+    ['admin',  'POST',   '/api/groups', { name: 'مجموعة فحص', perms: [] }],
   ];
+
+  /* ما يجب أن **ينجح** لموظّف الإسناد المحدود، وما يجب أن يُمنع عنه.
+     نقطةٌ إدارية تنجح له وهو لا يملك صلاحيتها ثغرةٌ، ونقطةٌ تُمنع عنه وهو
+     يملكها حاجزٌ بلا سبب — والاثنان يظهران هنا. */
+  const LIMITED = {
+    allow: [
+      ['GET', '/api/orders'],
+      /* تفاصيل الطلب تحمل موقع الكابتن. منعُ جزءٍ لا يكون منعَ الكلّ:
+         من يرى الطلبات يرى تفاصيلها ولو لم يرَ المواقع. */
+      ['GET', `/api/orders/${oid}`],
+      ['GET', '/api/stats'],
+      ['GET', `/api/orders/${oid}/nearest`],
+      ['POST', '/api/voice-orders/parse', { transcript: 'من حولي إلى السالمية' }],
+    ],
+    deny: [
+      ['GET', '/api/settings'],
+      ['PATCH', '/api/settings', { commission_type: 'percent', commission_rate: 30 }],
+      ['POST', '/api/agents', { name: 'حساب مهرَّب', username: 'sneak', password: 'pass1234' }],
+      ['PATCH', `/api/agents/${aid('ag2')}/approval`, { approval: 'blocked' }],
+      ['GET', '/api/locations/live'],
+      ['GET', `/api/agents/${aid('ag2')}/trail`],
+      ['POST', `/api/orders/${oid}/link`, {}],
+      ['GET', '/api/emails'],
+      ['GET', '/api/groups'],
+      ['POST', '/api/groups', { name: 'ترقية نفسي', perms: ['settings.manage'] }],
+    ],
+  };
 
   const rows = [];
   const problems = [];
@@ -136,6 +178,42 @@ async function call(as, method, urlPath, body) {
     }
   }
 
+  /*
+   * التصعيد الدقيق: موظّفٌ **يملك** إدارة المجموعات ولا يملك الإعدادات،
+   * يحاول أن يصنع لنفسه مجموعةً فيها الإعدادات. لو نجح لصار كلُّ من يدير
+   * المجموعات مديرًا كاملًا بخطوة واحدة — وهي أخطر من ثغرة مسارٍ واحد.
+   */
+  ins.run('مدير مجموعات', 'gm', hashPassword('pass1234'), 'admin');
+  const gmGroup = perms.createGroup(admin, { name: 'مجموعات فقط', perms: ['groups.manage'] });
+  db.prepare('UPDATE agents SET group_id = ? WHERE username = ?').run(gmGroup.id, 'gm');
+  await call('gm', 'POST', '/api/auth/login', { username: 'gm', password: 'pass1234' });
+
+  const esc = await call('gm', 'POST', '/api/groups', { name: 'ترقية', perms: ['settings.manage'] });
+  if (esc.status < 400) problems.push('تصعيد: مَن لا يملك الإعدادات منحها لمجموعة أنشأها');
+  const escOk = await call('gm', 'POST', '/api/groups', { name: 'مجموعات أخرى', perms: ['groups.manage'] });
+  if (escOk.status >= 400) problems.push(`مُنع منحُ صلاحية يملكها (${escOk.status}: ${escOk.data.error || ''})`);
+
+  /* والإغلاق على الأهل: نزع مفتاح المدير الوحيد يجب أن يُرفض */
+  const soloGroup = perms.createGroup(admin, { name: 'مفتاح وحيد', perms: ['accounts.manage', 'groups.manage'] });
+  db.prepare('UPDATE agents SET group_id = ? WHERE username = ?').run(soloGroup.id, 'admin');
+  db.prepare('UPDATE agents SET active = 0 WHERE username IN (?, ?)').run('gm', 'disp');
+  const lock = await call('admin', 'PATCH', `/api/groups/${soloGroup.id}`, { perms: ['accounts.manage'] });
+  if (lock.status < 400) problems.push('إغلاق: نُزع آخر مفتاح فلا يبقى من يدير الحسابات والمجموعات');
+  db.prepare('UPDATE agents SET active = 1 WHERE username IN (?, ?)').run('gm', 'disp');
+  db.prepare('UPDATE agents SET group_id = (SELECT id FROM groups WHERE key=?) WHERE username = ?').run('admin', 'admin');
+  console.log('تصعيد الامتيازات والإغلاق على الأهل: فُحصا\n');
+
+  for (const [method, urlPath, body] of LIMITED.allow) {
+    const r = await call('disp', method, urlPath, body);
+    if (r.status >= 400) problems.push(`${method} ${urlPath} — مُنع صاحبُ الصلاحية (${r.status}: ${r.data.error || ''})`);
+  }
+  for (const [method, urlPath, body] of LIMITED.deny) {
+    const r = await call('disp', method, urlPath, body);
+    if (r.status < 400) problems.push(`${method} ${urlPath} — نفّذها موظّف لا يملك صلاحيتها (${r.status})`);
+    else if (r.status !== 403) problems.push(`${method} ${urlPath} — مُنع برمز ${r.status} لا 403`);
+  }
+  console.log(`محدود الصلاحية: ${LIMITED.allow.length} مسموحًا و${LIMITED.deny.length} ممنوعًا — فُحصت كلّها\n`);
+
   const pad = (s, n) => String(s).padEnd(n);
   console.log(`${pad('التصنيف', 8)} ${pad('الطريقة', 7)} ${pad('المسار', 44)} زائر  مندوب  مدير`);
   console.log('─'.repeat(80));
@@ -147,7 +225,7 @@ async function call(as, method, urlPath, body) {
     console.log('⚠ خلل في الصلاحيات:');
     for (const p of problems) console.log('  • ' + p);
   } else {
-    console.log('✓ مصفوفة الصلاحيات سليمة على ' + ROUTES.length + ' نقطة');
+    console.log(`✓ مصفوفة الصلاحيات سليمة على ${ROUTES.length} نقطة، وعلى ${LIMITED.allow.length + LIMITED.deny.length} فحصًا لمحدود الصلاحية`);
   }
 
   server.close();

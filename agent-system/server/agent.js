@@ -32,6 +32,7 @@ const SIM = require('./similar');
 const POL = require('./policy');
 const PER = require('./periods');
 const S = require('./settings');
+const P = require('./perms');
 
 /* ------------------------------ المطابقة ------------------------------ */
 
@@ -66,7 +67,7 @@ function hasPhrase(words, phrase) {
 
 /** المندوب يرى طلباته وحده. مكان واحد لا يتكرّر. */
 function scopeFor(viewer) {
-  return viewer.role === 'admin'
+  return P.can(viewer, 'orders.view_all')
     ? { sql: '', args: [] }
     : { sql: ' AND o.agent_id = ?', args: [viewer.id] };
 }
@@ -450,7 +451,7 @@ function ask(viewer, text) {
   const words = norm(raw).split(' ');
   const period = PER.readPeriod(words);
   const hasPeriod = PER.PERIODS.some((x) => x.keys.some((k) => hasPhrase(words, k)));
-  const ctx = { viewer, isAdmin: viewer.role === 'admin', text: raw, words, period, hasPeriod };
+  const ctx = { viewer, isAdmin: P.can(viewer, 'orders.view_all'), text: raw, words, period, hasPeriod };
 
   /* ١ — طلب جديد؟ يُحوَّل إلى النموذج مملوءًا، ولا يُنشأ هنا.
      العلامة الفارقة أن النصّ فيه ما يكفي لطلب: منطقتان، أو منطقة وهاتف. */
@@ -484,7 +485,7 @@ function ask(viewer, text) {
     if (hit.explicit) {
       return {
         understood: true, intent: 'find_order', kind: 'none',
-        say: `لا طلب برمز MW-${ar.digits(hit.code)}${viewer.role === 'admin' ? '' : ' بين طلباتك'}.`,
+        say: `لا طلب برمز MW-${ar.digits(hit.code)}${P.can(viewer, 'orders.view_all') ? '' : ' بين طلباتك'}.`,
       };
     }
   }

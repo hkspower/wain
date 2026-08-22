@@ -30,6 +30,7 @@ const { db } = require('./db');
 const D = require('./domain');
 const L = require('./location');
 const { badRequest, notFound, forbidden } = require('./lib/http');
+const P = require('./perms');
 
 /** حدود الكويت تقريبًا — دبّوس خارجها غالبًا لصقة خاطئة أو إحداثيتان مقلوبتان */
 const KW = { latMin: 28.45, latMax: 30.15, lngMin: 46.5, lngMax: 48.55 };
@@ -133,7 +134,7 @@ const REASONS = {
  * @param options  { limit, includeUnavailable }
  */
 function rankForOrder(viewer, order, options = {}) {
-  if (viewer.role !== 'admin') throw forbidden('اقتراح الأقرب متاح لمدير العمليات فقط');
+  P.require(viewer, 'orders.assign', 'اقتراح أقرب كابتن');
   if (order.pickup_lat == null || order.pickup_lng == null) {
     throw badRequest('الطلب بلا موقع للزبون — أضف دبّوس الاستلام أولًا');
   }
