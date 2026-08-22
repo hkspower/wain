@@ -1,0 +1,78 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
+<style>
+  @font-face { font-family:"Cairo"; src:url("file:///home/user/wain/almuhallab/fonts/cairo-400.woff2") format("woff2"); font-weight:400; font-display:block; }
+  @font-face { font-family:"Cairo"; src:url("file:///home/user/wain/almuhallab/fonts/cairo-500.woff2") format("woff2"); font-weight:500; font-display:block; }
+  @font-face { font-family:"Cairo"; src:url("file:///home/user/wain/almuhallab/fonts/cairo-700.woff2") format("woff2"); font-weight:700; font-display:block; }
+  @font-face { font-family:"Cairo"; src:url("file:///home/user/wain/almuhallab/fonts/cairo-800.woff2") format("woff2"); font-weight:800; font-display:block; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  /* The decorative mark is meant to bleed off the edge, so it must be
+     clipped, not merely allowed to hang. Without this it widened the document
+     to 1160px — and because the document is RTL, the scroll origin is the
+     right edge, so the screenshot's window slid and every element was cut off
+     on the right. The picture looked wrong in a way that pointed at the type,
+     not at an eighty-pixel decoration behind it. Measured, not guessed:
+     scrollWidth 1160 against a clientWidth of 1080. */
+  html,body { width:1080px; height:1080px; overflow:hidden; }
+  body { font-family:"Cairo",system-ui,sans-serif; background:#fff; color:#1b2430;
+          display:flex; flex-direction:column; -webkit-font-smoothing:antialiased; }
+
+  /* the masthead, the same brown bar the site wears */
+  .top { height:160px; background:#6f3f1c; color:#fff;
+          display:flex; align-items:center; gap:26px; padding:0 76px; flex:none; }
+  .top svg { width:150px; height:75px; color:#fff; }
+  .top .name { font-weight:800; font-size:40px; line-height:1.35; }
+  .top .name small { display:block; font-weight:500; font-size:24px; opacity:.92; }
+
+  .body { flex:1; padding:76px; display:flex; flex-direction:column;
+           position:relative; overflow:hidden;
+           justify-content:center; gap:22px; }
+  .kicker { color:#7a4418; font-weight:700; font-size:28px; letter-spacing:2px; }
+  h1 { font-size:76px; font-weight:500; line-height:1.35; letter-spacing:-1px; }
+  h1 b { font-weight:800; color:#7a4418; }
+  ul { list-style:none; display:flex; flex-direction:column; gap:14px;
+        margin-top:11px; }
+  li { display:flex; align-items:center; gap:18px; font-size:34px; color:#1b2430; }
+  .dot { width:14px; height:14px; border-radius:50%; background:#7a4418;
+          flex:none; }
+  .proof { margin-top:22px; align-self:flex-start; background:#f1f4f8;
+            border:2px solid #d0d7e1; border-radius:999px;
+            padding:11px 30px; font-size:26px; color:#586981; }
+  /* The sprite's icons are DRAWN, not filled: the site sets fill:none and
+     strokes them with currentColor. Dropped in without that, each one renders
+     as a solid silhouette — the anchor became a grey bowl and the document a
+     grey rectangle, both of which read as a failed image rather than as a
+     watermark. Same treatment as .ic on the site, at a weight that survives
+     being blown up to 600px. */
+  .art { position:absolute; opacity:.10; color:#7a4418;
+          fill:none; stroke:currentColor; stroke-width:0.9;
+          stroke-linecap:round; stroke-linejoin:round;
+          top:190px; left:-80px; width:430px; height:430px; }
+
+  /* the way to answer, which is the point of an advertisement */
+  .cta { height:160px; background:#6f3f1c; color:#fff; flex:none;
+          display:flex; align-items:center; justify-content:space-between;
+          padding:0 76px; }
+  .cta .wa { display:flex; align-items:center; gap:16px;
+              font-size:36px; font-weight:800; }
+  .cta .wa svg { width:44px; height:44px; stroke:#fff;
+                  fill:none; stroke-width:1.8; stroke-linecap:round; }
+  .cta .site { font-size:26px; opacity:.92; }
+  .ltr { unicode-bidi:isolate; direction:ltr; }
+</style></head><body>
+  <div class="top">
+    <svg viewBox="0 0 48 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="0.6" stroke-linecap="round" d="M5.5 18.95C15 19.5 32 19.5 43.4 18.85"/><path fill="currentColor" stroke="none" d="M4.6 12.6C6.3 13.9 8 14.8 9.8 15.15 15 16.4 23 16.5 30.4 15.55 34.6 15 37.7 14.2 40.3 13.2L43.35 6.85 44.35 7.3 41.4 14.4C38.4 18.2 33 20 25.8 20.35 18.4 20.75 11 19.4 7.7 16.7Z"/><path fill="none" stroke="currentColor" stroke-width="0.6" stroke-linecap="round" d="M9.6 16.05C15 17.3 23 17.4 30.3 16.45 34.5 15.9 37.5 15.1 39.6 14.2"/><path fill="none" stroke="currentColor" stroke-width="1.0" stroke-linecap="butt" d="M13 16 14.1 9.23"/><path fill="none" stroke="currentColor" stroke-width="1.0" stroke-linecap="butt" d="M26.8 16.4 28.63 7.79"/><path fill="none" stroke="currentColor" stroke-width="0.6" stroke-linecap="round" d="M7.6 5.2 18.4 11.9M20.5 2.2 35.6 12.6"/><path fill="currentColor" stroke="none" d="M7.6 5.2 18.4 11.9 9.2 13.4Z"/><path fill="currentColor" stroke="none" d="M20.5 2.2 35.6 12.6 23.6 14.4Z"/></svg>
+    <div class="name">المهلب<small>Almuhallab Code</small></div>
+  </div>
+  <div class="body">
+    <svg class="art" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.6h9l4 4v13H6z"/><path d="M15 3.6v4h4"/><path d="M9.2 17v-3.4M12 17v-5.6M14.8 17v-2.2"/></svg>
+    <div class="kicker">الميزانية السنوية</div>
+    <h1>ملف <b>XBRL</b> جاهز للبوابة.</h1>
+    <ul><li><span class="dot"></span>الإجماليات تُحسب من سطورها</li><li><span class="dot"></span>تدقيق يريك ما يمنع الإيداع</li><li><span class="dot"></span>قبل أن تودعه لا بعده</li></ul>
+    <div class="proof">الإيداع عبر بوابة وزارة التجارة</div>
+  </div>
+  <div class="cta">
+    <div class="wa"><svg viewBox="0 0 24 24"><path d="M8.2 4.5h2.1l1.3 3.2-1.6 1.2a10 10 0 0 0 5.1 5.1l1.2-1.6 3.2 1.3v2.1c0 1.1-.9 2-2 2A14.6 14.6 0 0 1 6.2 6.5c0-1.1.9-2 2-2Z"/></svg>
+      <span class="ltr">+965 6589 4110</span></div>
+    <div class="site ltr">www.almuhallab-code.com</div>
+  </div>
+</body></html>
