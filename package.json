@@ -43,7 +43,9 @@
     "test:art": "node scripts/art-test.mjs",
     "preview": "node scripts/preview-pdf.mjs",
     "test:contrast": "node scripts/contrast-test.mjs",
-    "preview:site": "node scripts/site-preview-pdf.mjs"
+    "preview:site": "node scripts/site-preview-pdf.mjs",
+    "test:live": "node scripts/live-api-test.mjs",
+    "scan:php": "php scripts/php-deprecations.php sporta-site/public_html"
   },
   "private": true
 }

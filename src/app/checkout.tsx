@@ -1,5 +1,5 @@
 import { Stack, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -26,14 +26,23 @@ import { useCart } from '@/lib/cart';
 import { useLang } from '@/lib/i18n';
 import { formatPrice } from '@/lib/money';
 
+// The ids are the SHOP'S slugs, verified against STORE_GOVERNORATES in
+// store.php. They are what goes on the wire; the labels are only ever shown.
+// Sending the label got `invalid_governorate` from the real API, and
+// 'mubarak' is 'mubarak-al-kabeer' there — a mismatch no amount of reading the
+// screen would have revealed.
 const GOVERNORATES = [
   { id: 'capital', ar: 'العاصمة', en: 'Capital' },
   { id: 'hawalli', ar: 'حولي', en: 'Hawalli' },
   { id: 'farwaniya', ar: 'الفروانية', en: 'Farwaniya' },
-  { id: 'mubarak', ar: 'مبارك الكبير', en: 'Mubarak Al-Kabeer' },
+  { id: 'mubarak-al-kabeer', ar: 'مبارك الكبير', en: 'Mubarak Al-Kabeer' },
   { id: 'ahmadi', ar: 'الأحمدي', en: 'Ahmadi' },
   { id: 'jahra', ar: 'الجهراء', en: 'Jahra' },
 ];
+
+/** 6–30 alphanumerics, which is exactly what the order route validates. */
+const newTrackId = () =>
+  'SP' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 6).toUpperCase();
 
 type Payment = 'knet' | 'card' | 'cod';
 
@@ -46,6 +55,7 @@ export default function CheckoutScreen() {
   const [form, setForm] = useState({
     name: '',
     phone: '',
+    email: '',
     governorate: '',
     area: '',
     block: '',
@@ -55,6 +65,7 @@ export default function CheckoutScreen() {
   });
   const [payment, setPayment] = useState<Payment>('knet');
   const [busy, setBusy] = useState(false);
+  const trackId = useRef(newTrackId());
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
 
@@ -68,7 +79,7 @@ export default function CheckoutScreen() {
 
   const missing = (k: keyof typeof form) => touched && !form[k].trim() && k !== 'notes';
   const valid =
-    ['name', 'governorate', 'area', 'block', 'street', 'house'].every((k) =>
+    ['name', 'email', 'governorate', 'area', 'block', 'street', 'house'].every((k) =>
       form[k as keyof typeof form].trim(),
     ) && phoneOk;
 
@@ -80,6 +91,8 @@ export default function CheckoutScreen() {
     setBusy(true);
     const draft: OrderDraft = {
       ...form,
+      // One id per checkout attempt, reused if this submit is retried.
+      trackId: trackId.current,
       phone: phoneDigits,
       payment,
       total,
@@ -119,8 +132,8 @@ export default function CheckoutScreen() {
   }: {
     label: string;
     k: keyof typeof form;
-    keyboardType?: 'default' | 'phone-pad' | 'number-pad';
-    autoComplete?: 'name' | 'tel' | 'street-address' | 'off';
+    keyboardType?: 'default' | 'phone-pad' | 'number-pad' | 'email-address';
+    autoComplete?: 'name' | 'tel' | 'email' | 'street-address' | 'off';
   }) => (
     <View style={styles.field}>
       <ThemedText type="label" themeColor="textSecondary" style={text}>
@@ -173,6 +186,7 @@ export default function CheckoutScreen() {
 
             <Field label={t.checkout.name} k="name" autoComplete="name" />
             <Field label={t.checkout.phone} k="phone" keyboardType="phone-pad" autoComplete="tel" />
+            <Field label={t.checkout.email} k="email" keyboardType="email-address" autoComplete="email" />
 
             <View style={styles.field}>
               <ThemedText type="label" themeColor="textSecondary" style={text}>
@@ -181,13 +195,13 @@ export default function CheckoutScreen() {
               <View style={[styles.govRow, row]}>
                 {GOVERNORATES.map((g) => {
                   const label = lang === 'ar' ? g.ar : g.en;
-                  const active = form.governorate === label;
+                  const active = form.governorate === g.id;
                   return (
                     <Pressable
                       key={g.id}
                       accessibilityRole="button"
                       accessibilityState={{ selected: active }}
-                      onPress={() => set('governorate')(label)}
+                      onPress={() => set('governorate')(g.id)}
                       style={press(false, styles.gov,
                         {
                           borderColor: active ? theme.tint : theme.border,

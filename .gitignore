@@ -44,3 +44,8 @@ example
 
 # expo web export output
 /dist
+
+# Local test rig only — real credentials live on the server and are never here.
+sporta-site/public_html/api/config.php
+sporta-site/public_html/knet/config.php
+sporta-site/public_html/pay/config.php

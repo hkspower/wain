@@ -22,7 +22,7 @@ import {
   type Category,
   type Product,
 } from '@/lib/catalog';
-import type { Fils } from '@/lib/money';
+import { toFils, toKwd, type Fils } from '@/lib/money';
 
 // Re-exported because callers have always imported it from here, and moving a
 // constant is not a reason to touch every call site. lib/config.ts is where it
@@ -30,6 +30,84 @@ import type { Fils } from '@/lib/money';
 export { API_BASE };
 
 const TIMEOUT_MS = 8000;
+
+/**
+ * WHAT THE SHOP ACTUALLY SENDS.
+ *
+ * These types are the storefront's, not this app's, and the two do not match —
+ * which is why this file adapts rather than casts. Verified against the real
+ * api.php running on the real schema, not inferred from the client that was
+ * here before:
+ *
+ *   * THE ROUTER IS api.php. `store.php` is the shared LIBRARY behind it, and
+ *     nothing in it reads `r` — a request to store.php?r=catalogue returns 200
+ *     and an empty body. This app asked store.php for everything, so it would
+ *     never have received a single product from the real shop; the bundled
+ *     catalogue would have covered for it, silently, for ever.
+ *   * PRICES ARE KWD, decimal — `"price": 4` is four dinars. This app works in
+ *     integer fils throughout, so amounts are multiplied on the way in and
+ *     divided on the way out. Getting that backwards is a thousandfold error.
+ *   * Names are name_en/name_ar. Stock is a SEPARATE endpoint keyed by
+ *     (slug, size); the catalogue carries no sizes at all.
+ */
+interface LiveProduct {
+  slug: string;
+  name_en: string;
+  name_ar: string;
+  desc_en: string | null;
+  desc_ar: string | null;
+  /** KWD, decimal. */
+  price: number;
+  list_price: number | null;
+  on_sale: boolean;
+  category: string;
+  brand_name_en: string | null;
+  featured: boolean;
+}
+
+interface LiveStock {
+  slug: string;
+  size: string;
+  stock: number;
+}
+
+const KNOWN_CATEGORY = (id: string): id is Product['category'] =>
+  id === 'men' || id === 'women' || id === 'accessories' || id === 'outlet';
+
+/**
+ * The live shape mapped onto this app's model.
+ *
+ * A product with no stock rows keeps an empty variant list rather than being
+ * dropped: it still belongs in the grid, wearing its sold-out badge. A
+ * catalogue that silently loses products is worse than one showing an
+ * unavailable one.
+ */
+function adapt(products: LiveProduct[], stock: LiveStock[]): Product[] {
+  const bySlug = new Map<string, LiveStock[]>();
+  for (const row of stock) {
+    const list = bySlug.get(row.slug) ?? [];
+    list.push(row);
+    bySlug.set(row.slug, list);
+  }
+
+  return products.map((p) => ({
+    slug: p.slug,
+    name: p.name_en,
+    nameAr: p.name_ar,
+    brand: p.brand_name_en ?? 'Sporta',
+    category: KNOWN_CATEGORY(p.category) ? p.category : 'accessories',
+    price: toFils(p.price),
+    was: p.on_sale && p.list_price && p.list_price > p.price ? toFils(p.list_price) : undefined,
+    emoji: '🛍️',
+    color: '#2b3138',
+    blurb: p.desc_en ?? '',
+    blurbAr: p.desc_ar ?? '',
+    details: [],
+    detailsAr: [],
+    variants: (bySlug.get(p.slug) ?? []).map((r) => ({ size: r.size, stock: r.stock })),
+    featured: p.featured,
+  }));
+}
 
 export type Source = 'live' | 'bundled';
 
@@ -63,15 +141,16 @@ async function get<T>(path: string): Promise<T> {
  */
 export async function fetchCatalogue(): Promise<Catalogue> {
   try {
-    const data = await get<{ products: Product[]; categories?: Category[] }>('store.php?r=catalogue');
-    if (!Array.isArray(data.products) || data.products.length === 0) {
-      throw new Error('catalogue: empty');
-    }
-    return {
-      products: data.products,
-      categories: data.categories?.length ? data.categories : bundledCategories,
-      source: 'live',
-    };
+    // Two requests in parallel: the catalogue carries no sizes and the stock
+    // endpoint carries nothing else. Sequentially that is two round trips to
+    // Kuwait before the first tile can paint. Stock failing alone is survivable
+    // — the grid still lists everything, with nothing shown as in stock.
+    const [products, stock] = await Promise.all([
+      get<LiveProduct[]>('api.php?r=products'),
+      get<LiveStock[]>('api.php?r=stock').catch(() => [] as LiveStock[]),
+    ]);
+    if (!Array.isArray(products) || products.length === 0) throw new Error('catalogue: empty');
+    return { products: adapt(products, stock), categories: bundledCategories, source: 'live' };
   } catch {
     return { products: bundledProducts, categories: bundledCategories, source: 'bundled' };
   }
@@ -86,8 +165,14 @@ export interface OrderLine {
 }
 
 export interface OrderDraft {
+  /** The idempotency key. Generated once per checkout attempt and reused on
+   *  retry, so a second tap updates the pending order rather than placing a
+   *  second one. 6–30 alphanumerics, which is what the route validates. */
+  trackId: string;
   name: string;
   phone: string;
+  /** The shop requires one — it sends the confirmation and the invoice. */
+  email: string;
   governorate: string;
   area: string;
   block: string;
@@ -96,7 +181,8 @@ export interface OrderDraft {
   notes?: string;
   payment: 'knet' | 'card' | 'cod';
   lines: OrderLine[];
-  /** Fils. Sent so the backend can reject a basket it prices differently. */
+  /** Fils. Kept for the caller's own display; the shop prices the basket
+   *  itself from the slugs, which is the only safe place to do it. */
   total: Fils;
   lang: 'ar' | 'en';
 }
@@ -116,16 +202,45 @@ export async function placeOrder(draft: OrderDraft): Promise<OrderPlaced> {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS * 2);
   try {
-    const res = await fetch(`${API_BASE}/store.php?r=order`, {
+    // THE SHOP'S BODY, not this app's. Every name here was read off the running
+    // api.php, and each one was wrong in the version before: it sent `lines`
+    // (the shop wants `items`), a flat address (it wants `customer`), `house`
+    // (`building`), a governorate LABEL (a slug), `payment` (`payment_method`),
+    // and no track_id at all — which is the first thing the route validates.
+    //
+    // track_id is the idempotency key: retrying with the same one updates the
+    // pending order instead of creating a second, which is what stops a
+    // customer tapping Pay twice from being charged twice.
+    const res = await fetch(`${API_BASE}/api.php?r=order`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(draft),
+      body: JSON.stringify({
+        track_id: draft.trackId,
+        payment_method: draft.payment,
+        items: draft.lines.map((l) => ({ slug: l.slug, size: l.size, qty: l.qty })),
+        customer: {
+          name: draft.name,
+          phone: draft.phone,
+          email: draft.email,
+          governorate: draft.governorate,
+          area: draft.area,
+          block: draft.block,
+          street: draft.street,
+          building: draft.house,
+        },
+        lang: draft.lang,
+      }),
       signal: ctl.signal,
     });
-    const body = (await res.json().catch(() => null)) as (OrderPlaced & { error?: string }) | null;
-    if (!res.ok || !body?.ref) throw new Error(body?.error ?? `order: HTTP ${res.status}`);
-    return body;
+    const body = (await res.json().catch(() => null)) as
+      | { track_id?: string; amount?: number; pay_url?: string; error?: string }
+      | null;
+    if (!res.ok || !body?.track_id) throw new Error(body?.error ?? `order: HTTP ${res.status}`);
+    return { ref: body.track_id, payUrl: body.pay_url };
   } finally {
     clearTimeout(timer);
   }
 }
+
+/** KWD out of the app's fils, for anything the shop wants in dinars. */
+export const asKwd = toKwd;
