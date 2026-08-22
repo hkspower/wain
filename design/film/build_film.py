@@ -252,11 +252,48 @@ def scenes():
     return S
 
 
+# ── the voice sets the clock, when there is a voice ───────────────────────
+# The captions are burned into the picture, so a narration line that runs
+# longer than its caption does not simply overlap — it is speaking one
+# sentence while the screen shows the next. Six of the fifteen lines came
+# back longer than the slots I had written for them by ear.
+#
+# So the picture is re-timed to the recording rather than the recording
+# squeezed into the picture: each line gets exactly as long as it takes to
+# say, plus a beat. Timings, subtitles and the audio assembly all still come
+# from this one place, so they cannot drift apart.
+LEAD_IN = 0.6      # a beat after a scene appears, before anyone speaks
+GAP = 0.45         # between two lines inside one scene
+TAIL = 0.35        # after a line ends, before its caption goes
+SCENE_TAIL = 1.0   # after the last line, before the scene changes
+
+
+def voiced_timings(scene_lines, voiced, index):
+    """Lay a scene's lines out end to end at their measured spoken length."""
+    out, cursor = [], LEAD_IN
+    for i, (_, _, text) in enumerate(scene_lines):
+        dur = voiced[str(index + i + 1)]
+        if i:
+            cursor += GAP
+        out.append((round(cursor, 2), round(cursor + dur + TAIL, 2), text))
+        cursor += dur + TAIL
+    return out, round(cursor + SCENE_TAIL, 2)
+
+
 def build():
     S = scenes()
+    voiced = None
+    vp = HERE / "voice" / "durations.json"
+    if vp.exists():
+        voiced = json.loads(vp.read_text())
+
     html_scenes, captions, timing = [], [], []
     t = 0.0
+    spoken = 0
     for name, dur, lines, body in S:
+        if voiced:
+            lines, dur = voiced_timings(lines, voiced, spoken)
+            spoken += len(lines)
         html_scenes.append(
             f'<section class="sc" data-scene="{name}" '
             f'style="{a("scene", t, dur, "linear")}">{body(t)}</section>')
@@ -303,7 +340,8 @@ def build():
         json.dumps({"total": total, "lines": timing},
                    ensure_ascii=False, indent=1) + "\n")
 
-    print(f"  film.html          {total}s, {len(S)} scenes")
+    print(f"  film.html          {total}s, {len(S)} scenes"
+          + ("  (timed to the recorded voice)" if voiced else "  (timed by ear)"))
     print(f"  narration-ar.txt   {len(timing)} lines")
     print("  narration.srt")
     print("  narration-plain.txt")
