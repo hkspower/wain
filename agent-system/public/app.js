@@ -93,18 +93,37 @@
   /* ------------------------------- النافذة ------------------------------- */
 
   /* `showModal()` تتكفّل بحبس التنقّل وتعطيل ما خلفها وإغلاقها بـEsc، فلا
-     يبقى لنا إلّا المحتوى. وكان ذلك كلّه مكتوبًا بيدنا — ناقصًا حبسَ التنقّل. */
+     يبقى لنا إلّا المحتوى. وكان ذلك كلّه مكتوبًا بيدنا — ناقصًا حبسَ التنقّل.
+
+     و`<dialog>` لم تصل سفاري قبل ١٥٫٤. لولا احتياطٍ لكان `showModal` غيرَ
+     معرَّف فترمي الدالّة، **فلا يقع شيء عند الضغط**: لا اعتماد ولا إسناد ولا
+     رابط — وبلا رسالة. الاحتياط يفتحها بالسمة `open`، وقاعدة
+     `.modal:not([open])` تكفّلت أصلًا بإخفائها قبل ذلك، فتظهر طبقةً ثابتة
+     تعمل. ينقصها حبسُ التنقّل والظهر المعتم — وذلك أهون من شاشة لا تستجيب. */
+  const NATIVE_DIALOG = typeof HTMLDialogElement === 'function'
+    && typeof el.modal.showModal === 'function';
+
   function openModal(title, html, onMount) {
     el.modalTitle.textContent = title;
     el.modalBody.innerHTML = html;
-    el.modal.showModal();
+    if (NATIVE_DIALOG) el.modal.showModal();
+    else { el.modal.setAttribute('open', ''); document.body.classList.add('is-modal'); }
     if (onMount) onMount(el.modalBody);
     const first = el.modalBody.querySelector('input, select, textarea, button');
     if (first) first.focus();
   }
 
   function closeModal() {
-    if (el.modal.open) el.modal.close();
+    if (NATIVE_DIALOG) { if (el.modal.open) el.modal.close(); return; }
+    if (!el.modal.hasAttribute('open')) return;
+    el.modal.removeAttribute('open');
+    document.body.classList.remove('is-modal');
+    el.modal.dispatchEvent(new Event('close'));
+  }
+
+  /* Esc يغلق النافذة الأصيلة من المتصفّح؛ وفي الاحتياط نغلقها بأنفسنا */
+  if (!NATIVE_DIALOG) {
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
   }
 
   /* التنظيف على `close` لا في `closeModal`: النافذة تُغلق بـEsc أيضًا وبضغطة

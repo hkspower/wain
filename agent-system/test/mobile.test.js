@@ -493,3 +493,48 @@ test('لا لون في نمطٍ سطريّ داخل الشيفرة — حارس 
     assert.deepEqual(inline, [], `${file}: لون في نمط سطريّ`);
   }
 });
+
+/* ------------------- الاتّساع عبر الأجهزة والمتصفّحات ------------------- */
+
+test('الصفحة تُفسح للشريط الثابت مسافةَ الأمان — لا رقمًا ثابتًا', () => {
+  const css = readCss('app.css');
+  /* الشريط ثابت وارتفاعه على آيفون ذي شقّ = ٥٤ + نحو ٣٤ بكسلًا لمؤشّر
+     الرجوع. حشوةٌ ثابتة لا تعرف المسافة تترك آخر زرّ تحت الشريط على كل
+     آيفون من ١٠ فما فوق — قِيس بمحاكاة الشقّ: ٤٢ موضعًا محجوبًا. */
+  assert.match(css, /--tabbar-h:/, 'ارتفاع الشريط غير مكتوب رمزًا فينفصل عن حشوة الصفحة');
+  /* `[^)]*` يقف عند أوّل قوس مغلق — وهو داخل `var(--s-5)` لا بعده */
+  const pageRule = css.match(/\.page \{ padding-bottom: ([^;]+);/);
+  assert.ok(pageRule, 'لا حشوة سفلية للصفحة على الجوال');
+  assert.match(pageRule[1], /var\(--tabbar-h\)/, 'الحشوة لا تحسب ارتفاع الشريط');
+  assert.match(pageRule[1], /env\(safe-area-inset-bottom/, 'الحشوة لا تحسب مسافة الأمان');
+  assert.match(css, /\.tabbar \{[\s\S]{0,300}?env\(safe-area-inset-bottom\)/,
+    'الشريط نفسه لا يحترم مسافة الأمان');
+});
+
+test('احتياط لما قبل سفاري ١٥٫٤: <dialog> غير مدعومة', () => {
+  const js = read('app.js');
+  /* بلا احتياط: `showModal` غير معرَّف فترمي الدالّة، فلا يقع شيء عند
+     الضغط — لا اعتماد ولا إسناد ولا رابط، وبلا رسالة. قِيس على متصفّح
+     محاكًى بلا `HTMLDialogElement`: النافذة فارغة غير ظاهرة مع رمية. */
+  assert.match(js, /const NATIVE_DIALOG =/, 'لا فحص لدعم <dialog>');
+  assert.match(js, /if \(NATIVE_DIALOG\) el\.modal\.showModal\(\);/, 'الفتح بلا احتياط');
+  assert.match(js, /el\.modal\.setAttribute\('open', ''\)/, 'الاحتياط لا يفتح النافذة');
+  /* والقاعدة التي تُخفيها قبل الفتح: بدونها يظهر العنصر المجهول دائمًا */
+  assert.match(readCss('app.css'), /\.modal:not\(\[open\]\) \{ display: none; \}/,
+    'بلا هذه القاعدة تظهر النافذة أبدًا على متصفّح لا يعرف <dialog>');
+  /* و`::backdrop` لا وجود لها في الاحتياط، فيُرسم الظهر على النافذة */
+  assert.match(readCss('app.css'), /body\.is-modal \.modal \{ background:/, 'الاحتياط بلا ظهر');
+});
+
+test('كل قياس بـdvh له احتياط بـvh — القاعدة تُسقَط كلّها قبل ١٥٫٤', () => {
+  for (const file of ['app.css', 'link.css']) {
+    const css = readCss(file);
+    for (const m of css.matchAll(/([\w-]+):\s*([\d.]+)dvh/g)) {
+      const prop = m[1];
+      const before = css.slice(0, m.index);
+      /* الاحتياط يسبقه مباشرةً بالخاصّية نفسها ووحدة vh */
+      assert.match(before.slice(-120), new RegExp(`${prop}:\\s*[\\d.]+vh`),
+        `${file}: «${prop}: ${m[2]}dvh» بلا احتياط vh قبله`);
+    }
+  }
+});

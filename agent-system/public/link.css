@@ -4,6 +4,7 @@
 
 .lk-body {
   background: var(--bg);
+  min-height: 100vh;   /* احتياط لما قبل سفاري ١٥٫٤ */
   min-height: 100dvh;
   padding-bottom: env(safe-area-inset-bottom);
 }
