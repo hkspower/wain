@@ -4,7 +4,8 @@ Everything below is measured, not remembered — the suite states are from
 a full run, and each entry says what is actually wrong, what it costs,
 and what I would do about it. Ordered by what I would fix first.
 
-Last checked against commit `45ba263`, with a full suite run behind it.
+Last checked against commit `a174850`, with a full run of every
+`test:*` and `check:*` script behind it.
 
 > **Nine of the eleven items this file used to list are done.** They are
 > kept below, struck through, with their reasoning intact: the argument
@@ -14,22 +15,28 @@ Last checked against commit `45ba263`, with a full suite run behind it.
 
 ## The suite, right now
 
-Thirty-three suites, five static checks and two audit tools. Every one
-of them passes, `npx tsc --noEmit` is clean, and the race reports zero
-page errors for the first time. Nothing is red.
+Fifty-seven scripts: forty-odd behavioural suites, the static checks,
+the three port-sync checks and the audit tools. `npx tsc --noEmit` is
+clean. **Fifty-five pass.**
 
 | | state |
 |---|---|
-| `test:assets`, `test:race` | **fixed** — the manifest decides what must be authored, and the driver is procedural |
-| `test:streets` | **fixed** — the world is seeded |
-| `test:levels` | **fixed** — night by default, `--sweep` for the rest |
-| `test:grade` | **fixed** — the downward exposure ladder is measured at night, where the control actually works |
-| `check:gutters` | 0 problems across five window sizes and four screens |
+| `test:parity` | 16 000 steps of UE5 against TypeScript, worst disagreement 5e-12, all twelve solver branches covered |
+| `check:unreal`, `check:unity` | the ports agree with the live API |
+| `check:gutters` | 0 problems across six window sizes and four screens — see the timeout note below |
 | `check:fleet` | fifteen cars, no part class missing from one of them |
+| `audio:check` | **red for an environment reason** — see below |
 
-Two of those suites failed on the full run and both turned out to be
-the test rather than the game, which is worth writing down because
-both had been quietly wrong for a while:
+`audio:check` is the one red that is not a code failure. Generating the
+voices and SFX needs `api.elevenlabs.io`, which this environment's
+egress policy does not allow. It clears by allowlisting that host, or by
+running the generators somewhere with direct internet and committing
+`public/sfx/`, `public/voices/` and `public/music/`.
+
+Four suites have failed on a full run at some point and **every one of
+them turned out to be the test rather than the game.** That is worth
+keeping written down, because it is the same failure four times: an
+assertion that encoded an assumption instead of measuring the thing.
 
 - **`test:grade`** asserted that a stop down darkens a NOON frame. It
   does not — the black-point rescale gives the exposure back and then
@@ -45,6 +52,26 @@ both had been quietly wrong for a while:
   battle" forty seconds later — a symptom two steps downstream of a
   cause it had thrown away. The click is checked now, and given sixty
   seconds.
+- **`test:motion`** asserted the wheels turn at `v / 0.36`, where 0.36
+  is `TIRE_RADIUS` as authored in `cars.ts`. Every car is scaled to its
+  real length in metres and its wheels scale with it, so 0.36 is the
+  radius of a car nobody drives — the current one is 0.318. It reads
+  the radius off the car now, and checks separately that the radius is
+  a real road tyre, because reading it off the car is otherwise
+  self-fulfilling.
+- **`test:roadname`** is the exception that proves the point: it caught
+  a real bug, and only because it reads the plate's rows out of the DOM
+  instead of asking the engine what road it thinks you are on. The rev
+  counter rework had taken the road-name writer out with it. The markup
+  was still there and still empty, so nothing looked broken — the road
+  the game is named after had simply stopped being named, and the
+  engine knew the right answer the whole time.
+
+One thing to know before running it: **`check:gutters` takes well over
+fifteen minutes** on a software renderer, most of it in the race HUD,
+which has to load the game and wait out the cinematic at every window
+size. A fifteen-minute timeout kills it partway through the ultrawide
+shapes and looks exactly like a hang.
 
 ---
 
