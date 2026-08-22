@@ -55,8 +55,14 @@ def main():
     # normalize=0: amix otherwise divides every input by the number of inputs,
     # so fifteen takes that never overlap would each come out at a fifteenth of
     # their level — technically mixed, inaudibly quiet.
+    # apad, then -t, is what makes the track the full length of the film.
+    # amix ends when its longest input ends — which is the last take, 1.4s
+    # before the picture does — and -t only truncates, it never pads. Without
+    # this the mux's -shortest trimmed the video instead, cutting the closing
+    # fade off the end. The file looked fine; it simply stopped early.
     parts.append("".join(labels) +
-                 f"amix=inputs={len(takes)}:normalize=0[mix]")
+                 f"amix=inputs={len(takes)}:normalize=0[mixed]")
+    parts.append("[mixed]apad[mix]")
     args += ["-filter_complex", ";".join(parts),
              "-map", "[mix]", "-t", f"{total}",
              "-c:a", "libmp3lame", "-b:a", "192k",
