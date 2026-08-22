@@ -52,6 +52,14 @@ API = "https://api.elevenlabs.io/v1"
 DEFAULT_VOICE = "SeP2zIpx6zw2aAs6ZXFW"
 DEFAULT_MODEL = "eleven_multilingual_v2"
 
+# Pinned, not left to the default. Every take is mixed into one track, and
+# ffmpeg will silently resample a take that disagrees with its neighbours —
+# so the format is stated rather than inherited from whatever the endpoint
+# decides today. 44.1kHz/128k is what the official SDK example uses, and it
+# survives the two lossy encodes this audio goes through (mp3 here, AAC in
+# the mux) without adding a third resampling step.
+DEFAULT_FORMAT = "mp3_44100_128"
+
 
 def key():
     k = os.environ.get("ELEVENLABS_API_KEY", "").strip()
@@ -92,7 +100,7 @@ def list_voices():
     print("  the multilingual model does not save you from it.")
 
 
-def say(text, voice, model):
+def say(text, voice, model, fmt):
     body = json.dumps({
         "text": text,
         "model_id": model,
@@ -109,7 +117,7 @@ def say(text, voice, model):
         "voice_settings": {"stability": 0.55, "similarity_boost": 0.8,
                            "style": 0.0, "use_speaker_boost": True},
     }).encode()
-    return call(f"/text-to-speech/{voice}", data=body,
+    return call(f"/text-to-speech/{voice}?output_format={fmt}", data=body,
                 headers={"Content-Type": "application/json",
                          "Accept": "audio/mpeg"}, method="POST")
 
@@ -119,6 +127,9 @@ def main():
     ap.add_argument("--voice", default=DEFAULT_VOICE)
     ap.add_argument("--model", default=DEFAULT_MODEL,
                     help="a multilingual model — English-only ones mangle Arabic")
+    ap.add_argument("--format", default=DEFAULT_FORMAT,
+                    help="output_format; keep every take the same or the mix "
+                         "resamples them against each other")
     ap.add_argument("--lines", default="",
                     help="comma-separated line numbers; default is all of them")
     ap.add_argument("--force", action="store_true",
@@ -150,10 +161,11 @@ def main():
         print("\n  nothing to record.")
         return 0
 
-    print(f"\n  recording {len(todo)} line(s) with voice {a.voice}\n")
+    print(f"\n  recording {len(todo)} line(s) · voice {a.voice}"
+          f" · {a.model} · {a.format}\n")
     for n in todo:
         text = lines[n - 1]
-        audio = say(text, a.voice, a.model)
+        audio = say(text, a.voice, a.model, a.format)
         if len(audio) < 8000:
             raise SystemExit(f"line {n}: reply was {len(audio)} bytes, not audio")
         out = VOICE / f"line{n:02d}.mp3"
