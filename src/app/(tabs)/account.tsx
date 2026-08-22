@@ -16,7 +16,7 @@ const WHATSAPP = 'https://wa.me/96500000000';
 export default function AccountScreen() {
   const theme = useTheme();
   const { t, lang, setLang, row, text } = useLang();
-  const { source } = useCart();
+  const { source, lastOrder } = useCart();
 
   return (
     <Screen tabBar>
@@ -63,7 +63,11 @@ export default function AccountScreen() {
           Google Wallet, which needs a different pass format and a different
           account — when that exists this becomes a choice, not a hidden
           button. */}
-      {Platform.OS === 'ios' && (
+      {/* Only once they have ordered. The endpoint issues a first pass against
+          a phone plus one of its own order references, and without an order
+          there is nothing to prove and no points to put on the card. A button
+          that 403s is worse than one that is not there yet. */}
+      {Platform.OS === 'ios' && lastOrder && (
         <>
           <ThemedText type="labelBold" style={[styles.label, text]}>
             {t.account.wallet}
@@ -78,7 +82,17 @@ export default function AccountScreen() {
             // application/vnd.apple.pkpass response and hands it to Wallet
             // itself. Downloading the bytes in-app would leave us holding a
             // file with nothing able to install it.
-            onPress={() => Linking.openURL(`${API_BASE}/wallet.php?r=pass`)}
+            // The real route, with the identity the endpoint requires: a phone
+            // and one of that phone's own order references. Both come from the
+            // last order this device placed — which is the only customer
+            // identity a shop with no accounts has.
+            onPress={() =>
+              lastOrder &&
+              Linking.openURL(
+                `${API_BASE}/wallet.php?r=loyalty&phone=${encodeURIComponent(lastOrder.phone)}&track=${encodeURIComponent(lastOrder.ref)}`,
+              )
+            }
+            disabled={!lastOrder}
             style={press()}>
             <View style={[styles.walletButton, row]}>
               <ThemedText type="labelBold" style={styles.walletText}>

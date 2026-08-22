@@ -50,6 +50,10 @@ export interface Line {
  * it survives app upgrades that change this shape, and a malformed basket must
  * not be allowed to take the shop down on launch.
  */
+const isLastOrder = (v: unknown): v is { ref: string; phone: string } | null =>
+  v === null ||
+  (!!v && typeof (v as { ref?: unknown }).ref === 'string' && typeof (v as { phone?: unknown }).phone === 'string');
+
 const isLines = (value: unknown): value is Line[] =>
   Array.isArray(value) &&
   value.every(
@@ -82,6 +86,13 @@ type Ctx = {
   subtotal: Fils;
   delivery: Fils;
   total: Fils;
+  /**
+   * The last order placed on this device — the phone it was placed with and
+   * its reference. It is the closest thing to a customer identity a shop with
+   * no accounts has, and it is what the Wallet endpoint asks for.
+   */
+  lastOrder: { ref: string; phone: string } | null;
+  remember: (order: { ref: string; phone: string }) => void;
   /** Returns false when the requested quantity was capped by stock. */
   add: (slug: string, size: string, qty?: number) => boolean;
   setQty: (slug: string, size: string, qty: number) => boolean;
@@ -98,6 +109,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [source, setSource] = useState<Source>('bundled');
   const [loading, setLoading] = useState(true);
   const [lines, setLines] = useState<Line[]>([]);
+  const [lastOrder, setLastOrder] = useState<{ ref: string; phone: string } | null>(null);
   // Until the stored basket has been read, writes are suppressed: the first
   // render has an empty basket, and saving that would erase what is on disk
   // before it is ever loaded.
@@ -105,8 +117,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let alive = true;
-    readJson(KEYS.cart, isLines, [])
-      .then((lines) => alive && setLines(lines))
+    Promise.all([
+      readJson(KEYS.cart, isLines, [] as Line[]),
+      readJson(KEYS.lastOrder, isLastOrder, null as { ref: string; phone: string } | null),
+    ])
+      .then(([lines, order]) => {
+        if (!alive) return;
+        setLines(lines);
+        setLastOrder(order);
+      })
       .finally(() => alive && setRestored(true));
     return () => {
       alive = false;
@@ -174,6 +193,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const clear = useCallback(() => setLines([]), []);
 
+  const remember = useCallback((order: { ref: string; phone: string }) => {
+    setLastOrder(order);
+    writeJson(KEYS.lastOrder, order);
+  }, []);
+
   const { count, subtotal } = useMemo(() => {
     let count = 0;
     let subtotal = 0;
@@ -195,6 +219,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       source,
       loading,
       ready: restored,
+      lastOrder,
+      remember,
       lines,
       count,
       subtotal,
@@ -206,7 +232,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       clear,
       productFor,
     }),
-    [products, categories, source, loading, restored, lines, count, subtotal, delivery, add, setQty, remove, clear, productFor],
+    [products, categories, source, loading, restored, lastOrder, remember, lines, count, subtotal, delivery, add, setQty, remove, clear, productFor],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

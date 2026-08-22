@@ -50,7 +50,7 @@ export default function CheckoutScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { t, lang, row, text } = useLang();
-  const { lines, productFor, total, clear } = useCart();
+  const { lines, productFor, total, clear, remember } = useCart();
 
   const [form, setForm] = useState({
     name: '',
@@ -113,6 +113,8 @@ export default function CheckoutScreen() {
       if (placed.payUrl) {
         await WebBrowser.openBrowserAsync(placed.payUrl);
       }
+      // Kept for the Wallet card, which needs a phone and one of its orders.
+      remember({ ref: placed.ref, phone: phoneDigits });
       clear();
       router.replace({ pathname: '/order/[ref]', params: { ref: placed.ref } });
     } catch (e) {

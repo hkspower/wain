@@ -72,18 +72,52 @@ WALLET_TEAM_ID=ABCDE12345 node scripts/make-wallet-pass.mjs --serial SP-000123
 `wallet/certs/` is git-ignored. **It is the shop's identity to Apple**; anyone
 holding it can issue passes in Sporta's name.
 
-## Serving it
+## Serving it — `api/wallet.php`
 
-The app's Account screen links to `{apiBase}/wallet.php?r=pass`, opened in the
-system browser rather than fetched — iOS recognises the response and hands it to
-Wallet itself. That endpoint does not exist yet; it needs to:
+```
+/api/wallet.php?r=loyalty&phone=96555512345&track=SP1A2B3C
+/api/wallet.php?r=coupon&code=SUMMER24
+```
 
-- identify the customer, and issue **one serial per customer**, stored;
-- return the bytes with `Content-Type: application/vnd.apple.pkpass`;
-- send `Content-Disposition: attachment; filename="sporta.pkpass"`.
+Both answer with a signed `.pkpass`, `Content-Type:
+application/vnd.apple.pkpass`, as an attachment and `no-store`. The app opens
+the URL in the system browser rather than fetching it, so iOS can hand the
+response to Wallet.
 
-The signing step is the same three OpenSSL inputs, so the certificate has to
-live on the server, outside the web root, alongside `api/config.php`.
+**One serial per customer, for ever** — `wallet_passes`, keyed by phone, which
+is what the shop already identifies people by. Minting a serial per request
+would give a customer who re-added their card two cards with two histories and
+a shop assistant no way to tell which is real.
+
+**Points are derived, not stored.** They are computed from that phone's paid
+orders at the moment the pass is built — one point per 100 fils — so the number
+on the card cannot drift from what was actually spent.
+
+**Identity, and its limit.** A loyalty pass carries a name and a balance, so
+issuing one on a phone number alone would let anyone mint a card for anyone
+whose number they know. The first issue therefore also wants the `track_id` of
+one of that phone's own orders. It is deliberately not a login: the shop has no
+customer accounts, and inventing them to protect a points balance would be much
+larger than the thing protected.
+
+**The coupon route reads the `discounts` table** and refuses a code that is
+inactive (404) or used up (410). A coupon in a Wallet that the checkout will
+refuse is worse than none — the customer finds out at the till.
+
+Certificates live **outside the web root**, next to `config.php`:
+
+```php
+'wallet_team_id'  => 'ABCDE12345',
+'wallet_cert_dir' => '/home/uXXXXXX/wallet-certs',
+```
+
+Without them the endpoint answers **503 with a hint**, not a broken file.
+
+Rebuild the pass images after a logo change:
+
+```
+node scripts/wallet-assets.mjs
+```
 
 ## Keeping points up to date
 

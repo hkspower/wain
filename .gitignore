@@ -56,3 +56,4 @@ wallet/certs/
 wallet/.build/
 wallet/*.pkpass
 wallet/*-UNSIGNED.zip
+/wallet-certs/

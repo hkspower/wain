@@ -32,6 +32,7 @@ export const KEYS = {
   cart: 'sporta.cart.v1',
   adminToken: 'sporta.admin.token.v1',
   lang: 'sporta.lang.v1',
+  lastOrder: 'sporta.last-order.v1',
 } as const;
 
 export type StorageKey = (typeof KEYS)[keyof typeof KEYS];

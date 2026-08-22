@@ -84,5 +84,35 @@ const repeat = await again.json().catch(() => null)
 check(again.status === 200 && repeat?.order_id === placed?.order_id,
   `retrying the same track_id reuses the order (${placed?.order_id} → ${repeat?.order_id})`)
 
+// --- Apple Wallet --------------------------------------------------------
+// Only if the certificate is installed. Without it the endpoint answers 503
+// with a hint, which is correct behaviour and not a failure — so it is
+// reported and skipped rather than failed.
+const probe = await fetch(`${BASE}/wallet.php?r=coupon&code=SUMMER24`)
+if (probe.status === 503) {
+  console.log('--   wallet: no certificate installed, skipping (503 is the right answer)')
+} else {
+  const bytes = Buffer.from(await probe.arrayBuffer())
+  check(probe.status === 200, `a coupon pass is issued (${probe.status})`)
+  check(probe.headers.get('content-type') === 'application/vnd.apple.pkpass',
+    `served as application/vnd.apple.pkpass (${probe.headers.get('content-type')})`)
+  check(/attachment; filename=/.test(probe.headers.get('content-disposition') ?? ''),
+    'sent as an attachment, which is what hands it to Wallet')
+  check(/no-store/.test(probe.headers.get('cache-control') ?? ''),
+    'not cacheable — a pass is personal')
+  // PK\x03\x04: it really is a zip, not an error page with the wrong header.
+  check(bytes[0] === 0x50 && bytes[1] === 0x4b, 'the body is a zip archive')
+
+  const missing = await fetch(`${BASE}/wallet.php?r=coupon&code=NOSUCHCODE`)
+  check(missing.status === 404, `an offer that does not exist is a 404 (${missing.status})`)
+
+  const noPhone = await fetch(`${BASE}/wallet.php?r=loyalty`)
+  check(noPhone.status === 400, `a loyalty pass without a phone is refused (${noPhone.status})`)
+
+  const notMine = await fetch(`${BASE}/wallet.php?r=loyalty&phone=99999999&track=NOPE`)
+  check(notMine.status === 403,
+    `a first pass for a phone with no matching order is refused (${notMine.status})`)
+}
+
 console.log(fails ? `\n${fails} failed` : '\nall ok')
 process.exit(fails ? 1 : 0)
