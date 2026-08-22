@@ -848,6 +848,38 @@ html[data-large-hud="1"] .hud-scale {
 .menu-item:hover {
   color: #fff;
 }
+
+/* The primary action, whether or not the cursor happens to be on it.
+ *
+ * This used to be amber ONLY while selected, and a menu whose first item
+ * is indistinguishable from its fifth the moment you mouse away from it
+ * has no hierarchy at all — it has a highlight. START ENGINE is what the
+ * screen is FOR, so it carries a standing amber edge, a warmer bed and
+ * more room than anything under it, and selection then makes it brighter
+ * rather than making it exist. */
+.menu-item.is-primary {
+  padding: 0.85rem 0.9rem;
+  border-color: rgba(255, 176, 60, 0.34);
+  background: linear-gradient(90deg, rgba(255, 176, 60, 0.13), rgba(255, 176, 60, 0.01));
+  color: #fff;
+  box-shadow: inset 3px 0 0 0 var(--color-sodium-400, #ffb03c);
+}
+
+/* The third tier: the things you set once and leave. Same list, quieter
+ * voice — no bed, no hint, and the label steps down. Four rows shouting
+ * at the same volume is what made this column read as a wall. */
+.menu-item.is-minor {
+  padding: 0.44rem 0.9rem;
+  background: none;
+  color: rgba(255, 255, 255, 0.62);
+}
+.menu-item.is-minor .menu-item-label {
+  font-size: 0.98rem;
+}
+.menu-item.is-minor .menu-item-icon {
+  opacity: 0.7;
+}
+
 .menu-item.is-sel {
   border-color: rgba(56, 201, 238, 0.55);
   background: linear-gradient(90deg, rgba(56, 201, 238, 0.2), rgba(56, 201, 238, 0.02));
@@ -855,10 +887,15 @@ html[data-large-hud="1"] .hud-scale {
   transform: translateX(4px);
   box-shadow: 0 0 24px -6px rgba(56, 201, 238, 0.55);
 }
+.menu-item.is-minor.is-sel {
+  color: #fff;
+}
 .menu-item.is-primary.is-sel {
-  border-color: rgba(255, 176, 60, 0.6);
-  background: linear-gradient(90deg, rgba(255, 176, 60, 0.22), rgba(255, 176, 60, 0.02));
-  box-shadow: 0 0 26px -6px rgba(255, 176, 60, 0.6);
+  border-color: rgba(255, 176, 60, 0.75);
+  background: linear-gradient(90deg, rgba(255, 176, 60, 0.28), rgba(255, 176, 60, 0.03));
+  box-shadow:
+    inset 3px 0 0 0 var(--color-sodium-400, #ffb03c),
+    0 0 30px -6px rgba(255, 176, 60, 0.7);
 }
 .menu-item-caret {
   width: 0.7rem;
@@ -870,7 +907,12 @@ html[data-large-hud="1"] .hud-scale {
 .menu-item.is-sel .menu-item-caret {
   opacity: 1;
 }
+.menu-item.is-primary .menu-item-caret {
+  opacity: 0.55;
+  color: var(--color-sodium-400, #ffb03c);
+}
 .menu-item.is-primary.is-sel .menu-item-caret {
+  opacity: 1;
   color: var(--color-sodium-400, #ffb03c);
 }
 .menu-item-icon {
@@ -888,7 +930,7 @@ html[data-large-hud="1"] .hud-scale {
   letter-spacing: 0.02em;
 }
 .menu-item.is-primary .menu-item-label {
-  font-size: 1.35rem;
+  font-size: 1.5rem;
 }
 .menu-item-hint {
   display: block;

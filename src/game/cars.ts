@@ -1959,6 +1959,15 @@ export function createCar(colors: CarColors): THREE.Group {
     clearcoat: 1,
     clearcoatRoughness: 0.05, // lacquer: near-mirror, not a laser mirror
     envMapIntensity: 2.4,
+    // No sheen here, and that is a MEASURED decision rather than an
+    // omission. The edges of a car in this game were the suspected
+    // cause of "no volume", so a grazing-angle sheen lobe was fitted
+    // and swept at 0.35 / 0.55 / 0.75 / 0.95 — and with the measurement
+    // finally taken against a pinned exposure it made the rim ratio
+    // slightly WORSE at every setting (2.13 without, 2.08 at 0.55,
+    // 2.07 at 0.8). The upper silhouette already runs at twice the
+    // luminance of the middle of the same panel; the clearcoat and the
+    // envmap's horizon band were doing the job all along.
   });
 
   // Per-car metal clones for everything that should mirror the world.

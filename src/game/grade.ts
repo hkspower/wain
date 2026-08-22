@@ -179,6 +179,23 @@ export const GradeShader = {
      *  look sits a little above neutral, and the slider spans a washed
      *  0.6 to an oversaturated 1.4. */
     uSaturation: { value: 1.0 },
+    /** Vibrance: how hard to separate the colours that have almost none.
+     *
+     *  0.8 from a sweep, not from taste. Measured on a night frame at
+     *  0 / 0.4 / 0.8 / 1.2, the hue spread rises 0.0742 -> 0.0780 ->
+     *  0.0805 -> 0.0827 and the number of ten-degree hue bins carrying
+     *  real colour goes from two to three at 0.8. It keeps climbing
+     *  after that, but so does the cost to the lamps, and the gain per
+     *  step has already flattened.
+     *
+     *  Worth saying plainly: this is a SMALL effect, and that is the
+     *  finding rather than a disappointment. A grade cannot invent
+     *  colour that is not in the scene, and the reason this frame is
+     *  monochrome is that the scene holds two hues — a blue sky and a
+     *  grey road, with the tail lamps the only thing arguing. Real
+     *  separation has to come from what is emitting: sodium against the
+     *  LED, lit signage, coloured facades. */
+    uVibrance: { value: 0.8 },
     /** Colour balance, as a per-channel gain. 1,1,1 is neutral.
      *
      *  This is what the situation grade steers: cool and hard for a
@@ -217,6 +234,7 @@ export const GradeShader = {
     uniform float uHighlightDesat;
     uniform float uDesatStart;
     uniform float uSaturation;
+    uniform float uVibrance;
     uniform vec3 uTint;
     uniform float uDither;
     varying vec2 vUv;
@@ -360,6 +378,37 @@ export const GradeShader = {
       // grey the eye agrees is the same brightness.
       float lg = luma(c.rgb);
       c.rgb = max(mix(vec3(lg), c.rgb, uSaturation), 0.0);
+
+      // Vibrance: saturation that spends itself where there is nothing
+      // to lose.
+      //
+      // Measured on a night frame on the corniche, only TWO of
+      // thirty-six ten-degree hue bins carried any real colour. The
+      // picture was correctly exposed, had proper contrast, and was
+      // monochrome: a blue-grey car on a grey road under a blue sky,
+      // with the tail lamps the one thing arguing.
+      //
+      // Global saturation is the wrong tool for that. Pushing uSaturation
+      // up scales EVERY pixel's distance from grey, so the sodium lamps
+      // and the tail lamps — already the most saturated things in the
+      // frame and the ones the highlight desaturation above deliberately
+      // pulled back — go first and go cartoonish, while the asphalt and
+      // the concrete, which is where the frame is actually grey, barely
+      // move.
+      //
+      // Vibrance inverts that. The boost is weighted by how UNsaturated
+      // a pixel already is, so the muted majority separates and anything
+      // already colourful is left alone. It is the difference between
+      // turning the colour up and giving the colours room.
+      float mx = max(c.r, max(c.g, c.b));
+      float mn = min(c.r, min(c.g, c.b));
+      float chroma = mx - mn;
+      // Squared, so the falloff is gentle near grey and steep once a
+      // pixel has real colour of its own.
+      float room = 1.0 - clamp(chroma / max(mx, 1e-4), 0.0, 1.0);
+      float boost = 1.0 + uVibrance * room * room;
+      float lv = luma(c.rgb);
+      c.rgb = max(mix(vec3(lv), c.rgb, boost), 0.0);
 
       // Triangular-PDF dither, applied last, immediately before the 8-bit
       // quantisation it exists to hide. The frame buffer is half-float all

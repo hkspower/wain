@@ -1428,6 +1428,7 @@ export default function RaceClient() {
       },
       {
         key: "settings",
+        minor: true,
         label: "SETTINGS",
         ar: "الإعدادات",
         icon: "gear" as IconName,
@@ -1436,6 +1437,7 @@ export default function RaceClient() {
       },
       {
         key: "howto",
+        minor: true,
         label: "HOW TO PLAY",
         ar: "كيف تلعب",
         icon: "pad" as IconName,
@@ -1444,6 +1446,7 @@ export default function RaceClient() {
       },
       {
         key: "credits",
+        minor: true,
         label: "CREDITS",
         ar: "شكر",
         icon: "star" as IconName,
@@ -2275,14 +2278,26 @@ export default function RaceClient() {
                 </div>
               ) : (
                 <div className="mt-2 flex items-center gap-3">
+                  {/* The rival's racing number, on their own paint.
+                      This was a bare gradient swatch, and on a rival
+                      with dark bodywork it rendered as an empty grey
+                      box — the one obviously unfinished thing on the
+                      screen. The number is the same one their car
+                      actually wears on its doors, so the card and the
+                      machine you are about to meet agree. */}
                   <span
-                    className="size-11 shrink-0 rounded-lg border border-white/15"
+                    className="grn-display tnum relative grid size-11 shrink-0 place-items-center rounded-lg border border-white/20 text-[1.05rem] leading-none"
                     style={{
                       background: `linear-gradient(140deg, #${RIVALS[beaten].bodyColor
                         .toString(16)
                         .padStart(6, "0")}, #141416)`,
+                      color: "#f6f6f2",
+                      textShadow: "0 1px 3px rgba(0,0,0,0.85)",
                     }}
-                  />
+                    aria-hidden
+                  >
+                    {20 + beaten}
+                  </span>
                   <div className="min-w-0">
                     <div className="grn-display truncate text-xl text-white">
                       {RIVALS[beaten].name}{" "}
@@ -2330,7 +2345,7 @@ export default function RaceClient() {
                   aria-current={i === menuSel ? "true" : undefined}
                   className={`menu-item tap ${i === menuSel ? "is-sel" : ""} ${
                     i === 0 ? "is-primary" : ""
-                  }`}
+                  } ${it.minor ? "is-minor" : ""}`}
                 >
                   <span className="menu-item-caret" aria-hidden>
                     ▸
@@ -2344,7 +2359,7 @@ export default function RaceClient() {
                   <span className="min-w-0 flex-1 text-left">
                     <span className="menu-item-label">{it.label}</span>{" "}
                     <span className="grn-ar text-white/50" lang="ar">{it.ar}</span>
-                    <span className="menu-item-hint">{it.hint}</span>
+                    {!it.minor && <span className="menu-item-hint">{it.hint}</span>}
                   </span>
                 </button>
               ))}
@@ -2941,7 +2956,11 @@ export default function RaceClient() {
           aria-label="Paused"
         >
           <div className="grn-dialog-glass screen-in w-[min(400px,92vw)] p-6 text-center">
-            <div className="grn-label text-[0.6rem] tracking-[0.4em] text-gulf-400">Paused</div>
+            {/* gulf-300, not gulf-400: measured on the pause glass the darker
+                step lands at 3.27:1, under the 4.5 floor check:menus
+                enforces. A label nobody can read is not a quieter
+                label, it is a missing one. */}
+            <div className="grn-label text-[0.6rem] tracking-[0.4em] text-gulf-300">Paused</div>
             <div className="grn-display mt-1 text-3xl italic">
               PIT STOP <span className="grn-ar not-italic text-white/60" lang="ar">وقفة</span>
             </div>
@@ -2978,7 +2997,7 @@ export default function RaceClient() {
               </button>
               <button
                 onClick={exitToMenu}
-                className="grn-btn tap w-full border border-rose-400/40 px-6 py-3 text-sm text-rose-300 hover:bg-rose-500/15"
+                className="grn-btn tap w-full border border-rose-400/50 px-6 py-3 text-sm text-rose-200 hover:bg-rose-500/15"
               >
                 EXIT TO MENU
               </button>

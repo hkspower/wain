@@ -189,19 +189,28 @@ export const FLAGS: Record<FlagId, FlagSpec> = {
     draw(ctx, w, h) {
       ctx.fillStyle = "#ce1126";
       ctx.fillRect(0, 0, w, h);
-      // The white hoist, with the serrated edge cut into the red.
-      const bandW = w * 0.31;
+      // The white hoist, cut by five teeth.
+      //
+      // Decree Law No. 4 of 2002 divides the LENGTH into red three
+      // quarters and white one quarter, and each tooth is an isosceles
+      // triangle whose legs reach one fifth of the way into the red
+      // section — one fifth of 0.75 is 0.15, so the apexes land at
+      // 0.25 + 0.15 = 0.40. Mean white coverage is then (0.25 + 0.40)/2
+      // = 13/40 = 32.5%, which is the published figure and the check
+      // that these two numbers are the right pair.
+      //
+      // They were 0.1705 and 0.31, giving 24% — the whole hoist was
+      // undersized rather than merely shifted, and neither number
+      // corresponded to any fraction in the decree.
+      const baseX = w * 0.25; // the white band's straight edge
+      const apexX = w * 0.4;  // how far the teeth bite into the red
       ctx.fillStyle = WHITE;
       ctx.beginPath();
       ctx.moveTo(0, 0);
-      ctx.lineTo(bandW * 0.55, 0);
+      ctx.lineTo(baseX, 0);
       for (let i = 0; i < 5; i++) {
-        const top = (h * i) / 5;
-        const mid = (h * (i + 0.5)) / 5;
-        const bot = (h * (i + 1)) / 5;
-        ctx.lineTo(bandW, mid);
-        ctx.lineTo(bandW * 0.55, bot);
-        void top;
+        ctx.lineTo(apexX, (h * (i + 0.5)) / 5);
+        ctx.lineTo(baseX, (h * (i + 1)) / 5);
       }
       ctx.lineTo(0, h);
       ctx.closePath();
@@ -518,15 +527,22 @@ export const FLAGS: Record<FlagId, FlagSpec> = {
     draw(ctx, w, h) {
       ctx.fillStyle = "#8a1538";
       ctx.fillRect(0, 0, w, h);
+      // On the 28-unit length the construction divides as 8 white, a
+      // 2-unit serration, 18 maroon: base at 8/28 = 2/7, tips at
+      // 10/28 = 5/14, white area 9/28 = 32.1%. Written as fractions
+      // because 0.2 and 0.34 were eyeballed and gave a band 30% too
+      // narrow with teeth twice as deep as they should be.
+      const baseX = w * (2 / 7);
+      const apexX = w * (5 / 14);
       ctx.fillStyle = WHITE;
       ctx.beginPath();
       ctx.moveTo(0, 0);
-      ctx.lineTo(w * 0.2, 0);
+      ctx.lineTo(baseX, 0);
       for (let i = 0; i < 9; i++) {
         const mid = (h * (i + 0.5)) / 9;
         const bot = (h * (i + 1)) / 9;
-        ctx.lineTo(w * 0.34, mid);
-        ctx.lineTo(w * 0.2, bot);
+        ctx.lineTo(apexX, mid);
+        ctx.lineTo(baseX, bot);
       }
       ctx.lineTo(0, h);
       ctx.closePath();
