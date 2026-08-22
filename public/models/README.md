@@ -43,12 +43,24 @@ any profile change in `cars.ts`.
 
 ## Envelopes are a contract, not a suggestion
 
-The wheel is modeled to the dimensions the rest of the game is built
-against: 0.36 m rolling radius, 0.26 m section width, 0.205 m bead, 0.2 m
-rotor. Ride height, wheel arches, brake glow and skid marks are all
-positioned against those numbers, so a "nicer" tire that is 5 mm larger
-would lift the car off its own shadow. The same goes for the palm crown,
-which sits at the 6.1 m trunk top in the instanced frame.
+The wheel is modeled to the dimensions the procedural tire SECTION is
+authored at: 0.36 m rolling radius, 0.26 m section width, 0.205 m bead,
+0.2 m rotor. Those are `SECTION_R` and `SECTION_HALF_W` in `cars.ts`, and
+they are not the size of the wheel the game runs.
+
+The fitted wheel is `TIRE_RADIUS` × `TIRE_HALF_W` — currently 0.41 m and
+0.138 m, because the fleet measured at a body-length-to-wheel-diameter
+ratio of 8.05 where a real car sits between 6.5 and 7.1, and the wheels
+read as castors. `models.ts` scales every authored wheel part by
+`WHEEL_R_K` radially and `WHEEL_W_K` along the axle as it swaps it in, so
+the GLB does not have to be rebuilt when the fitment changes and cannot
+silently shrink the wheels back to the section's own size once it loads.
+
+Keep modeling to the section's numbers. Ride height, wheel arches, brake
+glow and skid marks are all positioned against the FITTED radius, so a
+"nicer" tire 5 mm larger than the section would lift the car off its own
+shadow just the same. The palm crown is a straight envelope with no such
+scale: it sits at the 6.1 m trunk top in the instanced frame.
 
 The wheel is authored once, for the right-hand side; `models.ts` mirrors
 it for the left, winding and normals included. Scaling the mesh by -1

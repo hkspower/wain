@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { CROWN, crownShell, type BodyStyle } from "./cars";
+import { CROWN, crownShell, TIRE_HALF_W, WHEEL_R_K, WHEEL_W_K, type BodyStyle } from "./cars";
 
 // Blender-authored graphics.
 //
@@ -254,6 +254,8 @@ export function upgradeCarShells(group: THREE.Group, style: BodyStyle): void {
  * Five- and six-spoke alloys are separate files, so the wheel group says
  * which it is; the outboard-face parts are mirrored for the left side.
  */
+const fittedWheelGeo = new WeakSet<THREE.BufferGeometry>();
+
 export function upgradeWheels(group: THREE.Group): void {
   const wanted = new Set<number>();
   group.traverse((o) => {
@@ -270,10 +272,29 @@ export function upgradeWheels(group: THREE.Group): void {
         if (!slot || (mesh.parent?.userData.spokes ?? 0) !== spokes) return;
         const geo = kit[slot];
         if (!geo) return;
+        // Fit the authored wheel to the wheel the game actually runs.
+        //
+        // The GLB is modelled at the section's own radius — 0.36 m
+        // rolling, 0.26 m across, documented in public/models/README.md
+        // — and the game now fits that section to a larger wheel. Without
+        // this the authored swap would quietly SHRINK every wheel back
+        // to the old size the moment the file finished loading, which is
+        // the worst kind of bug: correct on first frame, wrong later,
+        // and only on the machines fast enough to load the models.
+        //
+        // Once per geometry. These are shared out of the parts cache, so
+        // scaling in place on every car would compound.
+        if (!fittedWheelGeo.has(geo)) {
+          fittedWheelGeo.add(geo);
+          // x is along the axle.
+          geo.scale(WHEEL_W_K, WHEEL_R_K, WHEEL_R_K);
+        }
         // The tire is the one authored part that carries a texture, and
         // the export has no coordinates for it. Done here, once, before
         // the mirrored copy is taken from it.
-        if (slot === "tire") addTireUvs(geo);
+        // ...and with the half width it now HAS, not the one it was
+        // authored at, or the sidewall bands land off the edge of the map.
+        if (slot === "tire") addTireUvs(geo, TIRE_HALF_W);
         mesh.geometry = (mesh.userData.wheelSide as number) < 0 ? mirrorX(geo) : geo;
       });
     });

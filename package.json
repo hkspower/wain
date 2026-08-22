@@ -81,6 +81,7 @@
     "check:sharp": "node tools/shots/sharpness.mjs",
     "check:paint": "node tools/shots/paint.mjs",
     "check:fleet": "node tools/shots/fleet.mjs",
+    "check:wheels": "node tools/shots/wheels.mjs",
     "check:gutters": "node tools/shots/gutters.mjs"
   },
   "dependencies": {

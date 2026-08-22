@@ -902,12 +902,64 @@ const STYLE_DIMS: Record<BodyStyle, StyleDims> = {
  *
  * It is a contract rather than a number: ride height, wheel arches,
  * brake glow, skid marks and the authored GLB wheel are all dimensioned
- * against it (see public/models/README.md), so a "nicer" tyre 5 mm
- * larger would lift every car off its own shadow. Exported because
- * something outside this file has to know how fast to turn it, and
- * guessing produced a game whose wheels skidded.
+ * against it (see public/models/README.md). Exported because something
+ * outside this file has to know how fast to turn it, and guessing
+ * produced a game whose wheels skidded.
+ *
+ * It was 0.36, and that was too small — measurably, not as a matter of
+ * taste. tools/shots/wheels.mjs builds every car and divides its body
+ * length by its wheel diameter, which is the ratio a real car fixes
+ * within a narrow range whatever else about it changes:
+ *
+ *   Skyline R34 on 245/40R18   4600 / 653 = 7.0
+ *   Supra A80 on 255/40R17     4514 / 636 = 7.1
+ *   RX-7 FD on 225/50R16       4295 / 631 = 6.8
+ *   Huracan on 305/30R20       4459 / 691 = 6.5
+ *
+ * Every car in this game came back at 8.05 — the same answer on all
+ * sixteen, because the wheel was one fixed size and the bodies had been
+ * fitted to real metres around it. 8.05 is a 4.5 m car on 560 mm
+ * wheels, which is why they read as castors under it. The seven low
+ * silhouettes were worse still on the other ratio: wheel diameter over
+ * body height came out at 0.42 where a modern coupe is about 0.49.
+ *
+ * 0.41 puts the fleet at 7.07 and 0.48. The section below is unchanged —
+ * it is still a real tyre's section — it is simply fitted to a bigger
+ * wheel, which is what the whole SECTION_R / WHEEL_R_K pair exists to
+ * express.
  */
-export const TIRE_RADIUS = 0.36;
+export const TIRE_RADIUS = 0.41;
+
+/**
+ * How fat the tyre is, as a half width.
+ *
+ * It grows less than the radius does — 6% against 14%. That is not a
+ * compromise, it is the constraint the same tool measured: the tyre's
+ * outer wall already stands 10 to 20 mm proud of the bodywork over it,
+ * which is flush fitment and looks right, and a tyre widened in
+ * proportion to its new diameter would hang out of the arch instead.
+ * The arch moves out by the same 8 mm to keep that gap where it was.
+ */
+export const TIRE_HALF_W = 0.138;
+
+/**
+ * The radius and half width TIRE_SECTION below is AUTHORED at, and the
+ * scale from there to the wheel actually fitted.
+ *
+ * Keeping the section in real millimetres and stating the fitment
+ * separately means the profile stays readable as a tyre's profile — the
+ * alternative, normalising every number to a fraction of the radius,
+ * turns a bead at 218 mm into 0.6056 and makes the one thing this data
+ * is FOR impossible to check by eye.
+ *
+ * Everything else in the wheel — barrel, spokes, hub, rotor, lugs — is
+ * written the same way: the authored number, times the scale.
+ */
+const SECTION_R = 0.36;
+const SECTION_HALF_W = 0.13;
+const WHEEL_R_K = TIRE_RADIUS / SECTION_R;
+const WHEEL_W_K = TIRE_HALF_W / SECTION_HALF_W;
+export { WHEEL_R_K, WHEEL_W_K };
 
 // The traffic tire: the same section, revolved coarsely.
 //
@@ -937,14 +989,15 @@ let tireGeo: THREE.BufferGeometry;
  *
  * So: one profile, revolved. The numbers are a real tire's section.
  *
- *   TIRE_RADIUS is the contract and it is kept EXACTLY. The crown
- *   touches 0.36 and nothing else reaches it — ride height, the wheel
- *   arches, the brake glow, the skid marks and the authored GLB wheel
- *   are all dimensioned against that number, so a tire that came out
- *   even a millimetre proud would lift every car in the game off its
- *   own shadow.
+ *   The crown touches SECTION_R exactly and nothing else reaches it, so
+ *   that after tireLathe scales the profile the outermost point of the
+ *   tyre is TIRE_RADIUS to the millimetre. That is the contract — ride
+ *   height, the wheel arches, the brake glow, the skid marks and the
+ *   authored GLB wheel are all dimensioned against it, and a tyre that
+ *   came out even a millimetre proud would lift every car in the game
+ *   off its own shadow.
  *
- *   The half width stays 0.13 for the same reason, and the widest
+ *   The half width is SECTION_HALF_W for the same reason, and the widest
  *   LATERAL point is the sidewall rather than the tread, which is what
  *   makes a tire look inflated instead of turned on a lathe.
  *
@@ -979,7 +1032,12 @@ const TIRE_SECTION: Array<[number, number]> = [
 ];
 
 function tireLathe(radialSegments: number): THREE.BufferGeometry {
-  const pts = TIRE_SECTION.map(([r, y]) => new THREE.Vector2(r, y));
+  // Authored section, fitted wheel. Radially and axially by different
+  // factors, because a tyre that gets 14% taller does not get 14% fatter
+  // — see TIRE_HALF_W.
+  const pts = TIRE_SECTION.map(
+    ([r, y]) => new THREE.Vector2(r * WHEEL_R_K, y * WHEEL_W_K)
+  );
   const g = new THREE.LatheGeometry(pts, radialSegments);
   // Lathe spins about Y; the axle is X.
   g.rotateZ(Math.PI / 2);
@@ -996,10 +1054,17 @@ const tireGeoHi = tireLathe(44);
 // sides.
 tireGeo = tireLathe(22);
 // Brake hardware behind the spokes — a wheel with nothing inside it
-// reads as a toy the moment the camera drops low
-const discGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.022, 22);
+// reads as a toy the moment the camera drops low. Radially by
+// WHEEL_R_K, axially by WHEEL_W_K: a bigger wheel gets a bigger disc,
+// which is exactly what happens when a real car goes up a rim size and
+// the reason people go up a rim size in the first place.
+const discGeo = new THREE.CylinderGeometry(
+  0.2 * WHEEL_R_K, 0.2 * WHEEL_R_K, 0.022 * WHEEL_W_K, 22
+);
 discGeo.rotateZ(Math.PI / 2);
-const lugGeo = new THREE.CylinderGeometry(0.016, 0.016, 0.026, 6);
+const lugGeo = new THREE.CylinderGeometry(
+  0.016 * WHEEL_R_K, 0.016 * WHEEL_R_K, 0.026 * WHEEL_W_K, 6
+);
 lugGeo.rotateZ(Math.PI / 2);
 const discMat = new THREE.MeshStandardMaterial({ name: "disc",
   color: 0x9aa0a8,
@@ -1165,6 +1230,11 @@ function getTireMat(): THREE.MeshStandardMaterial {
   if (tireMatShared) return tireMatShared;
   const s = tireSurface();
   tireMatShared = new THREE.MeshStandardMaterial({
+    // Named, like every other material on the car. It was the one
+    // unnamed material in the build, which meant every tool that groups
+    // meshes by what they wear filed four tyres per car under
+    // "unnamed" — and a tool measuring tyres could not find the tyre.
+    name: "tire",
     map: s.map,
     normalMap: s.normalMap,
     normalScale: new THREE.Vector2(0.85, 0.85),
@@ -1177,11 +1247,19 @@ function getTireMat(): THREE.MeshStandardMaterial {
   return tireMatShared;
 }
 
-const rimGeo = new THREE.CylinderGeometry(0.205, 0.205, 0.27, 14);
+const rimGeo = new THREE.CylinderGeometry(
+  0.205 * WHEEL_R_K, 0.205 * WHEEL_R_K, 0.27 * WHEEL_W_K, 14
+);
 rimGeo.rotateZ(Math.PI / 2);
-const hubGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.29, 8);
+const hubGeo = new THREE.CylinderGeometry(
+  0.06 * WHEEL_R_K, 0.06 * WHEEL_R_K, 0.29 * WHEEL_W_K, 8
+);
 hubGeo.rotateZ(Math.PI / 2);
-const spokeGeo = roundedBox(0.27, 0.3, 0.06, 0.018);
+// x is along the axle here, so it takes the axial scale and the other
+// two take the radial one.
+const spokeGeo = roundedBox(
+  0.27 * WHEEL_W_K, 0.3 * WHEEL_R_K, 0.06 * WHEEL_R_K, 0.018 * WHEEL_R_K
+);
 /** Ceramic-coated race tip: matte black, soot-dulled. */
 const ceramicTipMat = new THREE.MeshStandardMaterial({ name: "exhaust-tip-ceramic",
   color: 0x1a1a1c,
@@ -1207,7 +1285,9 @@ const rimDarkMat = new THREE.MeshStandardMaterial({ name: "rim-dark",
   metalness: 0.6,
 });
 
-const lipGeo = new THREE.TorusGeometry(0.195, 0.014, 6, 20);
+const lipGeo = new THREE.TorusGeometry(
+  0.195 * WHEEL_R_K, 0.014 * WHEEL_R_K, 6, 20
+);
 lipGeo.rotateY(Math.PI / 2);
 /**
  * Wheel arches.
@@ -1232,8 +1312,13 @@ lipGeo.rotateY(Math.PI / 2);
 // which put both of them INSIDE the flank on the four wide silhouettes —
 // the zx, rx7 and gtr shells run 0.96 to 0.98. Offsets from the shell's
 // measured width work on every body.
-const ARCH_OUT = 0.005;
-const LIP_OUT = 0.009;
+// They also carry the tyre's extra half width, so that widening the
+// tread did not simply push it out through the fender: the measured
+// poke — how far the tyre's outer wall stands proud of the bodywork
+// over it — stays where it was at 10 to 20 mm, which is flush fitment.
+const TREAD_OUT = TIRE_HALF_W - SECTION_HALF_W;
+const ARCH_OUT = 0.005 + TREAD_OUT;
+const LIP_OUT = 0.009 + TREAD_OUT;
 /**
  * How high the arch sits over the tyre.
  *
@@ -1251,22 +1336,38 @@ const LIP_OUT = 0.009;
  * The arch is now centred just above the wheel and radiused to leave
  * about 70 mm at the crown, which is what a car looks like sitting on
  * its own springs.
+ *
+ * All of it is now written as an OFFSET from TIRE_RADIUS rather than as
+ * an absolute number, and additively rather than proportionally. That
+ * choice is the whole reason a wheel could be made 14% bigger without
+ * re-tuning any of this: an additive offset keeps the crown gap at
+ * exactly the 70 mm this comment describes whatever the tyre's radius
+ * is, where scaling the arch in proportion would have grown the gap by
+ * 14% too and undone the fix.
  */
-const ARCH_Y = 0.375;
-const archWellGeo = new THREE.CircleGeometry(0.385, 22);
-const archWellGeoF = new THREE.CircleGeometry(0.4, 22);
+/** How far the arch centre sits above the axle. An opening is not
+ *  concentric with its wheel; a real one rides a little high. */
+const ARCH_RISE = 0.015;
+const ARCH_Y = TIRE_RADIUS + ARCH_RISE;
+/** Where the arch meshes sit, and how much bigger than the tyre each
+ *  opening is. Front is the larger of the two. */
+const ARCH_MESH_Y = TIRE_RADIUS + 0.04;
+const ARCH_R_R = TIRE_RADIUS + 0.04;
+const ARCH_R_F = TIRE_RADIUS + 0.055;
+const archWellGeo = new THREE.CircleGeometry(TIRE_RADIUS + 0.025, 22);
+const archWellGeoF = new THREE.CircleGeometry(ARCH_R_R, 22);
 // A rolled panel edge, not a hoop. The first pass used a 0.03-0.038 tube
 // standing 18 mm proud and it read as a roll bar bolted over the wheel;
 // a real arch lip is a few millimetres of turned-over steel that catches
 // one thin highlight.
-const archLipGeo = new THREE.TorusGeometry(0.4, 0.016, 8, 28, Math.PI);
+const archLipGeo = new THREE.TorusGeometry(ARCH_R_R, 0.016, 8, 28, Math.PI);
 archLipGeo.rotateY(Math.PI / 2);
-const archLipGeoF = new THREE.TorusGeometry(0.415, 0.021, 8, 30, Math.PI);
+const archLipGeoF = new THREE.TorusGeometry(ARCH_R_F, 0.021, 8, 30, Math.PI);
 // The outer edge of each arch — the lip's radius plus its tube — and the
 // height its centre sits at. Anything running along the flank has to
 // stop here, so the numbers are named rather than repeated.
-const ARCH_EDGE_F = 0.415 + 0.021;
-const ARCH_EDGE_R = 0.4 + 0.016;
+const ARCH_EDGE_F = ARCH_R_F + 0.021;
+const ARCH_EDGE_R = ARCH_R_R + 0.016;
 archLipGeoF.rotateY(Math.PI / 2);
 const wellMat = new THREE.MeshBasicMaterial({ name: "arch-well", color: 0x060708 });
 
@@ -1339,7 +1440,7 @@ function flareGeo(kit: KitLevel, front: boolean): THREE.BufferGeometry {
   if (hit) return hit;
   const tube = WIDE[kit].proud * FLARE_TUBE_FRAC;
   const geo = new THREE.TorusGeometry(
-    front ? 0.415 : 0.4,
+    front ? ARCH_R_F : ARCH_R_R,
     tube,
     8,
     front ? 30 : 28,
@@ -2046,10 +2147,13 @@ function heroWheelParts(nSpokes: number, side: number) {
   const tire = tireGeoHi.clone();
   // Alloy face: machined lip, spokes, hub — everything wearing the
   // finish colour
-  const alloyParts: THREE.BufferGeometry[] = [at(lipGeo, side * 0.135), hubGeo.clone()];
+  const alloyParts: THREE.BufferGeometry[] = [
+    at(lipGeo, side * 0.135 * WHEEL_W_K),
+    hubGeo.clone(),
+  ];
   for (let i = 0; i < nSpokes; i++) {
     const g = spokeGeo.clone();
-    g.translate(0, 0.1, 0);
+    g.translate(0, 0.1 * WHEEL_R_K, 0);
     g.rotateX((i / nSpokes) * Math.PI * 2);
     alloyParts.push(g);
   }
@@ -2057,13 +2161,20 @@ function heroWheelParts(nSpokes: number, side: number) {
   const lugParts: THREE.BufferGeometry[] = [];
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2 + 0.3;
-    lugParts.push(at(lugGeo, side * 0.148, Math.cos(a) * 0.058, Math.sin(a) * 0.058));
+    lugParts.push(
+      at(
+        lugGeo,
+        side * 0.148 * WHEEL_W_K,
+        Math.cos(a) * 0.058 * WHEEL_R_K,
+        Math.sin(a) * 0.058 * WHEEL_R_K
+      )
+    );
   }
   parts = {
     tire,
     barrel: rimGeo,
     alloy,
-    rotor: at(discGeo, -side * 0.055),
+    rotor: at(discGeo, -side * 0.055 * WHEEL_W_K),
     lugs: mergeGeometries(lugParts)!,
   };
   heroWheelCache.set(key, parts);
@@ -2114,13 +2225,13 @@ function buildWheel(
   w.add(new THREE.Mesh(tireGeo, getTireMat()));
   w.add(new THREE.Mesh(rimGeo, rimDarkMat));
   const lip = new THREE.Mesh(lipGeo, spokeMat);
-  lip.position.x = side * 0.135;
+  lip.position.x = side * 0.135 * WHEEL_W_K;
   w.add(lip);
   for (let i = 0; i < nSpokes; i++) {
     const holder = new THREE.Group();
     holder.rotation.x = (i / nSpokes) * Math.PI * 2;
     const spoke = new THREE.Mesh(spokeGeo, spokeMat);
-    spoke.position.y = 0.1;
+    spoke.position.y = 0.1 * WHEEL_R_K;
     holder.add(spoke);
     w.add(holder);
   }
@@ -3188,7 +3299,7 @@ export function createCar(colors: CarColors): THREE.Group {
       Math.sign(wx),
       { detailed: !colors.simple, spokeMat: spokeLocal }
     );
-    wheel.position.set(wx, 0.36, wz);
+    wheel.position.set(wx, TIRE_RADIUS, wz);
     group.add(wheel);
     wheels.push(wheel);
 
@@ -3198,14 +3309,14 @@ export function createCar(colors: CarColors): THREE.Group {
     const side = Math.sign(wx);
     const well = new THREE.Mesh(front ? archWellGeoF : archWellGeo, wellMat);
     well.rotation.y = side > 0 ? Math.PI / 2 : -Math.PI / 2;
-    well.position.set(side * (flankX + ARCH_OUT), 0.4, wz);
+    well.position.set(side * (flankX + ARCH_OUT), ARCH_MESH_Y, wz);
     well.userData.archWell = true;
     group.add(well);
 
     // Body-coloured, so it reads as the panel's own edge rather than as
     // a black ring stuck around the wheel.
     const lip = new THREE.Mesh(front ? archLipGeoF : archLipGeo, bodyMat);
-    lip.position.set(side * (flankX + LIP_OUT), 0.4, wz);
+    lip.position.set(side * (flankX + LIP_OUT), ARCH_MESH_Y, wz);
     group.add(lip);
     lip.userData.archLip = true;
 
@@ -3219,7 +3330,7 @@ export function createCar(colors: CarColors): THREE.Group {
     // an edge rolled over it, which is what a flare is.
     const tube = wide.proud * FLARE_TUBE_FRAC;
     const flare = new THREE.Mesh(flareGeo(kit, front), bodyMat);
-    flare.position.set(side * (flankX + wide.proud - tube), 0.4, wz);
+    flare.position.set(side * (flankX + wide.proud - tube), ARCH_MESH_Y, wz);
     flare.userData.archFlare = true;
     group.add(flare);
 
@@ -3228,7 +3339,7 @@ export function createCar(colors: CarColors): THREE.Group {
     // one is a row of heads following the curve, and at ten metres the
     // row is the only part of it you can actually see.
     if (wide.rivets && !colors.simple) {
-      const R = front ? 0.415 : 0.4;
+      const R = front ? ARCH_R_F : ARCH_R_R;
       for (let i = 0; i < wide.rivets; i++) {
         // Inset from both ends: a rivet on the very end of the arc sits
         // where the flare has already died back into the door.
@@ -3236,7 +3347,7 @@ export function createCar(colors: CarColors): THREE.Group {
         const rivet = new THREE.Mesh(rivetGeo, seamMat);
         rivet.position.set(
           side * (flankX + wide.proud - tube * 0.15),
-          0.4 + R * Math.sin(a),
+          ARCH_MESH_Y + R * Math.sin(a),
           wz - R * Math.cos(a)
         );
         group.add(rivet);
@@ -3477,14 +3588,37 @@ export function createCar(colors: CarColors): THREE.Group {
     // Where backfire and nitrous flames are born, in car-local space:
     // the tips themselves, recorded when they were built.
 
-    // Fuel filler door on the right rear quarter
-    const filler = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.012, 12), bodyMat);
+    // Fuel filler door on the right rear quarter.
+    //
+    // Both numbers here used to be absolute — x 0.945 and z -1.55 — and
+    // both were wrong in the way this file keeps finding: 0.945 is the
+    // saloon's flank, so on the four wide silhouettes the cap sank into
+    // the paint, and -1.55 is only 150 mm behind the rear axle, which
+    // puts a fuel filler INSIDE the rear tyre. It went unseen because
+    // the tyre used to be small enough to leave 65 mm of daylight round
+    // it; the moment the wheels were fitted to the cars, six machines
+    // came back from check:fleet with a filler cap buried in the rubber.
+    //
+    // So it is placed the way every other flank detail on the car is:
+    // on the shell's own surface, and behind where the arch actually
+    // reaches AT THIS HEIGHT — which is what archReach answers.
+    const FILLER_R = 0.055;
+    const fillerY = d.creaseY + 0.09;
+    const fillerZ =
+      wzR - archReach(ARCH_EDGE_R, fillerY) - FLANK_GAP - FILLER_R;
+    const filler = new THREE.Mesh(
+      new THREE.CylinderGeometry(FILLER_R, FILLER_R, 0.012, 12),
+      bodyMat
+    );
     filler.rotation.z = Math.PI / 2;
-    filler.position.set(0.945, d.creaseY + 0.09, -1.55);
+    filler.position.set(flankX + 0.005, fillerY, fillerZ);
     group.add(filler);
-    const fillerRing = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.006, 6, 14), gapMat);
+    const fillerRing = new THREE.Mesh(
+      new THREE.TorusGeometry(FILLER_R, 0.006, 6, 14),
+      gapMat
+    );
     fillerRing.rotation.y = Math.PI / 2;
-    fillerRing.position.set(0.948, d.creaseY + 0.09, -1.55);
+    fillerRing.position.set(flankX + 0.008, fillerY, fillerZ);
     group.add(fillerRing);
 
     if (style === "gtr") {
