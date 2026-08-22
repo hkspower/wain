@@ -382,7 +382,7 @@ export const CARS: CarModel[] = [
     id: "kaiju-r",
     name: "Kaiju R",
     ar: "كايجو",
-    cls: "sport",
+    cls: "supercar",
     style: "gtr",
     price: 38000,
     engine: "i6-30tt",
@@ -467,7 +467,7 @@ export const CARS: CarModel[] = [
     id: "hawally-2t",
     name: "Hawally Sport 2.0T",
     ar: "حولي سبورت",
-    cls: "sport",
+    cls: "normal",
     price: 16000,
     engine: "i4-20t",
     lengthM: 4.56,
@@ -550,10 +550,23 @@ export const CARS: CarModel[] = [
   },
 ];
 
+/**
+ * The three bands, in the words the showroom uses for them.
+ *
+ * Read from the cheap end, the fleet now runs five basic, four high
+ * performance and six supercars. It used to be four, six and five, which
+ * put a 16,000 KD saloon in the same band as a 38,000 KD coupe and left
+ * the top of the showroom looking thin — two cars into the supercar
+ * shelf and you had already met most of it.
+ *
+ * "SPORT CARS" became HIGH PERFORMANCE because the middle band is what
+ * it is by what it does, not by what it looks like: a Salmiya Turbo is
+ * not a sports car, it is a fast saloon, and so is most of that shelf.
+ */
 export const CLASS_LABELS: Record<CarClass, string> = {
   supercar: "SUPERCARS · سوبر كار",
-  sport: "SPORT CARS · سيارات رياضية",
-  normal: "NORMAL CARS · سيارات عادية",
+  sport: "HIGH PERFORMANCE · أداء عالي",
+  normal: "BASIC · أساسي",
 };
 
 export function getCar(id: string): CarModel {
