@@ -295,7 +295,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 588 checks covering
+- `python3 design/test_suite.py` is the full system test — 590 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it
@@ -389,6 +389,16 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   printer for a proof, it is not a colour-managed conversion). Every file is
   generated from the page's own sprite, so the pack cannot drift from the mark
   the site flies. Re-run it after any change to the logo.
+- **The live HTTPS check is `design/ssl_check.py`, run from the owner's
+  machine** — redirect ordering (plaintext must reach https on the *same* host
+  before any www redirect, or preload is disqualified), certificate validity,
+  SAN coverage of both hosts, days remaining, TLS ≥ 1.2 with 1.0/1.1 refused,
+  and the HSTS value. Stdlib only. It **refuses to report over an intercepted
+  connection**: its first live run from this container returned five PASSes
+  about the site that were every one of them facts about the environment's TLS
+  proxy — the only tell was the issuer, "Anthropic". It exits 2 for "could not
+  check", never 0. `--self-test` proves the verdicts still discriminate, and
+  the suite runs that self-test.
 - `design/capture.py` drives the site end to end and screenshots every page;
   `design/build_pdf.py` composes those into the PDF sample;
   `design/admin_test.py` exercises the admin console.
