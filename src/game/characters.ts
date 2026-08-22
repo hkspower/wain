@@ -164,7 +164,14 @@ export function kuwaitiFigure(
   }
 
   g.traverse((o) => {
-    if ((o as THREE.Mesh).isMesh) o.castShadow = true;
+    if (!(o as THREE.Mesh).isMesh) return;
+    o.castShadow = true;
+    // And receives. A person cast but did not receive, so a driver sat
+    // in full moonlight inside a car that was itself in shadow, and a
+    // spectator standing under a flyover was lit as if it were not
+    // there. Casting without receiving is how a figure ends up looking
+    // pasted onto the scene rather than standing in it.
+    o.receiveShadow = true;
   });
   return g;
 }
@@ -386,7 +393,14 @@ export function kuwaitiDriver(
   }
 
   group.traverse((o) => {
-    if ((o as THREE.Mesh).isMesh) o.castShadow = true;
+    if (!(o as THREE.Mesh).isMesh) return;
+    o.castShadow = true;
+    // And receives. A person cast but did not receive, so a driver sat
+    // in full moonlight inside a car that was itself in shadow, and a
+    // spectator standing under a flyover was lit as if it were not
+    // there. Casting without receiving is how a figure ends up looking
+    // pasted onto the scene rather than standing in it.
+    o.receiveShadow = true;
   });
   return { group, lean: body, arms, legs, head, wheel, wheelRadius, pedals };
 }
@@ -572,7 +586,14 @@ export function kuwaitiRacer(look: RacerLook): THREE.Group {
   }
 
   g.traverse((o) => {
-    if ((o as THREE.Mesh).isMesh) o.castShadow = true;
+    if (!(o as THREE.Mesh).isMesh) return;
+    o.castShadow = true;
+    // And receives. A person cast but did not receive, so a driver sat
+    // in full moonlight inside a car that was itself in shadow, and a
+    // spectator standing under a flyover was lit as if it were not
+    // there. Casting without receiving is how a figure ends up looking
+    // pasted onto the scene rather than standing in it.
+    o.receiveShadow = true;
   });
   return g;
 }

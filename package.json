@@ -53,6 +53,7 @@
     "test:world": "node tests/world.mjs",
     "test:lamps": "node tests/lamps.mjs",
     "test:size": "node tests/size.mjs",
+    "test:shadows": "node tests/shadows.mjs",
     "test:tyres": "node tests/tyres.mjs",
     "test:buildings": "node tests/buildings.mjs",
     "test:bridges": "node tests/bridges.mjs",

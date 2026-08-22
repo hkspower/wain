@@ -2166,6 +2166,31 @@ const KEY_TWILIGHT = 1.5;
 const KEY_DAY = 3.1;
 const FILL_RATIO = 0.3;
 
+// How high the key light rides, in degrees above the horizon.
+//
+// This used to be the sun's own altitude, |sin|, which put the key at
+// 56 degrees at BOTH the hours this game is played — midnight and noon
+// are the same height on that curve, one above and one below. A key at
+// 56 degrees throws a 1.3 m car a 0.9 m shadow, and a car is 4.5 m
+// long, so every shadow in the game landed underneath the thing casting
+// it and was never seen. The engine's own comment promised "long moon
+// shadows across the asphalt"; the geometry had been quietly refusing
+// for as long as the comment had been there.
+//
+// So the key rides a band chosen for what it does to the ground rather
+// than for where the moon really is. At 26 degrees a car lays out 2.7 m
+// of shadow — most of its own length again — and a lamp post lays out
+// fifteen. Nobody in a car at night can tell you where the moon is; they
+// can tell you instantly whether the road looks lit.
+//
+// Daylight keeps a high sun, because that IS legible: short shadows and
+// a hot road read as noon and nothing else.
+const KEY_ELEV_NIGHT = 26;
+const KEY_ELEV_TWILIGHT = 12;
+const KEY_ELEV_DAY = 54;
+/** How far out the key sits, horizontally, from what it is lighting. */
+const KEY_RADIUS = 520;
+
 const _focus = new THREE.Vector3();
 const _rest = new THREE.Quaternion();
 // Scratch for the crowd's wave solves — world-space shoulder, direction
@@ -2724,6 +2749,11 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       lineMat
     );
     line.name = "road-line";
+    // The markings receive too. They sit a centimetre proud of the
+    // asphalt they are painted on, and a lane line that stays bright
+    // inside a shadow crossing it is the loudest possible way to say
+    // that the shadow is not really there.
+    line.receiveShadow = true;
     scene.add(line);
   }
 
@@ -2760,6 +2790,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     }
     dashes.instanceMatrix.needsUpdate = true;
     dashes.name = "road-dash";
+    dashes.receiveShadow = true;
     scene.add(dashes);
   }
 
@@ -2770,8 +2801,20 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     metalness: 0.7,
     side: THREE.DoubleSide,
   });
-  scene.add(new THREE.Mesh(buildWall(track, (s) => -(track.halfWidthAt(s) + 0.6), 0.3, 0.95), railMat));
-  scene.add(new THREE.Mesh(buildWall(track, (s) => track.halfWidthAt(s) + 0.6, 0.3, 0.95), railMat));
+  for (const edge of [-1, 1]) {
+    const rail = new THREE.Mesh(
+      buildWall(track, (s) => edge * (track.halfWidthAt(s) + 0.6), 0.3, 0.95),
+      railMat
+    );
+    // A rail casts AND receives: it is the nearest tall thing to the
+    // road, so it takes the shadow of every pole and every car that
+    // passes it, and it is where a shadow is read at eye height rather
+    // than underfoot.
+    rail.castShadow = true;
+    rail.receiveShadow = true;
+    rail.name = "guardrail";
+    scene.add(rail);
+  }
 
   // Streetlights: poles + sodium lamps, alternating sides
   {
@@ -4340,13 +4383,28 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       fog.density = 0.0009 * night + 0.00075 * twilight + 0.00045 * day;
 
       // The key light. It is the moon at night and the sun by day, so it
-      // travels: low and warm at the horizon, high and white at noon.
-      const elev = Math.max(0.08, Math.abs(sunAlt));
+      // travels: low and raking in the dark, high and white at noon.
+      //
+      // The height is an ANGLE now, blended across the same three
+      // keyframes as everything else here, and the position is derived
+      // from it — see KEY_ELEV_* for why the old |sin| curve put the key
+      // at the same 56 degrees at midnight as at noon and cost the game
+      // every shadow it thought it was casting.
+      const elevDeg =
+        KEY_ELEV_NIGHT * night + KEY_ELEV_TWILIGHT * twilight + KEY_ELEV_DAY * day;
       moonLight.position.set(
-        Math.cos(az) * 520,
-        160 + elev * 620,
-        Math.sin(az) * 520 * (sunAlt >= 0 ? 1 : -1)
+        Math.cos(az) * KEY_RADIUS,
+        KEY_RADIUS * Math.tan(THREE.MathUtils.degToRad(elevDeg)),
+        Math.sin(az) * KEY_RADIUS * (sunAlt >= 0 ? 1 : -1)
       );
+      // The direction the key comes FROM, as a unit vector, published for
+      // anyone who needs to aim something at it. The engine moves this
+      // light every frame to keep its shadow frustum on the player, which
+      // destroys the position set above — so the hour has to travel by a
+      // channel that survives being moved. Without this the shadow
+      // direction was a constant in engine.ts and the clock never reached
+      // it at all.
+      moonLight.userData.keyDir = moonLight.position.clone().normalize();
       moonLight.color.copy(
         mix3([0.75, 0.82, 1.0], [1.0, 0.78, 0.55], [1.0, 0.96, 0.88])
       );

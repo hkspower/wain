@@ -176,6 +176,27 @@ function contactMat(): THREE.MeshBasicMaterial {
   }
   return contactMatShared;
 }
+
+/**
+ * How strongly the painted-on contact blob shows, 0..1.
+ *
+ * The blob was drawn for a game whose cars cast no visible shadow: the
+ * key light sat 56 degrees up, every real shadow landed under the floor
+ * of the thing casting it, and this decal was the only thing keeping
+ * fifteen cars from looking like they were hovering.
+ *
+ * Now that the key rakes and the shadow is real, the two are painted on
+ * the same patch of road and the fake one wins — measured at 40% of the
+ * real shadow's area swallowed. So the engine turns it down where a real
+ * shadow is being drawn and leaves it at full strength on the tiers that
+ * switch shadow casting off, where it is still the only thing there.
+ *
+ * The material is shared across every car on purpose, so this is one
+ * assignment for the whole road.
+ */
+export function setContactStrength(v: number): void {
+  contactMat().opacity = v;
+}
 let contactTexShared: THREE.CanvasTexture | null = null;
 function contactShadowTexture(): THREE.CanvasTexture {
   if (contactTexShared) return contactTexShared;
@@ -3181,7 +3202,18 @@ export function createCar(colors: CarColors): THREE.Group {
   group.userData.tailGlowMats = tailGlowMats;
 
   group.traverse((o) => {
-    if (o instanceof THREE.Mesh) o.castShadow = !o.userData.noShadow;
+    if (!(o instanceof THREE.Mesh)) return;
+    o.castShadow = !o.userData.noShadow;
+    // And a car RECEIVES. It never used to — not one mesh on any car in
+    // the game — so a car drove under a flyover in full moonlight, and
+    // the car alongside you in a battle stayed lit through your own
+    // shadow. Cars are the only thing on this road the player is looking
+    // at; they were the one thing shadows could not touch.
+    //
+    // Same exclusion as casting: an unlit glow sprite or a lamp lens has
+    // no business being darkened, and MeshBasicMaterial ignores this
+    // anyway.
+    o.receiveShadow = !o.userData.noShadow;
   });
 
   // Real-world sizing. The profiles are authored a little oversized, and

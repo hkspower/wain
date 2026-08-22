@@ -10,7 +10,7 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, STATIONS, FORECOURT } from "./track";
 import { buildWorld, areaAt, roadAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
-import { createCar, crownShell, CROWN, TAIL, TIRE_RADIUS } from "./cars";
+import { createCar, crownShell, CROWN, setContactStrength, TAIL, TIRE_RADIUS } from "./cars";
 import { RIVALS, RivalDef } from "./rivals";
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
@@ -811,7 +811,11 @@ export class GameEngine {
   private frameCap: "display" | "vrr" | number = "display";
   private qualityLocked = false; // user took manual control with G
   private startedAt = 0;
-  private moonDir = new THREE.Vector3(-300, 500, 200).normalize();
+  /** Where the key light stands, relative to what it lights. Seeded with
+   *  the night direction and re-read from the world on every hour change
+   *  — see syncKeyDirection. It used to be a constant, which is how the
+   *  clock came to have no say in which way a shadow pointed. */
+  private moonDir = new THREE.Vector3(-300, 176, 200).normalize();
   private lightRight = new THREE.Vector3();
   private lightUp = new THREE.Vector3();
 
@@ -941,16 +945,40 @@ export class GameEngine {
     moon.shadow.camera.right = 90;
     moon.shadow.camera.top = 90;
     moon.shadow.camera.bottom = -90;
-    moon.shadow.camera.near = 50;
-    moon.shadow.camera.far = 1000;
+    // The light sits MOON_DIST along its own axis from whatever it is
+    // aimed at, so the casters inside a 180 m box are all within about
+    // half that box's diagonal of the middle, plus the tallest thing
+    // standing in it. near/far bracket exactly that and nothing else.
+    //
+    // It used to be 50..1000 against a scene that measured 56 m deep:
+    // 5.9% of the depth range in use, which is four bits of precision
+    // thrown away for nothing. Depth precision is what a shadow bias is
+    // paid out of, and a bias is what detaches a shadow from the foot of
+    // the thing casting it.
+    // +/- 250 rather than +/- 180: the tower masts stand 427 m up, which
+    // puts them 187 m nearer the light than the middle of the box, and a
+    // clipped caster throws nothing at all. Their own shadows land 875 m
+    // away and will never be seen — but "nothing is clipped" is an
+    // invariant worth being able to state plainly, and a test that fails
+    // on something harmless is a test somebody eventually deletes. The
+    // margin costs a little precision and buys a rule with no asterisk.
+    moon.shadow.camera.near = GameEngine.MOON_DIST - 250;
+    moon.shadow.camera.far = GameEngine.MOON_DIST + 250;
     // Acne vs peter-panning: lean on normalBias (surface-slope aware)
-    // rather than a large constant depth bias
-    moon.shadow.bias = -0.0003;
-    moon.shadow.normalBias = 0.05;
+    // rather than a large constant depth bias. Both are smaller than
+    // they were, because the tightened range above pays for them.
+    moon.shadow.bias = -0.00008;
+    moon.shadow.normalBias = 0.025;
+    // Softness. In three 0.184 the PCF path is a five-tap Vogel disk
+    // rotated per pixel by interleaved gradient noise, and `radius`
+    // scales it in texels — so this is a real penumbra control and not
+    // the no-op it was in the versions this code was first written
+    // against. At 4.4 cm per texel, 3.5 texels is about 15 cm of
+    // gradient: soft enough to read as a night shadow, tight enough that
+    // a car still has a recognisable outline on the asphalt.
+    moon.shadow.radius = 3.5;
     this.scene.add(moon.target);
-    // Basis for texel-snapping the shadow frustum as it follows the car
-    this.lightRight.crossVectors(this.moonDir, new THREE.Vector3(0, 1, 0)).normalize();
-    this.lightUp.crossVectors(this.lightRight, this.moonDir).normalize();
+    this.syncKeyDirection();
 
     // Bloom makes the night work: lamps, taillights, cat-eyes and the
     // tower spheres all halo. Auto-disabled on weak machines (see loop).
@@ -1693,6 +1721,10 @@ export class GameEngine {
       this.bloomPass.enabled = false;
       this.world.moonLight.castShadow = false;
       this.headlight.castShadow = false;
+      // The blob goes back to full strength as the real shadow leaves,
+      // so a machine that drops to this tier does not also lose the only
+      // thing keeping its cars on the road.
+      this.applyContactStrength();
       this.fxaaPass.enabled = false;
       this.liveReflections = false;
       this.applyLiveReflections();
@@ -1849,6 +1881,11 @@ export class GameEngine {
    * having it.
    */
   static readonly RACE_OPEN_H = 0;
+  /** World up, for the cross products that build a light basis. */
+  private static readonly UP = new THREE.Vector3(0, 1, 0);
+  /** How far along its own axis the key light stands from what it is
+   *  lighting. The shadow frustum's near/far bracket this. */
+  static readonly MOON_DIST = 400;
   static readonly RACE_CLOSE_H = 5 + 50 / 60;
   /** Minutes of play the racing window lasts. The clock keeps running
    *  afterwards — the sun comes up, and you can stay out in it. */
@@ -1893,7 +1930,38 @@ export class GameEngine {
    * is just a grey cone hanging off the bumper, so both fade out — the
    * lamps themselves stay lit, which is what Gulf drivers do anyway.
    */
+  /**
+   * Take the key light's direction from the world's clock, and rebuild
+   * the basis the shadow frustum is texel-snapped against.
+   *
+   * These two have to move together. lightRight/lightUp are the axes the
+   * snapping rounds along, so leaving them pointing at the old sun makes
+   * the rounding happen in the wrong plane and the shadow edges crawl —
+   * which is the exact artefact the snapping exists to prevent.
+   */
+  private syncKeyDirection(): void {
+    const dir = this.world?.moonLight?.userData?.keyDir as THREE.Vector3 | undefined;
+    if (dir) this.moonDir.copy(dir);
+    this.lightRight.crossVectors(this.moonDir, GameEngine.UP).normalize();
+    this.lightUp.crossVectors(this.lightRight, this.moonDir).normalize();
+  }
+
+  /**
+   * Turn the painted-on contact blob down when a real shadow is being
+   * drawn, and back up when it is not.
+   *
+   * The blob predates the car ever having a visible shadow, and with the
+   * key raked it now competes with the real one for the same asphalt —
+   * measured swallowing 40% of it. It stays at full strength wherever
+   * shadow casting is off, because there it is not competing with
+   * anything: it IS the shadow.
+   */
+  private applyContactStrength(): void {
+    setContactStrength(this.world.moonLight.castShadow ? 0.5 : 1);
+  }
+
   private applyDaylight(): void {
+    this.syncKeyDirection();
     const dark = 1 - this.daylight;
     // The grade's shadow lift is a night look and is switched by the same
     // sun that switches the headlights. Twilight gets a fraction of it,
@@ -1933,6 +2001,7 @@ export class GameEngine {
     this.bloomPass.enabled = high || balanced;
     this.world.moonLight.castShadow = high || balanced;
     this.headlight.castShadow = high || balanced;
+    this.applyContactStrength();
     this.fxaaPass.enabled = high || balanced;
     // The live paint probe is the most expensive single toy — high only
     this.liveReflections = high;
@@ -2111,6 +2180,7 @@ export class GameEngine {
       this.bloomPass.enabled = !this.bloomPass.enabled;
       this.world.moonLight.castShadow = this.bloomPass.enabled;
       this.headlight.castShadow = this.bloomPass.enabled;
+      this.applyContactStrength();
       this.fxaaPass.enabled = this.bloomPass.enabled;
       this.liveReflections = this.bloomPass.enabled;
       this.applyLiveReflections();
@@ -4333,7 +4403,7 @@ export class GameEngine {
       .copy(p)
       .addScaledVector(this.lightRight, Math.round(u / texel) * texel - u)
       .addScaledVector(this.lightUp, Math.round(v / texel) * texel - v);
-    moon.position.copy(this.v1).addScaledVector(this.moonDir, 400);
+    moon.position.copy(this.v1).addScaledVector(this.moonDir, GameEngine.MOON_DIST);
     moon.target.position.copy(this.v1);
 
     this.grainPass.uniforms.uTime.value = (performance.now() / 1000) % 100;
