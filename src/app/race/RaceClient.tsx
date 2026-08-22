@@ -1283,6 +1283,7 @@ export default function RaceClient() {
             kit: tune.kit,
             headlamps: tune.headlamps,
             tint: tune.tint,
+            finish: tune.finish,
             stickers: tune.stickers,
             lengthM: tune.lengthM,
             crew: tune.crew ?? undefined,

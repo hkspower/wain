@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { EXHAUSTS, kitAtLeast, type ExhaustSpec, type KitLevel } from "./mods";
+import { EXHAUSTS, FINISHES, kitAtLeast, type ExhaustSpec, type KitLevel, type PaintFinish } from "./mods";
 import { upgradeCarShells, upgradeWheels, upgradeDriver } from "./models";
 import { arabicUI, latinDisplay, textTexture } from "./text";
 import { kuwaitiDriver } from "./characters";
@@ -48,6 +48,8 @@ export interface CarColors {
   headlamps?: "stock" | "smoked" | "single";
   /** Window tint, 0-100 per cent. Absent is factory glass. */
   tint?: number;
+  /** Lacquer finish: gloss, satin or matte. Absent is gloss. */
+  finish?: PaintFinish;
   /**
    * Racing stripes.
    *
@@ -2192,7 +2194,11 @@ export function createCar(colors: CarColors): THREE.Group {
     // race — the headlamps, their glare sprites and the tail lamps are,
     // and none of those are paint. So this is a showroom and menu
     // change by measurement, whatever it looks like it should be.
-    roughness: 0.29, // basecoat: still tight enough for flake, not a mirror
+    // The finish decides the lacquer. gloss is the mirror this game has
+    // always drawn; satin spreads the highlight so it follows a curve
+    // instead of skipping across it; matte takes the clearcoat away
+    // entirely and lets the shape do the work.
+    roughness: 0.29 + FINISHES[colors.finish ?? "gloss"].roughnessAdd,
     // Metalness by how LIGHT the paint is.
     //
     // At 0.95 across the board, a metal's reflection is tinted by its
@@ -2208,9 +2214,9 @@ export function createCar(colors: CarColors): THREE.Group {
     // from the clearcoat above rather than from flake below. Mid-tone
     // colours are where metallic paint actually lives, and they keep it.
     metalness: paintMetalness(colors.body),
-    clearcoat: 1,
-    clearcoatRoughness: 0.13, // lacquer with some orange peel in it
-    envMapIntensity: 1.5,
+    clearcoat: FINISHES[colors.finish ?? "gloss"].clearcoat,
+    clearcoatRoughness: FINISHES[colors.finish ?? "gloss"].clearcoatRoughness,
+    envMapIntensity: 1.5 * FINISHES[colors.finish ?? "gloss"].envScale,
     // No sheen here, and that is a MEASURED decision rather than an
     // omission. The edges of a car in this game were the suspected
     // cause of "no volume", so a grazing-angle sheen lobe was fitted

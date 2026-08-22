@@ -91,6 +91,7 @@ const shot = async (car) => {
       body: parseInt(c.color.replace("#", ""), 16),
       accent: c.accent ?? 0x007a3d,
       stripes: c.stripes ?? undefined,
+      finish: c.finish ?? undefined,
       style: c.bodyStyle ?? "sedan",
       raceKit: c.kit === "attack",
       // The card has to show the car the showroom sells, and what the

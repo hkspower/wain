@@ -145,6 +145,10 @@ const fleet = await page.evaluate(async () => {
       style: car.bodyStyle ?? "sedan",
       kit: car.kit,
       parts,
+      style: car.bodyStyle ?? "sedan",
+      kit: car.kit,
+      color: String(car.color).toLowerCase(),
+      finish: car.finish ?? "gloss",
       meshes: boxes.length,
       wheels: wheels.length,
       exhaustTips: (g.userData.exhaustTips ?? []).length,
@@ -260,6 +264,33 @@ for (const c of fleet) {
   if (c.belowRoad.length) problems.push(`${c.name}: below the road — ${[...new Set(c.belowRoad)].join(", ")}`);
   if (c.tooHigh.length) problems.push(`${c.name}: floating high — ${[...new Set(c.tooHigh)].join(", ")}`);
 }
+// --- Does every car look like ITSELF?
+//
+// Sixteen cars share six silhouettes, so the shell alone cannot tell
+// them apart — what does is the combination a car leaves the factory
+// with: its shape, how far it is built, its colour and its finish. Two
+// cars matching on all four are one car sold twice, and the showroom
+// ladder stops meaning anything.
+//
+// A data check rather than a rendered one, deliberately: this is a
+// question about what the roster SAYS, and a pixel comparison would
+// answer it slower and with more ways to be wrong.
+{
+  const seen = new Map();
+  for (const c of fleet) {
+    const key = [c.style ?? "sedan", c.kit ?? "street", c.color, c.finish ?? "gloss"].join("|");
+    if (seen.has(key)) {
+      problems.push(
+        `${c.name} and ${seen.get(key)} are the same car: same silhouette, same kit, ` +
+          `same colour, same finish`
+      );
+    } else {
+      seen.set(key, c.name);
+    }
+  }
+  console.log(`\nidentity   ${seen.size} distinct factory builds across ${fleet.length} cars`);
+}
+
 console.log(`\n--- ${problems.length} problem${problems.length === 1 ? "" : "s"} ---`);
 for (const p of problems) console.log(`  ${p}`);
 

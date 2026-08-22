@@ -8,6 +8,7 @@ import { loadCrew, type Crew } from "./teams";
 export type ExclusiveCat =
   | "engine"
   | "lamps"
+  | "finish"
   | "aspiration"
   | "intake"
   | "brakes"
@@ -30,6 +31,7 @@ export const EXCLUSIVE_CATS: ReadonlySet<string> = new Set([
   "paint",
   "glow",
   "lamps",
+  "finish",
 ]);
 
 export interface Part {
@@ -108,6 +110,19 @@ export const PARTS: Part[] = [
   { id: "paint-red", cat: "paint", name: "Falcon Red", ar: "أحمر", price: 150, desc: "" },
   { id: "paint-gold", cat: "paint", name: "Desert Gold", ar: "ذهبي", price: 250, desc: "" },
   { id: "paint-teal", cat: "paint", name: "Towers Teal", ar: "فيروزي", price: 200, desc: "" },
+  { id: "paint-silver", cat: "paint", name: "Corniche Silver", ar: "فضي", price: 150, desc: "" },
+  { id: "paint-gunmetal", cat: "paint", name: "Gunmetal", ar: "رصاصي", price: 200, desc: "" },
+  { id: "paint-navy", cat: "paint", name: "Deep Navy", ar: "كحلي", price: 200, desc: "" },
+  { id: "paint-orange", cat: "paint", name: "Sunset Orange", ar: "برتقالي", price: 250, desc: "" },
+  { id: "paint-purple", cat: "paint", name: "Salmiya Purple", ar: "بنفسجي", price: 250, desc: "" },
+  { id: "paint-lime", cat: "paint", name: "Acid Lime", ar: "ليموني", price: 300, desc: "" },
+  { id: "paint-sand", cat: "paint", name: "Desert Sand", ar: "رملي", price: 200, desc: "" },
+  { id: "paint-maroon", cat: "paint", name: "Maroon", ar: "عنابي", price: 200, desc: "" },
+  // Finish — exclusive, and orthogonal to colour. Any colour can be had
+  // in any of the three.
+  { id: "finish-gloss", cat: "finish", name: "Gloss Lacquer", ar: "لمعة", price: 0, desc: "Clearcoat over metallic base — the way it left the showroom" },
+  { id: "finish-satin", cat: "finish", name: "Satin / Low Gloss", ar: "نص لمعة", price: 700, desc: "A soft sheen instead of a mirror. Reflections spread out and follow the curve of a panel rather than skipping across it" },
+  { id: "finish-matte", cat: "finish", name: "Matte Wrap", ar: "مطفي", price: 1100, desc: "No clearcoat at all. Reads as pigment, and the shape of the bodywork does all the work" },
   // Underglow — exclusive
   { id: "glow-none", cat: "glow", name: "No Underglow", ar: "بدون", price: 0, desc: "" },
   { id: "glow-cyan", cat: "glow", name: "Cyan Glow", ar: "سماوي", price: 200, desc: "" },
@@ -188,6 +203,64 @@ export const PAINT_COLORS: Record<string, number> = {
   "paint-red": 0xc1121f,
   "paint-gold": 0xc9a227,
   "paint-teal": 0x2e8f96,
+  // The rest of the booth. Chosen to sit APART from each other rather
+  // than to fill a wheel evenly: two blues a player cannot tell apart on
+  // a dark road are one blue that cost twice.
+  "paint-silver": 0xb9bfc7,
+  "paint-gunmetal": 0x4a5058,
+  "paint-navy": 0x16305e,
+  "paint-orange": 0xe2571c,
+  "paint-purple": 0x5b2a86,
+  "paint-lime": 0x9ad11f,
+  "paint-sand": 0xcbb388,
+  "paint-maroon": 0x5e1420,
+};
+
+/**
+ * How the lacquer is finished — and it is a separate axis from colour.
+ *
+ * Every car in this game has been a mirror, because there was one paint
+ * material and its clearcoat was pinned at 1 with a near-zero roughness.
+ * That is a gloss finish and it is only one of the three anybody
+ * actually orders.
+ *
+ * - `gloss` — clearcoat over metallic base. What a car leaves a
+ *   showroom in, and what this game has always drawn.
+ * - `satin` — a low-gloss lacquer. Reflections are there but spread
+ *   out; the horizon band becomes a soft sweep down the flank instead
+ *   of a hard line. This is the finish that flatters bodywork, because
+ *   a diffuse highlight follows a curve where a sharp one skips across
+ *   it.
+ * - `matte` — no clearcoat at all. Reads as pigment, kills the
+ *   reflection almost entirely, and is the only finish where the SHAPE
+ *   of a panel does all the work.
+ *
+ * Numbers, not adjectives: each is a clearcoat strength, a clearcoat
+ * roughness and a basecoat roughness, so "low gloss" means something a
+ * renderer can act on.
+ */
+export type PaintFinish = "gloss" | "satin" | "matte";
+
+export interface FinishSpec {
+  clearcoat: number;
+  clearcoatRoughness: number;
+  /** Added to the basecoat's own roughness. */
+  roughnessAdd: number;
+  /** Scales the environment contribution. */
+  envScale: number;
+}
+
+export const FINISHES: Record<PaintFinish, FinishSpec> = {
+  gloss: { clearcoat: 1, clearcoatRoughness: 0.13, roughnessAdd: 0, envScale: 1 },
+  satin: { clearcoat: 0.45, clearcoatRoughness: 0.42, roughnessAdd: 0.16, envScale: 0.62 },
+  matte: { clearcoat: 0, clearcoatRoughness: 1, roughnessAdd: 0.38, envScale: 0.3 },
+};
+
+/** The garage part id for each finish, and back again. */
+export const FINISH_OF_PART: Record<string, PaintFinish> = {
+  "finish-gloss": "gloss",
+  "finish-satin": "satin",
+  "finish-matte": "matte",
 };
 
 export const GLOW_COLORS: Record<string, number> = {
@@ -257,6 +330,8 @@ export interface CarModel {
   accent?: number;
   /** Which stripes, when there is an accent. Absent is the centre bar. */
   stripes?: "single" | "twin";
+  /** The finish it leaves the showroom in. Absent is gloss. */
+  finish?: PaintFinish;
   /** What the car left the factory with. Every machine on the corniche
    *  has a heart before anybody opens the bonnet, and the showroom is
    *  where you meet it. */
@@ -326,6 +401,7 @@ export const CARS: CarModel[] = [
     // at any price until every legend on the roster has been beaten,
     // which is the only thing in this game that money cannot buy.
     id: "zeta-300-gtr",
+    finish: "gloss",
     name: "Zeta 300 GTR",
     ar: "زيتا ٣٠٠ جي تي آر",
     cls: "supercar",
@@ -364,6 +440,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "efreet-rx-kai",
+    finish: "satin",
     name: "Efreet RX Kai",
     ar: "كبير العفاريت",
     cls: "supercar",
@@ -382,6 +459,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "sahara-v12",
+    finish: "gloss",
     name: "Sahara GT-12",
     ar: "صحارى",
     cls: "supercar",
@@ -400,6 +478,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "falcon-720",
+    finish: "matte",
     name: "Falcon 720 Veloce",
     ar: "الصقر ٧٢٠",
     cls: "supercar",
@@ -418,6 +497,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "storm-s8",
+    finish: "gloss",
     name: "Desert Storm S8",
     ar: "عاصفة",
     cls: "supercar",
@@ -435,6 +515,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "anniversary-30",
+    finish: "gloss",
     name: "Bareed 30 Anniversary",
     ar: "بريد ٣٠",
     cls: "sport",
@@ -458,6 +539,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "kaiju-r",
+    finish: "gloss",
     name: "Kaiju R",
     ar: "كايجو",
     cls: "supercar",
@@ -476,6 +558,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "efreet-rx",
+    finish: "satin",
     name: "Efreet RX",
     ar: "عفريت",
     cls: "sport",
@@ -494,6 +577,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "zeta-300",
+    finish: "gloss",
     name: "Zeta 300",
     ar: "زيتا ٣٠٠",
     cls: "sport",
@@ -512,6 +596,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "gulf-coupe-rs",
+    finish: "gloss",
     name: "Gulf Coupe RS",
     ar: "كوبيه الخليج",
     cls: "sport",
@@ -531,6 +616,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "salmiya-turbo",
+    finish: "gloss",
     name: "Salmiya Turbo GT",
     ar: "تيربو السالمية",
     cls: "sport",
@@ -548,6 +634,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "hawally-2t",
+    finish: "satin",
     name: "Hawally Sport 2.0T",
     ar: "حولي سبورت",
     cls: "normal",
@@ -565,6 +652,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "deera-sedan",
+    finish: "gloss",
     name: "Deera Sedan",
     ar: "سيدان الديرة",
     cls: "normal",
@@ -582,6 +670,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "jahra-pickup",
+    finish: "matte",
     name: "Jahra Pickup",
     ar: "ونيت الجهراء",
     cls: "normal",
@@ -599,6 +688,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "sharq-hatch",
+    finish: "gloss",
     name: "Sharq Hatch",
     // It is called a hatch and it was built as a saloon. The hatch
     // profile is authored shorter and proportionally wider, which is
@@ -621,6 +711,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "wain-special",
+    finish: "satin",
     name: "Wain Special",
     ar: "وين سبيشال",
     cls: "normal",
@@ -958,6 +1049,8 @@ export interface TuneEffects {
   /** Factory second colour and which stripes it draws, or undefined. */
   accent?: number;
   stripes?: "single" | "twin";
+  /** Lacquer finish — a bought part wins over the factory one. */
+  finish: PaintFinish;
   /** Full time-attack aero built into the car (cars.ts raceKit). Kept
    *  as a boolean because a lot of call sites only ever asked "is this
    *  the full kit"; `kit` below is the real answer. */
@@ -1107,6 +1200,9 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     tint: clampTint(build.tint),
     accent: car.accent,
     stripes: car.stripes,
+    // A bought finish beats the factory one; otherwise the car wears
+    // what it was built with.
+    finish: FINISH_OF_PART[eq.finish ?? ""] ?? car.finish ?? "gloss",
     raceKit: car.kit === "attack",
     kit: car.kit,
     stickers: has("stickers"),
