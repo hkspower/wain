@@ -130,7 +130,7 @@ function getGoldRimMat(): THREE.MeshStandardMaterial {
       color: 0xd4af37,
       roughness: 0.18,
       metalness: 1,
-      envMapIntensity: 1.8,
+      envMapIntensity: 2.4,
     });
   }
   return goldRimMat;
@@ -1022,7 +1022,7 @@ function getTireMat(): THREE.MeshStandardMaterial {
     color: 0xffffff,
     roughness: 1, // the map carries the real range
     metalness: 0,
-    envMapIntensity: 0.55, // rubber picks up the night, faintly
+    envMapIntensity: 2.4, // rubber picks up the night, faintly
   });
   return tireMatShared;
 }
@@ -1954,11 +1954,26 @@ export function createCar(colors: CarColors): THREE.Group {
   const bodyMat = new THREE.MeshPhysicalMaterial({
     name: "paint",
     color: colors.body,
-    roughness: 0.18, // basecoat: tight, so the flake catches points
+    // Gloss, pulled back.
+    //
+    // These were the numbers of a show car under studio lights: a 0.18
+    // basecoat under a clearcoat at 0.05 is very close to a mirror, and
+    // envMapIntensity 2.4 then multiplies whatever that mirror finds by
+    // nearly two and a half. On the showroom turntable it made every
+    // machine look wet.
+    //
+    // Worth recording what this did NOT fix, because it was measured:
+    // out on the road at night the paint's environment reflection adds
+    // -0.004 mean luminance to the car and lifts 0.3% of it by more
+    // than 0.2. Reflections are not what makes a car bright in the
+    // race — the headlamps, their glare sprites and the tail lamps are,
+    // and none of those are paint. So this is a showroom and menu
+    // change by measurement, whatever it looks like it should be.
+    roughness: 0.29, // basecoat: still tight enough for flake, not a mirror
     metalness: 0.95,
     clearcoat: 1,
-    clearcoatRoughness: 0.05, // lacquer: near-mirror, not a laser mirror
-    envMapIntensity: 2.4,
+    clearcoatRoughness: 0.13, // lacquer with some orange peel in it
+    envMapIntensity: 1.5,
     // No sheen here, and that is a MEASURED decision rather than an
     // omission. The edges of a car in this game were the suspected
     // cause of "no volume", so a grazing-angle sheen lobe was fitted

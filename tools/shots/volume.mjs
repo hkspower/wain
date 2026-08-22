@@ -125,6 +125,49 @@ const out = await page.evaluate(async () => {
     if (dr + dg + db > 24) isCar[j] = 1;
   }
 
+  // How much of the car IS reflection?
+  //
+  // Sweeping envMapIntensity from 2.4 to 1.0 moved the car's luminance
+  // statistics by less than the run-to-run noise, which can only mean
+  // the statistic was not measuring the paint. It was not: the car mask
+  // contains the headlamp lenses, the tail lamps and the additive glare
+  // sprites, and those are emissive — they do not care what the
+  // environment map says. 5.5% of the car being "over 0.75" was 5.5% of
+  // the car being LAMPS.
+  //
+  // So ask the question the way the shadow tool asks its question:
+  // render once with the paint's environment contribution and once
+  // without, and the difference IS the reflection. Nothing emissive
+  // moves between those two frames, so nothing emissive can pollute it.
+  const paintMat = e.carBody?.userData?.bodyMat;
+  let refl = null;
+  if (paintMat) {
+    const envWas = paintMat.envMapIntensity;
+    const ccWas = paintMat.clearcoat;
+    paintMat.envMapIntensity = 0;
+    paintMat.clearcoat = 0;
+    paintMat.needsUpdate = true;
+    const flat = grab();
+    paintMat.envMapIntensity = envWas;
+    paintMat.clearcoat = ccWas;
+    paintMat.needsUpdate = true;
+    let sum = 0, n2 = 0, over = 0, peak = 0;
+    for (let j = 0; j < W * H; j++) {
+      if (!isCar[j]) continue;
+      const i = j * 4;
+      const d = lum(after.d, i) - lum(flat.d, i);
+      sum += d; n2++;
+      if (d > 0.2) over++;
+      if (d > peak) peak = d;
+    }
+    refl = {
+      mean: +(sum / Math.max(1, n2)).toFixed(4),
+      hotPct: +((over / Math.max(1, n2)) * 100).toFixed(2),
+      peak: +peak.toFixed(4),
+    };
+  }
+
+
   // Erode to find the interior, and the band between the silhouette and
   // the eroded interior is the rim.
   const erode = (src, n) => {
@@ -181,6 +224,22 @@ const out = await page.evaluate(async () => {
   const rim = rimN ? rimSum / rimN : 0;
   const coreL = coreN ? coreSum / coreN : 0;
 
+  // How SHINY the paint is, measured on the car's own pixels.
+  //
+  // A direct statistic rather than a ratio of two eroded regions: the
+  // rim/core ratio proved unrepeatable, and the reason was that it
+  // divided one derived quantity by another. The luminance distribution
+  // over a fixed mask, with the exposure pinned, is the honest way to
+  // ask "how much of this car is a highlight".
+  const carLum = [];
+  for (let j = 0; j < W * H; j++) {
+    if (isCar[j]) carLum.push(lum(after.d, j * 4));
+  }
+  carLum.sort((a, b) => a - b);
+  const pct = (q) => (carLum.length ? carLum[Math.floor((carLum.length - 1) * q)] : 0);
+  const hot = carLum.filter((v) => v > 0.75).length / Math.max(1, carLum.length);
+  const blown = carLum.filter((v) => v > 0.92).length / Math.max(1, carLum.length);
+
   // Colour: chroma and hue spread over the whole frame.
   let chromaSum = 0, n = 0;
   let sx = 0, sy = 0, wsum = 0;
@@ -212,6 +271,13 @@ const out = await page.evaluate(async () => {
     rim: +rim.toFixed(4),
     core: +coreL.toFixed(4),
     volume: coreL > 0 ? +(rim / coreL).toFixed(3) : 0,
+    pMean: +(carLum.reduce((a, b) => a + b, 0) / Math.max(1, carLum.length)).toFixed(4),
+    p50: +pct(0.5).toFixed(4),
+    p95: +pct(0.95).toFixed(4),
+    p99: +pct(0.99).toFixed(4),
+    hotPct: +(hot * 100).toFixed(2),
+    blownPct: +(blown * 100).toFixed(2),
+    refl,
     chroma: +(chromaSum / n).toFixed(4),
     hueSpread: +(1 - R).toFixed(4),
     hueBins: bins,
@@ -224,6 +290,12 @@ console.log("\n=== VOLUME & COLOUR ===");
 console.log(`  car             ${out.carPx} px of silhouette`);
 console.log(`  rim / core      ${out.rim} vs ${out.core}  ->  volume ${out.volume}   (upper silhouette only)`);
 console.log(`                  (1.0 is a flat cut-out; above 1 the edges turn toward the light)`);
+console.log(`  paint          mean ${out.pMean}  p50 ${out.p50}  p95 ${out.p95}  p99 ${out.p99}`);
+console.log(`  highlights      ${out.hotPct}% of the car is over 0.75, ${out.blownPct}% over 0.92`);
+if (out.refl) {
+  console.log(`  reflection      adds ${out.refl.mean} mean luminance to the car, peak +${out.refl.peak}`);
+  console.log(`                  ${out.refl.hotPct}% of the car is lifted more than 0.2 by reflection alone`);
+}
 console.log(`  chroma          ${out.chroma}  mean distance from grey, 0-1`);
 console.log(`  hue spread      ${out.hueSpread}  circular variance, 0 = one colour`);
 console.log(`  hues in use     ${out.hueBins} of 36 ten-degree bins carry real colour`);
