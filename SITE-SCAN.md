@@ -21,7 +21,21 @@ $ chromium --no-proxy-server https://example.com/
 
 DNS resolves (the domain points at Hostinger's CDN); the packets do not leave.
 
-## Run it on your own machine
+## The two-line version, with nothing to install
+
+`scripts/site-scan.sh` needs only curl and a Terminal. It cannot see rendering
+or console errors — that takes a browser — but it covers what actually costs
+money: a leaked credential, a directory listing, a missing security header, a
+dead picture on the home page, a bank dropin that answers when it should not.
+
+```sh
+bash site-scan.sh                        # www.sporta.com.kw
+bash site-scan.sh https://sporta.com.kw  # somewhere else
+```
+
+Send me the output and I will act on it.
+
+## The full version, with a browser
 
 Node 18 or newer.
 
