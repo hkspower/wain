@@ -621,6 +621,123 @@ check(traffic.lean === 0, "traffic drivers carry legs — the lean build is not 
   );
 }
 
+// --- 6. EVERY driver, not just the two anyone was watching ---
+//
+// The player's rig and the rival's were tested; traffic and the remote
+// cruisers were not, and that is exactly where the gap was. Both were
+// solved with a hard-coded zero for brake and for longitudinal g, so a
+// civilian standing on the pedal behind a slower car, and a remote
+// player braking for the roundabout, both sat perfectly upright with a
+// foot in the air. The lateral axis had been fixed for them; nobody had
+// checked the other one.
+//
+// What is asserted is the BODY, not the plumbing: fold the car up under
+// braking and the driver has to fold with it. A test that only read the
+// argument being passed would pass on a number that never reached a
+// joint.
+{
+  const traffic = await page.evaluate(async () => {
+    const e = window.__grnEngine;
+    // Put a civilian right in front of another one, in the same lane,
+    // and let it close: that is the only thing that makes traffic brake.
+    const a = e.traffic[0], b = e.traffic[1];
+    if (!a || !b) return { none: true };
+    const rig = a.mesh.userData.driver;
+    if (!rig) return { noRig: true };
+    // Solved only within range of the player, so stand next to them.
+    e.player.s = a.s;
+    e.player.lat = a.lat;
+
+    a.lat = b.lat;
+    a.s = e.track.wrap(b.s - 10);
+    a.speed = 30;
+    b.speed = 8;
+    let peakFold = 0, peakBrake = 0, peakAccel = 0;
+    for (let i = 0; i < 90; i++) {
+      e.player.s = a.s;
+      e.update(1 / 60);
+      peakFold = Math.max(peakFold, Math.abs(rig.lean.rotation.x));
+      peakBrake = Math.max(peakBrake, a.brakeVis ?? 0);
+      peakAccel = Math.min(peakAccel, a.accel ?? 0);
+    }
+    return {
+      fold: +peakFold.toFixed(4),
+      brake: +peakBrake.toFixed(3),
+      accel: +peakAccel.toFixed(2),
+    };
+  });
+
+  if (traffic.none || traffic.noRig) {
+    fail.push(traffic.noRig ? "traffic carries no driver rig" : "no traffic spawned");
+  } else {
+    console.log(
+      `\ntraffic      closing on a slower car: ${traffic.accel} m/s2, ` +
+      `brake ${traffic.brake}, body folds ${traffic.fold} rad`
+    );
+    check(traffic.accel < -1, `traffic never actually braked (${traffic.accel} m/s2)`);
+    check(traffic.brake > 0.05, "the traffic driver's foot never went near the brake");
+    check(traffic.fold > 0.01, "the traffic driver does not fold under braking");
+  }
+
+  const remote = await page.evaluate(async () => {
+    const e = window.__grnEngine;
+    e.upsertRemote(9901, "Tester", "#cc2222");
+    // Two snapshots ARE the acceleration — that is the whole mechanism,
+    // so the test feeds two and nothing else.
+    const r0 = e.remotes.get(9901);
+    e.updateRemoteState(9901, 400, 0, 40);
+    // The interval is REPORTED rather than assumed. This asked for
+    // 120 ms and got 4,658 — the page is running a game loop and a
+    // timer is a lower bound, not a duration — which is worth having on
+    // screen, because the number below is a quotient and the divisor
+    // is not what the test asked for.
+    const t0 = performance.now();
+    await new Promise((res) => setTimeout(res, 120));
+    e.updateRemoteState(9901, 405, 0, 12);
+    const wireGap = +((performance.now() - t0) / 1000).toFixed(3);
+    const r = [...e.remotes.values()].find((x) => x.name === "Tester");
+    if (!r) return { none: true };
+    const rig = r.mesh.userData.driver;
+    if (!rig) return { noRig: true };
+    // Read the acceleration HERE, at the moment the second snapshot
+    // produced it. The first version of this read it after sixty
+    // updates and got zero: the page's own loop is still running during
+    // the await, the net layer pushes its own snapshots for any car it
+    // knows about, and by the time the frames were done a later pair
+    // had overwritten this one with a steady cruise. The derivative is
+    // an event, not a state, and it has to be sampled where it happens.
+    const wireAccel = r.accel;
+
+    e.player.s = r.snapS;
+    let peakFold = 0, peakBrake = 0;
+    for (let i = 0; i < 60; i++) {
+      e.update(1 / 60);
+      peakFold = Math.max(peakFold, Math.abs(rig.lean.rotation.x));
+      peakBrake = Math.max(peakBrake, r.brakeVis ?? 0);
+    }
+    const out = {
+      gap: wireGap,
+      accel: +wireAccel.toFixed(1),
+      brake: +peakBrake.toFixed(3),
+      fold: +peakFold.toFixed(4),
+    };
+    e.removeRemote(9901);
+    return out;
+  });
+
+  if (remote.none || remote.noRig) {
+    fail.push(remote.noRig ? "a remote car carries no driver rig" : "the remote car never appeared");
+  } else {
+    console.log(
+      `remote       40 -> 12 m/s over ${remote.gap}s reads as ${remote.accel} m/s2, ` +
+      `brake ${remote.brake}, body folds ${remote.fold} rad`
+    );
+    check(remote.accel < -1, `the wire's own deceleration was thrown away (${remote.accel})`);
+    check(remote.brake > 0.05, "the remote driver's foot never went near the brake");
+    check(remote.fold > 0.01, "the remote driver does not fold under braking");
+  }
+}
+
 console.log(fail.length?"\nFAILURES:\n - "+fail.join("\n - "):"\nIK solves, clamps and behaves");
 await b.close();
 process.exit(fail.length?1:0);

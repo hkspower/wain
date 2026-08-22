@@ -125,10 +125,26 @@ for (const shape of SHAPES) {
       for (let i = 0; i < 40; i++) { e.composer.render(); e.exposurePass.dt = 1 / 30; }
 
       const withCar = grab();
-      const carWas = e.playerMesh.visible;
-      e.playerMesh.visible = false;
+      // Hide the car's BODYWORK, and nothing else.
+      //
+      // Setting playerMesh.visible = false is the obvious way and it is
+      // wrong: the headlights, their target and the visible beam cones
+      // are children of that group, so hiding it switches the car's
+      // lights off as well — and a three.js light with visible=false
+      // contributes nothing. The difference then includes every pixel
+      // the beams were lighting, which is most of the road. It showed:
+      // at 21:9 the "car" came back spanning 53.8% of frame width while
+      // covering 2.4% of its area, which is not a shape any car has. It
+      // was the headlight splash.
+      const hidden = [];
+      e.playerMesh.traverse((o) => {
+        if ((o.isMesh || o.isSprite || o.isPoints) && o.visible) {
+          hidden.push(o);
+          o.visible = false;
+        }
+      });
       const without = grab();
-      e.playerMesh.visible = carWas;
+      for (const o of hidden) o.visible = true;
 
       // The difference IS the car.
       const a = withCar.img.data, b = without.img.data;

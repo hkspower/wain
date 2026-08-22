@@ -286,6 +286,18 @@ interface RemotePlayer {
   snapAt: number;
   /** Smoothed visible steer for the remote car's driver rig. */
   steerVis: number;
+  /**
+   * Acceleration, differenced from consecutive snapshots.
+   *
+   * The wire carries a speed and a time. Two of those are an
+   * acceleration, and it was being thrown away: a remote player braking
+   * hard for the roundabout showed a driver sitting perfectly still.
+   * This is the only longitudinal kinematics available for a car whose
+   * inputs are on somebody else's machine, so it is worth taking.
+   */
+  accel: number;
+  /** Smoothed brake pressure for the rig. */
+  brakeVis: number;
 }
 
 interface TrafficCar {
@@ -295,6 +307,21 @@ interface TrafficCar {
   speed: number;
   /** Smoothed visible steer for this car's driver. */
   steerVis: number;
+  /**
+   * What this car did to its own speed last frame, m/s^2.
+   *
+   * Traffic brakes — up to 6 m/s^2 when it closes on a slower car in
+   * its own lane — and its driver was being solved with a hard-coded
+   * zero for both brake and longitudinal g, so a civilian standing on
+   * the pedal behind a bus sat bolt upright with their foot in the air.
+   * The code that solves them complains, correctly, that "a body that
+   * never answers the corner is the difference between a person driving
+   * and a mannequin being carried along"; this is the same sentence
+   * about the other axis.
+   */
+  accel: number;
+  /** Smoothed brake pressure, so the fold does not snap on and off. */
+  brakeVis: number;
 }
 
 interface Rival {
@@ -2086,6 +2113,8 @@ export class GameEngine {
       snapSpeed: 0,
       snapAt: 0,
       steerVis: 0,
+      accel: 0,
+      brakeVis: 0,
     });
   }
 
@@ -2097,10 +2126,41 @@ export class GameEngine {
       r.s = s;
       r.lat = lat;
     }
+    // Two snapshots are an acceleration, and it was being discarded.
+    // A remote player's inputs are on somebody else's machine, so this
+    // difference is the ONLY longitudinal kinematics available for
+    // them — without it their driver sat still through every stop.
+    //
+    // Guarded at the bottom and CLAMPED at the top, which is the right
+    // way round and was not the first way I wrote it.
+    //
+    // The first version rejected any interval longer than a second, on
+    // the theory that a stalled connection makes the quotient
+    // meaningless. It does not: a long gap divides the same speed change
+    // by a bigger number, so it yields a SMALL acceleration, which is
+    // harmless and roughly true. The dangerous end is the short one,
+    // where two packets arriving a millisecond apart divide by almost
+    // nothing and produce a spike.
+    //
+    // The one-second cliff also made the mechanism untestable in an
+    // environment slower than the one it was written on. tests/ik.mjs
+    // asked for a 120 ms wait between two snapshots and got 4,658 ms,
+    // because the page is running a game loop on a headless machine —
+    // so the guard rejected the very case the test was constructed to
+    // exercise, and the feature looked broken when it was the cliff.
+    //
+    // So: a floor on the interval, and a clamp on the answer at a
+    // deceleration no road car exceeds.
+    const now = performance.now();
+    const gap = (now - r.snapAt) / 1000;
+    r.accel =
+      r.snapAt > 0 && gap > 0.001
+        ? THREE.MathUtils.clamp((speed - r.snapSpeed) / gap, -14, 14)
+        : 0;
     r.snapS = s;
     r.snapLat = lat;
     r.snapSpeed = speed;
-    r.snapAt = performance.now();
+    r.snapAt = now;
   }
 
   removeRemote(id: number): void {
@@ -2334,6 +2394,8 @@ export class GameEngine {
         lat: LANES[i % LANES.length],
         speed: 21 + Math.random() * 9, // 75–108 km/h
         steerVis: 0,
+        accel: 0,
+        brakeVis: 0,
       });
     }
   }
@@ -3808,14 +3870,34 @@ export class GameEngine {
 
   private updateTraffic(dt: number): void {
     for (const t of this.traffic) {
+      const was = t.speed;
       // Ease off if another civilian is right ahead in the same lane.
+      //
+      // Find the NEAREST one and brake once. This used to brake once per
+      // car it found, inside the loop — so a queue four deep took four
+      // times the deceleration in a single frame, and the driver-IK test
+      // measured 72 m/s2 off a rule whose whole point is a 6 m/s2 limit.
+      // Seven g in a Corolla. It was invisible while nothing read the
+      // number; the moment a driver's body was solved from it, the body
+      // folded like a crash test.
+      let lead: TrafficCar | null = null;
+      let leadGap = Infinity;
       for (const o of this.traffic) {
         if (o === t) continue;
         const ds = this.track.deltaAhead(t.s, o.s);
-        if (ds > 0 && ds < 14 && Math.abs(o.lat - t.lat) < 2) {
-          t.speed = Math.max(o.speed * 0.95, t.speed - 6 * dt);
+        if (ds > 0 && ds < 14 && Math.abs(o.lat - t.lat) < 2 && ds < leadGap) {
+          leadGap = ds;
+          lead = o;
         }
       }
+      if (lead) t.speed = Math.max(lead.speed * 0.95, t.speed - 6 * dt);
+      // What the car just did to itself, which is the only longitudinal
+      // kinematics a civilian has. Differenced here rather than inside
+      // the driver solver because only a fraction of the traffic is
+      // solved at any moment (see TRAFFIC_DRIVERS_SOLVED) and the speed
+      // has to be tracked for all of them or the difference is taken
+      // across however many frames that car last happened to be near.
+      t.accel = dt > 0 ? (t.speed - was) / dt : 0;
       t.s = this.track.wrap(t.s + t.speed * dt);
       this.track.pose(t.s, t.lat, this.v1, this.v2);
       this.track.tangentAt(t.s, this.v3);
@@ -3885,7 +3967,29 @@ export class GameEngine {
       // carried along, and traffic is what the player spends the night
       // threading between.
       const tLat = (dHead / 30) * t.speed * t.speed;
-      solveDriverRig(rig, t.steerVis, RIG.rival.cruiseThrottle, 0, this.v1, dt, tLat, 0);
+      // ...and they brake. The brake and the longitudinal g were both
+      // hard-coded zero here, which meant a civilian standing on the
+      // pedal behind a slower car sat perfectly upright with their foot
+      // in the air — the same mannequin the comment above objects to,
+      // on the axis it did not check. The pressure is smoothed for the
+      // same reason the rival's is: traffic decides to lift on one
+      // frame and the fold should not snap.
+      const wantBrake =
+        t.accel < RIG.rival.brakeAccel
+          ? Math.min(1, -t.accel / RIG.rival.brakeScale)
+          : 0;
+      t.brakeVis += (wantBrake - t.brakeVis) * Math.min(1, dt * RIG.rival.pedalRate);
+      solveDriverRig(
+        rig,
+        t.steerVis,
+        // Off the throttle while braking, as anyone is.
+        RIG.rival.cruiseThrottle * (1 - t.brakeVis),
+        t.brakeVis,
+        this.v1,
+        dt,
+        tLat,
+        t.accel
+      );
     }
   }
 
@@ -4017,15 +4121,25 @@ export class GameEngine {
         // blend is the only kinematics we have off the wire, so the lean
         // comes from how fast they are crossing it.
         const remLat = (r.snapLat - r.lat) * 0.6 * r.snapSpeed * 0.35;
+        // ...and their braking, from the snapshot difference. Smoothed,
+        // because snapshots arrive at the network's rate rather than the
+        // frame's, and an unsmoothed brake would step once per packet.
+        const wantBrake =
+          r.accel < RIG.rival.brakeAccel
+            ? Math.min(1, -r.accel / RIG.rival.brakeScale)
+            : 0;
+        r.brakeVis += (wantBrake - r.brakeVis) * Math.min(1, dt * RIG.rival.pedalRate);
         solveDriverRig(
           rig,
           r.steerVis,
-          r.snapSpeed > 0.5 ? RIG.rival.cruiseThrottle * 1.5 : 0,
-          0,
+          r.snapSpeed > 0.5
+            ? RIG.rival.cruiseThrottle * 1.5 * (1 - r.brakeVis)
+            : 0,
+          r.brakeVis,
           this.v1,
           dt,
           remLat,
-          0
+          r.accel
         );
       }
     }
