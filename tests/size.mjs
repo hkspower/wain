@@ -52,7 +52,15 @@ const REAL = {
   gtr: { name: "an R34 Skyline", l: 4.6, w: 1.79, h: 1.36 },
   rx7: { name: "an FD RX-7", l: 4.3, w: 1.76, h: 1.23 },
   hatch: { name: "a hot hatch", l: 4.28, w: 1.79, h: 1.47 },
+  // A fourth-generation American pony coupe: very long, very low, and
+  // wide at the hips. The ratio is what matters here — 3.7 long for its
+  // width, where nothing else in this table passes 2.6.
+  pony: { name: "a 90s pony coupe", l: 4.9, w: 1.88, h: 1.32 },
 };
+
+// How many cars the showroom holds, read from the API rather than typed
+// in here — see the spread check below.
+let EXPECTED_CARS = 0;
 
 const browser = await chromium.launch({
   executablePath: exe,
@@ -75,6 +83,10 @@ await page.waitForTimeout(3000);
 
 const fail = [];
 const check = (c, m) => { if (!c) fail.push(m); return c ? "ok" : "FAIL"; };
+
+EXPECTED_CARS = await page.evaluate(async () =>
+  (await fetch("/api/grn/v1/cars").then((r) => r.json()).catch(() => null))?.cars?.length ?? 0
+);
 
 const cars = await page.evaluate(async () => {
   const THREE = window.__grnThree;
@@ -219,9 +231,12 @@ const shortest = cars.reduce((a, b) => (a.length < b.length ? a : b));
 const longest = cars.reduce((a, b) => (a.length > b.length ? a : b));
 console.log(
   `spread    ${check(
-    cars.length === 15 && longest.length - shortest.length > 1.2,
-    cars.length !== 15
-      ? `${cars.length} cars measured, expected 15`
+    // Counted from the roster rather than from a literal. A hardcoded 15
+    // fails the moment a car is added, which is a test complaining that
+    // the game grew.
+    cars.length === EXPECTED_CARS && longest.length - shortest.length > 1.2,
+    cars.length !== EXPECTED_CARS
+      ? `${cars.length} cars measured, expected ${EXPECTED_CARS}`
       : `the whole fleet is within ${(longest.length - shortest.length).toFixed(2)} m of itself — ` +
         `a supermini and a pickup should not be the same car`
   )}  ${shortest.name} ${shortest.length} m to ${longest.name} ${longest.length} m, ` +

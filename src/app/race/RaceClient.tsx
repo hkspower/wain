@@ -33,6 +33,7 @@ import {
   GarageState,
   CarBuild,
   editBuild,
+  clampTint,
   loadGarage,
   saveGarage,
   CARS,
@@ -591,6 +592,16 @@ export default function RaceClient() {
       if (build.equipped[key] === p.id) delete build.equipped[key];
       else build.equipped[key] = p.id;
     }
+    saveGarage(g);
+    setGarage(g);
+  }, []);
+
+  /** Window tint for one car. Free, so it skips the price check
+   *  entirely — and clamped on the way in, because a slider is a UI and
+   *  a save is forever. */
+  const setTint = useCallback((carId: string, pct: number) => {
+    const g = loadGarage();
+    editBuild(g, carId).tint = clampTint(pct);
     saveGarage(g);
     setGarage(g);
   }, []);
@@ -1262,7 +1273,8 @@ export default function RaceClient() {
           attractRef.current,
           {
             body: tune.paint,
-            accent: 0x007a3d,
+            accent: tune.accent ?? 0x007a3d,
+            stripes: tune.stripes,
             style: tune.bodyStyle,
             underglow: tune.glow ?? undefined,
             spoiler: tune.spoiler,
@@ -1270,6 +1282,7 @@ export default function RaceClient() {
             raceKit: tune.raceKit,
             kit: tune.kit,
             headlamps: tune.headlamps,
+            tint: tune.tint,
             stickers: tune.stickers,
             lengthM: tune.lengthM,
             crew: tune.crew ?? undefined,
@@ -2833,6 +2846,7 @@ export default function RaceClient() {
           onClose={() => setGarageOpen(false)}
           onBuyCar={buyOrDrive}
           onBuyPart={buyOrEquip}
+          onTint={setTint}
         />
       )}
 

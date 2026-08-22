@@ -16,7 +16,7 @@ import { drawTeamLogo, type TeamLogo } from "./teams";
 
 /** Silhouette family. "zx" is the long-nose fastback wedge of a Z32
  *  300ZX; "gtr" is the boxy, high-decked muscle of an R34 Skyline. */
-export type BodyStyle = "sedan" | "zx" | "gtr" | "rx7" | "hatch";
+export type BodyStyle = "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony";
 
 export interface CarColors {
   body: number;
@@ -46,6 +46,22 @@ export interface CarColors {
    *   has nothing to hang a light on there.
    */
   headlamps?: "stock" | "smoked" | "single";
+  /** Window tint, 0-100 per cent. Absent is factory glass. */
+  tint?: number;
+  /**
+   * Racing stripes.
+   *
+   * `single` is the centre bar this build has always had — bonnet, and
+   * boot where the body has one.
+   *
+   * `twin` is the pair that runs OVER THE TOP: up the nose, along the
+   * hood, across the roof, down the rear glass and onto the deck, in
+   * one unbroken run. It is a different thing from two single stripes,
+   * because the whole point of it is that it does not stop at the
+   * windscreen — and making it not stop means following whichever shell
+   * happens to be the top surface at each point along the car.
+   */
+  stripes?: "single" | "twin";
   /** Full time-attack aero: swan-neck wing, splitter, canards, vented
    *  hood, skirts, diffuser, bronze six-spokes and teal calipers.
    *  Equivalent to `kit: "attack"`, and kept because most callers only
@@ -578,6 +594,59 @@ const zxRoofGeo = extrudeProfile(
   CROWN.roof,
 );
 
+// ---- The American pony coupe: a very long, very low nose, a windscreen
+// that starts almost over the front wheels, and a fastback that runs
+// unbroken from the roof to a short high deck. Wide at the hips.
+//
+// The proportion that makes this silhouette is the DASH-TO-AXLE: the
+// cowl sits a long way back, so two thirds of the car is in front of
+// the driver. Nothing else here does that — the zx is long-nosed but
+// its glasshouse sits further forward, and the gtr is upright.
+const ponyBodyGeo = extrudeProfile(
+  [
+    [2.42, 0.26], // the nose is LOW: this car looks along the road, not over it
+    [2.47, 0.42],
+    [2.38, 0.55],
+    [1.62, 0.66], // the long flat hood
+    [0.52, 0.79], // cowl, a long way back
+    [-0.62, 0.86],
+    [-1.72, 0.885], // rear haunch, the widest and highest point of the body
+    [-2.32, 0.85], // short deck
+    [-2.45, 0.58],
+    [-2.38, 0.3],
+    [-2.0, 0.2],
+    [2.0, 0.2],
+  ],
+  1.92,
+  0.15,
+  2,
+  CROWN.body,
+);
+const ponyCanopyGeo = extrudeProfile(
+  [
+    [0.64, 0.79], // the windscreen starts here, and it is steep
+    [-0.32, 1.26], // roof peak, over the driver's head
+    [-0.98, 1.235],
+    [-2.16, 0.87], // and the hatch glass runs all the way to the deck
+  ],
+  1.63,
+  0.1,
+  0,
+  CROWN.canopy,
+);
+const ponyRoofGeo = extrudeProfile(
+  [
+    [-0.36, 1.26],
+    [-0.44, 1.31],
+    [-0.9, 1.29],
+    [-0.98, 1.24],
+  ],
+  1.45,
+  0.05,
+  0,
+  CROWN.roof,
+);
+
 // ---- R34-style coupe: short deck up high, upright glasshouse, thick
 // haunches. The silhouette is a brick with intent.
 const gtrBodyGeo = extrudeProfile(
@@ -755,6 +824,10 @@ const STYLE_SCALE: Record<BodyStyle, number> = {
   // scale can get this profile to 4.60 x 1.79 x 1.36.
   gtr: 0.895 * PRESENCE,
   rx7: 0.853 * PRESENCE,
+  // The pony shell is authored at 4.92 m raw; every car on it carries a
+  // real lengthM, so this is only the fallback for a shell built
+  // without one.
+  pony: 0.9 * PRESENCE,
   // A hot hatch is the small car in this fleet and has to park like one:
   // 4.28 x 1.79 x 1.47 m, which is 40 cm shorter than the saloon and
   // 10 cm taller. The profile is authored close to those numbers, so the
@@ -810,6 +883,14 @@ const STYLE_DIMS: Record<BodyStyle, StyleDims> = {
     nose: 2.18, tail: -2.12, roof: [-0.3, 1.47], noseTopY: 0.76, grilleY: 0.56, beltY: 1.0,
     hoodY: 0.96, tailY: 0.84, deckY: 0.99, mirror: [0.03, 1.1, 0.86],
     dashY: 1.06, wiperZ: 1.12, bPillar: [0.78, 1.22, -0.32], creaseY: 0.76,
+  },
+  // Everything on this one sits LOW. The lamps are almost in the bumper,
+  // the belt is under a metre, and the mirror is level with a saloon's
+  // door handle.
+  pony: {
+    nose: 2.47, tail: -2.45, roof: [-0.44, 1.31], noseTopY: 0.5, grilleY: 0.38, beltY: 0.9,
+    hoodY: 0.7, tailY: 0.78, deckY: 0.85, mirror: [0.03, 0.94, 0.62],
+    dashY: 0.9, wiperZ: 0.6, bPillar: [0.73, 1.06, -0.52], creaseY: 0.6,
   },
 };
 
@@ -1335,6 +1416,39 @@ const glassMat = new THREE.MeshPhysicalMaterial({ name: "glass",
   opacity: 0.62,
 });
 
+/**
+ * Window tint, as a material.
+ *
+ * Two things have to move together or it does not read as tint.
+ *
+ * OPACITY is what you cannot see through. Factory glass shows the
+ * interior, the seats, the driver's shoulders; limo black shows a
+ * shape. Raising opacity alone gets most of the way there.
+ *
+ * COLOUR is the half people forget. Real tint film is a neutral-to-warm
+ * grey laid over glass that is already blue-green, and it kills the
+ * blue: a heavily tinted window is not a darker version of a light one,
+ * it is a different colour. Darkening the existing 0x121722 without
+ * pulling the blue out gives you a car with navy windows, which is what
+ * a cheap tint job actually looks like and not what anyone is buying.
+ *
+ * Reflectivity comes up a little too, because a tinted window shows you
+ * the street instead of the cabin — that is most of why they look the
+ * way they do from outside.
+ */
+function tintedGlass(tintPct: number): THREE.MeshPhysicalMaterial {
+  const t = Math.max(0, Math.min(100, tintPct)) / 100;
+  const m = glassMat.clone();
+  // 0.62 factory to 0.96 at full: never quite 1, because a window that
+  // is completely opaque stops being glass and becomes a painted panel.
+  m.opacity = 0.62 + t * 0.34;
+  // Toward a neutral charcoal as the film goes on.
+  m.color = new THREE.Color(0x121722).lerp(new THREE.Color(0x0b0b0c), t);
+  m.envMapIntensity = 1.35 + t * 0.5;
+  m.roughness = 0.05 + t * 0.02;
+  return m;
+}
+
 const seamMat = new THREE.MeshStandardMaterial({ name: "seam", color: 0x0a0b0d, roughness: 0.85 });
 // Panel gaps read almost black and swallow light — that contrast against
 // the lit chamfer beside them is what sells a shut line.
@@ -1838,6 +1952,34 @@ function crewDecalTexture(logo: TeamLogo, tag: string, name: string): THREE.Canv
   return tex;
 }
 
+/**
+ * How metallic a paint should be, from its own colour.
+ *
+ * Pale paints go solid. The physics is not a preference: at metalness
+ * near 1 the diffuse term vanishes and all you see is the environment
+ * tinted by the base colour, so a white car becomes a mirror wearing
+ * whatever the sky is doing — which here is a warm sodium band, and the
+ * car comes out gold.
+ *
+ * The threshold is on luminance rather than on saturation, because it is
+ * lightness that kills the diffuse: a pale blue has the same problem as
+ * a white, and a saturated red does not.
+ */
+function paintMetalness(hex: number): number {
+  const r = ((hex >> 16) & 255) / 255;
+  const g = ((hex >> 8) & 255) / 255;
+  const b = (hex & 255) / 255;
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  // Full metallic up to a mid tone, then falling away to a solid
+  // basecoat by the time the paint is near white.
+  if (lum <= 0.5) return 0.95;
+  return Math.max(0.18, 0.95 - (lum - 0.5) * 1.9);
+}
+
+function seg0Pitch(p: number): number {
+  return Math.max(-1.2, Math.min(1.2, p));
+}
+
 function decalMat(map: THREE.CanvasTexture): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
     name: "decal",
@@ -2033,7 +2175,21 @@ export function createCar(colors: CarColors): THREE.Group {
     // and none of those are paint. So this is a showroom and menu
     // change by measurement, whatever it looks like it should be.
     roughness: 0.29, // basecoat: still tight enough for flake, not a mirror
-    metalness: 0.95,
+    // Metalness by how LIGHT the paint is.
+    //
+    // At 0.95 across the board, a metal's reflection is tinted by its
+    // own colour and almost nothing diffuse survives — so a white car
+    // shows you the environment map and nothing else, and this game's
+    // environment map has a sodium horizon band in it. Every pale car
+    // in the fleet was coming out GOLD. The Anniversary is supposed to
+    // be arctic white with orange over the top and it rendered as a tan
+    // coupe with orange over the top.
+    //
+    // Real paint agrees: a solid white or a solid black is not a
+    // metallic finish, it is pigment under lacquer, and the gloss comes
+    // from the clearcoat above rather than from flake below. Mid-tone
+    // colours are where metallic paint actually lives, and they keep it.
+    metalness: paintMetalness(colors.body),
     clearcoat: 1,
     clearcoatRoughness: 0.13, // lacquer with some orange peel in it
     envMapIntensity: 1.5,
@@ -2070,7 +2226,9 @@ export function createCar(colors: CarColors): THREE.Group {
 
   const bCabBack = style === "zx" || style === "rx7";
   const [bGeo, cGeo, rGeo] =
-    style === "zx"
+    style === "pony"
+      ? [ponyBodyGeo, ponyCanopyGeo, ponyRoofGeo]
+      : style === "zx"
       ? [zxBodyGeo, zxCanopyGeo, zxRoofGeo]
       : style === "rx7"
         ? [rx7BodyGeo, rx7CanopyGeo, rx7RoofGeo]
@@ -2103,7 +2261,14 @@ export function createCar(colors: CarColors): THREE.Group {
    * had therefore never been seen on any car in the game.
    */
   const skinY = (z: number, fallback: number): number => deckY(bGeo, style, z) ?? fallback;
-  const canopyShell = new THREE.Mesh(cGeo, glassMat);
+  // Per-car glass when the tint is not factory. The shared material has
+  // to stay shared for everything else — thirty traffic cars pointing at
+  // one material is the whole reason it is a module constant — but a
+  // tinted window belongs to ONE car, and cloning the shared one would
+  // tint every pane on the road.
+  const tintPct = colors.tint ?? 0;
+  const glassLocal = tintPct > 0 ? tintedGlass(tintPct) : glassMat;
+  const canopyShell = new THREE.Mesh(cGeo, glassLocal);
   canopyShell.userData.shell = "canopy";
   group.add(canopyShell);
   const roofShell = new THREE.Mesh(rGeo, bodyMat);
@@ -2112,7 +2277,79 @@ export function createCar(colors: CarColors): THREE.Group {
 
   /** Top of the bonnet stripe at a point along it, when the car wears one. */
   let hoodStripeTop: ((z: number) => number) | null = null;
-  if (colors.accent !== undefined) {
+
+  /**
+   * The topmost painted surface at a point along the car — bonnet,
+   * glass or roof, whichever is highest there.
+   *
+   * A stripe that runs over the top of a car crosses three separate
+   * shells, and each of them is the top one for part of the length.
+   * Asking only the body puts the stripe under the windscreen for the
+   * whole of the cabin; asking only the roof puts it in the air over
+   * the bonnet. Taking the max of all three is the only thing that
+   * follows the car.
+   */
+  const topSkinY = (z: number): number => {
+    const b = deckY(bGeo, style, z) ?? -Infinity;
+    const c = deckY(cGeo, style, z, "canopy") ?? -Infinity;
+    const r = deckY(rGeo, style, z, "roof") ?? -Infinity;
+    const top = Math.max(b, c, r);
+    return Number.isFinite(top) ? top : d.hoodY;
+  };
+
+  // --- Twin over-the-top stripes.
+  if (colors.accent !== undefined && colors.stripes === "twin") {
+    const stripeMat = new THREE.MeshStandardMaterial({
+      name: "accent-stripe",
+      color: colors.accent,
+      roughness: 0.4,
+    });
+    // Laid in many short pieces for the same reason the single stripe
+    // is: a panel is not a ramp, and a long board levelled against its
+    // two ends sinks through everything curved in between. Over the top
+    // of a car that is most of the run — the windscreen and the hatch
+    // glass are the two steepest surfaces on the machine.
+    const PIECES = 26;
+    const zFront = d.nose - 0.1;
+    const zRear = d.tail + 0.16;
+    const step = (zFront - zRear) / PIECES;
+    // Half the gap between the two stripes. Narrow, because these sit
+    // either side of the centreline rather than out on the panels.
+    const GAP = 0.135;
+    const WIDE = 0.2;
+    for (let i = 0; i < PIECES; i++) {
+      const a = zRear + i * step;
+      const b = a + step;
+      const mid = (a + b) / 2;
+      const yA = topSkinY(a);
+      const yB = topSkinY(b);
+      // Pitch, clamped: the windscreen is steep enough that an
+      // unclamped asin would flip a piece onto its edge.
+      const pitch = Math.atan2(yA - yB, step);
+      for (const sx of [-1, 1]) {
+        const seg = new THREE.Mesh(
+          roundedBox(WIDE, 0.011, step * 1.06, 0.004),
+          stripeMat
+        );
+        seg.position.set(
+          sx * (GAP + WIDE / 2),
+          (yA + yB) / 2 + 0.008,
+          mid
+        );
+        seg.rotation.x = Math.max(-1.2, Math.min(1.2, pitch));
+        group.add(seg);
+      }
+      if (mid > 0) {
+        const y0 = (yA + yB) / 2 + 0.008;
+        const sinA = Math.sin(seg0Pitch(pitch));
+        const prev: ((z: number) => number) | null = hoodStripeTop;
+        hoodStripeTop = (z: number): number =>
+          Math.max(y0 + (mid - z) * sinA + 0.011, prev ? prev(z) : -Infinity);
+      }
+    }
+  }
+
+  if (colors.accent !== undefined && colors.stripes !== "twin") {
     // A bonnet-and-boot stripe, seated on the panels it lies on. It was
     // one 4.3 m bar held at a fixed height for the whole length of the
     // car, which is a straight line laid through a curved body: it broke
@@ -2750,7 +2987,7 @@ export function createCar(colors: CarColors): THREE.Group {
     // the player makes deliberately, so it takes the whole panel and the
     // glass roof is what it costs.
     if (!colors.crew || colors.simple) {
-      const sunroof = new THREE.Mesh(roundedBox(0.72, 0.02, 0.62, 0.015), glassMat);
+      const sunroof = new THREE.Mesh(roundedBox(0.72, 0.02, 0.62, 0.015), glassLocal);
       // On the roof's measured surface, like the rails below it. Seated on
       // the roof ANCHOR — the profile's top line — the glass sat 26 mm
       // under the paint on the saloons and never appeared.

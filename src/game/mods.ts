@@ -240,7 +240,7 @@ export interface CarModel {
   cls: CarClass;
   price: number;
   /** Body silhouette (cars.ts): sedan, zx wedge, gtr coupe, or rx7. */
-  style?: "sedan" | "zx" | "gtr" | "rx7" | "hatch";
+  style?: "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony";
   /**
    * How far the car is built, as a body kit. Every machine on this road
    * has been got at — nobody on the corniche at two in the morning is
@@ -252,6 +252,11 @@ export interface CarModel {
    * thing has pulled alongside you before you can read its badge.
    */
   kit: KitLevel;
+  /** A second colour, for cars that wear one from the factory. Drives
+   *  the racing stripes; absent means the car is one colour. */
+  accent?: number;
+  /** Which stripes, when there is an accent. Absent is the centre bar. */
+  stripes?: "single" | "twin";
   /** What the car left the factory with. Every machine on the corniche
    *  has a heart before anybody opens the bonnet, and the showroom is
    *  where you meet it. */
@@ -427,6 +432,29 @@ export const CARS: CarModel[] = [
     brake: 38,
     color: 0x1f2933,
     desc: "All-wheel-drive missile. Launches like a catapult.",
+  },
+  {
+    id: "anniversary-30",
+    name: "Bareed 30 Anniversary",
+    ar: "بريد ٣٠",
+    cls: "sport",
+    kit: "sport",
+    style: "pony",
+    price: 35000,
+    engine: "v8-57",
+    // 4.92 m of it, and almost none of that behind the driver.
+    lengthM: 4.92,
+    tankLitres: 61,
+    power: 1.31,
+    topSpeedKmh: 300,
+    // Live rear axle and a lot of torque: it goes where it is pointed
+    // until it does not, and then it goes sideways.
+    grip: 12.4,
+    brake: 33,
+    color: 0xf2f2ee, // arctic white, and it wears the stripes
+    accent: 0xf04b16, // the orange over the top
+    stripes: "twin",
+    desc: "Anniversary white with twin orange over the top. Long nose, live axle, 5.7 V8 — it turns in like a boat and leaves like a train.",
   },
   {
     id: "kaiju-r",
@@ -690,6 +718,29 @@ export interface CarBuild {
    *
    * Undefined means "never driven": a car leaves the lot full. */
   fuel?: number;
+  /**
+   * Window tint, 0 to 100 per cent.
+   *
+   * A slider rather than a part, because tint is not a thing you own —
+   * it is a thing you chose, anywhere on a continuum, and three
+   * purchasable steps would be a worse answer to the same question. 0
+   * is factory glass; 100 is limo black, where you cannot make out the
+   * driver at all.
+   *
+   * Per CAR rather than per save: tint is bodywork, and a player with
+   * two cars has two opinions about it. Optional, so every save written
+   * before this existed still loads as factory.
+   */
+  tint?: number;
+}
+
+/** Factory glass, for a build that has never been to the tint shop. */
+export const DEFAULT_TINT = 0;
+
+/** Clamp whatever a save or a slider hands us into 0..100. */
+export function clampTint(v: number | undefined): number {
+  if (typeof v !== "number" || !Number.isFinite(v)) return DEFAULT_TINT;
+  return Math.max(0, Math.min(100, Math.round(v)));
 }
 
 export interface GarageState {
@@ -902,6 +953,11 @@ export interface TuneEffects {
   goldRims: boolean;
   /** What has been done to the headlamps — see cars.ts CarColors. */
   headlamps: "stock" | "smoked" | "single";
+  /** Window tint, 0-100 per cent. */
+  tint: number;
+  /** Factory second colour and which stripes it draws, or undefined. */
+  accent?: number;
+  stripes?: "single" | "twin";
   /** Full time-attack aero built into the car (cars.ts raceKit). Kept
    *  as a boolean because a lot of call sites only ever asked "is this
    *  the full kit"; `kit` below is the real answer. */
@@ -920,7 +976,7 @@ export interface TuneEffects {
   exhaust: ExhaustSpec;
   paint: number;
   glow: number | null;
-  bodyStyle: "sedan" | "zx" | "gtr" | "rx7" | "hatch";
+  bodyStyle: "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony";
 }
 
 /** The numbers a car actually races with: its own base, plus the parts
@@ -1048,6 +1104,9 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     spoiler: has("spoiler"),
     goldRims: has("gold-rims"),
     headlamps: eq.lamps === "lamps-smoked" ? "smoked" : eq.lamps === "lamps-single" ? "single" : "stock",
+    tint: clampTint(build.tint),
+    accent: car.accent,
+    stripes: car.stripes,
     raceKit: car.kit === "attack",
     kit: car.kit,
     stickers: has("stickers"),

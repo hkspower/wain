@@ -8,6 +8,7 @@ import {
   EXCLUSIVE_CATS,
   GarageState,
   buildOf,
+  clampTint,
   PAINT_COLORS,
   PARTS,
   Part,
@@ -132,9 +133,12 @@ interface Props {
   onClose(): void;
   onBuyCar(id: string): void;
   onBuyPart(p: Part, carId: string): void;
+  /** Window tint for one car, 0-100. Free and instant: it is a slider,
+   *  not a purchase, so it does not go through onBuyPart. */
+  onTint(carId: string, pct: number): void;
 }
 
-export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) {
+export default function Garage({ garage, onClose, onBuyCar, onBuyPart, onTint }: Props) {
   const [tab, setTab] = useState<Tab>("showroom");
   // The machine on the ramp. Parts are bought FOR a car, so the shop has
   // to say which one — and let you build a car you are not driving,
@@ -652,6 +656,42 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart }: Props) 
                   </div>
                 </div>
               ))}
+
+              {/* Window tint — a slider, not a shelf.
+                  Tint is a continuum and everybody has a number they
+                  want; three purchasable steps would be a worse answer
+                  to the same question. Free, instant, and saved with
+                  the car, because tint is bodywork. */}
+              <div className="mt-5">
+                <h3 className="grn-label border-b border-white/10 pb-2 text-[0.66rem]">
+                  WINDOW TINT · تظليل
+                </h3>
+                <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                  <div className="flex items-baseline justify-between">
+                    <span className="grn-label text-[0.6rem] text-white/55">
+                      Darkness
+                    </span>
+                    <span className="grn-display tnum text-xl text-sodium-400">
+                      {clampTint(garage.builds[ramp]?.tint)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={clampTint(garage.builds[ramp]?.tint)}
+                    onChange={(ev) => onTint(ramp, Number(ev.target.value))}
+                    aria-label="Window tint percentage"
+                    className="mt-3 w-full accent-sodium-400"
+                  />
+                  <div className="mt-2 flex justify-between text-[0.55rem] text-white/40">
+                    <span>0% · factory glass</span>
+                    <span>50% · street legal-ish</span>
+                    <span>100% · limo</span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

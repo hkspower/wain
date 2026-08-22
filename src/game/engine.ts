@@ -1094,7 +1094,8 @@ export class GameEngine {
     // Player car — Kuwait flag colours: white body, green stripe
     this.carBody = this.trackCar(createCar({
       body: this.tune.paint,
-      accent: 0x007a3d,
+      accent: this.tune.accent ?? 0x007a3d,
+        stripes: this.tune.stripes,
       style: this.tune.bodyStyle,
       underglow: this.tune.glow ?? undefined,
       spoiler: this.tune.spoiler,
@@ -1102,6 +1103,7 @@ export class GameEngine {
       raceKit: this.tune.raceKit,
         kit: this.tune.kit,
         headlamps: this.tune.headlamps,
+        tint: this.tune.tint,
       stickers: this.tune.stickers,
       stickerNumber: this.stickerNumber(),
       name: this.tune.carName,
@@ -2770,7 +2772,8 @@ export class GameEngine {
     this.carBody = this.trackCar(
       createCar({
         body: this.tune.paint,
-        accent: 0x007a3d,
+        accent: this.tune.accent ?? 0x007a3d,
+        stripes: this.tune.stripes,
         style: this.tune.bodyStyle,
         underglow: this.tune.glow ?? undefined,
         spoiler: this.tune.spoiler,
@@ -2778,6 +2781,7 @@ export class GameEngine {
         raceKit: this.tune.raceKit,
         kit: this.tune.kit,
         headlamps: this.tune.headlamps,
+        tint: this.tune.tint,
         stickers: this.tune.stickers,
         stickerNumber: this.stickerNumber(),
         name: this.tune.carName,

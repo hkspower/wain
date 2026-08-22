@@ -89,7 +89,8 @@ const shot = async (car) => {
   await page.evaluate((c) => {
     window.__grnAttract.setCar({
       body: parseInt(c.color.replace("#", ""), 16),
-      accent: 0x007a3d,
+      accent: c.accent ?? 0x007a3d,
+      stripes: c.stripes ?? undefined,
       style: c.bodyStyle ?? "sedan",
       raceKit: c.kit === "attack",
       // The card has to show the car the showroom sells, and what the

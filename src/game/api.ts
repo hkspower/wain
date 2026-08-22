@@ -110,6 +110,8 @@ export function buildCars() {
     color: hex(c.color),
     bodyStyle: c.style ?? "sedan",
     kit: c.kit,
+    accent: c.accent ?? null,
+    stripes: c.stripes ?? null,
     engine: c.engine,
     // A car nobody can buy yet is a rule, not a decoration, so it
     // travels with the car. A port that ships the showroom without this
