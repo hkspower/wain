@@ -826,25 +826,92 @@ const STYLE_DIMS: Record<BodyStyle, StyleDims> = {
  */
 export const TIRE_RADIUS = 0.36;
 
-const tireGeo = new THREE.CylinderGeometry(TIRE_RADIUS, TIRE_RADIUS, 0.26, 22);
-tireGeo.rotateZ(Math.PI / 2);
-// The traffic tire is a bare barrel with no shoulder bulges, so it reads
-// the tread band of the texture across its whole width. Without this it
-// samples the sidewall bands at its edges and the tread looks smeared.
-// Deferred, because remapV walks the attribute and this module is
-// evaluated before anything asks for a wheel.
-let treadUvDone = false;
-function ensureTreadUvs(): void {
-  if (treadUvDone) return;
-  treadUvDone = true;
-  remapV(tireGeo, 0.2, 0.8);
+// The traffic tire: the same section, revolved coarsely.
+//
+// It used to be a bare barrel, which meant it read the tread band of the
+// texture across its whole width and sampled the sidewall bands at its
+// edges — hence the remapV(0.2, 0.8) that used to live here to shove the
+// tread back into the middle. Sharing the hero's profile makes that
+// unnecessary: the lathe puts the tread where the texture expects it,
+// and a background car gets a shouldered tire for the same one draw.
+//
+// Declared after tireLathe, so the definition order is: section, lathe
+// helper, then the two tires that use it.
+let tireGeo: THREE.BufferGeometry;
+
+/**
+ * The hero tire, as a LATHED CROSS-SECTION rather than a barrel with two
+ * rings stuck on it.
+ *
+ * What was here: a straight 30-segment cylinder for the tread and a
+ * torus at each end for the shoulders. Three pieces, and it showed —
+ * a cylinder meets its end cap at a hard ninety degrees, so the tread
+ * had a machined edge with a separate doughnut floating beside it. No
+ * tire has ever had that section. A tire is one continuous curve from
+ * bead to bead: it rises off the rim, bulges out through the sidewall,
+ * turns over a radiused shoulder and crowns very slightly across the
+ * tread, and every one of those transitions is smooth.
+ *
+ * So: one profile, revolved. The numbers are a real tire's section.
+ *
+ *   TIRE_RADIUS is the contract and it is kept EXACTLY. The crown
+ *   touches 0.36 and nothing else reaches it — ride height, the wheel
+ *   arches, the brake glow, the skid marks and the authored GLB wheel
+ *   are all dimensioned against that number, so a tire that came out
+ *   even a millimetre proud would lift every car in the game off its
+ *   own shadow.
+ *
+ *   The half width stays 0.13 for the same reason, and the widest
+ *   LATERAL point is the sidewall rather than the tread, which is what
+ *   makes a tire look inflated instead of turned on a lathe.
+ *
+ * The UVs come out right for free. LatheGeometry runs v along the
+ * profile, so laying the points out four / thirteen / four puts the
+ * tread band at exactly v 0.2 to 0.8 — the same band the old three
+ * pieces had to be remapped into by hand.
+ */
+const TIRE_SECTION: Array<[number, number]> = [
+  // radius, axial — inner bead outward
+  [0.218, -0.118], // bead, tucked onto the rim
+  [0.258, -0.127],
+  [0.298, -0.130], // the bulge: widest point of the whole tire
+  [0.332, -0.122],
+  [0.351, -0.101], // shoulder — tread band starts here (v = 0.2)
+  [0.3572, -0.088],
+  [0.3596, -0.074],
+  [0.36, -0.058],
+  [0.36, -0.038],
+  [0.36, -0.019],
+  [0.36, 0.0], // crown
+  [0.36, 0.019],
+  [0.36, 0.038],
+  [0.36, 0.058],
+  [0.3596, 0.074],
+  [0.3572, 0.088],
+  [0.351, 0.101], // shoulder — tread band ends here (v = 0.8)
+  [0.332, 0.122],
+  [0.298, 0.13],
+  [0.258, 0.127],
+  [0.218, 0.118],
+];
+
+function tireLathe(radialSegments: number): THREE.BufferGeometry {
+  const pts = TIRE_SECTION.map(([r, y]) => new THREE.Vector2(r, y));
+  const g = new THREE.LatheGeometry(pts, radialSegments);
+  // Lathe spins about Y; the axle is X.
+  g.rotateZ(Math.PI / 2);
+  g.computeVertexNormals();
+  return g;
 }
-// Hero tire: more segments than traffic will ever need, plus sidewall
-// bulges. The silhouette of a wheel is mostly its tire.
-const tireGeoHi = new THREE.CylinderGeometry(TIRE_RADIUS, TIRE_RADIUS, 0.26, 30);
-tireGeoHi.rotateZ(Math.PI / 2);
-const sidewallGeo = new THREE.TorusGeometry(0.3, 0.042, 7, 26);
-sidewallGeo.rotateY(Math.PI / 2);
+
+// 44 rather than 30. A 30-sided silhouette is 2 mm off a circle at this
+// radius and the tire is the roundest thing on the car — it is the one
+// place where faceting is read as faceting rather than as style.
+const tireGeoHi = tireLathe(44);
+// 22 for traffic — the cars behind you at a lane's distance, where the
+// silhouette is a dozen pixels across and nobody has ever counted its
+// sides.
+tireGeo = tireLathe(22);
 // Brake hardware behind the spokes — a wheel with nothing inside it
 // reads as a toy the moment the camera drops low
 const discGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.022, 22);
@@ -1810,14 +1877,11 @@ function heroWheelParts(nSpokes: number, side: number) {
     g.translate(x, y, z);
     return g;
   };
-  // Tire: tread barrel plus the two shoulder bulges
-  // Each piece is remapped into its own band of the tire texture, so one
-  // image covers tread and both shoulders and the tire stays one mesh.
-  const tire = mergeGeometries([
-    remapV(tireGeoHi.clone(), 0.2, 0.8),
-    remapV(at(sidewallGeo, -0.095), 0.03, 0.2),
-    remapV(at(sidewallGeo, 0.095), 0.8, 0.97),
-  ])!;
+  // Tire: one lathed section, so tread and both sidewalls are a single
+  // continuous surface. The lathe's own v already runs bead to bead
+  // with the tread landing at 0.2-0.8, so the three hand-remapped
+  // pieces this replaced are not needed and neither are their seams.
+  const tire = tireGeoHi.clone();
   // Alloy face: machined lip, spokes, hub — everything wearing the
   // finish colour
   const alloyParts: THREE.BufferGeometry[] = [at(lipGeo, side * 0.135), hubGeo.clone()];
@@ -1885,7 +1949,6 @@ function buildWheel(
   }
 
   // Traffic wheel: the cheap build, unchanged
-  ensureTreadUvs();
   w.add(new THREE.Mesh(tireGeo, getTireMat()));
   w.add(new THREE.Mesh(rimGeo, rimDarkMat));
   const lip = new THREE.Mesh(lipGeo, spokeMat);
