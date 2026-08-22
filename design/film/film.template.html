@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>النوخذة — فيلم تعريفي</title>
+<!--
+  The film is a web page, not a video editor's project.
+
+  Everything the site is made of is here already: the tokens, the drawn sprite,
+  the bundled Cairo, hand-written CSS motion. Building the film the same way
+  means it cannot drift from the product — the boum on the title card is the
+  same path the masthead flies, and the brown is the same brown.
+
+  It is driven by ONE timeline. Every animation starts at t=0 with its own
+  delay, runs once, and fills both ends; nothing loops and nothing depends on
+  when the page happened to load. render.py then seeks frame by frame by
+  setting currentTime on every animation, so the same second renders the same
+  pixels on any machine, at any speed, however long the screenshot took. A
+  film captured in real time is a film you cannot reproduce.
+
+  Scenes stay in the DOM the whole way through and are hidden with opacity,
+  never display:none — an element outside the render tree has no animations
+  for getAnimations() to seek, and the scene would arrive frozen at frame one.
+-->
+<style>
+  /* the site's own faces, from the site's own folder */
+  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-400.woff2") format("woff2"); font-weight: 400; font-display: block; }
+  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-500.woff2") format("woff2"); font-weight: 500; font-display: block; }
+  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-700.woff2") format("woff2"); font-weight: 700; font-display: block; }
+  @font-face { font-family: "Cairo"; src: url("../../almuhallab/fonts/cairo-800.woff2") format("woff2"); font-weight: 800; font-display: block; }
+
+  :root {
+    color-scheme: light;
+    --bg: #ffffff; --panel: #ffffff; --panel-2: #f1f4f8; --panel-3: #e6ebf1;
+    --border: #d0d7e1; --border-input: #858d99;
+    --text: #1b2430; --muted: #586981;
+    --tint: #7a4418; --tint-strong: #6f3f1c;
+    --sand-vivid: #e3a556; --good: #02783d; --info: #1964ce;
+    --sans: "Cairo", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 1920px; height: 1080px; overflow: hidden;
+    background: var(--bg); color: var(--text);
+    font-family: var(--sans); font-weight: 500;
+    -webkit-font-smoothing: antialiased;
+  }
+  .stage { position: relative; width: 1920px; height: 1080px; }
+
+  /* ── every scene is a full frame, faded in and out by its own keyframes ── */
+  .sc {
+    position: absolute; inset: 0; opacity: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 64px 140px 186px;
+    animation: scene 1ms linear both;   /* duration/delay set per scene below */
+  }
+  @keyframes scene {
+    0%, 100% { opacity: 0; }
+    6%, 94%  { opacity: 1; }
+  }
+
+  .ic { fill: none; stroke: var(--tint); color: var(--tint);
+        stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  h1 { font-size: 108px; font-weight: 800; line-height: 1.35; margin: 0; letter-spacing: -1px; }
+  h2 { font-size: 62px;  font-weight: 800; line-height: 1.35; margin: 0; }
+  .lede { font-size: 34px; color: var(--muted); line-height: 1.6; margin: 24px 0 0; max-width: 1400px; text-align: center; }
+  .kicker { font-size: 30px; color: var(--tint); font-weight: 700; letter-spacing: 2px; }
+
+  /* ── the caption band: the narration, written out ───────────────────────
+     Burned in on purpose. The film is watched on a phone in a feed with the
+     sound off more often than not, and a film that only speaks says nothing
+     there. The band is one colour on white and never moves. */
+  .cap {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 150px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--tint-strong); color: #fff;
+    font-size: 36px; font-weight: 500; line-height: 1.4; text-align: center;
+    padding: 0 130px;
+  }
+  .cap span { position: absolute; opacity: 0; animation: line 1ms linear both; }
+  @keyframes line { 0%, 100% { opacity: 0; } 8%, 92% { opacity: 1; } }
+
+  /* the mark, drawn rather than shown */
+  .mark { width: 640px; height: 320px; stroke: var(--tint-strong); color: var(--tint-strong); }
+  .mark.sm { width: 300px; height: 150px; }
+
+  .word { font-size: 130px; font-weight: 800; color: var(--tint-strong); line-height: 1.35; }
+  .sub  { font-size: 42px; color: var(--muted); margin-top: 8px; }
+
+  /* ── generic motion, all single-shot ───────────────────────────────── */
+  @keyframes rise  { from { opacity: 0; transform: translateY(46px); } to { opacity: 1; transform: none; } }
+  @keyframes fade  { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes pop   { from { opacity: 0; transform: scale(.86); } to { opacity: 1; transform: none; } }
+  @keyframes draw  { from { stroke-dashoffset: var(--len); } to { stroke-dashoffset: 0; } }
+  @keyframes grow  { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+  @keyframes slidein { from { opacity: 0; transform: translateX(-70px); } to { opacity: 1; transform: none; } }
+  @keyframes scatter { from { transform: none; opacity: 1; }
+                       to { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); opacity: .6; } }
+  @keyframes settle  { from { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); opacity: .3; }
+                       to   { transform: none; opacity: 1; } }
+  @keyframes count { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+
+  .cards { display: flex; gap: 32px; margin-top: 40px; }
+  .card {
+    width: 340px; padding: 26px; border: 2px solid var(--border);
+    border-radius: 22px; background: var(--panel); text-align: center;
+    opacity: 0; animation: rise 1ms cubic-bezier(.2,.7,.3,1) both;
+  }
+  .card .tile {
+    width: 72px; height: 72px; margin: 0 auto 16px; border-radius: 22px;
+    background: var(--panel-2); display: grid; place-items: center;
+  }
+  .card .tile svg { width: 38px; height: 38px; }
+  .card b { display: block; font-size: 32px; font-weight: 800; }
+  .card p { margin: 10px 0 0; font-size: 24px; color: var(--muted); line-height: 1.5; }
+
+  /* the paper pile that scatters, then the same pile settling into one core */
+  .paper { position: absolute; width: 210px; height: 140px; border-radius: 12px;
+           background: var(--panel); border: 2px solid var(--border-input); }
+  .paper i { position: absolute; left: 22px; right: 22px; height: 8px; border-radius: 4px;
+             background: var(--border); display: block; }
+
+  .drawn { stroke-dasharray: var(--len); stroke-dashoffset: var(--len);
+           animation: draw 1ms ease both; }
+
+  .bars { display: flex; align-items: flex-end; gap: 24px; height: 260px; margin-top: 32px; }
+  .bars b { width: 70px; background: var(--tint); border-radius: 8px 8px 0 0;
+            transform-origin: bottom; transform: scaleY(0); animation: grow 1ms cubic-bezier(.2,.7,.3,1) both; }
+
+  .rows { width: 1020px; margin-top: 36px; }
+  .row { display: flex; align-items: center; justify-content: space-between;
+         padding: 20px 30px; border: 2px solid var(--border); border-radius: 18px;
+         background: var(--panel); margin-bottom: 14px; font-size: 30px;
+         opacity: 0; animation: slidein 1ms cubic-bezier(.2,.7,.3,1) both; }
+  .row .amt { font-weight: 800; font-variant-numeric: tabular-nums; }
+  .row.total { border-width: 3px; border-color: var(--tint); background: var(--panel-2); font-size: 34px; }
+
+  .core { width: 250px; height: 250px; border-radius: 50%; background: var(--tint-strong);
+          color: #fff; display: grid; place-items: center; text-align: center;
+          font-size: 30px; font-weight: 800; line-height: 1.4; padding: 24px;
+          opacity: 0; animation: pop 1ms cubic-bezier(.2,.7,.3,1) both; }
+
+  .facts { display: flex; gap: 56px; margin-top: 48px; }
+  .fact { width: 370px; text-align: center; opacity: 0; animation: count 1ms cubic-bezier(.2,.7,.3,1) both; }
+  .fact b { display: block; font-size: 72px; font-weight: 800; color: var(--tint); }
+  .fact span { font-size: 27px; color: var(--muted); }
+
+  .chans { display: flex; gap: 24px; margin-top: 40px; }
+  .chan { display: flex; align-items: center; gap: 14px; font-size: 30px;
+          padding: 18px 30px; border: 2px solid var(--border); border-radius: 999px;
+          background: var(--panel); opacity: 0; animation: rise 1ms cubic-bezier(.2,.7,.3,1) both; }
+  .chan svg { width: 34px; height: 34px; }
+  .ltr { unicode-bidi: isolate; direction: ltr; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <!--SPRITE-->
+</svg>
+
+<div class="stage">
+  <!--SCENES-->
+  <div class="cap"><!--CAPTIONS--></div>
+</div>
+
+<!-- The timeline is data, not scattered CSS: render.py and the voice script
+     read it back out of the page, so the frame count, the subtitles and the
+     narration cannot disagree with what is actually on screen. -->
+<script type="application/json" id="timeline"><!--TIMELINE--></script>
+<script>window.FILM = JSON.parse(document.getElementById("timeline").textContent);</script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+# The rendered film is a build product: render.py reproduces it exactly from
+# film.html, frame for frame, so the repository keeps the source and not the
+# 80MB of H.264. The stills are kept — they are what you look at in a review.
+nokhatha-film.mp4
+nokhatha-film-voice.mp4
