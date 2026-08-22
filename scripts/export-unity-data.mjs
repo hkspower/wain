@@ -193,14 +193,26 @@ for (const k of needed) {
 const apiVersion = +read("src/game/api.ts").match(/GRN_API_VERSION = (\d+)/)[1];
 
 // --------------------------------------------------------------- emit C#
-const styleEnum = { sedan: "BodyStyle.Sedan", zx: "BodyStyle.ZX", gtr: "BodyStyle.GTR", rx7: "BodyStyle.RX7", hatch: "BodyStyle.Hatch" };
+// The C# names for each web BodyStyle. The ENUM ITSELF is generated from
+// this map — see below — because when they were two lists the two lists
+// drifted: this file emitted BodyStyle.Hatch while the enum it also
+// emitted read { Sedan, ZX, GTR, RX7 }, so the generated C# had not
+// compiled since the hatch silhouette was added, and nothing said so.
+const styleEnum = {
+  sedan: "Sedan",
+  zx: "ZX",
+  gtr: "GTR",
+  rx7: "RX7",
+  hatch: "Hatch",
+  pony: "Pony",
+};
 /** A style the map does not know must stop the build. Emitting
  *  `Style = undefined` would produce C# that does not compile, and the
  *  failure would surface in Unity rather than here. */
 const style = (s, who) => {
   const v = styleEnum[s];
-  if (!v) throw new Error(`${who}: unknown bodyStyle "${s}" — add it to styleEnum and the C# BodyStyle enum`);
-  return v;
+  if (!v) throw new Error(`${who}: unknown bodyStyle "${s}" — add it to styleEnum`);
+  return `BodyStyle.${v}`;
 };
 const cs = (s) => (s ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 const col = (hex) => `Hex(0x${hex.toUpperCase()})`;
@@ -217,7 +229,7 @@ const out = `// GENERATED FILE — do not edit by hand.
 
 using UnityEngine;
 
-public enum BodyStyle { Sedan, ZX, GTR, RX7 }
+public enum BodyStyle { ${Object.values(styleEnum).join(", ")} }
 
 public static class GRNData
 {
@@ -413,6 +425,27 @@ ${stations.map((st) => `        new Station { S = ${f(st.s)}, Lat = ${f(st.lat)}
     public static class Handling
     {
 ${Object.keys(handling).map((k) => `        public const float ${k[0].toUpperCase()}${k.slice(1)} = ${f(handling[k])};`).join("\n")}
+    }
+
+    /// <summary>
+    /// The same constants at DOUBLE precision, for GRNSim.
+    ///
+    /// Unity's own code wants floats — Mathf, Vector3 and the whole
+    /// engine surface are float, and a double there is a cast at every
+    /// call site. But a float constant is not the number that is in
+    /// handling.ts: 0.105f is 0.10499999672174454, and the solvers are
+    /// stateful integrators with THRESHOLDS in them.
+    ///
+    /// This is not a hypothetical. On the UE5 port the same shortcut put
+    /// the drift chain on a different value at step 452 of a scripted
+    /// run — not a rounding difference in the output, a different
+    /// DECISION, because a score gate was crossed one frame apart. The
+    /// fix there was to emit both representations from one source, and
+    /// it is the fix here.
+    /// </summary>
+    public static class Exact
+    {
+${Object.keys(handling).map((k) => `        public const double ${k[0].toUpperCase()}${k.slice(1)} = ${handling[k]};`).join("\n")}
     }
 
     static Color Hex(int rgb) =>

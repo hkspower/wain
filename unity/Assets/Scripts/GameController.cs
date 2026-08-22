@@ -22,6 +22,29 @@ public class GameController : MonoBehaviour
     // Player state (same handling model as the web build)
     float pS = 40f, pLat, pSpeed, pSp = 100f;
     float heading, steerSmooth, slipVel, shake;
+
+    // --- Braking state, carried between frames.
+    //
+    // The solver is stateful on purpose: lock builds and releases at a
+    // rate, discs heat and cool, and the ABS pulse has a phase. A
+    // stateless brake is the `brakeAmt * 26f` this replaced.
+    GRNSim.BrakeState brakeState = GRNSim.NewBrakeState();
+    GRNSim.BrakeTune brakeTune = new GRNSim.BrakeTune
+    {
+        // Filled from the car on the ramp in Start(); these are the
+        // stock figures so a solver call before that is still sane.
+        BrakeForce = 26.0,
+        GripAccel = 12.0,
+        BrakeThermalMult = 1.0,
+        HasAbs = true,
+    };
+    /// <summary>Aero downforce, m/s2 at the reference speed. Stock car.</summary>
+    float brakeDownforce = 0f;
+    /// <summary>Steering authority left after the brakes, 0..1.</summary>
+    float brakeSteerScale = 1f;
+    /// <summary>Published for the HUD, the squeal and the smoke.</summary>
+    float brakeLock, brakeTempC;
+    bool brakeAbs;
     CarFactory.Car playerCar;
 
     // Rival
@@ -297,13 +320,46 @@ public class GameController : MonoBehaviour
 
         float accel = throttleAmt * Mathf.Max(0,
             GRNData.Handling.ThrustK * (1f - pSpeed / GRNData.Handling.Ceiling));
-        float braking = brakeAmt * 26f;
+
+        // Braking, through the real solver.
+        //
+        // This was `brakeAmt * 26f` — a constant, with no lock-up, no
+        // anti-lock, no disc heat and no fade. It meant this build could
+        // not be made to lock a wheel and threshold braking did nothing
+        // here at all, while the web build and the UE5 port both ran a
+        // full model. Same solver in all three now; see GRNSim.cs.
+        // The tune comes from the car actually being driven, not from a
+        // constant: brake and grip are per-car figures in the showroom,
+        // and a solver fed the same numbers for a Wain Special and a Zeta
+        // 300 GTR is a solver that has thrown away the showroom.
+        var pc = PlayerCar();
+        brakeTune.BrakeForce = pc.Brake;
+        brakeTune.GripAccel = pc.Grip;
+
+        double latDemand = Mathf.Clamp01(Mathf.Abs(steerSmooth));
+        double gripNow = GRNSim.GripAtSpeed(
+            GRNData.Handling.GripAccel, brakeDownforce, pSpeed);
+        GRNSim.BrakeResult brakeOut = GRNSim.SolveBrakes(
+            ref brakeState, brakeTune, dt,
+            brakeAmt, pSpeed, latDemand, steerSmooth, throttleAmt, gripNow);
+        float braking = (float)brakeOut.Decel;
+        // Locked fronts do not steer, and the rear the brakes have
+        // unloaded offers rotation — both of which the old constant had
+        // no way to express.
+        brakeSteerScale = (float)brakeOut.SteerScale;
+        brakeLock = (float)brakeOut.Lock;
+        brakeTempC = (float)brakeOut.Temp;
+        brakeAbs = brakeOut.Abs;
+
         float drag = GRNData.Handling.DragA * pSpeed * pSpeed + GRNData.Handling.DragB;
         pSpeed = Mathf.Max(0, pSpeed + (accel - braking - drag * (up ? 0.35f : 1f)) * dt);
 
         steerSmooth += (steer - steerSmooth) * Mathf.Min(1f, dt * GRNData.Handling.SteerSmoothRate);
         float yawRateMax = Mathf.Min(1.6f, 12f / Mathf.Max(pSpeed, 2f));
-        heading += steerSmooth * yawRateMax * dt;
+        // brakeSteerScale is 1 with the tyres rotating and falls toward
+        // BrakeLockSteer as they lock: a car sliding on all four does not
+        // go where it is pointed.
+        heading += steerSmooth * yawRateMax * brakeSteerScale * dt;
         if (Mathf.Abs(steer) < 0.1f) heading -= heading * Mathf.Min(1f, dt * GRNData.Handling.CasterRate);
         heading = Mathf.Clamp(heading, -GRNData.Handling.HeadingClamp, GRNData.Handling.HeadingClamp);
 

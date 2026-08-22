@@ -1232,21 +1232,39 @@ lipGeo.rotateY(Math.PI / 2);
 // measured width work on every body.
 const ARCH_OUT = 0.005;
 const LIP_OUT = 0.009;
-const archWellGeo = new THREE.CircleGeometry(0.46, 22);
-const archWellGeoF = new THREE.CircleGeometry(0.485, 22);
+/**
+ * How high the arch sits over the tyre.
+ *
+ * Measured before this was touched: the opening's top edge stood 165 mm
+ * above the tyre at the front and 140 mm at the rear. A road car runs 40
+ * to 90 mm, and a street car on this road runs less than that — 165 mm
+ * is the gap of something with a lift kit, and it made every machine in
+ * the showroom look like it was on stilts however low its roofline was.
+ *
+ * Two things were wrong at once and they added up. The arch was centred
+ * 40 mm ABOVE the wheel centre, and its radius was 125 mm larger than
+ * the tyre's. Real arches do sit a little above centre — the opening is
+ * not concentric with the wheel — but nothing like the sum of those.
+ *
+ * The arch is now centred just above the wheel and radiused to leave
+ * about 70 mm at the crown, which is what a car looks like sitting on
+ * its own springs.
+ */
+const ARCH_Y = 0.375;
+const archWellGeo = new THREE.CircleGeometry(0.385, 22);
+const archWellGeoF = new THREE.CircleGeometry(0.4, 22);
 // A rolled panel edge, not a hoop. The first pass used a 0.03-0.038 tube
 // standing 18 mm proud and it read as a roll bar bolted over the wheel;
 // a real arch lip is a few millimetres of turned-over steel that catches
 // one thin highlight.
-const archLipGeo = new THREE.TorusGeometry(0.475, 0.016, 8, 28, Math.PI);
+const archLipGeo = new THREE.TorusGeometry(0.4, 0.016, 8, 28, Math.PI);
 archLipGeo.rotateY(Math.PI / 2);
-const archLipGeoF = new THREE.TorusGeometry(0.5, 0.021, 8, 30, Math.PI);
+const archLipGeoF = new THREE.TorusGeometry(0.415, 0.021, 8, 30, Math.PI);
 // The outer edge of each arch — the lip's radius plus its tube — and the
 // height its centre sits at. Anything running along the flank has to
 // stop here, so the numbers are named rather than repeated.
-const ARCH_EDGE_F = 0.5 + 0.021;
-const ARCH_EDGE_R = 0.475 + 0.016;
-const ARCH_Y = 0.4;
+const ARCH_EDGE_F = 0.415 + 0.021;
+const ARCH_EDGE_R = 0.4 + 0.016;
 archLipGeoF.rotateY(Math.PI / 2);
 const wellMat = new THREE.MeshBasicMaterial({ name: "arch-well", color: 0x060708 });
 
@@ -1319,7 +1337,7 @@ function flareGeo(kit: KitLevel, front: boolean): THREE.BufferGeometry {
   if (hit) return hit;
   const tube = WIDE[kit].proud * FLARE_TUBE_FRAC;
   const geo = new THREE.TorusGeometry(
-    front ? 0.5 : 0.475,
+    front ? 0.415 : 0.4,
     tube,
     8,
     front ? 30 : 28,
@@ -3204,7 +3222,7 @@ export function createCar(colors: CarColors): THREE.Group {
     // one is a row of heads following the curve, and at ten metres the
     // row is the only part of it you can actually see.
     if (wide.rivets && !colors.simple) {
-      const R = front ? 0.5 : 0.475;
+      const R = front ? 0.415 : 0.4;
       for (let i = 0; i < wide.rivets; i++) {
         // Inset from both ends: a rivet on the very end of the arc sits
         // where the flare has already died back into the door.

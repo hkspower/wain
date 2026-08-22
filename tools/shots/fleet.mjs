@@ -106,7 +106,14 @@ const fleet = await page.evaluate(async () => {
       // The wheel's own parts, the arch it turns inside, and the
       // suspension are all supposed to be there.
       if (/rim|disc|caliper|tire|arch-well|unnamed/.test(b.key)) continue;
-      if (b.o.userData.archLip || b.o.userData.archWell) continue;
+      // The arch parts wrap the wheel by design, and this test judges a
+      // part by its bounding-box CENTRE — so an arc that hoops over a
+      // tyre has its centroid near the axle whatever it is doing. The
+      // lip and the well were already exempt for that reason; the flare
+      // is the same shape doing the same job and was only passing before
+      // because the arch sat 165 mm too high, which put its centroid
+      // outside the disc by accident.
+      if (b.o.userData.archLip || b.o.userData.archWell || b.o.userData.archFlare) continue;
       const c = b.bb.getCenter(new THREE.Vector3());
       for (const w of wheels) {
         const dy = c.y - w.c.y;

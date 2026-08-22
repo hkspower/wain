@@ -305,3 +305,34 @@ if (failed) {
   process.exit(1);
 }
 console.log("\nWeb API and Unity data are in sync.");
+
+// --- Does the generated C# actually reference only things it declares?
+//
+// This exists because it did not. The generator emitted
+// `public enum BodyStyle { Sedan, ZX, GTR, RX7 }` from one literal and
+// `BodyStyle.Hatch` from a separate lookup table, so the file had not
+// compiled since the hatch silhouette was added — and nothing said so,
+// because this check compared CONSTANTS and a constant check cannot see
+// a name that does not exist. The enum is generated from the lookup
+// table now, and this makes sure they can never part again.
+{
+  const cs = readFileSync("unity/Assets/Scripts/GRNData.cs", "utf8");
+  const decl = cs.match(/public enum BodyStyle \{([^}]*)\}/);
+  if (!decl) {
+    console.error("GRNData.cs has no BodyStyle enum");
+    process.exitCode = 1;
+  } else {
+    const declared = new Set(decl[1].split(",").map((x) => x.trim()).filter(Boolean));
+    const used = new Set([...cs.matchAll(/BodyStyle\.(\w+)/g)].map((m) => m[1]));
+    const missing = [...used].filter((u) => !declared.has(u));
+    if (missing.length) {
+      console.error(
+        `GRNData.cs uses BodyStyle.${missing.join(", BodyStyle.")} but the enum ` +
+          `declares only { ${[...declared].join(", ")} } — the generated C# does not compile.`
+      );
+      process.exitCode = 1;
+    } else {
+      console.log(`✓ BodyStyle: ${used.size} used, all of ${declared.size} declared`);
+    }
+  }
+}

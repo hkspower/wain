@@ -181,12 +181,19 @@ const engIndex = (id, who) => {
 };
 
 // ------------------------------------------------------------- emit C++
+// The C++ names for each web BodyStyle. The ENUM ITSELF is generated
+// from this map — see EGRNBodyStyle below — because two lists drift.
+// The Unity exporter had exactly this shape and its two lists HAD
+// drifted: it emitted BodyStyle.Hatch against an enum that did not
+// declare it, so the generated C# had not compiled since the hatch
+// silhouette landed and nothing said so.
 const styleEnum = {
-  sedan: "EGRNBodyStyle::Sedan",
-  zx: "EGRNBodyStyle::ZX",
-  gtr: "EGRNBodyStyle::GTR",
-  rx7: "EGRNBodyStyle::RX7",
-  hatch: "EGRNBodyStyle::Hatch",
+  sedan: "Sedan",
+  zx: "ZX",
+  gtr: "GTR",
+  rx7: "RX7",
+  hatch: "Hatch",
+  pony: "Pony",
 };
 /**
  * A style this map does not know has to stop the build.
@@ -199,8 +206,8 @@ const styleEnum = {
  */
 const style = (s, who) => {
   const v = styleEnum[s];
-  if (!v) throw new Error(`${who}: unknown bodyStyle "${s}" — add it to styleEnum and to EGRNBodyStyle below`);
-  return v;
+  if (!v) throw new Error(`${who}: unknown bodyStyle "${s}" — add it to styleEnum`);
+  return `EGRNBodyStyle::${v}`;
 };
 const col = (hex) =>
   `FColor(0x${hex.slice(0, 2).toUpperCase()}, 0x${hex.slice(2, 4).toUpperCase()}, 0x${hex.slice(4, 6).toUpperCase()})`;
@@ -273,7 +280,7 @@ ${points.map((p) => `\t{ ${p.x}, ${p.z} },`).join("\n")}
 
 // ------------------------------------------------------------- rivals
 
-enum class EGRNBodyStyle : uint8 { Sedan, ZX, GTR, RX7, Hatch };
+enum class EGRNBodyStyle : uint8 { ${Object.values(styleEnum).join(", ")} };
 
 struct FGRNRivalDef
 {

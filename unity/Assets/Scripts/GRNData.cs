@@ -9,7 +9,7 @@
 
 using UnityEngine;
 
-public enum BodyStyle { Sedan, ZX, GTR, RX7 }
+public enum BodyStyle { Sedan, ZX, GTR, RX7, Hatch, Pony }
 
 public static class GRNData
 {
@@ -258,7 +258,7 @@ public static class GRNData
         new Car {
             Id = "sahara-v12", Name = "Sahara GT-12", Price = 96000,
             Power = 1.62f, TopSpeedKmh = 385f, Grip = 16.4f, Brake = 42f,
-            Paint = Hex(0xB8860B), Style = BodyStyle.ZX, AttackKit = false,
+            Paint = Hex(0xB8860B), Style = BodyStyle.ZX, AttackKit = true,
             Engine = 4, TankLitres = 90f, LengthM = 4.62f,
             LockedRivals = 0,
             FactoryBuild = new[] {  },
@@ -266,7 +266,7 @@ public static class GRNData
         new Car {
             Id = "falcon-720", Name = "Falcon 720 Veloce", Price = 71000,
             Power = 1.5f, TopSpeedKmh = 360f, Grip = 15.8f, Brake = 40f,
-            Paint = Hex(0xC1121F), Style = BodyStyle.ZX, AttackKit = false,
+            Paint = Hex(0xC1121F), Style = BodyStyle.ZX, AttackKit = true,
             Engine = 4, TankLitres = 72f, LengthM = 4.54f,
             LockedRivals = 0,
             FactoryBuild = new[] {  },
@@ -274,15 +274,23 @@ public static class GRNData
         new Car {
             Id = "storm-s8", Name = "Desert Storm S8", Price = 54000,
             Power = 1.4f, TopSpeedKmh = 335f, Grip = 15.2f, Brake = 38f,
-            Paint = Hex(0x1F2933), Style = BodyStyle.Sedan, AttackKit = false,
+            Paint = Hex(0x1F2933), Style = BodyStyle.Sedan, AttackKit = true,
             Engine = 3, TankLitres = 68f, LengthM = 4.8f,
+            LockedRivals = 0,
+            FactoryBuild = new[] {  },
+        },
+        new Car {
+            Id = "anniversary-30", Name = "Bareed 30 Anniversary", Price = 35000,
+            Power = 1.31f, TopSpeedKmh = 300f, Grip = 12.4f, Brake = 33f,
+            Paint = Hex(0xF2F2EE), Style = BodyStyle.Pony, AttackKit = false,
+            Engine = 4, TankLitres = 61f, LengthM = 4.92f,
             LockedRivals = 0,
             FactoryBuild = new[] {  },
         },
         new Car {
             Id = "kaiju-r", Name = "Kaiju R", Price = 38000,
             Power = 1.34f, TopSpeedKmh = 310f, Grip = 16.2f, Brake = 38f,
-            Paint = Hex(0x3F66C4), Style = BodyStyle.GTR, AttackKit = false,
+            Paint = Hex(0x3F66C4), Style = BodyStyle.GTR, AttackKit = true,
             Engine = 3, TankLitres = 74f, LengthM = 4.6f,
             LockedRivals = 0,
             FactoryBuild = new[] {  },
@@ -511,6 +519,122 @@ public static class GRNData
         public const float CrashSpeedLossK = 0.28f;
         public const float CrashReboundK = 5f;
         public const float TrafficClosingFull = 22f;
+    }
+
+    /// <summary>
+    /// The same constants at DOUBLE precision, for GRNSim.
+    ///
+    /// Unity's own code wants floats — Mathf, Vector3 and the whole
+    /// engine surface are float, and a double there is a cast at every
+    /// call site. But a float constant is not the number that is in
+    /// handling.ts: 0.105f is 0.10499999672174454, and the solvers are
+    /// stateful integrators with THRESHOLDS in them.
+    ///
+    /// This is not a hypothetical. On the UE5 port the same shortcut put
+    /// the drift chain on a different value at step 452 of a scripted
+    /// run — not a rounding difference in the output, a different
+    /// DECISION, because a score gate was crossed one frame apart. The
+    /// fix there was to emit both representations from one source, and
+    /// it is the fix here.
+    /// </summary>
+    public static class Exact
+    {
+        public const double Ceiling = 115;
+        public const double ThrustK = 19;
+        public const double DragA = 0.0012;
+        public const double DragB = 1.2;
+        public const double SteerSmoothRate = 7;
+        public const double CasterRate = 2.4;
+        public const double HeadingClamp = 0.45;
+        public const double FlashRangeM = 60;
+        public const double DriftMinSpeed = 14;
+        public const double DriftAngleBase = 0.38;
+        public const double DriftAngleSpeedK = 0.28;
+        public const double DriftEngageRate = 3.4;
+        public const double DriftRecoverRate = 2.3;
+        public const double DriftYawClamp = 0.75;
+        public const double DriftLatScrub = 0.5;
+        public const double DriftDriveLoss = 1.1;
+        public const double DriftEstablished = 0.12;
+        public const double DriftRecoverCounterK = 3.2;
+        public const double DriftOverRotate = 0.42;
+        public const double DriftCounterRate = 2.6;
+        public const double DriftCriticalAngle = 0.72;
+        public const double DriftRunawayRate = 1.6;
+        public const double DriftSpinAngle = 1.05;
+        public const double DriftSpinTripRate = 0.05;
+        public const double DriftSpinEntryRate = 2.6;
+        public const double DriftSpinEntrySpeedK = 5;
+        public const double DriftSpinEntryRef = 78;
+        public const double DriftSpinFriction = 1.5;
+        public const double DriftSpinSlowK = 2.2;
+        public const double DriftSpinDamp = 0.16;
+        public const double DriftSpinEndRate = 0.5;
+        public const double DriftSpinDragBase = 0.18;
+        public const double DriftSpinDragK = 1.35;
+        public const double DriftSpinMaxTime = 6;
+        public const double DriftScrubBase = 0.05;
+        public const double DriftScrubK = 0.24;
+        public const double DriftBrakeEntry = 0.12;
+        public const double DriftBrakeAngleK = 0.45;
+        public const double DriftFeintRate = 4.2;
+        public const double DriftFeintLoad = 0.3;
+        public const double DriftFeintMinSpeed = 20;
+        public const double DriftFeintWindow = 0.45;
+        public const double DriftFeintAngleK = 0.55;
+        public const double DriftScoreK = 3.2;
+        public const double DriftScoreMinDeg = 8;
+        public const double DriftScoreMinSpeed = 12;
+        public const double DriftLinkWindow = 0.9;
+        public const double DriftChainMax = 5;
+        public const double BrakeLockMargin = 1;
+        public const double BrakeSlideFriction = 0.72;
+        public const double BrakeLockSteer = 0.25;
+        public const double BrakeLockRate = 12;
+        public const double AbsHold = 0.97;
+        public const double AbsHz = 14;
+        public const double BrakeHeatK = 0.105;
+        public const double BrakeCoolBase = 0.008;
+        public const double BrakeCoolK = 0.0016;
+        public const double BrakeFadeStart = 320;
+        public const double BrakeFadeFull = 620;
+        public const double BrakeFadeMax = 0.45;
+        public const double BrakeRotateK = 0.85;
+        public const double BrakeRotateMinSpeed = 12;
+        public const double EngineBrakeK = 2.4;
+        public const double CgHeightM = 0.52;
+        public const double WheelbaseM = 2.62;
+        public const double StaticFrontLoad = 0.53;
+        public const double LoadLagRate = 6.5;
+        public const double LoadClamp = 0.82;
+        public const double TyreLoadExp = 0.85;
+        public const double SteerLoadExp = 0.6;
+        public const double SteerScaleMin = 0.8;
+        public const double SteerScaleMax = 1.22;
+        public const double DriveScaleMin = 0.7;
+        public const double DriveScaleMax = 1.12;
+        public const double DownforceRefSpeed = 70;
+        public const double DownforceMax = 6;
+        public const double DriftLiftEntry = 0.18;
+        public const double DriftLiftAngleK = 0.3;
+        public const double TractionBase = 0.8;
+        public const double TractionRampSpeed = 22;
+        public const double BrakeGripK = 1.05;
+        public const double BrakePadK = 0.25;
+        public const double TrailBrakeK = 0.6;
+        public const double LatDemandSpeed = 40;
+        public const double UndersteerK = 0.35;
+        public const double CornerScrubK = 0.3;
+        public const double CornerScrubSpeed = 40;
+        public const double PowerOverSpin = 1.2;
+        public const double PowerOverSteer = 0.5;
+        public const double PowerOverMinSpeed = 18;
+        public const double PowerOverThrottle = 0.85;
+        public const double PowerOverAngleK = 0.6;
+        public const double CrashLatFull = 12;
+        public const double CrashSpeedLossK = 0.28;
+        public const double CrashReboundK = 5;
+        public const double TrafficClosingFull = 22;
     }
 
     static Color Hex(int rgb) =>

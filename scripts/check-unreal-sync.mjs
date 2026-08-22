@@ -316,3 +316,32 @@ if (process.exitCode) {
 } else {
   console.log("\nWeb API and Unreal header are in sync.");
 }
+
+// --- Does the generated header reference only what it declares?
+//
+// The mirror of the Unity check, and it exists for the same reason: the
+// enum and the lookup that names its members were two separate literals,
+// and on the Unity side they had already drifted into C# that did not
+// compile. Both are generated from one map now; this makes sure it stays
+// that way.
+{
+  const hh = readFileSync(HEADER, "utf8");
+  const decl = hh.match(/enum class EGRNBodyStyle : uint8 \{([^}]*)\}/);
+  if (!decl) {
+    console.error("GRNTypes.h has no EGRNBodyStyle enum");
+    process.exitCode = 1;
+  } else {
+    const declared = new Set(decl[1].split(",").map((x) => x.trim()).filter(Boolean));
+    const used = new Set([...hh.matchAll(/EGRNBodyStyle::(\w+)/g)].map((m) => m[1]));
+    const missing = [...used].filter((u) => !declared.has(u));
+    if (missing.length) {
+      console.error(
+        `GRNTypes.h uses EGRNBodyStyle::${missing.join(", EGRNBodyStyle::")} but the enum ` +
+          `declares only { ${[...declared].join(", ")} } — the generated header does not compile.`
+      );
+      process.exitCode = 1;
+    } else {
+      console.log(`✓ EGRNBodyStyle: ${used.size} used, all of ${declared.size} declared`);
+    }
+  }
+}

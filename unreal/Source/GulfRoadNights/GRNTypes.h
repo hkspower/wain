@@ -38,7 +38,7 @@ static const FGRNTrackPoint GRNControlPoints[] = {
 
 // ------------------------------------------------------------- rivals
 
-enum class EGRNBodyStyle : uint8 { Sedan, ZX, GTR, RX7, Hatch };
+enum class EGRNBodyStyle : uint8 { Sedan, ZX, GTR, RX7, Hatch, Pony };
 
 struct FGRNRivalDef
 {
@@ -169,10 +169,11 @@ struct FGRNCarDef
 static const FGRNCarDef GRNCars[] = {
 	{ TEXT("zeta-300-gtr"), TEXT("Zeta 300 GTR"), 240000, 1.70f, 405.0f, 18.0f, 46.0f, FColor(0x3B, 0x2A, 0x5A), EGRNBodyStyle::ZX, true, 3, 70.0f, 4.53f, 8, TEXT("twin-turbo,intake,ecu,exhaust-ti,brakes-carbon,tires-slick,lsd,coilovers,cage,rack,weight,nos") },
 	{ TEXT("efreet-rx-kai"), TEXT("Efreet RX Kai"), 120000, 1.66f, 400.0f, 17.5f, 44.0f, FColor(0xF2, 0xB9, 0x0D), EGRNBodyStyle::RX7, true, 3, 55.0f, 4.42f, 0, TEXT("") },
-	{ TEXT("sahara-v12"), TEXT("Sahara GT-12"), 96000, 1.62f, 385.0f, 16.4f, 42.0f, FColor(0xB8, 0x86, 0x0B), EGRNBodyStyle::ZX, false, 4, 90.0f, 4.62f, 0, TEXT("") },
-	{ TEXT("falcon-720"), TEXT("Falcon 720 Veloce"), 71000, 1.50f, 360.0f, 15.8f, 40.0f, FColor(0xC1, 0x12, 0x1F), EGRNBodyStyle::ZX, false, 4, 72.0f, 4.54f, 0, TEXT("") },
-	{ TEXT("storm-s8"), TEXT("Desert Storm S8"), 54000, 1.40f, 335.0f, 15.2f, 38.0f, FColor(0x1F, 0x29, 0x33), EGRNBodyStyle::Sedan, false, 3, 68.0f, 4.80f, 0, TEXT("") },
-	{ TEXT("kaiju-r"), TEXT("Kaiju R"), 38000, 1.34f, 310.0f, 16.2f, 38.0f, FColor(0x3F, 0x66, 0xC4), EGRNBodyStyle::GTR, false, 3, 74.0f, 4.60f, 0, TEXT("") },
+	{ TEXT("sahara-v12"), TEXT("Sahara GT-12"), 96000, 1.62f, 385.0f, 16.4f, 42.0f, FColor(0xB8, 0x86, 0x0B), EGRNBodyStyle::ZX, true, 4, 90.0f, 4.62f, 0, TEXT("") },
+	{ TEXT("falcon-720"), TEXT("Falcon 720 Veloce"), 71000, 1.50f, 360.0f, 15.8f, 40.0f, FColor(0xC1, 0x12, 0x1F), EGRNBodyStyle::ZX, true, 4, 72.0f, 4.54f, 0, TEXT("") },
+	{ TEXT("storm-s8"), TEXT("Desert Storm S8"), 54000, 1.40f, 335.0f, 15.2f, 38.0f, FColor(0x1F, 0x29, 0x33), EGRNBodyStyle::Sedan, true, 3, 68.0f, 4.80f, 0, TEXT("") },
+	{ TEXT("anniversary-30"), TEXT("Bareed 30 Anniversary"), 35000, 1.31f, 300.0f, 12.4f, 33.0f, FColor(0xF2, 0xF2, 0xEE), EGRNBodyStyle::Pony, false, 4, 61.0f, 4.92f, 0, TEXT("") },
+	{ TEXT("kaiju-r"), TEXT("Kaiju R"), 38000, 1.34f, 310.0f, 16.2f, 38.0f, FColor(0x3F, 0x66, 0xC4), EGRNBodyStyle::GTR, true, 3, 74.0f, 4.60f, 0, TEXT("") },
 	{ TEXT("efreet-rx"), TEXT("Efreet RX"), 31000, 1.30f, 295.0f, 14.8f, 35.0f, FColor(0xD7, 0x26, 0x3D), EGRNBodyStyle::RX7, false, 2, 60.0f, 4.30f, 0, TEXT("") },
 	{ TEXT("zeta-300"), TEXT("Zeta 300"), 27000, 1.26f, 275.0f, 13.9f, 34.0f, FColor(0xC1, 0x27, 0x2D), EGRNBodyStyle::ZX, false, 3, 70.0f, 4.31f, 0, TEXT("") },
 	{ TEXT("gulf-coupe-rs"), TEXT("Gulf Coupe RS"), 33000, 1.28f, 285.0f, 14.6f, 35.0f, FColor(0xCB, 0x20, 0x27), EGRNBodyStyle::Hatch, false, 1, 50.0f, 4.28f, 0, TEXT("") },
