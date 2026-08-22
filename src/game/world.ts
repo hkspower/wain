@@ -3026,7 +3026,16 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     // carriageway is delineated — the colour tells you which edge you
     // are looking at when the road curves away.
     const reflectorCount = Math.floor(postCount / REFLECTOR_EVERY);
-    const refGeo = new THREE.BoxGeometry(0.02, 0.1, 0.055);
+    // A tab standing above the rail, not a plate bolted to its face.
+    //
+    // The first version sat 85 mm out from the bolt line, which put it
+    // 2 mm proud of a beam crest that stands at 83 — so every reflector
+    // in the game was buried inside its own guardrail, and the frames
+    // came back with a perfectly good barrier carrying no delineators at
+    // all. Standing it above the beam's top edge means nothing can
+    // occlude it from any angle, and it is also where half the real ones
+    // are fitted: a small tab on a bracket, clear of the rail.
+    const refGeo = new THREE.BoxGeometry(0.03, 0.14, 0.07);
     const refMat = new THREE.MeshStandardMaterial({
       color: edge < 0 ? 0xff3a2a : 0xffb02a,
       emissive: edge < 0 ? 0xd42618 : 0xe08a10,
@@ -3064,12 +3073,11 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       posts.setMatrixAt(i, mm);
 
       if (i % REFLECTOR_EVERY === 0 && ri < reflectorCount) {
-        // On the road-facing crest of the beam, near its top, which is
-        // where a delineator is actually bolted.
+        // Clear of the beam's 776 mm top edge, on the bolt line.
         track.pose(s, latAt(lateral, s), mp, mside);
-        mp.x -= mside.x * edge * 0.085;
-        mp.z -= mside.z * edge * 0.085;
-        mp.y = RAIL_Y + 0.1;
+        mp.x -= mside.x * edge * 0.02;
+        mp.z -= mside.z * edge * 0.02;
+        mp.y = RAIL_Y + 0.23;
         mm.compose(mp, mq, one);
         reflectors.setMatrixAt(ri++, mm);
       }
