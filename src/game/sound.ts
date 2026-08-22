@@ -47,6 +47,37 @@ function makeNoiseBuffer(ctx: AudioContext): AudioBuffer {
   return buf;
 }
 
+/**
+ * The output ceiling: identity below the knee, asymptotic above it.
+ *
+ * A DynamicsCompressorNode is a COMPRESSOR, and calling it a limiter
+ * does not make it one. Measured: driven six times past the mix's
+ * staging it pulled 12.4 dB — working exactly as specified — and the
+ * output still peaked at 2.69, because a 20:1 ratio reduces overs
+ * rather than stopping them, and a 3 ms attack lets transients through
+ * underneath it entirely.
+ *
+ * This is the actual brick wall. Below `knee` it is the identity, so at
+ * the levels this game really runs (peaks around 0.44) it is bit for
+ * bit transparent and does nothing at all. Above it the curve bends
+ * toward 1 and never reaches it — and because a WaveShaper clamps any
+ * input beyond +/-1 to the curve's endpoint, the output cannot exceed
+ * 1.0 no matter what arrives. That is a guarantee rather than a
+ * tendency, which is what "cannot clip" has to mean.
+ */
+function ceilingCurve(knee = 0.85): Float32Array {
+  const n = 2048;
+  const curve = new Float32Array(n);
+  const span = 1 - knee;
+  for (let i = 0; i < n; i++) {
+    const x = (i / (n - 1)) * 2 - 1;
+    const a = Math.abs(x);
+    const y = a <= knee ? a : knee + span * Math.tanh((a - knee) / span);
+    curve[i] = Math.sign(x) * y;
+  }
+  return curve;
+}
+
 function softClipCurve(): Float32Array {
   const n = 256;
   const curve = new Float32Array(n);
@@ -57,9 +88,37 @@ function softClipCurve(): Float32Array {
   return curve;
 }
 
+/**
+ * Where the whole mix sits, before the limiter.
+ *
+ * 0.75, unchanged — and it is worth saying why, because it was briefly
+ * 12 on the strength of a measurement that was wrong.
+ *
+ * An analyser on the output appeared to show the game peaking at 0.025
+ * flat out at 300 km/h in a slide, about 32 dB below full scale, and
+ * barely louder than an idling car. Both readings came from a MUTED
+ * master: the test paused the game to control the frame, engine
+ * setPaused() forwards to sound setPaused(), and that sets this gain to
+ * zero. The only thing still reaching the tap was the music, which is a
+ * soundtrack playing at a steady level — measured correctly, and
+ * mistaken for the mix.
+ *
+ * Measured properly, with the game paused and the sound explicitly
+ * un-paused, the mix runs 0.048 RMS at idle and 0.154 flat out. That is
+ * about -16 dBFS with a threefold swing between resting and working,
+ * which is a healthy game mix and needed no gain at all. Sixteen times
+ * it would have pinned the limiter permanently and flattened every
+ * dynamic the rest of this file exists to create.
+ */
+const MASTER_GAIN = 0.75;
+
 export class SoundEngine {
   private ctx: AudioContext;
   private master: GainNode;
+  /** Final stage. Everything, music included, passes through it. */
+  private limiter: DynamicsCompressorNode;
+  /** The hard ceiling after the limiter — see ceilingCurve. */
+  private ceiling: WaveShaperNode;
   /** The continuous bed: engine, exhaust, tires, wind, ambience. This is
    *  what ducks under a voice line — the layers a listener stops needing
    *  when someone is talking to them. */
@@ -180,8 +239,39 @@ export class SoundEngine {
     this.ctx = new AudioContext();
     this.noise = makeNoiseBuffer(this.ctx);
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.75;
-    this.master.connect(this.ctx.destination);
+    this.master.gain.value = MASTER_GAIN;
+    /**
+     * The limiter, and the reason there is now a bus to put it on.
+     *
+     * Before this the master was a gain wired straight to the
+     * destination, and the music was not even wired to the master — it
+     * connected to the destination on its own. So the game had no final
+     * bus at all: the summing point was the DAC, and nothing can meter,
+     * compress or limit a DAC. Every level in this file was authored
+     * blind to what the sum of them did.
+     *
+     * Configured as a limiter rather than a compressor: hard knee, high
+     * ratio, fast attack, and a release long enough not to pump on the
+     * engine's own beat. It should be doing nothing at all most of the
+     * time — it exists so that a crash, a backfire and a redline landing
+     * on the same frame cannot clip, which is exactly when a mix without
+     * one falls apart.
+     */
+    this.limiter = this.ctx.createDynamicsCompressor();
+    this.limiter.threshold.value = -6;
+    this.limiter.knee.value = 0;
+    this.limiter.ratio.value = 20;
+    this.limiter.attack.value = 0.003;
+    this.limiter.release.value = 0.25;
+    // ...and the ceiling after it. The compressor does the musical work
+    // — riding a loud passage down gently — and this catches whatever it
+    // was too slow or too gentle to stop. Oversampled, because
+    // saturating a signal generates harmonics and the ones above Nyquist
+    // fold back down as aliasing if they are not run at a higher rate.
+    this.ceiling = this.ctx.createWaveShaper();
+    this.ceiling.curve = ceilingCurve() as Float32Array<ArrayBuffer>;
+    this.ceiling.oversample = "4x";
+    this.master.connect(this.limiter).connect(this.ceiling).connect(this.ctx.destination);
     // Two sub-buses under the master, so the mix has somewhere to move.
     // Before this everything connected straight to the master and there
     // was no way to duck one thing under another — which is the whole
@@ -514,6 +604,33 @@ export class SoundEngine {
       osc.start();
       this.rivalOsc.push(osc);
     }
+  }
+
+  /**
+   * Where anything outside this class should connect.
+   *
+   * The music used to connect straight to ctx.destination, so the game
+   * had two independent outputs and no place where the whole mix
+   * existed. Routing it here puts it under the same limiter as
+   * everything else, which is what makes a crash duck the soundtrack
+   * for free rather than pile on top of it.
+   */
+  get mixBus(): GainNode {
+    return this.master;
+  }
+
+  /**
+   * The last node before the destination — what actually leaves.
+   *
+   * Exposed because a test that taps `master` is measuring the bus and
+   * not the output, and the difference is the entire limiter and
+   * ceiling. That mistake was made here: a proof that the ceiling holds
+   * the output under full scale was read off the master, showed a peak
+   * of 2.5, and looked like the ceiling had failed when it had simply
+   * never been in the measured path.
+   */
+  get outputTap(): AudioNode {
+    return this.ceiling;
   }
 
   get audioContext(): AudioContext {
@@ -858,6 +975,13 @@ export class SoundEngine {
       const coast = Math.min(Math.max(f.coast, 0), 1);
       // The car's own noise masks the environment at speed, so duck it
       const duck = 1 - Math.min(0.75, f.speedKmh / 240);
+      // Left at 0.5. The surf IS the largest single gain in this file,
+      // and it was briefly cut to 0.16 on the theory that it was
+      // flattening the mix — but the output says otherwise: idle 0.048
+      // RMS against 0.154 flat out is a threefold swing, so the car
+      // overtakes the sea perfectly well already. The theory was built
+      // on a measurement of the music with the master muted. A number
+      // this audible does not get changed on an argument.
       this.seaGain!.gain.setTargetAtTime(coast * 0.5 * duck, t, 0.6);
       this.cityGain!.gain.setTargetAtTime((1 - coast) * 0.22 * duck, t, 0.6);
       if (f.seaX !== undefined && f.seaZ !== undefined) {
@@ -1152,7 +1276,7 @@ export class SoundEngine {
   // independent flags; silence wins whenever either is set. Nothing else
   // ever schedules on master gain, so no cancelScheduledValues needed.
   private applyMaster(): void {
-    this.master.gain.value = this.muted || this.paused ? 0 : 0.75;
+    this.master.gain.value = this.muted || this.paused ? 0 : MASTER_GAIN;
   }
 
   toggleMute(): boolean {

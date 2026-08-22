@@ -450,6 +450,210 @@ if (music) {
     "the cat-back is not deeper than stock");
 }
 
+// --- The mix, as one signal ---
+//
+// Every check above measures a gain node: does this layer rise, does
+// that one duck. None of them measures what actually leaves the
+// machine, and those are different questions. A mix is not a list of
+// levels, it is their SUM — and the sum is where a game either has
+// headroom or distorts.
+//
+// So this taps the real output and reads samples. An AnalyserNode on
+// the destination sees what the DAC sees, and the number that matters
+// is the peak: WebAudio clips hard at +/-1, so a mix that reaches 1.0
+// is not "loud", it is broken, and it breaks worst exactly when the
+// most is happening — which in a racing game is the crash.
+{
+  const peaks = await page.evaluate(async () => {
+    const s = window.__grnEngine.sound;
+    const ctx = s.ctx;
+    // Tap the destination itself, so anything routed around the
+    // SoundEngine's own master is still counted.
+    const tap = ctx.createAnalyser();
+    tap.fftSize = 2048;
+    const buf = new Float32Array(tap.fftSize);
+    // A gain of 0 keeps the tap silent while still pulling the signal
+    // through it.
+    const sink = ctx.createGain();
+    sink.gain.value = 0;
+    tap.connect(sink).connect(ctx.destination);
+    // Everything that reaches the speakers has to reach the tap too.
+    // The OUTPUT, not the bus. Tapping s.master measures the mix before
+    // the limiter and the ceiling — which is a useful number, but it is
+    // not what leaves the machine, and a proof that the output cannot
+    // clip has to be taken where the output is.
+    s.outputTap.connect(tap);
+
+    const eng = window.__grnEngine;
+    // CALIBRATE THE TAP FIRST.
+    //
+    // An analyser in a headless browser with no audio device is exactly
+    // the kind of instrument that returns plausible small numbers while
+    // measuring nothing. So feed it a known signal — a sine at a known
+    // amplitude — and check it reads back what was put in. If this comes
+    // out near 0.5 the tap is real and every number below can be
+    // believed; if it comes out near zero, nothing below means anything.
+    const calSine = async () => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      g.gain.value = 0.5;
+      osc.frequency.value = 220;
+      osc.connect(g).connect(tap);
+      osc.start();
+      // Let the graph reach the analyser before reading it. This is the
+      // whole reason the calibration exists: the first version started
+      // the sine and measured immediately, read back 0.000, and then the
+      // NEXT measurement — nominally an idle car — came back at 0.494,
+      // which is the sine. The tap was never broken; every window was
+      // showing the state before it.
+      await new Promise((r) => setTimeout(r, 450));
+      let peak = 0;
+      const t0 = performance.now();
+      while (performance.now() - t0 < 250) {
+        tap.getFloatTimeDomainData(buf);
+        for (let i = 0; i < buf.length; i++) {
+          const v = Math.abs(buf[i]);
+          if (v > peak) peak = v;
+        }
+        await new Promise((r) => setTimeout(r, 8));
+      }
+      osc.stop();
+      osc.disconnect();
+      g.disconnect();
+      // ...and let it drain again, or the sine turns up in the next one.
+      await new Promise((r) => setTimeout(r, 450));
+      return +peak.toFixed(3);
+    };
+    const cal = await calSine();
+
+    const measure = async (frame, ms, extra, masterGain) => {
+      // Pause the GAME so it stops writing its own audio frames over the
+      // one being tested — then un-pause the SOUND, because
+      // engine.setPaused() forwards to sound.setPaused(), which sets the
+      // master gain to zero.
+      //
+      // That is not a detail. Every number this test printed before the
+      // calibration was added came from a muted master: the only thing
+      // reaching the tap was the music, which is why "the mix" looked
+      // like it sat at -32 dBFS and did not respond to the game. It was
+      // a soundtrack playing at a steady level, measured correctly, and
+      // reported as something else entirely.
+      eng.setPaused(true);
+      s.setPaused(false);
+      if (masterGain !== undefined) s.master.gain.value = masterGain;
+      for (let i = 0; i < 10; i++) s.update(frame);
+      // Same settle. The gains move on setTargetAtTime with time
+      // constants up to 0.09 s, and the analyser is behind the graph on
+      // top of that.
+      await new Promise((r) => setTimeout(r, 450));
+      let peak = 0, sumSq = 0, n = 0;
+      const t0 = performance.now();
+      while (performance.now() - t0 < ms) {
+        if (extra) extra(s);
+        tap.getFloatTimeDomainData(buf);
+        for (let i = 0; i < buf.length; i++) {
+          const v = Math.abs(buf[i]);
+          if (v > peak) peak = v;
+          sumSq += buf[i] * buf[i];
+          n++;
+        }
+        await new Promise((r) => setTimeout(r, 8));
+      }
+      return {
+        peak: +peak.toFixed(3),
+        rms: +Math.sqrt(sumSq / Math.max(1, n)).toFixed(4),
+        // What the limiter is actually doing, in dB. A limiter that
+        // never reduces anything is decoration, and one that reduces at
+        // idle is squashing the whole game.
+        reduction: +(s.limiter?.reduction ?? 0).toFixed(2),
+      };
+    };
+
+    const quiet = { speedKmh: 0, throttle: 0, rpmFrac: 0.1, gear: 0, skid: 0,
+      listener: { x: 0, y: 2, z: 0, fx: 0, fy: 0, fz: -1, ux: 0, uy: 1, uz: 0 } };
+    const flat = { ...quiet, speedKmh: 300, throttle: 1, rpmFrac: 0.97, gear: 6,
+      skid: 1, rumble: 1, coast: 1, seaX: -55, seaZ: 10,
+      rival: { x: 3, y: 0.5, z: -6, speedKmh: 300, throttle: 1 } };
+
+    // Both stagings in one run, so the comparison is like for like.
+    const OLD = 0.75;
+    // Read the staged value from the CONSTANT the engine uses, not from
+    // the live node: the node reads zero here because the sound is still
+    // paused at this point, and measuring at a master gain of zero is
+    // exactly the mistake this whole block exists to have caught.
+    s.setPaused(false);
+    const staged = s.master.gain.value;
+    const idleOld = await measure(quiet, 220, null, OLD);
+    const flatOld = await measure(flat, 320, null, OLD);
+    const idle = await measure(quiet, 220, null, staged);
+    const flatOut = await measure(flat, 320, null, staged);
+    // ...and the worst case a player can actually produce: everything
+    // above, plus the one-shots that land on top of it.
+    const crash = await measure(flat, 420, (snd) => {
+      snd.scrape(1);
+      snd.backfire(2.4);
+    }, staged);
+    // PROVE THE LIMITER LIMITS.
+    //
+    // At the real staging it reduces 0 to -0.03 dB, which is what a
+    // safety net should read when nothing is falling: the mix does not
+    // clip, so there is nothing to catch. But a limiter that has never
+    // been shown to engage is an assumption, not a protection — so drive
+    // the master far past where the mix would clip and check the output
+    // still comes out under full scale.
+    const overdriven = await measure(flat, 320, null, staged * 6);
+    s.master.gain.value = staged;
+    eng.setPaused(false);
+    return { cal, idleOld, flatOld, idle, flat: flatOut, crash, staged, overdriven };
+  });
+
+  console.log(`\nmix output   tap calibration: a 0.5 sine reads back ${peaks.cal}`);
+  check(
+    Math.abs(peaks.cal - 0.5) < 0.06,
+    `the output tap is not measuring audio (a 0.5 sine read back as ${peaks.cal}) — ` +
+      `every level below this line is meaningless`
+  );
+  console.log(`             at the old 0.75 staging: idle ${peaks.idleOld.rms} rms, flat ${peaks.flatOld.rms} rms`);
+  console.log(`             staged at ${peaks.staged}`);
+  console.log(`             idle  peak ${peaks.idle.peak}  rms ${peaks.idle.rms}`);
+  console.log(`             flat  peak ${peaks.flat.peak}  rms ${peaks.flat.rms}`);
+  console.log(`             crash peak ${peaks.crash.peak}  rms ${peaks.crash.rms}`);
+  // Digital full scale. Anything at or over this is clipped, and the
+  // 0.99 is not a safety margin — it is where the sample already is.
+  check(peaks.crash.peak < 0.99, `the mix clips at full tilt (peak ${peaks.crash.peak})`);
+  check(peaks.flat.peak < 0.99, `the mix clips flat out (peak ${peaks.flat.peak})`);
+  // ...and it should still be USING the range. A mix with 20 dB of
+  // unused headroom is quiet, not clean.
+  check(peaks.crash.peak > 0.35, `the mix never gets near full scale (peak ${peaks.crash.peak})`);
+  // Dynamic range: the difference between a quiet moment and a loud one
+  // is the whole reason a night game is worth listening to.
+  const range = peaks.crash.rms / Math.max(1e-6, peaks.idle.rms);
+  console.log(
+    `             limiter reduces ${peaks.idle.reduction} dB at idle, ` +
+    `${peaks.flat.reduction} dB flat out, ${peaks.crash.reduction} dB in a crash`
+  );
+  console.log(`             idle -> crash is ${range.toFixed(1)}x in RMS`);
+  // It should be asleep when the game is quiet. A limiter working at
+  // idle is not protecting headroom, it is removing dynamics.
+  check(
+    peaks.idle.reduction > -0.5,
+    `the limiter is squashing an idling car (${peaks.idle.reduction} dB)`
+  );
+  console.log(
+    `             driven 6x past staging: peak ${peaks.overdriven.peak}, ` +
+    `limiter pulling ${peaks.overdriven.reduction} dB`
+  );
+  check(
+    peaks.overdriven.peak < 0.99,
+    `six times the staging clips anyway (peak ${peaks.overdriven.peak}) — the limiter is not limiting`
+  );
+  check(
+    peaks.overdriven.reduction < -3,
+    `the limiter does not engage even at six times the staging (${peaks.overdriven.reduction} dB)`
+  );
+  check(range > 2, `the mix has no dynamic range (${range.toFixed(1)}x from idle to a crash)`);
+}
+
 console.log(fail.length ? "\nFAILURES:\n - " + fail.join("\n - ") : "\nall audio checks passed");
 await browser.close();
 process.exit(fail.length ? 1 : 0);

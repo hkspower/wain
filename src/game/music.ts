@@ -29,11 +29,18 @@ export class Music {
   private intensity = 0;
   private started = false;
 
-  constructor(ctx: AudioContext) {
+  /**
+   * `out` is where the music lands. It defaults to the destination only
+   * so this class still works standalone; the game passes the sound
+   * engine's mix bus, because music that bypasses the master is music
+   * outside the mix — nothing could duck it against a crash, and the
+   * limiter never saw it.
+   */
+  constructor(ctx: AudioContext, out?: AudioNode) {
     this.ctx = ctx;
     this.master = ctx.createGain();
     this.master.gain.value = this.volume;
-    this.master.connect(ctx.destination);
+    this.master.connect(out ?? ctx.destination);
 
     fetch(MANIFEST)
       .then((r) => (r.ok ? r.json() : null))

@@ -1328,7 +1328,7 @@ export class GameEngine {
         this.tune.exhaust.tone
       );
       this.sound.revStart();
-      this.music = new Music(this.sound.audioContext);
+      this.music = new Music(this.sound.audioContext, this.sound.mixBus);
       // Wire the voice into the mix: whenever anyone speaks — a recorded
       // ElevenLabs line or the synthesized fallback — the bed and the
       // score step back, and come home when they stop.
