@@ -1,8 +1,11 @@
 import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+
+import { press } from '@/components/ui/press';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { QtyStepper } from '@/components/qty-stepper';
+import { Button } from '@/components/ui/button';
 import { RemoteArt } from '@/components/remote-art';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -31,16 +34,7 @@ export default function CartScreen() {
           <ThemedText type="small" themeColor="textSecondary" style={styles.center}>
             {t.cart.emptyText}
           </ThemedText>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/shop')}
-            style={({ pressed }) => [
-              styles.primary,
-              { backgroundColor: theme.tint },
-              pressed && styles.pressed,
-            ]}>
-            <Text style={styles.primaryText}>{t.cart.browse}</Text>
-          </Pressable>
+          <Button label={t.cart.browse} onPress={() => router.push('/shop')} style={styles.primary} />
         </View>
       </SafeAreaView>
     );
@@ -92,7 +86,7 @@ export default function CartScreen() {
                     <Pressable
                       accessibilityRole="button"
                       onPress={() => remove(l.slug, l.size)}
-                      style={({ pressed }) => [styles.removeHit, pressed && styles.pressed]}>
+                      style={press(false, styles.removeHit)}>
                       <ThemedText type="small" themeColor="danger">
                         {t.cart.remove}
                       </ThemedText>
@@ -141,16 +135,7 @@ export default function CartScreen() {
             <ThemedText type="smallBold">{t.cart.total}</ThemedText>
             <ThemedText type="smallBold">{formatPrice(total, lang)}</ThemedText>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/checkout')}
-            style={({ pressed }) => [
-              styles.primary,
-              { backgroundColor: theme.tint },
-              pressed && styles.pressed,
-            ]}>
-            <Text style={styles.primaryText}>{t.cart.checkout}</Text>
-          </Pressable>
+          <Button label={t.cart.checkout} onPress={() => router.push('/checkout')} style={styles.primary} />
         </View>
       </ThemedView>
     </SafeAreaView>
@@ -207,18 +192,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  primary: {
-    marginTop: Spacing.two,
-    minHeight: TapTarget,
-    borderRadius: Spacing.three,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
+  primary: { marginTop: Spacing.two },
   emptyWrap: {
     flex: 1,
     alignItems: 'center',
@@ -231,8 +205,5 @@ const styles = StyleSheet.create({
   },
   center: {
     textAlign: 'center',
-  },
-  pressed: {
-    opacity: 0.85,
   },
 });

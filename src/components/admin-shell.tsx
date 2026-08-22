@@ -1,5 +1,7 @@
 import { useRouter, usePathname } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+
+import { press } from '@/components/ui/press';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -61,7 +63,7 @@ export function AdminShell({
             <Pressable
               accessibilityRole="button"
               onPress={signOut}
-              style={({ pressed }) => [styles.signOut, pressed && styles.pressed]}>
+              style={press(false, styles.signOut)}>
               <Text style={styles.signOutText}>Sign out</Text>
             </Pressable>
           )}
@@ -82,7 +84,7 @@ export function AdminShell({
                   accessibilityRole="link"
                   accessibilityState={{ selected: active }}
                   onPress={() => router.replace(href as never)}
-                  style={({ pressed }) => pressed && styles.pressed}>
+                  style={press()}>
                   <ThemedView
                     type={active ? 'backgroundSelected' : 'backgroundElement'}
                     style={[styles.navItem, { borderColor: active ? theme.tint : theme.border }]}>
@@ -132,11 +134,8 @@ export function AdminShell({
                 <Pressable
                   accessibilityRole="button"
                   onPress={onRetry}
-                  style={({ pressed }) => [
-                    styles.retry,
-                    { borderColor: theme.border },
-                    pressed && styles.pressed,
-                  ]}>
+                  style={press(false, styles.retry,
+                    { borderColor: theme.border })}>
                   <ThemedText type="smallBold">Try again</ThemedText>
                 </Pressable>
               )}
@@ -233,5 +232,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pressed: { opacity: 0.7 },
 });

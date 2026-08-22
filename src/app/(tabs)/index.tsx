@@ -1,5 +1,8 @@
 import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+
+import { press } from '@/components/ui/press';
+import { Screen } from '@/components/ui/screen';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ProductCard } from '@/components/product-card';
@@ -22,14 +25,7 @@ export default function HomeScreen() {
   const featured = products.filter((p) => p.featured).slice(0, 4);
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: BottomTabInset + Spacing.five },
-        ]}
-        showsVerticalScrollIndicator={false}>
-        <View style={styles.content}>
+    <Screen tabBar contentStyle={styles.column}>
           {/* Hero. Charcoal panel, ember button — the storefront's own
               proportions: the picture is the product grid below, not the
               banner, so the banner stays quiet. */}
@@ -42,11 +38,8 @@ export default function HomeScreen() {
             <Pressable
               accessibilityRole="button"
               onPress={() => router.push('/shop')}
-              style={({ pressed }) => [
-                styles.heroButton,
-                { backgroundColor: theme.tint },
-                pressed && styles.pressed,
-              ]}>
+              style={press(false, styles.heroButton,
+                { backgroundColor: theme.tint })}>
               <Text style={styles.heroButtonText}>{t.home.shopNow}</Text>
             </Pressable>
           </ThemedView>
@@ -63,7 +56,7 @@ export default function HomeScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={categoryName(cat, lang)}
                 onPress={() => router.push({ pathname: '/shop', params: { category: cat.id } })}
-                style={({ pressed }) => pressed && styles.pressed}>
+                style={press()}>
                 <RemoteArt
                   uri={categoryArt(cat.id)}
                   bundled={bundledCategoryArt(cat.id, dir)}
@@ -118,26 +111,12 @@ export default function HomeScreen() {
               </View>
             ))}
           </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.three,
-  },
-  content: {
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    gap: Spacing.three,
-  },
+  column: { gap: Spacing.three },
   hero: {
     borderRadius: Spacing.four,
     padding: Spacing.four,
@@ -258,8 +237,5 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexBasis: '48%',
     maxWidth: '48%',
-  },
-  pressed: {
-    opacity: 0.85,
   },
 });

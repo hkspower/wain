@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
+import { press } from '@/components/ui/press';
+
 import { AdminShell, adminStyles } from '@/components/admin-shell';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -115,12 +117,9 @@ export default function StockScreen() {
                 accessibilityState={{ disabled: !dirty, busy: saving === k }}
                 disabled={!dirty || saving !== null}
                 onPress={() => save(i)}
-                style={({ pressed }) => [
-                  styles.save,
+                style={press(false, styles.save,
                   { backgroundColor: dirty ? theme.tint : theme.backgroundElement, borderColor: theme.border },
-                  pressed && styles.pressed,
-                  !dirty && styles.dimmed,
-                ]}>
+                  !dirty && styles.dimmed)}>
                 {saving === k ? (
                   <ActivityIndicator color="#ffffff" />
                 ) : (
@@ -157,5 +156,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dimmed: { opacity: 0.6 },
-  pressed: { opacity: 0.85 },
 });

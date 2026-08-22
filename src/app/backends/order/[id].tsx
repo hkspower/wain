@@ -2,6 +2,8 @@ import { useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { press } from '@/components/ui/press';
+
 import { AdminShell, adminStyles } from '@/components/admin-shell';
 import { StatusChip } from '@/components/status-chip';
 import { ThemedText } from '@/components/themed-text';
@@ -151,15 +153,12 @@ export default function OrderScreen() {
                   accessibilityState={{ busy: saving === to, disabled: saving !== null }}
                   disabled={saving !== null}
                   onPress={() => move(to)}
-                  style={({ pressed }) => [
-                    styles.move,
+                  style={press(false, styles.move,
                     {
                       backgroundColor: to === 'cancelled' ? theme.backgroundElement : theme.tint,
                       borderColor: to === 'cancelled' ? theme.danger : theme.tint,
                     },
-                    pressed && styles.pressed,
-                    saving !== null && saving !== to && styles.dimmed,
-                  ]}>
+                    saving !== null && saving !== to && styles.dimmed)}>
                   {saving === to && (
                     <ActivityIndicator color={to === 'cancelled' ? theme.danger : '#ffffff'} />
                   )}
@@ -195,5 +194,4 @@ const styles = StyleSheet.create({
   },
   moveText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
   dimmed: { opacity: 0.4 },
-  pressed: { opacity: 0.85 },
 });

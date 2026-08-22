@@ -1,8 +1,11 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { press } from '@/components/ui/press';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
+import { Button } from '@/components/ui/button';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -37,16 +40,7 @@ export default function OrderScreen() {
           </ThemedText>
         </ThemedView>
 
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.replace('/')}
-          style={({ pressed }) => [
-            styles.primary,
-            { backgroundColor: theme.tint },
-            pressed && styles.pressed,
-          ]}>
-          <Text style={styles.primaryText}>{t.order.home}</Text>
-        </Pressable>
+        <Button label={t.order.home} onPress={() => router.replace('/')} style={styles.primary} />
       </View>
     </SafeAreaView>
   );
@@ -76,14 +70,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.five,
   },
   ref: { fontSize: 20, letterSpacing: 1 },
-  primary: {
-    marginTop: Spacing.four,
-    alignSelf: 'stretch',
-    minHeight: TapTarget,
-    borderRadius: Spacing.three,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
-  pressed: { opacity: 0.85 },
+  primary: { marginTop: Spacing.four, alignSelf: 'stretch' },
 });

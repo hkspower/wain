@@ -1,6 +1,8 @@
 import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { press } from '@/components/ui/press';
+
 import { Price } from '@/components/price';
 import { RemoteArt } from '@/components/remote-art';
 import { ThemedText } from '@/components/themed-text';
@@ -21,7 +23,7 @@ export function ProductCard({ product }: { product: Product }) {
       <Pressable
         accessibilityRole="link"
         accessibilityLabel={productName(product, lang)}
-        style={({ pressed }) => [styles.press, pressed && styles.pressed]}>
+        style={press(false, styles.press)}>
         <ThemedView type="backgroundElement" style={[styles.card, { borderColor: theme.border }]}>
           <RemoteArt
             uri={productPhoto(product.slug)}
@@ -54,9 +56,6 @@ export function ProductCard({ product }: { product: Product }) {
 const styles = StyleSheet.create({
   press: {
     flex: 1,
-  },
-  pressed: {
-    opacity: 0.85,
   },
   card: {
     flex: 1,

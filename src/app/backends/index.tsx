@@ -11,7 +11,10 @@ import {
   View,
 } from 'react-native';
 
+import { press } from '@/components/ui/press';
+
 import { AdminShell, adminStyles } from '@/components/admin-shell';
+import { Button } from '@/components/ui/button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing, TapTarget } from '@/constants/theme';
@@ -93,19 +96,12 @@ function SignIn() {
             </ThemedText>
           )}
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ busy, disabled: busy }}
-            disabled={busy}
+          <Button
+            label={busy ? 'Signing in…' : 'Sign in'}
             onPress={submit}
-            style={({ pressed }) => [
-              styles.primary,
-              { backgroundColor: theme.tint },
-              pressed && styles.pressed,
-            ]}>
-            {busy && <ActivityIndicator color="#ffffff" />}
-            <Text style={styles.primaryText}>{busy ? 'Signing in…' : 'Sign in'}</Text>
-          </Pressable>
+            busy={busy}
+            style={styles.primary}
+          />
         </View>
       </KeyboardAvoidingView>
     </AdminShell>
@@ -144,16 +140,11 @@ function Dashboard() {
             <Tile label="Waiting" value={String(data.pending)} tone={data.pending > 0} />
           </View>
 
-          <Pressable
-            accessibilityRole="link"
+          <Button
+            label="Open orders"
             onPress={() => router.replace('/backends/orders')}
-            style={({ pressed }) => [
-              styles.primary,
-              { backgroundColor: theme.tint },
-              pressed && styles.pressed,
-            ]}>
-            <Text style={styles.primaryText}>Open orders</Text>
-          </Pressable>
+            style={styles.primary}
+          />
 
           <ThemedText type="smallBold" style={styles.section}>
             Running out
@@ -206,15 +197,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     fontSize: 16,
   },
-  primary: {
-    marginTop: Spacing.three,
-    minHeight: TapTarget,
-    borderRadius: Spacing.three,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.two,
-  },
+  primary: { marginTop: Spacing.three },
   primaryText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
   // Wraps to one per row on a narrow phone and sits three-up on anything
   // wider, without a breakpoint: each tile asks for 30% and flexWrap does the
@@ -231,5 +214,4 @@ const styles = StyleSheet.create({
   },
   tileValue: { fontSize: 22, lineHeight: 28 },
   section: { marginTop: Spacing.four, fontSize: 16 },
-  pressed: { opacity: 0.85 },
 });

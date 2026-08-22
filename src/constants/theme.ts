@@ -105,6 +105,27 @@ export const Fonts = Platform.select({
   },
 });
 
+/**
+ * Corner radii. Named for what they are on, not for their size, so a change of
+ * mind about "how round is a card" is one edit rather than a search for 16.
+ */
+export const Radius = {
+  chip: 999,
+  control: 8,
+  card: 16,
+  panel: 24,
+} as const;
+
+/**
+ * What a press looks like. Fifteen files had their own `pressed: { opacity }`
+ * and three different values between them.
+ */
+export const Opacity = {
+  pressed: 0.85,
+  pressedSubtle: 0.7,
+  disabled: 0.4,
+} as const;
+
 export const Spacing = {
   half: 2,
   one: 4,

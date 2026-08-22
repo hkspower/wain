@@ -2,6 +2,8 @@ import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { press } from '@/components/ui/press';
+
 import { AdminShell, adminStyles } from '@/components/admin-shell';
 import { StatusChip } from '@/components/status-chip';
 import { ThemedText } from '@/components/themed-text';
@@ -60,7 +62,7 @@ export default function OrdersScreen() {
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
               onPress={() => setFilter(f)}
-              style={({ pressed }) => pressed && styles.pressed}>
+              style={press()}>
               <ThemedView
                 type={active ? 'backgroundSelected' : 'backgroundElement'}
                 style={[styles.filter, { borderColor: active ? theme.tint : theme.border }]}>
@@ -87,7 +89,7 @@ export default function OrdersScreen() {
             accessibilityRole="link"
             accessibilityLabel={`Order ${o.ref}`}
             onPress={() => router.push({ pathname: '/backends/order/[id]', params: { id: o.id } })}
-            style={({ pressed }) => pressed && styles.pressed}>
+            style={press()}>
             <ThemedView
               type="backgroundElement"
               style={[adminStyles.card, { borderColor: theme.border }]}>
@@ -127,5 +129,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
   },
   empty: { paddingVertical: Spacing.five, textAlign: 'center' },
-  pressed: { opacity: 0.7 },
 });

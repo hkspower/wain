@@ -1,6 +1,9 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+
+import { press } from '@/components/ui/press';
+import { ContentColumn, Screen } from '@/components/ui/screen';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ProductCard } from '@/components/product-card';
@@ -47,7 +50,7 @@ export default function ShopScreen() {
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       onPress={onPress}
-      style={({ pressed }) => pressed && styles.pressed}>
+      style={press()}>
       <ThemedView
         type={active ? 'backgroundSelected' : 'backgroundElement'}
         style={[styles.chip, { borderColor: active ? theme.tint : theme.border }]}>
@@ -59,18 +62,14 @@ export default function ShopScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: BottomTabInset + Spacing.five },
-        ]}
-        showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={[0]}>
-        {/* The filters stay on screen while the grid scrolls. On a phone the
-            alternative is scrolling back to the top to change your mind. */}
+    <Screen
+      tabBar
+      contentStyle={styles.column}
+      stickyHeader={
+        /* The filters stay on screen while the grid scrolls. On a phone the
+           alternative is scrolling back to the top to change your mind. */
         <ThemedView type="background" style={styles.filterBar}>
-          <View style={styles.content}>
+          <ContentColumn>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -97,10 +96,10 @@ export default function ShopScreen() {
                 onPress={() => setSort('high')}
               />
             </ScrollView>
-          </View>
+          </ContentColumn>
         </ThemedView>
+      }>
 
-        <View style={styles.content}>
           <ThemedText type="small" themeColor="textSecondary" style={text}>
             {t.shop.results(shown.length)}
           </ThemedText>
@@ -116,26 +115,12 @@ export default function ShopScreen() {
               ))}
             </View>
           )}
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: Spacing.five,
-  },
-  content: {
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    paddingHorizontal: Spacing.three,
-    gap: Spacing.two,
-  },
+  column: { gap: Spacing.two },
   filterBar: {
     paddingTop: Spacing.two,
     paddingBottom: Spacing.two,
@@ -177,8 +162,5 @@ const styles = StyleSheet.create({
   empty: {
     marginTop: Spacing.five,
     textAlign: 'center',
-  },
-  pressed: {
-    opacity: 0.7,
   },
 });

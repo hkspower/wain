@@ -11,10 +11,13 @@ import {
   TextInput,
   View,
 } from 'react-native';
+
+import { press } from '@/components/ui/press';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 
 import { ThemedText } from '@/components/themed-text';
+import { Button } from '@/components/ui/button';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -185,14 +188,11 @@ export default function CheckoutScreen() {
                       accessibilityRole="button"
                       accessibilityState={{ selected: active }}
                       onPress={() => set('governorate')(label)}
-                      style={({ pressed }) => [
-                        styles.gov,
+                      style={press(false, styles.gov,
                         {
                           borderColor: active ? theme.tint : theme.border,
                           backgroundColor: active ? theme.tintSoft : theme.backgroundElement,
-                        },
-                        pressed && styles.pressed,
-                      ]}>
+                        })}>
                       <ThemedText type="small" themeColor={active ? 'tintText' : 'text'}>
                         {label}
                       </ThemedText>
@@ -239,15 +239,12 @@ export default function CheckoutScreen() {
                     accessibilityRole="radio"
                     accessibilityState={{ selected: active }}
                     onPress={() => setPayment(id)}
-                    style={({ pressed }) => [
-                      styles.pay,
+                    style={press(false, styles.pay,
                       row,
                       {
                         borderColor: active ? theme.tint : theme.border,
                         backgroundColor: active ? theme.tintSoft : theme.backgroundElement,
-                      },
-                      pressed && styles.pressed,
-                    ]}>
+                      })}>
                     <Text style={styles.payIcon}>{icon}</Text>
                     <ThemedText type="smallBold" themeColor={active ? 'tintText' : 'text'}>
                       {label}
@@ -271,27 +268,16 @@ export default function CheckoutScreen() {
               <ThemedText type="smallBold">{t.cart.total}</ThemedText>
               <ThemedText type="smallBold">{formatPrice(total, lang)}</ThemedText>
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ busy, disabled: busy }}
-              disabled={busy}
+            {/* The spinner sits INSIDE the button — see components/ui/button.tsx.
+                An order takes a round trip to a bank; without it the customer
+                taps again, and a second tap on a payment button is the one
+                thing this screen must never invite. */}
+            <Button
+              label={busy ? t.checkout.working : payment === 'cod' ? t.checkout.place : t.checkout.pay}
               onPress={submit}
-              style={({ pressed }) => [
-                styles.primary,
-                row,
-                { backgroundColor: theme.tint },
-                pressed && styles.pressed,
-                busy && styles.busy,
-              ]}>
-              {/* The spinner sits INSIDE the button. An order takes a
-                  round trip to a bank; without it the customer taps again, and
-                  a second tap on a payment button is the one thing this screen
-                  must never invite. */}
-              {busy && <ActivityIndicator color="#ffffff" style={styles.spinner} />}
-              <Text style={styles.primaryText}>
-                {busy ? t.checkout.working : payment === 'cod' ? t.checkout.place : t.checkout.pay}
-              </Text>
-            </Pressable>
+              busy={busy}
+              style={styles.primary}
+            />
           </View>
         </ThemedView>
       </KeyboardAvoidingView>
@@ -342,16 +328,6 @@ const styles = StyleSheet.create({
   payIcon: { fontSize: 22 },
   actionBar: { borderTopWidth: 1, paddingVertical: Spacing.three },
   totalRow: { justifyContent: 'space-between', alignItems: 'center' },
-  primary: {
-    marginTop: Spacing.two,
-    minHeight: TapTarget,
-    borderRadius: Spacing.three,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.two,
-  },
+  primary: { marginTop: Spacing.two },
   primaryText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
-  spinner: { transform: [{ scale: 0.9 }] },
-  busy: { opacity: 0.9 },
-  pressed: { opacity: 0.85 },
 });

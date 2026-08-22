@@ -8,6 +8,8 @@ import {
 } from 'expo-router/ui';
 import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 
+import { press } from '@/components/ui/press';
+
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
@@ -63,7 +65,7 @@ export function TabButton({ children, isFocused, badge, ...props }: TabTriggerSl
   const showCount = badge && ready && count > 0;
 
   return (
-    <Pressable {...props} style={({ pressed }) => [styles.hit, pressed && styles.pressed]}>
+    <Pressable {...props} style={press(false, styles.hit)}>
       <ThemedView
         type={isFocused ? 'backgroundSelected' : 'backgroundElement'}
         style={styles.tabButtonView}>
@@ -150,9 +152,6 @@ const styles = StyleSheet.create({
   hit: {
     minHeight: TapTarget,
     justifyContent: 'center',
-  },
-  pressed: {
-    opacity: 0.7,
   },
   tabButtonView: {
     paddingVertical: Spacing.two,

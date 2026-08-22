@@ -1,5 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { press } from '@/components/ui/press';
+
 import { ThemedText } from '@/components/themed-text';
 import { Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -33,12 +35,9 @@ export function QtyStepper({
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={() => onChange(to)}
-      style={({ pressed }) => [
-        styles.button,
+      style={press(false, styles.button,
         { borderColor: theme.border },
-        pressed && !disabled && styles.pressed,
-        disabled && styles.disabled,
-      ]}>
+        disabled && styles.disabled)}>
       <ThemedText type="smallBold" style={styles.glyph}>
         {label}
       </ThemedText>
@@ -75,9 +74,6 @@ const styles = StyleSheet.create({
     minWidth: TapTarget,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  pressed: {
-    opacity: 0.7,
   },
   disabled: {
     opacity: 0.35,

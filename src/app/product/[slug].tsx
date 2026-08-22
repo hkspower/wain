@@ -1,6 +1,8 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+
+import { press } from '@/components/ui/press';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Price } from '@/components/price';
@@ -93,15 +95,12 @@ export default function ProductScreen() {
                     setSize(v.size);
                     setSaid(null);
                   }}
-                  style={({ pressed }) => [
-                    styles.size,
+                  style={press(false, styles.size,
                     {
                       borderColor: active ? theme.tint : theme.border,
                       backgroundColor: active ? theme.tintSoft : 'transparent',
                     },
-                    out && styles.sizeOut,
-                    pressed && !out && styles.pressed,
-                  ]}>
+                    out && styles.sizeOut)}>
                   <ThemedText type="smallBold" themeColor={active ? 'tintText' : 'text'}>
                     {v.size}
                   </ThemedText>
@@ -171,11 +170,8 @@ export default function ProductScreen() {
         <Pressable
           accessibilityRole="button"
           onPress={onAdd}
-          style={({ pressed }) => [
-            styles.addButton,
-            { backgroundColor: theme.tint },
-            pressed && styles.pressed,
-          ]}>
+          style={press(false, styles.addButton,
+            { backgroundColor: theme.tint })}>
           <Text style={styles.addText}>{t.product.add}</Text>
         </Pressable>
       </ThemedView>
@@ -255,8 +251,5 @@ const styles = StyleSheet.create({
   missing: {
     margin: Spacing.five,
     textAlign: 'center',
-  },
-  pressed: {
-    opacity: 0.85,
   },
 });
