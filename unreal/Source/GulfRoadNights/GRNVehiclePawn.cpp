@@ -91,13 +91,86 @@ void AGRNVehiclePawn::Tick(float Dt)
 {
 	Super::Tick(Dt);
 	if (!Track) return;
-	Dt = FMath::Min(Dt, 0.05f);
-	UpdateHandling(Dt);
+
+	// The simulation runs at a FIXED rate and the renderer does not.
+	//
+	// This used to be one call to UpdateHandling with the frame time,
+	// clamped to 50 ms — which makes the physics frame-rate dependent: a
+	// 30 fps machine and a 144 fps machine take different paths through
+	// the same corner. Survivable in a lot of games and not in this one,
+	// because the drift solver has a runaway term past the critical angle
+	// and a threshold that turns a slide into a spin, and near either of
+	// those a difference in step size is the difference between going
+	// round and not.
+	//
+	// The spiral guard matters as much as the rate. If a frame takes
+	// longer than the steps it owes, the accumulator asks for more steps
+	// next frame, which takes longer still: a hitch becomes a stall.
+	// Dropping the backlog past the cap means the sim runs slow for a
+	// moment, which is the right failure — a game that stutters is
+	// playable and one that locks up is not.
+	Dt = FMath::Min(Dt, GRNSimMaxFrame);
+	SimAccum += Dt;
+	int32 Steps = 0;
+	while (SimAccum >= GRNSimStep && Steps < GRNSimMaxSteps)
+	{
+		PrevS = CurS; PrevLat = CurLat;
+		PrevHeading = CurHeading; PrevDriftYaw = CurDriftYaw;
+		StepSim(GRNSimStep);
+		CurS = S; CurLat = Lat;
+		CurHeading = Heading; CurDriftYaw = DriftYaw;
+		if (!bSimStarted)
+		{
+			bSimStarted = true;
+			PrevS = CurS; PrevLat = CurLat;
+			PrevHeading = CurHeading; PrevDriftYaw = CurDriftYaw;
+		}
+		SimAccum -= GRNSimStep;
+		Steps++;
+	}
+	if (Steps >= GRNSimMaxSteps) SimAccum = 0.f; // the spiral guard
+
+	SimAlpha = FMath::Clamp(SimAccum / GRNSimStep, 0.f, 1.f);
+	ApplyRenderPose();
+
 	UpdateCamera(Dt);
-	// Lit-up rears visibly overspin the road speed — the launch tell
+	// Lit-up rears visibly overspin the road speed — the launch tell.
+	// On the FRAME, not the step: a wheel's angle is a picture, not a
+	// state anything reads back.
 	GRNCarFactory::SpinWheels(Rig, SpeedMs + Wheelspin * 0.8f, Dt);
-	GRNCarFactory::SetBraking(Rig, InBrake > 0.f || bInDrift);
+	GRNCarFactory::SetBraking(Rig, InBrake > 0.f || bInDrift || LastBrake.Lock > 0.2);
 	UpdateDriver(Dt);
+}
+
+void AGRNVehiclePawn::ApplyRenderPose()
+{
+	// Between the last two fixed steps. Without this the car visibly
+	// stutters whenever the frame rate is not a multiple of the sim rate,
+	// which is nearly always: at 60 fps against a 120 Hz sim some frames
+	// advance two steps and some one, and the eye reads that as judder
+	// however smooth the underlying motion is.
+	//
+	// The interpolants are the four things that place the car. S wraps,
+	// so it is interpolated along the SHORT way round — lerping 8,490 to
+	// 3 the long way sends the car backwards down the whole lap for one
+	// frame at the line.
+	const float A = SimAlpha;
+	const float DS = Track->DeltaAhead(PrevS, CurS);
+	const float ShowS = Track->Wrap(PrevS + DS * A);
+	const float ShowLat = FMath::Lerp(PrevLat, CurLat, A);
+	const float ShowHeading = FMath::Lerp(PrevHeading, CurHeading, A);
+	const float ShowDrift = FMath::Lerp(PrevDriftYaw, CurDriftYaw, A);
+
+	FVector Pos; FRotator Rot;
+	Track->Pose(ShowS, ShowLat, Pos, Rot);
+	Rot.Yaw += FMath::RadiansToDegrees(ShowHeading * 0.85f + ShowDrift);
+	SetActorLocation(Pos);
+	CarRoot->SetWorldRotation(Rot);
+}
+
+void AGRNVehiclePawn::StepSim(float Dt)
+{
+	UpdateHandling(Dt);
 }
 
 void AGRNVehiclePawn::UpdateDriver(float Dt)
@@ -108,7 +181,12 @@ void AGRNVehiclePawn::UpdateDriver(float Dt)
 	Track->Pose(Track->Wrap(S + GRN_M(GRNRig::DriverLookAheadM)),
 		Lat * GRNRig::DriverLookLatK, Pos, Rot);
 	Pos.Z += GRN_M(GRNRig::DriverLookHeight);
-	GRNDriverRig::Solve(Driver, SteerSmooth, InThrottle, InBrake, Pos, Dt);
+	// What the car is pulling, in m/s²: sideways from the yaw rate at
+	// speed, along from the load solver's own lagged figure. The driver
+	// is a mass in a seat and this is what moves them.
+	const float GLat = Heading * SpeedMs * SpeedMs / 40.f;
+	const float GLong = (float)LastLoad.PitchG * 9.81f;
+	GRNDriverRig::Solve(Driver, SteerSmooth, InThrottle, InBrake, Pos, Dt, GLat, GLong);
 }
 
 void AGRNVehiclePawn::UpdateHandling(float Dt)
@@ -126,92 +204,100 @@ void AGRNVehiclePawn::UpdateHandling(float Dt)
 		? FMath::Max(0.f, NosCharge - Dt / 3.f)
 		: FMath::Min(1.f, NosCharge + Dt * 0.06f);
 
-	// Tire model, ported verbatim from the web engine: one grip budget
-	// shared by drive, brakes and steering. The engine proposes, the
-	// tires dispose — torque beyond the traction cap becomes wheelspin.
+	// The game's logic is GRNSim.h now, not a copy of it.
+	//
+	// What used to be here was a simplified transcription of the web
+	// model, written before drift.ts, brakes.ts and grip.ts existed: no
+	// brake lock, no ABS, no fade, no momentum spin, no counter-steer, no
+	// chain, no feint, no lift-off, no load transfer, no downforce. Every
+	// constant matched and none of the behaviour did, which is exactly
+	// what src/game/handling.ts warned about in a comment nobody could
+	// act on. tests/parity.mjs now drives both builds through the same
+	// eight thousand steps and compares fourteen state variables.
+
+	// Grip as it is at this speed: the tyres, plus whatever the bodywork
+	// is pressing them into the road with. A wing is a v² term.
+	const float Grip = (float)GRNSim::GripAtSpeed(GripAccel, Downforce, SpeedMs);
+
+	// Where the weight is. Solved from LAST step's longitudinal
+	// acceleration, which is the physically correct order — load lags the
+	// pedal by however long the springs take to compress.
 	const float DriveGrip = 1.f - FMath::Min(0.55f, FMath::Abs(DriftYaw) * DriftDriveLoss);
 	const float Power = PowerMult * (1.f + Boost * BoostMult);
-	// Each car is governed at its own km/h number; the thrust curve is
-	// solved so drag meets thrust exactly there, and the governor below
-	// is the hard cut. Mirrors src/game/engine.ts.
 	const float LimitMs = TopSpeedKmh / 3.6f;
 	const float DragAtLimit = (DragA * LimitMs * LimitMs + DragB) * 0.35f;
 	const float Headroom = 1.f - DragAtLimit / (ThrustK * Power);
-	// Old curve shape unless the governor needs more room — see the web
-	// engine: tying it down to a slow car's limiter kills the mid-range.
 	const float Ceil = FMath::Max(Ceiling, Headroom > 0.08f ? LimitMs / Headroom : LimitMs * 12.f);
 	const float EngineAccel =
 		InThrottle * FMath::Max(0.f, ThrustK * Power * (1.f - SpeedMs / Ceil));
 	const float TractionCap =
-		GripAccel * (TractionBase + (1.f - TractionBase) * FMath::Min(1.f, SpeedMs / TractionRampSpeed));
+		Grip * (TractionBase + (1.f - TractionBase) * FMath::Min(1.f, SpeedMs / TractionRampSpeed)) *
+		(float)LastLoad.DriveScale;
 	Wheelspin = FMath::Max(0.f, EngineAccel - TractionCap) * DriveGrip;
-	const float Accel =
-		FMath::Min(EngineAccel, TractionCap) * DriveGrip + (bNosActive ? 14.f : 0.f);
+	const float Accel = FMath::Min(EngineAccel, TractionCap) * DriveGrip + (bNosActive ? 14.f : 0.f);
 
-	// Brakes are grip-limited, not pad-limited; friction circle half one:
-	// steering hard leaves less for braking (trail-braking works, both
-	// pedals mid-corner doesn't).
-	const float BrakeCap = GripAccel * BrakeGripK + BrakeForce * BrakePadK;
+	// Brakes: lock, ABS, fade, and the rotation a light rear gives up.
+	SteerSmooth += (InSteer - SteerSmooth) * FMath::Min(1.f, Dt * SteerSmoothRate);
 	const float LatDemand = FMath::Min(1.f, FMath::Abs(SteerSmooth) * SpeedMs / LatDemandSpeed);
-	const float Braking =
-		FMath::Min(InBrake * BrakeForce, BrakeCap) *
-		FMath::Sqrt(1.f - TrailBrakeK * LatDemand * LatDemand);
+	GRNSim::FBrakeTune BTune;
+	BTune.GripAccel = GripAccel;
+	BTune.BrakeForce = BrakeForce;
+	BTune.BrakeThermalMult = BrakeThermalMult;
+	BTune.bHasAbs = bHasAbs;
+	LastBrake = GRNSim::SolveBrakes(BrakeState, BTune, Dt, InBrake, SpeedMs,
+		LatDemand, SteerSmooth, InThrottle, Grip);
+	const float Braking = (float)LastBrake.Decel;
+
 	const float Drag = (DragA * SpeedMs * SpeedMs + DragB) * (InThrottle > 0.f ? 0.35f : 1.f);
-	SpeedMs = FMath::Max(0.f, SpeedMs + (Accel - Braking - Drag) * Dt);
+	const float ALong = Accel - Braking - Drag;
+	SpeedMs = FMath::Max(0.f, SpeedMs + ALong * Dt);
 	if (SpeedMs > LimitMs) SpeedMs = LimitMs; // the governor cuts fuel
 
-	// Grip steering: yaw authority shrinks with speed — and friction
-	// circle half two: heavy braking or a lit-up rear axle blunts turn-in
-	SteerSmooth += (InSteer - SteerSmooth) * FMath::Min(1.f, Dt * SteerSmoothRate);
-	const float LongDemand = FMath::Min(1.f, (Braking + Wheelspin) / FMath::Max(BrakeCap, 1.f));
+	// Yaw authority: grip-limited, shrinking with speed, and scaled by
+	// how much weight is on the FRONT axle — dive under braking loads the
+	// nose and the car turns in, squat under power unloads it and it
+	// pushes wide. Locked fronts do not steer at all.
+	const float LongDemand =
+		FMath::Min(1.f, (Braking + Wheelspin) / FMath::Max((float)GRNSim::BrakeCeiling(BTune, LatDemand, Grip), 1.f));
 	const float YawRateMax =
-		FMath::Min(1.6f, GripAccel / FMath::Max(SpeedMs, 2.f)) * (1.f - UndersteerK * LongDemand);
+		FMath::Min(1.6f, Grip / FMath::Max(SpeedMs, 2.f)) *
+		(1.f - UndersteerK * LongDemand) *
+		(float)LastLoad.SteerScale *
+		(float)LastBrake.SteerScale;
 	Heading += SteerSmooth * YawRateMax * Dt;
-	// Cornering near the limit scrubs speed
-	SpeedMs *= 1.f - FMath::Abs(Heading) * FMath::Min(1.f, SpeedMs / CornerScrubSpeed) * CornerScrubK * Dt;
+	// Cornering scrub, on the same friction circle the brakes spend from
+	// rather than added on top of it.
+	const float LatAvail = FMath::Sqrt(FMath::Max(0.f, 1.f - TrailBrakeK * LongDemand * LongDemand));
+	SpeedMs *= 1.f - FMath::Abs(Heading) * FMath::Min(1.f, SpeedMs / CornerScrubSpeed) *
+		CornerScrubK * LatAvail * Dt;
 	if (FMath::Abs(InSteer) < 0.1f)
 	{
 		Heading -= Heading * FMath::Min(1.f, Dt * CasterRate);
 	}
 	Heading = FMath::Clamp(Heading, -HeadingClamp, HeadingClamp);
 
-	// Drift: the handbrake breaks the rear loose — and power-over hangs
-	// the tail out with throttle alone when the rears are lit
-	const bool bPowerOver =
-		Wheelspin > PowerOverSpin &&
-		FMath::Abs(SteerSmooth) > PowerOverSteer &&
-		SpeedMs > PowerOverMinSpeed &&
-		InThrottle > PowerOverThrottle;
-	if ((bInDrift || bPowerOver) && SpeedMs > DriftMinSpeed)
-	{
-		const float SteerDir = FMath::Abs(SteerSmooth) > 0.12f
-			? FMath::Sign(SteerSmooth)
-			: FMath::Sign(DriftYaw);
-		if (SteerDir != 0.f)
-		{
-			// Power-over reaches shallower angles than a handbrake entry
-			const float Cap = (DriftAngleBase + DriftAngleSpeedK * FMath::Min(1.f, SpeedMs / 55.f)) *
-				(bInDrift ? 1.f : PowerOverAngleK);
-			const float Target = SteerDir * Cap * FMath::Min(1.f, FMath::Abs(SteerSmooth) + 0.45f);
-			DriftYaw += (Target - DriftYaw) * FMath::Min(1.f, Dt * DriftEngageRate);
-		}
-		SpeedMs *= 1.f - (0.05f + FMath::Abs(DriftYaw) * 0.24f) * (1.f - InThrottle * 0.55f) * Dt;
-	}
-	else if (DriftYaw != 0.f)
-	{
-		const float Counter = (FMath::Sign(SteerSmooth) == -FMath::Sign(DriftYaw))
-			? FMath::Abs(SteerSmooth) : 0.f;
-		DriftYaw -= DriftYaw * FMath::Min(1.f, Dt * (DriftRecoverRate + Counter * 3.2f));
-		if (FMath::Abs(DriftYaw) < 0.005f) DriftYaw = 0.f;
-	}
-	DriftYaw = FMath::Clamp(DriftYaw, -DriftYawClamp, DriftYawClamp);
+	// The slide. A balance held on opposite lock, and a spin that is
+	// momentum against friction rather than a clock.
+	GRNSim::FDriftInput DIn;
+	DIn.Dt = Dt;
+	DIn.Speed = SpeedMs;
+	DIn.Steer = SteerSmooth;
+	DIn.Throttle = InThrottle;
+	DIn.bHandbrake = bInDrift;
+	DIn.Wheelspin = Wheelspin;
+	DIn.BrakeRotate = LastBrake.Rotate;
+	DIn.RearLight = LastLoad.RearLight;
+	DIn.DriftAngleMult = 1.f;
+	LastDrift = GRNSim::SolveDrift(DriftState, DIn);
+	DriftYaw = (float)LastDrift.Angle;
+	SpeedMs *= 1.f - (float)LastDrift.ScrubRate * LatAvail * Dt;
+	DriftRun = (float)DriftState.Run;
+	// A trail-braked entry rotates the car's LINE as well as its body.
+	Heading += (float)LastBrake.Rotate * BrakeRotateK * Dt;
 
-	// Style points: angle × speed, banked by the game mode
-	const float Deg = FMath::RadiansToDegrees(FMath::Abs(DriftYaw));
-	if (Deg > 8.f && SpeedMs > 12.f)
-	{
-		DriftRun += Deg * (SpeedMs * 3.6f / 100.f) * 3.2f * Dt;
-	}
+	// And the springs, fed what the car actually did — read back at the
+	// top of the next step, which is where load transfer belongs.
+	LastLoad = GRNSim::SolveLoad(LoadState, Dt, ALong);
 
 	// Lateral: sideways tires scrub translation while the body hangs out,
 	// plus any rebound still carrying the car off a barrier
@@ -236,8 +322,16 @@ void AGRNVehiclePawn::UpdateHandling(float Dt)
 		{
 			Heading *= -(0.1f + 0.3f * Severity); // the barrier turns the nose away
 		}
-		DriftYaw *= 0.25f;
-		DriftRun = 0.f; // the wall takes the style points
+		// The wall takes the slide AND the style points, and it has to
+		// take them from the solver's own state — writing DriftYaw here
+		// and leaving DriftState.Angle alone would have the next step
+		// hand the whole angle straight back.
+		DriftState.Angle *= 0.25;
+		DriftState.SpinT = 0.0;
+		DriftState.SpinRate = 0.0;
+		GRNSim::BreakChain(DriftState);
+		DriftYaw = (float)DriftState.Angle;
+		DriftRun = 0.f;
 		if (ScrapeCooldown <= 0.f)
 		{
 			ScrapeCooldown = 0.5f;
@@ -247,21 +341,24 @@ void AGRNVehiclePawn::UpdateHandling(float Dt)
 	}
 
 	S = Track->Wrap(S + GRN_M(SpeedMs) * Dt);
-
-	// Pose: the mesh yaws with heading + drift, body language included
-	FVector Pos; FRotator Rot;
-	Track->Pose(S, Lat, Pos, Rot);
-	Rot.Yaw += FMath::RadiansToDegrees(Heading * 0.85f + DriftYaw);
-	SetActorLocation(Pos);
-	CarRoot->SetWorldRotation(Rot);
+	// No pose written here. Where the car IS is a simulation result and
+	// where it is DRAWN is a frame's business — see ApplyRenderPose,
+	// which places it between the last two fixed steps.
 }
 
 void AGRNVehiclePawn::UpdateCamera(float Dt)
 {
 	// The camera stays road-aligned (not drift-aligned) so a slide reads
 	// as the car rotating under you — the TXR feel.
+	//
+	// Framed on the pose the car is DRAWN at, not the one it was last
+	// simulated at: aiming at the newer of the two makes the camera lead
+	// the car it is following by up to a whole step, which reads as the
+	// car sliding around inside a shot that is not quite on it.
+	const float ShowS = Track->Wrap(PrevS + Track->DeltaAhead(PrevS, CurS) * SimAlpha);
+	const float ShowLat = FMath::Lerp(PrevLat, CurLat, SimAlpha);
 	FVector Pos; FRotator RoadRot;
-	Track->Pose(S, Lat, Pos, RoadRot);
+	Track->Pose(ShowS, ShowLat, Pos, RoadRot);
 	const FRotator CamRot = RoadRot;
 	Camera->SetWorldRotation(FMath::RInterpTo(Camera->GetComponentRotation(),
 		CamRot + FRotator(-8.f, 0.f, FMath::RadiansToDegrees(DriftYaw) * 0.1f), Dt, 5.5f));

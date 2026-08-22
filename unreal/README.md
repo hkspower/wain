@@ -73,19 +73,97 @@ hand. When `src/game/{track,rivals,mods}.ts` change, run from the repo
 root:
 
 ```bash
-npm run sync:unreal     # regenerates Source/GulfRoadNights/GRNTypes.h
+npm run sync:unreal     # regenerates GRNTypes.h and GRNSimConstants.h
 ```
 
-and commit the regenerated header. Track geometry, the rival roster,
+and commit the regenerated headers. Track geometry, the rival roster,
 the full 14-car showroom and the handling constants all flow from the
 TypeScript source of truth into UE5 in one step.
+
+`GRNSimConstants.h` is the second generated header, and it carries every
+constant **twice**: `namespace GRNHandling` at `float` for the engine
+code, and `namespace GRNExact` at `double` for the solvers in
+`GRNSim.h`. That is not belt-and-braces — see the parity section above
+for the frame where a float rounding difference changed a discrete
+decision and the two builds never converged again.
+
+## The simulation core — the same solver, not the same numbers
+
+For a long time the ports carried the web build's *constants* and wrote
+their own *code* around them. That is a weaker guarantee than it looks:
+`check:unreal` could report every figure in agreement while the two
+builds drove differently, because a table of numbers says nothing about
+what is done with them. The drift clamp was exactly that — the same
+figure, applied at a different point in the step.
+
+`GRNSim.h` closes it. It is an **engine-free header** — no
+`CoreMinimal.h`, no `FVector`, nothing but `<cmath>` — holding
+double-precision ports of the three solvers the web build runs each
+frame:
+
+| Web build | `GRNSim.h` |
+| --- | --- |
+| `grip.ts` — load transfer, downforce, sub-linear grip | `GripAtSpeed`, `SolveLoad` |
+| `brakes.ts` — lock-up, ABS pulsing, disc heat, fade | `SolveBrakes` |
+| `drift.ts` — entry types, chain, bank, snap-back | `SolveDrift` |
+
+`AGRNVehiclePawn::UpdateHandling` calls them rather than reimplementing
+them, so a change to the feel of the car is a change in one file that
+both engines then run.
+
+Because it is engine-free, it **compiles with bare `g++`** — which is
+what makes the next part possible.
+
+### Fixed tick
+
+The web build steps physics at a fixed rate and interpolates the render
+pose; the UE5 pawn now does the same. `GRNSimHz` is 120, `GRNSimMaxSteps`
+caps a frame at 8 sub-steps and `GRNSimMaxFrame` clamps a stalled frame
+to 0.25 s, so a hitch cannot spiral into a slower and slower catch-up.
+`StepSim()` advances the state; `ApplyRenderPose()` blends the previous
+and current states by the leftover accumulator fraction. The camera is
+framed on the pose actually **shown**, not the one last solved, or it
+judders by exactly the interpolation it was meant to hide. Lap position
+interpolates through `Track->DeltaAhead` so the wrap at the start line
+goes the short way round rather than sweeping 7.3 km backwards.
+
+Frame rate and simulation rate are now independent: 30 fps and 240 fps
+solve the identical trajectory.
+
+### The parity harness
+
+`npm run test:parity` compiles `tools/parity/parity.cpp` with `g++`,
+runs the same scripted drive through the TypeScript solvers under Node,
+and compares 14 state fields step by step.
+
+The script is **cycled, not random**. White-noise inputs never spin the
+car, never chain two drifts and never bank a run — the branches that
+matter are the ones that need a *sequence*. So it cycles seven
+manoeuvres: cruise, flat out, threshold brake, left-foot trail brake,
+handbrake → lock-in → hands-off, transitions with a slow release, and
+lift-off. A 240-step run-up brings the car to speed first, because a
+trail-brake entry at 20 m/s peaks below its own threshold and silently
+tests nothing.
+
+Current state: **16 000 steps, worst disagreement 5e-12 relative**, and
+`chain` — an integer — matching exactly. All twelve solver branches are
+covered by construction, and the test fails if any of them stops being
+reached.
+
+Two real divergences came out of it. Float constants alone were enough:
+one frame the two builds sat either side of a threshold, took different
+discrete branches, and separated permanently — so the generator now
+emits `namespace GRNExact` at `double` precision alongside the `float`
+constants the engine code uses. The other was a stale duplicate line in
+the C++ left behind by a merge. Neither was visible to a constant diff.
 
 ## What maps to what
 
 | Web build (`src/game/`) | UE5 (`Source/GulfRoadNights/`) |
 | --- | --- |
 | `track.ts` — control points, S/Lat space | `GRNTrack` (USplineComponent, same 17 points) |
-| `engine.ts` handling: thrust/drag, heading, drift | `GRNVehiclePawn::UpdateHandling` — constants copied 1:1 into `GRNTypes.h` |
+| `engine.ts` handling: thrust/drag, heading | `GRNVehiclePawn::UpdateHandling` — constants copied 1:1 into `GRNTypes.h`, stepped at a fixed 120 Hz with render interpolation |
+| `grip.ts`, `brakes.ts`, `drift.ts` — the three solvers | `GRNSim.h` — engine-free ports, called by `UpdateHandling`, verified step-for-step by `npm run test:parity` |
 | `engine.ts` battle rules: SP drain, flash ritual | `AGRNGameMode` (drain curve identical) |
 | `rivals.ts` roster | `GRNRivals[]` in `GRNTypes.h` |
 | `mods.ts` showroom | `GRNCars[]` — applied to the pawn by `ApplyCar`; Tab / D-pad-right cycles machines until the UMG garage lands |
@@ -93,7 +171,7 @@ TypeScript source of truth into UE5 in one step.
 | `world.ts` road, rails, cobra-head street lights | `AGRNWorldBuilder` — procedural road ribbon + instanced lights **with real Lumen spot lights per lamp** |
 | `cars.ts` three silhouettes | `GRNCarFactory` — primitive-built sedan / Z-wedge / R34-style coupe with paint MIDs, spinning wheels, brake-flare tail lamps, real headlight beams; wing only when the part is owned |
 | `ik.ts` two-bone solver + constrained aim | `GRNIk::SolveTwoBone` / `GRNIk::AimConstrained` — the same closed-form law of cosines, same pole-plane basis, same world-scale lift |
-| `characters.ts` driver rig, `engine.ts` `solveDriverRig` | `GRNDriverRig::Build` / `::Solve` — hands IK'd onto the rim, feet onto pedals that sink with the inputs, eyes into the corner. Driven for the player (`AGRNVehiclePawn::UpdateDriver`) and the rival (`AGRNRival::UpdateDriver`, including the look-over when you pull alongside) |
+| `characters.ts` driver rig, `driver.ts` `solveDriverRig` | `GRNDriverRig::Build` / `::Solve` — hands IK'd onto the rim, feet onto pedals that sink with the inputs, eyes into the corner, and a `Lean` joint between the root and the body so the driver leans away from lateral g and folds under braking while the hands stay pinned to grips bolted to the car. Driven for the player (`AGRNVehiclePawn::UpdateDriver`) and the rival (`AGRNRival::UpdateDriver`, including the look-over when you pull alongside) |
 | `world.ts` `setCrowdFocus` — the watching, waving crowd | `AGRNWorldBuilder::BuildCrowd` / `::SetCrowdFocus`, ticked by the game mode with the player's position |
 | `rig.ts` bone lengths, joint offsets, grip angles, neck limits | `namespace GRNRig` in `GRNTypes.h` — generated, and every field compared by `npm run check:unreal` |
 | traffic | `AGRNTraffic` × 30, matching the web build, with its shunt rules (speed clamp, hitbox knock-out, SP cost in battle) |
@@ -209,7 +287,14 @@ it those console variables are simply unrecognised and ignored.
   at the packaged build). Use the Online Subsystem Steam plugin for
   achievements/overlay.
 
+- **Unity**: the `../unity/` port is still at the earlier standard —
+  `GRNData.cs` carries the numbers, not the solvers. Porting `GRNSim.h`
+  to C# and extending `tests/parity.mjs` to a third column is the same
+  job again, and the harness is already shaped for it.
+
 The Unity 6 port lives in `../unity/` and the shipping web/Electron
 build in the repo root — three engines, one game design. The web build
 remains the source of truth for gameplay feel; when tuning constants
-change there, mirror them in `GRNTypes.h`/`GRNHandling`.
+change there, run `npm run sync:unreal` rather than editing
+`GRNTypes.h`/`GRNSimConstants.h`, and let `npm run test:parity` confirm
+the two builds still drive the same car.

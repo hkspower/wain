@@ -259,6 +259,7 @@ const header = `#pragma once
 // a regeneration never loses it.
 
 #include "CoreMinimal.h"
+#include "GRNSimConstants.h"
 
 #define GRN_M(x) ((x) * 100.0f)
 
@@ -462,6 +463,30 @@ constexpr float GRNForecourtHalfSpan = ${cppf(forecourt.halfSpan)};
 constexpr float GRNForecourtExtraWidth = ${cppf(forecourt.extraWidth)};
 
 // -------------------------------------------------------- handling model
+// The handling and rig constants live in GRNSimConstants.h, which this
+// includes at the top. They are in their own file because GRNSim.h — the
+// solvers themselves — must not depend on the engine: a header that
+// pulls in CoreMinimal.h can only be compiled by Unreal, and a solver
+// only Unreal can compile is a solver nobody can test.
+`;
+
+// The constants, in plain C++ with no engine in sight. Two consumers:
+// GRNTypes.h (so every existing include still sees GRNHandling and
+// GRNRig exactly where it did) and GRNSim.h, which is compiled by a
+// bare g++ in tests/parity.mjs to prove the two builds agree on a
+// trajectory rather than on a table of numbers.
+const constantsHeader = `#pragma once
+
+// GENERATED FILE — do not edit by hand.
+// Produced by scripts/export-unreal-data.mjs from src/game/handling.ts
+// and src/game/rig.ts. Regenerate with:  npm run sync:unreal
+//
+// PLAIN C++ ON PURPOSE. No CoreMinimal.h, no UE types, nothing that
+// needs the engine to compile — because GRNSim.h includes this and
+// GRNSim.h is compiled by a bare g++ in the parity test. A number that
+// only Unreal can read is a number nobody can check.
+
+// -------------------------------------------------------- handling model
 // Mirrors src/game/handling.ts — parsed from it, never hand-copied. If a
 // constant is added there, rerunning this generator publishes it here.
 
@@ -469,6 +494,30 @@ namespace GRNHandling
 {
 ${handlingKeys
   .map(([k, v]) => `\tconstexpr float ${k[0].toUpperCase()}${k.slice(1)} = ${cppf(v)};`)
+  .join("\n")}
+}
+
+// ------------------------------------------------ the same, exactly
+//
+// The identical constants at full precision, for GRNSim.h.
+//
+// The float set above is what the rest of the port uses and must stay
+// float: it is threaded through FMath::Min(1.f, x) and FVector(...) in a
+// dozen places, and template deduction on FMath::Min(float, double)
+// does not compile. But a float constant is not the number that is in
+// handling.ts — 0.105f is 0.10499999672174454 — and the solvers are
+// stateful integrators with THRESHOLDS in them. Measured, that
+// difference put the drift chain on a different step on step 452 of a
+// scripted run: not a rounding error in the output, a different
+// decision, because the score gate was crossed one frame apart.
+//
+// Two representations of one source, generated together, so they cannot
+// drift from each other or from the web build.
+
+namespace GRNExact
+{
+${handlingKeys
+  .map(([k, v]) => `\tconstexpr double ${k[0].toUpperCase()}${k.slice(1)} = ${v};`)
   .join("\n")}
 }
 
@@ -485,10 +534,11 @@ ${rigKeys.map(([k, v]) => `\tconstexpr float ${k} = ${cppr(v)};`).join("\n")}
 }
 `;
 
+writeFileSync("unreal/Source/GulfRoadNights/GRNSimConstants.h", constantsHeader);
 writeFileSync("unreal/Source/GulfRoadNights/GRNTypes.h", header);
 console.log(
   `GRNTypes.h regenerated: ${points.length} track points, ${rivals.length} rivals, ` +
     `${engines.length} engines, ${cars.length} cars, ${stations.length} stations, ` +
     `${handlingKeys.length} handling constants, ` +
-    `${rigKeys.length} rig constants.`
+    `${rigKeys.length} rig constants (both in GRNSimConstants.h).`
 );

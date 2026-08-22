@@ -24,12 +24,22 @@ export const HANDLING = {
   driftRecoverRate: 2.3,
   /** The old hard ceiling on drift angle.
    *
-   *  The web build no longer clamps: driftSpinAngle below replaced it, so
-   *  that an angle you cannot hold ends in a spin instead of parking
-   *  against an invisible wall. GRNVehiclePawn.cpp still clamps with this,
-   *  which means the two builds now drift differently even though every
-   *  constant here agrees — the ports carry the numbers but not yet
-   *  src/game/drift.ts. Left published for that reason, and only that. */
+   *  Nothing clamps with it any more, in either build. driftSpinAngle
+   *  below replaced it, so an angle you cannot hold ends in a spin
+   *  instead of parking against an invisible wall.
+   *
+   *  This carried a note for a long time saying the UE5 pawn still
+   *  clamped with it — "the ports carry the numbers but not yet
+   *  src/game/drift.ts" — which was true and unactionable, because the
+   *  contract test compared constants and constants were never the
+   *  problem. The port runs drift.ts now, as GRNSim.h, and
+   *  tests/parity.mjs drives both builds through eight thousand steps of
+   *  the same scripted driving and compares fourteen state variables to
+   *  five parts in a trillion.
+   *
+   *  Left published because the Unity port has not been through the same
+   *  treatment: GRNData.cs still carries the numbers, and whatever reads
+   *  them there is not covered by that test. */
   driftYawClamp: 0.75,
   driftLatScrub: 0.5,
   driftDriveLoss: 1.1,

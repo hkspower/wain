@@ -30,7 +30,14 @@ if (!res.ok) {
   process.exit(2);
 }
 const api = await res.json();
-const header = readFileSync(HEADER, "utf8");
+// The handling and rig constants moved into their own engine-free
+// header so GRNSim.h can include them without pulling in CoreMinimal.h.
+// Read as one document: what this checks is whether the UE side agrees
+// with the web build, and which file a constant sits in is bookkeeping.
+const header =
+  readFileSync(HEADER, "utf8") +
+  "\n" +
+  readFileSync("unreal/Source/GulfRoadNights/GRNSimConstants.h", "utf8");
 
 // ---- track ----------------------------------------------------------
 const hPoints = [...header.matchAll(/^\t\{ (-?\d+), (-?\d+) \},$/gm)].map(

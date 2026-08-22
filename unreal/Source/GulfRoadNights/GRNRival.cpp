@@ -134,5 +134,12 @@ void AGRNRival::UpdateDriver(float AccelMs2, float Dt)
 			Lat * GRNRig::DriverLookLatK, Look, Rot);
 		Look.Z += GRN_M(GRNRig::DriverLookHeight);
 	}
-	GRNDriverRig::Solve(Driver, SteerVis, ThrottleVis, BrakeVis, Look, Dt);
+	// The rival leans too. Derived from the AI's own kinematics rather
+	// than from inputs it does not have: the lateral pull is the visible
+	// steering at this speed, and the longitudinal is the pedal it is
+	// showing. A car alongside you whose driver sits bolt upright through
+	// a corner is the tell that gives away every AI.
+	const float GLat = SteerVis * SpeedMs * SpeedMs / 60.f;
+	const float GLong = (ThrottleVis * 6.f) - (BrakeVis * 12.f);
+	GRNDriverRig::Solve(Driver, SteerVis, ThrottleVis, BrakeVis, Look, Dt, GLat, GLong);
 }

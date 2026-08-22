@@ -41,6 +41,10 @@ struct FGRNLimb
 struct FGRNDriverRig
 {
 	USceneComponent* Root = nullptr;
+	/** The driver's body, minus the wheel and the pedals they are
+	 *  holding. Rotating this leans the whole person and lets the IK put
+	 *  their hands and feet back where they were. */
+	USceneComponent* Lean = nullptr;
 	TArray<FGRNLimb> Arms;
 	TArray<FGRNLimb> Legs;
 	USceneComponent* Head = nullptr;
@@ -52,7 +56,15 @@ struct FGRNDriverRig
 	FVector PedalRest = FVector::ZeroVector;
 	/** Shown steering angle, radians, chasing the input. */
 	float WheelAngle = 0.f;
-	bool IsValid() const { return Root != nullptr && Arms.Num() == 2 && Legs.Num() == 2; }
+	/** How far the body is leaning and folding, radians, chasing the g.
+	 *  Carried between frames because a body settles onto a load, it
+	 *  does not arrive at it. */
+	float LeanRoll = 0.f;
+	float LeanPitch = 0.f;
+	bool IsValid() const
+	{
+		return Root != nullptr && Lean != nullptr && Arms.Num() == 2 && Legs.Num() == 2;
+	}
 };
 
 /** A watcher at the roadside: turns to follow a car, and waves at it. */
@@ -110,9 +122,17 @@ namespace GRNDriverRig
 	 * IK'd onto the rim where they grip it, both feet onto pedals that
 	 * sink with the actual inputs, eyes on LookTarget.
 	 * Steer is -1..1; Throttle and Brake are 0..1.
+	 *
+	 * `GLat` and `GLong` are what the car is PULLING, in m/s² — sideways
+	 * and along. They are the half of this solve that was missing: the
+	 * driver leans away from cornering force and folds forward under the
+	 * brakes, and because the hands are pinned to grips bolted to the CAR
+	 * the arms have to re-solve to stay where they are gripping. That is
+	 * what an IK rig is for; without them it is a mannequin with
+	 * articulated elbows.
 	 */
 	void Solve(FGRNDriverRig& Rig, float Steer, float Throttle, float Brake,
-		const FVector& LookTarget, float Dt);
+		const FVector& LookTarget, float Dt, float GLat = 0.f, float GLong = 0.f);
 
 	/** Build a standing figure (spectator or racer) with chain arms and a
 	 *  neck joint. bRacer picks the racer's proportions over the robed

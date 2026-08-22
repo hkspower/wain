@@ -205,12 +205,25 @@ FGRNDriverRig GRNDriverRig::Build(AActor* Owner, USceneComponent* AttachTo, FVec
 
 	Rig.Root = Joint(Owner, AttachTo, SeatOffset);
 
+	// The lean joint: everything that is PART OF THE PERSON hangs off
+	// this, and everything bolted to the CAR does not.
+	//
+	// That split is the whole reason the IK is worth having. The wheel
+	// and the pedals stay on Root because they belong to the car; the
+	// torso, head, arms and legs hang off Lean because they belong to a
+	// body that is being thrown about by cornering force. Rotate Lean and
+	// the hands are still pinned to grips that have not moved, so the
+	// arms have to re-solve to stay where they are gripping — which is
+	// what an inverse kinematic solver is for, and what this port was
+	// missing entirely.
+	Rig.Lean = Joint(Owner, Rig.Root, FVector::ZeroVector);
+
 	// Torso, leaned back into the seat the way a driver sits
-	Shape(Owner, Rig.Root, Cyl(), FVector(-0.02f, 0, 0.23f) * K,
+	Shape(Owner, Rig.Lean, Cyl(), FVector(-0.02f, 0, 0.23f) * K,
 		FVector(0.34f, 0.34f, 0.46f), Suit, FRotator(9.f, 0.f, 0.f));
 
 	// Head joint — the aim target for looking into a corner
-	Rig.Head = Joint(Owner, Rig.Root,
+	Rig.Head = Joint(Owner, Rig.Lean,
 		FVector(GRNRig::DriverHeadZ, 0.f, GRNRig::DriverHeadY) * K);
 	Shape(Owner, Rig.Head, Sph(), FVector::ZeroVector, FVector(0.224f), Skin);
 	Shape(Owner, Rig.Head, Sph(), FVector::ZeroVector, FVector(0.27f), Suit); // helmet
@@ -228,7 +241,7 @@ FGRNDriverRig GRNDriverRig::Build(AActor* Owner, USceneComponent* AttachTo, FVec
 	for (int32 i = 0; i < 2; i++)
 	{
 		const float Side = i == 0 ? -1.f : 1.f;
-		Rig.Arms.Add(BuildLimb(Owner, Rig.Root,
+		Rig.Arms.Add(BuildLimb(Owner, Rig.Lean,
 			FVector(GRNRig::DriverShoulderZ, Side * GRNRig::DriverShoulderX, GRNRig::DriverShoulderY),
 			FRotator::ZeroRotator, GRNRig::DriverUpperArm, GRNRig::DriverForeArm, Side,
 			0.048f, Suit, Dark, 0.05f));
@@ -253,7 +266,7 @@ FGRNDriverRig GRNDriverRig::Build(AActor* Owner, USceneComponent* AttachTo, FVec
 	for (int32 i = 0; i < 2; i++)
 	{
 		const float Side = i == 0 ? -1.f : 1.f;
-		FGRNLimb Leg = BuildLimb(Owner, Rig.Root,
+		FGRNLimb Leg = BuildLimb(Owner, Rig.Lean,
 			FVector(GRNRig::DriverHipZ, Side * GRNRig::DriverHipX, GRNRig::DriverHipY),
 			FRotator(FMath::RadiansToDegrees(-GRNRig::DriverHipPitch), 0.f, 0.f),
 			GRNRig::DriverThigh, GRNRig::DriverShin, Side, 0.062f, Suit, Dark, 0.055f);
@@ -271,9 +284,30 @@ FGRNDriverRig GRNDriverRig::Build(AActor* Owner, USceneComponent* AttachTo, FVec
 // ------------------------------------------------------------------ solve
 
 void GRNDriverRig::Solve(FGRNDriverRig& Rig, float Steer, float Throttle, float Brake,
-	const FVector& LookTarget, float Dt)
+	const FVector& LookTarget, float Dt, float GLat, float GLong)
 {
 	if (!Rig.IsValid()) return;
+
+	// The body first, because everything else is solved onto targets and
+	// will follow it. Lean away from the cornering force and fold forward
+	// under braking — the two things a driver's body does that a parented
+	// pose can never show, and the reason the limbs below are worth
+	// solving at all: the grips are bolted to the CAR, so a torso that
+	// moves forces the arms and legs to re-solve to stay on them.
+	{
+		const float WantRoll =
+			FMath::Clamp(-GLat / 14.f, -1.f, 1.f) * GRNRig::DriverLeanPerG;
+		const float WantPitch =
+			FMath::Clamp(-GLong / 10.f, -1.f, 1.f) * GRNRig::DriverFoldPerG;
+		const float K1 = FMath::Min(1.f, Dt * GRNRig::DriverLeanRate);
+		Rig.LeanRoll += (WantRoll - Rig.LeanRoll) * K1;
+		Rig.LeanPitch += (WantPitch - Rig.LeanPitch) * K1;
+		// Web y-up roll about z maps to UE Roll about x; web fold about x
+		// maps to UE Pitch about y. See the axis note at the top.
+		Rig.Lean->SetRelativeRotation(FRotator(
+			FMath::RadiansToDegrees(Rig.LeanPitch), 0.f,
+			FMath::RadiansToDegrees(Rig.LeanRoll)));
+	}
 
 	// Lock-to-lock is about a turn and a half each way in a road car.
 	const float Lock = Steer * GRNRig::DriverSteerLock;
@@ -293,6 +327,14 @@ void GRNDriverRig::Solve(FGRNDriverRig& Rig, float Steer, float Throttle, float 
 	{
 		GRNIk::AimConstrained(Rig.Head, LookTarget, GRNRig::DriverNeckYaw,
 			GRNRig::DriverNeckPitch, FMath::Min(1.f, Dt * GRNRig::DriverNeckRate));
+		// The neck fights the lean. A driver's head stays closer to level
+		// than their shoulders do, which is why a helmet cam is watchable
+		// — so take a fraction of the body's roll back off the head.
+		// After the aim, because the aim sets yaw and pitch and this is
+		// roll.
+		FRotator HeadRot = Rig.Head->GetRelativeRotation();
+		HeadRot.Roll = FMath::RadiansToDegrees(-Rig.LeanRoll * GRNRig::DriverHeadCounter);
+		Rig.Head->SetRelativeRotation(HeadRot);
 	}
 
 	// Ten-to-two, carried round with the rim. The grips are points fixed

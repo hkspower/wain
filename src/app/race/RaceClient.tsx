@@ -109,30 +109,128 @@ function RevCounter({
   return (
     <div className="relative select-none" style={{ width: size, height: size }}>
       <svg data-tach="dial" viewBox="0 0 100 100" className="absolute inset-0 size-full overflow-visible">
-        {/* The face. Dark and slightly translucent so the road shows
-            through it — this sits over the game, not beside it. */}
-        <circle cx="50" cy="50" r="46" fill="rgba(8,11,16,0.55)" />
-        {/* The sweep, unlit: what the needle has not reached yet. */}
-        <path d={tachArc(0, 1, 41)} fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth="3.2" strokeLinecap="round" />
-        {/* The redline arc. Its start is set per engine at runtime. */}
-        <path ref={redlineRef} d={tachArc(0.88, 1, 41)} fill="none" stroke="#ff3b30" strokeWidth="3.2" strokeLinecap="round" opacity="0.85" />
-        {/* Ticks, laid out at runtime because how many there are depends
-            on how far the engine spins. */}
+        <defs>
+          {/*
+            An instrument is made of four surfaces and the light behaves
+            differently on each. Drawn as one flat disc it reads as a
+            diagram of a rev counter; these are what make it read as a
+            thing sitting in a car.
+          */}
+          {/* The face: dished. Darkest in the middle where it is deepest,
+              lifting toward the rim where it catches the cabin light. */}
+          <radialGradient id="tach-face" cx="42%" cy="34%" r="78%">
+            <stop offset="0%" stopColor="#232a34" stopOpacity="0.975" />
+            <stop offset="55%" stopColor="#141a21" stopOpacity="0.985" />
+            <stop offset="100%" stopColor="#070a0e" stopOpacity="0.995" />
+          </radialGradient>
+          {/* The bezel: a turned metal ring, bright where the light is
+              above it and dark underneath. A single flat stroke here is
+              the difference between a ring and a circle. */}
+          <linearGradient id="tach-bezel" x1="30%" y1="0%" x2="70%" y2="100%">
+            <stop offset="0%" stopColor="#8e97a4" />
+            <stop offset="34%" stopColor="#464e59" />
+            <stop offset="62%" stopColor="#1b2029" />
+            <stop offset="100%" stopColor="#5b636f" />
+          </linearGradient>
+          {/* The glass: one soft sheen across the upper left, which is
+              where a windscreen puts it on a real cluster. */}
+          <linearGradient id="tach-glass" x1="12%" y1="0%" x2="72%" y2="86%">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.15" />
+            <stop offset="42%" stopColor="#ffffff" stopOpacity="0.035" />
+            <stop offset="70%" stopColor="#ffffff" stopOpacity="0" />
+          </linearGradient>
+          {/* The needle: hot at the tip, deeper at the root, the way a
+              lit pointer looks against a dark face. */}
+          <linearGradient id="tach-needle" x1="50%" y1="0%" x2="50%" y2="100%">
+            <stop offset="0%" stopColor="#ff8a5c" />
+            <stop offset="45%" stopColor="#ff3b2f" />
+            <stop offset="100%" stopColor="#b3160d" />
+          </linearGradient>
+          {/* Backlight. Warm, because the whole game is lit by sodium and
+              an instrument lit any other colour would be the one cold
+              thing on the screen. */}
+          <radialGradient id="tach-glow" cx="50%" cy="50%" r="50%">
+            <stop offset="55%" stopColor="#f5a524" stopOpacity="0" />
+            <stop offset="88%" stopColor="#f5a524" stopOpacity="0.14" />
+            <stop offset="100%" stopColor="#f5a524" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+
+        {/* The dish, then the warm ring of backlight behind the markings,
+            then the bezel over the edge of both. */}
+        <circle cx="50" cy="50" r="45" fill="url(#tach-face)" />
+        <circle cx="50" cy="50" r="45" fill="url(#tach-glow)" />
+        <circle
+          cx="50" cy="50" r="45.2"
+          fill="none" stroke="url(#tach-bezel)" strokeWidth="3.4"
+        />
+        {/* A thin dark line just inside it, which is the shadow the bezel
+            throws onto the face and the reason the ring reads as raised. */}
+        <circle cx="50" cy="50" r="43.2" fill="none" stroke="rgba(0,0,0,0.55)" strokeWidth="1.2" />
+
+        {/* The scale ring the ticks stand on. Unlit first — this is the
+            part of the sweep the needle has not reached. */}
+        <path
+          d={tachArc(0, 1, 40)}
+          fill="none" stroke="rgba(214,226,240,0.16)" strokeWidth="2.6" strokeLinecap="butt"
+        />
+        {/* The redline, ON the ring rather than beside it, which is where
+            a real one is: the last segment of the scale, in red. Its
+            start is set per engine at runtime. */}
+        <path
+          ref={redlineRef}
+          d={tachArc(0.88, 1, 40)}
+          fill="none" stroke="#e01b0f" strokeWidth="2.6" strokeLinecap="butt"
+        />
+        {/* Ticks and numerals, laid out at runtime because how many there
+            are depends on how far this engine spins. */}
         <g data-tach="ticks" ref={ticksRef} />
-        {/* The shift ring: lights the whole rim rather than adding one
-            more small thing to look at. */}
+        {/* The unit, where every cluster puts it: under the hub, small.
+            Static — it is the one thing on the face that does not depend
+            on which engine is fitted, and putting it in the group above
+            meant a test reading the numerals off the dial got "x1000
+            r/min" back as one of them. */}
+        <text
+          x="50" y="78.5" textAnchor="middle"
+          fontSize="5" fontWeight="700" letterSpacing="0.8"
+          fill="rgba(243,220,180,0.55)"
+        >
+          x1000 r/min
+        </text>
+
+        {/* Shift light: the rim, not one more small thing to look at —
+            but OUTSIDE the bezel and thin, so it reads as the
+            instrument being lit rather than as the instrument being
+            replaced by a red circle. Drawn over the bezel at full
+            weight it hid the one part of the dial that says which way
+            the light is coming from. */}
         <circle
           ref={ringRef}
-          cx="50" cy="50" r="46"
-          fill="none" stroke="#ff3b30" strokeWidth="2.5"
+          cx="50" cy="50" r="47.4"
+          fill="none" stroke="#ff4438" strokeWidth="1.6"
           opacity="0"
-          style={{ filter: "drop-shadow(0 0 6px rgba(255,59,48,0.9))" }}
+          style={{ filter: "drop-shadow(0 0 5px rgba(255,68,56,0.9))" }}
         />
-        {/* The needle. One transform per frame. */}
+
+        {/* The needle. Tapered, with the counterweight tail a real one
+            carries past the hub to balance it — leave that off and the
+            pointer reads as an arrow drawn on the glass. */}
         <g data-tach="needle" ref={needleRef} style={{ transformOrigin: "50px 50px" }}>
-          <path d="M 50 8.5 L 52.4 50 L 47.6 50 Z" fill="#ff5a4f" />
-          <circle cx="50" cy="50" r="4.2" fill="#12161d" stroke="rgba(255,255,255,0.35)" strokeWidth="1" />
+          <path
+            d="M 50 9 L 51.9 44 L 51.15 57.5 L 48.85 57.5 L 48.1 44 Z"
+            fill="url(#tach-needle)"
+          />
+          {/* The hub: a machined dome, lit from the same side as the
+              bezel so the whole instrument agrees about where the light
+              is coming from. */}
+          <circle cx="50" cy="50" r="5" fill="url(#tach-bezel)" />
+          <circle cx="50" cy="50" r="3.4" fill="#0d1116" />
+          <circle cx="49" cy="49" r="1.1" fill="rgba(255,255,255,0.22)" />
         </g>
+
+        {/* Glass last, over everything, so the sheen sits on top of the
+            needle the way it does on a real dial. */}
+        <circle cx="50" cy="50" r="43" fill="url(#tach-glass)" style={{ pointerEvents: "none" }} />
       </svg>
       {/* The middle of the dial: what a cluster puts there. */}
       {/* The middle. Everything here has to clear the rpm labels, which
@@ -555,7 +653,7 @@ export default function RaceClient() {
       if (needleRef.current)
         needleRef.current.style.transform = `rotate(${tachAngle(t.frac).toFixed(2)}deg)`;
       if (shiftRingRef.current)
-        shiftRingRef.current.style.opacity = t.shift ? "0.95" : "0";
+        shiftRingRef.current.style.opacity = t.shift ? "0.9" : "0";
       // Lay the dial out once per engine. The scale is the engine's own,
       // so a swap in the garage rebuilds it and nothing else does.
       if (ticksRef.current && dialFor.current !== t.redline) {
@@ -564,48 +662,64 @@ export default function RaceClient() {
         const g2 = ticksRef.current;
         while (g2.firstChild) g2.removeChild(g2.firstChild);
         const redFrom = (t.redline * 0.895 - t.idle) / (t.redline - t.idle);
+        const REDLINE = t.redline * 0.895;
         if (redlineRef.current)
-          redlineRef.current.setAttribute("d", tachArc(Math.max(0, redFrom), 1, 41));
-        // One tick per thousand rpm, labelled. Where the numbers stop is
-        // where this engine stops, which is the point of the dial.
+          redlineRef.current.setAttribute("d", tachArc(Math.max(0, redFrom), 1, 40));
+        const line = (from: number, to: number, f: number, w: string, c: string) => {
+          const [x0, y0] = tachPoint(f, from);
+          const [x1, y1] = tachPoint(f, to);
+          const el = document.createElementNS(svgns, "line");
+          el.setAttribute("x1", x0.toFixed(2));
+          el.setAttribute("y1", y0.toFixed(2));
+          el.setAttribute("x2", x1.toFixed(2));
+          el.setAttribute("y2", y1.toFixed(2));
+          el.setAttribute("stroke", c);
+          el.setAttribute("stroke-width", w);
+          el.setAttribute("stroke-linecap", "butt");
+          g2.appendChild(el);
+        };
+        // Minor ticks every 250 rpm.
+        //
+        // The single biggest thing that was missing. A dial with only
+        // the thousands on it is a diagram of an instrument; a real one
+        // has three or four small marks between every numbered one, and
+        // they are what the eye reads the needle's POSITION against
+        // between the numbers. They are also most of the visual density
+        // — without them the face is empty and the numbers float.
+        const span = t.redline - t.idle;
+        for (let rpm = Math.ceil(t.idle / 250) * 250; rpm <= t.redline; rpm += 250) {
+          if (rpm % 1000 === 0) continue; // the majors are drawn below
+          const f = (rpm - t.idle) / span;
+          const red = rpm >= REDLINE;
+          const half = rpm % 500 === 0; // a longer one at the halves
+          line(
+            37.2,
+            half ? 34.2 : 35.4,
+            f,
+            half ? "0.85" : "0.6",
+            red ? "rgba(255,120,110,0.85)" : "rgba(226,236,248,0.5)"
+          );
+        }
+        // One major per thousand, with its numeral. Where the numbers
+        // stop is where this engine stops, which is the point of the
+        // dial being the engine's rather than a constant.
         for (let rpm = Math.ceil(t.idle / 1000) * 1000; rpm <= t.redline; rpm += 1000) {
-          const f = (rpm - t.idle) / (t.redline - t.idle);
-          const [x0, y0] = tachPoint(f, 37.5);
-          const [x1, y1] = tachPoint(f, 33);
-          const line = document.createElementNS(svgns, "line");
-          line.setAttribute("x1", x0.toFixed(2));
-          line.setAttribute("y1", y0.toFixed(2));
-          line.setAttribute("x2", x1.toFixed(2));
-          line.setAttribute("y2", y1.toFixed(2));
-          line.setAttribute("stroke", rpm >= t.redline * 0.895 ? "#ff6b60" : "rgba(255,255,255,0.55)");
-          line.setAttribute("stroke-width", "1.4");
-          line.setAttribute("stroke-linecap", "round");
-          g2.appendChild(line);
-          const [tx, ty] = tachPoint(f, 29.5);
+          const f = (rpm - t.idle) / span;
+          const red = rpm >= REDLINE;
+          line(37.6, 31.8, f, "1.7", red ? "#ff8078" : "rgba(240,247,255,0.92)");
+          const [tx, ty] = tachPoint(f, 26.5);
           const label = document.createElementNS(svgns, "text");
           label.setAttribute("x", tx.toFixed(2));
-          label.setAttribute("y", (ty + 2.4).toFixed(2));
+          label.setAttribute("y", (ty + 2.5).toFixed(2));
           label.setAttribute("text-anchor", "middle");
-          label.setAttribute("font-size", "7");
-          label.setAttribute("fill", rpm >= t.redline * 0.895 ? "#ff8a80" : "rgba(255,255,255,0.6)");
+          label.setAttribute("font-size", "7.4");
+          label.setAttribute("font-weight", "700");
+          // Warm, like the backlight behind them: on a real cluster the
+          // numerals are lit by the same lamps as the face and pick up
+          // its colour.
+          label.setAttribute("fill", red ? "#ff9086" : "#f3dcb4");
           label.textContent = String(rpm / 1000);
           g2.appendChild(label);
-        }
-      }
-      if (roadRef.current) {
-        // Two spans for the same reason the district below uses two:
-        // the Latin display face carries no Arabic, so a mixed
-        // textContent falls back glyph by glyph and loses both.
-        //
-        // A nickname replaces the name where there is one. شارع الحب is
-        // not on any sign and is what everyone calls that stretch, so
-        // showing "Second Ring Road" there would be technically right
-        // and useless — the point of a name on a HUD is that it matches
-        // what a player would say out loud.
-        const [rLatin, rArabic] = roadRef.current.children as unknown as HTMLElement[];
-        if (rLatin && rArabic) {
-          rLatin.textContent = d.roadNick ?? d.roadName;
-          rArabic.textContent = d.roadNickArabic ?? d.roadArabic;
         }
       }
       if (areaRef.current) {

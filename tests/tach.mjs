@@ -84,9 +84,16 @@ console.log(
     `the dial's top mark is ${Math.max(...dial.labels)}k against a ${dial.redline} rpm redline`
   )}  the numbers stop where this engine stops`
 );
+// One major per thousand and three minors between each of them (250,
+// 500, 750), so the count is four per numbered mark less the three that
+// fall past the last numeral. The minors are what the eye reads the
+// needle's position against between the numbers, and a dial without
+// them is a diagram of an instrument rather than one.
+const minors = dial.ticks - dial.labels.length;
 console.log(
-  `ticks      ${check(dial.ticks === dial.labels.length,
-    `${dial.ticks} ticks against ${dial.labels.length} labels`)}  one tick per thousand, ${dial.ticks} of them`
+  `ticks      ${check(dial.ticks > dial.labels.length * 3 && minors > 0,
+    `${dial.ticks} ticks against ${dial.labels.length} numerals — where are the minor marks?`)}  ` +
+    `${dial.labels.length} numbered marks and ${minors} minor ones between them`
 );
 
 // --- 2. The needle is the engine's needle, not the gearbox's -----------
