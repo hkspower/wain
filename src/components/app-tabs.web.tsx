@@ -6,13 +6,14 @@ import {
   TabTriggerSlotProps,
   TabListProps,
 } from 'expo-router/ui';
+import { Link } from 'expo-router';
 import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { press } from '@/components/ui/press';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Radius, Spacing, TapTarget } from '@/constants/theme';
+import { Elevation, MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useCart } from '@/lib/cart';
 import { useLang } from '@/lib/i18n';
@@ -65,14 +66,27 @@ export function TabButton({ children, isFocused, badge, ...props }: TabTriggerSl
   const showCount = badge && ready && count > 0;
 
   return (
-    <Pressable {...props} style={press(false, styles.hit)}>
-      <ThemedView
-        type={isFocused ? 'backgroundSelected' : 'backgroundElement'}
-        style={styles.tabButtonView}>
-        <ThemedText type="label" themeColor={isFocused ? 'tintText' : 'textSecondary'}>
+    <Pressable {...props} style={press(true, styles.hit)}>
+      {/* TEXT, NOT A PILL. Four white boxes on a grey page read as four
+          buttons — the heaviest thing on a screen whose job is the shop below
+          it. The label carries the state instead: the ember, in the bolder
+          weight, over a 2pt ember rule.
+          The rule is 2pt of colour and NOT the only signal, because colour
+          alone fails anyone who cannot separate these two greys — the weight
+          changes with it, and aria-selected is on the trigger either way. */}
+      <View style={styles.tabButtonView}>
+        <ThemedText
+          type={isFocused ? 'labelBold' : 'label'}
+          themeColor={isFocused ? 'tintText' : 'textSecondary'}>
           {children}
         </ThemedText>
-      </ThemedView>
+        <View
+          style={[
+            styles.underline,
+            { backgroundColor: isFocused ? theme.tint : 'transparent' },
+          ]}
+        />
+      </View>
       {/* A BADGE, not "(1)" inside the label. The count changes while you shop,
           and a number inside the text re-measures the pill every time — the
           whole row shifted under the thumb as items went in. This is absolutely
@@ -97,12 +111,21 @@ export function CustomTabList(props: TabListProps) {
   const { t, row } = useLang();
 
   return (
-    <View {...props} style={[styles.tabListContainer, styles.safeTop, { borderColor: theme.border }]}>
+    <View {...props} style={[styles.tabListContainer, styles.safeTop]}>
       <ThemedView type="background" style={styles.fill}>
         <View style={[styles.innerContainer, row]}>
-          <ThemedText type="labelBold" style={styles.brandText} themeColor="tintText">
-            {t.brand}
-          </ThemedText>
+          {/* The wordmark is a link home, which is where a shopper expects a
+              brand in a top bar to take them — it was plain text. */}
+          <Link href="/" asChild>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel={t.tabs.home}
+              style={press(true, styles.brandHit)}>
+              <ThemedText type="title" style={styles.brandText} themeColor="tintText">
+                {t.brand}
+              </ThemedText>
+            </Pressable>
+          </Link>
           {props.children}
         </View>
       </ThemedView>
@@ -120,8 +143,10 @@ const styles = StyleSheet.create({
   },
   tabListContainer: {
     width: '100%',
-    borderBottomWidth: 1,
     zIndex: 10,
+    // Lifted, not ruled off — the page scrolls under it, and that is what the
+    // cart's totals bar and the checkout's Pay bar say with the same shadow.
+    ...Elevation.card,
   },
   // The status bar on an installed PWA sits over the page; without this the
   // brand mark hides behind the clock. `env()` is a web value React Native's
@@ -142,12 +167,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.one,
   },
-  brandText: {
+  brandHit: {
     // marginEnd, not marginRight: which side pushes the tabs away depends on
     // the language.
     marginEnd: 'auto',
-    fontSize: 18,
+    paddingEnd: Spacing.two,
+  },
+  brandText: {
     letterSpacing: 1,
+    // THE HEIGHT LIVES ON THE TEXT, not on the Pressable around it. `Link
+    // asChild` clones its child and the anchor it produces ignored the
+    // minHeight given to that child — measured at 74x40, under the 44 a thumb
+    // needs, on every page. A line box the text itself carries cannot be
+    // dropped by whoever wraps it, and it is the same 48 in both scripts,
+    // where padding would have been 48 in English and 56 in Arabic.
+    lineHeight: TapTarget,
   },
   hit: {
     minHeight: TapTarget,
@@ -155,8 +189,14 @@ const styles = StyleSheet.create({
   },
   tabButtonView: {
     paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    borderRadius: Radius.button,
+    paddingHorizontal: Spacing.two,
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  underline: {
+    height: 2,
+    alignSelf: 'stretch',
+    borderRadius: 999,
   },
   badge: {
     position: 'absolute',

@@ -52,8 +52,38 @@ const go = async (path) => {
 
 // --- home, in Arabic, which is the default -------------------------------
 await go('/')
-check((await seen(p.getByText('تدرّب بثقة')).count()) > 0, 'home opens in Arabic')
+// A line of the PAGE's own Arabic, not the banner's: the hero is a
+// photograph with its words baked in, so nothing there can prove the app
+// chose a language.
+check((await seen(p.getByText('تسوّق حسب الفئة')).count()) > 0, 'home opens in Arabic')
 check((await seen(p.getByText('رجالي')).count()) > 0, 'category tiles render')
+
+// --- the hero banners ----------------------------------------------------
+// The words are baked into the photographs, so a screen reader gets nothing
+// from them and no test can read them off the page. The accessible label IS
+// the banner as far as both are concerned, which is why it is what this
+// checks — and why an empty one would be a real fault rather than a lint.
+const banner = () =>
+  p.evaluate(() =>
+    [...document.querySelectorAll('[role="link"]')]
+      .map((e) => e.getAttribute('aria-label') || '')
+      .find((l) => /تدريب|training/i.test(l)) ?? '')
+const firstBanner = await banner()
+check(firstBanner !== '', `the hero banner names itself for a screen reader (${firstBanner})`)
+
+// It rotates. 6500 ms is the website's own interval; this waits past one.
+await p.waitForTimeout(7200)
+const secondBanner = await banner()
+check(secondBanner !== '' && secondBanner !== firstBanner,
+  `and moves on by itself (${firstBanner} → ${secondBanner})`)
+
+// Choosing a frame STOPS it. Somebody who taps a dot is reading that one, and
+// sliding it out from under them is the carousel's oldest insult.
+await p.getByRole('button', { name: 'تدريب رجالي — كمال أجسام' }).click()
+await p.waitForTimeout(300)
+const picked = await banner()
+await p.waitForTimeout(7600)
+check(picked === (await banner()), `picking a banner stops the rotation (${picked})`)
 const shot = async (name) => p.screenshot({ path: `/tmp/sporta-${name}.png`, fullPage: false })
 await shot('home-ar')
 

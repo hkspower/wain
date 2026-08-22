@@ -5,12 +5,12 @@ import { press } from '@/components/ui/press';
 import { Screen } from '@/components/ui/screen';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { HeroSlider } from '@/components/hero-slider';
 import { ProductCard } from '@/components/product-card';
 import { RemoteArt } from '@/components/remote-art';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { EMBER_ON_ART, EMBER_ON_INK, Radius, Spacing, TapTarget, Type } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { EMBER_ON_ART, Radius, Spacing, Type } from '@/constants/theme';
 import { useCart } from '@/lib/cart';
 import { categoryArt } from '@/lib/assets';
 import { bundledCategoryArt } from '@/lib/category-art';
@@ -18,7 +18,6 @@ import { categoryKicker, categoryName } from '@/lib/catalog';
 import { useLang } from '@/lib/i18n';
 
 export default function HomeScreen() {
-  const theme = useTheme();
   const router = useRouter();
   const { t, lang, dir, row, text } = useLang();
   const { products, categories } = useCart();
@@ -26,23 +25,10 @@ export default function HomeScreen() {
 
   return (
     <Screen tabBar>
-          {/* Hero. Charcoal panel, ember button — the storefront's own
-              proportions: the picture is the product grid below, not the
-              banner, so the banner stays quiet. */}
-          <ThemedView type="inkSilver" style={styles.hero}>
-            <ThemedText type="label" style={[styles.heroKicker, text]}>
-              {t.home.heroKicker}
-            </ThemedText>
-            <Text style={[styles.heroTitle, text]}>{t.home.heroTitle}</Text>
-            <Text style={[styles.heroText, text]}>{t.home.heroText}</Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push('/shop')}
-              style={press(false, styles.heroButton,
-                { backgroundColor: theme.tint })}>
-              <Text style={[styles.heroButtonText, { color: theme.onTint }]}>{t.home.shopNow}</Text>
-            </Pressable>
-          </ThemedView>
+          {/* The shop's own banners, as the website runs them. The headline,
+              the Arabic line and the mark are set into each photograph, so
+              nothing is written on top of them — see components/hero-slider. */}
+          <HeroSlider />
 
           {/* Categories — FULL WIDTH, one per row. They carry the shop's four
               doors and a half-width tile makes each one a thumbnail. */}
@@ -116,44 +102,6 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  hero: {
-    borderRadius: Radius.card,
-    padding: Spacing.four,
-    gap: Spacing.two,
-  },
-  heroKicker: {
-    fontFamily: Type.labelBold.family,
-    fontSize: Type.labelBold.size,
-    color: EMBER_ON_INK,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-  heroTitle: {
-    fontFamily: Type.display.family,
-    fontSize: Type.display.size,
-    lineHeight: Type.display.lineAr,
-    color: '#ffffff',
-    fontWeight: '700',
-  },
-  heroText: {
-    fontFamily: Type.body.family,
-    fontSize: Type.body.size,
-    lineHeight: Type.body.lineAr,
-    color: 'rgba(255,255,255,0.86)',
-  },
-  heroButton: {
-    marginTop: Spacing.two,
-    minHeight: TapTarget,
-    borderRadius: Radius.button,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.four,
-  },
-  heroButtonText: {
-    fontFamily: Type.bodyBold.family,
-    fontSize: Type.bodyBold.size,
-    fontWeight: '700',
-  },
   sectionTitle: { marginTop: Spacing.two },
   categoryList: {
     gap: Spacing.two,

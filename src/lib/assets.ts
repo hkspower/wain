@@ -32,3 +32,10 @@ export const categoryArt = (id: string) => `${ASSET_BASE}/cats/mobile/art-${id}.
  * RemoteArt needs to skip its remote layer instead of requesting a 404.
  */
 export const productPhoto = (product: { photo?: string }) => product.photo;
+
+/**
+ * A hero banner on the server. Same folder the website's slider reads, so
+ * replacing a frame there replaces it in the app too — the bundled copy is
+ * the floor, not the ceiling.
+ */
+export const heroArt = (id: string) => `${ASSET_BASE}/hero/mobile/${id}.webp`;
