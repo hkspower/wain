@@ -42,7 +42,8 @@
     "lint": "expo lint",
     "test:art": "node scripts/art-test.mjs",
     "preview": "node scripts/preview-pdf.mjs",
-    "test:contrast": "node scripts/contrast-test.mjs"
+    "test:contrast": "node scripts/contrast-test.mjs",
+    "preview:site": "node scripts/site-preview-pdf.mjs"
   },
   "private": true
 }
