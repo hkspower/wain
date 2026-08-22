@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -47,6 +47,10 @@ export default function ProductScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+      {/* The native header was blank — a back chevron on an empty bar. On a
+          phone that bar is the only thing telling you what you opened, and it
+          is still there when the picture has scrolled away. */}
+      <Stack.Screen options={{ title: productName(product, lang) }} />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <RemoteArt
           uri={productPhoto(product.slug)}

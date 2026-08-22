@@ -54,6 +54,49 @@ check((await seen(p.getByText('رجالي')).count()) > 0, 'category tiles rende
 const shot = async (name) => p.screenshot({ path: `/tmp/sporta-${name}.png`, fullPage: false })
 await shot('home-ar')
 
+// --- the top bar ---------------------------------------------------------
+// Every screen has it, so its defects are on every screen. All three of these
+// were real: 28px targets, a bar that scrolled away, and a cart pill that
+// re-measured itself each time an item went in.
+await p.waitForTimeout(600)
+const barTargets = await p.evaluate(() =>
+  ['الرئيسية', 'المتجر', 'السلة', 'حسابي'].map((label) => {
+    const leaf = [...document.querySelectorAll('*')].find(
+      (d) => d.children.length === 0 && d.textContent?.trim() === label,
+    )
+    // Climb to the pressable: React Native Web wraps the label in a couple of
+    // divs and the tappable one is not the one holding the text.
+    // Climb to the pressable. It renders as a bare <a> with no role attribute
+    // — matching on role alone found nothing and reported every target as 0px,
+    // which is a passing-looking failure of the test, not of the bar.
+    let el = leaf
+    for (let i = 0; el && i < 4; i++, el = el.parentElement) {
+      if (el.tagName === 'A' || el.tagName === 'BUTTON' || el.getAttribute('role') === 'button') {
+        return Math.round(el.getBoundingClientRect().height)
+      }
+    }
+    return 0
+  }),
+)
+check(barTargets.length === 4 && barTargets.every((h) => h >= 44),
+  `top-bar targets are tappable (${barTargets.join(', ')}px)`)
+
+// The cart pill must not change width as the basket fills. The count used to
+// be rendered inside the label as "(1)", which re-measured the pill — and the
+// whole row shifted under the thumb every time something went in.
+const pillWidth = () =>
+  p.evaluate(() => {
+    const leaf = [...document.querySelectorAll('*')].find(
+      (d) => d.children.length === 0 && d.textContent?.trim() === 'السلة',
+    )
+    let el = leaf
+    for (let i = 0; el && i < 4; i++, el = el.parentElement) {
+      if (el.tagName === 'A') return Math.round(el.getBoundingClientRect().width)
+    }
+    return 0
+  })
+const emptyCartPill = await pillWidth()
+
 // --- the grid is two across, not one -------------------------------------
 // It ran as a single column for three commits: 48% + 48% + a 16px gap is
 // 100.5% of the row, so every card wrapped. Nothing in the suite noticed,
@@ -129,6 +172,13 @@ await shot('cart-ar')
 await go('/cart')
 check((await seen(p.getByText('شورت ديزرت للجري')).count()) > 0,
   'the basket is still there after a full reload')
+
+// --- the cart pill did not resize as the basket filled -------------------
+await go('/')
+await p.waitForTimeout(700)
+const fullCartPill = await pillWidth()
+check(emptyCartPill > 0 && emptyCartPill === fullCartPill,
+  `the cart tab keeps its width with items in it (${emptyCartPill} → ${fullCartPill})`)
 
 // --- checkout validation -------------------------------------------------
 await go('/checkout')

@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -155,6 +155,7 @@ export default function CheckoutScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+      <Stack.Screen options={{ title: t.checkout.title }} />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
