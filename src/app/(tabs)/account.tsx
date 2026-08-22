@@ -53,7 +53,7 @@ export default function AccountScreen() {
                     },
                     pressed && styles.pressed,
                   ]}>
-                  <ThemedText type="smallBold" themeColor={active ? 'tint' : 'text'}>
+                  <ThemedText type="smallBold" themeColor={active ? 'tintText' : 'text'}>
                     {label}
                   </ThemedText>
                 </Pressable>

@@ -86,7 +86,7 @@ export function AdminShell({
                   <ThemedView
                     type={active ? 'backgroundSelected' : 'backgroundElement'}
                     style={[styles.navItem, { borderColor: active ? theme.tint : theme.border }]}>
-                    <ThemedText type="smallBold" themeColor={active ? 'tint' : 'textSecondary'}>
+                    <ThemedText type="smallBold" themeColor={active ? 'tintText' : 'textSecondary'}>
                       {label}
                     </ThemedText>
                   </ThemedView>

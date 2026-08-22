@@ -102,7 +102,7 @@ export default function ProductScreen() {
                     out && styles.sizeOut,
                     pressed && !out && styles.pressed,
                   ]}>
-                  <ThemedText type="smallBold" themeColor={active ? 'tint' : 'text'}>
+                  <ThemedText type="smallBold" themeColor={active ? 'tintText' : 'text'}>
                     {v.size}
                   </ThemedText>
                 </Pressable>
@@ -111,7 +111,7 @@ export default function ProductScreen() {
           </View>
 
           {size && stock > 0 && stock <= 3 ? (
-            <ThemedText type="small" themeColor="tint" style={text}>
+            <ThemedText type="small" themeColor="tintText" style={text}>
               {stock === 1 ? t.product.lastOne : t.product.lowStock(stock)}
             </ThemedText>
           ) : null}
@@ -161,7 +161,7 @@ export default function ProductScreen() {
                 for tapping twice. */}
             {said !== 'pick' && (
               <Pressable accessibilityRole="button" onPress={() => router.push('/cart')}>
-                <ThemedText type="smallBold" themeColor="tint">
+                <ThemedText type="smallBold" themeColor="tintText">
                   {t.tabs.cart} →
                 </ThemedText>
               </Pressable>

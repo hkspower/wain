@@ -171,7 +171,7 @@ function Dashboard() {
                 <ThemedText type="small">
                   {s.name} · {s.size}
                 </ThemedText>
-                <ThemedText type="smallBold" themeColor={s.stock === 0 ? 'danger' : 'tint'}>
+                <ThemedText type="smallBold" themeColor={s.stock === 0 ? 'danger' : 'tintText'}>
                   {s.stock}
                 </ThemedText>
               </ThemedView>
@@ -190,7 +190,7 @@ function Tile({ label, value, tone }: { label: string; value: string; tone?: boo
       <ThemedText type="small" themeColor="textSecondary">
         {label}
       </ThemedText>
-      <ThemedText type="smallBold" themeColor={tone ? 'tint' : 'text'} style={styles.tileValue}>
+      <ThemedText type="smallBold" themeColor={tone ? 'tintText' : 'text'} style={styles.tileValue}>
         {value}
       </ThemedText>
     </ThemedView>

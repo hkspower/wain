@@ -109,7 +109,7 @@ export default function CartScreen() {
           })}
 
           {delivery > 0 && (
-            <ThemedText type="small" themeColor="tint" style={text}>
+            <ThemedText type="small" themeColor="tintText" style={text}>
               {t.cart.freeOver(formatPrice(FREE_DELIVERY_OVER, lang))}
             </ThemedText>
           )}

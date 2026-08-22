@@ -51,7 +51,7 @@ export default function ShopScreen() {
       <ThemedView
         type={active ? 'backgroundSelected' : 'backgroundElement'}
         style={[styles.chip, { borderColor: active ? theme.tint : theme.border }]}>
-        <ThemedText type="small" themeColor={active ? 'tint' : 'textSecondary'}>
+        <ThemedText type="small" themeColor={active ? 'tintText' : 'textSecondary'}>
           {label}
         </ThemedText>
       </ThemedView>

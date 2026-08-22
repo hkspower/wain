@@ -16,15 +16,42 @@ import { Platform } from 'react-native';
 export const Colors = {
   light: {
     text: '#14161a',
-    background: '#ffffff',
-    backgroundElement: '#f5f2ee',
+    // THE PAGE IS GREY AND THE CARDS ARE WHITE, which is the way round this
+    // was not. A white page with warm off-white cards leaves nothing between
+    // them but a hairline border: the cards do not read as cards, they read as
+    // slightly discoloured page. Grey behind, white in front, and every card,
+    // tile and bar in the app separates from its background without a single
+    // shadow — which is what keeps it flat and modern rather than skeuomorphic.
+    //
+    // Neutral grey, not the warm one it replaces. #f5f2ee has a yellow cast
+    // that fought the ember on every screen; this is the same lightness with
+    // the cast taken out.
+    background: '#f2f3f5',
+    backgroundElement: '#ffffff',
     backgroundSelected: '#fdeee4',
     textSecondary: '#5c6570',
     tint: '#c8490f',
+    // THE SAME EMBER, DARKENED, FOR TEXT ONLY.
+    //
+    // Fills keep `tint` exactly as it is — every button, chip and badge in the
+    // app is the brand orange and stays the brand orange. But the same colour
+    // as small TEXT was 4.28:1 on the new grey page and 4.20:1 on its own soft
+    // tint (which is what every selected filter chip and size button is), and
+    // both are under AA. The second of those was already failing before the
+    // page changed colour; it just had nothing measuring it.
+    //
+    // One step darker on the same hue clears both — 4.95 on the page, 4.85 on
+    // tintSoft, 5.49 on a card — without touching a single filled surface.
+    tintText: '#b8420d',
     tintSoft: '#fdeee4',
-    sand: '#8a6a4f',
+    // One step darker than it was: at #8a6a4f it measured 4.33:1 on its own
+    // soft tint, which is the pairing the account screen's offline notice
+    // actually uses. That was under AA before the page changed colour too.
+    sand: '#836349',
     sandSoft: '#f6efe6',
-    border: '#e6e1da',
+    // Follows the surfaces neutral. A warm border on a neutral grey page is
+    // the one place the old cast would still have shown.
+    border: '#e2e4e8',
     ink: '#14161a',
     inkSilver: '#2b3138',
     inkSteel: '#363d45',
@@ -39,6 +66,9 @@ export const Colors = {
     backgroundSelected: '#3a2417',
     textSecondary: '#a8b0b9',
     tint: '#ff7b17',
+    // Dark mode needs no darkening: the ember is already the light thing on a
+    // dark ground, and measures 6.9:1 on the page.
+    tintText: '#ff7b17',
     tintSoft: '#3a2417',
     sand: '#d9a47e',
     sandSoft: '#2a231d',

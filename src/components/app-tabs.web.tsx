@@ -67,7 +67,7 @@ export function TabButton({ children, isFocused, badge, ...props }: TabTriggerSl
       <ThemedView
         type={isFocused ? 'backgroundSelected' : 'backgroundElement'}
         style={styles.tabButtonView}>
-        <ThemedText type="small" themeColor={isFocused ? 'tint' : 'textSecondary'}>
+        <ThemedText type="small" themeColor={isFocused ? 'tintText' : 'textSecondary'}>
           {children}
         </ThemedText>
       </ThemedView>
@@ -98,7 +98,7 @@ export function CustomTabList(props: TabListProps) {
     <View {...props} style={[styles.tabListContainer, styles.safeTop, { borderColor: theme.border }]}>
       <ThemedView type="background" style={styles.fill}>
         <View style={[styles.innerContainer, row]}>
-          <ThemedText type="smallBold" style={styles.brandText} themeColor="tint">
+          <ThemedText type="smallBold" style={styles.brandText} themeColor="tintText">
             {t.brand}
           </ThemedText>
           {props.children}

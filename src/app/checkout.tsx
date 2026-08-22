@@ -193,7 +193,7 @@ export default function CheckoutScreen() {
                         },
                         pressed && styles.pressed,
                       ]}>
-                      <ThemedText type="small" themeColor={active ? 'tint' : 'text'}>
+                      <ThemedText type="small" themeColor={active ? 'tintText' : 'text'}>
                         {label}
                       </ThemedText>
                     </Pressable>
@@ -249,7 +249,7 @@ export default function CheckoutScreen() {
                       pressed && styles.pressed,
                     ]}>
                     <Text style={styles.payIcon}>{icon}</Text>
-                    <ThemedText type="smallBold" themeColor={active ? 'tint' : 'text'}>
+                    <ThemedText type="smallBold" themeColor={active ? 'tintText' : 'text'}>
                       {label}
                     </ThemedText>
                   </Pressable>
