@@ -110,6 +110,21 @@ def call(path, data=None, headers=None, method=None, timeout=180):
             # or the next hour goes into rewriting perfectly good Arabic.
             raise SystemExit(f"ElevenLabs answered {e.code}: {body}")
         except urllib.error.URLError as e:
+            # A proxy that refuses CONNECT with 403 or 407 is stating a policy,
+            # not having a bad moment. Retrying it four times turns an instant
+            # clear answer into a slow one and changes nothing — the agent
+            # proxy's own README says to report these rather than retry.
+            reason = str(e.reason)
+            if "403" in reason or "407" in reason:
+                raise SystemExit(
+                    f"blocked before reaching ElevenLabs: {reason}\n"
+                    "  This is an outbound network policy on the machine you "
+                    "are running from,\n"
+                    "  refusing the connection before any request is sent. "
+                    "Your key is not the\n"
+                    "  problem and is never transmitted. Run this from a "
+                    "machine with direct\n"
+                    "  internet access.")
             if attempt < ATTEMPTS:
                 print(f"    network: {e.reason} — retrying")
                 time.sleep(2 ** attempt)
