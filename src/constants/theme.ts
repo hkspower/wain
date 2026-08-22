@@ -137,26 +137,40 @@ export const EMBER_ON_INK = '#e2803f';
  */
 export const EMBER_ON_ART = '#c8490f';
 
+/**
+ * ONE TYPEFACE, THREE WEIGHTS. Alexandria carries the whole app.
+ *
+ * It used to be Alexandria for the two display roles and IBM Plex Sans Arabic
+ * for the other seven — two families, four files, and a change of letterform
+ * halfway down every screen between a heading and the line under it.
+ *
+ * Alexandria is drawn for Arabic and Latin together, which is the thing that
+ * matters in a bilingual shop: the two scripts share a weight, a rhythm and a
+ * cap height rather than being two typefaces stitched at the language switch.
+ *
+ * The Arabic line heights stay TALLER than the Latin ones, per role. That is
+ * not a hedge — Arabic ascenders and descenders reach further, and a line box
+ * sized for Latin clips them.
+ */
 export const Type = {
-  display: { size: 30, line: 38, lineAr: 46, family: 'Alexandria', weight: '700' },
-  title: { size: 24, line: 32, lineAr: 40, family: 'Alexandria', weight: '700' },
-  heading: { size: 17, line: 24, lineAr: 30, family: 'Plex-700', weight: '700' },
-  body: { size: 16, line: 24, lineAr: 30, family: 'Plex-400', weight: '400' },
-  bodyBold: { size: 16, line: 24, lineAr: 30, family: 'Plex-600', weight: '600' },
-  label: { size: 14, line: 20, lineAr: 26, family: 'Plex-400', weight: '400' },
-  labelBold: { size: 14, line: 20, lineAr: 26, family: 'Plex-600', weight: '600' },
-  caption: { size: 12, line: 16, lineAr: 22, family: 'Plex-400', weight: '400' },
-  price: { size: 20, line: 28, lineAr: 34, family: 'Plex-700', weight: '700' },
+  display: { size: 30, line: 38, lineAr: 46, family: 'Alexandria-700', weight: '700' },
+  title: { size: 24, line: 32, lineAr: 40, family: 'Alexandria-700', weight: '700' },
+  heading: { size: 17, line: 24, lineAr: 30, family: 'Alexandria-700', weight: '700' },
+  body: { size: 16, line: 24, lineAr: 30, family: 'Alexandria-400', weight: '400' },
+  bodyBold: { size: 16, line: 24, lineAr: 30, family: 'Alexandria-600', weight: '600' },
+  label: { size: 14, line: 20, lineAr: 26, family: 'Alexandria-400', weight: '400' },
+  labelBold: { size: 14, line: 20, lineAr: 26, family: 'Alexandria-600', weight: '600' },
+  caption: { size: 12, line: 16, lineAr: 22, family: 'Alexandria-400', weight: '400' },
+  price: { size: 20, line: 28, lineAr: 34, family: 'Alexandria-700', weight: '700' },
 } as const;
 
 export type TypeRole = keyof typeof Type;
 
 /** Every font file the app loads, by the family name the scale refers to. */
 export const FONT_FILES = {
-  Alexandria: require('@/assets/fonts/Alexandria.ttf'),
-  'Plex-400': require('@/assets/fonts/Plex-400.ttf'),
-  'Plex-600': require('@/assets/fonts/Plex-600.ttf'),
-  'Plex-700': require('@/assets/fonts/Plex-700.ttf'),
+  'Alexandria-400': require('@/assets/fonts/Alexandria-400.ttf'),
+  'Alexandria-600': require('@/assets/fonts/Alexandria-600.ttf'),
+  'Alexandria-700': require('@/assets/fonts/Alexandria-700.ttf'),
 };
 
 export const Fonts = Platform.select({

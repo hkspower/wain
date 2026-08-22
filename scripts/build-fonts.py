@@ -14,9 +14,9 @@ missing Latin renders every English word as tofu.
 So each weight is decompressed and its two subsets are MERGED back into one
 font that covers both scripts, which is what the app then loads.
 
-The result is the same typeface the website uses, so a customer who has seen
-one does not meet different letterforms in the other: Alexandria for display,
-IBM Plex Sans Arabic for everything else.
+The result is the same typeface the website ships, so a customer who has seen
+one does not meet different letterforms in the other. Alexandria, at three
+weights, for all of it.
 """
 
 import sys
@@ -33,14 +33,18 @@ OUT = Path(__file__).resolve().parent.parent / 'assets' / 'fonts'
 # (output name, [subset files], weight to pin a variable font at)
 #
 # Alexandria ships as a VARIABLE font, and two variable fonts cannot be merged:
-# fontTools has no rule for combining their variation stores, and says so. It is
-# pinned to a single weight first, which is all the app asks of it — a display
-# face used at one weight, for headings.
+# fontTools has no rule for combining their variation stores, and says so. So
+# each weight the app asks for is pinned FIRST and merged after.
+#
+# THREE WEIGHTS, NOT ONE. Alexandria used to be built at 700 alone, as a
+# display face for headings, with IBM Plex Sans Arabic carrying everything
+# else. It is the whole app's typeface now, which means it needs the weights
+# body text is set in — and a variable font gives them for the cost of running
+# the instancer three times.
 FAMILIES = [
-    ('Alexandria', ['alexandria-var-latin.woff2', 'alexandria-var-arabic.woff2'], 700),
-    ('Plex-400', ['plex-400-latin.woff2', 'plex-400-arabic.woff2'], None),
-    ('Plex-600', ['plex-600-latin.woff2', 'plex-600-arabic.woff2'], None),
-    ('Plex-700', ['plex-700-latin.woff2', 'plex-700-arabic.woff2'], None),
+    ('Alexandria-400', ['alexandria-var-latin.woff2', 'alexandria-var-arabic.woff2'], 400),
+    ('Alexandria-600', ['alexandria-var-latin.woff2', 'alexandria-var-arabic.woff2'], 600),
+    ('Alexandria-700', ['alexandria-var-latin.woff2', 'alexandria-var-arabic.woff2'], 700),
 ]
 
 

@@ -72,7 +72,10 @@ const offScale = await p.evaluate(() =>
     }))
     // Emoji and the arrow glyph are deliberately left to the system: no text
     // face carries them, and forcing one renders tofu.
-    .filter((x) => !/^(Plex|Alexandria)/.test(x.family) && !/^[\p{Emoji}\u2190-\u21FF\uFE0F]+$/u.test(x.text))
+    // One family now. A line in anything else is a line the app did not get
+    // its own font onto — which used to be possible in two ways and is now
+    // possible in one, and this is what says so.
+    .filter((x) => !/^Alexandria/.test(x.family) && !/^[\p{Emoji}\u2190-\u21FF\uFE0F]+$/u.test(x.text))
     .map((x) => `${x.family}: ${x.text.slice(0, 20)}`),
 )
 check(offScale.length === 0, `every line is set in the app's own typefaces${offScale.length ? ` — ${offScale.slice(0, 3).join(' | ')}` : ''}`)

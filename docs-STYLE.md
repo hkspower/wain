@@ -77,11 +77,17 @@ Latin they collide, and a dotted qaf lands on the line above. Every role has
 
 ## Fonts
 
-The same pair the website uses, so a customer who has seen one does not meet
-different letterforms in the other:
+**Alexandria**, at 400 / 600 / 700. One typeface for the whole app.
 
-- **Alexandria** — display, headings
-- **IBM Plex Sans Arabic** — everything else, at 400/600/700
+It was two — Alexandria for the two display roles, IBM Plex Sans Arabic for the
+other seven — which meant a change of letterform halfway down every screen,
+between a heading and the line under it. Alexandria is drawn for Arabic and
+Latin together, which is what matters in a bilingual shop: the two scripts share
+a weight, a rhythm and a cap height instead of being two faces stitched together
+at the language switch.
+
+The weights come from one variable font, instanced three times, so three files
+cost 196 kB where the two families cost 570 kB.
 
 They are built from the storefront's own webfonts by `scripts/build-fonts.py`,
 not copied: the site ships `.woff2`, which expo-font cannot load, and its files
@@ -95,8 +101,14 @@ frame is not painted in the system face and then reflowed.
 
 Emoji and the arrow glyph stay on the system font deliberately: no text face
 carries them, and forcing one renders tofu. `npm run test:shop` asserts that
-everything else is painted in Plex or Alexandria — it fails if a font silently
-fails to register.
+everything else is painted in Alexandria — it fails if a font silently fails to
+register, which is a failure that otherwise looks like nothing at all.
+
+**The website is still on the old pair.** Its stylesheet sets IBM Plex Sans
+Arabic for body copy and Alexandria for headings, and it is built CSS rather
+than source, so the two are only back in step once that is rebuilt. Worth doing
+— the whole argument for building the app's fonts from the site's was that a
+customer meets one shop.
 
 ## Components — `src/components/ui/`
 

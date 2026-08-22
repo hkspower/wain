@@ -44,7 +44,12 @@ export function ThemedText({ style, type = 'body', themeColor, ...rest }: Themed
   );
 }
 
-/** Kept for the few places that need the monospace face — order references. */
+/**
+ * The order reference, and the few other places a string has to be read back
+ * character by character. Not a monospaced face — the app ships one typeface
+ * — but the letter-spacing that makes SP-2601 legible when it is being copied
+ * into WhatsApp or read down a phone line.
+ */
 export const monoStyle = StyleSheet.create({
-  mono: { fontFamily: 'Plex-400', letterSpacing: 1 },
+  mono: { fontFamily: Type.label.family, letterSpacing: 1 },
 }).mono;

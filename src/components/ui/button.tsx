@@ -70,8 +70,8 @@ const styles = StyleSheet.create({
   },
   // A raw <Text>, so the family has to be named here: only ThemedText picks
   // it up from the scale automatically, and a button label in the system face
-  // beside body copy in Plex is the kind of mismatch nobody can name but
-  // everybody sees.
+  // beside body copy in the shop's own is the kind of mismatch nobody can
+  // name but everybody sees.
   label: {
     fontFamily: Type.bodyBold.family,
     fontSize: Type.bodyBold.size,
