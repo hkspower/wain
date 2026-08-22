@@ -8,6 +8,9 @@
  */
 import { chromium } from 'playwright'
 
+// BASE may carry a path (…/app) when checking a packaged build that was
+// exported with a baseUrl. Every link in the page is prefixed with it, so the
+// selectors below match on containment rather than on a leading slash.
 const BASE = process.env.BASE ?? 'http://127.0.0.1:4173'
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
 
@@ -103,7 +106,7 @@ const emptyCartPill = await pillWidth()
 // because a one-column grid still lists every product and still filters.
 const cardsPerRow = () =>
   p.evaluate(() => {
-    const cards = [...document.querySelectorAll('a[href^="/product/"]')]
+    const cards = [...document.querySelectorAll('a[href*="/product/"]')]
     if (!cards.length) return 0
     const top = Math.round(cards[0].getBoundingClientRect().top)
     return cards.filter((c) => Math.abs(Math.round(c.getBoundingClientRect().top) - top) < 4).length
@@ -112,14 +115,14 @@ check((await cardsPerRow()) === 2, 'the home grid is two cards across')
 
 // --- shop, filtering -----------------------------------------------------
 await go('/shop')
-const before = await p.locator('a[href^="/product/"]').count()
+const before = await p.locator('a[href*="/product/"]').count()
 check(before > 0, `shop lists products (${before})`)
 // Checked on BOTH screens: they carry the same grid written out twice, and
 // mutating only the shop's copy left the home check green.
 check((await cardsPerRow()) === 2, 'the shop grid is two cards across')
 await p.getByRole('button', { name: 'إكسسوارات' }).first().click()
 await p.waitForTimeout(500)
-const after = await p.locator('a[href^="/product/"]').count()
+const after = await p.locator('a[href*="/product/"]').count()
 check(after > 0 && after < before, `category filter narrows the grid (${before} → ${after})`)
 await shot('shop-ar')
 
