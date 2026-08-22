@@ -25,6 +25,7 @@ import {
   HAPTIC,
 } from "@/game/settings";
 import { RESOLUTIONS, formatBuffer } from "@/game/render";
+import { hudInset } from "@/game/aspect";
 import { VIEWS, viewSpec } from "@/game/views";
 import {
   EXCLUSIVE_CATS,
@@ -277,6 +278,7 @@ export default function RaceClient() {
    *  the garage changes the dial, and nothing else does. */
   const dialFor = useRef(0);
   const areaRef = useRef<HTMLDivElement>(null);
+  const roadRef = useRef<HTMLDivElement>(null);
   const rivalInfoRef = useRef<HTMLDivElement>(null);
   const battleRef = useRef<HTMLDivElement>(null);
   const playerBarRef = useRef<HTMLDivElement>(null);
@@ -293,15 +295,25 @@ export default function RaceClient() {
   // of a big panel, and gives back a little on small windows. CSS zoom
   // (not transform) so corner-anchored absolutes keep their anchors.
   const [hudZoom, setHudZoom] = useState(1);
+  /** How far in from each edge the HUD anchors — see aspect.ts. Zero on
+   *  anything 21:9 or narrower, which is every screen but a few. */
+  const [hudInsetX, setHudInsetX] = useState(0);
   const [isFs, setIsFs] = useState(false);
   /** The buffer the game is drawing into, as read off the canvas. */
   const [renderInfo, setRenderInfo] = useState<ReturnType<typeof readRenderInfo>>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const compute = () =>
-      setHudZoom(
-        Math.min(2.5, Math.max(0.8, Math.min(window.innerWidth / 1500, window.innerHeight / 850)))
+    const compute = () => {
+      const z = Math.min(
+        2.5,
+        Math.max(0.8, Math.min(window.innerWidth / 1500, window.innerHeight / 850))
       );
+      setHudZoom(z);
+      // Divided by the zoom, because this lands inside a subtree that
+      // CSS `zoom` has already scaled — an inset in raw viewport pixels
+      // would be multiplied by it and overshoot.
+      setHudInsetX(hudInset(window.innerWidth, window.innerHeight) / z);
+    };
     compute();
     setRenderInfo(readRenderInfo());
     const onResize = () => {
@@ -578,6 +590,22 @@ export default function RaceClient() {
           label.setAttribute("fill", rpm >= t.redline * 0.895 ? "#ff8a80" : "rgba(255,255,255,0.6)");
           label.textContent = String(rpm / 1000);
           g2.appendChild(label);
+        }
+      }
+      if (roadRef.current) {
+        // Two spans for the same reason the district below uses two:
+        // the Latin display face carries no Arabic, so a mixed
+        // textContent falls back glyph by glyph and loses both.
+        //
+        // A nickname replaces the name where there is one. شارع الحب is
+        // not on any sign and is what everyone calls that stretch, so
+        // showing "Second Ring Road" there would be technically right
+        // and useless — the point of a name on a HUD is that it matches
+        // what a player would say out loud.
+        const [rLatin, rArabic] = roadRef.current.children as unknown as HTMLElement[];
+        if (rLatin && rArabic) {
+          rLatin.textContent = d.roadNick ?? d.roadName;
+          rArabic.textContent = d.roadNickArabic ?? d.roadArabic;
         }
       }
       if (areaRef.current) {
@@ -1310,11 +1338,20 @@ export default function RaceClient() {
         className={`pointer-events-none absolute inset-0 transition-opacity ${
           phase === "playing" && !cine ? "opacity-100" : "opacity-0"
         }`}
-        style={{ zoom: hudZoom }}
+        style={{ zoom: hudZoom, "--hud-inset-x": `${hudInsetX}px` } as React.CSSProperties}
       >
         {/* Area + progress */}
         <div className="hud-safe-t hud-safe-l absolute">
           <div className="grn-plate px-4 py-2">
+            {/* The road, above the district. That order is the order a
+                navigation display uses and the order a driver thinks
+                in: which road, then which part of it. The game is named
+                after a road and never used to say which one you were
+                on. */}
+            <div ref={roadRef} className="flex items-baseline gap-1.5">
+              <span className="grn-label text-[0.58rem] text-sodium-400/90" />
+              <span className="grn-ar text-[0.62rem] text-white/45" lang="ar" />
+            </div>
             <div ref={areaRef} className="flex items-baseline gap-2 text-xl leading-tight">
               <span className="grn-display tracking-wide" />
               <span className="grn-ar-display text-[0.95em] text-white/80" lang="ar" />

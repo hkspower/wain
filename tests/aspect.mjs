@@ -30,11 +30,13 @@
 import {
   REFERENCE_ASPECT,
   WIDE_KNEE,
+  HUD_BAND,
   MAX_VFOV,
   MAX_HFOV,
   verticalFov,
   horizontalFov,
   chaseDolly,
+  hudInset,
   aspectReport,
 } from "../src/game/aspect.ts";
 
@@ -207,6 +209,66 @@ for (const base of [58, 62, 66, 72, 78]) {
 console.log(
   `every view ${check(bad === 0, `${bad} view/aspect pairs land outside the bounds`)}  ` +
     `58-78 deg base fields, all ${SHAPES.length} shapes`
+);
+
+// --- 8. The furniture stops spreading where the picture does ----------
+//
+// The projection answers to the window shape; the interface used to
+// pin to the physical edge whatever the shape was. On a 32:9 panel that
+// puts the rev counter and the minimap about 3,800 px apart — outside
+// foveal vision, so reading your own speed costs a turn of the head,
+// which is the opposite of what a wider screen is for.
+console.log("\nHUD band    window        spread        inset each side");
+for (const [name, w, h] of [
+  ["phone landscape", 844, 390],
+  ["16:9 laptop", 1280, 720],
+  ["1080p", 1920, 1080],
+  ["21:9", 2520, 1080],
+  ["32:9", 3840, 1080],
+  ["49\" super", 5120, 1440],
+]) {
+  const inset = hudInset(w, h);
+  console.log(
+    `  ${name.padEnd(16)} ${String(w).padStart(4)}x${String(h).padEnd(5)} ` +
+      `${String(Math.round(w - inset * 2)).padStart(5)} px      ${Math.round(inset)} px`
+  );
+}
+// Nothing at or below the knee. Every screen anybody actually has is
+// here, and none of them may move a pixel.
+const unchanged = [
+  [390, 844], [844, 390], [1280, 720], [1440, 900], [1920, 1080],
+  [2560, 1440], [2520, 1080],
+].every(([w, h]) => hudInset(w, h) === 0);
+console.log(
+  `unchanged  ${check(unchanged, "the HUD moved on a screen 21:9 or narrower")}  ` +
+    `no inset on anything ${HUD_BAND === WIDE_KNEE ? "21:9" : HUD_BAND.toFixed(2)} or narrower`
+);
+// ...and a real one past it.
+const i329 = hudInset(3840, 1080);
+console.log(
+  `reins in   ${check(i329 > 400,
+    `32:9 only pulls the HUD in by ${Math.round(i329)} px a side`)}  ` +
+    `32:9 pulls each side in ${Math.round(i329)} px — the HUD spans ` +
+    `${Math.round(3840 - i329 * 2)} px instead of 3840`
+);
+// The band is the height, not a pixel count: a taller screen is a screen
+// you sit further from, and what matters is the angle it subtends.
+console.log(
+  `by height  ${check(hudInset(3840, 2160) === 0 && hudInset(3840, 1080) > 0,
+    `3840x2160 inset ${hudInset(3840, 2160)}, 3840x1080 inset ${Math.round(hudInset(3840, 1080))}`)}  ` +
+    `3840 wide is untouched at 2160 tall and reined in at 1080 — it is the SHAPE, not the width`
+);
+// Monotone, so dragging a window wider never jumps the furniture around.
+let hudBack = 0;
+let prevSpread = -1;
+for (let w = 800; w < 6000; w += 5) {
+  const spread = w - hudInset(w, 1080) * 2;
+  if (spread < prevSpread - 1e-6) hudBack++;
+  prevSpread = spread;
+}
+console.log(
+  `monotone   ${check(hudBack === 0, "the HUD spread shrinks as the window widens")}  ` +
+    `the spread never goes backwards as the window widens`
 );
 
 if (fail.length) {

@@ -106,6 +106,41 @@ export const AREAS = [
   { name: "Kuwait City", arabic: "مدينة الكويت", to: Infinity },
 ];
 
+/**
+ * The roads themselves.
+ *
+ * The game is called Gulf Road Nights and, until now, never told you
+ * which road you were on. The HUD names the DISTRICT — Sharq, Shuwaikh
+ * Residential — and the road's name existed in exactly one place in the
+ * whole world: a 1.05 m kilometre marker on the verge, Arabic-only,
+ * passed at fifty-odd metres a second.
+ *
+ * A lap is two roads. The coastal leg is Arabian Gulf Street, which is
+ * what the signs say and what "Gulf Road" is short for; the way back is
+ * the Second Ring. Both names are the ones on the real signage rather
+ * than the colloquial ones, for the same reason every district boundary
+ * here is a real boundary.
+ */
+export const ROADS = [
+  { to: COAST_END_M, name: "Arabian Gulf Street", arabic: "شارع الخليج العربي" },
+  { to: Infinity, name: "Second Ring Road", arabic: "الدائري الثاني" },
+];
+
+/** The road at `s`, and the nickname for this stretch of it if it has
+ *  one. `nick` is null nearly everywhere: a nickname is a nickname
+ *  precisely because it is not the road's name. */
+export function roadAt(track: Track, s: number) {
+  const m = track.wrap(s);
+  const road = ROADS.find((r) => m < r.to) ?? ROADS[ROADS.length - 1];
+  const onLove = m >= LOVE_STREET.from && m < LOVE_STREET.to;
+  return {
+    name: road.name,
+    arabic: road.arabic,
+    nick: onLove ? "Love Street" : null,
+    nickArabic: onLove ? "شارع الحب" : null,
+  };
+}
+
 /** شارع الحب — what the stretch of the Second Ring between Da'iya and
  *  Dasma is called by everyone who drives it. Straddles the boundary at
  *  6580 m, because that is where the name comes from. */
@@ -926,7 +961,7 @@ const arabicNumber = (n: number) =>
  *  over the road's Arabic name. A reassurance marker names the road you
  *  are on and counts from THAT road's start, so the lap carries two
  *  independent runs of them — one down Gulf Road, one round the ring. */
-function waymarkTexture(km: number, road: string): THREE.CanvasTexture {
+function waymarkTexture(km: number, road: string, roadEn: string): THREE.CanvasTexture {
   return textTexture(256, 320, (ctx) => {
     ctx.fillStyle = "#0a4da3";
     ctx.fillRect(0, 0, 256, 320);
@@ -935,14 +970,28 @@ function waymarkTexture(km: number, road: string): THREE.CanvasTexture {
     ctx.strokeRect(10, 10, 236, 300);
     ctx.fillStyle = "#ffffff";
     ctx.textAlign = "center";
-    ctx.direction = "rtl";
     const ar = arabicSign();
+    // Arabic above, English below — the order on every road sign in the
+    // country, and the reason it is that order is that both are needed:
+    // a marker that names the road in one script names it for half the
+    // people who read it.
+    ctx.direction = "rtl";
     ctx.font = `700 30px ${ar}`;
-    ctx.fillText(road, 128, 62);
-    ctx.font = `700 112px ${ar}`;
+    ctx.fillText(road, 128, 56);
+    ctx.direction = "ltr";
+    // Condensed to fit: "Arabian Gulf Street" is nineteen characters
+    // across a board 236 px wide, and a name that overflows its own
+    // sign is worse than no name.
+    ctx.font = `700 19px ${latinDisplay()}`;
+    ctx.fillText(roadEn, 128, 80);
+    ctx.direction = "rtl";
+    ctx.font = `700 104px ${ar}`;
     ctx.fillText(arabicNumber(km), 128, 208);
-    ctx.font = `700 44px ${ar}`;
-    ctx.fillText("كم", 128, 278);
+    ctx.font = `700 38px ${ar}`;
+    ctx.fillText("كم", 88, 268);
+    ctx.direction = "ltr";
+    ctx.font = `700 30px ${latinDisplay()}`;
+    ctx.fillText("KM", 170, 268);
   });
 }
 
@@ -4162,8 +4211,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         new THREE.MeshStandardMaterial({
           map:
             s < COAST_END_M
-              ? waymarkTexture(Math.round(s / 100) / 10, "طريق الخليج العربي")
-              : waymarkTexture(Math.round((s - COAST_END_M) / 100) / 10, "الدائري الثاني"),
+              ? waymarkTexture(Math.round(s / 100) / 10, ROADS[0].arabic, ROADS[0].name)
+              : waymarkTexture(
+                  Math.round((s - COAST_END_M) / 100) / 10,
+                  ROADS[1].arabic,
+                  ROADS[1].name
+                ),
           emissive: 0x444444,
         })
       );

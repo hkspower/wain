@@ -94,6 +94,38 @@ export const MAX_HFOV = 122;
  *  car readable and the road visible. */
 export const DOLLY_GAIN = 0.5;
 
+/**
+ * The widest band the HUD spreads across, as an aspect ratio.
+ *
+ * The projection answers to the window shape; the INTERFACE did not.
+ * Every HUD cluster pins to the physical viewport edge, so on a 32:9
+ * panel the rev counter and the minimap sit about 3,800 px apart —
+ * outside foveal vision by a long way, which means reading your own
+ * speed costs a turn of the head. That is not what the extra width was
+ * bought for.
+ *
+ * The same 21:9 as WIDE_KNEE, and for the same reason: past that point
+ * the projection stops paying out full Hor+ because the frame is
+ * getting wider than a person takes in at once, and the furniture
+ * should stop spreading at exactly the moment the picture does. At or
+ * below it nothing moves at all.
+ *
+ * Measured against the window's HEIGHT rather than against a pixel
+ * count, because a taller screen is a screen you sit further from and
+ * the angle a HUD subtends is what actually matters.
+ */
+export const HUD_BAND = WIDE_KNEE;
+
+/**
+ * How far in from each edge the HUD should anchor, in CSS pixels. Zero
+ * on anything 21:9 or narrower.
+ */
+export function hudInset(width: number, height: number): number {
+  if (!(width > 0) || !(height > 0)) return 0;
+  const band = Math.min(width, height * HUD_BAND);
+  return Math.max(0, (width - band) / 2);
+}
+
 const DEG = Math.PI / 180;
 const tanHalf = (deg: number) => Math.tan((deg * DEG) / 2);
 const fromTan = (t: number) => (2 * Math.atan(t)) / DEG;

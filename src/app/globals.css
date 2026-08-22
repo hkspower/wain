@@ -547,8 +547,14 @@ body {
 /* HUD lives inside the safe area, always. */
 .hud-safe-t { top: calc(var(--safe-t) + var(--hud-gutter)); }
 .hud-safe-b { bottom: calc(var(--safe-b) + var(--hud-gutter)); }
-.hud-safe-l { left: calc(var(--safe-l) + var(--hud-gutter)); }
-.hud-safe-r { right: calc(var(--safe-r) + var(--hud-gutter)); }
+/* Left and right also answer to --hud-inset-x, which is zero on every
+   screen 21:9 or narrower and grows past that so the HUD stops
+   spreading with the window. On a 32:9 panel the rev counter and the
+   minimap were about 3,800 px apart — outside foveal vision, so reading
+   your own speed meant turning your head, which is not what the extra
+   width was bought for. See HUD_BAND in src/game/aspect.ts. */
+.hud-safe-l { left: calc(var(--safe-l) + var(--hud-gutter) + var(--hud-inset-x, 0px)); }
+.hud-safe-r { right: calc(var(--safe-r) + var(--hud-gutter) + var(--hud-inset-x, 0px)); }
 
 .safe-pad {
   padding-top: calc(var(--safe-t) + 0.5rem);

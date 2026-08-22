@@ -9,8 +9,8 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, STATIONS, FORECOURT } from "./track";
-import { buildWorld, areaAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
-import { createCar, crownShell, CROWN, TAIL } from "./cars";
+import { buildWorld, areaAt, roadAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
+import { createCar, crownShell, CROWN, TAIL, TIRE_RADIUS } from "./cars";
 import { RIVALS, RivalDef } from "./rivals";
 import { VoiceBox } from "./voice";
 import { SoundEngine } from "./sound";
@@ -90,6 +90,12 @@ export interface HudData {
   speedKmh: number;
   areaName: string;
   areaArabic: string;
+  /** The road, and its nickname where this stretch has one. The game is
+   *  named after a road and never used to say which one you were on. */
+  roadName: string;
+  roadArabic: string;
+  roadNick: string | null;
+  roadNickArabic: string | null;
   /** The game clock, 0..24, and whether a race can be started right
    *  now. The window is the rule the whole night runs on, so the HUD
    *  has to be able to say it. */
@@ -359,7 +365,12 @@ function spinWheels(
 ): void {
   const wheels = car.userData.wheels as THREE.Group[] | undefined;
   if (!wheels) return;
-  const R = 0.36; // tire radius, metres — matches tireGeo in cars.ts
+  // The radius THIS car's wheels actually have, recorded by createCar
+  // after the silhouette's scale and its length fit. It used to be the
+  // constant 0.36 — the radius in the car's own units, correct until
+  // every car was fitted to its real length in metres, after which the
+  // wheels were between 5.5% and 21.8% out and quietly skidding.
+  const R = (car.userData.wheelR as number | undefined) ?? TIRE_RADIUS;
   const rolling = speed * (1 - lock);
   for (let i = 0; i < wheels.length; i++) {
     const driven = i >= 2; // 0,1 front · 2,3 rear
@@ -4690,6 +4701,7 @@ export class GameEngine {
 
   private emitHud(): void {
     const area = areaAt(this.track, this.player.s);
+    const road = roadAt(this.track, this.player.s);
     const r = this.rival;
 
     // Dev/tuning handle — inspect live state from the console.
@@ -4899,6 +4911,10 @@ export class GameEngine {
       })(),
       areaName: area.name,
       areaArabic: area.arabic,
+      roadName: road.name,
+      roadArabic: road.arabic,
+      roadNick: road.nick,
+      roadNickArabic: road.nickArabic,
       hour: this.timeHours,
       racingOpen: this.racingOpen(),
       rivalDist,

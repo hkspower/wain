@@ -52,6 +52,11 @@ const SIZES = [
   { name: "small laptop", w: 1280, h: 720 },
   { name: "desktop", w: 1600, h: 900 },
   { name: "ultrawide", w: 2560, h: 1080 },
+  // Past the 21:9 knee, where the HUD stops spreading with the window
+  // (HUD_BAND in src/game/aspect.ts). A shape nothing was ever checked
+  // at, and the one where "anchored to the edge" stops being a layout
+  // and starts being a problem.
+  { name: "super ultrawide", w: 3840, h: 1080 },
 ];
 
 /** How close to an edge a word may come before it is cramped. */

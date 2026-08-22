@@ -767,7 +767,20 @@ const STYLE_DIMS: Record<BodyStyle, StyleDims> = {
   },
 };
 
-const tireGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.26, 22);
+/**
+ * The rolling radius, in the CAR'S OWN units, before the silhouette's
+ * scale and its length fit are applied.
+ *
+ * It is a contract rather than a number: ride height, wheel arches,
+ * brake glow, skid marks and the authored GLB wheel are all dimensioned
+ * against it (see public/models/README.md), so a "nicer" tyre 5 mm
+ * larger would lift every car off its own shadow. Exported because
+ * something outside this file has to know how fast to turn it, and
+ * guessing produced a game whose wheels skidded.
+ */
+export const TIRE_RADIUS = 0.36;
+
+const tireGeo = new THREE.CylinderGeometry(TIRE_RADIUS, TIRE_RADIUS, 0.26, 22);
 tireGeo.rotateZ(Math.PI / 2);
 // The traffic tire is a bare barrel with no shoulder bulges, so it reads
 // the tread band of the texture across its whole width. Without this it
@@ -782,7 +795,7 @@ function ensureTreadUvs(): void {
 }
 // Hero tire: more segments than traffic will ever need, plus sidewall
 // bulges. The silhouette of a wheel is mostly its tire.
-const tireGeoHi = new THREE.CylinderGeometry(0.36, 0.36, 0.26, 30);
+const tireGeoHi = new THREE.CylinderGeometry(TIRE_RADIUS, TIRE_RADIUS, 0.26, 30);
 tireGeoHi.rotateZ(Math.PI / 2);
 const sidewallGeo = new THREE.TorusGeometry(0.3, 0.042, 7, 26);
 sidewallGeo.rotateY(Math.PI / 2);
@@ -3217,6 +3230,24 @@ export function createCar(colors: CarColors): THREE.Group {
     if (raw > 1) scale = colors.lengthM / raw;
   }
   group.scale.setScalar(scale);
+  /**
+   * The wheel's radius IN THE WORLD, after that scale.
+   *
+   * Recorded rather than assumed, because the assumption was wrong on
+   * every car in the game. The engine turned every wheel at v / 0.36 —
+   * the local radius, correct before these cars were fitted to their
+   * real lengths — and the scale that fit ranges from 0.826 to 1.064,
+   * so the wheels were 5.5% to 21.8% out. A wheel turning 22% too
+   * slowly is a wheel skidding forward down a dry road at every speed,
+   * which is the one thing about a car nobody has to be told to look
+   * for.
+   *
+   * attract.ts had this right from the day it was written — it measures
+   * the built wheel because "the silhouettes carry different scale
+   * factors, so the same tyre is a different size on each of them". The
+   * menu rolled correctly and the game did not.
+   */
+  group.userData.wheelR = TIRE_RADIUS * scale;
 
   // Swap in the Blender-authored shells and wheels when they arrive.
   // Traffic keeps the cheap procedural build — thirty cars don't need
