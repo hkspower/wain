@@ -45,6 +45,32 @@
 // Read CRUSHED as "there is something here". Then go and find out why it
 // is dark, which is a question about the world and not about the curve.
 //
+// WHERE THIS STANDS TODAY
+//
+// Measured on the five viewpoints below, before and after the lighting
+// work in world.ts:
+//
+//                     dark tiles      p10 tile luma
+//   corniche           0 ->  0        0.045 -> 0.175
+//   inland             5 ->  4        0.086 -> 0.048
+//   far side           1 ->  0        0.067 -> 0.074
+//   under a flyover   13 ->  4        0.030 -> 0.046
+//   no headlights      5 ->  4        0.046 -> 0.048
+//   total             24 -> 12
+//
+// Note the inland column, because it is the interesting one and it is
+// not a win. Its dark tiles went down, and the whole frame got DIMMER
+// doing it — median 0.185 to 0.143, p90 0.514 to 0.226. Widening the
+// lamp pools put more bright area in shot, the meter stopped down for
+// it, and everything that was never lit paid the difference. That is
+// the loop this tool keeps running into from the other side, and it is
+// the reason a change here has to be measured at every viewpoint rather
+// than at the one it was aimed at.
+//
+// Twelve tiles remain. They are the road under the flyovers away from
+// the fixtures, and the unlit inland stretch, and both are places where
+// a real road is dark too.
+//
 // The lifted frame is taken with auto-exposure FROZEN. The metering is a
 // GPU feedback loop that closes around whatever it is shown, so an
 // unfrozen "lifted" frame simply re-meters back to the same picture and
