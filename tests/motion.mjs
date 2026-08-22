@@ -297,7 +297,15 @@ const wheels = await page.evaluate(async () => {
     e.update(1 / 60);
   }
   const rolled = angles()[0] - a0[0];
-  const expected = (30 / 0.36) * 0.5; // v/r over half a second
+  // v / r over half a second — and r is the radius THIS car's wheel
+  // actually has, not the constant in cars.ts. Each car is scaled to
+  // its real length in metres and its wheels are scaled with it, so the
+  // module constant is the radius of a car nobody drives; asserting
+  // against it is how this check went on passing while the wheels of
+  // every car in the game skated (see tests/tyres.mjs). Read the radius
+  // off the car, and check separately that it is a real tyre.
+  const radius = e.carBody.userData.wheelR;
+  const expected = (30 / radius) * 0.5;
 
   // Locked: no anti-lock, pedal buried. The car is still moving; the
   // wheels must not be.
@@ -350,14 +358,21 @@ const wheels = await page.evaluate(async () => {
   reset();
   return {
     rolled: +rolled.toFixed(2), expected: +expected.toFixed(2),
+    radius: +radius.toFixed(3),
     locked: +locked.toFixed(3), lockAmt: +lockAmt.toFixed(2),
     front: +front.toFixed(2), rear: +rear.toFixed(2),
     steerFront: +steerFront.toFixed(3), steerRear: +steerRear.toFixed(3),
   };
 });
-console.log(`\n  wheel roll      ${wheels.rolled} rad in 0.5 s, v/r says ${wheels.expected}  ` +
+console.log(`\n  wheel roll      ${wheels.rolled} rad in 0.5 s, v/r says ${wheels.expected} at r=${wheels.radius} m  ` +
   check(Math.abs(wheels.rolled - wheels.expected) / wheels.expected < 0.05,
     `wheels turn at ${wheels.rolled} rad where the road says ${wheels.expected} — they are skating`));
+// Reading the radius off the car makes the roll check self-fulfilling if
+// the radius itself is nonsense, so the radius is checked too: a road
+// car's tyre is 0.28-0.40 m, which is a 22-32 inch overall diameter.
+console.log(`  tyre size       ${wheels.radius} m radius (${(wheels.radius * 2 * 39.37).toFixed(1)} in across)  ` +
+  check(wheels.radius > 0.28 && wheels.radius < 0.4,
+    `a ${wheels.radius} m wheel radius is not a road car's tyre`));
 console.log(`  locked wheel    lock ${wheels.lockAmt}, turned ${wheels.locked} rad in 0.5 s at 30 m/s  ` +
   check(wheels.lockAmt > 0.9 && Math.abs(wheels.locked) < 1,
     `a fully locked wheel still turned ${wheels.locked} rad while the car slid`));

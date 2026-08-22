@@ -722,6 +722,22 @@ export default function RaceClient() {
           g2.appendChild(label);
         }
       }
+      if (roadRef.current) {
+        // Two spans for the same reason the district below uses two:
+        // the Latin display face carries no Arabic, so a mixed
+        // textContent falls back glyph by glyph and loses both.
+        //
+        // A nickname replaces the name where there is one. شارع الحب is
+        // not on any sign and is what everyone calls that stretch, so
+        // showing "Second Ring Road" there would be technically right
+        // and useless — the point of a name on a HUD is that it matches
+        // what a player would say out loud.
+        const [rLatin, rArabic] = roadRef.current.children as unknown as HTMLElement[];
+        if (rLatin && rArabic) {
+          rLatin.textContent = d.roadNick ?? d.roadName;
+          rArabic.textContent = d.roadNickArabic ?? d.roadArabic;
+        }
+      }
       if (areaRef.current) {
         // Two spans, not one string: the Latin display face carries no
         // Arabic, so a mixed textContent falls back glyph by glyph and
