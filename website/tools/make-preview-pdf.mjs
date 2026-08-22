@@ -103,18 +103,12 @@ await page.addStyleTag({ content: `
 
   /* --- إصلاحات خاصة بمحرّك الطباعة في كروميوم --- */
 
-  /* background-clip:text يترك مستطيلًا مرئيًا حول النص في PDF */
-  .grad {
-    background: none !important;
-    -webkit-background-clip: border-box !important;
-    background-clip: border-box !important;
-    -webkit-text-fill-color: currentColor !important;
-    color: var(--teal-cta) !important;
-  }
-
-  /* mask-composite غير مدعوم عند الطباعة فيمتلئ الكرت بالتدرّج كله */
-  .plan--featured::before { display: none !important; }
-  .plan--featured { border: 2px solid var(--teal-600) !important; }
+  /* كان هنا التفافان: أحدهما يُبطل قصَّ الخلفية على النصّ في كلمة العنوان
+     لأنّ محرّك الطباعة يترك حولها مستطيلًا مرئيًا، والآخر يُبطل حلقة
+     mask-composite حول الباقة المميّزة لأنّ المحرّك لا يدعمها فيمتلئ
+     الكرت بالتدرّج كلّه. أُزيلت الحيلتان من ورقة الأنماط نفسها (الكلمة
+     صارت لونًا مصمتًا، والحلقة صارت حدًّا حقيقيًّا) فلم يبقَ للالتفافين
+     ما يلتفّان عليه. (بلا علامات اقتباس خلفية: النصّ داخل قالبٍ نصّيّ.) */
 
   /* شارة «الأكثر طلبًا» تخرج خارج حدود الكرت فتُقصّ عند حافة الصفحة */
   .pricing { padding-top: 18px; }

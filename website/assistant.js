@@ -217,7 +217,7 @@
     var close = el('button', 'asst__close');
     close.type = 'button';
     close.setAttribute('aria-label', 'إغلاق المساعد');
-    close.innerHTML = '&times;';
+    close.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#i-x"></use></svg>';
     head.appendChild(close);
     panel.appendChild(head);
 
