@@ -36,6 +36,14 @@ export default function Root({ children }: PropsWithChildren) {
         />
         <meta name="theme-color" content="#14161a" />
 
+        {/* Links inherit their colour instead of taking the browser's blue.
+            Every label in the app sets its own, so nothing SHOWS blue today —
+            but the anchors the router generates carry #0000ee underneath, and
+            the first piece of text added inside one without a colour of its
+            own would arrive in a colour that is in no palette. The measured
+            count on the storefront was four. */}
+        <style dangerouslySetInnerHTML={{ __html: 'a{color:inherit;text-decoration:none}' }} />
+
         {/* Expo's own reset: it stops the BODY scrolling so that a ScrollView
             inside the app scrolls instead. Without it the page and the app's
             scroll views fight each other on web. */}

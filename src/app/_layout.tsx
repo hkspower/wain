@@ -2,10 +2,10 @@ import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import Head from 'expo-router/head';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
-import { useColorScheme } from 'react-native';
+import { useEffect, useMemo } from 'react';
 
 import { Colors, FONT_FILES } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { CartProvider } from '@/lib/cart';
 import { LanguageProvider } from '@/lib/i18n';
 import { SessionProvider } from '@/lib/session';
@@ -21,9 +21,45 @@ import { SessionProvider } from '@/lib/session';
 // first impression from.
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
+/**
+ * The navigator's own theme, in Sporta's colours.
+ *
+ * React Navigation paints the screen BEHIND every route — the page you see
+ * wherever a screen does not paint over it — and its stock DefaultTheme is
+ * rgb(242,242,242), which is not this shop's grey. That was a near-miss in
+ * light mode and a disaster in dark: the app switched its text to #f6f4f1 and
+ * the page behind it stayed light, so a whole screen's headings were white on
+ * white. Measured on /account, /cart, /checkout and /order at 1.02:1 — which
+ * is to say invisible.
+ *
+ * Built from the palette rather than listed here, so the two cannot drift.
+ */
+const navTheme = (mode: 'light' | 'dark') => {
+  const base = mode === 'dark' ? DarkTheme : DefaultTheme;
+  const c = Colors[mode];
+  return {
+    ...base,
+    colors: {
+      ...base.colors,
+      background: c.background,
+      card: c.background,
+      text: c.text,
+      border: c.border,
+      primary: c.tint,
+    },
+  };
+};
+
 export default function RootLayout() {
+  // ONE colour-scheme hook, the web-safe one. This file used to call React
+  // Native's directly while everything else used ours, so on web the two
+  // disagreed for the first frames after hydration — the navigator light, the
+  // components dark, and the difference visible on screen rather than in a
+  // console warning.
   const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? Colors.dark : Colors.light;
+  const mode = colorScheme === 'dark' ? 'dark' : 'light';
+  const theme = Colors[mode];
+  const navigation = useMemo(() => navTheme(mode), [mode]);
   const [fontsReady, fontError] = useFonts(FONT_FILES);
 
   useEffect(() => {
@@ -51,7 +87,7 @@ export default function RootLayout() {
       </Head>
       <CartProvider>
         <SessionProvider>
-          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <ThemeProvider value={navigation}>
             <Stack
               screenOptions={{
                 // The tab a page opens in. On web this is what the navigator

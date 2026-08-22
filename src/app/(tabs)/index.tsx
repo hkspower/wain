@@ -9,7 +9,7 @@ import { ProductCard } from '@/components/product-card';
 import { RemoteArt } from '@/components/remote-art';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { EMBER_ON_INK, Radius, Spacing, TapTarget, Type } from '@/constants/theme';
+import { EMBER_ON_ART, EMBER_ON_INK, Radius, Spacing, TapTarget, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useCart } from '@/lib/cart';
 import { categoryArt } from '@/lib/assets';
@@ -40,7 +40,7 @@ export default function HomeScreen() {
               onPress={() => router.push('/shop')}
               style={press(false, styles.heroButton,
                 { backgroundColor: theme.tint })}>
-              <Text style={styles.heroButtonText}>{t.home.shopNow}</Text>
+              <Text style={[styles.heroButtonText, { color: theme.onTint }]}>{t.home.shopNow}</Text>
             </Pressable>
           </ThemedView>
 
@@ -152,7 +152,6 @@ const styles = StyleSheet.create({
   heroButtonText: {
     fontFamily: Type.bodyBold.family,
     fontSize: Type.bodyBold.size,
-    color: '#ffffff',
     fontWeight: '700',
   },
   sectionTitle: { marginTop: Spacing.two },
@@ -186,7 +185,7 @@ const styles = StyleSheet.create({
   },
   categoryBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#e0561c',
+    backgroundColor: EMBER_ON_ART,
     borderRadius: 999,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.one,
@@ -210,7 +209,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 999,
-    backgroundColor: '#e0561c',
+    backgroundColor: EMBER_ON_ART,
     alignItems: 'center',
     justifyContent: 'center',
   },

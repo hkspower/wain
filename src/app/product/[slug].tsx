@@ -108,7 +108,7 @@ export default function ProductScreen() {
               onPress={onAdd}
               style={press(false, styles.addButton,
                 { backgroundColor: theme.tint })}>
-              <Text style={styles.addText}>{t.product.add}</Text>
+              <Text style={[styles.addText, { color: theme.onTint }]}>{t.product.add}</Text>
             </Pressable>
           </ThemedView>
       }>
@@ -240,7 +240,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   addText: {
-    color: '#ffffff',
     fontSize: 16,
     fontWeight: '700',
   },

@@ -39,7 +39,7 @@ export function Button({
   const off = disabled || busy;
 
   const skin: Record<Variant, { bg: string; fg: string; border: string }> = {
-    primary: { bg: theme.tint, fg: '#ffffff', border: theme.tint },
+    primary: { bg: theme.tint, fg: theme.onTint, border: theme.tint },
     secondary: { bg: theme.backgroundElement, fg: theme.text, border: theme.border },
     danger: { bg: theme.backgroundElement, fg: theme.danger, border: theme.danger },
   };

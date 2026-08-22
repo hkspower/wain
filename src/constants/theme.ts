@@ -58,6 +58,11 @@ export const Colors = {
     inkSilver: '#2b3138',
     inkSteel: '#363d45',
     onInk: '#ffffff',
+    // WHAT GOES ON A TINT FILL. White measures 4.76:1 on the light ember and
+    // passes; on the dark mode's brighter ember it measures 2.59:1 and does
+    // not — so this is a token rather than a '#ffffff' repeated in fifteen
+    // files, each of which would have to be found and reasoned about again.
+    onTint: '#ffffff',
     success: '#1c7a4a',
     danger: '#b3261e',
   },
@@ -78,6 +83,12 @@ export const Colors = {
     ink: '#0d0f12',
     inkSilver: '#2b3138',
     inkSteel: '#363d45',
+    // INK, NOT WHITE. The dark mode's ember is the LIGHT thing on this page —
+    // that is the whole reason it is brighter than the light mode's — so white
+    // text on it is light on light: 2.59:1, measured on the home page's Shop
+    // now button, which is the app's most prominent control. The page's own
+    // near-black gives 6.98:1 on the same fill.
+    onTint: '#14161a',
     onInk: '#ffffff',
     success: '#5cc98d',
     danger: '#ff8a80',
@@ -113,6 +124,18 @@ export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
  * this is the one measured for this ground — 4.62:1.
  */
 export const EMBER_ON_INK = '#e2803f';
+
+/**
+ * The ember for a fill that sits ON THE ARTWORK — the category tiles' badge
+ * and their arrow chip — where white text rides on top of it.
+ *
+ * Fixed rather than themed, because the artwork is dark in both schemes and
+ * the tile does not change with the page. It was '#e0561c', hand-written
+ * twice, and white on that measures 3.81:1 — under AA for the 14pt bold it
+ * carries. This is the brand ember the light mode already uses, where the
+ * same white measures 4.76:1.
+ */
+export const EMBER_ON_ART = '#c8490f';
 
 export const Type = {
   display: { size: 30, line: 38, lineAr: 46, family: 'Alexandria', weight: '700' },
