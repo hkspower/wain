@@ -69,13 +69,35 @@ const imgs = await p.evaluate(() =>
 )
 const loaded = imgs.filter((i) => i.w > 0)
 
+// What the CATEGORY tiles painted, wherever it came from. The bundled artwork
+// ships inside the app, so a tile is never empty — which also means "nothing
+// decoded" is no longer the offline expectation it used to be.
+const tileArt = await p.evaluate(() =>
+  [...document.querySelectorAll('img')]
+    .map((i) => ({ src: i.currentSrc || i.src, w: i.naturalWidth }))
+    .filter((i) => /art-(men|women|accessories|outlet)/.test(i.src)),
+)
+const bundled = tileArt.filter((i) => i.w > 0 && !i.src.includes('sporta.com.kw'))
+
+check(bundled.length >= 4,
+  `all four tiles paint bundled artwork with no server (${bundled.length})`)
+check(tileArt.every((i) => i.w === 0 || i.w >= 900),
+  'the bundled frames are the 900-wide originals, not thumbnails')
+
+// WHICH composition, not just that one painted. Both frames with a person in
+// them have an Arabic version with the figure on the left, and falling back to
+// the English one is invisible to a count — the tile still shows a photograph,
+// it just shows the copy sitting on the runner.
+const rtlFrames = tileArt.filter((i) => /art-(men|women)-rtl/.test(i.src))
+check(rtlFrames.length === 2,
+  `Arabic uses the -rtl composition for both figures (${rtlFrames.length}/2)`)
+
 if (MODE === 'served') {
   check(loaded.length >= 4, `the artwork loads (${loaded.length} pictures decoded)`)
   check(imgs.every((i) => i.shown), 'every requested picture is actually laid out')
 } else {
-  check(loaded.length === 0, 'nothing is decoded when the server has no pictures')
-  // The emoji is the honest offline state — the tile must not go blank.
-  check((await seen(p.getByText('🏋️')).count()) > 0, 'the tile falls back to its emoji')
+  check(loaded.filter((i) => i.src.includes('sporta.com.kw')).length === 0,
+    'nothing is fetched from the shop when it cannot be reached')
 }
 
 // THE COPY SITS STRAIGHT ON THE ARTWORK — no plate. That is the design the

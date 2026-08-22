@@ -11,16 +11,21 @@ import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-na
  * a shop whose entire catalogue is rendered in them looks like a wireframe
  * somebody shipped. expo-image was already a dependency and was not used once.
  *
- * THREE LAYERS, best available wins, and they are stacked in this order:
+ * FOUR LAYERS, best available wins, stacked bottom to top:
  *
- *   1. The photograph, if the server has one. Fetched at runtime, so uploading
- *      /cats/art-men.jpg upgrades the app with no release; deleting it falls
- *      back cleanly.
- *   2. The emoji, which is what the tile has always shown. Not deleted — it is
- *      the honest offline state, and this app is built to work with no signal.
- *   3. The ground colour, underneath both at all times. It is what stops a
- *      white flash while the image decodes, and it is the last thing standing
- *      if everything else is missing.
+ *   1. The ground colour, always. It stops a white flash while anything above
+ *      decodes, and it is the last thing standing if all else is missing.
+ *   2. The emoji, when there is no picture of any kind.
+ *   3. The BUNDLED photograph, shipped inside the app. It paints on the first
+ *      frame, with no network at all — which is why the tiles are never empty
+ *      on a lift or in a basement gym.
+ *   4. The photograph from the server, faded in over the top when it arrives.
+ *      Uploading to /cats/ still changes the app with no release; failing to
+ *      reach it now costs nothing, because layer 3 is already there.
+ *
+ * The remote layer sits ON TOP rather than replacing the bundled one, so there
+ * is no gap and no flicker between them — the bundled art is visible from the
+ * first frame and is quietly upgraded, or it simply stays.
  *
  * The layout NEVER depends on the image. The tile's height is set by its
  * content and the picture is absolutely positioned inside it, so an image that
@@ -28,6 +33,7 @@ import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-na
  */
 export function RemoteArt({
   uri,
+  bundled,
   ground,
   emoji,
   emojiSize = 40,
@@ -37,6 +43,8 @@ export function RemoteArt({
   children,
 }: {
   uri: string;
+  /** A `require`d image that ships with the app; painted under the remote one. */
+  bundled?: number;
   ground: string;
   emoji?: string;
   emojiSize?: number;
@@ -51,6 +59,17 @@ export function RemoteArt({
 
   return (
     <View style={[{ backgroundColor: ground }, style]}>
+      {bundled !== undefined && (
+        <Image
+          source={bundled}
+          accessible={false}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          contentPosition={
+            focus === 'center' ? 'center' : focus === 'end' ? 'right center' : 'left center'
+          }
+        />
+      )}
       {!failed && (
         <Image
           source={{ uri }}
@@ -67,7 +86,7 @@ export function RemoteArt({
           onError={() => setFailed(true)}
         />
       )}
-      {failed && emoji ? (
+      {failed && bundled === undefined && emoji ? (
         <View style={styles.emojiWrap} pointerEvents="none">
           <Text style={{ fontSize: emojiSize }}>{emoji}</Text>
         </View>

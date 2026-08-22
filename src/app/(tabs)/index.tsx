@@ -10,6 +10,7 @@ import { BottomTabInset, MaxContentWidth, Spacing, TapTarget } from '@/constants
 import { useTheme } from '@/hooks/use-theme';
 import { useCart } from '@/lib/cart';
 import { categoryArt } from '@/lib/assets';
+import { bundledCategoryArt } from '@/lib/category-art';
 import { categoryKicker, categoryName } from '@/lib/catalog';
 import { useLang } from '@/lib/i18n';
 
@@ -65,6 +66,7 @@ export default function HomeScreen() {
                 style={({ pressed }) => pressed && styles.pressed}>
                 <RemoteArt
                   uri={categoryArt(cat.id)}
+                  bundled={bundledCategoryArt(cat.id, dir)}
                   ground={cat.color}
                   emoji={cat.emoji}
                   emojiSize={40}
