@@ -6,6 +6,7 @@ artefacts, auth, hostile input, storage tampering, offline, and layout.
 Run:  python3 design/test_suite.py
 """
 import http.server, socketserver, threading, functools, time, json, re, pathlib, sys
+import ast
 import subprocess
 import yaml
 import xml.etree.ElementTree as ET
@@ -577,6 +578,7 @@ def browser_checks():
         integration_checks(pg)
         xbrl_checks(pg)
         delivery_checks(pg)
+        film_checks()
         api_checks(pg)
         social_checks(pg)
         preload_checks(pg)
@@ -1971,6 +1973,110 @@ def motion_pause_checks(pg):
     pg.set_viewport_size({"width": 1440, "height": 900})
 
 
+def film_checks():
+    """The film — a subsystem that had grown to seven scripts with nothing
+    pinning it.
+
+    Everything it generates comes from one place, and the value of that is
+    only real if it is checked: the captions, the subtitles and the narration
+    are three files written from the same list, and nothing but a test stops
+    them drifting apart. The film also makes claims to customers, and those
+    are held to the same standard as the site's own — no invented figures, and
+    the shorthand the owner banned must not reappear in a spoken line.
+    """
+    S = "film"
+    F = ROOT.parent / "design" / "film"
+    if not F.exists():
+        check(S, "the film is present", False, str(F))
+        return
+
+    meta = json.loads((F / "narration.json").read_text())
+    lines = meta["lines"]
+
+    # ---- one source, three files ----
+    plain = (F / "narration-plain.txt").read_text().strip().splitlines()
+    check(S, "the plain narration has a line per caption",
+          len(plain) == len(lines), f"{len(plain)} vs {len(lines)}")
+    check(S, "and says exactly what the captions say",
+          all(a.strip() == b["text"] for a, b in zip(plain, lines)))
+
+    srt = (F / "narration.srt").read_text()
+    check(S, "the subtitles carry every line",
+          all(ln["text"] in srt for ln in lines))
+    check(S, "the subtitles have as many entries as there are lines",
+          srt.count(" --> ") == len(lines),
+          f"{srt.count(' --> ')} vs {len(lines)}")
+
+    page = (F / "film.html").read_text()
+    check(S, "every caption is in the page",
+          all(ln["text"] in page for ln in lines))
+
+    # ---- the timeline has to be a timeline ----
+    overlaps = [(a["text"][:24], b["text"][:24])
+                for a, b in zip(lines, lines[1:]) if b["start"] < a["end"]]
+    check(S, "no two captions are on screen at once", not overlaps,
+          str(overlaps[:2]))
+    check(S, "every caption ends after it starts",
+          all(ln["end"] > ln["start"] for ln in lines))
+    check(S, "the film is as long as its last caption needs",
+          meta["total"] >= lines[-1]["end"], str(meta["total"]))
+
+    # ---- the voice, where it exists, fits the caption written for it ----
+    dur = F / "voice" / "durations.json"
+    if dur.exists():
+        d = json.loads(dur.read_text())
+        over = [(i, d[str(i)]["speech"], round(ln["end"] - ln["start"], 2))
+                for i, ln in enumerate(lines, 1)
+                if str(i) in d and d[str(i)]["speech"] > ln["end"] - ln["start"] + 0.01]
+        # the captions are burned in, so a line that runs past its own is
+        # speaking one sentence while the screen shows the next
+        check(S, "no recorded line runs past its caption", not over, str(over[:2]))
+        missing = [i for i in range(1, len(lines) + 1) if str(i) not in d]
+        # not a failure: a script may legitimately be ahead of the recording,
+        # and build_film.py says so. It must be visible, not silent.
+        check(S, f"unrecorded lines are known ({len(missing)})", True,
+              str(missing) if missing else "every line is recorded")
+
+    # ---- what the film says ----
+    spoken = " ".join(ln["text"] for ln in lines) + page
+    check(S, "the film never says the banned shorthand",
+          "Nokha" not in spoken and "نوخة" not in spoken)
+    for real in ("النوخذة", "المهلب"):
+        check(S, f"the film names {real}", real in spoken)
+    # the one arithmetic claim it makes on screen, which must actually add up
+    check(S, "the filing scene's figures sum",
+          abs((249.750 + 4205.750) - 4455.500) < 1e-9)
+    for figure in ("249.750", "4,205.750", "4,455.500"):
+        check(S, f"the filing scene still shows {figure}", figure in page)
+
+    # ---- it flies the company's own mark, not a redrawn one ----
+    sprite = (ROOT / "index.html").read_text()
+    m = re.search(r'<symbol id="i-boum".*?</symbol>', sprite, re.S)
+    check(S, "the film's mark is the site's own path, not a copy",
+          bool(m) and m.group(0) in page)
+    check(S, "the film uses the bundled Cairo, not a webfont CDN",
+          "fonts/cairo-" in page and "fonts.googleapis" not in page)
+
+    # ---- the pipeline scripts are all there and all parse ----
+    for name in ("build_film.py", "measure_voice.py", "assemble_voice.py",
+                 "render.py", "mux.py", "tts_elevenlabs.py"):
+        f = F / name
+        if not f.exists():
+            check(S, f"{name} is present", False)
+            continue
+        try:
+            ast.parse(f.read_text())
+            check(S, f"{name} parses", True)
+        except SyntaxError as e:
+            check(S, f"{name} parses", False, str(e))
+
+    # a key must never be committed, however convenient
+    tts = (F / "tts_elevenlabs.py").read_text()
+    check(S, "the recorder takes its key from the environment only",
+          "os.environ" in tts and "sk_" not in tts and
+          not re.search(r'api_key\s*=\s*["\'][0-9a-f]{32}', tts))
+
+
 def api_checks(pg):
     """window.Nokhatha — the documented way in and out of the records.
 
@@ -2049,6 +2155,51 @@ def api_checks(pg):
     check(S, "net worth is the portfolio plus delivered revenue",
           abs(t["netWorth"] - (t["portfolio"]["value"] + t["revenue"])) < 1e-9,
           str(t["netWorth"]))
+
+    # ---- export and import are a backup, so they must round-trip ----
+    rt = pg.evaluate("""() => {
+      const N = window.Nokhatha; const out = {};
+      N.clear('safi'); N.clear('delivery');
+      // a record with a date of its own, as a real backup would carry
+      N.addOrder({id:'1042', amount:78.5, status:3,
+                  createdAt:'2025-03-04T09:12:00.000Z'});
+      const backup = N.export();
+      N.clear('delivery');
+      N.import(backup);
+      out.kept = N.orders()[0].createdAt === '2025-03-04T09:12:00.000Z';
+      N.addOrder({id:'2001'});
+      out.newHasDate = !!N.orders().find(o => o.id === '2001').createdAt;
+      N.addOrder({id:'2002', createdAt:'not a date'});
+      out.junkFixed = !isNaN(Date.parse(
+        N.orders().find(o => o.id === '2002').createdAt));
+      // one batch, one write: 200 records should not cost 200 rewrites
+      N.clear('safi');
+      const many = {safi: Array.from({length:200}, (_, i) =>
+        ({ticker:'T'+i, qty:10, cost:100, price:110}))};
+      const t0 = performance.now();
+      out.batch = N.import(many).value;
+      out.ms = performance.now() - t0;
+      out.rows = N.holdings().length;
+      // a backup holding the same ticker twice is caught inside the batch
+      out.dupInBatch = N.import({safi:[{ticker:'X',qty:1},{ticker:'X',qty:2}]}).value;
+      return out;
+    }""")
+
+    # A backup that re-dates every record it restores is not a backup. This
+    # shipped: addOrder stamped the moment of writing over the supplied date,
+    # so restoring a year of orders quietly marked them all as today's.
+    check(S, "a restored order keeps its own date", rt["kept"])
+    check(S, "a new order still gets one", rt["newHasDate"])
+    check(S, "an unparseable date is replaced, not trusted",
+          rt["junkFixed"])
+    check(S, "a whole backup imports", rt["batch"]["added"] == 200
+          and rt["rows"] == 200, str(rt["batch"]))
+    # not a benchmark — a guard against import going back to one full read,
+    # write and re-render per record, which grows with the square of the size
+    check(S, "importing 200 records stays well under a second",
+          rt["ms"] < 400, f"{rt['ms']:.0f}ms")
+    check(S, "a ticker repeated inside one batch is caught",
+          rt["dupInBatch"] == {"added": 1, "skipped": 1}, str(rt["dupInBatch"]))
 
     # and it is documented, or nobody can use it
     doc = ROOT / "docs" / "API.md"

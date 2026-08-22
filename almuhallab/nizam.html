@@ -1291,6 +1291,55 @@
     return ok(list.length);
   }
 
+  /* Validation lives apart from writing, so adding one record and importing
+     two hundred can share it. The batch path builds the whole list in memory
+     and writes once; before this, import() called addHolding per record, and
+     each of those re-read the list, re-wrote it, and re-rendered every screen
+     — the work grew with the square of the backup's size. */
+  function makeHolding(h, existing) {
+    h = h || {};
+    var ticker = cleanTicker(h.ticker || "");
+    if (!ticker) return fail("رمز السهم مطلوب");
+    // clamp() turns a negative or nonsense quantity into 0, which would be
+    // stored as a holding of no shares and reported as a success. Caught by
+    // testing: addHolding({ticker:'NBK', qty:-50}) answered ok. A quantity
+    // the caller cannot have meant is a caller error, not a zero.
+    var qty = Math.floor(clamp(h.qty, 1e9));
+    if (qty < 1) return fail("الكمية يجب أن تكون سهماً واحداً فأكثر");
+    if (existing.some(function (x) { return x.ticker === ticker; }))
+      return fail("هذا الرمز مضاف بالفعل: " + ticker);
+    return ok({ ticker: ticker, name: String(h.name || "").slice(0, 80),
+                qty: qty, cost: clamp(h.cost, 1e7), price: clamp(h.price, 1e7) });
+  }
+
+  /* A date that survives a round trip. addOrder used to stamp every record
+     with the moment it was written, which is right for a new order and wrong
+     for a restored one: exporting a year of orders and importing them back
+     re-dated all of them to today, quietly, while calling itself a backup.
+     A supplied date is parsed and normalised — localStorage is user-writable,
+     so an unparseable one falls back to now rather than being trusted. */
+  function isoOr(fallback, v) {
+    var t = Date.parse(String(v || ""));
+    return isFinite(t) ? new Date(t).toISOString() : fallback;
+  }
+
+  function makeOrder(o, existing) {
+    o = o || {};
+    var id = String(o.id || "").slice(0, 12);
+    if (!id) return fail("رقم الطلب مطلوب");
+    if (existing.some(function (x) { return x.id === id; }))
+      return fail("رقم الطلب مستعمل: " + id);
+    return ok({ id: id, customer: String(o.customer || "").slice(0, 80),
+                phone: String(o.phone || "").slice(0, 15),
+                address: String(o.address || "").slice(0, 160),
+                items: String(o.items || "").slice(0, 160),
+                amount: clamp(o.amount, 1e6),
+                courier: String(o.courier || "").slice(0, 80),
+                status: Math.min(Math.max(Math.floor(Number(o.status) || 0), 0),
+                                 STATUSES.length - 1),
+                createdAt: isoOr(new Date().toISOString(), o.createdAt) });
+  }
+
   window.Nokhatha = {
     version: API_VERSION,
 
@@ -1309,21 +1358,9 @@
 
     /* ---- writes ---- */
     addHolding: function (h) {
-      h = h || {};
-      var ticker = cleanTicker(h.ticker || "");
-      if (!ticker) return fail("رمز السهم مطلوب");
-      // clamp() turns a negative or nonsense quantity into 0, which would be
-      // stored as a holding of no shares and reported as a success. Caught by
-      // testing: addHolding({ticker:'NBK', qty:-50}) answered ok. A quantity
-      // the caller cannot have meant is a caller error, not a zero.
-      var qty = Math.floor(clamp(h.qty, 1e9));
-      if (qty < 1) return fail("الكمية يجب أن تكون سهماً واحداً فأكثر");
-      var list = holdings();
-      if (list.some(function (x) { return x.ticker === ticker; }))
-        return fail("هذا الرمز مضاف بالفعل: " + ticker);
-      list.push({ ticker: ticker, name: String(h.name || "").slice(0, 80),
-                  qty: qty,
-                  cost: clamp(h.cost, 1e7), price: clamp(h.price, 1e7) });
+      var list = holdings(), r = makeHolding(h, list);
+      if (!r.ok) return r;
+      list.push(r.value);
       return saveList(K.safi, list, "safi");
     },
     removeHolding: function (ticker) {
@@ -1333,21 +1370,9 @@
       return saveList(K.safi, kept, "safi");
     },
     addOrder: function (o) {
-      o = o || {};
-      var id = String(o.id || "").slice(0, 12);
-      if (!id) return fail("رقم الطلب مطلوب");
-      var list = orders();
-      if (list.some(function (x) { return x.id === id; }))
-        return fail("رقم الطلب مستعمل: " + id);
-      list.push({ id: id, customer: String(o.customer || "").slice(0, 80),
-                  phone: String(o.phone || "").slice(0, 15),
-                  address: String(o.address || "").slice(0, 160),
-                  items: String(o.items || "").slice(0, 160),
-                  amount: clamp(o.amount, 1e6),
-                  courier: String(o.courier || "").slice(0, 80),
-                  status: Math.min(Math.max(Math.floor(Number(o.status) || 0), 0),
-                                   STATUSES.length - 1),
-                  createdAt: new Date().toISOString() });
+      var list = orders(), r = makeOrder(o, list);
+      if (!r.ok) return r;
+      list.push(r.value);
       return saveList(K.orders, list, "delivery");
     },
     setOrderStatus: function (id, status) {
@@ -1373,19 +1398,26 @@
       // how to resolve a clash is a way to invent a third set, so a clash
       // keeps what is already stored and is counted rather than guessed at.
       if (!data || typeof data !== "object") return fail("بيانات غير صالحة");
-      var merge = !!(opts && opts.merge), added = 0, skipped = 0, self = this;
-      var res;
+      var merge = !!(opts && opts.merge), added = 0, skipped = 0;
+
+      // Built in memory, written once per unit. Each record is validated
+      // against what is already accepted in this same batch, so a backup
+      // holding the same ticker twice is caught rather than stored twice.
       if (Array.isArray(data.safi)) {
-        if (!merge) { if (!wr(K.safi, [])) return fail(STORAGE_FULL); }
+        var hs = merge ? holdings() : [];
         data.safi.forEach(function (h) {
-          res = self.addHolding(h); res.ok ? added++ : skipped++;
+          var r = makeHolding(h, hs);
+          if (r.ok) { hs.push(r.value); added++; } else { skipped++; }
         });
+        if (!wr(K.safi, hs)) return fail(STORAGE_FULL);
       }
       if (Array.isArray(data.orders)) {
-        if (!merge) { if (!wr(K.orders, [])) return fail(STORAGE_FULL); }
+        var os = merge ? orders() : [];
         data.orders.forEach(function (o) {
-          res = self.addOrder(o); res.ok ? added++ : skipped++;
+          var r = makeOrder(o, os);
+          if (r.ok) { os.push(r.value); added++; } else { skipped++; }
         });
+        if (!wr(K.orders, os)) return fail(STORAGE_FULL);
       }
       fire("all");
       return ok({ added: added, skipped: skipped });
