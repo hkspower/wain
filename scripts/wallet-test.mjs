@@ -9,14 +9,28 @@
  */
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 
-const file = process.argv[2] ?? 'wallet/SP-TEST-0001.pkpass'
+// Without the Apple certificate, make-wallet-pass.mjs deliberately writes an
+// UNSIGNED bundle instead of refusing to build — everything Wallet checks
+// except the one thing that needs the shop's identity. That is the file this
+// rig finds on a machine with no certificate installed, and defaulting to it
+// is what makes the suite runnable there.
+const DEFAULTS = ['wallet/SP-TEST-0001.pkpass', 'wallet/SP-DEMO-0001-UNSIGNED.zip']
+const file = process.argv[2] ?? DEFAULTS.find(existsSync)
+if (!file || !existsSync(file)) {
+  console.error(
+    `no pass to check${process.argv[2] ? `: ${process.argv[2]}` : ''}.\n` +
+    'Build one first:  node scripts/make-wallet-pass.mjs',
+  )
+  process.exit(1)
+}
 let fails = 0
 const check = (ok, what) => {
   if (!ok) fails++
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`)
 }
+const skip = (what) => console.log(`--   ${what}`)
 
 // `unzip -p` rather than a zip library: the bundle has to be readable by the
 // most ordinary tool there is, because that is what every server and every
@@ -24,7 +38,12 @@ const check = (ok, what) => {
 const list = execFileSync('unzip', ['-Z1', file]).toString().trim().split('\n')
 const read = (name) => execFileSync('unzip', ['-p', file, name])
 
-const REQUIRED = ['pass.json', 'manifest.json', 'signature', 'icon.png', 'icon@2x.png', 'logo.png']
+// `signature` is required of a pass a phone will open, and absent by design
+// from an unsigned build. Asserting it against a bundle that was never signed
+// reports the certificate's absence as a defect in the pass.
+const signed = list.includes('signature')
+const REQUIRED = ['pass.json', 'manifest.json', 'icon.png', 'icon@2x.png', 'logo.png']
+  .concat(signed ? ['signature'] : [])
 for (const f of REQUIRED) check(list.includes(f), `the bundle contains ${f}`)
 
 // No folder inside the zip. A .pkpass whose files sit one directory down is
@@ -66,11 +85,15 @@ check(wrong.length === 0, `every hash matches its file${wrong.length ? ` — ${w
 // The signature is a detached PKCS#7 over manifest.json. Whether the
 // certificate is Apple's is not checkable here and is not the point: what is
 // checkable is that the envelope is well formed and signs THIS manifest.
-const sig = read('signature')
-check(sig.length > 0, 'the signature is present')
-const info = execFileSync('openssl', ['pkcs7', '-inform', 'DER', '-print_certs', '-noout'], { input: sig }).toString()
-check(/subject=/.test(info), 'the signature is a readable PKCS#7 envelope')
-check(/O\s*=\s*Sporta|CN\s*=\s*Sporta/i.test(info), `it was signed by a Sporta certificate`)
+if (!signed) {
+  skip('unsigned bundle — no certificate installed, signature checks skipped')
+} else {
+  const sig = read('signature')
+  check(sig.length > 0, 'the signature is present')
+  const info = execFileSync('openssl', ['pkcs7', '-inform', 'DER', '-print_certs', '-noout'], { input: sig }).toString()
+  check(/subject=/.test(info), 'the signature is a readable PKCS#7 envelope')
+  check(/O\s*=\s*Sporta|CN\s*=\s*Sporta/i.test(info), `it was signed by a Sporta certificate`)
+}
 
 console.log(fails ? `\n${fails} failed` : `\nall ok — ${list.length} files`)
 process.exit(fails ? 1 : 0)

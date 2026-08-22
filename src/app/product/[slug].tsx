@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Price } from '@/components/price';
 import { RemoteArt } from '@/components/remote-art';
+import { ContentColumn, Screen } from '@/components/ui/screen';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
@@ -32,9 +33,9 @@ export default function ProductScreen() {
 
   if (!product) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+      <Screen edges={['bottom']} scroll={false}>
         <ThemedText style={styles.missing}>404</ThemedText>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
@@ -49,21 +50,68 @@ export default function ProductScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+    <Screen
+      edges={['bottom']}
+      contentStyle={styles.column}
+      bleed={
+        <RemoteArt
+            uri={productPhoto(product.slug)}
+            ground={product.color}
+            emoji={product.emoji}
+            emojiSize={96}
+            style={styles.banner}
+          />
+      }
+      // Pinned, not at the end of the page. A product page is long, and a
+      // customer who has decided should not have to scroll back to act on it.
+      actionBar={
+          <ThemedView type="background" style={[styles.actionBar, { borderColor: theme.border }]}>
+            {said ? (
+              <View style={[styles.saidRow, row]}>
+                <ThemedText
+                  type="label"
+                  themeColor={said === 'added' ? 'success' : said === 'capped' ? 'textSecondary' : 'danger'}
+                  style={styles.saidText}
+                  // Announced, not just shown: the confirmation is the only signal
+                  // that the tap worked, and a screen reader user gets no colour.
+                  accessibilityLiveRegion="polite">
+                  {said === 'added'
+                    ? t.product.added
+                    : said === 'capped'
+                      ? t.cart.capped
+                      : t.product.pickSize}
+                </ThemedText>
+                {/* Shown for 'capped' too, not just 'added'. Being told "that is
+                    all we have" is exactly the moment a customer wants to look at
+                    what they already have — and the item IS in the basket either
+                    way. Hiding the way there on the second tap was punishing them
+                    for tapping twice. */}
+                {said !== 'pick' && (
+                  <Pressable accessibilityRole="button" onPress={() => router.push('/cart')}>
+                    <ThemedText type="labelBold" themeColor="tintText">
+                      {t.tabs.cart} →
+                    </ThemedText>
+                  </Pressable>
+                )}
+              </View>
+            ) : null}
+            <Pressable
+              accessibilityRole="button"
+              onPress={onAdd}
+              style={press(false, styles.addButton,
+                { backgroundColor: theme.tint })}>
+              <Text style={styles.addText}>{t.product.add}</Text>
+            </Pressable>
+          </ThemedView>
+      }>
       {/* The native header was blank — a back chevron on an empty bar. On a
           phone that bar is the only thing telling you what you opened, and it
           is still there when the picture has scrolled away. */}
       <Stack.Screen options={{ title: productName(product, lang) }} />
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <RemoteArt
-          uri={productPhoto(product.slug)}
-          ground={product.color}
-          emoji={product.emoji}
-          emojiSize={96}
-          style={styles.banner}
-        />
 
-        <View style={styles.content}>
+
+
+
           <ThemedText type="label" themeColor="textSecondary" style={text}>
             {product.brand}
           </ThemedText>
@@ -132,71 +180,17 @@ export default function ProductScreen() {
               • {t.product.returns}
             </ThemedText>
           </View>
-        </View>
-      </ScrollView>
 
-      {/* The add button is pinned, not at the end of the page. A product page
-          is long, and a customer who has decided should not have to scroll to
-          act on it. */}
-      <ThemedView type="background" style={[styles.actionBar, { borderColor: theme.border }]}>
-        {said ? (
-          <View style={[styles.saidRow, row]}>
-            <ThemedText
-              type="label"
-              themeColor={said === 'added' ? 'success' : said === 'capped' ? 'textSecondary' : 'danger'}
-              style={styles.saidText}
-              // Announced, not just shown: the confirmation is the only signal
-              // that the tap worked, and a screen reader user gets no colour.
-              accessibilityLiveRegion="polite">
-              {said === 'added'
-                ? t.product.added
-                : said === 'capped'
-                  ? t.cart.capped
-                  : t.product.pickSize}
-            </ThemedText>
-            {/* Shown for 'capped' too, not just 'added'. Being told "that is
-                all we have" is exactly the moment a customer wants to look at
-                what they already have — and the item IS in the basket either
-                way. Hiding the way there on the second tap was punishing them
-                for tapping twice. */}
-            {said !== 'pick' && (
-              <Pressable accessibilityRole="button" onPress={() => router.push('/cart')}>
-                <ThemedText type="labelBold" themeColor="tintText">
-                  {t.tabs.cart} →
-                </ThemedText>
-              </Pressable>
-            )}
-          </View>
-        ) : null}
-        <Pressable
-          accessibilityRole="button"
-          onPress={onAdd}
-          style={press(false, styles.addButton,
-            { backgroundColor: theme.tint })}>
-          <Text style={styles.addText}>{t.product.add}</Text>
-        </Pressable>
-      </ThemedView>
-    </SafeAreaView>
+
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  scroll: {
-    paddingBottom: Spacing.five,
-  },
   banner: {
     height: 260,
   },
-  content: {
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    padding: Spacing.three,
-    gap: Spacing.two,
-  },
+  column: { gap: Spacing.two },
   label: { marginTop: Spacing.three },
   sizeRow: {
     flexWrap: 'wrap',

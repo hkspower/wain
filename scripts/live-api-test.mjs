@@ -49,6 +49,12 @@ check(old.body === null,
 
 // --- an order, end to end ------------------------------------------------
 const track = 'RIG' + Date.now().toString(36).toUpperCase()
+// A FRESH PHONE NUMBER EVERY RUN. The shop refuses a customer who already has
+// STORE_COD_OPEN_MAX cash-on-delivery orders in flight — correctly: it is owed
+// money and still holding goods. A rig that always books as 55512345 hits that
+// ceiling on its third run and then reports the shop's own safeguard as a
+// broken checkout. Nothing here should ever be settled by relaxing that rule.
+const phone = '5' + String(Date.now()).slice(-7)
 const res = await fetch(`${BASE}/api.php?r=order`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
@@ -57,7 +63,7 @@ const res = await fetch(`${BASE}/api.php?r=order`, {
     payment_method: 'cod',
     items: [{ slug: p.slug, size: stock.body.find((r) => r.slug === p.slug)?.size ?? 'ONE', qty: 1 }],
     customer: {
-      name: 'Rig Tester', phone: '55512345', email: 'rig@example.com',
+      name: 'Rig Tester', phone, email: 'rig@example.com',
       governorate: 'hawalli', area: 'Salmiya', block: '4', street: '12', building: '8',
     },
   }),
@@ -75,7 +81,7 @@ const again = await fetch(`${BASE}/api.php?r=order`, {
     track_id: track, payment_method: 'cod',
     items: [{ slug: p.slug, size: stock.body.find((r) => r.slug === p.slug)?.size ?? 'ONE', qty: 1 }],
     customer: {
-      name: 'Rig Tester', phone: '55512345', email: 'rig@example.com',
+      name: 'Rig Tester', phone, email: 'rig@example.com',
       governorate: 'hawalli', area: 'Salmiya', block: '4', street: '12', building: '8',
     },
   }),

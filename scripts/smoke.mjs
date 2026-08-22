@@ -135,6 +135,24 @@ check((await cardsPerRow()) === 2, 'the home grid is two cards across')
 await go('/shop')
 const before = await p.locator('a[href*="/product/"]').count()
 check(before > 0, `shop lists products (${before})`)
+
+// --- the first filter chip is on screen in Arabic ------------------------
+// The chips lay out row-reverse, so «الكل» is at the far right of the content
+// and a ScrollView opens at the LEFT. It measured x=382 on a 390px phone —
+// three quarters of it past the edge — and the filter customers reach for most
+// was the one they had to go hunting for. Invisible in English, and invisible
+// in any screenshot taken in English.
+const firstChip = await p.evaluate(() => {
+  const leaf = [...document.querySelectorAll('*')].find(
+    (d) => d.children.length === 0 && d.textContent?.trim() === 'الكل',
+  )
+  if (!leaf) return null
+  const r = leaf.getBoundingClientRect()
+  return { x: Math.round(r.x), right: Math.round(r.x + r.width) }
+})
+check(!!firstChip && firstChip.x >= 0 && firstChip.right <= 390,
+  `the first filter chip is fully on screen (${firstChip?.x}–${firstChip?.right})`)
+
 // Checked on BOTH screens: they carry the same grid written out twice, and
 // mutating only the shop's copy left the home check green.
 check((await cardsPerRow()) === 2, 'the shop grid is two cards across')

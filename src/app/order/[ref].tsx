@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
+import { Screen } from '@/components/ui/screen';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -18,42 +19,35 @@ export default function OrderScreen() {
   const { ref } = useLocalSearchParams<{ ref: string }>();
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+    <Screen edges={['bottom']} scroll={false} contentStyle={styles.centred}>
       <Stack.Screen options={{ title: t.order.title }} />
-      <View style={styles.content}>
-        <Text style={styles.tick}>✅</Text>
-        <ThemedText type="display" style={styles.center}>
-          {t.order.thanks}
-        </ThemedText>
-        <ThemedText themeColor="textSecondary" style={styles.center}>
-          {t.order.willCall}
-        </ThemedText>
+      <Text style={styles.tick}>✅</Text>
+      <ThemedText type="display" style={styles.center}>
+        {t.order.thanks}
+      </ThemedText>
+      <ThemedText themeColor="textSecondary" style={styles.center}>
+        {t.order.willCall}
+      </ThemedText>
 
-        <ThemedView type="backgroundElement" style={[styles.refBox, { borderColor: theme.border }]}>
-          <ThemedText type="label" themeColor="textSecondary">
-            {t.order.ref}
-          </ThemedText>
-          {/* The reference is selectable: it is the one thing on this screen
+      <ThemedView type="backgroundElement" style={[styles.refBox, { borderColor: theme.border }]}>
+        <ThemedText type="label" themeColor="textSecondary">
+          {t.order.ref}
+        </ThemedText>
+        {/* The reference is selectable: it is the one thing on this screen
               the customer may need to paste into WhatsApp. */}
-          <ThemedText type="labelBold" selectable style={styles.ref}>
-            {String(ref)}
-          </ThemedText>
-        </ThemedView>
+        <ThemedText type="labelBold" selectable style={styles.ref}>
+          {String(ref)}
+        </ThemedText>
+      </ThemedView>
 
-        <Button label={t.order.home} onPress={() => router.replace('/')} style={styles.primary} />
-      </View>
-    </SafeAreaView>
+      <Button label={t.order.home} onPress={() => router.replace('/')} style={styles.primary} />
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1 },
-  content: {
+  centred: {
     flex: 1,
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    padding: Spacing.four,
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.two,

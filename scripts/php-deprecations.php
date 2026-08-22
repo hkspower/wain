@@ -35,6 +35,10 @@ $hits = 0;
 $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root));
 foreach ($it as $f) {
     if ($f->getExtension() !== 'php') continue;
+    // Not itself. The rule table below is a list of the very calls it looks
+    // for, so scanning this file reports every rule as a finding — seven of
+    // them, all of them noise, and enough of it to hide a real one.
+    if ($f->getRealPath() === __FILE__) continue;
     $lines = file($f->getPathname());
     foreach ($lines as $n => $line) {
         foreach ($rules as $re => $why) {

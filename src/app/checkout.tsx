@@ -2,10 +2,7 @@ import { Stack, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -13,13 +10,13 @@ import {
 } from 'react-native';
 
 import { press } from '@/components/ui/press';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
+import { ContentColumn, Screen } from '@/components/ui/screen';
 import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
+import { Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { placeOrder, type OrderDraft } from '@/lib/api';
 import { useCart } from '@/lib/cart';
@@ -172,16 +169,30 @@ export default function CheckoutScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+    <Screen
+      edges={['bottom']}
+      avoidKeyboard
+      actionBar={
+        <ThemedView type="background" style={[styles.actionBar, { borderColor: theme.border }]}>
+          <ContentColumn>
+            <View style={[styles.totalRow, row]}>
+              <ThemedText type="labelBold">{t.cart.total}</ThemedText>
+              <ThemedText type="labelBold">{formatPrice(total, lang)}</ThemedText>
+            </View>
+            {/* The spinner sits INSIDE the button — see components/ui/button.tsx.
+                An order takes a round trip to a bank; without it the customer
+                taps again, and a second tap on a payment button is the one
+                thing this screen must never invite. */}
+            <Button
+              label={busy ? t.checkout.working : payment === 'cod' ? t.checkout.place : t.checkout.pay}
+              onPress={submit}
+              busy={busy}
+              style={styles.primary}
+            />
+          </ContentColumn>
+        </ThemedView>
+      }>
       <Stack.Screen options={{ title: t.checkout.title }} />
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}>
-          <View style={styles.content}>
             <ThemedText type="display" style={text}>
               {t.checkout.title}
             </ThemedText>
@@ -275,43 +286,11 @@ export default function CheckoutScreen() {
                 {error}
               </ThemedText>
             )}
-          </View>
-        </ScrollView>
-
-        <ThemedView type="background" style={[styles.actionBar, { borderColor: theme.border }]}>
-          <View style={styles.content}>
-            <View style={[styles.totalRow, row]}>
-              <ThemedText type="labelBold">{t.cart.total}</ThemedText>
-              <ThemedText type="labelBold">{formatPrice(total, lang)}</ThemedText>
-            </View>
-            {/* The spinner sits INSIDE the button — see components/ui/button.tsx.
-                An order takes a round trip to a bank; without it the customer
-                taps again, and a second tap on a payment button is the one
-                thing this screen must never invite. */}
-            <Button
-              label={busy ? t.checkout.working : payment === 'cod' ? t.checkout.place : t.checkout.pay}
-              onPress={submit}
-              busy={busy}
-              style={styles.primary}
-            />
-          </View>
-        </ThemedView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1 },
-  flex: { flex: 1 },
-  scroll: { paddingVertical: Spacing.three },
-  content: {
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    paddingHorizontal: Spacing.three,
-    gap: Spacing.two,
-  },
   field: { gap: Spacing.half, flex: 1 },
   input: {
     minHeight: TapTarget,

@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { QtyStepper } from '@/components/qty-stepper';
 import { Button } from '@/components/ui/button';
 import { RemoteArt } from '@/components/remote-art';
+import { ContentColumn, Screen } from '@/components/ui/screen';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
@@ -25,8 +26,7 @@ export default function CartScreen() {
 
   if (lines.length === 0) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.emptyWrap}>
+      <Screen tabBar scroll={false} contentStyle={styles.emptyWrap}>
           <Text style={styles.emptyEmoji}>🛒</Text>
           <ThemedText type="labelBold" style={styles.center}>
             {t.cart.empty}
@@ -35,20 +35,44 @@ export default function CartScreen() {
             {t.cart.emptyText}
           </ThemedText>
           <Button label={t.cart.browse} onPress={() => router.push('/shop')} style={styles.primary} />
-        </View>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={[
-          styles.scroll,
-          { paddingBottom: BottomTabInset + Spacing.six },
-        ]}
-        showsVerticalScrollIndicator={false}>
-        <View style={styles.content}>
+    <Screen
+      tabBar
+      contentStyle={styles.column}
+      // Totals and the checkout button ride above the tab bar, so the amount
+      // is visible while the basket is being edited rather than only at the
+      // bottom of a long list.
+      actionBar={
+        <ThemedView
+          type="background"
+          style={[styles.summary, { borderColor: theme.border, paddingBottom: BottomTabInset }]}>
+          <ContentColumn>
+            <View style={[styles.totalRow, row]}>
+              <ThemedText type="label" themeColor="textSecondary">
+                {t.cart.subtotal}
+              </ThemedText>
+              <ThemedText type="label">{formatPrice(subtotal, lang)}</ThemedText>
+            </View>
+            <View style={[styles.totalRow, row]}>
+              <ThemedText type="label" themeColor="textSecondary">
+                {t.cart.delivery}
+              </ThemedText>
+              <ThemedText type="label">
+                {delivery === 0 ? t.cart.free : formatPrice(delivery, lang)}
+              </ThemedText>
+            </View>
+            <View style={[styles.totalRow, row]}>
+              <ThemedText type="labelBold">{t.cart.total}</ThemedText>
+              <ThemedText type="labelBold">{formatPrice(total, lang)}</ThemedText>
+            </View>
+            <Button label={t.cart.checkout} onPress={() => router.push('/checkout')} style={styles.primary} />
+          </ContentColumn>
+        </ThemedView>
+      }>
           {lines.map((l) => {
             const p = productFor(l.slug);
             if (!p) return null;
@@ -107,55 +131,14 @@ export default function CartScreen() {
               {t.cart.freeOver(formatPrice(FREE_DELIVERY_OVER, lang))}
             </ThemedText>
           )}
-        </View>
-      </ScrollView>
 
-      {/* Totals and the checkout button ride above the tab bar, so the amount
-          is visible while the basket is being edited rather than only at the
-          bottom of a long list. */}
-      <ThemedView
-        type="background"
-        style={[styles.summary, { borderColor: theme.border, paddingBottom: BottomTabInset }]}>
-        <View style={styles.content}>
-          <View style={[styles.totalRow, row]}>
-            <ThemedText type="label" themeColor="textSecondary">
-              {t.cart.subtotal}
-            </ThemedText>
-            <ThemedText type="label">{formatPrice(subtotal, lang)}</ThemedText>
-          </View>
-          <View style={[styles.totalRow, row]}>
-            <ThemedText type="label" themeColor="textSecondary">
-              {t.cart.delivery}
-            </ThemedText>
-            <ThemedText type="label">
-              {delivery === 0 ? t.cart.free : formatPrice(delivery, lang)}
-            </ThemedText>
-          </View>
-          <View style={[styles.totalRow, row]}>
-            <ThemedText type="labelBold">{t.cart.total}</ThemedText>
-            <ThemedText type="labelBold">{formatPrice(total, lang)}</ThemedText>
-          </View>
-          <Button label={t.cart.checkout} onPress={() => router.push('/checkout')} style={styles.primary} />
-        </View>
-      </ThemedView>
-    </SafeAreaView>
+
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  scroll: {
-    paddingTop: Spacing.three,
-  },
-  content: {
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    paddingHorizontal: Spacing.three,
-    gap: Spacing.two,
-  },
+  column: { gap: Spacing.two },
   line: {
     borderRadius: Spacing.three,
     borderWidth: 1,

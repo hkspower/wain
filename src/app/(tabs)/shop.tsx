@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { press } from '@/components/ui/press';
@@ -20,7 +20,28 @@ type Sort = 'new' | 'low' | 'high';
 
 export default function ShopScreen() {
   const theme = useTheme();
-  const { t, lang, row, text } = useLang();
+  const { t, lang, dir, row, text } = useLang();
+
+  /**
+   * A HORIZONTAL LIST IN ARABIC STARTS AT ITS OTHER END.
+   *
+   * The chips are laid out row-reverse, so the first one — «الكل» — sits at
+   * the far right of the content. A ScrollView opens at scrollLeft 0, which is
+   * the LEFT, so the first chip was off the screen: measured at x=382 on a
+   * 390px phone, three quarters of it past the edge. The filter a customer
+   * wants most often was the one they had to go looking for.
+   *
+   * React Native does not do this for you on either platform, and it is not
+   * something a screenshot in English can ever show.
+   */
+  const startAtReadingEdge = useCallback(
+    (ref: React.RefObject<ScrollView | null>) => () => {
+      if (dir === 'rtl') ref.current?.scrollToEnd({ animated: false });
+    },
+    [dir],
+  );
+  const filterRow = useRef<ScrollView>(null);
+  const sortRow = useRef<ScrollView>(null);
   const { products, categories } = useCart();
   const params = useLocalSearchParams<{ category?: string }>();
 
@@ -72,8 +93,10 @@ export default function ShopScreen() {
         <ThemedView type="background" style={styles.filterBar}>
           <ContentColumn>
             <ScrollView
+              ref={filterRow}
               horizontal
               showsHorizontalScrollIndicator={false}
+              onContentSizeChange={startAtReadingEdge(filterRow)}
               contentContainerStyle={[styles.chipRow, row]}>
               <Chip label={t.shop.all} active={filter === 'all'} onPress={() => setFilter('all')} />
               {categories.map((c) => (
@@ -86,8 +109,10 @@ export default function ShopScreen() {
               ))}
             </ScrollView>
             <ScrollView
+              ref={sortRow}
               horizontal
               showsHorizontalScrollIndicator={false}
+              onContentSizeChange={startAtReadingEdge(sortRow)}
               contentContainerStyle={[styles.chipRow, row]}>
               <Chip label={t.shop.sortNew} active={sort === 'new'} onPress={() => setSort('new')} />
               <Chip label={t.shop.sortLow} active={sort === 'low'} onPress={() => setSort('low')} />
