@@ -115,10 +115,16 @@
 
 html { -webkit-text-size-adjust: 100%; }
 body {
-  margin: 0; font-family: var(--font); font-size: 15px; line-height: var(--lh-base);
+  margin: 0; font-family: var(--font); font-size: var(--t-base); line-height: var(--lh-base);
   color: var(--ink); background: var(--bg);
   -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
 }
+/*
+ * `<small>` بلا قاعدة يأخذ من المتصفّح `0.8em`، وهي **تتضاعف** مع كل تداخل:
+ * `small` داخل خليّة عند ٠٫٨٨rem تُقاس ١١ بكسلًا على الجوال — أصغر من أصغر
+ * درجة في السلّم وأدقّ من أن تُقرأ. القياس بالـrem يقطع التضاعف من أصله.
+ */
+small { font-size: var(--t-xs); }
 /* العناوين ٧٠٠ لا ٨٠٠: عند ٨٠٠ تضيق عيون الحروف العربية — الفراغ داخل
    «ل» و«ة» و«و» — فتثقُل الكلمة وتقلّ قراءتها. و٨٠٠ يبقى للأرقام الكبيرة
    حيث يعوّض الحجمُ الضيق، وللشارات الصغيرة حيث يعين الثقلُ على التمييز. */
@@ -222,7 +228,9 @@ code { font-size: .92em; background: var(--mute-bg); padding: .1em .45em; border
   background: var(--card); border: var(--bw) solid var(--line); border-radius: var(--radius);
   padding: var(--pad-md);
 }
-.stat b { display: block; font-size: var(--t-num); font-weight: var(--w-heavy); line-height: var(--lh-tight); color: var(--teal-700); }
+/* أرقام جدوليّة: بلاطات الإحصاء تقف في شبكة، وعرض الرقم المتغيّر يزحزح كل
+   بلاطة عن جارتها فتبدو الأعمدة مائلة. */
+.stat b { display: block; font-size: var(--t-num); font-weight: var(--w-heavy); line-height: var(--lh-tight); color: var(--teal-700); font-variant-numeric: tabular-nums; }
 .stat span { font-size: var(--t-sm); color: var(--ink-soft); }
 .stat--accent b { color: var(--teal-700); }
 .stat--dark { background: var(--teal-900); border-color: var(--teal-950); }
@@ -267,7 +275,8 @@ a.stat:hover { border-color: var(--teal-600); }
 }
 .chip:hover { border-color: var(--teal-600); color: var(--teal-700); }
 .chip.is-on { background: var(--teal-cta); border-color: transparent; color: #fff; }
-.chip .n { opacity: .75; font-size: .78em; margin-inline-start: var(--s-1); }
+/* `.78em` كانت تُخرج ١١ بكسلًا — والعدد هنا معلومة تُقرأ لا زخرفة */
+.chip .n { opacity: .75; font-size: var(--t-xs); margin-inline-start: var(--s-1); }
 
 /* --------------------------- قائمة الطلبات --------------------------- */
 /* الطلبات أعمدة تملأ العرض لا عمودًا واحدًا يمتدّ على ١٢٤٠ بكسل ومحتواه
@@ -446,6 +455,60 @@ th { font-weight: var(--w-bold); font-size: var(--t-sm); color: var(--ink-soft);
 tbody tr:last-child td { border-bottom: 0; }
 tbody tr:hover { background: #fbfdfe; }
 
+/*
+ * على الجوال يصير الجدول بطاقات. عشرة أعمدة على شاشة ٣٩٠ تحتاج ١١٥٣ بكسلًا
+ * من التمرير الجانبيّ، فكان يظهر منها ثلاثة أعمدة، و**زرّا الاعتماد والتعديل
+ * خارج الشاشة تمامًا**: لا يستطيع المدير اعتماد كابتن من هاتفه. كل صفّ الآن
+ * بطاقة، وكل خليّة سطرٌ فيه اسمُ عموده من `data-label`.
+ */
+/* العتبة ١١٨٤ لا ٨٦٠: أدنى عرض يحتاجه الجدول ١١٥٣ بكسلًا، والحاوية
+   `min(1240, 100% - 2rem)`، فلا يسع الجدولُ نفسَه دون شاشة ١١٨٥. وبين ٨٦١
+   و١١٨٤ كان يبقى جدولًا وزرّاه خارج الشاشة — قِيس: `visible: false`. */
+@media (max-width: 1184px) {
+  .table-wrap { overflow-x: visible; }
+  .table-wrap table, .table-wrap tbody, .table-wrap tr, .table-wrap td { display: block; }
+  /* إخفاءٌ كامل لا إخفاءٌ للقارئ وحده: `clip-path` يمنع الرسم ولا يمنع
+     التخطيط، فتبقى خلايا الرأس ممتدّة ٤٣٨ بكسلًا خارج الشاشة. واسم كل
+     عمود لم يضع — هو مكتوب أمام قيمته في البطاقة. */
+  .table-wrap thead { display: none; }
+
+  .table-wrap tr {
+    border: var(--bw) solid var(--line); border-radius: var(--radius);
+    padding: var(--s-3) var(--pad-sm); margin-bottom: var(--s-3); background: var(--card);
+  }
+  .table-wrap tr:last-child { margin-bottom: 0; }
+  .table-wrap tbody tr:hover { background: var(--card); }
+
+  /* صفٌّ مرن لا شبكة: الخليّة قد تحمل أكثر من عقدة («١» و«‏/ ٣»)، وفي
+     الشبكة يصير كلٌّ منها خليّةً فينزل الثاني سطرًا تحت الأول. */
+  .table-wrap td {
+    display: flex; align-items: baseline; gap: var(--s-1) var(--s-3);
+    padding: var(--s-1) 0; border: 0;
+  }
+  .table-wrap td + td { border-inline-start: 0; }
+  .table-wrap td::before {
+    content: attr(data-label); flex: 0 0 7.5rem;
+    color: var(--ink-soft); font-size: var(--t-xs); font-weight: var(--w-medium);
+  }
+  /* الاسم عنوان البطاقة لا سطرًا من سطورها */
+  .table-wrap td.cell--head {
+    display: block; padding-bottom: var(--s-2); margin-bottom: var(--s-2);
+    border-bottom: var(--bw) solid var(--line);
+  }
+  .table-wrap td.cell--head::before { display: none; }
+  .table-wrap td.cell--head b { font-size: var(--t-md); }
+  /* الرقم بمحاذاة القيم لا بمحاذاة النهاية كما في الجدول */
+  .table-wrap td.num { text-align: start; }
+  .table-wrap td.row__actions {
+    display: flex; gap: var(--s-2); padding-top: var(--s-3);
+    margin-top: var(--s-2); border-top: var(--bw) solid var(--line);
+  }
+  .table-wrap td.row__actions::before { display: none; }
+  .table-wrap td.row__actions .btn { flex: 1; }
+  .table-wrap td.td-empty { display: block; text-align: center; }
+  .table-wrap td.td-empty::before { display: none; }
+}
+
 /* نماذج */
 .field { display: flex; flex-direction: column; gap: var(--s-1); margin-bottom: var(--s-3); }
 .field > span { font-size: var(--t-sm); font-weight: var(--w-medium); }
@@ -560,8 +623,14 @@ tbody tr:hover { background: #fbfdfe; }
     padding: var(--s-1) var(--s-1) calc(var(--s-1) + env(safe-area-inset-bottom));
     box-shadow: 0 -4px 18px rgba(10,63,71,.08);
   }
+  /* `nowrap` وحدٌ أدنى صفر: اسم الوجهة إمّا يظهر كاملًا أو لا معنى له.
+     التفافه على سطرين يرفع الشريط ويخلط الأسماء ببعضها. */
   .tabbar a {
-    flex: 1; text-align: center; padding: var(--s-2) var(--s-1); border-radius: var(--radius-sm);
+    /* الأساس `auto` لا `0`: التوزيع بالتساوي يعطي كل وجهة ٥٢ بكسلًا، وأطولها
+       «المندوبون» تحتاج ٥٨ فتُقصّ. بالأساس الطبيعي تأخذ كلٌّ قدرها ثم يُوزَّع
+       الفائض. */
+    flex: 1 1 auto; min-width: 0; white-space: nowrap;
+    text-align: center; padding: var(--s-2) var(--s-0); border-radius: var(--radius-sm);
     font-size: var(--t-2xs); font-weight: var(--w-medium); color: var(--ink-soft); position: relative;
   }
   .tabbar a.is-active { color: var(--teal-700); background: var(--teal-50); font-weight: var(--w-bold); }
@@ -573,7 +642,8 @@ tbody tr:hover { background: #fbfdfe; }
 }
 
 @media (max-width: 720px) {
-  body { font-size: 14.5px; }
+  /* لا تصغير للنصّ على الجوال: كان `14.5px` يصغّر ما لا حجم له وحده، فيقع
+     نصٌّ بلا قاعدة إلى جانب نصٍّ عليه رمز من السلّم بحجم مختلف بلا سبب. */
   .topbar__inner { width: calc(100% - 1.4rem); gap: var(--s-2); }
   /* الاسم كان يلتفّ على سطرين فيتجاوز ارتفاع الشريط الثابت */
   .who span { display: none; }
@@ -863,6 +933,16 @@ tbody tr:hover { background: #fbfdfe; }
   /* هدف اللمس: ما دون ٤٤ بكسل يُخطئه الإصبع */
   .field input, .field select, .filters input, .filters select,
   .ask__bar input, .ask__bar .btn, .near__pin input { min-height: 44px; }
+  /* كل زرّ هدفُ لمس، والصغير منه كان ٣٧ — وأزرار «الإجراءات» في تفاصيل
+     الطلب أربعة عشر زرًّا متلاصقًا كلّها دون العتبة. */
+  .btn, .chip { min-height: 44px; }
+  /* والروابط القائمة بذاتها في صفوف البيانات: «افتح في الخرائط» كان ١٨ */
+  .live-row__meta a, .order__meta a, .row__actions a, dd > a[href^="tel:"], dd > a[href^="http"] {
+    display: inline-flex; align-items: center; min-height: 44px;
+  }
+  /* دائرة التجمّع لا تبلغ ٤٤ دون أن تبتلع سُبع المخطّط، وهي طريق ثانٍ لا
+     أوّل: سطر الكابتن في القائمة هدفٌ كامل الارتفاع يؤدّي المؤدّى نفسه. */
+  .cluster { min-width: 36px; height: 36px; }
   /* الشريط العلوي ٦٢ بكسل، فيسع ٤٤ وحوله فسحة */
   .availability select, #logoutBtn { min-height: 44px; }
   .tabbar a { min-height: 44px; display: flex; flex-direction: column; justify-content: center; }

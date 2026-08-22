@@ -204,7 +204,10 @@
     if (state.me.role === 'admin') {
       items.push({ href: '#/live', key: 'live', label: 'المباشر' });
       items.push({ href: '#/agents', key: 'agents', label: 'المندوبون' });
-      items.push({ href: '#/new', key: 'new', label: 'طلب جديد' });
+      /* «طلب جديد» فعلٌ لا مكان. سبعة عناصر لا تسع شاشة ٣٢٠، وكان هذا هو
+         الذي يُعصر إلى ٣٤ بكسلًا على سطرين. يبقى في الشريط العلوي وزرًّا
+         بارزًا في أعلى الرئيسية والطلبات، ويغيب عن شريط التنقّل السفلي. */
+      items.push({ href: '#/new', key: 'new', label: 'طلب جديد', topOnly: true });
       items.push({ href: '#/settings', key: 'settings', label: 'الإعدادات' });
     } else {
       items.push({ href: '#/location', key: 'location', label: 'موقعي' });
@@ -213,11 +216,11 @@
   }
 
   function renderNav() {
-    const html = navItems().map((i) =>
-      `<a href="${i.href}" data-key="${i.key}">${esc(i.label)}${i.pill ? `<span class="pill num">${ar(i.pill)}</span>` : ''}</a>`
-    ).join('');
-    el.nav.innerHTML = html;
-    el.tabbar.innerHTML = html;
+    const link = (i) =>
+      `<a href="${i.href}" data-key="${i.key}">${esc(i.label)}${i.pill ? `<span class="pill num">${ar(i.pill)}</span>` : ''}</a>`;
+    const items = navItems();
+    el.nav.innerHTML = items.map(link).join('');
+    el.tabbar.innerHTML = items.filter((i) => !i.topOnly).map(link).join('');
     highlightNav(parseHash().head);
   }
 
@@ -1194,21 +1197,21 @@
                   <tr><td colspan="10" class="td-empty">لا حسابات في هذه الحالة.</td></tr>` : ''}
                 ${shown.map((a) => `
                   <tr${canWork(a) ? '' : ' class="row--muted"'}>
-                    <td>
+                    <td data-label="الاسم" class="cell--head">
                       <b>${esc(a.name)}</b>
                       ${a.approval_note ? `<small class="row__note">${esc(a.approval_note)}</small>` : ''}
                     </td>
-                    <td>${approvalBadge(a)}</td>
-                    <td dir="ltr">${esc(a.username)}</td>
-                    <td>${esc(state.meta.roles[a.role])}</td>
-                    <td>${esc(vehicleName(a.vehicle))}</td>
-                    <td>${esc(a.governorate || '—')}</td>
-                    <td>${canWork(a)
+                    <td data-label="الاعتماد">${approvalBadge(a)}</td>
+                    <td data-label="اسم المستخدم"><span dir="ltr">${esc(a.username)}</span></td>
+                    <td data-label="الدور">${esc(state.meta.roles[a.role])}</td>
+                    <td data-label="المركبة">${esc(vehicleName(a.vehicle))}</td>
+                    <td data-label="المنطقة">${esc(a.governorate || '—')}</td>
+                    <td data-label="التوفّر">${canWork(a)
                       ? `<span class="badge badge--${a.availability}">${esc(state.meta.availability[a.availability])}</span>`
                       : '<span class="muted">—</span>'}</td>
-                    <td class="num">${ar(a.active_orders)}${
+                    <td data-label="طلبات نشطة" class="num">${ar(a.active_orders)}${
                       a.approval === 'under_test' && cap > 0 ? `<small class="muted"> / ${ar(cap)}</small>` : ''}</td>
-                    <td dir="ltr">${esc(a.phone || '—')}</td>
+                    <td data-label="الهاتف"><span dir="ltr">${esc(a.phone || '—')}</span></td>
                     <td class="row__actions">
                       <button class="btn btn--ghost btn--sm" data-approval-for="${a.id}" type="button">الاعتماد</button>
                       <button class="btn btn--ghost btn--sm" data-edit="${a.id}" type="button">تعديل</button>

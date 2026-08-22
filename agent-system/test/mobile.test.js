@@ -143,7 +143,9 @@ test('السؤال يظهر فوق جوابه، وصفّ رقائق واحد ل�
 test('الأحجام من المقياس لا أرقامًا متناثرة', () => {
   /* كانت في الملفّين تسعة وعشرون حجمًا: ‎.84‎ و‎.85‎ و‎.86‎ لا تفرّقها عين
      لكنها ثلاث قيم تتكاثر. القيم الصريحة الباقية مقصودة ومعدودة. */
-  const ALLOWED_PX = ['15px', '16px', '14.5px'];   // الجذر، وعتبة اللمس، وجوال
+  /* عتبة سفاري وحدها بالبكسل. «15px» للجسم و«14.5px» للجوال كانتا قيمتين
+     خام تصغّران ما لا رمز له وحده، فأُزيلتا وأُغلق الباب خلفهما. */
+  const ALLOWED_PX = ['16px'];
   for (const file of ['app.css', 'link.css']) {
     const loose = [...read(file).matchAll(/font-size:\s*([^;]+);/g)]
       .map((m) => m[1].trim())
@@ -402,4 +404,58 @@ test('التحديث الدوري يقرأ open لا hidden — <dialog> لا ي
   assert.ok(!/!el\.modal\.hidden/.test(js), 'الشرط يقرأ hidden على <dialog> فيوقف التحديث أبدًا');
   assert.match(js, /el\.modal\.open/, 'لا فحص لحالة النافذة قبل التحديث');
   assert.match(js, /refreshLiveBoard\(\)/, 'اللوحة «المباشرة» تنتظر ضغطة زر');
+});
+
+/* --------------------- لوحة المدير على الجوال --------------------- */
+
+test('جدول المندوبين يصير بطاقات على الجوال — لا تمرير جانبيّ يخفي الأزرار', () => {
+  const css = read('app.css');
+  /* عشرة أعمدة على شاشة ٣٩٠ تحتاج ١١٥٣ بكسلًا جانبيًّا، فيبقى زرّا الاعتماد
+     والتعديل خارج الشاشة: لا يعتمد المدير كابتنًا من هاتفه. */
+  /* العتبة مقيسة لا مُخمَّنة: أدنى عرض للجدول ١١٥٣، والحاوية
+     `min(1240, 100% - 2rem)`، فيلزم ١١٨٥ ليسع نفسه. عتبةٌ أضيق تترك
+     الجدول جدولًا وزرّاه خارج الشاشة بين العتبتين. */
+  assert.match(css, /@media \(max-width: 1184px\) \{\s*\.table-wrap/,
+    'عتبة البطاقات لا تطابق أدنى عرض يحتاجه الجدول');
+  assert.match(css, /\.table-wrap tr \{[^}]*border-radius/, 'الصفّ ليس بطاقة على الضيّق');
+  assert.match(css, /\.table-wrap td::before \{\s*content: attr\(data-label\)/, 'الخليّة بلا اسم عمودها');
+  /* `clip-path` يمنع الرسم ولا يمنع التخطيط، فتمتدّ خلايا الرأس خارج الشاشة */
+  assert.match(css, /\.table-wrap thead \{ display: none/, 'رأس الجدول يُخفى إخفاءً لا يمنع التخطيط');
+
+  const js = read('app.js');
+  assert.match(js, /<td data-label="الاسم"/, 'الخلايا بلا `data-label` فلا اسم لها في البطاقة');
+  assert.match(js, /data-label="الهاتف"/, 'عمود الهاتف بلا تسمية');
+});
+
+test('لا مقاس خطّ خارج السلّم: `<small>` و`em` تُضاعف بلا حدّ', () => {
+  const css = read('app.css');
+  /* `small` بلا قاعدة يأخذ `0.8em` من المتصفّح، ويتضاعف مع كل تداخل */
+  assert.match(css, /^small \{ font-size: var\(--t-xs\); \}/m, '`<small>` متروك لـ0.8em المتصفّح');
+  /* `body { font-size: 14.5px }` كانت تصغّر ما لا رمز له وحده */
+  assert.ok(!/body \{ font-size: 1[0-9.]+px/.test(css), 'حجم الجسم رقم خام لا رمز');
+  assert.match(css, /body \{[^}]*font-size: var\(--t-base\)/, 'الجسم بلا رمز من السلّم');
+
+  /* `em` نسبيّة فتتضاعف: يُسمح بها للتصحيح البصريّ في `code` وحدها */
+  const ems = [...css.matchAll(/font-size:\s*(\.?\d[\d.]*)em/g)].map((m) => m[0]);
+  assert.deepEqual(ems, ['font-size: .92em'], `مقاسات em خارج الاستثناء: ${ems.join(', ')}`);
+});
+
+test('شريط التنقّل السفلي: ستّ وجهات لا سبع، وأسماء لا تُقصّ', () => {
+  const js = read('app.js');
+  /* «طلب جديد» فعلٌ لا مكان، وسبعة عناصر لا تسع ٣٢٠ */
+  assert.match(js, /label: 'طلب جديد', topOnly: true/, '«طلب جديد» ما زال في الشريط السفلي');
+  assert.match(js, /el\.tabbar\.innerHTML = items\.filter\(\(i\) => !i\.topOnly\)/, 'الشريط السفلي يعرض كل شيء');
+
+  const css = read('app.css');
+  assert.match(css, /\.tabbar a \{[^}]*white-space: nowrap/, 'الأسماء تلتفّ على سطرين');
+  /* الأساس `0` يوزّع بالتساوي فيُقصّ أطولها؛ `auto` يعطي كلًّا قدرها */
+  assert.match(css, /\.tabbar a \{[^}]*flex: 1 1 auto/, 'التوزيع بالتساوي يقصّ أطول اسم');
+});
+
+test('كل زرّ هدف لمس على المؤشّر الخشن', () => {
+  const css = read('app.css');
+  const block = css.match(/@media \(pointer: coarse\), \(max-width: 900px\) \{([\s\S]*?)\n\}/);
+  assert.ok(block, 'كتلة المؤشّر الخشن غير موجودة');
+  assert.match(block[1], /\.btn, \.chip \{ min-height: 44px; \}/, 'الأزرار الصغيرة دون العتبة');
+  assert.match(block[1], /\.live-row__meta a[^{]*\{[^}]*min-height: 44px/, 'الروابط القائمة بذاتها دون العتبة');
 });
