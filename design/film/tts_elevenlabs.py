@@ -14,6 +14,14 @@ Writes design/film/voice/lineNN.mp3 — the names the rest of the pipeline reads
 
 Stdlib only, so it runs on any machine with Python and nothing installed.
 
+THE SAME CALL THE OFFICIAL SDK MAKES. `pip install elevenlabs` would give you
+client.text_to_speech.convert(text=…, voice_id=…, model_id=…,
+output_format=…); this sends exactly those four to the same endpoint, and adds
+voice_settings, which the SDK's own example leaves at its defaults and this
+film should not. The SDK is not used because it is a dependency to install for
+no behaviour this needs, and "nothing to install" is what makes this route the
+one that still works when the connector does not.
+
 WHY THIS EXISTS ALONGSIDE THE CONNECTOR. The claude.ai ElevenLabs connector
 can do this too, when it happens to be switched on for a chat. It is switched
 on per chat, and it went away twice mid-project — once when the container
@@ -72,21 +80,41 @@ def key():
     return k
 
 
+# Retried, because a batch is sixteen calls and a rate limit on the ninth
+# should not end the run. Only on the codes that mean "try again" — a 401 or a
+# 422 will say the same thing however many times it is asked, and retrying
+# those just turns a clear error into a slow one.
+RETRY_ON = {429, 500, 502, 503, 504}
+ATTEMPTS = 4
+
+
 def call(path, data=None, headers=None, method=None, timeout=180):
-    req = urllib.request.Request(f"{API}{path}", data=data, method=method)
-    req.add_header("xi-api-key", key())
-    for h, v in (headers or {}).items():
-        req.add_header(h, v)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return r.read()
-    except urllib.error.HTTPError as e:
-        body = e.read().decode(errors="replace")[:400]
-        # 401 is the key, 422 is the request, 429 is the quota. Say which, or
-        # the next hour goes into rewriting perfectly good Arabic.
-        raise SystemExit(f"ElevenLabs answered {e.code}: {body}")
-    except urllib.error.URLError as e:
-        raise SystemExit(f"cannot reach ElevenLabs: {e.reason}")
+    for attempt in range(1, ATTEMPTS + 1):
+        req = urllib.request.Request(f"{API}{path}", data=data, method=method)
+        req.add_header("xi-api-key", key())
+        for h, v in (headers or {}).items():
+            req.add_header(h, v)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.read()
+        except urllib.error.HTTPError as e:
+            body = e.read().decode(errors="replace")[:400]
+            if e.code in RETRY_ON and attempt < ATTEMPTS:
+                # honour Retry-After when the server sends one; it knows
+                wait = float(e.headers.get("Retry-After") or 0) or 2 ** attempt
+                print(f"    {e.code} — waiting {wait:.0f}s, attempt "
+                      f"{attempt + 1} of {ATTEMPTS}")
+                time.sleep(wait)
+                continue
+            # 401 is the key, 422 is the request, 429 is the quota. Say which,
+            # or the next hour goes into rewriting perfectly good Arabic.
+            raise SystemExit(f"ElevenLabs answered {e.code}: {body}")
+        except urllib.error.URLError as e:
+            if attempt < ATTEMPTS:
+                print(f"    network: {e.reason} — retrying")
+                time.sleep(2 ** attempt)
+                continue
+            raise SystemExit(f"cannot reach ElevenLabs: {e.reason}")
 
 
 def list_voices():
