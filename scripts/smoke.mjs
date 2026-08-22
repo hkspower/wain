@@ -144,6 +144,40 @@ const after = await p.locator('a[href*="/product/"]').count()
 check(after > 0 && after < before, `category filter narrows the grid (${before} → ${after})`)
 await shot('shop-ar')
 
+// --- the badges on the grid ----------------------------------------------
+// Back to every product first: the filter test above left the grid on
+// accessories, and three of the four badges live on other categories.
+await p.getByRole('button', { name: 'الكل' }).first().click()
+await p.waitForTimeout(600)
+// All four states, on the same screen. Two of them were unreachable when the
+// badge was written: nothing in the bundled catalogue was out of stock or
+// nearly gone, so the code existed and could never run.
+const badges = await p.evaluate(() =>
+  [...document.querySelectorAll('a[href*="/product/"]')].map((card) => {
+    const slug = card.getAttribute('href').split('/').pop()
+    const texts = [...card.querySelectorAll('*')]
+      .filter((e) => e.children.length === 0)
+      .map((e) => e.textContent.trim())
+    return { slug, texts }
+  }),
+)
+const badgeOn = (slug) => badges.find((b) => b.slug === slug)?.texts ?? []
+check(badgeOn('grip-training-glove').includes('نفدت الكمية'), 'a sold-out product is badged')
+check(badgeOn('high-rise-legging').includes('الكمية محدودة'), 'a nearly-gone product is badged')
+check(badgeOn('sculpt-top-grey').includes('جديد'), 'a new product is badged')
+check(badgeOn('core-compression-tee').some((t) => t.includes('وفّر')), 'a discounted product is badged')
+// One badge per card, never a cluster: three stickers read as decoration.
+const clustered = badges.filter(
+  (b) => b.texts.filter((t) => ['جديد', 'الكمية محدودة', 'نفدت الكمية'].includes(t)).length > 1,
+)
+check(clustered.length === 0, 'no card wears more than one badge')
+
+// Arabic copy in Arabic digits — the discount badge said "21%" beside a price
+// written ١١٫٠٠٠, which is the giveaway that a string was assembled rather
+// than written.
+check(!/[0-9]/.test(badgeOn('core-compression-tee').find((t) => t.includes('وفّر')) ?? ''),
+  'the discount is written in Arabic digits')
+
 // --- product: sold-out size is visible but not selectable ----------------
 await go('/product/desert-runner-short')
 const xl = p.getByText('XL', { exact: true })

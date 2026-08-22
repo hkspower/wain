@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useLang } from '@/lib/i18n';
-import { discountPercent, formatPrice, type Fils } from '@/lib/money';
+import { discountPercent, formatNumber, formatPrice, type Fils } from '@/lib/money';
 
 /**
  * A price, with its old price and saving when there is one.
@@ -39,7 +39,7 @@ export function Price({
           </ThemedText>
           <View style={styles.saveChip}>
             <ThemedText type="label" style={styles.saveText}>
-              {t.product.save(off)}
+              {t.product.save(formatNumber(off, lang))}
             </ThemedText>
           </View>
         </>

@@ -49,6 +49,10 @@ export interface Product {
   detailsAr: string[];
   variants: Variant[];
   featured?: boolean;
+  /** Shows the "new" badge. Set by the shop, not derived from a date — a
+   *  product added months ago in a quiet week is not new, and a date would
+   *  make it so. */
+  isNew?: boolean;
 }
 
 // GROUNDS TAKEN FROM THE LIVE TILES, which the owner sent as the reference.
@@ -82,6 +86,7 @@ export const products: Product[] = [
     detailsAr: ['نسيج بدون خياطات', 'مرونة بأربع اتجاهات', 'غسيل آلي بارد'],
     variants: S_M_L([4, 7, 6, 2]),
     featured: true,
+    isNew: true,
   },
   {
     slug: 'core-compression-tee',
@@ -128,7 +133,10 @@ export const products: Product[] = [
     blurbAr: 'غير شفاف، جيب على كل فخذ، وخصر مريح.',
     details: ['Squat-proof knit', 'Side pockets', 'High rise'],
     detailsAr: ['نسيج غير شفاف', 'جيوب جانبية', 'خصر عالٍ'],
-    variants: S_M_L([3, 5, 5, 1]),
+    // Four left across every size: the "almost gone" badge exists for this
+    // case and no product in the bundled catalogue reached it, so the badge
+    // was unreachable code until this line.
+    variants: S_M_L([1, 2, 0, 1]),
     featured: true,
   },
   {
@@ -144,10 +152,12 @@ export const products: Product[] = [
     blurbAr: 'كف مبطّن ورباط للمعصم، وداعاً للتشققات.',
     details: ['Padded palm', 'Wrist wrap', 'Washable'],
     detailsAr: ['كف مبطّن', 'رباط معصم', 'قابل للغسل'],
+    // Sold out, deliberately. A catalogue where nothing is ever unavailable
+    // never shows the state a customer meets most often on a real shop.
     variants: [
-      { size: 'S', stock: 8 },
-      { size: 'M', stock: 12 },
-      { size: 'L', stock: 6 },
+      { size: 'S', stock: 0 },
+      { size: 'M', stock: 0 },
+      { size: 'L', stock: 0 },
     ],
   },
   {
@@ -211,6 +221,7 @@ export const products: Product[] = [
     detailsAr: ['حماية من الحصى', 'فتحات تصريف', 'فرق ٨ مم'],
     variants: [40, 41, 42, 43, 44].map((n, i) => ({ size: String(n), stock: [2, 4, 5, 3, 1][i] })),
     featured: true,
+    isNew: true,
   },
 ];
 
@@ -220,6 +231,14 @@ export const findProduct = (slug: string, list: Product[] = products) =>
   list.find((p) => p.slug === slug);
 
 export const inStock = (p: Product) => p.variants.some((v) => v.stock > 0);
+
+/** Everything on the shelf, across sizes. */
+export const totalStock = (p: Product) => p.variants.reduce((n, v) => n + v.stock, 0);
+
+/** The threshold the "almost gone" badge fires at. Low enough to be true, high
+ *  enough to still be actionable: at one or two a customer who wants a
+ *  particular size has probably already missed it. */
+export const LOW_STOCK = 5;
 
 export const stockFor = (p: Product, size: string) =>
   p.variants.find((v) => v.size === size)?.stock ?? 0;

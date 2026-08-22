@@ -15,6 +15,7 @@ import { useCart } from '@/lib/cart';
 import { productPhoto } from '@/lib/assets';
 import { productBlurb, productDetails, productName } from '@/lib/catalog';
 import { useLang } from '@/lib/i18n';
+import { formatNumber } from '@/lib/money';
 
 export default function ProductScreen() {
   const theme = useTheme();
@@ -111,7 +112,7 @@ export default function ProductScreen() {
 
           {size && stock > 0 && stock <= 3 ? (
             <ThemedText type="label" themeColor="tintText" style={text}>
-              {stock === 1 ? t.product.lastOne : t.product.lowStock(stock)}
+              {stock === 1 ? t.product.lastOne : t.product.lowStock(formatNumber(stock, lang))}
             </ThemedText>
           ) : null}
 

@@ -41,6 +41,19 @@ export function formatPrice(fils: Fils, lang: 'ar' | 'en'): string {
   return `${negative ? '؜-' : ''}${ar(grouped)}٫${ar(frac)} د.ك`;
 }
 
+/**
+ * A plain number in the reader's own digits.
+ *
+ * Arabic copy with Western numerals is the giveaway that a string was
+ * assembled by a programme rather than written — «وفّر 21%» beside «١١٫٠٠٠ د.ك»
+ * in the same card, with the price localised and the discount not. Every count
+ * that reaches a screen goes through here.
+ */
+export function formatNumber(n: number, lang: 'ar' | 'en'): string {
+  const s = String(Math.round(n));
+  return lang === 'en' ? s : s.replace(/\d/g, (d) => AR_DIGITS[Number(d)]);
+}
+
 /** Percentage off, rounded to a whole number for the badge. */
 export function discountPercent(price: Fils, was: Fils): number {
   if (!was || was <= price) return 0;

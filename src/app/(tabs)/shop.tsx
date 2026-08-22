@@ -13,6 +13,7 @@ import { BottomTabInset, MaxContentWidth, Spacing, TapTarget } from '@/constants
 import { useTheme } from '@/hooks/use-theme';
 import { useCart } from '@/lib/cart';
 import { categoryName, type CategoryId } from '@/lib/catalog';
+import { formatNumber } from '@/lib/money';
 import { useLang } from '@/lib/i18n';
 
 type Sort = 'new' | 'low' | 'high';
@@ -101,7 +102,7 @@ export default function ShopScreen() {
       }>
 
           <ThemedText type="label" themeColor="textSecondary" style={text}>
-            {t.shop.results(shown.length)}
+            {t.shop.results(formatNumber(shown.length, lang), shown.length === 1)}
           </ThemedText>
 
           {shown.length === 0 ? (
