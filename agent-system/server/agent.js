@@ -24,7 +24,7 @@
  */
 
 const ar = require('arabic-kit');
-const { db } = require('./db');
+const { db, now } = require('./db');
 const D = require('./domain');
 const AREA = require('./areas');
 const V = require('./voice-order');
@@ -346,11 +346,19 @@ function captainStats(ctx, cap) {
     `SELECT COUNT(*) AS n FROM orders o WHERE o.agent_id=? AND o.status IN (${q(D.ACTIVE_STATUSES)})`
   ).get(cap.id, ...D.ACTIVE_STATUSES).n;
 
+  /*
+   * `now()` لا `datetime('now')`. الأولى تكتب ISO بـ«T» و«Z»، والثانية
+   * «YYYY-MM-DD HH:MM:SS». وهذا العمود يُكتب بالصيغتين في مكانين، وأثر
+   * ذلك مرئيّ: المتصفّح يفسّر الصيغة الثانية **بالتوقيت المحلّي** لا
+   * بـUTC، فيقرأ الكابتن «قبل ثلاث ساعات» عن اطّلاعٍ وقع قبل لحظة (فرق
+   * توقيت الكويت +٣). والمقارنة النصّية بينهما مغلوطة أيضًا: كل صفّ ISO
+   * يسبق كل صفّ SQLite مهما كان زمنه، لأن «T» أكبر من الفراغ.
+   */
   db.prepare(
     `INSERT INTO agent_events (agent_id, actor_id, type, from_value, to_value, note, created_at)
-     VALUES (?, ?, 'performance_view', '', ?, ?, datetime('now'))`
+     VALUES (?, ?, 'performance_view', '', ?, ?, ?)`
   ).run(cap.id, ctx.viewer.id, ctx.period.id,
-        `اطّلع ${ctx.viewer.name} على أرقام الأداء (${ctx.period.label})`);
+        `اطّلع ${ctx.viewer.name} على أرقام الأداء (${ctx.period.label})`, now());
 
   const P = ctx.period.label;
   return {

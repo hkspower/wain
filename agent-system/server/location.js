@@ -20,6 +20,53 @@ const STALE_MINUTES = 10;
 /** أقل فاصل زمني بين نقطتين مقبولتين — يمنع إغراق القاعدة */
 const MIN_INTERVAL_MS = 8000;
 
+/*
+ * ── جودة النقطة ───────────────────────────────────────────────────────
+ * ثلاثة عيوب قِيست على السلوك القديم:
+ *
+ * ١. كابتن واقف عشر دقائق يُخزَّن له **٦٠ نقطة** متطابقة. على وردية عشر
+ *    ساعات: ٣٦٠٠ صفًّا لكابتن واحد، تُغرق المسار وتُخفي فيه حركته الحقيقية.
+ * ٢. قراءة من برج اتصال دقّتها **٣٠٠٠ متر** تُخزَّن وتُرسم نقطةً واحدة
+ *    كأي قراءة GPS دقيقة، واللوحة تقول «موقع محدَّث».
+ * ٣. قفزة **٥٠ كم في عشر ثوانٍ** (١٨٠٠٠ كم/س) تُقبل، فتطير النقطة عبر
+ *    المخطّط ويُكسر المسار.
+ */
+
+/** أبعد من هذا ليس موقعًا بل اسمَ مدينة — يُرفض */
+const MAX_ACCURACY_M = 10000;
+/** وما فوق هذا موقعٌ تقريبيّ يُقال عنه ذلك، ولا يُدّعى أنه محدَّث */
+const COARSE_ACCURACY_M = 200;
+/** أقصى سرعة معقولة على طرق الكويت — ما فوقها خللُ قراءة لا سفر */
+const MAX_SPEED_KMH = 200;
+/** لا حركة تحت هذا القدر: تشويش الجهاز لا انتقال */
+const MIN_MOVE_M = 20;
+/*
+ * نبضة: نخزّن نقطةً كل ثلاث دقائق ولو لم يتحرّك. بدونها يشيخ آخر موقع
+ * للكابتن الواقف فتقول اللوحة «آخر قراءة قديمة» وهو يرسل كل عشر ثوانٍ —
+ * أي أن مرشّح الحركة وحده يكذب بالسكوت. وثلاثٌ أقلّ من عتبة القِدَم (١٠).
+ */
+const HEARTBEAT_MS = 3 * 60_000;
+
+/** مسافة مستقيمة بالأمتار بين نقطتين */
+function metresBetween(a, b) {
+  const R = 6371000;
+  const rad = (d) => (d * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2
+    + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/*
+ * القفزة تُرفض — لكن **لا تُرفض مرّتين متتاليتين**. لو كانت النقطة السابقة
+ * هي الخاطئة لبقي الكابتن عالقًا في مكانٍ ليس فيه إلى الأبد: كل نقطة
+ * صحيحة بعدها ستبدو قفزةً عن الخطأ. فقراءتان متتاليتان تتّفقان على
+ * المكان الجديد تُصدَّقان. (ذاكرةٌ في العملية: أسوأ ما يقع بعد إعادة
+ * التشغيل نقطةٌ واحدة تُرفض مرّة زائدة.) */
+const lastJumpAt = new Map();
+const JUMP_GRACE_MS = 2 * 60_000;
+
 /** الحالات التي يكون فيها المندوب في مهمة فعلية */
 const ON_DUTY_STATUSES = ['accepted', 'picked_up', 'on_the_way'];
 
@@ -106,12 +153,40 @@ function recordPoint(agent, point) {
   if (!Number.isFinite(lat) || lat < -90 || lat > 90) throw badRequest('قيمة خط العرض غير صحيحة');
   if (!Number.isFinite(lng) || lng < -180 || lng > 180) throw badRequest('قيمة خط الطول غير صحيحة');
 
+  const accuracy = Number(point.accuracy);
+  if (Number.isFinite(accuracy) && accuracy > MAX_ACCURACY_M) {
+    return { recorded: false, reason: 'too_coarse', accuracy };
+  }
+
   // تقييد المعدّل: نتجاهل النقطة إن وصلت قبل انقضاء الفاصل الأدنى
   const last = db.prepare(
-    'SELECT recorded_at FROM locations WHERE agent_id = ? ORDER BY id DESC LIMIT 1'
+    'SELECT lat, lng, accuracy, recorded_at FROM locations WHERE agent_id = ? ORDER BY id DESC LIMIT 1'
   ).get(agent.id);
-  if (last && Date.now() - new Date(last.recorded_at).getTime() < MIN_INTERVAL_MS) {
+  const sinceLast = last ? Date.now() - new Date(last.recorded_at).getTime() : Infinity;
+  if (last && sinceLast < MIN_INTERVAL_MS) {
     return { recorded: false, reason: 'too_soon' };
+  }
+
+  if (last) {
+    const moved = metresBetween(last, { lat, lng });
+    const kmh = sinceLast > 0 ? (moved / 1000) / (sinceLast / 3_600_000) : Infinity;
+
+    if (kmh > MAX_SPEED_KMH) {
+      const prevJump = lastJumpAt.get(agent.id) || 0;
+      if (Date.now() - prevJump > JUMP_GRACE_MS) {
+        lastJumpAt.set(agent.id, Date.now());
+        return { recorded: false, reason: 'implausible_jump', km: Math.round(moved / 100) / 10, kmh: Math.round(kmh) };
+      }
+      // قراءة ثانية تؤكّد المكان الجديد — نصدّقها ونمسح العلامة
+      lastJumpAt.delete(agent.id);
+    }
+
+    /* عتبة الحركة تتبع دقّة القراءة: قراءةٌ دقّتها ٥٠ مترًا تتذبذب ٥٠ مترًا
+       وهو واقف، فعتبةٌ ثابتة تخزّن تذبذبها حركةً. */
+    const noise = Math.max(MIN_MOVE_M, Number.isFinite(accuracy) ? accuracy : MIN_MOVE_M);
+    if (moved < noise && sinceLast < HEARTBEAT_MS) {
+      return { recorded: false, reason: 'no_movement', moved: Math.round(moved) };
+    }
   }
 
   // نربط النقطة بالطلب النشط إن وُجد، ليكون للمسار معنى تشغيلي
@@ -131,7 +206,7 @@ function recordPoint(agent, point) {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     agent.id, lat, lng,
-    num(point.accuracy, 0, 100000),
+    num(point.accuracy, 0, MAX_ACCURACY_M),
     num(point.speed, 0, 400),
     num(point.heading, 0, 360),
     active ? active.id : null,
@@ -139,7 +214,11 @@ function recordPoint(agent, point) {
   );
 
   purgeExpired();
-  return { recorded: true, order_id: active ? active.id : null };
+  return {
+    recorded: true,
+    order_id: active ? active.id : null,
+    coarse: Number.isFinite(accuracy) && accuracy > COARSE_ACCURACY_M,
+  };
 }
 
 /** حذف النقاط الأقدم من مدة الاحتفاظ */
@@ -158,7 +237,14 @@ function latestFor(agentId) {
   ).get(agentId);
   if (!row) return null;
   const ageMin = (Date.now() - new Date(row.recorded_at).getTime()) / 60000;
-  return { ...row, age_minutes: Math.round(ageMin * 10) / 10, stale: ageMin > STALE_MINUTES };
+  return {
+    ...row,
+    age_minutes: Math.round(ageMin * 10) / 10,
+    stale: ageMin > STALE_MINUTES,
+    /* «تقريبيّ» لا «محدَّث»: نصف قطر مئتي متر يدلّ على الحيّ لا على الشارع،
+       ورسمُه نقطةً واحدة ادّعاءُ دقّةٍ لا وجود لها. */
+    coarse: Number.isFinite(row.accuracy) && row.accuracy > COARSE_ACCURACY_M,
+  };
 }
 
 function logView(viewerId, agentId) {
@@ -233,7 +319,8 @@ function liveBoard(viewer) {
     logView(viewer.id, a.id);
     return {
       ...row,
-      available: !p.stale, reason: p.stale ? 'stale' : null,
+      available: !p.stale, reason: p.stale ? 'stale' : (p.coarse ? 'coarse' : null),
+      coarse: p.coarse,
       lat: p.lat, lng: p.lng, accuracy: p.accuracy, speed: p.speed,
       order_id: p.order_id, order_code: p.order_code,
       recorded_at: p.recorded_at, age_minutes: p.age_minutes,
@@ -263,6 +350,8 @@ function trailOf(viewer, agentId, minutes = 120) {
 
 module.exports = {
   RETENTION_HOURS, STALE_MINUTES, MIN_INTERVAL_MS, ON_DUTY_STATUSES,
+  MAX_ACCURACY_M, COARSE_ACCURACY_M, MAX_SPEED_KMH, MIN_MOVE_M, HEARTBEAT_MS,
+  metresBetween,
   consentState, setConsent, setSharing, purgeOwnHistory,
   recordPoint, purgeExpired, locationOf, liveBoard, trailOf,
   // يستعملهما بحث «الأقرب» ليخضع لقواعد الخصوصية نفسها لا لنسخة منها

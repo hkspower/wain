@@ -1781,8 +1781,29 @@
   const geo = {
     watchId: null,
     lastSent: 0,
+    /** آخر نقطة **قبلها الخادم** — لا آخر ما أُرسل */
+    lastPoint: null,
     /** أقل فاصل بين إرسالين — يطابق الحدّ في الخادم */
     interval: 10000,
+    /*
+     * الخادم يُسقط النقطة التي لم يتحرّك صاحبها. لكنه يُسقطها **بعد** أن
+     * يدفع الهاتف طلبًا عبر شبكة الجوال: على وردية عشر ساعات ٣٦٠٠ طلبٍ
+     * أكثرها لا يُخزَّن. فالمرشّح نفسه هنا يوفّر بطارية الكابتن وباقته.
+     * والقاعدة واحدة في الطرفين عمدًا، والمرجع آخرُ نقطة **قبلها الخادم**
+     * لا آخر ما أُرسل — فلا ينزاح أحدهما عن الآخر.
+     */
+    minMoveM: 20,
+    heartbeatMs: 3 * 60000,
+
+    metres(a, b) {
+      const R = 6371000;
+      const rad = (d) => (d * Math.PI) / 180;
+      const dLat = rad(b.lat - a.lat);
+      const dLng = rad(b.lng - a.lng);
+      const h = Math.sin(dLat / 2) ** 2
+        + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+    },
 
     supported() {
       return 'geolocation' in navigator;
@@ -1805,21 +1826,31 @@
       if (this.watchId == null) return;
       navigator.geolocation.clearWatch(this.watchId);
       this.watchId = null;
+      this.lastPoint = null;   // استئنافٌ بعد توقّف يبدأ بنقطة تُرسل
     },
 
     async onPosition(pos) {
       const now = Date.now();
       if (now - this.lastSent < this.interval) return;
-      this.lastSent = now;
       const c = pos.coords;
+
+      if (this.lastPoint) {
+        const moved = this.metres(this.lastPoint, { lat: c.latitude, lng: c.longitude });
+        const noise = Math.max(this.minMoveM, Number.isFinite(c.accuracy) ? c.accuracy : 0);
+        if (moved < noise && now - this.lastPoint.at < this.heartbeatMs) return;
+      }
+
+      this.lastSent = now;
       try {
-        await api('/me/location', {
+        const r = await api('/me/location', {
           method: 'POST',
           body: {
             lat: c.latitude, lng: c.longitude,
             accuracy: c.accuracy, speed: c.speed, heading: c.heading,
           },
         });
+        // ما رفضه الخادم لا يصير مرجعًا، وإلّا رشّحنا عن نقطةٍ لا يعرفها
+        if (r && r.recorded) this.lastPoint = { lat: c.latitude, lng: c.longitude, at: now };
       } catch (err) {
         // الخادم قد يرفض إن سُحبت الموافقة من جهاز آخر — نوقف فورًا
         if (/موافقة|متوقفة/.test(err.message)) {
@@ -2043,7 +2074,17 @@
     sharing_off: 'أوقف المشاركة',
     no_data: 'لا توجد قراءة بعد',
     stale: 'آخر قراءة قديمة',
+    coarse: 'موقع تقريبي',
   };
+
+  /* عرض المخطّط بالأمتار على الأرض — يُحوّل نصف قطر الدقّة إلى نسبة منه.
+     الحساب من الحدود نفسها فلا ينحرف لو عُدّلت. */
+  const KW_SPAN_M = (KW.maxLng - KW.minLng) * 111320
+    * Math.cos((((KW.minLat + KW.maxLat) / 2) * Math.PI) / 180);
+  const projectKW = (lat, lng) => ({
+    x: Math.min(Math.max((lng - KW.minLng) / (KW.maxLng - KW.minLng), 0.02), 0.98) * 100,
+    y: Math.min(Math.max(1 - (lat - KW.minLat) / (KW.maxLat - KW.minLat), 0.02), 0.98) * 100,
+  });
 
   /* ترتيب اللوحة بحسب ما يحتاجه المدير أولًا: من موقعه حيّ الآن، ثم من
      قراءته قديمة، ثم من لا قراءة له، ثم من أوقف المشاركة أو لم يوافق.
@@ -2322,6 +2363,60 @@
     return groups.filter((g) => g.members.length > 1).length;
   }
 
+  /*
+   * المسار: نقطةٌ واحدة تقول «أين هو»، والمسار يقول «إلى أين يتّجه» و«من
+   * أين جاء» — وهو الفرق بين لوحةِ مواقع ولوحةِ تتبّع. الخادم يعطيه منذ
+   * البداية (`/agents/:id/trail`) ولم تكن الواجهة تستدعيه إطلاقًا.
+   *
+   * يُرسم عند إضاءة سطر الكابتن، ويُخبَّأ فلا يُعاد طلبه مع كل مرور.
+   */
+  const trailCache = new Map();
+  const TRAIL_MINUTES = 60;
+
+  async function drawTrail(map, agentId) {
+    if (!map || !map.isConnected) return;
+    let pts = trailCache.get(agentId);
+    if (!pts) {
+      try {
+        const r = await api(`/agents/${agentId}/trail?minutes=${TRAIL_MINUTES}`);
+        pts = r.points || [];
+      } catch { pts = []; }
+      trailCache.set(agentId, pts);
+    }
+    if (!map.isConnected || map.dataset.trail !== String(agentId)) return;
+    clearTrail(map);
+    if (pts.length < 2) return;
+
+    /* إحداثيات SVG تبدأ من اليسار دائمًا ولا تنقلب مع `direction: rtl`.
+       النقاط تستعمل `inset-inline-start: 100 - x` فتُقلب مرّة، ولو قُلبت
+       هنا مثلها لانقلبت مرّتين — فيقع المسار في الجهة المقابلة لصاحبه. */
+    const d = pts.map((p, i) => {
+      const { x, y } = projectKW(p.lat, p.lng);
+      return `${i ? 'L' : 'M'}${x.toFixed(3)},${y.toFixed(3)}`;
+    }).join(' ');
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'trail');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.innerHTML = `<path d="${d}" />`;
+    map.appendChild(svg);
+  }
+
+  /* قطر الحلقة = ضِعف الدقّة بالأمتار على مقياس المخطّط المقيس بالبكسل */
+  function sizeHalos(map) {
+    const w = map.getBoundingClientRect().width;
+    if (!w) return;
+    for (const h of map.querySelectorAll('.pin__halo')) {
+      const px = (Number(h.dataset.m) / KW_SPAN_M) * 2 * w;
+      h.style.setProperty('--r', `${Math.max(px, 14).toFixed(1)}px`);
+    }
+  }
+
+  function clearTrail(map) {
+    for (const n of map.querySelectorAll('.trail')) n.remove();
+  }
+
   /* الاسم يوضع فوق النقطة، فإن زاحم اسمًا موضوعًا جُرّبت جهة أخرى. النقطة
      نفسها لا تتحرّك أبدًا: إزاحة النقطة كذبٌ على المدير، أمّا إزاحة الاسم
      فترتيب. ومن لم يجد لاسمه موضعًا يُخفى اسمه ويظهر عند المرور على سطره. */
@@ -2350,16 +2445,25 @@
 
   function livePins(shown) {
     return shown.map((a) => {
-      const x = (a.lng - KW.minLng) / (KW.maxLng - KW.minLng);
-      const y = 1 - (a.lat - KW.minLat) / (KW.maxLat - KW.minLat);
-      const cx = Math.min(Math.max(x, 0.02), 0.98) * 100;
-      const cy = Math.min(Math.max(y, 0.02), 0.98) * 100;
+      const { x: cx, y: cy } = projectKW(a.lat, a.lng);
       const first = a.agent_name.split(' ')[0];
-      return `<button class="pin${a.reason === 'stale' ? ' pin--stale' : ''}" type="button"
-                      data-agent="${a.agent_id}" data-side="up"
+      /* حلقة عدم اليقين: قراءةٌ دقّتها ثلاثة كيلومترات ليست نقطة، ورسمُها
+         نقطةً ادّعاءُ دقّةٍ لا وجود لها. النقطة تبقى في المركز، وحولها
+         الحلقة بقدرها الحقيقيّ على المخطّط. */
+      /* نصف القطر يُقاس بالبكسل بعد التخطيط لا بنسبةٍ هنا: `.pin` عرضها
+         صفر، والنسبة تُحسب من عرض أبيها — فتصير صفرًا ويشدّها `min-width`
+         إلى ١٤ بكسلًا لكل دقّة مهما اختلفت. */
+      const halo = a.coarse && a.accuracy
+        ? `<span class="pin__halo" data-m="${Math.round(a.accuracy)}"></span>`
+        : '';
+      const state = a.reason === 'stale' ? 'آخر قراءة قديمة'
+        : a.coarse ? `موقع تقريبي، دقّته نحو ${AR.digits(Math.round(a.accuracy))} مترًا`
+        : 'موقع محدَّث';
+      return `<button class="pin${a.reason === 'stale' ? ' pin--stale' : ''}${a.coarse ? ' pin--coarse' : ''}"
+                      type="button" data-agent="${a.agent_id}" data-side="up"
                       style="inset-inline-start:${(100 - cx).toFixed(2)}%; top:${cy.toFixed(2)}%"
-                      aria-label="${esc(a.agent_name)} — ${a.reason === 'stale' ? 'آخر قراءة قديمة' : 'موقع محدَّث'}">
-                <span class="pin__dot"></span><span class="pin__tag">${esc(first)}</span>
+                      aria-label="${esc(a.agent_name)} — ${esc(state)}">
+                ${halo}<span class="pin__dot"></span><span class="pin__tag">${esc(first)}</span>
               </button>`;
     }).join('');
   }
@@ -2370,9 +2474,9 @@
         <div class="live-row__top">
           <b>${esc(a.agent_name)}</b>
           <span class="badge badge--${a.availability}">${esc(state.meta.availability[a.availability])}</span>
-          ${a.available
+          ${a.available && !a.coarse
             ? '<span class="badge badge--delivered">موقع محدَّث</span>'
-            : `<span class="badge badge--offline">${esc(REASONS[a.reason] || 'غير متاح')}</span>`}
+            : `<span class="badge badge--${a.coarse ? 'busy' : 'offline'}">${esc(REASONS[a.reason] || 'غير متاح')}</span>`}
         </div>
         <div class="live-row__meta">
           <span>${esc(vehicleName(a.vehicle))}</span>
@@ -2380,6 +2484,7 @@
           <span>${AR.describe(a.active_orders, 'order', 'active')}</span>
           ${a.order_code ? `<span>يوصّل <a href="#/orders/${a.order_id}">${esc(a.order_code)}</a></span>` : ''}
           ${a.recorded_at ? `<span><time datetime="${esc(a.recorded_at)}">${esc(relTime(a.recorded_at))}</time></span>` : ''}
+          ${a.accuracy != null ? `<span>دقّة ~${AR.digits(Math.round(a.accuracy))} م</span>` : ''}
           ${a.lat != null ? `<span><a href="https://www.google.com/maps?q=${a.lat},${a.lng}"
                target="_blank" rel="noopener">افتح في الخرائط</a></span>` : ''}
         </div>
@@ -2410,6 +2515,7 @@
       <div class="live__list">${liveRows(sorted)}</div>`;
 
     const map = host.querySelector('.map');
+    sizeHalos(map);
     const clusters = clusterPins(map);
     const crowded = layoutPinTags(map);
     /* عدد المخفيّ ليس معلومة يتصرّف بها المدير، أمّا طريقة إظهاره فنعم */
@@ -2424,6 +2530,8 @@
       for (const c of host.querySelectorAll('.cluster')) {
         if (c.dataset.members.split(' ').includes(String(id))) c.classList.toggle('is-lit', on);
       }
+      if (on) { map.dataset.trail = id; drawTrail(map, id); }
+      else if (map.dataset.trail === String(id)) { delete map.dataset.trail; clearTrail(map); }
     };
     for (const row of host.querySelectorAll('.live-row')) {
       const id = row.dataset.agent;

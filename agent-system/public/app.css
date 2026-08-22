@@ -782,6 +782,17 @@ body.is-modal .modal { background: rgba(6,40,46,.62); }
   background: var(--teal-700); box-shadow: 0 0 0 var(--bw-thick) #fff;
 }
 .pin--stale .pin__dot { background: var(--mute-fg); }
+/* حلقة عدم اليقين: نصف قطرها هو دقّة القراءة الحقيقية على مقياس المخطّط.
+   قراءةٌ دقّتها ثلاثة كيلومترات تظهر حلقةً بثلاثة كيلومترات — لا نقطةً
+   كنقطة GPS بخمسة أمتار. */
+.pin__halo {
+  position: absolute; inset-inline-start: calc(var(--r) / -2); top: calc(var(--r) / -2);
+  width: var(--r); height: var(--r);
+  border-radius: var(--radius-full);
+  border: var(--bw) dashed var(--alert-600);
+  pointer-events: none;
+}
+.pin--coarse .pin__dot { background: var(--alert-600); }
 .pin__tag {
   position: absolute; white-space: nowrap;
   background: var(--teal-800); color: #fff; font-size: var(--t-2xs); font-weight: var(--w-bold);
@@ -809,6 +820,17 @@ body.is-modal .modal { background: rgba(6,40,46,.62); }
 }
 .cluster--stale { background: var(--mute-fg); }
 .cluster:hover, .cluster:focus-visible, .cluster.is-lit { background: var(--teal-900); }
+/* المسار: خطّ رفيع يصل نقاط آخر ساعة. `vector-effect` يبقي سُمكه ثابتًا
+   مهما تمدّد الـviewBox — بدونه ينسحق السطر في اتجاه التمدّد. */
+.trail {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 0;
+}
+.trail path {
+  fill: none; stroke: var(--teal-600); stroke-width: 2;
+  stroke-linejoin: round; stroke-linecap: round;
+  vector-effect: non-scaling-stroke; opacity: .85;
+}
 .map__scale {
   position: absolute; inset-block-end: .5rem; inset-inline-start: .6rem; margin: 0;
   max-inline-size: calc(100% - 1.2rem);

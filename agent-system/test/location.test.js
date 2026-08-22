@@ -31,9 +31,14 @@ const login = (as, u, p) => call(as, 'POST', '/api/auth/login', { username: u, p
 const agentId = (u) => db.prepare('SELECT id FROM agents WHERE username = ?').get(u).id;
 
 /** التسجيل محدود بفاصل زمني أدنى، فنُرجع الطابع للخلف بين النقاط */
+/*
+ * بصيغة التطبيق نفسها (ISO). `datetime()` تعيد «YYYY-MM-DD HH:MM:SS»،
+ * والمقارنات في الاستعلامات نصّية — فكل صفّ تُرجعه هذه الدالّة بالصيغة
+ * الأخرى يسقط صامتًا من كل نطاق زمنيّ (`trailOf` وحذف المنتهي).
+ */
 const backdate = (u, ms) =>
-  db.prepare("UPDATE locations SET recorded_at = datetime('now', ?) WHERE agent_id = ?")
-    .run(`-${Math.round(ms / 1000)} seconds`, agentId(u));
+  db.prepare('UPDATE locations SET recorded_at = ? WHERE agent_id = ?')
+    .run(new Date(Date.now() - ms).toISOString(), agentId(u));
 
 test.before(async () => {
   db.exec('DELETE FROM location_views; DELETE FROM locations; DELETE FROM events; DELETE FROM transfers; DELETE FROM orders; DELETE FROM sessions; DELETE FROM agents;');
@@ -211,8 +216,10 @@ test('النقطة تُربط بالطلب النشط للمندوب', async () 
   });
   await call('drv2', 'PATCH', `/api/orders/${data.order.id}/status`, { status: 'accepted' });
 
+  /* حركةٌ معقولة: نحو ٤٥٠ مترًا في دقيقة (٢٧ كم/س). كانت ثمانية كيلومترات
+     في دقيقة — ٤٨٠ كم/س — وهي الآن تُرفض قفزةً مستحيلة، وحقًّا. */
   backdate('drv2', 60000);
-  const p = await call('drv2', 'POST', '/api/me/location', { lat: 29.31, lng: 48.02 });
+  const p = await call('drv2', 'POST', '/api/me/location', { lat: 29.3800, lng: 47.9774, accuracy: 10 });
   assert.equal(p.data.recorded, true);
   assert.equal(p.data.order_id, data.order.id);
 
@@ -223,4 +230,103 @@ test('النقطة تُربط بالطلب النشط للمندوب', async () 
 test('لا يُسجَّل موقع بلا جلسة', async () => {
   assert.equal((await call(null, 'POST', '/api/me/location', POINT)).status, 401);
   assert.equal((await call(null, 'GET', '/api/locations/live')).status, 401);
+});
+
+/* --------------------------- جودة نقطة التتبّع --------------------------- */
+
+/*
+ * تقديمُ الزمن: يُرجع **كل** صفّ بالمقدار نفسه فيحفظ التباعد بينها.
+ * و`backdate` تضع كل الصفوف على زمنٍ واحد، فتُفسد اختبار النبضة: الفارق
+ * عن آخر نقطة يبقى ثابتًا مهما تكرّرت المحاولة، فلا تحين نبضة أبدًا.
+ */
+const advance = (u, ms) => {
+  for (const r of db.prepare('SELECT id, recorded_at FROM locations WHERE agent_id = ?').all(agentId(u))) {
+    db.prepare('UPDATE locations SET recorded_at = ? WHERE id = ?')
+      .run(new Date(new Date(r.recorded_at).getTime() - ms).toISOString(), r.id);
+  }
+};
+
+/* اختبارٌ سابق يسحب موافقة drv1 ويمسح نقاطه، فنعيد منحها ونبدأ من فراغ */
+const freshTracker = async (u) => {
+  await call(u, 'POST', '/api/me/location-consent', { granted: true });
+  await call(u, 'PATCH', '/api/me/location-sharing', { sharing: true });
+  db.prepare('DELETE FROM locations WHERE agent_id = ?').run(agentId(u));
+};
+
+test('الكابتن الواقف لا يملأ القاعدة — نبضةٌ كل ثلاث دقائق لا نقطةٌ كل عشر ثوانٍ', async () => {
+  const u = 'drv1';
+  await freshTracker(u);
+  let stored = 0;
+  /* ستّون محاولة على مدى عشر دقائق، بتشويش GPS طبيعيّ ±٤ أمتار */
+  for (let i = 0; i < 60; i++) {
+    advance(u, 10000);
+    const jitter = () => (Math.random() - 0.5) * 0.00008;
+    const r = await call(u, 'POST', '/api/me/location',
+      { lat: 29.3759 + jitter(), lng: 47.9774 + jitter(), accuracy: 8 });
+    if (r.data.recorded) stored++;
+  }
+  /* كان يُخزَّن ٦٠ — على وردية عشر ساعات ٣٦٠٠ صفًّا متطابقًا لكابتن واحد */
+  assert.ok(stored <= 6, `خُزّن ${stored} وهو واقف مكانه`);
+  assert.ok(stored >= 1, 'لم يُخزَّن شيء — النبضة لا تعمل، فيشيخ موقعه ويبدو منقطعًا');
+});
+
+test('الحركة الحقيقية لا تُرشَّح', async () => {
+  const u = 'drv1';
+  await freshTracker(u);
+  let stored = 0;
+  let lat = 29.3759;
+  for (let i = 0; i < 12; i++) {
+    advance(u, 10000);
+    lat += 0.0018;                       // نحو ٢٠٠ متر — ٧٢ كم/س
+    const r = await call(u, 'POST', '/api/me/location', { lat, lng: 47.9774, accuracy: 8 });
+    if (r.data.recorded) stored++;
+  }
+  assert.equal(stored, 12, 'مرشّح السكون يبتلع حركةً حقيقية');
+});
+
+test('القراءة التقريبية تُقال تقريبية، والمستحيلة تُرفض', async () => {
+  const u = 'drv1';
+  await freshTracker(u);
+
+  const coarse = await call(u, 'POST', '/api/me/location', { lat: 29.30, lng: 47.90, accuracy: 2500 });
+  assert.equal(coarse.data.recorded, true, 'قراءة البرج تُحذف بدل أن تُوصف');
+  assert.equal(coarse.data.coarse, true);
+
+  const board = await call('admin', 'GET', '/api/locations/live');
+  const row = board.data.agents.find((a) => a.agent_id === agentId(u));
+  assert.equal(row.coarse, true, 'اللوحة تدّعي دقّةً لا وجود لها');
+  assert.equal(row.reason, 'coarse');
+
+  /* وما دقّته عشرات الكيلومترات ليس موقعًا بل اسمَ مدينة */
+  backdate(u, 60000);
+  const huge = await call(u, 'POST', '/api/me/location', { lat: 29.1, lng: 47.7, accuracy: 45000 });
+  assert.equal(huge.data.recorded, false);
+  assert.equal(huge.data.reason, 'too_coarse');
+});
+
+test('القفزة المستحيلة تُرفض — ولا تُرفض مرّتين فيعلق الكابتن', async () => {
+  const u = 'drv1';
+  await freshTracker(u);
+  await call(u, 'POST', '/api/me/location', { lat: 29.3759, lng: 47.9774, accuracy: 8 });
+
+  backdate(u, 10000);
+  const jump = await call(u, 'POST', '/api/me/location', { lat: 29.0, lng: 48.4, accuracy: 8 });
+  assert.equal(jump.data.recorded, false, 'خمسون كيلومترًا في عشر ثوانٍ تُقبل');
+  assert.equal(jump.data.reason, 'implausible_jump');
+
+  /* لو رُفضت كل قفزة لبقي الكابتن عالقًا حيث ليس، لأن النقطة السابقة قد
+     تكون هي الخاطئة. قراءتان تتّفقان على المكان الجديد تُصدَّقان. */
+  const confirm = await call(u, 'POST', '/api/me/location', { lat: 29.0, lng: 48.4, accuracy: 8 });
+  assert.equal(confirm.data.recorded, true, 'الكابتن يعلق في مكان ليس فيه');
+});
+
+test('زمن الأحداث بصيغة واحدة — الصيغتان تختلفان ٣ ساعات على متصفّح كويتيّ', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'server', 'agent.js'), 'utf8');
+  /* `datetime('now')` تكتب «YYYY-MM-DD HH:MM:SS»، ويفسّرها المتصفّح
+     بالتوقيت المحلّي لا بـUTC. و`now()` تكتب ISO بـ«Z». العمود نفسه
+     كُتب بالصيغتين، فكان الكابتن يقرأ «قبل ٣ ساعات» عن اطّلاعٍ قبل لحظة. */
+  assert.ok(!/agent_events[\s\S]{0,200}datetime\('now'\)/.test(src),
+    "agent_events تُكتب بـdatetime('now') — صيغة تخالف بقية العمود");
 });
