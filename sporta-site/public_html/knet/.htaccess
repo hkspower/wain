@@ -1,0 +1,87 @@
+# Classic KNET endpoints — HTTPS-only + protect config/lib.
+# Place as /public_html/knet/ so endpoints are:
+#   https://www.sporta.com.kw/knet/pay.php
+#   https://www.sporta.com.kw/knet/callback.php
+
+# Canonical host + HTTPS in a SINGLE 301, matching the storefront config.
+# (The old rule kept %{HTTP_HOST}, so a bare-domain hit stayed on the wrong
+# host, and it redirected whenever %{HTTPS} != on, which loops behind a proxy
+# that reports TLS another way.)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTP_HOST} !^www\.sporta\.com\.kw(:[0-9]+)?$ [NC]
+  RewriteRule ^ https://www.sporta.com.kw%{REQUEST_URI} [R=301,L]
+
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  RewriteCond %{HTTP:X-Forwarded-SSL} !=on
+  RewriteCond %{SERVER_PORT} !=443
+  RewriteRule ^ https://www.sporta.com.kw%{REQUEST_URI} [R=301,L]
+
+  # No dotfiles here either (.env, .git, editor droppings).
+  RewriteRule "(?i)(^|/)\.(?!well-known)" - [F,L]
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  Header always unset X-Powered-By
+  Header set X-Content-Type-Options "nosniff"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+
+  # Payment responses carry order state — never store them in any cache, and
+  # keep the endpoints out of search results.
+  #
+  # Inside <FilesMatch ".">, which looks redundant and is not. The storefront's
+  # .htaccess caches .txt/.xml/.json with "public, max-age=3600" from its own
+  # <FilesMatch>, and Apache merges every per-file section AFTER every plain
+  # directory directive — including those from a deeper .htaccess. A plain
+  # Header set here therefore lost to the parent, and any non-PHP file served
+  # from /knet came back carrying BOTH "no-store" and "public, max-age=3600".
+  # Matching a file section here puts this rule in the same merge stage, where
+  # the deeper directory wins. Verified under Apache 2.4: one header, no-store.
+  # unset then always-set, rather than setting both tables: Apache emits
+  # err_headers_out on a 200 as well as an error, so setting both sent the same
+  # header twice. Clearing the inherited headers_out value and setting the
+  # always one covers every status code and emits it exactly once.
+  <FilesMatch ".">
+    Header unset Cache-Control
+    Header always set Cache-Control "no-store, no-cache, must-revalidate, private"
+  </FilesMatch>
+  Header always set X-Robots-Tag "noindex, nofollow"
+
+  # ---- Cookies ----
+  # These endpoints set none today. PHP emits PHPSESSID the moment anything
+  # calls session_start(), though, and no script here reads a cookie — so
+  # unlike the storefront rule, this one forces HttpOnly too.
+  #
+  # SameSite=Lax rather than Strict: the customer arrives back on callback.php
+  # as a cross-site navigation from the bank, and Strict would withhold the
+  # cookie on exactly that request.
+  #
+  # `edit`, not `edit*` (which segfaulted Apache 2.4.58 on any response carrying
+  # a Set-Cookie) and not `always` (that table is err_headers_out; PHP writes
+  # cookies to headers_out, so it would never match).
+  Header edit Set-Cookie "(?i)^((?!.*;\s*Secure).*)$" "$1; Secure"
+  Header edit Set-Cookie "(?i)^((?!.*;\s*HttpOnly).*)$" "$1; HttpOnly"
+  Header edit Set-Cookie "(?i)^((?!.*;\s*SameSite=).*)$" "$1; SameSite=Lax"
+</IfModule>
+
+<FilesMatch "^(config\.php|config\.example\.php|knet\.php|setup-config\.php)$">
+  Require all denied
+</FilesMatch>
+
+# The payment log belongs outside public_html, but deny it here too in case it
+# is ever written inside the web root.
+#
+# (?i) and .json, to match pay/.htaccess exactly. The two files guard the same
+# class of thing for the same bank, and this one was the narrower of the pair —
+# case-sensitive, and blind to .json — for no reason anybody chose. That is the
+# shape of every bug this project has found in the two payment dropins: a rule
+# tightened on one side and not the other, sitting quietly until something goes
+# looking. The root .htaccess denies these by name too, so a mismatch here was
+# covered in practice; a local rule that does not do its own job is still worth
+# fixing, because "the parent will catch it" is exactly the assumption that
+# fails when a folder gets its own RewriteEngine and stops inheriting.
+<FilesMatch "(?i)\.(json|log|jsonl)$">
+  Require all denied
+</FilesMatch>
