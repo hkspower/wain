@@ -51,7 +51,9 @@
 
   --ink:      #0e2f35;
   --ink-mid:  #3d5f66;
-  --ink-soft: #4e6e74;
+  /* ‎#4e6e74 يعطي ٥٫٥٢ على الأبيض فقط، فأيّ سطحٍ مائلٍ للرمادي يُسقطه
+     تحت ٤٫٥ — كما حدث في ملاحظة التغطية ولوحة السعر */
+  --ink-soft: #48666c;
   --line:     #c8dde1;
   --line-str: #a4c6cd;
   --bg:       #ffffff;
@@ -176,7 +178,8 @@ figure, figcaption { margin: 0; }
 }
 .skip-link {
   position: fixed; inset-block-start: 12px; inset-inline-start: 12px; z-index: 999;
-  background: var(--teal-600); color: #fff; padding: .6rem 1rem; border-radius: var(--radius-sm); font-weight: 600;
+  /* teal-600 يعطي الأبيض ٣٫٩٠ فقط، وteal-cta أفتح درجة تبلغ ٤٫٥ */
+  background: var(--teal-cta); color: #fff; padding: .6rem 1rem; border-radius: var(--radius-sm); font-weight: 600;
 }
 
 :focus-visible { outline: 3px solid var(--orange-600); outline-offset: 2px; border-radius: 2px; }
@@ -394,9 +397,12 @@ a.topbar__item:hover { color: #fff; }
 .section { padding: var(--sp-section) 0; }
 .section--tint { background: var(--bg-soft); border-block: 1px solid var(--line); }
 .section--dark {
+  /* الطرف الفاتح كان teal-800، وفوقه وهجٌ شعاعيّ بـ٢٨٪ — فتصل أفتح نقطة
+     إلى ‎#147c87، ونصّ ‎b6dde2 عليها ٣٫٣٩ فقط. ولا لونَ نصٍّ يبلغ ٤٫٥
+     هناك حتى الأبيض، فالخلفية هي ما يجب أن يغمق: teal-900 يرفعه ٥٫٢٥. */
   background:
-    radial-gradient(ellipse at 15% 0%, rgba(34, 167, 180, .28), transparent 55%),
-    linear-gradient(155deg, var(--teal-800), var(--teal-950));
+    radial-gradient(ellipse at 15% 0%, rgba(34, 167, 180, .22), transparent 55%),
+    linear-gradient(155deg, var(--teal-900), var(--teal-950));
   color: #e6f5f7;
 }
 
