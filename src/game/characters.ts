@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { RIG } from "./rig";
+import { flagTexture as countryFlag, type FlagId } from "./flags";
 
 // The people of Gulf Road Nights: spectators on the corniche and the
 // racers who stand beside their machines. Everything here is built from
@@ -33,30 +34,17 @@ export function ghutraCheckTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-/** The flag of Kuwait — green, white and red bands behind a black hoist
- *  trapezoid. Flown on the corniche masts and worn as a sleeve patch. */
+/**
+ * The flag of Kuwait, for the callers that only ever wanted that one.
+ *
+ * The drawing moved to flags.ts, which draws seventeen of them from
+ * their own specifications at four times this resolution. Kept as a
+ * name because the mast at the start line and the patch on a driver's
+ * chest both ask for it by this name, and neither of them cares that
+ * there are now sixteen others.
+ */
 export function flagTexture(): THREE.CanvasTexture {
-  const c = document.createElement("canvas");
-  c.width = 256;
-  c.height = 128;
-  const ctx = c.getContext("2d")!;
-  ctx.fillStyle = "#007a3d";
-  ctx.fillRect(0, 0, 256, 43);
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 43, 256, 42);
-  ctx.fillStyle = "#ce1126";
-  ctx.fillRect(0, 85, 256, 43);
-  ctx.fillStyle = "#000000";
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(72, 43);
-  ctx.lineTo(72, 85);
-  ctx.lineTo(0, 128);
-  ctx.closePath();
-  ctx.fill();
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  return countryFlag("kw");
 }
 
 const SKIN = () => new THREE.MeshStandardMaterial({ color: 0xb9895f, roughness: 0.75 });

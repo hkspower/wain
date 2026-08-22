@@ -66,6 +66,7 @@
     "test:resolution": "node tests/resolution.mjs",
     "test:spin": "node tests/spin.mjs",
     "test:decals": "node tests/decals.mjs",
+    "test:flags": "node tests/flags.mjs",
     "test:start": "node tests/start.mjs",
     "test:views": "node tests/views.mjs",
     "test:aspect": "node --experimental-strip-types tests/aspect.mjs",

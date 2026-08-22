@@ -25,6 +25,7 @@ import type { DriverRig } from "./characters";
 // and the showroom put a rigged driver in the seat too, and a private
 // method is only available to whoever already has an engine running.
 import { solveDriverRig } from "./driver";
+import { FLAGS, FLAG_IDS, flagTexture } from "./flags";
 import { verticalFov, chaseDolly } from "./aspect";
 import { gripAtSpeed, newLoadState, solveLoad, type LoadResult } from "./grip";
 import { Music } from "./music";
@@ -4837,6 +4838,13 @@ export class GameEngine {
     (window as unknown as { __grnBuildCar: typeof createCar }).__grnBuildCar = createCar;
     (window as unknown as { __grnCars: typeof CARS }).__grnCars = CARS;
     (window as unknown as { __grnRig: typeof RIG }).__grnRig = RIG;
+    // The flags, so a test can read back what was actually drawn rather
+    // than trusting that seventeen draw() functions all did something.
+    (
+      window as unknown as {
+        __grnFlags: { FLAGS: typeof FLAGS; FLAG_IDS: typeof FLAG_IDS; flagTexture: typeof flagTexture };
+      }
+    ).__grnFlags = { FLAGS, FLAG_IDS, flagTexture };
     // The real tune for any car in the showroom, so a test can race the
     // machine the game would hand over instead of inventing a plausible
     // set of numbers and then measuring its own invention.

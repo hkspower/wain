@@ -15,12 +15,12 @@ import { applyTextureManifest } from "./assets";
 import { upgradePalmCrowns } from "./models";
 import { textTexture, arabicSign, latinDisplay } from "./text";
 import {
-  flagTexture,
   kuwaitiFigure,
   kuwaitiRacer,
   type ArmChain,
   type RacerLook,
 } from "./characters";
+import { FLAGS, FLAG_IDS, flagPlane, flagTexture, type FlagId } from "./flags";
 import { aimConstrained, solveTwoBone } from "./ik";
 import { RIG } from "./rig";
 import { RIVALS } from "./rivals";
@@ -3733,26 +3733,56 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   hamra.add(hamraBeacon);
   scene.add(hamra);
 
-  // Kuwait flag at the start line
+  // The flags at the start line.
+  //
+  // Kuwait on the tallest mast at the line itself, because it is Kuwait's
+  // road — then the rest of the region on a row of shorter masts running
+  // back from it, which is what a Gulf corniche actually does on a
+  // national day and what these masts were always half-suggesting with
+  // one lonely pole.
+  //
+  // Each flag flies at ITS OWN proportions. They are not a set of
+  // interchangeable rectangles: Qatar is 28:11 and Israel is 11:8, and
+  // hanging both on a 2:1 plane would make two different countries'
+  // flags into two colourways of one object. flagPlane takes the height
+  // and gets the width from the specification.
   {
-    const pole = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.12, 0.18, 14, 6),
-      new THREE.MeshStandardMaterial({ color: 0xcfd6dd, roughness: 0.4, metalness: 0.6 })
-    );
-    pole.position.y = 7;
-    const flag = new THREE.Mesh(
-      new THREE.PlaneGeometry(6, 3),
-      new THREE.MeshStandardMaterial({
-        map: flagTexture(),
-        side: THREE.DoubleSide,
-        emissive: 0x444444,
-      })
-    );
-    flag.position.set(3.1, 12.2, 0);
-    const g = new THREE.Group();
-    g.add(pole, flag);
-    placeBeside(track, g, 0, -(ROAD_HALF_WIDTH + 4));
-    scene.add(g);
+    const poleMat = new THREE.MeshStandardMaterial({
+      color: 0xcfd6dd,
+      roughness: 0.4,
+      metalness: 0.6,
+    });
+    const mast = (id: FlagId, height: number, poleH: number): THREE.Group => {
+      const g = new THREE.Group();
+      const pole = new THREE.Mesh(
+        new THREE.CylinderGeometry(poleH * 0.0086, poleH * 0.0129, poleH, 6),
+        poleMat
+      );
+      pole.position.y = poleH / 2;
+      pole.castShadow = true;
+      const flag = new THREE.Mesh(
+        flagPlane(id, height),
+        new THREE.MeshStandardMaterial({
+          map: flagTexture(id),
+          side: THREE.DoubleSide,
+          emissive: 0x444444,
+        })
+      );
+      // Hung from the top of the mast, offset by half its own width so
+      // the hoist edge is AT the pole rather than through it.
+      flag.position.set((height * FLAGS[id].ratio) / 2 + 0.1, poleH - height * 0.62, 0);
+      g.add(pole, flag);
+      return g;
+    };
+
+    placeBeside(track, mast("kw", 3, 14), 0, -(ROAD_HALF_WIDTH + 4));
+    // The rest of the region, back down the corniche from the line, on
+    // matched shorter masts. Kuwait is skipped here — it is already
+    // flying, taller, at the line.
+    const rest = FLAG_IDS.filter((id) => id !== "kw");
+    for (let i = 0; i < rest.length; i++) {
+      placeBeside(track, mast(rest[i], 2.1, 10), -26 - i * 13, -(ROAD_HALF_WIDTH + 4));
+    }
   }
 
   // The grid crew waiting under that flag: four racers in crew colours,
