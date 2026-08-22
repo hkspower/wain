@@ -39,7 +39,7 @@ export function Field({
 
   return (
     <View style={styles.field}>
-      <ThemedText type="small" themeColor="textSecondary" style={text}>
+      <ThemedText type="label" themeColor="textSecondary" style={text}>
         {label}
       </ThemedText>
       <TextInput
@@ -63,7 +63,7 @@ export function Field({
         ]}
       />
       {error ? (
-        <ThemedText type="small" themeColor="danger" style={text}>
+        <ThemedText type="label" themeColor="danger" style={text}>
           {error}
         </ThemedText>
       ) : null}

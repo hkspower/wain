@@ -88,7 +88,7 @@ export function AdminShell({
                   <ThemedView
                     type={active ? 'backgroundSelected' : 'backgroundElement'}
                     style={[styles.navItem, { borderColor: active ? theme.tint : theme.border }]}>
-                    <ThemedText type="smallBold" themeColor={active ? 'tintText' : 'textSecondary'}>
+                    <ThemedText type="labelBold" themeColor={active ? 'tintText' : 'textSecondary'}>
                       {label}
                     </ThemedText>
                   </ThemedView>
@@ -101,7 +101,7 @@ export function AdminShell({
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
-          <ThemedText type="subtitle" style={styles.title}>
+          <ThemedText type="display" style={styles.title}>
             {title}
           </ThemedText>
 
@@ -112,7 +112,7 @@ export function AdminShell({
             <ThemedView
               type="backgroundElement"
               style={[styles.errorBox, { borderColor: theme.danger }]}>
-              <ThemedText type="small" themeColor="danger" accessibilityLiveRegion="polite">
+              <ThemedText type="label" themeColor="danger" accessibilityLiveRegion="polite">
                 {notice}
               </ThemedText>
             </ThemedView>
@@ -124,10 +124,10 @@ export function AdminShell({
             </View>
           ) : error ? (
             <ThemedView type="backgroundElement" style={[styles.errorBox, { borderColor: theme.danger }]}>
-              <ThemedText type="smallBold" themeColor="danger">
+              <ThemedText type="labelBold" themeColor="danger">
                 Could not load
               </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary" selectable>
+              <ThemedText type="label" themeColor="textSecondary" selectable>
                 {error}
               </ThemedText>
               {onRetry && (
@@ -136,7 +136,7 @@ export function AdminShell({
                   onPress={onRetry}
                   style={press(false, styles.retry,
                     { borderColor: theme.border })}>
-                  <ThemedText type="smallBold">Try again</ThemedText>
+                  <ThemedText type="labelBold">Try again</ThemedText>
                 </Pressable>
               )}
             </ThemedView>

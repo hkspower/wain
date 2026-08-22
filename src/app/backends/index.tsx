@@ -58,7 +58,7 @@ function SignIn() {
     <AdminShell title="Sign in">
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.form}>
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="label" themeColor="textSecondary">
             Email
           </ThemedText>
           <TextInput
@@ -73,7 +73,7 @@ function SignIn() {
               { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: theme.border },
             ]}
           />
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="label" themeColor="textSecondary">
             Password
           </ThemedText>
           <TextInput
@@ -91,7 +91,7 @@ function SignIn() {
           />
 
           {error && (
-            <ThemedText type="small" themeColor="danger" accessibilityLiveRegion="polite">
+            <ThemedText type="label" themeColor="danger" accessibilityLiveRegion="polite">
               {error}
             </ThemedText>
           )}
@@ -146,11 +146,11 @@ function Dashboard() {
             style={styles.primary}
           />
 
-          <ThemedText type="smallBold" style={styles.section}>
+          <ThemedText type="labelBold" style={styles.section}>
             Running out
           </ThemedText>
           {data.lowStock.length === 0 ? (
-            <ThemedText type="small" themeColor="textSecondary">
+            <ThemedText type="label" themeColor="textSecondary">
               Nothing is low.
             </ThemedText>
           ) : (
@@ -159,10 +159,10 @@ function Dashboard() {
                 key={`${s.slug}-${s.size}`}
                 type="backgroundElement"
                 style={[adminStyles.card, adminStyles.rowBetween, { borderColor: theme.border }]}>
-                <ThemedText type="small">
+                <ThemedText type="label">
                   {s.name} · {s.size}
                 </ThemedText>
-                <ThemedText type="smallBold" themeColor={s.stock === 0 ? 'danger' : 'tintText'}>
+                <ThemedText type="labelBold" themeColor={s.stock === 0 ? 'danger' : 'tintText'}>
                   {s.stock}
                 </ThemedText>
               </ThemedView>
@@ -178,10 +178,10 @@ function Tile({ label, value, tone }: { label: string; value: string; tone?: boo
   const theme = useTheme();
   return (
     <ThemedView type="backgroundElement" style={[styles.tile, { borderColor: theme.border }]}>
-      <ThemedText type="small" themeColor="textSecondary">
+      <ThemedText type="label" themeColor="textSecondary">
         {label}
       </ThemedText>
-      <ThemedText type="smallBold" themeColor={tone ? 'tintText' : 'text'} style={styles.tileValue}>
+      <ThemedText type="labelBold" themeColor={tone ? 'tintText' : 'text'} style={styles.tileValue}>
         {value}
       </ThemedText>
     </ThemedView>

@@ -63,10 +63,10 @@ export default function ProductScreen() {
         />
 
         <View style={styles.content}>
-          <ThemedText type="small" themeColor="textSecondary" style={text}>
+          <ThemedText type="label" themeColor="textSecondary" style={text}>
             {product.brand}
           </ThemedText>
-          <ThemedText type="subtitle" style={[styles.title, text]}>
+          <ThemedText type="display" style={text}>
             {productName(product, lang)}
           </ThemedText>
           <Price price={product.price} was={product.was} size="large" />
@@ -78,7 +78,7 @@ export default function ProductScreen() {
               hidden: a customer who cannot find their size needs to know it
               exists and is gone, otherwise they conclude the shop does not
               carry it. */}
-          <ThemedText type="smallBold" style={[styles.label, text]}>
+          <ThemedText type="labelBold" style={[styles.label, text]}>
             {t.product.size}
           </ThemedText>
           <View style={[styles.sizeRow, row]}>
@@ -101,7 +101,7 @@ export default function ProductScreen() {
                       backgroundColor: active ? theme.tintSoft : 'transparent',
                     },
                     out && styles.sizeOut)}>
-                  <ThemedText type="smallBold" themeColor={active ? 'tintText' : 'text'}>
+                  <ThemedText type="labelBold" themeColor={active ? 'tintText' : 'text'}>
                     {v.size}
                   </ThemedText>
                 </Pressable>
@@ -110,24 +110,24 @@ export default function ProductScreen() {
           </View>
 
           {size && stock > 0 && stock <= 3 ? (
-            <ThemedText type="small" themeColor="tintText" style={text}>
+            <ThemedText type="label" themeColor="tintText" style={text}>
               {stock === 1 ? t.product.lastOne : t.product.lowStock(stock)}
             </ThemedText>
           ) : null}
 
-          <ThemedText type="smallBold" style={[styles.label, text]}>
+          <ThemedText type="labelBold" style={[styles.label, text]}>
             {t.product.details}
           </ThemedText>
           <View style={styles.details}>
             {productDetails(product, lang).map((d) => (
-              <ThemedText key={d} type="small" themeColor="textSecondary" style={text}>
+              <ThemedText key={d} type="label" themeColor="textSecondary" style={text}>
                 • {d}
               </ThemedText>
             ))}
-            <ThemedText type="small" themeColor="textSecondary" style={text}>
+            <ThemedText type="label" themeColor="textSecondary" style={text}>
               • {t.product.delivery}
             </ThemedText>
-            <ThemedText type="small" themeColor="textSecondary" style={text}>
+            <ThemedText type="label" themeColor="textSecondary" style={text}>
               • {t.product.returns}
             </ThemedText>
           </View>
@@ -141,7 +141,7 @@ export default function ProductScreen() {
         {said ? (
           <View style={[styles.saidRow, row]}>
             <ThemedText
-              type="small"
+              type="label"
               themeColor={said === 'added' ? 'success' : said === 'capped' ? 'textSecondary' : 'danger'}
               style={styles.saidText}
               // Announced, not just shown: the confirmation is the only signal
@@ -160,7 +160,7 @@ export default function ProductScreen() {
                 for tapping twice. */}
             {said !== 'pick' && (
               <Pressable accessibilityRole="button" onPress={() => router.push('/cart')}>
-                <ThemedText type="smallBold" themeColor="tintText">
+                <ThemedText type="labelBold" themeColor="tintText">
                   {t.tabs.cart} →
                 </ThemedText>
               </Pressable>
@@ -196,14 +196,7 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     gap: Spacing.two,
   },
-  title: {
-    fontSize: 28,
-    lineHeight: 36,
-  },
-  label: {
-    marginTop: Spacing.three,
-    fontSize: 16,
-  },
+  label: { marginTop: Spacing.three },
   sizeRow: {
     flexWrap: 'wrap',
     gap: Spacing.two,

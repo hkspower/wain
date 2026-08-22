@@ -123,7 +123,7 @@ export default function CheckoutScreen() {
     autoComplete?: 'name' | 'tel' | 'street-address' | 'off';
   }) => (
     <View style={styles.field}>
-      <ThemedText type="small" themeColor="textSecondary" style={text}>
+      <ThemedText type="label" themeColor="textSecondary" style={text}>
         {label}
       </ThemedText>
       <TextInput
@@ -144,12 +144,12 @@ export default function CheckoutScreen() {
         ]}
       />
       {missing(k) && (
-        <ThemedText type="small" themeColor="danger" style={text}>
+        <ThemedText type="label" themeColor="danger" style={text}>
           {t.checkout.required}
         </ThemedText>
       )}
       {k === 'phone' && touched && form.phone.trim() && !phoneOk && (
-        <ThemedText type="small" themeColor="danger" style={text}>
+        <ThemedText type="label" themeColor="danger" style={text}>
           {t.checkout.badPhone}
         </ThemedText>
       )}
@@ -167,7 +167,7 @@ export default function CheckoutScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
           <View style={styles.content}>
-            <ThemedText type="subtitle" style={[styles.title, text]}>
+            <ThemedText type="display" style={text}>
               {t.checkout.title}
             </ThemedText>
 
@@ -175,7 +175,7 @@ export default function CheckoutScreen() {
             <Field label={t.checkout.phone} k="phone" keyboardType="phone-pad" autoComplete="tel" />
 
             <View style={styles.field}>
-              <ThemedText type="small" themeColor="textSecondary" style={text}>
+              <ThemedText type="label" themeColor="textSecondary" style={text}>
                 {t.checkout.governorate}
               </ThemedText>
               <View style={[styles.govRow, row]}>
@@ -193,7 +193,7 @@ export default function CheckoutScreen() {
                           borderColor: active ? theme.tint : theme.border,
                           backgroundColor: active ? theme.tintSoft : theme.backgroundElement,
                         })}>
-                      <ThemedText type="small" themeColor={active ? 'tintText' : 'text'}>
+                      <ThemedText type="label" themeColor={active ? 'tintText' : 'text'}>
                         {label}
                       </ThemedText>
                     </Pressable>
@@ -201,7 +201,7 @@ export default function CheckoutScreen() {
                 })}
               </View>
               {missing('governorate') && (
-                <ThemedText type="small" themeColor="danger" style={text}>
+                <ThemedText type="label" themeColor="danger" style={text}>
                   {t.checkout.required}
                 </ThemedText>
               )}
@@ -221,7 +221,7 @@ export default function CheckoutScreen() {
             </View>
             <Field label={t.checkout.notes} k="notes" />
 
-            <ThemedText type="smallBold" style={[styles.label, text]}>
+            <ThemedText type="labelBold" style={[styles.label, text]}>
               {t.checkout.payment}
             </ThemedText>
             <View style={styles.payList}>
@@ -246,7 +246,7 @@ export default function CheckoutScreen() {
                         backgroundColor: active ? theme.tintSoft : theme.backgroundElement,
                       })}>
                     <Text style={styles.payIcon}>{icon}</Text>
-                    <ThemedText type="smallBold" themeColor={active ? 'tintText' : 'text'}>
+                    <ThemedText type="labelBold" themeColor={active ? 'tintText' : 'text'}>
                       {label}
                     </ThemedText>
                   </Pressable>
@@ -255,7 +255,7 @@ export default function CheckoutScreen() {
             </View>
 
             {error && (
-              <ThemedText type="small" themeColor="danger" accessibilityLiveRegion="polite" style={text}>
+              <ThemedText type="label" themeColor="danger" accessibilityLiveRegion="polite" style={text}>
                 {error}
               </ThemedText>
             )}
@@ -265,8 +265,8 @@ export default function CheckoutScreen() {
         <ThemedView type="background" style={[styles.actionBar, { borderColor: theme.border }]}>
           <View style={styles.content}>
             <View style={[styles.totalRow, row]}>
-              <ThemedText type="smallBold">{t.cart.total}</ThemedText>
-              <ThemedText type="smallBold">{formatPrice(total, lang)}</ThemedText>
+              <ThemedText type="labelBold">{t.cart.total}</ThemedText>
+              <ThemedText type="labelBold">{formatPrice(total, lang)}</ThemedText>
             </View>
             {/* The spinner sits INSIDE the button — see components/ui/button.tsx.
                 An order takes a round trip to a bank; without it the customer
@@ -296,7 +296,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     gap: Spacing.two,
   },
-  title: { fontSize: 26, lineHeight: 34 },
   field: { gap: Spacing.half, flex: 1 },
   input: {
     minHeight: TapTarget,
@@ -315,7 +314,7 @@ const styles = StyleSheet.create({
   },
   threeUp: { gap: Spacing.two },
   third: { flex: 1 },
-  label: { marginTop: Spacing.three, fontSize: 16 },
+  label: { marginTop: Spacing.three },
   payList: { gap: Spacing.two },
   pay: {
     alignItems: 'center',

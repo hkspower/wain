@@ -86,10 +86,10 @@ export default function StockScreen() {
             type="backgroundElement"
             style={[adminStyles.card, { borderColor: i.stock === 0 ? theme.danger : theme.border }]}>
             <View style={adminStyles.rowBetween}>
-              <ThemedText type="smallBold" style={styles.name}>
+              <ThemedText type="labelBold" style={styles.name}>
                 {i.name}
               </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
+              <ThemedText type="label" themeColor="textSecondary">
                 {i.size}
               </ThemedText>
             </View>
@@ -123,7 +123,7 @@ export default function StockScreen() {
                 {saving === k ? (
                   <ActivityIndicator color="#ffffff" />
                 ) : (
-                  <ThemedText type="smallBold" themeColor={dirty ? 'onInk' : 'textSecondary'}>
+                  <ThemedText type="labelBold" themeColor={dirty ? 'onInk' : 'textSecondary'}>
                     {saved === k ? 'Saved' : 'Save'}
                   </ThemedText>
                 )}

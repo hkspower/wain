@@ -26,18 +26,19 @@ export function Price({
 
   return (
     <View style={[row, styles.wrap]}>
-      <ThemedText
-        type={size === 'large' ? 'subtitle' : 'smallBold'}
-        style={size === 'large' ? styles.large : undefined}>
+      {/* The price has its own role. It is the one number a customer reads
+          before anything else on the card, and it was borrowing the heading
+          size — which meant it changed whenever a heading did. */}
+      <ThemedText type={size === 'large' ? 'display' : 'price'}>
         {formatPrice(price, lang)}
       </ThemedText>
       {off > 0 && was ? (
         <>
-          <ThemedText type="small" themeColor="textSecondary" style={styles.was}>
+          <ThemedText type="label" themeColor="textSecondary" style={styles.was}>
             {formatPrice(was, lang)}
           </ThemedText>
           <View style={styles.saveChip}>
-            <ThemedText type="small" style={styles.saveText}>
+            <ThemedText type="label" style={styles.saveText}>
               {t.product.save(off)}
             </ThemedText>
           </View>
@@ -52,10 +53,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
     flexWrap: 'wrap',
-  },
-  large: {
-    fontSize: 28,
-    lineHeight: 34,
   },
   was: {
     textDecorationLine: 'line-through',

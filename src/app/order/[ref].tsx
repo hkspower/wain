@@ -22,7 +22,7 @@ export default function OrderScreen() {
       <Stack.Screen options={{ title: t.order.title }} />
       <View style={styles.content}>
         <Text style={styles.tick}>✅</Text>
-        <ThemedText type="subtitle" style={styles.center}>
+        <ThemedText type="display" style={styles.center}>
           {t.order.thanks}
         </ThemedText>
         <ThemedText themeColor="textSecondary" style={styles.center}>
@@ -30,12 +30,12 @@ export default function OrderScreen() {
         </ThemedText>
 
         <ThemedView type="backgroundElement" style={[styles.refBox, { borderColor: theme.border }]}>
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="label" themeColor="textSecondary">
             {t.order.ref}
           </ThemedText>
           {/* The reference is selectable: it is the one thing on this screen
               the customer may need to paste into WhatsApp. */}
-          <ThemedText type="smallBold" selectable style={styles.ref}>
+          <ThemedText type="labelBold" selectable style={styles.ref}>
             {String(ref)}
           </ThemedText>
         </ThemedView>

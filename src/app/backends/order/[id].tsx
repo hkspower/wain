@@ -79,26 +79,26 @@ export default function OrderScreen() {
             type="backgroundElement"
             style={[adminStyles.card, { borderColor: theme.border }]}>
             <View style={adminStyles.rowBetween}>
-              <ThemedText type="smallBold">{order.name}</ThemedText>
+              <ThemedText type="labelBold">{order.name}</ThemedText>
               <StatusChip status={order.status} />
             </View>
             {/* Selectable: the two things a manager copies out of this screen
                 are the phone number and the address, usually into WhatsApp. */}
-            <ThemedText type="small" themeColor="textSecondary" selectable>
+            <ThemedText type="label" themeColor="textSecondary" selectable>
               {order.phone}
             </ThemedText>
-            <ThemedText type="small" themeColor="textSecondary" selectable>
+            <ThemedText type="label" themeColor="textSecondary" selectable>
               {order.governorate}, {order.area}, block {order.block}, street {order.street}, house{' '}
               {order.house}
             </ThemedText>
             {order.notes ? (
-              <ThemedText type="small" themeColor="silver">
+              <ThemedText type="label" themeColor="silver">
                 “{order.notes}”
               </ThemedText>
             ) : null}
           </ThemedView>
 
-          <ThemedText type="smallBold" style={styles.section}>
+          <ThemedText type="labelBold" style={styles.section}>
             Items
           </ThemedText>
           {order.lines.map((l, i) => (
@@ -106,10 +106,10 @@ export default function OrderScreen() {
               key={`${l.name}-${l.size}-${i}`}
               type="backgroundElement"
               style={[adminStyles.card, adminStyles.rowBetween, { borderColor: theme.border }]}>
-              <ThemedText type="small" style={styles.lineName}>
+              <ThemedText type="label" style={styles.lineName}>
                 {l.qty} × {l.name} · {l.size}
               </ThemedText>
-              <ThemedText type="smallBold">{formatPrice(l.price * l.qty, lang)}</ThemedText>
+              <ThemedText type="labelBold">{formatPrice(l.price * l.qty, lang)}</ThemedText>
             </ThemedView>
           ))}
 
@@ -117,31 +117,31 @@ export default function OrderScreen() {
             type="backgroundElement"
             style={[adminStyles.card, { borderColor: theme.border }]}>
             <View style={adminStyles.rowBetween}>
-              <ThemedText type="small" themeColor="textSecondary">
+              <ThemedText type="label" themeColor="textSecondary">
                 Subtotal
               </ThemedText>
-              <ThemedText type="small">{formatPrice(order.subtotal, lang)}</ThemedText>
+              <ThemedText type="label">{formatPrice(order.subtotal, lang)}</ThemedText>
             </View>
             <View style={adminStyles.rowBetween}>
-              <ThemedText type="small" themeColor="textSecondary">
+              <ThemedText type="label" themeColor="textSecondary">
                 Delivery
               </ThemedText>
-              <ThemedText type="small">{formatPrice(order.delivery, lang)}</ThemedText>
+              <ThemedText type="label">{formatPrice(order.delivery, lang)}</ThemedText>
             </View>
             <View style={adminStyles.rowBetween}>
-              <ThemedText type="smallBold">Total</ThemedText>
-              <ThemedText type="smallBold">{formatPrice(order.total, lang)}</ThemedText>
+              <ThemedText type="labelBold">Total</ThemedText>
+              <ThemedText type="labelBold">{formatPrice(order.total, lang)}</ThemedText>
             </View>
           </ThemedView>
 
-          <ThemedText type="smallBold" style={styles.section}>
+          <ThemedText type="labelBold" style={styles.section}>
             Move to
           </ThemedText>
           {/* Only the transitions this status allows are offered. The panel
               cannot send an order backwards, because a delivered order that
               becomes "new" again is a reporting bug that outlives the tap. */}
           {NEXT_STATUS[order.status].length === 0 ? (
-            <ThemedText type="small" themeColor="textSecondary">
+            <ThemedText type="label" themeColor="textSecondary">
               This order is finished.
             </ThemedText>
           ) : (
@@ -180,7 +180,7 @@ export default function OrderScreen() {
 }
 
 const styles = StyleSheet.create({
-  section: { marginTop: Spacing.four, fontSize: 16 },
+  section: { marginTop: Spacing.four },
   lineName: { flex: 1 },
   moves: { gap: Spacing.two },
   move: {

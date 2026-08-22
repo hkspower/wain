@@ -39,10 +39,10 @@ export function ProductCard({ product }: { product: Product }) {
           </RemoteArt>
 
           <View style={styles.body}>
-            <ThemedText type="smallBold" numberOfLines={2} style={text}>
+            <ThemedText type="labelBold" numberOfLines={2} style={text}>
               {productName(product, lang)}
             </ThemedText>
-            <ThemedText type="small" themeColor="textSecondary" style={text}>
+            <ThemedText type="label" themeColor="textSecondary" style={text}>
               {product.brand}
             </ThemedText>
             <Price price={product.price} was={product.was} />

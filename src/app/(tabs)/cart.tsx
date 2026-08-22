@@ -28,10 +28,10 @@ export default function CartScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.emptyWrap}>
           <Text style={styles.emptyEmoji}>🛒</Text>
-          <ThemedText type="smallBold" style={styles.center}>
+          <ThemedText type="labelBold" style={styles.center}>
             {t.cart.empty}
           </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary" style={styles.center}>
+          <ThemedText type="label" themeColor="textSecondary" style={styles.center}>
             {t.cart.emptyText}
           </ThemedText>
           <Button label={t.cart.browse} onPress={() => router.push('/shop')} style={styles.primary} />
@@ -67,13 +67,13 @@ export default function CartScreen() {
                 />
 
                 <View style={styles.lineBody}>
-                  <ThemedText type="smallBold" numberOfLines={2} style={text}>
+                  <ThemedText type="labelBold" numberOfLines={2} style={text}>
                     {productName(p, lang)}
                   </ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary" style={text}>
+                  <ThemedText type="label" themeColor="textSecondary" style={text}>
                     {t.product.size} {l.size}
                   </ThemedText>
-                  <ThemedText type="smallBold" style={text}>
+                  <ThemedText type="labelBold" style={text}>
                     {formatPrice(p.price * l.qty, lang)}
                   </ThemedText>
 
@@ -87,13 +87,13 @@ export default function CartScreen() {
                       accessibilityRole="button"
                       onPress={() => remove(l.slug, l.size)}
                       style={press(false, styles.removeHit)}>
-                      <ThemedText type="small" themeColor="danger">
+                      <ThemedText type="label" themeColor="danger">
                         {t.cart.remove}
                       </ThemedText>
                     </Pressable>
                   </View>
                   {l.qty >= cap && (
-                    <ThemedText type="small" themeColor="textSecondary" style={text}>
+                    <ThemedText type="label" themeColor="textSecondary" style={text}>
                       {t.cart.capped}
                     </ThemedText>
                   )}
@@ -103,7 +103,7 @@ export default function CartScreen() {
           })}
 
           {delivery > 0 && (
-            <ThemedText type="small" themeColor="tintText" style={text}>
+            <ThemedText type="label" themeColor="tintText" style={text}>
               {t.cart.freeOver(formatPrice(FREE_DELIVERY_OVER, lang))}
             </ThemedText>
           )}
@@ -118,22 +118,22 @@ export default function CartScreen() {
         style={[styles.summary, { borderColor: theme.border, paddingBottom: BottomTabInset }]}>
         <View style={styles.content}>
           <View style={[styles.totalRow, row]}>
-            <ThemedText type="small" themeColor="textSecondary">
+            <ThemedText type="label" themeColor="textSecondary">
               {t.cart.subtotal}
             </ThemedText>
-            <ThemedText type="small">{formatPrice(subtotal, lang)}</ThemedText>
+            <ThemedText type="label">{formatPrice(subtotal, lang)}</ThemedText>
           </View>
           <View style={[styles.totalRow, row]}>
-            <ThemedText type="small" themeColor="textSecondary">
+            <ThemedText type="label" themeColor="textSecondary">
               {t.cart.delivery}
             </ThemedText>
-            <ThemedText type="small">
+            <ThemedText type="label">
               {delivery === 0 ? t.cart.free : formatPrice(delivery, lang)}
             </ThemedText>
           </View>
           <View style={[styles.totalRow, row]}>
-            <ThemedText type="smallBold">{t.cart.total}</ThemedText>
-            <ThemedText type="smallBold">{formatPrice(total, lang)}</ThemedText>
+            <ThemedText type="labelBold">{t.cart.total}</ThemedText>
+            <ThemedText type="labelBold">{formatPrice(total, lang)}</ThemedText>
           </View>
           <Button label={t.cart.checkout} onPress={() => router.push('/checkout')} style={styles.primary} />
         </View>

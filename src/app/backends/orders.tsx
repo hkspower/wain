@@ -66,7 +66,7 @@ export default function OrdersScreen() {
               <ThemedView
                 type={active ? 'backgroundSelected' : 'backgroundElement'}
                 style={[styles.filter, { borderColor: active ? theme.tint : theme.border }]}>
-                <ThemedText type="small" themeColor={active ? 'tintText' : 'textSecondary'}>
+                <ThemedText type="label" themeColor={active ? 'tintText' : 'textSecondary'}>
                   {f}
                 </ThemedText>
               </ThemedView>
@@ -76,7 +76,7 @@ export default function OrdersScreen() {
       </ScrollView>
 
       {orders && orders.length === 0 ? (
-        <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
+        <ThemedText type="label" themeColor="textSecondary" style={styles.empty}>
           No orders with that status.
         </ThemedText>
       ) : (
@@ -94,20 +94,20 @@ export default function OrdersScreen() {
               type="backgroundElement"
               style={[adminStyles.card, { borderColor: theme.border }]}>
               <View style={adminStyles.rowBetween}>
-                <ThemedText type="smallBold">{o.ref}</ThemedText>
+                <ThemedText type="labelBold">{o.ref}</ThemedText>
                 <StatusChip status={o.status} />
               </View>
               <View style={adminStyles.rowBetween}>
-                <ThemedText type="small" themeColor="textSecondary">
+                <ThemedText type="label" themeColor="textSecondary">
                   {o.name} · {o.phone}
                 </ThemedText>
-                <ThemedText type="smallBold">{formatPrice(o.total, lang)}</ThemedText>
+                <ThemedText type="labelBold">{formatPrice(o.total, lang)}</ThemedText>
               </View>
               <View style={adminStyles.rowBetween}>
-                <ThemedText type="small" themeColor="textSecondary">
+                <ThemedText type="label" themeColor="textSecondary">
                   {o.payment.toUpperCase()}
                 </ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
+                <ThemedText type="label" themeColor="textSecondary">
                   {o.createdAt}
                 </ThemedText>
               </View>

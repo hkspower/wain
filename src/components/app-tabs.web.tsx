@@ -69,7 +69,7 @@ export function TabButton({ children, isFocused, badge, ...props }: TabTriggerSl
       <ThemedView
         type={isFocused ? 'backgroundSelected' : 'backgroundElement'}
         style={styles.tabButtonView}>
-        <ThemedText type="small" themeColor={isFocused ? 'tintText' : 'textSecondary'}>
+        <ThemedText type="label" themeColor={isFocused ? 'tintText' : 'textSecondary'}>
           {children}
         </ThemedText>
       </ThemedView>
@@ -83,7 +83,7 @@ export function TabButton({ children, isFocused, badge, ...props }: TabTriggerSl
           puts small white-on-charcoal chips on the product cards. */}
       {showCount ? (
         <View style={[styles.badge, { backgroundColor: theme.inkSteel }]}>
-          <ThemedText type="small" themeColor="onInk" style={styles.badgeText}>
+          <ThemedText type="label" themeColor="onInk" style={styles.badgeText}>
             {count > 9 ? '9+' : String(count)}
           </ThemedText>
         </View>
@@ -100,7 +100,7 @@ export function CustomTabList(props: TabListProps) {
     <View {...props} style={[styles.tabListContainer, styles.safeTop, { borderColor: theme.border }]}>
       <ThemedView type="background" style={styles.fill}>
         <View style={[styles.innerContainer, row]}>
-          <ThemedText type="smallBold" style={styles.brandText} themeColor="tintText">
+          <ThemedText type="labelBold" style={styles.brandText} themeColor="tintText">
             {t.brand}
           </ThemedText>
           {props.children}

@@ -57,6 +57,24 @@ check((await seen(p.getByText('رجالي')).count()) > 0, 'category tiles rende
 const shot = async (name) => p.screenshot({ path: `/tmp/sporta-${name}.png`, fullPage: false })
 await shot('home-ar')
 
+// --- the typefaces are actually loaded ------------------------------------
+// Not "did useFonts resolve" — what the text is being PAINTED in. A font that
+// fails to register falls back silently to the system face, and the page still
+// looks fine at a glance while being a different shop.
+const offScale = await p.evaluate(() =>
+  [...document.querySelectorAll('*')]
+    .filter((el) => el.children.length === 0 && el.textContent?.trim() && !['STYLE', 'SCRIPT'].includes(el.tagName))
+    .map((el) => ({
+      family: getComputedStyle(el).fontFamily.split(',')[0].replace(/"/g, ''),
+      text: el.textContent.trim(),
+    }))
+    // Emoji and the arrow glyph are deliberately left to the system: no text
+    // face carries them, and forcing one renders tofu.
+    .filter((x) => !/^(Plex|Alexandria)/.test(x.family) && !/^[\p{Emoji}\u2190-\u21FF\uFE0F]+$/u.test(x.text))
+    .map((x) => `${x.family}: ${x.text.slice(0, 20)}`),
+)
+check(offScale.length === 0, `every line is set in the app's own typefaces${offScale.length ? ` — ${offScale.slice(0, 3).join(' | ')}` : ''}`)
+
 // --- the top bar ---------------------------------------------------------
 // Every screen has it, so its defects are on every screen. All three of these
 // were real: 28px targets, a bar that scrolled away, and a cart pill that

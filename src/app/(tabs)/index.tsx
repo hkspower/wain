@@ -9,7 +9,7 @@ import { ProductCard } from '@/components/product-card';
 import { RemoteArt } from '@/components/remote-art';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
+import { EMBER_ON_INK, Spacing, TapTarget, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useCart } from '@/lib/cart';
 import { categoryArt } from '@/lib/assets';
@@ -30,7 +30,7 @@ export default function HomeScreen() {
               proportions: the picture is the product grid below, not the
               banner, so the banner stays quiet. */}
           <ThemedView type="inkSilver" style={styles.hero}>
-            <ThemedText type="small" style={[styles.heroKicker, text]}>
+            <ThemedText type="label" style={[styles.heroKicker, text]}>
               {t.home.heroKicker}
             </ThemedText>
             <Text style={[styles.heroTitle, text]}>{t.home.heroTitle}</Text>
@@ -46,7 +46,7 @@ export default function HomeScreen() {
 
           {/* Categories — FULL WIDTH, one per row. They carry the shop's four
               doors and a half-width tile makes each one a thumbnail. */}
-          <ThemedText type="smallBold" style={[styles.sectionTitle, text]}>
+          <ThemedText type="labelBold" style={[styles.sectionTitle, text]}>
             {t.home.categories}
           </ThemedText>
           <View style={styles.categoryList}>
@@ -101,7 +101,7 @@ export default function HomeScreen() {
           </View>
 
           {/* Featured */}
-          <ThemedText type="smallBold" style={[styles.sectionTitle, text]}>
+          <ThemedText type="labelBold" style={[styles.sectionTitle, text]}>
             {t.home.featured}
           </ThemedText>
           <View style={styles.grid}>
@@ -123,20 +123,24 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   heroKicker: {
-    color: '#ff7b17',
+    fontFamily: Type.labelBold.family,
+    fontSize: Type.labelBold.size,
+    color: EMBER_ON_INK,
     fontWeight: '700',
     letterSpacing: 1,
   },
   heroTitle: {
+    fontFamily: Type.display.family,
+    fontSize: Type.display.size,
+    lineHeight: Type.display.lineAr,
     color: '#ffffff',
-    fontSize: 32,
-    lineHeight: 42,
     fontWeight: '700',
   },
   heroText: {
+    fontFamily: Type.body.family,
+    fontSize: Type.body.size,
+    lineHeight: Type.body.lineAr,
     color: 'rgba(255,255,255,0.86)',
-    fontSize: 15,
-    lineHeight: 24,
   },
   heroButton: {
     marginTop: Spacing.two,
@@ -147,14 +151,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.four,
   },
   heroButtonText: {
+    fontFamily: Type.bodyBold.family,
+    fontSize: Type.bodyBold.size,
     color: '#ffffff',
-    fontSize: 16,
     fontWeight: '700',
   },
-  sectionTitle: {
-    marginTop: Spacing.two,
-    fontSize: 16,
-  },
+  sectionTitle: { marginTop: Spacing.two },
   categoryList: {
     gap: Spacing.two,
   },
@@ -177,8 +179,9 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
   },
   categoryKicker: {
+    fontFamily: Type.label.family,
+    fontSize: Type.label.size,
     color: 'rgba(255,255,255,0.78)',
-    fontSize: 13,
     fontWeight: '600',
     letterSpacing: 0.5,
   },
@@ -190,14 +193,16 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.one,
   },
   categoryBadgeText: {
+    fontFamily: Type.labelBold.family,
+    fontSize: Type.label.size,
     color: '#ffffff',
-    fontSize: 13,
     fontWeight: '700',
   },
   categoryName: {
+    fontFamily: Type.display.family,
+    fontSize: Type.display.size,
+    lineHeight: Type.display.lineAr,
     color: '#ffffff',
-    fontSize: 30,
-    lineHeight: 40,
     fontWeight: '700',
   },
   arrowChip: {

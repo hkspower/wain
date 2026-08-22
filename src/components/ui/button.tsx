@@ -1,7 +1,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { press } from '@/components/ui/press';
-import { Opacity, Radius, Spacing, TapTarget } from '@/constants/theme';
+import { Opacity, Radius, Spacing, TapTarget, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useLang } from '@/lib/i18n';
 
@@ -68,7 +68,15 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     paddingHorizontal: Spacing.four,
   },
-  label: { fontSize: 16, fontWeight: '700' },
+  // A raw <Text>, so the family has to be named here: only ThemedText picks
+  // it up from the scale automatically, and a button label in the system face
+  // beside body copy in Plex is the kind of mismatch nobody can name but
+  // everybody sees.
+  label: {
+    fontFamily: Type.bodyBold.family,
+    fontSize: Type.bodyBold.size,
+    fontWeight: Type.bodyBold.weight,
+  },
   spinner: { transform: [{ scale: 0.9 }] },
   off: { opacity: Opacity.disabled },
 });

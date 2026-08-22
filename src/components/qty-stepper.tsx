@@ -38,7 +38,7 @@ export function QtyStepper({
       style={press(false, styles.button,
         { borderColor: theme.border },
         disabled && styles.disabled)}>
-      <ThemedText type="smallBold" style={styles.glyph}>
+      <ThemedText type="labelBold" style={styles.glyph}>
         {label}
       </ThemedText>
     </Pressable>
@@ -48,7 +48,7 @@ export function QtyStepper({
     <View style={[row, styles.wrap]}>
       <Button label="−" to={qty - 1} disabled={qty <= 1} />
       <View style={styles.count}>
-        <ThemedText type="smallBold">{qty}</ThemedText>
+        <ThemedText type="labelBold">{qty}</ThemedText>
       </View>
       <Button label="+" to={qty + 1} disabled={atMax} />
     </View>

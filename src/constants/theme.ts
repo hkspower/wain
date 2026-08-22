@@ -86,6 +86,56 @@ export const Colors = {
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
+/**
+ * THE TYPE SCALE. Roles, not sizes.
+ *
+ * Before this there were eight loosely named text "types" and then twelve
+ * screens overriding them inline — fontSize 22, 24, 26, 28, 30, 32 — so the
+ * same thing (a screen's title) was four different sizes depending which screen
+ * it was on, and changing "how big is a title" meant finding all four.
+ *
+ * ARABIC NEEDS MORE LEADING, and this is not a preference. Arabic letterforms
+ * carry marks above and descenders below the baseline; at the line height that
+ * suits Latin they collide, and a dotted qaf lands on the line above. Every
+ * role therefore has two line heights, and ThemedText picks by language.
+ *
+ * `family` names a file loaded in app/_layout.tsx. Alexandria is the display
+ * face, IBM Plex Sans Arabic everything else — the same pair the website uses,
+ * so a customer who has seen one does not meet different letterforms in the
+ * other.
+ */
+/**
+ * The ember on a charcoal panel.
+ *
+ * Neither theme's `tint` is right here: a dark panel is dark in both light and
+ * dark mode, so the colour on it cannot come from the mode. The light-mode
+ * ember is too dark against #2B3138 (2.4:1) and the raw brand orange too loud;
+ * this is the one measured for this ground — 4.62:1.
+ */
+export const EMBER_ON_INK = '#e2803f';
+
+export const Type = {
+  display: { size: 30, line: 38, lineAr: 46, family: 'Alexandria', weight: '700' },
+  title: { size: 24, line: 32, lineAr: 40, family: 'Alexandria', weight: '700' },
+  heading: { size: 17, line: 24, lineAr: 30, family: 'Plex-700', weight: '700' },
+  body: { size: 16, line: 24, lineAr: 30, family: 'Plex-400', weight: '400' },
+  bodyBold: { size: 16, line: 24, lineAr: 30, family: 'Plex-600', weight: '600' },
+  label: { size: 14, line: 20, lineAr: 26, family: 'Plex-400', weight: '400' },
+  labelBold: { size: 14, line: 20, lineAr: 26, family: 'Plex-600', weight: '600' },
+  caption: { size: 12, line: 16, lineAr: 22, family: 'Plex-400', weight: '400' },
+  price: { size: 20, line: 28, lineAr: 34, family: 'Plex-700', weight: '700' },
+} as const;
+
+export type TypeRole = keyof typeof Type;
+
+/** Every font file the app loads, by the family name the scale refers to. */
+export const FONT_FILES = {
+  Alexandria: require('@/assets/fonts/Alexandria.ttf'),
+  'Plex-400': require('@/assets/fonts/Plex-400.ttf'),
+  'Plex-600': require('@/assets/fonts/Plex-600.ttf'),
+  'Plex-700': require('@/assets/fonts/Plex-700.ttf'),
+};
+
 export const Fonts = Platform.select({
   ios: {
     sans: 'system-ui',

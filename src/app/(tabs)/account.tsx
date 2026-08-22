@@ -19,14 +19,14 @@ export default function AccountScreen() {
 
   return (
     <Screen tabBar>
-      <ThemedText type="subtitle" style={[styles.title, text]}>
+      <ThemedText type="display" style={text}>
         {t.account.title}
       </ThemedText>
 
       {/* LANGUAGE FIRST. It is the setting most likely to be wanted on a
           first run, and burying it under the order history means an
           English speaker has to read Arabic to find it. */}
-      <ThemedText type="smallBold" style={[styles.label, text]}>
+      <ThemedText type="labelBold" style={[styles.label, text]}>
         {t.account.language}
       </ThemedText>
       <View style={[styles.langRow, row]}>
@@ -48,7 +48,7 @@ export default function AccountScreen() {
                   borderColor: active ? theme.tint : theme.border,
                   backgroundColor: active ? theme.tintSoft : theme.backgroundElement,
                 })}>
-              <ThemedText type="smallBold" themeColor={active ? 'tintText' : 'text'}>
+              <ThemedText type="labelBold" themeColor={active ? 'tintText' : 'text'}>
                 {label}
               </ThemedText>
             </Pressable>
@@ -56,7 +56,7 @@ export default function AccountScreen() {
         })}
       </View>
 
-      <ThemedText type="smallBold" style={[styles.label, text]}>
+      <ThemedText type="labelBold" style={[styles.label, text]}>
         {t.account.contact}
       </ThemedText>
       <Pressable
@@ -66,17 +66,17 @@ export default function AccountScreen() {
         <ThemedView
           type="backgroundElement"
           style={[styles.rowCard, row, { borderColor: theme.border }]}>
-          <ThemedText type="smallBold">{t.account.whatsapp}</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="labelBold">{t.account.whatsapp}</ThemedText>
+          <ThemedText type="label" themeColor="textSecondary">
             →
           </ThemedText>
         </ThemedView>
       </Pressable>
 
-      <ThemedText type="smallBold" style={[styles.label, text]}>
+      <ThemedText type="labelBold" style={[styles.label, text]}>
         {t.account.about}
       </ThemedText>
-      <ThemedText type="small" themeColor="textSecondary" style={text}>
+      <ThemedText type="label" themeColor="textSecondary" style={text}>
         {t.account.aboutText}
       </ThemedText>
 
@@ -85,7 +85,7 @@ export default function AccountScreen() {
           in it, and they are entitled to know why. */}
       {source === 'bundled' && (
         <ThemedView type="silverSoft" style={[styles.notice, { borderColor: theme.border }]}>
-          <ThemedText type="small" themeColor="silver" style={text}>
+          <ThemedText type="label" themeColor="silver" style={text}>
             {t.account.offline}
           </ThemedText>
         </ThemedView>
@@ -95,8 +95,7 @@ export default function AccountScreen() {
 }
 
 const styles = StyleSheet.create({
-  title: { fontSize: 26, lineHeight: 34 },
-  label: { marginTop: Spacing.three, fontSize: 16 },
+  label: { marginTop: Spacing.three },
   langRow: { gap: Spacing.two },
   lang: {
     flex: 1,
