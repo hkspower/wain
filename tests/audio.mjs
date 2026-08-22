@@ -361,6 +361,95 @@ if (music) {
     `warble rates ${r.slide.warbleA}/${r.slide.warbleB} are a whole-number ratio — they will lock`);
 }
 
+// --- Exhaust: three bands, and a shop that sells a balance ---
+//
+// The exhaust used to be ONE bandpass, which meant every system in the
+// catalogue was the same pipe at a different volume. What is checked
+// here is not that three filter nodes exist — they trivially do — but
+// that they are separated in frequency, that each answers to something
+// different about how the car is being driven, and that the six systems
+// on sale actually differ in BALANCE and not only in level.
+{
+  const ex = (frame, tone) =>
+    page.evaluate(async ([f, tn]) => {
+      const e = window.__grnEngine;
+      e.setPaused(true);
+      const s = e.sound;
+      const spec = window.__grnExhausts[tn];
+      s.setExhaust(spec.pitch, spec.rasp, spec.loud, spec.tone);
+      for (let i = 0; i < 12; i++) s.update(f);
+      await new Promise((r) => setTimeout(r, 400));
+      const d = s.debugState().exhaust;
+      return {
+        lowHz: Math.round(d.lowHz), midHz: Math.round(d.midHz), highHz: Math.round(d.highHz),
+        low: +d.low.toFixed(4), mid: +d.mid.toFixed(4), high: +d.high.toFixed(4),
+      };
+    }, [frame, tone]);
+
+  // Pulling hard low down vs free-revving to the limiter with no load:
+  // the two driving states the three bands are supposed to tell apart.
+  const lug = { ...base, speedKmh: 60, throttle: 1, rpmFrac: 0.25, gear: 2 };
+  const flare = { ...base, speedKmh: 60, throttle: 0.05, rpmFrac: 0.95, gear: 2 };
+
+  const stockLug = await ex(lug, "stock");
+  console.log(`\nexhaust      band     low        mid        high`);
+  console.log(`             centres  ${stockLug.lowHz} Hz` +
+    `     ${stockLug.midHz} Hz    ${stockLug.highHz} Hz`);
+  check(stockLug.midHz > stockLug.lowHz * 2.2 && stockLug.highHz > stockLug.midHz * 2.2,
+    `the three bands are not separated: ${stockLug.lowHz}/${stockLug.midHz}/${stockLug.highHz} Hz`);
+
+  // Each band answers to a different thing. Lugging is load without
+  // revs, so the boom must lead; a no-load flare is revs without load,
+  // so the rasp must lead. If both bands just followed "how much
+  // exhaust", these two frames would rank the same way.
+  const stockFlare = await ex(flare, "stock");
+  console.log(`             lugging  ${stockLug.low}     ${stockLug.mid}     ${stockLug.high}`);
+  console.log(`             flaring  ${stockFlare.low}     ${stockFlare.mid}     ${stockFlare.high}`);
+  check(stockLug.low > stockFlare.low,
+    `the boom does not answer to load (lug ${stockLug.low} vs flare ${stockFlare.low})`);
+  check(stockFlare.high > stockLug.high,
+    `the rasp does not answer to revs (flare ${stockFlare.high} vs lug ${stockLug.high})`);
+
+  // The shop. What is measured is each system's SHAPE — the three bands
+  // normalised by their own sum — so a straight pipe cannot pass just by
+  // being loud. An earlier version of this asserted that no two systems
+  // shared a balance and it failed on the cat-back against the square
+  // tip. That failure was correct: they are the same silencer and the
+  // same plumbing, and only the tip is squared, which does not change
+  // what a car sounds like. Rather than put a lie in the data to keep a
+  // test quiet, the assertion now measures the SPREAD across the shop.
+  const shape = (r) => {
+    const t = r.low + r.mid + r.high;
+    return [r.low / t, r.mid / t, r.high / t];
+  };
+  const ids = ["stock", "exhaust", "exhaust-square", "exhaust-race", "exhaust-twin", "exhaust-ti"];
+  const shapes = {};
+  console.log(`             system            low   mid   high`);
+  for (const id of ids) {
+    const r = await ex({ ...base, speedKmh: 120, throttle: 0.8, rpmFrac: 0.7, gear: 4 }, id);
+    const sh = shape(r);
+    shapes[id] = sh;
+    console.log(`             ${id.padEnd(16)}  ${sh.map((v) => v.toFixed(2)).join("  ")}`);
+  }
+  // Span: the most low-biased system against the most high-biased one.
+  // A shop where every pipe has the same shape is a shop selling one pipe.
+  const lows = ids.map((i) => shapes[i][0]);
+  const highs = ids.map((i) => shapes[i][2]);
+  const lowSpan = Math.max(...lows) - Math.min(...lows);
+  const highSpan = Math.max(...highs) - Math.min(...highs);
+  console.log(`             span of low ${lowSpan.toFixed(2)}, span of high ${highSpan.toFixed(2)}`);
+  check(lowSpan > 0.12, `every system has the same amount of boom (span ${lowSpan.toFixed(3)})`);
+  check(highSpan > 0.12, `every system has the same amount of rasp (span ${highSpan.toFixed(3)})`);
+
+  // Character, named: the titanium quad is the metallic one and the
+  // straight pipe is the deep one. This is the claim the shop text makes
+  // to the player, so it is the claim worth testing.
+  check(shapes["exhaust-ti"][2] > shapes["exhaust-race"][2],
+    "the titanium quad is not more metallic than the straight pipe");
+  check(shapes["exhaust"][0] > shapes["stock"][0],
+    "the cat-back is not deeper than stock");
+}
+
 console.log(fail.length ? "\nFAILURES:\n - " + fail.join("\n - ") : "\nall audio checks passed");
 await browser.close();
 process.exit(fail.length ? 1 : 0);

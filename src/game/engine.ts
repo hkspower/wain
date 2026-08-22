@@ -56,7 +56,7 @@ import {
   PUMP_MAX_KMH,
   rpmAt,
 } from "./engines";
-import { loadGarage, saveGarage, computeEffects, addKd, fuelOf, setFuel, TuneEffects, getCar, CARS, rivalsBeaten, saveRivalsBeaten } from "./mods";
+import { loadGarage, saveGarage, computeEffects, addKd, fuelOf, setFuel, TuneEffects, getCar, CARS, rivalsBeaten, saveRivalsBeaten, EXHAUSTS } from "./mods";
 import { levelInfo, recordRace, recordLap, loadProfileStats, LevelInfo } from "./profile";
 
 // Tokyo-Xtreme-Racer-style rules, Kuwait edition: cruise the loop, find the
@@ -1297,7 +1297,8 @@ export class GameEngine {
       this.sound.setExhaust(
         this.tune.exhaust.pitch,
         this.tune.exhaust.rasp,
-        this.tune.exhaust.loud
+        this.tune.exhaust.loud,
+        this.tune.exhaust.tone
       );
       this.sound.revStart();
       this.music = new Music(this.sound.audioContext);
@@ -2804,7 +2805,7 @@ export class GameEngine {
       this.tune.aspiration === "super" ? "super" : this.tune.boostMult > 0 ? "turbo" : "none"
     );
     const ex = this.tune.exhaust;
-    this.sound?.setExhaust(ex.pitch, ex.rasp, ex.loud);
+    this.sound?.setExhaust(ex.pitch, ex.rasp, ex.loud, ex.tone);
   }
 
   /**
@@ -4846,6 +4847,9 @@ export class GameEngine {
     (window as unknown as { __grnBuildCar: typeof createCar }).__grnBuildCar = createCar;
     (window as unknown as { __grnCars: typeof CARS }).__grnCars = CARS;
     (window as unknown as { __grnRig: typeof RIG }).__grnRig = RIG;
+    // Every exhaust in the shop, so a test can drive the three bands
+    // from the spec side and hear whether they actually differ.
+    (window as unknown as { __grnExhausts: typeof EXHAUSTS }).__grnExhausts = EXHAUSTS;
     // The flags, so a test can read back what was actually drawn rather
     // than trusting that seventeen draw() functions all did something.
     (

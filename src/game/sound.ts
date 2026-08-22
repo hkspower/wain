@@ -92,12 +92,29 @@ export class SoundEngine {
   private lopeDepth = 0;
   private engGain: GainNode;
   private engFilter: BiquadFilterNode;
+  /**
+   * The exhaust, in three bands.
+   *
+   * `exhaustFilter`/`exhaustGain` are the MID band and keep their old
+   * names deliberately: the cross-plane lope is summed into that gain,
+   * and the lope belongs in the middle of the spectrum where a burble is
+   * actually audible. Renaming it would have moved the lope onto a band
+   * chosen by alphabet rather than by ear.
+   */
+  private exLowGain: GainNode;
+  private exLowFilter: BiquadFilterNode;
   private exhaustGain: GainNode;
   private exhaustFilter: BiquadFilterNode;
+  private exHighGain: GainNode;
+  private exHighFilter: BiquadFilterNode;
   /** The fitted system's voice, against stock. Set by setExhaust(). */
   private exPitch = 1;
   private exRasp = 1;
   private exLoud = 1;
+  /** Balance of the three bands. Stock is flat. */
+  private exLow = 1;
+  private exMid = 1;
+  private exHigh = 1;
   private windGain: GainNode;
   private windFilter: BiquadFilterNode;
   private skidGain: GainNode;
@@ -205,14 +222,35 @@ export class SoundEngine {
       this.engLayerGains.push(g);
     }
 
-    // --- Exhaust rasp
-    this.exhaustFilter = this.ctx.createBiquadFilter();
-    this.exhaustFilter.type = "bandpass";
-    this.exhaustFilter.frequency.value = 180;
-    this.exhaustFilter.Q.value = 1.2;
-    this.exhaustGain = this.ctx.createGain();
-    this.exhaustGain.gain.value = 0;
-    this.loopNoise().connect(this.exhaustFilter).connect(this.exhaustGain).connect(this.bed);
+    // --- Exhaust: boom, bark and rasp
+    //
+    // This was one bandpass at 180 Hz, and one band can only ever say
+    // "more exhaust". Every system in the shop sounded like the same pipe
+    // at a different volume, because that is literally what it was — the
+    // spec's pitch/rasp/loud slid one filter around and nothing else.
+    //
+    // A real pipe speaks in three places at once. There is a boom you
+    // feel rather than hear, near the firing order's low harmonics; a
+    // bark in the middle of your hearing where the silencer either eats
+    // it or does not; and a metallic rasp on top that a thin-wall
+    // titanium system has and a stock cast silencer never will. What
+    // separates two exhausts is the BALANCE of those three, not the
+    // level of one, so the shop now sells a balance.
+    const band = (freq: number, q: number): [BiquadFilterNode, GainNode] => {
+      const f = this.ctx.createBiquadFilter();
+      f.type = "bandpass";
+      f.frequency.value = freq;
+      f.Q.value = q;
+      const g = this.ctx.createGain();
+      g.gain.value = 0;
+      this.loopNoise().connect(f).connect(g).connect(this.bed);
+      return [f, g];
+    };
+    // Low Q on the top band on purpose: rasp is broadband hiss with a
+    // tilt, not a whistle. A high Q up there rings like a kettle.
+    [this.exLowFilter, this.exLowGain] = band(75, 1.6);
+    [this.exhaustFilter, this.exhaustGain] = band(430, 1.2);
+    [this.exHighFilter, this.exHighGain] = band(2100, 0.9);
 
     // --- Cross-plane lope.
     //
@@ -541,10 +579,18 @@ export class SoundEngine {
    * tune carried an exhaustLevel nobody consumed, so every car sounded
    * identical whatever was bolted to the back of it.
    */
-  setExhaust(pitch: number, rasp: number, loud: number): void {
+  setExhaust(
+    pitch: number,
+    rasp: number,
+    loud: number,
+    tone?: { low: number; mid: number; high: number }
+  ): void {
     this.exPitch = pitch;
     this.exRasp = rasp;
     this.exLoud = loud;
+    this.exLow = tone?.low ?? 1;
+    this.exMid = tone?.mid ?? 1;
+    this.exHigh = tone?.high ?? 1;
   }
 
   /**
@@ -741,12 +787,39 @@ export class SoundEngine {
       limited > 0 ? 0.012 : 0.05
     );
 
-    // The fitted system colours all three: where the band sits, how
-    // resonant it is, and how much of it reaches the bed.
+    // The fitted system colours all three bands: where each sits, how
+    // resonant the middle one is, and how much of each reaches the bed.
+    // All three centres ride exPitch together, so a deep system is deep
+    // everywhere rather than deep in one band and stock in the others.
+    this.exLowFilter.frequency.setTargetAtTime((55 + rpm * 48) * this.exPitch, t, 0.05);
     this.exhaustFilter.frequency.setTargetAtTime((140 + rpm * 260) * this.exPitch, t, 0.05);
+    this.exHighFilter.frequency.setTargetAtTime((1500 + rpm * 1800) * this.exPitch, t, 0.05);
     this.exhaustFilter.Q.setTargetAtTime(1.2 * this.exRasp, t, 0.09);
+
+    // Each band answers to a different thing about how the car is being
+    // driven, which is what stops the three from being one fader.
+    //
+    //   low  — LOAD. An engine pulling hard at 2,000 rpm booms; the same
+    //          engine free-revving in neutral does not, and that
+    //          difference is most of what "it sounds like it's working"
+    //          means.
+    //   mid  — the old mixture of throttle and revs. Unchanged, so a
+    //          stock car still sounds like it did.
+    //   high — REVS. The metallic edge only arrives near the top of a
+    //          gear, and it arrives whether or not you are still on the
+    //          throttle, because it is gas velocity and not fuelling.
     const exLevel = (throttle * 0.05 + rpm * 0.01) * this.exLoud;
-    this.exhaustGain.gain.setTargetAtTime(exLevel, t, 0.06);
+    this.exLowGain.gain.setTargetAtTime(
+      (throttle * 0.055 + rpm * 0.004) * this.exLoud * this.exLow,
+      t,
+      0.07
+    );
+    this.exhaustGain.gain.setTargetAtTime(exLevel * this.exMid, t, 0.06);
+    this.exHighGain.gain.setTargetAtTime(
+      (rpm * rpm * 0.028 + throttle * 0.006) * this.exLoud * this.exHigh,
+      t,
+      0.05
+    );
     // Lope at half crank order — 700 rpm idle is 5.8 beats a second,
     // which is the burble; 6,000 rpm is 50 Hz, which is the roughness
     // the same engine has at the top of a gear. Depth rides the exhaust
@@ -1100,6 +1173,14 @@ export class SoundEngine {
     masterGain: number;
     muted: boolean;
     paused: boolean;
+    exhaust: {
+      lowHz: number;
+      midHz: number;
+      highHz: number;
+      low: number;
+      mid: number;
+      high: number;
+    };
   } {
     return {
       ctx: this.ctx.state,
@@ -1107,6 +1188,14 @@ export class SoundEngine {
       masterGain: this.master.gain.value,
       muted: this.muted,
       paused: this.paused,
+      exhaust: {
+        lowHz: this.exLowFilter.frequency.value,
+        midHz: this.exhaustFilter.frequency.value,
+        highHz: this.exHighFilter.frequency.value,
+        low: this.exLowGain.gain.value,
+        mid: this.exhaustGain.gain.value,
+        high: this.exHighGain.gain.value,
+      },
     };
   }
 

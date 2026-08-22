@@ -169,6 +169,25 @@ export interface ExhaustSpec {
   /** Resonance and level of the rasp, against stock. */
   rasp: number;
   loud: number;
+  /**
+   * The balance of the three bands the pipe speaks in, against stock.
+   *
+   * An exhaust is not one sound with a volume knob. It is a boom you
+   * feel in the floor, a bark in the middle of your hearing, and a rasp
+   * on top — and what makes a straight pipe different from a titanium
+   * quad is not that one is louder, it is WHICH of those three it leans
+   * on. A single band could only ever say "more exhaust"; three can say
+   * deep, or hard, or metallic, which is the difference a player is
+   * actually buying.
+   *
+   * low  — the boom. Rises with LOAD, not revs: an engine pulling hard
+   *        at 2,000 rpm booms, and the same engine free-revving does not.
+   * mid  — the bark. The old single band, and still where the cross-plane
+   *        lope is applied, because that is where it is audible.
+   * high — the rasp. Rises with revs; this is the metallic edge that only
+   *        arrives near the top of a gear.
+   */
+  tone: { low: number; mid: number; high: number };
   /** How hard it barks on a lift: the crack, and the flame with it. */
   pop: number;
   /** Power, as a fraction added to the accel multiplier. */
@@ -176,25 +195,25 @@ export interface ExhaustSpec {
 }
 
 export const EXHAUSTS: Record<string, ExhaustSpec> = {
-  stock: { id: "stock", tips: 2, perSide: 1, bore: 0.05, shape: "round", finish: "steel", pitch: 1, rasp: 1, loud: 1, pop: 1, power: 0 },
+  stock: { id: "stock", tips: 2, perSide: 1, bore: 0.05, shape: "round", finish: "steel", pitch: 1, rasp: 1, loud: 1, pop: 1, power: 0, tone: { low: 1, mid: 1, high: 1 } },
   // A cat-back keeps the catalyst and the silencer: deeper and louder,
   // still civil.
-  exhaust: { id: "sport", tips: 2, perSide: 1, bore: 0.068, shape: "round", finish: "chrome", pitch: 0.88, rasp: 1.35, loud: 1.3, pop: 1.45, power: 0.07 },
+  exhaust: { id: "sport", tips: 2, perSide: 1, bore: 0.068, shape: "round", finish: "chrome", pitch: 0.88, rasp: 1.35, loud: 1.3, pop: 1.45, power: 0.07, tone: { low: 1.5, mid: 1.15, high: 0.8 } },
   // Squared tips, one a side. A different car from the back for the
   // same money as the round one, which is the point of it — the tone is
   // a cat-back's tone because the plumbing ahead of the tip is a
   // cat-back's plumbing.
-  "exhaust-square": { id: "square", tips: 2, perSide: 1, bore: 0.082, shape: "square", finish: "chrome", pitch: 0.86, rasp: 1.4, loud: 1.35, pop: 1.5, power: 0.08 },
+  "exhaust-square": { id: "square", tips: 2, perSide: 1, bore: 0.082, shape: "square", finish: "chrome", pitch: 0.86, rasp: 1.4, loud: 1.35, pop: 1.5, power: 0.08, tone: { low: 1.5, mid: 1.15, high: 0.8 } },
   // Nothing left in the pipe to quieten it. Biggest bore, hardest bark.
-  "exhaust-race": { id: "race", tips: 2, perSide: 1, bore: 0.09, shape: "round", finish: "ceramic", pitch: 0.76, rasp: 1.9, loud: 1.7, pop: 2.2, power: 0.11 },
+  "exhaust-race": { id: "race", tips: 2, perSide: 1, bore: 0.09, shape: "round", finish: "ceramic", pitch: 0.76, rasp: 1.9, loud: 1.7, pop: 2.2, power: 0.11, tone: { low: 1.7, mid: 1.5, high: 1.9 } },
   // Twin tubes each side: one straight-through split into two, so four
   // holes in two clusters. Two smaller bores flow like one big one and
   // resonate higher, which is why a twin-tube system barks rather than
   // booms.
-  "exhaust-twin": { id: "twin", tips: 4, perSide: 2, bore: 0.062, shape: "round", finish: "chrome", pitch: 0.82, rasp: 2.0, loud: 1.6, pop: 2.0, power: 0.12 },
+  "exhaust-twin": { id: "twin", tips: 4, perSide: 2, bore: 0.062, shape: "round", finish: "chrome", pitch: 0.82, rasp: 2.0, loud: 1.6, pop: 2.0, power: 0.12, tone: { low: 1.05, mid: 1.6, high: 1.7 } },
   // Four thin-wall tips. Lighter than the race system and higher-strung
   // with it — the rasp is metallic rather than deep.
-  "exhaust-ti": { id: "titanium", tips: 4, perSide: 1, bore: 0.058, shape: "round", finish: "titanium", pitch: 0.86, rasp: 2.3, loud: 1.75, pop: 2.4, power: 0.14 },
+  "exhaust-ti": { id: "titanium", tips: 4, perSide: 1, bore: 0.058, shape: "round", finish: "titanium", pitch: 0.86, rasp: 2.3, loud: 1.75, pop: 2.4, power: 0.14, tone: { low: 0.6, mid: 1.25, high: 2.4 } },
 };
 
 export const PAINT_COLORS: Record<string, number> = {
