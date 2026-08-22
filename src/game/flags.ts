@@ -42,11 +42,9 @@ import { textTexture, arabicUI } from "./text";
 /** A country whose flag this module can draw. */
 export type FlagId =
   | "bh" // Bahrain
-  | "cy" // Cyprus
   | "eg" // Egypt
   | "ir" // Iran
   | "iq" // Iraq
-  | "il" // Israel
   | "jo" // Jordan
   | "kw" // Kuwait
   | "lb" // Lebanon
@@ -240,85 +238,6 @@ export const FLAGS: Record<FlagId, FlagSpec> = {
     },
   },
 
-  // Cyprus — 3:2. The island itself in copper, over two olive branches.
-  cy: {
-    name: "Cyprus",
-    nameAr: "قبرص",
-    ratio: 3 / 2,
-    draw(ctx, w, h) {
-      ctx.fillStyle = WHITE;
-      ctx.fillRect(0, 0, w, h);
-      // The island. Copper, for the ore the place is named after.
-      //
-      // Drawn as a real outline rather than a rounded blob: the shape is
-      // a broad south-west mass, a notch at Morphou Bay on the north
-      // coast, and the Karpas peninsula running away to the north-east
-      // as a long thin finger. That finger is 40% of the island's length
-      // and is the entire reason the silhouette is recognisable — a
-      // version without it is an amoeba.
-      ctx.fillStyle = "#d57800";
-      const ix = w * 0.5, iy = h * 0.4, sc = w * 0.2;
-      const P: Array<[number, number]> = [
-        [-1.0, 0.22],   // Paphos, the western cape
-        [-0.86, -0.02],
-        [-0.6, -0.16],  // the north-west coast
-        [-0.34, -0.1],  // Morphou Bay, bitten in
-        [-0.16, -0.26],
-        [0.12, -0.32],  // Kyrenia range along the north
-        [0.42, -0.4],
-        [0.72, -0.55],
-        [1.0, -0.78],   // the Karpas tip
-        [1.1, -0.68],
-        [0.78, -0.42],
-        [0.48, -0.26],
-        [0.5, -0.06],   // Famagusta, on the east coast
-        [0.36, 0.16],
-        [0.1, 0.3],     // the south coast
-        [-0.2, 0.36],
-        [-0.5, 0.34],
-        [-0.78, 0.36],  // Limassol and the south-west
-      ];
-      ctx.beginPath();
-      P.forEach(([px, py], i) => {
-        const x = ix + px * sc, y = iy + py * sc;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      });
-      ctx.closePath();
-      ctx.fill();
-      // Two olive branches, crossing below the island — stems meeting at
-      // the centre, leaves paired along each stem.
-      ctx.strokeStyle = "#4e5b31";
-      ctx.fillStyle = "#4e5b31";
-      ctx.lineWidth = h * 0.011;
-      ctx.lineCap = "round";
-      for (const side of [-1, 1]) {
-        const x0 = w * 0.5, y0 = h * 0.83;
-        const x1 = w * (0.5 + side * 0.155), y1 = h * 0.58;
-        ctx.beginPath();
-        ctx.moveTo(x0, y0);
-        ctx.quadraticCurveTo(w * (0.5 + side * 0.13), h * 0.76, x1, y1);
-        ctx.stroke();
-        for (let i = 0; i < 6; i++) {
-          const t = 0.12 + i * 0.17;
-          // Point along the quadratic, so a leaf sits ON the stem.
-          const mt = 1 - t;
-          const bx = mt * mt * x0 + 2 * mt * t * w * (0.5 + side * 0.13) + t * t * x1;
-          const by = mt * mt * y0 + 2 * mt * t * h * 0.76 + t * t * y1;
-          for (const out of [-1, 1]) {
-            ctx.save();
-            ctx.translate(bx, by);
-            ctx.rotate(side * 0.5 + out * 0.75);
-            ctx.beginPath();
-            ctx.ellipse(w * 0.02 * out * side, 0, w * 0.021, h * 0.011, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.restore();
-          }
-        }
-      }
-    },
-  },
-
   // Egypt — 3:2. The Eagle of Saladin on the white band.
   eg: {
     name: "Egypt",
@@ -417,60 +336,74 @@ export const FLAGS: Record<FlagId, FlagSpec> = {
     draw(ctx, w, h) {
       bands(ctx, w, h, ["#239f40", WHITE, "#da0000"]);
       // The takbir, eleven along the foot of the green and eleven along
-      // the head of the red, facing the white.
+      // the head of the red, facing the white — twenty-two in all, for
+      // the date of the revolution.
       const n = 11;
       for (let i = 0; i < n; i++) {
         const x = (w * (i + 0.5)) / n;
-        script(ctx, "الله اکبر", x, h * 0.305, w / n * 0.7, h * 0.055, WHITE);
-        script(ctx, "الله اکبر", x, h * 0.695, w / n * 0.7, h * 0.055, WHITE);
+        script(ctx, "الله اکبر", x, h * 0.297, (w / n) * 0.66, h * 0.062, WHITE);
+        script(ctx, "الله اکبر", x, h * 0.703, (w / n) * 0.66, h * 0.062, WHITE);
       }
-      // The emblem: a central sword between two pairs of crescents,
-      // the whole reading as a tulip. Drawn as five separate strokes
-      // with a shamsa bar across the middle — the first pass was two
-      // quadratics a side that filled into a single red lobe, which is
-      // a blob, not an emblem. The silhouette here is symmetric, open
-      // between the elements, and taller than it is wide.
-      const cx = w * 0.5, cy = h * 0.5, s2 = h * 0.2;
+
+      // The emblem: four crescents around a central sword, the whole
+      // reading as a tulip, with a shadda bar across the top.
+      //
+      // Two rewrites. The first filled into one red lobe; the second was
+      // five separate strokes that did not agree on a centre. This one
+      // is built the way the emblem is actually composed — a vertical
+      // axis, then mirrored pairs stepped OUTWARD and DOWNWARD from it,
+      // each a closed crescent with its own opening. The gaps between
+      // the five elements are as much of the shape as the elements.
+      const cx = w * 0.5, cy = h * 0.5, s2 = h * 0.185;
       ctx.fillStyle = "#da0000";
-      // The sword: a tapered blade rising to a point.
+      // Central blade: a long isosceles rising to a point.
       ctx.beginPath();
-      ctx.moveTo(cx, cy - s2 * 1.15);
-      ctx.lineTo(cx + s2 * 0.14, cy - s2 * 0.35);
-      ctx.lineTo(cx + s2 * 0.14, cy + s2 * 0.72);
-      ctx.lineTo(cx - s2 * 0.14, cy + s2 * 0.72);
-      ctx.lineTo(cx - s2 * 0.14, cy - s2 * 0.35);
+      ctx.moveTo(cx, cy - s2 * 1.28);
+      ctx.lineTo(cx + s2 * 0.155, cy - s2 * 0.5);
+      ctx.lineTo(cx + s2 * 0.155, cy + s2 * 0.86);
+      ctx.lineTo(cx - s2 * 0.155, cy + s2 * 0.86);
+      ctx.lineTo(cx - s2 * 0.155, cy - s2 * 0.5);
       ctx.closePath();
       ctx.fill();
-      // The bar across it — the shamsa.
-      ctx.fillRect(cx - s2 * 0.52, cy - s2 * 0.3, s2 * 1.04, s2 * 0.16);
-      // Two pairs of crescents, opening outward, each a filled arc band.
-      const petal = (
-        side: number,
-        lean: number,
-        reach: number,
-        thick: number,
-        drop: number
-      ): void => {
+      // The shadda: a bar across the blade, above centre.
+      ctx.fillRect(cx - s2 * 0.56, cy - s2 * 0.62, s2 * 1.12, s2 * 0.17);
+      // Four crescents.
+      //
+      // Third attempt, and the fault each time was the same: the tips
+      // pointed UP. A crescent that rises vertically beside a vertical
+      // sword is a spike, and four spikes around a fifth is a comb, not
+      // a tulip. The emblem's crescents lean OUTWARD — each one leaves
+      // the base heading sideways and only then turns up, so the pair
+      // opens away from the axis and the gap between them is a curve.
+      //
+      // `out` is how far the tip lies from the axis, `up` how high it
+      // gets. Keeping out comparable to up is the whole shape.
+      const petal = (side: number, base: number, out: number, up: number, thick: number): void => {
+        const bx = cx + side * s2 * base;
+        const by = cy + s2 * 0.84;
+        const tx = cx + side * s2 * out;
+        const ty = cy - s2 * up;
         ctx.beginPath();
-        ctx.moveTo(cx + side * s2 * lean, cy + s2 * drop);
-        ctx.quadraticCurveTo(
-          cx + side * s2 * (lean + reach * 0.8),
-          cy - s2 * (0.5 + reach * 0.25),
-          cx + side * s2 * (lean + reach),
-          cy - s2 * (0.95 + reach * 0.1)
+        ctx.moveTo(bx, by);
+        // Outer edge: away from the axis first, then up to the tip.
+        ctx.bezierCurveTo(
+          cx + side * s2 * (base + thick * 1.5), cy + s2 * 0.2,
+          cx + side * s2 * (out + thick * 0.75), cy - s2 * (up * 0.45),
+          tx, ty
         );
-        ctx.quadraticCurveTo(
-          cx + side * s2 * (lean + reach * 0.62),
-          cy - s2 * (0.35 + reach * 0.2),
-          cx + side * s2 * (lean + thick),
-          cy + s2 * drop
+        // Inner edge: back down, hugging the axis, leaving a crescent's
+        // hollow between this petal and its neighbour.
+        ctx.bezierCurveTo(
+          cx + side * s2 * (out - thick * 0.15), cy - s2 * (up * 0.5),
+          cx + side * s2 * (base + thick * 0.35), cy + s2 * 0.1,
+          bx + side * s2 * thick * 0.5, by
         );
         ctx.closePath();
         ctx.fill();
       };
       for (const side of [-1, 1]) {
-        petal(side, 0.24, 0.42, 0.34, 0.7);  // inner
-        petal(side, 0.6, 0.52, 0.36, 0.42);  // outer
+        petal(side, 0.26, 0.72, 0.98, 0.3);   // inner: tall, close in
+        petal(side, 0.66, 1.34, 0.52, 0.32);  // outer: low and far out
       }
     },
   },
@@ -484,37 +417,6 @@ export const FLAGS: Record<FlagId, FlagSpec> = {
     draw(ctx, w, h) {
       bands(ctx, w, h, [PAN_ARAB_RED, WHITE, PAN_ARAB_BLACK]);
       script(ctx, "الله أكبر", w * 0.5, h * 0.5, w * 0.44, h * 0.2, "#007a3d");
-    },
-  },
-
-  // Israel — 8:11.
-  il: {
-    name: "Israel",
-    nameAr: "إسرائيل",
-    ratio: 11 / 8,
-    draw(ctx, w, h) {
-      ctx.fillStyle = WHITE;
-      ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = "#0038b8";
-      const bandH = h * 0.16;
-      ctx.fillRect(0, h * 0.11, w, bandH);
-      ctx.fillRect(0, h - h * 0.11 - bandH, w, bandH);
-      // The Star of David: two overlaid triangles, drawn as outlines.
-      const cx = w * 0.5, cy = h * 0.5, r = h * 0.22;
-      ctx.strokeStyle = "#0038b8";
-      ctx.lineWidth = h * 0.038;
-      for (const flip of [0, Math.PI]) {
-        ctx.beginPath();
-        for (let i = 0; i < 3; i++) {
-          const a = flip - Math.PI / 2 + (i * Math.PI * 2) / 3;
-          const x = cx + Math.cos(a) * r;
-          const y = cy + Math.sin(a) * r;
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        }
-        ctx.closePath();
-        ctx.stroke();
-      }
     },
   },
 
@@ -533,8 +435,12 @@ export const FLAGS: Record<FlagId, FlagSpec> = {
       ctx.lineTo(0, h);
       ctx.closePath();
       ctx.fill();
+      // The star sits on the chevron's axis at a quarter of the length,
+      // and its seven points are slim: the inner radius is a little
+      // under half the outer, which is what keeps it a star and not a
+      // cog. The old inner/outer pair was too close together.
       ctx.fillStyle = WHITE;
-      star(ctx, w * 0.176, h * 0.5, h * 0.083, h * 0.036, 7);
+      star(ctx, w * 0.25 * 0.72, h * 0.5, h * 0.105, h * 0.042, 7);
     },
   },
 
@@ -547,11 +453,14 @@ export const FLAGS: Record<FlagId, FlagSpec> = {
       bands(ctx, w, h, [PAN_ARAB_GREEN, WHITE, PAN_ARAB_RED]);
       // The black hoist is a trapezoid, not a triangle — the one thing
       // most redrawings of this flag get wrong.
+      // The trapezoid runs a QUARTER of the length, and its parallel
+      // edge sits on the two band boundaries — that is the published
+      // construction, and 0.28 was a guess that made the hoist heavy.
       ctx.fillStyle = PAN_ARAB_BLACK;
       ctx.beginPath();
       ctx.moveTo(0, 0);
-      ctx.lineTo(w * 0.28, h / 3);
-      ctx.lineTo(w * 0.28, (h * 2) / 3);
+      ctx.lineTo(w * 0.25, h / 3);
+      ctx.lineTo(w * 0.25, (h * 2) / 3);
       ctx.lineTo(0, h);
       ctx.closePath();
       ctx.fill();
@@ -565,22 +474,54 @@ export const FLAGS: Record<FlagId, FlagSpec> = {
     ratio: 3 / 2,
     draw(ctx, w, h) {
       bands(ctx, w, h, ["#ed1c24", WHITE, "#ed1c24"], [1, 2, 1]);
-      // The cedar: a stepped triangle of foliage on a short trunk.
+      // The cedar.
+      //
+      // Not a Christmas tree. A Lebanon cedar is the opposite shape to a
+      // fir: the branches are HORIZONTAL and the crown is broad and flat
+      // rather than pointed, which is why the tree reads as a cedar at
+      // any distance and a stepped triangle never does. The official
+      // flag also has it filling the whole white band and touching both
+      // red stripes, which is what makes it the subject of the flag.
       ctx.fillStyle = "#00a651";
-      const cx = w * 0.5, top = h * 0.28, bot = h * 0.68;
-      const tiers = 4;
+      const cx = w * 0.5;
+      const top = h * 0.255, bot = h * 0.745;      // touches both stripes
+      const span = bot - top;
+      const trunkW = w * 0.019;
+      // Trunk, tapering.
+      ctx.beginPath();
+      ctx.moveTo(cx - trunkW, bot);
+      ctx.lineTo(cx + trunkW, bot);
+      ctx.lineTo(cx + trunkW * 0.55, top + span * 0.2);
+      ctx.lineTo(cx - trunkW * 0.55, top + span * 0.2);
+      ctx.closePath();
+      ctx.fill();
+      // Five tiers of horizontal boughs, widest low, each drawn as a
+      // shallow wedge with a lifted tip — a cedar's branches rise a
+      // little at the ends.
+      const tiers = 5;
       for (let i = 0; i < tiers; i++) {
-        const t0 = top + ((bot - top) * i) / tiers;
-        const t1 = top + ((bot - top) * (i + 0.85)) / tiers;
-        const halfW = w * (0.035 + 0.035 * i);
-        ctx.beginPath();
-        ctx.moveTo(cx, t0 - h * 0.03);
-        ctx.lineTo(cx + halfW, t1);
-        ctx.lineTo(cx - halfW, t1);
-        ctx.closePath();
-        ctx.fill();
+        const t = i / (tiers - 1);                 // 0 at the crown
+        const y = top + span * (0.16 + t * 0.72);
+        const halfW = w * (0.038 + t * 0.098);
+        const thick = span * (0.075 - t * 0.012);
+        for (const side of [-1, 1]) {
+          ctx.beginPath();
+          ctx.moveTo(cx, y - thick * 0.5);
+          ctx.lineTo(cx + side * halfW, y - thick * 0.95);
+          ctx.lineTo(cx + side * halfW * 0.92, y + thick * 0.15);
+          ctx.lineTo(cx, y + thick * 0.6);
+          ctx.closePath();
+          ctx.fill();
+        }
       }
-      ctx.fillRect(cx - w * 0.012, bot - h * 0.03, w * 0.024, h * 0.1);
+      // The crown: a small flat-topped cap, not a spike.
+      ctx.beginPath();
+      ctx.moveTo(cx - w * 0.021, top + span * 0.17);
+      ctx.lineTo(cx - w * 0.009, top);
+      ctx.lineTo(cx + w * 0.009, top);
+      ctx.lineTo(cx + w * 0.021, top + span * 0.17);
+      ctx.closePath();
+      ctx.fill();
     },
   },
 
@@ -599,7 +540,10 @@ export const FLAGS: Record<FlagId, FlagSpec> = {
       // horizontal and two diagonals, which is an asterisk — the shape
       // that matters here is the sheath's J, hooking back on itself, and
       // that is the part this draws properly.
-      const cx = w * 0.14, cy = h * 0.24, s2 = h * 0.15;
+      // Sized to the hoist band it sits on, and placed in its upper
+      // half. At h * 0.15 it was a white scribble; the emblem is the
+      // whole point of this flag's hoist and can carry the width.
+      const cx = w * 0.135, cy = h * 0.27, s2 = h * 0.21;
       ctx.strokeStyle = WHITE;
       ctx.fillStyle = WHITE;
       ctx.lineCap = "round";
@@ -663,10 +607,13 @@ export const FLAGS: Record<FlagId, FlagSpec> = {
     ratio: 2,
     draw(ctx, w, h) {
       bands(ctx, w, h, [PAN_ARAB_BLACK, WHITE, PAN_ARAB_GREEN]);
+      // A THIRD of the length, which is what separates this chevron
+      // from Jordan's — that one reaches the halfway line. Drawn at the
+      // same depth they are the same flag minus a star.
       ctx.fillStyle = PAN_ARAB_RED;
       ctx.beginPath();
       ctx.moveTo(0, 0);
-      ctx.lineTo(w * 0.5, h * 0.5);
+      ctx.lineTo(w / 3, h * 0.5);
       ctx.lineTo(0, h);
       ctx.closePath();
       ctx.fill();
@@ -749,11 +696,20 @@ export const FLAGS: Record<FlagId, FlagSpec> = {
     nameAr: "تركيا",
     ratio: 3 / 2,
     draw(ctx, w, h) {
+      // The Turkish Flag Law gives this one exactly, on a 30 x 20 grid:
+      // the crescent's outer circle has diameter 10 centred 10 along,
+      // the inner circle diameter 8 centred 11.5 along, and the star's
+      // circumscribed circle diameter 7.5 centred at 18.5. Everything
+      // below is those numbers over 30 and over 20. The previous values
+      // were eyeballed and had the star at 0.539 of the length and less
+      // than half its proper size.
       ctx.fillStyle = "#e30a17";
       ctx.fillRect(0, 0, w, h);
-      crescent(ctx, w * 0.354, h * 0.5, h * 0.25, h * 0.2, h * 0.0625, WHITE, "#e30a17");
+      crescent(ctx, w * (10 / 30), h * 0.5, h * 0.25, h * 0.2, w * (1.5 / 30), WHITE, "#e30a17");
       ctx.fillStyle = WHITE;
-      star(ctx, w * 0.539, h * 0.5, h * 0.1, h * 0.04, 5, Math.PI);
+      // Point-up is wrong for this star: it is turned so one point aims
+      // back at the crescent's opening.
+      star(ctx, w * (18.5 / 30), h * 0.5, h * (3.75 / 20), h * (1.5 / 20), 5, Math.PI);
     },
   },
 
