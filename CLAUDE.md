@@ -176,6 +176,17 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   everything; and a 1.5s failsafe reveals whatever the observer never reached.
   `prefers-reduced-motion` switches all of it off. Sections reveal as whole
   blocks — staggering siblings puts cards of one row on different baselines.
+- **Nothing animates off screen.** The page carries 80 endless animations and
+  all 80 used to run whatever was on screen; an IntersectionObserver marks
+  off-screen hosts `.offscreen` and the stylesheet pauses them (applied *by*
+  the script, same reason as the reveal). The pause needs `!important`: every
+  animation here is declared with the `animation` shorthand, which resets
+  `animation-play-state` to running, and those declarations sit below the rule.
+  The suite **measures computed play-state in the browser** rather than
+  grepping for the rule — the first version was written just after a comment's
+  `*/` with its own `*/`, so the parser swallowed it and the source contained a
+  perfect rule the page never had. Running fell from ~76 to 16–27, with nothing
+  visible ever frozen.
 - **«ما نبنيه لعملك» is drawn, not written** (owner's request, 2026-08-01:
   «قلل الكتابة واجعل بدل كتابة أشكال»): five SVG scenes — gears that turn,
   a pen that draws, two devices labelled iOS/Android whose screens fill,
@@ -284,7 +295,7 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
 - Verify in a real browser (Playwright + the preinstalled Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — pass it as
   `executable_path`, the pip package expects a newer build).
-- `python3 design/test_suite.py` is the full system test — 528 checks covering
+- `python3 design/test_suite.py` is the full system test — 588 checks covering
   token consistency and contrast, SAFI/XBRL/delivery arithmetic, generated
   artefacts, auth, hostile input, storage tampering, offline, layout, and the mobile shell
   (bottom tab bar, 16px inputs, 44px touch targets, [hidden] integrity). Run it

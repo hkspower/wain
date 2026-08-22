@@ -462,6 +462,28 @@
     html.motion [data-reveal] { opacity: 0; transform: translateY(16px); transition: opacity .5s ease, transform .5s cubic-bezier(.2,.7,.3,1); }
     html.motion [data-reveal].in { opacity: 1; transform: none; }
 
+    /* Every drawing on this page animates forever: gears turn, current runs
+       down the wires, bars fill, a dot pulses. Measured, that is 80 infinite
+       animations on a desktop — and 66 of them were running while scrolled
+       out of sight, which is battery and CPU spent on pixels nobody can see,
+       and 66 more things competing with the scroll itself.
+
+       They pause when they leave the viewport and resume where they stopped,
+       so nothing jumps and nothing looks different while you are looking at
+       it. Written in this direction on purpose: the class is added BY the
+       script, so a blocked script, a browser without IntersectionObserver, or
+       a renderer that never scrolls leaves everything running exactly as
+       before — never frozen mid-drawing, which is the failure this page's
+       reveal rule already exists to avoid.
+
+       !important is load-bearing, not laziness: every animation on this page is
+       declared with the `animation` shorthand, and the shorthand resets
+       animation-play-state to running. Those declarations all sit below this
+       rule, so without !important the pause is overwritten on every animated
+       element and the class does nothing — measured: 65 of 80 kept running. */
+    html.motion .offscreen,
+    html.motion .offscreen * { animation-play-state: paused !important; }
+
     .brand .logo { animation: draw .7s cubic-bezier(.2,.7,.3,1) both; }
     .hero .kicker { animation: rise .5s ease both .05s; }
     .hero h1      { animation: rise .5s ease both .14s; }
@@ -1179,7 +1201,7 @@
       <!-- real, verifiable numbers — no invented clients or years -->
       <div class="stats">
         <div class="stat"><b class="num" data-count="4">4</b><span>وحدات في نظام النوخذة</span></div>
-        <div class="stat"><b class="num" data-count="576">576</b><span>فحصاً آلياً قبل كل إصدار</span></div>
+        <div class="stat"><b class="num" data-count="588">588</b><span>فحصاً آلياً قبل كل إصدار</span></div>
         <div class="stat"><b class="num" data-count="0">0</b><span>اعتماديات خارجية</span></div>
         <div class="stat"><b class="num" data-count="100" data-suffix="%">100%</b><span>يعمل دون إنترنت</span></div>
       </div>
@@ -1853,6 +1875,27 @@
         io.disconnect();
         for (var k = 0; k < blocks.length; k++) show(blocks[k]);
       }, 1500);
+    })();
+
+    /* Pause what is off screen. See the .offscreen rule for why, and for why
+       it is applied by this script rather than declared in the stylesheet.
+       The hosts are the elements that actually carry the endless animations —
+       the drawings, the flow map, the technology cloud, the live dot — and
+       pausing a host pauses its descendants, which is where most of them are.
+       A generous rootMargin keeps a drawing running slightly before it
+       appears, so it is never caught mid-resume at the edge of the screen. */
+    (function () {
+      if (!("IntersectionObserver" in window)) return;
+      var hosts = document.querySelectorAll(
+        ".scene, .claimart, .flowmap, .cloud, .live, .card .ic, .heroart," +
+        " .product.lead");
+      if (!hosts.length) return;
+      var pio = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          e.target.classList.toggle("offscreen", !e.isIntersecting);
+        });
+      }, { rootMargin: "200px 0px 200px 0px" });
+      for (var i = 0; i < hosts.length; i++) pio.observe(hosts[i]);
     })();
 
     /* Counters, ripple, magnetic buttons, product tilt. All of it is layered

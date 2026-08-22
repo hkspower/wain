@@ -564,6 +564,7 @@ def browser_checks():
         delivery_checks(pg)
         social_checks(pg)
         preload_checks(pg)
+        motion_pause_checks(pg)
         drawing_contrast_checks(pg)
         timezone_checks(br)
         auth_checks(pg, ctx)
@@ -772,7 +773,7 @@ def home_checks(pg):
     check(S, "no-JS: the edge fades are not painted",
           np_.evaluate("getComputedStyle(document.querySelector('#services .railwrap'),'::before').content") == "none")
     check(S, "no-JS: the counters already show the true numbers",
-          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "576", "0", "100%"])
+          np_.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)") == ["4", "588", "0", "100%"])
     check(S, "no-JS: the form is not offered dead — the channels are",
           np_.evaluate("getComputedStyle(document.querySelector('.qwrap')).display") == "none"
           and np_.is_visible(".channels"))
@@ -807,7 +808,7 @@ def home_checks(pg):
     pg.wait_for_timeout(1800)
     finals = pg.eval_on_selector_all(".stat .num", "n=>n.map(e=>e.textContent)")
     check(S, "the counters settle on the true numbers",
-          finals == ["4", "576", "0", "100%"], str(finals))
+          finals == ["4", "588", "0", "100%"], str(finals))
     # the project form validates honestly and never navigates on bad input
     pg.fill("#q-email", "not-an-email"); pg.dispatch_event("#q-email", "blur")
     check(S, "a bad email is marked invalid",
@@ -1896,6 +1897,62 @@ def preload_checks(pg):
                  if not any(f"cairo-{w}.woff2" in h for w in used)]
         check(S, f"{page}: nothing is preloaded that it does not render",
               not spare, str(spare))
+
+
+def motion_pause_checks(pg):
+    """Nothing animates for a screen nobody is looking at.
+
+    The company page carries 80 endless animations — gears, dashes, bars,
+    pulses — and all 80 used to run whatever was on screen. An
+    IntersectionObserver now marks off-screen hosts `.offscreen` and the
+    stylesheet pauses them.
+
+    Measured in the browser on purpose, not grepped for the rule. The first
+    version of that rule was written directly after a comment's `*/` with its
+    own `*/` at the end, so the CSS parser swallowed it and the class did
+    nothing — the source contained a perfectly good rule that the page never
+    had. Only the computed play-state can tell the difference. The same
+    measurement covers the opposite failure: something visible left frozen."""
+    S = "motion"
+    JS = """() => {
+      let inf = 0, running = 0, offRun = 0, onPaused = 0;
+      for (const a of document.getAnimations()) {
+        const t = a.effect && a.effect.target;
+        if (!t || !t.getBoundingClientRect) continue;
+        if (a.effect.getTiming().iterations !== Infinity) continue;
+        inf++;
+        const r = t.getBoundingClientRect();
+        if (!r.width || !r.height) continue;
+        // clipped sideways out of a rail: on screen by rect, invisible in fact
+        const rail = t.closest && t.closest('.rail');
+        if (rail) {
+          const rr = rail.getBoundingClientRect();
+          if (r.right < rr.left + 2 || r.left > rr.right - 2) continue;
+        }
+        const vis = r.bottom > 0 && r.top < innerHeight;
+        if (a.playState === 'running') { if (!vis) offRun++; running++; }
+        else if (vis) onPaused++;
+      }
+      return { inf, running, offRun, onPaused };
+    }"""
+    for name, w, h in (("desktop", 1440, 1000), ("phone", 390, 844)):
+        pg.set_viewport_size({"width": w, "height": h})
+        pg.goto(f"{BASE}/index.html", wait_until="networkidle")
+        pg.wait_for_timeout(900)
+        for label, frac in (("top", 0.0), ("mid", 0.5), ("bottom", 1.0)):
+            pg.evaluate("f => scrollTo({top: (document.body.scrollHeight -"
+                        " innerHeight) * f, behavior: 'instant'})", frac)
+            pg.wait_for_timeout(700)
+            m = pg.evaluate(JS)
+            # the rule is alive: most of the endless animations are stopped
+            check(S, f"{name} {label}: off-screen animations are paused",
+                  m["running"] <= m["inf"] * 0.45,
+                  f"{m['running']} of {m['inf']} running · {m}")
+            # and it never freezes something the visitor can see
+            check(S, f"{name} {label}: nothing visible is left frozen",
+                  m["onPaused"] == 0, str(m))
+    # leave the page as the rest of the suite expects to find it
+    pg.set_viewport_size({"width": 1440, "height": 900})
 
 
 def social_checks(pg):
