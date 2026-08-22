@@ -2,12 +2,16 @@ import type { ReactNode } from 'react';
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 
 import { ThemedView } from '@/components/themed-view';
-import { Radius, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { Elevation, Radius, Spacing } from '@/constants/theme';
 
 /**
- * A white surface on the grey page. No shadow anywhere in this app — the page
- * is grey precisely so that cards separate without one.
+ * A white block on the grey page, rounded and lifted the way the home page's
+ * hero and category tiles are — 24 at the corner, no outline, and a shadow
+ * doing the separating.
+ *
+ * It used to be the opposite: a hairline and no shadow anywhere. That changed
+ * on the shop and the basket first, and this is the rest of the app catching
+ * up so that a customer moving between screens meets one shop.
  */
 export function Card({
   children,
@@ -21,11 +25,18 @@ export function Card({
   tone?: string;
   style?: StyleProp<ViewStyle>;
 }) {
-  const theme = useTheme();
   return (
     <ThemedView
       type="backgroundElement"
-      style={[styles.card, padded && styles.padded, { borderColor: tone ?? theme.border }, style]}>
+      style={[
+        styles.card,
+        padded && styles.padded,
+        // A tone is still drawn as an outline — it is saying something (this
+        // row is out of stock, this one failed) and a coloured shadow says
+        // nothing at any distance.
+        tone ? { borderWidth: 1, borderColor: tone } : Elevation.card,
+        style,
+      ]}>
       {children}
     </ThemedView>
   );
@@ -33,9 +44,8 @@ export function Card({
 
 const styles = StyleSheet.create({
   card: {
-    borderWidth: 1,
     borderRadius: Radius.card,
     overflow: 'hidden',
   },
-  padded: { padding: Spacing.three, gap: Spacing.one },
+  padded: { padding: Spacing.four, gap: Spacing.one },
 });

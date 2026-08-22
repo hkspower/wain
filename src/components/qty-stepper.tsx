@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { press } from '@/components/ui/press';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, TapTarget } from '@/constants/theme';
+import { Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useLang } from '@/lib/i18n';
 
@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderRadius: Spacing.two,
+    borderRadius: Radius.button,
   },
   glyph: {
     fontSize: 18,

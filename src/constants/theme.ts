@@ -163,9 +163,20 @@ export const Fonts = Platform.select({
  */
 export const Radius = {
   chip: 999,
-  control: 8,
-  card: 16,
-  panel: 24,
+  /** A BLOCK: a card, a list row, a panel, a tile. 24 everywhere, which is
+   *  the home page's number — its hero and its category tiles were the only
+   *  things in the app rounded that far, and every other screen was at 16.
+   *  Two radii on two halves of the same app is not a style, it is a seam. */
+  card: 24,
+  /** A BUTTON is not a block. At 48pt tall a 24 radius is a pill, and the
+   *  home page's own Shop now button is 16 — so 16 it is, everywhere.
+   *
+   *  This covers everything a customer presses or types into: buttons, size
+   *  pills, text fields, the quantity stepper, the panel's save. There were
+   *  three different numbers across those before (8, 16 and a couple of
+   *  hand-written ones), which is how the same control ends up looking like
+   *  two different controls on two screens. */
+  button: 16,
 } as const;
 
 /**

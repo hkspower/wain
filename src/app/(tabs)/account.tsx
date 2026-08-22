@@ -5,7 +5,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Card } from '@/components/ui/card';
 import { press } from '@/components/ui/press';
 import { Screen } from '@/components/ui/screen';
-import { Radius, Spacing, TapTarget } from '@/constants/theme';
+import { Elevation, Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { API_BASE } from '@/lib/config';
 import { useCart } from '@/lib/cart';
@@ -112,7 +112,7 @@ export default function AccountScreen() {
         style={press()}>
         <ThemedView
           type="backgroundElement"
-          style={[styles.rowCard, row, { borderColor: theme.border }]}>
+          style={[styles.rowCard, row, Elevation.card]}>
           <ThemedText type="labelBold">{t.account.whatsapp}</ThemedText>
           <ThemedText type="label" themeColor="textSecondary">
             →
@@ -150,22 +150,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderRadius: Spacing.three,
+    borderRadius: Radius.button,
   },
   rowCard: {
     minHeight: TapTarget,
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.three,
-    borderWidth: 1,
-    borderRadius: Spacing.three,
+    paddingHorizontal: Spacing.four,
+    borderRadius: Radius.card,
   },
   // Apple's own guidance is a black button with white text; a branded orange
   // one reads as an advert rather than as the system affordance people already
   // recognise.
   walletButton: {
     minHeight: TapTarget,
-    borderRadius: Radius.card,
+    borderRadius: Radius.button,
     backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
@@ -174,7 +173,7 @@ const styles = StyleSheet.create({
   notice: {
     marginTop: Spacing.three,
     borderWidth: 1,
-    borderRadius: Spacing.three,
-    padding: Spacing.three,
+    borderRadius: Radius.card,
+    padding: Spacing.four,
   },
 });

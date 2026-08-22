@@ -8,7 +8,7 @@ import { AdminShell, adminStyles } from '@/components/admin-shell';
 import { StatusChip } from '@/components/status-chip';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing, TapTarget } from '@/constants/theme';
+import { Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
   adminApi,
@@ -77,7 +77,7 @@ export default function OrderScreen() {
         <>
           <ThemedView
             type="backgroundElement"
-            style={[adminStyles.card, { borderColor: theme.border }]}>
+            style={[adminStyles.card, adminStyles.lift]}>
             <View style={adminStyles.rowBetween}>
               <ThemedText type="labelBold">{order.name}</ThemedText>
               <StatusChip status={order.status} />
@@ -105,7 +105,7 @@ export default function OrderScreen() {
             <ThemedView
               key={`${l.name}-${l.size}-${i}`}
               type="backgroundElement"
-              style={[adminStyles.card, adminStyles.rowBetween, { borderColor: theme.border }]}>
+              style={[adminStyles.card, adminStyles.rowBetween, adminStyles.lift]}>
               <ThemedText type="label" style={styles.lineName}>
                 {l.qty} × {l.name} · {l.size}
               </ThemedText>
@@ -115,7 +115,7 @@ export default function OrderScreen() {
 
           <ThemedView
             type="backgroundElement"
-            style={[adminStyles.card, { borderColor: theme.border }]}>
+            style={[adminStyles.card, adminStyles.lift]}>
             <View style={adminStyles.rowBetween}>
               <ThemedText type="label" themeColor="textSecondary">
                 Subtotal
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
   move: {
     minHeight: TapTarget,
     borderWidth: 1,
-    borderRadius: Spacing.three,
+    borderRadius: Radius.button,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

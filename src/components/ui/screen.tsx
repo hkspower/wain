@@ -130,6 +130,8 @@ const styles = StyleSheet.create({
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
     paddingHorizontal: Spacing.three,
-    gap: Spacing.two,
+    // 16 between blocks, which is the home page's rhythm. Every other screen
+    // sat at 8 and read as a denser app than the one a customer lands on.
+    gap: Spacing.three,
   },
 });

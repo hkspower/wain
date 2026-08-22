@@ -12,7 +12,7 @@ import { press } from '@/components/ui/press';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
+import { MaxContentWidth, Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useCart } from '@/lib/cart';
 import { useLang } from '@/lib/i18n';
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
   tabButtonView: {
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
-    borderRadius: Spacing.three,
+    borderRadius: Radius.button,
   },
   badge: {
     position: 'absolute',

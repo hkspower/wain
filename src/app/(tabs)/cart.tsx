@@ -40,7 +40,6 @@ export default function CartScreen() {
   return (
     <Screen
       tabBar
-      contentStyle={styles.column}
       // WHITE, not the page's grey. With the hairline gone, a bar the same
       // colour as the page behind it is not a bar — it is the bottom of the
       // page. The lift has to come from somewhere, and a surface plainly in
@@ -141,7 +140,6 @@ export default function CartScreen() {
 }
 
 const styles = StyleSheet.create({
-  column: { gap: Spacing.two },
   line: {
     borderRadius: Radius.card,
     padding: Spacing.two,
@@ -150,7 +148,7 @@ const styles = StyleSheet.create({
   thumb: {
     width: 84,
     height: 84,
-    borderRadius: Spacing.two,
+    borderRadius: Radius.button,
     overflow: 'hidden',
   },
   lineBody: {

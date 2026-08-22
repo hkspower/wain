@@ -9,7 +9,7 @@ import { ProductCard } from '@/components/product-card';
 import { RemoteArt } from '@/components/remote-art';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { EMBER_ON_INK, Spacing, TapTarget, Type } from '@/constants/theme';
+import { EMBER_ON_INK, Radius, Spacing, TapTarget, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useCart } from '@/lib/cart';
 import { categoryArt } from '@/lib/assets';
@@ -25,7 +25,7 @@ export default function HomeScreen() {
   const featured = products.filter((p) => p.featured).slice(0, 4);
 
   return (
-    <Screen tabBar contentStyle={styles.column}>
+    <Screen tabBar>
           {/* Hero. Charcoal panel, ember button — the storefront's own
               proportions: the picture is the product grid below, not the
               banner, so the banner stays quiet. */}
@@ -116,9 +116,8 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  column: { gap: Spacing.three },
   hero: {
-    borderRadius: Spacing.four,
+    borderRadius: Radius.card,
     padding: Spacing.four,
     gap: Spacing.two,
   },
@@ -145,7 +144,7 @@ const styles = StyleSheet.create({
   heroButton: {
     marginTop: Spacing.two,
     minHeight: TapTarget,
-    borderRadius: Spacing.three,
+    borderRadius: Radius.button,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing.four,
@@ -163,7 +162,7 @@ const styles = StyleSheet.create({
   categoryTile: {
     // 1.69:1, measured off the tiles the owner sent. Tall enough for a standing
     // figure to be a figure rather than a band across the middle.
-    borderRadius: Spacing.four,
+    borderRadius: Radius.card,
     overflow: 'hidden',
     minHeight: 212,
   },

@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
+import { Elevation, MaxContentWidth, Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/lib/session';
 
@@ -153,12 +153,18 @@ export function AdminShell({
 }
 
 export const adminStyles = StyleSheet.create({
+  // The panel's block, matching the shop's: 24 at the corner, no outline,
+  // lifted. The owner's panel and the customer's app are one piece of
+  // software and looked like two.
   card: {
-    borderWidth: 1,
-    borderRadius: Spacing.three,
-    padding: Spacing.three,
+    borderRadius: Radius.card,
+    padding: Spacing.four,
     gap: Spacing.one,
   },
+  /** Applied alongside `card` unless the row is drawing a MEANINGFUL border —
+   *  a stock count at zero, say. A shadow cannot carry that meaning, so those
+   *  rows keep the outline and skip the lift. */
+  lift: Elevation.card,
   rowBetween: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -221,15 +227,15 @@ const styles = StyleSheet.create({
   centre: { paddingVertical: Spacing.six, alignItems: 'center' },
   errorBox: {
     borderWidth: 1,
-    borderRadius: Spacing.three,
-    padding: Spacing.three,
+    borderRadius: Radius.card,
+    padding: Spacing.four,
     gap: Spacing.one,
   },
   retry: {
     marginTop: Spacing.two,
     minHeight: TapTarget,
     borderWidth: 1,
-    borderRadius: Spacing.two,
+    borderRadius: Radius.button,
     alignItems: 'center',
     justifyContent: 'center',
   },

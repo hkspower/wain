@@ -17,7 +17,7 @@ import { AdminShell, adminStyles } from '@/components/admin-shell';
 import { Button } from '@/components/ui/button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing, TapTarget } from '@/constants/theme';
+import { Elevation, Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { adminApi, Unauthorized, type Summary } from '@/lib/admin';
 import { useLang } from '@/lib/i18n';
@@ -158,7 +158,7 @@ function Dashboard() {
               <ThemedView
                 key={`${s.slug}-${s.size}`}
                 type="backgroundElement"
-                style={[adminStyles.card, adminStyles.rowBetween, { borderColor: theme.border }]}>
+                style={[adminStyles.card, adminStyles.rowBetween, adminStyles.lift]}>
                 <ThemedText type="label">
                   {s.name} · {s.size}
                 </ThemedText>
@@ -177,7 +177,7 @@ function Dashboard() {
 function Tile({ label, value, tone }: { label: string; value: string; tone?: boolean }) {
   const theme = useTheme();
   return (
-    <ThemedView type="backgroundElement" style={[styles.tile, { borderColor: theme.border }]}>
+    <ThemedView type="backgroundElement" style={[styles.tile, Elevation.card]}>
       <ThemedText type="label" themeColor="textSecondary">
         {label}
       </ThemedText>
@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
   input: {
     minHeight: TapTarget,
     borderWidth: 1,
-    borderRadius: Spacing.two,
+    borderRadius: Radius.button,
     paddingHorizontal: Spacing.three,
     fontSize: 16,
   },
@@ -207,9 +207,8 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexBasis: '30%',
     minWidth: 140,
-    borderWidth: 1,
-    borderRadius: Spacing.three,
-    padding: Spacing.three,
+    borderRadius: Radius.card,
+    padding: Spacing.four,
     gap: Spacing.half,
   },
   tileValue: { fontSize: 22, lineHeight: 28 },

@@ -10,7 +10,7 @@ import { RemoteArt } from '@/components/remote-art';
 import { ContentColumn, Screen } from '@/components/ui/screen';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Spacing, TapTarget } from '@/constants/theme';
+import { Elevation, MaxContentWidth, Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useHydrated } from '@/hooks/use-hydrated';
 import { useTheme } from '@/hooks/use-theme';
 import { useCart } from '@/lib/cart';
@@ -61,7 +61,6 @@ export default function ProductScreen() {
   return (
     <Screen
       edges={['bottom']}
-      contentStyle={styles.column}
       bleed={
         <RemoteArt
             uri={productPhoto(product)}
@@ -74,7 +73,7 @@ export default function ProductScreen() {
       // Pinned, not at the end of the page. A product page is long, and a
       // customer who has decided should not have to scroll back to act on it.
       actionBar={
-          <ThemedView type="background" style={[styles.actionBar, { borderColor: theme.border }]}>
+          <ThemedView type="backgroundElement" style={[styles.actionBar, Elevation.bar]}>
             {said ? (
               <View style={[styles.saidRow, row]}>
                 <ThemedText
@@ -199,7 +198,6 @@ const styles = StyleSheet.create({
   banner: {
     height: 260,
   },
-  column: { gap: Spacing.two },
   label: { marginTop: Spacing.three },
   sizeRow: {
     flexWrap: 'wrap',
@@ -212,7 +210,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderRadius: Spacing.two,
+    borderRadius: Radius.button,
   },
   sizeOut: {
     opacity: 0.32,
@@ -221,8 +219,9 @@ const styles = StyleSheet.create({
   details: {
     gap: Spacing.one,
   },
+  // Lifted and white, the same bar the basket and the checkout carry. This
+  // page was the last one still ruling its action bar off with a hairline.
   actionBar: {
-    borderTopWidth: 1,
     padding: Spacing.three,
     gap: Spacing.two,
   },
@@ -236,7 +235,7 @@ const styles = StyleSheet.create({
   },
   addButton: {
     minHeight: TapTarget,
-    borderRadius: Spacing.three,
+    borderRadius: Radius.button,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
   input: {
     minHeight: TapTarget,
     borderWidth: 1,
-    borderRadius: Radius.control,
+    borderRadius: Radius.button,
     paddingHorizontal: Spacing.three,
     fontSize: 16,
   },

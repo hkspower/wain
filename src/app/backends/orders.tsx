@@ -92,7 +92,7 @@ export default function OrdersScreen() {
             style={press()}>
             <ThemedView
               type="backgroundElement"
-              style={[adminStyles.card, { borderColor: theme.border }]}>
+              style={[adminStyles.card, adminStyles.lift]}>
               <View style={adminStyles.rowBetween}>
                 <ThemedText type="labelBold">{o.ref}</ThemedText>
                 <StatusChip status={o.status} />

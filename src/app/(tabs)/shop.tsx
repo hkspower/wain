@@ -97,7 +97,6 @@ export default function ShopScreen() {
   return (
     <Screen
       tabBar
-      contentStyle={styles.column}
       stickyHeader={
         /* The filters stay on screen while the grid scrolls. On a phone the
            alternative is scrolling back to the top to change your mind. */
@@ -157,7 +156,6 @@ export default function ShopScreen() {
 }
 
 const styles = StyleSheet.create({
-  column: { gap: Spacing.two },
   filterBar: {
     paddingTop: Spacing.two,
     paddingBottom: Spacing.two,

@@ -184,6 +184,23 @@ for (const route of ROUTES) {
   check(small.length === 0,
     `${label} every control is 44pt tall${small.length ? ` — ${small.length}, e.g. ${small[0]}` : ''}`)
 
+  // ONE STYLE, MEASURED. Three radii in the whole app and no more: 24 on a
+  // block, 16 on anything you press or type into, 999 on a pill. A fourth
+  // number is how "the same shop on every screen" quietly stops being true —
+  // it arrives one hand-written borderRadius at a time and nobody sees it
+  // until two screens are side by side.
+  const ALLOWED = ['16px', '24px', '999px']
+  const strayRadii = await p.evaluate((allowed) => {
+    const bad = new Map()
+    for (const el of document.querySelectorAll('*')) {
+      const v = getComputedStyle(el).borderTopLeftRadius
+      if (v && v !== '0px' && !allowed.includes(v)) bad.set(v, (bad.get(v) ?? 0) + 1)
+    }
+    return [...bad.entries()].map(([v, n]) => `${v}×${n}`)
+  }, ALLOWED)
+  check(strayRadii.length === 0,
+    `${label} rounds to 24, 16 or a pill${strayRadii.length ? ` — also ${strayRadii.join(', ')}` : ''}`)
+
   // The <head> of the served HTML. Not a failure — the app sets its titles
   // per screen through the navigator, and the static export writes the head
   // before any of that runs — but a page whose tab is called "127.0.0.1" is

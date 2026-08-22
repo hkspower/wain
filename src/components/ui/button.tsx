@@ -61,7 +61,7 @@ export function Button({
 const styles = StyleSheet.create({
   button: {
     minHeight: TapTarget,
-    borderRadius: Radius.card,
+    borderRadius: Radius.button,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',

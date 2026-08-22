@@ -6,7 +6,7 @@ import { press } from '@/components/ui/press';
 import { AdminShell, adminStyles } from '@/components/admin-shell';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing, TapTarget } from '@/constants/theme';
+import { Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { adminApi, Unauthorized, type StockItem } from '@/lib/admin';
 import { useSession } from '@/lib/session';
@@ -84,7 +84,10 @@ export default function StockScreen() {
           <ThemedView
             key={k}
             type="backgroundElement"
-            style={[adminStyles.card, { borderColor: i.stock === 0 ? theme.danger : theme.border }]}>
+            style={[adminStyles.card,
+              i.stock === 0
+                ? { borderWidth: 1, borderColor: theme.danger }
+                : adminStyles.lift]}>
             <View style={adminStyles.rowBetween}>
               <ThemedText type="labelBold" style={styles.name}>
                 {i.name}
@@ -143,7 +146,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: TapTarget,
     borderWidth: 1,
-    borderRadius: Spacing.two,
+    borderRadius: Radius.button,
     paddingHorizontal: Spacing.three,
     fontSize: 16,
   },
@@ -151,7 +154,7 @@ const styles = StyleSheet.create({
     minWidth: 96,
     minHeight: TapTarget,
     borderWidth: 1,
-    borderRadius: Spacing.two,
+    borderRadius: Radius.button,
     alignItems: 'center',
     justifyContent: 'center',
   },
