@@ -17,6 +17,10 @@ const assert = require('node:assert');
 
 const PUB = path.join(__dirname, '..', 'public');
 const read = (f) => fs.readFileSync(path.join(PUB, f), 'utf8');
+/* الشرح داخل التعليق ليس تنسيقًا يُرسم. حارسان سقطا على هذا: أحدهما قرأ
+   لونًا مذكورًا في تعليق يشرح حذفه، والآخر قرأ اسم رمزٍ في تعليق يشرح
+   إزالته. ما يُفحص هو ما يُرسل إلى المتصفّح، لا ما يُقرأ عنه. */
+const readCss = (f) => read(f).replace(/\/\*[\s\S]*?\*\//g, '');
 
 const SOURCES = ['app.js', 'link.js', 'index.html', 'link.html'];
 
@@ -199,7 +203,7 @@ test('درجتان لا قوس قزح — الهوية والتنبيه، ولا
      والأخضر والأزرق والبنفسجيّ — خارج النظام. */
   const stray = [];
   for (const file of ['app.css', 'link.css']) {
-    for (const m of read(file).matchAll(/(#[0-9a-fA-F]{3,6}\b|rgba?\([^)]+\))/g)) {
+    for (const m of readCss(file).matchAll(/(#[0-9a-fA-F]{3,6}\b|rgba?\([^)]+\))/g)) {
       const h = hueOf(m[1]);
       if (h === null) continue;                       // رماديّ مقبول
       const brand = h >= 160 && h <= 210;
@@ -458,4 +462,34 @@ test('كل زرّ هدف لمس على المؤشّر الخشن', () => {
   assert.ok(block, 'كتلة المؤشّر الخشن غير موجودة');
   assert.match(block[1], /\.btn, \.chip \{ min-height: 44px; \}/, 'الأزرار الصغيرة دون العتبة');
   assert.match(block[1], /\.live-row__meta a[^{]*\{[^}]*min-height: 44px/, 'الروابط القائمة بذاتها دون العتبة');
+});
+
+/* ------------------------- سطوح سادة لا صناديق ملوّنة ------------------------- */
+
+test('لا حشوة ملوّنة على سطح محتوى — المعنى في النصّ ولونه وحدّه', () => {
+  const css = readCss('app.css');
+  /* رموز الحشوة حُذفت من أصلها، فلا تعود بلا قصد */
+  for (const dead of ['--ok-bg', '--warn-bg', '--bad-bg', '--info-bg', '--alert-100']) {
+    assert.ok(!css.includes(dead), `${dead} رجع — الحشوة الملوّنة تعود معه`);
+  }
+  /* الشارة حدُّها من لونها وحشوتُها لا شيء */
+  assert.match(css, /\.badge \{[^}]*border: var\(--bw\) solid currentColor/, 'الشارة بلا حدّ من لونها');
+  assert.ok(!/\.badge--[\w-]+ \{[^}]*background:/.test(css), 'شارةٌ عادت إلى حشوة ملوّنة');
+
+  /* المتصفّح يلوّن الأزرار بـ`buttonface` ما لم نصرّح، فالزرّ المسطّح يعود
+     كتلةً رمادية بلا سطر واحد في الملفّ */
+  assert.match(css, /\.btn \{ background: var\(--card\); \}/, 'الزرّ متروك لرماديّ المتصفّح');
+});
+
+test('لا لون في نمطٍ سطريّ داخل الشيفرة — حارس الألوان يقرأ CSS وحده', () => {
+  /* هكذا نجا أخضرٌ خارج الدرجتين شهورًا: كان مكتوبًا في `style="…"` داخل
+     app.js، والحارس يفحص app.css. */
+  for (const file of ['app.js', 'link.js']) {
+    const inline = [...read(file).matchAll(/style="([^"]*)"/g)]
+      .map((m) => m[1])
+      .filter((v) => /(background|border-color)\s*:/.test(v)
+                  || /:\s*#[0-9a-fA-F]{3,8}/.test(v)
+                  || /:\s*(rgb|hsl)a?\(/.test(v));
+    assert.deepEqual(inline, [], `${file}: لون في نمط سطريّ`);
+  }
 });

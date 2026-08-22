@@ -807,13 +807,13 @@
         no_data: 'لم تصل أي قراءة موقع بعد.',
         stale: 'آخر قراءة موقع قديمة.',
       }[d.reason] || 'موقع المندوب غير متاح.';
-      return `<div class="transfer-note" style="background:var(--mute-bg);border-color:var(--line-str)">
+      return `<div class="transfer-note transfer-note--off">
                 <b>موقع المندوب غير متاح</b>
                 <p style="margin-bottom:0">${esc(why)}</p>
               </div>`;
     }
     return `
-      <div class="transfer-note" style="background:var(--ok-bg);border-color:#a8d9c1">
+      <div class="transfer-note transfer-note--live">
         <b>موقع المندوب الآن</b>
         <p>${esc(d.agent_name)} — آخر تحديث ${esc(relTime(d.recorded_at))}${
           d.accuracy ? ` (دقة ~${ar(Math.round(d.accuracy))} م)` : ''}</p>

@@ -65,10 +65,10 @@
 .lk-state {
   display: flex; align-items: center; gap: var(--s-2); font-size: var(--t-base);
   padding: var(--s-2) var(--s-3); margin-bottom: var(--s-3);
-  border: var(--bw) solid var(--line); border-radius: var(--radius-sm); background: var(--mute-bg);
+  border: var(--bw) solid var(--line); border-radius: var(--radius-sm);
 }
 .lk-state__dot { width: 9px; height: 9px; border-radius: var(--radius-full); background: var(--mute-fg); flex: none; }
-.lk-state.is-on { background: var(--ok-bg); border-color: var(--teal-600); color: var(--ok-fg); }
+.lk-state.is-on { border-color: var(--teal-600); border-width: var(--bw-thick); color: var(--ok-fg); }
 .lk-state.is-on .lk-state__dot { background: var(--teal-600); animation: lkPulse 1.8s ease-out infinite; }
 
 @keyframes lkPulse {
@@ -78,7 +78,7 @@
 
 .lk-warn {
   margin: 0; font-size: var(--t-sm); line-height: var(--lh-base);
-  background: var(--warn-bg); color: var(--warn-fg);
+  color: var(--warn-fg);
   border: var(--bw) solid var(--alert-600); border-radius: var(--radius-sm); padding: var(--s-3) var(--s-3);
 }
 
@@ -87,9 +87,11 @@
 .lk-recbar {
   display: flex; align-items: center; gap: var(--s-3); font-size: var(--t-base);
   border: var(--bw) solid var(--line); border-radius: var(--radius-sm);
-  padding: var(--s-2) var(--s-3); background: var(--teal-50);
+  padding: var(--s-2) var(--s-3);
 }
-.lk-recbar.is-live { background: var(--bad-bg); border-color: #f3cdc7; color: var(--bad-fg); }
+/* التسجيل الجاري يبقى ظاهرًا بالحدّ الأثخن والنقطة النابضة الحمراء: الحالة
+   التي يجب ألّا تُخطأ تُعلَن بأكثر من إشارة، لا بحشوة وحدها. */
+.lk-recbar.is-live { border-color: var(--alert-600); border-width: var(--bw-thick); color: var(--bad-fg); }
 .lk-recbar button { margin-inline-start: auto; }
 .lk-recdot {
   width: 11px; height: 11px; border-radius: var(--radius-full); background: #d33a24; flex: none;
@@ -120,9 +122,10 @@
 .lk-out b { font-size: var(--t-base); font-weight: var(--w-bold); line-height: var(--lh-snug); }
 .lk-out span { font-size: var(--t-xs); color: var(--ink-soft); }
 .lk-out:hover { border-color: var(--teal-600); }
-.lk-out--ok.is-on   { border-color: var(--teal-600); background: var(--ok-bg); }
-.lk-out--wait.is-on { border-color: var(--alert-600); background: var(--warn-bg); }
-.lk-out--bad.is-on  { border-color: #d33a24; background: var(--bad-bg); }
+/* الخيار المختار بحدٍّ أثخن ولونِ نصّه لا بحشوة */
+.lk-out--ok.is-on   { border-color: var(--teal-600);  border-width: var(--bw-thick); color: var(--ok-fg); }
+.lk-out--wait.is-on { border-color: var(--alert-600); border-width: var(--bw-thick); color: var(--warn-fg); }
+.lk-out--bad.is-on  { border-color: var(--alert-700); border-width: var(--bw-thick); color: var(--bad-fg); }
 .lk-out.is-on b { color: inherit; }
 
 .lk-outform { margin-top: var(--s-1); }
@@ -135,9 +138,9 @@
 .lk-msg__ic {
   display: inline-flex; align-items: center; justify-content: center;
   width: 52px; height: 52px; border-radius: var(--radius-full); font-size: var(--t-lg); font-weight: var(--w-heavy);
-  background: var(--bad-bg); color: var(--bad-fg); border: var(--bw-thick) solid currentColor;
+  color: var(--bad-fg); border: var(--bw-thick) solid currentColor;
 }
-.lk-msg__ic--ok { background: var(--ok-bg); color: var(--ok-fg); }
+.lk-msg__ic--ok { color: var(--ok-fg); }
 
 .lk-loading {
   display: flex; align-items: center; justify-content: center; gap: var(--s-2);

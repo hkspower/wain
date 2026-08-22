@@ -30,19 +30,25 @@
      كل شيء ملوّنًا لا يبرز شيء.
      فصار: **هوية واحدة** (الأزرق المخضرّ) و**تنبيه واحد** (الصدئ)
      و**محايد**. ولا ذهب ولا برونز ولا تدرّجات. */
-  --alert-700: #8f331f; --alert-600: #b4442e; --alert-100: #fbeeea;
+  --alert-700: #8f331f; --alert-600: #b4442e;
 
   --ink: #0e2f35; --ink-mid: #3d5f66; --ink-soft: #4e6e74;
   --line: #c8dde1; --line-str: #a4c6cd;
   --bg: #f4f9fa; --card: #ffffff;
 
   /* الحالة الحسنة تتبع الهوية، والتنبيه والخطأ لونٌ واحد يفرّقهما نصّهما،
-     والمعلومة محايدة. أسماء الحالات باقية كما هي فلا يُعاد كتابة الملفّ. */
-  --ok-bg: var(--teal-100); --ok-fg: var(--teal-800);   /* ٧٠٠ يعطي ٤٫٤٨ — تحت ٤٫٥ بقليل */
-  --warn-bg: var(--alert-100); --warn-fg: var(--alert-700);
-  --bad-bg: var(--alert-100); --bad-fg: var(--alert-700);
-  --info-bg: #eef3f4; --info-fg: #4a6a70;
-  --mute-bg: #eef3f4; --mute-fg: #4a6a70;
+     والمعلومة محايدة. أسماء الحالات باقية كما هي فلا يُعاد كتابة الملفّ.
+     ── ولا حشوةَ لحالة ────────────────────────────────────────────
+     كانت لكل حالة حشوةٌ (`--ok-bg` وأخواتها) تملأ صندوقها بلون. وحين
+     يكون كل شيء صندوقًا ملوّنًا لا يبرز شيء، ويُقرأ اللونُ زينةً لا
+     معنى. صار المعنى في **نصّ الحالة ولون نصّها وحدّها**، وحُذفت رموز
+     الحشوة كلّها لئلّا تعود بلا قصد. */
+  --ok-fg: var(--teal-800);   /* ٧٠٠ يعطي ٤٫٤٨ — تحت ٤٫٥ بقليل */
+  --warn-fg: var(--alert-700);
+  --bad-fg: var(--alert-700);
+  --info-fg: #4a6a70;
+  --mute-bg: #eef3f4;   /* لهيكل التحميل وحده — سطحٌ مؤقّت لا صندوق محتوى */
+  --mute-fg: #4a6a70;
 
   /* زوايا ضيّقة وظلال قصيرة — التعريف من الحدود لا من الضباب */
   /* ── الحواف ──────────────────────────────────────────────────
@@ -138,7 +144,7 @@ h1 { font-size: var(--t-lg); } h2 { font-size: var(--t-md); } h3 { font-size: va
 p { margin: 0 0 .8em; }
 a { color: var(--teal-700); text-decoration: none; }
 ul, ol { margin: 0; padding: 0; list-style: none; }
-code { font-size: .92em; background: var(--mute-bg); padding: .1em .45em; border-radius: var(--radius-xs); border: var(--bw) solid var(--line); }
+code { font-size: .92em; padding: .1em .45em; border-radius: var(--radius-xs); border: var(--bw) solid var(--line); }
 :focus-visible { outline: 3px solid var(--teal-600); outline-offset: 2px; border-radius: var(--radius-xs); }
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
@@ -160,13 +166,16 @@ code { font-size: .92em; background: var(--mute-bg); padding: .1em .45em; border
 .btn--sm { padding: var(--s-2) var(--s-4); font-size: var(--t-sm); }
 .btn--lg { padding: var(--s-3) var(--s-5); font-size: var(--t-md); }
 .btn--block { width: 100%; }
+/* المتصفّح يلوّن الأزرار برماديّه (`buttonface`) ما لم نصرّح، فتبقى الأزرار
+   المسطّحة كتلًا رمادية بعد نزع حشوها. */
+.btn { background: var(--card); }
 .btn--primary { background: var(--teal-cta); color: #fff; }   /* صلب: بلا تدرّج ولا ظلّ */
 .btn--accent  { background: var(--teal-900); color: #fff; }   /* صلب: بلا تدرّج ولا ظلّ */
 .btn--ghost   { background: #fff; color: var(--teal-700); border-color: var(--teal-600); }
 .btn--ghost:hover { border-color: var(--teal-600); }
-.btn--quiet   { background: var(--mute-bg); color: var(--ink-mid); border-color: var(--line-str); }
-.btn--danger  { background: var(--bad-bg); color: var(--bad-fg); border-color: #f3cdc7; }
-.btn--danger:hover { background: #fbdcd7; }
+.btn--quiet   { color: var(--ink-mid); border-color: var(--line-str); }
+.btn--danger  { color: var(--bad-fg); border-color: var(--alert-600); }
+.btn--danger:hover { border-color: var(--alert-700); color: var(--alert-700); }
 .btn-row { display: flex; flex-wrap: wrap; gap: var(--s-2); }
 
 /* -------------------------------- الترويسة ------------------------------- */
@@ -233,12 +242,13 @@ code { font-size: .92em; background: var(--mute-bg); padding: .1em .45em; border
 .stat b { display: block; font-size: var(--t-num); font-weight: var(--w-heavy); line-height: var(--lh-tight); color: var(--teal-700); font-variant-numeric: tabular-nums; }
 .stat span { font-size: var(--t-sm); color: var(--ink-soft); }
 .stat--accent b { color: var(--teal-700); }
-.stat--dark { background: var(--teal-900); border-color: var(--teal-950); }
-.stat--dark b { color: #ffffff; } .stat--dark span { color: #b6dde2; }   /* كان ذهبًا مثبَّتًا خارج المتغيّرات */
+/* بلا كتلة داكنة: الحدّ الأثخن يميّز البلاطة، والرقم يبقى مقروءًا على أبيض */
+.stat--dark { border-color: var(--teal-700); border-width: var(--bw-thick); }
+.stat--dark b { color: var(--teal-800); } .stat--dark span { color: var(--ink-mid); }
 /* بطاقة تحت التجربة تصير رابطًا للشاشة عندما يكون هناك قرار منتظَر */
 a.stat { text-decoration: none; }
 a.stat:hover { border-color: var(--teal-600); }
-.stat--warn { background: var(--warn-bg); border-color: var(--alert-600); }
+.stat--warn { border-color: var(--alert-600); border-width: var(--bw-thick); }
 .stat--warn b { color: var(--warn-fg); } .stat--warn span { color: var(--warn-fg); }
 
 /* بطاقة عامة */
@@ -248,7 +258,7 @@ a.stat:hover { border-color: var(--teal-600); }
 }
 .card__head {
   display: flex; align-items: center; justify-content: space-between; gap: var(--s-3);
-  padding: var(--pad-sm) var(--pad-md); border-bottom: var(--bw) solid var(--line); background: #fbfdfe;
+  padding: var(--pad-sm) var(--pad-md); border-bottom: var(--bw) solid var(--line);
 }
 .card__head h2 { margin: 0; font-size: var(--t-md); }
 .card__body { padding: var(--pad-md); }
@@ -274,7 +284,8 @@ a.stat:hover { border-color: var(--teal-600); }
   padding: var(--s-2) var(--s-4); cursor: pointer; transition: all .2s var(--ease);
 }
 .chip:hover { border-color: var(--teal-600); color: var(--teal-700); }
-.chip.is-on { background: var(--teal-cta); border-color: transparent; color: #fff; }
+/* الرقاقة المختارة بحدٍّ أثخن ولونٍ لا بحشوة صلبة */
+.chip.is-on { border-color: var(--teal-700); border-width: var(--bw-thick); color: var(--teal-800); font-weight: var(--w-bold); }
 /* `.78em` كانت تُخرج ١١ بكسلًا — والعدد هنا معلومة تُقرأ لا زخرفة */
 .chip .n { opacity: .75; font-size: var(--t-xs); margin-inline-start: var(--s-1); }
 
@@ -318,26 +329,29 @@ a.stat:hover { border-color: var(--teal-600); }
   padding: var(--s-0) var(--s-2); border-radius: var(--radius-xs); line-height: var(--lh-snug); white-space: nowrap;
   border: var(--bw) solid currentColor;
 }
-.badge--new { background: var(--info-bg); color: var(--info-fg); }
-.badge--assigned, .badge--accepted { background: var(--mute-bg); color: var(--mute-fg); }
-.badge--picked_up, .badge--on_the_way { background: var(--warn-bg); color: var(--warn-fg); }
-.badge--delivered { background: var(--ok-bg); color: var(--ok-fg); }
-.badge--failed, .badge--cancelled { background: var(--bad-bg); color: var(--bad-fg); }
-.badge--returned { background: var(--mute-bg); color: var(--mute-fg); }
-.badge--urgent { background: var(--alert-600); color: #fff; }
-.badge--transfer { background: var(--mute-bg); color: var(--mute-fg); }
-.badge--available { background: var(--ok-bg); color: var(--ok-fg); }
-.badge--busy { background: var(--warn-bg); color: var(--warn-fg); }
-.badge--offline { background: var(--mute-bg); color: var(--mute-fg); }
-.badge--pending { background: var(--warn-bg); color: var(--warn-fg); }
-.badge--rejected { background: var(--bad-bg); color: var(--bad-fg); }
+/* بلا حشوة ملوّنة: الحدّ من `currentColor` واللونُ نصُّها، فتُقرأ الشارة
+   ولا تصير كتلةً ملوّنة تزاحم ما حولها. */
+.badge--new { color: var(--info-fg); }
+.badge--assigned, .badge--accepted { color: var(--mute-fg); }
+.badge--picked_up, .badge--on_the_way { color: var(--warn-fg); }
+.badge--delivered { color: var(--ok-fg); }
+.badge--failed, .badge--cancelled { color: var(--bad-fg); }
+.badge--returned { color: var(--mute-fg); }
+/* «عاجل» وحدها تُميَّز بثِخَن حدّها لا بحشوة: هي التي تُبحث عنها في القائمة */
+.badge--urgent { color: var(--alert-700); border-width: var(--bw-thick); }
+.badge--transfer { color: var(--mute-fg); }
+.badge--available { color: var(--ok-fg); }
+.badge--busy { color: var(--warn-fg); }
+.badge--offline { color: var(--mute-fg); }
+.badge--pending { color: var(--warn-fg); }
+.badge--rejected { color: var(--bad-fg); }
 
 /* حالات اعتماد الحساب — أربع درجات متمايزة بلا اعتماد على اللون وحده:
    النص نفسه يحمل المعنى، واللون يسرّع التمييز فقط. */
-.badge--ap-approved   { background: var(--ok-bg);   color: var(--ok-fg); }
-.badge--ap-under_test { background: var(--warn-bg); color: var(--warn-fg); }
-.badge--ap-rejected   { background: var(--mute-bg); color: var(--mute-fg); }
-.badge--ap-blocked    { background: var(--bad-bg);  color: var(--bad-fg); }
+.badge--ap-approved   { color: var(--ok-fg); }
+.badge--ap-under_test { color: var(--warn-fg); }
+.badge--ap-rejected   { color: var(--mute-fg); }
+.badge--ap-blocked    { color: var(--bad-fg); border-width: var(--bw-thick); }
 
 /* ---------------------- اعتماد المندوبين ---------------------- */
 
@@ -351,14 +365,15 @@ a.stat:hover { border-color: var(--teal-600); }
 
 .notice {
   border: var(--bw) solid var(--line); border-inline-start: var(--bw-ring) solid var(--teal-600);
-  background: var(--teal-50); border-radius: var(--radius-sm);
+  border-radius: var(--radius-sm);
   padding: var(--s-3) var(--s-4); margin-bottom: var(--s-4); font-size: var(--t-base); line-height: var(--lh-base);
 }
-.notice--warn { border-inline-start-color: var(--alert-600); background: var(--warn-bg); color: var(--warn-fg); }
+/* الشريط الجانبيّ وحده يفرّق التنبيه عن الخبر — لا لونَ يملأ الصندوق */
+.notice--warn { border-inline-start-color: var(--alert-600); color: var(--warn-fg); }
 
 .hint {
   font-size: var(--t-sm); color: var(--ink-soft); line-height: var(--lh-base);
-  background: var(--teal-50); border: var(--bw) solid var(--line);
+  border: var(--bw) solid var(--line);
   border-radius: var(--radius-sm); padding: var(--s-2) var(--s-3); margin: var(--s-1) 0 var(--s-4);
 }
 
@@ -385,7 +400,7 @@ a.stat:hover { border-color: var(--teal-600); }
 /* أثر العمولة على رسوم نموذجية — يتحدّث مع الكتابة قبل الحفظ */
 .calc {
   border: var(--bw) solid var(--line); border-radius: var(--radius-sm);
-  background: var(--teal-50); padding: var(--s-3) var(--s-4); margin: var(--s-1) 0 var(--s-4);
+  padding: var(--s-3) var(--s-4); margin: var(--s-1) 0 var(--s-4);
 }
 .calc__t { display: block; font-size: var(--t-xs); color: var(--ink-soft); margin-bottom: var(--s-2); }
 .calc__row {
@@ -440,9 +455,13 @@ a.stat:hover { border-color: var(--teal-600); }
 
 /* لوحة التحويل */
 .transfer-note {
-  background: var(--teal-50); border: var(--bw) solid var(--teal-100); border-radius: var(--radius-sm);
+  border: var(--bw) solid var(--line-str); border-radius: var(--radius-sm);
   padding: var(--pad-sm) var(--pad-md); margin-bottom: var(--s-4);
 }
+/* حالتا لوحة الموقع: الحدّ يفرّقهما لا الحشوة. وكان لونها الأخضر مكتوبًا
+   في نمطٍ سطريّ داخل app.js، فلا يراه حارسُ الألوان — وهو يقرأ app.css. */
+.transfer-note--live { border-color: var(--teal-600); border-width: var(--bw-thick); }
+.transfer-note--off  { border-color: var(--line-str); }
 .transfer-note b { color: var(--teal-800); }
 .transfer-note p { margin: var(--s-1) 0 var(--s-2); font-size: var(--t-sm); color: var(--ink-mid); }
 
@@ -451,9 +470,9 @@ a.stat:hover { border-color: var(--teal-600); }
 table { width: 100%; border-collapse: collapse; font-size: var(--t-base); }
 th, td { padding: var(--s-3) var(--pad-sm); text-align: start; border-bottom: var(--bw) solid var(--line); }
 td + td, th + th { border-inline-start: var(--bw) solid var(--line); }
-th { font-weight: var(--w-bold); font-size: var(--t-sm); color: var(--ink-soft); background: #eef6f7; white-space: nowrap; border-bottom: var(--bw-thick) solid var(--line-str); }
+th { font-weight: var(--w-bold); font-size: var(--t-sm); color: var(--ink-soft); white-space: nowrap; border-bottom: var(--bw-thick) solid var(--line-str); }
 tbody tr:last-child td { border-bottom: 0; }
-tbody tr:hover { background: #fbfdfe; }
+tbody tr:hover { background: var(--bg); }   /* أفتح لمسة من الخلفية لا لونًا */
 
 /*
  * على الجوال يصير الجدول بطاقات. عشرة أعمدة على شاشة ٣٩٠ تحتاج ١١٥٣ بكسلًا
@@ -583,13 +602,13 @@ tbody tr:hover { background: #fbfdfe; }
 }
 .modal__head h2 { margin: 0; font-size: var(--t-md); }
 .modal__x {
-  background: var(--mute-bg); border: var(--bw) solid var(--line-str); width: 32px; height: 32px;
+  background: var(--card); border: var(--bw) solid var(--line-str); width: 32px; height: 32px;
   border-radius: var(--radius-sm);
   cursor: pointer; color: var(--ink-mid); font-size: var(--t-base); line-height: var(--lh-tight);
   /* المحتوى صار أيقونة متجهة، فتُوسَّط بالتخطيط لا بارتفاع السطر */
   display: grid; place-items: center;
 }
-.modal__x:hover { background: #e1e9ea; }
+.modal__x:hover { border-color: var(--teal-600); color: var(--teal-700); }
 .modal__body { padding: var(--pad-lg); }
 
 /* -------------------------------- تنبيهات -------------------------------- */
@@ -633,7 +652,8 @@ tbody tr:hover { background: #fbfdfe; }
     text-align: center; padding: var(--s-2) var(--s-0); border-radius: var(--radius-sm);
     font-size: var(--t-2xs); font-weight: var(--w-medium); color: var(--ink-soft); position: relative;
   }
-  .tabbar a.is-active { color: var(--teal-700); background: var(--teal-50); font-weight: var(--w-bold); }
+  /* الوجهة الحالية بخطّ تحتها لا بحشوة: الحشوة تصنع كتلة في شريط مسطّح */
+  .tabbar a.is-active { color: var(--teal-700); font-weight: var(--w-bold); box-shadow: inset 0 var(--bw-ring) 0 var(--teal-700); }
   .tabbar .pill {
     position: absolute; inset-block-start: .1rem; inset-inline-end: 18%;
     min-width: 17px; padding: 0 var(--s-1); background: var(--alert-600); color: #fff;
@@ -670,12 +690,12 @@ tbody tr:hover { background: #fbfdfe; }
 /* شريط دائم يذكّر المندوب أن موقعه يُشارَك الآن */
 .geo-bar {
   display: flex; align-items: center; gap: var(--s-3);
-  background: var(--ok-bg); color: var(--ok-fg);
-  border-bottom: var(--bw) solid var(--teal-100);
+  color: var(--ok-fg); background: var(--card);
+  border-bottom: var(--bw-thick) solid var(--teal-600);
   padding: var(--s-2) max(var(--s-4), calc((100% - 1240px) / 2));
   font-size: var(--t-sm); font-weight: var(--w-medium);
 }
-.geo-bar--off { background: var(--warn-bg); color: var(--warn-fg); border-bottom-color: var(--alert-600); }
+.geo-bar--off { color: var(--warn-fg); border-bottom-color: var(--alert-600); }
 .geo-bar__dot {
   width: 9px; height: 9px; border-radius: var(--radius-full); background: currentColor;
   box-shadow: 0 0 0 0 currentColor; animation: geoPulse 2s ease-out infinite;
@@ -701,7 +721,7 @@ tbody tr:hover { background: #fbfdfe; }
   content: ""; position: absolute; inset-inline-start: 0;
   inset-block-start: calc((1.8em - 14px) / 2);
   width: 14px; height: 14px; border-radius: var(--radius-xs);
-  background: var(--teal-50); border: var(--bw) solid var(--teal-600);
+  border: var(--bw) solid var(--teal-600);
 }
 .consent__list li::after {
   content: ""; position: absolute; inset-inline-start: 4px;
@@ -711,7 +731,7 @@ tbody tr:hover { background: #fbfdfe; }
   transform: rotate(-45deg);
 }
 .consent__note {
-  background: var(--mute-bg); border-inline-start: var(--bw-ring) solid var(--teal-600);
+  border: var(--bw) solid var(--line); border-inline-start: var(--bw-ring) solid var(--teal-600);
   padding: var(--s-3) var(--pad-sm); border-radius: var(--radius-sm);
   font-size: var(--t-sm); color: var(--ink-mid); margin-bottom: var(--s-4);
 }
@@ -793,7 +813,8 @@ tbody tr:hover { background: #fbfdfe; }
   padding: var(--pad-sm) var(--pad-md);
   transition: border-color .15s var(--ease), background .15s var(--ease);
 }
-.live-row.is-lit { border-color: var(--teal-700); background: var(--teal-50); }
+/* الإضاءة بالحدّ الأثخن لا بحشوة ملوّنة */
+.live-row.is-lit { border-color: var(--teal-700); border-width: var(--bw-thick); }
 .live-row:focus-visible { outline: var(--bw-thick) solid var(--teal-700); outline-offset: 2px; }
 .live__stamp { font-size: var(--t-xs); color: var(--ink-soft); }
 .live-row__top { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; margin-bottom: var(--s-1); }
@@ -835,7 +856,7 @@ tbody tr:hover { background: #fbfdfe; }
 /* ---- العنوان المهيكل: محافظة ← منطقة ← قطعة ---- */
 .addr {
   grid-column: 1 / -1; margin: 0 0 var(--s-3); padding: var(--s-3) var(--s-4) var(--s-0);
-  border: var(--bw) solid var(--line); border-radius: var(--radius); background: var(--teal-50);
+  border: var(--bw) solid var(--line); border-radius: var(--radius);
 }
 .addr legend { padding: 0 var(--s-2); font-size: var(--t-xs); font-weight: var(--w-bold); color: var(--teal-700); }
 /* الثلاثة في سطر: المحافظة والمنطقة تحتاجان عرضًا، والقطعة رقم قصير */
@@ -861,8 +882,8 @@ tbody tr:hover { background: #fbfdfe; }
 @media (prefers-reduced-motion: reduce) { #voMic.is-live::before { animation: none; } }
 
 .vo__heard, .vo__missing { margin-top: var(--s-3); font-size: var(--t-sm); border-radius: var(--radius-sm); padding: var(--s-2) var(--s-3); }
-.vo__heard { background: var(--ok-bg); color: var(--ok-fg); }
-.vo__missing { background: var(--warn-bg); color: var(--warn-fg); }
+.vo__heard { color: var(--ok-fg); border: var(--bw) solid var(--teal-600); }
+.vo__missing { color: var(--warn-fg); border: var(--bw) solid var(--alert-600); }
 .vo__heard ul, .vo__missing ul { margin: var(--s-1) 0 0; padding-inline-start: var(--s-4); }
 .vo__heard li, .vo__missing li { margin: var(--s-0) 0; }
 .vo__none { margin: var(--s-3) 0 0; font-size: var(--t-sm); color: var(--ink-soft); }
@@ -885,8 +906,8 @@ tbody tr:hover { background: #fbfdfe; }
 .ask__chips .chip { cursor: pointer; }
 
 .ask__answer { margin-top: var(--s-4); padding: var(--s-3) var(--s-4); border-radius: var(--radius);
-  background: var(--teal-50); border: var(--bw) solid var(--teal-100); }
-.ask__answer.is-unknown { background: var(--warn-bg); border-color: var(--alert-600); }
+  border: var(--bw) solid var(--line-str); }
+.ask__answer.is-unknown { border-color: var(--alert-600); }
 .ask__say { margin: 0; font-size: var(--t-base); font-weight: var(--w-medium); color: var(--ink); }
 .ask__answer .orders { margin-top: var(--s-3); }
 .ask__acts { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-3); }
@@ -963,24 +984,24 @@ tbody tr:hover { background: #fbfdfe; }
 /* خصوصية أعلى بدل `!important`: القاعدة تنافس `.field input` فتُكتب بمثل
    وزنها لا بقوّةٍ تتخطّى الترتيب كلّه. */
 .field .is-filled, .addr .is-filled, input.is-filled, select.is-filled, textarea.is-filled {
-  border-color: var(--teal-600); background: var(--teal-50);
+  border-color: var(--teal-600); border-width: var(--bw-thick);
 }
 .field:has(.is-filled) > span { display: flex; align-items: center; gap: var(--s-1); flex-wrap: nowrap; }
 .field:has(.is-filled) > span::after {
   content: "آليًّا"; font-size: var(--t-2xs); font-weight: var(--w-bold); white-space: nowrap;
-  color: var(--teal-700); background: var(--teal-100); border-radius: var(--radius-xs); padding: var(--s-0) var(--s-1);
+  color: var(--teal-700); border: var(--bw) solid var(--teal-600); border-radius: var(--radius-xs); padding: 0 var(--s-1);
 }
 @media (prefers-reduced-motion: no-preference) {
   .is-filled { animation: filledIn .5s var(--ease); }
-  @keyframes filledIn { from { background: var(--teal-100); } }
+  @keyframes filledIn { from { border-color: var(--teal-100); } }
 }
 
 /* الاقتراح زرّ يُضغط، لا قيمة طُبّقت */
 .chip--yes {
   cursor: pointer; border-color: var(--teal-600); color: var(--teal-700);
-  background: var(--teal-50); font-weight: var(--w-bold);
+  font-weight: var(--w-bold);
 }
-.chip--yes:hover { background: var(--teal-100); }
+.chip--yes:hover { border-color: var(--teal-800); color: var(--teal-800); }
 .vo__missing .chip--yes { font-size: var(--t-xs); padding: var(--s-0) var(--s-2); vertical-align: middle; }
 
 /* ------------------------ تنسيق سطح الوكيل ------------------------ */
@@ -1026,7 +1047,7 @@ tbody tr:hover { background: #fbfdfe; }
 
 /* الجواب: الجملة سطرٌ قائد، وما تحته بيانات */
 .ask__answer { padding: var(--s-4) var(--s-4); }
-.ask__answer.is-loading { background: var(--card); }
+
 
 /* ---- جواب السياسة: مفروض أم على الموظّف حراسته ---- */
 .ask__pol { margin-top: var(--s-3); font-size: var(--t-sm); }
@@ -1036,6 +1057,6 @@ tbody tr:hover { background: #fbfdfe; }
   display: inline-block; padding: var(--s-0) var(--s-2); border-radius: var(--radius-xs);
   font-size: var(--t-2xs); font-weight: var(--w-bold);
 }
-.ask__pol-on { background: var(--ok-bg); color: var(--ok-fg); }
-.ask__pol-off { background: var(--warn-bg); color: var(--warn-fg); }
+.ask__pol-on { color: var(--ok-fg); border: var(--bw) solid currentColor; }
+.ask__pol-off { color: var(--warn-fg); border: var(--bw) solid currentColor; }
 .ask__audit { margin: var(--s-3) 0 0; font-size: var(--t-xs); color: var(--ink-soft); }
