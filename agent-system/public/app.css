@@ -214,6 +214,7 @@ code { font-size: .92em; background: var(--mute-bg); padding: .1em .45em; border
 }
 .page-head p { color: var(--ink-soft); font-size: var(--t-base); margin: 0; }
 .page-head h1 { margin: 0 0 .15em; }
+.page-head__side { display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap; }
 
 /* بطاقات الإحصاء */
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(168px, 100%), 1fr)); gap: var(--s-3); margin-bottom: var(--s-5); }
@@ -646,39 +647,85 @@ tbody tr:hover { background: #fbfdfe; }
 }
 
 /* لوحة المواقع المباشرة */
-.live { display: grid; grid-template-columns: 1.25fr 1fr; gap: var(--s-4); align-items: start; }
+.live {
+  display: grid; gap: var(--s-4); align-items: start;
+  grid-template-columns: minmax(min(24rem, 100%), 1.1fr) minmax(min(22rem, 100%), 1fr);
+}
+/* المخطّط يثبت بينما تُقرأ القائمة الطويلة: نصفا اللوحة لا يفيدان إلا معًا */
+.live__map-col { position: sticky; top: calc(var(--topbar-h) + var(--s-4)); display: grid; gap: var(--s-2); }
 .map {
   position: relative; background:
     linear-gradient(#eaf4f5 1px, transparent 1px) 0 0 / 100% 12.5%,
     linear-gradient(90deg, #eaf4f5 1px, transparent 1px) 0 0 / 12.5% 100%,
     var(--card);
   border: var(--bw) solid var(--line-str); border-radius: var(--radius);
-  aspect-ratio: 4 / 5; overflow: hidden;
+  /* النسبة تأتي محسوبة من حدود الكويت في app.js — وهذه احتياط لو غابت */
+  aspect-ratio: 1 / 1; overflow: hidden;
 }
-.map__pin {
-  position: absolute; transform: translate(50%, -100%);
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
+
+/* النقطة على موضعها الحقيقي دائمًا، والاسم وحده هو ما يُزاح عند التزاحم */
+.pin {
+  position: absolute; width: 0; height: 0; padding: 0; border: 0; background: none;
+  cursor: pointer; z-index: 1;
 }
-.map__pin b {
+/* قرص مصمت بطوق أبيض حوله: يُقرأ نقطةَ موقع، لا زرَّ اختيار كالحلقة المفرغة */
+.pin__dot {
+  position: absolute; inset-inline-start: -5px; top: -5px;
+  width: 10px; height: 10px; border-radius: var(--radius-full);
+  background: var(--teal-700); box-shadow: 0 0 0 var(--bw-thick) #fff;
+}
+.pin--stale .pin__dot { background: var(--mute-fg); }
+.pin__tag {
+  position: absolute; white-space: nowrap;
   background: var(--teal-800); color: #fff; font-size: var(--t-2xs); font-weight: var(--w-bold);
-  padding: var(--s-0) var(--s-2); border-radius: var(--radius-xs); white-space: nowrap;
+  padding: var(--s-0) var(--s-2); border-radius: var(--radius-xs);
 }
-.map__pin i {
-  width: 13px; height: 13px; border-radius: var(--radius-full) var(--radius-full) var(--radius-full) 0;
-  background: var(--alert-600); border: var(--bw-thick) solid #fff;
-  transform: rotate(-45deg);
+.pin[data-side="up"]    .pin__tag { inset-block-end: 10px; inset-inline-start: 50%; transform: translateX(50%); }
+.pin[data-side="down"]  .pin__tag { top: 10px;             inset-inline-start: 50%; transform: translateX(50%); }
+.pin[data-side="start"] .pin__tag { inset-inline-start: 12px; top: 50%; transform: translateY(-50%); }
+.pin[data-side="end"]   .pin__tag { inset-inline-end: 12px;   top: 50%; transform: translateY(-50%); }
+.pin--crowded .pin__tag, .pin--clustered .pin__tag { display: none; }
+.pin--clustered .pin__dot { opacity: 0; }
+.pin:hover, .pin:focus-visible, .pin.is-lit { z-index: 3; }
+.pin:hover .pin__tag, .pin:focus-visible .pin__tag, .pin.is-lit .pin__tag { display: block; }
+.pin.is-lit .pin__dot { opacity: 1; transform: scale(1.6); }
+
+/* دائرة التجمّع: عددها هو المعلومة، فلا يُفرَد على المخطّط لئلّا تُنقل
+   النقاط عن مواضعها — يُضيء بدلها أسطر من فيه في القائمة. */
+.cluster {
+  position: absolute; transform: translate(50%, -50%); z-index: 2;
+  min-width: 26px; height: 26px; padding: 0 var(--s-1);
+  display: grid; place-items: center; cursor: pointer;
+  background: var(--teal-700); color: #fff;
+  font-size: var(--t-2xs); font-weight: var(--w-bold); font-variant-numeric: tabular-nums;
+  border: var(--bw-thick) solid #fff; border-radius: var(--radius-full);
 }
-.map__pin--stale i { background: var(--mute-fg); }
+.cluster--stale { background: var(--mute-fg); }
+.cluster:hover, .cluster:focus-visible, .cluster.is-lit { background: var(--teal-900); }
 .map__scale {
-  position: absolute; inset-block-end: .5rem; inset-inline-start: .6rem;
-  font-size: var(--t-2xs); color: var(--ink-soft); background: rgba(255,255,255,.85);
+  position: absolute; inset-block-end: .5rem; inset-inline-start: .6rem; margin: 0;
+  max-inline-size: calc(100% - 1.2rem);
+  font-size: var(--t-2xs); color: var(--ink-soft); background: rgba(255,255,255,.9);
   padding: var(--s-0) var(--s-2); border-radius: var(--radius-xs); border: var(--bw) solid var(--line);
 }
+.map__key {
+  display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); margin: 0;
+  font-size: var(--t-xs); color: var(--ink-mid);
+}
+.map__key-item { display: inline-flex; align-items: center; gap: var(--s-2); }
+.map__key .pin__dot { position: static; inset: auto; flex: none; box-shadow: none; }
+.map__key .pin__dot--stale { background: var(--mute-fg); }
+.map__key-note { color: var(--ink-soft); }
+
 .live__list { display: grid; gap: var(--s-2); }
 .live-row {
   background: var(--card); border: var(--bw) solid var(--line); border-radius: var(--radius);
   padding: var(--pad-sm) var(--pad-md);
+  transition: border-color .15s var(--ease), background .15s var(--ease);
 }
+.live-row.is-lit { border-color: var(--teal-700); background: var(--teal-50); }
+.live-row:focus-visible { outline: var(--bw-thick) solid var(--teal-700); outline-offset: 2px; }
+.live__stamp { font-size: var(--t-xs); color: var(--ink-soft); }
 .live-row__top { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; margin-bottom: var(--s-1); }
 .live-row__top b { font-size: var(--t-base); }
 .live-row__meta { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); font-size: var(--t-sm); color: var(--ink-soft); }
@@ -686,7 +733,8 @@ tbody tr:hover { background: #fbfdfe; }
 
 @media (max-width: 900px) {
   .live { grid-template-columns: 1fr; }
-  .map { aspect-ratio: 1 / 1; }
+  /* التثبيت بلا معنى حين يعلو المخطّط القائمة في عمود واحد */
+  .live__map-col { position: static; }
 }
 @media (max-width: 720px) {
   .geo-bar { padding-inline: var(--s-3); font-size: var(--t-xs); gap: var(--s-2); }

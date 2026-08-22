@@ -355,3 +355,51 @@ test('الرابط الممدود يُقاس على البطاقة لا على �
   assert.ok(rule && !/position:\s*(relative|absolute)/.test(rule[1]),
     'الرابط موضوع، فالطبقة تمتدّ عليه لا على البطاقة');
 });
+
+/* ------------------------- اللوحة المباشرة ------------------------- */
+
+test('نسبة المخطّط محسوبة من الحدود بجيب تمام العرض لا رقمًا مكتوبًا', () => {
+  const js = read('app.js');
+  assert.match(js, /const KW_RATIO =/, 'لا نسبة محسوبة');
+  assert.match(js, /Math\.cos\(/, 'النسبة بلا تصحيح جيب التمام، فالمسافات شرقًا-غربًا مغلوطة');
+  assert.match(js, /aspect-ratio:\$\{KW_RATIO/, 'المخطّط لا يستعمل النسبة المحسوبة');
+
+  /* نتحقّق من القيمة نفسها: درجة الطول عند وسط الكويت ٠٫٨٧ من درجة العرض */
+  const kw = { minLat: 28.45, maxLat: 30.15, minLng: 46.5, maxLng: 48.5 };
+  const want = ((kw.maxLng - kw.minLng) * Math.cos((((kw.minLat + kw.maxLat) / 2) * Math.PI) / 180))
+             / (kw.maxLat - kw.minLat);
+  assert.ok(Math.abs(want - 1.026) < 0.01, 'حدود الكويت تغيّرت — راجع النسبة');
+});
+
+test('النقطة لا تتحرّك عن موضعها، والاسم وحده هو ما يُزاح', () => {
+  const js = read('app.js');
+  /* لو أُزيحت النقطة نفسها لتفادي التزاحم صار المخطّط كذبًا مرتّبًا */
+  assert.match(js, /pin\.dataset\.side = side/, 'إزاحة الاسم غير قائمة');
+  /* أي كتابة على نمط النقطة إزاحةٌ لها مهما كُتبت: `dot.style` أو
+     `querySelector('.pin__dot').style`. الأول وحده لا يمسك الثاني. */
+  assert.ok(!/(\bdot|pin__dot['"]\))\s*\.style\b/.test(js),
+    'شيء ما يحرّك النقطة عن موضعها الحقيقي');
+});
+
+test('تفادي التراكب يقيس المستطيلات المرسومة لا أنصاف أقطار مقدَّرة', () => {
+  const js = read('app.js');
+  assert.match(js, /function separateMarks/, 'لا فصل بين العلامات');
+  assert.match(js, /getBoundingClientRect\(\)/, 'الفصل بلا قياس فعلي');
+  /* دائرة من خانتين أعرض من دائرة من خانة، والتقدير يخفي تراكبًا حقيقيًّا */
+  assert.match(js, /hits\(marks\[i\], marks\[j\]\)/, 'الفصل لا يختبر تقاطع المستطيلات');
+});
+
+test('القائمة مرتّبة بما يحتاجه المدير أوّلًا لا أبجديًّا', () => {
+  const js = read('app.js');
+  assert.match(js, /const LIVE_RANK = \{/, 'لا رتب للحالات');
+  assert.match(js, /sort\(\(x, y\) => rankOf\(x\) - rankOf\(y\)\)/, 'اللوحة غير مرتّبة بالحالة');
+});
+
+test('التحديث الدوري يقرأ open لا hidden — <dialog> لا يخفى بـhidden', () => {
+  const js = read('app.js');
+  /* `el.modal.hidden` على <dialog> false دائمًا، فالشرط المعكوس يقتل
+     كل تحديث دوري في التطبيق لا في هذه الصفحة وحدها */
+  assert.ok(!/!el\.modal\.hidden/.test(js), 'الشرط يقرأ hidden على <dialog> فيوقف التحديث أبدًا');
+  assert.match(js, /el\.modal\.open/, 'لا فحص لحالة النافذة قبل التحديث');
+  assert.match(js, /refreshLiveBoard\(\)/, 'اللوحة «المباشرة» تنتظر ضغطة زر');
+});

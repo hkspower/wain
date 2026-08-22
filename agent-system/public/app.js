@@ -2009,12 +2009,25 @@
   // حدود الكويت التقريبية لرسم مخطّط المواقع
   const KW = { minLat: 28.45, maxLat: 30.15, minLng: 46.5, maxLng: 48.5 };
 
+  /* درجة الطول أقصر من درجة العرض بجيب تمام العرض. لو رُسمتا بالطول نفسه
+     ظهرت المسافة شرقًا-غربًا أطول مما هي، فيبدو كابتنان متجاوران متباعدين.
+     نحسب النسبة من الحدود نفسها لا برقم مكتوب، فلا تنحرف لو عُدّلت الحدود. */
+  const KW_RATIO =
+    ((KW.maxLng - KW.minLng) * Math.cos((((KW.minLat + KW.maxLat) / 2) * Math.PI) / 180))
+    / (KW.maxLat - KW.minLat);
+
   const REASONS = {
     no_consent: 'لم يمنح الموافقة',
     sharing_off: 'أوقف المشاركة',
     no_data: 'لا توجد قراءة بعد',
     stale: 'آخر قراءة قديمة',
   };
+
+  /* ترتيب اللوحة بحسب ما يحتاجه المدير أولًا: من موقعه حيّ الآن، ثم من
+     قراءته قديمة، ثم من لا قراءة له، ثم من أوقف المشاركة أو لم يوافق.
+     الترتيب الأبجدي يدسّ من لم يوافق بين اثنين يتحرّكان الآن. */
+  const LIVE_RANK = { null: 0, stale: 1, no_data: 2, sharing_off: 3, no_consent: 4 };
+  const rankOf = (a) => (a.available ? 0 : (LIVE_RANK[a.reason] ?? 5));
 
   /* ------------------------- الإعدادات: العمولة ------------------------- */
 
@@ -2198,22 +2211,230 @@
     }
   }
 
+  const hits = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+
+  /* معظم كباتننا في مدينة الكويت، وعشرون نقطة هناك تصير بقعة واحدة لا تُقرأ
+     ولا يُعرف كم فيها. فالنقاط المتلاصقة تُجمع في دائرة تحمل عددها، وتبقى
+     نقطة كل كابتن على موضعها الحقيقي تظهر وحدها حين يُضاء سطره. */
+  const DOT_R = 7; // نصف قطر النقطة المفردة كما تُرسم
+
+  function drawClusters(map, groups) {
+    const box = map.getBoundingClientRect();
+    for (const old of map.querySelectorAll('.cluster')) old.remove();
+    for (const pin of map.querySelectorAll('.pin')) pin.classList.remove('pin--clustered');
+
+    groups.forEach((g, i) => {
+      if (g.members.length < 2) { g.members[0].pin.dataset.group = i; return; }
+      for (const m of g.members) { m.pin.classList.add('pin--clustered'); m.pin.dataset.group = i; }
+      const stale = g.members.every((m) => m.pin.classList.contains('pin--stale'));
+      const node = document.createElement('button');
+      node.type = 'button';
+      node.className = 'cluster' + (stale ? ' cluster--stale' : '');
+      node.dataset.members = g.members.map((m) => m.pin.dataset.agent).join(' ');
+      node.dataset.group = i;
+      node.style.insetInlineStart = `${(100 - (g.x / box.width) * 100).toFixed(2)}%`;
+      node.style.top = `${((g.y / box.height) * 100).toFixed(2)}%`;
+      node.textContent = AR.digits(g.members.length);
+      node.setAttribute('aria-label', `${AR.plural(g.members.length, 'agent')} في هذا الموضع`);
+      map.appendChild(node);
+    });
+  }
+
+  /* دائرة التجمّع أعرض من النقطة، وتتّسع أكثر برقم من خانتين. لذلك لا يكفي
+     حساب المسافة بين المراكز بأنصاف أقطار مقدَّرة — نرسم ثم نقيس المستطيلات
+     الفعلية، فإن تلامس رسمان ضُمّا وأُعيد الرسم. التقدير هو ما أخفى تراكبين. */
+  function separateMarks(map, groups) {
+    for (let pass = 0; pass < 24; pass++) {
+      drawClusters(map, groups);
+      const marks = [...map.querySelectorAll('.cluster, .pin:not(.pin--clustered) .pin__dot')]
+        .map((n) => {
+          const r = n.getBoundingClientRect();
+          const owner = n.closest('[data-group]');
+          return { g: Number(owner.dataset.group),
+                   left: r.left - 1, right: r.right + 1, top: r.top - 1, bottom: r.bottom + 1 };
+        });
+
+      /* نضمّ أقرب زوج متلامس لا أوّل زوج نصادفه: الأوّل يبني كرة ثلج تبتلع
+         المخطّط كلّه لأن المركز ينزاح مع كل ضمّة، والأقرب يوزّع التجمّعات. */
+      let pair = null;
+      let best = Infinity;
+      for (let i = 0; i < marks.length; i++) {
+        for (let j = i + 1; j < marks.length; j++) {
+          if (marks[i].g === marks[j].g || !hits(marks[i], marks[j])) continue;
+          const dx = (marks[i].left + marks[i].right - marks[j].left - marks[j].right) / 2;
+          const dy = (marks[i].top + marks[i].bottom - marks[j].top - marks[j].bottom) / 2;
+          const d = Math.hypot(dx, dy);
+          if (d < best) { best = d; pair = [marks[i].g, marks[j].g]; }
+        }
+      }
+      if (!pair) return;
+
+      const [a, b] = pair.sort((x, y) => x - y);
+      groups[a].members.push(...groups[b].members);
+      groups[a].x = groups[a].members.reduce((s, m) => s + m.x, 0) / groups[a].members.length;
+      groups[a].y = groups[a].members.reduce((s, m) => s + m.y, 0) / groups[a].members.length;
+      groups.splice(b, 1);
+    }
+  }
+
+  function clusterPins(map) {
+    const box = map.getBoundingClientRect();
+    const pins = [...map.querySelectorAll('.pin')].map((pin) => {
+      const d = pin.querySelector('.pin__dot').getBoundingClientRect();
+      return { pin, x: d.left + d.width / 2 - box.left, y: d.top + d.height / 2 - box.top };
+    });
+
+    const groups = [];
+    for (const p of pins) {
+      const near = groups.find((g) => Math.hypot(g.x - p.x, g.y - p.y) <= DOT_R * 2);
+      if (near) {
+        near.members.push(p);
+        near.x = near.members.reduce((s, m) => s + m.x, 0) / near.members.length;
+        near.y = near.members.reduce((s, m) => s + m.y, 0) / near.members.length;
+      } else {
+        groups.push({ x: p.x, y: p.y, members: [p] });
+      }
+    }
+
+    separateMarks(map, groups);
+    return groups.filter((g) => g.members.length > 1).length;
+  }
+
+  /* الاسم يوضع فوق النقطة، فإن زاحم اسمًا موضوعًا جُرّبت جهة أخرى. النقطة
+     نفسها لا تتحرّك أبدًا: إزاحة النقطة كذبٌ على المدير، أمّا إزاحة الاسم
+     فترتيب. ومن لم يجد لاسمه موضعًا يُخفى اسمه ويظهر عند المرور على سطره. */
+  const TAG_SIDES = ['up', 'down', 'start', 'end'];
+
+  function layoutPinTags(map) {
+    const pins = [...map.querySelectorAll('.pin:not(.pin--clustered)')];
+    const box = map.getBoundingClientRect();
+    const taken = [...map.querySelectorAll('.pin__dot, .cluster')].map((n) => n.getBoundingClientRect());
+    let hidden = 0;
+
+    for (const pin of pins) {
+      const tag = pin.querySelector('.pin__tag');
+      let placed = false;
+      for (const side of TAG_SIDES) {
+        pin.dataset.side = side;
+        const r = tag.getBoundingClientRect();
+        const inside = r.left >= box.left && r.right <= box.right
+                    && r.top >= box.top && r.bottom <= box.bottom;
+        if (inside && !taken.some((t) => hits(r, t))) { taken.push(r); placed = true; break; }
+      }
+      if (!placed) { pin.classList.add('pin--crowded'); hidden++; }
+    }
+    return hidden;
+  }
+
+  function livePins(shown) {
+    return shown.map((a) => {
+      const x = (a.lng - KW.minLng) / (KW.maxLng - KW.minLng);
+      const y = 1 - (a.lat - KW.minLat) / (KW.maxLat - KW.minLat);
+      const cx = Math.min(Math.max(x, 0.02), 0.98) * 100;
+      const cy = Math.min(Math.max(y, 0.02), 0.98) * 100;
+      const first = a.agent_name.split(' ')[0];
+      return `<button class="pin${a.reason === 'stale' ? ' pin--stale' : ''}" type="button"
+                      data-agent="${a.agent_id}" data-side="up"
+                      style="inset-inline-start:${(100 - cx).toFixed(2)}%; top:${cy.toFixed(2)}%"
+                      aria-label="${esc(a.agent_name)} — ${a.reason === 'stale' ? 'آخر قراءة قديمة' : 'موقع محدَّث'}">
+                <span class="pin__dot"></span><span class="pin__tag">${esc(first)}</span>
+              </button>`;
+    }).join('');
+  }
+
+  function liveRows(agents) {
+    return agents.map((a) => `
+      <article class="live-row" data-agent="${a.agent_id}"${a.available ? ' tabindex="0"' : ''}>
+        <div class="live-row__top">
+          <b>${esc(a.agent_name)}</b>
+          <span class="badge badge--${a.availability}">${esc(state.meta.availability[a.availability])}</span>
+          ${a.available
+            ? '<span class="badge badge--delivered">موقع محدَّث</span>'
+            : `<span class="badge badge--offline">${esc(REASONS[a.reason] || 'غير متاح')}</span>`}
+        </div>
+        <div class="live-row__meta">
+          <span>${esc(vehicleName(a.vehicle))}</span>
+          <span>${esc(a.governorate || 'بلا منطقة')}</span>
+          <span>${AR.describe(a.active_orders, 'order', 'active')}</span>
+          ${a.order_code ? `<span>يوصّل <a href="#/orders/${a.order_id}">${esc(a.order_code)}</a></span>` : ''}
+          ${a.recorded_at ? `<span><time datetime="${esc(a.recorded_at)}">${esc(relTime(a.recorded_at))}</time></span>` : ''}
+          ${a.lat != null ? `<span><a href="https://www.google.com/maps?q=${a.lat},${a.lng}"
+               target="_blank" rel="noopener">افتح في الخرائط</a></span>` : ''}
+        </div>
+      </article>`).join('');
+  }
+
+  /* رسم اللوحة وحدها دون رأس الصفحة، ليعيد التحديث الدوري رسمها
+     بلا وميض في العنوان ولا قفزة في موضع التمرير. */
+  function paintLiveBoard(host, agents) {
+    const sorted = [...agents].sort((x, y) => rankOf(x) - rankOf(y));
+    const shown = sorted.filter((a) => a.available || a.reason === 'stale');
+    const fresh = sorted.filter((a) => a.available).length;
+
+    host.innerHTML = `
+      <div class="live__map-col">
+        <div class="map" style="aspect-ratio:${KW_RATIO.toFixed(4)}">
+          ${livePins(shown)}
+          <p class="map__scale">مخطّط تقريبي لحدود الكويت<span class="map__crowd"></span></p>
+        </div>
+        <p class="map__key">
+          <span class="map__key-item"><i class="pin__dot"></i>موقع محدَّث (${AR.digits(fresh)})</span>
+          <span class="map__key-item"><i class="pin__dot pin__dot--stale"></i>آخر قراءة قديمة (${AR.digits(shown.length - fresh)})</span>
+          ${sorted.length > shown.length
+            ? `<span class="map__key-note">${AR.plural(sorted.length - shown.length, 'agent')} بلا موقع، في القائمة وحدها</span>`
+            : ''}
+        </p>
+      </div>
+      <div class="live__list">${liveRows(sorted)}</div>`;
+
+    const map = host.querySelector('.map');
+    const clusters = clusterPins(map);
+    const crowded = layoutPinTags(map);
+    /* عدد المخفيّ ليس معلومة يتصرّف بها المدير، أمّا طريقة إظهاره فنعم */
+    if (clusters || crowded) {
+      host.querySelector('.map__crowd').textContent =
+        ` — ${clusters ? 'الرقم في الدائرة عدد من فيها. ' : ''}مرّر على سطر الكابتن ليظهر موضعه`;
+    }
+
+    /* ربط النقطة بسطرها في الاتجاهين: اللوحة نصفان لا يفيدان إلا معًا. */
+    const light = (id, on) => {
+      for (const n of host.querySelectorAll(`[data-agent="${id}"]`)) n.classList.toggle('is-lit', on);
+      for (const c of host.querySelectorAll('.cluster')) {
+        if (c.dataset.members.split(' ').includes(String(id))) c.classList.toggle('is-lit', on);
+      }
+    };
+    for (const row of host.querySelectorAll('.live-row')) {
+      const id = row.dataset.agent;
+      row.addEventListener('mouseenter', () => light(id, true));
+      row.addEventListener('mouseleave', () => light(id, false));
+      row.addEventListener('focusin', () => light(id, true));
+      row.addEventListener('focusout', () => light(id, false));
+    }
+    const goToRow = (id) => {
+      const row = host.querySelector(`.live-row[data-agent="${id}"]`);
+      if (row) { row.scrollIntoView({ block: 'center', behavior: 'smooth' }); row.focus(); }
+    };
+    for (const pin of host.querySelectorAll('.pin')) {
+      const id = pin.dataset.agent;
+      pin.addEventListener('mouseenter', () => light(id, true));
+      pin.addEventListener('mouseleave', () => light(id, false));
+      pin.addEventListener('click', () => goToRow(id));
+    }
+    /* التجمّع لا يُفرَد على المخطّط — تفريقه يضع الكباتن في غير مواضعهم.
+       بدله يُضيء أسطرهم في القائمة، وهي الموضع الذي تُقرأ فيه الأسماء. */
+    for (const cl of host.querySelectorAll('.cluster')) {
+      const ids = cl.dataset.members.split(' ');
+      const all = (on) => { for (const id of ids) light(id, on); };
+      cl.addEventListener('mouseenter', () => all(true));
+      cl.addEventListener('mouseleave', () => all(false));
+      cl.addEventListener('click', () => goToRow(ids[0]));
+    }
+  }
+
   async function renderLive() {
     if (state.me.role !== 'admin') { location.hash = '#/'; return; }
     el.view.innerHTML = `<div class="page-head"><div><h1>المواقع المباشرة</h1></div></div>${skeleton(3)}`;
     const { agents } = await api('/locations/live');
-
-    const shown = agents.filter((a) => a.available);
-    const pins = shown.map((a) => {
-      const x = (a.lng - KW.minLng) / (KW.maxLng - KW.minLng);
-      const y = 1 - (a.lat - KW.minLat) / (KW.maxLat - KW.minLat);
-      const cx = Math.min(Math.max(x, 0.02), 0.98) * 100;
-      const cy = Math.min(Math.max(y, 0.04), 0.98) * 100;
-      return `<div class="map__pin${a.reason === 'stale' ? ' map__pin--stale' : ''}"
-                   style="inset-inline-start:${(100 - cx).toFixed(2)}%; top:${cy.toFixed(2)}%">
-                <b>${esc(a.agent_name.split(' ')[0])}</b><i></i>
-              </div>`;
-    }).join('');
 
     el.view.innerHTML = `
       <div class="page-head">
@@ -2221,39 +2442,42 @@
           <h1>المواقع المباشرة</h1>
           <p>يظهر هنا المندوبون الذين وافقوا على المشاركة وفعّلوها فقط.</p>
         </div>
-        <button class="btn btn--ghost btn--sm" id="refreshLive" type="button">تحديث</button>
+        <div class="page-head__side">
+          <span class="live__stamp" id="liveStamp"></span>
+          <button class="btn btn--ghost btn--sm" id="refreshLive" type="button">تحديث</button>
+        </div>
       </div>
+      <div class="live" id="liveBoard"></div>`;
 
-      <div class="live">
-        <div class="map">
-          ${pins || ''}
-          <span class="map__scale">مخطّط تقريبي لحدود الكويت — ${AR.describe(shown.length, 'agent', 'shown')}</span>
-        </div>
-
-        <div class="live__list">
-          ${agents.map((a) => `
-            <div class="live-row">
-              <div class="live-row__top">
-                <b>${esc(a.agent_name)}</b>
-                <span class="badge badge--${a.availability}">${esc(state.meta.availability[a.availability])}</span>
-                ${a.available
-                  ? '<span class="badge badge--delivered">موقع محدَّث</span>'
-                  : `<span class="badge badge--offline">${esc(REASONS[a.reason] || 'غير متاح')}</span>`}
-              </div>
-              <div class="live-row__meta">
-                <span>${esc(vehicleName(a.vehicle))}</span>
-                <span>${esc(a.governorate || 'بلا منطقة')}</span>
-                <span>${AR.describe(a.active_orders, 'order', 'active')}</span>
-                ${a.order_code ? `<span>يوصّل <a href="#/orders/${a.order_id}">${esc(a.order_code)}</a></span>` : ''}
-                ${a.recorded_at ? `<span>${esc(relTime(a.recorded_at))}</span>` : ''}
-                ${a.lat != null ? `<span><a href="https://www.google.com/maps?q=${a.lat},${a.lng}"
-                     target="_blank" rel="noopener">افتح في الخرائط</a></span>` : ''}
-              </div>
-            </div>`).join('')}
-        </div>
-      </div>`;
-
+    paintLiveBoard(document.getElementById('liveBoard'), agents);
+    stampLive();
     document.getElementById('refreshLive').addEventListener('click', renderLive);
+  }
+
+  /* اللوحة تدّعي أنها «مباشرة»، فلا يصحّ أن تنتظر ضغطة زر. الخادم يسجّل
+     اطّلاعًا واحدًا كل خمس دقائق لكل كابتن، فالتحديث الدوري لا يُغرق سجلّ
+     الخصوصية الذي يراه الكابتن. */
+  let liveAt = 0;
+
+  function stampLive() {
+    liveAt = Date.now();
+    tickLiveStamp();
+  }
+
+  function tickLiveStamp() {
+    const node = document.getElementById('liveStamp');
+    if (!node || !liveAt) return;
+    // `since` تحمل حرف الجر بنفسها: «الآن» أو «قبل دقيقتين»
+    node.textContent = 'حُدِّثت ' + relTime(new Date(liveAt).toISOString());
+  }
+
+  async function refreshLiveBoard() {
+    const host = document.getElementById('liveBoard');
+    if (!host) return;
+    const { agents } = await api('/locations/live');
+    if (!document.getElementById('liveBoard')) return; // غادر المستخدم الصفحة أثناء الطلب
+    paintLiveBoard(host, agents);
+    stampLive();
   }
 
   /* --------------------------- إرسال النماذج --------------------------- */
@@ -2349,11 +2573,19 @@
 
   window.addEventListener('hashchange', router);
 
-  /* تحديث تلقائي كل ٤٥ ثانية للصفحة الحالية */
+  /* تحديث تلقائي كل ٤٥ ثانية للصفحة الحالية.
+     `el.modal` صار <dialog>، وحالته في `open` لا في `hidden`. */
   setInterval(async () => {
-    if (!state.me || document.hidden || !el.modal.hidden) return;
+    if (!state.me || document.hidden || el.modal.open) return;
     try { await refreshShared(); } catch { /* تجاهل */ }
+    if (location.hash === '#/live') {
+      try { await refreshLiveBoard(); } catch { /* تجاهل */ }
+    }
   }, 45000);
+
+  /* عقرب «حُدِّثت قبل …» يتحرّك كل عشر ثوانٍ ولو لم تصل بيانات جديدة، فلا
+     يظن المدير أن ما أمامه لحظيّ وقد مضى عليه دقائق. */
+  setInterval(tickLiveStamp, 10000);
 
   /* ------------------------------ الإقلاع ------------------------------ */
 
