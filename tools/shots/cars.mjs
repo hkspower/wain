@@ -99,7 +99,12 @@ const shot = async (car) => {
       // them, so every card in press/cars was a stripped version of a
       // machine you can never actually buy in that state.
       kit: c.kit,
-      stickers: true,
+      // NOT bought. The kit brings its own livery from the sport step
+      // up; on the basic shelf the Rally Sticker Pack is still a 450 KD
+      // purchase, so a basic card wearing one shows a car the showroom
+      // does not sell in that state — which is the same fault as showing
+      // a stripped supercar, pointing the other way.
+      stickers: false,
       goldRims: false,
       // At its real length, or the card shows a silhouette rather than a
       // car: the fleet runs from a 3.95 m supermini to a 5.35 m pickup
