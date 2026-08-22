@@ -89,7 +89,11 @@ for (const shape of SHAPES) {
 
     const away = e.track.wrap(587 + e.track.length / 2);
     const hold = () => {
-      for (let i = 0; i < 240; i++) {
+      // 90 frames, not 240. The position is pinned, so nothing here is
+      // waiting for the car to arrive — only for the camera rig to settle
+      // onto it, and that is quick. At 240 a single window shape took
+      // over five minutes and the tool was slower than the question.
+      for (let i = 0; i < 90; i++) {
         e.player.s = 587;
         e.player.lat = 0;
         e.player.speed = 22;
@@ -118,7 +122,7 @@ for (const shape of SHAPES) {
       // Let the eye settle by RENDERING — update() does not render, so
       // an exposure pinned during capture never adapts otherwise.
       e.exposurePass.dt = 1 / 30;
-      for (let i = 0; i < 60; i++) { e.composer.render(); e.exposurePass.dt = 1 / 30; }
+      for (let i = 0; i < 40; i++) { e.composer.render(); e.exposurePass.dt = 1 / 30; }
 
       const withCar = grab();
       const carWas = e.playerMesh.visible;
@@ -130,8 +134,13 @@ for (const shape of SHAPES) {
       const a = withCar.img.data, b = without.img.data;
       let n = 0, minX = 1e9, maxX = -1, minY = 1e9, maxY = -1;
       const W = withCar.w, H = withCar.h;
-      for (let y = 0; y < H; y++) {
-        for (let x = 0; x < W; x++) {
+      // Every second pixel in both axes. A car is tens of thousands of
+      // pixels; a quarter of them is still tens of thousands, and every
+      // number reported here is a ratio rather than a count.
+      let sampled = 0;
+      for (let y = 0; y < H; y += 2) {
+        for (let x = 0; x < W; x += 2) {
+          sampled++;
           const i = (y * W + x) * 4;
           const d = Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
           // 12 of 765: above the dither and the grain, below any real
@@ -147,7 +156,7 @@ for (const shape of SHAPES) {
       if (wantShots && view === "chase") pics.chase = withCar.canvas.toDataURL("image/png");
       res.push({
         view,
-        area: n / (W * H),
+        area: n / sampled,
         width: maxX < 0 ? 0 : (maxX - minX + 1) / W,
         height: maxY < 0 ? 0 : (maxY - minY + 1) / H,
         fovV: e.camera.fov,
@@ -160,6 +169,10 @@ for (const shape of SHAPES) {
   }, [WRITE]);
 
   for (const r of out.res) rows.push({ shape: shape.name, ...r });
+  // Progress as it goes. The first version printed nothing until every
+  // shape was done, which through a pipe looks identical to a hang —
+  // and it was mistaken for one.
+  console.error(`  measured ${shape.name}`);
   if (out.pics.chase) shots[`chase-${shape.name.replace(":", "x")}`] = out.pics.chase;
   await page.close();
 }
