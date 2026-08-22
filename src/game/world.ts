@@ -255,6 +255,94 @@ function buildWall(
   return geo;
 }
 
+/**
+ * A profiled rail following the track — a cross-section extruded along
+ * the road rather than a flat band standing beside it.
+ *
+ * buildWall above makes a two-vertex ribbon, which is the right shape
+ * for a tunnel wall and the wrong one for a guardrail. A guardrail is
+ * not a plank: it is a corrugated W-beam, and the corrugation is the
+ * whole reason it reads at night. A flat band takes one flat shade
+ * across its whole height, so a headlight sweeping past it produces no
+ * event at all; a W catches the beam on its two crests and holds a dark
+ * line in its valley, and that moving highlight is most of what tells
+ * you how fast you are going along a wall.
+ *
+ * `profile` is a list of [out, up] pairs in metres, where `out` is
+ * measured along the track's own side vector — positive being away from
+ * the road — so the same profile serves both edges once the sign is
+ * flipped. The section is traced in order, so the points describe the
+ * face from bottom lip to top lip.
+ */
+function buildProfiled(
+  track: Track,
+  lateral: LatOffset,
+  profile: ReadonlyArray<[number, number]>,
+  facing: number,
+  step = 4,
+  u0 = 0,
+  u1 = 1
+): THREE.BufferGeometry {
+  const span = (u1 - u0) * track.length;
+  const n = Math.ceil(span / step);
+  const m = profile.length;
+  const positions = new Float32Array((n + 1) * m * 3);
+  const uvs = new Float32Array((n + 1) * m * 2);
+  const indices: number[] = [];
+  const p = new THREE.Vector3();
+  const side = new THREE.Vector3();
+
+  // v runs along the section so a texture would band correctly across
+  // the beam; u runs down the road at the same 14 m tile as everything
+  // else on this surface.
+  for (let i = 0; i <= n; i++) {
+    const s = u0 * track.length + (i / n) * span;
+    track.pose(s, latAt(lateral, s), p, side);
+    for (let k = 0; k < m; k++) {
+      const [out, up] = profile[k];
+      const o = (i * m + k) * 3;
+      positions[o] = p.x + side.x * out * facing;
+      positions[o + 1] = up;
+      positions[o + 2] = p.z + side.z * out * facing;
+      const ou = (i * m + k) * 2;
+      uvs[ou] = k / (m - 1);
+      uvs[ou + 1] = s / 14;
+    }
+    if (i < n) {
+      for (let k = 0; k < m - 1; k++) {
+        const a = i * m + k;
+        const b = a + m;
+        indices.push(a, b, a + 1, b, b + 1, a + 1);
+      }
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/**
+ * The W-beam's section, in metres, bottom lip to top lip.
+ *
+ * These are a real guardrail's numbers rather than a shape that looks
+ * about right: an AASHTO W-beam is 312 mm deep with the two crests
+ * standing 83 mm proud of the bolt line, which is the dimension that
+ * decides how wide the highlight is when a headlight crosses it.
+ */
+const W_BEAM: ReadonlyArray<[number, number]> = [
+  [0.0, -0.156],
+  [0.055, -0.120],
+  [0.083, -0.052],
+  [0.030, 0.0], // the valley, where it bolts through to the post
+  [0.083, 0.052],
+  [0.055, 0.120],
+  [0.0, 0.156],
+];
+
 /** High-detail asphalt built in a typed array rather than with tens of
  *  thousands of canvas paths — same look, ~100 ms instead of ~30 s.
  *  Returns the colour map and a matching normal map generated from the
@@ -2853,16 +2941,59 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     scene.add(dashes);
   }
 
-  // Guardrails
+  // ------------------------------------------------------- the border
+  //
+  // The edge of the road, which is the thing a driver actually looks at
+  // all night. It was one flat double-sided band 650 mm tall — a plank
+  // on edge, no posts, no section, no reflectors — and a plank takes one
+  // flat shade across its whole height, so a headlight sweeping along it
+  // produced no event at all. A real barrier is three things, and each
+  // of them does a different job in the dark:
+  //
+  //   the BEAM     corrugated, so the light catches two crests and holds
+  //                a dark valley between them. That travelling highlight
+  //                is most of what tells you how fast you are moving
+  //                along a wall.
+  //   the POSTS    a rhythm. Evenly spaced verticals are the only thing
+  //                at the roadside that ticks past at a rate you can
+  //                read, and a rail without them floats.
+  //   the REFLECTORS  the one part of the border that is BRIGHT at
+  //                night, and the reason you can see where a curve goes
+  //                before your headlights reach it.
   const railMat = new THREE.MeshStandardMaterial({
     color: 0x9aa2ab,
     roughness: 0.4,
     metalness: 0.7,
     side: THREE.DoubleSide,
   });
+  const postMat = new THREE.MeshStandardMaterial({
+    color: 0x6b7178,
+    roughness: 0.62,
+    metalness: 0.55,
+  });
+  // Rail centre height. A W-beam's top edge sits between 700 and 810 mm
+  // on a road like this, and the section is 312 mm deep, so a centre at
+  // 620 puts the top at 776 — inside the real range, and close enough to
+  // the old band's 950 mm top that nothing behind it is newly exposed.
+  const RAIL_Y = 0.62;
+  const POST_EVERY = 4;
+  // Every fourth post, so 16 m — the spacing delineators actually run at,
+  // and far enough apart that they read as a dotted line running ahead
+  // into the dark rather than as a continuous glowing strip.
+  const REFLECTOR_EVERY = 4;
   for (const edge of [-1, 1]) {
+    const lateral: LatOffset = (s: number) => edge * (track.halfWidthAt(s) + 0.6);
     const rail = new THREE.Mesh(
-      buildWall(track, (s) => edge * (track.halfWidthAt(s) + 0.6), 0.3, 0.95),
+      buildProfiled(
+        track,
+        lateral,
+        // Lifted onto the rail's own height here rather than baking the
+        // height into W_BEAM, so the section stays a section and can be
+        // hung at whatever height a given barrier needs.
+        W_BEAM.map(([out, up]) => [out, up + RAIL_Y] as [number, number]),
+        edge,
+        4
+      ),
       railMat
     );
     // A rail casts AND receives: it is the nearest tall thing to the
@@ -2873,6 +3004,79 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     rail.receiveShadow = true;
     rail.name = "guardrail";
     scene.add(rail);
+
+    // Posts. A real one is a C-section channel; at the distance this is
+    // ever seen from, a slim box with the right rhythm is the same
+    // object, and it instances into a single draw.
+    const postCount = Math.floor(L / POST_EVERY);
+    const postGeo = new THREE.BoxGeometry(0.14, RAIL_Y + 0.16, 0.09);
+    const posts = new THREE.InstancedMesh(postGeo, postMat, postCount);
+    posts.castShadow = true;
+    posts.receiveShadow = true;
+    posts.name = "guardrail-post";
+
+    // Reflectors. Emissive rather than physically retroreflective —
+    // three.js has no retroreflection, and a material that is bright
+    // only when the player's own beam hits it would need a shader of its
+    // own. Emissive is the same cheat the cat's eyes on the edge lines
+    // already make, and it reads correctly for the same reason: at night
+    // the only light near them IS a headlight.
+    //
+    // Amber outbound, red on the seaward side, which is how a Gulf
+    // carriageway is delineated — the colour tells you which edge you
+    // are looking at when the road curves away.
+    const reflectorCount = Math.floor(postCount / REFLECTOR_EVERY);
+    const refGeo = new THREE.BoxGeometry(0.02, 0.1, 0.055);
+    const refMat = new THREE.MeshStandardMaterial({
+      color: edge < 0 ? 0xff3a2a : 0xffb02a,
+      emissive: edge < 0 ? 0xd42618 : 0xe08a10,
+      emissiveIntensity: 1.9,
+      roughness: 0.35,
+      fog: false,
+    });
+    const reflectors = new THREE.InstancedMesh(refGeo, refMat, reflectorCount);
+    reflectors.name = "guardrail-reflector";
+    // ...and they stop glowing when the sun is up. A retroreflector in
+    // daylight is a piece of coloured plastic, not a lamp. The cat's
+    // eyes on the edge lines glow around the clock and that is a bug
+    // waiting to be noticed rather than a precedent worth copying.
+    nightGlow.push({ mat: refMat, base: refMat.emissiveIntensity });
+
+    const mp = new THREE.Vector3();
+    const mside = new THREE.Vector3();
+    const mtan = new THREE.Vector3();
+    const mq = new THREE.Quaternion();
+    const mm = new THREE.Matrix4();
+    const one = new THREE.Vector3(1, 1, 1);
+    const fwd = new THREE.Vector3(0, 0, 1);
+    let ri = 0;
+    for (let i = 0; i < postCount; i++) {
+      const s = i * POST_EVERY;
+      track.pose(s, latAt(lateral, s), mp, mside);
+      track.tangentAt(s, mtan);
+      mq.setFromUnitVectors(fwd, mtan);
+      // Behind the beam: the post carries the rail, it does not stand in
+      // front of it. Half the beam's own depth plus the post's.
+      mp.x += mside.x * edge * 0.1;
+      mp.z += mside.z * edge * 0.1;
+      mp.y = (RAIL_Y + 0.16) / 2;
+      mm.compose(mp, mq, one);
+      posts.setMatrixAt(i, mm);
+
+      if (i % REFLECTOR_EVERY === 0 && ri < reflectorCount) {
+        // On the road-facing crest of the beam, near its top, which is
+        // where a delineator is actually bolted.
+        track.pose(s, latAt(lateral, s), mp, mside);
+        mp.x -= mside.x * edge * 0.085;
+        mp.z -= mside.z * edge * 0.085;
+        mp.y = RAIL_Y + 0.1;
+        mm.compose(mp, mq, one);
+        reflectors.setMatrixAt(ri++, mm);
+      }
+    }
+    posts.instanceMatrix.needsUpdate = true;
+    reflectors.instanceMatrix.needsUpdate = true;
+    scene.add(posts, reflectors);
   }
 
   // Streetlights: poles + sodium lamps, alternating sides
