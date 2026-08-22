@@ -1,9 +1,32 @@
-# The Sporta loyalty card, in Apple Wallet
+# Sporta's Apple Wallet cards
+
+Three kinds, one builder, one certificate:
 
 ```
-node scripts/make-wallet-pass.mjs --serial SP-000123 --name "نورة" --points 240
+node scripts/make-wallet-pass.mjs --type loyalty  --serial SP-000123 --name "نورة" --points 240
+node scripts/make-wallet-pass.mjs --type coupon   --code SUMMER24 --percent 15 --ends 2026-09-01
+node scripts/make-wallet-pass.mjs --type giftcard --serial GC-000045 --balance 25.000 --from "أحمد"
 node scripts/wallet-test.mjs wallet/SP-000123.pkpass
 ```
+
+| Kind | Wallet style | What it is |
+|---|---|---|
+| `loyalty` | `storeCard` | Points, tier, member name. The card kept at the front |
+| `coupon` | `coupon` | One discount code, its value and its end date |
+| `giftcard` | `generic` | A balance that falls rather than grows |
+
+**The coupon's fields are a row from the `discounts` table** — the same code,
+value and end date the promotions manager in `/backends` edits. A coupon sitting
+in a customer's Wallet that the shop's own rules do not recognise is worse than
+no coupon at all, so it is issued from the rule rather than typed twice.
+
+Gift cards are `generic`, not `storeCard`, deliberately: Wallet's store card is
+built around a loyalty balance that grows, and a gift card's only falls.
+
+**One Pass Type ID for all three.** Apple allows a single identifier to carry
+every style, and each additional one needs its own certificate — its own CSR,
+export and yearly renewal. Three certificates to distinguish a coupon from a
+loyalty card is a year of administrative work for nothing a customer sees.
 
 ## What is built here, and what only you can do
 
@@ -22,7 +45,7 @@ checked; it cannot be installed on a phone until it carries your identity.
 You need an **Apple Developer Program** membership (99 USD/year).
 
 1. **Pass Type ID** — developer.apple.com → Certificates, Identifiers & Profiles
-   → Identifiers → **+** → Pass Type IDs. Name it `pass.kw.com.sporta.loyalty`.
+   → Identifiers → **+** → Pass Type IDs. Name it `pass.kw.com.sporta.card` — one identifier serves all three kinds.
 2. **The certificate** — on that identifier, Create Certificate. It asks for a
    Certificate Signing Request, which you make on a Mac in Keychain Access
    (Certificate Assistant → Request a Certificate From a Certificate
@@ -78,6 +101,9 @@ explains a refusal, the pass just does not open:
 
 - the required files are present, and **at the root of the zip**, not in a
   folder, which is the commonest reason a hand-built pass fails;
+- **exactly one style key** — a pass carrying both `storeCard` and `coupon` is
+  rejected by Wallet and one carrying neither has no layout at all, and both
+  look like perfectly good files from outside the phone;
 - `formatVersion`, the `pass.` prefix, a ten-character team id, a description
   (VoiceOver reads it), and colours as `rgb()` rather than hex;
 - the barcode carries the serial the till scans;

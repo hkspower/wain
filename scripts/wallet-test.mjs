@@ -37,7 +37,20 @@ check(pass.formatVersion === 1, 'formatVersion is 1')
 check(/^pass\./.test(pass.passTypeIdentifier), `passTypeIdentifier starts with "pass." (${pass.passTypeIdentifier})`)
 check(/^[A-Z0-9]{10}$/.test(pass.teamIdentifier), `teamIdentifier is 10 characters (${pass.teamIdentifier})`)
 check(!!pass.description, 'description is present — VoiceOver reads it aloud')
-check(!!pass.storeCard, 'it is a storeCard, which is what a loyalty card is')
+// Exactly one style key. Two is rejected by Wallet; none has no layout at all;
+// both look like a perfectly good file from outside the phone.
+const STYLES = ['storeCard', 'coupon', 'generic', 'eventTicket', 'boardingPass']
+const styles = STYLES.filter((k) => k in pass)
+check(styles.length === 1, `exactly one style key — found ${styles.join(', ') || 'none'}`)
+check(
+  { loyalty: 'storeCard', coupon: 'coupon', giftcard: 'generic' }[
+    /GC-/.test(pass.serialNumber) ? 'giftcard' : pass.coupon ? 'coupon' : 'loyalty'
+  ] === styles[0],
+  `the style matches what the pass is (${styles[0]})`,
+)
+if (pass.expirationDate)
+  check(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/.test(pass.expirationDate),
+    `expirationDate is a W3C date-time (${pass.expirationDate})`)
 check(pass.barcodes?.[0]?.message === pass.serialNumber, 'the barcode carries the serial the till needs')
 for (const c of ['backgroundColor', 'foregroundColor', 'labelColor'])
   check(/^rgb\(\d+, ?\d+, ?\d+\)$/.test(pass[c]), `${c} is rgb(), not hex — Wallet rejects hex`)

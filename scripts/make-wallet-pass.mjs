@@ -1,7 +1,15 @@
 /**
- * Builds the Sporta loyalty card for Apple Wallet.
+ * Builds Sporta's Apple Wallet passes.
  *
- *   node scripts/make-wallet-pass.mjs [--serial SP-000123] [--name "…"] [--points 240]
+ *   node scripts/make-wallet-pass.mjs --type loyalty  --serial SP-000123 --name "…" --points 240
+ *   node scripts/make-wallet-pass.mjs --type coupon   --code SUMMER24 --percent 15 --ends 2026-09-01
+ *   node scripts/make-wallet-pass.mjs --type giftcard --serial GC-000045 --balance 25.000
+ *
+ * THREE KINDS, ONE BUNDLE FORMAT. Wallet distinguishes them by which key
+ * pass.json carries — storeCard, coupon or generic — and by little else; the
+ * images, the manifest and the signature are identical work. So the difference
+ * between them lives in one function and nothing else in this file knows there
+ * is more than one.
  *
  * WHAT THIS CAN AND CANNOT DO
  *
@@ -30,7 +38,12 @@ const arg = (flag, fallback) => {
 // From your Apple Developer account. Both are on the pass, both are checked by
 // iOS against the certificate, and a mismatch is one of the two reasons a pass
 // that looks perfect refuses to open.
-const PASS_TYPE_ID = process.env.WALLET_PASS_TYPE_ID ?? 'pass.kw.com.sporta.loyalty'
+// ONE identifier for all three kinds, not three. Apple allows a single Pass
+// Type ID to carry every pass style, and each additional identifier needs its
+// own certificate — its own CSR, its own export, its own renewal every year.
+// Three certificates to distinguish a loyalty card from a coupon is a year of
+// small administrative pain for nothing the customer can see.
+const PASS_TYPE_ID = process.env.WALLET_PASS_TYPE_ID ?? 'pass.kw.com.sporta.card'
 const TEAM_ID = process.env.WALLET_TEAM_ID ?? 'TEAMIDXXXX'
 
 const CERTS = {
@@ -40,60 +53,133 @@ const CERTS = {
   password: process.env.WALLET_KEY_PASSWORD ?? '',
 }
 
-const serial = arg('--serial', 'SP-DEMO-0001')
-const holder = arg('--name', 'عميل سبورتا')
-const points = Number(arg('--points', '0'))
-const OUT = arg('--out', `wallet/${serial}.pkpass`)
+const OUT_ARG = arg('--out', null)
 const WORK = 'wallet/.build'
 
 // ---------------------------------------------------------------- pass.json
-//
-// storeCard, not coupon or generic: a loyalty card is the one Wallet keeps at
-// the front with a barcode the till can read.
-const pass = {
+const type = arg('--type', 'loyalty')
+const KINDS = ['loyalty', 'coupon', 'giftcard']
+if (!KINDS.includes(type)) {
+  console.error(`--type must be one of: ${KINDS.join(', ')}`)
+  process.exit(1)
+}
+
+const common = {
   formatVersion: 1,
   passTypeIdentifier: PASS_TYPE_ID,
   teamIdentifier: TEAM_ID,
   organizationName: 'Sporta',
-  description: 'Sporta loyalty card',
-  serialNumber: serial,
-
-  // Brand ink and ember. Apple takes rgb() strings, not hex.
   backgroundColor: 'rgb(43, 49, 56)',
   foregroundColor: 'rgb(255, 255, 255)',
   labelColor: 'rgb(226, 128, 63)',
-
   logoText: 'SPORTA',
-
-  // The till scans this. QR because every phone camera and every modern
-  // scanner reads one, and because Wallet shows it large enough to be read off
-  // a cracked screen.
-  barcodes: [
-    {
-      format: 'PKBarcodeFormatQR',
-      message: serial,
-      messageEncoding: 'iso-8859-1',
-      altText: serial,
-    },
-  ],
-
-  storeCard: {
-    headerFields: [
-      { key: 'points', label: 'النقاط', value: points, changeMessage: 'رصيدك الآن %@ نقطة' },
-    ],
-    primaryFields: [{ key: 'holder', label: 'العضو', value: holder }],
-    secondaryFields: [
-      { key: 'tier', label: 'المستوى', value: points >= 500 ? 'ذهبي' : points >= 200 ? 'فضي' : 'أساسي' },
-      { key: 'since', label: 'عضو منذ', value: new Date().getFullYear().toString() },
-    ],
-    backFields: [
-      { key: 'how', label: 'كيف تجمع النقاط', value: 'نقطة واحدة لكل ١٠٠ فلس تنفقها في سبورتا.' },
-      { key: 'shop', label: 'المتجر', value: 'www.sporta.com.kw' },
-      { key: 'contact', label: 'خدمة العملاء', value: 'cs@sporta.com.kw' },
-      { key: 'terms', label: 'الشروط', value: 'النقاط غير قابلة للتحويل ولا تُستبدل نقداً.' },
-    ],
-  },
 }
+
+/** The QR the till scans. Its message is the only thing the shop needs back. */
+const barcode = (message) => [
+  { format: 'PKBarcodeFormatQR', message, messageEncoding: 'iso-8859-1', altText: message },
+]
+
+const money = (kwd) => `${Number(kwd).toFixed(3)} د.ك`
+
+function buildPass() {
+  if (type === 'coupon') {
+    // COUPON, and its fields come straight from a row in the discounts table
+    // the promotions manager edits — the same code, the same value, the same
+    // end date. A coupon in a customer's Wallet that the shop's own rules do
+    // not recognise is worse than no coupon at all.
+    const code = arg('--code', 'SUMMER24')
+    const percent = arg('--percent', null)
+    const off = arg('--off', null)
+    const ends = arg('--ends', null)
+    return {
+      ...common,
+      description: `Sporta offer ${code}`,
+      serialNumber: code,
+      barcodes: barcode(code),
+      // Wallet moves an expired pass to the back of the stack and greys it,
+      // which is exactly what should happen to an offer that has ended.
+      ...(ends ? { expirationDate: `${ends}T23:59:59+03:00` } : {}),
+      coupon: {
+        headerFields: [
+          {
+            key: 'value',
+            label: 'الخصم',
+            value: percent ? `${percent}%` : money(off ?? 0),
+          },
+        ],
+        primaryFields: [{ key: 'code', label: 'الكود', value: code }],
+        secondaryFields: [
+          ...(ends ? [{ key: 'ends', label: 'ينتهي', value: ends }] : []),
+          { key: 'where', label: 'أين', value: 'المتجر والتطبيق' },
+        ],
+        backFields: [
+          { key: 'how', label: 'كيف تستخدمه', value: 'أدخل الكود عند إتمام الطلب.' },
+          { key: 'terms', label: 'الشروط', value: 'لا يُجمع مع عروض أخرى. الكمية محدودة.' },
+          { key: 'shop', label: 'المتجر', value: 'www.sporta.com.kw' },
+        ],
+      },
+    }
+  }
+
+  if (type === 'giftcard') {
+    // GENERIC, not storeCard. Wallet's storeCard is built around a loyalty
+    // balance that grows; a gift card's balance only falls, and generic is the
+    // layout that does not imply otherwise.
+    const serial = arg('--serial', 'GC-DEMO-0001')
+    const balance = arg('--balance', '25.000')
+    const from = arg('--from', null)
+    return {
+      ...common,
+      description: 'Sporta gift card',
+      serialNumber: serial,
+      barcodes: barcode(serial),
+      generic: {
+        headerFields: [{ key: 'balance', label: 'الرصيد', value: money(balance), changeMessage: 'رصيد بطاقتك الآن %@' }],
+        primaryFields: [{ key: 'title', label: 'بطاقة هدية', value: 'سبورتا' }],
+        secondaryFields: [
+          ...(from ? [{ key: 'from', label: 'من', value: from }] : []),
+          { key: 'serial', label: 'رقم البطاقة', value: serial },
+        ],
+        backFields: [
+          { key: 'how', label: 'كيف تستخدمها', value: 'اعرض الرمز عند الدفع، أو أدخل رقم البطاقة في التطبيق.' },
+          { key: 'terms', label: 'الشروط', value: 'غير قابلة للاستبدال نقداً ولا تُرد.' },
+          { key: 'shop', label: 'المتجر', value: 'www.sporta.com.kw' },
+        ],
+      },
+    }
+  }
+
+  // LOYALTY — storeCard, which is the one Wallet keeps at the front with a
+  // barcode the till can read.
+  const serial = arg('--serial', 'SP-DEMO-0001')
+  const holder = arg('--name', 'عميل سبورتا')
+  const points = Number(arg('--points', '0'))
+  return {
+    ...common,
+    description: 'Sporta loyalty card',
+    serialNumber: serial,
+    barcodes: barcode(serial),
+    storeCard: {
+      headerFields: [
+        { key: 'points', label: 'النقاط', value: points, changeMessage: 'رصيدك الآن %@ نقطة' },
+      ],
+      primaryFields: [{ key: 'holder', label: 'العضو', value: holder }],
+      secondaryFields: [
+        { key: 'tier', label: 'المستوى', value: points >= 500 ? 'ذهبي' : points >= 200 ? 'فضي' : 'أساسي' },
+        { key: 'since', label: 'عضو منذ', value: new Date().getFullYear().toString() },
+      ],
+      backFields: [
+        { key: 'how', label: 'كيف تجمع النقاط', value: 'نقطة واحدة لكل ١٠٠ فلس تنفقها في سبورتا.' },
+        { key: 'shop', label: 'المتجر', value: 'www.sporta.com.kw' },
+        { key: 'contact', label: 'خدمة العملاء', value: 'cs@sporta.com.kw' },
+        { key: 'terms', label: 'الشروط', value: 'النقاط غير قابلة للتحويل ولا تُستبدل نقداً.' },
+      ],
+    },
+  }
+}
+
+const pass = buildPass()
 
 // ------------------------------------------------------------------ images
 //
@@ -165,12 +251,21 @@ function validate(p) {
   for (const c of ['backgroundColor', 'foregroundColor', 'labelColor'])
     if (p[c] && !/^rgb\(\d+, ?\d+, ?\d+\)$/.test(p[c]))
       problems.push(`${c} must be rgb(r, g, b) — hex is not accepted`)
-  const fields = p.storeCard?.headerFields ?? []
+  // EXACTLY ONE style key. A pass carrying both storeCard and coupon is
+  // rejected, and a pass carrying neither has no layout at all — both look
+  // like a perfectly good file from outside.
+  const styles = ['storeCard', 'coupon', 'generic', 'eventTicket', 'boardingPass'].filter((k) => k in p)
+  if (styles.length !== 1) problems.push(`exactly one style key is required — found ${styles.length ? styles.join(', ') : 'none'}`)
+  const fields = p[styles[0]]?.headerFields ?? []
   if (fields.length > 3) problems.push('a pass may carry at most 3 header fields')
+  if (p.expirationDate && !/^\d{4}-\d{2}-\d{2}T/.test(p.expirationDate))
+    problems.push('expirationDate must be a W3C date-time, e.g. 2026-09-01T23:59:59+03:00')
   return problems
 }
 
 // ------------------------------------------------------------------- build
+const OUT = OUT_ARG ?? `wallet/${pass.serialNumber}.pkpass`
+
 rmSync(WORK, { recursive: true, force: true })
 mkdirSync(WORK, { recursive: true })
 
