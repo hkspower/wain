@@ -1269,6 +1269,7 @@ export default function RaceClient() {
             goldRims: tune.goldRims,
             raceKit: tune.raceKit,
             kit: tune.kit,
+            headlamps: tune.headlamps,
             stickers: tune.stickers,
             lengthM: tune.lengthM,
             crew: tune.crew ?? undefined,

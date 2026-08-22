@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { EXHAUSTS, kitAtLeast, type ExhaustSpec, type KitLevel } from "./mods";
 import { upgradeCarShells, upgradeWheels, upgradeDriver } from "./models";
-import { arabicUI, latinDisplay } from "./text";
+import { arabicUI, latinDisplay, textTexture } from "./text";
 import { kuwaitiDriver } from "./characters";
 import { pointGlowTexture, poolGlowTexture } from "./glow";
 import { drawTeamLogo, type TeamLogo } from "./teams";
@@ -33,6 +33,19 @@ export interface CarColors {
   exhaust?: ExhaustSpec;
   /** Gold rims (garage mod). */
   goldRims?: boolean;
+  /**
+   * What has been done to the headlamps.
+   *
+   * - `stock` — as it left the showroom.
+   * - `smoked` — tinted lenses. The lamp still lights and still throws
+   *   a beam; it just does it through dark glass, so the face reads as
+   *   two dark slots by day and two dull ambers at night.
+   * - `single` — one lamp taken out and the housing left open. The
+   *   one-eye look, and the car really does drive on one beam: the
+   *   removed side is not recorded in `lampPositions`, so the engine
+   *   has nothing to hang a light on there.
+   */
+  headlamps?: "stock" | "smoked" | "single";
   /** Full time-attack aero: swan-neck wing, splitter, canards, vented
    *  hood, skirts, diffuser, bronze six-spokes and teal calipers.
    *  Equivalent to `kit: "attack"`, and kept because most callers only
@@ -1412,30 +1425,48 @@ const roundelCache = new Map<number, THREE.CanvasTexture>();
 function roundelTexture(num: number): THREE.CanvasTexture {
   const hit = roundelCache.get(num);
   if (hit) return hit;
-  const c = document.createElement("canvas");
-  c.width = c.height = 256;
-  const ctx = c.getContext("2d")!;
-  ctx.clearRect(0, 0, 256, 256);
-  // Classic rally roundel: white disc, dark ring, bold number
-  ctx.beginPath();
-  ctx.arc(128, 128, 118, 0, Math.PI * 2);
-  ctx.fillStyle = "#f4f4f0";
-  ctx.fill();
-  ctx.lineWidth = 10;
-  ctx.strokeStyle = "#15161a";
-  ctx.stroke();
-  ctx.fillStyle = "#15161a";
-  ctx.textAlign = "center";
-  ctx.font = `700 118px ${latinDisplay()}`;
-  ctx.fillText(String(num), 128, 152);
-  // Arabic-Indic twin, small, under the number — this is Gulf Road
-  const arDigits = "٠١٢٣٤٥٦٧٨٩";
-  const ar = String(num).split("").map((d) => arDigits[+d]).join("");
-  ctx.font = `600 40px ${arabicUI()}`;
-  ctx.fillText(ar, 128, 204);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
+  // 512, not 256. This decal is 440 mm across on a car the player spends
+  // the whole game two metres behind, and at 256 the number's edges were
+  // the softest thing on the machine — every panel gap around it was
+  // sharper than the digit it framed.
+  const S = 512;
+  // textTexture, not a bare canvas: the Arabic-Indic twin under the
+  // number is drawn with the Arabic face, and a texture rasterised
+  // before that font arrives bakes the fallback in permanently. Every
+  // decal in this pack had that bug; the flags module was built to avoid
+  // it and the stickers never got the same treatment.
+  const tex = textTexture(S, S, (ctx) => {
+    ctx.clearRect(0, 0, S, S);
+    const c2 = S / 2;
+    // A rally roundel has to read against ANY paint. White on a white
+    // car and black on a black one both vanish, so the disc gets a dark
+    // ring AND a light keyline outside it: whichever way the paint goes,
+    // one of the two edges separates.
+    ctx.beginPath();
+    ctx.arc(c2, c2, S * 0.474, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.lineWidth = S * 0.028;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(c2, c2, S * 0.452, 0, Math.PI * 2);
+    ctx.fillStyle = "#f6f6f2";
+    ctx.fill();
+    ctx.lineWidth = S * 0.042;
+    ctx.strokeStyle = "#15161a";
+    ctx.stroke();
+    ctx.fillStyle = "#15161a";
+    ctx.textAlign = "center";
+    // Heavier and larger than it was: 800 weight at 0.5 of the disc
+    // rather than 700 at 0.46. A door number is the one piece of type on
+    // a car that is meant to be read from another car.
+    ctx.font = `800 ${Math.round(S * 0.5)}px ${latinDisplay()}`;
+    ctx.fillText(String(num), c2, S * 0.615);
+    const arDigits = "٠١٢٣٤٥٦٧٨٩";
+    const ar = String(num).split("").map((d) => arDigits[+d]).join("");
+    ctx.font = `700 ${Math.round(S * 0.17)}px ${arabicUI()}`;
+    ctx.fillText(ar, c2, S * 0.82);
+  });
+  tex.anisotropy = 16;
   roundelCache.set(num, tex);
   return tex;
 }
@@ -1647,50 +1678,60 @@ function nameDecalTexture(name: string, ar?: string): THREE.CanvasTexture {
   const key = `${name}|${ar ?? ""}`;
   const hit = nameDecalCache.get(key);
   if (hit) return hit;
-  const c = document.createElement("canvas");
-  c.width = 512;
-  c.height = 128;
-  const ctx = c.getContext("2d")!;
-  ctx.clearRect(0, 0, 512, 128);
-  ctx.textAlign = "center";
-  // Letter-spaced caps, because a wordmark on a flank is read side-on at
-  // speed and tight tracking closes up to a smear.
-  ctx.letterSpacing = "6px";
-  ctx.fillStyle = "#f2f4f7";
-  ctx.font = `700 54px ${latinDisplay()}`;
-  ctx.fillText(name.toUpperCase(), 256, 58);
-  ctx.letterSpacing = "0px";
-  ctx.fillStyle = "#ff5a1f";
-  ctx.fillRect(150, 70, 212, 3);
-  if (ar) {
-    ctx.direction = "rtl";
-    ctx.font = `600 38px ${arabicUI()}`;
-    ctx.fillText(ar, 256, 110);
-  }
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
+  // Doubled to 1024 x 256, and through textTexture so the Arabic half
+  // repaints when its font lands instead of being frozen as whatever
+  // the fallback drew.
+  const W = 1024, H = 256;
+  const tex = textTexture(W, H, (ctx) => {
+    ctx.clearRect(0, 0, W, H);
+    ctx.textAlign = "center";
+    // Letter-spaced caps, because a wordmark on a flank is read side-on
+    // at speed and tight tracking closes up to a smear.
+    ctx.letterSpacing = "12px";
+    // A dark backing stroke under every glyph. This is the whole fix
+    // for legibility: the wordmark is near-white, and on a white,
+    // silver or gold car it used to disappear into the paint entirely.
+    // Stroking first and filling over it gives each letter its own edge
+    // whatever it is standing on, which is what a real cut-vinyl decal
+    // gets from its own thickness and shadow.
+    ctx.font = `800 108px ${latinDisplay()}`;
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(10,12,16,0.9)";
+    ctx.lineWidth = 12;
+    ctx.strokeText(name.toUpperCase(), W / 2, 116);
+    ctx.fillStyle = "#f4f6fa";
+    ctx.fillText(name.toUpperCase(), W / 2, 116);
+    ctx.letterSpacing = "0px";
+    // The rule under it, with its own dark edge for the same reason.
+    ctx.fillStyle = "rgba(10,12,16,0.9)";
+    ctx.fillRect(W / 2 - 218, 138, 436, 10);
+    ctx.fillStyle = "#ff5a1f";
+    ctx.fillRect(W / 2 - 214, 140, 428, 6);
+    if (ar) {
+      ctx.direction = "rtl";
+      ctx.font = `700 76px ${arabicUI()}`;
+      ctx.strokeStyle = "rgba(10,12,16,0.9)";
+      ctx.lineWidth = 10;
+      ctx.strokeText(ar, W / 2, 216);
+      ctx.fillStyle = "#f4f6fa";
+      ctx.fillText(ar, W / 2, 216);
+    }
+  });
+  tex.anisotropy = 16;
   nameDecalCache.set(key, tex);
   return tex;
 }
 
-/** The crew's roof livery: emblem over the crew's name.
- *
- *  Drawn by teams.ts so the emblem on the car is the same emblem as the
- *  one on the lobby card — one description of a logo, one routine that
- *  draws it, at whatever size is asked for. The name band underneath is
- *  laid out here because only the roof needs it. */
 const crewDecalCache = new Map<string, THREE.CanvasTexture>();
 function crewDecalTexture(logo: TeamLogo, tag: string, name: string): THREE.CanvasTexture {
   const key = `${logo.shape}|${logo.symbol}|${logo.bg}|${logo.fg}|${tag}|${name}`;
   const cached = crewDecalCache.get(key);
   if (cached) return cached;
-  const W = 256;
-  const H = 320;
-  const c = document.createElement("canvas");
-  c.width = W;
-  c.height = H;
-  const ctx = c.getContext("2d")!;
+  // 512 x 640: the crew mark carries the crew's NAME, and a name is
+  // the thing on a car people try hardest to read.
+  const W = 512;
+  const H = 640;
+  const tex = textTexture(W, H, (ctx) => {
   ctx.clearRect(0, 0, W, H);
   drawTeamLogo(ctx, logo, W, tag);
   // The crew's own name under the shield. An Arabic name is set with the
@@ -1704,9 +1745,9 @@ function crewDecalTexture(logo: TeamLogo, tag: string, name: string): THREE.Canv
     ctx.direction = ar ? "rtl" : "ltr";
     // Shrink to fit rather than run off the panel — a long crew name is
     // a normal thing to pick and it should not be cropped to "AL MUB".
-    let px = 46;
+    let px = 92;
     ctx.font = `700 ${px}px ${ar ? arabicUI() : latinDisplay()}`;
-    while (px > 18 && ctx.measureText(label).width > W - 24) {
+    while (px > 36 && ctx.measureText(label).width > W - 24) {
       px -= 2;
       ctx.font = `700 ${px}px ${ar ? arabicUI() : latinDisplay()}`;
     }
@@ -1724,9 +1765,8 @@ function crewDecalTexture(logo: TeamLogo, tag: string, name: string): THREE.Canv
     ctx.fillStyle = logo.fg;
     ctx.fillText(label, W / 2, W + 6 + (H - W - 14) / 2 + 1);
   }
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
+  });
+  tex.anisotropy = 16;
   crewDecalCache.set(key, tex);
   return tex;
 }
@@ -2055,6 +2095,24 @@ export function createCar(colors: CarColors): THREE.Group {
   // car so a single rival can flash back without lighting up traffic.
   const headMat = headlightMat.clone();
 
+  // --- The headlamp mods.
+  const lamps = colors.headlamps ?? "stock";
+  // Which side keeps its lamp when one has been taken out. The kerb
+  // side, because that is the one a passer-by sees and the whole point
+  // of the look is that people notice.
+  const LAMP_GONE = 1;
+  const lampGone = (sx: number): boolean => lamps === "single" && Math.sign(sx) === LAMP_GONE;
+  if (lamps === "smoked") {
+    // Smoked lenses. The glass goes dark and the emissive comes most of
+    // the way down — but NOT to nothing, because a smoked lamp is still
+    // a lamp: at night it glows a dull amber through the tint, and that
+    // dirty glow is the entire look. Killing the emissive outright would
+    // just give the car two black rectangles.
+    headMat.color = new THREE.Color(0x1a1c20);
+    headMat.emissive = new THREE.Color(0xffb257);
+    headMat.emissiveIntensity = 0.42;
+  }
+
   // Every lamp carries a soft bloom and a diffraction star. Sprites, so
   // the flare always faces the camera — an oncoming car's lights spike
   // properly whichever way it is pointing. Traffic skips them: thirty
@@ -2073,11 +2131,15 @@ export function createCar(colors: CarColors): THREE.Group {
     // and they still have headlamps.
     lampPositions.push(new THREE.Vector3(x, y, z));
     if (colors.simple) return;
+    // A tinted lens flares less, and the flare is most of what a
+    // headlight IS at a distance — so the tint has to reach the sprites
+    // or a smoked car looks stock from fifty metres.
+    const flare = lamps === "smoked" ? 0.34 : 1;
     const halo = new THREE.SpriteMaterial({
       map: pointGlowTexture(),
-      color: 0xfff2cc,
+      color: lamps === "smoked" ? 0xffc98a : 0xfff2cc,
       transparent: true,
-      opacity: 0.5,
+      opacity: 0.5 * flare,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       fog: false,
@@ -2091,9 +2153,9 @@ export function createCar(colors: CarColors): THREE.Group {
 
     const starMat = new THREE.SpriteMaterial({
       map: headlightStarTexture(),
-      color: 0xfff6e0,
+      color: lamps === "smoked" ? 0xffd9a0 : 0xfff6e0,
       transparent: true,
-      opacity: 0.62,
+      opacity: 0.62 * flare,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       fog: false,
@@ -2121,6 +2183,41 @@ export function createCar(colors: CarColors): THREE.Group {
   //
   // `bulb` is the piece that is allowed to blow out. Everything else has
   // to keep its shape.
+  /**
+   * What sits in the hole where a headlamp was.
+   *
+   * Not nothing. A deleted lamp on a street car is an open pan with a
+   * mesh screen over it — that is how it stays legal-ish, how the intake
+   * behind it breathes, and how anyone looking at the car can tell it
+   * was DONE rather than broken. A smooth black rectangle reads as a
+   * missing texture; a screen with a visible weave reads as a decision.
+   */
+  const addLampDelete = (x: number, y: number, z: number, w2: number, h2: number): void => {
+    // The recessed backing, darker than the housing so the socket has
+    // depth rather than being a flat patch.
+    const back = new THREE.Mesh(roundedBox(w2, h2, 0.02, 0.012), gapMat);
+    back.position.set(x, y, z - 0.02);
+    group.add(back);
+    if (colors.simple) return;
+    // The screen: horizontal wires, because a coarse weave at this scale
+    // is two sets of bars and only one of them survives being seen from
+    // a car length away.
+    const bars = Math.max(3, Math.round(h2 / 0.022));
+    for (let i = 0; i < bars; i++) {
+      const wire = new THREE.Mesh(
+        new THREE.BoxGeometry(w2 * 0.94, 0.006, 0.008),
+        seamMat
+      );
+      wire.position.set(x, y - h2 / 2 + (h2 * (i + 0.5)) / bars, z);
+      group.add(wire);
+    }
+    // And a frame around it, so the screen has an edge instead of
+    // fading into the pan.
+    const frame = new THREE.Mesh(roundedBox(w2 + 0.018, h2 + 0.018, 0.014, 0.008), housingMat);
+    frame.position.set(x, y, z - 0.006);
+    group.add(frame);
+  };
+
   const bulb = (x: number, y: number, z: number, r = 0.042, len = 0.05) => {
     const core = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.86, len, 14), headCoreMat);
     core.rotation.x = Math.PI / 2;
@@ -2149,6 +2246,13 @@ export function createCar(colors: CarColors): THREE.Group {
     const segW = 1.5 / SEGS - 0.028;
     for (let i = 0; i < SEGS; i++) {
       const cx = -0.75 + (1.5 / SEGS) * (i + 0.5);
+      // A light BAR cannot lose one of two lamps, because it does not
+      // have two. Half the bar goes dark instead, which is the same
+      // statement in this silhouette's own language.
+      if (lamps === "single" && Math.sign(cx) === LAMP_GONE) {
+        addLampDelete(cx, barY, barZ + 0.004, segW, 0.078);
+        continue;
+      }
       const seg = new THREE.Mesh(roundedBox(segW, 0.078, 0.06, 0.022), headMat);
       seg.position.set(cx, barY + Math.sin(-0.09) * 0, barZ + 0.004);
       seg.rotation.x = -0.09;
@@ -2157,6 +2261,7 @@ export function createCar(colors: CarColors): THREE.Group {
     }
     // Two projectors in the bar, where the main beams actually come from.
     for (const sx of [-0.5, 0.5]) {
+      if (lampGone(sx)) continue;
       bulb(sx, barY, barZ + 0.03, 0.03, 0.045);
       addHeadGlare(sx, barY, barZ, 0.95);
     }
@@ -2177,6 +2282,14 @@ export function createCar(colors: CarColors): THREE.Group {
       pan.position.set(sx, hood + 0.05, d.nose - 0.375);
       pan.name = "lamp-housing";
       group.add(pan);
+      if (lampGone(sx)) {
+        // A pop-up with the lamp out: the door stays DOWN, because
+        // there is nothing to raise. The pan is what you see.
+        door.rotation.x = 0;
+        door.position.set(sx, hood + 0.028, d.nose - 0.44);
+        addLampDelete(sx, hood + 0.05, d.nose - 0.35, 0.34, 0.12);
+        continue;
+      }
       const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.062, 0.05, 18), headMat);
       lens.rotation.x = Math.PI / 2;
       lens.position.set(sx, hood + 0.05, d.nose - 0.345);
@@ -2191,11 +2304,22 @@ export function createCar(colors: CarColors): THREE.Group {
     }
   } else {
     for (const sx of [-0.62, 0.62]) {
-      // Housing, deepest and widest.
+      // Housing, deepest and widest. It stays even when the lamp inside
+      // it has gone — an empty headlight is an empty SOCKET, and a car
+      // with a smooth panel where a lamp used to be reads as a rendering
+      // error rather than as a car somebody took a headlight out of.
       const pod = new THREE.Mesh(roundedBox(0.58, 0.175, 0.07, 0.03), housingMat);
       pod.position.set(sx, d.noseTopY, d.nose - 0.03);
       pod.name = "lamp-housing";
       group.add(pod);
+      if (lampGone(sx)) {
+        // What is left behind: the open pan, with a mesh screen across
+        // it. This is what the mod actually looks like on the street —
+        // the hole gets a grille so the intake behind it can breathe and
+        // so nothing flies into it.
+        addLampDelete(sx, d.noseTopY, d.nose - 0.012, 0.5, 0.115);
+        continue;
+      }
       // Lens, inset all round and stepped out.
       const head = new THREE.Mesh(roundedBox(0.5, 0.115, 0.065, 0.02), headMat);
       head.position.set(sx, d.noseTopY, d.nose - 0.008);

@@ -182,6 +182,68 @@ console.log(
     `${new Set(cars.map((c) => c.style)).size} silhouettes`
 );
 
+// --- The headlamp mods -------------------------------------------------
+//
+// Two garage parts change the lamps, and the one that matters is the
+// delete: a car running on one headlight has to actually run on one
+// headlight. lampPositions is what the engine hangs its light sources
+// on, so if a deleted lamp still reported a position the car would
+// throw a beam out of a hole with a mesh screen over it — which is
+// exactly the kind of thing that looks fine in a still and is obviously
+// wrong the moment you drive at a wall.
+const mods = await page.evaluate(() => {
+  const read = (headlamps) => {
+    const g = window.__grnBuildCar({ body: 0x8c1c2c, style: "sedan", kit: "street",
+      lengthM: 4.7, headlamps });
+    let lens = 0, core = 0, housing = 0, screen = 0;
+    let emissive = 0, lensColor = null;
+    g.traverse((o) => {
+      if (!o.isMesh) return;
+      if (o.name === "lamp-lens") {
+        lens++;
+        const m = Array.isArray(o.material) ? o.material[0] : o.material;
+        emissive = m.emissiveIntensity ?? 0;
+        lensColor = m.color?.getHexString?.() ?? null;
+      }
+      if (o.name === "lamp-core") core++;
+      if (o.name === "lamp-housing") housing++;
+    });
+    // The delete's screen: thin dark bars, four or more of them.
+    g.traverse((o) => {
+      if (o.isMesh && o.geometry?.type === "BoxGeometry") {
+        const p = o.geometry.parameters;
+        if (p && p.height < 0.008 && p.depth < 0.012 && p.width > 0.2) screen++;
+      }
+    });
+    return { lamps: (g.userData.lampPositions ?? []).length, lens, core, housing, screen,
+             emissive: +Number(emissive).toFixed(2), lensColor };
+  };
+  return { stock: read("stock"), smoked: read("smoked"), single: read("single") };
+});
+
+console.log("\n=== HEADLAMP MODS ===");
+for (const [k, v] of Object.entries(mods)) {
+  console.log(`  ${k.padEnd(8)} beams ${v.lamps}  lens ${v.lens}  core ${v.core}  ` +
+    `housing ${v.housing}  screen bars ${v.screen}  lens #${v.lensColor} @ ${v.emissive}`);
+}
+console.log(`  two beams stock  ${check(mods.stock.lamps === 2,
+  `a stock car reports ${mods.stock.lamps} lamp positions, not 2`)}`);
+console.log(`  one beam single  ${check(mods.single.lamps === 1,
+  `a one-eye car reports ${mods.single.lamps} lamp positions — it is still throwing two beams, one of them out of a blanked socket`)}`);
+console.log(`  lens removed     ${check(mods.single.lens === mods.stock.lens - 1 && mods.single.core === mods.stock.core - 1,
+  `the deleted side still has its lens/core: ${mods.single.lens} lenses and ${mods.single.core} cores against a stock ${mods.stock.lens}/${mods.stock.core}`)}`);
+console.log(`  socket kept      ${check(mods.single.housing === mods.stock.housing,
+  "the housing went with the lamp — an empty headlight is an empty socket, not a smooth panel")}`);
+console.log(`  screened         ${check(mods.single.screen >= 4,
+  `the delete has ${mods.single.screen} screen bars — without a visible mesh it reads as a missing texture rather than a mod`)}`);
+console.log(`  smoked is dark   ${check(mods.smoked.lensColor !== mods.stock.lensColor && mods.smoked.emissive < mods.stock.emissive,
+  `smoked lenses are #${mods.smoked.lensColor} at ${mods.smoked.emissive} against stock #${mods.stock.lensColor} at ${mods.stock.emissive} — the tint did not reach the glass`)}`);
+console.log(`  smoked still lit ${check(mods.smoked.emissive > 0,
+  "smoked lenses have no emissive at all — that is two black rectangles, not a tinted lamp")}`);
+console.log(`  smoked keeps both ${check(mods.smoked.lamps === 2,
+  `a smoked car reports ${mods.smoked.lamps} beams; tinting a lamp does not remove it`)}`);
+
+
 await browser.close();
 if (fail.length) {
   console.log(`\n${fail.length} problem${fail.length === 1 ? "" : "s"}:`);

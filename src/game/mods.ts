@@ -7,6 +7,7 @@ import { loadCrew, type Crew } from "./teams";
 
 export type ExclusiveCat =
   | "engine"
+  | "lamps"
   | "aspiration"
   | "intake"
   | "brakes"
@@ -28,6 +29,7 @@ export const EXCLUSIVE_CATS: ReadonlySet<string> = new Set([
   "gearbox",
   "paint",
   "glow",
+  "lamps",
 ]);
 
 export interface Part {
@@ -96,6 +98,10 @@ export const PARTS: Part[] = [
   { id: "spoiler", cat: "extras", name: "GT Wing", ar: "جناح", price: 300, desc: "Downforce: steadier at speed" },
   { id: "gold-rims", cat: "extras", name: "Gold Rims", ar: "رنجات ذهب", price: 600, desc: "Pure Salmiya energy" },
   { id: "stickers", cat: "extras", name: "Rally Sticker Pack", ar: "ملصقات", price: 450, desc: "Door roundels, beltline stripes, hood decal, Kuwait flag on the fender" },
+  // Headlamps. Exclusive, because a lamp is either tinted, missing or
+  // neither — you cannot smoke a headlight you have taken out.
+  { id: "lamps-smoked", cat: "lamps", name: "Smoked Headlights", ar: "شمعات مدخنة", price: 550, desc: "Tinted lenses. Two dark slots by day, a dull amber at night — and the beam dims with them" },
+  { id: "lamps-single", cat: "lamps", name: "One-Eye Delete", ar: "شمعة وحدة", price: 700, desc: "One headlight out, mesh screen over the hole. The car really does run on one beam" },
   // Paint — exclusive, equip freely once owned
   { id: "paint-white", cat: "paint", name: "Factory Finish", ar: "لون الوكالة", price: 0, desc: "The colour it left the showroom in" },
   { id: "paint-black", cat: "paint", name: "Midnight Black", ar: "أسود", price: 150, desc: "" },
@@ -894,6 +900,8 @@ export interface TuneEffects {
   hasNos: boolean;
   spoiler: boolean;
   goldRims: boolean;
+  /** What has been done to the headlamps — see cars.ts CarColors. */
+  headlamps: "stock" | "smoked" | "single";
   /** Full time-attack aero built into the car (cars.ts raceKit). Kept
    *  as a boolean because a lot of call sites only ever asked "is this
    *  the full kit"; `kit` below is the real answer. */
@@ -1039,6 +1047,7 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     hasNos: has("nos"),
     spoiler: has("spoiler"),
     goldRims: has("gold-rims"),
+    headlamps: eq.lamps === "lamps-smoked" ? "smoked" : eq.lamps === "lamps-single" ? "single" : "stock",
     raceKit: car.kit === "attack",
     kit: car.kit,
     stickers: has("stickers"),
