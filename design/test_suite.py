@@ -577,6 +577,7 @@ def browser_checks():
         integration_checks(pg)
         xbrl_checks(pg)
         delivery_checks(pg)
+        api_checks(pg)
         social_checks(pg)
         preload_checks(pg)
         motion_pause_checks(pg)
@@ -1968,6 +1969,95 @@ def motion_pause_checks(pg):
                   m["onPaused"] == 0, str(m))
     # leave the page as the rest of the suite expects to find it
     pg.set_viewport_size({"width": 1440, "height": 900})
+
+
+def api_checks(pg):
+    """window.Nokhatha — the documented way in and out of the records.
+
+    Exercised in a real browser against real storage, not asserted about from
+    the source. The value of this API is what it refuses as much as what it
+    accepts: a wrapper that answers ok to nonsense stores nonsense, and every
+    caller then inherits it.
+    """
+    S = "api"
+    pg.goto(f"{BASE}/nizam.html", wait_until="networkidle")
+    pg.wait_for_timeout(500)
+
+    r = pg.evaluate("""() => {
+      const N = window.Nokhatha; if (!N) return null;
+      N.clear('safi'); N.clear('delivery');
+      const out = {version: N.version};
+      out.add       = N.addHolding({ticker:'zain', name:'زين', qty:100,
+                                    cost:500, price:620});
+      out.ticker    = N.holdings()[0].ticker;      // lower case in, clean out
+      out.dup       = N.addHolding({ticker:'ZAIN', qty:1});
+      out.noTicker  = N.addHolding({qty:5});
+      out.negative  = N.addHolding({ticker:'NBK', qty:-50});
+      out.zeroQty   = N.addHolding({ticker:'NBK', qty:0});
+      out.order     = N.addOrder({id:'1042', customer:'أحمد', amount:78.5, status:3});
+      out.dupOrder  = N.addOrder({id:'1042'});
+      out.badStatus = N.setOrderStatus('1042', 99);
+      out.noOrder   = N.setOrderStatus('9999', 1);
+      out.badUnit   = N.clear('nope');
+      out.totals    = N.totals();
+      // a read must hand out a copy, never the store
+      const h = N.holdings(); h[0].qty = 999999;
+      out.copy      = N.holdings()[0].qty === 100;
+      // events fire on write, and stop firing once removed
+      let n = 0; const fn = () => n++;
+      N.on(fn);  N.addHolding({ticker:'KFH', qty:10, cost:100, price:110});
+      N.off(fn); N.addHolding({ticker:'AGLTY', qty:5, cost:50, price:55});
+      out.fired = n;
+      out.exportKeys = Object.keys(N.export()).sort().join(',');
+      return out;
+    }""")
+
+    check(S, "the API is published on the page", r is not None)
+    if not r:
+        return
+    check(S, "it carries a version", bool(r["version"]), str(r["version"]))
+    check(S, "a valid holding is accepted", r["add"]["ok"], str(r["add"]))
+    check(S, "a ticker is normalised on the way in",
+          r["ticker"] == "ZAIN", r["ticker"])
+
+    # what it refuses. Each of these stored a record, or would have, before
+    # the guard existed — the negative quantity really did answer ok.
+    for name, key in (("a duplicate ticker", "dup"),
+                      ("a holding with no ticker", "noTicker"),
+                      ("a negative quantity", "negative"),
+                      ("a zero quantity", "zeroQty"),
+                      ("a duplicate order id", "dupOrder"),
+                      ("a status outside the range", "badStatus"),
+                      ("a status on an order that does not exist", "noOrder"),
+                      ("clearing a unit that does not exist", "badUnit")):
+        check(S, f"it refuses {name}",
+              r[key]["ok"] is False and bool(r[key].get("error")), str(r[key]))
+
+    check(S, "a read hands out a copy, not the store", r["copy"])
+    check(S, "a listener fires on write, and stops when removed",
+          r["fired"] == 1, str(r["fired"]))
+    check(S, "export carries every unit",
+          r["exportKeys"] == "couriers,exportedAt,orders,reports,safi,version",
+          r["exportKeys"])
+
+    # the derived figures come from the one place they are defined, so the
+    # API and the screens cannot disagree about what the portfolio is worth
+    t = r["totals"]
+    check(S, "totals are computed, not stored",
+          abs(t["portfolio"]["value"] - t["nonCurrentAssets"]) < 1e-9,
+          str(t["nonCurrentAssets"]))
+    check(S, "net worth is the portfolio plus delivered revenue",
+          abs(t["netWorth"] - (t["portfolio"]["value"] + t["revenue"])) < 1e-9,
+          str(t["netWorth"]))
+
+    # and it is documented, or nobody can use it
+    doc = ROOT / "docs" / "API.md"
+    check(S, "the API is documented", doc.exists())
+    if doc.exists():
+        d = doc.read_text()
+        for token in ("window.Nokhatha", "addHolding", "setOrderStatus",
+                      "export", "import", "ok"):
+            check(S, f"the docs cover {token}", token in d)
 
 
 def social_checks(pg):

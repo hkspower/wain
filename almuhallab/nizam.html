@@ -1245,6 +1245,172 @@
     toast("حُدّثت السجلات من نافذة أخرى");
   });
 
+
+  /* ══════════════════ the public interface: window.Nokhatha ══════════════
+     A documented way in and out of النوخذة's records, for a page, a script,
+     or another system of the owner's — without a server, and without a
+     second copy of anything.
+
+     It is a wrapper over the core that is already here, not a parallel one.
+     Every read goes through the same coercion the screens use, so the API
+     cannot hand out a record the screens would refuse; every write goes
+     through the same wr(), so it cannot report success on a write that did
+     not happen. localStorage is user-writable, so both directions treat what
+     they are given as untrusted.
+
+     Reads return fresh objects. The coercion builds new ones each call, so a
+     caller that edits what it was given edits its own copy and nothing else —
+     the store cannot be changed except through the write methods, which
+     validate.
+
+     No formatting here. The API returns numbers; kwd() and the "en-US" locale
+     belong to the screens that print them. An API that returned "1,240.500"
+     would force every caller to parse it back, and would print Arabic-Indic
+     digits on a device set to Arabic.
+
+     There is no server, and this does not add one. Everything runs in the
+     visitor's own browser against their own storage, which is what lets the
+     site keep saying the records never leave the device. */
+  var API_VERSION = "1.0.0";
+  var listeners = [];
+
+  function fire(unit) {
+    renderAll();
+    for (var i = 0; i < listeners.length; i++) {
+      try { listeners[i]({ unit: unit, at: new Date().toISOString() }); }
+      catch (e) { /* one bad listener must not stop the others */ }
+    }
+  }
+
+  function ok(v) { return { ok: true, value: v }; }
+  function fail(m) { return { ok: false, error: m }; }
+
+  function saveList(k, list, unit) {
+    if (!wr(k, list)) return fail(STORAGE_FULL);
+    fire(unit);
+    return ok(list.length);
+  }
+
+  window.Nokhatha = {
+    version: API_VERSION,
+
+    /* ---- reads ---- */
+    holdings: function () { return holdings(); },
+    orders: function () { return orders(); },
+    couriers: function () { return couriers(); },
+    reports: function () {
+      var l = rd(K.reports, []);
+      return Array.isArray(l) ? l : [];
+    },
+
+    /* the derived figures, from the one place they are defined */
+    totals: function () { return position(); },
+    statuses: function () { return STATUSES.slice(); },
+
+    /* ---- writes ---- */
+    addHolding: function (h) {
+      h = h || {};
+      var ticker = cleanTicker(h.ticker || "");
+      if (!ticker) return fail("رمز السهم مطلوب");
+      // clamp() turns a negative or nonsense quantity into 0, which would be
+      // stored as a holding of no shares and reported as a success. Caught by
+      // testing: addHolding({ticker:'NBK', qty:-50}) answered ok. A quantity
+      // the caller cannot have meant is a caller error, not a zero.
+      var qty = Math.floor(clamp(h.qty, 1e9));
+      if (qty < 1) return fail("الكمية يجب أن تكون سهماً واحداً فأكثر");
+      var list = holdings();
+      if (list.some(function (x) { return x.ticker === ticker; }))
+        return fail("هذا الرمز مضاف بالفعل: " + ticker);
+      list.push({ ticker: ticker, name: String(h.name || "").slice(0, 80),
+                  qty: qty,
+                  cost: clamp(h.cost, 1e7), price: clamp(h.price, 1e7) });
+      return saveList(K.safi, list, "safi");
+    },
+    removeHolding: function (ticker) {
+      var t = cleanTicker(ticker || ""), list = holdings();
+      var kept = list.filter(function (x) { return x.ticker !== t; });
+      if (kept.length === list.length) return fail("لا يوجد سهم بالرمز " + t);
+      return saveList(K.safi, kept, "safi");
+    },
+    addOrder: function (o) {
+      o = o || {};
+      var id = String(o.id || "").slice(0, 12);
+      if (!id) return fail("رقم الطلب مطلوب");
+      var list = orders();
+      if (list.some(function (x) { return x.id === id; }))
+        return fail("رقم الطلب مستعمل: " + id);
+      list.push({ id: id, customer: String(o.customer || "").slice(0, 80),
+                  phone: String(o.phone || "").slice(0, 15),
+                  address: String(o.address || "").slice(0, 160),
+                  items: String(o.items || "").slice(0, 160),
+                  amount: clamp(o.amount, 1e6),
+                  courier: String(o.courier || "").slice(0, 80),
+                  status: Math.min(Math.max(Math.floor(Number(o.status) || 0), 0),
+                                   STATUSES.length - 1),
+                  createdAt: new Date().toISOString() });
+      return saveList(K.orders, list, "delivery");
+    },
+    setOrderStatus: function (id, status) {
+      var list = orders(), found = false;
+      var n = Math.floor(Number(status));
+      if (!isFinite(n) || n < 0 || n > STATUSES.length - 1)
+        return fail("حالة غير معروفة — استعمل 0.." + (STATUSES.length - 1));
+      list.forEach(function (x) {
+        if (x.id === String(id).slice(0, 12)) { x.status = n; found = true; }
+      });
+      if (!found) return fail("لا يوجد طلب بالرقم " + id);
+      return saveList(K.orders, list, "delivery");
+    },
+
+    /* ---- the whole store ---- */
+    export: function () {
+      return { version: API_VERSION, exportedAt: new Date().toISOString(),
+               safi: holdings(), orders: orders(),
+               couriers: couriers(), reports: this.reports() };
+    },
+    import: function (data, opts) {
+      // Replaces by default. Merging two sets of records without being told
+      // how to resolve a clash is a way to invent a third set, so a clash
+      // keeps what is already stored and is counted rather than guessed at.
+      if (!data || typeof data !== "object") return fail("بيانات غير صالحة");
+      var merge = !!(opts && opts.merge), added = 0, skipped = 0, self = this;
+      var res;
+      if (Array.isArray(data.safi)) {
+        if (!merge) { if (!wr(K.safi, [])) return fail(STORAGE_FULL); }
+        data.safi.forEach(function (h) {
+          res = self.addHolding(h); res.ok ? added++ : skipped++;
+        });
+      }
+      if (Array.isArray(data.orders)) {
+        if (!merge) { if (!wr(K.orders, [])) return fail(STORAGE_FULL); }
+        data.orders.forEach(function (o) {
+          res = self.addOrder(o); res.ok ? added++ : skipped++;
+        });
+      }
+      fire("all");
+      return ok({ added: added, skipped: skipped });
+    },
+    clear: function (unit) {
+      var map = { safi: K.safi, delivery: K.orders,
+                  couriers: K.couriers, reports: K.reports };
+      var k = map[unit];
+      if (!k) return fail("وحدة غير معروفة: " + unit);
+      if (!wr(k, [])) return fail(STORAGE_FULL);
+      fire(unit);
+      return ok(0);
+    },
+
+    /* ---- events ---- */
+    on: function (fn) {
+      if (typeof fn === "function") listeners.push(fn);
+      return this;
+    },
+    off: function (fn) {
+      listeners = listeners.filter(function (f) { return f !== fn; });
+      return this;
+    }
+  };
+
   renderAll(); recalc(); route();
 })();
 </script>

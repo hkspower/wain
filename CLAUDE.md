@@ -254,6 +254,19 @@ Static HTML5 PWA, Arabic-first (RTL), no build step and no dependencies.
   Colour follows the encoding job: ordinal one-hue ramps where order carries
   meaning, a diverging pair for profit/loss where the sign is *also* shown by
   bar direction and a signed label.
+- **`window.Nokhatha` is the documented way in and out of the records**
+  (`almuhallab/docs/API.md`) — reads, writes, export/import, change events.
+  It is a wrapper over the core that is already there, never a parallel one:
+  reads go through the same coercion the screens use, writes through the same
+  `wr()`, so it cannot hand out a record the screens would refuse nor report a
+  save that did not happen. **No server** — it runs in the visitor's browser
+  against their own storage, which is what lets the site keep saying the
+  records never leave the device. Reads return fresh copies; writes answer
+  `{ok, value}` or `{ok, error}` rather than throwing; nothing is formatted
+  (an API returning `"1,240.500"` forces every caller to parse it back). A
+  negative quantity is **refused, not clamped** — clamping stored a holding of
+  zero shares and answered ok, which testing caught. Pinned by the suite in a
+  real browser, and what it refuses is pinned as carefully as what it accepts.
 - Data lives in `localStorage` under `nokhatha-*` keys (the admin console's own
   four are `almuhallab-admin-*`). Treat it as untrusted input on read: escape all
   rendered strings, re-coerce and **clamp every index** — a stored `plan` from a
