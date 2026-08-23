@@ -484,6 +484,8 @@ export default function RaceClient() {
   const vsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const boostWrapRef = useRef<HTMLDivElement>(null);
   const boostRef = useRef<HTMLDivElement>(null);
+  const towWrapRef = useRef<HTMLDivElement>(null);
+  const towRef = useRef<HTMLDivElement>(null);
   const nosWrapRef = useRef<HTMLDivElement>(null);
   const nosRef = useRef<HTMLDivElement>(null);
   const nosTrackRef = useRef<HTMLDivElement>(null);
@@ -900,6 +902,16 @@ export default function RaceClient() {
             d.duel.gap >= 0 ? `${Math.round(d.duel.gap)} m ahead` : `${Math.round(-d.duel.gap)} m behind`
           }`;
       }
+
+      // The tow, above the garage gauges — it belongs to the road rather
+      // than to the car, and it is the only one of the three that
+      // appears and disappears on its own. The threshold is a tenth so a
+      // car drifting past at the far edge of a wake does not flick the
+      // bar on for a frame.
+      if (towWrapRef.current)
+        towWrapRef.current.style.display = d.tow > 0.1 ? "flex" : "none";
+      if (towRef.current && d.tow > 0.1)
+        towRef.current.style.width = `${Math.round(d.tow * 100)}%`;
 
       // Garage gauges: turbo boost + NOS charge (hidden without the mods)
       if (boostWrapRef.current)
@@ -1673,6 +1685,20 @@ export default function RaceClient() {
             gearRef={gearRef}
             size={200}
           />
+          {/* The tow. Shown only while there is one, because a bar that
+              reads zero nine tenths of the time teaches the eye to stop
+              looking at it — and the whole reason this is on screen is
+              to send the driver hunting for the wake. */}
+          <div ref={towWrapRef} className="mt-1 items-center gap-2" style={{ display: "none" }}>
+            <span className="grn-label w-11 text-[0.58rem] text-sodium-300">Tow</span>
+            <div className="grn-meter h-1.5 w-44 -skew-x-12">
+              <div
+                ref={towRef}
+                className="h-full bg-gradient-to-r from-sodium-600 to-sodium-300 shadow-[0_0_12px_rgba(245,165,36,0.75)]"
+                style={{ width: "0%" }}
+              />
+            </div>
+          </div>
           <div ref={boostWrapRef} className="mt-1 items-center gap-2" style={{ display: "none" }}>
             <span className="grn-label w-11 text-[0.58rem] text-gulf-300">Boost</span>
             <div className="grn-meter h-1.5 w-44 -skew-x-12">

@@ -109,6 +109,13 @@ export function buildCars() {
     lengthM: c.lengthM,
     color: hex(c.color),
     bodyStyle: c.style ?? "sedan",
+    /** Which wheels the engine drives. Not a trim detail: front and rear
+     *  do opposite things under power, so a port that does not carry
+     *  this ships a fleet that all behaves like rear-drive whatever the
+     *  showroom says. The generated header has had it since the
+     *  drivetrain work; this side had not, and the sync check could not
+     *  say so because its car pattern had stopped matching any row. */
+    drive: c.drive ?? "rwd",
     kit: c.kit,
     accent: c.accent ?? null,
     stripes: c.stripes ?? null,

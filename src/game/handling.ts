@@ -247,6 +247,33 @@ export const HANDLING = {
    *  an aerodynamic one: past here the car stops sliding at all. */
   downforceMax: 6,
 
+  // The tow (src/game/slipstream.ts). The wake behind another car:
+  // lower pressure, slower relative wind, and a third off your drag if
+  // you can hold station in it.
+  /** Past this many metres behind, the wake is not worth modelling. */
+  towReach: 26,
+  /** Fraction of the aerodynamic drag term the deepest tow removes. A
+   *  third to a half is where real numbers for a saloon sit; deeper and
+   *  the game stops being about the driver. */
+  towMax: 0.42,
+  /** Metres of gap over which the wake decays by 1/e. */
+  towFalloff: 9,
+  /** Fraction of front-axle grip the dirty air takes at full tow. Small
+   *  on purpose: it has to read as the nose going light on turn-in, not
+   *  as a punishment. It is the only thing stopping the tow from being a
+   *  button that says "go faster". */
+  towDirtyAir: 0.06,
+  /** Below this speed, m/s, there is no tow at all — drag rises with the
+   *  square of speed, so what the wake is a fraction OF is negligible in
+   *  town, and pretending otherwise tows cars out of car parks. */
+  towMinSpeed: 8,
+  /** Speed, m/s, at which the tow reaches full strength. */
+  towFullSpeed: 30,
+  /** Half-width of an ordinary car, m — the default wake half-width. */
+  towDefaultHalfWidth: 0.9,
+  /** How far past the bodywork the edge vortices carry the wake, m. */
+  towEdgeSpread: 0.9,
+
   /** Lift-off oversteer: rear unloading past this counts as an entry,
    *  and it reaches this fraction of the handbrake's angle. Smaller than
    *  a trail-braked entry, because closing the throttle transfers less

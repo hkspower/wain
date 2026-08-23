@@ -31,6 +31,7 @@ import { join } from "node:path";
 import { solveDrift, newDriftState } from "../src/game/drift.ts";
 import { solveBrakes, brakeCeiling } from "../src/game/brakes.ts";
 import { solveLoad, newLoadState, gripAtSpeed } from "../src/game/grip.ts";
+import { solveTow, TOW_DEFAULT_HALF_WIDTH } from "../src/game/slipstream.ts";
 import { HANDLING as H } from "../src/game/handling.ts";
 
 const fail = [];
@@ -293,6 +294,15 @@ for (let i = 0; i < STEPS; i++) {
 
   const grip = gripAtSpeed(tune.gripAccel, downforce, speed);
   const l = solveLoad(load, { dt: DT, aLong: throttle * 9 - brake * 14 - 1.2, drive, throttle });
+  // The same car ahead as tools/parity/parity.cpp: closing and dropping
+  // back while it weaves across the lane, so the run sweeps the whole
+  // wake and both of its early-outs rather than sampling one point in it.
+  const tow = solveTow({
+    gap: 0.5 + (i % 600) * 0.05,
+    lat: -2.0 + (i % 81) * 0.05,
+    speed,
+    halfWidth: TOW_DEFAULT_HALF_WIDTH,
+  });
   const latDemand = Math.min(1, (Math.abs(steer) * speed) / H.latDemandSpeed);
   const b = solveBrakes(bs, {
     dt: DT, tune, brake, speed, latDemand, steer, throttle, grip,
@@ -341,6 +351,7 @@ for (let i = 0; i < STEPS; i++) {
     angle: d.angle, spinRate: d.spinRate, scrub: d.scrubRate, chain: d.chain, run: drift.run,
     lock: b.lock, temp: b.temp, rotate: b.rotate, decel: b.decel,
     front: l.front, steerScale: l.steerScale, driveScale: l.driveScale, grip,
+    towS: tow.strength, towDrag: tow.drag, towGrip: tow.frontGrip,
   });
 }
 }

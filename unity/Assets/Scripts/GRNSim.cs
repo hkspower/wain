@@ -86,6 +86,17 @@ public static class GRNSim
     // toolchain, which this environment does not have, and an unverified
     // transliteration of a solver is exactly what the paragraph above
     // refuses to write.
+    //
+    // The same sentence now applies to the tow — src/game/slipstream.ts,
+    // ported to C++ in GRNSim.h and checked step for step by
+    // tests/parity.mjs. It is twenty lines of stateless arithmetic and
+    // it would be quicker to write than this note, which is precisely
+    // why it is not here: the rule is not "port the hard ones carefully",
+    // it is that nothing enters this file that no test in this repository
+    // can run. A Unity build therefore has no slipstream at all, which is
+    // a visible difference rather than a subtle one — cars behind other
+    // cars carry their full drag — and that is a better failure than a
+    // wake that is nearly right and answers to nobody.
 
     /// <summary>
     /// Lateral grip at this speed, aero included.

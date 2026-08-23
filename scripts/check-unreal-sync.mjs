@@ -136,11 +136,18 @@ if (hEngines.length !== api.engines.length) {
 
 // ---- cars -----------------------------------------------------------
 const hCars = [...header.matchAll(
-  /\{ TEXT\("([^"]+)"\), TEXT\("([^"]+)"\), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, FColor\([^)]*\), EGRNBodyStyle::(\w+), (true|false), (\d+), ([\d.]+)f, ([\d.]+)f, (\d+), TEXT\("([^"]*)"\) \},/g
-)].map(([, id, name, price, power, top, grip, brake, style, kit, engine, tank, lengthM, locked, factory]) => ({
+  // The drivetrain column arrived with the FWD/RWD/AWD work and this
+  // pattern did not, so it stopped matching any row at all — and a
+  // regex that matches nothing reports "header 0 vs api 16", which
+  // reads as the header being empty rather than as the checker being
+  // blind. Every field between the two is unchecked while it lasts,
+  // which is the whole point of this file.
+  /\{ TEXT\("([^"]+)"\), TEXT\("([^"]+)"\), (\d+), ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, ([\d.]+)f, FColor\([^)]*\), EGRNBodyStyle::(\w+), (true|false), GRNSim::EDrivetrain::(\w+), (\d+), ([\d.]+)f, ([\d.]+)f, (\d+), TEXT\("([^"]*)"\) \},/g
+)].map(([, id, name, price, power, top, grip, brake, style, kit, drive, engine, tank, lengthM, locked, factory]) => ({
   id, name, price: +price, power: +power, top: +top, grip: +grip, brake: +brake,
   style: style.toLowerCase(),
   attack: kit === "true",
+  drive: drive.toLowerCase(),
   engine: +engine,
   tank: +tank,
   lengthM: +lengthM,
@@ -163,6 +170,11 @@ if (hCars.length !== api.cars.length) {
     if (h.brake !== a.brake) fail(`car ${h.id} brake: ${h.brake} vs ${a.brake}`);
     if (h.style !== a.bodyStyle) fail(`car ${h.id} body style: ${h.style} vs ${a.bodyStyle}`);
     if (h.attack !== (a.kit === "attack")) fail(`car ${h.id} attack kit: ${h.attack} vs ${a.kit}`);
+    // Which wheels the engine drives. The one field where a port that
+    // disagrees is not slightly wrong about a number but driving a
+    // different car — front and rear are opposite behaviours under
+    // power, not neighbouring ones.
+    if (h.drive !== (a.drive ?? "rwd")) fail(`car ${h.id} drive: ${h.drive} vs ${a.drive ?? "rwd"}`);
     // The header stores an index into GRNEngines; the API stores the id.
     if (h.tank !== a.tankLitres) fail(`car ${h.id} tankLitres: ${h.tank} vs ${a.tankLitres}`);
     // The rule that makes the rarest car rare, and the build it is sold

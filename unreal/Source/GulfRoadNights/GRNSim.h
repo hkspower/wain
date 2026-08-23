@@ -184,6 +184,89 @@ namespace GRNSim
 		return R;
 	}
 
+	// --------------------------------------------------------------- tow
+	//
+	// src/game/slipstream.ts. The wake behind another car: lower
+	// pressure, slower relative wind, and a third off your drag if you
+	// can hold station in it. Nothing on the UE side had it, which meant
+	// closing on the car in front was worth exactly nothing until the
+	// moment you were past — the whole middle of a race with no texture.
+	//
+	// Two numbers out, not one. A tow that was only free speed would be a
+	// button that says "go faster"; the front-grip penalty is what makes
+	// the wake a place you choose to be, fast in a straight line and
+	// vague at the front when the road bends.
+
+	struct FTowInput
+	{
+		/** Metres from your nose to their tail. Zero or less is no tow. */
+		double Gap = 0.0;
+		/** Distance between the two centre lines, metres. */
+		double Lat = 0.0;
+		/** Your speed, m/s. */
+		double Speed = 0.0;
+		/** Half the width of the car ahead. A wider car, a wider wake. */
+		double HalfWidth = GRNExact::TowDefaultHalfWidth;
+	};
+
+	struct FTowResult
+	{
+		/** Multiplier on the aerodynamic drag term. 1 in clean air. */
+		double Drag = 1.0;
+		/** Multiplier on front-axle grip. 1 in clean air. */
+		double FrontGrip = 1.0;
+		/** How deep in the wake, 0..1. */
+		double Strength = 0.0;
+	};
+
+	inline FTowResult SolveTow(const FTowInput& In)
+	{
+		using namespace GRNExact;
+		FTowResult R;
+		if (!(In.Gap > 0.0) || In.Gap > TowReach) return R;
+
+		// Along the wake, rescaled so the reach is exactly zero rather
+		// than a small step down to nothing — a discontinuity there shows
+		// up as the HUD indicator flickering at a steady following
+		// distance, which reads as a bug in the game rather than a
+		// property of the air.
+		const double Edge = std::exp(-TowReach / TowFalloff);
+		const double Along = (std::exp(-In.Gap / TowFalloff) - Edge) / (1.0 - Edge);
+
+		const double ReachAcross = In.HalfWidth + TowEdgeSpread;
+		const double Off = std::fabs(In.Lat) / ReachAcross;
+		if (Off >= 1.0) return R;
+		const double Across = 1.0 - Off * Off;
+
+		const double Fast = Clamp((In.Speed - TowMinSpeed) / (TowFullSpeed - TowMinSpeed), 0.0, 1.0);
+		if (Fast <= 0.0) return R;
+
+		R.Strength = Along * Across * Fast;
+		R.Drag = 1.0 - TowMax * R.Strength;
+		R.FrontGrip = 1.0 - TowDirtyAir * R.Strength;
+		return R;
+	}
+
+	/**
+	 * The best of several wakes.
+	 *
+	 * Wakes do not add up — you are in one car's air or another's. Summing
+	 * them is the bug a naive implementation ships with: a queue of
+	 * traffic multiplies its drag reductions together and tows somebody to
+	 * a speed no engine in the game can produce.
+	 */
+	template <typename TRange>
+	inline FTowResult BestTow(const TRange& Candidates)
+	{
+		FTowResult Best;
+		for (const FTowInput& C : Candidates)
+		{
+			const FTowResult T = SolveTow(C);
+			if (T.Strength > Best.Strength) Best = T;
+		}
+		return Best;
+	}
+
 	/** Lateral grip at a speed: the tyres, plus what the bodywork is
 	 *  pressing them into the road with. v-squared, because that is what
 	 *  air does. */

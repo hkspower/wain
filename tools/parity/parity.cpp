@@ -94,7 +94,7 @@ int main()
 	const int Steps = 8000;
 	const double Dt = 1.0 / 120.0;
 
-	std::printf("step,angle,spinRate,scrub,chain,run,lock,temp,rotate,decel,front,steerScale,driveScale,grip\n");
+	std::printf("step,angle,spinRate,scrub,chain,run,lock,temp,rotate,decel,front,steerScale,driveScale,grip,towS,towDrag,towGrip\n");
 
 	// Two passes over the same script: without ABS, then with it. The
 	// controller is a whole branch of the brake solver — it bleeds the
@@ -296,6 +296,24 @@ int main()
 		// what matters is that both sides see the same numbers.
 		const double Grip = GripAtSpeed(Tune.GripAccel, Downforce, Speed);
 		const FLoadResult L = SolveLoad(Load, Dt, (Throttle * 9.0 - Brake * 14.0) - 1.2, Drive, Throttle);
+
+		// A car ahead that closes and drops back while weaving across the
+		// lane, so the run sweeps the whole wake rather than sampling one
+		// point in it: 0.5 to 30.5 m of gap against a 26 m reach, and
+		// -2.0 to +2.0 m of offset against a wake about 1.8 m wide. Both
+		// ends are outside, which is the part worth checking — the two
+		// early-outs are where a port most easily disagrees.
+		//
+		// Integer arithmetic only, for the same reason the manoeuvre
+		// script uses it: two "identical" sequences that diverge on step
+		// four hundred because libm rounded differently are worse than no
+		// test at all.
+		FTowInput TowIn;
+		TowIn.Gap = 0.5 + (i % 600) * 0.05;
+		TowIn.Lat = -2.0 + (i % 81) * 0.05;
+		TowIn.Speed = Speed;
+		TowIn.HalfWidth = GRNExact::TowDefaultHalfWidth;
+		const FTowResult Tow = SolveTow(TowIn);
 		const double LatDemand = Min(1.0, std::fabs(Steer) * Speed / GRNExact::LatDemandSpeed);
 		const FBrakeResult B = SolveBrakes(Brakes, Tune, Dt, Brake, Speed, LatDemand, Steer, Throttle, Grip);
 
@@ -321,10 +339,11 @@ int main()
 		if (Speed < 12.0) Speed = 12.0;
 		if (Speed > 95.0) Speed = 95.0;
 
-		std::printf("%d,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g\n",
+		std::printf("%d,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g\n",
 			Pass * Steps + i, D.Angle, D.SpinRate, D.ScrubRate, D.Chain, Drift.Run,
 			B.Lock, B.Temp, B.Rotate, B.Decel,
-			L.Front, L.SteerScale, L.DriveScale, Grip);
+			L.Front, L.SteerScale, L.DriveScale, Grip,
+			Tow.Strength, Tow.Drag, Tow.FrontGrip);
 	}
 	}
 	return 0;

@@ -26,6 +26,7 @@
     "test:pacing:delta": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/pacing.mjs",
     "test:assets": "node tests/assets.mjs",
     "test:physics": "node tests/physics.mjs",
+    "test:tow:game": "node tests/tow.mjs",
     "test:dynamics": "node tests/dynamics.mjs",
     "sfx": "node tools/elevenlabs/generate-sfx.mjs",
     "music": "node tools/elevenlabs/generate-music.mjs",
@@ -41,6 +42,7 @@
     "test:clock": "node tests/clock.mjs",
     "test:radio": "node tests/radio.mjs",
     "test:drivetrain": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/drivetrain.mjs",
+    "test:tow": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/slipstream.mjs",
     "test:areas": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/areas.mjs",
     "test:daynight": "node tests/daynight.mjs",
     "test:ik": "node tests/ik.mjs",
@@ -91,7 +93,8 @@
     "check:dark": "node tools/shots/dark.mjs",
     "check:framing": "node tools/shots/framing.mjs",
     "check:gutters": "node tools/shots/gutters.mjs",
-    "check:align": "node tools/shots/align.mjs"
+    "check:align": "node tools/shots/align.mjs",
+    "check:texels": "node tools/shots/texels.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",

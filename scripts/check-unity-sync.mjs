@@ -183,6 +183,7 @@ const cars = carBlocks.map((b) => ({
   paint: field(b, /Paint = Hex\(0x([0-9A-F]{6})\)/),
   style: field(b, /Style = BodyStyle\.(\w+)/),
   kit: field(b, /AttackKit = (true|false)/) === "true",
+  drive: (field(b, /Drive = (?:GRNSim\.)?Drivetrain\.(\w+)/) || "RWD").toLowerCase(),
   engine: +field(b, /Engine = (\d+)/),
   tank: +field(b, /TankLitres = ([\d.]+)f/),
   lengthM: +field(b, /LengthM = ([\d.]+)f/),
@@ -215,6 +216,10 @@ if (cars.length !== api.cars.length) {
       fail(`car ${a.id} paint: #${u.paint.toLowerCase()} vs ${a.color}`);
     }
     if (u.kit !== (a.kit === "attack")) fail(`car ${a.id} attack kit: ${u.kit} vs ${a.kit}`);
+    // The C++ side had this checked and this one did not, which is the
+    // asymmetry that lets one port drift: front and rear drive are
+    // opposite behaviours under power, not neighbouring numbers.
+    if (u.drive !== (a.drive ?? "rwd")) fail(`car ${a.id} drive: ${u.drive} vs ${a.drive ?? "rwd"}`);
     // The rule that makes the rarest car rare, and the build it is sold
     // with. A port that drops either sells a different game.
     if (u.lengthM !== a.lengthM) fail(`car ${a.id} lengthM: ${u.lengthM} vs ${a.lengthM}`);
@@ -225,7 +230,7 @@ if (cars.length !== api.cars.length) {
       fail(`car ${a.id} factoryBuild: [${u.factoryBuild}] vs [${a.factoryBuild}]`);
     }
   }
-  if (!failed) ok(`cars: ${cars.length} match (id, name, price, power, speed, grip, brake, body, kit, engine, tank, length, lock, factory build)`);
+  if (!failed) ok(`cars: ${cars.length} match (id, name, price, power, speed, grip, brake, body, kit, drive, engine, tank, length, lock, factory build)`);
 }
 
 // ---- fuel and forecourts --------------------------------------------

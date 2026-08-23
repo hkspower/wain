@@ -29,6 +29,7 @@ import { solveDriverRig } from "./driver";
 import { FLAGS, FLAG_IDS, flagTexture } from "./flags";
 import { verticalFov, chaseDolly } from "./aspect";
 import { gripAtSpeed, newLoadState, solveLoad, type LoadResult } from "./grip";
+import { bestTow, NO_TOW, TOW_REACH, type TowInput, type TowResult } from "./slipstream";
 import { Music } from "./music";
 import { Radio } from "./radio";
 import {
@@ -122,6 +123,13 @@ export interface HudData {
   nearestRemote: { id: number; name: string; dist: number } | null;
   /** Live PvP duel state, or null when not duelling. */
   duel: { you: number; them: number; gap: number; opponent: string } | null;
+  /** How deep the car is sitting in another car's wake, 0..1.
+   *
+   *  On the HUD because an invisible advantage is not a mechanic. The
+   *  drag saving is real either way, but a driver who cannot see it has
+   *  no reason to go looking for it, and finding it is the interesting
+   *  part. */
+  tow: number;
   /** Turbo boost 0..1, or null when no turbo is fitted. */
   boost: number | null;
   /** NOS charge 0..1, or null when no kit is fitted. */
@@ -683,6 +691,8 @@ export class GameEngine {
   private maxBuffer = 4096;
 
   private traffic: TrafficCar[] = [];
+  /** The wake the player is sitting in this frame — see slipstream.ts. */
+  private tow: TowResult = NO_TOW;
   private rival: Rival | null = null;
   private rivalIndex = 0;
   private inBattle = false;
@@ -3564,7 +3574,14 @@ export class GameEngine {
     });
     this.brakeOut = bk;
     const braking = bk.decel;
-    const drag = 0.0012 * p.speed * p.speed + 1.2;
+    // The tow. Only the aerodynamic term is discounted — the constant
+    // 1.2 is rolling resistance, which is the tyres deforming against
+    // the road and does not care what the air is doing. Multiplying the
+    // whole drag figure would have the wake reduce friction, which is
+    // both wrong and the kind of wrong that only shows up as cars
+    // coasting further than they should.
+    this.updateTow();
+    const drag = 0.0012 * p.speed * p.speed * this.tow.drag + 1.2;
     p.speed = Math.max(0, p.speed + (accel - braking - drag * (this.throttle ? 0.35 : 1)) * dt);
     // The governor cuts fuel: nitrous and a tow can get you here faster,
     // but not past it.
@@ -3596,6 +3613,13 @@ export class GameEngine {
       // under power unloads it and the car pushes wide. This one term is
       // most of what "the car has dynamics" means, and it was missing.
       load.steerScale *
+      // Dirty air. The nose is the first thing into the wake and the
+      // first thing to go light in it, which is what stops the tow from
+      // being a button that says "go faster": free speed on the straight,
+      // a vague front end if you are still sitting there when the road
+      // bends. Six percent — enough to feel on turn-in, not enough to
+      // punish.
+      this.tow.frontGrip *
       // Locked front tires are erasers: they do not steer at all, which
       // is why the car that goes straight on into the barrier is nearly
       // always the one with the pedal buried rather than modulated.
@@ -4238,6 +4262,40 @@ export class GameEngine {
         );
       }
     }
+  }
+
+  /**
+   * The best wake the player is sitting in, this frame.
+   *
+   * Every car on the road is a candidate — traffic, the rival, other
+   * people online — because the air does not know which of them you
+   * happen to be racing. That is most of the point: a driver who is
+   * losing ground on the straight can duck in behind a truck and come
+   * back out on terms.
+   *
+   * Nose to tail, not centre to centre. A metre off the bumper of a
+   * five-metre car and a metre off a four-metre one are the same
+   * distance from the bodywork and a different `deltaAhead`, and the
+   * wake starts at the bodywork.
+   */
+  private updateTow(): void {
+    const p = this.player;
+    const half = (this.tune.lengthM || 4.5) / 2;
+    const cand: TowInput[] = [];
+    // Traffic and remote cars carry no length of their own, so they get
+    // the fleet's middle. Being half a metre out on where a wake starts
+    // is well inside what the exponential does over that distance.
+    const NOMINAL_HALF = 2.25;
+    const add = (s: number, lat: number): void => {
+      const gap = this.track.deltaAhead(p.s, s) - half - NOMINAL_HALF;
+      if (gap > 0 && gap <= TOW_REACH) {
+        cand.push({ gap, lat: lat - p.lat, speed: p.speed });
+      }
+    };
+    for (const t of this.traffic) add(t.s, t.lat);
+    if (this.rival) add(this.rival.s, this.rival.lat);
+    for (const r of this.remotes.values()) add(r.s, r.lat);
+    this.tow = bestTow(cand);
   }
 
   private updateBattle(dt: number): void {
@@ -5171,6 +5229,11 @@ export class GameEngine {
       driveScale: this.load.driveScale,
       pitchG: this.load.pitchG,
       downforce: this.tune.downforce,
+      // The wake, so a test can put the car behind another one and check
+      // that the air answered rather than time two laps and hope.
+      tow: this.tow.strength,
+      towDrag: this.tow.drag,
+      towFrontGrip: this.tow.frontGrip,
       gripNow: gripAtSpeed(this.tune.gripAccel, this.tune.downforce, this.player.speed),
       gripStatic: this.tune.gripAccel,
       rivalSpeed: r?.speed,
@@ -5273,6 +5336,7 @@ export class GameEngine {
       defeated: this.rivalIndex,
       total: RIVALS.length,
       map,
+      tow: this.tow.strength,
       boost: this.tune.boostMult > 0 ? this.boost : null,
       // Charge alone cannot drive a gauge that has to read "firing",
       // "ready" and "too empty to fire" as three different things — the
