@@ -28,11 +28,12 @@
 // x=16 and x=18 are a bug. So the report is: values that are CLOSE but
 // not EQUAL, which is the signature of a mistake rather than a decision.
 //
-// Padding is measured from the panel's own box to the box of the glyphs
-// inside it, not to its child elements' boxes — a full-width row inside
-// a panel has a box that touches both walls while its text sits well
-// inside, and measuring the element would report zero padding on a panel
-// that plainly has some.
+// Padding is read from the computed style rather than inferred from
+// where the glyphs landed. That distinction is the difference between
+// this tool being useful and it being noise: a glyph box excludes the
+// ascent and descent the line box reserves, so two panels with identical
+// CSS padding measure differently as soon as their font sizes differ,
+// and an inferred measurement reports the typography as a fault.
 
 import { chromium } from "playwright-core";
 import { existsSync } from "node:fs";
@@ -128,24 +129,34 @@ const COLLECT = `(() => {
     // A full-bleed backdrop is not a panel, it is the screen.
     if (b.width >= innerWidth - 2 && b.height >= innerHeight - 2) continue;
 
-    let inner = null;
+    // Only panels that actually contain words — an empty decorative
+    // surface has no padding worth having an opinion about.
+    let holdsText = false;
     for (const t of texts) {
-      if (t.l < b.left - 0.5 || t.r > b.right + 0.5) continue;
-      if (t.t < b.top - 0.5 || t.b > b.bottom + 0.5) continue;
-      inner = inner
-        ? { l: Math.min(inner.l, t.l), t: Math.min(inner.t, t.t),
-            r: Math.max(inner.r, t.r), b: Math.max(inner.b, t.b) }
-        : { ...t };
+      if (t.l >= b.left - 0.5 && t.r <= b.right + 0.5 &&
+          t.t >= b.top - 0.5 && t.b <= b.bottom + 0.5) { holdsText = true; break; }
     }
-    if (!inner) continue;
+    if (!holdsText) continue;
+
+    // Padding read as PADDING, not inferred from where the glyphs landed.
+    //
+    // The first version measured from the panel's box to the box of the
+    // text inside it, which is the right measurement for a gutter and
+    // the wrong one for this. A glyph box is not a content box: it
+    // excludes the ascent and descent the line box reserves, so two
+    // panels with byte-identical CSS padding measure differently the
+    // moment their font sizes differ. The tool duly reported "16 px and
+    // 17 px, 1.0 px apart" as a fault dozens of times, and every one of
+    // them was typography rather than a padding decision. Padding is a
+    // property; ask for the property.
     panels.push({
       cls: (el.className || "").toString().slice(0, 56),
       box: { l: b.left, t: b.top, r: b.right, b: b.bottom },
       pad: {
-        l: inner.l - b.left,
-        t: inner.t - b.top,
-        r: b.right - inner.r,
-        b: b.bottom - inner.b,
+        l: parseFloat(cs.paddingLeft) || 0,
+        t: parseFloat(cs.paddingTop) || 0,
+        r: parseFloat(cs.paddingRight) || 0,
+        b: parseFloat(cs.paddingBottom) || 0,
       },
       area: b.width * b.height,
     });
@@ -211,14 +222,22 @@ for (const size of SIZES) {
     const panels = await page.evaluate(COLLECT);
     if (!panels.length) continue;
 
-    // --- Padding vocabulary
-    const padValues = [];
+    // --- Padding vocabulary, HORIZONTAL and VERTICAL kept apart.
+    //
+    // Pooling all four sides was wrong and it showed immediately: a
+    // panel with px-3.5 py-2.5 has 14 px at the sides and 10 at the top,
+    // and pooling reported its own two paddings as a 4 px near-miss.
+    // That is not a mistake, it is the panel being wider than it is tall
+    // — which is what nearly every panel is. The two axes are separate
+    // vocabularies and only compare within themselves.
+    const horiz = [];
+    const vert = [];
     for (const p of panels) {
-      for (const side of ["l", "t", "r", "b"]) {
-        padValues.push({ v: Math.round(p.pad[side] * 10) / 10, who: `${p.cls}:${side}` });
-      }
+      for (const side of ["l", "r"]) horiz.push({ v: Math.round(p.pad[side] * 10) / 10, who: `${p.cls}:${side}` });
+      for (const side of ["t", "b"]) vert.push({ v: Math.round(p.pad[side] * 10) / 10, who: `${p.cls}:${side}` });
     }
-    const padMiss = nearMisses(padValues);
+    const padValues = [...horiz, ...vert];
+    const padMiss = [...nearMisses(horiz), ...nearMisses(vert)];
 
     // --- Edge alignment: left edges, then right edges
     const lefts = panels.map((p) => ({ v: Math.round(p.box.l * 10) / 10, who: p.cls }));

@@ -105,7 +105,10 @@ const fleet = await page.evaluate(async () => {
     for (const b of boxes) {
       // The wheel's own parts, the arch it turns inside, and the
       // suspension are all supposed to be there.
-      if (/rim|disc|caliper|tire|arch-well|unnamed/.test(b.key)) continue;
+      // ...and the hubcap, which is a wheel part whose entire purpose is
+      // to sit inside the wheel. Exempt for the same reason the rim and
+      // the rotor are, not as an excuse for a new part that overlaps.
+      if (/rim|hubcap|disc|caliper|tire|arch-well|unnamed/.test(b.key)) continue;
       // The arch parts wrap the wheel by design, and this test judges a
       // part by its bounding-box CENTRE — so an arc that hoops over a
       // tyre has its centroid near the axle whatever it is doing. The

@@ -1279,11 +1279,33 @@ const rimMat = new THREE.MeshStandardMaterial({ name: "rim",
   metalness: 0.95,
   envMapIntensity: 1.5,
 });
+/** A plastic wheel cover: grey, dull, and nothing like a machined face.
+ *  Low metalness is the whole point — a hubcap that catches a highlight
+ *  the way an alloy does is just a cheap-looking alloy. */
+const hubcapMat = new THREE.MeshStandardMaterial({
+  name: "hubcap",
+  color: 0xa8adb4,
+  roughness: 0.55,
+  metalness: 0.15,
+  envMapIntensity: 0.5,
+});
 const rimDarkMat = new THREE.MeshStandardMaterial({ name: "rim-dark",
   color: 0x23262b,
   roughness: 0.5,
   metalness: 0.6,
 });
+
+/**
+ * The hubcap's dish: a shallow cone across most of the rim's face.
+ *
+ * Sized to the FITTED wheel like everything else in this section, so a
+ * cover stays a cover when the wheel changes size rather than becoming
+ * a saucer floating in front of one.
+ */
+const hubcapGeo = new THREE.CylinderGeometry(
+  0.2 * WHEEL_R_K, 0.185 * WHEEL_R_K, 0.03 * WHEEL_W_K, 20
+);
+hubcapGeo.rotateZ(Math.PI / 2);
 
 const lipGeo = new THREE.TorusGeometry(
   0.195 * WHEEL_R_K, 0.014 * WHEEL_R_K, 6, 20
@@ -2122,7 +2144,18 @@ function plateMat(): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({ name: "plate", map: sharedPlateTex, roughness: 0.5 });
 }
 
-type WheelFinish = "silver" | "gold" | "bronze";
+/**
+ * What the wheel is.
+ *
+ * "steel" is not a colour, it is a different WHEEL: a pressed steel rim
+ * with a plastic cover clipped over it, which is what a base-model car
+ * leaves the showroom on and what half the cars on this road are still
+ * wearing. It reads from ten metres and it is the single strongest cue
+ * that a machine has not been got at yet — far stronger than the badge
+ * or the power figure, because it is the one thing an owner changes
+ * FIRST when they start spending.
+ */
+type WheelFinish = "silver" | "gold" | "bronze" | "steel";
 
 /** Hero wheel parts, merged to one geometry per material so a Blender
  *  build can replace each in a single swap (models.ts) — and so four
@@ -2186,12 +2219,17 @@ function buildWheel(
   side = 1,
   opts?: { detailed?: boolean; spokeMat?: THREE.MeshStandardMaterial }
 ): THREE.Group {
-  const spokeMat =
-    opts?.spokeMat ??
-    (finish === "gold" ? getGoldRimMat() : finish === "bronze" ? bronzeRimMat : rimMat);
+  const steel = finish === "steel";
+  const spokeMat = steel
+    ? hubcapMat
+    : opts?.spokeMat ??
+      (finish === "gold" ? getGoldRimMat() : finish === "bronze" ? bronzeRimMat : rimMat);
   const detailed = opts?.detailed ?? false;
-  // Six straight spokes on the forged bronze wheel, five on the street cast
-  const nSpokes = finish === "bronze" ? 6 : 5;
+  // Six straight spokes on the forged bronze wheel, five on the street
+  // cast — and four on a hubcap, because a pressed cover has a few wide
+  // flat vanes rather than a spoke pattern, and that difference in
+  // COUNT is what the eye reads at speed even when the shape is coarse.
+  const nSpokes = finish === "bronze" ? 6 : steel ? 4 : 5;
   const w = new THREE.Group();
 
   if (detailed) {
@@ -2215,6 +2253,16 @@ function buildWheel(
       mesh.userData.wheelPart = name;
       mesh.userData.wheelSide = side;
       w.add(mesh);
+    }
+    // The cover itself: a shallow dish clipped over the face of the
+    // rim, which is what makes a steel wheel read as a steel wheel
+    // rather than as a dull alloy. It sits PROUD of the spokes, hiding
+    // most of them — a hubcap covers the wheel, that is its whole job.
+    if (steel) {
+      const cap = new THREE.Mesh(hubcapGeo, hubcapMat);
+      cap.position.x = side * 0.135 * WHEEL_W_K;
+      cap.userData.wheelPart = "hubcap";
+      w.add(cap);
     }
     w.userData.spokes = nSpokes;
     w.userData.rotorMat = rotorMat;
@@ -3294,11 +3342,24 @@ export function createCar(colors: CarColors): THREE.Group {
     [-wheelX, wzR],
     [wheelX, wzR],
   ]) {
-    const wheel = buildWheel(
-      colors.raceKit ? "bronze" : colors.goldRims ? "gold" : "silver",
-      Math.sign(wx),
-      { detailed: !colors.simple, spokeMat: spokeLocal }
-    );
+    // Steel wheels and covers on a street car, unless the owner has
+    // bought something. Gold rims are a purchase and they win — somebody
+    // who has spent on wheels is telling you so, and burying that under
+    // a hubcap because the kit is still stock would be the game
+    // overruling a decision the player paid for.
+    const wheelFinish: WheelFinish = colors.raceKit
+      ? "bronze"
+      : colors.goldRims
+        ? "gold"
+        : kit === "street"
+          ? "steel"
+          : "silver";
+    const wheel = buildWheel(wheelFinish, Math.sign(wx), {
+      detailed: !colors.simple,
+      // A bought finish overrides the material; a hubcap does not take
+      // one, because the point of it is that nothing was bought.
+      spokeMat: wheelFinish === "steel" ? undefined : spokeLocal,
+    });
     wheel.position.set(wx, TIRE_RADIUS, wz);
     group.add(wheel);
     wheels.push(wheel);
@@ -3688,6 +3749,56 @@ export function createCar(colors: CarColors): THREE.Group {
     duck.position.set(0, seat + 0.03, lipZ);
     duck.rotation.x = -0.22;
     group.add(duck);
+  }
+
+  // ----------------------------------------------- the base-spec car
+  //
+  // A street car used to differ from a built one only by ABSENCE: no
+  // flares, no skirts, no wing, and otherwise the same machine. That is
+  // how you make the cheap cars look unfinished rather than cheap.
+  //
+  // These are the three things a base-model car on this road actually
+  // HAS that a built one does not, and each reads from ten metres:
+  // covers over steel wheels (above), a whip aerial on the roof, and
+  // the sun band across the top of the windscreen that half the cars in
+  // this country wear because the sun here is not a metaphor.
+  if (kit === "street" && !colors.simple) {
+    // The aerial. A thin mast is nearly invisible in a still and
+    // unmistakable in motion, because it is the one part of the car
+    // that moves against the sky.
+    const mast = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.008, 0.011, 0.52, 5),
+      seamMat
+    );
+    mast.position.set(flankX - 0.16, d.roof[1] + 0.24, d.roof[0] + 0.18);
+    mast.rotation.z = 0.12; // raked back, the way a whip sits
+    mast.rotation.x = -0.16;
+    group.add(mast);
+    const base = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.03, 0.035, 0.035, 8),
+      seamMat
+    );
+    base.position.set(flankX - 0.16, d.roof[1] + 0.005, d.roof[0] + 0.18);
+    group.add(base);
+
+    // The sun band: a tinted strip across the top of the screen, dark
+    // at the edges and clearing toward the middle where a driver
+    // actually looks out. Emissive-free and nearly opaque, so at night
+    // it reads as a black band rather than as glass.
+    const band = new THREE.Mesh(
+      roundedBox(1.28, 0.16, 0.02, 0.008),
+      new THREE.MeshStandardMaterial({
+        name: "sun-band",
+        color: 0x0d1014,
+        roughness: 0.35,
+        metalness: 0.1,
+        transparent: true,
+        opacity: 0.82,
+      })
+    );
+    band.position.set(0, d.beltY + 0.42, d.wiperZ + 0.16);
+    band.rotation.x = -0.5; // lies along the screen's rake
+    group.add(band);
   }
 
   if (colors.raceKit) {
