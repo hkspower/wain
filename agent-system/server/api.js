@@ -210,25 +210,40 @@ on('POST', '/api/agents', async (ctx) => {
     ? oneOf(ctx.body.approval, 'حالة الاعتماد', D.WORKING_APPROVALS)
     : (role === 'admin' ? 'approved' : 'under_test');
 
-  const info = db.prepare(
-    `INSERT INTO agents (name, username, phone, password_hash, role, vehicle, governorate,
-                         availability, active, approval, approval_at, approval_by, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'offline', 1, ?, ?, ?, ?)`
-  ).run(name, username, phone, auth.hashPassword(password), role, vehicle, governorate,
-        approval, now(), ctx.agent.id, now());
+  // التعمية بطيئة عمدًا، فتُحسب قبل فتح المعاملة لا داخلها: لا تُحبس
+  // القاعدة على انتظار حساب.
+  const hash = auth.hashPassword(password);
+  const groupId = ctx.body.group_id != null ? id(ctx.body.group_id, 'معرّف المجموعة') : null;
 
-  logAgentEvent({
-    agentId: Number(info.lastInsertRowid), actorId: ctx.agent.id,
-    type: 'created', to: approval,
+  /* الإنشاء خطوتان: صفٌّ في `agents` ثم مجموعةٌ له. الأولى كانت تُثبَّت قبل
+     أن تُفحص الثانية، فإذا رُدّت المجموعة رجع الردّ رفضًا وبقي الحساب —
+     بلا مجموعة، وهي الحال التي يمنعها التعليق أدناه نفسه. ويزيد الأمر
+     إحكامًا أنّ اسم المستخدم يكون قد حُجز: من يُعيد المحاولة يُقابَل بـ
+     «مستخدم بالفعل» على حسابٍ لا يراه. فصارتا معاملةً واحدة: تمضيان معًا
+     أو لا تمضي واحدة. */
+  const create = db.transaction(() => {
+    const info = db.prepare(
+      `INSERT INTO agents (name, username, phone, password_hash, role, vehicle, governorate,
+                           availability, active, approval, approval_at, approval_by, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'offline', 1, ?, ?, ?, ?)`
+    ).run(name, username, phone, hash, role, vehicle, governorate,
+          approval, now(), ctx.agent.id, now());
+
+    logAgentEvent({
+      agentId: Number(info.lastInsertRowid), actorId: ctx.agent.id,
+      type: 'created', to: approval,
+    });
+
+    /* لكل حساب مجموعة منذ لحظته الأولى: مجموعة دوره افتراضًا، أو ما طُلب
+       صراحةً بقواعده. حسابٌ بلا مجموعة حسابٌ بلا صلاحيات معروفة. */
+    const born = db.prepare('SELECT * FROM agents WHERE id=?').get(info.lastInsertRowid);
+    if (groupId != null) P.assignGroup(ctx.agent, born, groupId);
+    else db.prepare('UPDATE agents SET group_id = (SELECT id FROM groups WHERE key = ?) WHERE id = ?').run(role, born.id);
+
+    return Number(info.lastInsertRowid);
   });
 
-  /* لكل حساب مجموعة منذ لحظته الأولى: مجموعة دوره افتراضًا، أو ما طُلب
-     صراحةً بقواعده. حسابٌ بلا مجموعة حسابٌ بلا صلاحيات معروفة. */
-  const born = db.prepare('SELECT * FROM agents WHERE id=?').get(info.lastInsertRowid);
-  if (ctx.body.group_id != null) P.assignGroup(ctx.agent, born, id(ctx.body.group_id, 'معرّف المجموعة'));
-  else db.prepare('UPDATE agents SET group_id = (SELECT id FROM groups WHERE key = ?) WHERE id = ?').run(role, born.id);
-
-  return { agent: publicAgent(db.prepare('SELECT * FROM agents WHERE id=?').get(info.lastInsertRowid)) };
+  return { agent: publicAgent(db.prepare('SELECT * FROM agents WHERE id=?').get(create())) };
 });
 
 on('PATCH', '/api/agents/:id', async (ctx) => {

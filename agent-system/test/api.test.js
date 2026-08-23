@@ -457,3 +457,57 @@ test('الهاتف يُطبَّع فلا يخرج رابطٌ لا يعمل', () 
   /* ومفتاح الدولة لا يُخترع: من كتب بلا مفتاح فقد قصد ما كتب */
   assert.equal(phone('99887766', 'هاتف'), '99887766');
 });
+
+test('إنشاء الحساب لا يترك أثرًا إذا رُدّ في خطوته الأخيرة', async () => {
+  /* الإنشاء خطوتان: صفٌّ في `agents` ثم مجموعةٌ له. كانت الأولى تُثبَّت قبل
+     أن تُفحص الثانية، فإذا رُدّت المجموعة رجع الردّ رفضًا وبقي الحساب:
+     بلا مجموعة، وباسم مستخدمٍ محجوز، وبكلمة مرورٍ تعمل. يرى المسؤول
+     «المجموعة غير موجودة» ثم يرى في إعادة المحاولة «اسم المستخدم مستخدم
+     بالفعل» على حسابٍ لا أثر له في القائمة — وطريقٌ مسدود.
+
+     الفحص من أثر الرفض لا من نصّه: هل بقي شيء بعده؟ */
+  const before = db.prepare('SELECT COUNT(*) AS n FROM agents').get().n;
+
+  const bad = await call('admin', 'POST', '/api/agents', {
+    name: 'حسابٌ لا يولد', username: 'phantom', password: 'PhantomPass9',
+    role: 'admin', governorate: 'العاصمة', group_id: 999999,
+  });
+  assert.equal(bad.status, 404);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM agents').get().n, before);
+  assert.equal(db.prepare('SELECT 1 FROM agents WHERE username = ?').get('phantom'), undefined);
+
+  const login = await call('phantom', 'POST', '/api/auth/login',
+    { username: 'phantom', password: 'PhantomPass9' });
+  assert.equal(login.status, 401);
+
+  /* وإعادة المحاولة تنجح: الاسم لم يُحجز */
+  const good = await call('admin', 'POST', '/api/agents', {
+    name: 'حسابٌ يولد', username: 'phantom', password: 'PhantomPass9',
+    role: 'admin', governorate: 'العاصمة',
+  });
+  assert.equal(good.status, 200);
+  assert.ok(good.data.agent.id);
+
+  /* والمولود من هذه النقطة له مجموعةٌ دائمًا — لا حسابَ بلا صلاحيات معروفة.
+     (الحسابات التي تضعها التهيئة بـSQL مباشرة خارج هذا الحكم: لم تمرّ من
+     هنا، وتُلحقها `ensureGroups` عند الإقلاع.) */
+  const born = db.prepare('SELECT group_id FROM agents WHERE id = ?').get(good.data.agent.id);
+  assert.ok(born.group_id, 'وُلد الحساب بلا مجموعة');
+});
+
+test('كابتن في مجموعة إدارية يُردّ ولا يُخلَّف حسابًا', async () => {
+  /* الرفض هنا مقصود في التصميم — الكابتن يبقى في مجموعة «كابتن» — والمهمّ
+     أن يكون الرفض نظيفًا كذلك. */
+  const g = await call('admin', 'POST', '/api/groups',
+    { name: 'إسناد فقط', perms: ['orders.assign'] });
+  assert.equal(g.status, 200);
+
+  const before = db.prepare('SELECT COUNT(*) AS n FROM agents').get().n;
+  const bad = await call('admin', 'POST', '/api/agents', {
+    name: 'كابتن في غير موضعه', username: 'misplaced', password: 'MisPass1234',
+    role: 'agent', governorate: 'العاصمة', group_id: g.data.group.id,
+  });
+  assert.equal(bad.status, 400);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM agents').get().n, before);
+  assert.equal(db.prepare('SELECT 1 FROM agents WHERE username = ?').get('misplaced'), undefined);
+});
