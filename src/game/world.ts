@@ -126,6 +126,32 @@ export const ROADS = [
   { to: Infinity, name: "Second Ring Road", arabic: "الدائري الثاني" },
 ];
 
+/**
+ * The district you are about to enter, and how far it is.
+ *
+ * The difference between a label and a guide. areaAt names where you
+ * already are, and a driver can see that out of the window; what a sign
+ * at the roadside is FOR is the next place and the distance to it.
+ *
+ * Wraps, because the lap does: past the last boundary the next district
+ * is the first one, and the distance runs to the line rather than to the
+ * Infinity that terminates the table.
+ */
+export function nextAreaAt(
+  track: Track,
+  s: number
+): { area: (typeof AREAS)[number]; metres: number } {
+  const m = track.wrap(s);
+  for (let i = 0; i < AREAS.length; i++) {
+    if (m < AREAS[i].to) {
+      const next = AREAS[(i + 1) % AREAS.length];
+      const edge = Number.isFinite(AREAS[i].to) ? AREAS[i].to : track.length;
+      return { area: next, metres: Math.max(0, edge - m) };
+    }
+  }
+  return { area: AREAS[0], metres: Math.max(0, track.length - m) };
+}
+
 /** The road at `s`, and the nickname for this stretch of it if it has
  *  one. `nick` is null nearly everywhere: a nickname is a nickname
  *  precisely because it is not the road's name. */

@@ -2,7 +2,14 @@
 // the tuning effects the engine applies to the handling model.
 // Currency is KD, earned by defeating rivals.
 
-import { EngineId, EngineSpec, getEngine } from "./engines";
+// The two type-only names are imported as types, which is not a style
+// preference: node's --experimental-strip-types erases them at runtime,
+// so a value import of `EngineId` makes this module unloadable outside a
+// bundler. That blocked every node-side test of anything downstream of
+// mods.ts — the drivetrain and area-guide tests both hit it — for a
+// reason that had nothing to do with what they were testing.
+import { getEngine } from "./engines";
+import type { EngineId, EngineSpec } from "./engines";
 import { loadCrew, type Crew } from "./teams";
 import type { Drivetrain } from "./grip";
 

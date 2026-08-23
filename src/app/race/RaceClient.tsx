@@ -379,6 +379,7 @@ export default function RaceClient() {
   const dialFor = useRef(0);
   const areaRef = useRef<HTMLDivElement>(null);
   const roadRef = useRef<HTMLDivElement>(null);
+  const nextRef = useRef<HTMLDivElement>(null);
   const rivalInfoRef = useRef<HTMLDivElement>(null);
   const battleRef = useRef<HTMLDivElement>(null);
   const playerBarRef = useRef<HTMLDivElement>(null);
@@ -748,6 +749,22 @@ export default function RaceClient() {
         if (rLatin && rArabic) {
           rLatin.textContent = d.roadNick ?? d.roadName;
           rArabic.textContent = d.roadNickArabic ?? d.roadArabic;
+        }
+      }
+      if (nextRef.current) {
+        const [tag, nLatin, nArabic, dist] = nextRef.current
+          .children as unknown as HTMLElement[];
+        if (tag && nLatin && nArabic && dist) {
+          if (tag.textContent !== "NEXT") tag.textContent = "NEXT";
+          if (nLatin.textContent !== d.nextArea) nLatin.textContent = d.nextArea;
+          if (nArabic.textContent !== d.nextArabic) nArabic.textContent = d.nextArabic;
+          // Rounded to ten metres, and that is a legibility decision
+          // rather than laziness: a units digit changing sixty times a
+          // second is noise, and a number that never sits still is
+          // harder to read at 200 km/h than one that steps.
+          const m = Math.max(0, Math.round(d.nextInM / 10) * 10);
+          const label = m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`;
+          if (dist.textContent !== label) dist.textContent = label;
         }
       }
       if (areaRef.current) {
@@ -1518,6 +1535,19 @@ export default function RaceClient() {
             <div ref={areaRef} className="flex items-baseline gap-2 text-xl leading-tight">
               <span className="grn-display tracking-wide" />
               <span className="grn-ar-display text-[0.95em] text-white/80" lang="ar" />
+            </div>
+            {/* What is COMING. The road line and the district line both
+                name where you already are, which a driver can see out of
+                the window; the only part of this plate that tells you
+                something you cannot see yet is this one. */}
+            <div ref={nextRef} className="grn-label mt-0.5 flex items-baseline gap-1.5 text-[0.58rem]">
+              <span className="text-white/35" />
+              <span className="text-white/70" />
+              <span className="grn-ar text-[0.62rem] text-white/45" lang="ar" />
+              {/* normal-case, because grn-label uppercases everything and
+                  a distance is not an abbreviation: "80 M" reads as a
+                  unit symbol shouted, "80 m" reads as a distance. */}
+              <span className="tnum normal-case text-sodium-400/85" />
             </div>
             <div ref={progressRef} className="grn-label mt-0.5 text-[0.62rem]" />
             {/* The clock, and whether the night is still open.

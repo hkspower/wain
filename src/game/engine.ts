@@ -9,7 +9,7 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import { Track, ROAD_HALF_WIDTH, LANES, DRIFT_PLAZA, COAST_U, STATIONS, FORECOURT } from "./track";
-import { buildWorld, areaAt, roadAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
+import { buildWorld, areaAt, roadAt, nextAreaAt, AREAS, LANDMARK_S, STREETS, WorldHandle } from "./world";
 import { createCar, crownShell, CROWN, setContactStrength, TAIL, TIRE_RADIUS } from "./cars";
 import { RIVALS, RivalDef } from "./rivals";
 import { VoiceBox } from "./voice";
@@ -96,6 +96,12 @@ export interface HudData {
    *  named after a road and never used to say which one you were on. */
   roadName: string;
   roadArabic: string;
+  /** Where you are heading and how far. The road line and the district
+   *  line both name places you have already arrived at; this is the only
+   *  part of the plate that is a guide rather than a caption. */
+  nextArea: string;
+  nextArabic: string;
+  nextInM: number;
   roadNick: string | null;
   roadNickArabic: string | null;
   /** The game clock, 0..24, and whether a race can be started right
@@ -5006,6 +5012,7 @@ export class GameEngine {
   private emitHud(): void {
     const area = areaAt(this.track, this.player.s);
     const road = roadAt(this.track, this.player.s);
+    const next = nextAreaAt(this.track, this.player.s);
     const r = this.rival;
 
     // Dev/tuning handle — inspect live state from the console.
@@ -5230,6 +5237,9 @@ export class GameEngine {
       areaArabic: area.arabic,
       roadName: road.name,
       roadArabic: road.arabic,
+      nextArea: next.area.name,
+      nextArabic: next.area.arabic,
+      nextInM: Math.round(next.metres),
       roadNick: road.nick,
       roadNickArabic: road.nickArabic,
       hour: this.timeHours,
