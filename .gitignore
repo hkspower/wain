@@ -57,3 +57,11 @@ wallet/.build/
 wallet/*.pkpass
 wallet/*-UNSIGNED.zip
 /wallet-certs/
+
+# Payment and assistant logs. They live one directory above public_html on the
+# real server for a reason — they are not servable — and in the sandbox they
+# land inside sporta-site/ where git would otherwise offer to commit a file
+# containing upstream error text and, in the payment case, order references.
+sporta-site/*.log
+sporta-voice.log
+cbk-payments.log

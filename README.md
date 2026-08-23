@@ -88,6 +88,7 @@ because the rigs place real orders against a real database.
 | `npm run test:tpay` | CBK T-Pay: the link, the dropin's refusals, the pending state |
 | `npm run test:admin` | The panel, against `scripts/mock-admin.py` |
 | `npm run test:wallet` | A built `.pkpass`, the way Wallet reads one |
+| `npm run test:assistant` | سبورتا AI: the facts are the shop's, and a customer cannot forge them |
 | `npm run test:csp` | Every inline script in the website is declared in its CSP |
 | `npm run scan:site` | The website, in a browser — `BASE=` to aim it |
 | `npm run scan:site:curl` | The same, with nothing but curl |

@@ -42,7 +42,13 @@ return [
     // answer is the shop's own wording.
     'ai_key'   => '',
     'ai_url'   => 'https://api.anthropic.com/v1/messages',
-    'ai_model' => 'claude-haiku-4-5-20251001',
+    // UNDATED on purpose. A dated snapshot pins the shop to one build and
+    // stops working when that build is retired — and assistant_llm() treats a
+    // failed call exactly like an unconfigured one, so the shop would go quiet
+    // without saying so. Haiku is the right tier here rather than a cheap
+    // choice: this call only rewords two sentences the shop has already
+    // written, under a 6-second timeout, while a customer waits.
+    'ai_model' => 'claude-haiku-4-5',
 
     // ElevenLabs, for reading answers aloud in Arabic.
     //

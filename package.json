@@ -51,6 +51,7 @@
     "test:tpay": "node scripts/tpay-test.mjs",
     "test:admin": "node scripts/admin-smoke.mjs",
     "test:wallet": "node scripts/wallet-test.mjs",
+    "test:assistant": "node scripts/assistant-test.mjs",
     "test:csp": "node scripts/csp-check.mjs",
     "scan:site": "node scripts/site-scan.mjs",
     "scan:site:curl": "bash scripts/site-scan.sh",
