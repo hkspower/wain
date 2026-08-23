@@ -18,6 +18,7 @@ import { ParticleSystem, radialSprite } from "./vfx";
 import { solveTwoBone, aimConstrained } from "./ik";
 import { nightEnvironment } from "./env";
 import { RIG } from "./rig";
+import { paceDelta, newPaceState, type PaceState } from "./pacing";
 import { textTexture, arabicUI } from "./text";
 import { GradeShader, AutoExposure, ExposurePass } from "./grade";
 import type { DriverRig } from "./characters";
@@ -846,6 +847,8 @@ export class GameEngine {
   private refreshSamples: number[] = [];
   private frameMinMs = 0;         // 0 = accept every frame the browser offers
   private lastFrameAt = 0;
+  /** Recent frame deltas, for the pacing filter. */
+  private pace: PaceState = newPaceState();
   private frameCap: "display" | "vrr" | number = "display";
   private qualityLocked = false; // user took manual control with G
   private startedAt = 0;
@@ -1421,10 +1424,19 @@ export class GameEngine {
         this.lastFrameAt = nowMs - due > this.frameMinMs ? nowMs : due;
       }
       const raw = this.clock.getDelta();
+      // The FPS readout keeps the RAW delta: it is a report on what the
+      // machine actually managed, and smoothing it before displaying it
+      // would be reporting the fix rather than the throughput.
       if (raw > 0) this.fpsEma = this.fpsEma * 0.95 + (1 / raw) * 0.05;
       this.autoQuality();
       this.updateDrs(performance.now());
-      const dt = Math.min(raw, 0.05);
+      // ...but the SIMULATION gets a paced delta. A display presents on
+      // a fixed grid and rAF's timestamp jitters around it by about a
+      // millisecond, which at 200 km/h is four centimetres of difference
+      // in how far the world moved between one frame and the next —
+      // small, regular, and exactly the scale the eye notices. See
+      // src/game/pacing.ts.
+      const dt = paceDelta(this.pace, raw, this.refreshHz);
       // Polled outside update() so Start still works while paused
       this.pollGamepad();
       if (!this.paused) this.update(dt);

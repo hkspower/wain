@@ -23,6 +23,7 @@
     "check:arabic": "node scripts/check-arabic.mjs",
     "test:motion": "node tests/motion.mjs",
     "test:pacing": "node tests/framepacing.mjs",
+    "test:pacing:delta": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/pacing.mjs",
     "test:assets": "node tests/assets.mjs",
     "test:physics": "node tests/physics.mjs",
     "test:dynamics": "node tests/dynamics.mjs",
@@ -89,7 +90,8 @@
     "check:edges": "node tools/shots/edges.mjs",
     "check:dark": "node tools/shots/dark.mjs",
     "check:framing": "node tools/shots/framing.mjs",
-    "check:gutters": "node tools/shots/gutters.mjs"
+    "check:gutters": "node tools/shots/gutters.mjs",
+    "check:align": "node tools/shots/align.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",
