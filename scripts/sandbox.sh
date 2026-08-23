@@ -77,9 +77,11 @@ PHP
 done
 
 cd "$ROOT/sporta-site/public_html"
+# dev-router.php mirrors the one .htaccess rewrite the scans exercise — see
+# its header. Everything else falls through to the built-in server untouched.
 up php 'http://127.0.0.1:4300/api/api.php?r=products' 200 \
   php -d error_reporting=E_ALL -d log_errors=1 -d error_log=/tmp/php-strict.log \
-      -S 127.0.0.1:4300 -t .
+      -S 127.0.0.1:4300 -t . "$ROOT/scripts/dev-router.php"
 # RESTOCK. The rigs place real orders against this database and real orders
 # take real stock, so a suite that passed this morning fails this afternoon
 # with out_of_stock and looks like a broken checkout. Nothing here is precious

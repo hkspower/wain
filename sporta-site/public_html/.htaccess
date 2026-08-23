@@ -79,6 +79,21 @@ Options -Indexes
   RewriteCond %{REQUEST_URI} ^/index\.php$
   RewriteRule ^ https://www.sporta.com.kw/ [R=301,L]
 
+  # ---- The category tiles ask for a name the folder does not carry ----
+  #
+  # The built storefront requests /cats/{mobile,desktop}/<id>.jpg|webp; the
+  # files on disk are art-<id>.jpg|webp. Found by scripts/site-scan.sh: four
+  # 404s on the home page, one per tile, on every load. The site is built
+  # JS whose source is lost, so the server bridges the name instead — an
+  # INTERNAL rewrite (no [R]): the browser keeps the URL it asked for and
+  # the immutable cache header stays attached to it.
+  #
+  # Guarded on !-f so that uploading a file under the plain name simply wins,
+  # and anchored to the four ids so this cannot rename anything else — the
+  # infobar, for one, is asked for by its real name and must stay untouched.
+  RewriteCond %{DOCUMENT_ROOT}%{REQUEST_URI} !-f
+  RewriteRule ^cats/(mobile|desktop)/(men|women|accessories|outlet)(-rtl)?\.(jpe?g|webp)$ /cats/$1/art-$2$3.$4 [L]
+
   # /shop/ -> /shop . Canonicals and internal links never use a trailing slash;
   # this stops the slashed spelling becoming a second indexable URL.
   # !-d keeps real directories (/assets/) working.
