@@ -75,7 +75,10 @@
   /* ── الأوزان ─────────────────────────────────────────────────
      الخطّ متغيّر (100–900) فلا وزن مُصطنَع، لكنّ خمسة أوزان بلا نظام
      تُستعمل كلٌّ في لحظتها. أربعة لكلٍّ عمل. */
-  --w-normal: 400; --w-medium: 600; --w-bold: 700; --w-heavy: 800;
+  /* **٧٠٠ سقفُ الوزن**. كان ‎--w-heavy: 800 على أرقام الإحصاءات ورمز الطلب
+     وشارتين وبادئة السؤال — وهو صياحٌ في لوحة عمل تُقرأ طول اليوم. أُزيل
+     الرمز نفسه لا قيمته وحدها، فلا يعود أحدٌ يكتبه. */
+  --w-normal: 400; --w-medium: 600; --w-bold: 700;
   --shadow-xs: 0 1px 0 rgba(10,63,71,.04);
   --shadow: 0 2px 4px rgba(10,63,71,.07), 0 6px 12px rgba(10,63,71,.07);
   --shadow-lg: 0 3px 6px rgba(10,63,71,.09), 0 12px 24px rgba(10,63,71,.11);
@@ -104,7 +107,9 @@
   --t-base: .95rem;   /* النصّ الجاري */
   --t-md:   1.05rem;  /* عناوين البطاقات والنوافذ */
   --t-lg:   1.45rem;  /* عنوان الصفحة */
-  --t-num:  1.7rem;   /* أرقام الإحصاءات */
+  /* رقم الإحصاء **دون عنوان الصفحة**: كان ١٫٧rem (٢٧٫٢px) فوق ‎--t-lg
+     (٢٣٫٢px)، فالعدد يعلو العنوان الذي يؤطّره — وهو قلبٌ للهرم. */
+  --t-num:  1.34rem;  /* أرقام الإحصاءات */
 
   /* ارتفاع السطر: العربية أكثف رسمًا من اللاتينية وتحتاج فسحةً فوقها،
      فالأساس ١٫٨ لا ١٫٥ — والعناوين وحدها تُضيَّق. */
@@ -210,7 +215,7 @@ code { font-size: .92em; padding: .1em .45em; border-radius: var(--radius-xs); b
 .topbar__nav .pill {
   display: inline-block; min-width: 20px; margin-inline-start: var(--s-1); padding: 0 var(--s-1);
   background: var(--alert-600); color: #fff; border-radius: var(--radius-xs);
-  font-size: var(--t-2xs); font-weight: var(--w-heavy); line-height: var(--lh-snug);
+  font-size: var(--t-2xs); font-weight: var(--w-bold); line-height: var(--lh-snug);
 }
 .topbar__side { display: flex; align-items: center; gap: var(--s-3); }
 .who { text-align: start; line-height: var(--lh-tight); }
@@ -250,7 +255,7 @@ code { font-size: .92em; padding: .1em .45em; border-radius: var(--radius-xs); b
 }
 /* أرقام جدوليّة: بلاطات الإحصاء تقف في شبكة، وعرض الرقم المتغيّر يزحزح كل
    بلاطة عن جارتها فتبدو الأعمدة مائلة. */
-.stat b { display: block; font-size: var(--t-num); font-weight: var(--w-heavy); line-height: var(--lh-tight); color: var(--teal-700); font-variant-numeric: tabular-nums; }
+.stat b { display: block; font-size: var(--t-num); font-weight: var(--w-bold); line-height: var(--lh-tight); color: var(--teal-700); font-variant-numeric: tabular-nums; }
 .stat span { font-size: var(--t-sm); color: var(--ink-soft); }
 .stat--accent b { color: var(--teal-700); }
 /* بلا كتلة داكنة: الحدّ الأثخن يميّز البلاطة، والرقم يبقى مقروءًا على أبيض */
@@ -327,7 +332,7 @@ a.stat:hover { border-color: var(--teal-600); }
 .order__top { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; margin-bottom: var(--s-1); }
 /* الوقت في طرف السطر العلوي: بيانٌ ثانويّ لا يزاحم البيانات في سطر واحد */
 .order__time { margin-inline-start: auto; font-size: var(--t-xs); color: var(--ink-soft); }
-.order__code { font-weight: var(--w-heavy); color: var(--teal-700); font-size: var(--t-base); }
+.order__code { font-weight: var(--w-bold); color: var(--teal-700); font-size: var(--t-base); }
 .order__customer { font-weight: var(--w-bold); }
 .order__meta { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); color: var(--ink-soft); font-size: var(--t-sm); }
 .order__meta span { display: inline-flex; align-items: center; gap: var(--s-1); }
@@ -714,7 +719,7 @@ body.is-modal .modal { background: rgba(6,40,46,.62); }
   .tabbar .pill {
     position: absolute; inset-block-start: .1rem; inset-inline-end: 18%;
     min-width: 17px; padding: 0 var(--s-1); background: var(--alert-600); color: #fff;
-    border-radius: var(--radius-xs); font-size: var(--t-2xs); font-weight: var(--w-heavy); line-height: var(--lh-snug);
+    border-radius: var(--radius-xs); font-size: var(--t-2xs); font-weight: var(--w-bold); line-height: var(--lh-snug);
   }
 }
 
@@ -1108,7 +1113,7 @@ body.is-modal .modal { background: rgba(6,40,46,.62); }
   margin: 0 0 var(--s-1); font-size: var(--t-xs); font-weight: var(--w-medium); color: var(--ink-soft);
 }
 .ask__q:empty { display: none; }
-.ask__q::before { content: "س: "; color: var(--teal-600); font-weight: var(--w-heavy); }
+.ask__q::before { content: "س: "; color: var(--teal-600); font-weight: var(--w-bold); }
 
 /* «جارٍ» بلا كلمة تُقرأ جوابًا */
 .ask__bar-skel {

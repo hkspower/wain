@@ -1196,14 +1196,12 @@
             <path d="M486 334 L498 352 L510 334 Z" fill="#F69625"/>
             <circle cx="498" cy="322" r="16" fill="#F69625"/>
             <circle cx="498" cy="322" r="6" fill="#fff"/>
-            <text x="498" y="382" class="tmap__lbl">الاستلام</text>
           </g>
           <!-- نقطة التسليم -->
           <g class="tmap__pin">
             <path d="M134 126 L146 144 L158 126 Z" fill="#0f6b76"/>
             <circle cx="146" cy="114" r="16" fill="#0f6b76"/>
             <circle cx="146" cy="114" r="6" fill="#fff"/>
-            <text x="146" y="76" class="tmap__lbl">التسليم</text>
           </g>
 
           <!-- سيارة الكابتن: نفس شكل السيدان المستعمل في الموقع -->
@@ -1216,6 +1214,13 @@
             </g>
           </g>
         </svg>
+
+        <!-- الأسماء في HTML لا داخل الرسم: نصُّ SVG يُقاس بوحدات viewBox،
+             فيصغر مع صغر الشاشة حتى ٥٫٧px على ٣٢٠ — والمفتاح هنا ثابت. -->
+        <ul class="tmap__key">
+          <li><span class="tmap__dot tmap__dot--pick"></span>نقطة الاستلام</li>
+          <li><span class="tmap__dot tmap__dot--drop"></span>نقطة التسليم</li>
+        </ul>
 
         <p class="tmap__note">
           <b>يصل خلال ٨ دقائق</b> — الرابط يتحدّث لحظيًا، ولا يعمل إلا ما دامت الشحنة في الطريق.

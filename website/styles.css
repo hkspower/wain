@@ -139,15 +139,23 @@
      · «+» في الأسئلة و«×» في المساعد مقاسان على مربّعيهما، فهما أيقونتان.
      · `.tmap__lbl` بـ21px وحداتُ رسمٍ داخل viewBox لا بكسلات شاشة.
      · 11pt في نمط الطباعة وحدةُ ورقٍ لا شاشة. */
+  /* **السجلّ رسميّ**: طرف السلّم الأعلى مضغوط. كان العنوان الأول ٦٠px
+     والثاني ٤٠٫٨ والسعر ٤٠ — مقاسُ إعلانٍ لا مقاسُ شركة تُخاطب تاجرًا.
+     الترتيب هو ما يقيم الهرم، لا الحجم: ٣٤ ← ٢٧ ← ٢١ ← ١٩٫٥ فرقُ كلٍّ عن
+     تاليه بيّنٌ للعين وليس فيه صياح. ولا وزنَ فوق ٧٠٠ في الصفحة. */
   --fs-xs:  .8rem;
   --fs-sm:  .89rem;
   --fs-md:  .97rem;
   --fs-lg:  1.06rem;
   --fs-xl:  clamp(1.1rem, .95rem + .5vw, 1.22rem);
   --fs-h3:  clamp(1.16rem, 1rem + .5vw, 1.32rem);
-  --fs-h2:  clamp(1.65rem, 1.15rem + 1.9vw, 2.55rem);
-  --fs-h1:  clamp(2.05rem, 1.15rem + 3.6vw, 3.75rem);
-  --fs-num: 1.4rem;   /* أرقام العرض الصغيرة: رقم الخطوة · قيم لوحة التغطية */
+  --fs-h2:  clamp(1.38rem, 1.06rem + .85vw, 1.69rem);
+  --fs-h1:  clamp(1.68rem, 1.22rem + 1.35vw, 2.14rem);
+  --fs-num: 1.3rem;   /* أرقام العرض الصغيرة: رقم الخطوة · قيم لوحة التغطية */
+  /* عدّادات الشريط والسعر. سقفها **دون h2**: العدد بيانٌ داخل قسم، والعنوان
+     يعلوه. كان أوّل ضبطٍ لها ١٫٧٢rem فجاءت ٢٧٫٥ فوق ٢٧ — أعلى من العنوان
+     الذي تحته، وهو قلبُ الهرم نفسه الذي أُصلح عند درجة h3 من قبل. */
+  --fs-big: clamp(1.34rem, 1.06rem + .72vw, 1.6rem);
 
   /* سلّم ارتفاع السطر. كانت أربع عشرة قيمة في ٣٨ تصريحًا — خمسٌ منها
      (١٫٩٥ · ١٫٩ · ١٫٨٥ · ١٫٨ · ١٫٧٥) تؤدّي وظيفةً واحدة: متنٌ عربيّ يلتفّ.
@@ -236,18 +244,20 @@ body {
   overflow-x: hidden;
 }
 
-/* العناوين: أوزان ثقيلة من الخط المتغيّر، وتباعد أسطر أقل من المتن.
+/* العناوين: وزنٌ واحد للجميع — **٧٠٠ سقفًا**. كان ٨٠٠ على h1 وh2 وعلى كل
+   رقم عرضٍ في الصفحة، وهو أثقل ممّا يليق بجهةٍ تُخاطب تاجرًا: يقرأه القارئ
+   صياحًا. و٧٠٠ يفصل العنوان عن متنه فصلًا كافيًا بلا رفع صوت.
    لا نستخدم letter-spacing سالبًا لأن الخط العربي متصل ويتشوّه به. */
 h1, h2, h3, h4 {
   margin: 0 0 .55em;
-  font-weight: 800;
+  font-weight: 700;
   line-height: var(--lh-snug);
   letter-spacing: 0;
   text-wrap: balance;
 }
-h1 { font-size: var(--fs-h1); font-weight: 800; line-height: var(--lh-tight); }
-h2 { font-size: var(--fs-h2); font-weight: 800; line-height: var(--lh-snug); }
-h3 { font-size: var(--fs-h3); font-weight: 700; }
+h1 { font-size: var(--fs-h1); line-height: var(--lh-tight); }
+h2 { font-size: var(--fs-h2); }
+h3 { font-size: var(--fs-h3); }
 
 p { margin: 0 0 1em; text-wrap: pretty; }
 a { color: var(--teal-700); text-decoration: none; transition: color var(--t-fast) var(--ease); }
@@ -475,7 +485,7 @@ a.topbar__item:hover { color: #fff; }
 .stat { text-align: center; position: relative; }
 .stat + .stat { border-inline-start: 1px solid rgba(255, 255, 255, .22); }
 .stat b {
-  display: block; font-size: clamp(1.55rem, 3.2vw, 2.3rem); font-weight: 800;
+  display: block; font-size: var(--fs-big); font-weight: 700;
   color: var(--orange-500); line-height: var(--lh-tight); letter-spacing: 0;
 }
 .stat span { font-size: var(--fs-sm); color: var(--on-dark-soft); font-weight: 400; }
@@ -567,7 +577,7 @@ a.topbar__item:hover { color: #fff; }
   display: inline-flex; align-items: center; justify-content: center;
   width: 50px; height: 50px; border-radius: var(--radius-sm);
   background: var(--teal-cta);
-  color: #fff; font-weight: 800; font-size: var(--fs-num); line-height: 1;
+  color: #fff; font-weight: 700; font-size: var(--fs-num); line-height: 1;
   margin-bottom: 1rem;
 }
 .step p { color: var(--ink-mid); font-size: var(--fs-md); margin: 0; }
@@ -647,7 +657,7 @@ a.topbar__item:hover { color: #fff; }
 .coverage__stats { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-gap); margin: 1.3rem 0; }
 .coverage__stats div { background: #fff; border: 1px solid var(--line-str); border-radius: var(--radius-sm); padding: 1rem 1.1rem; }
 .coverage__stats span { display: block; font-size: var(--fs-xs); color: var(--ink-soft); line-height: var(--lh-ui); }
-.coverage__stats b { font-size: var(--fs-num); font-weight: 800; color: var(--teal-700); line-height: var(--lh-snug); }
+.coverage__stats b { font-size: var(--fs-num); font-weight: 700; color: var(--teal-700); line-height: var(--lh-snug); }
 .coverage__areas { font-weight: 600; color: var(--ink); font-size: var(--fs-md); }
 .coverage__note { font-size: var(--fs-sm); color: var(--ink-soft); margin: 0; line-height: var(--lh-body);
   max-width: var(--measure-tight); }
@@ -669,7 +679,7 @@ a.topbar__item:hover { color: #fff; }
   font-size: var(--fs-xs); line-height: var(--lh-ui); padding: .18rem 1rem; border-radius: var(--radius-sm); white-space: nowrap;
 }
 .plan__price { margin: .4rem 0 .25rem; line-height: var(--lh-snug); }
-.plan__price b { font-size: clamp(2rem, 4vw, 2.5rem); font-weight: 800; color: var(--teal-700); }
+.plan__price b { font-size: var(--fs-big); font-weight: 700; color: var(--teal-700); }
 .plan__price span { color: var(--ink-soft); font-size: var(--fs-sm); }
 /* سطر تمهيدي فوق السعر — يبقى محجوزًا في كل البطاقات حتى تتحاذى الأسعار والقوائم */
 .plan__price .plan__from { display: block; font-size: var(--fs-xs); line-height: var(--lh-ui); color: var(--ink-soft); }
@@ -1004,10 +1014,20 @@ a.topbar__item:hover { color: #fff; }
   display: block; width: 100%; height: auto;
   border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden;
 }
-.tmap__lbl {
-  font: 700 21px var(--font); fill: var(--ink-mid);
-  text-anchor: middle; paint-order: stroke; stroke: #fff; stroke-width: 5px;
+/* مفتاح الخريطة. كان الاسمان نصًّا داخل الرسم بـ٢١ وحدة، ووحدةُ الـviewBox
+   تتمدّد بعرض الحاوية: قِيست النسبة من ٣٢٠ إلى ١٩٢٠ فتراوحت بين ٠٫٢٧ و١٫٢١،
+   أي أنّ الاسم يُرسم **٥٫٧px على ٣٢٠** و**٢٥٫٤px على ٨٩٩** — لا يُقرأ في
+   طرفٍ ويصيح في الآخر. ولا تُصلحه وسائط: النسبة تقفز داخل كل مدى. فخرج
+   الاسمان من الرسم إلى HTML، حيث الحجم بكسلاتُ شاشة عند كل عرض. */
+.tmap__key {
+  display: flex; flex-wrap: wrap; gap: .4rem 1.4rem;
+  list-style: none; margin: .8rem 0 0; padding: 0;
+  font-size: var(--fs-sm); color: var(--ink-mid); line-height: var(--lh-ui);
 }
+.tmap__key li { display: flex; align-items: center; gap: .5rem; }
+.tmap__dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+.tmap__dot--pick { background: var(--orange-600); }
+.tmap__dot--drop { background: var(--teal-800); }
 .tmap__note { margin: .9rem 0 0; font-size: var(--fs-sm); color: var(--ink-soft); }
 .tmap__note b { color: var(--teal-700); }
 

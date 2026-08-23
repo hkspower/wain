@@ -33,7 +33,7 @@
 /* --------------------------- رأس الطلب --------------------------- */
 
 .lk-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-bottom: var(--s-3); }
-.lk-code { font-weight: var(--w-heavy); font-size: var(--t-md); color: var(--teal-700); letter-spacing: .02em; }
+.lk-code { font-weight: var(--w-bold); font-size: var(--t-md); color: var(--teal-700); letter-spacing: .02em; }
 
 .lk-route { display: flex; flex-direction: column; gap: var(--s-2); margin-bottom: var(--s-4); }
 .lk-route__row { display: flex; gap: var(--s-2); align-items: flex-start; }
@@ -54,7 +54,7 @@
    عن اسم صاحبه ويتدلّى في طرف السطر. يُجعل كتلةً محاذيةً لنهايته — والنهاية
    في اللاتينية اليمين، وهو ما يوازي بداية العمود العربيّ. */
 .lk-kv dd a[dir="ltr"] { display: block; text-align: end; font-weight: var(--w-bold); }
-.lk-strong { color: var(--teal-700); font-weight: var(--w-heavy); }
+.lk-strong { color: var(--teal-700); font-weight: var(--w-bold); }
 
 .lk-notes {
   margin: var(--s-3) 0 0; font-size: var(--t-sm); line-height: var(--lh-base); color: var(--ink-mid);
@@ -138,7 +138,7 @@
 .lk-card--msg p { font-size: var(--t-base); color: var(--ink-mid); margin: 0 0 var(--s-1); }
 .lk-msg__ic {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 52px; height: 52px; border-radius: var(--radius-full); font-size: var(--t-lg); font-weight: var(--w-heavy);
+  width: 52px; height: 52px; border-radius: var(--radius-full); font-size: var(--t-lg); font-weight: var(--w-bold);
   color: var(--bad-fg); border: var(--bw-thick) solid currentColor;
 }
 .lk-msg__ic--ok { color: var(--ok-fg); }
