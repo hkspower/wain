@@ -12,11 +12,11 @@ npm run ios      # or: npm run android, npm run web
 
 | Screen | Route | What it does |
 |---|---|---|
-| Home | `/` | Hero, the four categories full width, best sellers |
+| Home | `/` | The shop's own banners, the four categories full width, best sellers |
 | Shop | `/shop` | Category and sort filters that stay put while the grid scrolls |
 | Product | `/product/[slug]` | Sizes with real stock, pinned add-to-cart |
 | Cart | `/cart` | Quantity steppers capped by stock, totals above the tab bar |
-| Checkout | `/checkout` | Kuwaiti address, KNET / card / cash, spinner inside the button |
+| Checkout | `/checkout` | Kuwaiti address, KNET / T-Pay / cash, spinner inside the button |
 | Order | `/order/[ref]` | The order number, selectable |
 | Account | `/account` | Language, contact, and an honest note when offline |
 
@@ -63,19 +63,53 @@ the panel out.
 
 ## Tests
 
-```
-npx expo export --platform web
-python3 scripts/serve-dist.py &
-node scripts/smoke.mjs          # the shop, 15 checks
+Everything is an npm script now — `npm run` on its own lists them. They were
+loose `node scripts/…` lines, and the docs had drifted into naming four
+commands that did not exist.
 
-python3 scripts/mock-admin.py 8899 &
-EXPO_PUBLIC_API_BASE=http://127.0.0.1:8899 npx expo export --platform web
-node scripts/admin-smoke.mjs    # the panel, 16 checks
+```sh
+npm run sandbox        # MariaDB, the PHP site, the mock admin API, the built app
+npm run build:web      # the export the browser rigs read
+```
+
+`npm run sandbox` is safe to run again at any time: it starts only what is not
+already answering, tops the seed stock back up and clears the order throttle,
+because the rigs place real orders against a real database.
+
+| Command | What it checks |
+|---|---|
+| `npm test` | Everything that needs no server: types, contrast, CSP, PHP deprecations |
+| `npm run test:shop` | The storefront end to end, in a phone-sized browser |
+| `npm run test:pages` | Every route: status, console, layout, radii, spacing, alignment |
+| `npm run test:color` | Every colour as PAINTED, both light and dark, against AA |
+| `npm run test:contrast` | The palette's pairs, with no browser |
+| `npm run test:art` | The category tiles, bundled and remote |
+| `npm run test:live` | The real `api.php` contract |
+| `npm run test:tpay` | CBK T-Pay: the link, the dropin's refusals, the pending state |
+| `npm run test:admin` | The panel, against `scripts/mock-admin.py` |
+| `npm run test:wallet` | A built `.pkpass`, the way Wallet reads one |
+| `npm run test:csp` | Every inline script in the website is declared in its CSP |
+| `npm run scan:site` | The website, in a browser — `BASE=` to aim it |
+| `npm run scan:site:curl` | The same, with nothing but curl |
+| `npm run site:diff` | Is a live server the same build as this repo's copy? |
+
+`npm run test:admin` needs the export built against the mock:
+
+```sh
+EXPO_PUBLIC_API_BASE=http://127.0.0.1:8899 npm run build:web && npm run test:admin
 ```
 
 `scripts/mock-admin.py` is a test fixture standing in for `admin.php` — the panel
 has no offline fallback by design, so there is no way to exercise it without a
 server. It is not a reference implementation.
+
+### A note on the website's own comments
+
+`sporta-site/` is the restored go-live package, and its PHP files still mention
+`npm run publish`, `test:claims` and `test:seo`. Those belonged to the WEBSITE's
+own repository, whose source was lost with an earlier container. They are true
+history and they are not commands this repo has — the website here is a built
+artefact plus its PHP, not a project you can rebuild from source.
 
 ## The decisions worth knowing
 
@@ -106,14 +140,30 @@ sized against it rather than against its own text.
 `app.json` → `expo.extra.apiBase`. It defaults to `https://www.sporta.com.kw/api`.
 For a one-off run, `EXPO_PUBLIC_API_BASE=... npm run web`.
 
-The client expects two endpoints:
+The client uses three endpoints, all on `api.php`:
 
-- `GET  {apiBase}/store.php?r=catalogue` → `{ products: Product[], categories?: Category[] }`
-- `POST {apiBase}/store.php?r=order` → `{ ref: string, payUrl?: string }`
+- `GET  {apiBase}/api.php?r=products` → the catalogue, priced in KWD
+- `GET  {apiBase}/api.php?r=stock` → `{slug, size, stock}` rows, a SEPARATE call
+- `POST {apiBase}/api.php?r=order` → `{ track_id, amount, pay_url }`
+- `GET  {apiBase}/api.php?r=status&id=…` → whether the bank has answered yet
 
-`Product` and `Category` are the types in `lib/catalog.ts`; `payUrl` is the hosted
-KNET/card page, opened in the system browser sheet so the customer sees the real
-bank URL.
+**Not `store.php`.** This page said `store.php?r=catalogue` for a long time and
+it was wrong the whole time: `store.php` is the shop's LIBRARY, not a router. It
+answers 200 with an empty body, so the app fell back to its bundled catalogue
+for ever and looked like it was working. `scripts/live-api-test.mjs` asserts the
+emptiness of that response now, precisely so the wrong contract cannot come back
+quietly.
+
+Sizes do not come with the catalogue — that is why `r=stock` is a second call
+and why `lib/api.ts` adapts the two into one model. Prices arrive as KWD
+decimals and are converted to integer fils on the way in.
+
+`pay_url` is the bank's hosted page for that order, RELATIVE to the site
+(`/pay/pay.php?trackid=…&paytype=2` for T-Pay, `/knet/pay.php?trackid=…` for
+KNET, and null for cash on delivery). The app resolves it against the site
+rather than the API and opens it in the system browser sheet, so the customer
+sees the real bank URL and padlock. Coming back from that sheet proves nothing —
+`r=status` is what says whether the money arrived. See `sporta-site/TPAY.md`.
 
 ## Tab icons
 
