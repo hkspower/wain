@@ -144,7 +144,7 @@ export default function KuwaitClock() {
   return (
     <div
       data-testid="kuwait-clock"
-      className="grn-panel pointer-events-none flex flex-col items-center gap-1 px-2.5 py-2"
+      className="grn-panel pointer-events-none flex flex-col items-center gap-1 px-3 py-2"
     >
       <svg
         viewBox="-36 -36 72 72"

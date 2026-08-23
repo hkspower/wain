@@ -48,8 +48,16 @@ const C = [
 const exe = C.find((p) => existsSync(p));
 if (!exe) { console.error("no chromium"); process.exit(2); }
 
-/** Two values this close, without being equal, are a mistake. */
-const NEAR = 4;
+/** Two values this close, without being equal, are a mistake.
+ *
+ *  Three, not four, because this layout is built on a 4 px step and a
+ *  whole step is the smallest difference anybody ever chose on purpose.
+ *  At 4 the tool reported 12 px beside 16 px — one step apart, which is
+ *  the system working — and a check that calls its own grid a fault is
+ *  a check nobody runs twice. Under one step is the interesting range:
+ *  nothing in the vocabulary lands there, so anything that does arrived
+ *  by accident. */
+const NEAR = 3;
 /** Below this they are the same value and the difference is rounding. */
 const SAME = 0.75;
 
@@ -58,6 +66,16 @@ const SIZES = [
   { name: "desktop", w: 1600, h: 900 },
 ];
 
+// Every screen starts from a fresh load of the menu.
+//
+// The first version walked them in sequence on one page, which cannot
+// work: the garage and the race are not two steps of one journey, they
+// are two branches off the same menu. After opening the garage there is
+// no START ENGINE button anywhere on the page, so the race HUD sat
+// clicking at nothing until the four-minute timeout and reported itself
+// "unreachable" — a tool failure dressed up as a finding. Reloading
+// costs a boot per screen and buys a measurement that is actually of
+// the screen named.
 const screens = [
   { name: "menu", go: async () => {} },
   {
@@ -150,6 +168,7 @@ const COLLECT = `(() => {
     // them was typography rather than a padding decision. Padding is a
     // property; ask for the property.
     panels.push({
+      el,
       cls: (el.className || "").toString().slice(0, 56),
       box: { l: b.left, t: b.top, r: b.right, b: b.bottom },
       pad: {
@@ -174,7 +193,47 @@ const COLLECT = `(() => {
     );
     if (!wraps) kept.push(p);
   }
-  return kept;
+
+  // --- Drop what is buried under another screen.
+  //
+  // The screens of this game are overlays, not routes: opening the
+  // garage leaves the whole menu mounted behind it. checkVisibility says
+  // nothing about occlusion — a panel under an opaque sheet is still
+  // "visible" by every property it owns — so the garage measurement came
+  // back holding the menu's driver bar and duly reported its left edge
+  // against a garage panel's, two pixels apart. Those two edges are
+  // never on screen together, so that is not a near-miss, it is the tool
+  // measuring two different screens at once.
+  //
+  // pointer-events is forced on for the duration because half this HUD
+  // sets pointer-events:none, and elementsFromPoint honours it — without
+  // the override the topmost element it reports is whatever happens to
+  // be clickable, which is not the same question as what is painted.
+  const forced = document.createElement("style");
+  forced.textContent = "*{pointer-events:auto !important}";
+  document.head.appendChild(forced);
+  const onScreen = [];
+  for (const p of kept) {
+    const x = Math.min(innerWidth - 1, Math.max(0, (p.box.l + p.box.r) / 2));
+    const y = Math.min(innerHeight - 1, Math.max(0, (p.box.t + p.box.b) / 2));
+    const stack = document.elementsFromPoint(x, y);
+    const mine = stack.findIndex((e) => e === p.el || e.contains(p.el) || p.el.contains(e));
+    if (mine < 0) continue;                       // not painted at its own centre
+    let buried = false;
+    for (let i = 0; i < mine; i++) {
+      const s = getComputedStyle(stack[i]);
+      if (s.backdropFilter !== "none" && s.backdropFilter !== "") { buried = true; break; }
+      const m = s.backgroundColor.match(/^rgba?\\(([^)]+)\\)$/);
+      if (!m) continue;
+      const parts = m[1].split(",").map(parseFloat);
+      const alpha = parts.length > 3 ? parts[3] : 1;
+      if (alpha >= 0.5) { buried = true; break; }  // a sheet you cannot see through
+    }
+    if (!buried) onScreen.push(p);
+  }
+  forced.remove();
+
+  return onScreen.map((p) => ({ cls: p.cls, box: p.box, pad: p.pad }));
 })()`;
 
 const browser = await chromium.launch({
@@ -193,11 +252,8 @@ function nearMisses(values) {
   return out;
 }
 
-let problems = 0;
-for (const size of SIZES) {
-  const page = await browser.newPage({ viewport: { width: size.w, height: size.h } });
-  page.setDefaultTimeout(240000);
-  page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
+/** Back to the menu, with the onboarding out of the way. */
+async function toMenu(page) {
   await page.goto("http://localhost:3000/race", { waitUntil: "domcontentloaded" });
   await page.evaluate(() => {
     localStorage.clear();
@@ -206,8 +262,16 @@ for (const size of SIZES) {
   });
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForTimeout(1500);
+}
+
+let problems = 0;
+for (const size of SIZES) {
+  const page = await browser.newPage({ viewport: { width: size.w, height: size.h } });
+  page.setDefaultTimeout(240000);
+  page.on("pageerror", (e) => console.log("PAGEERROR:", e.message));
 
   for (const screen of screens) {
+    await toMenu(page);
     // Progress on stderr. Booting this game headless takes the best part
     // of a minute per window size, and a tool that prints nothing until
     // the end is indistinguishable from a hung one — which is exactly

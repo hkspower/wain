@@ -325,7 +325,7 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart, onTint }:
 
         {/* Current build spec — every purchase moves a bar right here */}
         <div className="mx-auto mt-2.5 w-full max-w-4xl">
-          <div className="grn-panel px-3.5 py-2.5">
+          <div className="grn-panel px-4 py-2">
             <div className="flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-2">
                 <span
