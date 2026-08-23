@@ -38,6 +38,7 @@
     "test:vfx": "node tests/vfx.mjs",
     "test:audio": "node tests/audio.mjs",
     "test:clock": "node tests/clock.mjs",
+    "test:radio": "node tests/radio.mjs",
     "test:daynight": "node tests/daynight.mjs",
     "test:ik": "node tests/ik.mjs",
     "test:menu": "node tests/menu.mjs",

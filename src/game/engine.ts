@@ -29,6 +29,7 @@ import { FLAGS, FLAG_IDS, flagTexture } from "./flags";
 import { verticalFov, chaseDolly } from "./aspect";
 import { gripAtSpeed, newLoadState, solveLoad, type LoadResult } from "./grip";
 import { Music } from "./music";
+import { Radio } from "./radio";
 import {
   solveDrift,
   newDriftState,
@@ -863,6 +864,9 @@ export class GameEngine {
   // Audio
   private sound: SoundEngine | null = null;
   private music: Music | null = null;
+  /** The car radio. Steps through stations; the first is the music
+   *  above, so the dash still does something with no network. */
+  private radio: Radio | null = null;
   private voice = new VoiceBox();
 
   // Camera motion
@@ -1329,12 +1333,24 @@ export class GameEngine {
       );
       this.sound.revStart();
       this.music = new Music(this.sound.audioContext, this.sound.mixBus);
+      // The tuner shares the mix bus, and owns whether the house
+      // station is playing: tuning to a stream stops the synthesised
+      // music rather than layering two soundtracks over each other.
+      this.radio = new Radio(
+        this.sound.audioContext,
+        this.sound.mixBus,
+        (on) => {
+          if (!this.music) return;
+          if (this.music.enabled !== on) this.music.toggle();
+        }
+      );
       // Wire the voice into the mix: whenever anyone speaks — a recorded
       // ElevenLabs line or the synthesized fallback — the bed and the
       // score step back, and come home when they stop.
       this.voice.onSpeaking = (speaking) => {
         this.sound?.duckForVoice(speaking);
         this.music?.duckForVoice(speaking);
+        this.radio?.duckForVoice(speaking);
       };
       this.music.start();
     } catch {
@@ -2236,6 +2252,15 @@ export class GameEngine {
     if (k === "b" && !e.repeat && this.music) {
       const on = this.music.toggle();
       this.events.onMessage(on ? "Music on" : "Music off");
+    }
+    if (k === "r" && !e.repeat && this.radio) {
+      const { station, mode } = this.radio.next();
+      // The Arabic name is the headline, the way every other place name
+      // in this game is presented — this is a Kuwaiti radio.
+      this.events.onMessage(
+        `${station.ar} · ${station.name}`,
+        mode === "direct" ? "Streaming outside the mix" : undefined
+      );
     }
     if (k === "v" && !e.repeat) {
       const on = this.voice.toggle();
@@ -4961,6 +4986,9 @@ export class GameEngine {
     (window as unknown as { __grnBuildCar: typeof createCar }).__grnBuildCar = createCar;
     (window as unknown as { __grnCars: typeof CARS }).__grnCars = CARS;
     (window as unknown as { __grnRig: typeof RIG }).__grnRig = RIG;
+    // The tuner, so a test can step through the dash and read back what
+    // is playing and how it is routed.
+    (window as unknown as { __grnRadio: unknown }).__grnRadio = this.radio;
     // Every exhaust in the shop, so a test can drive the three bands
     // from the spec side and hear whether they actually differ.
     (window as unknown as { __grnExhausts: typeof EXHAUSTS }).__grnExhausts = EXHAUSTS;

@@ -1,0 +1,7 @@
+[
+  { "id": "kw-general", "name": "Radio Kuwait · General", "ar": "إذاعة الكويت · البرنامج العام", "url": "" },
+  { "id": "kw-quran",   "name": "Holy Quran",             "ar": "إذاعة القرآن الكريم",        "url": "" },
+  { "id": "kw-fm888",   "name": "Kuwait FM 88.8",         "ar": "إف إم ٨٨٫٨",                 "url": "" },
+  { "id": "kw-classic", "name": "Classic FM",             "ar": "الإذاعة الكلاسيكية",          "url": "" },
+  { "id": "kw-english", "name": "Radio Kuwait English",   "ar": "إذاعة الكويت بالإنجليزية",    "url": "" }
+]
