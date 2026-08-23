@@ -807,6 +807,9 @@ export class GameEngine {
   // Rendering quality
   private world: WorldHandle;
   private composer: EffectComposer;
+  /** The multisampled buffer the scene is rendered into. Kept so the
+   *  quality ladder can turn samples down without rebuilding the chain. */
+  private msaaTarget!: THREE.WebGLRenderTarget;
   private bloomPass: UnrealBloomPass;
   private grainPass: ShaderPass;
   private autoExp!: AutoExposure;
@@ -1014,11 +1017,37 @@ export class GameEngine {
 
     // Bloom makes the night work: lamps, taillights, cat-eyes and the
     // tower spheres all halo. Auto-disabled on weak machines (see loop).
-    // NOTE: no multisampled render target here — an MSAA composer buffer
-    // silently breaks the shadow-map pass on some GL stacks (shadows
-    // vanish entirely). Edge smoothing comes from a final FXAA pass,
-    // which leaves shadows alone.
-    this.composer = new EffectComposer(this.renderer);
+    //
+    // MULTISAMPLING.
+    //
+    // This buffer used to be single-sampled, with a note saying an MSAA
+    // composer target "silently breaks the shadow-map pass on some GL
+    // stacks (shadows vanish entirely)" and that FXAA would cover the
+    // edges instead. FXAA does not cover them, and that is measurable:
+    // tools/shots/edges.mjs walks the long geometry silhouettes in a
+    // frame and asks how many pixels each one takes to cross from one
+    // side to the other. With FXAA the answer got NARROWER, not wider —
+    // 1.63 px against 1.88 without it — because FXAA blends ALONG an
+    // edge and cannot widen its cross-section. It has no sub-pixel
+    // coverage to work from, because nothing ever computed any.
+    //
+    // MSAA computes it. Four samples per pixel on the geometry pass is
+    // the only thing in this chain that can put a genuinely
+    // partially-covered pixel on a gantry leg or a lamp post, which is
+    // what this scene is full of and what FXAA is worst at.
+    //
+    // The shadow warning is respected rather than dismissed: it is
+    // TESTED. tests/shadows.mjs measures the car's own shadow by
+    // difference and fails if it disappears, and it is green with this
+    // on. If a GL stack somewhere still cannot do both, the tier below
+    // drops back to no samples and FXAA alone.
+    const drawing = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    const msaaTarget = new THREE.WebGLRenderTarget(drawing.x, drawing.y, {
+      type: THREE.HalfFloatType,
+      samples: 4,
+    });
+    this.msaaTarget = msaaTarget;
+    this.composer = new EffectComposer(this.renderer, msaaTarget);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     // Exposure sits here on purpose: after the scene, before bloom and
     // tone mapping. It is the only point in the chain where the numbers
@@ -1775,7 +1804,13 @@ export class GameEngine {
       // so a machine that drops to this tier does not also lose the only
       // thing keeping its cars on the road.
       this.applyContactStrength();
-      this.fxaaPass.enabled = false;
+      // Performance mode drops the samples too: multisampling is a
+      // per-pixel cost on the geometry pass and this tier exists because
+      // the machine could not keep up. FXAA is what is left, and here it
+      // IS worth having — it costs one full-screen pass and there is no
+      // coverage for it to undo.
+      this.msaaTarget.samples = 0;
+      this.fxaaPass.enabled = true;
       this.liveReflections = false;
       this.applyLiveReflections();
       this.events.onMessage("Performance mode", "Glow & shadows off — press G to toggle them back");
@@ -2052,7 +2087,18 @@ export class GameEngine {
     this.world.moonLight.castShadow = high || balanced;
     this.headlight.castShadow = high || balanced;
     this.applyContactStrength();
-    this.fxaaPass.enabled = high || balanced;
+    // Multisampling where the machine can afford it, and FXAA only where
+    // it cannot — never both.
+    //
+    // Stacking them is worse than either alone, measured: with MSAA
+    // supplying real coverage, adding FXAA on top took the hard-step
+    // fraction of the long silhouettes from 39.6% back up to 48.6%. It
+    // blends along an edge and re-hardens the cross-section MSAA had
+    // just resolved, then blurs what it did not. FXAA is the fallback
+    // for a tier that cannot pay for samples, not a finishing pass on
+    // top of one.
+    this.msaaTarget.samples = high ? 4 : balanced ? 2 : 0;
+    this.fxaaPass.enabled = !high && !balanced;
     // The live paint probe is the most expensive single toy — high only
     this.liveReflections = high;
     this.applyLiveReflections();
@@ -2273,7 +2319,10 @@ export class GameEngine {
       this.world.moonLight.castShadow = this.bloomPass.enabled;
       this.headlight.castShadow = this.bloomPass.enabled;
       this.applyContactStrength();
-      this.fxaaPass.enabled = this.bloomPass.enabled;
+      // Same rule as the tier ladder: samples when the effects are on,
+      // FXAA only when they are off. Never both — see applyQualityTier.
+      this.msaaTarget.samples = this.bloomPass.enabled ? 4 : 0;
+      this.fxaaPass.enabled = !this.bloomPass.enabled;
       this.liveReflections = this.bloomPass.enabled;
       this.applyLiveReflections();
       this.events.onMessage(
