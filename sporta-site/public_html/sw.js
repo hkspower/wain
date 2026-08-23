@@ -59,7 +59,7 @@ const PRECACHE = [
   "/favicon-32.png",
   "/site.webmanifest",
   "/fonts/alexandria-var-latin.woff2",
-  "/fonts/plex-400-latin.woff2",
+  "/fonts/alexandria-var-arabic.woff2",
   "/assets/About-7p00QsGK.js",
   "/assets/AssistantPanel-Dx280GRS.js",
   "/assets/Cart-B71Jo6gk.js",
@@ -82,7 +82,7 @@ const PRECACHE = [
   "/assets/bidi-aEAFfM9w.js",
   "/assets/checkout-CJW4l7Oz.js",
   "/assets/index-5HbquisI.js",
-  "/assets/index-BMXFxrFZ.css",
+  "/assets/index-TIUCmnwm.css",
   "/assets/react-vendor-CMgvnOJB.js",
   "/assets/rolldown-runtime-QTnfLwEv.js",
 ]

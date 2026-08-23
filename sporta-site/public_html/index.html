@@ -324,7 +324,11 @@
           }
 
           var sub = ar ? 'arabic' : 'latin'
-          ;['alexandria-var-' + sub, 'plex-400-' + sub].forEach(function (f) {
+          // One family since the body moved onto Alexandria — preloading
+          // plex-400 here was paying for a font no rule reaches any more:
+          // Plex sits behind Alexandria in every stack, and Alexandria
+          // covers both scripts, so unicode-range never lets Plex download.
+          ;['alexandria-var-' + sub].forEach(function (f) {
             var k = document.createElement('link')
             k.rel = 'preload'
             k.as = 'font'
@@ -369,8 +373,6 @@
          boot script has run. Two static preloads would download both. -->
     <link rel="preload" as="font" type="font/woff2" crossorigin
           href="/fonts/alexandria-var-latin.woff2" />
-    <link rel="preload" as="font" type="font/woff2" crossorigin
-          href="/fonts/plex-400-latin.woff2" />
     <!-- Critical CSS for the first paint, inlined so the shell below does not
          wait on the stylesheet (which lands ~1.5s later on a throttled phone).
          Nothing here is a duplicate of the design system: these are four boxes
@@ -454,7 +456,7 @@
     <script type="module" crossorigin src="/assets/index-5HbquisI.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/react-vendor-CMgvnOJB.js">
-    <link rel="preload" as="style" crossorigin href="/assets/index-BMXFxrFZ.css"><script>(function(){var l=document.currentScript.previousElementSibling,done=false;function p(){if(done)return;done=true;l.rel='stylesheet'}l.addEventListener('load',p,{once:true});document.addEventListener('DOMContentLoaded',p,{once:true});})()</script><noscript><link rel="stylesheet" crossorigin href="/assets/index-BMXFxrFZ.css"></noscript>
+    <link rel="preload" as="style" crossorigin href="/assets/index-TIUCmnwm.css"><script>(function(){var l=document.currentScript.previousElementSibling,done=false;function p(){if(done)return;done=true;l.rel='stylesheet'}l.addEventListener('load',p,{once:true});document.addEventListener('DOMContentLoaded',p,{once:true});})()</script><noscript><link rel="stylesheet" crossorigin href="/assets/index-TIUCmnwm.css"></noscript>
   </head>
   <body>
     <!-- ================================================================
