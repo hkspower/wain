@@ -4,6 +4,7 @@
 
 import { EngineId, EngineSpec, getEngine } from "./engines";
 import { loadCrew, type Crew } from "./teams";
+import type { Drivetrain } from "./grip";
 
 export type ExclusiveCat =
   | "engine"
@@ -344,6 +345,22 @@ export interface CarModel {
    * thing has pulled alongside you before you can read its badge.
    */
   kit: KitLevel;
+  /**
+   * Which wheels it drives.
+   *
+   * Absent means rear, because that is what every car in this game was
+   * until the physics could tell the difference — and one of them said
+   * "AWD monster" in its own catalogue text while driving exactly like
+   * the rear-driver parked beside it.
+   *
+   * It is not a performance number. It decides which axle's load the
+   * engine may use, and the load transfer already being solved does the
+   * rest: a rear-driver squats onto its driven wheels and finds grip, a
+   * front-driver squats off them and loses it, and an all-wheel-drive
+   * car barely notices pitch at all and pays a transfer case for the
+   * privilege.
+   */
+  drive?: Drivetrain;
   /** A second colour, for cars that wear one from the factory. Drives
    *  the racing stripes; absent means the car is one colour. */
   accent?: number;
@@ -420,6 +437,7 @@ export const CARS: CarModel[] = [
     // at any price until every legend on the roster has been beaten,
     // which is the only thing in this game that money cannot buy.
     id: "zeta-300-gtr",
+    drive: "awd",
     finish: "gloss",
     name: "Zeta 300 GTR",
     ar: "زيتا ٣٠٠ جي تي آر",
@@ -459,6 +477,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "efreet-rx-kai",
+    drive: "rwd",
     finish: "satin",
     name: "Efreet RX Kai",
     ar: "كبير العفاريت",
@@ -478,6 +497,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "sahara-v12",
+    drive: "rwd",
     finish: "gloss",
     name: "Sahara GT-12",
     ar: "صحارى",
@@ -497,6 +517,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "falcon-720",
+    drive: "rwd",
     finish: "matte",
     name: "Falcon 720 Veloce",
     ar: "الصقر ٧٢٠",
@@ -516,6 +537,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "storm-s8",
+    drive: "awd",
     finish: "gloss",
     name: "Desert Storm S8",
     ar: "عاصفة",
@@ -534,6 +556,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "anniversary-30",
+    drive: "rwd",
     finish: "gloss",
     name: "Bareed 30 Anniversary",
     ar: "بريد ٣٠",
@@ -558,6 +581,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "kaiju-r",
+    drive: "awd",
     finish: "gloss",
     name: "Kaiju R",
     ar: "كايجو",
@@ -577,6 +601,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "efreet-rx",
+    drive: "rwd",
     finish: "satin",
     name: "Efreet RX",
     ar: "عفريت",
@@ -596,6 +621,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "zeta-300",
+    drive: "awd",
     finish: "gloss",
     name: "Zeta 300",
     ar: "زيتا ٣٠٠",
@@ -615,6 +641,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "gulf-coupe-rs",
+    drive: "fwd",
     finish: "gloss",
     name: "Gulf Coupe RS",
     ar: "كوبيه الخليج",
@@ -635,6 +662,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "salmiya-turbo",
+    drive: "fwd",
     finish: "gloss",
     name: "Salmiya Turbo GT",
     ar: "تيربو السالمية",
@@ -653,6 +681,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "hawally-2t",
+    drive: "fwd",
     finish: "satin",
     name: "Hawally Sport 2.0T",
     ar: "حولي سبورت",
@@ -671,6 +700,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "deera-sedan",
+    drive: "fwd",
     finish: "gloss",
     name: "Deera Sedan",
     ar: "سيدان الديرة",
@@ -689,6 +719,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "jahra-pickup",
+    drive: "rwd",
     finish: "matte",
     name: "Jahra Pickup",
     ar: "ونيت الجهراء",
@@ -707,6 +738,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "sharq-hatch",
+    drive: "fwd",
     finish: "gloss",
     name: "Sharq Hatch",
     // It is called a hatch and it was built as a saloon. The hatch
@@ -730,6 +762,7 @@ export const CARS: CarModel[] = [
   },
   {
     id: "wain-special",
+    drive: "rwd",
     finish: "satin",
     name: "Wain Special",
     ar: "وين سبيشال",
@@ -1032,6 +1065,8 @@ export interface TuneEffects {
   /** Anti-lock fitted: pressure is modulated instead of locking. */
   hasAbs: boolean;
   gripAccel: number; // lateral grip for yaw authority (base 12)
+  /** Which wheels this build drives. Rear unless the car says otherwise. */
+  drive: Drivetrain;
   /** Aerodynamic grip, in m/s² delivered at HANDLING.downforceRefSpeed
    *  (70 m/s, about 250 km/h) and scaling with v² either side of it.
    *  Quoted at a speed rather than as a coefficient so the number in the
@@ -1193,6 +1228,7 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     carId: car.id,
     carName: car.name,
     carNameAr: car.ar,
+    drive: car.drive ?? "rwd",
     bodyStyle: car.style ?? "sedan",
     accelMult,
     topSpeedKmh,

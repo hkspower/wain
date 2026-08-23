@@ -101,9 +101,17 @@ int main()
 	// pedal back to 97% of the limit and pulses at 14 Hz — and with it
 	// switched off for the whole run that branch is never taken and its
 	// parity is never checked.
-	for (int Pass = 0; Pass < 2; Pass++)
+	// Six passes: three drivetrains, each with ABS off and on. Two was
+	// enough while every car in the game was a rear-driver; it is not
+	// enough now, and a parity run that only ever exercises one
+	// drivetrain proves the ports agree about one third of the model.
+	for (int Pass = 0; Pass < 6; Pass++)
 	{
-	Tune.bHasAbs = (Pass == 1);
+	Tune.bHasAbs = (Pass % 2) == 1;
+	const GRNSim::EDrivetrain Drive =
+		Pass < 2 ? GRNSim::EDrivetrain::RWD
+		: Pass < 4 ? GRNSim::EDrivetrain::FWD
+		: GRNSim::EDrivetrain::AWD;
 	FDriftState Drift;
 	FBrakeState Brakes;
 	FLoadState Load;
@@ -287,7 +295,7 @@ int main()
 		// A crude longitudinal model, enough to move the state around:
 		// what matters is that both sides see the same numbers.
 		const double Grip = GripAtSpeed(Tune.GripAccel, Downforce, Speed);
-		const FLoadResult L = SolveLoad(Load, Dt, (Throttle * 9.0 - Brake * 14.0) - 1.2);
+		const FLoadResult L = SolveLoad(Load, Dt, (Throttle * 9.0 - Brake * 14.0) - 1.2, Drive, Throttle);
 		const double LatDemand = Min(1.0, std::fabs(Steer) * Speed / GRNExact::LatDemandSpeed);
 		const FBrakeResult B = SolveBrakes(Brakes, Tune, Dt, Brake, Speed, LatDemand, Steer, Throttle, Grip);
 
@@ -300,6 +308,7 @@ int main()
 		In.Wheelspin = Throttle > 0.85 ? (Throttle - 0.85) * 14.0 : 0.0;
 		In.BrakeRotate = B.Rotate;
 		In.RearLight = L.RearLight;
+		In.Drive = Drive;
 		In.DriftAngleMult = 1.0;
 		const FDriftResult D = SolveDrift(Drift, In);
 

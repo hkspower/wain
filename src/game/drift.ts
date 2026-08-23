@@ -41,6 +41,16 @@ export interface DriftInput {
   handbrake: boolean;
   /** m/s² of torque the driven axle could not transmit. */
   wheelspin: number;
+  /**
+   * Which wheels are driven. Only the POWER entry reads it, and that is
+   * the point: a front-driver spinning its wheels does not swing its
+   * tail, it ploughs straight on. The handbrake, the trail-brake and the
+   * lift-off entries all work on any car — they unload or lock the rear
+   * axle, and every car has one of those whether or not it is driven.
+   * That is why a front-driver can still be got sideways, just never
+   * with the throttle.
+   */
+  drive?: "fwd" | "rwd" | "awd";
   /** Yaw impulse handed over by the brake solver — the trail-brake entry. */
   brakeRotate: number;
   /** How much lighter than static the rear axle is, 0..1, from the load
@@ -238,8 +248,16 @@ export function solveDrift(s: DriftState, i: DriftInput): DriftResult {
   // limit, and each has its own reach: the handbrake takes the biggest
   // bite, the throttle a smaller one, the brakes and the flick smaller
   // still — they start slides rather than hold them.
+  // How readily this car will break the rear loose on power. A
+  // front-driver's spinning wheels are at the other end of the car from
+  // the axle that would step out, so the threshold it has to clear is
+  // ten times what a rear-driver's is — which in practice means it
+  // never does, without saying "never" in a way that would need a
+  // special case downstream.
+  const powerBias =
+    i.drive === "fwd" ? H.powerOverFwd : i.drive === "awd" ? H.powerOverAwd : H.powerOverRwd;
   const powerOver =
-    i.wheelspin > H.powerOverSpin &&
+    i.wheelspin * powerBias > H.powerOverSpin &&
     Math.abs(i.steer) > H.powerOverSteer &&
     i.speed > H.powerOverMinSpeed &&
     i.throttle > H.powerOverThrottle;

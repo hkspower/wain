@@ -39,6 +39,7 @@
     "test:audio": "node tests/audio.mjs",
     "test:clock": "node tests/clock.mjs",
     "test:radio": "node tests/radio.mjs",
+    "test:drivetrain": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/drivetrain.mjs",
     "test:daynight": "node tests/daynight.mjs",
     "test:ik": "node tests/ik.mjs",
     "test:menu": "node tests/menu.mjs",

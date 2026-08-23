@@ -89,6 +89,12 @@ namespace GRNHandling
 	constexpr float SteerScaleMax = 1.22f;
 	constexpr float DriveScaleMin = 0.7f;
 	constexpr float DriveScaleMax = 1.12f;
+	constexpr float AwdDriveLoss = 0.96f;
+	constexpr float FwdThrottleSteerLoss = 0.3f;
+	constexpr float FwdTorqueSteer = 0.045f;
+	constexpr float PowerOverRwd = 1.f;
+	constexpr float PowerOverAwd = 0.45f;
+	constexpr float PowerOverFwd = 0.1f;
 	constexpr float DownforceRefSpeed = 70.f;
 	constexpr float DownforceMax = 6.f;
 	constexpr float DriftLiftEntry = 0.18f;
@@ -206,6 +212,12 @@ namespace GRNExact
 	constexpr double SteerScaleMax = 1.22;
 	constexpr double DriveScaleMin = 0.7;
 	constexpr double DriveScaleMax = 1.12;
+	constexpr double AwdDriveLoss = 0.96;
+	constexpr double FwdThrottleSteerLoss = 0.3;
+	constexpr double FwdTorqueSteer = 0.045;
+	constexpr double PowerOverRwd = 1;
+	constexpr double PowerOverAwd = 0.45;
+	constexpr double PowerOverFwd = 0.1;
 	constexpr double DownforceRefSpeed = 70;
 	constexpr double DownforceMax = 6;
 	constexpr double DriftLiftEntry = 0.18;

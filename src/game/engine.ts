@@ -3508,6 +3508,8 @@ export class GameEngine {
     this.load = solveLoad(this.ls, {
       dt,
       aLong: accel - braking - drag * (this.throttle ? 0.35 : 1),
+      drive: this.tune.drive,
+      throttle: this.throttle,
     });
 
     // --- Steering: the car carries a heading relative to the lane.
@@ -3565,6 +3567,7 @@ export class GameEngine {
       wheelspin: this.wheelspin,
       brakeRotate: bk.rotate,
       rearLight: load.rearLight,
+      drive: this.tune.drive,
       driftAngleMult: this.tune.driftAngleMult,
     });
     // The slide's own scrub, on the same budget as everything else.

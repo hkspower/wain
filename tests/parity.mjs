@@ -119,8 +119,13 @@ const cover = {
 // Two passes over the same script: without ABS, then with it. The
 // controller is a whole branch of the brake solver, and with it off for
 // the whole run that branch is never taken and its parity never checked.
-for (let pass = 0; pass < 2; pass++) {
-tune.hasAbs = pass === 1;
+for (let pass = 0; pass < 6; pass++) {
+tune.hasAbs = pass % 2 === 1;
+// Six passes: three drivetrains, each with ABS off and on. Two was
+// enough while every car in the game was a rear-driver; it is not enough
+// now, and a parity run that only exercises one drivetrain proves the
+// ports agree about one third of the model.
+const drive = pass < 2 ? "rwd" : pass < 4 ? "fwd" : "awd";
 const rng = new Script(20260822);
 const drift = newDriftState();
 const load = newLoadState();
@@ -287,7 +292,7 @@ for (let i = 0; i < STEPS; i++) {
   if (phase <= 30) steer = 0;
 
   const grip = gripAtSpeed(tune.gripAccel, downforce, speed);
-  const l = solveLoad(load, { dt: DT, aLong: throttle * 9 - brake * 14 - 1.2 });
+  const l = solveLoad(load, { dt: DT, aLong: throttle * 9 - brake * 14 - 1.2, drive, throttle });
   const latDemand = Math.min(1, (Math.abs(steer) * speed) / H.latDemandSpeed);
   const b = solveBrakes(bs, {
     dt: DT, tune, brake, speed, latDemand, steer, throttle, grip,
@@ -301,6 +306,7 @@ for (let i = 0; i < STEPS; i++) {
     wheelspin: throttle > 0.85 ? (throttle - 0.85) * 14 : 0,
     brakeRotate: b.rotate,
     rearLight: l.rearLight,
+    drive,
     driftAngleMult: 1,
   });
 

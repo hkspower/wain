@@ -56,6 +56,17 @@ public static class GRNSim
     static double Max(double a, double b) => a > b ? a : b;
     static double Sign(double v) => v > 0.0 ? 1.0 : (v < 0.0 ? -1.0 : 0.0);
 
+    /// <summary>
+    /// Which wheels the engine drives.
+    ///
+    /// The enum only — SolveLoad still is not here, for the reason given
+    /// below. It is declared so that GRNData's car table, which now
+    /// carries a Drive per car, has a type to be, and so the Unity build
+    /// can read the field even while the solver that consumes it is
+    /// still missing.
+    /// </summary>
+    public enum Drivetrain { FWD, RWD, AWD }
+
     // --------------------------------------------------------------- grip
     //
     // Only the part the brake solver needs. src/game/grip.ts also carries
@@ -64,6 +75,17 @@ public static class GRNSim
     // of an already-verified port, and writing a solveLoad from memory
     // would have broken it in the one way that is hard to see later —
     // code that looks like the others and is not.
+    //
+    // That gap now costs more than it did. Load transfer is where the
+    // drivetrain lives: which axle's load the engine may use is the
+    // whole model, so a Unity build without SolveLoad cannot tell a
+    // front-driver from a rear-driver however faithfully it carries the
+    // constants. The C++ port has it and tests/parity.mjs proves it
+    // agrees with the web across 48,000 steps and all three layouts.
+    // Porting SolveLoad here is a dozen lines; verifying it needs a C#
+    // toolchain, which this environment does not have, and an unverified
+    // transliteration of a solver is exactly what the paragraph above
+    // refuses to write.
 
     /// <summary>
     /// Lateral grip at this speed, aero included.

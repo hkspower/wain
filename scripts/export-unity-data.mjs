@@ -159,6 +159,9 @@ const cars = carsBlock
       color: f(/color: 0x([0-9a-fA-F]{6})/),
       style: f(/style: "(\w+)"/) ?? "sedan",
       kit: f(/kit: "(\w+)"/) ?? null,
+      // Which wheels it drives. Absent means rear, which is what every
+      // car in this game was before the physics could tell them apart.
+      drive: f(/drive: "(fwd|rwd|awd)"/) ?? "rwd",
       engine: f(/engine: "([^"]+)"/),
       tank: +f(/tankLitres: ([\d.]+)/),
       lengthM: +f(/lengthM: ([\d.]+)/),
@@ -274,6 +277,10 @@ ${rivals
     };
 
     public enum EngineLayout { Inline, Flat, Vee }
+    /// <summary>Which wheels the engine drives. Mirrors
+    /// GRNSim::EDrivetrain in the C++ port and Drivetrain in
+    /// src/game/grip.ts — one model, three builds.</summary>
+    public enum Drivetrain { FWD, RWD, AWD }
 
     /// <summary>One of the five. The curve is a Gaussian bump on a floor,
     /// normalised so every engine's mean torque over the usable rev range
@@ -362,7 +369,7 @@ ${cars
     (c) => `        new Car {
             Id = "${cs(c.id)}", Name = "${cs(c.name)}", Price = ${c.price},
             Power = ${f(c.power)}, TopSpeedKmh = ${f(c.top)}, Grip = ${f(c.grip)}, Brake = ${f(c.brake)},
-            Paint = ${col(c.color)}, Style = ${style(c.style, c.id)}, AttackKit = ${c.kit === "attack" ? "true" : "false"},
+            Paint = ${col(c.color)}, Style = ${style(c.style, c.id)}, AttackKit = ${c.kit === "attack" ? "true" : "false"}, Drive = Drivetrain.${c.drive.toUpperCase()},
             Engine = ${engIndex(c.engine, c.id)}, TankLitres = ${f(c.tank)}, LengthM = ${f(c.lengthM)},
             LockedRivals = ${c.lockedRivals},
             FactoryBuild = new[] { ${c.factoryBuild.map((x) => `"${x}"`).join(", ")} },

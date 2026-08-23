@@ -106,6 +106,19 @@ namespace GRNSim
 		double PitchG = 0.0;
 	};
 
+	/**
+	 * Which wheels the engine drives.
+	 *
+	 * The axis this model was missing. Everything below already knew how
+	 * much of the car's weight sat on each axle; it handed the engine the
+	 * REAR share unconditionally, which is a rear-wheel-drive car written
+	 * into the physics as though it were a law.
+	 */
+	// No underlying type: `uint8` is an Unreal typedef, and this header is
+	// also compiled standalone by tests/parity.mjs, where it does not
+	// exist. The enum is three values; nothing needs it narrowed.
+	enum class EDrivetrain { FWD, RWD, AWD };
+
 	struct FLoadResult
 	{
 		double Front = GRNExact::StaticFrontLoad;
@@ -113,6 +126,8 @@ namespace GRNSim
 		double RearLight = 0.0;
 		double SteerScale = 1.0;
 		double DriveScale = 1.0;
+		/** Radians of pull through the wheel. Front-drivers only. */
+		double TorqueSteer = 0.0;
 		double PitchG = 0.0;
 	};
 
@@ -123,7 +138,9 @@ namespace GRNSim
 	 * trail braking is a technique and not a switch. Solved instantly the
 	 * car flips its balance on a one-frame brake tap.
 	 */
-	inline FLoadResult SolveLoad(FLoadState& S, double Dt, double ALong)
+	inline FLoadResult SolveLoad(
+		FLoadState& S, double Dt, double ALong,
+		EDrivetrain Drive = EDrivetrain::RWD, double Throttle = 0.0)
 	{
 		using namespace GRNExact;
 		const double G = 9.81;
@@ -144,7 +161,25 @@ namespace GRNSim
 		// twice as much, and that exponent is what keeps the squat loop
 		// convergent.
 		R.SteerScale = Clamp(std::pow(Front / StaticFrontLoad, SteerLoadExp), SteerScaleMin, SteerScaleMax);
-		R.DriveScale = Clamp(std::pow(Rear / StaticRear, TyreLoadExp), DriveScaleMin, DriveScaleMax);
+
+		const double Th = Clamp(Throttle, 0.0, 1.0);
+		// On a front-driver the driven tyres ARE the steering tyres, and a
+		// contact patch spends its grip once. Power therefore costs
+		// cornering — understeer arrived at rather than bolted on.
+		if (Drive == EDrivetrain::FWD) R.SteerScale *= 1.0 - Th * FwdThrottleSteerLoss;
+
+		// The driven axle's share of the weight against what it carries
+		// standing still. This one expression is the whole drivetrain:
+		//   rwd  squat presses the driven axle down -> traction rises
+		//   fwd  squat lifts the driven axle        -> traction falls
+		//   awd  the whole car is the driven axle   -> traction is flat
+		const double Driven =
+			Drive == EDrivetrain::FWD ? Front / StaticFrontLoad
+			: Drive == EDrivetrain::AWD ? 1.0
+			: Rear / StaticRear;
+		R.DriveScale = Clamp(std::pow(Driven, TyreLoadExp), DriveScaleMin, DriveScaleMax);
+		if (Drive == EDrivetrain::AWD) R.DriveScale *= AwdDriveLoss;
+		R.TorqueSteer = Drive == EDrivetrain::FWD ? Th * FwdTorqueSteer : 0.0;
 		R.PitchG = S.PitchG;
 		return R;
 	}
@@ -310,6 +345,11 @@ namespace GRNSim
 		double Wheelspin = 0.0;
 		double BrakeRotate = 0.0;
 		double RearLight = 0.0;
+		/** Which wheels are driven. Only the POWER entry reads it: the
+		 *  handbrake, trail-brake and lift-off entries work on any car,
+		 *  because they unload or lock the rear axle and every car has
+		 *  one of those whether or not it is driven. */
+		EDrivetrain Drive = EDrivetrain::RWD;
 		double DriftAngleMult = 1.0;
 	};
 
@@ -400,8 +440,17 @@ namespace GRNSim
 
 		// Entries. Each is a different way of getting the rear past its
 		// limit, and each has its own reach.
+		// How readily this car breaks the rear loose on power. A
+		// front-driver's spinning wheels are at the other end of the car
+		// from the axle that would step out, so its threshold is ten
+		// times a rear-driver's — which in practice means never, without
+		// a special case downstream saying so.
+		const double PowerBias =
+			I.Drive == EDrivetrain::FWD ? PowerOverFwd
+			: I.Drive == EDrivetrain::AWD ? PowerOverAwd
+			: PowerOverRwd;
 		const bool bPowerOver =
-			I.Wheelspin > PowerOverSpin &&
+			I.Wheelspin * PowerBias > PowerOverSpin &&
 			std::fabs(I.Steer) > PowerOverSteer &&
 			I.Speed > PowerOverMinSpeed &&
 			I.Throttle > PowerOverThrottle;

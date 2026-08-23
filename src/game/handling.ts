@@ -198,6 +198,47 @@ export const HANDLING = {
   driveScaleMin: 0.7,
   driveScaleMax: 1.12,
 
+  // Which wheels are driven (src/game/grip.ts, src/game/drift.ts).
+  //
+  // The load model above already computed how much of the car's weight
+  // sits on each axle, and then handed `driveScale` the REAR share and
+  // nothing else. That is a rear-wheel-drive car, hard-coded, and it was
+  // the only car this game could describe — one machine in the showroom
+  // is sold as an "AWD monster" in its own catalogue text and drove
+  // exactly like the rear-driver beside it.
+  //
+  // Nothing here manufactures grip. A drivetrain decides which axle's
+  // load the engine is allowed to use, and everything else follows from
+  // the load transfer that was already being solved:
+  //
+  //   RWD  squats onto the driven axle under power. Traction RISES as it
+  //        accelerates, which is why it launches well and why the tail
+  //        comes round when the fronts are pointed somewhere else.
+  //   FWD  squats OFF the driven axle. Traction FALLS exactly when the
+  //        throttle asks for it — the reason a fast front-driver spins a
+  //        wheel off the line — and the same tyres are steering, so
+  //        power costs cornering. That is understeer, and it is not a
+  //        penalty bolted on, it is two demands on one contact patch.
+  //   AWD  uses both, so its traction barely moves with pitch at all.
+  //        It pays for that with the transfer case.
+  /** What reaches the road through an all-wheel-drive system, against
+   *  the same engine driving one axle. A transfer case and a second
+   *  differential cost a few percent in real cars. */
+  awdDriveLoss: 0.96,
+  /** How much of the front tyres' grip full throttle spends on a
+   *  front-driver, leaving that much less for steering. */
+  fwdThrottleSteerLoss: 0.3,
+  /** Torque steer: the tug a powerful front-driver puts through the
+   *  wheel under load, in radians of steer at full throttle. Small, and
+   *  it is meant to be felt rather than fought. */
+  fwdTorqueSteer: 0.045,
+  /** How readily each drivetrain will break the rear loose on power.
+   *  A front-driver essentially will not — it drifts on the handbrake
+   *  and on a lift, which the drift solver already models. */
+  powerOverRwd: 1,
+  powerOverAwd: 0.45,
+  powerOverFwd: 0.1,
+
   // Aerodynamic downforce (src/game/grip.ts).
   /** The speed at which a part's quoted downforce figure is delivered,
    *  m/s — about 250 km/h. It scales with v² either side of that. */

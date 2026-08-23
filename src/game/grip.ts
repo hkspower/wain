@@ -36,6 +36,16 @@ import { HANDLING as H } from "./handling";
 /** Free fall, for turning m/s² into g. */
 const G = 9.81;
 
+/**
+ * Which wheels the engine drives.
+ *
+ * This is the axis the model was missing. Everything below already knew
+ * how much of the car's weight was on each axle; it just handed the
+ * engine the REAR share unconditionally, which is a rear-wheel-drive
+ * car written into the physics as though it were a law.
+ */
+export type Drivetrain = "fwd" | "rwd" | "awd";
+
 /** Carried between frames — one per car. */
 export interface LoadState {
   /** Longitudinal acceleration in g, LAGGED. Positive under power,
@@ -48,6 +58,13 @@ export interface LoadInput {
   /** This frame's longitudinal acceleration, m/s². Signed: drive minus
    *  brakes minus drag. */
   aLong: number;
+  /** Which axle the engine is driving. Defaults to rear, which is what
+   *  this model did before it could be asked. */
+  drive?: Drivetrain;
+  /** Pedal, 0..1. Only a front-driver reads it: on that car the tyres
+   *  putting the power down are the tyres doing the steering, and the
+   *  two are drawing on one contact patch. */
+  throttle?: number;
 }
 
 export interface LoadResult {
@@ -61,6 +78,10 @@ export interface LoadResult {
   steerScale: number;
   /** Multiplier on what the driven axle can put down. */
   driveScale: number;
+  /** Torque steer, in radians. Non-zero only on a front-driver under
+   *  power: the pull a driver feels through the wheel when a lot of
+   *  torque goes through the tyres that are also steering. */
+  torqueSteer: number;
   /** The lagged longitudinal g itself, for the body to dive and squat
    *  on. Reading the pitch off the same number that moved the grip is
    *  what keeps the picture and the physics telling one story. */
@@ -104,22 +125,50 @@ export function solveLoad(s: LoadState, i: LoadInput): LoadResult {
   // car with all its weight on one axle grips less in total than one
   // that shares it, and it keeps the feedback loop below convergent.
   const clampScale = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-  const steerScale = clampScale(
+  let steerScale = clampScale(
     Math.pow(front / H.staticFrontLoad, H.steerLoadExp),
     H.steerScaleMin,
     H.steerScaleMax
   );
+
+  const drive = i.drive ?? "rwd";
+  const throttle = Math.min(1, Math.max(0, i.throttle ?? 0));
+  // On a front-driver the driven tyres ARE the steering tyres, and a
+  // contact patch spends its grip once. Power therefore costs cornering
+  // — which is understeer, arrived at rather than bolted on. Nothing
+  // like it happens on the other two: a rear-driver's fronts are doing
+  // one job, and an all-wheel-drive car only sends a share forward.
+  if (drive === "fwd") steerScale *= 1 - throttle * H.fwdThrottleSteerLoss;
   // Clamped harder than the arithmetic asks for, on purpose. Uncapped,
   // squat feeds traction feeds acceleration feeds squat, and the fixed
   // point of that loop is a 1.7 g launch off a road tyre — convergent,
   // because of the exponent, and nonsense. Bounded here it is a nuance
   // in a straight line and a real effect in a corner, which is where it
   // belongs.
-  const driveScale = clampScale(
-    Math.pow(rear / staticRear, H.tyreLoadExp),
+  // The driven axle's share of the weight, against what it carries
+  // standing still. This one line is the whole drivetrain model:
+  //
+  //   rwd  squat presses the driven axle down     -> traction rises
+  //   fwd  squat lifts the driven axle            -> traction falls
+  //   awd  the whole car is the driven axle       -> traction is flat
+  //
+  // An all-wheel-drive car's ratio is exactly 1 by construction, since
+  // front + rear = 1 at every instant, so the pow() is a no-op and the
+  // only thing separating it from a perfect launch is the transfer
+  // case. That is the right answer and it falls out of the arithmetic
+  // rather than being asserted.
+  const driven =
+    drive === "fwd"
+      ? front / H.staticFrontLoad
+      : drive === "awd"
+        ? 1
+        : rear / staticRear;
+  let driveScale = clampScale(
+    Math.pow(driven, H.tyreLoadExp),
     H.driveScaleMin,
     H.driveScaleMax
   );
+  if (drive === "awd") driveScale *= H.awdDriveLoss;
 
   return {
     front,
@@ -127,6 +176,7 @@ export function solveLoad(s: LoadState, i: LoadInput): LoadResult {
     rearLight: Math.max(0, 1 - rear / staticRear),
     steerScale,
     driveScale,
+    torqueSteer: drive === "fwd" ? throttle * H.fwdTorqueSteer : 0,
     pitchG: s.pitchG,
   };
 }
