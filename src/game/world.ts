@@ -1753,6 +1753,38 @@ function pumpPriceTexture(): THREE.CanvasTexture {
  * the pumps, and the price board hidden behind the canopy where nobody
  * can read it. Which is exactly how it first came out.
  */
+/**
+ * The mini-market's fascia sign, Arabic over Latin.
+ *
+ * Drawn rather than typed into geometry because it is a lit box on a
+ * green band, and the one thing that has to be right is that the Arabic
+ * is set as Arabic — the same rule the rest of this game's signage
+ * follows. `arabicSign()` is the stack the road signs already use, so
+ * the shop matches the world it stands in rather than looking like a
+ * different game.
+ */
+let storeSignTex: THREE.CanvasTexture | null = null;
+function storeSignTexture(): THREE.CanvasTexture {
+  if (storeSignTex) return storeSignTex;
+  const c = document.createElement("canvas");
+  c.width = 1024;
+  c.height = 80;
+  const ctx = c.getContext("2d")!;
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `700 40px ${arabicSign()}`;
+  ctx.fillText("بقالة المحطة", c.width * 0.31, c.height * 0.5);
+  ctx.font = `700 34px ${latinDisplay()}`;
+  ctx.letterSpacing = "6px";
+  ctx.fillText("MINI MARKET", c.width * 0.71, c.height * 0.52);
+  storeSignTex = new THREE.CanvasTexture(c);
+  storeSignTex.colorSpace = THREE.SRGBColorSpace;
+  storeSignTex.anisotropy = 8;
+  return storeSignTex;
+}
+
 function fuelStation(skin: Skin): THREE.Group {
   const g = new THREE.Group();
   const concrete = new THREE.MeshStandardMaterial({
@@ -1765,8 +1797,12 @@ function fuelStation(skin: Skin): THREE.Group {
 
   // Apron. Sits a hair above the ground plane so it reads as poured
   // concrete rather than z-fighting with the sand.
-  const apron = new THREE.Mesh(new THREE.BoxGeometry(22, 0.16, 40), concrete);
-  apron.position.y = 0.08;
+  // 30 m rather than 22, and pushed back away from the road: the site
+  // now carries a shop and a row of parked cars behind the pumps, and
+  // the old apron ended eleven metres out, which is where the shop's
+  // back wall would have stood in the sand.
+  const apron = new THREE.Mesh(new THREE.BoxGeometry(30, 0.16, 40), concrete);
+  apron.position.set(-4, 0.08, 0);
   apron.receiveShadow = true;
   g.add(apron);
 
@@ -1844,31 +1880,290 @@ function fuelStation(skin: Skin): THREE.Group {
     }
   }
 
-  // Kiosk at the back of the apron, glazed toward the pumps.
-  const kiosk = new THREE.Group();
-  const shell = new THREE.Mesh(
-    new THREE.BoxGeometry(5.4, 4.2, 14),
-    new THREE.MeshStandardMaterial({ color: 0xe4e6ea, roughness: 0.8 })
-  );
-  shell.position.y = 2.1;
-  shell.castShadow = true;
-  kiosk.add(shell);
-  const glassMat = new THREE.MeshStandardMaterial({
-    map: skin.lit,
-    color: 0xfff3d8,
-    emissive: 0xffe7ae,
-    emissiveIntensity: 1.5,
-    roughness: 0.25,
-  });
-  const glass = new THREE.Mesh(new THREE.PlaneGeometry(12, 2.4), glassMat);
-  glass.position.set(2.73, 2.2, 0);
-  glass.rotation.y = Math.PI / 2;
-  kiosk.add(glass);
-  const parapet = new THREE.Mesh(new THREE.BoxGeometry(5.8, 0.7, 14.4), trim);
-  parapet.position.y = 4.4;
-  kiosk.add(parapet);
-  kiosk.position.set(-8, 0.16, 0);
-  g.add(kiosk);
+  // ------------------------------------------------- the mini-market
+  //
+  // This was a kiosk: a 5.4 m box with an emissive rectangle stuck on the
+  // front standing in for a window. It read as a shed with a light in it,
+  // because that is what it was — the "glass" was opaque, so there was
+  // nothing behind it to see and nothing the light was coming from.
+  //
+  // A petrol station on this road has a supermarket in it, and the shop
+  // is the only part of the site a player can look INTO. So it is built
+  // as a room rather than as a facade: walls, a floor, a ceiling that is
+  // the light, shelves with stock on them, and a counter by the door —
+  // then real transparent glass across the front. The interior is what
+  // makes it a shop; the glass only lets you see it.
+  //
+  // Everything here is laid out from the front face at x = -9, which is
+  // the one line the parking, the footway and the bollards all measure
+  // from. Local +X is toward the road, so the shop faces the pumps.
+  {
+    const FRONT = -9;      // the glazed face
+    const DEPTH = 8;       // back wall at -17
+    const WIDTH = 15;      // along the road
+    const HEIGHT = 4.6;
+    const MID = FRONT - DEPTH / 2;
+    const FLOOR = 0.16;
+
+    const store = new THREE.Group();
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0xe4e6ea, roughness: 0.8 });
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0xd8dcE2, roughness: 0.35 });
+
+    // The room. Built as separate walls rather than one box, because a
+    // box has a front face and the whole point is that there is not one.
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(DEPTH, 0.12, WIDTH), floorMat);
+    floor.position.set(MID, FLOOR + 0.06, 0);
+    store.add(floor);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.3, HEIGHT, WIDTH), wallMat);
+    back.position.set(FRONT - DEPTH, FLOOR + HEIGHT / 2, 0);
+    back.castShadow = true;
+    store.add(back);
+    for (const sz of [-1, 1]) {
+      const side = new THREE.Mesh(new THREE.BoxGeometry(DEPTH, HEIGHT, 0.3), wallMat);
+      side.position.set(MID, FLOOR + HEIGHT / 2, (sz * WIDTH) / 2);
+      side.castShadow = true;
+      store.add(side);
+    }
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(DEPTH + 0.6, 0.4, WIDTH + 0.6), wallMat);
+    roof.position.set(MID, FLOOR + HEIGHT + 0.2, 0);
+    roof.castShadow = true;
+    store.add(roof);
+    // The fascia band, in the brand's green, with the sign on its face.
+    const fascia = new THREE.Mesh(
+      new THREE.BoxGeometry(DEPTH + 0.8, 1.05, WIDTH + 0.8),
+      trim
+    );
+    fascia.position.set(MID, FLOOR + HEIGHT + 0.85, 0);
+    store.add(fascia);
+    const signMat = new THREE.MeshStandardMaterial({
+      map: storeSignTexture(),
+      transparent: true,
+      emissive: 0xffffff,
+      emissiveMap: storeSignTexture(),
+      emissiveIntensity: 1.35,
+      roughness: 0.5,
+      fog: false,
+    });
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(11, 0.86), signMat);
+    sign.position.set(FRONT + 0.42, FLOOR + HEIGHT + 0.85, 0);
+    sign.rotation.y = Math.PI / 2;
+    store.add(sign);
+
+    // The ceiling IS the light. A shop at night is lit by a grid of
+    // fluorescents and reads from outside as an even white glow with
+    // shelves silhouetted against it, so this is a bright emissive plane
+    // rather than a point light: it costs nothing per material, and a
+    // real light inside a closed room lights nothing else anyway.
+    const ceiling = new THREE.Mesh(
+      new THREE.PlaneGeometry(DEPTH - 0.4, WIDTH - 0.4),
+      new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        emissive: 0xf4f8ff,
+        emissiveIntensity: 2.4,
+        roughness: 1,
+        fog: false,
+        side: THREE.DoubleSide,
+      })
+    );
+    ceiling.rotation.x = Math.PI / 2;
+    ceiling.position.set(MID, FLOOR + HEIGHT - 0.12, 0);
+    store.add(ceiling);
+
+    // Gondolas, running back from the door so the aisles read as aisles.
+    // The stock is a band of colour along the top of each run: at this
+    // distance a shelf of goods is a stripe, and modelling tins would be
+    // a lot of triangles nobody can resolve through a window.
+    const shelfMat = new THREE.MeshStandardMaterial({ color: 0xf2f4f7, roughness: 0.7 });
+    const stockMat = new THREE.MeshStandardMaterial({
+      color: 0xc8452f,
+      emissive: 0x5a1c12,
+      emissiveIntensity: 0.5,
+      roughness: 0.75,
+    });
+    const stockAlt = new THREE.MeshStandardMaterial({
+      color: 0x2f6fc8,
+      emissive: 0x12305a,
+      emissiveIntensity: 0.5,
+      roughness: 0.75,
+    });
+    for (const [i, gz] of [-4.6, 0, 4.6].entries()) {
+      const run = new THREE.Mesh(new THREE.BoxGeometry(5.2, 1.75, 0.95), shelfMat);
+      run.position.set(MID - 0.4, FLOOR + 0.12 + 0.875, gz);
+      store.add(run);
+      for (const [j, sy] of [0.55, 1.05, 1.55].entries()) {
+        const band = new THREE.Mesh(
+          new THREE.BoxGeometry(5.0, 0.28, 1.0),
+          (i + j) % 2 ? stockMat : stockAlt
+        );
+        band.position.set(MID - 0.4, FLOOR + 0.12 + sy, gz);
+        store.add(band);
+      }
+    }
+    // Chiller cabinets along the back wall — the lit glass doors are the
+    // brightest thing in a shop like this and read straight through the
+    // front window.
+    const chiller = new THREE.Mesh(
+      new THREE.BoxGeometry(0.8, 2.1, 11),
+      new THREE.MeshStandardMaterial({
+        color: 0xdfeaff,
+        emissive: 0xbcd8ff,
+        emissiveIntensity: 1.5,
+        roughness: 0.35,
+      })
+    );
+    chiller.position.set(FRONT - DEPTH + 0.6, FLOOR + 0.12 + 1.05, 0);
+    store.add(chiller);
+    // The counter, beside the door where a till actually stands.
+    const counter = new THREE.Mesh(
+      new THREE.BoxGeometry(2.4, 1.05, 1.1),
+      new THREE.MeshStandardMaterial({ color: 0x1f6b45, roughness: 0.55 })
+    );
+    counter.position.set(FRONT - 2.1, FLOOR + 0.12 + 0.525, 3.1);
+    store.add(counter);
+
+    // The shopfront. Real glass, real transparency — this is the whole
+    // reason the room above exists.
+    const shopGlass = new THREE.MeshPhysicalMaterial({
+      color: 0xdfe9f5,
+      metalness: 0,
+      roughness: 0.06,
+      transmission: 0.82,
+      thickness: 0.02,
+      transparent: true,
+      opacity: 0.42,
+      envMapIntensity: 1.1,
+    });
+    const DOOR = 2.4;
+    const GLASS_Y0 = FLOOR + 0.36;
+    const GLASS_Y1 = FLOOR + 3.5;
+    const GH = GLASS_Y1 - GLASS_Y0;
+    // Two runs of glazing, left and right of the entrance.
+    for (const sz of [-1, 1]) {
+      const w = WIDTH / 2 - DOOR / 2;
+      const pane = new THREE.Mesh(new THREE.PlaneGeometry(w, GH), shopGlass);
+      pane.position.set(FRONT + 0.02, (GLASS_Y0 + GLASS_Y1) / 2, sz * (DOOR / 2 + w / 2));
+      pane.rotation.y = Math.PI / 2;
+      store.add(pane);
+    }
+    // Stall riser under the glass, and the mullions that divide it.
+    const riser = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.36, WIDTH), trim);
+    riser.position.set(FRONT, FLOOR + 0.18, 0);
+    store.add(riser);
+    const mullionMat = new THREE.MeshStandardMaterial({
+      color: 0xb9bfc6,
+      roughness: 0.4,
+      metalness: 0.55,
+    });
+    for (const mz of [-7.4, -5.2, -3.0, -1.2, 1.2, 3.0, 5.2, 7.4]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.16, GH, 0.14), mullionMat);
+      post.position.set(FRONT + 0.03, (GLASS_Y0 + GLASS_Y1) / 2, mz);
+      store.add(post);
+    }
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.18, WIDTH), mullionMat);
+    head.position.set(FRONT + 0.03, GLASS_Y1, 0);
+    store.add(head);
+    // The doorway itself: a frame with the shop's light spilling out of
+    // it onto the footway, which is what an open door looks like at 2am.
+    const doorGlow = new THREE.Mesh(
+      new THREE.PlaneGeometry(DOOR - 0.2, GH - 0.1),
+      new THREE.MeshStandardMaterial({
+        color: 0xfff6e2,
+        emissive: 0xffeec4,
+        emissiveIntensity: 1.15,
+        transparent: true,
+        opacity: 0.5,
+        roughness: 0.4,
+        fog: false,
+      })
+    );
+    doorGlow.position.set(FRONT + 0.04, (GLASS_Y0 + GLASS_Y1) / 2, 0);
+    doorGlow.rotation.y = Math.PI / 2;
+    store.add(doorGlow);
+
+    // Bollards. Every forecourt shop has them and they are there for a
+    // reason: the thing parked nose-on to the window is a car.
+    const bollardMat = new THREE.MeshStandardMaterial({ color: 0xf5b301, roughness: 0.6 });
+    for (const bz of [-6.2, -3.4, 3.4, 6.2]) {
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.95, 8), bollardMat);
+      b.position.set(FRONT + 0.85, FLOOR + 0.47, bz);
+      b.castShadow = true;
+      store.add(b);
+    }
+    // Gas cylinders in a cage at the end of the frontage, which is where
+    // they live on every station in the country.
+    const cage = new THREE.Mesh(
+      new THREE.BoxGeometry(1.5, 1.9, 2.6),
+      new THREE.MeshStandardMaterial({
+        color: 0x6f767e,
+        roughness: 0.7,
+        metalness: 0.4,
+        wireframe: true,
+      })
+    );
+    cage.position.set(FRONT + 0.9, FLOOR + 0.95, -8.9);
+    store.add(cage);
+    for (const cz of [-9.5, -8.9, -8.3]) {
+      const bottle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.17, 0.17, 1.2, 8),
+        new THREE.MeshStandardMaterial({ color: 0xc8452f, roughness: 0.6 })
+      );
+      bottle.position.set(FRONT + 0.9, FLOOR + 0.6, cz);
+      store.add(bottle);
+    }
+
+    store.position.y = 0;
+    g.add(store);
+
+    // ------------------------------------------------------- parking
+    //
+    // Six bays between the shop and the pumps, nose-in to the window.
+    // A forecourt without them is a place you can only refuel, and the
+    // point of putting a supermarket on it is that people stop and go
+    // inside — so there has to be somewhere to leave the car that is not
+    // the pump island.
+    const BAY_W = 2.6;          // across, along the road
+    const BAY_D = 4.8;          // deep, away from the shop
+    const BAY_X0 = FRONT + 1.2; // a footway's width off the glass
+    const BAYS = 6;
+    const paintMat = new THREE.MeshStandardMaterial({
+      color: 0xf2f2ee,
+      emissive: 0x8f8f88,
+      emissiveIntensity: 0.35,
+      roughness: 0.6,
+    });
+    const span = BAYS * BAY_W;
+    for (let i = 0; i <= BAYS; i++) {
+      const lz = -span / 2 + i * BAY_W;
+      const lineGeo = new THREE.BoxGeometry(BAY_D, 0.02, 0.12);
+      const line = new THREE.Mesh(lineGeo, paintMat);
+      line.position.set(BAY_X0 + BAY_D / 2, 0.17, lz);
+      g.add(line);
+    }
+    // Wheel stops at the head of each bay, and one bay marked out for a
+    // driver who needs the door width — nearest the door, as it should be.
+    const stopMat = new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 0.9 });
+    const blueMat = new THREE.MeshStandardMaterial({
+      color: 0x1f5fbf,
+      emissive: 0x0d2a55,
+      emissiveIntensity: 0.4,
+      roughness: 0.7,
+    });
+    for (let i = 0; i < BAYS; i++) {
+      const cz = -span / 2 + BAY_W * (i + 0.5);
+      const stop = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.12, 1.7), stopMat);
+      stop.position.set(BAY_X0 + 0.4, 0.22, cz);
+      g.add(stop);
+      if (i === 2) {
+        const pad = new THREE.Mesh(
+          new THREE.PlaneGeometry(BAY_D - 0.3, BAY_W - 0.2),
+          blueMat
+        );
+        pad.rotation.x = -Math.PI / 2;
+        pad.position.set(BAY_X0 + BAY_D / 2, 0.175, cz);
+        g.add(pad);
+      }
+    }
+  }
 
   // Price board at the kerb, facing oncoming traffic on both sides.
   const board = new THREE.Group();

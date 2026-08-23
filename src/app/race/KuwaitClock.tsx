@@ -50,7 +50,20 @@ function zoneOffsetMs(zone: string, at: Date): number {
 
 const ZONE = "Asia/Kuwait";
 
-/** The dial: twelve ticks, the quarters longer. */
+/**
+ * The dial: twelve ticks, the quarters longer.
+ *
+ * The coordinates are ROUNDED, and that is not tidiness. Math.sin and
+ * Math.cos are not required to be bit-identical between JavaScript
+ * engines, and this component is server-rendered and then hydrated: Node
+ * computed a tick at x = -23.815698604072054 and Chrome computed the
+ * same tick at -23.815698604072058, React compared the two strings, and
+ * every page load logged a hydration mismatch. Three decimals on a
+ * 72-unit viewBox is a thousandth of the dial — far under a pixel — and
+ * both engines agree on the string.
+ */
+const r3 = (v: number) => Math.round(v * 1000) / 1000;
+
 function ticks() {
   const out = [];
   for (let i = 0; i < 12; i++) {
@@ -61,10 +74,10 @@ function ticks() {
     out.push(
       <line
         key={i}
-        x1={Math.sin(a) * r0}
-        y1={-Math.cos(a) * r0}
-        x2={Math.sin(a) * r1}
-        y2={-Math.cos(a) * r1}
+        x1={r3(Math.sin(a) * r0)}
+        y1={r3(-Math.cos(a) * r0)}
+        x2={r3(Math.sin(a) * r1)}
+        y2={r3(-Math.cos(a) * r1)}
         stroke="currentColor"
         strokeWidth={quarter ? 2.4 : 1.1}
         strokeLinecap="round"
