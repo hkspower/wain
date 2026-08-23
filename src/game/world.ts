@@ -1043,7 +1043,24 @@ function windowTextures(): { facade: THREE.CanvasTexture; lit: THREE.CanvasTextu
 
 function signTexture(en: string, ar: string, sub?: string): THREE.CanvasTexture {
   // Gulf motorway convention: Arabic on top, Latin beneath it.
-  return textTexture(512, 160, (ctx) => {
+  //
+  // Drawn at twice the size it used to be, and the reason is measured
+  // rather than felt. tools/shots/texels.mjs asks how many texels of a
+  // texture land on each screen pixel, and at the underpass this one
+  // came back at 0.28 — one texel every three and a half pixels, across
+  // a third of the frame. That is the biggest sign in the game, it is
+  // ten metres of lettering you drive straight at, and reading it is the
+  // whole reason it exists. Everything else the survey found was either
+  // comfortably sharp or a false alarm; this was the pixelated area.
+  //
+  // The context is scaled instead of the coordinates, so every number
+  // below still means what it said when the canvas was 512 wide. Thirteen
+  // of these exist — one per district plus Love Street — so the change
+  // costs about 17 MB of texture, which is the same order as the two
+  // 1024-square road maps this world already carries.
+  const SS = 2;
+  return textTexture(512 * SS, 160 * SS, (ctx) => {
+    ctx.scale(SS, SS);
     ctx.fillStyle = "#0a4da3";
     ctx.fillRect(0, 0, 512, 160);
     ctx.strokeStyle = "#ffffff";
