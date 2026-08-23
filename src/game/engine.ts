@@ -29,7 +29,7 @@ import { solveDriverRig } from "./driver";
 import { FLAGS, FLAG_IDS, flagTexture } from "./flags";
 import { verticalFov, chaseDolly } from "./aspect";
 import { gripAtSpeed, newLoadState, solveLoad, type LoadResult } from "./grip";
-import { bestTow, NO_TOW, TOW_REACH, type TowInput, type TowResult } from "./slipstream";
+import { bestTow, solveTow, NO_TOW, TOW_REACH, type TowInput, type TowResult } from "./slipstream";
 import { Music } from "./music";
 import { Radio } from "./radio";
 import {
@@ -4155,7 +4155,26 @@ export class GameEngine {
       } else {
         // Chasing — capped below the player's ~92 m/s ceiling so a clean
         // driver can hold a lead against every rival, boss included.
-        targetSpeed = Math.min(top * 1.05, 90);
+        //
+        // ...and the rival gets the tow too, or the wake is a mechanic
+        // only one car on the road is allowed to use. It sits in your
+        // air and closes, which is what a driver would do and what makes
+        // a lead something you have to defend rather than merely reach.
+        //
+        // Drag goes as v-squared, so a given power against a discounted
+        // drag reaches roughly 1/sqrt of it — a full tow is worth about
+        // 30%, and it goes to the slower cars, which is where it matters.
+        // The 90 m/s ceiling is applied AFTER, deliberately: it is the
+        // promise that a clean driver can hold a lead, and a wake is not
+        // a reason to break it. A rival already fast enough to sit on
+        // that cap gains nothing from the tow; one that is not can use
+        // your air to get back on terms.
+        const rTow = solveTow({
+          gap: this.track.deltaAhead(r.s, this.player.s) - 4.5,
+          lat: this.player.lat - r.lat,
+          speed: r.speed,
+        });
+        targetSpeed = Math.min((top * 1.05) / Math.sqrt(rTow.drag), 90);
       }
     } else {
       targetSpeed = Math.max(0, r.speed - 8 * dt); // defeated: pull over

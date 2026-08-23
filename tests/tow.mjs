@@ -108,8 +108,42 @@ const out = await page.evaluate(async () => {
   const pulledOut = coast(6.5, 3.4);   // one lane over, same distance back
   const wayBack = coast(34, 0);        // past the reach
 
+  /**
+   * A rival chasing from a fixed distance back, in the wake or beside it.
+   *
+   * The other half of the mechanic, and the half that is easy to leave
+   * out: a wake only the player may use is not a rule of the road, it is
+   * an advantage. The rival is held at a fixed following distance and
+   * asked what speed it settles at.
+   *
+   * `state` is set without `inBattle`, so the chase AI runs without the
+   * SP referee — the referee would end the fight partway through and
+   * take the AI with it.
+   */
+  const chase = (lane) => {
+    const r = e.rival;
+    if (!r) return null;
+    const away = e.track.wrap(4200 + e.track.length / 2);
+    for (const t of e.traffic) { t.s = away; t.lat = 8; }
+    r.state = "battle";
+    e.player.s = 4200;
+    e.player.lat = 0;
+    e.player.speed = 70;
+    r.speed = 50;
+    for (let i = 0; i < 5 / DT; i++) {
+      e.player.speed = 70;                       // a steady car to follow
+      r.s = e.track.wrap(e.player.s - 6.5);      // pinned two metres back
+      r.lat = lane;
+      r.targetLat = lane;
+      e.update(DT);
+    }
+    return r.speed;
+  };
+  const chaseWake = chase(0);
+  const chaseBeside = chase(3.4);
+
   e.setPaused(false);
-  return { START_SPEED, SECONDS, clean, wake, pulledOut, wayBack };
+  return { START_SPEED, SECONDS, clean, wake, pulledOut, wayBack, chaseWake, chaseBeside };
 });
 
 const fail = [];
@@ -131,6 +165,23 @@ console.log(
   `  front grip in it  x${out.wake.frontGrip.toFixed(3)} against ` +
   `x${out.clean.frontGrip.toFixed(3)} in clean air`
 );
+
+if (out.chaseWake === null) {
+  console.log("\n  no rival on the road at boot — the chase half was not measured");
+} else {
+  console.log(
+    `\n  a rival chasing from the same 2 m settles at ${kmh(out.chaseWake)} km/h in the wake, ` +
+    `${kmh(out.chaseBeside)} km/h beside it`
+  );
+  // A wake only the player may use is an advantage, not a rule of the
+  // road — and it would make a lead something you reach rather than
+  // something you defend.
+  check(
+    out.chaseWake > out.chaseBeside + 0.5,
+    `the rival gained ${(out.chaseWake - out.chaseBeside).toFixed(2)} m/s from sitting in the ` +
+    `player's wake — the tow is the player's alone`
+  );
+}
 
 // The number has to reach the car.
 check(
