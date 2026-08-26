@@ -30,6 +30,7 @@ import { FLAGS, FLAG_IDS, flagTexture } from "./flags";
 import { verticalFov, chaseDolly } from "./aspect";
 import { gripAtSpeed, newLoadState, solveLoad, type LoadResult } from "./grip";
 import { bestTow, solveTow, NO_TOW, TOW_REACH, type TowInput, type TowResult } from "./slipstream";
+import { buildRoadMap, nextStation, type RoadMap } from "./roadmap";
 import { Music } from "./music";
 import { Radio } from "./radio";
 import {
@@ -78,6 +79,10 @@ const CINE_LEN = 5.6;
  *  governor (see topSpeedRef), so a 180 km/h hatch feels as fast at its
  *  limit as a 400 km/h flagship does at its. */
 const PLAYER_TOP_SPEED = 92; // m/s ≈ 331 km/h
+/** One shared empty list, so a lap with nobody else on the road does not
+ *  allocate a new array sixty times a second for nothing. */
+const EMPTY_MAP_OTHERS: ReadonlyArray<{ x: number; y: number; name: string }> = [];
+
 const FLASH_RANGE = 60;
 
 export interface BattleHud {
@@ -118,7 +123,25 @@ export interface HudData {
   battle: BattleHud | null;
   defeated: number;
   total: number;
-  map: { px: number; py: number; rx: number; ry: number } | null;
+  /** Everything a map needs that changes from frame to frame. The road
+   *  itself does not — it comes from engine.getRoadMap(), once. */
+  map: {
+    /** You, in 0..1 of the map's square box. */
+    px: number;
+    py: number;
+    /** The rival, or -1 when there is not one. */
+    rx: number;
+    ry: number;
+    /** Which way you are pointing, radians in map space. */
+    facing: number;
+    /** Metres from the start line. */
+    s: number;
+    /** Metres to the next petrol station, going forwards. */
+    toPump: number;
+    /** Other drivers online. Empty, and the same empty array every
+     *  frame, when nobody else is on the road. */
+    others: ReadonlyArray<{ x: number; y: number; name: string }>;
+  } | null;
   /** Nearest online player within challenge range, if any. */
   nearestRemote: { id: number; name: string; dist: number } | null;
   /** Live PvP duel state, or null when not duelling. */
@@ -881,7 +904,8 @@ export class GameEngine {
   private smokeAcc = 0;
 
   // Minimap
-  private mapBounds = { minX: 0, maxX: 1, minZ: 0, maxZ: 1 };
+  /** Built on first use — see getRoadMap. */
+  private roadMap: RoadMap | null = null;
 
   // Audio
   private sound: SoundEngine | null = null;
@@ -987,7 +1011,10 @@ export class GameEngine {
 
     this.buildEnvironment();
     this.world = buildWorld(this.scene, this.track);
-    this.computeMapBounds();
+    // After buildWorld, not before: the map marks the landmarks at the
+    // distances the world actually placed them at, and until the world
+    // exists there are none to mark.
+    this.getRoadMap();
 
     // Moonlight shadows: a compact ortho frustum that the loop keeps
     // centred on the player, so nearby cars, rails, and poles all throw
@@ -2271,13 +2298,9 @@ export class GameEngine {
   }
 
   getMapPath(): Array<[number, number]> {
-    const pts: Array<[number, number]> = [];
-    const p = new THREE.Vector3();
-    for (let i = 0; i <= 120; i++) {
-      this.track.curve.getPointAt(i / 120, p);
-      pts.push(this.toMap(p.x, p.z));
-    }
-    return pts;
+    // The same centreline the full map draws, so the two can never
+    // disagree about the shape of the road.
+    return this.getRoadMap().path.map((p) => [p.x, p.y] as [number, number]);
   }
 
   dispose(): void {
@@ -5077,25 +5100,28 @@ export class GameEngine {
 
   // ---------------------------------------------------------------- hud
 
-  private computeMapBounds(): void {
-    const p = new THREE.Vector3();
-    const b = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
-    for (let i = 0; i <= 200; i++) {
-      this.track.curve.getPointAt(i / 200, p);
-      b.minX = Math.min(b.minX, p.x);
-      b.maxX = Math.max(b.maxX, p.x);
-      b.minZ = Math.min(b.minZ, p.z);
-      b.maxZ = Math.max(b.maxZ, p.z);
-    }
-    this.mapBounds = b;
+  /**
+   * The map of the whole road, built once and shared.
+   *
+   * Everything that shows a position — the corner minimap, the
+   * full-screen map, the dots on both — goes through this one
+   * projection, because two maps of the same road that disagree about
+   * where a thing is are worse than one map.
+   */
+  getRoadMap(): RoadMap {
+    this.roadMap ??= buildRoadMap(this.track);
+    return this.roadMap;
   }
 
   private toMap(x: number, z: number): [number, number] {
-    const b = this.mapBounds;
-    const pad = 0.08;
-    const nx = pad + ((x - b.minX) / (b.maxX - b.minX)) * (1 - pad * 2);
-    const nz = pad + ((z - b.minZ) / (b.maxZ - b.minZ)) * (1 - pad * 2);
-    return [nx, nz];
+    // Was: normalise x and z independently to fill the box. That made
+    // the lap's shape a function of the shape of the widget it was drawn
+    // in — this lap is 2.0 by 3.5 km, so it came out 43% wider than the
+    // road really is, and any two boxes of different proportions drew
+    // two different roads. roadmap.ts fits it with one scale for both
+    // axes and centres it, so a metre is a metre whichever way you go.
+    const p = this.getRoadMap().project(x, z);
+    return [p.x, p.y];
   }
 
   private emitHud(): void {
@@ -5288,16 +5314,48 @@ export class GameEngine {
 
     this.track.pointAt(this.player.s, this.v1);
     const [px, py] = this.toMap(this.v1.x, this.v1.z);
+    // Which way you are pointing, in map space. The projection is a
+    // rigid scale of the world's x and z, so the road's tangent IS the
+    // map's tangent and no separate bearing has to be tracked — the one
+    // thing an aspect-correct map buys that a stretched one cannot.
+    this.track.tangentAt(this.player.s, this.v3);
+    const facing = Math.atan2(this.v3.z, this.v3.x);
+    // Where the nearest pump is. The tank has a fail state, and a map
+    // that cannot answer "which way is the next one" is a decoration.
+    const pump = nextStation(this.track.length, this.track.wrap(this.player.s));
 
+    // Everyone else on the road, for the full map. Built only when there
+    // is somebody there — an empty array every frame at sixty frames a
+    // second is garbage for nothing.
+    let others: ReadonlyArray<{ x: number; y: number; name: string }> = EMPTY_MAP_OTHERS;
+    if (this.remotes.size > 0) {
+      const list: Array<{ x: number; y: number; name: string }> = [];
+      for (const rp of this.remotes.values()) {
+        if (!rp.mesh.visible) continue;
+        this.track.pointAt(rp.s, this.v1);
+        const [ox, oy] = this.toMap(this.v1.x, this.v1.z);
+        list.push({ x: ox, y: oy, name: rp.name });
+      }
+      others = list;
+      this.track.pointAt(this.player.s, this.v1);
+    }
+
+    const common = {
+      px, py,
+      facing,
+      s: this.track.wrap(this.player.s),
+      toPump: pump.metres,
+      others,
+    };
     if (r && r.state !== "defeated") {
       const gap = this.track.deltaAhead(this.player.s, r.s);
       rivalDist = gap;
       canFlash = !this.inBattle && !this.challengePending && gap >= 2 && gap <= FLASH_RANGE;
       this.track.pointAt(r.s, this.v1);
       const [rx, ry] = this.toMap(this.v1.x, this.v1.z);
-      map = { px, py, rx, ry };
+      map = { ...common, rx, ry };
     } else {
-      map = { px, py, rx: -1, ry: -1 };
+      map = { ...common, rx: -1, ry: -1 };
     }
 
     let nearestRemote: HudData["nearestRemote"] = null;

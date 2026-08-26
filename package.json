@@ -43,6 +43,8 @@
     "test:radio": "node tests/radio.mjs",
     "test:drivetrain": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/drivetrain.mjs",
     "test:tow": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/slipstream.mjs",
+    "test:roadmap": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/roadmap.mjs",
+    "test:map": "node tests/mapscreen.mjs",
     "test:areas": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/areas.mjs",
     "test:daynight": "node tests/daynight.mjs",
     "test:ik": "node tests/ik.mjs",

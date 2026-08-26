@@ -2263,6 +2263,29 @@ function lighthouse(): THREE.Group {
 export const LANDMARK_S: Record<string, number> = {};
 
 /**
+ * What the landmarks are called.
+ *
+ * LANDMARK_S has only ever held ids and distances, because until now the
+ * only thing that read it was a test checking a tower had been placed
+ * where it was supposed to be. A map has to print them, and "al-hamra"
+ * is not a name — so the ids get a table, in the order you pass them
+ * driving a lap.
+ *
+ * Separate from LANDMARK_S rather than merged into it because the two
+ * are known at different times: this is static, and the distances are
+ * whatever buildWorld actually used, recorded as it places each one.
+ */
+export const LANDMARKS: Array<{ id: string; name: string; arabic: string }> = [
+  { id: "green-island", name: "Green Island", arabic: "الجزيرة الخضراء" },
+  { id: "kuwait-towers", name: "Kuwait Towers", arabic: "أبراج الكويت" },
+  { id: "salmiya-marina", name: "Salmiya Marina", arabic: "مارينا السالمية" },
+  { id: "scientific-center", name: "Scientific Center", arabic: "المركز العلمي" },
+  { id: "ras-al-ard-light", name: "Ras Al-Ard Light", arabic: "منارة رأس الأرض" },
+  { id: "liberation-tower", name: "Liberation Tower", arabic: "برج التحرير" },
+  { id: "al-hamra", name: "Al Hamra Tower", arabic: "برج الحمراء" },
+];
+
+/**
  * FLYOVERS — the road running under something.
  *
  * A Kuwaiti dual carriageway is not a ribbon between landmarks. The

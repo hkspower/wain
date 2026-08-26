@@ -8,6 +8,8 @@ import Onboarding, { CoachHint, CoachState, hasOnboarded } from "./Onboarding";
 import { ICONS, IconFlash, IconCrown, IconGear, IconFlagKW, type IconName } from "./Icons";
 import Garage from "./Garage";
 import KuwaitClock from "./KuwaitClock";
+import RoadMapView from "./RoadMapView";
+import type { RoadMap } from "@/game/roadmap";
 import { gearAt } from "@/game/gears";
 import { RIVALS, RivalDef } from "@/game/rivals";
 import { HubClient, DuelInvite, loadProfile, formatLap } from "@/game/net";
@@ -364,6 +366,13 @@ export default function RaceClient() {
   const mapRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const mapPathRef = useRef<Array<[number, number]>>([]);
+  /** The whole road, built once by the engine. Null until it starts. */
+  const [roadMap, setRoadMap] = useState<RoadMap | null>(null);
+  const [mapOpen, setMapOpen] = useState(false);
+  /** The per-frame half of the map, kept on a ref rather than in state:
+   *  the full map redraws at the display's rate and a setState per frame
+   *  would re-render the overlay with it. */
+  const hudMapRef = useRef<HudData["map"] | null>(null);
 
   const speedRef = useRef<HTMLSpanElement>(null);
   const gearRef = useRef<HTMLSpanElement>(null);
@@ -657,6 +666,7 @@ export default function RaceClient() {
 
   const onHud = useCallback(
     (d: HudData) => {
+      hudMapRef.current = d.map;
       if (speedRef.current) speedRef.current.textContent = String(Math.round(d.speedKmh));
       // The rev counter, off the engine's own needle rather than worked
       // back out of the speed: at a standing launch the gearbox function
@@ -1101,6 +1111,7 @@ export default function RaceClient() {
         },
       }, Number.isFinite(startS) ? { startS } : undefined);
       mapPathRef.current = engine.getMapPath();
+      setRoadMap(engine.getRoadMap());
       engine.resize();
       engine.start();
     } catch (err) {
@@ -1760,14 +1771,28 @@ export default function RaceClient() {
           >
             {isFs ? "⛶ exit" : "⛶ fullscreen"}
           </button>
-          {/* Buffer outsized vs its 150px CSS box so the HUD zoom can
-              enlarge it on big screens without going soft */}
-          <canvas
-            ref={mapRef}
-            width={320}
-            height={320}
-            className="grn-panel size-[124px] p-1"
-          />
+          {/* The minimap is the way into the full one.
+              A button rather than a key, and deliberately: every letter
+              that means anything is already bound — m is mute, n is
+              nitro, r is the radio, c the camera — and inventing a
+              mnemonic-free one would be a shortcut nobody finds. Tapping
+              the thing you want bigger is the gesture people already
+              try, and it is the only version of this that works on a
+              phone at all.
+              Buffer outsized vs its CSS box so the HUD zoom can enlarge
+              it on big screens without going soft. */}
+          <button
+            onClick={() => setMapOpen(true)}
+            disabled={!roadMap}
+            title="Open the full map"
+            aria-label="Open the full map"
+            className="pointer-events-auto grn-panel relative p-1 transition hover:border-white/35 disabled:opacity-60"
+          >
+            <canvas ref={mapRef} width={320} height={320} className="size-[116px]" />
+            <span className="grn-label absolute inset-x-0 bottom-1 text-center text-[0.45rem] text-white/45">
+              tap to open
+            </span>
+          </button>
           <div
             className={`grn-info hud-hint px-3 py-2 text-right font-display text-[0.72rem] leading-[1.35] ${
               isTouch ? "hidden" : ""
@@ -2901,6 +2926,19 @@ export default function RaceClient() {
             <div className="h-10" />
           </div>
         </div>
+      )}
+
+      {/* The whole road, full screen. Opened from the minimap, closed on
+          Escape or the button — and it does not pause, because it shows
+          what the HUD already shows in a size you can read, and making
+          it a pause would put an information screen inside the one part
+          of the game where pausing has rules. */}
+      {mapOpen && roadMap && (
+        <RoadMapView
+          map={roadMap}
+          liveRef={hudMapRef}
+          onClose={() => setMapOpen(false)}
+        />
       )}
 
       {/* Garage */}
