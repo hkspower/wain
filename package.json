@@ -98,7 +98,8 @@
     "check:framing": "node tools/shots/framing.mjs",
     "check:gutters": "node tools/shots/gutters.mjs",
     "check:align": "node tools/shots/align.mjs",
-    "check:texels": "node tools/shots/texels.mjs"
+    "check:texels": "node tools/shots/texels.mjs",
+    "check:film": "node tools/shots/introfilm.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.2.0",
