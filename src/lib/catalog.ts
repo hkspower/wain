@@ -243,8 +243,24 @@ export const totalStock = (p: Product) => p.variants.reduce((n, v) => n + v.stoc
  *  particular size has probably already missed it. */
 export const LOW_STOCK = 5;
 
+/**
+ * UNTRACKED PRODUCTS ARE NOT OUT OF STOCK. A product with no rows in
+ * product_variants — the backpack, the caps, the phone strap — has no stock
+ * figure anywhere, and the server says so explicitly: store_price_lines only
+ * demands a size when rows exist, and store_stock_claim skips those lines
+ * rather than invent a count. The website sells them.
+ *
+ * The app did not. `?? 0` read "no row" as "none left", so every accessory in
+ * the shop had a size row that could not be picked and an Add button that
+ * answered "choose a size" forever. Untracked means untracked: the only cap
+ * left is the server's own per-line limit.
+ */
+export const UNTRACKED_CAP = 99; // store.php: qty > 99 is invalid_qty
+
+export const isTracked = (p: Product) => p.variants.length > 0;
+
 export const stockFor = (p: Product, size: string) =>
-  p.variants.find((v) => v.size === size)?.stock ?? 0;
+  isTracked(p) ? (p.variants.find((v) => v.size === size)?.stock ?? 0) : UNTRACKED_CAP;
 
 /** Localised accessors, so screens never branch on language themselves. */
 export const productName = (p: Product, lang: 'ar' | 'en') => (lang === 'ar' ? p.nameAr : p.name);

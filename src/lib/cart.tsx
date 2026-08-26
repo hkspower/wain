@@ -64,9 +64,21 @@ const isLines = (value: unknown): value is Line[] =>
       Number.isFinite((l as Line).qty),
   );
 
-/** Free delivery over 20 KD; below it, 1.500 KD. Both in fils. */
-export const FREE_DELIVERY_OVER: Fils = 20_000;
-export const DELIVERY_FEE: Fils = 1_500;
+/**
+ * DELIVERY IS 1 KWD, FLAT — the server's number, not a second opinion.
+ *
+ * store.php: `const STORE_DELIVERY_FEE_FILS = 1000`, added to every order,
+ * every governorate, every payment method, with no free-over threshold of any
+ * kind. The app quoted 1.500 and promised free delivery over 20 KWD, so a
+ * customer with a 30 KWD basket was shown "Delivery: free, total 30.000" and
+ * the bank then took 31.000 — measured against the real api.php, order
+ * SPDELIV2: subtotal 30.000, delivery 1.000, amount 31.000.
+ *
+ * A total the customer is shown has to be the total they are charged. If the
+ * fee or a free-delivery threshold is ever wanted, it belongs in store.php
+ * first and here second.
+ */
+export const DELIVERY_FEE: Fils = 1_000;
 
 type Ctx = {
   products: Product[];
@@ -210,7 +222,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return { count, subtotal };
   }, [lines, productFor]);
 
-  const delivery = subtotal === 0 || subtotal >= FREE_DELIVERY_OVER ? 0 : DELIVERY_FEE;
+  const delivery = subtotal === 0 ? 0 : DELIVERY_FEE;
 
   const value = useMemo<Ctx>(
     () => ({

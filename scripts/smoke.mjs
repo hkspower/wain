@@ -262,10 +262,14 @@ check((await seen(p.getByText('هذا كل المتوفر بالمخزون')).co
 // customer just filled.
 await p.getByRole('button', { name: 'السلة →' }).click()
 await p.waitForTimeout(700)
-// 6 x 9.750 = 58.500, and it is over the free-delivery line, so both the line
-// maths and the delivery rule are read from the same basket.
+// 6 x 9.750 = 58.500, and the fee is the same 1.000 on it as on a basket of
+// one — store.php adds STORE_DELIVERY_FEE_FILS to every order with no
+// threshold of any kind. This assertion used to read 'delivery is free over
+// 20 KD', which is what the app promised and the server never honoured: a
+// customer with this basket was quoted 58.500 and charged 59.500.
 check((await seen(p.getByText('٥٨٫٥٠٠ د.ك')).count()) > 0, 'line total is quantity x price, in Arabic fils')
-check((await seen(p.getByText('مجاني')).count()) > 0, 'delivery is free over 20 KD')
+check((await seen(p.getByText('مجاني')).count()) === 0, 'nothing is promised free — the server has no free-delivery line')
+check((await seen(p.getByText('٥٩٫٥٠٠ د.ك')).count()) > 0, 'the total adds the flat 1.000 delivery the server charges')
 // Click + until it refuses, rather than a fixed number of times: the stepper
 // DISABLES itself at the stock ceiling, and clicking a disabled button is a
 // 30-second timeout, not a failed assertion. The loop is bounded so a stepper

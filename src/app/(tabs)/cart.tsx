@@ -11,7 +11,7 @@ import { ContentColumn, Screen } from '@/components/ui/screen';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Elevation, Radius, Spacing, TapTarget } from '@/constants/theme';
-import { FREE_DELIVERY_OVER, useCart } from '@/lib/cart';
+import { useCart } from '@/lib/cart';
 import { productPhoto } from '@/lib/assets';
 import { productName, stockFor } from '@/lib/catalog';
 import { useLang } from '@/lib/i18n';
@@ -90,7 +90,10 @@ export default function CartScreen() {
                     {productName(p, lang)}
                   </ThemedText>
                   <ThemedText type="label" themeColor="textSecondary" style={text}>
-                    {t.product.size} {l.size}
+                    {/* An untracked line — a cap, the phone strap — has no
+                        size, and "Size " with nothing after it read as a
+                        missing value rather than as a product without one. */}
+                    {l.size ? `${t.product.size} ${l.size}` : ''}
                   </ThemedText>
                   <ThemedText type="labelBold" style={text}>
                     {formatPrice(p.price * l.qty, lang)}
@@ -121,11 +124,6 @@ export default function CartScreen() {
             );
           })}
 
-          {delivery > 0 && (
-            <ThemedText type="label" themeColor="tintText" style={text}>
-              {t.cart.freeOver(formatPrice(FREE_DELIVERY_OVER, lang))}
-            </ThemedText>
-          )}
 
 
     </Screen>

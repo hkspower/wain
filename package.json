@@ -56,6 +56,7 @@
     "test:assistant": "node scripts/assistant-test.mjs",
     "test:csp": "node scripts/csp-check.mjs",
     "test:styles": "node scripts/style-audit.mjs",
+    "test:db": "php scripts/db-audit.php",
     "scan:site": "node scripts/site-scan.mjs",
     "scan:site:curl": "bash scripts/site-scan.sh",
     "scan:php": "php scripts/php-deprecations.php",

@@ -15,7 +15,7 @@ import { useHydrated } from '@/hooks/use-hydrated';
 import { useTheme } from '@/hooks/use-theme';
 import { useCart } from '@/lib/cart';
 import { productPhoto } from '@/lib/assets';
-import { productBlurb, productDetails, productName } from '@/lib/catalog';
+import { isTracked, productBlurb, productDetails, productName } from '@/lib/catalog';
 import { useLang } from '@/lib/i18n';
 import { formatNumber } from '@/lib/money';
 
@@ -48,14 +48,20 @@ export default function ProductScreen() {
     );
   }
 
+  // A product with no rows in product_variants is UNTRACKED, not sold out —
+  // the caps, the backpack, the phone strap. The server sells them without a
+  // size and the website does too; the app asked for one that was never on
+  // offer. Its cart line keys on the empty size, which is exactly what the
+  // order body carries.
+  const tracked = isTracked(product);
   const stock = size ? (product.variants.find((v) => v.size === size)?.stock ?? 0) : 0;
 
   const onAdd = () => {
-    if (!size) {
+    if (tracked && !size) {
       setSaid('pick');
       return;
     }
-    setSaid(add(product.slug, size) ? 'added' : 'capped');
+    setSaid(add(product.slug, tracked ? (size as string) : '') ? 'added' : 'capped');
   };
 
   return (
@@ -134,10 +140,16 @@ export default function ProductScreen() {
           {/* Sizes. Sold-out sizes stay VISIBLE and disabled rather than being
               hidden: a customer who cannot find their size needs to know it
               exists and is gone, otherwise they conclude the shop does not
-              carry it. */}
+              carry it.
+
+              An UNTRACKED product has no sizes to show at all, and printing
+              the heading over an empty row read as "sizes are loading" or
+              "this is sold out" — it was neither. */}
+          {tracked ? (
           <ThemedText type="labelBold" style={[styles.label, text]}>
             {t.product.size}
           </ThemedText>
+          ) : null}
           <View style={[styles.sizeRow, row]}>
             {product.variants.map((v) => {
               const out = v.stock <= 0;

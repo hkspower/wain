@@ -20,19 +20,73 @@ product a customer opens. That was reported as an app bug and was this file.
 A real host needs the same rule. On Apache it is a RewriteRule per dynamic
 segment; the point either way is that the fallback must be the route's own
 prerendered file, not the home page.
+
+AND IT PASSES /api THROUGH to the PHP site, because production is ONE origin.
+Without that the exported app can only ever be tested against the nine
+placeholder products bundled into src/lib/catalog.ts: the live fetch is
+cross-origin, api.php sends no CORS headers (correctly — it does not need to),
+and the app silently falls back offline. Every browser rig here was therefore
+green against a catalogue no customer has ever seen. Set SPORTA_API_ORIGIN to
+aim it somewhere else.
 """
 
 import functools
+import http.client
 import http.server
 import os
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 
 DIST = Path(__file__).resolve().parent.parent / 'dist'
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 4173
 
 
+API_ORIGIN = os.environ.get('SPORTA_API_ORIGIN', 'http://127.0.0.1:4300')
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
+    def do_GET(self):
+        if self._proxied('GET'):
+            return
+        super().do_GET()
+
+    def do_POST(self):
+        self._proxied('POST')
+
+    def _proxied(self, method):
+        """/api/... -> the PHP site, verbatim, so the app sees one origin.
+
+        Verbatim matters: the body, the content type and the status all go
+        through untouched, and so do Set-Cookie and the error codes. A proxy
+        that tidied any of those would be testing itself.
+        """
+        if not self.path.startswith('/api/'):
+            return False
+        target = urlsplit(API_ORIGIN)
+        conn = http.client.HTTPConnection(target.hostname, target.port or 80, timeout=20)
+        length = int(self.headers.get('Content-Length') or 0)
+        body = self.rfile.read(length) if length else None
+        headers = {k: v for k, v in self.headers.items()
+                   if k.lower() not in ('host', 'connection', 'accept-encoding')}
+        headers['Host'] = f'{target.hostname}:{target.port or 80}'
+        try:
+            conn.request(method, self.path, body=body, headers=headers)
+            res = conn.getresponse()
+            data = res.read()
+        except OSError as exc:
+            self.send_error(502, f'api unreachable: {exc}')
+            return True
+        self.send_response(res.status)
+        for k, v in res.getheaders():
+            if k.lower() in ('transfer-encoding', 'content-length', 'connection'):
+                continue
+            self.send_header(k, v)
+        self.send_header('Content-Length', str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+        return True
+
     def translate_path(self, path):
         local = Path(super().translate_path(path))
         if local.is_dir() and (local / 'index.html').exists():
