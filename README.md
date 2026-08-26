@@ -93,6 +93,7 @@ because the rigs place real orders against a real database.
 | `npm run test:wallet` | A built `.pkpass`, the way Wallet reads one |
 | `npm run test:assistant` | سبورتا AI: the facts are the shop's, and a customer cannot forge them |
 | `npm run test:csp` | Every inline script in the website is declared in its CSP |
+| `npm run test:htaccess` | `.htaccess` run by a real Apache — routes, redirects and refusals (needs `apache2`) |
 | `npm run test:styles` | No dead style keys, and no hard-coded white on a surface that changes with the theme |
 | `npm run test:db` | The database's values against the website and app that read them |
 | `npm run test:site-contrast` | Every run of text on the website, measured against what is behind it — `THEME=light` for the other one |

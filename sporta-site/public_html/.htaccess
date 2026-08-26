@@ -142,6 +142,21 @@ Options -Indexes
   # /invoice/<order number>. A parameterised route, so it needs its own rule —
   # the alternation list above only matches fixed paths.
   RewriteRule ^invoice/[A-Za-z0-9]{1,30}/?$ /index.html [L]
+  # /admin -> /backends. A REDIRECT, not an internal rewrite: the panel is a
+  # route inside the single-page app and the app's router only knows
+  # /backends, so serving index.html at /admin would render the shop's 404
+  # page and look like the panel was broken. The browser has to be sent to
+  # the address the app answers on.
+  #
+  # $1 carries the rest of the path, so /admin/orders lands on
+  # /backends/orders rather than dumping every deep link on the dashboard.
+  #
+  # 302 and not 301 on purpose: a permanent redirect is cached by the browser
+  # more or less forever, and if the panel ever moves again that cache is not
+  # something you can reach in to clear. This one costs a hop and stays
+  # changeable.
+  RewriteRule ^admin(/.*)?$ https://www.sporta.com.kw/backends$1 [R=302,L]
+
   RewriteRule ^backends(/.*)?$         /index.html [L]
 </IfModule>
 
