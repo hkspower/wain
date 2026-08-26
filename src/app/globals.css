@@ -259,6 +259,21 @@ input[type="search"]::-webkit-search-decoration {
   appearance: none;
 }
 
+/* Room at the bottom for شوق's launcher, in a browser.
+
+   The clearance below existed only inside the standalone blocks, so it reached
+   people who had installed the site to their home screen and nobody else —
+   which is nearly everybody. In an ordinary mobile browser the launcher floats
+   over whatever the page ends with, and the last row of it can never be
+   scrolled out from under the button. The launcher is 1.25rem from the bottom
+   and about 3.5rem tall, so 5.5rem clears it with room to tap what is beneath.
+
+   env() is nested inside the calc rather than added to it so that a browser
+   with no safe-area support still gets the 5.5rem. */
+body {
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+}
+
 /* App version (installed to the home screen). The bottom tab bar becomes the
    primary navigation, so content clears it, the navbar's duplicate links go,
    شوق's launcher moves up out of the tab bar's way, and the page stops

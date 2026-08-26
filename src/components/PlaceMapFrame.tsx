@@ -91,6 +91,7 @@ export default function PlaceMapFrame({
   return (
     <div
       ref={frameRef}
+      data-map-frame=""
       style={{ aspectRatio: String(f.aspect) }}
       className="relative w-full bg-sand-100"
     >

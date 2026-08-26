@@ -277,7 +277,7 @@ export default function OrderTracker() {
         </p>
         <Link
           href="/explore"
-          className="mt-5 inline-block rounded-xl bg-ink-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-ink-800"
+          className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800"
         >
           تصفّح الأماكن
         </Link>

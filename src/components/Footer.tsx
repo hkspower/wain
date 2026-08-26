@@ -33,7 +33,7 @@ export default function Footer() {
                 <li key={cat.id}>
                   <Link
                     href={`/explore/?category=${cat.id}`}
-                    className="inline-flex min-h-11 items-center text-sm text-ink-500 transition hover:text-coral-700"
+                    className="flex w-full min-h-11 items-center text-sm text-ink-500 transition hover:text-coral-700"
                   >
                     {cat.ar}
                   </Link>
@@ -47,12 +47,12 @@ export default function Footer() {
             <h2 className="text-sm font-semibold text-ink-800">روابط</h2>
             <ul className="mt-1">
               <li>
-                <Link href="/explore" className="inline-flex min-h-11 items-center text-sm text-ink-500 transition hover:text-coral-700">
+                <Link href="/explore" className="flex w-full min-h-11 items-center text-sm text-ink-500 transition hover:text-coral-700">
                   استكشف كل الأماكن
                 </Link>
               </li>
               <li>
-                <Link href="/add" className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-ink-700 transition hover:text-coral-700">
+                <Link href="/add" className="flex w-full min-h-11 items-center gap-1.5 text-sm font-semibold text-ink-700 transition hover:text-coral-700">
                   سجّل مكانك
                   <span className="rounded-full bg-palm-500/12 px-1.5 py-0.5 text-xs font-semibold text-palm-700">
                     مجاناً
@@ -63,12 +63,12 @@ export default function Footer() {
               <OrdersLink />
               <QueueLink />
               <li>
-                <Link href="/about" className="inline-flex min-h-11 items-center text-sm text-ink-500 transition hover:text-coral-700">
+                <Link href="/about" className="flex w-full min-h-11 items-center text-sm text-ink-500 transition hover:text-coral-700">
                   عن وين
                 </Link>
               </li>
               <li>
-                <Link href="/privacy" className="inline-flex min-h-11 items-center text-sm text-ink-500 transition hover:text-coral-700">
+                <Link href="/privacy" className="flex w-full min-h-11 items-center text-sm text-ink-500 transition hover:text-coral-700">
                   الخصوصية والكوكيز
                 </Link>
               </li>

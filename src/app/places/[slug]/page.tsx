@@ -99,7 +99,10 @@ export default async function PlacePage({
     <div className="mx-auto max-w-4xl px-4 py-8 standalone:px-3 standalone:py-4 sm:px-6 sm:py-12">
       {/* Breadcrumb */}
       <nav className="mb-5 text-sm text-ink-500" aria-label="مسار التنقّل">
-        <Link href="/explore" className="transition hover:text-coral-700">
+        <Link
+          href="/explore"
+          className="inline-flex min-h-11 items-center transition hover:text-coral-700"
+        >
           استكشف
         </Link>
         <span className="mx-2" aria-hidden="true">

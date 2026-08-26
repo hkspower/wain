@@ -57,7 +57,7 @@ export default function PlaceMap({
             href={osmLink}
             target="_blank"
             rel="noopener noreferrer"
-            className="ms-auto text-xs text-ink-500 underline-offset-2 hover:underline"
+            className="ms-auto inline-flex min-h-11 items-center text-xs text-ink-500 underline-offset-2 hover:underline"
           >
             بيانات الخريطة © OpenStreetMap
           </a>

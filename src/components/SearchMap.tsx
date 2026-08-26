@@ -106,6 +106,7 @@ export default function SearchMap({
 
       <div
         ref={frameRef}
+        data-map-frame=""
         // The shape comes from the results, so it has to be inline. It must
         // stay exactly the aspect the bbox was grown to, or every pin shifts.
         style={{ aspectRatio: String(f.aspect) }}

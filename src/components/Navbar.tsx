@@ -22,7 +22,11 @@ export default function Navbar() {
         {/* Brand */}
         <Link
           href="/"
-          className="group flex min-h-11 shrink-0 items-center gap-2"
+          // min-w-11 as well as min-h-11: below 360px the wordmark hides and
+          // only the 40px mark is left, so the link home — the one every
+          // visitor eventually reaches for — was the single target on the site
+          // a thumb could miss. Four pixels of padding costs nothing here.
+          className="group flex min-h-11 min-w-11 shrink-0 items-center gap-2"
           aria-label="وين — الصفحة الرئيسية"
         >
           <span
