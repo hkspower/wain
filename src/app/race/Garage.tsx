@@ -151,7 +151,11 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
   const [selling, setSelling] = useState<string | null>(null);
   useEffect(() => {
     if (!selling) return;
-    const t = setTimeout(() => setSelling(null), 4000);
+    // Eight seconds, because the armed label is a question — "SELL FOR
+    // 14,880 KD — sure?" — and a player actually weighing it needs time
+    // to read the number and think. Four was tested and it disarmed
+    // under an honest hesitation.
+    const t = setTimeout(() => setSelling(null), 8000);
     return () => clearTimeout(t);
   }, [selling]);
   // The machine on the ramp. Parts are bought FOR a car, so the shop has
