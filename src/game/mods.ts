@@ -1067,6 +1067,72 @@ export function addKd(amount: number): number {
   return g.kd;
 }
 
+// ------------------------------------------------------------ the shop
+//
+// Buying has been here since the showroom existed; this is the other
+// half of a dealership. Selling is what turns a driveway into an
+// economy: the choice between keeping the built-up Salmiya Turbo and
+// trading it against the Falcon is a real decision only if the trade
+// pays something, and it is only a DECISION if it pays less than you
+// put in — a dealer who refunds the sticker is an undo button, and an
+// undo button makes every purchase weightless.
+
+/** What the dealer pays against the sticker price of the car itself. */
+export const RESALE_CAR_FRAC = 0.62;
+
+/** ...and against the aftermarket parts bolted to it. Lower, because a
+ *  used mod is worth less than a used car: the next owner did not
+ *  choose it. */
+export const RESALE_PART_FRAC = 0.4;
+
+/**
+ * What the dealer will pay for this car, as it stands, parts included.
+ *
+ * Factory-fitted parts are deliberately NOT counted: on the one machine
+ * that ships built — the GTR arrives with twelve parts bolted in — the
+ * sticker price already paid for them, and pricing them again on the
+ * way out would make buy-and-flip profitable, which is a money printer
+ * wearing a dealership sign. Free launch parts price at zero and fall
+ * out on their own.
+ */
+export function tradeInValue(g: GarageState, carId: string): number {
+  const car = getCar(carId);
+  const b = buildOf(g, carId);
+  const factory = new Set(car.factoryBuild ?? []);
+  let parts = 0;
+  for (const id of b.owned) {
+    if (factory.has(id)) continue;
+    const p = PARTS.find((x) => x.id === id);
+    if (p) parts += p.price;
+  }
+  return Math.round(car.price * RESALE_CAR_FRAC + parts * RESALE_PART_FRAC);
+}
+
+/**
+ * Sell a car back to the dealer. Mutates `g`; the caller saves.
+ *
+ * Two refusals, both rules of the game rather than of the UI:
+ * a car you do not own is not yours to sell, and the driveway can
+ * never be empty — this is a driving game, and a player who sells
+ * their last car has softlocked themselves out of it. Selling the car
+ * being driven is allowed; the seat moves to the first machine left.
+ * The build goes with the car — buying it back later delivers a fresh
+ * one, the way a dealership works and a pawnbroker does not.
+ */
+export function sellCar(
+  g: GarageState,
+  carId: string
+): { ok: boolean; paid: number; reason?: string } {
+  if (!g.cars.includes(carId)) return { ok: false, paid: 0, reason: "not owned" };
+  if (g.cars.length <= 1) return { ok: false, paid: 0, reason: "last car" };
+  const paid = tradeInValue(g, carId);
+  g.cars = g.cars.filter((id) => id !== carId);
+  delete g.builds[carId];
+  g.kd += paid;
+  if (g.car === carId) g.car = g.cars[0];
+  return { ok: true, paid };
+}
+
 export type Aspiration = "none" | "turbo" | "super" | "twin";
 
 export interface TuneEffects {

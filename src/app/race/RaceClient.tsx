@@ -39,6 +39,7 @@ import {
   clampTint,
   loadGarage,
   saveGarage,
+  sellCar,
   CARS,
   getCar,
   lockedBy,
@@ -584,6 +585,17 @@ export default function RaceClient() {
       editBuild(g, carId);
     }
     g.car = carId; // buying it also puts you behind the wheel
+    saveGarage(g);
+    setGarage(g);
+  }, []);
+
+  // The other half of the dealership. The rules live in sellCar — the
+  // last car cannot go, the seat moves if it was under you — so this is
+  // only plumbing: mutate, save, re-render.
+  const onSellCar = useCallback((carId: string) => {
+    const g = loadGarage();
+    const r = sellCar(g, carId);
+    if (!r.ok) return;
     saveGarage(g);
     setGarage(g);
   }, []);
@@ -2947,6 +2959,7 @@ export default function RaceClient() {
           garage={garage}
           onClose={() => setGarageOpen(false)}
           onBuyCar={buyOrDrive}
+          onSellCar={onSellCar}
           onBuyPart={buyOrEquip}
           onTint={setTint}
         />

@@ -16,6 +16,7 @@ import {
   getCar,
   lockedBy,
   rivalsBeaten,
+  tradeInValue,
 } from "@/game/mods";
 import { getEngine, layoutTag } from "@/game/engines";
 import {
@@ -133,14 +134,26 @@ interface Props {
   garage: GarageState;
   onClose(): void;
   onBuyCar(id: string): void;
+  /** Sell an owned car back to the dealer — see sellCar in mods.ts for
+   *  the rules; the shop only draws them. */
+  onSellCar(id: string): void;
   onBuyPart(p: Part, carId: string): void;
   /** Window tint for one car, 0-100. Free and instant: it is a slider,
    *  not a purchase, so it does not go through onBuyPart. */
   onTint(carId: string, pct: number): void;
 }
 
-export default function Garage({ garage, onClose, onBuyCar, onBuyPart, onTint }: Props) {
+export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart, onTint }: Props) {
   const [tab, setTab] = useState<Tab>("showroom");
+  // Selling is the one destructive act in this shop, so it takes two
+  // taps: the first arms the button and shows the money, the second is
+  // the sale. Anything else — another card, another tab — disarms it.
+  const [selling, setSelling] = useState<string | null>(null);
+  useEffect(() => {
+    if (!selling) return;
+    const t = setTimeout(() => setSelling(null), 4000);
+    return () => clearTimeout(t);
+  }, [selling]);
   // The machine on the ramp. Parts are bought FOR a car, so the shop has
   // to say which one — and let you build a car you are not driving,
   // which is the whole reason to own more than one.
@@ -191,6 +204,7 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart, onTint }:
   const pick = (t: Tab) => {
     haptic(HAPTIC.tap, loadSettings().haptics);
     playSfx("ui-tap", 0.5);
+    setSelling(null);
     setTab(t);
   };
 
@@ -397,7 +411,9 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart, onTint }:
             <div key="showroom" className="reveal">
               <p className="max-w-2xl text-[0.8rem] leading-6 text-white/50">
                 Priced high to low. Buying a machine puts you straight behind the
-                wheel; tap an owned one to drive it.
+                wheel; tap an owned one to drive it — or trade it back in. The
+                dealer pays 62% on the car and 40% on the parts, and the build
+                goes with it.
               </p>
               {(["supercar", "sport", "normal"] as CarClass[]).map((cls) => (
                 <div key={cls} className="mt-5">
@@ -413,10 +429,15 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart, onTint }:
                       // this machine. Shown rather than hidden: a car
                       // you cannot see is not rare, it is absent.
                       const toGo = owned ? 0 : lockedBy(c, beaten);
+                      const quote = owned ? tradeInValue(garage, c.id) : 0;
+                      const lastCar = garage.cars.length <= 1;
                       return (
+                        <div key={c.id}>
                         <button
-                          key={c.id}
-                          onClick={() => onBuyCar(c.id)}
+                          onClick={() => {
+                            setSelling(null);
+                            onBuyCar(c.id);
+                          }}
                           disabled={!owned && (!affordable || toGo > 0)}
                           className={`grn-panel tap p-3.5 text-left transition ${
                             driving
@@ -494,6 +515,49 @@ export default function Garage({ garage, onClose, onBuyCar, onBuyPart, onTint }:
                             )}
                           </div>
                         </button>
+                        {/* The other half of a dealership. A sibling of
+                            the card rather than a child, because the
+                            card is itself a button and a button inside
+                            a button is not markup, it is a fight. */}
+                        {owned && (
+                          <div className="mt-1 flex items-center justify-between gap-2 px-1">
+                            <span className="grn-label text-[0.55rem] text-white/45">
+                              Trade-in{" "}
+                              <span className="grn-display tnum text-[0.8rem] tracking-normal text-emerald-300">
+                                {quote.toLocaleString()} KD
+                              </span>
+                            </span>
+                            {lastCar ? (
+                              <span className="grn-label text-[0.5rem] text-white/35">
+                                your last car — not for sale
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  haptic(HAPTIC.tap, loadSettings().haptics);
+                                  if (selling === c.id) {
+                                    setSelling(null);
+                                    playSfx("ui-confirm", 0.6);
+                                    onSellCar(c.id);
+                                  } else {
+                                    playSfx("ui-tap", 0.5);
+                                    setSelling(c.id);
+                                  }
+                                }}
+                                className={`grn-btn tap px-3 py-1 text-[0.62rem] ${
+                                  selling === c.id
+                                    ? "border-red-400/70 bg-red-500/20 text-red-200"
+                                    : "border border-white/15 text-white/60 hover:bg-white/10"
+                                }`}
+                              >
+                                {selling === c.id
+                                  ? `SELL FOR ${quote.toLocaleString()} KD — sure?`
+                                  : "SELL"}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        </div>
                       );
                     })}
                   </div>
