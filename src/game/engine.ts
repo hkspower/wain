@@ -117,6 +117,44 @@ const CINE_FLASH_AT = [0.5, 1.12, 1.7];
  *  enough that the beams have somewhere to travel and the tail lights
  *  are a separate thing from the car, close enough to fill the frame. */
 const CINE_FLASH_GAP = 15;
+
+/** The shape of one high-beam hit, in seconds: up, held, back down.
+ *
+ *  The hold is what makes it read as ONE deliberate hit rather than a
+ *  blink — a flash with no plateau is a glitch, a flash that sits there
+ *  for a sixth of a second is somebody's hand on the stalk. */
+const CINE_FLASH_RISE = 0.04;
+const CINE_FLASH_HOLD = 0.15;
+const CINE_FLASH_FALL = 0.19;
+
+/**
+ * How far into a high beam the film is at time `t`, 0 (dipped) to 1
+ * (full main beam).
+ *
+ * A FUNCTION OF FILM TIME, not an animation. The first version drove
+ * each hit with its own requestAnimationFrame chain, which works while
+ * the film is playing and fails everywhere else: a chain outlives a
+ * skip and lands a flash over the green flag, it cannot be reproduced
+ * frame by frame, and it is invisible to any tool that poses the film
+ * rather than watching it — the export would have rendered fourteen
+ * seconds of a car that never flashed. Asking the film's own clock what
+ * the lamps should be doing removes all three at once.
+ */
+function cineFlashBoost(t: number): number {
+  let best = 0;
+  for (const at of CINE_FLASH_AT) {
+    const e = t - at;
+    if (e < 0 || e > CINE_FLASH_RISE + CINE_FLASH_HOLD + CINE_FLASH_FALL) continue;
+    const k =
+      e < CINE_FLASH_RISE
+        ? e / CINE_FLASH_RISE
+        : e < CINE_FLASH_RISE + CINE_FLASH_HOLD
+          ? 1
+          : 1 - (e - CINE_FLASH_RISE - CINE_FLASH_HOLD) / CINE_FLASH_FALL;
+    if (k > best) best = k;
+  }
+  return best;
+}
 /** Fallback normaliser for speed-driven camera effects, used only
  *  before a tune is applied. The live value follows the car's own
  *  governor (see topSpeedRef), so a 180 km/h hatch feels as fast at its
@@ -820,9 +858,18 @@ export class GameEngine {
 
   // Pre-battle rival cinematic: wall-clock start for the camera timeline,
   // world in slow motion underneath. Null when not playing.
-  /** `hits` counts the high beams already fired, so the film's own
-   *  clock can drive them and a skip cannot leave one in flight. */
-  private cine: { start: number; r: Rival; hits: number } | null = null;
+  /** `hits` counts the beams whose CLICK has been played — the light
+   *  itself is a function of the film's clock, see cineFlashBoost, so
+   *  only the sound needs an edge to fire on. `lamps` is where the
+   *  headlights rest, captured when the film starts and restored when
+   *  it ends, so a skip mid-flash cannot drive into the race on main
+   *  beam. */
+  private cine: {
+    start: number;
+    r: Rival;
+    hits: number;
+    lamps: { spot: number; off: number; emissive: number; glow: number[]; beam: number };
+  } | null = null;
 
   // Online cruise
   private remotes = new Map<number, RemotePlayer>();
@@ -3055,10 +3102,33 @@ export class GameEngine {
       this.startBattle(r);
       return;
     }
-    this.cine = { start: performance.now(), r, hits: 0 };
+    const headMat0 = this.carBody.userData.headMat as THREE.MeshStandardMaterial | undefined;
+    const glows0 = (this.carBody.userData.headGlowMats as THREE.SpriteMaterial[]) ?? [];
+    this.cine = {
+      start: performance.now(),
+      r,
+      hits: 0,
+      lamps: {
+        spot: this.headlight.intensity,
+        off: this.headlightR.intensity,
+        emissive: headMat0?.emissiveIntensity ?? 0,
+        glow: glows0.map((m) => m.opacity),
+        beam: this.beamMat?.opacity ?? 0,
+      },
+    };
     // The intro line plays over the film instead of after it
     this.voice.speak(r.def.lines.intro, r.def.voice, `${r.def.id}-intro`);
     this.events.onCinematic(true, this.rivalCard(r.def), this.wager, this.playerCard());
+  }
+
+  /** How long the pre-race film runs, seconds.
+   *
+   *  Published so the exporter can ask rather than assume: it has to
+   *  know how many frames to render, and a hard-coded 14 there would be
+   *  a fourth place the timeline is written down and the first one to
+   *  go stale. */
+  get cineLength(): number {
+    return CINE_LEN;
   }
 
   /** UI callback: the player tapped through the intro film. */
@@ -3068,6 +3138,9 @@ export class GameEngine {
 
   private endCinematic(): void {
     const r = this.cine?.r ?? null;
+    // Lamps home before anything else: a film skipped mid-flash must not
+    // put the car on the green flag with its main beams up.
+    this.applyCineBeam(0);
     this.cine = null;
     // A key or pad held through the film must not fire at the green flag
     this.handbrakeStale = true;
@@ -3168,63 +3241,29 @@ export class GameEngine {
   }
 
   /**
-   * One hard high-beam hit, for the film.
+   * Put the headlights at `boost` of the way to main beam, 0..1.
    *
-   * flashHeadlights is the gameplay blink — six 90 ms ticks, deliberately
-   * quick and cheap, because in play it is feedback for a keypress. This
-   * is the other thing: a single pulse that goes up to a real high beam,
-   * holds long enough to read as ONE deliberate hit, and falls back. It
-   * throws the spot to two and a half times its dipped output, which is
-   * roughly what a main beam is over a dipped one, and the beam cone and
-   * the lamp faces go with it so the flash is visible from the camera
-   * rather than only in the pool on the road.
+   * Two and a half times dipped output at full, which is about what a
+   * main beam is over a dipped one, with both lamps, the beam cones and
+   * the lamp faces moving together — a flash that only brightens the
+   * pool on the road is invisible from every camera the film uses.
+   *
+   * Level rather than animation: the film's clock decides when, this
+   * decides how much, and nothing here owns a timer that could outlive
+   * the shot it belongs to.
    */
-  private highBeamHit(): void {
-    const spot = this.headlight;
-    const off = this.headlightR;
+  private applyCineBeam(boost: number): void {
+    const base = this.cine?.lamps;
+    if (!base) return;
     const headMat = this.carBody.userData.headMat as THREE.MeshStandardMaterial | undefined;
     const glows = (this.carBody.userData.headGlowMats as THREE.SpriteMaterial[]) ?? [];
-    const base = spot.intensity;
-    const baseOff = off.intensity;
-    const baseEmissive = headMat?.emissiveIntensity ?? 0;
-    const baseGlow = glows.map((m) => m.opacity);
-    const baseBeam = this.beamMat?.opacity ?? 0;
-    const t0 = performance.now();
-    const RISE = 40;
-    const HOLD = 150;
-    const FALL = 190;
-    const tick = () => {
-      if (this.disposed || !this.cine) {
-        // Skipped mid-hit: put the lamps back where they were rather
-        // than leaving the car on main beam into the green flag.
-        spot.intensity = base;
-        off.intensity = baseOff;
-        if (headMat) headMat.emissiveIntensity = baseEmissive;
-        glows.forEach((m, i) => (m.opacity = baseGlow[i]));
-        if (this.beamMat) this.beamMat.opacity = baseBeam;
-        return;
-      }
-      const e = performance.now() - t0;
-      let k: number;
-      if (e < RISE) k = e / RISE;
-      else if (e < RISE + HOLD) k = 1;
-      else k = Math.max(0, 1 - (e - RISE - HOLD) / FALL);
-      spot.intensity = base * (1 + 1.5 * k);
-      off.intensity = baseOff * (1 + 1.5 * k);
-      if (headMat) headMat.emissiveIntensity = baseEmissive * (1 + 1.6 * k);
-      glows.forEach((m, i) => (m.opacity = Math.min(1, baseGlow[i] * (1 + 1.1 * k))));
-      if (this.beamMat) this.beamMat.opacity = Math.min(1, baseBeam * (1 + 1.3 * k));
-      if (e < RISE + HOLD + FALL) requestAnimationFrame(tick);
-      else {
-        spot.intensity = base;
-        off.intensity = baseOff;
-        if (headMat) headMat.emissiveIntensity = baseEmissive;
-        glows.forEach((m, i) => (m.opacity = baseGlow[i]));
-        if (this.beamMat) this.beamMat.opacity = baseBeam;
-      }
-    };
-    requestAnimationFrame(tick);
-    this.sound?.flashClick();
+    this.headlight.intensity = base.spot * (1 + 1.5 * boost);
+    this.headlightR.intensity = base.off * (1 + 1.5 * boost);
+    if (headMat) headMat.emissiveIntensity = base.emissive * (1 + 1.6 * boost);
+    glows.forEach((m, i) => {
+      m.opacity = Math.min(1, (base.glow[i] ?? m.opacity) * (1 + 1.1 * boost));
+    });
+    if (this.beamMat) this.beamMat.opacity = Math.min(1, base.beam * (1 + 1.3 * boost));
   }
 
   private flashHeadlights(): void {
@@ -3487,13 +3526,16 @@ export class GameEngine {
       // chain of timers: a timer chain keeps running through a skip and
       // lands its last flash over the green flag.
       const ct = (performance.now() - this.cine.start) / 1000;
+      // The click is an edge — once per hit, as it starts.
       while (
         this.cine.hits < CINE_FLASH_AT.length &&
         ct >= CINE_FLASH_AT[this.cine.hits]
       ) {
         this.cine.hits++;
-        this.highBeamHit();
+        this.sound?.flashClick();
       }
+      // ...and the light is a level, read straight off the film's clock.
+      this.applyCineBeam(cineFlashBoost(ct));
       if ((performance.now() - this.cine.start) / 1000 >= CINE_LEN) this.endCinematic();
       else {
         // The lap clock is wall-time; credit back what slow-mo swallows

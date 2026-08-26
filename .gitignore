@@ -92,3 +92,7 @@ __pycache__/
 
 # the hub's referral ledger — live player data, written by the server
 /server/data/
+
+# Intermediate frames from tools/shots/exportfilm.mjs — the encoded
+# video beside them is the artefact; 336 JPEGs are not.
+press/film/frames/

@@ -52,7 +52,11 @@ check(CINE_LEN != null && FLASH_END != null && GAP != null && at != null,
   // The last hit must not merely START inside the shot: it has to be
   // seen. The pulse is rise+hold+fall, and a hit that begins 40 ms
   // before the cut plays its whole fall over the next shot.
-  const PULSE = (40 + 150 + 190) / 1000;
+  // Read from the module, not restated: these moved out of a hand-rolled
+  // animation into named constants, and a test carrying its own copy
+  // would still be asserting the old shape.
+  const PULSE =
+    num(engine, "CINE_FLASH_RISE") + num(engine, "CINE_FLASH_HOLD") + num(engine, "CINE_FLASH_FALL");
   const last = at[at.length - 1];
   console.log(`             the last hit finishes at ${(last + PULSE).toFixed(2)} s, cut at ${FLASH_END} s`);
   check(
@@ -106,6 +110,29 @@ check(CINE_LEN != null && FLASH_END != null && GAP != null && at != null,
     "the rival's gap no longer holds through the answer shot and closes across the orbit"
   );
   check(GAP >= 8 && GAP <= 30, `a ${GAP} m challenge gap is not a car length up the road`);
+}
+
+// --- 3b. The beams are a level, not an animation ----------------------
+//
+// The one property that makes the film reproducible: the lamps are a
+// function of the film's own clock. An rAF-driven pulse outlives a
+// skip, cannot be posed frame by frame, and is invisible to the
+// exporter — which would have rendered fourteen seconds of a car that
+// never flashed.
+{
+  check(
+    /function cineFlashBoost\(t: number\): number/.test(engine),
+    "the flash is no longer a function of film time — the export cannot reproduce it"
+  );
+  check(
+    !/requestAnimationFrame\(tick\)/.test(engine),
+    "an rAF pulse chain is back in the engine; it will outlive a skip"
+  );
+  // Nothing should be lit before the film starts or after it ends.
+  check(
+    /this\.applyCineBeam\(0\);/.test(engine),
+    "the lamps are not put home when the film ends — a skip mid-flash drives into the race on main beam"
+  );
 }
 
 // --- 4. The score has a third cue, and it silences nothing ------------
