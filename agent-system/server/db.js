@@ -273,6 +273,11 @@ addOrderColumn('commission_rate',   'REAL NOT NULL DEFAULT 0');
 addOrderColumn('commission_amount', 'REAL NOT NULL DEFAULT 0');
 addOrderColumn('agent_earning',     'REAL NOT NULL DEFAULT 0');
 
+/* مصدر الطلب: من اللوحة (`panel`) أم من بوّابة الزبون على الموقع
+   (`public_ai`). الطلب القادم من الموقع لم تمرّ عليه عينُ موظّف، فيجب أن
+   يُرى ذلك في اللوحة قبل الإسناد — والافتراض `panel` يُبقي القائم صحيحًا. */
+addOrderColumn('source', "TEXT NOT NULL DEFAULT 'panel'");
+
 /* دبّوس موقع الزبون. اختياري: الطلب يُنشأ ويُسند بلا دبّوس كما كان، والدبّوس
    يفتح اقتراح الأقرب وحده. القيمة NULL تعني «لم يُلتقط» لا «الصفر». */
 /* العنوان المهيكل: المنطقة والقطعة تُختاران من قائمة، والشارع يبقى حرًّا.

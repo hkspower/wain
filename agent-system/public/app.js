@@ -152,6 +152,7 @@
           <a class="order__code num" href="#/orders/${o.id}">${esc(o.code)}</a>
           ${statusBadge(o.status)}
           ${urgent ? '<span class="badge badge--urgent">عاجل</span>' : ''}
+          ${o.source === 'public_ai' ? '<span class="badge badge--public">من الموقع</span>' : ''}
           ${o.has_pending_transfer ? '<span class="badge badge--transfer">تحويل معلّق</span>' : ''}
           <time class="order__time" datetime="${esc(o.updated_at || '')}">${esc(relTime(o.updated_at))}</time>
         </div>
@@ -612,6 +613,7 @@
     transfer_accepted: 'قبول التحويل',
     transfer_rejected: 'رفض التحويل',
     transfer_cancelled: 'سحب التحويل',
+    priced: 'تسعير الطلب',
   };
 
   function eventRow(ev) {
@@ -656,6 +658,7 @@
           <h1>الطلب <span class="num">${esc(order.code)}</span></h1>
           <p>${statusBadge(order.status)}
              ${order.priority === 'urgent' ? '<span class="badge badge--urgent">عاجل</span>' : ''}
+             ${order.source === 'public_ai' ? '<span class="badge badge--public">من الموقع — أكّد هاتفيًا قبل الإسناد</span>' : ''}
              <time class="muted" datetime="${esc(order.updated_at || '')}">آخر تحديث ${esc(relTime(order.updated_at))}</time></p>
         </div>
         <a class="btn btn--ghost btn--sm" href="#/orders">رجوع للقائمة</a>
@@ -715,6 +718,8 @@
                            data-status="${s}">${esc(state.meta.statuses[s])}</button>`).join('')}
                 ${canTransfer ? '<button class="btn btn--accent btn--sm" data-open="transfer">تحويل لزميل</button>' : ''}
                 ${has('orders.assign') ? '<button class="btn btn--quiet btn--sm" data-open="assign">إسناد لمندوب</button>' : ''}
+                ${has('orders.create') && order.delivery_fee === 0 && ['new', 'assigned'].includes(order.status)
+                  ? '<button class="btn btn--primary btn--sm" data-open="pricing">تسعير الطلب</button>' : ''}
                 ${has('links.manage') && order.agent_id && !state.meta.final_statuses.includes(order.status)
                   ? '<button class="btn btn--ghost btn--sm" data-open="link">رابط للكابتن</button>' : ''}
                 ${has('mail.view') ? '<button class="btn btn--quiet btn--sm" data-open="report">إرسال التقرير بريدًا</button>' : ''}
@@ -759,6 +764,43 @@
     if (lBtn) lBtn.addEventListener('click', () => promptLink(order));
     const rBtn = el.view.querySelector('[data-open="report"]');
     if (rBtn) rBtn.addEventListener('click', () => sendReport(order));
+    const pBtn = el.view.querySelector('[data-open="pricing"]');
+    if (pBtn) pBtn.addEventListener('click', () => promptPricing(order));
+  }
+
+  /* طلبات البوّابة تصل برسوم صفر — الزبون لا يسعّر. التسعير هنا يُعيد أخذ
+     لقطة العمولة، والخادم يمنعه بعد قبول الكابتن. */
+  function promptPricing(order) {
+    openModal('تسعير الطلب', `
+      <form id="pricingForm">
+        <label class="field">
+          <span>رسوم التوصيل (د.ك)</span>
+          <input name="delivery_fee" type="text" inputmode="decimal" data-money required placeholder="2.500" dir="ltr">
+        </label>
+        <label class="field">
+          <span>المبلغ المطلوب تحصيله (د.ك)</span>
+          <input name="cod_amount" type="text" inputmode="decimal" data-money value="${order.cod_amount || ''}" placeholder="0" dir="ltr">
+        </label>
+        <p class="form-msg" id="pricingMsg"></p>
+        <button class="btn btn--primary btn--block" type="submit">حفظ التسعير</button>
+      </form>`, (body) => {
+      body.querySelector('#pricingForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const msg = body.querySelector('#pricingMsg');
+        await submit(e.target, msg, async () => {
+          await api(`/orders/${order.id}/pricing`, {
+            method: 'PATCH',
+            body: {
+              delivery_fee: e.target.delivery_fee.value.trim(),
+              ...(e.target.cod_amount.value.trim() !== '' ? { cod_amount: e.target.cod_amount.value.trim() } : {}),
+            },
+          });
+          closeModal();
+          toast('حُفظ التسعير وأُخذت لقطة العمولة', 'ok');
+          await renderOrderDetail(order.id);
+        });
+      });
+    });
   }
 
   /* --------------------- رابط المهمّة للكابتن --------------------- */

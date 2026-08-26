@@ -370,6 +370,175 @@ on('POST', '/api/link/:token/outcome', async (ctx) => {
   };
 }, { auth: false });
 
+/* ---- بوّابة الزبون: وكيل موصول على الموقع، بلا حساب ---- */
+
+/*
+ * مساران عامّان يقفان خلف صفحة الموقع الجديدة: الزبون يتكلّم أو يكتب،
+ * والوكيل يفهم ويسأل عمّا نقص، ثم يُرسل الطلب إلى اللوحة.
+ *
+ * الفهم هو `voice-order.js` نفسه الذي تستعمله اللوحة — مستخرِج قاعديّ
+ * يقترح ولا يخمّن (اقرأ رأس ذلك الملف). والصفحة تُعيد إرسال الحديث كلّه
+ * في كل جولة، فالخادم بلا حالة: لا مسوّدات محفوظة ولا جلسات للزوّار.
+ *
+ * والإنشاء لا يُسند كابتنًا ولا يضع رسومًا: الطلب يصل اللوحة بمصدرٍ
+ * ظاهر (`public_ai`) وموظّفٌ يتّصل يؤكّد ثم يسعّر ويُسند. الوكيل بابٌ
+ * للاستقبال، والقرار في المكتب كما كان.
+ */
+
+/* حدُّ معدّلٍ في الذاكرة لكل عنوان: البوّابة عامّة بلا كلمة مرور، وحدُّ
+   الدخول لا يحرسها. نافذته تُمسح بمرورها، والخادم واحد فلا حاجة لأبعد. */
+const pubHits = new Map();
+function pubGuard(ip, kind, max, windowMs) {
+  const key = `${kind}|${ip}`;
+  const rec = pubHits.get(key);
+  if (!rec || Date.now() - rec.first > windowMs) {
+    pubHits.set(key, { count: 1, first: Date.now() });
+  } else if (++rec.count > max) {
+    throw new (require('./lib/http').HttpError)(429, 'محاولات كثيرة، انتظر قليلًا ثم أعد المحاولة');
+  }
+  if (pubHits.size > 5000) {
+    for (const [k, r] of pubHits) if (Date.now() - r.first > windowMs) pubHits.delete(k);
+  }
+}
+
+on('POST', '/api/public/order/parse', async (ctx) => {
+  pubGuard(ctx.ip, 'parse', 90, 10 * 60_000);
+  const text = str(ctx.body.text, 'نصّ الطلب', { max: 4000 });
+  const parsed = V.parseOrder(text);
+
+  /* «هل تقصد السالمية؟» — المستخرِج يقترحها فقط حين تأتي المنطقة معنونةً
+     («الاستلام: السالمي»)، والزبون يتكلّم بلا عناوين («من السالمي»)، فلا
+     يصل السؤال أبدًا لمن يحتاجه أكثر. هنا يُبحث في النصّ كلّه عن أقرب
+     منطقةٍ لكلمةٍ لم تُفهم، ويُلحق الاقتراح بأوّل منطقةٍ ناقصة — سؤالًا
+     يُعرض لا قيمةً تُملأ، كقاعدة المستخرِج نفسها. */
+  const SIM = require('./similar');
+  const usedAreas = [parsed.fields.pickup_area, parsed.fields.dropoff_area].filter(Boolean);
+  const firstAreaGap = parsed.missing.find((m) => m.field.endsWith('_area') && !m.hint);
+  if (firstAreaGap) {
+    const near = SIM.closestInText(text, AREA.ALL_AREAS);
+    if (near && !usedAreas.includes(near.name)) {
+      firstAreaGap.hint = near.name;
+      firstAreaGap.hintFrom = near.word;
+      firstAreaGap.why = `«${near.word}» ليست من مناطق الكويت — هل تقصد «${near.name}»؟`;
+    }
+  }
+
+  /* `heard` و`missing` مكتوبة لموظّفٍ يعرف النظام؛ تصل الزبون كما هي
+     لأنها أصلًا جُمل عربية كاملة تشرح نفسها. */
+  return { fields: parsed.fields, heard: parsed.heard, missing: parsed.missing };
+}, { auth: false });
+
+on('POST', '/api/public/order', async (ctx) => {
+  pubGuard(ctx.ip, 'create', 10, 60 * 60_000);
+
+  const name = str(ctx.body.customer_name, 'الاسم', { min: 2, max: 80 });
+  const phoneNo = tel(ctx.body.customer_phone, 'رقم الهاتف', { min: 6, max: 25 });
+  const notes = str(ctx.body.notes, 'الملاحظات', { required: false, max: 600 });
+  const cod = num(ctx.body.cod_amount, 'المبلغ المطلوب تحصيله', { max: 100000 });
+  const priority = oneOf(ctx.body.priority || 'normal', 'الأولوية', Object.keys(D.PRIORITIES));
+  const vehicle = oneOf(ctx.body.vehicle || 'sedan', 'نوع المركبة', Object.keys(D.VEHICLES));
+
+  /* العنوان هنا مهيكلٌ حصرًا — منطقة من القائمة وقطعة تُفحص — لأن ما يكتبه
+     الوكيل جاء من القائمة نفسها. النصّ الحرّ بابه نموذج اللوحة، حيث موظّفٌ
+     يقرأ ما كُتب. */
+  const readSide = (prefix, label) => {
+    const area = str(ctx.body[`${prefix}_area`], `منطقة ${label}`, { max: 60 });
+    const gov = AREA.AREA_TO_GOV[area];
+    if (!gov) throw badRequest(`«${area}» ليست من مناطق الكويت`);
+    let block = null;
+    const raw = ctx.body[`${prefix}_block`];
+    if (raw !== undefined && raw !== '' && raw !== null) {
+      const read = AREA.readBlock(raw, area);
+      if (!read.ok) throw badRequest(read.message);
+      block = String(read.block);
+    }
+    const street = str(ctx.body[`${prefix}_street`], `شارع ${label}`, { required: false, max: 120 });
+    return { area, gov, block, street, address: AREA.composeAddress({ area, block, street }) };
+  };
+  const pick = readSide('pickup', 'الاستلام');
+  const drop = readSide('dropoff', 'التسليم');
+
+  // الرسوم يضعها المكتب بعد التأكيد الهاتفي؛ لقطة العمولة تُؤخذ ساعتها
+  const commission = S.commissionFor(0);
+  const order = {
+    code: nextOrderCode(),
+    customer_name: name, customer_phone: phoneNo,
+    pickup_address: pick.address, dropoff_address: drop.address,
+    governorate: pick.gov, vehicle,
+    cod_amount: cod, delivery_fee: 0, priority, notes,
+    pickup_area: pick.area, pickup_block: pick.block,
+    dropoff_governorate: drop.gov, dropoff_area: drop.area, dropoff_block: drop.block,
+    pickup_lat: null, pickup_lng: null,
+  };
+  const info = db.prepare(
+    `INSERT INTO orders
+      (code, customer_name, customer_phone, pickup_address, dropoff_address, governorate,
+       vehicle, cod_amount, delivery_fee, priority, notes, status, agent_id, created_by,
+       commission_type, commission_rate, commission_amount, agent_earning,
+       pickup_area, pickup_block, dropoff_governorate, dropoff_area, dropoff_block,
+       pickup_lat, pickup_lng, source, created_at, updated_at)
+     VALUES (@code, @customer_name, @customer_phone, @pickup_address, @dropoff_address, @governorate,
+       @vehicle, @cod_amount, @delivery_fee, @priority, @notes, 'new', NULL, NULL,
+       @commission_type, @commission_rate, @commission_amount, @agent_earning,
+       @pickup_area, @pickup_block, @dropoff_governorate, @dropoff_area, @dropoff_block,
+       @pickup_lat, @pickup_lng, 'public_ai', @ts, @ts)`
+  ).run({ ...order, ...commission, ts: now() });
+  const orderId = Number(info.lastInsertRowid);
+
+  logEvent({ orderId, actorId: null, type: 'created', to: order.code, note: 'من بوّابة الزبون' });
+
+  /* يُدفع الحدث للوجهة الخارجية (n8n) ليصل المكتبَ إشعارٌ فوريّ على
+     واتساب — والفشل لا يُفشل الطلب: هو في اللوحة على كل حال. */
+  await HK.emit('public_order.created', {
+    order: {
+      id: orderId, code: order.code,
+      customer_name: order.customer_name, customer_phone: order.customer_phone,
+      pickup_address: order.pickup_address, dropoff_address: order.dropoff_address,
+      governorate: order.governorate, cod_amount: order.cod_amount,
+      priority: order.priority, notes: order.notes,
+    },
+  }, orderId);
+
+  /* الزبون يرى رمزه وملخّصه فقط — لا هويّات داخلية ولا عمولات */
+  return {
+    order: {
+      code: order.code,
+      customer_name: order.customer_name,
+      pickup_address: order.pickup_address,
+      dropoff_address: order.dropoff_address,
+      priority: order.priority,
+    },
+  };
+}, { auth: false });
+
+/*
+ * تسعير طلبٍ وصل بلا رسوم. طلبات البوّابة تُنشأ برسوم صفر — الزبون لا
+ * يسعّر — فلولا هذا المسار بقيت عمولتها صفرًا إلى الأبد، إذ اللقطة تُؤخذ
+ * ساعة الإنشاء فقط. يُعاد أخذها هنا، وقبل خروج الكابتن لا بعده: ما بعد
+ * القبول اتفاقٌ قائم لا يُعاد فتحه.
+ */
+on('PATCH', '/api/orders/:id/pricing', async (ctx) => {
+  need(ctx, 'orders.create', 'تسعير الطلب');
+  const orderId = id(ctx.params.id, 'معرّف الطلب');
+  const order = D.getOrder(orderId);
+  if (!['new', 'assigned'].includes(order.status)) {
+    throw badRequest('التسعير قبل قبول الكابتن — بعده الاتفاق قائم');
+  }
+  const fee = num(ctx.body.delivery_fee, 'رسوم التوصيل', { max: 10000 });
+  const cod = ctx.body.cod_amount === undefined
+    ? order.cod_amount
+    : num(ctx.body.cod_amount, 'المبلغ المطلوب تحصيله', { max: 100000 });
+  const commission = S.commissionFor(fee);
+  db.prepare(
+    `UPDATE orders SET delivery_fee=@fee, cod_amount=@cod,
+       commission_type=@commission_type, commission_rate=@commission_rate,
+       commission_amount=@commission_amount, agent_earning=@agent_earning,
+       updated_at=@ts WHERE id=@id`
+  ).run({ id: orderId, fee, cod, ...commission, ts: now() });
+  logEvent({ orderId, actorId: ctx.agent.id, type: 'priced', to: String(fee) });
+  return { order: orderWithExtras(D.getOrder(orderId)) };
+});
+
 /* ---- الملاحظات الصوتية ووصلات البريد للوحة ---- */
 
 on('GET', '/api/voice/:id', async (ctx) => {
@@ -498,7 +667,13 @@ on('GET', '/api/orders', async (ctx) => {
 
   const scope = ctx.query.scope || '';
   if (scope === 'active') {
-    where.push(`o.status IN (${D.ACTIVE_STATUSES.map(() => '?').join(',')})`);
+    /* «نشطة» في اللوحة تعني: كلُّ ما لم يَنتهِ — ومنه `new` الذي لا كابتن
+       له بعد. `ACTIVE_STATUSES` نفسها تتعمّد استثناءه لأنها تَعُدّ حِمل
+       الكابتن (سقف التجربة)، فالإدراج هنا في الاستعلام لا في الثابت.
+       قبل هذا كان الطلب غير المُسنَد — وكلُّ ما يصل من بوّابة الزبون كذلك —
+       غائبًا عن اللسان الافتراضي وعن رئيسية اللوحة معًا: أحوجُ الطلبات
+       للعين أخفاها عنها. */
+    where.push(`(o.status IN (${D.ACTIVE_STATUSES.map(() => '?').join(',')}) OR o.status = 'new')`);
     args.push(...D.ACTIVE_STATUSES);
   } else if (scope === 'done') {
     where.push(`o.status IN (${D.FINAL_STATUSES.map(() => '?').join(',')})`);

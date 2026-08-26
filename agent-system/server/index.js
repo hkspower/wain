@@ -164,9 +164,37 @@ function clientIp(req) {
 
 /* ------------------------------- الخادم ------------------------------- */
 
+/*
+ * موقع موصول التسويقي يُستضاف على أصلٍ آخر، وصفحته الرئيسية تكلّم بوّابة
+ * الزبون هنا مباشرة. CORS يُفتح **لمسارات البوّابة وحدها** ولأصولٍ تُسمّى
+ * بالاسم — لا شيء من مسارات اللوحة يُفتح لأصلٍ غريب، ولا كوكيز تعبر أصلًا:
+ * البوّابة بلا جلسات أصلًا.
+ *   MAWSOOL_SITE_ORIGINS=https://mawsool.com.kw,https://www.mawsool.com.kw
+ * (اتركه فارغًا إذا كان الموقع واللوحة خلف أصلٍ واحد — لا حاجة لـCORS.)
+ */
+const SITE_ORIGINS = String(process.env.MAWSOOL_SITE_ORIGINS || '')
+  .split(',').map((s) => s.trim()).filter(Boolean);
+
+function publicCors(req, res, pathname) {
+  if (!pathname.startsWith('/api/public/')) return false;
+  const origin = req.headers.origin;
+  if (origin && SITE_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Max-Age', '600');
+  }
+  return req.method === 'OPTIONS';
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const pathname = url.pathname;
+
+  if (pathname.startsWith('/api/') && publicCors(req, res, pathname)) {
+    res.writeHead(204); return res.end();
+  }
 
   if (!pathname.startsWith('/api/')) {
     if (req.method !== 'GET' && req.method !== 'HEAD') {

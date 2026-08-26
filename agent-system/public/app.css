@@ -356,6 +356,8 @@ a.stat:hover { border-color: var(--teal-600); }
 /* «عاجل» وحدها تُميَّز بثِخَن حدّها لا بحشوة: هي التي تُبحث عنها في القائمة */
 .badge--urgent { color: var(--alert-700); border-width: var(--bw-thick); }
 .badge--transfer { color: var(--mute-fg); }
+/* طلبٌ من بوّابة الموقع: لم تمرّ عليه عينُ موظّف بعد، فيُنادى عليه كالعاجل */
+.badge--public { color: var(--teal-800); border-width: var(--bw-thick); }
 .badge--available { color: var(--ok-fg); }
 .badge--busy { color: var(--warn-fg); }
 .badge--offline { color: var(--mute-fg); }

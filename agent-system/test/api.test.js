@@ -511,3 +511,54 @@ test('كابتن في مجموعة إدارية يُردّ ولا يُخلَّف
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM agents').get().n, before);
   assert.equal(db.prepare('SELECT 1 FROM agents WHERE username = ?').get('misplaced'), undefined);
 });
+
+test('بوّابة الزبون: التحليل والإنشاء بلا جلسة، والطلب موسومٌ بمصدره', async () => {
+  /* التحليل عامّ — الزبون بلا حساب. الردّ حقول واقتراحات لا أكثر. */
+  const p = await call(null, 'POST', '/api/public/order/parse', {
+    text: 'اسمي منيرة ورقمي ٩٩٦٦٥٥٤٤، الاستلام من السالمية قطعة ٤ والتسليم في الجابرية قطعة ٧',
+  });
+  assert.equal(p.status, 200);
+  assert.equal(p.data.fields.customer_name, 'منيرة');
+  assert.equal(p.data.fields.pickup_area, 'السالمية');
+  assert.equal(p.data.missing.length, 0);
+
+  /* الإنشاء يقبل الحقول المهيكلة وحدها، ويصنع طلبًا بلا رسوم ولا كابتن */
+  const c = await call(null, 'POST', '/api/public/order', {
+    customer_name: 'منيرة الخالد', customer_phone: '99665544',
+    pickup_area: 'السالمية', pickup_block: '4',
+    dropoff_area: 'الجابرية', dropoff_block: '7',
+  });
+  assert.equal(c.status, 200);
+  assert.match(c.data.order.code, /^MW-/);
+  assert.equal(c.data.order.pickup_address.includes('السالمية'), true);
+  /* لا يتسرّب للزبون شيء داخلي */
+  assert.equal(c.data.order.commission_amount, undefined);
+  assert.equal(c.data.order.id, undefined);
+
+  const row = db.prepare('SELECT * FROM orders WHERE code = ?').get(c.data.order.code);
+  assert.equal(row.source, 'public_ai');
+  assert.equal(row.status, 'new');
+  assert.equal(row.agent_id, null);
+  assert.equal(row.created_by, null);
+  assert.equal(row.delivery_fee, 0);
+
+  /* منطقةٌ ليست من القائمة تُرفض — البوّابة مهيكلة حصرًا */
+  const bad = await call(null, 'POST', '/api/public/order', {
+    customer_name: 'منيرة', customer_phone: '99665544',
+    pickup_area: 'السالمي', dropoff_area: 'الجابرية',
+  });
+  assert.equal(bad.status, 400);
+
+  /* التسعير يُعيد أخذ لقطة العمولة — لولاه بقيت صفرًا إلى الأبد */
+  const priced = await call('admin', 'PATCH', `/api/orders/${row.id}/pricing`, { delivery_fee: 3 });
+  assert.equal(priced.status, 200);
+  const after = db.prepare('SELECT * FROM orders WHERE id = ?').get(row.id);
+  assert.equal(after.delivery_fee, 3);
+  assert.ok(after.commission_amount > 0, 'لقطة العمولة لم تُؤخذ');
+
+  /* وبعد التسليم لا تسعير — الاتفاق قائم */
+  db.prepare("UPDATE orders SET status='delivered' WHERE id=?").run(row.id);
+  const late = await call('admin', 'PATCH', `/api/orders/${row.id}/pricing`, { delivery_fee: 9 });
+  assert.equal(late.status, 400);
+  db.prepare("UPDATE orders SET status='new' WHERE id=?").run(row.id);
+});
