@@ -151,7 +151,10 @@ export default function HomePage() {
                 n: "٣",
                 icon: <IconCar className="size-6" />,
                 title: "يالله نروح",
-                text: "تعرف وين تروح ومتى تروح، وتخلص من نقاش الجروب.",
+                // This step promised «تخلص من نقاش الجروب» while the site had
+                // no way to tell anybody anything — no share button existed.
+                // Now it names the thing that actually ends the argument.
+                text: "رسّلها للربع بالوقت والموقع — ما بقى شي يتناقش فيه.",
               },
             ].map((step) => (
               <div

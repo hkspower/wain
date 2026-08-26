@@ -61,9 +61,21 @@ if (wt.status !== 0) {
 }
 // The worktree is a checkout of HEAD, so anything uncommitted has to be
 // carried over by hand or the journey tests yesterday's code.
-const dirty = spawnSync("git", ["diff", "HEAD", "--name-only"], {
+//
+// `git diff HEAD` alone was not enough: it lists modified *tracked* files and
+// says nothing about new ones. A change that adds a component and imports it
+// from a page therefore carried the page across without the component, and the
+// build failed with "Module not found" for a file sitting right there in the
+// working directory. That happened twice before it was worth fixing properly.
+// --others adds the untracked files, --exclude-standard keeps node_modules and
+// everything else .gitignore already rules out.
+const changed = spawnSync("git", ["diff", "HEAD", "--name-only"], {
   cwd: ROOT, encoding: "utf8",
 }).stdout.trim().split("\n").filter(Boolean);
+const untracked = spawnSync("git", ["ls-files", "--others", "--exclude-standard"], {
+  cwd: ROOT, encoding: "utf8",
+}).stdout.trim().split("\n").filter(Boolean);
+const dirty = [...new Set([...changed, ...untracked])];
 for (const f of dirty) {
   if (!existsSync(join(ROOT, f))) continue;
   const { mkdirSync, copyFileSync } = await import("node:fs");

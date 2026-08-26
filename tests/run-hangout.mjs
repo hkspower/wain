@@ -1,0 +1,62 @@
+#!/usr/bin/env node
+/**
+ * «رسّلها للربع», both halves:  npm run test:hangout
+ *
+ *   hangout       — the time rules and the message. No browser: what is under
+ *                   test is a pure function of the clock and the place, and
+ *                   Kuwait's clock is not the machine's.
+ *   hangout-page  — the panel on a real place page, with the share sheet, the
+ *                   popup and the clipboard each removed in turn. Only one
+ *                   link of that fallback chain ever runs on a given device,
+ *                   which is what makes the other two worth testing.
+ */
+import { spawn } from "node:child_process";
+import { createServer } from "node:http";
+import { existsSync, readFileSync } from "node:fs";
+import { join, dirname, extname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const OUT = join(ROOT, "out");
+const PORT = 4207;
+
+const run = (cmd, args, opts = {}) =>
+  new Promise((resolve) => {
+    const child = spawn(cmd, args, { cwd: ROOT, stdio: "inherit", ...opts });
+    child.on("close", (code) => resolve(code ?? 1));
+  });
+
+let failed = 0;
+
+console.log("\n════ الطلعة: the time rules and the message ════");
+failed += (await run("node", ["tests/hangout.test.mjs"])) === 0 ? 0 : 1;
+
+if (!existsSync(join(OUT, "index.html"))) {
+  console.error("\nout/ is missing — run npm run build first.");
+  process.exit(1);
+}
+
+console.log("\n════ الطلعة: the panel, and every way it can fail ════");
+{
+  const MIME = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript",
+    ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg",
+    ".svg": "image/svg+xml", ".woff2": "font/woff2", ".ico": "image/x-icon",
+    ".webmanifest": "application/manifest+json", ".txt": "text/plain", ".xml": "application/xml" };
+  const srv = createServer((req, res) => {
+    let p = decodeURIComponent(req.url.split("?")[0]);
+    if (p.endsWith("/")) p += "index.html";
+    let f = join(OUT, p);
+    if (!existsSync(f) && existsSync(f + ".html")) f += ".html";
+    if (!existsSync(f) || !f.startsWith(OUT)) { res.writeHead(404); return res.end("nope"); }
+    res.writeHead(200, { "content-type": MIME[extname(f)] ?? "application/octet-stream" });
+    res.end(readFileSync(f));
+  });
+  await new Promise((r) => srv.listen(PORT, "127.0.0.1", r));
+  failed += (await run("node", ["tests/hangout-page.test.mjs"], {
+    env: { ...process.env, WAIN_URL: `http://127.0.0.1:${PORT}` },
+  })) === 0 ? 0 : 1;
+  srv.close();
+}
+
+console.log(failed ? `\n${failed} suite(s) failed` : "\nالطلعة: كل شي تمام");
+process.exit(failed ? 1 : 0);

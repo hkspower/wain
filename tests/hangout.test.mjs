@@ -1,0 +1,126 @@
+#!/usr/bin/env node
+/**
+ * «رسّلها للربع» — the time rules and the message.
+ *
+ * No browser. What is under test is the part that decides what a group is
+ * offered and what they end up reading in WhatsApp, and both are pure
+ * functions of the clock and the place.
+ *
+ * The clock is the interesting half. Kuwait is UTC+3 with no daylight saving,
+ * every hour here is a Kuwait wall-clock hour, and the machine running this
+ * is on UTC — so a rule written against local time would pass in Kuwait and
+ * fail in CI, or the reverse.
+ */
+import { execSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, dirname } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const dir = mkdtempSync(join(tmpdir(), "wain-hangout-"));
+const entry = join(dir, "entry.ts");
+const bundle = join(dir, "hangout.mjs");
+writeFileSync(
+  entry,
+  `export * from ${JSON.stringify(join(ROOT, "src/lib/hangout.ts"))};\n` +
+    `export { places, getPlace } from ${JSON.stringify(join(ROOT, "src/lib/places.ts"))};\n`
+);
+execSync(
+  `npx esbuild ${JSON.stringify(entry)} --bundle --format=esm ` +
+    `--alias:@=${JSON.stringify(join(ROOT, "src"))} --outfile=${JSON.stringify(bundle)}`,
+  { stdio: "pipe", cwd: ROOT }
+);
+const H = await import(pathToFileURL(bundle).href);
+rmSync(dir, { recursive: true, force: true });
+
+let pass = 0;
+const fails = [];
+const ok = (n, c, d = "") => { if (c) { pass++; console.log(`  ✓ ${n}`); } else { fails.push(n); console.log(`  ✗ ${n}${d ? "\n      " + d : ""}`); } };
+
+/** A Date whose Kuwait wall-clock hour is exactly `hour`. */
+const atKuwait = (hour) => new Date(Date.UTC(2026, 7, 21, hour - 3, 30));
+
+console.log("\n── the clock is Kuwait's, not the machine's ──");
+ok("14:30 Kuwait reads as hour 14", H.kuwaitHour(atKuwait(14)) === 14, String(H.kuwaitHour(atKuwait(14))));
+ok("01:30 Kuwait reads as hour 1", H.kuwaitHour(atKuwait(1)) === 1, String(H.kuwaitHour(atKuwait(1))));
+// The UTC+3 offset must survive a date boundary: 01:30 in Kuwait is 22:30 the
+// previous day in UTC, which a naive implementation reports as hour 22.
+ok("and it does so across midnight", H.kuwaitHour(new Date("2026-08-20T22:30:00Z")) === 1,
+  String(H.kuwaitHour(new Date("2026-08-20T22:30:00Z"))));
+
+console.log("\n── an hour that has passed is not offered ──");
+{
+  const ids = (h) => H.whenOptions(atKuwait(h)).map((o) => o.id);
+  ok("at 15:00 the whole evening is available", ids(15).includes("tonight-7") && ids(15).includes("tonight-10"), ids(15).join(","));
+  ok("at 20:30 seven and eight are gone", !ids(20.5 | 0).includes("tonight-7") && !ids(20).includes("tonight-8"), ids(20).join(","));
+  ok("but nine and ten remain", ids(20).includes("tonight-9") && ids(20).includes("tonight-10"), ids(20).join(","));
+  ok("at 23:00 no tonight option survives", !ids(23).some((i) => i.startsWith("tonight")), ids(23).join(","));
+  ok("and tomorrow and the weekend always do", ids(23).includes("tomorrow") && ids(23).includes("weekend"), ids(23).join(","));
+  ok("«الحين» is always offered — it cannot expire", [3, 12, 23].every((h) => ids(h).includes("now")));
+}
+
+console.log("\n── the default proposal suits the place and the hour ──");
+{
+  const outdoor = H.places.find((p) => p.setting === "outdoor" && !p.summerOk);
+  const indoor = H.places.find((p) => p.setting === "indoor");
+  ok("an open-air place at 09:00 is proposed for the evening",
+    H.defaultWhen(outdoor, atKuwait(9)) === "tonight-8", H.defaultWhen(outdoor, atKuwait(9)));
+  ok("an indoor place at 09:00 can be proposed for an hour from now",
+    H.defaultWhen(indoor, atKuwait(9)) === "soon", H.defaultWhen(indoor, atKuwait(9)));
+  ok("at 21:00 the default is a time still ahead",
+    H.defaultWhen(indoor, atKuwait(21)) === "tonight-10", H.defaultWhen(indoor, atKuwait(21)));
+  ok("after the evening is gone, the default is tomorrow",
+    H.defaultWhen(indoor, atKuwait(23)) === "tomorrow", H.defaultWhen(indoor, atKuwait(23)));
+  // A default that is not on the menu is a chip nobody can see selected.
+  for (const h of [0, 6, 9, 13, 18, 20, 21, 22, 23]) {
+    for (const p of [outdoor, indoor]) {
+      const d = H.defaultWhen(p, atKuwait(h));
+      if (!H.whenOptions(atKuwait(h)).some((o) => o.id === d)) {
+        ok(`the default at ${h}:00 is one of the offered options`, false, `${d} not offered`);
+      }
+    }
+  }
+  ok("the default is always one of the offered options", true);
+}
+
+console.log("\n── the message a group actually receives ──");
+{
+  const place = H.getPlace("kuwait-towers");
+  const url = "https://www.wainkw.com/places/kuwait-towers/";
+  const msg = H.hangoutMessage({ place, when: "tonight-8", url });
+  console.log("      " + msg.replace(/\n/g, "\n      "));
+  ok("it names the place", msg.includes(place.nameAr));
+  ok("and the area", msg.includes(place.areaAr));
+  ok("it says when, in words", msg.includes("الليلة الساعة ٨"));
+  ok("it carries a map link to the coordinates",
+    msg.includes(`destination=${place.lat},${place.lng}`));
+  ok("and the page link, last", msg.trim().endsWith(url), msg.slice(-60));
+  ok("it says why the place is worth going to", msg.includes(place.taglineAr));
+  // A message half in ٨ and half in 8 reads like it came from software.
+  const digitsOutsideLinks = msg
+    .split("\n")
+    .filter((l) => !l.includes("http"))
+    .join("");
+  ok("no Western digits outside the links", !/[0-9]/.test(digitsOutsideLinks), digitsOutsideLinks);
+}
+
+console.log("\n── every option produces a sentence ──");
+{
+  const place = H.getPlace("kuwait-towers");
+  const empty = [];
+  for (const o of H.whenOptions(atKuwait(10))) {
+    const p = H.phraseFor(o.id);
+    if (!p || !p.trim()) empty.push(o.id);
+  }
+  ok("no option has a blank phrase", empty.length === 0, empty.join(","));
+  ok("an unknown id yields an empty phrase rather than throwing", H.phraseFor("nonsense") === "");
+  // …and that empty phrase must not silently produce a message with a blank
+  // line where the time should be, which would ship a plan with no time in it.
+  const broken = H.hangoutMessage({ place, when: "nonsense", url: "x" });
+  ok("a message with no valid time is visibly missing it, not silently wrong",
+    broken.split("\n")[1] === "", JSON.stringify(broken.split("\n")[1]));
+}
+
+console.log(`\n${pass} passed, ${fails.length} failed`);
+if (fails.length) { console.log("FAILED: " + fails.join(" | ")); process.exit(1); }

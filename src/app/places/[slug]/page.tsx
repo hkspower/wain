@@ -7,6 +7,7 @@ import PlaceArt, { hasPlaceArt } from "@/components/PlaceArt";
 import PlaceCard from "@/components/PlaceCard";
 import OrderPanel from "@/components/OrderPanel";
 import QueuePanel from "@/components/QueuePanel";
+import ShareHangout from "@/components/ShareHangout";
 import PlaceMap from "@/components/PlaceMap";
 import {
   IconBack,
@@ -186,6 +187,7 @@ export default async function PlacePage({
       <BusinessProducts place={place} />
       <OrderPanel place={place} />
       <QueuePanel place={place} />
+      <ShareHangout place={place} />
       <BusinessGallery place={place} />
 
       {/* Details */}

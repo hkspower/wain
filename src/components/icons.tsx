@@ -289,6 +289,21 @@ export function IconGo(props: IconProps) {
   );
 }
 
+/**
+ * Send: a paper plane, pointing along the RTL reading direction.
+ *
+ * The wing is the washed half — the body of the plane is the shape the eye
+ * reads, and filling the whole outline turns it into a triangle.
+ */
+export function IconSend(props: IconProps) {
+  return (
+    <svg {...base(props)}>
+      <path {...duo} d="M20.5 4.2 3.6 10.4a.6.6 0 0 0 0 1.1l6.7 2.3 2.3 6.7a.6.6 0 0 0 1.1 0Z" />
+      <path d="m10.3 13.8 4.6-4.6" />
+    </svg>
+  );
+}
+
 /** Back arrow: points right, against the RTL reading direction. */
 export function IconBack(props: IconProps) {
   return (
