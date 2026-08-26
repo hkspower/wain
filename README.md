@@ -94,6 +94,7 @@ because the rigs place real orders against a real database.
 | `npm run test:csp` | Every inline script in the website is declared in its CSP |
 | `npm run test:styles` | No dead style keys, and no hard-coded white on a surface that changes with the theme |
 | `npm run test:db` | The database's values against the website and app that read them |
+| `npm run test:site-contrast` | Every run of text on the website, measured against what is behind it — `THEME=light` for the other one |
 | `npm run scan:site` | The website, in a browser — `BASE=` to aim it |
 | `npm run scan:site:curl` | The same, with nothing but curl |
 | `npm run site:diff` | Is a live server the same build as this repo's copy? |

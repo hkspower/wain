@@ -35,7 +35,7 @@
          (charcoal), not the brand orange — with viewport-fit=cover the header
          now runs right up under the status bar, and an orange strip above a
          charcoal header is a visible seam. -->
-    <meta name="theme-color" content="#2B3138" />
+    <meta name="theme-color" content="#0d0e10" />
 
     <!-- Add to Home Screen -->
     <link rel="manifest" href="/site.webmanifest" />
@@ -227,8 +227,13 @@
           // DOMContentLoaded, and a flash of the beige light theme on every
           // single page load. Reading the saved choice — or the OS preference
           // when there is none — costs nothing here.
+          // DARK IS THE SHOP'S OWN LOOK, not a preference to be inferred.
+          // Sporta is black, dark silver and orange; the light theme still
+          // exists and the header toggle still reaches it, but a first-time
+          // visitor on a light laptop was being shown the wrong shop. A saved
+          // choice always wins — only the DEFAULT changed.
           var t = localStorage.getItem('sporta_theme')
-          if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+          if (!t) t = 'dark'
           el.dataset.theme = t
           el.style.colorScheme = t
           // THE HERO'S HEIGHT, BEFORE THE FIRST PAINT.
@@ -456,7 +461,12 @@
     <script type="module" crossorigin src="/assets/index-5HbquisI.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/react-vendor-CMgvnOJB.js">
-    <link rel="preload" as="style" crossorigin href="/assets/index-TIUCmnwm.css"><script>(function(){var l=document.currentScript.previousElementSibling,done=false;function p(){if(done)return;done=true;l.rel='stylesheet'}l.addEventListener('load',p,{once:true});document.addEventListener('DOMContentLoaded',p,{once:true});})()</script><noscript><link rel="stylesheet" crossorigin href="/assets/index-TIUCmnwm.css"></noscript>
+    <link rel="preload" as="style" crossorigin href="/assets/index-TIUCmnwm.css"><script>(function(){var l=document.currentScript.previousElementSibling,done=false;function p(){if(done)return;done=true;l.rel='stylesheet'}l.addEventListener('load',p,{once:true});document.addEventListener('DOMContentLoaded',p,{once:true});})()</script><noscript><link rel="stylesheet" crossorigin href="/assets/index-TIUCmnwm.css">
+    <link rel="stylesheet" href="/assets/sporta-dark.css"></noscript>
+    <!-- The palette, after the build's own stylesheet so the cascade lands on
+         it. Plain rel=stylesheet, not the preload dance above: it is 4 KB and
+         holds the page's background colour, so it is not a file to defer. -->
+    <link rel="stylesheet" href="/assets/sporta-dark.css">
   </head>
   <body>
     <!-- ================================================================

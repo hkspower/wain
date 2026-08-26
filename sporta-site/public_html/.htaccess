@@ -341,7 +341,7 @@ FileETag MTime Size
   # connect-src is same-origin only now that /api is the whole backend;
   # fonts.* cover Google Fonts;
   # form-action lists the KNET gateway in case pay.php ever posts a form.
-  Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline' 'sha256-uVPKOtsMYAf7FztyOPYYXbXi26fPX1PDSCHi0ElEcwI=' 'sha256-go+04wSauX78rfYFlJZOqcS6wr9FzWYFwYjWpRpZNOE=' 'sha256-t69TolQvo9IFKcAXMpUhlAbOSYffWq4MTuJVCW3jtOk=' 'sha256-eBvItIAmW2SCCf2xYejbf7VLxxDbDzAysm8o3MR6vBc=' 'sha256-3Q938IqtNwCx+HP/Sq+E16ifD8xGD/Q0IuWW9/ZclAM='; connect-src 'self'; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests"
+  Header set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline' 'sha256-uVPKOtsMYAf7FztyOPYYXbXi26fPX1PDSCHi0ElEcwI=' 'sha256-8qdj14Vl2u8Egr/D0NvKkA0jnilyWdZ6HGpsk3zqBBA=' 'sha256-t69TolQvo9IFKcAXMpUhlAbOSYffWq4MTuJVCW3jtOk=' 'sha256-eBvItIAmW2SCCf2xYejbf7VLxxDbDzAysm8o3MR6vBc=' 'sha256-3Q938IqtNwCx+HP/Sq+E16ifD8xGD/Q0IuWW9/ZclAM='; connect-src 'self'; form-action 'self' https://kpay.com.kw https://kpaytest.com.kw; upgrade-insecure-requests"
 </IfModule>
 
 # ---- Dotfiles, everywhere, by NAME ----

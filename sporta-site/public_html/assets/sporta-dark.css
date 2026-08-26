@@ -1,0 +1,159 @@
+/* Sporta — black, dark silver, orange.
+ *
+ * The site already carried a full dark theme under [data-theme=dark]; what it
+ * did not carry was a palette. Its dark surfaces were four blue-greys within a
+ * few points of each other — page #202429, cards #282e35, chrome #2b3138,
+ * tiles #232830 — so nothing separated from anything, the header floated
+ * LIGHTER than the page it sat on, and the product tiles kept a navy cast from
+ * Tailwind's slate ramp (#1e293b, #0f172b) that belonged to no part of the
+ * brand.
+ *
+ * This file replaces those values with one neutral ramp on black. Neutral is
+ * the point: every grey below has equal red, green and blue give or take a
+ * point, so "dark silver" reads as silver and not as blue. Orange is untouched
+ * — it was already right, and it is the only colour in the shop.
+ *
+ * The ramp, darkest first:
+ *
+ *   --sp-black   #0d0e10   the page itself
+ *   --sp-tile    #121417   product tiles and the hero — a photo's ground
+ *   --sp-panel   #17191c   cards, the header, the cart drawer
+ *   --sp-raise   #212428   chips, inputs, skeletons — what sits ON a card
+ *   --sp-line    #2f3338   hairlines
+ *   --sp-silver  #9aa0a6   secondary text
+ *   --sp-text    #e6e8ea   primary text
+ *
+ * Every pair a customer reads was measured, not guessed:
+ *
+ *   #e6e8ea on #0d0e10  15.72:1      #9aa0a6 on #0d0e10   7.31:1
+ *   #e6e8ea on #17191c  14.34:1      #9aa0a6 on #17191c   6.67:1
+ *   #e6e8ea on #212428  12.69:1      #9aa0a6 on #212428   5.90:1
+ *   #ff7b17 on #0d0e10   7.45:1      #171a1e on #e0561c   4.59:1
+ *
+ * All AA. The ember is a TEXT colour on these grounds at 6.79:1, which the
+ * old #ff7b17-on-#282e35 also managed — that part was never broken.
+ *
+ * WHY A SEPARATE FILE. index-*.css is a content-hashed build artefact whose
+ * source is not in this repository. Editing values inside it would make the
+ * hash a lie and would be lost the next time the site is rebuilt; a file
+ * loaded after it overrides by cascade, is obvious in the <head>, and can be
+ * deleted in one line to get the old palette back. The !important flags match
+ * the ones already on the rules being overridden — they are not a fight with
+ * specificity, they are the same weapon the original rules use.
+ */
+
+:root[data-theme='dark'] {
+  --sp-black: #0d0e10;
+  --sp-tile: #121417;
+  --sp-panel: #17191c;
+  --sp-raise: #212428;
+  --sp-line: #2f3338;
+  --sp-silver: #9aa0a6;
+  --sp-text: #e6e8ea;
+  --sp-ember: #ff7b17;
+  --sp-ember-fill: #e0561c;
+  --sp-on-ember: #171a1e;
+}
+
+/* --- the ground ------------------------------------------------------- */
+[data-theme='dark'] body,
+[data-theme='dark'] body[data-canvas='silver'] {
+  color: var(--sp-text);
+  background-color: var(--sp-black) !important;
+}
+[data-theme='dark'] .bg-sand,
+[data-theme='dark'] .bg-sand-light {
+  background-color: var(--sp-black) !important;
+}
+
+/* --- panels: cards, the header, the cart drawer ------------------------ */
+/* bg-ink-silver was #2b3138 and is the sticky header. It was LIGHTER than the
+   page, which reads as the chrome floating above the content rather than
+   holding it; on black it now sits one step up, with the hairline below it
+   doing the separating. */
+[data-theme='dark'] .bg-white,
+[data-theme='dark'] .card,
+[data-theme='dark'] .bg-ink-silver {
+  color: var(--sp-text);
+  background-color: var(--sp-panel) !important;
+}
+[data-theme='dark'] .bg-ink-silver\/\[\.97\] {
+  background-color: #17191cf7 !important;
+}
+
+/* --- tiles: what a photograph sits on ---------------------------------- */
+/* Darker than a card on purpose. A product shot on a near-black ground reads
+   as the garment; on a mid grey it reads as a rectangle with a garment in it.
+   bg-slate-50/100 are the placeholder grounds before an image loads, and the
+   two navy slates are the cast this file exists to remove. */
+[data-theme='dark'] .bg-ink,
+[data-theme='dark'] .bg-slate-50,
+[data-theme='dark'] .bg-slate-100,
+[data-theme='dark'] .bg-slate-800,
+[data-theme='dark'] .bg-slate-900 {
+  background-color: var(--sp-tile) !important;
+}
+[data-theme='dark'] .bg-ink\/60 { background-color: #0d0e1099 !important; }
+[data-theme='dark'] .bg-ink\/70 { background-color: #0d0e10b3 !important; }
+
+/* --- raised: chips, inputs, the skeleton ------------------------------- */
+[data-theme='dark'] .bg-ink-steel,
+[data-theme='dark'] .skeleton {
+  background-color: var(--sp-raise) !important;
+}
+
+/* --- text ------------------------------------------------------------- */
+/* The old secondary was #9aa3ae — a blue grey. Same lightness, hue removed. */
+[data-theme='dark'] .text-slate-900,
+[data-theme='dark'] .text-slate-800,
+[data-theme='dark'] .text-slate-700 {
+  color: var(--sp-text) !important;
+}
+[data-theme='dark'] .text-slate-600,
+[data-theme='dark'] .text-slate-500,
+[data-theme='dark'] .text-slate-400 {
+  color: var(--sp-silver) !important;
+}
+[data-theme='dark'] .text-brand-dark { color: var(--sp-ember) !important; }
+
+/* --- lines ------------------------------------------------------------- */
+/* white/12% over black is a grey with no hue but also no substance — it
+   disappeared against the card it was meant to bound. A named line colour is
+   the same weight on every surface in the ramp. */
+[data-theme='dark'] .border-black\/10,
+[data-theme='dark'] .border-black\/15,
+[data-theme='dark'] .border-slate-100,
+[data-theme='dark'] .border-slate-200,
+[data-theme='dark'] .border-slate-300,
+[data-theme='dark'] .border-white\/10 {
+  border-color: var(--sp-line) !important;
+}
+[data-theme='dark'] .action-bar {
+  background: #0d0e10eb !important;
+  border-top-color: var(--sp-line) !important;
+}
+
+/* --- the round buttons that float on a photograph ---------------------- */
+/* bg-white/90 and /95 are the wishlist heart and the quick-add. These STAY
+   light, and that is deliberate. They sit on a product photograph, not on a
+   surface in the ramp, so the ground behind them is unknowable — a dark disc
+   is invisible on a dark shot. I did try the dark version: a #212428 disc
+   ringed in --sp-line measures 1.45:1 against the tile, well under the 3:1 a
+   control's boundary needs, and it disappeared. Light is what makes them work
+   on any photograph.
+   What changes is only the colour: the palette's silver rather than pure
+   white, so the one bright element on the page still belongs to it. */
+[data-theme='dark'] .bg-white\/90 { background-color: #e6e8eae6 !important; }
+[data-theme='dark'] .bg-white\/95 {
+  color: var(--sp-on-ember) !important;
+  background-color: #e6e8eaf2 !important;
+}
+
+/* --- orange stays orange ---------------------------------------------- */
+/* Named here only so the one thing that must NOT drift is written down: the
+   fill is #e0561c and what goes on it is ink, not white — white on that fill
+   is 3.81:1, under AA for body text. */
+[data-theme='dark'] .btn-primary {
+  color: var(--sp-on-ember) !important;
+  background-color: var(--sp-ember-fill) !important;
+}
