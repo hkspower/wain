@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * «رسّلها للربع», both halves:  npm run test:hangout
+ * The place-facing pieces:  npm run test:hangout
  *
  *   hangout       — the time rules and the message. No browser: what is under
  *                   test is a pure function of the clock and the place, and
@@ -9,6 +9,9 @@
  *                   popup and the clipboard each removed in turn. Only one
  *                   link of that fallback chain ever runs on a given device,
  *                   which is what makes the other two worth testing.
+ *   map-pin       — the pins, on a phone and on a desktop. The two behaviours
+ *                   that must not drift back together: one tap on a touch
+ *                   device selects, one click on a desktop still opens.
  */
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
@@ -52,9 +55,11 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
     res.end(readFileSync(f));
   });
   await new Promise((r) => srv.listen(PORT, "127.0.0.1", r));
-  failed += (await run("node", ["tests/hangout-page.test.mjs"], {
-    env: { ...process.env, WAIN_URL: `http://127.0.0.1:${PORT}` },
-  })) === 0 ? 0 : 1;
+  const env = { ...process.env, WAIN_URL: `http://127.0.0.1:${PORT}` };
+  failed += (await run("node", ["tests/hangout-page.test.mjs"], { env })) === 0 ? 0 : 1;
+
+  console.log("\n════ الخريطة: the pins, on a phone and on a desktop ════");
+  failed += (await run("node", ["tests/map-pin.test.mjs"], { env })) === 0 ? 0 : 1;
   srv.close();
 }
 

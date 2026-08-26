@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import MapPin from "@/components/MapPin";
 import PlaceIcon from "@/components/PlaceIcon";
 import { IconPinSolid } from "@/components/icons";
 import type { Place } from "@/lib/places";
@@ -19,7 +19,15 @@ import { embedUrl, fitFrameAround, project, spreadPins } from "@/lib/map-frame";
  * The frame is fitted to all of them, and its shape is applied to the
  * container — see lib/map-frame for why those two must agree exactly.
  */
-const PIN_PX = 32;
+/**
+ * What the spreading has to keep clear around each point.
+ *
+ * This is the main pin's diameter, not a neighbour's: it is the biggest thing
+ * on the frame, and at 32 a neighbour was landing on top of the very place the
+ * page is about. The halo around it is wider still, but a halo is translucent
+ * and a pin overlapping it reads fine — a pin overlapping the pin does not.
+ */
+const PIN_PX = 40;
 const NEAR_PIN_PX = 26;
 const PHONE_FRAME_PX = 520;
 
@@ -30,6 +38,10 @@ export default function PlaceMapFrame({
   place: Place;
   related?: Place[];
 }) {
+  // Which neighbour is called out. On a phone the first tap sets this and the
+  // second opens the place — see MapPin.
+  const [active, setActive] = useState<string | null>(null);
+
   const [online, setOnline] = useState(true);
   useEffect(() => {
     const sync = () => setOnline(navigator.onLine);
@@ -106,36 +118,44 @@ export default function PlaceMapFrame({
       )}
 
       {all.map((p, i) => {
-        const isMain = i === 0;
         // Physical left/top on purpose: the page is RTL, geography is not.
         const style = { left: `${pins[i].x * 100}%`, top: `${pins[i].y * 100}%` };
-        if (isMain) {
+
+        // The place the page is about. Not a link — you are already on it —
+        // and not a plain dot either: it is the answer to the question the
+        // page asks, so it is the largest thing on the frame and the only one
+        // that is always haloed.
+        if (i === 0) {
           return (
-            <span
-              key={p.slug}
-              style={style}
-              aria-hidden="true"
-              className="absolute z-20 grid size-9 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-white bg-coral-600 text-white shadow-lg"
-            >
-              <PlaceIcon slug={p.slug} className="size-5" />
+            <span key={p.slug} style={style} className="absolute z-30 -translate-x-1/2 -translate-y-1/2">
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute left-1/2 top-1/2 size-[4.5rem] -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full bg-coral-600/25 motion-reduce:animate-none"
+              />
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute left-1/2 top-1/2 size-14 -translate-x-1/2 -translate-y-1/2 rounded-full bg-coral-600/15"
+              />
+              <span className="relative grid size-10 place-items-center rounded-full border-2 border-white bg-coral-700 text-white shadow-xl ring-1 ring-ink-900/10">
+                <PlaceIcon slug={p.slug} className="size-5" />
+              </span>
+              <span className="sr-only">{p.nameAr} — هنا</span>
             </span>
           );
         }
+
         return (
-          <Link
+          <MapPin
             key={p.slug}
-            href={`/places/${p.slug}`}
+            place={p}
+            active={active === p.slug}
+            onActive={setActive}
+            size={NEAR_PIN_PX}
+            dim
+            align={pins[i].x < 0.28 ? "start" : pins[i].x > 0.72 ? "end" : "center"}
+            below={pins[i].y < 0.28}
             style={style}
-            aria-label={`${p.nameAr} — قريب من هنا`}
-            className="group absolute z-10 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-white bg-ink-800/90 text-white shadow-md transition hover:z-20 hover:scale-110 focus-visible:z-20 focus-visible:scale-110"
-          >
-            <span className="grid place-items-center" style={{ width: NEAR_PIN_PX, height: NEAR_PIN_PX }}>
-              <PlaceIcon slug={p.slug} className="size-4" />
-            </span>
-            <span className="pointer-events-none absolute bottom-full mb-1.5 whitespace-nowrap rounded-lg bg-ink-900 px-2 py-1 text-2xs font-semibold text-white opacity-0 shadow-lg transition group-hover:opacity-100 group-focus-visible:opacity-100">
-              {p.nameAr}
-            </span>
-          </Link>
+          />
         );
       })}
     </div>

@@ -100,3 +100,66 @@ kind of code that stays broken for a year.
 The place page only. Search results and cards do not carry it: the place page is
 where the decision is made, and a send button on every card is a send button
 nobody reads.
+
+---
+
+# The map pins
+
+`npm run test:hangout` runs these too (`tests/map-pin.test.mjs`).
+
+## The active pointer
+
+Pins answered only to `mouseenter`. A place's name was therefore readable on a
+desktop and nowhere else: on a phone the tap fired the link immediately, so the
+label the map is built around had no moment in which it could ever be seen, and
+"the map and the list stay in step" was true of mice only — on a site whose
+traffic is almost entirely phones.
+
+Now, on a device where hovering tells you nothing, **the first tap selects and
+the second opens**. Nothing changes for a mouse: hover selects, one click opens.
+The test pins both, because they are the two behaviours that would quietly drift
+back into one.
+
+`(hover: none)` rather than a touch check — a laptop with a touchscreen has
+both, and the question is not "can this be touched" but "does hovering tell this
+person anything".
+
+**The bug the test caught.** The first version asked "is this pin already
+selected?" inside the click handler. Tapping a link makes a browser fire a
+*synthetic* `mouseenter` before the click, for compatibility with pages written
+for mice — so the pin had selected itself microseconds earlier, the check
+passed, and the first tap navigated away exactly as before. On a real phone as
+much as in the test. `pointerdown` lands before that synthetic hover, so the
+answer is sampled there instead. A keyboard click reports `detail === 0` and is
+never intercepted: tabbing to a pin and pressing Enter means open it.
+
+## The callout
+
+A bare tooltip with a name became a card: name, area, rating, and an arrow. On a
+phone it is the entire reason the first tap is spent selecting rather than
+opening, so it has to be worth the tap.
+
+It opens away from whichever edge it is near. The frame clips its overflow so
+the rounded corners hold, and a centred callout on a pin near the edge lost the
+half with the name on it.
+
+## The colour
+
+Every pin was the same near-black circle, which made a map of eight kinds of
+place look like a map of one. Each pin now takes its category's tint, from the
+middle of the gradient that category's cards already use, so the map reads as
+part of the site rather than an embed with dots on it. Colour groups loosely —
+sea for landmarks and culture, warm for food and shopping, palm for outdoors and
+family — and the icon inside says precisely which, which is how real maps do it.
+
+The active pin scales up, raises its shadow and gets a pulsing halo in its own
+tint, so it is findable at a glance on a busy frame.
+
+## The place page's own pin
+
+The place the page is about is the largest thing on the frame, in coral, with a
+permanent double halo — it is the answer to the question the page asks. It is
+not a link, because you are already there.
+
+Its spreading radius went from 32 to 40 to match: it had grown, and at 32 a
+neighbour was landing on top of the very place the page was about.

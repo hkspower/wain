@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import PlaceIcon from "@/components/PlaceIcon";
+import MapPin from "@/components/MapPin";
 import { IconMap, IconPinSolid } from "@/components/icons";
 import { toArabicDigits, type Place } from "@/lib/places";
 import { embedUrl, fitFrame, osmLink, project, spreadPins } from "@/lib/map-frame";
@@ -135,35 +134,22 @@ export default function SearchMap({
           />
         )}
 
-        {places.map((p, i) => {
-          // Physical left/top on purpose. The page is RTL, but geography is
-          // not — a logical inset would mirror the map east-to-west.
-          const on = active === p.slug;
-          return (
-            <Link
-              key={p.slug}
-              href={`/places/${p.slug}`}
-              style={{ left: `${pins[i].x * 100}%`, top: `${pins[i].y * 100}%` }}
-              onMouseEnter={() => onActive?.(p.slug)}
-              onMouseLeave={() => onActive?.(null)}
-              onFocus={() => onActive?.(p.slug)}
-              onBlur={() => onActive?.(null)}
-              aria-label={`${p.nameAr} — ${p.areaAr}`}
-              className={`absolute grid size-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-white shadow-md transition hover:scale-110 focus-visible:scale-110 ${
-                on ? "z-20 scale-110 bg-coral-600 text-white" : "z-10 bg-ink-900 text-white"
-              }`}
-            >
-              <PlaceIcon slug={p.slug} className="size-5" />
-              <span
-                className={`pointer-events-none absolute bottom-full mb-1.5 whitespace-nowrap rounded-lg bg-ink-900 px-2 py-1 text-2xs font-semibold text-white shadow-lg transition ${
-                  on ? "opacity-100" : "opacity-0"
-                }`}
-              >
-                {p.nameAr}
-              </span>
-            </Link>
-          );
-        })}
+        {places.map((p, i) => (
+          <MapPin
+            key={p.slug}
+            place={p}
+            active={active === p.slug}
+            onActive={(slug) => onActive?.(slug)}
+            size={PIN_PX}
+            // The frame clips its overflow, so a callout centred on a pin near
+            // an edge would lose the half with the name on it.
+            align={pins[i].x < 0.28 ? "start" : pins[i].x > 0.72 ? "end" : "center"}
+            below={pins[i].y < 0.28}
+            // Physical left/top on purpose. The page is RTL, but geography is
+            // not — a logical inset would mirror the map east-to-west.
+            style={{ left: `${pins[i].x * 100}%`, top: `${pins[i].y * 100}%` }}
+          />
+        ))}
       </div>
     </section>
   );
