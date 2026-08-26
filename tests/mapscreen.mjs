@@ -74,16 +74,23 @@ const check = (c, m) => { if (!c) fail.push(m); };
 const opener = page.locator('button[aria-label="Open the full map"]');
 check(await opener.count() === 1, "there is no way to open the map from the HUD");
 await opener.click();
-await page.waitForSelector('[data-testid="road-map"]', { state: "attached", timeout: 30000 });
-// Visible by geometry, asserted directly — see the header for why this
-// is not waitForSelector's job on this page.
-const shown = await page.evaluate(() => {
-  const c = document.querySelector('[data-testid="road-map"]');
-  const r = c.getBoundingClientRect();
-  const cs = getComputedStyle(c);
-  return r.width > 200 && r.height > 200 && cs.visibility === "visible" && cs.display !== "none";
-});
-check(shown, "the map canvas is attached but has no size or is hidden");
+// Poll over CDP rather than waitForSelector. Even after the static map
+// was cached, the waiter's fulfilment can starve behind the game's own
+// loop — its logs showed "resolved to visible <canvas>" and then four
+// minutes of silence. page.evaluate goes over the protocol directly and
+// does not ride the page's requestAnimationFrame at all.
+let shown = false;
+for (let i = 0; i < 60 && !shown; i++) {
+  shown = await page.evaluate(() => {
+    const c = document.querySelector('[data-testid="road-map"]');
+    if (!c) return false;
+    const r = c.getBoundingClientRect();
+    const cs = getComputedStyle(c);
+    return r.width > 200 && r.height > 200 && cs.visibility === "visible" && cs.display !== "none";
+  });
+  if (!shown) await page.waitForTimeout(500);
+}
+check(shown, "the map never appeared, or appeared without size");
 // Several frames, so the first paint is not what gets measured.
 await page.waitForTimeout(1200);
 

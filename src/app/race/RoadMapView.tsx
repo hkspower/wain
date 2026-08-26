@@ -39,6 +39,129 @@ const STYLE = {
 
 const LEG_COLOR = ["#38c9ee", "#f5a524"];
 
+/** The whole unmoving map — road, ticks, marks, labels, scale bar —
+ *  painted into `base` at the current buffer size. Called once per
+ *  resize, never per frame. */
+function drawStatic(
+  base: HTMLCanvasElement,
+  map: RoadMap,
+  W: number,
+  H: number,
+  side: number,
+  ox: number,
+  oy: number,
+  u: number
+): void {
+  base.width = W;
+  base.height = H;
+  const ctx = base.getContext("2d");
+  if (!ctx) return;
+  const X = (x: number) => ox + x * side;
+  const Y = (y: number) => oy + y * side;
+
+  // --- The road: each named leg in its own colour, wide and dark
+  // underneath so it reads as a road rather than a wire.
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const pass of [0, 1]) {
+    for (let i = 0; i < map.legs.length; i++) {
+      const leg = map.legs[i];
+      ctx.beginPath();
+      for (let k = leg.from; k <= leg.to; k++) {
+        const p = map.path[k];
+        if (k === leg.from) ctx.moveTo(X(p.x), Y(p.y));
+        else ctx.lineTo(X(p.x), Y(p.y));
+      }
+      if (pass === 0) {
+        ctx.strokeStyle = "rgba(4,7,10,0.85)";
+        ctx.lineWidth = 11 * u;
+      } else {
+        ctx.strokeStyle = LEG_COLOR[i % LEG_COLOR.length];
+        ctx.lineWidth = 4.5 * u;
+      }
+      ctx.stroke();
+    }
+  }
+
+  // --- Kilometre ticks, so a distance on the map is readable as one.
+  ctx.strokeStyle = "rgba(255,255,255,0.30)";
+  ctx.lineWidth = 1.5 * u;
+  for (let m = 1000; m < map.lapLength; m += 1000) {
+    const a = map.at(m - 6);
+    const b = map.at(m + 6);
+    // Perpendicular to the road, which is what a distance mark is.
+    const dx = X(b.x) - X(a.x);
+    const dy = Y(b.y) - Y(a.y);
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = (-dy / len) * 8 * u;
+    const ny = (dx / len) * 8 * u;
+    const c = map.at(m);
+    ctx.beginPath();
+    ctx.moveTo(X(c.x) - nx, Y(c.y) - ny);
+    ctx.lineTo(X(c.x) + nx, Y(c.y) + ny);
+    ctx.stroke();
+  }
+
+  // --- Marks.
+  //
+  // Labels get a dark plate behind them rather than a stroke: this map
+  // is drawn over a night scene and an outlined glyph on a dark road is
+  // still a glyph on a dark road.
+  const plate = (text: string, x: number, y: number, size: number, color: string, font: string) => {
+    ctx.font = `600 ${size}px ${font}`;
+    const w = ctx.measureText(text).width;
+    ctx.fillStyle = "rgba(4,7,10,0.78)";
+    ctx.fillRect(x - w / 2 - 5 * u, y - size * 0.86, w + 10 * u, size * 1.24);
+    ctx.fillStyle = color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText(text, x, y + size * 0.1);
+  };
+
+  for (const mk of map.markers) {
+    const st = STYLE[mk.kind];
+    const x = X(mk.x);
+    const y = Y(mk.y);
+    if (mk.kind === "district") {
+      plate(mk.name.toUpperCase(), x, y - 15 * u, 13 * u, "rgba(255,255,255,0.92)", latinDisplay());
+      plate(mk.arabic, x, y + 4 * u, 14 * u, "rgba(255,255,255,0.66)", arabicUI());
+      continue;
+    }
+    ctx.beginPath();
+    ctx.arc(x, y, st.r * u, 0, Math.PI * 2);
+    ctx.fillStyle = st.fill;
+    ctx.fill();
+    ctx.lineWidth = 1.6 * u;
+    ctx.strokeStyle = "rgba(4,7,10,0.9)";
+    ctx.stroke();
+    if (st.label) {
+      plate(mk.name, x, y - 12 * u, 11 * u, st.fill || "#fff", latinDisplay());
+    }
+  }
+
+  // --- Scale bar. A map without one is a picture.
+  {
+    const metres = 500;
+    const px = metres * map.unitsPerMetre * side;
+    const bx = ox + 16 * u;
+    const by = oy + side - 20 * u;
+    ctx.strokeStyle = "rgba(255,255,255,0.8)";
+    ctx.lineWidth = 2 * u;
+    ctx.beginPath();
+    ctx.moveTo(bx, by);
+    ctx.lineTo(bx + px, by);
+    ctx.moveTo(bx, by - 5 * u);
+    ctx.lineTo(bx, by + 5 * u);
+    ctx.moveTo(bx + px, by - 5 * u);
+    ctx.lineTo(bx + px, by + 5 * u);
+    ctx.stroke();
+    ctx.font = `600 ${11 * u}px ${latinDisplay()}`;
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    ctx.textAlign = "left";
+    ctx.fillText(`${metres} m`, bx, by - 9 * u);
+  }
+}
+
 export default function RoadMapView({
   map,
   liveRef,
@@ -68,6 +191,18 @@ export default function RoadMapView({
     const canvas = canvasRef.current;
     if (!canvas) return;
     let raf = 0;
+    // Everything that never moves — the road, the ticks, every label,
+    // the scale bar — is drawn ONCE into this offscreen canvas and
+    // blitted each frame. The first version repainted it all every
+    // requestAnimationFrame: thirty-odd text plates measured and filled
+    // sixty times a second, for a picture identical between frames. On a
+    // phone that is battery for nothing, and on a software renderer it
+    // pegged the main thread so hard that Playwright's element waiter —
+    // which rides the page's own rAF — resolved the map canvas and then
+    // starved before it could say so. Only the dots move, so only the
+    // dots redraw.
+    const base = document.createElement("canvas");
+    let baseKey = "";
 
     const draw = () => {
       raf = requestAnimationFrame(draw);
@@ -85,7 +220,6 @@ export default function RoadMapView({
       }
       const W = canvas.width;
       const H = canvas.height;
-      ctx.clearRect(0, 0, W, H);
 
       // The model is square and aspect-correct — see roadmap.ts — so a
       // non-square box gets the square centred in it rather than the
@@ -99,56 +233,17 @@ export default function RoadMapView({
       /** One scale for text and marks, so the map reads the same at any size. */
       const u = side / 700;
 
+      const key = `${W}x${H}`;
+      if (key !== baseKey) {
+        drawStatic(base, map, W, H, side, ox, oy, u);
+        baseKey = key;
+      }
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(base, 0, 0);
+
       const live = liveRef.current;
 
-      // --- The road: each named leg in its own colour, wide and dark
-      // underneath so it reads as a road rather than a wire.
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      for (const pass of [0, 1]) {
-        for (let i = 0; i < map.legs.length; i++) {
-          const leg = map.legs[i];
-          ctx.beginPath();
-          for (let k = leg.from; k <= leg.to; k++) {
-            const p = map.path[k];
-            if (k === leg.from) ctx.moveTo(X(p.x), Y(p.y));
-            else ctx.lineTo(X(p.x), Y(p.y));
-          }
-          if (pass === 0) {
-            ctx.strokeStyle = "rgba(4,7,10,0.85)";
-            ctx.lineWidth = 11 * u;
-          } else {
-            ctx.strokeStyle = LEG_COLOR[i % LEG_COLOR.length];
-            ctx.lineWidth = 4.5 * u;
-          }
-          ctx.stroke();
-        }
-      }
-
-      // --- Kilometre ticks, so a distance on the map is readable as one.
-      ctx.strokeStyle = "rgba(255,255,255,0.30)";
-      ctx.lineWidth = 1.5 * u;
-      for (let m = 1000; m < map.lapLength; m += 1000) {
-        const a = map.at(m - 6);
-        const b = map.at(m + 6);
-        // Perpendicular to the road, which is what a distance mark is.
-        const dx = X(b.x) - X(a.x);
-        const dy = Y(b.y) - Y(a.y);
-        const len = Math.hypot(dx, dy) || 1;
-        const nx = (-dy / len) * 8 * u;
-        const ny = (dx / len) * 8 * u;
-        const c = map.at(m);
-        ctx.beginPath();
-        ctx.moveTo(X(c.x) - nx, Y(c.y) - ny);
-        ctx.lineTo(X(c.x) + nx, Y(c.y) + ny);
-        ctx.stroke();
-      }
-
-      // --- Marks.
-      //
-      // Labels get a dark plate behind them rather than a stroke: this
-      // map is drawn over a night scene and an outlined glyph on a dark
-      // road is still a glyph on a dark road.
+      // Labels for the moving dots — the static ones live on `base`.
       const plate = (text: string, x: number, y: number, size: number, color: string, font: string) => {
         ctx.font = `600 ${size}px ${font}`;
         const w = ctx.measureText(text).width;
@@ -159,27 +254,6 @@ export default function RoadMapView({
         ctx.textBaseline = "alphabetic";
         ctx.fillText(text, x, y + size * 0.1);
       };
-
-      for (const mk of map.markers) {
-        const st = STYLE[mk.kind];
-        const x = X(mk.x);
-        const y = Y(mk.y);
-        if (mk.kind === "district") {
-          plate(mk.name.toUpperCase(), x, y - 15 * u, 13 * u, "rgba(255,255,255,0.92)", latinDisplay());
-          plate(mk.arabic, x, y + 4 * u, 14 * u, "rgba(255,255,255,0.66)", arabicUI());
-          continue;
-        }
-        ctx.beginPath();
-        ctx.arc(x, y, st.r * u, 0, Math.PI * 2);
-        ctx.fillStyle = st.fill;
-        ctx.fill();
-        ctx.lineWidth = 1.6 * u;
-        ctx.strokeStyle = "rgba(4,7,10,0.9)";
-        ctx.stroke();
-        if (st.label) {
-          plate(mk.name, x, y - 12 * u, 11 * u, st.fill || "#fff", latinDisplay());
-        }
-      }
 
       // --- Everyone on the road.
       if (live) {
@@ -221,27 +295,6 @@ export default function RoadMapView({
         ctx.restore();
       }
 
-      // --- Scale bar. A map without one is a picture.
-      {
-        const metres = 500;
-        const px = metres * map.unitsPerMetre * side;
-        const bx = ox + 16 * u;
-        const by = oy + side - 20 * u;
-        ctx.strokeStyle = "rgba(255,255,255,0.8)";
-        ctx.lineWidth = 2 * u;
-        ctx.beginPath();
-        ctx.moveTo(bx, by);
-        ctx.lineTo(bx + px, by);
-        ctx.moveTo(bx, by - 5 * u);
-        ctx.lineTo(bx, by + 5 * u);
-        ctx.moveTo(bx + px, by - 5 * u);
-        ctx.lineTo(bx + px, by + 5 * u);
-        ctx.stroke();
-        ctx.font = `600 ${11 * u}px ${latinDisplay()}`;
-        ctx.fillStyle = "rgba(255,255,255,0.8)";
-        ctx.textAlign = "left";
-        ctx.fillText(`${metres} m`, bx, by - 9 * u);
-      }
     };
 
     raf = requestAnimationFrame(draw);
