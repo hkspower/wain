@@ -31,6 +31,8 @@ const p = await b.newPage({ viewport: { width: 1280, height: 1000 } })
 
 let fails = 0, checked = 0, skipped = 0
 const worst = []
+const faintEdges = new Map()
+const check = (ok, what) => { if (!ok) fails++; console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`) }
 
 await p.goto(BASE + '/', { waitUntil: 'domcontentloaded' })
 await p.evaluate((t) => localStorage.setItem('sporta_theme', t), THEME)
@@ -120,6 +122,83 @@ for (const path of PAGES) {
     return out
   })
 
+  // --- the edges, measured the way the app's colour rig measures them -------
+  // Same two standards and the same split, so a border is judged identically
+  // whichever half of Sporta it is drawn in. A hairline is the one thing a
+  // repaint breaks silently: text that goes wrong is obvious, a boundary that
+  // quietly stops existing is not.
+  const edges = await p.evaluate(() => {
+    const lum = (rgb) => {
+      const c = rgb.slice(0, 3).map((v) => v / 255)
+        .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+    }
+    const ratio = (a, b) => {
+      const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m)
+      return (x + 0.05) / (y + 0.05)
+    }
+    const _c = document.createElement('canvas'); _c.width = _c.height = 1
+    const _x = _c.getContext('2d', { willReadFrequently: true })
+    const parse = (s) => {
+      if (/^rgba?\(/.test(s)) {
+        const n = (s.match(/[\d.]+/g) ?? []).map(Number)
+        return n.length >= 3 ? { rgb: n.slice(0, 3), a: n[3] ?? 1 } : null
+      }
+      _x.clearRect(0, 0, 1, 1); _x.fillStyle = '#000'; _x.fillStyle = s
+      _x.fillRect(0, 0, 1, 1)
+      const d = _x.getImageData(0, 0, 1, 1).data
+      const a = Number((s.match(/\/\s*([\d.]+)\s*\)/) ?? [])[1] ?? 1)
+      return a > 0 ? { rgb: [d[0] / a, d[1] / a, d[2] / a], a } : null
+    }
+    // A translucent border does not land as its own colour — it lands as
+    // itself OVER whatever is behind. Measuring the raw value would call a
+    // 12%-white hairline a bright grey.
+    const over = (c, bg) => c.rgb.map((v, i) => v * c.a + bg[i] * (1 - c.a))
+    const groundOf = (el) => {
+      for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
+        const cs = getComputedStyle(n)
+        if (cs.backgroundImage !== 'none') return null   // a photograph: unknowable
+        const c = parse(cs.backgroundColor)
+        if (c && c.a >= 0.85) return c.rgb
+      }
+      return parse(getComputedStyle(document.body).backgroundColor)?.rgb ?? [255, 255, 255]
+    }
+
+    const out = []
+    for (const el of document.querySelectorAll('*')) {
+      const r = el.getBoundingClientRect()
+      if (r.width < 4 || r.height < 4) continue
+      const cs = getComputedStyle(el)
+      if (cs.visibility === 'hidden' || cs.opacity === '0') continue
+      if (parseFloat(cs.borderTopWidth) <= 0 || cs.borderTopStyle === 'none') continue
+      const bc = parse(cs.borderTopColor)
+      if (!bc || bc.a === 0) continue
+      const ground = groundOf(el.parentElement ?? el)
+      if (!ground) continue
+      const painted = over(bc, ground)
+      const hex = (c) => '#' + c.slice(0, 3).map((n) => Math.round(n).toString(16).padStart(2, '0')).join('')
+      out.push({
+        ratio: Math.round(ratio(painted, ground) * 100) / 100,
+        color: hex(painted), on: hex(ground),
+        cls: (el.className?.toString?.() ?? el.tagName).slice(0, 40),
+      })
+    }
+    return out
+  })
+
+  // A border the exact colour of what it sits on was drawn and cannot be seen.
+  // That is a fault at any size, on anything.
+  const invisible = edges.filter((e) => e.ratio < 1.02)
+  check(invisible.length === 0,
+    `${path.padEnd(42)} no border is drawn in its own background colour` +
+    (invisible.length ? ` — ${invisible.length}, e.g. ${invisible[0].color} on ${invisible[0].on} (.${invisible[0].cls})` : ''))
+  // 1.02–3:1 is reported, never failed — the same call the app's rig makes.
+  // WCAG 1.4.11 asks 3:1 of a CONTROL's edge, but this shop's hairlines are
+  // deliberately quiet and raising them changes the look of every screen.
+  // That is the owner's decision, not this file's.
+  const faint = edges.filter((e) => e.ratio >= 1.02 && e.ratio < 3)
+  if (faint.length) faintEdges.set(path, faint)
+
   let bad = 0
   for (const r of rows) {
     if (r.photo) { skipped++; continue }
@@ -129,7 +208,22 @@ for (const path of PAGES) {
       worst.push(`${path}  ${r.ratio.toFixed(2)}:1 (needs ${r.need})  ${r.fg} on ${r.bg}  "${r.text}"  .${r.cls}`)
     }
   }
-  console.log(`${bad ? 'FAIL' : 'ok  '} ${path.padEnd(42)} ${rows.length - bad} readable, ${bad} under AA`)
+  console.log(`${bad ? 'FAIL' : 'ok  '} ${path.padEnd(42)} ${rows.length - bad} readable, ${bad} under AA, ${edges.length} borders`)
+}
+
+if (faintEdges.size) {
+  console.log('\n--- hairlines under the 3:1 WCAG asks of a control edge (reported, not failed) ---')
+  const all = [...faintEdges.values()].flat()
+  const byPair = new Map()
+  for (const e of all) {
+    const k = `${e.color} on ${e.on}`
+    byPair.set(k, (byPair.get(k) ?? 0) + 1)
+  }
+  for (const [pair, n] of [...byPair.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)) {
+    const one = all.find((e) => `${e.color} on ${e.on}` === pair)
+    console.log(`  ${String(one.ratio).padStart(5)}:1  ${pair}  x${n}`)
+  }
+  console.log(`  ${all.length} borders in total, across ${faintEdges.size} pages`)
 }
 
 if (worst.length) {
