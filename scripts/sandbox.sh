@@ -104,6 +104,25 @@ if [ "${SANDBOX_DB_NAME:-sporta}" = "sporta" ] && [ -z "${SANDBOX_NO_RESTOCK:-}"
   fi
 fi
 
+# AN ADMIN ACCOUNT, so admin-live-test.mjs can sign in to the REAL admin.php.
+# Idempotent: the insert keeps an existing row's password. The hash is minted
+# by PHP itself, because password_hash() output is what password_verify()
+# expects and nothing else needs to know its shape. Sandbox database only,
+# same guard as the restock above.
+if [ "${SANDBOX_DB_NAME:-sporta}" = "sporta" ]; then
+  HASH=$(php -r 'echo password_hash("correct horse", PASSWORD_DEFAULT);')
+  if mariadb -u sporta -plocaldev sporta -e "
+       insert into admin_users (email, password_hash)
+       values ('manager@sporta.com.kw', '$HASH')
+       on duplicate key update email = email;
+       update admin_users set failed_attempts = 0, locked_until = null
+        where email = 'manager@sporta.com.kw';" 2>/dev/null; then
+    echo "ok   admin account seeded (manager@sporta.com.kw)"
+  else
+    echo "--   could not seed admin (admin-live-test will fail to sign in)"
+  fi
+fi
+
 cd "$ROOT"
 # 401 is the right answer from the mock with no token — it means it is awake.
 up mock-admin 'http://127.0.0.1:8899/admin.php?r=today' 401 python3 scripts/mock-admin.py 8899

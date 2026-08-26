@@ -40,7 +40,7 @@ export default function OrdersScreen() {
     setLoading(true);
     setError(null);
     adminApi
-      .orders(token, filter)
+      .orders(filter)
       .then((r) => setOrders(r.orders))
       .catch((e) => (e instanceof Unauthorized ? signOut() : setError(String(e))))
       .finally(() => setLoading(false));

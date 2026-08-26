@@ -32,9 +32,13 @@ export default function BackendsHome() {
 
 function SignIn() {
   const theme = useTheme();
-  const { signIn } = useSession();
+  const { signIn, signInCode } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  // The second factor. Null until the server says one is enrolled — the
+  // field must not exist before then, or every shop without 2FA shows an
+  // input nothing will ever accept.
+  const [code, setCode] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,12 +47,24 @@ function SignIn() {
     setBusy(true);
     setError(null);
     try {
-      await signIn(email, password);
+      if (code !== null) {
+        await signInCode(code);
+      } else if ((await signIn(email, password)) === 'code') {
+        setCode('');
+      }
     } catch (e) {
       // The message is the server's, except for the one case worth rewording:
       // "unauthorized" tells a manager nothing about which half was wrong, and
       // saying which half is exactly what an attacker wants.
-      setError(e instanceof Unauthorized ? 'Wrong email or password.' : String(e));
+      setError(
+        e instanceof Unauthorized
+          ? code !== null
+            ? 'That code was not accepted.'
+            : 'Wrong email or password.'
+          : e instanceof Error && e.message === 'no_admin_account'
+            ? 'No admin account exists on this server yet — see api/setup-admin.php.'
+            : String(e),
+      );
     } finally {
       setBusy(false);
     }
@@ -90,6 +106,28 @@ function SignIn() {
             ]}
           />
 
+          {code !== null && (
+            <>
+              <ThemedText type="label" themeColor="textSecondary">
+                Authenticator code
+              </ThemedText>
+              <TextInput
+                value={code}
+                onChangeText={setCode}
+                keyboardType="number-pad"
+                autoComplete="one-time-code"
+                accessibilityLabel="Authenticator code"
+                onSubmitEditing={submit}
+                // The password was right; only the code is being retyped.
+                autoFocus
+                style={[
+                  styles.input,
+                  { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: theme.border },
+                ]}
+              />
+            </>
+          )}
+
           {error && (
             <ThemedText type="label" themeColor="danger" accessibilityLiveRegion="polite">
               {error}
@@ -97,7 +135,7 @@ function SignIn() {
           )}
 
           <Button
-            label={busy ? 'Signing in…' : 'Sign in'}
+            label={busy ? 'Signing in…' : code !== null ? 'Verify code' : 'Sign in'}
             onPress={submit}
             busy={busy}
             style={styles.primary}
@@ -122,7 +160,7 @@ function Dashboard() {
     setLoading(true);
     setError(null);
     adminApi
-      .summary(token)
+      .summary()
       .then(setData)
       .catch((e) => (e instanceof Unauthorized ? signOut() : setError(String(e))))
       .finally(() => setLoading(false));

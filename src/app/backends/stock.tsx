@@ -32,7 +32,7 @@ export default function StockScreen() {
     setLoading(true);
     setError(null);
     adminApi
-      .stock(token)
+      .stock()
       .then((r) => setItems(r.items))
       .catch((e) => (e instanceof Unauthorized ? signOut() : setError(String(e))))
       .finally(() => setLoading(false));
@@ -57,7 +57,7 @@ export default function StockScreen() {
     setSaving(k);
     setNotice(null);
     try {
-      await adminApi.setStock(token, item.slug, item.size, next);
+      await adminApi.setStock(item.sku, next);
       setItems((prev) =>
         prev ? prev.map((i) => (key(i) === k ? { ...i, stock: next } : i)) : prev,
       );
@@ -117,6 +117,10 @@ export default function StockScreen() {
               />
               <Pressable
                 accessibilityRole="button"
+                // Named per row: four buttons all announcing "Save" are
+                // indistinguishable to a screen reader, and to the test rig,
+                // which clicked the first one and found it rightly disabled.
+                accessibilityLabel={`save stock for ${i.name} ${i.size}`}
                 accessibilityState={{ disabled: !dirty, busy: saving === k }}
                 disabled={!dirty || saving !== null}
                 onPress={() => save(i)}

@@ -12,7 +12,7 @@ import { Radius, Spacing, TapTarget } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import {
   adminApi,
-  NEXT_STATUS,
+  nextStatuses,
   Unauthorized,
   type OrderDetail,
   type OrderStatus,
@@ -39,7 +39,7 @@ export default function OrderScreen() {
     setLoading(true);
     setError(null);
     adminApi
-      .order(token, orderId)
+      .order(orderId)
       .then((r) => setOrder(r.order))
       .catch((e) => (e instanceof Unauthorized ? signOut() : setError(String(e))))
       .finally(() => setLoading(false));
@@ -52,12 +52,11 @@ export default function OrderScreen() {
     setSaving(to);
     setNotice(null);
     try {
-      const res = await adminApi.setStatus(token, order.id, to);
-      // The SERVER's status is what lands in state, not the one that was
-      // requested. If it refuses a transition, or another manager moved the
-      // order first, the screen must show what is true rather than what this
-      // phone asked for.
-      setOrder({ ...order, status: res.status });
+      const res = await adminApi.setStatus(order, to);
+      // The SERVER's answer is what lands in state, not the request: marking
+      // cash collected moves the money axis and not the parcel's, and a
+      // refused transition throws before this line.
+      setOrder({ ...order, status: res.status, paid: res.paid });
     } catch (e) {
       if (e instanceof Unauthorized) signOut();
       else setNotice(String(e));
@@ -137,16 +136,16 @@ export default function OrderScreen() {
           <ThemedText type="labelBold" style={styles.section}>
             Move to
           </ThemedText>
-          {/* Only the transitions this status allows are offered. The panel
-              cannot send an order backwards, because a delivered order that
-              becomes "new" again is a reporting bug that outlives the tap. */}
-          {NEXT_STATUS[order.status].length === 0 ? (
+          {/* Only the moves this order allows are offered — derived from both
+              axes, so a delivered cash order still offers "paid" (the courier
+              hands the money over at the door) and a card order never does. */}
+          {nextStatuses(order).length === 0 ? (
             <ThemedText type="label" themeColor="textSecondary">
               This order is finished.
             </ThemedText>
           ) : (
             <View style={styles.moves}>
-              {NEXT_STATUS[order.status].map((to) => (
+              {nextStatuses(order).map((to) => (
                 <Pressable
                   key={to}
                   accessibilityRole="button"

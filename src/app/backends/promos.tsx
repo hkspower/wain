@@ -48,7 +48,7 @@ export default function PromosScreen() {
     setLoading(true);
     setError(null);
     adminApi
-      .discounts(token)
+      .discounts()
       .then((r) => setRows(r.discounts))
       .catch((e) => (e instanceof Unauthorized ? signOut() : setError(String(e))))
       .finally(() => setLoading(false));
@@ -65,6 +65,11 @@ export default function PromosScreen() {
       load();
     } catch (e) {
       if (e instanceof Unauthorized) signOut();
+      // The server's error CODES, said in words a manager can act on. The
+      // one worth translating is the refusal to delete: it is admin.php
+      // protecting the order history, not a fault.
+      else if (e instanceof Error && e.message === 'discount_in_use')
+        setNotice('This promotion has been used on real orders, so it stays for the records. Pause it instead.');
       else setNotice(String(e));
     } finally {
       setBusy(false);
@@ -97,7 +102,7 @@ export default function PromosScreen() {
       return;
     }
     guard(async () => {
-      await adminApi.saveDiscount(token!, {
+      await adminApi.saveDiscount({
         ...draft,
         code: draft.kind === 'code' ? (draft.code ?? '').trim().toUpperCase() : null,
       });
@@ -207,7 +212,7 @@ export default function PromosScreen() {
               <View style={[adminStyles.rowBetween, styles.actions]}>
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => guard(() => adminApi.setDiscountActive(token!, d.id, !d.active))}
+                  onPress={() => guard(() => adminApi.setDiscountActive(d.id, !d.active))}
                   style={press(true, styles.action)}>
                   <ThemedText type="labelBold" themeColor="tintText">
                     {d.active ? 'Pause' : 'Resume'}
@@ -228,7 +233,7 @@ export default function PromosScreen() {
                   // this can do is remove an unused rule the manager can
                   // retype. A modal here would be friction on every tap to
                   // guard the one that cannot happen.
-                  onPress={() => guard(() => adminApi.deleteDiscount(token!, d.id))}
+                  onPress={() => guard(() => adminApi.deleteDiscount(d.id))}
                   style={press(true, styles.action)}>
                   <ThemedText type="labelBold" themeColor="danger">Delete</ThemedText>
                 </Pressable>

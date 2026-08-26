@@ -86,7 +86,9 @@ because the rigs place real orders against a real database.
 | `npm run test:art` | The category tiles, bundled and remote |
 | `npm run test:live` | The real `api.php` contract |
 | `npm run test:tpay` | CBK T-Pay: the link, the dropin's refusals, the pending state |
-| `npm run test:admin` | The panel, against `scripts/mock-admin.py` |
+| `npm run test:admin` | The panel in a browser, against `scripts/mock-admin.py` |
+| `npm run test:admin-contract` | admin.ts, admin.php and the mock name the same routes — no server |
+| `npm run test:admin-live` | The panel's protocol against the REAL `admin.php` + MariaDB |
 | `npm run test:wallet` | A built `.pkpass`, the way Wallet reads one |
 | `npm run test:assistant` | سبورتا AI: the facts are the shop's, and a customer cannot forge them |
 | `npm run test:csp` | Every inline script in the website is declared in its CSP |
@@ -94,7 +96,8 @@ because the rigs place real orders against a real database.
 | `npm run scan:site:curl` | The same, with nothing but curl |
 | `npm run site:diff` | Is a live server the same build as this repo's copy? |
 
-`npm run test:admin` needs the export built against the mock:
+`npm run test:admin` needs the export built against the mock, which serves the
+app itself on the same origin — the topology Apache gives production:
 
 ```sh
 EXPO_PUBLIC_API_BASE=http://127.0.0.1:8899 npm run build:web && npm run test:admin
@@ -102,7 +105,13 @@ EXPO_PUBLIC_API_BASE=http://127.0.0.1:8899 npm run build:web && npm run test:adm
 
 `scripts/mock-admin.py` is a test fixture standing in for `admin.php` — the panel
 has no offline fallback by design, so there is no way to exercise it without a
-server. It is not a reference implementation.
+server. It is not a reference implementation, and it is not allowed to drift:
+it once grew a vocabulary of its own (Bearer tokens, hyphenated routes, five
+routes admin.php never had) and the panel was written against the fixture —
+every test green, every production request doomed. `test:admin-contract` now
+holds all three files to one set of route names, and `test:admin-live` runs the
+same protocol against the real PHP, which is the check whose absence let that
+happen.
 
 ### A note on the website's own comments
 
