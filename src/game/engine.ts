@@ -73,11 +73,37 @@ const SMOKE_N = 110;
 /** Pre-battle cinematic length in real seconds (shots at 1.8 / 3.6):
  *  the rival's close-up, the side-by-side two-shot at the line, and the
  *  pull up into the chase as the flag drops. */
-const CINE_LEN = 8.0;
+const CINE_LEN = 14.0;
+
+/** Where each shot ends, seconds into the film. Named rather than
+ *  spelled out at every branch, because the boundaries appear in four
+ *  places — the camera, the rival's formation, the test and the export
+ *  — and four hand-written 2.4s drift apart the first time one moves.
+ *
+ *  The film is six seconds longer than it was, and the six went into
+ *  new shots rather than into slower versions of the old ones. Stretching
+ *  a 1.8 s orbit to 4 s does not make a longer film, it makes a slow one:
+ *  what a longer cut needs is more to look at.
+ *
+ *    CHALLENGE  you, behind, putting three high beams into their boot
+ *    ANSWER     the rival takes it — seen from in front of them, so the
+ *               beams are coming at the lens and the reply is their car
+ *               closing on you rather than a caption saying so
+ *    ORBIT      round their machine, the shot that says who you drew
+ *    FLANK      a low tracking pass down YOUR car, the reverse angle the
+ *               film never had — it showed you the rival twice and your
+ *               own machine only in a wide two-shot
+ *    TWO-SHOT   both of them abreast at speed, names on the bars
+ *    CHASE      the fall into the driving camera as the flag drops */
+const CINE_CHALLENGE_END = 2.4;
+const CINE_ANSWER_END = 4.6;
+const CINE_ORBIT_END = 7.0;
+const CINE_FLANK_END = 9.6;
+const CINE_TWOSHOT_END = 12.0;
 
 /** The challenge shot: how long the film holds behind the rival while
  *  the high beams go in. Ends when the third hit has faded. */
-const CINE_FLASH_END = 2.4;
+const CINE_FLASH_END = CINE_CHALLENGE_END;
 
 /** When each of the three high-beam hits lands, seconds into the film.
  *
@@ -4252,8 +4278,14 @@ export class GameEngine {
       // change at CINE_FLASH_END is a CUT and a car that teleports
       // across it is the one thing a cut cannot hide.
       const ct = (performance.now() - this.cine.start) / 1000;
+      // The gap holds through the CHALLENGE and the ANSWER — the answer
+      // shot is the rival closing on you, so a gap already shut before
+      // it starts has nothing to show — and shuts across the orbit,
+      // where the camera is on the rival's bodywork and not on the road
+      // between the cars. Both shot changes are cuts, and a car that
+      // teleports across a cut is the one thing a cut cannot hide.
       const close = THREE.MathUtils.clamp(
-        (ct - CINE_FLASH_END) / 0.9,
+        (ct - CINE_ANSWER_END) / (CINE_ORBIT_END - CINE_ANSWER_END),
         0,
         1
       );
@@ -4791,8 +4823,35 @@ export class GameEngine {
         this.v1.z + this.v3.z * 13
       );
       this.camera.lookAt(this.v4);
-    } else if (t < CINE_FLASH_END + 1.8) {
-      const k = ease((t - CINE_FLASH_END) / 1.8);
+    } else if (t < CINE_ANSWER_END) {
+      // THE ANSWER. Reverse angle: the lens is up the road IN FRONT of
+      // the rival, looking back down at both cars, so the beams that
+      // were leaving the frame in the last shot are now coming at you.
+      // The reply is the rival's own machine closing on yours — which is
+      // a thing you can watch happen, rather than a caption telling you
+      // the challenge was accepted.
+      const k = ease((t - CINE_CHALLENGE_END) / (CINE_ANSWER_END - CINE_CHALLENGE_END));
+      this.track.pose(c.r.s, c.r.lat, this.v1, this.v2); // v1 = rival
+      this.track.tangentAt(c.r.s, this.v3);
+      // Ahead of the rival and falling back toward it: the gap shrinking
+      // in frame is the gap shrinking on the road.
+      const lead = THREE.MathUtils.lerp(11.5, 6.0, k);
+      this.camera.position.set(
+        this.v1.x + this.v3.x * lead,
+        this.v1.y + THREE.MathUtils.lerp(1.35, 1.05, k),
+        this.v1.z + this.v3.z * lead
+      );
+      // Aimed past the rival at the player behind it, so both cars and
+      // the beam between them are in the shot.
+      this.track.pose(p.s, p.lat, this.v4, this.v2);
+      this.v4.set(
+        (this.v1.x + this.v4.x) / 2,
+        this.v1.y + 0.85,
+        (this.v1.z + this.v4.z) / 2
+      );
+      this.camera.lookAt(this.v4);
+    } else if (t < CINE_ORBIT_END) {
+      const k = ease((t - CINE_ANSWER_END) / (CINE_ORBIT_END - CINE_ANSWER_END));
       this.track.pose(c.r.s, c.r.lat, this.v1, this.v2); // v1 = rival
       this.track.tangentAt(c.r.s, this.v3);
       const a = 2.55 - 1.35 * k; // rear-quarter → front-side sweep
@@ -4806,12 +4865,35 @@ export class GameEngine {
       );
       this.v4.set(this.v1.x, this.v1.y + 0.6, this.v1.z);
       this.camera.lookAt(this.v4);
-    } else if (t < CINE_FLASH_END + 3.6) {
+    } else if (t < CINE_FLANK_END) {
+      // YOUR CAR. The reverse of the orbit, and the angle this film
+      // never had: it showed the rival twice — round it, then at it —
+      // and your own machine only as half of a wide two-shot. A low
+      // tracking pass down the flank, from the tail to the nose, close
+      // enough that the car fills the frame and the paint carries the
+      // lamps along it.
+      const k = ease((t - CINE_ORBIT_END) / (CINE_FLANK_END - CINE_ORBIT_END));
+      this.track.pose(p.s, p.lat, this.v1, this.v2); // v1 = player
+      this.track.tangentAt(p.s, this.v3);
+      const sx = -this.v3.z;
+      const sz = this.v3.x;
+      // Open side again, so the barrier is never between lens and car.
+      const side = p.lat > 0 ? -1 : 1;
+      // Slides from behind the rear wheel to ahead of the nose.
+      const along = THREE.MathUtils.lerp(-3.4, 4.2, k);
+      this.camera.position.set(
+        this.v1.x + this.v3.x * along + sx * 3.5 * side,
+        this.v1.y + 0.72,
+        this.v1.z + this.v3.z * along + sz * 3.5 * side
+      );
+      this.v4.set(this.v1.x, this.v1.y + 0.62, this.v1.z);
+      this.camera.lookAt(this.v4);
+    } else if (t < CINE_TWOSHOT_END) {
       // The two-shot: both machines side by side at speed. The camera
       // hangs ahead of the pair, low over the asphalt, dollying slowly
       // back toward them and aimed at the midpoint so player and rival
       // share the frame with their names on the bars below.
-      const k = ease((t - CINE_FLASH_END - 1.8) / 1.8);
+      const k = ease((t - CINE_FLANK_END) / (CINE_TWOSHOT_END - CINE_FLANK_END));
       this.track.pose(p.s, p.lat, this.v1, this.v2); // v1 = player
       this.track.pose(c.r.s, c.r.lat, this.v4, this.v2); // v4 = rival
       const midX = (this.v1.x + this.v4.x) / 2;
@@ -4827,7 +4909,7 @@ export class GameEngine {
       this.v4.set(midX, midY + 0.7, midZ);
       this.camera.lookAt(this.v4);
     } else {
-      const k = ease((t - CINE_FLASH_END - 3.6) / (CINE_LEN - CINE_FLASH_END - 3.6));
+      const k = ease((t - CINE_TWOSHOT_END) / (CINE_LEN - CINE_TWOSHOT_END));
       this.track.pose(p.s, p.lat, this.v1, this.v2);
       this.track.tangentAt(p.s, this.v3);
       const sx = -this.v3.z;

@@ -26,8 +26,13 @@ const num = (src, name) => {
 };
 
 const CINE_LEN = num(engine, "CINE_LEN");
-const FLASH_END = num(engine, "CINE_FLASH_END");
 const GAP = num(engine, "CINE_FLASH_GAP");
+// The shot boundaries, in order. Read from the module rather than
+// restated here: a test that keeps its own copy of the timeline agrees
+// with itself forever and with the film never.
+const CUTS = ["CINE_CHALLENGE_END", "CINE_ANSWER_END", "CINE_ORBIT_END", "CINE_FLANK_END", "CINE_TWOSHOT_END"]
+  .map((n) => ({ name: n, at: num(engine, n) }));
+const FLASH_END = CUTS[0].at;
 const at = JSON.parse(
   engine.match(/^const CINE_FLASH_AT = (\[[^\]]+\]);/m)?.[1] ?? "null"
 );
@@ -67,26 +72,38 @@ check(CINE_LEN != null && FLASH_END != null && GAP != null && at != null,
 
 // --- 2. The shots tile the film ---------------------------------------
 //
-// The camera runs four shots: challenge, orbit (1.8 s), two-shot
-// (1.8 s), then the fall into chase. The last one has to have room —
-// a negative-length final shot divides by a negative number and the
-// camera flies backwards through the world.
+// Six shots, back to back, ending exactly at the film's own length. The
+// arithmetic that bites is a shot of zero or negative length: every one
+// of them divides by its own duration to get its progress, so a
+// boundary that runs backwards sends the camera flying through the
+// world rather than easing across it.
 {
-  const chase = CINE_LEN - FLASH_END - 3.6;
+  const names = ["challenge", "answer", "orbit", "flank", "two-shot", "chase"];
+  const bounds = [0, ...CUTS.map((c) => c.at), CINE_LEN];
+  const lens = bounds.slice(1).map((b, i) => +(b - bounds[i]).toFixed(2));
   console.log(
-    `\nshots        challenge ${FLASH_END} + orbit 1.8 + two-shot 1.8 + chase ` +
-    `${chase.toFixed(1)} = ${CINE_LEN} s`
+    `\nshots        ` + names.map((n, i) => `${n} ${lens[i]}`).join(" + ") + ` = ${CINE_LEN} s`
   );
-  check(chase > 0.8, `the fall into the chase gets ${chase.toFixed(2)} s — too short to land`);
-  check(FLASH_END < CINE_LEN, "the challenge shot outlasts the film");
+  check(CUTS.every((c) => c.at != null), "a shot boundary is missing from the module");
+  for (let i = 0; i < lens.length; i++) {
+    check(lens[i] > 0.8, `the ${names[i]} shot gets ${lens[i]} s — too short to land`);
+  }
+  // In order, and inside the film.
+  for (let i = 1; i < CUTS.length; i++) {
+    check(CUTS[i].at > CUTS[i - 1].at, `${CUTS[i].name} lands before ${CUTS[i - 1].name}`);
+  }
+  check(CUTS[CUTS.length - 1].at < CINE_LEN, "the last cut is at or past the end of the film");
 }
 
-// --- 3. The rival's gap closes before the cut, not across it ----------
+// --- 3. The rival's gap holds for the shots that need it -------------
+//
+// The challenge shot needs the gap because the beams cross it, and the
+// ANSWER shot needs it because the answer IS the rival closing on you.
+// A gap already shut when the answer starts has nothing to show.
 {
-  // The engine eases the gap shut over 0.9 s starting at FLASH_END.
   check(
-    /\(ct - CINE_FLASH_END\) \/ 0\.9/.test(engine),
-    "the rival's gap no longer closes on an ease from the cut — a teleport across a cut is the one thing a cut cannot hide"
+    /\(ct - CINE_ANSWER_END\) \/ \(CINE_ORBIT_END - CINE_ANSWER_END\)/.test(engine),
+    "the rival's gap no longer holds through the answer shot and closes across the orbit"
   );
   check(GAP >= 8 && GAP <= 30, `a ${GAP} m challenge gap is not a car length up the road`);
 }
@@ -120,6 +137,6 @@ check(CINE_LEN != null && FLASH_END != null && GAP != null && at != null,
 console.log(
   fail.length
     ? "\nFAILURES:\n - " + fail.join("\n - ")
-    : "\nthree hits inside their own shot, four shots that tile, and a cue in every table"
+    : "\nthree hits inside their own shot, six shots that tile, and a cue in every table"
 );
 process.exit(fail.length ? 1 : 0);
