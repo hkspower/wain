@@ -57,6 +57,7 @@
     "test:assistant": "node scripts/assistant-test.mjs",
     "test:csp": "node scripts/csp-check.mjs",
     "test:htaccess": "node scripts/htaccess-test.mjs",
+    "test:package": "node scripts/package-check.mjs",
     "test:styles": "node scripts/style-audit.mjs",
     "test:db": "php scripts/db-audit.php",
     "test:site-contrast": "node scripts/site-contrast.mjs",
