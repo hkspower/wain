@@ -943,7 +943,17 @@ function coronaPoints(positions: THREE.Vector3[], color: number, size: number): 
  * smooth rather than sparkle.
  */
 function windowTextures(): { facade: THREE.CanvasTexture; lit: THREE.CanvasTexture } {
-  const S = 4; // texels per old pixel
+  // Texels per original pixel. 4 fixed the mid-distance city and left
+  // the NEAR facades soft: the texture tiles every 39x85 m, so at S=4 a
+  // facade carries 13 texels per metre — and a block is allowed to stand
+  // ~12 m off the carriageway, where the screen spends ~50 px per metre.
+  // One texel across four pixels, on the biggest surfaces in the frame:
+  // the close-range frames show window panes as big soft rectangles with
+  // the frame-and-mullion detail dissolved entirely. Framed that way the
+  // fix is arithmetic: 8 puts a window pane at 48 texels across instead
+  // of 24. Costs ~22 MB across the two 1024x2048 maps with mips, the
+  // same order as the destination signs.
+  const S = 8;
   const W = 128 * S;
   const H = 256 * S;
   const mk = () => {
