@@ -942,6 +942,34 @@ function coronaPoints(positions: THREE.Vector3[], color: number, size: number): 
  * crawls horribly as the camera moves, and a distant tower should go
  * smooth rather than sparkle.
  */
+/**
+ * Length-wise gradient for the visible shaft under a street lamp.
+ *
+ * The same reasoning as the headlight cone in engine.ts: the cone is
+ * additive and double-sided, the eye sums both walls, and the walls
+ * converge at the head — so the shaft fades to nothing at BOTH ends,
+ * out at the head to stop a bright knot sitting on the luminaire, and
+ * out at the road so the light dissolves into the pool instead of
+ * ending in a rim. Cool white, because these are the LED blades the
+ * corniche carries, not the car's warm halogens.
+ */
+function lampConeTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 8;
+  c.height = 128;
+  const ctx = c.getContext("2d")!;
+  const g = ctx.createLinearGradient(0, 128, 0, 0);
+  g.addColorStop(0.0, "rgba(220,231,255,0)");
+  g.addColorStop(0.25, "rgba(224,234,255,0.55)");
+  g.addColorStop(0.75, "rgba(228,238,255,0.55)");
+  g.addColorStop(1.0, "rgba(230,240,255,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 8, 128);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function windowTextures(): { facade: THREE.CanvasTexture; lit: THREE.CanvasTexture } {
   // Texels per original pixel. 4 fixed the mid-distance city and left
   // the NEAR facades soft: the texture tiles every 39x85 m, so at S=4 a
@@ -2748,6 +2776,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   let bodyDisc: THREE.Mesh | null = null;
   let bodyHalo: THREE.Sprite | null = null;
   let lampPoolMat: THREE.MeshBasicMaterial | null = null;
+  let lampConeMat: THREE.MeshBasicMaterial | null = null;
   /** 0 at noon, 1 after dark — scales everything the streetlights do. */
   let lampLevel = 1;
   /** Everyone standing at the roadside who turns to watch a car go past:
@@ -3530,6 +3559,29 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       fog: false,
     });
     const pools = new THREE.InstancedMesh(poolGeo, poolMat, count);
+    // The visible shaft of lamplight: an open cone from the head to the
+    // pool, wearing the same length-wise gradient the headlight beams
+    // wear so it dissolves at both ends instead of ending in a rim.
+    const coneGeo = new THREE.CylinderGeometry(0.55, 5.2, 9.1, 12, 1, true);
+    const coneMat = new THREE.MeshBasicMaterial({
+      map: lampConeTexture(),
+      transparent: true,
+      opacity: 0.08,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      fog: false,
+    });
+    const cones = new THREE.InstancedMesh(coneGeo, coneMat, count);
+    const poolQ = new THREE.Quaternion();
+    const poolScl = new THREE.Vector3(1, 1, 1);
+    const zAxis2 = new THREE.Vector3(0, 0, 1);
+    const coneP = new THREE.Vector3();
+    const coneMid = new THREE.Vector3();
+    const coneDir = new THREE.Vector3();
+    const coneQ = new THREE.Quaternion();
+    const yDown = new THREE.Vector3(0, -1, 0);
+    const coneUnit = new THREE.Vector3(1, 1, 1);
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();
     const tmp = new THREE.Vector3();
@@ -3557,6 +3609,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         shrouds.setMatrixAt(i, hidden);
         lamps.setMatrixAt(i, hidden);
         pools.setMatrixAt(i, hidden);
+        cones.setMatrixAt(i, hidden);
         continue;
       }
       const sideSign = i % 2 === 0 ? 1 : -1;
@@ -3586,10 +3639,41 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       lampPositions.push(new THREE.Vector3(armMid.x, 9.1, armMid.z));
 
       // The pool lands under the head and spills toward the road centre
-      // (the head's optic faces down-and-in, not straight down)
+      // (the head's optic faces down-and-in, not straight down).
+      //
+      // An ELLIPSE down the road, not a circle. A road lantern's optic
+      // is designed to throw along the carriageway — that is the whole
+      // trade of the cutoff shroud — and the dark patches this lighting
+      // has are BETWEEN columns, along the road, by construction of the
+      // 42 m spacing. Stretching the same texture 1.55x along the
+      // tangent and pulling it 0.85x across puts the extra light
+      // exactly on the inter-column gap, while the across-the-road
+      // spill — the direction where more light just pours onto the
+      // middle and turns the night milky, which is the mistake this
+      // block's history warns about twice — actually shrinks.
       track.pose(s, sideSign * (ROAD_HALF_WIDTH - 2.4), p, tmp);
-      m.makeTranslation(p.x, 0.045, p.z);
+      poolQ.setFromUnitVectors(zAxis2, tanV);
+      poolScl.set(0.85, 1, 1.55);
+      p.y = 0.045;
+      m.compose(p, poolQ, poolScl);
       pools.setMatrixAt(i, m);
+
+      // The light itself, faintly visible in the air. Kuwait's summer
+      // haze is dust, and dusty air is what a beam cone reads as — the
+      // same trick the headlights use, an additive gradient that fades
+      // to nothing at both ends. Kept very quiet: the cone is scenery,
+      // and at additive opacity this low the exposure loop does not
+      // move for it.
+      coneP.set(hx + sideV.x * 0.09, 9.1, hz + sideV.z * 0.09);
+      coneMid.set(
+        (coneP.x + p.x) / 2,
+        4.6,
+        (coneP.z + p.z) / 2
+      );
+      coneDir.subVectors(p, coneP).normalize();
+      coneQ.setFromUnitVectors(yDown, coneDir);
+      m.compose(coneMid, coneQ, coneUnit);
+      cones.setMatrixAt(i, m);
     }
     shrouds.instanceMatrix.needsUpdate = true;
     // Wet-look smears: each lamp drags a long reflection down the road
@@ -3635,8 +3719,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     poles.instanceMatrix.needsUpdate = true;
     lamps.instanceMatrix.needsUpdate = true;
     pools.instanceMatrix.needsUpdate = true;
+    cones.instanceMatrix.needsUpdate = true;
+    // Sorted with the other transparencies, drawn after the road it
+    // stands on; never a shadow caster — it IS light.
+    cones.renderOrder = 2;
     poles.castShadow = true;
-    scene.add(poles, shrouds, lamps, pools, streaks);
+    scene.add(poles, shrouds, lamps, pools, cones, streaks);
     // LED coronas around every blade
     // Tight. A 4.6 m round corona around a 0.15 m-wide blade is all you
     // see — the luminaire is vertical and reads as a blob anyway, which
@@ -3668,6 +3756,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
     }
     shimmerLampMat = lampMat;
     lampPoolMat = poolMat;
+    lampConeMat = coneMat;
   }
 
   // ------------------------------------------------- traffic signals
@@ -5197,6 +5286,9 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // the light goes, hold through the night, and drop out at dawn.
       lampLevel = THREE.MathUtils.clamp(1 - day * 1.25, 0, 1);
       if (lampPoolMat) lampPoolMat.opacity = 0.42 * lampLevel;
+      // The visible shafts die with the lamps: a beam of light in
+      // daylight air is a projector effect, not a streetscape.
+      if (lampConeMat) lampConeMat.opacity = 0.08 * lampLevel;
       if (glintMat) glintMat.visible = lampLevel > 0.05;
       // Paint and sign faces stop glowing once the sun is lighting them
       for (const g of nightGlow) g.mat.emissiveIntensity = g.base * lampLevel;

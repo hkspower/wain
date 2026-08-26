@@ -1434,11 +1434,19 @@ export interface WideSpec {
 export const WIDE: Record<KitLevel, WideSpec> = {
   // A street flare is a modest bonded lip — the arch looks fuller and
   // nothing about the car says workshop.
-  street: { proud: 0.034, track: 0.012, rivets: 0 },
+  //
+  // Each level grew by the same amount on BOTH numbers — +8, +17 and
+  // +26 mm — which is the only direction this table can safely move.
+  // proud is where the flare stands and track is where the tyre stands,
+  // so equal deltas keep the measured 40-90 mm poke exactly where the
+  // fitment tool passed it, while the whole car plants wider: an attack
+  // build now carries 112 mm of arch and 70 mm of track per side, which
+  // reads as a widebody instead of a trim ring.
+  street: { proud: 0.042, track: 0.02, rivets: 0 },
   // A sport arch is a bolt-on with the fasteners showing.
-  sport: { proud: 0.06, track: 0.028, rivets: 7 },
+  sport: { proud: 0.077, track: 0.045, rivets: 7 },
   // And the attack arch is as wide as the rules of this game allow.
-  attack: { proud: 0.086, track: 0.044, rivets: 9 },
+  attack: { proud: 0.112, track: 0.07, rivets: 9 },
 };
 
 /** How much of `proud` is the tube itself. The rest is standoff, so the
@@ -3579,7 +3587,7 @@ export function createCar(colors: CarColors): THREE.Group {
     //
     // Taken from wheelX rather than the sedan's old 0.84, because a
     // caliper lives inside a wheel and the wheels are not where they
-    // were: the wide kits push the track out by up to 44 mm, and on the
+    // were: the wide kits push the track out by up to 70 mm, and on the
     // zx the flank is 120 mm outboard of that constant to begin with. A
     // caliper that does not follow its own wheel is a caliper floating
     // in the middle of the car.
