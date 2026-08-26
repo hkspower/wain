@@ -970,7 +970,7 @@ function lampConeTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-function windowTextures(): { facade: THREE.CanvasTexture; lit: THREE.CanvasTexture } {
+function windowTextures(): Skin {
   // Texels per original pixel. 4 fixed the mid-distance city and left
   // the NEAR facades soft: the texture tiles every 39x85 m, so at S=4 a
   // facade carries 13 texels per metre — and a block is allowed to stand
@@ -992,6 +992,10 @@ function windowTextures(): { facade: THREE.CanvasTexture; lit: THREE.CanvasTextu
   };
   const [fc, fx] = mk();
   const [lc, lx] = mk();
+  // The roughness map. Painted alongside the other two so the three can
+  // never disagree about where a pane is. Grey levels ARE the surface:
+  // concrete near-matte, glass polished, the frame in between.
+  const [rc, rx] = mk();
   // Concrete, with a faint band per floor so a facade has some tone of
   // its own before anything lights it.
   // Concrete, and a darker concrete than it was.
@@ -1015,6 +1019,8 @@ function windowTextures(): { facade: THREE.CanvasTexture; lit: THREE.CanvasTextu
   fx.fillRect(0, 0, W, H);
   lx.fillStyle = "#000000";
   lx.fillRect(0, 0, W, H);
+  rx.fillStyle = "#dadada"; // concrete: matte
+  rx.fillRect(0, 0, W, H);
   for (let y = 6 * S; y < 250 * S; y += 10 * S) {
     fx.fillStyle = "rgba(0,0,0,0.10)";
     fx.fillRect(0, y + 6 * S, W, 3 * S); // spandrel between floors
@@ -1034,24 +1040,69 @@ function windowTextures(): { facade: THREE.CanvasTexture; lit: THREE.CanvasTextu
       // now there are twenty-four texels across a pane instead of six.
       fx.fillStyle = "#6f747d";
       fx.fillRect(x - S / 2, y - S / 2, ww + S, wh + S);
-      // Glass reads darker than concrete in daylight whether or not
-      // anything is on behind it.
-      fx.fillStyle = "#4a525e";
-      fx.fillRect(x, y, ww, wh);
-      // Mullion down the middle of the pane.
+      // The glass. A real pane is not one colour: it holds the sky at
+      // the top and the room's darkness at the bottom, because it is a
+      // mirror at a grazing angle and a hole at a straight one. A
+      // vertical gradient per pane is the cheapest possible statement
+      // of that, and it is most of what makes a facade of them read as
+      // glazing rather than as painted-on rectangles.
+      {
+        const g = fx.createLinearGradient(0, y, 0, y + wh);
+        g.addColorStop(0, "#5a6b7e");
+        g.addColorStop(0.45, "#46505e");
+        g.addColorStop(1, "#343b46");
+        fx.fillStyle = g;
+        fx.fillRect(x, y, ww, wh);
+      }
+      // A thin bright catch along the top edge — the frame's return
+      // picking up the sky — and the occasional diagonal sheen, which
+      // is a reflection of nothing in particular and reads as one.
+      fx.fillStyle = "rgba(190,205,222,0.55)";
+      fx.fillRect(x, y, ww, Math.max(1, S / 3));
+      if (rand() < 0.22) {
+        fx.save();
+        fx.beginPath();
+        fx.rect(x, y, ww, wh);
+        fx.clip();
+        fx.strokeStyle = "rgba(210,222,238,0.20)";
+        fx.lineWidth = 1.6 * S;
+        fx.beginPath();
+        fx.moveTo(x - 2 * S, y + wh + S);
+        fx.lineTo(x + ww * 0.7, y - S);
+        fx.stroke();
+        fx.restore();
+      }
+      // Mullion down the middle, and a transom two fifths up — window
+      // furniture the old six-texel pane had no room to carry.
+      const bar = Math.max(1, S / 2);
       fx.fillStyle = "#3d434d";
-      fx.fillRect(x + ww / 2 - Math.max(1, S / 4), y, Math.max(1, S / 2), wh);
+      fx.fillRect(x + ww / 2 - bar / 2, y, bar, wh);
+      fx.fillRect(x, y + wh * 0.38, ww, Math.max(1, S / 3));
+      // The pane is polished, the bars are not.
+      rx.fillStyle = "#1f1f1f";
+      rx.fillRect(x, y, ww, wh);
+      rx.fillStyle = "#8a8a8a";
+      rx.fillRect(x + ww / 2 - bar / 2, y, bar, wh);
+      rx.fillRect(x, y + wh * 0.38, ww, Math.max(1, S / 3));
       if (rand() < litChance) {
         const col = warm || rand() < 0.6 ? "#ffd27f" : "#9ad1ff";
+        // A room, not a lamp: about a quarter of lit windows glow only
+        // below the transom — a curtain half-drawn, a light on a desk —
+        // which is the single strongest tell that there is a room in
+        // there rather than a backlit sticker.
+        const curtained = rand() < 0.28;
+        const gy = curtained ? y + wh * 0.38 : y;
+        const gh = curtained ? wh * 0.62 : wh;
         lx.fillStyle = col;
         lx.globalAlpha = 0.45 + rand() * 0.55;
-        lx.fillRect(x, y, ww, wh);
-        // The mullion is opaque, so it stays dark in a lit window too —
-        // a pane split in half reads as a window; a solid rectangle of
-        // light reads as a lamp.
+        lx.fillRect(x, gy, ww, gh);
+        // The mullion and transom are opaque, so they stay dark in a
+        // lit window too — a pane split into quarters reads as a
+        // window; a solid rectangle of light reads as a lamp.
         lx.globalAlpha = 1;
         lx.fillStyle = "#000000";
-        lx.fillRect(x + ww / 2 - Math.max(1, S / 4), y, Math.max(1, S / 2), wh);
+        lx.fillRect(x + ww / 2 - bar / 2, y, bar, wh);
+        lx.fillRect(x, y + wh * 0.38, ww, Math.max(1, S / 3));
         // Curtain-glow spill on bright windows
         if (rand() < 0.25) {
           lx.fillStyle = col;
@@ -1061,7 +1112,9 @@ function windowTextures(): { facade: THREE.CanvasTexture; lit: THREE.CanvasTextu
         lx.globalAlpha = 1;
         // A lit pane is a little paler in daylight too
         fx.fillStyle = "#5d6674";
-        fx.fillRect(x, y, ww, wh);
+        fx.globalAlpha = 0.35;
+        fx.fillRect(x, gy, ww, gh);
+        fx.globalAlpha = 1;
       }
     }
   }
@@ -1076,7 +1129,7 @@ function windowTextures(): { facade: THREE.CanvasTexture; lit: THREE.CanvasTextu
     tex.generateMipmaps = true;
     return tex;
   };
-  return { facade: wrap(fc), lit: wrap(lc) };
+  return { facade: wrap(fc), lit: wrap(lc), rough: wrap(rc) };
 }
 
 function signTexture(en: string, ar: string, sub?: string): THREE.CanvasTexture {
@@ -1533,7 +1586,7 @@ function waterTowers(stripes: THREE.CanvasTexture): THREE.Group {
   return g;
 }
 
-type Skin = { facade: THREE.CanvasTexture; lit: THREE.CanvasTexture };
+type Skin = { facade: THREE.CanvasTexture; lit: THREE.CanvasTexture; rough: THREE.CanvasTexture };
 
 /** A glazed tower's material: concrete by day, lit windows after dark.
  *  The caller keeps the material so the hour can drive its emission. */
@@ -1593,6 +1646,11 @@ function facadeUvScaling(mat: THREE.MeshStandardMaterial): void {
         #ifdef USE_EMISSIVEMAP
           vEmissiveMapUv *= grnTile;
         #endif
+        // The roughness map rides its own UV in this three.js — left
+        // untiled it would put the polished patches off their own panes.
+        #ifdef USE_ROUGHNESSMAP
+          vRoughnessMapUv *= grnTile;
+        #endif
       #endif`
     );
   };
@@ -1608,7 +1666,16 @@ function glazedMat(skin: Skin, color: number, roughness: number): THREE.MeshStan
     emissive: 0xffffff,
     emissiveIntensity: 1.15,
     color,
-    roughness,
+    // What makes the glass GLASS. Painting a pane a bluer grey makes a
+    // decal; what a window does that concrete cannot is answer the
+    // light — the scene carries an environment map, and a surface only
+    // asks it when it is smooth. The roughness map holds the concrete
+    // at the matte value passed in and drops the panes to 0.12, so
+    // every window picks up the sky and the city as a sheen while the
+    // wall around it stays dead flat. The albedo gradient in the pane
+    // is the base tone; this is the part that moves with the camera.
+    roughness: 1,
+    roughnessMap: skin.rough,
   });
 }
 
@@ -3985,6 +4052,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       width: number;
       h: number;
       setback: boolean;
+      podium: boolean;
       plant: boolean;
       mast: boolean;
       tint: THREE.Color;
@@ -4086,7 +4154,17 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         depth,
         width,
         h,
-        setback: h > 52 && rand() < 0.75,
+        // A podium: the wide low base a Gulf tower actually rises from
+        // — retail at the street, the shaft set back on top of it. It
+        // is the piece of real massing the driver is closest to, and
+        // the piece a bare extrusion most obviously lacks. Only where
+        // there is room: the base grows 5 m each way, and growing over
+        // the kerb line would put a shopfront in the traffic.
+        podium: h > 42 && rand() < 0.5 && lat - depth / 2 - 5 > track.halfWidthAt(s) + 4,
+        // From 52 down to 40: at 52 only the top decile stepped and the
+        // skyline was one register of extruded rectangles — "boxy" is
+        // exactly the complaint a skyline with one register earns.
+        setback: h > 40 && rand() < 0.8,
         plant: rand() < 0.55,
         mast: h > 70 && rand() < 0.5,
         tint: tint.clone(),
@@ -4155,17 +4233,23 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       const setbackOf: number[] = [];
       const plantOf: number[] = [];
       const mastOf: number[] = [];
+      const podiumOf: number[] = [];
       const setbacks: typeof massing = [];
       const plants: typeof massing = [];
       const masts: typeof massing = [];
+      const podiums: typeof massing = [];
       massing.forEach((b, i) => {
         if (b.setback) { setbacks.push(b); setbackOf.push(i); }
         if (b.plant) { plants.push(b); plantOf.push(i); }
         if (b.mast) { masts.push(b); mastOf.push(i); }
+        if (b.podium) { podiums.push(b); podiumOf.push(i); }
       });
 
       const parapetMesh = new THREE.InstancedMesh(capGeo, concrete, massing.length);
       const setbackMesh = new THREE.InstancedMesh(capGeo, mat, Math.max(1, setbacks.length));
+      // The podium wears the same glazed skin as the shaft: at street
+      // level the lit ground floors ARE the shopfronts.
+      const podiumMesh = new THREE.InstancedMesh(capGeo, mat, Math.max(1, podiums.length));
       const plantMesh = new THREE.InstancedMesh(capGeo, plantMat, Math.max(1, plants.length));
       const mastMesh = new THREE.InstancedMesh(
         new THREE.CylinderGeometry(0.18, 0.3, 1, 6),
@@ -4203,6 +4287,17 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         setbackMesh.setColorAt(i, b.tint);
       });
 
+      podiums.forEach((b, i) => {
+        // Wide, low, and square to the same street the shaft is: 5 m of
+        // apron each way and two storeys and a bit of height, with its
+        // own parapet line implied by the shaft rising out of it.
+        const ph = 6.5 + b.r[3] * 3.5;
+        sc.set(b.depth + 10, ph, b.width + 10);
+        mm.compose(onRoof(b, 0, 0, 0), b.q, sc);
+        podiumMesh.setMatrixAt(i, mm);
+        podiumMesh.setColorAt(i, b.tint);
+      });
+
       plants.forEach((b, i) => {
         // Off-centre, because a plant room is where the lift shaft is and
         // a lift shaft is never in the middle.
@@ -4226,7 +4321,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         mastMesh.setMatrixAt(i, mm);
       });
 
-      for (const im of [parapetMesh, setbackMesh, plantMesh, mastMesh]) {
+      for (const im of [parapetMesh, setbackMesh, plantMesh, mastMesh, podiumMesh]) {
         im.instanceMatrix.needsUpdate = true;
         if (im.instanceColor) im.instanceColor.needsUpdate = true;
         im.castShadow = true;
@@ -4237,12 +4332,14 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       setbackMesh.count = setbacks.length;
       plantMesh.count = plants.length;
       mastMesh.count = masts.length;
+      podiumMesh.count = podiums.length;
       // Named so the building tests can find them, and so the ID pass in
       // the sharpness tool counts a roof as part of its building.
       parapetMesh.name = "cityParapets";
       setbackMesh.name = "citySetbacks";
       plantMesh.name = "cityPlant";
       mastMesh.name = "cityMasts";
+      podiumMesh.name = "cityPodiums";
       // Instance i of each of these stands on instance ownerOf[i] of
       // cityBlocks. A parapet is one per shaft, so its map is the
       // identity.
@@ -4250,9 +4347,97 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       setbackMesh.userData.ownerOf = setbackOf;
       plantMesh.userData.ownerOf = plantOf;
       mastMesh.userData.ownerOf = mastOf;
+      podiumMesh.userData.ownerOf = podiumOf;
       litFacades.push(concrete);
     }
     scene.add(blocks);
+
+    // ------------------------------------------- the octagonal towers
+    //
+    // Every shaft so far is a rectangle, and a skyline of rectangles at
+    // one register is the definition of boxy. Real Gulf skylines carry a
+    // second vocabulary — drums, chamfered towers, the round-cornered
+    // residential slabs of Salmiya — so about two dozen towers go up as
+    // eight-sided prisms instead. Placed by the same block rules as the
+    // rectangles (same rings, same forecourt avoidance, same kerb
+    // check), wearing the same glazed skin, so they are of the same
+    // city rather than dropped into it.
+    {
+      const octGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 8);
+      octGeo.translate(0, 0.5, 0);
+      const octs = new THREE.InstancedMesh(octGeo, mat, 26);
+      // Same concrete as the roof furniture — its sibling material is
+      // scoped inside the massing block above, so this is its twin.
+      const octConcrete = new THREE.MeshStandardMaterial({
+        color: 0x8d9199,
+        roughness: 0.92,
+      });
+      litFacades.push(octConcrete);
+      const octCaps = new THREE.InstancedMesh(
+        new THREE.CylinderGeometry(0.5, 0.5, 1, 8),
+        octConcrete,
+        26
+      );
+      octCaps.geometry.translate(0, 0.5, 0);
+      let oPlaced = 0;
+      for (let i = 0; i < 90 && oPlaced < 26; i++) {
+        const blockIndex = Math.floor(rand() * crossCount);
+        const [lo, hi] = rings[Math.floor(rand() * rings.length)];
+        const dia = Math.min(hi - lo - 5, 14 + rand() * 10);
+        const room = blockLen - 2 * STREETS.half - dia;
+        if (dia < 9 || room < 2) continue;
+        const s2 =
+          blockIndex * blockLen + STREETS.half + dia / 2 + rand() * room;
+        if (
+          STATIONS.some(
+            (st) =>
+              Math.abs(track.deltaAhead(st.s, s2)) < FORECOURT.halfSpan + dia / 2 + 6 &&
+              lo < st.lat + 13 &&
+              hi > st.lat - 13
+          )
+        ) {
+          continue;
+        }
+        const u2 = track.wrap(s2) / L;
+        const onCoast2 = u2 >= COAST_U.from && u2 <= COAST_U.to;
+        const sideSign2 = onCoast2 ? 1 : rand() < 0.5 ? 1 : -1;
+        const inset2 = 2 + rand() * Math.max(0, hi - lo - dia - 4);
+        const lat2 = lo + inset2 + dia / 2;
+        if (lat2 - dia / 2 < track.halfWidthAt(s2) + 4) continue;
+        track.pose(s2, sideSign2 * lat2, p, tmp);
+        track.tangentAt(s2, tmp);
+        q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(tmp.x, tmp.z));
+        const cityBoost2 = u2 > 0.88 || u2 < 0.06 ? 2.1 : 1;
+        // Taller bias than the slabs: a drum earns its shape by rising
+        // over the rectangles around it.
+        const h2 = (24 + rand() * rand() * 50) * cityBoost2;
+        scale.set(dia, h2, dia);
+        m.compose(p, q, scale);
+        octs.setMatrixAt(oPlaced, m);
+        tint.setHex(palette[i % palette.length]).multiplyScalar(0.85 + rand() * 0.3);
+        octs.setColorAt(oPlaced, tint);
+        // Its own eight-sided parapet — a square cap on a drum is the
+        // one join that gives the trick away.
+        scale.set(dia + 0.6, 0.9, dia + 0.6);
+        p.y += h2;
+        m.compose(p, q, scale);
+        octCaps.setMatrixAt(oPlaced, m);
+        octCaps.setColorAt(oPlaced, tint);
+        oPlaced++;
+      }
+      octs.count = oPlaced;
+      octCaps.count = oPlaced;
+      octs.instanceMatrix.needsUpdate = true;
+      octCaps.instanceMatrix.needsUpdate = true;
+      if (octs.instanceColor) octs.instanceColor.needsUpdate = true;
+      if (octCaps.instanceColor) octCaps.instanceColor.needsUpdate = true;
+      octs.castShadow = true;
+      octs.receiveShadow = true;
+      octCaps.castShadow = true;
+      octs.name = "cityDrums";
+      octCaps.name = "cityDrumCaps";
+      scene.add(octs, octCaps);
+    }
   }
 
   // Palm rows lining the corniche walkway, the whole length of the coast

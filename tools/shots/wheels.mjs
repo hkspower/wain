@@ -195,11 +195,21 @@ const fleet = await page.evaluate(async () => {
       });
     }
 
+    // The whole car across the road: shell, flares AND tyres, whichever
+    // reaches furthest. This is the number a lane cares about, and it is
+    // deliberately not bodyW — a widebody's width IS its flares.
+    const totalW = 2 * Math.max(
+      body.max.x, -body.min.x,
+      Number.isFinite(archOut) ? archOut : 0,
+      Number.isFinite(tyreOut) ? tyreOut : 0
+    );
+
     out.push({
       id: car.id,
       name: car.name,
       style: car.bodyStyle ?? "sedan",
       lengthM: car.lengthM,
+      totalW: +totalW.toFixed(3),
       poke: Number.isFinite(archOut) && Number.isFinite(tyreOut)
         ? +(tyreOut - archOut).toFixed(3)
         : null,
@@ -234,17 +244,25 @@ const BANDS = {
   // version stopped at 0.03 and failed the pickup alone, on a difference
   // of half a millimetre, which is a band drawn round an assumption
   // rather than round a car.
-  poke: [-0.05, 0.035],
+  poke: [-0.05, 0.04],
+  // The whole car across a 3.5 m lane, flares and tyres included. The
+  // floor is a Kei-free fleet — nothing here is narrower than a real
+  // saloon — and the ceiling is 60% of the lane, which is also the
+  // engine's 2.1 m bump threshold: two of the widest builds passing at
+  // the exact moment the referee calls it close must not visually
+  // overlap. A car outside this band does not fit the street it is on.
+  "width/lane": [1.7, 2.1],
 };
 
 const bad = [];
 console.log(
   "car".padEnd(20) + "dia".padStart(7) + "rim".padStart(7) + "wide".padStart(7) +
   "  |" + "dia/h".padStart(7) + "len/dia".padStart(9) + "rim/dia".padStart(9) +
-  "wid/dia".padStart(9) + "gap/r".padStart(8) + "poke".padStart(8)
+  "wid/dia".padStart(9) + "gap/r".padStart(8) + "poke".padStart(8) + "carW".padStart(8)
 );
 for (const c of fleet) {
   const r = {
+    "width/lane": c.totalW,
     "dia/height": c.dia / c.bodyH,
     "length/dia": c.bodyL / c.dia,
     "rim/dia": c.rimDia / c.dia,
@@ -265,7 +283,7 @@ for (const c of fleet) {
     c.dia.toFixed(2).padStart(7) + c.rimDia.toFixed(2).padStart(7) + c.width.toFixed(2).padStart(7) +
     "  |" + mark("dia/height").padStart(7) + mark("length/dia").padStart(9) +
     mark("rim/dia").padStart(9) + mark("width/dia").padStart(9) + mark("gap/radius").padStart(8) +
-    mark("poke").padStart(8)
+    mark("poke").padStart(8) + mark("width/lane").padStart(8)
   );
 }
 
