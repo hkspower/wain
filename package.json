@@ -52,6 +52,7 @@
     "test:admin": "node scripts/admin-smoke.mjs",
     "test:admin-contract": "node scripts/admin-contract-test.mjs",
     "test:admin-live": "node scripts/admin-live-test.mjs",
+    "test:admin-browser": "node scripts/admin-browser-live.mjs",
     "test:wallet": "node scripts/wallet-test.mjs",
     "test:assistant": "node scripts/assistant-test.mjs",
     "test:csp": "node scripts/csp-check.mjs",

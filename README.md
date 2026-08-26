@@ -89,6 +89,7 @@ because the rigs place real orders against a real database.
 | `npm run test:admin` | The panel in a browser, against `scripts/mock-admin.py` |
 | `npm run test:admin-contract` | admin.ts, admin.php and the mock name the same routes — no server |
 | `npm run test:admin-live` | The panel's protocol against the REAL `admin.php` + MariaDB |
+| `npm run test:admin-browser` | The panel itself, in a browser, against the real `admin.php` and the real database |
 | `npm run test:wallet` | A built `.pkpass`, the way Wallet reads one |
 | `npm run test:assistant` | سبورتا AI: the facts are the shop's, and a customer cannot forge them |
 | `npm run test:csp` | Every inline script in the website is declared in its CSP |
@@ -115,6 +116,24 @@ every test green, every production request doomed. `test:admin-contract` now
 holds all three files to one set of route names, and `test:admin-live` runs the
 same protocol against the real PHP, which is the check whose absence let that
 happen.
+
+`test:admin-browser` closes the last gap between those three: the contract test
+reads files, `test:admin-live` speaks the protocol with node's fetch, and
+`test:admin` drives the real screens — but against the fixture. Only this one
+puts the actual panel in front of the actual server, which is the only
+combination a manager ever uses. It needs the export pointed at the proxy that
+serve-dist.py opens onto the PHP site, so panel and API share one origin:
+
+```sh
+bash scripts/sandbox.sh && python3 scripts/serve-dist.py &
+EXPO_PUBLIC_API_BASE=http://127.0.0.1:4173/api npm run build:web
+npm run test:admin-browser
+```
+
+It moves one order along its fulfilment axis and moves it straight back, and
+checks the DATABASE rather than the screen — the panel saying "packing" only
+proves React re-rendered; the row saying `packed` proves the request arrived
+and that admin.ts still translates the app's word into the server's.
 
 ### A note on the website's own comments
 
