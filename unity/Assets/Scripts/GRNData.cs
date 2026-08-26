@@ -351,7 +351,7 @@ public static class GRNData
             Id = "jahra-pickup", Name = "Jahra Pickup", Price = 6000,
             Power = 1f, TopSpeedKmh = 195f, Grip = 12f, Brake = 27f,
             Paint = Hex(0x6E7F8D), Style = BodyStyle.Sedan, AttackKit = false, Drive = Drivetrain.RWD,
-            Engine = 4, TankLitres = 80f, LengthM = 5.35f,
+            Engine = 4, TankLitres = 80f, LengthM = 5.16f,
             LockedRivals = 0,
             FactoryBuild = new[] {  },
         },

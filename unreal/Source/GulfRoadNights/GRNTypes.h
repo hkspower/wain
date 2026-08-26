@@ -184,7 +184,7 @@ static const FGRNCarDef GRNCars[] = {
 	{ TEXT("salmiya-turbo"), TEXT("Salmiya Turbo GT"), 24000, 1.20f, 255.0f, 13.8f, 32.0f, FColor(0xB8, 0x4D, 0xD6), EGRNBodyStyle::Sedan, false, GRNSim::EDrivetrain::FWD, 1, 60.0f, 4.64f, 0, TEXT("") },
 	{ TEXT("hawally-2t"), TEXT("Hawally Sport 2.0T"), 16000, 1.12f, 240.0f, 13.2f, 30.0f, FColor(0xF5, 0xC2, 0x11), EGRNBodyStyle::Sedan, false, GRNSim::EDrivetrain::FWD, 1, 55.0f, 4.56f, 0, TEXT("") },
 	{ TEXT("deera-sedan"), TEXT("Deera Sedan"), 8500, 1.05f, 220.0f, 12.6f, 28.0f, FColor(0xDF, 0xE3, 0xE8), EGRNBodyStyle::Sedan, false, GRNSim::EDrivetrain::FWD, 1, 60.0f, 4.70f, 0, TEXT("") },
-	{ TEXT("jahra-pickup"), TEXT("Jahra Pickup"), 6000, 1.00f, 195.0f, 12.0f, 27.0f, FColor(0x6E, 0x7F, 0x8D), EGRNBodyStyle::Sedan, false, GRNSim::EDrivetrain::RWD, 4, 80.0f, 5.35f, 0, TEXT("") },
+	{ TEXT("jahra-pickup"), TEXT("Jahra Pickup"), 6000, 1.00f, 195.0f, 12.0f, 27.0f, FColor(0x6E, 0x7F, 0x8D), EGRNBodyStyle::Sedan, false, GRNSim::EDrivetrain::RWD, 4, 80.0f, 5.16f, 0, TEXT("") },
 	{ TEXT("sharq-hatch"), TEXT("Sharq Hatch"), 2200, 0.98f, 205.0f, 12.4f, 27.0f, FColor(0x16, 0xA3, 0x4A), EGRNBodyStyle::Hatch, false, GRNSim::EDrivetrain::FWD, 0, 42.0f, 3.95f, 0, TEXT("") },
 	{ TEXT("wain-special"), TEXT("Wain Special"), 0, 1.00f, 180.0f, 12.0f, 26.0f, FColor(0xF2, 0xF4, 0xF7), EGRNBodyStyle::Sedan, false, GRNSim::EDrivetrain::RWD, 0, 50.0f, 4.45f, 0, TEXT("") },
 };

@@ -1445,8 +1445,13 @@ export const WIDE: Record<KitLevel, WideSpec> = {
   street: { proud: 0.042, track: 0.02, rivets: 0 },
   // A sport arch is a bolt-on with the fasteners showing.
   sport: { proud: 0.077, track: 0.045, rivets: 7 },
-  // And the attack arch is as wide as the rules of this game allow.
-  attack: { proud: 0.112, track: 0.07, rivets: 9 },
+  // And the attack arch is as wide as the rules of this game allow —
+  // literally: tests/size.mjs holds every flare to 0.1 m per side of
+  // the doors, and the first draft of this widening put the Storm S8 at
+  // 0.107. 0.104 raw lands at 0.099 after the car's own scale, and the
+  // track keeps the same 42 mm offset so the measured poke does not
+  // move.
+  attack: { proud: 0.104, track: 0.062, rivets: 9 },
 };
 
 /** How much of `proud` is the tube itself. The rest is standoff, so the

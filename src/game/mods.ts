@@ -734,7 +734,19 @@ export const CARS: CarModel[] = [
     kit: "street",
     price: 6000,
     engine: "v8-57",
-    lengthM: 5.35,
+    // 5.16, and the number is a treaty between three measurements. This
+    // car has no authored profile — it rides the sedan shell, and a
+    // uniform scale carries width along with length, so at 5.35 m it
+    // came out 2.27 m across, the widest thing in the game by 28 cm.
+    // But the fleet-spread rule needs the pickup to stay the long end
+    // of the range (a supermini and a pickup should not be within 1.2 m
+    // of each other), which pins the length above 5.15. 5.16 lands the
+    // width at 2.19 — a truck's honest share of a lane, banded as such
+    // in the fitment tool — while keeping the spread the roster claims.
+    // The real fix is an authored pickup profile, longer and narrower
+    // than the sedan it borrows; until then this is the best the shell
+    // can be.
+    lengthM: 5.16,
     tankLitres: 80,
     power: 1.0,
     topSpeedKmh: 195,

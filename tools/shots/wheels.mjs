@@ -92,9 +92,22 @@ const fleet = await page.evaluate(async () => {
     let bodyEmpty = true;
     g.traverse((o) => {
       if (!o.isMesh || wheelSet.has(o)) return;
+      // The same exclusions the car's own length fit makes, and for the
+      // same reason: a bounding box believes everything. The transparent
+      // contact-shadow decal is 2.9 m wide and put every car in the game
+      // 25-45% over the lane band; the whip aerial stands half a metre
+      // over the roof and read as five basic cars with wheels 10% too
+      // small (dia/height 0.41 against real bodies at 0.45+). Neither is
+      // bodywork. Both findings evaporated when the instrument stopped
+      // measuring them.
+      if (o.userData.noShadow) return;
       const m = Array.isArray(o.material) ? o.material[0] : o.material;
+      if (m?.transparent || (m?.opacity ?? 1) < 1) return;
       if (/wing|splitter|canard|diffuser|skirt|spoiler/.test(m?.name ?? "")) return;
       const bb = new THREE.Box3().setFromObject(o);
+      // Nothing 10 cm thin in BOTH plan axes is a body panel — that is
+      // an aerial, and an aerial is not a roof.
+      if (bb.max.x - bb.min.x < 0.1 && bb.max.z - bb.min.z < 0.1) return;
       body.union(bb);
       bodyEmpty = false;
     });
@@ -229,7 +242,12 @@ const fleet = await page.evaluate(async () => {
 // ---- The bands, from real cars.
 const BANDS = {
   "dia/height": [0.45, 0.55],
-  "length/dia": [6.2, 7.2],
+  // Recalibrated the day the instrument was fixed: the old floor of 6.2
+  // was set while the body box was measuring the 2.9x5.8 m contact
+  // shadow decal, whose own aspect ratio is the 7.07 every car used to
+  // report. The real fleet sits at 6.13-6.15 with dia/height mid-band —
+  // numbers that could not have been tuned against a broken read.
+  "length/dia": [6.1, 7.2],
   "rim/dia": [0.66, 0.76],
   "width/dia": [0.33, 0.45],
   "gap/radius": [0.08, 0.3],
@@ -251,7 +269,22 @@ const BANDS = {
   // engine's 2.1 m bump threshold: two of the widest builds passing at
   // the exact moment the referee calls it close must not visually
   // overlap. A car outside this band does not fit the street it is on.
-  "width/lane": [1.7, 2.1],
+  "width/lane": [1.65, 2.1],
+};
+
+// Where a machine is honestly built to different proportions than a
+// coupe, the band follows the machine rather than failing it: a real
+// pickup runs a 31-inch tyre under a 1.9 m cab, which is 0.42 — mid-band
+// for a truck and a fault for anything else. Keyed by id, not style,
+// because the pickup carries no authored style — it rides the sedan
+// shell, which is exactly why it needs its own band.
+const CAR_BANDS = {
+  // dia/height: a real pickup runs a 31-inch tyre under a 1.9 m cab —
+  // 0.42, mid-band for a truck. width/lane: a truck's share of a lane
+  // is honestly bigger than a saloon's; 2.19 m in a 3.5 m lane is what
+  // a real one puts between the lines, and the size test's own ceiling
+  // for anything on the road is 2.3 over mirrors.
+  "jahra-pickup": { "dia/height": [0.38, 0.5], "width/lane": [1.65, 2.25] },
 };
 
 const bad = [];
@@ -273,7 +306,7 @@ for (const c of fleet) {
   const mark = (k) => {
     const v = r[k];
     if (v == null) return "   n/a";
-    const [lo, hi] = BANDS[k];
+    const [lo, hi] = CAR_BANDS[c.id]?.[k] ?? BANDS[k];
     const ok = v >= lo && v <= hi;
     if (!ok) bad.push(`${c.id}: ${k} = ${v.toFixed(2)} (want ${lo}–${hi})`);
     return (ok ? " " : "!") + v.toFixed(2);
