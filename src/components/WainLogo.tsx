@@ -1,7 +1,10 @@
 /**
  * The Wain mark: a stylised Kuwait silhouette with a pin planted at Kuwait
  * City, the pin's head carrying the ؟ of «وين؟». Master artwork lives in
- * public/brand/wain-logo.svg — keep the two in sync.
+ * brand-source/wain-logo.svg — keep the two in sync. It lives there rather
+ * than in public/ because nothing fetches it: this component IS the rendered
+ * logo, and the file is the master it is drawn from. In public/ it shipped to
+ * every visitor and was downloaded by none of them.
  */
 export default function WainLogo({ className = "size-9" }: { className?: string }) {
   return (

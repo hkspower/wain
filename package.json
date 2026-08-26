@@ -24,7 +24,8 @@
     "audit:schema": "node scripts/audit-schema-use.mjs",
     "audit:runtime": "node scripts/audit-runtime.mjs",
     "audit:color": "node scripts/audit-color.mjs",
-    "scan": "npm run lint && npm run audit:schema && npm run audit:runtime && npm run audit:places && npm run audit:icons && npm run audit:type && npm run audit:color"
+    "audit:assets": "node scripts/audit-assets.mjs",
+    "scan": "npm run lint && npm run audit:schema && npm run audit:runtime && npm run audit:places && npm run audit:icons && npm run audit:type && npm run audit:color && npm run audit:assets"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.1",
