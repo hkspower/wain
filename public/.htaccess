@@ -23,6 +23,43 @@ Options -Indexes
 </FilesMatch>
 
 # ---------------------------------------------------------------------------
+# What the previous site left behind
+#
+# wainkw.com's document root is not empty. Before this export existed it ran a
+# single-file HTML app with a PHP back end, and that is still sitting there:
+# api.php, admin.html, an admin token, ~28 index.bak-*.html copies, two zipped
+# archives of the whole site, and wain.db — a live SQLite database.
+#
+# The .htaccess it shipped denied wain.db. This file replaces that one, so
+# these rules have to come with it. Dropping a static-export .htaccess on top
+# of that server without them would put a 94KB database on the public web.
+#
+# These deny access; they do not delete anything. Removing the files is a
+# separate decision that belongs to whoever knows if the old app still runs.
+
+<FilesMatch "^wain\.db">
+  Require all denied
+</FilesMatch>
+
+# A 60-byte credential in the web root, next to the admin panel it belongs to.
+# It should be rotated and moved out; until then it must not be downloadable.
+<Files "admin.token">
+  Require all denied
+</Files>
+
+# Backups and archives of the site, served under guessable names —
+# index.bak-300.html, index.bak-301.html, and two zips of everything.
+<FilesMatch "\.(bak|zip|db|sqlite|sqlite3)$|^index\.bak|\.broken-|\.bak-">
+  Require all denied
+</FilesMatch>
+
+# Scratch output from the old deploy scripts: ~50 files, including ones named
+# sec-out.txt and keys-out.txt.
+<FilesMatch "-out\.txt$|^admin\.token$">
+  Require all denied
+</FilesMatch>
+
+# ---------------------------------------------------------------------------
 # Caching
 #
 # Two classes of file, and they need opposite policies:
