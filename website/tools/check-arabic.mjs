@@ -20,21 +20,29 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const FILE = path.join(HERE, '..', 'index.html');
+const SITE = path.join(HERE, '..');
 
-let html = fs.readFileSync(FILE, 'utf8');
+/* **كل صفحات الموقع.** كان الحارس يقرأ `index.html` وحدها، فلمّا انقسمت
+   الصفحة صفحتين صار يفحص الواجهة الصغيرة ويترك `about.html` — وفيها جُلّ
+   نصّ الزائر — بلا فحص. ولا يظهر ذلك في مخرجاته: يقول «مرّ» بثقة عن ستّة
+   وستّين مقطعًا بدل ثمانمئة. فالإحصاء من المجلّد: ما يُضاف غدًا يُفحص. */
+const PAGES = fs.readdirSync(SITE)
+  .filter((f) => f.endsWith('.html'))
+  .sort();
 
-/* لا نفحص ما لا يراه الزائر */
-html = html
-  .replace(/<script[\s\S]*?<\/script>/g, ' ')
-  .replace(/<style[\s\S]*?<\/style>/g, ' ')
-  .replace(/<head[\s\S]*?<\/head>/, ' ')
-  .replace(/<!--[\s\S]*?-->/g, ' ')
-  .replace(/<svg[\s\S]*?<\/svg>/g, ' ');
-
-/* النصّ بين الوسوم فقط — لا السمات (href، alt، class…) */
+/* النصّ بين الوسوم فقط — لا السمات (href، alt، class…) — ومعه صفحته */
 const texts = [];
-html.replace(/>([^<>]+)</g, (_, t) => { texts.push(t); return ''; });
+const pageOf = new Map();
+for (const page of PAGES) {
+  /* لا نفحص ما لا يراه الزائر */
+  const clean = fs.readFileSync(path.join(SITE, page), 'utf8')
+    .replace(/<script[\s\S]*?<\/script>/g, ' ')
+    .replace(/<style[\s\S]*?<\/style>/g, ' ')
+    .replace(/<head[\s\S]*?<\/head>/, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<svg[\s\S]*?<\/svg>/g, ' ');
+  clean.replace(/>([^<>]+)</g, (_, t) => { texts.push(t); pageOf.set(t, page); return ''; });
+}
 
 /* ما يبقى لاتينيًّا لأنه يُنسخ لا يُقرأ */
 const ALLOWED = [
@@ -50,7 +58,7 @@ for (const raw of texts) {
   let t = raw.replace(/&[a-z]+;|&#\d+;/gi, ' ');
   for (const re of ALLOWED) t = t.replace(re, ' ');
   const hit = t.match(/[A-Za-z]{2,}/g);
-  if (hit) problems.push({ kind: 'latin', found: [...new Set(hit)].join('، '), ctx: raw.trim().replace(/\s+/g, ' ').slice(0, 72) });
+  if (hit) problems.push({ kind: 'latin', found: [...new Set(hit)].join('، '), ctx: `${pageOf.get(raw) || '?'} — ${raw.trim().replace(/\s+/g, ' ').slice(0, 64)}` });
 }
 
 /* ── وحدة المصطلح ──────────────────────────────────────────────────────
@@ -65,7 +73,7 @@ const BANNED = [
 ];
 for (const raw of texts) {
   for (const [re, word, want] of BANNED) {
-    if (re.test(raw)) problems.push({ kind: 'term', found: `${word} ← ${want}`, ctx: raw.trim().replace(/\s+/g, ' ').slice(0, 72) });
+    if (re.test(raw)) problems.push({ kind: 'term', found: `${word} ← ${want}`, ctx: `${pageOf.get(raw) || '?'} — ${raw.trim().replace(/\s+/g, ' ').slice(0, 64)}` });
   }
 }
 
@@ -92,4 +100,4 @@ if (problems.length) {
   process.exit(1);
 }
 
-console.log(`✓ نصّ الزائر عربي وموحّد المصطلح — ${texts.length} مقطعًا نصّيًّا`);
+console.log(`✓ نصّ الزائر عربي وموحّد المصطلح — ${texts.length} مقطعًا في ${PAGES.length} صفحة (${PAGES.join('، ')})`);

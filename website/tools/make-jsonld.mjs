@@ -6,7 +6,7 @@
  * يُعدَّل نصّ سؤال في الصفحة ويُنسى توأمه في السكيما، فيتحوّل تحسين الأرشفة
  * إلى مخالفة. فالمصدر واحد: الصفحة. والسكيما مشتقّة منها.
  *
- *   node website/tools/make-jsonld.mjs           # يكتب الكتلة في index.html
+ *   node website/tools/make-jsonld.mjs           # يكتب الكتلة في about.html
  *   node website/tools/make-jsonld.mjs --check    # يتحقّق فقط (يُستعمل في البناء)
  */
 import fs from 'node:fs';
@@ -14,7 +14,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const FILE = path.join(HERE, '..', 'index.html');
+/* الصفحة التعريفية لا الواجهة: الأسئلة الشائعة والخدمات والمؤسّسة كلّها
+   فيها. كانت الوجهة `index.html` حين كانت الصفحة واحدة، فلمّا صارت
+   الواجهة صفحةَ وكيلٍ بلا أسئلة توقّف المولّد عن العمل ورفض البناءُ
+   معه — وهو رفضٌ في محلّه: سكيما تصف صفحةً غير التي هي فيها مخالفة. */
+const FILE = path.join(HERE, '..', 'about.html');
 
 const START = '<!-- ⟦JSON-LD⟧ مولَّدة من محتوى الصفحة — لا تحرّرها بيدك -->';
 const END = '<!-- ⟦/JSON-LD⟧ -->';
@@ -60,11 +64,19 @@ const meta = (html, attr, key) => {
 };
 
 function build(html) {
-  const site = meta(html, 'rel', 'canonical').replace(/\/$/, '');
+  /* **جذر الموقع لا عنوان الصفحة.** المؤسّسة والموقع والخدمة كيانات تخصّ
+     الموقع كلّه، ومعرّفاتها تُبنى منه. وكان يُؤخذ الرابط المعياريّ كما هو،
+     فلمّا صارت السكيما في `about.html` صار المعرّف
+     `…/about.html/#organization` — مسارٌ ثم `/#`، عنوانٌ لا يدلّ على شيء،
+     ويصير للمؤسّسة الواحدة هويّتان لو أُضيفت سكيما في صفحةٍ أخرى. الصفحة
+     تبقى مرجعًا للأسئلة وحدها. */
+  const canonical = meta(html, 'rel', 'canonical').replace(/\/$/, '');
+  const page = canonical;
+  const site = canonical.replace(/\/[^/]*\.html$/, '');
   const faq = readFaq(html);
   const areas = readAreas(html);
 
-  if (!site) throw new Error('لا يوجد رابط canonical في الصفحة');
+  if (!canonical) throw new Error('لا يوجد رابط canonical في الصفحة');
   if (!faq.length) throw new Error('لم يُعثر على أسئلة شائعة في الصفحة');
 
   const phone = (html.match(/href="tel:(\+?[0-9]+)"/) || [])[1] || '';
@@ -124,7 +136,7 @@ function build(html) {
 
   const faqPage = {
     '@type': 'FAQPage',
-    '@id': `${site}/#faq`,
+    '@id': `${page}#faq`,
     mainEntity: faq.map(({ q, a }) => ({
       '@type': 'Question',
       name: q,

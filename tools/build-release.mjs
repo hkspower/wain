@@ -59,6 +59,27 @@ function copyTree(from, to, skip = []) {
   return files;
 }
 
+/**
+ * كل ملفّ نصّيّ في شجرةٍ قد يحمل النطاق أو قيمةً مؤقتة.
+ *
+ * كانت القوائم مكتوبةً باليد (`index.html` و`robots.txt` و`sitemap.xml`)،
+ * فلمّا انقسمت الصفحة صفحتين لم تشمل الجديدةَ قائمةٌ منهما: بقي في
+ * `about.html` **ثمانية عشر** موضعًا للنطاق التجريبي بعد بناءٍ بنطاقٍ
+ * حقيقي — رابطٌ معياريّ يشير إلى موقعٍ آخر وبياناتٌ منظّمة تكذّب الصفحة.
+ * فصار الإحصاء من الشجرة نفسها: ما يُضاف غدًا يدخل بلا تذكُّر.
+ */
+function textFiles(dir, exts = ['.html', '.xml', '.txt', '.json', '.webmanifest']) {
+  const out = [];
+  (function walk(d, rel = '') {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const childRel = path.join(rel, e.name);
+      if (e.isDirectory()) walk(path.join(d, e.name), childRel);
+      else if (exts.includes(path.extname(e.name).toLowerCase())) out.push(childRel);
+    }
+  })(dir);
+  return out;
+}
+
 /** يستبدل النطاق التجريبي في ملفات نصّية محدّدة */
 function applyDomain(dir, relPaths) {
   if (DOMAIN === PLACEHOLDER) return 0;
@@ -110,15 +131,24 @@ const PLACEHOLDERS = [
 ];
 
 function guardPlaceholders() {
-  const file = path.join(ROOT, 'website', 'index.html');
-  const html = fs.readFileSync(file, 'utf8');
-  const found = PLACEHOLDERS.filter((p) => html.includes(p.needle));
-  if (DOMAIN === PLACEHOLDER) found.push({ needle: PLACEHOLDER, what: 'النطاق (--domain)' });
+  /* **كل صفحات الموقع، لا الرئيسية وحدها.** كان الحارس يقرأ `index.html`
+     فقط، فلمّا انقسمت الصفحة صفحتين انتقل البريد والعنوان إلى `about.html`
+     وحدها — فصار الحارس يمرّ على حزمةٍ تحمل بريدًا وعنوانًا لا يملكهما
+     أحد، وهو بعينه ما كُتب ليمنعه. الإحصاء الآن من الشجرة. */
+  const site = path.join(ROOT, 'website');
+  const pages = textFiles(site, ['.html']);
+  const found = [];
+  for (const p of PLACEHOLDERS) {
+    const where = pages.filter((rel) => fs.readFileSync(path.join(site, rel), 'utf8').includes(p.needle));
+    if (where.length) found.push({ ...p, where });
+  }
+  if (DOMAIN === PLACEHOLDER) found.push({ needle: PLACEHOLDER, what: 'النطاق (--domain)', where: [] });
   if (!found.length) return;
 
+  const line = (f) => `${f.what}: ${f.needle}${f.where.length ? `  (${f.where.join('، ')})` : ''}`;
   if (process.argv.includes('--allow-placeholders')) {
     console.log('⚠ قيم مؤقتة باقية (سُمح بها صراحةً):');
-    for (const f of found) console.log(`    ${f.what}: ${f.needle}`);
+    for (const f of found) console.log(`    ${line(f)}`);
     console.log('');
     return;
   }
@@ -126,7 +156,7 @@ function guardPlaceholders() {
   console.error(`
 تعذّر البناء — قيم مؤقتة ما زالت في الموقع:
 `);
-  for (const f of found) console.error(`  • ${f.what.padEnd(22)} ${f.needle}`);
+  for (const f of found) console.error(`  • ${line(f)}`);
   console.error(`
 استبدلها في website/index.html ببياناتكم الحقيقية، ومرّر --domain=نطاقكم،
 ثم أعد البناء. للتجربة المحلية فقط: --allow-placeholders
@@ -197,7 +227,7 @@ const siteFiles = copyTree(path.join(ROOT, 'website'), siteOut, [
   'README.md',    // توثيق داخلي
   '.DS_Store',
 ]);
-const siteDomainEdits = applyDomain(siteOut, ['index.html', 'robots.txt', 'sitemap.xml']);
+const siteDomainEdits = applyDomain(siteOut, textFiles(siteOut));
 console.log(`✓ الموقع            ${siteFiles} ملفًا · ${mb(sizeOf(siteOut))}`);
 
 /* ٢ — النظام: agent-system مع arabic-kit بجانبه ليبقى `file:../arabic-kit` صالحًا */
