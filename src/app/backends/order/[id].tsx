@@ -159,12 +159,14 @@ export default function OrderScreen() {
                     },
                     saving !== null && saving !== to && styles.dimmed)}>
                   {saving === to && (
-                    <ActivityIndicator color={to === 'cancelled' ? theme.danger : '#ffffff'} />
+                    <ActivityIndicator color={to === 'cancelled' ? theme.danger : theme.onTint} />
                   )}
                   <Text
                     style={[
                       styles.moveText,
-                      to === 'cancelled' && { color: theme.danger },
+                      // What sits ON the ember, not a fixed white: the dark
+                      // theme's tint is #ff7b17, where white is 2.6:1.
+                      { color: to === 'cancelled' ? theme.danger : theme.onTint },
                     ]}>
                     {to}
                   </Text>
@@ -191,6 +193,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.two,
   },
-  moveText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
+  moveText: { fontSize: 16, fontWeight: '700' },
   dimmed: { opacity: 0.4 },
 });

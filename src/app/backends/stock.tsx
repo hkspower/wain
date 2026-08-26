@@ -128,9 +128,9 @@ export default function StockScreen() {
                   { backgroundColor: dirty ? theme.tint : theme.backgroundElement, borderColor: theme.border },
                   !dirty && styles.dimmed)}>
                 {saving === k ? (
-                  <ActivityIndicator color="#ffffff" />
+                  <ActivityIndicator color={theme.onTint} />
                 ) : (
-                  <ThemedText type="labelBold" themeColor={dirty ? 'onInk' : 'textSecondary'}>
+                  <ThemedText type="labelBold" themeColor={dirty ? 'onTint' : 'textSecondary'}>
                     {saved === k ? 'Saved' : 'Save'}
                   </ThemedText>
                 )}

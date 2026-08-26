@@ -358,5 +358,4 @@ const styles = StyleSheet.create({
   actionBar: { paddingVertical: Spacing.three },
   totalRow: { justifyContent: 'space-between', alignItems: 'center' },
   primary: { marginTop: Spacing.two },
-  primaryText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
 });

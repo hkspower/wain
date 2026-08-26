@@ -236,7 +236,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   primary: { marginTop: Spacing.three },
-  primaryText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
   // Wraps to one per row on a narrow phone and sits three-up on anything
   // wider, without a breakpoint: each tile asks for 30% and flexWrap does the
   // rest.

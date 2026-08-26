@@ -65,7 +65,12 @@ export function ProductBadge({ product }: { product: Product }) {
     <View
       style={[styles.badge, { backgroundColor: background }]}
       pointerEvents="none">
-      <Text style={styles.text} accessibilityLabel={label}>
+      <Text
+        // Sold out is charcoal, where white is right; the other three are the
+        // brand ember, and in the dark theme that ember is #ff7b17 — white on
+        // it is 2.6:1.
+        style={[styles.text, { color: kind === 'out' ? '#ffffff' : theme.onTint }]}
+        accessibilityLabel={label}>
         {label}
       </Text>
     </View>
@@ -90,6 +95,5 @@ const styles = StyleSheet.create({
     fontSize: Type.caption.size,
     lineHeight: Type.caption.lineAr,
     fontWeight: '700',
-    color: '#ffffff',
   },
 });

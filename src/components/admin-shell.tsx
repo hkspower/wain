@@ -176,11 +176,6 @@ export const adminStyles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.two,
   },
-  chip: {
-    borderRadius: 999,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.half,
-  },
 });
 
 const styles = StyleSheet.create({
