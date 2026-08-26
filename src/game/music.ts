@@ -6,7 +6,10 @@
 // tracks play; otherwise a procedural synth score keeps the night
 // scored, so the game is never silent and ships with no audio assets.
 
-export type MusicMood = "cruise" | "battle";
+/** cruise: the night drive. battle: the fight. challenge: the film that
+ *  starts it — the shortest and the hardest, because it plays under a
+ *  fixed eight seconds and has to land in all of them. */
+export type MusicMood = "cruise" | "battle" | "challenge";
 
 const MANIFEST = "/music/manifest.json";
 const FADE = 1.6; // seconds
@@ -93,13 +96,21 @@ export class Music {
     g.gain.setTargetAtTime(target, this.ctx.currentTime, FADE / 3);
   }
 
-  /** Cruise while driving, battle during a rival fight or a duel. */
+  /** Cruise while driving, battle during a rival fight or a duel,
+   *  challenge under the pre-race film. */
   setMood(mood: MusicMood): void {
     if (mood === this.mood) return;
     this.mood = mood;
     if (this.haveTracks) {
-      this.fadeTo("cruise", mood === "cruise" ? 1 : 0);
-      this.fadeTo("battle", mood === "battle" ? 1 : 0);
+      // Only two tracks were ever recorded, so `challenge` rides the
+      // battle stem here rather than a third file. It has to be spelled
+      // out: the obvious `mood === "battle" ? 1 : 0` fades BOTH stems to
+      // zero on a challenge and plays the film in silence, which is a
+      // worse failure than the wrong track and a completely silent one.
+      // The synth path below has a real third cue.
+      const hard = mood !== "cruise";
+      this.fadeTo("cruise", hard ? 0 : 1);
+      this.fadeTo("battle", hard ? 1 : 0);
     } else {
       this.synth?.setMood(mood);
     }
@@ -184,9 +195,14 @@ const PROG: Record<MusicMood, number[]> = {
   cruise: [0, 8, 3, 10],
   // i – VI – VII – v in D minor, darker and more urgent
   battle: [0, 8, 10, 7],
+  // Two chords, alternating every bar. The film is eight seconds long —
+  // four bars at this tempo — so a four-chord progression would play
+  // exactly once and never resolve. Two chords cycle twice and the ear
+  // hears a loop rather than a fragment cut off.
+  challenge: [0, 10],
 };
-const ROOT: Record<MusicMood, number> = { cruise: 55, battle: 36.71 }; // A1 / D1
-const BPM: Record<MusicMood, number> = { cruise: 118, battle: 148 };
+const ROOT: Record<MusicMood, number> = { cruise: 55, battle: 36.71, challenge: 36.71 }; // A1 / D1
+const BPM: Record<MusicMood, number> = { cruise: 118, battle: 148, challenge: 164 };
 /** Minor scale degrees the arpeggio walks, in semitones. */
 const ARP = [0, 3, 7, 12, 15, 12, 7, 3];
 
@@ -248,14 +264,27 @@ class SynthScore {
     this.timer = setInterval(() => this.pump(), 25);
   }
 
+  /** Pad level and filter corner per mood, in one place so setMood and
+   *  setIntensity cannot drift apart — they did, briefly, when a third
+   *  mood arrived and only one of them learned about it. */
+  private static padOf(m: MusicMood): number {
+    return m === "challenge" ? 0.085 : m === "battle" ? 0.07 : 0.045;
+  }
+  private static cornerOf(m: MusicMood): number {
+    return m === "challenge" ? 6400 : m === "battle" ? 5200 : 1800;
+  }
+
   setMood(mood: MusicMood): void {
     if (mood === this.mood) return;
     this.mood = mood;
     const t = this.ctx.currentTime;
     for (const o of this.pad) o.frequency.setTargetAtTime(ROOT[mood] * 2, t, 0.4);
-    this.padGain.gain.setTargetAtTime(mood === "battle" ? 0.07 : 0.045, t, 0.6);
+    // The film cuts in rather than fades: a transition that takes half a
+    // second of an eight-second film has spent a sixteenth of it easing.
+    const glide = mood === "challenge" ? 0.08 : 0.6;
+    this.padGain.gain.setTargetAtTime(SynthScore.padOf(mood), t, glide);
     // The filter sweep is the transition — it reads as the track lifting
-    this.filter.frequency.setTargetAtTime(mood === "battle" ? 5200 : 1800, t, 0.5);
+    this.filter.frequency.setTargetAtTime(SynthScore.cornerOf(mood), t, mood === "challenge" ? 0.06 : 0.5);
   }
 
   /**
@@ -265,13 +294,8 @@ class SynthScore {
   setIntensity(v: number): void {
     this.intensity = v;
     const t = this.ctx.currentTime;
-    const base = this.mood === "battle" ? 5200 : 1800;
-    this.filter.frequency.setTargetAtTime(base + v * 3200, t, 0.35);
-    this.padGain.gain.setTargetAtTime(
-      (this.mood === "battle" ? 0.07 : 0.045) * (1 + v * 0.55),
-      t,
-      0.4
-    );
+    this.filter.frequency.setTargetAtTime(SynthScore.cornerOf(this.mood) + v * 3200, t, 0.35);
+    this.padGain.gain.setTargetAtTime(SynthScore.padOf(this.mood) * (1 + v * 0.55), t, 0.4);
   }
 
   /** Queue every sixteenth that falls inside the lookahead window. */
@@ -292,7 +316,12 @@ class SynthScore {
   }
 
   private emit(step: number, t: number): void {
-    const battle = this.mood === "battle";
+    // Everything that is not the cruise gets the driving pattern —
+    // sixteenth bass, doubled hats, the pushed kick. `challenge` then
+    // takes more on top; see the stabs at the foot of this function.
+    const hard = this.mood !== "cruise";
+    const battle = hard;
+    const chal = this.mood === "challenge";
     const bar = Math.floor(step / 16) % PROG[this.mood].length;
     const chordRoot = semis(ROOT[this.mood], PROG[this.mood][bar]);
     const i = step % 16;
@@ -317,10 +346,17 @@ class SynthScore {
       this.arp(t, note, battle ? 0.05 : 0.032);
     }
 
-    // Battle stabs on the downbeat of every other bar
-    if (battle && i === 0 && bar % 2 === 0) {
+    // Battle stabs on the downbeat of every other bar — and on EVERY
+    // bar under the film, plus the mid-bar answer. Eight seconds is not
+    // long enough to establish a two-bar phrase, so the challenge score
+    // states its hook once a bar and lets the repetition do the work.
+    if (battle && i === 0 && (chal || bar % 2 === 0)) {
       this.stab(t, chordRoot * 4);
     }
+    if (chal && i === 8) this.stab(t, chordRoot * 3);
+    // An extra open-hat on the last sixteenth: the pick-up that makes a
+    // bar feel like it is running at the next one.
+    if (chal && i === 15) this.hat(t, 0.055);
   }
 
   private kick(t: number, level: number): void {

@@ -73,7 +73,24 @@ const SMOKE_N = 110;
 /** Pre-battle cinematic length in real seconds (shots at 1.8 / 3.6):
  *  the rival's close-up, the side-by-side two-shot at the line, and the
  *  pull up into the chase as the flag drops. */
-const CINE_LEN = 5.6;
+const CINE_LEN = 8.0;
+
+/** The challenge shot: how long the film holds behind the rival while
+ *  the high beams go in. Ends when the third hit has faded. */
+const CINE_FLASH_END = 2.4;
+
+/** When each of the three high-beam hits lands, seconds into the film.
+ *
+ *  Evenly spaced but not metronomic — 0.62 between the first two and
+ *  0.58 between the last two, so the pattern accelerates fractionally.
+ *  Three identical intervals read as a warning light; three that close
+ *  up read as somebody leaning on the stalk. */
+const CINE_FLASH_AT = [0.5, 1.12, 1.7];
+
+/** How far ahead the rival runs during the challenge shot, metres. Far
+ *  enough that the beams have somewhere to travel and the tail lights
+ *  are a separate thing from the car, close enough to fill the frame. */
+const CINE_FLASH_GAP = 15;
 /** Fallback normaliser for speed-driven camera effects, used only
  *  before a tune is applied. The live value follows the car's own
  *  governor (see topSpeedRef), so a 180 km/h hatch feels as fast at its
@@ -777,7 +794,9 @@ export class GameEngine {
 
   // Pre-battle rival cinematic: wall-clock start for the camera timeline,
   // world in slow motion underneath. Null when not playing.
-  private cine: { start: number; r: Rival } | null = null;
+  /** `hits` counts the high beams already fired, so the film's own
+   *  clock can drive them and a skip cannot leave one in flight. */
+  private cine: { start: number; r: Rival; hits: number } | null = null;
 
   // Online cruise
   private remotes = new Map<number, RemotePlayer>();
@@ -3010,7 +3029,7 @@ export class GameEngine {
       this.startBattle(r);
       return;
     }
-    this.cine = { start: performance.now(), r };
+    this.cine = { start: performance.now(), r, hits: 0 };
     // The intro line plays over the film instead of after it
     this.voice.speak(r.def.lines.intro, r.def.voice, `${r.def.id}-intro`);
     this.events.onCinematic(true, this.rivalCard(r.def), this.wager, this.playerCard());
@@ -3120,6 +3139,66 @@ export class GameEngine {
         glows.forEach((m, i) => (m.opacity = baseGlow[i]));
       }
     }, 110);
+  }
+
+  /**
+   * One hard high-beam hit, for the film.
+   *
+   * flashHeadlights is the gameplay blink — six 90 ms ticks, deliberately
+   * quick and cheap, because in play it is feedback for a keypress. This
+   * is the other thing: a single pulse that goes up to a real high beam,
+   * holds long enough to read as ONE deliberate hit, and falls back. It
+   * throws the spot to two and a half times its dipped output, which is
+   * roughly what a main beam is over a dipped one, and the beam cone and
+   * the lamp faces go with it so the flash is visible from the camera
+   * rather than only in the pool on the road.
+   */
+  private highBeamHit(): void {
+    const spot = this.headlight;
+    const off = this.headlightR;
+    const headMat = this.carBody.userData.headMat as THREE.MeshStandardMaterial | undefined;
+    const glows = (this.carBody.userData.headGlowMats as THREE.SpriteMaterial[]) ?? [];
+    const base = spot.intensity;
+    const baseOff = off.intensity;
+    const baseEmissive = headMat?.emissiveIntensity ?? 0;
+    const baseGlow = glows.map((m) => m.opacity);
+    const baseBeam = this.beamMat?.opacity ?? 0;
+    const t0 = performance.now();
+    const RISE = 40;
+    const HOLD = 150;
+    const FALL = 190;
+    const tick = () => {
+      if (this.disposed || !this.cine) {
+        // Skipped mid-hit: put the lamps back where they were rather
+        // than leaving the car on main beam into the green flag.
+        spot.intensity = base;
+        off.intensity = baseOff;
+        if (headMat) headMat.emissiveIntensity = baseEmissive;
+        glows.forEach((m, i) => (m.opacity = baseGlow[i]));
+        if (this.beamMat) this.beamMat.opacity = baseBeam;
+        return;
+      }
+      const e = performance.now() - t0;
+      let k: number;
+      if (e < RISE) k = e / RISE;
+      else if (e < RISE + HOLD) k = 1;
+      else k = Math.max(0, 1 - (e - RISE - HOLD) / FALL);
+      spot.intensity = base * (1 + 1.5 * k);
+      off.intensity = baseOff * (1 + 1.5 * k);
+      if (headMat) headMat.emissiveIntensity = baseEmissive * (1 + 1.6 * k);
+      glows.forEach((m, i) => (m.opacity = Math.min(1, baseGlow[i] * (1 + 1.1 * k))));
+      if (this.beamMat) this.beamMat.opacity = Math.min(1, baseBeam * (1 + 1.3 * k));
+      if (e < RISE + HOLD + FALL) requestAnimationFrame(tick);
+      else {
+        spot.intensity = base;
+        off.intensity = baseOff;
+        if (headMat) headMat.emissiveIntensity = baseEmissive;
+        glows.forEach((m, i) => (m.opacity = baseGlow[i]));
+        if (this.beamMat) this.beamMat.opacity = baseBeam;
+      }
+    };
+    requestAnimationFrame(tick);
+    this.sound?.flashClick();
   }
 
   private flashHeadlights(): void {
@@ -3378,6 +3457,17 @@ export class GameEngine {
     // always CINE_LEN seconds, whatever the frame rate) while the world
     // underneath drops into slow motion.
     if (this.cine) {
+      // The three hits, fired off the film's own clock rather than a
+      // chain of timers: a timer chain keeps running through a skip and
+      // lands its last flash over the green flag.
+      const ct = (performance.now() - this.cine.start) / 1000;
+      while (
+        this.cine.hits < CINE_FLASH_AT.length &&
+        ct >= CINE_FLASH_AT[this.cine.hits]
+      ) {
+        this.cine.hits++;
+        this.highBeamHit();
+      }
       if ((performance.now() - this.cine.start) / 1000 >= CINE_LEN) this.endCinematic();
       else {
         // The lap clock is wall-time; credit back what slow-mo swallows
@@ -3426,7 +3516,14 @@ export class GameEngine {
     this.updateRival(dt);
     this.updateRemotes(dt);
     if (this.inBattle) this.updateBattle(dt);
-    this.music?.setMood(this.inBattle || this.duel || this.cine ? "battle" : "cruise");
+    // The film gets its own score. It used to share the battle track,
+    // which is the right music for a fight and the wrong music for the
+    // eight seconds that start one: the challenge cue is faster, states
+    // its hook every bar, and cuts in rather than fading, because a
+    // half-second crossfade spends a sixteenth of the film easing.
+    this.music?.setMood(
+      this.cine ? "challenge" : this.inBattle || this.duel ? "battle" : "cruise"
+    );
     // The picture follows the same moment the music does.
     this.look = this.deriveLook();
     this.stepLook(dt);
@@ -4145,10 +4242,32 @@ export class GameEngine {
     if (this.cine && this.cine.r === r) {
       const p = this.player;
       r.speed = p.speed;
-      // Half a car ahead for the shot — a dead-level two-shot is a flat
-      // one — and level again at the flag, which lineUpAbreast does.
-      r.s = this.track.wrap(p.s + 1.2);
-      const lane = this.abreastLane(r.s, p.lat);
+      // The film opens on the challenge, so it opens where a challenge
+      // happens: the rival up the road IN YOUR LANE, with the gap the
+      // beams have to cross. It then closes to half a car ahead and one
+      // lane over for the two-shot — a dead-level two-shot is a flat one
+      // — and lineUpAbreast levels the pair again at the flag.
+      //
+      // The gap closes on an ease rather than a cut, because the shot
+      // change at CINE_FLASH_END is a CUT and a car that teleports
+      // across it is the one thing a cut cannot hide.
+      const ct = (performance.now() - this.cine.start) / 1000;
+      const close = THREE.MathUtils.clamp(
+        (ct - CINE_FLASH_END) / 0.9,
+        0,
+        1
+      );
+      const eased = close * close * (3 - 2 * close);
+      r.s = this.track.wrap(
+        p.s + THREE.MathUtils.lerp(CINE_FLASH_GAP, 1.2, eased)
+      );
+      // Same lane while the beams are going in; the pair separates as
+      // the rival drops back alongside.
+      const lane = THREE.MathUtils.lerp(
+        p.lat,
+        this.abreastLane(r.s, p.lat),
+        eased
+      );
       r.lat += (lane - r.lat) * Math.min(1, dt * 6);
       r.targetLat = lane;
       this.track.pose(r.s, r.lat, this.v1, this.v2);
@@ -4640,8 +4759,40 @@ export class GameEngine {
 
     const ease = (x: number) => 1 - Math.pow(1 - THREE.MathUtils.clamp(x, 0, 1), 2);
 
-    if (t < 1.8) {
-      const k = ease(t / 1.8);
+    if (t < CINE_FLASH_END) {
+      // THE CHALLENGE. Low and just off the player's quarter, looking up
+      // its own beams at the rival ahead — the shot has to hold three
+      // things at once for the flashes to mean anything: the lamps that
+      // are firing, the road they are firing down, and the car at the
+      // end of it lighting up. So the camera sits BEHIND the player and
+      // slightly outboard, at bumper height, and drifts inboard as it
+      // creeps forward, which brings the rival off the player's shoulder
+      // and into clear air by the time the third hit lands.
+      const k = ease(t / CINE_FLASH_END);
+      this.track.pose(p.s, p.lat, this.v1, this.v2); // v1 = player
+      this.track.tangentAt(p.s, this.v3);
+      const sx = -this.v3.z;
+      const sz = this.v3.x;
+      // Which side to hang on: the open one, so the shot never has the
+      // barrier between the lens and the car.
+      const side = p.lat > 0 ? -1 : 1;
+      const out = THREE.MathUtils.lerp(2.9, 1.5, k);
+      const back = THREE.MathUtils.lerp(7.4, 5.2, k);
+      this.camera.position.set(
+        this.v1.x - this.v3.x * back + sx * out * side,
+        this.v1.y + THREE.MathUtils.lerp(0.82, 1.05, k),
+        this.v1.z - this.v3.z * back + sz * out * side
+      );
+      // Aimed up the road past the car, not at it: the subject of this
+      // shot is the gap between the two machines.
+      this.v4.set(
+        this.v1.x + this.v3.x * 13,
+        this.v1.y + 1.0,
+        this.v1.z + this.v3.z * 13
+      );
+      this.camera.lookAt(this.v4);
+    } else if (t < CINE_FLASH_END + 1.8) {
+      const k = ease((t - CINE_FLASH_END) / 1.8);
       this.track.pose(c.r.s, c.r.lat, this.v1, this.v2); // v1 = rival
       this.track.tangentAt(c.r.s, this.v3);
       const a = 2.55 - 1.35 * k; // rear-quarter → front-side sweep
@@ -4655,12 +4806,12 @@ export class GameEngine {
       );
       this.v4.set(this.v1.x, this.v1.y + 0.6, this.v1.z);
       this.camera.lookAt(this.v4);
-    } else if (t < 3.6) {
+    } else if (t < CINE_FLASH_END + 3.6) {
       // The two-shot: both machines side by side at speed. The camera
       // hangs ahead of the pair, low over the asphalt, dollying slowly
       // back toward them and aimed at the midpoint so player and rival
       // share the frame with their names on the bars below.
-      const k = ease((t - 1.8) / 1.8);
+      const k = ease((t - CINE_FLASH_END - 1.8) / 1.8);
       this.track.pose(p.s, p.lat, this.v1, this.v2); // v1 = player
       this.track.pose(c.r.s, c.r.lat, this.v4, this.v2); // v4 = rival
       const midX = (this.v1.x + this.v4.x) / 2;
@@ -4676,7 +4827,7 @@ export class GameEngine {
       this.v4.set(midX, midY + 0.7, midZ);
       this.camera.lookAt(this.v4);
     } else {
-      const k = ease((t - 3.6) / (CINE_LEN - 3.6));
+      const k = ease((t - CINE_FLASH_END - 3.6) / (CINE_LEN - CINE_FLASH_END - 3.6));
       this.track.pose(p.s, p.lat, this.v1, this.v2);
       this.track.tangentAt(p.s, this.v3);
       const sx = -this.v3.z;

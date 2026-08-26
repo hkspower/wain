@@ -36,6 +36,7 @@
     "test:race": "node tests/fullrace.mjs",
     "test:fonts": "node tests/fonts.mjs",
     "test:mods": "node tests/mods.mjs",
+    "test:film": "node tests/intro-film.mjs",
     "test:shop": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/shop.mjs",
     "test:topspeed": "node tests/topspeed.mjs",
     "test:vfx": "node tests/vfx.mjs",
