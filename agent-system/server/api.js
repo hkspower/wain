@@ -401,10 +401,82 @@ function pubGuard(ip, kind, max, windowMs) {
   }
 }
 
+/* الحقول التي تُقرأ من جملةٍ وحدها قراءةً قاطعة: معنونةٌ باسمها في الكلام
+   («اسمي…» «رقمي…» «المبلغ…»)، فلا يغيّر موضعُها في الحديث معناها. مقابلها
+   المناطق: تُقرأ **بموضعها** («من … إلى …»)، فجملةٌ معزولة فيها منطقة واحدة
+   يقرؤها المستخرِج استلامًا مهما كان عنوانها. */
+const SOLO_FIELDS = ['customer_name', 'customer_phone', 'cod_amount', 'delivery_fee',
+  'notes', 'vehicle', 'priority'];
+const SAYS_PICKUP = /الاستلام|الإستلام|استلام/;
+const SAYS_DROPOFF = /التسليم|إلى|الى|توصيل/;
+
+/** ملخّصٌ يُقرأ، مبنيٌّ من الحقول نفسها التي ستُرسَل — بصيغة المستخرِج */
+function describeFields(f) {
+  const ar = require('arabic-kit');
+  const out = [];
+  if (f.customer_name) out.push(`الاسم: ${f.customer_name}`);
+  if (f.customer_phone) out.push(`الهاتف: ${ar.ltr(ar.digits(f.customer_phone))}`);
+  for (const [prefix, label] of [['pickup', 'الاستلام'], ['dropoff', 'التسليم']]) {
+    const area = f[`${prefix}_area`];
+    if (!area) continue;
+    const block = f[`${prefix}_block`];
+    out.push(block === undefined || block === null
+      ? `${label}: ${area} (بلا قطعة)`
+      : `${label}: ${area}، قطعة ${ar.digits(block)}`);
+    if (f[`${prefix}_street`]) out.push(`شارع ${label}: ${f[`${prefix}_street`]}`);
+  }
+  if (f.cod_amount !== undefined) out.push(`المبلغ المطلوب تحصيله: ${ar.money(f.cod_amount)}`);
+  if (f.delivery_fee !== undefined) out.push(`رسوم التوصيل: ${ar.money(f.delivery_fee)}`);
+  if (f.notes) out.push(`ملاحظات: ${f.notes}`);
+  if (f.vehicle) out.push(`المركبة: ${D.VEHICLES[f.vehicle]}`);
+  if (f.priority) out.push(`الأولوية: ${D.PRIORITIES[f.priority]}`);
+  return out;
+}
+
 on('POST', '/api/public/order/parse', async (ctx) => {
   pubGuard(ctx.ip, 'parse', 90, 10 * 60_000);
   const text = str(ctx.body.text, 'نصّ الطلب', { max: 4000 });
+  const latest = str(ctx.body.latest, 'آخر ما قيل', { required: false, max: 1000 });
   const parsed = V.parseOrder(text);
+
+  /* **الأحدث يفوز.** المستخرِج يأخذ أوّل ما يطابق، فمن قال «اسمي بدر» ثم
+     «لا، اسمي فهد» بقي بدرًا — والزبون يرى تصحيحه يُهمَل بلا سبب ظاهر.
+     تُقرأ آخر جملةٍ وحدها، ويعلو ما صرّحت به على ما استُخرج من الحديث كلّه.
+     والمناطق لا تُؤخذ إلّا بعنوانٍ صريح فيها: قراءتها موضعية، وجملةٌ معزولة
+     بلا عنوان يقرؤها المستخرِج استلامًا دائمًا — فلو أُخذت على علّاتها
+     لانقلب التسليم استلامًا وذهب الكابتن إلى العنوان الخطأ. ما لا عنوان له
+     يُترك للحديث كلّه: أن يبقى على ما كان خيرٌ من أن يُقلب. */
+  if (latest) {
+    const solo = V.parseOrder(latest);
+    for (const k of SOLO_FIELDS) {
+      if (solo.fields[k] !== undefined) parsed.fields[k] = solo.fields[k];
+    }
+    const saysPick = SAYS_PICKUP.test(latest);
+    const saysDrop = SAYS_DROPOFF.test(latest);
+    const areas = [solo.fields.pickup_area, solo.fields.dropoff_area].filter(Boolean);
+    const setSide = (side, area, block) => {
+      parsed.fields[`${side}_area`] = area;
+      const gov = AREA.AREA_TO_GOV[area];
+      if (side === 'pickup') parsed.fields.governorate = gov;
+      else parsed.fields.dropoff_governorate = gov;
+      if (block !== undefined) parsed.fields[`${side}_block`] = block;
+      else delete parsed.fields[`${side}_block`];
+    };
+    if (solo.fields.pickup_area && solo.fields.dropoff_area) {
+      // الجملة نفسها فيها الطرفان بترتيبهما — تُؤخذ كما قُرئت
+      setSide('pickup', solo.fields.pickup_area, solo.fields.pickup_block);
+      setSide('dropoff', solo.fields.dropoff_area, solo.fields.dropoff_block);
+    } else if (areas.length === 1 && saysDrop !== saysPick) {
+      /* منطقةٌ واحدة وعنوانٌ واحد لا يلتبس: العنوان يحسم الجهة لا الموضع */
+      setSide(saysDrop ? 'dropoff' : 'pickup', areas[0], solo.fields.pickup_block ?? solo.fields.dropoff_block);
+    }
+    /* ما امتلأ الآن يخرج من قائمة النواقص، وإلّا سُئل الزبون عمّا أجاب عنه */
+    parsed.missing = parsed.missing.filter((m) => parsed.fields[m.field] === undefined);
+    /* والملخّص يُعاد بناؤه من الحقول بعد الدمج لا من قراءة الحديث كلّه:
+       بغيره يبقى «الاسم: بدر» معروضًا وقد صار في الطلب «فهد» — والزبون
+       يؤكّد ما يراه، فإن خالف ما يُرسَل فقد أُخذ إقرارٌ على غير ما وقع. */
+    parsed.heard = describeFields(parsed.fields);
+  }
 
   /* «هل تقصد السالمية؟» — المستخرِج يقترحها فقط حين تأتي المنطقة معنونةً
      («الاستلام: السالمي»)، والزبون يتكلّم بلا عناوين («من السالمي»)، فلا

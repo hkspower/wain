@@ -11,8 +11,20 @@
 (() => {
   'use strict';
 
-  const API = new URLSearchParams(location.search).get('api')
-    || document.body.dataset.api || '';
+  /* عنوان البوّابة. `data-api` يكتبه من ينشر الموقع في صفحته، فهو مأمون.
+     أمّا `?api=` فمن الرابط — أي من أيّ أحد.
+     كان يُقرأ في كل مكان، وهي ثغرة تسريبٍ كاملة: رابطٌ نصّه
+     `https://mawsool.com.kw/?api=https://…` يفتح صفحة موصول بنطاقها
+     وشعارها وكلّ ما يطمئن له الزبون، ثم يذهب **كل ما يقوله** — اسمه
+     وهاتفه وعنوانا الاستلام والتسليم — إلى خادم صاحب الرابط، ويردّ هو
+     بتأكيدٍ مصنوع فلا يشكّ أحد. (جُرّب فعلًا: وصل النصّ كاملًا.)
+     فصار التجاوز **للمعاينة المحلّية وحدها**: على أيّ مضيفٍ حقيقيّ
+     يُهمَل ولا يُقرأ. */
+  const DEV_HOSTS = ['localhost', '127.0.0.1', '[::1]', '::1', ''];
+  const override = DEV_HOSTS.includes(location.hostname)
+    ? new URLSearchParams(location.search).get('api')
+    : null;
+  const API = override || document.body.dataset.api || '';
 
   const $ = (id) => document.getElementById(id);
   const hero = $('voHero'), chat = $('voChat'), card = $('voCard');
@@ -30,14 +42,22 @@
     pickup_area: 'من أين نستلم؟ <b>قل مثلًا: الاستلام من السالمية قطعة ٤</b>',
     dropoff_area: 'إلى أين نوصّل؟ <b>قل مثلًا: التسليم في الجابرية قطعة ٧</b>',
   };
-  /* جوابٌ قصير بلا عنوانه يُغلَّف بعنوان السؤال المنتظَر، فيقع في حقله:
-     «السالمية» وحدها تُقرأ استلامًا أينما وقعت — التغليف يحسم الجهة. */
+  /* جوابٌ **مجرّد** يُغلَّف بعنوان السؤال المنتظَر فيقع في حقله: «السالمية»
+     وحدها تُقرأ استلامًا أينما وقعت، والتغليف يحسم الجهة.
+     والشرط «مجرّد» لا يُستغنى عنه: كان التغليف يجري على الطول وحده، فمن
+     أجاب سؤال الاستلام بتصحيحٍ لاسمه («لا، اسمي فهد») صار كلامه
+     «الاستلام من لا، اسمي فهد» — ويُقرأ «الاستلام» نفسه اسمَ منطقةٍ لم
+     تُفهم، فيسأل الوكيل «هل تقصد السلام؟» عن كلمةٍ لم يقلها أحد. الغلاف
+     الذي يفسد الكلام أسوأ من غلافٍ لا يقع. */
+  const CARRIES_LABEL = /اسمي|رقمي|هاتفي|الاستلام|الإستلام|التسليم|إلى|الى|(^|\s)من(\s|$)|المبلغ|الرسوم|ملاحظ/;
   const WRAP = {
-    customer_name: (t) => (/اسمي/.test(t) ? t : `اسمي ${t}`),
-    customer_phone: (t) => (/رقمي|هاتفي/.test(t) ? t : `رقمي ${t}`),
-    pickup_area: (t) => (/من|الاستلام/.test(t) ? t : `الاستلام من ${t}`),
-    dropoff_area: (t) => (/إلى|الى|التسليم/.test(t) ? t : `التسليم إلى ${t}`),
+    customer_name: (t) => `اسمي ${t}`,
+    customer_phone: (t) => `رقمي ${t}`,
+    pickup_area: (t) => `الاستلام من ${t}`,
+    dropoff_area: (t) => `التسليم إلى ${t}`,
   };
+  const wrapAnswer = (field, t) =>
+    (field && WRAP[field] && t.length <= 40 && !CARRIES_LABEL.test(t)) ? WRAP[field](t) : t;
 
   const state = {
     utterances: [],     // الحديث كما قيل، بترتيبه
@@ -93,11 +113,16 @@
 
   /* ----------------------------- الجولات ----------------------------- */
 
+  /* يُرسَل الحديث كلّه ومعه آخر جملة على حدة: الأوّل يقرأ المناطق بمواضعها،
+     والثاني يجعل التصحيح يعلو على ما سبقه (القاعدة في الخادم). */
   async function parseAll() {
     const res = await fetch(`${API}/api/public/order/parse`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text: state.utterances.join('، ') }),
+      body: JSON.stringify({
+        text: state.utterances.join('، '),
+        latest: state.utterances[state.utterances.length - 1] || '',
+      }),
     });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'تعذّر الاتصال');
     state.parsed = await res.json();
@@ -106,8 +131,7 @@
   async function turn(text) {
     const raw = text.trim();
     if (!raw || state.sending) return;
-    const wrapped = state.pendingField && raw.length <= 40 && WRAP[state.pendingField]
-      ? WRAP[state.pendingField](raw) : raw;
+    const wrapped = wrapAnswer(state.pendingField, raw);
 
     hero.hidden = true;
     bubble('user', esc(raw));
