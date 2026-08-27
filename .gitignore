@@ -66,9 +66,13 @@ sporta-site/*.log
 sporta-voice.log
 cbk-payments.log
 
-# Upload packages. Build output — `zip -r` over public_html — and 2.7 MB of it
-# per build, all of it already in the repo as the files it was made from.
+# Upload packages. Build output — `zip -r` over public_html — and megabytes of
+# it per build, all of it already in the repo as the files it was made from.
 # Committing one would mean a binary that goes stale the moment anything under
 # public_html changes, and no way to see that it had.
-SPORTA-EXTRACT-HERE.zip
-SPORTA-SOURCE.zip
+#
+# A PATTERN, not three names. It was a list, and every hand-off zip with a new
+# name — BRAND-FOLDERS.zip was the second — arrived as an untracked file and
+# had to be added by hand. Anything shaped like a package at the repo root is
+# build output; nothing tracked here is a .zip.
+/*.zip
