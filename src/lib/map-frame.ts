@@ -178,21 +178,17 @@ export function centreFrame(f: MapFrame, at: LatLng): MapFrame {
 export function spreadPins(
   pts: { x: number; y: number }[],
   size: number,
-  aspect: number
+  aspect: number,
+  /**
+   * How far a pin may be pushed from where the place actually is, in units of
+   * frame width. Defaults to one pin width, which is the right budget on a
+   * tight view and far too generous on a wide one — pass `pinShiftCap(f, size)`
+   * to bound it on the ground as well. See `MAX_PIN_SHIFT_M`.
+   */
+  maxShift: number = size
 ): { x: number; y: number }[] {
   const out = pts.map((p) => ({ x: p.x, y: p.y / aspect }));
   const home = out.map((p) => ({ ...p }));
-  /**
-   * How far a pin may be pushed from where the place actually is.
-   *
-   * Half a pin was too tight to finish the job: the relaxation below needs
-   * room to separate a dense cluster, and clamping every pin at 16px pulled
-   * them back into overlap as soon as a query matched eleven coastal places
-   * instead of ten. A full pin-width still keeps a pin visibly on its own
-   * stretch of coast, and the results list beside the map remains the precise
-   * index — while overlapping pins cannot be tapped apart at all.
-   */
-  const maxShift = size;
 
   for (let pass = 0; pass < 12; pass++) {
     let moved = false;
@@ -229,6 +225,53 @@ export function spreadPins(
     const y = clamp(home[i].y + dy * k, ry, 1 / aspect);
     return { x, y: y * aspect };
   });
+}
+
+/** Mean Earth radius, metres — the sphere Web Mercator is drawn on. */
+const EARTH_M = 6_371_000;
+
+/**
+ * How wide the frame is on the ground, in metres.
+ *
+ * `hx` is already a half-span in radians of longitude, so the width is that
+ * doubled, times the radius of the latitude circle the frame sits on. Good to
+ * a fraction of a percent over a view this size, which is far finer than
+ * anything it is used to decide.
+ */
+export function frameWidthMetres(f: MapFrame): number {
+  return 2 * f.hx * EARTH_M * Math.cos(rad(invMercY(f.cy)));
+}
+
+/**
+ * The furthest a pin may ever be drawn from the place it names.
+ *
+ * `spreadPins` nudges overlapping pins apart, and its only limit used to be
+ * one pin width — a distance in SCREEN units. On a tight view that is a few
+ * metres and the nudge is invisible. On a wide one it is enormous: measured
+ * against this catalogue, a phone-width search map showing every place put a
+ * pin 10.9km from its place, and Al-Khiran's page — whose nearest neighbours
+ * are tens of kilometres away, so the frame spans 230km — put one 24.5km out.
+ * A pin that far from its subject is not a nudge, it is a wrong answer.
+ *
+ * 60m is taken from the data rather than chosen: the two closest distinct
+ * places in the catalogue are the Grand Mosque and Liberation Tower at 68m
+ * apart, so 34m each is all it takes to separate the tightest real pair, and
+ * every other pair needs less. It is under a seventh of the 412m median gap
+ * between neighbours, so a pin stays on its own block.
+ *
+ * Where the cap bites, pins overlap instead of separating. That is the honest
+ * outcome: the results list beside the map is the exact index, and an
+ * unreachable pin is a smaller lie than a pin in the wrong neighbourhood.
+ */
+export const MAX_PIN_SHIFT_M = 60;
+
+/**
+ * The shift budget for `spreadPins`: whichever of one pin width and
+ * `MAX_PIN_SHIFT_M` is smaller, expressed in units of frame width so it can be
+ * handed straight to `spreadPins`.
+ */
+export function pinShiftCap(f: MapFrame, sizeFrac: number): number {
+  return Math.min(sizeFrac, MAX_PIN_SHIFT_M / frameWidthMetres(f));
 }
 
 /** The OSM embed URL for a frame. `marker` draws the embed's own pin. */

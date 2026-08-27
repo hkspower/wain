@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import MapPin from "@/components/MapPin";
 import { IconMap, IconPinSolid } from "@/components/icons";
 import { toArabicDigits, type Place } from "@/lib/places";
-import { embedUrl, fitFrame, osmLink, project, spreadPins } from "@/lib/map-frame";
+import { embedUrl, fitFrame, osmLink, pinShiftCap, project, spreadPins } from "@/lib/map-frame";
 
 /**
  * Where the results actually are.
@@ -79,7 +79,16 @@ export default function SearchMap({
   );
   const pins = useMemo(() => {
     if (!f) return [];
-    return spreadPins(places.map((p) => project(f, p)), PIN_PX / frameW, f.aspect);
+    const size = PIN_PX / frameW;
+    // Bound the anti-overlap nudge on the ground too. A result set spanning
+    // the whole country makes one pin width worth kilometres, and a pin that
+    // far from its place is worse than one that overlaps its neighbour.
+    return spreadPins(
+      places.map((p) => project(f, p)),
+      size,
+      f.aspect,
+      pinShiftCap(f, size)
+    );
   }, [places, f, frameW]);
 
   if (!f || places.length === 0) return null;

@@ -64,7 +64,11 @@ const KUWAIT = { south: 28.5, north: 30.2, west: 46.5, east: 48.6 };
 for (const p of places) {
   if (p.lat < KUWAIT.south || p.lat > KUWAIT.north || p.lng < KUWAIT.west || p.lng > KUWAIT.east)
     err(`${p.nameAr} is outside Kuwait: ${p.lat},${p.lng}`);
-  const decimals = Math.max(
+  // A position is only as precise as its COARSER axis, so this is min, not
+  // max. With max, 29.389 / 48.0034 passed: the longitude's four decimals hid
+  // a latitude quantised to a 111m north-south grid, which is most of the way
+  // to the 68m that separates the two closest places in the catalogue.
+  const decimals = Math.min(
     (String(p.lat).split(".")[1] ?? "").length,
     (String(p.lng).split(".")[1] ?? "").length
   );

@@ -5,7 +5,7 @@ import MapPin from "@/components/MapPin";
 import PlaceIcon from "@/components/PlaceIcon";
 import { IconPinSolid } from "@/components/icons";
 import type { Place } from "@/lib/places";
-import { embedUrl, fitFrameAround, project, spreadPins } from "@/lib/map-frame";
+import { embedUrl, fitFrameAround, pinShiftCap, project, spreadPins } from "@/lib/map-frame";
 
 /**
  * The map itself for a place page: this place, and the nearby ones the page
@@ -83,10 +83,13 @@ export default function PlaceMapFrame({
     () => fitFrameAround(place, near, { maxAspect, padding: 1.25 }),
     [place, near, maxAspect]
   );
-  const pins = useMemo(
-    () => spreadPins(all.map((p) => project(f, p)), PIN_PX / frameW, f.aspect),
-    [all, f, frameW]
-  );
+  // A remote place — Al-Khiran, Failaka — has no near neighbours, so the frame
+  // stretches to reach them and one pin width becomes kilometres on the
+  // ground. pinShiftCap keeps the nudge honest at every zoom.
+  const pins = useMemo(() => {
+    const size = PIN_PX / frameW;
+    return spreadPins(all.map((p) => project(f, p)), size, f.aspect, pinShiftCap(f, size));
+  }, [all, f, frameW]);
 
   return (
     <div
