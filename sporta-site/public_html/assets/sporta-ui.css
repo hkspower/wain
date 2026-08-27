@@ -286,3 +286,98 @@ main section:has(> div > div > h1) > div.mb-8 {
 div.flex.h-full.w-full:has(> img:not([src^='data:'])) > img[src^='data:image/svg'] {
   display: none;
 }
+
+/* ================================================== the product page, on a phone
+ *
+ * Measured on a 393 x 850 phone before any of this, because "it feels long" is
+ * not something you can act on:
+ *
+ *     134  sticky header (promo bar 28 + logo row 60 + nav row 45)
+ *     226  the photograph starts
+ *     361  …and is a full square
+ *     591  a 44px row holding three dots
+ *     643  the brand strip
+ *     729  the title
+ *     881  the price          <- already past the 850 fold
+ *     959  the size picker    <- 109px below it, and the fixed bottom bar
+ *                                takes another 73, so really 180px below
+ *
+ * So a shopper choosing a size cannot see the garment they are choosing it
+ * for. Desktop does not have this problem — it is two columns and the gallery
+ * is `md:sticky`.
+ *
+ * Four changes, all phone-only. Desktop is genuinely good and is not touched.
+ */
+
+/* --- 1. the dead placeholder thumbnail ---------------------------------- */
+/* A LOOSE END FROM THE CAROUSEL FIX ABOVE, and it was mine.
+ *
+ * That rule hides the generated placeholder slide from the main track when a
+ * real photograph exists. The THUMBNAIL STRIP kept its own copy — a grey
+ * square that looks like a fourth angle and, when tapped, moves the carousel
+ * to a slide that is now hidden. A control that does nothing is worse than no
+ * control.
+ *
+ * Same guard as the track rule: only when a real photograph is there to take
+ * its place, so a garment with no pictures keeps its placeholder everywhere. */
+.lg\:flex:has(> img:not([src^='data:'])) > img[src^='data:image/svg'],
+.lg\:flex:has(img:not([src^='data:'])) > *:has(> img[src^='data:image/svg']) {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  /* --- 2. a shorter photograph ------------------------------------------ */
+  /* aspect-square is 361px of the 850 available. 1.25 makes it 289 — still
+     the largest thing on the screen and still the first thing you see, but it
+     brings 72px of the buying controls up with it.
+     Not smaller than that: this is a clothes shop, and the photograph is the
+     product. The ratio is applied to the box, so the picture still fills it
+     with object-fit and nothing letterboxes. */
+  .group.aspect-square.cursor-zoom-in {
+    aspect-ratio: 1.25 / 1 !important;
+  }
+
+  /* --- 3. thumbnails instead of dots ------------------------------------ */
+  /* The strip already exists and is already built — it is what desktop shows,
+     hidden below lg. Three dots tell a shopper there is more; three
+     thumbnails tell them WHAT there is, and let them go straight to the one
+     they want instead of swiping past two.
+     The dots row it replaces was 44px for three 6px dots. */
+  .-mb-2.mt-1.flex.justify-center.lg\:hidden {
+    display: none !important;
+  }
+  .mt-3.hidden.gap-2.overflow-x-auto.lg\:flex {
+    display: flex !important;
+    justify-content: center;
+    /* Scrollable rather than wrapped: a garment may carry up to 24
+       photographs, and a wrapping grid of those would push the price off the
+       screen again — which is the thing this whole block is undoing. */
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .mt-3.hidden.gap-2.overflow-x-auto.lg\:flex::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* --- 4. the header gives 45px back once you start reading ------------- */
+  /* The nav row — الرئيسية / المتجر / من نحن / اتصل بنا — is 45px of a 134px
+     header that never leaves the screen. It is what you need when you ARRIVE
+     and not while you are reading one garment; the logo, search, wishlist,
+     cart and language all stay.
+     A SCROLL-DRIVEN ANIMATION, not JavaScript. It is tied to scroll POSITION
+     rather than direction, so scrolling back to the top brings the row back
+     by itself with no state to get stuck. The @supports guard is the whole
+     safety of it: a browser without scroll-driven animations — anything older
+     than iOS 26 — runs none of this and keeps today's header exactly. */
+  @supports (animation-timeline: scroll()) {
+    @keyframes sp-nav-collapse {
+      to { height: 0; opacity: 0; border-top-width: 0; }
+    }
+    .app-header > .border-t.border-white\/5 {
+      overflow: hidden;
+      animation: sp-nav-collapse linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 140px;
+    }
+  }
+}

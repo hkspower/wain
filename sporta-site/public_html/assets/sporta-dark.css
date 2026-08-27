@@ -15,23 +15,39 @@
  *
  * The ramp, darkest first:
  *
- *   --sp-black   #0d0e10   the page itself
- *   --sp-tile    #121417   product tiles and the hero — a photo's ground
- *   --sp-panel   #17191c   cards, the header, the cart drawer
- *   --sp-raise   #212428   chips, inputs, skeletons — what sits ON a card
- *   --sp-line    #2f3338   hairlines
- *   --sp-silver  #9aa0a6   secondary text
- *   --sp-text    #e6e8ea   primary text
+ *   --sp-black   #141619   the page itself
+ *   --sp-tile    #1a1d20   product tiles and the hero — a photo's ground
+ *   --sp-panel   #23262a   cards, the header, the cart drawer
+ *   --sp-raise   #2e3237   chips, inputs, skeletons — what sits ON a card
+ *   --sp-line    #3f444a   hairlines
+ *   --sp-silver  #a6acb2   secondary text
+ *   --sp-text    #eaecee   primary text
  *
- * Every pair a customer reads was measured, not guessed:
+ * THE GROUND WAS RAISED, at the owner's request: "more breathable". The first
+ * version of this ramp put the page at #0d0e10, which is L* 3.9 — near enough
+ * to pure black that every surface on it read as a hole rather than a card,
+ * and the separation between page and card was 1.10:1, which is to say none.
  *
- *   #e6e8ea on #0d0e10  15.72:1      #9aa0a6 on #0d0e10   7.31:1
- *   #e6e8ea on #17191c  14.34:1      #9aa0a6 on #17191c   6.67:1
- *   #e6e8ea on #212428  12.69:1      #9aa0a6 on #212428   5.90:1
- *   #ff7b17 on #0d0e10   7.45:1      #171a1e on #e0561c   4.59:1
+ * The page is now L* 7.2, and the steps between surfaces opened with it:
  *
- * All AA. The ember is a TEXT colour on these grounds at 6.79:1, which the
- * old #ff7b17-on-#282e35 also managed — that part was never broken.
+ *                     was      now
+ *   page lightness    L* 3.9   L* 7.2
+ *   card vs page      1.10:1   1.19:1
+ *   chip vs card      1.13:1   1.18:1
+ *   hairline vs page  1.52:1   1.84:1
+ *
+ * LIFTING A GROUND SPENDS CONTRAST, so every pair was recomputed rather than
+ * assumed. The worst case anywhere is now 4.98:1 — the ember on a raised chip
+ * — against the 4.5 that AA asks of body text:
+ *
+ *   #eaecee on #141619  15.30:1      #a6acb2 on #141619   7.91:1
+ *   #eaecee on #23262a  12.83:1      #a6acb2 on #23262a   6.63:1
+ *   #eaecee on #2e3237  10.89:1      #a6acb2 on #2e3237   5.63:1
+ *   #ff7b17 on #141619   6.99:1      #171a1e on #e0561c   4.59:1
+ *
+ * The ember and the ember fill did NOT move. They are the brand, they were
+ * right, and shifting a brand colour to chase a background is how a shop ends
+ * up with two oranges.
  *
  * WHY A SEPARATE FILE. index-*.css is a content-hashed build artefact whose
  * source is not in this repository. Editing values inside it would make the
@@ -43,13 +59,13 @@
  */
 
 :root[data-theme='dark'] {
-  --sp-black: #0d0e10;
-  --sp-tile: #121417;
-  --sp-panel: #17191c;
-  --sp-raise: #212428;
-  --sp-line: #2f3338;
-  --sp-silver: #9aa0a6;
-  --sp-text: #e6e8ea;
+  --sp-black: #141619;
+  --sp-tile: #1a1d20;
+  --sp-panel: #23262a;
+  --sp-raise: #2e3237;
+  --sp-line: #3f444a;
+  --sp-silver: #a6acb2;
+  --sp-text: #eaecee;
   --sp-ember: #ff7b17;
   --sp-ember-fill: #e0561c;
   --sp-on-ember: #171a1e;
@@ -97,7 +113,7 @@
     background-color: var(--sp-panel) !important;
   }
   [data-theme='dark'] .bg-ink-silver\/\[\.97\] {
-    background-color: #17191cf7 !important;
+    background-color: #23262af7 !important;
   }
 
   /* --- tiles: what a photograph sits on ---------------------------------- */
@@ -112,8 +128,8 @@
   [data-theme='dark'] .bg-slate-900 {
     background-color: var(--sp-tile) !important;
   }
-  [data-theme='dark'] .bg-ink\/60 { background-color: #0d0e1099 !important; }
-  [data-theme='dark'] .bg-ink\/70 { background-color: #0d0e10b3 !important; }
+  [data-theme='dark'] .bg-ink\/60 { background-color: #14161999 !important; }
+  [data-theme='dark'] .bg-ink\/70 { background-color: #141619b3 !important; }
 
   /* --- raised: chips, inputs, the skeleton ------------------------------- */
   [data-theme='dark'] .bg-ink-steel,
@@ -148,7 +164,7 @@
     border-color: var(--sp-line) !important;
   }
   [data-theme='dark'] .action-bar {
-    background: #0d0e10eb !important;
+    background: #141619eb !important;
     border-top-color: var(--sp-line) !important;
   }
 
@@ -162,10 +178,10 @@
      on any photograph.
      What changes is only the colour: the palette's silver rather than pure
      white, so the one bright element on the page still belongs to it. */
-  [data-theme='dark'] .bg-white\/90 { background-color: #e6e8eae6 !important; }
+  [data-theme='dark'] .bg-white\/90 { background-color: #eaeceee6 !important; }
   [data-theme='dark'] .bg-white\/95 {
     color: var(--sp-on-ember) !important;
-    background-color: #e6e8eaf2 !important;
+    background-color: #eaeceef2 !important;
   }
 
   /* --- orange stays orange ---------------------------------------------- */
