@@ -12,6 +12,7 @@ import { getEngine } from "./engines";
 import type { EngineId, EngineSpec } from "./engines";
 import { loadCrew, type Crew } from "./teams";
 import type { Drivetrain } from "./grip";
+import { HANDLING } from "./handling";
 
 export type ExclusiveCat =
   | "engine"
@@ -224,6 +225,55 @@ export const EXHAUSTS: Record<string, ExhaustSpec> = {
   // with it — the rasp is metallic rather than deep.
   "exhaust-ti": { id: "titanium", tips: 4, perSide: 1, bore: 0.058, shape: "round", finish: "titanium", pitch: 0.86, rasp: 2.3, loud: 1.75, pop: 2.4, power: 0.14, tone: { low: 0.6, mid: 1.25, high: 2.4 } },
 };
+
+/**
+ * How far a body leans, in degrees per g of cornering force.
+ *
+ * Body roll used to be one static constant in engine.ts, so a Jahra
+ * Pickup leaned exactly as far as a race-kitted Zeta 300 GTR: 3.15
+ * degrees at 1.43 g, every car in the fleet, which is about 2.2 deg/g.
+ * That is a well-sorted sports car's figure handed to a pickup.
+ *
+ * Real roll gradients run from about 1 deg/g on a stiff track car to 6
+ * or more on something tall on soft springs, and the physics is no
+ * mystery: roll goes as the centre of gravity's height over the roll
+ * stiffness. The two things this build knows that stand in for those are
+ * the silhouette and what has been bolted to it.
+ *
+ * Known limit, stated rather than hidden: the Jahra Pickup is built on
+ * the `sedan` silhouette, so it takes the saloon's 4.2 rather than the 6
+ * or 7 a real pickup would lean. Fixing that properly means the pickup
+ * getting a body style of its own, which is a bigger change than this.
+ */
+const ROLL_DEG_PER_G: Record<"sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony", number> = {
+  // The low, wide coupes. Stiff by construction.
+  zx: 2.4,
+  rx7: 2.4,
+  gtr: 2.6,
+  // A long-nosed pony coupe sits higher and softer than a mid-engined car.
+  pony: 3.0,
+  // Road cars, and the ones that should visibly take a set in a corner.
+  hatch: 4.0,
+  sedan: 4.2,
+};
+
+/** What a wide-body kit does to that: arches come with the springs and
+ *  bars to match. */
+const ROLL_KIT_MULT: Record<KitLevel, number> = {
+  street: 1,
+  sport: 0.85,
+  attack: 0.72,
+};
+
+/** Coilovers. Less lean is the single most VISIBLE thing stiffer springs
+ *  do, and until now the part changed understeer and grip while the body
+ *  went on leaning exactly as far as it had before. */
+const ROLL_COILOVER_MULT = 0.65;
+
+/** Degrees per g to the radians the renderer wants, at the 1.43 g the
+ *  roll target is expressed against in engine.ts. */
+const ROLL_REF_G = 14 / 9.81;
+const rollMaxRad = (degPerG: number) => (degPerG * ROLL_REF_G * Math.PI) / 180;
 
 export const PAINT_COLORS: Record<string, number> = {
   "paint-white": 0xf2f4f7,
@@ -1168,6 +1218,10 @@ export interface TuneEffects {
   driftAngleMult: number;
   /** Steering smoothing rate — higher is a faster-answering rack. */
   steerRate: number;
+  /** Body lean at full cornering force, radians — see ROLL_DEG_PER_G. */
+  rollMax: number;
+  /** The same thing before conversion, for tools that want to read it. */
+  rollDegPerG: number;
   /** Fraction of impact damage a cage absorbs (0 = none, 1 = all). */
   crashResist: number;
   /** The fitted engine. The sim reads its torque curve every frame and
@@ -1305,12 +1359,21 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
   // Chassis
   let tractionMult = 1;
   let understeerMult = 1;
-  let steerRate = 7; // HANDLING.steerSmoothRate
+  // Read from HANDLING, not copied out of it. This was `= 7` with a
+  // comment naming its source, which is a value that drifts silently the
+  // first time the source moves — and it did: HANDLING said 13 while
+  // this still said 7, so nothing in the game would have felt the change.
+  let steerRate: number = HANDLING.steerSmoothRate;
   let crashResist = 0;
+  let rollDegPerG =
+    ROLL_DEG_PER_G[car.style ?? "sedan"] * ROLL_KIT_MULT[car.kit ?? "street"];
   if (has("lsd")) tractionMult += 0.16;
-  if (has("coilovers")) { understeerMult = 0.55; gripAccel += 0.4; }
+  if (has("coilovers")) { understeerMult = 0.55; gripAccel += 0.4; rollDegPerG *= ROLL_COILOVER_MULT; }
   if (has("cage")) { crashResist = 0.55; gripAccel += 0.3; accelMult *= 0.97; }
-  if (has("rack")) steerRate = 10.5;
+  // The quick rack is a MULTIPLE of the standard one, so it stays a
+  // genuine upgrade whatever the base becomes. 1.4x of 13 is 18.2, which
+  // is 127 ms to 90% against the standard rack's 177.
+  if (has("rack")) steerRate = HANDLING.steerSmoothRate * 1.4;
 
   return {
     carId: car.id,
@@ -1330,6 +1393,8 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     understeerMult,
     driftAngleMult,
     steerRate,
+    rollMax: rollMaxRad(rollDegPerG),
+    rollDegPerG,
     crashResist,
     engine,
     tankLitres: car.tankLitres,

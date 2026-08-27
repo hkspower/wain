@@ -105,7 +105,7 @@ public static class GRNData
             TopSpeedKmh = 301f, Style = BodyStyle.ZX, PrizeKd = 1900,
             IntroAr = "الغبار اللي وراك؟ هذا أنا... بو تراب",
             WinAr = "قلت لك، التراب ما يخون أهله",
-            LoseAr = "فحطت علي صج... خذها بشرف",
+            LoseAr = "فحطت عليّ صج... خذها بشرف",
         },
         new Rival {
             Id = "al-sayyaf", Name = "Al-Sayyaf", ArabicName = "السياف",
@@ -431,8 +431,9 @@ public static class GRNData
         public const float ThrustK = 19f;
         public const float DragA = 0.0012f;
         public const float DragB = 1.2f;
-        public const float SteerSmoothRate = 7f;
+        public const float SteerSmoothRate = 13f;
         public const float CasterRate = 2.4f;
+        public const float CasterRefSpeed = 40f;
         public const float HeadingClamp = 0.45f;
         public const float FlashRangeM = 60f;
         public const float DriftMinSpeed = 14f;
@@ -561,8 +562,9 @@ public static class GRNData
         public const double ThrustK = 19;
         public const double DragA = 0.0012;
         public const double DragB = 1.2;
-        public const double SteerSmoothRate = 7;
+        public const double SteerSmoothRate = 13;
         public const double CasterRate = 2.4;
+        public const double CasterRefSpeed = 40;
         public const double HeadingClamp = 0.45;
         public const double FlashRangeM = 60;
         public const double DriftMinSpeed = 14;

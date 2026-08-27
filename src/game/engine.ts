@@ -932,6 +932,8 @@ export class GameEngine {
   private longAccel = 0;
   /** How far the shell leans at the limit of grip. Real cars manage
    *  three to five degrees; a stiff one less. */
+  /** The old fleet-wide lean, kept only as the fallback for a tune that
+   *  predates rollMax. Every car now carries its own — see mods.ts. */
   private static readonly MAX_ROLL = 0.055;
   private fovCurrent = 62;
   private camInit = false;
@@ -3791,8 +3793,23 @@ export class GameEngine {
     // friction circle, half two: heavy braking or a spinning rear axle
     // leaves less grip to turn with, so the car pushes wide instead of
     // holding an impossible arc.
+    // Steering, and the caster under it.
+    //
+    // The smoother chases the driver's input at the rack's own rate. The
+    // caster is what a released wheel does ON TOP of that: a real one is
+    // self-aligning torque from the front tyres, so it grows with road
+    // speed and is worth nothing standing still. Scaled by how far the
+    // driver has LET GO — full when the input is centred, none when they
+    // are holding lock — because a caster fights the hands rather than
+    // helping them, and a car that centres itself while you are steering
+    // is a car with a fault.
+    const caster =
+      HANDLING.casterRate *
+      Math.min(1, p.speed / HANDLING.casterRefSpeed) *
+      (1 - Math.min(1, Math.abs(this.steer)));
     this.steerSmooth +=
-      (this.steer - this.steerSmooth) * Math.min(1, dt * this.tune.steerRate);
+      (this.steer - this.steerSmooth) *
+      Math.min(1, dt * (this.tune.steerRate + caster));
     const longDemand = Math.min(1, (braking + this.wheelspin) / (brakeCap || 1));
     const yawRateMax =
       Math.min(1.6, grip / Math.max(p.speed, 2)) *
@@ -4023,8 +4040,14 @@ export class GameEngine {
     //
     // Leaning OUT of the corner, which is what a car on soft springs
     // does; the sign is asserted in tests/body.mjs rather than trusted.
+    // Per car, not one number for the fleet. MAX_ROLL was a static, so
+    // a pickup leaned exactly as far as a race-kitted supercar — 3.15
+    // degrees at 1.43 g, all sixteen. The tune carries a roll gradient
+    // now, off the silhouette and what is bolted to it, and coilovers
+    // finally do the most visible thing stiffer springs do.
     const rollTarget =
-      THREE.MathUtils.clamp(-latAccel / 14, -1, 1) * GameEngine.MAX_ROLL;
+      THREE.MathUtils.clamp(-latAccel / 14, -1, 1) *
+      (this.tune.rollMax ?? GameEngine.MAX_ROLL);
 
     // --- Pitch, from what the car is actually doing rather than from
     // where the pedals are. Pedal position lies: a car against its

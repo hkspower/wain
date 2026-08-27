@@ -19,8 +19,9 @@ namespace GRNHandling
 	constexpr float ThrustK = 19.f;
 	constexpr float DragA = 0.0012f;
 	constexpr float DragB = 1.2f;
-	constexpr float SteerSmoothRate = 7.f;
+	constexpr float SteerSmoothRate = 13.f;
 	constexpr float CasterRate = 2.4f;
+	constexpr float CasterRefSpeed = 40.f;
 	constexpr float HeadingClamp = 0.45f;
 	constexpr float FlashRangeM = 60.f;
 	constexpr float DriftMinSpeed = 14.f;
@@ -150,8 +151,9 @@ namespace GRNExact
 	constexpr double ThrustK = 19;
 	constexpr double DragA = 0.0012;
 	constexpr double DragB = 1.2;
-	constexpr double SteerSmoothRate = 7;
+	constexpr double SteerSmoothRate = 13;
 	constexpr double CasterRate = 2.4;
+	constexpr double CasterRefSpeed = 40;
 	constexpr double HeadingClamp = 0.45;
 	constexpr double FlashRangeM = 60;
 	constexpr double DriftMinSpeed = 14;

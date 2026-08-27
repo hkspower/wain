@@ -11,8 +11,30 @@ export const HANDLING = {
   /** drag = dragA * v^2 + dragB, scaled 0.35 while on throttle. */
   dragA: 0.0012,
   dragB: 1.2,
-  steerSmoothRate: 7,
+  /**
+   * How fast raw steering input becomes effective lock, 1/s.
+   *
+   * 7 gave 329 ms to reach 90% of an input — ln(10)/7 — and the input
+   * itself is instant: a key press sets steer to +/-1 in one frame, so
+   * every millisecond of the delay was this smoother. Past about 150 ms
+   * the car stops feeling attached to the wheel, which is exactly what
+   * "turn-in is slow and vague" describes. 13 lands at 177 ms.
+   *
+   * Not higher. This same value feeds latDemand and the drift solver's
+   * feint detection, so a twitchy rack does not just sharpen turn-in, it
+   * moves where the friction circle bites and how easily a flick reads
+   * as a feint.
+   */
+  steerSmoothRate: 13,
+  /** Extra centring, 1/s at casterRefSpeed, when the wheel is released.
+   *  A caster grows with road speed — that is what makes the wheel feel
+   *  loaded rather than loose — so it scales with v and is worth nothing
+   *  at a standstill. Declared here for years and read by nothing; the
+   *  web build had no caster at all while the Unity port was handed the
+   *  number as though it did. */
   casterRate: 2.4,
+  /** m/s at which casterRate is delivered in full. */
+  casterRefSpeed: 40,
   headingClamp: 0.45,
   /** Metres: how close you must be to flash a challenge. */
   flashRangeM: 60,
