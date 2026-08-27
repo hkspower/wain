@@ -47,12 +47,43 @@
 }
 
 /* --------------------------------------------------------------- top bar */
-/* Nav links were 14.7px/600. A little more size and a little tracking: this
-   is Arabic and English in the same row, and the Latin words are what suffer
-   when tracking is tight. */
+/* THE BAR IS SET IN A TEXT FACE, NOT THE DISPLAY ONE.
+ *
+ * Everything in the header inherited Alexandria from the body — the geometric
+ * face that carries the headings and the brand voice. It is right at 30 and 40
+ * pixels and it is the wrong tool at 13 to 16: its Arabic is drawn on
+ * geometric skeletons that lose their joins at small sizes, and its Latin has
+ * even, wide strokes that go soft rather than sharp.
+ *
+ * IBM Plex Sans Arabic is a TEXT face, drawn for interfaces at exactly these
+ * sizes, and the site ALREADY DOWNLOADS IT — it sits in the body's own font
+ * stack as the fallback, and its 400/600/700 files are in /fonts. So this
+ * costs no new request and no new file; it uses what is already there.
+ *
+ * The split it creates is the ordinary one: display face for the things that
+ * speak, text face for the chrome that gets read. The logo is an image and is
+ * untouched, so the brand mark itself does not move.
+ *
+ * The `unicode-range` on those @font-face rules is what makes one declaration
+ * enough for both languages: the Arabic and Latin files are separate, and the
+ * browser picks per character. Nothing here needs to know which language the
+ * link is in. */
+.app-header,
+.app-header nav a,
+.app-header button,
+.app-header a {
+  font-family: 'IBM Plex Sans Arabic', 'Plex Arabic Fallback', system-ui, sans-serif !important;
+}
+
+/* Nav links were 15.5px at weight 400 — measured, not assumed, and 400 is body
+   text. Navigation is a set of targets, not prose; 600 is what makes a row of
+   links read as a row of links. The tracking stays small: this is Arabic and
+   English in the same row, and the Latin words are what suffer when it is
+   tight. */
 .app-header nav a,
 .app-header a.flex.min-h-11 {
   font-size: 15.5px !important;
+  font-weight: 600 !important;
   letter-spacing: 0.01em;
 }
 
@@ -102,13 +133,56 @@
    auto and comes to art + the 128px button strip.
    Desktop (md, 768px up): the inner goes aspect-auto and the OUTER carries
    the ratio, clamped at 80svh. */
-.hero-strength > .aspect-\[2\.52\/1\] {
-  aspect-ratio: 1.85 / 1 !important;
+/* SCOPED TO PHONES, which it was not. This rule had no media query, so it
+   applied at every width and the desktop rule below it never took effect — the
+   comment above claimed desktop was cut to 2.15 and it was measurably 1.85,
+   1408 x 761 on a 1280 screen. Found by measuring the rendered box rather than
+   reading the file. */
+@media (max-width: 767px) {
+  .hero-strength > .aspect-\[2\.52\/1\] {
+    aspect-ratio: 1.85 / 1 !important;
+  }
 }
 @media (min-width: 768px) {
   .hero-strength {
     aspect-ratio: 2.15 / 1 !important;
   }
+}
+
+/* --- WHERE THE CROP FALLS, which is the whole of "fitted" ---------------- */
+/* THE ARTWORK IS 2.52:1 AND CARRIES ITS OWN TYPOGRAPHY. Every one of the five
+ * banners is a template: the SPORTA mark, "MEN'S / WOMEN'S TRAINING", an
+ * orange headline bar, the Arabic, and a strapline — all set in the LEFT half,
+ * with the photograph on the right.
+ *
+ * Cutting a 2.52 picture to a 1.85 box discards 27% of its width, and
+ * object-position defaults to centre, so it took 13.5% off EACH edge. That
+ * beheaded every line of type in the banner:
+ *
+ *     SPORTA          ->  RTA
+ *     MEN'S TRAINING  ->  N'S TRAINING
+ *     BODY BUILDING   ->  ODY BUILDING
+ *     كمال الأجسام     ->  cut mid-word
+ *
+ * Moving the window to the left keeps all of it. 15% rather than 0%: the
+ * typography starts 6.1% into the artwork in all five files — they share a
+ * template, so the margin is the same every time — and 15% of the overflow
+ * puts the window's edge at 4.0%, which clears the type by two points and buys
+ * back four points of picture on the right. At 0% the cardio-women banner lost
+ * its subject off the right edge; at 15% she is in frame and every line of
+ * type is still whole. Checked on all five, at both sizes.
+ *
+ * A PERCENTAGE, NOT A KEYWORD. `left` would be right too, but the logical
+ * `start` would flip to the right edge in Arabic and cut off exactly the text
+ * this rule exists to protect. The artwork's type is on the physical left in
+ * both languages — the files are not mirrored — so the value must be physical.
+ *
+ * If the hero should be taller than this without losing anything, the artwork
+ * has to be taller: these are 1000x396 and 1600x635. No CSS can add picture
+ * that was never photographed. */
+.hero-strength img,
+.hero-strength picture img {
+  object-position: 15% center !important;
 }
 
 /* ------------------------------------------------- the summer offer band */
