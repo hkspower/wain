@@ -312,7 +312,13 @@ figure, figcaption { margin: 0; }
 .progress {
   position: fixed; inset-block-start: 0; inset-inline: 0; height: 3px; z-index: var(--z-progress);
   background: var(--teal-600);
-  transform: scaleX(0); transform-origin: inline-start; will-change: transform;
+  /* **`transform-origin` لا يقبل الكلمات المنطقية** — لا `inline-start` ولا
+     `inline-end`؛ ليس في مواصفته ما يقابل `inset-inline-start` وأخواتها.
+     وكُتبت هنا منطقيةً فأسقطها المتصفّح بصمت، فرجع الأصل إلى وسط الشاشة:
+     شريط التقدّم كان **ينمو من المنتصف إلى الجهتين** بدل أن يمتلئ من حافّة
+     القراءة. (قِيس: الأصل ٦٤٠px على شاشة ١٢٨٠.) والموقع عربيّ خالص
+     `dir="rtl"`، فبداية السطر هي اليمين. */
+  transform: scaleX(0); transform-origin: right; will-change: transform;
 }
 
 /* --------------------------------- الأزرار -------------------------------- */
@@ -540,7 +546,9 @@ a.topbar__item:hover { color: #fff; }
 .card::before {
   content: ""; position: absolute; inset-block-start: 0; inset-inline: 0; height: 4px;
   background: var(--teal-600);
-  transform: scaleX(0); transform-origin: inline-end; transition: transform var(--t-slow) var(--ease-out);
+  /* نهاية السطر في RTL هي اليسار — والكلمة المنطقية لا يقبلها
+     `transform-origin` (انظر `.progress` أعلاه). */
+  transform: scaleX(0); transform-origin: left; transition: transform var(--t-slow) var(--ease-out);
 }
 /* المرور يقوّي الحدّ ولا يرفع الصندوق. كانت خمس مسافات رفعٍ مختلفة
    (‎-6 و‎-5 و‎-4 وانزياحٌ أفقيّ ‎-3) على صناديق متكافئة، وصندوقان لهما
