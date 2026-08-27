@@ -26,6 +26,19 @@
  *    nowhere in the shipped JavaScript or the built stylesheet — which is the
  *    difference between "not on screen today" and "cannot exist".
  *
+ * 3. DOES THE RULE WIN. This is the one that matters most for an override
+ *    sheet and the one nothing else could see. A rule can parse, match a real
+ *    element, and still lose — to a longer selector, to an inline style, to a
+ *    later declaration. It then sits in the file looking correct while the
+ *    element paints something else entirely. So every colour this sheet
+ *    declares is read back off a real element as a COMPUTED value and compared
+ *    with what the rule asked for.
+ *
+ *    The expectations are derived from the stylesheet, not written down beside
+ *    it: each declaration's var(--sp-…) is resolved from the file's own :root
+ *    block. A hand-kept list would drift from the sheet the first time either
+ *    changed, and then check the wrong thing quietly.
+ *
  * The palette file is checked, not the 91 KB build output — that is generated
  * from a source this repo does not hold, so its unused rules are Tailwind's
  * business and not something anyone here can act on.
@@ -77,12 +90,39 @@ for (const m of css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{[^}]*\}
 }
 console.log(`\n--- ${selectors.size} selectors in sporta-dark.css, against ${PAGES.length} pages`)
 
+// --- what each rule CLAIMS a colour becomes, read out of the sheet ----------
+const clean = css.replace(/\/\*[\s\S]*?\*\//g, '')
+const vars = Object.fromEntries(
+  [...clean.matchAll(/(--sp-[a-z-]+)\s*:\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]),
+)
+const PROP = { 'background-color': 'backgroundColor', color: 'color', 'border-color': 'borderTopColor' }
+const claims = []
+for (const m of clean.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+  const sels = m[1].split(',').map((x) => x.trim()).filter((x) => x && !x.startsWith(':root'))
+  if (!sels.length) continue
+  for (const d of m[2].split(';')) {
+    const [rawProp, ...rest] = d.split(':')
+    const prop = PROP[rawProp?.trim()]
+    if (!prop) continue
+    let want = rest.join(':').replace('!important', '').trim()
+    want = want.replace(/var\((--sp-[a-z-]+)\)/g, (_, v) => vars[v] ?? _)
+    // Only flat hex is comparable; alpha values composite against whatever is
+    // behind and are covered by site-contrast.mjs instead.
+    if (!/^#[0-9a-f]{6}$/i.test(want)) continue
+    for (const sel of sels) {
+      claims.push([sel.replace(/^\[data-theme=['"]?dark['"]?\]\s*/, '').trim(), prop, want.toLowerCase()])
+    }
+    // claims stay in FILE ORDER — the page-side check relies on it below.
+  }
+}
+
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
 const p = await b.newPage({ viewport: { width: 1280, height: 1000 } })
 await p.goto(BASE + '/', { waitUntil: 'domcontentloaded' })
 await p.evaluate(() => localStorage.setItem('sporta_theme', 'dark'))
 
 const hits = new Map([...selectors].map((s) => [s, 0]))
+const overridden = new Set()
 for (const path of PAGES) {
   await p.goto(BASE + path, { waitUntil: 'networkidle' })
   await p.waitForTimeout(1000)
@@ -92,6 +132,37 @@ for (const path of PAGES) {
   ;[...selectors].forEach((s, i) => {
     if (counts[i] > 0) hits.set(s, hits.get(s) + counts[i])
   })
+
+  const lost = await p.evaluate((cl) => {
+    const hex = (s) => {
+      const m = (s.match(/[\d.]+/g) || []).map(Number)
+      return m.length >= 3 ? '#' + m.slice(0, 3).map((n) => Math.round(n).toString(16).padStart(2, '0')).join('') : s
+    }
+    // AN ELEMENT CAN MATCH SEVERAL RULES IN THIS SHEET, and then the last one
+    // wins — that is the cascade doing its job, not a failure. The wishlist
+    // heart is .text-slate-600 AND .bg-white/95; the second deliberately makes
+    // it an ink icon on a silver disc, and reading it against the first
+    // reported a bug where the rendering is exactly right. So the value to
+    // expect is the LAST claim in file order that matches this element and
+    // sets this property. Anything else painting it is genuinely foreign.
+    const out = []
+    for (let i = 0; i < cl.length; i++) {
+      const [sel, prop, want] = cl[i]
+      let el
+      try { el = document.querySelector(sel) } catch { continue }
+      if (!el) continue
+      let expected = want
+      for (let j = i + 1; j < cl.length; j++) {
+        const [s2, p2, w2] = cl[j]
+        if (p2 !== prop) continue
+        try { if (el.matches(s2)) expected = w2 } catch {}
+      }
+      const got = hex(getComputedStyle(el)[prop]).toLowerCase()
+      if (got !== expected) out.push(`${sel}  ${prop} = ${got}, this sheet asks ${expected}`)
+    }
+    return out
+  }, claims)
+  for (const l of lost) overridden.add(`${path}  ${l}`)
 }
 await b.close()
 
@@ -124,6 +195,11 @@ if (transient.length) {
   console.log(`\n--   ${transient.length} not on screen in this scan, but the code can emit them:`)
   for (const s of transient) console.log(`       ${s}`)
 }
+check(overridden.size === 0,
+  overridden.size
+    ? `${overridden.size} declarations are outranked — the rule matches but something else paints it:\n       ${[...overridden].join('\n       ')}`
+    : `all ${claims.length} colour declarations win where they match`)
+
 check(dead.length === 0,
   dead.length ? `${dead.length} selectors can NEVER fire — the class appears nowhere in the shipped code:\n       ${dead.join('\n       ')}`
               : 'every selector can fire — none is a rule guarding nothing')
