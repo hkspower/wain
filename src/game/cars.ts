@@ -968,6 +968,32 @@ const STYLE_DIMS: Record<BodyStyle, StyleDims> = {
  * express.
  */
 export const TIRE_RADIUS = 0.41;
+/*
+ * Two things about the paragraph above, both measured since it was
+ * written, for whoever comes at this next.
+ *
+ * The 7.07 is stale. It came from the measurement wheels.mjs was later
+ * found to be making wrong — the body box counted the contact-shadow
+ * decal and the whip aerial, inflating the car's length and flattering
+ * the ratio. Corrected, the fleet sits at 6.13 to 6.15
+ * length-over-diameter, one hundredth above the 6.1 floor that same tool
+ * enforces. Real cars run 6.5 to 7.2 (a GT-R 6.5, a Golf 6.8, a Camry
+ * 7.2), so the wheels are modestly LARGE and every car reads a little
+ * stubby for it. That is a real deficit, not a rounding one.
+ *
+ * And it cannot be fixed by editing this number, which the comment above
+ * implies it can because ARCH_Y and ARCH_MESH_Y are offsets from it.
+ * Tried: 0.41 -> 0.375 puts length-over-diameter at a correct ~6.7 and
+ * breaks 23 other measurements. dia/height drops under its band on seven
+ * cars, and the arch gap goes out on all sixteen in BOTH directions at
+ * once — 0.03 on the low silhouettes where the floor is 0.08, and 0.43 on
+ * the tall ones where the ceiling is 0.3. The arch opening is cut into
+ * the body, so moving the wheel down moves it into a different part of
+ * each profile; the offsets keep the arch attached to the wheel, they do
+ * not keep the CUT the right size. Trimming the wheels means re-cutting
+ * the arches on all five silhouettes, which is a much larger job than
+ * this constant makes it look.
+ */
 
 /**
  * How fat the tyre is, as a half width.
