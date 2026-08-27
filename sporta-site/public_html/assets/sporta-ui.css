@@ -106,3 +106,24 @@ header button[aria-label].border-white\/20 {
     aspect-ratio: 2.15 / 1 !important;
   }
 }
+
+/* ------------------------------------------------- the summer offer band */
+/* "عروض الصيف ٢٤" / "Summer 24", removed at the owner's request.
+ *
+ * Hidden here rather than cut out of the bundle. The copy is hard-coded in
+ * index-5HbquisI.js as `offer: {badge, title, cta}` and the bundle is build
+ * output this repo has no source for — editing minified JavaScript by hand to
+ * delete a section is how you get a shop that renders a blank white page. One
+ * CSS rule is reversible by deleting it, and display:none takes the link out
+ * of the accessibility tree too, so it is gone for a screen reader as well as
+ * on screen.
+ *
+ * The selector is the section that wraps the gradient link, and it is exact:
+ * one match on the home page, zero on /shop, /about, /contact and /cart —
+ * checked, because `section.max-w-7xl` alone matches four other sections on
+ * the home page that must stay. Hiding the section rather than the link takes
+ * its pt-10/pb-4 padding with it, which a hidden child would have left behind
+ * as a gap. */
+main section:has(> a.bg-gradient-to-br) {
+  display: none;
+}
