@@ -1981,12 +1981,18 @@ function fullStripeTexture(): THREE.CanvasTexture {
   c.height = H;
   const ctx = c.getContext("2d")!;
   ctx.clearRect(0, 0, W, H);
+  // Holds full depth further forward than it first did, and tapers to a
+  // sliver rather than to nothing. At hold 0.42 falling to zero, the
+  // front half of the car was carried by the hairline alone, so on a
+  // navy car the graphic read as a stripe over the rear quarter and the
+  // "full length" of it was invisible. It ends at 0.14 of its depth: a
+  // point that reaches the headlight, which is what a side graphic does.
   const depth = (u: number): number => {
     const t = Math.max(0, Math.min(1, u));
-    const hold = 0.42;
+    const hold = 0.5;
     if (t <= hold) return 1;
     const k = (t - hold) / (1 - hold);
-    return Math.max(0, 1 - k * k * (3 - 2 * k));
+    return 0.14 + 0.86 * Math.max(0, 1 - k * k * (3 - 2 * k));
   };
   const wedge = (top: number, bot: number, col: string) => {
     ctx.fillStyle = col;
@@ -2004,8 +2010,15 @@ function fullStripeTexture(): THREE.CanvasTexture {
   // having no sticker at all.
   wedge(14, 74, "#f2f4f7");
   wedge(34, 74, "#c1121f");
-  ctx.fillStyle = "rgba(20,21,26,0.9)";
-  ctx.fillRect(0, 74, W, 5);
+  // The bottom edge has to read against ANY paint, the same problem the
+  // door roundel solves with a dark ring inside a light keyline: a dark
+  // hairline vanishes on a black car and a light one vanishes on a white
+  // one. Both, stacked, so whichever way the paint goes one of the two
+  // separates.
+  ctx.fillStyle = "#f2f4f7";
+  ctx.fillRect(0, 74, W, 4);
+  ctx.fillStyle = "rgba(20,21,26,0.92)";
+  ctx.fillRect(0, 78, W, 4);
   fullStripeTex = new THREE.CanvasTexture(c);
   fullStripeTex.colorSpace = THREE.SRGBColorSpace;
   fullStripeTex.anisotropy = 16;
