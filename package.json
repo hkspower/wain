@@ -96,6 +96,7 @@
     "check:paint:colors": "node tools/shots/paintcolors.mjs",
     "check:type": "node tools/shots/type.mjs",
     "check:stripe": "node tools/shots/stripe.mjs",
+    "check:caredges": "node tools/shots/caredges.mjs",
     "check:fleet": "node tools/shots/fleet.mjs",
     "check:wheels": "node tools/shots/wheels.mjs",
     "check:edges": "node tools/shots/edges.mjs",
