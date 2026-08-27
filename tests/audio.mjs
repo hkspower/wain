@@ -540,7 +540,15 @@ if (music) {
       // reported as something else entirely.
       eng.setPaused(true);
       s.setPaused(false);
-      if (masterGain !== undefined) s.master.gain.value = masterGain;
+      // setPaused now RAMPS the master gain instead of stepping it, so a
+      // bare assignment here would be overridden by the automation still
+      // running underneath it — and the overdriven case would quietly
+      // decay back to the normal staging, turning the limiter proof into
+      // a measurement of nothing. Cancel first, then set.
+      if (masterGain !== undefined) {
+        s.master.gain.cancelScheduledValues(s.audioContext.currentTime);
+        s.master.gain.value = masterGain;
+      }
       for (let i = 0; i < 10; i++) s.update(frame);
       // Same settle. The gains move on setTargetAtTime with time
       // constants up to 0.09 s, and the analyser is behind the graph on
@@ -582,7 +590,7 @@ if (music) {
     // paused at this point, and measuring at a master gain of zero is
     // exactly the mistake this whole block exists to have caught.
     s.setPaused(false);
-    const staged = s.master.gain.value;
+    const staged = s.masterTarget;
     const idleOld = await measure(quiet, 220, null, OLD);
     const flatOld = await measure(flat, 320, null, OLD);
     const idle = await measure(quiet, 220, null, staged);
@@ -602,6 +610,7 @@ if (music) {
     // the master far past where the mix would clip and check the output
     // still comes out under full scale.
     const overdriven = await measure(flat, 320, null, staged * 6);
+    s.master.gain.cancelScheduledValues(s.audioContext.currentTime);
     s.master.gain.value = staged;
     eng.setPaused(false);
     return { cal, idleOld, flatOld, idle, flat: flatOut, crash, staged, overdriven };

@@ -1359,12 +1359,34 @@ export class SoundEngine {
     }, 200);
   }
 
-  // Direct set (not a scheduled ramp): must apply even when the audio
-  // clock is throttled, e.g. in background tabs. Muted and paused are
-  // independent flags; silence wins whenever either is set. Nothing else
-  // ever schedules on master gain, so no cancelScheduledValues needed.
+  /** What the master gain is heading for. Read this rather than the live
+   *  node: for a few milliseconds after a mute or a pause the node is
+   *  mid-ramp and reads something in between. */
+  get masterTarget(): number {
+    return this.muted || this.paused ? 0 : MASTER_GAIN;
+  }
+
+  // Muted and paused are independent flags; silence wins whenever either
+  // is set.
+  //
+  // This used to assign master.gain.value directly, which cuts the whole
+  // mix — half of full scale, mid-waveform — to zero between one sample
+  // and the next. That is a click on the master bus every time anyone
+  // pauses, and it is the one fault class the glitch tool says outright
+  // it cannot see, because it happens while the mix is loud. Twelve
+  // milliseconds is still instant to a listener and has no edge in it.
+  //
+  // The direct set stays as the fallback for a context that is not
+  // rendering: nothing scheduled runs while it is suspended, so a ramp
+  // would leave the mute untaken.
   private applyMaster(): void {
-    this.master.gain.value = this.muted || this.paused ? 0 : MASTER_GAIN;
+    const target = this.masterTarget;
+    if (this.ctx.state === "running") {
+      this.master.gain.cancelScheduledValues(this.ctx.currentTime);
+      this.master.gain.setTargetAtTime(target, this.ctx.currentTime, 0.012);
+    } else {
+      this.master.gain.value = target;
+    }
   }
 
   toggleMute(): boolean {

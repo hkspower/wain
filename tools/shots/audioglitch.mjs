@@ -236,6 +236,22 @@ const out = await page.evaluate(async () => {
       if (++k > 12) clearInterval(id);
     }, 110);
   }, 1800);
+  // Pausing and muting cut the whole mix at once, which is the loudest
+  // thing anything in this game ever does to the master bus. Both used to
+  // be a bare assignment to master.gain.value — a step from half of full
+  // scale to zero between one sample and the next.
+  await scene("pausing", () => {
+    e.setTouchInput({ throttle: 1, brake: 0, steer: 0 });
+    e.player.speed = 45;
+    let k = 0;
+    const id = setInterval(() => {
+      if (k === 0) snd.setPaused(true);
+      else if (k === 1) snd.setPaused(false);
+      else if (k === 2) snd.toggleMute();
+      else { snd.toggleMute(); clearInterval(id); }
+      k++;
+    }, 420);
+  }, 2200);
 
   // Let the last blocks cross from the audio thread before unhooking.
   await new Promise((r) => setTimeout(r, 400));
@@ -765,7 +781,11 @@ for (const r of report) {
     `${r.popRatio}x the local RMS, ${r.popAtMs} ms in`
   );
   check(Math.abs(r.dc) < 0.01, `${r.name}: DC offset ${r.dc.toFixed(4)} — headroom wasted and it will pop on mute`);
-  check(r.dropMs < 1, `${r.name}: ${r.dropMs.toFixed(1)} ms of digital silence mid-scene — the graph came apart`);
+  // ...except in the scene whose whole point is going silent on purpose.
+  check(
+    r.name === "pausing" || r.dropMs < 1,
+    `${r.name}: ${r.dropMs.toFixed(1)} ms of digital silence mid-scene — the graph came apart`
+  );
   check(
     r.repeat < REPEAT_BAR || r.repeatLag < REPEAT_MIN_LAG,
     `${r.name}: the bus repeats itself — correlation ${r.repeat} with itself every ` +
