@@ -127,3 +127,53 @@ header button[aria-label].border-white\/20 {
 main section:has(> a.bg-gradient-to-br) {
   display: none;
 }
+
+/* --------------------------------------------------- the shop page header */
+/* On a 393px phone the shop opened with 646px of header before the first
+ * product — the whole first screen was title, count, description and filter
+ * rows. The marketing copy goes; every control stays.
+ *
+ * The selector is `main section > div > div:has(> h1)`: one match, on /shop
+ * only, checked across eight pages. The padding rule is scoped the same way
+ * rather than to section.py-12, because /returns carries that class too and
+ * must keep its spacing.
+ */
+
+/* The count and the description: gone. */
+main section > div > div:has(> h1) > p {
+  display: none;
+}
+
+/* THE HEADING STAYS IN THE DOCUMENT, just not on screen.
+ *
+ * display:none would have been simpler and worse. This h1 is what tells a
+ * search engine the page is about ملابس رياضية في الكويت, and it is the
+ * shop's main landing page — hiding it outright throws that away, and a
+ * screen-reader user loses the heading that names where they are. The
+ * clip-rect pattern takes it out of the layout while leaving it in the
+ * accessibility tree and in the markup a crawler reads. */
+main section > div > div:has(> h1) > h1 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- and then take the height out --------------------------------------- */
+/* py-12 is 48px top and bottom; mb-6 and mb-8 are 24 and 32. With the copy
+ * gone those gaps were holding a shape that is no longer there. */
+main section:has(> div > div > h1) {
+  padding-top: 1rem !important;
+  padding-bottom: 1.5rem !important;
+}
+main section:has(> div > div > h1) > div:first-child {
+  margin-bottom: 0.75rem !important;
+}
+main section:has(> div > div > h1) > div.mb-8 {
+  margin-bottom: 0.75rem !important;
+}
