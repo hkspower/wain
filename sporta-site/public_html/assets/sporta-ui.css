@@ -1,0 +1,108 @@
+/* Sporta — top bar and hero adjustments.
+ *
+ * Separate from sporta-dark.css on purpose. That file is the PALETTE and
+ * everything in it is scoped to [data-theme=dark]; none of this is about
+ * colour temperature. A bigger clock is a bigger clock in both themes, and
+ * mixing the two would mean the light theme quietly kept the old sizes.
+ *
+ * Loaded after the build's stylesheet, so it wins by cascade on equal
+ * specificity. The !important flags are only where a Tailwind utility of the
+ * same specificity would otherwise win by source order, or — for the hero —
+ * where the value is an inline style set by the boot script in index.html.
+ */
+
+/* ------------------------------------------------------------------ clock */
+/* The dial is the only svg on the page with this viewBox, checked: one
+   element, in the header. Sizing it here rather than editing the bundle keeps
+   the change in a file that can be read and reverted. */
+header svg[viewBox='0 0 48 48'] {
+  width: 44px !important;
+  height: 44px !important;
+}
+@media (min-width: 640px) {
+  header svg[viewBox='0 0 48 48'] {
+    width: 52px !important;
+    height: 52px !important;
+  }
+}
+
+/* WHITE HANDS, NOT ORANGE. .stroke-brand appears four times on the page and
+   all four are inside this dial — verified, so there is nothing else to
+   catch. The ember stays everywhere it means something (price, active nav,
+   the sale badge); on a clock face it was decoration competing with them. */
+header svg[viewBox='0 0 48 48'] .stroke-brand {
+  stroke: #ffffff !important;
+}
+
+/* The digits beside it. They were 13.7px at 85% white — the smallest text in
+   the bar and the one most often read at arm's length. */
+header .tabular-nums {
+  font-size: 15px !important;
+  color: #ffffff !important;
+  letter-spacing: 0.02em;
+}
+
+/* --------------------------------------------------------------- top bar */
+/* Nav links were 14.7px/600. A little more size and a little tracking: this
+   is Arabic and English in the same row, and the Latin words are what suffer
+   when tracking is tight. */
+header nav a,
+header a.flex.min-h-11 {
+  font-size: 15.5px !important;
+  letter-spacing: 0.01em;
+}
+
+/* The language chip: 12px at 90% white inside a 20%-white ring. Full white on
+   a firmer ring — it is a control, and its edge was 1.2:1 against the bar. */
+header button[aria-label] {
+  font-size: 13.5px !important;
+}
+header button[aria-label].border-white\/20 {
+  border-color: #ffffff59 !important;
+  color: #ffffff !important;
+}
+
+/* ------------------------------------------------------------------ hero */
+/* TALLER, by changing the ratio the box is cut to — not by adding a fixed
+   height. The banner is object-fit: cover, so a taller box crops the sides
+   rather than letterboxing; a fixed height would have to guess the viewport
+   and would leave bars at the edges of the range, which is the exact bug the
+   boot script's comments describe fixing once already.
+
+   2.52 is the shipped artwork's own ratio. On a 393px phone that is 156px of
+   picture, which reads as a band rather than a hero.
+
+     phone    100vw / 1.85  ->  212px at 393   (was 156)
+     desktop  100vw / 2.15  ->  595px at 1280  (was 508)
+
+   The +128px on the phone value is the button strip below the art and is
+   carried through unchanged — it is measured, not a guess: py-6 top and
+   bottom (48) + a 48px button + pb-8 (32).
+
+   !important because the boot script sets these as inline styles on <html>,
+   and it has to keep doing so: it is what stops the hero resizing under
+   whoever is reading it. Overriding the variable rather than the height means
+   the pre-paint shell and the mounted component still read the same number. */
+:root {
+  --hero-h: calc(100vw / 1.85 + 128px) !important;
+  --hero-h-md: min(calc(100vw / 2.15), 80svh) !important;
+}
+
+/* AND THE COMPONENT ITSELF, which is what actually sizes the mounted hero.
+   The variables above only paint the pre-mount shell — setting them alone
+   changed nothing on screen, which is how I found this out. Both have to move
+   together or the shell and the hero disagree and the page jumps at mount,
+   the one failure the boot script exists to prevent.
+
+   Phone: the art sits in an inner box carrying aspect-[2.52/1]; the outer is
+   auto and comes to art + the 128px button strip.
+   Desktop (md, 768px up): the inner goes aspect-auto and the OUTER carries
+   the ratio, clamped at 80svh. */
+.hero-strength > .aspect-\[2\.52\/1\] {
+  aspect-ratio: 1.85 / 1 !important;
+}
+@media (min-width: 768px) {
+  .hero-strength {
+    aspect-ratio: 2.15 / 1 !important;
+  }
+}
