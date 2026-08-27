@@ -97,3 +97,7 @@ __pycache__/
 # video beside them is the artefact; 336 JPEGs are not.
 press/film/frames/
 press/audio/capture/
+
+# Dev server output, when it is redirected into the repo for tailing.
+dev.log
+*.log
