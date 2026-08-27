@@ -290,6 +290,61 @@ check(packet > biggest * 1.2,
   `max_allowed_packet is ${kb(packet)}; the largest upload the admin accepts is ${kb(biggest)} of base64` +
   (packet > biggest * 1.2 ? '' : ' — an upload at the cap will fail mid-insert with "MySQL server has gone away"'))
 
+// ------------------------------------------------- 5b. the brand logo folders
+//
+// public_html/images/<brand-slug>/logo.{png,webp,jpg} — one folder per brand,
+// filled through hPanel's File Manager, which is the only upload the owner has
+// without opening the panel.
+//
+// The folder name IS the lookup key: a product row says brand_slug =
+// 'gymshark' and the server looks in images/gymshark/. So a folder whose name
+// is not a brand slug is a folder nobody will ever read, and a brand with no
+// folder is a brand the owner cannot give a logo to this way. Neither is
+// visible from either side on its own.
+console.log('\n--- a folder per brand, for logos dropped in by hand')
+{
+  const brands = sql('select slug from brands').split('\n').filter(Boolean)
+  const dir = `${DOCROOT}/images`
+  const folders = existsSync(dir)
+    ? readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name)
+    : []
+
+  const missing = brands.filter((b) => !folders.includes(b))
+  check(missing.length === 0,
+    missing.length ? `${missing.length} brand(s) have no folder: ${missing.join(', ')}`
+                   : `all ${brands.length} brands have a folder under images/`)
+
+  const stray = folders.filter((f) => !brands.includes(f))
+  check(stray.length === 0,
+    stray.length
+      ? `${stray.length} folder(s) match no brand slug — nothing will ever read them: ${stray.join(', ')}`
+      : 'every folder under images/ is a real brand slug')
+
+  // A logo that is there but misnamed is the failure the owner cannot see:
+  // the file is uploaded, the folder looks right, and the shop shows nothing.
+  const NAMES = ['logo.png', 'logo.webp', 'logo.jpg']
+  const misnamed = []
+  let withLogo = 0
+  for (const f of folders) {
+    const files = readdirSync(`${dir}/${f}`).filter((n) => IMAGE_RE.test(n))
+    if (files.some((n) => NAMES.includes(n))) { withLogo++; continue }
+    if (files.length) misnamed.push(`${f}/: ${files.join(', ')} — none is ${NAMES.join(' / ')}`)
+  }
+  check(misnamed.length === 0,
+    misnamed.length
+      ? `${misnamed.length} folder(s) hold an image the shop will not find:\n       ` + misnamed.join('\n       ')
+      : `no misnamed logos — ${withLogo} of ${folders.length} brands have one`)
+
+  // And the note that tells the owner what to do, in each folder. It is also
+  // what makes git keep an otherwise-empty directory, so losing it means the
+  // folders stop travelling in the upload package at all.
+  const noNote = folders.filter((f) => !existsSync(`${dir}/${f}/PUT-LOGO-HERE.txt`))
+  check(noNote.length === 0,
+    noNote.length
+      ? `${noNote.length} folder(s) have lost PUT-LOGO-HERE.txt — an empty folder does not survive git or the zip: ${noNote.join(', ')}`
+      : 'every folder carries its instructions')
+}
+
 // ------------------------------------------------- 6. renaming keeps the shoot
 console.log('\n--- renaming a product keeps its photographs and its sizes')
 let cookie = ''

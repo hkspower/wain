@@ -1,0 +1,17 @@
+eyesportwear
+------------
+
+Put this brand's logo in THIS folder, named exactly one of:
+
+    logo.png
+    logo.webp
+    logo.jpg
+
+The shop tries them in that order and uses the first one it finds. Nothing
+else needs doing — no rebuild, no cache to clear.
+
+About 400 px wide, transparent background, under 150 kB. See
+../README.txt for the whole story, including what happens if this brand
+also has a logo set in /backends.
+
+You can delete this file once you have put a logo here.

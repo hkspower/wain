@@ -946,6 +946,45 @@ function store_data_image(?string $raw, int $max = STORE_LOGO_MAX): ?string {
     return 'data:image/' . $m[1] . ';base64,' . preg_replace('/\s+/', '', $m[2]);
 }
 
+// ------------------------------------------------------- a brand's logo FILE
+//
+// public_html/images/<brand-slug>/logo.{png,webp,jpg} — the folder the owner
+// drops a logo into through hPanel's File Manager, which is the only file
+// upload they have.
+//
+// WHY A FILE AT ALL, when brands.logo already holds a data: URI. Because the
+// database route requires opening the panel, choosing a file and saving, and
+// the owner asked for a folder per brand they can simply drop images into.
+// Both work; the panel wins where both exist, because that is somebody having
+// made a deliberate choice in the shop's own tools and a file left on disk
+// should not quietly override it.
+//
+// THE SLUG IS NOT A PATH. It arrives from ?r=brand_logo&slug= — a query string
+// a stranger controls — and is pasted into a filesystem path here, so it is
+// checked against a strict pattern rather than merely escaped. `../` is the
+// obvious attack; a slug with a dot or a slash in it has no legitimate form,
+// and store_slug() cannot produce one.
+const STORE_BRAND_LOGO_NAMES = ['logo.png', 'logo.webp', 'logo.jpg'];
+
+function store_brand_logo_file(string $slug): ?string {
+    if (!preg_match('/^[a-z0-9][a-z0-9-]{0,63}$/', $slug)) return null;
+    $dir = __DIR__ . '/../images/' . $slug;
+    foreach (STORE_BRAND_LOGO_NAMES as $name) {
+        $path = $dir . '/' . $name;
+        if (is_file($path) && is_readable($path)) return $path;
+    }
+    return null;
+}
+
+// The cache key for that file. The logo URL is cached for a year and immutable,
+// which is only safe because the address changes when the picture does — so
+// this has to change when the file does. Size and mtime together do that
+// without reading the bytes: hashing a 150 kB logo on every ?r=products, for
+// every brand, to produce twelve characters would be real work for nothing.
+function store_brand_logo_version(string $path): string {
+    return substr(hash('sha256', $path . '|' . filesize($path) . '|' . filemtime($path)), 0, 12);
+}
+
 // A brand slug: what the storefront will filter on, so it is url-safe or it is
 // nothing. Derived from the English name when the admin does not supply one.
 function store_slug(string $s): string {

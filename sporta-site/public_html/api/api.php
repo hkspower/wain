@@ -162,7 +162,35 @@ if ($r === 'products') {
            left join brands b on b.slug = p.brand_slug and b.active = 1
           where p.active = 1 order by p.name_en'
     )->fetchAll();
+
+    // A LOGO ON DISK COUNTS AS A LOGO.
+    //
+    // brand_has_logo above is computed from the brands.logo column alone, and
+    // the storefront only asks for ?r=brand_logo when it is 1. So a file the
+    // owner dropped into images/<slug>/ would be served correctly by that
+    // route and never requested — the folder would look broken while both
+    // halves worked. This is the half that closes it.
+    //
+    // Looked up ONCE PER BRAND, not once per product: the catalogue is 46 rows
+    // across 8 brands, and is_file() per row would be 46 stat calls for 8
+    // answers on the busiest endpoint the shop has.
+    $logoFile = [];
+    foreach (array_unique(array_filter(array_column($rows, 'brand_slug'))) as $bs) {
+        $path = store_brand_logo_file((string)$bs);
+        if ($path !== null) $logoFile[(string)$bs] = store_brand_logo_version($path);
+    }
+
     foreach ($rows as &$row) {
+        // The database wins where both exist — see ?r=brand_logo, which
+        // resolves them in the same order. Only a brand with NO stored logo
+        // falls through to its folder.
+        $bs = (string)($row['brand_slug'] ?? '');
+        if (!(int)$row['brand_has_logo'] && isset($logoFile[$bs])) {
+            $row['brand_has_logo'] = 1;
+            // The version is the FILE's, so replacing the logo changes the URL
+            // and the year-long immutable cache on it stays honest.
+            $row['brand_logo_v'] = $logoFile[$bs];
+        }
         // `price` is what the shop CHARGES, so a sale price replaces it rather
         // than travelling beside it. The storefront strikes through
         // `list_price` when on_sale is true, and every other consumer — cart
@@ -376,9 +404,45 @@ if ($r === 'slide_image') {
 // immutable. Change the logo and the hash changes, so the new one appears
 // without anybody clearing a cache.
 if ($r === 'brand_logo') {
+    $slug = trim((string)($_GET['slug'] ?? ''));
     $q = $db->prepare('select logo from brands where slug = ? and active = 1');
-    $q->execute([trim((string)($_GET['slug'] ?? ''))]);
+    $q->execute([$slug]);
     $data = (string)($q->fetchColumn() ?: '');
+
+    // NO LOGO IN THE DATABASE? LOOK IN THE FOLDER.
+    //
+    // public_html/images/<slug>/logo.{png,webp,jpg} — the per-brand folders,
+    // filled through hPanel's File Manager, which is the only upload the owner
+    // has without opening the panel. The database still wins where both exist:
+    // a logo set in /backends is a deliberate choice made in the shop's own
+    // tools, and a file left on disk should not silently override it.
+    //
+    // The ACTIVE CHECK ABOVE STILL APPLIES, and it has to be read carefully.
+    // The query returned no row at all for an inactive or unknown brand, which
+    // is indistinguishable here from a brand with no logo — so a file would
+    // have been served for a brand that is switched off. That is why the
+    // existence of the row is asked for separately below rather than inferred
+    // from the logo being empty.
+    if ($data === '') {
+        $live = $db->prepare('select 1 from brands where slug = ? and active = 1');
+        $live->execute([$slug]);
+        $file = $live->fetchColumn() ? store_brand_logo_file($slug) : null;
+        if ($file !== null) {
+            $type = ['png' => 'image/png', 'webp' => 'image/webp',
+                     'jpg' => 'image/jpeg'][pathinfo($file, PATHINFO_EXTENSION)] ?? 'image/png';
+            header('Content-Type: ' . $type);
+            header('Content-Length: ' . (string)filesize($file));
+            // A year, immutable, exactly as the database path claims — safe for
+            // the same reason: ?r=products hands out a ?v= built from this
+            // file's size and mtime, so replacing the logo is a different URL.
+            header('Cache-Control: public, max-age=31536000, immutable');
+            header('X-Content-Type-Options: nosniff');
+            header_remove('Pragma');
+            readfile($file);
+            exit;
+        }
+    }
+
     if ($data === '' || !preg_match('#^data:image/(png|jpeg|webp);base64,(.+)$#s', $data, $m)) {
         http_response_code(404);
         exit;
