@@ -132,3 +132,78 @@ Two routes that do work:
    on every push. It has never once run past its first step.
 2. **Upload `wain-deploy.zip` by hand** in hPanel → File Manager and extract it
    into `public_html`. Extract; do not use the archive-deploy button.
+
+---
+
+# Removing the old app — the safe order
+
+Only if it is finished. The steps are ordered so that nothing is destroyed
+before it is provably safe to destroy, and so any step can be undone until the
+last one.
+
+## What is known
+
+The live `/` **is** the Next export, and it contains **zero** references to
+`api.php`, `wain.db` or `admin.token`. So the public front door is already off
+the old API — visitors do not touch it.
+
+What is **not** known: `admin.html` (55KB, reachable at `/admin` through an
+.htaccess rewrite) was never read. It is the business's own panel and it is the
+most likely thing still calling `api.php`. `wain-app-latest.html` and
+`qareeb.html` — the old single-file app — almost certainly call it too, but
+nothing serves them at a route any more.
+
+**Check that before deleting anything.** In hPanel's file manager, open
+`admin.html` and search for `api.php`. If it is there, the shop's order screen
+dies with the API.
+
+## 1. Back up, before touching anything
+
+The API can hand you the whole database as JSON:
+
+```bash
+curl -s -H 'X-Wain-Admin: YOUR-TOKEN' \
+     'https://www.wainkw.com/api.php?a=export' -o wain-backup.json
+```
+
+Also download `wain.db` itself from the file manager. Two copies, off the
+server, before a single deletion. `export` is admin-only in v3, so this needs
+the token from `server/README.md`.
+
+## 2. Confirm nothing still calls it
+
+- `admin.html` — search for `api.php`
+- Any n8n workflow (there is an `n8n-sync/` directory in the docroot)
+- Anything in `lib/`, `ppgg/`, `testt/`, `wain-cache/`
+
+## 3. Delete in this order
+
+Reversible until the last line:
+
+```
+*-out.txt                 ~50 scratch files
+index.bak-*.html          ~28 backups, ~11MB
+index.broken-*.html, *.bak-*.css, *.bak-*.js
+files.wain.zip, wain-hosting.zip
+wain-local-test.html, extracted_*.html, extracted_*
+wain-app-latest.html, qareeb.html, wain-admin-latest.html
+admin.html, admin-manifest.webmanifest, admin.token
+api.php, wain-inst.php, wain-restore.php, wain-fix.php,
+  wain-ver.php, wain-search-cache.php, v.php
+wain.db                   ← last, and only with the backup in hand
+```
+
+Leave `lib/`, `n8n-sync/`, `wain-cache/`, `ppgg/` and `testt/` until someone
+has looked inside them.
+
+## 4. Afterwards
+
+The `.htaccess` deny rules for `wain.db`, `admin.token`, the archives and the
+`*-out.txt` files become dead weight rather than protection. Harmless, and
+worth keeping until the deletion is confirmed — they cost nothing and they are
+the safety net if a file is missed.
+
+## If it is not finished
+
+Upload `server/api.php` instead and keep the app running with the holes shut.
+The two paths are exclusive; do not do half of each.
