@@ -98,36 +98,53 @@ const COLLECT = `(() => {
   const vis = (e) => e.checkVisibility({ opacityProperty: true, visibilityProperty: true });
   const ARABIC = /[\\u0600-\\u06FF\\u0750-\\u077F\\uFB50-\\uFDFF\\uFE70-\\uFEFF]/;
 
-  const parse = (c) => {
-    const m = String(c).match(/rgba?\\(([^)]+)\\)/);
-    if (!m) return null;
-    const p = m[1].split(",").map((x) => parseFloat(x));
-    return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+  // Colour is resolved by the browser, not by a regex here.
+  //
+  // The first version matched /rgba?\\(...\\)/ and silently returned null
+  // for anything else. This project is on Tailwind v4, so getComputedStyle
+  // hands back oklch() and oklab() — every parse failed, the text fell
+  // back to white, the background fell through the translucent header to
+  // the white body, and the tool reported forty-two runs of white on
+  // white at exactly 1.00:1. A contrast of exactly 1.00 is not a finding,
+  // it is a parser that gave up.
+  //
+  // A 1x1 canvas has the whole CSS colour engine behind it and composites
+  // alpha correctly for free, which is also exactly what is needed to
+  // stack translucent panels over a scene.
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = 1;
+  const g2 = cv.getContext("2d", { willReadFrequently: true });
+  const flatten = (stack, base) => {
+    g2.globalCompositeOperation = "copy";
+    g2.fillStyle = base;
+    g2.fillRect(0, 0, 1, 1);
+    g2.globalCompositeOperation = "source-over";
+    for (const c of stack) {
+      if (!c || c === "transparent" || c === "rgba(0, 0, 0, 0)") continue;
+      g2.fillStyle = c;
+      g2.fillRect(0, 0, 1, 1);
+    }
+    const d = g2.getImageData(0, 0, 1, 1).data;
+    return { r: d[0], g: d[1], b: d[2] };
   };
   const lin = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
   const relLum = (c) => 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b);
-  const over = (fg, bg) => ({
-    r: fg.r * fg.a + bg.r * (1 - fg.a),
-    g: fg.g * fg.a + bg.g * (1 - fg.a),
-    b: fg.b * fg.a + bg.b * (1 - fg.a),
-    a: 1,
-  });
 
-  // The colour actually behind a run of text. A panel is very often a
-  // translucent tint over a dark scene, so its own background-color is
-  // not what the eye sees; composite up the ancestors until the stack is
-  // opaque, and fall back to the page's own base.
-  const behind = (el) => {
-    let acc = null;
-    for (let n = el; n; n = n.parentElement) {
-      const c = parse(getComputedStyle(n).backgroundColor);
-      if (!c || c.a === 0) continue;
-      acc = acc ? over(acc, c) : c;
-      if (acc.a >= 0.999) return acc;
-    }
-    const base = { r: 8, g: 8, b: 10, a: 1 };
-    return acc ? over(acc, base) : base;
+  // Everything painted behind a run of text, outermost first. A panel is
+  // very often a translucent tint over a dark scene, so its own
+  // background-color is not what the eye receives.
+  const stackOf = (el) => {
+    const s = [];
+    for (let n = el; n; n = n.parentElement) s.push(getComputedStyle(n).backgroundColor);
+    return s.reverse();
   };
+  const rootBase = (() => {
+    for (const n of [document.body, document.documentElement]) {
+      const c = n && getComputedStyle(n).backgroundColor;
+      if (c && c !== "rgba(0, 0, 0, 0)" && c !== "transparent") return c;
+    }
+    return "#ffffff";
+  })();
 
   const rows = [];
   const range = document.createRange();
@@ -142,29 +159,44 @@ const COLLECT = `(() => {
     if (!boxes.length) continue;
 
     const cs = getComputedStyle(el);
-    // The rendered size has to include any transform scale sitting over
-    // the element — a HUD at 1.22 is not the size its font-size says.
-    let scale = 1;
-    for (let p = el; p; p = p.parentElement) {
-      const t = getComputedStyle(p).transform;
-      if (t && t !== "none") {
-        const m = t.match(/matrix\\(([^)]+)\\)/);
-        if (m) {
-          const v = m[1].split(",").map(Number);
-          const sx = Math.hypot(v[0], v[1]);
-          if (sx > 0) scale *= sx;
+    // What size this actually lands at on the glass.
+    //
+    // Two things move it and both had to be handled. A HUD panel under
+    // transform: scale(1.22) is not the size its font-size claims. And
+    // SVG is worse: the tachometer is drawn in a 100x100 viewBox scaled
+    // to its container, so its unit label is authored fontSize="5" and
+    // getComputedStyle dutifully reports 5px — a number in USER units
+    // that has no bearing on the screen. Reporting that as "5px text"
+    // would have been a fabricated finding. getScreenCTM is the map from
+    // user units to CSS pixels and already carries every transform above
+    // it, so for SVG it replaces the walk rather than adding to it.
+    let px;
+    if (el.ownerSVGElement && el.getScreenCTM) {
+      const ctm = el.getScreenCTM();
+      px = parseFloat(cs.fontSize) * (ctm ? Math.hypot(ctm.a, ctm.b) : 1);
+    } else {
+      let scale = 1;
+      for (let p = el; p; p = p.parentElement) {
+        const t = getComputedStyle(p).transform;
+        if (t && t !== "none") {
+          const m = t.match(/matrix\\(([^)]+)\\)/);
+          if (m) {
+            const v = m[1].split(",").map(Number);
+            const sx = Math.hypot(v[0], v[1]);
+            if (sx > 0) scale *= sx;
+          }
         }
       }
+      px = parseFloat(cs.fontSize) * scale;
     }
-    const px = parseFloat(cs.fontSize) * scale;
     const weight = parseInt(cs.fontWeight, 10) || 400;
     const lhRaw = cs.lineHeight;
     const lh = lhRaw === "normal" ? 1.2 : parseFloat(lhRaw) / parseFloat(cs.fontSize);
     const tracking = cs.letterSpacing === "normal" ? 0 : parseFloat(cs.letterSpacing);
 
-    const fg0 = parse(cs.color) || { r: 255, g: 255, b: 255, a: 1 };
-    const bg = behind(el);
-    const fg = fg0.a < 1 ? over(fg0, bg) : fg0;
+    const stack = stackOf(el);
+    const bg = flatten(stack, rootBase);
+    const fg = flatten([...stack, cs.color], rootBase);
     const L1 = relLum(fg), L2 = relLum(bg);
     const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
 
@@ -172,9 +204,11 @@ const COLLECT = `(() => {
     const large = px >= 24 || (px >= 18.66 && weight >= 700);
     const floor = large ? 3 : 4.5;
     const arabic = ARABIC.test(raw);
-    // Did it wrap? More than one client rect for one text node, or a box
-    // taller than roughly one line.
-    const wrapped = boxes.length > 1 || boxes[0].height > px * lh * 1.6;
+    // Did it wrap? More than one client rect for one text node — and
+    // nothing else. The height test that used to sit here flagged a
+    // single "0" on the speedometer as a wrapped paragraph set too
+    // tight, which a one-character text node cannot be.
+    const wrapped = boxes.length > 1;
 
     rows.push({
       text: raw.trim().slice(0, 34),
@@ -197,12 +231,73 @@ const COLLECT = `(() => {
   return rows;
 })()`;
 
+// The instrument, against markup whose answer is known before it runs.
+//
+// This exists because the first version of this tool reported 42 runs of
+// text failing contrast at exactly 1.00:1, and every one of them was
+// invented: getComputedStyle returns oklch() on Tailwind v4, the regex
+// here only matched rgb(), and the fallbacks put white text on a white
+// page. It also called a tachometer label "5px" — the authored value in
+// a 100x100 viewBox, not a size anything renders at. Both are the same
+// mistake: believing a number without checking what it is a number OF.
+async function selfTest(browser) {
+  const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
+  await page.goto(
+    "data:text/html," + encodeURIComponent(`
+      <body style="margin:0;background:#ffffff">
+        <div id="a" style="color:#000000">plain black on white</div>
+        <div id="b" style="color:oklch(0 0 0)">oklch black on white</div>
+        <div id="c" style="background:rgba(0,0,0,0.5)"><span style="color:#ffffff">white on a half-black tint</span></div>
+        <svg viewBox="0 0 100 100" width="200" height="200">
+          <text x="10" y="50" font-size="5" fill="#000">svg five</text>
+        </svg>
+      </body>`),
+    { waitUntil: "domcontentloaded" }
+  );
+  const rows = await page.evaluate(COLLECT);
+  await page.close();
+  const find = (t) => rows.find((r) => r.text.startsWith(t));
+  const fails = [];
+  const near = (a, b, tol) => Math.abs(a - b) <= tol;
+
+  const a = find("plain black");
+  if (!a || !near(a.ratio, 21, 0.3)) fails.push(`black on white read ${a ? a.ratio : "nothing"}:1, expected 21:1`);
+  const b = find("oklch black");
+  if (!b || !near(b.ratio, 21, 0.3)) {
+    fails.push(
+      `oklch black on white read ${b ? b.ratio : "nothing"}:1, expected 21:1 — ` +
+      `the colour engine is not resolving modern CSS colour syntax`
+    );
+  }
+  // White over 50% black over white composites to white on rgb(128,128,128).
+  const c = find("white on a half");
+  if (!c || !near(c.ratio, 3.95, 0.25)) {
+    fails.push(`white on a half-black tint read ${c ? c.ratio : "nothing"}:1, expected about 3.95:1 — alpha is not compositing`);
+  }
+  // font-size 5 in a 100-unit viewBox drawn at 200px is 10 real pixels.
+  const d = find("svg five");
+  if (!d || !near(d.px, 10, 0.2)) {
+    fails.push(`svg text authored at 5 units in a viewBox drawn at 2x read ${d ? d.px : "nothing"}px, expected 10px`);
+  }
+  if (fails.length) {
+    console.error("the type instrument is wrong:\n - " + fails.join("\n - "));
+    process.exit(2);
+  }
+  console.log(
+    `instrument   21:1 on black/white, resolves oklch, composites alpha to ` +
+    `${c.ratio}:1, and reads svg 5-in-viewBox as ${d.px}px\n`
+  );
+}
+
 const all = [];
 const browser = await chromium.launch({
   executablePath: exe,
   args: ["--use-gl=angle", "--enable-webgl", "--no-sandbox", "--disable-dev-shm-usage",
          "--force-color-profile=srgb"],
 });
+
+await selfTest(browser);
+if (process.argv.includes("--self-test")) { await browser.close(); process.exit(0); }
 
 for (const size of SIZES) {
   for (const s of screens) {
