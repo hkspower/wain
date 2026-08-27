@@ -100,6 +100,8 @@
     "check:framing": "node tools/shots/framing.mjs",
     "check:gutters": "node tools/shots/gutters.mjs",
     "check:align": "node tools/shots/align.mjs",
+    "check:glitch": "node tools/shots/audioglitch.mjs",
+    "check:glitch:rules": "node tools/shots/audioglitch.mjs --self-test",
     "check:texels": "node tools/shots/texels.mjs",
     "check:film": "node tools/shots/introfilm.mjs",
     "export:film": "node tools/shots/exportfilm.mjs"

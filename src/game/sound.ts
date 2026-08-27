@@ -816,10 +816,29 @@ export class SoundEngine {
     // has no short repeat of its own. Noise is scale-free, so resampling
     // it by a few percent costs nothing audible — every one of these is
     // filtered downstream anyway.
-    src.playbackRate.value = 0.93 + (this.noiseTurn % 7) * 0.023 + Math.random() * 0.01;
+    const rate = 0.93 + (this.noiseTurn % 7) * 0.023 + Math.random() * 0.01;
+    src.playbackRate.value = rate;
     // ...and a different starting point, so they do not all begin on the
     // same sample of the same buffer.
     src.start(0, Math.random() * buf.duration);
+
+    // And then a slow drift on top, which is what finally kills it. A
+    // fixed rate still gives a source ONE period, so the bed still
+    // returns to the same samples at the same lag forever — measured at
+    // idle, where noise is most of the mix, the bus still correlated 0.36
+    // with itself every 3.8 seconds after the detuning alone. Drifting
+    // the rate by half a percent over half a minute smears that lag by
+    // tens of milliseconds, and a repeat that never lands in the same
+    // place is not a repeat. Half a percent of pitch on filtered noise is
+    // inaudible; the periodicity it removes is not.
+    const drift = this.ctx.createOscillator();
+    drift.type = "sine";
+    drift.frequency.value = 0.02 + Math.random() * 0.05;
+    const depth = this.ctx.createGain();
+    depth.gain.value = rate * 0.006;
+    drift.connect(depth).connect(src.playbackRate);
+    drift.start();
+
     this.noiseTurn++;
     return src;
   }
