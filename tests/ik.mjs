@@ -501,15 +501,21 @@ check(traffic.lean === 0, "traffic drivers carry legs — the lean build is not 
       rig.wheel.updateWorldMatrix(true, true);
       let hands = 0;
       for (const arm of rig.arms) {
-        const grip = arm.side < 0 ? window.__grnRig.driver.gripLeft : window.__grnRig.driver.gripRight;
-        const want = new THREE.Vector3(
-          Math.cos(grip) * rig.wheelRadius,
-          Math.sin(grip) * rig.wheelRadius,
-          0
-        );
-        rig.wheel.localToWorld(want);
-        const got = arm.hand.getWorldPosition(new THREE.Vector3());
-        hands = Math.max(hands, got.distanceTo(want));
+        // ON the rim, measured as distance from the wheel's axis in the
+        // wheel's own plane — not against a target this test computes
+        // for itself.
+        //
+        // It used to rebuild the grip point from gripLeft/gripRight and
+        // compare, which is the copy-the-arithmetic trap this file warns
+        // about at the top, and it duly went stale: the hands now ride
+        // the rim only to the comfortable arc and slide past it, so on a
+        // hard sweeper the hand is correctly 0.16 m from the axis and
+        // 0.158 m from where this used to expect it. The radius is the
+        // property that actually matters — a hand off the rim is a hand
+        // in the air — and it cannot go out of date with the law.
+        const lp = arm.hand.getWorldPosition(new THREE.Vector3());
+        rig.wheel.worldToLocal(lp);
+        hands = Math.max(hands, Math.abs(Math.hypot(lp.x, lp.y) - rig.wheelRadius));
       }
       let feet = 0;
       for (const leg of rig.legs) {
@@ -624,7 +630,7 @@ check(traffic.lean === 0, "traffic drivers carry legs — the lean build is not 
   const worstHands = Math.max(...all.map((x) => x.hands));
   const worstFeet = Math.max(...all.map((x) => x.feet));
   console.log(
-    `             through all of it hands stay ${worstHands} m off the rim, feet ${worstFeet} m off the pedals`
+    `             through all of it hands stay ${worstHands} m off the rim (radius), feet ${worstFeet} m off the pedals`
   );
   check(
     worstHands < 0.02,
@@ -735,6 +741,9 @@ check(traffic.lean === 0, "traffic drivers carry legs — the lean build is not 
       accel: +wireAccel.toFixed(1),
       brake: +peakBrake.toFixed(3),
       fold: +peakFold.toFixed(4),
+      // Published so the assertion can scale with the physics rather
+      // than with a literal — see the check that reads it.
+      foldPerG: window.__grnRig.driver.foldPerG,
     };
     e.removeRemote(9901);
     return out;
@@ -749,7 +758,32 @@ check(traffic.lean === 0, "traffic drivers carry legs — the lean build is not 
     );
     check(remote.accel < -1, `the wire's own deceleration was thrown away (${remote.accel})`);
     check(remote.brake > 0.05, "the remote driver's foot never went near the brake");
-    check(remote.fold > 0.01, "the remote driver does not fold under braking");
+    // The FOLD is checked against the acceleration that actually
+    // arrived, not against a fixed number of radians.
+    //
+    // Two snapshots are a quotient and the divisor is wall-clock: the
+    // test asks for a 120 ms gap and gets whatever the machine gives
+    // it — 4.6 s once, 25.5 s here. So the deceleration reaching the
+    // driver ranges over two orders of magnitude between machines, and
+    // an absolute threshold tests the machine rather than the game. It
+    // failed exactly that way: -1.1 m/s2 folded the body 0.008 rad
+    // against a 0.01 floor, with nothing wrong except the CPU.
+    //
+    // What the game promises is the TRANSFER — the wire's deceleration
+    // reaches the body through solveDriverRig's foldPerG — so that is
+    // what is asserted, scaled by the number that actually came off the
+    // wire. Half of it, because the lean eases and sixty frames need
+    // not converge.
+    const wantFold = Math.min(1, -remote.accel / 10) * remote.foldPerG;
+    console.log(
+      `             ${remote.accel} m/s2 asks for ${wantFold.toFixed(4)} rad of fold; ` +
+      `the body gave ${remote.fold}`
+    );
+    check(
+      remote.fold > wantFold * 0.5,
+      `the wire's ${remote.accel} m/s2 should fold the driver about ${wantFold.toFixed(4)} rad, ` +
+      `and it folded ${remote.fold} — the deceleration is not reaching the body`
+    );
   }
 }
 
