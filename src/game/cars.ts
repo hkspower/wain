@@ -468,6 +468,9 @@ function extrudeProfile(
    *  is a slab. */
   crown?: CrownSpec
 ): THREE.BufferGeometry {
+  // Every profile is authored as if the car sat on the wheels it used to
+  // have; BODY_DROP is what puts it back on the ones it has now.
+  points = points.map(([x, y]) => [x, y - BODY_DROP] as [number, number]);
   const shape = new THREE.Shape();
   const top = points.slice(0, points.length - bottomPoints);
   shape.moveTo(top[0][0], top[0][1]);
@@ -504,6 +507,36 @@ function extrudeProfile(
   else geo.computeVertexNormals();
   return geo;
 }
+
+/**
+ * How far the whole body sits down from where it was authored.
+ *
+ * This exists BECAUSE of the number above, and the two only make sense
+ * together. Fitting a smaller wheel drops the axle by the radius lost —
+ * 35 mm — but it does NOT drop the body, which is authored in absolute
+ * coordinates with y=0 at the road. The tyre's crown falls twice that,
+ * 70 mm, so the arch gap opens by 70 mm and the car ends up looking
+ * jacked up on small wheels. That is also what happens to a real car
+ * fitted with smaller rims and nothing else, which is why people fit
+ * bigger ones to fill the arch.
+ *
+ * So the body comes down by more than the tyre's own 70 mm: the car sits
+ * 51 mm closer to its own axles than it did — a lowered car on smaller
+ * wheels, which is the shape this game is about. Ground clearance goes
+ * from 190 mm to 104 mm, a lowered street car rather than a scraped one.
+ *
+ * 86 rather than 70 because 70 only HOLDS the gap, and holding it is not
+ * enough: the same daylight over a smaller tyre is a bigger fraction of
+ * its radius, and gap/radius landed on the 0.30 ceiling with two cars
+ * tipping over it. The extra 16 mm closes the gap to about 84 mm and
+ * puts the fleet mid-band instead of against the wall.
+ *
+ * It is applied in two places and both are needed: the profile points in
+ * extrudeProfile, which are the shells, and STYLE_DIMS, which is every
+ * anchor hung off them — beltline, crease, lights, mirrors, dash, roof.
+ * Dropping one without the other slides the details up the bodywork.
+ */
+const BODY_DROP = 0.086;
 
 /**
  * The radius on a panel edge, in metres.
@@ -967,7 +1000,8 @@ const STYLE_DIMS: Record<BodyStyle, StyleDims> = {
  * wheel, which is what the whole SECTION_R / WHEEL_R_K pair exists to
  * express.
  */
-export const TIRE_RADIUS = 0.41;
+export const TIRE_RADIUS = 0.375;
+
 /*
  * Two things about the paragraph above, both measured since it was
  * written, for whoever comes at this next.
@@ -1005,7 +1039,7 @@ export const TIRE_RADIUS = 0.41;
  * proportion to its new diameter would hang out of the arch instead.
  * The arch moves out by the same 8 mm to keep that gap where it was.
  */
-export const TIRE_HALF_W = 0.138;
+export const TIRE_HALF_W = 0.1325;
 
 /**
  * The radius and half width TIRE_SECTION below is AUTHORED at, and the
@@ -2552,7 +2586,24 @@ function buildWheel(
 export function createCar(colors: CarColors): THREE.Group {
   const group = new THREE.Group();
   const style: BodyStyle = colors.style ?? "sedan";
-  const d = STYLE_DIMS[style];
+  // The same drop, applied to every anchor hung off the shells. Heights
+  // only: nose, tail, wiperZ and the z halves of roof/mirror/bPillar are
+  // stations along the car and must not move.
+  const raw = STYLE_DIMS[style];
+  const d: StyleDims = {
+    ...raw,
+    noseTopY: raw.noseTopY - BODY_DROP,
+    grilleY: raw.grilleY - BODY_DROP,
+    beltY: raw.beltY - BODY_DROP,
+    hoodY: raw.hoodY - BODY_DROP,
+    tailY: raw.tailY - BODY_DROP,
+    deckY: raw.deckY - BODY_DROP,
+    dashY: raw.dashY - BODY_DROP,
+    creaseY: raw.creaseY - BODY_DROP,
+    roof: [raw.roof[0], raw.roof[1] - BODY_DROP],
+    mirror: [raw.mirror[0], raw.mirror[1] - BODY_DROP, raw.mirror[2]],
+    bPillar: [raw.bPillar[0], raw.bPillar[1] - BODY_DROP, raw.bPillar[2]],
+  };
   // How far this one is built. `raceKit` is the old yes/no form of the
   // same question and still wins if a caller only set that — the menu
   // hardcodes it for the prize car, and the showroom capture reads it
