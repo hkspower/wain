@@ -10,15 +10,47 @@
  * way that depends on which script died. That exact mistake was made in this
  * repo (the font unification edited the boot script) and was caught by hand;
  * this file is so the next one is caught by a machine.
+ *
+ * EVERY .html IN THE DOCROOT, not just index.html. The CSP is set by
+ * `Header set` at the top of .htaccess, so it applies to every page the server
+ * hands out — and this only ever read one of them. card.html was added with no
+ * inline script precisely so it would need no hash, but "it has none today" is
+ * not a property anybody can see from the CSP; the check is what keeps it
+ * true, and it is now the same check for every page rather than a rule that
+ * happens to hold for the one page anyone looked at.
  */
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 
-const html = readFileSync(new URL('../sporta-site/public_html/index.html', import.meta.url), 'utf8')
-const ht = readFileSync(new URL('../sporta-site/public_html/.htaccess', import.meta.url), 'utf8')
+const DOCROOT = new URL('../sporta-site/public_html/', import.meta.url)
+const ht = readFileSync(new URL('.htaccess', DOCROOT), 'utf8')
 
-const scripts = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1])
-const inline = scripts.map((body) => createHash('sha256').update(body).digest('base64'))
+// PAGES THAT ARE NEVER DEPLOYED need no hash in the live CSP, and adding one
+// would be the wrong fix — it permanently widens the policy the real shop runs
+// under, for a page that must not be on the real shop.
+//
+// go-live.html is a pre-launch diagnostic: it reads config.js and reports
+// whether the shop is configured. Useful to the owner once, from their own
+// machine; a public page that describes the shop's setup to anyone who guesses
+// the filename otherwise. It is excluded from the upload package for the same
+// reason, alongside the setup and reset tools.
+//
+// If one of these is ever deployed, its inline script simply will not run —
+// so the exclusion has to stay honest. It is listed here by name, with the
+// reason, rather than pattern-matched: "anything with 'setup' in it" is how a
+// real page gets skipped by accident.
+const NOT_DEPLOYED = ['go-live.html']
+
+const pages = readdirSync(DOCROOT).filter((f) => f.endsWith('.html'))
+const inline = []
+for (const page of pages) {
+  const body = readFileSync(new URL(page, DOCROOT), 'utf8')
+  const found = [...body.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1])
+  const skip = NOT_DEPLOYED.includes(page)
+  console.log(`--   ${page}: ${found.length} inline script(s)${skip ? ' — not deployed, so not hashed' : ''}`)
+  if (skip) continue
+  for (const s of found) inline.push(createHash('sha256').update(s).digest('base64'))
+}
 const declared = [...ht.matchAll(/'sha256-([A-Za-z0-9+/=]+)'/g)].map((m) => m[1])
 
 let fails = 0

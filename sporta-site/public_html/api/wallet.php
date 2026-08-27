@@ -176,6 +176,99 @@ function wallet_send(string $bytes, string $filename): void {
 }
 
 // ------------------------------------------------------------------ loyalty
+// -------------------------------------------------------------- the balance
+//
+// The same points, as JSON, with NO certificate involved.
+//
+// Three reasons this exists rather than being a detail of ?r=loyalty:
+//
+//   1. THE CARD IS BLOCKED ON APPLE AND THE POINTS ARE NOT. Every ?r= route
+//      here refuses with 503 wallet_not_configured until the shop's Pass Type
+//      ID certificate is installed, which needs a paid Apple Developer
+//      membership and a Mac. Until that day a customer who has spent money has
+//      a balance nobody — including the shop — can see. The balance is a fact
+//      about the orders table; only the .pkpass needs Apple.
+//
+//   2. ANDROID. A .pkpass is an iOS file. Most of Kuwait is not on an iPhone,
+//      and handing those customers a download they cannot open is worse than
+//      telling them their balance in the page.
+//
+//   3. THE WEB PAGE HAS TO SHOW SOMETHING BEFORE IT OFFERS A DOWNLOAD. /card
+//      asks for a phone number and an order reference; answering with a file
+//      and nothing else means a customer who mistypes gets a 403 they cannot
+//      read. This answers with the name, the points and the tier, and the
+//      button appears after that.
+//
+// THE IDENTITY GATE IS THE SAME ONE, and it has to be: a balance carries the
+// customer's NAME and what they have spent. Phone alone would let anyone read
+// it for any number they have seen on a receipt, so a first look requires one
+// of that phone's own order references, exactly as issuing the pass does.
+//
+// It deliberately does NOT create a wallet_passes row. Reading a balance is
+// not issuing a card, and a row created by a lookup would make the "have they
+// got the card yet" question unanswerable.
+if ($r === 'balance') {
+    $phone = store_phone((string) ($_GET['phone'] ?? ''));
+    if ($phone === null) store_fail('invalid_phone');
+
+    // THE ORDER REFERENCE IS REQUIRED EVERY TIME, and this is where ?r=balance
+    // deliberately parts company with ?r=loyalty above.
+    //
+    // That route asks for a reference on the FIRST issue only, and afterwards
+    // hands back the existing pass on the phone number alone — defensible,
+    // because what it returns is a pass keyed to a serial, and the serial is
+    // what identifies the holder from then on.
+    //
+    // This route returns a NAME and what that person has spent. There is no
+    // serial in the answer and nothing about the second read is safer than the
+    // first. Written the same way as the pass route — skip the check once a
+    // wallet_passes row exists — it meant that the moment any customer took a
+    // card, their name and spend could be read by anyone who knew their phone
+    // number, which in Kuwait is anyone who has seen one of their receipts.
+    // Caught by live-api-test.mjs, which asks for a known phone with no
+    // reference and requires a 403; it answered 200 with the name in it.
+    $track = trim((string) ($_GET['track'] ?? ''));
+    $own = $db->prepare('select customer_name from orders where track_id = ? and customer_phone = ? limit 1');
+    $own->execute([$track, $phone]);
+    $found = $own->fetchColumn();
+    if ($found === false) store_fail('order_not_found_for_phone', 403);
+
+    $row = $db->prepare('select serial, name, issued_at from wallet_passes where kind = ? and phone = ? limit 1');
+    $row->execute(['loyalty', $phone]);
+    $existing = $row->fetch(PDO::FETCH_ASSOC) ?: null;
+
+    // The name on the card wins where there is one — it is what the customer
+    // will see on their phone, and a later order under a different spelling
+    // should not make the page and the card disagree.
+    $name = $existing['name'] ?? (string) $found;
+
+    // Computed from the orders, never read from points_at_issue — that column
+    // is a snapshot of what the last-issued pass SAYS, and the whole reason the
+    // pass route recomputes is that a stored balance drifts from the orders
+    // behind it. Reading it here would have made the page and the card
+    // disagree the first time a customer ordered again.
+    $pts = $db->prepare("select coalesce(sum(amount), 0), count(*) from orders where customer_phone = ? and payment_status = 'paid'");
+    $pts->execute([$phone]);
+    [$paidKwd, $orders] = $pts->fetch(PDO::FETCH_NUM);
+    $spentFils = (int) round(((float) $paidKwd) * 1000);
+    $points = intdiv($spentFils, WALLET_FILS_PER_POINT);
+
+    store_out([
+        'name'         => $name,
+        'points'       => $points,
+        'spent_fils'   => $spentFils,
+        'paid_orders'  => (int) $orders,
+        'tier'         => $points >= 500 ? 'gold' : ($points >= 200 ? 'silver' : 'base'),
+        'next_tier_at' => $points >= 500 ? null : ($points >= 200 ? 500 : 200),
+        'has_card'     => $existing !== null,
+        // Whether ?r=loyalty can answer at all. The page uses this to decide
+        // between offering the download and saying the card is not ready yet —
+        // rather than offering a button that returns a 503 the customer reads
+        // as the shop being broken.
+        'card_ready'   => $teamId !== '' && is_file($certDir . '/pass.pem'),
+    ]);
+}
+
 if ($r === 'loyalty') {
     if ($teamId === '') store_out(['error' => 'wallet_not_configured', 'hint' => 'set wallet_team_id in api/config.php'], 503);
 

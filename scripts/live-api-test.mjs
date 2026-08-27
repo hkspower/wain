@@ -120,5 +120,56 @@ if (probe.status === 503) {
     `a first pass for a phone with no matching order is refused (${notMine.status})`)
 }
 
+// ------------------------------------------ the loyalty balance, and /card
+//
+// ?r=balance is OUTSIDE the certificate check above on purpose — the points
+// are a fact about the orders table and only the .pkpass needs Apple. So this
+// section runs whether or not the shop has its certificate, which is the whole
+// reason the route exists: until that certificate arrives, this is the entire
+// loyalty programme.
+//
+// It carries the customer's NAME and what they have spent, so it is gated
+// exactly as issuing a pass is: a phone alone is not enough, because in Kuwait
+// a phone number is on every receipt anyone has ever been handed.
+{
+  const paid = await fetch(`${BASE}/api.php?r=products`)   // keep the base honest
+  check(paid.status === 200, 'the storefront is up for the balance checks')
+
+  const noPhone = await fetch(`${BASE}/wallet.php?r=balance`)
+  check(noPhone.status === 400, `a balance with no phone is refused (${noPhone.status})`)
+
+  const bad = await fetch(`${BASE}/wallet.php?r=balance&phone=123`)
+  check(bad.status === 400, `a balance with a nonsense phone is refused (${bad.status})`)
+
+  // THE ONE THAT MATTERS: a real Kuwaiti number, no order reference. This must
+  // not answer, or the route is a way to read any customer's name and spend
+  // from their phone number alone.
+  const noProof = await fetch(`${BASE}/wallet.php?r=balance&phone=96555512345`)
+  check(noProof.status === 403,
+    `a balance for a phone with no order reference is refused (${noProof.status})`)
+
+  const wrongPair = await fetch(`${BASE}/wallet.php?r=balance&phone=96555512345&track=${track}`)
+  check(wrongPair.status === 403,
+    `an order reference belonging to someone else is refused (${wrongPair.status})`)
+
+  // And the happy path, using the order this rig placed a moment ago. It is
+  // unpaid, so the balance is zero — which is the right answer and proves the
+  // sum is over PAID orders rather than over everything.
+  const mine = await fetch(`${BASE}/wallet.php?r=balance&phone=${phone}&track=${track}`)
+  const bal = await mine.json().catch(() => null)
+  check(mine.status === 200, `the customer's own phone and order are accepted (${mine.status})`)
+  check(bal && typeof bal.points === 'number' && bal.points === 0,
+    `an unpaid order earns no points yet (${bal?.points})`)
+  check(bal?.has_card === false, 'reading a balance does not issue a card')
+  for (const field of ['name', 'tier', 'paid_orders', 'card_ready']) {
+    check(bal !== null && field in bal, `the balance carries ${field}`)
+  }
+  // card_ready is what /card uses to decide between offering the download and
+  // saying the card is not ready. It must be a boolean either way — undefined
+  // would make the page offer a button that answers 503.
+  check(typeof bal?.card_ready === 'boolean',
+    `card_ready is a boolean the page can branch on (${JSON.stringify(bal?.card_ready)})`)
+}
+
 console.log(fails ? `\n${fails} failed` : '\nall ok')
 process.exit(fails ? 1 : 0)

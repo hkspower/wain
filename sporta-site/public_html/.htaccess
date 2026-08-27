@@ -136,6 +136,21 @@ Options -Indexes
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
+  # /card -> card.html. NOT the single-page app.
+  #
+  # The loyalty card is a flat page, because the storefront is a built bundle
+  # whose source this repository does not hold and adding a screen to it means
+  # editing minified JavaScript. So this must NOT fall through to index.html
+  # with the routes below it: the app's router has never heard of /card and
+  # would render the shop's own not-found page.
+  #
+  # An internal rewrite rather than a redirect, so the address the customer
+  # keeps — and puts on a receipt, or reads down the phone — is sporta.com.kw/card
+  # rather than a .html file. It sits ABOVE the alternation below only for
+  # readability; the two match different paths and cannot collide.
+  RewriteCond %{DOCUMENT_ROOT}/card.html -f
+  RewriteRule ^card/?$ /card.html [L]
+
   RewriteRule ^(shop|cart|checkout|about|contact|wishlist|track|returns|terms|privacy|review)/?$ /index.html [L]
   RewriteRule ^product/[^/]+/?$        /index.html [L]
   RewriteRule ^payment/result/?$       /index.html [L]
