@@ -51,11 +51,48 @@ the next caller presented if the file was missing, so deleting one file was a
 way to become admin. An absent token file now disables admin actions and says
 so.
 
-### This is a breaking change
+### This is a breaking change — and it breaks the live admin panel
 
 Anything relying on public `list`, public `del`, or public overwrite stops
-working. If the old admin panel (`admin.html`) uses those without sending
-`X-Wain-Admin`, it will need the token added. Check before you upload.
+working. The instruction here used to be "check `admin.html` before you
+upload". **That check has now been done, by reading the live file through the
+Hostinger connector, and the answer is that v3 breaks it.**
+
+`admin.html` builds its entire data layer on `api.php`. It pings
+`api.php?a=ping`, and if that answers `{wain:"api"}` it swaps its storage
+backend from `localStorage` to the API — the file's own comment calls this
+"مشترك حقيقي بين كل المستخدمين", real sharing between all users. Those four
+operations are:
+
+| panel calls | how | v3 verdict |
+| --- | --- | --- |
+| `?a=get&k=` | GET, no token | works — still public |
+| `{a:"set",k,v}` | POST, no token | **breaks on update** — v3 is create-only |
+| `?a=del&k=` | **GET**, no token | **breaks** — v3 is admin + POST only |
+| `?a=list&p=` | GET, no token | **breaks** — v3 is admin only |
+
+None of the four sends `X-Wain-Admin`. The panel *does* have a token — a
+separate admin path reads `localStorage['wain-api-token']` and sends the header
+— but the storage adapter never uses it.
+
+**And the failure would be silent.** The wrapper around the adapter swallows
+every error:
+
+```js
+async keys(p){ try{ … }catch(_){ return []; } }
+async set(k,v){ try{ … }catch(_){ return false; } }
+async del(k){  try{ … }catch(_){ return false; } }
+```
+
+So under v3 the shop's panel would not show an error. It would show **zero
+orders, zero queue tickets, zero everything**, and quietly fail to save. For an
+order screen that is the worst available failure mode: it looks fine and it is
+empty.
+
+**Do not upload `api.php` v3 until the adapter sends the token.** The change is
+small — thread the same `wain-api-token` through the `call()` helper in
+`admin.html` — but it has to land first, or at the same moment, and `admin.html`
+is not in this repository.
 
 ## Installing it
 
@@ -97,7 +134,13 @@ being gone. `wain.db` belongs beside `wain-admin.token`, above `public_html`,
 with `api.php` pointing at it there. That is a one-line change and a move, and
 it needs a moment when nothing is writing.
 
-And the question none of this answers: **if the old app is finished, delete
-`api.php`, `wain.db` and `admin.html` instead.** The Next site does ordering
-through Supabase with row-level security, and the whole of this file stops
-mattering.
+And the question this used to end on — *is the old app finished?* — is now
+answered: **no.** `admin.html` reads and writes `wain.db` through `api.php` on
+every load. Deleting `api.php` would not throw an error either; the adapter
+would fall through its `catch` to `localStorage` and the panel would carry on
+looking normal while quietly becoming per-device and empty.
+
+So the two paths are no longer equal. Deleting the old app is off the table
+until the business has somewhere else to run its orders from. Hardening it in
+place is the live option, and it needs the `admin.html` change above to go with
+it.

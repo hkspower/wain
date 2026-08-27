@@ -147,15 +147,23 @@ The live `/` **is** the Next export, and it contains **zero** references to
 `api.php`, `wain.db` or `admin.token`. So the public front door is already off
 the old API — visitors do not touch it.
 
-What is **not** known: `admin.html` (55KB, reachable at `/admin` through an
-.htaccess rewrite) was never read. It is the business's own panel and it is the
-most likely thing still calling `api.php`. `wain-app-latest.html` and
-`qareeb.html` — the old single-file app — almost certainly call it too, but
-nothing serves them at a route any more.
+`admin.html` (55KB, reachable at `/admin` through an .htaccess rewrite) **has
+now been read**, through the `hosa` connector, and it settles the question:
 
-**Check that before deleting anything.** In hPanel's file manager, open
-`admin.html` and search for `api.php`. If it is there, the shop's order screen
-dies with the API.
+**The old app is live.** `admin.html` references `api.php` six times. It pings
+`api.php?a=ping` on load and, when that answers, swaps its whole storage
+backend from `localStorage` to the API — `get`, `set`, `del` and `list`. It
+contains no reference to Supabase at all. Deleting `api.php` or `wain.db` would
+take the business's order screen with it.
+
+It would not even look broken. The adapter's `catch` falls back to
+`localStorage`, and the wrapper returns `[]` / `false` on every error, so the
+panel would keep rendering and silently show nothing. See `server/README.md`
+for the full table — the same finding also means the hardened `api.php` v3
+cannot be uploaded as it stands.
+
+`wain-app-latest.html` and `qareeb.html` — the old single-file app — almost
+certainly call it too, but nothing serves them at a route any more.
 
 ## 1. Back up, before touching anything
 
