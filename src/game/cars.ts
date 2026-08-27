@@ -1759,6 +1759,19 @@ function plateTexture(): THREE.CanvasTexture {
   return tex;
 }
 // ------------------------------------------------------------- stickers
+/**
+ * How far under the crease the flank wordmark hangs, and how tall it is.
+ *
+ * Named because two things need them: the wordmark itself, and the
+ * full-length graphic that has to stay clear of it. Measured on the
+ * fleet, the wordmark's bottom edge IS the floor of the rally pack —
+ * 0.222 m on the rx7 up to 0.432 on the gtr — so a second copy of these
+ * numbers somewhere else would be a clearance rule that silently stops
+ * being true the first time the wordmark moves.
+ */
+const WORDMARK_DROP = 0.22;
+const WORDMARK_H = 0.215;
+
 // The rally pack. Canvas-drawn, cached, and deliberately brand-free —
 // a roundel, a beltline stripe, an abstract falcon swoosh and the flag.
 
@@ -4145,21 +4158,33 @@ export function createCar(colors: CarColors): THREE.Group {
   // between them — which is the only way five silhouettes stay safe
   // without a table of exceptions per body.
   if (colors.fullStripe && !colors.simple) {
-    const bottom = bGeo.boundingBox!.min.y;
-    const STRIPE_H = 0.13;
-    // Top edge held 100 mm under the crease, and the whole band kept at
-    // least 60 mm off the sill, so on the low cars it rides up rather
-    // than hanging under the body.
-    const wanted = d.creaseY - 0.10 - STRIPE_H / 2;
-    const floor = bottom + 0.06 + STRIPE_H / 2;
-    const yMid = Math.max(floor, wanted);
-    const skin = decalMat(fullStripeTexture());
-    for (const sign of [-1, 1] as const) {
+    // Sized to the CLEAR BAND under the rally pack, the way the flag is
+    // sized to the band between the mouldings, rather than to a height
+    // that happened to look right on one body.
+    //
+    // The first attempt put it 100 mm under the crease and ran straight
+    // through the wordmark on all five silhouettes — the commit claimed
+    // the pack "lives between the crease and the beltline", which is
+    // simply not true of the wordmark, and the measurement said so
+    // immediately. The pack's real floor is the wordmark's bottom edge.
+    //
+    // Measured, the band between that edge and the sill is 192 mm on the
+    // rx7, 222 on the zx and 342 on the gtr, so 110 mm of graphic clears
+    // everything in the fleet with room at both ends.
+    const packFloor = d.creaseY - WORDMARK_DROP - WORDMARK_H / 2;
+    const bandTop = packFloor - 0.015;
+    const bandBot = bGeo.boundingBox!.min.y + 0.05;
+    const STRIPE_H = Math.min(0.11, bandTop - bandBot);
+    const yMid = (bandTop + bandBot) / 2;
+    // Too little clear paint to carry it is a reason to leave it off,
+    // not a reason to abandon the rest of the car.
+    const skin = STRIPE_H >= 0.05 ? decalMat(fullStripeTexture()) : null;
+    for (const sign of skin ? ([-1, 1] as const) : []) {
       // Sampled past both bumpers on purpose: columns that find no body
       // are dropped, so the run ends itself exactly where the shell does.
-      const geo = flankRibbon(bodyShell, sign, d.tail - 0.25, d.nose + 0.25, yMid, STRIPE_H, 0.012);
+      const geo = flankRibbon(bodyShell, sign, d.tail - 0.25, d.nose + 0.25, yMid, STRIPE_H, 0.012, 192);
       if (!geo) continue;
-      const strip = new THREE.Mesh(geo, skin);
+      const strip = new THREE.Mesh(geo, skin!);
       strip.userData.decal = "full-stripe";
       group.add(strip);
     }
@@ -4258,8 +4283,8 @@ export function createCar(colors: CarColors): THREE.Group {
       r.rotation.y = flipY;
       group.add(r);
       if (colors.name) {
-        const word = new THREE.Mesh(new THREE.PlaneGeometry(0.86, 0.215), nameDecal!);
-        word.position.set(sign * (sideX + 0.004), d.creaseY - 0.22, roundelZ);
+        const word = new THREE.Mesh(new THREE.PlaneGeometry(0.86, WORDMARK_H), nameDecal!);
+        word.position.set(sign * (sideX + 0.004), d.creaseY - WORDMARK_DROP, roundelZ);
         word.rotation.y = flipY;
         group.add(word);
       }
