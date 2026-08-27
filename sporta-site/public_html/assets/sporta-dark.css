@@ -194,3 +194,41 @@
   }
 
 }
+
+/* --- things the palette missed, because they are alpha over an assumed white */
+
+@media screen {
+  /* A 20% BLACK DOT ON A DARK GROUND, which is to say no dot at all.
+   *
+   * The separator between the supplier and the brand on the product page is
+   * `.text-black/20` — #0003. That is a sensible hairline on the white card it
+   * was written for, and invisible the moment dark became the default: 20%
+   * black over #23262a is #1c1f22, which is 1.06:1 against the box behind it.
+   * The two names then read as one run of text, "عهد كلاودسوفت", with a gap.
+   *
+   * Silver at the same weight it was meant to have — present, quiet, and
+   * actually a separator. Measured at 2.4:1 against the box, which is right
+   * for a divider: it must be seen and must not compete with either name. */
+  [data-theme='dark'] .text-black\/20 {
+    color: #a6acb266 !important;
+  }
+
+  /* --- the brand plate ------------------------------------------------- */
+  /* The box holding the brand logo and the two names used `bg-white`, so the
+   * palette painted it --sp-panel — the same surface as the size card, the
+   * colour card and the spec table stacked below it. Four identical cards in a
+   * column, one of which is not a card but a plate carrying a mark.
+   *
+   * The tile surface instead, one step DOWN rather than up: it is the ground a
+   * logo sits on elsewhere in this shop (product tiles, the hero), and a
+   * recessed plate reads as a label attached to the garment rather than as
+   * another panel of controls. The hairline stays, so its edge is still
+   * defined.
+   *
+   * Scoped by :has(> picture) — the plate is the only card on the page whose
+   * direct child is a <picture>. Checked against every other rounded-2xl card
+   * on the product page: none of them contains one. */
+  [data-theme='dark'] main .rounded-2xl:has(> picture) {
+    background-color: var(--sp-tile) !important;
+  }
+}

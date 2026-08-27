@@ -381,3 +381,28 @@ div.flex.h-full.w-full:has(> img:not([src^='data:'])) > img[src^='data:image/svg
     }
   }
 }
+
+/* ------------------------------------------ the product name, and its leading */
+/* THE BUILT STYLESHEET DECLARES .product-title TWICE, and the second undoes
+ * the first:
+ *
+ *     .product-title { font-size: clamp(1.875rem, 3.2vw, 2.5rem); line-height: 1.15 }
+ *     .product-title { line-height: 1.45 }
+ *
+ * 1.15 is what a display title wants and is plainly what was intended; 1.45 is
+ * body-text leading, and on an extrabold 30px heading it opens the two lines of
+ * a garment's name to 87px of stacked shouting. Restoring 1.15 takes the phone
+ * title from 87px to 69px and the desktop one from 119px to 94px, with nothing
+ * moved but the space between the lines.
+ *
+ * AND THE FLOOR OF THE CLAMP. 3.2vw only reaches 1.875rem at about 940px wide,
+ * so every phone gets the minimum — 30px at weight 800 across a 361px column,
+ * which is why it wraps to two lines on almost every garment in the catalogue.
+ * 1.5rem is 24px, still the largest text on the screen and still first. The
+ * CEILING is untouched: on a desktop the name is 40px exactly as before, which
+ * is where a 3.2vw title was designed to land.
+ */
+.product-title {
+  font-size: clamp(1.5rem, 3.2vw, 2.5rem) !important;
+  line-height: 1.15 !important;
+}
