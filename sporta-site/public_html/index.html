@@ -616,5 +616,15 @@
         }, 10000)
       })()
     </script>
+
+    <!-- The shop's phone, WhatsApp and email, made editable from /backends.
+         Those three are hard-coded in seven of the built bundles; this reads
+         the current values from the server and swaps them where they appear.
+         It exits without touching the DOM whenever they match what was built
+         in, which is every load until the owner changes one — so uploading it
+         moves nothing on the page. Deleting this tag reverts the feature.
+         `defer` because it must not delay first paint: a stale phone number
+         for 200ms is nothing, a slower shop is not. -->
+    <script src="/assets/contact.js" defer></script>
   </body>
 </html>

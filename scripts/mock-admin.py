@@ -98,7 +98,20 @@ def _fresh():
          'value': 2.000, 'min_order': 30.000, 'category': None, 'starts_at': None, 'ends_at': None,
          'usage_limit': 50, 'used_count': 50, 'active': True, 'live': False},
     ]
-    return {'orders': orders, 'items': items, 'variants': variants, 'discounts': discounts, 'next_discount': 3}
+    # The two settings the panel edits. The contact defaults are the values the
+    # built storefront hard-codes, exactly as STORE_SETTING_DEFAULTS has them —
+    # a mock that started them empty would let a screen be built against a
+    # blank contact card that production never shows.
+    settings = {
+        'promo_bar': {'enabled': True, 'text_en': 'Delivery within 24 hours in Kuwait',
+                      'text_ar': 'التوصيل خلال ٢٤ ساعة داخل الكويت',
+                      'href': '', 'starts_at': None, 'ends_at': None},
+        'contact': {'phone': '+965 2209 1914', 'whatsapp': '96522091914',
+                    'email': 'cs@sporta.com.kw', 'address_ar': '', 'address_en': '',
+                    'hours_ar': '', 'hours_en': '', 'instagram': ''},
+    }
+    return {'orders': orders, 'items': items, 'variants': variants, 'discounts': discounts,
+            'next_discount': 3, 'settings': settings}
 
 
 STATE = _fresh()
@@ -306,6 +319,50 @@ class Handler(BaseHTTPRequestHandler):
                     v['stock'] = stock
                     return self._json(200, {'sku': v['sku'], 'slug': v['slug'], 'size': v['size'], 'stock': stock})
             return self._json(400, {'error': 'sku_not_found'})
+
+        # settings_save mirrors admin.php's: two named settings, each with its
+        # own validation, and an unknown name is refused rather than stored.
+        # The refusals are the part worth having here — the panel's error
+        # messages are written against these exact codes, and a mock that
+        # accepted everything would let a screen ship with a message for a
+        # failure the real server produces and this one never did.
+        if r == 'settings_save':
+            name = b.get('name')
+            v = b.get('value') if isinstance(b.get('value'), dict) else {}
+            if name == 'promo_bar':
+                STATE['settings']['promo_bar'] = {
+                    'enabled': bool(v.get('enabled')),
+                    'text_en': str(v.get('text_en') or '')[:160],
+                    'text_ar': str(v.get('text_ar') or '')[:160],
+                    # An EXTERNAL href is blanked, not refused — same as
+                    # store_internal_href(), which returns null for anything
+                    # that is not a path on this site.
+                    'href': str(v.get('href') or '') if str(v.get('href') or '').startswith('/') else '',
+                    'starts_at': v.get('starts_at') or None,
+                    'ends_at': v.get('ends_at') or None,
+                }
+                return self._json(200, STATE['settings']['promo_bar'])
+            if name == 'contact':
+                email = str(v.get('email') or '').strip()
+                if email and '@' not in email:
+                    return self._json(400, {'error': 'invalid_email'})
+                wa = re.sub(r'[^0-9]', '', str(v.get('whatsapp') or ''))
+                if wa:
+                    wa = re.sub(r'^(00965|965)?', '965', wa[-8:])
+                    if len(wa) != 11:
+                        return self._json(400, {'error': 'invalid_whatsapp'})
+                STATE['settings']['contact'] = {
+                    'phone': str(v.get('phone') or '')[:32],
+                    'whatsapp': wa,
+                    'email': email,
+                    'address_ar': str(v.get('address_ar') or '')[:160],
+                    'address_en': str(v.get('address_en') or '')[:160],
+                    'hours_ar': str(v.get('hours_ar') or '')[:120],
+                    'hours_en': str(v.get('hours_en') or '')[:120],
+                    'instagram': re.sub(r'[^A-Za-z0-9._]', '', str(v.get('instagram') or '')[:40]),
+                }
+                return self._json(200, STATE['settings']['contact'])
+            return self._json(400, {'error': 'unknown_setting'})
 
         if r == 'discount_save':
             code = b.get('code')

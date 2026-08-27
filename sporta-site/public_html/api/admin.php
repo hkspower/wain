@@ -1004,6 +1004,50 @@ if ($r === 'settings_save' && $method === 'POST') {
             'starts_at' => store_datetime($v['starts_at'] ?? null),
             'ends_at'   => store_datetime($v['ends_at'] ?? null),
         ]);
+    } elseif ($name === 'contact') {
+        // HOW TO REACH THE SHOP.
+        //
+        // Every field is optional and an empty one means "do not show this",
+        // which is why nothing here is store_fail'd for being blank — the
+        // owner clearing the address should clear the address, not refuse the
+        // whole save and lose the edit they made to the phone number beside it.
+        //
+        // What IS refused is a value that is present and wrong, because that is
+        // the one that reaches a customer: a mistyped email on the contact page
+        // is a customer who writes to nobody, and the shop never finds out.
+        $email = trim((string)($v['email'] ?? ''));
+        if ($email !== '' && store_email($email) === null) store_fail('invalid_email');
+
+        // THE WHATSAPP NUMBER GOES THROUGH store_phone(), the same function the
+        // checkout uses — so it is stored in the one spelling the rest of the
+        // shop speaks, with the country code, rather than however it was typed.
+        // wa.me refuses anything else, and a wa.me link that opens on an error
+        // is indistinguishable from the shop having no WhatsApp at all.
+        $wa = trim((string)($v['whatsapp'] ?? ''));
+        if ($wa !== '') {
+            $wa = store_phone($wa);
+            if ($wa === null) store_fail('invalid_whatsapp');
+        }
+
+        // The DISPLAY phone is deliberately NOT normalised. It is what appears
+        // on the page and on the invoice, and shops write their number with
+        // spaces for a reason; forcing it to 96522091914 would make every page
+        // read like a database field. It is only ever printed, never dialled
+        // programmatically — the tel: link is built from its digits at render.
+        store_setting_save($db, 'contact', [
+            'phone'      => mb_substr(trim((string)($v['phone'] ?? '')), 0, 32),
+            'whatsapp'   => (string)$wa,
+            'email'      => $email,
+            'address_ar' => mb_substr(trim((string)($v['address_ar'] ?? '')), 0, 160),
+            'address_en' => mb_substr(trim((string)($v['address_en'] ?? '')), 0, 160),
+            'hours_ar'   => mb_substr(trim((string)($v['hours_ar'] ?? '')), 0, 120),
+            'hours_en'   => mb_substr(trim((string)($v['hours_en'] ?? '')), 0, 120),
+            // An instagram HANDLE, not a URL: the link is built from it, so a
+            // full https:// pasted in here would produce a broken address. The
+            // leading @ people habitually type is stripped rather than refused.
+            'instagram'  => preg_replace('/[^A-Za-z0-9._]/', '',
+                                mb_substr(trim((string)($v['instagram'] ?? '')), 0, 40)),
+        ]);
     } else {
         store_fail('unknown_setting');
     }

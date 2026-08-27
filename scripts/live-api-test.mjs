@@ -10,6 +10,8 @@
  * empty body and the app fell back to its bundled catalogue — silently, and for
  * ever. A fallback that good hides the absence of a backend completely.
  */
+import { readFileSync, readdirSync } from 'node:fs'
+
 const BASE = process.env.SITE_API ?? 'http://127.0.0.1:4300/api'
 
 let fails = 0
@@ -169,6 +171,65 @@ if (probe.status === 503) {
   // would make the page offer a button that answers 503.
   check(typeof bal?.card_ready === 'boolean',
     `card_ready is a boolean the page can branch on (${JSON.stringify(bal?.card_ready)})`)
+}
+
+// ------------------------------------------------------------------ contact
+//
+// How to reach the shop, editable from /backends. Public, because all of it is
+// already printed on every page of the storefront.
+//
+// THE DEFAULTS ARE THE CONTRACT, and that is what most of this checks. The
+// three values the built bundle hard-codes are also this route's defaults, and
+// assets/contact.js relies on that: it compares what the server says against
+// what the build contains and does nothing when they match. If a default here
+// ever drifted from the bundle, the script would start rewriting the shop's
+// phone number on a site where nobody had asked it to.
+{
+  const res = await fetch(`${BASE}/api.php?r=contact`)
+  const c = await res.json().catch(() => null)
+  check(res.status === 200 && c !== null, `?r=contact answers (${res.status})`)
+
+  for (const field of ['phone', 'whatsapp', 'email', 'address_ar', 'address_en',
+                       'hours_ar', 'hours_en', 'instagram', 'phone_e164']) {
+    check(c !== null && field in c, `it carries ${field}`)
+  }
+
+  // phone_e164 is built by the server so that three consumers do not each
+  // strip the display number their own way. A tel: href with a space in it is
+  // not reliably dialable.
+  check(typeof c?.phone_e164 === 'string' && !/[^0-9+]/.test(c.phone_e164),
+    `phone_e164 is dialable (${c?.phone_e164})`)
+
+  // AND THE THREE THAT THE WEBSITE SCRIPT PINS. Read out of contact.js rather
+  // than written here, so the two cannot drift apart quietly: the script's
+  // BUILT block is the list of literals it will replace, and every one of them
+  // has to be what this route defaults to.
+  const script = readFileSync(new URL('../sporta-site/public_html/assets/contact.js', import.meta.url), 'utf8')
+  const built = Object.fromEntries(
+    [...script.matchAll(/(phone|whatsapp|email):\s*'([^']+)'/g)].map((m) => [m[1], m[2]]))
+  for (const k of ['phone', 'whatsapp', 'email']) {
+    check(built[k] !== undefined && built[k] === c?.[k],
+      `contact.js pins ${k} = ${JSON.stringify(built[k])}, and the server defaults to the same`)
+  }
+
+  // AND THE LITERAL MUST BE IN THE BUNDLE, which is the check that actually
+  // matters. The script replaces exact strings; a literal the built JavaScript
+  // does not contain matches nothing, so the owner changes the shop's phone
+  // number in the panel, the panel says "Saved", and every page goes on
+  // showing the old one. That failure is silent at every layer — the setting
+  // is stored, the route serves it, the script runs, and nothing happens.
+  //
+  // The bundle is the ground truth here, not the server: this asks whether the
+  // string the script is hunting for is really in the pages it will hunt
+  // through.
+  const bundle = readdirSync(new URL('../sporta-site/public_html/assets/', import.meta.url))
+    .filter((f) => f.endsWith('.js') && f !== 'contact.js' && f !== 'card.js')
+    .map((f) => readFileSync(new URL(`../sporta-site/public_html/assets/${f}`, import.meta.url), 'utf8'))
+    .join('\n')
+  for (const k of ['phone', 'whatsapp', 'email']) {
+    check(built[k] !== undefined && bundle.includes(built[k]),
+      `and the built storefront really contains ${JSON.stringify(built[k])} — so replacing it does something`)
+  }
 }
 
 console.log(fails ? `\n${fails} failed` : '\nall ok')

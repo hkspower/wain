@@ -206,6 +206,64 @@ async function call<T>(route: string, body?: unknown): Promise<T> {
   }
 }
 
+// ------------------------------------------------------------------ settings
+//
+// Two settings the panel can edit, and they are deliberately separate types
+// rather than one bag of strings: the server validates them differently, and a
+// single `Record<string, string>` would have let the top bar's date window be
+// sent as contact details and vice versa, with the mismatch only showing up as
+// a 400 from a route that does not say which field it disliked.
+
+/** The strip above the header. Both languages, because the shop is bilingual
+ *  and a bar that only exists in one is worse than no bar. */
+export interface PromoBar {
+  enabled: boolean;
+  textEn: string;
+  textAr: string;
+  /** An INTERNAL path only — the server refuses anything else. Empty = no link. */
+  href: string;
+  /** YYYY-MM-DD, or null for "no bound". Both ends are independent. */
+  startsAt: string | null;
+  endsAt: string | null;
+}
+
+/** How to reach the shop. Every field is optional; empty means "do not show". */
+export interface ContactDetails {
+  /** As it should be PRINTED, spaces and all. The tel: link is built from it. */
+  phone: string;
+  /** Digits with the country code — wa.me accepts nothing else. The server
+   *  normalises whatever is typed here through the same function the checkout
+   *  uses, so this comes back canonical after a save. */
+  whatsapp: string;
+  email: string;
+  addressAr: string;
+  addressEn: string;
+  hoursAr: string;
+  hoursEn: string;
+  /** A handle, not a URL — the link is built from it. */
+  instagram: string;
+}
+
+interface WirePromoBar {
+  enabled: boolean;
+  text_en: string;
+  text_ar: string;
+  href: string;
+  starts_at: string | null;
+  ends_at: string | null;
+}
+
+interface WireContact {
+  phone: string;
+  whatsapp: string;
+  email: string;
+  address_ar: string;
+  address_en: string;
+  hours_ar: string;
+  hours_en: string;
+  instagram: string;
+}
+
 // --------------------------------------------- the server's shapes, adapted
 
 /** ?r=orders rows, verbatim from admin.php — KWD decimals, two status axes. */
@@ -447,6 +505,77 @@ export const adminApi = {
    *  change made in a hurry, usually because a promotion is costing money. */
   setDiscountActive: (id: number, active: boolean) =>
     call<{ ok: true }>('discount_active', { id, active }),
+
+  // ---------------------------------------------------------------- settings
+  //
+  // THE PROMO BAR IS READ FROM THE STOREFRONT ROUTE, NOT AN ADMIN ONE.
+  // admin.php has settings_save but no settings_get; the current values come
+  // back on api.php?r=slides, which is where the storefront itself reads them.
+  // That is not a workaround — it is the right source. Reading the panel's
+  // idea of the bar from a different endpoint than the shop's would let the
+  // two disagree, and the disagreement would be invisible until a customer
+  // saw a bar the panel said was off.
+  promoBar: async (): Promise<PromoBar> => {
+    const res = await fetch(`${API_BASE}/api.php?r=slides`, { headers: { Accept: 'application/json' } });
+    if (!res.ok) throw new Error(`slides: HTTP ${res.status}`);
+    const w = ((await res.json()) as { promo_bar?: WirePromoBar }).promo_bar;
+    return {
+      enabled: !!w?.enabled,
+      textEn: w?.text_en ?? '',
+      textAr: w?.text_ar ?? '',
+      href: w?.href ?? '',
+      // The server stores a datetime and the panel edits a date. Trimming to
+      // ten characters here rather than in the screen keeps every consumer
+      // reading the same thing.
+      startsAt: w?.starts_at ? w.starts_at.slice(0, 10) : null,
+      endsAt: w?.ends_at ? w.ends_at.slice(0, 10) : null,
+    };
+  },
+
+  savePromoBar: (v: PromoBar) =>
+    call<WirePromoBar>('settings_save', {
+      name: 'promo_bar',
+      value: {
+        enabled: v.enabled,
+        text_en: v.textEn,
+        text_ar: v.textAr,
+        href: v.href,
+        starts_at: v.startsAt,
+        ends_at: v.endsAt,
+      },
+    }),
+
+  /** Also the storefront's own route, for the same reason as the bar. */
+  contact: async (): Promise<ContactDetails> => {
+    const res = await fetch(`${API_BASE}/api.php?r=contact`, { headers: { Accept: 'application/json' } });
+    if (!res.ok) throw new Error(`contact: HTTP ${res.status}`);
+    const w = (await res.json()) as WireContact;
+    return {
+      phone: w.phone ?? '',
+      whatsapp: w.whatsapp ?? '',
+      email: w.email ?? '',
+      addressAr: w.address_ar ?? '',
+      addressEn: w.address_en ?? '',
+      hoursAr: w.hours_ar ?? '',
+      hoursEn: w.hours_en ?? '',
+      instagram: w.instagram ?? '',
+    };
+  },
+
+  saveContact: (v: ContactDetails) =>
+    call<WireContact>('settings_save', {
+      name: 'contact',
+      value: {
+        phone: v.phone,
+        whatsapp: v.whatsapp,
+        email: v.email,
+        address_ar: v.addressAr,
+        address_en: v.addressEn,
+        hours_ar: v.hoursAr,
+        hours_en: v.hoursEn,
+        instagram: v.instagram,
+      },
+    }),
 
   deleteDiscount: (id: number) => call<{ ok: true }>('discount_delete', { id }),
 };

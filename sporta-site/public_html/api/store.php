@@ -1467,6 +1467,27 @@ const STORE_SETTING_DEFAULTS = [
     'hero'      => ['speed_ms' => 6500, 'shuffle' => false, 'size' => 'tall', 'autoplay' => true],
     'promo_bar' => ['enabled' => false, 'text_en' => '', 'text_ar' => '', 'href' => '',
                     'starts_at' => null, 'ends_at' => null],
+    // HOW TO REACH THE SHOP. Hard-coded into the built storefront in seven
+    // places — Contact, About, Privacy, Terms, Returns, Invoice and the footer
+    // — which meant changing the shop's phone number was a rebuild by whoever
+    // holds the site's source, and the invoice would keep the old one until
+    // they got round to it.
+    //
+    // THE DEFAULTS ARE THE VALUES ALREADY IN THE BUNDLE, and that is the whole
+    // safety of this. Until somebody saves something in the panel, every
+    // consumer reads exactly what the built pages already say, so adding this
+    // changes nothing on screen. An empty default would have blanked the
+    // shop's phone number on every page the first time this deployed.
+    'contact'   => [
+        'phone'     => '+965 2209 1914',
+        'whatsapp'  => '96522091914',
+        'email'     => 'cs@sporta.com.kw',
+        'address_ar' => '',
+        'address_en' => '',
+        'hours_ar'  => '',
+        'hours_en'  => '',
+        'instagram' => '',
+    ],
 ];
 
 function store_setting(PDO $db, string $name): array {

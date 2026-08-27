@@ -90,6 +90,11 @@ $STORE_LIMITS = [
     // handful of questions once, changes their mind twice, and is done.
     'size_advice' => [90, 300],
     'size_chart'  => [600, 60],
+    // The shop's phone number and address. A read, and a tiny one, but it is
+    // fetched by the website's contact script on pages that show those details
+    // — so it is bounded like the other reads rather than left off the table,
+    // where the fail-closed default below would throttle it at half the rate.
+    'contact'     => [600, 60],
     'order'       => [60, 600],   // queues mail to the warehouse — see ?r=order
     // A review link is signed, so this is not guessable — but a valid link
     // held by one person must not become a way to hammer the database, and
@@ -242,6 +247,36 @@ if ($r === 'products') {
 // with a content hash, and the browser caches the bytes for a year. Inlining
 // them would put ~700 kB of base64 into a JSON document that must not be
 // cached at all, on every single page load.
+// ------------------------------------------------------------------ contact
+//
+// How to reach the shop: phone, WhatsApp, email, address, hours, instagram.
+//
+// A ROUTE OF ITS OWN rather than another key on ?r=slides, which is where the
+// promo bar rides. Different things change at different times — the promo bar
+// is a weekly marketing edit, the phone number is a once-a-decade one — and
+// folding them together would mean the pages that only want a phone number
+// pull the whole hero payload to get it.
+//
+// PUBLIC, because it is the shop's address. All of it is already printed on
+// every page of the storefront and on every invoice; there is nothing here a
+// customer is not meant to see, and nothing a competitor could not read off
+// the contact page in a browser.
+//
+// The defaults in STORE_SETTING_DEFAULTS are the values already hard-coded in
+// the built bundle, so this route answers correctly before anybody has ever
+// opened the panel — which is what lets the website's swap script run from the
+// day it is uploaded without blanking the shop's phone number.
+if ($r === 'contact') {
+    $c = store_setting($db, 'contact');
+    // The tel: href, built here rather than in each consumer. `phone` is a
+    // DISPLAY string with spaces in it because that is how a shop writes its
+    // number; a tel: link containing spaces is not reliably dialable, and
+    // three separate consumers each stripping it their own way is three places
+    // for it to be done differently.
+    $c['phone_e164'] = preg_replace('/[^0-9+]/', '', (string)$c['phone']);
+    store_out($c);
+}
+
 if ($r === 'slides') {
     $rows = $db->query(
         'select id, sort, title_en, title_ar, subtitle_en, subtitle_ar,
