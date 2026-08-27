@@ -351,6 +351,68 @@ export const CROWN: Record<"body" | "canopy" | "roof", CrownSpec> = {
 };
 
 /**
+ * The crown, per silhouette.
+ *
+ * CROWN above is one spec per SHELL TYPE — body, canopy, roof — and
+ * every one of the six silhouettes was handed the same three. So a
+ * pickup's doors bulged exactly as far as a mid-engined coupe's, and the
+ * glasshouse leaned in by the same 85 mm on a saloon as on a low sports
+ * car. The cross-section was the one thing about these bodies that did
+ * not vary at all; the differences between them came entirely from the
+ * side profile.
+ *
+ * What actually differs between these shapes:
+ *
+ *   the low coupes tuck hard and lean their glass in hard — tumblehome
+ *     is most of what separates a sports car's greenhouse from a box —
+ *     and carry the shoulder low down the flank.
+ *   a pony coupe is about haunches: less tuck than a sports car, but the
+ *     widest point sits HIGH, which is what reads as a shoulder over the
+ *     rear wheel.
+ *   a saloon is upright. Softer tuck, flatter roof, glass that stands
+ *     much nearer vertical.
+ *   a hatch and a pickup are nearly slab-sided, and their roofs are
+ *     close to flat, because that is what a tall practical body is.
+ *
+ * Each is the base spec scaled rather than a fresh set of numbers, so
+ * the relationship CROWN describes — a body that bulges, a canopy that
+ * leans, a roof that is nearly all crown — survives on every car.
+ */
+const CROWN_BY_STYLE: Record<BodyStyle, Record<"body" | "canopy" | "roof", CrownSpec>> = {
+  zx: {
+    body: { tuck: 0.075, roof: 0.032, shoulder: 0.58 },
+    canopy: { tuck: 0.105, roof: 0.028, shoulder: 0.24 },
+    roof: { tuck: 0.034, roof: 0.036, shoulder: 0.5 },
+  },
+  rx7: {
+    body: { tuck: 0.075, roof: 0.032, shoulder: 0.58 },
+    canopy: { tuck: 0.105, roof: 0.028, shoulder: 0.24 },
+    roof: { tuck: 0.034, roof: 0.036, shoulder: 0.5 },
+  },
+  gtr: {
+    body: { tuck: 0.068, roof: 0.030, shoulder: 0.60 },
+    canopy: { tuck: 0.098, roof: 0.027, shoulder: 0.25 },
+    roof: { tuck: 0.032, roof: 0.035, shoulder: 0.5 },
+  },
+  pony: {
+    body: { tuck: 0.062, roof: 0.028, shoulder: 0.68 },
+    canopy: { tuck: 0.090, roof: 0.026, shoulder: 0.27 },
+    roof: { tuck: 0.030, roof: 0.032, shoulder: 0.5 },
+  },
+  sedan: {
+    body: { tuck: 0.045, roof: 0.026, shoulder: 0.62 },
+    canopy: { tuck: 0.072, roof: 0.024, shoulder: 0.28 },
+    roof: { tuck: 0.026, roof: 0.028, shoulder: 0.5 },
+  },
+  hatch: {
+    body: { tuck: 0.034, roof: 0.022, shoulder: 0.64 },
+    canopy: { tuck: 0.060, roof: 0.022, shoulder: 0.30 },
+    roof: { tuck: 0.022, roof: 0.024, shoulder: 0.5 },
+  },
+};
+
+
+/**
  * Reshape a shell\'s cross-section in place. Car frame: x across, y up,
  * z along the length.
  *
@@ -591,7 +653,7 @@ const bodyGeo = extrudeProfile(
   1.840,
   BODY_EDGE,
   2,
-  CROWN.body,
+  CROWN_BY_STYLE.sedan.body,
 );
 
 // Raked glasshouse: windshield, roofline, rear window
@@ -605,7 +667,7 @@ const canopyGeo = extrudeProfile(
   1.600,
   CANOPY_EDGE,
   0,
-  CROWN.canopy,
+  CROWN_BY_STYLE.sedan.canopy,
 );
 
 // Painted roof panel over the glass
@@ -619,7 +681,7 @@ const roofGeo = extrudeProfile(
   1.420,
   ROOF_EDGE,
   0,
-  CROWN.roof,
+  CROWN_BY_STYLE.sedan.roof,
 );
 
 // ---- Z32-style wedge: long flat nose, cab-back glasshouse, fastback
@@ -641,7 +703,7 @@ const zxBodyGeo = extrudeProfile(
   2.080,
   BODY_EDGE,
   2,
-  CROWN.body,
+  CROWN_BY_STYLE.zx.body,
 );
 const zxCanopyGeo = extrudeProfile(
   [
@@ -653,7 +715,7 @@ const zxCanopyGeo = extrudeProfile(
   1.776,
   CANOPY_EDGE,
   0,
-  CROWN.canopy,
+  CROWN_BY_STYLE.zx.canopy,
 );
 const zxRoofGeo = extrudeProfile(
   [
@@ -665,7 +727,7 @@ const zxRoofGeo = extrudeProfile(
   1.582,
   ROOF_EDGE,
   0,
-  CROWN.roof,
+  CROWN_BY_STYLE.zx.roof,
 );
 
 // ---- The American pony coupe: a very long, very low nose, a windscreen
@@ -694,7 +756,7 @@ const ponyBodyGeo = extrudeProfile(
   1.92,
   BODY_EDGE,
   2,
-  CROWN.body,
+  CROWN_BY_STYLE.pony.body,
 );
 const ponyCanopyGeo = extrudeProfile(
   [
@@ -706,7 +768,7 @@ const ponyCanopyGeo = extrudeProfile(
   1.63,
   CANOPY_EDGE,
   0,
-  CROWN.canopy,
+  CROWN_BY_STYLE.pony.canopy,
 );
 const ponyRoofGeo = extrudeProfile(
   [
@@ -718,7 +780,7 @@ const ponyRoofGeo = extrudeProfile(
   1.45,
   ROOF_EDGE,
   0,
-  CROWN.roof,
+  CROWN_BY_STYLE.pony.roof,
 );
 
 // ---- R34-style coupe: short deck up high, upright glasshouse, thick
@@ -740,7 +802,7 @@ const gtrBodyGeo = extrudeProfile(
   1.985,
   BODY_EDGE,
   2,
-  CROWN.body,
+  CROWN_BY_STYLE.gtr.body,
 );
 const gtrCanopyGeo = extrudeProfile(
   [
@@ -752,7 +814,7 @@ const gtrCanopyGeo = extrudeProfile(
   1.701,
   CANOPY_EDGE,
   0,
-  CROWN.canopy,
+  CROWN_BY_STYLE.gtr.canopy,
 );
 const gtrRoofGeo = extrudeProfile(
   [
@@ -764,7 +826,7 @@ const gtrRoofGeo = extrudeProfile(
   1.500,
   ROOF_EDGE,
   0,
-  CROWN.roof,
+  CROWN_BY_STYLE.gtr.roof,
 );
 
 // ---- FD-style curves: a low pop-up nose, a bubble glasshouse and
@@ -787,7 +849,7 @@ const rx7BodyGeo = extrudeProfile(
   1.961,
   BODY_EDGE,
   2,
-  CROWN.body,
+  CROWN_BY_STYLE.rx7.body,
 );
 const rx7CanopyGeo = extrudeProfile(
   [
@@ -799,7 +861,7 @@ const rx7CanopyGeo = extrudeProfile(
   1.635,
   CANOPY_EDGE,
   2,
-  CROWN.canopy,
+  CROWN_BY_STYLE.rx7.canopy,
 );
 const rx7RoofGeo = extrudeProfile(
   [
@@ -811,7 +873,7 @@ const rx7RoofGeo = extrudeProfile(
   1.429,
   ROOF_EDGE,
   2,
-  CROWN.roof,
+  CROWN_BY_STYLE.rx7.roof,
 );
 
 // ---- Hot hatch: the shape a fast three-door has had for fifty years.
@@ -837,7 +899,7 @@ const hatchBodyGeo = extrudeProfile(
   1.811,
   BODY_EDGE,
   2,
-  CROWN.body,
+  CROWN_BY_STYLE.hatch.body,
 );
 // The cabin sits FORWARD. Authored first with the screen base back at
 // z 0.74 it came out with a long bonnet and the glasshouse pushed over
@@ -855,7 +917,7 @@ const hatchCanopyGeo = extrudeProfile(
   1.556,
   CANOPY_EDGE,
   2,
-  CROWN.canopy,
+  CROWN_BY_STYLE.hatch.canopy,
 );
 const hatchRoofGeo = extrudeProfile(
   [
@@ -867,7 +929,7 @@ const hatchRoofGeo = extrudeProfile(
   1.418,
   ROOF_EDGE,
   2,
-  CROWN.roof,
+  CROWN_BY_STYLE.hatch.roof,
 );
 
 /**
