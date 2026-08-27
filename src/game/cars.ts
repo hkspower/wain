@@ -505,6 +505,28 @@ function extrudeProfile(
   return geo;
 }
 
+/**
+ * The radius on a panel edge, in metres.
+ *
+ * These were 0.13 to 0.17 on the bodies — a 130 to 170 mm roll on an
+ * edge that a real car turns in ten or twenty. At that radius there is
+ * no edge left to catch a light: the shoulder line is a slow gradient
+ * across a sixth of the car's width, which is why the fleet read as
+ * soap. Measured before the change, only 19 to 26% of a body faced
+ * squarely out of its own side.
+ *
+ * Not zero, and not one number for everything. The bevel is where the
+ * specular line lives, so it has to be wide enough for a headlight
+ * sweeping past to run ALONG it rather than pop across it — with the 9
+ * segments extrudeProfile uses, 50 mm is five and a half millimetres a
+ * facet, which is finer than the shell's own curvature elsewhere. And
+ * the three shells are different things: a body has real panel edges, a
+ * canopy is glass in a frame, a roof is a pressing that genuinely rolls.
+ */
+const BODY_EDGE = 0.05;
+const CANOPY_EDGE = 0.04;
+const ROOF_EDGE = 0.03;
+
 // Beltline-down body: bumper > hood wedge > trunk, with rounded edges
 const bodyGeo = extrudeProfile(
   [
@@ -521,7 +543,7 @@ const bodyGeo = extrudeProfile(
     [1.85, 0.24],
   ],
   1.840,
-  0.14,
+  BODY_EDGE,
   2,
   CROWN.body,
 );
@@ -535,7 +557,7 @@ const canopyGeo = extrudeProfile(
     [-1.5, 0.94],
   ],
   1.600,
-  0.1,
+  CANOPY_EDGE,
   0,
   CROWN.canopy,
 );
@@ -549,7 +571,7 @@ const roofGeo = extrudeProfile(
     [-0.76, 1.42],
   ],
   1.420,
-  0.06,
+  ROOF_EDGE,
   0,
   CROWN.roof,
 );
@@ -571,7 +593,7 @@ const zxBodyGeo = extrudeProfile(
     [1.95, 0.2],
   ],
   2.080,
-  0.15,
+  BODY_EDGE,
   2,
   CROWN.body,
 );
@@ -583,7 +605,7 @@ const zxCanopyGeo = extrudeProfile(
     [-2.0, 0.78], // fastback all the way down
   ],
   1.776,
-  0.1,
+  CANOPY_EDGE,
   0,
   CROWN.canopy,
 );
@@ -595,7 +617,7 @@ const zxRoofGeo = extrudeProfile(
     [-0.9, 1.2],
   ],
   1.582,
-  0.05,
+  ROOF_EDGE,
   0,
   CROWN.roof,
 );
@@ -624,7 +646,7 @@ const ponyBodyGeo = extrudeProfile(
     [2.0, 0.2],
   ],
   1.92,
-  0.15,
+  BODY_EDGE,
   2,
   CROWN.body,
 );
@@ -636,7 +658,7 @@ const ponyCanopyGeo = extrudeProfile(
     [-2.16, 0.87], // and the hatch glass runs all the way to the deck
   ],
   1.63,
-  0.1,
+  CANOPY_EDGE,
   0,
   CROWN.canopy,
 );
@@ -648,7 +670,7 @@ const ponyRoofGeo = extrudeProfile(
     [-0.98, 1.24],
   ],
   1.45,
-  0.05,
+  ROOF_EDGE,
   0,
   CROWN.roof,
 );
@@ -670,7 +692,7 @@ const gtrBodyGeo = extrudeProfile(
     [1.88, 0.22],
   ],
   1.985,
-  0.13,
+  BODY_EDGE,
   2,
   CROWN.body,
 );
@@ -682,7 +704,7 @@ const gtrCanopyGeo = extrudeProfile(
     [-1.32, 0.99],
   ],
   1.701,
-  0.1,
+  CANOPY_EDGE,
   0,
   CROWN.canopy,
 );
@@ -694,7 +716,7 @@ const gtrRoofGeo = extrudeProfile(
     [-0.64, 1.44],
   ],
   1.500,
-  0.06,
+  ROOF_EDGE,
   0,
   CROWN.roof,
 );
@@ -717,7 +739,7 @@ const rx7BodyGeo = extrudeProfile(
     [1.88, 0.2],
   ],
   1.961,
-  0.17, // the fattest bevel in the fleet — everything rolls
+  BODY_EDGE,
   2,
   CROWN.body,
 );
@@ -729,7 +751,7 @@ const rx7CanopyGeo = extrudeProfile(
     [-1.68, 0.78], // long rounded hatch glass
   ],
   1.635,
-  0.12,
+  CANOPY_EDGE,
   2,
   CROWN.canopy,
 );
@@ -741,7 +763,7 @@ const rx7RoofGeo = extrudeProfile(
     [-0.68, 1.25],
   ],
   1.429,
-  0.05,
+  ROOF_EDGE,
   2,
   CROWN.roof,
 );
@@ -767,7 +789,7 @@ const hatchBodyGeo = extrudeProfile(
     [1.7, 0.22],
   ],
   1.811,
-  0.13,
+  BODY_EDGE,
   2,
   CROWN.body,
 );
@@ -785,7 +807,7 @@ const hatchCanopyGeo = extrudeProfile(
     [-1.86, 1.04], // hatch glass, raked but still upright
   ],
   1.556,
-  0.1,
+  CANOPY_EDGE,
   2,
   CROWN.canopy,
 );
@@ -797,7 +819,7 @@ const hatchRoofGeo = extrudeProfile(
     [-0.92, 1.43],
   ],
   1.418,
-  0.05,
+  ROOF_EDGE,
   2,
   CROWN.roof,
 );

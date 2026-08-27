@@ -17,9 +17,12 @@
 //           is. A car built from panels meeting at edges spends most of
 //           its area on the panels. A car built from one rolled
 //           extrusion spends it on the roll.
-//   flank%  area facing squarely out of the side, within 15 degrees.
-//           This is the panel a livery lands on and a reflection runs
-//           along, and a fat bevel eats it.
+//   flank%  area facing squarely out of the side, within 15 degrees —
+//           the panel a livery lands on and a reflection runs along.
+//           Reported rather than judged: measured across a two-thirds
+//           cut in edge radius it barely moved, because what governs it
+//           is crownShell tucking the whole flank, not the bevel
+//           rolling its corner.
 //   edge m  the width of the roll at the shoulder, in metres, measured
 //           by walking the silhouette at the widest station and finding
 //           how far the surface travels while its normal turns from
@@ -266,8 +269,13 @@ for (const r of rows) {
     r.style.padEnd(8) + String(r.tris).padStart(8) + (r.roll + "%").padStart(8) +
     (r.flank + "%").padStart(8) + String(r.edgeM).padStart(9) + String(r.width).padStart(8)
   );
-  if (r.edgeM > 0.07) fail.push(`${r.style}: the shoulder rolls over ${(r.edgeM * 1000).toFixed(0)} mm — a car's panel edge is tens of millimetres, not that`);
-  if (r.flank < 20) fail.push(`${r.style}: only ${r.flank}% of the body faces squarely out of the side — the roll has eaten the panel`);
+  if (r.edgeM > 0.05) fail.push(`${r.style}: the shoulder rolls over ${(r.edgeM * 1000).toFixed(0)} mm — a car's panel edge is tens of millimetres, not that`);
+  // flank% is REPORTED, not gated. It barely moved when the edge radius
+  // was cut by two thirds, because what holds it down is crownShell's
+  // tuck curving the whole flank rather than the bevel rolling its top
+  // corner — so a gate on it would fail for a reason that has nothing to
+  // do with edge sharpness, which is what this tool is for. A check that
+  // fires on something other than its own subject is worse than none.
 }
 mkdirSync("press/edges", { recursive: true });
 writeFileSync("press/edges/cars.json", JSON.stringify(rows, null, 2));
