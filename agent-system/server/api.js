@@ -13,6 +13,7 @@ const V = require('./voice-order');
 const AG = require('./agent');
 const AREA = require('./areas');
 const P = require('./perms');
+const FAQ = require('./faq');
 const {
   badRequest, unauthorized, forbidden, notFound, conflict,
   str, num, oneOf, id, phone: tel,
@@ -433,10 +434,79 @@ function describeFields(f) {
   return out;
 }
 
+/**
+ * قراءة كلام الزبون: ما يخصّ الطلب يُستخرج حقولًا، وما كان سؤالًا يُجاب
+ * عنه من معرفة الوكيل **ولا يدخل الطلب**.
+ *
+ * الفصل ليس ترفًا. كان كلُّ ما يقوله الزبون يُبتلع طلبًا، فسؤالان لا طلب
+ * فيهما — «كم سعر التوصيل؟» ثم «توصلون الجهراء؟» — أنتجا بطاقةً اسمها
+ * «توصلون الجهراء» واستلامها الجهراء. أي أنّ سؤالًا عن التغطية كان يوشك
+ * أن يرسل كابتنًا إلى عنوانٍ لم يطلبه أحد، والزبون لم يُجَب أصلًا.
+ *
+ * الشكل المفضّل `{ utterances, latest, pending }`: `utterances` ما سبق من
+ * كلامٍ يخصّ الطلب، و`latest` آخر ما قيل **خامًا**، و`pending` الحقل الذي
+ * سُئل عنه. الخادم وحده يقرّر مصير الأخيرة: سؤالًا يُجاب عنه ويُسقَط، أو
+ * كلامَ طلبٍ يُغلَّف بعنوان الحقل المنتظَر ويُضمّ. ويعيد في `accepted` ما
+ * ضمّه فعلًا، فيحفظ الزبونُ ما استُعمل لا ما ظنّه.
+ *
+ * ولم تُترك القسمة للمتصفّح: التغليف يسبق القراءة، فلو غلّف السؤال أوّلًا
+ * صار «اسمي كم سعر التوصيل» ولم يعد سؤالًا يُعرف. القرار والتغليف في مكان
+ * واحد أو يتناقضان. ويبقى `{text, latest}` مقبولًا كما كان لمن يرسل النصّ
+ * مجموعًا بلا تغليف.
+ */
+
+/* غلافُ الجوابِ القصير بعنوان السؤال المنتظَر: «السالمية» وحدها تُقرأ
+   استلامًا أينما وقعت، والعنوان يحسم الجهة. والشرط أن يكون الجواب **مجرّدًا**
+   — من أجاب سؤال الاستلام بتصحيح اسمه («لا، اسمي فهد») صار كلامه «الاستلام
+   من لا، اسمي فهد»، ويُقرأ «الاستلام» نفسه اسمَ منطقةٍ لم تُفهم. */
+const CARRIES_LABEL = /اسمي|رقمي|هاتفي|الاستلام|الإستلام|التسليم|إلى|الى|(^|\s)من(\s|$)|المبلغ|الرسوم|ملاحظ/;
+const WRAP = {
+  customer_name: (t) => `اسمي ${t}`,
+  customer_phone: (t) => `رقمي ${t}`,
+  pickup_area: (t) => `الاستلام من ${t}`,
+  dropoff_area: (t) => `التسليم إلى ${t}`,
+};
+const wrapAnswer = (field, t) =>
+  (field && WRAP[field] && t.length <= 40 && !CARRIES_LABEL.test(t)) ? WRAP[field](t) : t;
+
 on('POST', '/api/public/order/parse', async (ctx) => {
   pubGuard(ctx.ip, 'parse', 90, 10 * 60_000);
-  const text = str(ctx.body.text, 'نصّ الطلب', { max: 4000 });
-  const latest = str(ctx.body.latest, 'آخر ما قيل', { required: false, max: 1000 });
+
+  const said = Array.isArray(ctx.body.utterances)
+    ? ctx.body.utterances.map((u) => str(u, 'ما قيل', { max: 1000 })).filter(Boolean)
+    : null;
+  if (said && said.length > 60) throw badRequest('الحديث طويل — أعد الطلب من أوّله');
+
+  const latestRaw = str(ctx.body.latest, 'آخر ما قيل', { required: false, max: 1000 });
+
+  /* السؤال يُجاب ولا يُبتلع. */
+  const answered = latestRaw ? FAQ.answer(latestRaw, { record: false }) : null;
+  const asked = !answered && !!latestRaw && FAQ.looksLikeQuestion(latestRaw);
+
+  /* ما ضُمّ إلى الطلب من آخر ما قيل: لا شيء إن كان سؤالًا أُجيب عنه */
+  /* حقلٌ منتظَر لا غلاف له (كالملاحظات) يُهمَل ولا يُردّ بخطأ: الغلاف
+     تحسينٌ للقراءة، وفقدُه يُبقي الكلام على حاله لا يُبطل الجولة. */
+  const pending = WRAP[ctx.body.pending] ? ctx.body.pending : null;
+
+  /* والسؤالُ الذي **لم** نعرف جوابه لا يدخل الطلب أيضًا. قِيس أثر إدخاله:
+     «عندكم خدمة نقل أثاث؟» جعلت المركبة «فان توصيل»، و«توصلون الجهراء؟»
+     كانت تجعل الاستلام الجهراء. سؤالٌ لا نجيبه أهون من طلبٍ نخترعه.
+     إلّا أن يحمل عنوانًا صريحًا («ممكن توصل **من** السالمية **إلى**
+     الجابرية؟») — فذاك طلبٌ صيغ سؤالًا، وإسقاطه يضيّع ما قاله الزبون. */
+  const questionOnly = asked && !CARRIES_LABEL.test(latestRaw);
+  const accepted = (said && latestRaw && !answered && !questionOnly)
+    ? wrapAnswer(pending, latestRaw) : null;
+
+  /* ولا يُسجَّل في «أسئلة بلا جواب» إلّا ما كان سؤالًا خالصًا: طلبٌ صيغ
+     سؤالًا («ممكن توصل من السالمية إلى الجابرية؟») ليس نقصًا في المعرفة،
+     وحشوُه في القائمة يُغرق ما يحتاج المكتبُ رؤيته حقًّا. */
+  if (questionOnly) FAQ.recordMiss(latestRaw);
+
+  const text = said
+    ? [...said, ...(accepted ? [accepted] : [])].join('، ')
+    : str(ctx.body.text, 'نصّ الطلب', { max: 4000 });
+  const latest = said ? (accepted || '') : (answered ? '' : latestRaw);
+
   const parsed = V.parseOrder(text);
 
   /* **الأحدث يفوز.** المستخرِج يأخذ أوّل ما يطابق، فمن قال «اسمي بدر» ثم
@@ -497,7 +567,16 @@ on('POST', '/api/public/order/parse', async (ctx) => {
 
   /* `heard` و`missing` مكتوبة لموظّفٍ يعرف النظام؛ تصل الزبون كما هي
      لأنها أصلًا جُمل عربية كاملة تشرح نفسها. */
-  return { fields: parsed.fields, heard: parsed.heard, missing: parsed.missing };
+  return {
+    fields: parsed.fields, heard: parsed.heard, missing: parsed.missing,
+    /* `answer` جوابٌ يُقال ولا يدخل الطلب. و`unanswered` سؤالٌ ظاهر بلا
+       جواب: يُقال للزبون إنّا لا نعرف ويُدَلّ على إنسان، خيرٌ من أن
+       يُتجاهل سؤاله ويُعاد عليه سؤال الحقل كأنّه لم ينطق. */
+    answer: answered || null,
+    unanswered: (asked && !accepted) ? FAQ.FALLBACK : null,
+    /* ما ضُمّ فعلًا إلى الحديث، ليحفظه الزبون كما استُعمل لا كما ظنّه */
+    accepted,
+  };
 }, { auth: false });
 
 on('POST', '/api/public/order', async (ctx) => {
@@ -1063,6 +1142,54 @@ on('GET', '/api/agents/:id/trail', async (ctx) =>
   L.trailOf(ctx.agent, id(ctx.params.id, 'معرّف المندوب'), ctx.query.minutes));
 
 on('GET', '/api/locations/live', async (ctx) => ({ agents: L.liveBoard(ctx.agent) }));
+
+/* ---- أسئلة وكيل موصول وأجوبتها ---- */
+
+on('GET', '/api/faq', async (ctx) => {
+  need(ctx, 'faq.manage', 'أسئلة الوكيل');
+  return {
+    items: FAQ.list(),
+    misses: FAQ.misses(),
+    history: FAQ.history(),
+  };
+});
+
+on('POST', '/api/faq', async (ctx) => {
+  need(ctx, 'faq.manage', 'إضافة سؤال');
+  return { item: FAQ.create(ctx.agent, ctx.body) };
+});
+
+on('PATCH', '/api/faq/:id', async (ctx) => {
+  need(ctx, 'faq.manage', 'تعديل سؤال');
+  return { item: FAQ.update(ctx.agent, id(ctx.params.id, 'معرّف السؤال'), ctx.body) };
+});
+
+on('DELETE', '/api/faq/:id', async (ctx) => {
+  need(ctx, 'faq.manage', 'حذف سؤال');
+  return FAQ.remove(ctx.agent, id(ctx.params.id, 'معرّف السؤال'));
+});
+
+on('DELETE', '/api/faq/misses/:id', async (ctx) => {
+  need(ctx, 'faq.manage', 'إخفاء سؤال بلا جواب');
+  return FAQ.dismissMiss(id(ctx.params.id, 'معرّف السؤال'));
+});
+
+/**
+ * «جرّب سؤالًا» — يُظهر ما سيجيب به الوكيل زبونًا يقول هذا، قبل أن يقوله.
+ * بلا هذا تُكتب المفاتيح على الظنّ: يضيف الموظّف صيغةً ويحسبها تعمل، ولا
+ * يعرف أنها لا تُصيب إلّا من شكوى زبون. ولا يُسجَّل ما جُرّب في «بلا جواب»
+ * — التجربة ليست سؤال زبون.
+ */
+on('POST', '/api/faq/try', async (ctx) => {
+  need(ctx, 'faq.manage', 'تجربة سؤال');
+  const text = str(ctx.body.text, 'السؤال', { max: 500 });
+  const hit = FAQ.answer(text, { record: false });
+  return {
+    answer: hit,
+    is_question: FAQ.looksLikeQuestion(text),
+    fallback: FAQ.FALLBACK,
+  };
+});
 
 /* ---- مجموعات الصلاحيات ---- */
 

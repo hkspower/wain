@@ -158,8 +158,15 @@ function findPhone(text) {
  */
 const NAME_MARKERS = ['اسمي', 'الاسم', 'اسمه', 'اسمها', 'معك', 'معاك', 'انا اسمي'];
 
+/* فاصلٌ يقف عنده الاسم. كان يُمحى محوًا، فيمتدّ الاسم عبر الجملة التالية
+   ما لم تبدأ بكلمةٍ وظيفية: «اسمي نورة، الاستلام من السالمية» أعطت الاسم
+   «نورة الاستلام» — والكابتن ينادي به على الباب. والاسم لا يعبر فاصلة. */
+const BREAK = '\u0000';
+
 function findName(text) {
-  const clean = String(text || '').replace(/[،,.؟?!]/g, ' ').replace(/\s+/g, ' ').trim();
+  const clean = String(text || '')
+    .replace(/[،,.؟?!؛;\n]/g, ` ${BREAK} `)
+    .replace(/\s+/g, ' ').trim();
   const words = clean.split(' ');
   const norm = words.map((w) => ar.normalize(w).toLowerCase());
   for (let i = 0; i < norm.length; i++) {
@@ -176,7 +183,7 @@ function findName(text) {
     };
     const out = [];
     for (const w of rest) {
-      if (isStop(w)) break;
+      if (w === BREAK || isStop(w)) break;
       out.push(w);
     }
     if (out.length) return out.join(' ');

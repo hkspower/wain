@@ -216,6 +216,54 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
   sent_at     TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_hooks_status ON webhook_deliveries(status, id DESC);
+
+/* ما يجيب به وكيل موصول زبائنَه. كان مثبّتًا في ملف على الموقع، فكل تصحيح
+   لجواب يحتاج نشرًا؛ وصار هنا يحرّره المكتب من اللوحة ويسري في الحال. */
+CREATE TABLE IF NOT EXISTS faq (
+  id         INTEGER PRIMARY KEY,
+  question   TEXT    NOT NULL,
+  answer     TEXT    NOT NULL,
+  keys       TEXT    NOT NULL DEFAULT '',
+  handoff    INTEGER NOT NULL DEFAULT 0,
+  active     INTEGER NOT NULL DEFAULT 1,
+  seed_id    TEXT,
+  created_at TEXT    NOT NULL,
+  updated_at TEXT    NOT NULL,
+  updated_by INTEGER REFERENCES agents(id) ON DELETE SET NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_faq_seed ON faq(seed_id) WHERE seed_id IS NOT NULL;
+
+/* أثرُ البذر، لا الصفوف المبذورة. لو قِيس البذر بوجود الصفّ لعاد كلُّ جوابٍ
+   حذفه المكتب عند أوّل إقلاع — يحذفه فيعود، ولا يفهم لماذا. */
+CREATE TABLE IF NOT EXISTS faq_seeds (
+  seed_id TEXT PRIMARY KEY,
+  at      TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS faq_events (
+  id         INTEGER PRIMARY KEY,
+  faq_id     INTEGER REFERENCES faq(id) ON DELETE SET NULL,
+  actor_id   INTEGER REFERENCES agents(id) ON DELETE SET NULL,
+  type       TEXT    NOT NULL,
+  from_value TEXT    NOT NULL DEFAULT '',
+  to_value   TEXT    NOT NULL DEFAULT '',
+  created_at TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_faq_events ON faq_events(id DESC);
+
+/* ما سأله الزبائن ولم يجد الوكيل جوابه. بلا هذا السجل يبقى نقص المعرفة
+   غير مرئيّ: الزبون يسأل ولا يُجاب، وينصرف، ولا يعلم المكتب أن سؤالًا
+   بعينه يتكرّر كل يوم. */
+CREATE TABLE IF NOT EXISTS faq_misses (
+  id       INTEGER PRIMARY KEY,
+  norm     TEXT    NOT NULL UNIQUE,
+  text     TEXT    NOT NULL,
+  hits     INTEGER NOT NULL DEFAULT 1,
+  first_at TEXT    NOT NULL,
+  last_at  TEXT    NOT NULL,
+  answered_at TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_faq_misses ON faq_misses(answered_at, hits DESC);
 `);
 
 /*

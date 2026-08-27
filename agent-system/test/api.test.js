@@ -614,3 +614,85 @@ test('بوّابة الزبون: الملخّص المعروض هو ما سيُ�
   assert.match(h2, /التسليم: الفروانية/, h2);
   assert.doesNotMatch(h2, /التسليم: الجابرية/, h2);
 });
+
+test('بوّابة الزبون: السؤال يُجاب ولا يصير طلبًا', async () => {
+  /* كان كلُّ ما يقوله الزبون يُبتلع حقولًا. قِيس أثره: سؤالان لا طلب فيهما
+     — «كم سعر التوصيل؟» ثم «توصلون الجهراء؟» — أنتجا بطاقةً اسمها «توصلون
+     الجهراء» واستلامها الجهراء. أي كابتنٌ يُرسَل إلى عنوانٍ لم يطلبه أحد،
+     والزبون لم يُجَب أصلًا. */
+  const turn = (utterances, latest, pending) =>
+    call(null, 'POST', '/api/public/order/parse', { utterances, latest, pending });
+
+  let r = await turn([], 'كم سعر التوصيل؟', 'customer_name');
+  assert.equal(r.status, 200);
+  assert.ok(r.data.answer, 'لم يُجَب السؤال');
+  assert.match(r.data.answer.answer, /السعر يختلف/, r.data.answer.answer);
+  assert.equal(r.data.accepted, null, 'دخل السؤال الطلب');
+  assert.equal(r.data.fields.customer_name, undefined, 'صار السؤال اسمًا للزبون');
+
+  /* والحرج: منطقةٌ تُذكر داخل سؤال تغطية لا تصير عنوان استلام */
+  r = await turn([], 'توصلون الجهراء؟', 'customer_name');
+  assert.ok(r.data.answer, 'لم يُجَب سؤال التغطية');
+  assert.equal(r.data.fields.pickup_area, undefined, 'صارت منطقة السؤال استلامًا');
+
+  /* وسؤالٌ لا جواب له لا يُبتلع كذلك، ويُقال للزبون إنّا لا نعرف */
+  r = await turn([], 'عندكم خدمة نقل أثاث؟', 'customer_name');
+  assert.equal(r.data.answer, null);
+  assert.match(r.data.unanswered || '', /ما عندي جواب موثوق/, String(r.data.unanswered));
+  assert.deepEqual(r.data.fields, {}, JSON.stringify(r.data.fields));
+
+  /* أمّا الطلب المصوغ سؤالًا فيبقى طلبًا: العنوان الصريح يحسمه */
+  r = await turn([], 'ممكن توصل من السالمية إلى الجابرية؟', 'customer_name');
+  assert.equal(r.data.fields.pickup_area, 'السالمية');
+  assert.equal(r.data.fields.dropoff_area, 'الجابرية');
+  assert.ok(r.data.accepted, 'أُسقط طلبٌ صيغ سؤالًا');
+
+  /* والجواب القصير يُغلَّف بعنوان الحقل المنتظَر — في الخادم لا في المتصفّح */
+  r = await turn(['اسمي نورة'], 'السالمية', 'pickup_area');
+  assert.equal(r.data.accepted, 'الاستلام من السالمية', r.data.accepted);
+  assert.equal(r.data.fields.pickup_area, 'السالمية');
+  assert.equal(r.data.fields.customer_name, 'نورة', 'ضاع ما سبق');
+
+  /* ولا يُغلَّف ما يحمل عنوانه: «لا، اسمي فهد» جوابًا عن سؤال الاستلام
+     كان يصير «الاستلام من لا، اسمي فهد» */
+  r = await turn(['اسمي نورة'], 'لا، اسمي فهد', 'pickup_area');
+  assert.equal(r.data.accepted, 'لا، اسمي فهد', r.data.accepted);
+  assert.equal(r.data.fields.customer_name, 'فهد');
+});
+
+test('أسئلة الوكيل: الإدارة تحتاج صلاحيتها، والتعديل يسري على الزبون', async () => {
+  const listed = await call('admin', 'GET', '/api/faq');
+  assert.equal(listed.status, 200);
+  assert.ok(listed.data.items.length >= 14, 'البذرة ناقصة');
+
+  /* الكابتن لا يملك «أسئلة الوكيل» — وهي ليست من صلاحياته أصلًا */
+  const denied = await call('ag1', 'GET', '/api/faq');
+  assert.equal(denied.status, 403, JSON.stringify(denied.data));
+
+  const created = await call('admin', 'POST', '/api/faq', {
+    question: 'هل عندكم تغليف؟',
+    answer: 'نعم، نغلّف الشحنات الهشّة بلا رسوم إضافية.',
+    keys: ['تغليف', 'تغلفون الشحنه'],
+  });
+  assert.equal(created.status, 200, JSON.stringify(created.data));
+
+  /* يجيب به الوكيل في الحال، بلا إعادة نشرٍ ولا إقلاع */
+  let asked = await call(null, 'POST', '/api/public/order/parse', {
+    utterances: [], latest: 'عندكم تغليف؟', pending: '',
+  });
+  assert.match(asked.data.answer?.answer || '', /نغلّف/, JSON.stringify(asked.data.answer));
+
+  /* والتعطيل يُسكته بلا حذفه */
+  await call('admin', 'PATCH', '/api/faq/' + created.data.item.id, { active: false });
+  asked = await call(null, 'POST', '/api/public/order/parse', {
+    utterances: [], latest: 'عندكم تغليف؟', pending: '',
+  });
+  assert.equal(asked.data.answer, null, 'أجاب بمدخلة معطّلة');
+
+  /* و«جرّب سؤالًا» يُظهر ما سيقوله الوكيل قبل أن يقوله */
+  const tried = await call('admin', 'POST', '/api/faq/try', { text: 'كم السعر؟' });
+  assert.equal(tried.status, 200);
+  assert.match(tried.data.answer?.question || '', /تكلفة التوصيل/, JSON.stringify(tried.data));
+
+  await call('admin', 'DELETE', '/api/faq/' + created.data.item.id);
+});

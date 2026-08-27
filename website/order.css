@@ -90,6 +90,14 @@ body.vo {
 }
 .vo-msg--agent b { color: var(--teal-800); }
 
+/* ذيل الجواب حين يُحال إلى إنسان: أخفت من الجواب، ومقروءٌ كنصّ عاديّ
+   (‏--ink-faint وحدها لا تكفي هنا لأنه يحمل رابطًا يجب أن يُميَّز). */
+.vo-msg__aside {
+  display: inline-block; margin-top: .35rem;
+  font-size: var(--fs-sm); color: var(--ink-soft);
+}
+.vo-msg__aside a { color: var(--teal-800); font-weight: 700; }
+
 /* اقتراح «هل تقصد…؟» — زرّ داخل فقاعة الوكيل */
 .vo-msg .vo-hintbtn {
   display: inline-flex; align-items: center; min-height: 44px;

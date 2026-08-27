@@ -17,6 +17,11 @@ const perms = require('./perms');
 /* المجموعتان المدمجتان تُنشآن عند الإقلاع، والحسابات القائمة تُلحق بمجموعة
    دورها — فلا يتغيّر لأحد شيء بمجرّد الترقية. */
 perms.ensureGroups();
+
+/* معرفة الوكيل تُبذر مرّة واحدة، فلا تبدأ اللوحة بشاشة فارغة ولا يعود
+   ما حذفه المكتب بعد أوّل إقلاع. */
+require('./faq').ensureSeed();
+
 const location = require('./location');
 const H = require('./lib/http');
 

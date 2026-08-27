@@ -33,6 +33,7 @@ const PERMISSIONS = {
   'settings.manage':  { label: 'الإعدادات والعمولة', hint: 'نسبة الوساطة وخطّافات التكامل' },
   'mail.view':        { label: 'صندوق البريد', hint: 'الرسائل الصادرة وإعادة الإرسال' },
   'groups.manage':    { label: 'إدارة المجموعات', hint: 'إنشاء مجموعات الصلاحيات وتعديلها' },
+  'faq.manage':       { label: 'أسئلة الوكيل', hint: 'ما يجيب به وكيل موصول زبائنه على الموقع' },
 };
 const ALL = Object.keys(PERMISSIONS);
 

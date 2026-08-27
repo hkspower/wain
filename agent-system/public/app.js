@@ -191,6 +191,7 @@
     'location': renderLocation,
     'live': renderLive,
     'settings': renderSettings,
+    'faq': renderFaq,
   };
 
   function parseHash() {
@@ -230,6 +231,9 @@
          الذي يُعصر إلى ٣٤ بكسلًا على سطرين. يبقى في الشريط العلوي وزرًّا
          بارزًا في أعلى الرئيسية والطلبات، ويغيب عن شريط التنقّل السفلي. */
       if (has('orders.create')) items.push({ href: '#/new', key: 'new', label: 'طلب جديد', topOnly: true });
+      /* شاشة يزورها المكتب حين يتغيّر جوابٌ لا كل يوم: في الشريط العلوي
+         لا في شريط الجوال السفلي — سبعة عناصر لا تسع شاشة ٣٢٠. */
+      if (has('faq.manage')) items.push({ href: '#/faq', key: 'faq', label: 'أسئلة الوكيل', topOnly: true });
       if (has('settings.manage') || has('groups.manage')) {
         items.push({ href: '#/settings', key: 'settings', label: 'الإعدادات' });
       }
@@ -2301,6 +2305,264 @@
       });
     }
   }
+
+  /* ---------------------- أسئلة الوكيل وأجوبتها ---------------------- */
+
+  /*
+   * ما يجيب به وكيل موصول زبائنه على الموقع.
+   *
+   * كان الوكيل يجمع حقول الطلب ولا يفعل غير ذلك، فمن سأل «كم السعر؟» لم
+   * يُجَب — وأسوأ: كان سؤاله يُبتلع طلبًا، فتصير البطاقة باسم «توصلون
+   * الجهراء» واستلامها الجهراء. وصار السؤال يُجاب من هنا.
+   *
+   * وثلاثة أشياء في هذه الشاشة ليست زينة:
+   *   • **جرّب سؤالًا** — المفاتيح تُكتب على الظنّ بلا مجرِّب: يضيف الموظّف
+   *     صيغةً ويحسبها تعمل، ولا يعرف أنها لا تصيب إلّا من شكوى زبون.
+   *   • **أسئلة بلا جواب** — نقص المعرفة لا يُصلَح ما دام غير مرئيّ.
+   *   • **تنبيه الرقم** — الأرقام التجارية تقديرية، ووكيلٌ يقتبسها يحوّل
+   *     التقدير إلى وعد. تنبيهٌ لا منع: المكتب صاحب القرار، لكن لا يقع
+   *     في ذلك ساهيًا.
+   */
+  async function renderFaq() {
+    if (!has('faq.manage')) { location.hash = '#/'; return; }
+    el.view.innerHTML = `<div class="page-head"><div><h1>أسئلة الوكيل</h1></div></div>${skeleton(2)}`;
+
+    let data;
+    try { data = await api('/faq'); } catch (err) {
+      el.view.innerHTML = `<div class="card"><div class="card__body">${emptyState('تعذّر تحميل الأسئلة', err.message)}</div></div>`;
+      return;
+    }
+
+    const HAS_DIGIT = /[0-9٠-٩۰-۹]/;
+
+    el.view.innerHTML = `
+      <div class="page-head">
+        <div>
+          <h1>أسئلة الوكيل</h1>
+          <p>ما يجيب به وكيل موصول زبائنك على الموقع. التعديل يسري في الحال بلا نشر.</p>
+        </div>
+        <button class="btn btn--primary" id="faqNew" type="button">+ سؤال</button>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card__head"><h2>جرّب سؤالًا</h2></div>
+          <div class="card__body">
+            <p class="hint">اكتب ما قد يقوله زبون، وانظر ما سيردّ به الوكيل قبل أن يردّ به فعلًا.</p>
+            <form id="faqTryForm" novalidate>
+              <label class="field"><span class="sr-only">سؤال التجربة</span>
+                <input name="text" id="faqTryInput" maxlength="200" autocomplete="off"
+                       placeholder="مثال: توصلون الجهراء؟"></label>
+              <button class="btn btn--ghost btn--block" type="submit">جرّب</button>
+            </form>
+            <div id="faqTryOut" class="faq-try" hidden></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__head"><h2>أسئلة بلا جواب</h2></div>
+          <div class="card__body" id="faqMisses"></div>
+        </div>
+
+        <div class="card detail__full">
+          <div class="card__head">
+            <h2>الأسئلة والأجوبة</h2>
+            <span class="muted">${AR.digits(data.items.length)}</span>
+          </div>
+          <div class="card__body"><div class="groups" id="faqList"></div></div>
+        </div>
+
+        <div class="card detail__full">
+          <div class="card__head"><h2>سجل التعديلات</h2></div>
+          <div class="card__body">
+            <ol class="approval__log">
+              ${data.history.length === 0 ? '<li class="muted">لم يُعدَّل شيء بعد.</li>' : ''}
+              ${data.history.map((h) => `
+                <li>
+                  <b>${esc(FAQ_EVENTS[h.type] || h.type)}</b>
+                  <span class="muted">${esc(h.question || h.from_value || '')}</span>
+                  <span class="muted">— ${esc(h.actor_name || 'النظام')}، ${esc(relTime(h.created_at))}</span>
+                </li>`).join('')}
+            </ol>
+          </div>
+        </div>
+      </div>`;
+
+    paintFaqList(data.items);
+    paintFaqMisses(data.misses);
+
+    document.getElementById('faqNew').addEventListener('click', () => openFaqForm(null));
+
+    document.getElementById('faqTryForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = document.getElementById('faqTryInput').value.trim();
+      const out = document.getElementById('faqTryOut');
+      if (!text) { out.hidden = true; return; }
+      out.hidden = false;
+      out.innerHTML = skeleton(1);
+      try {
+        const r = await api('/faq/try', { method: 'POST', body: { text } });
+        out.innerHTML = r.answer
+          ? `<p class="faq-try__hit">يطابق: <b>${esc(r.answer.question)}</b></p>
+             <blockquote class="faq-try__say">${esc(r.answer.answer)}</blockquote>
+             ${r.answer.handoff ? '<p class="muted">ويُذيَّل بطريق واتساب.</p>' : ''}`
+          : `<p class="faq-try__miss">لا يطابق شيئًا${r.is_question ? '' : '، ولا يبدو سؤالًا أصلًا — سيُقرأ كلامَ طلب'}.</p>
+             ${r.is_question ? `<blockquote class="faq-try__say">${esc(r.fallback)}</blockquote>
+               <button class="btn btn--ghost btn--sm" id="faqFromTry" type="button">أضفه سؤالًا</button>` : ''}`;
+        const add = document.getElementById('faqFromTry');
+        if (add) add.addEventListener('click', () => openFaqForm(null, text));
+      } catch (err) {
+        out.innerHTML = `<p class="form-msg is-bad">${esc(err.message)}</p>`;
+      }
+    });
+
+    function paintFaqList(items) {
+      const host = document.getElementById('faqList');
+      host.innerHTML = items.map((it) => `
+        <article class="group${it.active ? '' : ' group--off'}">
+          <div class="group__top">
+            <b>${esc(it.question)}</b>
+            ${it.active ? '' : '<span class="badge badge--offline">معطّل</span>'}
+            ${it.handoff ? '<span class="badge badge--assigned">يحيل لإنسان</span>' : ''}
+            ${HAS_DIGIT.test(it.answer) ? '<span class="badge badge--warn">فيه رقم</span>' : ''}
+            <span class="group__acts">
+              <button class="btn btn--ghost btn--sm" data-faq-edit="${it.id}" type="button">تعديل</button>
+              <button class="btn btn--danger btn--sm" data-faq-del="${it.id}" type="button">حذف</button>
+            </span>
+          </div>
+          <p class="faq-answer">${esc(it.answer)}</p>
+          <p class="group__perms">${
+            it.keys.length
+              ? it.keys.map((k) => `<span class="badge">${esc(k)}</span>`).join(' ')
+              : '<span class="muted">بلا صيغ إضافية — يُطابَق بنصّ السؤال وحده</span>'}</p>
+        </article>`).join('') || emptyState('لا أسئلة بعد', 'أضف أوّل سؤال ليجيب عنه الوكيل.');
+
+      for (const b of host.querySelectorAll('[data-faq-edit]')) {
+        b.addEventListener('click', () => openFaqForm(items.find((x) => x.id === Number(b.dataset.faqEdit))));
+      }
+      for (const b of host.querySelectorAll('[data-faq-del]')) {
+        b.addEventListener('click', async () => {
+          const it = items.find((x) => x.id === Number(b.dataset.faqDel));
+          if (!confirm(`حذف «${it.question}»؟ لن يجيب عنه الوكيل بعدها.`)) return;
+          try {
+            await api('/faq/' + it.id, { method: 'DELETE' });
+            toast('حُذف السؤال', 'ok');
+            await renderFaq();
+          } catch (err) { toast(err.message, 'bad'); }
+        });
+      }
+    }
+
+    function paintFaqMisses(misses) {
+      const host = document.getElementById('faqMisses');
+      if (!misses.length) {
+        host.innerHTML = '<p class="hint">لا سؤال بلا جواب — كل ما سأله الزبائن وجد جوابه.</p>';
+        return;
+      }
+      host.innerHTML = `
+        <p class="hint">سأل الزبائن هذا ولم يجد الوكيل جوابًا. أضف الجواب أو أخفِ السؤال.</p>
+        <ul class="faq-misses">
+          ${misses.map((m) => `
+            <li>
+              <span class="faq-misses__t">${esc(m.text)}</span>
+              <span class="badge">${AR.plural(m.hits, TIMES)}</span>
+              <button class="btn btn--ghost btn--sm" data-miss-add="${m.id}" type="button">أضف جوابًا</button>
+              <button class="btn btn--quiet btn--sm" data-miss-hide="${m.id}" type="button">أخفِ</button>
+            </li>`).join('')}
+        </ul>`;
+      for (const b of host.querySelectorAll('[data-miss-add]')) {
+        b.addEventListener('click', () =>
+          openFaqForm(null, misses.find((m) => m.id === Number(b.dataset.missAdd)).text));
+      }
+      for (const b of host.querySelectorAll('[data-miss-hide]')) {
+        b.addEventListener('click', async () => {
+          try {
+            await api('/faq/misses/' + b.dataset.missHide, { method: 'DELETE' });
+            await renderFaq();
+          } catch (err) { toast(err.message, 'bad'); }
+        });
+      }
+    }
+
+    function openFaqForm(it, prefillKey) {
+      openModal(it ? 'تعديل سؤال' : 'سؤال جديد', `
+        <form id="faqForm" novalidate>
+          <label class="field"><span>السؤال كما يُعرض</span>
+            <input name="question" maxlength="200" required minlength="3"
+                   value="${it ? esc(it.question) : ''}"></label>
+          <label class="field"><span>الجواب</span>
+            <textarea name="answer" rows="4" maxlength="1200" required minlength="3"
+              >${it ? esc(it.answer) : ''}</textarea></label>
+          <p class="form-msg" id="faqDigit" hidden></p>
+          <label class="field"><span>صيغ أخرى يقولها الزبون
+            <small class="muted">(سطر لكل صيغة)</small></span>
+            <textarea name="keys" rows="4" placeholder="وين توصلون&#10;تغطون منطقتي"
+              >${esc(it ? it.keys.join('\n') : (prefillKey || ''))}</textarea></label>
+          <p class="hint">
+            صيغةٌ من كلمة واحدة تصيب أكثر ممّا تظنّ: «كابتن» وحدها كانت تجعل
+            «ابغى كابتن يوصل أغراضي» يُجاب بشرح كيف تصير سائقًا. اكتب عبارة
+            لا كلمة، و<b>جرّبها</b> قبل أن تعتمد عليها.
+          </p>
+          <div class="perms">
+            <label class="perm"><input type="checkbox" name="handoff" ${it && it.handoff ? 'checked' : ''}>
+              <span><b>يُحال إلى إنسان</b><small>يُذيَّل الجواب بطريق واتساب — لما لا يُحسم بجوابٍ عامّ</small></span></label>
+            <label class="perm"><input type="checkbox" name="active" ${!it || it.active ? 'checked' : ''}>
+              <span><b>مفعّل</b><small>يجيب به الوكيل. أطفئه لتعطيله بلا حذفه</small></span></label>
+          </div>
+          <p class="form-msg" id="faqMsg"></p>
+          <button class="btn btn--primary btn--block" type="submit">${it ? 'حفظ' : 'إضافة'}</button>
+        </form>`, (body) => {
+        const form = body.querySelector('#faqForm');
+        const warn = body.querySelector('#faqDigit');
+        const answerBox = form.answer;
+
+        /* الأرقام التجارية تقديرية؛ وكيلٌ يقتبسها يحوّل التقدير إلى وعد.
+           تنبيهٌ يُرى قبل الحفظ، والقرار للمكتب. */
+        const checkDigits = () => {
+          const bad = HAS_DIGIT.test(answerBox.value);
+          warn.hidden = !bad;
+          if (bad) {
+            warn.className = 'form-msg is-warn';
+            warn.textContent = 'في الجواب رقم. الأرقام التجارية تقديرية، '
+              + 'وما يقوله الوكيل يقرؤه الزبون وعدًا — تأكّد أنه رقمٌ تلتزم به.';
+          }
+        };
+        answerBox.addEventListener('input', checkDigits);
+        checkDigits();
+
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const msg = body.querySelector('#faqMsg');
+          const payload = {
+            question: form.question.value.trim(),
+            answer: answerBox.value.trim(),
+            keys: form.keys.value.split('\n'),
+            handoff: form.handoff.checked,
+            active: form.active.checked,
+          };
+          await submit(e.target, msg, async () => {
+            if (it) await api('/faq/' + it.id, { method: 'PATCH', body: payload });
+            else await api('/faq', { method: 'POST', body: payload });
+            closeModal();
+            toast(it ? 'حُفظ السؤال' : 'أُضيف السؤال', 'ok');
+            await renderFaq();
+          });
+        });
+      });
+    }
+  }
+
+  /* «مرّة» ليست في قاموس الحزمة، فتُمرَّر صيغها كما تقبلها `plural` —
+     أهون من إضافة اسمٍ للحزمة من أجل شاشة واحدة. */
+  const TIMES = {
+    gender: 'f', human: false, zero: 'لا مرّات', one: 'مرّة واحدة', two: 'مرّتان',
+    twoOblique: 'مرّتين', few: 'مرّات', many: 'مرّة', other: 'مرّة',
+  };
+
+  const FAQ_EVENTS = {
+    created: 'أُضيف', edited: 'عُدّل', answer: 'غُيّر الجواب',
+    enabled: 'فُعّل', disabled: 'عُطّل', deleted: 'حُذف',
+  };
 
   async function renderSettings() {
     if (!has('settings.manage') && !has('groups.manage')) { location.hash = '#/'; return; }

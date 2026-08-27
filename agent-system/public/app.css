@@ -383,6 +383,37 @@ a.stat:hover { border-color: var(--teal-600); }
 .group__acts { display: flex; gap: var(--s-2); margin-inline-start: auto; }
 .group__perms { display: flex; flex-wrap: wrap; gap: var(--s-1); margin: var(--s-2) 0 0; }
 
+/* ------------------- أسئلة الوكيل وأجوبتها ------------------- */
+
+/* مدخلة معطّلة: تبقى مقروءة ولا تُطمس. الطمس يجعلها تبدو عطبًا في الشاشة
+   لا اختيارًا، والحدّ المتقطّع يقول «موجودة ولا تعمل» بلا خفض تباين. */
+.group--off { border-style: dashed; }
+.group--off .faq-answer { color: var(--ink-soft); }
+
+.faq-answer { margin: var(--s-2) 0 0; font-size: var(--t-sm); line-height: var(--lh-base); color: var(--ink-mid); }
+
+/* تنبيه لا خطأ: أنت على وشك أن تقول رقمًا للزبون */
+.badge--warn { color: var(--warn-fg); border-width: var(--bw-thick); }
+.form-msg.is-warn { color: var(--warn-fg); }
+
+/* مجرِّب السؤال: ما سيقوله الوكيل، معروضًا كما سيُقال */
+.faq-try { margin-top: var(--s-3); }
+.faq-try__hit { margin: 0 0 var(--s-2); font-size: var(--t-sm); color: var(--ink-mid); }
+.faq-try__miss { margin: 0 0 var(--s-2); font-size: var(--t-sm); color: var(--warn-fg); font-weight: var(--w-medium); }
+.faq-try__say {
+  margin: 0 0 var(--s-2); padding: var(--s-3) var(--pad-sm);
+  border-inline-start: var(--bw-thick) solid var(--teal-700);
+  background: var(--bg); border-radius: var(--radius-xs);
+  font-size: var(--t-sm); line-height: var(--lh-base); color: var(--ink);
+}
+
+.faq-misses { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.faq-misses li {
+  display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap;
+  padding: var(--s-2) var(--s-3); border: var(--bw) solid var(--line); border-radius: var(--radius-xs);
+}
+.faq-misses__t { flex: 1 1 12rem; font-size: var(--t-sm); color: var(--ink); }
+
 .perms { display: grid; gap: var(--s-1); margin-bottom: var(--s-3); }
 .perm {
   display: flex; align-items: flex-start; gap: var(--s-3);

@@ -42,22 +42,19 @@
     pickup_area: 'من أين نستلم؟ <b>قل مثلًا: الاستلام من السالمية قطعة ٤</b>',
     dropoff_area: 'إلى أين نوصّل؟ <b>قل مثلًا: التسليم في الجابرية قطعة ٧</b>',
   };
-  /* جوابٌ **مجرّد** يُغلَّف بعنوان السؤال المنتظَر فيقع في حقله: «السالمية»
-     وحدها تُقرأ استلامًا أينما وقعت، والتغليف يحسم الجهة.
-     والشرط «مجرّد» لا يُستغنى عنه: كان التغليف يجري على الطول وحده، فمن
-     أجاب سؤال الاستلام بتصحيحٍ لاسمه («لا، اسمي فهد») صار كلامه
-     «الاستلام من لا، اسمي فهد» — ويُقرأ «الاستلام» نفسه اسمَ منطقةٍ لم
-     تُفهم، فيسأل الوكيل «هل تقصد السلام؟» عن كلمةٍ لم يقلها أحد. الغلاف
-     الذي يفسد الكلام أسوأ من غلافٍ لا يقع. */
-  const CARRIES_LABEL = /اسمي|رقمي|هاتفي|الاستلام|الإستلام|التسليم|إلى|الى|(^|\s)من(\s|$)|المبلغ|الرسوم|ملاحظ/;
-  const WRAP = {
-    customer_name: (t) => `اسمي ${t}`,
-    customer_phone: (t) => `رقمي ${t}`,
-    pickup_area: (t) => `الاستلام من ${t}`,
-    dropoff_area: (t) => `التسليم إلى ${t}`,
+  /* الصيغة المختصرة حين يُعاد السؤال نفسه بعد جواب عن سؤال الزبون */
+  const ASK_SHORT = {
+    customer_name: 'ولنكمل طلبك: ما اسمك؟',
+    customer_phone: 'ولنكمل: ما رقم هاتفك؟',
+    pickup_area: 'ولنكمل: من أين نستلم؟',
+    dropoff_area: 'ولنكمل: إلى أين نوصّل؟',
   };
-  const wrapAnswer = (field, t) =>
-    (field && WRAP[field] && t.length <= 40 && !CARRIES_LABEL.test(t)) ? WRAP[field](t) : t;
+  /* الجواب القصير يُغلَّف بعنوان الحقل المنتظَر («السالمية» ← «الاستلام من
+     السالمية»)، والتغليف **في الخادم** لا هنا: هو قرارٌ يسبق القراءة، ولو
+     وقع في المتصفّح أوّلًا لصار سؤالُ الزبون «كم سعر التوصيل؟» كلامًا
+     معنونًا «اسمي كم سعر التوصيل» فلا يُعرف سؤالًا بعدها. الخادم يقرّر
+     أوّلًا: سؤالٌ يُجاب، أو كلامُ طلبٍ يُغلَّف — ويردّ في `accepted` ما ضمّه
+     فعلًا لنحفظه كما استُعمل. */
 
   const state = {
     utterances: [],     // الحديث كما قيل، بترتيبه
@@ -79,18 +76,39 @@
   }
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+  /* لماذا لا تُؤخذ النواقص من `missing` كما تأتي؟
+     لأن غيابها ليس اكتمالًا. قِيس ذلك: من دخل فسأل سؤالين ولم يُملِ طلبًا،
+     صار الحديثُ الذي يخصّ الطلب فارغًا، فردّ المستخرِج نقصًا واحدًا هو
+     «لا نصّ» — وهو ليس من الحقول الأربعة، فخلت القائمة، فأعلن الوكيل
+     «اكتمل الطلب» وأظهر زرّ الإرسال على طلبٍ لا شيء فيه. الاكتمال يُقاس
+     بحضور الأربعة لا بغياب شكواها. */
+  const WHY = {
+    customer_name: 'لم يُذكر اسم صاحب الطلب',
+    customer_phone: 'لم يُذكر رقم هاتف كويتي واضح',
+    pickup_area: 'لم تُذكر منطقة الاستلام بين مناطق الكويت',
+    dropoff_area: 'لم تُذكر منطقة التسليم بين مناطق الكويت',
+  };
+  function gaps() {
+    const p = state.parsed || {};
+    const f = p.fields || {};
+    const said = p.missing || [];
+    return REQUIRED.filter((k) => !f[k])
+      .map((k) => said.find((m) => m.field === k) || { field: k, why: WHY[k] });
+  }
+
   function renderCard() {
     const p = state.parsed;
-    if (!p || (!p.heard.length && !p.missing.length)) { card.hidden = true; return; }
+    if (!p) { card.hidden = true; return; }
+    const missingReq = gaps();
+    if (!p.heard.length && !missingReq.length) { card.hidden = true; return; }
     card.hidden = false;
     heardEl.innerHTML = p.heard.map((h) => `<li>${esc(h)}</li>`).join('');
-    const missingReq = p.missing.filter((m) => REQUIRED.includes(m.field));
     missingEl.innerHTML = missingReq.map((m) => `<li>${esc(m.why)}</li>`).join('');
     submitBtn.hidden = missingReq.length !== 0;
   }
 
   function nextQuestion() {
-    const missingReq = state.parsed.missing.filter((m) => REQUIRED.includes(m.field));
+    const missingReq = gaps();
     if (!missingReq.length) {
       state.pendingField = null;
       bubble('agent', 'اكتمل الطلب. راجع الملخّص ثم اضغط <b>«أرسل الطلب إلى موصول»</b>.');
@@ -99,8 +117,12 @@
     /* سؤالٌ معه اقتراح «هل تقصد؟» يتقدّم: جوابه ضغطة زرّ، وتركُه معلّقًا
        يجعل الزبون يجيب عن غيره والخطأ باقٍ. */
     const m = missingReq.find((x) => x.hint) || missingReq[0];
+    /* سؤالٌ يتكرّر حرفيًّا يُختصر. الزبون الذي يسأل سؤالين قبل أن يُملي
+       طلبه كان يرى «ما اسمك؟ قل مثلًا: اسمي نورة» مرّتين بنصّها — والتكرار
+       الحرفيّ يقرأ كعطب لا كإلحاح. والنواقص باقية في البطاقة على أي حال. */
+    const again = state.pendingField === m.field && !m.hint;
     state.pendingField = m.field;
-    let html = ASK[m.field] || esc(m.why);
+    let html = again ? (ASK_SHORT[m.field] || ASK[m.field]) : (ASK[m.field] || esc(m.why));
     /* «هل تقصد…؟» يأتي من الخادم اقتراحًا لا قيمةً — زرٌّ يقبله الزبون */
     if (m.hint) {
       html = `${esc(m.why)}<br><button type="button" class="vo-hintbtn"
@@ -113,15 +135,17 @@
 
   /* ----------------------------- الجولات ----------------------------- */
 
-  /* يُرسَل الحديث كلّه ومعه آخر جملة على حدة: الأوّل يقرأ المناطق بمواضعها،
-     والثاني يجعل التصحيح يعلو على ما سبقه (القاعدة في الخادم). */
-  async function parseAll() {
+  /* يُرسَل ما ثبت من الحديث، وآخر ما قيل خامًا، والحقل المنتظَر. الخادم
+     يقرأ المناطق بمواضعها من الحديث كلّه، ويجعل الأخيرة تعلو على ما سبقها،
+     ويقرّر أهي سؤالٌ يُجاب أم كلامُ طلبٍ يُضمّ. */
+  async function parseAll(latest = '') {
     const res = await fetch(`${API}/api/public/order/parse`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        text: state.utterances.join('، '),
-        latest: state.utterances[state.utterances.length - 1] || '',
+        utterances: state.utterances,
+        latest,
+        pending: state.pendingField || '',
       }),
     });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'تعذّر الاتصال');
@@ -131,29 +155,60 @@
   async function turn(text) {
     const raw = text.trim();
     if (!raw || state.sending) return;
-    const wrapped = wrapAnswer(state.pendingField, raw);
 
     hero.hidden = true;
     bubble('user', esc(raw));
-    state.utterances.push(wrapped);
     try {
-      await parseAll();
+      await parseAll(raw);
     } catch (err) {
-      state.utterances.pop();
       bubble('agent', `${esc(err.message)} — أعد المحاولة بعد لحظة.`);
       return;
     }
+
+    /* ما ضمّه الخادم إلى الطلب يُحفظ كما ضمّه. والسؤال لا يُحفظ أصلًا —
+       وهذا هو الفرق بين وكيلٍ يجيب وآخر يبتلع كلَّ ما يُقال طلبًا. */
+    if (state.parsed.accepted) state.utterances.push(state.parsed.accepted);
+
+    if (state.parsed.answer) {
+      answerBubble(state.parsed.answer);
+      renderCard();
+      nextQuestion();   // ويعود إلى ما كان يسأل عنه، فلا يضيع خيط الطلب
+      return;
+    }
+    if (state.parsed.unanswered) {
+      bubble('agent', `${esc(state.parsed.unanswered)} ${WA_LINK}`);
+      renderCard();
+      nextQuestion();
+      return;
+    }
+
     renderCard();
     nextQuestion();
+  }
+
+  const WA_LINK = '<a href="https://wa.me/96590000000" target="_blank" rel="noopener">واتساب</a>';
+
+  /** جواب من معرفة موصول. ما وُسم بالإحالة يُذيَّل بطريق الإنسان. */
+  function answerBubble(a) {
+    bubble('agent', esc(a.answer) + (a.handoff
+      ? `<br><span class="vo-msg__aside">للتفصيل الدقيق: ${WA_LINK}</span>` : ''));
   }
 
   /* تصحيح «هل تقصد…؟»: الكلمة الخاطئة تُستبدل في الحديث نفسه ثم يُعاد
      التحليل — لو أُلحقت الصحيحةُ إلحاقًا لبقيت الخاطئة تُقرأ معها. */
   async function applyHint(from, hintName) {
-    if (from) state.utterances = state.utterances.map((u) => u.split(from).join(hintName));
-    else state.utterances.push(hintName);
     bubble('user', `نعم، أقصد ${esc(hintName)}`);
-    try { await parseAll(); } catch { return; }
+    try {
+      if (from) {
+        state.utterances = state.utterances.map((u) => u.split(from).join(hintName));
+        await parseAll();
+      } else {
+        /* بلا كلمةٍ تُستبدل: الاسم يُقال جملةً جديدة، ويضمّها الخادم كما
+           يضمّ أي كلام — فلا تُدفع هنا وتُدفع هناك مرّتين. */
+        await parseAll(hintName);
+        if (state.parsed.accepted) state.utterances.push(state.parsed.accepted);
+      }
+    } catch { return; }
     renderCard();
     nextQuestion();
   }
