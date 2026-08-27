@@ -286,6 +286,33 @@ FileETag MTime Size
     Header set Cache-Control "no-cache, must-revalidate"
   </Files>
 
+  # THE HAND-WRITTEN OVERRIDE FILES, which matched NOTHING and so were guessed
+  # at by every cache in the path.
+  #
+  # sporta-ui.css, sporta-dark.css, contact.js and card.js are the four files
+  # in assets/ that are not build output. They have FIXED names — deliberately,
+  # because index.html names them and there is no build step here to hash them
+  # — so the immutable rule above (which keys on a content hash in the
+  # filename) does not match them, and neither does anything else. No
+  # Cache-Control at all means heuristic caching: roughly a tenth of the time
+  # since Last-Modified, which for a file edited last week is most of a day.
+  #
+  # THIS IS NOT A PERFORMANCE NOTE. These four carry every correction made
+  # since the build was produced, and they only work as a SET with the
+  # index.html that loads them. A browser holding yesterday's sporta-ui.css
+  # against today's page applies half the rules and not the other half — the
+  # shop heading unhidden while the padding that assumed it was hidden is
+  # gone, the product gallery resized while the thumbnails are still dots. It
+  # does not look like a stale cache. It looks like the site is broken, and it
+  # is invisible from the server, because the server sent the right file.
+  #
+  # Same treatment as sw.js and config.js above, for the same reason: revalidate
+  # before use. Together they are about 25 kB, so the cost of being right is one
+  # conditional request that answers 304 in a few hundred bytes.
+  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(contact|card)\.js$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+
   # HTML always revalidates, so a deploy is picked up on the next visit.
   #
   # must-revalidate is deliberately NOT set here, and that is the whole change:

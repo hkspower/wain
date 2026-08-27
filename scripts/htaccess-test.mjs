@@ -28,7 +28,7 @@
  * whether or not an interpreter is present.
  */
 import { execFileSync, spawnSync } from 'node:child_process'
-import { writeFileSync, existsSync, rmSync } from 'node:fs'
+import { writeFileSync, existsSync, rmSync, readdirSync } from 'node:fs'
 
 const ROOT = new URL('..', import.meta.url).pathname.replace(/\/$/, '')
 const DOCROOT = `${ROOT}/sporta-site/public_html`
@@ -93,6 +93,17 @@ const get = (path) => {
   return { status: Number(out[0]), to: out[1] ?? '' }
 }
 
+/** The Cache-Control a real Apache actually sends for a path, or '' if none. */
+const cacheOf = (path) => {
+  const head = execFileSync('curl', [
+    '-s', '-o', '/dev/null', '-D', '-',
+    '-H', 'Host: www.sporta.com.kw',
+    '-H', 'X-Forwarded-Proto: https',
+    `http://127.0.0.1:${PORT}${path}`,
+  ], { encoding: 'utf8' })
+  return (head.match(/^cache-control:\s*(.*)$/im)?.[1] ?? '').trim()
+}
+
 try {
   console.log('--- the panel, and the alias to it')
   // The panel lives on /backends. /admin is an alias and must REDIRECT, not
@@ -144,6 +155,42 @@ try {
   console.log('\n--- the generated sitemap beats the stale static copy')
   check(get('/sitemap-products.xml').status === 200,
     'sitemap-products.xml is answered (by api/sitemap-products.php on a real host)')
+
+  // ---------------------------------------------------- caching, by category
+  //
+  // EVERY FILE MUST MATCH A RULE. The caching block keys on filename patterns —
+  // a content hash for build output, an extension for images and fonts — and a
+  // file matching none of them gets no Cache-Control at all, which does not
+  // mean "do not cache". It means every cache in the path applies a heuristic,
+  // typically a tenth of the time since Last-Modified.
+  //
+  // That was true of the four hand-written override files, and it is the worst
+  // place for it: they carry every correction made since the build was produced
+  // and they only work as a SET with the index.html that names them. A browser
+  // holding yesterday's sporta-ui.css against today's page applies half the
+  // rules and not the other half, which does not look like a stale cache — it
+  // looks like the site is broken, and the server cannot see it because the
+  // server sent the right file.
+  console.log('\n--- what may be cached, and for how long')
+  for (const f of ['/assets/sporta-ui.css', '/assets/sporta-dark.css',
+                   '/assets/contact.js', '/assets/card.js', '/config.js', '/sw.js']) {
+    const cc = cacheOf(f)
+    check(/no-cache/.test(cc),
+      `${f} revalidates before use — "${cc || 'NOTHING, so every cache guesses'}"`)
+  }
+
+  // And the other half of the bargain: only content-hashed output may be
+  // immutable, because only its filename changes when its bytes do.
+  const hashed = readdirSync(`${DOCROOT}/assets`)
+    .filter((f) => /-[A-Za-z0-9_-]{8,}\.(js|css)$/.test(f)).slice(0, 3)
+  for (const f of hashed) {
+    const cc = cacheOf(`/assets/${f}`)
+    check(/immutable/.test(cc), `assets/${f} is immutable — "${cc}"`)
+  }
+  for (const f of ['/assets/sporta-ui.css', '/assets/contact.js']) {
+    check(!/immutable/.test(cacheOf(f)),
+      `${f} is NOT immutable — its name never changes, so a year would strand it`)
+  }
 } finally {
   stop()
   rmSync(CONF, { force: true })
