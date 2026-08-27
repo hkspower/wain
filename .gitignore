@@ -65,3 +65,10 @@ wallet/*-UNSIGNED.zip
 sporta-site/*.log
 sporta-voice.log
 cbk-payments.log
+
+# Upload packages. Build output — `zip -r` over public_html — and 2.7 MB of it
+# per build, all of it already in the repo as the files it was made from.
+# Committing one would mean a binary that goes stale the moment anything under
+# public_html changes, and no way to see that it had.
+SPORTA-EXTRACT-HERE.zip
+SPORTA-SOURCE.zip
