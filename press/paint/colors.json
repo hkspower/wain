@@ -1,24 +1,24 @@
 [
   {
     "id": "paint-black",
-    "metal": 0.95,
-    "px": 5035,
-    "dead": 54.8,
-    "body": 5.4,
-    "spec": 90,
-    "form": 27.3,
-    "hue": 229,
-    "sat": 0.89
+    "metal": 0.44,
+    "px": 4189,
+    "dead": 33.9,
+    "body": 12.8,
+    "spec": 74.9,
+    "form": 34.8,
+    "hue": 240,
+    "sat": 0.48
   },
   {
-    "id": "paint-gold",
-    "metal": 0.7,
-    "px": 7826,
-    "dead": 0.1,
-    "body": 59.3,
-    "spec": 145.5,
-    "form": 40.3,
-    "hue": 44,
-    "sat": 0.99
+    "id": "paint-red",
+    "metal": 0.95,
+    "px": 6538,
+    "dead": 2.6,
+    "body": 17.5,
+    "spec": 69.5,
+    "form": 26.5,
+    "hue": 347,
+    "sat": 0.77
   }
 ]

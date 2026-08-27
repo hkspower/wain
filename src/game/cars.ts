@@ -2409,10 +2409,33 @@ function paintMetalness(hex: number): number {
   const g = ((hex >> 8) & 255) / 255;
   const b = (hex & 255) / 255;
   const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  // Full metallic up to a mid tone, then falling away to a solid
-  // basecoat by the time the paint is near white.
-  if (lum <= 0.5) return 0.95;
-  return Math.max(0.18, 0.95 - (lum - 0.5) * 1.9);
+  // Metallic in the mid-tones, falling away at BOTH ends.
+  //
+  // The paragraph above argues that a solid white "or a solid black" is
+  // pigment under lacquer rather than flake, and then the code only ever
+  // implemented the white half: everything at or below mid luminance got
+  // a flat 0.95. Measured on a real car really painted, paint-black came
+  // back with 56.3% of its bodywork at or under 8/255 and a tonal range
+  // across the panels of 22.8 against white's 107.9. More than half of a
+  // black car was a hole.
+  //
+  // The physics says why. In a metalness workflow F0 IS the base colour,
+  // so a near-black basecoat reflects about five percent — and metalness
+  // takes the diffuse away as well, leaving a surface that neither
+  // reflects nor shades. Real metallic black is aluminium flake, which
+  // is bright, suspended in a dark binder; calling the whole thing a
+  // black metal is the part that was wrong.
+  //
+  // The dark knee is deliberately low. Dark does not mean unmetallic —
+  // metallic reds and navies are real and common, and this fleet's red
+  // sits at 0.22, its navy at 0.18 and its purple at 0.23, all of which
+  // keep the full 0.95. Only the near-blacks, where F0 stops being
+  // physical at all, come down to a dielectric basecoat and let the
+  // clearcoat above do the work it is already there to do.
+  if (lum >= 0.5) return Math.max(0.18, 0.95 - (lum - 0.5) * 1.9);
+  const DARK_KNEE = 0.16;
+  if (lum >= DARK_KNEE) return 0.95;
+  return 0.18 + (0.95 - 0.18) * (lum / DARK_KNEE);
 }
 
 function seg0Pitch(p: number): number {
