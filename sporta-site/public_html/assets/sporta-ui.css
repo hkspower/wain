@@ -12,15 +12,19 @@
  */
 
 /* ------------------------------------------------------------------ clock */
-/* The dial is the only svg on the page with this viewBox, checked: one
-   element, in the header. Sizing it here rather than editing the bundle keeps
-   the change in a file that can be read and reverted. */
-header svg[viewBox='0 0 48 48'] {
+/* Scoped to .app-header, NOT to `header`. That distinction cost an invoice.
+   These rules were written as `header ...` and the invoice page has THREE
+   header elements — the site bar, the invoice card's own header, and one
+   more. `header .tabular-nums` matched four elements there and painted the
+   order number and the date white; on the dark screen that looked
+   deliberate, and on white paper the printed invoice simply had no order
+   number on it. .app-header matches one element on every page. */
+.app-header svg[viewBox='0 0 48 48'] {
   width: 44px !important;
   height: 44px !important;
 }
 @media (min-width: 640px) {
-  header svg[viewBox='0 0 48 48'] {
+  .app-header svg[viewBox='0 0 48 48'] {
     width: 52px !important;
     height: 52px !important;
   }
@@ -30,13 +34,13 @@ header svg[viewBox='0 0 48 48'] {
    all four are inside this dial — verified, so there is nothing else to
    catch. The ember stays everywhere it means something (price, active nav,
    the sale badge); on a clock face it was decoration competing with them. */
-header svg[viewBox='0 0 48 48'] .stroke-brand {
+.app-header svg[viewBox='0 0 48 48'] .stroke-brand {
   stroke: #ffffff !important;
 }
 
 /* The digits beside it. They were 13.7px at 85% white — the smallest text in
    the bar and the one most often read at arm's length. */
-header .tabular-nums {
+.app-header .tabular-nums {
   font-size: 15px !important;
   color: #ffffff !important;
   letter-spacing: 0.02em;
@@ -46,18 +50,18 @@ header .tabular-nums {
 /* Nav links were 14.7px/600. A little more size and a little tracking: this
    is Arabic and English in the same row, and the Latin words are what suffer
    when tracking is tight. */
-header nav a,
-header a.flex.min-h-11 {
+.app-header nav a,
+.app-header a.flex.min-h-11 {
   font-size: 15.5px !important;
   letter-spacing: 0.01em;
 }
 
 /* The language chip: 12px at 90% white inside a 20%-white ring. Full white on
    a firmer ring — it is a control, and its edge was 1.2:1 against the bar. */
-header button[aria-label] {
+.app-header button[aria-label] {
   font-size: 13.5px !important;
 }
-header button[aria-label].border-white\/20 {
+.app-header button[aria-label].border-white\/20 {
   border-color: #ffffff59 !important;
   color: #ffffff !important;
 }
@@ -176,4 +180,79 @@ main section:has(> div > div > h1) > div:first-child {
 }
 main section:has(> div > div > h1) > div.mb-8 {
   margin-bottom: 0.75rem !important;
+}
+
+/* ------------------------------------------------------------ printing */
+/* AN INVOICE PRINTS ON WHITE PAPER.
+ *
+ * The build's stylesheet carries `@media print { body { background: #fff } }`,
+ * which is right — but it also carries `[data-theme=dark] body { background:
+ * #202429 }` outside any media query, and that selector is more specific. So
+ * the dark ground won in print even before this project touched anything;
+ * making dark the default just meant everyone hit it. Saved PDFs and printed
+ * invoices came out as a black page: heavy on ink, muddy on most printers,
+ * and not what a document should look like.
+ *
+ * These rules exist only inside @media print. Nothing here changes the screen.
+ * The ember is deliberately left alone — it is the brand, it marks the total,
+ * and it reads correctly on white. */
+@media print {
+  /* THE ROOT, not just the body. body went white and the page still printed
+     with a black margin, because html keeps its own #2b3138 and that is what
+     paints outside the body box. */
+  /* COLOUR-SCHEME, and this is the one that survived every other fix.
+     With html white and body white the page still printed inside a black
+     frame: a 14mm band of #121212 on all four sides, measured off the PDF.
+     That band is the @page MARGIN box, which is outside the canvas — no
+     background on html or body reaches it. It is painted by the user agent
+     from `color-scheme`, and the boot script sets `color-scheme: dark` on
+     <html> so the browser's own chrome matches the site. On screen that is
+     right. On paper it is a solid black border around every invoice. */
+  [data-theme='dark'] {
+    color-scheme: light !important;
+  }
+
+  [data-theme='dark'],
+  [data-theme='dark'] body,
+  [data-theme='dark'] body[data-canvas='silver'],
+  [data-theme='dark'] .bg-sand,
+  [data-theme='dark'] .bg-sand-light,
+  [data-theme='dark'] .bg-white,
+  [data-theme='dark'] .card,
+  [data-theme='dark'] .bg-ink,
+  [data-theme='dark'] .bg-ink-silver,
+  [data-theme='dark'] .bg-ink-steel,
+  [data-theme='dark'] .bg-slate-50,
+  [data-theme='dark'] .bg-slate-100 {
+    background: #ffffff !important;
+    color: #171a1e !important;
+  }
+  [data-theme='dark'] .text-slate-900,
+  [data-theme='dark'] .text-slate-800,
+  [data-theme='dark'] .text-slate-700 {
+    color: #171a1e !important;
+  }
+  [data-theme='dark'] .text-slate-600,
+  [data-theme='dark'] .text-slate-500,
+  [data-theme='dark'] .text-slate-400 {
+    color: #45494e !important;
+  }
+  [data-theme='dark'] .border-black\/10,
+  [data-theme='dark'] .border-black\/15,
+  [data-theme='dark'] .border-white\/10,
+  [data-theme='dark'] .border-slate-100,
+  [data-theme='dark'] .border-slate-200,
+  [data-theme='dark'] .border-slate-300 {
+    border-color: #d3d7dc !important;
+  }
+
+  /* WHITE TEXT DISAPPEARS ON WHITE PAPER, and this is where it bit: the order
+     number, the date and the shop's phone number are .tabular-nums inheriting
+     white from an ancestor. On the dark card they were the most prominent
+     things on the invoice; on the fixed white card they were simply not
+     there — a printed invoice with no order number on it. */
+  [data-theme='dark'] .invoice .text-white,
+  [data-theme='dark'] .invoice .text-white * {
+    color: #171a1e !important;
+  }
 }

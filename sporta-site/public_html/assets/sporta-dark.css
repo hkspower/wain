@@ -55,105 +55,126 @@
   --sp-on-ember: #171a1e;
 }
 
-/* --- the ground ------------------------------------------------------- */
-[data-theme='dark'] body,
-[data-theme='dark'] body[data-canvas='silver'] {
-  color: var(--sp-text);
-  background-color: var(--sp-black) !important;
-}
-[data-theme='dark'] .bg-sand,
-[data-theme='dark'] .bg-sand-light {
-  background-color: var(--sp-black) !important;
-}
+/* EVERYTHING BELOW IS @media screen, and that is not tidiness.
+ *
+ * The build's own stylesheet already prints correctly — it carries
+ * `@media print { body { background: #fff } }` so an invoice comes out on
+ * white paper. This file overrides body with !important and loads after it,
+ * so it was winning in print too: every saved PDF and every printed invoice
+ * came out as a black page. That is a lot of ink, it renders muddy on most
+ * printers, and it is not what a document should look like.
+ *
+ * Scoping the overrides to screen hands print back to the built stylesheet,
+ * which was right all along. It is safer than adding a @media print block
+ * that undoes each rule by hand — that list would fall out of step the first
+ * time a rule was added here and nobody remembered to undo it there.
+ *
+ * The :root variables above stay outside: they are declarations, they paint
+ * nothing on their own, and the print rules do not read them.
+ */
+@media screen {
 
-/* --- panels: cards, the header, the cart drawer ------------------------ */
-/* bg-ink-silver was #2b3138 and is the sticky header. It was LIGHTER than the
-   page, which reads as the chrome floating above the content rather than
-   holding it; on black it now sits one step up, with the hairline below it
-   doing the separating. */
-[data-theme='dark'] .bg-white,
-[data-theme='dark'] .card,
-[data-theme='dark'] .bg-ink-silver {
-  color: var(--sp-text);
-  background-color: var(--sp-panel) !important;
-}
-[data-theme='dark'] .bg-ink-silver\/\[\.97\] {
-  background-color: #17191cf7 !important;
-}
+  /* --- the ground ------------------------------------------------------- */
+  [data-theme='dark'] body,
+  [data-theme='dark'] body[data-canvas='silver'] {
+    color: var(--sp-text);
+    background-color: var(--sp-black) !important;
+  }
+  [data-theme='dark'] .bg-sand,
+  [data-theme='dark'] .bg-sand-light {
+    background-color: var(--sp-black) !important;
+  }
 
-/* --- tiles: what a photograph sits on ---------------------------------- */
-/* Darker than a card on purpose. A product shot on a near-black ground reads
-   as the garment; on a mid grey it reads as a rectangle with a garment in it.
-   bg-slate-50/100 are the placeholder grounds before an image loads, and the
-   two navy slates are the cast this file exists to remove. */
-[data-theme='dark'] .bg-ink,
-[data-theme='dark'] .bg-slate-50,
-[data-theme='dark'] .bg-slate-100,
-[data-theme='dark'] .bg-slate-800,
-[data-theme='dark'] .bg-slate-900 {
-  background-color: var(--sp-tile) !important;
-}
-[data-theme='dark'] .bg-ink\/60 { background-color: #0d0e1099 !important; }
-[data-theme='dark'] .bg-ink\/70 { background-color: #0d0e10b3 !important; }
+  /* --- panels: cards, the header, the cart drawer ------------------------ */
+  /* bg-ink-silver was #2b3138 and is the sticky header. It was LIGHTER than the
+     page, which reads as the chrome floating above the content rather than
+     holding it; on black it now sits one step up, with the hairline below it
+     doing the separating. */
+  [data-theme='dark'] .bg-white,
+  [data-theme='dark'] .card,
+  [data-theme='dark'] .bg-ink-silver {
+    color: var(--sp-text);
+    background-color: var(--sp-panel) !important;
+  }
+  [data-theme='dark'] .bg-ink-silver\/\[\.97\] {
+    background-color: #17191cf7 !important;
+  }
 
-/* --- raised: chips, inputs, the skeleton ------------------------------- */
-[data-theme='dark'] .bg-ink-steel,
-[data-theme='dark'] .skeleton {
-  background-color: var(--sp-raise) !important;
-}
+  /* --- tiles: what a photograph sits on ---------------------------------- */
+  /* Darker than a card on purpose. A product shot on a near-black ground reads
+     as the garment; on a mid grey it reads as a rectangle with a garment in it.
+     bg-slate-50/100 are the placeholder grounds before an image loads, and the
+     two navy slates are the cast this file exists to remove. */
+  [data-theme='dark'] .bg-ink,
+  [data-theme='dark'] .bg-slate-50,
+  [data-theme='dark'] .bg-slate-100,
+  [data-theme='dark'] .bg-slate-800,
+  [data-theme='dark'] .bg-slate-900 {
+    background-color: var(--sp-tile) !important;
+  }
+  [data-theme='dark'] .bg-ink\/60 { background-color: #0d0e1099 !important; }
+  [data-theme='dark'] .bg-ink\/70 { background-color: #0d0e10b3 !important; }
 
-/* --- text ------------------------------------------------------------- */
-/* The old secondary was #9aa3ae — a blue grey. Same lightness, hue removed. */
-[data-theme='dark'] .text-slate-900,
-[data-theme='dark'] .text-slate-800,
-[data-theme='dark'] .text-slate-700 {
-  color: var(--sp-text) !important;
-}
-[data-theme='dark'] .text-slate-600,
-[data-theme='dark'] .text-slate-500,
-[data-theme='dark'] .text-slate-400 {
-  color: var(--sp-silver) !important;
-}
-[data-theme='dark'] .text-brand-dark { color: var(--sp-ember) !important; }
+  /* --- raised: chips, inputs, the skeleton ------------------------------- */
+  [data-theme='dark'] .bg-ink-steel,
+  [data-theme='dark'] .skeleton {
+    background-color: var(--sp-raise) !important;
+  }
 
-/* --- lines ------------------------------------------------------------- */
-/* white/12% over black is a grey with no hue but also no substance — it
-   disappeared against the card it was meant to bound. A named line colour is
-   the same weight on every surface in the ramp. */
-[data-theme='dark'] .border-black\/10,
-[data-theme='dark'] .border-black\/15,
-[data-theme='dark'] .border-slate-100,
-[data-theme='dark'] .border-slate-200,
-[data-theme='dark'] .border-slate-300,
-[data-theme='dark'] .border-white\/10 {
-  border-color: var(--sp-line) !important;
-}
-[data-theme='dark'] .action-bar {
-  background: #0d0e10eb !important;
-  border-top-color: var(--sp-line) !important;
-}
+  /* --- text ------------------------------------------------------------- */
+  /* The old secondary was #9aa3ae — a blue grey. Same lightness, hue removed. */
+  [data-theme='dark'] .text-slate-900,
+  [data-theme='dark'] .text-slate-800,
+  [data-theme='dark'] .text-slate-700 {
+    color: var(--sp-text) !important;
+  }
+  [data-theme='dark'] .text-slate-600,
+  [data-theme='dark'] .text-slate-500,
+  [data-theme='dark'] .text-slate-400 {
+    color: var(--sp-silver) !important;
+  }
+  [data-theme='dark'] .text-brand-dark { color: var(--sp-ember) !important; }
 
-/* --- the round buttons that float on a photograph ---------------------- */
-/* bg-white/90 and /95 are the wishlist heart and the quick-add. These STAY
-   light, and that is deliberate. They sit on a product photograph, not on a
-   surface in the ramp, so the ground behind them is unknowable — a dark disc
-   is invisible on a dark shot. I did try the dark version: a #212428 disc
-   ringed in --sp-line measures 1.45:1 against the tile, well under the 3:1 a
-   control's boundary needs, and it disappeared. Light is what makes them work
-   on any photograph.
-   What changes is only the colour: the palette's silver rather than pure
-   white, so the one bright element on the page still belongs to it. */
-[data-theme='dark'] .bg-white\/90 { background-color: #e6e8eae6 !important; }
-[data-theme='dark'] .bg-white\/95 {
-  color: var(--sp-on-ember) !important;
-  background-color: #e6e8eaf2 !important;
-}
+  /* --- lines ------------------------------------------------------------- */
+  /* white/12% over black is a grey with no hue but also no substance — it
+     disappeared against the card it was meant to bound. A named line colour is
+     the same weight on every surface in the ramp. */
+  [data-theme='dark'] .border-black\/10,
+  [data-theme='dark'] .border-black\/15,
+  [data-theme='dark'] .border-slate-100,
+  [data-theme='dark'] .border-slate-200,
+  [data-theme='dark'] .border-slate-300,
+  [data-theme='dark'] .border-white\/10 {
+    border-color: var(--sp-line) !important;
+  }
+  [data-theme='dark'] .action-bar {
+    background: #0d0e10eb !important;
+    border-top-color: var(--sp-line) !important;
+  }
 
-/* --- orange stays orange ---------------------------------------------- */
-/* Named here only so the one thing that must NOT drift is written down: the
-   fill is #e0561c and what goes on it is ink, not white — white on that fill
-   is 3.81:1, under AA for body text. */
-[data-theme='dark'] .btn-primary {
-  color: var(--sp-on-ember) !important;
-  background-color: var(--sp-ember-fill) !important;
+  /* --- the round buttons that float on a photograph ---------------------- */
+  /* bg-white/90 and /95 are the wishlist heart and the quick-add. These STAY
+     light, and that is deliberate. They sit on a product photograph, not on a
+     surface in the ramp, so the ground behind them is unknowable — a dark disc
+     is invisible on a dark shot. I did try the dark version: a #212428 disc
+     ringed in --sp-line measures 1.45:1 against the tile, well under the 3:1 a
+     control's boundary needs, and it disappeared. Light is what makes them work
+     on any photograph.
+     What changes is only the colour: the palette's silver rather than pure
+     white, so the one bright element on the page still belongs to it. */
+  [data-theme='dark'] .bg-white\/90 { background-color: #e6e8eae6 !important; }
+  [data-theme='dark'] .bg-white\/95 {
+    color: var(--sp-on-ember) !important;
+    background-color: #e6e8eaf2 !important;
+  }
+
+  /* --- orange stays orange ---------------------------------------------- */
+  /* Named here only so the one thing that must NOT drift is written down: the
+     fill is #e0561c and what goes on it is ink, not white — white on that fill
+     is 3.81:1, under AA for body text. */
+  [data-theme='dark'] .btn-primary {
+    color: var(--sp-on-ember) !important;
+    background-color: var(--sp-ember-fill) !important;
+  }
+
 }
