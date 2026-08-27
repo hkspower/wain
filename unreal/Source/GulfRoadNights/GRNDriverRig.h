@@ -54,6 +54,13 @@ struct FGRNDriverRig
 	/** Rest position of a pedal face, UE units — a press sinks it from
 	 *  here and the foot is solved onto the moving face. */
 	FVector PedalRest = FVector::ZeroVector;
+	/** The handbrake lever and its build-time rake, so a pull can raise
+	 *  it and the inboard hand can be solved onto the moving grip. */
+	USceneComponent* Handbrake = nullptr;
+	float HandbrakeRest = 0.f;
+	/** How far the inboard hand is committed to the lever, 0 rim to 1
+	 *  grip. On the rig because Solve is stateless between frames. */
+	float HbBlend = 0.f;
 	/** Shown steering angle, radians, chasing the input. */
 	float WheelAngle = 0.f;
 	/** How far the body is leaning and folding, radians, chasing the g.
@@ -132,7 +139,8 @@ namespace GRNDriverRig
 	 * articulated elbows.
 	 */
 	void Solve(FGRNDriverRig& Rig, float Steer, float Throttle, float Brake,
-		const FVector& LookTarget, float Dt, float GLat = 0.f, float GLong = 0.f);
+		const FVector& LookTarget, float Dt, float GLat = 0.f, float GLong = 0.f,
+		float Handbrake = 0.f);
 
 	/** Build a standing figure (spectator or racer) with chain arms and a
 	 *  neck joint. bRacer picks the racer's proportions over the robed

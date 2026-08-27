@@ -5203,7 +5203,13 @@ export class GameEngine {
       this.v1,
       dt,
       this.latAccel,
-      this.longAccel
+      this.longAccel,
+      // The hand on the lever is the tell that a slide is a decision
+      // rather than a mistake. Read through the same debounced getter
+      // the physics uses, so the hand and the rear axle answer the same
+      // press — a driver whose hand is on the wheel while the tail is
+      // out is a car sliding with nobody making it.
+      this.handbrake ? 1 : 0
     );
   }
 

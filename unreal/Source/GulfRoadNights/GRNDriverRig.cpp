@@ -260,6 +260,18 @@ FGRNDriverRig GRNDriverRig::Build(AActor* Owner, USceneComponent* AttachTo, FVec
 	Rig.PedalBrake = MakePedal(GRNRig::DriverPedalBrakeX);
 	Rig.PedalRest = FVector(GRNRig::DriverPedalZ, 0.f, GRNRig::DriverPedalY) * K;
 
+	// The handbrake, between the seats: pivot at the base, lever raked
+	// back toward the driver. The one control a hand leaves the wheel
+	// for, so the inboard arm has somewhere to go during a slide.
+	Rig.Handbrake = Joint(Owner, Rig.Root,
+		FVector(GRNRig::DriverHandbrakeZ, GRNRig::DriverHandbrakeX, GRNRig::DriverHandbrakeY) * K);
+	Rig.HandbrakeRest = GRNRig::DriverHandbrakeTilt;
+	if (Rig.Handbrake)
+	{
+		Rig.Handbrake->SetRelativeRotation(
+			FRotator(FMath::RadiansToDegrees(Rig.HandbrakeRest), 0.f, 0.f));
+	}
+
 	// Legs: hip -> knee -> foot, the same chains as the arms. The rest
 	// pose reads as seated even before a solver runs, for rigs that are
 	// built and never updated.
@@ -284,7 +296,7 @@ FGRNDriverRig GRNDriverRig::Build(AActor* Owner, USceneComponent* AttachTo, FVec
 // ------------------------------------------------------------------ solve
 
 void GRNDriverRig::Solve(FGRNDriverRig& Rig, float Steer, float Throttle, float Brake,
-	const FVector& LookTarget, float Dt, float GLat, float GLong)
+	const FVector& LookTarget, float Dt, float GLat, float GLong, float Handbrake)
 {
 	if (!Rig.IsValid()) return;
 
@@ -312,6 +324,18 @@ void GRNDriverRig::Solve(FGRNDriverRig& Rig, float Steer, float Throttle, float 
 	// Lock-to-lock is about a turn and a half each way in a road car.
 	const float Lock = Steer * GRNRig::DriverSteerLock;
 	Rig.WheelAngle += (-Lock - Rig.WheelAngle) * FMath::Min(1.f, Dt * GRNRig::DriverWheelRate);
+
+	// The lever first, because the hand is solved onto wherever it is.
+	Rig.HbBlend += (FMath::Clamp(Handbrake, 0.f, 1.f) - Rig.HbBlend)
+		* FMath::Min(1.f, Dt * GRNRig::DriverHandbrakeRate);
+	if (Rig.Handbrake)
+	{
+		// Web rotation.x maps to UE pitch about Y; HandbrakeRest is the
+		// build-time rake, captured the way PedalRest is.
+		Rig.Handbrake->SetRelativeRotation(FRotator(
+			FMath::RadiansToDegrees(Rig.HandbrakeRest - Rig.HbBlend * GRNRig::DriverHandbrakeThrow),
+			0.f, 0.f));
+	}
 	if (Rig.Wheel)
 	{
 		// The wheel spins about the column, which after the rake is the
@@ -346,9 +370,27 @@ void GRNDriverRig::Solve(FGRNDriverRig& Rig, float Steer, float Throttle, float 
 		if (!Rig.Wheel) break;
 		const float Grip = Arm.Side < 0.f ? GRNRig::DriverGripLeft : GRNRig::DriverGripRight;
 		const float R = GRNRig::DriverWheelRadius * K;
+		// ...but only to the comfortable arc. Past GripCarryMax the rim
+		// slides through the grip: the excess rotation is subtracted back
+		// inside the wheel's own frame, so the hand holds station in the
+		// cab while the wheel turns under it. Mirrors src/game/driver.ts.
+		const float Carried = FMath::Clamp(Rig.WheelAngle,
+			-GRNRig::DriverGripCarryMax, GRNRig::DriverGripCarryMax);
+		const float Slide = Carried - Rig.WheelAngle;
 		// The rim lies in the wheel joint's Y/Z plane (its X is the column).
-		const FVector LocalGrip(0.f, FMath::Cos(Grip) * R, FMath::Sin(Grip) * R);
-		const FVector Target = Rig.Wheel->GetComponentTransform().TransformPosition(LocalGrip);
+		const FVector LocalGrip(0.f, FMath::Cos(Grip + Slide) * R, FMath::Sin(Grip + Slide) * R);
+		FVector Target = Rig.Wheel->GetComponentTransform().TransformPosition(LocalGrip);
+
+		// The inboard hand answers the handbrake, eased off the rim onto
+		// the lever grip. Inboard is read from the lever's own bolted
+		// side, so a left-hand-drive rebuild gets the correct hand free.
+		const float Inboard = GRNRig::DriverHandbrakeX < 0.f ? -1.f : 1.f;
+		if (Rig.Handbrake && Arm.Side == Inboard && Rig.HbBlend > 0.001f)
+		{
+			const FVector LeverGrip = Rig.Handbrake->GetComponentTransform()
+				.TransformPosition(FVector(0.f, 0.f, GRNRig::DriverHandbrakeLen * K));
+			Target = FMath::Lerp(Target, LeverGrip, Rig.HbBlend);
+		}
 
 		// Elbows break outward and down — the pole is what stops a solved
 		// arm bending like a flamingo's knee. Offset in the rig's own

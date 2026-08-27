@@ -92,6 +92,37 @@ export const RIG = {
     legPoleY: 1.1,
     legPoleZ: 0.42,
 
+    /** How far round the rim the hands are CARRIED before they slide.
+     *
+     *  The grips ride the wheel's own frame, which is right for road
+     *  angles and wrong at lock: at 2.4 rad of wheel the left hand has
+     *  been carried to the bottom of the rim and the arms cross. A real
+     *  driver lets the rim slide through their grip past a comfortable
+     *  arc, so past this angle the hand holds its station in the CAR's
+     *  frame and the wheel turns underneath it. About sixty degrees —
+     *  the arc you can carry without your elbows arguing. */
+    gripCarryMax: 1.05,
+
+    /** The handbrake, between the seats on the tunnel — inboard, the
+     *  brake-pedal side of a right-hand-drive cab. The lever is bolted
+     *  to the CAR (like the wheel and the pedals), pivots at its base,
+     *  and rises through `handbrakeThrow` radians at full pull, so the
+     *  hand that grips it rides a moving target the same way the feet
+     *  ride the pedals. */
+    handbrakeX: -0.3,
+    handbrakeY: 0.16,
+    handbrakeZ: 0.02,
+    /** Base-to-grip length of the lever. */
+    handbrakeLen: 0.26,
+    /** Rest rake, radians back from vertical toward the driver. */
+    handbrakeTilt: 1.12,
+    /** How far the lever rises at full pull. */
+    handbrakeThrow: 0.5,
+    /** How fast the hand commits to (and returns from) the lever. Fast
+     *  on the way down — a drift starts with a snatch — and the same
+     *  ease back, which reads as letting go. */
+    handbrakeRate: 10,
+
     /** The driver looks into the corner, not down the bonnet. */
     lookAheadM: 26,
     lookLatK: 0.4,

@@ -22,61 +22,76 @@ await page.waitForFunction(()=>!!window.__grnDebug,null,{timeout:120000});
 
 const fail=[]; const check=(c,m)=>{if(!c)fail.push(m);return c?"ok":"FAIL";};
 
-// --- 1. The driver's hands land on the wheel rim, at every lock ---
+// --- 1. Hands on the rim: carried to the comfortable arc, sliding past it ---
+//
+// The law being pinned, in two halves. Up to gripCarryMax the grips ride
+// the wheel's own frame — the fix for the old double-counting bug where
+// hands orbited at twice the spoke rate. PAST it the hand lets the rim
+// slide through its grip and holds station in the car's frame, because a
+// hand carried the full 2.4 rad ends up at the bottom of the wheel with
+// the arms crossed. The expected value here is the LAW (rest grip plus
+// clamp(rot) - rot), not the engine's own position arithmetic: restating
+// a design rule is what a test is for, and copying sin/cos is exactly
+// what hid the double-count for months.
 const hands = await page.evaluate(()=>{
   const e = window.__grnEngine;
   e.setPaused(true);
   const rig = e.carBody.userData.driver;
   if (!rig) return null;
-  const out = [];
-  for (const steer of [-1, -0.5, 0, 0.5, 1]) {
+  const out = { samples: [], carryMax: window.__grnRig?.driver?.gripCarryMax ?? null,
+                radius: rig.wheelRadius };
+  for (const steer of [-1, -0.4, 0, 0.4, 1]) {
     e.setTouchInput({ steer });
     for (let i=0;i<40;i++) e.update(1/60); // let the wheel and arms settle
     e.carBody.updateWorldMatrix(true, true);
+    rig.wheel.updateWorldMatrix(true, true);
     for (const arm of rig.arms) {
-      // Where the hand ended up
       arm.hand.updateWorldMatrix(true, false);
       const hp = new (e.camera.position.constructor)();
       hp.setFromMatrixPosition(arm.hand.matrixWorld);
-      // Where it was asked to be: a MATERIAL point on the rim, i.e. a
-      // marker parented to the wheel at a fixed local angle. Rebuilding
-      // the engine's own arithmetic here would only prove the test can
-      // copy-paste — it did exactly that, and hid a bug where the
-      // hands orbited at twice the wheel's rate for months.
-      const grip = arm.side < 0 ? Math.PI*0.72 : Math.PI*0.28;
-      let marker = rig.wheel.getObjectByName(`grip${arm.side}`);
-      if (!marker) {
-        marker = new (rig.wheel.constructor)();
-        marker.name = `grip${arm.side}`;
-        marker.position.set(Math.cos(grip)*rig.wheelRadius, Math.sin(grip)*rig.wheelRadius, 0);
-        rig.wheel.add(marker);
-      }
-      rig.wheel.updateWorldMatrix(true, true);
-      const tp = new (e.camera.position.constructor)();
-      tp.setFromMatrixPosition(marker.matrixWorld);
-      // The hand's angle in the wheel's own frame: constant if the
-      // hands ride the rim, drifting if the rotation is counted twice.
       const lp = hp.clone();
       rig.wheel.worldToLocal(lp);
-      out.push({ steer, side: arm.side, err: +hp.distanceTo(tp).toFixed(4),
-                 localAng: +Math.atan2(lp.y, lp.x).toFixed(3) });
+      out.samples.push({
+        steer, side: arm.side,
+        rot: +rig.wheel.rotation.z.toFixed(3),
+        // Still ON the rim: distance from the wheel's axis, measured in
+        // the wheel's own plane. No target arithmetic to copy wrong.
+        rimR: +Math.hypot(lp.x, lp.y).toFixed(4),
+        localAng: +Math.atan2(lp.y, lp.x).toFixed(3),
+      });
     }
   }
   e.setTouchInput({ steer: 0 });
   return out;
 });
 if (!hands) { console.log("no driver rig"); process.exit(1); }
-const worst = Math.max(...hands.map(h=>h.err));
-console.log("driver hands on the rim (reach error, metres):");
-for (const h of hands) console.log(`  steer ${String(h.steer).padStart(4)}  ${h.side<0?"left ":"right"}  ${h.err}  grip angle in wheel frame ${h.localAng}`);
-console.log(`worst ${worst} m  ${check(worst < 0.02, `a hand missed the rim by ${worst} m`)}`);
-// Each hand keeps its station on the rim through the whole lock: the
-// grip angle measured in the wheel's own frame must not move.
-for (const side of [-1, 1]) {
-  const angs = hands.filter(h=>h.side===side).map(h=>h.localAng);
-  const drift = Math.max(...angs) - Math.min(...angs);
-  console.log(`  ${side<0?"left ":"right"} hand grip drifts ${drift.toFixed(3)} rad across full lock  ` +
-    check(drift < 0.05, `the ${side<0?"left":"right"} hand slides ${drift.toFixed(2)} rad around the rim as the wheel turns`));
+{
+  const carryMax = hands.carryMax ?? 1.05;
+  const wrap = (a)=>{ while(a>Math.PI)a-=2*Math.PI; while(a<-Math.PI)a+=2*Math.PI; return a; };
+  const rest = {};
+  for (const h of hands.samples) if (h.steer === 0) rest[h.side] = h.localAng;
+  console.log(`driver hands (carry arc ${carryMax} rad, rim radius ${hands.radius}):`);
+  let worstR = 0, worstLaw = 0;
+  for (const h of hands.samples) {
+    const slide = Math.max(-carryMax, Math.min(carryMax, h.rot)) - h.rot;
+    const want = wrap(rest[h.side] + slide);
+    const lawErr = Math.abs(wrap(h.localAng - want));
+    worstR = Math.max(worstR, Math.abs(h.rimR - hands.radius));
+    worstLaw = Math.max(worstLaw, lawErr);
+    console.log(`  steer ${String(h.steer).padStart(4)}  ${h.side<0?"left ":"right"}  wheel ${String(h.rot).padStart(6)}  r ${h.rimR}  ang ${h.localAng}  want ${want.toFixed(3)}  err ${lawErr.toFixed(3)}`);
+  }
+  console.log(`worst radius error ${worstR.toFixed(4)} m  ` +
+    check(worstR < 0.02, `a hand left the rim by ${worstR.toFixed(3)} m`));
+  console.log(`worst law error ${worstLaw.toFixed(3)} rad  ` +
+    check(worstLaw < 0.08, `a hand is ${worstLaw.toFixed(2)} rad off the carry-then-slide law`));
+  // Both regimes have to be exercised, or the law is half-tested: at 0.4
+  // the wheel is inside the carry arc, at full lock it is well past it.
+  const ride = hands.samples.find(h=>h.steer===0.4 && h.side<0);
+  const lock = hands.samples.find(h=>h.steer===1 && h.side<0);
+  check(Math.abs(ride.rot) <= carryMax + 0.05,
+    `steer 0.4 puts the wheel at ${ride.rot} rad, past the carry arc — the ride regime is untested`);
+  check(Math.abs(lock.rot) > carryMax + 0.1,
+    `full lock only reaches ${lock.rot} rad — the slide regime is untested`);
 }
 
 // --- 2. Unreachable target: the arm straightens, it does not explode ---
@@ -737,6 +752,60 @@ check(traffic.lean === 0, "traffic drivers carry legs — the lean build is not 
     check(remote.fold > 0.01, "the remote driver does not fold under braking");
   }
 }
+
+
+// --- The handbrake hand: off the rim, onto the lever, and home again ---
+//
+// The one move in this cab where a hand goes somewhere other than the
+// wheel, and the move the game is named for. Pulled through touchDrift,
+// the same path a phone uses, so the debounce and the stale-press guard
+// are inside the loop being tested rather than bypassed by poking a
+// field.
+const hb = await page.evaluate(()=>{
+  const e = window.__grnEngine;
+  const rig = e.carBody.userData.driver;
+  if (!rig) return null;
+  const V = e.camera.position.constructor;
+  let knob = null;
+  rig.handbrake.traverse((o)=>{ if (o.userData?.driverPart === "handbrake-grip") knob = o; });
+  const inboard = rig.arms.find((a)=>a.side < 0);
+  const handAt = () => {
+    inboard.hand.updateWorldMatrix(true, false);
+    return new V().setFromMatrixPosition(inboard.hand.matrixWorld);
+  };
+  const rimR = () => {
+    const lp = handAt();
+    rig.wheel.updateWorldMatrix(true, true);
+    rig.wheel.worldToLocal(lp);
+    return +Math.hypot(lp.x, lp.y).toFixed(3);
+  };
+  e.setTouchInput({ steer: 0, throttle: 0.6 });
+  e.player.speed = 30;
+  for (let i=0;i<40;i++) e.update(1/60);
+  const before = { rimR: rimR(), lever: rig.handbrake.rotation.x };
+  e.touchDrift(true);
+  for (let i=0;i<50;i++) e.update(1/60);
+  knob?.updateWorldMatrix(true, false);
+  const kp = knob ? new V().setFromMatrixPosition(knob.matrixWorld) : null;
+  const pulled = {
+    toKnob: kp ? +handAt().distanceTo(kp).toFixed(3) : null,
+    lever: rig.handbrake.rotation.x,
+    blend: +rig.hbBlend.toFixed(2),
+  };
+  e.touchDrift(false);
+  for (let i=0;i<60;i++) e.update(1/60);
+  const after = { rimR: rimR(), blend: +rig.hbBlend.toFixed(2) };
+  e.setTouchInput({ throttle: 0 });
+  return { before, pulled, after, rest: rig.handbrake.userData.restRotX, radius: rig.wheelRadius };
+});
+if (!hb) { console.log("no rig for the handbrake check"); process.exit(1); }
+console.log(`\nhandbrake  rim ${hb.before.rimR} -> knob ${hb.pulled.toKnob} m (blend ${hb.pulled.blend}, lever ${hb.pulled.lever.toFixed(2)} from rest ${hb.rest.toFixed(2)}) -> rim ${hb.after.rimR} (blend ${hb.after.blend})`);
+check(Math.abs(hb.before.rimR - hb.radius) < 0.02, "the inboard hand is not on the rim before the pull");
+check(hb.pulled.toKnob !== null && hb.pulled.toKnob < 0.05,
+  `pulled, the hand is ${hb.pulled.toKnob} m from the lever grip — it never left the wheel`);
+check(hb.pulled.lever < hb.rest - 0.2, "the lever does not rise under the pull");
+check(hb.after.blend < 0.1 && Math.abs(hb.after.rimR - hb.radius) < 0.03,
+  "released, the hand does not come home to the rim");
 
 console.log(fail.length?"\nFAILURES:\n - "+fail.join("\n - "):"\nIK solves, clamps and behaves");
 await b.close();

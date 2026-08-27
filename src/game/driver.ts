@@ -40,7 +40,12 @@ export function solveDriverRig(
   /** What the car is pulling, m/s^2: sideways, and along. The driver
    *  is a mass in a seat and this is what moves them. */
   gLat = 0,
-  gLong = 0
+  gLong = 0,
+  /** How hard the handbrake is being pulled, 0..1. The inboard hand
+   *  leaves the rim for the lever while this is up — the one move in
+   *  the cab where a hand goes somewhere other than the wheel, and the
+   *  move this game is named for. */
+  handbrake = 0
 ): void {
   // The body first, because everything else is solved onto targets and
   // will follow it. Lean away from the cornering force and fold
@@ -83,11 +88,50 @@ export function solveDriverRig(
   // them round as it turns. Adding rotation.z to the local angle as
   // well counts the wheel twice: the hands then orbit at double the
   // spoke rate and cross over each other at full lock.
+  // The lever first, because the hand is solved onto wherever it is.
+  // Pulled, it rises through its throw; the blend eases the hand between
+  // rim and grip, and lives on the rig because this solver is a free
+  // function with no other memory.
+  const hbWant = THREE.MathUtils.clamp(handbrake, 0, 1);
+  rig.hbBlend += (hbWant - rig.hbBlend) * Math.min(1, dt * RIG.driver.handbrakeRate);
+  const rest = (rig.handbrake.userData.restRotX as number) ?? RIG.driver.handbrakeTilt;
+  rig.handbrake.rotation.x = rest - rig.hbBlend * RIG.driver.handbrakeThrow;
+  rig.handbrake.updateWorldMatrix(true, false);
+
   rig.wheel.updateWorldMatrix(true, false);
   for (const arm of rig.arms) {
     const grip = arm.side < 0 ? RIG.driver.gripLeft : RIG.driver.gripRight;
-    _v1.set(Math.cos(grip) * rig.wheelRadius, Math.sin(grip) * rig.wheelRadius, 0);
+    // Carried round with the rim only so far. The grips live in the
+    // wheel's local frame, so its transform carries them with the FULL
+    // wheel angle — right at road angles, wrong at lock, where a hand
+    // carried 2.4 rad ends up at the bottom of the rim with the arms
+    // crossed. A driver lets the rim slide through their grip past a
+    // comfortable arc, so past gripCarryMax the excess rotation is
+    // subtracted back inside the wheel's own frame: the hand holds its
+    // station in the cab while the wheel turns underneath it, still on
+    // the rim at every angle. Only the ride stops, not the grip.
+    const rot = rig.wheel.rotation.z;
+    const carried = THREE.MathUtils.clamp(rot, -RIG.driver.gripCarryMax, RIG.driver.gripCarryMax);
+    const slide = carried - rot;
+    _v1.set(
+      Math.cos(grip + slide) * rig.wheelRadius,
+      Math.sin(grip + slide) * rig.wheelRadius,
+      0
+    );
     rig.wheel.localToWorld(_v1);
+
+    // The inboard hand answers the handbrake. Inboard is read from the
+    // lever's own bolted side rather than assumed, so a left-hand-drive
+    // rebuild of this rig gets the correct hand for free. The target
+    // eases along the line between rim grip and lever grip, and both
+    // ends are solved fresh each frame, so the hand tracks a turning
+    // wheel AND a rising lever mid-blend.
+    const inboard = Math.sign(RIG.driver.handbrakeX) || -1;
+    if (arm.side === inboard && rig.hbBlend > 0.001) {
+      _v2.set(0, RIG.driver.handbrakeLen, 0);
+      rig.handbrake.localToWorld(_v2);
+      _v1.lerp(_v2, rig.hbBlend);
+    }
 
     // Elbows break outward and down — the pole is what stops a solved
     // arm from bending like a flamingo's knee. Offset in the rig's

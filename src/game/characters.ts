@@ -196,6 +196,16 @@ export interface DriverRig {
    *  position in userData (restY/restZ) so a press can sink it and the
    *  foot can follow the moving face. */
   pedals: { throttle: THREE.Object3D; brake: THREE.Object3D };
+  /** The handbrake lever, pivoting at its base; userData.restRotX holds
+   *  the rest rake so a pull can raise it and the inboard hand can be
+   *  solved onto the moving grip. A stub on lean rigs — background cars
+   *  never pull it, and a lever nobody reaches for is a draw call. */
+  handbrake: THREE.Object3D;
+  /** How far the inboard hand is committed to the lever, 0 on the rim
+   *  to 1 on the grip. State lives on the rig because the solver is a
+   *  free function: it must ease identically whichever engine, menu or
+   *  film happens to be calling it this frame. */
+  hbBlend: number;
 }
 
 /**
@@ -349,6 +359,27 @@ export function kuwaitiDriver(
     ? { throttle: new THREE.Object3D(), brake: new THREE.Object3D() }
     : { throttle: mkPedal(RIG.driver.pedalThrottleX), brake: mkPedal(RIG.driver.pedalBrakeX) };
 
+  // The handbrake, between the seats. A pivot at the base, the lever
+  // rising back toward the driver at its rest rake, a knob at the top —
+  // the one control in the cab a hand LEAVES the wheel for, which is
+  // exactly why it has to exist: a drift with both hands at ten-to-two
+  // is a car sliding with nobody making it.
+  const handbrake = new THREE.Object3D();
+  if (!lean) {
+    handbrake.position.set(RIG.driver.handbrakeX, RIG.driver.handbrakeY, RIG.driver.handbrakeZ);
+    handbrake.rotation.x = RIG.driver.handbrakeTilt;
+    handbrake.userData.restRotX = handbrake.rotation.x;
+    const hbLen = RIG.driver.handbrakeLen;
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.02, hbLen, 6), dark);
+    rod.position.y = hbLen / 2;
+    handbrake.add(rod);
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), suit);
+    knob.userData.driverPart = "handbrake-grip";
+    knob.position.y = hbLen;
+    handbrake.add(knob);
+    group.add(handbrake);
+  }
+
   // Legs: hip → knee → foot, the same two-bone chains as the arms, so
   // the feet can be solved onto the pedals and follow them as they
   // press. The rest pose reads as seated even before a solver runs —
@@ -390,7 +421,7 @@ export function kuwaitiDriver(
     // pasted onto the scene rather than standing in it.
     o.receiveShadow = true;
   });
-  return { group, lean: body, arms, legs, head, wheel, wheelRadius, pedals };
+  return { group, lean: body, arms, legs, head, wheel, wheelRadius, pedals , handbrake, hbBlend: 0 };
 }
 
 export interface RacerLook {
