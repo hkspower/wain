@@ -5,11 +5,30 @@
 # as well. So the Disallow lines have to be repeated in EVERY group. They were
 # previously only in the wildcard group, which meant every named AI bot below
 # was told "Allow: /" and nothing else, and was free to crawl /backends and the
-# payment endpoints. Add a bot, add its three Disallow lines with it.
+# payment endpoints. Add a bot, add its five Disallow lines with it.
+#
+# WHY /admin IS LISTED SEPARATELY FROM /backends. They are the same panel: an
+# .htaccess rule 302s /admin and /admin/anything to /backends, because the
+# panel is a real route and typing the obvious name should reach it. That makes
+# /admin a SECOND PUBLIC SPELLING, and a crawler told to avoid /backends knows
+# nothing about it — it follows the redirect and indexes the sign-in page under
+# the name it started from. The alias costs one line here; seeing it in a
+# search result costs rather more. Found by scripts/robots-sitemap-test.mjs.
+#
+# AND /api/. Everything under it is JSON served no-store, so none of it is a
+# page anyone should reach from a search result — but ?r=products is a full
+# catalogue dump and ?r=stock is a scan of every size row, and a crawler that
+# finds one will re-fetch it on a schedule forever. The rate limits bound how
+# fast that can go; this is what stops it starting. The three image routes sit
+# under /api too and are excluded with the rest, which is right: they are
+# already reachable through the pages that embed them, which is where a crawler
+# should meet an image anyway.
 
 User-agent: *
 Allow: /
 Disallow: /backends
+Disallow: /admin
+Disallow: /api/
 Disallow: /knet/
 Disallow: /pay/
 
@@ -18,96 +37,128 @@ Disallow: /pay/
 User-agent: Googlebot
 Allow: /
 Disallow: /backends
+Disallow: /admin
+Disallow: /api/
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: Bingbot
 Allow: /
 Disallow: /backends
+Disallow: /admin
+Disallow: /api/
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: GPTBot
 Allow: /
 Disallow: /backends
+Disallow: /admin
+Disallow: /api/
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: OAI-SearchBot
 Allow: /
 Disallow: /backends
+Disallow: /admin
+Disallow: /api/
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: ChatGPT-User
 Allow: /
 Disallow: /backends
+Disallow: /admin
+Disallow: /api/
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: ClaudeBot
 Allow: /
 Disallow: /backends
+Disallow: /admin
+Disallow: /api/
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: Claude-Web
 Allow: /
 Disallow: /backends
+Disallow: /admin
+Disallow: /api/
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: anthropic-ai
 Allow: /
 Disallow: /backends
+Disallow: /admin
+Disallow: /api/
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: PerplexityBot
 Allow: /
 Disallow: /backends
+Disallow: /admin
+Disallow: /api/
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: Google-Extended
 Allow: /
 Disallow: /backends
+Disallow: /admin
+Disallow: /api/
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: Applebot-Extended
 Allow: /
 Disallow: /backends
+Disallow: /admin
+Disallow: /api/
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: Amazonbot
 Allow: /
 Disallow: /backends
+Disallow: /admin
+Disallow: /api/
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: CCBot
 Allow: /
 Disallow: /backends
+Disallow: /admin
+Disallow: /api/
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: Bytespider
 Allow: /
 Disallow: /backends
+Disallow: /admin
+Disallow: /api/
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: cohere-ai
 Allow: /
 Disallow: /backends
+Disallow: /admin
+Disallow: /api/
 Disallow: /knet/
 Disallow: /pay/
 
 User-agent: Meta-ExternalAgent
 Allow: /
 Disallow: /backends
+Disallow: /admin
+Disallow: /api/
 Disallow: /knet/
 Disallow: /pay/
 

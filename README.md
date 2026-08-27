@@ -109,6 +109,7 @@ because the rigs place real orders against a real database.
 | `npm run test:styles` | No dead style keys, and no hard-coded white on a surface that changes with the theme |
 | `npm run test:admin-permissions` | Every route in `admin.php` asked for by a stranger — one gate, and nothing standing in front of it |
 | `npm run test:images` | Every photograph is reachable — the `/cats` rewrite through real Apache, cache headers, and nothing orphaned in the database |
+| `npm run test:robots` | robots.txt and the sitemaps as a crawler reads them — every group complete, every listed URL a 200, every slug an active product |
 | `npm run test:db` | The database's values against the website and app that read them |
 | `npm run test:site-contrast` | Every run of text on the website, measured against what is behind it — `THEME=light` for the other one |
 | `npm run scan:site` | The website, in a browser — `BASE=` to aim it |

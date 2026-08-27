@@ -1,4 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Sporta — the sitemap index.
+
+  THE PRODUCT ENTRY CARRIES NO lastmod, ON PURPOSE.
+
+  It used to say 2026-07-26, stamped when this file was built. But
+  sitemap-products.xml is not a file any more: .htaccess rewrites it to
+  api/sitemap-products.php, which generates it from the catalogue in MySQL and
+  stamps its own lastmod from the data — 2026-08-22 when this was written, a
+  month later than the number here claimed.
+
+  lastmod in an INDEX is the one signal a crawler uses to decide whether a
+  child sitemap is worth re-fetching. A value that is permanently older than
+  the sitemap it describes says "nothing has changed here" every time the
+  catalogue changes, which is the exact opposite of what it is for. A product
+  added in /backends would sit uncrawled behind a date from before it existed.
+
+  Omitting it is valid — the sitemaps protocol makes lastmod optional — and it
+  means the crawler falls back to its own schedule instead of trusting a stamp
+  that cannot be right. A correct value would have to be generated, and this
+  file is static; making it dynamic to carry one number is a bigger change than
+  the number is worth, and the sitemap it points at already stamps itself
+  correctly.
+
+  The pages entry keeps its lastmod because that one IS a static file, built at
+  the same time as this, so the date is true for as long as both are.
+-->
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <sitemap>
     <loc>https://www.sporta.com.kw/sitemap-pages.xml</loc>
@@ -6,6 +33,5 @@
   </sitemap>
   <sitemap>
     <loc>https://www.sporta.com.kw/sitemap-products.xml</loc>
-    <lastmod>2026-07-26T15:29:51.452Z</lastmod>
   </sitemap>
 </sitemapindex>
