@@ -154,22 +154,52 @@ const fleet = await page.evaluate(async () => {
     // Boxes answer the question without needing a point of view — take
     // every non-wheel mesh that stands over this wheel in BOTH plan axes
     // and find the lowest underside among them.
+    //
+    // Boxes were the wrong tool after all, and the failure is worth
+    // keeping. "Every non-wheel mesh standing over this wheel in BOTH
+    // plan axes" catches anything long and thin that merely CROSSES the
+    // wheel on its way down the car — and the fleet is full of those.
+    // Measured, the mesh that set this number was the beltline chrome on
+    // the zx, a panel-gap line on the hatch, a seam on the gtr, and the
+    // GLASS CANOPY on the sedan. None of them is the bodywork over a
+    // wheel; the rx7 had nothing over its wheel at all and reported no
+    // gap. The band [0.08, 0.30] was therefore policing where a trim
+    // strip sits, and it blocked a wheel change for a reason that had
+    // nothing to do with wheels.
+    //
+    // A ray answers the actual question — what is directly above this
+    // tyre — and the reason the first version avoided one does not hold
+    // if the ray is aimed only at the SHELLS. Sprites are what needed a
+    // camera, and no shell is a sprite.
     const wheelBox = new THREE.Box3().setFromObject(
       (g.userData.wheels ?? [])[wheels.indexOf(front)] ?? g
     );
-    let arch = Infinity;
-    g.traverse((o) => {
-      if (!o.isMesh || wheelSet.has(o)) return;
+    const shells = [];
+    g.traverse((o) => { if (o.isMesh && o.userData?.shell) shells.push(o); });
+    // Double-sided for the cast, and put it back afterwards. A ray going
+    // UP at a car's underside hits the shell's BACK face, and Raycaster
+    // honours material.side — so against FrontSide shells the ray sails
+    // through the bodywork and reports no metal above the wheel at all.
+    // Eleven of sixteen cars came back n/a that way.
+    const sides = shells.map((o) => {
       const m = Array.isArray(o.material) ? o.material[0] : o.material;
-      // The well is the black void BEHIND the tyre; the lip is the edge
-      // of the opening itself. Neither is the bodywork the gap is to.
-      if (/arch-well|arch-lip|tire|tyre/.test(m?.name ?? "")) return;
-      const bb = new THREE.Box3().setFromObject(o);
-      if (bb.max.x < wheelBox.min.x || bb.min.x > wheelBox.max.x) return;
-      if (bb.max.z < wheelBox.min.z || bb.min.z > wheelBox.max.z) return;
-      if (bb.min.y < front.top) return; // beside the wheel, not over it
-      if (bb.min.y < arch) arch = bb.min.y;
+      const was = m.side;
+      m.side = THREE.DoubleSide;
+      return [m, was];
     });
+    const up = new THREE.Raycaster();
+    up.far = 12;
+    const wc = wheelBox.getCenter(new THREE.Vector3());
+    let arch = Infinity;
+    // Three stations across the tyre's width, so a ray cannot slip
+    // through the opening between an arch lip and the panel behind it.
+    for (const dx of [-0.25, 0, 0.25]) {
+      const x = wc.x + dx * (wheelBox.max.x - wheelBox.min.x);
+      up.set(new THREE.Vector3(x, front.top + 0.004, wc.z), new THREE.Vector3(0, 1, 0));
+      const hit = up.intersectObjects(shells, false);
+      if (hit.length && hit[0].point.y < arch) arch = hit[0].point.y;
+    }
+    for (const [m, was] of sides) m.side = was;
     const gap = Number.isFinite(arch) ? arch - front.top : null;
 
     // Poke: how far the tyre's outer wall stands proud of the arch that
