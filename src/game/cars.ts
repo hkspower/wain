@@ -84,6 +84,10 @@ export interface CarColors {
   stickers?: boolean;
   /** Racing number for the roundels; derived from the paint if absent. */
   stickerNumber?: number;
+  /** The full-length side graphic: one sticker, nose to tail, following
+   *  the body rather than hung off it. Bought on its own — it is not
+   *  part of the rally pack and does not arrive with a kit. */
+  fullStripe?: boolean;
   /** The car's own name, for the flank wordmark in the sticker pack. */
   name?: string;
   nameAr?: string;
@@ -1835,6 +1839,151 @@ function beltStripeTexture(): THREE.CanvasTexture {
   beltStripeTex.colorSpace = THREE.SRGBColorSpace;
   beltStripeTex.anisotropy = 8;
   return beltStripeTex;
+}
+
+/**
+ * A decal strip that FOLLOWS the body instead of floating in front of it.
+ *
+ * Every other sticker in this pack is a flat PlaneGeometry hung a
+ * centimetre off the flank, which is fine for something the size of a
+ * door roundel: over 340 mm the body is near enough flat. A full-length
+ * graphic is not. It runs the whole car, and a car is widest at the
+ * doors and tapers into the nose and the tail — hold a plane at the
+ * widest half-width and its ends hang in mid air outside the bodywork;
+ * push it in far enough to stay buried at the ends and it disappears
+ * inside the doors.
+ *
+ * So the shell is asked where its surface actually is. Two rays per
+ * sample column, at the top and bottom edge of the strip, fired inward
+ * from well outside the car; the ribbon is built through the hits with a
+ * small standoff. Columns where the ray finds nothing are dropped, which
+ * is what makes the run self-limiting: the graphic reaches exactly as far
+ * as there is body to carry it, on whichever silhouette it is put on,
+ * without a table of per-body lengths to keep in step.
+ *
+ * Returns null if the band is off the body entirely — the caller is
+ * expected to check rather than add an empty mesh.
+ */
+function flankRibbon(
+  shell: THREE.Mesh,
+  side: 1 | -1,
+  zA: number,
+  zB: number,
+  yMid: number,
+  height: number,
+  standoff: number,
+  samples = 96
+): THREE.BufferGeometry | null {
+  const ray = new THREE.Raycaster();
+  ray.far = 60;
+  const dir = new THREE.Vector3(-side, 0, 0);
+  const org = new THREE.Vector3();
+  const yTop = yMid + height / 2;
+  const yBot = yMid - height / 2;
+  const surfaceX = (y: number, z: number): number | null => {
+    org.set(side * 30, y, z);
+    ray.set(org, dir);
+    const hits = ray.intersectObject(shell, false);
+    return hits.length ? hits[0].point.x : null;
+  };
+  const cols: { z: number; xt: number; xb: number }[] = [];
+  for (let i = 0; i <= samples; i++) {
+    const z = zA + ((zB - zA) * i) / samples;
+    const xt = surfaceX(yTop, z);
+    const xb = surfaceX(yBot, z);
+    if (xt === null || xb === null) continue;
+    cols.push({ z, xt, xb });
+  }
+  if (cols.length < 2) return null;
+
+  const n = cols.length;
+  const pos = new Float32Array(n * 2 * 3);
+  const uv = new Float32Array(n * 2 * 2);
+  const zFirst = cols[0].z, zLast = cols[n - 1].z;
+  const span = zLast - zFirst || 1;
+  for (let i = 0; i < n; i++) {
+    const c = cols[i];
+    const off = side * standoff;
+    pos[i * 6 + 0] = c.xt + off; pos[i * 6 + 1] = yTop; pos[i * 6 + 2] = c.z;
+    pos[i * 6 + 3] = c.xb + off; pos[i * 6 + 4] = yBot; pos[i * 6 + 5] = c.z;
+    // u runs 0 at the tail to 1 at the nose so the artwork's point lands
+    // on the front wing whichever way the samples were walked.
+    const u = (c.z - zFirst) / span;
+    uv[i * 4 + 0] = u; uv[i * 4 + 1] = 1;
+    uv[i * 4 + 2] = u; uv[i * 4 + 3] = 0;
+  }
+  const idx: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    const a = i * 2, b = i * 2 + 1, c = (i + 1) * 2, dd = (i + 1) * 2 + 1;
+    // Wound so the face looks OUTWARD on the side it is on: a decal
+    // showing its back is invisible under a FrontSide material, and the
+    // two flanks mirror, so the order has to flip with them.
+    if (side > 0) { idx.push(a, b, c, b, dd, c); }
+    else { idx.push(a, c, b, b, c, dd); }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+let fullStripeTex: THREE.CanvasTexture | null = null;
+/**
+ * The full-length side graphic: one sticker from the nose to the tail.
+ *
+ * Long and thin, so the canvas is too — 2048 by 96. This decal covers
+ * about 4.6 metres of bodywork, and the beltline stripe's 512 would put
+ * 111 texels on a metre of it, a quarter of what the door roundel gets.
+ * At 2048 it is 445 to the metre and the diagonal cuts stay cuts instead
+ * of turning into staircases.
+ *
+ * u=0 is the tail and u=1 the nose, so the wedge is deepest at the left
+ * of the canvas and comes to its point at the right. The taper is not
+ * linear: it holds full depth across the rear quarter and the door, then
+ * falls away over the front wing, which is the difference between a
+ * racing graphic and a triangle. Two colours and a hairline, no type —
+ * this runs over five silhouettes and any wordmark would be legible on
+ * one of them and squashed on the rest.
+ */
+function fullStripeTexture(): THREE.CanvasTexture {
+  if (fullStripeTex) return fullStripeTex;
+  const W = 2048, H = 96;
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const ctx = c.getContext("2d")!;
+  ctx.clearRect(0, 0, W, H);
+  const depth = (u: number): number => {
+    const t = Math.max(0, Math.min(1, u));
+    const hold = 0.42;
+    if (t <= hold) return 1;
+    const k = (t - hold) / (1 - hold);
+    return Math.max(0, 1 - k * k * (3 - 2 * k));
+  };
+  const wedge = (top: number, bot: number, col: string) => {
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(0, top);
+    for (let x = 0; x <= W; x += 8) ctx.lineTo(x, bot - (bot - top) * depth(x / W));
+    ctx.lineTo(W, bot);
+    ctx.lineTo(0, bot);
+    ctx.closePath();
+    ctx.fill();
+  };
+  // The body of the graphic, a narrower accent inside it, then a hairline
+  // along the bottom that carries the whole length even where the wedge
+  // above it has run out — without it the front half of the car reads as
+  // having no sticker at all.
+  wedge(14, 74, "#f2f4f7");
+  wedge(34, 74, "#c1121f");
+  ctx.fillStyle = "rgba(20,21,26,0.9)";
+  ctx.fillRect(0, 74, W, 5);
+  fullStripeTex = new THREE.CanvasTexture(c);
+  fullStripeTex.colorSpace = THREE.SRGBColorSpace;
+  fullStripeTex.anisotropy = 16;
+  return fullStripeTex;
 }
 
 let hoodDecalTex: THREE.CanvasTexture | null = null;
@@ -3989,6 +4138,33 @@ export function createCar(colors: CarColors): THREE.Group {
   // livery is something you chose, and further up it is what the car
   // came wearing. Buying the pack for a car that already has one is
   // idempotent rather than doubled, because this is one flag.
+  // The full-length graphic goes on FIRST and low, under the rally pack's
+  // lane rather than in it. Everything that pack places lives between the
+  // crease and the beltline; this sits below the crease on the lower
+  // door, so the two can be worn together without a clearance rule
+  // between them — which is the only way five silhouettes stay safe
+  // without a table of exceptions per body.
+  if (colors.fullStripe && !colors.simple) {
+    const bottom = bGeo.boundingBox!.min.y;
+    const STRIPE_H = 0.13;
+    // Top edge held 100 mm under the crease, and the whole band kept at
+    // least 60 mm off the sill, so on the low cars it rides up rather
+    // than hanging under the body.
+    const wanted = d.creaseY - 0.10 - STRIPE_H / 2;
+    const floor = bottom + 0.06 + STRIPE_H / 2;
+    const yMid = Math.max(floor, wanted);
+    const skin = decalMat(fullStripeTexture());
+    for (const sign of [-1, 1] as const) {
+      // Sampled past both bumpers on purpose: columns that find no body
+      // are dropped, so the run ends itself exactly where the shell does.
+      const geo = flankRibbon(bodyShell, sign, d.tail - 0.25, d.nose + 0.25, yMid, STRIPE_H, 0.012);
+      if (!geo) continue;
+      const strip = new THREE.Mesh(geo, skin);
+      strip.userData.decal = "full-stripe";
+      group.add(strip);
+    }
+  }
+
   const wearsLivery = colors.stickers || (kitAtLeast(kit, "sport") && !colors.simple);
   if (wearsLivery && !colors.simple) {
     // Off the shell's measured flank, not a hand-kept table of the four

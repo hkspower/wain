@@ -108,6 +108,7 @@ export const PARTS: Part[] = [
   { id: "spoiler", cat: "extras", name: "GT Wing", ar: "جناح", price: 300, desc: "Downforce: steadier at speed" },
   { id: "gold-rims", cat: "extras", name: "Gold Rims", ar: "رنجات ذهب", price: 600, desc: "Pure Salmiya energy" },
   { id: "stickers", cat: "extras", name: "Rally Sticker Pack", ar: "ملصقات", price: 450, desc: "Door roundels, beltline stripes, hood decal, Kuwait flag on the fender" },
+  { id: "sticker-full", cat: "extras", name: "Full-Length Side Graphic", ar: "ملصق جانبي كامل", price: 380, desc: "One sticker from the nose to the tail, cut to follow the body. Sits under the rally pack, so the two can be worn together" },
   // Headlamps. Exclusive, because a lamp is either tinted, missing or
   // neither — you cannot smoke a headlight you have taken out.
   { id: "lamps-smoked", cat: "lamps", name: "Smoked Headlights", ar: "شمعات مدخنة", price: 550, desc: "Tinted lenses. Two dark slots by day, a dull amber at night — and the beam dims with them" },
@@ -1200,6 +1201,8 @@ export interface TuneEffects {
   kit: KitLevel;
   /** Rally livery: roundels, stripes, hood decal, quarter flags. */
   stickers: boolean;
+  /** The full-length side graphic, bought on its own. */
+  fullStripe: boolean;
   /** The crew this save flies, or null for a privateer. Not a bought
    *  part and not per-car — it is who you are, so every car you own
    *  wears it. The car build reads it for the roof livery. */
@@ -1346,6 +1349,7 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     raceKit: car.kit === "attack",
     kit: car.kit,
     stickers: has("stickers"),
+    fullStripe: has("sticker-full"),
     // Read here rather than passed in, because a crew is not part of a
     // car build: it is saved beside the garage and belongs to the save,
     // so every caller that asks what this car races with gets it without
