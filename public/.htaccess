@@ -53,9 +53,72 @@ Options -Indexes
   Require all denied
 </FilesMatch>
 
-# Scratch output from the old deploy scripts: ~50 files, including ones named
+# Scratch output from the old deploy scripts: 52 files, including ones named
 # sec-out.txt and keys-out.txt.
 <FilesMatch "-out\.txt$|^admin\.token$">
+  Require all denied
+</FilesMatch>
+
+# ---------------------------------------------------------------------------
+# The rest of what is actually in that docroot.
+#
+# The rules above were written from a directory listing. The docroot has since
+# been read file by file through the Hostinger connector — 147 files, 21.21MB,
+# of which 18.40MB is backups, scratch and zipped archives — and it turned up
+# several things the patterns above do not catch. Each block below exists
+# because of a specific file that is reachable today.
+#
+# NOTE: none of this is in force until the export is actually deployed. A deny
+# rule in this repository protects nothing while the server still runs its own
+# .htaccess. The credential below has to be rotated regardless.
+# ---------------------------------------------------------------------------
+
+# Shell scripts. upload-ftp.sh sits in the web root with the FTP host, username
+# and password written into it in plaintext — a write credential for the whole
+# document root, readable by anyone who requests the filename. Rotating that
+# password is the fix; this only stops the next one being readable.
+<FilesMatch "\.(sh|bash|zsh|env|ini|conf|log|sql)$|^\.env">
+  Require all denied
+</FilesMatch>
+
+# The old PHP helpers. api.php is deliberately NOT here — the admin panel calls
+# it on every load — but the rest are installers and repair scripts that should
+# never have been reachable. wain-inst.php is a 21KB installer.
+<FilesMatch "^(wain-inst|wain-restore|wain-fix|wain-ver|wain-search-cache|v)\.php$">
+  Require all denied
+</FilesMatch>
+
+# Build configuration that leaked out of a repository into the web root. It
+# gives away dependency versions and build layout for nothing in return.
+<FilesMatch "^(package|package-lock|tsconfig|composer|composer-lock)\.json$|^(next|postcss|tailwind|eslint)\.config\.(ts|js|mjs|cjs)$|^next-env\.d\.ts$">
+  Require all denied
+</FilesMatch>
+
+# Whole copies of the old single-file app, each a few hundred KB of source with
+# its own inline logic: wain-app-latest.html, qareeb.html, wain-local-test.html,
+# extracted_index.html, wain-admin-latest.html.
+<FilesMatch "^(wain-app-latest|wain-admin-latest|wain-local-test|qareeb|extracted_.+)\.(html|js|webmanifest)$">
+  Require all denied
+</FilesMatch>
+
+# Dumps and checks that the -out.txt pattern misses because they are named
+# differently: *-check.txt, verify.txt, cache-selftest.txt, sentinel-live-urls
+# .json, rashed-v2.json.
+#
+# index.txt is deliberately NOT here, though the server carries a 92KB one from
+# the old app. This export writes an index.txt of its own beside every single
+# index.html — 45 of them, the App Router's prefetch payloads — so a rule on
+# that name would break client-side navigation on every route of the new site
+# to tidy away one stale file that the deploy overwrites anyway. Checked
+# against out/ rather than guessed; the first draft of this block had it and
+# would have shipped the bug.
+<FilesMatch "-check\.txt$|^(verify|cache-selftest|claude-upload-test)\.txt$|^(sentinel-live-urls|rashed-v2)\.json$">
+  Require all denied
+</FilesMatch>
+
+# Internal notes. Markdown in a web root is documentation for an attacker as
+# readily as for a maintainer; wain-db-audit.md describes the database.
+<FilesMatch "\.md$">
   Require all denied
 </FilesMatch>
 

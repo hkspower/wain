@@ -19,6 +19,7 @@
     "test:orders": "node tests/run-orders.mjs",
     "test:net": "node tests/run-net.mjs",
     "audit:icons": "node scripts/audit-icons.mjs",
+    "audit:htaccess": "node scripts/audit-htaccess.mjs",
     "audit:type": "node scripts/audit-type.mjs",
     "test:journey": "node tests/run-journey.mjs",
     "test:hangout": "node tests/run-hangout.mjs",
@@ -29,7 +30,7 @@
     "audit:color": "node scripts/audit-color.mjs",
     "audit:assets": "node scripts/audit-assets.mjs",
     "audit:mobile": "node scripts/audit-mobile.mjs",
-    "scan": "npm run lint && npm run audit:schema && npm run audit:runtime && npm run audit:places && npm run test:map && npm run audit:icons && npm run audit:type && npm run audit:color && npm run audit:assets && npm run audit:mobile"
+    "scan": "npm run lint && npm run audit:schema && npm run audit:runtime && npm run audit:places && npm run test:map && npm run audit:icons && npm run audit:htaccess && npm run audit:type && npm run audit:color && npm run audit:assets && npm run audit:mobile"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.1",
