@@ -26,6 +26,30 @@ export const HANDLING = {
    * as a feint.
    */
   steerSmoothRate: 13,
+  /**
+   * The shift, which this model did not have.
+   *
+   * revFraction() is a pure function of speed, so at a gear boundary the
+   * revs TELEPORTED: 0.998 of the range at 54.9 km/h and 0.12 at 55.0,
+   * in one frame. The sound has fired a shift hiss on every gear change
+   * for as long as it has existed, so the car has been making the noise
+   * of a shift while the needle jumped instantly and the thrust never
+   * paused. These give the event a duration.
+   *
+   * Seconds the revs take to cross. An upshift is the slower of the two:
+   * the engine is falling on its own inertia with the clutch out, where
+   * a downshift is being dragged up to speed by the road.
+   */
+  shiftUpTime: 0.22,
+  shiftDownTime: 0.14,
+  /** What is left of the torque mid-upshift. Not zero — this is one
+   *  gearbox standing for every kind in the game, and a full cut makes a
+   *  paddle-shift supercar feel like a slipping clutch. */
+  shiftTorqueCut: 0.18,
+  /** km/h past a shift point before the box commits. Without it a car
+   *  holding station at exactly a boundary shifts every frame, and once
+   *  a shift costs torque that is a wall the car cannot drive through. */
+  shiftHysteresisKmh: 2.5,
   /** Extra centring, 1/s at casterRefSpeed, when the wheel is released.
    *  A caster grows with road speed — that is what makes the wheel feel
    *  loaded rather than loose — so it scales with v and is worth nothing

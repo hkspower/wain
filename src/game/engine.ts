@@ -46,7 +46,7 @@ import {
   type BrakeState,
   type BrakeResult,
 } from "./brakes";
-import { gearAt, revFraction } from "./gears";
+import { GEARS, revFractionIn } from "./gears";
 import { playerId, inviteCode, normaliseCode, isCodeShaped } from "./community";
 import {
   ENGINES,
@@ -889,6 +889,13 @@ export class GameEngine {
   /** Where the needle sat this frame, 0..1 of the rev range. Shared by
    *  the torque curve, the sound and the HUD so they cannot disagree. */
   private revFrac = 0.12;
+  /** The gear the box is actually holding, with hysteresis — see the
+   *  shift block in the physics step. */
+  private gearHeld = 0;
+  /** Seconds left in the current shift, and what it is crossing from. */
+  private shiftT = 0;
+  private shiftFrom = 0.12;
+  private shiftUp = true;
   /** The suspension's memory: how much load has moved, and where it is.
    *  Read a frame after it is written, which is the physical order —
    *  springs take a couple of tenths to compress. */
@@ -3676,8 +3683,40 @@ export class GameEngine {
     //
     // Scaled by throttle so it is a launch and not a permanent lie, and
     // faded out by 24 km/h, where the clutch is home.
-    const gearRev = revFraction(p.speed * KMH);
-    const launch = Math.max(0, 1 - (p.speed * KMH) / 24) * this.throttle;
+    // The gear, held rather than re-derived.
+    //
+    // gearAt() answers from speed alone, so a car sitting on a shift
+    // point flips gear every frame. That was only a flutter on the
+    // needle while a shift was free; now that one costs torque it would
+    // be a wall at 55 km/h. The box commits, and only changes its mind
+    // once the speed is clear of the boundary by HANDLING.shiftHysteresisKmh.
+    const kmh = p.speed * KMH;
+    let g = this.gearHeld;
+    if (g < GEARS.length - 2 && kmh >= GEARS[g + 1] + HANDLING.shiftHysteresisKmh) g++;
+    else if (g > 0 && kmh < GEARS[g] - HANDLING.shiftHysteresisKmh) g--;
+    if (g !== this.gearHeld) {
+      // A shift is an event with a duration. Start it from wherever the
+      // needle actually is, not from where the old gear says it should
+      // be, so a shift interrupted by another one carries on from the
+      // truth rather than snapping back.
+      this.shiftFrom = this.revFrac;
+      this.shiftUp = g > this.gearHeld;
+      this.shiftT = this.shiftUp ? HANDLING.shiftUpTime : HANDLING.shiftDownTime;
+      this.gearHeld = g;
+    }
+
+    let gearRev = revFractionIn(this.gearHeld, kmh);
+    if (this.shiftT > 0) {
+      const total = this.shiftUp ? HANDLING.shiftUpTime : HANDLING.shiftDownTime;
+      this.shiftT = Math.max(0, this.shiftT - dt);
+      // Smoothstep, not linear: a needle that starts and stops abruptly
+      // reads as an animation. The revs leave and arrive gently and move
+      // fastest in the middle, which is what a falling engine does.
+      const k = Math.min(1, Math.max(0, 1 - this.shiftT / total));
+      const e = k * k * (3 - 2 * k);
+      gearRev = this.shiftFrom + (gearRev - this.shiftFrom) * e;
+    }
+    const launch = Math.max(0, 1 - kmh / 24) * this.throttle;
     this.revFrac = gearRev + (this.tune.engine.peakAt - gearRev) * launch;
 
     // Fuel. An engine is an air pump and the burn follows the air it
@@ -3699,8 +3738,20 @@ export class GameEngine {
     }
 
     const torque = torqueShape(this.tune.engine, this.revFrac);
+    // Torque interruption, and only on the way UP. That is the half of a
+    // shift a driver feels in their back: the clutch comes out, the car
+    // stops pulling for a fifth of a second, and the revs fall because
+    // nothing is driving them. A downshift is the opposite — the road is
+    // dragging the engine up — so cutting there would be inventing a
+    // pause that a real box does not have.
+    const shiftCut =
+      this.shiftT > 0 && this.shiftUp
+        ? 1 -
+          (1 - HANDLING.shiftTorqueCut) *
+            (this.shiftT / HANDLING.shiftUpTime)
+        : 1;
     const power =
-      this.tune.accelMult * torque * (1 + this.boost * this.tune.boostMult);
+      this.tune.accelMult * torque * shiftCut * (1 + this.boost * this.tune.boostMult);
     // Every car is governed at its own number (180-400 km/h), and the
     // thrust curve is solved so that at exactly that speed thrust equals
     // drag — the limiter is where the car naturally runs out of road,
@@ -5327,7 +5378,7 @@ export class GameEngine {
   private updateAudio(): void {
     if (!this.sound) return;
     const speedKmh = this.player.speed * 3.6;
-    const gear = gearAt(speedKmh);
+    const gear = this.gearHeld;
     // The same needle the torque curve read this frame, clutch and all —
     // so flooring it from rest sounds like a car being launched rather
     // than one idling away from a light.
@@ -5687,7 +5738,7 @@ export class GameEngine {
           idle: eng.idleRpm,
           redline: eng.redlineRpm,
           frac,
-          gear: this.player.speed * KMH < 2 ? 0 : gearAt(this.player.speed * KMH) + 1,
+          gear: this.player.speed * KMH < 2 ? 0 : this.gearHeld + 1,
           shift: frac > 0.93,
         };
       })(),

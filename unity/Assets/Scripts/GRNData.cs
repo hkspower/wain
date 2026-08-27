@@ -432,6 +432,10 @@ public static class GRNData
         public const float DragA = 0.0012f;
         public const float DragB = 1.2f;
         public const float SteerSmoothRate = 13f;
+        public const float ShiftUpTime = 0.22f;
+        public const float ShiftDownTime = 0.14f;
+        public const float ShiftTorqueCut = 0.18f;
+        public const float ShiftHysteresisKmh = 2.5f;
         public const float CasterRate = 2.4f;
         public const float CasterRefSpeed = 40f;
         public const float HeadingClamp = 0.45f;
@@ -563,6 +567,10 @@ public static class GRNData
         public const double DragA = 0.0012;
         public const double DragB = 1.2;
         public const double SteerSmoothRate = 13;
+        public const double ShiftUpTime = 0.22;
+        public const double ShiftDownTime = 0.14;
+        public const double ShiftTorqueCut = 0.18;
+        public const double ShiftHysteresisKmh = 2.5;
         public const double CasterRate = 2.4;
         public const double CasterRefSpeed = 40;
         public const double HeadingClamp = 0.45;
