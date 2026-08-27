@@ -349,6 +349,36 @@ export const HANDLING = {
   driftLiftAngleK: 0.3,
 
   // Tire model: one grip budget shared by drive, brakes and steering.
+  /**
+   * There is no sliding-friction term on the driven axle, and that is a
+   * decision rather than an oversight. Tried and reverted; the numbers
+   * are here so it is not tried blind again.
+   *
+   * The brake side has had one from the start — brakeSlideFriction 0.72,
+   * "a locked tyre stops WORSE" — and the asymmetry is real: tractionCap
+   * is the same number whether the tyre is gripping or already spinning,
+   * so wheelspin costs the excess torque and nothing more.
+   *
+   * Fitting the mirror image (0.78 of peak while spinning, breaking loose
+   * and hooking back up at 9/s like the brake solver's lock) was measured
+   * on a launch to 100 km/h: flooring it 3.12 s, and a controller holding
+   * the axle genuinely short of slipping — zero time spun up — 3.97 s.
+   * Metering the pedal came out 0.85 s WORSE, which is the opposite of
+   * the point.
+   *
+   * The reason is that throttle in this engine does two jobs. It scales
+   * engineAccel, and it also drives the launch clutch a few lines above,
+   * which is what holds revFrac up near the torque peak below 24 km/h.
+   * Backing off to protect traction therefore drops the engine off its
+   * own peak, and that costs more than the slip it saved. A slide term
+   * on top of that is a flat tax with no skill to answer it — and on a
+   * keyboard, where throttle is 0 or 1, there is no lever to answer it
+   * with at all.
+   *
+   * Anyone adding this should separate those two jobs first: the clutch
+   * needs its own input, or the rev floor needs to stop reading the
+   * pedal, before a traction penalty can reward anything.
+   */
   /** Fraction of gripAccel the driven axle transmits at rest… */
   tractionBase: 0.8,
   /** …ramping to full by this speed (m/s). Excess torque is wheelspin. */
