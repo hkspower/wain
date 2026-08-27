@@ -159,16 +159,32 @@ dies with the API.
 
 ## 1. Back up, before touching anything
 
-The API can hand you the whole database as JSON:
+**Download three files, not one.** `api.php` opens the database with
+`PRAGMA journal_mode=WAL`, so recent writes live in a side file until SQLite
+checkpoints them. Copying `wain.db` alone can silently lose the newest orders —
+exactly the ones most worth keeping.
+
+From hPanel → File Manager, download all three if they exist:
+
+```
+wain.db
+wain.db-wal      ← recent writes live here
+wain.db-shm
+```
+
+Keep them together; SQLite reassembles them.
+
+**A second copy, if you still have the admin token**, as JSON — useful because
+it is readable without SQLite:
 
 ```bash
 curl -s -H 'X-Wain-Admin: YOUR-TOKEN' \
      'https://www.wainkw.com/api.php?a=export' -o wain-backup.json
 ```
 
-Also download `wain.db` itself from the file manager. Two copies, off the
-server, before a single deletion. `export` is admin-only in v3, so this needs
-the token from `server/README.md`.
+`export` has always been admin-only, so this needs the *plaintext* token. Only
+its bcrypt hash is on the server, so if nobody has the plaintext any more, this
+route is closed — the file download above is not, which is why it comes first.
 
 ## 2. Confirm nothing still calls it
 
