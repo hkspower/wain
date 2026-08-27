@@ -522,6 +522,19 @@ function extrudeProfile(
  * facet, which is finer than the shell's own curvature elsewhere. And
  * the three shells are different things: a body has real panel edges, a
  * canopy is glass in a frame, a roof is a pressing that genuinely rolls.
+ *
+ * What this costs, measured rather than left to be rediscovered: the
+ * bevel expands the profile outward in EVERY direction, so tightening it
+ * makes the painted shell SHORTER — sedan 4.82 to 4.64 m, rx7 4.89 to
+ * 4.65. At the beltline the loss is bigger again, because a tight corner
+ * lets the body fall away at that height instead of being carried out by
+ * a fat roll: the rx7's run at the side graphic's height went 4.63 to
+ * 3.65 m, and the graphic's share of the whole car with it, 94-96% down
+ * to 78-90%. It still covers 99% of the body available at its own
+ * height, which is all it claims, and the stretch it gave up is the
+ * extreme nose and tail where a side graphic does not go on a real car
+ * either. Overall car length is untouched — lengthM normalises the shell
+ * after this.
  */
 const BODY_EDGE = 0.05;
 const CANOPY_EDGE = 0.04;
