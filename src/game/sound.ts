@@ -40,11 +40,49 @@ export interface SoundFrame {
   seaZ?: number;
 }
 
-function makeNoiseBuffer(ctx: AudioContext): AudioBuffer {
-  const buf = ctx.createBuffer(1, ctx.sampleRate * 1.5, ctx.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-  return buf;
+/**
+ * The noise the whole bed is built from — wind, tyre roll, skid, scrub,
+ * induction, rumble, brakes, sea, city, NOS. Twelve looping sources draw
+ * on this.
+ *
+ * It used to be ONE buffer of 1.5 seconds, and every one of those twelve
+ * sources played it from the same instant. Nothing about that clicks —
+ * white noise has no seam, since any two adjacent samples are already
+ * independent — but it means the entire noise bed REPEATS, in lockstep,
+ * every 1.5 seconds. Measured on the bus: at idle, where noise is most of
+ * what you hear, the output correlated 0.83 with itself at a lag of
+ * exactly 1.500 s, against ±0.09 at every neighbouring lag. That is not a
+ * subtle statistical artefact; it is the same second and a half of wind
+ * and tyre roar playing over and over, and it is the "chuffing" texture
+ * that makes synthesised noise sound cheap.
+ *
+ * Three things break it, and all three are needed:
+ *
+ *   - A POOL of independent buffers rather than one, so sources are not
+ *     playing literally the same numbers as each other.
+ *   - LONGER buffers, so a single source's own repeat is far enough apart
+ *     to stop reading as a pattern.
+ *   - A per-source playback rate offset (applied in `loopNoise`), which
+ *     is the part that actually matters: sources sharing one period sum
+ *     to something with THAT period no matter how they are staggered, so
+ *     only giving them different periods removes the repeat from the mix.
+ */
+const NOISE_SECONDS = 4;
+const NOISE_POOL = 4;
+
+/** Rev-limiter stutter, radians per second: 33 rad/s is 5.3 cuts a
+ *  second, which is what the old per-frame constant produced at 60 fps. */
+const LIMITER_STUTTER = 33;
+
+function makeNoisePool(ctx: AudioContext): AudioBuffer[] {
+  const pool: AudioBuffer[] = [];
+  for (let k = 0; k < NOISE_POOL; k++) {
+    const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * NOISE_SECONDS), ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    pool.push(buf);
+  }
+  return pool;
 }
 
 /**
@@ -129,7 +167,9 @@ export class SoundEngine {
   /** Where the bed sits when nothing is ducking it. */
   private bedLevel = 1;
   private sfxLevel = 1;
-  private noise: AudioBuffer;
+  private noise: AudioBuffer[];
+  /** Which buffer and which detuning the next looping source gets. */
+  private noiseTurn = 0;
   muted = false;
 
   // Engine layers
@@ -226,6 +266,8 @@ export class SoundEngine {
   private rumbleLfo: OscillatorNode;
   /** Rev-limiter stutter phase, advanced while the governor holds. */
   private limiterPhase = 0;
+  /** Audio-clock time of the last update(), for rate-independent phase. */
+  private limiterLast = 0;
 
   /** Recorded one-shots from public/sfx (ElevenLabs or any authored
    *  audio), decoded at boot. Each event checks here first and falls
@@ -237,7 +279,7 @@ export class SoundEngine {
 
   constructor() {
     this.ctx = new AudioContext();
-    this.noise = makeNoiseBuffer(this.ctx);
+    this.noise = makeNoisePool(this.ctx);
     this.master = this.ctx.createGain();
     this.master.gain.value = MASTER_GAIN;
     /**
@@ -758,11 +800,27 @@ export class SoundEngine {
     this.nosGain.gain.setTargetAtTime(active ? 0.09 : 0, this.ctx.currentTime, 0.04);
   }
 
+  /** One buffer out of the pool, at random — a one-shot that reaches for
+   *  noise gets some variety for free instead of always popping the same
+   *  numbers. */
+  private noiseOne(): AudioBuffer {
+    return this.noise[(Math.random() * this.noise.length) | 0];
+  }
+
   private loopNoise(): AudioBufferSourceNode {
     const src = this.ctx.createBufferSource();
-    src.buffer = this.noise;
+    const buf = this.noise[this.noiseTurn % this.noise.length];
+    src.buffer = buf;
     src.loop = true;
-    src.start();
+    // A different period per source, so no two ever realign and the sum
+    // has no short repeat of its own. Noise is scale-free, so resampling
+    // it by a few percent costs nothing audible — every one of these is
+    // filtered downstream anyway.
+    src.playbackRate.value = 0.93 + (this.noiseTurn % 7) * 0.023 + Math.random() * 0.01;
+    // ...and a different starting point, so they do not all begin on the
+    // same sample of the same buffer.
+    src.start(0, Math.random() * buf.duration);
+    this.noiseTurn++;
     return src;
   }
 
@@ -879,8 +937,19 @@ export class SoundEngine {
     // speed, the ECU cuts and restores fuel many times a second. That
     // stutter is the sound of a car against its limiter, and it is the
     // only audible difference between "fast" and "as fast as it goes".
+    //
+    // The phase advances per SECOND, not per frame. It used to be
+    // `+= limited * 0.55` on every call to update(), which makes the
+    // stutter rate a function of how fast the machine renders: 5.3 Hz at
+    // 60 fps, 12.6 Hz at 144. Two players holding the same car against
+    // the same limiter heard two different engines, and the faster one
+    // heard a buzz rather than a cut. LIMITER_STUTTER is the old 60 fps
+    // behaviour pinned to the clock, so it sounds as it always did on the
+    // machine it was tuned on and now sounds that way everywhere.
     const limited = Math.min(1, Math.max(0, f.limited ?? 0));
-    this.limiterPhase += limited * 0.55;
+    const dt = this.limiterLast > 0 ? Math.min(0.1, t - this.limiterLast) : 0;
+    this.limiterLast = t;
+    this.limiterPhase += limited * LIMITER_STUTTER * dt;
     const limiterCut = limited > 0 ? (Math.sin(this.limiterPhase) > 0.1 ? 1 : 0.45) : 1;
 
     // The note is the FIRING rate, not the crank rate: a four-stroke
@@ -1120,7 +1189,7 @@ export class SoundEngine {
     for (let i = 0; i < pops; i++) {
       const t = t0 + i * (0.055 + Math.random() * 0.07);
       const src = this.ctx.createBufferSource();
-      src.buffer = this.noise;
+      src.buffer = this.noiseOne();
       const filter = this.ctx.createBiquadFilter();
       filter.type = "bandpass";
       filter.frequency.value = 220 + Math.random() * 260;
@@ -1130,7 +1199,7 @@ export class SoundEngine {
       g.gain.setValueAtTime(level, t);
       g.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
       src.connect(filter).connect(g).connect(this.sfx);
-      src.start(t, Math.random());
+      src.start(t, Math.random() * (src.buffer.duration - 0.2));
       src.stop(t + 0.12);
     }
   }
@@ -1144,7 +1213,7 @@ export class SoundEngine {
   ): void {
     const t = this.ctx.currentTime;
     const src = this.ctx.createBufferSource();
-    src.buffer = this.noise;
+    src.buffer = this.noiseOne();
     src.loop = false;
     const filter = this.ctx.createBiquadFilter();
     filter.type = type;

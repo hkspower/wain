@@ -96,3 +96,4 @@ __pycache__/
 # Intermediate frames from tools/shots/exportfilm.mjs — the encoded
 # video beside them is the artefact; 336 JPEGs are not.
 press/film/frames/
+press/audio/capture/
