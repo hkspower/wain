@@ -1,0 +1,792 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>هوية وين</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+  /* ==========================================================================
+     wain design-system spec — rendered from the real sources.
+     Single-theme by intent: the product ships colorScheme:"light",
+     themeColor:#ffffff, and has no dark palette. Every colour here is painted
+     explicitly so the page holds on any host ground.
+     ========================================================================== */
+  :root{
+    /* surfaces */
+    --sand-50:#ffffff; --sand-100:#f6f5f3; --sand-200:#e6e4e0; --sand-300:#d4d1cb;
+    --line:#dbd8d2; --line-strong:#cdc9c2; --line-control:#928d84;
+    /* brand warm */
+    --sand-400:#dcc287; --sand-500:#c9a55f; --sand-600:#ad8544; --sand-700:#8b6836; --sand-800:#6d5230; --sand-900:#57422a;
+    /* ramps */
+    --sea-50:#eff8fd; --sea-100:#daeefa; --sea-300:#8dccee; --sea-400:#57b0e3; --sea-600:#2277b4; --sea-700:#1e6092; --sea-800:#1d5179;
+    --sun-100:#fef0c7; --sun-200:#fde08a; --sun-300:#fccb4d; --sun-400:#fbb724; --sun-700:#b44e09; --sun-900:#78320f;
+    --coral-50:#fef3f2; --coral-200:#fecdca; --coral-500:#ef4d43; --coral-600:#dc2f25; --coral-700:#b9241b; --coral-800:#99221b;
+    --palm-500:#2f8a4e; --palm-600:#1f6f3d; --palm-700:#1b5832;
+    --ink-400:#6b6357; --ink-500:#585044; --ink-600:#4e483f; --ink-700:#35302a; --ink-800:#221f1b; --ink-900:#14120f;
+    /* radius */
+    --r-lg:.625rem; --r-xl:.75rem; --r-2xl:.9375rem; --r-3xl:1.25rem;
+    /* shadows — layered, ink-tinted */
+    --sh-2xs:0 1px rgb(20 18 15/.05);
+    --sh-xs:0 1px 1px rgb(20 18 15/.04),0 1px 2px rgb(20 18 15/.05);
+    --sh-sm:0 1px 1px rgb(20 18 15/.05),0 2px 4px -1px rgb(20 18 15/.07);
+    --sh-md:0 1px 2px rgb(20 18 15/.05),0 4px 8px -2px rgb(20 18 15/.07),0 8px 16px -4px rgb(20 18 15/.05);
+    --sh-lg:0 1px 2px rgb(20 18 15/.05),0 6px 12px -3px rgb(20 18 15/.08),0 16px 28px -8px rgb(20 18 15/.07);
+    --sh-xl:0 1px 3px rgb(20 18 15/.05),0 10px 20px -5px rgb(20 18 15/.09),0 28px 48px -12px rgb(20 18 15/.09);
+    --sh-2xl:0 2px 4px rgb(20 18 15/.06),0 16px 32px -8px rgb(20 18 15/.1),0 40px 72px -16px rgb(20 18 15/.15);
+    --arabic:'IBM Plex Sans Arabic',system-ui,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--sand-50);color:var(--ink-700);font-family:var(--arabic);
+       line-height:1.6;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;font-synthesis-weight:none}
+  ::selection{background:var(--sun-200);color:var(--ink-900)}
+  a{color:inherit}
+  :where(a,button):focus-visible{outline:none;box-shadow:0 0 0 2px var(--sand-50),0 0 0 4px var(--sea-600)}
+  .wrap{max-width:66rem;margin:0 auto;padding:2.5rem 1.25rem 6rem}
+  code,.mono{font-family:var(--mono);direction:ltr;unicode-bidi:isolate}
+  .recipe{display:block;margin-top:.7rem;padding:.55rem .8rem;border-radius:var(--r-lg);
+          background:var(--sand-100);color:var(--ink-500);font-size:.6875rem;line-height:1.7;
+          text-align:left;overflow-x:auto;white-space:pre-wrap;word-break:break-word}
+  .note{font-size:.875rem;line-height:1.65;color:var(--ink-500);max-width:46ch;text-wrap:pretty}
+  h1,h2,h3{color:var(--ink-900);text-wrap:balance;margin:0}
+  h1{font-size:2.25rem;line-height:1.25;font-weight:700}
+  h2{font-size:1.5rem;line-height:1.4;font-weight:700}
+  h3{font-size:1rem;line-height:1.6;font-weight:600}
+  p{margin:.5rem 0 0}
+  /* section shell = the site's own card */
+  section.card{background:#fff;border:1px solid var(--line);border-radius:var(--r-3xl);
+               box-shadow:var(--sh-sm);padding:1.75rem;margin-top:1.5rem}
+  .kicker{display:inline-flex;align-items:center;gap:.4rem;border-radius:999px;background:var(--sea-50);
+          color:var(--sea-700);font-size:.6875rem;line-height:1.45;font-weight:600;padding:.3rem .7rem;margin-bottom:.6rem}
+  .grid{display:grid;gap:1rem}
+  .src{font-size:.6875rem;color:var(--ink-400)}
+  /* ---- header ---- */
+  header.hero{display:flex;flex-wrap:wrap;align-items:center;gap:1.25rem;padding:1rem 0 .5rem}
+  .hero .lede{color:var(--ink-500);font-size:1.125rem;line-height:1.6;max-width:46ch;text-wrap:pretty}
+  .meta{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.9rem}
+  .meta span{border-radius:999px;background:var(--sand-100);color:var(--ink-600);
+             font-size:.6875rem;font-weight:600;padding:.3rem .7rem}
+  /* ---- colour ---- */
+  .ramp{display:grid;grid-template-columns:5.5rem 1fr;gap:.75rem;align-items:center;margin-top:.9rem}
+  .ramp .name{font-weight:600;color:var(--ink-800);font-size:.875rem}
+  .ramp .name small{display:block;font-weight:400;color:var(--ink-500);font-size:.6875rem}
+  .steps{display:flex;border-radius:var(--r-xl);overflow:hidden;border:1px solid var(--line)}
+  .step{flex:1;min-width:0;height:3.4rem;position:relative}
+  .step i{position:absolute;inset-inline:0;bottom:.2rem;text-align:center;font-style:normal;
+          font-family:var(--mono);font-size:.55rem;direction:ltr}
+  .lines{display:grid;gap:.6rem;margin-top:1rem}
+  .linerow{display:flex;align-items:center;gap:.8rem;font-size:.8125rem}
+  .linerow .chip{width:5.5rem;height:2.4rem;border-radius:var(--r-lg);background:#fff;flex:none}
+  .pairs{display:grid;grid-template-columns:repeat(auto-fill,minmax(10.5rem,1fr));gap:.75rem;margin-top:1rem}
+  .pair{border-radius:var(--r-2xl);padding:.9rem;border:1px solid var(--line)}
+  .pair b{display:block;font-size:.875rem}
+  .pair .mono{font-size:.6rem;opacity:.85}
+  .heros{display:grid;gap:.55rem;margin-top:1rem}
+  .herorow{display:grid;grid-template-columns:7.5rem 1fr auto;gap:.8rem;align-items:center;font-size:.8125rem}
+  .herobar{height:2.1rem;border-radius:var(--r-lg)}
+  /* ---- type ---- */
+  .ladder{display:grid;gap:.35rem;margin-top:1rem}
+  .rung{display:grid;grid-template-columns:8.5rem 1fr;gap:1rem;align-items:baseline;
+        border-bottom:1px dashed var(--line);padding:.55rem 0}
+  .rung:last-child{border-bottom:0}
+  .rung .spec{font-family:var(--mono);direction:ltr;text-align:left;font-size:.6875rem;color:var(--ink-500)}
+  .rung .sample{color:var(--ink-900);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .measure-demo p{max-width:46ch;text-wrap:pretty;font-size:.9375rem;color:var(--ink-600)}
+  .digits{font-size:2rem;color:var(--ink-900);letter-spacing:.15em}
+  /* ---- radius & shadow ---- */
+  .rads,.shads{display:grid;grid-template-columns:repeat(auto-fill,minmax(8.5rem,1fr));gap:1rem;margin-top:1rem}
+  .rad{height:5.5rem;background:var(--sand-100);border:1px solid var(--line-strong);
+       display:grid;place-items:center;font-size:.75rem;color:var(--ink-600);text-align:center}
+  .shad{height:6.5rem;background:#fff;border-radius:var(--r-2xl);display:grid;place-items:center;
+        font-size:.75rem;color:var(--ink-600)}
+  .shads{background:var(--sand-100);border-radius:var(--r-3xl);padding:1.25rem}
+  /* ---- icons ---- */
+  .icons{display:grid;grid-template-columns:repeat(auto-fill,minmax(5.6rem,1fr));gap:.6rem;margin-top:1rem}
+  .icon{display:flex;flex-direction:column;align-items:center;gap:.45rem;padding:.85rem .3rem;
+        border:1px solid var(--line);border-radius:var(--r-2xl);color:var(--ink-800)}
+  .icon svg{width:1.75rem;height:1.75rem}
+  .icon b{font-size:.6rem;font-weight:600;color:var(--ink-500);font-family:var(--mono);direction:ltr}
+  .duo{fill:currentColor;fill-opacity:.15}
+  .wash{fill:currentColor;fill-opacity:.15;stroke:none}
+  /* ---- components ---- */
+  .spec-row{border-top:1px dashed var(--line);padding:1.25rem 0}
+  .spec-row:first-of-type{border-top:0}
+  .spec-row h3{margin-bottom:.8rem}
+  .stage{display:flex;flex-wrap:wrap;align-items:center;gap:.8rem}
+  .btn{display:inline-flex;min-height:2.75rem;align-items:center;gap:.4rem;border:0;cursor:pointer;
+       border-radius:var(--r-xl);background:var(--ink-900);padding:0 1.25rem;font-family:var(--arabic);
+       font-size:.875rem;font-weight:600;color:#fff;transition:.15s}
+  .btn:hover{background:var(--ink-800)}
+  .btn:active{transform:scale(.98)}
+  .btn-cta{border-radius:var(--r-2xl);padding:.75rem 1.5rem;font-size:1.125rem;box-shadow:var(--sh-md)}
+  .btn-sun{background:var(--sun-300);color:var(--ink-900);padding:.75rem 1.75rem}
+  .btn-sun:hover{background:var(--sun-200)}
+  .btn-out{background:#fff;color:var(--ink-700);border:1px solid var(--line-control);box-shadow:none}
+  .btn-out:hover{background:#fff;border-color:var(--sea-300)}
+  .pill{display:inline-flex;min-height:2.75rem;align-items:center;gap:.375rem;border-radius:999px;
+        padding:0 1rem;font-size:.875rem;font-weight:600;transition:.15s;cursor:pointer;font-family:var(--arabic)}
+  .pill.on{background:var(--ink-900);color:#fff;box-shadow:var(--sh-sm);border:0}
+  .pill.off{background:#fff;color:var(--ink-600);border:1px solid var(--line)}
+  .pill.off:hover{border-color:var(--sea-300);color:var(--sea-700)}
+  .chip{display:inline-flex;border-radius:999px;padding:.25rem .625rem;font-size:.75rem;font-weight:600;line-height:1.7}
+  .fld{max-width:20rem}
+  .fld label{display:block;margin-bottom:.375rem;font-size:.875rem;font-weight:600;color:var(--ink-700)}
+  .fld input{width:100%;border-radius:var(--r-xl);border:1px solid var(--line-control);background:#fff;
+             color:var(--ink-800);box-shadow:var(--sh-sm);outline:none;transition:.15s;
+             padding:.625rem .75rem;font-family:var(--arabic);font-size:1rem}
+  .fld input::placeholder{color:rgb(88 80 68/.5)}
+  .fld input:focus{border-color:var(--sea-400);box-shadow:0 0 0 4px var(--sea-100)}
+  .fld .hint{margin-top:.25rem;font-size:.75rem;line-height:1.7;color:var(--ink-500)}
+  .kbd{border-radius:.25rem;border:1px solid var(--line-strong);background:var(--sand-100);
+       padding:0 .375rem;font-size:.6875rem;font-weight:600;color:var(--ink-500);font-family:var(--mono);direction:ltr}
+  /* place card */
+  .pcard{width:16rem;border:1px solid var(--line);border-radius:var(--r-3xl);background:#fff;overflow:hidden;
+         box-shadow:var(--sh-sm);transition:.3s;display:flex;flex-direction:column}
+  .pcard:hover{transform:translateY(-.25rem);border-color:var(--line-strong);
+               box-shadow:var(--sh-xl),0 20px 25px -5px rgb(20 18 15/.1)}
+  .pmedia{position:relative;height:8rem;display:grid;place-items:center;border-bottom:1px solid var(--line);
+          background:linear-gradient(135deg,var(--sand-600),var(--sand-700) 50%,var(--sand-900))}
+  .pmedia svg{width:3rem;height:3rem;color:#fff}
+  .prate{position:absolute;inset-inline-start:.75rem;top:.75rem;display:flex;align-items:center;gap:.25rem;
+         border-radius:999px;background:rgb(255 255 255/.95);padding:.25rem .625rem;font-size:.75rem;
+         font-weight:600;color:var(--ink-800);box-shadow:var(--sh-sm);backdrop-filter:blur(4px)}
+  .prate svg{width:.8rem;height:.8rem;color:var(--sun-400)}
+  .pbody{padding:1rem 1.15rem 1.15rem}
+  .pbody h4{margin:0;font-size:1.125rem;line-height:1.375;font-weight:600;color:var(--ink-900);transition:.15s}
+  .pcard:hover h4{color:var(--coral-700)}
+  .pbody .sub{margin-top:.15rem;font-size:.75rem;line-height:1.7;color:var(--ink-500)}
+  .pfoot{display:flex;align-items:center;gap:.5rem;margin-top:.7rem;font-size:.75rem}
+  .pfoot .go{margin-inline-start:auto;color:var(--ink-400);transition:.3s}
+  .pcard:hover .go{transform:translateX(-.25rem);color:var(--coral-600)}
+  /* empty / strips / success */
+  .empty{border:1px dashed var(--line-strong);border-radius:var(--r-3xl);background:rgb(246 245 243/.7);
+         padding:3rem 1.5rem;text-align:center;flex:1;min-width:15rem}
+  .empty .tile{margin:0 auto .8rem;display:grid;place-items:center;width:4rem;height:4rem;
+               border-radius:var(--r-3xl);background:var(--sand-100);color:var(--sand-600)}
+  .strip{border-radius:var(--r-2xl);background:var(--sand-100);padding:1rem;font-size:.875rem;
+         font-weight:600;color:var(--ink-600);flex:1;min-width:14rem}
+  .okpanel{border:1px solid rgb(47 138 78/.3);background:rgb(47 138 78/.08);border-radius:var(--r-3xl);
+           padding:1.5rem;flex:1;min-width:15rem}
+  .okpanel h4{display:flex;align-items:center;gap:.5rem;margin:0;font-size:1.25rem;font-weight:700;color:var(--ink-900)}
+  .okpanel svg{width:1.25rem;height:1.25rem;color:var(--palm-600)}
+  /* FAB */
+  .fab{display:inline-flex;align-items:center;gap:.625rem;border:0;cursor:pointer;border-radius:999px;
+       background:linear-gradient(to bottom,var(--coral-600),var(--coral-800));color:#fff;
+       padding:.75rem 1.25rem .75rem 1rem;box-shadow:var(--sh-xl),0 20px 25px -5px rgb(185 36 27/.3);
+       transition:.3s;font-family:var(--arabic)}
+  .fab:hover{transform:translateY(-.125rem);box-shadow:var(--sh-2xl)}
+  .fab:active{transform:translateY(0)}
+  .fab .disc{position:relative;display:grid;place-items:center;width:2.25rem;height:2.25rem}
+  .fab .disc::before{content:"";position:absolute;inset:0;border-radius:999px;background:rgb(255 255 255/.2)}
+  .fab .dot{position:absolute;top:-.125rem;inset-inline-end:-.125rem;width:.625rem;height:.625rem;
+            border-radius:999px;background:var(--sun-300);box-shadow:0 0 0 2px var(--coral-600)}
+  .fab b{font-size:1rem;font-weight:600}
+  .fab svg{width:1.25rem;height:1.25rem;position:relative}
+  /* tab bar */
+  .tabbar{display:flex;border:1px solid var(--line);border-radius:var(--r-2xl);overflow:hidden;
+          background:rgb(255 255 255/.95);max-width:26rem;flex:1}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:.25rem;padding:.625rem 0;
+       font-size:.6875rem;font-weight:600;color:var(--ink-500)}
+  .tab svg{width:1.5rem;height:1.5rem}
+  .tab.on{color:var(--coral-700)}
+  /* navbar strip */
+  .navdemo{display:flex;align-items:center;gap:1rem;border:1px solid rgb(219 216 210/.7);
+           border-radius:var(--r-2xl);background:rgb(255 255 255/.85);
+           box-shadow:inset 0 1px 0 rgb(255 255 255/.6);backdrop-filter:blur(12px);
+           padding:.6rem 1rem;flex:1;min-width:16rem}
+  .navdemo .mark{display:flex;align-items:center;gap:.5rem;font-weight:700;font-size:1.25rem;color:var(--ink-900)}
+  .navdemo .links{display:flex;gap:.25rem;border-radius:999px;background:rgb(255 255 255/.7);
+                  padding:.25rem;box-shadow:0 0 0 1px rgb(219 216 210/.8)}
+  .navdemo .links span{border-radius:999px;padding:.45rem 1rem;font-size:.8125rem;font-weight:600;color:var(--ink-600)}
+  .navdemo .links .on{background:var(--ink-900);color:#fff;box-shadow:var(--sh-sm)}
+  /* ---- categories & pins ---- */
+  .cats{display:grid;gap:.6rem;margin-top:1rem}
+  .catrow{display:grid;grid-template-columns:2.75rem 8rem 1fr 6.5rem;gap:.9rem;align-items:center;
+          border:1px solid var(--line);border-radius:var(--r-2xl);padding:.6rem .9rem}
+  .catrow .pin{width:2rem;height:2rem;border-radius:999px;border:2px solid #fff;display:grid;place-items:center;
+               color:#fff;box-shadow:var(--sh-md),0 0 0 1px rgb(20 18 15/.1)}
+  .catrow .pin svg{width:1.1rem;height:1.1rem}
+  .catrow b{font-size:.875rem;color:var(--ink-900)}
+  .catrow b small{display:block;font-weight:400;font-family:var(--mono);direction:ltr;text-align:right;
+                  font-size:.6rem;color:var(--ink-400)}
+  .catrow .bar{height:1.9rem;border-radius:var(--r-lg)}
+  .catrow .tint{border-radius:var(--r-lg);text-align:center;font-size:.75rem;font-weight:600;padding:.45rem 0}
+  .pinstage{display:flex;align-items:flex-end;gap:3.5rem;flex-wrap:wrap;margin-top:1.25rem;
+            padding:2.5rem 1.5rem 1.5rem;border-radius:var(--r-2xl);background:var(--sea-50)}
+  .pinunit{position:relative;display:grid;place-items:center}
+  .pinunit .halo{position:absolute;width:4rem;height:4rem;border-radius:999px;background:rgb(34 119 180/.3);
+                 animation:ping 1s cubic-bezier(0,0,.2,1) infinite}
+  .pinunit .body{position:relative;width:2rem;height:2rem;border-radius:999px;background:var(--sea-600);
+                 border:2px solid #fff;display:grid;place-items:center;color:#fff;
+                 box-shadow:var(--sh-md),0 0 0 1px rgb(20 18 15/.1);transition:.2s}
+  .pinunit .body svg{width:1.1rem;height:1.1rem}
+  .pinunit.big .body{transform:scale(1.1);box-shadow:var(--sh-xl)}
+  .pinunit .lbl{position:absolute;bottom:calc(100% + .9rem);white-space:nowrap;border-radius:var(--r-xl);
+                background:rgb(20 18 15/.95);color:#fff;padding:.375rem .625rem;box-shadow:var(--sh-xl);
+                backdrop-filter:blur(2px);font-size:.6875rem;line-height:1.45;font-weight:600;text-align:center}
+  .lbl .area{color:var(--sand-300);font-weight:400;margin-inline-start:.35rem}
+  .lbl .rate{display:inline-flex;align-items:center;gap:.2rem;border-radius:999px;background:rgb(255 255 255/.15);
+             padding:.05rem .375rem;margin-inline-start:.35rem}
+  .lbl .rate svg{width:.7rem;height:.7rem;color:var(--sun-300)}
+  .lbl::after{content:"";position:absolute;top:calc(100% - .25rem);inset-inline-start:calc(50% - .25rem);
+              width:.5rem;height:.5rem;background:rgb(20 18 15/.95);transform:rotate(45deg);border-radius:2px}
+  .pincap{font-size:.6875rem;color:var(--ink-500);text-align:center;margin-top:.6rem}
+  @keyframes ping{75%,100%{transform:scale(2);opacity:0}}
+  /* ---- motion ---- */
+  table{border-collapse:collapse;width:100%;margin-top:1rem;font-size:.8125rem}
+  th,td{text-align:right;padding:.55rem .6rem;border-bottom:1px solid var(--line)}
+  th{color:var(--ink-500);font-size:.6875rem;font-weight:600}
+  td .mono{font-size:.6875rem;color:var(--ink-600)}
+  .motion-demos{display:flex;flex-wrap:wrap;gap:1.25rem;margin-top:1.25rem;align-items:center}
+  .lift-demo{width:9rem;height:6rem;border:1px solid var(--line);border-radius:var(--r-2xl);background:#fff;
+             box-shadow:var(--sh-sm);transition:.3s;display:grid;place-items:center;font-size:.75rem;color:var(--ink-500)}
+  .lift-demo:hover{transform:translateY(-.25rem);box-shadow:var(--sh-xl)}
+  .pulse-demo{position:relative;width:6rem;height:6rem;display:grid;place-items:center}
+  .pulse-demo .ring{position:absolute;inset:0;border-radius:999px;background:rgb(252 203 77/.6);
+                    animation:pulse-ring 2.6s cubic-bezier(.4,0,.6,1) infinite}
+  .pulse-demo .core{position:relative;width:4rem;height:4rem;border-radius:999px;border:4px solid #fff;
+                    background:linear-gradient(to bottom,var(--sun-200),var(--sun-400));
+                    box-shadow:0 18px 40px -12px rgba(180,120,10,.55);display:grid;place-items:center;color:var(--ink-900)}
+  .pulse-demo .core svg{width:1.4rem;height:1.4rem}
+  @keyframes pulse-ring{0%{transform:scale(.92);opacity:.7}70%,100%{transform:scale(1.12);opacity:0}}
+  .cloud-demo{width:11rem;height:5rem;border-radius:var(--r-2xl);overflow:hidden;position:relative;
+              background:linear-gradient(to bottom,#ffffff,#fbeed6,#f6dfb4)}
+  .cloud-demo span{position:absolute;background:#fff;border-radius:999px;opacity:.9;
+                   animation:drift 14s ease-in-out infinite alternate}
+  @keyframes drift{from{transform:translateX(0)}to{transform:translateX(-24px)}}
+  /* ---- audio ---- */
+  .toneline button{margin-inline-start:.6rem}
+  .btn-mini{display:inline-flex;align-items:center;gap:.3rem;min-height:2rem;border-radius:var(--r-lg);
+            border:1px solid var(--line-control);background:#fff;color:var(--ink-700);cursor:pointer;
+            padding:0 .7rem;font-family:var(--arabic);font-size:.75rem;font-weight:600;transition:.15s}
+  .btn-mini:hover{border-color:var(--sea-300);color:var(--sea-700)}
+  /* ---- og mini ---- */
+  .og{width:min(24rem,100%);aspect-ratio:1200/630;border-radius:var(--r-lg);overflow:hidden;position:relative;
+      direction:ltr;background:linear-gradient(155deg,#35302a 0%,#14120f 62%);box-shadow:var(--sh-md);flex:none}
+  .og::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(20,18,15,.12) 0%,rgba(20,18,15,.5) 34%,rgba(20,18,15,.93) 55%,#14120f 68%)}
+  .og::after{content:"";position:absolute;top:0;right:0;bottom:0;width:4px;background:#dc2f25}
+  .og .txt{position:absolute;right:1.2rem;top:50%;transform:translateY(-50%);direction:rtl;text-align:right}
+  .og .txt b{display:block;color:#fff;font-size:1.35rem;font-weight:700;line-height:1.3}
+  .og .txt i{display:block;font-style:normal;color:#fbb724;font-size:.75rem;margin-top:.15rem}
+  .og .txt em{display:inline-flex;align-items:center;gap:.25rem;font-style:normal;margin-top:.5rem;
+              border-radius:999px;background:rgba(255,255,255,.12);color:#fff;font-size:.6875rem;padding:.15rem .5rem}
+  .og .txt em svg{width:.7rem;height:.7rem;color:#fbb724}
+  .og .art{position:absolute;left:.6rem;bottom:.4rem;width:45%;opacity:.95;color:#fff}
+  /* ---- footer ---- */
+  .endnote{margin-top:2.5rem;text-align:center;color:var(--ink-500);font-size:.8125rem}
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+  }
+  @media (max-width:640px){
+    .step i{display:none}
+    .ramp{grid-template-columns:1fr}
+    .rung{grid-template-columns:1fr}
+    .catrow{grid-template-columns:2.5rem 1fr;grid-auto-rows:auto}
+    .catrow .bar,.catrow .tint{grid-column:1/-1}
+    section.card{padding:1.15rem}
+  }
+</style>
+</head>
+<body>
+
+<div dir="rtl" lang="ar" class="wrap">
+
+  <!-- ============================== HEADER ============================== -->
+  <header class="hero">
+    <svg viewBox="14 8 84 92" style="width:4.5rem;height:4.9rem;flex:none" aria-hidden="true">
+      <defs>
+        <linearGradient id="wl-sea" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#57b0e3"/><stop offset="1" stop-color="#2277b4"/>
+        </linearGradient>
+        <linearGradient id="wl-coral" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#ef4d43"/><stop offset="1" stop-color="#b9241b"/>
+        </linearGradient>
+      </defs>
+      <path fill="url(#wl-sea)" stroke="#ffffff" stroke-width="3.5" stroke-linejoin="round"
+        d="M 31 24 Q 27.4 24.4 27.2 28 L 25.2 78 Q 25 82 28.8 82.8 L 70 90.5 Q 74 91.2 75.8 87.6 L 84.6 70 Q 86 66.8 84.6 63.6 L 79.6 53.4 Q 78 50 74.2 50.6 L 66.5 51.7 Q 61 52.5 61 47.8 Q 61 43.4 66.5 43 L 72.8 42.6 Q 76.6 42.3 77.6 38.6 L 79.6 31.4 Q 80.4 28.6 83 27.2 L 86.4 25.4 Q 89.6 23.6 88.2 20.4 Q 86.9 17.4 83.6 18 L 74.4 19.6 Q 72.4 20 70.4 20.2 L 31 24 Z"/>
+      <path fill="url(#wl-coral)" stroke="#ffffff" stroke-width="3.5" stroke-linejoin="round"
+        d="M 58 54.5 C 50.5 44 45.5 38.5 45.5 30 C 45.5 22 51 16.5 58 16.5 C 65 16.5 70.5 22 70.5 30 C 70.5 38.5 65.5 44 58 54.5 Z"/>
+      <g transform="translate(58 28) scale(-1 1)" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round">
+        <path d="M -4.4 -4.2 A 4.9 4.9 0 1 1 0 1.9 L 0 3.6"/>
+      </g>
+      <circle cx="58" cy="36.8" r="2" fill="#ffffff"/>
+    </svg>
+    <div>
+      <h1>هوية وين</h1>
+      <p class="lede">النظام البصري الكامل لموقع wainkw.com كما هو مبني فعلاً — الألوان والخط والأيقونات والمكوّنات والحركة، كل قيمة منقولة من الكود نفسه لا من الذاكرة.</p>
+      <div class="meta">
+        <span class="mono">globals.css</span>
+        <span class="mono">icons.tsx</span>
+        <span class="mono">places.ts</span>
+        <span>IBM Plex Sans Arabic</span>
+        <span>٣١ أيقونة · ٨ فئات</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============================== COLOUR ============================== -->
+  <section class="card">
+    <span class="kicker">١ · الألوان</span>
+    <h2>ستة سلالم لونية، وظيفة لكل سلّم</h2>
+    <p class="note">‏sand من ٥٠ إلى ٣٠٠ أسطح محايدة، ومن ٤٠٠ فوق دفء العلامة. البحر للأزرار الثانوية وحلقة التركيز، والشمس للتمييز، والمرجان الكويتي للهوية، والنخل للنجاح، والحبر نصّ دافئ يتجاوز ‎7:1‎ على كل الأرضيات.</p>
+    <div id="ramps"></div>
+
+    <h3 style="margin-top:1.5rem">الحدود — ثلاثة أوزان بحسب شغل الحد</h3>
+    <div class="lines">
+      <div class="linerow"><span class="chip" style="border:1px solid #dbd8d2"></span><b>line</b><code>#dbd8d2</code><span class="src">‏1.42:1 — حدود البطاقات والفواصل</span></div>
+      <div class="linerow"><span class="chip" style="border:1px solid #cdc9c2"></span><b>line-strong</b><code>#cdc9c2</code><span class="src">‏1.65:1 — الحالات الفارغة المتقطّعة و kbd</span></div>
+      <div class="linerow"><span class="chip" style="border:1px solid #928d84"></span><b>line-control</b><code>#928d84</code><span class="src">‏3.30:1 — حقول الإدخال والأزرار البيضاء (حد WCAG 1.4.11)</span></div>
+    </div>
+
+    <h3 style="margin-top:1.75rem">أرضيات الأبطال — الصبغة هي المتغيّر الوحيد</h3>
+    <p class="note">ثمان تدرّجات مبنية على نفس ثلاث درجات إضاءة OKLCH (قيم ink-700/800/900) وبنفس التشبّع في كل خطوة — فتقرأ كل فئة بنفس الصوت.</p>
+    <div class="heros" id="heros"></div>
+
+    <h3 style="margin-top:1.75rem">أزواج الفئات — بلاطة وحبر</h3>
+    <p class="note">كل زوج يقيس ‎4.5:1+‎ على بلاطته و ‎5.2:1+‎ على الأبيض.</p>
+    <div class="pairs" id="pairs"></div>
+  </section>
+
+  <!-- ============================== TYPE ============================== -->
+  <section class="card">
+    <span class="kicker">٢ · الخط والنص</span>
+    <h2>عائلة واحدة، والتسلسل بالوزن</h2>
+    <p class="note">‏IBM Plex Sans Arabic بأوزان ٤٠٠ و٦٠٠ و٧٠٠ — <code>font-display</code> يختار وزناً لا خطاً مختلفاً. ‏<code>font-synthesis-weight: none</code> يمنع المتصفح من تسمين مصطنع.</p>
+
+    <div class="ladder" id="ladder"></div>
+
+    <h3 style="margin-top:1.5rem">قاعدة السطر — أضيق كلما كبر الخط</h3>
+    <p class="note">سلّم الارتفاعات مقلوب عمداً عن قيم Latin: العربية تحتاج متنفّساً للنقاط والنوازل في المقاسات الصغيرة. ‏<code>text-2xs</code> خارج المنحنى لأنه مقاس شارة من سطر واحد.</p>
+
+    <h3 style="margin-top:1.5rem">عرض السطر — ‎46ch‎ وليس ‎65ch</h3>
+    <div class="measure-demo">
+      <p>‏<code>ch</code> هو عرض رقم الصفر اللاتيني، والحرف العربي أضيق منه بكثير — ‎68ch‎ قيست هنا ‏١٠٣ حرفاً عربياً. ‏‎46ch‎ تعطي حوالي ٧٠ حرفاً، وهو الرقم الذي كانت النصيحة الأصلية تقصده فعلاً. تُطبَّق عبر صنف <code>.measure</code> على الفقرات والقوائم فقط، والحاويات تبقى عريضة.</p>
+    </div>
+
+    <h3 style="margin-top:1.5rem">الأرقام — هندية شرقية دائماً</h3>
+    <p class="digits">٠١٢٣٤٥٦٧٨٩</p>
+    <p class="note">الأسعار بالفلس: <b style="color:var(--ink-900)">٣٫٢٥٠ د.ك</b> — الفاصلة العشرية ‏«٫» لا «.». التقييم: <b style="color:var(--ink-900)">٤٫٨ من ٥</b>. أحجام الملفات: ميجا وكيلو.</p>
+  </section>
+
+  <!-- ============================== RADIUS & SHADOW ============================== -->
+  <section class="card">
+    <span class="kicker">٣ · الزوايا والظلال</span>
+    <h2>حواف دقيقة وضوء من فوق</h2>
+    <p class="note">سلّم الزوايا مشدود خطوة عن افتراضيات Tailwind حتى لا تقرأ البطاقة «لعبة». الظلال طبقات: ظل تماسّ ضيّق وظل محيطي واسع، وكلها مصبوغة بالحبر ‎#14120f‎ لأن الأسود الحيادي يتوحّل فوق هذه الأرضية.</p>
+    <div class="rads">
+      <div class="rad" style="border-radius:.625rem"><span>lg<br><code>10px</code><br>رقائق صغيرة</span></div>
+      <div class="rad" style="border-radius:.75rem"><span>xl<br><code>12px</code><br>أزرار وحقول</span></div>
+      <div class="rad" style="border-radius:.9375rem"><span>2xl<br><code>15px</code><br>بلاطات داخلية</span></div>
+      <div class="rad" style="border-radius:1.25rem"><span>3xl<br><code>20px</code><br>بطاقات ولوحات</span></div>
+    </div>
+    <div class="shads">
+      <div class="shad" style="box-shadow:var(--sh-2xs)">2xs</div>
+      <div class="shad" style="box-shadow:var(--sh-xs)">xs</div>
+      <div class="shad" style="box-shadow:var(--sh-sm)">sm — البطاقات</div>
+      <div class="shad" style="box-shadow:var(--sh-md)">md</div>
+      <div class="shad" style="box-shadow:var(--sh-lg)">lg</div>
+      <div class="shad" style="box-shadow:var(--sh-xl)">xl — بطاقة مرفوعة</div>
+      <div class="shad" style="box-shadow:var(--sh-2xl)">2xl — لوحة شوق</div>
+    </div>
+  </section>
+
+  <!-- ============================== ICONS ============================== -->
+  <section class="card">
+    <span class="kicker">٤ · الأيقونات</span>
+    <h2>عائلة واحدة على شبكة ٢٤</h2>
+    <p class="note">قلم ‎1.8px‎ بأطراف مدوّرة، والجسم مرسوم على ~١٧ وحدة من ٢٤ ليقف الصف مستوياً. الغسلة الثنائية تعبئة ‎15%‎ من <code>currentColor</code> على نفس المسار — مسار واحد لا نسختان. النقاط مسارات صفرية الطول برأس مدوّر فتطابق وزن القلم أينما ظهرت.</p>
+    <div class="icons" id="icons"></div>
+    <p class="note" style="margin-top:1rem">وخارج هذه العائلة ثلاث لغات رسم أكبر بنفس الروح: ‏<code>PlaceIcon</code> أيقونة خطية لكل مكان على شبكة ‎48×48‎، و<code>CategoryArt / PlaceArt</code> مشاهد بيضاء بقلم ‎3.5‎ فوق تدرّج الفئة، و<code>KuwaitSkyline</code> أفق المدينة كامل التفاصيل في الواجهة.</p>
+  </section>
+
+  <!-- ============================== COMPONENTS ============================== -->
+  <section class="card">
+    <span class="kicker">٥ · المكوّنات</span>
+    <h2>الوصفات كما تتكرّر في الكود</h2>
+
+    <div class="spec-row">
+      <h3>الأزرار</h3>
+      <div class="stage">
+        <button class="btn">تصفّح الأماكن</button>
+        <button class="btn btn-cta">يالله نبدأ</button>
+        <button class="btn btn-cta btn-sun">وش قريب مني؟</button>
+        <button class="btn btn-out">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1.1rem;height:1.1rem"><path class="duo" d="m9 4-4.6 1.8a1 1 0 0 0-.65.94V19.3a.7.7 0 0 0 .96.65L9 18.3l6 1.9 4.6-1.8a1 1 0 0 0 .65-.94V5.4a.7.7 0 0 0-.96-.65L15 6.4 9 4Z"/><path d="M9 4v14.3M15 6.4v13.4"/></svg>
+          الطريق للمكان
+        </button>
+      </div>
+      <code class="recipe">primary  inline-flex min-h-11 items-center rounded-xl bg-ink-900 px-5 text-sm font-semibold text-white transition hover:bg-ink-800
+CTA      rounded-2xl px-6 py-3 font-display text-lg shadow-md active:scale-[0.98]   ·   sun: bg-sun-300 text-ink-900 hover:bg-sun-200
+outline  border border-line-control bg-white text-ink-700 hover:border-sea-300</code>
+    </div>
+
+    <div class="spec-row">
+      <h3>حبوب التصفية والرقائق</h3>
+      <div class="stage">
+        <span class="pill on">الكل</span>
+        <span class="pill off">مطاعم</span>
+        <span class="pill off">قهوة</span>
+        <span style="width:1rem"></span>
+        <span class="chip" style="background:var(--sun-100);color:var(--sun-900)">بانتظار المراجعة</span>
+        <span class="chip" style="background:rgb(47 138 78/.12);color:var(--palm-700)">دورك الحين</span>
+        <span class="chip" style="background:var(--sea-50);color:var(--sea-700)">مطاعم</span>
+        <span class="chip" style="background:var(--sand-200);color:var(--ink-600)">جا للمحل</span>
+        <span class="chip" style="background:var(--coral-50);color:var(--coral-700)">ما حضر</span>
+      </div>
+      <code class="recipe">pill    flex min-h-11 items-center rounded-full px-4 text-sm font-semibold  → on: bg-ink-900 text-white shadow-sm / off: border-line bg-white hover:border-sea-300
+chip    rounded-full px-2.5 py-1 text-xs font-semibold + tone map (sun-100/sun-900 · palm-500/12/palm-700 · sea-50/sea-700 · sand-200/ink-600 · coral-50/coral-700)</code>
+    </div>
+
+    <div class="spec-row">
+      <h3>حقل الإدخال — توقيع تركيز واحد في كل الموقع</h3>
+      <div class="stage">
+        <div class="fld">
+          <label>اسمك</label>
+          <input type="text" placeholder="مثال: نورة العلي">
+          <p class="hint">جرّب النقر داخل الحقل: الحد يصير بحرياً والهالة ‎4px‎ من <code>sea-100</code>.</p>
+        </div>
+        <span class="kbd">⌘K</span>
+      </div>
+      <code class="recipe">rounded-xl border-line-control bg-white shadow-sm placeholder:text-ink-500/50 focus:border-sea-400 focus:ring-4 focus:ring-sea-100
+label: text-sm font-semibold ink-700 · hint: text-xs ink-500 · error: text-xs font-semibold coral-700</code>
+    </div>
+
+    <div class="spec-row">
+      <h3>بطاقة المكان — مرّر الفأرة فوقها</h3>
+      <div class="stage" style="align-items:flex-start">
+        <div class="pcard">
+          <div class="pmedia">
+            <span class="prate"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.5 14.18 9.91 20.94 10 15.52 14.04 17.52 20.5 12 16.6 6.48 20.5 8.48 14.04 3.06 10 9.82 9.91Z"/></svg>٤٫٨</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path class="duo" d="M9 8h6l1.2 9.5a2 2 0 0 1-2 2.5H9.8a2 2 0 0 1-2-2.5L9 8Z"/><path d="M9.2 8 8 5.5h8L14.8 8"/><path d="M11 3.5h2"/><path d="M12 3.5V2.6"/><path d="M16.6 10.5c1.7.3 2.9 1.3 2.9 2.7 0 1.1-.8 2-2.1 2.4"/><path d="M7.4 10.5C5.9 9.9 5 8.7 5 7.4"/></svg>
+          </div>
+          <div class="pbody">
+            <h4>قهوة المباركية</h4>
+            <p class="sub">جلسة تراثية وسط السوق</p>
+            <div class="pfoot">
+              <span class="chip" style="background:var(--sea-50);color:var(--sea-700);padding:.15rem .55rem">قهوة</span>
+              <span class="go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1rem;height:1rem"><path d="M4.5 12h15"/><path d="m10.5 6-6 6 6 6"/></svg></span>
+            </div>
+          </div>
+        </div>
+        <div style="flex:1;min-width:14rem">
+          <p class="note">الرفع ‎-4px‎ على ‎300ms‎، الحد يقوى إلى line-strong، الظل يقفز إلى xl، العنوان يحمرّ، والسهم ينزلق مع اتجاه القراءة. أرضية الوسيط تدرّج بلاطة الفئة وفوقها شارة تقييم زجاجية ‎white/95‎ مع ‎backdrop-blur‎.</p>
+        </div>
+      </div>
+      <code class="recipe">rounded-3xl border-line bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-line-strong hover:shadow-xl hover:shadow-ink-900/10
+media: h-36 border-b border-line + categoryTint gradient · rating: bg-white/95 backdrop-blur shadow-sm</code>
+    </div>
+
+    <div class="spec-row">
+      <h3>الحالات — فارغة، هادئة، ناجحة</h3>
+      <div class="stage" style="align-items:stretch">
+        <div class="empty">
+          <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:2rem;height:2rem"><path class="duo" d="M5.8 8.5h12.4l.9 10.2a2 2 0 0 1-2 2.3H6.9a2 2 0 0 1-2-2.3L5.8 8.5Z"/><path d="M9 11V6.5a3 3 0 0 1 6 0V11"/></svg></div>
+          <h3 style="font-size:1.125rem">ما عندك طلبات</h3>
+          <p class="src" style="font-size:.875rem;margin-top:.25rem">أول ما تطلب من محل، بيظهر هني</p>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:.8rem;flex:1;min-width:14rem">
+          <div class="strip">ما فيه أحد ينتظر — دورك على طول</div>
+          <div class="okpanel">
+            <h4><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>خذيت دورك</h4>
+            <p class="src" style="font-size:.875rem;margin-top:.4rem">رقمك ٧ — قدّامك ٣ بالطابور</p>
+          </div>
+        </div>
+      </div>
+      <code class="recipe">empty    rounded-3xl border-dashed border-line-strong bg-sand-100/70 py-14 text-center + tile size-16 bg-sand-100 text-sand-600
+strip    rounded-2xl bg-sand-100 p-4 text-ink-600 · success: border-palm-500/30 bg-palm-500/8 + IconCheck text-palm-600</code>
+    </div>
+
+    <div class="spec-row">
+      <h3>هيكل التطبيق — الشريط العلوي، شريط التبويب، وزر شوق</h3>
+      <div class="stage" style="align-items:center">
+        <div class="navdemo">
+          <span class="mark">وين؟</span>
+          <div class="links"><span class="on">الرئيسية</span><span>استكشف</span><span>عن وين</span></div>
+        </div>
+        <button class="fab">
+          <span class="disc">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path class="duo" d="M10.2 3.5c.6 3.6 2.2 5.2 5.8 5.8-3.6.6-5.2 2.2-5.8 5.8-.6-3.6-2.2-5.2-5.8-5.8 3.6-.6 5.2-2.2 5.8-5.8Z"/><path d="M16.7 15.5c.3 1.8 1.1 2.6 2.9 2.9-1.8.3-2.6 1.1-2.9 2.9-.3-1.8-1.1-2.6-2.9-2.9 1.8-.3 2.6-1.1 2.9-2.9Z"/></svg>
+            <span class="dot"></span>
+          </span>
+          <b>وين AI</b>
+        </button>
+      </div>
+      <div class="stage" style="margin-top:.8rem">
+        <div class="tabbar" id="tabbar"></div>
+      </div>
+      <code class="recipe">navbar   sticky bg-sand-50/85 backdrop-blur-xl border-b border-line/70 shadow-[0_1px_0_rgba(255,255,255,0.6)_inset] · pills: bg-white/70 ring-line/80
+FAB      rounded-full bg-gradient-to-b from-coral-600 to-coral-800 shadow-xl shadow-coral-700/30 hover:-translate-y-0.5 + sun-300 presence dot
+tab bar  standalone only: bg-white/95 backdrop-blur border-t border-line · item text-2xs, active text-coral-700</code>
+    </div>
+  </section>
+
+  <!-- ============================== CATEGORIES ============================== -->
+  <section class="card">
+    <span class="kicker">٦ · الفئات والخريطة</span>
+    <h2>ثمان فئات، صوت واحد</h2>
+    <div class="cats" id="cats"></div>
+
+    <h3 style="margin-top:1.75rem">تشريح دبّوس الخريطة</h3>
+    <p class="note">دائرة CSS لا SVG: حد أبيض ‎2px‎، حلقة ‎ink-900/10‎، ظل md، وبداخلها أيقونة المكان بيضاء. عند التفعيل: تكبير ‎110%‎ وظل xl وهالة نابضة بلون الفئة على ‎30%‎، والبطاقة السوداء ‎ink-900/95‎ تطفو فوقه بأنف مائل. على الشاشات اللمسية اللمسة الأولى تختار والثانية تفتح.</p>
+    <div class="pinstage">
+      <div>
+        <div class="pinunit"><span class="body"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 2v2.5"/><circle class="duo" cx="8.5" cy="7.3" r="2.8"/><path d="M7.6 10 6.5 21M9.4 10l1.1 11"/><path d="M17 6v3.2"/><circle cx="17" cy="10.8" r="1.9"/><path d="M16.4 12.6 15.7 21M17.6 12.6l.7 8.4"/><path d="M4.5 21h15"/></svg></span></div>
+        <p class="pincap">خامل</p>
+      </div>
+      <div>
+        <div class="pinunit big"><span class="body"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 2v2.5"/><circle class="duo" cx="8.5" cy="7.3" r="2.8"/><path d="M7.6 10 6.5 21M9.4 10l1.1 11"/><path d="M17 6v3.2"/><circle cx="17" cy="10.8" r="1.9"/><path d="M16.4 12.6 15.7 21M17.6 12.6l.7 8.4"/><path d="M4.5 21h15"/></svg></span></div>
+        <p class="pincap">تحويم — ‎scale-110‎</p>
+      </div>
+      <div>
+        <div class="pinunit big">
+          <span class="halo"></span>
+          <span class="lbl">أبراج الكويت<span class="area">شرق</span><span class="rate"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.5 14.18 9.91 20.94 10 15.52 14.04 17.52 20.5 12 16.6 6.48 20.5 8.48 14.04 3.06 10 9.82 9.91Z"/></svg>٤٫٨</span></span>
+          <span class="body"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 2v2.5"/><circle class="duo" cx="8.5" cy="7.3" r="2.8"/><path d="M7.6 10 6.5 21M9.4 10l1.1 11"/><path d="M17 6v3.2"/><circle cx="17" cy="10.8" r="1.9"/><path d="M16.4 12.6 15.7 21M17.6 12.6l.7 8.4"/><path d="M4.5 21h15"/></svg></span>
+        </div>
+        <p class="pincap">مفعّل — هالة + بطاقة</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== MOTION ============================== -->
+  <section class="card">
+    <span class="kicker">٧ · الحركة</span>
+    <h2>خمس طبقات سرعة، ولمسة تُحَسّ</h2>
+    <table>
+      <thead><tr><th>الطبقة</th><th>المدة</th><th>أين</th></tr></thead>
+      <tbody>
+        <tr><td>استجابة اللمس</td><td><span class="mono">120ms · cubic-bezier(.22,1,.36,1) · scale(.975)</span></td><td>كل رابط وزر على الشاشات اللمسية</td></tr>
+        <tr><td>الأساس</td><td><span class="mono">150ms · cubic-bezier(.4,0,.2,1)</span></td><td>تلوين الأزرار والحبوب والحقول</td></tr>
+        <tr><td>الدبابيس</td><td><span class="mono">200ms</span></td><td>تكبير دبّوس الخريطة وبطاقته</td></tr>
+        <tr><td>رفع البطاقات</td><td><span class="mono">300ms · hover:-translate-y-1</span></td><td>البطاقات وزر شوق</td></tr>
+        <tr><td>تقريب الصور</td><td><span class="mono">500ms · scale-105</span></td><td>شعارات وصور المعرض</td></tr>
+      </tbody>
+    </table>
+    <div class="motion-demos">
+      <div class="lift-demo">مرّر فوقي — 300ms</div>
+      <div class="pulse-demo">
+        <span class="ring"></span>
+        <span class="core"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle class="duo" cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><path d="M12 3.5v2.5M12 18v2.5M3.5 12h2.5M18 12h2.5"/></svg></span>
+      </div>
+      <div class="cloud-demo">
+        <span style="width:2.6rem;height:.8rem;top:1rem;right:1.2rem"></span>
+        <span style="width:1.8rem;height:.6rem;top:2.4rem;right:4.6rem;animation-delay:-6s"></span>
+        <span style="width:2.2rem;height:.7rem;top:3.4rem;right:2rem;animation-delay:-10s"></span>
+      </div>
+    </div>
+    <p class="note" style="margin-top:.9rem">النبضة ‎pulse-ring‎ ‏‎2.6s‎ خلف قرص «وش قريب مني؟»، والغيوم ‎drift‎ ‏‎14s‎ في الأفق. كل ‎animate-ping‎ يحمل ‎motion-reduce:animate-none‎، وتفضيل تقليل الحركة يوقف كل شيء عند ‎0.01ms‎.</p>
+  </section>
+
+  <!-- ============================== SOUND & TOUCH ============================== -->
+  <section class="card">
+    <span class="kicker">٨ · الصوت واللمس</span>
+    <h2>نغمات جيبية بحواف ناعمة</h2>
+    <p class="note">كل نغمة موجة جيبية عبر <code>AudioContext</code> واحد مشترك، بصعود وهبوط أُسّي ‎0.02s‎ حتى لا تطقطق. رنين ‎425Hz‎ هو معيار ITU الذي تستخدمه الكويت فعلاً.</p>
+    <table>
+      <tbody>
+        <tr><td>رنين المكالمة</td><td><span class="mono">425Hz · 1s on / 3s off · gain .06</span></td><td class="toneline"><button class="btn-mini" data-tone="ring">▶ اسمع</button></td></tr>
+        <tr><td>اتصال ناجح</td><td><span class="mono">587→880Hz · +0.11s · gain .12</span></td><td class="toneline"><button class="btn-mini" data-tone="ok">▶ اسمع</button></td></tr>
+        <tr><td>إنهاء المكالمة</td><td><span class="mono">480→320Hz · gain .10</span></td><td class="toneline"><button class="btn-mini" data-tone="bye">▶ اسمع</button></td></tr>
+        <tr><td>تنبيه طلب جديد</td><td><span class="mono">660→880Hz · +0.16s · gain .18</span></td><td class="toneline"><button class="btn-mini" data-tone="chime">▶ اسمع</button></td></tr>
+      </tbody>
+    </table>
+    <h3 style="margin-top:1.5rem">مفردات الاهتزاز</h3>
+    <p class="note">‏لمسة ‎8ms‎ · اختيار ‎14ms‎ · نجاح ‎[12,45,22]‎ · خطأ ‎[24,55,24]‎ — مرافقة لأندرويد فقط، لا تكون التغذية الوحيدة أبداً، وتُكتم مع تفضيل تقليل الحركة.</p>
+  </section>
+
+  <!-- ============================== SYSTEM RULES ============================== -->
+  <section class="card">
+    <span class="kicker">٩ · فيزياء النظام</span>
+    <h2>القواعد التي تجعل الصفحة تُحَسّ تطبيقاً</h2>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));margin-top:1rem">
+      <div>
+        <h3>التحديد والتركيز</h3>
+        <p class="note">جرّب تحديد هذا النص — أصفر ‎sun-200‎ وحبر ‎ink-900‎. تركيز لوحة المفاتيح حلقة ‎2px‎ بحرية ‎sea-600‎ بإزاحة ‎2px‎ على كل عنصر تفاعلي.</p>
+      </div>
+      <div>
+        <h3>المنطقة الآمنة</h3>
+        <p class="note">أسفل الصفحة ‎5.5rem + env(safe-area-inset-bottom)‎ حتى لا يغطّي زر شوق آخر سطر. في التطبيق المثبّت تنخفض إلى ‎4.25rem‎ ويصعد الزر فوق شريط التبويب.</p>
+      </div>
+      <div>
+        <h3>كثافة التطبيق المثبّت</h3>
+        <p class="note">متغيّر <code>standalone</code> يضيّق كل شيء درجة: ‏‎p-6→p-4‎، ‏‎rounded-3xl→2xl‎، البطل ‎h-56→h-40‎ — قائمتان متطابقتان عمداً لتغطية iOS بلا JS.</p>
+      </div>
+      <div>
+        <h3>الأداء المرئي</h3>
+        <p class="note">‏<code>.card-defer</code> يؤجّل رسم ٣١ بطاقة تحت الطيّة بـ‎content-visibility:auto‎ مع ارتفاع محجوز ‎268px‎ — فلا تقفز الصفحة ولا يتأخّر آخر رسم مهم.</p>
+      </div>
+    </div>
+
+    <h3 style="margin-top:1.75rem">بطاقة المشاركة — ‎1200×630‎</h3>
+    <div class="stage" style="align-items:flex-start;margin-top:.8rem">
+      <div class="og">
+        <svg class="art" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="height:70%;width:auto"><path d="M8.5 2v2.5"/><circle cx="8.5" cy="7.3" r="2.8" fill="currentColor" fill-opacity=".15"/><path d="M7.6 10 6.5 21M9.4 10l1.1 11"/><path d="M17 6v3.2"/><circle cx="17" cy="10.8" r="1.9"/><path d="M16.4 12.6 15.7 21M17.6 12.6l.7 8.4"/><path d="M4.5 21h15"/></svg>
+        <div class="txt">
+          <b>أبراج الكويت</b>
+          <i>العاصمة · معالم الكويت</i>
+          <em><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.5 14.18 9.91 20.94 10 15.52 14.04 17.52 20.5 12 16.6 6.48 20.5 8.48 14.04 3.06 10 9.82 9.91Z"/></svg>٤٫٨ من ٥</em>
+        </div>
+      </div>
+      <p class="note">أرضية ‎155°‎ من ‎ink-700‎ إلى ‎ink-900‎، فنّ المكان الحي بستارة نصّية يمين، حافة مرجانية ‎14px‎ على الطرف المادي الأيمن، اسم يتدرّج ‎66/56/48px‎ بطول الاسم، ثم لمسة إنهاء: حبيبات مزروعة ببذرة ‎«wain»‎ وقصاصة ضوء دائرية — فتخرج الصورة نفسها بايت-بايت في كل بناء.</p>
+    </div>
+  </section>
+
+  <p class="endnote">نظام فاتح عن قصد — ‏<code>colorScheme:"light"</code> و<code>themeColor:#ffffff</code> في الكود — لذا هذه الصفحة ملتزمة بمظهر واحد مثل المنتج نفسه.<br>المصادر: ‏globals.css · icons.tsx · places.ts · form-classes.ts · MapPin.tsx · WainAi.tsx · gen-og.mjs · call-tones.ts · haptics.ts</p>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  /* ---------- colour ramps ---------- */
+  var ramps=[
+    ['sand','أسطح ثم دفء العلامة',[['50','#ffffff'],['100','#f6f5f3'],['200','#e6e4e0'],['300','#d4d1cb'],['400','#dcc287'],['500','#c9a55f'],['600','#ad8544'],['700','#8b6836'],['800','#6d5230'],['900','#57422a']]],
+    ['sea','ماء الخليج',[['50','#eff8fd'],['100','#daeefa'],['200','#bce0f5'],['300','#8dccee'],['400','#57b0e3'],['500','#3194d1'],['600','#2277b4'],['700','#1e6092'],['800','#1d5179'],['900','#1c4565'],['950','#132c42']]],
+    ['sun','شمس الصحراء',[['50','#fffaeb'],['100','#fef0c7'],['200','#fde08a'],['300','#fccb4d'],['400','#fbb724'],['500','#f5960b'],['600','#d97006'],['700','#b44e09'],['800','#923c0e'],['900','#78320f']]],
+    ['coral','الأحمر الكويتي',[['50','#fef3f2'],['100','#fee4e2'],['200','#fecdca'],['300','#fdaaa4'],['400','#f97970'],['500','#ef4d43'],['600','#dc2f25'],['700','#b9241b'],['800','#99221b'],['900','#7f231d']]],
+    ['palm','أخضر النخل',[['400','#4ba368'],['500','#2f8a4e'],['600','#1f6f3d'],['700','#1b5832'],['800','#17462a']]],
+    ['ink','حبر دافئ للنص',[['400','#6b6357'],['500','#585044'],['600','#4e483f'],['700','#35302a'],['800','#221f1b'],['900','#14120f']]]
+  ];
+  function lum(hex){
+    var c=[1,3,5].map(function(i){var v=parseInt(hex.substr(i,2),16)/255;
+      return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4);});
+    return 0.2126*c[0]+0.7152*c[1]+0.0722*c[2];
+  }
+  var rampHost=document.getElementById('ramps');
+  ramps.forEach(function(r){
+    var row=document.createElement('div');row.className='ramp';
+    var name=document.createElement('div');name.className='name';
+    name.innerHTML='<span class="mono">'+r[0]+'</span><small>'+r[1]+'</small>';
+    var steps=document.createElement('div');steps.className='steps';
+    r[2].forEach(function(s){
+      var d=document.createElement('div');d.className='step';d.style.background=s[1];
+      var i=document.createElement('i');i.textContent=s[0];
+      i.style.color=lum(s[1])>0.45?'rgba(20,18,15,.75)':'rgba(255,255,255,.85)';
+      d.title=r[0]+'-'+s[0]+' '+s[1];d.appendChild(i);steps.appendChild(d);
+    });
+    row.appendChild(name);row.appendChild(steps);rampHost.appendChild(row);
+  });
+
+  /* ---------- categories ---------- */
+  var cats=[
+    {id:'landmarks',ar:'معالم الكويت',blurb:'أيقونات المدينة',tone:'#2277b4',tint:'#dcf0ff',ink:'#1870a1',
+     hero:['#023550','#002238','#001425'],grad:['#3194d1','#2277b4','#1d5179'],gname:'sea-500→600→800',icon:'tower'},
+    {id:'restaurants',ar:'مطاعم',blurb:'غدا وعشا',tone:'#b9241b',tint:'#ffe6e5',ink:'#9e4c4e',
+     hero:['#4f2022','#371213','#240809'],grad:['#ef4d43','#dc2f25','#99221b'],gname:'coral-500→600→800',icon:'cutlery'},
+    {id:'fastfood',ar:'وجبات سريعة',blurb:'على السريع',tone:'#b44e09',tint:'#ffe7dd',ink:'#9c522e',
+     hero:['#4d240f','#361404','#230a01'],grad:['#d97006','#b44e09','#78320f'],gname:'sun-600→700→900',icon:'burger'},
+    {id:'coffee',ar:'قهوة',blurb:'قهوة وچاي',tone:'#8b6836',tint:'#f8ebd7',ink:'#896100',
+     hero:['#422c00','#2d1c00','#1d0f00'],grad:['#ad8544','#8b6836','#57422a'],gname:'sand-600→700→900',icon:'dallah'},
+    {id:'outdoors',ar:'شواطئ وحدائق',blurb:'بحر وخضرة',tone:'#1f6f3d',tint:'#dff3e2',ink:'#317a45',
+     hero:['#113a1d','#04270f','#011806'],grad:['#2f8a4e','#1f6f3d','#1e6092'],gname:'palm-500→600→sea-700',icon:'palm'},
+    {id:'shopping',ar:'تسوّق',blurb:'أسواق ومولات',tone:'#923c0e',tint:'#fce5f3',ink:'#924d7d',
+     hero:['#48213c','#321328','#200919'],grad:['#d97006','#dc2f25','#99221b'],gname:'sun-600→coral-600→800',icon:'bag'},
+    {id:'culture',ar:'ثقافة',blurb:'متاحف وفنون',tone:'#1d5179',tint:'#eceaff',ink:'#695ca3',
+     hero:['#312a52','#20193a','#120e26'],grad:['#2277b4','#1d5179','#221f1b'],gname:'sea-600→800→ink-800',icon:'masks'},
+    {id:'family',ar:'عائلة',blurb:'طلعة العيال',tone:'#1b5832',tint:'#d7f4f3',ink:'#007879',
+     hero:['#003939','#002626','#001717'],grad:['#2f8a4e','#1f6f3d','#17462a'],gname:'palm-500→600→800',icon:'ferris'}
+  ];
+
+  /* ---------- icon library (paths from src/components/icons.tsx, verbatim) ---------- */
+  var IC={
+    sun:'<circle class="duo" cx="12" cy="12" r="4.3"/><path d="M12 3.5v2.3M12 18.2v2.3M3.5 12h2.3M18.2 12h2.3M6 6l1.6 1.6M16.4 16.4l1.6 1.6M18 6l-1.6 1.6M7.6 16.4 6 18"/>',
+    phone:'<path class="duo" d="M5 4h4l1.8 4.2-2.2 1.9a12.5 12.5 0 0 0 5.3 5.3l1.9-2.2L20 15v4a1.5 1.5 0 0 1-1.6 1.5C10.4 20 4 13.6 3.5 5.6A1.5 1.5 0 0 1 5 4Z"/>',
+    instagram:'<rect class="duo" x="3.5" y="3.5" width="17" height="17" rx="4.5"/><circle cx="12" cy="12" r="3.6"/><path d="M16.8 7.2h.01"/>',
+    globe:'<circle class="duo" cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.2 3.6 5 3.6 8.5s-1.2 6.3-3.6 8.5c-2.4-2.2-3.6-5-3.6-8.5s1.2-6.3 3.6-8.5Z"/>',
+    pin:'F<path d="M12 3.5a6.1 6.1 0 0 0-6.1 6.1c0 4.4 6.1 10.9 6.1 10.9s6.1-6.5 6.1-10.9A6.1 6.1 0 0 0 12 3.5Zm0 8.6a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Z"/>',
+    grid:'<rect x="3.5" y="3.5" width="7" height="7" rx="2.2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2.2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2.2"/><rect class="duo" x="13.5" y="13.5" width="7" height="7" rx="2.2"/>',
+    tower:'<path d="M8.5 2v2.5"/><circle class="duo" cx="8.5" cy="7.3" r="2.8"/><path d="M7.6 10 6.5 21M9.4 10l1.1 11"/><path d="M17 6v3.2"/><circle cx="17" cy="10.8" r="1.9"/><path d="M16.4 12.6 15.7 21M17.6 12.6l.7 8.4"/><path d="M4.5 21h15"/>',
+    cutlery:'<path d="M7 3v6.2a2 2 0 0 0 4 0V3"/><path d="M9 3v5.2"/><path d="M9 9.5V21"/><path class="wash" d="M17.5 3c-1.9 1.2-2.9 3.2-2.9 5.4 0 1.8 1 2.9 2.9 3.1Z"/><path d="M17.5 3c-1.9 1.2-2.9 3.2-2.9 5.4 0 1.8 1 2.9 2.9 3.1V21"/>',
+    burger:'<path class="duo" d="M4 9.5C4 6.5 7.6 4.5 12 4.5s8 2 8 5H4Z"/><path d="M3.5 13h17"/><path d="M4 16.5h16c0 1.9-1.6 3.3-3.5 3.3h-9C5.6 19.8 4 18.4 4 16.5Z"/><path d="M8.5 7h.01M12 6.5h.01M15.5 7h.01"/>',
+    dallah:'<path class="duo" d="M9 8h6l1.2 9.5a2 2 0 0 1-2 2.5H9.8a2 2 0 0 1-2-2.5L9 8Z"/><path d="M9.2 8 8 5.5h8L14.8 8"/><path d="M11 3.5h2"/><path d="M12 3.5V2.6"/><path d="M16.6 10.5c1.7.3 2.9 1.3 2.9 2.7 0 1.1-.8 2-2.1 2.4"/><path d="M7.4 10.5C5.9 9.9 5 8.7 5 7.4"/>',
+    palm:'<path d="M12 9.1c-2.5-2.5-5.4-2.7-7.9-.5"/><path d="M12 9.1c2.5-2.5 5.4-2.7 7.9-.5"/><path d="M12 9.1c-1-2.9-3.3-4.5-6.3-4.6"/><path d="M12 9.1c1-2.9 3.3-4.5 6.3-4.6"/><circle class="duo" cx="12" cy="9.4" r="1.3"/><path d="M12.2 10.6c.3 4 .5 7.5.6 10.4"/><path d="M4.5 21h15"/>',
+    bag:'<path class="duo" d="M5.8 8.5h12.4l.9 10.2a2 2 0 0 1-2 2.3H6.9a2 2 0 0 1-2-2.3L5.8 8.5Z"/><path d="M9 11V6.5a3 3 0 0 1 6 0V11"/>',
+    masks:'<path d="M3.5 4.5H11v5.6a3.75 3.75 0 0 1-7.5 0Z"/><path class="duo" d="M13 4.5h7.5v5.6a3.75 3.75 0 0 1-7.5 0Z"/><path d="M5.9 7.3h.01M8.6 7.3h.01M15.4 7.3h.01M18.1 7.3h.01"/><path d="M6.3 17.6c1.7 1.3 3.5 1.9 5.7 1.9s4-.6 5.7-1.9"/>',
+    ferris:'<circle class="duo" cx="12" cy="10" r="6.8"/><circle cx="12" cy="10" r="1.7"/><path d="M12 3.2v13.6M5.2 10h13.6M7.2 5.2l9.6 9.6M16.8 5.2l-9.6 9.6"/><path d="M8.8 21h6.4L12 16.8Z"/>',
+    star:'F<path d="M12 3.5 14.18 9.91 20.94 10 15.52 14.04 17.52 20.5 12 16.6 6.48 20.5 8.48 14.04 3.06 10 9.82 9.91Z"/>',
+    clock:'<circle class="duo" cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    check:'W2.4<path d="m5 13 4 4L19 7"/>',
+    search:'<circle class="duo" cx="11" cy="11" r="7"/><path d="m20.5 20.5-4-4"/>',
+    go:'<path d="M4.5 12h15"/><path d="m10.5 6-6 6 6 6"/>',
+    send:'<path class="duo" d="M20.5 4.2 3.6 10.4a.6.6 0 0 0 0 1.1l6.7 2.3 2.3 6.7a.6.6 0 0 0 1.1 0Z"/><path d="m10.3 13.8 4.6-4.6"/>',
+    back:'<path d="M4.5 12h15"/><path d="m13.5 6 6 6-6 6"/>',
+    compass:'<circle class="duo" cx="12" cy="12" r="8.5"/><path fill="currentColor" stroke="none" d="m15.8 8.2-2.5 5.1-5.1 2.5 2.5-5.1 5.1-2.5Z"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/>',
+    locate:'<circle class="duo" cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><path d="M12 3.5v2.5M12 18v2.5M3.5 12h2.5M18 12h2.5"/>',
+    map:'<path class="duo" d="m9 4-4.6 1.8a1 1 0 0 0-.65.94V19.3a.7.7 0 0 0 .96.65L9 18.3l6 1.9 4.6-1.8a1 1 0 0 0 .65-.94V5.4a.7.7 0 0 0-.96-.65L15 6.4 9 4Z"/><path d="M9 4v14.3M15 6.4v13.4"/>',
+    sparkle:'<path class="duo" d="M10.2 3.5c.6 3.6 2.2 5.2 5.8 5.8-3.6.6-5.2 2.2-5.8 5.8-.6-3.6-2.2-5.2-5.8-5.8 3.6-.6 5.2-2.2 5.8-5.8Z"/><path d="M16.7 15.5c.3 1.8 1.1 2.6 2.9 2.9-1.8.3-2.6 1.1-2.9 2.9-.3-1.8-1.1-2.6-2.9-2.9 1.8-.3 2.6-1.1 2.9-2.9Z"/>',
+    car:'<path class="wash" d="M5 11.4 6.8 6.4a2 2 0 0 1 1.9-1.3h6.6a2 2 0 0 1 1.9 1.3l1.8 5Z"/><path d="M5 11.4 6.8 6.4a2 2 0 0 1 1.9-1.3h6.6a2 2 0 0 1 1.9 1.3l1.8 5"/><path d="M4.5 11.4h15a1 1 0 0 1 1 1v3.4a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-3.4a1 1 0 0 1 1-1Z"/><path d="M7.3 14.2h.01M16.7 14.2h.01"/><path d="M6 16.8v2M18 16.8v2"/>',
+    coins:'<ellipse class="duo" cx="12" cy="6.5" rx="7" ry="3"/><path d="M5 6.5v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5"/><path d="M5 11.5v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5"/>',
+    close:'W2.2<path d="m6.5 6.5 11 11M17.5 6.5l-11 11"/>',
+    home:'<path class="duo" d="M4.5 10.2 12 4l7.5 6.2V19a1 1 0 0 1-1 1h-4.6v-5.4H10V20H5.5a1 1 0 0 1-1-1v-8.8Z"/>',
+    speaker:'<path class="duo" d="M10.7 4.9 6.6 8.2H4a1 1 0 0 0-1 1v5.6a1 1 0 0 0 1 1h2.6l4.1 3.3a.9.9 0 0 0 1.5-.7V5.6a.9.9 0 0 0-1.5-.7Z"/><path d="M15.5 9.6a3.6 3.6 0 0 1 0 4.8"/><path d="M18 7.2a7 7 0 0 1 0 9.6"/>',
+    speakeroff:'<path class="duo" d="M10.7 4.9 6.6 8.2H4a1 1 0 0 0-1 1v5.6a1 1 0 0 0 1 1h2.6l4.1 3.3a.9.9 0 0 0 1.5-.7V5.6a.9.9 0 0 0-1.5-.7Z"/><path d="m15.6 9.7 4.6 4.6M20.2 9.7l-4.6 4.6"/>'
+  };
+  function svgFor(key,extra){
+    var body=IC[key],sw='1.8',fill=false;
+    if(body.charAt(0)==='F'){fill=true;body=body.slice(1);}
+    else if(body.slice(0,1)==='W'){var m=body.match(/^W([\d.]+)/);sw=m[1];body=body.slice(m[0].length);}
+    var attrs=fill?'fill="currentColor"'
+      :'fill="none" stroke="currentColor" stroke-width="'+sw+'" stroke-linecap="round" stroke-linejoin="round"';
+    return '<svg viewBox="0 0 24 24" '+attrs+' aria-hidden="true"'+(extra||'')+'>'+body+'</svg>';
+  }
+  var iconHost=document.getElementById('icons');
+  Object.keys(IC).forEach(function(k){
+    var d=document.createElement('div');d.className='icon';
+    d.innerHTML=svgFor(k)+'<b>'+k+'</b>';
+    iconHost.appendChild(d);
+  });
+
+  /* ---------- hero grounds + category pairs + rows ---------- */
+  var heroHost=document.getElementById('heros'),pairHost=document.getElementById('pairs'),catHost=document.getElementById('cats');
+  cats.forEach(function(c){
+    var hr=document.createElement('div');hr.className='herorow';
+    hr.innerHTML='<b style="font-size:.8125rem;color:var(--ink-800)">'+c.ar+'</b>'
+      +'<div class="herobar" style="background:linear-gradient(to left,'+c.hero[0]+','+c.hero[1]+' 50%,'+c.hero[2]+')"></div>'
+      +'<code style="font-size:.6rem;color:var(--ink-400)">'+c.hero.join(' ')+'</code>';
+    heroHost.appendChild(hr);
+    var p=document.createElement('div');p.className='pair';p.style.background=c.tint;p.style.color=c.ink;
+    p.innerHTML='<b>'+c.ar+'</b><span class="mono">'+c.tint+' / '+c.ink+'</span>';
+    pairHost.appendChild(p);
+    var row=document.createElement('div');row.className='catrow';
+    row.innerHTML='<span class="pin" style="background:'+c.tone+'">'+svgFor(c.icon==='dallah'?'dallah':c.icon)+'</span>'
+      +'<b>'+c.ar+'<small>pin '+c.tone+'</small></b>'
+      +'<div class="bar" style="background:linear-gradient(135deg,'+c.grad[0]+','+c.grad[1]+' 50%,'+c.grad[2]+')" title="'+c.gname+'"></div>'
+      +'<div class="tint" style="background:'+c.tint+';color:'+c.ink+'">'+c.blurb+'</div>';
+    catHost.appendChild(row);
+  });
+
+  /* ---------- tab bar ---------- */
+  var tabs=[['home','الرئيسية',1],['compass','استكشف',0],['search','بحث',0],['bag','طلباتي',0],['clock','دوري',0]];
+  var tb=document.getElementById('tabbar');
+  tabs.forEach(function(t){
+    var d=document.createElement('span');d.className='tab'+(t[2]?' on':'');
+    d.innerHTML=svgFor(t[0])+t[1];
+    tb.appendChild(d);
+  });
+
+  /* ---------- tones (call-tones.ts / chime.ts values) ---------- */
+  var ctx=null;
+  function tone(freq,at,dur,gain){
+    var t=ctx.currentTime+at,o=ctx.createOscillator(),g=ctx.createGain();
+    o.type='sine';o.frequency.value=freq;
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(gain,t+0.02);
+    g.gain.setValueAtTime(gain,t+dur-0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g).connect(ctx.destination);o.start(t);o.stop(t+dur+0.02);
+  }
+  var tones={
+    ring:function(){tone(425,0,1,0.06);},
+    ok:function(){tone(587,0,0.14,0.12);tone(880,0.11,0.18,0.12);},
+    bye:function(){tone(480,0,0.14,0.10);tone(320,0.11,0.18,0.10);},
+    chime:function(){tone(660,0,0.28,0.18);tone(880,0.16,0.28,0.18);}
+  };
+  document.querySelectorAll('[data-tone]').forEach(function(b){
+    b.addEventListener('click',function(){
+      try{
+        if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)();}
+        if(ctx.state==='suspended'){ctx.resume();}
+        tones[b.getAttribute('data-tone')]();
+      }catch(e){}
+    });
+  });
+})();
+</script></body></html>
