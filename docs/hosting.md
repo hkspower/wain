@@ -63,15 +63,60 @@ web. The export's `.htaccess` now carries those rules forward, plus denies for
 Those rules **deny access; they delete nothing.** Removing the files is a
 separate decision for whoever knows if the old app still runs.
 
-## Rotate `admin.token`
+## api.php: the API is open to the internet
 
-60 bytes, in the web root, beside the admin panel it belongs to. The live
-`.htaccess` protected `wain.db` and nothing else, and `Options -Indexes` stops
-directory *listing* but not a request for a known filename.
+Reading `api.php` inverted the priority here. It is a key-value store over
+`wain.db`, and **five of its actions take no authentication at all**:
 
-Treat it as compromised: rotate it, then move it out of the docroot. The new
-`.htaccess` denies it, but that is a patch over a credential that has been
-reachable, not a substitute for rotating it.
+| action | what it does | gated? |
+| --- | --- | --- |
+| `get?k=` | read any value | **no** |
+| `set {k,v}` | write any key | **no** |
+| `del?k=` | delete any key | **no** |
+| `list?p=` | enumerate up to 1000 keys by prefix | **no** |
+| `event` | append to a log that records visitor IPs | **no** |
+| `stats`, `bulk`, `search`, `export`, `import`, `purge` | | token |
+
+It also sends `Access-Control-Allow-Origin: *`, so any website can drive it from
+a visitor's browser. The only limit is 400 requests per minute per IP.
+
+The prefixes named in `stats` say what is in there: `orders:`, `rsvp:`, `inv:`,
+`queue:`, `menu:`, `ask:`, `vm:`, `vmi:`, `bizidx`, `salonidx`, `events:`.
+
+So `list?p=orders:` returns order keys and `get?k=…` returns each one. Anyone.
+No token. Writes and deletes the same way. `events:log` stores an `ip` for every
+event, so there is visitor IP logging in there readable by the same route.
+
+**This is the thing to deal with first**, and it is independent of the token.
+
+## admin.token — I got this wrong first time
+
+I called it "a 60-byte credential" and said to treat it as compromised. That
+overstated the mechanism. The code does:
+
+```php
+file_put_contents($tokFile, password_hash($given, PASSWORD_DEFAULT), LOCK_EX);
+…
+password_verify($given, (string)file_get_contents($tokFile))
+```
+
+60 bytes is exactly the length of a bcrypt hash. **The exposed file is a hash of
+the token, not the token.** Anyone who downloaded it got something they have to
+crack offline, not something they can use.
+
+It is still worth rotating — the file's own comment likens the token to a panel
+PIN, and a short PIN under bcrypt is crackable — but it is second, not first.
+
+Rotation is easy, because the token bootstraps itself:
+
+```php
+if (!file_exists($tokFile)) { file_put_contents($tokFile, password_hash($given, …)); }
+```
+
+Delete `admin.token`, then call `stats` once with a new long random token; that
+call sets it. Note the corollary: **the `.htaccess` deny does not protect admin
+actions** — PHP reads the file from disk, not over HTTP — and anyone who can get
+the file deleted can claim admin on the next call.
 
 ## Deploying from a Claude session
 
