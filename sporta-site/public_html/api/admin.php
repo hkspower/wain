@@ -384,6 +384,42 @@ if ($r === 'product_save' && $method === 'POST') {
         if (!$q->fetchColumn()) store_fail('unknown_brand');
     }
 
+    // WHAT THE SLUG USED TO BE, read before the update overwrites it.
+    //
+    // product_images, product_variants and size_advice_log are all keyed on
+    // products.slug rather than products.id — a deliberate choice, so the
+    // catalogue survives being re-imported from the supplier's export. The
+    // cost of it is that there is no foreign key and no ON UPDATE CASCADE to
+    // carry those rows when the slug changes, and this route lets the owner
+    // change it: the slug is an editable field in the product form.
+    //
+    // So renaming a product silently detached everything hanging off it. Its
+    // whole photo shoot stayed in product_images under the old name — not
+    // shown on the storefront (?r=products looks up by the new slug and finds
+    // nothing, so the grid goes back to a grey box), not visible in the admin
+    // (which also lists by slug), and not servable (?r=product_image INNER
+    // JOINs products and 404s). The bytes stay in the database forever with
+    // nothing able to reach them. The size rows went the same way, which is
+    // worse than losing pictures: the garment becomes untracked, every size
+    // reads as in stock, and it can be oversold.
+    //
+    // Measured before this was written: rename one product, and the storefront
+    // row's `image` goes from a URL to null while the photograph is still in
+    // the table.
+    $oldSlug = null;
+    if ($id > 0) {
+        $prev = $db->prepare('select slug from products where id = ?');
+        $prev->execute([$id]);
+        $oldSlug = (string)($prev->fetchColumn() ?: '');
+        if ($oldSlug === '' || $oldSlug === $slug) $oldSlug = null;
+    }
+
+    // ONE TRANSACTION for the product row and its children. A rename that
+    // moved the photographs and then failed to move the size rows would leave
+    // a garment whose stock is somewhere else entirely, and the shop would
+    // keep selling it. Either the whole rename lands or none of it does.
+    $renaming = $oldSlug !== null;
+    if ($renaming) $db->beginTransaction();
     try {
         if ($id > 0) {
             $db->prepare(
@@ -407,7 +443,27 @@ if ($r === 'product_save' && $method === 'POST') {
                         store_opt($b['image'] ?? null), $extraImages, $active]);
             $id = (int)$db->lastInsertId();
         }
+
+        // Carry the children. Every table keyed on products.slug is listed
+        // here, and the list is the one information_schema gives for a `slug`
+        // column: product_images (the shoot), product_variants (sizes and
+        // stock), size_advice_log (what the assistant recommended for this
+        // garment, kept so the advice can be reviewed).
+        //
+        // brands.slug and products.brand_slug are NOT here — they point the
+        // other way, at a brand, and a product's own rename does not touch
+        // them. order_items are not here either: they reference a product by
+        // id and record the name as it was sold, which is what an invoice from
+        // last year has to keep saying.
+        if ($renaming) {
+            foreach (['product_images', 'product_variants', 'size_advice_log'] as $child) {
+                $db->prepare("update $child set slug = ? where slug = ?")
+                   ->execute([$slug, $oldSlug]);
+            }
+            $db->commit();
+        }
     } catch (Throwable $e) {
+        if ($renaming && $db->inTransaction()) $db->rollBack();
         if (str_contains($e->getMessage(), 'Duplicate')) store_fail('slug_taken');
         throw $e;
     }
