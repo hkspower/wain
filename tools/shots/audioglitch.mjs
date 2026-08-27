@@ -291,7 +291,17 @@ const out = await page.evaluate(async () => {
     );
     const from = Math.max(0, fromAbs - base);
     const to = Math.min(total, toAbs - base);
-    return { name: m.name, missing, buf: Array.from(stream.subarray(from, to)) };
+    // Base64 of the raw bytes, not an array of numbers. A minute of
+    // audio is two and a half million samples, and handing those back as
+    // JSON is about twenty bytes each — tens of megabytes to serialise,
+    // ship over CDP and parse, which dwarfed the recording itself.
+    const slice = stream.slice(from, to);
+    const bytes = new Uint8Array(slice.buffer);
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return { name: m.name, missing, b64: btoa(bin) };
   });
   return { rate, scenes, holes, base, blocks: blocks.length };
 });
@@ -315,13 +325,16 @@ console.log(
 );
 
 mkdirSync(CAPTURE, { recursive: true });
-const manifest = out.scenes.map((s, i) => {
-  const f32 = Float32Array.from(s.buf);
-  writeFileSync(`${CAPTURE}/${i}.f32`, Buffer.from(f32.buffer));
-  return { name: s.name, file: `${i}.f32`, n: f32.length };
+const decoded = out.scenes.map((s) => {
+  const raw = Buffer.from(s.b64, "base64");
+  return { name: s.name, missing: s.missing, buf: new Float32Array(raw.buffer, raw.byteOffset, raw.byteLength >> 2) };
+});
+const manifest = decoded.map((s, i) => {
+  writeFileSync(`${CAPTURE}/${i}.f32`, Buffer.from(s.buf.buffer, s.buf.byteOffset, s.buf.byteLength));
+  return { name: s.name, file: `${i}.f32`, n: s.buf.length, missing: s.missing };
 });
 writeFileSync(`${CAPTURE}/manifest.json`, JSON.stringify({ rate: out.rate, scenes: manifest }, null, 2));
-return { rate: out.rate, scenes: out.scenes.map((s) => ({ name: s.name, buf: Float32Array.from(s.buf) })) };
+return { rate: out.rate, scenes: decoded, holes: out.holes, base: out.base, blocks: out.blocks };
 }
 
 /** The last take, straight off disk — same samples, no browser. */
@@ -335,7 +348,10 @@ function load() {
     rate: m.rate,
     scenes: m.scenes.map((s) => {
       const raw = readFileSync(`${CAPTURE}/${s.file}`);
-      return { name: s.name, buf: new Float32Array(raw.buffer, raw.byteOffset, raw.byteLength >> 2) };
+      return {
+        name: s.name, missing: s.missing ?? 0,
+        buf: new Float32Array(raw.buffer, raw.byteOffset, raw.byteLength >> 2),
+      };
     }),
   };
 }
