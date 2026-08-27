@@ -41,34 +41,62 @@ $db = store_db();
 //
 // The ceilings are generous on purpose. A shopper loading the shop, then a
 // product, then the cart touches products/stock/slides a handful of times a
-// minute; 120 is far above that and far below useful for hammering the
-// database. The two that cost real money or real mail are tighter.
+// minute; the read limits are far above that and far below useful for
+// hammering the database. The two that cost real money or real mail are
+// tighter.
+//
+// THE COUNTER IS PER IP, AND IN KUWAIT AN IP IS NOT A PERSON.
+//
+// Zain, Ooredoo and stc all put large numbers of mobile subscribers behind a
+// small pool of public IPv4 addresses — carrier-grade NAT. Most of this shop's
+// customers are on a phone, so "120 requests a minute from this address" is
+// not one shopper being enthusiastic, it is however many people happen to be
+// browsing from that carrier at once. An office or a mall wifi is the same
+// story with fewer people.
+//
+// That makes a tight ceiling a customer-facing bug rather than a defence: the
+// shopper who trips it did nothing, cannot tell what happened, and sees a shop
+// that will not load. The limits below were multiplied for that reason, and
+// the multiplier is not uniform — it is applied to what bounds LOAD, and not
+// to what bounds GUESSING:
+//
+//   raised    products, slides, brands, stock, size_chart, status, invoice,
+//             order, review, review_invite, size_advice, assistant. Every one
+//             of these is a real customer doing a normal thing, and the cost
+//             of a false refusal is a lost sale.
+//
+//   untouched ?r=discount (a code oracle — the whole point is that guessing is
+//             slow), store.php's login_fail and totp counters, and the COD cap
+//             of three open cash orders per CUSTOMER, which is keyed on the
+//             person rather than the address and is the control that actually
+//             stops cash-order abuse. Raising any of those would trade a real
+//             defence for a convenience nobody asked for.
 //
 // A null means DELIBERATELY UNLIMITED HERE, and the reason must be written
 // beside it. Both of them are still throttled — just not on arrival, because
 // for these two WHEN the request is counted is the whole point.
 $STORE_LIMITS = [
-    'products'    => [120, 60],
-    'slides'      => [120, 60],
-    'brands'      => [120, 60],
+    'products'    => [600, 60],
+    'slides'      => [600, 60],
+    'brands'      => [600, 60],
     'brand_logo'  => null,        // hashed URL, one-year immutable cache — the
                                   // browser asks once per logo, ever.
-    'stock'       => [120, 60],
-    'status'      => [60, 60],
-    'invoice'     => [60, 60],
-    'assistant'   => [30, 60],
+    'stock'       => [600, 60],
+    'status'      => [300, 60],
+    'invoice'     => [300, 60],
+    'assistant'   => [60, 60],
     // The size adviser WRITES a log row per answer, so it is bounded like the
     // other writing routes rather than like a read. A real shopper answers a
     // handful of questions once, changes their mind twice, and is done.
-    'size_advice' => [30, 300],
-    'size_chart'  => [120, 60],
-    'order'       => [20, 600],   // queues mail to the warehouse — see ?r=order
+    'size_advice' => [90, 300],
+    'size_chart'  => [600, 60],
+    'order'       => [60, 600],   // queues mail to the warehouse — see ?r=order
     // A review link is signed, so this is not guessable — but a valid link
     // held by one person must not become a way to hammer the database, and
     // ?r=review WRITES a discount row. Generous enough that a customer who
     // mistypes, reloads and resubmits never meets it.
-    'review_invite' => [30, 600],
-    'review'        => [10, 600],
+    'review_invite' => [90, 600],
+    'review'        => [30, 600],
     'slide_image' => null,        // hashed URL, one-year immutable cache: the
                                   // browser asks once, but a page legitimately
                                   // asks for five slides at once and a cold
@@ -99,7 +127,7 @@ if (array_key_exists($r, $STORE_LIMITS)) {
 } else {
     // Anything unlisted — a new route, or a garbage ?r= from a scanner. Both
     // cost a database connection and a PHP process, so neither should be free.
-    store_throttle($db, 'default', 60, 60);
+    store_throttle($db, 'default', 120, 60);
 }
 
 // ---------------------------------------------------------------- products

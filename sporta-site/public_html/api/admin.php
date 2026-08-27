@@ -28,10 +28,30 @@ $db = store_db();
 // items, products — and a limit that interrupts real work is one that gets
 // removed. This is a bound on machines, not on people.
 //
+// IT WAS 240 A MINUTE, AND THAT WAS NOT HIGH ENOUGH. Measured: signing in and
+// clicking through every screen of the panel costs about 24 requests, so 240
+// looks like ten times the headroom one person needs. Two things spend it much
+// faster than that.
+//
+// The Stock screen saves one request per size row. The catalogue has 120 size
+// rows waiting for counts to be typed into it, and an owner working through
+// them steadily reaches 240 partway down the list — then the panel starts
+// refusing saves, in the middle of a job, with no way to tell that from a
+// broken server.
+//
+// And the counter is per IP, so everyone in the office shares one allowance.
+// Two people on the panel at once each get half of it.
+//
+// 1200 is five minutes of one person working flat out, or twenty minutes of
+// normal use, and it is still four hundred times what any human types. It
+// bounds a script, which is all it was ever for; the thing that actually
+// protects the password is the per-account lockout in store_login(), and that
+// is untouched.
+//
 // Failed LOGINS are counted separately and inside store_login(), on the
 // failure path only: a signed-in admin reloading their screen is not guessing,
 // and the same distinction the discount route makes applies here.
-store_throttle($db, 'admin', 240, 60);
+store_throttle($db, 'admin', 1200, 60);
 
 // ------------------------------------------------------------------- session
 if ($r === 'login' && $method === 'POST') {

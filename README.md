@@ -27,7 +27,7 @@ tabs, because it is not a fifth thing a customer browses.
 
 | Screen | What it does |
 |---|---|
-| Sign in | Email + password; only the returned token is stored, never the password |
+| Sign in | Email + password, then a six-digit code if the account has TOTP on; the session is a cookie, never a stored token |
 | Today | Orders and takings today, how many are waiting, what is running out |
 | Orders | Status filters; one card per order, not a table |
 | Order | Address and items, and only the status moves that order is allowed |
@@ -43,23 +43,33 @@ the website's panel made the same call.
 the shop is unreachable; the panel does the opposite and says it could not load.
 An order list that shows stale or made-up orders is how stock gets shipped twice.
 
-Endpoints, all under `{apiBase}/admin.php?r=`:
+Endpoints, all under `{apiBase}/admin.php?r=`. Route names are the server's,
+underscored — the panel follows `admin.php`, never the other way round:
 
 | Route | Method | Returns |
 |---|---|---|
-| `login` | POST | `{ token, name }` |
-| `summary` | GET | `{ todayOrders, todayRevenue, pending, lowStock[] }` |
-| `orders[&status=]` | GET | `{ orders[] }` |
-| `order&id=` | GET | `{ order }` |
-| `order-status` | POST | `{ ok, status }` — the server's status, not the requested one |
-| `stock` | GET / POST | `{ items[] }` / `{ ok }` |
-| `discounts` | GET | `{ discounts[] }` |
-| `discount-save` | POST | `{ ok, discount }` — 409 if the code exists |
-| `discount-active` | POST | `{ ok, active }` |
-| `discount-delete` | POST | `{ ok }` — 409 once it has been redeemed |
+| `login` | POST | `{ name }` + the session cookie, or `{ need_code: true }` for TOTP |
+| `login_code` | POST | the second factor, when `login` asked for one |
+| `me` | GET | who is signed in, or a bare `null` |
+| `stats` / `revenue` | GET | today's takings and the daily series |
+| `orders[&status=]` | GET | rows carrying BOTH status axes, amounts in KWD |
+| `items&order=` | GET | one order's lines |
+| `cod_paid` | POST | marks a CASH order paid — the server refuses it for card orders |
+| `fulfilment` | POST | moves the parcel: `packed` / `shipped` / `delivered` / `cancelled` |
+| `variants` / `set_stock` | GET / POST | per-size stock, keyed on `sku` |
+| `discounts` / `discount_save` / `discount_active` / `discount_delete` | GET / POST | promotions |
 
-Everything but `login` takes `Authorization: Bearer <token>`; a 401 or 403 signs
-the panel out.
+**Authentication is a session cookie, not a token.** `?r=login` sets it; every
+request also sends `X-Sporta-Admin: 1`, and `admin.php` answers 400 without
+that header — it is the CSRF backstop behind `SameSite=Strict`. Nothing stores
+a bearer token, and signed-in state is a question (`?r=me`) rather than a
+stored fact, so a session that expired on the server is not one the panel still
+believes in. A 401 signs the panel out.
+
+Two status axes, not one: `payment_status` (`pending` / `paid` / `review` /
+`failed`) and `fulfilment_status` (`unfulfilled` / `packed` / `shipped` /
+`delivered` / `cancelled`). Cash is marked paid by hand; a card order is only
+ever marked paid by the bank.
 
 ## Tests
 
@@ -97,6 +107,7 @@ because the rigs place real orders against a real database.
 | `npm run test:package` | Every file `index.html` asks for is present — `ROOT=` to check an extracted zip before uploading |
 | `npm run test:css` | No dead stylesheet, no selector that can never fire, and `sw.js` precaches only files that exist |
 | `npm run test:styles` | No dead style keys, and no hard-coded white on a surface that changes with the theme |
+| `npm run test:admin-permissions` | Every route in `admin.php` asked for by a stranger — one gate, and nothing standing in front of it |
 | `npm run test:images` | Every photograph is reachable — the `/cats` rewrite through real Apache, cache headers, and nothing orphaned in the database |
 | `npm run test:db` | The database's values against the website and app that read them |
 | `npm run test:site-contrast` | Every run of text on the website, measured against what is behind it — `THEME=light` for the other one |

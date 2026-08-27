@@ -39,7 +39,7 @@ const WALLET_ORG          = 'Sporta';
 const WALLET_FILS_PER_POINT = 100;
 
 $db = store_db();
-store_throttle($db, 'wallet', 20, 60);
+store_throttle($db, 'wallet', 60, 60);
 
 $cfg = store_config();
 $certDir = (string) ($cfg['wallet_cert_dir'] ?? dirname(__DIR__, 2) . '/wallet-certs');

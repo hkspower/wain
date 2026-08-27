@@ -14,6 +14,8 @@
  * the important half: the assistant's correctness must not depend on an
  * upstream API being reachable, and here it demonstrably does not.
  */
+import { readFileSync } from 'node:fs'
+
 const API = process.env.SITE_API ?? 'http://127.0.0.1:4300/api'
 
 let fails = 0
@@ -121,11 +123,20 @@ check(forged.body?.data === null || forged.body?.data?.paid !== true,
 
 // --- the paid endpoints are rationed ------------------------------------
 //
-// Unauthenticated, and every call can reach a metered model. 30 a minute is
-// the shop's ceiling; this checks the ceiling exists rather than exhausting it.
+// Unauthenticated, and every call can reach a metered model. This checks the
+// ceiling EXISTS; what it is set to is api.php's business.
+//
+// THE CEILING IS READ OUT OF api.php, not written down here. It was hard-coded
+// as 34 requests against a limit of 30, and when the limit was raised to 60
+// the burst simply stopped reaching it — the check went green while proving
+// nothing at all, which is the worst way for a rationing test to fail.
+const LIMITS = readFileSync(new URL('../sporta-site/public_html/api/api.php', import.meta.url), 'utf8')
+const ceiling = Number(LIMITS.match(/'assistant'\s*=>\s*\[(\d+),/)?.[1] ?? 0)
+check(ceiling > 0, `api.php rations ?r=assistant at ${ceiling} a minute`)
 const burst = []
-for (let i = 0; i < 34; i++) burst.push((await ask('مرحبا')).status)
-check(burst.includes(429), `the assistant is throttled per IP (${burst.filter((s) => s === 429).length} of 34 refused)`)
+for (let i = 0; i < ceiling + 4; i++) burst.push((await ask('مرحبا')).status)
+check(burst.includes(429),
+  `the assistant is throttled per IP (${burst.filter((s) => s === 429).length} of ${ceiling + 4} refused)`)
 
 // --- the voice cannot be spent by a stranger -----------------------------
 const say = await fetch(`${API}/api.php?r=say&t=hello&lang=en&v=forged`)
