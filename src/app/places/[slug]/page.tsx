@@ -183,7 +183,7 @@ export default async function PlacePage({
         {place.areaAr}، الكويت
       </p>
 
-      <p className="mt-6 text-lg leading-relaxed text-ink-600">{place.descriptionAr}</p>
+      <p className="mt-6 max-w-[46ch] text-lg leading-relaxed text-ink-600">{place.descriptionAr}</p>
 
       <BusinessBio place={place} />
       <BusinessContact place={place} />

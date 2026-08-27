@@ -195,6 +195,22 @@
   --text-2xs: 0.6875rem; /* 11px — badges, counts, tab labels */
   --text-2xs--line-height: 1.45;
 
+  /* The three body sizes, which had been left on Tailwind's defaults.
+
+     The rule above — looser as the type gets smaller — was only ever applied
+     from text-lg upward, so the sizes carrying almost all of the site's words
+     were the ones still tuned for Latin: 12px sat at 1.33 and 14px at 1.43,
+     tighter than the 1.6 given to 18px. That is the ladder upside down. The
+     smallest running text is where Arabic's descenders and dots have the least
+     room, and it is where two lines are most likely to touch.
+
+     Measured across five pages: 194 nodes at 12px and 99 at 14px were on the
+     Latin defaults. text-2xs stays at 1.45 and is not part of this curve — it
+     is a badge size, always one line, where the ratio sets a box height rather
+     than the distance between two lines of reading. */
+  --text-xs--line-height: 1.7;
+  --text-sm--line-height: 1.65;
+  --text-base--line-height: 1.6;
   --text-lg--line-height: 1.6;
   --text-xl--line-height: 1.5;
   --text-2xl--line-height: 1.4;
@@ -245,6 +261,10 @@ html {
 
 body {
   @apply bg-sand-50 text-ink-700 antialiased;
+  /* Text with no size class inherits from here, and preflight's 1.5 is a Latin
+     number. Matching --text-base--line-height means an unclassed paragraph
+     reads like a classed one instead of a step tighter. */
+  line-height: 1.6;
   text-rendering: optimizeLegibility;
   /* Both site fonts are variable with full weight ranges — never let the
      browser smear a synthetic bold over them. */
@@ -372,6 +392,42 @@ html[data-standalone="true"] .wain-ai-fab {
   to {
     transform: translateX(-24px);
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Reading measure
+
+   Long-form pages were running 121 characters to the line on a desktop —
+   measured, not guessed. A line that long is hard to read for a reason that has
+   nothing to do with the font: the eye has to travel back across the full width
+   and find the start of the next line, and past roughly seventy characters it
+   starts landing on the wrong one. Arabic makes it slightly worse, because the
+   return sweep is right-to-left and the descenders give fewer landmarks.
+
+   The container stays wide — headings, cards and the layout want the room. Only
+   the running text is capped, and in `ch` rather than pixels, so the measure
+   holds if the type size ever changes.
+
+   The number is 46ch, not the 65ch every article on typography recommends,
+   and that is not a mistake. `ch` is the advance width of the "0" glyph — a
+   tabular Latin numeral, and one of the widest things in the font. An average
+   Arabic letter is far narrower, so a ch-based cap fits about half as many
+   again: measured here, 68ch came out at 103 Arabic characters. 46ch lands at
+   roughly 70, which is the number the advice was actually about.
+
+   `text-wrap: pretty` on the same elements stops a paragraph ending in a single
+   orphaned word; `balance` evens out short headings. Both are ignored by
+   browsers that do not have them, which costs nothing.
+   ------------------------------------------------------------------------- */
+.measure p,
+.measure li,
+.measure blockquote {
+  max-width: 46ch;
+  text-wrap: pretty;
+}
+
+h1, h2, h3 {
+  text-wrap: balance;
 }
 
 .animate-drift {

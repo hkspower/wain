@@ -30,7 +30,7 @@ export default function AddBusinessPage() {
         <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">
           سجّل مكانك في وين
         </h1>
-        <p className="mt-2 text-ink-500">
+        <p className="mt-2 max-w-[46ch] text-ink-500">
           عندك مطعم أو كافيه أو محل في الكويت؟ ضيفه على خريطة وين ووصّله للناس
           اللي يسألون «وين نروح اليوم؟».
         </p>

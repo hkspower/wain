@@ -84,6 +84,10 @@ const VIEWPORTS = [
 const scale = new Map();
 /** size -> { count, samples:Set } — pills only. */
 const badges = new Map();
+/** Every text node, for the leading check; and every long paragraph, for the
+ *  measure. Both are cross-page totals, so they are collected here. */
+const all = [];
+const measures = [];
 
 for (const vp of VIEWPORTS) {
   const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, locale: "ar-KW" });
@@ -118,17 +122,45 @@ for (const vp of VIEWPORTS) {
             (c.textContent || "").trim().length <= 30;
         });
         const badge = !!chip && !chip.matches("a, button, [role=button], label, select, input");
+        const px = parseFloat(cs.fontSize);
         out.push({
-          size: Math.round(parseFloat(cs.fontSize) * 10) / 10,
+          size: Math.round(px * 10) / 10,
           weight: cs.fontWeight,
           badge,
           text: text.slice(0, 40),
           tag: el.tagName.toLowerCase(),
+          leading: Math.round((parseFloat(cs.lineHeight) / px) * 100) / 100,
         });
       }
-      return out;
+
+      // Characters to the line, for running text only. Measured rather than
+      // assumed: `ch` is the width of the "0" glyph, a tabular Latin numeral
+      // and one of the widest things in the font, so a ch-based cap fits far
+      // more Arabic than the same number of Latin characters. 68ch measured
+      // 103 Arabic characters here before the cap was recalibrated.
+      const cv = document.createElement("canvas");
+      const cx = cv.getContext("2d");
+      const measures = [];
+      for (const el of document.querySelectorAll("p, li")) {
+        const t = [...el.childNodes].filter((n) => n.nodeType === 3)
+          .map((n) => n.textContent).join("").trim();
+        if (t.length < 90) continue;
+        const cs = getComputedStyle(el);
+        if (cs.display === "none") continue;
+        cx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+        const avg = cx.measureText(t).width / t.length;
+        if (!avg) continue;
+        measures.push({
+          cpl: Math.round(el.getBoundingClientRect().width / avg),
+          px: Math.round(parseFloat(cs.fontSize)),
+          text: t.slice(0, 36),
+        });
+      }
+      return { nodes: out, measures };
     });
-    for (const f of found) {
+    all.push(...found.nodes);
+    measures.push(...found.measures);
+    for (const f of found.nodes) {
       const key = `${f.size}`;
       if (!scale.has(key)) scale.set(key, { count: 0, samples: new Set(), pages: new Set(), weights: new Set() });
       const e = scale.get(key);
@@ -204,4 +236,52 @@ for (let i = 1; i < rows.length; i++) {
 if (near.length) console.log(`Adjacent steps, worth a glance: ${near.join(", ")}`);
 
 console.log(`\nLargest: ${rows[rows.length - 1].size}px — ${[...rows[rows.length - 1].samples][0]}`);
+/* ── leading ───────────────────────────────────────────────────────────────
+   Tailwind's defaults are tuned for Latin, and Arabic needs more room: deep
+   descenders plus dots above and below. globals.css declares a value for every
+   step for that reason. A body size showing Tailwind's default here means a
+   step was added to the scale and never given one. */
+const LATIN_DEFAULTS = { 12: 1.33, 14: 1.43, 16: 1.5, 18: 1.56, 20: 1.4 };
+console.log("\n── leading, by size ──");
+{
+  const seen = new Map();
+  for (const n of all) {
+    if (!n.leading) continue;
+    const key = Math.round(n.size);
+    if (!seen.has(key)) seen.set(key, new Map());
+    const m = seen.get(key);
+    m.set(n.leading, (m.get(n.leading) ?? 0) + 1);
+  }
+  for (const [px, ratios] of [...seen].sort((a, b) => a[0] - b[0])) {
+    const parts = [...ratios].sort((a, b) => b[1] - a[1]).map(([r, n]) => `${r}×${n}`);
+    console.log(`  ${String(px).padStart(3)}px  ${parts.join("  ")}`);
+    const latin = LATIN_DEFAULTS[px];
+    // Only running text: a badge is one line, where the ratio sets a box
+    // height rather than the gap between two lines of reading.
+    const bodyish = px >= 12 && px <= 20;
+    if (latin && bodyish && ratios.has(latin) && ratios.get(latin) > 20) {
+      console.log(`       ✗ on Tailwind's Latin default (${latin}) for ${ratios.get(latin)} nodes — declare --text-*--line-height`);
+      problems++;
+    }
+  }
+}
+
+/* ── measure ───────────────────────────────────────────────────────────── */
+console.log("\n── characters to the line ──");
+{
+  const worst = measures.sort((a, b) => b.cpl - a.cpl).slice(0, 5);
+  if (!measures.length) console.log("  No running text long enough to measure.");
+  else {
+    for (const m of worst) console.log(`  ${String(m.cpl).padStart(3)} chars  ${m.px}px  «${m.text}…»`);
+    const over = measures.filter((m) => m.cpl > 80);
+    if (over.length) {
+      console.log(`  ✗ ${over.length} line(s) run past 80 characters — longest ${worst[0].cpl}. Cap the running text with .measure`);
+      problems++;
+    } else {
+      console.log(`  Longest is ${worst[0].cpl}. Comfortable reading is 45–75; past about 80 the eye`);
+      console.log("  starts finding the wrong line on the way back.");
+    }
+  }
+}
+
 console.log(problems ? `\n${problems} thing(s) to look at.` : "\nThe scale is clean.");

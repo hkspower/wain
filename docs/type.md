@@ -60,3 +60,63 @@ meant to be short.
 
 The hard failures are the two things that are not a matter of judgement: an
 arbitrary size in the source, and anything below the floor.
+
+---
+
+# Leading and measure
+
+Two dimensions the size ladder does not cover, both now checked by
+`npm run audit:type`.
+
+## Leading: the ladder was upside down
+
+`globals.css` states the rule — *"loosened per step, staying tighter as the type
+grows the way a type scale should"* — because Tailwind's defaults are tuned for
+Latin and Arabic needs more room: deep descenders (ج ح خ ع م ن ي س ص ق ل) plus
+dots above and below.
+
+But the ladder only ever started at `text-lg`. The three sizes carrying almost
+all of the site's words were still on the Latin defaults:
+
+| size | was | is |
+| --- | --- | --- |
+| 12px `text-xs` | 1.33 — 492 nodes | **1.7** |
+| 14px `text-sm` | 1.43 — 496 nodes | **1.65** |
+| 16px `text-base` | 1.5 | **1.6** |
+| 18px `text-lg` | 1.6 | 1.6 |
+
+So the smallest running text had the tightest leading, which is the rule
+backwards. `body` gained a matching `line-height: 1.6` as well — text with no
+size class inherits from there, and preflight's 1.5 is also a Latin number.
+
+`text-2xs` stays at 1.45 and is deliberately outside this curve: it is a badge
+size, always one line, where the ratio sets a box height rather than the gap
+between two lines of reading.
+
+## Measure: 121 characters to the line
+
+Measured, not guessed. Comfortable reading is 45–75 characters; past about 80
+the eye starts landing on the wrong line on the way back, and Arabic makes that
+slightly worse because the return sweep is right-to-left.
+
+The fix caps the running text only — containers stay wide, because headings,
+cards and layout want the room.
+
+**The number is 46ch, not the 65ch every article recommends.** `ch` is the
+advance width of the `0` glyph — a tabular Latin numeral, one of the widest
+things in the font. An average Arabic letter is far narrower, so a ch-based cap
+fits about half as many again: 68ch measured **103** Arabic characters here.
+46ch lands at ~70, which is the number the advice was actually about.
+
+Every long line on the site is now 69–73 characters.
+
+## What the check found that I had not
+
+Turning the measurement into a permanent check immediately surfaced six more
+over-long lines on pages I had not looked at — the business-registration form's
+helper text at **141 characters**, and the admin panel's empty state. That is
+the whole argument for a check over a one-off pass.
+
+`.measure` is opt-in: it caps `p`, `li` and `blockquote` inside it, and adds
+`text-wrap: pretty` so a paragraph does not end on an orphaned word. Headings
+get `text-wrap: balance` globally.

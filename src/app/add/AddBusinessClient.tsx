@@ -157,7 +157,7 @@ export default function AddBusinessClient() {
   }
 
   return (
-    <form onSubmit={onSubmit} noValidate className="space-y-6 standalone:space-y-4">
+    <form onSubmit={onSubmit} noValidate className="measure space-y-6 standalone:space-y-4">
       {!supabaseEnabled && (
         <p className="rounded-2xl border border-sun-300 bg-sun-50 px-4 py-3 text-sm font-semibold text-sun-900">
           التسجيل مو موصول بقاعدة البيانات بعد، فالزر ما بيرسل شي. لو تشوف هذي
