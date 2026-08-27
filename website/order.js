@@ -205,48 +205,112 @@
 
   /* ------------------------------ الصوت ------------------------------ */
 
+  /* الالتقاط الصوتي في المتصفّح نفسه: لا يغادر تسجيلٌ الجهاز، ويُرسل النصّ
+     وحده. وهذه الواجهة أخشنُ ممّا تبدو، فما يلي مكتوبٌ على سلوكها الفعليّ
+     لا على وصفها:
+
+     ١. **`continuous` مطفأةٌ افتراضًا**، فينتهي الالتقاط عند أوّل سكتة.
+        والزبون يسكت بين جُمَله طبعًا — «ودي أوصل أغراض…» ثم يفكّر — فكان
+        الطلب يُقطع عند أوّل شطر ويُرسل ناقصًا وينطفئ الزرّ. وهذا وحده
+        يجعل الصوت يبدو معطوبًا وإن كان كل سطرٍ فيه صحيحًا.
+     ٢. **`end` يقع بعد `error` أيضًا** (هكذا تنصّ الواجهة). فكان معالجُ
+        النهاية يمسح رسالة الخطأ التي يحتاجها الزبون ويرسل ما في الحقل.
+     ٣. **كروم ينهي الجلسة على السكوت** حتى مع `continuous`، فيلزم استئنافٌ
+        صامت ما دام الزبون لم يطلب الإيقاف — وبحدٍّ لئلّا تدور الحلقة أبدًا.
+     ٤. **قائمة النتائج تُصفَّر مع كل جلسة**، فما ثبت في جلسةٍ سابقة يُحفظ
+        عندنا وإلّا ضاع عند أوّل استئناف.
+     ٥. **الواجهة تحتاج سياقًا آمنًا** (HTTPS). وعلى نشرٍ بلا شهادة يظهر
+        الزرّ ويَعِد بما لا يستطيع: يضغطه الزبون فلا يقع شيء. */
+
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const IDLE_HINT = 'اضغط الميكروفون وتكلّم بطلبك، أو اكتبه.';
+  const MAX_RESTARTS = 20;      // ‏استئنافٌ صامت بعد سكوتٍ يُنهيه المتصفّح
+  const MAX_SESSION_MS = 90_000; // ميكروفونٌ منسيّ لا يبقى مفتوحًا للأبد
+
   if (!SR) {
     mic.hidden = true;
     hint.textContent = 'متصفّحك لا يدعم الإدخال الصوتي — اكتب طلبك كتابةً.';
+  } else if (!window.isSecureContext) {
+    /* لا يُعرض زرٌّ لا يعمل: الواجهة تشترط سياقًا آمنًا، فبلا HTTPS تفشل
+       بلا رسالة. الكتابة تبقى الطريق الكامل. */
+    mic.hidden = true;
+    hint.textContent = 'الإدخال الصوتي يحتاج اتصالًا آمنًا (HTTPS) — اكتب طلبك كتابةً.';
   } else {
     const rec = new SR();
     rec.lang = 'ar-KW';
     rec.interimResults = true;
-    let live = false, finalText = '';
+    rec.continuous = true;
+    if ('maxAlternatives' in rec) rec.maxAlternatives = 1;
+
+    let listening = false;   // الزبون يريد الاستماع
+    let stopping = false;    // ضغط الإيقاف: ننهي عند `end`
+    let failed = false;      // وقع خطأ: لا يمسح `end` رسالته ولا يرسل
+    let committed = '';      // ما ثبت في جلساتٍ سابقة (تُصفَّر قائمة النتائج)
+    let restarts = 0;
+    let deadline = 0;
+
+    const setIdle = (msg) => {
+      listening = false; stopping = false;
+      mic.setAttribute('aria-pressed', 'false');
+      mic.setAttribute('aria-label', 'تكلّم بطلبك');
+      hint.classList.remove('is-listening');
+      hint.textContent = msg || IDLE_HINT;
+    };
+
+    const finish = () => {
+      const said = (committed + ' ' + input.value).trim().replace(/\s+/g, ' ');
+      committed = ''; restarts = 0; input.value = '';
+      if (said) turn(said);
+    };
 
     rec.addEventListener('result', (e) => {
       let t = '';
       for (const r of e.results) t += r[0].transcript;
-      input.value = t.trim();
-      if (e.results[e.results.length - 1].isFinal) finalText = t.trim();
+      /* المعروض = ما ثبت سابقًا + ما تُسمعه هذه الجلسة */
+      input.value = (committed ? committed + ' ' : '') + t.trim();
     });
-    rec.addEventListener('end', () => {
-      live = false;
-      mic.setAttribute('aria-pressed', 'false');
-      hint.classList.remove('is-listening');
-      hint.textContent = 'يعمل الإدخال الصوتي على متصفّح الجوال مباشرة — أو اكتب طلبك كتابةً.';
-      const said = finalText || input.value.trim();
-      finalText = ''; input.value = '';
-      if (said) turn(said);
-    });
+
     rec.addEventListener('error', (e) => {
-      live = false;
-      mic.setAttribute('aria-pressed', 'false');
-      hint.classList.remove('is-listening');
-      hint.textContent = e.error === 'not-allowed'
-        ? 'لم يُسمح بالميكروفون — اسمح به من إعدادات المتصفّح، أو اكتب طلبك.'
-        : 'تعذّر الالتقاط — أعد المحاولة أو اكتب طلبك.';
+      /* «aborted» يقع حين نوقف نحن، و«no-speech» حين تمرّ سكتة — وليسا
+         عطبًا يُخبَر به الزبون. ما عداهما يُشرح ويُنهي الجلسة. */
+      if (e.error === 'aborted') return;
+      if (e.error === 'no-speech' && listening && !stopping) return;
+      failed = true;
+      setIdle(
+        e.error === 'not-allowed' || e.error === 'service-not-allowed'
+          ? 'لم يُسمح بالميكروفون — اسمح به من إعدادات المتصفّح، أو اكتب طلبك.'
+          : e.error === 'network'
+            ? 'تعذّر الاتصال بخدمة التعرّف — اكتب طلبك أو أعد المحاولة.'
+            : 'تعذّر الالتقاط — أعد المحاولة أو اكتب طلبك.'
+      );
+    });
+
+    rec.addEventListener('end', () => {
+      if (failed) { failed = false; committed = ''; input.value = ''; return; }
+
+      /* أنهى المتصفّح الجلسة والزبون لم يطلب ذلك: نُثبّت ما سُمع ونستأنف
+         بصمت، فلا ينقطع الطلب عند سكتةٍ بين جملتين. */
+      if (listening && !stopping && restarts < MAX_RESTARTS && Date.now() < deadline) {
+        committed = input.value.trim();
+        restarts++;
+        try { rec.start(); return; } catch { /* تعذّر الاستئناف: نُنهي */ }
+      }
+      setIdle(listening && !stopping ? 'انتهى وقت الالتقاط — أُرسل ما سُمع.' : '');
+      finish();
     });
 
     mic.addEventListener('click', () => {
-      if (live) { rec.stop(); return; }
-      finalText = ''; input.value = '';
-      try { rec.start(); } catch { return; }
-      live = true;
+      if (listening) { stopping = true; hint.textContent = 'أُنهي…'; rec.stop(); return; }
+      /* لا يُمحى ما كتبه الزبون بيده: يُثبَّت ويُبنى عليه الكلام */
+      committed = input.value.trim();
+      failed = false; restarts = 0;
+      deadline = Date.now() + MAX_SESSION_MS;
+      try { rec.start(); } catch { setIdle('تعذّر بدء الالتقاط — أعد المحاولة.'); return; }
+      listening = true; stopping = false;
       mic.setAttribute('aria-pressed', 'true');
+      mic.setAttribute('aria-label', 'أنهِ الالتقاط');
       hint.classList.add('is-listening');
-      hint.textContent = 'أسمعك… تكلّم بطلبك ثم اسكت لحظة.';
+      hint.textContent = 'أسمعك… تكلّم بطلبك كاملًا، واضغط الزرّ حين تنتهي.';
     });
   }
 
