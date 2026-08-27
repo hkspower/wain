@@ -58,6 +58,7 @@
     "test:csp": "node scripts/csp-check.mjs",
     "test:htaccess": "node scripts/htaccess-test.mjs",
     "test:package": "node scripts/package-check.mjs",
+    "test:css": "node scripts/css-audit.mjs",
     "make:variants": "node scripts/make-missing-variants.mjs",
     "test:styles": "node scripts/style-audit.mjs",
     "test:db": "php scripts/db-audit.php",
