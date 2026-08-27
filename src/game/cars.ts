@@ -1771,6 +1771,12 @@ function plateTexture(): THREE.CanvasTexture {
  */
 const WORDMARK_DROP = 0.22;
 const WORDMARK_H = 0.215;
+/** The beltline stripe's lane: how far under the beltline it sits, and
+ *  how deep it is. The full-length graphic uses the same lane, because a
+ *  side graphic belongs where the eye is — see the note at its
+ *  placement. */
+const BELT_STRIPE_DROP = 0.16;
+const BELT_STRIPE_H = 0.14;
 
 // The rally pack. Canvas-drawn, cached, and deliberately brand-free —
 // a roundel, a beltline stripe, an abstract falcon swoosh and the flag.
@@ -1931,8 +1937,15 @@ function flankRibbon(
     // Wound so the face looks OUTWARD on the side it is on: a decal
     // showing its back is invisible under a FrontSide material, and the
     // two flanks mirror, so the order has to flip with them.
-    if (side > 0) { idx.push(a, b, c, b, dd, c); }
-    else { idx.push(a, c, b, b, c, dd); }
+    //
+    // These two were the wrong way round and the render is what caught
+    // it. With (a, b, c) on the right-hand side the cross product of
+    // (b - a) and (c - a) is (-h*dz, 0, h*dx) — pointing INTO the car —
+    // so the whole graphic faced inwards and all but vanished while
+    // every number the geometry test printed stayed green. Position was
+    // right; facing is not a position.
+    if (side > 0) { idx.push(a, c, b, b, c, dd); }
+    else { idx.push(a, b, c, b, dd, c); }
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
@@ -4158,33 +4171,30 @@ export function createCar(colors: CarColors): THREE.Group {
   // between them — which is the only way five silhouettes stay safe
   // without a table of exceptions per body.
   if (colors.fullStripe && !colors.simple) {
-    // Sized to the CLEAR BAND under the rally pack, the way the flag is
-    // sized to the band between the mouldings, rather than to a height
-    // that happened to look right on one body.
+    // In the BELTLINE lane, not down by the sill.
     //
-    // The first attempt put it 100 mm under the crease and ran straight
-    // through the wordmark on all five silhouettes — the commit claimed
-    // the pack "lives between the crease and the beltline", which is
-    // simply not true of the wordmark, and the measurement said so
-    // immediately. The pack's real floor is the wordmark's bottom edge.
+    // It was at the sill first, tucked into the clear band under the
+    // wordmark so that nothing had to give way to it. The measurements
+    // were all green and the render settled it: at that height the
+    // graphic sits in the shade under the body with the wheels across
+    // it, and a full-length sticker nobody can see is not a sticker. The
+    // numbers said "it fits"; they cannot say "you can see it".
     //
-    // Measured, the band between that edge and the sill is 192 mm on the
-    // rx7, 222 on the zx and 342 on the gtr, so 110 mm of graphic clears
-    // everything in the fleet with room at both ends.
-    const packFloor = d.creaseY - WORDMARK_DROP - WORDMARK_H / 2;
-    const bandTop = packFloor - 0.015;
-    const bandBot = bGeo.boundingBox!.min.y + 0.05;
-    const STRIPE_H = Math.min(0.11, bandTop - bandBot);
-    const yMid = (bandTop + bandBot) / 2;
-    // Too little clear paint to carry it is a reason to leave it off,
-    // not a reason to abandon the rest of the car.
-    const skin = STRIPE_H >= 0.05 ? decalMat(fullStripeTexture()) : null;
-    for (const sign of skin ? ([-1, 1] as const) : []) {
+    // So it takes the lane a side graphic actually occupies, and passes
+    // UNDER the pack's roundel, flag and wordmark rather than dodging
+    // them — 12 mm off the paint against their 22, which is how a real
+    // livery is built: the stripe runs the length of the car and the
+    // numbers sit on top of it. The pack's own beltline stripe is the
+    // one thing that does give way, because two stripes in one lane is
+    // just a shorter stripe drawn over a longer one.
+    const yMid = d.beltY - BELT_STRIPE_DROP;
+    const skin = decalMat(fullStripeTexture());
+    for (const sign of [-1, 1] as const) {
       // Sampled past both bumpers on purpose: columns that find no body
       // are dropped, so the run ends itself exactly where the shell does.
-      const geo = flankRibbon(bodyShell, sign, d.tail - 0.25, d.nose + 0.25, yMid, STRIPE_H, 0.012, 192);
+      const geo = flankRibbon(bodyShell, sign, d.tail - 0.25, d.nose + 0.25, yMid, BELT_STRIPE_H, 0.012, 192);
       if (!geo) continue;
-      const strip = new THREE.Mesh(geo, skin!);
+      const strip = new THREE.Mesh(geo, skin);
       strip.userData.decal = "full-stripe";
       group.add(strip);
     }
@@ -4224,7 +4234,7 @@ export function createCar(colors: CarColors): THREE.Group {
     // of the beltline run and the stripe stops short of it — which is
     // what the stripe already does at the other end for the crew mark,
     // and reads as rally livery rather than as two decals fighting.
-    const stripeY = d.beltY - 0.16;
+    const stripeY = d.beltY - BELT_STRIPE_DROP;
     const [beltRun, beltCtr] = flankRun(stripeY);
     const runFront = beltCtr + beltRun / 2;
     const runBack = beltCtr - beltRun / 2;
@@ -4255,10 +4265,12 @@ export function createCar(colors: CarColors): THREE.Group {
       // Beltline stripe: the spine everything else is placed around. It
       // stops at the arches like the panel features do, rather than
       // running over a wheel opening.
-      const st = new THREE.Mesh(new THREE.PlaneGeometry(stripeLen, 0.14), stripe);
-      st.position.set(sign * sideX, stripeY, stripeZ);
-      st.rotation.y = flipY;
-      group.add(st);
+      if (!colors.fullStripe) {
+        const st = new THREE.Mesh(new THREE.PlaneGeometry(stripeLen, BELT_STRIPE_H), stripe);
+        st.position.set(sign * sideX, stripeY, stripeZ);
+        st.rotation.y = flipY;
+        group.add(st);
+      }
       // Kuwait flag on the front fender, behind the arch. 440 mm long
       // rather than 240: a flag on a rally car is a flag, and at the old
       // size it was a coloured smudge you had to be told about.

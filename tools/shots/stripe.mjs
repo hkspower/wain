@@ -72,7 +72,10 @@ const rows = await page.evaluate(() => {
       if (img && img.width && o.material.transparent && o.position.x > 0) {
         o.geometry.computeBoundingBox();
         const b = o.geometry.boundingBox.clone().applyMatrix4(o.matrix);
-        others.push({ tag: `${img.width}x${img.height}`, y0: b.min.y, y1: b.max.y, z0: b.min.z, z1: b.max.z });
+        others.push({
+          tag: `${img.width}x${img.height}`, x: o.position.x,
+          y0: b.min.y, y1: b.max.y, z0: b.min.z, z1: b.max.z,
+        });
       }
     });
     if (!shell || strips.length !== 2) {
@@ -83,6 +86,7 @@ const rows = await page.evaluate(() => {
     shell.geometry.computeBoundingBox();
     const sb = shell.geometry.boundingBox;
     const shellLen = sb.max.z - sb.min.z;
+    const flankX = sb.max.x;
 
     // The right-hand ribbon, vertex by vertex, against the body under it.
     const right = strips.find((s) => {
@@ -106,6 +110,14 @@ const rows = await page.evaluate(() => {
     ray.far = 60;
     const org = new THREE.Vector3();
     const dir = new THREE.Vector3(-1, 0, 0);
+    // Which way the faces look. A ribbon in exactly the right place that
+    // faces into the car is invisible, and no measurement of WHERE it is
+    // can say so — which is how the first version passed every check and
+    // still could not be seen on the render.
+    const nrm = right.geometry.getAttribute("normal");
+    let outward = 0, inward = 0;
+    for (let i = 0; i < nrm.count; i++) (nrm.getX(i) > 0 ? outward++ : inward++);
+
     let zMin = Infinity, zMax = -Infinity;
     let offMin = Infinity, offMax = -Infinity, misses = 0;
     let yMin = Infinity, yMax = -Infinity;
@@ -150,9 +162,17 @@ const rows = await page.evaluate(() => {
     }
     const avail = availB - availA;
 
-    const clash = others.filter(
+    // The graphic is MEANT to pass under the pack's roundel, flag and
+    // wordmark — that is how a livery is built, the stripe running the
+    // length of the car with the numbers on top of it. So overlap is not
+    // the fault; being on top of them would be. Anything sharing its band
+    // has to stand further off the paint than the ribbon does.
+    const maxOff = offMax;
+    const buried = others.filter(
       (b) => b.y0 < yMax + 0.015 && b.y1 > yMin - 0.015 && b.z0 < zMax && b.z1 > zMin
     );
+    const onTop = buried.filter((b) => b.x <= flankX + maxOff);
+    const clash = onTop;
     out.push({
       style, ok: true,
       shellLen: +shellLen.toFixed(2),
@@ -165,6 +185,8 @@ const rows = await page.evaluate(() => {
       misses,
       verts: pos.count,
       y: `${yMin.toFixed(2)}..${yMax.toFixed(2)}`,
+      over: buried.length,
+      facing: +((outward / (outward + inward)) * 100).toFixed(0),
       clash: clash.map((c) => c.tag).join(", "),
     });
     g.traverse((o) => o.geometry && o.geometry.dispose?.());
@@ -177,7 +199,7 @@ const fail = [];
 console.log(
   "\nbody".padEnd(8) + "shell".padStart(7) + "at y".padStart(7) + "run".padStart(7) +
   "reach".padStart(8) + "of car".padStart(8) +
-  "standoff min..max".padStart(20) + "off".padStart(5) + "height".padStart(14) + "  clash"
+  "standoff min..max".padStart(20) + "off".padStart(5) + "faces".padStart(7) + "height".padStart(14) + "  over  under-it"
 );
 for (const r of rows) {
   if (!r.ok) { console.log(`${r.style.padEnd(8)} could not measure — ${r.why}`); fail.push(`${r.style}: ${r.why}`); continue; }
@@ -185,13 +207,15 @@ for (const r of rows) {
     r.style.padEnd(8) + String(r.shellLen).padStart(7) + String(r.avail).padStart(7) +
     String(r.run).padStart(7) + (r.reach + "%").padStart(8) + (r.ofShell + "%").padStart(8) +
     `${r.offMin.toFixed(3)}..${r.offMax.toFixed(3)}`.padStart(20) +
-    String(r.misses).padStart(5) + r.y.padStart(14) + "  " + (r.clash || "none")
+    String(r.misses).padStart(5) + (r.facing + "%").padStart(7) + r.y.padStart(14) +
+    String(r.over).padStart(6) + "  " + (r.clash || "none")
   );
   if (r.reach < 96) fail.push(`${r.style}: the graphic covers ${r.reach}% of the ${r.avail} m of body at its own height — that is a stripe, not a full-length one`);
   if (r.offMin < 0.002) fail.push(`${r.style}: a vertex sits ${r.offMin.toFixed(4)} m off the body — it is buried in the paint`);
   if (r.offMax > 0.05) fail.push(`${r.style}: a vertex stands ${r.offMax.toFixed(3)} m proud — it is floating off the body`);
   if (r.misses) fail.push(`${r.style}: ${r.misses} of ${r.verts} vertices have no body under them at all`);
-  if (r.clash) fail.push(`${r.style}: it lands in the rally pack's lane, under ${r.clash}`);
+  if (r.facing < 99) fail.push(`${r.style}: only ${r.facing}% of the graphic's normals point away from the car — it is facing inward and will not be seen`);
+  if (r.clash) fail.push(`${r.style}: ${r.clash} sits at or under the graphic instead of on top of it`);
 }
 console.log("");
 console.log(fail.length
