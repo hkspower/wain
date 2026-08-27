@@ -50,6 +50,27 @@ export const HANDLING = {
    *  holding station at exactly a boundary shifts every frame, and once
    *  a shift costs torque that is a wall the car cannot drive through. */
   shiftHysteresisKmh: 2.5,
+  /**
+   * The rev limiter, which this model only had in top gear.
+   *
+   * `limited` was the car against its GOVERNOR — full throttle within a
+   * hair of its own top speed — so the ECU cut existed exactly once per
+   * race, in top gear, and the redline in first, second and third
+   * passed in silence. revFrac reaches a clean 1.0 at the top of every
+   * gear, so the car has been hitting its limiter all along with nothing
+   * marking it.
+   *
+   * Where the cut starts, as a fraction of the rev range. The last three
+   * percent, so it arrives as the needle leans on the stop rather than
+   * as a switch at exactly 1.0 that a passing frame could miss entirely.
+   */
+  limiterRevStart: 0.97,
+  /** What is left of the torque against the rev limiter. An ECU on the
+   *  stop is cutting fuel hard, and the stutter this makes is the point.
+   *  NOT applied in top gear: there the governor is what limits, and it
+   *  is already solved into the thrust curve — cutting again would drag
+   *  every car below the top speed on its own card. */
+  limiterTorqueCut: 0.45,
   /** Extra centring, 1/s at casterRefSpeed, when the wheel is released.
    *  A caster grows with road speed — that is what makes the wheel feel
    *  loaded rather than loose — so it scales with v and is worth nothing

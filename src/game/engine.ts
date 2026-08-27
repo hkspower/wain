@@ -896,6 +896,10 @@ export class GameEngine {
   private shiftT = 0;
   private shiftFrom = 0.12;
   private shiftUp = true;
+  /** How hard the car is leaning on its rev limiter, 0..1. Solved with
+   *  the revs and read by both the torque cut and the sound, so the two
+   *  cannot disagree about whether the ECU is cutting. */
+  private revLimited = 0;
   /** The suspension's memory: how much load has moved, and where it is.
    *  Read a frame after it is written, which is the physical order —
    *  springs take a couple of tenths to compress. */
@@ -3719,6 +3723,19 @@ export class GameEngine {
     const launch = Math.max(0, 1 - kmh / 24) * this.throttle;
     this.revFrac = gearRev + (this.tune.engine.peakAt - gearRev) * launch;
 
+    // Leaning on the rev limiter. Ramped over the last few percent of
+    // the range rather than tripped at exactly 1.0, so it arrives as the
+    // needle reaches the stop and a passing frame cannot step over it.
+    this.revLimited =
+      this.throttle > 0.6
+        ? THREE.MathUtils.clamp(
+            (this.revFrac - HANDLING.limiterRevStart) /
+              (1 - HANDLING.limiterRevStart),
+            0,
+            1
+          )
+        : 0;
+
     // Fuel. An engine is an air pump and the burn follows the air it
     // moved, so the thirst of each of the five falls straight out of its
     // displacement and the revs it is turning — see engines.ts. A dry
@@ -3750,8 +3767,21 @@ export class GameEngine {
           (1 - HANDLING.shiftTorqueCut) *
             (this.shiftT / HANDLING.shiftUpTime)
         : 1;
+    // The limiter's own cut. Deliberately NOT in top gear: there the
+    // governor is what holds the car, and it is already solved into the
+    // thrust curve above — cutting again would drag every car below the
+    // top speed printed on its own card, which is what test:topspeed
+    // exists to catch.
+    const inTopGear = this.gearHeld >= GEARS.length - 2;
+    const limiterCut = inTopGear
+      ? 1
+      : 1 - (1 - HANDLING.limiterTorqueCut) * this.revLimited;
     const power =
-      this.tune.accelMult * torque * shiftCut * (1 + this.boost * this.tune.boostMult);
+      this.tune.accelMult *
+      torque *
+      shiftCut *
+      limiterCut *
+      (1 + this.boost * this.tune.boostMult);
     // Every car is governed at its own number (180-400 km/h), and the
     // thrust curve is solved so that at exactly that speed thrust equals
     // drag — the limiter is where the car naturally runs out of road,
@@ -5397,8 +5427,13 @@ export class GameEngine {
     // Against the governor: within a hair of the car's limit on full
     // throttle is the car fighting its own ECU.
     const limitMs = this.tune.topSpeedKmh / KMH;
-    const limited =
+    const governed =
       this.throttle > 0.6 && this.player.speed > limitMs - 0.4 ? 1 : 0;
+    // ...and against the REV limiter, which is the same ECU doing the
+    // same thing at the top of every gear rather than only the last one.
+    // Read from the physics step rather than solved again here: the cut
+    // the car feels and the stutter it makes have to be the same event.
+    const limited = Math.max(governed, this.revLimited);
 
     // Running wide onto the shoulder — the kerb buzz through the floor
     const edge = this.track.halfWidthAt(this.player.s) - 1.35;

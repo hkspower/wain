@@ -73,6 +73,9 @@ const NOISE_POOL = 4;
 /** Rev-limiter stutter, radians per second: 33 rad/s is 5.3 cuts a
  *  second, which is what the old per-frame constant produced at 60 fps. */
 const LIMITER_STUTTER = 33;
+/** How far the note drops on the cut half of the stutter, when the car
+ *  is fully against the limiter. */
+const LIMITER_CUT_DEPTH = 0.45;
 
 function makeNoisePool(ctx: AudioContext): AudioBuffer[] {
   const pool: AudioBuffer[] = [];
@@ -969,7 +972,15 @@ export class SoundEngine {
     const dt = this.limiterLast > 0 ? Math.min(0.1, t - this.limiterLast) : 0;
     this.limiterLast = t;
     this.limiterPhase += limited * LIMITER_STUTTER * dt;
-    const limiterCut = limited > 0 ? (Math.sin(this.limiterPhase) > 0.1 ? 1 : 0.45) : 1;
+    // Depth scales with how hard the car is leaning on the stop, rather
+    // than snapping to full at the first frame over it. `limited` used
+    // to be binary and only ever meant the top-gear governor, so this
+    // was a switch; now that it ramps and fires at every redline, a
+    // switch would make the limiter arrive as a click. Fully on it
+    // alternates between full and 0.45, which is the bark; brushing it
+    // is a flutter you can hear but would not call a cut.
+    const stutter = Math.sin(this.limiterPhase) > 0.1 ? 0 : 1;
+    const limiterCut = 1 - (1 - LIMITER_CUT_DEPTH) * limited * stutter;
 
     // The note is the FIRING rate, not the crank rate: a four-stroke
     // fires cylinders/2 times per revolution. At the same rpm a V8

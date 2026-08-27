@@ -436,6 +436,8 @@ public static class GRNData
         public const float ShiftDownTime = 0.14f;
         public const float ShiftTorqueCut = 0.18f;
         public const float ShiftHysteresisKmh = 2.5f;
+        public const float LimiterRevStart = 0.97f;
+        public const float LimiterTorqueCut = 0.45f;
         public const float CasterRate = 2.4f;
         public const float CasterRefSpeed = 40f;
         public const float HeadingClamp = 0.45f;
@@ -571,6 +573,8 @@ public static class GRNData
         public const double ShiftDownTime = 0.14;
         public const double ShiftTorqueCut = 0.18;
         public const double ShiftHysteresisKmh = 2.5;
+        public const double LimiterRevStart = 0.97;
+        public const double LimiterTorqueCut = 0.45;
         public const double CasterRate = 2.4;
         public const double CasterRefSpeed = 40;
         public const double HeadingClamp = 0.45;

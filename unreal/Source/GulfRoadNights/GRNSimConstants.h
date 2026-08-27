@@ -24,6 +24,8 @@ namespace GRNHandling
 	constexpr float ShiftDownTime = 0.14f;
 	constexpr float ShiftTorqueCut = 0.18f;
 	constexpr float ShiftHysteresisKmh = 2.5f;
+	constexpr float LimiterRevStart = 0.97f;
+	constexpr float LimiterTorqueCut = 0.45f;
 	constexpr float CasterRate = 2.4f;
 	constexpr float CasterRefSpeed = 40.f;
 	constexpr float HeadingClamp = 0.45f;
@@ -160,6 +162,8 @@ namespace GRNExact
 	constexpr double ShiftDownTime = 0.14;
 	constexpr double ShiftTorqueCut = 0.18;
 	constexpr double ShiftHysteresisKmh = 2.5;
+	constexpr double LimiterRevStart = 0.97;
+	constexpr double LimiterTorqueCut = 0.45;
 	constexpr double CasterRate = 2.4;
 	constexpr double CasterRefSpeed = 40;
 	constexpr double HeadingClamp = 0.45;
