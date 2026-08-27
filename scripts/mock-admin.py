@@ -32,9 +32,11 @@ start over.
 """
 
 import json
+import hashlib
 import re
 import sys
 from http.cookies import SimpleCookie
+from urllib.parse import unquote
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -110,7 +112,17 @@ def _fresh():
                     'email': 'cs@sporta.com.kw', 'address_ar': '', 'address_en': '',
                     'hours_ar': '', 'hours_en': '', 'instagram': ''},
     }
+    # PRODUCTS AS THE UPLOADER NEEDS THEM — ?r=products_all is where brands
+    # live; ?r=variants knows sizes and skus and not brands, which is why the
+    # panel joins the two. Both shapes have to exist here or the join is only
+    # ever exercised against production.
+    products = [
+        {'slug': v['slug'], 'name_en': v.get('name_en') or v['slug'],
+         'brand_slug': 'gymshark' if 'cloudsoft' in v['slug'] else None}
+        for v in {x['slug']: x for x in variants}.values()
+    ]
     return {'orders': orders, 'items': items, 'variants': variants, 'discounts': discounts,
+            'products': products, 'images': [], 'next_image': 1,
             'next_discount': 3, 'settings': settings}
 
 
@@ -249,6 +261,21 @@ class Handler(BaseHTTPRequestHandler):
         if r == 'variants':
             return self._json(200, STATE['variants'])
 
+        if r == 'products_all':
+            return self._json(200, STATE['products'])
+
+        if r == 'product_images':
+            # Same shape as ?r=items above — a small regex rather than a
+            # urlparse import, so the file keeps one way of reading a param.
+            m = re.search(r'[?&]slug=([^&]+)', self.path)
+            slug = unquote(m.group(1)) if m else ''
+            rows = sorted([i for i in STATE['images'] if i['slug'] == slug],
+                          key=lambda i: (i['sort'], i['id']))
+            return self._json(200, {'images': [
+                {'id': i['id'], 'sort': i['sort'],
+                 'url': f"api.php?r=product_image&id={i['id']}&v={i['v']}",
+                 'width': i['width'], 'height': i['height']} for i in rows]})
+
         if r == 'discounts':
             return self._json(200, STATE['discounts'])
 
@@ -326,6 +353,53 @@ class Handler(BaseHTTPRequestHandler):
         # messages are written against these exact codes, and a mock that
         # accepted everything would let a screen ship with a message for a
         # failure the real server produces and this one never did.
+        # THE CAP AND THE FORMAT GATE ARE BOTH HERE, because the panel's error
+        # messages are written against these exact codes. A mock that accepted
+        # any string would let a screen ship with a message for a refusal it
+        # had never once produced.
+        if r == 'product_image_add':
+            slug = b.get('slug')
+            if not any(p['slug'] == slug for p in STATE['products']):
+                return self._json(400, {'error': 'product_not_found'})
+            if len([i for i in STATE['images'] if i['slug'] == slug]) >= 24:
+                return self._json(400, {'error': 'too_many_images'})
+            img = str(b.get('image') or '')
+            if not img:
+                return self._json(400, {'error': 'image_required'})
+            if not re.match(r'^data:image/(png|jpeg|webp);base64,', img):
+                return self._json(400, {'error': 'logo_bad_format'})
+            # store.php's STORE_PRODUCT_IMAGE_MAX. Mirrored so an oversized
+            # upload is refused here too — otherwise the shrinking in
+            # lib/shrink-image would only ever be tested against production.
+            if len(img) > 900000:
+                return self._json(400, {'error': 'logo_too_large'})
+            row = {'id': STATE['next_image'], 'slug': slug,
+                   'sort': len([i for i in STATE['images'] if i['slug'] == slug]),
+                   'v': hashlib.sha256(img.encode()).hexdigest()[:12],
+                   'width': int(b.get('width') or 0), 'height': int(b.get('height') or 0)}
+            STATE['next_image'] += 1
+            STATE['images'].append(row)
+            return self._json(200, {'id': row['id'],
+                                    'url': f"api.php?r=product_image&id={row['id']}&v={row['v']}"})
+
+        if r == 'product_image_delete':
+            before = len(STATE['images'])
+            STATE['images'][:] = [i for i in STATE['images'] if i['id'] != int(b.get('id') or 0)]
+            return self._json(200, {'ok': before != len(STATE['images'])})
+
+        if r == 'product_image_reorder':
+            slug = b.get('slug')
+            ids = b.get('ids')
+            if not slug or not isinstance(ids, list):
+                return self._json(400, {'error': 'bad_request'})
+            # `and slug` is not decoration here either — admin.php scopes the
+            # update so a crafted list cannot renumber another garment's shoot.
+            for n, i in enumerate(ids):
+                for row in STATE['images']:
+                    if row['id'] == int(i) and row['slug'] == slug:
+                        row['sort'] = n
+            return self._json(200, {'ok': True})
+
         if r == 'settings_save':
             name = b.get('name')
             v = b.get('value') if isinstance(b.get('value'), dict) else {}

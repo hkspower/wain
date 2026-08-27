@@ -256,3 +256,33 @@ main section:has(> div > div > h1) > div.mb-8 {
     color: #171a1e !important;
   }
 }
+
+/* ------------------------------------------- the product page's photo gallery */
+/* A GARMENT'S PHOTOGRAPH WAS INVISIBLE ON ITS OWN PAGE.
+ *
+ * The gallery is a carousel: one flex track, one slide per picture, the track
+ * moved by transform and the box clipping the rest. The storefront always puts
+ * a generated placeholder — a grey SVG gradient — in front of the list, so a
+ * product that has been photographed gets TWO slides: the placeholder at index
+ * 0, and the real photograph at index 1, translated out of the visible box.
+ *
+ * The result was a product page showing an empty grey square while the shop
+ * grid, which renders a plain <img> and no carousel, showed the photograph
+ * correctly. Measured rather than guessed: the <img> reported complete, 1200 x
+ * 1200 natural, opacity 1, visible — and a bounding box 467px outside its own
+ * container. It was painting; it was painting off-screen.
+ *
+ * This hides the placeholder slide, and ONLY when a real photograph is there
+ * to take its place — `:has(> img:not([src^="data:"]))`. A product with no
+ * photographs still gets its gradient, which is the whole reason the
+ * placeholder exists. Without that guard this would replace a designed empty
+ * state with a blank hole on all 45 garments that have no pictures yet.
+ *
+ * Scoped to the track by its own class list rather than to `img` generally, so
+ * nothing else that legitimately renders an inline SVG is touched.
+ *
+ * A CSS rule because the storefront is built output whose source is not in
+ * this repository. Deleting these three lines restores the old behaviour. */
+div.flex.h-full.w-full:has(> img:not([src^='data:'])) > img[src^='data:image/svg'] {
+  display: none;
+}

@@ -264,6 +264,42 @@ interface WireContact {
   instagram: string;
 }
 
+// ------------------------------------------------------- product photographs
+//
+// KEYED ON THE PRODUCT, NOT ON A SIZE. One shoot covers every size of a
+// garment, and product_images has a slug column and no size column — so an SKU
+// identifies WHICH PRODUCT a photograph belongs to and nothing finer. The
+// uploader uses an SKU as a fast way to find the product (it is the code
+// printed on the garment's own label) and says on screen which product the
+// photographs landed on, so nobody believes they have uploaded a picture of
+// the Large only.
+export interface ProductImage {
+  id: number;
+  /** Where it sits in the gallery. The FIRST is the product's main image. */
+  sort: number;
+  /** Absolute, and already carrying the content hash — cached for a year. */
+  url: string;
+  width: number | null;
+  height: number | null;
+}
+
+/** A garment as the uploader needs to find it: by brand, by size, by sku. */
+export interface UploadTarget {
+  sku: string;
+  slug: string;
+  name: string;
+  size: string;
+  brandSlug: string | null;
+}
+
+interface WireProductImage {
+  id: number;
+  sort: number;
+  url: string;
+  width: number | null;
+  height: number | null;
+}
+
 // --------------------------------------------- the server's shapes, adapted
 
 /** ?r=orders rows, verbatim from admin.php — KWD decimals, two status axes. */
@@ -576,6 +612,56 @@ export const adminApi = {
         instagram: v.instagram,
       },
     }),
+
+  // ------------------------------------------------------- product photographs
+  //
+  // Every garment, with its brand, so the uploader can narrow by brand then by
+  // size then by sku. TWO REQUESTS, because the server offers the two halves
+  // separately: ?r=variants knows sizes and skus but not brands, ?r=products_all
+  // knows brands but not sizes. Joining them here is cheaper than a new
+  // endpoint and keeps admin.php as it is.
+  uploadTargets: async (): Promise<UploadTarget[]> => {
+    const [variants, products] = await Promise.all([
+      call<{ sku: string; slug: string; name_en: string | null; size: string }[]>('variants'),
+      call<{ slug: string; name_en: string; brand_slug: string | null }[] |
+           { products: { slug: string; name_en: string; brand_slug: string | null }[] }>('products_all'),
+    ]);
+    const rows = Array.isArray(products) ? products : products.products;
+    const brandOf = new Map(rows.map((p) => [p.slug, p.brand_slug ?? null]));
+    const nameOf = new Map(rows.map((p) => [p.slug, p.name_en]));
+    return variants.map((v) => ({
+      sku: v.sku,
+      slug: v.slug,
+      name: nameOf.get(v.slug) ?? v.name_en ?? v.slug,
+      size: v.size,
+      brandSlug: brandOf.get(v.slug) ?? null,
+    }));
+  },
+
+  productImages: async (slug: string): Promise<ProductImage[]> => {
+    const r = await call<{ images: WireProductImage[] }>(
+      `product_images&slug=${encodeURIComponent(slug)}`);
+    // The server sends a RELATIVE url — 'api.php?r=product_image&id=…' — because
+    // the website serves the panel from the same folder. The app does not, so
+    // it is made absolute here rather than in each screen that renders one.
+    return (r.images ?? []).map((i) => ({
+      ...i,
+      url: i.url.startsWith('http') ? i.url : `${API_BASE}/${i.url}`,
+    }));
+  },
+
+  /** `image` is a data: URI, ALREADY DOWNSCALED — see lib/shrink-image. The
+   *  server refuses anything over ~900 kB of base64, which a phone photograph
+   *  exceeds several times over, and it refuses SVG outright. */
+  addProductImage: (slug: string, image: string, width: number, height: number) =>
+    call<{ id: number; url: string }>('product_image_add', { slug, image, width, height }),
+
+  deleteProductImage: (id: number) => call<{ ok: true }>('product_image_delete', { id }),
+
+  /** The whole order at once, as ids in the order they should appear. The
+   *  first is the product's main photograph. */
+  reorderProductImages: (slug: string, ids: number[]) =>
+    call<{ ok: true }>('product_image_reorder', { slug, ids }),
 
   deleteDiscount: (id: number) => call<{ ok: true }>('discount_delete', { id }),
 };

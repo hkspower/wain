@@ -250,7 +250,28 @@ if ($r === 'products') {
         // this feature exists to remove.
         $extra = trim((string)($row['images'] ?? ''));
         if (trim((string)($row['image'] ?? '')) === '') {
-            $row['image'] = array_shift($mine);
+            // reset(), NOT array_shift(). The main photograph must stay in the
+            // list as well as being named here, and this is a real bug that
+            // shipped: array_shift REMOVED it from $mine, so a garment with
+            // exactly one uploaded photograph came back as
+            //
+            //     image  = api.php?r=product_image&id=19
+            //     images = ''
+            //
+            // The shop GRID reads `image` and showed it correctly. The PRODUCT
+            // PAGE builds its gallery from `images` alone, so it showed a grey
+            // box — on the one product that had just been photographed. Upload
+            // a second and the page would show the second and never the first.
+            //
+            // Seen on screen before it was believed: the grid requested
+            // .../product_image&id=19 and the product page requested no image
+            // at all.
+            //
+            // Duplicating it across both fields is safe because the storefront
+            // dedupes — its gallery builder is
+            // `[...new Set([e.image, ...images])]` — so the main photograph
+            // appears once, first, which is exactly where it belongs.
+            $row['image'] = reset($mine) ?: null;
         }
         // Kept as the comma-separated string the column already speaks, so
         // productImages() needs no new case: it splits a string, dedupes, and
