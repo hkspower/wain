@@ -89,16 +89,30 @@ const list = await page.evaluate(async () => {
 });
 if (!list.length) { console.error("the catalogue returned no paints"); await browser.close(); process.exit(2); }
 
-const rows = await page.evaluate(async ([only, shots, known, cars]) => {
+// ONE evaluate per colour, not one for the whole sweep.
+//
+// The first version measured all thirteen inside a single evaluate and
+// was killed at the timeout with nothing to show for eleven minutes of
+// rendering. A sweep that can only succeed in full has no partial
+// result to look at and no way to see where it slowed down; per colour,
+// a failure costs one colour and the numbers arrive as they are taken.
+const ids = CARS.length
+  ? CARS
+  : (ONLY.length ? ONLY.map((s) => (s.startsWith("paint-") ? s : `paint-${s}`)) : list);
+
+console.log(
+  "\npaint".padEnd(17) + "metal".padStart(7) + "dead".padStart(8) + "body".padStart(7) +
+  "spec".padStart(7) + "form".padStart(7) + "hue".padStart(6) + "sat".padStart(6)
+);
+
+const rows = [];
+for (const only1 of ids) {
+ const r1 = await page.evaluate(async ([shots, cars, id]) => {
   const THREE = window.__grnThree;
   const e = window.__grnEngine;
   const out = [];
 
-  const ids = cars.length
-    ? cars
-    : (only.length ? only.map((s) => (s.startsWith("paint-") ? s : `paint-${s}`)) : known);
-
-  for (const id of ids) {
+  {
     // Paint it through the garage the player uses — the game's own
     // reader and writer, so every migration runs and this measures a
     // save the game made rather than JSON this tool invented — then have
@@ -251,15 +265,9 @@ const rows = await page.evaluate(async ([only, shots, known, cars]) => {
     });
   }
   return out;
-}, [ONLY, SHOTS, list, CARS]);
-
-await browser.close();
-
-console.log(
-  "\npaint".padEnd(17) + "metal".padStart(7) + "dead".padStart(8) + "body".padStart(7) +
-  "spec".padStart(7) + "form".padStart(7) + "hue".padStart(6) + "sat".padStart(6)
-);
-for (const r of rows) {
+ }, [SHOTS, CARS, only1]);
+ for (const r of r1) {
+  rows.push(r);
   if (r.err) { console.log(`${r.id.padEnd(16)} ${r.err}`); continue; }
   if (r.png) writeFileSync(`press/paint/${r.id}.jpg`, Buffer.from(r.png, "base64"));
   console.log(
@@ -267,6 +275,9 @@ for (const r of rows) {
     String(r.body).padStart(7) + String(r.spec).padStart(7) + String(r.form).padStart(7) +
     (r.hue + "°").padStart(6) + String(r.sat).padStart(6)
   );
+ }
 }
+
+await browser.close();
 writeFileSync("press/paint/colors.json", JSON.stringify(rows.map(({ png, ...r }) => r), null, 2));
 console.log("\npress/paint/colors.json");
