@@ -186,6 +186,51 @@ function knet_pdo(array $cfg): PDO
     return $pdo;
 }
 
+// ---------------------------------------------------------------------------
+// Abuse control for the two public payment endpoints. THE EXACT MIRROR of
+// cbk_over_limit() — see that function for the full reasoning, which is not
+// repeated here so the two cannot drift; scripts/payments-test.mjs asserts the
+// bodies are identical.
+//
+// The KNET side's own version of the problem: knet/pay.php increments
+// orders.pay_attempt on every hit, and knet/callback.php decrypts on every
+// hit. The callback's throttle is applied ONLY to requests that fail to
+// decrypt, because a trandata that decrypts under the resource key is proof
+// the bank sent it, and throttling the bank is how a captured payment goes
+// unrecorded.
+//
+// Fails open, always: a missing table or a database blink returns false and
+// the payment proceeds exactly as it does today.
+function knet_over_limit(array $cfg, string $bucket, int $max, int $windowSec): bool
+{
+    if (!knet_db_configured($cfg)) return false;
+    $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    if ($ip === '') return false;
+    try {
+        $pdo = knet_pdo($cfg);
+        $key = substr(hash('sha256', $bucket . '|' . $ip), 0, 32);
+        $now = time();
+        $windowStart = $now - ($now % $windowSec);
+        $pdo->prepare(
+            'insert into rate_limit (bucket_key, window_start, hits) values (?, ?, 1)
+             on duplicate key update hits = hits + 1'
+        )->execute([$key, $windowStart]);
+        $q = $pdo->prepare('select hits from rate_limit where bucket_key = ? and window_start = ?');
+        $q->execute([$key, $windowStart]);
+        $over = (int) $q->fetchColumn() > $max;
+        if ($over) knet_log($cfg, 'throttled', ['bucket' => $bucket]);
+        // Opportunistic sweep, scoped to this bucket so a short window cannot
+        // delete a long one's live rows — the trap store_throttle() documents.
+        if (random_int(1, 50) === 1) {
+            $pdo->prepare('delete from rate_limit where bucket_key = ? and window_start < ?')
+                ->execute([$key, $windowStart - (4 * $windowSec)]);
+        }
+        return $over;
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
 // Look an order up by track id.
 //
 // Returns ['state' => ..., 'amount' => ?string, 'status' => ?string] where state is:

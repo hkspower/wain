@@ -49,6 +49,31 @@
   </FilesMatch>
   Header always set X-Robots-Tag "noindex, nofollow"
 
+  # ---- Content-Security-Policy ----
+  #
+  # The storefront's policy is inherited into this directory too (measured
+  # under Apache 2.4.58), and unlike /pay/ it does not break anything here:
+  # knet/pay.php sends the customer on with a 302, which is a navigation, and
+  # form-action governs form submissions only. So this is not a fix — it is the
+  # other half of the pair, written now because "it happens to work under the
+  # storefront's policy" is not a property anybody can see, and the next edit
+  # to that policy is made by someone thinking about the shop.
+  #
+  # These two endpoints emit a redirect and, on the callback, a few lines of
+  # plain HTML with a meta refresh and one link. No script, no image, no style,
+  # no form, no frame. The policy says exactly that, so anything that appears
+  # here later has to be declared rather than inherited.
+  #
+  # script-src 'none' is deliberate and is enforced: callback.php's
+  # knet_send_customer_onward() writes a location.replace() for browsers that
+  # ignore the meta refresh. It is belt-and-braces on a page that already
+  # carries both a refresh and a visible link, and a payment return page is the
+  # last place to hold open a script channel for a nicety. csp-check.mjs fails
+  # if a script here is ever load-bearing.
+  Header set Content-Security-Policy "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'; script-src 'none'"
+
+  Header set X-Frame-Options "DENY"
+
   # ---- Cookies ----
   # These endpoints set none today. PHP emits PHPSESSID the moment anything
   # calls session_start(), though, and no script here reads a cookie — so

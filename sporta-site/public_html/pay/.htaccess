@@ -52,6 +52,48 @@
   </FilesMatch>
   Header always set X-Robots-Tag "noindex, nofollow"
 
+  # ---- Content-Security-Policy, and this directory MUST have its own ----
+  #
+  # THE STOREFRONT'S POLICY IS INHERITED HERE AND IT KILLS THE T-PAY PATH.
+  # Measured under Apache 2.4.58 with this exact tree: a request for a file in
+  # /pay/ came back carrying the root .htaccess's CSP, whose form-action reads
+  #
+  #     form-action 'self' https://kpay.com.kw https://kpaytest.com.kw
+  #
+  # Those are the two KNET hosts. CBK's T-Pay gateway is pg.cbk.com (and
+  # pgtest.cbk.com), which is not among them — and pay.php's whole output is a
+  # form that POSTs to exactly there. Measured in Chromium under that policy:
+  # "Refused to send form data to 'https://pg.cbk.com/ePay/pg/epay'". The
+  # shopper is left on the redirect page with an order they cannot pay for, and
+  # nothing about it is visible from the server: the page was served 200.
+  #
+  # This is the shape of failure the two dropins keep producing — a rule
+  # written for one gateway and not the other. form-action was added when the
+  # KNET dropin was the only one, the comment in the root file even says "in
+  # case pay.php ever posts a form", and then T-Pay arrived posting a form to a
+  # host nobody went back to add.
+  #
+  # THE FIX IS A NARROWER POLICY HERE, NOT A WIDER ONE UP THERE. Adding CBK to
+  # the storefront's form-action would let every page on the shop post to the
+  # bank. This directory serves two endpoints and needs almost nothing, so it
+  # states almost nothing: no images, no styles, no fonts, no connections, no
+  # framing, and exactly one script.
+  #
+  # script-src is the single sha256 of pay.php's auto-submit. An inline EVENT
+  # HANDLER cannot be hashed at all — that needs 'unsafe-hashes' — which is why
+  # pay.php now carries a script element instead of the `onload=` it had, and
+  # why 'unsafe-hashes' is not granted here. scripts/csp-check.mjs holds the
+  # hash to the file byte for byte; change one and it fails.
+  #
+  # BOTH CBK hosts are listed, test and production, for the same reason the
+  # root file lists both KNET hosts: which one is in force is a config value,
+  # and a policy that has to be edited to switch environments is a policy that
+  # will be wrong in one of them.
+  Header set Content-Security-Policy "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action https://pg.cbk.com https://pgtest.cbk.com; script-src 'sha256-ePniVEkSivX/c7XWBGafqh8tSpiRrKiqYeqbG7N1TOE='; upgrade-insecure-requests"
+
+  # frame-ancestors covers modern browsers; this covers the rest.
+  Header set X-Frame-Options "DENY"
+
   # ---- Cookies ----
   # These endpoints set none today. PHP emits PHPSESSID the moment anything
   # calls session_start(), though, and no script here reads a cookie — so

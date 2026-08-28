@@ -32,6 +32,19 @@ $encrp  = (string)($in['encrp'] ?? '');
 $errorCode  = strtoupper(trim((string)($in['ErrorCode'] ?? $in['errorcode'] ?? '')));
 $errorTrack = trim((string)($in['PayTrackID'] ?? $in['paytrackid'] ?? ''));
 
+// THE ERROR BRANCH IS A PURE CLAIM — it carries no signature, no encrp and no
+// shared secret, as the long note below says — so it is the one place here
+// that can be throttled tightly with nothing to lose. Thirty in ten minutes
+// per IP: a shopper meets this branch once, at the end of a failed payment.
+//
+// It is checked BEFORE the branch rather than inside it because the work worth
+// denying — the token-cache purge and the note written to the order row —
+// happens on the first line of it.
+if ($errorCode !== '' && cbk_over_limit($cfg, 'cbk_cb_error', 30, 600)) {
+    header('Location: ' . $return . '?status=error&reason=throttled', true, 302);
+    exit;
+}
+
 if ($errorCode !== '') {
     // Every code in the manual's table, so the log says what the bank meant
     // rather than a five-character token nobody can look up in a hurry.
@@ -124,6 +137,25 @@ if ($errorCode !== '') {
 if ($encrp === '') {
     cbk_log($cfg, 'callback.no_encrp', ['query' => array_keys($in)]);
     header('Location: ' . $return . '?status=error&reason=missing_encrp', true, 302);
+    exit;
+}
+
+// THE VERIFY BRANCH COSTS TWO OUTBOUND HTTPS CALLS TO THE BANK, on the shop's
+// own merchant credentials, before anything at all is known about the caller.
+// Unthrottled that is a free amplifier: a loop against this URL is a request
+// rate against CBK's merchant API that nobody chose, and CBK's own limits are
+// then spent on traffic that is not payments.
+//
+// The ceiling is DELIBERATELY HIGH — 200 in ten minutes — and the asymmetry is
+// the point. Blocking a forged encrp costs an attacker one wasted request.
+// Blocking a real one means a captured payment goes unverified and the order
+// stays pending with the money taken, which is the worst outcome this file
+// has. The customer's own browser arrives here, so the ceiling only has to
+// clear real shoppers sharing a carrier NAT, and 200 clears any Kuwaiti mobile
+// network's share of one shop's checkouts by a wide margin. It fails open.
+if (cbk_over_limit($cfg, 'cbk_cb_verify', 200, 600)) {
+    cbk_log($cfg, 'callback.throttled', ['encrp' => substr($encrp, 0, 8)]);
+    header('Location: ' . $return . '?status=error&reason=throttled', true, 302);
     exit;
 }
 

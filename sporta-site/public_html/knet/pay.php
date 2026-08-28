@@ -36,6 +36,15 @@ if (!preg_match('/^[A-Za-z0-9]{1,30}$/', $trackid)) {
     http_response_code(400);
     exit('Invalid track id.');
 }
+
+// The mirror of the guard in pay/pay.php, with the same bucket size and the
+// same reasoning — see cbk_over_limit(). This page also increments
+// orders.pay_attempt on every hit for an unauthenticated caller.
+if (knet_over_limit($cfg, 'knet_pay', 60, 600)) {
+    http_response_code(429);
+    header('Retry-After: 300');
+    exit('Too many payment attempts. Please wait a few minutes and try again.');
+}
 // `amount` is OPTIONAL. The correct flow — api/?r=order and the Flutter app —
 // links to pay.php?trackid=... with no amount at all, because the price comes
 // from the order. Requiring it here rejected exactly the flow that is safe.

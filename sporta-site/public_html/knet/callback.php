@@ -19,10 +19,23 @@ if ($trandata === '') {
     exit;
 }
 
+// THE THROTTLE GOES ON THE FAILURES, NOT ON THE CALLBACK.
+//
+// A trandata that decrypts under the resource key is proof the bank sent it —
+// nobody else holds that key — so a successful decrypt is authenticated and
+// must never be refused. Throttling those is how a captured payment goes
+// unrecorded, which is the one outcome worse than any abuse this could stop.
+//
+// A decrypt FAILURE is the opposite: it is a caller who does not hold the key,
+// and there is no legitimate source of one. Thirty in ten minutes per IP, and
+// the counter is only touched after a failure, so a shop taking payments all
+// day never increments it once.
 try {
     $fields = knet_parse_response(knet_decrypt($trandata, $cfg['resource_key']));
 } catch (Throwable $e) {
-    knet_send_customer_onward($cfg, $return . '?status=error&reason=decrypt_failed');
+    $reason = knet_over_limit($cfg, 'knet_cb_bad', 30, 600) ? 'throttled' : 'decrypt_failed';
+    knet_log($cfg, 'callback.decrypt_failed', ['reason' => $reason]);
+    knet_send_customer_onward($cfg, $return . '?status=error&reason=' . $reason);
     exit;
 }
 
@@ -116,10 +129,20 @@ function knet_send_customer_onward(array $cfg, string $url): void
     header('Content-Type: text/html; charset=utf-8');
     $safe = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
     echo 'REDIRECT=' . $url . "\n";
+    // NO SCRIPT. There used to be a location.replace() here as a third way
+    // home, behind the meta refresh and ahead of the link. It has been
+    // removed rather than kept and blocked: knet/.htaccess now sets
+    // script-src 'none' over this directory, so it could not run, and a line
+    // that cannot run is worse than no line — the next reader takes it for the
+    // mechanism that gets the customer back to the shop.
+    //
+    // Nothing is lost. A meta refresh with content="0;url=" is honoured by
+    // every browser and is not governed by CSP at all, and the link below is
+    // the answer for anyone it is not. Both were already here; the script was
+    // the redundant one of the three.
     echo '<!doctype html><html><head><meta charset="utf-8">',
          '<meta http-equiv="refresh" content="0;url=', $safe, '">',
          '<title>Redirecting…</title></head><body>',
-         '<script>location.replace("', $safe, '");</script>',
          '<p><a href="', $safe, '">Continue</a></p>',
          '</body></html>';
 }

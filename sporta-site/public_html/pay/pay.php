@@ -35,6 +35,22 @@ if (!preg_match('/^[A-Za-z0-9]{1,30}$/', $trackid)) {
     exit('Invalid track id.');
 }
 
+// BEFORE anything that writes. The next thing this page does is look the order
+// up and then increment orders.pay_attempt, and both are work done for an
+// unauthenticated caller. Sixty starts in ten minutes is far above any real
+// shopper — a declined card retried five or six times is the honest worst
+// case — and well below a script.
+//
+// Per IP, which is the right key here even behind Kuwait's carrier NAT: this
+// is the page a shopper reaches by clicking Pay, not one the bank calls, so
+// the ceiling only has to clear a busy street's worth of simultaneous
+// checkouts. It fails open if the counter cannot be read at all.
+if (cbk_over_limit($cfg, 'cbk_pay', 60, 600)) {
+    http_response_code(429);
+    header('Retry-After: 300');
+    exit('Too many payment attempts. Please wait a few minutes and try again.');
+}
+
 // SECURITY — server-side price authority.
 //
 // The amount is looked up FIRST and the request carries none. This used to
@@ -132,9 +148,28 @@ $fields = [
 ];
 
 $h = fn ($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+
+// THIS PAGE CARRIES MERCHANT CREDENTIALS IN ITS BODY, and it says so itself
+// rather than trusting .htaccess to say it.
+//
+// tij_MerchantEncryptCode is the ENCRP_KEY and tij_MerchAuthKeyApi is a live
+// AccessToken; both are hidden inputs a few lines below, because a hosted
+// dropin has no other way to hand them to the gateway. pay/.htaccess already
+// sends no-store — but a shop that is moved behind nginx, or a deploy that
+// misses one file, loses every rule in it at once, and the rule that stops a
+// bearer credential being written to a shared proxy's disk is not one to hold
+// in a single place. Belt and braces, on the one page where the braces are a
+// bank credential.
+//
+// no-referrer, not the site-wide strict-origin-when-cross-origin: the form
+// POSTs to CBK, and even an origin-only Referer is a fact about where this
+// shopper is that the gateway does not need in order to take the money.
+header('Cache-Control: no-store, no-cache, must-revalidate, private');
+header('Pragma: no-cache');
+header('Referrer-Policy: no-referrer');
 ?><!doctype html>
 <html><head><meta charset="utf-8"><title>Redirecting to payment…</title></head>
-<body onload="document.forms[0].submit()">
+<body>
   <p style="font-family:sans-serif;text-align:center;margin-top:3rem">
     Redirecting you to the secure payment page…
   </p>
@@ -142,6 +177,17 @@ $h = fn ($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
     <?php foreach ($fields as $name => $value): ?>
       <input type="hidden" name="<?= $h($name) ?>" value="<?= $h($value) ?>">
     <?php endforeach; ?>
-    <noscript><button type="submit">Continue to payment</button></noscript>
+    <button type="submit">Continue to payment</button>
   </form>
+  <!-- A SCRIPT ELEMENT, NOT `onload=`, and the difference is the whole page.
+       CSP hashes can authorise a script element. They can NEVER authorise an
+       inline EVENT HANDLER — that needs 'unsafe-hashes', which this policy
+       deliberately does not grant — and because the storefront's policy
+       carries hashes at all, its 'unsafe-inline' is inert. Measured in
+       Chromium under the live policy: "Refused to execute inline event
+       handler", the submit never ran, and the shopper sat on this page
+       for ever with an order they could not pay for.
+       The hash of this script is pinned in pay/.htaccess and checked byte for
+       byte by scripts/csp-check.mjs. -->
+  <script>document.forms[0].submit()</script>
 </body></html>

@@ -205,6 +205,61 @@ function cbk_log(array $cfg, string $event, array $data = []): void
     }
 }
 
+// ---------------------------------------------------------------------------
+// Abuse control for the two public payment endpoints. THE EXACT MIRROR of
+// knet_over_limit(); scripts/payments-test.mjs asserts the two bodies are
+// identical, because every bug these dropins have produced was a rule applied
+// to one gateway and not the other.
+//
+// WHAT IT IS FOR. /pay/pay.php and /pay/callback.php are unauthenticated, and
+// each one does real work for whoever asks:
+//
+//   * pay.php increments orders.pay_attempt on every hit. Anyone holding a
+//     track id — it is in the shopper's own URL, on the result page, in the
+//     warehouse email — could drive one order's counter without limit.
+//   * callback.php's encrp branch makes up to TWO outbound HTTPS calls to CBK
+//     per request, before anything is known about the caller. That is a free
+//     amplifier pointed at the bank's merchant API on the shop's credentials,
+//     and at whatever rate limit CBK applies to them.
+//
+// IT FAILS OPEN, and that is the important half. A missing rate_limit table,
+// a database that blinks, a permissions change — none of it may cost a sale
+// or lose a settlement. Anything that goes wrong here returns false, meaning
+// "not over the limit", and the payment proceeds exactly as it does today. A
+// throttle that can refuse a captured payment is worse than no throttle.
+//
+// The IP is hashed, matching store_throttle(): this is abuse control, not a
+// visitor log, and a table of who-paid-from-where is a liability with no use.
+function cbk_over_limit(array $cfg, string $bucket, int $max, int $windowSec): bool
+{
+    if (!cbk_db_configured($cfg)) return false;
+    $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    if ($ip === '') return false;
+    try {
+        $pdo = cbk_pdo($cfg);
+        $key = substr(hash('sha256', $bucket . '|' . $ip), 0, 32);
+        $now = time();
+        $windowStart = $now - ($now % $windowSec);
+        $pdo->prepare(
+            'insert into rate_limit (bucket_key, window_start, hits) values (?, ?, 1)
+             on duplicate key update hits = hits + 1'
+        )->execute([$key, $windowStart]);
+        $q = $pdo->prepare('select hits from rate_limit where bucket_key = ? and window_start = ?');
+        $q->execute([$key, $windowStart]);
+        $over = (int) $q->fetchColumn() > $max;
+        if ($over) cbk_log($cfg, 'throttled', ['bucket' => $bucket]);
+        // Opportunistic sweep, scoped to this bucket so a short window cannot
+        // delete a long one's live rows — the trap store_throttle() documents.
+        if (random_int(1, 50) === 1) {
+            $pdo->prepare('delete from rate_limit where bucket_key = ? and window_start < ?')
+                ->execute([$key, $windowStart - (4 * $windowSec)]);
+        }
+        return $over;
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
 // Read an order's server-authoritative amount by track id.
 // Returns the amount string, or null if not found / DB not configured.
 function cbk_order_amount(array $cfg, string $trackid): ?string

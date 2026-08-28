@@ -24,6 +24,7 @@
  * pg.cbk.com. Those cases are reported as skips.
  */
 import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 
 const SITE = process.env.SITE_BASE ?? 'http://127.0.0.1:4300'
 const API = `${SITE}/api`
@@ -66,7 +67,7 @@ const get = async (url, https = true) => {
     redirect: 'manual',
     headers: https ? { 'X-Forwarded-Proto': 'https' } : {},
   })
-  return { status: r.status, text: await r.text().catch(() => '') }
+  return { status: r.status, location: r.headers.get('location') ?? '', text: await r.text().catch(() => '') }
 }
 const statusOf = async (track) =>
   (await (await fetch(`${API}/api.php?r=status&id=${encodeURIComponent(track)}`)).json().catch(() => null))
@@ -359,6 +360,88 @@ console.log('\n--- the same order twice')
   check(first.body?.order_id === again.body?.order_id,
     'and updates the SAME order — this is what stops a double tap being charged twice',
     `${first.body?.order_id} vs ${again.body?.order_id}`)
+}
+
+// ================================================================== throttles
+//
+// The four payment endpoints are unauthenticated and each does real work for
+// whoever asks: pay.php increments orders.pay_attempt on every hit, and
+// pay/callback.php's verify branch makes TWO outbound HTTPS calls to CBK's
+// merchant API — on the shop's own credentials — before anything is known
+// about the caller. None of that was counted.
+console.log('\n--- what a flood cannot do')
+
+{
+  // THE TWO IMPLEMENTATIONS MUST NOT DRIFT. Every bug these dropins have
+  // produced was a rule applied to one gateway and not the other — the price
+  // authority hole, the .htaccess that was blind to .json, the form-action
+  // that named KNET and not CBK. So the bodies are compared directly rather
+  // than trusted to a comment asking for them to be kept in step.
+  const bodyOfFn = (file, name) => {
+    const src = readFileSync(`sporta-site/public_html/${file}`, 'utf8')
+    const at = src.indexOf(`function ${name}(`)
+    if (at < 0) return null
+    const open = src.indexOf('{', at)
+    let depth = 0
+    for (let i = open; i < src.length; i++) {
+      if (src[i] === '{') depth++
+      else if (src[i] === '}' && --depth === 0) return src.slice(open, i + 1)
+    }
+    return null
+  }
+  const a = bodyOfFn('pay/cbk.php', 'cbk_over_limit')
+  const b = bodyOfFn('knet/knet.php', 'knet_over_limit')
+  check(a !== null && b !== null, 'both dropins define a throttle')
+  check(a !== null && b !== null && a.replace(/\bcbk_/g, 'X_') === b.replace(/\bknet_/g, 'X_'),
+    'and the two are the same code, so a fix to one cannot miss the other')
+}
+
+{
+  // IT FAILS OPEN — asserted by making the counter unusable and checking a
+  // payment still starts. A throttle that can refuse a real payment when its
+  // own table is missing is worse than no throttle, and "it fails open" is
+  // exactly the claim a comment cannot keep true.
+  const t = made.tpay.track
+  try {
+    execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta',
+      '-e', 'rename table rate_limit to rate_limit_hidden'], { stdio: 'ignore' })
+    const r = await get(`${SITE}/pay/pay.php?trackid=${t}`)
+    // NOT 429 is the assertion, not 200. This sandbox has no route to
+    // pg.cbk.com, so the page answers 502 at the token step — which is the
+    // right answer and is not the throttle. What must never happen is the
+    // request being refused before it gets that far because a counter it
+    // could not read was treated as a counter that said no.
+    check(r.status !== 429,
+      `with the rate_limit table gone, a payment is not refused (${r.status})`,
+      'the throttle must fail open')
+  } finally {
+    execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta',
+      '-e', 'rename table rate_limit_hidden to rate_limit'], { stdio: 'ignore' })
+  }
+}
+
+{
+  // AND IT ACTUALLY BITES. pay/callback.php's error branch is the tightest of
+  // the four (30 in ten minutes) because it is a pure claim carrying no
+  // signature at all, so it is the one that can be driven to its ceiling here
+  // without a hundred requests.
+  execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta',
+    '-e', 'delete from rate_limit'], { stdio: 'ignore' })
+  const t = made.tpay.track
+  let throttled = 0
+  for (let i = 0; i < 34; i++) {
+    const r = await get(`${SITE}/pay/callback.php?ErrorCode=TIJ0020&PayTrackID=${t}`)
+    if (/reason=throttled/.test(r.location)) throttled++
+  }
+  check(throttled > 0,
+    `an unauthenticated flood of error callbacks is cut off (${throttled} of 34 refused)`)
+  // And the order is still where it was — the throttle is a second line, not
+  // the one holding the status still.
+  const after = await statusOf(t)
+  check(after?.payment_status === 'pending',
+    `and the order it was aimed at is untouched (${after?.payment_status})`)
+  execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta',
+    '-e', 'delete from rate_limit'], { stdio: 'ignore' })
 }
 
 skip('whether CBK accepts the merchant credentials — needs the real pay/config.php and a route to pg.cbk.com')
