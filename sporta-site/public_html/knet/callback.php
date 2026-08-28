@@ -19,24 +19,46 @@ if ($trandata === '') {
     exit;
 }
 
-// THE THROTTLE GOES ON THE FAILURES, NOT ON THE CALLBACK.
+// A PADDING ORACLE, AND IT WAS FORGEABLE. This is the reason the two failures
+// below are answered identically, and it is worth the space because the fix
+// looks like cosmetics and is not.
 //
-// A trandata that decrypts under the resource key is proof the bank sent it —
-// nobody else holds that key — so a successful decrypt is authenticated and
-// must never be refused. Throttling those is how a captured payment goes
-// unrecorded, which is the one outcome worse than any abuse this could stop.
+// KNET's trandata is AES-128-CBC with a FIXED, PUBLISHED IV and NO MAC. The
+// only thing authenticating this callback is that the ciphertext decrypts
+// under the resource key. That is fine on its own — nobody else holds the key.
+// It stops being fine the moment the server will tell a stranger whether the
+// PADDING was valid, because CBC without a MAC plus a padding oracle is not a
+// confidentiality problem, it is a FORGERY problem: the standard CBC-R
+// construction turns an oracle into the ability to build ciphertext that
+// decrypts to plaintext of the attacker's choosing, key or no key. The
+// plaintext they would choose is `result=CAPTURED&trackid=<their own
+// order>&amt=<the price they were quoted>`.
 //
-// A decrypt FAILURE is the opposite: it is a caller who does not hold the key,
-// and there is no legitimate source of one. Thirty in ten minutes per IP, and
-// the counter is only touched after a failure, so a shop taking payments all
-// day never increments it once.
+// The amount check further down does not save it. It compares the amount in
+// the trandata with the order's — and the attacker writes the trandata, so
+// they write the matching amount, which their own order page told them.
+//
+// Measured against this file before the fix, on the sandbox:
+//     valid padding, garbage inside -> status=failed&trackid=&payid=&ref=
+//     one byte flipped in the last block -> status=error&reason=decrypt_failed
+// Two different answers. That is the whole oracle.
+//
+// THE FIX IS THAT EVERY UNUSABLE trandata GETS ONE ANSWER. A genuine callback
+// always carries a result AND a track id that resolves to a real order;
+// anything missing either is indistinguishable from anything else missing
+// either, whether it failed to decrypt or decrypted to noise. An attacker
+// grinding CBC-R cannot produce a resolvable track id until they have already
+// broken the cipher, and they cannot break it without the oracle.
+//
+// Nothing diagnostic is lost: the log below still records which of the two it
+// was, in full. The log is on the server, where the attacker is not.
+$fields = null;
 try {
     $fields = knet_parse_response(knet_decrypt($trandata, $cfg['resource_key']));
 } catch (Throwable $e) {
-    $reason = knet_over_limit($cfg, 'knet_cb_bad', 30, 600) ? 'throttled' : 'decrypt_failed';
-    knet_log($cfg, 'callback.decrypt_failed', ['reason' => $reason]);
-    knet_send_customer_onward($cfg, $return . '?status=error&reason=' . $reason);
-    exit;
+    // Deliberately NOT answered here — it falls through to the shared exit
+    // below, so that this branch and the noise branch are one response.
+    knet_log($cfg, 'callback.decrypt_failed', []);
 }
 
 $result    = strtoupper((string)($fields['result'] ?? ''));
@@ -56,6 +78,34 @@ $haveDb = knet_db_configured($cfg) && $trackid !== '';
 knet_log($cfg, 'callback.received', [
     'trackid' => $trackid, 'result' => $result, 'amt' => $paidAmt, 'payid' => $paymentid,
 ]);
+
+// ---- the shared exit for everything that is not a usable callback ----------
+//
+// Both halves of the oracle land here, and they leave by the same door with
+// the same bytes. See the long note above.
+//
+// A genuine callback has a result and a track id that names an order this shop
+// placed, so this branch never fires on one. `knet_resolve_track` has already
+// run, so a retry's suffixed reference has been resolved before it is judged.
+//
+// The throttle is counted here rather than in the catch, because "did not
+// decrypt" and "decrypted to noise" are now the same event as far as this file
+// is concerned, and only one of them used to be counted — an attacker whose
+// forged block happened to pad correctly was not costing themselves anything.
+// The gate is exactly what the note claims — a result and a track id — and
+// NOT `!$haveDb`, which also folds in "this shop has no orders database".
+// That is a different condition with its own correct behaviour further
+// down, and sweeping it in here would have changed it for no reason.
+if ($fields === null || $result === '' || $trackid === '') {
+    knet_over_limit($cfg, 'knet_cb_bad', 30, 600);
+    knet_log($cfg, 'callback.unusable', [
+        'decrypted' => $fields !== null,
+        'result'    => $result,
+        'trackid'   => $trackid,
+    ]);
+    knet_send_customer_onward($cfg, $return . '?status=error&reason=decrypt_failed');
+    exit;
+}
 
 // ---------------------------------------------------------------------------
 // Amount verification — FAIL CLOSED.

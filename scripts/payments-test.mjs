@@ -25,6 +25,7 @@
  */
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import { createCipheriv } from 'node:crypto'
 
 const SITE = process.env.SITE_BASE ?? 'http://127.0.0.1:4300'
 const API = `${SITE}/api`
@@ -360,6 +361,73 @@ console.log('\n--- the same order twice')
   check(first.body?.order_id === again.body?.order_id,
     'and updates the SAME order — this is what stops a double tap being charged twice',
     `${first.body?.order_id} vs ${again.body?.order_id}`)
+}
+
+// ============================================================ the padding oracle
+//
+// KNET's trandata is AES-128-CBC with a FIXED, PUBLISHED IV and NO MAC, and
+// the only thing authenticating the callback is that the ciphertext decrypts
+// under the resource key. That is sound until the server will tell a stranger
+// whether the PADDING was valid — because CBC without a MAC plus a padding
+// oracle is not a confidentiality problem, it is a FORGERY problem: the
+// standard CBC-R construction turns the oracle into ciphertext that decrypts
+// to plaintext of the attacker's choosing, without the key. The plaintext they
+// would choose is `result=CAPTURED&trackid=<their own order>`.
+//
+// The amount check does not save it — they write the trandata, so they write
+// the matching amount, which their own order page told them.
+//
+// Measured before the fix:
+//   valid padding, garbage inside -> status=failed&trackid=&payid=&ref=
+//   one byte flipped in the last block -> status=error&reason=decrypt_failed
+//
+// So the assertion is BYTE EQUALITY of the two answers, not "both are an
+// error": any difference at all is the oracle, and a check that only asked
+// whether both looked like failures would have passed the vulnerable code.
+console.log('\n--- what a stranger can learn from a bad trandata')
+
+{
+  const KEY = 'SANDBOX_NOT_REAL'
+  const IV = 'PGKEYENCDECIVSPC'
+  const enc = (plain) => {
+    const c = createCipheriv('aes-128-cbc', Buffer.from(KEY), Buffer.from(IV))
+    return Buffer.concat([c.update(Buffer.from(plain, 'utf8')), c.final()]).toString('hex').toUpperCase()
+  }
+  // Correctly padded, and meaningless once decrypted.
+  const padded = enc('hello=world&nothing=here')
+  // The same bytes with the last one flipped: the padding will not check out.
+  const broken = (() => {
+    const b = Buffer.from(padded, 'hex')
+    b[b.length - 1] ^= 0xff
+    return b.toString('hex').toUpperCase()
+  })()
+
+  const answer = async (hex) => {
+    const r = await get(`${SITE}/knet/callback.php?trandata=${hex}`)
+    // The body carries REDIRECT=<url> for KNET's server-to-server mode, so it
+    // is where the difference showed. Compare the whole thing.
+    return `${r.status}|${r.location}|${r.text}`
+  }
+  const a = await answer(padded)
+  const b = await answer(broken)
+  check(a === b,
+    'good padding and bad padding are answered identically — no padding oracle',
+    `\n       padded: ${a.slice(0, 110)}\n       broken: ${b.slice(0, 110)}`)
+
+  // And neither may move an order, however the bytes are shaped.
+  //
+  // A FRESH ORDER, not made.knet — that one was legitimately settled earlier in
+  // this file by a callback encrypted with the real key, so asserting it is
+  // still pending fails on the rig's own successful test rather than on
+  // anything the forgery did. Caught by exactly that: "and a forged trandata
+  // settles nothing (paid)".
+  const victim = await order('knet')
+  for (const hex of [padded, broken]) {
+    await get(`${SITE}/knet/callback.php?trandata=${hex}&trackid=${victim.track}`)
+  }
+  const s = await statusOf(victim.track)
+  check(s?.payment_status === 'pending',
+    `and a forged trandata settles nothing (${s?.payment_status})`)
 }
 
 // ================================================================== throttles
