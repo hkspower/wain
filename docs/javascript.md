@@ -63,3 +63,102 @@ processes CSS this repo wrote, sharp processes images this repo ships, and the
 output is a static export with no server. Nothing untrusted reaches either.
 The fix `npm audit fix --force` offers is Next 16 — a major upgrade, and not
 something to do quietly under the heading of linting.
+
+---
+
+# What actually reaches a phone
+
+```
+npm run audit:js
+```
+
+`npm run lint` checks the source. This checks the build, which is a different
+question and the one a visitor on a mobile connection pays for. Everything
+below is gzipped and measured from the chunks each page's HTML really
+references — not from what is on disk, because the two are not close.
+
+## The numbers
+
+| route | JS, gzipped |
+| --- | ---: |
+| `/admin/` | 152.5K |
+| `/search/` | 148.7K |
+| `/add/` | 143.6K |
+| `/orders/` | 139.5K |
+| `/explore/` | 138.6K |
+| `/places/<slug>/` | 138.2K |
+| `/queue/` | 136.7K |
+| `/` | 133.4K |
+| `/about/`, `/privacy/` | **131.1K** |
+
+**130.9K of that is shared by all 46 pages.** The spread between the heaviest
+route and the lightest is 21K; the floor is the whole story.
+
+Confirmed in a real browser as well as on disk — 139–165K over the wire per
+route, the difference being chunks hydration pulls in afterwards.
+
+## What is already right
+
+**Code splitting works.** `@supabase/supabase-js` is 177KB raw and sits in its
+own chunk that **no page loads statically** — not even `/admin/`. It arrives
+only when something actually talks to the database.
+
+**No source maps.** None shipped, and no chunk carries a `sourceMappingURL`.
+The TypeScript, comments included, stays out of the browser.
+
+**No orphans.** Every chunk in the deploy is reachable from something.
+
+**The polyfills are free.** `polyfills-*.js` is 110KB on disk and the single
+largest file in the build, and a modern browser downloads **none** of it: the
+tag carries `nomodule`. Verified by watching the network in Chromium rather
+than by reading the tag, because that is the sort of thing that is true until
+it silently isn't. The audit excludes `nomodule` scripts from its totals for
+the same reason — counting them would overstate every route by ~38K and hide
+real regressions underneath.
+
+## What the scan found
+
+**The privacy page ships all 36 places.**
+
+`/privacy/` and `/about/` have no map, no list and no search. They carry the
+entire place catalogue anyway — 36 of 36 records — along with شوق's call UI,
+the ElevenLabs integration and the speech-recognition path.
+
+The cause is one line. `app/layout.tsx:7` imports `WainAi` directly:
+
+```tsx
+import WainAi from "@/components/WainAi";
+```
+
+`WainAi` searches places on the device, so the catalogue follows it into the
+root layout and from there onto every route. A page about cookies downloads
+36 restaurants and beaches to render two paragraphs.
+
+**The fix is small but it is a visible one**, which is why it is written down
+here rather than applied:
+
+```tsx
+const WainAi = dynamic(() => import("@/components/WainAi"), { ssr: false });
+```
+
+That moves roughly 20K gzipped off the floor of every page. The cost is that
+the شوق launcher appears after hydration instead of in the first paint — a
+floating button popping in a fraction of a second late. Whether that trade is
+worth it is a judgement about شوق, not about bytes. A middle path exists:
+keep a static, styled button and lazily load only the panel and the call logic
+behind it, so nothing pops in and the weight still goes.
+
+## The budget
+
+`audit:js` fails the build over **175K gzipped** on any route. That is a
+ratchet rather than a target: it sits just above where the site is today, so a
+regression is loud and an improvement is free. The heaviest route has 22K of
+headroom.
+
+## npm audit
+
+Three high-severity advisories, all the same root: `sharp` below 0.35, pulling
+inherited `libvips` CVEs. `sharp` is a build-time dependency — it renders the
+OG cards in `scripts/gen-og.mjs` — and **is never shipped to a browser**. The
+only fix npm offers is `next@16`, a major upgrade. Left alone deliberately;
+the exposure is a build box, not a visitor.
