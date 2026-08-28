@@ -22,7 +22,7 @@
 import { execSync, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
-  existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync,
+  existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync,
 } from "node:fs";
 import { join, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -80,9 +80,18 @@ const pages = files.filter((f) => f.endsWith("index.html")).length;
  * Two builds of the same commit produce the same digest, so this is what
  * says "the thing on the server is the thing I built" rather than "the
  * version string in it claims to be".
+ *
+ * build.json is excluded, and that exclusion is the whole reason the digest
+ * means anything. It carries `builtAt`, and it is written into the export
+ * itself — so on any run where out/ already held one, the digest hashed a
+ * timestamp and came out different for byte-identical builds. The first
+ * release printed 72648c7b; a re-run over the same tree printed f94ea0a8, and
+ * nothing had changed but the clock. A fingerprint that never repeats cannot
+ * verify anything.
  */
 const tree = files
   .map((f) => relative(OUT, f).split("\\").join("/"))
+  .filter((rel) => rel !== "build.json")
   .sort();
 const hash = createHash("sha256");
 for (const rel of tree) {

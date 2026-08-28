@@ -275,9 +275,17 @@ credentials:
 curl -s https://www.wainkw.com/build.json
 ```
 
-`digest` is a SHA-256 over every path and every byte in the export, so it says
-*the thing on the server is the thing I built* rather than *the version string
-in it claims to be*. `dirty` records whether the working tree had uncommitted
+`digest` is a SHA-256 over every path and every byte in the export **except
+`build.json` itself**, so it says *the thing on the server is the thing I
+built* rather than *the version string in it claims to be*.
+
+That exclusion is what makes the number mean anything, and it was missing at
+first. `build.json` carries `builtAt` and is written into the export, so on any
+run where `out/` already held one, the digest hashed a timestamp: the first
+release printed `72648c7b` and a re-run over the identical tree printed
+`f94ea0a8`, with nothing changed but the clock. A fingerprint that never
+repeats cannot verify anything. Three consecutive runs now print the same
+digest. `dirty` records whether the working tree had uncommitted
 changes — a release built dirty is not reproducible from its commit, and the
 script says so rather than pretending otherwise.
 
