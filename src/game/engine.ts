@@ -166,6 +166,64 @@ const EMPTY_MAP_OTHERS: ReadonlyArray<{ x: number; y: number; name: string }> = 
 
 const FLASH_RANGE = 60;
 
+/**
+ * The player's own headlight flash.
+ *
+ * A LEVEL READ OFF A CLOCK, the way the film's hits are — see
+ * cineFlashBoost, whose comment explains why an animation that owns a
+ * timer is the wrong shape for this. The player's flash was the version
+ * that comment describes as replaced: a setInterval that captured
+ * `this.headlight.intensity` as its baseline, toggled the lamp by
+ * reading its own output, and wrote the baseline back when it finished.
+ *
+ * Measured, it did this at night with a dipped beam of 90:
+ *
+ *   one press                       peak 90  floor 0  settled 0
+ *   two, 220 ms apart               peak  0  floor 0  settled 0
+ *   the ritual: three, 180 ms apart peak 90  floor 0  settled 90
+ *
+ * Two separate faults in three lines. The lamps could be left OFF —
+ * a second press captures its baseline while the first has the lamp
+ * dark, and restores the dark — on the key you are required to press
+ * three times in three seconds to start a race. And the brightest the
+ * flash ever got was the dipped beam it started from, because it was
+ * built as a blink DOWN: headlights going out, not a main beam going in.
+ * A driver flashing you does not turn their lights off.
+ *
+ * So: up, not down. The same rise-hold-fall the film uses, because it is
+ * the same gesture, and two pulses because that is what a hand on a
+ * stalk actually does.
+ */
+const FLASH_RISE = 0.035;
+const FLASH_HOLD = 0.09;
+const FLASH_FALL = 0.13;
+/** The second pulse of one press. */
+const FLASH_PULSE_AT = [0, 0.19];
+/** How far past the dipped beam a main beam reaches. Brightness alone
+ *  reads as a lamp fault; the cone has to open and throw further with
+ *  it, which is what the eye actually recognises as high beam. */
+const FLASH_GAIN = 1.9;
+const FLASH_ANGLE_GAIN = 0.22;
+const FLASH_REACH_GAIN = 0.55;
+
+function playerFlashBoost(sinceS: number): number {
+  let best = 0;
+  for (const at of FLASH_PULSE_AT) {
+    const e = sinceS - at;
+    if (e < 0 || e > FLASH_RISE + FLASH_HOLD + FLASH_FALL) continue;
+    const k =
+      e < FLASH_RISE
+        ? e / FLASH_RISE
+        : e < FLASH_RISE + FLASH_HOLD
+          ? 1
+          : 1 - (e - FLASH_RISE - FLASH_HOLD) / FLASH_FALL;
+    if (k > best) best = k;
+  }
+  return best;
+}
+/** Seconds one press lasts, end to end. */
+const FLASH_LEN = FLASH_PULSE_AT[FLASH_PULSE_AT.length - 1] + FLASH_RISE + FLASH_HOLD + FLASH_FALL;
+
 export interface BattleHud {
   playerSp: number;
   rivalSp: number;
@@ -758,6 +816,16 @@ export class GameEngine {
   /** Visible beam cones — flared with the lamps during the flash ritual. */
   private beamMat: THREE.MeshBasicMaterial | null = null;
   private beamBaseOpacity = 0.05;
+  /** When the current flash started, in seconds of performance time.
+   *  Negative infinity means the stalk has never been touched. */
+  private flashStart = -Infinity;
+  /** The dipped beam, as the clock last set it. Every flash is measured
+   *  from HERE rather than from whatever the lamp happened to be doing,
+   *  which is the whole of the bug this replaced. */
+  private lampRest: {
+    spot: number; off: number; angle: number; reach: number;
+    emissive: number; glow: number[];
+  } = { spot: 90, off: 54, angle: 0.32, reach: 95, emissive: 0, glow: [] };
   /** The night-time values the daylight response scales down from. */
   private beamBaseOpacityNight = 0.05;
   private headlightBase = 1;
@@ -2220,7 +2288,14 @@ export class GameEngine {
       0,
       1
     );
-    this.headlight.intensity = this.headlightBase * (0.25 + 0.75 * dark);
+    // The dipped beam, recorded as well as written. A flash is a level
+    // ABOVE this, applied every frame from here — so the hour can change
+    // mid-flash, two flashes can overlap, and the lamps still come home
+    // to the light the clock says they should be showing.
+    this.lampRest.spot = this.headlightBase * (0.25 + 0.75 * dark);
+    this.lampRest.off = this.headlightBase * 0.6 * (0.25 + 0.75 * dark);
+    this.headlight.intensity = this.lampRest.spot;
+    this.headlightR.intensity = this.lampRest.off;
     this.beamBaseOpacity = this.beamBaseOpacityNight * dark;
     const glows = (this.carBody?.userData.headGlowMats as THREE.SpriteMaterial[]) ?? [];
     for (const g of glows) g.opacity = 0.9 * dark;
@@ -3290,31 +3365,57 @@ export class GameEngine {
     if (this.beamMat) this.beamMat.opacity = Math.min(1, base.beam * (1 + 1.3 * boost));
   }
 
+  /**
+   * Hit the stalk. Everything else is a function of when.
+   *
+   * There is no timer here on purpose: a flash is a level the frame loop
+   * reads off this mark, so pausing pauses it, the exporter can pose it,
+   * and a second press cannot corrupt the first one's idea of what the
+   * lamps were doing.
+   */
   private flashHeadlights(): void {
-    // The flash has to be visible from outside the car, not just in the
-    // pool it throws: blink the lamp faces, their glare sprites and the
-    // beam cones together with the spot light.
-    const base = this.headlight.intensity;
-    const headMat = this.carBody.userData.headMat as THREE.MeshStandardMaterial | undefined;
-    const glows = (this.carBody.userData.headGlowMats as THREE.SpriteMaterial[]) ?? [];
-    const baseEmissive = headMat?.emissiveIntensity ?? 0;
-    const baseGlow = glows.map((m) => m.opacity);
-    const baseBeam = this.beamMat?.opacity ?? 0;
-    let n = 0;
-    const id = setInterval(() => {
-      const on = this.headlight.intensity <= 1;
-      this.headlight.intensity = on ? base : 0;
-      if (headMat) headMat.emissiveIntensity = on ? baseEmissive * 2.2 : baseEmissive * 0.15;
-      glows.forEach((m, i) => (m.opacity = on ? Math.min(1, baseGlow[i] * 1.9) : baseGlow[i] * 0.1));
-      if (this.beamMat) this.beamMat.opacity = on ? baseBeam : baseBeam * 0.12;
-      if (++n >= 6 || this.disposed) {
-        clearInterval(id);
-        this.headlight.intensity = base;
-        if (headMat) headMat.emissiveIntensity = baseEmissive;
-        glows.forEach((m, i) => (m.opacity = baseGlow[i]));
-        if (this.beamMat) this.beamMat.opacity = baseBeam;
-      }
-    }, 90);
+    this.flashStart = performance.now() / 1000;
+  }
+
+  /**
+   * The lamps, this frame: the dipped beam the clock set, plus however
+   * much main beam the flash is currently asking for.
+   *
+   * The cone opens and throws further as well as brightening. A main
+   * beam is not a dipped beam turned up — it is aimed higher and reaches
+   * past where the dipped one is cut off, and that is the part the eye
+   * actually reads as "somebody just flashed me".
+   */
+  private applyFlashBeam(): void {
+    if (this.cine) return; // the film owns the lamps while it runs
+    const boost = playerFlashBoost(performance.now() / 1000 - this.flashStart);
+    const rest = this.lampRest;
+    const headMat = this.carBody?.userData.headMat as THREE.MeshStandardMaterial | undefined;
+    const glows = (this.carBody?.userData.headGlowMats as THREE.SpriteMaterial[]) ?? [];
+    if (boost <= 0) {
+      // At rest, BY DEFINITION — so this is where the rest state is
+      // learned, rather than at the start of a flash where it might be
+      // read out of the middle of another one. That was the whole bug.
+      rest.emissive = headMat?.emissiveIntensity ?? rest.emissive;
+      rest.glow = glows.map((g) => g.opacity);
+      this.headlight.intensity = rest.spot;
+      this.headlightR.intensity = rest.off;
+      this.headlight.angle = rest.angle;
+      this.headlight.distance = rest.reach;
+      return;
+    }
+    this.headlight.intensity = rest.spot * (1 + FLASH_GAIN * boost);
+    this.headlightR.intensity = rest.off * (1 + FLASH_GAIN * boost);
+    this.headlight.angle = rest.angle * (1 + FLASH_ANGLE_GAIN * boost);
+    this.headlight.distance = rest.reach * (1 + FLASH_REACH_GAIN * boost);
+    if (headMat) headMat.emissiveIntensity = rest.emissive * (1 + 1.6 * boost);
+    glows.forEach((g, i) => {
+      g.opacity = Math.min(1, (rest.glow[i] ?? g.opacity) * (1 + 1.1 * boost));
+    });
+    // The cone last, and multiplied rather than assigned:
+    // updateBeamVisibility rebuilds it from beamBaseOpacity every frame,
+    // so this rides on top of it and cannot compound.
+    if (this.beamMat) this.beamMat.opacity = Math.min(1, this.beamMat.opacity * (1 + 1.3 * boost));
   }
 
   /** Snapshot the battle telemetry and settle XP, stats and rewards. */
@@ -3635,6 +3736,10 @@ export class GameEngine {
     }
     this.updateCamera(dt);
     this.updateBeamVisibility();
+    // After the cone is rebuilt from its base, and OUTSIDE it: that
+    // function returns early on a car with no visible beam mesh, and the
+    // flash is a property of the lamps rather than of the cone.
+    this.applyFlashBeam();
     this.updateStreaks();
     this.updateAudio();
     this.world.setCrowdFocus(
