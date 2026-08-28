@@ -268,13 +268,40 @@ def scenes():
 # squeezed into the picture: each line gets exactly as long as it takes to
 # say, plus a beat. Timings, subtitles and the audio assembly all still come
 # from this one place, so they cannot drift apart.
-LEAD_IN = 0.6      # a beat after a scene appears, before anyone speaks
-GAP = 0.45         # between two lines inside one scene
-TAIL = 0.35        # after a line ends, before its caption goes
-SCENE_TAIL = 1.0   # after the last line, before the scene changes
+# THE PAUSES ARE NOT ALL THE SAME LENGTH, and that is the point. The first
+# version of this gave every line a flat 0.35s tail and every gap a flat
+# 0.45s, which is arithmetically tidy and sounds like a machine: laid out,
+# every line had exactly +0.35 of slack and every gap was 0.45 or 1.60 to
+# the hundredth. Nothing breathed.
+#
+# What varies here is not punctuation — every one of the sixteen lines ends
+# in a full stop, so a rule keyed on the terminal mark would discriminate
+# nothing and be dead code that still looked like thought. What varies is
+# LENGTH and POSITION, so those are what the pauses are built from:
+#
+#   · a long sentence needs longer to land than a short one, both after it
+#     ends (tail) and before the next begins (gap);
+#   · the opening scene has to be SEEN — the mark and the name — before
+#     anyone speaks over it, so it gets a longer lead-in than the rest;
+#   · the closing line is a call to action, and cutting to black one second
+#     after "كلّمنا على واتساب" throws it away.
+LEAD_IN = 0.6       # a beat after a scene appears, before anyone speaks
+OPEN_LEAD = 1.1     # …but the title has to be read first
+SCENE_TAIL = 1.0    # after the last line, before the scene changes
+CLOSE_TAIL = 1.9    # …but the closing ask is left to sit
 
 
-def voiced_timings(scene_lines, voiced, index):
+def tail_for(dur):
+    """Room after a line, scaled to how much it carried."""
+    return min(0.70, max(0.32, 0.20 + 0.06 * dur))
+
+
+def gap_for(prev_dur):
+    """Separation before a line, scaled to the weight of the one before it."""
+    return min(0.65, max(0.40, 0.30 + 0.05 * prev_dur))
+
+
+def voiced_timings(scene_lines, voiced, index, first=False, last=False):
     """Lay a scene's lines out end to end at their measured spoken length.
 
     Returns None if any line of this scene has no recording yet, so the scene
@@ -283,15 +310,19 @@ def voiced_timings(scene_lines, voiced, index):
     it should show you which line is missing, not a KeyError on its number."""
     if any(str(index + i + 1) not in voiced for i in range(len(scene_lines))):
         return None
-    out, cursor = [], LEAD_IN
+    out, cursor, prev = [], (OPEN_LEAD if first else LEAD_IN), None
     for i, (_, _, text) in enumerate(scene_lines):
         # time the picture to the speech, not to the file
         dur = voiced[str(index + i + 1)]["speech"]
         if i:
-            cursor += GAP
-        out.append((round(cursor, 2), round(cursor + dur + TAIL, 2), text))
-        cursor += dur + TAIL
-    return out, round(cursor + SCENE_TAIL, 2)
+            cursor += gap_for(prev)
+        # the caption must outlast its own speech — never the other way, or
+        # the line is still being spoken over the next card
+        out.append((round(cursor, 2), round(cursor + dur + tail_for(dur), 2),
+                    text))
+        cursor += dur + tail_for(dur)
+        prev = dur
+    return out, round(cursor + (CLOSE_TAIL if last else SCENE_TAIL), 2)
 
 
 def build():
@@ -305,9 +336,10 @@ def build():
     unrecorded = []
     t = 0.0
     spoken = 0
-    for name, dur, lines, body in S:
+    for si, (name, dur, lines, body) in enumerate(S):
         if voiced:
-            timed = voiced_timings(lines, voiced, spoken)
+            timed = voiced_timings(lines, voiced, spoken,
+                                   first=(si == 0), last=(si == len(S) - 1))
             if timed:
                 lines, dur = timed
             else:

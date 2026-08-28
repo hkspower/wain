@@ -55,9 +55,16 @@ HERE = pathlib.Path(__file__).resolve().parent
 VOICE = HERE / "voice"
 API = "https://api.elevenlabs.io/v1"
 
-# "صوت رجل عربي شبابي", Modern Standard Arabic — the voice the owner asked for.
+# "ALI — Saudi Arabic & English": Gulf accent, warm and expressive, made for
+# narration and commercial reads. Chosen by the owner (2026-08-28) after
+# hearing the film through and asking for a more attractive voice; the Gulf
+# accent is also the nearest in the library to the company's own Kuwait.
 # Recorded in voice.md; change both together or the note stops being true.
-DEFAULT_VOICE = "SeP2zIpx6zw2aAs6ZXFW"
+#
+# The previous voice was SeP2zIpx6zw2aAs6ZXFW — young, serious, plain MSA.
+# Every take under it must be re-recorded, not just the ones that changed:
+# see the mixing guard below.
+DEFAULT_VOICE = "Hvlnv5DwiIO2CQ6oYMZ3"
 DEFAULT_MODEL = "eleven_multilingual_v2"
 
 # Pinned, not left to the default. Every take is mixed into one track, and
@@ -193,6 +200,25 @@ def main():
         raise SystemExit(f"no such line(s): {bad} — the script has {len(lines)}")
 
     VOICE.mkdir(exist_ok=True)
+
+    # THE MIXING GUARD. Takes are recorded one line at a time and heard
+    # consecutively, so a folder holding two different voices is a defect you
+    # hear immediately and cannot see in any file listing. The obvious way to
+    # cause it is the ordinary way to use this script: change the voice, then
+    # record "just the missing line". So the folder remembers which voice it
+    # was recorded in, and a run that would add a different one stops.
+    stamp = VOICE / "voice.json"
+    was = json.loads(stamp.read_text()) if stamp.exists() else None
+    have = sorted(p.name for p in VOICE.glob("line*.mp3"))
+    if was and was.get("voice") != a.voice and have:
+        raise SystemExit(
+            f"this folder holds {len(have)} take(s) recorded in voice "
+            f"{was['voice']}, and you are asking for {a.voice}.\n"
+            "  Two voices in one narration is audible on the first cut.\n"
+            "  Re-record the whole script in the new voice:\n"
+            f"    python3 {pathlib.Path(__file__).name} --force\n"
+            "  (or pass --voice " + was["voice"] + " to stay with the old one)")
+
     todo = [n for n in wanted
             if a.force or not (VOICE / f"line{n:02d}.mp3").exists()]
     skipped = sorted(set(wanted) - set(todo))
@@ -214,6 +240,11 @@ def main():
         out = VOICE / f"line{n:02d}.mp3"
         out.write_bytes(audio)
         print(f"  line{n:02d}  {len(audio)/1000:6.0f} KB   {text[:52]}")
+        # stamped after the first take lands, so an aborted run does not
+        # claim a voice the folder does not actually hold
+        stamp.write_text(json.dumps(
+            {"voice": a.voice, "model": a.model, "format": a.format},
+            indent=2) + "\n")
         time.sleep(0.3)          # do not hammer the endpoint
 
     print("\n  next:  python3 design/film/measure_voice.py")
