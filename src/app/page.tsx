@@ -68,8 +68,28 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {/* Scroll rail on small screens, even grid from lg up */}
-          <ul className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [mask-image:linear-gradient(to_left,transparent,#000_1.25rem,#000_calc(100%-1.25rem),transparent)] [scrollbar-width:none] sm:mx-0 sm:px-0 lg:grid lg:grid-cols-9 lg:overflow-visible lg:pb-0 lg:[mask-image:none]">
+          {/* Scroll rail on small screens, even grid from lg up.
+
+              Three things here are about how the swipe FEELS, and all three
+              were measured on a 390px phone rather than guessed:
+
+              snap-proximity, not snap-mandatory. Mandatory cannot let the rail
+              rest between items, so it corrected a 4px nudge into a 120px jump
+              — a whole card — and every small movement fought back. Nine cards
+              at 112px sit 3.15 to a screen, so this is a browse rail, not a
+              pager; proximity assists a flick that is already near an edge and
+              otherwise leaves the finger alone.
+
+              overscroll-x-contain. Without it a swipe past the last card
+              chains to the page, and on iOS and Android that gesture is
+              back-navigation. Flicking to the end of the rail could leave the
+              site.
+
+              scroll-px-4 to match px-4. Snapping aligns to the scrollport, which
+              ignores padding unless scroll-padding says otherwise, so the rail
+              settled 16px away from its own start on load — measurably, before
+              any touch. The two now agree, and it rests where it belongs. */}
+          <ul className="-mx-4 flex snap-x snap-proximity gap-3 overflow-x-auto overscroll-x-contain scroll-px-4 px-4 pb-2 [mask-image:linear-gradient(to_left,transparent,#000_1.25rem,#000_calc(100%-1.25rem),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:scroll-px-0 sm:px-0 lg:grid lg:grid-cols-9 lg:overflow-visible lg:pb-0 lg:[mask-image:none]">
             <li className="w-28 shrink-0 snap-start sm:w-32 lg:w-auto">
               <Link
                 href="/explore"

@@ -12,6 +12,11 @@
  *   map-pin       — the pins, on a phone and on a desktop. The two behaviours
  *                   that must not drift back together: one tap on a touch
  *                   device selects, one click on a desktop still opens.
+ *   swipe         — the category rail, the site's one swiped surface. It was
+ *                   snap-mandatory, which turned a 4px nudge into a 120px
+ *                   jump. Tests both directions, because the tempting
+ *                   over-correction is to make it comfortable by making
+ *                   snapping do nothing at all.
  */
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
@@ -60,6 +65,9 @@ console.log("\n════ الطلعة: the panel, and every way it can fail �
 
   console.log("\n════ الخريطة: the pins, on a phone and on a desktop ════");
   failed += (await run("node", ["tests/map-pin.test.mjs"], { env })) === 0 ? 0 : 1;
+
+  console.log("\n════ السحب: how the category rail feels under a thumb ════");
+  failed += (await run("node", ["tests/swipe.test.mjs"], { env })) === 0 ? 0 : 1;
   srv.close();
 }
 
