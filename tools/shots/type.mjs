@@ -121,7 +121,11 @@ const COLLECT = `(() => {
     g2.globalCompositeOperation = "source-over";
     for (const c of stack) {
       if (!c || c === "transparent" || c === "rgba(0, 0, 0, 0)") continue;
+      // An unparseable colour leaves fillStyle at its previous value,
+      // which would paint the last layer twice and call it a new one.
+      g2.fillStyle = "#000000";
       g2.fillStyle = c;
+      if (g2.fillStyle === "#000000" && !/^(#000000|black|rgb\\(0, ?0, ?0\\))$/i.test(c.trim())) continue;
       g2.fillRect(0, 0, 1, 1);
     }
     const d = g2.getImageData(0, 0, 1, 1).data;
@@ -133,10 +137,40 @@ const COLLECT = `(() => {
   // Everything painted behind a run of text, outermost first. A panel is
   // very often a translucent tint over a dark scene, so its own
   // background-color is not what the eye receives.
+  //
+  // background-COLOR alone is not what is painted. The call to action in
+  // this game is a sodium gradient with near-black text on it, and a
+  // walk that reads only background-color sees a transparent button over
+  // a dark page: it reported #140d02 on #060608, 1.05:1, three times, on
+  // the most legible control on the screen. A gradient is a paint like
+  // any other, so it goes on the stack — and a gradient is judged at
+  // whichever of its stops gives the text the LEAST contrast, because
+  // that end of the button is as real as the other.
+  const GRAD_COLOR = /(?:rgba?|oklch|oklab|hsla?|lab|lch)\\([^()]*\\)|#[0-9a-f]{3,8}/gi;
   const stackOf = (el) => {
-    const s = [];
-    for (let n = el; n; n = n.parentElement) s.push(getComputedStyle(n).backgroundColor);
-    return s.reverse();
+    const layers = [];
+    for (let n = el; n; n = n.parentElement) {
+      const cs2 = getComputedStyle(n);
+      const bi = cs2.backgroundImage || "";
+      layers.push({
+        bg: cs2.backgroundColor,
+        stops: bi.includes("gradient") ? bi.match(GRAD_COLOR) || [] : [],
+      });
+    }
+    return layers.reverse();
+  };
+  /** Every paint stack this text could be sitting on: one per stop of
+   *  the gradient nearest the text, which is the one painting over the
+   *  rest. Elsewhere a gradient contributes its first stop — a distant
+   *  ancestor's gradient is under everything else anyway. */
+  const stackVariants = (layers) => {
+    let at = -1;
+    for (let i = layers.length - 1; i >= 0; i--) if (layers[i].stops.length > 1) { at = i; break; }
+    const plain = (l) => (l.stops.length ? [l.bg, l.stops[0]] : [l.bg]);
+    if (at < 0) return [layers.flatMap(plain)];
+    return layers[at].stops.map((stop) =>
+      layers.flatMap((l, i) => (i === at ? [l.bg, stop] : plain(l)))
+    );
   };
   const rootBase = (() => {
     for (const n of [document.body, document.documentElement]) {
@@ -194,11 +228,15 @@ const COLLECT = `(() => {
     const lh = lhRaw === "normal" ? 1.2 : parseFloat(lhRaw) / parseFloat(cs.fontSize);
     const tracking = cs.letterSpacing === "normal" ? 0 : parseFloat(cs.letterSpacing);
 
-    const stack = stackOf(el);
-    const bg = flatten(stack, rootBase);
-    const fg = flatten([...stack, cs.color], rootBase);
-    const L1 = relLum(fg), L2 = relLum(bg);
-    const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+    const layers = stackOf(el);
+    let bg = null, fg = null, ratio = Infinity;
+    for (const stack of stackVariants(layers)) {
+      const b = flatten(stack, rootBase);
+      const f = flatten([...stack, cs.color], rootBase);
+      const L1 = relLum(f), L2 = relLum(b);
+      const r = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+      if (r < ratio) { ratio = r; bg = b; fg = f; }
+    }
 
     // WCAG's own definition of large: 24px, or 18.66px when bold.
     const large = px >= 24 || (px >= 18.66 && weight >= 700);
@@ -210,8 +248,26 @@ const COLLECT = `(() => {
     // tight, which a one-character text node cannot be.
     const wrapped = boxes.length > 1;
 
+    // The two colours, and where the run lives. A report that says a
+    // line is at 2.51:1 and stops there is a report you have to go and
+    // reproduce by hand; the colours and the DOM path are what make it
+    // a thing you can fix.
+    const hex = (c) => "#" + [c.r, c.g, c.b].map((v)=>v.toString(16).padStart(2,"0")).join("");
+    const path = (() => {
+      const parts = [];
+      for (let n = el; n && n.nodeType === 1 && parts.length < 4; n = n.parentElement) {
+        const cls = (n.className && n.className.baseVal !== undefined ? n.className.baseVal : n.className) || "";
+        const own = String(cls).split(/\\s+/).filter((c)=>c && !/^(flex|grid|block|inline|absolute|relative|w-|h-|p[xytblr]?-|m[xytblr]?-|gap-|min-|max-)/.test(c)).slice(0,3).join(".");
+        parts.unshift(n.tagName.toLowerCase() + (own ? "." + own : ""));
+      }
+      return parts.join(" > ");
+    })();
+
     rows.push({
       text: raw.trim().slice(0, 34),
+      fg: hex(fg),
+      bg: hex(bg),
+      path,
       px: +px.toFixed(2),
       weight,
       lh: +lh.toFixed(2),
@@ -370,7 +426,7 @@ const show = (name, rows, fmt, limit = 12) => {
 show(`TINY — set below ${MIN_PX}px`, tiny,
   (r) => `${String(r.px).padStart(6)}px  ${r.screen.padEnd(9)} ${r.size.padEnd(15)} "${r.text}"`);
 show("FAINT — under the contrast floor for its size", faint,
-  (r) => `${String(r.ratio).padStart(6)}:1 (needs ${r.floor}) ${String(r.px).padStart(5)}px ${r.screen.padEnd(9)} "${r.text}"`);
+  (r) => `${String(r.ratio).padStart(6)}:1 (needs ${r.floor}) ${String(r.px).padStart(5)}px ${r.fg} on ${r.bg}  ${r.screen.padEnd(9)} "${r.text}"\n${" ".repeat(12)}${r.path}`);
 show("TRACKED — letter-spacing on cursive Arabic", tracked,
   (r) => `${String(r.tracking).padStart(6)}px  ${r.screen.padEnd(9)} "${r.text}"`);
 show("CRAMMED — wrapped text set tighter than " + CRAMP, crammed,

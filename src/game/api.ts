@@ -7,7 +7,7 @@
 
 import { CONTROL_POINTS, LANES, ROAD_HALF_WIDTH, COAST_U, STATIONS, FORECOURT } from "./track";
 import { RIVALS } from "./rivals";
-import { CARS, PARTS, PAINT_COLORS, GLOW_COLORS, CLASS_LABELS } from "./mods";
+import { CARS, PARTS, PAINT_COLORS, GLOW_COLORS, classLabel } from "./mods";
 import {
   ENGINES,
   FUEL_RATE,
@@ -97,7 +97,7 @@ export function buildCars() {
     name: c.name,
     arabicName: c.ar,
     cls: c.cls,
-    classLabel: CLASS_LABELS[c.cls],
+    classLabel: classLabel(c.cls),
     price: c.price,
     power: c.power,
     topSpeedKmh: c.topSpeedKmh,

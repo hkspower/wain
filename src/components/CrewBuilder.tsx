@@ -42,7 +42,7 @@ export default function CrewBuilder({
     label: string
   ) => (
     <div>
-      <label className="grn-label text-[0.55rem]">{label}</label>
+      <label className="grn-label text-[0.7rem]">{label}</label>
       <div className="mt-1 flex flex-wrap gap-1.5">
         {LOGO_COLORS.map((c) => (
           <button
@@ -75,7 +75,7 @@ export default function CrewBuilder({
       <div>
         <div className="flex flex-wrap gap-3">
           <div className="min-w-[12rem] flex-1">
-            <label className="grn-label text-[0.58rem]">Crew name</label>
+            <label className="grn-label text-[0.7rem]">Crew name</label>
             <input
               value={value.name}
               onChange={(e) => set({ name: e.target.value })}
@@ -85,7 +85,7 @@ export default function CrewBuilder({
             />
           </div>
           <div className="w-24">
-            <label className="grn-label text-[0.58rem]">Tag</label>
+            <label className="grn-label text-[0.7rem]">Tag</label>
             <input
               value={value.tag}
               onChange={(e) => set({ tag: sanitizeTag(e.target.value) })}
@@ -97,7 +97,7 @@ export default function CrewBuilder({
 
         <div className="mt-3 flex flex-wrap items-start gap-x-5 gap-y-3">
           <div>
-            <label className="grn-label text-[0.55rem]">Shape</label>
+            <label className="grn-label text-[0.7rem]">Shape</label>
             <div className="mt-1 flex gap-1.5">
               {LOGO_SHAPES.map((sh) => (
                 <button
@@ -105,7 +105,7 @@ export default function CrewBuilder({
                   type="button"
                   onClick={() => setLogo({ shape: sh })}
                   aria-pressed={value.logo.shape === sh}
-                  className={`rounded-md border px-2.5 py-1 text-[0.7rem] capitalize transition ${
+                  className={`rounded-md border px-2.5 py-1 text-[0.8rem] capitalize transition ${
                     value.logo.shape === sh
                       ? "border-gulf-400 text-gulf-300"
                       : "border-white/15 text-white/60 hover:border-white/35"
@@ -121,7 +121,7 @@ export default function CrewBuilder({
         </div>
 
         <div className="mt-3">
-          <label className="grn-label text-[0.55rem]">Emblem</label>
+          <label className="grn-label text-[0.7rem]">Emblem</label>
           <div className="mt-1 flex flex-wrap gap-1">
             {LOGO_SYMBOLS.map((sym) => (
               <button

@@ -42,7 +42,7 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="mt-14 flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-sm text-slate-400">
+          <div className="mt-14 flex flex-wrap items-center justify-center gap-x-10 gap-y-4 text-sm text-slate-600">
             <span>
               <strong className="text-slate-700">{places.length}</strong> curated places
             </span>
@@ -75,7 +75,7 @@ export default function HomePage() {
             >
               <span className="text-3xl transition group-hover:scale-110">{cat.emoji}</span>
               <h3 className="mt-3 text-sm font-bold text-slate-900">{cat.name}</h3>
-              <p className="mt-1 text-xs text-slate-400">{cat.blurb}</p>
+              <p className="mt-1 text-xs text-slate-600">{cat.blurb}</p>
             </Link>
           ))}
         </div>

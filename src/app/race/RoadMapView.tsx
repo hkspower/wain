@@ -305,7 +305,7 @@ export default function RoadMapView({
     <div className="pointer-events-auto fixed inset-0 z-[40] flex flex-col bg-night-950/92 backdrop-blur-sm">
       <div className="safe-pad flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
         <div className="min-w-0">
-          <div className="grn-label text-[0.55rem] text-white/45">The lap</div>
+          <div className="grn-label text-[0.7rem] text-white/70">The lap</div>
           <div className="grn-display truncate text-lg leading-tight">
             Gulf Road Nights{" "}
             <span className="grn-ar text-white/55" lang="ar">
@@ -320,7 +320,7 @@ export default function RoadMapView({
                 className="inline-block h-1 w-6 rounded-full"
                 style={{ backgroundColor: LEG_COLOR[i % LEG_COLOR.length] }}
               />
-              <span className="grn-label text-[0.55rem] text-white/60">{leg.name}</span>
+              <span className="grn-label text-[0.7rem] text-white/60">{leg.name}</span>
             </div>
           ))}
           <button
@@ -387,13 +387,13 @@ function MapFooter({
       </div>
       <div className="flex items-center gap-6">
         <div className="text-right">
-          <div className="grn-label text-[0.5rem] text-white/45">Round the lap</div>
+          <div className="grn-label text-[0.7rem] text-white/70">Round the lap</div>
           <span ref={sRef} className="grn-display tnum text-base leading-tight">
             —
           </span>
         </div>
         <div className="text-right">
-          <div className="grn-label text-[0.5rem] text-white/45">Next petrol</div>
+          <div className="grn-label text-[0.7rem] text-white/70">Next petrol</div>
           <span ref={pumpRef} className="grn-display tnum text-base leading-tight text-emerald-300">
             —
           </span>
@@ -407,7 +407,7 @@ function Legend({ color, label }: { color: string; label: string }) {
   return (
     <span className="flex items-center gap-1.5">
       <span className="inline-block size-2.5 rounded-full" style={{ backgroundColor: color }} />
-      <span className="grn-label text-[0.55rem] text-white/60">{label}</span>
+      <span className="grn-label text-[0.7rem] text-white/60">{label}</span>
     </span>
   );
 }

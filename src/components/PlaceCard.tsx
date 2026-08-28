@@ -24,7 +24,7 @@ export default function PlaceCard({ place }: { place: Place }) {
             <h3 className="font-bold text-slate-900 group-hover:text-brand-700">
               {place.name}
             </h3>
-            <p className="text-sm text-slate-400" dir="rtl" lang="ar">
+            <p className="text-sm text-slate-600" dir="rtl" lang="ar">
               {place.nameAr}
             </p>
           </div>
@@ -36,7 +36,7 @@ export default function PlaceCard({ place }: { place: Place }) {
 
         <p className="mt-2 line-clamp-2 text-sm text-slate-500">{place.tagline}</p>
 
-        <div className="mt-3 flex items-center gap-2 text-xs text-slate-400">
+        <div className="mt-3 flex items-center gap-2 text-xs text-slate-600">
           <span className="rounded-full bg-brand-50 px-2.5 py-1 font-medium text-brand-700">
             {place.category}
           </span>

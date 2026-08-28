@@ -12,7 +12,7 @@ export default function Footer() {
             <span className="font-bold text-slate-900">
               Wain<span className="text-brand-600">?</span>
             </span>
-            <span className="text-sm text-slate-400">— wain nrooh? where shall we go?</span>
+            <span className="text-sm text-slate-600">— wain nrooh? where shall we go?</span>
           </div>
 
           <div className="flex items-center gap-6 text-sm text-slate-500">
@@ -25,7 +25,7 @@ export default function Footer() {
           </div>
         </div>
 
-        <p className="mt-8 text-center text-xs text-slate-400">
+        <p className="mt-8 text-center text-xs text-slate-600">
           © {new Date().getFullYear()} Wain. Made with ❤️ in Kuwait 🇰🇼
         </p>
       </div>

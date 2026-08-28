@@ -43,7 +43,7 @@ export default function ExploreClient() {
 
       {/* Search */}
       <div className="relative mb-6">
-        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+        <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-600">
           🔎
         </span>
         <input
@@ -51,7 +51,7 @@ export default function ExploreClient() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search places, areas, or vibes… (English or عربي)"
-          className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-12 pr-4 text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
+          className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-12 pr-4 text-slate-800 shadow-sm outline-none transition placeholder:text-slate-600 focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
         />
       </div>
 

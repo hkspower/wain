@@ -128,7 +128,7 @@ const CARDS: Card[] = [
         {["TURBO", "TYRES", "NOS", "PAINT"].map((t) => (
           <span
             key={t}
-            className="grn-label rounded-md border border-white/15 bg-white/[0.06] px-2 py-1.5 text-[0.55rem]"
+            className="grn-label rounded-md border border-white/15 bg-white/[0.06] px-2 py-1.5 text-[0.7rem]"
           >
             {t}
           </span>
@@ -205,10 +205,10 @@ export default function Onboarding({
     >
       <div className="grn-dialog screen-in safe-pad w-[min(560px,94vw)] p-5 sm:p-7">
         <div className="flex items-center justify-between">
-          <span className="grn-label text-[0.58rem] text-sodium-400">{c.kicker}</span>
+          <span className="grn-label text-[0.7rem] text-sodium-400">{c.kicker}</span>
           <button
             onClick={skip}
-            className="grn-label tap px-2 text-[0.58rem] text-white/50 hover:text-white"
+            className="grn-label tap px-2 text-[0.7rem] text-white/74 hover:text-white"
           >
             SKIP
           </button>
@@ -296,7 +296,7 @@ export function CoachHint({ state }: { state: CoachState | null }) {
   return (
     <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 translate-y-[3.2rem]">
       <div className="grn-info coach-ring reveal px-4 py-2">
-        <span className="grn-display text-[0.86rem] tracking-[0.08em]">{text}</span>
+        <span className="grn-display text-[0.875rem] tracking-[0.08em]">{text}</span>
       </div>
     </div>
   );

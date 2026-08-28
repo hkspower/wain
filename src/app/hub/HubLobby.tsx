@@ -209,16 +209,16 @@ export default function HubLobby() {
     <div className="fixed inset-0 z-[60] overflow-y-auto menu-backdrop text-white">
       <div className="mx-auto max-w-5xl px-6 py-8">
         <div className="flex items-center justify-between">
-          <Link href="/" className="text-sm text-white/50 transition hover:text-white">
+          <Link href="/" className="text-sm text-white/74 transition hover:text-white">
             ← Wain?
           </Link>
-          <Link href="/race" className="text-sm text-white/50 transition hover:text-white">
+          <Link href="/race" className="text-sm text-white/74 transition hover:text-white">
             Solo mode →
           </Link>
         </div>
 
         <div className="mt-6 text-center">
-          <div className="grn-label text-[0.75rem] tracking-[0.42em] text-gulf-400 [text-shadow:0_0_18px_rgba(56,201,238,0.45)]">
+          <div className="grn-label text-[0.8rem] tracking-[0.42em] text-gulf-400 [text-shadow:0_0_18px_rgba(56,201,238,0.45)]">
             Online Hub
           </div>
           <h1 className="grn-display mt-2 text-5xl italic leading-[0.95] sm:text-6xl">
@@ -232,7 +232,7 @@ export default function HubLobby() {
         {/* Profile + join */}
         {status !== "online" && (
           <div className="grn-panel mx-auto mt-8 max-w-md p-7">
-            <label className="grn-label text-[0.64rem]">
+            <label className="grn-label text-[0.75rem]">
               Driver name — <span className="grn-ar" lang="ar">اسم السائق</span>
             </label>
             <input
@@ -243,7 +243,7 @@ export default function HubLobby() {
               placeholder="Bu Dragster"
               className="mt-2 w-full rounded-lg border border-white/15 bg-black/45 px-4 py-3 text-base font-semibold outline-none transition focus:border-gulf-400 focus:ring-2 focus:ring-gulf-400/30"
             />
-            <label className="grn-label mt-6 block text-[0.64rem]">
+            <label className="grn-label mt-6 block text-[0.75rem]">
               Car colour — <span className="grn-ar" lang="ar">لون السيارة</span>
             </label>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -285,7 +285,7 @@ export default function HubLobby() {
           <div className="mt-8 grid gap-6 lg:grid-cols-3">
             {/* Drivers online */}
             <div className="grn-panel p-5">
-              <h2 className="grn-label border-b border-white/10 pb-2 text-[0.66rem]">
+              <h2 className="grn-label border-b border-white/10 pb-2 text-[0.75rem]">
                 Drivers online — <span className="text-gulf-300">{players.length}</span>
               </h2>
               <ul className="mt-3 space-y-2">
@@ -297,7 +297,7 @@ export default function HubLobby() {
                     />
                     {p.name}
                     {clientRef.current?.selfId === p.id && (
-                      <span className="text-xs font-normal text-white/40">(you)</span>
+                      <span className="text-xs font-normal text-white/66">(you)</span>
                     )}
                   </li>
                 ))}
@@ -308,7 +308,7 @@ export default function HubLobby() {
               >
                 ENTER THE CRUISE
               </Link>
-              <p className="mt-2 text-center text-[11px] text-white/40">
+              <p className="mt-2 text-center text-[11px] text-white/66">
                 {myTeam
                   ? `Racing as [${myTeam.tag}] ${myTeam.name}`
                   : "Racing solo — join or found a crew below"}
@@ -317,12 +317,12 @@ export default function HubLobby() {
 
             {/* Chat */}
             <div className="grn-panel flex flex-col p-5">
-              <h2 className="grn-label border-b border-white/10 pb-2 text-[0.66rem]">
+              <h2 className="grn-label border-b border-white/10 pb-2 text-[0.75rem]">
                 Diwaniya chat — <span className="grn-ar" lang="ar">الديوانية</span>
               </h2>
               <div className="mt-3 h-64 flex-1 space-y-1.5 overflow-y-auto pr-1 text-sm">
                 {chat.length === 0 && (
-                  <p className="text-white/30">No messages yet — say salam</p>
+                  <p className="text-white/58">No messages yet — say salam</p>
                 )}
                 {chat.map((m) => (
                   <p key={m.key} className="leading-5">
@@ -353,7 +353,7 @@ export default function HubLobby() {
             {/* Crews */}
             <div className="grn-panel p-5 lg:col-span-3">
               <div className="flex items-center justify-between">
-                <h2 className="grn-label text-[0.66rem]">
+                <h2 className="grn-label text-[0.75rem]">
                   Crews — <span className="grn-ar" lang="ar">الفرق</span>
                 </h2>
                 {myTeam ? (
@@ -384,7 +384,7 @@ export default function HubLobby() {
                   />
                   <div className="min-w-0">
                     <div className="grn-display text-3xl italic leading-none">{myTeam.name}</div>
-                    <div className="grn-label mt-1 text-[0.6rem] text-sodium-400">
+                    <div className="grn-label mt-1 text-[0.7rem] text-sodium-400">
                       [{myTeam.tag}] · founded by {myTeam.founder}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
@@ -395,7 +395,7 @@ export default function HubLobby() {
                               m.online ? "bg-emerald-400" : "bg-white/25"
                             }`}
                           />
-                          <span className={m.online ? "text-white/90" : "text-white/45"}>
+                          <span className={m.online ? "text-white/90" : "text-white/70"}>
                             {m.name}
                           </span>
                         </span>
@@ -435,7 +435,7 @@ export default function HubLobby() {
               {/* Everyone else's crews */}
               <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {teams.length === 0 && (
-                  <p className="text-sm text-white/35">
+                  <p className="text-sm text-white/62">
                     No crews yet — found the first one, or keep racing solo.
                   </p>
                 )}
@@ -454,7 +454,7 @@ export default function HubLobby() {
                     />
                     <div className="min-w-0 flex-1">
                       <div className="grn-display truncate text-lg leading-tight">{t.name}</div>
-                      <div className="grn-label text-[0.55rem]">
+                      <div className="grn-label text-[0.7rem]">
                         [{t.tag}] · {t.members.length}{" "}
                         {t.members.length === 1 ? "driver" : "drivers"}
                       </div>
@@ -477,16 +477,16 @@ export default function HubLobby() {
                 no count of its own: a referral tally a player can edit
                 is not a referral tally. */}
             <div className="grn-panel p-5">
-              <h2 className="grn-label border-b border-white/10 pb-2 text-[0.66rem]">
+              <h2 className="grn-label border-b border-white/10 pb-2 text-[0.75rem]">
                 Community — <span className="grn-ar" lang="ar">المجتمع</span>
               </h2>
-              <p className="mt-1 text-[11px] leading-5 text-white/35">
+              <p className="mt-1 text-[11px] leading-5 text-white/62">
                 Send a friend your code. When they use it, you both get{" "}
                 {REFERRAL_KD} KD — which is a whole starting balance each.
               </p>
 
               <div className="mt-4">
-                <div className="grn-label text-[0.58rem] text-white/45">Your code</div>
+                <div className="grn-label text-[0.7rem] text-white/70">Your code</div>
                 <div className="mt-1.5 flex items-center gap-2">
                   <code className="grn-display flex-1 rounded border border-white/15 bg-black/30 px-3 py-2 text-lg tracking-[0.3em] text-sodium-400">
                     {myCode || "—"}
@@ -502,12 +502,12 @@ export default function HubLobby() {
                       );
                     }}
                     disabled={!myCode}
-                    className="grn-btn-primary shrink-0 px-3 py-2 text-[0.7rem] disabled:opacity-40"
+                    className="grn-btn-primary shrink-0 px-3 py-2 text-[0.8rem] disabled:opacity-40"
                   >
                     {copied ? "Copied ✓" : "Copy link"}
                   </button>
                 </div>
-                <div className="mt-2 flex items-center justify-between text-[11px] text-white/40">
+                <div className="mt-2 flex items-center justify-between text-[11px] text-white/66">
                   <span>
                     {referral === null
                       ? "Connecting…"
@@ -529,7 +529,7 @@ export default function HubLobby() {
                 </p>
               ) : (
                 <div className="mt-4">
-                  <div className="grn-label text-[0.58rem] text-white/45">
+                  <div className="grn-label text-[0.7rem] text-white/70">
                     Got a friend&apos;s code?
                   </div>
                   <div className="mt-1.5 flex items-center gap-2">
@@ -546,7 +546,7 @@ export default function HubLobby() {
                         clientRef.current?.claimInvite(codeDraft);
                       }}
                       disabled={!isCodeShaped(codeDraft) || status !== "online"}
-                      className="grn-btn-primary shrink-0 px-3 py-2 text-[0.7rem] disabled:opacity-40"
+                      className="grn-btn-primary shrink-0 px-3 py-2 text-[0.8rem] disabled:opacity-40"
                     >
                       Redeem
                     </button>
@@ -567,20 +567,20 @@ export default function HubLobby() {
 
             {/* Leaderboard */}
             <div className="grn-panel p-5">
-              <h2 className="grn-label border-b border-white/10 pb-2 text-[0.66rem]">
+              <h2 className="grn-label border-b border-white/10 pb-2 text-[0.75rem]">
                 Best laps — <span className="grn-ar" lang="ar">أفضل اللفات</span>
               </h2>
-              <p className="mt-1 text-[11px] text-white/35">
+              <p className="mt-1 text-[11px] text-white/62">
                 Full 8.5 km laps — Gulf Road out, the Second Ring back
               </p>
               <ol className="mt-3 space-y-2">
                 {leaderboard.length === 0 && (
-                  <p className="text-sm text-white/30">No laps yet — go set one!</p>
+                  <p className="text-sm text-white/58">No laps yet — go set one!</p>
                 )}
                 {leaderboard.map((e, i) => (
                   <li key={e.name} className="flex items-center justify-between text-sm">
                     <span className="font-semibold">
-                      <span className={`grn-display mr-2 ${i === 0 ? "text-sodium-400" : "text-white/40"}`}>
+                      <span className={`grn-display mr-2 ${i === 0 ? "text-sodium-400" : "text-white/66"}`}>
                         {i + 1}.
                       </span>
                       {e.name}

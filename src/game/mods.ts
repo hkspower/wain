@@ -864,11 +864,29 @@ export const CARS: CarModel[] = [
  * it is by what it does, not by what it looks like: a Salmiya Turbo is
  * not a sports car, it is a fast saloon, and so is most of that shelf.
  */
-export const CLASS_LABELS: Record<CarClass, string> = {
-  supercar: "SUPERCARS · سوبر كار",
-  sport: "HIGH PERFORMANCE · أداء عالي",
-  normal: "BASIC · أساسي",
+/*
+ * Two scripts, two strings.
+ *
+ * These were one string each — "SUPERCARS · سوبر كار" — set in a label
+ * class that letterspaces at 0.16em. Latin letterspacing is a typographic
+ * choice; Arabic letterspacing is a typographic ERROR, because the script
+ * is cursive and the letters join. Spacing them apart does not track the
+ * word, it breaks it into disconnected glyphs. In one text node there is
+ * no way to say so — the tracking applies to the whole run — so the two
+ * halves are separate now and the Arabic half is set in .grn-ar, which
+ * puts the spacing back to normal and reaches for the Arabic face.
+ */
+export const CLASS_LABELS: Record<CarClass, { en: string; ar: string }> = {
+  supercar: { en: "SUPERCARS", ar: "سوبر كار" },
+  sport: { en: "HIGH PERFORMANCE", ar: "أداء عالي" },
+  normal: { en: "BASIC", ar: "أساسي" },
 };
+
+/** The pair as one string, for anywhere that can only carry one — the
+ *  public API's `classLabel`, which is a data field and not type. */
+export function classLabel(cls: CarClass): string {
+  return `${CLASS_LABELS[cls].en} · ${CLASS_LABELS[cls].ar}`;
+}
 
 export function getCar(id: string): CarModel {
   return CARS.find((c) => c.id === id) ?? CARS[CARS.length - 1];

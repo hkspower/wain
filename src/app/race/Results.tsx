@@ -149,7 +149,7 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
           >
             {result.champion ? "CHAMPION" : won ? "1ST — VICTORY" : "2ND — DEFEAT"}
           </div>
-          <p className="grn-label mt-1.5 text-[0.66rem]">
+          <p className="grn-label mt-1.5 text-[0.75rem]">
             {won ? "vs" : "beaten by"} {result.rival.name}{" "}
             <span className="grn-ar text-white/70" lang="ar">{result.rival.arabicName}</span> ·{" "}
             {result.rival.crew}
@@ -161,9 +161,9 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
           className={`mt-5 transition-opacity duration-300 ${beat >= 1 ? "opacity-100" : "opacity-0"}`}
         >
           <div className="flex items-end justify-between">
-            <span className="grn-label text-[0.62rem]">
+            <span className="grn-label text-[0.75rem]">
               Driver level {shownLevel} · {rank.en}{" "}
-              <span className="grn-ar text-white/50" lang="ar">{rank.ar}</span>
+              <span className="grn-ar text-white/74" lang="ar">{rank.ar}</span>
             </span>
             <span className="grn-display tnum text-lg text-gulf-300">+{xp} XP</span>
           </div>
@@ -179,11 +179,11 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
             )}
           </div>
           <div className="mt-1 flex items-center justify-between">
-            <span className="grn-label text-[0.55rem] text-white/45">
+            <span className="grn-label text-[0.7rem] text-white/70">
               {result.levelAfter.into} / {result.levelAfter.need} to level {shownLevel + 1}
             </span>
             {levelUp && (
-              <span className="grn-display text-[0.72rem] tracking-[0.18em] text-sodium-400">
+              <span className="grn-display text-[0.8rem] tracking-[0.18em] text-sodium-400">
                 LEVEL UP
               </span>
             )}
@@ -194,7 +194,7 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
             {result.xpBreakdown.map((b, i) => (
               <li
                 key={b.label}
-                className="reveal flex items-center justify-between rounded-md bg-white/[0.04] px-2.5 py-1 text-[0.72rem] text-white/75"
+                className="reveal flex items-center justify-between rounded-md bg-white/[0.04] px-2.5 py-1 text-[0.8rem] text-white/75"
                 style={{ ["--d" as string]: `${900 + i * 70}ms` }}
               >
                 <span>{b.label}</span>
@@ -218,11 +218,11 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
           }`}
         >
           <div>
-            <div className="grn-label text-[0.6rem]">
+            <div className="grn-label text-[0.7rem]">
               {result.kd >= 0 ? "Prize money" : "Purse lost"}
             </div>
             {result.purse > 0 && (
-              <div className="mt-0.5 text-[0.68rem] text-white/55">
+              <div className="mt-0.5 text-[0.75rem] text-white/55">
                 {result.purse.toLocaleString()} KD staked each side
               </div>
             )}
@@ -236,7 +236,7 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
               {result.kd >= 0 ? "+" : "−"}
               {kd.toLocaleString()} KD
             </div>
-            <div className="grn-label tnum text-[0.55rem] text-white/50">
+            <div className="grn-label tnum text-[0.7rem] text-white/74">
               Balance {balance.toLocaleString()} KD
             </div>
           </div>
@@ -245,7 +245,7 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
         {/* 4 — REWARDS */}
         {result.rewards.length > 0 && (
           <div className={`mt-4 ${beat >= 3 ? "" : "invisible"}`}>
-            <div className="grn-label mb-1.5 text-[0.6rem]">Unlocked</div>
+            <div className="grn-label mb-1.5 text-[0.7rem]">Unlocked</div>
             <div className="grid gap-2 sm:grid-cols-2">
               {result.rewards.map((r, i) => (
                 <div
@@ -261,7 +261,7 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
                   </span>
                   <span className="min-w-0">
                     <span className="grn-display block truncate text-sm text-white">{r.title}</span>
-                    <span className="block truncate text-[0.68rem] text-white/55">{r.sub}</span>
+                    <span className="block truncate text-[0.75rem] text-white/55">{r.sub}</span>
                   </span>
                 </div>
               ))}
@@ -292,14 +292,14 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
             >
               <div className="grn-display tnum text-lg leading-tight text-white">
                 {s.v}
-                {s.u && <span className="ml-0.5 text-[0.6rem] text-white/50">{s.u}</span>}
+                {s.u && <span className="ml-0.5 text-[0.7rem] text-white/74">{s.u}</span>}
               </div>
-              <div className="grn-label text-[0.5rem] text-white/45">{s.k}</div>
+              <div className="grn-label text-[0.7rem] text-white/70">{s.k}</div>
             </div>
           ))}
         </div>
         <div
-          className={`mt-2 text-center text-[0.66rem] text-white/45 transition-opacity duration-300 ${
+          className={`mt-2 text-center text-[0.75rem] text-white/70 transition-opacity duration-300 ${
             beat >= 4 ? "opacity-100" : "opacity-0"
           }`}
         >
@@ -312,7 +312,7 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
           className={`mt-5 transition-opacity duration-300 ${beat >= 5 ? "opacity-100" : "opacity-0 pointer-events-none"}`}
         >
           {result.nextRival && won && (
-            <p className="mb-2.5 text-center text-[0.75rem] text-white/65">
+            <p className="mb-2.5 text-center text-[0.8rem] text-white/65">
               Next up:{" "}
               <span className="grn-display text-white">{result.nextRival.name}</span>{" "}
               <span className="grn-ar text-white/60" lang="ar">{result.nextRival.arabicName}</span> ·{" "}
@@ -349,7 +349,7 @@ export default function Results({ result, haptics, onNext, onRetry, onGarage }: 
        </div>
 
         {beat < 5 && (
-          <p className="grn-label mt-4 text-center text-[0.55rem] text-white/35">
+          <p className="grn-label mt-4 text-center text-[0.7rem] text-white/62">
             tap to skip
           </p>
         )}

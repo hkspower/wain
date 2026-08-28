@@ -117,8 +117,8 @@ function StatBar({
   return (
     <div>
       <div className="flex items-baseline justify-between">
-        <span className="grn-label text-[0.52rem]">{label}</span>
-        <span className="grn-display tnum text-[0.78rem] text-white/85">{display}</span>
+        <span className="grn-label text-[0.7rem]">{label}</span>
+        <span className="grn-display tnum text-[0.8rem] text-white/85">{display}</span>
       </div>
       <div className="grn-meter mt-0.5 h-2">
         <div
@@ -222,7 +222,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
    */
   const rampPicker = (
     <div className="grn-panel mb-4 p-3">
-      <div className="grn-label text-[0.55rem]">
+      <div className="grn-label text-[0.7rem]">
         Working on <span className="text-sodium-400">{car.name}</span> · parts are
         bought for this car
       </div>
@@ -235,14 +235,14 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
               playSfx("ui-tap", 0.5);
               setRamp(c.id);
             }}
-            className={`grn-btn tap px-2.5 py-1.5 text-[0.72rem] ${
+            className={`grn-btn tap px-2.5 py-1.5 text-[0.8rem] ${
               ramp === c.id
                 ? "grn-btn-primary"
                 : "border border-white/15 text-white/65 hover:bg-white/10"
             }`}
           >
             {c.name}
-            {garage.car === c.id && <span className="ml-1 text-[0.6rem] opacity-70">· driving</span>}
+            {garage.car === c.id && <span className="ml-1 text-[0.7rem] opacity-70">· driving</span>}
           </button>
         ))}
       </div>
@@ -286,10 +286,10 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
             )}
             {p.name}
           </span>
-          <span className="grn-ar text-[0.8rem] text-white/60" lang="ar">{p.ar}</span>
+          <span className="grn-ar text-[0.875rem] text-white/60" lang="ar">{p.ar}</span>
         </div>
-        {p.desc && <div className="mt-1.5 text-[0.76rem] leading-5 text-white/55">{p.desc}</div>}
-        <div className="grn-label mt-2.5 text-[0.6rem]">
+        {p.desc && <div className="mt-1.5 text-[0.8rem] leading-5 text-white/55">{p.desc}</div>}
+        <div className="grn-label mt-2.5 text-[0.7rem]">
           {equipped ? (
             <span className="text-sodium-400">Equipped ✓</span>
           ) : owned ? (
@@ -301,7 +301,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
               {p.price.toLocaleString()} KD
             </span>
           ) : (
-            <span className="text-white/45">
+            <span className="text-white/70">
               {p.price.toLocaleString()} KD · need{" "}
               <span className="tnum">{(p.price - garage.kd).toLocaleString()}</span> more
             </span>
@@ -317,7 +317,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
       <div className="safe-pad shrink-0 border-b border-white/10 bg-night-950/80 !pb-2.5 !pt-[calc(var(--safe-t)+0.6rem)] backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-4xl items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="grn-label text-[0.55rem] tracking-[0.4em] text-gulf-400">
+            <div className="grn-label text-[0.7rem] tracking-[0.4em] text-gulf-400">
               The Garage
             </div>
             <h2 className="grn-display truncate text-2xl italic leading-tight">
@@ -327,7 +327,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
           </div>
           <div className="flex shrink-0 items-center gap-3">
             <div className="text-right">
-              <div className="grn-label text-[0.5rem]">Balance</div>
+              <div className="grn-label text-[0.7rem]">Balance</div>
               <div className="grn-display tnum text-xl italic leading-tight text-sodium-400 [text-shadow:0_0_18px_rgba(245,165,36,0.5)]">
                 {garage.kd.toLocaleString()} KD
               </div>
@@ -354,8 +354,17 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                   {car.name} <span className="grn-ar text-white/55" lang="ar">{car.ar}</span>
                 </span>
               </div>
-              <span className="grn-label shrink-0 text-[0.5rem] text-white/45">
-                {ramp === garage.car ? CLASS_LABELS[car.cls] : "ON THE RAMP"}
+              <span className="grn-label shrink-0 text-[0.7rem] text-white/70">
+                {ramp === garage.car ? (
+                  <>
+                    {CLASS_LABELS[car.cls].en} ·{" "}
+                    <span className="grn-ar" lang="ar">
+                      {CLASS_LABELS[car.cls].ar}
+                    </span>
+                  </>
+                ) : (
+                  "ON THE RAMP"
+                )}
               </span>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-4">
@@ -387,7 +396,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
               role="tab"
               aria-selected={tab === t}
               onClick={() => pick(t)}
-              className={`grn-btn tap flex-1 px-2 py-2.5 text-[0.78rem] tracking-[0.08em] ${
+              className={`grn-btn tap flex-1 px-2 py-2.5 text-[0.8rem] tracking-[0.08em] ${
                 tab === t
                   ? "grn-btn-primary"
                   : "border border-white/15 text-white/65 hover:bg-white/10"
@@ -413,7 +422,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
         <div className="mx-auto w-full max-w-4xl">
           {tab === "showroom" && (
             <div key="showroom" className="reveal">
-              <p className="max-w-2xl text-[0.8rem] leading-6 text-white/50">
+              <p className="max-w-2xl text-[0.875rem] leading-6 text-white/74">
                 Priced high to low. Buying a machine puts you straight behind the
                 wheel; tap an owned one to drive it — or trade it back in. The
                 dealer pays 62% on the car and 40% on the parts, and the build
@@ -421,8 +430,11 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
               </p>
               {(["supercar", "sport", "normal"] as CarClass[]).map((cls) => (
                 <div key={cls} className="mt-5">
-                  <h3 className="grn-label border-b border-white/10 pb-2 text-[0.66rem]">
-                    {CLASS_LABELS[cls]}
+                  <h3 className="grn-label border-b border-white/10 pb-2 text-[0.75rem]">
+                    {CLASS_LABELS[cls].en} ·{" "}
+                    <span className="grn-ar" lang="ar">
+                      {CLASS_LABELS[cls].ar}
+                    </span>
                   </h3>
                   <div className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                     {CARS.filter((c) => c.cls === cls).map((c) => {
@@ -458,7 +470,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                           <div className="flex items-start justify-between gap-2">
                             <div>
                               <div className="grn-display text-lg leading-tight">{c.name}</div>
-                              <div className="grn-ar text-[0.78rem] text-white/55" lang="ar">{c.ar}</div>
+                              <div className="grn-ar text-[0.8rem] text-white/55" lang="ar">{c.ar}</div>
                             </div>
                             <span
                               className="mt-1 size-5 shrink-0 rounded-full border border-white/40"
@@ -467,7 +479,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                               }}
                             />
                           </div>
-                          <div className="mt-2 text-[0.76rem] leading-5 text-white/55">
+                          <div className="mt-2 text-[0.8rem] leading-5 text-white/55">
                             {c.desc}
                           </div>
                           <div className="mt-2.5 grid grid-cols-5 gap-1 border-t border-white/10 pt-2 text-center">
@@ -488,12 +500,12 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                               ] as const
                             ).map(([k, v]) => (
                               <div key={k}>
-                                <div className="grn-label text-[0.5rem]">{k}</div>
+                                <div className="grn-label text-[0.7rem]">{k}</div>
                                 <div className="grn-display tnum text-sm text-white/85">{v}</div>
                               </div>
                             ))}
                           </div>
-                          <div className="grn-label mt-2.5 text-[0.6rem]">
+                          <div className="grn-label mt-2.5 text-[0.7rem]">
                             {driving ? (
                               <span className="text-sodium-400">Driving now ✓</span>
                             ) : owned ? (
@@ -509,7 +521,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                                 {c.price.toLocaleString()} KD
                               </span>
                             ) : (
-                              <span className="text-white/45">
+                              <span className="text-white/70">
                                 {c.price.toLocaleString()} KD · need{" "}
                                 <span className="tnum">
                                   {(c.price - garage.kd).toLocaleString()}
@@ -525,14 +537,14 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                             a button is not markup, it is a fight. */}
                         {owned && (
                           <div className="mt-1 flex items-center justify-between gap-2 px-1">
-                            <span className="grn-label text-[0.55rem] text-white/45">
+                            <span className="grn-label text-[0.7rem] text-white/70">
                               Trade-in{" "}
-                              <span className="grn-display tnum text-[0.8rem] tracking-normal text-emerald-300">
+                              <span className="grn-display tnum text-[0.875rem] tracking-normal text-emerald-300">
                                 {quote.toLocaleString()} KD
                               </span>
                             </span>
                             {lastCar ? (
-                              <span className="grn-label text-[0.5rem] text-white/35">
+                              <span className="grn-label text-[0.7rem] text-white/62">
                                 your last car — not for sale
                               </span>
                             ) : (
@@ -548,7 +560,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                                     setSelling(c.id);
                                   }
                                 }}
-                                className={`grn-btn tap px-3 py-1 text-[0.62rem] ${
+                                className={`grn-btn tap px-3 py-1 text-[0.75rem] ${
                                   selling === c.id
                                     ? "border-red-400/70 bg-red-500/20 text-red-200"
                                     : "border border-white/15 text-white/60 hover:bg-white/10"
@@ -573,14 +585,14 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
           {tab === "performance" && (
             <div key="performance" className="reveal">
               {rampPicker}
-              <p className="max-w-2xl text-[0.8rem] leading-6 text-white/50">
+              <p className="max-w-2xl text-[0.875rem] leading-6 text-white/74">
                 Parts here change how the car drives — most move the spec bars
                 above the moment they bolt on. Tap an equipped part to run stock
                 in that slot.
               </p>
               {PERFORMANCE_CATS.map(({ cat, label }) => (
                 <div key={cat} className="mt-5">
-                  <h3 className="grn-label border-b border-white/10 pb-2 text-[0.66rem]">
+                  <h3 className="grn-label border-b border-white/10 pb-2 text-[0.75rem]">
                     {label}
                   </h3>
                   {cat === "engine" && (
@@ -588,7 +600,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                     // This one never is — the car arrived with an engine
                     // in it — so the shop has to say which, or a player
                     // cannot tell what they are being offered instead of.
-                    <p className="mt-2 text-[0.76rem] leading-5 text-white/50">
+                    <p className="mt-2 text-[0.8rem] leading-5 text-white/74">
                       {car.name} came with the{" "}
                       <span className="text-white/80">
                         {stockEngine.name} · {layoutTag(stockEngine)}
@@ -611,7 +623,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
           {tab === "style" && (
             <div key="style" className="reveal">
               {rampPicker}
-              <p className="max-w-2xl text-[0.8rem] leading-6 text-white/50">
+              <p className="max-w-2xl text-[0.875rem] leading-6 text-white/74">
                 Zero horsepower, maximum presence. Paint and glow apply the
                 moment you equip them.
               </p>
@@ -620,7 +632,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                   It costs nothing and it is not per-car: found a crew and
                   every machine you own carries its colours on the roof. */}
               <div className="mt-5">
-                <h3 className="grn-label border-b border-white/10 pb-2 text-[0.66rem]">
+                <h3 className="grn-label border-b border-white/10 pb-2 text-[0.75rem]">
                   CREW · <span className="grn-ar" lang="ar">الفريق</span>
                 </h3>
                 {draft ? (
@@ -654,7 +666,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                         CANCEL
                       </button>
                     </div>
-                    <p className="mt-2 max-w-2xl text-[0.72rem] leading-5 text-white/40">
+                    <p className="mt-2 max-w-2xl text-[0.8rem] leading-5 text-white/66">
                       The emblem goes on the roof of whatever you are driving,
                       with the crew&apos;s name under it. A crew car has no
                       sunroof — the panel is not big enough for both.
@@ -672,14 +684,14 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                       <div className="grn-display truncate text-2xl italic leading-none">
                         {crew.name}
                       </div>
-                      <div className="grn-label mt-1 text-[0.6rem] text-sodium-400">
+                      <div className="grn-label mt-1 text-[0.7rem] text-sodium-400">
                         [{crew.tag}] · on the roof of every car you own
                       </div>
                     </div>
                     <div className="flex gap-2">
                       <button
                         onClick={() => setDraft(crew)}
-                        className="grn-btn tap border border-white/15 px-4 py-2 text-[0.78rem] text-white/75 hover:bg-white/10"
+                        className="grn-btn tap border border-white/15 px-4 py-2 text-[0.8rem] text-white/75 hover:bg-white/10"
                       >
                         EDIT COLOURS
                       </button>
@@ -689,7 +701,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                           setCrew(null);
                           haptic(HAPTIC.tap, loadSettings().haptics);
                         }}
-                        className="grn-btn tap border border-white/15 px-4 py-2 text-[0.78rem] text-white/55 hover:bg-white/10"
+                        className="grn-btn tap border border-white/15 px-4 py-2 text-[0.8rem] text-white/55 hover:bg-white/10"
                       >
                         RACE SOLO
                       </button>
@@ -697,7 +709,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                   </div>
                 ) : (
                   <div className="mt-3 flex flex-wrap items-center gap-4">
-                    <p className="max-w-md flex-1 text-[0.8rem] leading-6 text-white/50">
+                    <p className="max-w-md flex-1 text-[0.875rem] leading-6 text-white/74">
                       Racing for nobody. Found a crew and its emblem and name
                       go on the roof of every car in this garage — and the
                       same colours are what the lobby publishes when you take
@@ -717,7 +729,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
 
               {STYLE_CATS.map(({ cat, label }) => (
                 <div key={cat} className="mt-5">
-                  <h3 className="grn-label border-b border-white/10 pb-2 text-[0.66rem]">
+                  <h3 className="grn-label border-b border-white/10 pb-2 text-[0.75rem]">
                     {label}
                   </h3>
                   <div className="mt-3 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
@@ -732,12 +744,12 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                   to the same question. Free, instant, and saved with
                   the car, because tint is bodywork. */}
               <div className="mt-5">
-                <h3 className="grn-label border-b border-white/10 pb-2 text-[0.66rem]">
+                <h3 className="grn-label border-b border-white/10 pb-2 text-[0.75rem]">
                   WINDOW TINT · تظليل
                 </h3>
                 <div className="mt-3 rounded-lg border border-white/10 bg-white/[0.03] p-4">
                   <div className="flex items-baseline justify-between">
-                    <span className="grn-label text-[0.6rem] text-white/55">
+                    <span className="grn-label text-[0.7rem] text-white/55">
                       Darkness
                     </span>
                     <span className="grn-display tnum text-xl text-sodium-400">
@@ -754,7 +766,7 @@ export default function Garage({ garage, onClose, onBuyCar, onSellCar, onBuyPart
                     aria-label="Window tint percentage"
                     className="mt-3 w-full accent-sodium-400"
                   />
-                  <div className="mt-2 flex justify-between text-[0.55rem] text-white/40">
+                  <div className="mt-2 flex justify-between text-[0.7rem] text-white/66">
                     <span>0% · factory glass</span>
                     <span>50% · street legal-ish</span>
                     <span>100% · limo</span>
