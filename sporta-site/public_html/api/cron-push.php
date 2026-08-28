@@ -165,6 +165,9 @@ function sporta_push_fallback(array $cfg, array $row): array
 
     $ch = curl_init($url);
     curl_setopt_array($ch, [
+        // Pinned, not inherited — see the note in pay/cbk.php.
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
         CURLOPT_POST => true,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => 15,

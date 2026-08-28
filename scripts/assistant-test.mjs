@@ -25,6 +25,68 @@ const check = (ok, what) => {
 }
 const note = (what) => console.log(`--   ${what}`)
 
+// THIS RIG DRIVES THE THROTTLE TO ITS CEILING ON PURPOSE — it asserts that
+// ?r=assistant refuses a flood — and then cannot be run again for a minute:
+// the next run meets its own defence and exits at the first question, which
+// reads as the assistant being broken. payments-test.mjs clears these
+// counters at the top for the same reason; so does sandbox.sh.
+try {
+  const { execFileSync } = await import('node:child_process')
+  execFileSync('mariadb', ['-u', 'sporta', '-plocaldev', 'sporta', '-e', 'delete from rate_limit'],
+    { stdio: 'ignore' })
+} catch { /* not the sandbox database — let a 429 speak for itself */ }
+
+// --- every outbound call verifies TLS ------------------------------------
+//
+// The assistant hands the customer's own words to two companies and a
+// workflow: Anthropic (x-api-key), the speech vendor (xi-api-key), and the
+// n8n webhook, which receives the message and the reply verbatim. Each of
+// those requests carries a credential, and only pay/cbk.php had ever said
+// out loud that it verifies the certificate on the other end.
+//
+// Curl's defaults DO verify, so this was never a live hole — the point is
+// that a default is invisible. pay/cbk.php spells out why it writes the two
+// options anyway: CBK's own reference implementation sets VERIFYPEER to 0 on
+// the request carrying the merchant secret, and "being in the vendor's
+// example is what makes it dangerous — it is precisely the line a future
+// 'make this match the sample' pass would copy in." The same sentence is
+// true of every vendor sample these six calls could be re-written from.
+//
+// So the rule is now uniform, and this is what holds it there: any new
+// curl_init in the docroot must pin verification too.
+{
+  const { readFileSync, readdirSync } = await import('node:fs')
+  const DOC = new URL('../sporta-site/public_html/', import.meta.url)
+  const walk = (dir, out = []) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.isDirectory()) walk(new URL(e.name + '/', dir), out)
+      else if (e.name.endsWith('.php')) out.push([e.name, new URL(e.name, dir)])
+    }
+    return out
+  }
+  const missing = []
+  let calls = 0
+  for (const [name, url] of walk(DOC)) {
+    const src = readFileSync(url, 'utf8')
+    // Each curl_init starts a request; the options for it are the text up to
+    // the curl_exec that fires it. Verification must appear in that span —
+    // asserting it merely EXISTS in the file would pass a second, unpinned
+    // call sitting beside a pinned one, which is exactly the shape of this bug.
+    for (const m of src.matchAll(/curl_init\s*\(/g)) {
+      calls++
+      const span = src.slice(m.index, src.indexOf('curl_exec', m.index) + 1 || undefined)
+      if (!/CURLOPT_SSL_VERIFYPEER\s*=>\s*true/.test(span)) missing.push(name)
+    }
+  }
+  // The detail goes IN the message: check() here takes two arguments, and a
+  // third was silently dropped — a failure would have named no file.
+  check(missing.length === 0,
+    missing.length === 0
+      ? `all ${calls} outbound requests pin TLS verification`
+      : `${missing.length} of ${calls} outbound requests do NOT pin TLS verification — ${missing.join(', ')}`)
+}
+
+
 const ask = async (message, lang = 'ar') => {
   const res = await fetch(`${API}/api.php?r=assistant`, {
     method: 'POST',

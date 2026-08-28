@@ -241,6 +241,9 @@ function wp_send(array $sub, string $payload, array $vapid, int $ttl = 86400): a
 
     $ch = curl_init($endpoint);
     curl_setopt_array($ch, [
+        // Pinned, not inherited — see the note in pay/cbk.php.
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
         CURLOPT_POST => true,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => 15,

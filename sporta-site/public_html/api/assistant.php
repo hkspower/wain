@@ -912,6 +912,15 @@ function assistant_llm(array $cfg, string $message, string $facts, bool $ar): ?s
 
     $ch = curl_init($url);
     curl_setopt_array($ch, [
+        // TLS, PINNED RATHER THAN INHERITED. These are curl's own defaults,
+        // and they are written out for the reason pay/cbk.php gives at length
+        // beside the same three lines: a default is invisible, so removing it
+        // is an omission nobody reviews, while deleting these is a visible
+        // change to the diff. Every vendor sample that has ever turned up in
+        // this project — CBK's included — set VERIFYPEER to 0, and this
+        // request carries a credential.
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
         CURLOPT_POST => true,
         CURLOPT_RETURNTRANSFER => true,
         // Short on purpose. This runs while a customer waits on a Kuwaiti
@@ -1290,6 +1299,9 @@ function assistant_speak(array $cfg, string $text, string $lang): ?string
           . '?output_format=' . rawurlencode($format);
     $ch = curl_init($url);
     curl_setopt_array($ch, [
+        // Pinned, not inherited — see the note in pay/cbk.php.
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
         CURLOPT_POST => true,
         CURLOPT_RETURNTRANSFER => true,
         // A customer is waiting and reading the same words on screen. If the
@@ -1490,6 +1502,9 @@ function assistant_handoff_send(array $cfg, array $row): array
 
     $ch = curl_init($url);
     curl_setopt_array($ch, [
+        // Pinned, not inherited — see the note in pay/cbk.php.
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
         CURLOPT_POST => true,
         CURLOPT_RETURNTRANSFER => true,
         // Longer than the old 4s because nobody is waiting on it now.
