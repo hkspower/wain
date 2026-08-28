@@ -418,11 +418,20 @@ function Flag({ code }: { code?: string }) {
   return <>{code}</>;
 }
 
+/** The two roads' colours. The same pair RoadMapView uses — a corner map
+ *  and a full map that disagree about which road is which are two maps. */
+const MAP_LEG_COLOR = ["#38c9ee", "#f5a524"];
+
 export default function RaceClient() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mapRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const mapPathRef = useRef<Array<[number, number]>>([]);
+  /** The same legs and marks the full map draws. The corner map had the
+   *  outline and nothing else: two roads in one colour, no start line, no
+   *  pump, and a dot for a car that is pointing somewhere. */
+  const mapLegsRef = useRef<Array<{ from: number; to: number }>>([]);
+  const mapMarksRef = useRef<Array<{ x: number; y: number; kind: string }>>([]);
   /** The whole road, built once by the engine. Null until it starts. */
   const [roadMap, setRoadMap] = useState<RoadMap | null>(null);
   const [mapOpen, setMapOpen] = useState(false);
@@ -730,6 +739,16 @@ export default function RaceClient() {
       });
       ctx.closePath();
     };
+    // The same two roads, in the same two colours the full map uses.
+    //
+    // This drew one closed stroke in one colour, which is the shape of
+    // the lap and nothing else about it. The corniche and the ring are
+    // different roads with different names on the signs, and the corner
+    // map is the one a driver actually looks at — telling them apart at
+    // a glance is the single most useful thing a map of a two-road lap
+    // can do, and the full map has been doing it while the minimap next
+    // to it said the road was one thing.
+    //
     // A road, not a wire: a dark casing with a lit core on top of it is
     // how every map in the world draws one, and it is what stops the
     // line disappearing wherever the panel behind it happens to be pale.
@@ -737,14 +756,29 @@ export default function RaceClient() {
     // hardcoded pixel widths would come out hairline-thin.
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
-    path();
-    ctx.strokeStyle = "rgba(0,0,0,0.55)";
-    ctx.lineWidth = w / 34;
-    ctx.stroke();
-    path();
-    ctx.strokeStyle = "rgba(255,255,255,0.62)";
-    ctx.lineWidth = w / 75;
-    ctx.stroke();
+    const legs = mapLegsRef.current.length
+      ? mapLegsRef.current
+      : [{ from: 0, to: mapPathRef.current.length - 1 }];
+    const legStroke = (from: number, to: number) => {
+      ctx.beginPath();
+      for (let k = from; k <= to && k < mapPathRef.current.length; k++) {
+        const [x, y] = mapPathRef.current[k];
+        if (k === from) ctx.moveTo(X(x), Y(y));
+        else ctx.lineTo(X(x), Y(y));
+      }
+    };
+    for (let i = 0; i < legs.length; i++) {
+      legStroke(legs[i].from, legs[i].to);
+      ctx.strokeStyle = "rgba(0,0,0,0.55)";
+      ctx.lineWidth = w / 34;
+      ctx.stroke();
+    }
+    for (let i = 0; i < legs.length; i++) {
+      legStroke(legs[i].from, legs[i].to);
+      ctx.strokeStyle = MAP_LEG_COLOR[i % MAP_LEG_COLOR.length];
+      ctx.lineWidth = w / 75;
+      ctx.stroke();
+    }
 
     // Markers get a casing too, for the same reason: a bare dot on a
     // pale stretch of route is a dot you have to hunt for.
@@ -757,8 +791,40 @@ export default function RaceClient() {
       ctx.strokeStyle = "rgba(6,7,9,0.9)";
       ctx.stroke();
     };
+    // The start line and every pump, which the tank makes the one piece
+    // of routing this game needs.
+    for (const mk of mapMarksRef.current) {
+      mark(mk.x, mk.y, mk.kind === "station" ? "#4ade80" : "#f5f5f5", 0.02);
+    }
     if (d.map.rx >= 0) mark(d.map.rx, d.map.ry, "#ff4d4d", 0.028);
-    mark(d.map.px, d.map.py, "#4ade80", 0.034);
+    // You: an arrow, pointing the way the car is pointing.
+    //
+    // The engine has computed `facing` in map space every frame since
+    // the map was written and nothing drew it. A dot on a loop cannot
+    // tell you which way round you are going, which is the first
+    // question anybody asks of a map of a circuit — and the projection
+    // is a rigid scale, so the road's tangent IS the map's tangent and
+    // the arrow needs no correction.
+    {
+      const cx = X(d.map.px);
+      const cy = Y(d.map.py);
+      const r = w * 0.05;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(d.map.facing);
+      ctx.beginPath();
+      ctx.moveTo(r, 0);
+      ctx.lineTo(-r * 0.62, r * 0.6);
+      ctx.lineTo(-r * 0.3, 0);
+      ctx.lineTo(-r * 0.62, -r * 0.6);
+      ctx.closePath();
+      ctx.fillStyle = "#eaf6ff";
+      ctx.fill();
+      ctx.lineWidth = w / 90;
+      ctx.strokeStyle = "rgba(6,7,9,0.9)";
+      ctx.stroke();
+      ctx.restore();
+    }
   }, []);
 
   const onHud = useCallback(
@@ -1208,6 +1274,13 @@ export default function RaceClient() {
         },
       }, Number.isFinite(startS) ? { startS } : undefined);
       mapPathRef.current = engine.getMapPath();
+      {
+        const rm = engine.getRoadMap();
+        mapLegsRef.current = rm.legs.map((l) => ({ from: l.from, to: l.to }));
+        mapMarksRef.current = rm.markers
+          .filter((m) => m.kind === "start" || m.kind === "station")
+          .map((m) => ({ x: m.x, y: m.y, kind: m.kind }));
+      }
       setRoadMap(engine.getRoadMap());
       engine.resize();
       engine.start();

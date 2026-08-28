@@ -205,6 +205,35 @@ console.log(
   check(plaza.s < COAST_END_M, "the drift circle has ended up on the ring road");
 }
 
+// --- The legs, which both maps draw from -----------------------------
+//
+// The corner map used to draw one closed stroke in one colour: the shape
+// of the lap and nothing else about it. It draws the same two legs the
+// full map does now, off these same index ranges, so the two cannot
+// disagree about which road is which — the thing this module's header
+// says is worse than having only one map.
+//
+// Which makes the ranges load-bearing rather than descriptive. They have
+// to cover the whole path, in order, without a gap: a leg that stops
+// short leaves a length of road undrawn on both maps at once.
+{
+  const legs = map.legs;
+  console.log(
+    `\nlegs         ${legs.length}: ` +
+      legs.map((l) => `${l.name} [${l.from}..${l.to}]`).join(", ")
+  );
+  check(legs.length >= 2, `only ${legs.length} leg(s) — the lap is two named roads`);
+  check(legs[0].from === 0, `the first leg starts at index ${legs[0].from}, not the start line`);
+  let gaps = 0;
+  for (let i = 1; i < legs.length; i++) if (legs[i].from > legs[i - 1].to + 1) gaps++;
+  check(gaps === 0, `${gaps} gap(s) between the legs — that much road is drawn by neither`);
+  const last = legs[legs.length - 1].to;
+  check(
+    last >= map.path.length - 2,
+    `the legs stop at index ${last} of ${map.path.length - 1} — the tail of the lap is undrawn`
+  );
+}
+
 console.log(
   fail.length
     ? "\nFAILURES:\n - " + fail.join("\n - ")
