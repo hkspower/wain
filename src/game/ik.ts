@@ -113,8 +113,25 @@ export function solveTwoBone(o: TwoBoneOptions): void {
   // The pole decides which way the elbow breaks: the bend happens in the
   // plane containing the target and the pole hint, and `axis` is that
   // plane's normal.
+  //
+  // pole CROSS aim, not aim cross pole. The swing below is applied as
+  // `-shoulderOffset` about this axis, and rotating the aim about
+  // (aim x pole) by a NEGATIVE angle carries it AWAY from the pole: the
+  // elbow came out on the far side of the arm from the hint, every time,
+  // on every chain in the game. Measured in the cabin, both of the
+  // driver's elbows sat 236 mm above his shoulders and crossed over the
+  // centreline above his head — a pole asking for "outward and down"
+  // producing inward and up, which is the exact mirror image and is why
+  // it still reached the rim to the millimetre. Reaching the target
+  // proves the triangle, not the elbow; the whole job of the pole is the
+  // half that nothing was checking.
+  //
+  // Flipping the axis rather than the angle flips the elbow's hinge with
+  // it — the bend is taken about this same axis in the joint's local
+  // frame — so the chain stays exact and comes out mirrored, which is
+  // the other solution to the same triangle.
   _toPole.subVectors(_pole, _root);
-  _axis.crossVectors(_toTarget, _toPole);
+  _axis.crossVectors(_toPole, _toTarget);
   if (_axis.lengthSq() < 1e-8) {
     // Pole is collinear with the aim — any perpendicular will do
     _axis.crossVectors(_toTarget, _up);

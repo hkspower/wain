@@ -94,6 +94,92 @@ if (!hands) { console.log("no driver rig"); process.exit(1); }
     `full lock only reaches ${lock.rot} rad — the slide regime is untested`);
 }
 
+// --- 1b. Which way the joint breaks ---
+//
+// The header of this file has claimed since the day it was written that
+// it "checks the elbow breaks the way the pole asks". It did not. There
+// was one line printing a quaternion component and nothing asserting
+// anything about it, and in that gap both of the driver's elbows sat
+// 236 mm ABOVE his shoulders, crossed over the centreline above his
+// head, on every car in the game. The hands were on the rim to the
+// millimetre the whole time — that is what an inverted pole gives you:
+// the mirror-image solution to the same triangle, exact and wrong.
+//
+// Two checks, because one alone is not enough.
+//
+// Straight-ahead, the law can be said in the words the rig says it in —
+// "elbows break outward and down", "knees break up and forward" — and
+// measured in the car's own frame with no pole arithmetic anywhere near
+// it. That is the version that would have caught this.
+//
+// Through the steering range it cannot: at full lock a hand slides
+// round to the far side of the rim and the arm reaches across, so an
+// elbow can be inboard of its own shoulder and still be perfectly
+// posed. There the law is the definition of a pole vector — the elbow
+// lands on the POLE's side of the line from shoulder to hand — which
+// is the solver's input, not the solver's arithmetic.
+const breaks = await page.evaluate(()=>{
+  const e = window.__grnEngine;
+  const car = e.carBody;
+  const rig = car.userData.driver;
+  if (!rig) return null;
+  const R = window.__grnRig.driver;
+  const V = e.camera.position.constructor;
+  const read = () => {
+    car.updateWorldMatrix(true,true);
+    const inv = car.matrixWorld.clone().invert();
+    const at = (o) => new V().setFromMatrixPosition(o.matrixWorld).applyMatrix4(inv);
+    const seat = at(rig.group);
+    const arms = rig.arms.map((a)=>{
+      const S = at(a.shoulder), E = at(a.elbow), H = at(a.hand);
+      const P = new V(a.side * R.armPoleX, R.armPoleY, R.armPoleZ);
+      rig.group.localToWorld(P); P.applyMatrix4(inv);
+      // Side of the shoulder-to-hand line, with that line projected out
+      // of both. Positive = the elbow is where the pole asked for it.
+      const u = H.clone().sub(S); const len = u.length() || 1; u.multiplyScalar(1/len);
+      const perp = (v) => v.clone().sub(S).addScaledVector(u, -v.clone().sub(S).dot(u));
+      const side = perp(E).dot(perp(P));
+      return {
+        side: a.side,
+        out: +((E.x - S.x) * Math.sign(S.x - seat.x)).toFixed(3),
+        drop: +(S.y - E.y).toFixed(3),
+        poleSide: +side.toFixed(4),
+      };
+    });
+    const legs = rig.legs.map((l)=>{
+      const H = at(l.shoulder), K = at(l.elbow);
+      return { side: l.side, rise: +(K.y - H.y).toFixed(3), fwd: +(K.z - H.z).toFixed(3) };
+    });
+    return { arms, legs };
+  };
+  const settle = (steer) => {
+    e.setTouchInput({ steer });
+    for (let i=0;i<40;i++) e.update(1/60);
+  };
+  settle(0);
+  const straight = read();
+  const swept = [];
+  for (const steer of [-1, -0.4, 0.4, 1]) { settle(steer); swept.push({ steer, ...read() }); }
+  settle(0);
+  return { straight, swept };
+});
+if (!breaks) { console.log("no rig to check joint breaks on"); process.exit(1); }
+{
+  const a = breaks.straight.arms, l = breaks.straight.legs;
+  console.log(`elbows       straight ahead: out ${a.map(x=>x.out).join("/")} m, below the shoulder ${a.map(x=>x.drop).join("/")} m  ` +
+    check(Math.min(...a.map(x=>x.out)) > 0.02,
+      `an elbow broke ${(-Math.min(...a.map(x=>x.out))).toFixed(3)} m INWARD, across the driver's chest`) + " " +
+    check(Math.min(...a.map(x=>x.drop)) > 0.02,
+      `an elbow sits ${(-Math.min(...a.map(x=>x.drop))).toFixed(3)} m above its own shoulder`));
+  console.log(`knees        above the hip ${l.map(x=>x.rise).join("/")} m, ahead of it ${l.map(x=>x.fwd).join("/")} m  ` +
+    check(Math.min(...l.map(x=>x.fwd)) > 0.02, "a knee broke backward, into the seat") + " " +
+    check(Math.min(...l.map(x=>x.rise)) > 0.02, "a knee broke downward, through the floor"));
+  const all = [breaks.straight, ...breaks.swept];
+  const worstPole = Math.min(...all.flatMap(r=>r.arms.map(x=>x.poleSide)));
+  console.log(`             on the pole's side of the shoulder-to-hand line at every angle: ${worstPole > 0 ? "yes" : "NO"}  ` +
+    check(worstPole > 0, `an elbow broke away from its pole (${worstPole})`));
+}
+
 // --- 2. Unreachable target: the arm straightens, it does not explode ---
 const far = await page.evaluate(()=>{
   const e = window.__grnEngine;
@@ -354,10 +440,27 @@ if (process.env.GRN_STILLS === "1") {
 
 // Does the driver actually fit in the cabin, or is a head through the
 // roof? Asked of EVERY silhouette, not just whichever car happened to be
-// in the garage: the four bodies differ by 210 mm of roofline and the
-// driver is seated off one anchor, so a fit measured on the saloon says
-// nothing about the fastbacks. Checking one car passed for months while
-// the lowest-roofed car in the fleet wore its driver's head outside.
+// in the garage: the six bodies differ by 350 mm of roofline and the
+// driver is seated off the cabin he is in.
+//
+// Both halves of this measurement used to be proxies, and both lied.
+//
+// The DRIVER was measured by the corners of each mesh's bounding box. A
+// box corner is the top of a mesh only when the mesh is unrotated, and
+// every bone in a posed rig is rotated: the highest corner in this
+// driver belonged to an upper arm, 87 mm above a helmet it is nowhere
+// near. So: real vertices.
+//
+// The ROOF was the highest shell VERTEX inside a 0.8 m box around the
+// seat. An extruded shell carries vertices only at its profile points
+// and its bevel rings, so that returned whichever ring fell in the box —
+// on a fastback the roof's outer edge, metres of z from the head. It
+// reported the pony's driver clearing his roof by 30 mm when his head
+// was 187 mm out through the glass. So: the skin AT the head, found by
+// walking the triangles whose shadow contains it.
+//
+// The ceiling is the CANOPY, not the highest shell: the head is inside
+// the glasshouse and the painted roof panel sits on top of it.
 const measureFit = (carId) => page.evaluate(async (carId)=>{
   const e = window.__grnEngine;
   if (carId) {
@@ -375,40 +478,51 @@ const measureFit = (carId) => page.evaluate(async (carId)=>{
   // Everything in the CAR's own frame. Measured in world space, "the
   // column above the driver" is a box filter on world x and z, and the
   // car has a heading — so which of the roof's vertices fall inside it
-  // depends on which way the car happens to be pointing. That reported
-  // the Efreet's driver 0.17 m through a roof he in fact clears by 0.16.
+  // depends on which way the car happens to be pointing.
   const inv = car.matrixWorld.clone().invert();
   const toCar = (o, v) => v.applyMatrix4(o.matrixWorld).applyMatrix4(inv);
   let hi=-1e9, lo=1e9;
   rig.group.traverse((o)=>{
     if(!o.isMesh) return;
-    const g=o.geometry; if(!g.boundingBox) g.computeBoundingBox();
-    for (const cy of [g.boundingBox.min.y, g.boundingBox.max.y])
-      for (const cx of [g.boundingBox.min.x, g.boundingBox.max.x])
-        for (const cz of [g.boundingBox.min.z, g.boundingBox.max.z]) {
-          const v = toCar(o, new V(cx, cy, cz));
-          hi = Math.max(hi, v.y); lo = Math.min(lo, v.y);
-        }
-  });
-  // The roof OVER THE DRIVER, not the highest point anywhere on the
-  // shell: on a fastback the roof falls away behind the cabin, so its
-  // peak is nowhere near the head. Taken over all three shells and off
-  // their vertices — an extruded shell has no vertices across the middle
-  // of its width, only at the bevel rings, so a narrow column can come
-  // up empty on one shell and has to be allowed to.
-  const seat = new V().setFromMatrixPosition(rig.group.matrixWorld).applyMatrix4(inv);
-  let roof=-1e9;
-  car.traverse((o)=>{
-    if(!o.isMesh || !o.userData.shell) return;
     const pos = o.geometry.attributes.position;
     const v = new V();
     for (let i=0;i<pos.count;i++){
       toCar(o, v.fromBufferAttribute(pos,i));
-      if (Math.abs(v.z-seat.z) > 0.4 || Math.abs(v.x-seat.x) > 0.4) continue;
-      roof = Math.max(roof, v.y);
+      if (v.y > hi) hi = v.y;
+      if (v.y < lo) lo = v.y;
     }
   });
-  return { headTop:+hi.toFixed(2), seatBottom:+lo.toFixed(2), roof:+roof.toFixed(2) };
+  const head = new V().setFromMatrixPosition(rig.head.matrixWorld).applyMatrix4(inv);
+  // The top skin of a shell at a point: every triangle whose XZ shadow
+  // contains it, interpolated for height, highest wins.
+  const surfaceAt = (mesh, x, z) => {
+    const pos = mesh.geometry.attributes.position;
+    const idx = mesh.geometry.index;
+    const n = idx ? idx.count : pos.count;
+    const a=new V(), b=new V(), c=new V();
+    let best = null;
+    for (let i=0;i<n;i+=3) {
+      const i0 = idx?idx.getX(i):i, i1 = idx?idx.getX(i+1):i+1, i2 = idx?idx.getX(i+2):i+2;
+      toCar(mesh, a.fromBufferAttribute(pos,i0));
+      toCar(mesh, b.fromBufferAttribute(pos,i1));
+      toCar(mesh, c.fromBufferAttribute(pos,i2));
+      const d = (b.z-c.z)*(a.x-c.x) + (c.x-b.x)*(a.z-c.z);
+      if (Math.abs(d) < 1e-12) continue;
+      const w0 = ((b.z-c.z)*(x-c.x) + (c.x-b.x)*(z-c.z)) / d;
+      const w1 = ((c.z-a.z)*(x-c.x) + (a.x-c.x)*(z-c.z)) / d;
+      const w2 = 1-w0-w1;
+      if (w0 < -1e-6 || w1 < -1e-6 || w2 < -1e-6) continue;
+      const y = w0*a.y + w1*b.y + w2*c.y;
+      if (best === null || y > best) best = y;
+    }
+    return best;
+  };
+  let roof = null;
+  car.traverse((o)=>{
+    if(!o.isMesh || o.userData.shell !== "canopy") return;
+    roof = surfaceAt(o, head.x, head.z);
+  });
+  return { headTop:+hi.toFixed(3), seatBottom:+lo.toFixed(3), roof: roof===null?null:+roof.toFixed(3) };
 }, carId);
 
 {
@@ -418,8 +532,14 @@ const measureFit = (carId) => page.evaluate(async (carId)=>{
   for (const c of cars.cars) if (!bySilhouette.has(c.bodyStyle)) bySilhouette.set(c.bodyStyle, c);
   for (const [style, c] of bySilhouette) {
     const fit = await measureFit(c.id);
-    console.log(`driver fit   ${(c.name+" ("+style+")").padEnd(24)} head ${fit.headTop} m, seat ${fit.seatBottom} m, roof over him ${fit.roof} m  ` +
-      check(fit.headTop < fit.roof, `${c.name}: the driver's head is ${(fit.headTop-fit.roof).toFixed(2)} m through the roof`) + " " +
+    const air = fit.roof === null ? null : fit.roof - fit.headTop;
+    console.log(`driver fit   ${(c.name+" ("+style+")").padEnd(28)} top of him ${fit.headTop} m, lowest ${fit.seatBottom} m, glass over his head ${fit.roof} m, air ${air===null?"n/a":(air*1000).toFixed(0)+" mm"}  ` +
+      check(air !== null && air > 0.02,
+        `${c.name}: the driver is ${air===null?"under no measurable roof":((-air)*1000).toFixed(0)+" mm through the glass"}`) + " " +
+      // A cabin he rattles around in is the same bug the other way up:
+      // before this was fitted the saloon's driver sat 221 mm low, with
+      // his shoulders below his own door line.
+      check(air !== null && air < 0.25, `${c.name}: ${((air??0)*1000).toFixed(0)} mm of air over the helmet — the driver is sunk in the cabin`) + " " +
       check(fit.seatBottom > -0.1, `${c.name}: the driver is sunk through the floor`));
   }
 }

@@ -4,6 +4,7 @@ import { EXHAUSTS, FINISHES, kitAtLeast, type ExhaustSpec, type KitLevel, type P
 import { upgradeCarShells, upgradeWheels, upgradeDriver } from "./models";
 import { arabicUI, latinDisplay, textTexture } from "./text";
 import { kuwaitiDriver } from "./characters";
+import { RIG } from "./rig";
 import { pointGlowTexture, poolGlowTexture } from "./glow";
 import { drawTeamLogo, type TeamLogo } from "./teams";
 
@@ -567,6 +568,29 @@ function extrudeProfile(
   geo.rotateY(-Math.PI / 2);
   if (crown) crownShell(geo, crown);
   else geo.computeVertexNormals();
+  /**
+   * The forwardmost point of the roof, recorded on the geometry.
+   *
+   * On a canopy this is the windscreen header — where the screen stops
+   * being a screen and the roof starts — and it is the one landmark in
+   * a cabin that says where the person in it goes: a driver's head sits
+   * a fixed distance behind the header on every car ever built, because
+   * that is what a windscreen has to clear.
+   *
+   * Taken as the most forward of the control points within 60 mm of the
+   * profile's highest, rather than the highest point outright. On the
+   * fastbacks the highest point IS the header, but a saloon's roof
+   * peaks over the back seat and a hatch's over the rear axle, and
+   * seating a driver at those puts him in the boot. Recorded here, in
+   * the shifted coordinates the shell is actually built in, so it can
+   * never drift from the profile the way a hand-copied number does.
+   */
+  const topY = Math.max(...points.map(([, y]) => y));
+  const header = points
+    .filter(([, y]) => y >= topY - 0.06)
+    .reduce((a, b) => (b[0] > a[0] ? b : a));
+  geo.userData.headerZ = header[0];
+  geo.userData.headerY = header[1];
   return geo;
 }
 
@@ -599,6 +623,58 @@ function extrudeProfile(
  * Dropping one without the other slides the details up the bodywork.
  */
 const BODY_DROP = 0.086;
+
+/**
+ * Where the driver sits, and how much air is over his head.
+ *
+ * He used to be put at `dashY - 0.34` and one of two fixed stations —
+ * `bCabBack ? -0.28 : 0.08` — for all six silhouettes. Both halves of
+ * that were wrong, and the check that was supposed to catch it could not
+ * see either: tests/ik.mjs took the highest shell VERTEX inside a 0.8 m
+ * box around the seat, and an extruded shell carries vertices only at
+ * its profile points and bevel rings, so the number it returned was
+ * whichever ring fell in the box rather than the ceiling over the head.
+ *
+ * Asked of the surface directly, at the driver's own x, the fleet read:
+ *
+ *   pony    187 mm THROUGH the glass — seated 420 mm forward of its own
+ *           roof peak, under the steep screen, head out in the weather
+ *   zx       23 mm through
+ *   hatch     0 mm — scalp on the glass
+ *   rx7      12 mm of clearance
+ *   gtr      64 mm
+ *   sedan   221 mm, sunk so low his shoulders sat BELOW the door line
+ *
+ * So stop placing him by hand. The canopy records its own windscreen
+ * header, a driver's head goes a fixed distance behind it, and the seat
+ * drops until the helmet clears the skin measured at that exact point.
+ * Every silhouette then gets the same air over the helmet whatever its
+ * roof does, and a new body inherits the fit instead of needing a
+ * number.
+ */
+const DRIVER_X = 0.38;
+/** Head centre behind the windscreen header. A screen has to clear the
+ *  head it rakes over, so this distance is a property of people and
+ *  windscreens rather than of any one car. */
+const CABIN_HEAD_BACK = 0.2;
+/** Air between the top of the helmet and the glass. */
+const CABIN_HEADROOM = 0.06;
+
+/**
+ * How far the top of a driver's helmet sits above the seat he is bolted
+ * to. Measured off a rig rather than written down: the figure is built
+ * in characters.ts, and a helmet that grew there would otherwise quietly
+ * push every head in the game back through a roof. One throwaway rig for
+ * the life of the process.
+ */
+let driverHeadTopM: number | null = null;
+function driverHeadTop(): number {
+  if (driverHeadTopM === null) {
+    const probe = kuwaitiDriver(0x000000, undefined, true);
+    driverHeadTopM = new THREE.Box3().setFromObject(probe.group).max.y;
+  }
+  return driverHeadTopM;
+}
 
 /**
  * The radius on a panel edge, in metres.
@@ -1715,6 +1791,20 @@ function noseFaceZ(geo: THREE.BufferGeometry, style: BodyStyle, y: number, front
  *  cache entry when they are asked about the same z. */
 function deckY(geo: THREE.BufferGeometry, style: BodyStyle, z: number, tag = "body"): number | null {
   return shellSurface(geo, `${style}:${tag}:y${z}`, [0, 6, z], [0, -1, 0]);
+}
+/** The same, off the centreline: the skin above a point on the car.
+ *  A cabin is asked about at the DRIVER's x, not at x=0, because the
+ *  crown pulls a roof in toward its edges and the difference over half a
+ *  seat's width is tens of millimetres — the whole of a head's
+ *  clearance. */
+function skinAt(
+  geo: THREE.BufferGeometry,
+  style: BodyStyle,
+  x: number,
+  z: number,
+  tag: string
+): number | null {
+  return shellSurface(geo, `${style}:${tag}:y${x}/${z}`, [x, 6, z], [0, -1, 0]);
 }
 
 // Tinted glass, not a mirror. The intent here was always to silhouette
@@ -2856,6 +2946,19 @@ export function createCar(colors: CarColors): THREE.Group {
   roofShell.userData.shell = "roof";
   group.add(roofShell);
 
+  // The cabin fit: head behind the header, seat under the ceiling.
+  // Both the driver and the interior behind him hang off these, so the
+  // headrest cannot end up somewhere the head is not.
+  const headerZ = cGeo.userData.headerZ as number | undefined;
+  const headZ = headerZ !== undefined ? headerZ - CABIN_HEAD_BACK : bCabBack ? -0.26 : 0.1;
+  const cabinRoofY = skinAt(cGeo, style, DRIVER_X, headZ, "canopy");
+  const seatY =
+    cabinRoofY !== null ? cabinRoofY - CABIN_HEADROOM - driverHeadTop() : d.dashY - 0.34;
+  // The fit, published. A cabin is the one thing on this car measured
+  // from the shell at build time rather than authored, so the numbers it
+  // came out with are worth being able to read back.
+  group.userData.cabin = { headZ, cabinRoofY, seatY, headTop: driverHeadTop() };
+
   /** Top of the bonnet stripe at a point along it, when the car wears one. */
   let hoodStripeTop: ((z: number) => number) | null = null;
 
@@ -3967,9 +4070,13 @@ export function createCar(colors: CarColors): THREE.Group {
     const dash = new THREE.Mesh(roundedBox(1.45, 0.13, 0.34, 0.03), interiorMat);
     dash.position.set(0, d.dashY, bCabBack ? 0.15 : 0.5);
     group.add(dash);
-    for (const sx of [-0.38, 0.38]) {
+    // Behind the head, at the height of the head — off the same fit the
+    // driver is seated by, not off the dash. Hung off the dash it stayed
+    // put while he moved, which on the pony left a headrest 400 mm in
+    // front of the man it was supposed to be behind.
+    for (const sx of [-DRIVER_X, DRIVER_X]) {
       const headrest = new THREE.Mesh(roundedBox(0.26, 0.22, 0.12, 0.04), interiorMat);
-      headrest.position.set(sx, d.dashY + 0.14, bCabBack ? -0.45 : -0.05);
+      headrest.position.set(sx, seatY + driverHeadTop() - 0.14, headZ - 0.15);
       group.add(headrest);
     }
 
@@ -4658,7 +4765,7 @@ export function createCar(colors: CarColors): THREE.Group {
   // empty, which is what thirty driverless cars looked like.
   {
     const driver = kuwaitiDriver(0x1d2026, undefined, colors.simple === true);
-    driver.group.position.set(0.38, d.dashY - 0.34, bCabBack ? -0.28 : 0.08);
+    driver.group.position.set(DRIVER_X, seatY, headZ - RIG.driver.headZ);
     group.add(driver.group);
     group.userData.driver = driver;
   }

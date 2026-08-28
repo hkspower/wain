@@ -128,7 +128,18 @@ void GRNIk::SolveTwoBone(USceneComponent* Root, USceneComponent* Mid,
 	// The pole decides which way the joint breaks: the bend happens in
 	// the plane containing the target and the pole hint, and Axis is that
 	// plane's normal.
-	FVector Axis = FVector::CrossProduct(ToTarget, Pole - RootPos);
+	//
+	// Pole CROSS aim, not aim cross pole — the same way round as ik.ts,
+	// and for the same reason. The swing below is applied as
+	// -ShoulderOffset, and rotating the aim about (aim x pole) by a
+	// negative angle carries it AWAY from the hint: the joint broke on
+	// the far side of every limb in the game. Both engines had it, because
+	// the port is faithful; measured in the web build, a driver asking
+	// for elbows "outward and down" got them 236 mm above his shoulders,
+	// crossed over the centreline above his head. RotateAngleAxis here
+	// turns the same way three's applyAxisAngle does, so the fix is the
+	// same fix.
+	FVector Axis = FVector::CrossProduct(Pole - RootPos, ToTarget);
 	if (Axis.SizeSquared() < KINDA_SMALL_NUMBER)
 	{
 		Axis = FVector::CrossProduct(ToTarget, FVector::UpVector);
