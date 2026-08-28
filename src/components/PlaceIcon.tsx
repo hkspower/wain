@@ -303,7 +303,11 @@ function Art({ slug }: { slug: string }) {
           <path d="M22 21c9 0 9 8 0 8s-9 8 0 8h14" />
           <path d="M9 40h6" />
           <path d="M38 34v6" style={DETAIL} />
-          <path d="M4 43c4 0 4 2.5 8 2.5" opacity={0} />
+          {/* The wave line stands in for GROUND here — it is a water park, so
+              the mark sits in water rather than on a baseline, and it runs to
+              y=44 on purpose. A second wave beneath it was left at opacity 0:
+              invisible, but still a node and still counted by getBBox, which
+              is what pushed this mark alone outside the 4–44 frame. */}
           <path d="M4 41c4 0 4 3 8 3s4-3 8-3 4 3 8 3 4-3 8-3 4 3 8 3" opacity={0.45} />
         </>
       );
