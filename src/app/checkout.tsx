@@ -1,3 +1,4 @@
+import * as Crypto from 'expo-crypto';
 import { Stack, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
@@ -46,43 +47,23 @@ const GOVERNORATES = [
  * placed had 1.7 million guesses to make, which the invoice route's own
  * throttle turns into days rather than never.
  *
- * The WEBSITE has always done this properly — `crypto.getRandomValues(new
- * Uint32Array(2))` — and the two halves of the same shop disagreeing about it
- * is the whole bug.
+ * expo-crypto, NOT the global `crypto`. The website has always used
+ * `crypto.getRandomValues` and the obvious fix was to paste that line in —
+ * which works perfectly on web and throws on every iPhone and Android, because
+ * Hermes has no such global. That version would have passed every browser test
+ * in this repo and broken checkout for exactly the customers the app is for.
+ * expo-crypto's getRandomValues is the platform's own CSPRNG on all three.
  *
- * WHY IT IS NOT SIMPLY THE WEBSITE'S LINE. `crypto.getRandomValues` does not
- * exist under Hermes, and this project has no expo-crypto and no
- * react-native-get-random-values. Calling it unguarded works perfectly on web
- * and throws on every iPhone and Android — which is to say it would break
- * checkout for exactly the customers the app is for, and pass every browser
- * test. So it is used where it exists and Math.random stands in where it does
- * not.
- *
- * That fallback is NOT cryptographic, and should not be described as if it
- * were: Hermes seeds an xorshift128+, which is unpredictable from a clock but
- * would not stand up to somebody who set out to break it. It is a large
- * improvement on twenty bits and it is what can be had without adding a
- * dependency. `npx expo install expo-crypto` and using its getRandomValues
- * here is the proper fix if the shop ever wants one.
- *
- * Fixed width either way — always 'SP' + 14. A uint32 in base36 is one to
- * seven characters, so an unpadded pair varies from four to sixteen, which
- * looks like a mistake on a receipt.
+ * Fixed width — always 'SP' + 14. A uint32 in base36 is one to seven
+ * characters, so an unpadded pair varies from four to sixteen, which looks
+ * like a mistake on a receipt. The route's floor of six is NOT what makes this
+ * safe and could not be: the client chooses the value, so any length can be
+ * met with no randomness at all. See the note on it in api.php.
  */
 const newTrackId = () => {
-  const parts = new Array<number>(2);
-  const webCrypto = (globalThis as { crypto?: Crypto }).crypto;
-  if (typeof webCrypto?.getRandomValues === 'function') {
-    const n = new Uint32Array(2);
-    webCrypto.getRandomValues(n);
-    parts[0] = n[0];
-    parts[1] = n[1];
-  } else {
-    parts[0] = Math.floor(Math.random() * 0x100000000);
-    parts[1] = Math.floor(Math.random() * 0x100000000);
-  }
+  const n = Crypto.getRandomValues(new Uint32Array(2));
   const part = (v: number) => v.toString(36).toUpperCase().padStart(7, '0');
-  return 'SP' + part(parts[0]) + part(parts[1]);
+  return 'SP' + part(n[0]) + part(n[1]);
 };
 
 // The shop's own names. `card` was this app's invention and the server has

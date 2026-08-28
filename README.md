@@ -117,6 +117,7 @@ because the rigs place real orders against a real database.
 | `npm run test:site-contrast` | Every run of text on the website, measured against what is behind it — `THEME=light` for the other one |
 | `npm run test:returns` | Returns and exchanges end to end — the two public routes, the admin gate, and the customer's page in a browser |
 | `npm run test:borders` | Every border, all four sides, both themes, phone and desktop — none invisible, plus a census of the colours, widths and radii in use |
+| `npm run test:buttons` | Every control on both halves of the shop, PRESSED — none dead, plus tap targets, accessible names and links that go nowhere |
 | `npm run scan:site` | The website, in a browser — `BASE=` to aim it |
 | `npm run scan:site:curl` | The same, with nothing but curl |
 | `npm run site:diff` | Is a live server the same build as this repo's copy? |
@@ -194,13 +195,11 @@ app reload and would throw the customer's basket away mid-shop.
 `/invoice/<number>` and `?r=status` take nothing but the number, so it opens a
 page with the customer's name and address on it. The website has always built
 it from `crypto.getRandomValues`; the app built it from `Date.now()` plus four
-random base36 characters — about twenty bits, behind a timestamp anybody can
-guess. It now uses `getRandomValues` where that exists and `Math.random` where
-it does not, because **Hermes has no `crypto.getRandomValues`** and this
-project carries no `expo-crypto`: the website's line, pasted in unguarded,
-works on web and throws on every phone. The fallback is not cryptographic and
-`checkout.tsx` says so; `expo install expo-crypto` is the proper fix if the
-shop wants one.
+random base36 characters — about twenty bits behind a timestamp anybody can
+guess. It now uses **`expo-crypto`**, not the global `crypto`: Hermes has no
+such global, so the website's line pasted in unguarded works on web and throws
+on every iPhone and Android — passing every browser test in this repo while
+breaking checkout for exactly the customers the app is for.
 
 Raising the route's length floor would NOT have helped and was reverted: the
 client chooses this value, so it can satisfy any length with no randomness at

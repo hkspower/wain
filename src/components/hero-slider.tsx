@@ -102,7 +102,13 @@ export function HeroSlider() {
               key={b.id}
               accessibilityRole="button"
               accessibilityLabel={lang === 'ar' ? b.ar : b.en}
+              // `selected` is not valid aria on a button, so the web build
+              // dropped it and every dot announced identically — a screen
+              // reader could not tell which frame was showing. `pressed` is
+              // the attribute for a button that is on; `selected` stays for
+              // native, which reads it directly.
               accessibilityState={{ selected: i === index }}
+              aria-pressed={i === index}
               onPress={() => show(i)}
               style={press(true, styles.dotHit)}>
               <View

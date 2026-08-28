@@ -77,7 +77,14 @@ export default function ShopScreen() {
   }) => (
     <Pressable
       accessibilityRole="button"
+      // `selected` is not valid aria on a button and the web build drops it,
+      // so every filter announced identically whether it was on or off.
+      // `pressed` is the attribute for a button that is on; `selected` stays
+      // for native, which reads it directly. This is a LOCAL copy of the chip
+      // rather than components/ui/chip.tsx — the shared one exists to stop
+      // exactly this drift, and it did not reach here.
       accessibilityState={{ selected: active }}
+      aria-pressed={active}
       onPress={onPress}
       // The pill is 36pt because that is how the filter row is meant to look.
       // The thing you TAP is this, and it is 48 — measured at 36 before, which

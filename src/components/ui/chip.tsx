@@ -33,7 +33,20 @@ export function Chip({
   return (
     <Pressable
       accessibilityRole={role}
-      accessibilityState={{ selected: active }}
+      // `selected` IS NOT VALID ARIA ON EITHER OF THESE ROLES, so React Native
+      // Web dropped it and the chip announced nothing at all: a screen reader
+      // heard "الكل, button" whether that filter was on or off, and the same
+      // for the language on the Account tab. Found by pressing them — the
+      // button audit could not tell an already-selected chip from a dead one,
+      // because the page published nothing to tell it with.
+      //
+      // The correct attribute depends on the role: `checked` for a radio,
+      // `pressed` for a toggle button. `selected` is kept alongside for the
+      // native side, which reads it and has no notion of aria.
+      accessibilityState={
+        role === 'radio' ? { checked: active, selected: active } : { selected: active }
+      }
+      aria-pressed={role === 'button' ? active : undefined}
       onPress={onPress}
       style={press(true, styles.hit, style)}>
       <ThemedView

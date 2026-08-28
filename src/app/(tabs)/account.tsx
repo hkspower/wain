@@ -44,7 +44,11 @@ export default function AccountScreen() {
             <Pressable
               key={id}
               accessibilityRole="radio"
-              accessibilityState={{ selected: active }}
+              // `checked`, not `selected`: on a radio that is the attribute
+              // ARIA defines, and the web build drops the other one — so a
+              // screen reader could not tell which language was chosen.
+              accessibilityState={{ checked: active, selected: active }}
+              aria-checked={active}
               onPress={() => setLang(id)}
               style={press(false, styles.lang,
                 {
