@@ -42,6 +42,8 @@
 // tuner records which mode each station ended up in rather than hiding
 // it, because "the radio does not duck" is otherwise a mystery.
 
+import { CHANNELS } from "./music";
+
 export interface RadioStation {
   id: string;
   /** Latin name, for the dash readout. */
@@ -57,12 +59,27 @@ export type RadioMode = "synth" | "mixed" | "direct";
 
 const MANIFEST = "/radio/stations.json";
 
-/** The station that is always there: the game's own music. */
-export const HOUSE_STATION: RadioStation = {
-  id: "house",
-  name: "Gulf Road Nights",
-  ar: "ليالي شارع الخليج",
-};
+/**
+ * The stations that are always there: the ones the game plays itself.
+ *
+ * There used to be exactly one, and with no stream URLs configured — the
+ * shipped state — pressing the tuner stepped from the house station to
+ * the house station. A control that does nothing is worse than no
+ * control, and it is on the dash of a car in a game about driving
+ * around Kuwait at night with the radio on.
+ *
+ * These are synthesised, so they work on a plane, in an Electron build,
+ * behind a firewall, and in a test. Each is a key, a tempo, a scale and
+ * a feel, with a playlist that advances on its own — see CHANNELS in
+ * music.ts, which is where the music actually lives.
+ */
+export const HOUSE_STATIONS: RadioStation[] = CHANNELS.map((c) => ({
+  id: c.id,
+  name: c.name,
+  ar: c.ar,
+}));
+/** The one the radio comes up on. */
+export const HOUSE_STATION: RadioStation = HOUSE_STATIONS[0];
 
 export class Radio {
   private ctx: AudioContext;
@@ -73,15 +90,22 @@ export class Radio {
   private el: HTMLAudioElement | null = null;
   private src: MediaElementAudioSourceNode | null = null;
 
-  private list: RadioStation[] = [HOUSE_STATION];
+  private list: RadioStation[] = [...HOUSE_STATIONS];
   private index = 0;
   private mode: RadioMode = "synth";
   private volume = 0.5;
   private ducked = false;
   /** Told the game's own music to stop when a stream takes over. */
-  private onHouse: (on: boolean) => void;
+  private onHouse: (channelId: string | null) => void;
 
-  constructor(ctx: AudioContext, out: AudioNode, onHouse: (on: boolean) => void) {
+  constructor(
+    ctx: AudioContext,
+    out: AudioNode,
+    /** Called with the station's channel id when a synthesised station
+     *  is tuned, and with null when a stream takes over. It used to be a
+     *  boolean, which was all it needed when there was one of them. */
+    onHouse: (channelId: string | null) => void
+  ) {
     this.ctx = ctx;
     this.out = out;
     this.onHouse = onHouse;
@@ -97,7 +121,7 @@ export class Radio {
         // no URL is a name waiting for a stream, and stepping onto it
         // would be a silent station the player has to press past.
         const live = j.filter((s) => s && typeof s.url === "string" && s.url.length > 0);
-        this.list = [HOUSE_STATION, ...live];
+        this.list = [...HOUSE_STATIONS, ...live];
       })
       .catch(() => {});
   }
@@ -126,12 +150,13 @@ export class Radio {
     const st = this.list[this.index];
     this.stop();
     if (!st.url) {
-      // The house station: hand playback back to the synthesised music.
+      // A house station: hand playback back to the synthesised music,
+      // and tell it which of them to play.
       this.mode = "synth";
-      this.onHouse(true);
+      this.onHouse(st.id);
       return;
     }
-    this.onHouse(false);
+    this.onHouse(null);
     this.play(st.url);
   }
 

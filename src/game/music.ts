@@ -31,6 +31,10 @@ export class Music {
   private mood: MusicMood = "cruise";
   private intensity = 0;
   private started = false;
+  /** Held here as well as on the score, because the score is built
+   *  lazily on first start and a station tuned before then would
+   *  otherwise be forgotten. */
+  private channelId = DEFAULT_CHANNEL.id;
 
   /**
    * `out` is where the music lands. It defaults to the destination only
@@ -78,6 +82,7 @@ export class Music {
     if (this.haveTracks) this.playTracks();
     else {
       this.synth = new SynthScore(this.ctx, this.master);
+      this.synth.setChannel(this.channelId);
       this.synth.setMood(this.mood);
     }
   }
@@ -94,6 +99,24 @@ export class Music {
     if (!g) return;
     g.gain.cancelScheduledValues(this.ctx.currentTime);
     g.gain.setTargetAtTime(target, this.ctx.currentTime, FADE / 3);
+  }
+
+  /**
+   * Tune the synthesised bed to a station.
+   *
+   * Only the synth path has stations: the generated-track path is two
+   * recorded stems and cannot be a radio. That is not a gap to
+   * apologise for — a build that ships real music has real music, and
+   * the tuner shows it as one station like any other.
+   */
+  setChannel(id: string): void {
+    this.channelId = id;
+    this.synth?.setChannel(id);
+  }
+
+  /** What is on the air: station and track, for the dash. */
+  nowPlaying(): { channel: MusicChannel; track: MusicTrack } | null {
+    return this.synth ? this.synth.nowPlaying() : null;
   }
 
   /** Cruise while driving, battle during a rival fight or a duel,
@@ -206,6 +229,121 @@ const BPM: Record<MusicMood, number> = { cruise: 118, battle: 148, challenge: 16
 /** Minor scale degrees the arpeggio walks, in semitones. */
 const ARP = [0, 3, 7, 12, 15, 12, 7, 3];
 
+/**
+ * THE STATIONS ON THE DASH.
+ *
+ * The radio in this car had exactly one thing to tune to. The manifest
+ * in public/radio/ ships the names of Kuwait's real services with no
+ * stream URLs — deliberately, because retransmitting a broadcaster is
+ * the operator's rights question and not the game's — and the tuner
+ * skips any station it cannot actually play. So pressing R stepped from
+ * the house station to the house station.
+ *
+ * These are stations the game can always play, because the game plays
+ * them itself. Each one is a key, a tempo, a scale and a feel, and each
+ * carries a short playlist that advances on its own, so a station is
+ * something you leave on rather than a loop you notice.
+ *
+ * The names are invented. Kuwait's real broadcasters are real
+ * organisations and this is a game with a fictional fleet on a real
+ * road; the road can be real because a road belongs to everybody.
+ *
+ * The SCALE is what actually separates them. A minor pentatonic and a
+ * Hijaz are different musics, not different mixes of the same one, and
+ * the maqam is why a khaliji station cannot be made by turning the
+ * reverb up on a synthwave one.
+ */
+export interface MusicTrack {
+  name: string;
+  ar: string;
+  /** Chord roots, one per bar, in semitones from the station's key. */
+  prog: number[];
+}
+
+export interface MusicChannel {
+  id: string;
+  name: string;
+  ar: string;
+  /** The station's key, in Hz. */
+  root: number;
+  bpm: number;
+  /** Degrees the lead walks, in semitones. The station's musical
+   *  identity lives here. */
+  scale: number[];
+  /** How the drums sit under it. */
+  feel: "four" | "khaliji" | "half";
+  tracks: MusicTrack[];
+}
+
+export const CHANNELS: MusicChannel[] = [
+  {
+    // The game's own score, unchanged: A minor, four on the floor, the
+    // synthwave the rest of the soundtrack is written in.
+    id: "house",
+    name: "Gulf Road Nights",
+    ar: "ليالي شارع الخليج",
+    root: 55,
+    bpm: 118,
+    scale: [0, 3, 7, 12, 15, 12, 7, 3],
+    feel: "four",
+    tracks: [
+      { name: "Corniche", ar: "الكورنيش", prog: [0, 8, 3, 10] },
+      { name: "Third Ring", ar: "الدائري الثالث", prog: [0, 5, 8, 7] },
+      { name: "Salt Flats", ar: "السبخة", prog: [0, 10, 8, 3] },
+    ],
+  },
+  {
+    // Hijaz — the flattened second and the augmented step up to the
+    // third. It is the interval every Gulf ear knows, and it does the
+    // whole job on its own: same drums, same synths, different world.
+    id: "sea-road",
+    name: "Sea Road",
+    ar: "طريق البحر",
+    root: 49,
+    bpm: 102,
+    scale: [0, 1, 4, 5, 7, 8, 11, 12],
+    feel: "khaliji",
+    tracks: [
+      { name: "Dhow Light", ar: "ضوء البوم", prog: [0, 5, 3, 8] },
+      { name: "Failaka", ar: "فيلكا", prog: [0, 7, 5, 1] },
+    ],
+  },
+  {
+    // Half time, low, and mostly space. The station for the hour when
+    // the road is empty and you are not racing anybody.
+    id: "after-midnight",
+    name: "Salmiya After Midnight",
+    ar: "السالمية بعد منتصف الليل",
+    root: 41.2,
+    bpm: 88,
+    scale: [0, 3, 5, 7, 10, 12, 10, 7],
+    feel: "half",
+    tracks: [
+      { name: "Blue Hour", ar: "الساعة الزرقاء", prog: [0, 3, 10, 8] },
+      { name: "Empty Lanes", ar: "حارات فاضية", prog: [0, 0, 8, 7] },
+    ],
+  },
+  {
+    // Fast, bright, unsentimental. Phrygian dominant with the fourth
+    // leaned on: the one that sounds like it is already overtaking.
+    id: "desert-frequency",
+    name: "Desert Frequency",
+    ar: "تردد الصحراء",
+    root: 61.74,
+    bpm: 132,
+    scale: [0, 1, 4, 7, 8, 11, 12, 7],
+    feel: "four",
+    tracks: [
+      { name: "Wafra Run", ar: "طلعة الوفرة", prog: [0, 8, 1, 7] },
+      { name: "Six Lanes", ar: "ست حارات", prog: [0, 7, 8, 5] },
+    ],
+  },
+];
+
+export const DEFAULT_CHANNEL = CHANNELS[0];
+/** Bars before a station moves to the next thing in its playlist. */
+const TRACK_BARS = 16;
+
 const semis = (hz: number, n: number) => hz * Math.pow(2, n / 12);
 
 class SynthScore {
@@ -223,6 +361,14 @@ class SynthScore {
 
   private pad: OscillatorNode[] = [];
   private padGain: GainNode;
+  /** The station. It governs the CRUISE bed only: in a fight the score
+   *  takes the radio over, which is both what this genre does and what
+   *  keeps a station change from rewriting a battle mid-corner. */
+  private channel: MusicChannel = DEFAULT_CHANNEL;
+  private trackAt = 0;
+  /** Bar the current track started on, so a station change restarts its
+   *  playlist rather than dropping in half way through a progression. */
+  private trackFrom = 0;
 
   constructor(ctx: AudioContext, out: GainNode) {
     this.ctx = ctx;
@@ -299,9 +445,41 @@ class SynthScore {
   }
 
   /** Queue every sixteenth that falls inside the lookahead window. */
+  setChannel(id: string): void {
+    const next = CHANNELS.find((c) => c.id === id);
+    if (!next || next === this.channel) return;
+    this.channel = next;
+    this.trackAt = 0;
+    this.trackFrom = Math.floor(this.step / 16);
+    // The pad is the station's key held under everything, so it has to
+    // move with it or the bed and the bass are in two different songs.
+    for (const o of this.pad) {
+      o.frequency.setTargetAtTime(next.root * 2, this.ctx.currentTime, 0.08);
+    }
+  }
+
+  nowPlaying(): { channel: MusicChannel; track: MusicTrack } {
+    return { channel: this.channel, track: this.channel.tracks[this.trackAt] };
+  }
+
+  /** Tempo, key and progression for what is playing right now. In a
+   *  fight the mood wins; cruising, the station does. */
+  private bedBpm(): number {
+    return this.mood === "cruise" ? this.channel.bpm : BPM[this.mood];
+  }
+  private bedRoot(): number {
+    return this.mood === "cruise" ? this.channel.root : ROOT[this.mood];
+  }
+  private bedProg(): number[] {
+    return this.mood === "cruise" ? this.channel.tracks[this.trackAt].prog : PROG[this.mood];
+  }
+  private bedScale(): number[] {
+    return this.mood === "cruise" ? this.channel.scale : ARP;
+  }
+
   private pump(): void {
     if (this.ctx.state !== "running") return;
-    const sixteenth = 60 / (BPM[this.mood] * (1 + this.intensity * 0.06)) / 4;
+    const sixteenth = 60 / (this.bedBpm() * (1 + this.intensity * 0.06)) / 4;
     const horizon = this.ctx.currentTime + 0.12;
     // A tab left in the background can park the clock far behind; catch
     // up rather than queueing thousands of notes at once.
@@ -322,28 +500,56 @@ class SynthScore {
     const hard = this.mood !== "cruise";
     const battle = hard;
     const chal = this.mood === "challenge";
-    const bar = Math.floor(step / 16) % PROG[this.mood].length;
-    const chordRoot = semis(ROOT[this.mood], PROG[this.mood][bar]);
+    // The playlist. A station moves on by itself every sixteen bars, so
+    // leaving one on is not the same four chords for the rest of the
+    // night — which is the difference between a radio and a loop.
+    if (this.mood === "cruise" && this.channel.tracks.length > 1) {
+      const bars = Math.floor(step / 16) - this.trackFrom;
+      const want = Math.floor(bars / TRACK_BARS) % this.channel.tracks.length;
+      if (want !== this.trackAt) this.trackAt = want;
+    }
+    const prog = this.bedProg();
+    const scale = this.bedScale();
+    const bar = Math.floor(step / 16) % prog.length;
+    const chordRoot = semis(this.bedRoot(), prog[bar]);
     const i = step % 16;
+    // How the drums sit. A khaliji feel is not four on the floor with a
+    // different synth on top: the pulse is the dum on one and the tak
+    // off the beat, and putting a kick on every quarter under it flattens
+    // the thing that makes it what it is.
+    const feel = this.mood === "cruise" ? this.channel.feel : "four";
 
-    // Four-on-the-floor kick, with a push on the last sixteenth of a bar
-    if (i % 4 === 0 || (battle && i === 15)) this.kick(t, i === 0 ? 1 : 0.85);
-    // Offbeat hats — the eighth-note shuffle the genre lives on
-    if (i % 4 === 2) this.hat(t, battle ? 0.05 : 0.035);
-    if (battle && i % 4 === 1) this.hat(t, 0.02);
-    // Snare/clap on 2 and 4
-    if (i === 4 || i === 12) this.clap(t, battle ? 0.09 : 0.06);
+    if (feel === "khaliji") {
+      // Dum on 1 and the and-of-3, tak on 2 and 4 — the skeleton of the
+      // rhythm every Gulf song is built over.
+      if (i === 0 || i === 6 || i === 11) this.kick(t, i === 0 ? 1 : 0.72);
+      if (i === 4 || i === 12) this.clap(t, 0.05);
+      if (i % 2 === 1) this.hat(t, i % 4 === 3 ? 0.03 : 0.018);
+    } else if (feel === "half") {
+      // Half time: the kick every other beat, and almost nothing else.
+      if (i === 0 || i === 8) this.kick(t, i === 0 ? 0.95 : 0.7);
+      if (i === 8) this.clap(t, 0.035);
+      if (i % 8 === 4) this.hat(t, 0.02);
+    } else {
+      // Four-on-the-floor kick, with a push on the last sixteenth of a bar
+      if (i % 4 === 0 || (battle && i === 15)) this.kick(t, i === 0 ? 1 : 0.85);
+      // Offbeat hats — the eighth-note shuffle the genre lives on
+      if (i % 4 === 2) this.hat(t, battle ? 0.05 : 0.035);
+      if (battle && i % 4 === 1) this.hat(t, 0.02);
+      // Snare/clap on 2 and 4
+      if (i === 4 || i === 12) this.clap(t, battle ? 0.09 : 0.06);
+    }
 
     // Sixteenth bassline: root with an octave lift, driving and relentless
-    if (battle ? true : i % 2 === 0) {
+    if (battle ? true : feel === "half" ? i % 8 === 0 : i % 2 === 0) {
       const oct = i % 8 === 6 ? 2 : 1;
       this.bass(t, chordRoot * oct, battle ? 0.11 : 0.075);
     }
 
-    // Supersaw arpeggio two octaves up
-    if (i % 2 === 0) {
-      const note = semis(chordRoot * 4, ARP[(step / 2) % ARP.length | 0]);
-      this.arp(t, note, battle ? 0.05 : 0.032);
+    // Supersaw arpeggio two octaves up, walking the station's own scale
+    if (feel === "half" ? i % 4 === 0 : i % 2 === 0) {
+      const note = semis(chordRoot * 4, scale[(step / 2) % scale.length | 0]);
+      this.arp(t, note, battle ? 0.05 : feel === "half" ? 0.026 : 0.032);
     }
 
     // Battle stabs on the downbeat of every other bar — and on EVERY

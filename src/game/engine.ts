@@ -31,7 +31,7 @@ import { verticalFov, chaseDolly } from "./aspect";
 import { gripAtSpeed, newLoadState, solveLoad, type LoadResult } from "./grip";
 import { bestTow, solveTow, NO_TOW, TOW_REACH, type TowInput, type TowResult } from "./slipstream";
 import { buildRoadMap, nextStation, type RoadMap } from "./roadmap";
-import { Music } from "./music";
+import { CHANNELS, Music } from "./music";
 import { Radio } from "./radio";
 import {
   solveDrift,
@@ -1520,8 +1520,10 @@ export class GameEngine {
       this.radio = new Radio(
         this.sound.audioContext,
         this.sound.mixBus,
-        (on) => {
+        (channelId) => {
           if (!this.music) return;
+          const on = channelId !== null;
+          if (on) this.music.setChannel(channelId);
           if (this.music.enabled !== on) this.music.toggle();
         }
       );
@@ -2459,10 +2461,17 @@ export class GameEngine {
     if (k === "r" && !e.repeat && this.radio) {
       const { station, mode } = this.radio.next();
       // The Arabic name is the headline, the way every other place name
-      // in this game is presented — this is a Kuwaiti radio.
+      // in this game is presented — this is a Kuwaiti radio. The track
+      // goes underneath it, because a station that names what is playing
+      // is a radio and one that does not is a mute button with steps.
+      const playing = mode === "synth" ? this.music?.nowPlaying() : null;
       this.events.onMessage(
         `${station.ar} · ${station.name}`,
-        mode === "direct" ? "Streaming outside the mix" : undefined
+        mode === "direct"
+          ? "Streaming outside the mix"
+          : playing
+            ? `${playing.track.ar} · ${playing.track.name}`
+            : undefined
       );
     }
     if (k === "v" && !e.repeat) {
@@ -5555,6 +5564,9 @@ export class GameEngine {
     // The tuner, so a test can step through the dash and read back what
     // is playing and how it is routed.
     (window as unknown as { __grnRadio: unknown }).__grnRadio = this.radio;
+    // The station table, so a test can ask what makes each one different
+    // rather than listening to four beds and forming an opinion.
+    (window as unknown as { __grnChannels: unknown }).__grnChannels = CHANNELS;
     // Every exhaust in the shop, so a test can drive the three bands
     // from the spec side and hear whether they actually differ.
     (window as unknown as { __grnExhausts: typeof EXHAUSTS }).__grnExhausts = EXHAUSTS;

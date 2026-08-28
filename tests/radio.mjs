@@ -56,6 +56,12 @@ const shipped = await page.evaluate(async () => {
     manifest: Array.isArray(r) ? r.map((s) => ({ id: s.id, hasUrl: !!s.url })) : null,
     tuned: radio ? radio.stations().map((s) => s.id) : null,
     current: radio ? radio.current() : null,
+    // The stations the game plays itself, and what makes each one a
+    // different station rather than the same one renamed.
+    channels: (window.__grnChannels ?? []).map((c) => ({
+      id: c.id, bpm: c.bpm, root: c.root, feel: c.feel,
+      scale: c.scale.join(","), tracks: c.tracks.length,
+    })),
   };
 });
 
@@ -70,19 +76,50 @@ check(
 );
 // It ships unwired on purpose. If someone fills the URLs in, this line
 // stops being interesting — but with none of them set, the tuner must
-// still have exactly the house station and must not be listing silent
-// names the player would have to press past.
+// still have every station the game plays ITSELF, and must not be
+// listing silent names the player would have to press past.
+//
+// This asserted `1 + wired`, and with nothing wired that meant a tuner
+// with one station on it: pressing R stepped from the house station to
+// the house station and the check called it correct. The house is a set
+// of synthesised channels now, and the law is that all of them are
+// reachable — a radio with one station is a mute button with steps.
 const wired = (shipped.manifest ?? []).filter((s) => s.hasUrl).length;
+const house = shipped.channels?.length ?? 0;
 console.log(`tuner        ${shipped.tuned?.length} station(s) on the dash: ${shipped.tuned?.join(", ")}`);
+check(house >= 3, `the game plays ${house} station(s) of its own — that is not a dial`);
 check(
-  shipped.tuned?.length === 1 + wired,
-  `the dash lists ${shipped.tuned?.length} stations for ${wired} configured streams plus the house one`
+  shipped.tuned?.length === house + wired,
+  `the dash lists ${shipped.tuned?.length} stations for ${wired} configured streams plus ${house} of the game's own`
 );
 check(shipped.tuned?.[0] === "house", "the first station is not the one that works offline");
 console.log(
   `playing      ${shipped.current?.station.ar} · ${shipped.current?.station.name} (${shipped.current?.mode})  ` +
   check(shipped.current?.mode === "synth", "the default station is not the offline one")
 );
+
+// --- 1b. A station is a different station -----------------------------
+//
+// Four names over one bed is a skin, not a dial. What separates these is
+// the SCALE — a minor pentatonic and a Hijaz are different musics, not
+// different mixes of the same one — so that is what gets checked, along
+// with the tempo and the feel underneath it. And each has to carry more
+// than one thing to play, or leaving a station on is the same four
+// chords until dawn.
+{
+  const ch = shipped.channels ?? [];
+  for (const c of ch) {
+    console.log(
+      `  ${c.id.padEnd(18)} ${String(c.bpm).padStart(3)} bpm  key ${String(c.root).padStart(6)} Hz  ` +
+        `${c.feel.padEnd(8)} ${c.tracks} track(s)  scale ${c.scale}`
+    );
+  }
+  const uniq = (f) => new Set(ch.map(f)).size;
+  check(uniq((c) => c.scale) === ch.length, "two stations walk the same scale — they are the same station");
+  check(uniq((c) => c.bpm) === ch.length, "two stations run at the same tempo");
+  check(ch.every((c) => c.tracks >= 2), "a station with one track is a loop, not a playlist");
+  check(uniq((c) => c.feel) >= 2, "every station has the same drums under it");
+}
 
 // --- 2. Stepping the dial wraps, and never lands on silence ----------
 const stepped = await page.evaluate(() => {
