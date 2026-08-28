@@ -165,6 +165,81 @@ check(off.status === 200, `discount_active pauses it (${off.status})`)
 const gone = await call('discount_delete', { id: mine?.id })
 check(gone.status === 200, `discount_delete removes it — never redeemed, so removable (${gone.status})`)
 
+// --- returns and exchanges ------------------------------------------------
+//
+// The order placed above is cash and was just cancelled, so it cannot carry a
+// return. This makes its own: a paid, delivered order with one line, asks for
+// an exchange through the PUBLIC route the customer uses, then moves it with
+// the admin pair. Cleaned up at the end.
+const rTrack = 'SPR' + Date.now().toString(36).toUpperCase() + 'LIV'
+const rPhone = '55598765'
+const seedReturn = async () => {
+  const placedR = await fetch(`${API}/api.php?r=order`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      track_id: rTrack, payment_method: 'cod', lang: 'en',
+      customer: { name: 'Returns Live', phone: rPhone, email: 'rig@example.com',
+                  governorate: 'hawalli', area: 'Salmiya',
+                  block: '4', street: '12', building: '8' },
+      items: [{ slug: inStock.slug, size: inStock.size, qty: 1 }],
+    }),
+  }).then((r) => r.json())
+  return placedR
+}
+const placedR = await seedReturn()
+if (!placedR?.order_id) {
+  check(false, `could not place the order a return needs (${JSON.stringify(placedR).slice(0, 120)})`)
+} else {
+  // Paid and delivered, which is what a return requires — done through the
+  // panel's own routes rather than by reaching into the database, so this
+  // exercises them too.
+  await call('cod_paid', { order_id: placedR.order_id, paid: true })
+  await call('fulfilment', { order_id: placedR.order_id, status: 'delivered' })
+
+  const look = await fetch(
+    `${API}/api.php?r=return_items&ref=${rTrack}&phone=${rPhone}`).then((r) => r.json())
+  check(Array.isArray(look?.items) && look.items.length === 1,
+    `?r=return_items lists the order's line (${JSON.stringify(look).slice(0, 90)})`)
+
+  const made = await fetch(`${API}/api.php?r=return_request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ref: rTrack, phone: rPhone, kind: 'return', lang: 'en',
+      reason: 'live rig', items: [{ id: look?.items?.[0]?.id, qty: 1 }],
+    }),
+  }).then((r) => r.json())
+  check(!!made?.ref, `?r=return_request records it (${JSON.stringify(made).slice(0, 90)})`)
+
+  const rlist = await call('returns&status=new')
+  const mineR = rlist.body?.returns?.find?.((x) => x.ref === made?.ref)
+  check(!!mineR, `?r=returns lists it under 'new' (${rlist.status})`)
+  // The LINES come with the list — one request per screen, not one per row.
+  check((mineR?.items?.length ?? 0) === 1, 'and carries its lines with it')
+  check(typeof rlist.body?.counts?.new === 'number', 'with counts over everything, not the page')
+
+  const badMove = await call('return_status', { id: mineR?.id, status: 'nonsense' })
+  check(badMove.status === 422 && badMove.body?.error === 'bad_status',
+    `a status the CHECK constraint would refuse is refused by name (${badMove.status})`)
+
+  // A REJECTION WITHOUT A REASON IS REFUSED. The customer is told why, and
+  // "no reason given" is not something the shop can send.
+  const noWhy = await call('return_status', { id: mineR?.id, status: 'rejected' })
+  check(noWhy.status === 422 && noWhy.body?.error === 'reason_required',
+    `rejecting with no reason is refused (${noWhy.status} ${noWhy.body?.error})`)
+
+  const ok = await call('return_status', { id: mineR?.id, status: 'approved' })
+  check(ok.status === 200, `it can be approved (${ok.status})`)
+  const back = await call('returns&status=approved')
+  const moved = back.body?.returns?.find?.((x) => x.ref === made?.ref)
+  check(!!moved && moved.decided_at,
+    'the move sticks, and decided_at records when the customer was answered')
+
+  // Cancelling the order cascades the request away with it.
+  await call('fulfilment', { order_id: placedR.order_id, status: 'cancelled' })
+}
+
 // --- out ------------------------------------------------------------------
 await call('logout', {})
 const after = await call('me')

@@ -90,6 +90,18 @@ $STORE_LIMITS = [
     // handful of questions once, changes their mind twice, and is done.
     'size_advice' => [90, 300],
     'size_chart'  => [600, 60],
+    // Reading back one's own order to return something from it. A read of a
+    // customer's name and shopping, gated on their phone number — so it is
+    // bounded nearer the guessing routes than the catalogue. But bounded with
+    // the CGNAT note above in mind: a shopper who mistypes their number three
+    // times, gets it right, then reloads is a real person, and behind a Zain
+    // address there may be several of them at once.
+    'return_items'   => [60, 300],
+    // WRITES a request row and puts a pickup on somebody's list, so tighter —
+    // but still above what a carrier's worth of real customers would ever do
+    // in ten minutes. ?r=order, which takes money, sits at 60/600; asking to
+    // send something back is rarer than buying it.
+    'return_request' => [40, 600],
     // The shop's phone number and address. A read, and a tiny one, but it is
     // fetched by the website's contact script on pages that show those details
     // — so it is bounded like the other reads rather than left off the table,
@@ -804,6 +816,48 @@ if ($r === 'invoice') {
         ],
         'items'          => $items,
     ]);
+}
+
+// ------------------------------------------------------- returns and exchange
+//
+// The /returns page could not do either of these. It collected an order number
+// nothing checked, let the customer name items from memory, and handed the
+// whole thing to WhatsApp — so a request against an order that does not exist
+// was discovered by a driver at a door, and no request was ever written down.
+//
+// BOTH ROUTES ARE GATED ON THE ORDER'S OWN PHONE NUMBER. `track_id` is chosen
+// by the client at checkout and may legally be six characters, so it is not a
+// secret and is not treated as one.
+
+if ($r === 'return_items') {
+    $ref   = trim((string)($_GET['ref'] ?? ''));
+    $phone = store_phone($_GET['phone'] ?? null);
+    if ($phone === null) store_fail('invalid_phone');
+    $out = store_return_lookup($db, $ref, $phone);
+    if (isset($out['error'])) store_fail($out['error'], 404);
+    unset($out['order_id']);          // internal; see the note on the helper
+    store_out($out);
+}
+
+if ($r === 'return_request' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    $b = store_body();
+    $phone = store_phone($b['phone'] ?? null);
+    if ($phone === null) store_fail('invalid_phone');
+    $kind = ($b['kind'] ?? '') === 'return' ? 'return' : (($b['kind'] ?? '') === 'exchange' ? 'exchange' : null);
+    if ($kind === null) store_fail('return_kind');
+    $items = $b['items'] ?? null;
+    if (!is_array($items) || !$items || count($items) > 40) store_fail('return_no_items');
+
+    $out = store_return_create($db, [
+        'ref'    => trim((string)($b['ref'] ?? '')),
+        'phone'  => $phone,
+        'kind'   => $kind,
+        'items'  => $items,
+        'lang'   => ($b['lang'] ?? '') === 'en' ? 'en' : 'ar',
+        'reason' => store_opt($b['reason'] ?? null),
+    ]);
+    if (isset($out['error'])) store_fail($out['error'], 422);
+    store_out($out);
 }
 
 // -------------------------------------------------------------------- order

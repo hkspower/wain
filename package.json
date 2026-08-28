@@ -69,6 +69,7 @@
     "test:db": "php scripts/db-audit.php",
     "test:site-contrast": "node scripts/site-contrast.mjs",
     "test:borders": "node scripts/border-audit.mjs",
+    "test:returns": "node scripts/returns-test.mjs",
     "scan:site": "node scripts/site-scan.mjs",
     "scan:site:curl": "bash scripts/site-scan.sh",
     "scan:php": "php scripts/php-deprecations.php",

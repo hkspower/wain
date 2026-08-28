@@ -151,6 +151,17 @@ Options -Indexes
   RewriteCond %{DOCUMENT_ROOT}/card.html -f
   RewriteRule ^card/?$ /card.html [L]
 
+  # /returns/request -> returns-request.html. A flat page, for the same reason
+  # /card is one: the storefront is a built bundle whose source is not here.
+  #
+  # IT MUST COME BEFORE THE ALTERNATION BELOW. That list matches `returns` with
+  # an optional trailing slash and hands it to the app — which is right, the
+  # policy page IS an app route — but /returns/request is a longer path the app
+  # has never heard of, and the app's router would answer it with the 404
+  # screen. Two rules, most specific first.
+  RewriteCond %{DOCUMENT_ROOT}/returns-request.html -f
+  RewriteRule ^returns/request/?$ /returns-request.html [L]
+
   RewriteRule ^(shop|cart|checkout|about|contact|wishlist|track|returns|terms|privacy|review)/?$ /index.html [L]
   RewriteRule ^product/[^/]+/?$        /index.html [L]
   RewriteRule ^payment/result/?$       /index.html [L]
@@ -289,15 +300,16 @@ FileETag MTime Size
   # THE HAND-WRITTEN OVERRIDE FILES, which matched NOTHING and so were guessed
   # at by every cache in the path.
   #
-  # sporta-ui.css, sporta-dark.css, contact.js and card.js are the four files
-  # in assets/ that are not build output. They have FIXED names — deliberately,
-  # because index.html names them and there is no build step here to hash them
-  # — so the immutable rule above (which keys on a content hash in the
-  # filename) does not match them, and neither does anything else. No
+  # sporta-ui.css, sporta-dark.css, contact.js, card.js, returns-request.js and
+  # returns-link.js are the six files in assets/ that are not build output.
+  # They have FIXED names — deliberately, because index.html names them and
+  # there is no build step here to hash them — so the immutable rule above
+  # (which keys on a content hash in the filename) does not match them, and
+  # neither does anything else. No
   # Cache-Control at all means heuristic caching: roughly a tenth of the time
   # since Last-Modified, which for a file edited last week is most of a day.
   #
-  # THIS IS NOT A PERFORMANCE NOTE. These four carry every correction made
+  # THIS IS NOT A PERFORMANCE NOTE. These carry every correction made
   # since the build was produced, and they only work as a SET with the
   # index.html that loads them. A browser holding yesterday's sporta-ui.css
   # against today's page applies half the rules and not the other half — the
@@ -307,9 +319,9 @@ FileETag MTime Size
   # is invisible from the server, because the server sent the right file.
   #
   # Same treatment as sw.js and config.js above, for the same reason: revalidate
-  # before use. Together they are about 25 kB, so the cost of being right is one
+  # before use. Together they are about 40 kB, so the cost of being right is one
   # conditional request that answers 304 in a few hundred bytes.
-  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(contact|card)\.js$">
+  <FilesMatch "^(sporta-ui|sporta-dark)\.css$|^(contact|card|returns-request|returns-link)\.js$">
     Header set Cache-Control "no-cache, must-revalidate"
   </FilesMatch>
 

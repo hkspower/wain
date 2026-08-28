@@ -1287,6 +1287,104 @@ if ($r === 'review_publish' && $method === 'POST') {
     store_out(['ok' => true]);
 }
 
+// ================================================== returns and exchanges
+//
+// A to-do list, not a log. Every row is a customer waiting to hear whether a
+// courier is coming, and the ones at the top are the ones nobody has looked at.
+
+if ($r === 'returns') {
+    $status = trim((string)($_GET['status'] ?? ''));
+    $ok = ['new','approved','picked_up','refunded','rejected','cancelled'];
+    $where = in_array($status, $ok, true) ? 'where rr.status = ?' : '';
+    $q = $db->prepare(
+        "select rr.id, rr.ref, rr.kind, rr.status, rr.reason, rr.lang, rr.phone,
+                rr.staff_note, rr.created_at, rr.decided_at,
+                o.track_id, o.customer_name, o.payment_method, o.amount,
+                o.created_at as ordered_at, o.fulfilled_at
+           from return_requests rr
+           join orders o on o.id = rr.order_id
+           $where
+          order by rr.created_at desc limit 300"
+    );
+    $q->execute($where === '' ? [] : [$status]);
+    $rows = $q->fetchAll();
+
+    // The lines, fetched for every listed request in ONE query rather than one
+    // query per row. Thirty requests on a screen is thirty round trips to
+    // MariaDB otherwise, and the screen is the one the shop opens every day.
+    $byRequest = [];
+    if ($rows) {
+        $ids = array_column($rows, 'id');
+        $in  = implode(',', array_fill(0, count($ids), '?'));
+        $li = $db->prepare(
+            "select ri.request_id, ri.qty, ri.want_size,
+                    oi.size, oi.unit_price,
+                    coalesce(oi.name_en, p.name_en) as name_en,
+                    coalesce(oi.name_ar, p.name_ar) as name_ar,
+                    p.slug, p.image
+               from return_request_items ri
+               join order_items oi on oi.id = ri.order_item_id
+               join products p on p.id = oi.product_id
+              where ri.request_id in ($in) order by ri.id"
+        );
+        $li->execute($ids);
+        foreach ($li->fetchAll() as $l) {
+            $rid = (int)$l['request_id'];
+            unset($l['request_id']);
+            $l['qty'] = (int)$l['qty'];
+            $l['unit_price'] = (float)$l['unit_price'];
+            $byRequest[$rid][] = $l;
+        }
+    }
+    foreach ($rows as &$row) {
+        $row['id'] = (int)$row['id'];
+        $row['amount'] = (float)$row['amount'];
+        $row['items'] = $byRequest[(int)$row['id']] ?? [];
+    }
+    unset($row);
+
+    // The counts the owner wants at a glance, computed here rather than from
+    // the 300-row page — a limit must not silently change a total.
+    $counts = [];
+    foreach ($db->query('select status, count(*) as n from return_requests group by status')
+                ->fetchAll() as $c) $counts[$c['status']] = (int)$c['n'];
+    store_out(['returns' => $rows, 'counts' => $counts]);
+}
+
+if ($r === 'return_status' && $method === 'POST') {
+    $b = store_body();
+    $id = (int)($b['id'] ?? 0);
+    $to = (string)($b['status'] ?? '');
+    // The SAME list the CHECK constraint carries. A status the database would
+    // refuse must be refused here, with a name, rather than arriving as a
+    // driver-level exception the panel shows as "something went wrong".
+    if (!in_array($to, ['new','approved','picked_up','refunded','rejected','cancelled'], true)) {
+        store_out(['error' => 'bad_status'], 422);
+    }
+    $note = store_opt($b['note'] ?? null);
+    // REJECTING WITHOUT A REASON IS NOT ALLOWED. The customer is told why, and
+    // "no reason given" is not a thing the shop should be able to send.
+    if ($to === 'rejected' && ($note === null || $note === '')) {
+        store_out(['error' => 'reason_required'], 422);
+    }
+    $q = $db->prepare('select status from return_requests where id = ?');
+    $q->execute([$id]);
+    if ($q->fetchColumn() === false) store_out(['error' => 'not_found'], 404);
+
+    // decided_at is set the first time it leaves 'new' and never moved again:
+    // it answers "how long did the customer wait to hear", which a later
+    // status change would erase.
+    $db->prepare(
+        "update return_requests
+            set status = ?,
+                staff_note = coalesce(?, staff_note),
+                decided_at = case when decided_at is null and ? <> 'new'
+                                  then current_timestamp else decided_at end
+          where id = ?"
+    )->execute([$to, $note, $to, $id]);
+    store_out(['ok' => true]);
+}
+
 // ================================================================== account
 //
 // The four changes that decide who can sign in tomorrow: the password, the

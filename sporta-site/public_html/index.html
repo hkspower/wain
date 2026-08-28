@@ -626,5 +626,10 @@
          `defer` because it must not delay first paint: a stale phone number
          for 200ms is nothing, a slower shop is not. -->
     <script src="/assets/contact.js" defer></script>
+
+    <!-- Puts a link to /returns/request (a flat page, like /card) on the
+         /returns policy page. Same class of thing as contact.js: DOM surgery
+         on a bundle whose source is not here. Deleting this line reverts it. -->
+    <script src="/assets/returns-link.js" defer></script>
   </body>
 </html>

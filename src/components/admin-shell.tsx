@@ -51,6 +51,9 @@ export function AdminShell({
   const NAV: [string, string][] = [
     ['/backends', 'Today'],
     ['/backends/orders', 'Orders'],
+    // Next to Orders, because it is the same job seen from the other end —
+    // a parcel coming back rather than going out.
+    ['/backends/returns', 'Returns'],
     ['/backends/stock', 'Stock'],
     ['/backends/promos', 'Promotions'],
     ['/backends/images', 'Photos'],

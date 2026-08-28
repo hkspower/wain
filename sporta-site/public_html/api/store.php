@@ -2092,3 +2092,203 @@ function store_review_submit(PDO $db, array $order, int $rating, ?string $commen
         throw $e;
     }
 }
+
+// ============================================================ returns
+//
+// The /returns page has always been policy text, an order-number box and a
+// WhatsApp button. Nothing checked that the order existed, nothing knew what
+// was on it, and nothing was written down — the request lived as a message in
+// somebody's phone. These four functions are the missing half: look the order
+// up, show the customer the lines they actually bought, and record what they
+// asked for against those lines.
+
+const STORE_RETURN_DAYS = 14;
+
+// The reference the customer keeps and the driver reads back. Base32 without
+// the characters that are argued about over a phone: no I, no O, no 0, no 1.
+// 8 characters of a 32-symbol alphabet is 40 bits, which is not a secret and
+// is not asked to be one — the lookup is gated on the order's phone number,
+// not on this. It exists so two requests can be told apart.
+function store_return_ref(): string {
+    $alphabet = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+    $out = '';
+    for ($i = 0; $i < 8; $i++) $out .= $alphabet[random_int(0, 31)];
+    return 'SPR' . $out;
+}
+
+// Is this order still inside the returns window, and from when?
+//
+// FROM DELIVERY, NOT FROM THE ORDER. The policy says fourteen days "من
+// الاستلام" — from receipt — and an order placed on the 1st and delivered on
+// the 10th has not used nine of its days sitting in a van. `fulfilled_at` is
+// when the parcel was marked delivered; orders that predate that column, or
+// that are marked delivered without a timestamp, fall back to created_at,
+// which is the only other date the row has and is never later than delivery.
+function store_return_window(array $order, ?string $now = null): array {
+    $from = $order['fulfilled_at'] ?: $order['created_at'];
+    $start = strtotime((string)$from);
+    $deadline = $start + (STORE_RETURN_DAYS * 86400);
+    $at = $now === null ? time() : strtotime($now);
+    return [
+        'from'      => date('Y-m-d H:i:s', $start),
+        'deadline'  => date('Y-m-d H:i:s', $deadline),
+        'days_left' => (int) max(0, (int) ceil(($deadline - $at) / 86400)),
+        'open'      => $at <= $deadline,
+    ];
+}
+
+// The order behind a reference, and the lines on it, with how much of each
+// line is still available to ask about.
+//
+// THE PHONE IS THE GATE. `track_id` is chosen by the CLIENT at checkout and
+// only has to match [A-Za-z0-9]{6,30} — a six-character order number is a
+// perfectly legal one, and this route would otherwise hand a stranger a
+// customer's name and shopping. Requiring the order's own phone number makes
+// guessing the reference worth nothing on its own. Same call as ?r=balance.
+function store_return_lookup(PDO $db, string $ref, string $phone): array {
+    $q = $db->prepare(
+        'select id, track_id, customer_name, customer_phone, payment_method,
+                payment_status, fulfilment_status, created_at, fulfilled_at
+           from orders where track_id = ?'
+    );
+    $q->execute([$ref]);
+    $o = $q->fetch();
+    // ONE ERROR FOR BOTH MISSES. "no such order" and "wrong phone for this
+    // order" told apart is a way to test whether an order number exists, and
+    // the difference is no use to a customer who has simply mistyped.
+    if (!$o || store_phone($o['customer_phone']) !== $phone) return ['error' => 'return_not_found'];
+
+    // Nothing to return from an order the shop never took money for, and
+    // nothing to return from one that was cancelled.
+    if ($o['payment_status'] !== 'paid')          return ['error' => 'return_not_paid'];
+    if ($o['fulfilment_status'] === 'cancelled')  return ['error' => 'return_cancelled'];
+
+    $window = store_return_window($o);
+
+    $it = $db->prepare(
+        // coalesce for the same reason ?r=invoice uses it: the snapshot is
+        // what the customer was sold, and the join is the fallback for orders
+        // placed before the snapshot existed.
+        'select oi.id, oi.qty, oi.size, oi.fit, oi.unit_price,
+                coalesce(oi.name_en, p.name_en) as name_en,
+                coalesce(oi.name_ar, p.name_ar) as name_ar,
+                p.slug, p.category, p.image
+           from order_items oi join products p on p.id = oi.product_id
+          where oi.order_id = ? order by oi.id'
+    );
+    $it->execute([(int)$o['id']]);
+    $lines = $it->fetchAll();
+
+    // How much of each line is already spoken for. A request that was rejected
+    // or cancelled releases its lines — the customer may ask again, and being
+    // refused once must not cost them the item for ever.
+    $used = $db->prepare(
+        "select ri.order_item_id, sum(ri.qty) as n
+           from return_request_items ri
+           join return_requests rr on rr.id = ri.request_id
+          where rr.order_id = ? and rr.status not in ('rejected','cancelled')
+          group by ri.order_item_id"
+    );
+    $used->execute([(int)$o['id']]);
+    $taken = [];
+    foreach ($used->fetchAll() as $row) $taken[(int)$row['order_item_id']] = (int)$row['n'];
+
+    $items = [];
+    foreach ($lines as $l) {
+        $id = (int)$l['id'];
+        $items[] = [
+            'id'          => $id,
+            'name_en'     => $l['name_en'],
+            'name_ar'     => $l['name_ar'],
+            'slug'        => $l['slug'],
+            'image'       => $l['image'],
+            'size'        => $l['size'],
+            'fit'         => $l['fit'],
+            'qty'         => (int)$l['qty'],
+            'unit_price'  => (float)$l['unit_price'],
+            'available'   => max(0, (int)$l['qty'] - ($taken[$id] ?? 0)),
+            // WOMEN'S CLOTHING CANNOT BE EXCHANGED. The policy on the page says
+            // so and the size adviser already warns about it mid-purchase; this
+            // is the same rule at the point it actually costs something. It is
+            // sent per line so the form can grey the choice rather than accept
+            // it and refuse afterwards.
+            'no_exchange' => ((string)$l['category']) === 'women',
+        ];
+    }
+
+    // Open requests already on this order, so the page can say "you asked us
+    // about this on Tuesday" instead of quietly taking a second one.
+    $open = $db->prepare(
+        "select ref, kind, status, created_at from return_requests
+          where order_id = ? and status not in ('rejected','cancelled')
+          order by created_at desc limit 10"
+    );
+    $open->execute([(int)$o['id']]);
+
+    return [
+        // INTERNAL, and stripped by the route before anything is sent out —
+        // store_return_create() needs it and the customer has no use for it.
+        'order_id'      => (int)$o['id'],
+        'track_id'      => $o['track_id'],
+        'customer_name' => $o['customer_name'],
+        'placed_at'     => $o['created_at'],
+        'delivered_at'  => $o['fulfilled_at'],
+        'delivered'     => $o['fulfilment_status'] === 'delivered',
+        'payment_method' => $o['payment_method'],
+        'window'        => $window,
+        'items'         => $items,
+        'existing'      => $open->fetchAll(),
+    ];
+}
+
+// Write the request. Everything it validates, it validates against the ORDER —
+// never against what the browser sent about the order.
+function store_return_create(PDO $db, array $in): array {
+    $found = store_return_lookup($db, $in['ref'], $in['phone']);
+    if (isset($found['error'])) return $found;
+    if (!$found['window']['open']) return ['error' => 'return_window_closed'];
+
+    $byId = [];
+    foreach ($found['items'] as $i) $byId[$i['id']] = $i;
+
+    $wanted = [];
+    foreach ($in['items'] as $row) {
+        $id  = (int)($row['id'] ?? 0);
+        $qty = (int)($row['qty'] ?? 0);
+        $line = $byId[$id] ?? null;
+        if ($line === null) return ['error' => 'return_line_unknown'];
+        if ($qty < 1 || $qty > $line['available']) return ['error' => 'return_qty'];
+        $size = strtoupper(trim((string)($row['want_size'] ?? '')));
+        if ($size !== '' && !in_array($size, STORE_SIZES, true)) return ['error' => 'return_size'];
+        if ($in['kind'] === 'exchange' && $line['no_exchange']) return ['error' => 'return_no_exchange'];
+        // A size is meaningless on a return: nothing is being sent back out.
+        if ($in['kind'] === 'return') $size = '';
+        $wanted[] = ['id' => $id, 'qty' => $qty, 'want_size' => $size === '' ? null : $size];
+    }
+    if (!$wanted) return ['error' => 'return_no_items'];
+
+    // The reference is generated, not supplied, so a collision is the shop's
+    // problem to retry rather than the customer's to see. Three attempts of a
+    // 40-bit space is past any realistic collision.
+    for ($attempt = 0; ; $attempt++) {
+        $ref = store_return_ref();
+        try {
+            $db->beginTransaction();
+            $db->prepare(
+                'insert into return_requests (ref, order_id, kind, reason, lang, phone)
+                 values (?, ?, ?, ?, ?, ?)'
+            )->execute([$ref, $found['order_id'], $in['kind'], $in['reason'], $in['lang'], $in['phone']]);
+            $rid = (int)$db->lastInsertId();
+            $line = $db->prepare(
+                'insert into return_request_items (request_id, order_item_id, qty, want_size)
+                 values (?, ?, ?, ?)'
+            );
+            foreach ($wanted as $w) $line->execute([$rid, $w['id'], $w['qty'], $w['want_size']]);
+            $db->commit();
+            return ['ref' => $ref, 'kind' => $in['kind'], 'items' => count($wanted)];
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            if ($attempt >= 2) throw $e;
+        }
+    }
+}

@@ -121,9 +121,36 @@ def _fresh():
          'brand_slug': 'gymshark' if 'cloudsoft' in v['slug'] else None}
         for v in {x['slug']: x for x in variants}.values()
     ]
+    # RETURN AND EXCHANGE REQUESTS, in the shape ?r=returns sends them: the
+    # lines come WITH the list, snake_case, KWD decimals. Two rows, so the
+    # panel's default 'new' filter has something in it and the 'all' filter
+    # has something the filter must exclude.
+    returns = [
+        {'id': 1, 'ref': 'SPR7K2M9QX4', 'kind': 'exchange', 'status': 'new',
+         'reason': 'المقاس كبير', 'lang': 'ar', 'phone': '96555512345',
+         'staff_note': None, 'created_at': '2026-08-26 10:12:00', 'decided_at': None,
+         'track_id': 'SPMOCK0001', 'customer_name': 'Fatima A.', 'payment_method': 'knet',
+         'amount': 18.000, 'ordered_at': '2026-08-19 09:00:00',
+         'fulfilled_at': '2026-08-24 14:00:00',
+         'items': [{'qty': 1, 'want_size': 'XL', 'size': 'L', 'unit_price': 10.000,
+                    'name_en': 'Cloudsoft Jacket — Army Green',
+                    'name_ar': 'جاكيت كلاودسوفت — أخضر عسكري',
+                    'slug': 'cloudsoft-jacket-army-green', 'image': None}]},
+        {'id': 2, 'ref': 'SPR3H8VDNP2', 'kind': 'return', 'status': 'approved',
+         'reason': None, 'lang': 'en', 'phone': '96599887766',
+         'staff_note': None, 'created_at': '2026-08-25 08:40:00',
+         'decided_at': '2026-08-25 11:02:00',
+         'track_id': 'SPMOCK0002', 'customer_name': 'Yousef K.', 'payment_method': 'cod',
+         'amount': 8.000, 'ordered_at': '2026-08-18 12:00:00',
+         'fulfilled_at': '2026-08-22 16:30:00',
+         'items': [{'qty': 1, 'want_size': None, 'size': 'M', 'unit_price': 8.000,
+                    'name_en': 'Cloudsoft Leggings — Navy',
+                    'name_ar': 'ليقنز كلاودسوفت — كحلي',
+                    'slug': 'cloudsoft-leggings-navy', 'image': None}]},
+    ]
     return {'orders': orders, 'items': items, 'variants': variants, 'discounts': discounts,
             'products': products, 'images': [], 'next_image': 1,
-            'next_discount': 3, 'settings': settings}
+            'next_discount': 3, 'settings': settings, 'returns': returns}
 
 
 STATE = _fresh()
@@ -278,6 +305,19 @@ class Handler(BaseHTTPRequestHandler):
 
         if r == 'discounts':
             return self._json(200, STATE['discounts'])
+
+        if r == 'returns':
+            rows = STATE['returns']
+            # Same optional &status= filter admin.php takes, and the same
+            # counts — over EVERYTHING, not over the filtered page, because a
+            # count that changed with the filter would be a lie on the chips.
+            m = re.search(r'[?&]status=([a-z_]+)', self.path)
+            if m:
+                rows = [x for x in rows if x['status'] == m.group(1)]
+            counts = {}
+            for x in STATE['returns']:
+                counts[x['status']] = counts.get(x['status'], 0) + 1
+            return self._json(200, {'returns': rows, 'counts': counts})
 
         self._json(404, {'error': 'not_found'})
 
@@ -483,6 +523,28 @@ class Handler(BaseHTTPRequestHandler):
             if target['used_count'] > 0:
                 return self._json(409, {'error': 'discount_in_use'})
             STATE['discounts'].remove(target)
+            return self._json(200, {'ok': True})
+
+        if r == 'return_status':
+            target = next((x for x in STATE['returns'] if x['id'] == int(b.get('id') or 0)), None)
+            if not target:
+                return self._json(404, {'error': 'not_found'})
+            to = b.get('status')
+            if to not in ('new', 'approved', 'picked_up', 'refunded', 'rejected', 'cancelled'):
+                return self._json(422, {'error': 'bad_status'})
+            note = (b.get('note') or '').strip() or None
+            # Mirrors admin.php: a rejection without a reason is refused. The
+            # customer is told why, and "no reason given" is not something the
+            # shop should be able to send.
+            if to == 'rejected' and not note:
+                return self._json(422, {'error': 'reason_required'})
+            target['status'] = to
+            if note:
+                target['staff_note'] = note
+            # decided_at is set once, the first time it leaves 'new', and never
+            # moved again — same as the SQL.
+            if target['decided_at'] is None and to != 'new':
+                target['decided_at'] = '2026-08-28 12:00:00'
             return self._json(200, {'ok': True})
 
         self._json(404, {'error': 'not_found'})

@@ -161,6 +161,44 @@ await p.waitForTimeout(1200)
 check((await seen(p.getByText('WINTER26')).count()) > 0, 'the new promotion is saved and listed')
 await shot('promos')
 
+// --- returns -------------------------------------------------------------
+//
+// The screen a customer's return request lands on. The mock carries two: one
+// `new` exchange and one `approved` return, so the default filter has to
+// EXCLUDE something to be doing anything.
+await p.getByRole('link', { name: 'Returns' }).click()
+await p.waitForTimeout(1200)
+check((await seen(p.getByText('SPR7K2M9QX4')).count()) > 0,
+  'the returns list loads, filtered to what is waiting')
+check((await seen(p.getByText('SPR3H8VDNP2')).count()) === 0,
+  'and the approved one is not in the "new" filter')
+// The wanted size is the whole point of an exchange and the thing the
+// warehouse picks; a screen that showed the request without it would be
+// useless on the floor.
+check((await seen(p.getByText(/L → XL/)).count()) > 0,
+  "an exchange says which size is wanted instead")
+
+await p.getByRole('radio', { name: /^all$/i }).click()
+await p.waitForTimeout(900)
+check((await seen(p.getByText('SPR3H8VDNP2')).count()) > 0,
+  'and "All" shows the ones already dealt with')
+
+// A REJECTION NEEDS A REASON. The server refuses one without, so the screen
+// asks for it rather than letting the tap fail.
+// .first(), because the "All" filter is showing both rows and each carries a
+// Reject. accessibilityLabel does not become the accessible name for a
+// Pressable on web — the child text does — so there is nothing more specific
+// to ask for here.
+await p.getByRole('button', { name: 'Reject' }).first().click()
+await p.waitForTimeout(400)
+check((await seen(p.getByLabel(/Why/)).count()) > 0,
+  'rejecting opens a reason box rather than firing straight at the server')
+await p.getByLabel(/Why/).fill('Worn, tags removed')
+await p.getByRole('button', { name: 'Confirm rejection' }).click()
+await p.waitForTimeout(1200)
+check((await seen(p.getByText('rejected')).count()) > 0, 'and the rejection sticks')
+await shot('returns')
+
 // --- it persists, and it drops a dead token ------------------------------
 await p.goto(BASE + '/backends', { waitUntil: 'networkidle' })
 await p.waitForTimeout(900)

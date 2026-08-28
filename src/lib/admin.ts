@@ -402,6 +402,93 @@ function toDiscount(d: WireDiscount): Discount {
   };
 }
 
+
+// ------------------------------------------------------------------ returns
+
+/** A return or exchange request, as ?r=returns sends it. */
+type WireReturn = {
+  id: number;
+  ref: string;
+  kind: 'return' | 'exchange';
+  status: ReturnStatus;
+  reason: string | null;
+  lang: string;
+  phone: string;
+  staff_note: string | null;
+  created_at: string;
+  decided_at: string | null;
+  track_id: string;
+  customer_name: string | null;
+  payment_method: string;
+  amount: number;
+  ordered_at: string;
+  fulfilled_at: string | null;
+  items: {
+    qty: number;
+    want_size: string | null;
+    size: string | null;
+    unit_price: number;
+    name_en: string;
+    name_ar: string;
+    slug: string;
+    image: string | null;
+  }[];
+};
+
+/** The server's own list, verbatim — the CHECK constraint on
+ *  return_requests.status carries exactly these six. */
+export type ReturnStatus =
+  | 'new' | 'approved' | 'picked_up' | 'refunded' | 'rejected' | 'cancelled';
+
+export type ReturnLine = {
+  name: string;
+  size: string;
+  wantSize: string | null;
+  qty: number;
+  price: number;
+};
+
+export type ReturnRequest = {
+  id: number;
+  ref: string;
+  kind: 'return' | 'exchange';
+  status: ReturnStatus;
+  reason: string | null;
+  phone: string;
+  staffNote: string | null;
+  createdAt: string;
+  decidedAt: string | null;
+  trackId: string;
+  customerName: string;
+  amount: number;
+  lines: ReturnLine[];
+};
+
+function toReturn(w: WireReturn): ReturnRequest {
+  return {
+    id: Number(w.id),
+    ref: w.ref,
+    kind: w.kind,
+    status: w.status,
+    reason: w.reason,
+    phone: w.phone,
+    staffNote: w.staff_note,
+    createdAt: w.created_at,
+    decidedAt: w.decided_at,
+    trackId: w.track_id,
+    customerName: w.customer_name ?? '',
+    // KWD decimals on the wire, integer fils everywhere in the app.
+    amount: toFils(w.amount),
+    lines: (w.items ?? []).map((i) => ({
+      name: i.name_en ?? i.slug,
+      size: i.size ?? '—',
+      wantSize: i.want_size,
+      qty: Number(i.qty),
+      price: toFils(i.unit_price),
+    })),
+  };
+}
+
 // -------------------------------------------------------------------- the api
 
 export const adminApi = {
@@ -664,4 +751,20 @@ export const adminApi = {
     call<{ ok: true }>('product_image_reorder', { slug, ids }),
 
   deleteDiscount: (id: number) => call<{ ok: true }>('discount_delete', { id }),
+
+  // ----------------------------------------------------------------- returns
+
+  /** Every return and exchange request, newest first, with its lines. The
+   *  server sends the lines WITH the list — one request per screen, not one
+   *  per row — so nothing here fans out. */
+  returns: async (status?: ReturnStatus | 'all') => {
+    const q = status && status !== 'all' ? `returns&status=${status}` : 'returns';
+    const res = await call<{ returns: WireReturn[]; counts: Record<string, number> }>(q);
+    return { returns: (res.returns ?? []).map(toReturn), counts: res.counts ?? {} };
+  },
+
+  /** Move a request along. `note` is REQUIRED by the server for a rejection —
+   *  a customer told no is told why — and is optional everywhere else. */
+  setReturnStatus: (id: number, status: ReturnStatus, note?: string) =>
+    call<{ ok: true }>('return_status', { id, status, note: note ?? null }),
 };

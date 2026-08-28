@@ -31,6 +31,7 @@ tabs, because it is not a fifth thing a customer browses.
 | Today | Orders and takings today, how many are waiting, what is running out |
 | Orders | Status filters; one card per order, not a table |
 | Order | Address and items, and only the status moves that order is allowed |
+| Returns | Return and exchange requests customers made from the website — approve, mark picked up, refund, or reject with a reason |
 | Stock | Per-variant counts, edited one row at a time |
 | Promotions | Codes and automatic rules: value, minimum, window, usage limit, pause |
 
@@ -58,6 +59,7 @@ underscored — the panel follows `admin.php`, never the other way round:
 | `fulfilment` | POST | moves the parcel: `packed` / `shipped` / `delivered` / `cancelled` |
 | `variants` / `set_stock` | GET / POST | per-size stock, keyed on `sku` |
 | `discounts` / `discount_save` / `discount_active` / `discount_delete` | GET / POST | promotions |
+| `returns[&status=]` / `return_status` | GET / POST | return and exchange requests, lines included; a rejection needs a reason |
 
 **Authentication is a session cookie, not a token.** `?r=login` sets it; every
 request also sends `X-Sporta-Admin: 1`, and `admin.php` answers 400 without
@@ -112,6 +114,7 @@ because the rigs place real orders against a real database.
 | `npm run test:robots` | robots.txt and the sitemaps as a crawler reads them — every group complete, every listed URL a 200, every slug an active product |
 | `npm run test:db` | The database's values against the website and app that read them |
 | `npm run test:site-contrast` | Every run of text on the website, measured against what is behind it — `THEME=light` for the other one |
+| `npm run test:returns` | Returns and exchanges end to end — the two public routes, the admin gate, and the customer's page in a browser |
 | `npm run test:borders` | Every border, all four sides, both themes, phone and desktop — none invisible, plus a census of the colours, widths and radii in use |
 | `npm run scan:site` | The website, in a browser — `BASE=` to aim it |
 | `npm run scan:site:curl` | The same, with nothing but curl |
@@ -214,6 +217,15 @@ The client uses three endpoints, all on `api.php`:
 - `GET  {apiBase}/api.php?r=stock` → `{slug, size, stock}` rows, a SEPARATE call
 - `POST {apiBase}/api.php?r=order` → `{ track_id, amount, pay_url }`
 - `GET  {apiBase}/api.php?r=status&id=…` → whether the bank has answered yet
+- `GET  {apiBase}/api.php?r=return_items&ref=…&phone=…` → an order's lines, for a return
+- `POST {apiBase}/api.php?r=return_request` → records one, answers `{ ref }`
+
+**The phone is the gate on both return routes.** `track_id` is chosen by the
+CLIENT at checkout and only has to match `[A-Za-z0-9]{6,30}`, so a six-character
+order number is a legal one and the reference is not a secret. Without the
+phone check `?r=return_items` would hand a stranger a customer's name and
+shopping for the cost of guessing. A missing order and a wrong phone answer
+identically, so the difference cannot be used to test whether a number is real.
 
 **Not `store.php`.** This page said `store.php?r=catalogue` for a long time and
 it was wrong the whole time: `store.php` is the shop's LIBRARY, not a router. It
