@@ -149,7 +149,15 @@ def _fresh():
                     'slug': 'cloudsoft-leggings-navy', 'image': None}]},
     ]
     return {'orders': orders, 'items': items, 'variants': variants, 'discounts': discounts,
-            'products': products, 'images': [], 'next_image': 1,
+            'products': products,
+            # FOUR PHOTOGRAPHS ON THE FIRST GARMENT, so the gallery exists
+            # for a rig to look at. It used to start empty, and the gallery
+            # is three taps in — which is how a 22pt Remove button that
+            # deleted a photograph on one tap went unseen by every rig in
+            # the repo. admin-mobile.mjs works this fixture.
+            'images': [{'id': n, 'slug': products[0]['slug'], 'sort': n - 1,
+                        'v': 'aaaa%d' % n, 'width': 900, 'height': 1125} for n in range(1, 5)],
+            'next_image': 5,
             'next_discount': 3, 'settings': settings, 'returns': returns,
             'otp_enabled': False, 'otp_code': None}
 

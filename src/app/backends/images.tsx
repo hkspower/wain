@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Chip } from '@/components/ui/chip';
 import { Field } from '@/components/ui/field';
 import { press } from '@/components/ui/press';
-import { Radius, Spacing } from '@/constants/theme';
+import { Radius, Spacing, TapTarget } from '@/constants/theme';
 import {
   adminApi,
   Unauthorized,
@@ -61,6 +61,9 @@ export default function ImagesScreen() {
   const [queue, setQueue] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // Which photograph is one tap from being deleted. Null the moment the
+  // gallery changes, so a confirm cannot survive into a different picture.
+  const [confirm, setConfirm] = useState<number | null>(null);
 
   const load = useCallback(() => {
     if (!token) return;
@@ -86,6 +89,7 @@ export default function ImagesScreen() {
   // nothing.
   const slug = chosen?.slug ?? null;
   useEffect(() => {
+    setConfirm(null);
     if (!slug) { setGallery(null); return; }
     let alive = true;
     adminApi
@@ -189,6 +193,7 @@ export default function ImagesScreen() {
     setBusy(true);
     try {
       await adminApi.deleteProductImage(id);
+      setConfirm(null);
       setGallery(await adminApi.productImages(chosen.slug));
       setNotice('Photograph removed.');
     } catch (e) {
@@ -348,13 +353,47 @@ export default function ImagesScreen() {
                   <ThemedText type="caption" themeColor="tint" style={styles.mainTag}>main</ThemedText>
                 )}
                 <View style={styles.tileActions}>
-                  {i !== 0 && (
-                    <Pressable accessibilityRole="button" onPress={() => makeMain(g.id)} style={press(false)}>
-                      <ThemedText type="caption" themeColor="tint">Make main</ThemedText>
-                    </Pressable>
-                  )}
-                  <Pressable accessibilityRole="button" onPress={() => remove(g.id)} style={press(false)}>
-                    <ThemedText type="caption" themeColor="danger">Remove</ThemedText>
+                  {/* ALWAYS RENDERED, even on the first tile where it does
+                      nothing. The row used to omit it there, so tile one's
+                      Remove sat at a different height from every other
+                      tile's — and on a grid that is read by position, the
+                      destructive control moving between cells is the worst
+                      possible thing to be ragged. Disabled and dimmed
+                      instead: the layout is the same in every cell and the
+                      first tile says why it is already the main one. */}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={i === 0 ? 'already the main photograph' : `make photograph ${i + 1} the main one`}
+                    accessibilityState={{ disabled: i === 0 || busy }}
+                    disabled={i === 0 || busy}
+                    onPress={() => makeMain(g.id)}
+                    style={press(false, styles.tileAction, i === 0 && styles.tileActionOff)}>
+                    <ThemedText type="caption" themeColor={i === 0 ? 'textSecondary' : 'tint'}>
+                      {i === 0 ? 'Main photo' : 'Make main'}
+                    </ThemedText>
+                  </Pressable>
+                  {/* TWO TAPS TO DELETE, and the gap above is the other half.
+                      This was a 22pt-tall text link sitting two points under
+                      another one — under even the 24pt WCAG 2.5.8 floor, let
+                      alone the 44 a thumb wants — and it destroys a
+                      photograph immediately, with no undo. A thumb aiming at
+                      "Make main" landed on it.
+                      A confirm step rather than a dialog: the panel has no
+                      modal, an alert() is not a thing React Native Web can be
+                      trusted with on a phone, and "tap again to be sure" is
+                      the pattern a one-handed owner can back out of by
+                      tapping anywhere else. */}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={confirm === g.id
+                      ? `confirm removing photograph ${i + 1}`
+                      : `remove photograph ${i + 1}`}
+                    disabled={busy}
+                    onPress={() => (confirm === g.id ? remove(g.id) : setConfirm(g.id))}
+                    style={press(false, styles.tileAction)}>
+                    <ThemedText type="caption" themeColor="danger">
+                      {confirm === g.id ? 'Tap to confirm' : 'Remove'}
+                    </ThemedText>
                   </Pressable>
                 </View>
               </View>
@@ -377,8 +416,28 @@ const styles = StyleSheet.create({
   queueRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.one },
   queueName: { flex: 1 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
-  tile: { width: 104, gap: Spacing.one },
-  thumb: { width: 104, height: 104, borderRadius: Radius.button, backgroundColor: 'rgba(127,127,127,0.15)' },
+  // FILLS THE WIDTH INSTEAD OF SITTING AT 104pt.
+  //
+  // A fixed 104 put two tiles in a 358pt card and left 142pt — forty per
+  // cent of the phone's width — empty down the right-hand side, while the
+  // thumbnails themselves were too small to judge a photograph by, which
+  // is the entire job of this grid.
+  //
+  // flexBasis with flexGrow rather than a breakpoint: 150 means two per
+  // row on any phone and they grow to share whatever is left, three or
+  // four per row on a tablet or desktop, and nothing to keep in step with
+  // a media query. The same trick the Today screen's tiles already use.
+  tile: { flexGrow: 1, flexBasis: 150, gap: Spacing.one },
+  // 4:5 PORTRAIT, because that is what the shop grid crops to. A square
+  // thumbnail here showed the owner a picture the storefront would never
+  // display, so a photograph that looked fine when uploaded lost its head
+  // or its feet on the grid. Now the tile IS the crop.
+  thumb: { width: '100%', aspectRatio: 4 / 5, borderRadius: Radius.button, backgroundColor: 'rgba(127,127,127,0.15)' },
   mainTag: { position: 'absolute', top: 4, insetInlineStart: 6 },
-  tileActions: { gap: 2 },
+  tileActions: { gap: Spacing.one },
+  // A REAL TAP TARGET under each thumbnail. These were 22pt-tall pieces
+  // of caption text two points apart, one of which deletes a photograph
+  // for good.
+  tileAction: { minHeight: TapTarget, justifyContent: 'center' },
+  tileActionOff: { opacity: 0.45 },
 });

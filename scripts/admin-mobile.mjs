@@ -150,6 +150,79 @@ for (const width of WIDTHS) {
   await ctx.close()
 }
 
+// ------------------------------------------------- the photograph uploader
+//
+// Its own section because the gallery only exists once a garment with
+// photographs is CHOSEN — three taps in — so the generic sweep above never
+// reached it, and what it was hiding was the worst control in the panel.
+//
+// Measured before the fix, at 390pt: "Make main" and "Remove" were 104x22
+// pieces of caption text, two points apart. Twenty-two is under the 24pt WCAG
+// 2.5.8 floor, never mind the 44 a thumb wants — and Remove destroyed a
+// photograph immediately, with no undo and no confirmation, directly below a
+// harmless control. A thumb aiming at "Make main" deleted the picture.
+console.log('\n--- the photograph uploader')
+{
+  // RESET THE FIXTURE FIRST. This section ends by actually deleting a
+  // photograph, so without it the rig eats its own fixture: four on the first
+  // run, three on the second, and a confusing failure on the fourth that has
+  // nothing to do with the code under test. The mock's `reset` is
+  // unauthenticated and exists for exactly this.
+  await fetch(`${BASE}/api/admin.php?r=reset`, { method: 'POST', headers: { 'X-Sporta-Admin': '1' } })
+    .catch(() => {})
+
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+  const page = await ctx.newPage()
+  await page.goto(`${BASE}/backends`)
+  await page.waitForTimeout(800)
+  const email = page.locator('input[type=email], input[autocomplete="username"]').first()
+  if (await email.count()) {
+    await email.fill(EMAIL)
+    await page.locator('input[type=password]').first().fill(PASSWORD)
+    await page.getByRole('button', { name: /sign in/i }).first().click()
+    await page.waitForTimeout(1400)
+  }
+  await page.goto(`${BASE}/backends/images`)
+  await page.waitForTimeout(900)
+  const garment = page.locator('[role=button]').filter({ hasText: /^A-/ }).first()
+  if (check(await garment.count() > 0, 'a garment can be chosen')) {
+    await garment.click()
+    await page.waitForTimeout(1300)
+
+    const small = await page.evaluate(() => {
+      const bad = []
+      for (const el of document.querySelectorAll('[role=button]')) {
+        const t = (el.textContent || '').trim()
+        if (!/^(make main|main photo|remove|tap to confirm)$/i.test(t)) continue
+        const b = el.getBoundingClientRect()
+        if (b.width < 44 || b.height < 44) bad.push(`"${t}" ${Math.round(b.width)}x${Math.round(b.height)}`)
+      }
+      return bad
+    })
+    check(small.length === 0,
+      'every control under a photograph is at least 44pt',
+      small.join(', '))
+
+    // THE DESTRUCTIVE ONE TAKES TWO TAPS. This is the assertion that matters:
+    // the size fix alone still leaves a single tap wiping a photograph, and a
+    // 48pt target is easier to hit by accident than a 22pt one, not harder.
+    const before = await page.locator('[role=button]').filter({ hasText: /^Remove$|^Tap to confirm$/ }).count()
+    if (check(before >= 2, `the garment has photographs to work with (${before})`)) {
+      await page.getByRole('button', { name: /^remove photograph 2$/ }).first().click()
+      await page.waitForTimeout(500)
+      const after = await page.locator('[role=button]').filter({ hasText: /^Remove$|^Tap to confirm$/ }).count()
+      check(after === before, 'one tap on Remove deletes nothing', `${before} photographs became ${after}`)
+      check(await page.getByRole('button', { name: /confirm removing photograph 2/ }).count() > 0,
+        'and the control asks to be tapped again instead')
+      await page.getByRole('button', { name: /confirm removing photograph 2/ }).first().click()
+      await page.waitForTimeout(1300)
+      const gone = await page.locator('[role=button]').filter({ hasText: /^Remove$|^Tap to confirm$/ }).count()
+      check(gone === before - 1, 'the second tap does remove it', `${before} became ${gone}`)
+    }
+  }
+  await ctx.close()
+}
+
 await browser.close()
 console.log(fails ? `\n${fails} failed` : '\nall ok — the back office is usable on every phone width')
 process.exit(fails ? 1 : 0)
