@@ -51,13 +51,54 @@ const sample = (h) => page.evaluate((h)=>{
 
 console.log("hour   sky-top(rgb)          key   stars  lamps  beam    headlight");
 const rows = [];
-for (const h of [0, 5.6, 8, 12.5, 18.2, 20, 22.5]) {
+for (const h of [0, 5.6, 8, 12.5, 14, 16.2, 17.2, 18.2, 20, 22.5]) {
   const r = await sample(h);
   rows.push(r);
   console.log(`${String(h).padStart(5)}  ${JSON.stringify(r.top).padEnd(22)} ${String(r.keyInt).padStart(5)} ${String(r.stars).padStart(6)} ${String(r.lampPool).padStart(6)} ${String(r.beam).padStart(7)} ${String(r.headlight).padStart(8)}`);
 }
 const night = rows.find(r=>r.h===22.5), noon = rows.find(r=>r.h===12.5), dawn = rows.find(r=>r.h===5.6);
 check(noon.top[2] > night.top[2] + 0.3, "the sky does not brighten by day");
+
+// --- The afternoon has to be an afternoon, not a second noon.
+//
+// This file sampled hour 8 and hour 12.5 and printed IDENTICAL rows for
+// them — the same sky top, the same key, the same everything — and then
+// jumped from half past twelve to quarter past six without a single
+// sample in between. Both were true readings of a cycle whose daylight
+// weight saturates at a sun altitude of 0.31 and stays there for eight
+// and a half hours: half past eight, noon and half past three were one
+// picture with the sun pointing a different way.
+//
+// So: sample the hours it skipped, and state the law. A day has an ARC.
+// The sun comes down through the afternoon, the light it throws warms
+// and weakens as it does, and none of that is allowed to turn the
+// streetlights on while the sun is still up.
+{
+  const noonR = rows.find((r) => r.h === 12.5);
+  const aft = rows.find((r) => r.h === 16.2);
+  const late = rows.find((r) => r.h === 17.2);
+  const dusk = rows.find((r) => r.h === 18.2);
+  const drop = (a, b) => a.keyY - b.keyY;
+  console.log(
+    `\nafternoon  key height ${noonR.keyY} at noon -> ${aft.keyY} at 16:12 -> ${late.keyY} at 17:12 -> ${dusk.keyY} at dusk`
+  );
+  console.log(
+    `           sky top ${JSON.stringify(noonR.top)} -> ${JSON.stringify(aft.top)}   ` +
+      `key ${noonR.keyInt} -> ${aft.keyInt}   lamps ${noonR.lampPool} -> ${aft.lampPool}`
+  );
+  // The sun comes down, and keeps coming down.
+  check(
+    drop(noonR, aft) > 0 && drop(aft, late) > 0 && drop(late, dusk) > 0,
+    `the sun does not fall through the afternoon: ${noonR.keyY} -> ${aft.keyY} -> ${late.keyY} -> ${dusk.keyY}`
+  );
+  // And the sky it lights is a different sky. Compared on the zenith,
+  // which is the part of the frame a horizon glow cannot flatter.
+  const dist = Math.hypot(...[0, 1, 2].map((i) => noonR.top[i] - aft.top[i]));
+  check(dist > 0.05, `the afternoon sky is ${dist.toFixed(3)} away from noon's — it is the same sky`);
+  // Without any of it lighting the streetlights while the sun is up.
+  check(aft.lampPool === 0, `the streetlights are on at 16:12 (${aft.lampPool})`);
+  check(aft.keyInt > 2.2, `the afternoon key has collapsed to ${aft.keyInt} — that is dusk, not four o'clock`);
+}
 check(noon.keyInt > night.keyInt * 1.8, "the sun is no stronger than the moon");
 check(night.stars > 0.8 && noon.stars < 0.05, "stars do not fade with the sunrise");
 check(night.lampPool > 0.3 && noon.lampPool < 0.05, "streetlights do not switch off in daylight");

@@ -2776,6 +2776,9 @@ const TUNNEL_U = { from: TUNNEL_S.from / LAP_LENGTH, to: TUNNEL_S.to / LAP_LENGT
 // the key still does the modelling.
 const KEY_NIGHT = 1.15;
 const KEY_TWILIGHT = 1.5;
+/** Mid-afternoon: still full daylight, but off a sun that has come down
+ *  far enough to rake. */
+const KEY_GOLD = 2.75;
 const KEY_DAY = 3.1;
 const FILL_RATIO = 0.3;
 
@@ -2800,6 +2803,31 @@ const FILL_RATIO = 0.3;
 // a hot road read as noon and nothing else.
 const KEY_ELEV_NIGHT = 26;
 const KEY_ELEV_TWILIGHT = 12;
+/**
+ * And the afternoon, which the day used to have no room for.
+ *
+ * `day` saturates at a sun altitude of 0.31, which the clock reaches at
+ * ten to eight in the morning and does not leave until ten past four —
+ * so for eight and a half hours every palette in here was pinned to the
+ * same values and the key light sat at the same 54 degrees. Half past
+ * eight, noon and half past three were the same picture with the sun
+ * pointing a different way. The test that covers this cycle sampled
+ * hour 8 and hour 12.5 and printed the same sky for both without
+ * anybody noticing, and sampled nothing at all between half past twelve
+ * and quarter past six.
+ *
+ * A low sun is the thing daylight actually varies by: long shadows down
+ * the road, a warm key, and the haze the Gulf carries all year standing
+ * up in the horizon band.
+ *
+ * 22 rather than the 14 this was first written at, and the reason is
+ * the keyframe below it. Twilight sits at 12, so an afternoon at 14 is
+ * only two degrees above dusk — and blended, the two came out level: the
+ * key measured the same height at ten past five as at ten past six, and
+ * the sun stopped falling for the last hour of the day. An afternoon has
+ * to be as far above dusk as it is below noon.
+ */
+const KEY_ELEV_GOLD = 22;
 const KEY_ELEV_DAY = 54;
 /** How far out the key sits, horizontally, from what it is lighting. */
 const KEY_RADIUS = 520;
@@ -5319,15 +5347,21 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
 
       // Blend weights. Twilight is the narrow band around the horizon,
       // and it is what makes a cycle worth having.
-      const day = THREE.MathUtils.clamp(sunAlt * 3.2, 0, 1);
+      const lit = THREE.MathUtils.clamp(sunAlt * 3.2, 0, 1);
       const night = THREE.MathUtils.clamp(-sunAlt * 3.2, 0, 1);
-      const twilight = 1 - day - night;
+      const twilight = 1 - lit - night;
+      // The golden band takes its share OUT of the daylight weight, so
+      // the four still sum to one and noon is left exactly as it was.
+      // It rides the sun's altitude rather than the hour, which means
+      // the morning gets it too — and mornings are golden.
+      const gold = lit * THREE.MathUtils.clamp((0.88 - sunAlt) / 0.7, 0, 1);
+      const day = lit - gold;
 
-      const mix3 = (n: number[], t: number[], d: number[]) =>
+      const mix4 = (n: number[], t: number[], g: number[], d: number[]) =>
         new THREE.Color(
-          n[0] * night + t[0] * twilight + d[0] * day,
-          n[1] * night + t[1] * twilight + d[1] * day,
-          n[2] * night + t[2] * twilight + d[2] * day
+          n[0] * night + t[0] * twilight + g[0] * gold + d[0] * day,
+          n[1] * night + t[1] * twilight + g[1] * gold + d[1] * day,
+          n[2] * night + t[2] * twilight + g[2] * gold + d[2] * day
         );
 
       // Sky gradient: deep bay blue → sunrise ember → daylight blue
@@ -5348,22 +5382,47 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         // runs backwards, and what still clips is the sun's own corner of
         // the sky. Noted in the levels tool's output instead.
         (u.uTop.value as THREE.Color).copy(
-          mix3([0.016, 0.028, 0.104], [0.030, 0.048, 0.105], [0.16, 0.34, 0.72])
+          mix4(
+            [0.016, 0.028, 0.104],
+            [0.030, 0.048, 0.105],
+            // The zenith deepens as the sun drops — the blue goes richer
+            // and loses a little of its green, which is the whole reason
+            // an afternoon sky photographs better than a noon one.
+            [0.13, 0.26, 0.60],
+            [0.16, 0.34, 0.72]
+          )
         );
         (u.uHorizon.value as THREE.Color).copy(
-          mix3([0.05, 0.066, 0.125], [0.42, 0.24, 0.16], [0.62, 0.74, 0.92])
+          mix4(
+            [0.05, 0.066, 0.125],
+            [0.42, 0.24, 0.16],
+            // And the horizon band goes to warm haze rather than the pale
+            // blue of midday. This is the band the city sits in.
+            [0.80, 0.70, 0.55],
+            [0.62, 0.74, 0.92]
+          )
         );
         (u.uGlow.value as THREE.Color).copy(
-          mix3([0.085, 0.046, 0.01], [0.55, 0.21, 0.07], [0.36, 0.30, 0.16])
+          mix4([0.085, 0.046, 0.01], [0.55, 0.21, 0.07], [0.58, 0.35, 0.13], [0.36, 0.30, 0.16])
         );
-        u.uGlowHeight.value = 0.16 * night + 0.34 * twilight + 0.22 * day;
+        u.uGlowHeight.value = 0.16 * night + 0.34 * twilight + 0.3 * gold + 0.22 * day;
       }
 
       // Fog is the floor the scene fades to, so it has to move with the
       // sky or the horizon tears away from the world in front of it.
       const fog = scene.fog as THREE.FogExp2;
-      fog.color.copy(mix3([0.008, 0.012, 0.043], [0.098, 0.102, 0.172], [0.62, 0.71, 0.85]));
-      fog.density = 0.0009 * night + 0.00075 * twilight + 0.00045 * day;
+      fog.color.copy(
+        mix4(
+          [0.008, 0.012, 0.043],
+          [0.098, 0.102, 0.172],
+          [0.70, 0.62, 0.52],
+          [0.62, 0.71, 0.85]
+        )
+      );
+      // Thicker in the afternoon than at noon: the heat has been in the
+      // air all day by then and the far end of the corniche softens.
+      fog.density =
+        0.0009 * night + 0.00075 * twilight + 0.00058 * gold + 0.00045 * day;
 
       // The key light. It is the moon at night and the sun by day, so it
       // travels: low and raking in the dark, high and white at noon.
@@ -5374,7 +5433,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // at the same 56 degrees at midnight as at noon and cost the game
       // every shadow it thought it was casting.
       const elevDeg =
-        KEY_ELEV_NIGHT * night + KEY_ELEV_TWILIGHT * twilight + KEY_ELEV_DAY * day;
+        KEY_ELEV_NIGHT * night +
+        KEY_ELEV_TWILIGHT * twilight +
+        KEY_ELEV_GOLD * gold +
+        KEY_ELEV_DAY * day;
       moonLight.position.set(
         Math.cos(az) * KEY_RADIUS,
         KEY_RADIUS * Math.tan(THREE.MathUtils.degToRad(elevDeg)),
@@ -5389,9 +5451,10 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // it at all.
       moonLight.userData.keyDir = moonLight.position.clone().normalize();
       moonLight.color.copy(
-        mix3([0.75, 0.82, 1.0], [1.0, 0.78, 0.55], [1.0, 0.96, 0.88])
+        mix4([0.75, 0.82, 1.0], [1.0, 0.78, 0.55], [1.0, 0.87, 0.70], [1.0, 0.96, 0.88])
       );
-      const key = KEY_NIGHT * night + KEY_TWILIGHT * twilight + KEY_DAY * day;
+      const key =
+        KEY_NIGHT * night + KEY_TWILIGHT * twilight + KEY_GOLD * gold + KEY_DAY * day;
       moonLight.intensity = key;
 
       // The fill answers the key from the other side, tracking it so the
@@ -5401,11 +5464,16 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // scene from going flat.
       fillLight.position.set(
         -moonLight.position.x * 0.62,
-        Math.max(120, moonLight.position.y * 0.42),
+        // Never above the key. The floor is there so the fill does not
+        // sink to ground level when the key is high, but the key rides a
+        // real arc now and comes down past it: at half past six in the
+        // morning the sun sat at 118 and the fill's floor of 120 put the
+        // shadow-side light ABOVE the thing casting the shadows.
+        Math.min(moonLight.position.y * 0.9, Math.max(120, moonLight.position.y * 0.42)),
         -moonLight.position.z * 0.62
       );
       fillLight.color.copy(
-        mix3([0.42, 0.55, 0.82], [0.5, 0.6, 0.86], [0.62, 0.72, 0.95])
+        mix4([0.42, 0.55, 0.82], [0.5, 0.6, 0.86], [0.55, 0.66, 0.92], [0.62, 0.72, 0.95])
       );
       fillLight.intensity = key * FILL_RATIO;
 
@@ -5413,8 +5481,12 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
       // doing the shadow-side lifting, the hemisphere only has to keep
       // the very darkest crevices off absolute black.
       if (hemiRef) {
-        hemiRef.color.copy(mix3([0.17, 0.22, 0.33], [0.35, 0.42, 0.59], [0.55, 0.68, 0.92]));
-        hemiRef.groundColor.copy(mix3([0.07, 0.055, 0.03], [0.17, 0.13, 0.09], [0.42, 0.36, 0.28]));
+        hemiRef.color.copy(
+          mix4([0.17, 0.22, 0.33], [0.35, 0.42, 0.59], [0.52, 0.6, 0.8], [0.55, 0.68, 0.92])
+        );
+        hemiRef.groundColor.copy(
+          mix4([0.07, 0.055, 0.03], [0.17, 0.13, 0.09], [0.46, 0.36, 0.24], [0.42, 0.36, 0.28])
+        );
         // Night ambient, up from 0.2 and then from 0.3.
         //
         // The comment here used to claim this was "the only thing
@@ -5433,7 +5505,7 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         // fills its own shadows is a night that has stopped reading as
         // one. The rest of the fix is in the lamp pools, which is where
         // road light actually comes from.
-        hemiRef.intensity = 0.55 * night + 0.45 * twilight + 0.5 * day;
+        hemiRef.intensity = 0.55 * night + 0.45 * twilight + 0.5 * gold + 0.5 * day;
       }
 
       // Office windows: full after dark, fading through twilight, out by
@@ -5459,17 +5531,21 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
         bodyDisc.scale.setScalar(sunUp ? 0.55 : 1);
         moonDiscMat.color.setRGB(
           1,
-          0.95 * night + 0.88 * twilight + 0.97 * day,
-          0.83 * night + 0.62 * twilight + 0.86 * day
+          0.95 * night + 0.88 * twilight + 0.9 * gold + 0.97 * day,
+          0.83 * night + 0.62 * twilight + 0.7 * gold + 0.86 * day
         );
-        moonDiscMat.opacity = 0.35 + 0.65 * Math.max(night, day);
-        bodyHalo.scale.setScalar(520 * (1 + day * 0.5 + twilight * 0.35));
-        moonHaloMat.opacity = 0.5 * night + 0.75 * twilight + 0.6 * day;
+        // `lit`, not `day`: the golden band is daylight with a share
+        // taken out of it, and anything that means "is the sun up" has to
+        // ask for the whole of it or the sun fades out of its own
+        // afternoon.
+        moonDiscMat.opacity = 0.35 + 0.65 * Math.max(night, lit);
+        bodyHalo.scale.setScalar(520 * (1 + day * 0.5 + gold * 0.75 + twilight * 0.35));
+        moonHaloMat.opacity = 0.5 * night + 0.75 * twilight + 0.7 * gold + 0.6 * day;
       }
 
       // Streetlights are on a photocell, not a clock: they come on as
       // the light goes, hold through the night, and drop out at dawn.
-      lampLevel = THREE.MathUtils.clamp(1 - day * 1.25, 0, 1);
+      lampLevel = THREE.MathUtils.clamp(1 - lit * 1.25, 0, 1);
       if (lampPoolMat) lampPoolMat.opacity = 0.42 * lampLevel;
       // The visible shafts die with the lamps: a beam of light in
       // daylight air is a projector effect, not a streetscape.

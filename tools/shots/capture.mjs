@@ -51,6 +51,10 @@ const SHOTS = [
   { name: "night", hour: 2.5, m: 2203 },
   { name: "dawn", hour: 5.6, m: 2203 },
   { name: "noon", hour: 12.5, m: 2203 },
+  // The hour the cycle had no picture of. Between noon and dusk the
+  // whole palette used to be pinned to its midday values, so there was
+  // nothing here to shoot; there is now.
+  { name: "afternoon", hour: 16.6, m: 2203 },
   { name: "dusk", hour: 18.2, m: 2203 },
   { name: "coast", hour: 2.5, m: 1300 },   // the seaward leg, water on the left
   { name: "city", hour: 2.5, m: 587 },     // towers behind the road
