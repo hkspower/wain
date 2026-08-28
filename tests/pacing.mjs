@@ -20,7 +20,9 @@
 //                    run fast or slow, which is a far worse bug than the
 //                    shimmer it was written to fix.
 
-import { paceDelta, newPaceState, MAX_DT, SNAP_MS } from "../src/game/pacing.ts";
+import {
+  paceDelta, newPaceState, MAX_DT, SNAP_MS, refreshFromIntervals, REFRESH_PERCENTILE,
+} from "../src/game/pacing.ts";
 
 const fail = [];
 const check = (c, m) => { if (!c) fail.push(m); return c ? "ok" : "FAIL"; };
@@ -174,6 +176,61 @@ for (const hz of [60, 120, 144]) {
   check(huge <= MAX_DT + 1e-9, `a 63 second frame came through as ${huge}`);
   check(negative >= 0, `a negative delta came through as ${negative}`);
   check(SNAP_MS > 0 && SNAP_MS < 4, "the snap tolerance is not a plausible amount of scheduler noise");
+}
+
+// --- What the panel can do, on a panel that varies -------------------
+//
+// The refresh probe used to take the MEDIAN of the first forty frame
+// intervals and latch it for the session. On a fixed-refresh panel that
+// is correct — rAF fires on the panel's grid whatever the game manages.
+//
+// On G-Sync or FreeSync it is a feedback loop reading its own output:
+// the panel presents when the frame is ready, so the measured "refresh"
+// is the frame rate. And it is measured during the slowest two seconds
+// of any session. A 144 Hz panel that struggles through startup got
+// read as 48 Hz, capped at 45 for the rest of the night, and had the
+// resolution governor raise resolution until the frame rate fell to
+// meet it.
+//
+// The game can never present faster than the panel refreshes, so the
+// FAST intervals are the hardware showing its hand and the slow ones are
+// only the load. That is the whole of the fix, and it is arithmetic, so
+// it is tested as arithmetic.
+{
+  const jitter = (ms, n, spread = 0.4) =>
+    Array.from({ length: n }, () => ms + (Math.random() * 2 - 1) * spread);
+
+  // A steady 60 Hz panel reads as 60.
+  const steady = refreshFromIntervals(jitter(16.667, 120));
+  console.log(`\nrefresh      a steady 60 Hz panel reads ${steady} Hz`);
+  if (steady !== 60) fail.push(`a steady 60 Hz panel measured ${steady} Hz`);
+
+  // A 144 Hz VRR panel running a game that mostly manages 50 fps, with
+  // the occasional easy stretch at the panel's own rate. The median of
+  // this is about 20 ms — 50 Hz — and that is what used to be latched.
+  const vrr = [...jitter(20, 100), ...jitter(6.94, 20)];
+  const sorted = [...vrr].sort((a, b) => a - b);
+  const median = 1000 / sorted[sorted.length >> 1];
+  const seen = refreshFromIntervals(vrr);
+  console.log(
+    `             a 144 Hz VRR panel under load: median says ${median.toFixed(0)} Hz, ` +
+      `the ${(REFRESH_PERCENTILE * 100).toFixed(0)}th percentile says ${seen} Hz`
+  );
+  if (seen !== 144) fail.push(`a 144 Hz VRR panel under load measured ${seen} Hz`);
+  if (median > 70) fail.push("the VRR fixture is not actually loaded — the median should be slow");
+
+  // One anomalously short gap must not report a 500 Hz panel. This is why
+  // it is a percentile and not the minimum.
+  const spike = [...jitter(16.667, 120), 2.1];
+  const withSpike = refreshFromIntervals(spike);
+  console.log(`             one 2 ms coalesced callback among 120 good frames: ${withSpike} Hz`);
+  if (withSpike !== 60) fail.push(`a single short gap moved the reading to ${withSpike} Hz`);
+
+  // Too little to say is 0, not a guess.
+  console.log(`             three samples read ${refreshFromIntervals([16.7, 16.6, 16.8])} Hz`);
+  if (refreshFromIntervals([16.7, 16.6, 16.8]) !== 0) {
+    fail.push("three samples were enough to claim a refresh rate");
+  }
 }
 
 console.log(

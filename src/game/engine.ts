@@ -18,7 +18,7 @@ import { ParticleSystem, radialSprite } from "./vfx";
 import { solveTwoBone, aimConstrained } from "./ik";
 import { nightEnvironment } from "./env";
 import { RIG } from "./rig";
-import { paceDelta, newPaceState, type PaceState } from "./pacing";
+import { paceDelta, newPaceState, refreshFromIntervals, type PaceState } from "./pacing";
 import { textTexture, arabicUI } from "./text";
 import { GradeShader, AutoExposure, ExposurePass } from "./grade";
 import type { DriverRig } from "./characters";
@@ -1880,7 +1880,7 @@ export class GameEngine {
    * for a 90 Hz one and cap the game below its display for the session.
    */
   private measureRefresh(now: number): void {
-    if (this.refreshHz > 0 || this.lastRefreshSample === 0) {
+    if (this.lastRefreshSample === 0) {
       this.lastRefreshSample = now;
       return;
     }
@@ -1898,24 +1898,45 @@ export class GameEngine {
     // governors would spend all of it aiming at a guessed rate.
     if (this.refreshProbeStart === 0) this.refreshProbeStart = now;
     const elapsed = now - this.refreshProbeStart;
-    if (this.refreshSamples.length < 40 && this.refreshFrames < 240 && elapsed < 2000) return;
-    if (this.refreshSamples.length < 5) {
+    const first = this.refreshHz === 0;
+    if (first && this.refreshSamples.length < 40 && this.refreshFrames < 240 && elapsed < 2000) {
+      return;
+    }
+    if (first && this.refreshSamples.length < 5) {
       // Nothing usable at all: assume the common case rather than stall.
       this.refreshHz = 60;
       this.refreshSamples = [];
       this.applyFrameCap();
       return;
     }
-    const sorted = [...this.refreshSamples].sort((a, b) => a - b);
-    const median = sorted[sorted.length >> 1];
-    // Snap to the common panel rates; anything else is reported as-is
-    const raw = 1000 / median;
-    const known = [30, 48, 50, 60, 72, 75, 90, 100, 120, 144, 165, 240];
-    const near = known.find((h) => Math.abs(h - raw) / h < 0.06);
-    this.refreshHz = near ?? Math.round(raw);
+    // AND IT KEEPS LOOKING. The first estimate is taken during the
+    // slowest two seconds of the session — shaders compiling, assets
+    // landing — and on a variable-refresh panel the frame rate IS the
+    // refresh rate, so a slow start reads as a slow monitor and used to
+    // be latched there for good. A 144 Hz G-Sync display that managed 50
+    // fps through startup got capped at 45 for the session and had the
+    // resolution governor push resolution UP until the frame rate fell
+    // to meet it.
+    //
+    // So the probe re-reads on a slow cadence, and it only ever revises
+    // the rate UPWARD: the game cannot present faster than the panel
+    // refreshes, so a faster reading is new evidence about the hardware,
+    // while a slower one is only evidence about the load. See
+    // refreshFromIntervals for why it is a low percentile rather than a
+    // median.
+    if (!first && elapsed - this.lastRefreshRead < GameEngine.REFRESH_RECHECK_MS) return;
+    const seen = refreshFromIntervals(this.refreshSamples);
     this.refreshSamples = [];
-    this.applyFrameCap(); // re-resolve "display"/"vrr" now the rate is known
+    this.lastRefreshRead = elapsed;
+    if (seen <= 0) return;
+    if (first || seen > this.refreshHz) {
+      this.refreshHz = seen;
+      this.applyFrameCap(); // re-resolve "display"/"vrr" now the rate is known
+    }
   }
+  /** How often the refresh probe takes another look, in ms of session. */
+  private static readonly REFRESH_RECHECK_MS = 4000;
+  private lastRefreshRead = 0;
   private lastRefreshSample = 0;
   private refreshFrames = 0;
   private refreshProbeStart = 0;

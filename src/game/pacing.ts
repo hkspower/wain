@@ -119,3 +119,72 @@ export function paceDelta(s: PaceState, raw: number, refreshHz: number): number 
   const sorted = [...s.ring].sort((a, b) => a - b);
   return sorted[sorted.length >> 1];
 }
+
+
+// ---------------------------------------------------------------------
+// WHAT THE PANEL CAN DO, as opposed to what the game is managing.
+//
+// The engine learns the refresh rate by timing requestAnimationFrame,
+// takes the MEDIAN of the first forty intervals, and latches it for the
+// session. On a fixed-refresh panel that is right: rAF fires on the
+// panel's grid whatever the game is doing, so the median interval is the
+// grid.
+//
+// On a VARIABLE-REFRESH panel it is not right, and it is not a small
+// error. G-Sync and FreeSync present a frame when the frame is ready, so
+// the panel refreshes at whatever rate the game is achieving — the
+// measurement is a feedback loop reading its own output. And it is taken
+// during the first two seconds, which is the slowest part of any
+// session: shaders compiling, assets landing, the world being built.
+//
+// A 144 Hz G-Sync panel that manages 50 fps through startup gets
+// measured at 50, snapped to 48, and latched. Then:
+//
+//   "vrr" caps the session at 45 fps on a 144 Hz monitor
+//   the resolution governor aims at 45 and RAISES resolution until the
+//     frame rate falls to meet it — spending the GPU to get slower
+//   the quality governor's crisis threshold moves down with it
+//
+// The player bought a variable-refresh display and the game pinned them
+// to a third of it, permanently, on the strength of two seconds of
+// loading.
+//
+// The fix is in which statistic is taken. On any panel, fixed or
+// variable, the game can never present frames FASTER than the panel
+// refreshes: every interval is at least one refresh period. Slow frames
+// are the game's fault and tell you nothing about the hardware; the
+// fastest intervals are the panel showing its hand. So take a low
+// percentile rather than the median, and keep taking it — a session that
+// speeds up later should be allowed to discover a faster panel, which a
+// latched median can never do.
+
+/** Percentile of the interval distribution to read the panel's rate off.
+ *  Not the minimum: one anomalously short gap — a coalesced callback, a
+ *  timer that fired twice in a frame — would report a 500 Hz panel. The
+ *  tenth is below anything the game's own load can push up and above the
+ *  noise floor. */
+export const REFRESH_PERCENTILE = 0.1;
+
+/** Panel rates worth snapping to. Anything else is reported as measured. */
+export const KNOWN_RATES = [30, 48, 50, 60, 72, 75, 90, 100, 120, 144, 165, 240];
+
+/** How close a reading has to be to a known rate to snap to it. */
+export const RATE_SNAP_TOLERANCE = 0.06;
+
+/**
+ * The panel's refresh rate, in Hz, from a set of frame intervals in ms.
+ *
+ * Returns 0 when there is not enough to say. `samples` is not modified.
+ */
+export function refreshFromIntervals(samples: readonly number[]): number {
+  const usable = samples.filter((g) => g > 2 && g < 250);
+  if (usable.length < 5) return 0;
+  const sorted = [...usable].sort((a, b) => a - b);
+  const at = Math.min(
+    sorted.length - 1,
+    Math.max(0, Math.floor(sorted.length * REFRESH_PERCENTILE))
+  );
+  const raw = 1000 / sorted[at];
+  const near = KNOWN_RATES.find((h) => Math.abs(h - raw) / h < RATE_SNAP_TOLERANCE);
+  return near ?? Math.round(raw);
+}
