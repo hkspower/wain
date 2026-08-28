@@ -589,6 +589,14 @@ export default function RaceClient() {
   const fuelRef = useRef<HTMLDivElement>(null);
   const fuelLabelRef = useRef<HTMLSpanElement>(null);
   const pumpRef = useRef<HTMLDivElement>(null);
+  // The online run strip. Driven off the frame like the rest of the HUD
+  // — through refs rather than state, because a progress bar that moves
+  // every frame must not re-render the page every frame.
+  const runBoxRef = useRef<HTMLDivElement>(null);
+  const runNameRef = useRef<HTMLDivElement>(null);
+  const runHintRef = useRef<HTMLDivElement>(null);
+  const runLabelRef = useRef<HTMLSpanElement>(null);
+  const runBarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setGarage(loadGarage()); // client-only: reads localStorage
@@ -1099,6 +1107,28 @@ export default function RaceClient() {
           }`;
       }
 
+      // The run in front of you, while there is somebody to do it with.
+      // Offline it is hidden rather than greyed out: every one of these
+      // needs another player, so showing them to a solo driver is only
+      // telling them what they cannot have.
+      {
+        const box = runBoxRef.current;
+        if (box) {
+          const show = !!d.run && !!hubRef.current?.connected && !d.duel;
+          box.style.display = show ? "block" : "none";
+          if (show && d.run) {
+            if (runNameRef.current && runNameRef.current.dataset.run !== d.run.name) {
+              runNameRef.current.dataset.run = d.run.name;
+              runNameRef.current.textContent = d.run.name;
+              if (runHintRef.current) runHintRef.current.textContent = d.run.hint;
+            }
+            if (runLabelRef.current) runLabelRef.current.textContent = d.run.label;
+            if (runBarRef.current)
+              runBarRef.current.style.width = `${(d.run.frac * 100).toFixed(1)}%`;
+          }
+        }
+      }
+
       // The tow, above the garage gauges — it belongs to the road rather
       // than to the car, and it is the only one of the three that
       // appears and disappears on its own. The threshold is a tenth so a
@@ -1285,6 +1315,17 @@ export default function RaceClient() {
           setResult(r);
         },
         onPauseRequest: () => setPauseOpen((p) => !p),
+        onRunDone: (q) => {
+          // Paid here rather than in the engine, because the wallet is
+          // the UI's — the engine has never written to it and should not
+          // start. See quests.ts on why the numbers are small.
+          const g = loadGarage();
+          g.kd = Math.max(0, g.kd + q.reward);
+          saveGarage(g);
+          setGarage(g);
+          haptic(HAPTIC.reward, loadSettings().haptics);
+          showMessage(`${q.name} — ${q.reward} KD`, q.ar);
+        },
       onCinematic: (active, rival, stake, you) => {
         setCine(active ? { card: rival, you, stake } : null);
         if (active) setChallenge(null); // the film replaces the setup card
@@ -1369,6 +1410,9 @@ export default function RaceClient() {
           onDuelEnd: (won, reason, w) => {
             duelRef.current = false;
             engine.setDuel(null);
+            // The referee is on the server; the engine only mirrors it,
+            // so a win has to be told to it rather than noticed by it.
+            if (won) engine.creditDuelWin();
             if (w > 0) {
               const g = loadGarage();
               g.kd = Math.max(0, g.kd + (won ? w : -w));
@@ -1784,6 +1828,31 @@ export default function RaceClient() {
               </span>
             </div>
           )}
+
+          {/* The run you are on. One at a time, in the order quests.ts
+              lists them, which is the order a night goes in — a wall of
+              six objectives is a checklist, and a checklist is not what
+              anybody drives here for. Hidden until the hub is connected,
+              and hidden again during a duel, where the SP bars own the
+              screen. Starts hidden: display is set from the frame. */}
+          <div
+            ref={runBoxRef}
+            style={{ display: "none" }}
+            className="grn-panel mt-2 w-56 px-3 py-2 text-left"
+          >
+            <div className="flex items-baseline justify-between gap-2">
+              <div ref={runNameRef} className="grn-label text-[0.75rem] text-sodium-400" />
+              <span ref={runLabelRef} className="tnum text-[0.7rem] text-white/70" />
+            </div>
+            <div ref={runHintRef} className="mt-0.5 text-[0.68rem] leading-4 text-white/72" />
+            <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/12">
+              <div
+                ref={runBarRef}
+                className="h-full rounded-full bg-sodium-400 transition-[width] duration-200"
+                style={{ width: "0%" }}
+              />
+            </div>
+          </div>
         </div>
 
         {/* Hub chat feed */}

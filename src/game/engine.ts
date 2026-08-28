@@ -50,6 +50,11 @@ import {
 import { GEARS, revFractionIn } from "./gears";
 import { playerId, inviteCode, normaliseCode, isCodeShaped } from "./community";
 import {
+  EMPTY_PROGRESS, MATCHED_KMH, MATCHED_FLOOR_KMH, MET_M, TOGETHER_M,
+  loadProgress, newlyDone, questLabel, questFraction, saveProgress,
+  QUESTS, type Quest, type QuestProgress,
+} from "./quests";
+import {
   ENGINES,
   torqueShape,
   firingHz,
@@ -286,6 +291,18 @@ export interface HudData {
   nearestRemote: { id: number; name: string; dist: number } | null;
   /** Live PvP duel state, or null when not duelling. */
   duel: { you: number; them: number; gap: number; opponent: string } | null;
+  /** The online run in front of the player right now — name, one line of
+   *  what to do, and how far along it is. Null when every run is done.
+   *  The HUD only shows it while there is somebody else out there. */
+  run: {
+    name: string;
+    ar: string;
+    hint: string;
+    hintAr: string;
+    /** "3 / 5", "4.2 / 10 km" — questLabel does the formatting. */
+    label: string;
+    frac: number;
+  } | null;
   /** How deep the car is sitting in another car's wake, 0..1.
    *
    *  On the HUD because an invisible advantage is not a mechanic. The
@@ -452,6 +469,9 @@ export interface EngineEvents {
   onCinematic?(active: boolean, rival: DriverCard, stake: number, you?: DriverCard): void;
   /** The controller's Start button — the UI opens its pause menu. */
   onPauseRequest?(): void;
+  /** An online run just finished. Fired once, on the frame it crossed —
+   *  the UI pays the reward and says so. */
+  onRunDone?(q: Quest): void;
 }
 
 interface RemotePlayer {
@@ -945,6 +965,33 @@ export class GameEngine {
   /** Live duel, mirrored from the hub referee for the HUD. */
   private duel: { you: number; them: number; gap: number; opponent: string } | null = null;
 
+  // --- Runs: the online objectives. quests.ts is the design; this is
+  // only the counting.
+  private runs: QuestProgress = { ...EMPTY_PROGRESS };
+  /** The last totals a completion was announced for. Kept so the check
+   *  is `newlyDone(seen, now)` rather than a claimed flag — see the note
+   *  on that function. */
+  private runsSeen: QuestProgress = { ...EMPTY_PROGRESS };
+  /**
+   * Remote ids that have come within MET_M this session.
+   *
+   * Per session, not per save: a hub id is a connection, and a name is
+   * whatever the player typed, so there is nothing here that could
+   * honestly recognise the same stranger on two different nights. The
+   * consequence is that meeting the same five people twice counts twice,
+   * which makes the FIRST run slightly easier than it reads and no run
+   * after it easier at all. That is the right way round for the trade.
+   */
+  private metThisSession = new Set<number>();
+  /** True while another player is within TOGETHER_M. The drift bank
+   *  reads it, and that happens earlier in the frame than the counting
+   *  does, so it is a field rather than a local. */
+  private besideRemote = false;
+  /** Unsaved run progress, and when it was last written. Local storage
+   *  is synchronous; this does not belong on every frame. */
+  private runsDirty = false;
+  private runsSavedAt = 0;
+
   // Lap timing (wall clock, credited back for pauses and film slow-mo)
   private lapStartAt = 0;
   private pausedAt = 0;
@@ -1117,6 +1164,11 @@ export class GameEngine {
     if (opts?.startS !== undefined && Number.isFinite(opts.startS)) {
       this.player.s = Math.max(0, opts.startS);
     }
+    // The runs carry over from every previous night. `runsSeen` starts
+    // equal to them so a run finished last week is not announced and
+    // paid again the moment the engine boots.
+    this.runs = loadProgress();
+    this.runsSeen = { ...this.runs };
     // Ask for the discrete GPU by name.
     //
     // Without this hint the browser picks the "default" adapter, and on
@@ -2530,6 +2582,12 @@ export class GameEngine {
     // Write the tank back before anything else is torn down: what is
     // left in it is the whole reason the pump is worth driving to.
     this.saveFuel();
+    // ...and the runs, for the same reason: the throttle in flushRuns
+    // means up to five seconds of progress is sitting unwritten.
+    if (this.runsDirty) {
+      this.runsDirty = false;
+      saveProgress(this.runs);
+    }
     this.disposed = true;
     cancelAnimationFrame(this.raf);
     for (const t of this.challengeTimers) clearTimeout(t);
@@ -3759,6 +3817,7 @@ export class GameEngine {
     this.updateTraffic(dt);
     this.updateRival(dt);
     this.updateRemotes(dt);
+    this.updateRuns(dt);
     if (this.inBattle) this.updateBattle(dt);
     // The film gets its own score. It used to share the battle track,
     // which is the right music for a fight and the wrong music for the
@@ -4138,6 +4197,15 @@ export class GameEngine {
     if (dr.gained > 0) this.driftFlash = 1.2;
     else if (this.driftFlash > 0) this.driftFlash -= dt;
     if (dr.banked > 0 && this.inBattle) this.bstat.driftScore += dr.banked;
+    // ...and the same points count towards the online run when there was
+    // somebody alongside. `besideRemote` is last frame's answer by the
+    // time this reads it, which is the difference between a slide that
+    // ended with a stranger next to you and one that ended sixteen
+    // milliseconds after they were.
+    if (dr.banked > 0 && this.besideRemote) {
+      this.runs.driftBeside += dr.banked;
+      this.runsDirty = true;
+    }
     if (dr.linked) this.sound?.driftLink(dr.chain);
 
     // --- Centrifugal push: sweepers shove the car toward the outside,
@@ -4768,6 +4836,135 @@ export class GameEngine {
         );
       }
     }
+  }
+
+  /**
+   * Count the night's runs.
+   *
+   * Everything here is measured off state the frame has already
+   * computed — where the remote cars ended up, what wake the player is
+   * in, how fast everyone is going — so this is arithmetic and a Set,
+   * once a frame, and it costs nothing when nobody else is online.
+   *
+   * The one thing it does NOT do is decide what a run is worth or when
+   * it is finished. That is quests.ts, so that the wording, the targets
+   * and the payouts can all be read in one place and changed without
+   * touching the engine.
+   */
+  private updateRuns(dt: number): void {
+    this.besideRemote = false;
+    if (this.remotes.size === 0) {
+      // Still flush a pending save: a player who was online a moment ago
+      // and is now alone has progress worth keeping.
+      this.flushRuns();
+      return;
+    }
+
+    const p = this.player;
+    const kmh = p.speed * KMH;
+    let nearest = Infinity;
+    let matched = false;
+    // The best wake a REMOTE PLAYER is giving us. `this.tow` is the one
+    // the physics uses and it counts traffic and the rival too — a run
+    // called "in their wake" that ticked up behind a lorry would be
+    // measuring the wrong thing.
+    let towOnline = 0;
+    const half = (this.tune.lengthM || 4.5) / 2;
+    const NOMINAL_HALF = 2.25;
+
+    for (const [id, r] of this.remotes) {
+      if (!r.mesh.visible) continue;
+      const along = this.track.deltaAhead(p.s, r.s);
+      const across = r.lat - p.lat;
+      // Along the road and across it, not through the scenery: two cars
+      // either side of a barrier on opposite carriageways are metres
+      // apart in world space and are not driving together.
+      const dist = Math.hypot(along, across);
+      if (dist < nearest) nearest = dist;
+      if (dist <= MET_M && !this.metThisSession.has(id)) {
+        this.metThisSession.add(id);
+        this.runs.metDrivers++;
+        this.runsDirty = true;
+      }
+      if (dist <= TOGETHER_M) {
+        this.besideRemote = true;
+        if (
+          kmh >= MATCHED_FLOOR_KMH &&
+          r.snapSpeed * KMH >= MATCHED_FLOOR_KMH &&
+          Math.abs(kmh - r.snapSpeed * KMH) <= MATCHED_KMH
+        ) {
+          matched = true;
+        }
+      }
+      const gap = along - half - NOMINAL_HALF;
+      if (gap > 0 && gap <= TOW_REACH) {
+        towOnline = Math.max(
+          towOnline,
+          solveTow({ gap, lat: across, speed: p.speed }).strength
+        );
+      }
+    }
+
+    if (this.besideRemote) {
+      this.runs.togetherM += p.speed * dt;
+      this.runsDirty = true;
+    }
+    if (matched) {
+      this.runs.matchedSeconds += dt;
+      this.runsDirty = true;
+    }
+    // Half strength is "actually in it" rather than "clipping the edge
+    // of it at forty metres" — the same threshold the HUD's tow bar
+    // reads as a meaningful tow.
+    if (towOnline > 0.5) {
+      this.runs.towSeconds += dt;
+      this.runsDirty = true;
+    }
+
+    this.settleRuns();
+    this.flushRuns();
+  }
+
+  /** Announce and pay anything that just crossed its target. */
+  private settleRuns(): void {
+    const done = newlyDone(this.runsSeen, this.runs);
+    if (done.length === 0) return;
+    this.runsSeen = { ...this.runs };
+    this.runsDirty = true;
+    for (const q of done) this.events.onRunDone?.(q);
+  }
+
+  /** Write the totals out, at most every few seconds. */
+  private flushRuns(): void {
+    if (!this.runsDirty) return;
+    const now = performance.now();
+    if (now - this.runsSavedAt < 5000) return;
+    this.runsSavedAt = now;
+    this.runsDirty = false;
+    saveProgress(this.runs);
+  }
+
+  /** A duel the referee says we won. Called from the hub client, because
+   *  the referee lives on the server and the engine only mirrors it. */
+  creditDuelWin(): void {
+    this.runs.duelWins++;
+    this.runsDirty = true;
+    this.settleRuns();
+  }
+
+  /** The run the HUD should be showing: the first unfinished one, in the
+   *  order quests.ts lists them, which is the order a night goes in. */
+  private activeRun(): Quest | null {
+    for (const q of QUESTS) {
+      if ((this.runs[q.metric] ?? 0) < q.target) return q;
+    }
+    return null;
+  }
+
+  /** The totals, for the lobby's runs panel. A copy: nothing outside
+   *  this class gets to write them. */
+  getRuns(): QuestProgress {
+    return { ...this.runs };
   }
 
   /**
@@ -5961,9 +6158,20 @@ export class GameEngine {
       }
     }
 
+    const run = this.activeRun();
     this.events.onHud({
       nearestRemote,
       duel: this.duel,
+      run: run
+        ? {
+            name: run.name,
+            ar: run.ar,
+            hint: run.hint,
+            hintAr: run.hintAr,
+            label: questLabel(run, this.runs),
+            frac: questFraction(run, this.runs),
+          }
+        : null,
       flashCount: performance.now() > this.flashWindowUntil ? 0 : this.flashCount,
       speedKmh: this.player.speed * KMH,
       tach: (() => {

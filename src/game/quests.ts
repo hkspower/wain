@@ -56,6 +56,11 @@ export const EMPTY_PROGRESS: QuestProgress = {
  *  close enough to be deliberate, wide enough that it does not demand
  *  paint-swapping to earn. */
 export const TOGETHER_M = 12;
+/** How near you have to get before you have MET somebody, in metres.
+ *  Wider than TOGETHER_M, because passing close enough to read a
+ *  stranger's plate and nod is not the same thing as running with them,
+ *  and the first run in the list should be the easy one. */
+export const MET_M = 60;
 /** Within this of each other's speed counts as matched. */
 export const MATCHED_KMH = 6;
 /** ...and both of you have to be actually moving for it to mean
