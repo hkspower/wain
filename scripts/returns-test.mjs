@@ -380,6 +380,73 @@ let madeRef = null
   await b.close()
 }
 
+// ------------------------------------------------------- the APP's own screen
+//
+// The website's page and the app's screen drive the SAME two routes, so the
+// rules are the shop's and are stated once. What this checks is that the app
+// half actually reaches them — and that the two courtesies it draws (the
+// women's exchange ban, the day count) match what the server said, rather
+// than being a second copy of the rule that can drift.
+//
+// It needs the export built against a REACHABLE api — the opposite of
+// test:shop. APP= to point it elsewhere.
+{
+  const APP = process.env.APP ?? 'http://127.0.0.1:4173'
+  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
+  const p = await b.newPage({ viewport: { width: 390, height: 844 } })
+  const errors = []
+  p.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()) })
+  p.on('pageerror', (e) => errors.push(String(e)))
+
+  const res = await p.goto(APP + '/exchange', { waitUntil: 'networkidle' })
+  check(res?.status() === 200, 'the app has an /exchange screen', `got ${res?.status()}`)
+  await p.waitForTimeout(900)
+
+  // DRIVEN IN ARABIC, which is what the app defaults to and what nearly every
+  // customer sees. Switching to English first would test the half of the
+  // strings a Kuwaiti shopper never reads.
+  await p.getByLabel('رقم الطلب').fill(TRACK)
+  await p.getByLabel('رقم الهاتف').fill(PHONE_LOCAL)
+  await p.getByRole('button', { name: 'عرض قطع الطلب' }).click()
+  await p.waitForTimeout(2500)
+
+  const bodyText = await p.locator('body').innerText()
+  check(/اختر القطع/.test(bodyText), 'a real order and phone reach the item picker',
+    bodyText.slice(0, 160))
+  // Exchange is the default, so the women's line must ALREADY say it cannot be
+  // exchanged — the ban drawn where the customer sees it, before they have
+  // filled anything in.
+  check(/غير قابلة للاستبدال/.test(bodyText),
+    "the women's line says so under the exchange default")
+  // The day count is the SERVER'S, counted from delivery, and rendered in
+  // Arabic-Indic numerals like every other number in the app.
+  check(/باقي ١٢ يوم/.test(bodyText),
+    'the day count is the one the server sent, in Arabic-Indic numerals',
+    (bodyText.match(/باقي .{0,6}يوم/) ?? ['none'])[0])
+
+  // Switching to a return must clear the ban.
+  await p.getByRole('radio', { name: 'إرجاع' }).click()
+  await p.waitForTimeout(600)
+  check(!/غير قابلة للاستبدال/.test(await p.locator('body').innerText()),
+    'switching to a return clears it')
+
+  // A refusal must be readable Arabic, never a JSON token.
+  await p.getByRole('button', { name: 'طلب آخر' }).click()
+  await p.waitForTimeout(600)
+  await p.getByLabel('رقم الطلب').fill(TRACK)
+  await p.getByLabel('رقم الهاتف').fill('99887766')
+  await p.getByRole('button', { name: 'عرض قطع الطلب' }).click()
+  await p.waitForTimeout(2000)
+  const msg = await p.locator('body').innerText()
+  check(/لم نجد طلبًا/.test(msg) && !/return_not_found/.test(msg),
+    'a refusal is shown in Arabic, not as an error token', msg.slice(0, 140))
+
+  const unexpected = errors.filter((e) => !/404/.test(e))
+  check(unexpected.length === 0, 'no unexpected console errors in the app screen',
+    unexpected.slice(0, 3).join(' | '))
+  await b.close()
+}
+
 cleanup()
 console.log(fails ? `\n${fails} failed` : '\nall ok — returns and exchanges, end to end')
 process.exit(fails ? 1 : 0)

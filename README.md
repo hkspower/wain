@@ -19,6 +19,7 @@ npm run ios      # or: npm run android, npm run web
 | Checkout | `/checkout` | Kuwaiti address, KNET / T-Pay / cash, spinner inside the button |
 | Order | `/order/[ref]` | The order number, selectable |
 | Account | `/account` | Language, contact, and an honest note when offline |
+| Exchange | `/exchange` | Return or exchange from the customer's own order — the same two routes the website's page uses |
 
 ## The backend panel
 
@@ -188,6 +189,23 @@ artefact plus its PHP, not a project you can rebuild from source.
 Account tab and takes effect instantly — layout direction comes from React state
 (`row`, `text` in `lib/i18n.tsx`), not from `I18nManager.forceRTL`, which needs an
 app reload and would throw the customer's basket away mid-shop.
+
+**The order number is a capability, and the app was generating it badly.**
+`/invoice/<number>` and `?r=status` take nothing but the number, so it opens a
+page with the customer's name and address on it. The website has always built
+it from `crypto.getRandomValues`; the app built it from `Date.now()` plus four
+random base36 characters — about twenty bits, behind a timestamp anybody can
+guess. It now uses `getRandomValues` where that exists and `Math.random` where
+it does not, because **Hermes has no `crypto.getRandomValues`** and this
+project carries no `expo-crypto`: the website's line, pasted in unguarded,
+works on web and throws on every phone. The fallback is not cryptographic and
+`checkout.tsx` says so; `expo install expo-crypto` is the proper fix if the
+shop wants one.
+
+Raising the route's length floor would NOT have helped and was reverted: the
+client chooses this value, so it can satisfy any length with no randomness at
+all, and a floor of twelve would also refuse about one legitimate website order
+in eighty thousand. Entropy can only come from the clients.
 
 **Money is integer fils.** 1 KWD = 1000 fils, and nothing is ever a float —
 `lib/money.ts`. Arabic prices render in Eastern Arabic numerals with the Arabic

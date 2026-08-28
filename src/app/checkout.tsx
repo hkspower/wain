@@ -37,9 +37,53 @@ const GOVERNORATES = [
   { id: 'jahra', ar: 'الجهراء', en: 'Jahra' },
 ];
 
-/** 6–30 alphanumerics, which is exactly what the order route validates. */
-const newTrackId = () =>
-  'SP' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 6).toUpperCase();
+/**
+ * The order number, and — because /invoice/<number> and ?r=status take nothing
+ * else — the CAPABILITY that opens the customer's invoice, with their name and
+ * address on it. So it has to be unguessable, and this was not: `Date.now()`
+ * is public knowledge and `Math.random().slice(2, 6)` is four base36
+ * characters, about twenty bits. Somebody who knew roughly when an order was
+ * placed had 1.7 million guesses to make, which the invoice route's own
+ * throttle turns into days rather than never.
+ *
+ * The WEBSITE has always done this properly — `crypto.getRandomValues(new
+ * Uint32Array(2))` — and the two halves of the same shop disagreeing about it
+ * is the whole bug.
+ *
+ * WHY IT IS NOT SIMPLY THE WEBSITE'S LINE. `crypto.getRandomValues` does not
+ * exist under Hermes, and this project has no expo-crypto and no
+ * react-native-get-random-values. Calling it unguarded works perfectly on web
+ * and throws on every iPhone and Android — which is to say it would break
+ * checkout for exactly the customers the app is for, and pass every browser
+ * test. So it is used where it exists and Math.random stands in where it does
+ * not.
+ *
+ * That fallback is NOT cryptographic, and should not be described as if it
+ * were: Hermes seeds an xorshift128+, which is unpredictable from a clock but
+ * would not stand up to somebody who set out to break it. It is a large
+ * improvement on twenty bits and it is what can be had without adding a
+ * dependency. `npx expo install expo-crypto` and using its getRandomValues
+ * here is the proper fix if the shop ever wants one.
+ *
+ * Fixed width either way — always 'SP' + 14. A uint32 in base36 is one to
+ * seven characters, so an unpadded pair varies from four to sixteen, which
+ * looks like a mistake on a receipt.
+ */
+const newTrackId = () => {
+  const parts = new Array<number>(2);
+  const webCrypto = (globalThis as { crypto?: Crypto }).crypto;
+  if (typeof webCrypto?.getRandomValues === 'function') {
+    const n = new Uint32Array(2);
+    webCrypto.getRandomValues(n);
+    parts[0] = n[0];
+    parts[1] = n[1];
+  } else {
+    parts[0] = Math.floor(Math.random() * 0x100000000);
+    parts[1] = Math.floor(Math.random() * 0x100000000);
+  }
+  const part = (v: number) => v.toString(36).toUpperCase().padStart(7, '0');
+  return 'SP' + part(parts[0]) + part(parts[1]);
+};
 
 // The shop's own names. `card` was this app's invention and the server has
 // never accepted it — see lib/api.ts. tpay is CBK's T-Pay.

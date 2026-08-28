@@ -344,3 +344,135 @@ export async function fetchOrderStatus(track: string): Promise<OrderStatus | nul
     return null;
   }
 }
+
+
+// ------------------------------------------------------- returns and exchange
+//
+// The two routes behind the exchange screen. They are the same ones the
+// website's /returns/request page uses — one server, one set of rules, so a
+// customer gets the same answer whichever half of Sporta they ask.
+//
+// THE PHONE IS THE GATE, not the order number. `track_id` is the capability
+// that opens an invoice and it is not a password; the shop will not list an
+// order's contents without the phone number that ordered it. A missing order
+// and a wrong phone come back identically, on purpose — the difference would
+// be a way to test whether an order number is real.
+
+export interface ReturnableLine {
+  /** The ORDER LINE's id, which is what a request is recorded against. Which
+   *  of the two mediums they bought is the whole question, and the product id
+   *  cannot answer it. */
+  id: number;
+  nameAr: string;
+  nameEn: string;
+  size: string | null;
+  qty: number;
+  price: Fils;
+  /** How many of this line are still free to ask about — what was bought,
+   *  less what open requests already claim. */
+  available: number;
+  /** Women's clothing cannot be exchanged. Sent per line so the screen can
+   *  grey the choice rather than accept it and be refused afterwards. */
+  noExchange: boolean;
+}
+
+export interface ReturnableOrder {
+  ref: string;
+  customerName: string;
+  /** Whole days left of the fourteen, counted from DELIVERY. */
+  daysLeft: number;
+  open: boolean;
+  lines: ReturnableLine[];
+  /** Requests already made on this order and not rejected or withdrawn. */
+  existing: { ref: string; kind: string; status: string }[];
+}
+
+type WireReturnable = {
+  track_id: string;
+  customer_name: string | null;
+  window: { days_left: number; open: boolean };
+  items: {
+    id: number; name_ar: string; name_en: string; size: string | null;
+    qty: number; unit_price: number; available: number; no_exchange: boolean;
+  }[];
+  existing: { ref: string; kind: string; status: string }[];
+};
+
+/**
+ * What is on this order, and what of it can still be sent back.
+ *
+ * Throws with the SERVER'S OWN token — `return_not_found`, `return_not_paid`,
+ * `return_cancelled` — so the screen can say something true in the customer's
+ * language rather than showing a status code. Unlike fetchCatalogue this does
+ * NOT fall back to anything: there is no honest offline answer to "what did I
+ * buy", and inventing one would have somebody posting back the wrong parcel.
+ */
+export async function fetchReturnable(ref: string, phone: string): Promise<ReturnableOrder> {
+  const res = await fetch(
+    `${API_BASE}/api.php?r=return_items&ref=${encodeURIComponent(ref)}` +
+    `&phone=${encodeURIComponent(phone)}`,
+    { headers: { Accept: 'application/json' } },
+  );
+  const body = (await res.json().catch(() => null)) as (WireReturnable & { error?: string }) | null;
+  if (!res.ok || !body || body.error) throw new Error(body?.error ?? `return_items: HTTP ${res.status}`);
+  return {
+    ref: body.track_id,
+    customerName: body.customer_name ?? '',
+    daysLeft: body.window?.days_left ?? 0,
+    open: !!body.window?.open,
+    lines: (body.items ?? []).map((i) => ({
+      id: i.id,
+      nameAr: i.name_ar,
+      nameEn: i.name_en,
+      size: i.size,
+      qty: i.qty,
+      price: toFils(i.unit_price),
+      available: i.available,
+      noExchange: !!i.no_exchange,
+    })),
+    existing: body.existing ?? [],
+  };
+}
+
+export interface ReturnAsk {
+  ref: string;
+  phone: string;
+  kind: 'return' | 'exchange';
+  reason?: string;
+  lang: 'ar' | 'en';
+  /** `wantSize` is the size wanted INSTEAD, on an exchange. Null on a return,
+   *  where nothing is being sent back out. */
+  lines: { id: number; qty: number; wantSize?: string | null }[];
+}
+
+/**
+ * Record the request. Answers the reference the customer keeps and the driver
+ * reads back.
+ *
+ * Like placing an order, this deliberately does NOT fall back or retry
+ * silently: a request that quietly failed is worse than an error, because the
+ * customer stops watching for the courier.
+ */
+export async function requestReturn(ask: ReturnAsk): Promise<{ ref: string; items: number }> {
+  const res = await fetch(`${API_BASE}/api.php?r=return_request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      ref: ask.ref,
+      phone: ask.phone,
+      kind: ask.kind,
+      lang: ask.lang,
+      reason: ask.reason ?? null,
+      items: ask.lines.map((l) => ({
+        id: l.id,
+        qty: l.qty,
+        want_size: l.wantSize ?? null,
+      })),
+    }),
+  });
+  const body = (await res.json().catch(() => null)) as
+    | { ref?: string; items?: number; error?: string }
+    | null;
+  if (!res.ok || !body?.ref) throw new Error(body?.error ?? `return_request: HTTP ${res.status}`);
+  return { ref: body.ref, items: body.items ?? ask.lines.length };
+}

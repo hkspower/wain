@@ -32,7 +32,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#0d0e10">
+<meta name="theme-color" content="#141619">
 <title>بطاقة الولاء — سبورتا</title>
 <link rel="icon" href="/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -40,14 +40,19 @@
   /* The palette is assets/sporta-dark.css's, copied rather than imported: this
      page must render correctly on its own, and pulling in a 91 KB build
      stylesheet for eight colours would be the slower and more fragile of the
-     two. The values are the ramp, and they are the only thing shared. */
+     two. The values are the ramp, and they are the only thing shared.
+
+     COPIED MEANS IT CAN DRIFT, and it did: these sat at the pre-lift ramp
+     (--sp-black #0d0e10) for as long as the shop's black level has been
+     #141619, so /card was a shade darker than every page around it. If the
+     ramp in sporta-dark.css moves again, move these with it. */
   :root {
-    --sp-black:  #0d0e10;
-    --sp-panel:  #17191c;
-    --sp-raise:  #212428;
-    --sp-line:   #2f3338;
-    --sp-silver: #9aa0a6;
-    --sp-text:   #e6e8ea;
+    --sp-black:  #141619;
+    --sp-panel:  #23262a;
+    --sp-raise:  #2e3237;
+    --sp-line:   #3f444a;
+    --sp-silver: #a6acb2;
+    --sp-text:   #eaecee;
     --sp-ember:  #ff7b17;
     --sp-fill:   #e0561c;
     --sp-on-fill:#171a1e;

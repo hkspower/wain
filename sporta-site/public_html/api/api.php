@@ -954,6 +954,26 @@ if ($r === 'order' && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // that fails validation.
     $b = store_body();
 
+    // SIX IS THE FLOOR, AND RAISING IT WOULD BE THEATRE.
+    //
+    // The order number is also the capability that opens /invoice/<number> and
+    // ?r=status — pages carrying the customer's name and address — so it wants
+    // to be unguessable, and the temptation is to demand more characters here.
+    // That does not work: the client CHOOSES this value, so it can satisfy any
+    // length with no randomness at all. 'AAAAAAAAAAAA' is twelve characters.
+    // A length rule cannot measure entropy, and pretending it can would leave
+    // the real hole open behind a check that looks like it closed it.
+    //
+    // It would also refuse real orders. The website builds its number from
+    // crypto.getRandomValues(new Uint32Array(2)) rendered in base36, and a
+    // uint32 is one to seven characters — so about one order in eighty
+    // thousand lands under twelve legitimately, and that customer's checkout
+    // fails with a message they can do nothing about.
+    //
+    // Where this was actually fixed is the CLIENTS, which is the only place
+    // entropy can come from: the website has always used getRandomValues, and
+    // the app, which was building its number out of Date.now() plus four
+    // random characters, now does the same and pads to a fixed width.
     $track = trim((string)($b['track_id'] ?? ''));
     if (!preg_match('/^[A-Za-z0-9]{6,30}$/', $track)) store_fail('invalid_track_id');
 

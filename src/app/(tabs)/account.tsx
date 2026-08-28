@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -15,6 +16,7 @@ const WHATSAPP = 'https://wa.me/96500000000';
 
 export default function AccountScreen() {
   const theme = useTheme();
+  const router = useRouter();
   const { t, lang, setLang, row, text } = useLang();
   const { source, lastOrder } = useCart();
 
@@ -102,6 +104,26 @@ export default function AccountScreen() {
           </Pressable>
         </>
       )}
+
+      {/* EXCHANGE AND RETURN. The website has had this page for a while and
+          the app had nothing — a customer who bought here had to open a
+          browser to send anything back. `lastOrder` fills the order number in
+          for them; without one the screen still works, it just asks for the
+          number, which is right for somebody who ordered on another device. */}
+      <ThemedText type="labelBold" style={[styles.label, text]}>
+        {t.exchange.title}
+      </ThemedText>
+      <Pressable
+        accessibilityRole="link"
+        accessibilityLabel={t.exchange.title}
+        onPress={() =>
+          router.push(lastOrder ? `/exchange?ref=${encodeURIComponent(lastOrder.ref)}` : '/exchange')
+        }
+        style={press()}>
+        <ThemedView type="backgroundElement" style={[styles.rowCard, row, Elevation.card]}>
+          <ThemedText type="labelBold" style={text}>{t.exchange.title}</ThemedText>
+        </ThemedView>
+      </Pressable>
 
       <ThemedText type="labelBold" style={[styles.label, text]}>
         {t.account.contact}
