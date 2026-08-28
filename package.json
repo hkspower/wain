@@ -74,6 +74,7 @@
     "test:borders": "node scripts/border-audit.mjs",
     "test:buttons": "node scripts/button-audit.mjs",
     "test:glare": "node scripts/glare-audit.mjs",
+    "test:otp": "node scripts/otp-test.mjs",
     "test:returns": "node scripts/returns-test.mjs",
     "scan:storage": "node scripts/storage-scan.mjs",
     "scan:site": "node scripts/site-scan.mjs",

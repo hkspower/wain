@@ -88,6 +88,20 @@ PHP
   echo "up   $gw/config.php written (sandbox credentials, cannot reach a bank)"
 done
 
+# api/config.php is hand-made and git-ignored, and it ships with an empty
+# cron_key. Several things fail CLOSED without one rather than falling back to
+# an empty secret — review links (store_review_token_ok) and the admin's
+# emailed sign-in code (store_email_otp_hash) both refuse outright — which is
+# right, and which means their rigs cannot run against a sandbox that has none.
+#
+# So one is filled in if and only if the field is empty. A real key is never
+# overwritten, and this file is git-ignored, so nothing here can travel.
+CFG="$ROOT/sporta-site/public_html/api/config.php"
+if [ -f "$CFG" ] && grep -q "'cron_key' => ''" "$CFG"; then
+  sed -i "s/'cron_key' => ''/'cron_key' => 'SANDBOX_NOT_A_REAL_CRON_KEY'/" "$CFG"
+  echo "ok   api/config.php given a sandbox cron_key (it was empty)"
+fi
+
 cd "$ROOT/sporta-site/public_html"
 # dev-router.php mirrors the one .htaccess rewrite the scans exercise — see
 # its header. Everything else falls through to the built-in server untouched.

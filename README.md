@@ -52,6 +52,8 @@ underscored — the panel follows `admin.php`, never the other way round:
 |---|---|---|
 | `login` | POST | `{ name }` + the session cookie, or `{ need_code: true }` for TOTP |
 | `login_code` | POST | the second factor, when `login` asked for one |
+| `login_code_resend` | POST | posts the emailed code again — one a minute, to the pending account only |
+| `otp_begin` / `otp_enable` / `otp_send` / `otp_disable` | POST | the emailed code as a second factor: enrol, confirm, re-send, turn off |
 | `me` | GET | who is signed in, or a bare `null` |
 | `stats` / `revenue` | GET | today's takings and the daily series |
 | `orders[&status=]` | GET | rows carrying BOTH status axes, amounts in KWD |
@@ -116,6 +118,7 @@ because the rigs place real orders against a real database.
 | `npm run test:robots` | robots.txt and the sitemaps as a crawler reads them — every group complete, every listed URL a 200, every slug an active product |
 | `npm run test:db` | The database's values against the website and app that read them |
 | `npm run test:site-contrast` | Every run of text on the website, measured against what is behind it — `THEME=light` for the other one |
+| `npm run test:otp` | The admin's emailed sign-in code against the REAL `admin.php` — enrolment, single use, expiry, five-guess destruction, and that TOTP still wins |
 | `npm run test:returns` | Returns and exchanges end to end — the two public routes, the admin gate, and the customer's page in a browser |
 | `npm run test:borders` | Every border, all four sides, both themes, phone and desktop — none invisible, plus a census of the colours, widths and radii in use |
 | `npm run test:buttons` | Every control on both halves of the shop, PRESSED — none dead, plus tap targets, accessible names and links that go nowhere |

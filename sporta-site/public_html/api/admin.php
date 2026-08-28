@@ -61,7 +61,52 @@ if ($r === 'login' && $method === 'POST') {
     // need_code is the whole point of the answer when a second factor is
     // enrolled — without it the screen has no way to know it should ask, and
     // would sit there believing it had signed in while every route said 401.
-    store_out(['email' => $who['email'], 'need_code' => !empty($who['need_code'])]);
+    store_out([
+        'email' => $who['email'],
+        'need_code' => !empty($who['need_code']),
+        // WHICH factor, and where it went. Without these the screen can only
+        // say "enter your code" — which is the wrong instruction for half the
+        // accounts, and useless for the owner staring at an authenticator app
+        // they never installed while a code sits in their inbox.
+        'code_via' => $who['code_via'] ?? null,
+        'code_sent_to' => $who['code_sent_to'] ?? null,
+        // FALSE MEANS THE MAIL DID NOT GO. Said out loud so the screen can
+        // tell them, rather than asking for a code that was never sent.
+        'code_sent' => $who['code_sent'] ?? null,
+    ]);
+}
+
+// Send the emailed code again, while sign-in is half done.
+//
+// ABOVE THE GATE, like login_code, because there is no session yet — only the
+// pending marker. It can therefore only ever mail the ONE account that marker
+// names, and only to the address already on that account: it is not a route
+// that sends mail to an address of the caller's choosing.
+if ($r === 'login_code_resend' && $method === 'POST') {
+    store_require_admin_header();
+    store_session_start();
+    $id = (int)($_SESSION['pending_admin_id'] ?? 0);
+    $since = (int)($_SESSION['pending_at'] ?? 0);
+    if ($id === 0 || (string)($_SESSION['pending_via'] ?? '') !== 'email'
+        || time() - $since > STORE_EMAIL_OTP_SECONDS) {
+        store_fail('code_expired', 401);
+    }
+    $q = $db->prepare('select id, email, email_otp_enabled, email_otp_sent_at
+                         from admin_users where id = ?');
+    $q->execute([$id]);
+    $u = $q->fetch();
+    if (!$u || (int)$u['email_otp_enabled'] !== 1) store_fail('code_expired', 401);
+    // One a minute, from the row itself rather than a counter that a new
+    // session would reset. Also throttled per IP, because the row is per
+    // account and a spray is per address.
+    if ($u['email_otp_sent_at'] !== null
+        && time() - strtotime((string)$u['email_otp_sent_at']) < STORE_EMAIL_OTP_RESEND_SECONDS) {
+        store_fail('too_soon', 429);
+    }
+    store_throttle($db, 'otp_send', 6, 900);
+    $code = store_email_otp_issue($db, $u);
+    store_out(['sent' => store_email_otp_send($u, $code),
+               'to' => store_mask_email((string)$u['email'])]);
 }
 
 // Step two of sign-in. Above the gate on purpose: there is no session yet, only
@@ -1461,6 +1506,103 @@ if ($r === 'totp_enable' && $method === 'POST') {
 // Turn it off. Password AND a working code — if the phone is lost, this is not
 // the route: reset-admin.php on the server is, because that one proves you can
 // read config.php rather than that you can hold the phone.
+// ------------------------------------------- the emailed code, as a factor
+//
+// The same three-step ceremony TOTP has, for the same reasons, and one extra
+// one that matters more here than it does there.
+//
+// THE EXTRA ONE: enrolling PROVES THE MAIL ARRIVES. otp_begin sends a code and
+// otp_enable will not switch the factor on until that code comes back, so an
+// owner cannot lock the door with a key they never received. TOTP does not
+// need this — the app shows the code whether or not anything works — but a
+// second factor that depends on a mail server nobody has tested is the one way
+// this feature could take the shop away from its owner.
+
+if ($r === 'otp_begin' && $method === 'POST') {
+    $b = store_body();
+    $q = $db->prepare('select id, email, password_hash, email_otp_enabled, email_otp_sent_at
+                         from admin_users where id = ?');
+    $q->execute([$admin['id']]);
+    $u = $q->fetch();
+    if (!$u) store_fail('account_not_found', 404);
+    if ((int)$u['email_otp_enabled'] === 1) store_fail('already_enrolled', 409);
+
+    // The password, even here, and for the reason totp_begin gives: without it
+    // an unlocked laptop enrols a factor the owner does not hold.
+    store_throttle($db, 'account', 10, 300);
+    if (!password_verify((string)($b['password'] ?? ''), (string)$u['password_hash'])) {
+        store_fail('bad_password', 401);
+    }
+    $code = store_email_otp_issue($db, $u);
+    $sent = store_email_otp_send($u, $code, ($b['lang'] ?? '') === 'en' ? 'en' : 'ar');
+    // `sent` false is not an error to hide: it is the answer to "will this
+    // work", asked at the only moment when finding out is free.
+    store_out(['sent' => $sent, 'to' => store_mask_email((string)$u['email'])]);
+}
+
+if ($r === 'otp_enable' && $method === 'POST') {
+    $b = store_body();
+    $q = $db->prepare('select email_otp_enabled, email_otp_hash from admin_users where id = ?');
+    $q->execute([$admin['id']]);
+    $u = $q->fetch();
+    if (!$u || $u['email_otp_hash'] === null) store_fail('not_started', 409);
+    if ((int)$u['email_otp_enabled'] === 1) store_fail('already_enrolled', 409);
+
+    store_throttle($db, 'totp', 10, 300);
+    if (!store_email_otp_claim($db, (int)$admin['id'], (string)($b['code'] ?? ''))) {
+        store_fail('bad_code', 401);
+    }
+    $db->prepare('update admin_users set email_otp_enabled = 1 where id = ?')->execute([$admin['id']]);
+    store_out(['ok' => true, 'email_otp' => true]);
+}
+
+// A fresh code for an admin who is ALREADY signed in, because the one they
+// signed in with was consumed on use and store_require_fresh_code() needs a
+// live one before a password, an email or a phone number can change.
+//
+// It mails the signed-in account's OWN address and nothing else — there is no
+// recipient in the body to choose — and it is throttled twice: once a minute
+// from the row, six times in fifteen minutes from the IP.
+if ($r === 'otp_send' && $method === 'POST') {
+    $q = $db->prepare('select id, email, email_otp_enabled, email_otp_sent_at
+                         from admin_users where id = ?');
+    $q->execute([$admin['id']]);
+    $u = $q->fetch();
+    if (!$u || (int)$u['email_otp_enabled'] !== 1) store_fail('not_enrolled', 409);
+    if ($u['email_otp_sent_at'] !== null
+        && time() - strtotime((string)$u['email_otp_sent_at']) < STORE_EMAIL_OTP_RESEND_SECONDS) {
+        store_fail('too_soon', 429);
+    }
+    store_throttle($db, 'otp_send', 6, 900);
+    $code = store_email_otp_issue($db, $u);
+    store_out(['sent' => store_email_otp_send($u, $code),
+               'to' => store_mask_email((string)$u['email'])]);
+}
+
+// Turning it OFF costs the password and a live code, exactly as turning TOTP
+// off does: it is a change to who can sign in tomorrow, and an unlocked laptop
+// must not be enough to make it.
+if ($r === 'otp_disable' && $method === 'POST') {
+    $b = store_body();
+    $q = $db->prepare('select password_hash, email_otp_enabled from admin_users where id = ?');
+    $q->execute([$admin['id']]);
+    $u = $q->fetch();
+    if (!$u || (int)$u['email_otp_enabled'] !== 1) store_fail('not_enrolled', 409);
+
+    store_throttle($db, 'account', 10, 300);
+    if (!password_verify((string)($b['password'] ?? ''), (string)$u['password_hash'])) {
+        store_fail('bad_password', 401);
+    }
+    store_throttle($db, 'totp', 10, 300);
+    if (!store_email_otp_claim($db, (int)$admin['id'], (string)($b['code'] ?? ''))) {
+        store_fail('bad_code', 401);
+    }
+    $db->prepare('update admin_users set email_otp_enabled = 0, email_otp_hash = null,
+                      email_otp_expires = null, email_otp_attempts = 0 where id = ?')
+       ->execute([$admin['id']]);
+    store_out(['ok' => true, 'email_otp' => false]);
+}
+
 if ($r === 'totp_disable' && $method === 'POST') {
     $b = store_body();
     $q = $db->prepare('select password_hash from admin_users where id = ?');

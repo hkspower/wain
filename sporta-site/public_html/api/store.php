@@ -1321,6 +1321,152 @@ function store_totp_secret(): string {
 // Login with per-account throttling kept in the database, not the session —
 // an attacker does not keep your session for you. Five failures lock the
 // account for fifteen minutes; the lock releases itself.
+// ==================================================== a one-time code by email
+//
+// The second factor for an owner who will not carry an authenticator app.
+// TOTP is stronger and stays the default where it is enrolled — store_login()
+// checks it first and never reaches this. What this is for is the account that
+// would otherwise have ONE factor, because setting up an app was too much
+// trouble: one factor plus a mailbox beats one factor.
+//
+// The code lives ten minutes, is destroyed the moment it is used, and is
+// destroyed again after five wrong guesses so that grinding one code is not
+// possible — a guesser has to make the shop send another, and that is
+// throttled too.
+
+/** Ten minutes. Long enough to open a mail app, short enough that a code read
+ *  over a shoulder is stale before it can be carried anywhere. */
+const STORE_EMAIL_OTP_SECONDS = 600;
+/** Wrong guesses against ONE code before it is thrown away. */
+const STORE_EMAIL_OTP_TRIES = 5;
+/** The floor between one send and the next, so "send it again" is not a way to
+ *  post a thousand messages to somebody's address. */
+const STORE_EMAIL_OTP_RESEND_SECONDS = 60;
+
+/**
+ * HMAC, not a bare hash, and this is the whole security of the stored row.
+ *
+ * Six digits is a million possibilities. sha256 over a million inputs is the
+ * work of a moment, so a leaked `email_otp_hash` would hand over the live code
+ * to anyone who read the database. Keyed on cron_key — which lives in
+ * api/config.php and not in the database — the row is worth nothing on its own.
+ *
+ * NO KEY, NO CODES. An empty cron_key would key every code on the empty string,
+ * which is to say on nothing at all, and that is worse than not having the
+ * feature: it would look like a second factor while being a public one. Fails
+ * closed, exactly as store_review_token_ok() does.
+ */
+function store_email_otp_hash(string $code): string {
+    $cfg = store_config();
+    $key = (string)($cfg['cron_key'] ?? '');
+    if ($key === '') store_fail('otp_not_configured', 500);
+    return hash_hmac('sha256', 'admin-otp' . "\0" . $code, $key);
+}
+
+/**
+ * Make a code, store its HMAC, and send it. Returns the code ONLY so the
+ * caller can hand it to a test; nothing in production reads it.
+ *
+ * `random_int`, not `rand`: this is the whole second factor, and a predictable
+ * code is not one.
+ */
+function store_email_otp_issue(PDO $db, array $u): string {
+    $code = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    $db->prepare(
+        'update admin_users
+            set email_otp_hash = ?, email_otp_expires = ?, email_otp_sent_at = now(),
+                email_otp_attempts = 0
+          where id = ?'
+    )->execute([
+        store_email_otp_hash($code),
+        date('Y-m-d H:i:s', time() + STORE_EMAIL_OTP_SECONDS),
+        (int)$u['id'],
+    ]);
+    return $code;
+}
+
+/** The address, shown back to whoever is signing in so they know where to
+ *  look — masked, because the panel shows it before anyone has proved
+ *  anything beyond the password. */
+function store_mask_email(string $email): string {
+    $at = strpos($email, '@');
+    if ($at === false || $at < 1) return '***';
+    $name = substr($email, 0, $at);
+    $rest = substr($email, $at);
+    $keep = mb_substr($name, 0, 1);
+    return $keep . str_repeat('*', max(1, mb_strlen($name) - 1)) . $rest;
+}
+
+/**
+ * Send it. A FAILURE HERE IS REPORTED, NOT SWALLOWED.
+ *
+ * If mail is misconfigured and this quietly returned true, the owner would be
+ * asked for a code that was never sent and would have no way in at all — the
+ * one failure mode that turns a second factor into a locked door. The caller
+ * says so plainly instead, and the code stays valid so a retry can work once
+ * the mail problem is fixed.
+ */
+function store_email_otp_send(array $u, string $code, string $lang = 'ar'): bool {
+    $cfg = store_config();
+    $mins = (int)(STORE_EMAIL_OTP_SECONDS / 60);
+    if ($lang === 'en') {
+        $subject = 'Sporta — your sign-in code';
+        $text = "Your sign-in code is {$code}.\n\n"
+              . "It works once and expires in {$mins} minutes.\n"
+              . "If you did not just try to sign in to the Sporta panel, change your password.";
+    } else {
+        $subject = 'سبورتا — رمز الدخول';
+        $text = "رمز الدخول الخاص بك هو {$code}.\n\n"
+              . "يُستخدم مرة واحدة وينتهي خلال {$mins} دقائق.\n"
+              . "إن لم تكن أنت من حاول الدخول إلى لوحة سبورتا، غيّر كلمة المرور.";
+    }
+    // The code is in the plain part and the HTML part alike; no link, nothing
+    // to click. A sign-in mail that carries a link is a phishing lesson.
+    $html = '<p style="font:16px system-ui">' . htmlspecialchars($text, ENT_QUOTES, 'UTF-8') . '</p>';
+    $html = str_replace("\n", '<br>', $html);
+    return store_send_mail($cfg, (string)$u['email'], $subject, $text, $html);
+}
+
+/**
+ * Check a code against the stored HMAC. Consumes it on success, and destroys it
+ * after too many wrong guesses.
+ *
+ * hash_equals, because a byte-at-a-time comparison of a secret is a timing
+ * oracle — the same reason store_review_token_ok() uses it.
+ */
+function store_email_otp_claim(PDO $db, int $adminId, string $code): bool {
+    $q = $db->prepare('select email_otp_hash, email_otp_expires, email_otp_attempts
+                         from admin_users where id = ?');
+    $q->execute([$adminId]);
+    $row = $q->fetch();
+    if (!$row || ($row['email_otp_hash'] ?? '') === '' || $row['email_otp_hash'] === null) return false;
+    if ($row['email_otp_expires'] === null || strtotime((string)$row['email_otp_expires']) < time()) {
+        return false;
+    }
+    if ((int)$row['email_otp_attempts'] >= STORE_EMAIL_OTP_TRIES) return false;
+
+    $given = preg_replace('/\D/', '', store_ascii_digits($code));
+    if ($given !== '' && hash_equals((string)$row['email_otp_hash'], store_email_otp_hash($given))) {
+        // USED ONCE. Cleared before anything is granted, so the same code
+        // replayed a second later finds nothing to match.
+        $db->prepare('update admin_users set email_otp_hash = null, email_otp_expires = null,
+                          email_otp_attempts = 0 where id = ?')->execute([$adminId]);
+        return true;
+    }
+
+    $tries = (int)$row['email_otp_attempts'] + 1;
+    if ($tries >= STORE_EMAIL_OTP_TRIES) {
+        // Five wrong and the code is gone. Grinding one code is out; the only
+        // way on is to ask for another, which is throttled.
+        $db->prepare('update admin_users set email_otp_hash = null, email_otp_expires = null,
+                          email_otp_attempts = ? where id = ?')->execute([$tries, $adminId]);
+    } else {
+        $db->prepare('update admin_users set email_otp_attempts = ? where id = ?')
+           ->execute([$tries, $adminId]);
+    }
+    return false;
+}
+
 function store_login(string $email, string $password): array {
     $db = store_db();
 
@@ -1337,7 +1483,7 @@ function store_login(string $email, string $password): array {
     }
 
     $q = $db->prepare('select id, email, password_hash, failed_attempts, locked_until,
-                              totp_secret, totp_enabled
+                              totp_secret, totp_enabled, email_otp_enabled
                          from admin_users where email = ?');
     $q->execute([mb_strtolower(trim($email))]);
     $u = $q->fetch();
@@ -1382,7 +1528,14 @@ function store_login(string $email, string $password): array {
     // password-guesser reset their own five-attempt lockout every time they
     // guessed right but could not produce a code — turning the second factor
     // into a way to make the first one unlimited.
-    if ((int)($u['totp_enabled'] ?? 0) === 1 && (string)($u['totp_secret'] ?? '') !== '') {
+    $hasTotp  = (int)($u['totp_enabled'] ?? 0) === 1 && (string)($u['totp_secret'] ?? '') !== '';
+    // TOTP WINS WHERE BOTH ARE ON. An authenticator holds a secret that never
+    // travels; an emailed code is only as safe as the mailbox it lands in. An
+    // account with both should be asked for the stronger one, and offering a
+    // choice would let an attacker pick the weaker.
+    $hasEmail = !$hasTotp && (int)($u['email_otp_enabled'] ?? 0) === 1;
+
+    if ($hasTotp || $hasEmail) {
         store_session_start();
         // A fresh id here too: the pending marker is a privilege change of its
         // own, small as it is, and fixating it is the same attack.
@@ -1390,7 +1543,24 @@ function store_login(string $email, string $password): array {
         unset($_SESSION['admin_id'], $_SESSION['admin_email']);
         $_SESSION['pending_admin_id'] = (int)$u['id'];
         $_SESSION['pending_at'] = time();
-        return ['id' => (int)$u['id'], 'email' => $u['email'], 'need_code' => true];
+        $_SESSION['pending_via'] = $hasTotp ? 'totp' : 'email';
+
+        $out = ['id' => (int)$u['id'], 'email' => $u['email'], 'need_code' => true,
+                'code_via' => $hasTotp ? 'totp' : 'email'];
+        if ($hasEmail) {
+            // Issued and sent HERE, not on a second request: the caller has
+            // proved the password, and a separate "send me a code" route would
+            // post mail to any address on demand.
+            $code = store_email_otp_issue($db, $u);
+            $out['code_sent_to'] = store_mask_email((string)$u['email']);
+            // A MAIL FAILURE IS TOLD, NOT HIDDEN. Swallowing it asks the owner
+            // for a code that was never sent and leaves them no way in at all —
+            // the one failure mode that turns a second factor into a locked
+            // door. The code stays valid, so a retry works the moment the mail
+            // problem is fixed.
+            $out['code_sent'] = store_email_otp_send($u, $code);
+        }
+        return $out;
     }
 
     store_admin_grant($db, $u);
@@ -1427,8 +1597,15 @@ function store_login_code(string $code): array {
 
     $id = (int)($_SESSION['pending_admin_id'] ?? 0);
     $since = (int)($_SESSION['pending_at'] ?? 0);
-    if ($id === 0 || $since === 0 || time() - $since > STORE_TOTP_PENDING_SECONDS) {
-        unset($_SESSION['pending_admin_id'], $_SESSION['pending_at']);
+    $via = (string)($_SESSION['pending_via'] ?? 'totp');
+    // A DIFFERENT WINDOW PER FACTOR. TOTP is already on the phone in the
+    // owner's hand, so five minutes is generous. An emailed code has to cross a
+    // mail server and be found in an inbox, and five minutes is how somebody
+    // misses it — the code itself lives ten, and the marker must not expire
+    // before the thing it is waiting for.
+    $window = $via === 'email' ? STORE_EMAIL_OTP_SECONDS : STORE_TOTP_PENDING_SECONDS;
+    if ($id === 0 || $since === 0 || time() - $since > $window) {
+        unset($_SESSION['pending_admin_id'], $_SESSION['pending_at'], $_SESSION['pending_via']);
         store_fail('code_expired', 401);
     }
 
@@ -1439,12 +1616,20 @@ function store_login_code(string $code): array {
     // stolen password and the shop.
     store_throttle($db, 'totp', 10, 300);
 
-    $q = $db->prepare('select id, email, totp_secret, totp_enabled, failed_attempts from admin_users where id = ?');
+    $q = $db->prepare('select id, email, totp_secret, totp_enabled, email_otp_enabled, failed_attempts
+                         from admin_users where id = ?');
     $q->execute([$id]);
     $u = $q->fetch();
-    if (!$u || (int)$u['totp_enabled'] !== 1) store_fail('code_expired', 401);
+    // THE FACTOR COMES FROM THE SESSION, never from the request. Reading it
+    // from the body would let a caller who holds the password say "check my
+    // email code instead" on an account that is protected by TOTP.
+    $expected = $via === 'email' ? (int)($u['email_otp_enabled'] ?? 0) : (int)($u['totp_enabled'] ?? 0);
+    if (!$u || $expected !== 1) store_fail('code_expired', 401);
 
-    if (!store_totp_claim($db, $id, (string)$u['totp_secret'], $code)) {
+    $ok = $via === 'email'
+        ? store_email_otp_claim($db, $id, $code)
+        : store_totp_claim($db, $id, (string)$u['totp_secret'], $code);
+    if (!$ok) {
         // A wrong code counts against the SAME five-strike lockout the password
         // uses. Someone holding the password and guessing at codes is still an
         // attack on this account, and the account should close for a quarter of
@@ -1465,14 +1650,39 @@ function store_login_code(string $code): array {
 // unlocked laptop is enough — and these are the four changes that would let
 // whoever is sitting at it keep the shop permanently.
 function store_require_fresh_code(PDO $db, array $who, string $code): void {
-    $q = $db->prepare('select totp_secret, totp_enabled from admin_users where id = ?');
+    $q = $db->prepare('select email, totp_secret, totp_enabled, email_otp_enabled
+                         from admin_users where id = ?');
     $q->execute([$who['id']]);
     $u = $q->fetch();
-    if (!$u || (int)$u['totp_enabled'] !== 1) return;   // not enrolled, nothing to ask for
-    store_throttle($db, 'totp', 10, 300);
-    if (!store_totp_claim($db, (int)$who['id'], (string)$u['totp_secret'], $code)) {
-        store_fail('bad_code', 401);
+    if (!$u) return;
+    $id = (int)$who['id'];
+
+    if ((int)$u['totp_enabled'] === 1) {
+        store_throttle($db, 'totp', 10, 300);
+        if (!store_totp_claim($db, $id, (string)$u['totp_secret'], $code)) store_fail('bad_code', 401);
+        return;
     }
+
+    // THE EMAIL FACTOR COUNTS HERE TOO, and leaving it out was the hole this
+    // closes: an account whose second factor is an emailed code would have
+    // sailed past the early return below and changed its own password, email
+    // or phone on the session cookie alone — which is precisely what this
+    // function exists to prevent, and precisely the case where the laptop is
+    // already unlocked.
+    //
+    // The code has to be one in flight, and the code they signed in with is
+    // NOT one: it was consumed on use, which is the point of it. So the panel
+    // asks admin.php?r=otp_send for a fresh one first — that route mails the
+    // signed-in account's own address and nothing else, and is throttled to
+    // once a minute. Saying "sign out and back in" here, as an earlier draft
+    // of this comment did, would have been wrong.
+    if ((int)$u['email_otp_enabled'] === 1) {
+        store_throttle($db, 'totp', 10, 300);
+        if (!store_email_otp_claim($db, $id, $code)) store_fail('bad_code', 401);
+        return;
+    }
+
+    // Not enrolled in either: nothing to ask for.
 }
 
 // ---------------------------------------------------------------- settings

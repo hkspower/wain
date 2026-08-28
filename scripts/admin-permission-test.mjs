@@ -70,12 +70,19 @@ console.log(`--- ${routes.length} routes in admin.php: ${publicOnes.length} befo
 // same number on both sides of the equals sign. These four are the only ones
 // that may ever sit in front of the gate, and adding a fifth has to be a
 // deliberate edit here, with a reason.
-const MAY_BE_PUBLIC = ['login', 'login_code', 'logout', 'me']
+// login_code_resend is the fifth, and it earns its place the same way
+// login_code does: at the point it runs there is NO session, only the pending
+// marker store_login() left — so it cannot be behind a gate that requires one.
+// What makes it safe is that it can only ever mail the account that marker
+// names, at the address already on that account. There is no recipient in the
+// body to choose, it refuses more than one message a minute from the row
+// itself, and it is throttled per IP on top.
+const MAY_BE_PUBLIC = ['login', 'login_code', 'login_code_resend', 'logout', 'me']
 const unexpected = publicOnes.filter((r) => !MAY_BE_PUBLIC.includes(r))
 check(unexpected.length === 0,
   unexpected.length
     ? `${unexpected.length} route(s) sit ABOVE store_require_admin() and are not on the allowed list: ${unexpected.join(', ')}`
-    : `only the four sign-in routes sit above the gate`)
+    : `only the ${MAY_BE_PUBLIC.length} sign-in routes sit above the gate`)
 
 const call = async (route, { cookie = '', header = true, method = 'GET' } = {}) => {
   const res = await fetch(`${API}/admin.php?r=${route}`, {

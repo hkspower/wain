@@ -150,7 +150,8 @@ def _fresh():
     ]
     return {'orders': orders, 'items': items, 'variants': variants, 'discounts': discounts,
             'products': products, 'images': [], 'next_image': 1,
-            'next_discount': 3, 'settings': settings, 'returns': returns}
+            'next_discount': 3, 'settings': settings, 'returns': returns,
+            'otp_enabled': False, 'otp_code': None}
 
 
 STATE = _fresh()
@@ -348,12 +349,61 @@ class Handler(BaseHTTPRequestHandler):
             # what admin.php answers in that state.
             return self._json(401, {'error': 'bad_credentials'})
 
+        if r == 'login_code_resend':
+            # Same state as login_code above: the fixture account has no second
+            # factor, so there is no pending marker to resend against.
+            return self._json(401, {'error': 'code_expired'})
+
         if r == 'logout':
             return self._json(200, {'ok': True}, clear_cookie=True)
 
         if not self._gate():
             return
         b = self._body()
+
+        # ---- the emailed one-time code, as a second factor ------------------
+        #
+        # THE MOCK NEVER SENDS MAIL and says so: `sent` is False, exactly as the
+        # real routes answer on a host with no MTA. The panel has to handle that
+        # answer — it is what an owner with a misconfigured mail server sees —
+        # so the fixture must not pretend otherwise.
+        #
+        # The code is the fixed '424242'. A mock that generated a random one
+        # would be untestable from the outside, and a fixture is allowed to be
+        # predictable in a way the server must not be.
+        if r == 'otp_begin':
+            if b.get('password') != 'correct horse':
+                return self._json(401, {'error': 'bad_password'})
+            if STATE['otp_enabled']:
+                return self._json(409, {'error': 'already_enrolled'})
+            STATE['otp_code'] = '424242'
+            return self._json(200, {'sent': False, 'to': 'm*******@sporta.com.kw'})
+
+        if r == 'otp_enable':
+            if not STATE.get('otp_code'):
+                return self._json(409, {'error': 'not_started'})
+            if b.get('code') != STATE['otp_code']:
+                return self._json(401, {'error': 'bad_code'})
+            STATE['otp_enabled'] = True
+            STATE['otp_code'] = None          # used once, as the server does
+            return self._json(200, {'ok': True, 'email_otp': True})
+
+        if r == 'otp_send':
+            if not STATE['otp_enabled']:
+                return self._json(409, {'error': 'not_enrolled'})
+            STATE['otp_code'] = '424242'
+            return self._json(200, {'sent': False, 'to': 'm*******@sporta.com.kw'})
+
+        if r == 'otp_disable':
+            if not STATE['otp_enabled']:
+                return self._json(409, {'error': 'not_enrolled'})
+            if b.get('password') != 'correct horse':
+                return self._json(401, {'error': 'bad_password'})
+            if b.get('code') != STATE.get('otp_code'):
+                return self._json(401, {'error': 'bad_code'})
+            STATE['otp_enabled'] = False
+            STATE['otp_code'] = None
+            return self._json(200, {'ok': True, 'email_otp': False})
 
         if r == 'fulfilment':
             status = b.get('status')

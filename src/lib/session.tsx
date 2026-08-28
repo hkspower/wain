@@ -39,8 +39,16 @@ type Ctx = {
   ready: boolean;
   /** 'ok' — signed in. 'code' — the password was right and a second factor
    *  is enrolled: nothing is granted yet, ask for the code. */
-  signIn: (email: string, password: string) => Promise<'ok' | 'code'>;
+  /** 'ok' means signed in. 'code' means a second factor is enrolled and
+   *  nothing has been granted — `via` says which one, `sentTo` the masked
+   *  address an emailed code went to, and `sent` is false when the shop could
+   *  not post it. */
+  signIn: (email: string, password: string) => Promise<
+    | { need: 'ok' }
+    | { need: 'code'; via: 'totp' | 'email'; sentTo: string | null; sent: boolean | null }
+  >;
   signInCode: (code: string) => Promise<void>;
+  resendCode: () => Promise<{ sent: boolean; to: string }>;
   signOut: () => void;
 };
 
@@ -68,10 +76,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // The password goes out of scope here; the cookie the server set is the
     // only thing kept, and the platform keeps it, not this code.
     const res = await adminApi.login(email.trim(), password);
-    if (res.needCode) return 'code' as const;
+    // The FACTOR comes back with the answer, and the screen needs it: an
+    // emailed code and an authenticator code are typed into the same box but
+    // are found in completely different places, and telling somebody to open
+    // an app they never installed is how a sign-in stalls.
+    if (res.needCode) return { need: 'code', via: res.via, sentTo: res.sentTo, sent: res.sent } as const;
     setToken(email.trim().toLowerCase());
-    return 'ok' as const;
+    return { need: 'ok' } as const;
   }, []);
+
+  /** Post the emailed code again. Only meaningful between signIn and
+   *  signInCode, and the server refuses more than one a minute. */
+  const resendCode = useCallback(() => adminApi.loginCodeResend(), []);
 
   const signInCode = useCallback(async (code: string) => {
     const who = await adminApi.loginCode(code.trim());
@@ -87,8 +103,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<Ctx>(
-    () => ({ token, name: token, ready, signIn, signInCode, signOut }),
-    [token, ready, signIn, signInCode, signOut],
+    () => ({ token, name: token, ready, signIn, signInCode, resendCode, signOut }),
+    [token, ready, signIn, signInCode, resendCode, signOut],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

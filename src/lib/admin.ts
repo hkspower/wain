@@ -498,13 +498,55 @@ export const adminApi = {
   me: () => call<{ email: string } | null>('me'),
 
   /** Sets the session cookie. `needCode` means a second factor is enrolled
-   *  and nothing is granted yet — follow with loginCode(). */
+   *  and nothing is granted yet — follow with loginCode().
+   *
+   *  `via` says WHICH factor, and it matters: "enter your code" is the wrong
+   *  instruction for half the accounts, and useless to somebody staring at an
+   *  authenticator app they never installed while the code sits in their
+   *  inbox. `sentTo` is the masked address; `sent` is false when the shop
+   *  could not post the mail, which the screen must say out loud rather than
+   *  asking for a code that was never sent. */
   login: async (email: string, password: string) => {
-    const res = await call<{ email: string; need_code: boolean }>('login', { email, password });
-    return { needCode: !!res.need_code };
+    const res = await call<{
+      email: string; need_code: boolean;
+      code_via: 'totp' | 'email' | null;
+      code_sent_to: string | null;
+      code_sent: boolean | null;
+    }>('login', { email, password });
+    return {
+      needCode: !!res.need_code,
+      via: res.code_via ?? 'totp',
+      sentTo: res.code_sent_to ?? null,
+      sent: res.code_sent,
+    };
   },
 
   loginCode: (code: string) => call<{ email: string }>('login_code', { code }),
+
+  /** Post the emailed code again, while sign-in is half done. The server
+   *  refuses more than one a minute and can only ever mail the account the
+   *  pending marker names. */
+  loginCodeResend: () =>
+    call<{ sent: boolean; to: string }>('login_code_resend', {}),
+
+  // ------------------------------------------ the emailed code as a factor
+  //
+  // Enrolling is deliberately two steps: otpBegin SENDS one and otpEnable
+  // will not switch the factor on until that code comes back. It proves the
+  // mail arrives before the door is locked with it — the one way this feature
+  // could take the shop away from its owner.
+
+  otpBegin: (password: string, lang: 'ar' | 'en') =>
+    call<{ sent: boolean; to: string }>('otp_begin', { password, lang }),
+
+  otpEnable: (code: string) => call<{ ok: true; email_otp: true }>('otp_enable', { code }),
+
+  /** A fresh code for an admin who is already signed in — the one they signed
+   *  in with was consumed on use, and changing a password needs a live one. */
+  otpSend: () => call<{ sent: boolean; to: string }>('otp_send', {}),
+
+  otpDisable: (password: string, code: string) =>
+    call<{ ok: true; email_otp: false }>('otp_disable', { password, code }),
 
   logout: () => call<{ ok: true }>('logout', {}),
 
