@@ -14,6 +14,40 @@
  */
 export type SpeechPart = { key?: string; text: string; optional?: boolean };
 
+/**
+ * The same sentence, prepared for a voice rather than an eye.
+ *
+ * Every line in this file is written to be READ — Arabic-Indic numerals, an em
+ * dash for a beat, a decimal comma. Those are right on screen and unreliable
+ * out loud, and the failure is silent: an engine that cannot read ٣٦٠ does not
+ * report anything, it just says the wrong thing or nothing where the number
+ * was.
+ *
+ *   ١٨٧ → 187      Arabic TTS reads Western digits as Arabic number words on
+ *                  every engine. Arabic-Indic support is good on recent iOS
+ *                  and Chrome and patchy on older Android and eSpeak, where
+ *                  they come out digit-by-digit or are dropped. The screen is
+ *                  untouched — this string never reaches it.
+ *   ٫ → .          U+066B is the Arabic decimal separator. Engines that do
+ *                  read Arabic-Indic digits still mostly do not know this one,
+ *                  and ٤٫٨ becomes "four eight".
+ *   — → ،          An em dash is a beat to a reader and nothing to a
+ *                  synthesiser: some pause, some ignore it, some announce it.
+ *                  A comma pauses everywhere.
+ *
+ * Both paths use this — the browser fallback and the ElevenLabs generator — so
+ * the recorded clip and the synthetic line stay the same sentence, which is
+ * the whole point of keeping these lines in one module.
+ */
+export function forSpeech(text: string): string {
+  return text
+    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+    .replace(/٫/g, ".")
+    .replace(/\s*—\s*/g, "، ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export type PersonaId = "shouq" | "salem";
 
 export const PERSONAS: Record<

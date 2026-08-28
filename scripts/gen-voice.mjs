@@ -91,7 +91,7 @@ async function loadLines() {
   return mod;
 }
 
-const { buildClipLines, PERSONAS, places } = await loadLines();
+const { buildClipLines, forSpeech, PERSONAS, places } = await loadLines();
 const personaIds = Object.keys(PERSONAS);
 
 if (DRY) {
@@ -128,7 +128,9 @@ async function sample() {
     lines[`place-${first.slug}`],
     lines[`best-${first.slug}`],
     lines["summer-outdoor"],
-  ].join(" ");
+  ]
+    .map(forSpeech)
+    .join(" ");
 
   const outDir = path.join(root, "docs/voice-sample");
   await mkdir(outDir, { recursive: true });
@@ -216,8 +218,14 @@ for (const persona of personaIds) {
   const outDir = path.join(root, "public/voice", persona);
   await mkdir(outDir, { recursive: true });
 
+  // forSpeech before both the hash and the request, so what ElevenLabs
+  // records is the same string the browser fallback utters — ١٨٧ read as a
+  // number by both, an em dash pausing in both. Hashing the normalised text
+  // also means a change to forSpeech itself re-records the affected clips,
+  // which is the behaviour that keeps the two paths from drifting.
   const lines = buildClipLines(persona, places);
-  for (const [key, text] of Object.entries(lines)) {
+  for (const [key, raw] of Object.entries(lines)) {
+    const text = forSpeech(raw);
     const id = `${persona}/${key}`;
     const outFile = path.join(outDir, `${key}.mp3`);
     const hash = digest(text);

@@ -1,7 +1,13 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { PERSONAS, helloParts, type PersonaId, type SpeechPart } from "@/lib/voice-lines";
+import {
+  PERSONAS,
+  forSpeech,
+  helloParts,
+  type PersonaId,
+  type SpeechPart,
+} from "@/lib/voice-lines";
 
 export { PERSONAS, type PersonaId };
 
@@ -146,6 +152,12 @@ function playNext() {
  */
 export function primeAudio() {
   if (typeof window === "undefined") return;
+  // Start the manifest fetch on the gesture instead of leaving it to speak(),
+  // which awaits it. The first answer of a session paid a round trip AFTER the
+  // tap and before any sound — silence exactly where the visitor is waiting to
+  // find out whether the thing works. It is memoised, so only the first
+  // utterance was ever slow; this makes that one overlap the gesture.
+  void loadManifest();
   try {
     const el = ensureAudio();
     el.muted = true;
@@ -197,7 +209,7 @@ function pickArabicVoice(): SpeechSynthesisVoice | undefined {
 function speakFallback(text: string) {
   const synth = window.speechSynthesis;
   if (!synth) return;
-  const utterance = new SpeechSynthesisUtterance(text);
+  const utterance = new SpeechSynthesisUtterance(forSpeech(text));
   utterance.lang = "ar-KW";
   // Guarded because the failure mode is total silence, not merely the wrong
   // accent: this assignment throws if the engine rejects the voice object —
@@ -210,6 +222,9 @@ function speakFallback(text: string) {
   } catch {
     /* the engine keeps its default */
   }
+  // 1.02 rather than the 1.0 default: the browser voices read Arabic a shade
+  // slower than a Kuwaiti speaker does. Small on purpose — past about 1.1 the
+  // connecting strokes slur and the dialect words are the first to go.
   utterance.rate = 1.02;
   utterance.onend = () => update({ speaking: false });
   utterance.onerror = () => update({ speaking: false });
