@@ -69,10 +69,11 @@ for (const path of PAGES) {
         _x.fillStyle = s                       // invalid strings leave it #000
         _x.fillRect(0, 0, 1, 1)
         const d = _x.getImageData(0, 0, 1, 1).data
-        // The canvas composites alpha against the black it was cleared to, so
-        // the alpha is taken from the string and the channels are undone.
-        const a = Number((s.match(/\/\s*([\d.]+)\s*\)/) ?? [])[1] ?? 1)
-        v = a > 0 ? [d[0] / a, d[1] / a, d[2] / a, a] : [d[0], d[1], d[2], a]
+        // getImageData is NOT premultiplied: `rgba(255,255,255,.15)` reads
+        // back 255,255,255,38. The channels are already the colour and the
+        // alpha is the fourth number. This used to divide the channels by
+        // the alpha, which turned every translucent hairline white.
+        v = [d[0], d[1], d[2], d[3] / 255]
       }
       _seen.set(s, v)
       return v
@@ -147,8 +148,8 @@ for (const path of PAGES) {
       _x.clearRect(0, 0, 1, 1); _x.fillStyle = '#000'; _x.fillStyle = s
       _x.fillRect(0, 0, 1, 1)
       const d = _x.getImageData(0, 0, 1, 1).data
-      const a = Number((s.match(/\/\s*([\d.]+)\s*\)/) ?? [])[1] ?? 1)
-      return a > 0 ? { rgb: [d[0] / a, d[1] / a, d[2] / a], a } : null
+      // Not premultiplied — see the note in the text parse above.
+      return d[3] > 0 ? { rgb: [d[0], d[1], d[2]], a: d[3] / 255 } : null
     }
     // A translucent border does not land as its own colour — it lands as
     // itself OVER whatever is behind. Measuring the raw value would call a
