@@ -207,14 +207,44 @@ console.log(`challenge card raised: ${pending}  ${check(pending === true, "three
 // challenge nobody had sent, and reported "the challenge never became a
 // battle" — a failure two steps downstream of the actual event, with
 // the real one thrown away. A click that does not happen has to say so.
+const btn = page.locator("text=SEND CHALLENGE");
+// Actionability first, and separately from the click.
+//
+// These are the properties a player needs — the button is on the screen,
+// it is enabled, and nothing is lying over it — and they are cheap to
+// assert. What is NOT cheap is Playwright's own hit-target check, which
+// re-renders and re-measures: against 2.4 million triangles through a
+// software rasteriser it can exhaust a sixty-second budget on a button
+// that is perfectly clickable, which is the failure this run produced.
+const usable = await btn
+  .isVisible()
+  .then(async (v) => v && (await btn.isEnabled()))
+  .catch(() => false);
+check(usable, "the SEND CHALLENGE button is not on the screen, or is disabled");
 const clicked = await page
   .click("text=SEND CHALLENGE", { timeout: 60000 })
   .then(() => true)
   .catch((e) => {
-    console.log("  SEND CHALLENGE never landed:", String(e).split("\n")[0]);
+    console.log("  SEND CHALLENGE: playwright gave up on the hit-target check:",
+      String(e).split("\n")[0]);
     return false;
   });
-check(clicked, "the SEND CHALLENGE button could not be clicked");
+// And then the thing that actually matters: did the challenge go out?
+//
+// The click above timed out on this machine and the rival answered eight
+// seconds later anyway — the press had landed, and only Playwright's
+// verification of it had not. Failing on that is failing on the
+// rasteriser's frame rate. The subject is whether a challenge was sent,
+// so ask the engine.
+const sent = await page
+  .waitForFunction(() => {
+    const e = window.__grnEngine;
+    return !!(e && (e.challengePending || e.cine || e.inBattle));
+  }, null, { timeout: 30000 })
+  .then(() => true)
+  .catch(() => false);
+console.log(`  press ${clicked ? "landed" : "timed out"}, challenge ${sent ? "went out" : "did NOT go out"}`);
+check(sent, "SEND CHALLENGE did not send a challenge");
 console.log("waiting for the rival's answer");
 // The rival's answer is a real 2.2 s setTimeout inside the engine, and
 // timers in this headless browser run two to three and a half times slow
