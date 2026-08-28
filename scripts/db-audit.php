@@ -157,11 +157,31 @@ foreach ($bySlug as $sl => $vs)
     if (!array_filter($products, fn($p) => $p['slug'] === $sl))
         bad("variants exist for '$sl', which is not a product (" . count($vs) . ' rows)');
 
-// Sizes have to be ones the shop can render and the schema allows.
+// Sizes have to be ones the size guide can actually show measurements for.
+//
+// READ FROM size_charts, NOT FROM A LIST HERE. This was a literal —
+// ['XS','S','M','L','XL','2XL','3XL','OS'] — sitting three lines from the table
+// it claimed to speak for, and it had fallen behind it: the charts define 4XL
+// and 5XL in both the unisex and women's sets, sort 7 and 8, and 30 variants
+// are sold in them. So the audit warned twice, on every run, that the size
+// guide did not know about sizes the size guide defines.
+//
+// A warning that is wrong is worse than no warning. It is read, checked,
+// found to be nothing, and the next one is skipped.
+//
+// `OS` (one size) is kept as an addition rather than a row in the charts: it
+// is what accessories carry, and a chart of chest and waist measurements has
+// nothing to say about a cap.
 $sizes = array_unique(array_column($variants, 'size'));
-$known = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', 'OS'];
-foreach ($sizes as $s)
-    in_array($s, $known, true) ? null : warn("size '$s' is not one the size charts know about");
+$charted = array_column($q('select distinct size from size_charts'), 'size');
+$known = array_merge($charted, ['OS']);
+if (!$charted) {
+    warn('size_charts is empty, so no size can be checked against it');
+} else {
+    foreach ($sizes as $s)
+        in_array($s, $known, true) ? null
+            : warn("size '$s' is sold, but the size guide has no measurements for it");
+}
 ok('sizes in use: ' . implode(' ', $sizes));
 
 foreach ($variants as $v) {
@@ -338,12 +358,28 @@ if (is_array($bar) && ($bar['text_ar'] ?? '') !== '') {
         : bad('the promo bar\'s text_ar has no Arabic letters left — the connection charset mangled it');
 }
 
-// A hero with no slides is a homepage with an empty band at the top.
+// The hero.
+//
+// AN EMPTY hero_slides IS NOT AN EMPTY HERO, which is what this said. The
+// storefront ships five banners and builds their paths at runtime from a list
+// in its own bundle — checked in a browser with the table empty: the homepage
+// renders /hero/desktop/bodybuilding-men.webp at its full 1600x635 and cycles
+// the other four. The table is the OVERRIDE, edited in /backends, and having
+// none simply means the shipped banners are what everyone sees.
+//
+// The distinction matters because the old wording sent someone looking for a
+// broken homepage that was never broken. What IS worth saying is the true
+// thing: nothing has been uploaded, so the panel's slide editor is empty.
 $slides = $one('select count(*) n, sum(active) a from hero_slides');
-(int)$slides['n'] === 0
-    ? warn('hero_slides is empty — the homepage hero renders nothing')
-    : ((int)($slides['a'] ?? 0) > 0 ? ok("{$slides['a']} of {$slides['n']} hero slides are active")
-                                    : bad("all {$slides['n']} hero slides are inactive — the hero band is blank"));
+if ((int)$slides['n'] === 0) {
+    ok('hero_slides is empty — the five shipped banners are what the homepage shows');
+} elseif ((int)($slides['a'] ?? 0) > 0) {
+    ok("{$slides['a']} of {$slides['n']} hero slides are active");
+} else {
+    // THIS one is a genuine break: rows exist, so the storefront uses the
+    // table rather than its own banners, and every row is switched off.
+    bad("all {$slides['n']} hero slides are inactive — the hero band is blank");
+}
 
 /* ------------------------------------------------------------- discounts */
 head('discounts');
