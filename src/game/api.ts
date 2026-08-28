@@ -7,6 +7,9 @@
 
 import { CONTROL_POINTS, LANES, ROAD_HALF_WIDTH, COAST_U, STATIONS, FORECOURT } from "./track";
 import { RIVALS } from "./rivals";
+import {
+  QUESTS, TOGETHER_M, MET_M, MATCHED_KMH, MATCHED_FLOOR_KMH,
+} from "./quests";
 import { CARS, PARTS, PAINT_COLORS, GLOW_COLORS, classLabel } from "./mods";
 import {
   ENGINES,
@@ -190,6 +193,33 @@ export function buildGameData() {
       airGramsPerLitre: AIR_G_PER_L,
       airFuelRatio: AFR,
       petrolGramsPerLitre: FUEL_G_PER_L,
+    },
+    /**
+     * The online runs: what they are called, what they ask for, and how
+     * close two cars have to be for any of it to count.
+     *
+     * Published as targets and thresholds rather than as progress,
+     * because progress belongs to a save and this payload is the same
+     * for everybody. A port that wires up its own hub needs the numbers
+     * to agree — two clients that disagree about what "together" means
+     * would credit the same two cars differently for the same drive.
+     */
+    runs: {
+      togetherM: TOGETHER_M,
+      metM: MET_M,
+      matchedKmh: MATCHED_KMH,
+      matchedFloorKmh: MATCHED_FLOOR_KMH,
+      list: QUESTS.map((q) => ({
+        id: q.id,
+        name: q.name,
+        arabicName: q.ar,
+        hint: q.hint,
+        arabicHint: q.hintAr,
+        metric: q.metric,
+        target: q.target,
+        unit: q.unit,
+        rewardKd: q.reward,
+      })),
     },
     // The skeletons every port has to reproduce to pose its people the
     // same way: bone lengths, joint offsets, grip angles, pedal travel,

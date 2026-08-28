@@ -32,6 +32,15 @@ import {
   REFERRAL_KD,
 } from "@/game/community";
 import { addKd } from "@/game/mods";
+import {
+  QUESTS,
+  EMPTY_PROGRESS,
+  loadProgress,
+  questDone,
+  questFraction,
+  questLabel,
+  type QuestProgress,
+} from "@/game/quests";
 import type { ReferralState } from "@/game/net";
 
 const CAR_COLORS = [
@@ -55,6 +64,9 @@ interface ChatMsg {
 
 export default function HubLobby() {
   const [name, setName] = useState("");
+  // Read on mount, not at module scope: local storage does not exist
+  // while this renders on the server.
+  const [runs, setRuns] = useState<QuestProgress>(EMPTY_PROGRESS);
   const [color, setColor] = useState(CAR_COLORS[0]);
   const [status, setStatus] = useState<Status>("setup");
   const [players, setPlayers] = useState<HubPlayer[]>([]);
@@ -93,6 +105,7 @@ export default function HubLobby() {
     // The code is derived from an id in local storage, so it exists
     // before the socket does and survives every reload.
     setMyCode(inviteCode(playerId()));
+    setRuns(loadProgress());
     // An invite link drops the friend's code straight into the box, so
     // the only thing left to do is press the button.
     try {
@@ -563,6 +576,59 @@ export default function HubLobby() {
                   {refMsg.text}
                 </p>
               )}
+            </div>
+
+            {/* The runs. quests.ts is the design and the wording; this
+                only draws them. They live here rather than in the pause
+                menu because every one of them needs another player, and
+                this is the page about other players. */}
+            <div className="grn-panel p-5">
+              <h2 className="grn-label border-b border-white/10 pb-2 text-[0.75rem]">
+                Runs — <span className="grn-ar" lang="ar">المشاوير</span>
+              </h2>
+              <p className="mt-1 text-[11px] leading-5 text-white/62">
+                Things you can only do with somebody else on the road. Nothing here expires —
+                the night ends at 05:50 and that is clock enough.
+              </p>
+              <ul className="mt-4 space-y-3">
+                {QUESTS.map((q) => {
+                  const done = questDone(q, runs);
+                  return (
+                    <li key={q.id}>
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span
+                          className={`grn-label text-[0.72rem] ${
+                            done ? "text-emerald-300" : "text-white/85"
+                          }`}
+                        >
+                          {done ? "✓ " : ""}
+                          {q.name}
+                          {" · "}
+                          <span className="grn-ar" lang="ar">
+                            {q.ar}
+                          </span>
+                        </span>
+                        <span
+                          className={`shrink-0 font-mono text-[11px] tabular-nums ${
+                            done ? "text-emerald-300" : "text-white/70"
+                          }`}
+                        >
+                          {done ? `${q.reward} KD` : questLabel(q, runs)}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-[11px] leading-4 text-white/62">{q.hint}</p>
+                      <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/12">
+                        <div
+                          className={`h-full rounded-full ${
+                            done ? "bg-emerald-400" : "bg-sodium-400"
+                          }`}
+                          style={{ width: `${(questFraction(q, runs) * 100).toFixed(1)}%` }}
+                        />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
 
             {/* Leaderboard */}
