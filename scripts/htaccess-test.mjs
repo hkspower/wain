@@ -28,7 +28,7 @@
  * whether or not an interpreter is present.
  */
 import { execFileSync, spawnSync } from 'node:child_process'
-import { writeFileSync, existsSync, rmSync, readdirSync } from 'node:fs'
+import { writeFileSync, existsSync, rmSync, readdirSync, unlinkSync } from 'node:fs'
 
 const ROOT = new URL('..', import.meta.url).pathname.replace(/\/$/, '')
 const DOCROOT = `${ROOT}/sporta-site/public_html`
@@ -92,6 +92,13 @@ const get = (path) => {
   ], { encoding: 'utf8' }).trim().split(' ')
   return { status: Number(out[0]), to: out[1] ?? '' }
 }
+
+/** The BODY Apache returns. get() throws it away (-o /dev/null), which made
+ *  "does not serve its contents" a check that could never fail. */
+const bodyOf = (path) => execFileSync('curl', [
+  '-s', '-H', 'Host: www.sporta.com.kw', '-H', 'X-Forwarded-Proto: https',
+  `http://127.0.0.1:${PORT}${path}`,
+], { encoding: 'utf8' })
 
 /** The Cache-Control a real Apache actually sends for a path, or '' if none. */
 const cacheOf = (path) => {
@@ -159,6 +166,35 @@ try {
   for (const p of ['/api/install.mysql.sql', '/api/seed.mysql.sql', '/api/store.php']) {
     const r = get(p)
     check(r.status === 403 || r.status === 404, `${p} is refused (${r.status})`)
+  }
+  // LOGS AND DUMPS, anywhere in the docroot. The two payment logs are
+  // configured to live two levels ABOVE public_html, so a correct install
+  // never puts one here — this is for the install that is not correct.
+  // `log_file` is a path in a config file, it looks relative, and a hand that
+  // points it at __DIR__ rather than __DIR__/../.. publishes every track id,
+  // amount and bank result code under a guessable name.
+  //
+  // THE DECOYS ARE WRITTEN FIRST, and that is the whole point. Asking for a
+  // file that does not exist answers 404, which is indistinguishable from
+  // "refused" — the first version of this check accepted either and passed
+  // happily with the deny rule deleted. A file that is really on disk is
+  // refused only if a rule refuses it.
+  const decoys = [
+    ['cbk-payments.log', 'trackid=SPDECOY1 amt=11.000 result=CAPTURED paymentid=P9'],
+    ['knet-payments.log', 'trackid=SPDECOY2 amt=8.000 result=CAPTURED'],
+    ['backup.sql', 'insert into orders values (1, "SPDECOY3", "96555512345");'],
+    ['dump.bak', 'db_pass=decoy'],
+  ]
+  for (const [name, body] of decoys) writeFileSync(`${DOCROOT}/${name}`, body)
+  try {
+    for (const [name, body] of decoys) {
+      const r = get(`/${name}`)
+      check(r.status === 403, `/${name} is refused even though the file is really there (${r.status})`)
+      check(!bodyOf(`/${name}`).includes(body.slice(0, 18)),
+        `/${name} does not serve its contents`)
+    }
+  } finally {
+    for (const [name] of decoys) { try { unlinkSync(`${DOCROOT}/${name}`) } catch {} }
   }
 
   console.log('\n--- the generated sitemap beats the stale static copy')
