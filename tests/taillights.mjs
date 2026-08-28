@@ -74,6 +74,21 @@ const look = await page.evaluate(() => {
     sc.add(new THREE.AmbientLight(0x334455, 0.5));
     const g = window.__grnBuildCar({ body: 0x2a3038, style: "sedan" });
     sc.add(g);
+    // The REVERSING lamps are not tail lamps, and they are white on
+    // purpose — a reversing lamp is white by law and by every regulation
+    // that has ever governed one.
+    //
+    // "Lit" below finds every bright pixel in the frame, which is the
+    // right way to find a lens wherever a silhouette puts it and the
+    // wrong way to decide what that lens IS. The two reverse lamps sit
+    // just under the tail bars, they are 1870 px of pure grey, and they
+    // were being counted as nine per cent of the brake light having lost
+    // its colour. The check was reporting a car with correct reversing
+    // lamps as a car with a broken brake light.
+    g.traverse((o) => {
+      const m = Array.isArray(o.material) ? o.material[0] : o.material;
+      if (m && m.name === "reverse-lamp") o.visible = false;
+    });
     g.userData.tailMat.emissiveIntensity = brake ? T.lensBrake : T.lensIdle;
     g.userData.tailCoreMat.emissiveIntensity = brake ? T.coreBrake : T.coreIdle;
     (g.userData.tailGlowMats ?? []).forEach((m) => (m.opacity = brake ? T.glowBrake : T.glowIdle));

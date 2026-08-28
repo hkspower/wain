@@ -171,11 +171,23 @@ const pair = await page.evaluate(() => {
     // Each car hangs off its own holder, and the holder is what the loop
     // moves — so the holder IS the car's position on the road.
     const h = c.parent;
+    // The paint, found by NAME.
+    //
+    // This looked for a physical material with clearcoat above 0.5,
+    // which is not a property of paint — it is a property of one
+    // FINISH. The finishes in this game run from a matte through satin
+    // to gloss and chrome, and a satin car carries 0.45. So the moment
+    // the intro put a satin machine on the road the search found
+    // nothing, returned null, and this file reported "could not read the
+    // paint off both cars" about a car whose paint was perfectly
+    // readable and simply not shiny.
+    //
+    // cars.ts names the material "paint". That is the subject.
     let paint = null;
     c.traverse((o) => {
-      if (!paint && o.isMesh && o.material?.isMeshPhysicalMaterial && o.material.clearcoat > 0.5) {
-        paint = o.material.color.getHexString();
-      }
+      if (paint || !o.isMesh) return;
+      const m = Array.isArray(o.material) ? o.material[0] : o.material;
+      if (m && m.name === "paint" && m.color) paint = m.color.getHexString();
     });
     return {
       x: +h.position.x.toFixed(3),

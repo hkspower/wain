@@ -192,15 +192,35 @@ const film = await page.evaluate(async () => {
 });
 console.log(
   `film      ${check(
-    Math.abs(film.during.gap) < 3 &&
-      film.during.apart > 2.6 &&
-      film.during.apart < 4.4 &&
-      Math.abs(film.after.apart - film.during.apart) < 0.6,
-    Math.abs(film.during.gap) >= 3
-      ? `the two-shot has them ${film.during.gap.toFixed(1)} m apart along the road`
-      : `the rival changes lane at the drop: ${film.during.apart.toFixed(2)} m during the film, ` +
-        `${film.after.apart.toFixed(2)} m at the flag`
-  )}  ${film.during.apart.toFixed(2)} m apart in the film, ${film.after.apart.toFixed(2)} m at the flag`
+    // The film is not the two-shot, and asserting that it is was this
+    // check's whole error.
+    //
+    // engine.ts says what the shot is in its own header: "CHALLENGE —
+    // you, behind, putting three high beams into their boot". So during
+    // the film the rival runs AHEAD, at a distance the beams have room
+    // to travel, and IN YOUR LANE, because a beam that lands beside a
+    // car is not a challenge. Measured, the film holds them 15 m ahead
+    // and pulls the lateral to zero — and this check called that "the
+    // two-shot has them 15.0 m apart along the road" and failed a film
+    // that was doing exactly what it was designed to do.
+    //
+    // The two-shot is what the FLAG hands over to, and that half is
+    // worth checking as hard as it ever was: level, and one lane apart.
+    film.during.gap > 5 &&
+      film.during.gap < 30 &&
+      film.during.apart < 1 &&
+      Math.abs(film.after.gap) < 3 &&
+      film.after.apart > 2.6 &&
+      film.after.apart < 4.4,
+    film.during.gap <= 5 || film.during.gap >= 30
+      ? `the challenge shot has the rival ${film.during.gap.toFixed(1)} m ahead — the beams have nowhere to travel`
+      : film.during.apart >= 1
+        ? `the rival sits ${film.during.apart.toFixed(2)} m off your lane in the film — the beams land beside them`
+        : Math.abs(film.after.gap) >= 3
+          ? `the flag drops with them ${film.after.gap.toFixed(1)} m apart along the road, not level`
+          : `the flag hands over ${film.after.apart.toFixed(2)} m apart across the road, which is not one lane`
+  )}  ${film.during.gap.toFixed(1)} m ahead and ${film.during.apart.toFixed(2)} m off your lane in the film, ` +
+    `level and ${film.after.apart.toFixed(2)} m apart at the flag`
 );
 
 await browser.close();
