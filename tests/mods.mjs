@@ -121,15 +121,32 @@ const measure = (owned, equipped, rig) =>
     }
 
     if (rig === "steerResponse") {
+      // TIME TO 90% OF LOCK, not position at a fixed instant.
+      //
+      // This used to hold full lock for 0.1 s and compare how far the
+      // wheel had turned. Both racks are exponentials converging on the
+      // same ceiling, so that measurement compresses as the base gets
+      // quicker: at rate 13 the standard rack is already at 0.73 after
+      // 0.1 s and a rack of INFINITE speed could only read 1.0 — a
+      // ratio of 1.37, against a check that wanted 1.2. There was
+      // almost no room left in it, and when the base steering was made
+      // faster the check failed on a rack that had not changed.
+      //
+      // The difference between the two is a rate, so measure a rate.
+      // Time to 90% is 1/rate x ln(10), which keeps the full 1.4x
+      // whatever the base becomes — and it is the number mods.ts quotes
+      // in its own comment: 127 ms against 177.
       reset();
-      e.player.speed = 30;
-      for (let i = 0; i < 6; i++) { // 0.1 s of full lock
+      let ms = 0;
+      for (let i = 0; i < 240; i++) {
         e.player.speed = 30;
         e.setTouchInput({ steer: 1 });
         e.update(1 / 60);
         e.player.lat = 0;
+        ms += 1000 / 60;
+        if (e.steerSmooth >= 0.9) break;
       }
-      return { smooth: +e.steerSmooth.toFixed(3) };
+      return { smooth: +e.steerSmooth.toFixed(3), ms: Math.round(ms) };
     }
 
     if (rig === "drift") {
@@ -212,8 +229,11 @@ await strip();
 const baseSteer = await measure([], {}, "steerResponse");
 await strip();
 const rackSteer = await measure(["rack"], {}, "steerResponse");
-console.log(`Quick rack   steer after 0.1s ${baseSteer.smooth} -> ${rackSteer.smooth}  ` +
-  check(rackSteer.smooth > baseSteer.smooth * 1.2, "the quick rack is no quicker"));
+console.log(`Quick rack   90% of lock in ${baseSteer.ms} ms -> ${rackSteer.ms} ms  ` +
+  check(
+    rackSteer.ms <= baseSteer.ms * 0.8,
+    `the quick rack takes ${rackSteer.ms} ms to the standard rack's ${baseSteer.ms} — that is not a quicker rack`
+  ));
 
 // 4. Roll cage — contact costs less speed
 await strip();
