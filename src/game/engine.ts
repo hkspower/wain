@@ -5602,6 +5602,38 @@ export class GameEngine {
     this.track.pose(this.player.s, -55, this.v1, this.v2); // 55 m to seaward
 
     const r = this.rival;
+    // Everyone else within earshot, nearest first.
+    //
+    // Forty-six cars on this road and only the rival ever made a sound.
+    // Taken by distance from the LISTENER rather than from the car,
+    // because the ears ride the camera — in a chase cam the nearest car
+    // to the camera is not always the nearest to the bumper, and it is
+    // the camera that decides what you can hear.
+    //
+    // Cut at the panner's own maxDistance: past that it contributes
+    // silence, and sorting a car nobody can hear is work done for the
+    // benefit of nothing.
+    const heard: Array<{ x: number; y: number; z: number; speedKmh: number; d: number }> = [];
+    for (const car of this.traffic) {
+      const p = car.mesh.position;
+      const dx = p.x - cam.x;
+      const dz = p.z - cam.z;
+      const d = dx * dx + dz * dz;
+      if (d > 160000) continue; // 400 m, the panner's maxDistance
+      heard.push({ x: p.x, y: p.y + 0.5, z: p.z, speedKmh: car.speed * KMH, d });
+    }
+    for (const rp of this.remotes.values()) {
+      if (!rp.mesh.visible) continue;
+      const p = rp.mesh.position;
+      const dx = p.x - cam.x;
+      const dz = p.z - cam.z;
+      const d = dx * dx + dz * dz;
+      if (d > 160000) continue;
+      // The wire's own last reported speed — a remote car has no
+      // local speed of its own, only the snapshots it arrives in.
+      heard.push({ x: p.x, y: p.y + 0.5, z: p.z, speedKmh: rp.snapSpeed * KMH, d });
+    }
+    heard.sort((a, b) => a.d - b.d);
     this.sound.update({
       speedKmh,
       throttle: this.throttle,
@@ -5628,6 +5660,7 @@ export class GameEngine {
             throttle: r.state === "battle" ? 1 : 0.55,
           }
         : null,
+      others: heard.slice(0, 4),
       coast: coastal,
       seaX: this.v1.x,
       seaZ: this.v1.z,

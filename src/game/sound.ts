@@ -33,12 +33,36 @@ export interface SoundFrame {
   };
   /** The rival's machine as a positioned source. */
   rival?: { x: number; y: number; z: number; speedKmh: number; throttle: number } | null;
+  /**
+   * Everyone else near enough to hear, nearest first.
+   *
+   * There are forty-six cars on this road and exactly one of them made a
+   * sound. You could pull alongside a saloon at a hundred and eighty and
+   * hear nothing but your own engine, which is the moment the world
+   * stops being a place and becomes a backdrop with pictures of cars on
+   * it. The caller sorts and truncates; the pool below is the limit on
+   * how many are actually voiced.
+   */
+  others?: ReadonlyArray<{ x: number; y: number; z: number; speedKmh: number }>;
   /** 0 = deep inland, 1 = right on the corniche: cross-fades the sea
    *  against the city. `seaX/seaZ` place the surf on the seaward side. */
   coast?: number;
   seaX?: number;
   seaZ?: number;
 }
+
+/** One positioned engine: two oscillators, a lowpass, a gain, a panner. */
+interface CarVoice {
+  osc: OscillatorNode[];
+  gain: GainNode;
+  filter: BiquadFilterNode;
+  panner: PannerNode;
+}
+
+/** How many of the other cars are actually voiced. The ear cannot follow
+ *  more than a few engines at once, and forty-six panners would be a
+ *  budget spent on the ones nobody can pick out. */
+const TRAFFIC_VOICES = 4;
 
 /**
  * The noise the whole bed is built from — wind, tyre roll, skid, scrub,
@@ -255,9 +279,8 @@ export class SoundEngine {
 
   // 3D bus — everything positional hangs off these
   private panners = new Map<string, { panner: PannerNode; gain: GainNode }>();
-  private rivalOsc: OscillatorNode[] = [];
-  private rivalGain: GainNode | null = null;
-  private rivalFilter: BiquadFilterNode | null = null;
+  private rivalVoice: CarVoice | null = null;
+  private trafficVoices: CarVoice[] = [];
   // Environment
   private seaGain: GainNode | null = null;
   private seaFilter: BiquadFilterNode | null = null;
@@ -622,32 +645,78 @@ export class SoundEngine {
     this.loopNoise().connect(cityFilter).connect(this.cityGain).connect(this.bed);
   }
 
-  /** The rival's engine, positioned. Hearing them come up behind you is
-   *  half of what makes a chase a chase. */
-  private ensureRival(): void {
-    if (this.rivalGain) return;
-    const bus = this.makePanner("rival", 6, 1.4);
+  /**
+   * One car's engine, positioned on the 3D bus.
+   *
+   * The rival had this and nothing else did. Written once and used for
+   * both, so a car in the next lane is made of the same thing the rival
+   * is — two oscillators through a soft clip and a lowpass — rather than
+   * a second, thinner idea of what an engine sounds like.
+   */
+  private makeCarVoice(name: string): CarVoice {
+    const bus = this.makePanner(name, 6, 1.4);
     bus.gain.value = 1;
-    this.rivalFilter = this.ctx.createBiquadFilter();
-    this.rivalFilter.type = "lowpass";
-    this.rivalFilter.frequency.value = 700;
-    this.rivalGain = this.ctx.createGain();
-    this.rivalGain.gain.value = 0;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 700;
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0;
     const shaper = this.ctx.createWaveShaper();
     shaper.curve = softClipCurve() as Float32Array<ArrayBuffer>;
-    shaper.connect(this.rivalFilter).connect(this.rivalGain).connect(bus);
+    shaper.connect(filter).connect(gain).connect(bus);
+    const osc: OscillatorNode[] = [];
     for (const [type, ratio, level] of [
       ["sawtooth", 1, 0.5],
       ["square", 0.5, 0.3],
     ] as Array<[OscillatorType, number, number]>) {
-      const osc = this.ctx.createOscillator();
-      osc.type = type;
-      osc.frequency.value = 60 * ratio;
+      const o = this.ctx.createOscillator();
+      o.type = type;
+      o.frequency.value = 60 * ratio;
       const g = this.ctx.createGain();
       g.gain.value = level;
-      osc.connect(g).connect(shaper);
-      osc.start();
-      this.rivalOsc.push(osc);
+      o.connect(g).connect(shaper);
+      o.start();
+      osc.push(o);
+    }
+    return { osc, gain, filter, panner: this.panners.get(name)!.panner };
+  }
+
+  /** Set a voice going at a speed and a load, or fade it out. */
+  private driveVoice(
+    v: CarVoice,
+    at: { x: number; y: number; z: number } | null,
+    speedKmh: number,
+    throttle: number,
+    peak: number,
+    t: number
+  ): void {
+    if (!at) {
+      v.gain.gain.setTargetAtTime(0, t, 0.2);
+      return;
+    }
+    v.panner.positionX.setTargetAtTime(at.x, t, 0.05);
+    v.panner.positionY.setTargetAtTime(at.y, t, 0.05);
+    v.panner.positionZ.setTargetAtTime(at.z, t, 0.05);
+    const rpm = Math.min(1, speedKmh / 220);
+    for (let i = 0; i < v.osc.length; i++) {
+      const ratio = i === 0 ? 1 : 0.5;
+      v.osc[i].frequency.setTargetAtTime((46 + rpm * 120) * ratio, t, 0.06);
+    }
+    v.filter.frequency.setTargetAtTime(300 + throttle * 900 + rpm * 600, t, 0.08);
+    v.gain.gain.setTargetAtTime(peak * (0.5 + throttle * 0.5), t, 0.08);
+  }
+
+  /** The rival's engine, positioned. Hearing them come up behind you is
+   *  half of what makes a chase a chase. */
+  private ensureRival(): void {
+    if (this.rivalVoice) return;
+    this.rivalVoice = this.makeCarVoice("rival");
+    // The traffic pool is built with it: four voices, because the ear
+    // cannot follow more than a few engines and forty-six panners is a
+    // budget spent on nothing. The nearest few are the ones you would
+    // hear anyway.
+    for (let i = 0; i < TRAFFIC_VOICES; i++) {
+      this.trafficVoices.push(this.makeCarVoice(`traffic${i}`));
     }
   }
 
@@ -1088,20 +1157,29 @@ export class SoundEngine {
       }
     }
 
-    // --- The rival, in space
-    if (f.rival) {
-      this.ensureRival();
+    // --- Every other car on the road, in space
+    //
+    // The rival used to be the only one. Forty-six machines went past in
+    // silence, which is the moment a world stops being a place: you can
+    // draw a saloon in the next lane at a hundred and eighty and the ear
+    // will not believe it is there.
+    //
+    // The rival keeps the louder voice — a chase is a chase because you
+    // can hear it coming — and traffic gets the pool, nearest first,
+    // through exactly the same synthesis. Slots not filled this frame
+    // fade out rather than cut, so a car dropping out of range leaves
+    // the way it arrived.
+    if (f.rival || (f.others && f.others.length)) this.ensureRival();
+    if (this.rivalVoice) {
       const r = f.rival;
-      this.setPannerPos("rival", r.x, r.y, r.z);
-      const rRpm = Math.min(1, r.speedKmh / 260);
-      for (let i = 0; i < this.rivalOsc.length; i++) {
-        const ratio = i === 0 ? 1 : 0.5;
-        this.rivalOsc[i].frequency.setTargetAtTime((46 + rRpm * 120) * ratio, t, 0.06);
-      }
-      this.rivalFilter!.frequency.setTargetAtTime(300 + r.throttle * 900 + rRpm * 600, t, 0.08);
-      this.rivalGain!.gain.setTargetAtTime(0.1 + r.throttle * 0.1, t, 0.08);
-    } else if (this.rivalGain) {
-      this.rivalGain.gain.setTargetAtTime(0, t, 0.2);
+      this.driveVoice(this.rivalVoice, r ?? null, r?.speedKmh ?? 0, r?.throttle ?? 0, 0.2, t);
+    }
+    for (let i = 0; i < this.trafficVoices.length; i++) {
+      const o = f.others?.[i];
+      // Traffic is not racing you, so it sits under the rival: a fixed
+      // load rather than a throttle, and half the level. The panner's
+      // own distance rolloff does the rest.
+      this.driveVoice(this.trafficVoices[i], o ?? null, o?.speedKmh ?? 0, 0.35, 0.085, t);
     }
 
     // --- Listener: the ears ride the camera, not the car

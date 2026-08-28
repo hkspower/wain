@@ -67,7 +67,9 @@ const feed = (frame, settleMs = 300) =>
       wind: g(s.windGain),
       sea: s.seaGain ? g(s.seaGain) : null,
       city: s.cityGain ? g(s.cityGain) : null,
-      rival: s.rivalGain ? g(s.rivalGain) : null,
+      rival: s.rivalVoice ? g(s.rivalVoice.gain) : null,
+      traffic: s.trafficVoices.map((v) => g(v.gain)),
+      trafficPan: s.trafficVoices.map((_, i) => pan(`traffic${i}`)),
       seaPan: pan("sea"),
       rivalPan: pan("rival"),
       listener: {
@@ -113,6 +115,45 @@ check(near.rival > 0.05, "the rival's engine is silent");
 check(near.rivalPan && Math.abs(near.rivalPan.x - 12) < 4 && Math.abs(near.rivalPan.z + 30) < 6,
   `the rival's engine does not sit where their car is (${JSON.stringify(near.rivalPan)})`);
 check(gone.rival < near.rival, "the rival is still audible after they are gone");
+// --- 4b. And every other car on the road ------------------------------
+//
+// The rival was the only machine in this game that made a sound. Forty-
+// six others went past in silence: you could pull alongside a saloon at
+// a hundred and eighty and hear nothing but your own engine, which is
+// the moment a world stops being a place and becomes a backdrop with
+// pictures of cars on it.
+//
+// Same synthesis as the rival, four voices deep, nearest first. What is
+// checked is what the rival's own check checks — that they are audible,
+// that they sit where the car is, and that they leave when it does.
+{
+  const busy = await feed({ ...base, speedKmh: 100, others: [
+    { x: -3.5, y: 0.5, z: -8, speedKmh: 95 },
+    { x: 3.5, y: 0.5, z: 40, speedKmh: 88 },
+  ] }, 500);
+  const empty = await feed({ ...base, speedKmh: 100, others: [] }, 700);
+  console.log(
+    `traffic      gains ${JSON.stringify(busy.traffic)} at ${JSON.stringify(busy.trafficPan.slice(0, 2))}`
+  );
+  console.log(`             ${JSON.stringify(empty.traffic)} once the road is empty`);
+  check(busy.traffic[0] > 0.02, "the car in the next lane is silent");
+  check(busy.traffic[1] > 0.02, "only one other car on the road is audible");
+  check(
+    busy.trafficPan[0] && Math.abs(busy.trafficPan[0].x + 3.5) < 2 &&
+      Math.abs(busy.trafficPan[0].z + 8) < 3,
+    `a traffic engine does not sit where its car is (${JSON.stringify(busy.trafficPan[0])})`
+  );
+  // Unfilled slots have to fall silent, or a car that has gone keeps
+  // driving past the ear for ever.
+  check(busy.traffic[3] < 0.01, "a voice with no car behind it is making noise");
+  check(
+    empty.traffic.every((v) => v < busy.traffic[0]),
+    "the traffic is still audible after the road has emptied"
+  );
+  // And traffic sits UNDER the rival: it is not racing you.
+  check(busy.traffic[0] < (near.rival ?? 1), "traffic is as loud as the rival");
+}
+
 console.log(`listener     at ${JSON.stringify(near.listener)}  ` +
   check(Math.abs(near.listener.x) < 2 && Math.abs(near.listener.z) < 2, "the listener never moved"));
 
