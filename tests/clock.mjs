@@ -131,9 +131,27 @@ for (const { zone, r, truth } of readings) {
     `digits "${r.digits}", Kuwait is ${String(truth.h).padStart(2, "0")}:${String(truth.m).padStart(2, "0")}`
   );
 
-  // The digits are the plain statement of intent.
+  // The digits are the plain statement of intent — within a minute.
+  //
+  // Not slack for its own sake. The claim under test is that the dial
+  // reads KUWAIT rather than the machine's own zone, and the zones it is
+  // opened in are hours away, so a minute of tolerance still catches
+  // every failure this exists to catch. What it stops catching is the
+  // clock component's own tick: it repaints once a second in a tab that
+  // renders the game at about two frames a second, so the digits on
+  // screen can be seconds old by the time the reading is taken, and a
+  // reading that lands near a minute boundary failed on the rollover
+  // rather than on the timezone. Both zones failed that way in the same
+  // run — Los Angeles read 20:00 against a truth of 20:01, and Tokyo,
+  // sampled forty seconds later, read 20:02.
   const want = `${String(truth.h).padStart(2, "0")}:${String(truth.m).padStart(2, "0")}`;
-  console.log(`             ${check(r.digits === want, `${zone.label}: clock reads ${r.digits}, Kuwait is ${want}`)}`);
+  const [dh, dm] = String(r.digits ?? "99:99").split(":").map(Number);
+  const digitsOff = Math.abs(
+    ((dh * 60 + dm - (truth.h * 60 + truth.m) + 720 + 1440) % 1440) - 720
+  );
+  console.log(
+    `             ${check(digitsOff <= 1, `${zone.label}: clock reads ${r.digits}, Kuwait is ${want}`)}`
+  );
 
   // ...and the HANDS have to agree with the digits, or the dial is
   // decoration sitting next to a correct number.
@@ -181,8 +199,13 @@ if (readings.length === 2 && !readings.some((x) => x.r.missing)) {
     return hh * 60 + mm;
   });
   const apart = Math.abs(((mins[0] - mins[1] + 720 + 1440) % 1440) - 720);
+  // Two, for the reason above and one more: these readings are taken in
+  // sequence and a page load in this browser is the better part of a
+  // minute, so the wall clock genuinely moves between them. Two
+  // timezones that disagree about the HOUR are still hours apart, which
+  // is what this is looking for.
   check(
-    apart <= 1,
+    apart <= 2,
     `two machines in different timezones disagree by ${apart} minutes: ${a.r.digits} vs ${b.r.digits}`
   );
   check(

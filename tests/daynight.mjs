@@ -195,6 +195,41 @@ for (const r of rig) {
   check(r.lower, `at ${r.h}h the fill is higher than the key`);
 }
 
+// --- Kuwait time, exactly --------------------------------------------
+//
+// The corner of the HUD has carried a dial reading the real time in
+// Kuwait since it was written, and the world beside it ran on its own
+// accelerated cycle: the game showed two clocks at once and the sun
+// agreed with neither. A screenshot taken at ten past three in the
+// afternoon was shot at half past four in the game.
+//
+// The "kuwait" sky makes them one claim, off one module. This checks the
+// claim rather than the module — what the WORLD thinks the hour is,
+// against what the zone says it is — and it belongs here rather than in
+// clock.mjs because the number that matters is the one the sun is a
+// function of.
+{
+  const seen = await page.evaluate(() => {
+    const e = window.__grnEngine;
+    e.setSky("kuwait");
+    e.update(1 / 60); // read, not merely set
+    return { hour: e.timeHours, local: Intl.DateTimeFormat().resolvedOptions().timeZone };
+  });
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kuwait", hour12: false,
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  }).formatToParts(new Date());
+  const f = {};
+  for (const q of parts) if (q.type !== "literal") f[q.type] = Number(q.value);
+  const want = (f.hour % 24) + f.minute / 60 + f.second / 3600;
+  const offSec = Math.abs(((seen.hour - want + 12 + 24) % 24) - 12) * 3600;
+  console.log(
+    `\nkuwait time  the sky is at ${seen.hour.toFixed(4)} h, Kuwait is at ${want.toFixed(4)} h ` +
+      `— ${offSec.toFixed(1)} s apart (this browser thinks it is in ${seen.local})`
+  );
+  check(offSec < 30, `the world clock is ${offSec.toFixed(0)} s off Kuwait's`);
+}
+
 console.log(fail.length?"\nFAILURES:\n - "+fail.join("\n - "):"\nthe day actually turns");
 await b.close();
 process.exit(fail.length?1:0);
