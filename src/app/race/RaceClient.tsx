@@ -709,27 +709,56 @@ export default function RaceClient() {
     const w = canvas.width;
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
-    ctx.strokeStyle = "rgba(255,255,255,0.55)";
+    // The route is drawn INSIDE the panel, not across it.
+    //
+    // It used to be laid straight onto 0..1 of the buffer, so the loop
+    // ran off all four edges and the caption underneath it crossed the
+    // road at the bottom of the box — the line and the words fighting
+    // over the same pixels, which is the whole reason the map read as
+    // unfinished. Reserving a margin, and more of it at the foot where
+    // the caption sits, costs a few per cent of the route and buys a
+    // gadget that looks made rather than dumped.
+    const PAD = 0.1;
+    const FOOT = 0.2; // room for "tap to open"
+    const X = (x: number) => (PAD + x * (1 - PAD * 2)) * w;
+    const Y = (y: number) => (PAD + y * (1 - PAD - FOOT)) * h;
+    const path = () => {
+      ctx.beginPath();
+      mapPathRef.current.forEach(([x, y], i) => {
+        if (i === 0) ctx.moveTo(X(x), Y(y));
+        else ctx.lineTo(X(x), Y(y));
+      });
+      ctx.closePath();
+    };
+    // A road, not a wire: a dark casing with a lit core on top of it is
+    // how every map in the world draws one, and it is what stops the
+    // line disappearing wherever the panel behind it happens to be pale.
     // Marks scale with the buffer, which is outsized vs the CSS box —
     // hardcoded pixel widths would come out hairline-thin.
-    ctx.lineWidth = w / 75;
-    ctx.beginPath();
-    mapPathRef.current.forEach(([x, y], i) => {
-      if (i === 0) ctx.moveTo(x * w, y * h);
-      else ctx.lineTo(x * w, y * h);
-    });
-    ctx.closePath();
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    path();
+    ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    ctx.lineWidth = w / 34;
     ctx.stroke();
-    if (d.map.rx >= 0) {
-      ctx.fillStyle = "#ff4d4d";
+    path();
+    ctx.strokeStyle = "rgba(255,255,255,0.62)";
+    ctx.lineWidth = w / 75;
+    ctx.stroke();
+
+    // Markers get a casing too, for the same reason: a bare dot on a
+    // pale stretch of route is a dot you have to hunt for.
+    const mark = (x: number, y: number, fill: string, r: number) => {
       ctx.beginPath();
-      ctx.arc(d.map.rx * w, d.map.ry * h, w * 0.027, 0, Math.PI * 2);
+      ctx.arc(X(x), Y(y), r * w, 0, Math.PI * 2);
+      ctx.fillStyle = fill;
       ctx.fill();
-    }
-    ctx.fillStyle = "#4ade80";
-    ctx.beginPath();
-    ctx.arc(d.map.px * w, d.map.py * h, w * 0.03, 0, Math.PI * 2);
-    ctx.fill();
+      ctx.lineWidth = w / 90;
+      ctx.strokeStyle = "rgba(6,7,9,0.9)";
+      ctx.stroke();
+    };
+    if (d.map.rx >= 0) mark(d.map.rx, d.map.ry, "#ff4d4d", 0.028);
+    mark(d.map.px, d.map.py, "#4ade80", 0.034);
   }, []);
 
   const onHud = useCallback(
@@ -805,7 +834,7 @@ export default function RaceClient() {
           label.setAttribute("x", tx.toFixed(2));
           label.setAttribute("y", (ty + 2.5).toFixed(2));
           label.setAttribute("text-anchor", "middle");
-          label.setAttribute("font-size", "7.4");
+          label.setAttribute("font-size", "8.6");
           label.setAttribute("font-weight", "700");
           // Warm, like the backlight behind them: on a real cluster the
           // numerals are lit by the same lamps as the face and pick up
@@ -1764,11 +1793,21 @@ export default function RaceClient() {
             gearRef={gearRef}
             size={200}
           />
+          {/* The meters, on a ground of their own.
+              Every other gadget in this HUD sits on something — the
+              clock and the map on a panel, the street name on a plate,
+              the hint on white card — and these four sat bare on the
+              road, four skewed bars and a row of grey words with the
+              night showing through them. A bar reading against tarmac
+              at one moment and against a lit shopfront the next has no
+              fixed contrast at all. Same panel as the clock and the map,
+              so the instrument cluster reads as one instrument. */}
+          <div className="grn-panel mt-2 inline-block px-2.5 py-2">
           {/* The tow. Shown only while there is one, because a bar that
               reads zero nine tenths of the time teaches the eye to stop
               looking at it — and the whole reason this is on screen is
               to send the driver hunting for the wake. */}
-          <div ref={towWrapRef} className="mt-1 items-center gap-2" style={{ display: "none" }}>
+          <div ref={towWrapRef} className="items-center gap-2" style={{ display: "none" }}>
             <span className="grn-label w-11 text-[0.7rem] text-sodium-300">Tow</span>
             <div className="grn-meter h-1.5 w-44 -skew-x-12">
               <div
@@ -1825,6 +1864,7 @@ export default function RaceClient() {
             className="grn-label mt-1 text-[0.7rem] tracking-wide text-cyan-300 transition-opacity"
             style={{ opacity: 0 }}
           />
+          </div>
         </div>
 
         {/* Bottom-right stack: minimap pinned above the controls hint.
