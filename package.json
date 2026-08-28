@@ -1,6 +1,6 @@
 {
   "name": "wain",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Wain (وين) — Discover where to go in Kuwait. A modern place-discovery app.",
   "scripts": {
@@ -31,7 +31,8 @@
     "audit:color": "node scripts/audit-color.mjs",
     "audit:assets": "node scripts/audit-assets.mjs",
     "audit:mobile": "node scripts/audit-mobile.mjs",
-    "scan": "npm run lint && npm run audit:schema && npm run audit:runtime && npm run audit:places && npm run test:map && npm run audit:icons && npm run audit:htaccess && npm run audit:type && npm run audit:js && npm run audit:color && npm run audit:assets && npm run audit:mobile"
+    "scan": "npm run lint && npm run audit:schema && npm run audit:runtime && npm run audit:places && npm run test:map && npm run audit:icons && npm run audit:htaccess && npm run audit:type && npm run audit:js && npm run audit:color && npm run audit:assets && npm run audit:mobile",
+    "release": "node scripts/make-release.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.1",

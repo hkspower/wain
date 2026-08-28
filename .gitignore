@@ -12,6 +12,9 @@
 
 # hand-off archives built from out/ and from the repo itself
 /wain-deploy.zip
+# versioned release archives from `npm run release`
+/wain-*.zip
+/wain-*.zip.sha256
 /wain-source.zip
 
 # misc

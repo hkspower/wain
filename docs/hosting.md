@@ -231,3 +231,78 @@ the safety net if a file is missed.
 
 Upload `server/api.php` instead and keep the app running with the holes shut.
 The two paths are exclusive; do not do half of each.
+
+---
+
+# Releases
+
+```
+npm run release
+```
+
+Builds the export, stamps it, checks it, and archives it as
+`wain-<version>.zip` with a `.sha256` beside it.
+
+## build.json — the thing that was missing
+
+For months nobody could answer the simplest question about wainkw.com: **what
+is actually up there?** The live `index.html` referenced fourteen `/_next/`
+assets and the `_next` directory did not exist, and there was no way to see
+that from the repository or from the server — the file was just an old copy of
+something.
+
+Every release now writes `build.json` into the export, at a fixed URL:
+
+```json
+{
+  "name": "wain",
+  "version": "1.1.0",
+  "commit": "…",
+  "branch": "…",
+  "dirty": false,
+  "builtAt": "…",
+  "files": 192,
+  "pages": 46,
+  "bytes": 9050977,
+  "digest": "…"
+}
+```
+
+Once a release is deployed, one request answers it, from anywhere, with no
+credentials:
+
+```bash
+curl -s https://www.wainkw.com/build.json
+```
+
+`digest` is a SHA-256 over every path and every byte in the export, so it says
+*the thing on the server is the thing I built* rather than *the version string
+in it claims to be*. `dirty` records whether the working tree had uncommitted
+changes — a release built dirty is not reproducible from its commit, and the
+script says so rather than pretending otherwise.
+
+## What it refuses to do
+
+The archive is not written unless the export contains all eight of:
+
+`_next/` · `index.html` · `.htaccess` · `404.html` · `sw.js` ·
+`manifest.webmanifest` · `robots.txt` · `sitemap.xml`
+
+`_next/` is first because its absence is exactly what broke the live site, and
+that failure is invisible — the page loads, unstyled, with every link a 404.
+
+It then unzips its own archive to confirm `.htaccess` is really inside. A zip
+built from the wrong directory drops dotfiles silently, and that particular
+dotfile is what keeps `wain.db` off the public web.
+
+## Deploying a release
+
+hPanel → Files → File Manager → `public_html` → Upload the zip → right-click →
+**Extract** → delete the zip.
+
+Extract, never the "deploy static archive" button: that empties the folder
+first, and `wain.db` is still live in there. Then check it landed:
+
+```bash
+curl -s https://www.wainkw.com/build.json
+```
