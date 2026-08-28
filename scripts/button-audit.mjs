@@ -209,9 +209,18 @@ for (const [half, base, path] of PAGES) {
   // is still moving — it reported thirty-six "not stable" controls that are
   // perfectly clickable by a person, because a person does not insist the
   // button hold still first.
+  // hasTouch AND isMobile, not merely a 390px viewport. This matters for the
+  // tap-target check and it caught this file out: the website sizes its header
+  // icons with `.tap { min-width: 44px }` inside @media (pointer: coarse), so
+  // a desktop-pointer browser at phone width computes min-width:auto and the
+  // icons measure 22x22. They are 44 on an actual phone. Measuring 98 tap
+  // targets as too small, every one of them fine in the hand, is what a
+  // narrow window gets you — a phone is not a small desktop.
   const p = await b.newPage({
     viewport: { width: 390, height: 844 },
     reducedMotion: 'reduce',
+    hasTouch: true,
+    isMobile: true,
   })
   await p.addInitScript(() => {
     const kill = document.createElement('style')

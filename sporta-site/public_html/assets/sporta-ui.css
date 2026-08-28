@@ -480,3 +480,59 @@ div.flex.h-full.w-full:has(> img:not([src^='data:'])) > img[src^='data:image/svg
   font-size: clamp(1.5rem, 3.2vw, 2.5rem) !important;
   line-height: 1.15 !important;
 }
+
+/* ---------------------------------------------------------- carousel targets
+ *
+ * The hero's arrows and its pause button render at 32x32, and its dots at
+ * 24x24. The site already has a helper for this — `.tap { min-width: 44px }`
+ * — and it is inside @media (pointer: coarse), which is right: it applies on
+ * the phones that need it. These controls simply do not carry the class.
+ *
+ * WHAT IS AND IS NOT FIXED HERE, because the two are different:
+ *
+ *   The arrows and the pause button are ISOLATED, so their hit area is grown
+ *   to 44x44 with a transparent overlay. Nothing moves — the overlay is
+ *   absolutely positioned and centred, so the button looks exactly as the
+ *   owner drew it and is simply easier to hit.
+ *
+ *   The DOTS are left at 24 wide. They sit about 28px apart, so a 44-wide hit
+ *   area would overlap its neighbours and a tap near the edge would select the
+ *   wrong slide — worse than a small target, because it does the wrong thing
+ *   rather than nothing. They are grown vertically only, where there is
+ *   nothing to collide with. At 24x24 they already meet WCAG 2.5.8 (AA); it is
+ *   the 44 of Apple's guidance and WCAG 2.5.5 (AAA) they miss, and closing
+ *   that gap properly means spacing the dots further apart, which is a change
+ *   to the hero's design and the owner's to make.
+ */
+@media (pointer: coarse) {
+  [aria-label='الشريحة السابقة'],
+  [aria-label='الشريحة التالية'],
+  [aria-label='إيقاف العرض مؤقتًا'],
+  [aria-label='استئناف العرض'],
+  [aria-label='Previous slide'],
+  [aria-label='Next slide'],
+  [aria-label='Pause slideshow'],
+  [aria-label='Resume slideshow'] {
+    position: relative;
+  }
+  [aria-label='الشريحة السابقة']::after,
+  [aria-label='الشريحة التالية']::after,
+  [aria-label='إيقاف العرض مؤقتًا']::after,
+  [aria-label='استئناف العرض']::after,
+  [aria-label='Previous slide']::after,
+  [aria-label='Next slide']::after,
+  [aria-label='Pause slideshow']::after,
+  [aria-label='Resume slideshow']::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+  /* Vertical only — see the note above on why the dots keep their width. */
+  .group\/dot {
+    min-height: 44px;
+  }
+}

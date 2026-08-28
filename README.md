@@ -118,6 +118,7 @@ because the rigs place real orders against a real database.
 | `npm run test:returns` | Returns and exchanges end to end — the two public routes, the admin gate, and the customer's page in a browser |
 | `npm run test:borders` | Every border, all four sides, both themes, phone and desktop — none invisible, plus a census of the colours, widths and radii in use |
 | `npm run test:buttons` | Every control on both halves of the shop, PRESSED — none dead, plus tap targets, accessible names and links that go nowhere |
+| `npm run test:glare` | Contrast that is too HIGH — light text on a dark page past 18:1, which is halation, not legibility. `THEME=light` measures the other one and judges nothing |
 | `npm run scan:site` | The website, in a browser — `BASE=` to aim it |
 | `npm run scan:site:curl` | The same, with nothing but curl |
 | `npm run site:diff` | Is a live server the same build as this repo's copy? |

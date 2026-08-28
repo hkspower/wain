@@ -71,6 +71,7 @@
     "test:site-contrast": "node scripts/site-contrast.mjs",
     "test:borders": "node scripts/border-audit.mjs",
     "test:buttons": "node scripts/button-audit.mjs",
+    "test:glare": "node scripts/glare-audit.mjs",
     "test:returns": "node scripts/returns-test.mjs",
     "scan:site": "node scripts/site-scan.mjs",
     "scan:site:curl": "bash scripts/site-scan.sh",
