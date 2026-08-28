@@ -272,6 +272,48 @@ for (const route of ROUTES) {
   }))
   if (!head.title) note(`${label} the served HTML has no <title>`)
   if (!head.lang) note(`${label} the served HTML has no lang=`)
+
+  // ------------------------------------------------------ the product grid
+  //
+  // EVERY CARD IN A ROW MUST END AT THE SAME LINE. The grid is two columns on
+  // a phone, and a card is as tall as its contents — so a product whose name
+  // happens to fit on one line makes its card shorter than the one beside it,
+  // and the brand and the price of the two sit at different heights with a
+  // ragged edge under them. Measured on the shop before this was fixed: 258px
+  // cards next to 284px ones, because "تيشيرت تشيتاز رَغبي" is short.
+  //
+  // The card reserves two lines for the name to prevent it, and the banner
+  // pins its own height for the same reason. Both are invisible to every
+  // other check here: the page renders, the radii are right, the spacing is
+  // right, and the grid is still crooked.
+  if (route === '/shop') {
+    const grid = await p.evaluate(() => {
+      const cards = [...document.querySelectorAll('a[href*="/product/"]')]
+        .filter((a) => a.getBoundingClientRect().width > 60)
+      if (cards.length < 4) return null
+      const boxes = cards.map((c) => c.getBoundingClientRect())
+      const rows = new Map()
+      for (const r of boxes) {
+        const k = Math.round(r.y / 4)
+        if (!rows.has(k)) rows.set(k, [])
+        rows.get(k).push(Math.round(r.bottom))
+      }
+      const ragged = [...rows.values()].filter((bs) => Math.max(...bs) - Math.min(...bs) > 1)
+      return {
+        cards: cards.length,
+        rows: rows.size,
+        ragged: ragged.length,
+        worst: ragged.length ? Math.max(...ragged.map((bs) => Math.max(...bs) - Math.min(...bs))) : 0,
+        heights: [...new Set(boxes.map((r) => Math.round(r.height)))].sort((a, b) => a - b),
+      }
+    })
+    if (!grid) note(`${label} fewer than four product cards — grid not measured`)
+    else {
+      check(grid.ragged === 0,
+        `${label} every row of the grid ends level — ${grid.cards} cards over ${grid.rows} rows` +
+        (grid.ragged ? `, ${grid.ragged} ragged by up to ${grid.worst}px (heights ${grid.heights.join('/')})` : ''))
+    }
+  }
   // dir= is NOT checked. This app sets direction per element, because there
   // is no way to force RTL on native without a reload, and a document-level
   // dir fights that: it flips which end of a horizontal list a scroll-to-end

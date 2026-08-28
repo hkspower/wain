@@ -8,7 +8,7 @@ import { ProductBadge } from '@/components/product-badge';
 import { RemoteArt } from '@/components/remote-art';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Elevation, Radius, Spacing } from '@/constants/theme';
+import { Elevation, Radius, Spacing, Type } from '@/constants/theme';
 import { productPhoto } from '@/lib/assets';
 import { inStock, productName, type Product } from '@/lib/catalog';
 import { useLang } from '@/lib/i18n';
@@ -45,7 +45,29 @@ export function ProductCard({ product }: { product: Product }) {
           </RemoteArt>
 
           <View style={styles.body}>
-            <ThemedText type="labelBold" numberOfLines={2} style={text}>
+            {/* TWO LINES ALWAYS, reserved whether the name needs them or not.
+                numberOfLines caps a long name at two; it does nothing for a
+                SHORT one, which then takes a single line and makes its card
+                26px shorter than the one beside it. In a two-column grid that
+                is not a small thing: the brand and the price sit at different
+                heights across the row, and the bottom edge of every row is
+                ragged. Measured on the shop: 258px cards next to 284px ones,
+                because "تيشيرت تشيتاز رَغبي" happens to fit on one line.
+
+                The banner above already pins its height for exactly this
+                reason, in the same words — the two have to agree or the fix
+                only covers half the card.
+
+                lineAr, not line: Arabic sets at 26 against English's 20, and
+                reserving the English height would clip the second line of an
+                Arabic name — which is most of this catalogue. */}
+            <ThemedText
+              type="labelBold"
+              numberOfLines={2}
+              style={[
+                text,
+                { minHeight: 2 * (lang === 'ar' ? Type.labelBold.lineAr : Type.labelBold.line) },
+              ]}>
               {productName(product, lang)}
             </ThemedText>
             <ThemedText type="label" themeColor="textSecondary" style={text}>
