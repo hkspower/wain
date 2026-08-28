@@ -98,6 +98,7 @@ because the rigs place real orders against a real database.
 | `npm run test:contrast` | The palette's pairs, with no browser |
 | `npm run test:art` | The category tiles, bundled and remote |
 | `npm run test:live` | The real `api.php` contract |
+| `npm run test:payments` | All three methods side by side, both callbacks forged, and everything the checkout refuses — including a client that sends its own price |
 | `npm run test:tpay` | CBK T-Pay: the link, the dropin's refusals, the pending state |
 | `npm run test:admin` | The panel in a browser, against `scripts/mock-admin.py` |
 | `npm run test:admin-contract` | admin.ts, admin.php and the mock name the same routes — no server |

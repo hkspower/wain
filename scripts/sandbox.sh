@@ -61,6 +61,18 @@ return [
     'tranportal_id'       => 'SANDBOX',
     'tranportal_password' => 'SANDBOX',
     'terminal_resource_key' => 'SANDBOX',
+    // EXACTLY SIXTEEN BYTES, because KNET's trandata is AES-128-CBC and
+    // knet_assert_key() refuses anything else. It is here so payments-test.mjs
+    // can ENCRYPT a callback the way the bank does and exercise the amount
+    // check behind it — which is the code that decides whether the shop was
+    // paid, and which no rig could reach while this was empty: every forged
+    // callback bounced off `missing_data` long before it, and three assertions
+    // about it passed while proving nothing.
+    //
+    // It is not a real key and cannot be: it is written by this script into a
+    // git-ignored file, and package-check.mjs FAILS if a config carrying
+    // SANDBOX_NOT_A_REAL ever appears in an upload package.
+    'resource_key'    => 'SANDBOX_NOT_REAL',
     'return_url'      => 'http://127.0.0.1:4300/$gw/callback.php',
     'result_page_url' => 'http://127.0.0.1:4300/order',
     'lang'            => 'ar',

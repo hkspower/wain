@@ -151,6 +151,15 @@ try {
     const r = get(p)
     check(r.status === 403 || r.status === 404, `${p} is refused (${r.status})`)
   }
+  // THE IMPORT FIXTURES. api/.htaccess denies *.sql by name and its own
+  // comment says why — seed.mysql.sql names every product and its COST PRICE,
+  // which is the shop's margin on a public URL. The rule was never asserted;
+  // the sandbox runs PHP's built-in server, which reads no .htaccess and
+  // answers these 200, so nothing here would ever have noticed it break.
+  for (const p of ['/api/install.mysql.sql', '/api/seed.mysql.sql', '/api/store.php']) {
+    const r = get(p)
+    check(r.status === 403 || r.status === 404, `${p} is refused (${r.status})`)
+  }
 
   console.log('\n--- the generated sitemap beats the stale static copy')
   check(get('/sitemap-products.xml').status === 200,

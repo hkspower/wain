@@ -29,17 +29,22 @@ const ht = readFileSync(new URL('.htaccess', DOCROOT), 'utf8')
 // would be the wrong fix — it permanently widens the policy the real shop runs
 // under, for a page that must not be on the real shop.
 //
-// go-live.html is a pre-launch diagnostic: it reads config.js and reports
-// whether the shop is configured. Useful to the owner once, from their own
-// machine; a public page that describes the shop's setup to anyone who guesses
-// the filename otherwise. It is excluded from the upload package for the same
-// reason, alongside the setup and reset tools.
+// THE LIST IS EMPTY NOW, and that is the point: go-live.html was the only
+// entry, and it has been DELETED rather than merely excluded. So have
+// api/setup-admin.php, api/reset-admin.php, api/preflight.php and
+// knet/setup-config.php — a set of unauthenticated endpoints that created an
+// admin account, reset its password, reported the database and paths back to
+// the caller, and wrote the bank's credentials from a request. They were
+// needed once, on a URL nobody knew. Being excluded from a package by
+// convention is not the same as not existing, and package-check.mjs now
+// FAILS if any of them comes back.
 //
-// If one of these is ever deployed, its inline script simply will not run —
-// so the exclusion has to stay honest. It is listed here by name, with the
-// reason, rather than pattern-matched: "anything with 'setup' in it" is how a
-// real page gets skipped by accident.
-const NOT_DEPLOYED = ['go-live.html']
+// The mechanism stays because the situation can recur: a page here that is
+// not uploaded needs no hash, and if one is ever deployed anyway its inline
+// script simply will not run. Anything added must be listed by name with the
+// reason — "anything with 'setup' in it" is how a real page gets skipped by
+// accident.
+const NOT_DEPLOYED = []
 
 const pages = readdirSync(DOCROOT).filter((f) => f.endsWith('.html'))
 const inline = []
