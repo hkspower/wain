@@ -43,3 +43,8 @@ next-env.d.ts
 design/**/*.html
 !design/**/*.dc.html
 .preview-cache/
+
+# Claude Design canvases. The .dc.html artboards and canvas.json ARE the
+# source and are tracked; the seeded output beside them is a 2.5MB copy of
+# the canvas editor with that source embedded, regenerated on every change.
+.design/**/wain-*.html

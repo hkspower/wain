@@ -1,0 +1,67 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap">
+  <style>
+    body { margin:0; font-family:'IBM Plex Sans Arabic', system-ui, sans-serif;
+           background:#ffffff; color:#35302a; }
+    a { color:#1e6092; } a:hover { color:#1d5179; }
+    .lbl { font-size:11px; font-weight:600; letter-spacing:.06em;
+           text-transform:uppercase; color:#6b6357; }
+    .cap { font-size:12px; line-height:1.6; color:#585044; }
+    h1 { font-size:26px; font-weight:700; color:#14120f; margin:0; }
+    h2 { font-size:15px; font-weight:600; color:#14120f; margin:0; }
+    .rule { height:1px; background:#dbd8d2; }
+    .sheet { padding:44px; display:flex; flex-direction:column; gap:32px; }
+  </style>
+</helmet>
+<div class="sheet" style="width:860px">
+  <div style="display:flex; flex-direction:column; gap:6px">
+    <span class="lbl">07</span>
+    <h1>Clear space &amp; minimum size</h1>
+  </div>
+  <div class="rule"></div>
+
+  <div style="display:flex; gap:44px; align-items:flex-start; flex-wrap:wrap">
+    <div style="display:flex; flex-direction:column; gap:12px">
+      <span class="lbl">Clear space = the pin's head</span>
+      <div style="position:relative; padding:56px; background:#f6f5f3; border-radius:20px">
+        <div style="position:absolute; inset:20px; border:1px dashed #dc2f25; opacity:.5; border-radius:8px"></div>
+        <svg viewBox="14 8 84 92" width="120" height="132" style="display:block"><defs>
+  <linearGradient id="cs-sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#57b0e3"/><stop offset="1" stop-color="#2277b4"/></linearGradient>
+  <linearGradient id="cs-coral" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ef4d43"/><stop offset="1" stop-color="#b9241b"/></linearGradient>
+</defs>
+<path fill="url(#cs-sea)" stroke="#ffffff" stroke-width="3.5" stroke-linejoin="round" d="M 31 24 Q 27.4 24.4 27.2 28 L 25.2 78 Q 25 82 28.8 82.8 L 70 90.5 Q 74 91.2 75.8 87.6 L 84.6 70 Q 86 66.8 84.6 63.6 L 79.6 53.4 Q 78 50 74.2 50.6 L 66.5 51.7 Q 61 52.5 61 47.8 Q 61 43.4 66.5 43 L 72.8 42.6 Q 76.6 42.3 77.6 38.6 L 79.6 31.4 Q 80.4 28.6 83 27.2 L 86.4 25.4 Q 89.6 23.6 88.2 20.4 Q 86.9 17.4 83.6 18 L 74.4 19.6 Q 72.4 20 70.4 20.2 L 31 24 Z"/>
+<path fill="url(#cs-coral)" stroke="#ffffff" stroke-width="3.5" stroke-linejoin="round" d="M 58 54.5 C 50.5 44 45.5 38.5 45.5 30 C 45.5 22 51 16.5 58 16.5 C 65 16.5 70.5 22 70.5 30 C 70.5 38.5 65.5 44 58 54.5 Z"/>
+<g transform="translate(58 28) scale(-1 1)" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round"><path d="M -4.4 -4.2 A 4.9 4.9 0 1 1 0 1.9 L 0 3.6"/></g>
+<circle cx="58" cy="36.8" r="2" fill="#ffffff"/></svg>
+      </div>
+      <p class="cap" style="max-width:34ch">The exclusion zone on every side is the diameter of the pin's circular head — a measure that comes from the mark itself, so it scales with it and never needs a table.</p>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:18px; flex-grow:1; min-width:280px">
+      <div>
+        <h2>Minimum sizes</h2>
+        <div style="display:flex; flex-direction:column; gap:0; margin-top:10px">
+          <div style="display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid #dbd8d2"><span class="cap">Full mark, screen</span><span class="cap" style="font-weight:600; color:#14120f">32px tall</span></div>
+          <div style="display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid #dbd8d2"><span class="cap">Full mark, print</span><span class="cap" style="font-weight:600; color:#14120f">10mm tall</span></div>
+          <div style="display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid #dbd8d2"><span class="cap">Horizontal lockup</span><span class="cap" style="font-weight:600; color:#14120f">120px wide</span></div>
+          <div style="display:flex; justify-content:space-between; padding:9px 0"><span class="cap">Below 32px</span><span class="cap" style="font-weight:600; color:#dc2f25">use the favicon mark</span></div>
+        </div>
+      </div>
+      <div>
+        <h2>Where the mark already lives</h2>
+        <p class="cap" style="margin-top:6px">The navbar draws it at 36px, which clears the 32px floor by four pixels. That is the tightest real placement in the product, and it is why the floor is 32 and not 40.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
