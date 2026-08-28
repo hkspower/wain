@@ -74,6 +74,18 @@ const sql = (q) =>
   execFileSync('mariadb', ['-uroot', 'sporta', '-N', '-B', '-e', q], { encoding: 'utf8' }).trim()
 const one = (q) => sql(q).split('\n')[0] ?? ''
 
+// --raw, and it is not a preference. WITHOUT it the client ESCAPES control
+// characters inside values, so a tab used as a column separator comes back as
+// the two characters \ and t — and any split on a real tab finds nothing.
+//
+// That is not hypothetical: the decode checks below were written with sql()
+// and passed on six deliberately corrupt rows, because indexOf('\t') returned
+// -1 for every one of them and the loop skipped the lot. Base64 payloads
+// contain no tabs or newlines of their own, so with escaping off the split is
+// unambiguous.
+const sqlRaw = (q) =>
+  execFileSync('mariadb', ['-uroot', 'sporta', '-N', '-B', '--raw', '-e', q], { encoding: 'utf8' }).trim()
+
 // ---------------------------------------------------------------- 1. on disk
 console.log('--- artwork on disk')
 const IMAGE_RE = /\.(jpe?g|png|webp|avif|gif|svg)$/i
@@ -256,6 +268,98 @@ for (const [table, col, what, cap] of stores) {
   check(over.length === 0,
     over.length ? `${table}.${col}: ${over.length} row(s) over the ${kb(cap)} upload cap — ${over.join(', ')}`
                 : `${table}.${col}: none over the ${kb(cap)} upload cap`)
+
+  // ---------------------------------------------------- DOES IT ACTUALLY DECODE
+  //
+  // Everything above this line reads the FIRST THIRTY CHARACTERS of the column
+  // and nothing else. `data:image/png;base64,` followed by half a picture, or
+  // by a JPEG, or by a kilobyte of HTML an error page left behind, passes every
+  // one of those checks and renders as a broken image in the shop with no error
+  // anywhere — which is the exact failure the schema warns about beside
+  // brands.logo: "a 64 KB text column silently TRUNCATES a base64 logo, and a
+  // truncated data URL renders as a broken image with no error anywhere."
+  //
+  // That warning was written because it HAPPENED. The column was widened to
+  // mediumtext to stop it happening again, but nothing ever checked the rows
+  // already in the table, and a shop that was set up before the widening still
+  // holds whatever it held. Nor does widening a column help against the other
+  // two: a connection dropped mid-upload truncates at any width, and a
+  // mislabelled MIME is a bad header over perfectly complete bytes.
+  //
+  // So the payload is decoded here — the base64 unpacked, the magic bytes read,
+  // and the declared type compared with the real one. Three separate faults,
+  // reported separately, because they need different repairs: a truncated row
+  // needs the photograph uploading again, and a mislabelled one only needs its
+  // header corrected.
+  const rows = sqlRaw(
+    `select concat(id, 0x09, ${col}) from ${table}
+      where ${col} is not null and ${col} <> ''`).split('\n').filter(Boolean)
+  const truncated = []
+  const undecodable = []
+  const mislabelled = []
+  for (const row of rows) {
+    const tab = row.indexOf('\t')
+    const id = row.slice(0, tab)
+    const uri = row.slice(tab + 1)
+    const m = uri.match(/^data:image\/([a-z]+);base64,(.*)$/)
+    if (!m) continue // already counted by the regexp check above
+    const [, declared, payload] = m
+    // Base64 arrives in groups of four. A length that is not a multiple of
+    // four is a string that was CUT, and it is worth its own message: it says
+    // "the upload did not finish", where a decode failure could be anything.
+    if (payload.length % 4 !== 0) { truncated.push(`${id} (base64 is ${payload.length} chars, not a multiple of 4)`); continue }
+    let buf
+    try {
+      buf = Buffer.from(payload, 'base64')
+      if (buf.length === 0) throw new Error('empty')
+    } catch { undecodable.push(`${id} (base64 will not decode)`); continue }
+    const real = sniff(buf)
+    if (real === null) { undecodable.push(`${id} (decodes, but the bytes are not any image format)`); continue }
+    if (real !== declared.replace(/^jpg$/, 'jpeg')) {
+      mislabelled.push(`${id} (header says ${declared}, the bytes are ${real})`)
+    }
+    // A complete image ends where its format says it ends. Truncation after a
+    // valid header is the commonest shape of this fault and the one the prefix
+    // check is blindest to: the type is right, the length is a multiple of
+    // four by luck, and the picture is simply missing its bottom half.
+    if (!endsWhole(buf, real)) truncated.push(`${id} (${real} data stops before the end of the image)`)
+  }
+  const say = (list, what) =>
+    check(list.length === 0,
+      list.length === 0
+        ? `${table}.${col}: ${what.ok}`
+        : `${table}.${col}: ${list.length} row(s) ${what.bad} — ${list.join(', ')}`)
+  say(truncated,   { ok: 'no image is cut short',        bad: 'are CUT SHORT and show as broken pictures' })
+  say(undecodable, { ok: 'every payload decodes',        bad: 'do not decode to an image at all' })
+  say(mislabelled, { ok: 'every declared type is right', bad: 'declare the wrong image type' })
+}
+
+// What the bytes REALLY are, from the magic number. Deliberately not a library:
+// the question is only which of the three formats the shop stores, and a
+// dependency that has to be installed on a shared host to answer it would mean
+// the check does not get run where it matters.
+function sniff(b) {
+  if (b.length > 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'png'
+  if (b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpeg'
+  if (b.length > 12 && b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP') return 'webp'
+  return null
+}
+
+// Is the file WHOLE? Each format says where it ends, and each says it
+// differently:
+//
+//   PNG  ends with the IEND chunk, the last twelve bytes of a complete file.
+//   JPEG ends with the End Of Image marker FFD9.
+//   WEBP carries its own length in the RIFF header, at bytes 4-7, counting
+//        everything after byte 8 — so a short file is arithmetic, not a search.
+//
+// A file cut anywhere before that still has a perfect header, which is why the
+// prefix check and even a magic-number check both pass it.
+function endsWhole(b, kind) {
+  if (kind === 'png') return b.length >= 12 && b.toString('ascii', b.length - 8, b.length - 4) === 'IEND'
+  if (kind === 'jpeg') return b.length >= 2 && b[b.length - 2] === 0xff && b[b.length - 1] === 0xd9
+  if (kind === 'webp') return b.length >= 8 && b.readUInt32LE(4) + 8 <= b.length
+  return true
 }
 
 // Photographs whose product is gone. The serving route INNER JOINs products,

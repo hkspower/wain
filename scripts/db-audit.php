@@ -173,7 +173,10 @@ foreach ($bySlug as $sl => $vs)
 // is what accessories carry, and a chart of chest and waist measurements has
 // nothing to say about a cap.
 $sizes = array_unique(array_column($variants, 'size'));
-$charted = array_column($q('select distinct size from size_charts'), 'size');
+// ORDERED BY the charts' own `sort`, because this list is printed for a
+// person: "missing 2XL 3XL 4XL 5XL S XL" is the same fact as "missing S XL 2XL
+// 3XL 4XL 5XL" and only one of them can be read at a glance.
+$charted = array_column($q('select size from size_charts group by size order by min(sort)'), 'size');
 $known = array_merge($charted, ['OS']);
 if (!$charted) {
     warn('size_charts is empty, so no size can be checked against it');
@@ -191,6 +194,52 @@ foreach ($variants as $v) {
 $dupSku = $q('select sku, count(*) n from product_variants group by sku having n > 1');
 foreach ($dupSku as $d) bad("sku {$d['sku']} appears {$d['n']} times — set_stock would hit whichever row came first");
 if (!$dupSku) ok('every sku is unique');
+
+// A PARTIAL SIZE RUN, which is the gap between "untracked" and "tracked".
+//
+// The check above asks only whether a garment has ANY size rows. A garment
+// with two of the eight passes it and looks completely healthy, and this shop
+// has twenty-seven of them: the cloudsoft, sculpt and define lines carry M and
+// L, and twelve carry exactly ONE size — sculpt-jacket-black in L only,
+// sculpt-jacket-navy in M only. Meanwhile every one of the seventeen products
+// that came through make-missing-variants.mjs carries the full run of eight.
+//
+// That pattern is not a size run anybody chose. It is what the shelf happened
+// to hold on the day the catalogue was typed in, and it is now the size list
+// the shop offers: a customer who takes XL cannot buy a sculpt jacket in any
+// colour, and no screen in the panel can sell them one, because the Stock
+// screen edits rows that exist and does not create them.
+//
+// A WARNING RATHER THAN A FAILURE, deliberately. A garment really can come in
+// two sizes, and this cannot tell the difference between an inventory fact and
+// a data-entry gap — only the owner can. What it can do is stop the gap being
+// invisible, and name exactly which sizes are missing so that answering it is
+// a decision rather than an investigation.
+//
+// The comparison set is the shop's OWN size_charts, the same list
+// make-missing-variants.mjs uses, so the two cannot drift.
+if ($charted) {
+    $partial = [];
+    foreach ($active as $p) {
+        if (!in_array($p['category'], $SIZED, true)) continue;
+        if (empty($bySlug[$p['slug']])) continue; // the check above owns this case
+        $has = array_column($bySlug[$p['slug']], 'size');
+        $missing = array_values(array_diff($charted, $has));
+        if ($missing) $partial[$p['slug']] = $missing;
+    }
+    if ($partial) {
+        $n = count($partial);
+        warn("$n sized product(s) carry only part of the size run — a shopper in a missing size cannot buy them, and the Stock screen cannot add a size that has no row:");
+        foreach ($partial as $sl => $missing) {
+            $have = count($charted) - count($missing);
+            warn("    $sl has $have of " . count($charted) . " — missing " . implode(' ', $missing));
+        }
+        warn('    if these lines really are sold in only those sizes, this is correct and can be ignored;');
+        warn('    if not, `node scripts/make-missing-variants.mjs` generates the missing rows at stock 0');
+    } else {
+        ok('every sized product carries the full size run');
+    }
+}
 
 /* ------------------------------------- the value LISTS, against the website */
 head('values the database holds against the words the website knows');
@@ -265,6 +314,108 @@ foreach ($q('select distinct brand_slug b from products where brand_slug is not 
     elseif ((int)$b['active'] !== 1) warn("products reference brand '{$r['b']}', which is inactive");
 }
 ok('every brand a product names exists');
+
+// THE OTHER DIRECTION, which nothing asked: does any product name a brand AT
+// ALL? The loop above is a referential check over a set that can be empty, and
+// on this shop it IS empty — so it passes without examining a single row.
+//
+// Measured here: all 46 products have brand_slug null or blank, and all 8
+// brands have nothing pointing at them. The brands table was seeded by
+// 3-brands.mysql.sql and never connected to the catalogue. The schema even
+// records the state beside the column — "An unmatched slug shows no brand,
+// which is what every product shows today" — so this is known and accepted
+// rather than broken. It is still worth saying out loud on every run, because
+// "accepted" and "forgotten" look identical from here, and the work it implies
+// is data entry nobody is tracking.
+//
+// What it costs while it stays this way: ?r=brands answers with eight brands
+// the storefront can offer, every one of which leads to nothing; the product
+// query's `left join brands` never matches, so no product page shows a brand
+// name or logo; and the logo folders under images/<brand-slug>/ that the image
+// audit checks so carefully are read by a code path no product reaches.
+$noBrand = (int)($one('select count(*) n from products where brand_slug is null or brand_slug = ""')['n'] ?? 0);
+$total   = count($products);
+if ($noBrand === $total && $total > 0) {
+    warn("no product has a brand — all $total have an empty brand_slug, while " .
+         (int)($one('select count(*) n from brands')['n'] ?? 0) .
+         ' brands sit in the table with nothing pointing at them');
+    warn('    every product page shows no brand and no logo; the brand list leads nowhere');
+} elseif ($noBrand > 0) {
+    warn("$noBrand of $total products have no brand — those pages show no brand name or logo");
+} else {
+    ok('every product names a brand');
+}
+foreach ($q('select b.slug, count(p.id) n from brands b
+             left join products p on p.brand_slug = b.slug
+             where b.active = 1 group by b.slug having n = 0') as $r) {
+    warn("brand '{$r['slug']}' is active but no product belongs to it — it shows as an empty shelf");
+}
+
+/* --------------------------------------------------- the stored photographs */
+head('the images kept in the database, decoded rather than glanced at');
+
+// EVERY OTHER CHECK ON THESE COLUMNS READS THE FIRST THIRTY CHARACTERS.
+//
+// `data:image/png;base64,` followed by half a picture passes them all and
+// renders as a broken image in the shop with no error anywhere. That is not a
+// hypothetical failure, it is the one the schema warns about beside
+// brands.logo — a 64 KB text column silently truncating a base64 logo — and
+// widening the column does nothing for the rows already written, nor for an
+// upload cut short by a dropped connection at any width.
+//
+// This is the same decode scripts/image-audit.mjs does, in PHP, because that
+// rig needs node and the mariadb client and this file needs neither: it runs
+// wherever the site runs, against the real catalogue, which is the only place
+// the answer matters.
+foreach ([['product_images', 'image', 'photograph'],
+          ['hero_slides', 'image', 'hero slide'],
+          ['brands', 'logo', 'brand logo']] as [$table, $col, $what]) {
+    $cut = []; $dead = []; $wrong = [];
+    foreach ($q("select id, $col as v from $table where $col is not null and $col <> ''") as $row) {
+        if (!preg_match('~^data:image/([a-z]+);base64,(.*)$~s', (string)$row['v'], $m)) {
+            $dead[] = "{$row['id']} (not a data: URI at all)";
+            continue;
+        }
+        [, $declared, $payload] = $m;
+        // Base64 arrives in groups of four; a length that is not a multiple of
+        // four is a string that was CUT, and saying so is more useful than
+        // "will not decode", which could mean anything.
+        if (strlen($payload) % 4 !== 0) { $cut[] = "{$row['id']} (base64 cut mid-group)"; continue; }
+        $bytes = base64_decode($payload, true);
+        if ($bytes === false || $bytes === '') { $dead[] = "{$row['id']} (base64 will not decode)"; continue; }
+
+        $real = null;
+        if (str_starts_with($bytes, "\x89PNG\r\n\x1a\n")) $real = 'png';
+        elseif (str_starts_with($bytes, "\xff\xd8\xff")) $real = 'jpeg';
+        elseif (strlen($bytes) > 12 && substr($bytes, 0, 4) === 'RIFF' && substr($bytes, 8, 4) === 'WEBP') $real = 'webp';
+        if ($real === null) { $dead[] = "{$row['id']} (decodes, but is not an image)"; continue; }
+
+        if ($real !== ($declared === 'jpg' ? 'jpeg' : $declared))
+            $wrong[] = "{$row['id']} (header says $declared, bytes are $real)";
+
+        // Does it END? Each format says where, and a file cut after a valid
+        // header keeps a perfect header — which is why every cheaper check
+        // passes it and the picture is still missing its bottom half.
+        $whole = match ($real) {
+            'png'  => strlen($bytes) >= 12 && substr($bytes, -8, 4) === 'IEND',
+            'jpeg' => strlen($bytes) >= 2 && substr($bytes, -2) === "\xff\xd9",
+            'webp' => strlen($bytes) >= 8 && (unpack('V', substr($bytes, 4, 4))[1] + 8) <= strlen($bytes),
+            default => true,
+        };
+        if (!$whole) $cut[] = "{$row['id']} ($real stops before the end of the image)";
+    }
+    foreach ([[$cut, ['is cut short and shows as a broken picture — upload it again',
+                      'are cut short and show as broken pictures — upload them again']],
+              [$dead, ['does not decode to an image at all',
+                       'do not decode to an image at all']],
+              [$wrong, ['declares the wrong image type',
+                        'declare the wrong image type']]] as [$list, $why]) {
+        if (!$list) continue;
+        $n = count($list);
+        bad("$n $what" . ($n === 1 ? '' : 's') . ' ' . $why[$n === 1 ? 0 : 1] . ': ' . implode(', ', $list));
+    }
+    if (!$cut && !$dead && !$wrong) ok("every stored $what decodes to a whole image of the type it claims");
+}
 
 /* -------------------------------------------------- the two status axes */
 head('the status words in the database against the ones the code branches on');
