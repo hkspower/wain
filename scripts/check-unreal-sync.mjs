@@ -323,6 +323,81 @@ if (+clientVersion !== api.apiVersion) {
   ok(`apiVersion ${api.apiVersion} agreed by both sides`);
 }
 
+
+// The car factory's own size table, for the body-shape check below.
+const FACTORY = "unreal/Source/GulfRoadNights/GRNCarFactory.cpp";
+const factorySrc = readFileSync(FACTORY, "utf8");
+/** `case EGRNBodyStyle::X: return 4.31f;` out of one of the two tables. */
+function ueRef(style) {
+  const name = { sedan: "Sedan", zx: "ZX", gtr: "GTR", rx7: "RX7", hatch: "Hatch", pony: "Pony" }[style];
+  if (!name) return null;
+  const arm = (fn) => {
+    const body = factorySrc.match(new RegExp("static float " + fn + "\\(EGRNBodyStyle Style\\)[\\s\\S]*?\\n\\}"));
+    if (!body) return null;
+    if (style === "sedan") {
+      const d = body[0].match(/default: return ([0-9.]+)f;/);
+      return d ? +d[1] : null;
+    }
+    const m2 = body[0].match(new RegExp("case EGRNBodyStyle::" + name + ": return ([0-9.]+)f;"));
+    return m2 ? +m2[1] : null;
+  };
+  const l = arm("StyleRefLength");
+  const w = arm("StyleRefWidth");
+  return l !== null && w !== null ? { l, w } : null;
+}
+
+// ---- body shape -----------------------------------------------------
+//
+// The size of a car, which both ports were guessing at and guessing
+// differently. Unreal was the blunter of the two: ONE width, 1.9 m
+// before its presence factor, for every machine in the game — a
+// supermini and a pickup came out of the factory the same width — and
+// two lengths, one for the fastbacks and one for everything else.
+// Nothing showed it, because nothing was looking.
+//
+// The web publishes the LAW rather than a table of answers: the
+// reference machine per silhouette and the exponent a width follows a
+// length by. A car added to the roster is then sized correctly by a port
+// that has never heard of it.
+{
+  const shape = api.bodyShape;
+  if (!shape || !shape.reference) {
+    fail("bodyShape: the API is not publishing the size law");
+  } else {
+    let shapeOk = true;
+    const mm = factorySrc.match(/GRN_WIDTH_FOLLOWS_LENGTH = ([0-9.]+)f *\/ *([0-9.]+)f;/);
+    const exp = mm ? +mm[1] / +mm[2] : null;
+    if (exp === null) {
+      fail(`bodyShape: no width exponent in ${FACTORY}`);
+      shapeOk = false;
+    } else if (Math.abs(exp - shape.lengthExponent) > 1e-4) {
+      fail(`bodyShape: ${FACTORY} follows length by ${exp}, the API says ${shape.lengthExponent}`);
+      shapeOk = false;
+    }
+    const styles = Object.keys(shape.reference);
+    for (const style of styles) {
+      const got = ueRef(style);
+      const want = shape.reference[style];
+      if (!got) {
+        fail(`bodyShape: ${style} has no reference machine in ${FACTORY} — it falls through to the saloon`);
+        shapeOk = false;
+        continue;
+      }
+      if (Math.abs(got.l - want.l) > 1e-3 || Math.abs(got.w - want.w) > 1e-3) {
+        fail(`bodyShape ${style}: ${FACTORY} has ${got.l} x ${got.w} m, the API says ${want.l} x ${want.w}`);
+        shapeOk = false;
+      }
+    }
+    // And the factory has to USE it, or the table is correct and unread —
+    // which is exactly the state the old constants were in.
+    if (!/CarWidth = RefWidth \* FMath::Pow\(CarLen \/ RefLen/.test(factorySrc)) {
+      fail(`bodyShape: ${FACTORY} carries the table but does not build from it`);
+      shapeOk = false;
+    }
+    if (shapeOk) ok(`body shape: ${styles.length} silhouettes match, and the factory builds from them`);
+  }
+}
+
 if (process.exitCode) {
   console.error("\nRun `npm run sync:unreal` to regenerate the header from the web source.");
 } else {

@@ -1101,7 +1101,7 @@ const STYLE_SCALE: Record<BodyStyle, number> = {
  * make every saloon exactly as wide as every other, 1 is the uniform
  * scale this replaces, and a third is what the real fleets do.
  */
-const STYLE_REAL: Record<BodyStyle, { l: number; w: number }> = {
+export const STYLE_REAL: Record<BodyStyle, { l: number; w: number }> = {
   sedan: { l: 4.7, w: 1.8 },
   zx: { l: 4.31, w: 1.8 },
   gtr: { l: 4.6, w: 1.79 },
@@ -1109,7 +1109,7 @@ const STYLE_REAL: Record<BodyStyle, { l: number; w: number }> = {
   hatch: { l: 4.28, w: 1.79 },
   pony: { l: 4.9, w: 1.88 },
 };
-const WIDTH_FOLLOWS_LENGTH = 1 / 3;
+export const WIDTH_FOLLOWS_LENGTH = 1 / 3;
 
 /** The body width, across the doors, a car of this silhouette and this
  *  length should be built to. */

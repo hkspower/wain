@@ -170,7 +170,8 @@ void AGRNGameMode::ApplyCar(int32 CarIdx)
 	{
 		bWing = Save->OwnedParts.Contains(TEXT("spoiler"));
 	}
-	Player->BuildRig(Car.Style, FLinearColor(Car.Paint), bWing, Car.bAttackKit);
+	// The length off the card, so the car is the size of the car.
+	Player->BuildRig(Car.Style, FLinearColor(Car.Paint), bWing, Car.bAttackKit, Car.LengthM);
 	CurrentCarId = Car.Id;
 }
 

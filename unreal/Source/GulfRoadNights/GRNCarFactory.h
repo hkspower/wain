@@ -36,9 +36,12 @@ namespace GRNCarFactory
 	 * time-attack aero (swan wing, splitter, canards, bronze wheels) on
 	 * top of whatever bWing says — the kit's wing replaces the garage one.
 	 */
+	/** LengthM is the length on this car's own card, in metres. Zero
+	 *  falls back to the silhouette's reference machine — which is what
+	 *  every car used to get, at one width for the whole roster. */
 	FGRNCarRig Build(AActor* Parent, USceneComponent* AttachTo,
 		EGRNBodyStyle Style, FLinearColor Paint, bool bWing,
-		bool bAttackKit = false);
+		bool bAttackKit = false, float LengthM = 0.f);
 
 	/** Advance wheel spin from road speed (m/s). */
 	void SpinWheels(const FGRNCarRig& Rig, float SpeedMs, float Dt);

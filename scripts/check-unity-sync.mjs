@@ -17,6 +17,24 @@ import { readFileSync } from "node:fs";
 
 const BASE = process.env.BASE || "http://localhost:3000";
 const DATA = "unity/Assets/Scripts/GRNData.cs";
+const SHAPE_FILE = "unity/Assets/Scripts/CarFactory.cs";
+const DATA_SHAPE = SHAPE_FILE;
+const shapeSrc = readFileSync(SHAPE_FILE, "utf8");
+/** One `case BodyStyle.X: return new Reference { L = ..f, W = ..f };` */
+function unityRef(s, style) {
+  const name = { sedan: "Sedan", zx: "ZX", gtr: "GTR", rx7: "RX7", hatch: "Hatch", pony: "Pony" }[style];
+  if (!name) return null;
+  const m = s.match(
+    new RegExp("case BodyStyle\\." + name + ": return new Reference \\{ L = ([0-9.]+)f, W = ([0-9.]+)f \\};")
+  );
+  // The saloon is the default arm rather than a case of its own.
+  if (!m && style === "sedan") {
+    const d = s.match(/default: return new Reference \{ L = ([0-9.]+)f, W = ([0-9.]+)f \};/);
+    return d ? { l: +d[1], w: +d[2] } : null;
+  }
+  return m ? { l: +m[1], w: +m[2] } : null;
+}
+
 
 let failed = 0;
 const fail = (msg) => {
@@ -305,9 +323,86 @@ if (cars.length !== api.cars.length) {
   }
 }
 
+// ---- body shape -----------------------------------------------------
+//
+// The size of a car, which both ports were guessing at and guessing
+// differently.
+//
+// Unity carried a hand-typed table of four shapes and built every car of
+// a silhouette at one size, so a 3.95 m hatch and a 4.70 m saloon came
+// out identical — and the hatch and the pony were not in the table at
+// all, so both fell through to the saloon. Unreal was blunter: ONE
+// width, 1.9 m before its presence factor, for every machine in the
+// game. None of it showed up here, because nothing was looking.
+//
+// The web publishes the LAW rather than a table of answers — the
+// reference machine per silhouette and the exponent a width follows a
+// length by — so a car added to the roster is sized correctly by a port
+// that has never heard of it. This checks that both ports carry the same
+// law and the same references, and that every silhouette has its own
+// entry rather than falling through to a default.
+{
+  const shape = api.bodyShape;
+  if (!shape || !shape.reference) {
+    fail("bodyShape: the API is not publishing the size law");
+  } else {
+    const styles = Object.keys(shape.reference);
+    let shapeOk = true;
+    const exp = (() => { const m = shapeSrc.match(/WidthFollowsLength = ([0-9.]+)f *\/ *([0-9.]+)f;/); return m ? +m[1] / +m[2] : null; })();
+    if (exp === null) {
+      fail(`bodyShape: no width exponent found in ${DATA_SHAPE}`);
+      shapeOk = false;
+    } else if (Math.abs(exp - shape.lengthExponent) > 1e-4) {
+      fail(`bodyShape: ${DATA_SHAPE} follows length by ${exp}, the API says ${shape.lengthExponent}`);
+      shapeOk = false;
+    }
+    for (const style of styles) {
+      const got = unityRef(shapeSrc, style);
+      const want = shape.reference[style];
+      if (!got) {
+        fail(`bodyShape: ${style} has no reference machine in ${DATA_SHAPE} — it falls through to the saloon`);
+        shapeOk = false;
+        continue;
+      }
+      if (Math.abs(got.l - want.l) > 1e-3 || Math.abs(got.w - want.w) > 1e-3) {
+        fail(
+          `bodyShape ${style}: ${DATA_SHAPE} has ${got.l} x ${got.w} m, the API says ${want.l} x ${want.w}`
+        );
+        shapeOk = false;
+      }
+    }
+    // And the law, applied: every car on the roster comes out the width
+    // the web builds it at. This is the claim a player would notice.
+    let worst = 0;
+    let worstCar = "";
+    for (const car of api.cars) {
+      const r = shape.reference[car.bodyStyle];
+      if (!r) continue;
+      const want = r.w * Math.pow(car.lengthM / r.l, shape.lengthExponent);
+      const got = unityRef(shapeSrc, car.bodyStyle);
+      if (!got) continue;
+      const mine = got.w * Math.pow(car.lengthM / got.l, exp ?? 0);
+      const off = Math.abs(mine - want);
+      if (off > worst) { worst = off; worstCar = car.name; }
+    }
+    if (worst > 0.002) {
+      fail(`bodyShape: ${worstCar} would be built ${(worst * 1000).toFixed(0)} mm off the web's width`);
+      shapeOk = false;
+    }
+    if (shapeOk) {
+      ok(
+        `body shape: ${styles.length} silhouettes match, and the law with them ` +
+          `(applied across the roster, ${(worst * 1000).toFixed(1)} mm of drift — which follows ` +
+          `from the table matching rather than proving anything on its own)`
+      );
+    }
+  }
+}
+
 if (failed) {
   console.error("\nRun `npm run sync:unity` to regenerate GRNData.cs from the web source.");
-  process.exit(1);
+  
+process.exit(1);
 }
 console.log("\nWeb API and Unity data are in sync.");
 

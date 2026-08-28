@@ -88,7 +88,10 @@ public:
 	bool bInDrift = false, bInNos = false;
 
 	/** Rebuild the visible car (garage swap / respray / wing). */
-	void BuildRig(EGRNBodyStyle Style, FLinearColor Paint, bool bWing, bool bAttackKit = false);
+	/** LengthM is the length on the car's own card. Zero falls back to
+	 *  the silhouette's reference machine — see GRNCarFactory::Build. */
+	void BuildRig(EGRNBodyStyle Style, FLinearColor Paint, bool bWing,
+		bool bAttackKit = false, float LengthM = 0.f);
 	FGRNCarRig Rig;
 	/** Somebody is driving this: hands solved onto the wheel, feet onto
 	 *  the pedals, eyes into the corner. See GRNDriverRig.h. */

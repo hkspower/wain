@@ -29,30 +29,85 @@ public static class CarFactory
         public float WheelFront, WheelRear;
     }
 
-    static Shape ShapeFor(BodyStyle style)
+    /// <summary>The machine each silhouette evokes: its real length and
+    /// width. Kept as the REFERENCE rather than as the answer — see
+    /// SizeFor, which fits a car to its own card.</summary>
+    struct Reference { public float L, W; }
+
+    static Reference ReferenceFor(BodyStyle style)
     {
         switch (style)
         {
+            case BodyStyle.ZX: return new Reference { L = 4.31f, W = 1.80f };
+            case BodyStyle.GTR: return new Reference { L = 4.60f, W = 1.79f };
+            case BodyStyle.RX7: return new Reference { L = 4.30f, W = 1.76f };
+            case BodyStyle.Hatch: return new Reference { L = 4.28f, W = 1.79f };
+            case BodyStyle.Pony: return new Reference { L = 4.90f, W = 1.88f };
+            default: return new Reference { L = 4.70f, W = 1.80f };
+        }
+    }
+
+    /// <summary>How much of a length change a width follows. Zero would
+    /// make every saloon exactly as wide as every other; one is the
+    /// uniform scale this replaces; a third is what real fleets do.
+    /// Published by the web build at gamedata.bodyShape.lengthExponent
+    /// and checked against it by scripts/check-unity-sync.mjs.</summary>
+    public const float WidthFollowsLength = 1f / 3f;
+
+    /// <summary>The body width a car of this silhouette and this length
+    /// is built to.</summary>
+    public static float BodyWidthFor(BodyStyle style, float lengthM)
+    {
+        var r = ReferenceFor(style);
+        return r.W * Mathf.Pow(lengthM / r.L, WidthFollowsLength);
+    }
+
+    static Shape ShapeFor(BodyStyle style, float lengthM)
+    {
+        // Every car built to the length on its OWN card, and to the width
+        // that length implies.
+        //
+        // This was a table of four hand-typed shapes, and it built every
+        // car of a silhouette at one size: a 3.95 m Sharq Hatch and a
+        // 4.70 m Deera Sedan came out of it identical, because neither
+        // the hatch nor the pony was in the switch at all and both fell
+        // through to the saloon. The web has fitted each car to its own
+        // length for a long time and now fits its width too; this is the
+        // same law, off the same numbers.
+        var r = ReferenceFor(style);
+        float len = lengthM > 1f ? lengthM : r.L;
+        float width = BodyWidthFor(style, len);
+        // The rest of the massing is still per silhouette and still
+        // proportional — a fastback's cabin sits further back whatever
+        // the car's length is.
+        switch (style)
+        {
             case BodyStyle.ZX: // long cab-back wedge, low roof
-                return new Shape {
-                    Length = 4.31f, Width = 1.80f, BodyH = 0.52f,
-                    CabinLen = 2.05f, CabinH = 0.40f, CabinZ = -0.62f, CabinRake = -6f,
-                    WheelFront = 1.45f, WheelRear = -1.42f };
-            case BodyStyle.GTR: // boxy, high-decked, upright glass
-                return new Shape {
-                    Length = 4.60f, Width = 1.79f, BodyH = 0.62f,
-                    CabinLen = 1.85f, CabinH = 0.52f, CabinZ = -0.18f, CabinRake = 0f,
-                    WheelFront = 1.48f, WheelRear = -1.46f };
             case BodyStyle.RX7: // compact, low, bubble canopy
                 return new Shape {
-                    Length = 4.30f, Width = 1.76f, BodyH = 0.50f,
-                    CabinLen = 1.75f, CabinH = 0.40f, CabinZ = -0.42f, CabinRake = -5f,
-                    WheelFront = 1.40f, WheelRear = -1.38f };
+                    Length = len, Width = width, BodyH = 0.52f,
+                    CabinLen = len * 0.46f, CabinH = 0.40f, CabinZ = -len * 0.14f, CabinRake = -6f,
+                    WheelFront = len * 0.335f, WheelRear = -len * 0.33f };
+            case BodyStyle.GTR: // boxy, high-decked, upright glass
+                return new Shape {
+                    Length = len, Width = width, BodyH = 0.62f,
+                    CabinLen = len * 0.40f, CabinH = 0.52f, CabinZ = -len * 0.04f, CabinRake = 0f,
+                    WheelFront = len * 0.322f, WheelRear = -len * 0.317f };
+            case BodyStyle.Pony: // long bonnet, cowl a long way back
+                return new Shape {
+                    Length = len, Width = width, BodyH = 0.56f,
+                    CabinLen = len * 0.38f, CabinH = 0.44f, CabinZ = -len * 0.16f, CabinRake = -4f,
+                    WheelFront = len * 0.330f, WheelRear = -len * 0.325f };
+            case BodyStyle.Hatch: // short, upright, all cabin
+                return new Shape {
+                    Length = len, Width = width, BodyH = 0.54f,
+                    CabinLen = len * 0.50f, CabinH = 0.54f, CabinZ = -len * 0.06f, CabinRake = 0f,
+                    WheelFront = len * 0.330f, WheelRear = -len * 0.325f };
             default: // saloon
                 return new Shape {
-                    Length = 4.70f, Width = 1.80f, BodyH = 0.58f,
-                    CabinLen = 2.10f, CabinH = 0.50f, CabinZ = -0.25f, CabinRake = 0f,
-                    WheelFront = 1.46f, WheelRear = -1.44f };
+                    Length = len, Width = width, BodyH = 0.58f,
+                    CabinLen = len * 0.447f, CabinH = 0.50f, CabinZ = -len * 0.053f, CabinRake = 0f,
+                    WheelFront = len * 0.311f, WheelRear = -len * 0.306f };
         }
     }
 
@@ -62,10 +117,14 @@ public static class CarFactory
     public const float WheelRadius = 0.33f;
 
     public static Car Create(Color body, Color? accent = null,
-        BodyStyle style = BodyStyle.Sedan, bool attackKit = false)
+        BodyStyle style = BodyStyle.Sedan, bool attackKit = false,
+        // The length on this car's own card. Zero falls back to the
+        // silhouette's reference machine, which is what every car used to
+        // get whether it was a supermini or a pickup.
+        float lengthM = 0f)
     {
         var root = new GameObject("Car");
-        var s = ShapeFor(style);
+        var s = ShapeFor(style, lengthM);
         var car = new Car { Root = root, Length = s.Length, Width = s.Width };
 
         var bodyMat = Mats.CarPaint(body);

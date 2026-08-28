@@ -19,6 +19,7 @@ import {
   FUEL_G_PER_L,
 } from "./engines";
 import { HANDLING } from "./handling";
+import { STYLE_REAL, WIDTH_FOLLOWS_LENGTH } from "./cars";
 import { RIG } from "./rig";
 
 /** Bump when a payload shape changes incompatibly. Clients compare it. */
@@ -155,6 +156,28 @@ export function buildGameData() {
     cars: buildCars(),
     parts: buildParts(),
     handling: HANDLING,
+    /**
+     * How big a car of each silhouette is.
+     *
+     * Published because both ports were guessing, and guessing
+     * differently. Unity carried a hand-typed table of four shapes and
+     * built every car of a style at one size, so a 3.95 m hatch and a
+     * 4.70 m saloon came out identical — and the hatch and the pony were
+     * not in the table at all, so they fell through to the saloon. Unreal
+     * was blunter still: one width, 1.9 m before its presence factor, for
+     * every car in the game.
+     *
+     * The web fits each car to the length on its own card and then fits
+     * the WIDTH to this law, because width is not a constant per class
+     * and not a slave to length either — a longer car in a class is a
+     * little wider, and the exponent is the whole of that claim. Sending
+     * the law rather than a table of answers means a car added to the
+     * roster is sized correctly by a port that has never heard of it.
+     */
+    bodyShape: {
+      reference: STYLE_REAL,
+      lengthExponent: WIDTH_FOLLOWS_LENGTH,
+    },
     /** Everything about burning and buying petrol that a port has to
      *  agree with. The burn model itself is displacement x revs x
      *  throttle — see engines.ts — so only its scaling and its price

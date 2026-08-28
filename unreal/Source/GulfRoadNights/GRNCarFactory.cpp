@@ -44,8 +44,46 @@ namespace
 	}
 }
 
+/**
+ * The machine each silhouette evokes, and how much of a length change a
+ * width follows.
+ *
+ * The same numbers the web build carries and publishes at
+ * gamedata.bodyShape. A zero exponent would make every saloon exactly as
+ * wide as every other; one is the uniform scale that left a 3.95 m hatch
+ * 12% narrower than the class it belongs to; a third is what real fleets
+ * do.
+ */
+static constexpr float GRN_WIDTH_FOLLOWS_LENGTH = 1.f / 3.f;
+
+static float StyleRefLength(EGRNBodyStyle Style)
+{
+	switch (Style)
+	{
+	case EGRNBodyStyle::ZX: return 4.31f;
+	case EGRNBodyStyle::GTR: return 4.60f;
+	case EGRNBodyStyle::RX7: return 4.30f;
+	case EGRNBodyStyle::Hatch: return 4.28f;
+	case EGRNBodyStyle::Pony: return 4.90f;
+	default: return 4.70f;
+	}
+}
+
+static float StyleRefWidth(EGRNBodyStyle Style)
+{
+	switch (Style)
+	{
+	case EGRNBodyStyle::ZX: return 1.80f;
+	case EGRNBodyStyle::GTR: return 1.79f;
+	case EGRNBodyStyle::RX7: return 1.76f;
+	case EGRNBodyStyle::Hatch: return 1.79f;
+	case EGRNBodyStyle::Pony: return 1.88f;
+	default: return 1.80f;
+	}
+}
+
 FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
-	EGRNBodyStyle Style, FLinearColor Paint, bool bWing, bool bAttackKit)
+	EGRNBodyStyle Style, FLinearColor Paint, bool bWing, bool bAttackKit, float LengthM)
 {
 	FGRNCarRig Rig;
 	Rig.PaintMid = Mid(Parent, Paint);
@@ -59,23 +97,41 @@ FGRNCarRig GRNCarFactory::Build(AActor* Parent, USceneComponent* AttachTo,
 	const bool bZX = Style == EGRNBodyStyle::ZX || Style == EGRNBodyStyle::RX7;
 	const bool bGTR = Style == EGRNBodyStyle::GTR;
 
+	// The size of the car, from the card of the car.
+	//
+	// This was one length for the fastbacks and one for everything else,
+	// and — the part that mattered — ONE WIDTH, 1.9 m, for every machine
+	// in the game. A supermini and a pickup came out of here the same
+	// width. The web fits each car to the length on its own card and then
+	// fits the width to it, because width is neither a constant per class
+	// nor a slave to length: a longer car in a class is a little wider,
+	// and the exponent is the whole of that claim.
+	//
+	// The reference machines and the exponent are published at
+	// gamedata.bodyShape, so a car added to the roster is sized correctly
+	// here without anybody editing this file.
+	const float RefLen = StyleRefLength(Style);
+	const float RefWidth = StyleRefWidth(Style);
+	const float CarLen = LengthM > 1.f ? LengthM : RefLen;
+	const float CarWidth = RefWidth * FMath::Pow(CarLen / RefLen, GRN_WIDTH_FOLLOWS_LENGTH);
+
 	// Lower body: one long slab, nose/tail wedges per silhouette
-	const float BodyLen = (bZX ? 4.8f : 4.55f) * K;
+	const float BodyLen = CarLen * K;
 	const float BodyH = (bZX ? 0.62f : bGTR ? 0.76f : 0.72f) * K;
 	Box(Parent, AttachTo, FVector(0, 0, 0.30f * K + BodyH * 0.5f),
-		FVector(BodyLen, 1.9f * K, BodyH), Rig.PaintMid);
+		FVector(BodyLen, CarWidth * K, BodyH), Rig.PaintMid);
 
 	// Glasshouse: cab-back fastback on the ZX, upright box otherwise
 	const float CabLen = (bZX ? 2.2f : 1.9f) * K;
 	const float CabX = (bZX ? -0.7f : -0.15f) * K;
 	const float CabH = (bZX ? 0.42f : 0.5f) * K;
 	Box(Parent, AttachTo, FVector(CabX, 0, 0.30f * K + BodyH + CabH * 0.5f),
-		FVector(CabLen, 1.55f * K, CabH), Glass,
+		FVector(CabLen, CarWidth * 0.816f * K, CabH), Glass,
 		FRotator(bZX ? -6.f : 0.f, 0.f, 0.f));
 
 	// Nose wedge
 	Box(Parent, AttachTo, FVector(BodyLen * 0.5f - 0.25f * K, 0, 0.30f * K + BodyH * 0.72f),
-		FVector(0.7f * K, 1.85f * K, BodyH * 0.5f), Rig.PaintMid,
+		FVector(0.7f * K, CarWidth * 0.974f * K, BodyH * 0.5f), Rig.PaintMid,
 		FRotator(bZX ? 9.f : 5.f, 0.f, 0.f));
 
 	// Tail lamps: quad rings on the coupe, a full-width band otherwise

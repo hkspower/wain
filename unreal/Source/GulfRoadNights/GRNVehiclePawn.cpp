@@ -71,7 +71,8 @@ void AGRNVehiclePawn::CyclePressed()
 	}
 }
 
-void AGRNVehiclePawn::BuildRig(EGRNBodyStyle Style, FLinearColor Paint, bool bWing, bool bAttackKit)
+void AGRNVehiclePawn::BuildRig(EGRNBodyStyle Style, FLinearColor Paint, bool bWing,
+	bool bAttackKit, float LengthM)
 {
 	// Tear down the previous machine before the new one goes on
 	for (UStaticMeshComponent* W : Rig.Wheels) if (W) W->DestroyComponent();
@@ -81,7 +82,7 @@ void AGRNVehiclePawn::BuildRig(EGRNBodyStyle Style, FLinearColor Paint, bool bWi
 	{
 		if (K != Camera) K->DestroyComponent();
 	}
-	Rig = GRNCarFactory::Build(this, CarRoot, Style, Paint, bWing, bAttackKit);
+	Rig = GRNCarFactory::Build(this, CarRoot, Style, Paint, bWing, bAttackKit, LengthM);
 	// Right-hand drive, seated behind the wheel. Rebuilt with the car:
 	// the teardown above takes the old driver with the old bodywork.
 	Driver = GRNDriverRig::Build(this, CarRoot, FVector(GRN_M(0.08f), GRN_M(0.38f), GRN_M(0.42f)));
