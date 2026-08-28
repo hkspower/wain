@@ -100,6 +100,24 @@ for (const rel of tree) {
 }
 const digest = hash.digest("hex").slice(0, 16);
 
+/**
+ * Which back end this build carries.
+ *
+ * Supabase is read at BUILD time — this is a static export, so the pair is
+ * baked into the bundle and nothing can supply it afterwards. A build made
+ * without them ships ordering, the queue and the submission form inert, every
+ * page still rendering from the snapshot in places.ts, and says so only on
+ * /admin. That is a quiet way to deploy a shop that cannot take an order, so
+ * the release records it where build.json can be read from anywhere.
+ *
+ * The URL's host is recorded, never the key.
+ */
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const backend = supabaseUrl && supabaseKey
+  ? { supabase: true, host: (() => { try { return new URL(supabaseUrl).host; } catch { return "invalid-url"; } })() }
+  : { supabase: false, host: null };
+
 const build = {
   name: "wain",
   version,
@@ -111,10 +129,15 @@ const build = {
   pages,
   bytes: totalBytes,
   digest,
+  backend,
 };
 writeFileSync(join(OUT, "build.json"), JSON.stringify(build, null, 2) + "\n");
 console.log(`\n▸ stamped out/build.json`);
-for (const [k, v] of Object.entries(build)) console.log(`    ${k.padEnd(9)} ${v}`);
+for (const [k, v] of Object.entries(build)) {
+  const shown =
+    k === "backend" ? (v.supabase ? `supabase · ${v.host}` : "none — ordering and the queue are inert") : v;
+  console.log(`    ${k.padEnd(9)} ${shown}`);
+}
 
 /* ── the things whose absence broke the last deploy ──────────────────────── */
 const REQUIRED = [
@@ -169,6 +192,14 @@ if (DRY) {
   console.log(`    ${(zipBytes / 1048576).toFixed(2)} MB, ${files.length} files`);
   console.log(`    sha256 ${zipSha.slice(0, 32)}…`);
   console.log(`    checksum written to ${relative(ROOT, sums)}`);
+}
+
+if (!backend.supabase) {
+  console.log(`\n⚠  This build has NO back end.`);
+  console.log(`   NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY were not set,`);
+  console.log(`   and a static export bakes them in — nothing can supply them later.`);
+  console.log(`   Every page still renders from the catalogue, but ordering, the queue`);
+  console.log(`   and the submission form are inert and /admin says so.`);
 }
 
 console.log(`\nDeploy: extract into public_html. Do NOT use hPanel's`);

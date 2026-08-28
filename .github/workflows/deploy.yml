@@ -59,9 +59,39 @@ jobs:
       - name: Build static site (produces out/)
         # فهد only renders when this is set; an unset value ships the site
         # without the voice assistant rather than with a broken launcher.
+        #
+        # The Supabase pair is read at BUILD time, not at run time: this is a
+        # static export, so whatever is set here is baked into the bundle and
+        # nothing can supply it later. Leave them unset and supabaseEnabled is
+        # false for the life of that build — every page still renders from the
+        # snapshot in places.ts, but ordering, the queue and the submission
+        # form are inert and /admin says so.
+        #
+        # They were missing from this step entirely, so setting the secrets in
+        # GitHub would not have been enough on its own: the build would still
+        # have shipped without a back end and the failure is quiet.
+        #
+        # The anon key is public by design — row level security decides what it
+        # can do — but it goes in `secrets` rather than `vars` so it is masked
+        # in logs. Never put the service_role key here; it bypasses RLS.
         env:
           NEXT_PUBLIC_ELEVENLABS_AGENT_ID: ${{ vars.ELEVENLABS_AGENT_ID }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: npm run build
+
+      # Say which back end this build carries, so a deploy that silently went
+      # out without one is visible in the log rather than discovered by a
+      # customer whose order goes nowhere.
+      - name: Report what the build was wired to
+        env:
+          URL: ${{ vars.SUPABASE_URL }}
+        run: |
+          if [ -n "$URL" ]; then
+            echo "Supabase: configured"
+          else
+            echo "::warning::Supabase is NOT configured — this build ships with ordering, the queue and the submission form inert. Set the SUPABASE_URL variable and SUPABASE_ANON_KEY secret to enable them."
+          fi
 
       - name: Verify build output
         run: |
