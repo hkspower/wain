@@ -76,3 +76,9 @@ cbk-payments.log
 # had to be added by hand. Anything shaped like a package at the repo root is
 # build output; nothing tracked here is a .zip.
 /*.zip
+
+# Scratch probes. Every session writes scripts/_probe.mjs to measure something
+# once; one of them was committed. The leading underscore is the convention and
+# package-check.mjs already refuses files matching it inside the docroot.
+scripts/_*.mjs
+scripts/_*.py
