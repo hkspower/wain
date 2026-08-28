@@ -23,7 +23,9 @@
 //           cut in edge radius it barely moved, because what governs it
 //           is crownShell tucking the whole flank, not the bevel
 //           rolling its corner.
-//   edge m  the width of the roll at the shoulder, in metres, measured
+//   edge m  the roll at the shoulder, in metres: the MEDIAN of ten
+//           stations along the bonnet, with the range beside it and how
+//           many of the ten had a shoulder to measure at all. Measured
 //           by walking the silhouette at the widest station and finding
 //           how far the surface travels while its normal turns from
 //           facing sideways to facing up. This is the number a person
@@ -185,7 +187,9 @@ const rows = await page.evaluate(() => {
     new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1, 0),
     new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1),
   ];
-  for (const style of ["sedan", "zx", "gtr", "rx7", "hatch"]) {
+  // All SIX silhouettes. The pony was left off this list when it was
+  // written and has never had its edges measured.
+  for (const style of ["sedan", "zx", "gtr", "rx7", "hatch", "pony"]) {
     const g = window.__grnBuildCar({ body: 0xffffff, style });
     const shell = g.children.find((o) => o.userData?.shell === "body");
     if (!shell) { out.push({ style, ok: false }); continue; }
@@ -218,38 +222,95 @@ const rows = await page.evaluate(() => {
       if (side > Math.cos((15 * Math.PI) / 180)) flank += ar;
     }
 
-    // The roll at the shoulder, in metres. Walk up the silhouette at the
-    // widest station and find the span over which the surface normal
-    // turns from sideways to upward.
+    // The roll at the shoulder, in metres.
+    //
+    // Measured over the BONNET, at ten stations, not at mid-door and not
+    // at one.
+    //
+    // At the door station a car's body has no top face at all — the roof
+    // there is the canopy, a separate shell, and the body's top edge is
+    // the cut line under the glass. Two of the six bodies have no
+    // horizontal surface at that station for a walk to start from.
+    // Forward of the cowl every body has a bonnet, and the shoulder line
+    // along it is the edge a headlight sweeps down and the one people
+    // mean when they say a car looks sharp.
+    //
+    // One station on the bonnet is still not a measurement of the EDGE.
+    // The span from the flat of the deck to the flank is the bevel plus
+    // whatever the profile is doing there, and the profile is doing
+    // something different at every station: measured at a single point
+    // the same 26 mm bevel read 56 mm on the domed nose of the rx7 and
+    // nothing at all on the hatch. The bevel is the one thing that is
+    // constant along the shoulder, so the number that isolates it is the
+    // TIGHTEST station — the profile can only ever soften the edge, so
+    // where the body is doing least, what is left is the bevel.
     geo.computeBoundingBox();
     const bb = geo.boundingBox;
-    const zMid = (bb.min.z + bb.max.z) / 2;
     const probe = new THREE.Mesh(geo);
     probe.updateMatrixWorld(true);
     const ray = new THREE.Raycaster();
     ray.far = 60;
     const org = new THREE.Vector3(), dir = new THREE.Vector3(-1, 0, 0);
-    const hits = [];
-    for (let i = 0; i <= 600; i++) {
-      const y = bb.min.y + ((bb.max.y - bb.min.y) * i) / 600;
-      org.set(30, y, zMid);
-      ray.set(org, dir);
-      const h = ray.intersectObject(probe, false);
-      if (!h.length || !h[0].face) continue;
-      hits.push({ y, x: h[0].point.x, nx: Math.abs(h[0].face.normal.x) });
+    const FLAT = 0.26; //  75 degrees off sideways: the deck
+    const SIDE = 0.97; //  15 degrees off sideways: the flank
+    const zMid = (bb.min.z + bb.max.z) / 2;
+    const spans = [];
+    let blank = 0;
+    let hits = [];
+    for (let s = 0; s < 10; s++) {
+      const z = zMid + (0.3 + 0.06 * s) * (bb.max.z - zMid);
+      const at = [];
+      for (let i = 0; i <= 600; i++) {
+        const y = bb.min.y + ((bb.max.y - bb.min.y) * i) / 600;
+        org.set(30, y, z);
+        ray.set(org, dir);
+        const h = ray.intersectObject(probe, false);
+        if (!h.length || !h[0].face) continue;
+        at.push({ y, x: h[0].point.x, nx: Math.abs(h[0].face.normal.x) });
+      }
+      // Both ends are unambiguous from the top down. The top face of the
+      // body points up; the flank points sideways; the shoulder is the
+      // span between them. Measured from the deck rather than from a
+      // maximum, there is no spike to land on — which is what the walk
+      // this replaces did, reporting its own sampling step as a 1 to
+      // 6 mm edge on every body in the fleet.
+      let deck = -1;
+      for (let i = at.length - 1; i >= 0; i--) if (at[i].nx <= FLAT) { deck = i; break; }
+      let flankAt = -1;
+      for (let i = deck; i >= 0; i--) if (at[i].nx >= SIDE) { flankAt = i; break; }
+      // A span shorter than a few sampling steps is the deck and the
+      // flank landing on adjacent samples, not an edge: nine facets
+      // turning ninety degrees cannot do it in four millimetres at any
+      // radius this shell is built with. Dropped rather than averaged
+      // in, because five of them in ten drags a median to nothing.
+      const step = (bb.max.y - bb.min.y) / 600;
+      const span = deck > 0 && flankAt >= 0 ? at[deck].y - at[flankAt].y : -1;
+      if (span > step * 3) {
+        spans.push(span);
+        if (!hits.length) hits = at;
+      } else blank++;
     }
-    // widest point, then upward until the face is no longer sideways
-    let wi = 0;
-    for (let i = 1; i < hits.length; i++) if (hits[i].x > hits[wi].x) wi = i;
-    let top = wi;
-    while (top < hits.length - 1 && hits[top].nx > 0.35) top++;
-    const edgeM = top > wi ? hits[top].y - hits[wi].y : 0;
+    // The MEDIAN of the ten, not the tightest.
+    //
+    // The tightest was the next version of the same mistake: at one
+    // station in ten the deck and the flank land on adjacent samples and
+    // the span comes back as the sampling step, so five of six bodies
+    // reported a 1 to 3 mm edge again. A single sample cannot be
+    // outvoted; a median can.
+    spans.sort((a, b) => a - b);
+    const edgeM = spans.length ? spans[Math.floor(spans.length / 2)] : 0;
+    const edgeMin = spans.length ? spans[0] : 0;
+    const edgeMax = spans.length ? spans[spans.length - 1] : 0;
+    const silhouette = hits.filter((_, i) => i % 20 === 0).map((h) => [
+      +h.y.toFixed(3), +h.x.toFixed(3), +h.nx.toFixed(2),
+    ]);
 
     out.push({
       style, ok: true, tris: tri,
       roll: +((roll / area) * 100).toFixed(1),
       flank: +((flank / area) * 100).toFixed(1),
-      edgeM: +edgeM.toFixed(3),
+      edgeM: +edgeM.toFixed(3), edgeMin: +edgeMin.toFixed(3), edgeMax: +edgeMax.toFixed(3),
+      stations: spans.length, blank, silhouette,
       width: +(bb.max.x * 2).toFixed(3),
     });
     g.traverse((o) => o.geometry && o.geometry.dispose?.());
@@ -260,15 +321,18 @@ await browser.close();
 
 console.log(
   "\nbody".padEnd(8) + "tris".padStart(8) + "roll%".padStart(8) + "flank%".padStart(8) +
-  "edge m".padStart(9) + "width".padStart(8)
+  "edge m".padStart(9) + "range".padStart(14) + "sta".padStart(5) + "width".padStart(8)
 );
 const fail = [];
 for (const r of rows) {
   if (!r.ok) { console.log(`${r.style.padEnd(8)} no body shell`); fail.push(`${r.style}: no body shell`); continue; }
   console.log(
     r.style.padEnd(8) + String(r.tris).padStart(8) + (r.roll + "%").padStart(8) +
-    (r.flank + "%").padStart(8) + String(r.edgeM).padStart(9) + String(r.width).padStart(8)
+    (r.flank + "%").padStart(8) + String(r.edgeM).padStart(9) + `${r.edgeMin}-${r.edgeMax}`.padStart(14) + String(r.stations).padStart(5) + String(r.width).padStart(8)
   );
+  if (process.env.EDGE_DEBUG === "1")
+    console.log(`   ${r.style}: ${r.stations} stations measured, ${r.blank} with no shoulder\n   ` +
+      r.silhouette.map(([y,x,nx])=>`y${y} x${x} nx${nx}`).join("\n   "));
   if (r.edgeM > 0.05) fail.push(`${r.style}: the shoulder rolls over ${(r.edgeM * 1000).toFixed(0)} mm — a car's panel edge is tens of millimetres, not that`);
   // flank% is REPORTED, not gated. It barely moved when the edge radius
   // was cut by two thirds, because what holds it down is crownShell's

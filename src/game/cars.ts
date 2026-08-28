@@ -722,9 +722,25 @@ function driverHeadTop(): number {
  * either. Overall car length is untouched — lengthM normalises the shell
  * after this.
  */
-const BODY_EDGE = 0.05;
-const CANOPY_EDGE = 0.04;
-const ROOF_EDGE = 0.03;
+/*
+ * Halved again, and this time against a shoulder measurement that works.
+ *
+ * caredges.mjs claimed 1 to 6 mm of roll on every body in the fleet,
+ * which would have been sharper than any car ever pressed. It was
+ * reporting its own sampling step: the walk started at the widest sample
+ * — a spike on the last ring before the surface turns over — and stopped
+ * one step later. Measured properly, from the flat of the bonnet down to
+ * the flank, these bevels were rolling the shoulder over 40 to 61 mm.
+ *
+ * A real car turns its bonnet shoulder in fifteen to twenty-five
+ * millimetres. The bevel still has nine segments across it whatever its
+ * width, so the specular line a headlight draws still runs ALONG the
+ * edge instead of popping across it — that argument was always about
+ * segment count and never about millimetres.
+ */
+const BODY_EDGE = 0.026;
+const CANOPY_EDGE = 0.021;
+const ROOF_EDGE = 0.016;
 
 // Beltline-down body: bumper > hood wedge > trunk, with rounded edges
 const bodyGeo = extrudeProfile(
@@ -1061,6 +1077,46 @@ const STYLE_SCALE: Record<BodyStyle, number> = {
   // factor here is near one.
   hatch: 0.935 * PRESENCE,
 };
+
+/**
+ * How wide the machine each silhouette evokes actually is.
+ *
+ * Width used to be a side effect. buildCar fits a car to the length on
+ * its card with a UNIFORM scale, so a short car came out narrow and a
+ * long one came out wide, in exact proportion — and real cars do not
+ * work like that at all. A 3.95 m hatch and a 4.28 m hatch are within
+ * 30 mm of each other across the doors; ours were 190 mm apart, and the
+ * Sharq Hatch ended up 1.56 m wide, narrower across the body than a
+ * Fiat 500. The saloons spread from 1.63 m to 1.89 m for the same
+ * reason. Nobody chose any of those numbers.
+ *
+ * STYLE_SCALE's own comment on the gtr says it out loud — "the closest a
+ * uniform scale can get this profile to 4.60 x 1.79 x 1.36" — because a
+ * uniform scale has one degree of freedom and there are two numbers to
+ * hit.
+ *
+ * So width gets its own fit. It is not simply held constant per
+ * silhouette either: a longer car in a class IS a little wider, just
+ * nothing like proportionally. The exponent is the whole law — 0 would
+ * make every saloon exactly as wide as every other, 1 is the uniform
+ * scale this replaces, and a third is what the real fleets do.
+ */
+const STYLE_REAL: Record<BodyStyle, { l: number; w: number }> = {
+  sedan: { l: 4.7, w: 1.8 },
+  zx: { l: 4.31, w: 1.8 },
+  gtr: { l: 4.6, w: 1.79 },
+  rx7: { l: 4.3, w: 1.76 },
+  hatch: { l: 4.28, w: 1.79 },
+  pony: { l: 4.9, w: 1.88 },
+};
+const WIDTH_FOLLOWS_LENGTH = 1 / 3;
+
+/** The body width, across the doors, a car of this silhouette and this
+ *  length should be built to. */
+export function bodyWidthFor(style: BodyStyle, lengthM: number): number {
+  const r = STYLE_REAL[style] ?? STYLE_REAL.sedan;
+  return r.w * Math.pow(lengthM / r.l, WIDTH_FOLLOWS_LENGTH);
+}
 
 /** Per-silhouette anchor points so every detail lands on its body. */
 interface StyleDims {
@@ -1700,10 +1756,15 @@ export const WIDE: Record<KitLevel, WideSpec> = {
   // And the attack arch is as wide as the rules of this game allow —
   // literally: tests/size.mjs holds every flare to 0.1 m per side of
   // the doors, and the first draft of this widening put the Storm S8 at
-  // 0.107. 0.104 raw lands at 0.099 after the car's own scale, and the
-  // track keeps the same 42 mm offset so the measured poke does not
-  // move.
-  attack: { proud: 0.104, track: 0.062, rivets: 9 },
+  // 0.107. 0.104 raw landed at 0.099 after the car's own scale — one
+  // millimetre under, which stopped being enough the moment the doors
+  // were fitted to a real width: the Storm's skin came out 62 mm wider
+  // and carried its own flare out with it, to 0.102. A flare is authored
+  // in the car's own units and a wider car has a proportionally wider
+  // one, so the fix is here rather than in the ceiling. 0.100 raw lands
+  // at 0.096 on the widest car that wears this kit; the track keeps the
+  // same 42 mm offset so the measured poke does not move.
+  attack: { proud: 0.1, track: 0.062, rivets: 9 },
 };
 
 /** How much of `proud` is the tube itself. The rest is standoff, so the
@@ -4749,7 +4810,33 @@ export function createCar(colors: CarColors): THREE.Group {
     const raw = maxZ - minZ;
     if (raw > 1) scale = colors.lengthM / raw;
   }
-  group.scale.setScalar(scale);
+  /**
+   * And the width, which the length fit cannot also get right.
+   *
+   * One more scale factor, on x alone, taking the door skin to the width
+   * a car of this silhouette and this length actually is. The shell's
+   * own half-width is already measured — flankX, which everything on the
+   * flank is hung off — so this is the fit the length gets, applied to
+   * the other axis.
+   *
+   * The wheels and the driver take it back off again. A tyre stretched
+   * 12% along its axis is a tyre that is 12% too fat, and a person 12%
+   * wider is a person; the body widening is the point, and they are
+   * bolted to it rather than part of it. Their POSITIONS still move
+   * outboard with the body, which is what widening a car does to its
+   * track, and only their own geometry is held.
+   */
+  let widthFix = 1;
+  if (colors.lengthM && colors.lengthM > 1) {
+    const want = bodyWidthFor(style, colors.lengthM);
+    const have = flankX * 2 * scale;
+    if (have > 0.5) widthFix = THREE.MathUtils.clamp(want / have, 0.8, 1.25);
+  }
+  group.scale.set(scale * widthFix, scale, scale);
+  if (widthFix !== 1) {
+    for (const w of wheels) w.scale.x = 1 / widthFix;
+  }
+  group.userData.bodyWidth = flankX * 2 * scale * widthFix;
   /**
    * The wheel's radius IN THE WORLD, after that scale.
    *
@@ -4781,6 +4868,8 @@ export function createCar(colors: CarColors): THREE.Group {
   {
     const driver = kuwaitiDriver(0x1d2026, undefined, colors.simple === true);
     driver.group.position.set(DRIVER_X, seatY, headZ - RIG.driver.headZ);
+    // Seated in a car that has been widened, not widened with it.
+    if (widthFix !== 1) driver.group.scale.x = 1 / widthFix;
     group.add(driver.group);
     group.userData.driver = driver;
   }

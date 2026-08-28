@@ -192,11 +192,32 @@ for (const c of cars) {
     `${c.name} is built ${c.length} m long against the ${c.want} m on its own card ` +
       `(${fitErr >= 0 ? "+" : ""}${fitErr.toFixed(1)}%)`
   );
-  // The proportion the eye reads, and the one a uniform scale cannot fix.
+  // WIDTH, in metres, against the machine this silhouette evokes.
+  //
+  // This used to be a ratio — length over the widest metal, against the
+  // real car's length over its width — and it could not decide anything.
+  // The numerator is the card length, which another check already proves
+  // exact, and the denominator is the WIDEBODY metal, so a car wearing
+  // an attack arch was being compared against a stock machine and read
+  // 5 to 9% "squat and wide" for having the flares it is supposed to
+  // have. Every car in the fleet failed it in the same direction, by
+  // roughly the size of its own arches, which is a check measuring
+  // something other than its subject.
+  //
+  // Width is now fitted rather than inherited from the length scale, so
+  // the claim can be the plain one: the door skin lands on the width of
+  // the machine it evokes. Judged on the DOORS, because that is what a
+  // car's width means and what the flare is bolted to — the arch gets
+  // its own check below.
+  //
+  // It would have caught the thing it exists for: before the fit, the
+  // Sharq Hatch measured 1.56 m across the doors against 1.79 for its
+  // reference, 12.7% narrow, and the Wain Special 9.6%.
+  const widthErr = (c.body / real.w - 1) * 100;
   check(
-    Math.abs(ratioErr) <= 10,
-    `${c.name} is ${ratio.toFixed(2)} long for its width against ${wantRatio.toFixed(2)} ` +
-      `for ${real.name} — it reads ${ratioErr < 0 ? "squat and wide" : "stretched"}`
+    Math.abs(widthErr) <= 6,
+    `${c.name} is ${c.body} m across the doors against ${real.w} for ${real.name} ` +
+      `(${widthErr >= 0 ? "+" : ""}${widthErr.toFixed(1)}%)`
   );
   // A flare is allowed to be wider than the door it sits over, but only
   // by the amount an arch actually flares.
@@ -227,6 +248,41 @@ console.log(
   `\nfitted    ${check(offFit === 0, `${offFit} car(s) are not the length their card claims`)}  ` +
     `${cars.length} cars, every one built to the metre on its own card`
 );
+
+// Cars in the same class are the same width, near enough.
+//
+// The check above compares each car against its reference; this one
+// compares them against EACH OTHER, which is the form the defect
+// actually took. Width used to come out of the length scale, so a
+// silhouette's widest and narrowest car differed by however much their
+// cards differed: the saloons ran 1.63 m to 1.89 m, 16% apart, for
+// bodies that in the real world are within a hand's breadth. It does not
+// restate how the width is arrived at — only that a class holds
+// together, which is true of every fleet on every road.
+{
+  const byStyle = new Map();
+  for (const c of cars) {
+    if (!byStyle.has(c.style)) byStyle.set(c.style, []);
+    byStyle.get(c.style).push(c);
+  }
+  const rows = [];
+  for (const [style, group] of byStyle) {
+    const lo = group.reduce((a, b) => (a.body < b.body ? a : b));
+    const hi = group.reduce((a, b) => (a.body > b.body ? a : b));
+    const spread = (hi.body / lo.body - 1) * 100;
+    rows.push(
+      `  ${style.padEnd(7)} ${group.length} car(s)  ${lo.body} to ${hi.body} m across the doors  ` +
+        `${spread.toFixed(1)}% apart  ` +
+        check(
+          spread <= 8,
+          `the ${style} cars run ${lo.body} m (${lo.name}) to ${hi.body} m (${hi.name}) across ` +
+            `the doors — ${spread.toFixed(1)}% apart for one class of car`
+        )
+    );
+  }
+  console.log("\nwidth by class");
+  for (const r of rows) console.log(r);
+}
 const shortest = cars.reduce((a, b) => (a.length < b.length ? a : b));
 const longest = cars.reduce((a, b) => (a.length > b.length ? a : b));
 console.log(
