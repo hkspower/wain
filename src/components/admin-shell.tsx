@@ -198,7 +198,20 @@ const styles = StyleSheet.create({
   },
   brand: { color: '#ffffff', fontWeight: '700', letterSpacing: 1 },
   signOut: {
-    minHeight: TapTarget - 8,
+    // FULL TapTarget, which grows the header bar from 40 to 48.
+    //
+    // hitSlop was tried first and is a NO-OP ON REACT NATIVE WEB, which is
+    // where this panel actually runs. Measured: with hitSlop 8 on every side,
+    // elementFromPoint six pixels below the button returned the header div,
+    // not the button — the touch area was exactly the 72x40 box and nothing
+    // more. A prop that does nothing is worse than no prop, because the next
+    // reader takes it for the fix.
+    //
+    // So the control is really made 48, and the bar really does get 8pt
+    // taller. This is the one control present on EVERY screen in the panel,
+    // and signing out of a shop's back office on a phone should not need a
+    // careful aim.
+    minHeight: TapTarget,
     justifyContent: 'center',
     paddingHorizontal: Spacing.two,
   },

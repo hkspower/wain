@@ -148,6 +148,26 @@ const styles = StyleSheet.create({
   editRow: { marginTop: Spacing.two },
   input: {
     flex: 1,
+    // minWidth: 0, AND IT IS THE WHOLE ROW.
+    //
+    // A flex child's default minimum width is `auto`, which means its own
+    // intrinsic width — so `flex: 1` lets this box GROW and not shrink. The
+    // input settled at its intrinsic 241px, the Save button beside it asks for
+    // 96, and 241 + the gap + 96 is wider than the card they sit in. The row
+    // could not get smaller, so it did not: measured at 390, 360 and 320px
+    // wide, the Save button sat at exactly the same absolute position every
+    // time — 290 to 386 — because the layout never responded to the viewport
+    // at all.
+    //
+    // On a 390px phone that leaves four pixels to spare and merely looks
+    // wrong. On a 360px Android the button is 26px off the right edge, and on
+    // a 320px phone 66px: the owner cannot see or tap the only control that
+    // saves a stock count, on the screen they are most likely to open while
+    // standing in front of the shelf.
+    //
+    // Zero here lets the input shrink to whatever is left after the button has
+    // its 96, which is what `flex: 1` was meant to express.
+    minWidth: 0,
     minHeight: TapTarget,
     borderWidth: 1,
     borderRadius: Radius.button,

@@ -59,6 +59,7 @@
     "test:admin-live": "node scripts/admin-live-test.mjs",
     "test:admin-browser": "node scripts/admin-browser-live.mjs",
     "test:admin-permissions": "node scripts/admin-permission-test.mjs",
+    "test:admin-mobile": "node scripts/admin-mobile.mjs",
     "test:wallet": "node scripts/wallet-test.mjs",
     "test:assistant": "node scripts/assistant-test.mjs",
     "test:csp": "node scripts/csp-check.mjs",

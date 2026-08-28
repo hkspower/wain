@@ -62,7 +62,15 @@ export default function OrdersScreen() {
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
               onPress={() => setFilter(f)}
-              style={press()}>
+              // THE HIT AREA IS TALLER THAN THE CHIP, which is the pattern
+              // AdminShell's navHit already uses two files away for chips of
+              // exactly this shape. The pill is 36pt so that a row of eight
+              // status words fits across a phone; 36 is under the 44 a finger
+              // wants, and measured on a 390pt screen these came out
+              // 50x36 to 101x36 — the shortest controls in the panel.
+              // Wrapping rather than growing keeps every pixel where the
+              // owner drew it and still gives the thumb its 48.
+              style={press(false, styles.filterHit)}>
               <ThemedView
                 type={active ? 'backgroundSelected' : 'backgroundElement'}
                 style={[styles.filter, { borderColor: active ? theme.tint : theme.border }]}>
@@ -121,6 +129,7 @@ export default function OrdersScreen() {
 
 const styles = StyleSheet.create({
   filters: { gap: Spacing.two, paddingVertical: Spacing.two, flexDirection: 'row' },
+  filterHit: { minHeight: TapTarget, justifyContent: 'center' },
   filter: {
     minHeight: TapTarget - 12,
     justifyContent: 'center',
