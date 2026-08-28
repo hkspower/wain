@@ -87,6 +87,31 @@ for (const c of list) {
         const prevMatrix = car.matrix.clone();
         const stage = new THREE.Scene();
         stage.background = new THREE.Color(0x1a1d22);
+        // Lit, and given something to reflect.
+        //
+        // The stage was a bare Scene with no lights and no environment,
+        // and car paint in this game is a METAL: a metalness workflow
+        // has no diffuse term at all, so a metal with nothing around it
+        // reflects nothing and renders as a silhouette with two tail
+        // lights in it. Every elevation this tool has ever produced was
+        // a black car. Lamps alone would not have fixed it — they give a
+        // metal a highlight and nothing else — so the game's own
+        // environment comes across with the car, and the three-point rig
+        // is there to put an edge on the panels rather than to light
+        // them from scratch.
+        {
+          let sceneRoot = e.world.moonLight;
+          while (sceneRoot.parent) sceneRoot = sceneRoot.parent;
+          stage.environment = sceneRoot.environment;
+          stage.environmentIntensity = 1.6;
+        }
+        stage.add(new THREE.AmbientLight(0xffffff, 0.55));
+        const keyLight = new THREE.DirectionalLight(0xfff2e0, 2.2);
+        keyLight.position.set(3, 4, 4);
+        stage.add(keyLight);
+        const fillLight = new THREE.DirectionalLight(0xcfe4ff, 0.9);
+        fillLight.position.set(-4, 2, -3);
+        stage.add(fillLight);
         stage.add(car);
         car.position.set(0, 0, 0);
         car.rotation.set(0, 0, 0);

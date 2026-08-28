@@ -116,10 +116,13 @@ const shot = async (car) => {
   }, car);
   // Park the turntable at a fixed three-quarter so every car is caught
   // at the same angle; the menu otherwise sweeps continuously.
-  await page.evaluate(() => {
+  // PARK=2.4 swings the turntable round to the tail. Passed into the
+  // page at the moment of use: set before the reload, it was wiped by
+  // it, and every "rear" shot came out a front three-quarter.
+  await page.evaluate((a) => {
     const h = window.__grnAttract;
-    if (h.park) h.park(0.72);
-  });
+    if (h.park) h.park(a === "" ? 0.72 : Number(a));
+  }, process.env.PARK ?? "");
   await page.waitForTimeout(650);
   const path = `${OUT}/${car.id}.png`;
   await page.screenshot({ path, clip: CLIP });

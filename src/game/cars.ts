@@ -3997,11 +3997,40 @@ export function createCar(colors: CarColors): THREE.Group {
   // bumpers read as fitted parts, amber corner reflectors up front and
   // red ones behind — the details every road car actually carries.
   {
-    const frontValance = new THREE.Mesh(roundedBox(1.62, 0.09, 0.1, 0.03), seamMat);
-    frontValance.position.set(0, 0.3, d.nose - 0.02);
+    // Seated on the bumper, and as wide as the bumper.
+    //
+    // Both of these were 1.62 and 1.66 m wide at the profile's nose and
+    // tail ANCHOR, plus twenty millimetres. Neither number was a
+    // measurement of anything.
+    //
+    // The anchor is a control point of the 2D profile, and the extrusion
+    // carries the painted skin out past it — the comment beside the
+    // number plates says exactly this about the same two anchors, "the
+    // bumper bows out past them by up to 40 mm". Measured at the height
+    // the valance sits at, it is not 40: the skin at the rear runs 125
+    // to 180 mm inside where the valance was hung, and at the front up
+    // to 424 mm. They were planks floating off each end of the car.
+    //
+    // And a fixed width fits one silhouette. 1.66 m on bodies whose own
+    // half-width runs from 0.9 to 1.04 m covered 83% of the tail on the
+    // widest and left a valance visibly narrower than the bumper above
+    // it on all of them.
+    //
+    // So: ask the shell where its skin is at that height, sit the trim's
+    // outer face flush with it, and take the width off the flank the
+    // same way every other detail on this car does.
+    const VALANCE_Y = 0.3;
+    const VALANCE_D = 0.1;
+    const noseSkinZ = noseFaceZ(bGeo, style, VALANCE_Y, true) ?? d.nose;
+    const tailSkinZ = noseFaceZ(bGeo, style, VALANCE_Y, false) ?? d.tail;
+    const valanceW = flankX * 2 - 0.14; // inset 70 mm a side, like a real one
+    const frontValance = new THREE.Mesh(roundedBox(valanceW, 0.09, VALANCE_D, 0.03), seamMat);
+    frontValance.position.set(0, VALANCE_Y, noseSkinZ - VALANCE_D / 2);
+    frontValance.userData.trim = "valance-front";
     group.add(frontValance);
-    const rearValance = new THREE.Mesh(roundedBox(1.66, 0.1, 0.1, 0.03), seamMat);
-    rearValance.position.set(0, 0.3, d.tail + 0.02);
+    const rearValance = new THREE.Mesh(roundedBox(valanceW, 0.1, VALANCE_D, 0.03), seamMat);
+    rearValance.position.set(0, VALANCE_Y, tailSkinZ + VALANCE_D / 2);
+    rearValance.userData.trim = "valance-rear";
     group.add(rearValance);
     // Corner markers. These were mounted on the nose and tail faces at a
     // fixed inset from the anchor, which buried them 30–60 mm inside the
