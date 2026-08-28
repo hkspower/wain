@@ -180,8 +180,33 @@
  * If the hero should be taller than this without losing anything, the artwork
  * has to be taller: these are 1000x396 and 1600x635. No CSS can add picture
  * that was never photographed. */
+/* AND object-fit: COVER, which is the half that was missing.
+ *
+ * The rule above was written for a crop that was not happening. The visible
+ * banner is object-fit: CONTAIN — only the blurred backdrop behind it is
+ * cover — so the artwork was being letterboxed inside the taller box, not
+ * cropped, and object-position had nothing to position. Measured on a 390px
+ * phone: 390x154 of picture floating in a 339px section, with the rest of the
+ * height a blurred smear of itself. The banner's own type is set for a 1000px
+ * frame, so at that size "STRENGTH · MUSCLE · POWER" renders about five pixels
+ * tall and the Arabic line is not readable at all.
+ *
+ * With cover the artwork fills the box and everything in it grows by a third.
+ * What that costs is the right-hand 22.6% of the frame, which is the far edge
+ * of the photograph — the athlete stays in shot, and every line of type is
+ * inside the window by the arithmetic below.
+ *
+ *   a 1.85 box shows 1.85/2.52 = 73.4% of the width
+ *   at object-position 15% that window runs 3.99% .. 77.40%
+ *   the template's type starts at 6.0% (the Arabic) and 6.2% (the mark)
+ *
+ * So the type clears the left edge by two points in every one of the five
+ * banners — they share a template, so the margin is identical — and nothing on
+ * the type side is lost. Verified by rendering and measuring the pixels, not
+ * by reading this sum. */
 .hero-strength img,
 .hero-strength picture img {
+  object-fit: cover !important;
   object-position: 15% center !important;
 }
 

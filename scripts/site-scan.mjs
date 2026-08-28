@@ -206,6 +206,71 @@ for (const route of PAGES) {
   warn(seen.canonical !== '', `${label} names a canonical URL (${seen.canonical || 'absent'})`)
 }
 
+// ------------------------------------------------------------------- the hero
+//
+// THE BANNERS CARRY THEIR OWN TYPOGRAPHY. All five are one template at
+// 1000x396: the SPORTA mark, the English line, an orange headline bar, the
+// Arabic and a strapline, all set into the LEFT of the picture. So the hero is
+// the one place on this site where the box's aspect ratio decides whether
+// words are readable — and it has been wrong twice.
+//
+// Cut to a taller box with object-fit: cover and the default centred position,
+// every line lost its first characters. That was fixed with object-position,
+// and the fix was INERT for weeks: the visible banner is object-fit CONTAIN —
+// only the blurred backdrop behind it is cover — so the artwork was being
+// letterboxed rather than cropped, and there was nothing for object-position
+// to position. On a 390px phone that left 390x154 of picture floating in a
+// 339px section with the rest a blurred smear, and the strapline about five
+// pixels tall.
+//
+// Neither state fails any other rig here: the page renders, the colours pass,
+// every border is visible, every control answers. Type baked into a JPEG is
+// invisible to all of them. This is the check that would have caught both.
+for (const [label, size] of [['phone', PHONE], ['desktop', { width: 1280, height: 900 }]]) {
+  const p = await b.newPage({ viewport: size, hasTouch: size.width < 500, isMobile: size.width < 500 })
+  try {
+    await p.goto(`${BASE}/`, { waitUntil: 'networkidle', timeout: 25000 })
+    await p.waitForTimeout(1500)
+    const hero = await p.evaluate(() => {
+      const img = [...document.querySelectorAll('img')].find(
+        (x) => /hero/.test(x.currentSrc || x.src) && !/blur/.test(x.className))
+      if (!img || !img.naturalWidth) return null
+      const box = img.getBoundingClientRect()
+      const fit = getComputedStyle(img).objectFit
+      const art = img.naturalWidth / img.naturalHeight
+      const boxRatio = box.width / box.height
+      const shown = fit === 'cover' ? Math.min(1, boxRatio / art) : 1
+      const posX = parseFloat(getComputedStyle(img).objectPosition) / 100
+      return {
+        fit, shown, left: (1 - shown) * posX,
+        w: Math.round(box.width), h: Math.round(box.height),
+        artH: Math.round(box.width / art),
+      }
+    })
+    if (!hero) { note(`hero (${label}) not found — skipped`); await p.close(); continue }
+
+    // 6.00% is where the Arabic line begins in the template and 6.20% the
+    // mark; measured on all five files, which are identical in this respect.
+    check(hero.left < 0.055,
+      `hero (${label}) keeps the artwork's own type — window opens at ${(hero.left * 100).toFixed(2)}%, type starts at 6.00%`)
+    // And it must actually FILL the box. `cover` fills by definition; under
+    // `contain` the artwork is fitted to the width and the leftover height is
+    // the letterbox — which is the bug that was live, and the one that looks
+    // perfectly fine in a screenshot of the picture by itself.
+    const letterbox = hero.fit === 'cover' ? 0 : 1 - hero.artH / hero.h
+    check(hero.fit === 'cover',
+      `hero (${label}) fills its box rather than letterboxing — ${hero.w}x${hero.h}, object-fit ${hero.fit}` +
+      (letterbox > 0 ? `, ${(letterbox * 100).toFixed(0)}% of the height is blurred filler` : ''))
+    // How much of the picture survives the crop, reported rather than failed:
+    // it is a composition question, and the line that matters — the type — is
+    // asserted above.
+    note(`hero (${label}) shows ${(hero.shown * 100).toFixed(0)}% of the artwork's width`)
+  } catch (e) {
+    note(`hero (${label}) could not be measured — ${String(e).slice(0, 60)}`)
+  }
+  await p.close()
+}
+
 await b.close()
 
 console.log(
