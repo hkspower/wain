@@ -14,7 +14,67 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 // the paren-matching walk below into truncating a call mid-argument.
 const src = readFileSync("src/game/cars.ts", "utf8").replace(/\/\/[^\n]*/g, "");
 
-/** Parse one `const <name> = extrudeProfile([...], width, bevel[, bottom]);` */
+/**
+ * Numbers cars.ts writes as names.
+ *
+ * extrudeProfile used to be called with literals — `1.92, 0.15, 2` —
+ * and this walked the tail of the call picking numbers out with a
+ * regex. It is called with BODY_EDGE and a crown spec now, so that walk
+ * read the bevel as 2 (the bottom-point count) and the bottom as null,
+ * and wrote both into profiles.json without complaining. The Blender
+ * loft then built the fleet with a 140 mm edge that cars.ts had cut to
+ * 50 mm nine commits earlier.
+ */
+function constant(name) {
+  const m = src.match(new RegExp(`const ${name}(?::\\s*number)?\\s*=\\s*(-?[\\d.]+)\\s*;`));
+  if (!m) throw new Error(`constant ${name} not found in cars.ts`);
+  return +m[1];
+}
+
+/** The whole CROWN_BY_STYLE table, evaluated rather than regexed: it is
+ *  nested objects and a regex reading them is a bug waiting to happen. */
+function objectLiteral(decl) {
+  const at = src.indexOf(decl);
+  if (at < 0) throw new Error(`${decl} not found`);
+  const open = src.indexOf("{", at);
+  let depth = 0, end = open;
+  for (; end < src.length; end++) {
+    if (src[end] === "{") depth++;
+    else if (src[end] === "}" && --depth === 0) break;
+  }
+  return new Function(`"use strict"; return ${src.slice(open, end + 1)};`)();
+}
+
+/** How far the whole body sits down from where the profiles are written.
+ *  extrudeProfile applies this to every point before it builds anything,
+ *  so a profile exported without it describes a car 86 mm in the air —
+ *  which is most of why the shipped shells stand above the game's own
+ *  roofline. */
+const BODY_DROP = constant("BODY_DROP");
+const CROWN_BY_STYLE = objectLiteral("const CROWN_BY_STYLE");
+
+/** Split a call's arguments on the commas BETWEEN them. */
+function splitArgs(body) {
+  const out = [];
+  let depth = 0, start = 0;
+  for (let i = 0; i < body.length; i++) {
+    const c = body[i];
+    if (c === "[" || c === "{" || c === "(") depth++;
+    else if (c === "]" || c === "}" || c === ")") depth--;
+    else if (c === "," && depth === 0) { out.push(body.slice(start, i)); start = i + 1; }
+  }
+  out.push(body.slice(start));
+  return out.map((a) => a.trim()).filter((a) => a.length);
+}
+
+/** A scalar argument: a literal, or the name of one. */
+function scalar(text) {
+  const t = text.trim();
+  if (/^-?[\d.]+$/.test(t)) return +t;
+  return constant(t);
+}
+
+/** Parse one `const <name> = extrudeProfile([...], width, bevel, bottom, crown);` */
 function parseGeo(name) {
   const at = src.indexOf(`const ${name} = extrudeProfile(`);
   if (at < 0) throw new Error(`${name} not found`);
@@ -26,19 +86,24 @@ function parseGeo(name) {
     if (src[end] === "(") depth++;
     else if (src[end] === ")" && --depth === 0) break;
   }
-  const body = src.slice(open + 1, end);
-
-  const points = [...body.matchAll(/\[\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\]/g)].map(
-    ([, x, y]) => [+x, +y]
+  const args = splitArgs(src.slice(open + 1, end));
+  if (args.length < 3) throw new Error(`${name}: expected at least points, width, bevel`);
+  const points = [...args[0].matchAll(/\[\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\]/g)].map(
+    // Dropped, because extrudeProfile drops them. The loft has to build
+    // the car the game builds, not the one the source was written for.
+    ([, x, y]) => [+x, +(+y - BODY_DROP).toFixed(6)]
   );
   if (points.length < 4) throw new Error(`${name}: only ${points.length} points`);
-
-  // Trailing scalars after the points array: width, bevel, optional bottom
-  const tailStart = body.lastIndexOf("]");
-  const tail = [...body.slice(tailStart + 1).matchAll(/(-?[\d.]+)/g)].map(([v]) => +v);
-  if (tail.length < 2) throw new Error(`${name}: missing width/bevel`);
-  const [width, bevel, bottom = 2] = tail;
-  return { points, width, bevel, bottom };
+  const width = scalar(args[1]);
+  const bevel = scalar(args[2]);
+  const bottom = args.length > 3 ? scalar(args[3]) : 2;
+  // `CROWN_BY_STYLE.zx.canopy` — the cross-section the shell is given
+  // after extrusion. models.ts applies it to an authored shell at load
+  // time; a loft that bakes it in gets there without the vertex walk.
+  const crownPath = args[4]?.trim().split(".").slice(1);
+  const crown = crownPath ? crownPath.reduce((o, k) => o?.[k], CROWN_BY_STYLE) : null;
+  if (args[4] && !crown) throw new Error(`${name}: cannot resolve crown ${args[4]}`);
+  return { points, width, bevel, bottom, crown };
 }
 
 const styles = {

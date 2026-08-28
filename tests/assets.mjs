@@ -4,10 +4,12 @@
 // needs a test: a broken node name, a dropped git add, or a swap that
 // never fires all look identical to "working" from the outside.
 //
-// So this asserts the authored geometry is live on the hero car's
-// shells, on all five parts of all four wheels (mirrored on the left),
-// and on the palm crowns, and that each piece still occupies the
-// envelope the rest of the game is positioned against.
+// So this asserts the authored geometry is live on all five parts of
+// all four wheels (mirrored on the left) and on the palm crowns, that
+// each piece still occupies the envelope the rest of the game is
+// positioned against, and — for the body shells, where the shipped
+// files have drifted off that envelope by up to 206 mm — that whatever
+// IS on the car got there for a recorded reason.
 //
 // What it asserts is authored comes from public/models/build.json, not
 // from a list written here. Those are different claims: the manifest
@@ -73,7 +75,13 @@ await page.waitForFunction((wantDriver) => {
     if (o.isMesh && o.userData.wheelPart) { parts++; if (o.geometry.userData.authored) wauth++; }
     if (o.isMesh && o.userData.driverPart) { dparts++; if (o.geometry.userData.authored) dauth++; }
   });
-  return shells > 0 && shells === authored && parts > 0 && parts === wauth
+  // Shells settle to a VERDICT, not to "authored". A shell that has
+  // drifted from the profile it claims to be lofted from is rejected on
+  // purpose, and waiting for it to land would wait for ever.
+  const verdict = e.carBody.userData.shellSwap ?? {};
+  const judged = verdict.all !== undefined || Object.keys(verdict).length >= shells;
+  void authored;
+  return shells > 0 && judged && parts > 0 && parts === wauth
     && (!wantDriver || (dparts > 0 && dparts === dauth));
 }, SHIPS_DRIVER, { timeout: 90000 }).catch(() => console.log("(timed out waiting for the authored swaps)"));
 
@@ -131,15 +139,41 @@ const r = await page.evaluate(() => {
              +(bb.max.z - bb.min.z).toFixed(3)],
     };
   });
-  return { shells, wheels, palm, driver, wheelRadius: rig ? rig.wheelRadius : null };
+  return { shells, wheels, palm, driver, wheelRadius: rig ? rig.wheelRadius : null,
+           shellSwap: e.carBody.userData.shellSwap ?? {} };
 });
 
 const fail = [];
 const check = (c, m) => { if (!c) fail.push(m); return c ? "ok" : "FAIL"; };
 
+// Body shells. The claim used to be "the authored geometry is live",
+// and it cannot be that any more: an authored shell is used only when it
+// still IS the car. Measured against the geometry they replace, all four
+// shipped shells are 160 to 206 mm taller and 80 to 120 mm longer at
+// each end than the profile the game builds and positions everything
+// against — lofted in August from a profiles.json that predates the body
+// drop, the narrower widths and the sharper edges. models.ts rejects
+// them and the procedural shell stands.
+//
+// So the claim is now the one that matters and can go green by fixing
+// code: every shell on the car is the car, and the reason for each is
+// recorded rather than silent. A shell with no verdict at all is the
+// failure the original check was written for — a dropped git add, a
+// renamed node, a swap that never fired.
 console.log("body shells:");
-for (const s of r.shells)
-  console.log(`  ${s.slot.padEnd(7)} ${s.tris} tris  ${check(s.authored, `${s.slot} still procedural`)}`);
+for (const s of r.shells) {
+  const why = r.shellSwap[s.slot] ?? r.shellSwap.all;
+  console.log(`  ${s.slot.padEnd(7)} ${String(s.tris).padStart(6)} tris  ${(s.authored ? "authored" : "procedural").padEnd(11)} ${String(why)}  ` +
+    check(!!why, `${s.slot}: nothing recorded about the swap — it never even ran`) + " " +
+    check(s.authored === (why === "authored"),
+      `${s.slot}: geometry says ${s.authored ? "authored" : "procedural"} but the swap says ${why}`));
+}
+{
+  const stale = Object.entries(r.shellSwap).filter(([, v]) => String(v).startsWith("stale"));
+  if (stale.length)
+    console.log(`  ${stale.length} shipped shell(s) rejected as stale — rebuild them:\n` +
+      `    node scripts/export-car-profiles.mjs && python3 tools/blender/build_assets.py --out public/models`);
+}
 
 console.log("\nwheels:");
 for (const [i, w] of r.wheels.entries()) {

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { CROWN, crownShell, TIRE_HALF_W, WHEEL_R_K, WHEEL_W_K, type BodyStyle } from "./cars";
+import { crownFor, crownShell, TIRE_HALF_W, WHEEL_R_K, WHEEL_W_K, type BodyStyle } from "./cars";
 
 // Blender-authored graphics.
 //
@@ -219,31 +219,93 @@ const AUTHORED_SHELLS: ReadonlySet<BodyStyle> = new Set<BodyStyle>(["sedan", "zx
  *  silhouette. */
 const crowned = new WeakSet<THREE.BufferGeometry>();
 
+/**
+ * How far an authored shell may sit from the shell it replaces, in
+ * metres, on any one face of its bounding box.
+ *
+ * The loft is meant to be the same car, only smoother: same profile,
+ * same width, same bevel, resampled. So the two boxes should agree to
+ * within the difference between 28 spline segments and 96, which is
+ * millimetres. 10 mm is generous.
+ *
+ * It is a tolerance and not a comment because the shipped shells do not
+ * meet it. Measured against the geometry they replace, every one of the
+ * four is a different car:
+ *
+ *   zx     body +185 mm at the roof, +100 mm at each end, +80 mm a side
+ *   rx7    body +206 mm, +120 mm at each end
+ *   sedan  body +173 mm, +90 mm at each end
+ *   gtr    body +163 mm, +80 mm at each end
+ *
+ * with the canopies 143 to 169 mm high. They were lofted in August from
+ * a profiles.json that predates the body drop, the narrower widths and
+ * the sharper edges, and nothing noticed, because a silent swap looks
+ * identical to a correct one. A roofline 100 to 200 mm above where the
+ * game thinks it is puts the roof rails, the third brake light, the
+ * aerial and the driver's head inside the paint.
+ *
+ * So the swap is no longer unconditional. An authored shell that is not
+ * the car gets rejected and the procedural one stands, which is the
+ * fallback this whole module is built around — and the verdict is
+ * recorded on the group rather than dropped, so "rejected as stale" and
+ * "never loaded" stop looking the same from outside.
+ */
+const SHELL_FIT_TOL = 0.01;
+
+function boxDrift(a: THREE.BufferGeometry, b: THREE.BufferGeometry): number {
+  if (!a.boundingBox) a.computeBoundingBox();
+  if (!b.boundingBox) b.computeBoundingBox();
+  const A = a.boundingBox!;
+  const B = b.boundingBox!;
+  return Math.max(
+    Math.abs(A.min.x - B.min.x), Math.abs(A.max.x - B.max.x),
+    Math.abs(A.min.y - B.min.y), Math.abs(A.max.y - B.max.y),
+    Math.abs(A.min.z - B.min.z), Math.abs(A.max.z - B.max.z)
+  );
+}
+
 export function upgradeCarShells(group: THREE.Group, style: BodyStyle): void {
-  if (!AUTHORED_SHELLS.has(style)) return;
+  const verdict: Record<string, string> = (group.userData.shellSwap ??= {});
+  if (!AUTHORED_SHELLS.has(style)) {
+    verdict.all = "no authored shell for this silhouette";
+    return;
+  }
   void parts(`car-${style}`).then((shells) => {
-    if (!shells) return;
+    if (!shells) {
+      verdict.all = "file missing or unreadable";
+      return;
+    }
     group.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       const slot = mesh.userData.shell as string | undefined;
-      const geo = slot ? shells[slot] : undefined;
-      if (!geo) return;
+      if (!slot) return;
+      const geo = shells[slot];
+      if (!geo) {
+        verdict[slot] = "not in the file";
+        return;
+      }
       // The authored shells are lofted by tools/blender/build_assets.py
       // from the same profiles, with the same bevel — and therefore with
       // the same flat flanks. Crowning them here rather than only in
       // cars.ts is what stops the four styles that HAVE an authored
       // shell from showing a flat hero car in front of curved traffic.
       //
-      // The Blender loft should grow this when it is next run; until
-      // then this is where the surface is decided, and it is decided
-      // once for both builds because both call the same function.
+      // The Blender loft should grow this when it is next run — the
+      // crown is exported in profiles.json now, so it can — and until
+      // then this is where the surface is decided, once for both builds.
       if (!crowned.has(geo)) {
         crowned.add(geo);
-        const spec =
-          slot === "canopy" ? CROWN.canopy : slot === "roof" ? CROWN.roof : CROWN.body;
-        crownShell(geo, spec);
+        crownShell(geo, crownFor(style, slot));
       }
+      // Crowned first: the crown moves vertices, and a shell judged
+      // before it is surfaced is judged as a shape it never renders as.
+      const off = boxDrift(geo, mesh.geometry);
+      if (off > SHELL_FIT_TOL) {
+        verdict[slot] = `stale: ${(off * 1000).toFixed(0)} mm off the profile`;
+        return;
+      }
+      verdict[slot] = "authored";
       mesh.geometry = geo;
     });
   });

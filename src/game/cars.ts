@@ -412,6 +412,21 @@ const CROWN_BY_STYLE: Record<BodyStyle, Record<"body" | "canopy" | "roof", Crown
   },
 };
 
+/**
+ * The cross-section a shell of this silhouette is given.
+ *
+ * Exported because models.ts crowns the Blender-authored shells at load
+ * time and was doing it with the shared CROWN — the one spec the whole
+ * fleet used before the silhouettes were given their own. A hero car
+ * crowned by the old table in front of traffic crowned by the new one is
+ * the same bug the per-style table was written to end, one layer up.
+ */
+export function crownFor(style: BodyStyle, slot: string): CrownSpec {
+  const set = CROWN_BY_STYLE[style] ?? CROWN_BY_STYLE.sedan;
+  return slot === "canopy" ? set.canopy : slot === "roof" ? set.roof : set.body;
+}
+
+
 
 /**
  * Reshape a shell\'s cross-section in place. Car frame: x across, y up,
