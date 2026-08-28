@@ -422,6 +422,26 @@ function Flag({ code }: { code?: string }) {
  *  and a full map that disagree about which road is which are two maps. */
 const MAP_LEG_COLOR = ["#38c9ee", "#f5a524"];
 
+/**
+ * A distance on the HUD, in the unit a driver reads it in.
+ *
+ * Kilometres past a thousand metres. "Rival 4245 m behind" is four
+ * digits that have to be counted before they mean anything; "4.2 km
+ * behind" is read at a glance, which is the only way anything on this
+ * screen gets read at all. Metres below that, because a hundred metres
+ * is a distance you are about to cover and a tenth of a kilometre is not
+ * a number anybody thinks in.
+ *
+ * Rounded to ten metres under the kilometre for the same reason the
+ * street-sign distance already was: a units digit changing sixty times a
+ * second is noise, and a number that never sits still is harder to read
+ * at 200 km/h than one that steps.
+ */
+function metresLabel(m: number): string {
+  const v = Math.max(0, Math.round(m));
+  return v >= 1000 ? `${(v / 1000).toFixed(1)} km` : `${Math.round(v / 10) * 10} m`;
+}
+
 export default function RaceClient() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mapRef = useRef<HTMLCanvasElement>(null);
@@ -937,8 +957,7 @@ export default function RaceClient() {
           // rather than laziness: a units digit changing sixty times a
           // second is noise, and a number that never sits still is
           // harder to read at 200 km/h than one that steps.
-          const m = Math.max(0, Math.round(d.nextInM / 10) * 10);
-          const label = m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${m} m`;
+          const label = metresLabel(d.nextInM);
           if (dist.textContent !== label) dist.textContent = label;
         }
       }
@@ -980,7 +999,9 @@ export default function RaceClient() {
         if (d.battle === null && d.rivalDist !== null) {
           const dist = Math.round(d.rivalDist);
           rivalInfoRef.current.textContent =
-            dist >= 0 ? `Rival ${dist} m ahead` : `Rival ${-dist} m behind`;
+            dist >= 0
+              ? `Rival ${metresLabel(dist)} ahead`
+              : `Rival ${metresLabel(-dist)} behind`;
           rivalInfoRef.current.style.opacity = "1";
         } else {
           rivalInfoRef.current.style.opacity = "0";
@@ -1072,7 +1093,9 @@ export default function RaceClient() {
         if (rivalBarRef.current) rivalBarRef.current.style.width = `${d.duel.them}%`;
         if (battleNameRef.current)
           battleNameRef.current.textContent = `DUEL · ${d.duel.opponent} · ${
-            d.duel.gap >= 0 ? `${Math.round(d.duel.gap)} m ahead` : `${Math.round(-d.duel.gap)} m behind`
+            d.duel.gap >= 0
+              ? `${metresLabel(d.duel.gap)} ahead`
+              : `${metresLabel(-d.duel.gap)} behind`
           }`;
       }
 
@@ -3049,6 +3072,7 @@ export default function RaceClient() {
                   ["noon", "High sun", "ظهر", "Daylight over the bay, lamps off, hard shadows"],
                   ["dusk", "Maghrib", "مغرب", "The sun going down behind the towers"],
                   ["cycle", "Full cycle", "دورة كاملة", "The clock runs — a whole day every 16 minutes"],
+                  ["kuwait", "Kuwait time", "توقيت الكويت", "The sky over Kuwait right now, to the second"],
                 ] as const
               ).map(([mode, label, ar, desc]) => (
                 <button

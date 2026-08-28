@@ -31,6 +31,7 @@ import { verticalFov, chaseDolly } from "./aspect";
 import { gripAtSpeed, newLoadState, solveLoad, type LoadResult } from "./grip";
 import { bestTow, solveTow, NO_TOW, TOW_REACH, type TowInput, type TowResult } from "./slipstream";
 import { buildRoadMap, nextStation, type RoadMap } from "./roadmap";
+import { kuwaitHours } from "./clock";
 import { CHANNELS, Music } from "./music";
 import { Radio } from "./radio";
 import {
@@ -2173,6 +2174,8 @@ export class GameEngine {
   /** Hours 0..24. Fixed looks are hours too; "cycle" lets it run. */
   /** Half past midnight: the night has just opened. */
   private timeHours = 0.5;
+  /** The world is on Kuwait's own clock, read every frame. */
+  private timeReal = false;
   private timeCycling = true;
   /** Set once the window has closed, so the message fires once. */
   private nightClosed = false;
@@ -2214,7 +2217,7 @@ export class GameEngine {
     );
   }
 
-  setSky(mode: "night" | "dawn" | "noon" | "dusk" | "cycle"): void {
+  setSky(mode: "night" | "dawn" | "noon" | "dusk" | "cycle" | "kuwait"): void {
     const HOURS: Record<string, number> = {
       // Inside the racing window, because that is when this game happens.
       night: 0.5,
@@ -2223,9 +2226,25 @@ export class GameEngine {
       dusk: 18.2,
     };
     this.timeCycling = mode === "cycle";
+    // KUWAIT: the world runs on the real clock in Kuwait, to the second.
+    //
+    // The corner of the HUD has always carried a dial reading the true
+    // time there. The sky beside it ran on its own accelerated cycle, so
+    // the game showed two clocks at once and the sun agreed with
+    // neither — a screenshot taken at ten past three in the afternoon
+    // was shot at half past four in the game.
+    //
+    // Both now come from one place, src/game/clock.ts, and the zone is
+    // named rather than assumed: a clock that reads "Kuwait" and renders
+    // the player's own timezone is right for one player in the world.
+    this.timeReal = mode === "kuwait";
     // A cycle starts where the eye expects this game to start: dusk,
     // with the lights just coming on.
-    this.timeHours = this.timeCycling ? GameEngine.RACE_OPEN_H : HOURS[mode] ?? 0.5;
+    this.timeHours = this.timeReal
+      ? kuwaitHours()
+      : this.timeCycling
+        ? GameEngine.RACE_OPEN_H
+        : HOURS[mode] ?? 0.5;
     this.nightClosed = false;
     this.world.setTimeOfDay(this.timeHours);
     this.applyDaylight();
@@ -3673,7 +3692,18 @@ export class GameEngine {
 
     // The clock. A full day turns in CYCLE_MINUTES of play, so a single
     // race happens in one light while a session sees the sun come round.
-    if (this.timeCycling) {
+    if (this.timeReal) {
+      // Read, not advanced. A clock that ticks itself drifts from the one
+      // it claims to be; this one cannot, because it is that one.
+      this.timeHours = kuwaitHours();
+      if (this.timeHours < GameEngine.RACE_CLOSE_H) this.nightClosed = false;
+      this.skyAccum += dt;
+      if (this.skyAccum >= 0.25) {
+        this.skyAccum = 0;
+        this.world.setTimeOfDay(this.timeHours);
+        this.applyDaylight();
+      }
+    } else if (this.timeCycling) {
       // Inside the window the clock runs at the NIGHT rate, so the five
       // hours and fifty minutes of racing take a session rather than
       // four minutes. Once the window has closed it reverts to the old

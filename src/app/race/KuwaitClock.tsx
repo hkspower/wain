@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { KUWAIT_ZONE as ZONE, zoneOffsetMs } from "@/game/clock";
 
 /**
  * An analogue clock reading the real time in Kuwait.
@@ -24,31 +25,9 @@ import { useEffect, useRef } from "react";
  * apart from the driving instruments.
  */
 
-/** Milliseconds to add to UTC to get the wall-clock time in `zone`. */
-function zoneOffsetMs(zone: string, at: Date): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: zone,
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).formatToParts(at);
-  const f: Record<string, number> = {};
-  for (const p of parts) if (p.type !== "literal") f[p.type] = Number(p.value);
-  // hour comes back as 24 at midnight under hour12:false in some
-  // engines, which Date.UTC would roll into the next day correctly
-  // anyway — but the modulo makes the intent explicit.
-  const asUTC = Date.UTC(f.year, f.month - 1, f.day, f.hour % 24, f.minute, f.second);
-  // The formatted parts carry no milliseconds, so compare against the
-  // instant truncated to the second or the offset comes out with the
-  // current millisecond baked into it.
-  return asUTC - (at.getTime() - at.getMilliseconds());
-}
-
-const ZONE = "Asia/Kuwait";
+// The zone maths moved to src/game/clock.ts when the world learned to
+// run on Kuwait time too: the dial and the sun are the same claim about
+// the same place, and two copies of it can disagree.
 
 /**
  * The dial: twelve ticks, the quarters longer.

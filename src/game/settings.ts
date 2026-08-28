@@ -37,7 +37,7 @@ export interface Settings {
   cameraView: CameraView;
   /** Time of day on the corniche. */
   /** A fixed hour, or "cycle" to let the clock run. */
-  sky: "night" | "dawn" | "noon" | "dusk" | "cycle";
+  sky: "night" | "dawn" | "noon" | "dusk" | "cycle" | "kuwait";
   /**
    * Frame pacing. "display" follows the panel's own refresh rate — the
    * right default, and on a VRR/G-Sync panel it also keeps the game
@@ -77,7 +77,16 @@ export const DEFAULT_SETTINGS: Settings = {
   sfxVolume: 0.75,
   largeHud: false,
   cameraView: "chase",
-  sky: "night",
+  // The sky over Kuwait, right now.
+  //
+  // The corner of the HUD has carried a dial reading the real time there
+  // since it was written, and the world beside it ran on its own
+  // accelerated cycle — so the game showed two clocks at once and the
+  // sun agreed with neither. This is the setting that makes them one
+  // claim. The fixed hours and the accelerated cycle are still offered,
+  // because racing is gated to the small hours and a player whose
+  // afternoon is Kuwait's afternoon will want them.
+  sky: "kuwait",
   frameCap: "display",
   autoExposure: true,
   exposure: 0,
