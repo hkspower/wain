@@ -774,6 +774,30 @@ const bodyGeo = extrudeProfile(
   CROWN_BY_STYLE.sedan.body,
 );
 
+/**
+ * How wide a cabin is, and how wide the roof that caps it is.
+ *
+ * These were twelve unrelated numbers, and every roof came out at about
+ * 89% of the glass it sat on. Measured on the built cars, that left 69
+ * to 103 mm of glass showing down EACH SIDE of every painted roof in the
+ * fleet — a strip of window running the full length of the roof, where a
+ * real car has a rail. It is the same mistake six times, which is what a
+ * pair of numbers that ought to be related but are typed separately
+ * always turns into.
+ *
+ * So the roof is derived from the cabin. A roof meets the side glass at
+ * a rail and stops; the only glass that should show past it is the seal.
+ */
+const ROOF_SEAL = 0.015;
+const roofWidth = (cabin: number): number => cabin - ROOF_SEAL * 2;
+
+const SEDAN_CABIN_W = 1.6;
+const ZX_CABIN_W = 1.776;
+const PONY_CABIN_W = 1.63;
+const GTR_CABIN_W = 1.701;
+const RX7_CABIN_W = 1.635;
+const HATCH_CABIN_W = 1.556;
+
 // Raked glasshouse: windshield, roofline, rear window
 const canopyGeo = extrudeProfile(
   [
@@ -782,7 +806,7 @@ const canopyGeo = extrudeProfile(
     [-0.78, 1.42],
     [-1.5, 0.94],
   ],
-  1.600,
+  SEDAN_CABIN_W,
   CANOPY_EDGE,
   0,
   CROWN_BY_STYLE.sedan.canopy,
@@ -796,7 +820,7 @@ const roofGeo = extrudeProfile(
     [-0.68, 1.48],
     [-0.76, 1.42],
   ],
-  1.420,
+  roofWidth(SEDAN_CABIN_W),
   ROOF_EDGE,
   0,
   CROWN_BY_STYLE.sedan.roof,
@@ -830,7 +854,7 @@ const zxCanopyGeo = extrudeProfile(
     [-0.95, 1.19],
     [-2.0, 0.78], // fastback all the way down
   ],
-  1.776,
+  ZX_CABIN_W,
   CANOPY_EDGE,
   0,
   CROWN_BY_STYLE.zx.canopy,
@@ -842,7 +866,7 @@ const zxRoofGeo = extrudeProfile(
     [-0.82, 1.25],
     [-0.9, 1.2],
   ],
-  1.582,
+  roofWidth(ZX_CABIN_W),
   ROOF_EDGE,
   0,
   CROWN_BY_STYLE.zx.roof,
@@ -883,7 +907,7 @@ const ponyCanopyGeo = extrudeProfile(
     [-0.98, 1.235],
     [-2.16, 0.87], // and the hatch glass runs all the way to the deck
   ],
-  1.63,
+  PONY_CABIN_W,
   CANOPY_EDGE,
   0,
   CROWN_BY_STYLE.pony.canopy,
@@ -895,7 +919,7 @@ const ponyRoofGeo = extrudeProfile(
     [-0.9, 1.29],
     [-0.98, 1.24],
   ],
-  1.45,
+  roofWidth(PONY_CABIN_W),
   ROOF_EDGE,
   0,
   CROWN_BY_STYLE.pony.roof,
@@ -929,7 +953,7 @@ const gtrCanopyGeo = extrudeProfile(
     [-0.66, 1.44],
     [-1.32, 0.99],
   ],
-  1.701,
+  GTR_CABIN_W,
   CANOPY_EDGE,
   0,
   CROWN_BY_STYLE.gtr.canopy,
@@ -941,7 +965,7 @@ const gtrRoofGeo = extrudeProfile(
     [-0.56, 1.5],
     [-0.64, 1.44],
   ],
-  1.500,
+  roofWidth(GTR_CABIN_W),
   ROOF_EDGE,
   0,
   CROWN_BY_STYLE.gtr.roof,
@@ -976,7 +1000,7 @@ const rx7CanopyGeo = extrudeProfile(
     [-0.72, 1.24],
     [-1.68, 0.78], // long rounded hatch glass
   ],
-  1.635,
+  RX7_CABIN_W,
   CANOPY_EDGE,
   2,
   CROWN_BY_STYLE.rx7.canopy,
@@ -988,7 +1012,7 @@ const rx7RoofGeo = extrudeProfile(
     [-0.6, 1.3],
     [-0.68, 1.25],
   ],
-  1.429,
+  roofWidth(RX7_CABIN_W),
   ROOF_EDGE,
   2,
   CROWN_BY_STYLE.rx7.roof,
@@ -1032,7 +1056,7 @@ const hatchCanopyGeo = extrudeProfile(
     [-0.95, 1.46], // long flat roof
     [-1.86, 1.04], // hatch glass, raked but still upright
   ],
-  1.556,
+  HATCH_CABIN_W,
   CANOPY_EDGE,
   2,
   CROWN_BY_STYLE.hatch.canopy,
@@ -1044,7 +1068,7 @@ const hatchRoofGeo = extrudeProfile(
     [-0.82, 1.49],
     [-0.92, 1.43],
   ],
-  1.418,
+  roofWidth(HATCH_CABIN_W),
   ROOF_EDGE,
   2,
   CROWN_BY_STYLE.hatch.roof,
