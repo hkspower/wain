@@ -2781,6 +2781,14 @@ const KEY_TWILIGHT = 1.5;
 const KEY_GOLD = 2.75;
 const KEY_DAY = 3.1;
 const FILL_RATIO = 0.3;
+/**
+ * How much of the key still reaches a surface in its own shadow.
+ *
+ * Stands in for the bounce and skylight this renderer does not compute.
+ * At 1 a shadow is a hole; at 0 there is no shadow at all. 0.62 was
+ * measured rather than picked — see the note on moonLight below.
+ */
+const SHADOW_FILL = 0.62;
 
 // How high the key light rides, in degrees above the horizon.
 //
@@ -2960,6 +2968,34 @@ export function buildWorld(scene: THREE.Scene, track: Track): WorldHandle {
   // image reads as two suns.
   const moonLight = new THREE.DirectionalLight(0xbfd0ff, KEY_NIGHT);
   moonLight.position.set(-300, 500, 200);
+  // A shadow is not the absence of light.
+  //
+  // A surface the key cannot reach is still lit by the sky above it and
+  // by everything the light bounced off on the way. This renderer has no
+  // bounce, and the hemisphere light standing in for the sky is a
+  // fraction of the key — so a shadowed pixel here was losing about
+  // sixty per cent of its whole light budget, and the picture had holes
+  // in it wherever anything cast one.
+  //
+  // Partial shadow is the standard way to pay for the bounce a real-time
+  // renderer does not compute. It is a cheat and it is the right cheat:
+  // it lifts ONLY what the key cannot reach. Raising the ambient instead
+  // would have lifted the midnight sky and the sea with it, which is how
+  // a night game stops being one.
+  //
+  // Measured, A/B over four viewpoints in one session (tools/shots/
+  // lightab.mjs), because the two levers are only distinguishable by
+  // what they DO NOT touch:
+  //
+  //   shadow band (<=32/255)   50.9%  ->  47.9%
+  //   median luma               32.3  ->   37.8
+  //   the black end (<=2/255)   0.47% ->   0.38%   — did not rise
+  //
+  // That last line is the whole argument. Under the flyover the median
+  // went 35 -> 49 and on the open corniche the sub-16/255 share halved,
+  // while the pixels that are supposed to be black stayed black. The sky
+  // is not shadow-mapped, so it cannot move, and it did not.
+  moonLight.shadow.intensity = SHADOW_FILL;
   scene.add(moonLight);
   const fillLight = new THREE.DirectionalLight(0x86a6d8, KEY_NIGHT * FILL_RATIO);
   fillLight.position.set(300, 220, -200);
