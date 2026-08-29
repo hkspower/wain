@@ -354,6 +354,48 @@ main section:has(> div > div > h1) > div.mb-8 {
   [data-theme='dark'] .invoice .text-white * {
     color: #171a1e !important;
   }
+
+  /* THE SHOP'S FURNITURE IS NOT PART OF THE INVOICE.
+   *
+   * The build already hides the header, the footer, the action bar and
+   * anything marked .no-print. It does not hide the four things below, and
+   * every one of them is `position: fixed` — which in print means they are
+   * laid over the page rather than flowing off the end of it.
+   *
+   * MEASURED on /invoice/<track> at the PDF's real content box (A4 794px less
+   * the @page 14mm each side = 688px), print media emulated:
+   *
+   *   fixed  688x1000  div.fixed.inset-0.z-40.bg-ink/60   a full-page scrim
+   *   fixed  454x1000  aside.cart-drawer   L-454  R0
+   *   fixed  176x48    a.skip-link         L500   R676
+   *   fixed  0x0       button.tap-target.fixed.bottom-4   (closed here)
+   *
+   * WHAT IT COST, and it is not the cosmetic problem it sounds like. The
+   * drawer's right edge sits at exactly x=0 — the left edge of the content
+   * box — and it is a thousand pixels tall, so it printed as a rule down the
+   * full height of the page AND covered the leftmost glyphs of the left-hand
+   * column. That column is the money: the line totals, the subtotal, the
+   * delivery, and `الإجمالي ‏11.000 د.ك.` — the amount the customer is being
+   * asked to pay, with its currency clipped off. Rendered before and after on
+   * the same order: the rule disappears and every amount reads in full.
+   *
+   * THE SCRIM IS THE ONE THAT WOULD HAVE BEEN WORSE. It is 60% of the ink
+   * colour over the entire page, and it does not paint here only because the
+   * drawer is shut. Open the bag, press Ctrl+P — an ordinary thing to do — and
+   * `print-color-adjust: exact`, which the build sets on `*`, guarantees the
+   * printer is told to lay all of it down.
+   *
+   * The skip link is an affordance for keyboard users and means nothing on
+   * paper. The floating button is shut here and is hidden for the same reason
+   * as the rest: none of it is the document.
+   *
+   * Scoped to print, so the screen is untouched. */
+  .cart-drawer,
+  .skip-link,
+  .tap-target.fixed,
+  .fixed.inset-0.z-40 {
+    display: none !important;
+  }
 }
 
 /* ------------------------------------------- the product page's photo gallery */
