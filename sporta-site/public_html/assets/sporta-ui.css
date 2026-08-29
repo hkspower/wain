@@ -568,6 +568,36 @@ div.flex.h-full.w-full:has(> img:not([src^='data:'])) > img[src^='data:image/svg
     display: none;
   }
 
+  /* --- 5. the buy bar covers the end of the page ------------------------ */
+  /* THE PINNED ADD-TO-CART BAR IS 73px OF THE SCREEN AND THE PAGE DOES NOT
+   * KNOW IT IS THERE.
+   *
+   * `.action-bar` is `position: fixed` on a phone — correctly, it is what puts
+   * أضف and اشترِ الآن in reach without scrolling, and it is height 0 on
+   * desktop so none of this applies there. But a fixed element is out of flow,
+   * so nothing below it reserves any room, and `.app-footer` computes
+   * `padding-bottom: 0`.
+   *
+   * MEASURED at the very bottom of the product page, 393x850, scrolled as far
+   * as it goes — the bar occupies y777-850 and underneath it sits:
+   *
+   *     y795-812  © 2026 Sporta — جميع الحقوق محفوظة
+   *     y816-851  متجر سبورتا تحت إدارة شركة المهلب …
+   *
+   * The copyright and the trading name are not decoration; they are the lines
+   * that say who the shop legally is. On a phone they could not be read at
+   * all, on any page carrying the bar, at any scroll position — there is no
+   * further down to go.
+   *
+   * Padding the FOOTER rather than the body, so the clearance sits at the end
+   * of the document where the bar is, and `:has(.action-bar)` so a page
+   * without the bar does not grow 5rem of empty space it has no use for.
+   * env() on top for the home-indicator strip, matching the bar's own
+   * `safe-bottom`. */
+  body:has(.action-bar) .app-footer {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+  }
+
   /* --- 4. the header gives 45px back once you start reading ------------- */
   /* The nav row — الرئيسية / المتجر / من نحن / اتصل بنا — is 45px of a 134px
      header that never leaves the screen. It is what you need when you ARRIVE
