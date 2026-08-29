@@ -142,3 +142,68 @@ export const GLOWS: Glow[] = [
 export const GLOW_HEX: Record<string, number> = Object.fromEntries(
   GLOWS.map((g) => [g.id, g.hex])
 );
+
+// ---------------------------------------------------------------------
+// Engine covers.
+//
+// The cam cover is the one part of an engine anybody outside the car
+// ever sees, and it is the part tuners have always painted — crackle
+// red, wrinkle black, a polished cast alloy. It is a separate list from
+// the paint booth for a reason a glance at the numbers shows: these are
+// stronger and darker than any body colour here, because a cover is seen
+// in shadow, through a vent, lit by whatever spills past the bonnet. A
+// cover in Desert Sand would be a grey smudge in a hole.
+//
+// It is also why there are six and not twenty-three. What you can see of
+// a cover is roughly a hand's width of it; the distinctions a whole
+// flank can carry are wasted there.
+
+export interface Cover {
+  id: string;
+  hex: number;
+}
+
+export const COVERS: Cover[] = [
+  { id: "cover-red", hex: 0xb3121b },
+  { id: "cover-blue", hex: 0x1550a8 },
+  { id: "cover-black", hex: 0x14161a },
+  { id: "cover-gold", hex: 0xb08420 },
+  { id: "cover-alloy", hex: 0x9aa2ab },
+  { id: "cover-green", hex: 0x1a7a44 },
+];
+
+export const COVER_HEX: Record<string, number> = Object.fromEntries(
+  COVERS.map((c) => [c.id, c.hex])
+);
+
+// ---------------------------------------------------------------------
+// Carbon.
+//
+// Not a colour — a material, and the difference matters to the renderer:
+// carbon has a weave, and a weave has a direction and a scale. A flat
+// dark grey panel is what "carbon" looks like when nobody drew the cloth,
+// and this game has had exactly that on its kit pieces since the kit
+// existed.
+
+export type CarbonLevel = "none" | "panels" | "full";
+
+/**
+ * What the cloth actually saves, in kilograms.
+ *
+ * Real numbers, per panel, against the steel they replace: a bonnet is
+ * 8-12 kg, a boot lid 6-8, a pair of mirror caps under 2, a roof skin
+ * 10-14. They are added up here rather than invented as a percentage,
+ * because a percentage would make a carbon bonnet worth more on a heavy
+ * car than on a light one, which is the wrong way round.
+ */
+export const CARBON_KG: Record<CarbonLevel, number> = {
+  none: 0,
+  panels: 22,
+  full: 38,
+};
+
+/** What a car weighs, near enough, for turning kilos into a fraction.
+ *  One number for the whole fleet: the cars in this game do not carry
+ *  individual masses, and inventing fifteen of them to divide a
+ *  twenty-two kilo saving by would be false precision. */
+export const NOMINAL_CAR_KG = 1400;

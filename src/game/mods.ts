@@ -13,7 +13,10 @@ import type { EngineId, EngineSpec } from "./engines";
 import { loadCrew, type Crew } from "./teams";
 import type { Drivetrain } from "./grip";
 import { HANDLING } from "./handling";
-import { PAINTS, PAINT_HEX, GLOW_HEX, swatch, type PaintFamily } from "./paints";
+import {
+  PAINTS, PAINT_HEX, GLOW_HEX, COVER_HEX, CARBON_KG, NOMINAL_CAR_KG,
+  swatch, type PaintFamily, type CarbonLevel,
+} from "./paints";
 
 export type ExclusiveCat =
   | "engine"
@@ -26,7 +29,9 @@ export type ExclusiveCat =
   | "tires"
   | "gearbox"
   | "paint"
-  | "glow";
+  | "glow"
+  | "cover"
+  | "carbon";
 export type Category = ExclusiveCat | "internals" | "chassis" | "extras";
 
 /** Slots where equipping one part unequips the previous one. */
@@ -42,6 +47,8 @@ export const EXCLUSIVE_CATS: ReadonlySet<string> = new Set([
   "glow",
   "lamps",
   "finish",
+  "cover",
+  "carbon",
 ]);
 
 export interface Part {
@@ -158,6 +165,23 @@ export const PARTS: Part[] = [
   { id: "glow-amber", cat: "glow", name: "Amber Glow", ar: "كهرماني", price: 200, desc: "" },
   { id: "glow-pink", cat: "glow", name: "Pink Glow", ar: "زهري", price: 200, desc: "" },
   { id: "glow-white", cat: "glow", name: "White Glow", ar: "أبيض", price: 250, desc: "" },
+  // Engine covers — exclusive. The cam cover is the only part of an
+  // engine anybody outside the car ever sees, and buying one cuts the
+  // vents in the bonnet that let you see it: a cover under a sealed
+  // bonnet is money spent on a thing that is not there.
+  { id: "cover-none", cat: "cover", name: "Stock Cover", ar: "غطاء عادي", price: 0, desc: "Black plastic, bonnet shut over it" },
+  { id: "cover-red", cat: "cover", name: "Crackle Red", ar: "أحمر مجعد", price: 350, desc: "Wrinkle-finish red, and vents cut in the bonnet to see it through" },
+  { id: "cover-blue", cat: "cover", name: "Cobalt Cover", ar: "أزرق", price: 350, desc: "" },
+  { id: "cover-black", cat: "cover", name: "Wrinkle Black", ar: "أسود مجعد", price: 300, desc: "" },
+  { id: "cover-gold", cat: "cover", name: "Gold Cam Cover", ar: "ذهبي", price: 450, desc: "" },
+  { id: "cover-alloy", cat: "cover", name: "Polished Alloy", ar: "ألمنيوم ملمع", price: 400, desc: "" },
+  { id: "cover-green", cat: "cover", name: "Racing Green Cover", ar: "أخضر", price: 350, desc: "" },
+  // Carbon — exclusive, and the only mod in the game that is bought for
+  // what it TAKES OFF the car. Every car can wear it; nothing is
+  // reserved for a class.
+  { id: "carbon-none", cat: "carbon", name: "Steel Panels", ar: "حديد", price: 0, desc: "What it left the factory with" },
+  { id: "carbon-panels", cat: "carbon", name: "Carbon Package", ar: "باكيج كاربون", price: 1800, desc: "Dry carbon bonnet, boot lid and mirror caps — 22 kg off the car, and the weave shows" },
+  { id: "carbon-full", cat: "carbon", name: "Full Dry Carbon", ar: "كاربون كامل", price: 3200, desc: "The package plus the roof skin and every aero panel — 38 kg off, most of it high up where it matters most" },
 ];
 
 /**
@@ -1323,6 +1347,10 @@ export interface TuneEffects {
   exhaust: ExhaustSpec;
   paint: number;
   glow: number | null;
+  /** The cam cover's colour, or null for the stock black plastic. */
+  engineCover: number | null;
+  /** How much of the bodywork is cloth rather than steel. */
+  carbon: CarbonLevel;
   bodyStyle: "sedan" | "zx" | "gtr" | "rx7" | "hatch" | "pony";
 }
 
@@ -1344,6 +1372,22 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
   // are where it gets charged. Small numbers on purpose — this is a tax
   // on the big engines, not a reason to avoid them.
   const massTax = 1 - engine.massKg / 4000;
+  // Carbon, charged the other way round: kilos OFF rather than on.
+  //
+  // Its own line rather than a share of massTax, because massTax is
+  // calibrated against engine mass alone and folding a body panel into
+  // it would silently rescale every engine. And expressed as kilos over
+  // a nominal car rather than as a flat percentage, because a percentage
+  // would make a carbon bonnet worth more on a heavy car than on a light
+  // one, which is exactly backwards.
+  //
+  // It is a small number and it is meant to be. Twenty-two kilos off
+  // fourteen hundred is one and a half per cent, which is what carbon
+  // panels are actually worth — the reason to buy them is that you can
+  // see the weave.
+  const carbonLevel: CarbonLevel =
+    eq.carbon === "carbon-full" ? "full" : eq.carbon === "carbon-panels" ? "panels" : "none";
+  const lightness = 1 + CARBON_KG[carbonLevel] / NOMINAL_CAR_KG;
   let accelMult = car.power * engine.powerMult;
   if (has("ecu")) accelMult += 0.08;
   const exhaust = EXHAUSTS[eq.exhaust ?? ""] ?? EXHAUSTS.stock;
@@ -1351,6 +1395,9 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
   if (eq.intake === "intake") accelMult += 0.05;
   else if (eq.intake === "intake-basic") accelMult += 0.02;
   if (has("weight")) accelMult += 0.1;
+  // Less to push is more to push it with. The same fraction the brakes
+  // and the tyres get, so a kilo means one thing in this file.
+  accelMult *= lightness;
 
   // Mods move the governor in km/h, so the showroom number and the
   // garage number are the same units the speedo reads.
@@ -1381,6 +1428,7 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     brakeThermalMult *= 1.15;
   }
   brakeForce *= massTax; // the same kilos, charged again where they stop
+  brakeForce *= lightness; // ...and the ones carbon took back off
 
   let gripAccel = car.grip;
   let slipMult = 1;
@@ -1404,6 +1452,7 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
   let downforce = 0;
   if (has("spoiler")) { gripAccel += 0.1; downforce += 0.8; slipMult *= 0.92; }
   gripAccel *= massTax;
+  gripAccel *= lightness;
   // Real downforce: the attack kit's wing and splitter plant the car
   if (car.kit === "attack") { gripAccel += 0.2; downforce += 1.6; slipMult *= 0.88; }
 
@@ -1485,5 +1534,10 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
         ? PAINT_COLORS[eq.paint] ?? car.color
         : car.color,
     glow: eq.glow && eq.glow !== "glow-none" ? GLOW_COLORS[eq.glow] ?? null : null,
+    /** The cam cover's colour, or null for the stock black plastic —
+     *  which is also the signal not to cut the bonnet vents. */
+    engineCover: eq.cover && eq.cover !== "cover-none" ? COVER_HEX[eq.cover] ?? null : null,
+    /** How much of the bodywork is cloth rather than steel. */
+    carbon: carbonLevel,
   };
 }

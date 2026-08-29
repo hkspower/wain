@@ -61,6 +61,8 @@ const PERFORMANCE_CATS: Array<{ cat: string; label: string }> = [
 const STYLE_CATS: Array<{ cat: string; label: string }> = [
   { cat: "paint", label: "PAINT · الصبغ" },
   { cat: "finish", label: "FINISH · اللمعة" },
+  { cat: "carbon", label: "CARBON · الكاربون" },
+  { cat: "cover", label: "ENGINE COVER · غطاء المكينة" },
   { cat: "lamps", label: "HEADLIGHTS · الشمعات" },
   { cat: "glow", label: "UNDERGLOW · الليتات" },
 ];
