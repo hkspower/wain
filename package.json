@@ -45,6 +45,7 @@
     "test:audio": "node tests/audio.mjs",
     "test:clock": "node tests/clock.mjs",
     "test:radio": "node tests/radio.mjs",
+    "test:paints": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/paints.mjs",
     "test:weight": "node tests/typeweight.mjs",
     "test:handles": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/handles.mjs",
     "test:runs": "node --experimental-strip-types --import ./tools/parity/ts-resolve.mjs tests/quests.mjs",

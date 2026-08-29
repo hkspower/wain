@@ -31,7 +31,7 @@ import {
   playerId,
   REFERRAL_KD,
 } from "@/game/community";
-import { addKd } from "@/game/mods";
+import { addKd, PAINT_SWATCHES } from "@/game/mods";
 import { cleanHandle, rollHandle, MAX_HANDLE } from "@/game/handles";
 import {
   QUESTS,
@@ -44,16 +44,19 @@ import {
 } from "@/game/quests";
 import type { ReferralState } from "@/game/net";
 
-const CAR_COLORS = [
-  "#f2f4f7", // pearl white
-  "#0a0a0c", // midnight black
-  "#c1121f", // red
-  "#f5c211", // yellow
-  "#007a3d", // Kuwait green
-  "#b84dd6", // violet
-  "#38e8ff", // gulf cyan
-  "#e8641b", // orange
-];
+/**
+ * The colours you can be seen in, out on the cruise.
+ *
+ * This used to be eight anonymous hexes typed into this file, which had
+ * two consequences and both were bad: the colour a player picked here
+ * was not one the game could name, and it was not one the garage sold,
+ * so the two pickers in the game disagreed about what colours exist. Now
+ * both read the one palette. Picking here still buys nothing — it is
+ * what the other cars see, not what is in your garage.
+ */
+const CAR_COLORS = PAINT_SWATCHES;
+const DEFAULT_COLOR =
+  PAINT_SWATCHES.find((c) => c.id === "paint-white")?.css ?? PAINT_SWATCHES[0].css;
 
 /** Whether the hub this build points at is one the player could
  *  plausibly start themselves. Decides whether the offline card offers
@@ -81,7 +84,7 @@ export default function HubLobby() {
   /** True for a driver the game already has a name for. The form
    *  collapses to one button, and the fields go behind "not you?". */
   const [known, setKnown] = useState(false);
-  const [color, setColor] = useState(CAR_COLORS[0]);
+  const [color, setColor] = useState(DEFAULT_COLOR);
   const [status, setStatus] = useState<Status>("setup");
   const [players, setPlayers] = useState<HubPlayer[]>([]);
   const [leaderboard, setLeaderboard] = useState<LapEntry[]>([]);
@@ -126,7 +129,11 @@ export default function HubLobby() {
       setName(h.en);
       setHandleAr(h.ar);
     }
-    if (CAR_COLORS.includes(p.color)) setColor(p.color);
+    // A saved colour is kept only if it is still one of ours. An old
+    // save may hold a hex from the retired eight-swatch list, and
+    // showing it as "selected" when no swatch is lit reads as a broken
+    // picker rather than as a colour that no longer exists.
+    if (CAR_COLORS.some((c) => c.css === p.color)) setColor(p.color);
     // The code is derived from an id in local storage, so it exists
     // before the socket does and survives every reload.
     setMyCode(inviteCode(playerId()));
@@ -381,17 +388,41 @@ export default function HubLobby() {
                 <div className="mt-2 flex flex-wrap gap-2">
                   {CAR_COLORS.map((c) => (
                     <button
-                      key={c}
-                      onClick={() => setColor(c)}
-                      aria-label={`car colour ${c}`}
-                      className={`size-10 rounded-full border-2 transition ${
-                        color === c
+                      key={c.id}
+                      onClick={() => setColor(c.css)}
+                      // The colour's real name, in both languages —
+                      // twenty-three unlabelled circles is a colour
+                      // picker nobody can talk about. It is the title
+                      // and the accessible name, so it reaches a mouse
+                      // and a screen reader alike.
+                      title={`${c.name} · ${c.ar}`}
+                      aria-label={`${c.name} — ${c.ar}`}
+                      aria-pressed={color === c.css}
+                      className={`size-9 rounded-full border-2 transition ${
+                        color === c.css
                           ? "scale-110 border-gulf-300 shadow-[0_0_16px_rgba(127,227,255,0.7)]"
                           : "border-white/20 hover:border-white/50"
                       }`}
-                      style={{ backgroundColor: c }}
+                      style={{ backgroundColor: c.css }}
                     />
                   ))}
+                </div>
+                {/* Which one is under the cursor, spelled out. A grid
+                    this size needs a name somewhere that is not a
+                    tooltip, because a tooltip is a thing you have to
+                    already be hovering to know exists. */}
+                <div className="mt-2 min-h-4 text-[11px] text-white/55">
+                  {(() => {
+                    const c = CAR_COLORS.find((x) => x.css === color);
+                    return c ? (
+                      <>
+                        {c.name} ·{" "}
+                        <span className="grn-ar" lang="ar">
+                          {c.ar}
+                        </span>
+                      </>
+                    ) : null;
+                  })()}
                 </div>
                 <button
                   onClick={join}

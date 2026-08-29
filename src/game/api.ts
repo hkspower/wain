@@ -11,6 +11,7 @@ import {
   QUESTS, TOGETHER_M, MET_M, MATCHED_KMH, MATCHED_FLOOR_KMH,
 } from "./quests";
 import { CARS, PARTS, PAINT_COLORS, GLOW_COLORS, classLabel } from "./mods";
+import { PAINTS, GLOWS, swatch } from "./paints";
 import {
   ENGINES,
   FUEL_RATE,
@@ -204,6 +205,34 @@ export function buildGameData() {
      * to agree — two clients that disagree about what "together" means
      * would credit the same two cars differently for the same drive.
      */
+    /**
+     * The paint booth as a palette rather than as a shopping list.
+     *
+     * buildParts already carries a paintColor on each tin, which is
+     * enough to render a shop and not enough to build one: it says
+     * nothing about which colours belong together, and a port reading it
+     * has to guess an order. This is the palette in the order a swatch
+     * grid wants, grouped the way the garage groups it, with the two
+     * finishes of the same fact — the integer a renderer wants and the
+     * CSS string a UI wants — rather than each port writing its own
+     * conversion and one of them getting the padding wrong.
+     */
+    palette: {
+      paints: PAINTS.map((p) => ({
+        id: p.id,
+        family: p.family,
+        color: hex(p.hex),
+        css: swatch(p.hex),
+      })),
+      glows: GLOWS.map((g) => ({ id: g.id, color: hex(g.hex), css: swatch(g.hex) })),
+      /**
+       * The floor every pair of paints clears, as CIEDE2000 in CIELAB.
+       * Published because it is the rule a port has to keep when it adds
+       * a colour of its own, and because "no two of these look alike" is
+       * a claim worth stating in units rather than leaving to taste.
+       */
+      minPerceptualDistance: 12,
+    },
     runs: {
       togetherM: TOGETHER_M,
       metM: MET_M,

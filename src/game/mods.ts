@@ -13,6 +13,7 @@ import type { EngineId, EngineSpec } from "./engines";
 import { loadCrew, type Crew } from "./teams";
 import type { Drivetrain } from "./grip";
 import { HANDLING } from "./handling";
+import { PAINTS, PAINT_HEX, GLOW_HEX, swatch, type PaintFamily } from "./paints";
 
 export type ExclusiveCat =
   | "engine"
@@ -128,6 +129,21 @@ export const PARTS: Part[] = [
   { id: "paint-lime", cat: "paint", name: "Acid Lime", ar: "ليموني", price: 300, desc: "" },
   { id: "paint-sand", cat: "paint", name: "Desert Sand", ar: "رملي", price: 200, desc: "" },
   { id: "paint-maroon", cat: "paint", name: "Maroon", ar: "عنابي", price: 200, desc: "" },
+  // The rest of the booth. Every one of these had to clear a CIEDE2000
+  // floor against every colour already here before it was allowed in —
+  // see tests/paints.mjs. Two of them did not on the first try: the
+  // yellow was nine units from Desert Gold and the coral nine from
+  // Sunset Orange, which is one colour sold twice.
+  { id: "paint-slate", cat: "paint", name: "Slate Grey", ar: "رمادي", price: 200, desc: "" },
+  { id: "paint-bronze", cat: "paint", name: "Bronze", ar: "برونزي", price: 200, desc: "" },
+  { id: "paint-olive", cat: "paint", name: "Olive Drab", ar: "زيتي", price: 200, desc: "" },
+  { id: "paint-palm", cat: "paint", name: "Palm Green", ar: "أخضر النخل", price: 250, desc: "" },
+  { id: "paint-gulf", cat: "paint", name: "Gulf Blue", ar: "أزرق الخليج", price: 250, desc: "" },
+  { id: "paint-mint", cat: "paint", name: "Mint", ar: "نعناعي", price: 250, desc: "" },
+  { id: "paint-ice", cat: "paint", name: "Ice Blue", ar: "ثلجي", price: 250, desc: "" },
+  { id: "paint-rose", cat: "paint", name: "Rose", ar: "وردي", price: 250, desc: "" },
+  { id: "paint-coral", cat: "paint", name: "Coral", ar: "مرجاني", price: 250, desc: "" },
+  { id: "paint-yellow", cat: "paint", name: "Sun Yellow", ar: "أصفر", price: 250, desc: "" },
   // Finish — exclusive, and orthogonal to colour. Any colour can be had
   // in any of the three.
   { id: "finish-gloss", cat: "finish", name: "Gloss Lacquer", ar: "لمعة", price: 0, desc: "Clearcoat over metallic base — the way it left the showroom" },
@@ -138,6 +154,10 @@ export const PARTS: Part[] = [
   { id: "glow-cyan", cat: "glow", name: "Cyan Glow", ar: "سماوي", price: 200, desc: "" },
   { id: "glow-green", cat: "glow", name: "Green Glow", ar: "أخضر", price: 200, desc: "" },
   { id: "glow-purple", cat: "glow", name: "Purple Glow", ar: "بنفسجي", price: 200, desc: "" },
+  { id: "glow-red", cat: "glow", name: "Red Glow", ar: "أحمر", price: 200, desc: "" },
+  { id: "glow-amber", cat: "glow", name: "Amber Glow", ar: "كهرماني", price: 200, desc: "" },
+  { id: "glow-pink", cat: "glow", name: "Pink Glow", ar: "زهري", price: 200, desc: "" },
+  { id: "glow-white", cat: "glow", name: "White Glow", ar: "أبيض", price: 250, desc: "" },
 ];
 
 /**
@@ -275,24 +295,48 @@ const ROLL_COILOVER_MULT = 0.65;
 const ROLL_REF_G = 14 / 9.81;
 const rollMaxRad = (degPerG: number) => (degPerG * ROLL_REF_G * Math.PI) / 180;
 
-export const PAINT_COLORS: Record<string, number> = {
-  "paint-white": 0xf2f4f7,
-  "paint-black": 0x0d0e11,
-  "paint-red": 0xc1121f,
-  "paint-gold": 0xc9a227,
-  "paint-teal": 0x2e8f96,
-  // The rest of the booth. Chosen to sit APART from each other rather
-  // than to fill a wheel evenly: two blues a player cannot tell apart on
-  // a dark road are one blue that cost twice.
-  "paint-silver": 0xb9bfc7,
-  "paint-gunmetal": 0x4a5058,
-  "paint-navy": 0x16305e,
-  "paint-orange": 0xe2571c,
-  "paint-purple": 0x5b2a86,
-  "paint-lime": 0x9ad11f,
-  "paint-sand": 0xcbb388,
-  "paint-maroon": 0x5e1420,
-};
+/**
+ * id to hex, for the renderer.
+ *
+ * Re-exported rather than defined here: the swatches live in paints.ts,
+ * which owns nothing but colour, and this file owns nothing but what a
+ * thing costs. Two files each holding half a paint was how the hub ended
+ * up with a second, anonymous palette that did not match this one.
+ */
+export const PAINT_COLORS: Record<string, number> = PAINT_HEX;
+
+/**
+ * The palette, with its names, for anything that shows swatches outside
+ * the garage — the hub's cruise-colour picker, chiefly.
+ *
+ * The join lives here rather than in paints.ts so that paints.ts imports
+ * nothing: it is the bottom of the stack, and a colour that had to know
+ * about the shop to know its own name would put a cycle in it.
+ *
+ * Picking a colour to be seen in online is not buying a tin, so this
+ * carries no price and implies no ownership. What it fixes is that the
+ * hub used to hold eight anonymous hexes of its own, which meant the
+ * colour a player chose to be seen in was one the game could not name
+ * and did not sell.
+ */
+export const PAINT_SWATCHES: Array<{
+  id: string;
+  hex: number;
+  css: string;
+  name: string;
+  ar: string;
+  family: PaintFamily;
+}> = PAINTS.map((p) => {
+  const part = PARTS.find((x) => x.id === p.id);
+  return {
+    id: p.id,
+    hex: p.hex,
+    css: swatch(p.hex),
+    name: part?.name ?? p.id,
+    ar: part?.ar ?? "",
+    family: p.family,
+  };
+});
 
 /**
  * How the lacquer is finished — and it is a separate axis from colour.
@@ -341,11 +385,7 @@ export const FINISH_OF_PART: Record<string, PaintFinish> = {
   "finish-matte": "matte",
 };
 
-export const GLOW_COLORS: Record<string, number> = {
-  "glow-cyan": 0x38e8ff,
-  "glow-green": 0x2eff7a,
-  "glow-purple": 0xb84dd6,
-};
+export const GLOW_COLORS: Record<string, number> = GLOW_HEX;
 
 // ---------------------------------------------------------------- cars
 
