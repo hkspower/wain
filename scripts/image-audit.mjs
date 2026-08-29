@@ -447,6 +447,57 @@ console.log('\n--- a folder per brand, for logos dropped in by hand')
     noNote.length
       ? `${noNote.length} folder(s) have lost PUT-LOGO-HERE.txt — an empty folder does not survive git or the zip: ${noNote.join(', ')}`
       : 'every folder carries its instructions')
+
+  // ---------------------------------------------- ARE THE LOGOS CUT OUT?
+  //
+  // A brand logo is drawn on the product card and the brand strip, over the
+  // shop's own surface — rgb(20,22,25) on the dark theme and white on the
+  // light one. A logo with its own opaque background is therefore a BOX: a
+  // white rectangle floating on a dark page, on every card of that brand.
+  //
+  // The pipeline itself is sound and was checked before this was written: the
+  // uploader draws onto an unpainted canvas and encodes WebP, which carries
+  // alpha, and store_data_image() stores the bytes verbatim without
+  // re-encoding. Nothing in this shop flattens a logo. So the only way a solid
+  // background arrives is that a solid-background FILE was supplied — and
+  // nothing said so.
+  //
+  // JPEG IS THE FLAT CASE AND IS WORTH ITS OWN MESSAGE. The format has no
+  // alpha channel at all, so a .jpg logo cannot be cut out no matter what it
+  // looks like in Photoshop. store_data_image() accepts image/jpeg for a logo,
+  // which is right — a photographic mark is a legitimate thing to have — but
+  // an owner who exports a cut-out logo to JPEG has silently lost the cut-out
+  // and will only find out when they look at the dark theme.
+  //
+  // THE CORNERS ARE THE TEST, not the whole image. A logo is a mark on a
+  // ground; if all four corners are fully opaque then whatever is behind the
+  // mark is painted, and it will show as a rectangle. Sampling the corners
+  // rather than every pixel also avoids calling a logo "flat" because it has
+  // one opaque pixel somewhere in the middle, which it always does.
+  const flat = []
+  for (const f of folders) {
+    for (const name of readdirSync(`${dir}/${f}`)) {
+      if (!/^logo\.(png|webp|jpe?g)$/i.test(name)) continue
+      const file = `${dir}/${f}/${name}`
+      if (/\.jpe?g$/i.test(name)) { flat.push(`${f}/${name} — JPEG has no transparency at all`); continue }
+      const probe = spawnSync('python3', ['-c', `
+import sys
+from PIL import Image
+im = Image.open(sys.argv[1]).convert('RGBA')
+w, h = im.size
+corners = [im.getpixel(p) for p in ((0,0),(w-1,0),(0,h-1),(w-1,h-1))]
+print('OPAQUE' if all(c[3] > 250 for c in corners) else 'CUTOUT')
+`, file], { encoding: 'utf8' })
+      if (probe.status !== 0) { note(`${f}/${name} could not be read: ${(probe.stderr||'').trim().slice(0,60)}`); continue }
+      if (probe.stdout.trim() === 'OPAQUE') flat.push(`${f}/${name} — every corner is opaque, so it will show as a box`)
+    }
+  }
+  check(flat.length === 0,
+    flat.length
+      ? `${flat.length} logo(s) are NOT cut out and will show as a rectangle on the dark theme:\n       ` + flat.join('\n       ')
+      : withLogo === 0
+        ? 'no logo files yet — nothing to check for transparency'
+        : `all ${withLogo} logo file(s) are cut out, so they sit on the card and not in a box`)
 }
 
 // ------------------------------------------------- 6. renaming keeps the shoot
