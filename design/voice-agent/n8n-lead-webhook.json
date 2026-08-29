@@ -13,7 +13,17 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [0, 0],
-      "webhookId": "5bfb7fc7-6ade-4b1b-a62f-938b613caf0e"
+      "notes": "لا webhookId مثبّت هنا عمداً: ملفٌ يُستورد في حسابين كان يعطيهما المعرّف نفسه. يولّده n8n عند الاستيراد."
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- البوابة ----\n// كان هذا الخطّاف مفتوحاً بلا أي حارس: من يعرف العنوان يكتب في قاعدة\n// العملاء المحتملين بلا حدّ. وهو مقصود لنداءٍ واحد — الوكيل الصوتي.\n//\n// والسرّ ليس مكتوباً هنا. يأتي من متغيّر n8n اسمه\n// ALMUHALLAB_LEAD_SECRET (Settings → Variables)، فلا يظهر في تصدير\n// السير ولا في فروق النسخ، وتدويره تعديلٌ في الواجهة بلا لمس كود.\n//\n// ويفشل مغلقاً: متغيّرٌ غائب يرفض كل الطلبات ولا يفتح الباب.\nconst SECRET = String(($vars && $vars.ALMUHALLAB_LEAD_SECRET) || '');\nif (!SECRET) throw new Error('server not configured: set the n8n variable ALMUHALLAB_LEAD_SECRET');\n\nconst h = $json.headers || {};\nconst given = String(h['x-lead-secret'] || h['X-Lead-Secret'] || '');\nlet ok = given.length === SECRET.length;\nfor (let i = 0; i < SECRET.length; i++) { if (given[i] !== SECRET[i]) ok = false; }\nif (!ok) throw new Error('unauthorized');\n\nreturn [{ json: $json }];"
+      },
+      "id": "b1f7a2c0-0008-4a08-9008-almuhallab08",
+      "name": "تحقق السرّ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [200, 0]
     },
     {
       "parameters": {
@@ -21,13 +31,14 @@
         "includeOtherFields": false,
         "assignments": {
           "assignments": [
-            { "id": "f-name", "name": "name", "value": "={{ $json.body?.name ?? $json.name ?? \"\" }}", "type": "string" },
-            { "id": "f-phone", "name": "phone", "value": "={{ $json.body?.phone ?? $json.phone ?? \"\" }}", "type": "string" },
-            { "id": "f-type", "name": "project_type", "value": "={{ $json.body?.project_type ?? $json.project_type ?? \"غير محدد\" }}", "type": "string" },
-            { "id": "f-summary", "name": "summary", "value": "={{ $json.body?.summary ?? $json.summary ?? \"\" }}", "type": "string" },
-            { "id": "f-conv", "name": "conversation_id", "value": "={{ $json.body?.conversation_id ?? $json.conversation_id ?? \"\" }}", "type": "string" },
-            { "id": "f-at", "name": "received_at", "value": "={{ $now.toISO() }}", "type": "string" },
-            { "id": "f-src", "name": "source", "value": "voice-agent", "type": "string" }
+            { "id": "f-name", "name": "name", "value": "={{ ($json.body?.name ?? $json.name ?? \"\").toString().trim().slice(0, 120) }}", "type": "string" },
+            { "id": "f-phone", "name": "phone", "value": "={{ ($json.body?.phone ?? $json.phone ?? \"\").toString().trim().slice(0, 32) }}", "type": "string" },
+            { "id": "f-type", "name": "project_type", "value": "={{ (($json.body?.project_type ?? $json.project_type ?? \"\").toString().trim() || \"غير محدد\").slice(0, 80) }}", "type": "string" },
+            { "id": "f-summary", "name": "summary", "value": "={{ ($json.body?.summary ?? $json.summary ?? \"\").toString().trim().slice(0, 1200) }}", "type": "string" },
+            { "id": "f-conv", "name": "conversation_id", "value": "={{ ($json.body?.conversation_id ?? $json.conversation_id ?? \"\").toString().trim().slice(0, 80) }}", "type": "string" },
+            { "id": "f-digits", "name": "phone_digits", "value": "={{ ($json.body?.phone ?? $json.phone ?? \"\").toString().replace(/\\D/g, \"\").length }}", "type": "number" },
+            { "id": "f-at", "name": "received_at", "value": "={{ $now.toUTC().toISO() }}", "type": "string" },
+            { "id": "f-src", "name": "source", "value": "البحار — الوكيل الصوتي", "type": "string" }
           ]
         },
         "options": {}
@@ -36,7 +47,8 @@
       "name": "توحيد الحقول",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.5,
-      "position": [220, 0]
+      "position": [420, 0],
+      "notes": "كل حقل مقصوص بسقف. بلا سقف كان صفٌّ واحد يحمل ما يرسله المتصل مهما بلغ. و received_at بـ UTC صراحةً: ‎$now‎ يتبع منطقة السيرفر الزمنية، وقاعدة المشروع أن التواريخ المولّدة تُحسب بـ UTC."
     },
     {
       "parameters": {
@@ -51,8 +63,8 @@
             },
             {
               "id": "c-phone",
-              "leftValue": "={{ ($json.phone ?? \"\").toString().trim().length }}",
-              "rightValue": 6,
+              "leftValue": "={{ $json.phone_digits }}",
+              "rightValue": 8,
               "operator": { "type": "number", "operation": "gte" }
             }
           ],
@@ -64,7 +76,8 @@
       "name": "بيانات صالحة؟",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
-      "position": [440, 0]
+      "position": [640, 0],
+      "notes": "الهاتف يُقاس بعدد أرقامه لا بطول نصّه: الشرط السابق (طول ≥ ٦) كان يمرّر \"aaaaaa\" رقمَ هاتف. وثمانية هي طول الرقم الكويتي."
     },
     {
       "parameters": {
@@ -98,48 +111,66 @@
       "name": "حفظ العميل المحتمل",
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
-      "position": [660, -110]
+      "position": [860, -110],
+      "onError": "continueErrorOutput",
+      "notes": "مخرج الخطأ موصول. كان فشل الإدراج — جدول ناقص أو حصّة ممتلئة — ينهي السير بخطأ ٥٠٠، فيُفقد العميل المحتمل بلا أثر ولا يعرف الوكيل ما يقول للمتصل. الآن يُردّ عليه ردّاً يستطيع نطقه."
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "{\n  \"ok\": true,\n  \"message\": \"تم تسجيل طلبك بنجاح وسيتواصل معك فريق المهلب قريباً\"\n}",
-        "options": {}
+        "responseBody": "={{ JSON.stringify({ ok: true, message: \"سجّلت طلبك يا \" + $('توحيد الحقول').item.json.name + \"، وفريق المهلب يتواصل معك قريباً.\" }) }}",
+        "options": { "responseCode": 200 }
       },
       "id": "b1f7a2c0-0005-4a05-9005-almuhallab05",
       "name": "ردّ النجاح",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
-      "position": [880, -110]
+      "position": [1080, -220],
+      "notes": "الاسم يُقرأ من «توحيد الحقول» لا من $json: مخرج عقدة الحفظ هو الصفّ المُدرَج (id وتواريخه)، لا بيانات العميل — فـ$json.name هناك فارغ."
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "{\n  \"ok\": false,\n  \"error\": \"الاسم ورقم الهاتف مطلوبان\"\n}",
+        "responseBody": "={{ JSON.stringify({ ok: false, message: \"ما قدرت أحفظ الطلب الآن. اعتذر للعميل واطلب منه مراسلتنا واتساب على +965 6589 4110.\" }) }}",
+        "options": { "responseCode": 503 }
+      },
+      "id": "b1f7a2c0-0009-4a09-9009-almuhallab09",
+      "name": "ردّ تعذّر الحفظ",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [1080, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, message: \"ما وصلني الاسم أو رقم الهاتف كاملاً — اسأل العميل مرّة ثانية وأعد المحاولة.\" }) }}",
         "options": { "responseCode": 400 }
       },
       "id": "b1f7a2c0-0006-4a06-9006-almuhallab06",
       "name": "ردّ الرفض",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
-      "position": [660, 130]
+      "position": [860, 150]
     },
     {
       "parameters": {
-        "content": "## عملاء الوكيل الصوتي\n\nيستقبل هذا السير طلبات وكيل ElevenLabs الصوتي (أداة register_lead)\nويحفظها في جدول البيانات **voice_leads**.\n\n**قبل التفعيل:** أنشئ Data Table باسم `voice_leads`\nبالأعمدة (كلها نص): name · phone · project_type · summary · conversation_id · received_at · source\n\nالرد 200 عند النجاح و400 عند نقص الاسم أو الهاتف —\nوالوكيل الصوتي يقرأ حقل message ويؤكد للعميل.",
-        "height": 320,
-        "width": 380,
+        "content": "## عملاء الوكيل الصوتي\n\nيستقبل هذا السير طلبات وكيل ElevenLabs الصوتي (أداة register_lead)\nويحفظها في جدول البيانات **voice_leads**.\n\n**قبل التفعيل — أمران:**\n\n١. أنشئ Data Table باسم `voice_leads` بالأعمدة (كلها نص):\nname · phone · project_type · summary · conversation_id · received_at · source\n\n٢. أنشئ متغيّراً باسم `ALMUHALLAB_LEAD_SECRET` بقيمة عشوائية طويلة،\nواجعل الوكيل يرسلها في ترويسة `x-lead-secret`.\nبدونه يرفض السير كل طلب — وهذا مقصود: خطّاف بلا حارس\nيكتب في قاعدة عملائك من يعرف عنوانه.\n\n**الردود:** ٢٠٠ عند الحفظ · ٤٠٠ عند نقص الاسم أو الهاتف ·\n٥٠٣ إن تعذّر الحفظ (فلا يضيع العميل بصمت).\nوالوكيل يقرأ حقل `message` وينطقه.\n\n**ما زال مفتوحاً:** لا منع تكرار. `conversation_id` محفوظ لكن\nالإدراج لا يطابق عليه، فإعادة محاولة من الوكيل تسجّل العميل مرّتين.\nإصلاحه يحتاج التحقّق من معاملات عقدة dataTable في n8n نفسه.",
+        "height": 460,
+        "width": 400,
         "color": 5
       },
       "id": "b1f7a2c0-0007-4a07-9007-almuhallab07",
       "name": "Sticky Note",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-40, -400]
+      "position": [-40, -520]
     }
   ],
   "connections": {
     "استقبال من الوكيل الصوتي": {
+      "main": [[{ "node": "تحقق السرّ", "type": "main", "index": 0 }]]
+    },
+    "تحقق السرّ": {
       "main": [[{ "node": "توحيد الحقول", "type": "main", "index": 0 }]]
     },
     "توحيد الحقول": {
@@ -152,7 +183,10 @@
       ]
     },
     "حفظ العميل المحتمل": {
-      "main": [[{ "node": "ردّ النجاح", "type": "main", "index": 0 }]]
+      "main": [
+        [{ "node": "ردّ النجاح", "type": "main", "index": 0 }],
+        [{ "node": "ردّ تعذّر الحفظ", "type": "main", "index": 0 }]
+      ]
     }
   },
   "settings": { "executionOrder": "v1" },
