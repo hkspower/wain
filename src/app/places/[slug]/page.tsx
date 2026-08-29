@@ -55,7 +55,7 @@ export default async function PlacePage({ params }: Props) {
       {/* Header */}
       <div className="mt-8 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
             {place.name}
           </h1>
           <p className="mt-1 text-xl text-slate-600" dir="rtl" lang="ar">

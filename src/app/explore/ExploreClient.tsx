@@ -33,7 +33,7 @@ export default function ExploreClient() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
       <div className="mb-8">
-        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
           Explore Kuwait
         </h1>
         <p className="mt-2 text-slate-500">

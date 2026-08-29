@@ -188,9 +188,37 @@ body {
    label typography.
    ========================================================== */
 
+/* The display face.
+ *
+ * WEIGHT COMES DOWN AS SIZE GOES UP.
+ *
+ * Size and weight are two ways of saying the same thing, and using both
+ * at once on the same words says it twice. A 60px headline at 700 is not
+ * twice as emphatic as one at 600 — it is heavier, muddier in the
+ * counters, and it crowds whatever sits next to it. Big type is already
+ * loud; the weight is what you spend on small type that has to compete
+ * with it.
+ *
+ * The ceiling this game holds itself to, asserted by tests/type-weight:
+ *
+ *     44px and up   weight 600 at most
+ *     32 - 44px     weight 700 at most
+ *     under 32px    as heavy as it needs to be
+ *
+ * 600 rather than 700 here because this class is worn by everything from
+ * an 18px readout to the 96px VS card, and one value has to satisfy the
+ * ceiling at the top of that range. Barlow Condensed carries a real 600
+ * italic — no synthesis — and at small sizes it still reads as bold,
+ * which is the whole reason a condensed face was chosen.
+ *
+ * This block is deliberately OUTSIDE @layer. Tailwind's utilities are
+ * layered, and unlayered rules beat layered ones whatever the source
+ * order, so a font-bold in the markup would not have overridden this and
+ * would have looked like it should. Weight for display type is set here
+ * or not at all. */
 .grn-display {
   font-family: var(--font-display);
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.01em;
 }
 
@@ -226,7 +254,14 @@ body {
 /* Headline Arabic — the VS card, area names, race banners. */
 .grn-ar-display {
   font-family: var(--font-arabic-display);
-  font-weight: 900;
+  /* 700, not 900. This is worn at ~37px on the road-name banner, where
+     900 is a black weight on large type — the same doubling-up the note
+     on .grn-display describes, and worse in Arabic, where the joins fill
+     in and the whole word turns into a bar. 700 is a real weight in the
+     loaded face, and against Latin at 600 it reads as the same colour:
+     Arabic strokes are finer, so matching apparent weight means a
+     higher number, not the same one. */
+  font-weight: 700;
   font-style: normal;
   font-synthesis: none;
   letter-spacing: normal;
