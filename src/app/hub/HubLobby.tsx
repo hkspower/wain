@@ -354,7 +354,23 @@ export default function HubLobby() {
                 {/* Only under a name the game itself offered — see the
                     note on handleAr. */}
                 {handleAr && (
-                  <div className="grn-ar mt-1.5 text-sm text-white/55" lang="ar" dir="rtl">
+                  // Tagged, because it is not the only right-to-left
+                  // Arabic on the page — the title above it is too, and
+                  // a check looking for ".grn-ar[dir=rtl]" reads the
+                  // headline and reports that this line never changes.
+                  // dir="rtl" and text-left together, deliberately.
+                  // Direction is what orders the Arabic correctly;
+                  // alignment is only where the box sits. Left alone,
+                  // the line drifts to the right edge of the row — under
+                  // the reroll button, a long way from the name it is
+                  // the reading of. Left-aligned it sits under the name,
+                  // like the bilingual label above it.
+                  <div
+                    data-handle-ar
+                    className="grn-ar mt-1.5 text-left text-sm text-white/55"
+                    lang="ar"
+                    dir="rtl"
+                  >
                     {handleAr}
                   </div>
                 )}
