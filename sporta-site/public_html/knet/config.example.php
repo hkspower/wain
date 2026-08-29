@@ -36,8 +36,21 @@
 // credentials.
 
 return [
-    // 'test' or 'production'
-    'env' => 'test',
+    // LIVE. 'test' or 'production' — and only the exact string 'test' selects
+    // the test gateway. Anything else, including a typo, a capital P or an
+    // unset key, is treated as production by knet_gateway_url(). That is
+    // deliberate and it is the safe direction: the dangerous failure is not a
+    // misspelling, it is a config nobody finished.
+    //
+    // TWO THINGS CHANGE THE MOMENT THIS SAYS 'production':
+    //
+    //   1. Shoppers go to kpay.com.kw instead of kpaytest.com.kw. Real cards,
+    //      real money, real refunds if it is wrong.
+    //   2. knet/selftest.php SHUTS ITSELF OFF. It only opens while env is
+    //      'test', so the page that counts your resource key's bytes and
+    //      proves the orders database answers is gone exactly when you would
+    //      want it. Run it BEFORE flipping this, not after.
+    'env' => 'production',
 
     // WHICH INTEGRATION — PINNED, not worked out.
     //

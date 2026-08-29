@@ -127,12 +127,11 @@ bank as `…A2`.
 3. **`response_url` and `error_url`** must both be the public HTTPS address of
    `knet/callback.php`, and that URL has to be registered with the bank against
    this Tranportal ID. That callback is what marks an order paid.
-4. **Set `env` to `production`** when the bank moves you off the test gateway.
-   `test` is the only value that selects `test_url`; anything else, including
-   nothing at all, is treated as live.
-5. **Run `/knet/selftest.php`** and read the top line: it names the integration
-   in force, then counts the resource key's bytes and checks the orders
-   database. It only opens while `env` is `test`.
+4. **Run `/knet/selftest.php` BEFORE going live** — see the order below. It
+   names the integration in force, counts the resource key's bytes and checks
+   the orders database.
+5. **Set `env` to `production`.** `test` is the only value that selects
+   `test_url`; anything else, including nothing at all, is treated as live.
 6. **Keep `config.php` out of the web root's reach.** `.htaccess` denies it and
    `.gitignore` keeps it out of the repository — it is a bearer credential.
 7. **Delete `knet/selftest.php`** once everything reads OK. It reports
@@ -140,6 +139,34 @@ bank as `…A2`.
 
 `pay/config.php` stays as it is — T-Pay still uses it, and it is what the
 fallback route would need.
+
+## Going live, in this order
+
+The order is the whole point: **`env => 'production'` switches the self-test
+off.** It only opens while `env` is `test`, so the page that would tell you the
+resource key is the wrong length is gone exactly when you start taking real
+cards. Flip it last.
+
+1. **Credentials in** — `tranportal_password` and `resource_key` in
+   `knet/config.php`, while `env` is still `test`.
+2. **Load `/knet/selftest.php`.** Every line must read OK, and in particular
+   `resource_key length: 16 bytes OK`. If it says anything else, stop: a
+   trailing space or newline from the paste is the usual cause, and in
+   production that is *"Payment init failed"* for every shopper with no clue
+   why.
+3. **One test transaction** against `kpaytest.com.kw`, all the way to the
+   result page, and check the order shows `paid` in the backend. This is also
+   the only thing that proves the bank accepts the credentials and that
+   `626101` is the right Tranportal ID — no rig here can tell you that.
+4. **Set `env` to `production`.**
+5. **Delete `knet/selftest.php`** from the server.
+6. **One real transaction**, smallest amount you can order, and refund it.
+   Confirm `payment_status` is `paid` and the callback was recorded.
+
+If step 3 fails, the two likely causes in order are the resource key's length
+and the Tranportal ID (`626101` vs `6261`) — and if the bank cannot produce the
+password and key at all, `'mode' => 'official'` moves KNET to the CBK hosted
+page on credentials that already work. See below.
 
 ## If the Tranportal credentials turn out not to exist
 
