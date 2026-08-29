@@ -561,3 +561,30 @@ div.flex.h-full.w-full:has(> img:not([src^='data:'])) > img[src^='data:image/svg
     min-height: 44px;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * THE CART DRAWER'S CLOSE BUTTON, IN THE LIGHT THEME
+ *
+ * It is an icon and nothing else — no border, no fill, no label — painted
+ * text-slate-400, which is rgb(148,163,184). On the drawer's white header that
+ * measures 2.63:1, and WCAG 1.4.11 asks for 3:1 on the visual information
+ * required to identify a control. When the icon IS the control, the icon is
+ * that information.
+ *
+ * Found by scripts/dark-audit.mjs, which was written looking for the opposite
+ * problem on the dark theme and found this on the light one instead. It is the
+ * only control on the whole shop that fails the test, and it is the one that
+ * closes the bag: a shopper who cannot see it cannot get back to the shop.
+ *
+ * slate-500, rgb(100,116,139), is 4.76:1 on white. It is the next step on the
+ * same ramp the design already uses — not a new colour — and the hover state
+ * (slate-700) is untouched, so the button still darkens under the cursor
+ * exactly as it did. Nothing moves; one icon gets darker.
+ *
+ * Scoped to the drawer so it cannot reach a slate-400 that is doing a
+ * different job somewhere else, and to the light theme because on dark the
+ * same class is already well clear of the floor.
+ * ------------------------------------------------------------------------- */
+html:not([data-theme='dark']) .cart-drawer > header button.tap.text-slate-400 {
+  color: rgb(100 116 139);
+}

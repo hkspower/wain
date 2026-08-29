@@ -128,6 +128,7 @@ because the rigs place real orders against a real database.
 | `npm run test:borders` | Every border, all four sides, both themes, phone and desktop — none invisible, plus a census of the colours, widths and radii in use |
 | `npm run test:buttons` | Every control on both halves of the shop, PRESSED — none dead, plus tap targets, accessible names and links that go nowhere |
 | `npm run test:glare` | Contrast that is too HIGH — light text on a dark page past 18:1, which is halation, not legibility. `THEME=light` measures the other one and judges nothing |
+| `npm run test:dark` | The other end of glare — every control identifiable at 3:1 by its edge, its text or its icon, in both themes |
 | `npm run scan:storage` | Everywhere the shop keeps something — the customer's device, its database, its disk. What is permanent, what grows for ever, what must never be served |
 | `npm run scan:site` | The website, in a browser — `BASE=` to aim it, and the hero measured against the type baked into it |
 | `npm run scan:site:curl` | The same, with nothing but curl — aimed by ARGUMENT, not `BASE`: `bash scripts/site-scan.sh http://127.0.0.1:4300` |
