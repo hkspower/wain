@@ -533,6 +533,11 @@ interface TrafficCar {
   accel: number;
   /** Smoothed brake pressure, so the fold does not snap on and off. */
   brakeVis: number;
+  /** Seconds of SIMULATED time since this car's rig was last solved.
+   *  Sim time and not wall clock, deliberately: tests drive update(1/60)
+   *  in tight loops where each frame takes milliseconds of wall time,
+   *  and a wall-clock ease would run five to fifteen times slow there. */
+  rigDt: number;
 }
 
 interface Rival {
@@ -552,7 +557,8 @@ interface Rival {
   brakeVis: number;
 }
 
-/** Traffic drivers are solved inside this range, nearest first. */
+/** Traffic drivers are solved inside this range — stalest first, so
+ *  every in-range driver keeps updating; see solveTrafficDrivers. */
 const TRAFFIC_DRIVER_RANGE = 120;
 const TRAFFIC_DRIVERS_SOLVED = 6;
 
@@ -2832,6 +2838,7 @@ export class GameEngine {
         steerVis: 0,
         accel: 0,
         brakeVis: 0,
+        rigDt: 0,
       });
     }
   }
@@ -4592,31 +4599,49 @@ export class GameEngine {
    *
    * Every car on this road carries a driver now, which is thirty rigs.
    * Solving all of them every frame would spend most of the work on
-   * cars behind the camera or half a kilometre up the road. The nearest
-   * few are solved properly; the rest keep the seated rest pose the rig
-   * is authored in, which is exactly why that rest pose was authored to
-   * read as seated on its own. Nobody can tell the difference at the
-   * distance where it stops.
+   * cars behind the camera or half a kilometre up the road. In-range
+   * rigs are solved STALEST FIRST on a fixed budget: with six or fewer
+   * in range every driver solves every frame with dt unchanged --
+   * bit-identical to solving them all -- and with more than six each
+   * solves six-Nths of the frames with its accumulated sim time handed
+   * to that solve, so the eases converge at the same rate and the IK
+   * (which lands exactly on each solve) is simply sampled less often.
+   *
+   * It used to be nearest-first, and nearest-first had a failure mode
+   * this replaces: a rig that dropped out of the top six FROZE at its
+   * last solved pose -- held lock, held lean -- because the solver
+   * writes pose absolutely and nothing ever reset it. The old comment
+   * here claimed evicted cars "keep the seated rest pose"; the code did
+   * not do that, and staleness scheduling makes the claim unnecessary
+   * rather than making it true. A car re-entering range after a long
+   * absence has its accumulator capped at 0.25 s, and 0.25 times the
+   * slowest rig rate is past 1, so its first solve snaps to the correct
+   * pose at the range edge instead of easing there visibly.
    */
   private solveTrafficDrivers(dt: number): void {
     const near: TrafficCar[] = [];
     for (const t of this.traffic) {
       const rig = t.mesh.userData.driver as DriverRig | undefined;
       if (!rig) continue;
+      // Every rig ages, in range or not, so a car wandering back into
+      // range presents an honest "how long since I was posed".
+      t.rigDt += dt;
       // Signed gap, so a car just behind you counts as close too
       const gap = Math.abs(this.track.deltaAhead(this.player.s, t.s));
       if (gap < TRAFFIC_DRIVER_RANGE) near.push(t);
     }
     // Cap the count as well as the range: a queue in one lane could put
-    // a dozen cars inside the radius at once.
-    near.sort(
-      (a, b) =>
-        Math.abs(this.track.deltaAhead(this.player.s, a.s)) -
-        Math.abs(this.track.deltaAhead(this.player.s, b.s))
-    );
+    // a dozen cars inside the radius at once. Stalest first -- V8's sort
+    // is stable, so at six or fewer this degenerates to solving all of
+    // them, every frame, in spawn order.
+    near.sort((a, b) => b.rigDt - a.rigDt);
     for (let i = 0; i < near.length && i < TRAFFIC_DRIVERS_SOLVED; i++) {
       const t = near[i];
       const rig = t.mesh.userData.driver as DriverRig;
+      // The sim time this solve answers for. Capped: a car that has
+      // been out of range for a minute needs a snap, not a lurch.
+      const dtSolve = Math.min(0.25, t.rigDt);
+      t.rigDt = 0;
       // Traffic holds its lane, so there is no lane-change signal to
       // read — but a car following a curving road still holds lock, and
       // this road curves. Take the steer from the road itself: the
@@ -4627,7 +4652,7 @@ export class GameEngine {
       while (dHead > Math.PI) dHead -= Math.PI * 2;
       while (dHead < -Math.PI) dHead += Math.PI * 2;
       const steerWant = THREE.MathUtils.clamp(dHead * 2.2, -1, 1);
-      t.steerVis += (steerWant - t.steerVis) * Math.min(1, dt * RIG.rival.steerRate);
+      t.steerVis += (steerWant - t.steerVis) * Math.min(1, dtSolve * RIG.rival.steerRate);
       this.track.pose(
         t.s + RIG.driver.lookAheadM,
         t.lat * RIG.driver.lookLatK,
@@ -4655,7 +4680,7 @@ export class GameEngine {
         t.accel < RIG.rival.brakeAccel
           ? Math.min(1, -t.accel / RIG.rival.brakeScale)
           : 0;
-      t.brakeVis += (wantBrake - t.brakeVis) * Math.min(1, dt * RIG.rival.pedalRate);
+      t.brakeVis += (wantBrake - t.brakeVis) * Math.min(1, dtSolve * RIG.rival.pedalRate);
       solveDriverRig(
         rig,
         t.steerVis,
@@ -4663,7 +4688,7 @@ export class GameEngine {
         RIG.rival.cruiseThrottle * (1 - t.brakeVis),
         t.brakeVis,
         this.v1,
-        dt,
+        dtSolve,
         tLat,
         t.accel
       );
@@ -4834,13 +4859,30 @@ export class GameEngine {
       if (rig) {
         const steerWant = THREE.MathUtils.clamp((r.snapLat - r.lat) * 0.6, -1, 1);
         r.steerVis += (steerWant - r.steerVis) * Math.min(1, dt * RIG.rival.steerRate);
-        this.track.pose(
-          r.s + RIG.driver.lookAheadM,
-          r.lat * RIG.driver.lookLatK,
-          this.v1,
-          this.v2
-        );
-        this.v1.y += RIG.driver.lookHeight;
+        // The glance. The rival's driver turns to look at you when you
+        // pull alongside, and remote drivers did not — a cruiser running
+        // door-to-door with you, the exact situation the runs score as
+        // "beside remote", stared dead ahead like the mannequin every
+        // comment in this file objects to. Same constants as the
+        // rival's glance, so the two kinds of company behave alike;
+        // aimConstrained clamps the neck and eases at its own rate, so
+        // the head cannot snap however abruptly the gap opens.
+        const glanceGap = this.track.deltaAhead(r.s, this.player.s);
+        if (
+          Math.abs(glanceGap) < RIG.rival.glanceGapM &&
+          Math.abs(this.player.lat - r.lat) > RIG.rival.glanceLatM
+        ) {
+          this.v1.copy(this.playerMesh.position);
+          this.v1.y += 0.6;
+        } else {
+          this.track.pose(
+            r.s + RIG.driver.lookAheadM,
+            r.lat * RIG.driver.lookLatK,
+            this.v1,
+            this.v2
+          );
+          this.v1.y += RIG.driver.lookHeight;
+        }
         // A remote player's driver gets the same treatment: their lane
         // blend is the only kinematics we have off the wire, so the lean
         // comes from how fast they are crossing it.

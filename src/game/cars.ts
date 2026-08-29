@@ -6,6 +6,7 @@ import { upgradeCarShells, upgradeWheels, upgradeDriver } from "./models";
 import { arabicUI, latinDisplay, textTexture } from "./text";
 import { kuwaitiDriver } from "./characters";
 import { RIG } from "./rig";
+import { solveDriverRig } from "./driver";
 import { pointGlowTexture, poolGlowTexture } from "./glow";
 import { drawTeamLogo, type TeamLogo } from "./teams";
 
@@ -5236,6 +5237,24 @@ export function createCar(colors: CarColors): THREE.Group {
     if (widthFix !== 1) driver.group.scale.x = 1 / widthFix;
     group.add(driver.group);
     group.userData.driver = driver;
+    // One solve at build, so the rest pose IS a driving pose.
+    //
+    // The shoulders are created with a position and no rotation
+    // (characters.ts), so until a solver runs, both arms hang straight
+    // down through the dash. The legs never had this problem — they get
+    // authored rest angles — which is how the "reads as seated before a
+    // solver runs" promise came to be true only below the waist. The
+    // engine solves the six nearest traffic rigs and every hero car, so
+    // the bug lived exclusively on traffic car seven and beyond: close
+    // enough to see, never close enough to be solved.
+    //
+    // dt=1 turns every ease factor min(1, dt*rate) into 1 — the slowest
+    // rig rate is 5 — so one call snaps the whole rig to a settled
+    // straight-ahead pose: hands on the rim, eyes down the road.
+    driver.group.updateWorldMatrix(true, false);
+    const restLook = new THREE.Vector3(0, RIG.driver.lookHeight, RIG.driver.lookAheadM);
+    driver.group.localToWorld(restLook);
+    solveDriverRig(driver, 0, 0, 0, restLook, 1);
   }
 
   if (!colors.simple) {

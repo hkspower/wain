@@ -546,9 +546,13 @@ const measureFit = (carId) => page.evaluate(async (carId)=>{
 
 // --- 9. Every car on the road has a driver, and the near ones solve ---
 // Thirty driverless cars was the last place an empty seat could be
-// seen. They all carry a rig now; only the nearest few are solved, and
-// the rest hold the authored seated rest pose — which is why that pose
-// was authored to read as seated without a solver.
+// seen. They all carry a rig now. In-range rigs are solved stalest
+// first on a fixed budget, so nobody freezes mid-lock when they drop
+// out of the set; and every rig gets one full solve at build (dt=1
+// snaps all the eases), so even a car that is never scheduled sits
+// with its hands on the rim rather than hanging its arms through the
+// dash — which is what the position-only shoulder rest pose does
+// without a solver.
 const traffic = await page.evaluate(async ()=>{
   const e = window.__grnEngine;
   e.setPaused(true);

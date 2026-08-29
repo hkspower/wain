@@ -92,11 +92,19 @@ export function solveDriverRig(
   // Pulled, it rises through its throw; the blend eases the hand between
   // rim and grip, and lives on the rig because this solver is a free
   // function with no other memory.
-  const hbWant = THREE.MathUtils.clamp(handbrake, 0, 1);
-  rig.hbBlend += (hbWant - rig.hbBlend) * Math.min(1, dt * RIG.driver.handbrakeRate);
-  const rest = (rig.handbrake.userData.restRotX as number) ?? RIG.driver.handbrakeTilt;
-  rig.handbrake.rotation.x = rest - rig.hbBlend * RIG.driver.handbrakeThrow;
-  rig.handbrake.updateWorldMatrix(true, false);
+  // Guarded: forty-six lean rigs pass handbrake 0 every solve, and on
+  // a lean rig the lever is a parentless stub that was never added to
+  // the scene — easing it and walking its (one-node) matrix chain is
+  // work with no pixels. The guard also documents that fact. The player
+  // path is untouched: a pull runs it, and a release keeps running it
+  // until the blend has eased home past the residue threshold.
+  if (handbrake > 0 || rig.hbBlend > 1e-4) {
+    const hbWant = THREE.MathUtils.clamp(handbrake, 0, 1);
+    rig.hbBlend += (hbWant - rig.hbBlend) * Math.min(1, dt * RIG.driver.handbrakeRate);
+    const rest = (rig.handbrake.userData.restRotX as number) ?? RIG.driver.handbrakeTilt;
+    rig.handbrake.rotation.x = rest - rig.hbBlend * RIG.driver.handbrakeThrow;
+    rig.handbrake.updateWorldMatrix(true, false);
+  }
 
   rig.wheel.updateWorldMatrix(true, false);
   for (const arm of rig.arms) {
