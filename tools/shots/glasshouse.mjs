@@ -76,6 +76,21 @@ for (const carId of process.argv.slice(2)) {
       out.carY[1] = Math.max(out.carY[1], bb.max.y);
       const shell = o.userData.shell;
       const name = o.material?.name ?? "?";
+      if (shell === "canopy") {
+        // The canopy's widest point is at the SHOULDER, not at the top:
+        // a greenhouse tumbles home as it rises. So the number the roof
+        // cap has to match is not the canopy's max half-width — it is
+        // the half-width in the band the roof actually occupies, and
+        // that has to be read off the vertices rather than off a box.
+        const pos = o.geometry.attributes.position;
+        const m = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
+        const v = new THREE.Vector3();
+        out.canopyVerts = [];
+        for (let i = 0; i < pos.count; i++) {
+          v.fromBufferAttribute(pos, i).applyMatrix4(m);
+          out.canopyVerts.push([+v.x.toFixed(4), +v.y.toFixed(4)]);
+        }
+      }
       if (shell) {
         out.shells[shell] = {
           mat: name,
@@ -105,11 +120,28 @@ for (const carId of process.argv.slice(2)) {
     return out;
   }, carId);
 
+  // The canopy's half-width where the roof sits, which is what the roof
+  // cap has to match.
+  if (r.canopyVerts && r.shells.roof) {
+    const [ry0, ry1] = r.shells.roof.y;
+    const band = r.canopyVerts.filter(([, y]) => y >= ry0 - 0.02 && y <= ry1 + 0.02);
+    const wide = band.length ? Math.max(...band.map(([x]) => Math.abs(x))) : null;
+    r.canopyAtRoof = wide;
+    delete r.canopyVerts;
+  }
   const h = r.carY[1] - r.carY[0];
   console.log(`\n=== ${carId}   car is ${h.toFixed(3)} tall (local units)`);
   for (const [k, v] of Object.entries(r.shells)) {
     const th = v.y[1] - v.y[0];
     console.log(`  ${k.padEnd(7)} [${v.mat}] y ${v.y[0]}..${v.y[1]} (${th.toFixed(3)}, ${((th / h) * 100).toFixed(0)}% of the car)  z ${v.z[0]}..${v.z[1]}  halfwidth ${v.x[1].toFixed(3)}`);
+  }
+  if (r.canopyAtRoof !== null && r.canopyAtRoof !== undefined && r.shells.roof) {
+    const gap = r.canopyAtRoof - r.shells.roof.x[1];
+    console.log(
+      `  ROOF FIT  glass is ${r.canopyAtRoof.toFixed(3)} wide where the roof sits, ` +
+      `roof is ${r.shells.roof.x[1].toFixed(3)} — ${(gap * 1000).toFixed(0)} mm of glass ` +
+      `showing down each side of the roof`
+    );
   }
   const counts = {};
   for (const n of r.near) {
