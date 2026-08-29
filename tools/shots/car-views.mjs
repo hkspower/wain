@@ -45,6 +45,16 @@ await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 180000 })
 await page.waitForTimeout(3000);
 await page.evaluate(() => { window.__grnEngine.setPaused(true); });
 await page.evaluate((p) => { window.__grnViewParts = p; }, process.env.PARTS ?? "");
+// EQUIP fits parts as well as owning them.
+//
+// PARTS only ever filled the `owned` list, and `equipped` was hard-wired
+// to white paint and no underglow — so this tool could photograph the
+// shape of a car and nothing that is chosen about it. Every paint,
+// finish, engine cover and carbon package in the game was invisible to
+// the one instrument built for looking at cars.
+//
+//   EQUIP=paint-navy,finish-satin,cover-red,carbon-full node tools/shots/car-views.mjs kaiju-r
+await page.evaluate((e) => { window.__grnViewEquip = e; }, process.env.EQUIP ?? "");
 
 mkdirSync("press/views", { recursive: true });
 
@@ -73,9 +83,20 @@ for (const c of list) {
         // PARTS=stickers,spoiler fits those before the render, so the
         // decals and aero can be looked at rather than assumed.
         const parts = (window.__grnViewParts || "").split(",").filter(Boolean);
+        // Whatever EQUIP asked for, slotted by the category its id
+        // names — which is why the ids are prefixed by category in the
+        // first place. Paint and glow keep their defaults when EQUIP
+        // does not mention them, so every existing call still shoots
+        // the car it used to.
+        const equipped = { paint: "paint-white", glow: "glow-none" };
+        const wanted = (window.__grnViewEquip || "").split(",").filter(Boolean);
+        for (const id of wanted) {
+          const cat = id.split("-")[0];
+          equipped[cat] = id;
+        }
         localStorage.setItem("gulf-road-nights-garage", JSON.stringify({
-          car: carId, cars: [carId], owned: parts, kd: 99999,
-          equipped: { paint: "paint-white", glow: "glow-none" },
+          car: carId, cars: [carId], owned: [...parts, ...wanted], kd: 99999,
+          equipped,
         }));
         e.applyGarage();
         await new Promise((r) => setTimeout(r, 200));

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries, mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { EXHAUSTS, FINISHES, kitAtLeast, type ExhaustSpec, type KitLevel, type PaintFinish } from "./mods";
+import type { CarbonLevel } from "./paints";
 import { upgradeCarShells, upgradeWheels, upgradeDriver } from "./models";
 import { arabicUI, latinDisplay, textTexture } from "./text";
 import { kuwaitiDriver } from "./characters";
@@ -98,6 +99,16 @@ export interface CarColors {
   /** The crew this car runs for: emblem and name on the roof.
    *  Absent means a privateer, which is what every car was until now. */
   crew?: { name: string; tag: string; logo: TeamLogo };
+  /**
+   * The cam cover's colour, or absent for the stock black plastic.
+   *
+   * Setting this also cuts vents in the bonnet, because a cover under a
+   * sealed bonnet is a thing nobody can see. The two are one purchase in
+   * the shop and one field here for the same reason.
+   */
+  engineCover?: number;
+  /** How much of the bodywork is cloth rather than steel. */
+  carbon?: CarbonLevel;
 }
 
 /**
@@ -1968,12 +1979,160 @@ const bronzeRimMat = new THREE.MeshStandardMaterial({ name: "rim-bronze",
   envMapIntensity: 1.2,
 });
 // Dry carbon for the aero: near-black, a hint of weave sheen
+/**
+ * A thin strip of surface that FOLLOWS a surface.
+ *
+ * The first version of the carbon panels was a row of pitched boxes,
+ * which is the trick the racing stripes use — and it does not survive
+ * being made wide. A box can only take one angle over its whole length,
+ * so on anything curved consecutive boxes meet at their corners and the
+ * panel becomes a staircase; the pitch is clamped as well, so on a steep
+ * run they stay flat and stand proud of the paint. At the stripe's 46 cm
+ * that reads as a stripe. At a bonnet's 1.3 m it read as nine steps
+ * hovering over the boot, which is what the first render showed.
+ *
+ * A ribbon has no such problem, because its VERTICES are on the surface:
+ * it is sampled rather than approximated, so it lies flush by
+ * construction however the panel underneath curves.
+ *
+ * UVs are in metres, so the weave comes out the same size on a hatch's
+ * bonnet and a saloon's roof rather than being stretched to fit each.
+ */
+function surfaceRibbon(
+  zRear: number,
+  zFront: number,
+  halfW: number,
+  lift: number,
+  topAt: (z: number) => number,
+  steps = 24
+): THREE.BufferGeometry {
+  const pos: number[] = [];
+  const uv: number[] = [];
+  const idx: number[] = [];
+  const span = zFront - zRear;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const z = zRear + span * t;
+    const y = topAt(z) + lift;
+    pos.push(-halfW, y, z, halfW, y, z);
+    const v = t * Math.abs(span);
+    uv.push(0, v, halfW * 2, v);
+    if (i < steps) {
+      const a = i * 2;
+      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * A carbon twill, drawn rather than described.
+ *
+ * The kit pieces in this game have been "carbon" since the kit existed,
+ * and what that meant was a flat dark grey box — which is what carbon
+ * looks like when nobody drew the cloth. Real 2x2 twill is two families
+ * of tows crossing at right angles, and the thing that makes it read as
+ * carbon at a glance is not the colour: it is that the two families
+ * catch the light at ninety degrees to each other, so half the weave is
+ * bright while the other half is dark, and which half swaps as the car
+ * turns.
+ *
+ * So the weave is a NORMAL map and not a colour map. A painted-on
+ * checkerboard is flat under every light in the scene; a normal map
+ * makes the tows shift as the sun crosses them, which is the whole
+ * effect. The colour stays the near-black the resin actually is.
+ *
+ * Built once, lazily, and shared: it is the same cloth on every car, and
+ * a 128px tile repeated is indistinguishable from a large one at any
+ * distance this game ever draws a car from.
+ */
+let weaveTex: THREE.Texture | null = null;
+function carbonWeave(): THREE.Texture | null {
+  if (weaveTex) return weaveTex;
+  if (typeof document === "undefined") return null; // no DOM: traffic on a server
+  const N = 128;
+  const c = document.createElement("canvas");
+  c.width = c.height = N;
+  const g = c.getContext("2d");
+  if (!g) return null;
+  // Flat normal is (0.5, 0.5, 1) in RGB — no tilt anywhere — and the
+  // tows are drawn as tilts away from it.
+  g.fillStyle = "#8080ff";
+  g.fillRect(0, 0, N, N);
+  const TOW = N / 8; // eight tows across the tile, which is 2x2 twill
+  for (let ty = 0; ty < 8; ty++) {
+    for (let tx = 0; tx < 8; tx++) {
+      // 2x2 twill: the float steps one tow along on each successive row,
+      // which is what gives carbon its diagonal.
+      const warpOnTop = ((tx + ty) & 3) < 2;
+      const x = tx * TOW, y = ty * TOW;
+      // A tow is a rounded ridge, so its normal sweeps from one edge to
+      // the other across its width. Drawn as a gradient along whichever
+      // axis the tow runs ACROSS.
+      const grad = warpOnTop
+        ? g.createLinearGradient(x, 0, x + TOW, 0)
+        : g.createLinearGradient(0, y, 0, y + TOW);
+      if (warpOnTop) {
+        grad.addColorStop(0, "#3a3aff");   // tilted left
+        grad.addColorStop(0.5, "#8080ff"); // crown, flat
+        grad.addColorStop(1, "#c6c6ff");   // tilted right
+      } else {
+        grad.addColorStop(0, "#80c6ff");
+        grad.addColorStop(0.5, "#8080ff");
+        grad.addColorStop(1, "#803aff");
+      }
+      g.fillStyle = grad;
+      g.fillRect(x, y, TOW, TOW);
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(6, 6);
+  weaveTex = t;
+  return t;
+}
+
 const carbonMat = new THREE.MeshStandardMaterial({ name: "carbon",
   color: 0x101215,
   roughness: 0.35,
   metalness: 0.55,
   envMapIntensity: 1.1,
 });
+
+/**
+ * The bodywork version of the same cloth.
+ *
+ * Separate from carbonMat because a panel is not a wing: a bonnet is
+ * lacquered over the weave and a diffuser usually is not, so this one
+ * carries a clearcoat and reads wetter. The weave is attached here
+ * rather than on carbonMat so that a car with no carbon package does not
+ * pay for a texture upload it never shows.
+ */
+let carbonPanelMatCache: THREE.MeshStandardMaterial | null = null;
+function carbonPanelMat(): THREE.MeshStandardMaterial {
+  if (carbonPanelMatCache) return carbonPanelMatCache;
+  const m = new THREE.MeshStandardMaterial({
+    name: "carbon-panel",
+    color: 0x0c0e11,
+    roughness: 0.22,
+    metalness: 0.45,
+    envMapIntensity: 1.35,
+  });
+  const w = carbonWeave();
+  if (w) {
+    m.normalMap = w;
+    // Shallow. A weave that stands proud enough to see from the pavement
+    // is a weave nobody wove — the tows are half a millimetre.
+    m.normalScale = new THREE.Vector2(0.55, 0.55);
+  }
+  carbonPanelMatCache = m;
+  return m;
+}
 
 // Smoked lamp housing: the dark bezel the lenses live in. The contrast
 // between this and the lit lens is what makes a lamp read as an assembly
@@ -3171,6 +3330,158 @@ export function createCar(colors: CarColors): THREE.Group {
           hoodStripeTop = (z: number): number =>
             Math.max(y0 + (mid - z) * sinA + 0.011, prev ? prev(z) : -Infinity);
         }
+      }
+    }
+  }
+
+  // --- Carbon bodywork.
+  //
+  // Panels laid over the shell rather than the shell re-materialised.
+  // The body is one extruded skin from nose to tail — there is no bonnet
+  // object to swap — so carbon is a set of thin plates that follow the
+  // top surface, pitched piece by piece, the same technique the racing
+  // stripes use for exactly the same reason.
+  //
+  // Only the panels a car actually has in carbon get one. A fastback has
+  // no boot lid, so it gets no boot panel; putting one across its rear
+  // glass would be a black rectangle stuck on a window, which is the
+  // mistake the stripe code already learned not to make.
+  const carbon: CarbonLevel = colors.carbon ?? "none";
+  if (carbon !== "none" && !colors.simple) {
+    const cMat = carbonPanelMat();
+    /**
+     * Lay a panel along z, following whatever the top surface does.
+     *
+     * `topAt` is passed in rather than assumed, because "the top
+     * surface" is two different shells: under the bonnet and the boot it
+     * is the body, and over the greenhouse it is the roof. Sampling the
+     * body shell at a roof z returns the floor of the cabin, and a roof
+     * panel seated on that would be inside the car.
+     */
+    const panel = (
+      zRear: number, zFront: number, halfW: number, lift: number,
+      topAt: (z: number) => number
+    ): void => {
+      if (zFront <= zRear) return;
+      const m = new THREE.Mesh(surfaceRibbon(zRear, zFront, halfW, lift, topAt), cMat);
+      m.userData.trim = "carbon";
+      group.add(m);
+    };
+    const bodyTop = (z: number): number => skinY(z, d.hoodY);
+    // The bonnet, on every car. Narrower than the body so the painted
+    // wings still show either side of it — a carbon bonnet that reached
+    // the arches would read as a black nose rather than as a panel.
+    panel(d.wiperZ + 0.06, d.nose - 0.3, flankX * 0.66, 0.006, bodyTop);
+    // The boot lid, where the profile has one. The run is the stripe's
+    // own, which stops short of the backlight: a panel that carried on
+    // up the rear glass is a black sheet over a window.
+    if (style === "sedan" || style === "gtr") {
+      panel(d.tail + 0.24, d.roof[0] - 0.94, flankX * 0.62, 0.006,
+        (z) => skinY(z, d.deckY));
+    }
+    // Mirror caps: the cheapest carbon anybody buys and the first thing
+    // they buy, so it is in the base package.
+    for (const sxSign of [-1, 1]) {
+      const cap = new THREE.Mesh(roundedBox(0.17, 0.055, 0.21, 0.03), cMat);
+      cap.position.set(sxSign * (flankX + d.mirror[0]), d.mirror[1] + 0.03, d.mirror[2]);
+      cap.userData.trim = "carbon";
+      group.add(cap);
+    }
+    if (carbon === "full") {
+      // The roof skin. Highest mass on the car and the one panel whose
+      // weight a driver can feel in a change of direction, which is why
+      // it is the step up rather than part of the base package.
+      // The roof's z span comes from the roof shell's own bounds.
+      //
+      // NOT from d.roof. That is [z, y] — the sunroof and antenna ANCHOR
+      // POINT, one z and one height — and reading it as a pair of z
+      // values asks for the roof surface at z = 1.3, which is out over
+      // the windscreen. deckY returns null there, the guard below
+      // skipped the panel, and Full Dry Carbon quietly delivered exactly
+      // the same four pieces as the cheaper package. It cost 3,200 KD
+      // and added nothing, and it took measuring the built car to find
+      // out, because nothing about it looked wrong.
+      rGeo.computeBoundingBox();
+      const roofBox = rGeo.boundingBox!;
+      const seatedRoof = (z: number): number | null => deckY(rGeo, style, z, "roof");
+      const a = roofBox.min.z + 0.18;
+      const b = roofBox.max.z - 0.18;
+      // Still guarded: a shell that cannot be measured gets no panel
+      // rather than a panel on a guessed height, which is a slab
+      // hovering over the glass.
+      if (b > a && seatedRoof(a) !== null && seatedRoof(b) !== null) {
+        panel(a, b, flankX * 0.55, 0.005, (z) => seatedRoof(z) ?? seatedRoof(a)!);
+      }
+    }
+  }
+
+  // --- The engine cover, and the vents that let you see it.
+  //
+  // A cam cover under a shut bonnet is money spent on a thing that is
+  // not there, so the part does both: it cuts two openings in the
+  // bonnet and puts something worth looking at underneath them. The
+  // opening is a dark recess — the bay — with the cover sitting in it,
+  // which is what gives the vent depth instead of making it a black
+  // sticker.
+  if (colors.engineCover !== undefined && !colors.simple) {
+    const coverMat = new THREE.MeshStandardMaterial({
+      name: "engine-cover",
+      color: colors.engineCover,
+      // Crackle and wrinkle finishes are the opposite of bodywork:
+      // rough, barely metallic, and they hold no reflection at all.
+      // Polished alloy is the exception and it is close enough to this
+      // that a second material is not worth the draw call.
+      roughness: 0.55,
+      metalness: 0.35,
+      envMapIntensity: 0.8,
+    });
+    const bayMat = new THREE.MeshStandardMaterial({
+      name: "engine-bay",
+      color: 0x05060a,
+      roughness: 0.95,
+      metalness: 0,
+    });
+    // Where the engine sits: back of the bonnet, ahead of the wipers,
+    // which is where a bay is on a front-engined car.
+    const bayZ = d.wiperZ + 0.55;
+    const bayY = skinY(bayZ, d.hoodY);
+    // Every piece is placed as a depth BELOW the bonnet skin, and the
+    // depths are written down here rather than as offsets at each use,
+    // because the first version had the cover's top three centimetres
+    // ABOVE the skin — an engine growing out through a shut bonnet. That
+    // is invisible in a night render of a dark car and obvious the
+    // moment the bounding boxes are printed.
+    const BAY_FLOOR = 0.11;  // the dark floor of the recess
+    const COVER_TOP = 0.03;  // the cam cover's crown, safely under the skin
+    const COVER_H = 0.06;
+    for (const sx of [-0.33, 0.33]) {
+      // The hole: a dark floor deep enough that the eye reads a recess
+      // rather than a painted patch.
+      const hole = new THREE.Mesh(roundedBox(0.3, 0.02, 0.44, 0.01), bayMat);
+      hole.position.set(sx, bayY - BAY_FLOOR, bayZ);
+      hole.userData.trim = "hood-vent";
+      group.add(hole);
+      // The cover, sitting in the recess with its crown a clear
+      // centimetres below the bonnet line.
+      const cover = new THREE.Mesh(roundedBox(0.25, COVER_H, 0.38, 0.015), coverMat);
+      cover.position.set(sx, bayY - COVER_TOP - COVER_H / 2, bayZ);
+      cover.userData.trim = "engine-cover";
+      group.add(cover);
+      // Ribs across it. A cam cover is ribbed, and the ribs are what
+      // catch the one grazing light that reaches down a vent — without
+      // them the cover is a flat coloured lozenge at any distance.
+      for (const rz of [-0.12, 0, 0.12]) {
+        const rib = new THREE.Mesh(roundedBox(0.22, 0.018, 0.04, 0.008), coverMat);
+        rib.position.set(sx, bayY - COVER_TOP - 0.004, bayZ + rz);
+        group.add(rib);
+      }
+      // The vent surround, in body colour: the lip of pressed steel the
+      // opening is cut into. It is what stops the hole reading as a
+      // decal painted on the bonnet.
+      for (const ex of [-1, 1]) {
+        const edge = new THREE.Mesh(roundedBox(0.02, 0.03, 0.46, 0.008), bodyMat);
+        edge.position.set(sx + ex * 0.16, bayY + 0.002, bayZ);
+        group.add(edge);
       }
     }
   }

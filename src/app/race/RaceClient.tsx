@@ -1567,6 +1567,8 @@ export default function RaceClient() {
             underglow: tune.glow ?? undefined,
             spoiler: tune.spoiler,
             goldRims: tune.goldRims,
+            engineCover: tune.engineCover ?? undefined,
+            carbon: tune.carbon,
             raceKit: tune.raceKit,
             kit: tune.kit,
             headlamps: tune.headlamps,
