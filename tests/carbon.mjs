@@ -56,16 +56,31 @@ try {
   console.error("start the dev server: npm run dev");
   process.exit(2);
 }
-await page.evaluate(() => {
-  localStorage.clear();
-  localStorage.setItem("gulf-road-nights-onboarded", "2");
-  localStorage.setItem("gulf-road-nights-coach", "3");
-});
-await page.reload({ waitUntil: "networkidle" });
-await page.click("text=START ENGINE");
-await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 180000 });
-await page.waitForTimeout(3000);
-await page.evaluate(() => { window.__grnEngine.setPaused(true); });
+/**
+ * Get from a cold page to a paused car on the road.
+ *
+ * Run once per CAR, not once per session. Switching the saved car id and
+ * calling applyGarage navigates the page — the second car killed the
+ * first version of this test with "Execution context was destroyed",
+ * which is the page doing exactly what it should and the test assuming
+ * it would not.
+ */
+async function boot(carId) {
+  await page.evaluate((id) => {
+    localStorage.clear();
+    localStorage.setItem("gulf-road-nights-onboarded", "2");
+    localStorage.setItem("gulf-road-nights-coach", "3");
+    localStorage.setItem("gulf-road-nights-garage", JSON.stringify({
+      car: id, cars: [id], owned: [], kd: 999999,
+      equipped: { paint: "paint-white", glow: "glow-none" },
+    }));
+  }, carId);
+  await page.reload({ waitUntil: "networkidle" });
+  await page.click("text=START ENGINE");
+  await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 180000 });
+  await page.waitForTimeout(2500);
+  await page.evaluate(() => { window.__grnEngine.setPaused(true); });
+}
 
 const measure = (carId, equip) => page.evaluate(async ([carId, equip]) => {
   const THREE = window.__grnThree;
@@ -111,6 +126,7 @@ const measure = (carId, equip) => page.evaluate(async ([carId, equip]) => {
 const CARS = ["deera-sedan", "kaiju-r", "efreet-rx", "sharq-hatch"];
 
 for (const carId of CARS) {
+  await boot(carId);
   const none = await measure(carId, "");
   const panels = await measure(carId, "carbon-panels");
   const full = await measure(carId, "carbon-full,cover-red");

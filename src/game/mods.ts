@@ -1395,9 +1395,6 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
   if (eq.intake === "intake") accelMult += 0.05;
   else if (eq.intake === "intake-basic") accelMult += 0.02;
   if (has("weight")) accelMult += 0.1;
-  // Less to push is more to push it with. The same fraction the brakes
-  // and the tyres get, so a kilo means one thing in this file.
-  accelMult *= lightness;
 
   // Mods move the governor in km/h, so the showroom number and the
   // garage number are the same units the speedo reads.
@@ -1428,7 +1425,6 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
     brakeThermalMult *= 1.15;
   }
   brakeForce *= massTax; // the same kilos, charged again where they stop
-  brakeForce *= lightness; // ...and the ones carbon took back off
 
   let gripAccel = car.grip;
   let slipMult = 1;
@@ -1452,7 +1448,7 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
   let downforce = 0;
   if (has("spoiler")) { gripAccel += 0.1; downforce += 0.8; slipMult *= 0.92; }
   gripAccel *= massTax;
-  gripAccel *= lightness;
+
   // Real downforce: the attack kit's wing and splitter plant the car
   if (car.kit === "attack") { gripAccel += 0.2; downforce += 1.6; slipMult *= 0.88; }
 
@@ -1481,6 +1477,24 @@ export function computeEffects(g: GarageState, carId: string = g.car): TuneEffec
   // genuine upgrade whatever the base becomes. 1.4x of 13 is 18.2, which
   // is 127 ms to 90% against the standard rack's 177.
   if (has("rack")) steerRate = HANDLING.steerSmoothRate * 1.4;
+
+  // Carbon, applied last.
+  //
+  // It is a fraction of the whole car, so it has to multiply the finished
+  // numbers rather than an intermediate one. Applied where it was first
+  // written — beside massTax, before the aspiration bonus and the
+  // suspension parts are added — a supercharged car on coilovers got
+  // proportionally less out of its carbon than a stock one, because the
+  // biggest terms were added after the multiply. Less mass helps all of
+  // the power, not the part of it that happened to be computed first.
+  //
+  // massTax is deliberately NOT moved down here with it. It has the same
+  // shape and the same flaw, and it is also the number every engine in
+  // the game is balanced against; correcting its placement would rescale
+  // all five of them, which is a different job than adding a body panel.
+  accelMult *= lightness;
+  brakeForce *= lightness;
+  gripAccel *= lightness;
 
   return {
     carId: car.id,
