@@ -71,6 +71,7 @@
     "test:robots": "node scripts/robots-sitemap-test.mjs",
     "test:langs": "node scripts/lang-seo-test.mjs",
     "make:variants": "node scripts/make-missing-variants.mjs",
+    "make:brands": "node scripts/make-product-brands.mjs",
     "make:install": "node scripts/make-install-sql.mjs",
     "test:styles": "node scripts/style-audit.mjs",
     "test:db": "php scripts/db-audit.php",

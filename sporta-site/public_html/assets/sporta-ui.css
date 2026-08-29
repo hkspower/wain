@@ -588,3 +588,34 @@ div.flex.h-full.w-full:has(> img:not([src^='data:'])) > img[src^='data:image/svg
 html:not([data-theme='dark']) .cart-drawer > header button.tap.text-slate-400 {
   color: rgb(100 116 139);
 }
+
+/* ---------------------------------------------------------------------------
+ * THE BRAND LOGO SITS ON THE CARD, NOT IN A WHITE BOX
+ *
+ * `.brand-chip` is the span the logo is drawn inside, and the built stylesheet
+ * gives it `background:#fff`. So a logo with a perfectly transparent
+ * background — which the whole upload path is careful to preserve, and which
+ * scripts/image-audit.mjs now refuses to accept without — was being painted on
+ * a white plate anyway. On the dark theme that is a white rounded rectangle on
+ * every product page, and the transparency bought nothing.
+ *
+ * Measured before changing it: a cut-out PNG served with all four corners at
+ * alpha 0, rendered inside rgb(255,255,255) with a 10px radius.
+ *
+ * WHAT THE PLATE WAS FOR, because it was not an accident. A brand mark is
+ * often black, and a white ground guarantees it is visible whatever is behind
+ * it. Removing it means the logo has to carry its own contrast.
+ *
+ * THAT IS THE TRADE, AND IT IS THE ONE THAT WAS ASKED FOR: supply each logo in
+ * a form that reads on a dark page — a white or full-colour version, the way
+ * this shop already keeps logo-white.webp beside logo.webp for its own mark. A
+ * black-on-transparent logo will now disappear on the dark theme.
+ *
+ * The padding is left exactly as it was. Removing the plate is a colour
+ * change; removing the padding would move the logo and resize the row it sits
+ * in, and nothing asked for that.
+ * ------------------------------------------------------------------------- */
+.brand-chip {
+  background: transparent;
+  border-color: transparent;
+}
