@@ -35,7 +35,15 @@ if (($cfg['vapid_public'] ?? '') === '' || ($cfg['vapid_private'] ?? '') === '')
     // we cannot send burns their retry budget while the real problem is one
     // missing setting. store_queue_push() will not have written any either, so
     // this is only reachable if the keys were removed after the fact.
-    store_out(['error' => 'vapid_public/vapid_private are not set in config.php'], 500);
+    // 503, NOT 500, and the difference is who gets woken up.
+    //
+    // 500 means this server broke. 503 means the service is not available — which
+    // is what "the owner has not filled this in yet" actually is, and it is what
+    // cron-voice.php already answered for exactly the same condition two files
+    // away. A shop that has not finished its setup is not a shop that is
+    // broken, but wget in an hPanel cron box — and any monitor watching for
+    // 5xx — cannot tell those apart from a 500.
+    store_out(['error' => 'vapid_public/vapid_private are not set in config.php'], 503);
 }
 
 $db = store_db();

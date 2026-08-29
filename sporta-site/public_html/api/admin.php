@@ -1989,12 +1989,25 @@ if ($r === 'acc_entry_add' && $method === 'POST') {
     try {
         $id = acc_post($db, $date, $memo, $lines, 'manual', null, null,
                        (string)($_SESSION['admin_email'] ?? ''));
-    } catch (Throwable $e) {
+    } catch (InvalidArgumentException | RuntimeException $e) {
         // The message is the accounting rule that was broken — "entry does not
         // balance — debits 5.000 vs credits 4.999" — and it is exactly what
         // the person typing needs to see. A generic 'failed' would send them
         // to count the figures themselves.
+        //
+        // ONLY THOSE TWO CLASSES, and that is the fix. This used to catch
+        // Throwable and hand the message straight out, but acc_post() also
+        // runs SQL: a PDOException escaping it put the driver's text — the
+        // statement, the column, the constraint name — on the Accounting
+        // screen. accounting.php throws nothing but these two, and every one
+        // of the six is a sentence written for a bookkeeper.
         store_fail($e->getMessage());
+    } catch (Throwable $e) {
+        // Anything else is this shop's problem, not the bookkeeper's. It goes
+        // to the server log, where it can be read by someone who can act on
+        // it, and the screen says only that the entry did not post.
+        error_log('acc_entry_add: ' . $e->getMessage());
+        store_fail('could_not_post');
     }
     store_out(['id' => $id]);
 }

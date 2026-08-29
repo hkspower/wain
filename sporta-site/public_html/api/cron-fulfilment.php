@@ -26,7 +26,15 @@ if (($cfg['cron_key'] ?? '') === '' || !hash_equals($cfg['cron_key'], (string)($
 if (($cfg['warehouse_email'] ?? '') === '') {
     // Fail loudly BEFORE claiming — claiming rows we cannot send burns their
     // retry budget while the real problem is one missing setting.
-    store_out(['error' => 'warehouse_email is not set in config.php — nothing would be delivered'], 500);
+    // 503, NOT 500, and the difference is who gets woken up.
+    //
+    // 500 means this server broke. 503 means the service is not available — which
+    // is what "the owner has not filled this in yet" actually is, and it is what
+    // cron-voice.php already answered for exactly the same condition two files
+    // away. A shop that has not finished its setup is not a shop that is
+    // broken, but wget in an hPanel cron box — and any monitor watching for
+    // 5xx — cannot tell those apart from a 500.
+    store_out(['error' => 'warehouse_email is not set in config.php — nothing would be delivered'], 503);
 }
 
 $db = store_db();

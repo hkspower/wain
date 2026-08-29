@@ -29,13 +29,21 @@ if (($cfg['cron_key'] ?? '') === '' || !hash_equals($cfg['cron_key'], (string)($
 // retry budget — five runs later they are dead in the table and the real
 // problem was one unset setting. Same guard as cron-fulfilment.php.
 if (($cfg['n8n_webhook'] ?? '') === '') {
-    store_out(['error' => 'n8n_webhook is not set in config.php — nothing would be delivered'], 500);
+    // 503, NOT 500, and the difference is who gets woken up.
+    //
+    // 500 means this server broke. 503 means the service is not available — which
+    // is what "the owner has not filled this in yet" actually is, and it is what
+    // cron-voice.php already answered for exactly the same condition two files
+    // away. A shop that has not finished its setup is not a shop that is
+    // broken, but wget in an hPanel cron box — and any monitor watching for
+    // 5xx — cannot tell those apart from a 500.
+    store_out(['error' => 'n8n_webhook is not set in config.php — nothing would be delivered'], 503);
 }
 if (($cfg['n8n_secret'] ?? '') === '') {
     // Deliberately as fatal as a missing URL. Signing with an empty key is a
     // signature that proves nothing, and the workflow at the other end would
     // accept anything anyone who has seen the URL cared to send.
-    store_out(['error' => 'n8n_secret is not set in config.php — the hand-off would be unauthenticated'], 500);
+    store_out(['error' => 'n8n_secret is not set in config.php — the hand-off would be unauthenticated'], 503);
 }
 
 $db = store_db();
