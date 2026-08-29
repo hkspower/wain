@@ -21,7 +21,7 @@ const ALL = [...places].sort((a, b) => a.slug.localeCompare(b.slug));
 
 declare global {
   interface Window {
-    measure: () => Array<{
+    measurePlaces: () => Array<{
       slug: string;
       nameAr: string;
       category: string;
@@ -35,7 +35,7 @@ declare global {
   }
 }
 
-window.measure = () =>
+window.measurePlaces = () =>
   ALL.map((p) => {
     const svg = document.querySelector<SVGSVGElement>(`#p-${p.slug} svg`)!;
     const b = (svg as unknown as SVGGraphicsElement).getBBox();

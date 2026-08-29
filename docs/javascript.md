@@ -116,23 +116,46 @@ it silently isn't. The audit excludes `nomodule` scripts from its totals for
 the same reason — counting them would overstate every route by ~38K and hide
 real regressions underneath.
 
-## What the scan found
+## What the scan found — and what the first diagnosis got wrong
 
-**The privacy page ships all 36 places.**
+**The privacy page shipped all 36 places.** Fixed; the account below is kept
+because the wrong answer was the instructive part.
 
 `/privacy/` and `/about/` have no map, no list and no search. They carry the
 entire place catalogue anyway — 36 of 36 records — along with شوق's call UI,
 the ElevenLabs integration and the speech-recognition path.
 
-The cause is one line. `app/layout.tsx:7` imports `WainAi` directly:
+I blamed `WainAi`, because it is a static import in the root layout and it
+answers questions about places. **That was wrong — `WainAi` imports no places
+at all.** Tracing the real value-import graph gave a four-edge path through a
+module nobody would think to look at:
 
-```tsx
-import WainAi from "@/components/WainAi";
+```
+layout → Footer / AppTabBar → OrdersLink → orders.ts / queue.ts
+       → supabase.ts → places.ts
 ```
 
-`WainAi` searches places on the device, so the catalogue follows it into the
-root layout and from there onto every route. A page about cookies downloads
-36 restaurants and beaches to render two paragraphs.
+`supabase.ts` imported `clampPrepMinutes` and `clampServiceMinutes` from the
+catalogue's module. Two small functions, one edge, and all 36 records landed on
+all 46 pages — because `places.ts` held both the catalogue and the small
+vocabulary everything else needs.
+
+**The fix** is `src/lib/place-kit.ts`: the category list, the clamps, the
+Arabic-Indic numerals and the counting forms, with a rule that nothing in it
+may import the catalogue. `places.ts` re-exports it, so every existing import
+keeps working, and the four consumers that only ever wanted the vocabulary —
+`Footer`, `OrdersLink`, `orders.ts`, `queue.ts` and `supabase.ts` — point at
+the light module instead.
+
+| | before | after |
+| --- | ---: | ---: |
+| shared by all 46 pages | 130.9K | **122.5K** |
+| `/privacy/`, `/about/` | 131.1K | **122.7K** |
+| place records on a static page | 36/36 | **0/36** |
+
+A type-only import is erased at compile time and costs nothing, so
+`import type { Place }` still names the catalogue's module — it is which
+module the VALUES come from that matters.
 
 **The fix is small but it is a visible one**, which is why it is written down
 here rather than applied:

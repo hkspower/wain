@@ -119,9 +119,20 @@ const shared = routes
 const sharedGz = [...shared].reduce((a, c) => a + gzOf(c), 0);
 
 /* ── 5. Does a page with no places ship the place catalogue? ──────────────
-   This is the check that found something. WainAi is imported directly into
-   the root layout and searches places on-device, so the catalogue follows it
-   onto every route — including /privacy/, which is a page about cookies. */
+   This is the check that found something, and the first diagnosis was wrong.
+   It blamed WainAi, which is a static import in the root layout — but WainAi
+   imports no places at all. The real path was four edges long and ran through
+   a module nobody would look at:
+
+     layout → Footer/AppTabBar → OrdersLink → orders/queue → supabase → places
+
+   `supabase.ts` imported two clamp helpers from the catalogue's module, and
+   that one edge put all 36 records on all 46 pages. Splitting the vocabulary
+   into `place-kit.ts` and repointing the four consumers took the shared floor
+   from 130.9K to 122.5K gzipped.
+
+   Guessing which import is responsible is exactly the mistake this check
+   exists to prevent — measure, then trace the graph. */
 const STATIC_ROUTES = ["/privacy/", "/about/"];
 const placeNames = [...readFileSync(join(ROOT, "src/lib/places.ts"), "utf8")
   .matchAll(/nameAr:\s*"([^"]+)"/g)].map((m) => m[1]);
@@ -135,7 +146,8 @@ for (const route of STATIC_ROUTES) {
   if (found.length > placeNames.length / 2)
     warn(
       `${route} carries ${found.length}/${placeNames.length} place records — it has no map and no list. ` +
-        `WainAi is a static import in app/layout.tsx and pulls the catalogue onto every route.`
+        `Trace the VALUE-import graph out of app/layout.tsx: a type-only import is erased, a value ` +
+        `import is not, and the edge that does it is usually several modules deep.`
     );
 }
 

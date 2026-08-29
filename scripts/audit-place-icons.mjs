@@ -62,9 +62,9 @@ const { chromium } = await import("playwright");
 const browser = await chromium.launch({ executablePath: CHROMIUM });
 const page = await browser.newPage({ viewport: { width: 960, height: 900 }, deviceScaleFactor: 3 });
 await page.goto("file://" + join(dir, "index.html"), { waitUntil: "load" });
-await page.waitForFunction(() => typeof window.measure === "function" && document.querySelectorAll("svg").length > 20);
+await page.waitForFunction(() => typeof window.measurePlaces === "function" && document.querySelectorAll("svg").length > 20);
 
-const rows = await page.evaluate(() => window.measure());
+const rows = await page.evaluate(() => window.measurePlaces());
 mkdirSync(join(ROOT, "docs"), { recursive: true });
 await page.locator("#root").screenshot({ path: join(ROOT, "docs", "place-icons.png") });
 await browser.close();

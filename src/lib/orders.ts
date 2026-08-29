@@ -11,8 +11,10 @@ import {
   DEFAULT_PREP_MINUTES,
   clampPrepMinutes,
   toArabicDigits,
-  type Place,
-} from "@/lib/places";
+} from "@/lib/place-kit";
+// A type only — `import type` is erased at compile time, so naming the
+// catalogue's own module here costs nothing in the bundle.
+import type { Place } from "@/lib/places";
 
 /**
  * طلب مسبق — order ahead, pay when you collect.

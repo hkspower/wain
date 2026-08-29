@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { toArabicDigits } from "@/lib/places";
+import { toArabicDigits } from "@/lib/place-kit";
 import { listOrders } from "@/lib/orders";
 import { isFromToday, listTickets } from "@/lib/queue";
 

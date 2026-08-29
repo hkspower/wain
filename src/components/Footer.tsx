@@ -1,7 +1,7 @@
 import Link from "next/link";
 import OrdersLink, { QueueLink } from "@/components/OrdersLink";
 import WainLogo from "@/components/WainLogo";
-import { categories } from "@/lib/places";
+import { categories } from "@/lib/place-kit";
 
 export default function Footer() {
   return (
