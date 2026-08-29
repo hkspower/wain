@@ -49,13 +49,25 @@ await page.click("text=START ENGINE");
 await page.waitForFunction(() => !!window.__grnDebug, null, { timeout: 180000 });
 await page.waitForTimeout(4000);
 // Shadows must actually be on, or this measures nothing.
+// Read the state; do not set it.
+//
+// This used to call setQuality("high") to guarantee shadows were on.
+// setQuality reinitialises the renderer, which navigates the page, and
+// the next page.evaluate died with "Execution context was destroyed" —
+// so the tool that was meant to settle the question crashed before
+// measuring anything. Auto quality already resolves to a preset that
+// casts; if it ever does not, the right answer is to say so and stop,
+// not to reach in and change the thing being measured.
 const casting = await page.evaluate(() => {
   const e = window.__grnEngine;
-  e.setQuality?.("high");
   return { moon: e.world.moonLight.castShadow, head: e.headlight?.castShadow ?? null };
 });
 console.log(`shadows casting: key=${casting.moon} headlight=${casting.head}`);
-if (!casting.moon) console.log("WARNING: the key casts no shadow — this A/B measures nothing");
+if (!casting.moon) {
+  console.log("the key casts no shadow on this preset — nothing to measure");
+  await b.close();
+  process.exit(2);
+}
 
 const STOPS = [["open corniche",400],["under the flyover",2100],["city block",3400],["the roundabout",5200]];
 const pose = (z) => page.evaluate((s) => {
