@@ -39,6 +39,22 @@ export interface Paint {
   id: string;
   hex: number;
   family: PaintFamily;
+  /**
+   * What to call this colour where it is not being sold.
+   *
+   * Almost always absent, because a tin's name and its colour's name are
+   * the same words. The exception is the factory finish: in the garage
+   * "Factory Finish" is exactly right, because that part means the
+   * colour the car left the lot in and not any particular colour. On the
+   * hub's cruise picker it is wrong — there is no lot and no purchase,
+   * only a swatch, and the swatch is white.
+   *
+   * So this is not the shop's name repeated. It is the one fact the shop
+   * cannot supply: what the colour is, as opposed to what the product
+   * is.
+   */
+  asColor?: string;
+  asColorAr?: string;
 }
 
 /**
@@ -53,7 +69,7 @@ export const PAINTS: Paint[] = [
   { id: "paint-gunmetal", hex: 0x4a5058, family: "mono" },
   { id: "paint-slate", hex: 0x7a8794, family: "mono" },
   { id: "paint-silver", hex: 0xb9bfc7, family: "mono" },
-  { id: "paint-white", hex: 0xf2f4f7, family: "mono" },
+  { id: "paint-white", hex: 0xf2f4f7, family: "mono", asColor: "White", asColorAr: "أبيض" },
 
   // --- warm: sand, sun and rust
   { id: "paint-maroon", hex: 0x5e1420, family: "warm" },

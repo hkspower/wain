@@ -332,8 +332,8 @@ export const PAINT_SWATCHES: Array<{
     id: p.id,
     hex: p.hex,
     css: swatch(p.hex),
-    name: part?.name ?? p.id,
-    ar: part?.ar ?? "",
+    name: p.asColor ?? part?.name ?? p.id,
+    ar: p.asColorAr ?? part?.ar ?? "",
     family: p.family,
   };
 });
