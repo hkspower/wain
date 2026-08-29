@@ -363,6 +363,40 @@ console.log('\n--- the same order twice')
     `${first.body?.order_id} vs ${again.body?.order_id}`)
 }
 
+// ================================================ the dropins on the HAPPY path
+//
+// Everything above asks the dropins to REFUSE — an unknown order, a malformed
+// track id, no track id. Nothing asked either of them to succeed, and that gap
+// hid a fatal: /knet/pay.php with a track id that resolves warned seven times
+// and died with
+//
+//   Fatal error: knet_gateway_url(): Return value must be of type string,
+//   null returned
+//
+// because the sandbox config was written from the T-Pay template and had none
+// of KNET's own keys. A blank 500 at the payment step, on a path no rig drove.
+console.log('\n--- and what they do when everything is right')
+
+{
+  const o = await order('knet')
+  const r = await get(`${SITE}/knet/pay.php?trackid=${o.track}`)
+  check(r.status === 302, `KNET: a real order is sent to the bank (${r.status})`, r.text.slice(0, 120))
+  check(/kpay(test)?\.com\.kw/.test(r.location),
+    'and the address is KNET', r.location.slice(0, 90))
+  check(/[?&]trandata=[0-9A-F]{32,}/.test(r.location),
+    'carrying an encrypted trandata')
+  // THE AMOUNT IS NOT IN THE URL, in clear or otherwise — it is inside the
+  // trandata, which only the bank can read. A shopper who edits this link
+  // changes nothing.
+  check(!/[?&](amt|amount)=/.test(r.location),
+    'and no amount anywhere a shopper could edit it')
+
+  // WITH NO ?lang= AT ALL — the default branch, which read $cfg['language']
+  // unguarded and produced the first warning this whole pass was found by.
+  const bare = await get(`${SITE}/knet/pay.php?trackid=${o.track}`)
+  check(bare.status === 302, `KNET: no ?lang= still reaches the bank (${bare.status})`)
+}
+
 // ============================================================ the padding oracle
 //
 // KNET's trandata is AES-128-CBC with a FIXED, PUBLISHED IV and NO MAC, and

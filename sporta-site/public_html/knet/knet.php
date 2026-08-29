@@ -23,6 +23,30 @@ function knet_require_https(): void
     }
 }
 
+// Stop, say so, and say NOTHING else — the exact mirror of cbk_fail_closed().
+//
+// THIS DID NOT EXIST, and its absence is the fault it fixes. pay/cbk.php has
+// had it since the day a missing config.php answered 500 with "Failed opening
+// required '/home/.../pay/config.php'" in the body — the server's absolute
+// path on a public page. The KNET dropin, the older of the two, was never
+// given the same treatment: knet_config() returned an empty array and let
+// execution walk on into whatever happened next.
+//
+// What happened next, measured: seven "Undefined array key" warnings and then
+//
+//   Fatal error: knet_gateway_url(): Return value must be of type string,
+//   null returned
+//
+// which is a blank 500 for a shopper standing at the payment step, with the
+// reason in a log file on a host that has no shell.
+function knet_fail_closed(string $message): never
+{
+    error_log('knet: ' . $message . ' (expected ' . __DIR__ . '/config.php)');
+    http_response_code(503);
+    header('Content-Type: text/plain; charset=utf-8');
+    exit($message);
+}
+
 // Load knet/config.php, INHERITING the orders database from api/config.php
 // when this file does not name one of its own.
 //
@@ -58,8 +82,18 @@ function knet_require_https(): void
 // choosing.
 function knet_config(): array
 {
-    $cfg = require __DIR__ . '/config.php';
-    if (!is_array($cfg)) return [];
+    // A MISSING config.php IS A CONFIGURATION FAULT, NOT A CRASH. `require` on
+    // a file that is not there is fatal, and this file is deliberately never
+    // committed and never in a package — so a deploy that copies the repo and
+    // forgets that one step lands exactly here, on the payment page.
+    $file = __DIR__ . '/config.php';
+    if (!is_file($file)) {
+        knet_fail_closed('Payment is not configured on this server.');
+    }
+    $cfg = require $file;
+    if (!is_array($cfg)) {
+        knet_fail_closed('Payment configuration is unreadable.');
+    }
     if (knet_db_configured($cfg)) return $cfg;
 
     $api = __DIR__ . '/../api/config.php';
@@ -80,7 +114,23 @@ function knet_config(): array
 
 function knet_gateway_url(array $cfg): string
 {
-    return $cfg['env'] === 'production' ? $cfg['production_url'] : $cfg['test_url'];
+    // NAMED, AND CHECKED. This read the key straight out of the array under a
+    // `: string` return type, so a config missing production_url or test_url —
+    // one typo, or a config.php written before those keys were named — returned
+    // null and PHP raised an uncatchable TypeError. A blank 500, at the payment
+    // step, for a missing line in a file.
+    //
+    // 'test' is the only value that selects the test gateway. Anything else,
+    // including nothing at all, is treated as live — the same fail-safe
+    // direction knet/selftest.php already takes, and for the same reason: the
+    // shipped default is 'test', so the dangerous case is not a typo but a
+    // config nobody finished.
+    $key = (string) ($cfg['env'] ?? '') === 'test' ? 'test_url' : 'production_url';
+    $url = (string) ($cfg[$key] ?? '');
+    if ($url === '') {
+        knet_fail_closed('Payment is not configured on this server.');
+    }
+    return $url;
 }
 
 // AES-128 needs a 16-byte key. PHP would otherwise pad/truncate silently and

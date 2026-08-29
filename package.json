@@ -84,6 +84,7 @@
     "scan:site": "node scripts/site-scan.mjs",
     "scan:site:curl": "bash scripts/site-scan.sh",
     "scan:php": "php scripts/php-deprecations.php",
+    "test:php-runtime": "node scripts/php-runtime-test.mjs",
     "site:manifest": "bash scripts/make-site-manifest.sh",
     "site:diff": "bash scripts/site-diff.sh",
     "test": "npm run typecheck && npm run test:contrast && npm run test:csp && npm run test:admin-contract && npm run scan:php",

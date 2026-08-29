@@ -28,7 +28,25 @@ $langIn = strtoupper(trim((string)($in['lang'] ?? '')));
 $langid = match ($langIn) {
     'AR'    => (string) ($cfg['lang_ar'] ?? 'AR'),
     'EN'    => (string) ($cfg['lang_en'] ?? 'EN'),
-    default => (string) $cfg['language'],
+    // GUARDED, like the two above it, and it is the one that most needed to be.
+    //
+    // The two explicit branches already fell back to 'AR' and 'EN'. This one —
+    // the DEFAULT, which fires whenever the storefront sends no ?lang= or sends
+    // something unrecognised — read the key raw. `language` was added to
+    // config.example.php after the dropin shipped, so any shop whose config.php
+    // predates it, and the sandbox, have no such key: PHP 8 warns "Undefined
+    // array key" and the expression evaluates to '', which is then encrypted
+    // into the trandata as an EMPTY language field and handed to the bank.
+    //
+    // Measured — three of these in the strict log across one run of the suite,
+    // from the only endpoint in the whole backend that produced a warning at
+    // all. The customer's half of it is a card payment the bank is entitled to
+    // refuse, for a reason visible only in a log nobody reads.
+    //
+    // It falls back through lang_en before 'EN' so a shop that has answered the
+    // bank's question about the English code once, in the one place the comment
+    // above tells it to, does not have to answer it twice.
+    default => (string) ($cfg['language'] ?? $cfg['lang_en'] ?? 'EN'),
 };
 
 // Strict validation (also blocks injection into the trandata string).

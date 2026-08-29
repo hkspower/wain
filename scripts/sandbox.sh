@@ -77,6 +77,30 @@ return [
     'result_page_url' => 'http://127.0.0.1:4300/order',
     'lang'            => 'ar',
     'pay_type'        => '',
+    // ---- THE KNET HALF OF THE TEMPLATE ----
+    //
+    // ONE TEMPLATE IS WRITTEN FOR BOTH GATEWAYS, and until now it carried only
+    // CBK's keys plus three of KNET's. So /knet/pay.php had every key it needs
+    // to REFUSE a bad request and none of the keys it needs to build a good
+    // one: past the order lookup it warned seven times and then died with
+    //
+    //   Fatal error: knet_gateway_url(): Return value must be of type string,
+    //   null returned
+    //
+    // Nothing noticed, because no rig had ever driven that page with a track id
+    // that resolves — payments-test.mjs asks it for an unknown order, a
+    // malformed id and no id at all, and all three are answered before this
+    // code is reached. The successful path of one of the shop's two card
+    // gateways was untested, and untestable, on a config that could not run it.
+    'test_url'        => 'https://kpaytest.com.kw/kpg/PaymentHTTP.htm',
+    'production_url'  => 'https://kpay.com.kw/kpg/PaymentHTTP.htm',
+    'response_url'    => 'http://127.0.0.1:4300/knet/callback.php',
+    'error_url'       => 'http://127.0.0.1:4300/knet/callback.php',
+    'action'          => '1',
+    'currency_code'   => '414',
+    'lang_en'         => 'ENG',
+    'lang_ar'         => 'ARA',
+    'language'        => 'ENG',
     'log_file'        => '/tmp/sandbox-$gw-payments.log',
     'token_cache_file'=> '/tmp/sandbox-$gw-token.json',
     // NO mysql_* here on purpose. Left out, the dropin inherits the orders
