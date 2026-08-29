@@ -32,6 +32,7 @@ import {
   REFERRAL_KD,
 } from "@/game/community";
 import { addKd } from "@/game/mods";
+import { cleanHandle, rollHandle, MAX_HANDLE } from "@/game/handles";
 import {
   QUESTS,
   EMPTY_PROGRESS,
@@ -54,6 +55,11 @@ const CAR_COLORS = [
   "#e8641b", // orange
 ];
 
+/** Whether the hub this build points at is one the player could
+ *  plausibly start themselves. Decides whether the offline card offers
+ *  a shell command or keeps it to itself. */
+const LOCAL_HUB = /(^|\/\/)(localhost|127\.0\.0\.1)([:/]|$)/.test(DEFAULT_HUB_URL);
+
 type Status = "setup" | "connecting" | "online" | "offline";
 
 interface ChatMsg {
@@ -67,6 +73,14 @@ export default function HubLobby() {
   // Read on mount, not at module scope: local storage does not exist
   // while this renders on the server.
   const [runs, setRuns] = useState<QuestProgress>(EMPTY_PROGRESS);
+  /** The Arabic reading of the name in the box, while it is still one
+   *  the game suggested. Cleared the moment the player types their own:
+   *  nothing here can transliterate an arbitrary name, and an Arabic
+   *  line under a name it no longer matches is worse than none. */
+  const [handleAr, setHandleAr] = useState<string | null>(null);
+  /** True for a driver the game already has a name for. The form
+   *  collapses to one button, and the fields go behind "not you?". */
+  const [known, setKnown] = useState(false);
   const [color, setColor] = useState(CAR_COLORS[0]);
   const [status, setStatus] = useState<Status>("setup");
   const [players, setPlayers] = useState<HubPlayer[]>([]);
@@ -100,7 +114,18 @@ export default function HubLobby() {
 
   useEffect(() => {
     const p = loadProfile();
-    setName(p.name);
+    if (p.name) {
+      // Somebody who has been here before does not need to be asked
+      // again. One button, their name on it.
+      setName(p.name);
+      setKnown(true);
+    } else {
+      // ...and somebody who has not gets a name rather than an empty
+      // box, so the only thing left to decide is whether to keep it.
+      const h = rollHandle();
+      setName(h.en);
+      setHandleAr(h.ar);
+    }
     if (CAR_COLORS.includes(p.color)) setColor(p.color);
     // The code is derived from an id in local storage, so it exists
     // before the socket does and survives every reload.
@@ -123,7 +148,9 @@ export default function HubLobby() {
   }, [chat]);
 
   const join = useCallback(() => {
-    const trimmed = name.trim();
+    // The same cleaning the button's enabled state uses, so the two can
+    // never disagree about whether this name is joinable.
+    const trimmed = cleanHandle(name);
     if (!trimmed || clientRef.current) return;
     saveProfile({ name: trimmed, color });
     setStatus("connecting");
@@ -242,53 +269,159 @@ export default function HubLobby() {
           </div>
         </div>
 
-        {/* Profile + join */}
+        {/* Joining.
+
+            There is no account here — no password, no email, nothing to
+            confirm — and the most useful thing this panel can do is say
+            so, because a box asking for a name reads as the first step
+            of a sign-up until something tells you otherwise.
+
+            Two shapes. Somebody the game already knows gets one button
+            with their name on it and nothing else to read. Somebody new
+            gets a name already in the box, a button to roll another, and
+            the colours. Neither is ever looking at a dead button. */}
         {status !== "online" && (
           <div className="grn-panel mx-auto mt-8 max-w-md p-7">
-            <label className="grn-label text-[0.75rem]">
-              Driver name — <span className="grn-ar" lang="ar">اسم السائق</span>
-            </label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && join()}
-              maxLength={24}
-              placeholder="Bu Dragster"
-              className="mt-2 w-full rounded-lg border border-white/15 bg-black/45 px-4 py-3 text-base font-semibold outline-none transition focus:border-gulf-400 focus:ring-2 focus:ring-gulf-400/30"
-            />
-            <label className="grn-label mt-6 block text-[0.75rem]">
-              Car colour — <span className="grn-ar" lang="ar">لون السيارة</span>
-            </label>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {CAR_COLORS.map((c) => (
+            {known ? (
+              <>
+                <div className="text-center">
+                  <div className="grn-label text-[0.7rem] text-white/60">Welcome back</div>
+                  <div className="grn-display mt-1 text-3xl italic">{name}</div>
+                  <div className="mt-2 flex items-center justify-center gap-2">
+                    <span
+                      className="inline-block size-4 rounded-full border border-white/30"
+                      style={{ backgroundColor: color }}
+                    />
+                    <span className="text-xs text-white/55">your car</span>
+                  </div>
+                </div>
                 <button
-                  key={c}
-                  onClick={() => setColor(c)}
-                  aria-label={`car colour ${c}`}
-                  className={`size-10 rounded-full border-2 transition ${
-                    color === c
-                      ? "scale-110 border-gulf-300 shadow-[0_0_16px_rgba(127,227,255,0.7)]"
-                      : "border-white/20 hover:border-white/50"
-                  }`}
-                  style={{ backgroundColor: c }}
-                />
-              ))}
-            </div>
-            <button
-              onClick={join}
-              disabled={!name.trim() || status === "connecting"}
-              className="grn-btn grn-btn-primary mt-7 w-full py-3.5 text-lg disabled:opacity-40 disabled:hover:translate-y-0"
-            >
-              {status === "connecting" ? "CONNECTING…" : <>JOIN THE HUB — <span className="grn-ar" lang="ar">يلا</span></>}
-            </button>
+                  onClick={join}
+                  disabled={status === "connecting"}
+                  className="grn-btn grn-btn-primary mt-6 w-full py-3.5 text-lg disabled:opacity-40 disabled:hover:translate-y-0"
+                >
+                  {status === "connecting" ? (
+                    "CONNECTING…"
+                  ) : (
+                    <>
+                      DRIVE — <span className="grn-ar" lang="ar">يلا</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => setKnown(false)}
+                  className="mt-3 w-full text-center text-xs text-white/45 underline-offset-4 transition hover:text-white/80 hover:underline"
+                >
+                  Not you? Change name or colour
+                </button>
+              </>
+            ) : (
+              <>
+                <label className="grn-label text-[0.75rem]" htmlFor="driver-name">
+                  Driver name — <span className="grn-ar" lang="ar">اسم السائق</span>
+                </label>
+                <div className="mt-2 flex gap-2">
+                  <input
+                    id="driver-name"
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      // The Arabic belongs to the suggestion, not to
+                      // whatever gets typed over it.
+                      setHandleAr(null);
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && join()}
+                    maxLength={MAX_HANDLE}
+                    autoComplete="off"
+                    spellCheck={false}
+                    placeholder="Bu Turbo"
+                    className="min-w-0 flex-1 rounded-lg border border-white/15 bg-black/45 px-4 py-3 text-base font-semibold outline-none transition focus:border-gulf-400 focus:ring-2 focus:ring-gulf-400/30"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const h = rollHandle(name);
+                      setName(h.en);
+                      setHandleAr(h.ar);
+                    }}
+                    title="Suggest another name"
+                    aria-label="Suggest another name"
+                    className="shrink-0 rounded-lg border border-white/15 bg-white/8 px-4 text-lg text-white/75 transition hover:border-white/40 hover:text-white"
+                  >
+                    ⟳
+                  </button>
+                </div>
+                {/* Only under a name the game itself offered — see the
+                    note on handleAr. */}
+                {handleAr && (
+                  <div className="grn-ar mt-1.5 text-sm text-white/55" lang="ar" dir="rtl">
+                    {handleAr}
+                  </div>
+                )}
+
+                <label className="grn-label mt-6 block text-[0.75rem]">
+                  Car colour — <span className="grn-ar" lang="ar">لون السيارة</span>
+                </label>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {CAR_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setColor(c)}
+                      aria-label={`car colour ${c}`}
+                      className={`size-10 rounded-full border-2 transition ${
+                        color === c
+                          ? "scale-110 border-gulf-300 shadow-[0_0_16px_rgba(127,227,255,0.7)]"
+                          : "border-white/20 hover:border-white/50"
+                      }`}
+                      style={{ backgroundColor: c }}
+                    />
+                  ))}
+                </div>
+                <button
+                  onClick={join}
+                  disabled={!cleanHandle(name) || status === "connecting"}
+                  className="grn-btn grn-btn-primary mt-7 w-full py-3.5 text-lg disabled:opacity-40 disabled:hover:translate-y-0"
+                >
+                  {status === "connecting" ? (
+                    "CONNECTING…"
+                  ) : (
+                    <>
+                      JOIN THE CRUISE — <span className="grn-ar" lang="ar">يلا</span>
+                    </>
+                  )}
+                </button>
+                <p className="mt-3 text-center text-[11px] leading-4 text-white/45">
+                  No account, no password, no email. The name is kept on this device, and you can
+                  change it whenever you like.
+                </p>
+              </>
+            )}
+
+            {/* What went wrong, and a way out of it. The command that
+                starts the server is a developer's answer to a player's
+                problem, so it only appears where it could possibly be
+                the right one: a hub on this machine. */}
             {status === "offline" && (
-              <p className="mt-4 text-center text-xs leading-5 text-red-300">
-                Couldn&apos;t reach the hub server at{" "}
-                <code className="rounded bg-black/40 px-1">{DEFAULT_HUB_URL}</code>.
-                <br />
-                Start it with <code className="rounded bg-black/40 px-1">npm run hub</code> and try
-                again.
-              </p>
+              <div className="mt-5 rounded-lg border border-red-400/30 bg-red-400/5 px-4 py-3 text-center">
+                <p className="text-xs leading-5 text-red-200">
+                  The cruise did not answer — it may be down, or the connection dropped.
+                </p>
+                <button onClick={join} className="grn-btn mt-3 w-full py-2 text-sm">
+                  Try again
+                </button>
+                {LOCAL_HUB && (
+                  <p className="mt-3 text-[11px] leading-4 text-white/40">
+                    Running it locally? Start the hub with{" "}
+                    <code className="rounded bg-black/40 px-1">npm run hub</code>.
+                  </p>
+                )}
+                <Link
+                  href="/race"
+                  className="mt-3 block text-[11px] text-white/45 underline-offset-4 hover:text-white/80 hover:underline"
+                >
+                  Drive solo instead — the road is still yours
+                </Link>
+              </div>
             )}
           </div>
         )}

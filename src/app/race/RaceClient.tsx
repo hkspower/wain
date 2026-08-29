@@ -12,7 +12,8 @@ import RoadMapView from "./RoadMapView";
 import type { RoadMap } from "@/game/roadmap";
 import { gearAt } from "@/game/gears";
 import { RIVALS, RivalDef } from "@/game/rivals";
-import { HubClient, DuelInvite, loadProfile, formatLap } from "@/game/net";
+import { HubClient, DuelInvite, loadProfile, saveProfile, formatLap } from "@/game/net";
+import { cleanHandle, rollHandle } from "@/game/handles";
 import {
   Profile,
   loadProfileStats,
@@ -1372,7 +1373,16 @@ export default function RaceClient() {
 
     // Online cruise: connect to the hub and mirror the other drivers.
     if (new URLSearchParams(window.location.search).has("online")) {
-      const profile = loadProfile();
+      // A driver who came straight here and never opened the lobby has
+      // no name. They used to be called "racer" — as was everybody else
+      // who did the same, so a busy road was six cars called racer. Roll
+      // one and keep it, so this is the last time the question comes up
+      // and the name is the same one next week.
+      let profile = loadProfile();
+      if (!cleanHandle(profile.name)) {
+        profile = { ...profile, name: rollHandle().en };
+        saveProfile(profile);
+      }
       const hub = new HubClient(
         {
           onWelcome: (selfId, roster) => {
@@ -1429,7 +1439,7 @@ export default function RaceClient() {
             showMessage("Hub disconnected", "Cruising solo — the road is still yours");
           },
         },
-        profile.name || "racer",
+        profile.name,
         profile.color
       );
       hubRef.current = hub;
