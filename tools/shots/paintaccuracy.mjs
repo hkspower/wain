@@ -57,6 +57,38 @@ function lab(r8, g8, b8) {
   return [116*fy - 16, 500*(fx - fy), 200*(fy - fz)];
 }
 const hueOf = ([, a, b]) => (Math.atan2(b, a) * 180 / Math.PI + 360) % 360;
+/** CIEDE2000, the same instrument tests/paints.mjs holds the palette to. */
+function deltaE(l1, l2) {
+  const [L1, a1, b1] = l1, [L2, a2, b2] = l2;
+  const rad = Math.PI / 180, deg = 180 / Math.PI;
+  const C1 = Math.hypot(a1, b1), C2 = Math.hypot(a2, b2), Cbar = (C1 + C2) / 2;
+  const G = 0.5 * (1 - Math.sqrt(Cbar ** 7 / (Cbar ** 7 + 25 ** 7)));
+  const ap1 = (1 + G) * a1, ap2 = (1 + G) * a2;
+  const Cp1 = Math.hypot(ap1, b1), Cp2 = Math.hypot(ap2, b2);
+  const hp = (b, ap) => (b === 0 && ap === 0 ? 0 : ((Math.atan2(b, ap) * deg) + 360) % 360);
+  const hp1 = hp(b1, ap1), hp2 = hp(b2, ap2);
+  const dLp = L2 - L1, dCp = Cp2 - Cp1;
+  let dhp = 0;
+  if (Cp1 * Cp2 !== 0) {
+    dhp = hp2 - hp1;
+    if (dhp > 180) dhp -= 360; else if (dhp < -180) dhp += 360;
+  }
+  const dHp = 2 * Math.sqrt(Cp1 * Cp2) * Math.sin((dhp * rad) / 2);
+  const Lbar = (L1 + L2) / 2, Cpbar = (Cp1 + Cp2) / 2;
+  let hbar = hp1 + hp2;
+  if (Cp1 * Cp2 !== 0) {
+    if (Math.abs(hp1 - hp2) > 180) hbar += hp1 + hp2 < 360 ? 360 : -360;
+    hbar /= 2;
+  }
+  const T = 1 - 0.17 * Math.cos((hbar - 30) * rad) + 0.24 * Math.cos(2 * hbar * rad)
+    + 0.32 * Math.cos((3 * hbar + 6) * rad) - 0.20 * Math.cos((4 * hbar - 63) * rad);
+  const dTheta = 30 * Math.exp(-(((hbar - 275) / 25) ** 2));
+  const Rc = 2 * Math.sqrt(Cpbar ** 7 / (Cpbar ** 7 + 25 ** 7));
+  const Sl = 1 + (0.015 * (Lbar - 50) ** 2) / Math.sqrt(20 + (Lbar - 50) ** 2);
+  const Sc = 1 + 0.045 * Cpbar, Sh = 1 + 0.015 * Cpbar * T;
+  const Rt = -Math.sin(2 * dTheta * rad) * Rc;
+  return Math.sqrt((dLp / Sl) ** 2 + (dCp / Sc) ** 2 + (dHp / Sh) ** 2 + Rt * (dCp / Sc) * (dHp / Sh));
+}
 const chromaOf = ([, a, b]) => Math.hypot(a, b);
 const hueGap = (h1, h2) => { const d = Math.abs(h1 - h2) % 360; return d > 180 ? 360 - d : d; };
 
@@ -191,7 +223,7 @@ for (const p of paints) {
   const NEUTRAL = 8;
   const keep = c0 >= NEUTRAL ? c1 / c0 : null;
   const drift = c0 < NEUTRAL ? c1 - c0 : null;
-  rows.push([p.id, err, keep, c0, drift]);
+  rows.push([p.id, err, keep, c0, drift, wl, gl]);
   const hex = "#" + [px[0],px[1],px[2]].map((v) => Math.round(v).toString(16).padStart(2,"0")).join("");
   console.log(
     `${p.id.padEnd(20)} ${want}  ${hex}  ` +
@@ -220,6 +252,45 @@ if (chromatic.length) {
     console.log("none past 15.");
   }
 }
+// --- THE ONE THAT MATTERS -------------------------------------------
+//
+// tests/paints.mjs holds every pair of paints 12 CIEDE2000 apart, and it
+// holds them apart AS SWATCHES. A swatch is the input. What the player
+// buys is a car, and the road compresses: the dark end squeezes together
+// and warm colours lose most of their chroma to a blue night, so two
+// paints that are plainly different in the shop can arrive at the same
+// place on the car.
+//
+// That is the palette's own stated law — "two blues a player cannot tell
+// apart on a dark road are one blue that cost twice" — measured at the
+// end of the pipeline instead of the start.
+{
+  const FLOOR = 12;
+  const pairs = [];
+  for (let i = 0; i < rows.length; i++) {
+    for (let j = i + 1; j < rows.length; j++) {
+      pairs.push({
+        a: rows[i][0], b: rows[j][0],
+        swatch: deltaE(rows[i][5], rows[j][5]),
+        rendered: deltaE(rows[i][6], rows[j][6]),
+      });
+    }
+  }
+  pairs.sort((x, y) => x.rendered - y.rendered);
+  const collapsed = pairs.filter((p) => p.rendered < FLOOR);
+  console.log(`\nAS RENDERED, closest pairs (the design floor is ${FLOOR}):`);
+  for (const p of pairs.slice(0, 8)) {
+    console.log(
+      `  ${p.a.padEnd(16)} ${p.b.padEnd(16)} swatch ${p.swatch.toFixed(1).padStart(5)} ` +
+      `→ rendered ${p.rendered.toFixed(1).padStart(5)}${p.rendered < FLOOR ? "   TOO CLOSE" : ""}`
+    );
+  }
+  console.log(
+    `${collapsed.length} of ${pairs.length} pairs are under the floor on the car ` +
+    `while every one of them clears it in the shop.`
+  );
+}
+
 if (neutrals.length) {
   const worst = neutrals.slice().sort((a, b) => b[4] - a[4])[0];
   console.log(

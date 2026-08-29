@@ -63,11 +63,32 @@ export interface Paint {
  * Ordered within families from dark to light, which is the order a
  * swatch grid wants and not the order they were added in.
  */
+/**
+ * A NOTE ON WHY SOME OF THESE ARE LIGHTER THAN THEY LOOK.
+ *
+ * The floor below — no two paints perceptually close — is enforced on
+ * the SWATCH, and a swatch is the input. What the player buys is a car,
+ * and the road compresses what it is given: the dark end squeezes
+ * together and warm colours lose most of their chroma to a blue night.
+ * Measured on the built car (tools/shots/paintaccuracy.mjs), twelve
+ * pairs that clear the floor in the shop fell under it on the road —
+ * black, gunmetal and slate arrived within eight points of lightness of
+ * each other, and red, orange and coral converged as their chroma
+ * drained.
+ *
+ * So five of these are chosen against what the road does to them rather
+ * than against how they read on a card. Gunmetal and slate are lighter
+ * than a tin of either would be, orange is pushed toward yellow and away
+ * from red, coral is lighter still, and sand is lifted off gold. The
+ * palette exists to be told apart on a dark road; picking it to look
+ * good in a grid and hoping is how it ends up with three greys nobody
+ * can distinguish at 200 km/h.
+ */
 export const PAINTS: Paint[] = [
   // --- mono: the ones most cars on any road actually are
   { id: "paint-black", hex: 0x0d0e11, family: "mono" },
-  { id: "paint-gunmetal", hex: 0x4a5058, family: "mono" },
-  { id: "paint-slate", hex: 0x7a8794, family: "mono" },
+  { id: "paint-gunmetal", hex: 0x5f6873, family: "mono" },
+  { id: "paint-slate", hex: 0x8593a2, family: "mono" },
   { id: "paint-silver", hex: 0xb9bfc7, family: "mono" },
   { id: "paint-white", hex: 0xf2f4f7, family: "mono", asColor: "White", asColorAr: "أبيض" },
 
@@ -77,7 +98,7 @@ export const PAINTS: Paint[] = [
   { id: "paint-olive", hex: 0x6d6a2f, family: "warm" },
   { id: "paint-red", hex: 0xc1121f, family: "warm" },
   { id: "paint-gold", hex: 0xc9a227, family: "warm" },
-  { id: "paint-sand", hex: 0xcbb388, family: "warm" },
+  { id: "paint-sand", hex: 0xdcc79c, family: "warm" },
 
   // --- cool: the water this road runs along
   { id: "paint-navy", hex: 0x16305e, family: "cool" },
@@ -90,8 +111,8 @@ export const PAINTS: Paint[] = [
   // --- loud: bought to be seen
   { id: "paint-purple", hex: 0x5b2a86, family: "loud" },
   { id: "paint-rose", hex: 0xd9557f, family: "loud" },
-  { id: "paint-orange", hex: 0xe2571c, family: "loud" },
-  { id: "paint-coral", hex: 0xff9179, family: "loud" },
+  { id: "paint-orange", hex: 0xef7a0a, family: "loud" },
+  { id: "paint-coral", hex: 0xffab95, family: "loud" },
   { id: "paint-yellow", hex: 0xf7e21c, family: "loud" },
   { id: "paint-lime", hex: 0x9ad11f, family: "loud" },
 ];
