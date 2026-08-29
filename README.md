@@ -101,6 +101,7 @@ because the rigs place real orders against a real database.
 | `npm run test:art` | The category tiles, bundled and remote |
 | `npm run test:live` | The real `api.php` contract |
 | `npm run test:payments` | All three methods side by side, both callbacks forged, and everything the checkout refuses — including a client that sends its own price |
+| `npm run test:checkout` | Both ways to buy — the full form and Buy now — each offering both ways to pay: a cash order through to the result page, KNET handed to the bank carrying its own track id, and the "you already have parcels out" refusal shown to the shopper with KNET offered as the way through |
 | `npm run test:tpay` | CBK T-Pay: the link, the dropin's refusals, the pending state |
 | `npm run test:admin` | The panel in a browser, against `scripts/mock-admin.py` |
 | `npm run test:admin-contract` | admin.ts, admin.php and the mock name the same routes — no server |
