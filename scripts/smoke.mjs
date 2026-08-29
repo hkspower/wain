@@ -20,9 +20,30 @@ const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
 // broken. Every query below goes through this.
 const seen = (loc) => loc.filter({ visible: true })
 const p = await b.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })
-// The catalogue fetch cannot succeed from this sandbox — outbound HTTPS to the
-// shop is blocked — and that is the offline path this test WANTS exercised.
-// Its network error is filtered out by URL; nothing else is.
+
+// THE OFFLINE PATH IS CUT HERE, NOT HOPED FOR.
+//
+// This file used to say "the catalogue fetch cannot succeed from this sandbox
+// — outbound HTTPS to the shop is blocked", and that was true when it was
+// written. It stopped being true, silently, the day scripts/serve-dist.py
+// gained an /api passthrough to the PHP site on 4300 — added for a different
+// rig, and correct for that one, because production really is one origin.
+//
+// The result was six failures and a thirty-second timeout that looked like the
+// shop was broken and was nothing of the kind: with a reachable API the app
+// loads the REAL catalogue, so a rig written against the nine bundled products
+// was hunting for a sold-out badge, a nearly-gone badge, a new badge and a
+// discount among forty-six garments that carry none of them. Measured: `shop
+// lists products (46)`, which passed, sitting three lines above four badge
+// assertions that could not.
+//
+// A test that needs a specially-built export is a test that gets run wrong,
+// and the README carried a paragraph explaining how to build it. So the
+// condition is now MADE rather than assumed: every /api request is aborted, the
+// bundled fallback is what the app renders, and this rig is correct against any
+// build and any harness. Its network error is filtered out by URL below;
+// nothing else is.
+await p.route('**/api/**', (route) => route.abort())
 const ignorable = (s) => /ERR_TUNNEL_CONNECTION_FAILED|ERR_NAME_NOT_RESOLVED|Failed to load resource/.test(s)
 
 // One more, and only on the two dynamic routes. `expo export --platform web`

@@ -138,24 +138,23 @@ because the rigs place real orders against a real database.
 | `npm run scan:site:curl` | The same, with nothing but curl — aimed by ARGUMENT, not `BASE`: `bash scripts/site-scan.sh http://127.0.0.1:4300` |
 | `npm run site:diff` | Is a live server the same build as this repo's copy? |
 
-`npm run test:shop` needs the opposite of the others: an export whose API is
-UNREACHABLE.
-
-```sh
-EXPO_PUBLIC_API_BASE=https://offline.invalid/api npm run build:web && npm run test:shop
-```
-
-It drives the app's BUNDLED FALLBACK catalogue — the nine products in
-`src/lib/catalog.ts` — and that is deliberate: those nine carry a sold-out
-product, a nearly-gone one, a new one and a discounted one, so all four badge
-states are on one screen. Two of them were unreachable when the badge was
+`npm run test:shop` drives the app's BUNDLED FALLBACK catalogue — the nine
+products in `src/lib/catalog.ts` — and that is deliberate: those nine carry a
+sold-out product, a nearly-gone one, a new one and a discounted one, so all four
+badge states are on one screen. Two of them were unreachable when the badge was
 written, because nothing in a live catalogue happened to be in that state.
 
-Point it at a working API and it fails seven checks with no clue why: the app
-loads the real 46-product catalogue, `grip-training-glove` and the other four
-slugs are simply not in it, and `badgeOn()` returns nothing for each. That is
-not a regression, it is the wrong build — and it cost a diagnosis once, which is
-why it is written down here.
+**It no longer needs a special build.** It used to require an export whose API
+was unreachable, and it failed six checks and timed out for thirty seconds when
+run any other way — the app loads the real 46-product catalogue, the five slugs
+it looks for are not in it, and `badgeOn()` returns nothing for each. That is
+not a regression and never was; it is the wrong build. It cost a diagnosis
+twice, the second time because `scripts/serve-dist.py` gained an `/api`
+passthrough for a different rig and silently made every ordinary sandbox run the
+wrong build.
+
+So the rig now aborts every `/api` request itself. The offline path is made
+rather than assumed, and `npm run test:shop` is correct against any build.
 
 `npm run test:admin` needs the export built against the mock, which serves the
 app itself on the same origin — the topology Apache gives production:
