@@ -12,8 +12,10 @@ import RoadMapView from "./RoadMapView";
 import type { RoadMap } from "@/game/roadmap";
 import { gearAt } from "@/game/gears";
 import { RIVALS, RivalDef } from "@/game/rivals";
-import { HubClient, DuelInvite, loadProfile, saveProfile, formatLap } from "@/game/net";
+import { HubClient, DuelInvite, loadProfile, saveProfile, formatLap, DEFAULT_HUB_URL } from "@/game/net";
 import { RACE_DISTANCES, distanceById } from "@/game/distances";
+import { kuwaitTime, racingOpenNow } from "@/game/clock";
+import { QUESTS, questDone, loadProgress as loadRunProgress } from "@/game/quests";
 import { cleanHandle, rollHandle } from "@/game/handles";
 import {
   Profile,
@@ -742,6 +744,17 @@ export default function RaceClient() {
   /** The length of the race being set up. Opens on the rival's own — see
    *  RivalDef.distance — and the player is free to change it. */
   const [raceDistance, setRaceDistance] = useState("standard");
+  /** The menu's Kuwait clock. Null until the client has one: this
+   *  component server-renders, and a Date read during render would
+   *  hydrate to a different minute than it printed. */
+  const [kwNow, setKwNow] = useState<Date | null>(null);
+  /** Runs finished, out of QUESTS.length — read from the save on the
+   *  menu, so the night's progress is visible before you drive. */
+  const [runsDone, setRunsDone] = useState<number | null>(null);
+  /** Who is out there right now, off the hub's REST status. Null means
+   *  unknown — hub down or unreachable — and unknown renders as
+   *  nothing, not as zero: "0 online" is a claim, silence is not. */
+  const [onlineNow, setOnlineNow] = useState<number | null>(null);
   const [nearby, setNearby] = useState<{ id: number; name: string; dist: number } | null>(null);
   const nearbyRef = useRef<{ id: number; name: string; dist: number } | null>(null);
   const duelRef = useRef(false);
@@ -1279,6 +1292,34 @@ export default function RaceClient() {
     setPhase("menu");
   }, []);
 
+  // The menu's live facts: the Kuwait clock, the runs, who is online.
+  // All three are menu-only — they stop the moment the engine starts —
+  // and all three fail quiet: a hub that does not answer inside two
+  // seconds simply is not mentioned.
+  useEffect(() => {
+    if (phase !== "menu") return;
+    const tick = () => setKwNow(kuwaitTime());
+    tick();
+    const t = setInterval(tick, 30_000);
+    try {
+      const p = loadRunProgress();
+      setRunsDone(QUESTS.filter((q) => questDone(q, p)).length);
+    } catch {}
+    const ctl = new AbortController();
+    const kill = setTimeout(() => ctl.abort(), 2000);
+    fetch(`${DEFAULT_HUB_URL.replace(/^ws/, "http")}/api/v1/status`, { signal: ctl.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (j && typeof j.online === "number") setOnlineNow(j.online);
+      })
+      .catch(() => {})
+      .finally(() => clearTimeout(kill));
+    return () => {
+      clearInterval(t);
+      ctl.abort();
+    };
+  }, [phase]);
+
   const startGame = useCallback(async () => {
     // startingRef guards the async import window — without it a double
     // Enter/click builds two engines on the same canvas
@@ -1758,6 +1799,24 @@ export default function RaceClient() {
         run: () => {
           setGarage(loadGarage());
           setGarageOpen(true);
+        },
+      },
+      {
+        key: "online",
+        label: "CRUISE ONLINE",
+        ar: "التجمع",
+        icon: "car" as IconName,
+        hint: "Real drivers on the same road — runs and duels",
+        run: () => {
+          // The online cruise has always been real; the way IN was not.
+          // It was reachable only by hand-typing ?online into the URL,
+          // which is a debug flag's front door, not a feature's. The
+          // boot flow reads the param once at engine start, so setting
+          // it here and starting is the entire integration.
+          const u = new URL(window.location.href);
+          u.searchParams.set("online", "1");
+          window.history.replaceState(null, "", u);
+          startGame();
         },
       },
       {
@@ -2689,6 +2748,31 @@ export default function RaceClient() {
               <div className="grn-ar mt-1.5 text-lg text-white/70" dir="rtl" lang="ar">
                 ليالي شارع الخليج
               </div>
+              {/* Whether racing is open, on the screen where you decide
+                  to press START. The window is the rule the whole night
+                  runs on, and the menu was the one place that never said
+                  it — a player who pressed START at 6am found out from
+                  the road. Same clock the world runs on: Kuwait's, by
+                  IANA zone, never the browser's. */}
+              {kwNow && (
+                <div className="grn-label mt-2.5 inline-flex items-center gap-2 rounded-full border border-white/12 bg-black/30 px-3 py-1 text-[0.72rem]">
+                  <span className="tnum text-white/85">
+                    {String(kwNow.getHours()).padStart(2, "0")}:
+                    {String(kwNow.getMinutes()).padStart(2, "0")}
+                  </span>
+                  <span className="text-white/40">Kuwait</span>
+                  {racingOpenNow() ? (
+                    <span className="text-emerald-300">racing open · till 05:50</span>
+                  ) : (
+                    <span className="text-white/62">racing returns at midnight</span>
+                  )}
+                  {onlineNow !== null && onlineNow > 0 && (
+                    <span className="text-gulf-300">
+                      · {onlineNow} cruising
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Career stats — the returning-player payoff */}
@@ -2756,7 +2840,11 @@ export default function RaceClient() {
                       <span className="grn-ar text-white/60" lang="ar">{RIVALS[beaten].arabicName}</span>
                     </div>
                     <div className="truncate text-[0.8rem] text-white/55">
-                      {RIVALS[beaten].crew} · {RIVALS[beaten].area}
+                      {RIVALS[beaten].crew} · {RIVALS[beaten].area} ·{" "}
+                      {/* Their signature distance — the ladder's
+                          difficulty curve in a number the player can
+                          read from the menu. */}
+                      {distanceById(RIVALS[beaten].distance).km} km
                     </div>
                   </div>
                   <div className="ml-auto shrink-0 text-right">
@@ -2832,12 +2920,20 @@ export default function RaceClient() {
                   </>
                 )}
               </span>
-              <a
-                href="/hub"
-                className="grn-label text-[0.7rem] text-gulf-300 underline-offset-4 hover:underline"
-              >
-                Online hub →
-              </a>
+              <span className="flex items-center gap-3">
+                {runsDone !== null && (
+                  <span className="grn-label tnum text-[0.7rem] text-white/58">
+                    {runsDone}/{QUESTS.length} runs{" "}
+                    <span className="grn-ar text-white/50" lang="ar">مشاوير</span>
+                  </span>
+                )}
+                <a
+                  href="/hub"
+                  className="grn-label text-[0.7rem] text-gulf-300 underline-offset-4 hover:underline"
+                >
+                  Online hub →
+                </a>
+              </span>
             </div>
           </div>
           </div>

@@ -31,7 +31,11 @@ import { verticalFov, chaseDolly } from "./aspect";
 import { gripAtSpeed, newLoadState, solveLoad, type LoadResult } from "./grip";
 import { bestTow, solveTow, NO_TOW, TOW_REACH, type TowInput, type TowResult } from "./slipstream";
 import { buildRoadMap, nextStation, type RoadMap } from "./roadmap";
-import { kuwaitHours } from "./clock";
+import {
+  kuwaitHours,
+  RACE_OPEN_H as CLOCK_RACE_OPEN_H,
+  RACE_CLOSE_H as CLOCK_RACE_CLOSE_H,
+} from "./clock";
 import { CHANNELS, Music } from "./music";
 import { Radio } from "./radio";
 import {
@@ -2301,13 +2305,13 @@ export class GameEngine {
    * threshold would be a rule enforcing itself against the point of
    * having it.
    */
-  static readonly RACE_OPEN_H = 0;
+  static readonly RACE_OPEN_H = CLOCK_RACE_OPEN_H;
   /** World up, for the cross products that build a light basis. */
   private static readonly UP = new THREE.Vector3(0, 1, 0);
   /** How far along its own axis the key light stands from what it is
    *  lighting. The shadow frustum's near/far bracket this. */
   static readonly MOON_DIST = 400;
-  static readonly RACE_CLOSE_H = 5 + 50 / 60;
+  static readonly RACE_CLOSE_H = CLOCK_RACE_CLOSE_H;
   /** Minutes of play the racing window lasts. The clock keeps running
    *  afterwards — the sun comes up, and you can stay out in it. */
   private static readonly NIGHT_MINUTES = 40;

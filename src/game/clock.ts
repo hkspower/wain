@@ -64,3 +64,22 @@ export function kuwaitHours(at: Date = new Date()): number {
     k.getUTCMilliseconds() / 3600000
   );
 }
+
+/**
+ * The racing window, in Kuwait hours.
+ *
+ * These lived as statics on the engine, which was the wrong home the
+ * moment anything OUTSIDE the engine needed them: the menu wants to say
+ * whether racing is open before the engine exists — it is dynamically
+ * imported precisely so the menu does not pay for it — and a copy of
+ * "midnight to 05:50" typed into the menu would be the two-clocks bug
+ * this file exists to prevent. The engine's statics now read these.
+ */
+export const RACE_OPEN_H = 0;
+export const RACE_CLOSE_H = 5 + 50 / 60;
+
+/** Whether a race could START at this real moment in Kuwait. */
+export function racingOpenNow(at: Date = new Date()): boolean {
+  const h = kuwaitHours(at);
+  return h >= RACE_OPEN_H && h < RACE_CLOSE_H;
+}
