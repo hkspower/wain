@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { press } from '@/components/ui/press';
 
@@ -9,6 +9,7 @@ import { StatusChip } from '@/components/status-chip';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing, TapTarget } from '@/constants/theme';
+import { API_BASE } from '@/lib/config';
 import { useTheme } from '@/hooks/use-theme';
 import { adminApi, Unauthorized, type OrderStatus, type OrderSummary } from '@/lib/admin';
 import { useLang } from '@/lib/i18n';
@@ -49,7 +50,32 @@ export default function OrdersScreen() {
   useEffect(load, [load]);
 
   return (
-    <AdminShell title="Orders" loading={loading} error={error} onRetry={load}>
+    <AdminShell
+      title="Orders"
+      loading={loading}
+      error={error}
+      onRetry={load}
+      action={
+        // PRINT / SAVE AS PDF. The page it opens is api/orders-print.php: every
+        // order in the window as one document, each on its own sheet, which the
+        // browser turns into a single PDF.
+        //
+        // A LINK RATHER THAN A FETCH. The panel talks to admin.php with JSON and
+        // an X-Sporta-Admin header; this is a document a person reads and
+        // prints, so it has to be a real navigation carrying the session
+        // cookie — a header cannot ride on one, which is why that page gates on
+        // the session alone.
+        //
+        // Built from API_BASE so it follows the same host the rest of the panel
+        // was built against, rather than assuming production.
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="print or save all orders as a PDF"
+          onPress={() => Linking.openURL(`${API_BASE}/orders-print.php`)}
+          style={press(false, styles.printHit)}>
+          <ThemedText type="labelBold" themeColor="tint">Print / PDF</ThemedText>
+        </Pressable>
+      }>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -130,6 +156,7 @@ export default function OrdersScreen() {
 const styles = StyleSheet.create({
   filters: { gap: Spacing.two, paddingVertical: Spacing.two, flexDirection: 'row' },
   filterHit: { minHeight: TapTarget, justifyContent: 'center' },
+  printHit: { minHeight: TapTarget, justifyContent: 'center', paddingHorizontal: Spacing.two },
   filter: {
     minHeight: TapTarget - 12,
     justifyContent: 'center',

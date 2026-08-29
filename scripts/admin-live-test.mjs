@@ -240,6 +240,54 @@ if (!placedR?.order_id) {
   await call('fulfilment', { order_id: placedR.order_id, status: 'cancelled' })
 }
 
+// --- the printable orders sheet -------------------------------------------
+//
+// api/orders-print.php renders every order in a window as one document: name,
+// telephone number and full delivery address, one order per printed sheet. It
+// is the only page on this server that puts that much personal detail on a
+// screen at once, so what guards it is worth asserting rather than assuming.
+//
+// IT GATES ON THE SESSION ALONE, not store_require_admin(), because it is
+// opened by a real navigation — clicking a link or typing a URL — and a
+// navigation cannot carry the X-Sporta-Admin header the JSON routes demand.
+// That is a deliberate difference and exactly the kind that turns into an open
+// door when someone "tidies up" the gates later.
+{
+  const url = `${API}/orders-print.php`
+
+  // Signed OUT — a fresh request carrying no cookie at all.
+  const out = await fetch(url, { redirect: 'manual' })
+  check(out.status === 401,
+    `orders-print.php refuses a stranger (${out.status})`)
+  const outBody = await out.text().catch(() => '')
+  // AND SAYS NOTHING WHILE REFUSING. A 401 that still rendered the sheet below
+  // it would pass a status check and leak every address on the page.
+  check(!/customer_|Address|<section class="order"/.test(outBody),
+    'and prints no order data in the refusal',
+    outBody.slice(0, 120))
+
+  // Signed IN — the same cookie jar the rest of this file has been using.
+  const inRes = await fetch(url, { headers: { Cookie: cookie }, redirect: 'manual' })
+  const inBody = await inRes.text().catch(() => '')
+  check(inRes.status === 200, `and answers a signed-in manager (${inRes.status})`)
+  check(/Sporta/.test(inBody) && /Print \/ Save as PDF/.test(inBody),
+    'with the printable sheet')
+  // ONE SHEET PER ORDER. Without the page break the PDF is a scroll of
+  // invoices cut across page boundaries, which cannot be handed to anyone.
+  check(/page-break-after:\s*always/.test(inBody),
+    'that starts each order on its own page')
+  // NEVER CACHED, and the assertion is on `private` rather than `no-store`.
+  //
+  // PHP's session handler emits "no-store, no-cache, must-revalidate" by itself
+  // the moment session_start() runs, so a check for no-store passes whether or
+  // not this page sets a single header — measured by deleting the line and
+  // watching the test stay green. `private` is the part the page adds, so it is
+  // the part that proves the line is still there.
+  check(/private/.test(inRes.headers.get('cache-control') ?? ''),
+    'and is never cached, by its own header rather than by luck',
+    inRes.headers.get('cache-control') ?? '(none)')
+}
+
 // --- out ------------------------------------------------------------------
 await call('logout', {})
 const after = await call('me')
