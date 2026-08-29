@@ -1,20 +1,26 @@
 # KNET — which integration this shop has, and what you must do on the server
 
-Sporta's KNET is **`tij_MerchPayType=1` on the CBK hosted page** — the same
-gateway, the same merchant account and the same credentials that already take
-T-Pay. There is no second bank relationship to set up and no third credential
-to chase.
+**Sporta pays through the Tranportal values.** That is the owner's decision and
+`knet/config.example.php` pins it — `'mode' => 'legacy'` — so nothing works it
+out at runtime. The three credentials go in that file and `knet/` does the rest:
+an AES-128-CBC `trandata` blob to `kpay.com.kw/kpg`, exactly as this dropin has
+always been written to do.
 
-`pay/cbk.php`'s own first line has said so since it was written: *"CBK Hosted
-**KNET & T-Pay** — implements the auth-token, checkout URL and transaction-verify
-calls from the CBK Integration & Reference Manual v2.93"*. So does
+There is a **second, working route** and it is kept tested rather than deleted,
+because it costs one line to reach and it is the answer if the Tranportal
+credentials ever turn out not to exist. KNET is also `tij_MerchPayType=1` on
+the CBK hosted page — the same gateway, merchant account and credentials that
+already take T-Pay. `pay/cbk.php`'s own first line says so: *"CBK Hosted **KNET
+& T-Pay** — implements the auth-token, checkout URL and transaction-verify calls
+from the CBK Integration & Reference Manual v2.93"*. So does
 `pay/config.example.php`:
 
     // Payment mode: '' = let customer choose, '1' = KNET only, '2' = T-Pay QR only
     'pay_type' => '',
 
-KNET was never missing from this shop. It was one parameter away, behind
-`pay/`, while `knet/` waited on credentials nobody was going to issue.
+To switch, set `'mode' => 'official'` in `knet/config.php`. Nothing else — the
+credentials are already in `pay/config.php` and `/knet/pay.php` hands the
+shopper over.
 
 ## The two integrations
 
@@ -26,36 +32,55 @@ KNET was never missing from this shop. It was one parameter away, behind
 | Crypto | AccessToken + `encrp_key`, per the manual | AES-128-CBC `trandata`, fixed IV, hex |
 | Settles at | `pay/callback.php` | `knet/callback.php` |
 | Open questions | none | three — see below |
-| **Sporta uses** | **this one** | only if the bank issued the three values |
+| **Sporta uses** | the fallback, one line away | **this one** |
 
-Both are real. The legacy one is not deprecated and plenty of Kuwaiti shops run
-on it; it is simply not what this merchant was activated for.
+Both are real, and the legacy one is not deprecated — plenty of Kuwaiti shops
+run on it.
 
-### The three questions that only the legacy path asks
+### The three questions the Tranportal path asks
 
-They were written into `knet/config.example.php` as open items, and every one of
-them is a question to a bank that has to be answered before a single legacy
-transaction can be trusted:
+They are written into `knet/config.example.php` as open items. None of them
+stops you filling the file in today; each is something a failed transaction
+would otherwise teach you slowly, so put all three in one email to the bank:
 
 1. **Which credential is the "Tranportal ID"?** The nomination letter names a
-   Merchant ID and a Terminal ID (Sporta's test pair: merchant `6261`, terminal
-   `626101`) and calls neither of them Tranportal.
+   Merchant ID and a Terminal ID — Sporta's test pair, merchant `6261`,
+   terminal `626101` — and calls neither of them Tranportal. **`626101` is what
+   is set**, because the terminal-level number is what CBK usually means. If
+   the bank says merchant-level, change it to `6261`.
 2. **Is English `EN` or `USA`?** `langid` picks the face of the card page. Send
-   the wrong one and the bank is entitled to refuse the transaction.
+   the wrong one and the bank is entitled to refuse the transaction. Arabic is
+   `AR` either way, so an Arabic-first shop keeps working while you wait.
 3. **Which callback style does this Tranportal ID get?** The gateway either
    redirects the browser to `responseURL`, or calls it server-to-server and
-   reads `REDIRECT=<url>` out of the reply. The wrong guess strands a customer
-   on a blank bank page with their money taken.
+   reads `REDIRECT=<url>` out of the reply. **Already answered safely:** the
+   shipped `callback_response => 'both'` replies in both styles at once, so
+   leave it alone unless the bank says otherwise.
 
-On the official path all three disappear: language passes straight through as
-`ar`/`en`, the return is `pay/config.php`'s `return_url`, and the credentials
-are the ones already working for T-Pay.
+### The two credentials this project has never had
+
+`tranportal_password` and `resource_key` have never been written down anywhere
+in this repo, and neither is guessable. **Until both are in `knet/config.php`
+the dropin cannot complete a transaction** — `knet_assert_key()` throws on any
+resource key that is not exactly 16 bytes, and the shopper sees *"Payment init
+failed"*. A trailing space or newline from a copy/paste is the usual cause;
+`knet/selftest.php` counts the bytes for you and is the fastest way to catch it.
 
 ## How the shop chooses
 
 `/knet/pay.php` is the KNET door and stays the KNET door — the website's
 compiled bundle builds that URL itself and this repo does not hold its source.
-Behind it, `knet_mode()` decides:
+Behind it, `'mode' => 'legacy'` settles it for Sporta.
+
+**Why pin it rather than let it be worked out.** With no `mode` set, a
+Tranportal block that stops being usable — a mistyped password, a key that lost
+a byte, a file half-edited in File Manager — would silently become a CBK hosted
+page, and the shop would start taking money through a route nobody was
+expecting. Pinned, a broken Tranportal block stays a broken Tranportal block and
+says so. That is the right trade for a shop that has decided; the auto-detect
+below is the right one for a shop that has not.
+
+Left unset, `knet_mode()` decides:
 
 * **legacy** whenever `knet/config.php` holds a Tranportal block that could
   actually take a payment — all three values present, not the example's
@@ -64,15 +89,12 @@ Behind it, `knet_mode()` decides:
   shopper *"Payment init failed"*).
 * **official** otherwise — a `303` to `/pay/pay.php?trackid=…&lang=…&paytype=1`.
 
-The default can only ever turn a dead card path into a live one. A shop holding
-Tranportal credentials keeps the integration it is running; a shop that never
-finished that setup gets the one its credentials do open. To stop deciding, pin
-it — which is what to do the day the bank puts an answer in writing:
+That default can only ever turn a dead card path into a live one, which is why
+it is safe to ship — but Sporta overrides it, for the reason above.
 
-    'mode' => 'official',   // or 'legacy'
-
-`scripts/knet-test.mjs` (`npm run test:knet`) asserts the decision case by case
-and drives **both** routes over HTTP.
+`scripts/knet-test.mjs` (`npm run test:knet`) asserts the decision case by case,
+guards the shipped `'legacy'` pin and the `626101` terminal id, and drives
+**both** routes over HTTP.
 
 ### Why a redirect rather than the form served from `/knet/`
 
@@ -94,36 +116,53 @@ bank as `…A2`.
 
 ## What you have to do on the server
 
-1. **Nothing in `knet/config.php` for the credentials.** Leave the Tranportal
-   block empty. Leave the `mysql_*` keys empty too and the orders database is
-   inherited from `api/config.php` — one place, so a password rotated in hPanel
-   cannot kill the card path from a file nobody thought to open.
-2. **Fill in `pay/config.php`** if it is not already: `client_id`,
-   `client_secret`, `encrp_key` from CBK's activation email. This is the file
-   KNET now depends on. See `TPAY.md`.
-3. **`return_url`** in `pay/config.php` must be the public HTTPS address of
-   `pay/callback.php`. CBK calls it out of band, and that call — not the
-   customer coming back — is what marks an order paid. It settles KNET and
-   T-Pay alike; `pay/callback.php` records the type and branches on nothing.
-4. **Set `env` to `production`** when CBK moves you off the test gateway, and
-   confirm `production_base` against your activation email.
-5. **Keep both `config.php` files out of the web root's reach.** `.htaccess`
-   denies them and `.gitignore` keeps them out of the repository — they are
-   bearer credentials.
-6. **Delete `knet/selftest.php` and `pay/selftest.php`** once everything reads
-   OK. They report configuration status without a password.
+1. **Copy `knet/config.example.php` to `knet/config.php`** and fill in
+   `tranportal_password` and `resource_key` from the bank. `tranportal_id` is
+   already `626101` and `'mode' => 'legacy'` is already set. The resource key
+   must be **exactly 16 bytes** — paste it carefully.
+2. **Leave the `mysql_*` keys empty.** The orders database is inherited from
+   `api/config.php`, so it is named in one place and a password rotated in
+   hPanel cannot kill the card path from a file nobody thought to open. Without
+   a database there is no price authority at all and every payment is refused.
+3. **`response_url` and `error_url`** must both be the public HTTPS address of
+   `knet/callback.php`, and that URL has to be registered with the bank against
+   this Tranportal ID. That callback is what marks an order paid.
+4. **Set `env` to `production`** when the bank moves you off the test gateway.
+   `test` is the only value that selects `test_url`; anything else, including
+   nothing at all, is treated as live.
+5. **Run `/knet/selftest.php`** and read the top line: it names the integration
+   in force, then counts the resource key's bytes and checks the orders
+   database. It only opens while `env` is `test`.
+6. **Keep `config.php` out of the web root's reach.** `.htaccess` denies it and
+   `.gitignore` keeps it out of the repository — it is a bearer credential.
+7. **Delete `knet/selftest.php`** once everything reads OK. It reports
+   configuration status without a password.
 
-## If the bank tells you otherwise
+`pay/config.php` stays as it is — T-Pay still uses it, and it is what the
+fallback route would need.
 
-If CBK confirms Sporta *does* hold a Tranportal account, fill the three values
-into `knet/config.php` and the dropin in this directory takes over on its own —
-no code change. Answer the three questions above first, in the same email, and
-set `lang_en` to whatever the bank says English is.
+## If the Tranportal credentials turn out not to exist
+
+If the bank comes back and says there is no Tranportal account on this merchant
+— or simply cannot produce the password and resource key — the shop is not
+stuck. Set
+
+    'mode' => 'official',
+
+in `knet/config.php` and `/knet/pay.php` hands every KNET shopper to the CBK
+hosted page as `tij_MerchPayType=1`, using the credentials already in
+`pay/config.php`. No other change, no redeploy, and all three questions above
+stop mattering: language passes through as `ar`/`en`, the return is
+`pay/config.php`'s `return_url`, and `pay/callback.php` settles KNET and T-Pay
+alike. `npm run test:knet` drives that route on every run, so it is known to
+work before you need it.
 
 ## What cannot be tested from here
 
 Nothing in either path can be driven against the real bank from a sandbox, and
-the rigs say so rather than pretending. With no route to `pg.cbk.com` the
-official path gets as far as the token call and reports it; `test:knet` asserts
-the handoff, the KNET face, the track id and the price authority up to that
-point, and `test:tpay` prints the token call as a skip rather than a pass.
+the rigs say so rather than pretending. The Tranportal route is asserted as far
+as the redirect — the gateway URL, the uppercase-hex `trandata` blob, and that
+no amount travels in the link — and `test:payments` forges callbacks against
+`knet/callback.php` to prove the settling logic, including that a `trandata`
+encrypted under the wrong key settles nothing. What no rig here can tell you is
+whether the bank accepts the credentials; only a test transaction does that.

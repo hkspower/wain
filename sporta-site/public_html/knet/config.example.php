@@ -1,32 +1,36 @@
 <?php
-// KNET configuration.
+// KNET configuration — the Tranportal integration.
 //
 // ===========================================================================
-// MOST SHOPS DO NOT NEED TO FILL THIS FILE IN AT ALL. Read this first.
+// THIS SHOP USES THE TRANPORTAL VALUES. Owner's decision, and it is pinned
+// below rather than left to be worked out. Fill in the three credentials.
 // ===========================================================================
 //
-// There are two ways to take a KNET payment, and which one you have was
-// decided by your bank when it activated you:
+// There are two ways to take a KNET payment. Sporta is on the first:
 //
-//   THE OFFICIAL CBK HOSTED PAGE — the one Sporta is nominated for. KNET is
-//     `tij_MerchPayType=1` on the very same gateway, merchant account and
-//     credentials that already take T-Pay: pay/cbk.php calls itself "CBK
-//     Hosted KNET & T-Pay" and implements the CBK Integration & Reference
-//     Manual v2.93. Everything it needs lives in pay/config.php.
-//     THERE IS NOTHING TO FILL IN HERE FOR THIS. Leave the Tranportal block
-//     below empty and /knet/pay.php hands the shopper straight to it.
+//   LEGACY TRANPORTAL — this file. A Tranportal ID, a Tranportal password and
+//     a 16-byte Terminal Resource Key; an AES-128-CBC `trandata` blob; the
+//     shopper posted to kpay.com.kw/kpg. The three values come from the bank
+//     and go in the block below.
 //
-//   LEGACY TRANPORTAL — a separate, older KNET integration for shops issued a
-//     Tranportal ID, a Tranportal password and a 16-byte Terminal Resource
-//     Key. If you hold those three, fill them in below and this dropin uses
-//     them, exactly as it always has.
+//   THE OFFICIAL CBK HOSTED PAGE — the fallback, kept working and kept tested.
+//     KNET is `tij_MerchPayType=1` on the same gateway and merchant account
+//     that already take T-Pay: pay/cbk.php calls itself "CBK Hosted KNET &
+//     T-Pay" and implements the CBK Integration & Reference Manual v2.93.
+//     Everything it needs is already in pay/config.php, so switching to it is
+//     one line — `'mode' => 'official'` — and nothing else.
 //
-// Fill the block in ONLY if the bank actually issued you those three values.
-// Guessing at them is what left this shop without KNET: the three "confirm
-// this with the bank" notes that used to be in this file — which of the two
-// numbers on the nomination letter is the Tranportal ID, whether English is
-// 'EN' or 'USA', which of the two callback styles you get — are all questions
-// the legacy path asks and the official path does not. See KNET.md.
+// THREE THINGS TO CONFIRM WITH THE BANK, because the Tranportal path asks them
+// and the official one does not. None of them stops you filling this in today;
+// all three are things a failed transaction would otherwise teach you slowly:
+//
+//   1. WHICH NUMBER IS THE TRANPORTAL ID. The nomination letter names a
+//      Merchant ID and a Terminal ID and calls neither of them Tranportal.
+//      The terminal-level one is set below, which is what CBK usually means.
+//   2. WHETHER ENGLISH IS 'EN' OR 'USA' — see `lang_en` further down.
+//   3. WHICH CALLBACK STYLE this Tranportal ID gets — see `callback_response`.
+//      The shipped default answers both styles at once, so this one is already
+//      safe; the other two are not.
 //
 // Keep config.php out of public access (see .htaccess). Never commit real
 // credentials.
@@ -35,36 +39,56 @@ return [
     // 'test' or 'production'
     'env' => 'test',
 
-    // WHICH INTEGRATION. Leave it out and knet_mode() decides: legacy whenever
-    // the Tranportal block below could actually take a payment, official
-    // otherwise — so it can only ever turn a dead card path into a live one,
-    // never the reverse. Set it to stop deciding, which is what to do the day
-    // the bank puts the answer in writing:
+    // WHICH INTEGRATION — PINNED, not worked out.
+    //
+    // Left out, knet_mode() decides for itself: legacy whenever the Tranportal
+    // block below could actually take a payment, official otherwise. That
+    // default exists so a shop that never finished this setup still gets a
+    // working card path, and it is the right behaviour for a shop that has not
+    // decided. This one has.
+    //
+    // Pinning it means the shop cannot quietly change integration because a
+    // credential was mistyped, blanked, or lost to a bad copy/paste: with
+    // 'legacy' set, a broken Tranportal block is a broken Tranportal block and
+    // says so, instead of silently becoming a CBK hosted page and taking money
+    // through a route nobody was expecting.
+    //
+    //   'legacy'    the Tranportal integration in this file   <- Sporta
     //   'official'  the CBK hosted page as KNET (pay/config.php)
-    //   'legacy'    the Tranportal integration in this file
-    // 'mode' => 'official',
+    'mode' => 'legacy',
 
     // ---- LEGACY TRANPORTAL ONLY. Ignored on the official path. ----
     // KNET hosted-payment endpoints (standard KPG URLs).
     'test_url'       => 'https://kpaytest.com.kw/kpg/PaymentHTTP.htm',
     'production_url' => 'https://kpay.com.kw/kpg/PaymentHTTP.htm',
 
-    // --- LEGACY TRANPORTAL CREDENTIALS. LEAVE EMPTY UNLESS YOU HOLD THEM. ---
+    // --- THE TRANPORTAL CREDENTIALS. This is what the shop pays through. ---
     //
-    // Empty (or still holding these placeholders, or a resource key that is not
-    // exactly 16 bytes) means "no Tranportal account", and /knet/pay.php uses
-    // the official CBK hosted page instead. That is the right setting for
-    // Sporta.
+    // THE ID IS THE TEST TERMINAL FROM THE NOMINATION LETTER. That letter gives
+    // Sporta a merchant/terminal pair — merchant 6261, terminal 626101 — and
+    // calls neither of them "Tranportal". The terminal-level number is set
+    // here because that is the one CBK usually means; if the bank says it wants
+    // the merchant-level number, change it to 6261. It is the only Tranportal
+    // value this project has ever had written down, which is why it is the only
+    // one filled in below.
     //
-    // The nomination letter names a Merchant ID and a Terminal ID and calls
-    // NEITHER of them "Tranportal" (Sporta's test pair: merchant 6261,
-    // terminal 626101). Which one belongs here is a question for the bank —
-    // and it is a question you only have to ask if you are on this path. On
-    // the official path the same activation email that already works for
-    // T-Pay works for KNET, with no third credential to identify.
-    'tranportal_id'       => '',
-    'tranportal_password' => '',
-    'resource_key'        => '', // AES-128 key: EXACTLY 16 bytes, secret
+    // THE OTHER TWO HAVE TO COME FROM THE BANK. They have never been recorded
+    // anywhere in this project, and neither of them is guessable:
+    //
+    //   tranportal_password  no format to infer, no copy kept.
+    //   resource_key         EXACTLY 16 bytes — AES-128 takes nothing else.
+    //                        knet_assert_key() throws on any other length and
+    //                        the shopper gets "Payment init failed", so a
+    //                        trailing space or newline from a copy/paste is a
+    //                        dead card path. knet/selftest.php counts the bytes
+    //                        for you; it is the fastest way to catch it.
+    //
+    // Until both are in, this dropin cannot complete a transaction. That is the
+    // honest state and the self-test reports it as one, rather than falling
+    // through to another gateway — see the note on 'mode' above.
+    'tranportal_id'       => '626101',
+    'tranportal_password' => 'YOUR_TRANPORTAL_PASSWORD',
+    'resource_key'        => 'YOUR_TERMINAL_RESOURCE_KEY', // AES key, 16 bytes
 
     // --- Your URLs (KNET redirects the customer here) ---
     'response_url' => 'https://www.sporta.com.kw/knet/callback.php',
@@ -76,9 +100,7 @@ return [
     'action'        => '1',
     'currency_code' => '414',
 
-    // LEGACY ONLY, AND ONE OF THE THREE REASONS NOT TO BE ON IT. The official
-    // path takes the shop's own 'ar'/'en' straight through to the hosted page
-    // and this whole question disappears with it.
+    // OPEN QUESTION 2 OF 3. Ask the bank; the shop works meanwhile, in Arabic.
     //
     // WHICH STRING KNET WANTS FOR "ENGLISH" IS NOT SETTLED — confirm it, do
     // not assume it, in the same email as the RAW-toolkit request.
@@ -106,10 +128,9 @@ return [
     // but a payment system with no trail cannot be reconciled or disputed.
     'log_file' => __DIR__ . '/../../knet-payments.log',
 
-    // LEGACY ONLY, and the third of the three. On the official path the
-    // gateway returns to pay/config.php's return_url and pay/callback.php
-    // settles the order — one callback for both faces of the page, with
-    // nothing to choose.
+    // OPEN QUESTION 3 OF 3, and the one already answered safely: the default
+    // below replies in BOTH styles at once, so it is right whichever style the
+    // bank gives this Tranportal ID. Leave it alone unless they tell you.
     //
     // How the customer gets back to the shop after paying. See the long note
     // in callback.php: KPG either redirects the browser here, or calls this URL

@@ -141,6 +141,22 @@ try {
     const store = readFileSync(ROOT + 'api/store.php', 'utf8')
     check(/'knet' => "\/knet\/pay\.php/.test(store),
       'the shop still sends KNET to /knet/pay.php, whichever integration is behind it')
+
+    // THE OWNER'S DECISION, GUARDED. Sporta pays through the Tranportal
+    // values, and the shipped example pins 'legacy' so the shop cannot drift
+    // onto the other gateway because a credential was mistyped or blanked.
+    // This is asserted from the EXAMPLE rather than from config.php, because
+    // the example is what a fresh deploy copies and the only one of the two
+    // this repo holds.
+    const shipped = JSON.parse(execFileSync('php', ['-r', `
+      require "${ROOT}knet/knet.php";
+      $c = require "${ROOT}knet/config.example.php";
+      echo json_encode(["mode" => knet_mode($c), "id" => (string) $c["tranportal_id"]]);
+    `], { encoding: 'utf8' }))
+    check(shipped.mode === 'legacy',
+      "the shipped example pins the Tranportal integration", `got ${shipped.mode}`)
+    check(shipped.id === '626101',
+      'and carries the terminal id from the nomination letter', `got "${shipped.id}"`)
   }
 
   // ============================================================ legacy, live
