@@ -1,7 +1,14 @@
 -- Sporta — Apple Wallet passes.
 --
--- ADDITIVE. Fresh installs get this from schema.mysql.sql; running it again is
--- harmless. phpMyAdmin -> your database -> Import.
+-- ADDITIVE, and safe to re-run. phpMyAdmin -> your database -> Import.
+--
+-- It also rides in database-sql/IMPORT-THIS-ONE.sql, so a fresh install needs
+-- nothing done by hand. This used to say "fresh installs get this from
+-- schema.mysql.sql" and that was simply not true: schema.mysql.sql has never
+-- created wallet_passes. Measured by importing every part into an empty
+-- database and diffing it against the working shop — the table was in one and
+-- not the other, and because db-audit.php lists it as optional the only sign
+-- was a warning that read like a feature nobody had switched on.
 
 set names utf8mb4;
 
